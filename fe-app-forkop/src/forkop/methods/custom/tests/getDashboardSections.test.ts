@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
   getConfigSections: vi.fn(),
   getClashApiProxies: vi.fn(),
   canUseDirectClashApi: vi.fn(),
-  fsRead: vi.fn(),
+  dashboardCacheRead: vi.fn(),
 }));
 
 vi.mock('../getConfigSections', () => ({
@@ -14,6 +14,19 @@ vi.mock('../getConfigSections', () => ({
 vi.mock('../../shell', () => ({
   ForkopShellMethods: {
     getClashApiProxies: mocks.getClashApiProxies,
+    getDashboardSectionCache: async (section: string) => {
+      try {
+        return {
+          success: true,
+          data: JSON.parse(await mocks.dashboardCacheRead(section)),
+        };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : '',
+        };
+      }
+    },
   },
 }));
 
@@ -137,9 +150,8 @@ describe('getDashboardSections', () => {
     mocks.getConfigSections.mockReset();
     mocks.getClashApiProxies.mockReset();
     mocks.canUseDirectClashApi.mockReset();
-    mocks.fsRead.mockReset();
-    mocks.fsRead.mockRejectedValue(new Error('cache miss'));
-    vi.stubGlobal('fs', { read: mocks.fsRead });
+    mocks.dashboardCacheRead.mockReset();
+    mocks.dashboardCacheRead.mockResolvedValue('{}');
     vi.stubGlobal('window', undefined);
     vi.stubGlobal('fetch', undefined);
 
@@ -172,6 +184,13 @@ describe('getDashboardSections', () => {
     ]);
   });
 
+  it('surfaces dashboard section cache read failures', async () => {
+    mocks.getConfigSections.mockResolvedValue([proxySection()]);
+    mocks.dashboardCacheRead.mockRejectedValue(new Error('cache read failed'));
+
+    await expect(getDashboardSections()).rejects.toThrow('cache read failed');
+  });
+
   it('hydrates URLTest details from the section cache and Clash API', async () => {
     mocks.getConfigSections.mockResolvedValue([proxySection()]);
     mocks.getClashApiProxies.mockResolvedValue({
@@ -188,7 +207,7 @@ describe('getDashboardSections', () => {
         },
       },
     });
-    mocks.fsRead.mockResolvedValue(
+    mocks.dashboardCacheRead.mockResolvedValue(
       JSON.stringify({
         outboundMetadata: {
           names: {
@@ -268,7 +287,7 @@ describe('getDashboardSections', () => {
         },
       },
     });
-    mocks.fsRead.mockResolvedValue(
+    mocks.dashboardCacheRead.mockResolvedValue(
       JSON.stringify({
         urltestGroups: {
           'main-urltest-out': {
@@ -335,7 +354,7 @@ describe('getDashboardSections', () => {
         },
       },
     });
-    mocks.fsRead.mockResolvedValue(
+    mocks.dashboardCacheRead.mockResolvedValue(
       JSON.stringify({
         outboundMetadata: {
           names: {
@@ -435,7 +454,7 @@ describe('getDashboardSections', () => {
       success: true,
       data: { proxies: {} },
     });
-    mocks.fsRead.mockResolvedValue(
+    mocks.dashboardCacheRead.mockResolvedValue(
       JSON.stringify({
         priorityGroups: {
           'main-priority-pg_empty-out': {
@@ -728,7 +747,7 @@ describe('getDashboardSections', () => {
         }),
       }),
     ]);
-    mocks.fsRead.mockResolvedValue(
+    mocks.dashboardCacheRead.mockResolvedValue(
       JSON.stringify({
         outboundMetadata: {
           names: {},
@@ -756,7 +775,7 @@ describe('getDashboardSections', () => {
         }),
       }),
     ]);
-    mocks.fsRead.mockResolvedValue(
+    mocks.dashboardCacheRead.mockResolvedValue(
       JSON.stringify({
         outboundMetadata: {
           names: {},
@@ -780,7 +799,7 @@ describe('getDashboardSections', () => {
         subscription_urls: ['https://subscription.example/list'],
       }),
     ]);
-    mocks.fsRead.mockResolvedValue(
+    mocks.dashboardCacheRead.mockResolvedValue(
       JSON.stringify({
         links: {},
         linkRefs: {
@@ -809,7 +828,7 @@ describe('getDashboardSections', () => {
         subscription_urls: ['https://subscription.example/list'],
       }),
     ]);
-    mocks.fsRead.mockResolvedValue(
+    mocks.dashboardCacheRead.mockResolvedValue(
       JSON.stringify({
         outboundMetadata: {
           names: { 'main-2-out': 'Provider Subscription' },
@@ -846,7 +865,7 @@ describe('getDashboardSections', () => {
         }),
       }),
     ]);
-    mocks.fsRead.mockResolvedValue(
+    mocks.dashboardCacheRead.mockResolvedValue(
       JSON.stringify({
         outboundMetadata: {
           names: {},

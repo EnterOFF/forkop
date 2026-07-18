@@ -245,6 +245,11 @@ export const ForkopShellMethods = {
       Forkop.AvailableMethods.GET_SUBSCRIPTION_METADATA,
       [section],
     ),
+  getDashboardSectionCache: async (section: string) =>
+    callBaseMethod<Record<string, unknown>>(
+      Forkop.AvailableMethods.GET_DASHBOARD_SECTION_CACHE,
+      [section],
+    ),
   checkSingBox: async () =>
     callBaseMethod<Forkop.SingBoxCheckResult>(
       Forkop.AvailableMethods.CHECK_SING_BOX,

@@ -6,9 +6,6 @@
         "/etc/init.d/forkop": [
           "exec"
         ],
-        "/var/run/forkop/section-cache/*": [
-          "read"
-        ],
         "/var/run/forkop/component-actions/*": [
           "read"
         ],

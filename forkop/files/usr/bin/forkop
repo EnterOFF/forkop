@@ -94,6 +94,8 @@ function show_help() {
     print("    get_outbound_metadata   Get generated outbound display names and countries\n");
     print("    get_subscription_metadata\n");
     print("                            Get UI-only metadata for a subscription rule\n");
+    print("    get_dashboard_section_cache\n");
+    print("                            Get dashboard data for a connection rule\n");
     print("    get_sing_box_status     Get sing-box service status\n");
     print("    get_zapret_status       Get zapret provider and Forkop-managed nfqws status\n");
     print("    get_zapret2_status      Get zapret2 provider and Forkop-managed nfqws2 status\n");
@@ -166,6 +168,7 @@ function command_spec(command) {
         get_status: [ "diagnostics/runtime.uc", "get-status", 0 ],
         get_outbound_metadata: [ "diagnostics/runtime.uc", "get-outbound-metadata", 1 ],
         get_subscription_metadata: [ "diagnostics/runtime.uc", "get-subscription-metadata", 1 ],
+        get_dashboard_section_cache: [ "diagnostics/runtime.uc", "get-dashboard-section-cache", 1 ],
         get_sing_box_status: [ "diagnostics/runtime.uc", "get-sing-box-status", 0 ],
         get_zapret_status: [ "diagnostics/runtime.uc", "get-zapret-status", 0 ],
         get_zapret2_status: [ "diagnostics/runtime.uc", "get-zapret2-status", 0 ],

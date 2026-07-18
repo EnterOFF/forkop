@@ -1228,6 +1228,32 @@ function get_subscription_metadata(section) {
     return print_subscription_result(result, "{}\n");
 }
 
+function get_dashboard_section_cache(section) {
+    if (!section_safe(section)) {
+        warn("invalid section name\n");
+        return 1;
+    }
+
+    let path = SECTION_CACHE_DIR + "/" + as_string(section) + ".json";
+    if (!fs.stat(path)) {
+        write_json({});
+        return 0;
+    }
+
+    let cache = read_json_file(path);
+    if (type(cache) != "object") {
+        warn("failed to read dashboard section cache\n");
+        return 1;
+    }
+
+    let result = {};
+    for (let key in [ "links", "outboundMetadata", "urltestGroups", "priorityGroups", "subscriptionMetadata" ])
+        if (cache[key] != null)
+            result[key] = cache[key];
+    write_json(result);
+    return 0;
+}
+
 function validate_nfqws_strategy_json(raw_opt) {
     let result = module_capture(ZAPRET_VALIDATOR_UC, [
         "validate-json", "nfqws", as_string(raw_opt), ZAPRET_LEGACY_DEFAULT_NFQWS_OPT
@@ -1950,6 +1976,8 @@ else if (mode == "get-outbound-metadata")
     exit(get_outbound_metadata(ARGV[1]));
 else if (mode == "get-subscription-metadata")
     exit(get_subscription_metadata(ARGV[1]));
+else if (mode == "get-dashboard-section-cache")
+    exit(get_dashboard_section_cache(ARGV[1]));
 else if (mode == "get-sing-box-status")
     exit(get_sing_box_status());
 else if (mode == "get-zapret-status")

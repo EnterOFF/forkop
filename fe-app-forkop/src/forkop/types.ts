@@ -62,6 +62,7 @@ export namespace Forkop {
     GET_STATUS = 'get_status',
     GET_OUTBOUND_METADATA = 'get_outbound_metadata',
     GET_SUBSCRIPTION_METADATA = 'get_subscription_metadata',
+    GET_DASHBOARD_SECTION_CACHE = 'get_dashboard_section_cache',
     CHECK_SING_BOX = 'check_sing_box',
     CHECK_INBOUNDS = 'check_inbounds',
     GET_SING_BOX_STATUS = 'get_sing_box_status',

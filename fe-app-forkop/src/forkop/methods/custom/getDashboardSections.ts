@@ -126,7 +126,6 @@ type ChildType =
   | 'priority_group'
   | 'priority_level';
 
-const DASHBOARD_SECTION_CACHE_DIR = '/var/run/forkop/section-cache';
 const CLASH_API_FETCH_TIMEOUT_MS = 5000;
 
 function getDisplayName(section: Forkop.ConfigSection) {
@@ -791,20 +790,15 @@ async function readDashboardSectionCache(
     return undefined;
   }
 
-  try {
-    const raw = await fs.read(
-      `${DASHBOARD_SECTION_CACHE_DIR}/${sectionName}.json`,
-    );
-    const parsed = JSON.parse(raw) as DashboardSectionCache;
-
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return undefined;
-    }
-
-    return parsed;
-  } catch (_error) {
-    return undefined;
+  const response = await ForkopShellMethods.getDashboardSectionCache(sectionName);
+  if (!response.success) {
+    throw new Error(response.error || 'Failed to read dashboard section cache');
   }
+
+  const parsed = response.data as DashboardSectionCache;
+  return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+    ? parsed
+    : undefined;
 }
 
 function getUrlTestGroups(dashboardCache?: DashboardSectionCache) {

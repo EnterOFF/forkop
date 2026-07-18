@@ -99,6 +99,8 @@ if grep -Fq 'SelectOnlyUIDynamicList' "$SECTION_JS"; then
 fi
 grep -Fq 'configureLiveDynamicListChoices(list, currentOutboundNameChoices);' <<<"$dashboard_options" ||
   fail "dashboard server selectors must refresh live uncommitted outbound choices"
+grep -Fq '.exec("/usr/bin/forkop", ["get_dashboard_section_cache", section_id])' "$SECTION_JS" ||
+  fail "server choices still depend on rpcd reading the full section cache"
 grep -Fq 'configureLiveDynamicListChoices(list, currentSectionGroupChoices);' "$SECTION_JS" ||
   fail "dashboard group selectors must refresh live uncommitted group choices"
 grep -Fq 'const widget = new ui.DynamicList(values, labels, {' <<<"$live_choices" ||

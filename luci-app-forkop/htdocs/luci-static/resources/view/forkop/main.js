@@ -2434,6 +2434,7 @@ var Forkop;
     AvailableMethods2["GET_STATUS"] = "get_status";
     AvailableMethods2["GET_OUTBOUND_METADATA"] = "get_outbound_metadata";
     AvailableMethods2["GET_SUBSCRIPTION_METADATA"] = "get_subscription_metadata";
+    AvailableMethods2["GET_DASHBOARD_SECTION_CACHE"] = "get_dashboard_section_cache";
     AvailableMethods2["CHECK_SING_BOX"] = "check_sing_box";
     AvailableMethods2["CHECK_INBOUNDS"] = "check_inbounds";
     AvailableMethods2["GET_SING_BOX_STATUS"] = "get_sing_box_status";
@@ -2659,6 +2660,10 @@ var ForkopShellMethods = {
   ),
   getSubscriptionMetadata: async (section) => callBaseMethod(
     Forkop.AvailableMethods.GET_SUBSCRIPTION_METADATA,
+    [section]
+  ),
+  getDashboardSectionCache: async (section) => callBaseMethod(
+    Forkop.AvailableMethods.GET_DASHBOARD_SECTION_CACHE,
     [section]
   ),
   checkSingBox: async () => callBaseMethod(
@@ -3058,7 +3063,6 @@ var ForkopShellMethods = {
 };
 
 // src/forkop/methods/custom/getDashboardSections.ts
-var DASHBOARD_SECTION_CACHE_DIR = "/var/run/forkop/section-cache";
 var CLASH_API_FETCH_TIMEOUT_MS = 5e3;
 function getDisplayName(section) {
   return section.label || section[".name"];
@@ -3541,18 +3545,12 @@ async function readDashboardSectionCache(sectionName) {
   if (!isSafeSectionName(sectionName)) {
     return void 0;
   }
-  try {
-    const raw = await fs.read(
-      `${DASHBOARD_SECTION_CACHE_DIR}/${sectionName}.json`
-    );
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return void 0;
-    }
-    return parsed;
-  } catch (_error) {
-    return void 0;
+  const response = await ForkopShellMethods.getDashboardSectionCache(sectionName);
+  if (!response.success) {
+    throw new Error(response.error || "Failed to read dashboard section cache");
   }
+  const parsed = response.data;
+  return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : void 0;
 }
 function getUrlTestGroups(dashboardCache) {
   const groups = dashboardCache?.urltestGroups;

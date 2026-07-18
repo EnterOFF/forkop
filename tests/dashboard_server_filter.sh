@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FORKOP_LIB="$ROOT_DIR/forkop/files/usr/lib"
 GENERATOR_UC="$FORKOP_LIB/singbox/generator.uc"
 VALIDATOR_UC="$FORKOP_LIB/config/validator.uc"
+DASHBOARD_RUNTIME_UC="$FORKOP_LIB/diagnostics/runtime.uc"
 WORK_DIR="$(mktemp -d)"
 
 cleanup() {
@@ -185,5 +186,29 @@ if (mixed.default != "proxy-urltest-ut_main-out")
 ' "$WORK_DIR/disabled-config.json" "$WORK_DIR/include-config.json" \
   "$WORK_DIR/exclude-config.json" "$WORK_DIR/mixed-config.json" ||
   fail "dashboard server filter regression"
+
+large_cache_dir="$WORK_DIR/large-section-cache"
+mkdir -p "$large_cache_dir"
+cp "$WORK_DIR/mixed-config.json.section-cache/proxy.json" "$large_cache_dir/proxy.json"
+head -c 300000 /dev/zero | tr '\0' ' ' >>"$large_cache_dir/proxy.json"
+FORKOP_SECTION_CACHE_DIR="$large_cache_dir" \
+  ucode -L "$FORKOP_LIB" "$DASHBOARD_RUNTIME_UC" get-dashboard-section-cache proxy \
+  >"$WORK_DIR/dashboard-cache.json" || fail "large dashboard cache backend read"
+
+ucode -e '
+let fs = require("fs");
+let cache = json(fs.readfile(ARGV[0]));
+if (type(cache.priorityGroups) != "object" || type(cache.urltestGroups) != "object")
+    die("dashboard groups are missing from projected cache\n");
+if (cache.servers != null || cache.urltestCandidateTags != null)
+    die("dashboard cache projection includes unused runtime state\n");
+' "$WORK_DIR/dashboard-cache.json" || fail "dashboard cache projection"
+
+printf '{' >"$large_cache_dir/broken.json"
+if FORKOP_SECTION_CACHE_DIR="$large_cache_dir" \
+  ucode -L "$FORKOP_LIB" "$DASHBOARD_RUNTIME_UC" get-dashboard-section-cache broken \
+  >/dev/null 2>&1; then
+  fail "invalid dashboard cache should return an error"
+fi
 
 printf 'dashboard server filter checks passed\n'
