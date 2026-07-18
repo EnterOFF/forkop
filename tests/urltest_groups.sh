@@ -68,7 +68,7 @@ cat >"$WORK_DIR/xray.json" <<'JSON'
   "outbounds": [
     {
       "protocol": "vless",
-      "tag": "lv-🇱🇻 Riga A",
+      "tag": "lv-🇱🇻 Riga A  ",
       "settings": {
         "vnext": [
           {
@@ -216,7 +216,7 @@ cat >"$WORK_DIR/xray-group-name-filter-fixture.json" <<'JSON'
       "urltest_check_interval": "3m",
       "urltest_tolerance": "50",
       "urltest_filter_mode": "include",
-      "urltest_include_outbounds": [ "Latvia group" ],
+      "urltest_include_outbounds": [ "Latvia group", "lv-🇱🇻 Riga A" ],
       "detect_server_country": "flag_emoji",
       "subscription_urls": [ "https://xray.example/sub" ],
       "subscription_url_settings": "{\"https://xray.example/sub\":{\"hide_urltest_group_outbounds\":\"0\"}}"
@@ -264,8 +264,9 @@ if (!builtin || length(builtin.outbounds || []) != 2)
 for (let child in builtin.outbounds || [])
     if (child == "Latvia group")
         die("built-in URLTest must not use the xray group tag as a child\n");
-if (group_name_builtin)
-    die("built-in URLTest must not match subscription URLTest group names as servers\n");
+if (!group_name_builtin || length(group_name_builtin.outbounds || []) != 1 ||
+    trim(group_name_builtin.outbounds[0]) != "lv-🇱🇻 Riga A")
+    die("exact name filter should ignore surrounding whitespace without matching group names\n");
 for (let child in builtin.outbounds || [])
     if (substr(child, 0, 5) == "xray-")
         die("built-in URLTest must not use artificial xray child tag prefixes\n");
