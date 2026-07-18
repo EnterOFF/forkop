@@ -1938,7 +1938,7 @@ function service_proxy_address(settings, purpose) {
 function download_to_file(url, filepath, proxy_address) {
     let attempt = 1;
     while (attempt <= 3) {
-        let command = command_from_args([ "wget", "-O", filepath, url ]);
+        let command = command_from_args([ "wget", "-T", "30", "-O", filepath, url ]);
         if (as_string(proxy_address) != "")
             command = "http_proxy=" + shell_quote("http://" + as_string(proxy_address)) +
                 " https_proxy=" + shell_quote("http://" + as_string(proxy_address)) + " " + command;

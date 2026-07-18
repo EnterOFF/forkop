@@ -95,6 +95,8 @@ assert_eq 'https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Subnet
 assert_eq 7 \
   "$(grep -c 'log_message("Failed to download .*"error");' "$UPDATES_UC")" \
   "terminal list download errors"
+grep -Fq 'command_from_args([ "wget", "-T", "30", "-O", filepath, url ])' "$UPDATES_UC" ||
+  fail "list downloads must bound each wget request"
 if grep 'log_message("Failed to download .*"warn");' "$UPDATES_UC" >/dev/null 2>&1; then
   fail "terminal list download failures must not remain warnings"
 fi
