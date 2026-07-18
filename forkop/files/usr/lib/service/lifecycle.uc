@@ -52,7 +52,6 @@ const RELOAD_STATE_FORMAT = int(getenv("FORKOP_RELOAD_STATE_FORMAT") || "1");
 const RUNTIME_CACHE_FORMAT = int(getenv("FORKOP_RUNTIME_CACHE_FORMAT") || "8");
 const RUNTIME_STABLE_MIN_AGE = int(getenv("FORKOP_RUNTIME_STABLE_MIN_AGE") || "2");
 const SING_BOX_START_STABLE_MIN_AGE = int(getenv("FORKOP_SING_BOX_START_STABLE_MIN_AGE") || "8");
-const SING_BOX_START_VERIFY_TIMEOUT = int(getenv("FORKOP_SING_BOX_START_VERIFY_TIMEOUT") || "10");
 const NFT_POPULATE_ENABLED_DEFAULT = int(getenv("FORKOP_NFT_POPULATE_ENABLED") || "1");
 
 const TMP_SING_BOX_FOLDER = getenv("TMP_SING_BOX_FOLDER") || constant_value("TMP_SING_BOX_FOLDER", "/tmp/sing-box");
@@ -726,8 +725,7 @@ function start_main() {
         RT_TABLE_NAME,
         NFT_TABLE_NAME,
         NFT_FAKEIP_MARK,
-        as_string(SING_BOX_START_STABLE_MIN_AGE),
-        as_string(SING_BOX_START_VERIFY_TIMEOUT)
+        as_string(SING_BOX_START_STABLE_MIN_AGE)
     ]);
     if (status != 0) {
         log_message("sing-box did not reach a stable running state after start. Aborted.", "fatal");
@@ -881,8 +879,7 @@ function start() {
         RT_TABLE_NAME,
         NFT_TABLE_NAME,
         NFT_FAKEIP_MARK,
-        as_string(RUNTIME_STABLE_MIN_AGE),
-        "8"
+        as_string(RUNTIME_STABLE_MIN_AGE)
     ]);
     if (status != 0) {
         log_message("Startup verification failed after Forkop was started; rolling back DNS changes", "warn");
@@ -952,8 +949,7 @@ function restart_runtime_for_reload() {
         RT_TABLE_NAME,
         NFT_TABLE_NAME,
         NFT_FAKEIP_MARK,
-        as_string(RUNTIME_STABLE_MIN_AGE),
-        "8"
+        as_string(RUNTIME_STABLE_MIN_AGE)
     ]);
     if (status != 0) {
         log_message("Reload runtime restart verification failed after Forkop was started; rolling back DNS changes", "fatal");
@@ -1242,8 +1238,7 @@ function reload(reason) {
             RT_TABLE_NAME,
             NFT_TABLE_NAME,
             NFT_FAKEIP_MARK,
-            as_string(SING_BOX_START_STABLE_MIN_AGE),
-            as_string(SING_BOX_START_VERIFY_TIMEOUT)
+            as_string(SING_BOX_START_STABLE_MIN_AGE)
         ]);
         if (status != 0) {
             log_message("Reload verification failed after sing-box was reloaded; stopping Forkop runtime", "fatal");

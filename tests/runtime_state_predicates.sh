@@ -13,6 +13,10 @@ export BYEDPI_DEFAULT_CMD_OPTS="--default-bye"
 export FORKOP_FAKE_INIT_CAPTURE="$WORK_DIR/pending-reload-init.args"
 
 cleanup() {
+  if [ -n "${sing_box_pid:-}" ]; then
+    kill "$sing_box_pid" >/dev/null 2>&1 || true
+    wait "$sing_box_pid" 2>/dev/null || true
+  fi
   rm -rf "$WORK_DIR"
 }
 trap cleanup EXIT
@@ -162,6 +166,14 @@ exit 0
 SH
 cat >"$WORK_DIR/stable-start-bin/netstat" <<'SH'
 #!/usr/bin/env bash
+if [ -n "${SING_BOX_TEST_NETSTAT_READY_AFTER:-}" ]; then
+  count_file="${SING_BOX_TEST_NETSTAT_COUNT_FILE:?}"
+  count=0
+  [ ! -s "$count_file" ] || count="$(cat "$count_file")"
+  count=$((count + 1))
+  printf '%s\n' "$count" >"$count_file"
+  [ "$count" -ge "$SING_BOX_TEST_NETSTAT_READY_AFTER" ] || exit 0
+fi
 cat "${SING_BOX_TEST_NETSTAT_FILE:?}"
 SH
 cat >"$WORK_DIR/stable-start-bin/ucode" <<'SH'
@@ -172,6 +184,15 @@ fi
 exec "${REAL_UCODE:?}" "$@"
 SH
 chmod 0755 "$WORK_DIR/stable-start-bin/ubus" "$WORK_DIR/stable-start-bin/nft" "$WORK_DIR/stable-start-bin/ucode" "$WORK_DIR/stable-start-bin/netstat"
+mkdir -p "$WORK_DIR/fast-wait-bin"
+cat >"$WORK_DIR/fast-wait-bin/sleep" <<'SH'
+#!/usr/bin/env bash
+if [ -n "${SING_BOX_TEST_KILL_PID_FILE:-}" ]; then
+  printf 'sleep\n' >>"${SING_BOX_TEST_SLEEP_COUNT_FILE:?}"
+  kill "$(cat "$SING_BOX_TEST_KILL_PID_FILE")" >/dev/null 2>&1 || true
+fi
+SH
+chmod 0755 "$WORK_DIR/fast-wait-bin/sleep"
 cat >"$WORK_DIR/sing-box.netstat" <<'EOF_NETSTAT'
 tcp        0      0 127.0.0.42:53           0.0.0.0:*               LISTEN
 tcp        0      0 0.0.0.0:1602            0.0.0.0:*               LISTEN
@@ -216,13 +237,46 @@ if ! PATH="$WORK_DIR/stable-start-bin:$PATH" \
   REAL_UCODE="$UCODE_BIN" \
   SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
   SING_BOX_TEST_NETSTAT_FILE="$WORK_DIR/sing-box.netstat" \
-  state_ucode wait-forkop-stable-start forkop ForkopTable 0x00100000 2 2; then
+  state_ucode wait-forkop-stable-start forkop ForkopTable 0x00100000 2; then
   kill "$sing_box_pid" >/dev/null 2>&1 || true
   wait "$sing_box_pid" 2>/dev/null || true
-  fail "stable-start wait must check runtime state after its final sleep"
+  fail "stable-start wait must accept a ready stable process"
 fi
-kill "$sing_box_pid" >/dev/null 2>&1 || true
+
+if ! PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
+  REAL_UCODE="$UCODE_BIN" \
+  SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
+  SING_BOX_TEST_NETSTAT_FILE="$WORK_DIR/sing-box.netstat" \
+  SING_BOX_TEST_NETSTAT_READY_AFTER=12 \
+  SING_BOX_TEST_NETSTAT_COUNT_FILE="$WORK_DIR/netstat.count" \
+  state_ucode wait-forkop-stable-start forkop ForkopTable 0x00100000 2; then
+  fail "stable-start wait must continue while the original sing-box process is alive"
+fi
+assert_eq "12" "$(cat "$WORK_DIR/netstat.count")" "slow stable-start readiness polls"
+
+if PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
+  REAL_UCODE="$UCODE_BIN" \
+  FORKOP_SING_BOX_START_MAX_WAIT_SECONDS=1 \
+  SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
+  SING_BOX_TEST_NETSTAT_FILE="$WORK_DIR/sing-box.no-dns.netstat" \
+  state_ucode wait-forkop-stable-start forkop ForkopTable 0x00100000 2 >/dev/null 2>&1; then
+  fail "stable-start wait must stop waiting for a permanently unready live process"
+fi
+kill -0 "$sing_box_pid" >/dev/null 2>&1 ||
+  fail "stable-start readiness timeout must not be confused with process exit"
+
+if PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
+  REAL_UCODE="$UCODE_BIN" \
+  SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
+  SING_BOX_TEST_NETSTAT_FILE="$WORK_DIR/sing-box.no-dns.netstat" \
+  SING_BOX_TEST_KILL_PID_FILE="$WORK_DIR/sing-box.pid" \
+  SING_BOX_TEST_SLEEP_COUNT_FILE="$WORK_DIR/sleep.count" \
+  state_ucode wait-forkop-stable-start forkop ForkopTable 0x00100000 2 >/dev/null 2>&1; then
+  fail "stable-start wait must fail when the tracked sing-box process exits"
+fi
+assert_eq "1" "$(wc -l <"$WORK_DIR/sleep.count" | tr -d ' ')" "stable-start exit detection polls"
 wait "$sing_box_pid" 2>/dev/null || true
+sing_box_pid=""
 
 PENDING_RELOAD_FILE="$WORK_DIR/reload.pending"
 state_ucode mark-pending-reload "$PENDING_RELOAD_FILE" "reload_busy"

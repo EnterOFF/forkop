@@ -73,6 +73,8 @@ grep -Fq 'mode == "sing-box-service-stable"' "$STATE_UC" ||
   fail "service/state.uc must expose stable sing-box predicate"
 grep -Fq 'mode == "wait-forkop-stable-start"' "$STATE_UC" ||
   fail "service/state.uc must own stable-start waiting"
+grep -Fq 'getenv("FORKOP_SING_BOX_START_MAX_WAIT_SECONDS") || "300"' "$STATE_UC" ||
+  fail "service/state.uc must cap a live but permanently unready sing-box start"
 grep -Fq 'mode == "mark-pending-reload"' "$STATE_UC" ||
   fail "service/state.uc must own pending reload writes"
 grep -Fq 'mode == "sync-time-if-needed"' "$STATE_UC" ||

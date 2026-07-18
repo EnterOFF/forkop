@@ -18,6 +18,7 @@ const BYEDPI_DEFAULT_CMD_OPTS = getenv("BYEDPI_DEFAULT_CMD_OPTS") || "";
 const SB_DNS_INBOUND_ADDRESS = getenv("SB_DNS_INBOUND_ADDRESS") || "127.0.0.42";
 const SB_TPROXY_INBOUND_PORT = getenv("SB_TPROXY_INBOUND_PORT") || "1602";
 const SB_TPROXY_INBOUND6_ADDRESS = getenv("SB_TPROXY_INBOUND6_ADDRESS") || "::1";
+const SING_BOX_START_MAX_WAIT_SECONDS = int(getenv("FORKOP_SING_BOX_START_MAX_WAIT_SECONDS") || "300");
 
 function as_string(value) {
     return value == null ? "" : "" + value;
@@ -446,7 +447,12 @@ function pid_is_sing_box(pid) {
     if (match(pid, /^[0-9]+$/) == null)
         return false;
 
-    return path_basename(command_trimmed_output_from_args([ "readlink", "/proc/" + pid + "/exe" ])) == "sing-box";
+    try {
+        return path_basename(fs.readlink("/proc/" + pid + "/exe")) == "sing-box";
+    }
+    catch (e) {
+        return false;
+    }
 }
 
 function hup_sing_box_runtime() {
@@ -490,13 +496,14 @@ function process_age_seconds_from_ticks(start_ticks, current_ticks) {
     return int((current_ticks - start_ticks) / 100);
 }
 
-function process_age_seconds(pid) {
+function process_age_seconds(pid, expected_start_ticks) {
     pid = as_string(pid);
     if (match(pid, /^[0-9]+$/) == null)
         return null;
 
     let start_ticks = process_start_ticks(fs.readfile("/proc/" + pid + "/stat"));
-    if (start_ticks == null)
+    if (start_ticks == null ||
+        (expected_start_ticks != null && start_ticks != int(expected_start_ticks)))
         return null;
 
     let current_ticks = process_start_ticks(command_output_from_args([ "cat", "/proc/self/stat" ]));
@@ -603,17 +610,33 @@ function forkop_stably_running(rt_table, nft_table, mark, min_age) {
         forkop_runtime_network_configured(rt_table, nft_table, mark);
 }
 
-function wait_forkop_stable_start(rt_table, nft_table, mark, min_age, timeout) {
-    timeout = int(timeout || 8);
-    while (timeout > 0) {
-        if (forkop_stably_running(rt_table, nft_table, mark, min_age))
+function wait_forkop_stable_start(rt_table, nft_table, mark, min_age) {
+    min_age = int(min_age || 2);
+
+    let pid = sing_box_service_pid_runtime();
+    if (pid <= 0 || !pid_is_sing_box(pid))
+        return false;
+
+    let start_ticks = process_start_ticks(fs.readfile("/proc/" + pid + "/stat"));
+    if (start_ticks == null)
+        return false;
+
+    while (true) {
+        let age = process_age_seconds(pid, start_ticks);
+        if (age == null)
+            return false;
+
+        if (age >= min_age && sing_box_runtime_ports_ready() &&
+            forkop_runtime_network_configured(rt_table, nft_table, mark))
             return true;
 
+        if (age >= SING_BOX_START_MAX_WAIT_SECONDS)
+            return false;
+
         command_success_from_args([ "sleep", "1" ]);
-        timeout--;
     }
 
-    return forkop_stably_running(rt_table, nft_table, mark, min_age);
+    return false;
 }
 
 function whitespace_fields(value) {
@@ -1860,7 +1883,7 @@ else if (mode == "forkop-running")
 else if (mode == "forkop-stably-running")
     exit(forkop_stably_running(ARGV[1], ARGV[2], ARGV[3], ARGV[4]) ? 0 : 1);
 else if (mode == "wait-forkop-stable-start")
-    exit(wait_forkop_stable_start(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5]) ? 0 : 1);
+    exit(wait_forkop_stable_start(ARGV[1], ARGV[2], ARGV[3], ARGV[4]) ? 0 : 1);
 else if (mode == "list-has-remote-references" || mode == "list-has-remote-sing-box-rulesets")
     exit(list_has_remote_references(ARGV[1]) ? 0 : 1);
 else if (mode == "community-service-has-subnet-list")
