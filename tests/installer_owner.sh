@@ -136,6 +136,10 @@ grep -Fq 'install_json_ucode installer-cleanup-legacy' "$INSTALLER" ||
   fail "install.sh cleanup must delegate to embedded ucode"
 grep -Fq 'install_json_ucode installer-post-install' "$INSTALLER" ||
   fail "install.sh post-install must delegate to embedded ucode"
+grep -Fq 'opkg --noaction install --force-overwrite --force-downgrade "$@"' "$INSTALLER" ||
+  fail "opkg package preflight must resolve dependencies without changing the installation"
+grep -Fq 'apk add --simulate --allow-untrusted "$@"' "$INSTALLER" ||
+  fail "apk package preflight must resolve dependencies without changing the installation"
 if grep -Fq 'installer_config_migration_path()' "$INSTALLER"; then
   fail "install.sh must not embed configuration migration logic"
 fi
@@ -156,6 +160,8 @@ awk '
   in_main && /pkg_list_update/ { update = NR }
   in_main && /ensure_bootstrap_ucode_runtime/ { ensure = NR }
   in_main && /detect_legacy_installation/ { detect = NR }
+  in_main && /download_forkop_packages/ { download = NR }
+  in_main && /preflight_forkop_packages/ { preflight = NR }
   in_main && /cleanup_legacy_installation/ { cleanup = NR }
   in_main && /install_backend_package/ { backend = NR }
   in_main && /migrate_legacy_configuration/ { migration = NR }
@@ -164,7 +170,8 @@ awk '
   in_main && /^[[:space:]]*\}/ { in_main = 0 }
   END {
     if (detect > 0 && i18n > detect && select_sing_box > i18n &&
-        update > select_sing_box && ensure > update && cleanup > ensure &&
+        update > select_sing_box && ensure > update && download > ensure &&
+        preflight > download && cleanup > preflight &&
         backend > cleanup && migration > backend && ui > migration && sing_box > ui)
       exit 0
     exit 1
@@ -204,6 +211,10 @@ fi
 cat >"$WORK_DIR/opkg" <<'SH'
 #!/usr/bin/env sh
 case "$1" in
+  --noaction)
+    [ -z "${FORKOP_INSTALLER_PREFLIGHT_LOG:-}" ] || printf '%s\n' "$*" >> "$FORKOP_INSTALLER_PREFLIGHT_LOG"
+    [ "${FORKOP_INSTALLER_FAIL_PREFLIGHT:-0}" -eq 0 ] || exit 1
+    ;;
   list-installed)
     printf '%s\n' \
       'https-dns-proxy - 1.0' \
@@ -226,6 +237,30 @@ esac
 exit 0
 SH
 chmod 0755 "$WORK_DIR/opkg"
+
+preflight_block="$(sed -n '/^pkg_install_files_preflight()/,/^}/p' "$INSTALLER")"
+[ -n "$preflight_block" ] || fail "failed to extract package preflight helper"
+: >"$WORK_DIR/preflight.log"
+(
+  eval "$preflight_block"
+  PKG_IS_APK=0
+  PATH="$WORK_DIR:$PATH"
+  FORKOP_INSTALLER_PREFLIGHT_LOG="$WORK_DIR/preflight.log"
+  export PATH FORKOP_INSTALLER_PREFLIGHT_LOG
+  pkg_install_files_preflight /tmp/forkop.ipk /tmp/luci-app-forkop.ipk
+) || fail "opkg package preflight fixture should succeed"
+grep -Fxq -- '--noaction install --force-overwrite --force-downgrade /tmp/forkop.ipk /tmp/luci-app-forkop.ipk' "$WORK_DIR/preflight.log" ||
+  fail "opkg package preflight must check all local packages together"
+if (
+  eval "$preflight_block"
+  PKG_IS_APK=0
+  PATH="$WORK_DIR:$PATH"
+  FORKOP_INSTALLER_FAIL_PREFLIGHT=1
+  export PATH FORKOP_INSTALLER_FAIL_PREFLIGHT
+  pkg_install_files_preflight /tmp/forkop.ipk
+); then
+  fail "package preflight must propagate an unresolved dependency failure"
+fi
 
 cat >"$WORK_DIR/hanging-init" <<'SH'
 #!/usr/bin/env sh

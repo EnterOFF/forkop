@@ -1506,6 +1506,14 @@ pkg_install_files() {
     fi
 }
 
+pkg_install_files_preflight() {
+    if [ "$PKG_IS_APK" -eq 1 ]; then
+        apk add --simulate --allow-untrusted "$@" </dev/null
+    else
+        opkg --noaction install --force-overwrite --force-downgrade "$@" </dev/null
+    fi
+}
+
 ensure_bootstrap_tool() {
     tool_name="$1"
     package_name="$2"
@@ -1911,6 +1919,14 @@ download_forkop_packages() {
     fi
 }
 
+preflight_forkop_packages() {
+    set -- "$FORKOP_BACKEND_FILE" "$FORKOP_APP_FILE"
+    [ -z "$FORKOP_I18N_FILE" ] || set -- "$@" "$FORKOP_I18N_FILE"
+
+    pkg_install_files_preflight "$@" ||
+        fail "Forkop package dependencies are unavailable; the existing installation was preserved"
+}
+
 install_backend_package() {
     pkg_install_files "$FORKOP_BACKEND_FILE" || fail "forkop installation failed"
 }
@@ -1975,6 +1991,7 @@ main() {
 
     resolve_forkop_release
     download_forkop_packages
+    preflight_forkop_packages
 
     cleanup_legacy_installation
     install_backend_package
