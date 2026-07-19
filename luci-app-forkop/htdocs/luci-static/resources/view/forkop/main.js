@@ -3182,7 +3182,6 @@ function hydrateConfigSections(configSections) {
           interrupt_exist_connections: item.interrupt_exist_connections,
           pin_dashboard: item.pin_dashboard,
           urltest_filter_mode: item.filter_mode,
-          detect_server_country: item.detect_server_country,
           urltest_include_countries: item.include_countries,
           urltest_include_outbounds: item.include_outbounds,
           urltest_include_regex: item.include_regex,
@@ -3205,7 +3204,6 @@ function hydrateConfigSections(configSections) {
             order: Number.parseInt(level.order || `${index}`, 10) || 0,
             direct: level.direct === "1",
             filterMode: level.filter_mode || "include",
-            detectServerCountry: level.detect_server_country || "flag_emoji",
             country: getListValues(level.country),
             serverName: getListValues(level.server_name),
             regex: getListValues(level.regex),
@@ -3412,11 +3410,6 @@ function itemSettingBoolean(settings, key, fallback) {
   }
   return value === "1" || value === "true";
 }
-function isUrlTestFilteringEnabled(settings) {
-  return ["exclude", "include", "mixed"].includes(
-    itemSettingString(settings, "urltest_filter_mode", "disabled")
-  );
-}
 function getUrlTestTag(sectionName, id) {
   return getOutboundTagBySection(
     id === "urltest" ? `${sectionName}-urltest` : `${sectionName}-urltest-${id}`
@@ -3437,14 +3430,12 @@ function getUrlTestConfigs(section) {
   const sectionName = section[".name"];
   return getUrlTestIds(section).map((id) => {
     const settings = settingsMap[id] || {};
-    const filteringEnabled = isUrlTestFilteringEnabled(settings);
     return {
       id,
       code: getUrlTestTag(sectionName, id),
       displayName: getUrlTestDisplayName(section, id, settings),
       settings,
-      pinDashboard: itemSettingBoolean(settings, "pin_dashboard", true),
-      showDetectedCountries: filteringEnabled && itemSettingString(settings, "detect_server_country", "flag_emoji") === "country_is"
+      pinDashboard: itemSettingBoolean(settings, "pin_dashboard", true)
     };
   });
 }
@@ -3469,7 +3460,6 @@ function priorityLevelConfigsFromSettings(settings) {
         order: typeof level.order === "number" && Number.isFinite(level.order) ? level.order : index,
         direct: Boolean(level.direct),
         filterMode: `${level.filterMode || "include"}` || "include",
-        detectServerCountry: `${level.detectServerCountry || "flag_emoji"}` || "flag_emoji",
         country: getListValues(level.country),
         serverName: getListValues(level.serverName),
         regex: getListValues(level.regex),
@@ -3534,9 +3524,6 @@ function getPriorityConfigs(section) {
         "interrupt_exist_connections",
         true
       ),
-      showDetectedCountries: levels.some(
-        (level) => level.detectServerCountry === "country_is"
-      ),
       levels
     };
   });
@@ -3578,8 +3565,7 @@ function buildUrlTestInfo({
   proxyByCode,
   manualLinkByCode,
   cachedProxyLinks,
-  outboundMetadata,
-  showDetectedCountries
+  outboundMetadata
 }) {
   const childCodes = uniqueCodes(
     groupCache?.outbounds?.length ? groupCache.outbounds : entry?.value.all || []
@@ -3604,8 +3590,7 @@ function buildUrlTestInfo({
           type: childEntry?.value?.type || "",
           selected: selectedCode === childCode,
           link,
-          canCopyLink,
-          country: showDetectedCountries ? outboundMetadata?.countries?.[childCode] : void 0
+          canCopyLink
         }
       ];
     })
@@ -3631,8 +3616,7 @@ function buildPriorityInfo({
   proxyByCode,
   manualLinkByCode,
   cachedProxyLinks,
-  outboundMetadata,
-  showDetectedCountries
+  outboundMetadata
 }) {
   const selectedCode = entry?.value.now || "";
   const cacheLevels = Array.isArray(groupCache?.levels) ? groupCache.levels : [];
@@ -3648,7 +3632,6 @@ function buildPriorityInfo({
       order: typeof level.order === "number" && Number.isFinite(level.order) ? level.order : configLevel?.order ?? index,
       direct: level.direct ?? configLevel?.direct ?? false,
       filterMode: level.filter_mode || configLevel?.filterMode || "include",
-      detectServerCountry: level.detect_server_country || configLevel?.detectServerCountry || "flag_emoji",
       country: configLevel?.country || [],
       serverName: configLevel?.serverName || [],
       regex: configLevel?.regex || [],
@@ -3682,7 +3665,6 @@ function buildPriorityInfo({
         selected: selectedCode === childCode,
         link,
         canCopyLink,
-        country: showDetectedCountries ? outboundMetadata?.countries?.[childCode] : void 0,
         levelIndex,
         levelName: level.displayName,
         levelId: level.id
@@ -3738,7 +3720,6 @@ function buildProxyGroupOutbounds(section, proxies, outboundMetadata, urltestGro
   const selectorCodes = selector?.value?.all ?? [];
   const urlTestCodes = urlTestConfigs.map((config) => config.code);
   const priorityCodes = priorityConfigs.map((config) => config.code);
-  const showDetectedCountries = urlTestConfigs.some((config) => config.showDetectedCountries) || priorityConfigs.some((config) => config.showDetectedCountries);
   const builtInUrltestCode = urlTestCodes[0] || "";
   const fallbackCodes = uniqueCodes([
     ...urlTestCodes,
@@ -3777,7 +3758,6 @@ function buildProxyGroupOutbounds(section, proxies, outboundMetadata, urltestGro
         selected: selector?.value?.now === code,
         link,
         canCopyLink,
-        country: showDetectedCountries ? outboundMetadata?.countries?.[code] : void 0,
         runtimeAvailable: item ? void 0 : false,
         urlTestInfo: urlTestConfig || isRuntimeUrlTest ? buildUrlTestInfo({
           code,
@@ -3787,8 +3767,7 @@ function buildProxyGroupOutbounds(section, proxies, outboundMetadata, urltestGro
           proxyByCode,
           manualLinkByCode,
           cachedProxyLinks,
-          outboundMetadata,
-          showDetectedCountries: urlTestConfig?.showDetectedCountries || showDetectedCountries
+          outboundMetadata
         }) : void 0,
         priorityInfo: priorityConfig ? buildPriorityInfo({
           config: priorityConfig,
@@ -3797,8 +3776,7 @@ function buildProxyGroupOutbounds(section, proxies, outboundMetadata, urltestGro
           proxyByCode,
           manualLinkByCode,
           cachedProxyLinks,
-          outboundMetadata,
-          showDetectedCountries: priorityConfig.showDetectedCountries
+          outboundMetadata
         }) : void 0
       }
     ];
@@ -3898,8 +3876,7 @@ function getOutboundMetadata(dashboardCache) {
     return void 0;
   }
   return {
-    names: objectMap(metadata.names),
-    countries: objectMap(metadata.countries)
+    names: objectMap(metadata.names)
   };
 }
 function getCachedProxyLinks(dashboardCache) {
@@ -4319,10 +4296,6 @@ var initialDiagnosticStore = {
     forkopInstall: { loading: false },
     singBoxCheck: { loading: false },
     singBoxInstall: { loading: false },
-    singBoxInstallExtended: { loading: false },
-    singBoxInstallExtendedCompressed: { loading: false },
-    singBoxInstallTiny: { loading: false },
-    singBoxInstallStable: { loading: false },
     zapretCheck: { loading: false },
     zapretInstall: { loading: false },
     zapretRemove: { loading: false },
@@ -4672,10 +4645,6 @@ var componentActionKeyMap = {
   "forkop:install": "forkopInstall",
   "sing_box:check_update": "singBoxCheck",
   "sing_box:install": "singBoxInstall",
-  "sing_box:install_extended": "singBoxInstallExtended",
-  "sing_box:install_extended_compressed": "singBoxInstallExtendedCompressed",
-  "sing_box:install_tiny": "singBoxInstallTiny",
-  "sing_box:install_stable": "singBoxInstallStable",
   "zapret:check_update": "zapretCheck",
   "zapret:install": "zapretInstall",
   "zapret:remove": "zapretRemove",
@@ -4779,10 +4748,6 @@ function getEmptyUpdatesActions() {
     forkopInstall: { loading: false },
     singBoxCheck: { loading: false },
     singBoxInstall: { loading: false },
-    singBoxInstallExtended: { loading: false },
-    singBoxInstallExtendedCompressed: { loading: false },
-    singBoxInstallTiny: { loading: false },
-    singBoxInstallStable: { loading: false },
     zapretCheck: { loading: false },
     zapretInstall: { loading: false },
     zapretRemove: { loading: false },
@@ -12995,30 +12960,6 @@ function patchSystemInfoAfterMutation(result) {
   }
   if (result.component === "sing_box") {
     nextSystemInfo.sing_box_version = version;
-    if (result.action === "install_extended") {
-      nextSystemInfo.sing_box_extended = 1;
-      nextSystemInfo.sing_box_tiny = 0;
-      nextSystemInfo.sing_box_compressed = 0;
-      nextSystemInfo.sing_box_tailscale = 1;
-    }
-    if (result.action === "install_extended_compressed") {
-      nextSystemInfo.sing_box_extended = 1;
-      nextSystemInfo.sing_box_tiny = 0;
-      nextSystemInfo.sing_box_compressed = 1;
-      nextSystemInfo.sing_box_tailscale = 1;
-    }
-    if (result.action === "install_stable") {
-      nextSystemInfo.sing_box_extended = 0;
-      nextSystemInfo.sing_box_tiny = 0;
-      nextSystemInfo.sing_box_compressed = 0;
-      nextSystemInfo.sing_box_tailscale = 1;
-    }
-    if (result.action === "install_tiny") {
-      nextSystemInfo.sing_box_extended = 0;
-      nextSystemInfo.sing_box_tiny = 1;
-      nextSystemInfo.sing_box_compressed = 0;
-      nextSystemInfo.sing_box_tailscale = 0;
-    }
   }
   if (result.component === "zapret") {
     nextSystemInfo.providerInfoLoaded = true;
@@ -13358,10 +13299,6 @@ function getComponentCards() {
   const zapret2Installed = Boolean(systemInfo.zapret2_installed);
   const byedpiInstalled = Boolean(systemInfo.byedpi_installed);
   const singBoxInstalled = !isNotInstalled(systemInfo.sing_box_version);
-  const singBoxStable = singBoxInstalled && !systemInfo.sing_box_extended && !systemInfo.sing_box_tiny;
-  const singBoxExtended = Boolean(systemInfo.sing_box_extended) && !systemInfo.sing_box_compressed;
-  const singBoxExtendedCompressed = Boolean(systemInfo.sing_box_extended) && Boolean(systemInfo.sing_box_compressed);
-  const singBoxTiny = Boolean(systemInfo.sing_box_tiny);
   const forkopActions = getInstalledUpdateActions(
     "forkop",
     "forkopCheck",
@@ -13373,42 +13310,6 @@ function getComponentCards() {
     "singBoxInstall",
     singBoxInstalled
   );
-  if (!singBoxStable) {
-    singBoxActions.push({
-      key: "singBoxInstallStable",
-      text: "Stable",
-      icon: renderDownloadIcon24,
-      component: "sing_box",
-      action: "install_stable"
-    });
-  }
-  if (!singBoxTiny) {
-    singBoxActions.push({
-      key: "singBoxInstallTiny",
-      text: "Tiny",
-      icon: renderDownloadIcon24,
-      component: "sing_box",
-      action: "install_tiny"
-    });
-  }
-  if (!singBoxExtended) {
-    singBoxActions.push({
-      key: "singBoxInstallExtended",
-      text: "Extended",
-      icon: renderDownloadIcon24,
-      component: "sing_box",
-      action: "install_extended"
-    });
-  }
-  if (!singBoxExtendedCompressed) {
-    singBoxActions.push({
-      key: "singBoxInstallExtendedCompressed",
-      text: "Extended compressed",
-      icon: renderDownloadIcon24,
-      component: "sing_box",
-      action: "install_extended_compressed"
-    });
-  }
   const zapretActions = getOptionalComponentActions({
     component: "zapret",
     installed: zapretInstalled,

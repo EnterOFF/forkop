@@ -106,21 +106,19 @@ grep -Fq 'ensure_bootstrap_package "ucode-mod-fs"' "$INSTALLER" ||
 grep -Fq 'ensure_bootstrap_package "ucode-mod-uci"' "$INSTALLER" ||
   fail "install.sh must bootstrap ucode-mod-uci before embedded UCI helper use"
 
-grep -Fq '/usr/bin/forkop component_action sing_box "$action"' "$INSTALLER" ||
-  fail "selected sing-box install must delegate to forkop component_action"
-for action in install_stable install_extended install_extended_compressed; do
-  grep -Fq "action=\"$action\"" "$INSTALLER" ||
-    fail "selected sing-box installer is missing action mapping: $action"
-done
-grep -Fq 'sing_box_is_present' "$INSTALLER" ||
-  fail "installer must detect an existing sing-box before showing the build choice"
-grep -Fq 'singbox extended (если нужен xhttp)' "$INSTALLER" ||
-  fail "extended sing-box choice must explain that it is needed for xhttp"
+grep -Fq 'FORKOP_SING_BOX_INSTALL_FLAVOR="$SING_BOX_INSTALL_FLAVOR"' "$INSTALLER" ||
+  fail "sing-box installation must pass the selected Forkop package flavor to the backend"
+grep -Fq '/usr/bin/forkop component_action sing_box install' "$INSTALLER" ||
+  fail "sing-box installation must delegate to the single backend install action"
+grep -Fq 'SING_BOX_INSTALL_FLAVOR="normal"' "$INSTALLER" ||
+  fail "installer must default to the normal sing-box-forkop package"
+grep -Fq -- '--compressed)' "$INSTALLER" ||
+  fail "installer must expose the compressed package flag"
+if grep -n -E 'select_sing_box_installation|install_(stable|tiny|extended)|sing_box_(prompt|stable|extended|skip_msg)' "$INSTALLER" >/dev/null; then
+  fail "installer must not retain legacy sing-box build selection"
+fi
 grep -Fq 'Русский пакет интерфейса будет установлен автоматически.' "$INSTALLER" ||
   fail "Russian LuCI language must enable the Russian interface package without a prompt"
-if grep -n -E 'installer_text (sing_box_tiny|sing_box_extended_compressed)' "$INSTALLER" >/dev/null; then
-  fail "fresh sing-box build choice must contain only stable and extended"
-fi
 
 grep -Fq 'run_args([ bin_path, "restore_dnsmasq" ])' "$INSTALLER" ||
   fail "installer dnsmasq restore must prefer the active backend entrypoint"
@@ -155,7 +153,6 @@ fi
 
 awk '
   /^[[:space:]]*main\(\)[[:space:]]*\{/ { in_main = 1 }
-  in_main && /select_sing_box_installation/ { select_sing_box = NR }
   in_main && /decide_i18n_installation/ { i18n = NR }
   in_main && /pkg_list_update/ { update = NR }
   in_main && /ensure_bootstrap_ucode_runtime/ { ensure = NR }
@@ -169,8 +166,8 @@ awk '
   in_main && /install_selected_sing_box/ { sing_box = NR }
   in_main && /^[[:space:]]*\}/ { in_main = 0 }
   END {
-    if (detect > 0 && i18n > detect && select_sing_box > i18n &&
-        update > select_sing_box && ensure > update && download > ensure &&
+    if (detect > 0 && i18n > detect &&
+        update > i18n && ensure > update && download > ensure &&
         preflight > download && cleanup > preflight &&
         backend > cleanup && migration > backend && ui > migration && sing_box > ui)
       exit 0
@@ -617,7 +614,6 @@ FORKOP_INSTALLER_RPCD_INIT="$WORK_DIR/missing-rpcd" \
 FORKOP_INSTALLER_LUCI_CACHE_GLOBS="$WORK_DIR/luci-indexcache*" \
 FORKOP_INSTALLER_LATEST_VERSION_CACHE="$WORK_DIR/latest.cache" \
 FORKOP_INSTALLER_SYSTEM_INFO_CACHE="$WORK_DIR/system-info.json" \
-FORKOP_INSTALLER_SERVER_COUNTRY_CACHE="$WORK_DIR/server-country.json" \
 FORKOP_INSTALLER_SING_BOX_VERSION_CACHE="$WORK_DIR/sing-box-version" \
 FORKOP_INSTALLER_TMP_SYSTEM_INFO_CACHE="$WORK_DIR/tmp-system-info.json" \
 FORKOP_WAS_ENABLED=1 \

@@ -19,7 +19,6 @@ const COMPONENT_ACTION_DIR = getenv("FORKOP_UI_COMPONENT_ACTION_DIR") || getenv(
 const SUBSCRIPTION_ACTION_DIR = getenv("FORKOP_UI_SUBSCRIPTION_ACTION_DIR") || getenv("FORKOP_SUBSCRIPTION_UPDATE_JOB_DIR") || "/var/run/forkop/subscription-update-jobs";
 const SING_BOX_VERSION_CACHE_FILE = getenv("FORKOP_UI_SING_BOX_VERSION_CACHE_FILE") || STATE_DIR + "/sing-box-version";
 const SING_BOX_VERSION_CACHE_LOCK_DIR = getenv("FORKOP_UI_SING_BOX_VERSION_CACHE_LOCK_DIR") || SING_BOX_VERSION_CACHE_FILE + ".lock";
-const SING_BOX_VARIANT_STATE_FILE = getenv("FORKOP_UI_SING_BOX_VARIANT_STATE_FILE") || "/etc/forkop/sing-box-variant";
 const SING_BOX_BIN_PATH = getenv("FORKOP_UI_SING_BOX_BIN_PATH") || "/usr/bin/sing-box";
 const SING_BOX_VERSION_PROBE_TIMEOUT_SECONDS = getenv("FORKOP_UI_SING_BOX_VERSION_PROBE_TIMEOUT_SECONDS") || "1";
 const SING_BOX_VERSION_PROBE_FAILURE_TTL_SECONDS = getenv("FORKOP_UI_SING_BOX_VERSION_PROBE_FAILURE_TTL_SECONDS") || "30";
@@ -876,17 +875,13 @@ function dns_configured() {
     return index(uci_core.get("dhcp.@dnsmasq[0].server"), SB_DNS_INBOUND_ADDRESS) >= 0;
 }
 
-function marker_is(expected) {
-    return first_line(SING_BOX_VARIANT_STATE_FILE) == as_string(expected);
-}
-
-function tiny_package_installed() {
+function package_installed(package_name) {
     if (command_success_from_args([ "sh", "-c", "command -v apk" ]))
-        return command_success_from_args([ "apk", "info", "-e", "sing-box-tiny" ]);
+        return command_success_from_args([ "apk", "info", "-e", package_name ]);
 
     let installed = command_output_from_args([ "opkg", "list-installed" ]);
     for (let line in split(installed, "\n"))
-        if (split(trim(as_string(line)), /[ \t]+/)[0] == "sing-box-tiny")
+        if (split(trim(as_string(line)), /[ \t]+/)[0] == package_name)
             return true;
 
     return false;
@@ -1035,33 +1030,26 @@ function capability_flags() {
     };
 
     if (file_executable(SING_BOX_BIN_PATH)) {
-        if (marker_is("extended-compressed")) {
+        if (package_installed("sing-box-forkop-compressed")) {
             result.sing_box_extended = 1;
             result.sing_box_compressed = 1;
             result.sing_box_tailscale = 1;
         }
-        else if (marker_is("extended")) {
+        else if (package_installed("sing-box-forkop")) {
             result.sing_box_extended = 1;
             result.sing_box_tailscale = 1;
-        }
-        else if (marker_is("tiny") || tiny_package_installed()) {
-            result.sing_box_tiny = 1;
         }
         else if (component_action_running_for("sing_box")) {
             result.sing_box_tailscale = 1;
         }
         else {
             let info = sing_box_version_info();
-            if (info != null && index(info.version, "extended") >= 0) {
+            if (info != null && (index(info.version, "extended") >= 0 || index(info.version, "forkop") >= 0)) {
                 result.sing_box_extended = 1;
                 result.sing_box_tailscale = 1;
             }
-            else if (info != null) {
-                if (match(info.tags, /(^|[,: \t])with_tailscale([, \t]|$)/) != null)
-                    result.sing_box_tailscale = 1;
-                if (result.sing_box_tailscale == 0)
-                    result.sing_box_tiny = 1;
-            }
+            else if (info != null && match(info.tags, /(^|[,: \t])with_tailscale([, \t]|$)/) != null)
+                result.sing_box_tailscale = 1;
         }
     }
 
@@ -1215,7 +1203,6 @@ function launch_worker(args) {
         FORKOP_UI_SUBSCRIPTION_ACTION_DIR: SUBSCRIPTION_ACTION_DIR,
         FORKOP_UI_SING_BOX_VERSION_CACHE_FILE: SING_BOX_VERSION_CACHE_FILE,
         FORKOP_UI_SING_BOX_VERSION_CACHE_LOCK_DIR: SING_BOX_VERSION_CACHE_LOCK_DIR,
-        FORKOP_UI_SING_BOX_VARIANT_STATE_FILE: SING_BOX_VARIANT_STATE_FILE,
         FORKOP_UI_SING_BOX_BIN_PATH: SING_BOX_BIN_PATH,
         FORKOP_UI_SING_BOX_VERSION_PROBE_TIMEOUT_SECONDS: SING_BOX_VERSION_PROBE_TIMEOUT_SECONDS,
         FORKOP_UI_SING_BOX_VERSION_PROBE_FAILURE_TTL_SECONDS: SING_BOX_VERSION_PROBE_FAILURE_TTL_SECONDS,

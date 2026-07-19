@@ -99,18 +99,15 @@ if grep -n -E 'require\("uci"\)\.cursor|uci -q|uci", "-q"|command_exists\("uci"\
 fi
 grep -Fq 'forkop_status_running_with_timeout()' "$ACTION_UC" ||
   fail "components/action.uc must use bounded Forkop status checks for component actions"
-grep -Fq 'restore_sing_box_after_failed_package_install' "$ACTION_UC" ||
-  fail "stable and tiny sing-box package installs must restore the previous variant after validation failures"
-grep -Fq 'let package_spec = package_name + "=" + package_version;' "$ACTION_UC" ||
-  fail "APK sing-box installs must pin the concrete package version instead of selecting a provider"
-grep -Fq 'Package rollback failed; restored the previous sing-box binary backup' "$ACTION_UC" ||
-  fail "package rollback must accept a successfully restored binary backup"
-grep -Fq '!file_exists("/etc/init.d/sing-box") && file_nonempty("/usr/bin/sing-box")' "$ACTION_UC" ||
-  fail "binary rollback must restore a managed sing-box service when the package script is missing"
-grep -Fq 'fail_package_sing_box_install(action, tiny, "package was installed, but sing-box binary is not available"' "$ACTION_UC" ||
-  fail "stable and tiny sing-box binary validation failures must use transactional rollback"
-grep -Fq 'fail_package_sing_box_install(action, tiny, "was installed, but Forkop did not start cleanly"' "$ACTION_UC" ||
-  fail "stable and tiny sing-box startup failures must use transactional rollback"
+grep -Fq 'sing_box_forkop_installed_package()' "$ACTION_UC" ||
+  fail "sing-box updater must detect the installed Forkop package flavor"
+grep -Fq 'FORKOP_SING_BOX_INSTALL_FLAVOR' "$ACTION_UC" ||
+  fail "installer-selected Forkop package flavor must reach the component backend"
+grep -Fq 'package_name == "sing-box-forkop" ? "sing-box-forkop-compressed" : "sing-box-forkop"' "$ACTION_UC" ||
+  fail "sing-box updater must remove only the opposite Forkop flavor"
+if grep -n -E 'install_(stable|tiny|extended)|resolve_sing_box_extended|install_package_sing_box' "$ACTION_UC" >/dev/null; then
+  fail "component backend must not retain legacy sing-box variant actions"
+fi
 if grep -Fq 'command_success_from_args([ SERVICE_INIT, "status" ])' "$ACTION_UC"; then
   fail "components/action.uc must not call init.d status without a timeout"
 fi
@@ -140,167 +137,35 @@ ucode "$WORK_DIR/action-command-success.uc" "$command_success_output" ||
 assert_eq "extracted payload" "$(cat "$command_success_output")" \
   "component command success preserves explicit output redirection"
 
-awk '
-prev2 == "    remove_file(archive_file);" &&
-prev1 == "    stop_forkop_before_sing_box_change();" &&
-$0 == "    let new_version = validate_sing_box_extended_binary(tmp_binary, tmp_dir);" {
-  safe_validation = 1
+sing_box_release_json="$(cat <<'JSON'
+{
+  "assets": [
+    {
+      "name": "sing-box-forkop_1.13.14-extended-2.5.2-forkop.1_openwrt_aarch64_cortex-a53.ipk",
+      "browser_download_url": "https://example.com/normal.ipk"
+    },
+    {
+      "name": "sing-box-forkop-compressed_1.13.14-extended-2.5.2-forkop.1_openwrt_aarch64_cortex-a53.ipk",
+      "browser_download_url": "https://example.com/compressed.ipk"
+    },
+    {
+      "name": "sing-box-forkop_1.13.14-extended-2.5.2-forkop.1_openwrt_x86_64.ipk",
+      "browser_download_url": "https://example.com/wrong-arch.ipk"
+    }
+  ]
 }
-{ prev2 = prev1; prev1 = $0 }
-END { exit safe_validation ? 0 : 1 }
-' "$ACTION_UC" ||
-  fail "compressed sing-box validation must release the archive and stop the running service to avoid OpenWrt OOM"
-grep -Fq 'install_staged_file(tmp_binary, "/usr/bin/sing-box", "0755")' "$ACTION_UC" ||
-  fail "compressed sing-box binary installation must support moving from tmpfs to overlay"
-grep -Fq 'install_staged_file(tmp_cronet, "/usr/lib/libcronet.so", "0644")' "$ACTION_UC" ||
-  fail "compressed libcronet installation must support moving from tmpfs to overlay"
-if grep -Fq 'fs.rename(tmp_binary, "/usr/bin/sing-box")' "$ACTION_UC"; then
-  fail "compressed sing-box installation must not rename directly across OpenWrt filesystems"
+JSON
+)"
+assert_eq "https://example.com/normal.ipk" \
+  "$(printf '%s' "$sing_box_release_json" | ucode "$UPDATER" sing-box-forkop-package-asset-url sing-box-forkop aarch64_cortex-a53 ipk)" \
+  "normal sing-box-forkop package selection"
+assert_eq "https://example.com/compressed.ipk" \
+  "$(printf '%s' "$sing_box_release_json" | ucode "$UPDATER" sing-box-forkop-package-asset-url sing-box-forkop-compressed aarch64_cortex-a53 ipk)" \
+  "compressed sing-box-forkop package selection"
+if printf '%s' "$sing_box_release_json" |
+  ucode "$UPDATER" sing-box-forkop-package-asset-url sing-box-extended aarch64_cortex-a53 ipk >/dev/null 2>&1; then
+  fail "sing-box package selector must reject legacy package names"
 fi
-grep -Fq 'let backup_on_tmpfs = previous_variant == "extended-compressed";' "$ACTION_UC" ||
-  fail "package sing-box installs must move compressed backups off overlay before opkg space checks"
-grep -Fq 'backup_binary = backup_on_tmpfs ? tmp_dir + "/sing-box.forkop-backup"' "$ACTION_UC" ||
-  fail "compressed sing-box backup must use tmpfs while installing a package variant"
-grep -Fq 'return move_file_portable(backup_binary, "/usr/bin/sing-box");' "$ACTION_UC" &&
-  fail "portable sing-box restore must preserve executable permissions explicitly"
-grep -Fq 'if (!move_file_portable(backup_binary, "/usr/bin/sing-box"))' "$ACTION_UC" ||
-  fail "compressed sing-box rollback must restore backups across filesystems"
-
-package_runtime_lib="$WORK_DIR/package-runtime-lib"
-package_runtime_bin="$WORK_DIR/package-runtime-bin"
-mkdir -p "$package_runtime_lib/components" "$package_runtime_lib/core" "$package_runtime_lib/singbox" "$package_runtime_bin"
-cp "$UPDATER" "$package_runtime_lib/components/updater.uc"
-cat >"$package_runtime_lib/core/constants.uc" <<'UCODE'
-function module_exports() {
-  return {};
-}
-
-if (sourcepath(1) != null && sourcepath(1) != "")
-  return module_exports();
-UCODE
-cat >"$package_runtime_lib/core/uci.uc" <<'UCODE'
-function module_exports() {
-  return {
-    available: function() { return false; }
-  };
-}
-
-if (sourcepath(1) != null && sourcepath(1) != "")
-  return module_exports();
-UCODE
-cat >"$package_runtime_lib/core/packages.uc" <<'UCODE'
-let mode = ARGV[0] || "";
-if (mode == "opkg-version")
-  exit(0);
-if (mode == "opkg-installed")
-  exit(1);
-if (mode == "apk-available-version") {
-  print("1.2.3-r1\n");
-  exit(0);
-}
-if (mode == "apk-version")
-  exit(0);
-exit(1);
-UCODE
-cat >"$package_runtime_lib/singbox/runtime.uc" <<'UCODE'
-let mode = ARGV[0] || "";
-if (mode == "version")
-  exit(0);
-if (mode == "variant") {
-  print("stable\n");
-  exit(0);
-}
-if (mode == "is-extended" || mode == "is-tiny")
-  exit(1);
-if (mode == "write-variant-marker" || mode == "write-version-state")
-  exit(0);
-exit(0);
-UCODE
-cat >"$package_runtime_bin/opkg" <<'SH'
-#!/usr/bin/env sh
-set -eu
-printf 'opkg %s\n' "$*" >>"${FAKE_OPKG_LOG:?}"
-case "${1:-}" in
-  list)
-    if [ -e "${FAKE_OPKG_UPDATED:?}" ]; then
-      printf 'sing-box - 1.2.3 - fake package\n'
-    fi
-    ;;
-  update)
-    : >"${FAKE_OPKG_UPDATED:?}"
-    ;;
-  install|remove)
-    ;;
-  *)
-    exit 1
-    ;;
-esac
-SH
-cat >"$package_runtime_bin/logger" <<'SH'
-#!/usr/bin/env sh
-exit 0
-SH
-chmod +x "$package_runtime_bin/opkg" "$package_runtime_bin/logger"
-
-set +e
-PATH="$package_runtime_bin:$PATH" \
-FORKOP_LIB="$package_runtime_lib" \
-FORKOP_RUNTIME_STATE_DIR="$WORK_DIR/package-runtime" \
-FORKOP_BIN="$WORK_DIR/missing-forkop" \
-FORKOP_SERVICE_INIT="$WORK_DIR/missing-init" \
-FAKE_OPKG_LOG="$WORK_DIR/opkg.log" \
-FAKE_OPKG_UPDATED="$WORK_DIR/opkg.updated" \
-ucode -L "$package_runtime_lib" "$ACTION_UC" component-action sing_box install_stable >/dev/null
-set -e
-OPKG_LOG="$WORK_DIR/opkg.log" node - <<'NODE'
-const fs = require('fs');
-const lines = fs.readFileSync(process.env.OPKG_LOG, 'utf8').trim().split(/\n+/);
-function fail(message) {
-  console.error(`${message}: ${JSON.stringify(lines)}`);
-  process.exit(1);
-}
-const firstList = lines.indexOf('opkg list sing-box');
-const update = lines.indexOf('opkg update');
-const secondList = lines.indexOf('opkg list sing-box', firstList + 1);
-const install = lines.findIndex(line => line.startsWith('opkg install ') && line.endsWith(' sing-box'));
-if (firstList < 0) fail('initial stable sing-box package list lookup missing');
-if (update <= firstList) fail('package list update must happen after empty initial lookup');
-if (secondList <= update) fail('stable sing-box version must be resolved again after package list update');
-if (install <= secondList) fail('stable sing-box install must happen after post-update version resolve');
-NODE
-
-cat >"$package_runtime_bin/apk" <<'SH'
-#!/usr/bin/env sh
-set -eu
-printf 'apk %s\n' "$*" >>"${FAKE_APK_LOG:?}"
-case "${1:-}" in
-  info)
-    exit 1
-    ;;
-  update|add|fix|del)
-    exit 0
-    ;;
-  *)
-    exit 1
-    ;;
-esac
-SH
-chmod +x "$package_runtime_bin/apk"
-set +e
-PATH="$package_runtime_bin:$PATH" \
-FORKOP_LIB="$package_runtime_lib" \
-FORKOP_RUNTIME_STATE_DIR="$WORK_DIR/apk-package-runtime" \
-FORKOP_BIN="$WORK_DIR/missing-forkop" \
-FORKOP_SERVICE_INIT="$WORK_DIR/missing-init" \
-FAKE_APK_LOG="$WORK_DIR/apk.log" \
-ucode -L "$package_runtime_lib" "$ACTION_UC" component-action sing_box install_stable >/dev/null
-set -e
-grep -Fxq 'apk add sing-box=1.2.3-r1' "$WORK_DIR/apk.log" ||
-  fail "APK stable action must request the exact sing-box package version"
-if grep -Fxq 'apk add sing-box' "$WORK_DIR/apk.log"; then
-  fail "APK stable action must not use the provider-selecting unversioned package name"
-fi
-
 release_json="$(cat <<'JSON'
 {
   "tag_name": "1.2.3",

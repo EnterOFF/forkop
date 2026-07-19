@@ -248,8 +248,6 @@ function sing_box_restore_variant_marker(variant) {
 function sing_box_version() {
     if (!command_exists("sing-box"))
         return "";
-    if (sing_box_marker_is("extended-compressed"))
-        return sing_box_version_state();
     return first_line_last_field(sing_box_version_output());
 }
 
@@ -259,9 +257,6 @@ function sing_box_version_is_extended(value) {
 
 function sing_box_is_extended(value) {
     value = as_string(value);
-    if (value == "" && command_exists("sing-box") && (sing_box_marker_is("extended-compressed") || sing_box_marker_is("extended")))
-        return true;
-
     return sing_box_version_is_extended(value != "" ? value : sing_box_version());
 }
 
@@ -280,8 +275,6 @@ function sing_box_supports_tailscale(version, version_output) {
     version = as_string(version);
     version_output = as_string(version_output);
 
-    if (command_exists("sing-box") && sing_box_marker_is("extended-compressed"))
-        return true;
     if (sing_box_is_extended(version))
         return true;
     if (version_output != "")
@@ -305,34 +298,15 @@ function sing_box_package_installed(name) {
 }
 
 function sing_box_is_tiny(version, version_output) {
-    version = as_string(version);
-    version_output = as_string(version_output);
-
-    if (command_exists("sing-box") && sing_box_marker_is("extended-compressed"))
-        return false;
-    if (sing_box_is_extended(version != "" ? version : sing_box_version()))
-        return false;
-    if (sing_box_package_installed("sing-box-tiny"))
-        return true;
-    if (!sing_box_marker_is("tiny"))
-        return false;
-    return !sing_box_supports_tailscale(version, version_output);
+    return false;
 }
 
 function sing_box_variant() {
-    let version = "";
-
-    if (!command_exists("sing-box"))
-        return "not-installed";
-    if (sing_box_marker_is("extended-compressed"))
-        return "extended-compressed";
-
-    version = sing_box_version();
-    if (sing_box_is_extended(version))
-        return sing_box_marker_is("extended-compressed") ? "extended-compressed" : "extended";
-    if (sing_box_is_tiny(version, ""))
-        return "tiny";
-    return "stable";
+    if (sing_box_package_installed("sing-box-forkop-compressed"))
+        return "forkop-compressed";
+    if (sing_box_package_installed("sing-box-forkop"))
+        return "forkop";
+    return "not-installed";
 }
 
 function log_message(message, level) {
@@ -379,58 +353,9 @@ function uci_commit(config) {
     return uci_core.commit(config);
 }
 
-function owner_pid() {
-    let pid = trim(command_output_from_args([ "sh", "-c", "echo $PPID" ]));
-    return match(pid, /^[0-9]+$/) != null ? pid : "0";
-}
-
 function managed_service_installed() {
     let data = fs.readfile("/etc/init.d/sing-box");
     return data != null && index(as_string(data), SB_MANAGED_SERVICE_MARKER) >= 0;
-}
-
-function managed_service_text() {
-    return "#!/bin/sh /etc/rc.common\n" +
-        "# " + SB_MANAGED_SERVICE_MARKER + "\n\n" +
-        "USE_PROCD=1\n" +
-        "START=99\n" +
-        "PROG=\"/usr/bin/sing-box\"\n\n" +
-        "start_service() {\n" +
-        "    config_load \"sing-box\"\n" +
-        "    local enabled config_file working_directory\n" +
-        "    local log_stderr\n\n" +
-        "    config_get_bool enabled \"main\" \"enabled\" \"0\"\n" +
-        "    [ \"$enabled\" -eq \"1\" ] || return 0\n\n" +
-        "    config_get config_file \"main\" \"conffile\" \"/etc/sing-box/config.json\"\n" +
-        "    config_get working_directory \"main\" \"workdir\" \"/usr/share/sing-box\"\n" +
-        "    config_get_bool log_stderr \"main\" \"log_stderr\" \"1\"\n\n" +
-        "    procd_open_instance\n" +
-        "    procd_set_param command \"$PROG\" run -c \"$config_file\" -D \"$working_directory\"\n" +
-        "    procd_set_param file \"$config_file\"\n" +
-        "    procd_set_param stderr \"$log_stderr\"\n" +
-        "    procd_set_param limits core=\"unlimited\"\n" +
-        "    procd_set_param limits nofile=\"1000000 1000000\"\n" +
-        "    procd_set_param respawn\n" +
-        "    procd_close_instance\n" +
-        "}\n\n" +
-        "service_triggers() {\n" +
-        "    procd_add_reload_trigger \"sing-box\"\n" +
-        "}\n";
-}
-
-function sing_box_compressed_marker_set() {
-    return trim(as_string(fs.readfile(SB_VARIANT_STATE_FILE) || "")) == "extended-compressed";
-}
-
-function install_managed_service_script() {
-    let tmp = "/etc/init.d/sing-box.forkop." + owner_pid();
-    if (!write_file(tmp, managed_service_text()))
-        return false;
-    if (!command_success_from_args([ "chmod", "0755", tmp ])) {
-        remove_file(tmp);
-        return false;
-    }
-    return fs.rename(tmp, "/etc/init.d/sing-box");
 }
 
 function remove_managed_service_script() {
@@ -459,11 +384,6 @@ function prepare_service_disabled() {
 
 function configure_service() {
     let settings = uci_settings();
-
-    if (sing_box_compressed_marker_set() && !install_managed_service_script()) {
-        log_message("Failed to install managed sing-box service for compressed binary. Aborted.", "fatal");
-        exit(1);
-    }
 
     if (!ensure_sing_box_main_section())
         exit(1);

@@ -325,7 +325,7 @@ describe('applyUiStateToStore', () => {
     });
   });
 
-  it('keeps current sing-box variant while a different sing-box install action is running', () => {
+  it('keeps current sing-box capabilities while an update is running', () => {
     store.set({
       diagnosticsSystemInfo: {
         ...store.get().diagnosticsSystemInfo,
@@ -351,7 +351,7 @@ describe('applyUiStateToStore', () => {
               running: true,
               job_id: 'sing-box-install',
               component: 'sing_box',
-              action: 'install_extended_compressed',
+              action: 'install',
               message: 'Install is running',
               current_version: '',
               latest_version: '',
@@ -384,9 +384,7 @@ describe('applyUiStateToStore', () => {
       byedpi_installed: 0,
       server_inbounds_enabled_count: 2,
     });
-    expect(
-      store.get().updatesActions.singBoxInstallExtendedCompressed.loading,
-    ).toBe(true);
+    expect(store.get().updatesActions.singBoxInstall.loading).toBe(true);
   });
 
   it('marks the running sing-box install action without pretending it is installed', () => {
@@ -399,7 +397,7 @@ describe('applyUiStateToStore', () => {
               running: true,
               job_id: 'sing-box-install',
               component: 'sing_box',
-              action: 'install_extended',
+              action: 'install',
               message: 'Install is running',
               current_version: '',
               latest_version: '',
@@ -422,8 +420,6 @@ describe('applyUiStateToStore', () => {
       sing_box_compressed: 0,
       sing_box_tailscale: 0,
     });
-    expect(store.get().updatesActions.singBoxInstallExtended.loading).toBe(
-      true,
-    );
+    expect(store.get().updatesActions.singBoxInstall.loading).toBe(true);
   });
 });

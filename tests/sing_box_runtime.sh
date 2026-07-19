@@ -82,15 +82,15 @@ cat >"$WORK_DIR/bin/sing-box" <<'EOF_SING_BOX'
 echo 'sing-box version 1.12.25'
 EOF_SING_BOX
 chmod +x "$WORK_DIR/bin/sing-box"
-stable_variant="$({
+unsupported_variant="$({
   PATH="$WORK_DIR/bin:$PATH" \
     FORKOP_LIB="$FORKOP_LIB" \
     SB_VARIANT_STATE_FILE="$WORK_DIR/sing-box-variant" \
     ucode -L "$FORKOP_LIB" "$SINGBOX_RUNTIME_UC" variant
 } 2>"$WORK_DIR/stable-variant.stderr")" ||
-  fail "singbox/runtime.uc must detect a stable binary without a ucode call-order failure"
-[ "$stable_variant" = "stable" ] ||
-  fail "singbox/runtime.uc should classify a regular sing-box binary as stable"
+  fail "singbox/runtime.uc must reject an unmanaged binary without a ucode call-order failure"
+[ "$unsupported_variant" = "not-installed" ] ||
+  fail "singbox/runtime.uc must not classify an unmanaged sing-box as a supported variant"
 [ ! -s "$WORK_DIR/stable-variant.stderr" ] ||
   fail "stable sing-box variant detection must not emit ucode runtime errors"
 

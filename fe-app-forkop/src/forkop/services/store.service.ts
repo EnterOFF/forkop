@@ -213,10 +213,6 @@ export interface StoreType {
     forkopInstall: { loading: boolean };
     singBoxCheck: { loading: boolean };
     singBoxInstall: { loading: boolean };
-    singBoxInstallExtended: { loading: boolean };
-    singBoxInstallExtendedCompressed: { loading: boolean };
-    singBoxInstallTiny: { loading: boolean };
-    singBoxInstallStable: { loading: boolean };
     zapretCheck: { loading: boolean };
     zapretInstall: { loading: boolean };
     zapretRemove: { loading: boolean };

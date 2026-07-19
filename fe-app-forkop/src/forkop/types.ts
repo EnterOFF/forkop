@@ -266,24 +266,6 @@ export namespace Forkop {
     urltest_settings?: string;
     priority_groups?: string[];
     priority_group_settings?: string;
-    dashboard_filter_mode?: 'disabled' | 'exclude' | 'include' | 'mixed';
-    dashboard_detect_server_country?: 'flag_emoji' | 'country_is';
-    dashboard_include_countries?: string[];
-    dashboard_include_outbounds?: string[];
-    dashboard_include_regex?: string[];
-    dashboard_include_proxy_parameters?: '0' | '1';
-    dashboard_include_protocols?: string[];
-    dashboard_include_transports?: string[];
-    dashboard_include_securities?: string[];
-    dashboard_include_groups?: string[];
-    dashboard_exclude_countries?: string[];
-    dashboard_exclude_outbounds?: string[];
-    dashboard_exclude_regex?: string[];
-    dashboard_exclude_proxy_parameters?: '0' | '1';
-    dashboard_exclude_protocols?: string[];
-    dashboard_exclude_transports?: string[];
-    dashboard_exclude_securities?: string[];
-    dashboard_exclude_groups?: string[];
     urltest_proxy_links?: string[];
     subscription_url?: string;
     subscription_user_agent?: string;
@@ -293,7 +275,6 @@ export namespace Forkop {
     urltest_enabled?: '0' | '1';
     sort_by_latency?: '0' | '1';
     urltest_check_interval_disabled?: '0' | '1';
-    detect_server_country?: '0' | '1' | 'flag_emoji' | 'country_is';
     urltest_filter_mode?: 'disabled' | 'exclude' | 'include' | 'mixed';
     urltest_hide_filtered_outbounds?: '0' | '1';
     urltest_exclude_countries?: string[];
@@ -455,7 +436,6 @@ export namespace Forkop {
 
   export interface GetOutboundMetadata {
     names?: Record<string, string>;
-    countries?: Record<string, string>;
   }
 
   export interface GetSingBoxStatus {
@@ -556,14 +536,7 @@ export namespace Forkop {
     | 'zapret2'
     | 'byedpi';
 
-  export type ComponentAction =
-    | 'check_update'
-    | 'install'
-    | 'remove'
-    | 'install_extended'
-    | 'install_extended_compressed'
-    | 'install_tiny'
-    | 'install_stable';
+  export type ComponentAction = 'check_update' | 'install' | 'remove';
 
   export interface ComponentActionResult {
     success: boolean;

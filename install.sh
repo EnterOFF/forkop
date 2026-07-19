@@ -17,7 +17,7 @@ FORKOP_WAS_RUNNING=0
 FORKOP_LEGACY_DETECTED=0
 FORKOP_I18N_REQUESTED=0
 INSTALLER_LANG="en"
-SING_BOX_INSTALL_VARIANT=""
+SING_BOX_INSTALL_FLAVOR="normal"
 
 FORKOP_RELEASE_JSON=""
 FORKOP_RELEASE_TAG=""
@@ -53,16 +53,14 @@ fail() {
 
 usage() {
     cat <<EOF
-Usage: $0
+Usage: $0 [--compressed]
 
 Installs or updates Forkop packages:
   - forkop
   - luci-app-forkop
   - luci-i18n-forkop-ru when requested or when LuCI language is Russian
 
-Can also install or switch sing-box variant:
-  - stable sing-box from OpenWrt feeds
-  - sing-box-extended from GitHub OpenWrt packages (for xHTTP support)
+Installs sing-box-forkop. Use --compressed for the smaller UPX-compressed package.
 EOF
 }
 
@@ -72,6 +70,9 @@ parse_args() {
             -h|--help)
                 usage
                 exit 0
+                ;;
+            --compressed)
+                SING_BOX_INSTALL_FLAVOR="compressed"
                 ;;
             *)
                 fail "Unknown installer option: $1"
@@ -1201,7 +1202,6 @@ function installer_post_install() {
     for (let path in [
         env("FORKOP_INSTALLER_LATEST_VERSION_CACHE", "/tmp/forkop.latest-version.cache"),
         env("FORKOP_INSTALLER_SYSTEM_INFO_CACHE", "/var/run/forkop/system-info.json"),
-        env("FORKOP_INSTALLER_SERVER_COUNTRY_CACHE", "/var/run/forkop/server-country-cache.json"),
         env("FORKOP_INSTALLER_SING_BOX_VERSION_CACHE", "/var/run/forkop/ui-state/sing-box-version"),
         env("FORKOP_INSTALLER_TMP_SYSTEM_INFO_CACHE", "/tmp/forkop/system-info.json")
     ])
@@ -1616,10 +1616,6 @@ installer_text() {
             i18n_prompt) printf '%s\n' "Установить русский пакет интерфейса?" ;;
             i18n_skip) printf '%s\n' "Продолжаю без русского пакета интерфейса." ;;
             luci_ru) printf '%s\n' "Русский пакет интерфейса будет установлен автоматически." ;;
-            sing_box_prompt) printf '%s\n' "Какую сборку singbox ставить?" ;;
-            sing_box_stable) printf '%s\n' "singbox stable" ;;
-            sing_box_extended) printf '%s\n' "singbox extended (если нужен xhttp)" ;;
-            sing_box_skip_msg) printf '%s\n' "Пропускаю установку sing-box." ;;
             *) printf '%s\n' "$key" ;;
         esac
         return 0
@@ -1634,10 +1630,6 @@ installer_text() {
         i18n_prompt) printf '%s\n' "Install the Russian interface language package?" ;;
         i18n_skip) printf '%s\n' "Continuing without the Russian interface language package." ;;
         luci_ru) printf '%s\n' "The Russian interface package will be installed automatically." ;;
-        sing_box_prompt) printf '%s\n' "Which singbox build should be installed?" ;;
-        sing_box_stable) printf '%s\n' "singbox stable" ;;
-        sing_box_extended) printf '%s\n' "singbox extended (if xhttp is needed)" ;;
-        sing_box_skip_msg) printf '%s\n' "Skipping sing-box installation." ;;
         *) printf '%s\n' "$key" ;;
     esac
 }
@@ -1745,88 +1737,17 @@ resolve_forkop_release() {
     fi
 }
 
-sing_box_is_present() {
-    command_exists sing-box ||
-        pkg_is_installed "sing-box" ||
-        pkg_is_installed "sing-box-tiny" ||
-        pkg_is_installed "sing-box-extended"
-}
-
-select_sing_box_installation() {
-    answer=""
-    default_choice=1
-
-    if [ "$FORKOP_LEGACY_DETECTED" -eq 1 ] &&
-        [ -r /etc/init.d/sing-box ] &&
-        grep -Fq 'managed sing-box service for binary variants' /etc/init.d/sing-box; then
-        SING_BOX_INSTALL_VARIANT="extended-compressed"
-        msg "The legacy binary-managed sing-box variant will be reinstalled for Forkop"
-        return 0
-    fi
-
-    if sing_box_is_present; then
-        SING_BOX_INSTALL_VARIANT=""
-        return 0
-    fi
-
-    if [ ! -t 0 ]; then
-        SING_BOX_INSTALL_VARIANT="stable"
-        msg "$(installer_text sing_box_prompt): $default_choice ($(installer_text sing_box_stable), non-interactive)"
-        return 0
-    fi
-
-    while :; do
-        printf '\n%s\n' "$(installer_text sing_box_prompt)"
-        printf '  1) %s\n' "$(installer_text sing_box_stable)"
-        printf '  2) %s\n' "$(installer_text sing_box_extended)"
-        printf '%s [%s]: ' "$(installer_text select)" "$default_choice"
-        read -r answer || return 1
-        [ -n "$answer" ] || answer="$default_choice"
-
-        if [ "$answer" = "1" ]; then
-            SING_BOX_INSTALL_VARIANT="stable"
-            return 0
-        fi
-        if [ "$answer" = "2" ]; then
-            SING_BOX_INSTALL_VARIANT="extended"
-            return 0
-        fi
-
-        warn "$(installer_text invalid_choice)"
-    done
-}
-
 install_selected_sing_box() {
-    action=""
     output_file="$TMP_DIR/sing-box-component-action.json"
 
-    case "$SING_BOX_INSTALL_VARIANT" in
-        "")
-            msg "$(installer_text sing_box_skip_msg)"
-            return 0
-            ;;
-        stable)
-            action="install_stable"
-            ;;
-        extended)
-            action="install_extended"
-            ;;
-        extended-compressed)
-            action="install_extended_compressed"
-            ;;
-        *)
-            fail "Unknown sing-box installation variant: $SING_BOX_INSTALL_VARIANT"
-            ;;
-    esac
-
     [ -x /usr/bin/forkop ] || fail "forkop backend must be installed before sing-box component action"
-    msg "Installing selected sing-box variant through Forkop ucode backend"
-    if ! /usr/bin/forkop component_action sing_box "$action" >"$output_file" 2>&1; then
+    msg "Installing sing-box-forkop ($SING_BOX_INSTALL_FLAVOR)"
+    if ! FORKOP_SING_BOX_INSTALL_FLAVOR="$SING_BOX_INSTALL_FLAVOR" \
+        /usr/bin/forkop component_action sing_box install >"$output_file" 2>&1; then
         cat "$output_file" >&2 2>/dev/null || true
-        fail "Failed to install selected sing-box variant"
+        fail "Failed to install sing-box-forkop"
     fi
 }
-
 cleanup_legacy_installation() {
     state_file="$TMP_DIR/install-state.env"
 
@@ -1984,7 +1905,6 @@ main() {
 
     detect_legacy_installation
     decide_i18n_installation
-    select_sing_box_installation
 
     pkg_list_update || fail "Failed to update package lists"
     ensure_bootstrap_ucode_runtime
