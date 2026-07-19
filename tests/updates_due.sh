@@ -100,20 +100,8 @@ grep -Fq 'command_from_args([ "wget", "-T", "30", "-O", filepath, url ])' "$UPDA
 if grep 'log_message("Failed to download .*"warn");' "$UPDATES_UC" >/dev/null 2>&1; then
   fail "terminal list download failures must not remain warnings"
 fi
-assert_eq "0 */2 * * * /usr/bin/forkop subscription_update_if_due # subscription" \
-  "$(updates_ucode subscription-update-cron-job 7200 /usr/bin/forkop '# subscription')" \
-  "subscription update cron job"
-assert_eq $'error\trule3\tinvalid\nmin\t1800' \
-  "$(printf 'rule1\t2h\nrule2\t30m\nrule3\tinvalid\nrule4\t\n' | updates_ucode subscription-update-interval-plan)" \
-  "subscription interval plan"
-assert_eq $'min\t0' \
-  "$(printf 'rule1\t\n' | updates_ucode subscription-update-interval-plan)" \
-  "empty subscription interval plan"
 if updates_ucode list-update-cron-job invalid /usr/bin/forkop '# list' >/dev/null 2>&1; then
   fail "invalid list update interval should fail"
-fi
-if updates_ucode subscription-update-cron-job 0 /usr/bin/forkop '# subscription' >/dev/null 2>&1; then
-  fail "invalid subscription update interval should fail"
 fi
 
 WORK_DIR="$(mktemp -d)"
@@ -164,7 +152,7 @@ cat >"$WORK_DIR/cron-plan.json" <<'JSON'
 }
 JSON
 
-assert_eq $'list\t*/30 * * * * /usr/bin/forkop list_update_if_due # list\nsubscription-error\tbad_sub\tbad\nsubscription\t*/45 * * * * /usr/bin/forkop subscription_update_if_due # subscription\ncomponent\t0 */2 * * * /usr/bin/forkop component_updates_if_due # component' \
+assert_eq $'list\t*/30 * * * * /usr/bin/forkop list_update_if_due # list\ncomponent\t0 */2 * * * /usr/bin/forkop component_updates_if_due # component' \
   "$(updates_ucode cron-refresh-plan-fixture "$WORK_DIR/cron-plan.json" /usr/bin/forkop '# list' '# subscription' '# component')" \
   "cron refresh plan"
 
@@ -228,7 +216,6 @@ const value = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const expected = [
   "0 1 * * * /bin/true # keep",
   "*/30 * * * * /usr/bin/forkop list_update_if_due # list",
-  "*/45 * * * * /usr/bin/forkop subscription_update_if_due # subscription",
   "0 */2 * * * /usr/bin/forkop component_updates_if_due # component",
   ""
 ].join("\n");
@@ -239,7 +226,6 @@ if (value.crontab !== expected) {
 const messages = value.logs.map(item => item.message);
 if (!messages.includes("The cron job removed") ||
     !messages.includes("The cron job has been created: */30 * * * * /usr/bin/forkop list_update_if_due # list") ||
-    !messages.includes("The subscription cron job has been created: */45 * * * * /usr/bin/forkop subscription_update_if_due # subscription") ||
     !messages.includes("The component update check cron job has been created: 0 */2 * * * /usr/bin/forkop component_updates_if_due # component")) {
   console.error("unexpected cron apply logs", JSON.stringify(value.logs));
   process.exit(1);
@@ -263,8 +249,7 @@ if (!value.logs.some(item => item.level === "error" && item.message === "Invalid
 JS
 
 LIST_TIMESTAMP="$WORK_DIR/list.timestamp"
-SUB_TIMESTAMP="$WORK_DIR/sub.timestamp"
-rm -f "$LIST_TIMESTAMP" "$SUB_TIMESTAMP"
+rm -f "$LIST_TIMESTAMP"
 
 assert_updates_status 0 "list update should be due without timestamp" \
   list-update-due-status-fixture "$WORK_DIR/cron-plan.json" "$LIST_TIMESTAMP" 1000
@@ -277,18 +262,5 @@ status=0
 invalid_due="$(updates_ucode list-update-due-status-fixture "$WORK_DIR/cron-plan-invalid-list.json" "$LIST_TIMESTAMP" 1000)" || status="$?"
 assert_eq 2 "$status" "invalid list due status"
 assert_eq $'error\tbad' "$invalid_due" "invalid list due output"
-
-rm -f "$SUB_TIMESTAMP"
-assert_updates_status 0 "subscription update should be due without timestamp" \
-  subscription-update-section-due-status-fixture "$WORK_DIR/cron-plan.json" fast_sub "$SUB_TIMESTAMP" 1000
-printf '900\n' >"$SUB_TIMESTAMP"
-assert_updates_status 1 "subscription update should not be due before interval" \
-  subscription-update-section-due-status-fixture "$WORK_DIR/cron-plan.json" fast_sub "$SUB_TIMESTAMP" 1000
-assert_updates_status 1 "missing subscription section should not be due" \
-  subscription-update-section-due-status-fixture "$WORK_DIR/cron-plan.json" missing "$SUB_TIMESTAMP" 1000
-status=0
-invalid_due="$(updates_ucode subscription-update-section-due-status-fixture "$WORK_DIR/cron-plan.json" bad_sub "$SUB_TIMESTAMP" 1000)" || status="$?"
-assert_eq 2 "$status" "invalid subscription due status"
-assert_eq $'error\tbad' "$invalid_due" "invalid subscription due output"
 
 printf 'updates due checks passed\n'

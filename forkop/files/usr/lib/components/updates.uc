@@ -8,30 +8,12 @@ const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
 const BIN_PATH = getenv("FORKOP_BIN") || "/usr/bin/forkop";
 const TMP_SING_BOX_FOLDER = getenv("TMP_SING_BOX_FOLDER") || "/tmp/sing-box";
 const TMP_RULESET_FOLDER = getenv("TMP_RULESET_FOLDER") || TMP_SING_BOX_FOLDER + "/rulesets";
-const TMP_SUBSCRIPTION_FOLDER = getenv("TMP_SUBSCRIPTION_FOLDER") || TMP_SING_BOX_FOLDER + "/subscriptions";
 const RUNTIME_STATE_DIR = getenv("FORKOP_RUNTIME_STATE_DIR") || "/var/run/forkop";
 const LIST_UPDATE_STATE_FILE = getenv("FORKOP_LIST_UPDATE_STATE_FILE") || RUNTIME_STATE_DIR + "/list-update.timestamp";
 const LIST_UPDATE_PID_FILE = getenv("FORKOP_LIST_UPDATE_PID_FILE") || "/var/run/forkop_list_update.pid";
-const SUBSCRIPTION_UPDATE_STATE_DIR = getenv("FORKOP_SUBSCRIPTION_UPDATE_STATE_DIR") || RUNTIME_STATE_DIR + "/subscription-update";
 const SUBSCRIPTION_JOB_DIR = getenv("FORKOP_SUBSCRIPTION_UPDATE_JOB_DIR") || "/var/run/forkop/subscription-update-jobs";
-const SUBSCRIPTION_UPDATE_LOCK_DIR = getenv("FORKOP_SUBSCRIPTION_UPDATE_LOCK_DIR") || RUNTIME_STATE_DIR + "/subscription-update.lock";
-const SUBSCRIPTION_LINKS_DIR = getenv("FORKOP_SUBSCRIPTION_LINKS_DIR") || RUNTIME_STATE_DIR + "/subscription-links";
-const SUBSCRIPTION_METADATA_DIR = getenv("FORKOP_SUBSCRIPTION_METADATA_DIR") || RUNTIME_STATE_DIR + "/subscription-metadata";
-const OUTBOUND_METADATA_DIR = getenv("FORKOP_OUTBOUND_METADATA_DIR") || RUNTIME_STATE_DIR + "/outbound-metadata";
-const SECTION_CACHE_DIR = getenv("FORKOP_SECTION_CACHE_DIR") || RUNTIME_STATE_DIR + "/section-cache";
-const RUNTIME_CACHE_FORMAT_FILE = getenv("FORKOP_RUNTIME_CACHE_FORMAT_FILE") || RUNTIME_STATE_DIR + "/cache-format";
-const RUNTIME_CACHE_FORMAT = getenv("FORKOP_RUNTIME_CACHE_FORMAT") || "8";
-const PERSISTENT_SUBSCRIPTION_CACHE_DIR = getenv("FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_DIR") || "/etc/forkop/subscription-cache";
-const PERSISTENT_SUBSCRIPTION_CACHE_FORMAT_FILE = getenv("FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT_FILE") || PERSISTENT_SUBSCRIPTION_CACHE_DIR + "/cache-format";
-const PERSISTENT_SUBSCRIPTION_CACHE_FORMAT = getenv("FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT") || "7";
-const PENDING_RELOAD_FILE = getenv("FORKOP_PENDING_RELOAD_FILE") || RUNTIME_STATE_DIR + "/reload.pending";
-const RELOAD_STATE_FILE = getenv("FORKOP_RELOAD_STATE_FILE") || RUNTIME_STATE_DIR + "/reload-state";
-const RELOAD_STATE_FORMAT = getenv("FORKOP_RELOAD_STATE_FORMAT") || "1";
 const RULE_CONDITION_CACHE_DIR = getenv("FORKOP_RULE_CONDITION_CACHE_DIR") || RUNTIME_STATE_DIR + "/rule-condition-cache";
-const RELOAD_LOCK_DIR = getenv("FORKOP_RELOAD_LOCK_DIR") || "/var/run/forkop.reload.lock";
 const SERVICE_INIT = getenv("FORKOP_SERVICE_INIT") || "/etc/init.d/forkop";
-const PRIORITY_UC = getenv("FORKOP_PRIORITY_UC") || LIB_DIR + "/singbox/priority.uc";
-const DNS_FAILOVER_UC = getenv("FORKOP_DNS_FAILOVER_UC") || LIB_DIR + "/singbox/dns_failover.uc";
 const COMPONENT_JOB_DIR = getenv("UPDATES_JOB_DIR") || getenv("FORKOP_UI_COMPONENT_ACTION_DIR") || "/var/run/forkop/component-actions";
 const COMPONENT_UPDATE_CHECK_CACHE_DIR = getenv("FORKOP_COMPONENT_UPDATE_CHECK_CACHE_DIR") || RUNTIME_STATE_DIR + "/component-update-checks";
 const COMPONENT_UPDATE_CHECK_STATE_FILE = getenv("FORKOP_COMPONENT_UPDATE_CHECK_STATE_FILE") || RUNTIME_STATE_DIR + "/component-update-check.timestamp";
@@ -53,7 +35,6 @@ const NFT_INTERFACE_SET_NAME = getenv("NFT_INTERFACE_SET_NAME") || "forkop_inter
 const NFT_FAKEIP_MARK = getenv("NFT_FAKEIP_MARK") || "0x04000000";
 const SB_SERVICE_MIXED_INBOUND_ADDRESS = getenv("SB_SERVICE_MIXED_INBOUND_ADDRESS") || "127.0.0.1";
 const SB_SERVICE_MIXED_INBOUND_PORT = getenv("SB_SERVICE_MIXED_INBOUND_PORT") || "4534";
-const SB_VARIANT_STATE_FILE = getenv("SB_VARIANT_STATE_FILE") || "/etc/forkop/sing-box-variant";
 const GITHUB_RAW_URL = getenv("GITHUB_RAW_URL") || "https://raw.githubusercontent.com/itdoginfo/allow-domains/main";
 const BUILTIN_SUBNET_URLS = {
     twitter: [ getenv("SUBNETS_TWITTER") || GITHUB_RAW_URL + "/Subnets/IPv4/twitter.lst", getenv("SUBNETS_TWITTER6") || GITHUB_RAW_URL + "/Subnets/IPv6/twitter.lst" ],
@@ -524,41 +505,6 @@ function update_cron_job(interval, command, bin, marker) {
     print(due_check_cron_schedule_text(seconds), " ", as_string(bin), " ", as_string(command), " ", as_string(marker), "\n");
 }
 
-function subscription_update_cron_job(min_interval_seconds, bin, marker) {
-    let seconds = arg_number(min_interval_seconds);
-    if (seconds <= 0)
-        exit(1);
-
-    print(due_check_cron_schedule_text(seconds), " ", as_string(bin), " subscription_update_if_due ", as_string(marker), "\n");
-}
-
-function subscription_update_interval_plan() {
-    let min_interval = 0;
-
-    for (let line in split(read_stdin(), "\n")) {
-        line = as_string(line);
-        if (line == "")
-            continue;
-
-        let separator = index(line, "\t");
-        let section = separator >= 0 ? substr(line, 0, separator) : line;
-        let interval = separator >= 0 ? substr(line, separator + 1) : "";
-        if (interval == "")
-            continue;
-
-        let seconds = duration_to_seconds_value(interval);
-        if (seconds == null) {
-            print("error\t", section, "\t", interval, "\n");
-            continue;
-        }
-
-        if (min_interval == 0 || seconds < min_interval)
-            min_interval = seconds;
-    }
-
-    print("min\t", min_interval, "\n");
-}
-
 function list_has_remote_references(value) {
     for (let item in split(as_string(value), /[ \t\r\n]+/)) {
         if (match(item, /^https?:\/\//) != null)
@@ -612,33 +558,6 @@ function settings_component_update_check_interval(settings) {
 
     let value = option(settings, "component_update_check_interval", "1d");
     return value != "" ? value : "1d";
-}
-
-function section_subscription_update_interval(section) {
-    let result = "";
-    let result_seconds = 0;
-
-    for (let entry in connections.subscription_urls(section)) {
-        if (!connections.subscription_update_enabled(section, entry))
-            continue;
-
-        let value = connections.subscription_update_interval(section, entry);
-        if (value == "")
-            value = "1h";
-        let seconds = duration_to_seconds_value(value);
-        if (result == "" || (seconds != null && (result_seconds == 0 || seconds < result_seconds))) {
-            result = value;
-            result_seconds = seconds == null ? 0 : seconds;
-        }
-    }
-
-    return result;
-}
-
-function section_is_subscription_proxy(section) {
-    return bool_option(section, "enabled", true) &&
-        connections.is_connections_action(option(section, "action", "")) &&
-        length(connections.subscription_urls(section)) > 0;
 }
 
 function line_contains_any_marker(line, markers) {
@@ -698,35 +617,6 @@ function cron_refresh_plan_rows(settings, sections, bin, list_marker, subscripti
         }
     }
 
-    let min_interval = 0;
-    let subscription_source_count = 0;
-    for (let section in sections) {
-        section = object_or_empty(section);
-        if (!section_is_subscription_proxy(section))
-            continue;
-
-        let interval = section_subscription_update_interval(section);
-        if (interval == "")
-            continue;
-
-        subscription_source_count++;
-        let seconds = duration_to_seconds_value(interval);
-        if (seconds == null) {
-            push(rows, "subscription-error\t" + section_name(section) + "\t" + as_string(interval));
-            continue;
-        }
-
-        if (min_interval == 0 || seconds < min_interval)
-            min_interval = seconds;
-    }
-
-    if (subscription_source_count > 0) {
-        if (min_interval <= 0)
-            status = 1;
-        else
-            push(rows, "subscription\t" + due_check_cron_schedule_text(min_interval) + " " + as_string(bin) + " subscription_update_if_due " + as_string(subscription_marker));
-    }
-
     let component_interval = settings_component_update_check_interval(settings);
     if (component_interval != "") {
         let component_seconds = duration_to_seconds_value(component_interval);
@@ -778,16 +668,6 @@ function cron_refresh_apply_result(settings, sections, existing_crontab, bin, li
         }
         else if (type == "list-error") {
             push(logs, { level: "error", message: "Invalid update_interval value: " + rest });
-        }
-        else if (type == "subscription") {
-            cron_jobs += rest + "\n";
-            push(logs, { level: "info", message: "The subscription cron job has been created: " + rest });
-        }
-        else if (type == "subscription-error") {
-            let section_separator = index(rest, tab);
-            let section = section_separator >= 0 ? substr(rest, 0, section_separator) : rest;
-            let interval = section_separator >= 0 ? substr(rest, section_separator + 1) : "";
-            push(logs, { level: "error", message: "Invalid subscription_update_interval value for rule '" + section + "': " + interval });
         }
         else if (type == "component") {
             cron_jobs += rest + "\n";
@@ -858,21 +738,6 @@ function refresh_cron_from_sources(settings, sections, bin, list_marker, subscri
 
 function list_update_due_status(settings, timestamp_path, now) {
     let interval = settings_update_interval(settings);
-    if (interval == "")
-        exit(1);
-
-    let seconds = duration_to_seconds_value(interval);
-    if (seconds == null) {
-        print("error\t", interval, "\n");
-        exit(2);
-    }
-
-    exit(update_due_status(now, file_first_line_value(timestamp_path), seconds));
-}
-
-function subscription_update_section_due_status(section, timestamp_path, now) {
-    section = object_or_empty(section);
-    let interval = section_subscription_update_interval(section);
     if (interval == "")
         exit(1);
 
@@ -1062,31 +927,7 @@ function subscription_job_id() {
 }
 
 function ensure_subscription_runtime_dirs() {
-    let command = command_env({
-        FORKOP_CONFIG_NAME: CONFIG_NAME,
-        FORKOP_LIB: LIB_DIR,
-        TMP_SING_BOX_FOLDER,
-        TMP_RULESET_FOLDER,
-        TMP_SUBSCRIPTION_FOLDER,
-        FORKOP_RUNTIME_STATE_DIR: RUNTIME_STATE_DIR,
-        FORKOP_SUBSCRIPTION_UPDATE_STATE_DIR: SUBSCRIPTION_UPDATE_STATE_DIR,
-        FORKOP_SUBSCRIPTION_LINKS_DIR: SUBSCRIPTION_LINKS_DIR,
-        FORKOP_SUBSCRIPTION_METADATA_DIR: SUBSCRIPTION_METADATA_DIR,
-        FORKOP_OUTBOUND_METADATA_DIR: OUTBOUND_METADATA_DIR,
-        FORKOP_SECTION_CACHE_DIR: SECTION_CACHE_DIR,
-        FORKOP_RUNTIME_CACHE_FORMAT_FILE: RUNTIME_CACHE_FORMAT_FILE,
-        FORKOP_RUNTIME_CACHE_FORMAT: RUNTIME_CACHE_FORMAT,
-        FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_DIR: PERSISTENT_SUBSCRIPTION_CACHE_DIR,
-        FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT_FILE: PERSISTENT_SUBSCRIPTION_CACHE_FORMAT_FILE,
-        FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT: PERSISTENT_SUBSCRIPTION_CACHE_FORMAT
-    }) + " " + command_from_args([
-        "ucode",
-        "-L", LIB_DIR,
-        LIB_DIR + "/subscription/cache.uc",
-        "ensure-runtime-dirs"
-    ]);
-
-    return command_success(command) && ensure_dir(SUBSCRIPTION_JOB_DIR);
+    return ensure_dir(RUNTIME_STATE_DIR) && ensure_dir(SUBSCRIPTION_JOB_DIR);
 }
 
 function subscription_job_output_path(job_id) {
@@ -1210,21 +1051,8 @@ function subscription_worker_env() {
         FORKOP_CONFIG_NAME: CONFIG_NAME,
         FORKOP_LIB: LIB_DIR,
         FORKOP_BIN: BIN_PATH,
-        TMP_SING_BOX_FOLDER,
-        TMP_RULESET_FOLDER,
-        TMP_SUBSCRIPTION_FOLDER,
         FORKOP_RUNTIME_STATE_DIR: RUNTIME_STATE_DIR,
-        FORKOP_SUBSCRIPTION_UPDATE_STATE_DIR: SUBSCRIPTION_UPDATE_STATE_DIR,
         FORKOP_SUBSCRIPTION_UPDATE_JOB_DIR: SUBSCRIPTION_JOB_DIR,
-        FORKOP_SUBSCRIPTION_LINKS_DIR: SUBSCRIPTION_LINKS_DIR,
-        FORKOP_SUBSCRIPTION_METADATA_DIR: SUBSCRIPTION_METADATA_DIR,
-        FORKOP_OUTBOUND_METADATA_DIR: OUTBOUND_METADATA_DIR,
-        FORKOP_SECTION_CACHE_DIR: SECTION_CACHE_DIR,
-        FORKOP_RUNTIME_CACHE_FORMAT_FILE: RUNTIME_CACHE_FORMAT_FILE,
-        FORKOP_RUNTIME_CACHE_FORMAT: RUNTIME_CACHE_FORMAT,
-        FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_DIR: PERSISTENT_SUBSCRIPTION_CACHE_DIR,
-        FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT_FILE: PERSISTENT_SUBSCRIPTION_CACHE_FORMAT_FILE,
-        FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT: PERSISTENT_SUBSCRIPTION_CACHE_FORMAT,
         FORKOP_SUBSCRIPTION_UPDATE_JOB_FINISHED_TTL_MINUTES: SUBSCRIPTION_JOB_FINISHED_TTL_MINUTES,
         FORKOP_SUBSCRIPTION_UPDATE_JOB_ORPHAN_OUTPUT_TTL_MINUTES: SUBSCRIPTION_JOB_ORPHAN_OUTPUT_TTL_MINUTES,
         FORKOP_UI_ACTION_STALE_GRACE_SECONDS: SUBSCRIPTION_JOB_STALE_GRACE_SECONDS
@@ -2556,205 +2384,75 @@ function stop_list_update() {
     remove_file(LIST_UPDATE_PID_FILE);
 }
 
-function subscription_cache_env() {
-    return {
-        FORKOP_CONFIG_NAME: CONFIG_NAME,
-        FORKOP_LIB: LIB_DIR,
-        TMP_SING_BOX_FOLDER,
-        TMP_RULESET_FOLDER,
-        TMP_SUBSCRIPTION_FOLDER,
-        FORKOP_RUNTIME_STATE_DIR: RUNTIME_STATE_DIR,
-        FORKOP_SUBSCRIPTION_UPDATE_STATE_DIR: SUBSCRIPTION_UPDATE_STATE_DIR,
-        FORKOP_SUBSCRIPTION_LINKS_DIR: SUBSCRIPTION_LINKS_DIR,
-        FORKOP_SUBSCRIPTION_METADATA_DIR: SUBSCRIPTION_METADATA_DIR,
-        FORKOP_OUTBOUND_METADATA_DIR: OUTBOUND_METADATA_DIR,
-        FORKOP_SECTION_CACHE_DIR: SECTION_CACHE_DIR,
-        FORKOP_RUNTIME_CACHE_FORMAT_FILE: RUNTIME_CACHE_FORMAT_FILE,
-        FORKOP_RUNTIME_CACHE_FORMAT: RUNTIME_CACHE_FORMAT,
-        FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_DIR: PERSISTENT_SUBSCRIPTION_CACHE_DIR,
-        FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT_FILE: PERSISTENT_SUBSCRIPTION_CACHE_FORMAT_FILE,
-        FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT: PERSISTENT_SUBSCRIPTION_CACHE_FORMAT,
-        FORKOP_PENDING_RELOAD_FILE: PENDING_RELOAD_FILE,
-        FORKOP_SERVICE_INIT: SERVICE_INIT,
-        SB_SERVICE_MIXED_INBOUND_ADDRESS,
-        SB_SERVICE_MIXED_INBOUND_PORT,
-        SB_VARIANT_STATE_FILE
-    };
+function native_subscription_provider_tag(section, source_index) {
+    return section_name(section) + "-subscription-" + source_index + "-provider";
 }
 
-function module_env_capture(env, args) {
-    let output_path = temp_path();
-    if (output_path == "")
-        return { status: 1, output: "" };
-
-    let status = command_status(command_env(env) + " " + module_command(args) + " >" + shell_quote(output_path) + " 2>&1");
-    let output = as_string(fs.readfile(output_path) || "");
-    remove_file(output_path);
-    return { status, output };
-}
-
-function subscription_cache_capture(args) {
-    let command_args = [ LIB_DIR + "/subscription/cache.uc" ];
-    for (let arg in args)
-        push(command_args, arg);
-    return module_env_capture(subscription_cache_env(), command_args);
-}
-
-function subscription_cache_success(args) {
-    let result = subscription_cache_capture(args);
-    if (result.output != "")
-        for (let line in split(result.output, "\n"))
-            if (trim(as_string(line)) != "")
-                log_message("subscription cache: " + line, "debug");
-    return result.status == 0;
-}
-
-function log_file_lines_from_text(text, level, prefix) {
-    for (let line in split(as_string(text), "\n"))
-        if (trim(as_string(line)) != "")
-            log_message(as_string(prefix) + as_string(line), level);
-}
-
-function singbox_runtime_success(args) {
-    let command_args = [ LIB_DIR + "/singbox/runtime.uc" ];
-    for (let arg in args)
-        push(command_args, arg);
-
-    let result = module_env_capture(subscription_cache_env(), command_args);
-    if (result.output != "")
-        log_file_lines_from_text(result.output, "debug", "sing-box runtime: ");
-    return result.status == 0;
-}
-
-function write_current_reload_state_clean() {
-    return service_state_success([
-        "write-current-reload-state-clean",
-        RELOAD_STATE_FILE,
-        RELOAD_STATE_FORMAT,
-        RULE_CONDITION_CACHE_DIR
-    ]);
-}
-
-function mark_pending_reload(reason) {
-    service_state_success([ "mark-pending-reload", PENDING_RELOAD_FILE, reason ]);
-}
-
-function run_pending_reload_if_requested() {
-    service_state_success([ "run-pending-reload-if-requested", PENDING_RELOAD_FILE, SERVICE_INIT ]);
-}
-
-function subscription_update_common_locked(force, target_section, target_source_index) {
-    let result = subscription_cache_capture([
-        "update-request",
-        force ? "1" : "0",
-        as_string(target_section),
-        as_string(target_source_index)
-    ]);
-    if (result.status != 0) {
-        log_file_lines_from_text(result.output, "error", "subscription update: ");
-        return false;
+function native_subscription_api_url(settings) {
+    let config = read_json_file(option(settings, "config_path", "/etc/sing-box/config.json"));
+    let experimental = object_or_empty(object_or_empty(config).experimental);
+    let controller = option(object_or_empty(experimental.clash_api), "external_controller", "");
+    if (controller == "") {
+        let address = option(settings, "service_listen_address", "");
+        if (address == "")
+            return "";
+        controller = address + ":9090";
     }
+    if (substr(controller, 0, 8) == "0.0.0.0:")
+        controller = "127.0.0.1:" + substr(controller, 8);
+    return "http://" + controller;
+}
 
-    let fields = split(trim(result.output), /[ \t\r\n]+/);
-    let updated = arg_number(fields[0] || "0");
-    let failed = arg_number(fields[1] || "0");
-    let unchanged = arg_number(fields[2] || "0");
-    let superseded = arg_number(fields[3] || "0");
+function update_native_subscription_provider(tag, settings) {
+    if (match(as_string(tag), /^[A-Za-z0-9_-]+$/) == null)
+        return false;
 
-    if (updated == 0) {
-        if (superseded > 0) {
-            log_message("Subscription update was superseded by newer configuration", "info");
-            return true;
+    let api_url = native_subscription_api_url(settings);
+    if (api_url == "")
+        return false;
+
+    let args = [
+        "curl", "-fsS", "-X", "PUT",
+        api_url + "/providers/proxies/" + as_string(tag)
+    ];
+    let secret = option(settings, "yacd_secret_key", "");
+    if (secret != "") {
+        push(args, "-H");
+        push(args, "Authorization: Bearer " + secret);
+    }
+    return command_status(command_from_args(args)) == 0;
+}
+
+function subscription_update_common(_force, target_section, target_source_index) {
+    target_section = as_string(target_section);
+    let selected_index = as_string(target_source_index) != "" ? arg_number(target_source_index) : 0;
+    let settings = uci_settings();
+    let found = 0;
+    let failed = 0;
+
+    for (let section in uci_sections("section")) {
+        if (target_section != "" && section_name(section) != target_section)
+            continue;
+        let sources = connections.subscription_urls(section);
+        for (let i = 0; i < length(sources); i++) {
+            if (selected_index > 0 && i + 1 != selected_index)
+                continue;
+            found++;
+            if (!update_native_subscription_provider(native_subscription_provider_tag(section, i + 1), settings))
+                failed++;
         }
-        if (failed > 0) {
-            log_message("Subscription update finished with errors; keeping the last working cache", "info");
-            return false;
-        }
-        if (unchanged > 0)
-            log_message("Subscription update completed: no changes detected", "info");
-        else
-            log_message("No subscription rules are due for update", "info");
-        return true;
     }
 
-    log_message("Reloading sing-box to apply updated subscriptions", "info");
-    if (!module_success([ LIB_DIR + "/server/service.uc", "prepare-all-defaults" ]))
-        return false;
-    if (!module_success([ LIB_DIR + "/config/validator.uc", "validate-runtime" ])) {
-        log_message("Runtime config validation failed. Aborted.", "fatal");
-        return false;
+    if (found == 0) {
+        log_message("No matching subscription provider was found", "error");
+        return 1;
     }
-
-    if (!singbox_runtime_success([ "configure-service" ]))
-        return false;
-    let sing_box_config_path = option(uci_settings(), "config_path", "");
-    let sing_box_config_hash_before = file_md5(sing_box_config_path);
-    let sing_box_pid_before = trim(module_output([ LIB_DIR + "/service/state.uc", "sing-box-service-runtime-pid" ]));
-    module_success([ DNS_FAILOVER_UC, "stop-runtime" ]);
-    if (!singbox_runtime_success([ "init-config", "0", "1", "1" ])) {
-        module_success([ DNS_FAILOVER_UC, "start-runtime" ]);
-        log_message("Failed to rebuild sing-box after subscription update", "error");
-        return false;
+    if (failed > 0) {
+        log_message("Failed to refresh " + failed + " of " + found + " subscription providers", "error");
+        return 1;
     }
-    module_success([ PRIORITY_UC, "stop-runtime" ]);
-    if (!service_state_success([
-        "reload-sing-box-runtime",
-        sing_box_pid_before,
-        sing_box_config_hash_before,
-        file_md5(sing_box_config_path)
-    ])) {
-        module_success([ PRIORITY_UC, "start-runtime" ]);
-        module_success([ DNS_FAILOVER_UC, "start-runtime" ]);
-        return false;
-    }
-    if (!module_success([ PRIORITY_UC, "start-runtime" ])) {
-        log_message("Failed to restart Priority runtime after subscription update", "error");
-        return false;
-    }
-    if (!module_success([ DNS_FAILOVER_UC, "start-runtime" ])) {
-        log_message("Failed to restart DNS failover runtime after subscription update", "error");
-        return false;
-    }
-    if (!write_current_reload_state_clean())
-        return false;
-
-    if (failed > 0)
-        log_message("Subscription update applied for changed rules; failed rules kept their previous cache", "info");
-    else
-        log_message("Subscription update completed", "info");
-    return true;
-}
-
-function subscription_update_common(force, target_section, target_source_index) {
-    if (!subscription_cache_success([ "ensure-runtime-dirs" ]))
-        exit(1);
-
-    force = !!force;
-    if (!acquire_runtime_lock(SUBSCRIPTION_UPDATE_LOCK_DIR, force)) {
-        log_message("Subscription update is already running", "info");
-        if (force)
-            mark_pending_reload("subscription_update_busy");
-        return force ? 1 : 0;
-    }
-
-    if (!acquire_runtime_lock(RELOAD_LOCK_DIR, force)) {
-        release_runtime_lock(SUBSCRIPTION_UPDATE_LOCK_DIR);
-        log_message("Forkop reload is already running; skipping subscription update", "info");
-        if (force)
-            mark_pending_reload("reload_busy");
-        return force ? 1 : 0;
-    }
-
-    let ok = subscription_update_common_locked(force, target_section, target_source_index);
-    release_runtime_lock(RELOAD_LOCK_DIR);
-    release_runtime_lock(SUBSCRIPTION_UPDATE_LOCK_DIR);
-    run_pending_reload_if_requested();
-    return ok ? 0 : 1;
-}
-
-function subscription_update_if_due() {
-    log_message("Starting due subscription update", "info");
-    exit(subscription_update_common(false, "", ""));
+    log_message("Subscription providers refreshed without reloading sing-box", "info");
+    return 0;
 }
 
 function subscription_update(target_section, target_source_index) {
@@ -2847,20 +2545,10 @@ function uci_list_update_due_status(timestamp_path, now) {
     list_update_due_status(uci_settings(), timestamp_path, now);
 }
 
-function uci_subscription_update_section_due_status(section_name, timestamp_path, now) {
-    subscription_update_section_due_status(object_or_empty(uci_core.get_all(CONFIG_NAME, section_name)), timestamp_path, now);
-}
-
 function fixture_list_update_due_status(path, timestamp_path, now) {
     let data = object_or_empty(read_json_file(path));
     connections.set_item_sections_from_data(data);
     list_update_due_status(object_or_empty(data.settings), timestamp_path, now);
-}
-
-function fixture_subscription_update_section_due_status(path, section_name_value, timestamp_path, now) {
-    let data = object_or_empty(read_json_file(path));
-    connections.set_item_sections_from_data(data);
-    subscription_update_section_due_status(fixture_section_by_name(data, section_name_value), timestamp_path, now);
 }
 
 function print_builtin_subnet_urls(service) {
@@ -2882,10 +2570,6 @@ else if (mode == "due-check-cron-schedule")
     due_check_cron_schedule(ARGV[1]);
 else if (mode == "list-update-cron-job")
     update_cron_job(ARGV[1], "list_update_if_due", ARGV[2], ARGV[3]);
-else if (mode == "subscription-update-cron-job")
-    subscription_update_cron_job(ARGV[1], ARGV[2], ARGV[3]);
-else if (mode == "subscription-update-interval-plan")
-    subscription_update_interval_plan();
 else if (mode == "cron-refresh-plan")
     uci_cron_refresh_plan(ARGV[1], ARGV[2], ARGV[3], ARGV[4]);
 else if (mode == "cron-refresh-plan-fixture")
@@ -2906,10 +2590,6 @@ else if (mode == "list-update-due-status")
     uci_list_update_due_status(ARGV[1], ARGV[2]);
 else if (mode == "list-update-due-status-fixture")
     fixture_list_update_due_status(ARGV[1], ARGV[2], ARGV[3]);
-else if (mode == "subscription-update-section-due-status")
-    uci_subscription_update_section_due_status(ARGV[1], ARGV[2], ARGV[3]);
-else if (mode == "subscription-update-section-due-status-fixture")
-    fixture_subscription_update_section_due_status(ARGV[1], ARGV[2], ARGV[3], ARGV[4]);
 else if (mode == "file-first-line")
     file_first_line(ARGV[1]);
 else if (mode == "stdin-first-ipv4-line")
@@ -2938,8 +2618,6 @@ else if (mode == "subscription-update-worker")
     subscription_update_worker(ARGV[1], ARGV[2], ARGV[3], ARGV[4]);
 else if (mode == "subscription-update")
     subscription_update(ARGV[1], ARGV[2]);
-else if (mode == "subscription-update-if-due")
-    subscription_update_if_due();
 else if (mode == "subscription-update-async")
     subscription_update_async(ARGV[1], ARGV[2]);
 else if (mode == "subscription-update-status")

@@ -18,23 +18,6 @@ fail() {
   exit 1
 }
 
-mkdir -p "$WORK_DIR/subscriptions"
-cat >"$WORK_DIR/subscriptions/proxy-subscription-1.json" <<'JSON'
-{
-  "outbounds": [
-    { "type": "socks", "tag": "germany", "server": "127.0.0.1", "server_port": 1101 },
-    { "type": "socks", "tag": "germany", "server": "127.0.0.1", "server_port": 1102 },
-    { "type": "socks", "tag": "bypass-out", "server": "127.0.0.1", "server_port": 1103 },
-    { "type": "socks", "tag": "proxy-urltest-ut_name-out", "server": "127.0.0.1", "server_port": 1104 },
-    { "type": "socks", "tag": "json-hop", "server": "127.0.0.1", "server_port": 1105 },
-    { "type": "socks", "tag": "proxy-priority-pg_main-out", "server": "127.0.0.1", "server_port": 1106 },
-    { "type": "socks", "tag": "dns-server", "server": "127.0.0.1", "server_port": 1107 }
-  ]
-}
-JSON
-printf '%s\n' 'https://duplicate.example/sub' >"$WORK_DIR/subscriptions/proxy-subscription-1.url"
-: >"$WORK_DIR/subscriptions/proxy-subscription-1.user_agent"
-
 cat >"$WORK_DIR/runtime-tags.json" <<'JSON'
 {
   "settings": { ".name": "settings", ".type": "settings", "log_level": "warn" },
@@ -108,9 +91,8 @@ JSON
 
 runtime_config="$WORK_DIR/runtime-config.json"
 mkdir -p "$runtime_config.section-cache"
-TMP_SUBSCRIPTION_FOLDER="$WORK_DIR/subscriptions" \
-  ucode -L "$FORKOP_LIB" "$GENERATOR_UC" generate-config-fixture \
-    "$WORK_DIR/runtime-tags.json" "$runtime_config" "127.0.0.1" "0"
+ucode -L "$FORKOP_LIB" "$GENERATOR_UC" generate-config-fixture \
+  "$WORK_DIR/runtime-tags.json" "$runtime_config" "127.0.0.1" "0"
 
 ucode -e '
 let fs = require("fs");
@@ -130,10 +112,8 @@ if (length(keys(by_tag)) != count)
 
 for (let tag in [
     "direct-out", "bypass-out", "proxy-out", "backup-out",
-    "germany", "germany-1", "germany-2", "germany-3",
-    "bypass-out-1", "dns-server-1", "service-mixed-in-1",
-    "proxy-urltest-ut_name-out-1", "proxy-priority-pg_main-out-1",
-    "proxy-interface-1-out", "direct-out-1", "json-hop", "json-hop-1", "json-hop-2",
+    "germany", "germany-1", "service-mixed-in-1",
+    "proxy-interface-1-out", "direct-out-1", "json-hop", "json-hop-1",
     "json-group", "proxy-urltest-ut_name-out", "proxy-urltest-ut_regex-out",
     "proxy-priority-pg_main-out"
 ])
@@ -142,38 +122,36 @@ for (let tag in [
 
 let json_group = by_tag["json-group"];
 if (length(json_group.outbounds || []) != 2 ||
-    json_group.outbounds[0] != "json-hop-1" || json_group.outbounds[1] != "direct-out-1")
+    json_group.outbounds[0] != "json-hop" || json_group.outbounds[1] != "direct-out-1")
     die("JSON outbound references were not rewritten to allocated tags\n");
-if (json_group.default != "json-hop-1")
+if (json_group.default != "json-hop")
     die("JSON selector default was not rewritten to its allocated tag\n");
 
 let name_group = by_tag["proxy-urltest-ut_name-out"];
 let regex_group = by_tag["proxy-urltest-ut_regex-out"];
-if (length(name_group.outbounds || []) != 7)
-    die("display-name filter did not select duplicate subscription, JSON and interface outbounds\n");
-for (let tag in [ "germany", "germany-1", "germany-2", "germany-3", "proxy-interface-1-out", "json-hop", "json-hop-1" ])
+if (length(name_group.outbounds || []) != 4)
+    die("display-name filter did not select matching JSON and interface outbounds\n");
+for (let tag in [ "germany", "germany-1", "proxy-interface-1-out", "json-hop" ])
     if (index(name_group.outbounds, tag) < 0)
         die("display-name filter is missing " + tag + "\n");
-if (length(regex_group.outbounds || []) != 4)
+if (length(regex_group.outbounds || []) != 2)
     die("display-name regex did not collapse runtime suffixes\n");
-for (let tag in [ "germany", "germany-1", "germany-2", "germany-3" ])
+for (let tag in [ "germany", "germany-1" ])
     if (index(regex_group.outbounds, tag) < 0)
         die("display-name regex is missing " + tag + "\n");
+if (length(name_group.providers || []) != 1 || name_group.providers[0] != "proxy-subscription-1-provider" ||
+    index(name_group.include || "", "germany") < 0)
+    die("native provider filter was not attached to the URLTest group\n");
 
 let names = proxy_cache.outboundMetadata.names || {};
-for (let tag in [ "germany", "germany-1", "germany-2", "germany-3" ])
+for (let tag in [ "germany", "germany-1" ])
     if (names[tag] != "germany")
         die("runtime suffix leaked into display name for " + tag + "\n");
-if (names["proxy-interface-1-out"] != "wg0" ||
-    names["json-hop"] != "json-hop" || names["json-hop-1"] != "json-hop")
+if (names["proxy-interface-1-out"] != "wg0" || names["json-hop"] != "json-hop")
     die("interface or JSON display tag metadata is missing\n");
-if (names["bypass-out-1"] != "bypass-out" ||
-    names["dns-server-1"] != "dns-server" ||
-    names["service-mixed-in-1"] != "service-mixed-in" ||
-    names["proxy-urltest-ut_name-out-1"] != "proxy-urltest-ut_name-out" ||
-    names["proxy-priority-pg_main-out-1"] != "proxy-priority-pg_main-out")
+if (names["service-mixed-in-1"] != "service-mixed-in")
     die("system-tag collision suffix leaked into display metadata\n");
-if ((backup_cache.outboundMetadata.names || {})["json-hop-2"] != "json-hop")
+if ((backup_cache.outboundMetadata.names || {})["json-hop-1"] != "json-hop")
     die("cross-section JSON tag allocation or display metadata is invalid\n");
 ' "$runtime_config" "$runtime_config.section-cache/proxy.json" \
   "$runtime_config.section-cache/backup.json" || fail "runtime outbound tag allocation"

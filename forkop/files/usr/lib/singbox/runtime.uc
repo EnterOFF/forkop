@@ -7,22 +7,6 @@ let runtime_dns = require("singbox.dns");
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
-const TMP_SING_BOX_FOLDER = getenv("TMP_SING_BOX_FOLDER") || "/tmp/sing-box";
-const TMP_RULESET_FOLDER = getenv("TMP_RULESET_FOLDER") || TMP_SING_BOX_FOLDER + "/rulesets";
-const TMP_SUBSCRIPTION_FOLDER = getenv("TMP_SUBSCRIPTION_FOLDER") || TMP_SING_BOX_FOLDER + "/subscriptions";
-const RUNTIME_STATE_DIR = getenv("FORKOP_RUNTIME_STATE_DIR") || "/var/run/forkop";
-const SUBSCRIPTION_UPDATE_STATE_DIR = getenv("FORKOP_SUBSCRIPTION_UPDATE_STATE_DIR") || RUNTIME_STATE_DIR + "/subscription-update";
-const SUBSCRIPTION_LINKS_DIR = getenv("FORKOP_SUBSCRIPTION_LINKS_DIR") || RUNTIME_STATE_DIR + "/subscription-links";
-const SUBSCRIPTION_METADATA_DIR = getenv("FORKOP_SUBSCRIPTION_METADATA_DIR") || RUNTIME_STATE_DIR + "/subscription-metadata";
-const OUTBOUND_METADATA_DIR = getenv("FORKOP_OUTBOUND_METADATA_DIR") || RUNTIME_STATE_DIR + "/outbound-metadata";
-const SECTION_CACHE_DIR = getenv("FORKOP_SECTION_CACHE_DIR") || RUNTIME_STATE_DIR + "/section-cache";
-const RUNTIME_CACHE_FORMAT_FILE = getenv("FORKOP_RUNTIME_CACHE_FORMAT_FILE") || RUNTIME_STATE_DIR + "/cache-format";
-const RUNTIME_CACHE_FORMAT = getenv("FORKOP_RUNTIME_CACHE_FORMAT") || "8";
-const PERSISTENT_SUBSCRIPTION_CACHE_DIR = getenv("FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_DIR") || "/etc/forkop/subscription-cache";
-const PERSISTENT_SUBSCRIPTION_CACHE_FORMAT_FILE = getenv("FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT_FILE") || PERSISTENT_SUBSCRIPTION_CACHE_DIR + "/cache-format";
-const PERSISTENT_SUBSCRIPTION_CACHE_FORMAT = getenv("FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT") || "7";
-const PENDING_RELOAD_FILE = getenv("FORKOP_PENDING_RELOAD_FILE") || RUNTIME_STATE_DIR + "/reload.pending";
-const SERVICE_INIT = getenv("FORKOP_SERVICE_INIT") || "/etc/init.d/forkop";
 const NFT_TABLE_NAME = getenv("NFT_TABLE_NAME") || "ForkopTable";
 const NFT_COMMON_SET_NAME = getenv("NFT_COMMON_SET_NAME") || "forkop_subnets";
 const NFT_COMMON6_SET_NAME = getenv("NFT_COMMON6_SET_NAME") || "forkop_subnets6";
@@ -511,36 +495,6 @@ function service_listen_address_value(settings) {
     return "";
 }
 
-function subscription_cache_env() {
-    return {
-        FORKOP_CONFIG_NAME: CONFIG_NAME,
-        FORKOP_LIB: LIB_DIR,
-        TMP_SING_BOX_FOLDER,
-        TMP_RULESET_FOLDER,
-        TMP_SUBSCRIPTION_FOLDER,
-        FORKOP_RUNTIME_STATE_DIR: RUNTIME_STATE_DIR,
-        FORKOP_SUBSCRIPTION_UPDATE_STATE_DIR: SUBSCRIPTION_UPDATE_STATE_DIR,
-        FORKOP_SUBSCRIPTION_LINKS_DIR: SUBSCRIPTION_LINKS_DIR,
-        FORKOP_SUBSCRIPTION_METADATA_DIR: SUBSCRIPTION_METADATA_DIR,
-        FORKOP_OUTBOUND_METADATA_DIR: OUTBOUND_METADATA_DIR,
-        FORKOP_SECTION_CACHE_DIR: SECTION_CACHE_DIR,
-        FORKOP_RUNTIME_CACHE_FORMAT_FILE: RUNTIME_CACHE_FORMAT_FILE,
-        FORKOP_RUNTIME_CACHE_FORMAT: RUNTIME_CACHE_FORMAT,
-        FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_DIR: PERSISTENT_SUBSCRIPTION_CACHE_DIR,
-        FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT_FILE: PERSISTENT_SUBSCRIPTION_CACHE_FORMAT_FILE,
-        FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT: PERSISTENT_SUBSCRIPTION_CACHE_FORMAT,
-        FORKOP_PENDING_RELOAD_FILE: PENDING_RELOAD_FILE,
-        FORKOP_SERVICE_INIT: SERVICE_INIT
-    };
-}
-
-function subscription_cache_capture(args) {
-    let command_args = [ LIB_DIR + "/subscription/cache.uc" ];
-    for (let arg in args)
-        push(command_args, arg);
-    return module_env_capture(subscription_cache_env(), command_args);
-}
-
 function log_lines(text, level, prefix) {
     for (let line in split(as_string(text), "\n"))
         if (trim(as_string(line)) != "")
@@ -582,16 +536,6 @@ function sing_box_check(config_path, output_path) {
     if (status != 0 && reason == "")
         reason = "exit status " + status;
     return { status, reason };
-}
-
-function prepare_subscription_caches(prepared, no_refresh) {
-    let result = subscription_cache_capture([ "prepare-caches", "runtime", prepared ? "1" : "0", no_refresh ? "1" : "0" ]);
-    if (result.status != 0) {
-        log_message("Subscription caches are not ready for sing-box config generation. Aborted.", "fatal");
-        log_lines(result.output, "debug", "subscription cache: ");
-        return null;
-    }
-    return trim(result.output);
 }
 
 function save_config_file(temp_file_path, config_path) {
@@ -686,7 +630,7 @@ function restore_dns_config(backup_path) {
     return command_success_from_args([ "mv", "-f", backup_path, config_path ]);
 }
 
-function init_config(populate_nft, caches_prepared, no_refresh, prepared_deferred_sections) {
+function init_config(populate_nft) {
     let settings = uci_settings();
     let config_path = option(settings, "config_path", "");
     if (config_path == "") {
@@ -700,13 +644,6 @@ function init_config(populate_nft, caches_prepared, no_refresh, prepared_deferre
         log_message("mwan3 is active and Output Network Interface is set to '" + output_interface + "'; sing-box egress is pinned to this interface", "warn");
     else if (mwan3_active)
         log_message("mwan3 is active; disabling sing-box auto_detect_interface so mwan3 can control egress routing", "warn");
-
-    let deferred_sections = trim(as_string(prepared_deferred_sections));
-    if (deferred_sections == "") {
-        deferred_sections = prepare_subscription_caches(caches_prepared, no_refresh);
-        if (deferred_sections == null)
-            exit(1);
-    }
 
     let temp_config = temp_path();
     let runtime_log = temp_path();
@@ -723,7 +660,7 @@ function init_config(populate_nft, caches_prepared, no_refresh, prepared_deferre
             service_listen_address_value(settings),
             mwan3_active ? "1" : "0",
             sing_box_is_extended(sing_box_version()) ? "1" : "0",
-            deferred_sections
+            ""
         ]) + " >" + shell_quote(runtime_log) + " 2>&1"
     );
     if (generate_status != 0) {
@@ -745,7 +682,7 @@ function init_config(populate_nft, caches_prepared, no_refresh, prepared_deferre
         LIB_DIR + "/nft/apply.uc",
         "nft-populate-runtime-sets-from-uci",
         "1",
-        deferred_sections,
+        "",
         NFT_TABLE_NAME,
         NFT_COMMON_SET_NAME,
         NFT_PORT_SET_NAME,
@@ -767,7 +704,7 @@ function init_config(populate_nft, caches_prepared, no_refresh, prepared_deferre
         exit(1);
     }
     remove_file(runtime_log);
-    print(deferred_sections, "\n");
+    print("\n");
 }
 
 let mode = ARGV[0] || "";
@@ -775,7 +712,7 @@ let mode = ARGV[0] || "";
 if (mode == "configure-service")
     configure_service();
 else if (mode == "init-config")
-    init_config(arg_bool(ARGV[1] || "1"), arg_bool(ARGV[2] || "0"), arg_bool(ARGV[3] || "0"), ARGV[4] || "");
+    init_config(arg_bool(ARGV[1] || "1"));
 else if (mode == "save-config-file-fixture")
     exit(save_config_file(ARGV[1] || "", ARGV[2] || "") ? 0 : 1);
 else if (mode == "check-config-fixture") {

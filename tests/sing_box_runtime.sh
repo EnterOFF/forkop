@@ -143,18 +143,6 @@ generate_config() {
     "$fixture" "$output" "127.0.0.1" "$mwan3_active"
 }
 
-generate_config_with_subscription_cache() {
-  local fixture="$1"
-  local output="$2"
-  local supports_xhttp="${3:-1}"
-
-  mkdir -p "$output.section-cache" "$output.rulesets"
-  TMP_SUBSCRIPTION_FOLDER="$WORK_DIR/subscriptions" \
-    FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_DIR="$WORK_DIR/persistent-subscription-cache" \
-    ucode -L "$FORKOP_LIB" "$FORKOP_LIB/singbox/generator.uc" generate-config-fixture \
-      "$fixture" "$output" "127.0.0.1" "0" "$supports_xhttp"
-}
-
 cat >"$WORK_DIR/no-enabled-fixture.json" <<'JSON'
 {
   "settings": {
@@ -200,14 +188,15 @@ cat >"$WORK_DIR/deferred-section-fixture.json" <<'JSON'
 }
 JSON
 if ! ucode -L "$FORKOP_LIB" "$SINGBOX_GENERATOR_UC" generate-config-fixture \
-  "$WORK_DIR/deferred-section-fixture.json" "$WORK_DIR/deferred-section.json" "127.0.0.1" "0" "1" "subscription_only"; then
-  fail "generator must skip subscription-only sections deferred until after sing-box starts"
+  "$WORK_DIR/deferred-section-fixture.json" "$WORK_DIR/deferred-section.json" "127.0.0.1" "0"; then
+  fail "generator must emit subscription-only sections as native providers"
 fi
-if grep -Fq 'subscription_only-out' "$WORK_DIR/deferred-section.json"; then
-  fail "deferred subscription-only section must not be emitted into the initial config"
+if ! grep -Fq 'subscription_only-subscription-1-provider' "$WORK_DIR/deferred-section.json"; then
+  fail "subscription-only section must be emitted as a native provider"
 fi
-grep -Fq 'deferred_sections' "$SINGBOX_RUNTIME_UC" ||
-  fail "singbox/runtime.uc must preserve deferred sections for generator input"
+if grep -Fq 'prepare_subscription_caches' "$SINGBOX_RUNTIME_UC"; then
+  fail "singbox/runtime.uc must not prepare Forkop subscription caches"
+fi
 
 cat >"$WORK_DIR/generator-uci.state" <<'EOF_UCI'
 forkop.settings=settings
@@ -1076,50 +1065,31 @@ generate_config "$WORK_DIR/server-inbound-fixture.json" "$WORK_DIR/server.json"
 generate_config "$WORK_DIR/runtime-matchers-fixture.json" "$WORK_DIR/matchers.json"
 generate_config "$WORK_DIR/dns-action-fixture.json" "$WORK_DIR/dns-action.json"
 generate_config "$WORK_DIR/urltest-filter-fixture.json" "$WORK_DIR/urltest.json"
-if generate_config "$WORK_DIR/manual-http-fixture.json" "$WORK_DIR/manual-http.json" \
-  >"$WORK_DIR/manual-http.stdout" 2>"$WORK_DIR/manual-http.stderr"; then
-  fail "generator should reject native HTTP connection URLs"
-fi
-grep -Fxq 'manual proxy link scheme is not supported by sing-box config generation yet' "$WORK_DIR/manual-http.stderr" ||
-  fail "native HTTP connection URL failure should identify the unsupported scheme"
+generate_config "$WORK_DIR/manual-http-fixture.json" "$WORK_DIR/manual-http.json"
+grep -Fq 'http://' "$WORK_DIR/manual-http.json.providers/proxy-manual-provider.txt" ||
+  fail "manual connection URLs must be passed to the native local provider parser"
 generate_config "$WORK_DIR/provider-actions-fixture.json" "$WORK_DIR/providers.json"
 generate_config "$WORK_DIR/manual-transport-fixture.json" "$WORK_DIR/manual.json"
+grep -Fxq 'vless://11111111-1111-4111-8111-111111111111@127.0.0.1:443?security=tls&type=ws&path=%2Fws&host=example.com&sni=example.com&alpn=h2%2Chttp%2F1.1&encryption=mlkem768x25519plus.native.test#WS' \
+  "$WORK_DIR/manual.json.providers/proxy-manual-provider.txt" ||
+  fail "manual connection URLs must stay verbatim for the native provider parser"
 generate_config "$WORK_DIR/vpn-interface-fixture.json" "$WORK_DIR/vpn.json"
 generate_config "$WORK_DIR/download-via-proxy-fixture.json" "$WORK_DIR/download.json"
 generate_config "$WORK_DIR/fully-routed-fixture.json" "$WORK_DIR/fully-routed.json"
 generate_config "$WORK_DIR/mwan3-auto-fixture.json" "$WORK_DIR/mwan3-auto.json" 1
 generate_config "$WORK_DIR/mwan3-pinned-fixture.json" "$WORK_DIR/mwan3-pinned.json" 1
 generate_config "$WORK_DIR/domain-ip-rulesets-fixture.json" "$WORK_DIR/domain-ip-rulesets.json"
-generate_config_with_subscription_cache "$WORK_DIR/subscription-metadata-fixture.json" "$WORK_DIR/subscription-metadata.json"
-generate_config_with_subscription_cache "$WORK_DIR/subscription-group-fixture.json" "$WORK_DIR/subscription-group.json"
-generate_config_with_subscription_cache "$WORK_DIR/subscription-group-disabled-fixture.json" "$WORK_DIR/subscription-group-disabled.json"
-generate_config_with_subscription_cache "$WORK_DIR/subscription-xhttp-fixture.json" "$WORK_DIR/subscription-xhttp-extended.json" 1
-generate_config_with_subscription_cache "$WORK_DIR/subscription-xhttp-fixture.json" "$WORK_DIR/subscription-xhttp-stable.json" 0 \
-  2>"$WORK_DIR/subscription-xhttp-stable.stderr"
-grep -Fq "Moscow XHTTP (XHTTP requires sing-box-extended)" "$WORK_DIR/subscription-xhttp-stable.stderr" ||
-  fail "stable sing-box XHTTP warning should identify the incompatible subscription outbound"
-grep -Fq "Recursive dependent (detour depends on unavailable outbound 'depends-on-xhttp')" "$WORK_DIR/subscription-xhttp-stable.stderr" ||
-  fail "stable sing-box XHTTP filtering should report recursively pruned detours"
-
-if generate_config_with_subscription_cache "$WORK_DIR/subscription-only-xhttp-fixture.json" "$WORK_DIR/subscription-only-xhttp.json" 0 \
-  >"$WORK_DIR/subscription-only-xhttp.stdout" 2>"$WORK_DIR/subscription-only-xhttp.stderr"; then
-  fail "stable sing-box should reject a subscription section with only XHTTP outbounds"
+generate_config "$WORK_DIR/manual-xhttp-fixture.json" "$WORK_DIR/manual-xhttp.json"
+grep -Fq 'type=xhttp' "$WORK_DIR/manual-xhttp.json.providers/manual_xhttp-manual-provider.txt" ||
+  fail "XHTTP connection URLs must be delegated to the native provider parser"
+if ucode -L "$FORKOP_LIB" "$SINGBOX_GENERATOR_UC" generate-config-fixture \
+  "$WORK_DIR/json-xhttp-fixture.json" "$WORK_DIR/json-xhttp-stable.json" "127.0.0.1" "0" "0" \
+  >"$WORK_DIR/json-xhttp-stable.stdout" 2>"$WORK_DIR/json-xhttp-stable.stderr"; then
+  fail "stable sing-box should reject an explicit JSON XHTTP configuration"
 fi
-grep -Fq "Only XHTTP node (XHTTP requires sing-box-extended)" "$WORK_DIR/subscription-only-xhttp.stderr" ||
-  fail "all-XHTTP subscription failure should identify the incompatible outbound"
-[ "$(tail -n 1 "$WORK_DIR/subscription-only-xhttp.stderr")" = 'connection section has no usable outbounds' ] ||
-  fail "all-XHTTP subscription failure should end with the actionable generator error"
-
-for fixture in manual-xhttp json-xhttp; do
-  if ucode -L "$FORKOP_LIB" "$SINGBOX_GENERATOR_UC" generate-config-fixture \
-    "$WORK_DIR/$fixture-fixture.json" "$WORK_DIR/$fixture-stable.json" "127.0.0.1" "0" "0" \
-    >"$WORK_DIR/$fixture-stable.stdout" 2>"$WORK_DIR/$fixture-stable.stderr"; then
-    fail "stable sing-box should reject explicit $fixture configuration"
-  fi
-  grep -Fq "uses XHTTP transport, but sing-box-extended is not installed" "$WORK_DIR/$fixture-stable.stderr" ||
-    fail "explicit $fixture XHTTP failure should explain the extended requirement"
-  generate_config "$WORK_DIR/$fixture-fixture.json" "$WORK_DIR/$fixture-extended.json"
-done
+grep -Fq "uses XHTTP transport, but sing-box-extended is not installed" "$WORK_DIR/json-xhttp-stable.stderr" ||
+  fail "explicit JSON XHTTP failure should explain the extended requirement"
+generate_config "$WORK_DIR/json-xhttp-fixture.json" "$WORK_DIR/json-xhttp-extended.json"
 
 ucode -e '
 let fs = require("fs");
@@ -1194,6 +1164,13 @@ function outbound(config, tag) {
     return null;
 }
 
+function provider(config, tag) {
+    for (let item in config.providers || [])
+        if (item && item.tag == tag)
+            return item;
+    return null;
+}
+
 function inbound(config, tag) {
     for (let item in config.inbounds || [])
         if (item && item.tag == tag)
@@ -1263,7 +1240,7 @@ assert(inbound(matchers, "tproxy6-in") != null, "IPv6 TProxy inbound");
 assert(inbound(matchers, "tproxy6-in").listen == "::1", "IPv6 TProxy listen address");
 assert(route_rule(matchers, r => r.action == "reject" && r.ip_version == 6) == null, "IPv6 traffic is not rejected globally");
 assert(outbound(matchers, "bypass-out").type == "direct", "bypass fallback outbound");
-assert(outbound(matchers, "proxy-1-out").detour == "detour-out", "connection URL outbound detour");
+assert(provider(matchers, "proxy-manual-provider").outbound_detour == "detour-out", "connection URL provider detour");
 let mixed = inbound(matchers, "proxy-mixed-in");
 assert(mixed && mixed.listen_port == 19090 && mixed.users[0].username == "user", "mixed inbound auth");
 assert(route_rule(matchers, r => r.inbound == "proxy-mixed-in" && r.outbound == "proxy-out") != null, "mixed inbound route");
@@ -1364,22 +1341,6 @@ assert(outbound(providers, "zap-out").routing_mark == 0x01000001, "Zapret mark")
 assert(outbound(providers, "zap2-out").routing_mark == 0x02000001, "Zapret2 mark");
 assert(outbound(providers, "bye-out").type == "socks" && outbound(providers, "bye-out").server_port == 1080, "ByeDPI outbound");
 
-let manual = cfg("manual");
-let vless = outbound(manual, "proxy-1-out");
-assert(vless.transport.type == "ws" && vless.transport.path == "/ws", "manual VLESS WS transport");
-assert(vless.tls.server_name == "example.com", "manual VLESS TLS");
-assert(length(vless.tls.alpn) == 1 && vless.tls.alpn[0] == "http/1.1", "manual VLESS WS ALPN normalized");
-assert(vless.encryption == "mlkem768x25519plus.native.test", "manual VLESS encryption preserved");
-let vmess = outbound(manual, "proxy-2-out");
-assert(vmess.type == "vmess" && vmess.uuid == "22222222-2222-4222-8222-222222222222", "manual VMess link");
-assert(vmess.alter_id == 4 && vmess.security == "auto", "manual VMess alter_id and security");
-assert(vmess.transport.type == "ws" && vmess.transport.path == "/vmess", "manual VMess WS transport");
-assert(vmess.transport.headers.Host == "vmess.example", "manual VMess WS Host header");
-assert(vmess.tls.server_name == "vmess.example", "manual VMess TLS SNI");
-assert(length(vmess.tls.alpn) == 1 && vmess.tls.alpn[0] == "http/1.1", "manual VMess WS ALPN normalized");
-assert(vmess.tls.utls.fingerprint == "chrome", "manual VMess fingerprint");
-assert(outbound(manual, "proxy-3-out").type == "shadowsocks", "manual Shadowsocks link");
-
 let vpn = cfg("vpn");
 assert(outbound(vpn, "renamed_awg-interface-1-out").bind_interface == "tun0", "renamed VPN interface outbound");
 assert(outbound(vpn, "renamed_awg-interface-1-out").domain_resolver == "renamed_awg-interface-1-domain-resolver", "renamed VPN domain resolver tag");
@@ -1444,74 +1405,6 @@ for (let rule in generated_list.rules || []) {
 }
 assert(has_domain && has_ip, "generated domain/IP source ruleset contents");
 
-let subscription_group = cfg("subscription-group");
-let provider_group = outbound(subscription_group, "Provider Group");
-assert(provider_group && provider_group.type == "urltest", "provider URLTest group imported");
-assert(length(provider_group.outbounds) == 2, "provider URLTest group keeps leaf references");
-assert(provider_group.outbounds[0] == "grouped-out-1", "provider URLTest group leaf reference retagged");
-assert(provider_group.outbounds[1] == "leaf", "provider URLTest group second leaf reference kept");
-assert(provider_group.detour == null, "provider URLTest group does not receive outbound detour");
-let grouped_leaf = outbound(subscription_group, "grouped-out-1");
-let second_leaf = outbound(subscription_group, "leaf");
-assert(grouped_leaf && grouped_leaf.detour == null, "hidden subscription leaf does not receive connection URL detour");
-assert(second_leaf && second_leaf.detour == null, "second hidden subscription leaf does not receive connection URL detour");
-assert(outbound(subscription_group, "provider-direct") == null, "provider direct outbound skipped");
-assert(outbound(subscription_group, "provider-http") == null, "provider HTTP outbound skipped");
-let grouped_selector = outbound(subscription_group, "grouped-out");
-assert(grouped_selector && length(grouped_selector.outbounds) == 1 && grouped_selector.outbounds[0] == "Provider Group", "selector exposes provider group only");
-let grouped_state = cfg("subscription-group.json.section-cache/grouped");
-assert(grouped_state.outboundMetadata.names["Provider Group"] == "Provider Group", "provider group metadata visible");
-assert(grouped_state.outboundMetadata.names["grouped-out-1"] == "grouped-out", "hidden leaf metadata visible");
-assert(length(grouped_state.urltestGroups["Provider Group"].outbounds) == 2, "provider group membership cached");
-assert(grouped_state.urltestGroups["Provider Group"].outbounds[0] == "grouped-out-1", "provider group membership retagged");
-assert(grouped_state.linkRefs == null, "section cache omits source link refs");
-assert(index(grouped_state.links["grouped-out-1"], "vless://") == 0, "hidden leaf caches its direct proxy link");
-assert(index(grouped_state.links["leaf"], "vless://") == 0, "second hidden leaf caches its direct proxy link");
-let subscription_group_disabled = cfg("subscription-group-disabled");
-assert(outbound(subscription_group_disabled, "Provider Group") == null, "provider URLTest group skipped when import is disabled");
-let disabled_grouped_leaf = outbound(subscription_group_disabled, "grouped-out-1");
-let disabled_second_leaf = outbound(subscription_group_disabled, "leaf");
-assert(disabled_grouped_leaf && disabled_second_leaf, "URLTest group leaf outbounds kept when import is disabled");
-let disabled_grouped_selector = outbound(subscription_group_disabled, "grouped-out");
-assert(disabled_grouped_selector && contains(disabled_grouped_selector.outbounds, "grouped-out-1") && contains(disabled_grouped_selector.outbounds, "leaf"), "selector exposes URLTest group leaves when import is disabled");
-let disabled_grouped_state = cfg("subscription-group-disabled.json.section-cache/grouped");
-assert(disabled_grouped_state.urltestGroups["Provider Group"] == null, "skipped provider group is not cached as URLTest");
-assert(disabled_grouped_state.linkRefs == null, "disabled group cache omits source link refs");
-assert(index(disabled_grouped_state.links["grouped-out-1"], "vless://") == 0, "visible leaf caches its direct proxy link when group import is disabled");
-
-let xhttp_stable = cfg("subscription-xhttp-stable");
-assert(outbound(xhttp_stable, "xhttp-node") == null, "stable sing-box excludes XHTTP subscription leaf");
-assert(outbound(xhttp_stable, "depends-on-xhttp") == null, "stable sing-box excludes outbound detouring through XHTTP");
-assert(outbound(xhttp_stable, "recursive-dependent") == null, "stable sing-box recursively excludes XHTTP-dependent detours");
-let stable_provider_group = outbound(xhttp_stable, "Provider XHTTP Group");
-assert(stable_provider_group && length(stable_provider_group.outbounds) == 1 && stable_provider_group.outbounds[0] == "plain-node", "provider group removes XHTTP member");
-assert(stable_provider_group.default == null, "stable sing-box provider URLTest removes unsupported default field");
-let stable_urltest = outbound(xhttp_stable, "xhttp-urltest-ut_xhttp-out");
-assert(stable_urltest && length(stable_urltest.outbounds) == 1 && stable_urltest.outbounds[0] == "plain-node", "URLTest receives only compatible subscription leaves");
-let stable_priority = outbound(xhttp_stable, "xhttp-priority-pg_xhttp-out");
-assert(stable_priority && length(stable_priority.outbounds) == 1 && stable_priority.outbounds[0] == "plain-node", "Priority receives only compatible subscription leaves");
-
-let xhttp_extended = cfg("subscription-xhttp-extended");
-assert(outbound(xhttp_extended, "xhttp-node") != null, "extended sing-box keeps XHTTP subscription leaf");
-assert(outbound(xhttp_extended, "Provider XHTTP Group").default == null, "extended sing-box provider URLTest also removes unsupported default field");
-assert(outbound(xhttp_extended, "depends-on-xhttp").detour == "xhttp-node", "extended sing-box keeps XHTTP detour chain");
-assert(outbound(xhttp_extended, "recursive-dependent").detour == "depends-on-xhttp", "extended sing-box keeps recursive detour chain");
-
-let proxy_cache = json(fs.readfile(dir + "/subscription-metadata.json.section-cache/proxy.json"));
-let test_cache = json(fs.readfile(dir + "/subscription-metadata.json.section-cache/test.json"));
-let proxy_share_link_cached = false;
-for (let tag, link in proxy_cache.links || {})
-    if (link == "socks5://127.0.0.1:1080#subscription-proxy")
-        proxy_share_link_cached = true;
-assert(proxy_share_link_cached, "subscription share link cached for instant dashboard copy");
-assert(proxy_cache.linkRefs == null && test_cache.linkRefs == null, "subscription caches contain direct links without source refs");
-let proxy_metadata = as_array(proxy_cache.subscriptionMetadata);
-let test_metadata = as_array(test_cache.subscriptionMetadata);
-assert(length(proxy_metadata) == 2, "duplicate subscription URL metadata kept for both proxy sources");
-assert(proxy_metadata[0].sourceSection == "proxy-subscription-1" && proxy_metadata[0].title == "WolfPN", "proxy source 1 metadata marker");
-assert(proxy_metadata[1].sourceSection == "proxy-subscription-2" && proxy_metadata[1].title == "WolfPN", "proxy source 2 metadata marker");
-assert(length(test_metadata) == 1, "same subscription URL metadata kept for second section");
-assert(test_metadata[0].sourceSection == "test-subscription-1" && test_metadata[0].title == "WolfPN", "test source metadata marker");
 ' "$WORK_DIR"
 
 printf 'sing-box runtime checks passed\n'

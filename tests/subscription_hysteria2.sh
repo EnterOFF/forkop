@@ -117,11 +117,6 @@ for fingerprint in randomizedalpn randomizednoalpn; do
   assert_contains "$fingerprint_output" '"fingerprint": "randomized"' "uTLS $fingerprint normalization"
 done
 
-mkdir -p "$WORK_DIR/subscriptions"
-cp "$singbox_output" "$WORK_DIR/subscriptions/proxy-subscription-1.json"
-printf '%s' 'https://example.com/sub.json' >"$WORK_DIR/subscriptions/proxy-subscription-1.url"
-printf '%s' 'Happ' >"$WORK_DIR/subscriptions/proxy-subscription-1.user_agent"
-
 generator_fixture="$WORK_DIR/generator-fixture.json"
 generator_output="$WORK_DIR/generator-config.json"
 cat >"$generator_fixture" <<'JSON'
@@ -145,13 +140,13 @@ cat >"$generator_fixture" <<'JSON'
   ]
 }
 JSON
-TMP_SUBSCRIPTION_FOLDER="$WORK_DIR/subscriptions" \
-  ucode -L "$FORKOP_LIB" "$GENERATOR" generate-config-fixture \
-    "$generator_fixture" "$generator_output" "127.0.0.1" "0"
-assert_contains "$generator_output" '"type": "hysteria2"' "generated stale HY2 type"
-if grep -Fq '"utls"' "$generator_output"; then
-  cat "$generator_output" >&2
-  fail "sing-box generator must drop stale Hysteria2 TLS uTLS from subscription cache"
+ucode -L "$FORKOP_LIB" "$GENERATOR" generate-config-fixture \
+  "$generator_fixture" "$generator_output" "127.0.0.1" "0"
+assert_contains "$generator_output" '"type": "remote"' "native subscription provider type"
+assert_contains "$generator_output" '"url": "https://example.com/sub.json"' "native subscription provider URL"
+assert_contains "$generator_output" '"providers": [ "proxy-subscription-1-provider" ]' "selector native provider reference"
+if grep -Fq '"type": "hysteria2"' "$generator_output"; then
+  fail "Forkop must not parse subscription outbounds before sing-box-forkop"
 fi
 
 printf 'subscription Hysteria2 checks passed\n'

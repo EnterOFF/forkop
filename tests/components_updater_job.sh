@@ -80,8 +80,6 @@ grep -Fq 'component-action-status' "$UPDATES_UC" ||
   fail "components/updates.uc must own component action status"
 grep -Fq 'components/action.uc' "$UPDATES_UC" ||
   fail "component action worker must execute components/action.uc directly"
-grep -Fq 'singbox/runtime.uc' "$UPDATES_UC" ||
-  fail "components/updates.uc must delegate sing-box service/config work to singbox/runtime.uc"
 if grep -n -E 'function (configure_sing_box_service|rebuild_sing_box_config|save_sing_box_config_file|service_listen_address|managed_sing_box_service_text)' "$UPDATES_UC" >/dev/null 2>&1; then
   fail "components/updates.uc must not duplicate singbox/runtime.uc service/config ownership"
 fi

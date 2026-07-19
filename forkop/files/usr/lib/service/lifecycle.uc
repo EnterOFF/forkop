@@ -28,20 +28,12 @@ const RELOAD_STATE_FILE = getenv("FORKOP_RELOAD_STATE_FILE") || RUNTIME_STATE_DI
 const RELOAD_STATE_SNAPSHOT_FILE = getenv("FORKOP_RELOAD_STATE_SNAPSHOT_FILE") || RUNTIME_STATE_DIR + "/reload-state.snapshot." + clock()[0] + "." + clock()[1];
 const PENDING_RELOAD_FILE = getenv("FORKOP_PENDING_RELOAD_FILE") || RUNTIME_STATE_DIR + "/reload.pending";
 const SERVICE_TRIGGER_SYNC_FILE = getenv("FORKOP_SERVICE_TRIGGER_SYNC_FILE") || RUNTIME_STATE_DIR + "/service-triggers.sync";
-const SUBSCRIPTION_UPDATE_STATE_DIR = getenv("FORKOP_SUBSCRIPTION_UPDATE_STATE_DIR") || RUNTIME_STATE_DIR + "/subscription-update";
-const SUBSCRIPTION_LINKS_DIR = getenv("FORKOP_SUBSCRIPTION_LINKS_DIR") || RUNTIME_STATE_DIR + "/subscription-links";
-const SUBSCRIPTION_METADATA_DIR = getenv("FORKOP_SUBSCRIPTION_METADATA_DIR") || RUNTIME_STATE_DIR + "/subscription-metadata";
 const OUTBOUND_METADATA_DIR = getenv("FORKOP_OUTBOUND_METADATA_DIR") || RUNTIME_STATE_DIR + "/outbound-metadata";
 const SECTION_CACHE_DIR = getenv("FORKOP_SECTION_CACHE_DIR") || RUNTIME_STATE_DIR + "/section-cache";
 const RULE_CONDITION_CACHE_DIR = getenv("FORKOP_RULE_CONDITION_CACHE_DIR") || RUNTIME_STATE_DIR + "/rule-condition-cache";
 const RUNTIME_CACHE_FORMAT_FILE = getenv("FORKOP_RUNTIME_CACHE_FORMAT_FILE") || RUNTIME_STATE_DIR + "/cache-format";
-const PERSISTENT_SUBSCRIPTION_CACHE_DIR = getenv("FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_DIR") || "/etc/forkop/subscription-cache";
-const PERSISTENT_SUBSCRIPTION_CACHE_FORMAT_FILE = getenv("FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT_FILE") || PERSISTENT_SUBSCRIPTION_CACHE_DIR + "/cache-format";
-const PERSISTENT_SUBSCRIPTION_CACHE_FORMAT = getenv("FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT") || "7";
-const SUBSCRIPTION_BOOTSTRAP_RETRY_PID_FILE = getenv("FORKOP_SUBSCRIPTION_BOOTSTRAP_RETRY_PID_FILE") || RUNTIME_STATE_DIR + "/subscription-bootstrap-retry.pid";
 const DNS_FAILOVER_STATE_FILE = getenv("FORKOP_DNS_FAILOVER_STATE_FILE") || RUNTIME_STATE_DIR + "/dns-failover.json";
 const DNS_FAILOVER_PID_FILE = getenv("FORKOP_DNS_FAILOVER_PID_FILE") || RUNTIME_STATE_DIR + "/dns-failover.pid";
-const SUBSCRIPTION_UPDATE_LOCK_DIR = getenv("FORKOP_SUBSCRIPTION_UPDATE_LOCK_DIR") || RUNTIME_STATE_DIR + "/subscription-update.lock";
 const RELOAD_LOCK_DIR = getenv("FORKOP_RELOAD_LOCK_DIR") || "/var/run/forkop.reload.lock";
 const INTERNAL_CONFIG_TRIGGER_GUARD = getenv("FORKOP_INTERNAL_CONFIG_TRIGGER_GUARD") || "/var/run/forkop.internal-config-change";
 
@@ -56,7 +48,6 @@ const NFT_POPULATE_ENABLED_DEFAULT = int(getenv("FORKOP_NFT_POPULATE_ENABLED") |
 
 const TMP_SING_BOX_FOLDER = getenv("TMP_SING_BOX_FOLDER") || constant_value("TMP_SING_BOX_FOLDER", "/tmp/sing-box");
 const TMP_RULESET_FOLDER = getenv("TMP_RULESET_FOLDER") || constant_value("TMP_RULESET_FOLDER", TMP_SING_BOX_FOLDER + "/rulesets");
-const TMP_SUBSCRIPTION_FOLDER = getenv("TMP_SUBSCRIPTION_FOLDER") || constant_value("TMP_SUBSCRIPTION_FOLDER", TMP_SING_BOX_FOLDER + "/subscriptions");
 
 const RT_TABLE_NAME = constant_value("RT_TABLE_NAME", "forkop");
 const NFT_TABLE_NAME = constant_value("NFT_TABLE_NAME", "ForkopTable");
@@ -99,7 +90,6 @@ const NFT_UC = LIB_DIR + "/nft/apply.uc";
 const SINGBOX_UC = LIB_DIR + "/singbox/runtime.uc";
 const PRIORITY_UC = LIB_DIR + "/singbox/priority.uc";
 const DNS_FAILOVER_UC = LIB_DIR + "/singbox/dns_failover.uc";
-const SUBSCRIPTION_CACHE_UC = LIB_DIR + "/subscription/cache.uc";
 const UPDATES_UC = LIB_DIR + "/components/updates.uc";
 const STATE_UC = LIB_DIR + "/service/state.uc";
 const RELOAD_UC = LIB_DIR + "/service/reload.uc";
@@ -110,10 +100,6 @@ const ZAPRET2_UC = LIB_DIR + "/providers/zapret2/runtime.uc";
 const BYEDPI_UC = LIB_DIR + "/providers/byedpi/runtime.uc";
 const PACKAGES_UC = LIB_DIR + "/core/packages.uc";
 
-let start_subscription_update_lock_held = false;
-let subscription_caches_prepared = getenv("FORKOP_SUBSCRIPTION_CACHES_PREPARED") || "0";
-let subscription_runtime_no_refresh = getenv("FORKOP_SUBSCRIPTION_RUNTIME_NO_REFRESH") || "0";
-let subscription_deferred_sections = "";
 let nft_populate_enabled = NFT_POPULATE_ENABLED_DEFAULT;
 let rule_condition_cache_enabled = 0;
 let startup_config_fingerprint = "";
@@ -259,26 +245,17 @@ function lifecycle_env() {
         FORKOP_SERVICE_INIT: SERVICE_INIT,
         FORKOP_RUNTIME_STATE_DIR: RUNTIME_STATE_DIR,
         FORKOP_SYSTEM_INFO_CACHE_FILE: SYSTEM_INFO_CACHE_FILE,
-        FORKOP_SUBSCRIPTION_UPDATE_STATE_DIR: SUBSCRIPTION_UPDATE_STATE_DIR,
-        FORKOP_SUBSCRIPTION_LINKS_DIR: SUBSCRIPTION_LINKS_DIR,
-        FORKOP_SUBSCRIPTION_METADATA_DIR: SUBSCRIPTION_METADATA_DIR,
         FORKOP_OUTBOUND_METADATA_DIR: OUTBOUND_METADATA_DIR,
         FORKOP_SECTION_CACHE_DIR: SECTION_CACHE_DIR,
         FORKOP_RULE_CONDITION_CACHE_DIR: RULE_CONDITION_CACHE_DIR,
         FORKOP_RUNTIME_CACHE_FORMAT_FILE: RUNTIME_CACHE_FORMAT_FILE,
         FORKOP_RUNTIME_CACHE_FORMAT: as_string(RUNTIME_CACHE_FORMAT),
-        FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_DIR: PERSISTENT_SUBSCRIPTION_CACHE_DIR,
-        FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT_FILE: PERSISTENT_SUBSCRIPTION_CACHE_FORMAT_FILE,
-        FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT: PERSISTENT_SUBSCRIPTION_CACHE_FORMAT,
-        FORKOP_SUBSCRIPTION_BOOTSTRAP_RETRY_PID_FILE: SUBSCRIPTION_BOOTSTRAP_RETRY_PID_FILE,
         FORKOP_DNS_FAILOVER_STATE_FILE: DNS_FAILOVER_STATE_FILE,
         FORKOP_DNS_FAILOVER_PID_FILE: DNS_FAILOVER_PID_FILE,
-        FORKOP_SUBSCRIPTION_UPDATE_LOCK_DIR: SUBSCRIPTION_UPDATE_LOCK_DIR,
         FORKOP_PENDING_RELOAD_FILE: PENDING_RELOAD_FILE,
         FORKOP_RELOAD_LOCK_DIR: RELOAD_LOCK_DIR,
         TMP_SING_BOX_FOLDER: TMP_SING_BOX_FOLDER,
         TMP_RULESET_FOLDER: TMP_RULESET_FOLDER,
-        TMP_SUBSCRIPTION_FOLDER: TMP_SUBSCRIPTION_FOLDER,
         SB_SERVICE_MIXED_INBOUND_ADDRESS: SB_SERVICE_MIXED_INBOUND_ADDRESS,
         SB_SERVICE_MIXED_INBOUND_PORT: SB_SERVICE_MIXED_INBOUND_PORT,
         SB_VARIANT_STATE_FILE: SB_VARIANT_STATE_FILE,
@@ -551,24 +528,6 @@ function validate_start_config() {
     return 0;
 }
 
-function acquire_start_subscription_update_lock() {
-    if (module_success(STATE_UC, [ "acquire-runtime-dir-lock-wait", SUBSCRIPTION_UPDATE_LOCK_DIR, owner_pid(), "300" ])) {
-        start_subscription_update_lock_held = true;
-        return true;
-    }
-
-    log_message("Subscription update is already running during startup. Aborted.", "fatal");
-    return false;
-}
-
-function release_start_subscription_update_lock() {
-    if (!start_subscription_update_lock_held)
-        return;
-
-    module_success(STATE_UC, [ "release-runtime-dir-lock", SUBSCRIPTION_UPDATE_LOCK_DIR ]);
-    start_subscription_update_lock_held = false;
-}
-
 function nft_rebuild_runtime() {
     return module_status(NFT_UC, [
         "nft-rebuild-runtime-from-uci",
@@ -605,7 +564,7 @@ function nft_populate_runtime_sets() {
     return module_status(NFT_UC, [
         "nft-populate-runtime-sets-from-uci",
         as_string(nft_populate_enabled),
-        subscription_deferred_sections,
+        "",
         NFT_TABLE_NAME,
         NFT_COMMON_SET_NAME,
         NFT_PORT_SET_NAME,
@@ -620,18 +579,7 @@ function nft_populate_runtime_sets() {
 }
 
 function singbox_init_config() {
-    let result = module_capture(SINGBOX_UC, [
-        "init-config",
-        as_string(nft_populate_enabled),
-        subscription_caches_prepared,
-        subscription_runtime_no_refresh,
-        subscription_deferred_sections
-    ]);
-    if (result.status == 0) {
-        subscription_deferred_sections = trim(result.output);
-        subscription_caches_prepared = "1";
-    }
-    return result.status;
+    return module_status(SINGBOX_UC, [ "init-config", as_string(nft_populate_enabled) ]);
 }
 
 function refresh_cron() {
@@ -653,20 +601,6 @@ function remove_cron_jobs() {
     ]);
 }
 
-function prepare_subscription_caches(mode) {
-    let result = module_capture(SUBSCRIPTION_CACHE_UC, [
-        "prepare-caches",
-        mode,
-        subscription_caches_prepared,
-        subscription_runtime_no_refresh
-    ]);
-    if (result.status == 0) {
-        subscription_deferred_sections = trim(result.output);
-        subscription_caches_prepared = "1";
-    }
-    return result.status;
-}
-
 function start_main() {
     let status;
 
@@ -683,19 +617,6 @@ function start_main() {
         return status;
 
     module_success(STATE_UC, [ "sync-time-if-needed" ]);
-
-    status = module_status(SUBSCRIPTION_CACHE_UC, [ "ensure-runtime-dirs" ]);
-    if (status != 0)
-        return status;
-
-    if (!acquire_start_subscription_update_lock())
-        return 1;
-
-    status = prepare_subscription_caches("startup");
-    if (status != 0) {
-        log_message("Subscription caches are not ready. Aborted.", "fatal");
-        return status;
-    }
 
     status = nft_rebuild_runtime();
     if (status != 0)
@@ -738,11 +659,6 @@ function start_main() {
         return status;
     }
 
-    status = module_status(SUBSCRIPTION_CACHE_UC, [ "run-deferred-bootstrap", subscription_deferred_sections ]);
-    if (status != 0)
-        return status;
-
-    release_start_subscription_update_lock();
     module_success(ZAPRET_UC, [ "start-runtime" ]);
     module_success(ZAPRET2_UC, [ "start-runtime" ]);
 
@@ -798,7 +714,6 @@ function stop_main() {
     log_message("Stopping Forkop", "info");
     module_success(DNS_FAILOVER_UC, [ "stop-runtime" ]);
     module_success(PRIORITY_UC, [ "stop-runtime" ]);
-    module_success(SUBSCRIPTION_CACHE_UC, [ "stop-deferred-bootstrap-worker" ]);
     module_success(UPDATES_UC, [ "stop-list-update" ]);
     remove_cron_jobs();
     command_success_from_args([ "find", TMP_RULESET_FOLDER, "-mindepth", "1", "-maxdepth", "1", "-type", "f", "-delete" ]);
@@ -865,7 +780,6 @@ function abort_reload(status, runtime_changed) {
 
 function start() {
     let status = start_impl();
-    release_start_subscription_update_lock();
 
     if (status != 0) {
         cleanup_failed_runtime();
@@ -1109,10 +1023,6 @@ function reload(reason) {
     if (status != 0)
         return status;
 
-    status = module_status(SUBSCRIPTION_CACHE_UC, [ "ensure-runtime-dirs" ]);
-    if (status != 0)
-        return status;
-
     if (!module_success(STATE_UC, [ "forkop-running", RT_TABLE_NAME, NFT_TABLE_NAME, NFT_FAKEIP_MARK ])) {
         log_message("Runtime state is incomplete; restarting Forkop runtime", "info");
         return finish_reload_status(restart_runtime_for_reload(), reload_config_fingerprint);
@@ -1148,10 +1058,7 @@ function reload(reason) {
     let dnsmasq_managed_state = dnsmasq_has_forkop_managed_state() ? 1 : 0;
     let list_update_sources = module_success(STATE_UC, [ "has-list-update-sources" ]) ? 1 : 0;
     let nft_list_update_sources = module_success(STATE_UC, [ "has-nft-list-update-sources" ]) ? 1 : 0;
-    let runtime_cache_needs_rebuild = 0;
-    if (as_string(getenv("FORKOP_RUNTIME_CACHE_INVALIDATED") || "0") == "1" ||
-        module_success(SUBSCRIPTION_CACHE_UC, [ "runtime-cache-needs-rebuild", SECTION_CACHE_DIR ]))
-        runtime_cache_needs_rebuild = 1;
+    let runtime_cache_needs_rebuild = as_string(getenv("FORKOP_RUNTIME_CACHE_INVALIDATED") || "0") == "1" ? 1 : 0;
 
     let plan_result = module_capture(RELOAD_UC, [
         "plan-state-files",
@@ -1447,5 +1354,4 @@ else {
     status = 1;
 }
 
-release_start_subscription_update_lock();
 exit(status);

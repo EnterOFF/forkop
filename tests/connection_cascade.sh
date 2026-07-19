@@ -16,47 +16,6 @@ fail() {
   exit 1
 }
 
-mkdir -p "$WORK_DIR/subscriptions" "$WORK_DIR/output.json.section-cache"
-
-cat >"$WORK_DIR/subscriptions/source-subscription-1.json" <<'JSON'
-{
-  "outbounds": [
-    {
-      "type": "vless",
-      "tag": "nested-entry",
-      "server": "192.0.2.10",
-      "server_port": 443,
-      "uuid": "00000000-0000-4000-8000-000000000001",
-      "detour": "nested-relay"
-    },
-    {
-      "type": "socks",
-      "tag": "nested-relay",
-      "server": "192.0.2.11",
-      "server_port": 1080,
-      "version": "5"
-    },
-    {
-      "type": "trojan",
-      "tag": "independent",
-      "server": "192.0.2.12",
-      "server_port": 443,
-      "password": "secret"
-    },
-    {
-      "type": "urltest",
-      "tag": "provider-group",
-      "outbounds": [ "nested-entry", "independent" ],
-      "url": "https://www.gstatic.com/generate_204",
-      "interval": "3m",
-      "__forkop_allow_group": true
-    }
-  ]
-}
-JSON
-printf '%s\n' 'https://subscription.example/source' >"$WORK_DIR/subscriptions/source-subscription-1.url"
-: >"$WORK_DIR/subscriptions/source-subscription-1.user_agent"
-
 cat >"$WORK_DIR/fixture.json" <<'JSON'
 {
   "settings": {
@@ -99,8 +58,7 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
 }
 JSON
 
-TMP_SUBSCRIPTION_FOLDER="$WORK_DIR/subscriptions" \
-  ucode -L "$FORKOP_LIB" "$GENERATOR" generate-config-fixture \
+ucode -L "$FORKOP_LIB" "$GENERATOR" generate-config-fixture \
     "$WORK_DIR/fixture.json" "$WORK_DIR/output.json" "127.0.0.1"
 
 ucode -e '
@@ -114,16 +72,20 @@ function outbound(tag) {
     return null;
 }
 
+function provider(tag) {
+    for (let item in config.providers || [])
+        if (item && item.tag == tag)
+            return item;
+    return null;
+}
+
 function assert(condition, message) {
     if (!condition)
         die(message + "\n");
 }
 
-assert(outbound("source-1-out").detour == "hop-out", "manual URL did not receive the section detour");
-assert(outbound("nested-entry").detour == "nested-relay", "subscription detour was overwritten");
-assert(outbound("nested-relay").detour == "hop-out", "section detour was not appended to the subscription chain");
-assert(outbound("independent").detour == "hop-out", "independent subscription outbound did not receive the section detour");
-assert(outbound("provider-group").detour == null, "subscription URLTest group must not receive Dial Fields");
+assert(provider("source-manual-provider").outbound_detour == "hop-out", "manual provider did not receive the section detour");
+assert(provider("source-subscription-1-provider").outbound_detour == "hop-out", "subscription provider did not receive the section detour");
 assert(outbound("source-interface-1-out").bind_interface == "wg0", "interface binding was not preserved");
 assert(outbound("source-interface-1-out").detour == null, "network interface must be excluded from section cascade");
 assert(outbound("JSON plain").detour == null, "plain JSON outbound must be excluded from section cascade");

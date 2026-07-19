@@ -9,16 +9,15 @@ let runtime_route = require("singbox.route");
 let runtime_rulesets = require("singbox.rulesets");
 let runtime_servers = require("singbox.servers");
 let runtime_subscription = require("singbox.subscription");
-let runtime_url = require("core.url");
 let runtime_urltest = require("singbox.urltest");
 let source_rulesets = require("routing.rulesets");
 let rule_config = require("config.rule");
 let connections = require("config.connections");
-let subscription_share_link = require("subscription.share_link");
 let uci = null;
 let fixture_uci_data = null;
 let runtime_settings_cache = null;
 let runtime_ruleset_folder = runtime_constants.TMP_RULESET_FOLDER;
+let runtime_provider_folder = runtime_constants.TMP_SING_BOX_FOLDER + "/providers";
 let runtime_supports_xhttp = true;
 
 let as_string = common.as_string;
@@ -35,16 +34,6 @@ let option = common.option;
 let list_option = common.list_option;
 let bool_option = common.bool_option;
 let int_option = common.int_option;
-let url_decode = runtime_url.decode;
-let url_scheme = runtime_url.scheme;
-let url_fragment = runtime_url.fragment;
-let url_strip_fragment_value = runtime_url.strip_fragment;
-let url_host = runtime_url.host;
-let url_port = runtime_url.port;
-let url_userinfo = runtime_url.userinfo;
-let url_path = runtime_url.path;
-let url_query_params = runtime_url.query_params;
-
 const CONFIG_NAME = "forkop";
 
 function parent_dir(path) {
@@ -78,6 +67,21 @@ function atomic_write_json_file(path, value) {
     if (!ensure_parent_dir(path))
         return false;
     if (!write_json_file(tmp_path, value))
+        return false;
+    if (!fs.rename(tmp_path, path)) {
+        fs.unlink(tmp_path);
+        return false;
+    }
+    return true;
+}
+
+function atomic_write_text_file(path, value) {
+    let stamp = clock();
+    let tmp_path = sprintf("%s.%d.%d.tmp", path, stamp[0], stamp[1]);
+
+    if (!ensure_parent_dir(path))
+        return false;
+    if (fs.writefile(tmp_path, as_string(value)) == null)
         return false;
     if (!fs.rename(tmp_path, path)) {
         fs.unlink(tmp_path);
@@ -190,66 +194,6 @@ function remote_ruleset_update_interval() {
 
 function internal_flag(value) {
     return value === true || value == 1 || value == "1" || value == "true" || value == "yes";
-}
-
-function subscription_group_outbound(outbound) {
-    if (type(outbound) != "object")
-        return false;
-    let t = as_string(outbound.type);
-    return (t == "selector" || t == "urltest") && internal_flag(outbound.__forkop_allow_group);
-}
-
-function subscription_urltest_group_outbound(outbound) {
-    if (type(outbound) != "object")
-        return false;
-    return as_string(outbound.type || "") == "urltest" && internal_flag(outbound.__forkop_allow_group);
-}
-
-function subscription_outbound_tag(outbound) {
-    return type(outbound) == "object" ? as_string(outbound.tag || "") : "";
-}
-
-function subscription_visibility_refs(outbounds) {
-    let refs = {
-        urltest: {},
-        detour: {}
-    };
-
-    for (let outbound in array_or_empty(outbounds)) {
-        if (type(outbound) != "object")
-            continue;
-
-        if (subscription_urltest_group_outbound(outbound)) {
-            for (let tag_name in array_or_empty(outbound.outbounds)) {
-                tag_name = as_string(tag_name);
-                if (tag_name != "")
-                    refs.urltest[tag_name] = true;
-            }
-        }
-
-        let detour = as_string(outbound.detour || "");
-        if (detour != "")
-            refs.detour[detour] = true;
-    }
-
-    return refs;
-}
-
-function subscription_hidden_outbound(outbound, refs, hide_urltest_group_outbounds, hide_detour_outbounds) {
-    if (type(outbound) != "object")
-        return false;
-
-    let tag_name = subscription_outbound_tag(outbound);
-    let urltest_refs = object_or_empty(object_or_empty(refs).urltest);
-    let detour_refs = object_or_empty(object_or_empty(refs).detour);
-    let hidden_by_urltest = tag_name != "" && urltest_refs[tag_name];
-    let hidden_by_detour = tag_name != "" && detour_refs[tag_name];
-
-    if (hidden_by_urltest && hide_urltest_group_outbounds !== false)
-        return true;
-    if (hidden_by_detour && hide_detour_outbounds !== false)
-        return true;
-    return internal_flag(outbound.__forkop_hidden) && !hidden_by_urltest && !hidden_by_detour;
 }
 
 function tag(base, postfix) {
@@ -477,6 +421,7 @@ function base_config(settings, service_address, runtime_context) {
         certificate: {},
         endpoints: [],
         inbounds,
+        providers: [],
         outbounds: [
             { type: "direct", tag: runtime_constants.DIRECT_OUTBOUND_TAG },
             { type: "direct", tag: runtime_constants.BYPASS_OUTBOUND_TAG }
@@ -494,16 +439,191 @@ function base_config(settings, service_address, runtime_context) {
     };
 }
 
-function supported_subscription_outbound(outbound) {
-    if (type(outbound) != "object")
-        return false;
-    let t = as_string(outbound.type);
-    if (subscription_group_outbound(outbound))
-        return true;
-    if (t == "direct" || t == "selector" || t == "urltest" || t == "dns" || t == "block")
-        return false;
-    return t == "vless" || t == "vmess" || t == "trojan" || t == "shadowsocks" ||
-        t == "socks" || t == "hysteria2";
+let subscription_auto_user_agents = [
+    "Happ",
+    "v2rayN",
+    "v2rayNG",
+    "Mihomo",
+    "Clash.Meta"
+];
+
+function shell_quote(value) {
+    return "'" + replace(as_string(value), /'/g, "'\\''") + "'";
+}
+
+function command_output(command) {
+    let pipe = fs.popen(command, "r");
+    if (!pipe)
+        return "";
+    let output = pipe.read("all");
+    let status = pipe.close();
+    return status == 0 && output != null ? as_string(output) : "";
+}
+
+function subscription_device_model() {
+    let model = trim(as_string(fs.readfile("/tmp/sysinfo/model")));
+    return model != "" ? model : "OpenWrt Router";
+}
+
+function subscription_hwid(section, source) {
+    let configured = connections.subscription_hwid(section, source);
+    if (configured != "")
+        return configured;
+
+    let mac = trim(as_string(fs.readfile("/sys/class/net/eth0/address")));
+    if (mac == "")
+        mac = trim(as_string(fs.readfile("/sys/class/net/br-lan/address")));
+    let input = mac + "-" + subscription_device_model();
+    let output = split(trim(command_output("printf %s " + shell_quote(input) + " | md5sum")), /[ \t]+/)[0] || "";
+    let hash = substr(output, 0, 16);
+    return substr(hash, 0, 4) + "-" + substr(hash, 4, 4) + "-" + substr(hash, 8, 4) + "-" + substr(hash, 12, 4);
+}
+
+function subscription_headers(section, source) {
+    return {
+        "X-HWID": [ subscription_hwid(section, source) ],
+        "X-Device-OS": [ "OpenWrt Linux" ],
+        "X-Device-Model": [ subscription_device_model() ],
+        "X-Ver-OS": [ trim(as_string(fs.readfile("/proc/sys/kernel/osrelease"))) ],
+        "Accept-Language": [ "ru-RU,en,*" ],
+        "X-Device-Locale": [ "EN" ]
+    };
+}
+
+function subscription_user_agents(section, source) {
+    let configured = connections.subscription_user_agent(section, source);
+    if (configured != "")
+        return [ configured ];
+
+    let version_output = command_output("sing-box version 2>/dev/null");
+    let newline = index(version_output, "\n");
+    let fields = split(trim(newline >= 0 ? substr(version_output, 0, newline) : version_output), /[ \t]+/);
+    let version = length(fields) > 0 ? fields[length(fields) - 1] : "";
+    let result = [ "sing-box/" + (version != "" ? version : "unknown") ];
+    for (let user_agent in subscription_auto_user_agents)
+        push(result, user_agent);
+    return result;
+}
+
+function regex_escape(value) {
+    value = as_string(value);
+    let result = "";
+    for (let i = 0; i < length(value); i++) {
+        let character = substr(value, i, 1);
+        if (index("\\.^$|?*+()[]{}", character) >= 0)
+            result += "\\";
+        result += character;
+    }
+    return result;
+}
+
+function utf8_four_byte(codepoint) {
+    return chr(0xf0 | ((codepoint >> 18) & 0x07)) +
+        chr(0x80 | ((codepoint >> 12) & 0x3f)) +
+        chr(0x80 | ((codepoint >> 6) & 0x3f)) +
+        chr(0x80 | (codepoint & 0x3f));
+}
+
+function country_filter_pattern(country) {
+    country = uc(as_string(country));
+    if (match(country, /^[A-Z]{2}$/) == null)
+        return "";
+    let first = 0x1f1e6 + ord(substr(country, 0, 1)) - 65;
+    let second = 0x1f1e6 + ord(substr(country, 1, 1)) - 65;
+    return utf8_four_byte(first) + utf8_four_byte(second);
+}
+
+function filter_name_pattern(exact_names, regexes, countries) {
+    let parts = [];
+    for (let value in array_or_empty(exact_names)) {
+        value = trim(as_string(value));
+        if (value != "")
+            push(parts, "^(?:" + regex_escape(value) + ")$");
+    }
+    for (let pattern in array_or_empty(regexes)) {
+        pattern = as_string(pattern);
+        if (pattern != "")
+            push(parts, "(?:" + pattern + ")");
+    }
+    for (let country in array_or_empty(countries)) {
+        let pattern = country_filter_pattern(country);
+        if (pattern != "")
+            push(parts, pattern);
+    }
+    return length(parts) > 0 ? "(?:" + join("|", parts) + ")" : "";
+}
+
+function set_filter_side(result, side, pattern, protocols, transports, securities, require_match) {
+    if (pattern != "")
+        result[side] = pattern;
+    else if (require_match && length(protocols) == 0 && length(transports) == 0 && length(securities) == 0)
+        result[side] = "a^";
+    if (length(protocols) > 0)
+        result[side + "_types"] = protocols;
+    if (length(transports) > 0)
+        result[side + "_transports"] = transports;
+    if (length(securities) > 0)
+        result[side + "_securities"] = securities;
+}
+
+function native_filter_options(mode,
+    include_names, include_regexes, include_countries, include_protocols, include_transports, include_securities,
+    exclude_names, exclude_regexes, exclude_countries, exclude_protocols, exclude_transports, exclude_securities) {
+    let result = {};
+    if (mode == "include" || mode == "mixed")
+        set_filter_side(result, "include",
+            filter_name_pattern(include_names, include_regexes, include_countries),
+            include_protocols, include_transports, include_securities, true);
+    if (mode == "exclude" || mode == "mixed")
+        set_filter_side(result, "exclude",
+            filter_name_pattern(exclude_names, exclude_regexes, exclude_countries),
+            exclude_protocols, exclude_transports, exclude_securities, false);
+    return result;
+}
+
+function merge_object(target, source) {
+    for (let key, value in object_or_empty(source))
+        target[key] = value;
+    return target;
+}
+
+function subscription_provider_filter(section, source) {
+    let settings = connections.subscription_url_settings(section, source);
+    return native_filter_options(
+        option(settings, "filter_mode", "disabled"),
+        list_option(settings, "include_outbounds"), list_option(settings, "include_regex"), list_option(settings, "include_countries"),
+        list_option(settings, "include_protocols"), list_option(settings, "include_transports"), list_option(settings, "include_securities"),
+        list_option(settings, "exclude_outbounds"), list_option(settings, "exclude_regex"), list_option(settings, "exclude_countries"),
+        list_option(settings, "exclude_protocols"), list_option(settings, "exclude_transports"), list_option(settings, "exclude_securities")
+    );
+}
+
+function urltest_provider_filter(section, urltest_id) {
+    let include_protocols = connections.urltest_include_proxy_parameters(section, urltest_id)
+        ? connections.urltest_include_protocols(section, urltest_id) : [];
+    let include_transports = connections.urltest_include_proxy_parameters(section, urltest_id)
+        ? connections.urltest_include_transports(section, urltest_id) : [];
+    let include_securities = connections.urltest_include_proxy_parameters(section, urltest_id)
+        ? connections.urltest_include_securities(section, urltest_id) : [];
+    let exclude_protocols = connections.urltest_exclude_proxy_parameters(section, urltest_id)
+        ? connections.urltest_exclude_protocols(section, urltest_id) : [];
+    let exclude_transports = connections.urltest_exclude_proxy_parameters(section, urltest_id)
+        ? connections.urltest_exclude_transports(section, urltest_id) : [];
+    let exclude_securities = connections.urltest_exclude_proxy_parameters(section, urltest_id)
+        ? connections.urltest_exclude_securities(section, urltest_id) : [];
+    let result = native_filter_options(
+        connections.urltest_filter_mode(section, urltest_id),
+        connections.urltest_include_outbounds(section, urltest_id), connections.urltest_include_regex(section, urltest_id), connections.urltest_include_countries(section, urltest_id),
+        include_protocols, include_transports, include_securities,
+        connections.urltest_exclude_outbounds(section, urltest_id), connections.urltest_exclude_regex(section, urltest_id), connections.urltest_exclude_countries(section, urltest_id),
+        exclude_protocols, exclude_transports, exclude_securities
+    );
+    let excluded_types = array_or_empty(result.exclude_types);
+    for (let group_type in [ "selector", "urltest", "fallback", "loadbalance" ])
+        if (index(excluded_types, group_type) < 0)
+            push(excluded_types, group_type);
+    result.exclude_types = excluded_types;
+    return result;
 }
 
 function outbound_uses_xhttp(outbound) {
@@ -514,162 +634,6 @@ function outbound_uses_xhttp(outbound) {
 function ensure_explicit_outbound_supported(outbound, source, name) {
     if (!runtime_supports_xhttp && outbound_uses_xhttp(outbound))
         runtime_generate_unsupported(as_string(source) + " '" + as_string(name) + "' uses XHTTP transport, but sing-box-extended is not installed");
-}
-
-function subscription_outbound_display_name(outbound) {
-    return type(outbound) == "object"
-        ? as_string(outbound.remark || outbound.tag || "unknown")
-        : "unknown";
-}
-
-function add_subscription_reference(refs, value) {
-    value = as_string(value);
-    if (value != "")
-        refs[value] = true;
-}
-
-function subscription_reference_set(outbounds) {
-    let refs = {};
-    for (let outbound in array_or_empty(outbounds)) {
-        if (type(outbound) != "object")
-            continue;
-        add_subscription_reference(refs, outbound.tag);
-        add_subscription_reference(refs, outbound.remark);
-    }
-    return refs;
-}
-
-function subscription_reference_available(reference, source_refs, retained_refs) {
-    reference = as_string(reference);
-    return reference == "" || !source_refs[reference] || retained_refs[reference];
-}
-
-function subscription_group_has_retained_member(outbound, retained_refs) {
-    for (let reference in array_or_empty(outbound.outbounds))
-        if (retained_refs[as_string(reference)])
-            return true;
-    return false;
-}
-
-function warn_skipped_subscription_outbound(section_name, outbound, reason) {
-    warn("skipped incompatible subscription outbound for rule '", section_name, "': ",
-        subscription_outbound_display_name(outbound), " (", reason, ")\n");
-}
-
-function compatible_subscription_outbounds(outbounds, section_name) {
-    let source_refs = subscription_reference_set(outbounds);
-    let retained = [];
-    for (let outbound in array_or_empty(outbounds)) {
-        if (!supported_subscription_outbound(outbound))
-            continue;
-        if (!runtime_supports_xhttp && outbound_uses_xhttp(outbound)) {
-            warn_skipped_subscription_outbound(section_name, outbound, "XHTTP requires sing-box-extended");
-            continue;
-        }
-        push(retained, outbound);
-    }
-
-    while (true) {
-        let retained_refs = subscription_reference_set(retained);
-        let next = [];
-        let changed = false;
-        for (let outbound in retained) {
-            let detour = as_string(outbound.detour || "");
-            if (!subscription_reference_available(detour, source_refs, retained_refs)) {
-                warn_skipped_subscription_outbound(section_name, outbound,
-                    "detour depends on unavailable outbound '" + detour + "'");
-                changed = true;
-                continue;
-            }
-            if (subscription_group_outbound(outbound) &&
-                !subscription_group_has_retained_member(outbound, retained_refs)) {
-                warn_skipped_subscription_outbound(section_name, outbound, "group has no compatible outbounds");
-                changed = true;
-                continue;
-            }
-            push(next, outbound);
-        }
-        retained = next;
-        if (!changed)
-            return retained;
-    }
-}
-
-function copy_subscription_outbound(outbound, new_tag) {
-    let copy = {};
-    for (let key, value in outbound) {
-        if (key != "tag" && key != "remark" && key != "share_link" &&
-            key != "__forkop_hidden" && key != "__forkop_allow_group")
-            copy[key] = value;
-    }
-    if (as_string(copy.type || "") == "hysteria2" &&
-        type(copy.tls) == "object" &&
-        copy.tls.utls != null) {
-        let tls = {};
-        for (let key, value in copy.tls) {
-            if (key != "utls")
-                tls[key] = value;
-        }
-        copy.tls = tls;
-    }
-    copy.tag = new_tag;
-    return copy;
-}
-
-function string_array_contains(values, needle) {
-    for (let value in array_or_empty(values))
-        if (as_string(value) == as_string(needle))
-            return true;
-    return false;
-}
-
-function rewrite_subscription_outbound_references(outbounds, tag_map, source_refs) {
-    for (let outbound in outbounds) {
-        if (type(outbound) != "object")
-            continue;
-
-        let detour = as_string(outbound.detour || "");
-        if (detour != "" && tag_map[detour])
-            outbound.detour = tag_map[detour];
-        else if (detour != "" && source_refs[detour])
-            delete outbound.detour;
-
-        if (type(outbound.outbounds) == "array") {
-            let rewritten = [];
-            for (let tag_name in outbound.outbounds) {
-                tag_name = as_string(tag_name);
-                if (tag_map[tag_name])
-                    push(rewritten, tag_map[tag_name]);
-            }
-            outbound.outbounds = rewritten;
-
-            if (as_string(outbound.type || "") == "urltest") {
-                delete outbound.default;
-            }
-            else {
-                let default_tag = as_string(outbound.default || "");
-                if (default_tag != "" && tag_map[default_tag])
-                    default_tag = tag_map[default_tag];
-                if (default_tag == "" || !string_array_contains(rewritten, default_tag))
-                    default_tag = length(rewritten) > 0 ? rewritten[0] : "";
-                if (default_tag != "")
-                    outbound.default = default_tag;
-                else
-                    delete outbound.default;
-            }
-        }
-    }
-}
-
-function subscription_skip_summary(skipped) {
-    let parts = [];
-    for (let t in sort(keys(skipped)))
-        push(parts, skipped[t] + "x " + t);
-    return join("; ", parts);
-}
-
-function reportable_skipped_subscription_type(t) {
-    return t != "direct" && t != "selector" && t != "urltest" && t != "dns" && t != "block";
 }
 
 function urltest_leaf_candidate_outbound(outbound) {
@@ -725,100 +689,96 @@ function assert_unique_outbound_tags(config) {
     }
 }
 
-function add_subscription_source_with_state(config, section, source_index, source_entry, taken, selector_tags, urltest_candidate_tags, state, show_metadata, include_urltest_groups, hide_urltest_group_outbounds, hide_detour_outbounds, node_prefix) {
-    let section_name = section[".name"];
-    let source_section = runtime_subscription.source_id(section_name, source_index);
-    if (!runtime_subscription.source_cache_is_current(
-        source_section,
-        source_entry,
-        connections.subscription_user_agent(section, source_entry),
-        connections.subscription_hwid(section, source_entry)
-    ))
-        return 0;
+function outbound_detour_tag_for_section(section) {
+    if (!bool_option(section, "outbound_detour_enabled", false))
+        return "";
 
-    let source_outbounds = runtime_subscription.read_source_outbounds(source_section);
-    if (length(source_outbounds) == 0)
-        return 0;
+    let detour_section = option(section, "outbound_detour_section", "");
+    return detour_section == "" ? "" : outbound_tag(detour_section);
+}
 
-    let skipped = {};
-    for (let outbound in source_outbounds) {
-        if (supported_subscription_outbound(outbound))
-            continue;
-        let t = type(outbound) == "object" ? as_string(outbound.type || "missing-type") : "non-object";
-        if (reportable_skipped_subscription_type(t))
-            skipped[t] = (skipped[t] || 0) + 1;
-    }
-    let outbounds = compatible_subscription_outbounds(source_outbounds, section_name);
+function provider_tag(section_name, kind, source_index) {
+    let suffix = source_index == null ? kind : kind + "-" + source_index;
+    return tag(section_name + "-" + suffix, "provider");
+}
 
-    if (show_metadata !== false)
-        runtime_subscription.merge_source_metadata(state, section_name, source_section, source_index, source_entry);
-    let visibility_refs = subscription_visibility_refs(outbounds);
-    if (include_urltest_groups === false)
-        hide_urltest_group_outbounds = false;
-    node_prefix = trim(as_string(node_prefix));
-    let prepared = [];
-    let display_names = [];
-    let source_links = [];
-    let group_flags = [];
-    let hidden_flags = [];
-    let tag_map = {};
-    for (let i = 0; i < length(outbounds); i++) {
-        let outbound = outbounds[i];
-        if (include_urltest_groups === false && subscription_urltest_group_outbound(outbound))
-            continue;
-        let display_name = as_string(outbound.remark || outbound.tag || ("server-" + (i + 1)));
-        let base = as_string(outbound.tag || outbound.remark || ("server-" + (i + 1)));
-        if (node_prefix != "") {
-            display_name = node_prefix + " " + display_name;
-            base = display_name;
-        }
-        let new_tag = unique_tag(base, taken);
-        taken[new_tag] = true;
-        tag_map[base] = new_tag;
-        if (as_string(outbound.tag || "") != "")
-            tag_map[as_string(outbound.tag)] = new_tag;
-        if (as_string(outbound.remark || "") != "")
-            tag_map[as_string(outbound.remark)] = new_tag;
-        push(prepared, copy_subscription_outbound(outbound, new_tag));
-        push(display_names, display_name);
-        let source_link = as_string(outbound.share_link || "");
-        if (!subscription_share_link.is_copyable_link(source_link))
-            source_link = subscription_share_link.serialize_outbound_link(outbound);
-        push(source_links, source_link);
-        push(group_flags, subscription_group_outbound(outbound));
-        push(hidden_flags, subscription_hidden_outbound(outbound, visibility_refs, hide_urltest_group_outbounds, hide_detour_outbounds));
+function provider_add_unique(values, value) {
+    value = as_string(value);
+    if (value == "")
+        return;
+    for (let existing in array_or_empty(values))
+        if (as_string(existing) == value)
+            return;
+    push(values, value);
+}
+
+function add_remote_subscription_provider(config, section, source_index, source) {
+    let tag_name = provider_tag(section[".name"], "subscription", source_index);
+    let provider = merge_object({
+        type: "remote",
+        tag: tag_name,
+        url: source,
+        user_agent: subscription_user_agents(section, source),
+        headers: subscription_headers(section, source),
+        update_interval: connections.subscription_update_enabled(section, source)
+            ? connections.subscription_update_interval(section, source)
+            : runtime_constants.DISABLED_UPDATE_INTERVAL
+    }, subscription_provider_filter(section, source));
+
+    let download_section = connections.subscription_download_section(section, source);
+    if (download_section != "")
+        provider.download_detour = outbound_tag(download_section);
+    let detour = outbound_detour_tag_for_section(section);
+    if (detour != "")
+        provider.outbound_detour = detour;
+
+    if (!connections.subscription_include_urltest_groups(section, source)) {
+        let excluded = array_or_empty(provider.exclude_types);
+        for (let group_type in [ "selector", "urltest", "fallback", "loadbalance" ])
+            provider_add_unique(excluded, group_type);
+        provider.exclude_types = excluded;
     }
 
-    if (length(keys(skipped)) > 0)
-        warn("skipped unsupported subscription outbounds for rule '", section_name, "': ", subscription_skip_summary(skipped), "\n");
+    push(config.providers, provider);
+    return {
+        tag: tag_name,
+        hide_group_members: connections.subscription_hide_urltest_group_outbounds(section, source),
+        hide_dependencies: connections.subscription_hide_detour_outbounds(section, source)
+    };
+}
 
-    rewrite_subscription_outbound_references(prepared, tag_map, subscription_reference_set(source_outbounds));
-    let added = 0;
-    for (let i = 0; i < length(prepared); i++) {
-        let outbound = prepared[i];
-        let is_group = group_flags[i] === true;
-        if (is_group && length(array_or_empty(outbound.outbounds)) == 0) {
-            warn("skipped empty subscription group for rule '", section_name, "': ", as_string(display_names[i] || outbound.tag || "unknown"), "\n");
-            continue;
-        }
+function add_subscription_providers(config, section) {
+    let result = [];
+    let sources = connections.subscription_urls(section);
+    for (let i = 0; i < length(sources); i++)
+        push(result, add_remote_subscription_provider(config, section, i + 1, sources[i]));
+    return result;
+}
 
-        push(config.outbounds, outbound);
-        added++;
-        if (!is_group)
-            push(urltest_candidate_tags, outbound.tag);
-        runtime_subscription.remember_source_outbound(
-            state,
-            outbound.tag,
-            display_names[i],
-            outbound,
-            source_links[i]
-        );
-        if (hidden_flags[i] !== true) {
-            push(selector_tags, outbound.tag);
-            runtime_subscription.remember_urltest_group(state, outbound.tag, display_names[i], outbound);
-        }
-    }
-    return added;
+function add_manual_link_provider(config, section) {
+    let links = connections.connection_urls(section);
+    if (length(links) == 0)
+        return null;
+
+    let tag_name = provider_tag(section[".name"], "manual", null);
+    let path = runtime_provider_folder + "/" + tag_name + ".txt";
+    if (!atomic_write_text_file(path, join("\n", links) + "\n"))
+        runtime_generate_unsupported("failed to write local provider source for " + section[".name"]);
+
+    let provider = {
+        type: "local",
+        tag: tag_name,
+        path
+    };
+    let detour = outbound_detour_tag_for_section(section);
+    if (detour != "")
+        provider.outbound_detour = detour;
+    push(config.providers, provider);
+    return {
+        tag: tag_name,
+        hide_group_members: false,
+        hide_dependencies: false
+    };
 }
 
 function duration_to_seconds(value) {
@@ -1180,7 +1140,23 @@ function priority_outbound_tag(section_name, group_id) {
     return outbound_tag(section_name + "-priority-" + as_string(group_id));
 }
 
-function add_urltest_outbound(config, section, urltest_id, urltest_candidate_tags, state) {
+function provider_tags(provider_refs) {
+    let result = [];
+    for (let provider in array_or_empty(provider_refs))
+        if (type(provider) == "object" && as_string(provider.tag || "") != "")
+            push(result, as_string(provider.tag));
+    return result;
+}
+
+function provider_visibility_tags(provider_refs, key) {
+    let result = [];
+    for (let provider in array_or_empty(provider_refs))
+        if (type(provider) == "object" && provider[key] === true)
+            push(result, as_string(provider.tag));
+    return result;
+}
+
+function add_urltest_outbound(config, section, urltest_id, urltest_candidate_tags, provider_refs, state) {
     let section_name = section[".name"];
     let urltest_outbounds = urltest_filtered_outbounds(section, urltest_id, urltest_candidate_tags, state);
     let urltest_tag = urltest_outbound_tag(section_name, urltest_id);
@@ -1194,6 +1170,11 @@ function add_urltest_outbound(config, section, urltest_id, urltest_candidate_tag
         tolerance: int(connections.urltest_tolerance(section, urltest_id), 10),
         interrupt_exist_connections: connections.urltest_interrupt_exist_connections(section, urltest_id)
     };
+    let providers = provider_tags(provider_refs);
+    if (length(providers) > 0) {
+        urltest_outbound.providers = providers;
+        merge_object(urltest_outbound, urltest_provider_filter(section, urltest_id));
+    }
     let idle_timeout = urltest_idle_timeout(section, urltest_id);
     if (idle_timeout != "")
         urltest_outbound.idle_timeout = idle_timeout;
@@ -1209,7 +1190,7 @@ function add_urltest_outbound(config, section, urltest_id, urltest_candidate_tag
         interrupt_exist_connections: urltest_outbound.interrupt_exist_connections
     });
 
-    if (length(urltest_outbounds) == 0)
+    if (length(urltest_outbounds) == 0 && length(providers) == 0)
         return {
             tag: "",
             outbounds: []
@@ -1268,7 +1249,7 @@ function add_priority_group_outbound(config, section, group_id, urltest_candidat
     };
 }
 
-function add_proxy_selector(config, section, selector_tags, urltest_candidate_tags, state) {
+function add_proxy_selector(config, section, selector_tags, urltest_candidate_tags, provider_refs, state) {
     let section_name = section[".name"];
     let selector_tag = outbound_tag(section_name);
     let selector_outbounds = selector_tags;
@@ -1277,7 +1258,7 @@ function add_proxy_selector(config, section, selector_tags, urltest_candidate_ta
     let priority_tags = [];
 
     for (let urltest_id in connections.urltests(section)) {
-        let urltest = add_urltest_outbound(config, section, urltest_id, urltest_candidate_tags, state);
+        let urltest = add_urltest_outbound(config, section, urltest_id, urltest_candidate_tags, provider_refs, state);
         if (urltest.tag == "")
             continue;
 
@@ -1300,44 +1281,24 @@ function add_proxy_selector(config, section, selector_tags, urltest_candidate_ta
         selector_default = length(urltest_tags) > 0 ? urltest_tags[0] : priority_tags[0];
     }
 
-    push(config.outbounds, {
+    let selector = {
         type: "selector",
         tag: selector_tag,
         outbounds: selector_outbounds,
-        default: selector_default,
         interrupt_exist_connections: true
-    });
-}
-
-function outbound_detour_tag_for_section(section) {
-    if (!bool_option(section, "outbound_detour_enabled", false))
-        return "";
-
-    let detour_section = option(section, "outbound_detour_section", "");
-    return detour_section == "" ? "" : outbound_tag(detour_section);
-}
-
-function apply_section_detour_to_connection_outbounds(config, start_index, detour_tag) {
-    if (detour_tag == "")
-        return;
-
-    let outbounds = array_or_empty(config.outbounds);
-    for (let i = int(start_index || 0); i < length(outbounds); i++) {
-        let outbound = outbounds[i];
-        if (type(outbound) != "object")
-            continue;
-
-        let outbound_type = lc(as_string(outbound.type || ""));
-        if (outbound_type == "" ||
-            outbound_type == "selector" ||
-            outbound_type == "urltest" || outbound_type == "dns" ||
-            outbound_type == "block")
-            continue;
-
-        // Preserve subscription chains: only their terminal dial outbound receives the section detour.
-        if (as_string(outbound.detour || "") == "")
-            outbound.detour = detour_tag;
-    }
+    };
+    let providers = provider_tags(provider_refs);
+    if (length(providers) > 0)
+        selector.providers = providers;
+    let hidden_group_members = provider_visibility_tags(provider_refs, "hide_group_members");
+    if (length(hidden_group_members) > 0)
+        selector.exclude_provider_group_members = hidden_group_members;
+    let hidden_dependencies = provider_visibility_tags(provider_refs, "hide_dependencies");
+    if (length(hidden_dependencies) > 0)
+        selector.exclude_provider_dependencies = hidden_dependencies;
+    if (selector_default != null && as_string(selector_default) != "")
+        selector.default = selector_default;
+    push(config.outbounds, selector);
 }
 
 function mixed_proxy_enabled_action(action) {
@@ -1453,499 +1414,8 @@ function add_service_mixed_proxy(config, settings, sections) {
         runtime_generate_unsupported("download components via proxy section is not set");
 }
 
-function parse_port(value) {
-    value = as_string(value);
-    if (match(value, /^[0-9]+$/) == null)
-        return null;
-    let port = int(value, 10);
-    return port >= 1 && port <= 65535 ? port : null;
-}
-
-function bool_query(value) {
-    return value == "1" || value == "true";
-}
-
-function base64_decode_value(value) {
-    value = replace(as_string(value), /[\r\n\t ]/g, "");
-    value = replace(replace(value, /-/g, "+"), /_/g, "/");
-    while (length(value) % 4 != 0)
-        value += "=";
-    try {
-        return b64dec(value);
-    }
-    catch (e) {
-        return null;
-    }
-}
-
-function shadowsocks_userinfo_valid(value) {
-    value = as_string(value);
-    let first = index(value, ":");
-    if (first <= 0 || first >= length(value) - 1)
-        return false;
-    let rest = substr(value, first + 1);
-    let second = index(rest, ":");
-    return second < 0 || index(substr(rest, second + 1), ":") < 0;
-}
-
-function split_host_port(value) {
-    value = as_string(value);
-    if (substr(value, 0, 1) == "[") {
-        let close = index(value, "]");
-        if (close > 0 && substr(value, close + 1, 1) == ":")
-            return [ substr(value, 1, close - 1), substr(value, close + 2) ];
-    }
-
-    let colon = rindex(value, ":");
-    if (colon < 0)
-        return [ "", "" ];
-    return [ substr(value, 0, colon), substr(value, colon + 1) ];
-}
-
-function tls_alpn_array(value, transport) {
-    value = as_string(value);
-    transport = lc(as_string(transport));
-    if (value == "" && transport == "xhttp")
-        return [ "h2", "http/1.1" ];
-    if (value != "" && (transport == "ws" || transport == "httpupgrade"))
-        return [ "http/1.1" ];
-    return value == "" ? [] : split(value, ",");
-}
-
-function apply_link_tls(outbound, scheme, query) {
-    query = object_or_empty(query);
-    let security = as_string(query.security || "");
-    if (security == "" && (scheme == "hysteria2" || scheme == "hy2"))
-        security = "tls";
-
-    if (security == "" || security == "none")
-        return;
-    if (security != "tls" && security != "reality") {
-        warn("unknown manual proxy link security '", security, "' ignored\n");
-        return;
-    }
-
-    let tls = { enabled: true };
-    if (as_string(query.sni || "") != "")
-        tls.server_name = as_string(query.sni);
-    if (bool_query(query.allowInsecure || query.insecure || ""))
-        tls.insecure = true;
-
-    let alpn = tls_alpn_array(query.alpn, query.type);
-    if (length(alpn) > 0)
-        tls.alpn = alpn;
-
-    if (scheme != "hysteria2" && scheme != "hy2" && as_string(query.fp || "") != "") {
-        tls.utls = {
-            enabled: true,
-            fingerprint: as_string(query.fp)
-        };
-    }
-    if (security == "reality") {
-        tls.reality = {
-            enabled: true,
-            public_key: as_string(query.pbk || ""),
-            short_id: as_string(query.sid || "")
-        };
-    }
-    outbound.tls = tls;
-}
-
-function csv_array(value) {
-    value = as_string(value);
-    if (value == "")
-        return [];
-    let result = [];
-    for (let item in split(value, ",")) {
-        item = trim(as_string(item));
-        if (item != "")
-            push(result, item);
-    }
-    return result;
-}
-
-function optional_query_string(object, key, value) {
-    value = as_string(value);
-    if (value != "")
-        object[key] = value;
-}
-
-function optional_query_number(object, key, value) {
-    value = as_string(value);
-    if (value != "" && match(value, /^[0-9]+$/) != null)
-        object[key] = int(value, 10);
-}
-
-function apply_link_transport(outbound, query) {
-    let transport = lc(as_string(object_or_empty(query).type || ""));
-    if (transport == "" || transport == "tcp" || transport == "raw")
-        return;
-
-    if (transport == "h2")
-        transport = "http";
-
-    let result = { type: transport };
-    if (transport == "http") {
-        optional_query_string(result, "path", query.path);
-        let hosts = csv_array(query.host);
-        if (length(hosts) > 0)
-            result.host = hosts;
-    }
-    else if (transport == "ws") {
-        result.path = as_string(query.path || "");
-        if (as_string(query.host || "") != "")
-            result.headers = { Host: as_string(query.host) };
-        optional_query_number(result, "max_early_data", query.ed);
-    }
-    else if (transport == "grpc") {
-        optional_query_string(result, "service_name", query.serviceName);
-    }
-    else if (transport == "httpupgrade") {
-        optional_query_string(result, "path", query.path);
-        optional_query_string(result, "host", query.host);
-    }
-    else if (transport == "xhttp") {
-        let mode = as_string(query.mode || "auto");
-        if (mode != "auto" && mode != "packet-up" && mode != "stream-up" && mode != "stream-one")
-            mode = "auto";
-        result.mode = mode;
-        result.path = as_string(query.path || "") != "" ? as_string(query.path) : "/";
-        result.x_padding_bytes = "100-1000";
-        result.no_grpc_header = false;
-        result.sc_max_each_post_bytes = 1000000;
-        result.sc_min_posts_interval_ms = 30;
-        optional_query_string(result, "host", as_string(query.host || "") != "" ? query.host : query.sni);
-    }
-    else {
-        warn("unknown manual proxy link transport '", transport, "' ignored\n");
-        return;
-    }
-
-    outbound.transport = result;
-}
-
-function manual_socks_outbound(link, tag_name) {
-    let scheme = url_scheme(link);
-    let host = url_host(link);
-    let port = parse_port(url_port(link));
-    if (host == "" || port == null)
-        runtime_generate_unsupported("manual SOCKS proxy link is invalid");
-
-    let outbound = {
-        type: "socks",
-        tag: tag_name,
-        server: host,
-        server_port: port,
-        version: scheme == "socks4" || scheme == "socks4a" ? "4" : "5"
-    };
-    if (scheme == "socks5") {
-        let userinfo = url_userinfo(link);
-        if (userinfo != "") {
-            let colon = index(userinfo, ":");
-            outbound.username = colon >= 0 ? substr(userinfo, 0, colon) : userinfo;
-            if (colon >= 0)
-                outbound.password = substr(userinfo, colon + 1);
-        }
-    }
-    return outbound;
-}
-
-function manual_shadowsocks_outbound(link, tag_name) {
-    let raw = url_strip_fragment_value(url_decode(link));
-    let body = substr(raw, 5);
-    let question = index(body, "?");
-    let query_string = "";
-    if (question >= 0) {
-        query_string = substr(body, question + 1);
-        body = substr(body, 0, question);
-    }
-
-    let at = rindex(body, "@");
-    let userinfo = "";
-    let hostport = "";
-    if (at >= 0) {
-        userinfo = substr(body, 0, at);
-        hostport = substr(body, at + 1);
-    }
-    else {
-        let decoded = base64_decode_value(body);
-        if (decoded == null)
-            runtime_generate_unsupported("manual Shadowsocks proxy link is invalid");
-        at = rindex(decoded, "@");
-        if (at < 0)
-            runtime_generate_unsupported("manual Shadowsocks proxy link is invalid");
-        userinfo = substr(decoded, 0, at);
-        hostport = substr(decoded, at + 1);
-    }
-
-    userinfo = url_decode(userinfo);
-    if (!shadowsocks_userinfo_valid(userinfo)) {
-        let decoded = base64_decode_value(userinfo);
-        if (decoded == null)
-            runtime_generate_unsupported("manual Shadowsocks proxy link is invalid");
-        userinfo = decoded;
-    }
-
-    let cred_colon = index(userinfo, ":");
-    let host_port = split_host_port(hostport);
-    let port = parse_port(host_port[1]);
-    if (cred_colon <= 0 || host_port[0] == "" || port == null)
-        runtime_generate_unsupported("manual Shadowsocks proxy link is invalid");
-
-    let outbound = {
-        type: "shadowsocks",
-        tag: tag_name,
-        server: host_port[0],
-        server_port: port,
-        method: substr(userinfo, 0, cred_colon),
-        password: substr(userinfo, cred_colon + 1)
-    };
-    let query = url_query_params("ss://placeholder/?" + query_string);
-    if (as_string(query.plugin || "") != "")
-        outbound.plugin = as_string(query.plugin);
-    if (as_string(query["plugin-opts"] || "") != "")
-        outbound.plugin_opts = as_string(query["plugin-opts"]);
-    return outbound;
-}
-
-function manual_vless_outbound(link, tag_name) {
-    let query = url_query_params(link);
-
-    let host = url_host(link);
-    let port = parse_port(url_port(link));
-    let uuid = url_userinfo(link);
-    if (host == "" || port == null || uuid == "")
-        runtime_generate_unsupported("manual VLESS proxy link is invalid");
-
-    let outbound = {
-        type: "vless",
-        tag: tag_name,
-        server: host,
-        server_port: port,
-        uuid
-    };
-    let flow = as_string(query.flow || "");
-    if (flow != "")
-        outbound.flow = flow;
-    let encryption = as_string(query.encryption || "");
-    if (encryption != "" && encryption != "none")
-        outbound.encryption = encryption;
-    let packet_encoding = as_string(query.packetEncoding || "");
-    if (packet_encoding == "xudp" || packet_encoding == "packetaddr")
-        outbound.packet_encoding = packet_encoding;
-    apply_link_tls(outbound, "vless", query);
-    apply_link_transport(outbound, query);
-    return outbound;
-}
-
-function vmess_json_value(value) {
-    return value == null ? "" : as_string(value);
-}
-
-function manual_vmess_outbound(link, tag_name) {
-    let encoded = substr(url_strip_fragment_value(link), 8);
-    let decoded = base64_decode_value(encoded);
-    if (decoded == null)
-        runtime_generate_unsupported("manual VMess proxy link is invalid");
-
-    if (index(decoded, "\r") >= 0 || index(decoded, "\n") >= 0)
-        decoded = replace(decoded, /[\r\n]/g, "");
-    decoded = trim(decoded);
-
-    let vmess;
-    try {
-        vmess = json(decoded);
-    }
-    catch (e) {
-        runtime_generate_unsupported("manual VMess proxy link is invalid");
-    }
-    if (type(vmess) != "object")
-        runtime_generate_unsupported("manual VMess proxy link is invalid");
-
-    let host = vmess_json_value(vmess.add);
-    let port = parse_port(vmess_json_value(vmess.port));
-    let uuid = vmess_json_value(vmess.id);
-    if (host == "" || port == null || uuid == "")
-        runtime_generate_unsupported("manual VMess proxy link is invalid");
-
-    let outbound = {
-        type: "vmess",
-        tag: tag_name,
-        server: host,
-        server_port: port,
-        uuid,
-        security: vmess_json_value(vmess.scy) != "" ? vmess_json_value(vmess.scy) : "auto"
-    };
-
-    if (vmess_json_value(vmess.aid) != "")
-        outbound.alter_id = int(vmess.aid || 0);
-
-    let network = lc(vmess_json_value(vmess.net));
-    if (vmess.tls === true || vmess.tls == "tls" || vmess.tls == "true") {
-        let tls = { enabled: true };
-        optional_query_string(tls, "server_name", vmess_json_value(vmess.sni));
-        let alpn = tls_alpn_array(vmess_json_value(vmess.alpn), network);
-        if (length(alpn) > 0)
-            tls.alpn = alpn;
-        if (vmess_json_value(vmess.fp) != "") {
-            tls.utls = {
-                enabled: true,
-                fingerprint: vmess_json_value(vmess.fp)
-            };
-        }
-        outbound.tls = tls;
-    }
-
-    if (network == "ws") {
-        outbound.transport = {
-            type: "ws",
-            path: vmess_json_value(vmess.path) != "" ? vmess_json_value(vmess.path) : "/"
-        };
-        if (vmess_json_value(vmess.host) != "")
-            outbound.transport.headers = { Host: vmess_json_value(vmess.host) };
-    }
-    else if (network == "grpc") {
-        outbound.transport = { type: "grpc" };
-        optional_query_string(outbound.transport, "service_name", vmess_json_value(vmess.path));
-    }
-    else if (network == "http" || network == "h2") {
-        outbound.transport = { type: "http" };
-        optional_query_string(outbound.transport, "path", vmess_json_value(vmess.path));
-        let hosts = csv_array(vmess_json_value(vmess.host));
-        if (length(hosts) > 0)
-            outbound.transport.host = hosts;
-    }
-
-    return outbound;
-}
-
-function manual_trojan_outbound(link, tag_name) {
-    let query = url_query_params(link);
-
-    let host = url_host(link);
-    let port = parse_port(url_port(link));
-    let password = url_userinfo(link);
-    if (host == "" || port == null || password == "")
-        runtime_generate_unsupported("manual Trojan proxy link is invalid");
-
-    let outbound = {
-        type: "trojan",
-        tag: tag_name,
-        server: host,
-        server_port: port,
-        password
-    };
-    apply_link_tls(outbound, "trojan", query);
-    apply_link_transport(outbound, query);
-    return outbound;
-}
-
-function manual_hysteria2_outbound(link, tag_name) {
-    let query = url_query_params(link);
-    let host = url_host(link);
-    let port = parse_port(as_string(query.mport || "") != "" ? query.mport : url_port(link));
-    let password = url_userinfo(link);
-    if (host == "" || port == null || password == "")
-        runtime_generate_unsupported("manual Hysteria2 proxy link is invalid");
-
-    let outbound = {
-        type: "hysteria2",
-        tag: tag_name,
-        server: host,
-        server_port: port,
-        password
-    };
-    if (as_string(query.obfs || "") != "")
-        outbound.obfs = { type: as_string(query.obfs), password: as_string(query["obfs-password"] || "") };
-    if (as_string(query.upmbps || "") != "")
-        outbound.up_mbps = int(query.upmbps, 10);
-    if (as_string(query.downmbps || "") != "")
-        outbound.down_mbps = int(query.downmbps, 10);
-    apply_link_tls(outbound, url_scheme(link), query);
-    return outbound;
-}
-
-function manual_link_outbound(link, tag_name) {
-    let scheme = url_scheme(link);
-    if (scheme == "vmess")
-        return manual_vmess_outbound(link, tag_name);
-
-    link = url_strip_fragment_value(url_decode(link));
-    scheme = url_scheme(link);
-    if (scheme == "socks4" || scheme == "socks4a" || scheme == "socks5")
-        return manual_socks_outbound(link, tag_name);
-    if (scheme == "ss")
-        return manual_shadowsocks_outbound(link, tag_name);
-    if (scheme == "vless")
-        return manual_vless_outbound(link, tag_name);
-    if (scheme == "trojan")
-        return manual_trojan_outbound(link, tag_name);
-    if (scheme == "hysteria2" || scheme == "hy2")
-        return manual_hysteria2_outbound(link, tag_name);
-    runtime_generate_unsupported("manual proxy link scheme is not supported by sing-box config generation yet");
-}
-
-function add_manual_proxy_link(config, state, section_name, manual_index, link, taken, selector_tags, urltest_candidate_tags) {
-    let tag_name = outbound_tag(section_name + "-" + manual_index);
-    if (taken[tag_name])
-        tag_name = unique_tag(tag_name, taken);
-    taken[tag_name] = true;
-
-    let outbound = manual_link_outbound(link, tag_name);
-    let display_name = url_fragment(link);
-    if (display_name == "")
-        display_name = tag_name;
-    ensure_explicit_outbound_supported(outbound, "manual outbound", display_name);
-    push(config.outbounds, outbound);
-    push(selector_tags, tag_name);
-    push(urltest_candidate_tags, tag_name);
-
-    state.links[tag_name] = as_string(link);
-    runtime_subscription.remember_outbound_metadata(state, tag_name, display_name, outbound);
-    return tag_name;
-}
-
 function connection_item_tag(section_name, kind, item_index) {
     return outbound_tag(section_name + "-" + as_string(kind) + "-" + item_index);
-}
-
-function add_connection_manual_links(config, state, section, taken, selector_tags, urltest_candidate_tags) {
-    let section_name = section[".name"];
-    let manual_links = connections.connection_urls(section);
-    for (let i = 0; i < length(manual_links); i++) {
-        let link = manual_links[i];
-        add_manual_proxy_link(
-            config,
-            state,
-            section_name,
-            i + 1,
-            link,
-            taken,
-            selector_tags,
-            urltest_candidate_tags
-        );
-    }
-}
-
-function add_connection_subscriptions(config, state, section, taken, selector_tags, urltest_candidate_tags) {
-    let subscription_urls = connections.subscription_urls(section);
-
-    for (let i = 0; i < length(subscription_urls); i++)
-        add_subscription_source_with_state(
-            config,
-            section,
-            i + 1,
-            subscription_urls[i],
-            taken,
-            selector_tags,
-            urltest_candidate_tags,
-            state,
-            connections.subscription_dashboard_metadata_enabled(section, subscription_urls[i]),
-            connections.subscription_include_urltest_groups(section, subscription_urls[i]),
-            connections.subscription_hide_urltest_group_outbounds(section, subscription_urls[i]),
-            connections.subscription_hide_detour_outbounds(section, subscription_urls[i]),
-            connections.subscription_node_prefix(section, subscription_urls[i])
-        );
 }
 
 function add_interface_connection_outbound(config, state, section, interface_index, interface_name, taken, selector_tags, urltest_candidate_tags) {
@@ -2081,27 +1551,22 @@ function add_connections_outbound(config, section, taken) {
     let selector_tags = [];
     let urltest_candidate_tags = [];
     let state = runtime_subscription.new_section_state(section_name);
-    let cascade_start = length(array_or_empty(config.outbounds));
-
-    add_connection_manual_links(config, state, section, taken, selector_tags, urltest_candidate_tags);
-    add_connection_subscriptions(config, state, section, taken, selector_tags, urltest_candidate_tags);
-    // Apply before interface and JSON items are added: those source kinds are intentionally excluded.
-    apply_section_detour_to_connection_outbounds(
-        config,
-        cascade_start,
-        outbound_detour_tag_for_section(section)
-    );
+    let provider_refs = add_subscription_providers(config, section);
+    let manual_provider = add_manual_link_provider(config, section);
+    if (manual_provider != null)
+        push(provider_refs, manual_provider);
     add_connection_interfaces(config, state, section, taken, selector_tags, urltest_candidate_tags);
     add_connection_json_outbounds(config, state, section, taken, selector_tags, urltest_candidate_tags);
 
-    if (length(selector_tags) == 0)
+    if (length(selector_tags) == 0 && length(provider_refs) == 0)
         runtime_generate_unsupported("connection section has no usable outbounds");
 
     if (section_has_direct_priority_level(section))
         state.outboundMetadata.names[runtime_constants.DIRECT_OUTBOUND_TAG] = "Direct";
 
+    state.providerTags = provider_tags(provider_refs);
     state.urltestCandidateTags = unique_string_array(urltest_candidate_tags);
-    add_proxy_selector(config, section, selector_tags, urltest_candidate_tags, state);
+    add_proxy_selector(config, section, selector_tags, urltest_candidate_tags, provider_refs, state);
     if (!atomic_write_json_file(runtime_subscription.section_cache_path(section_name), state))
         runtime_generate_unsupported("failed to write section cache for " + section_name);
 }
@@ -2915,6 +2380,7 @@ function generate_config_fixture(fixture_path, output_path, service_address, mwa
     use_fixture_cursor(fixture_path);
     runtime_subscription.set_section_cache_dir(output_path + ".section-cache");
     runtime_ruleset_folder = output_path + ".rulesets";
+    runtime_provider_folder = output_path + ".providers";
     generate_config(output_path, service_address, mwan3_active, supports_xhttp, deferred_sections);
 }
 
