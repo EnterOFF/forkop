@@ -114,7 +114,6 @@ function priorityLevel(
     group: 'pg_main',
     name: 'Germany',
     order: '0',
-    detect_server_country: 'flag_emoji',
     regex: ['Included'],
     ...options,
   };
@@ -214,7 +213,6 @@ describe('getDashboardSections', () => {
             'main-1-out': 'First cached',
             'main-3-out': 'Third cached',
           },
-          countries: {},
         },
         urltestGroups: {
           'main-urltest-out': {
@@ -328,7 +326,6 @@ describe('getDashboardSections', () => {
       priorityLevel('pl_de', {
         name: 'Germany',
         order: '0',
-        detect_server_country: 'country_is',
       }),
       priorityLevel('pl_nl', {
         name: 'Netherlands',
@@ -361,7 +358,6 @@ describe('getDashboardSections', () => {
             'main-1-out': 'First cached',
             'main-2-out': 'Second cached',
           },
-          countries: { 'main-2-out': 'DE' },
         },
         priorityGroups: {
           'main-priority-pg_main-out': {
@@ -421,7 +417,6 @@ describe('getDashboardSections', () => {
         levelIndex: item.levelIndex,
         levelName: item.levelName,
         selected: item.selected,
-        country: item.country,
       })),
     ).toEqual([
       {
@@ -429,14 +424,12 @@ describe('getDashboardSections', () => {
         levelIndex: 0,
         levelName: 'Germany',
         selected: true,
-        country: 'DE',
       },
       {
         code: 'main-1-out',
         levelIndex: 1,
         levelName: 'Netherlands',
         selected: false,
-        country: undefined,
       },
     ]);
   });
@@ -737,62 +730,6 @@ describe('getDashboardSections', () => {
     ]);
   });
 
-  it('does not expose flag-emoji detected countries on dashboard outbounds', async () => {
-    mocks.getConfigSections.mockResolvedValue([
-      proxySection({
-        urltest_settings: urlTestSettings('urltest', {
-          display_name: 'Fastest',
-          urltest_filter_mode: 'exclude',
-          detect_server_country: 'flag_emoji',
-        }),
-      }),
-    ]);
-    mocks.dashboardCacheRead.mockResolvedValue(
-      JSON.stringify({
-        outboundMetadata: {
-          names: {},
-          countries: { 'main-1-out': 'US' },
-        },
-      }),
-    );
-
-    const result = await getDashboardSections();
-    const [section] = result.data;
-
-    expect(result.success).toBe(true);
-    expect(
-      section.outbounds.find((item) => item.code === 'main-1-out')?.country,
-    ).toBeUndefined();
-  });
-
-  it('exposes country.is detected countries on dashboard outbounds', async () => {
-    mocks.getConfigSections.mockResolvedValue([
-      proxySection({
-        urltest_settings: urlTestSettings('urltest', {
-          display_name: 'Fastest',
-          urltest_filter_mode: 'exclude',
-          detect_server_country: 'country_is',
-        }),
-      }),
-    ]);
-    mocks.dashboardCacheRead.mockResolvedValue(
-      JSON.stringify({
-        outboundMetadata: {
-          names: {},
-          countries: { 'main-1-out': 'US' },
-        },
-      }),
-    );
-
-    const result = await getDashboardSections();
-    const [section] = result.data;
-
-    expect(result.success).toBe(true);
-    expect(
-      section.outbounds.find((item) => item.code === 'main-1-out')?.country,
-    ).toBe('US');
-  });
-
   it('ignores legacy link refs without a resolved proxy link', async () => {
     mocks.getConfigSections.mockResolvedValue([
       proxySection({
@@ -832,7 +769,6 @@ describe('getDashboardSections', () => {
       JSON.stringify({
         outboundMetadata: {
           names: { 'main-2-out': 'Provider Subscription' },
-          countries: {},
         },
         links: {
           'main-2-out':
@@ -853,42 +789,6 @@ describe('getDashboardSections', () => {
     );
     expect(subscriptionOutbound?.displayName).toBe('Provider Subscription');
     expect(subscriptionOutbound?.canCopyLink).toBe(true);
-  });
-
-  it('does not expose countries when URLTest filtering is set to all servers', async () => {
-    mocks.getConfigSections.mockResolvedValue([
-      proxySection({
-        urltest_settings: urlTestSettings('urltest', {
-          display_name: 'Fastest',
-          detect_server_country: 'country_is',
-          urltest_filter_mode: 'disabled',
-        }),
-      }),
-    ]);
-    mocks.dashboardCacheRead.mockResolvedValue(
-      JSON.stringify({
-        outboundMetadata: {
-          names: {},
-          countries: { 'main-1-out': 'US' },
-        },
-      }),
-    );
-
-    const result = await getDashboardSections();
-    const [section] = result.data;
-
-    expect(result.success).toBe(true);
-    expect(section.latencyTestCode).toBe('main-out');
-    expect(section.latencyTestCodes).toEqual([
-      'main-urltest-out',
-      'main-1-out',
-      'main-2-out',
-      'main-3-out',
-    ]);
-    expect(section.outbounds.map((item) => item.code)).toContain('main-2-out');
-    expect(
-      section.outbounds.find((item) => item.code === 'main-1-out')?.country,
-    ).toBeUndefined();
   });
 
   it('uses allocated tags for section names that collide with system tags', async () => {

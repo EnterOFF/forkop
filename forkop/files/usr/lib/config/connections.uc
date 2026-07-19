@@ -364,78 +364,6 @@ function priority_groups(section) {
     return result;
 }
 
-function dashboard_filter_mode(section) {
-    return option(section, "dashboard_filter_mode", "disabled") || "disabled";
-}
-
-function dashboard_detect_server_country(section) {
-    return option(section, "dashboard_detect_server_country", "flag_emoji") || "flag_emoji";
-}
-
-function dashboard_include_countries(section) {
-    return list_value(section, "dashboard_include_countries");
-}
-
-function dashboard_include_outbounds(section) {
-    return list_value(section, "dashboard_include_outbounds");
-}
-
-function dashboard_include_regex(section) {
-    return list_value(section, "dashboard_include_regex");
-}
-
-function dashboard_include_proxy_parameters(section) {
-    return bool_option(section, "dashboard_include_proxy_parameters", false);
-}
-
-function dashboard_include_protocols(section) {
-    return list_value(section, "dashboard_include_protocols");
-}
-
-function dashboard_include_transports(section) {
-    return list_value(section, "dashboard_include_transports");
-}
-
-function dashboard_include_securities(section) {
-    return list_value(section, "dashboard_include_securities");
-}
-
-function dashboard_include_groups(section) {
-    return list_value(section, "dashboard_include_groups");
-}
-
-function dashboard_exclude_countries(section) {
-    return list_value(section, "dashboard_exclude_countries");
-}
-
-function dashboard_exclude_outbounds(section) {
-    return list_value(section, "dashboard_exclude_outbounds");
-}
-
-function dashboard_exclude_regex(section) {
-    return list_value(section, "dashboard_exclude_regex");
-}
-
-function dashboard_exclude_proxy_parameters(section) {
-    return bool_option(section, "dashboard_exclude_proxy_parameters", false);
-}
-
-function dashboard_exclude_protocols(section) {
-    return list_value(section, "dashboard_exclude_protocols");
-}
-
-function dashboard_exclude_transports(section) {
-    return list_value(section, "dashboard_exclude_transports");
-}
-
-function dashboard_exclude_securities(section) {
-    return list_value(section, "dashboard_exclude_securities");
-}
-
-function dashboard_exclude_groups(section) {
-    return list_value(section, "dashboard_exclude_groups");
-}
-
 function priority_group_child(section, value) {
     return owned_child_section(section, "priority_group", value);
 }
@@ -776,14 +704,6 @@ function urltest_filter_mode(section, value) {
         option(section, "urltest_filter_mode", "disabled") || "disabled");
 }
 
-function urltest_detect_server_country(section, value) {
-    let child = urltest_child(section, value);
-    if (child != null)
-        return child_option(child, "detect_server_country", "flag_emoji");
-    return item_option(section, "urltest_settings", value, "detect_server_country",
-        option(section, "detect_server_country", "flag_emoji") || "flag_emoji");
-}
-
 function urltest_pin_dashboard(section, value) {
     let child = urltest_child(section, value);
     if (child != null)
@@ -1031,11 +951,6 @@ function priority_level_regex(group_id, value) {
     return priority_level_include_regex(group_id, value);
 }
 
-function priority_level_detect_server_country(group_id, value) {
-    let child = priority_level_child(group_id, value);
-    return child != null ? child_option(child, "detect_server_country", "flag_emoji") : "flag_emoji";
-}
-
 function append_unique(result, seen, value) {
     value = as_string(value);
     if (value == "" || seen[value])
@@ -1094,24 +1009,6 @@ return {
     interfaces,
     outbound_jsons,
     urltests,
-    dashboard_filter_mode,
-    dashboard_detect_server_country,
-    dashboard_include_countries,
-    dashboard_include_outbounds,
-    dashboard_include_regex,
-    dashboard_include_proxy_parameters,
-    dashboard_include_protocols,
-    dashboard_include_transports,
-    dashboard_include_securities,
-    dashboard_include_groups,
-    dashboard_exclude_countries,
-    dashboard_exclude_outbounds,
-    dashboard_exclude_regex,
-    dashboard_exclude_proxy_parameters,
-    dashboard_exclude_protocols,
-    dashboard_exclude_transports,
-    dashboard_exclude_securities,
-    dashboard_exclude_groups,
     community_lists,
     rule_sets,
     rule_sets_with_subnets,
@@ -1146,7 +1043,6 @@ return {
     urltest_idle_timeout,
     urltest_interrupt_exist_connections,
     urltest_filter_mode,
-    urltest_detect_server_country,
     urltest_pin_dashboard,
     urltest_include_countries,
     urltest_include_outbounds,
@@ -1196,7 +1092,6 @@ return {
     priority_level_countries,
     priority_level_outbounds,
     priority_level_regex,
-    priority_level_detect_server_country,
     subscription_download_targets,
     subscription_download_target_port
 };

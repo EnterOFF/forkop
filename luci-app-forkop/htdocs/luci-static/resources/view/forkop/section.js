@@ -166,8 +166,13 @@ function dependsOnRuleConditions(option) {
       option.depends({ action, [condition]: /\S/ }),
     ),
   );
-  ["domain", "community_lists", "_dns_rule_set", "_dns_domain_ip_lists"].forEach(
-    (condition) => option.depends({ action: "dns", [condition]: /\S/ }),
+  [
+    "domain",
+    "community_lists",
+    "_dns_rule_set",
+    "_dns_domain_ip_lists",
+  ].forEach((condition) =>
+    option.depends({ action: "dns", [condition]: /\S/ }),
   );
   return option;
 }
@@ -451,7 +456,6 @@ let actionProvidersAvailabilityLoader = null;
 const outboundNameChoicesCache = new Map();
 const outboundNameChoicesInflight = new Map();
 const outboundNameSourceOptions = new Map();
-const sectionGroupSourceOptions = new Map();
 const dashboardFilterChoiceRefreshers = new Map();
 const COUNTRY_CODES =
   "AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW XK".split(
@@ -610,15 +614,11 @@ function safeCacheSectionName(section_id) {
 function filteredOutboundMetadataFromCache(cache) {
   const metadata = plainObject(plainObject(cache).outboundMetadata);
   const names = plainObject(metadata.names);
-  const countries = plainObject(metadata.countries);
   const candidateTags = Array.isArray(cache.urltestCandidateTags)
     ? cache.urltestCandidateTags
     : [];
   const groups = plainObject(cache.urltestGroups);
-  const result = {
-    names: {},
-    countries: {},
-  };
+  const result = { names: {} };
 
   if (candidateTags.length > 0) {
     candidateTags.forEach((tag) => {
@@ -629,9 +629,6 @@ function filteredOutboundMetadataFromCache(cache) {
       if (names[tag] != null) {
         result.names[tag] = names[tag];
       }
-      if (countries[tag] != null) {
-        result.countries[tag] = countries[tag];
-      }
     });
     return result;
   }
@@ -641,18 +638,12 @@ function filteredOutboundMetadataFromCache(cache) {
       result.names[tag] = name;
     }
   });
-  Object.entries(countries).forEach(([tag, country]) => {
-    if (!groups[tag]) {
-      result.countries[tag] = country;
-    }
-  });
-
   return result;
 }
 
 function readOutboundMetadataFromSectionCache(section_id) {
   if (!safeCacheSectionName(section_id)) {
-    return Promise.resolve({ names: {}, countries: {} });
+    return Promise.resolve({ names: {} });
   }
 
   return fs
@@ -660,7 +651,7 @@ function readOutboundMetadataFromSectionCache(section_id) {
     .then((response) =>
       filteredOutboundMetadataFromCache(JSON.parse(response.stdout || "{}")),
     )
-    .catch(() => ({ names: {}, countries: {} }));
+    .catch(() => ({ names: {} }));
 }
 
 function loadOutboundNameChoices(section_id) {
@@ -1633,77 +1624,6 @@ function currentDraftOutboundNames(section_id) {
   return names;
 }
 
-function currentSectionGroupValues(section_id, typeName) {
-  const liveValues = currentLiveDynamicListValues(section_id, typeName);
-  if (liveValues != null) {
-    return liveValues;
-  }
-
-  const option = sectionGroupSourceOptions.get(typeName);
-  if (option && typeof option.formvalue === "function") {
-    try {
-      const value = option.formvalue(section_id);
-      if (value != null) {
-        return normalizeDynamicListItems(value);
-      }
-    } catch (_error) {
-      // Fall back to the child sections when the widget is not mounted.
-    }
-  }
-
-  return getChildItemIds(section_id, typeName);
-}
-
-function sectionGroupDisplayName(section_id, typeName, value) {
-  const itemId = `${value || ""}`.trim();
-  if (isExistingChildItem(section_id, itemId, typeName)) {
-    return `${uci.get(UCI_PACKAGE, itemId, "name") || itemId}`.trim();
-  }
-
-  const option = sectionGroupSourceOptions.get(typeName);
-  const pending =
-    option && option.pendingChildSettings
-      ? option.pendingChildSettings[section_id]
-      : null;
-  const settings = pending && pending[itemId];
-  return `${(settings && settings.name) || itemId}`.trim();
-}
-
-function currentSectionGroupChoices(section_id, selectedValues = []) {
-  const seen = new Set();
-  const result = [];
-  const append = (typeName, value) => {
-    value = `${value || ""}`.trim();
-    if (!value) {
-      return;
-    }
-
-    const name = sectionGroupDisplayName(section_id, typeName, value) || value;
-    if (seen.has(name)) {
-      return;
-    }
-
-    seen.add(name);
-    result.push({ value: name, label: name });
-  };
-
-  currentSectionGroupValues(section_id, "urltest").forEach((value) =>
-    append("urltest", value),
-  );
-  currentSectionGroupValues(section_id, "priority_group").forEach((value) =>
-    append("priority_group", value),
-  );
-  normalizeDynamicListItems(selectedValues).forEach((value) => {
-    value = `${value || ""}`.trim();
-    if (value && !seen.has(value)) {
-      seen.add(value);
-      result.push({ value, label: value });
-    }
-  });
-
-  return result.sort((left, right) => left.label.localeCompare(right.label));
-}
-
 function refreshDashboardFilterChoiceWidgets(section_id) {
   const refreshers = dashboardFilterChoiceRefreshers.get(section_id);
   if (!refreshers) {
@@ -1890,13 +1810,6 @@ function priorityLevelFilterModeChoices() {
     { value: "include", label: _("Only selected") },
     { value: "exclude", label: _("All remaining except selected") },
     { value: "mixed", label: _("Only selected except exclusions") },
-  ];
-}
-
-function serverCountryDetectionChoices() {
-  return [
-    { value: "flag_emoji", label: _("By flag emoji from name") },
-    { value: "country_is", label: _("Via country.is") },
   ];
 }
 
@@ -2109,7 +2022,6 @@ function urlTestSettingsKeys() {
     "interrupt_exist_connections",
     "pin_dashboard",
     "filter_mode",
-    "detect_server_country",
     "include_countries",
     "include_outbounds",
     "include_regex",
@@ -2137,7 +2049,6 @@ function defaultUrlTestSettings(name) {
     interrupt_exist_connections: "1",
     pin_dashboard: "1",
     filter_mode: "disabled",
-    detect_server_country: "flag_emoji",
   };
 }
 
@@ -2150,7 +2061,6 @@ function urlTestChildDefaults() {
     interrupt_exist_connections: "1",
     pin_dashboard: "1",
     filter_mode: "disabled",
-    detect_server_country: "flag_emoji",
   };
 }
 
@@ -2204,7 +2114,6 @@ function priorityLevelSettingsKeys() {
     "order",
     "direct",
     "filter_mode",
-    "detect_server_country",
     "country",
     "server_name",
     "regex",
@@ -2228,7 +2137,6 @@ function defaultPriorityLevelSettings() {
     order: "0",
     direct: "0",
     filter_mode: "include",
-    detect_server_country: "flag_emoji",
   };
 }
 
@@ -2538,9 +2446,7 @@ function addUrlTestItemOptions(itemSection, options = {}) {
     form.Flag,
     "interrupt_exist_connections",
     _("Interrupt connections"),
-    _(
-      "Interrupt connections when URLTest switches the selected server",
-    ),
+    _("Interrupt connections when URLTest switches the selected server"),
   );
   o.default = "1";
   o.rmempty = false;
@@ -2564,19 +2470,6 @@ function addUrlTestItemOptions(itemSection, options = {}) {
     o.value(choice.value, choice.label),
   );
   o.default = "disabled";
-
-  o = itemSection.option(
-    form.ListValue,
-    "detect_server_country",
-    _("Detect server country"),
-  );
-  o.depends("filter_mode", "exclude");
-  o.depends("filter_mode", "include");
-  o.depends("filter_mode", "mixed");
-  serverCountryDetectionChoices().forEach((choice) =>
-    o.value(choice.value, choice.label),
-  );
-  o.default = "flag_emoji";
 
   const includeProxyParameterOptions = {
     prefix: "include",
@@ -2773,19 +2666,6 @@ function addPriorityLevelItemOptions(itemSection, options = {}) {
   );
   o.default = "include";
   o.depends("direct", "0");
-
-  o = itemSection.option(
-    form.ListValue,
-    "detect_server_country",
-    _("Detect server country"),
-  );
-  ["exclude", "include", "mixed"].forEach((mode) =>
-    o.depends({ direct: "0", filter_mode: mode }),
-  );
-  serverCountryDetectionChoices().forEach((choice) =>
-    o.value(choice.value, choice.label),
-  );
-  o.default = "flag_emoji";
 
   const includeProxyParameterOptions = {
     prefix: "include",
@@ -3109,229 +2989,6 @@ function addPriorityGroupItemOptions(itemSection, options = {}) {
       this.inputValueForItem(groupId, itemId),
     );
   };
-}
-
-function addDashboardGroupFilterOption(
-  optionSection,
-  key,
-  label,
-  description,
-  modes,
-) {
-  const list = optionSection.option(form.DynamicList, key, label, description);
-  modes.forEach((mode) => {
-    list.depends({
-      action: "connection",
-      dashboard_filter_mode: mode,
-      urltest: /.+/,
-    });
-    list.depends({
-      action: "connection",
-      dashboard_filter_mode: mode,
-      priority_group: /.+/,
-    });
-  });
-  list.rmempty = true;
-  list.placeholder = _("-- Select --");
-  list.load = function (section_id) {
-    const values = getConfigListValues(section_id, key);
-    const choices = currentSectionGroupChoices(section_id, values);
-    refreshOptionChoices(this, choices);
-    return values;
-  };
-  list.validate = function (section_id, value) {
-    const selected = new Set(
-      currentSectionGroupChoices(section_id).map((choice) => choice.value),
-    );
-    return normalizeDynamicListItems(value).every((item) => selected.has(item))
-      ? true
-      : _("Select an existing URLTest or Priority group");
-  };
-  configureLiveDynamicListChoices(list, currentSectionGroupChoices);
-}
-
-function addDashboardServerFilterOptions(section) {
-  const optionSection = {
-    option: (optionType, ...args) => {
-      const option = section.taboption("settings", optionType, ...args);
-      option.modalonly = true;
-      return option;
-    },
-  };
-  let o = optionSection.option(
-    form.ListValue,
-    "dashboard_filter_mode",
-    _("Servers on dashboard"),
-    _("Filter the servers that will be displayed on the dashboard."),
-  );
-  urlTestFilterModeChoices().forEach((choice) =>
-    o.value(choice.value, choice.label),
-  );
-  o.default = "disabled";
-  o.depends("action", "connection");
-
-  o = optionSection.option(
-    form.ListValue,
-    "dashboard_detect_server_country",
-    _("Detect server country"),
-  );
-  ["exclude", "include", "mixed"].forEach((mode) =>
-    o.depends({ action: "connection", dashboard_filter_mode: mode }),
-  );
-  serverCountryDetectionChoices().forEach((choice) =>
-    o.value(choice.value, choice.label),
-  );
-  o.default = "flag_emoji";
-
-  const includeProxyParameterOptions = {
-    prefix: "dashboard_include",
-    toggleLabel: _("Include by proxy parameters"),
-    toggleDescription: _(
-      "Additionally show servers by protocol, transport, and security. Add only servers matching the specified parameters.",
-    ),
-    dependencies: [
-      { action: "connection", dashboard_filter_mode: "include" },
-      { action: "connection", dashboard_filter_mode: "mixed" },
-    ],
-    protocolDescription: _(
-      "Show only servers with one of the selected protocols.",
-    ),
-    transportDescription: _(
-      "Show only servers with one of the selected transports.",
-    ),
-    securityDescription: _(
-      "Show only servers with one of the selected security types.",
-    ),
-  };
-  const excludeProxyParameterOptions = {
-    prefix: "dashboard_exclude",
-    toggleLabel: _("Exclude by proxy parameters"),
-    toggleDescription: _(
-      "Additionally hide servers by protocol, transport, and security. Hide servers matching the specified parameters.",
-    ),
-    dependencies: [
-      { action: "connection", dashboard_filter_mode: "exclude" },
-      { action: "connection", dashboard_filter_mode: "mixed" },
-    ],
-    protocolDescription: _("Hide servers with one of the selected protocols."),
-    transportDescription: _(
-      "Hide servers with one of the selected transports.",
-    ),
-    securityDescription: _(
-      "Hide servers with one of the selected security types.",
-    ),
-  };
-
-  [
-    [
-      "dashboard_include_countries",
-      _("Include countries"),
-      _("Show servers only from the specified countries."),
-      countryChoices(),
-      validateCountryCode,
-      ["include", "mixed"],
-    ],
-    [
-      "dashboard_include_outbounds",
-      _("Include servers"),
-      _("Show only selected servers."),
-      null,
-      null,
-      ["include", "mixed"],
-    ],
-    [
-      "dashboard_include_regex",
-      _("Include by regular expression"),
-      _("Show servers whose names match the expression."),
-      null,
-      validateRegex,
-      ["include", "mixed"],
-    ],
-    [
-      "dashboard_exclude_countries",
-      _("Exclude countries"),
-      _("Hide servers from the specified countries."),
-      countryChoices(),
-      validateCountryCode,
-      ["exclude", "mixed"],
-    ],
-    [
-      "dashboard_exclude_outbounds",
-      _("Exclude servers"),
-      _("Hide selected servers."),
-      null,
-      null,
-      ["exclude", "mixed"],
-    ],
-    [
-      "dashboard_exclude_regex",
-      _("Exclude by regular expression"),
-      _("Hide servers whose names match the expression."),
-      null,
-      validateRegex,
-      ["exclude", "mixed"],
-    ],
-  ].forEach(([key, label, description, choices, validator, modes]) => {
-    const list = optionSection.option(
-      form.DynamicList,
-      key,
-      label,
-      description,
-    );
-    modes.forEach((mode) =>
-      list.depends({ action: "connection", dashboard_filter_mode: mode }),
-    );
-    list.rmempty = true;
-    if (choices) {
-      choices.forEach((choice) => list.value(choice.value, choice.label));
-      list.placeholder = _("-- Select --");
-    }
-    if (key.endsWith("_outbounds")) {
-      list.load = function (section_id) {
-        const values = getConfigListValues(section_id, key);
-        loadOutboundNameChoices(section_id).then(() => {
-          refreshDashboardFilterChoiceWidgets(section_id);
-        });
-        return values;
-      };
-      list.placeholder = _("-- Select --");
-      configureLiveDynamicListChoices(list, currentOutboundNameChoices);
-    }
-    if (validator) {
-      list.validate = function (_section_id, value) {
-        return validator(null, value);
-      };
-    }
-    if (key === "dashboard_include_regex") {
-      addDashboardGroupFilterOption(
-        optionSection,
-        "dashboard_include_groups",
-        _("Add URLTest / Priority group"),
-        _(
-          "Show servers from selected groups without repeating their filtering criteria.",
-        ),
-        ["include", "mixed"],
-      );
-      addProxyParameterFilterOptions(
-        optionSection,
-        includeProxyParameterOptions,
-      );
-    } else if (key === "dashboard_exclude_regex") {
-      addDashboardGroupFilterOption(
-        optionSection,
-        "dashboard_exclude_groups",
-        _("Exclude URLTest / Priority group"),
-        _(
-          "Hide servers from selected groups without repeating their filtering criteria.",
-        ),
-        ["exclude", "mixed"],
-      );
-      addProxyParameterFilterOptions(
-        optionSection,
-        excludeProxyParameterOptions,
-      );
-    }
-  });
 }
 
 function settingValueEquals(left, right) {
@@ -7401,7 +7058,6 @@ function createSectionContent(section) {
     );
   };
   o.onListChange = refreshDashboardFilterChoiceWidgets;
-  sectionGroupSourceOptions.set("urltest", o);
 
   o = section.taboption(
     "settings",
@@ -7440,7 +7096,6 @@ function createSectionContent(section) {
     );
   };
   o.onListChange = refreshDashboardFilterChoiceWidgets;
-  sectionGroupSourceOptions.set("priority_group", o);
 
   o = section.taboption(
     "settings",
@@ -7790,9 +7445,7 @@ function createSectionContent(section) {
     form.DynamicList,
     "domain_ip_lists",
     _("Domain and IP lists"),
-    _(
-      "Add URLs or local paths to .lst lists containing domains and subnets.",
-    ),
+    _("Add URLs or local paths to .lst lists containing domains and subnets."),
   );
   domainIpListsOption.modalonly = true;
   // Both widgets map to domain_ip_lists, so neither inactive view may erase shared storage.
@@ -7860,8 +7513,6 @@ function createSectionContent(section) {
     dynamicValidate: validatePortCondition,
   });
   dependsOnRoutingAction(portsOption);
-
-  addDashboardServerFilterOptions(section);
 }
 
 function loadSectionTableOptions(sectionRef) {

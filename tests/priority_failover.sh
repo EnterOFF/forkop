@@ -118,7 +118,6 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
       "group": "pg_main",
       "name": "Upper level",
       "order": "0",
-      "detect_server_country": "country_is",
       "server_name": [ "Beta" ]
     },
     {
@@ -209,8 +208,6 @@ if (cached.interrupt_exist_connections !== true || cached.pin_dashboard !== true
 assert_array(cached.outbounds, [ "proxy-2-out", "proxy-3-out" ], "cached priority outbounds");
 if (length(cached.levels || []) != 2 || cached.levels[0].id != "pl_upper" || cached.levels[1].id != "pl_lower")
     fail("priority levels should be sorted by order in cache");
-if (cached.levels[0].detect_server_country != "country_is" || cached.levels[1].detect_server_country != "flag_emoji")
-    fail("priority level country detection metadata was not cached");
 assert_array(cached.levels[0].outbounds, [ "proxy-2-out" ], "upper level outbounds");
 assert_array(cached.levels[1].outbounds, [ "proxy-3-out" ], "lower level outbounds");
 ' "$output" "$output.section-cache/proxy.json" || fail "priority selector generation"
@@ -499,8 +496,8 @@ cat >"$WORK_DIR/country-filter.json" <<'JSON'
       "enabled": "1",
       "action": "proxy",
       "selector_proxy_links": [
-        "vless://00000000-0000-4000-8000-000000000001@alpha.example:443?encryption=none&security=tls&sni=alpha.example#Alpha",
-        "vless://00000000-0000-4000-8000-000000000002@beta.example:443?encryption=none&security=tls&sni=beta.example#Beta"
+        "vless://00000000-0000-4000-8000-000000000001@alpha.example:443?encryption=none&security=tls&sni=alpha.example#%F0%9F%87%A9%F0%9F%87%AA%20Alpha",
+        "vless://00000000-0000-4000-8000-000000000002@beta.example:443?encryption=none&security=tls&sni=beta.example#%F0%9F%87%B3%F0%9F%87%B1%20Beta"
       ]
     }
   ],
@@ -515,28 +512,12 @@ cat >"$WORK_DIR/country-filter.json" <<'JSON'
       "name": "Germany",
       "order": "0",
       "filter_mode": "include",
-      "detect_server_country": "country_is",
       "country": [ "DE" ]
     }
   ]
 }
 JSON
 country_output="$WORK_DIR/country-filter-config.json"
-mkdir -p "$country_output.section-cache"
-cat >"$country_output.section-cache/proxy.json" <<'JSON'
-{
-  "servers": {
-    "proxy-1-out": "alpha.example",
-    "proxy-2-out": "beta.example"
-  },
-  "outboundMetadata": {
-    "countries": {
-      "proxy-1-out": "DE",
-      "proxy-2-out": "NL"
-    }
-  }
-}
-JSON
 generate_config "$WORK_DIR/country-filter.json" "$country_output"
 ucode -e '
 let fs = require("fs");
@@ -546,8 +527,8 @@ for (let outbound in config.outbounds || [])
     if (outbound && outbound.tag == "proxy-priority-pg_country-out")
         selector = outbound;
 if (!selector || length(selector.outbounds || []) != 1 || selector.outbounds[0] != "proxy-1-out")
-    die("cached country.is metadata was not applied to Priority filtering\n");
-' "$country_output" || fail "Priority country.is cached filtering"
+    die("flag emoji country metadata was not applied to Priority filtering\n");
+' "$country_output" || fail "Priority flag emoji country filtering"
 
 write_refresh_fixture() {
   local path="$1"

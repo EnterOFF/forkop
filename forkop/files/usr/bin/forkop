@@ -91,7 +91,7 @@ function show_help() {
     print("    show_sing_box_config    Show sing-box configuration\n");
     print("    show_sing_box_version   Show sing-box version\n");
     print("    get_status              Get Forkop service status\n");
-    print("    get_outbound_metadata   Get generated outbound display names and countries\n");
+    print("    get_outbound_metadata   Get generated outbound display names\n");
     print("    get_subscription_metadata\n");
     print("                            Get UI-only metadata for a subscription rule\n");
     print("    get_dashboard_section_cache\n");

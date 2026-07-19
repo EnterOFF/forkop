@@ -15,7 +15,6 @@ button_styles="$(sed -n '/^\.fkp-button-add-dynlist > \.add-item > \.cbi-button-
 settings_styles="$(sed -n '/^\.fkp-connections-dynlist > \.item > \.fkp-dynlist-settings {$/,/^}$/p' "$SECTION_JS")"
 urltest_options="$(sed -n '/^function addUrlTestItemOptions(/,/^function priorityLevelSettingsForValidation(/p' "$SECTION_JS")"
 priority_options="$(sed -n '/^function addPriorityLevelItemOptions(/,/^function addPriorityGroupItemOptions(/p' "$SECTION_JS")"
-dashboard_options="$(sed -n '/^function addDashboardServerFilterOptions(/,/^function settingValueEquals(/p' "$SECTION_JS")"
 create_section="$(sed -n '/^function createSectionContent(/,/^function loadSectionTableOptions(/p' "$SECTION_JS")"
 live_choices="$(sed -n '/^function configureLiveDynamicListChoices(/,/^function countryChoices(/p' "$SECTION_JS")"
 close_all_styles="$(sed -n '/^\.fkp_monitoring-page #monitoring-close-all\.btn\.fkp_monitoring-page__icon-button:hover:not(:disabled) {$/,/^}$/p' "$MONITORING_STYLES")"
@@ -65,46 +64,16 @@ grep -Fq '_("Security")' "$SECTION_JS" ||
 if grep -Fq 'Connection security' "$SECTION_JS"; then
   fail "proxy parameter filter copy must not mention connection security"
 fi
-if grep -Fq 'hide_added_outbounds' "$SECTION_JS"; then
-  fail "per-group dashboard hiding must be removed from LuCI"
+if grep -Eq 'dashboard_(filter|include|exclude|detect)|Servers on dashboard|addDashboardServerFilterOptions' "$SECTION_JS"; then
+  fail "legacy section-wide dashboard server filtering must stay removed"
 fi
-grep -Fq '"dashboard_filter_mode"' <<<"$dashboard_options" ||
-  fail "section settings must expose the dashboard server filter"
-grep -Fq '_("Servers on dashboard")' <<<"$dashboard_options" ||
-  fail "dashboard server filter must use the requested section-level label"
-grep -Fq '_("Filter the servers that will be displayed on the dashboard.")' <<<"$dashboard_options" ||
-  fail "dashboard server filter must use the requested description"
-grep -Fq 'option.modalonly = true;' <<<"$dashboard_options" ||
-  fail "dashboard server filter options must stay inside the section modal"
-grep -Fq '"dashboard_include_groups"' <<<"$dashboard_options" ||
-  fail "dashboard include filters must support URLTest and Priority groups"
-grep -Fq '"dashboard_exclude_groups"' <<<"$dashboard_options" ||
-  fail "dashboard exclude filters must support URLTest and Priority groups"
-include_group_line="$(grep -n '"dashboard_include_groups"' <<<"$dashboard_options" | head -n1 | cut -d: -f1)"
-include_proxy_line="$(grep -n 'includeProxyParameterOptions' <<<"$dashboard_options" | tail -n1 | cut -d: -f1)"
-[[ "$include_group_line" -lt "$include_proxy_line" ]] ||
-  fail "dashboard include group selector must precede the proxy-parameter toggle"
-exclude_group_line="$(grep -n '"dashboard_exclude_groups"' <<<"$dashboard_options" | head -n1 | cut -d: -f1)"
-exclude_proxy_line="$(grep -n 'excludeProxyParameterOptions' <<<"$dashboard_options" | tail -n1 | cut -d: -f1)"
-[[ "$exclude_group_line" -lt "$exclude_proxy_line" ]] ||
-  fail "dashboard exclude group selector must precede the proxy-parameter toggle"
-grep -Fq 'const liveValues = currentLiveDynamicListValues(section_id, typeName);' "$SECTION_JS" ||
-  fail "dashboard group choices must read live uncommitted DynamicList values"
+if grep -Eq 'country_is|detect_server_country|Detect server country' "$SECTION_JS"; then
+  fail "server country detection choices must stay removed"
+fi
 grep -Fq 'o.onListChange = refreshDashboardFilterChoiceWidgets;' "$SECTION_JS" ||
-  fail "new servers and groups must refresh dashboard selectors immediately"
-grep -Fq 'form.DynamicList,' <<<"$(sed -n '/^function addDashboardGroupFilterOption(/,/^function addDashboardServerFilterOptions(/p' "$SECTION_JS")" ||
-  fail "dashboard group filters must use the standard DynamicList"
-if grep -Fq 'SelectOnlyUIDynamicList' "$SECTION_JS"; then
-  fail "dashboard group filters must not replace the standard DynamicList widget"
-fi
-grep -Fq 'configureLiveDynamicListChoices(list, currentOutboundNameChoices);' <<<"$dashboard_options" ||
-  fail "dashboard server selectors must refresh live uncommitted outbound choices"
-grep -Fq '.exec("/usr/bin/forkop", ["get_dashboard_section_cache", section_id])' "$SECTION_JS" ||
-  fail "server choices still depend on rpcd reading the full section cache"
-grep -Fq 'configureLiveDynamicListChoices(list, currentSectionGroupChoices);' "$SECTION_JS" ||
-  fail "dashboard group selectors must refresh live uncommitted group choices"
+  fail "new servers and groups must refresh live filter selectors immediately"
 grep -Fq 'const widget = new ui.DynamicList(values, labels, {' <<<"$live_choices" ||
-  fail "dashboard selectors must always render the stock DynamicList combobox"
+  fail "live selectors must always render the stock DynamicList combobox"
 grep -Fq 'validate: L.bind(this.validate, this, section_id),' <<<"$live_choices" ||
   fail "dashboard selectors must use the LuCI 24.10-compatible validator binding"
 if grep -Fq 'this.getValidator(section_id)' <<<"$live_choices"; then
@@ -121,24 +90,6 @@ grep -Fq 'node.addEventListener("mousedown", refreshBeforeOpening, true);' <<<"$
   fail "dashboard selectors must refresh choices before opening"
 grep -Fq 'if (currentSignature === choiceSignature)' "$SECTION_JS" ||
   fail "dashboard selectors must not rebuild unchanged choices while selecting an item"
-grep -Fq 'loadOutboundNameChoices(section_id).then(() => {' <<<"$dashboard_options" ||
-  fail "dashboard server choices must refresh after metadata loads"
-if grep -Fq 'return loadOutboundNameChoices(section_id)' <<<"$dashboard_options"; then
-  fail "dashboard metadata loading must not block the section modal"
-fi
-grep -Fq 'result.push({ value: name, label: name });' "$SECTION_JS" ||
-  fail "dashboard group selector values must use display names"
-if grep -Fq 'label: `${typeLabel}: ${name}`' "$SECTION_JS"; then
-  fail "dashboard group labels must not include URLTest/Priority prefixes"
-fi
-ports_line="$(grep -n 'dependsOnRoutingAction(portsOption);' <<<"$create_section" | cut -d: -f1)"
-dashboard_line="$(grep -n 'addDashboardServerFilterOptions(section);' <<<"$create_section" | cut -d: -f1)"
-[[ "$dashboard_line" -gt "$ports_line" ]] ||
-  fail "dashboard server filter must be the last section option block"
-if grep -Fq '__forkop_no_group__' "$SECTION_JS"; then
-  fail "dashboard group selectors must not duplicate the placeholder with a fake choice"
-fi
-
 grep -Fq 'dependsOnRoutingAction(domainIpListsOption);' <<<"$create_section" ||
   fail "routing actions must use their own domain and subnet list copy"
 grep -Fq 'dnsDomainListsOption.depends("action", "dns");' <<<"$create_section" ||

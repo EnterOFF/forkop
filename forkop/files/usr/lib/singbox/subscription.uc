@@ -219,9 +219,6 @@ function remember_outbound_metadata(state, tag_name, display_name, outbound) {
     }
     state.outboundMetadata.securities[tag_name] = security;
 
-    let server = as_string(outbound.server || "");
-    if (server != "")
-        state.servers[tag_name] = server;
 }
 
 function remember_source_outbound(state, tag_name, display_name, outbound, source_link) {
@@ -327,12 +324,10 @@ function new_section_state(section_name) {
         links: {},
         outboundMetadata: {
             names: {},
-            countries: {},
             protocols: {},
             transports: {},
             securities: {}
         },
-        servers: {},
         urltestCandidateTags: [],
         urltestGroups: {},
         priorityGroups: {},

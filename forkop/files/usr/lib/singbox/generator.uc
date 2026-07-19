@@ -4,7 +4,6 @@ let fs = require("fs");
 let common = require("core.common");
 let uci_core = require("core.uci");
 let runtime_constants = require("singbox.constants");
-let runtime_country = require("singbox.country");
 let runtime_dns = require("singbox.dns");
 let runtime_route = require("singbox.route");
 let runtime_rulesets = require("singbox.rulesets");
@@ -875,57 +874,6 @@ function supported_urltest_filter_mode(mode) {
     return mode == "include" || mode == "exclude" || mode == "mixed";
 }
 
-function filter_mode_uses_include(mode) {
-    return mode == "include" || mode == "mixed";
-}
-
-function filter_mode_uses_exclude(mode) {
-    return mode == "exclude" || mode == "mixed";
-}
-
-function configured_country_filter(mode, include_countries, exclude_countries) {
-    return (filter_mode_uses_include(mode) && length(array_or_empty(include_countries)) > 0) ||
-        (filter_mode_uses_exclude(mode) && length(array_or_empty(exclude_countries)) > 0);
-}
-
-function section_needs_country_is(section) {
-    let dashboard_mode = connections.dashboard_filter_mode(section);
-    if (connections.dashboard_detect_server_country(section) == "country_is" &&
-        configured_country_filter(
-            dashboard_mode,
-            connections.dashboard_include_countries(section),
-            connections.dashboard_exclude_countries(section)
-        ))
-        return true;
-
-    for (let urltest_id in connections.urltests(section)) {
-        let mode = connections.urltest_filter_mode(section, urltest_id);
-        if (connections.urltest_detect_server_country(section, urltest_id) == "country_is" &&
-            configured_country_filter(
-                mode,
-                connections.urltest_include_countries(section, urltest_id),
-                connections.urltest_exclude_countries(section, urltest_id)
-            ))
-            return true;
-    }
-
-    for (let group_id in connections.priority_groups(section)) {
-        for (let level_id in connections.priority_levels(group_id)) {
-            if (connections.priority_level_direct(group_id, level_id))
-                continue;
-            let mode = connections.priority_level_filter_mode(group_id, level_id);
-            if (connections.priority_level_detect_server_country(group_id, level_id) == "country_is" &&
-                configured_country_filter(
-                    mode,
-                    connections.priority_level_include_countries(group_id, level_id),
-                    connections.priority_level_exclude_countries(group_id, level_id)
-                ))
-                return true;
-        }
-    }
-    return false;
-}
-
 function section_has_direct_priority_level(section) {
     for (let group_id in connections.priority_groups(section))
         for (let level_id in connections.priority_levels(group_id))
@@ -934,12 +882,10 @@ function section_has_direct_priority_level(section) {
     return false;
 }
 
-function urltest_country_metadata(section, urltest_id, state) {
-    let metadata = object_or_empty(object_or_empty(state.outboundMetadata).countries);
-    let detect_method = connections.urltest_detect_server_country(section, urltest_id);
-    if (detect_method == "flag_emoji")
-        return runtime_urltest.countries_from_flag_names(object_or_empty(object_or_empty(state.outboundMetadata).names));
-    return metadata;
+function flag_country_metadata(state) {
+    return runtime_urltest.countries_from_flag_names(
+        object_or_empty(object_or_empty(state.outboundMetadata).names)
+    );
 }
 
 function array_contains(values, needle) {
@@ -1136,7 +1082,7 @@ function urltest_filtered_outbounds(section, urltest_id, urltest_candidate_tags,
         connections.urltest_filter_mode(section, urltest_id),
         urltest_candidate_tags,
         object_or_empty(object_or_empty(state.outboundMetadata).names),
-        urltest_country_metadata(section, urltest_id, state),
+        flag_country_metadata(state),
         object_or_empty(state.outboundMetadata),
         connections.urltest_include_outbounds(section, urltest_id),
         connections.urltest_include_regex(section, urltest_id),
@@ -1155,14 +1101,6 @@ function urltest_filtered_outbounds(section, urltest_id, urltest_candidate_tags,
     );
 }
 
-function priority_level_country_metadata(group_id, level_id, state) {
-    let metadata = object_or_empty(object_or_empty(state.outboundMetadata).countries);
-    let detect_method = connections.priority_level_detect_server_country(group_id, level_id);
-    if (detect_method == "flag_emoji")
-        return runtime_urltest.countries_from_flag_names(object_or_empty(object_or_empty(state.outboundMetadata).names));
-    return metadata;
-}
-
 function priority_level_filtered_outbounds(group_id, level_id, urltest_candidate_tags, state) {
     if (connections.priority_level_direct(group_id, level_id))
         return [ runtime_constants.DIRECT_OUTBOUND_TAG ];
@@ -1171,7 +1109,7 @@ function priority_level_filtered_outbounds(group_id, level_id, urltest_candidate
         connections.priority_level_filter_mode(group_id, level_id),
         urltest_candidate_tags,
         object_or_empty(object_or_empty(state.outboundMetadata).names),
-        priority_level_country_metadata(group_id, level_id, state),
+        flag_country_metadata(state),
         object_or_empty(state.outboundMetadata),
         connections.priority_level_include_outbounds(group_id, level_id),
         connections.priority_level_include_regex(group_id, level_id),
@@ -1187,59 +1125,6 @@ function priority_level_filtered_outbounds(group_id, level_id, urltest_candidate
         connections.priority_level_exclude_protocols(group_id, level_id),
         connections.priority_level_exclude_transports(group_id, level_id),
         connections.priority_level_exclude_securities(group_id, level_id)
-    );
-}
-
-function dashboard_country_metadata(section, state) {
-    let metadata = object_or_empty(object_or_empty(state.outboundMetadata).countries);
-    if (connections.dashboard_detect_server_country(section) == "flag_emoji")
-        return runtime_urltest.countries_from_flag_names(object_or_empty(object_or_empty(state.outboundMetadata).names));
-    return metadata;
-}
-
-function selected_group_outbounds(group_names, group_outbounds) {
-    group_outbounds = object_or_empty(group_outbounds);
-    let result = [];
-    for (let group_name in array_or_empty(group_names))
-        for (let tag_name in array_or_empty(group_outbounds[group_name]))
-            push(result, tag_name);
-    return unique_string_array(result);
-}
-
-function remember_dashboard_group_outbounds(group_outbounds, group_name, outbounds) {
-    group_name = as_string(group_name);
-    if (group_name == "")
-        return;
-
-    let combined = array_or_empty(group_outbounds[group_name]);
-    for (let tag_name in array_or_empty(outbounds))
-        push(combined, tag_name);
-    group_outbounds[group_name] = unique_string_array(combined);
-}
-
-function dashboard_filtered_outbounds(section, selector_tags, state, group_outbounds) {
-    return filter_candidate_outbounds(
-        connections.dashboard_filter_mode(section),
-        selector_tags,
-        object_or_empty(object_or_empty(state.outboundMetadata).names),
-        dashboard_country_metadata(section, state),
-        object_or_empty(state.outboundMetadata),
-        connections.dashboard_include_outbounds(section),
-        connections.dashboard_include_regex(section),
-        connections.dashboard_include_countries(section),
-        connections.dashboard_include_proxy_parameters(section),
-        connections.dashboard_include_protocols(section),
-        connections.dashboard_include_transports(section),
-        connections.dashboard_include_securities(section),
-        connections.dashboard_exclude_outbounds(section),
-        connections.dashboard_exclude_regex(section),
-        connections.dashboard_exclude_countries(section),
-        connections.dashboard_exclude_proxy_parameters(section),
-        connections.dashboard_exclude_protocols(section),
-        connections.dashboard_exclude_transports(section),
-        connections.dashboard_exclude_securities(section),
-        selected_group_outbounds(connections.dashboard_include_groups(section), group_outbounds),
-        selected_group_outbounds(connections.dashboard_exclude_groups(section), group_outbounds)
     );
 }
 
@@ -1262,7 +1147,6 @@ function priority_levels_with_outbounds(group_id, urltest_candidate_tags, state)
             order: int(connections.priority_level_order(group_id, level_id), 10),
             direct: connections.priority_level_direct(group_id, level_id),
             filter_mode: connections.priority_level_filter_mode(group_id, level_id),
-            detect_server_country: connections.priority_level_detect_server_country(group_id, level_id),
             outbounds
         });
     }
@@ -1391,15 +1275,9 @@ function add_proxy_selector(config, section, selector_tags, urltest_candidate_ta
     let selector_default = selector_tags[0];
     let urltest_tags = [];
     let priority_tags = [];
-    let group_outbounds = {};
 
     for (let urltest_id in connections.urltests(section)) {
         let urltest = add_urltest_outbound(config, section, urltest_id, urltest_candidate_tags, state);
-        remember_dashboard_group_outbounds(
-            group_outbounds,
-            connections.urltest_display_name(section, urltest_id),
-            urltest.outbounds
-        );
         if (urltest.tag == "")
             continue;
 
@@ -1408,19 +1286,12 @@ function add_proxy_selector(config, section, selector_tags, urltest_candidate_ta
 
     for (let group_id in connections.priority_groups(section)) {
         let priority = add_priority_group_outbound(config, section, group_id, urltest_candidate_tags, state);
-        remember_dashboard_group_outbounds(
-            group_outbounds,
-            connections.priority_group_display_name(section, group_id),
-            priority.outbounds
-        );
         if (priority.tag == "")
             continue;
 
         push(priority_tags, priority.tag);
     }
 
-    selector_outbounds = dashboard_filtered_outbounds(section, selector_tags, state, group_outbounds);
-    selector_default = selector_outbounds[0];
     if (length(urltest_tags) > 0 || length(priority_tags) > 0) {
         for (let tag in urltest_tags)
             push(selector_outbounds, tag);
@@ -1428,9 +1299,6 @@ function add_proxy_selector(config, section, selector_tags, urltest_candidate_ta
             push(selector_outbounds, tag);
         selector_default = length(urltest_tags) > 0 ? urltest_tags[0] : priority_tags[0];
     }
-
-    if (length(selector_outbounds) == 0)
-        runtime_generate_unsupported("dashboard server filtering produced no usable outbounds");
 
     push(config.outbounds, {
         type: "selector",
@@ -2229,14 +2097,6 @@ function add_connections_outbound(config, section, taken) {
     if (length(selector_tags) == 0)
         runtime_generate_unsupported("connection section has no usable outbounds");
 
-    if (section_needs_country_is(section)) {
-        let previous_state = read_json_file(runtime_subscription.section_cache_path(section_name));
-        state.outboundMetadata.countries = runtime_country.detect(
-            state.servers,
-            previous_state,
-            option(runtime_settings(), "bootstrap_dns_server", "77.88.8.8")
-        );
-    }
     if (section_has_direct_priority_level(section))
         state.outboundMetadata.names[runtime_constants.DIRECT_OUTBOUND_TAG] = "Direct";
 

@@ -998,8 +998,7 @@ function write_user_agent_candidates(path, configured_user_agent, preferred_user
 
 function write_empty_outbound_metadata() {
     write_stdout_json({
-        names: {},
-        countries: {}
+        names: {}
     });
 }
 
@@ -1092,8 +1091,6 @@ function normalize_cache(cache, section, format_version) {
     cache.links = object_or_empty(cache.links);
     cache.outboundMetadata = object_or_empty(cache.outboundMetadata);
     cache.outboundMetadata.names = object_or_empty(cache.outboundMetadata.names);
-    cache.outboundMetadata.countries = object_or_empty(cache.outboundMetadata.countries);
-    cache.servers = object_or_empty(cache.servers);
     cache.urltestCandidateTags = array_or_empty(cache.urltestCandidateTags);
     cache.urltestGroups = object_or_empty(cache.urltestGroups);
     cache.priorityGroups = object_or_empty(cache.priorityGroups);
@@ -1113,16 +1110,6 @@ function save_cache(cache_dir, section, format_version, cache) {
         fs.unlink(tmp_path);
         exit(1);
     }
-}
-
-function write_outbound_metadata(cache_dir, format_version, section, names_path, countries_path, servers_path) {
-    let cache = load_cache(cache_dir, section);
-    cache.outboundMetadata = {
-        names: object_or_empty(read_json(names_path)),
-        countries: object_or_empty(read_json(countries_path))
-    };
-    cache.servers = object_or_empty(read_json(servers_path));
-    save_cache(cache_dir, section, format_version, cache);
 }
 
 function metadata_array_from_file(metadata_path) {
@@ -1291,14 +1278,10 @@ function get_outbound_metadata(cache_dir, section, legacy_path) {
         metadata = read_json(legacy_path);
     metadata = object_or_empty(metadata);
     let names = object_or_empty(metadata.names);
-    let countries = object_or_empty(metadata.countries);
     let candidate_tags = array_or_empty(cache.urltestCandidateTags);
     let groups = object_or_empty(cache.urltestGroups);
     let priority_groups = object_or_empty(cache.priorityGroups);
-    let result = {
-        names: {},
-        countries: {}
-    };
+    let result = { names: {} };
 
     if (length(candidate_tags) > 0) {
         for (let tag in candidate_tags) {
@@ -1307,18 +1290,12 @@ function get_outbound_metadata(cache_dir, section, legacy_path) {
                 continue;
             if (names[tag] != null)
                 result.names[tag] = names[tag];
-            if (countries[tag] != null)
-                result.countries[tag] = countries[tag];
         }
     }
     else {
         for (let tag, name in names) {
             if (!groups[tag] && !priority_groups[tag])
                 result.names[tag] = name;
-        }
-        for (let tag, country in countries) {
-            if (!groups[tag] && !priority_groups[tag])
-                result.countries[tag] = country;
         }
     }
 
@@ -2573,12 +2550,6 @@ else if (mode == "subscription-source-summary") {
 }
 else if (mode == "object-has-extra-keys") {
     exit(object_has_extra_keys(ARGV[1]) ? 0 : 1);
-}
-else if (mode == "write-outbound-metadata") {
-    let cache_dir = ARGV[1], format_version = ARGV[2], section = ARGV[3];
-    if (!safe_section(section))
-        exit(1);
-    write_outbound_metadata(cache_dir, format_version, section, ARGV[4], ARGV[5], ARGV[6]);
 }
 else if (mode == "write-subscription-metadata") {
     let cache_dir = ARGV[1], format_version = ARGV[2], section = ARGV[3];

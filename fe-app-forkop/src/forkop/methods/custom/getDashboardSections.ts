@@ -51,7 +51,6 @@ type PriorityCacheLevel = {
   order?: number;
   direct?: boolean;
   filter_mode?: string;
-  detect_server_country?: string;
   outbounds?: string[];
 };
 
@@ -79,7 +78,6 @@ type PriorityLevelConfig = {
   order: number;
   direct: boolean;
   filterMode: string;
-  detectServerCountry: string;
   country: string[];
   serverName: string[];
   regex: string[];
@@ -98,7 +96,6 @@ type UrlTestConfig = {
   displayName: string;
   settings: ItemSettings;
   pinDashboard: boolean;
-  showDetectedCountries: boolean;
 };
 
 type PriorityConfig = {
@@ -115,7 +112,6 @@ type PriorityConfig = {
   switchToFasterSamePriority: boolean;
   fastestCheckInterval: string;
   interruptExistConnections: boolean;
-  showDetectedCountries: boolean;
   levels: PriorityLevelConfig[];
 };
 
@@ -287,7 +283,6 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
           interrupt_exist_connections: item.interrupt_exist_connections,
           pin_dashboard: item.pin_dashboard,
           urltest_filter_mode: item.filter_mode,
-          detect_server_country: item.detect_server_country,
           urltest_include_countries: item.include_countries,
           urltest_include_outbounds: item.include_outbounds,
           urltest_include_regex: item.include_regex,
@@ -312,7 +307,6 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
               order: Number.parseInt(level.order || `${index}`, 10) || 0,
               direct: level.direct === '1',
               filterMode: level.filter_mode || 'include',
-              detectServerCountry: level.detect_server_country || 'flag_emoji',
               country: getListValues(level.country),
               serverName: getListValues(level.server_name),
               regex: getListValues(level.regex),
@@ -617,12 +611,6 @@ function itemSettingBoolean(
   return value === '1' || value === 'true';
 }
 
-function isUrlTestFilteringEnabled(settings: ItemSettings | undefined) {
-  return ['exclude', 'include', 'mixed'].includes(
-    itemSettingString(settings, 'urltest_filter_mode', 'disabled'),
-  );
-}
-
 function getUrlTestTag(sectionName: string, id: string) {
   return getOutboundTagBySection(
     id === 'urltest'
@@ -653,7 +641,6 @@ function getUrlTestConfigs(section: Forkop.ConfigSection): UrlTestConfig[] {
 
   return getUrlTestIds(section).map((id) => {
     const settings = settingsMap[id] || {};
-    const filteringEnabled = isUrlTestFilteringEnabled(settings);
 
     return {
       id,
@@ -661,10 +648,6 @@ function getUrlTestConfigs(section: Forkop.ConfigSection): UrlTestConfig[] {
       displayName: getUrlTestDisplayName(section, id, settings),
       settings,
       pinDashboard: itemSettingBoolean(settings, 'pin_dashboard', true),
-      showDetectedCountries:
-        filteringEnabled &&
-        itemSettingString(settings, 'detect_server_country', 'flag_emoji') ===
-          'country_is',
     };
   });
 }
@@ -702,8 +685,6 @@ function priorityLevelConfigsFromSettings(
               : index,
           direct: Boolean(level.direct),
           filterMode: `${level.filterMode || 'include'}` || 'include',
-          detectServerCountry:
-            `${level.detectServerCountry || 'flag_emoji'}` || 'flag_emoji',
           country: getListValues(level.country as string[] | string),
           serverName: getListValues(level.serverName as string[] | string),
           regex: getListValues(level.regex as string[] | string),
@@ -775,9 +756,6 @@ function getPriorityConfigs(section: Forkop.ConfigSection): PriorityConfig[] {
         'interrupt_exist_connections',
         true,
       ),
-      showDetectedCountries: levels.some(
-        (level) => level.detectServerCountry === 'country_is',
-      ),
       levels,
     };
   });
@@ -790,7 +768,8 @@ async function readDashboardSectionCache(
     return undefined;
   }
 
-  const response = await ForkopShellMethods.getDashboardSectionCache(sectionName);
+  const response =
+    await ForkopShellMethods.getDashboardSectionCache(sectionName);
   if (!response.success) {
     throw new Error(response.error || 'Failed to read dashboard section cache');
   }
@@ -847,7 +826,6 @@ function buildUrlTestInfo({
   manualLinkByCode,
   cachedProxyLinks,
   outboundMetadata,
-  showDetectedCountries,
 }: {
   code: string;
   displayName: string;
@@ -857,7 +835,6 @@ function buildUrlTestInfo({
   manualLinkByCode: Map<string, string>;
   cachedProxyLinks: Map<string, string>;
   outboundMetadata?: Forkop.GetOutboundMetadata;
-  showDetectedCountries: boolean;
 }): Forkop.UrlTestInfo {
   const childCodes = uniqueCodes(
     groupCache?.outbounds?.length
@@ -889,9 +866,6 @@ function buildUrlTestInfo({
           selected: selectedCode === childCode,
           link,
           canCopyLink,
-          country: showDetectedCountries
-            ? outboundMetadata?.countries?.[childCode]
-            : undefined,
         },
       ];
     }),
@@ -922,7 +896,6 @@ function buildPriorityInfo({
   manualLinkByCode,
   cachedProxyLinks,
   outboundMetadata,
-  showDetectedCountries,
 }: {
   config: PriorityConfig;
   entry?: ClashProxyEntry;
@@ -931,7 +904,6 @@ function buildPriorityInfo({
   manualLinkByCode: Map<string, string>;
   cachedProxyLinks: Map<string, string>;
   outboundMetadata?: Forkop.GetOutboundMetadata;
-  showDetectedCountries: boolean;
 }): Forkop.PriorityInfo {
   const selectedCode = entry?.value.now || '';
   const cacheLevels = Array.isArray(groupCache?.levels)
@@ -957,10 +929,6 @@ function buildPriorityInfo({
             direct: level.direct ?? configLevel?.direct ?? false,
             filterMode:
               level.filter_mode || configLevel?.filterMode || 'include',
-            detectServerCountry:
-              level.detect_server_country ||
-              configLevel?.detectServerCountry ||
-              'flag_emoji',
             country: configLevel?.country || [],
             serverName: configLevel?.serverName || [],
             regex: configLevel?.regex || [],
@@ -1002,9 +970,6 @@ function buildPriorityInfo({
         selected: selectedCode === childCode,
         link,
         canCopyLink,
-        country: showDetectedCountries
-          ? outboundMetadata?.countries?.[childCode]
-          : undefined,
         levelIndex,
         levelName: level.displayName,
         levelId: level.id,
@@ -1086,9 +1051,6 @@ function buildProxyGroupOutbounds(
   const selectorCodes = selector?.value?.all ?? [];
   const urlTestCodes = urlTestConfigs.map((config) => config.code);
   const priorityCodes = priorityConfigs.map((config) => config.code);
-  const showDetectedCountries =
-    urlTestConfigs.some((config) => config.showDetectedCountries) ||
-    priorityConfigs.some((config) => config.showDetectedCountries);
   const builtInUrltestCode = urlTestCodes[0] || '';
   const fallbackCodes = uniqueCodes([
     ...urlTestCodes,
@@ -1134,9 +1096,6 @@ function buildProxyGroupOutbounds(
         selected: selector?.value?.now === code,
         link,
         canCopyLink,
-        country: showDetectedCountries
-          ? outboundMetadata?.countries?.[code]
-          : undefined,
         runtimeAvailable: item ? undefined : false,
         urlTestInfo:
           urlTestConfig || isRuntimeUrlTest
@@ -1149,8 +1108,6 @@ function buildProxyGroupOutbounds(
                 manualLinkByCode,
                 cachedProxyLinks,
                 outboundMetadata,
-                showDetectedCountries:
-                  urlTestConfig?.showDetectedCountries || showDetectedCountries,
               })
             : undefined,
         priorityInfo: priorityConfig
@@ -1162,7 +1119,6 @@ function buildProxyGroupOutbounds(
               manualLinkByCode,
               cachedProxyLinks,
               outboundMetadata,
-              showDetectedCountries: priorityConfig.showDetectedCountries,
             })
           : undefined,
       },
@@ -1338,7 +1294,6 @@ function getOutboundMetadata(dashboardCache?: DashboardSectionCache) {
 
   return {
     names: objectMap(metadata.names),
-    countries: objectMap(metadata.countries),
   };
 }
 

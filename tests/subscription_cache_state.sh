@@ -73,10 +73,6 @@ move_file_source="$(sed -n '/^function move_file(/,/^}/p' "$CACHE_UC")"
 if grep -Fq 'unlink_path(target)' <<<"$move_file_source"; then
   fail "subscription cache replacement must keep the current file until atomic rename succeeds"
 fi
-if grep -Fq 'remove-legacy-server-country-cache' "$CACHE_UC"; then
-  fail "subscription/cache.uc must not expose the migrated legacy cache cleanup"
-fi
-
 grep -q 'mode == "ensure-runtime-dirs"' "$CACHE_UC" ||
   fail "subscription/cache.uc must expose ensure-runtime-dirs owner mode"
 grep -q 'mode == "ensure-runtime-cache-format"' "$CACHE_UC" ||

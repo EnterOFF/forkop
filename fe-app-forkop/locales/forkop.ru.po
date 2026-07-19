@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-07-18 07:01+0300\n"
-"PO-Revision-Date: 2026-07-18 07:01+0300\n"
+"POT-Creation-Date: 2026-07-19 06:55+0300\n"
+"PO-Revision-Date: 2026-07-19 06:55+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -71,23 +71,17 @@ msgstr "Добавьте хотя бы один DNS-сервер"
 msgid "Add prefix to nodes"
 msgstr "Добавлять префикс к узлам"
 
-msgid "Add URLs or local paths to .lst lists containing domains, IP addresses, or CIDR ranges. DNS actions ignore IP entries."
-msgstr "Добавьте URL или локальные пути к спискам .lst с доменами, IP-адресами или CIDR-подсетями. Для действия DNS записи IP игнорируются."
-
 msgid "Add URLs or local paths to .lst lists containing domains and subnets."
 msgstr "Добавьте URL или локальные пути к спискам .lst с доменами и подсетями."
 
 msgid "Add URLs or local paths to .lst lists containing domains. IP entries are ignored."
 msgstr "Добавьте URL или локальные пути к спискам .lst с доменами. IP игнорируются."
 
-msgid "Add URLs or local paths to .srs / .json lists. Subnets are ignored by default."
-msgstr "Добавьте URL или локальные пути к спискам .srs / .json. Подсети по умолчанию игнорируются."
-
 msgid "Add URLs or local paths to .srs / .json lists. Only domain rules are supported."
 msgstr "Добавьте URL или локальные пути к спискам .srs / .json. Поддерживаются только доменные правила."
 
-msgid "Add URLTest / Priority group"
-msgstr "Добавить URLTest / Приоритет группу"
+msgid "Add URLs or local paths to .srs / .json lists. Subnets are ignored by default."
+msgstr "Добавьте URL или локальные пути к спискам .srs / .json. Подсети по умолчанию игнорируются."
 
 msgid "Additional marking rules found"
 msgstr "Найдены дополнительные правила маркировки"
@@ -97,12 +91,6 @@ msgstr "Дополнительно исключать серверы по про
 
 msgid "Additionally filter servers by protocol, transport, and security. Add only servers matching the specified parameters."
 msgstr "Дополнительно отбирать серверы по протоколу, транспорту и защите. Добавлять только серверы, совпавшие по указанным параметрам."
-
-msgid "Additionally hide servers by protocol, transport, and security. Hide servers matching the specified parameters."
-msgstr "Дополнительно скрывать серверы по протоколу, транспорту и защите. Скрывать серверы, совпавшие по указанным параметрам."
-
-msgid "Additionally show servers by protocol, transport, and security. Add only servers matching the specified parameters."
-msgstr "Дополнительно показывать серверы по протоколу, транспорту и защите. Добавлять только серверы, совпавшие по указанным параметрам."
 
 msgid "Address"
 msgstr "Адрес"
@@ -205,9 +193,6 @@ msgstr "Браузер использует FakeIP"
 
 msgid "Built-in rule sets"
 msgstr "Встроенные наборы правил"
-
-msgid "By flag emoji from name"
-msgstr "По эмодзи флага из названия"
 
 msgid "ByeDPI listen address and port are assigned by Forkop and must not be set in the strategy."
 msgstr "Адрес и порт прослушивания ByeDPI назначаются Forkop и не должны задаваться в стратегии."
@@ -403,9 +388,6 @@ msgstr "Значение задержки не может быть пустым"
 
 msgid "Delete"
 msgstr "Удалить"
-
-msgid "Detect server country"
-msgstr "Определять страну сервера"
 
 msgid "detour must be a non-empty string"
 msgstr "detour должен быть непустой строкой"
@@ -671,9 +653,6 @@ msgstr "Исключить из этого уровня серверы с одн
 msgid "Exclude servers with one of the selected transports from this level."
 msgstr "Исключить из этого уровня серверы с одним из выбранных транспортов."
 
-msgid "Exclude URLTest / Priority group"
-msgstr "Исключить URLTest / Приоритет группу"
-
 msgid "Expecting: %s"
 msgstr "Ожидается: %s"
 
@@ -724,9 +703,6 @@ msgstr "Интервал поиска более быстрого сервера
 
 msgid "Fastest"
 msgstr "Самый быстрый"
-
-msgid "Filter the servers that will be displayed on the dashboard."
-msgstr "Отфильтровать серверы, которые будут отображаться в дашборде."
 
 msgid "Firewall WAN port"
 msgstr "Порт в firewall для WAN"
@@ -832,27 +808,6 @@ msgstr "Скрывать отдельные узлы, которые уже вх
 
 msgid "Hide intermediate nodes used as detours by other subscription nodes"
 msgstr "Скрывать промежуточные узлы, которые используются как detour для других узлов подписки"
-
-msgid "Hide selected servers."
-msgstr "Скрывать выбранные серверы."
-
-msgid "Hide servers from selected groups without repeating their filtering criteria."
-msgstr "Скрывать серверы из выбранных групп без повторения их параметров фильтрации."
-
-msgid "Hide servers from the specified countries."
-msgstr "Скрывать серверы из указанных стран."
-
-msgid "Hide servers whose names match the expression."
-msgstr "Скрывать серверы, имена которых совпадают с выражением."
-
-msgid "Hide servers with one of the selected protocols."
-msgstr "Скрывать серверы с одним из выбранных протоколов."
-
-msgid "Hide servers with one of the selected security types."
-msgstr "Скрывать серверы с одним из выбранных типов защиты."
-
-msgid "Hide servers with one of the selected transports."
-msgstr "Скрывать серверы с одним из выбранных транспортов."
 
 msgid "Hide URLTest group nodes"
 msgstr "Скрывать узлы URLTest групп"
@@ -965,6 +920,9 @@ msgstr "Неверный префикс CIDR"
 msgid "Invalid DNS server format. Examples: 8.8.8.8 or dns.example.com or dns.example.com/nicedns for DoH"
 msgstr "Неверный формат DNS-сервера. Примеры: 8.8.8.8, dns.example.com или dns.example.com/nicedns для DoH"
 
+msgid "Invalid DNS server port"
+msgstr ""
+
 msgid "Invalid domain address"
 msgstr "Неверный домен"
 
@@ -1066,9 +1024,6 @@ msgstr "Неверный URL Shadowsocks: ошибка разбора"
 
 msgid "Invalid SOCKS URL: invalid host and port"
 msgstr "Некорректный SOCKS URL: некорректные хост и порт"
-
-msgid "Invalid SOCKS URL: invalid host format"
-msgstr "Неверный URL SOCKS: неверный формат хоста"
 
 msgid "Invalid SOCKS URL: invalid port number"
 msgstr "Неверный URL SOCKS: неверный номер порта"
@@ -1649,9 +1604,6 @@ msgstr "Выберите транзитную секцию"
 msgid "Select an existing network interface"
 msgstr "Выберите существующий сетевой интерфейс"
 
-msgid "Select an existing URLTest or Priority group"
-msgstr "Выберите существующую URLTest или Приоритет группу"
-
 msgid "Select an intermediate section"
 msgstr "Выберите промежуточную секцию"
 
@@ -1727,9 +1679,6 @@ msgstr "server_port должен быть числом от 1 до 65535"
 msgid "Servers"
 msgstr "Серверы"
 
-msgid "Servers on dashboard"
-msgstr "Серверы в дашборде"
-
 msgid "Service action failed"
 msgstr "Действие сервиса не выполнено"
 
@@ -1744,27 +1693,6 @@ msgstr "Настройки"
 
 msgid "Show metadata on dashboard"
 msgstr "Отображать метаданные в дашборде"
-
-msgid "Show only selected servers."
-msgstr "Показывать только выбранные серверы."
-
-msgid "Show only servers with one of the selected protocols."
-msgstr "Показывать только серверы с одним из выбранных протоколов."
-
-msgid "Show only servers with one of the selected security types."
-msgstr "Показывать только серверы с одним из выбранных типов защиты."
-
-msgid "Show only servers with one of the selected transports."
-msgstr "Показывать только серверы с одним из выбранных транспортов."
-
-msgid "Show servers from selected groups without repeating their filtering criteria."
-msgstr "Показывать серверы из выбранных групп без повторения их параметров фильтрации."
-
-msgid "Show servers only from the specified countries."
-msgstr "Показывать серверы только из указанных стран."
-
-msgid "Show servers whose names match the expression."
-msgstr "Показывать серверы, имена которых совпадают с выражением."
 
 msgid "Show sing-box config"
 msgstr "Показать sing-box конфигурацию"
@@ -1873,9 +1801,6 @@ msgstr "Интервал обновления подписки"
 
 msgid "Subscription URL"
 msgstr "URL подписки"
-
-msgid "Subscription URL cannot be empty"
-msgstr "URL подписки не может быть пустым"
 
 msgid "Subscription URL settings"
 msgstr "Настройки URL подписки"
@@ -2194,9 +2119,6 @@ msgstr "Значение не может быть пустым"
 
 msgid "Value must not contain control characters"
 msgstr "Значение не должно содержать управляющие символы"
-
-msgid "Via country.is"
-msgstr "Через сервис country.is"
 
 msgid "View logs"
 msgstr "Посмотреть логи"

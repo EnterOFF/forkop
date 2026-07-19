@@ -35,12 +35,12 @@ const FORKOP_INTERNAL_CONFIG_TRIGGER_GUARD = getenv("FORKOP_INTERNAL_CONFIG_TRIG
 const FORKOP_RUNTIME_CACHE_FORMAT = getenv("FORKOP_RUNTIME_CACHE_FORMAT") || "8";
 const CONFIG_VERSION_OPTION = "config_version";
 const APPLIED_MIGRATIONS_OPTION = "applied_migrations";
-const SERVER_COUNTRY_METHOD_FLAG_EMOJI = "flag_emoji";
-const SERVER_COUNTRY_METHOD_COUNTRY_IS = "country_is";
 const CHILD_ITEM_TYPES = [
     "subscription_url",
     "section_interface",
-    "urltest"
+    "urltest",
+    "priority_group",
+    "priority_level"
 ];
 
 function shell_quote(value) {
@@ -344,17 +344,6 @@ function set_section_type(ctx, section, type_name) {
     record_operation(ctx, { op: "set_type", section: section_name(section), type: type_name });
 }
 
-function normalize_detect_server_country_method(value) {
-    value = as_string(value);
-    if (value == SERVER_COUNTRY_METHOD_COUNTRY_IS)
-        return SERVER_COUNTRY_METHOD_COUNTRY_IS;
-    return SERVER_COUNTRY_METHOD_FLAG_EMOJI;
-}
-
-function urltest_filter_mode_filters_enabled(value) {
-    return value == "exclude" || value == "include" || value == "mixed";
-}
-
 function duration_to_seconds_value(value) {
     let rest = as_string(value);
     if (rest == "")
@@ -425,23 +414,6 @@ function migrate_urltest_filter_mode(ctx, section) {
         option_exists(section, "urltest_exclude_outbounds") ||
         option_exists(section, "urltest_exclude_regex")) {
         set_option(ctx, section, "urltest_filter_mode", "exclude");
-    }
-}
-
-function migrate_detect_server_country(ctx, section) {
-    if (!option_exists(section, "detect_server_country"))
-        return;
-
-    let value = option(section, "detect_server_country", "");
-    if (value != "0" && value != "1")
-        return;
-
-    if (bool_option(section, "urltest_enabled", false) &&
-        urltest_filter_mode_filters_enabled(option(section, "urltest_filter_mode", "disabled"))) {
-        set_option(ctx, section, "detect_server_country", normalize_detect_server_country_method(value));
-    }
-    else {
-        delete_option(ctx, section, "detect_server_country");
     }
 }
 
@@ -693,7 +665,6 @@ function migrate_urltest_item_settings(ctx, section, constants) {
         set_option(ctx, child, "tolerance", option(section, "urltest_tolerance", "50") || "50");
         set_option(ctx, child, "testing_url", option(section, "urltest_testing_url", "https://www.gstatic.com/generate_204") || "https://www.gstatic.com/generate_204");
         set_option(ctx, child, "filter_mode", option(section, "urltest_filter_mode", "disabled") || "disabled");
-        set_option(ctx, child, "detect_server_country", normalize_detect_server_country_method(option(section, "detect_server_country", SERVER_COUNTRY_METHOD_FLAG_EMOJI)));
         set_option(ctx, child, "interrupt_exist_connections", "1");
         set_option(ctx, child, "pin_dashboard", "1");
 
@@ -1007,7 +978,6 @@ function migrate_rule(ctx, section, converted_from_rule, constants) {
 
     if (action == "connection") {
         migrate_urltest_filter_mode(ctx, section);
-        migrate_detect_server_country(ctx, section);
         if (legacy_connection_kind == "proxy")
             migrate_proxy_rule(ctx, section, proxy_config_type);
         else {
@@ -1284,10 +1254,46 @@ function migrate_http_connection_urls(ctx) {
     }
 }
 
+const OBSOLETE_SERVER_FILTER_OPTIONS = [
+    "detect_server_country",
+    "dashboard_filter_mode",
+    "dashboard_detect_server_country",
+    "dashboard_include_countries",
+    "dashboard_include_outbounds",
+    "dashboard_include_regex",
+    "dashboard_include_proxy_parameters",
+    "dashboard_include_protocols",
+    "dashboard_include_transports",
+    "dashboard_include_securities",
+    "dashboard_include_groups",
+    "dashboard_exclude_countries",
+    "dashboard_exclude_outbounds",
+    "dashboard_exclude_regex",
+    "dashboard_exclude_proxy_parameters",
+    "dashboard_exclude_protocols",
+    "dashboard_exclude_transports",
+    "dashboard_exclude_securities",
+    "dashboard_exclude_groups"
+];
+
+function remove_server_country_and_dashboard_filter(ctx) {
+    for (let section in ctx.model.sections)
+        for (let key in OBSOLETE_SERVER_FILTER_OPTIONS)
+            delete_option(ctx, section, key);
+
+    for (let child in ctx.model.urltest || [])
+        delete_option(ctx, child, "detect_server_country");
+    for (let child in ctx.model.priority_level || [])
+        delete_option(ctx, child, "detect_server_country");
+
+    push(ctx.removed_caches, FORKOP_RUNTIME_STATE_DIR + "/server-country-cache.json");
+}
+
 const MIGRATIONS = [
     { id: "interface_sections", run: migrate_interface_sections },
     { id: "enable_component_checks", run: migrate_enable_component_checks },
-    { id: "http_connection_urls", run: migrate_http_connection_urls }
+    { id: "http_connection_urls", run: migrate_http_connection_urls },
+    { id: "remove_server_country_and_dashboard_filter", run: remove_server_country_and_dashboard_filter }
 ];
 
 function apply_migrations(ctx) {
@@ -1409,10 +1415,6 @@ function ensure_runtime_cache_format() {
     }
 }
 
-function remove_legacy_server_country_cache() {
-    fs.unlink(FORKOP_RUNTIME_STATE_DIR + "/server-country-cache.json");
-}
-
 function remove_cache_path(path) {
     path = as_string(path);
     if (index(path, "*") >= 0)
@@ -1516,7 +1518,6 @@ function migrate_model(model, source) {
 
 function migrate_runtime(source) {
     ensure_runtime_cache_format();
-    remove_legacy_server_country_cache();
 
     let cursor = runtime_cursor();
     cursor.load(CONFIG_NAME);

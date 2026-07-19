@@ -160,7 +160,6 @@ cat >"$WORK_DIR/xray-fixture.json" <<'JSON'
       "urltest_tolerance": "50",
       "urltest_filter_mode": "include",
       "urltest_include_regex": [ "Riga" ],
-      "detect_server_country": "flag_emoji",
       "subscription_urls": [ "https://xray.example/sub" ]
     }
   ]
@@ -188,7 +187,6 @@ cat >"$WORK_DIR/xray-reveal-urltest-fixture.json" <<'JSON'
       "urltest_tolerance": "50",
       "urltest_filter_mode": "include",
       "urltest_include_regex": [ "Riga" ],
-      "detect_server_country": "flag_emoji",
       "subscription_urls": [ "https://xray.example/sub" ],
       "subscription_url_settings": "{\"https://xray.example/sub\":{\"hide_urltest_group_outbounds\":\"0\"}}"
     }
@@ -217,7 +215,6 @@ cat >"$WORK_DIR/xray-group-name-filter-fixture.json" <<'JSON'
       "urltest_tolerance": "50",
       "urltest_filter_mode": "include",
       "urltest_include_outbounds": [ "Latvia group", "lv-🇱🇻 Riga A" ],
-      "detect_server_country": "flag_emoji",
       "subscription_urls": [ "https://xray.example/sub" ],
       "subscription_url_settings": "{\"https://xray.example/sub\":{\"hide_urltest_group_outbounds\":\"0\"}}"
     }
@@ -390,7 +387,6 @@ cat >"$WORK_DIR/singbox-fixture.json" <<'JSON'
       "urltest_tolerance": "50",
       "urltest_filter_mode": "include",
       "urltest_include_regex": [ "^Native" ],
-      "detect_server_country": "country_is",
       "subscription_urls": [ "https://singbox.example/sub" ]
     }
   ]
@@ -418,7 +414,6 @@ cat >"$WORK_DIR/singbox-prefix-fixture.json" <<'JSON'
       "urltest_tolerance": "50",
       "urltest_filter_mode": "include",
       "urltest_include_regex": [ "^Provider " ],
-      "detect_server_country": "country_is",
       "subscription_urls": [ "https://singbox.example/sub" ],
       "subscription_url_settings": "{\"https://singbox.example/sub\":{\"prefix_nodes\":\"1\",\"node_prefix\":\"Provider\"}}"
     }
@@ -493,7 +488,6 @@ cat >"$WORK_DIR/singbox-reveal-urltest-fixture.json" <<'JSON'
       "urltest_tolerance": "50",
       "urltest_filter_mode": "include",
       "urltest_include_regex": [ "^Native" ],
-      "detect_server_country": "country_is",
       "subscription_urls": [ "https://singbox.example/sub" ],
       "subscription_url_settings": "{\"https://singbox.example/sub\":{\"hide_urltest_group_outbounds\":\"0\"}}"
     }
@@ -519,7 +513,6 @@ cat >"$WORK_DIR/singbox-reveal-detour-fixture.json" <<'JSON'
       "urltest_tolerance": "50",
       "urltest_filter_mode": "include",
       "urltest_include_regex": [ "^Native" ],
-      "detect_server_country": "country_is",
       "subscription_urls": [ "https://singbox.example/sub" ],
       "subscription_url_settings": "{\"https://singbox.example/sub\":{\"hide_detour_outbounds\":\"0\"}}"
     }
@@ -604,7 +597,7 @@ if (names["Native A"] == null || names["Detour Only"] == null)
     die("UI outbound metadata should include all native leaf outbound names\n");
 ' "$singbox_metadata" || fail "native UI outbound metadata filtering"
 
-cat >"$WORK_DIR/country-is-fixture.json" <<'JSON'
+cat >"$WORK_DIR/country-filter-fixture.json" <<'JSON'
 {
   "settings": { ".name": "settings", ".type": "settings" },
   "section": [
@@ -614,8 +607,8 @@ cat >"$WORK_DIR/country-is-fixture.json" <<'JSON'
       "enabled": "1",
       "action": "proxy",
       "selector_proxy_links": [
-        "vless://00000000-0000-4000-8000-000000000001@alpha.example:443?encryption=none&security=tls&sni=alpha.example#Alpha",
-        "vless://00000000-0000-4000-8000-000000000002@beta.example:443?encryption=none&security=tls&sni=beta.example#Beta"
+        "vless://00000000-0000-4000-8000-000000000001@alpha.example:443?encryption=none&security=tls&sni=alpha.example#%F0%9F%87%A9%F0%9F%87%AA%20Alpha",
+        "vless://00000000-0000-4000-8000-000000000002@beta.example:443?encryption=none&security=tls&sni=beta.example#%F0%9F%87%B3%F0%9F%87%B1%20Beta"
       ]
     }
   ],
@@ -626,29 +619,13 @@ cat >"$WORK_DIR/country-is-fixture.json" <<'JSON'
       "section": "proxy",
       "name": "Germany",
       "filter_mode": "include",
-      "detect_server_country": "country_is",
       "include_countries": [ "DE" ]
     }
   ]
 }
 JSON
-country_is_config="$WORK_DIR/country-is-config.json"
-mkdir -p "$country_is_config.section-cache"
-cat >"$country_is_config.section-cache/proxy.json" <<'JSON'
-{
-  "servers": {
-    "proxy-1-out": "alpha.example",
-    "proxy-2-out": "beta.example"
-  },
-  "outboundMetadata": {
-    "countries": {
-      "proxy-1-out": "DE",
-      "proxy-2-out": "NL"
-    }
-  }
-}
-JSON
-generate_config "$WORK_DIR/country-is-fixture.json" "$country_is_config"
+country_filter_config="$WORK_DIR/country-filter-config.json"
+generate_config "$WORK_DIR/country-filter-fixture.json" "$country_filter_config"
 ucode -e '
 let fs = require("fs");
 let config = json(fs.readfile(ARGV[0]));
@@ -657,7 +634,7 @@ for (let outbound in config.outbounds || [])
     if (outbound && outbound.tag == "proxy-urltest-ut_country-out")
         urltest = outbound;
 if (!urltest || length(urltest.outbounds || []) != 1 || urltest.outbounds[0] != "proxy-1-out")
-    die("cached country.is metadata was not applied to URLTest filtering\n");
-' "$country_is_config" || fail "URLTest country.is cached filtering"
+    die("flag emoji country metadata was not applied to URLTest filtering\n");
+' "$country_filter_config" || fail "URLTest flag emoji country filtering"
 
 printf 'URLTest group checks passed\n'
