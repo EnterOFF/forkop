@@ -1203,7 +1203,16 @@ function installer_post_install() {
         env("FORKOP_INSTALLER_LATEST_VERSION_CACHE", "/tmp/forkop.latest-version.cache"),
         env("FORKOP_INSTALLER_SYSTEM_INFO_CACHE", "/var/run/forkop/system-info.json"),
         env("FORKOP_INSTALLER_SING_BOX_VERSION_CACHE", "/var/run/forkop/ui-state/sing-box-version"),
-        env("FORKOP_INSTALLER_TMP_SYSTEM_INFO_CACHE", "/tmp/forkop/system-info.json")
+        env("FORKOP_INSTALLER_TMP_SYSTEM_INFO_CACHE", "/tmp/forkop/system-info.json"),
+        env("FORKOP_INSTALLER_LEGACY_SUBSCRIPTION_TMP", "/tmp/sing-box/subscriptions"),
+        env("FORKOP_INSTALLER_LEGACY_SUBSCRIPTION_CACHE", "/etc/forkop/subscription-cache"),
+        env("FORKOP_INSTALLER_LEGACY_SUBSCRIPTION_UPDATE_STATE", "/var/run/forkop/subscription-update"),
+        env("FORKOP_INSTALLER_LEGACY_SUBSCRIPTION_LINKS", "/var/run/forkop/subscription-links"),
+        env("FORKOP_INSTALLER_LEGACY_SUBSCRIPTION_METADATA", "/var/run/forkop/subscription-metadata"),
+        env("FORKOP_INSTALLER_LEGACY_SUBSCRIPTION_LOCK", "/var/run/forkop/subscription-update.lock"),
+        env("FORKOP_INSTALLER_LEGACY_SUBSCRIPTION_BOOTSTRAP_PID", "/var/run/forkop/subscription-bootstrap-retry.pid"),
+        env("FORKOP_INSTALLER_LEGACY_OUTBOUND_METADATA", "/var/run/forkop/outbound-metadata"),
+        env("FORKOP_INSTALLER_LEGACY_SECTION_CACHE", "/var/run/forkop/section-cache")
     ])
         remove_path(path);
 

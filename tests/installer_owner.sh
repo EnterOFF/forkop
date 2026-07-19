@@ -608,6 +608,24 @@ fi
 
 write_fake_service_init "$WORK_DIR/forkop-init"
 touch "$WORK_DIR/luci-indexcache.one" "$WORK_DIR/luci-indexcache.two"
+legacy_subscription_paths="
+$WORK_DIR/subscriptions
+$WORK_DIR/subscription-cache
+$WORK_DIR/subscription-update
+$WORK_DIR/subscription-links
+$WORK_DIR/subscription-metadata
+$WORK_DIR/subscription-update.lock
+$WORK_DIR/subscription-bootstrap-retry.pid
+$WORK_DIR/outbound-metadata
+$WORK_DIR/section-cache
+"
+for path in $legacy_subscription_paths; do
+  mkdir -p "$(dirname "$path")"
+  case "$path" in
+    *.pid) printf '%s\n' 123 >"$path" ;;
+    *) mkdir -p "$path"; printf '%s\n' stale >"$path/stale" ;;
+  esac
+done
 : >"$WORK_DIR/init.log"
 FORKOP_INSTALLER_INIT="$WORK_DIR/forkop-init" \
 FORKOP_INSTALLER_RPCD_INIT="$WORK_DIR/missing-rpcd" \
@@ -616,6 +634,15 @@ FORKOP_INSTALLER_LATEST_VERSION_CACHE="$WORK_DIR/latest.cache" \
 FORKOP_INSTALLER_SYSTEM_INFO_CACHE="$WORK_DIR/system-info.json" \
 FORKOP_INSTALLER_SING_BOX_VERSION_CACHE="$WORK_DIR/sing-box-version" \
 FORKOP_INSTALLER_TMP_SYSTEM_INFO_CACHE="$WORK_DIR/tmp-system-info.json" \
+FORKOP_INSTALLER_LEGACY_SUBSCRIPTION_TMP="$WORK_DIR/subscriptions" \
+FORKOP_INSTALLER_LEGACY_SUBSCRIPTION_CACHE="$WORK_DIR/subscription-cache" \
+FORKOP_INSTALLER_LEGACY_SUBSCRIPTION_UPDATE_STATE="$WORK_DIR/subscription-update" \
+FORKOP_INSTALLER_LEGACY_SUBSCRIPTION_LINKS="$WORK_DIR/subscription-links" \
+FORKOP_INSTALLER_LEGACY_SUBSCRIPTION_METADATA="$WORK_DIR/subscription-metadata" \
+FORKOP_INSTALLER_LEGACY_SUBSCRIPTION_LOCK="$WORK_DIR/subscription-update.lock" \
+FORKOP_INSTALLER_LEGACY_SUBSCRIPTION_BOOTSTRAP_PID="$WORK_DIR/subscription-bootstrap-retry.pid" \
+FORKOP_INSTALLER_LEGACY_OUTBOUND_METADATA="$WORK_DIR/outbound-metadata" \
+FORKOP_INSTALLER_LEGACY_SECTION_CACHE="$WORK_DIR/section-cache" \
 FORKOP_WAS_ENABLED=1 \
 FORKOP_WAS_RUNNING=1 \
 FORKOP_INSTALLER_INIT_LOG="$WORK_DIR/init.log" \
@@ -624,6 +651,9 @@ FORKOP_INSTALLER_INIT_LOG="$WORK_DIR/init.log" \
 if compgen -G "$WORK_DIR/luci-indexcache*" >/dev/null; then
   fail "installer post-install must clear LuCI caches through ucode owner"
 fi
+for path in $legacy_subscription_paths; do
+  [ ! -e "$path" ] || fail "installer post-install left obsolete subscription state behind: $path"
+done
 grep -Fxq 'enable' "$WORK_DIR/init.log" ||
   fail "installer post-install must restore enabled state through ucode owner"
 grep -Fxq 'start' "$WORK_DIR/init.log" ||
