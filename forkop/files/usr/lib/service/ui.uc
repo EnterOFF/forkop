@@ -137,6 +137,9 @@ function now_seconds() {
 }
 
 function ensure_dir(path) {
+    let slash = rindex(as_string(path), "/");
+    if (slash > 0 && !ensure_dir(substr(path, 0, slash)))
+        return false;
     return fs.mkdir(path, 0755) || fs.stat(path) != null;
 }
 

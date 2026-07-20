@@ -19,6 +19,7 @@ const WORKER_RETRY_SECONDS = getenv("FORKOP_RULESET_SYNC_RETRY_SECONDS") || "3";
 const SCRIPT_PATH = getenv("FORKOP_RULESET_SYNC_UC") || LIB_DIR + "/nft/ruleset_sync.uc";
 const UBUS_BIN = getenv("FORKOP_UBUS_BIN") || "ubus";
 const PROCD_SERVICE_NAME = getenv("FORKOP_RULESET_SYNC_SERVICE_NAME") || "forkop-ruleset-sync";
+let last_applied_script = null;
 
 function as_string(value) {
     return value == null ? "" : "" + value;
@@ -565,10 +566,13 @@ function apply_runtime_snapshot(snapshot, sections) {
         log_message("Native rule-set nft sync deferred: " + batch.error, "warn");
         return false;
     }
+    if (last_applied_script != null && batch.script == last_applied_script)
+        return true;
     if (!apply_plan(batch)) {
         log_message("Native rule-set nft sync failed", "error");
         return false;
     }
+    last_applied_script = batch.script;
     log_message(batch.summary, "info");
     return true;
 }

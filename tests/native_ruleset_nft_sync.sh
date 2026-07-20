@@ -4,6 +4,7 @@ set -eo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FORKOP_LIB="$ROOT_DIR/forkop/files/usr/lib"
 SYNC="$FORKOP_LIB/nft/ruleset_sync.uc"
+LIFECYCLE="$FORKOP_LIB/service/lifecycle.uc"
 WORK_DIR="$(mktemp -d)"
 NFT_LOG="$WORK_DIR/nft.log"
 NFT_INPUT="$WORK_DIR/nft.input"
@@ -453,6 +454,32 @@ sync_ucode sync >"$WORK_DIR/runtime.out" 2>"$WORK_DIR/runtime.err" || {
 }
 [ "$(wc -l <"$NFT_LOG")" -eq 1 ] || fail "native runtime sync must invoke nft once"
 assert_contains "$NFT_INPUT" "198.51.100.0/24 . 80" "native runtime snapshot"
+
+sed 's/198\.51\.100\.0\/24/203.0.113.0\/24/' "$WORK_DIR/runtime-snapshot.json" >"$WORK_DIR/runtime-changed.json"
+rm -f "$NFT_LOG" "$NFT_INPUT"
+PATH="$WORK_DIR/bin:$PATH" NFT_LOG="$NFT_LOG" NFT_INPUT="$NFT_INPUT" \
+FORKOP_TEST_INITIAL_SNAPSHOT="$WORK_DIR/runtime-snapshot.json" \
+FORKOP_TEST_CHANGED_SNAPSHOT="$WORK_DIR/runtime-changed.json" \
+ucode -L "$FORKOP_LIB" -e '
+let fs = require("fs");
+let sync = require("nft.ruleset_sync");
+let sections = [{
+  ".name": "batch", "enabled": "1", "action": "proxy", "ports": ["80"],
+  "domain_ip_lists": ["https://example.com/mixed.txt"]
+}];
+let initial = json(fs.readfile(getenv("FORKOP_TEST_INITIAL_SNAPSHOT")));
+let changed = json(fs.readfile(getenv("FORKOP_TEST_CHANGED_SNAPSHOT")));
+exit(sync.apply_runtime_snapshot(initial, sections) &&
+  sync.apply_runtime_snapshot(initial, sections) &&
+  sync.apply_runtime_snapshot(changed, sections) ? 0 : 1);
+' ||
+  fail "in-process native runtime sync failed"
+[ "$(wc -l <"$NFT_LOG")" -eq 2 ] ||
+  fail "unchanged native runtime snapshot must not invoke nft again"
+assert_contains "$NFT_INPUT" "203.0.113.0/24 . 80" "changed native runtime snapshot"
+
+grep -Fq 'let restart_ruleset_sync = plan.needs_nft_rebuild == 1;' "$LIFECYCLE" ||
+  fail "sing-box-only reloads must keep native rule-set sync state in memory"
 
 printf 'forkop.empty=section\nforkop.empty.enabled=1\nforkop.empty.action=proxy\n' >"$WORK_DIR/empty.state"
 FORKOP_UCI_STATE_FILE="$WORK_DIR/empty.state" \

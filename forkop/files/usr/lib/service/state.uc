@@ -289,6 +289,8 @@ function acquire_runtime_dir_lock(lock_dir, owner_pid) {
     owner_pid = as_string(owner_pid);
     if (lock_dir == "" || owner_pid == "")
         return false;
+    if (!ensure_parent_dir(lock_dir))
+        return false;
 
     if (command_success_from_args([ "mkdir", lock_dir ])) {
         if (lock_dir_write_owner(lock_dir, owner_pid))

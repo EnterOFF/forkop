@@ -271,6 +271,14 @@ state_ucode release-runtime-dir-lock "$LOCK_DIR" "$$"
 [ ! -e "$LOCK_DIR" ] ||
   fail "ucode should remove runtime dir lock"
 
+NESTED_LOCK_DIR="$WORK_DIR/missing-runtime-dir/start.lock"
+state_ucode acquire-runtime-dir-lock "$NESTED_LOCK_DIR" "$$" ||
+  fail "ucode should create the parent of a cold-start runtime lock"
+assert_eq "$$" "$(cat "$NESTED_LOCK_DIR/pid")" "cold-start runtime lock owner pid"
+state_ucode release-runtime-dir-lock "$NESTED_LOCK_DIR" "$$"
+[ ! -e "$NESTED_LOCK_DIR" ] ||
+  fail "ucode should remove cold-start runtime dir lock"
+
 mkdir -p "$LOCK_DIR"
 printf '%s\n' 999999 >"$LOCK_DIR/pid"
 state_ucode acquire-runtime-dir-lock "$LOCK_DIR" "$$" ||

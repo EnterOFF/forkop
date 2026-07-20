@@ -2,6 +2,7 @@
 
 let fs = require("fs");
 let constants = require("core.constants");
+let core_netstat = require("core.netstat");
 let uci_core = require("core.uci");
 
 function as_string(value) {
@@ -590,6 +591,24 @@ function singbox_init_config_for_live_reload() {
     return module_status(SINGBOX_UC, [ "init-config", as_string(nft_populate_enabled), "1" ]);
 }
 
+function clash_controller_preflight(config_path, netstat_data) {
+    config_path = as_string(config_path || config_get(CONFIG_NAME + ".settings.config_path", ""));
+    let config = read_json_file(config_path);
+    let experimental = type(config) == "object" && type(config.experimental) == "object" ? config.experimental : {};
+    let clash_api = type(experimental.clash_api) == "object" ? experimental.clash_api : {};
+    let controller = as_string(clash_api.external_controller);
+    if (controller == "")
+        return 0;
+
+    if (netstat_data == null)
+        netstat_data = command_output_from_args([ "netstat", "-lnt" ]);
+    if (!core_netstat.tcp_endpoint_in_use(netstat_data, controller))
+        return 0;
+
+    log_message("Clash API address " + controller + " is already in use by another process. Aborted.", "fatal");
+    return 1;
+}
+
 function refresh_cron() {
     return module_status(UPDATES_UC, [
         "refresh-cron-from-uci",
@@ -631,6 +650,10 @@ function start_main() {
         return status;
 
     status = singbox_init_config();
+    if (status != 0)
+        return status;
+
+    status = clash_controller_preflight();
     if (status != 0)
         return status;
 
@@ -1103,7 +1126,7 @@ function reload_impl(reason) {
     if (plan.needs_byedpi_restart == 1)
         module_success(BYEDPI_UC, [ "stop-runtime" ]);
 
-    let restart_ruleset_sync = plan.needs_nft_rebuild == 1 || plan.needs_sing_box_reload == 1;
+    let restart_ruleset_sync = plan.needs_nft_rebuild == 1;
     if (restart_ruleset_sync)
         module_success(RULESET_SYNC_UC, [ "stop-worker" ]);
 
@@ -1357,6 +1380,8 @@ else if (mode == "selector-restore-pairs-fixture") {
     write_json(selector_restore_pairs(read_json_file(ARGV[1]), read_json_file(ARGV[2])));
     status = 0;
 }
+else if (mode == "clash-controller-preflight-fixture")
+    status = clash_controller_preflight(ARGV[1], fs.readfile(ARGV[2]));
 else if (mode == "dnsmasq-restore" || mode == "restore-dnsmasq")
     status = dnsmasq_restore_fail_safe();
 else if (mode == "uninstall")

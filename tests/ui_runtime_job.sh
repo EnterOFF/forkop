@@ -66,6 +66,16 @@ grep -Fq '"sing-box-service-stable"' "$UI_UC" ||
 if sed -n '/^function ensure_dir(/,/^}/p' "$UI_UC" | grep -Fq 'mkdir", "-p'; then
   fail "UI state refresh must not spawn mkdir for existing directories"
 fi
+missing_state_dir="$WORK_DIR/missing-parent/ui-state"
+FORKOP_UI_STATE_DIR="$missing_state_dir" \
+  FORKOP_UI_SERVICE_ACTION_DIR="$missing_state_dir/service-actions" \
+  FORKOP_UI_LATENCY_ACTION_DIR="$missing_state_dir/latency-actions" \
+  FORKOP_UI_COMPONENT_ACTION_DIR="$missing_state_dir/component-actions" \
+  ui_ucode active-service-action >/dev/null 2>&1 || true
+[ -d "$missing_state_dir/service-actions" ] &&
+  [ -d "$missing_state_dir/latency-actions" ] &&
+  [ -d "$missing_state_dir/component-actions" ] ||
+  fail "UI action state directories must bootstrap on a clean /var/run"
 if sed -n '/^function cleanup_dir(/,/^}/p' "$UI_UC" | grep -Fq '"find"'; then
   fail "UI state refresh must clean action files without spawning find"
 fi

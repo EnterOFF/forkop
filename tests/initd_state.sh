@@ -123,29 +123,30 @@ if initd_ucode start-retry-pending "$start_retry_file" >/dev/null 2>&1; then
   fail "cleared start retry marker should not be pending"
 fi
 
-retry_pid_file="$WORK_DIR/start-retry.pid"
-retry_call_file="$WORK_DIR/start-retry.called"
-retry_service="$WORK_DIR/forkop-init"
-cat >"$retry_service" <<EOF
-#!/bin/sh
-printf '%s\n' "\$1" >>"$retry_call_file"
-EOF
-chmod +x "$retry_service"
-FORKOP_SERVICE_INIT="$retry_service" \
-  FORKOP_START_RETRY_PID_FILE="$retry_pid_file" \
-  FORKOP_START_RETRY_DELAY_SECONDS=1 \
-  initd_ucode schedule-start-retry >/dev/null ||
-  fail "failed start should schedule an automatic retry"
-[ -s "$retry_pid_file" ] ||
-  fail "scheduled automatic retry should record its worker pid"
-for _ in 1 2 3 4 5; do
-  [ -s "$retry_call_file" ] && break
-  sleep 1
-done
-grep -Fxq 'retry_start_on_wan_up' "$retry_call_file" ||
-  fail "scheduled automatic retry should call the marker-gated retry action"
-[ ! -e "$retry_pid_file" ] ||
-  fail "automatic retry worker should clear its pid before retrying"
+failed_start_dir="$WORK_DIR/failed-start"
+mkdir -p "$failed_start_dir"
+failed_start_env=(
+  FORKOP_BIN=/bin/false
+  FORKOP_SERVICE_INIT=/bin/true
+  FORKOP_RUNTIME_STATE_DIR="$failed_start_dir"
+  FORKOP_START_RETRY_FILE="$failed_start_dir/start.retry"
+  FORKOP_UI_STATE_DIR="$failed_start_dir/ui"
+  FORKOP_UI_SERVICE_ACTION_DIR="$failed_start_dir/ui/service-actions"
+  FORKOP_UI_SERVICE_ACTION_LOCK_DIR="$failed_start_dir/ui/service-actions.lock"
+  FORKOP_UI_LATENCY_ACTION_DIR="$failed_start_dir/ui/latency-actions"
+  FORKOP_UI_COMPONENT_ACTION_DIR="$failed_start_dir/component-actions"
+)
+if env "${failed_start_env[@]}" ucode -L "$FORKOP_LIB" "$INITD_UC" start-service "" "$$" >/dev/null 2>&1; then
+  fail "failed initial start should return an error"
+fi
+grep -Fq 'reason=start_failed' "$failed_start_dir/start.retry" ||
+  fail "failed initial start should preserve its WAN retry marker"
+
+if env "${failed_start_env[@]}" ucode -L "$FORKOP_LIB" "$INITD_UC" start-service triggered "$$" >/dev/null 2>&1; then
+  fail "failed triggered start should return an error"
+fi
+grep -Fq 'reason=wan_retry_failed' "$failed_start_dir/start.retry" ||
+  fail "failed triggered start should preserve its WAN retry marker"
 
 [ "$(initd_ucode retry-start-on-wan-up-action 1 1 1)" = "skip_running" ] ||
   fail "WAN retry should skip when runtime is already running"
@@ -244,10 +245,11 @@ grep -Fq 'mode == "retry-start-on-wan-up"' "$INITD_UC" ||
   fail "service/initd.uc must expose the complete WAN retry entrypoint"
 grep -Fq 'mode == "retry-start-on-wan-up-action"' "$INITD_UC" ||
   fail "service/initd.uc must expose the WAN retry decision fixture"
-grep -Fq 'schedule_start_retry(START_RETRY_PID_FILE, START_RETRY_DELAY_SECONDS)' "$INITD_UC" ||
-  fail "failed service start must schedule a retry even if WAN is already up"
 grep -Fq 'start_retry_pending(START_RETRY_FILE)' "$INITD_UC" ||
   fail "WAN retry must be gated by a failed-start marker"
+if grep -Eq 'START_RETRY_PID_FILE|START_RETRY_DELAY_SECONDS|schedule_start_retry|cancel_scheduled_start_retry' "$INITD_UC"; then
+  fail "failed service starts must wait for a real WAN-up event instead of a timed retry loop"
+fi
 service_enabled_line="$(grep -nF 'function service_is_enabled()' "$INITD_UC" | head -n1 | cut -d: -f1)"
 retry_start_line="$(grep -nF 'function retry_start_on_wan_up(' "$INITD_UC" | head -n1 | cut -d: -f1)"
 [ -n "$service_enabled_line" ] && [ -n "$retry_start_line" ] && [ "$service_enabled_line" -lt "$retry_start_line" ] ||
