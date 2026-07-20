@@ -6,16 +6,12 @@ import {
   getProxyUrlName,
   isCopyableProxyLink,
 } from '../../../helpers';
-import { getOutboundTagBySection } from '../../runtimeTags';
+import { allocateRuntimeTag, getOutboundTagBySection } from '../../runtimeTags';
 import { ForkopShellMethods } from '../shell';
 
 interface IGetDashboardSectionsResponse {
   success: boolean;
   data: Forkop.OutboundGroup[];
-}
-
-interface IGetDashboardSectionsOptions {
-  includeSubscriptionCopyState?: boolean;
 }
 
 type ClashProxyEntry = {
@@ -26,13 +22,10 @@ type ClashProxyEntry = {
 type DashboardSectionCache = {
   version?: number;
   section?: string;
-  links?: Record<string, string>;
   outboundMetadata?: Forkop.GetOutboundMetadata;
   urltestGroups?: Record<string, UrlTestCacheGroup>;
   priorityGroups?: Record<string, PriorityCacheGroup>;
-  subscriptionMetadata?:
-    | Forkop.SubscriptionMetadata
-    | Forkop.SubscriptionMetadata[];
+  providerTags?: string[];
 };
 
 type UrlTestCacheGroup = {
@@ -43,14 +36,14 @@ type UrlTestCacheGroup = {
   tolerance?: string | number;
   idle_timeout?: string;
   interrupt_exist_connections?: boolean;
+  hide_dashboard_members?: boolean;
 };
 
 type PriorityCacheLevel = {
   id?: string;
+  tag?: string;
   displayName?: string;
   order?: number;
-  direct?: boolean;
-  filter_mode?: string;
   outbounds?: string[];
 };
 
@@ -59,31 +52,18 @@ type PriorityCacheGroup = {
   tag?: string;
   section?: string;
   displayName?: string;
-  health_url?: string;
-  active_check_interval?: string;
-  check_timeout?: string;
-  recovery_check_interval?: string;
-  pick_fastest?: boolean;
-  switch_to_faster_same_priority?: boolean;
-  fastest_check_interval?: string;
-  interrupt_exist_connections?: boolean;
+  blacklist_timeout?: string;
   pin_dashboard?: boolean;
+  hide_dashboard_members?: boolean;
   outbounds?: string[];
   levels?: PriorityCacheLevel[];
 };
 
 type PriorityLevelConfig = {
   id: string;
+  tag?: string;
   displayName: string;
   order: number;
-  direct: boolean;
-  filterMode: string;
-  country: string[];
-  serverName: string[];
-  regex: string[];
-  excludeCountries: string[];
-  excludeOutbounds: string[];
-  excludeRegex: string[];
   outbounds?: string[];
 };
 
@@ -96,22 +76,17 @@ type UrlTestConfig = {
   displayName: string;
   settings: ItemSettings;
   pinDashboard: boolean;
+  hideDashboardMembers: boolean;
 };
 
 type PriorityConfig = {
   id: string;
+  sectionName: string;
   code: string;
   displayName: string;
-  settings: ItemSettings;
   pinDashboard: boolean;
-  healthUrl: string;
-  activeCheckInterval: string;
-  checkTimeout: string;
-  recoveryCheckInterval: string;
-  pickFastest: boolean;
-  switchToFasterSamePriority: boolean;
-  fastestCheckInterval: string;
-  interruptExistConnections: boolean;
+  hideDashboardMembers: boolean;
+  blacklistTimeout: string;
   levels: PriorityLevelConfig[];
 };
 
@@ -123,6 +98,16 @@ type ChildType =
   | 'priority_level';
 
 const CLASH_API_FETCH_TIMEOUT_MS = 5000;
+const EXPORTABLE_PROVIDER_PROXY_TYPES = new Set([
+  'hysteria',
+  'hysteria2',
+  'shadowsocks',
+  'socks',
+  'trojan',
+  'tuic',
+  'vless',
+  'vmess',
+]);
 
 function getDisplayName(section: Forkop.ConfigSection) {
   return section.label || section['.name'];
@@ -140,9 +125,11 @@ function canFetchClashApiDirectly() {
   return canUseDirectClashApi() && typeof fetch === 'function';
 }
 
-async function getClashApiProxies(
+async function getClashApi<T>(
   configSections: Forkop.ConfigSection[],
-): Promise<Forkop.MethodResponse<ClashAPI.Proxies>> {
+  path: string,
+  fallback: () => Promise<Forkop.MethodResponse<T>>,
+): Promise<Forkop.MethodResponse<T>> {
   if (canFetchClashApiDirectly()) {
     const secret = getClashApiSecret(configSections);
     const controller = new AbortController();
@@ -152,7 +139,7 @@ async function getClashApiProxies(
     );
 
     try {
-      const response = await fetch(`${getClashHttpUrl()}/proxies`, {
+      const response = await fetch(`${getClashHttpUrl()}${path}`, {
         headers: secret ? { Authorization: `Bearer ${secret}` } : undefined,
         signal: controller.signal,
       });
@@ -160,7 +147,7 @@ async function getClashApiProxies(
       if (response.ok) {
         return {
           success: true,
-          data: (await response.json()) as ClashAPI.Proxies,
+          data: (await response.json()) as T,
         };
       }
     } catch (_error) {
@@ -170,7 +157,23 @@ async function getClashApiProxies(
     }
   }
 
-  return ForkopShellMethods.getClashApiProxies();
+  return fallback();
+}
+
+function getClashApiProxies(configSections: Forkop.ConfigSection[]) {
+  return getClashApi(
+    configSections,
+    '/proxies',
+    ForkopShellMethods.getClashApiProxies,
+  );
+}
+
+function getClashApiProxyProviders(configSections: Forkop.ConfigSection[]) {
+  return getClashApi(
+    configSections,
+    '/providers/proxies',
+    ForkopShellMethods.getClashApiProxyProviders,
+  );
 }
 
 function getListValues(value?: string[] | string) {
@@ -256,9 +259,6 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
           show_dashboard_metadata: item.show_dashboard_metadata,
           prefix_nodes: item.prefix_nodes,
           node_prefix: item.node_prefix,
-          include_urltest_groups: item.include_urltest_groups,
-          hide_urltest_group_outbounds: item.hide_urltest_group_outbounds,
-          hide_detour_outbounds: item.hide_detour_outbounds,
         };
       });
       next.subscription_url_settings = compactSettingsMap(settings);
@@ -282,6 +282,7 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
           idle_timeout: item.idle_timeout,
           interrupt_exist_connections: item.interrupt_exist_connections,
           pin_dashboard: item.pin_dashboard,
+          hide_dashboard_members: item.hide_dashboard_members,
           urltest_filter_mode: item.filter_mode,
           urltest_include_countries: item.include_countries,
           urltest_include_outbounds: item.include_outbounds,
@@ -305,14 +306,6 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
               id: level['.name'],
               displayName: level.name || level['.name'],
               order: Number.parseInt(level.order || `${index}`, 10) || 0,
-              direct: level.direct === '1',
-              filterMode: level.filter_mode || 'include',
-              country: getListValues(level.country),
-              serverName: getListValues(level.server_name),
-              regex: getListValues(level.regex),
-              excludeCountries: getListValues(level.exclude_countries),
-              excludeOutbounds: getListValues(level.exclude_outbounds),
-              excludeRegex: getListValues(level.exclude_regex),
             }),
           )
           .sort((left, right) =>
@@ -323,15 +316,9 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
 
         settings[groupId] = {
           name: item.name,
-          health_url: item.health_url,
-          active_check_interval: item.active_check_interval,
-          check_timeout: item.check_timeout,
-          recovery_check_interval: item.recovery_check_interval,
-          pick_fastest: item.pick_fastest,
-          switch_to_faster_same_priority: item.switch_to_faster_same_priority,
-          fastest_check_interval: item.fastest_check_interval,
-          interrupt_exist_connections: item.interrupt_exist_connections,
+          blacklist_timeout: item.blacklist_timeout,
           pin_dashboard: item.pin_dashboard,
+          hide_dashboard_members: item.hide_dashboard_members,
           levels,
         };
       });
@@ -443,14 +430,33 @@ function getJsonOutboundDisplayName(section: Forkop.ConfigSection) {
   }
 }
 
-function buildManualLinkByCode(section: Forkop.ConfigSection) {
-  const sectionName = section['.name'];
+function buildManualLinkByCode(
+  section: Forkop.ConfigSection,
+  selectorCodes: string[],
+) {
+  const links = getManualProxyLinks(section);
+  const prefix = `${allocateRuntimeTag(
+    `${section['.name']}-manual`,
+    'provider',
+  )}/`;
+  const runtimeCodes = selectorCodes.filter((code) => code.startsWith(prefix));
 
   return new Map(
-    getManualProxyLinks(section).map((link, index) => [
-      getOutboundTagBySection(`${sectionName}-${index + 1}`),
-      link,
-    ]),
+    runtimeCodes.flatMap((code, index) => {
+      const link = links[index];
+      return isCopyableProxyLink(link) ? [[code, link] as const] : [];
+    }),
+  );
+}
+
+function canExportProviderProxyLink(
+  code: string,
+  type: string,
+  providerTags: string[],
+) {
+  return (
+    EXPORTABLE_PROVIDER_PROXY_TYPES.has(type.toLowerCase()) &&
+    providerTags.some((tag) => code.startsWith(`${tag}/`))
   );
 }
 
@@ -623,6 +629,16 @@ function getPriorityTag(sectionName: string, id: string) {
   return getOutboundTagBySection(`${sectionName}-priority-${id}`);
 }
 
+function getPriorityLevelTag(
+  sectionName: string,
+  groupId: string,
+  levelId: string,
+) {
+  return getOutboundTagBySection(
+    `${sectionName}-priority-${groupId}-level-${levelId}`,
+  );
+}
+
 function getUrlTestDisplayName(
   section: Forkop.ConfigSection,
   id: string,
@@ -648,6 +664,11 @@ function getUrlTestConfigs(section: Forkop.ConfigSection): UrlTestConfig[] {
       displayName: getUrlTestDisplayName(section, id, settings),
       settings,
       pinDashboard: itemSettingBoolean(settings, 'pin_dashboard', true),
+      hideDashboardMembers: itemSettingBoolean(
+        settings,
+        'hide_dashboard_members',
+        false,
+      ),
     };
   });
 }
@@ -683,18 +704,6 @@ function priorityLevelConfigsFromSettings(
             typeof level.order === 'number' && Number.isFinite(level.order)
               ? level.order
               : index,
-          direct: Boolean(level.direct),
-          filterMode: `${level.filterMode || 'include'}` || 'include',
-          country: getListValues(level.country as string[] | string),
-          serverName: getListValues(level.serverName as string[] | string),
-          regex: getListValues(level.regex as string[] | string),
-          excludeCountries: getListValues(
-            level.excludeCountries as string[] | string,
-          ),
-          excludeOutbounds: getListValues(
-            level.excludeOutbounds as string[] | string,
-          ),
-          excludeRegex: getListValues(level.excludeRegex as string[] | string),
           outbounds: getListValues(level.outbounds as string[] | string),
         },
       ];
@@ -720,42 +729,16 @@ function getPriorityConfigs(section: Forkop.ConfigSection): PriorityConfig[] {
 
     return {
       id,
+      sectionName,
       code: getPriorityTag(sectionName, id),
       displayName: itemSettingString(settings, 'name', id),
-      settings,
       pinDashboard: itemSettingBoolean(settings, 'pin_dashboard', true),
-      healthUrl: itemSettingString(
+      hideDashboardMembers: itemSettingBoolean(
         settings,
-        'health_url',
-        'https://www.gstatic.com/generate_204',
-      ),
-      activeCheckInterval: itemSettingString(
-        settings,
-        'active_check_interval',
-        '5s',
-      ),
-      checkTimeout: itemSettingString(settings, 'check_timeout', '2s'),
-      recoveryCheckInterval: itemSettingString(
-        settings,
-        'recovery_check_interval',
-        '15s',
-      ),
-      pickFastest: itemSettingBoolean(settings, 'pick_fastest', false),
-      switchToFasterSamePriority: itemSettingBoolean(
-        settings,
-        'switch_to_faster_same_priority',
+        'hide_dashboard_members',
         false,
       ),
-      fastestCheckInterval: itemSettingString(
-        settings,
-        'fastest_check_interval',
-        '3m',
-      ),
-      interruptExistConnections: itemSettingBoolean(
-        settings,
-        'interrupt_exist_connections',
-        true,
-      ),
+      blacklistTimeout: itemSettingString(settings, 'blacklist_timeout', '1m'),
       levels,
     };
   });
@@ -805,16 +788,10 @@ function getOutboundDisplayName(
   entry: ClashProxyEntry | undefined,
   link: string,
   outboundMetadata?: Forkop.GetOutboundMetadata,
-  preferMetadata = false,
 ) {
   const metadataName = outboundMetadata?.names?.[code];
 
-  return (
-    (preferMetadata ? metadataName : getProxyUrlName(link)) ||
-    (preferMetadata ? getProxyUrlName(link) : metadataName) ||
-    entry?.value?.name ||
-    code
-  );
+  return getProxyUrlName(link) || metadataName || entry?.value?.name || code;
 }
 
 function buildUrlTestInfo({
@@ -824,7 +801,7 @@ function buildUrlTestInfo({
   groupCache,
   proxyByCode,
   manualLinkByCode,
-  cachedProxyLinks,
+  exportableProviderTags,
   outboundMetadata,
 }: {
   code: string;
@@ -833,7 +810,7 @@ function buildUrlTestInfo({
   groupCache?: UrlTestCacheGroup;
   proxyByCode: Map<string, ClashProxyEntry>;
   manualLinkByCode: Map<string, string>;
-  cachedProxyLinks: Map<string, string>;
+  exportableProviderTags: string[];
   outboundMetadata?: Forkop.GetOutboundMetadata;
 }): Forkop.UrlTestInfo {
   const childCodes = uniqueCodes(
@@ -845,11 +822,14 @@ function buildUrlTestInfo({
   const outbounds = sortUrlTestMembers(
     childCodes.flatMap((childCode) => {
       const childEntry = proxyByCode.get(childCode);
-      const link =
-        manualLinkByCode.get(childCode) ||
-        cachedProxyLinks.get(childCode) ||
-        '';
-      const canCopyLink = isCopyableProxyLink(link);
+      const link = manualLinkByCode.get(childCode) || '';
+      const canCopyLink =
+        isCopyableProxyLink(link) ||
+        canExportProviderProxyLink(
+          childCode,
+          childEntry?.value?.type || '',
+          exportableProviderTags,
+        );
 
       return [
         {
@@ -859,7 +839,6 @@ function buildUrlTestInfo({
             childEntry,
             link,
             outboundMetadata,
-            cachedProxyLinks.has(childCode),
           ),
           latency: childEntry?.value?.history?.[0]?.delay || 0,
           type: childEntry?.value?.type || '',
@@ -894,7 +873,7 @@ function buildPriorityInfo({
   groupCache,
   proxyByCode,
   manualLinkByCode,
-  cachedProxyLinks,
+  exportableProviderTags,
   outboundMetadata,
 }: {
   config: PriorityConfig;
@@ -902,10 +881,10 @@ function buildPriorityInfo({
   groupCache?: PriorityCacheGroup;
   proxyByCode: Map<string, ClashProxyEntry>;
   manualLinkByCode: Map<string, string>;
-  cachedProxyLinks: Map<string, string>;
+  exportableProviderTags: string[];
   outboundMetadata?: Forkop.GetOutboundMetadata;
 }): Forkop.PriorityInfo {
-  const selectedCode = entry?.value.now || '';
+  const selectedLevelTag = entry?.value.now || '';
   const cacheLevels = Array.isArray(groupCache?.levels)
     ? groupCache.levels
     : [];
@@ -920,26 +899,25 @@ function buildPriorityInfo({
 
           return {
             id: id || configLevel?.id || `level-${index + 1}`,
+            tag:
+              level.tag ||
+              getPriorityLevelTag(
+                config.sectionName,
+                config.id,
+                id || configLevel?.id || `level-${index + 1}`,
+              ),
             displayName:
               level.displayName || configLevel?.displayName || `${index + 1}`,
             order:
               typeof level.order === 'number' && Number.isFinite(level.order)
                 ? level.order
                 : (configLevel?.order ?? index),
-            direct: level.direct ?? configLevel?.direct ?? false,
-            filterMode:
-              level.filter_mode || configLevel?.filterMode || 'include',
-            country: configLevel?.country || [],
-            serverName: configLevel?.serverName || [],
-            regex: configLevel?.regex || [],
-            excludeCountries: configLevel?.excludeCountries || [],
-            excludeOutbounds: configLevel?.excludeOutbounds || [],
-            excludeRegex: configLevel?.excludeRegex || [],
             outbounds: uniqueCodes(level.outbounds || []),
           };
         })
       : config.levels.map((level) => ({
           ...level,
+          tag: getPriorityLevelTag(config.sectionName, config.id, level.id),
           outbounds: uniqueCodes(level.outbounds || []),
         }))
   ).sort((left, right) =>
@@ -948,13 +926,21 @@ function buildPriorityInfo({
       : left.order - right.order,
   );
   const outbounds = levels.flatMap((level, levelIndex) => {
-    const members = uniqueCodes(level.outbounds || []).map((childCode) => {
+    const levelEntry = level.tag ? proxyByCode.get(level.tag) : undefined;
+    const levelSelectedCode =
+      level.tag === selectedLevelTag ? levelEntry?.value.now || '' : '';
+    const members = uniqueCodes(
+      levelEntry?.value.all || level.outbounds || [],
+    ).map((childCode) => {
       const childEntry = proxyByCode.get(childCode);
-      const link =
-        manualLinkByCode.get(childCode) ||
-        cachedProxyLinks.get(childCode) ||
-        '';
-      const canCopyLink = isCopyableProxyLink(link);
+      const link = manualLinkByCode.get(childCode) || '';
+      const canCopyLink =
+        isCopyableProxyLink(link) ||
+        canExportProviderProxyLink(
+          childCode,
+          childEntry?.value?.type || '',
+          exportableProviderTags,
+        );
 
       return {
         code: childCode,
@@ -963,11 +949,10 @@ function buildPriorityInfo({
           childEntry,
           link,
           outboundMetadata,
-          cachedProxyLinks.has(childCode),
         ),
         latency: childEntry?.value?.history?.[0]?.delay || 0,
         type: childEntry?.value?.type || '',
-        selected: selectedCode === childCode,
+        selected: levelSelectedCode === childCode,
         link,
         canCopyLink,
         levelIndex,
@@ -976,21 +961,10 @@ function buildPriorityInfo({
       };
     });
 
-    if (!config.pickFastest) {
-      return members;
-    }
-
-    return members
-      .map((outbound, index) => ({ outbound, index }))
-      .sort((left, right) => {
-        const latencyDiff =
-          getLatencySortValue(left.outbound) -
-          getLatencySortValue(right.outbound);
-
-        return latencyDiff !== 0 ? latencyDiff : left.index - right.index;
-      })
-      .map((item) => item.outbound);
+    return members;
   });
+  const selectedCode =
+    outbounds.find((outbound) => outbound.selected)?.code || '';
   const selectedName =
     outbounds.find((outbound) => outbound.code === selectedCode)?.displayName ||
     selectedCode;
@@ -1000,21 +974,7 @@ function buildPriorityInfo({
     displayName: groupCache?.displayName || config.displayName,
     selectedCode: selectedCode || undefined,
     selectedName: selectedName || undefined,
-    healthUrl: groupCache?.health_url || config.healthUrl,
-    activeCheckInterval:
-      groupCache?.active_check_interval || config.activeCheckInterval,
-    checkTimeout: groupCache?.check_timeout || config.checkTimeout,
-    recoveryCheckInterval:
-      groupCache?.recovery_check_interval || config.recoveryCheckInterval,
-    pickFastest: groupCache?.pick_fastest ?? config.pickFastest,
-    switchToFasterSamePriority:
-      groupCache?.switch_to_faster_same_priority ??
-      config.switchToFasterSamePriority,
-    fastestCheckInterval:
-      groupCache?.fastest_check_interval || config.fastestCheckInterval,
-    interruptExistConnections:
-      groupCache?.interrupt_exist_connections ??
-      config.interruptExistConnections,
+    blacklistTimeout: groupCache?.blacklist_timeout || config.blacklistTimeout,
     outbounds,
   };
 }
@@ -1025,7 +985,7 @@ function buildProxyGroupOutbounds(
   outboundMetadata?: Forkop.GetOutboundMetadata,
   urltestGroups: Record<string, UrlTestCacheGroup> = {},
   priorityGroups: Record<string, PriorityCacheGroup> = {},
-  cachedProxyLinks: Map<string, string> = new Map(),
+  exportableProviderTags: string[] = [],
 ) {
   const sectionName = section['.name'];
   const proxyByCode = getProxyEntryByCode(proxies);
@@ -1047,83 +1007,115 @@ function buildProxyGroupOutbounds(
     config,
     entry: proxyByCode.get(config.code),
   }));
-  const manualLinkByCode = buildManualLinkByCode(section);
   const selectorCodes = selector?.value?.all ?? [];
+  const manualLinkByCode = buildManualLinkByCode(section, selectorCodes);
   const urlTestCodes = urlTestConfigs.map((config) => config.code);
   const priorityCodes = priorityConfigs.map((config) => config.code);
+  const hiddenMemberCodes = new Set<string>();
+  const hideMembers = (codes: string[]) => {
+    uniqueCodes(codes).forEach((code) => hiddenMemberCodes.add(code));
+  };
+
+  urlTestEntries.forEach(({ config, entry }) => {
+    const cache = urltestGroups[config.code];
+    if (config.hideDashboardMembers || cache?.hide_dashboard_members) {
+      hideMembers(
+        entry?.value.all?.length ? entry.value.all : cache?.outbounds || [],
+      );
+    }
+  });
+  priorityEntries.forEach(({ config }) => {
+    const cache = priorityGroups[config.code];
+    if (!config.hideDashboardMembers && !cache?.hide_dashboard_members) {
+      return;
+    }
+
+    const levels = cache?.levels?.length ? cache.levels : config.levels;
+    levels.forEach((level, index) => {
+      const id = `${level.id || config.levels[index]?.id || `level-${index + 1}`}`;
+      const tag =
+        level.tag || getPriorityLevelTag(config.sectionName, config.id, id);
+      const liveMembers = proxyByCode.get(tag)?.value.all || [];
+      hideMembers(liveMembers.length ? liveMembers : level.outbounds || []);
+    });
+  });
   const builtInUrltestCode = urlTestCodes[0] || '';
   const fallbackCodes = uniqueCodes([
     ...urlTestCodes,
     ...priorityCodes,
     ...urlTestEntries.flatMap(({ entry }) => entry?.value.all || []),
-    ...priorityEntries.flatMap(({ entry }) => entry?.value.all || []),
   ]);
   const groupCodes = uniqueCodes([
     ...(selectorCodes.length ? selectorCodes : fallbackCodes),
     ...urlTestCodes,
     ...priorityCodes,
   ]);
+  const groupOutboundCodes = new Set([...urlTestCodes, ...priorityCodes]);
 
-  const outbounds = uniqueCodes(groupCodes).flatMap((code) => {
-    const item = proxyByCode.get(code);
-    const urlTestConfig = urlTestConfigByCode.get(code);
-    const priorityConfig = priorityConfigByCode.get(code);
+  const outbounds = uniqueCodes(groupCodes)
+    .filter(
+      (code) => groupOutboundCodes.has(code) || !hiddenMemberCodes.has(code),
+    )
+    .flatMap((code) => {
+      const item = proxyByCode.get(code);
+      const urlTestConfig = urlTestConfigByCode.get(code);
+      const priorityConfig = priorityConfigByCode.get(code);
 
-    if (!item && !urlTestConfig && !priorityConfig) {
-      return [];
-    }
+      if (!item && !urlTestConfig && !priorityConfig) {
+        return [];
+      }
 
-    const link = manualLinkByCode.get(code) || cachedProxyLinks.get(code) || '';
-    const canCopyLink = isCopyableProxyLink(link);
-    const displayName =
-      priorityConfig?.displayName ||
-      urlTestConfig?.displayName ||
-      getOutboundDisplayName(
-        code,
-        item,
-        link,
-        outboundMetadata,
-        cachedProxyLinks.has(code),
-      );
-    const isRuntimeUrlTest = isUrlTestProxyEntry(item);
+      const link = manualLinkByCode.get(code) || '';
+      const canCopyLink =
+        isCopyableProxyLink(link) ||
+        canExportProviderProxyLink(
+          code,
+          item?.value?.type || '',
+          exportableProviderTags,
+        );
+      const displayName =
+        priorityConfig?.displayName ||
+        urlTestConfig?.displayName ||
+        getOutboundDisplayName(code, item, link, outboundMetadata);
+      const isRuntimeUrlTest = isUrlTestProxyEntry(item);
 
-    return [
-      {
-        code,
-        displayName,
-        latency: item?.value.history?.[0]?.delay || 0,
-        type: priorityConfig ? 'Priority' : item?.value.type || 'URLTest',
-        selected: selector?.value?.now === code,
-        link,
-        canCopyLink,
-        runtimeAvailable: item ? undefined : false,
-        urlTestInfo:
-          urlTestConfig || isRuntimeUrlTest
-            ? buildUrlTestInfo({
-                code,
-                displayName,
+      return [
+        {
+          code,
+          displayName,
+          latency: item?.value.history?.[0]?.delay || 0,
+          type: priorityConfig ? 'Priority' : item?.value.type || 'URLTest',
+          selected: selector?.value?.now === code,
+          link,
+          canCopyLink,
+          runtimeAvailable: item ? undefined : false,
+          urlTestInfo:
+            urlTestConfig || isRuntimeUrlTest
+              ? buildUrlTestInfo({
+                  code,
+                  displayName,
+                  entry: item,
+                  groupCache: urltestGroups[code],
+                  proxyByCode,
+                  manualLinkByCode,
+                  exportableProviderTags,
+                  outboundMetadata,
+                })
+              : undefined,
+          priorityInfo: priorityConfig
+            ? buildPriorityInfo({
+                config: priorityConfig,
                 entry: item,
-                groupCache: urltestGroups[code],
+                groupCache: priorityGroups[code],
                 proxyByCode,
                 manualLinkByCode,
-                cachedProxyLinks,
+                exportableProviderTags,
                 outboundMetadata,
               })
             : undefined,
-        priorityInfo: priorityConfig
-          ? buildPriorityInfo({
-              config: priorityConfig,
-              entry: item,
-              groupCache: priorityGroups[code],
-              proxyByCode,
-              manualLinkByCode,
-              cachedProxyLinks,
-              outboundMetadata,
-            })
-          : undefined,
-      },
-    ];
-  });
+        },
+      ];
+    });
 
   const sortedOutbounds = sortOutboundsForDashboard(outbounds, {
     pinnedCodes: [
@@ -1154,102 +1146,10 @@ function buildProxyGroupOutbounds(
   };
 }
 
-function metadataMatchesCurrentSource(
-  sectionName: string,
-  sourceCount: number,
-  metadata: Forkop.SubscriptionMetadata,
-) {
-  const legacyMetadata = metadata as Forkop.SubscriptionMetadata & {
-    source_index?: number;
-    source_section?: string;
-  };
-  const sourceIndex = metadata.sourceIndex ?? legacyMetadata.source_index;
-  const sourceSection =
-    metadata.sourceSection || legacyMetadata.source_section || '';
-  const hasSourceIndex = typeof sourceIndex === 'number';
-  const hasSourceSection = sourceSection !== '';
-
-  if (!hasSourceIndex && !hasSourceSection) {
-    return sourceCount <= 1;
-  }
-
-  if (sourceCount > 1 && !hasSourceSection) {
-    return false;
-  }
-
-  if (hasSourceIndex && (sourceIndex < 1 || sourceIndex > sourceCount)) {
-    return false;
-  }
-
-  if (hasSourceSection) {
-    const expectedSourcePrefix = `${sectionName}-subscription-`;
-
-    if (!sourceSection.startsWith(expectedSourcePrefix)) {
-      return false;
-    }
-
-    const sourceSectionIndex = Number(
-      sourceSection.slice(expectedSourcePrefix.length),
-    );
-
-    if (
-      !Number.isInteger(sourceSectionIndex) ||
-      sourceSectionIndex < 1 ||
-      sourceSectionIndex > sourceCount
-    ) {
-      return false;
-    }
-
-    if (hasSourceIndex && sourceIndex !== sourceSectionIndex) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-function getSubscriptionMetadataSourceIndex(
-  sectionName: string,
-  sourceCount: number,
-  metadata: Forkop.SubscriptionMetadata,
-) {
-  const legacyMetadata = metadata as Forkop.SubscriptionMetadata & {
-    source_index?: number;
-    source_section?: string;
-  };
-  const sourceIndex = metadata.sourceIndex ?? legacyMetadata.source_index;
-
-  if (typeof sourceIndex === 'number') {
-    return sourceIndex;
-  }
-
-  const sourceSection =
-    metadata.sourceSection || legacyMetadata.source_section || '';
-  const expectedSourcePrefix = `${sectionName}-subscription-`;
-
-  if (sourceSection.startsWith(expectedSourcePrefix)) {
-    const parsed = Number(sourceSection.slice(expectedSourcePrefix.length));
-    return Number.isInteger(parsed) ? parsed : undefined;
-  }
-
-  return sourceCount <= 1 ? 1 : undefined;
-}
-
 function isSubscriptionMetadataVisible(
   section: Forkop.ConfigSection,
-  sourceCount: number,
-  metadata: Forkop.SubscriptionMetadata,
+  sourceIndex: number,
 ) {
-  const sourceIndex = getSubscriptionMetadataSourceIndex(
-    section['.name'],
-    sourceCount,
-    metadata,
-  );
-
-  if (!sourceIndex || sourceIndex < 1 || sourceIndex > sourceCount) {
-    return true;
-  }
-
   const sourceEntry = getListValues(section.subscription_urls)[sourceIndex - 1];
   const settings = itemSettingsMap(section.subscription_url_settings)[
     sourceEntry
@@ -1258,60 +1158,124 @@ function isSubscriptionMetadataVisible(
   return settings?.show_dashboard_metadata !== '0';
 }
 
-function getSubscriptionMetadata(
-  section: Forkop.ConfigSection,
-  sourceCount: number,
-  dashboardCache?: DashboardSectionCache,
-) {
-  if (!dashboardCache?.subscriptionMetadata) {
-    return undefined;
-  }
-
-  const metadataItems = Array.isArray(dashboardCache.subscriptionMetadata)
-    ? dashboardCache.subscriptionMetadata
-    : [dashboardCache.subscriptionMetadata];
-  const visibleMetadataItems = metadataItems.filter(
-    (metadata) =>
-      metadata &&
-      Object.keys(metadata).length > 1 &&
-      metadataMatchesCurrentSource(section['.name'], sourceCount, metadata) &&
-      isSubscriptionMetadataVisible(section, sourceCount, metadata),
-  );
-
-  if (visibleMetadataItems.length > 0) {
-    return visibleMetadataItems;
-  }
-
-  return undefined;
+function getSectionProviderTags(dashboardCache?: DashboardSectionCache) {
+  return getListValues(dashboardCache?.providerTags);
 }
 
-function getOutboundMetadata(dashboardCache?: DashboardSectionCache) {
-  const metadata = dashboardCache?.outboundMetadata;
+function providerNumber(
+  value: ClashAPI.ProxyProvider['subscriptionInfo'],
+  lower: 'upload' | 'download' | 'total' | 'expire',
+) {
+  const upper = `${lower[0].toUpperCase()}${lower.slice(1)}` as
+    | 'Upload'
+    | 'Download'
+    | 'Total'
+    | 'Expire';
+  const number = Number(value?.[lower] ?? value?.[upper] ?? 0);
+  return Number.isFinite(number) ? number : 0;
+}
 
-  if (!metadata || typeof metadata !== 'object') {
+function providerSubscriptionMetadata(
+  provider: ClashAPI.ProxyProvider,
+  sourceIndex: number,
+): Forkop.SubscriptionMetadata | undefined {
+  const metadata = provider.subscriptionMetadata || {};
+  const upload = providerNumber(provider.subscriptionInfo, 'upload');
+  const download = providerNumber(provider.subscriptionInfo, 'download');
+  const total = providerNumber(provider.subscriptionInfo, 'total');
+  const expire = providerNumber(provider.subscriptionInfo, 'expire');
+  const used = upload + download;
+
+  if (
+    !upload &&
+    !download &&
+    !total &&
+    !expire &&
+    !Object.keys(metadata).length
+  ) {
     return undefined;
   }
 
   return {
-    names: objectMap(metadata.names),
+    ...metadata,
+    sourceIndex,
+    sourceSection: provider.name,
+    ...(upload || download || total
+      ? {
+          traffic: {
+            upload,
+            download,
+            used,
+            total,
+            remaining: total > 0 ? Math.max(total - used, 0) : undefined,
+            isUnlimited: total <= 0,
+          },
+        }
+      : {}),
+    ...(expire ? { expire } : {}),
   };
 }
 
-function getCachedProxyLinks(dashboardCache?: DashboardSectionCache) {
-  return new Map(
-    Object.entries(objectMap(dashboardCache?.links)).filter(([, link]) =>
-      isCopyableProxyLink(link),
-    ),
-  );
+function getSubscriptionMetadata(
+  section: Forkop.ConfigSection,
+  sourceCount: number,
+  providerTags: string[],
+  providers: Record<string, ClashAPI.ProxyProvider>,
+) {
+  const items = providerTags.slice(0, sourceCount).flatMap((tag, index) => {
+    const sourceIndex = index + 1;
+    const provider = providers[tag];
+    if (
+      !provider ||
+      (provider.subscriptionInfo === undefined &&
+        provider.subscriptionMetadata === undefined)
+    ) {
+      return [];
+    }
+    const metadata = providerSubscriptionMetadata(provider, sourceIndex);
+    return metadata && isSubscriptionMetadataVisible(section, sourceIndex)
+      ? [metadata]
+      : [];
+  });
+
+  return items.length ? items : undefined;
 }
 
-export async function getDashboardSections(
-  options: IGetDashboardSectionsOptions = {},
-): Promise<IGetDashboardSectionsResponse> {
-  const includeSubscriptionCopyState =
-    options.includeSubscriptionCopyState ?? true;
+function getOutboundMetadata(
+  dashboardCache?: DashboardSectionCache,
+  providerTags: string[] = [],
+  proxies: ClashProxyEntry[] = [],
+) {
+  const metadata = dashboardCache?.outboundMetadata;
+  const names = objectMap(metadata?.names);
+  const prefixes = providerTags.map((tag) => `${tag}/`);
+
+  proxies.forEach((proxy) => {
+    const prefix = prefixes.find((value) => proxy.code.startsWith(value));
+    if (prefix) {
+      names[proxy.code] = proxy.code.slice(prefix.length);
+    }
+  });
+
+  if (!Object.keys(names).length) {
+    return undefined;
+  }
+
+  return { names };
+}
+
+export async function getDashboardSections(): Promise<IGetDashboardSectionsResponse> {
   const configSections = hydrateConfigSections(await getConfigSections());
-  const clashProxies = await getClashApiProxies(configSections);
+  const hasSubscriptions = configSections.some(hasSubscriptionSources);
+  const [clashProxies, clashProviders] = await Promise.all([
+    getClashApiProxies(configSections),
+    hasSubscriptions
+      ? getClashApiProxyProviders(configSections)
+      : Promise.resolve({
+          success: true as const,
+          data: { providers: {} },
+        }),
+  ]);
 
   if (!clashProxies.success || !clashProxies.data?.proxies) {
     return {
@@ -1326,6 +1290,9 @@ export async function getDashboardSections(
       value,
     }),
   );
+  const providers = clashProviders.success
+    ? clashProviders.data?.providers || {}
+    : {};
   const data = await Promise.all(
     configSections
       .filter(
@@ -1342,17 +1309,20 @@ export async function getDashboardSections(
           const subscriptionSourceCount = getSubscriptionSourceCount(section);
           const subscriptionEnabled = subscriptionSourceCount > 0;
           const dashboardCache = await readDashboardSectionCache(sectionName);
-          const outboundMetadata = getOutboundMetadata(dashboardCache);
+          const providerTags = getSectionProviderTags(dashboardCache);
+          const outboundMetadata = getOutboundMetadata(
+            dashboardCache,
+            providerTags,
+            proxies,
+          );
           const subscriptionMetadata = subscriptionEnabled
             ? getSubscriptionMetadata(
                 section,
                 subscriptionSourceCount,
-                dashboardCache,
+                providerTags,
+                providers,
               )
             : undefined;
-          const cachedProxyLinks = includeSubscriptionCopyState
-            ? getCachedProxyLinks(dashboardCache)
-            : new Map<string, string>();
           const urltestGroups = getUrlTestGroups(dashboardCache);
           const priorityGroups = getPriorityGroups(dashboardCache);
           const { selector, latencyTestCode, latencyTestCodes, outbounds } =
@@ -1362,7 +1332,7 @@ export async function getDashboardSections(
               outboundMetadata,
               urltestGroups,
               priorityGroups,
-              cachedProxyLinks,
+              providerTags.slice(0, subscriptionSourceCount),
             );
 
           return {

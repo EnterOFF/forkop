@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-07-19 06:55+0300\n"
-"PO-Revision-Date: 2026-07-19 06:55+0300\n"
+"POT-Creation-Date: 2026-07-20 03:34+0300\n"
+"PO-Revision-Date: 2026-07-20 03:34+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -26,8 +26,14 @@ msgstr "+ Добавить JSON outbound"
 msgid "+ Add level"
 msgstr "+ Добавить уровень"
 
+msgid "+ Add peer"
+msgstr "+ Добавить пир"
+
 msgid "+ Add priority"
 msgstr "+ Добавить приоритет"
+
+msgid "+ Add tunnel"
+msgstr "+ Добавить туннель"
 
 msgid "+ Add URLTest"
 msgstr "+ Добавить URLTest"
@@ -50,14 +56,8 @@ msgstr "Действие"
 msgid "Active"
 msgstr "Активные"
 
-msgid "Active Bootstrap DNS"
-msgstr "Активный Bootstrap DNS"
-
 msgid "Active Connections"
 msgstr "Активные соединения"
-
-msgid "Active Main DNS"
-msgstr "Активный основной DNS"
 
 msgid "Add a section"
 msgstr "Добавить секцию"
@@ -67,6 +67,12 @@ msgstr "Добавить серверный inbound"
 
 msgid "Add at least one DNS server"
 msgstr "Добавьте хотя бы один DNS-сервер"
+
+msgid "Add at least one WireGuard peer"
+msgstr "Добавьте хотя бы одного пира WireGuard"
+
+msgid "Add one or more WireGuard peers and configure each one separately."
+msgstr "Добавьте одного или нескольких пиров WireGuard и настройте каждого отдельно."
 
 msgid "Add prefix to nodes"
 msgstr "Добавлять префикс к узлам"
@@ -125,17 +131,20 @@ msgstr "Весь трафик с этих IP-адресов будет напр�
 msgid "Allowed domain prefixes are full:, keyword:, and regex:"
 msgstr "Разрешённые префиксы доменов: full:, keyword: и regex:"
 
+msgid "Allowed IPs"
+msgstr "Разрешённые IP-адреса"
+
 msgid "Allows access to YACD from the WAN. Make sure to open the appropriate port in your firewall."
 msgstr "Обеспечивает доступ к YACD из WAN. Убедитесь, что в брандмауэре открыт соответствующий порт."
-
-msgid "Allows limiting the list of servers for URLTest"
-msgstr "Позволяет ограничить список серверов для URLTest"
 
 msgid "ALPN"
 msgstr "ALPN"
 
 msgid "Alter ID"
 msgstr "Alter ID"
+
+msgid "AmneziaWG ranges must be between 0 and 4294967295 with the start no greater than the end"
+msgstr "Диапазоны AmneziaWG должны быть от 0 до 4294967295, а начало не может быть больше конца"
 
 msgid "Apply section rules only to the specified local IP addresses"
 msgstr "Применять правила секции только к указанным локальным IP-адресам"
@@ -145,6 +154,9 @@ msgstr "Нужно указать хотя бы один корректный д
 
 msgid "At least one valid IP or subnet must be specified."
 msgstr "Нужно указать хотя бы один корректный IP-адрес или подсеть."
+
+msgid "Auth timeout"
+msgstr "Таймаут авторизации"
 
 msgid "Auto refresh"
 msgstr "Автообновление"
@@ -167,14 +179,14 @@ msgstr "Автоматически добавлять текст к имени �
 msgid "Automatically check installed components for new versions"
 msgstr "Автоматически проверять наличие новых версий установленных компонентов"
 
-msgid "Automatically select the fastest node in the current level"
-msgstr "Автовыбор самого быстрого узла уровня"
-
 msgid "Available actions"
 msgstr "Доступные действия"
 
 msgid "Backend validation failed: %s"
 msgstr "Backend-проверка завершилась ошибкой: %s"
+
+msgid "Blacklist timeout"
+msgstr "Время блокировки"
 
 msgid "Bootstrap DNS"
 msgstr "Bootstrap DNS"
@@ -242,9 +254,6 @@ msgstr "Не удалось получить результаты проверк
 msgid "Cannot save server"
 msgstr "Не удалось сохранить сервер"
 
-msgid "Cannot save settings"
-msgstr "Не удалось сохранить настройки"
-
 msgid "Cascade connection"
 msgstr "Каскадное подключение"
 
@@ -256,9 +265,6 @@ msgstr "Пин сертификата недоступен. Примените �
 
 msgid "Check interval"
 msgstr "Интервал проверки"
-
-msgid "Check timeout after which the server is considered dead"
-msgstr "Таймаут проверки, после которого сервер считается мёртвым"
 
 msgid "Check update"
 msgstr "Проверить обновление"
@@ -280,6 +286,9 @@ msgstr "Проверки пройдены"
 
 msgid "Checks passed with manual DHCP"
 msgstr "Проверки пройдены с ручным DHCP"
+
+msgid "Choose WireGuard, AmneziaWG, or Cloudflare WARP."
+msgstr "Выберите WireGuard, AmneziaWG или Cloudflare WARP."
 
 msgid "CIDR must be between 0 and 32 for IPv4 or 0 and 128 for IPv6"
 msgstr "CIDR должен быть от 0 до 32 для IPv4 или от 0 до 128 для IPv6"
@@ -308,6 +317,12 @@ msgstr "Закрыть подключение"
 msgid "Closed"
 msgstr "Закрытые"
 
+msgid "Cloudflare device token. Generate a profile to fill it automatically."
+msgstr "Токен устройства Cloudflare. Сгенерируйте профиль для автоматического заполнения."
+
+msgid "Cloudflare WireGuard private key. Generate a profile to fill it automatically."
+msgstr "Приватный ключ WireGuard Cloudflare. Сгенерируйте профиль для автоматического заполнения."
+
 msgid "Component update available"
 msgstr "Доступно обновление компонента"
 
@@ -329,11 +344,17 @@ msgstr "Условия"
 msgid "Config File Path"
 msgstr "Путь к файлу конфигурации"
 
+msgid "Configuration"
+msgstr "Конфигурация"
+
 msgid "Configuration for Forkop service"
 msgstr "Настройки сервиса Forkop"
 
 msgid "Configure User-Agent in the item settings"
 msgstr "Настройте User-Agent в настройках элемента"
+
+msgid "Congestion control"
+msgstr "Управление перегрузкой"
 
 msgid "Connect through"
 msgstr "Подключаться через"
@@ -428,8 +449,8 @@ msgstr "Отключение перехвата несовместимо с acti
 msgid "Display name"
 msgstr "Отображаемое имя"
 
-msgid "DNS Check Interval"
-msgstr "Период проверки DNS"
+msgid "DNS Fallback Strategy"
+msgstr "Стратегия резервного DNS"
 
 msgid "DNS on router"
 msgstr "DNS на роутере"
@@ -464,11 +485,11 @@ msgstr "Адрес DNS-сервера не может быть пустым"
 msgid "DNS server used by the resolver"
 msgstr "DNS-сервер, который будет использовать резолвер"
 
-msgid "DNS server used to obtain IP addresses for upstream DNS and proxies. If multiple servers are selected, a timeout switches to a backup."
-msgstr "DNS-сервер для получения IP вышестоящих DNS и прокси. Если выбрать несколько, то при таймауте произойдёт переключение на резервный."
-
 msgid "DNS Servers"
 msgstr "DNS-серверы"
+
+msgid "DNS servers used to obtain IP addresses for upstream DNS and proxies, in fallback order."
+msgstr "DNS-серверы для получения IP-адресов вышестоящих DNS и прокси в порядке резервирования."
 
 msgid "DNS Strategy"
 msgstr "Стратегия DNS"
@@ -479,29 +500,26 @@ msgstr "DNS через прокси"
 msgid "DNS through section"
 msgstr "DNS через секцию"
 
-msgid "DNS Unavailability Timeout"
-msgstr "Таймаут недоступности DNS"
-
 msgid "Do not panic, everything can be fixed, just..."
 msgstr "Не паникуйте, всё можно исправить, просто..."
 
-msgid "Do not test servers from these countries."
-msgstr "Не тестировать серверы из этих стран."
+msgid "Do not use servers from these countries."
+msgstr "Не использовать серверы из этих стран."
 
-msgid "Do not test servers whose names match the expression."
-msgstr "Не тестировать серверы, имена которых совпадают с выражением."
+msgid "Do not use servers whose names match the expression."
+msgstr "Не использовать серверы, названия которых соответствуют выражению."
 
-msgid "Do not test servers with one of the selected protocols."
-msgstr "Не тестировать серверы с одним из выбранных протоколов."
+msgid "Do not use servers with one of the selected protocols."
+msgstr "Не использовать серверы с одним из выбранных протоколов."
 
-msgid "Do not test servers with one of the selected security types."
-msgstr "Не тестировать серверы с одним из выбранных типов защиты."
+msgid "Do not use servers with one of the selected security types."
+msgstr "Не использовать серверы с одним из выбранных типов защиты."
 
-msgid "Do not test servers with one of the selected transports."
-msgstr "Не тестировать серверы с одним из выбранных транспортов."
+msgid "Do not use servers with one of the selected transports."
+msgstr "Не использовать серверы с одним из выбранных транспортов."
 
-msgid "Do not test specified servers."
-msgstr "Не тестировать указанные серверы."
+msgid "Do not use specified servers."
+msgstr "Не использовать указанные серверы."
 
 msgid "Does not resolve"
 msgstr "Не резолвится"
@@ -584,6 +602,9 @@ msgstr "Включить автостарт"
 msgid "Enable built-in DNS resolver for domains handled by this section"
 msgstr "Включить встроенный DNS-резолвер для доменов, обрабатываемых этой секцией"
 
+msgid "Enable insecure 0-RTT handshake"
+msgstr "Включить небезопасное 0-RTT рукопожатие"
+
 msgid "Enable list updates"
 msgstr "Включить обновление списков"
 
@@ -614,8 +635,23 @@ msgstr "Введите отображаемое имя"
 msgid "Enter a level name"
 msgstr "Введите название уровня"
 
+msgid "Enter a private key"
+msgstr "Введите приватный ключ"
+
+msgid "Enter a public key"
+msgstr "Введите публичный ключ"
+
+msgid "Enter a server address"
+msgstr "Введите адрес сервера"
+
+msgid "Enter a tunnel name"
+msgstr "Введите название туннеля"
+
 msgid "Enter a valid DNS server address"
 msgstr "Укажите корректный адрес DNS-сервера"
+
+msgid "Enter at least one AmneziaWG parameter"
+msgstr "Введите хотя бы один параметр AmneziaWG"
 
 msgid "Enter HWID"
 msgstr "Укажите HWID"
@@ -625,6 +661,15 @@ msgstr "HWID, который будет отправляться при запр
 
 msgid "Enter the subscription URL"
 msgstr "Введите URL подписки"
+
+msgid "Every WireGuard peer needs a public key and endpoint"
+msgstr "Для каждого пира WireGuard нужны публичный ключ и endpoint"
+
+msgid "Every WireGuard peer needs at least one AllowedIPs subnet"
+msgstr "Для каждого пира WireGuard нужна хотя бы одна подсеть AllowedIPs"
+
+msgid "Every WireGuard peer needs string address/public key and a numeric port"
+msgstr "Для каждого пира WireGuard нужны строковые адрес и публичный ключ, а также числовой порт"
 
 msgid "Exclude by proxy parameters"
 msgstr "Исключить по параметрам прокси"
@@ -698,11 +743,11 @@ msgstr "FakeTLS-хост"
 msgid "Fallback on unknown DC"
 msgstr "Fallback для неизвестного DC"
 
-msgid "Faster server search interval"
-msgstr "Интервал поиска более быстрого сервера"
-
 msgid "Fastest"
 msgstr "Самый быстрый"
+
+msgid "Fill all WARP profile fields or leave all of them empty"
+msgstr "Заполните все поля профиля WARP или оставьте их пустыми"
 
 msgid "Firewall WAN port"
 msgstr "Порт в firewall для WAN"
@@ -785,6 +830,9 @@ msgstr "Fuzzing здесь не поддерживается, потому чт�
 msgid "Generate HWID from router hardware information for this subscription"
 msgstr "Генерировать HWID из аппаратной информации роутера для этой подписки"
 
+msgid "Generate profile"
+msgstr "Сгенерировать профиль"
+
 msgid "Generated inbound"
 msgstr "Созданный inbound"
 
@@ -800,41 +848,26 @@ msgstr "gRPC-сервис"
 msgid "Handshake timeout"
 msgstr "Таймаут рукопожатия"
 
-msgid "Hide cascade connection nodes"
-msgstr "Скрывать узлы каскадных подключений"
+msgid "Heartbeat"
+msgstr "Интервал поддержания соединения"
 
-msgid "Hide individual nodes that are already included in imported subscription URLTest groups"
-msgstr "Скрывать отдельные узлы, которые уже входят в импортированные URLTest группы подписки"
+msgid "Hide individual servers used by this group; keep Priority visible."
+msgstr "Скрывать отдельные серверы этой группы, сохраняя видимость Priority."
 
-msgid "Hide intermediate nodes used as detours by other subscription nodes"
-msgstr "Скрывать промежуточные узлы, которые используются как detour для других узлов подписки"
+msgid "Hide individual servers used by this group; keep the group visible."
+msgstr "Скрывать отдельные серверы этой группы, сохраняя видимость группы."
 
-msgid "Hide URLTest group nodes"
-msgstr "Скрывать узлы URLTest групп"
+msgid "Hide servers from dashboard"
+msgstr "Скрывать серверы из дашборда"
 
 msgid "Hide values"
 msgstr "Скрывать значения"
 
-msgid "Higher-level check interval"
-msgstr "Интервал проверки высших уровней"
-
-msgid "Higher-priority DNS Check"
-msgstr "Проверка верхних DNS"
-
 msgid "Host"
 msgstr "Хост"
 
-msgid "How often higher priority levels are checked while a lower level is active"
-msgstr "Как часто проверять верхние уровни приоритета, пока активен нижний уровень"
-
-msgid "How often the currently selected server is checked"
-msgstr "Как часто проверяется текущий выбранный сервер"
-
-msgid "How often to check the active DNS servers."
-msgstr "Как часто проверять активные DNS-серверы."
-
-msgid "How often to check whether a higher-priority DNS server has recovered."
-msgstr "Как часто проверять, восстановился ли DNS-сервер с более высоким приоритетом."
+msgid "How long a failed server or level is skipped before it can be tried again."
+msgstr "Как долго не проверять отказавшийся сервер или уровень перед повторной попыткой."
 
 msgid "HTTP error"
 msgstr "Ошибка HTTP"
@@ -848,11 +881,14 @@ msgstr "HWID"
 msgid "Idle timeout"
 msgstr "Таймаут простоя"
 
-msgid "Import subscription URLTest groups"
-msgstr "Добавлять URLTest группы из подписки"
+msgid "Import"
+msgstr "Импортировать"
 
-msgid "Import URLTest groups returned by this subscription provider"
-msgstr "Импортировать URLTest группы, если провайдер подписки возвращает их"
+msgid "Import all available tunnel parameters from a client configuration."
+msgstr "Импортировать все доступные параметры туннеля из клиентской конфигурации."
+
+msgid "Import configuration"
+msgstr "Импорт конфигурации"
 
 msgid "Inbound JSON"
 msgstr "Inbound JSON"
@@ -884,11 +920,11 @@ msgstr "Информация"
 msgid "Install"
 msgstr "Установить"
 
-msgid "Install another build:"
-msgstr "Установить другую сборку:"
-
 msgid "Installed version is newer than release"
 msgstr "Установлена версия новее релиза"
+
+msgid "Interface IPv4 or IPv6 addresses in CIDR format, for example 10.0.0.2/32."
+msgstr "Адреса интерфейса IPv4 или IPv6 в формате CIDR, например 10.0.0.2/32."
 
 msgid "Interface Monitoring"
 msgstr "Мониторинг интерфейса"
@@ -902,14 +938,14 @@ msgstr "Мониторинг интерфейса для Bad WAN"
 msgid "Interrupt connections"
 msgstr "Прерывать соединения"
 
-msgid "Interrupt connections when priority failover switches server"
-msgstr "Разрывать соединения при переключении сервера приоритетом"
-
 msgid "Interrupt connections when URLTest switches the selected server"
 msgstr "Прерывать соединения, когда URLTest переключает выбранный сервер"
 
 msgid "Interval"
 msgstr "Интервал"
+
+msgid "Invalid AmneziaWG parameters"
+msgstr "Недопустимые параметры AmneziaWG"
 
 msgid "Invalid ByeDPI strategy"
 msgstr "Некорректная стратегия ByeDPI"
@@ -921,55 +957,13 @@ msgid "Invalid DNS server format. Examples: 8.8.8.8 or dns.example.com or dns.ex
 msgstr "Неверный формат DNS-сервера. Примеры: 8.8.8.8, dns.example.com или dns.example.com/nicedns для DoH"
 
 msgid "Invalid DNS server port"
-msgstr ""
+msgstr "Недопустимый порт DNS-сервера"
 
 msgid "Invalid domain address"
 msgstr "Неверный домен"
 
 msgid "Invalid format. Use an IP address or CIDR subnet"
 msgstr "Неверный формат. Используйте IP-адрес или подсеть CIDR"
-
-msgid "Invalid HY2 URL: insecure must be 0 or 1"
-msgstr "Неверный URL Hysteria2: параметр insecure должен быть 0 или 1"
-
-msgid "Invalid HY2 URL: invalid host & port"
-msgstr "Некорректный HY2 URL: некорректные хост и порт"
-
-msgid "Invalid HY2 URL: invalid port number"
-msgstr "Неверный URL Hysteria2: неверный номер порта"
-
-msgid "Invalid HY2 URL: missing credentials/server"
-msgstr "Неверный URL Hysteria2: отсутствуют учетные данные/сервер"
-
-msgid "Invalid HY2 URL: missing host"
-msgstr "Неверный URL Hysteria2: отсутствует хост"
-
-msgid "Invalid HY2 URL: missing host & port"
-msgstr "Неверный URL Hysteria2: отсутствуют хост и порт"
-
-msgid "Invalid HY2 URL: missing password"
-msgstr "Неверный URL Hysteria2: отсутствует пароль"
-
-msgid "Invalid HY2 URL: missing port"
-msgstr "Неверный URL Hysteria2: отсутствует порт"
-
-msgid "Invalid HY2 URL: must not contain spaces"
-msgstr "Неверный URL Hysteria2: не должен содержать пробелов"
-
-msgid "Invalid HY2 URL: must start with hysteria2:// or hy2://"
-msgstr "Неверный URL Hysteria2: должен начинаться с hysteria2:// или hy2://"
-
-msgid "Invalid HY2 URL: obfs-password required when obfs is set"
-msgstr "Неверный URL Hysteria2: требуется obfs-password, когда установлен obfs"
-
-msgid "Invalid HY2 URL: parsing failed"
-msgstr "Неверный URL Hysteria2: ошибка разбора"
-
-msgid "Invalid HY2 URL: sni cannot be empty"
-msgstr "Неверный URL Hysteria2: sni не может быть пустым"
-
-msgid "Invalid HY2 URL: unsupported obfs type"
-msgstr "Неверный URL Hysteria2: неподдерживаемый тип obfs"
 
 msgid "Invalid IP address"
 msgstr "Неверный IP-адрес"
@@ -979,6 +973,9 @@ msgstr "Неверный формат JSON"
 
 msgid "Invalid NFQWS2 strategy"
 msgstr "Некорректная стратегия NFQWS2"
+
+msgid "Invalid or unsupported Amnezia VPN link"
+msgstr "Недействительная или неподдерживаемая ссылка Amnezia VPN"
 
 msgid "Invalid path format. Path must start with \"/\" and contain valid characters"
 msgstr "Неверный формат пути. Путь должен начинаться с \"/\" и содержать допустимые символы"
@@ -992,80 +989,20 @@ msgstr "Неверный порт или диапазон. Используйт�
 msgid "Invalid regular expression"
 msgstr "Неверное регулярное выражение"
 
-msgid "Invalid Shadowsocks URL: decoded credentials must contain method:password"
-msgstr "Неверный URL Shadowsocks: декодированные данные должны содержать method:password"
-
-msgid "Invalid Shadowsocks URL: invalid server and port"
-msgstr "Некорректный Shadowsocks URL: некорректные сервер и порт"
-
-msgid "Invalid Shadowsocks URL: missing credentials"
-msgstr "Неверный URL Shadowsocks: отсутствуют учетные данные"
-
-msgid "Invalid Shadowsocks URL: missing method and password separator \":\""
-msgstr "Неверный URL Shadowsocks: отсутствует разделитель метода и пароля \":\""
-
-msgid "Invalid Shadowsocks URL: missing port"
-msgstr "Неверный URL Shadowsocks: отсутствует порт"
-
-msgid "Invalid Shadowsocks URL: missing server"
-msgstr "Неверный URL Shadowsocks: отсутствует сервер"
-
-msgid "Invalid Shadowsocks URL: missing server address"
-msgstr "Неверный URL Shadowsocks: отсутствует адрес сервера"
-
-msgid "Invalid Shadowsocks URL: must not contain spaces"
-msgstr "Неверный URL Shadowsocks: не должен содержать пробелов"
-
-msgid "Invalid Shadowsocks URL: must start with ss://"
-msgstr "Неверный URL Shadowsocks: должен начинаться с ss://"
-
-msgid "Invalid Shadowsocks URL: parsing failed"
-msgstr "Неверный URL Shadowsocks: ошибка разбора"
-
-msgid "Invalid SOCKS URL: invalid host and port"
-msgstr "Некорректный SOCKS URL: некорректные хост и порт"
-
-msgid "Invalid SOCKS URL: invalid port number"
-msgstr "Неверный URL SOCKS: неверный номер порта"
-
-msgid "Invalid SOCKS URL: missing host and port"
-msgstr "Неверный URL SOCKS: отсутствует хост и порт"
-
-msgid "Invalid SOCKS URL: missing hostname or IP"
-msgstr "Неверный URL SOCKS: отсутствует имя хоста или IP-адрес"
-
-msgid "Invalid SOCKS URL: missing port"
-msgstr "Неверный URL SOCKS: отсутствует порт"
-
-msgid "Invalid SOCKS URL: missing username"
-msgstr "Неверный URL SOCKS: отсутствует имя пользователя"
-
-msgid "Invalid SOCKS URL: must not contain spaces"
-msgstr "Неверный URL SOCKS: не должен содержать пробелов"
-
-msgid "Invalid SOCKS URL: must start with socks4://, socks4a://, or socks5://"
-msgstr "Неверный URL-адрес SOCKS: должен начинаться с socks4://, socks4a:// или socks5://"
-
-msgid "Invalid SOCKS URL: parsing failed"
-msgstr "Неверный URL SOCKS: парсинг не удался"
-
-msgid "Invalid Trojan URL: must not contain spaces"
-msgstr "Неверный URL Trojan: не должен содержать пробелов"
-
-msgid "Invalid Trojan URL: must start with trojan://"
-msgstr "Неверный URL Trojan: должен начинаться с trojan://"
-
-msgid "Invalid Trojan URL: parsing failed"
-msgstr "Неверный URL Trojan: ошибка разбора"
-
 msgid "Invalid URL format"
 msgstr "Неверный формат URL"
 
-msgid "Invalid VLESS URL: parsing failed"
-msgstr "Неверный URL VLESS: ошибка разбора"
+msgid "Invalid WireGuard configuration"
+msgstr "Недопустимая конфигурация WireGuard"
 
-msgid "Invalid VMess URL: parsing failed"
-msgstr "Некорректный VMess URL: ошибка разбора"
+msgid "Invalid WireGuard listen port"
+msgstr "Недопустимый порт прослушивания WireGuard"
+
+msgid "Invalid WireGuard MTU"
+msgstr "Недопустимый MTU WireGuard"
+
+msgid "Invalid WireGuard persistent keepalive"
+msgstr "Недопустимый интервал keepalive WireGuard"
 
 msgid "IPs"
 msgstr "IP-адреса"
@@ -1097,17 +1034,26 @@ msgstr "JSON outbound должен содержать непустое поле 
 msgid "JSON outbound settings"
 msgstr "Настройки JSON outbound"
 
+msgid "Junk packet obfuscation"
+msgstr "Обфускация мусорными пакетами"
+
 msgid "Keep Priority before latency-sorted servers"
 msgstr "Показывать Priority перед серверами, отсортированными по задержке"
 
-msgid "Keep URLTest before latency-sorted servers"
-msgstr "Держать URLTest перед серверами, отсортированными по задержке"
+msgid "Keep this group before latency-sorted servers"
+msgstr "Оставлять эту группу перед серверами, отсортированными по задержке"
+
+msgid "Keepalive interval in seconds. Leave empty to use the core default."
+msgstr "Интервал keepalive в секундах. Оставьте пустым для значения ядра."
 
 msgid "Key path"
 msgstr "Путь к ключу"
 
 msgid "Keyword must not contain spaces or commas"
 msgstr "Ключевое слово не должно содержать пробелы или запятые"
+
+msgid "Last used"
+msgstr "Использован последним"
 
 msgid "Latency test failed"
 msgstr "Проверка задержки не удалась"
@@ -1126,6 +1072,9 @@ msgstr "Уровень"
 
 msgid "Level name"
 msgstr "Название уровня"
+
+msgid "Limit the servers used by this source or group"
+msgstr "Ограничить серверы, используемые этим источником или группой"
 
 msgid "List must be an HTTP(S) URL or a local .lst path"
 msgstr "Список должен быть HTTP(S) URL или локальным путём .lst"
@@ -1157,8 +1106,8 @@ msgstr "Уровень логов"
 msgid "Main DNS"
 msgstr "Основной DNS"
 
-msgid "Main DNS server. If multiple servers are selected, a timeout switches to a backup."
-msgstr "Основной DNS-сервер. Если выбрать несколько, то при таймауте произойдёт переключение на резервный."
+msgid "Main DNS servers in fallback order."
+msgstr "Основные DNS-серверы в порядке резервирования."
 
 msgid "Match destination IPs or subnets"
 msgstr "Совпадение по IP-адресам или подсетям назначения"
@@ -1166,8 +1115,11 @@ msgstr "Совпадение по IP-адресам или подсетям на
 msgid "Match destination ports. Use a single port or a range"
 msgstr "Совпадение по портам назначения. Используйте одиночный порт или диапазон"
 
-msgid "Maximum time to wait for example.com to resolve during a DNS health check."
-msgstr "Максимальное время ожидания разрешения example.com при проверке доступности DNS."
+msgid "Maximum packet size for this tunnel. Leave empty to use the core default."
+msgstr "Максимальный размер пакета для этого туннеля. Оставьте пустым для значения ядра."
+
+msgid "Measure connection setup and TLS handshake delay for more comparable latency results."
+msgstr "Учитывать установку соединения и TLS-рукопожатие для более сопоставимых результатов задержки."
 
 msgid "Memory Usage"
 msgstr "Использование памяти"
@@ -1196,11 +1148,23 @@ msgstr "Мониторинг"
 msgid "Must be a number in the range of 0 - 10000"
 msgstr "Должно быть числом в диапазоне 0 - 10000"
 
+msgid "Name displayed in this section and on the dashboard."
+msgstr "Название, отображаемое в этой секции и на дашборде."
+
 msgid "Name displayed on the dashboard"
 msgstr "Имя, которое отображается в дашборде"
 
 msgid "Name shown in the priority level list"
 msgstr "Имя, которое отображается в списке уровней приоритета"
+
+msgid "Native sing-box links: vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, and hy2://"
+msgstr "Нативные ссылки sing-box: vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2:// и hy2://"
+
+msgid "Native WireGuard, AmneziaWG 2.0, and Cloudflare WARP endpoints"
+msgstr "Нативные endpoint WireGuard, AmneziaWG 2.0 и Cloudflare WARP"
+
+msgid "Network"
+msgstr "Сеть"
 
 msgid "Network Interface"
 msgstr "Сетевой интерфейс"
@@ -1323,7 +1287,10 @@ msgid "Only the specified servers."
 msgstr "Только указанные серверы."
 
 msgid "Open"
-msgstr ""
+msgstr "Открыть"
+
+msgid "Open peer settings and complete the configuration"
+msgstr "Откройте настройки пира и завершите конфигурацию"
 
 msgid "Open priority settings and enter a display name"
 msgstr "Откройте настройки приоритета и укажите отображаемое имя"
@@ -1331,11 +1298,26 @@ msgstr "Откройте настройки приоритета и укажит
 msgid "Open Project Page"
 msgstr "Открыть страницу проекта"
 
+msgid "Open tunnel settings and complete the configuration"
+msgstr "Откройте настройки туннеля и завершите конфигурацию"
+
 msgid "Operation timed out"
 msgstr "Время ожидания истекло"
 
 msgid "Option \"%s\" contains an invalid input value."
 msgstr "Параметр \"%s\" содержит некорректное значение."
+
+msgid "Optional additional WireGuard key shared with this peer."
+msgstr "Необязательный дополнительный ключ WireGuard, общий с этим пиром."
+
+msgid "Optional Jc, Jmin, Jmax, and I1-I5 junk-packet settings. They do not change the Cloudflare handshake."
+msgstr "Необязательные параметры мусорных пакетов Jc, Jmin, Jmax и I1-I5. Они не изменяют рукопожатие Cloudflare."
+
+msgid "Optional keepalive interval in seconds."
+msgstr "Необязательный интервал поддержания соединения в секундах."
+
+msgid "Optional local UDP port. Leave empty to let sing-box choose it."
+msgstr "Необязательный локальный UDP-порт. Оставьте пустым, чтобы sing-box выбрал его автоматически."
 
 msgid "Optional values must be attached with '=' here; a separate token would be ignored by nfqws."
 msgstr "Необязательное значение здесь нужно передавать только через '='; отдельный токен nfqws проигнорирует."
@@ -1343,20 +1325,32 @@ msgstr "Необязательное значение здесь нужно пе
 msgid "Optional values must be attached with '=' here; a separate token would be ignored by nfqws2."
 msgstr "Необязательные значения здесь должны задаваться через '='; отдельный токен будет проигнорирован nfqws2."
 
+msgid "Optional. Leave profile fields empty to register a new WARP profile automatically."
+msgstr "Необязательно. Оставьте поля профиля пустыми, чтобы автоматически зарегистрировать новый профиль WARP."
+
+msgid "Optional. Without a path, sing-box creates a temporary host key on start."
+msgstr "Необязательно. Без пути sing-box создаёт временный ключ хоста при запуске."
+
 msgid "outbounds must be a non-empty array of strings"
 msgstr "outbounds должен быть непустым массивом строк"
 
 msgid "Output Network Interface"
 msgstr "Выходной сетевой интерфейс"
 
-msgid "Padding"
-msgstr "Padding"
+msgid "Parallel"
+msgstr "Параллельно"
 
 msgid "Password"
 msgstr "Пароль"
 
 msgid "Password cannot be empty"
 msgstr "Пароль не может быть пустым"
+
+msgid "Paste a configuration or vpn:// link"
+msgstr "Вставьте конфигурацию или ссылку vpn://"
+
+msgid "Paste a WireGuard or AmneziaWG .conf/.cfg file or an Amnezia vpn:// link."
+msgstr "Вставьте файл .conf/.cfg WireGuard или AmneziaWG либо ссылку Amnezia vpn://."
 
 msgid "Path cannot be empty"
 msgstr "Путь не может быть пустым"
@@ -1373,11 +1367,14 @@ msgstr "Путь должен заканчиваться на cache.db"
 msgid "Pause updates"
 msgstr "Приостановить обновление"
 
+msgid "Peers"
+msgstr "Пиры"
+
 msgid "Pending"
 msgstr "Ожидает запуска"
 
-msgid "Periodically check the current level and switch to a faster server even when the current one works."
-msgstr "Периодически проверять текущий уровень и переключаться на более быстрый сервер, даже если текущий работает."
+msgid "Persistent keepalive"
+msgstr "Постоянный keepalive"
 
 msgid "Pin on dashboard"
 msgstr "Закрепить в дашборде"
@@ -1400,6 +1397,9 @@ msgstr "Начало диапазона портов должно быть ме�
 msgid "Ports"
 msgstr "Порты"
 
+msgid "Pre-shared key"
+msgstr "Предварительно согласованный ключ"
+
 msgid "Prefer IPv4"
 msgstr "Предпочитать IPv4"
 
@@ -1415,11 +1415,14 @@ msgstr "Текст префикса"
 msgid "Priority"
 msgstr "Приоритет"
 
+msgid "priority details"
+msgstr "Детали приоритета"
+
 msgid "Priority details"
-msgstr "Детали Priority"
+msgstr "Детали приоритета"
 
 msgid "Priority details are unavailable"
-msgstr "Детали Priority недоступны"
+msgstr "Детали приоритета недоступны"
 
 msgid "Priority level settings"
 msgstr "Настройки уровня приоритета"
@@ -1430,6 +1433,12 @@ msgstr "Уровни приоритета"
 msgid "Priority settings"
 msgstr "Настройки приоритета"
 
+msgid "Private key"
+msgstr "Приватный ключ"
+
+msgid "Private key of the local WireGuard interface."
+msgstr "Приватный ключ локального интерфейса WireGuard."
+
 msgid "Protocol"
 msgstr "Протокол"
 
@@ -1439,8 +1448,14 @@ msgstr "Ссылка прокси недоступна"
 msgid "Public host"
 msgstr "Публичный хост"
 
+msgid "Public key"
+msgstr "Публичный ключ"
+
 msgid "QR code is too large"
 msgstr "QR-код слишком большой"
+
+msgid "QUIC congestion control"
+msgstr "Управление перегрузкой QUIC"
 
 msgid "Reality fake site"
 msgstr "Fake-сайт Reality"
@@ -1466,6 +1481,9 @@ msgstr "Reality short ID должен содержать 1-8 hex-символо�
 msgid "Refill"
 msgstr "Сброс"
 
+msgid "Register a Cloudflare WARP device and fill the profile fields."
+msgstr "Зарегистрировать устройство Cloudflare WARP и заполнить поля профиля."
+
 msgid "Regular expression must not contain spaces or commas"
 msgstr "Регулярное выражение не должно содержать пробелы или запятые"
 
@@ -1483,6 +1501,9 @@ msgstr "Исключить из уровня указанные серверы."
 
 msgid "Require a username and password for the local mixed proxy"
 msgstr "Требовать логин и пароль для локального смешанного прокси"
+
+msgid "Require Mieru user hint"
+msgstr "Требовать указание пользователя Mieru"
 
 msgid "Resolve domain names before routing so sing-box can use real destination IPs."
 msgstr "Разрешать доменные имена перед маршрутизацией, чтобы sing-box использовал реальные IP-адреса назначения."
@@ -1622,9 +1643,6 @@ msgstr "Выберите или введите путь к файлу кеша s
 msgid "Select path for sing-box config file. Change this ONLY if you know what you are doing"
 msgstr "Выберите путь к файлу конфигурации sing-box. Изменяйте это, ТОЛЬКО если вы знаете, что делаете"
 
-msgid "Select the fastest node"
-msgstr "Выбирать самый быстрый узел"
-
 msgid "Select the log level for sing-box"
 msgstr "Выберите уровень логов для sing-box"
 
@@ -1646,8 +1664,14 @@ msgstr "Выбранная секция"
 msgid "Selector and URLTest outbounds must contain a non-empty outbounds array"
 msgstr "Selector и URLTest outbound должны содержать непустой массив outbounds"
 
+msgid "Sequential"
+msgstr "Последовательно"
+
 msgid "Server"
 msgstr "Сервер"
+
+msgid "Server address"
+msgstr "Адрес сервера"
 
 msgid "Server filtering"
 msgstr "Фильтрация серверов"
@@ -1672,6 +1696,9 @@ msgstr "Серверный outbound должен содержать непуст
 
 msgid "Server outbound must contain a numeric server_port from 1 to 65535"
 msgstr "Серверный outbound должен содержать числовой server_port от 1 до 65535"
+
+msgid "Server port"
+msgstr "Порт сервера"
 
 msgid "server_port must be a number from 1 to 65535"
 msgstr "server_port должен быть числом от 1 до 65535"
@@ -1742,6 +1769,9 @@ msgstr "Укажите путь к файлу"
 msgid "Specify different files"
 msgstr "Укажите разные файлы"
 
+msgid "SSH host key path"
+msgstr "Путь к ключу хоста SSH"
+
 msgid "Standalone ByeDPI autostart is enabled"
 msgstr "Автозапуск отдельной службы ByeDPI включен"
 
@@ -1778,11 +1808,11 @@ msgstr "Отдельная служба Zapret2 неактивна"
 msgid "Start Forkop"
 msgstr "Запустить Forkop"
 
-msgid "Stop checking when URLTest group is not used. Use sing-box duration format like 1d, 12h or 30m."
-msgstr "Останавливать проверку если URLTest группа не используется. Используйте формат длительности sing-box, например 1d, 12h или 30m."
-
 msgid "Stop Forkop"
 msgstr "Остановить Forkop"
+
+msgid "Stop health checks when the group is not used. Use sing-box duration format like 1d, 12h or 30m."
+msgstr "Останавливать проверки, когда группа не используется. Используйте формат длительности sing-box: 1d, 12h или 30m."
 
 msgid "Subnets from the list will be extracted and added to nftables"
 msgstr "IP-адреса и подсети из списка будут извлечены и добавлены в nftables"
@@ -1829,26 +1859,11 @@ msgstr "Tailscale endpoint"
 msgid "Tailscale hostname"
 msgstr "Hostname Tailscale"
 
+msgid "TCP and UDP"
+msgstr "TCP и UDP"
+
 msgid "Test latency"
 msgstr "Тестирование задержки"
-
-msgid "Test only selected servers."
-msgstr "Тестировать только выбранные серверы."
-
-msgid "Test only servers with one of the selected protocols."
-msgstr "Тестировать только серверы с одним из выбранных протоколов."
-
-msgid "Test only servers with one of the selected security types."
-msgstr "Тестировать только серверы с одним из выбранных типов защиты."
-
-msgid "Test only servers with one of the selected transports."
-msgstr "Тестировать только серверы с одним из выбранных транспортов."
-
-msgid "Test servers only from the specified countries."
-msgstr "Тестировать серверы только из указанных стран."
-
-msgid "Test servers whose names match the expression."
-msgstr "Тестировать серверы, имена которых совпадают с выражением."
 
 msgid "Testing URL"
 msgstr "URL проверки"
@@ -1904,9 +1919,6 @@ msgstr "Время в секундах для кэширования DNS зап�
 msgid "Time skew tolerance"
 msgstr "Допуск расхождения времени"
 
-msgid "tiny"
-msgstr "tiny"
-
 msgid "Tolerance"
 msgstr "Допуск"
 
@@ -1918,6 +1930,9 @@ msgstr "Трафик"
 
 msgid "Traffic for this level goes directly."
 msgstr "Трафик этого уровня пойдёт напрямую."
+
+msgid "Traffic prefixes routed through this peer."
+msgstr "Префиксы трафика, направляемые через этого пира."
 
 msgid "Traffic Total"
 msgstr "Всего трафика"
@@ -1943,11 +1958,32 @@ msgstr "Устранение неполадок"
 msgid "Try compatible User-Agent profiles automatically when downloading this subscription"
 msgstr "Автоматически пробовать совместимые профили User-Agent при загрузке этой подписки"
 
+msgid "Try DNS servers in order or query all of them at once."
+msgstr "Пробовать DNS-серверы по порядку или запрашивать их одновременно."
+
 msgid "TTL must be a positive number"
 msgstr "TTL должно быть положительным числом"
 
 msgid "TTL value cannot be empty"
 msgstr "Значение TTL не может быть пустым"
+
+msgid "Tunnel"
+msgstr "Туннель"
+
+msgid "Tunnel addresses"
+msgstr "Адреса туннеля"
+
+msgid "Tunnel name"
+msgstr "Название туннеля"
+
+msgid "Tunnel settings"
+msgstr "Настройки туннеля"
+
+msgid "Tunnel type"
+msgstr "Тип туннеля"
+
+msgid "Tunnels"
+msgstr "Туннели"
 
 msgid "Type"
 msgstr "Тип"
@@ -1964,9 +2000,6 @@ msgstr "Не удалось проверить стратегию NFQWS чере
 msgid "Unable to validate the NFQWS2 strategy through the backend parser."
 msgstr "Не удалось проверить стратегию NFQWS2 через backend-парсер."
 
-msgid "Unavailability timeout"
-msgstr "Таймаут недоступности"
-
 msgid "Unexpected ByeDPI strategy argument: %s"
 msgstr "Неожиданный аргумент стратегии ByeDPI: %s"
 
@@ -1981,6 +2014,9 @@ msgstr "Обнаружен лишний NFQWS2 Forkop"
 
 msgid "Unexpected standalone token. Use explicit flags such as --name or --name=value."
 msgstr "Неожиданный отдельный токен. Используйте явные флаги вида --имя или --имя=значение."
+
+msgid "Unified Delay"
+msgstr "Единое измерение задержки"
 
 msgid "unique UCI identifier"
 msgstr "уникальный идентификатор UCI"
@@ -2030,14 +2066,8 @@ msgstr "Исходящий"
 msgid "Uploaded"
 msgstr "Отдано"
 
-msgid "URL must start with vless://, vmess://, ss://, trojan://, socks4://, socks4a://, socks5://, hysteria2://, or hy2://"
-msgstr "URL должен начинаться с vless://, vmess://, ss://, trojan://, socks4://, socks4a://, socks5://, hysteria2:// или hy2://"
-
 msgid "URL must use one of the following protocols:"
 msgstr "URL должен использовать один из следующих протоколов:"
-
-msgid "URL used to check whether a server is alive"
-msgstr "URL, который используется для проверки, что сервер жив"
 
 msgid "URL used to test server latency"
 msgstr "URL который будет использоваться для тестирования задержки серверов"
@@ -2063,17 +2093,26 @@ msgstr "Используйте доменное имя или IP-адрес"
 msgid "Use a duration like 30s, 5m, or 1h30m"
 msgstr "Укажите длительность в формате 30s, 5m или 1h30m"
 
+msgid "Use a native sing-box link: vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, or hy2://"
+msgstr "Используйте нативную ссылку sing-box: vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2:// или hy2://"
+
 msgid "Use a non-negative integer"
 msgstr "Используйте неотрицательное целое число"
 
 msgid "Use a non-zero secret"
 msgstr "Укажите ненулевой секрет"
 
+msgid "Use a valid UUID"
+msgstr "Укажите корректный UUID"
+
 msgid "Use an HTTP or HTTPS URL"
 msgstr "Укажите HTTP или HTTPS URL"
 
 msgid "Use an IP address"
 msgstr "Используйте IP-адрес"
+
+msgid "Use an IP address with a CIDR prefix"
+msgstr "Укажите IP-адрес с префиксом CIDR"
 
 msgid "Use an IP listen address"
 msgstr "Используйте IP-адрес для прослушивания"
@@ -2090,8 +2129,23 @@ msgstr "Используйте CIDR-префиксы или IP-адреса, н�
 msgid "Use letters, digits, dots, underscores, or hyphens"
 msgstr "Используйте буквы, цифры, точки, подчёркивания или дефисы"
 
-msgid "Use sing-box duration format like 10s, 1m or 2m30s"
-msgstr "Используйте формат длительности sing-box, например 10s, 1m или 2m30s"
+msgid "Use only selected servers."
+msgstr "Использовать только выбранные серверы."
+
+msgid "Use only servers with one of the selected protocols."
+msgstr "Использовать только серверы с одним из выбранных протоколов."
+
+msgid "Use only servers with one of the selected security types."
+msgstr "Использовать только серверы с одним из выбранных типов защиты."
+
+msgid "Use only servers with one of the selected transports."
+msgstr "Использовать только серверы с одним из выбранных транспортов."
+
+msgid "Use servers only from the specified countries."
+msgstr "Использовать серверы только из указанных стран."
+
+msgid "Use servers whose names match the expression."
+msgstr "Использовать серверы, названия которых соответствуют выражению."
 
 msgid "Use sing-box duration format like 1d, 12h or 30m"
 msgstr "Используйте формат длительности sing-box, например 1d, 12h или 30m"
@@ -2107,6 +2161,9 @@ msgstr "Имя пользователя"
 
 msgid "Username cannot be empty"
 msgstr "Логин не может быть пустым"
+
+msgid "UUID"
+msgstr "UUID"
 
 msgid "Valid"
 msgstr "Валидно"
@@ -2129,20 +2186,56 @@ msgstr "Видимое имя этой секции"
 msgid "VLESS flow"
 msgstr "VLESS flow"
 
-msgid "vless://, vmess://, ss://, trojan://, socks4/5://, hy2/hysteria2:// links"
-msgstr "ссылки vless://, vmess://, ss://, trojan://, socks4/5://, hy2/hysteria2://"
-
 msgid "WAN"
 msgstr "WAN"
 
 msgid "WAN public IP"
 msgstr "Публичный WAN IP"
 
+msgid "WARP auth token"
+msgstr "Токен авторизации WARP"
+
+msgid "WARP private key"
+msgstr "Приватный ключ WARP"
+
+msgid "WARP profile"
+msgstr "Профиль WARP"
+
+msgid "WARP profile ID"
+msgstr "Идентификатор профиля WARP"
+
 msgid "What Forkop should do when this section matches"
 msgstr "Что Forkop должен делать при совпадении этой секции"
 
-msgid "When switching to another level, test every server and select the fastest instead of the first working one."
-msgstr "При переходе на другой уровень тестировать все сервера и выбирать самый быстрый, а не первый работающий."
+msgid "WireGuard address and private key are required"
+msgstr "Адрес WireGuard и приватный ключ обязательны"
+
+msgid "WireGuard addresses and AllowedIPs must use valid CIDR subnets"
+msgstr "Адреса WireGuard и AllowedIPs должны быть корректными подсетями CIDR"
+
+msgid "WireGuard configuration must contain Interface and Peer sections"
+msgstr "Конфигурация WireGuard должна содержать секции Interface и Peer"
+
+msgid "WireGuard keys must be standard base64-encoded 32-byte values"
+msgstr "Ключи WireGuard должны быть значениями стандартного base64 длиной 32 байта"
+
+msgid "WireGuard peer"
+msgstr "Пир WireGuard"
+
+msgid "WireGuard peer allowed_ips must contain valid CIDR subnets"
+msgstr "Поле allowed_ips пира WireGuard должно содержать корректные подсети CIDR"
+
+msgid "WireGuard peer contains unsupported fields"
+msgstr "Пир WireGuard содержит неподдерживаемые поля"
+
+msgid "WireGuard peer fields must use native sing-box JSON types"
+msgstr "Поля пира WireGuard должны использовать нативные типы JSON sing-box"
+
+msgid "WireGuard peer hostname or IP address."
+msgstr "Имя хоста или IP-адрес пира WireGuard."
+
+msgid "WireGuard peer settings"
+msgstr "Настройки пира WireGuard"
 
 msgid "XHTTP mode"
 msgstr "Режим XHTTP"

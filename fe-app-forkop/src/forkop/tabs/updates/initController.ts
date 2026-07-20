@@ -14,10 +14,7 @@ import type { UpdatesActionKey } from '../../helpers/getComponentActionKey';
 import { isTransientRpcError } from '../../helpers/isTransientRpcError';
 import { isActiveLuciTab } from '../../helpers/isActiveLuciTab';
 import { shouldShowLoadingForRestoredAction } from '../../helpers/restoredActionLoading';
-import {
-  formatSingBoxVersion,
-  normalizeSingBoxVariantFields,
-} from '../../helpers/singBoxVariant';
+import { formatSingBoxVersion } from '../../helpers/singBoxVersion';
 import {
   hasLocalMutatingServiceActionLoading,
   isServiceTransitionStatus,
@@ -372,10 +369,8 @@ function patchSystemInfoAfterMutation(result: Forkop.ComponentActionResult) {
     }
   }
 
-  const normalizedSystemInfo = normalizeSingBoxVariantFields(nextSystemInfo);
-
   store.set({
-    diagnosticsSystemInfo: normalizedSystemInfo,
+    diagnosticsSystemInfo: nextSystemInfo,
   });
 
   if (
@@ -383,7 +378,7 @@ function patchSystemInfoAfterMutation(result: Forkop.ComponentActionResult) {
     result.component === 'zapret2' ||
     result.component === 'byedpi'
   ) {
-    notifyActionProvidersAvailabilityChanged(normalizedSystemInfo);
+    notifyActionProvidersAvailabilityChanged(nextSystemInfo);
   }
 }
 
@@ -429,7 +424,7 @@ async function applyCompletedComponentAction({
     return;
   }
 
-  if (result.action === 'install' || result.action.startsWith('install_')) {
+  if (result.action === 'install') {
     setCheckResult(result.component, 'latest', result.latest_version || '');
   } else {
     resetCheckResult(result.component);
@@ -777,9 +772,7 @@ function getOptionalComponentActions({
 }
 
 function getComponentCards(): ComponentCard[] {
-  const systemInfo = normalizeSingBoxVariantFields(
-    store.get().diagnosticsSystemInfo,
-  );
+  const systemInfo = store.get().diagnosticsSystemInfo;
   const systemInfoLoading = isSystemInfoLoading();
   const zapretInstalled = Boolean(systemInfo.zapret_installed);
   const zapret2Installed = Boolean(systemInfo.zapret2_installed);
@@ -999,16 +992,12 @@ function renderComponentCard(card: ComponentCard) {
         )
       : null;
 
-  // 3. Actions classification
   const primaryActions: ComponentActionButton[] = [];
   const dangerActions: ComponentActionButton[] = [];
-  const variantActions: ComponentActionButton[] = [];
 
   card.actions.forEach((action) => {
     if (action.action === 'remove') {
       dangerActions.push(action);
-    } else if (action.action.startsWith('install_')) {
-      variantActions.push(action);
     } else {
       primaryActions.push(action);
     }
@@ -1016,7 +1005,6 @@ function renderComponentCard(card: ComponentCard) {
 
   const actionElements: Node[] = [];
 
-  // Render primary and danger buttons in a main row
   const primaryButtons = primaryActions.map((action) => {
     const loading = updatesActions[action.key].loading;
     const isUpdateOrInstall = action.action === 'install';
@@ -1055,38 +1043,6 @@ function renderComponentCard(card: ComponentCard) {
       E('div', { class: 'fkp_updates-page__component__actions-main' }, [
         ...primaryButtons,
         ...dangerButtons,
-      ]),
-    );
-  }
-
-  // Render variant buttons if any
-  if (variantActions.length > 0) {
-    const variantButtons = variantActions.map((action) => {
-      const loading = updatesActions[action.key].loading;
-      return renderButton({
-        text: action.text,
-        icon: action.icon,
-        loading,
-        disabled:
-          systemInfoLoading ||
-          serviceRuntimeActionLoading ||
-          (anyActionLoading && !loading),
-        onClick: () => void handleComponentAction(action),
-      });
-    });
-
-    actionElements.push(
-      E('div', { class: 'fkp_updates-page__component__variants' }, [
-        E(
-          'div',
-          { class: 'fkp_updates-page__component__variants-title' },
-          _('Install another build:'),
-        ),
-        E(
-          'div',
-          { class: 'fkp_updates-page__component__variants-buttons' },
-          variantButtons,
-        ),
       ]),
     );
   }

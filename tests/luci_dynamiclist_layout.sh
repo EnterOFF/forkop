@@ -13,7 +13,9 @@ fail() {
 wrapper_styles="$(sed -n '/^\.fkp-button-add-dynlist > \.add-item {$/,/^}$/p' "$SECTION_JS")"
 button_styles="$(sed -n '/^\.fkp-button-add-dynlist > \.add-item > \.cbi-button-add {$/,/^}$/p' "$SECTION_JS")"
 settings_styles="$(sed -n '/^\.fkp-connections-dynlist > \.item > \.fkp-dynlist-settings {$/,/^}$/p' "$SECTION_JS")"
-urltest_options="$(sed -n '/^function addUrlTestItemOptions(/,/^function priorityLevelSettingsForValidation(/p' "$SECTION_JS")"
+subscription_keys="$(sed -n '/^function subscriptionUrlSettingsKeys(/,/^function defaultSubscriptionUrlSettings(/p' "$SECTION_JS")"
+subscription_options="$(sed -n '/^function addSubscriptionUrlItemOptions(/,/^function addInterfaceItemOptions(/p' "$SECTION_JS")"
+server_filter_options="$(sed -n '/^function addServerFilterOptions(/,/^function urlTestUrlChoices(/p' "$SECTION_JS")"
 priority_options="$(sed -n '/^function addPriorityLevelItemOptions(/,/^function addPriorityGroupItemOptions(/p' "$SECTION_JS")"
 create_section="$(sed -n '/^function createSectionContent(/,/^function loadSectionTableOptions(/p' "$SECTION_JS")"
 live_choices="$(sed -n '/^function configureLiveDynamicListChoices(/,/^function countryChoices(/p' "$SECTION_JS")"
@@ -43,11 +45,19 @@ grep -Fq 'var(--background-color-high, var(--primary, ButtonFace))' <<<"$button_
 grep -Fq 'min-width: var(--fkp-dynlist-action-width);' <<<"$settings_styles" ||
   fail "DynamicList settings buttons must resist theme label sizing"
 
-grep -Fq 'if (key === "include_regex") {' <<<"$urltest_options" ||
+grep -Fq 'addServerFilterOptions(itemSection, parentSectionForItem, {' <<<"$subscription_options" ||
+  fail "subscription settings must expose native provider filters"
+grep -Fq 'subscriptionSourceOutboundName(' <<<"$subscription_options" ||
+  fail "subscription exact-name filters must account for provider tag prefixes"
+for key in filter_mode include_regex include_proxy_parameters exclude_regex exclude_proxy_parameters; do
+  grep -Fq "\"$key\"" <<<"$subscription_keys" ||
+    fail "subscription/provider filter key $key is missing"
+done
+grep -Fq 'if (key === "include_regex") {' <<<"$server_filter_options" ||
   fail "URLTest include proxy parameters must follow the include regex option"
-grep -Fq 'else if (key === "exclude_regex") {' <<<"$urltest_options" ||
+grep -Fq 'else if (key === "exclude_regex") {' <<<"$server_filter_options" ||
   fail "URLTest exclude proxy parameters must follow the exclude regex option"
-grep -Fq 'configureLiveDynamicListChoices(list, (itemId, values) =>' <<<"$urltest_options" ||
+grep -Fq 'configureLiveDynamicListChoices(list, (itemId, values) =>' <<<"$server_filter_options" ||
   fail "URLTest server filters must stay comboboxes when no choices exist"
 grep -Fq 'if (key === "regex") {' <<<"$priority_options" ||
   fail "Priority include proxy parameters must follow the include regex option"
@@ -57,6 +67,10 @@ grep -Fq 'configureLiveDynamicListChoices(list, (itemId, values) =>' <<<"$priori
   fail "Priority server filters must stay comboboxes when no choices exist"
 grep -Fq '["direct", "Direct"]' "$SECTION_JS" ||
   fail "proxy protocol choices must keep Direct untranslated"
+grep -Fq '["anytls", "AnyTLS"]' "$SECTION_JS" ||
+  fail "proxy protocol filters must expose Extended protocols"
+grep -Fq '["mkcp", "mKCP"]' "$SECTION_JS" ||
+  fail "proxy transport filters must expose mKCP"
 grep -Fq '["none", "None"]' "$SECTION_JS" ||
   fail "proxy security choices must keep None untranslated"
 grep -Fq '_("Security")' "$SECTION_JS" ||

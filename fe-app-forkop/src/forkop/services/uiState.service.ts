@@ -1,5 +1,4 @@
 import { getComponentActionKey } from '../helpers/getComponentActionKey';
-import { normalizeSingBoxVariantFields } from '../helpers/singBoxVariant';
 import type { Forkop } from '../types';
 import { getLocalActionOverlay } from './localActionOverlay.service';
 import { store } from './store.service';
@@ -73,11 +72,6 @@ function applyServiceState(uiState: Forkop.UiState) {
       uiState.capabilities.server_inbounds_enabled_count,
   };
 
-  nextSystemInfo.sing_box_extended = uiState.capabilities.sing_box_extended;
-  nextSystemInfo.sing_box_tiny = uiState.capabilities.sing_box_tiny;
-  nextSystemInfo.sing_box_compressed = uiState.capabilities.sing_box_compressed;
-  nextSystemInfo.sing_box_tailscale = uiState.capabilities.sing_box_tailscale;
-
   store.set({
     servicesInfoWidget: {
       loading: false,
@@ -89,7 +83,7 @@ function applyServiceState(uiState: Forkop.UiState) {
         forkopStatus: uiState.service.forkop.status,
       },
     },
-    diagnosticsSystemInfo: normalizeSingBoxVariantFields(nextSystemInfo),
+    diagnosticsSystemInfo: nextSystemInfo,
   });
 }
 
@@ -104,12 +98,6 @@ function applyActionState(actions: UiActionMap = {}) {
     {};
   const updatesActions = getEmptyUpdatesActions();
   const diagnosticsActions = getEmptyDiagnosticsActions();
-
-  for (const state of actions.subscription || []) {
-    if (isRunningAction(state) && state.section) {
-      subscriptionUpdatingSections[state.section] = true;
-    }
-  }
 
   for (const state of actions.latency || []) {
     if (isRunningAction(state) && state.section) {

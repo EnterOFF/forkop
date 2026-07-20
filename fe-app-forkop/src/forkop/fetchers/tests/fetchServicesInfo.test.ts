@@ -33,9 +33,6 @@ describe('fetchServicesInfo', () => {
         },
       },
       capabilities: {
-        sing_box_extended: 1,
-        sing_box_tiny: 0,
-        sing_box_tailscale: 1,
         zapret_installed: 1,
         zapret2_installed: 0,
         byedpi_installed: 0,
@@ -53,7 +50,6 @@ describe('fetchServicesInfo', () => {
         ],
         latency: [],
         component: [],
-        subscription: [],
       },
     };
 

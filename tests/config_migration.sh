@@ -36,6 +36,18 @@ grep -Fq '{ id: "enable_component_checks", run: migrate_enable_component_checks 
   fail "component check migration must have a stable named marker"
 grep -Fq '{ id: "http_connection_urls", run: migrate_http_connection_urls }' "$MIGRATION" ||
   fail "HTTP connection URL migration must have a stable named marker"
+grep -Fq '{ id: "native_fallbacks", run: use_native_fallbacks }' "$MIGRATION" ||
+  fail "native fallback migration must have a stable named marker"
+grep -Fq '{ id: "native_rule_sets", run: use_native_rule_sets }' "$MIGRATION" ||
+  fail "native rule-set migration must have a stable named marker"
+grep -Fq '{ id: "leaf_subscription_providers", run: use_leaf_subscription_providers }' "$MIGRATION" ||
+  fail "leaf subscription provider migration must have a stable named marker"
+grep -Fq '{ id: "extended_server_defaults", run: add_extended_server_defaults }' "$MIGRATION" ||
+  fail "extended server defaults migration must have a stable named marker"
+grep -Fq "list applied_migrations 'native_rule_sets'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
+  fail "new-install config must mark the native rule-set migration as already applied"
+grep -Fq "list applied_migrations 'leaf_subscription_providers'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
+  fail "new-install config must mark the leaf subscription migration as already applied"
 grep -Fq 'release_at_most(ctx, "1.0.1")' "$MIGRATION" ||
   fail "release-specific migrations must use the source release only as a condition"
 grep -Fq 'release_at_most(ctx, "1.0.4")' "$MIGRATION" ||
@@ -54,6 +66,9 @@ const fixture = {
     download_lists_via_proxy_section: 'legacy-urltest',
     dns_server: '9.9.9.9',
     bootstrap_dns_server: '1.1.1.1',
+    dns_check_interval: '10s',
+    dns_recovery_check_interval: '60s',
+    dns_check_timeout: '2s',
     routing_excluded_ips: [ '192.0.2.0/24' ]
   },
   rule: [
@@ -115,7 +130,12 @@ const fixture = {
       '.name': 'legacy-direct',
       '.type': 'section',
       action: 'direct',
-      ip_cidr: [ '198.51.100.0/24' ]
+      ip_cidr: [ '198.51.100.0/24' ],
+      domain_ip_lists: [ 'existing.txt', 'duplicate.txt' ],
+      local_domain_lists: [ 'local-domains.txt', 'duplicate.txt' ],
+      local_subnet_lists: [ '/etc/forkop/local-subnets.txt' ],
+      remote_domain_lists: [ 'https://example.com/domains.txt' ],
+      remote_subnet_lists: [ 'https://example.com/subnets.txt', 'duplicate.txt' ]
     },
     {
       '.name': 'legacy-exclusion',
@@ -155,6 +175,35 @@ const fixture = {
       outbound_jsons: [ '{"type":"direct","tag":"legacy-outbound-collision-json-2-out"}' ],
       outbound_json: '{"type":"socks","server":"127.0.0.2","server_port":1080}'
     }
+  ],
+  server: [
+    { '.name': 'naive', '.type': 'server', protocol: 'naive', naive_network: 'udp' },
+    { '.name': 'mieru', '.type': 'server', protocol: 'mieru' },
+    { '.name': 'tuic', '.type': 'server', protocol: 'tuic', tuic_heartbeat: '20s' },
+    { '.name': 'ssh', '.type': 'server', protocol: 'ssh' },
+    { '.name': 'legacy-vless', '.type': 'server', protocol: 'vless', server_users: [ 'client|11111111-1111-4111-8111-111111111111|xtls-rprx-vision' ] },
+    { '.name': 'legacy-vmess', '.type': 'server', protocol: 'vmess', server_users: [ 'client|22222222-2222-4222-8222-222222222222|7' ] },
+    { '.name': 'legacy-shadowsocks', '.type': 'server', protocol: 'shadowsocks', server_users: [ 'client|ss-password' ] },
+    { '.name': 'legacy-socks', '.type': 'server', protocol: 'socks', server_users: [ 'alice|socks-password' ] },
+    { '.name': 'legacy-trojan', '.type': 'server', protocol: 'trojan', server_users: [ 'client|trojan-password' ] },
+    { '.name': 'legacy-hysteria2', '.type': 'server', protocol: 'hysteria2', server_users: [ 'client|hy2-password' ] },
+    { '.name': 'legacy-mtproto', '.type': 'server', protocol: 'mtproto', mtproto_padding: '0', server_users: [ 'client|eeaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa676f6f676c652e636f6d' ] }
+  ],
+  priority_group: [
+    {
+      '.name': 'legacy-priority',
+      '.type': 'priority_group',
+      section: 'legacy-sub',
+      name: 'Priority',
+      health_url: 'https://example.com/ping',
+      active_check_interval: '30s',
+      check_timeout: '3s',
+      recovery_check_interval: '15s',
+      pick_fastest: '1',
+      switch_to_faster_same_priority: '1',
+      fastest_check_interval: '5m',
+      interrupt_exist_connections: '0'
+    }
   ]
 };
 
@@ -175,9 +224,10 @@ const urltests = childByType('urltest');
 
 assert(JSON.stringify(config.settings.dns_server) === JSON.stringify(['9.9.9.9']), 'legacy main DNS scalar migrated to ordered list');
 assert(JSON.stringify(config.settings.bootstrap_dns_server) === JSON.stringify(['1.1.1.1']), 'legacy Bootstrap DNS scalar migrated to ordered list');
+assert(config.settings.unified_delay === '0', 'Unified Delay default missing');
 assert(config.settings.config_version === '1.0.5', 'legacy config should be marked at the current schema version');
 assert(config.settings.component_update_check_enabled === '1', 'component update checks should be enabled during migration');
-assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter']), 'legacy config should record named migrations');
+assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults']), 'legacy config should record named migrations');
 
 function assert(condition, message) {
   if (!condition) {
@@ -211,6 +261,10 @@ assert(!config.rule, 'legacy rule sections should be converted');
 
 assert(config.settings.list_update_enabled === '0', 'missing list_update_enabled should become disabled');
 assert(config.settings.update_interval === '1d', 'missing update_interval should get 1d default');
+assert(config.settings.dns_fallback_strategy === 'sequential', 'native DNS fallback should default to ordered sequential attempts');
+absent(config.settings, 'dns_check_interval', 'settings');
+absent(config.settings, 'dns_recovery_check_interval', 'settings');
+absent(config.settings, 'dns_check_timeout', 'settings');
 assert(config.settings.download_lists_via_proxy === '1', 'download_lists_via_proxy should be preserved');
 assert(config.settings.download_components_via_proxy === '1', 'download_components_via_proxy should be copied');
 assert(config.settings.download_lists_via_proxy_section === 'legacy-urltest', 'download section should be preserved for lists/components');
@@ -253,9 +307,9 @@ assert(legacySubSource.user_agent === 'Agent/1.0', 'subscription user-agent sett
 assert(legacySubSource.auto_user_agent === '0', 'subscription user-agent manual mode');
 assert(legacySubSource.auto_hwid === '1', 'subscription HWID auto-generation');
 assert(legacySubSource.prefix_nodes === '0', 'subscription node prefix disabled by default');
-assert(legacySubSource.include_urltest_groups === '1', 'subscription URLTest groups import default');
-assert(legacySubSource.hide_urltest_group_outbounds === '1', 'subscription URLTest group member hiding default');
-assert(legacySubSource.hide_detour_outbounds === '1', 'subscription detour hiding default');
+absent(legacySubSource, 'include_urltest_groups', 'subscription source');
+absent(legacySubSource, 'hide_urltest_group_outbounds', 'subscription source');
+absent(legacySubSource, 'hide_detour_outbounds', 'subscription source');
 assert(legacySubSource.subscription_update_enabled === '0', 'subscription update disabled flag');
 assert(legacySubSource.download_via_proxy_enabled === '1', 'subscription download through section flag');
 assert(legacySubSource.download_via_proxy_section === 'legacy-urltest', 'subscription download target');
@@ -319,6 +373,16 @@ absent(legacyUrltest, 'urltest_exclude_regex', 'legacy-urltest');
 
 const legacyDirect = sections['legacy-direct'];
 assert(legacyDirect.action === 'bypass', 'direct action migrated to bypass');
+assert(JSON.stringify(legacyDirect.domain_ip_lists) === JSON.stringify([
+  'existing.txt',
+  'duplicate.txt',
+  'local-domains.txt',
+  '/etc/forkop/local-subnets.txt',
+  'https://example.com/domains.txt',
+  'https://example.com/subnets.txt',
+]), 'legacy domain and subnet sources should merge into native text rule sets without duplicates');
+for (const key of ['local_domain_lists', 'local_subnet_lists', 'remote_domain_lists', 'remote_subnet_lists'])
+  absent(legacyDirect, key, 'legacy-direct');
 
 const legacyExclusion = sections['legacy-exclusion'];
 assert(legacyExclusion.action === 'bypass', 'legacy exclusion connection type migrated to bypass');
@@ -357,8 +421,62 @@ const legacyOutboundCollision = sections['legacy-outbound-collision'];
 assert(legacyOutboundCollision.outbound_jsons.length === 2, 'legacy JSON outbound is appended to an existing list');
 assert(JSON.parse(legacyOutboundCollision.outbound_jsons[1]).tag === 'legacy-outbound-collision-json-2-out-1', 'legacy JSON outbound tag avoids existing list tags');
 
+const legacyPriority = config.priority_group[0];
+assert(legacyPriority.blacklist_timeout === '15s', 'native Priority fallback should preserve the old recovery timeout');
+for (const key of [
+  'health_url',
+  'active_check_interval',
+  'check_timeout',
+  'recovery_check_interval',
+  'pick_fastest',
+  'switch_to_faster_same_priority',
+  'fastest_check_interval',
+  'interrupt_exist_connections',
+]) absent(legacyPriority, key, 'legacy-priority');
+
+const servers = Object.fromEntries(config.server.map(server => [server['.name'], server]));
+assert(servers.naive.naive_network === 'udp', 'explicit Naive network must survive migration');
+assert(servers.naive.naive_quic_congestion_control === 'bbr', 'Naive congestion default missing');
+assert(servers.mieru.mieru_transport === 'TCP', 'Mieru transport default missing');
+assert(servers.mieru.mieru_user_hint_mandatory === '0', 'Mieru user hint default missing');
+assert(servers.tuic.tuic_congestion_control === 'cubic', 'TUIC congestion default missing');
+assert(servers.tuic.tuic_auth_timeout === '3s', 'TUIC auth timeout default missing');
+assert(servers.tuic.tuic_heartbeat === '20s', 'explicit TUIC heartbeat must survive migration');
+assert(servers.tuic.tuic_zero_rtt_handshake === '0', 'TUIC zero-RTT default missing');
+assert(!Object.prototype.hasOwnProperty.call(servers.ssh, 'ssh_host_key_path'), 'optional empty SSH host key path must stay absent');
+assert(servers['legacy-vless'].server_uuid === '11111111-1111-4111-8111-111111111111', 'legacy VLESS UUID must migrate');
+assert(servers['legacy-vless'].vless_flow === 'xtls-rprx-vision', 'legacy VLESS flow must migrate');
+assert(servers['legacy-vmess'].server_uuid === '22222222-2222-4222-8222-222222222222', 'legacy VMess UUID must migrate');
+assert(servers['legacy-vmess'].vmess_alter_id === '7', 'legacy VMess alter ID must migrate');
+assert(servers['legacy-shadowsocks'].server_password === 'ss-password', 'legacy Shadowsocks password must migrate');
+assert(servers['legacy-socks'].server_username === 'alice', 'legacy SOCKS username must migrate');
+assert(servers['legacy-socks'].server_password === 'socks-password', 'legacy SOCKS password must migrate');
+assert(servers['legacy-trojan'].server_password === 'trojan-password', 'legacy Trojan password must migrate');
+assert(servers['legacy-hysteria2'].server_password === 'hy2-password', 'legacy Hysteria2 password must migrate');
+assert(servers['legacy-mtproto'].mtproto_secret === 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'legacy MTProto secret must migrate');
+assert(servers['legacy-mtproto'].mtproto_faketls === 'google.com', 'legacy MTProto FakeTLS domain must migrate');
+absent(servers['legacy-mtproto'], 'mtproto_padding', 'legacy-mtproto');
+for (const name of Object.keys(servers))
+  absent(servers[name], 'server_users', name);
+
 assert(out.removed_caches.includes('/tmp/sing-box/subscriptions/legacy-sub.json'), 'subscription runtime cache removal');
 assert(out.removed_caches.includes('/var/run/forkop/section-cache/legacy-sub.json'), 'section cache removal');
+for (const path of [
+  '/tmp/sing-box/subscriptions',
+  '/etc/forkop/subscription-cache',
+  '/var/run/forkop/subscription-update',
+  '/var/run/forkop/subscription-links',
+  '/var/run/forkop/subscription-metadata',
+  '/var/run/forkop/outbound-metadata',
+  '/var/run/forkop/section-cache',
+  '/var/run/forkop/subscription-update.lock',
+  '/var/run/forkop/subscription-update-jobs',
+  '/var/run/forkop/subscription-bootstrap-retry.pid',
+  '/var/run/forkop/list-update.timestamp',
+  '/var/run/forkop_list_update.pid',
+  '/tmp/sing-box/rulesets',
+]) assert(out.removed_caches.includes(path), `native migration should remove obsolete cache ${path}`);
+assert(JSON.stringify(out.removed_cron_markers) === JSON.stringify(['# forkop-list-update', '# forkop-subscription-update']), 'legacy list and subscription cron jobs should be migration-only cleanup');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.1.json" <<'JSON'
@@ -398,7 +516,7 @@ function assert(condition, message) {
 assert(out.changed === true, '1.0.1 config should require migration');
 assert(out.config.settings.config_version === '1.0.5', 'config schema version should advance to 1.0.5');
 assert(out.config.settings.component_update_check_enabled === '1', 'updates from 1.0.1 and below should enable component update checks');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter']), 'named migrations should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults']), 'named migrations should be recorded');
 assert(!Object.prototype.hasOwnProperty.call(section, 'interfaces'), 'parent interface list should be removed');
 assert(JSON.stringify(interfaces.map(item => item.name)) === JSON.stringify(['awg0', 'tun0']), 'interfaces should keep their order');
 for (const item of interfaces) {
@@ -436,7 +554,7 @@ function assert(condition, message) {
 
 assert(out.config.settings.component_update_check_enabled === '0', '1.0.2 config must preserve an explicitly disabled component check');
 assert(out.config.settings.config_version === '1.0.5', '1.0.2 config should advance through the HTTP URL migration schema');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter']), 'newer configs should mark skipped migrations');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults']), 'newer configs should mark skipped migrations');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.4-http.json" <<'JSON'
@@ -502,7 +620,7 @@ assert(JSON.stringify(jsonOutbounds[1]) === JSON.stringify({
   server_port: 8080,
 }), 'unnamed HTTP URL should receive a unique http tag');
 assert(jsonOutbounds[2].type === 'direct' && jsonOutbounds[2].tag === 'http', 'existing JSON outbounds should remain unchanged');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter']), 'HTTP URL migration should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults']), 'HTTP URL migration should be recorded');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.5-http.json" <<'JSON'
@@ -517,7 +635,8 @@ cat >"$WORK_DIR/forkop-1.0.5-http.json" <<'JSON'
       ".name": "main",
       ".type": "section",
       "action": "connection",
-      "selector_proxy_links": [ "http://proxy.example:8080" ]
+      "selector_proxy_links": [ "http://proxy.example:8080" ],
+      "subscription_url_settings": "{\"https://example.com/subscription\":{\"user_agent\":\"Happ\",\"include_urltest_groups\":\"1\",\"hide_urltest_group_outbounds\":\"1\",\"hide_detour_outbounds\":\"1\"}}"
     }
   ]
 }
@@ -532,6 +651,11 @@ const section = out.config.section[0];
 
 if (JSON.stringify(section.selector_proxy_links) !== JSON.stringify(['http://proxy.example:8080']) || section.outbound_jsons) {
   console.error('1.0.5 and newer configs must not run the legacy HTTP URL conversion');
+  process.exit(1);
+}
+const sourceSettings = JSON.parse(section.subscription_url_settings)['https://example.com/subscription'];
+if (JSON.stringify(sourceSettings) !== JSON.stringify({ user_agent: 'Happ' })) {
+  console.error('leaf subscription migration must remove legacy provider group options without losing request settings');
   process.exit(1);
 }
 NODE
@@ -617,7 +741,7 @@ grep -Fxq 'forkop.settings.config_version=1.0.5' "$WORK_DIR/runtime-version.stat
   fail "runtime version migration must advance config_version"
 grep -Fxq 'forkop.settings.component_update_check_enabled=1' "$WORK_DIR/runtime-version.state" ||
   fail "runtime version migration must enable component update checks"
-grep -Fq 'forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter' "$WORK_DIR/runtime-version.state" ||
+grep -Fq 'forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter native_fallbacks native_rule_sets leaf_subscription_providers extended_server_defaults' "$WORK_DIR/runtime-version.state" ||
   fail "runtime migration must record stable migration names"
 grep -Eq '^forkop\.main\.outbound_jsons=\{ "type": "http", "tag": "http", "server": "proxy\.example", "server_port": 8080 \}$' "$WORK_DIR/runtime-version.state" ||
   fail "runtime migration must convert native HTTP proxy links to JSON outbounds"
@@ -640,54 +764,162 @@ if grep -Fq 'commit forkop' "$WORK_DIR/runtime-version.log"; then
   fail "completed named migrations must be idempotent"
 fi
 
+cat >"$WORK_DIR/cache-cleanup.state" <<'EOF_UCI'
+forkop.settings=settings
+forkop.settings.config_version=1.0.5
+forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter
+forkop.settings.dns_check_interval=10s
+forkop.settings.dns_recovery_check_interval=60s
+forkop.settings.dns_check_timeout=2s
+forkop.main=section
+forkop.main.action=bypass
+forkop.main.domain_ip_lists=existing.txt duplicate.txt
+forkop.main.local_domain_lists=local-domains.txt duplicate.txt
+forkop.main.local_subnet_lists=/etc/forkop/local-subnets.txt
+forkop.main.remote_domain_lists=https://example.com/domains.txt
+forkop.main.remote_subnet_lists=https://example.com/subnets.txt duplicate.txt
+forkop.subscription=subscription_url
+forkop.subscription.section=main
+forkop.subscription.url=https://example.com/subscription
+forkop.subscription.include_urltest_groups=1
+forkop.subscription.hide_urltest_group_outbounds=1
+forkop.subscription.hide_detour_outbounds=1
+forkop.priority=priority_group
+forkop.priority.section=main
+forkop.priority.recovery_check_interval=45s
+forkop.priority.health_url=https://example.com/ping
+forkop.priority.pick_fastest=1
+forkop.naive=server
+forkop.naive.protocol=naive
+forkop.tuic=server
+forkop.tuic.protocol=tuic
+forkop.tuic.tuic_heartbeat=20s
+forkop.legacy_vless=server
+forkop.legacy_vless.protocol=vless
+forkop.legacy_vless.server_users=client|33333333-3333-4333-8333-333333333333|xtls-rprx-vision
+EOF_UCI
 mkdir -p \
-  "$WORK_DIR/cache-migration/runtime/section-cache" \
+  "$WORK_DIR/cache-migration/tmp-subscriptions" \
+  "$WORK_DIR/cache-migration/persistent" \
+  "$WORK_DIR/cache-migration/runtime/subscription-update" \
   "$WORK_DIR/cache-migration/runtime/subscription-links" \
-  "$WORK_DIR/cache-migration/persistent"
-printf '7\n' >"$WORK_DIR/cache-migration/runtime/cache-format"
-printf 'stale\n' >"$WORK_DIR/cache-migration/runtime/section-cache/stale.json"
-printf 'stale\n' >"$WORK_DIR/cache-migration/runtime/subscription-links/stale.json"
-printf '7\n' >"$WORK_DIR/cache-migration/persistent/cache-format"
-cat >"$WORK_DIR/cache-migration/persistent/proxy-subscription-1.json" <<'JSON'
-{
-  "version": 1,
-  "format": "sing-box-json",
-  "outbounds": [
-    {
-      "type": "vless",
-      "tag": "stable-cache-node",
-      "server": "stable.example",
-      "server_port": 443,
-      "uuid": "00000000-0000-4000-8000-000000000001"
-    }
-  ]
-}
-JSON
+  "$WORK_DIR/cache-migration/runtime/subscription-metadata" \
+  "$WORK_DIR/cache-migration/runtime/outbound-metadata" \
+  "$WORK_DIR/cache-migration/runtime/section-cache" \
+  "$WORK_DIR/cache-migration/runtime/subscription-update.lock" \
+  "$WORK_DIR/cache-migration/runtime/subscription-update-jobs" \
+  "$WORK_DIR/cache-migration/legacy-rulesets"
+for path in \
+  "$WORK_DIR/cache-migration/tmp-subscriptions/stale" \
+  "$WORK_DIR/cache-migration/persistent/stale" \
+  "$WORK_DIR/cache-migration/runtime/subscription-update/stale" \
+  "$WORK_DIR/cache-migration/runtime/subscription-links/stale" \
+  "$WORK_DIR/cache-migration/runtime/subscription-metadata/stale" \
+  "$WORK_DIR/cache-migration/runtime/outbound-metadata/stale" \
+  "$WORK_DIR/cache-migration/runtime/section-cache/stale" \
+  "$WORK_DIR/cache-migration/runtime/subscription-update.lock/stale" \
+  "$WORK_DIR/cache-migration/runtime/subscription-update-jobs/active" \
+  "$WORK_DIR/cache-migration/runtime/cache-format" \
+  "$WORK_DIR/cache-migration/runtime/dns-failover.json" \
+  "$WORK_DIR/cache-migration/runtime/dns-failover.pid" \
+  "$WORK_DIR/cache-migration/runtime/priority.pid" \
+  "$WORK_DIR/cache-migration/runtime/subscription-bootstrap-retry.pid" \
+  "$WORK_DIR/cache-migration/runtime/list-update.timestamp" \
+  "$WORK_DIR/cache-migration/list-update.pid" \
+  "$WORK_DIR/cache-migration/legacy-rulesets/stale"; do
+  printf 'stale\n' >"$path"
+done
 
-FORKOP_UCI_STATE_FILE="$WORK_DIR/runtime-version.state" \
+cat >"$WORK_DIR/fake-crontab" <<'EOF_CRONTAB_BIN'
+#!/bin/sh
+if [ "$1" = "-l" ]; then
+  cat "$FORKOP_TEST_CRONTAB"
+else
+  cp "$1" "$FORKOP_TEST_CRONTAB"
+fi
+EOF_CRONTAB_BIN
+chmod +x "$WORK_DIR/fake-crontab"
+cat >"$WORK_DIR/legacy.crontab" <<'EOF_CRONTAB'
+0 1 * * * /bin/true # keep
+* * * * * /usr/bin/forkop list_update_if_due # forkop-list-update
+* * * * * /usr/bin/forkop subscription_update_if_due # forkop-subscription-update
+0 2 * * * /usr/bin/forkop component_updates_if_due # forkop-component-update-check
+EOF_CRONTAB
+
+FORKOP_UCI_STATE_FILE="$WORK_DIR/cache-cleanup.state" \
 FORKOP_UCI_LOG_FILE="$WORK_DIR/runtime-version.log" \
 FORKOP_CONFIG_NAME="forkop" \
 TMP_SUBSCRIPTION_FOLDER="$WORK_DIR/cache-migration/tmp-subscriptions" \
 FORKOP_RUNTIME_STATE_DIR="$WORK_DIR/cache-migration/runtime" \
 FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_DIR="$WORK_DIR/cache-migration/persistent" \
+FORKOP_LEGACY_LIST_UPDATE_STATE_FILE="$WORK_DIR/cache-migration/runtime/list-update.timestamp" \
+FORKOP_LEGACY_LIST_UPDATE_PID_FILE="$WORK_DIR/cache-migration/list-update.pid" \
+FORKOP_LEGACY_RULESET_CACHE_DIR="$WORK_DIR/cache-migration/legacy-rulesets" \
+FORKOP_CRONTAB_BIN="$WORK_DIR/fake-crontab" \
+FORKOP_TEST_CRONTAB="$WORK_DIR/legacy.crontab" \
 FORKOP_INTERNAL_CONFIG_TRIGGER_GUARD="$WORK_DIR/internal-config-change" \
 ucode -L "$FORKOP_LIB" "$MIGRATION" migrate
 
-[ "$(sed -n '1p' "$WORK_DIR/cache-migration/runtime/cache-format")" = "8" ] ||
-  fail "package migration must advance the runtime cache format"
-[ ! -e "$WORK_DIR/cache-migration/runtime/section-cache/stale.json" ] ||
-  fail "package migration must clear the legacy section cache"
-[ ! -d "$WORK_DIR/cache-migration/runtime/subscription-links" ] ||
-  fail "package migration must remove the retired subscription link cache"
-node - "$WORK_DIR/cache-migration/persistent/proxy-subscription-1.json" <<'NODE'
-const fs = require('fs');
-const subscription = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-const outbound = subscription.outbounds[0];
-if (outbound.server !== 'stable.example' || !outbound.share_link?.startsWith('vless://')) {
-  console.error('package migration must preserve stable subscription data and backfill its direct link');
-  process.exit(1);
-}
-NODE
+for path in \
+  "$WORK_DIR/cache-migration/tmp-subscriptions" \
+  "$WORK_DIR/cache-migration/persistent" \
+  "$WORK_DIR/cache-migration/runtime/subscription-update" \
+  "$WORK_DIR/cache-migration/runtime/subscription-links" \
+  "$WORK_DIR/cache-migration/runtime/subscription-metadata" \
+  "$WORK_DIR/cache-migration/runtime/outbound-metadata" \
+  "$WORK_DIR/cache-migration/runtime/section-cache" \
+  "$WORK_DIR/cache-migration/runtime/subscription-update.lock" \
+  "$WORK_DIR/cache-migration/runtime/subscription-update-jobs" \
+  "$WORK_DIR/cache-migration/runtime/cache-format" \
+  "$WORK_DIR/cache-migration/runtime/dns-failover.json" \
+  "$WORK_DIR/cache-migration/runtime/dns-failover.pid" \
+  "$WORK_DIR/cache-migration/runtime/priority.pid" \
+  "$WORK_DIR/cache-migration/runtime/subscription-bootstrap-retry.pid" \
+  "$WORK_DIR/cache-migration/runtime/list-update.timestamp" \
+  "$WORK_DIR/cache-migration/list-update.pid" \
+  "$WORK_DIR/cache-migration/legacy-rulesets"; do
+  [ ! -e "$path" ] || fail "native migration must remove obsolete state $path"
+done
+grep -Fxq 'forkop.main.domain_ip_lists=existing.txt duplicate.txt local-domains.txt /etc/forkop/local-subnets.txt https://example.com/domains.txt https://example.com/subnets.txt' "$WORK_DIR/cache-cleanup.state" ||
+  fail "native migration must merge legacy list sources into domain_ip_lists"
+if grep -Eq 'forkop\.main\.(local_domain_lists|local_subnet_lists|remote_domain_lists|remote_subnet_lists)=' "$WORK_DIR/cache-cleanup.state"; then
+  fail "native migration must remove legacy list options"
+fi
+if grep -Eq 'forkop-(list|subscription)-update' "$WORK_DIR/legacy.crontab"; then
+  fail "native migration must remove obsolete list and subscription cron jobs"
+fi
+grep -Fq '# forkop-component-update-check' "$WORK_DIR/legacy.crontab" ||
+  fail "native migration must preserve component update cron jobs"
+grep -Fxq 'forkop.settings.dns_fallback_strategy=sequential' "$WORK_DIR/cache-cleanup.state" ||
+  fail "native migration must add the DNS fallback strategy default"
+grep -Fxq 'forkop.settings.unified_delay=0' "$WORK_DIR/cache-cleanup.state" ||
+  fail "extended migration must add the Unified Delay default"
+if grep -Eq 'forkop\.settings\.dns_(check_interval|recovery_check_interval|check_timeout)=' "$WORK_DIR/cache-cleanup.state"; then
+  fail "native migration must remove obsolete DNS health settings"
+fi
+if grep -Eq 'forkop\.subscription\.(include_urltest_groups|hide_urltest_group_outbounds|hide_detour_outbounds)=' "$WORK_DIR/cache-cleanup.state"; then
+  fail "leaf subscription migration must remove provider group visibility options"
+fi
+grep -Fxq 'forkop.priority.blacklist_timeout=45s' "$WORK_DIR/cache-cleanup.state" ||
+  fail "native migration must preserve the old Priority recovery timeout"
+if grep -Eq 'forkop\.priority\.(recovery_check_interval|health_url|pick_fastest)=' "$WORK_DIR/cache-cleanup.state"; then
+  fail "native migration must remove obsolete Priority worker settings"
+fi
+grep -Fxq 'forkop.naive.naive_network=tcp' "$WORK_DIR/cache-cleanup.state" ||
+  fail "server migration must add the Naive network default"
+grep -Fxq 'forkop.naive.naive_quic_congestion_control=bbr' "$WORK_DIR/cache-cleanup.state" ||
+  fail "server migration must add the Naive congestion default"
+grep -Fxq 'forkop.tuic.tuic_auth_timeout=3s' "$WORK_DIR/cache-cleanup.state" ||
+  fail "server migration must add the TUIC auth timeout default"
+grep -Fxq 'forkop.tuic.tuic_heartbeat=20s' "$WORK_DIR/cache-cleanup.state" ||
+  fail "server migration must preserve an explicit TUIC heartbeat"
+grep -Fxq 'forkop.legacy_vless.server_uuid=33333333-3333-4333-8333-333333333333' "$WORK_DIR/cache-cleanup.state" ||
+  fail "server migration must preserve the first legacy VLESS user"
+grep -Fxq 'forkop.legacy_vless.vless_flow=xtls-rprx-vision' "$WORK_DIR/cache-cleanup.state" ||
+  fail "server migration must preserve the legacy VLESS flow"
+if grep -Fq 'forkop.legacy_vless.server_users=' "$WORK_DIR/cache-cleanup.state"; then
+  fail "server migration must remove the legacy server_users option"
+fi
 
 : >"$WORK_DIR/uci-commit.log"
 : >"$WORK_DIR/uci-commit.state"

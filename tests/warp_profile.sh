@@ -1,0 +1,171 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+FORKOP_BIN="$ROOT_DIR/forkop/files/usr/bin/forkop"
+FORKOP_LIB="$ROOT_DIR/forkop/files/usr/lib"
+VALIDATOR="$FORKOP_LIB/config/validator.uc"
+WORK_DIR="$(mktemp -d)"
+trap 'rm -rf "$WORK_DIR"' EXIT
+
+fail() {
+  printf 'FAIL: %s\n' "$1" >&2
+  exit 1
+}
+
+cat >"$WORK_DIR/sing-box" <<'SH'
+#!/bin/sh
+[ "$*" = "generate warp-profile --json" ] || exit 2
+printf '%s\n' '{"id":"profile-id","auth_token":"auth-token","private_key":"private-key"}'
+SH
+chmod +x "$WORK_DIR/sing-box"
+
+profile="$(
+  FORKOP_LIB="$FORKOP_LIB" FORKOP_SING_BOX_BIN="$WORK_DIR/sing-box" \
+    ucode "$FORKOP_BIN" generate_warp_profile
+)"
+node -e '
+const profile = JSON.parse(process.argv[1]);
+if (
+  JSON.stringify(Object.keys(profile).sort()) !==
+    JSON.stringify(["auth_token", "id", "private_key"]) ||
+  profile.id !== "profile-id" ||
+  profile.auth_token !== "auth-token" ||
+  profile.private_key !== "private-key"
+) process.exit(1);
+' "$profile" ||
+  fail "WARP profile wrapper changed the validated core response"
+
+mkdir -p "$WORK_DIR/api-bin"
+cat >"$WORK_DIR/api-bin/pgrep" <<'SH'
+#!/bin/sh
+[ "$1" = "-f" ]
+SH
+cat >"$WORK_DIR/api-bin/curl" <<'SH'
+#!/bin/sh
+printf '%s\n' "$*" >"$CURL_LOG"
+printf '%s\n%s\n' '{"id":"api-profile-id","auth_token":"api-auth-token","private_key":"api-private-key"}' '200'
+SH
+cat >"$WORK_DIR/should-not-run" <<'SH'
+#!/bin/sh
+exit 99
+SH
+chmod +x "$WORK_DIR/api-bin/pgrep" "$WORK_DIR/api-bin/curl" "$WORK_DIR/should-not-run"
+cat >"$WORK_DIR/warp-api-uci.state" <<'EOF_UCI'
+forkop.settings=settings
+forkop.settings.service_listen_address=192.0.2.1
+forkop.settings.yacd_secret_key=test-secret
+EOF_UCI
+
+set +e
+api_profile="$(
+  PATH="$WORK_DIR/api-bin:$PATH" \
+  CURL_LOG="$WORK_DIR/curl.log" \
+  FORKOP_UCI_STATE_FILE="$WORK_DIR/warp-api-uci.state" \
+  FORKOP_LIB="$FORKOP_LIB" \
+  FORKOP_SING_BOX_BIN="$WORK_DIR/should-not-run" \
+    ucode "$FORKOP_BIN" generate_warp_profile
+)"
+api_status="$?"
+set -e
+[ "$api_status" -eq 0 ] || {
+  cat "$WORK_DIR/curl.log" >&2 2>/dev/null || true
+  fail "running-core WARP API request failed"
+}
+node -e '
+const profile = JSON.parse(process.argv[1]);
+if (profile.id !== "api-profile-id" || profile.auth_token !== "api-auth-token" || profile.private_key !== "api-private-key") process.exit(1);
+' "$api_profile" || fail "running-core WARP API response was not returned"
+grep -Fq -- '-X POST' "$WORK_DIR/curl.log" || fail "running-core WARP generation did not use POST"
+grep -Fq 'http://192.0.2.1:9090/generate/warp-profile' "$WORK_DIR/curl.log" ||
+  fail "running-core WARP generation used the wrong API endpoint"
+grep -Fq 'Authorization: Bearer test-secret' "$WORK_DIR/curl.log" ||
+  fail "running-core WARP generation omitted Clash API authentication"
+
+cat >"$WORK_DIR/sing-box" <<'SH'
+#!/bin/sh
+printf '%s\n' '{"id":"secret-leak"}'
+printf '%s\n' 'secret-stderr' >&2
+SH
+mkdir -p "$WORK_DIR/failure-bin"
+cat >"$WORK_DIR/failure-bin/logger" <<'SH'
+#!/bin/sh
+printf '%s\n' "$*" >>"$LOGGER_LOG"
+SH
+chmod +x "$WORK_DIR/sing-box" "$WORK_DIR/failure-bin/logger"
+set +e
+PATH="$WORK_DIR/failure-bin:$PATH" LOGGER_LOG="$WORK_DIR/logger.log" \
+  FORKOP_LIB="$FORKOP_LIB" FORKOP_SING_BOX_BIN="$WORK_DIR/sing-box" \
+  ucode "$FORKOP_BIN" generate_warp_profile \
+  >"$WORK_DIR/invalid.out" 2>"$WORK_DIR/invalid.err"
+status="$?"
+set -e
+[ "$status" -ne 0 ] || fail "incomplete core WARP profile was accepted"
+[ ! -s "$WORK_DIR/invalid.out" ] || fail "invalid WARP profile leaked to stdout"
+grep -Fxq "Failed to generate WARP profile." "$WORK_DIR/invalid.err" ||
+  fail "WARP profile failure message changed"
+grep -Fq -- '-t forkop [error] Failed to generate WARP profile.' "$WORK_DIR/logger.log" ||
+  fail "WARP profile failure was not logged by Forkop"
+if grep -Fq "secret-" "$WORK_DIR/invalid.err"; then
+  fail "WARP profile failure leaked core output"
+fi
+
+cat >"$WORK_DIR/valid.json" <<'JSON'
+{
+  "settings": {
+    ".name": "settings", ".type": "settings",
+    "dns_server": ["1.1.1.1"], "bootstrap_dns_server": ["1.1.1.1"]
+  },
+  "section": [{
+    ".name": "tunnels", ".type": "section", "enabled": "1", "action": "connection",
+    "tunnel_jsons": [
+      "{\"name\":\"Generated WARP\",\"kind\":\"warp\",\"endpoint\":{\"type\":\"warp\",\"profile\":{\"id\":\"profile-id\",\"auth_token\":\"auth-token\",\"private_key\":\"private-key\"}}}",
+      "{\"name\":\"Imported AmneziaWG\",\"kind\":\"amneziawg\",\"endpoint\":{\"type\":\"wireguard\",\"address\":[\"10.0.0.2/32\"],\"private_key\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\",\"peers\":[{\"address\":\"vpn.example.com\",\"port\":51820,\"public_key\":\"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=\",\"allowed_ips\":[\"0.0.0.0/0\"]}],\"amnezia\":{\"jc\":5,\"h1\":\"100-200\"}}}"
+    ]
+  }]
+}
+JSON
+ucode -L "$FORKOP_LIB" "$VALIDATOR" validate-runtime-fixture "$WORK_DIR/valid.json" '{}'
+
+node - "$WORK_DIR/valid.json" "$WORK_DIR/missing-allowed-ips.json" "$WORK_DIR/bad-key.json" "$WORK_DIR/bad-amnezia-range.json" "$WORK_DIR/overflow-amnezia-range.json" "$WORK_DIR/missing-warp-profile.json" <<'NODE'
+const fs = require('fs');
+const input = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const write = (path, mutate) => {
+  const copy = JSON.parse(JSON.stringify(input));
+  const endpoint = JSON.parse(copy.section[0].tunnel_jsons[1]);
+  mutate(endpoint);
+  copy.section[0].tunnel_jsons[1] = JSON.stringify(endpoint);
+  fs.writeFileSync(path, JSON.stringify(copy));
+};
+write(process.argv[3], (endpoint) => delete endpoint.endpoint.peers[0].allowed_ips);
+write(process.argv[4], (endpoint) => { endpoint.endpoint.peers[0].public_key = 'invalid'; });
+write(process.argv[5], (endpoint) => { endpoint.endpoint.amnezia.h1 = '200-100'; });
+write(process.argv[6], (endpoint) => { endpoint.endpoint.amnezia.h1 = '4294967296'; });
+const missingProfile = JSON.parse(JSON.stringify(input));
+const warp = JSON.parse(missingProfile.section[0].tunnel_jsons[0]);
+delete warp.endpoint.profile;
+missingProfile.section[0].tunnel_jsons[0] = JSON.stringify(warp);
+fs.writeFileSync(process.argv[7], JSON.stringify(missingProfile));
+NODE
+
+for invalid in "$WORK_DIR/missing-allowed-ips.json" "$WORK_DIR/bad-key.json" "$WORK_DIR/bad-amnezia-range.json" "$WORK_DIR/overflow-amnezia-range.json" "$WORK_DIR/missing-warp-profile.json"; do
+  if ucode -L "$FORKOP_LIB" "$VALIDATOR" validate-runtime-fixture "$invalid" '{}' >/dev/null 2>&1; then
+    fail "invalid tunnel fixture was accepted: $invalid"
+  fi
+done
+
+sed 's/,\\"auth_token\\":\\"auth-token\\",\\"private_key\\":\\"private-key\\"//' \
+  "$WORK_DIR/valid.json" >"$WORK_DIR/incomplete.json"
+if ucode -L "$FORKOP_LIB" "$VALIDATOR" validate-runtime-fixture \
+  "$WORK_DIR/incomplete.json" '{}' >/dev/null 2>&1; then
+  fail "incomplete WARP profile passed backend validation"
+fi
+
+grep -Fq '[ SING_BOX_BIN, "generate", "warp-profile", "--json" ]' \
+  "$FORKOP_LIB/singbox/runtime.uc" ||
+  fail "WARP profile wrapper does not call sing-box-forkop directly"
+grep -Fq '[ "pgrep", "-f", "^/usr/bin/sing-box[[:space:]]" ]' \
+  "$FORKOP_LIB/singbox/runtime.uc" ||
+  fail "WARP profile generation must recognize the running core on BusyBox"
+
+printf 'WARP profile checks passed\n'

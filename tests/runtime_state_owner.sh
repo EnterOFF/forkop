@@ -52,8 +52,10 @@ grep -Fq 'refresh-cron-from-uci' "$LIFECYCLE_UC" ||
   fail "service/lifecycle.uc start/reload must call the ucode cron refresh operation"
 grep -Fq 'remove-cron-jobs' "$LIFECYCLE_UC" ||
   fail "service/lifecycle.uc stop must call the ucode cron removal operation"
-grep -Fq '"list-update"' "$LIFECYCLE_UC" ||
-  fail "service/lifecycle.uc start/reload must run list updates through components/updates.uc"
+grep -Fq 'RULESET_SYNC_UC, [ "start-worker" ]' "$LIFECYCLE_UC" ||
+  fail "service/lifecycle.uc must start native rule-set nft synchronization"
+grep -Fq 'RULESET_SYNC_UC, [ "stop-worker" ]' "$LIFECYCLE_UC" ||
+  fail "service/lifecycle.uc must stop native rule-set nft synchronization"
 grep -Fq 'subscription_update: [ "components/updates.uc", "subscription-update", 2 ]' "$CLI_UC" ||
   fail "service/cli.uc must run subscription updates through components/updates.uc"
 if grep -R -n -F 'updates_runtime.sh' "$FORKOP_BIN" "$ROOT_DIR/forkop/files/usr/lib" --include='*.sh' >/dev/null 2>&1; then
@@ -63,8 +65,9 @@ grep -Fq 'mode == "refresh-cron-from-uci"' "$UPDATES_UC" ||
   fail "components/updates.uc must own cron refresh"
 grep -Fq 'mode == "remove-cron-jobs"' "$UPDATES_UC" ||
   fail "components/updates.uc must own cron removal"
-grep -Fq 'mode == "list-update"' "$UPDATES_UC" ||
-  fail "components/updates.uc must own list update"
+if grep -Fq 'mode == "list-update"' "$UPDATES_UC"; then
+  fail "components/updates.uc must not retain native rule-set update orchestration"
+fi
 grep -Fq 'mode == "subscription-update"' "$UPDATES_UC" ||
   fail "components/updates.uc must own subscription update"
 grep -Fq 'mode == "forkop-running"' "$STATE_UC" ||
@@ -85,6 +88,8 @@ grep -Fq 'mode == "write-captured-reload-state"' "$STATE_UC" ||
   fail "service/state.uc must own captured reload state writes"
 grep -Fq 'mode == "reload-sing-box-runtime"' "$STATE_UC" ||
   fail "service/state.uc must own sing-box runtime reload"
+grep -Fq 'mode == "wait-sing-box-stopped"' "$STATE_UC" ||
+  fail "service/state.uc must expose a complete sing-box stop wait"
 grep -Fq '"wait-forkop-stable-start"' "$LIFECYCLE_UC" ||
   fail "service/lifecycle.uc must verify stable runtime after sing-box start/reload"
 grep -Fq 'SING_BOX_START_STABLE_MIN_AGE' "$LIFECYCLE_UC" ||

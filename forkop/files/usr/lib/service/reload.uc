@@ -10,41 +10,6 @@ function arg_bool(value) {
     return value === true || value == "true" || value == "1" || value == 1;
 }
 
-function whitespace_fields(value) {
-    value = as_string(value);
-    let result = [];
-
-    for (let item in split(trim(value), /[ \t\r\n]+/))
-        if (item != "")
-            push(result, item);
-
-    return result;
-}
-
-function list_has_item(items, needle) {
-    needle = as_string(needle);
-    if (needle == "")
-        return false;
-
-    for (let item in whitespace_fields(items))
-        if (item == needle)
-            return true;
-
-    return false;
-}
-
-function new_urltest_enabled_sections(previous_sections, current_sections, previous_known) {
-    if (!arg_bool(previous_known))
-        return "";
-
-    let result = [];
-    for (let section in whitespace_fields(current_sections))
-        if (!list_has_item(previous_sections, section))
-            push(result, section);
-
-    return join(" ", result);
-}
-
 function emit(name, value) {
     print(name, "\t", as_string(value), "\n");
 }
@@ -64,7 +29,6 @@ function emit_reload_plan(previous, current, context) {
         zapret2_queue: current.zapret2_queue != previous.zapret2_queue,
         zapret2_runtime: current.zapret2_runtime != previous.zapret2_runtime,
         byedpi_runtime: current.byedpi_runtime != previous.byedpi_runtime,
-        list: current.list != previous.list,
         cron: current.cron != previous.cron
     };
 
@@ -76,8 +40,7 @@ function emit_reload_plan(previous, current, context) {
         byedpi_restart: false,
         dnsmasq_configure: false,
         dnsmasq_restore: false,
-        cron_refresh: false,
-        list_update: false
+        cron_refresh: false
     };
 
     if (changed.sing_box)
@@ -117,12 +80,6 @@ function emit_reload_plan(previous, current, context) {
     if (changed.cron)
         needs.cron_refresh = true;
 
-    if (changed.list && context.has_list_update_sources)
-        needs.list_update = true;
-
-    if (needs.nft_rebuild && context.has_nft_list_update_sources)
-        needs.list_update = true;
-
     if (context.runtime_cache_needs_rebuild) {
         changed.sing_box = true;
         needs.sing_box_reload = true;
@@ -146,14 +103,7 @@ function emit_reload_plan(previous, current, context) {
         needs.byedpi_restart ||
         needs.dnsmasq_configure ||
         needs.dnsmasq_restore ||
-        needs.cron_refresh ||
-        needs.list_update;
-
-    emit("urltest_new_enabled_sections", new_urltest_enabled_sections(
-        previous.urltest_sections,
-        current.urltest_sections,
-        previous.urltest_sections_known
-    ));
+        needs.cron_refresh;
 
     emit_bool("changed_service_triggers", changed.service_triggers);
     emit_bool("changed_dnsmasq", changed.dnsmasq);
@@ -165,7 +115,6 @@ function emit_reload_plan(previous, current, context) {
     emit_bool("changed_zapret2_runtime", changed.zapret2_runtime);
     emit_bool("changed_byedpi_runtime", changed.byedpi_runtime);
     emit_bool("changed_cron", changed.cron);
-    emit_bool("changed_list", changed.list);
 
     emit_bool("needs_sing_box_reload", needs.sing_box_reload);
     emit_bool("needs_nft_rebuild", needs.nft_rebuild);
@@ -175,7 +124,6 @@ function emit_reload_plan(previous, current, context) {
     emit_bool("needs_dnsmasq_configure", needs.dnsmasq_configure);
     emit_bool("needs_dnsmasq_restore", needs.dnsmasq_restore);
     emit_bool("needs_cron_refresh", needs.cron_refresh);
-    emit_bool("needs_list_update", needs.list_update);
     emit_bool("has_work", has_work);
 }
 
@@ -190,34 +138,27 @@ function reload_plan() {
         zapret2_queue: as_string(ARGV[7]),
         zapret2_runtime: as_string(ARGV[8]),
         byedpi_runtime: as_string(ARGV[9]),
-        list: as_string(ARGV[10]),
-        cron: as_string(ARGV[11]),
-        urltest_sections_known: arg_bool(ARGV[12]),
-        urltest_sections: as_string(ARGV[13])
+        cron: as_string(ARGV[10])
     };
 
     let current = {
-        service_trigger: as_string(ARGV[14]),
-        dnsmasq: as_string(ARGV[15]),
-        sing_box: as_string(ARGV[16]),
-        nft: as_string(ARGV[17]),
-        zapret_queue: as_string(ARGV[18]),
-        zapret_runtime: as_string(ARGV[19]),
-        zapret2_queue: as_string(ARGV[20]),
-        zapret2_runtime: as_string(ARGV[21]),
-        byedpi_runtime: as_string(ARGV[22]),
-        list: as_string(ARGV[23]),
-        cron: as_string(ARGV[24]),
-        urltest_sections: as_string(ARGV[25]),
-        dont_touch_dhcp: arg_bool(ARGV[26])
+        service_trigger: as_string(ARGV[11]),
+        dnsmasq: as_string(ARGV[12]),
+        sing_box: as_string(ARGV[13]),
+        nft: as_string(ARGV[14]),
+        zapret_queue: as_string(ARGV[15]),
+        zapret_runtime: as_string(ARGV[16]),
+        zapret2_queue: as_string(ARGV[17]),
+        zapret2_runtime: as_string(ARGV[18]),
+        byedpi_runtime: as_string(ARGV[19]),
+        cron: as_string(ARGV[20]),
+        dont_touch_dhcp: arg_bool(ARGV[21])
     };
 
     let context = {
-        force_runtime_reload: arg_bool(ARGV[27]),
-        dnsmasq_managed_state: arg_bool(ARGV[28]),
-        has_list_update_sources: arg_bool(ARGV[29]),
-        has_nft_list_update_sources: arg_bool(ARGV[30]),
-        runtime_cache_needs_rebuild: arg_bool(ARGV[31])
+        force_runtime_reload: arg_bool(ARGV[22]),
+        dnsmasq_managed_state: arg_bool(ARGV[23]),
+        runtime_cache_needs_rebuild: arg_bool(ARGV[24])
     };
 
     emit_reload_plan(previous, current, context);
@@ -264,10 +205,7 @@ function plan_state_from_file(path) {
         zapret2_queue: as_string(state.zapret2_queue_signature),
         zapret2_runtime: as_string(state.zapret2_runtime_signature),
         byedpi_runtime: as_string(state.byedpi_runtime_signature),
-        list: as_string(state.list_signature),
         cron: as_string(state.cron_signature),
-        urltest_sections_known: state.__has.urltest_enabled_sections === true,
-        urltest_sections: as_string(state.urltest_enabled_sections),
         dont_touch_dhcp: arg_bool(state.dont_touch_dhcp)
     };
 }
@@ -281,9 +219,7 @@ function plan_state_files() {
     let context = {
         force_runtime_reload: arg_bool(ARGV[3]),
         dnsmasq_managed_state: arg_bool(ARGV[4]),
-        has_list_update_sources: arg_bool(ARGV[5]),
-        has_nft_list_update_sources: arg_bool(ARGV[6]),
-        runtime_cache_needs_rebuild: arg_bool(ARGV[7])
+        runtime_cache_needs_rebuild: arg_bool(ARGV[5])
     };
 
     emit_reload_plan(previous, current, context);
@@ -297,6 +233,6 @@ else if (mode == "plan-state-files")
     plan_state_files();
 else {
     warn("Usage: service/reload.uc plan ...\n");
-    warn("       service/reload.uc plan-state-files <previous-state> <current-state> <force-reload> <dnsmasq-managed-state> <list-update-sources> <nft-list-update-sources> <runtime-cache-needs-rebuild>\n");
+    warn("       service/reload.uc plan-state-files <previous-state> <current-state> <force-reload> <dnsmasq-managed-state> <runtime-cache-needs-rebuild>\n");
     exit(1);
 }

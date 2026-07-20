@@ -211,8 +211,8 @@ function validateSubnet(value) {
       message: _("Unspecified IP address is not allowed")
     };
   }
-  if (cidr) {
-    if (!/^\d+$/.test(cidr)) {
+  if (cidr !== void 0) {
+    if (!cidr || !/^\d+$/.test(cidr)) {
       return {
         valid: false,
         message: _("Invalid CIDR prefix")
@@ -322,520 +322,366 @@ function validateOutboundJson(value, usedTags = []) {
   return { valid: true, message: _("Valid") };
 }
 
-// src/validators/validateShadowsocksUrl.ts
-function validateShadowsocksUrl(url) {
-  if (!url.startsWith("ss://")) {
-    return {
-      valid: false,
-      message: _("Invalid Shadowsocks URL: must start with ss://")
-    };
-  }
-  try {
-    if (!url || /\s/.test(url)) {
-      return {
-        valid: false,
-        message: _("Invalid Shadowsocks URL: must not contain spaces")
-      };
-    }
-    const mainPart = url.includes("?") ? url.split("?")[0] : url.split("#")[0];
-    const encryptedPart = mainPart.split("/")[2]?.split("@")[0];
-    if (!encryptedPart) {
-      return {
-        valid: false,
-        message: _("Invalid Shadowsocks URL: missing credentials")
-      };
-    }
-    try {
-      const decoded = atob(encryptedPart);
-      if (!decoded.includes(":")) {
-        return {
-          valid: false,
-          message: _(
-            "Invalid Shadowsocks URL: decoded credentials must contain method:password"
-          )
-        };
-      }
-    } catch (_e) {
-      if (!encryptedPart.includes(":") && !encryptedPart.includes("-")) {
-        return {
-          valid: false,
-          message: _(
-            'Invalid Shadowsocks URL: missing method and password separator ":"'
-          )
-        };
-      }
-    }
-    const serverPart = url.split("@")[1];
-    if (!serverPart) {
-      return {
-        valid: false,
-        message: _("Invalid Shadowsocks URL: missing server address")
-      };
-    }
-    const parsedHostPort = parseHostPort(serverPart);
-    if (!parsedHostPort) {
-      return {
-        valid: false,
-        message: _("Invalid Shadowsocks URL: invalid server and port")
-      };
-    }
-    const { host: server, port: portAndRest } = parsedHostPort;
-    if (!server) {
-      return {
-        valid: false,
-        message: _("Invalid Shadowsocks URL: missing server")
-      };
-    }
-    const port = portAndRest ? portAndRest.split(/[?#]/)[0] : null;
-    if (!port) {
-      return {
-        valid: false,
-        message: _("Invalid Shadowsocks URL: missing port")
-      };
-    }
-    if (!isValidPort(port)) {
-      return {
-        valid: false,
-        message: _("Invalid port number. Must be between 1 and 65535")
-      };
-    }
-  } catch (_e) {
-    return {
-      valid: false,
-      message: _("Invalid Shadowsocks URL: parsing failed")
-    };
-  }
-  return { valid: true, message: _("Valid") };
-}
-
-// src/helpers/parseQueryString.ts
-function parseQueryString(query) {
-  const clean = query.startsWith("?") ? query.slice(1) : query;
-  return clean.split("&").filter(Boolean).reduce(
-    (acc, pair) => {
-      const [rawKey, rawValue = ""] = pair.split("=");
-      if (!rawKey) {
-        return acc;
-      }
-      const key = decodeURIComponent(rawKey);
-      const value = decodeURIComponent(rawValue);
-      return { ...acc, [key]: value };
-    },
-    {}
-  );
-}
-
-// src/validators/validateVlessUrl.ts
-function validateVlessUrl(url) {
-  try {
-    if (!url.startsWith("vless://"))
-      return {
-        valid: false,
-        message: "Invalid VLESS URL: must start with vless://"
-      };
-    if (/\s/.test(url))
-      return {
-        valid: false,
-        message: "Invalid VLESS URL: must not contain spaces"
-      };
-    const body = url.slice("vless://".length);
-    const [mainPart] = body.split("#");
-    const [userHostPort, queryString] = mainPart.split("?");
-    if (!userHostPort)
-      return {
-        valid: false,
-        message: "Invalid VLESS URL: missing host and UUID"
-      };
-    const [userPart, hostPortPart] = userHostPort.split("@");
-    if (!userPart)
-      return { valid: false, message: "Invalid VLESS URL: missing UUID" };
-    if (!hostPortPart)
-      return { valid: false, message: "Invalid VLESS URL: missing server" };
-    const parsedHostPort = parseHostPort(hostPortPart);
-    if (!parsedHostPort)
-      return {
-        valid: false,
-        message: "Invalid VLESS URL: invalid host and port"
-      };
-    const { host, port } = parsedHostPort;
-    if (!host)
-      return { valid: false, message: "Invalid VLESS URL: missing hostname" };
-    if (!port)
-      return { valid: false, message: "Invalid VLESS URL: missing port" };
-    const cleanedPort = port.replace("/", "");
-    if (!isValidPort(cleanedPort))
-      return {
-        valid: false,
-        message: "Invalid VLESS URL: invalid port number"
-      };
-    if (!queryString)
-      return {
-        valid: false,
-        message: "Invalid VLESS URL: missing query parameters"
-      };
-    const params = parseQueryString(queryString);
-    const validTypes = [
-      "tcp",
-      "raw",
-      "udp",
-      "grpc",
-      "http",
-      "httpupgrade",
-      "xhttp",
-      "ws",
-      "kcp"
-    ];
-    const validSecurities = ["tls", "reality", "none"];
-    const transportType = params.type || "tcp";
-    if (!validTypes.includes(transportType))
-      return {
-        valid: false,
-        message: "Invalid VLESS URL: unsupported or missing type"
-      };
-    if (!params.security || !validSecurities.includes(params.security))
-      return {
-        valid: false,
-        message: "Invalid VLESS URL: unsupported or missing security"
-      };
-    if (params.security === "reality") {
-      if (!params.pbk)
-        return {
-          valid: false,
-          message: "Invalid VLESS URL: missing pbk for reality"
-        };
-      if (!params.fp)
-        return {
-          valid: false,
-          message: "Invalid VLESS URL: missing fp for reality"
-        };
-    }
-    if (params.flow === "xtls-rprx-vision-udp443") {
-      return {
-        valid: false,
-        message: "Invalid VLESS URL: flow xtls-rprx-vision-udp443 is not supported"
-      };
-    }
-    return { valid: true, message: _("Valid") };
-  } catch (_e) {
-    return { valid: false, message: _("Invalid VLESS URL: parsing failed") };
-  }
-}
-
-// src/validators/validateVmessUrl.ts
-function decodeBase64Json(value) {
-  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
-  const padded = normalized.padEnd(
-    normalized.length + (4 - normalized.length % 4) % 4,
-    "="
-  );
-  const binary = atob(padded);
-  const decoded = decodeURIComponent(
-    Array.from(binary).map((char) => `%${char.charCodeAt(0).toString(16).padStart(2, "0")}`).join("")
-  );
-  return JSON.parse(decoded);
-}
-function validateVmessUrl(url) {
-  try {
-    if (!url.startsWith("vmess://")) {
-      return {
-        valid: false,
-        message: "Invalid VMess URL: must start with vmess://"
-      };
-    }
-    if (/\s/.test(url)) {
-      return {
-        valid: false,
-        message: "Invalid VMess URL: must not contain spaces"
-      };
-    }
-    const body = url.slice("vmess://".length);
-    const [encoded] = body.split("#");
-    if (!encoded) {
-      return {
-        valid: false,
-        message: "Invalid VMess URL: missing encoded config"
-      };
-    }
-    const config = decodeBase64Json(encoded);
-    if (!config || typeof config !== "object") {
-      return { valid: false, message: "Invalid VMess URL: invalid config" };
-    }
-    const { add, port, id } = config;
-    if (!add || typeof add !== "string" || !isValidHost(add)) {
-      return { valid: false, message: "Invalid VMess URL: invalid server" };
-    }
-    if (!isValidPort(port)) {
-      return {
-        valid: false,
-        message: "Invalid VMess URL: invalid port number"
-      };
-    }
-    if (!id || typeof id !== "string") {
-      return { valid: false, message: "Invalid VMess URL: missing UUID" };
-    }
-    return { valid: true, message: _("Valid") };
-  } catch (_e) {
-    return { valid: false, message: _("Invalid VMess URL: parsing failed") };
-  }
-}
-
-// src/validators/validateTrojanUrl.ts
-function validateTrojanUrl(url) {
-  try {
-    if (!url.startsWith("trojan://")) {
-      return {
-        valid: false,
-        message: _("Invalid Trojan URL: must start with trojan://")
-      };
-    }
-    if (!url || /\s/.test(url)) {
-      return {
-        valid: false,
-        message: _("Invalid Trojan URL: must not contain spaces")
-      };
-    }
-    const body = url.slice("trojan://".length);
-    const [mainPart] = body.split("#");
-    const [userHostPort] = mainPart.split("?");
-    const [userPart, hostPortPart] = userHostPort.split("@");
-    if (!userHostPort)
-      return {
-        valid: false,
-        message: "Invalid Trojan URL: missing credentials and host"
-      };
-    if (!userPart)
-      return { valid: false, message: "Invalid Trojan URL: missing password" };
-    if (!hostPortPart)
-      return {
-        valid: false,
-        message: "Invalid Trojan URL: missing hostname and port"
-      };
-    const parsedHostPort = parseHostPort(hostPortPart);
-    if (!parsedHostPort)
-      return {
-        valid: false,
-        message: "Invalid Trojan URL: invalid host and port"
-      };
-    const { host, port } = parsedHostPort;
-    if (!host)
-      return { valid: false, message: "Invalid Trojan URL: missing hostname" };
-    if (!port)
-      return { valid: false, message: "Invalid Trojan URL: missing port" };
-    if (!isValidPort(port))
-      return {
-        valid: false,
-        message: "Invalid Trojan URL: invalid port number"
-      };
-  } catch (_e) {
-    return { valid: false, message: _("Invalid Trojan URL: parsing failed") };
-  }
-  return { valid: true, message: _("Valid") };
-}
-
-// src/validators/validateSocksUrl.ts
-function validateSocksUrl(url) {
-  try {
-    if (!/^socks(4|4a|5):\/\//.test(url)) {
-      return {
-        valid: false,
-        message: _(
-          "Invalid SOCKS URL: must start with socks4://, socks4a://, or socks5://"
-        )
-      };
-    }
-    if (!url || /\s/.test(url)) {
-      return {
-        valid: false,
-        message: _("Invalid SOCKS URL: must not contain spaces")
-      };
-    }
-    const body = url.replace(/^socks(4|4a|5):\/\//, "");
-    const [authAndHost] = body.split("#");
-    const [credentials, hostPortPart] = authAndHost.includes("@") ? authAndHost.split("@") : [null, authAndHost];
-    if (credentials) {
-      const [username, _password] = credentials.split(":");
-      if (!username) {
-        return {
-          valid: false,
-          message: _("Invalid SOCKS URL: missing username")
-        };
-      }
-    }
-    if (!hostPortPart) {
-      return {
-        valid: false,
-        message: _("Invalid SOCKS URL: missing host and port")
-      };
-    }
-    const parsedHostPort = parseHostPort(hostPortPart);
-    if (!parsedHostPort) {
-      return {
-        valid: false,
-        message: _("Invalid SOCKS URL: invalid host and port")
-      };
-    }
-    const { host, port } = parsedHostPort;
-    if (!host) {
-      return {
-        valid: false,
-        message: _("Invalid SOCKS URL: missing hostname or IP")
-      };
-    }
-    if (!port) {
-      return { valid: false, message: _("Invalid SOCKS URL: missing port") };
-    }
-    if (!isValidPort(port)) {
-      return {
-        valid: false,
-        message: _("Invalid SOCKS URL: invalid port number")
-      };
-    }
-  } catch (_e) {
-    return { valid: false, message: _("Invalid SOCKS URL: parsing failed") };
-  }
-  return { valid: true, message: _("Valid") };
-}
-
-// src/validators/validateHysteriaUrl.ts
-function validateHysteria2Url(url) {
-  try {
-    const isHY2 = url.startsWith("hysteria2://");
-    const isHY2Short = url.startsWith("hy2://");
-    if (!isHY2 && !isHY2Short) {
-      return {
-        valid: false,
-        message: _("Invalid HY2 URL: must start with hysteria2:// or hy2://")
-      };
-    }
-    if (/\s/.test(url)) {
-      return {
-        valid: false,
-        message: _("Invalid HY2 URL: must not contain spaces")
-      };
-    }
-    const prefix = isHY2 ? "hysteria2://" : "hy2://";
-    const body = url.slice(prefix.length);
-    const [mainPart] = body.split("#");
-    const [authHostPort, queryString] = mainPart.split("?");
-    if (!authHostPort)
-      return {
-        valid: false,
-        message: _("Invalid HY2 URL: missing credentials/server")
-      };
-    const [passwordPart, hostPortPart] = authHostPort.split("@");
-    if (!passwordPart)
-      return { valid: false, message: _("Invalid HY2 URL: missing password") };
-    if (!hostPortPart)
-      return {
-        valid: false,
-        message: _("Invalid HY2 URL: missing host & port")
-      };
-    const parsedHostPort = parseHostPort(hostPortPart);
-    if (!parsedHostPort) {
-      return {
-        valid: false,
-        message: _("Invalid HY2 URL: invalid host & port")
-      };
-    }
-    const { host, port } = parsedHostPort;
-    if (!host) {
-      return { valid: false, message: _("Invalid HY2 URL: missing host") };
-    }
-    if (!port) {
-      return { valid: false, message: _("Invalid HY2 URL: missing port") };
-    }
-    const cleanedPort = port.replace("/", "");
-    const portEntries = cleanedPort.split(",");
-    const isValidPortEntry = (entry) => {
-      if (!entry) {
-        return false;
-      }
-      if (!entry.includes("-")) {
-        return isValidPort(entry);
-      }
-      const rangeParts = entry.split("-");
-      if (rangeParts.length !== 2) {
-        return false;
-      }
-      const [start, end] = rangeParts;
-      return isValidPort(start) && isValidPort(end) && Number(start) <= Number(end);
-    };
-    if (!portEntries.every(isValidPortEntry)) {
-      return {
-        valid: false,
-        message: _("Invalid HY2 URL: invalid port number")
-      };
-    }
-    if (queryString) {
-      const params = parseQueryString(queryString);
-      const paramsKeys = Object.keys(params);
-      if (paramsKeys.includes("insecure") && !["0", "1"].includes(params.insecure)) {
-        return {
-          valid: false,
-          message: _("Invalid HY2 URL: insecure must be 0 or 1")
-        };
-      }
-      const validObfsTypes = ["none", "salamander"];
-      if (paramsKeys.includes("obfs") && !validObfsTypes.includes(params.obfs)) {
-        return {
-          valid: false,
-          message: _("Invalid HY2 URL: unsupported obfs type")
-        };
-      }
-      if (paramsKeys.includes("obfs") && params.obfs !== "none" && !params["obfs-password"]) {
-        return {
-          valid: false,
-          message: _(
-            "Invalid HY2 URL: obfs-password required when obfs is set"
-          )
-        };
-      }
-      if (paramsKeys.includes("sni") && !params.sni) {
-        return {
-          valid: false,
-          message: _("Invalid HY2 URL: sni cannot be empty")
-        };
-      }
-      if (paramsKeys.includes("mport") && (!params.mport || !params.mport.split(",").every(isValidPortEntry))) {
-        return {
-          valid: false,
-          message: _("Invalid HY2 URL: invalid port number")
-        };
-      }
-    }
-    return { valid: true, message: _("Valid") };
-  } catch (_e) {
-    return { valid: false, message: _("Invalid HY2 URL: parsing failed") };
-  }
-}
-
 // src/validators/validateProxyUrl.ts
+var NATIVE_PROXY_SCHEMES = /* @__PURE__ */ new Set([
+  "hysteria",
+  "hysteria2",
+  "hy2",
+  "socks",
+  "socks4",
+  "socks4a",
+  "socks5",
+  "ss",
+  "trojan",
+  "tuic",
+  "vless",
+  "vmess"
+]);
 function validateProxyUrl(url) {
   const trimmedUrl = url.trim();
-  if (trimmedUrl.startsWith("ss://")) {
-    return validateShadowsocksUrl(trimmedUrl);
-  }
-  if (trimmedUrl.startsWith("vless://")) {
-    return validateVlessUrl(trimmedUrl);
-  }
-  if (trimmedUrl.startsWith("vmess://")) {
-    return validateVmessUrl(trimmedUrl);
-  }
-  if (trimmedUrl.startsWith("trojan://")) {
-    return validateTrojanUrl(trimmedUrl);
-  }
-  if (/^socks(4|4a|5):\/\//.test(trimmedUrl)) {
-    return validateSocksUrl(trimmedUrl);
-  }
-  if (trimmedUrl.startsWith("hysteria2://") || trimmedUrl.startsWith("hy2://")) {
-    return validateHysteria2Url(trimmedUrl);
-  }
+  const match = /^([a-z0-9]+):\/\/(\S+)$/u.exec(trimmedUrl);
+  if (match && NATIVE_PROXY_SCHEMES.has(match[1]))
+    return { valid: true, message: _("Valid") };
   return {
     valid: false,
     message: _(
-      "URL must start with vless://, vmess://, ss://, trojan://, socks4://, socks4a://, socks5://, hysteria2://, or hy2://"
+      "Use a native sing-box link: vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, or hy2://"
     )
   };
+}
+
+// src/helpers/parseWireGuardConfig.ts
+var MAX_AMNEZIA_CONFIG_SIZE = 1024 * 1024;
+var DEFAULT_WIREGUARD_PORT = 51820;
+function splitValues(values) {
+  return (values || []).flatMap((value) => value.split(",")).map((value) => value.trim()).filter(Boolean);
+}
+function normalizePrefixes(values) {
+  const result = [];
+  for (const value of values) {
+    const normalized = value.includes("/") ? value : isIPv4(value) ? `${value}/32` : isIPv6(value) ? `${value}/128` : value;
+    if (!normalized.includes("/") || !validateSubnet(normalized).valid)
+      return null;
+    result.push(normalized);
+  }
+  return result;
+}
+function firstValue(section, key) {
+  return section.values[key]?.[0]?.trim() || "";
+}
+function parseUnsigned(value, maximum) {
+  if (!/^\d+$/u.test(value)) return void 0;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed <= maximum ? parsed : void 0;
+}
+function validateWireGuardKey(value) {
+  const normalized = value.trim();
+  if (!/^[A-Za-z0-9+/]{43}=$/u.test(normalized)) return false;
+  try {
+    const decoded = atob(normalized);
+    return decoded.length === 32 && btoa(decoded) === normalized;
+  } catch {
+    return false;
+  }
+}
+function parsePeerEndpoint(value) {
+  const normalized = value.trim();
+  let address = "";
+  let port = DEFAULT_WIREGUARD_PORT;
+  if (normalized.startsWith("[")) {
+    const close = normalized.indexOf("]");
+    if (close < 1) return null;
+    address = normalized.slice(1, close);
+    if (normalized.length > close + 1) {
+      if (normalized[close + 1] !== ":") return null;
+      const parsed = parseUnsigned(normalized.slice(close + 2), 65535);
+      if (!parsed || parsed < 1) return null;
+      port = parsed;
+    }
+  } else {
+    const separator = normalized.lastIndexOf(":");
+    if (separator > 0 && normalized.indexOf(":") === separator) {
+      address = normalized.slice(0, separator);
+      const parsed = parseUnsigned(normalized.slice(separator + 1), 65535);
+      if (!parsed || parsed < 1) return null;
+      port = parsed;
+    } else {
+      address = normalized;
+    }
+  }
+  return address && !address.startsWith(":") ? { address, port } : null;
+}
+function readSections(input) {
+  var _a;
+  const sections = [];
+  let current = null;
+  for (const rawLine of input.replace(/^\uFEFF/u, "").split(/\r?\n/u)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#") || line.startsWith(";")) continue;
+    const header = /^\[([^\]]+)\]$/u.exec(line);
+    if (header) {
+      current = { name: header[1].trim().toLowerCase(), values: {} };
+      sections.push(current);
+      continue;
+    }
+    const separator = line.indexOf("=");
+    if (!current || separator < 1) return null;
+    const key = line.slice(0, separator).trim().toLowerCase();
+    const value = line.slice(separator + 1).trim();
+    if (!key) return null;
+    ((_a = current.values)[key] || (_a[key] = [])).push(value);
+  }
+  return sections;
+}
+function parseAmnezia(section) {
+  const result = {};
+  const integers = ["jc", "jmin", "jmax", "s1", "s2", "s3", "s4", "itime"];
+  const ranges = ["h1", "h2", "h3", "h4"];
+  const strings = ["i1", "i2", "i3", "i4", "i5", "j1", "j2", "j3"];
+  for (const key of integers) {
+    const value = firstValue(section, key);
+    if (!value) continue;
+    const parsed = parseUnsigned(value, Number.MAX_SAFE_INTEGER);
+    if (parsed === void 0) return void 0;
+    result[key] = parsed;
+  }
+  for (const key of ranges) {
+    const value = firstValue(section, key);
+    if (!value) continue;
+    const parts = value.split("-");
+    if (parts.length > 2 || parts.some((part) => part === "")) return void 0;
+    const from = parseUnsigned(parts[0], 4294967295);
+    const to = parts.length === 2 ? parseUnsigned(parts[1], 4294967295) : from;
+    if (from === void 0 || to === void 0 || from > to) return void 0;
+    result[key] = value.includes("-") ? value : Number(value);
+  }
+  for (const key of strings) {
+    const value = firstValue(section, key);
+    if (value) result[key] = value;
+  }
+  return Object.keys(result).length > 0 ? result : void 0;
+}
+function parseWireGuardConfig(input) {
+  const sections = readSections(input);
+  if (!sections)
+    return { valid: false, message: _("Invalid WireGuard configuration") };
+  const iface = sections.find((section) => section.name === "interface");
+  const peerSections = sections.filter((section) => section.name === "peer");
+  if (!iface || peerSections.length === 0)
+    return {
+      valid: false,
+      message: _(
+        "WireGuard configuration must contain Interface and Peer sections"
+      )
+    };
+  const addressValues = splitValues(iface.values.address);
+  const address = normalizePrefixes(addressValues);
+  const privateKey = firstValue(iface, "privatekey");
+  if (addressValues.length === 0 || !privateKey)
+    return {
+      valid: false,
+      message: _("WireGuard address and private key are required")
+    };
+  if (!validateWireGuardKey(privateKey))
+    return {
+      valid: false,
+      message: _(
+        "WireGuard keys must be standard base64-encoded 32-byte values"
+      )
+    };
+  if (!address)
+    return {
+      valid: false,
+      message: _(
+        "WireGuard addresses and AllowedIPs must use valid CIDR subnets"
+      )
+    };
+  const peers = [];
+  for (const section of peerSections) {
+    const publicKey = firstValue(section, "publickey");
+    const remote = parsePeerEndpoint(firstValue(section, "endpoint"));
+    if (!publicKey || !remote)
+      return {
+        valid: false,
+        message: _("Every WireGuard peer needs a public key and endpoint")
+      };
+    if (!validateWireGuardKey(publicKey))
+      return {
+        valid: false,
+        message: _(
+          "WireGuard keys must be standard base64-encoded 32-byte values"
+        )
+      };
+    const peer = {
+      address: remote.address,
+      port: remote.port,
+      public_key: publicKey,
+      allowed_ips: []
+    };
+    const preSharedKey = firstValue(section, "presharedkey");
+    if (preSharedKey && !validateWireGuardKey(preSharedKey))
+      return {
+        valid: false,
+        message: _(
+          "WireGuard keys must be standard base64-encoded 32-byte values"
+        )
+      };
+    const allowedIpValues = splitValues(section.values.allowedips);
+    const allowedIps = normalizePrefixes(allowedIpValues);
+    if (!allowedIps || allowedIps.length === 0)
+      return {
+        valid: false,
+        message: allowedIps ? _("Every WireGuard peer needs at least one AllowedIPs subnet") : _("WireGuard addresses and AllowedIPs must use valid CIDR subnets")
+      };
+    const keepaliveValue = firstValue(section, "persistentkeepalive");
+    if (preSharedKey) peer.pre_shared_key = preSharedKey;
+    peer.allowed_ips = allowedIps;
+    if (keepaliveValue) {
+      const keepalive = parseUnsigned(keepaliveValue, 65535);
+      if (keepalive === void 0)
+        return {
+          valid: false,
+          message: _("Invalid WireGuard persistent keepalive")
+        };
+      peer.persistent_keepalive_interval = keepalive;
+    }
+    peers.push(peer);
+  }
+  const endpoint = {
+    type: "wireguard",
+    address,
+    private_key: privateKey,
+    peers
+  };
+  const listenPortValue = firstValue(iface, "listenport");
+  const mtuValue = firstValue(iface, "mtu");
+  if (listenPortValue) {
+    const listenPort = parseUnsigned(listenPortValue, 65535);
+    if (listenPort === void 0 || listenPort === 0)
+      return { valid: false, message: _("Invalid WireGuard listen port") };
+    endpoint.listen_port = listenPort;
+  }
+  if (mtuValue) {
+    const mtu = parseUnsigned(mtuValue, 65535);
+    if (mtu === void 0 || mtu === 0)
+      return { valid: false, message: _("Invalid WireGuard MTU") };
+    endpoint.mtu = mtu;
+  }
+  const amnezia = parseAmnezia(iface);
+  const hasAmneziaInput = [
+    "jc",
+    "jmin",
+    "jmax",
+    "s1",
+    "s2",
+    "s3",
+    "s4",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "i1",
+    "i2",
+    "i3",
+    "i4",
+    "i5",
+    "j1",
+    "j2",
+    "j3",
+    "itime"
+  ].some((key) => Boolean(firstValue(iface, key)));
+  if (hasAmneziaInput && !amnezia)
+    return { valid: false, message: _("Invalid AmneziaWG parameters") };
+  if (amnezia) endpoint.amnezia = amnezia;
+  return { valid: true, endpoint };
+}
+function isRecord(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+function decodeBase64Url(value) {
+  const compact = value.replace(/\s+/gu, "");
+  if (compact.length === 0 || compact.length > MAX_AMNEZIA_CONFIG_SIZE * 2 || !/^[A-Za-z0-9_-]+={0,2}$/u.test(compact))
+    throw new Error("invalid base64url");
+  const unpadded = compact.replace(/=+$/u, "");
+  if (unpadded.length % 4 === 1) throw new Error("invalid base64url length");
+  const binary = atob(
+    unpadded.replace(/-/gu, "+").replace(/_/gu, "/") + "=".repeat((4 - unpadded.length % 4) % 4)
+  );
+  if (binary.length > MAX_AMNEZIA_CONFIG_SIZE)
+    throw new Error("encoded config is too large");
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
+async function uncompressQtData(data) {
+  if (data.length < 6) return data;
+  const expectedSize = new DataView(
+    data.buffer,
+    data.byteOffset,
+    data.byteLength
+  ).getUint32(0);
+  if (data[4] !== 120 || (data[4] << 8 | data[5]) % 31 !== 0 || expectedSize === 0 || expectedSize > MAX_AMNEZIA_CONFIG_SIZE)
+    return data;
+  const compressed = Uint8Array.from(data.subarray(4));
+  const reader = new Blob([compressed]).stream().pipeThrough(new DecompressionStream("deflate")).getReader();
+  const output = new Uint8Array(expectedSize);
+  let offset = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (offset + value.length > output.length) {
+      await reader.cancel();
+      throw new Error("uncompressed config is too large");
+    }
+    output.set(value, offset);
+    offset += value.length;
+  }
+  if (offset !== expectedSize) throw new Error("invalid uncompressed size");
+  return output;
+}
+function extractAmneziaWireGuardConfig(value) {
+  if (!isRecord(value) || !Array.isArray(value.containers))
+    throw new Error("missing containers");
+  const containers = value.containers.filter(isRecord);
+  const defaultContainer = typeof value.defaultContainer === "string" ? value.defaultContainer : "";
+  const selected = containers.find(
+    (container) => container.container === defaultContainer && (isRecord(container.awg) || isRecord(container.wireguard))
+  ) || containers.find(
+    (container) => isRecord(container.awg) || isRecord(container.wireguard)
+  );
+  if (!selected) throw new Error("missing WireGuard container");
+  const protocol = isRecord(selected.awg) ? selected.awg : isRecord(selected.wireguard) ? selected.wireguard : null;
+  if (!protocol) throw new Error("missing WireGuard protocol");
+  const lastConfig = typeof protocol.last_config === "string" ? JSON.parse(protocol.last_config) : protocol.last_config;
+  if (!isRecord(lastConfig) || typeof lastConfig.config !== "string")
+    throw new Error("missing WireGuard config");
+  const dns1 = typeof value.dns1 === "string" ? value.dns1 : "";
+  const dns2 = typeof value.dns2 === "string" ? value.dns2 : "";
+  return {
+    config: lastConfig.config.split("$PRIMARY_DNS").join(dns1).split("$SECONDARY_DNS").join(dns2),
+    mtu: typeof lastConfig.mtu === "string" || typeof lastConfig.mtu === "number" ? lastConfig.mtu : void 0
+  };
+}
+async function parseWireGuardInput(input) {
+  const value = input.trim();
+  if (!value.startsWith("vpn://")) return parseWireGuardConfig(value);
+  try {
+    const packed = decodeBase64Url(value.slice("vpn://".length));
+    const decoded = await uncompressQtData(packed);
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(decoded);
+    if (/^\s*\[Interface\](?:\r?\n|$)/u.test(text))
+      return parseWireGuardConfig(text);
+    const imported = extractAmneziaWireGuardConfig(JSON.parse(text));
+    const result = parseWireGuardConfig(imported.config);
+    if (result.valid && result.endpoint.mtu === void 0 && imported.mtu) {
+      const mtu = parseUnsigned(`${imported.mtu}`, 65535);
+      if (mtu && mtu > 0) result.endpoint.mtu = mtu;
+    }
+    return result;
+  } catch {
+    return {
+      valid: false,
+      message: _("Invalid or unsupported Amnezia VPN link")
+    };
+  }
 }
 
 // src/helpers/parseValueList.ts
@@ -861,11 +707,7 @@ var FLAG_EMOJI_PATTERN = /([\u{1f1e6}-\u{1f1ff}]{2}|\u{1f3f4}[\u{e0061}-\u{e007a
 var EXACT_FLAG_EMOJI_PATTERN = /^([\u{1f1e6}-\u{1f1ff}]{2}|\u{1f3f4}[\u{e0061}-\u{e007a}]+\u{e007f})$/u;
 function renderFlagEmojis(value) {
   return value.split(FLAG_EMOJI_PATTERN).filter(Boolean).map(
-    (part) => EXACT_FLAG_EMOJI_PATTERN.test(part) ? E(
-      "span",
-      { class: "fkp_dashboard-page__flag-emoji" },
-      part
-    ) : part
+    (part) => EXACT_FLAG_EMOJI_PATTERN.test(part) ? E("span", { class: "fkp_dashboard-page__flag-emoji" }, part) : part
   );
 }
 
@@ -1115,7 +957,7 @@ function insertIf(condition, elements) {
 }
 
 // src/helpers/isCopyableProxyLink.ts
-var COPYABLE_PROXY_URI_RE = /^(vless|vmess|trojan|ss|ssr|hysteria2|hy2|tuic|socks4|socks4a|socks5):\/\//i;
+var COPYABLE_PROXY_URI_RE = /^(vless|vmess|trojan|ss|hysteria|hysteria2|hy2|tuic|socks|socks4|socks4a|socks5):\/\//i;
 function isCopyableProxyLink(link) {
   return COPYABLE_PROXY_URI_RE.test((link || "").trim());
 }
@@ -2063,7 +1905,9 @@ function renderDefaultState({
           E(
             "div",
             { class: "fkp_dashboard-page__outbound-grid__item__type" },
-            [outbound.type].filter(Boolean)
+            [outbound.priorityInfo ? _("Priority") : outbound.type].filter(
+              Boolean
+            )
           ),
           E(
             "div",
@@ -2432,8 +2276,6 @@ var Forkop;
     AvailableMethods2["CHECK_BYEDPI_RUNTIME"] = "check_byedpi_runtime";
     AvailableMethods2["CHECK_INBOUNDS_CONFIG"] = "check_inbounds_config";
     AvailableMethods2["GET_STATUS"] = "get_status";
-    AvailableMethods2["GET_OUTBOUND_METADATA"] = "get_outbound_metadata";
-    AvailableMethods2["GET_SUBSCRIPTION_METADATA"] = "get_subscription_metadata";
     AvailableMethods2["GET_DASHBOARD_SECTION_CACHE"] = "get_dashboard_section_cache";
     AvailableMethods2["CHECK_SING_BOX"] = "check_sing_box";
     AvailableMethods2["CHECK_INBOUNDS"] = "check_inbounds";
@@ -2449,7 +2291,6 @@ var Forkop;
     AvailableMethods2["CHECK_LOGS"] = "check_logs";
     AvailableMethods2["CHECK_SING_BOX_LOGS"] = "check_sing_box_logs";
     AvailableMethods2["GET_SYSTEM_INFO"] = "get_system_info";
-    AvailableMethods2["GET_SERVER_CAPABILITIES"] = "get_server_capabilities";
     AvailableMethods2["GET_UI_CAPABILITIES"] = "get_ui_capabilities";
     AvailableMethods2["GET_UI_STATE"] = "get_ui_state";
     AvailableMethods2["SERVICE_ACTION_ASYNC"] = "service_action_async";
@@ -2460,12 +2301,13 @@ var Forkop;
     AvailableMethods2["COMPONENT_ACTION_ASYNC"] = "component_action_async";
     AvailableMethods2["COMPONENT_ACTION_STATUS"] = "component_action_status";
     AvailableMethods2["COMPONENT_UPDATE_CHECK_CACHE"] = "component_update_check_cache";
-    AvailableMethods2["SUBSCRIPTION_UPDATE_ASYNC"] = "subscription_update_async";
-    AvailableMethods2["SUBSCRIPTION_UPDATE_STATUS"] = "subscription_update_status";
+    AvailableMethods2["SUBSCRIPTION_UPDATE"] = "subscription_update";
   })(AvailableMethods = Forkop2.AvailableMethods || (Forkop2.AvailableMethods = {}));
   let AvailableClashAPIMethods;
   ((AvailableClashAPIMethods2) => {
     AvailableClashAPIMethods2["GET_PROXIES"] = "get_proxies";
+    AvailableClashAPIMethods2["GET_PROXY_PROVIDERS"] = "get_proxy_providers";
+    AvailableClashAPIMethods2["GET_PROXY_LINK"] = "get_proxy_link";
     AvailableClashAPIMethods2["GET_CONNECTIONS"] = "get_connections";
     AvailableClashAPIMethods2["GET_PROXY_LATENCY"] = "get_proxy_latency";
     AvailableClashAPIMethods2["GET_PROXY_LATENCIES"] = "get_proxy_latencies";
@@ -2493,8 +2335,7 @@ function isTransientRpcError(message) {
 }
 
 // src/forkop/methods/shell/index.ts
-var SUBSCRIPTION_UPDATE_RPC_TIMEOUT_MS = 15e3;
-var SUBSCRIPTION_UPDATE_POLL_INTERVAL_MS = 1500;
+var SUBSCRIPTION_UPDATE_RPC_TIMEOUT_MS = 6e4;
 var UI_ACTION_RPC_TIMEOUT_MS = 15e3;
 var UI_ACTION_TRANSIENT_RPC_GRACE_MS = 3e4;
 var SERVICE_ACTION_TIMEOUT_MS = 2 * 60 * 1e3;
@@ -2544,16 +2385,6 @@ function parseComponentActionStartResult(response) {
     return null;
   }
   return parsedResponse;
-}
-function parseSubscriptionUpdateStartResult(response) {
-  return parseJsonObjectOutput(
-    response.stdout
-  );
-}
-function parseSubscriptionUpdateJobState(response) {
-  return parseJsonObjectOutput(
-    response.stdout
-  );
 }
 function parseUiActionStartResult(response) {
   return parseJsonObjectOutput(response.stdout);
@@ -2654,14 +2485,6 @@ var ForkopShellMethods = {
     Forkop.AvailableMethods.CHECK_INBOUNDS_CONFIG
   ),
   getStatus: async () => callBaseMethod(Forkop.AvailableMethods.GET_STATUS),
-  getOutboundMetadata: async (section) => callBaseMethod(
-    Forkop.AvailableMethods.GET_OUTBOUND_METADATA,
-    [section]
-  ),
-  getSubscriptionMetadata: async (section) => callBaseMethod(
-    Forkop.AvailableMethods.GET_SUBSCRIPTION_METADATA,
-    [section]
-  ),
   getDashboardSectionCache: async (section) => callBaseMethod(
     Forkop.AvailableMethods.GET_DASHBOARD_SECTION_CACHE,
     [section]
@@ -2687,6 +2510,13 @@ var ForkopShellMethods = {
   getClashApiProxies: async () => callBaseMethod(Forkop.AvailableMethods.CLASH_API, [
     Forkop.AvailableClashAPIMethods.GET_PROXIES
   ]),
+  getClashApiProxyProviders: async () => callBaseMethod(Forkop.AvailableMethods.CLASH_API, [
+    Forkop.AvailableClashAPIMethods.GET_PROXY_PROVIDERS
+  ]),
+  getClashApiProxyLink: async (tag) => callBaseMethod(
+    Forkop.AvailableMethods.CLASH_API,
+    [Forkop.AvailableClashAPIMethods.GET_PROXY_LINK, tag]
+  ),
   getClashApiConnections: async () => callBaseMethod(Forkop.AvailableMethods.CLASH_API, [
     Forkop.AvailableClashAPIMethods.GET_CONNECTIONS
   ]),
@@ -2738,9 +2568,6 @@ var ForkopShellMethods = {
   checkSingBoxLogs: async () => callBaseMethod(Forkop.AvailableMethods.CHECK_SING_BOX_LOGS),
   getSystemInfo: async () => callBaseMethod(
     Forkop.AvailableMethods.GET_SYSTEM_INFO
-  ),
-  getServerCapabilities: async () => callBaseMethod(
-    Forkop.AvailableMethods.GET_SERVER_CAPABILITIES
   ),
   getUiCapabilities: async () => callBaseMethod(
     Forkop.AvailableMethods.GET_UI_CAPABILITIES
@@ -2999,37 +2826,18 @@ var ForkopShellMethods = {
       };
     }
   },
-  subscriptionUpdateStart: async (section, sourceIndex) => {
-    const startArgs = [
-      Forkop.AvailableMethods.SUBSCRIPTION_UPDATE_ASYNC,
+  subscriptionUpdate: async (section, sourceIndex) => {
+    const args = [
+      Forkop.AvailableMethods.SUBSCRIPTION_UPDATE,
       ...section ? [section] : [],
       ...section && sourceIndex !== void 0 ? [String(sourceIndex)] : []
     ];
     const response = await executeShellCommand({
       command: "/usr/bin/forkop",
-      args: startArgs,
+      args,
       timeout: SUBSCRIPTION_UPDATE_RPC_TIMEOUT_MS
     });
-    const parsedResponse = parseSubscriptionUpdateStartResult(response);
-    if ((response.code ?? 0) !== 0 || !parsedResponse?.success || !parsedResponse.job_id) {
-      return {
-        success: false,
-        error: parsedResponse?.message || response.stderr || _("Subscription update failed")
-      };
-    }
-    return {
-      success: true,
-      data: parsedResponse
-    };
-  },
-  subscriptionUpdateStatus: async (jobId) => {
-    const response = await executeShellCommand({
-      command: "/usr/bin/forkop",
-      args: [Forkop.AvailableMethods.SUBSCRIPTION_UPDATE_STATUS, jobId],
-      timeout: SUBSCRIPTION_UPDATE_RPC_TIMEOUT_MS
-    });
-    const parsedResponse = parseSubscriptionUpdateJobState(response);
-    if ((response.code ?? 0) !== 0 || !parsedResponse) {
+    if ((response.code ?? 0) !== 0) {
       return {
         success: false,
         error: response.stderr || _("Subscription update failed")
@@ -3037,33 +2845,23 @@ var ForkopShellMethods = {
     }
     return {
       success: true,
-      data: parsedResponse
+      data: true
     };
-  },
-  waitSubscriptionUpdateJob: async (jobId) => {
-    const transientRpc = createTransientRpcGraceTracker(
-      UI_ACTION_TRANSIENT_RPC_GRACE_MS
-    );
-    while (true) {
-      await sleep(SUBSCRIPTION_UPDATE_POLL_INTERVAL_MS);
-      const response = await ForkopShellMethods.subscriptionUpdateStatus(jobId);
-      if (!response.success) {
-        if (transientRpc.shouldContinue(response.error)) {
-          continue;
-        }
-        return response;
-      }
-      transientRpc.reset();
-      if (response.data.running) {
-        continue;
-      }
-      return response;
-    }
   }
 };
 
 // src/forkop/methods/custom/getDashboardSections.ts
 var CLASH_API_FETCH_TIMEOUT_MS = 5e3;
+var EXPORTABLE_PROVIDER_PROXY_TYPES = /* @__PURE__ */ new Set([
+  "hysteria",
+  "hysteria2",
+  "shadowsocks",
+  "socks",
+  "trojan",
+  "tuic",
+  "vless",
+  "vmess"
+]);
 function getDisplayName(section) {
   return section.label || section[".name"];
 }
@@ -3076,7 +2874,7 @@ function getClashApiSecret(configSections) {
 function canFetchClashApiDirectly() {
   return canUseDirectClashApi() && typeof fetch === "function";
 }
-async function getClashApiProxies(configSections) {
+async function getClashApi(configSections, path, fallback) {
   if (canFetchClashApiDirectly()) {
     const secret = getClashApiSecret(configSections);
     const controller = new AbortController();
@@ -3085,7 +2883,7 @@ async function getClashApiProxies(configSections) {
       CLASH_API_FETCH_TIMEOUT_MS
     );
     try {
-      const response = await fetch(`${getClashHttpUrl()}/proxies`, {
+      const response = await fetch(`${getClashHttpUrl()}${path}`, {
         headers: secret ? { Authorization: `Bearer ${secret}` } : void 0,
         signal: controller.signal
       });
@@ -3100,7 +2898,21 @@ async function getClashApiProxies(configSections) {
       clearTimeout(timeoutId);
     }
   }
-  return ForkopShellMethods.getClashApiProxies();
+  return fallback();
+}
+function getClashApiProxies(configSections) {
+  return getClashApi(
+    configSections,
+    "/proxies",
+    ForkopShellMethods.getClashApiProxies
+  );
+}
+function getClashApiProxyProviders(configSections) {
+  return getClashApi(
+    configSections,
+    "/providers/proxies",
+    ForkopShellMethods.getClashApiProxyProviders
+  );
 }
 function getListValues(value) {
   if (!value) {
@@ -3158,10 +2970,7 @@ function hydrateConfigSections(configSections) {
           hwid: item.hwid,
           show_dashboard_metadata: item.show_dashboard_metadata,
           prefix_nodes: item.prefix_nodes,
-          node_prefix: item.node_prefix,
-          include_urltest_groups: item.include_urltest_groups,
-          hide_urltest_group_outbounds: item.hide_urltest_group_outbounds,
-          hide_detour_outbounds: item.hide_detour_outbounds
+          node_prefix: item.node_prefix
         };
       });
       next.subscription_url_settings = compactSettingsMap(settings);
@@ -3181,6 +2990,7 @@ function hydrateConfigSections(configSections) {
           idle_timeout: item.idle_timeout,
           interrupt_exist_connections: item.interrupt_exist_connections,
           pin_dashboard: item.pin_dashboard,
+          hide_dashboard_members: item.hide_dashboard_members,
           urltest_filter_mode: item.filter_mode,
           urltest_include_countries: item.include_countries,
           urltest_include_outbounds: item.include_outbounds,
@@ -3201,30 +3011,16 @@ function hydrateConfigSections(configSections) {
           (level, index) => ({
             id: level[".name"],
             displayName: level.name || level[".name"],
-            order: Number.parseInt(level.order || `${index}`, 10) || 0,
-            direct: level.direct === "1",
-            filterMode: level.filter_mode || "include",
-            country: getListValues(level.country),
-            serverName: getListValues(level.server_name),
-            regex: getListValues(level.regex),
-            excludeCountries: getListValues(level.exclude_countries),
-            excludeOutbounds: getListValues(level.exclude_outbounds),
-            excludeRegex: getListValues(level.exclude_regex)
+            order: Number.parseInt(level.order || `${index}`, 10) || 0
           })
         ).sort(
           (left, right) => left.order === right.order ? left.id.localeCompare(right.id) : left.order - right.order
         );
         settings[groupId] = {
           name: item.name,
-          health_url: item.health_url,
-          active_check_interval: item.active_check_interval,
-          check_timeout: item.check_timeout,
-          recovery_check_interval: item.recovery_check_interval,
-          pick_fastest: item.pick_fastest,
-          switch_to_faster_same_priority: item.switch_to_faster_same_priority,
-          fastest_check_interval: item.fastest_check_interval,
-          interrupt_exist_connections: item.interrupt_exist_connections,
+          blacklist_timeout: item.blacklist_timeout,
           pin_dashboard: item.pin_dashboard,
+          hide_dashboard_members: item.hide_dashboard_members,
           levels
         };
       });
@@ -3303,14 +3099,22 @@ function getJsonOutboundDisplayName(section) {
     return "";
   }
 }
-function buildManualLinkByCode(section) {
-  const sectionName = section[".name"];
+function buildManualLinkByCode(section, selectorCodes) {
+  const links = getManualProxyLinks(section);
+  const prefix = `${allocateRuntimeTag(
+    `${section[".name"]}-manual`,
+    "provider"
+  )}/`;
+  const runtimeCodes = selectorCodes.filter((code) => code.startsWith(prefix));
   return new Map(
-    getManualProxyLinks(section).map((link, index) => [
-      getOutboundTagBySection(`${sectionName}-${index + 1}`),
-      link
-    ])
+    runtimeCodes.flatMap((code, index) => {
+      const link = links[index];
+      return isCopyableProxyLink(link) ? [[code, link]] : [];
+    })
   );
+}
+function canExportProviderProxyLink(code, type, providerTags) {
+  return EXPORTABLE_PROVIDER_PROXY_TYPES.has(type.toLowerCase()) && providerTags.some((tag) => code.startsWith(`${tag}/`));
 }
 function getProxyEntryByCode(proxies) {
   return new Map(proxies.map((proxy) => [proxy.code, proxy]));
@@ -3418,6 +3222,11 @@ function getUrlTestTag(sectionName, id) {
 function getPriorityTag(sectionName, id) {
   return getOutboundTagBySection(`${sectionName}-priority-${id}`);
 }
+function getPriorityLevelTag(sectionName, groupId, levelId) {
+  return getOutboundTagBySection(
+    `${sectionName}-priority-${groupId}-level-${levelId}`
+  );
+}
 function getUrlTestDisplayName(section, id, settings) {
   return itemSettingString(
     settings,
@@ -3435,7 +3244,12 @@ function getUrlTestConfigs(section) {
       code: getUrlTestTag(sectionName, id),
       displayName: getUrlTestDisplayName(section, id, settings),
       settings,
-      pinDashboard: itemSettingBoolean(settings, "pin_dashboard", true)
+      pinDashboard: itemSettingBoolean(settings, "pin_dashboard", true),
+      hideDashboardMembers: itemSettingBoolean(
+        settings,
+        "hide_dashboard_members",
+        false
+      )
     };
   });
 }
@@ -3458,18 +3272,6 @@ function priorityLevelConfigsFromSettings(settings) {
         id,
         displayName: `${level.displayName || id}`,
         order: typeof level.order === "number" && Number.isFinite(level.order) ? level.order : index,
-        direct: Boolean(level.direct),
-        filterMode: `${level.filterMode || "include"}` || "include",
-        country: getListValues(level.country),
-        serverName: getListValues(level.serverName),
-        regex: getListValues(level.regex),
-        excludeCountries: getListValues(
-          level.excludeCountries
-        ),
-        excludeOutbounds: getListValues(
-          level.excludeOutbounds
-        ),
-        excludeRegex: getListValues(level.excludeRegex),
         outbounds: getListValues(level.outbounds)
       }
     ];
@@ -3488,42 +3290,16 @@ function getPriorityConfigs(section) {
     const levels = priorityLevelConfigsFromSettings(settings);
     return {
       id,
+      sectionName,
       code: getPriorityTag(sectionName, id),
       displayName: itemSettingString(settings, "name", id),
-      settings,
       pinDashboard: itemSettingBoolean(settings, "pin_dashboard", true),
-      healthUrl: itemSettingString(
+      hideDashboardMembers: itemSettingBoolean(
         settings,
-        "health_url",
-        "https://www.gstatic.com/generate_204"
-      ),
-      activeCheckInterval: itemSettingString(
-        settings,
-        "active_check_interval",
-        "5s"
-      ),
-      checkTimeout: itemSettingString(settings, "check_timeout", "2s"),
-      recoveryCheckInterval: itemSettingString(
-        settings,
-        "recovery_check_interval",
-        "15s"
-      ),
-      pickFastest: itemSettingBoolean(settings, "pick_fastest", false),
-      switchToFasterSamePriority: itemSettingBoolean(
-        settings,
-        "switch_to_faster_same_priority",
+        "hide_dashboard_members",
         false
       ),
-      fastestCheckInterval: itemSettingString(
-        settings,
-        "fastest_check_interval",
-        "3m"
-      ),
-      interruptExistConnections: itemSettingBoolean(
-        settings,
-        "interrupt_exist_connections",
-        true
-      ),
+      blacklistTimeout: itemSettingString(settings, "blacklist_timeout", "1m"),
       levels
     };
   });
@@ -3553,9 +3329,9 @@ function getPriorityGroups(dashboardCache) {
   }
   return groups;
 }
-function getOutboundDisplayName(code, entry, link, outboundMetadata, preferMetadata = false) {
+function getOutboundDisplayName(code, entry, link, outboundMetadata) {
   const metadataName = outboundMetadata?.names?.[code];
-  return (preferMetadata ? metadataName : getProxyUrlName(link)) || (preferMetadata ? getProxyUrlName(link) : metadataName) || entry?.value?.name || code;
+  return getProxyUrlName(link) || metadataName || entry?.value?.name || code;
 }
 function buildUrlTestInfo({
   code,
@@ -3564,7 +3340,7 @@ function buildUrlTestInfo({
   groupCache,
   proxyByCode,
   manualLinkByCode,
-  cachedProxyLinks,
+  exportableProviderTags,
   outboundMetadata
 }) {
   const childCodes = uniqueCodes(
@@ -3574,8 +3350,12 @@ function buildUrlTestInfo({
   const outbounds = sortUrlTestMembers(
     childCodes.flatMap((childCode) => {
       const childEntry = proxyByCode.get(childCode);
-      const link = manualLinkByCode.get(childCode) || cachedProxyLinks.get(childCode) || "";
-      const canCopyLink = isCopyableProxyLink(link);
+      const link = manualLinkByCode.get(childCode) || "";
+      const canCopyLink = isCopyableProxyLink(link) || canExportProviderProxyLink(
+        childCode,
+        childEntry?.value?.type || "",
+        exportableProviderTags
+      );
       return [
         {
           code: childCode,
@@ -3583,8 +3363,7 @@ function buildUrlTestInfo({
             childCode,
             childEntry,
             link,
-            outboundMetadata,
-            cachedProxyLinks.has(childCode)
+            outboundMetadata
           ),
           latency: childEntry?.value?.history?.[0]?.delay || 0,
           type: childEntry?.value?.type || "",
@@ -3615,10 +3394,10 @@ function buildPriorityInfo({
   groupCache,
   proxyByCode,
   manualLinkByCode,
-  cachedProxyLinks,
+  exportableProviderTags,
   outboundMetadata
 }) {
-  const selectedCode = entry?.value.now || "";
+  const selectedLevelTag = entry?.value.now || "";
   const cacheLevels = Array.isArray(groupCache?.levels) ? groupCache.levels : [];
   const configLevelById = new Map(
     config.levels.map((level) => [level.id, level])
@@ -3628,41 +3407,46 @@ function buildPriorityInfo({
     const configLevel = id ? configLevelById.get(id) : void 0;
     return {
       id: id || configLevel?.id || `level-${index + 1}`,
+      tag: level.tag || getPriorityLevelTag(
+        config.sectionName,
+        config.id,
+        id || configLevel?.id || `level-${index + 1}`
+      ),
       displayName: level.displayName || configLevel?.displayName || `${index + 1}`,
       order: typeof level.order === "number" && Number.isFinite(level.order) ? level.order : configLevel?.order ?? index,
-      direct: level.direct ?? configLevel?.direct ?? false,
-      filterMode: level.filter_mode || configLevel?.filterMode || "include",
-      country: configLevel?.country || [],
-      serverName: configLevel?.serverName || [],
-      regex: configLevel?.regex || [],
-      excludeCountries: configLevel?.excludeCountries || [],
-      excludeOutbounds: configLevel?.excludeOutbounds || [],
-      excludeRegex: configLevel?.excludeRegex || [],
       outbounds: uniqueCodes(level.outbounds || [])
     };
   }) : config.levels.map((level) => ({
     ...level,
+    tag: getPriorityLevelTag(config.sectionName, config.id, level.id),
     outbounds: uniqueCodes(level.outbounds || [])
   }))).sort(
     (left, right) => left.order === right.order ? left.id.localeCompare(right.id) : left.order - right.order
   );
   const outbounds = levels.flatMap((level, levelIndex) => {
-    const members = uniqueCodes(level.outbounds || []).map((childCode) => {
+    const levelEntry = level.tag ? proxyByCode.get(level.tag) : void 0;
+    const levelSelectedCode = level.tag === selectedLevelTag ? levelEntry?.value.now || "" : "";
+    const members = uniqueCodes(
+      levelEntry?.value.all || level.outbounds || []
+    ).map((childCode) => {
       const childEntry = proxyByCode.get(childCode);
-      const link = manualLinkByCode.get(childCode) || cachedProxyLinks.get(childCode) || "";
-      const canCopyLink = isCopyableProxyLink(link);
+      const link = manualLinkByCode.get(childCode) || "";
+      const canCopyLink = isCopyableProxyLink(link) || canExportProviderProxyLink(
+        childCode,
+        childEntry?.value?.type || "",
+        exportableProviderTags
+      );
       return {
         code: childCode,
         displayName: getOutboundDisplayName(
           childCode,
           childEntry,
           link,
-          outboundMetadata,
-          cachedProxyLinks.has(childCode)
+          outboundMetadata
         ),
         latency: childEntry?.value?.history?.[0]?.delay || 0,
         type: childEntry?.value?.type || "",
-        selected: selectedCode === childCode,
+        selected: levelSelectedCode === childCode,
         link,
         canCopyLink,
         levelIndex,
@@ -3670,32 +3454,20 @@ function buildPriorityInfo({
         levelId: level.id
       };
     });
-    if (!config.pickFastest) {
-      return members;
-    }
-    return members.map((outbound, index) => ({ outbound, index })).sort((left, right) => {
-      const latencyDiff = getLatencySortValue(left.outbound) - getLatencySortValue(right.outbound);
-      return latencyDiff !== 0 ? latencyDiff : left.index - right.index;
-    }).map((item) => item.outbound);
+    return members;
   });
+  const selectedCode = outbounds.find((outbound) => outbound.selected)?.code || "";
   const selectedName = outbounds.find((outbound) => outbound.code === selectedCode)?.displayName || selectedCode;
   return {
     code: config.code,
     displayName: groupCache?.displayName || config.displayName,
     selectedCode: selectedCode || void 0,
     selectedName: selectedName || void 0,
-    healthUrl: groupCache?.health_url || config.healthUrl,
-    activeCheckInterval: groupCache?.active_check_interval || config.activeCheckInterval,
-    checkTimeout: groupCache?.check_timeout || config.checkTimeout,
-    recoveryCheckInterval: groupCache?.recovery_check_interval || config.recoveryCheckInterval,
-    pickFastest: groupCache?.pick_fastest ?? config.pickFastest,
-    switchToFasterSamePriority: groupCache?.switch_to_faster_same_priority ?? config.switchToFasterSamePriority,
-    fastestCheckInterval: groupCache?.fastest_check_interval || config.fastestCheckInterval,
-    interruptExistConnections: groupCache?.interrupt_exist_connections ?? config.interruptExistConnections,
+    blacklistTimeout: groupCache?.blacklist_timeout || config.blacklistTimeout,
     outbounds
   };
 }
-function buildProxyGroupOutbounds(section, proxies, outboundMetadata, urltestGroups = {}, priorityGroups = {}, cachedProxyLinks = /* @__PURE__ */ new Map()) {
+function buildProxyGroupOutbounds(section, proxies, outboundMetadata, urltestGroups = {}, priorityGroups = {}, exportableProviderTags = []) {
   const sectionName = section[".name"];
   const proxyByCode = getProxyEntryByCode(proxies);
   const selectorTag = getOutboundTagBySection(sectionName);
@@ -3716,38 +3488,63 @@ function buildProxyGroupOutbounds(section, proxies, outboundMetadata, urltestGro
     config,
     entry: proxyByCode.get(config.code)
   }));
-  const manualLinkByCode = buildManualLinkByCode(section);
   const selectorCodes = selector?.value?.all ?? [];
+  const manualLinkByCode = buildManualLinkByCode(section, selectorCodes);
   const urlTestCodes = urlTestConfigs.map((config) => config.code);
   const priorityCodes = priorityConfigs.map((config) => config.code);
+  const hiddenMemberCodes = /* @__PURE__ */ new Set();
+  const hideMembers = (codes) => {
+    uniqueCodes(codes).forEach((code) => hiddenMemberCodes.add(code));
+  };
+  urlTestEntries.forEach(({ config, entry }) => {
+    const cache = urltestGroups[config.code];
+    if (config.hideDashboardMembers || cache?.hide_dashboard_members) {
+      hideMembers(
+        entry?.value.all?.length ? entry.value.all : cache?.outbounds || []
+      );
+    }
+  });
+  priorityEntries.forEach(({ config }) => {
+    const cache = priorityGroups[config.code];
+    if (!config.hideDashboardMembers && !cache?.hide_dashboard_members) {
+      return;
+    }
+    const levels = cache?.levels?.length ? cache.levels : config.levels;
+    levels.forEach((level, index) => {
+      const id = `${level.id || config.levels[index]?.id || `level-${index + 1}`}`;
+      const tag = level.tag || getPriorityLevelTag(config.sectionName, config.id, id);
+      const liveMembers = proxyByCode.get(tag)?.value.all || [];
+      hideMembers(liveMembers.length ? liveMembers : level.outbounds || []);
+    });
+  });
   const builtInUrltestCode = urlTestCodes[0] || "";
   const fallbackCodes = uniqueCodes([
     ...urlTestCodes,
     ...priorityCodes,
-    ...urlTestEntries.flatMap(({ entry }) => entry?.value.all || []),
-    ...priorityEntries.flatMap(({ entry }) => entry?.value.all || [])
+    ...urlTestEntries.flatMap(({ entry }) => entry?.value.all || [])
   ]);
   const groupCodes = uniqueCodes([
     ...selectorCodes.length ? selectorCodes : fallbackCodes,
     ...urlTestCodes,
     ...priorityCodes
   ]);
-  const outbounds = uniqueCodes(groupCodes).flatMap((code) => {
+  const groupOutboundCodes = /* @__PURE__ */ new Set([...urlTestCodes, ...priorityCodes]);
+  const outbounds = uniqueCodes(groupCodes).filter(
+    (code) => groupOutboundCodes.has(code) || !hiddenMemberCodes.has(code)
+  ).flatMap((code) => {
     const item = proxyByCode.get(code);
     const urlTestConfig = urlTestConfigByCode.get(code);
     const priorityConfig = priorityConfigByCode.get(code);
     if (!item && !urlTestConfig && !priorityConfig) {
       return [];
     }
-    const link = manualLinkByCode.get(code) || cachedProxyLinks.get(code) || "";
-    const canCopyLink = isCopyableProxyLink(link);
-    const displayName = priorityConfig?.displayName || urlTestConfig?.displayName || getOutboundDisplayName(
+    const link = manualLinkByCode.get(code) || "";
+    const canCopyLink = isCopyableProxyLink(link) || canExportProviderProxyLink(
       code,
-      item,
-      link,
-      outboundMetadata,
-      cachedProxyLinks.has(code)
+      item?.value?.type || "",
+      exportableProviderTags
     );
+    const displayName = priorityConfig?.displayName || urlTestConfig?.displayName || getOutboundDisplayName(code, item, link, outboundMetadata);
     const isRuntimeUrlTest = isUrlTestProxyEntry(item);
     return [
       {
@@ -3766,7 +3563,7 @@ function buildProxyGroupOutbounds(section, proxies, outboundMetadata, urltestGro
           groupCache: urltestGroups[code],
           proxyByCode,
           manualLinkByCode,
-          cachedProxyLinks,
+          exportableProviderTags,
           outboundMetadata
         }) : void 0,
         priorityInfo: priorityConfig ? buildPriorityInfo({
@@ -3775,7 +3572,7 @@ function buildProxyGroupOutbounds(section, proxies, outboundMetadata, urltestGro
           groupCache: priorityGroups[code],
           proxyByCode,
           manualLinkByCode,
-          cachedProxyLinks,
+          exportableProviderTags,
           outboundMetadata
         }) : void 0
       }
@@ -3798,98 +3595,83 @@ function buildProxyGroupOutbounds(section, proxies, outboundMetadata, urltestGro
     outbounds: sortedOutbounds
   };
 }
-function metadataMatchesCurrentSource(sectionName, sourceCount, metadata) {
-  const legacyMetadata = metadata;
-  const sourceIndex = metadata.sourceIndex ?? legacyMetadata.source_index;
-  const sourceSection = metadata.sourceSection || legacyMetadata.source_section || "";
-  const hasSourceIndex = typeof sourceIndex === "number";
-  const hasSourceSection = sourceSection !== "";
-  if (!hasSourceIndex && !hasSourceSection) {
-    return sourceCount <= 1;
-  }
-  if (sourceCount > 1 && !hasSourceSection) {
-    return false;
-  }
-  if (hasSourceIndex && (sourceIndex < 1 || sourceIndex > sourceCount)) {
-    return false;
-  }
-  if (hasSourceSection) {
-    const expectedSourcePrefix = `${sectionName}-subscription-`;
-    if (!sourceSection.startsWith(expectedSourcePrefix)) {
-      return false;
-    }
-    const sourceSectionIndex = Number(
-      sourceSection.slice(expectedSourcePrefix.length)
-    );
-    if (!Number.isInteger(sourceSectionIndex) || sourceSectionIndex < 1 || sourceSectionIndex > sourceCount) {
-      return false;
-    }
-    if (hasSourceIndex && sourceIndex !== sourceSectionIndex) {
-      return false;
-    }
-  }
-  return true;
-}
-function getSubscriptionMetadataSourceIndex(sectionName, sourceCount, metadata) {
-  const legacyMetadata = metadata;
-  const sourceIndex = metadata.sourceIndex ?? legacyMetadata.source_index;
-  if (typeof sourceIndex === "number") {
-    return sourceIndex;
-  }
-  const sourceSection = metadata.sourceSection || legacyMetadata.source_section || "";
-  const expectedSourcePrefix = `${sectionName}-subscription-`;
-  if (sourceSection.startsWith(expectedSourcePrefix)) {
-    const parsed = Number(sourceSection.slice(expectedSourcePrefix.length));
-    return Number.isInteger(parsed) ? parsed : void 0;
-  }
-  return sourceCount <= 1 ? 1 : void 0;
-}
-function isSubscriptionMetadataVisible(section, sourceCount, metadata) {
-  const sourceIndex = getSubscriptionMetadataSourceIndex(
-    section[".name"],
-    sourceCount,
-    metadata
-  );
-  if (!sourceIndex || sourceIndex < 1 || sourceIndex > sourceCount) {
-    return true;
-  }
+function isSubscriptionMetadataVisible(section, sourceIndex) {
   const sourceEntry = getListValues(section.subscription_urls)[sourceIndex - 1];
   const settings = itemSettingsMap(section.subscription_url_settings)[sourceEntry];
   return settings?.show_dashboard_metadata !== "0";
 }
-function getSubscriptionMetadata(section, sourceCount, dashboardCache) {
-  if (!dashboardCache?.subscriptionMetadata) {
-    return void 0;
-  }
-  const metadataItems = Array.isArray(dashboardCache.subscriptionMetadata) ? dashboardCache.subscriptionMetadata : [dashboardCache.subscriptionMetadata];
-  const visibleMetadataItems = metadataItems.filter(
-    (metadata) => metadata && Object.keys(metadata).length > 1 && metadataMatchesCurrentSource(section[".name"], sourceCount, metadata) && isSubscriptionMetadataVisible(section, sourceCount, metadata)
-  );
-  if (visibleMetadataItems.length > 0) {
-    return visibleMetadataItems;
-  }
-  return void 0;
+function getSectionProviderTags(dashboardCache) {
+  return getListValues(dashboardCache?.providerTags);
 }
-function getOutboundMetadata(dashboardCache) {
-  const metadata = dashboardCache?.outboundMetadata;
-  if (!metadata || typeof metadata !== "object") {
+function providerNumber(value, lower) {
+  const upper = `${lower[0].toUpperCase()}${lower.slice(1)}`;
+  const number = Number(value?.[lower] ?? value?.[upper] ?? 0);
+  return Number.isFinite(number) ? number : 0;
+}
+function providerSubscriptionMetadata(provider, sourceIndex) {
+  const metadata = provider.subscriptionMetadata || {};
+  const upload = providerNumber(provider.subscriptionInfo, "upload");
+  const download = providerNumber(provider.subscriptionInfo, "download");
+  const total = providerNumber(provider.subscriptionInfo, "total");
+  const expire = providerNumber(provider.subscriptionInfo, "expire");
+  const used = upload + download;
+  if (!upload && !download && !total && !expire && !Object.keys(metadata).length) {
     return void 0;
   }
   return {
-    names: objectMap(metadata.names)
+    ...metadata,
+    sourceIndex,
+    sourceSection: provider.name,
+    ...upload || download || total ? {
+      traffic: {
+        upload,
+        download,
+        used,
+        total,
+        remaining: total > 0 ? Math.max(total - used, 0) : void 0,
+        isUnlimited: total <= 0
+      }
+    } : {},
+    ...expire ? { expire } : {}
   };
 }
-function getCachedProxyLinks(dashboardCache) {
-  return new Map(
-    Object.entries(objectMap(dashboardCache?.links)).filter(
-      ([, link]) => isCopyableProxyLink(link)
-    )
-  );
+function getSubscriptionMetadata(section, sourceCount, providerTags, providers) {
+  const items = providerTags.slice(0, sourceCount).flatMap((tag, index) => {
+    const sourceIndex = index + 1;
+    const provider = providers[tag];
+    if (!provider || provider.subscriptionInfo === void 0 && provider.subscriptionMetadata === void 0) {
+      return [];
+    }
+    const metadata = providerSubscriptionMetadata(provider, sourceIndex);
+    return metadata && isSubscriptionMetadataVisible(section, sourceIndex) ? [metadata] : [];
+  });
+  return items.length ? items : void 0;
 }
-async function getDashboardSections(options = {}) {
-  const includeSubscriptionCopyState = options.includeSubscriptionCopyState ?? true;
+function getOutboundMetadata(dashboardCache, providerTags = [], proxies = []) {
+  const metadata = dashboardCache?.outboundMetadata;
+  const names = objectMap(metadata?.names);
+  const prefixes = providerTags.map((tag) => `${tag}/`);
+  proxies.forEach((proxy) => {
+    const prefix = prefixes.find((value) => proxy.code.startsWith(value));
+    if (prefix) {
+      names[proxy.code] = proxy.code.slice(prefix.length);
+    }
+  });
+  if (!Object.keys(names).length) {
+    return void 0;
+  }
+  return { names };
+}
+async function getDashboardSections() {
   const configSections = hydrateConfigSections(await getConfigSections());
-  const clashProxies = await getClashApiProxies(configSections);
+  const hasSubscriptions = configSections.some(hasSubscriptionSources);
+  const [clashProxies, clashProviders] = await Promise.all([
+    getClashApiProxies(configSections),
+    hasSubscriptions ? getClashApiProxyProviders(configSections) : Promise.resolve({
+      success: true,
+      data: { providers: {} }
+    })
+  ]);
   if (!clashProxies.success || !clashProxies.data?.proxies) {
     return {
       success: false,
@@ -3902,6 +3684,7 @@ async function getDashboardSections(options = {}) {
       value
     })
   );
+  const providers = clashProviders.success ? clashProviders.data?.providers || {} : {};
   const data = await Promise.all(
     configSections.filter(
       (section) => section.enabled !== "0" && isConnectionAction(section.action)
@@ -3914,13 +3697,18 @@ async function getDashboardSections(options = {}) {
         const subscriptionSourceCount = getSubscriptionSourceCount(section);
         const subscriptionEnabled = subscriptionSourceCount > 0;
         const dashboardCache = await readDashboardSectionCache(sectionName);
-        const outboundMetadata = getOutboundMetadata(dashboardCache);
+        const providerTags = getSectionProviderTags(dashboardCache);
+        const outboundMetadata = getOutboundMetadata(
+          dashboardCache,
+          providerTags,
+          proxies
+        );
         const subscriptionMetadata = subscriptionEnabled ? getSubscriptionMetadata(
           section,
           subscriptionSourceCount,
-          dashboardCache
+          providerTags,
+          providers
         ) : void 0;
-        const cachedProxyLinks = includeSubscriptionCopyState ? getCachedProxyLinks(dashboardCache) : /* @__PURE__ */ new Map();
         const urltestGroups = getUrlTestGroups(dashboardCache);
         const priorityGroups = getPriorityGroups(dashboardCache);
         const { selector, latencyTestCode, latencyTestCodes, outbounds } = buildProxyGroupOutbounds(
@@ -3929,7 +3717,7 @@ async function getDashboardSections(options = {}) {
           outboundMetadata,
           urltestGroups,
           priorityGroups,
-          cachedProxyLinks
+          providerTags.slice(0, subscriptionSourceCount)
         );
         return {
           withTagSelect: true,
@@ -4249,10 +4037,7 @@ var initialDiagnosticStore = {
     forkop_latest_version: "loading",
     luci_app_version: "loading",
     sing_box_version: "loading",
-    sing_box_extended: 0,
-    sing_box_tiny: 0,
     sing_box_compressed: 0,
-    sing_box_tailscale: 1,
     zapret_version: "loading",
     zapret_installed: 0,
     zapret2_version: "loading",
@@ -4659,46 +4444,6 @@ function getComponentActionKey(component, action) {
   return componentActionKeyMap[`${component}:${action}`];
 }
 
-// src/forkop/helpers/singBoxVariant.ts
-function isExtendedSingBoxVersion(version) {
-  return String(version || "").includes("extended");
-}
-function isVersionPlaceholder(version) {
-  const normalized = String(version || "").trim().toLowerCase();
-  if (!normalized || normalized === "loading" || normalized === "unknown" || normalized === "not installed") {
-    return true;
-  }
-  return typeof _ === "function" && normalized === _("unknown").toLowerCase() || typeof _ === "function" && normalized === _("Not installed").toLowerCase();
-}
-function formatSingBoxVersion(value) {
-  const version = String(value.sing_box_version || "");
-  if (!version || version === "not installed") {
-    return _("Not installed");
-  }
-  if (isVersionPlaceholder(version)) {
-    return version;
-  }
-  const normalizedValue = normalizeSingBoxVariantFields(value);
-  let variant = "";
-  if (normalizedValue.sing_box_extended && normalizedValue.sing_box_compressed) {
-    variant = _("compressed");
-  } else if (normalizedValue.sing_box_tiny) {
-    variant = _("tiny");
-  }
-  return variant ? `${version} (${variant})` : version;
-}
-function normalizeSingBoxVariantFields(value) {
-  const versionExtended = isExtendedSingBoxVersion(value.sing_box_version);
-  const singBoxExtended = Boolean(value.sing_box_extended) || versionExtended;
-  return {
-    ...value,
-    sing_box_extended: singBoxExtended ? 1 : 0,
-    sing_box_tiny: singBoxExtended ? 0 : value.sing_box_tiny ? 1 : 0,
-    sing_box_compressed: singBoxExtended && value.sing_box_compressed ? 1 : 0,
-    sing_box_tailscale: singBoxExtended || value.sing_box_tailscale ? 1 : 0
-  };
-}
-
 // src/forkop/services/localActionOverlay.service.ts
 var componentActions = /* @__PURE__ */ new Set();
 var subscriptionSections = /* @__PURE__ */ new Set();
@@ -4792,10 +4537,6 @@ function applyServiceState(uiState) {
     byedpi_installed: uiState.capabilities.byedpi_installed,
     server_inbounds_enabled_count: uiState.capabilities.server_inbounds_enabled_count
   };
-  nextSystemInfo.sing_box_extended = uiState.capabilities.sing_box_extended;
-  nextSystemInfo.sing_box_tiny = uiState.capabilities.sing_box_tiny;
-  nextSystemInfo.sing_box_compressed = uiState.capabilities.sing_box_compressed;
-  nextSystemInfo.sing_box_tailscale = uiState.capabilities.sing_box_tailscale;
   store.set({
     servicesInfoWidget: {
       loading: false,
@@ -4807,7 +4548,7 @@ function applyServiceState(uiState) {
         forkopStatus: uiState.service.forkop.status
       }
     },
-    diagnosticsSystemInfo: normalizeSingBoxVariantFields(nextSystemInfo)
+    diagnosticsSystemInfo: nextSystemInfo
   });
 }
 function applyActionState(actions = {}) {
@@ -4819,11 +4560,6 @@ function applyActionState(actions = {}) {
   const latencyProgressSections = {};
   const updatesActions = getEmptyUpdatesActions();
   const diagnosticsActions = getEmptyDiagnosticsActions();
-  for (const state of actions.subscription || []) {
-    if (isRunningAction(state) && state.section) {
-      subscriptionUpdatingSections[state.section] = true;
-    }
-  }
   for (const state of actions.latency || []) {
     if (isRunningAction(state) && state.section) {
       latencyFetchingSections[state.section] = true;
@@ -5246,7 +4982,7 @@ function isStoredNotification(value) {
     return false;
   }
   const candidate = value;
-  return (candidate.kind === "component" || candidate.kind === "subscription") && typeof candidate.jobId === "string" && typeof candidate.notified === "boolean" && typeof candidate.updatedAt === "number";
+  return candidate.kind === "component" && typeof candidate.jobId === "string" && typeof candidate.notified === "boolean" && typeof candidate.updatedAt === "number";
 }
 function readStoredNotifications(storage) {
   if (!storage) {
@@ -5410,6 +5146,16 @@ function getServiceAvailability({
   return running ? "running" : "stopped";
 }
 
+// src/forkop/tabs/dashboard/resolveOutboundProxyLink.ts
+async function resolveOutboundProxyLink(outbound, fetchProxyLink) {
+  const configuredLink = outbound.link?.trim() || "";
+  if (isCopyableProxyLink(configuredLink)) return configuredLink;
+  if (!outbound.canCopyLink) return "";
+  const response = await fetchProxyLink(outbound.code);
+  const runtimeLink = response.success ? response.data?.url?.trim() : "";
+  return isCopyableProxyLink(runtimeLink) ? runtimeLink : "";
+}
+
 // src/forkop/tabs/dashboard/initController.ts
 var SECTIONS_REFRESH_INTERVAL_MS = 1e4;
 var LATENCY_TEST_BUTTON_CLASS = "dashboard-sections-grid-item-test-latency";
@@ -5423,9 +5169,7 @@ var dashboardMountId = 0;
 var dashboardDataUpdatesStarted = false;
 var dashboardDataUpdatesId = 0;
 var pageUnloading = false;
-var followedSubscriptionJobs = /* @__PURE__ */ new Set();
 var followedLatencyJobs = /* @__PURE__ */ new Set();
-var handledSubscriptionJobs = /* @__PURE__ */ new Set();
 var handledLatencyJobs = /* @__PURE__ */ new Set();
 if (typeof window !== "undefined") {
   window.addEventListener("pagehide", () => {
@@ -5573,73 +5317,6 @@ function setLatencyFetching(sectionName, fetching, local = false, progress) {
     }
   });
 }
-async function completeSubscriptionUpdateJob(jobId, sectionName, response) {
-  if (pageUnloading) {
-    setSubscriptionUpdating(sectionName, false);
-    return;
-  }
-  if (jobId && handledSubscriptionJobs.has(jobId)) {
-    setSubscriptionUpdating(sectionName, false);
-    return;
-  }
-  const shouldNotify = jobId ? shouldNotifyOwnedUiAction("subscription", jobId) : false;
-  const failed2 = !response.success || response.data.success === false;
-  const message = response.success ? response.data.message || _("Failed to update subscriptions") : response.error || _("Failed to update subscriptions");
-  if (failed2 && isTransientRpcError(message)) {
-    void refreshRuntimeUiState({ force: true });
-    return;
-  }
-  if (jobId) {
-    handledSubscriptionJobs.add(jobId);
-  }
-  setSubscriptionUpdating(sectionName, false);
-  if (jobId && response.success) {
-    void ForkopShellMethods.uiActionAck("subscription", jobId);
-  }
-  if (failed2) {
-    if (shouldNotify) {
-      showToast(_("Failed to update subscriptions"), "error");
-    }
-    return;
-  }
-  if (shouldNotify) {
-    showToast(_("Subscriptions updated"), "success");
-  }
-  void fetchDashboardSections({ force: true });
-  void fetchServicesInfo();
-}
-async function followSubscriptionUpdateState(state) {
-  const jobId = state.job_id;
-  const sectionName = state.section || "";
-  if (!jobId || !sectionName || followedSubscriptionJobs.has(jobId)) {
-    return;
-  }
-  if (!state.running && handledSubscriptionJobs.has(jobId)) {
-    return;
-  }
-  followedSubscriptionJobs.add(jobId);
-  if (shouldShowLoadingForRestoredAction(state)) {
-    setSubscriptionUpdating(sectionName, true);
-  }
-  try {
-    const response = state.running ? await ForkopShellMethods.waitSubscriptionUpdateJob(jobId) : {
-      success: true,
-      data: state
-    };
-    await completeSubscriptionUpdateJob(jobId, sectionName, response);
-  } catch (error) {
-    logger.error("[DASHBOARD]", "followSubscriptionUpdateState failed", error);
-    if (!pageUnloading) {
-      const message = error instanceof Error ? error.message : _("Failed to update subscriptions");
-      setSubscriptionUpdating(sectionName, false);
-      if (!isTransientRpcError(message)) {
-        showToast(_("Failed to update subscriptions"), "error");
-      }
-    }
-  } finally {
-    followedSubscriptionJobs.delete(jobId);
-  }
-}
 async function completeLatencyTestJob(jobId, sectionName) {
   setLatencyFetching(sectionName, false);
   if (pageUnloading) {
@@ -5684,14 +5361,6 @@ async function followLatencyTestState(state) {
   }
 }
 function followDashboardActionsFromUiState(uiState) {
-  for (const state of uiState.actions.subscription || []) {
-    if (state.running || state.job_id && state.section) {
-      void followSubscriptionUpdateState(state);
-    } else if (state.job_id && !handledSubscriptionJobs.has(state.job_id)) {
-      handledSubscriptionJobs.add(state.job_id);
-      void ForkopShellMethods.uiActionAck("subscription", state.job_id);
-    }
-  }
   for (const state of uiState.actions.latency || []) {
     if (state.running || state.job_id && state.section) {
       void followLatencyTestState(state);
@@ -5930,9 +5599,12 @@ async function handleTestLatency(latencyType, sectionName, tag, timeout) {
     }
   }
 }
-function handleCopyOutbound(outbound) {
-  const link = outbound.link;
-  if (link && isCopyableProxyLink(link)) {
+async function handleCopyOutbound(outbound) {
+  const link = await resolveOutboundProxyLink(
+    outbound,
+    ForkopShellMethods.getClashApiProxyLink
+  );
+  if (link) {
     copyToClipboard(link);
     return;
   }
@@ -6131,7 +5803,7 @@ function renderUrlTestInfoModal(outbound) {
               ),
               member.canCopyLink ? renderUrlTestCopyButton(_("Copy proxy link"), (event) => {
                 event.preventDefault();
-                handleCopyOutbound(member);
+                void handleCopyOutbound(member);
               }) : E("span", {
                 class: "fkp_dashboard-page__urltest-details__copy-placeholder"
               })
@@ -6235,37 +5907,10 @@ function renderPriorityInfoModal(outbound) {
   }
   const fields = [
     {
-      label: _("Selected"),
+      label: _("Last used"),
       children: [renderPrioritySelectedValue(info)]
     },
-    { label: _("Check URL"), children: [renderDetailsUrl(info.healthUrl)] },
-    {
-      label: _("Check interval"),
-      value: info.activeCheckInterval
-    },
-    { label: _("Unavailability timeout"), value: info.checkTimeout },
-    {
-      label: _("Higher-level check interval"),
-      value: info.recoveryCheckInterval
-    },
-    {
-      label: _("Select the fastest node"),
-      value: info.pickFastest
-    },
-    {
-      label: _("Automatically select the fastest node in the current level"),
-      value: info.switchToFasterSamePriority
-    },
-    ...info.switchToFasterSamePriority ? [
-      {
-        label: _("Faster server search interval"),
-        value: info.fastestCheckInterval
-      }
-    ] : [],
-    {
-      label: _("Interrupt connections"),
-      value: info.interruptExistConnections
-    }
+    { label: _("Blacklist timeout"), value: info.blacklistTimeout }
   ];
   return E("div", { class: "fkp_dashboard-page__urltest-details" }, [
     E(
@@ -6340,7 +5985,7 @@ function renderPriorityInfoModal(outbound) {
               ),
               member.canCopyLink ? renderUrlTestCopyButton(_("Copy proxy link"), (event) => {
                 event.preventDefault();
-                handleCopyOutbound(member);
+                void handleCopyOutbound(member);
               }) : E("span", {
                 class: "fkp_dashboard-page__urltest-details__copy-placeholder"
               })
@@ -6375,7 +6020,7 @@ function handleShowPriorityInfo(outbound) {
     return;
   }
   ui.showModal(
-    `${_("Priority details")}: ${outbound.priorityInfo.displayName || outbound.displayName}`,
+    `${_("priority details")}: ${outbound.priorityInfo.displayName || outbound.displayName}`,
     renderPriorityInfoModal(outbound)
   );
 }
@@ -6384,37 +6029,25 @@ async function handleUpdateSubscription(section) {
     return;
   }
   setSubscriptionUpdating(section.sectionName, true, true);
-  let jobId = "";
-  let ownsJobFollow = false;
   try {
-    const startResponse = await ForkopShellMethods.subscriptionUpdateStart(
+    const response = await ForkopShellMethods.subscriptionUpdate(
       section.sectionName
     );
-    if (!startResponse.success) {
-      throw new Error(startResponse.error);
+    if (!response.success) {
+      throw new Error(response.error);
     }
-    jobId = startResponse.data.job_id;
-    markUiActionOwned("subscription", jobId);
-    if (followedSubscriptionJobs.has(jobId)) {
-      return;
+    if (!pageUnloading) {
+      showToast(_("Subscriptions updated"), "success");
+      void fetchDashboardSections({ force: true });
+      void fetchServicesInfo();
     }
-    followedSubscriptionJobs.add(jobId);
-    ownsJobFollow = true;
-    const response = await ForkopShellMethods.waitSubscriptionUpdateJob(jobId);
-    await completeSubscriptionUpdateJob(jobId, section.sectionName, response);
   } catch (error) {
     logger.error("[DASHBOARD]", "handleUpdateSubscription: failed", error);
     if (!pageUnloading) {
-      const message = error instanceof Error ? error.message : _("Failed to update subscriptions");
-      setSubscriptionUpdating(section.sectionName, false);
-      if (!isTransientRpcError(message)) {
-        showToast(_("Failed to update subscriptions"), "error");
-      }
+      showToast(_("Failed to update subscriptions"), "error");
     }
   } finally {
-    if (ownsJobFollow) {
-      followedSubscriptionJobs.delete(jobId);
-    }
+    setSubscriptionUpdating(section.sectionName, false);
   }
 }
 function shallowRecordEqual(left, right) {
@@ -6543,7 +6176,7 @@ async function renderSectionsWidget() {
         void handleChooseOutbound(sectionName, selector, tag);
       },
       onCopyOutbound: (_section, outbound) => {
-        handleCopyOutbound(outbound);
+        void handleCopyOutbound(outbound);
       },
       onShowUrlTestInfo: (outbound) => {
         handleShowUrlTestInfo(outbound);
@@ -7605,19 +7238,19 @@ async function runDnsCheck() {
     state,
     items: [
       ...insertIf(
-        data.dns_type === "doh" || data.dns_type === "dot" || data.bootstrap_dns_server_count > 1 || !data.bootstrap_dns_status,
+        data.dns_type === "doh" || data.dns_type === "dot" || data.bootstrap_dns_server.includes(", ") || !data.bootstrap_dns_status,
         [
           {
             state: data.bootstrap_dns_status ? "success" : "error",
-            key: data.bootstrap_dns_server_count > 1 ? _("Active Bootstrap DNS") : _("Bootstrap DNS"),
-            value: data.bootstrap_dns_server_count > 1 ? `${data.bootstrap_dns_server} (${data.bootstrap_dns_server_index + 1}/${data.bootstrap_dns_server_count})` : data.bootstrap_dns_server
+            key: _("Bootstrap DNS"),
+            value: data.bootstrap_dns_server
           }
         ]
       ),
       {
         state: data.dns_status ? "success" : "error",
-        key: data.dns_server_count > 1 ? _("Active Main DNS") : _("Main DNS"),
-        value: data.dns_server_count > 1 ? `${data.dns_server} [${data.dns_type}] (${data.dns_server_index + 1}/${data.dns_server_count})` : `${data.dns_server} [${data.dns_type}]`
+        key: _("Main DNS"),
+        value: `${data.dns_server} [${data.dns_type}]`
       },
       {
         state: data.dns_on_router ? "success" : "error",
@@ -8303,10 +7936,7 @@ var UNKNOWN_SYSTEM_INFO = {
   forkop_latest_version: _("unknown"),
   luci_app_version: _("unknown"),
   sing_box_version: _("unknown"),
-  sing_box_extended: 0,
-  sing_box_tiny: 0,
   sing_box_compressed: 0,
-  sing_box_tailscale: 1,
   zapret_version: _("unknown"),
   zapret_installed: 0,
   zapret2_version: _("unknown"),
@@ -8350,14 +7980,14 @@ async function ensureSystemInfo({
         return store.get().diagnosticsSystemInfo;
       }
       if (systemInfo.success) {
-        const nextSystemInfo = normalizeSingBoxVariantFields({
+        const nextSystemInfo = {
           ...UNKNOWN_SYSTEM_INFO,
           loading: false,
           loaded: true,
           providerInfoLoaded: true,
           server_inbounds_enabled_count: currentSystemInfo.server_inbounds_enabled_count,
           ...systemInfo.data
-        });
+        };
         store.set({
           diagnosticsSystemInfo: nextSystemInfo
         });
@@ -9151,9 +8781,7 @@ async function runSectionsCheck() {
     state: "loading",
     items: []
   });
-  const sections = await getDashboardSections({
-    includeSubscriptionCopyState: false
-  });
+  const sections = await getDashboardSections();
   if (!sections.success) {
     updateCheckStore({
       order,
@@ -9333,6 +8961,22 @@ function shouldShowStopAction({
   return stopLoading || restartLoading || forkopRunning && !startLoading;
 }
 
+// src/forkop/helpers/singBoxVersion.ts
+function isVersionPlaceholder(version) {
+  const normalized = version.trim().toLowerCase();
+  return !normalized || normalized === "loading" || normalized === "unknown" || normalized === "not installed" || typeof _ === "function" && normalized === _("unknown").toLowerCase() || typeof _ === "function" && normalized === _("Not installed").toLowerCase();
+}
+function formatSingBoxVersion(value, showPackageFlavor = true) {
+  const version = String(value.sing_box_version || "");
+  if (!version || version === "not installed") {
+    return _("Not installed");
+  }
+  if (isVersionPlaceholder(version)) {
+    return version;
+  }
+  return showPackageFlavor && value.sing_box_compressed ? `${version} (${_("compressed")})` : version;
+}
+
 // src/forkop/tabs/diagnostic/diagnosticRunPersistence.ts
 var DIAGNOSTIC_RUN_STORAGE_KEY = "forkop:diagnostic-run:v1";
 var DIAGNOSTIC_RUN_TTL_MS = 30 * 60 * 1e3;
@@ -9348,28 +8992,28 @@ function getSessionStorage3() {
     return null;
   }
 }
-function isRecord(value) {
+function isRecord2(value) {
   return Boolean(value) && typeof value === "object";
 }
 function isOptionalBoolean(value) {
   return value === void 0 || typeof value === "boolean";
 }
 function isDiagnosticsProviderOptions(value) {
-  if (!isRecord(value)) {
+  if (!isRecord2(value)) {
     return false;
   }
   return isOptionalBoolean(value.includeZapret) && isOptionalBoolean(value.includeZapret2) && isOptionalBoolean(value.includeByedpi) && isOptionalBoolean(value.includeInbounds);
 }
 function isDiagnosticCheckItem(value) {
-  return isRecord(value) && CHECK_ITEM_STATES.includes(String(value.state)) && typeof value.key === "string" && typeof value.value === "string";
+  return isRecord2(value) && CHECK_ITEM_STATES.includes(String(value.state)) && typeof value.key === "string" && typeof value.value === "string";
 }
 function isDiagnosticCheck(value) {
-  return isRecord(value) && Number.isFinite(value.order) && Object.values(DIAGNOSTICS_CHECKS).includes(
+  return isRecord2(value) && Number.isFinite(value.order) && Object.values(DIAGNOSTICS_CHECKS).includes(
     value.code
   ) && typeof value.title === "string" && typeof value.description === "string" && CHECK_STATES.includes(String(value.state)) && Array.isArray(value.items) && value.items.every(isDiagnosticCheckItem);
 }
 function isPersistedDiagnosticRun(value) {
-  if (!isRecord(value)) {
+  if (!isRecord2(value)) {
     return false;
   }
   return typeof value.nextRunnerIndex === "number" && Number.isInteger(value.nextRunnerIndex) && value.nextRunnerIndex >= 0 && isDiagnosticsProviderOptions(value.providerOptions) && Array.isArray(value.diagnosticsChecks) && value.diagnosticsChecks.every(isDiagnosticCheck) && Number.isFinite(value.updatedAt);
@@ -9456,7 +9100,6 @@ var FORKOP_MASK_AFTER_TOKEN = [
   "list subscription_urls",
   "list urltest_proxy_links",
   "list selector_proxy_links",
-  "list server_users",
   "option server_uuid",
   "option server_username",
   "option server_password",
@@ -9508,7 +9151,7 @@ var FORKOP_MASK_AFTER_TOKEN_SPACE = [
   "option private_key",
   "option url"
 ];
-function isRecord2(value) {
+function isRecord3(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 function isSpaceChar(value) {
@@ -9567,7 +9210,7 @@ function maskSingBoxConfigValue(value) {
   if (Array.isArray(value)) {
     return value.map((item) => maskSingBoxConfigValue(item));
   }
-  if (isRecord2(value)) {
+  if (isRecord3(value)) {
     return Object.fromEntries(
       Object.entries(value).map(([key, item]) => [
         key,
@@ -9821,18 +9464,14 @@ async function fetchDiagnosticsProviderInfo({
     }
     if (uiState) {
       const currentSystemInfo2 = store.get().diagnosticsSystemInfo;
-      const nextSystemInfo2 = normalizeSingBoxVariantFields({
+      const nextSystemInfo2 = {
         ...currentSystemInfo2,
         providerInfoLoaded: true,
-        sing_box_extended: uiState.capabilities.sing_box_extended,
-        sing_box_tiny: uiState.capabilities.sing_box_tiny,
-        sing_box_compressed: uiState.capabilities.sing_box_compressed,
-        sing_box_tailscale: uiState.capabilities.sing_box_tailscale,
         zapret_installed: uiState.capabilities.zapret_installed,
         zapret2_installed: uiState.capabilities.zapret2_installed,
         byedpi_installed: uiState.capabilities.byedpi_installed,
         server_inbounds_enabled_count: uiState.capabilities.server_inbounds_enabled_count
-      });
+      };
       if (!nextSystemInfo2.zapret_installed) {
         nextSystemInfo2.zapret_version = "not installed";
       }
@@ -10272,7 +9911,7 @@ function renderDiagnosticSystemInfoWidget() {
     },
     {
       key: "Sing-box",
-      value: formatSingBoxVersion(diagnosticsSystemInfo)
+      value: formatSingBoxVersion(diagnosticsSystemInfo, false)
     }
   ];
   if (diagnosticsSystemInfo.zapret_installed) {
@@ -12991,12 +12630,11 @@ function patchSystemInfoAfterMutation(result) {
       nextSystemInfo.byedpi_version = version;
     }
   }
-  const normalizedSystemInfo = normalizeSingBoxVariantFields(nextSystemInfo);
   store.set({
-    diagnosticsSystemInfo: normalizedSystemInfo
+    diagnosticsSystemInfo: nextSystemInfo
   });
   if (result.component === "zapret" || result.component === "zapret2" || result.component === "byedpi") {
-    notifyActionProvidersAvailabilityChanged(normalizedSystemInfo);
+    notifyActionProvidersAvailabilityChanged(nextSystemInfo);
   }
 }
 async function applyCompletedComponentAction({
@@ -13029,7 +12667,7 @@ async function applyCompletedComponentAction({
     }
     return;
   }
-  if (result.action === "install" || result.action.startsWith("install_")) {
+  if (result.action === "install") {
     setCheckResult(result.component, "latest", result.latest_version || "");
   } else {
     resetCheckResult(result.component);
@@ -13291,9 +12929,7 @@ function getOptionalComponentActions({
   ];
 }
 function getComponentCards() {
-  const systemInfo = normalizeSingBoxVariantFields(
-    store.get().diagnosticsSystemInfo
-  );
+  const systemInfo = store.get().diagnosticsSystemInfo;
   const systemInfoLoading = isSystemInfoLoading();
   const zapretInstalled = Boolean(systemInfo.zapret_installed);
   const zapret2Installed = Boolean(systemInfo.zapret2_installed);
@@ -13478,12 +13114,9 @@ function renderComponentCard(card) {
   ) : null;
   const primaryActions = [];
   const dangerActions = [];
-  const variantActions = [];
   card.actions.forEach((action) => {
     if (action.action === "remove") {
       dangerActions.push(action);
-    } else if (action.action.startsWith("install_")) {
-      variantActions.push(action);
     } else {
       primaryActions.push(action);
     }
@@ -13517,32 +13150,6 @@ function renderComponentCard(card) {
       E("div", { class: "fkp_updates-page__component__actions-main" }, [
         ...primaryButtons,
         ...dangerButtons
-      ])
-    );
-  }
-  if (variantActions.length > 0) {
-    const variantButtons = variantActions.map((action) => {
-      const loading2 = updatesActions[action.key].loading;
-      return renderButton({
-        text: action.text,
-        icon: action.icon,
-        loading: loading2,
-        disabled: systemInfoLoading || serviceRuntimeActionLoading || anyActionLoading && !loading2,
-        onClick: () => void handleComponentAction(action)
-      });
-    });
-    actionElements.push(
-      E("div", { class: "fkp_updates-page__component__variants" }, [
-        E(
-          "div",
-          { class: "fkp_updates-page__component__variants-title" },
-          _("Install another build:")
-        ),
-        E(
-          "div",
-          { class: "fkp_updates-page__component__variants-buttons" },
-          variantButtons
-        )
       ])
     );
   }
@@ -13814,24 +13421,6 @@ var styles6 = `
     gap: 6px;
 }
 
-.fkp_updates-page__component__variants {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-top: 4px;
-}
-
-.fkp_updates-page__component__variants-title {
-    font-size: 11px;
-    font-weight: bold;
-    color: var(--text-color-medium, gray);
-}
-
-.fkp_updates-page__component__variants-buttons {
-    display: flex;
-    flex-wrap: nowrap;
-    gap: 6px;
-}
 `;
 
 // src/forkop/tabs/updates/index.ts
@@ -14040,6 +13629,8 @@ return baseclass.extend({
   getProxyUrlName,
   injectGlobalStyles,
   parseValueList,
+  parseWireGuardConfig,
+  parseWireGuardInput,
   showToast,
   store,
   validateDNS,
@@ -14049,5 +13640,6 @@ return baseclass.extend({
   validatePath,
   validateProxyUrl,
   validateSubnet,
-  validateUrl
+  validateUrl,
+  validateWireGuardKey
 });

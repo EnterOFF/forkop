@@ -141,22 +141,4 @@ export const styles = `
     gap: 6px;
 }
 
-.fkp_updates-page__component__variants {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-top: 4px;
-}
-
-.fkp_updates-page__component__variants-title {
-    font-size: 11px;
-    font-weight: bold;
-    color: var(--text-color-medium, gray);
-}
-
-.fkp_updates-page__component__variants-buttons {
-    display: flex;
-    flex-wrap: nowrap;
-    gap: 6px;
-}
 `;

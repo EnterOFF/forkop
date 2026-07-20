@@ -61,15 +61,8 @@ function show_help() {
     print("    disable                 Disable Forkop autostart\n");
     print("    uninstall               Remove Forkop files installed outside opkg/apk\n");
     print("    main                    Run main Forkop process\n");
-    print("    list_update             Update remote lists\n");
-    print("    list_update_if_due      Update remote lists only when the configured interval has elapsed\n");
     print("    subscription_update [rule] [source_index]\n");
     print("                            Update all subscription proxies, one rule, or one source in a rule\n");
-    print("    subscription_update_async [rule] [source_index]\n");
-    print("                            Start forced subscription update in the background\n");
-    print("    subscription_update_status [job_id]\n");
-    print("                            Get background subscription update status\n");
-    print("                            Update subscription proxies only when per-rule intervals have elapsed\n");
     print("    check_proxy             Check proxy connectivity\n");
     print("    check_nft               Check NFT rules\n");
     print("    check_nft_rules         Check NFT rules status\n");
@@ -90,9 +83,6 @@ function show_help() {
     print("    show_sing_box_config    Show sing-box configuration\n");
     print("    show_sing_box_version   Show sing-box version\n");
     print("    get_status              Get Forkop service status\n");
-    print("    get_outbound_metadata   Get generated outbound display names\n");
-    print("    get_subscription_metadata\n");
-    print("                            Get UI-only metadata for a subscription rule\n");
     print("    get_dashboard_section_cache\n");
     print("                            Get dashboard data for a connection rule\n");
     print("    get_sing_box_status     Get sing-box service status\n");
@@ -100,7 +90,6 @@ function show_help() {
     print("    get_zapret2_status      Get zapret2 provider and Forkop-managed nfqws2 status\n");
     print("    get_byedpi_status       Get ByeDPI provider and Forkop-managed ciadpi status\n");
     print("    get_system_info         Get system information in JSON format\n");
-    print("    get_server_capabilities Get server UI capabilities in JSON format\n");
     print("    get_ui_capabilities     Get lightweight UI capabilities in JSON format\n");
     print("    get_ui_state            Get lightweight UI service/action state in JSON format\n");
     print("    service_action_async    Start a service action in the background\n");
@@ -110,6 +99,7 @@ function show_help() {
     print("    ui_action_ack           Acknowledge a finished UI action state\n");
     print("    generate_reality_keypair\n");
     print("                            Generate a sing-box Reality key pair in JSON format\n");
+    print("    generate_warp_profile   Generate a Cloudflare WARP profile in JSON format\n");
     print("    get_tls_certificate_sha256 [server]\n");
     print("                            Get a server TLS certificate SHA-256 fingerprint in JSON format\n");
     print("    component_action        Manage Forkop, sing-box, zapret, zapret2, and ByeDPI components\n");
@@ -132,7 +122,6 @@ function command_spec(command) {
         start: [ "service/lifecycle.uc", "start", 0 ],
         stop: [ "service/lifecycle.uc", "stop", 0 ],
         reload: [ "service/lifecycle.uc", "reload", 1 ],
-        dns_failover_apply: [ "service/lifecycle.uc", "dns-failover-apply", 1 ],
         restart: [ "service/lifecycle.uc", "restart", 0 ],
         enable: [ "service/lifecycle.uc", "enable", 0 ],
         disable: [ "service/lifecycle.uc", "disable", 0 ],
@@ -140,11 +129,8 @@ function command_spec(command) {
         dnsmasq_restore: [ "service/lifecycle.uc", "dnsmasq-restore", 0 ],
         restore_dnsmasq: [ "service/lifecycle.uc", "dnsmasq-restore", 0 ],
         main: [ "service/lifecycle.uc", "main", 0 ],
-        list_update: [ "components/updates.uc", "list-update", 0 ],
-        list_update_if_due: [ "components/updates.uc", "list-update-if-due", 0 ],
+        sing_box_crash_cleanup: [ "service/lifecycle.uc", "sing-box-crash-cleanup", 1 ],
         subscription_update: [ "components/updates.uc", "subscription-update", 2 ],
-        subscription_update_async: [ "components/updates.uc", "subscription-update-async", 2 ],
-        subscription_update_status: [ "components/updates.uc", "subscription-update-status", 1 ],
         check_proxy: [ "diagnostics/runtime.uc", "check-proxy", 0 ],
         check_nft: [ "diagnostics/runtime.uc", "check-nft", 0 ],
         check_nft_rules: [ "diagnostics/runtime.uc", "check-nft-rules", 0 ],
@@ -164,15 +150,12 @@ function command_spec(command) {
         show_sing_box_config: [ "diagnostics/runtime.uc", "show-sing-box-config", 1 ],
         show_sing_box_version: [ "diagnostics/runtime.uc", "show-sing-box-version", 0 ],
         get_status: [ "diagnostics/runtime.uc", "get-status", 0 ],
-        get_outbound_metadata: [ "diagnostics/runtime.uc", "get-outbound-metadata", 1 ],
-        get_subscription_metadata: [ "diagnostics/runtime.uc", "get-subscription-metadata", 1 ],
         get_dashboard_section_cache: [ "diagnostics/runtime.uc", "get-dashboard-section-cache", 1 ],
         get_sing_box_status: [ "diagnostics/runtime.uc", "get-sing-box-status", 0 ],
         get_zapret_status: [ "diagnostics/runtime.uc", "get-zapret-status", 0 ],
         get_zapret2_status: [ "diagnostics/runtime.uc", "get-zapret2-status", 0 ],
         get_byedpi_status: [ "diagnostics/runtime.uc", "get-byedpi-status", 0 ],
         get_system_info: [ "diagnostics/runtime.uc", "get-system-info", 0 ],
-        get_server_capabilities: [ "diagnostics/runtime.uc", "get-server-capabilities", 0 ],
         get_ui_capabilities: [ "service/ui.uc", "get-ui-capabilities", 0 ],
         get_ui_state: [ "service/ui.uc", "get-ui-state", 0 ],
         service_action_async: [ "service/ui.uc", "service-action-async", 1 ],
@@ -181,6 +164,7 @@ function command_spec(command) {
         latency_test_status: [ "service/ui.uc", "latency-test-status", 1 ],
         ui_action_ack: [ "service/ui.uc", "action-ack", 2 ],
         generate_reality_keypair: [ "server/service.uc", "generate-reality-keypair", 0 ],
+        generate_warp_profile: [ "singbox/runtime.uc", "generate-warp-profile", 0 ],
         get_tls_certificate_sha256: [ "server/service.uc", "tls-certificate-sha256", 1 ],
         component_action: [ "components/action.uc", "component-action", 2 ],
         component_action_async: [ "components/updates.uc", "component-action-async", 2 ],

@@ -57,14 +57,20 @@ function fail(message) {
 }
 
 const retiredMissingCurrent = new Set([
+  "conffile",
+  "local_domain_lists",
+  "log_stderr",
+  "remote_domain_lists",
+  "remote_subnet_lists",
   "urltest_hide_filtered_outbounds",
+  "workdir",
 ]);
 const missing = matrix.fields.filter((field) => field.status === "missing_current" && !retiredMissingCurrent.has(field.name));
 if (missing.length) {
   fail(`stable config fields missing in current contract: ${missing.map((field) => field.name).join(", ")}`);
 }
 
-for (const name of ["dns_type", "subscription_urls", "selector_proxy_links", "action", "protocol", "transport", "security", "user_domains", "user_domains_text", "user_domain_list_type", "local_domain_lists", "remote_domain_lists", "remote_subnet_lists", "domain_ip_lists", "fully_routed_ips", "server_uuid", "tailscale_auth_key"]) {
+for (const name of ["dns_type", "subscription_urls", "selector_proxy_links", "action", "protocol", "transport", "security", "user_domains", "user_domains_text", "user_domain_list_type", "domain_ip_lists", "fully_routed_ips", "server_uuid", "tailscale_auth_key"]) {
   const field = matrix.fields.find((item) => item.name === name);
   if (!field) fail(`expected config field is absent from matrix: ${name}`);
   if (field.status !== "supported" && field.status !== "migrated") {
@@ -108,7 +114,7 @@ function assertCurrentKeepsStableValues(name, required = [], retired = []) {
 }
 
 assertCurrentKeepsStableValues("action", ["connection", "bypass", "block", "zapret", "zapret2", "byedpi", "dns"], ["direct", "proxy", "vpn", "outbound"]);
-assertCurrentKeepsStableValues("protocol", ["tailscale", "vless", "vmess", "trojan", "shadowsocks", "hysteria2", "socks", "mtproto", "json_inbound"]);
+assertCurrentKeepsStableValues("protocol", ["tailscale", "vless", "vmess", "trojan", "shadowsocks", "hysteria2", "socks", "mtproto", "naive", "ssh", "mieru", "anytls", "tuic", "json_inbound"]);
 assertCurrentKeepsStableValues("security", ["reality", "tls", "none"]);
 assertCurrentKeepsStableValues("transport", ["tcp", "ws", "grpc", "http", "httpupgrade", "xhttp"]);
 assertCurrentKeepsStableValues("urltest_filter_mode", ["disabled", "exclude", "include", "mixed"]);

@@ -10,7 +10,6 @@ let core_url = require("core.url");
 let constants_module = require("core.constants");
 let singbox_constants_module = require("singbox.constants");
 let domain_config = require("config.domain");
-let subscription_share_link = require("subscription.share_link");
 
 let as_string = common.as_string;
 let read_json_file = common.read_json_file;
@@ -23,16 +22,22 @@ let object_or_empty = common.object_or_empty;
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const TMP_SUBSCRIPTION_FOLDER = getenv("TMP_SUBSCRIPTION_FOLDER") || "/tmp/sing-box/subscriptions";
 const FORKOP_RUNTIME_STATE_DIR = getenv("FORKOP_RUNTIME_STATE_DIR") || "/var/run/forkop";
+const FORKOP_SUBSCRIPTION_UPDATE_STATE_DIR = getenv("FORKOP_SUBSCRIPTION_UPDATE_STATE_DIR") || FORKOP_RUNTIME_STATE_DIR + "/subscription-update";
 const FORKOP_SUBSCRIPTION_LINKS_DIR = getenv("FORKOP_SUBSCRIPTION_LINKS_DIR") || FORKOP_RUNTIME_STATE_DIR + "/subscription-links";
 const FORKOP_SUBSCRIPTION_METADATA_DIR = getenv("FORKOP_SUBSCRIPTION_METADATA_DIR") || FORKOP_RUNTIME_STATE_DIR + "/subscription-metadata";
 const FORKOP_OUTBOUND_METADATA_DIR = getenv("FORKOP_OUTBOUND_METADATA_DIR") || FORKOP_RUNTIME_STATE_DIR + "/outbound-metadata";
 const FORKOP_SECTION_CACHE_DIR = getenv("FORKOP_SECTION_CACHE_DIR") || FORKOP_RUNTIME_STATE_DIR + "/section-cache";
-const FORKOP_RUNTIME_CACHE_FORMAT_FILE = getenv("FORKOP_RUNTIME_CACHE_FORMAT_FILE") || FORKOP_RUNTIME_STATE_DIR + "/cache-format";
 const FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_DIR = getenv("FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_DIR") || "/etc/forkop/subscription-cache";
-const FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT_FILE = getenv("FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT_FILE") || FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_DIR + "/cache-format";
-const FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT = getenv("FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT") || "7";
+const FORKOP_SUBSCRIPTION_UPDATE_LOCK_DIR = getenv("FORKOP_SUBSCRIPTION_UPDATE_LOCK_DIR") || FORKOP_RUNTIME_STATE_DIR + "/subscription-update.lock";
+const FORKOP_SUBSCRIPTION_UPDATE_JOB_DIR = getenv("FORKOP_SUBSCRIPTION_UPDATE_JOB_DIR") || FORKOP_RUNTIME_STATE_DIR + "/subscription-update-jobs";
+const FORKOP_SUBSCRIPTION_BOOTSTRAP_RETRY_PID_FILE = getenv("FORKOP_SUBSCRIPTION_BOOTSTRAP_RETRY_PID_FILE") || FORKOP_RUNTIME_STATE_DIR + "/subscription-bootstrap-retry.pid";
 const FORKOP_INTERNAL_CONFIG_TRIGGER_GUARD = getenv("FORKOP_INTERNAL_CONFIG_TRIGGER_GUARD") || "/var/run/forkop.internal-config-change";
-const FORKOP_RUNTIME_CACHE_FORMAT = getenv("FORKOP_RUNTIME_CACHE_FORMAT") || "8";
+const FORKOP_LEGACY_LIST_UPDATE_STATE_FILE = getenv("FORKOP_LEGACY_LIST_UPDATE_STATE_FILE") || FORKOP_RUNTIME_STATE_DIR + "/list-update.timestamp";
+const FORKOP_LEGACY_LIST_UPDATE_PID_FILE = getenv("FORKOP_LEGACY_LIST_UPDATE_PID_FILE") || "/var/run/forkop_list_update.pid";
+const FORKOP_LEGACY_RULESET_CACHE_DIR = getenv("FORKOP_LEGACY_RULESET_CACHE_DIR") || "/tmp/sing-box/rulesets";
+const FORKOP_CRONTAB_BIN = getenv("FORKOP_CRONTAB_BIN") || "crontab";
+const LEGACY_LIST_UPDATE_CRON_MARKER = "# forkop-list-update";
+const LEGACY_SUBSCRIPTION_UPDATE_CRON_MARKER = "# forkop-subscription-update";
 const CONFIG_VERSION_OPTION = "config_version";
 const APPLIED_MIGRATIONS_OPTION = "applied_migrations";
 const CHILD_ITEM_TYPES = [
@@ -100,7 +105,8 @@ function model_from_fixture(path) {
     let model = {
         settings: clone_section(object_or_empty(data.settings)),
         rules: [],
-        sections: []
+        sections: [],
+        servers: []
     };
     for (let type_name in CHILD_ITEM_TYPES)
         model[type_name] = [];
@@ -114,6 +120,8 @@ function model_from_fixture(path) {
         push(model.rules, clone_section(section));
     for (let section in fixture_section_list(data, "section"))
         push(model.sections, clone_section(section));
+    for (let section in fixture_section_list(data, "server"))
+        push(model.servers, clone_section(section));
     for (let type_name in CHILD_ITEM_TYPES)
         for (let section in fixture_section_list(data, type_name))
             push(model[type_name], clone_section(section));
@@ -125,7 +133,8 @@ function model_from_uci(cursor) {
     let model = {
         settings: clone_section(object_or_empty(cursor.get_all(CONFIG_NAME, "settings"))),
         rules: [],
-        sections: []
+        sections: [],
+        servers: []
     };
     for (let type_name in CHILD_ITEM_TYPES)
         model[type_name] = [];
@@ -135,6 +144,9 @@ function model_from_uci(cursor) {
     });
     cursor.foreach(CONFIG_NAME, "section", function(section) {
         push(model.sections, clone_section(section));
+    });
+    cursor.foreach(CONFIG_NAME, "server", function(section) {
+        push(model.servers, clone_section(section));
     });
     for (let type_name in CHILD_ITEM_TYPES) {
         cursor.foreach(CONFIG_NAME, type_name, function(section) {
@@ -152,6 +164,8 @@ function export_model(model) {
     };
     if (length(model.rules) > 0)
         result.rule = model.rules;
+    if (length(model.servers) > 0)
+        result.server = model.servers;
     for (let type_name in CHILD_ITEM_TYPES)
         if (length(model[type_name] || []) > 0)
             result[type_name] = model[type_name];
@@ -163,6 +177,7 @@ function migration_context(model) {
         model,
         operations: [],
         removed_caches: [],
+        removed_cron_markers: [],
         added_lists: {},
         changed: false
     };
@@ -645,9 +660,6 @@ function migrate_subscription_url_item_settings(ctx, section) {
         set_option(ctx, child, "auto_hwid", "1");
         set_option(ctx, child, "show_dashboard_metadata", "1");
         set_option(ctx, child, "prefix_nodes", "0");
-        set_option(ctx, child, "include_urltest_groups", "1");
-        set_option(ctx, child, "hide_urltest_group_outbounds", "1");
-        set_option(ctx, child, "hide_detour_outbounds", "1");
         index++;
     }
 
@@ -1289,11 +1301,267 @@ function remove_server_country_and_dashboard_filter(ctx) {
     push(ctx.removed_caches, FORKOP_RUNTIME_STATE_DIR + "/server-country-cache.json");
 }
 
+const OBSOLETE_PRIORITY_GROUP_OPTIONS = [
+    "health_url",
+    "active_check_interval",
+    "check_timeout",
+    "recovery_check_interval",
+    "pick_fastest",
+    "switch_to_faster_same_priority",
+    "fastest_check_interval",
+    "interrupt_exist_connections"
+];
+
+function use_native_fallbacks(ctx) {
+    let settings = ctx.model.settings;
+    for (let key in [ "dns_check_interval", "dns_recovery_check_interval", "dns_check_timeout" ])
+        delete_option(ctx, settings, key);
+    set_option_if_missing(ctx, settings, "dns_fallback_strategy", "sequential");
+
+    for (let group in ctx.model.priority_group || []) {
+        let blacklist_timeout = option(group, "blacklist_timeout", "");
+        if (blacklist_timeout == "")
+            blacklist_timeout = option(group, "recovery_check_interval", "1m") || "1m";
+        set_option(ctx, group, "blacklist_timeout", blacklist_timeout);
+        for (let key in OBSOLETE_PRIORITY_GROUP_OPTIONS)
+            delete_option(ctx, group, key);
+    }
+
+    for (let path in [
+        TMP_SUBSCRIPTION_FOLDER,
+        FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_DIR,
+        FORKOP_SUBSCRIPTION_UPDATE_STATE_DIR,
+        FORKOP_SUBSCRIPTION_LINKS_DIR,
+        FORKOP_SUBSCRIPTION_METADATA_DIR,
+        FORKOP_OUTBOUND_METADATA_DIR,
+        FORKOP_SECTION_CACHE_DIR,
+        FORKOP_SUBSCRIPTION_UPDATE_LOCK_DIR,
+        FORKOP_SUBSCRIPTION_UPDATE_JOB_DIR,
+        FORKOP_SUBSCRIPTION_BOOTSTRAP_RETRY_PID_FILE,
+        FORKOP_RUNTIME_STATE_DIR + "/cache-format",
+        FORKOP_RUNTIME_STATE_DIR + "/dns-failover.json",
+        FORKOP_RUNTIME_STATE_DIR + "/dns-failover.pid",
+        FORKOP_RUNTIME_STATE_DIR + "/priority.pid"
+    ])
+        push(ctx.removed_caches, path);
+}
+
+function use_native_rule_sets(ctx) {
+    let legacy_options = [
+        "local_domain_lists",
+        "local_subnet_lists",
+        "remote_domain_lists",
+        "remote_subnet_lists"
+    ];
+
+    for (let section in ctx.model.sections) {
+        let values = list_option(section, "domain_ip_lists");
+        let seen = {};
+        let merged = [];
+        for (let value in values) {
+            value = as_string(value);
+            if (value != "" && !seen[value]) {
+                seen[value] = true;
+                push(merged, value);
+            }
+        }
+
+        let had_legacy = false;
+        for (let key in legacy_options) {
+            if (!option_exists(section, key))
+                continue;
+            had_legacy = true;
+            for (let value in list_option(section, key)) {
+                value = as_string(value);
+                if (value != "" && !seen[value]) {
+                    seen[value] = true;
+                    push(merged, value);
+                }
+            }
+            delete_option(ctx, section, key);
+        }
+
+        if (had_legacy)
+            set_list_option(ctx, section, "domain_ip_lists", merged);
+    }
+
+    for (let path in [
+        FORKOP_LEGACY_LIST_UPDATE_STATE_FILE,
+        FORKOP_LEGACY_LIST_UPDATE_PID_FILE,
+        FORKOP_LEGACY_RULESET_CACHE_DIR
+    ])
+        push(ctx.removed_caches, path);
+
+    push(ctx.removed_cron_markers, LEGACY_LIST_UPDATE_CRON_MARKER);
+    push(ctx.removed_cron_markers, LEGACY_SUBSCRIPTION_UPDATE_CRON_MARKER);
+}
+
+const OBSOLETE_SUBSCRIPTION_GROUP_OPTIONS = [
+    "include_urltest_groups",
+    "hide_urltest_group_outbounds",
+    "hide_detour_outbounds"
+];
+
+function remove_subscription_group_settings_map(ctx, section) {
+    let raw = option(section, "subscription_url_settings", "");
+    if (raw == "")
+        return false;
+
+    let settings;
+    try {
+        settings = json(raw);
+    }
+    catch (e) {
+        return false;
+    }
+    if (type(settings) != "object")
+        return false;
+
+    let changed = false;
+    for (let _, item in settings) {
+        if (type(item) != "object")
+            continue;
+        for (let key in OBSOLETE_SUBSCRIPTION_GROUP_OPTIONS) {
+            if (!option_exists(item, key))
+                continue;
+            delete item[key];
+            changed = true;
+        }
+    }
+    if (changed)
+        set_option(ctx, section, "subscription_url_settings", sprintf("%J", settings));
+    return changed;
+}
+
+function use_leaf_subscription_providers(ctx) {
+    let changed = false;
+    for (let child in ctx.model.subscription_url || []) {
+        for (let key in OBSOLETE_SUBSCRIPTION_GROUP_OPTIONS) {
+            if (option_exists(child, key))
+                changed = true;
+            delete_option(ctx, child, key);
+        }
+    }
+    for (let section in ctx.model.sections || []) {
+        for (let key in OBSOLETE_SUBSCRIPTION_GROUP_OPTIONS) {
+            if (option_exists(section, key))
+                changed = true;
+            delete_option(ctx, section, key);
+        }
+        if (remove_subscription_group_settings_map(ctx, section))
+            changed = true;
+    }
+
+    if (changed)
+        push(ctx.removed_caches, FORKOP_SECTION_CACHE_DIR);
+}
+
+function set_option_if_blank(ctx, section, key, value) {
+    if (option(section, key, "") == "")
+        set_option(ctx, section, key, value);
+}
+
+function hex_digit_value(value) {
+    value = ord(lc(as_string(value)));
+    if (value >= 48 && value <= 57)
+        return value - 48;
+    if (value >= 97 && value <= 102)
+        return value - 87;
+    return -1;
+}
+
+function decode_hex(value) {
+    value = as_string(value);
+    if (length(value) == 0 || length(value) % 2 != 0 || match(value, /^([0-9a-fA-F]{2})+$/) == null)
+        return "";
+
+    let result = "";
+    for (let i = 0; i < length(value); i += 2) {
+        let high = hex_digit_value(substr(value, i, 1));
+        let low = hex_digit_value(substr(value, i + 1, 1));
+        if (high < 0 || low < 0)
+            return "";
+        result += chr(high * 16 + low);
+    }
+    return result;
+}
+
+function migrate_legacy_server_user(ctx, server, protocol) {
+    let entries = option_list_values(server, "server_users");
+    if (length(entries) == 0)
+        return;
+
+    let parts = split(as_string(entries[0]), "|");
+    let name = "client";
+    let credential = trim(as_string(parts[0] || ""));
+    let extra = "";
+    if (length(parts) > 1) {
+        name = trim(as_string(parts[0] || ""));
+        credential = trim(as_string(parts[1] || ""));
+        extra = trim(as_string(parts[2] || ""));
+    }
+
+    if (credential != "") {
+        if (protocol == "vless" || protocol == "vmess") {
+            set_option_if_blank(ctx, server, "server_uuid", credential);
+            if (protocol == "vless" && extra != "")
+                set_option_if_blank(ctx, server, "vless_flow", extra);
+            else if (protocol == "vmess" && match(extra, /^[0-9]+$/) != null)
+                set_option_if_blank(ctx, server, "vmess_alter_id", extra);
+        }
+        else if (protocol == "shadowsocks" || protocol == "socks" || protocol == "trojan" || protocol == "hysteria2") {
+            set_option_if_blank(ctx, server, "server_password", credential);
+            if (protocol == "socks" && name != "")
+                set_option_if_blank(ctx, server, "server_username", name);
+        }
+        else if (protocol == "mtproto") {
+            let secret = lc(credential);
+            let base_secret = secret;
+            let faketls = "";
+            if (match(secret, /^ee[0-9a-f]{32}([0-9a-f]{2})+$/) != null) {
+                base_secret = substr(secret, 2, 32);
+                faketls = decode_hex(substr(secret, 34));
+            }
+            set_option_if_blank(ctx, server, "mtproto_secret", base_secret);
+            set_option_if_blank(ctx, server, "mtproto_faketls", faketls != "" ? faketls : "google.com");
+        }
+    }
+
+    delete_option(ctx, server, "server_users");
+}
+
+function add_extended_server_defaults(ctx) {
+    set_option_if_missing(ctx, ctx.model.settings, "unified_delay", "0");
+    for (let server in ctx.model.servers || []) {
+        let protocol = option(server, "protocol", "vless");
+        migrate_legacy_server_user(ctx, server, protocol);
+        delete_option(ctx, server, "mtproto_padding");
+        if (protocol == "naive") {
+            set_option_if_missing(ctx, server, "naive_network", "tcp");
+            set_option_if_missing(ctx, server, "naive_quic_congestion_control", "bbr");
+        }
+        else if (protocol == "mieru") {
+            set_option_if_missing(ctx, server, "mieru_transport", "TCP");
+            set_option_if_missing(ctx, server, "mieru_user_hint_mandatory", "0");
+        }
+        else if (protocol == "tuic") {
+            set_option_if_missing(ctx, server, "tuic_congestion_control", "cubic");
+            set_option_if_missing(ctx, server, "tuic_auth_timeout", "3s");
+            set_option_if_missing(ctx, server, "tuic_heartbeat", "10s");
+            set_option_if_missing(ctx, server, "tuic_zero_rtt_handshake", "0");
+        }
+    }
+}
+
 const MIGRATIONS = [
     { id: "interface_sections", run: migrate_interface_sections },
     { id: "enable_component_checks", run: migrate_enable_component_checks },
     { id: "http_connection_urls", run: migrate_http_connection_urls },
-    { id: "remove_server_country_and_dashboard_filter", run: remove_server_country_and_dashboard_filter }
+    { id: "remove_server_country_and_dashboard_filter", run: remove_server_country_and_dashboard_filter },
+    { id: "native_fallbacks", run: use_native_fallbacks },
+    { id: "native_rule_sets", run: use_native_rule_sets },
+    { id: "leaf_subscription_providers", run: use_leaf_subscription_providers },
+    { id: "extended_server_defaults", run: add_extended_server_defaults }
 ];
 
 function apply_migrations(ctx) {
@@ -1366,61 +1634,41 @@ function migrate_forkop_model(model) {
 }
 
 // Runtime UCI adapter and external command dispatcher.
-function first_line(path) {
-    let data = fs.readfile(as_string(path));
-    if (data == null)
-        return "";
-    let newline = index(data, "\n");
-    return newline >= 0 ? substr(data, 0, newline) : data;
-}
-
-function ensure_dir(path) {
-    run("mkdir -p " + shell_quote(path) + " >/dev/null 2>&1");
-}
-
-function clear_subscription_runtime_cache() {
-    run("rm -rf " +
-        shell_quote(TMP_SUBSCRIPTION_FOLDER) + " " +
-        shell_quote(FORKOP_SUBSCRIPTION_LINKS_DIR) + " " +
-        shell_quote(FORKOP_SUBSCRIPTION_METADATA_DIR) + " " +
-        shell_quote(FORKOP_OUTBOUND_METADATA_DIR) + " " +
-        shell_quote(FORKOP_SECTION_CACHE_DIR));
-}
-
-function ensure_runtime_dirs() {
-    ensure_dir(TMP_SUBSCRIPTION_FOLDER);
-    ensure_dir(FORKOP_RUNTIME_STATE_DIR);
-    ensure_dir(FORKOP_SUBSCRIPTION_METADATA_DIR);
-    ensure_dir(FORKOP_OUTBOUND_METADATA_DIR);
-    ensure_dir(FORKOP_SECTION_CACHE_DIR);
-}
-
-function ensure_runtime_cache_format() {
-    ensure_dir(FORKOP_RUNTIME_STATE_DIR);
-
-    if (first_line(FORKOP_RUNTIME_CACHE_FORMAT_FILE) != FORKOP_RUNTIME_CACHE_FORMAT) {
-        if (first_line(FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT_FILE) == FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT)
-            subscription_share_link.populate_subscription_dir(FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_DIR);
-        clear_subscription_runtime_cache();
-        ensure_runtime_dirs();
-        fs.writefile(FORKOP_RUNTIME_CACHE_FORMAT_FILE, FORKOP_RUNTIME_CACHE_FORMAT + "\n");
-    }
-
-    if (first_line(FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT_FILE) != FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT) {
-        run("rm -rf " + shell_quote(FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_DIR));
-        ensure_dir(FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_DIR);
-        run("chmod 700 " + shell_quote(FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_DIR) + " >/dev/null 2>&1");
-        fs.writefile(FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT_FILE, FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT + "\n");
-        run("chmod 600 " + shell_quote(FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_FORMAT_FILE) + " >/dev/null 2>&1");
-    }
-}
-
 function remove_cache_path(path) {
     path = as_string(path);
     if (index(path, "*") >= 0)
         run("rm -f " + path);
     else
-        fs.unlink(path);
+        run("rm -rf " + shell_quote(path));
+}
+
+function remove_cron_markers(markers) {
+    let current = command_output(shell_quote(FORKOP_CRONTAB_BIN) + " -l 2>/dev/null");
+    let filtered = "";
+
+    for (let line in split(current, "\n")) {
+        let remove = false;
+        for (let marker in markers) {
+            if (marker != "" && index(line, marker) >= 0) {
+                remove = true;
+                break;
+            }
+        }
+        if (!remove && line != "")
+            filtered += line + "\n";
+    }
+
+    let normalized = current == "" ? "" : current + "\n";
+    if (filtered == normalized)
+        return true;
+
+    let tmp = command_output("mktemp");
+    if (tmp == "" || fs.writefile(tmp, filtered) == null)
+        return false;
+
+    let ok = run(shell_quote(FORKOP_CRONTAB_BIN) + " " + shell_quote(tmp) + " >/dev/null 2>&1");
+    fs.unlink(tmp);
+    return ok;
 }
 
 function apply_operations(cursor, operations) {
@@ -1517,8 +1765,6 @@ function migrate_model(model, source) {
 }
 
 function migrate_runtime(source) {
-    ensure_runtime_cache_format();
-
     let cursor = runtime_cursor();
     cursor.load(CONFIG_NAME);
     let ctx = migrate_model(model_from_uci(cursor), source);
@@ -1528,6 +1774,8 @@ function migrate_runtime(source) {
     apply_operations(cursor, ctx.operations);
     for (let path in ctx.removed_caches)
         remove_cache_path(path);
+    if (!remove_cron_markers(ctx.removed_cron_markers))
+        return false;
 
     return commit_cursor(cursor);
 }
@@ -1544,7 +1792,8 @@ function migrate_fixture(path, source) {
         changed: ctx.changed,
         config: export_model(ctx.model),
         operations: ctx.operations,
-        removed_caches: ctx.removed_caches
+        removed_caches: ctx.removed_caches,
+        removed_cron_markers: ctx.removed_cron_markers
     });
 }
 

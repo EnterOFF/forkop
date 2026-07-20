@@ -44,6 +44,15 @@ assert_eq binary \
 assert_eq binary \
   "$(ucode -L "$FORKOP_LIB" "$RULESETS_UC" remote-format 'https://example.com/rules.unknown')" \
   "unknown remote ruleset format"
+assert_eq proxy-discord-community-ruleset \
+  "$(ucode -L "$FORKOP_LIB" -e 'let r=require("singbox.rulesets"); print(r.community_tag("proxy","discord"));')" \
+  "stable community tag"
+assert_eq inline-custom-ea6fa9f2951d-ruleset \
+  "$(ucode -L "$FORKOP_LIB" -e 'let r=require("singbox.rulesets"); print(r.custom_reference_tag("https://example.com/rules.srs"));')" \
+  "stable custom reference tag"
+assert_eq inline-text-11ae9de91dfd-ruleset \
+  "$(ucode -L "$FORKOP_LIB" -e 'let r=require("singbox.rulesets"); print(r.text_reference_tag("https://example.com/mixed.txt"));')" \
+  "stable native text reference tag"
 
 ucode -L "$FORKOP_LIB" -e 'let rulesets = require("singbox.rulesets"); if (rulesets.kind_from_reference_hint("geoip") != "subnets") exit(1);'
 

@@ -68,6 +68,28 @@ function hash12(value) {
     return sprintf("%06x%06x", first % 16777216, second % 16777216);
 }
 
+function section_tag(section_name, name, kind) {
+    kind = as_string(kind);
+    return kind == ""
+        ? as_string(section_name) + "-" + as_string(name) + "-ruleset"
+        : as_string(section_name) + "-" + as_string(name) + "-" + kind + "-ruleset";
+}
+
+function community_tag(section_name, community) {
+    return section_tag(section_name, community, "community");
+}
+
+function custom_reference_tag(reference) {
+    reference = as_string(reference);
+    return is_community(reference)
+        ? "builtin-" + reference + "-ruleset"
+        : "inline-custom-" + hash12(reference) + "-ruleset";
+}
+
+function text_reference_tag(reference) {
+    return "inline-text-" + hash12(reference) + "-ruleset";
+}
+
 function file_extension(value) {
     let basename = as_string(value);
     let slash = rindex(basename, "/");
@@ -107,6 +129,10 @@ function module_exports() {
         is_community,
         community_url,
         hash12,
+        section_tag,
+        community_tag,
+        custom_reference_tag,
+        text_reference_tag,
         file_extension,
         kind_from_reference_hint,
         remote_format

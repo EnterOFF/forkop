@@ -29,10 +29,6 @@ function createUiState(
       },
     },
     capabilities: {
-      sing_box_extended: 1,
-      sing_box_tiny: 0,
-      sing_box_compressed: 0,
-      sing_box_tailscale: 1,
       zapret_installed: 1,
       zapret2_installed: 0,
       byedpi_installed: 1,
@@ -43,7 +39,6 @@ function createUiState(
       service: [],
       latency: [],
       component: [],
-      subscription: [],
       ...actions,
     },
   };
@@ -65,15 +60,6 @@ describe('applyUiStateToStore', () => {
             kind: 'service',
             action: 'start',
             job_id: 'service-1',
-          },
-        ],
-        subscription: [
-          {
-            success: true,
-            running: true,
-            job_id: 'subscription-1',
-            section: 'main',
-            message: 'Subscription update is running',
           },
         ],
         latency: [
@@ -121,16 +107,13 @@ describe('applyUiStateToStore', () => {
     });
     expect(state.diagnosticsSystemInfo).toMatchObject({
       providerInfoLoaded: true,
-      sing_box_extended: 1,
       zapret_installed: 1,
       zapret2_installed: 0,
       byedpi_installed: 1,
       server_inbounds_enabled_count: 0,
     });
     expect(state.diagnosticsActions.start.loading).toBe(true);
-    expect(state.sectionsWidget.subscriptionUpdatingSections).toEqual({
-      main: true,
-    });
+    expect(state.sectionsWidget.subscriptionUpdatingSections).toEqual({});
     expect(state.sectionsWidget.latencyFetchingSections).toEqual({
       main: true,
     });
@@ -298,43 +281,13 @@ describe('applyUiStateToStore', () => {
     expect(store.get().diagnosticsActions.restart.loading).toBe(true);
   });
 
-  it('does not combine a stale extended version with tiny capabilities', () => {
-    store.set({
-      diagnosticsSystemInfo: {
-        ...store.get().diagnosticsSystemInfo,
-        sing_box_version: '1.13.12-extended-2.3.2',
-        sing_box_extended: 1,
-        sing_box_tiny: 0,
-      },
-    });
-
-    applyUiStateToStore(
-      createUiState(undefined, {
-        sing_box_extended: 0,
-        sing_box_tiny: 1,
-        sing_box_compressed: 0,
-        sing_box_tailscale: 0,
-      }),
-    );
-
-    expect(store.get().diagnosticsSystemInfo).toMatchObject({
-      sing_box_version: '1.13.12-extended-2.3.2',
-      sing_box_extended: 1,
-      sing_box_tiny: 0,
-      sing_box_tailscale: 1,
-    });
-  });
-
-  it('keeps current sing-box capabilities while an update is running', () => {
+  it('keeps current sing-box package info while an update is running', () => {
     store.set({
       diagnosticsSystemInfo: {
         ...store.get().diagnosticsSystemInfo,
         providerInfoLoaded: true,
-        sing_box_version: '1.12.25',
-        sing_box_extended: 0,
-        sing_box_tiny: 1,
-        sing_box_compressed: 0,
-        sing_box_tailscale: 1,
+        sing_box_version: '1.13.14-extended-2.5.2-forkop.1',
+        sing_box_compressed: 1,
         zapret_installed: 0,
         zapret2_installed: 0,
         byedpi_installed: 1,
@@ -360,10 +313,6 @@ describe('applyUiStateToStore', () => {
           ],
         },
         {
-          sing_box_extended: 0,
-          sing_box_tiny: 1,
-          sing_box_compressed: 0,
-          sing_box_tailscale: 0,
           zapret_installed: 1,
           zapret2_installed: 1,
           byedpi_installed: 0,
@@ -374,11 +323,8 @@ describe('applyUiStateToStore', () => {
 
     expect(store.get().diagnosticsSystemInfo).toMatchObject({
       providerInfoLoaded: true,
-      sing_box_version: '1.12.25',
-      sing_box_extended: 0,
-      sing_box_tiny: 1,
-      sing_box_compressed: 0,
-      sing_box_tailscale: 0,
+      sing_box_version: '1.13.14-extended-2.5.2-forkop.1',
+      sing_box_compressed: 1,
       zapret_installed: 1,
       zapret2_installed: 1,
       byedpi_installed: 0,
@@ -389,36 +335,25 @@ describe('applyUiStateToStore', () => {
 
   it('marks the running sing-box install action without pretending it is installed', () => {
     applyUiStateToStore(
-      createUiState(
-        {
-          component: [
-            {
-              success: true,
-              running: true,
-              job_id: 'sing-box-install',
-              component: 'sing_box',
-              action: 'install',
-              message: 'Install is running',
-              current_version: '',
-              latest_version: '',
-              changed: false,
-            },
-          ],
-        },
-        {
-          sing_box_extended: 0,
-          sing_box_tiny: 1,
-          sing_box_compressed: 0,
-          sing_box_tailscale: 0,
-        },
-      ),
+      createUiState({
+        component: [
+          {
+            success: true,
+            running: true,
+            job_id: 'sing-box-install',
+            component: 'sing_box',
+            action: 'install',
+            message: 'Install is running',
+            current_version: '',
+            latest_version: '',
+            changed: false,
+          },
+        ],
+      }),
     );
 
     expect(store.get().diagnosticsSystemInfo).toMatchObject({
-      sing_box_extended: 0,
-      sing_box_tiny: 1,
       sing_box_compressed: 0,
-      sing_box_tailscale: 0,
     });
     expect(store.get().updatesActions.singBoxInstall.loading).toBe(true);
   });

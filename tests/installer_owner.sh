@@ -134,6 +134,10 @@ grep -Fq 'install_json_ucode installer-cleanup-legacy' "$INSTALLER" ||
   fail "install.sh cleanup must delegate to embedded ucode"
 grep -Fq 'install_json_ucode installer-post-install' "$INSTALLER" ||
   fail "install.sh post-install must delegate to embedded ucode"
+grep -Fq '"/var/run/forkop/component-update-checks"' "$INSTALLER" ||
+  fail "installer must clear cached component update results"
+grep -Fq '"/var/run/forkop/component-update-check.timestamp"' "$INSTALLER" ||
+  fail "installer must reset the component update check timestamp"
 grep -Fq 'opkg --noaction install --force-overwrite --force-downgrade "$@"' "$INSTALLER" ||
   fail "opkg package preflight must resolve dependencies without changing the installation"
 grep -Fq 'apk add --simulate --allow-untrusted "$@"' "$INSTALLER" ||
@@ -615,9 +619,13 @@ $WORK_DIR/subscription-update
 $WORK_DIR/subscription-links
 $WORK_DIR/subscription-metadata
 $WORK_DIR/subscription-update.lock
+$WORK_DIR/subscription-update-jobs
 $WORK_DIR/subscription-bootstrap-retry.pid
 $WORK_DIR/outbound-metadata
 $WORK_DIR/section-cache
+$WORK_DIR/list-update.timestamp
+$WORK_DIR/forkop_list_update.pid
+$WORK_DIR/rulesets
 "
 for path in $legacy_subscription_paths; do
   mkdir -p "$(dirname "$path")"
@@ -640,9 +648,13 @@ FORKOP_INSTALLER_LEGACY_SUBSCRIPTION_UPDATE_STATE="$WORK_DIR/subscription-update
 FORKOP_INSTALLER_LEGACY_SUBSCRIPTION_LINKS="$WORK_DIR/subscription-links" \
 FORKOP_INSTALLER_LEGACY_SUBSCRIPTION_METADATA="$WORK_DIR/subscription-metadata" \
 FORKOP_INSTALLER_LEGACY_SUBSCRIPTION_LOCK="$WORK_DIR/subscription-update.lock" \
+FORKOP_INSTALLER_LEGACY_SUBSCRIPTION_JOB_DIR="$WORK_DIR/subscription-update-jobs" \
 FORKOP_INSTALLER_LEGACY_SUBSCRIPTION_BOOTSTRAP_PID="$WORK_DIR/subscription-bootstrap-retry.pid" \
 FORKOP_INSTALLER_LEGACY_OUTBOUND_METADATA="$WORK_DIR/outbound-metadata" \
 FORKOP_INSTALLER_LEGACY_SECTION_CACHE="$WORK_DIR/section-cache" \
+FORKOP_INSTALLER_LEGACY_LIST_UPDATE_STATE="$WORK_DIR/list-update.timestamp" \
+FORKOP_INSTALLER_LEGACY_LIST_UPDATE_PID="$WORK_DIR/forkop_list_update.pid" \
+FORKOP_INSTALLER_LEGACY_RULESET_CACHE="$WORK_DIR/rulesets" \
 FORKOP_WAS_ENABLED=1 \
 FORKOP_WAS_RUNNING=1 \
 FORKOP_INSTALLER_INIT_LOG="$WORK_DIR/init.log" \

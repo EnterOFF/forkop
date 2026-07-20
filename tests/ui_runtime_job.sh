@@ -84,7 +84,6 @@ fi
 for mode in \
   get-ui-capabilities \
   get-ui-state \
-  component-action-running-for \
   service-action-begin-if-idle \
   service-action-update-pid \
   service-action-finish-after-command \
@@ -225,7 +224,6 @@ export FORKOP_UI_SERVICE_ACTION_DIR="$FORKOP_UI_STATE_DIR/service-actions"
 export FORKOP_UI_SERVICE_ACTION_LOCK_DIR="$FORKOP_UI_STATE_DIR/service-actions.lock"
 export FORKOP_UI_LATENCY_ACTION_DIR="$FORKOP_UI_STATE_DIR/latency-actions"
 export FORKOP_UI_COMPONENT_ACTION_DIR="$FORKOP_UI_STATE_DIR/component-actions"
-export FORKOP_UI_SUBSCRIPTION_ACTION_DIR="$FORKOP_UI_STATE_DIR/subscription-actions"
 
 latency_start="$(
   FORKOP_BIN=/bin/true \
@@ -284,15 +282,6 @@ if (value.running !== false || value.success !== true || value.message !== "done
   process.exit(1);
 }
 NODE
-
-component_job="$FORKOP_UI_COMPONENT_ACTION_DIR/component-1.json"
-mkdir -p "$FORKOP_UI_COMPONENT_ACTION_DIR"
-printf '%s\n' '{"running":true,"component":"sing_box","started_at":100}' >"$component_job"
-ui_ucode component-action-running-for sing_box >/dev/null ||
-  fail "component-action-running-for should detect running sing-box component action"
-if ui_ucode component-action-running-for zapret >/dev/null 2>&1; then
-  fail "component-action-running-for should ignore other components"
-fi
 
 ui_ucode action-ack service "$job_id" >/dev/null ||
   fail "action-ack should acknowledge finished service action"

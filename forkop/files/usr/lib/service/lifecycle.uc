@@ -28,26 +28,20 @@ const RELOAD_STATE_FILE = getenv("FORKOP_RELOAD_STATE_FILE") || RUNTIME_STATE_DI
 const RELOAD_STATE_SNAPSHOT_FILE = getenv("FORKOP_RELOAD_STATE_SNAPSHOT_FILE") || RUNTIME_STATE_DIR + "/reload-state.snapshot." + clock()[0] + "." + clock()[1];
 const PENDING_RELOAD_FILE = getenv("FORKOP_PENDING_RELOAD_FILE") || RUNTIME_STATE_DIR + "/reload.pending";
 const SERVICE_TRIGGER_SYNC_FILE = getenv("FORKOP_SERVICE_TRIGGER_SYNC_FILE") || RUNTIME_STATE_DIR + "/service-triggers.sync";
-const OUTBOUND_METADATA_DIR = getenv("FORKOP_OUTBOUND_METADATA_DIR") || RUNTIME_STATE_DIR + "/outbound-metadata";
 const SECTION_CACHE_DIR = getenv("FORKOP_SECTION_CACHE_DIR") || RUNTIME_STATE_DIR + "/section-cache";
 const RULE_CONDITION_CACHE_DIR = getenv("FORKOP_RULE_CONDITION_CACHE_DIR") || RUNTIME_STATE_DIR + "/rule-condition-cache";
-const RUNTIME_CACHE_FORMAT_FILE = getenv("FORKOP_RUNTIME_CACHE_FORMAT_FILE") || RUNTIME_STATE_DIR + "/cache-format";
-const DNS_FAILOVER_STATE_FILE = getenv("FORKOP_DNS_FAILOVER_STATE_FILE") || RUNTIME_STATE_DIR + "/dns-failover.json";
-const DNS_FAILOVER_PID_FILE = getenv("FORKOP_DNS_FAILOVER_PID_FILE") || RUNTIME_STATE_DIR + "/dns-failover.pid";
 const RELOAD_LOCK_DIR = getenv("FORKOP_RELOAD_LOCK_DIR") || "/var/run/forkop.reload.lock";
+const START_LOCK_DIR = getenv("FORKOP_START_LOCK_DIR") || RUNTIME_STATE_DIR + "/start.lock";
+const START_LOCK_TIMEOUT = int(getenv("FORKOP_START_LOCK_TIMEOUT") || "360");
+const SING_BOX_PLANNED_STOP_FILE = getenv("FORKOP_SING_BOX_PLANNED_STOP_FILE") || RUNTIME_STATE_DIR + "/sing-box-watch.planned-stop";
 const INTERNAL_CONFIG_TRIGGER_GUARD = getenv("FORKOP_INTERNAL_CONFIG_TRIGGER_GUARD") || "/var/run/forkop.internal-config-change";
 
-const LIST_UPDATE_CRON_MARKER = getenv("FORKOP_LIST_UPDATE_CRON_MARKER") || "# forkop-list-update";
-const SUBSCRIPTION_UPDATE_CRON_MARKER = getenv("FORKOP_SUBSCRIPTION_UPDATE_CRON_MARKER") || "# forkop-subscription-update";
 const COMPONENT_UPDATE_CHECK_CRON_MARKER = getenv("FORKOP_COMPONENT_UPDATE_CHECK_CRON_MARKER") || "# forkop-component-update-check";
 const RELOAD_STATE_FORMAT = int(getenv("FORKOP_RELOAD_STATE_FORMAT") || "1");
 const RUNTIME_CACHE_FORMAT = int(getenv("FORKOP_RUNTIME_CACHE_FORMAT") || "8");
 const RUNTIME_STABLE_MIN_AGE = int(getenv("FORKOP_RUNTIME_STABLE_MIN_AGE") || "2");
 const SING_BOX_START_STABLE_MIN_AGE = int(getenv("FORKOP_SING_BOX_START_STABLE_MIN_AGE") || "8");
 const NFT_POPULATE_ENABLED_DEFAULT = int(getenv("FORKOP_NFT_POPULATE_ENABLED") || "1");
-
-const TMP_SING_BOX_FOLDER = getenv("TMP_SING_BOX_FOLDER") || constant_value("TMP_SING_BOX_FOLDER", "/tmp/sing-box");
-const TMP_RULESET_FOLDER = getenv("TMP_RULESET_FOLDER") || constant_value("TMP_RULESET_FOLDER", TMP_SING_BOX_FOLDER + "/rulesets");
 
 const RT_TABLE_NAME = constant_value("RT_TABLE_NAME", "forkop");
 const NFT_TABLE_NAME = constant_value("NFT_TABLE_NAME", "ForkopTable");
@@ -68,8 +62,6 @@ const SB_TPROXY_INBOUND6_ADDRESS = constant_value("SB_TPROXY_INBOUND6_ADDRESS", 
 const SB_TPROXY_INBOUND_PORT = constant_value("SB_TPROXY_INBOUND_PORT", "1602");
 const SB_SERVICE_MIXED_INBOUND_ADDRESS = constant_value("SB_SERVICE_MIXED_INBOUND_ADDRESS", "127.0.0.1");
 const SB_SERVICE_MIXED_INBOUND_PORT = constant_value("SB_SERVICE_MIXED_INBOUND_PORT", "4534");
-const SB_VARIANT_STATE_FILE = constant_value("SB_VARIANT_STATE_FILE", "/etc/forkop/sing-box-variant");
-const SB_VERSION_STATE_FILE = constant_value("SB_VERSION_STATE_FILE", "/etc/forkop/sing-box-version");
 
 const ZAPRET_PROVIDER_NFQWS_BIN = constant_value("ZAPRET_PROVIDER_NFQWS_BIN", "/opt/zapret/nfq/nfqws");
 const ZAPRET_ROUTE_MARK_BASE = constant_value("ZAPRET_ROUTE_MARK_BASE", "0x01000000");
@@ -87,9 +79,9 @@ const DNS_APPLY_UC = LIB_DIR + "/dns/apply.uc";
 const VALIDATOR_UC = LIB_DIR + "/config/validator.uc";
 const SERVER_UC = LIB_DIR + "/server/service.uc";
 const NFT_UC = LIB_DIR + "/nft/apply.uc";
+const RULESET_SYNC_UC = LIB_DIR + "/nft/ruleset_sync.uc";
+const SINGBOX_WATCH_UC = LIB_DIR + "/service/singbox_watch.uc";
 const SINGBOX_UC = LIB_DIR + "/singbox/runtime.uc";
-const PRIORITY_UC = LIB_DIR + "/singbox/priority.uc";
-const DNS_FAILOVER_UC = LIB_DIR + "/singbox/dns_failover.uc";
 const UPDATES_UC = LIB_DIR + "/components/updates.uc";
 const STATE_UC = LIB_DIR + "/service/state.uc";
 const RELOAD_UC = LIB_DIR + "/service/reload.uc";
@@ -190,8 +182,9 @@ function trim(value) {
 }
 
 function owner_pid() {
-    let pid = trim(command_output_from_args([ "sh", "-c", "echo $PPID" ]));
-    return match(pid, /^[0-9]+$/) != null ? pid : "0";
+    let stat = as_string(fs.readfile("/proc/self/stat"));
+    let separator = index(stat, " ");
+    return separator > 0 ? substr(stat, 0, separator) : "0";
 }
 
 function bool_text(value) {
@@ -232,6 +225,24 @@ function ensure_dir(path) {
     return path == "" || fs.mkdir(path, 0755) || fs.stat(path) != null;
 }
 
+function mark_sing_box_planned_stop() {
+    if (!ensure_dir(RUNTIME_STATE_DIR))
+        return false;
+    let written = write_file(SING_BOX_PLANNED_STOP_FILE, owner_pid() + "\n");
+    return written != null && written !== false;
+}
+
+function clear_sing_box_planned_stop() {
+    if (fs.stat(SING_BOX_PLANNED_STOP_FILE) == null)
+        return true;
+    fs.unlink(SING_BOX_PLANNED_STOP_FILE);
+    return fs.stat(SING_BOX_PLANNED_STOP_FILE) == null;
+}
+
+function sing_box_planned_stop() {
+    return fs.stat(SING_BOX_PLANNED_STOP_FILE) != null;
+}
+
 function log_message(message, level) {
     level = as_string(level || "info");
     command_success_from_args([ "logger", "-t", SERVICE_NAME, "[" + level + "] " + as_string(message) ]);
@@ -245,21 +256,14 @@ function lifecycle_env() {
         FORKOP_SERVICE_INIT: SERVICE_INIT,
         FORKOP_RUNTIME_STATE_DIR: RUNTIME_STATE_DIR,
         FORKOP_SYSTEM_INFO_CACHE_FILE: SYSTEM_INFO_CACHE_FILE,
-        FORKOP_OUTBOUND_METADATA_DIR: OUTBOUND_METADATA_DIR,
         FORKOP_SECTION_CACHE_DIR: SECTION_CACHE_DIR,
         FORKOP_RULE_CONDITION_CACHE_DIR: RULE_CONDITION_CACHE_DIR,
-        FORKOP_RUNTIME_CACHE_FORMAT_FILE: RUNTIME_CACHE_FORMAT_FILE,
         FORKOP_RUNTIME_CACHE_FORMAT: as_string(RUNTIME_CACHE_FORMAT),
-        FORKOP_DNS_FAILOVER_STATE_FILE: DNS_FAILOVER_STATE_FILE,
-        FORKOP_DNS_FAILOVER_PID_FILE: DNS_FAILOVER_PID_FILE,
         FORKOP_PENDING_RELOAD_FILE: PENDING_RELOAD_FILE,
         FORKOP_RELOAD_LOCK_DIR: RELOAD_LOCK_DIR,
-        TMP_SING_BOX_FOLDER: TMP_SING_BOX_FOLDER,
-        TMP_RULESET_FOLDER: TMP_RULESET_FOLDER,
+        FORKOP_SING_BOX_PLANNED_STOP_FILE: SING_BOX_PLANNED_STOP_FILE,
         SB_SERVICE_MIXED_INBOUND_ADDRESS: SB_SERVICE_MIXED_INBOUND_ADDRESS,
         SB_SERVICE_MIXED_INBOUND_PORT: SB_SERVICE_MIXED_INBOUND_PORT,
-        SB_VARIANT_STATE_FILE: SB_VARIANT_STATE_FILE,
-        SB_VERSION_STATE_FILE: SB_VERSION_STATE_FILE,
         ZAPRET_PROVIDER_NFQWS_BIN: ZAPRET_PROVIDER_NFQWS_BIN,
         ZAPRET2_PROVIDER_NFQWS2_BIN: ZAPRET2_PROVIDER_NFQWS2_BIN,
         BYEDPI_BIN: BYEDPI_BIN,
@@ -579,15 +583,17 @@ function nft_populate_runtime_sets() {
 }
 
 function singbox_init_config() {
-    return module_status(SINGBOX_UC, [ "init-config", as_string(nft_populate_enabled) ]);
+    return module_status(SINGBOX_UC, [ "init-config", as_string(nft_populate_enabled), "0" ]);
+}
+
+function singbox_init_config_for_live_reload() {
+    return module_status(SINGBOX_UC, [ "init-config", as_string(nft_populate_enabled), "1" ]);
 }
 
 function refresh_cron() {
     return module_status(UPDATES_UC, [
         "refresh-cron-from-uci",
         BIN_PATH,
-        LIST_UPDATE_CRON_MARKER,
-        SUBSCRIPTION_UPDATE_CRON_MARKER,
         COMPONENT_UPDATE_CHECK_CRON_MARKER
     ]);
 }
@@ -595,8 +601,6 @@ function refresh_cron() {
 function remove_cron_jobs() {
     return module_status(UPDATES_UC, [
         "remove-cron-jobs",
-        LIST_UPDATE_CRON_MARKER,
-        SUBSCRIPTION_UPDATE_CRON_MARKER,
         COMPONENT_UPDATE_CHECK_CRON_MARKER
     ]);
 }
@@ -653,20 +657,27 @@ function start_main() {
         return status;
     }
 
-    status = module_status(PRIORITY_UC, [ "start-runtime" ]);
-    if (status != 0) {
-        log_message("Failed to start Priority runtime. Aborted.", "fatal");
+    status = module_status(SINGBOX_WATCH_UC, [ "start-worker" ]);
+    if (status != 0)
         return status;
-    }
 
     module_success(ZAPRET_UC, [ "start-runtime" ]);
     module_success(ZAPRET2_UC, [ "start-runtime" ]);
 
-    module_background(UPDATES_UC, [ "list-update" ]);
+    status = module_status(RULESET_SYNC_UC, [ "start-worker" ]);
+    if (status != 0)
+        return status;
+
     return 0;
 }
 
 function start_impl() {
+    if (command_success_from_args([ "pgrep", "-x", "sing-box" ]) ||
+        command_success_from_args([ "pgrep", "-f", "^/usr/bin/sing-box[[:space:]]" ])) {
+        log_message("sing-box is still running; refusing to start a second process", "error");
+        return 1;
+    }
+
     let status = start_main();
     if (status != 0)
         return status;
@@ -698,10 +709,9 @@ function start_impl() {
     if (status != 0)
         return status;
 
-    status = module_status(DNS_FAILOVER_UC, [ "start-runtime" ]);
-    if (status != 0) {
-        log_message("Failed to start DNS failover runtime", "fatal");
-        return status;
+    if (!clear_sing_box_planned_stop()) {
+        log_message("Failed to arm the sing-box crash watcher after start", "error");
+        return 1;
     }
 
     module_background(DIAGNOSTICS_UC, [ "get-system-info" ]);
@@ -712,11 +722,9 @@ function stop_main() {
     let status = 0;
 
     log_message("Stopping Forkop", "info");
-    module_success(DNS_FAILOVER_UC, [ "stop-runtime" ]);
-    module_success(PRIORITY_UC, [ "stop-runtime" ]);
-    module_success(UPDATES_UC, [ "stop-list-update" ]);
+    module_success(SINGBOX_WATCH_UC, [ "stop-worker" ]);
+    module_success(RULESET_SYNC_UC, [ "stop-worker" ]);
     remove_cron_jobs();
-    command_success_from_args([ "find", TMP_RULESET_FOLDER, "-mindepth", "1", "-maxdepth", "1", "-type", "f", "-delete" ]);
 
     module_success(ZAPRET_UC, [ "stop-runtime" ]);
     module_success(ZAPRET2_UC, [ "stop-runtime" ]);
@@ -738,6 +746,11 @@ function stop_main() {
     let sing_box_status = command_status_from_args([ "/etc/init.d/sing-box", "stop" ]);
     if (sing_box_status != 0)
         status = sing_box_status;
+    if (!module_success(STATE_UC, [
+        "wait-sing-box-stopped",
+        getenv("FORKOP_SING_BOX_RELOAD_PID_TIMEOUT") || "15"
+    ]))
+        status = status == 0 ? 1 : status;
 
     return status;
 }
@@ -755,13 +768,36 @@ function cleanup_failed_runtime() {
     if (dns_status != 0 && status == 0)
         status = dns_status;
 
-    let mark_status = mark_runtime_stopped_clean();
-    if (mark_status != 0 && status == 0)
-        status = mark_status;
+    if (status == 0) {
+        let mark_status = mark_runtime_stopped_clean();
+        if (mark_status != 0)
+            status = mark_status;
+    }
 
     if (status != 0)
         log_message("Failed to fully clean up Forkop runtime after start/reload failure", "warn");
 
+    return status;
+}
+
+function cleanup_crashed_sing_box(exit_code) {
+    let suffix = match(as_string(exit_code), /^[0-9]+$/) != null ? " (exit code " + as_string(exit_code) + ")" : "";
+    let pid = owner_pid();
+    if (!module_success(STATE_UC, [ "acquire-runtime-dir-lock-wait", START_LOCK_DIR, pid, as_string(START_LOCK_TIMEOUT) ])) {
+        log_message("Timed out waiting for Forkop lifecycle cleanup lock", "error");
+        return 1;
+    }
+    if (sing_box_planned_stop()) {
+        module_success(STATE_UC, [ "release-runtime-dir-lock", START_LOCK_DIR, pid ]);
+        return 0;
+    }
+    if (module_success(STATE_UC, [ "forkop-running", RT_TABLE_NAME, NFT_TABLE_NAME, NFT_FAKEIP_MARK ])) {
+        module_success(STATE_UC, [ "release-runtime-dir-lock", START_LOCK_DIR, pid ]);
+        return 0;
+    }
+    log_message("sing-box stopped after repeated crashes" + suffix, "fatal");
+    let status = cleanup_failed_runtime();
+    module_success(STATE_UC, [ "release-runtime-dir-lock", START_LOCK_DIR, pid ]);
     return status;
 }
 
@@ -779,10 +815,33 @@ function abort_reload(status, runtime_changed) {
 }
 
 function start() {
+    if (module_success(STATE_UC, [ "forkop-running", RT_TABLE_NAME, NFT_TABLE_NAME, NFT_FAKEIP_MARK ])) {
+        log_message("Forkop is already running; duplicate start skipped", "info");
+        return 0;
+    }
+    if (!module_success(STATE_UC, [ "acquire-runtime-dir-lock-wait", START_LOCK_DIR, owner_pid(), as_string(START_LOCK_TIMEOUT) ])) {
+        log_message("Timed out waiting for another Forkop start to finish", "error");
+        return 1;
+    }
+    if (module_success(STATE_UC, [ "forkop-running", RT_TABLE_NAME, NFT_TABLE_NAME, NFT_FAKEIP_MARK ])) {
+        module_success(STATE_UC, [ "release-runtime-dir-lock", START_LOCK_DIR, owner_pid() ]);
+        log_message("Forkop became ready while another start was running; duplicate start skipped", "info");
+        return 0;
+    }
+    if (module_success(STATE_UC, [ "sing-box-service-running" ])) {
+        let cleanup_status = cleanup_failed_runtime();
+        if (cleanup_status != 0 || module_success(STATE_UC, [ "sing-box-service-running" ])) {
+            log_message("A previous sing-box process could not be stopped safely; refusing a second start", "error");
+            module_success(STATE_UC, [ "release-runtime-dir-lock", START_LOCK_DIR, owner_pid() ]);
+            return cleanup_status != 0 ? cleanup_status : 1;
+        }
+    }
+
     let status = start_impl();
 
     if (status != 0) {
         cleanup_failed_runtime();
+        module_success(STATE_UC, [ "release-runtime-dir-lock", START_LOCK_DIR, owner_pid() ]);
         return status;
     }
 
@@ -798,14 +857,20 @@ function start() {
     if (status != 0) {
         log_message("Startup verification failed after Forkop was started; rolling back DNS changes", "warn");
         cleanup_failed_runtime();
+        module_success(STATE_UC, [ "release-runtime-dir-lock", START_LOCK_DIR, owner_pid() ]);
         return status;
     }
 
+    module_success(STATE_UC, [ "release-runtime-dir-lock", START_LOCK_DIR, owner_pid() ]);
     return 0;
 }
 
 function stop_impl() {
     let status = 0;
+
+    if (!mark_sing_box_planned_stop())
+        log_message("Failed to mark the planned sing-box stop", "warn");
+    module_success(SINGBOX_WATCH_UC, [ "stop-worker" ]);
 
     if (!setting_bool("dont_touch_dhcp", false)) {
         let dns_status = dnsmasq_restore(false);
@@ -839,10 +904,17 @@ function stop_impl() {
 }
 
 function stop() {
-    return stop_impl();
+    let pid = owner_pid();
+    if (!module_success(STATE_UC, [ "acquire-runtime-dir-lock-wait", START_LOCK_DIR, pid, as_string(START_LOCK_TIMEOUT) ])) {
+        log_message("Timed out waiting for another Forkop lifecycle action", "error");
+        return 1;
+    }
+    let status = stop_impl();
+    module_success(STATE_UC, [ "release-runtime-dir-lock", START_LOCK_DIR, pid ]);
+    return status;
 }
 
-function restart_runtime_for_reload() {
+function restart_runtime_for_reload_locked() {
     let status;
     let selector_state = capture_selector_state();
 
@@ -893,7 +965,6 @@ function parse_reload_plan(output) {
         changed_zapret2_runtime: 0,
         changed_byedpi_runtime: 0,
         changed_cron: 0,
-        changed_list: 0,
         needs_sing_box_reload: 0,
         needs_nft_rebuild: 0,
         needs_zapret_restart: 0,
@@ -902,7 +973,6 @@ function parse_reload_plan(output) {
         needs_dnsmasq_configure: 0,
         needs_dnsmasq_restore: 0,
         needs_cron_refresh: 0,
-        needs_list_update: 0,
         has_work: 0
     };
 
@@ -936,82 +1006,10 @@ function reload_actions_summary(plan) {
     actions = append_reload_action(actions, plan.needs_byedpi_restart, "ByeDPI");
     actions = append_reload_action(actions, plan.needs_dnsmasq_configure || plan.needs_dnsmasq_restore, "dnsmasq");
     actions = append_reload_action(actions, plan.needs_cron_refresh, "scheduled jobs");
-    actions = append_reload_action(actions, plan.needs_list_update, "remote lists");
     return actions;
 }
 
-function release_reload_lock() {
-    module_success(STATE_UC, [ "release-runtime-dir-lock", RELOAD_LOCK_DIR ]);
-}
-
-function sing_box_runtime_pid() {
-    let result = module_capture(STATE_UC, [ "sing-box-service-runtime-pid" ]);
-    return result.status == 0 ? trim(result.output) : "";
-}
-
-function wait_dns_failover_state(candidate_state_path, attempts) {
-    attempts = int(attempts || 1);
-    for (let i = 0; i < attempts; i++) {
-        let status = module_status(DNS_FAILOVER_UC, [ "verify-state", candidate_state_path ]);
-        if (status == 0)
-            return 0;
-        if (i + 1 < attempts)
-            command_success_from_args([ "sleep", "1" ]);
-    }
-    return 1;
-}
-
-function dns_failover_apply(candidate_state_path) {
-    candidate_state_path = as_string(candidate_state_path);
-    if (candidate_state_path == "" || fs.stat(candidate_state_path) == null)
-        return 1;
-
-    if (!module_success(STATE_UC, [ "acquire-runtime-dir-lock-wait", RELOAD_LOCK_DIR, owner_pid(), "2" ]))
-        return 2;
-
-    let patch_result = module_capture(SINGBOX_UC, [ "patch-dns-config", candidate_state_path ]);
-    if (patch_result.status != 0) {
-        release_reload_lock();
-        return patch_result.status;
-    }
-
-    let fields = split(trim(patch_result.output), "\t");
-    let changed = as_string(fields[0]) == "1";
-    let backup_path = length(fields) > 1 ? as_string(fields[1]) : "";
-    let status = 0;
-
-    if (changed) {
-        let sing_box_pid_before = sing_box_runtime_pid();
-        status = module_status(STATE_UC, [ "hup-sing-box-runtime" ]);
-        if (status == 0)
-            status = wait_dns_failover_state(candidate_state_path, 5);
-
-        if (status != 0) {
-            log_message("sing-box SIGHUP DNS reload did not become ready; trying service reload", "warn");
-            status = module_status(STATE_UC, [ "reload-sing-box-runtime", sing_box_pid_before, "dns-before", "dns-after" ]);
-            if (status == 0)
-                status = wait_dns_failover_state(candidate_state_path, 8);
-        }
-    }
-
-    if (status == 0 && !module_success(DNS_FAILOVER_UC, [ "commit-state", candidate_state_path ]))
-        status = 1;
-
-    if (status != 0 && backup_path != "") {
-        log_message("DNS failover apply failed; restoring the previous sing-box configuration", "error");
-        if (module_success(SINGBOX_UC, [ "restore-dns-config", backup_path ])) {
-            let sing_box_pid_before_restore = sing_box_runtime_pid();
-            module_success(STATE_UC, [ "reload-sing-box-runtime", sing_box_pid_before_restore, "dns-failed", "dns-restored" ]);
-        }
-    }
-
-    if (backup_path != "")
-        remove_file(backup_path);
-    release_reload_lock();
-    return status;
-}
-
-function reload(reason) {
+function reload_impl(reason) {
     let status;
     let force_runtime_reload = as_string(reason || "") == "on_config_change" ? 0 : 1;
     let reload_config_fingerprint = external_config_fingerprint();
@@ -1025,7 +1023,7 @@ function reload(reason) {
 
     if (!module_success(STATE_UC, [ "forkop-running", RT_TABLE_NAME, NFT_TABLE_NAME, NFT_FAKEIP_MARK ])) {
         log_message("Runtime state is incomplete; restarting Forkop runtime", "info");
-        return finish_reload_status(restart_runtime_for_reload(), reload_config_fingerprint);
+        return finish_reload_status(restart_runtime_for_reload_locked(), reload_config_fingerprint);
     }
 
     remove_file(RELOAD_STATE_SNAPSHOT_FILE);
@@ -1056,8 +1054,6 @@ function reload(reason) {
     }
 
     let dnsmasq_managed_state = dnsmasq_has_forkop_managed_state() ? 1 : 0;
-    let list_update_sources = module_success(STATE_UC, [ "has-list-update-sources" ]) ? 1 : 0;
-    let nft_list_update_sources = module_success(STATE_UC, [ "has-nft-list-update-sources" ]) ? 1 : 0;
     let runtime_cache_needs_rebuild = as_string(getenv("FORKOP_RUNTIME_CACHE_INVALIDATED") || "0") == "1" ? 1 : 0;
 
     let plan_result = module_capture(RELOAD_UC, [
@@ -1066,8 +1062,6 @@ function reload(reason) {
         current_reload_state_file,
         as_string(force_runtime_reload),
         as_string(dnsmasq_managed_state),
-        as_string(list_update_sources),
-        as_string(nft_list_update_sources),
         as_string(runtime_cache_needs_rebuild)
     ]);
     remove_file(current_reload_state_file);
@@ -1075,7 +1069,7 @@ function reload(reason) {
     if (plan_result.status != 0) {
         if (plan_result.status == 2) {
             log_message("Reload state is unavailable; restarting Forkop runtime", "info");
-            return finish_reload_status(restart_runtime_for_reload(), reload_config_fingerprint);
+            return finish_reload_status(restart_runtime_for_reload_locked(), reload_config_fingerprint);
         }
         return abort_reload(plan_result.status, false);
     }
@@ -1109,6 +1103,10 @@ function reload(reason) {
     if (plan.needs_byedpi_restart == 1)
         module_success(BYEDPI_UC, [ "stop-runtime" ]);
 
+    let restart_ruleset_sync = plan.needs_nft_rebuild == 1 || plan.needs_sing_box_reload == 1;
+    if (restart_ruleset_sync)
+        module_success(RULESET_SYNC_UC, [ "stop-worker" ]);
+
     if (plan.needs_nft_rebuild == 1) {
         log_message("Rebuilding nftables rules", "info");
         status = nft_rebuild_runtime();
@@ -1117,8 +1115,6 @@ function reload(reason) {
     }
 
     if (plan.needs_sing_box_reload == 1) {
-        module_success(DNS_FAILOVER_UC, [ "stop-runtime" ]);
-        module_success(PRIORITY_UC, [ "stop-runtime" ]);
         status = module_status(SINGBOX_UC, [ "configure-service" ]);
         if (status != 0)
             return abort_reload(status, true);
@@ -1127,7 +1123,7 @@ function reload(reason) {
         let sing_box_pid_result = module_capture(STATE_UC, [ "sing-box-service-runtime-pid" ]);
         let sing_box_pid_before = sing_box_pid_result.status == 0 ? trim(sing_box_pid_result.output) : "";
         nft_populate_enabled = plan.needs_nft_rebuild == 1 ? 1 : 0;
-        status = singbox_init_config();
+        status = singbox_init_config_for_live_reload();
         if (status != 0)
             return abort_reload(status, true);
         nft_populate_enabled = NFT_POPULATE_ENABLED_DEFAULT;
@@ -1152,21 +1148,15 @@ function reload(reason) {
             cleanup_failed_runtime();
             return status;
         }
-        status = module_status(PRIORITY_UC, [ "start-runtime" ]);
-        if (status != 0) {
-            log_message("Failed to start Priority runtime after sing-box reload", "fatal");
-            cleanup_failed_runtime();
-            return status;
-        }
-        status = module_status(DNS_FAILOVER_UC, [ "start-runtime" ]);
-        if (status != 0) {
-            log_message("Failed to restart DNS failover runtime after sing-box reload", "fatal");
-            cleanup_failed_runtime();
-            return status;
-        }
     }
     else if (plan.needs_nft_rebuild == 1 && nft_populate_enabled == 1) {
         status = nft_populate_runtime_sets();
+        if (status != 0)
+            return abort_reload(status, true);
+    }
+
+    if (restart_ruleset_sync) {
+        status = module_status(RULESET_SYNC_UC, [ "start-worker" ]);
         if (status != 0)
             return abort_reload(status, true);
     }
@@ -1197,9 +1187,6 @@ function reload(reason) {
             return abort_reload(status, false);
     }
 
-    if (plan.needs_list_update == 1)
-        module_background(UPDATES_UC, [ "list-update" ]);
-
     return finish_reload_status(module_status(STATE_UC, [
         "write-captured-reload-state",
         RELOAD_STATE_FILE,
@@ -1209,6 +1196,17 @@ function reload(reason) {
         "1",
         "1"
     ]), reload_config_fingerprint);
+}
+
+function reload(reason) {
+    let pid = owner_pid();
+    if (!module_success(STATE_UC, [ "acquire-runtime-dir-lock-wait", START_LOCK_DIR, pid, as_string(START_LOCK_TIMEOUT) ])) {
+        log_message("Timed out waiting for another Forkop lifecycle action", "error");
+        return 1;
+    }
+    let status = reload_impl(reason);
+    module_success(STATE_UC, [ "release-runtime-dir-lock", START_LOCK_DIR, pid ]);
+    return status;
 }
 
 function reload_tracked(reason) {
@@ -1229,14 +1227,23 @@ function reload_tracked(reason) {
 function restart() {
     log_message("Restarting Forkop", "info");
 
+    let pid = owner_pid();
+    if (!module_success(STATE_UC, [ "acquire-runtime-dir-lock-wait", START_LOCK_DIR, pid, as_string(START_LOCK_TIMEOUT) ])) {
+        log_message("Timed out waiting for another Forkop start or restart to finish", "error");
+        return 1;
+    }
+
     let selector_state = capture_selector_state();
     let status = stop_impl();
-    if (status != 0)
+    if (status != 0) {
+        module_success(STATE_UC, [ "release-runtime-dir-lock", START_LOCK_DIR, pid ]);
         return status;
+    }
 
     status = start_impl();
     if (status != 0) {
         cleanup_failed_runtime();
+        module_success(STATE_UC, [ "release-runtime-dir-lock", START_LOCK_DIR, pid ]);
         return status;
     }
 
@@ -1248,11 +1255,13 @@ function restart() {
         as_string(RUNTIME_STABLE_MIN_AGE)
     ])) {
         restore_selector_state(selector_state);
+        module_success(STATE_UC, [ "release-runtime-dir-lock", START_LOCK_DIR, pid ]);
         return 0;
     }
 
     log_message("Restart verification failed after Forkop was started; stopping Forkop runtime", "fatal");
     cleanup_failed_runtime();
+    module_success(STATE_UC, [ "release-runtime-dir-lock", START_LOCK_DIR, pid ]);
     return 1;
 }
 
@@ -1286,12 +1295,6 @@ function uninstall() {
     package_manager_remove_if_installed("luci-i18n-forkop-ru");
     package_manager_remove_if_installed("luci-app-forkop");
 
-    if (module_success(SINGBOX_UC, [ "managed-service-installed" ])) {
-        module_success(SINGBOX_UC, [ "remove-managed-service-script" ]);
-        remove_file("/usr/bin/sing-box");
-        remove_file("/usr/lib/libcronet.so");
-    }
-
     command_success_from_args([ "rm", "-rf", "/usr/lib/forkop" ]);
     command_success_from_args([ "rm", "-rf", LUCI_VIEW_DIR ]);
     remove_file(SERVICE_INIT);
@@ -1323,14 +1326,23 @@ let status = 1;
 
 if (mode == "main")
     status = start_main();
+else if (mode == "sing-box-crash-cleanup")
+    status = cleanup_crashed_sing_box(ARGV[1]);
+else if (mode == "sing-box-planned-stop-guard-fixture") {
+    let action = as_string(ARGV[1]);
+    if (action == "mark")
+        status = mark_sing_box_planned_stop() ? 0 : 1;
+    else if (action == "clear")
+        status = clear_sing_box_planned_stop() ? 0 : 1;
+    else if (action == "check")
+        status = sing_box_planned_stop() ? 0 : 1;
+}
 else if (mode == "start")
     status = start();
 else if (mode == "stop")
     status = stop();
 else if (mode == "reload")
     status = reload_tracked(ARGV[1] || "");
-else if (mode == "dns-failover-apply")
-    status = dns_failover_apply(ARGV[1] || "");
 else if (mode == "restart")
     status = restart();
 else if (mode == "enable")
@@ -1350,7 +1362,7 @@ else if (mode == "dnsmasq-restore" || mode == "restore-dnsmasq")
 else if (mode == "uninstall")
     status = uninstall();
 else {
-    warn("Usage: service/lifecycle.uc <start|stop|reload|restart|main|enable|disable|dnsmasq-restore|uninstall> ...\n");
+    warn("Usage: service/lifecycle.uc <start|stop|reload|restart|main|sing-box-crash-cleanup|sing-box-planned-stop-guard-fixture|enable|disable|dnsmasq-restore|uninstall> ...\n");
     status = 1;
 }
 

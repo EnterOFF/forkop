@@ -39,9 +39,4 @@ if [[ "$actual" != "$expected" ]]; then
   printf 'FAIL: native provider update request: expected %q, got %q\n' "$expected" "$actual" >&2
   exit 1
 fi
-if grep -R -q 'subscription/cache.uc' "$WORK_DIR"; then
-  printf 'FAIL: native subscription update invoked the retired cache parser\n' >&2
-  exit 1
-fi
-
 printf 'native subscription update tests passed\n'

@@ -102,22 +102,14 @@ const EntryPoint = {
     main.injectGlobalStyles();
     const uiCapabilities = {
       loaded: false,
-      singBoxExtended: false,
-      singBoxTiny: false,
-      singBoxTailscale: true,
       zapretInstalled: false,
       zapret2Installed: false,
       byedpiInstalled: false,
       serverInboundsEnabledCount: -1,
     };
     let uiCapabilitiesPromise = null;
-    let serverSectionRef = null;
 
     const applyUiCapabilities = function () {
-      if (serverSectionRef) {
-        server.applyServerCapabilities(serverSectionRef, uiCapabilities);
-      }
-
       if (typeof window !== "undefined") {
         window.dispatchEvent(
           new CustomEvent(main.FORKOP_ACTION_PROVIDERS_AVAILABILITY_EVENT, {
@@ -136,9 +128,6 @@ const EntryPoint = {
           diagnosticsSystemInfo: {
             ...currentSystemInfo,
             providerInfoLoaded: true,
-            sing_box_extended: uiCapabilities.singBoxExtended ? 1 : 0,
-            sing_box_tiny: uiCapabilities.singBoxTiny ? 1 : 0,
-            sing_box_tailscale: uiCapabilities.singBoxTailscale ? 1 : 0,
             zapret_installed: uiCapabilities.zapretInstalled ? 1 : 0,
             zapret2_installed: uiCapabilities.zapret2Installed ? 1 : 0,
             byedpi_installed: uiCapabilities.byedpiInstalled ? 1 : 0,
@@ -160,14 +149,6 @@ const EntryPoint = {
 
     const updateUiCapabilities = function (data) {
       uiCapabilities.loaded = true;
-      uiCapabilities.singBoxExtended = Boolean(
-        Number(data?.sing_box_extended) === 1,
-      );
-      uiCapabilities.singBoxTiny = Boolean(Number(data?.sing_box_tiny) === 1);
-      uiCapabilities.singBoxTailscale =
-        typeof data?.sing_box_tailscale === "undefined"
-          ? true
-          : Boolean(Number(data.sing_box_tailscale) === 1);
       uiCapabilities.zapretInstalled = Boolean(
         Number(data?.zapret_installed) === 1,
       );
@@ -221,23 +202,17 @@ const EntryPoint = {
 
     const loadFallbackUiCapabilities = function () {
       return Promise.allSettled([
-        main.ForkopShellMethods.getServerCapabilities(),
         main.ForkopShellMethods.checkZapretRuntime(),
         main.ForkopShellMethods.checkZapret2Runtime(),
         main.ForkopShellMethods.checkByedpiRuntime(),
         main.ForkopShellMethods.checkInboundsConfig(),
       ]).then(
         ([
-          serverCapabilitiesResult,
           zapretRuntimeResult,
           zapret2RuntimeResult,
           byedpiRuntimeResult,
           inboundsConfigResult,
         ]) => {
-          const serverCapabilities =
-            serverCapabilitiesResult.status === "fulfilled"
-              ? serverCapabilitiesResult.value
-              : null;
           const zapretRuntime =
             zapretRuntimeResult.status === "fulfilled"
               ? zapretRuntimeResult.value
@@ -256,23 +231,6 @@ const EntryPoint = {
               : null;
 
           return updateUiCapabilities({
-            sing_box_extended:
-              serverCapabilities?.success &&
-              Number(serverCapabilities.data?.sing_box_extended) === 1
-                ? 1
-                : 0,
-            sing_box_tiny:
-              serverCapabilities?.success &&
-              Number(serverCapabilities.data?.sing_box_tiny) === 1
-                ? 1
-                : 0,
-            sing_box_tailscale:
-              !serverCapabilities?.success ||
-              typeof serverCapabilities.data?.sing_box_tailscale ===
-                "undefined" ||
-              Number(serverCapabilities.data?.sing_box_tailscale) === 1
-                ? 1
-                : 0,
             zapret_installed:
               zapretRuntime?.success &&
               Number(zapretRuntime.data?.zapret_installed) === 1
@@ -412,11 +370,8 @@ const EntryPoint = {
       _("Server"),
       _("Add a server inbound"),
     );
-    serverSectionRef = serverSection;
-    server.configureServerSection(serverSection, {
-      loadCapabilities: loadUiCapabilities,
-    });
-    server.createServerContent(serverSection, uiCapabilities);
+    server.configureServerSection(serverSection);
+    server.createServerContent(serverSection);
 
     const settingsSection = forkopMap.section(
       form.TypedSection,

@@ -6,10 +6,11 @@ const copyableLinks = [
   'vmess://encoded',
   'trojan://password@example.com:443',
   'ss://encoded@example.com:443',
-  'ssr://encoded',
+  'hysteria://password@example.com:443',
   'hysteria2://password@example.com:443',
   'hy2://password@example.com:443',
   'tuic://uuid:password@example.com:443',
+  'socks://example.com:1080',
   'socks4://example.com:1080',
   'socks4a://example.com:1080',
   'socks5://user:pass@example.com:1080',
@@ -26,6 +27,7 @@ const nonCopyableLinks = [
   'https://example.com',
   'http://example.com:99999',
   'wireguard://example.com',
+  'ssr://encoded',
 ];
 
 describe('isCopyableProxyLink', () => {

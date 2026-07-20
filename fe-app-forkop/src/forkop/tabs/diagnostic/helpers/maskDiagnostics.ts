@@ -35,7 +35,6 @@ const FORKOP_MASK_AFTER_TOKEN = [
   'list subscription_urls',
   'list urltest_proxy_links',
   'list selector_proxy_links',
-  'list server_users',
   'option server_uuid',
   'option server_username',
   'option server_password',

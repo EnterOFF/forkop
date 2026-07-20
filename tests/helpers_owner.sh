@@ -67,8 +67,9 @@ grep -Fq 'core/packages.uc' "$COMPONENT_ACTION_UC" ||
   fail "component action owner must use core/packages.uc directly"
 grep -Fq 'count-uci' "$RULES_UC" ||
   fail "providers/rules.uc must own UCI rule counting"
+grep -Fq 'mode == "version"' "$SINGBOX_RUNTIME_UC" ||
+  fail 'singbox/runtime.uc missing mode == "version"'
 for mode in \
-  'mode == "version"' \
   'mode == "version-output"' \
   'mode == "version-from-output"' \
   'mode == "read-version-state"' \
@@ -82,8 +83,9 @@ for mode in \
   'mode == "supports-tailscale"' \
   'mode == "variant"'
 do
-  grep -Fq "$mode" "$SINGBOX_RUNTIME_UC" ||
-    fail "singbox/runtime.uc missing $mode"
+  if grep -Fq "$mode" "$SINGBOX_RUNTIME_UC"; then
+    fail "singbox/runtime.uc must not retain legacy $mode"
+  fi
 done
 if grep -R -n -E 'get_sing_box_version\(|sing_box_version_from_output\(|sing_box_version_output\(|sing_box_output_has_build_tag\(|sing_box_has_build_tag\(|is_sing_box_extended\(|is_sing_box_tiny_package_installed\(|is_sing_box_full_package_installed\(|is_sing_box_compressed_marker_set\(|is_sing_box_extended_marker_set\(|read_sing_box_version_state\(|is_sing_box_tiny_marker_set\(|is_sing_box_tiny\(|sing_box_supports_tailscale\(|get_sing_box_variant\(|updates_(write|read|clear|restore)_sing_box_(variant_marker|version_state)\(' \
   "$FORKOP_BIN" "$FORKOP_LIB" --include='*.sh' >/dev/null 2>&1; then
@@ -97,43 +99,5 @@ fi
 mark_hex="$(ucode -L "$FORKOP_LIB" "$RULES_UC" mark-hex 0x01000000 2)"
 [ "$mark_hex" = "0x01000002" ] ||
   fail "providers/rules.uc mark math changed"
-
-version="$(printf 'sing-box version 1.12.4-extended\nEnvironment: test\n' |
-  ucode -L "$FORKOP_LIB" "$SINGBOX_RUNTIME_UC" version-from-output)"
-[ "$version" = "1.12.4-extended" ] ||
-  fail "singbox/runtime.uc version-from-output changed"
-
-ucode -L "$FORKOP_LIB" "$SINGBOX_RUNTIME_UC" is-extended "1.12.4-extended" >/dev/null ||
-  fail "extended sing-box version should be detected"
-if ucode -L "$FORKOP_LIB" "$SINGBOX_RUNTIME_UC" is-extended "1.12.4" >/dev/null 2>&1; then
-  fail "stable sing-box version must not be detected as extended"
-fi
-ucode -L "$FORKOP_LIB" "$SINGBOX_RUNTIME_UC" supports-tailscale "" "$(printf 'Tags: with_quic,with_tailscale\n')" >/dev/null ||
-  fail "with_tailscale build tag should be detected"
-
-SB_VERSION_STATE_FILE="$WORK_DIR/version" \
-  ucode -L "$FORKOP_LIB" "$SINGBOX_RUNTIME_UC" write-version-state 1.2.3 >/dev/null ||
-  fail "version state write failed"
-[ "$(SB_VERSION_STATE_FILE="$WORK_DIR/version" ucode -L "$FORKOP_LIB" "$SINGBOX_RUNTIME_UC" read-version-state)" = "1.2.3" ] ||
-  fail "version state read failed"
-SB_VERSION_STATE_FILE="$WORK_DIR/version" \
-  ucode -L "$FORKOP_LIB" "$SINGBOX_RUNTIME_UC" restore-version-state "" >/dev/null ||
-  fail "version state restore-clear failed"
-[ ! -e "$WORK_DIR/version" ] ||
-  fail "empty version state restore must clear the state file"
-
-SB_VARIANT_STATE_FILE="$WORK_DIR/variant" \
-  ucode -L "$FORKOP_LIB" "$SINGBOX_RUNTIME_UC" write-variant-marker extended-compressed >/dev/null ||
-  fail "variant marker write failed"
-SB_VARIANT_STATE_FILE="$WORK_DIR/variant" \
-  ucode -L "$FORKOP_LIB" "$SINGBOX_RUNTIME_UC" marker-is extended-compressed >/dev/null ||
-  fail "variant marker check failed"
-[ "$(SB_VARIANT_STATE_FILE="$WORK_DIR/variant" ucode -L "$FORKOP_LIB" "$SINGBOX_RUNTIME_UC" read-variant-marker)" = "extended-compressed" ] ||
-  fail "variant marker read failed"
-SB_VARIANT_STATE_FILE="$WORK_DIR/variant" \
-  ucode -L "$FORKOP_LIB" "$SINGBOX_RUNTIME_UC" restore-variant-marker "" >/dev/null ||
-  fail "variant marker restore-clear failed"
-[ ! -e "$WORK_DIR/variant" ] ||
-  fail "empty variant marker restore must clear the marker file"
 
 printf 'helpers ownership checks passed\n'

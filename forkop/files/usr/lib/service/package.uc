@@ -17,10 +17,6 @@ const RT_TABLES_PATH = env("FORKOP_RT_TABLES", "/etc/iproute2/rt_tables");
 const BIN_PATH = env("FORKOP_BIN", "/usr/bin/forkop");
 const INIT_PATH = env("FORKOP_INIT", "/etc/init.d/forkop");
 const DNS_APPLY_UC = env("FORKOP_DNS_APPLY_UC", "/usr/lib/forkop/dns/apply.uc");
-const SING_BOX_INIT = env("FORKOP_SING_BOX_INIT", "/etc/init.d/sing-box");
-const SING_BOX_BIN = env("FORKOP_SING_BOX_BIN", "/usr/bin/sing-box");
-const SING_BOX_CRONET = env("FORKOP_SING_BOX_CRONET", "/usr/lib/libcronet.so");
-const SING_BOX_MANAGED_MARKER = env("SB_MANAGED_SERVICE_MARKER", "Forkop managed sing-box service for binary variants");
 const PACKAGE_UPGRADE_STATE = env("FORKOP_PACKAGE_UPGRADE_STATE", "/tmp/forkop-package-was-running");
 const PACKAGE_TEST_MODE = env("FORKOP_PACKAGE_TEST_MODE", "") != "";
 
@@ -97,18 +93,6 @@ function restore_dnsmasq_if_needed() {
         command_success_from_args([ "ucode", DNS_APPLY_UC, "failsafe-restore" ]);
 }
 
-function remove_managed_sing_box() {
-    let data = fs.readfile(SING_BOX_INIT);
-    if (data == null || index(data, SING_BOX_MANAGED_MARKER) < 0)
-        return;
-
-    command_success_from_args([ SING_BOX_INIT, "stop" ]);
-    command_success_from_args([ SING_BOX_INIT, "disable" ]);
-    unlink_if_exists(SING_BOX_INIT);
-    unlink_if_exists(SING_BOX_BIN);
-    unlink_if_exists(SING_BOX_CRONET);
-}
-
 function remember_upgrade_state(action) {
     if (as_string(action) != "upgrade") {
         unlink_if_exists(PACKAGE_UPGRADE_STATE);
@@ -127,7 +111,6 @@ function prerm_cleanup(action) {
     if (!PACKAGE_TEST_MODE) {
         command_success_from_args([ INIT_PATH, "stop" ]);
         restore_dnsmasq_if_needed();
-        remove_managed_sing_box();
     }
     return remove_rt_tables_entry();
 }

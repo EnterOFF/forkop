@@ -3,7 +3,6 @@
 let fs = require("fs");
 let uci_core_module = null;
 let fixture_uci_data = null;
-let subscription_parser_module = null;
 let zapret_validator_module = null;
 let zapret2_validator_module = null;
 let byedpi_validator_module = null;
@@ -14,6 +13,7 @@ let rule_config = require("config.rule");
 let connections = require("config.connections");
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
+const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
 const DEFAULT_LATENCY_TEST_URL = "https://www.gstatic.com/generate_204";
 const TAILSCALE_FWMARK_MASK = 0x00ff0000;
 
@@ -193,6 +193,17 @@ function command_exists(name) {
     return system("command -v " + shell_quote(name) + " >/dev/null 2>&1") == 0;
 }
 
+function package_installed(name) {
+    if (command_exists("apk"))
+        return command_success_from_args([ "apk", "info", "-e", name ]);
+
+    let prefix = as_string(name) + " - ";
+    for (let line in split(command_output_from_args([ "opkg", "list-installed" ]), "\n"))
+        if (substr(trim(as_string(line)), 0, length(prefix)) == prefix)
+            return true;
+    return false;
+}
+
 function log_message(message, level) {
     level = as_string(level || "info");
     run_args([ "logger", "-t", "forkop", "[" + level + "] " + as_string(message) ]);
@@ -228,13 +239,6 @@ function first_line_field_from_text(data, field_index) {
 
     field_index = int(field_index || 0);
     return field_index > 0 && field_index <= length(fields) ? as_string(fields[field_index - 1]) : "";
-}
-
-function first_line_last_field(data) {
-    let newline = index(as_string(data), "\n");
-    let line = newline >= 0 ? substr(data, 0, newline) : data;
-    let fields = split(trim(as_string(line)), /[ \t\r\n]+/);
-    return length(fields) > 0 ? as_string(fields[length(fields) - 1]) : "";
 }
 
 function digit_char(value) {
@@ -707,12 +711,6 @@ function parse_number(value) {
     return match(value, /^[0-9]+$/) == null ? null : int(value);
 }
 
-function subscription_parser() {
-    if (subscription_parser_module == null)
-        subscription_parser_module = require("subscription.parser");
-    return subscription_parser_module;
-}
-
 function zapret_validator() {
     if (zapret_validator_module == null)
         zapret_validator_module = require("providers.zapret.validator");
@@ -904,6 +902,10 @@ function validate_dns_settings(settings, sections, context) {
     if (!contains([ "prefer_ipv4", "ipv4_only", "prefer_ipv6", "ipv6_only" ], dns_strategy))
         fail_validation("Unsupported DNS strategy '" + dns_strategy + "'. Use prefer_ipv4, ipv4_only, prefer_ipv6, or ipv6_only. Aborted.");
 
+    let fallback_strategy = option(settings, "dns_fallback_strategy", "sequential");
+    if (!contains([ "sequential", "parallel" ], fallback_strategy))
+        fail_validation("Unsupported DNS fallback strategy '" + fallback_strategy + "'. Use sequential or parallel. Aborted.");
+
     let main_servers = dns_setting_values(settings, "dns_server");
     let bootstrap_servers = dns_setting_values(settings, "bootstrap_dns_server");
     if (length(main_servers) == 0)
@@ -916,12 +918,6 @@ function validate_dns_settings(settings, sections, context) {
     for (let value in bootstrap_servers)
         if (!dns_server_value_valid(value))
             fail_validation("Invalid Bootstrap DNS server '" + value + "'. Aborted.");
-
-    if (length(main_servers) > 1 || length(bootstrap_servers) > 1) {
-        validate_required_duration_option(option(settings, "dns_check_interval", "10s"), "settings.dns_check_interval");
-        validate_required_duration_option(option(settings, "dns_recovery_check_interval", "60s"), "settings.dns_recovery_check_interval");
-        validate_required_duration_option(option(settings, "dns_check_timeout", "2s"), "settings.dns_check_timeout");
-    }
 
     if (!bool_option(settings, "dns_detour_enabled", false))
         return;
@@ -982,17 +978,6 @@ function validate_port_condition_value(value, section) {
     fail_validation("Invalid port condition '" + value + "' in rule '" + section + "'. Use a single port or range like 80 or 1000-2000. Aborted.");
 }
 
-function validate_subscription_source_entry_value(entry, section) {
-    if (index(as_string(entry), "|") >= 0)
-        fail_validation("Invalid subscription URL in rule '" + section + "': Configure User-Agent in the subscription item settings. Aborted.");
-
-    let parsed = subscription_parser().parse_subscription_source_entry(entry);
-    if (parsed.valid)
-        return;
-
-    fail_validation("Invalid subscription URL in rule '" + section + "': " + parsed.error + ". Aborted.");
-}
-
 function valid_http_url(value) {
     value = trim(as_string(value));
     if (value == "" || match(value, /[ \t\r\n]/) != null)
@@ -1003,6 +988,16 @@ function valid_http_url(value) {
         return false;
 
     return core_url.host(value) != "";
+}
+
+function validate_subscription_source_entry_value(entry, section) {
+    if (index(as_string(entry), "|") >= 0)
+        fail_validation("Invalid subscription URL in rule '" + section + "': Configure User-Agent in the subscription item settings. Aborted.");
+
+    if (valid_http_url(entry))
+        return;
+
+    fail_validation("Invalid subscription URL in rule '" + section + "': Use an http:// or https:// URL. Aborted.");
 }
 
 function validate_http_url_option(value, label) {
@@ -1044,11 +1039,16 @@ function validate_proxy_parameter_value(value, allowed, parameter, section) {
 function validate_proxy_parameter_filters(protocols, transports, securities, section) {
     for (let value in protocols)
         validate_proxy_parameter_value(value,
-            [ "direct", "http", "hysteria2", "shadowsocks", "socks", "trojan", "vless", "vmess" ],
+            [
+                "anytls", "direct", "http", "hysteria", "hysteria2", "masque",
+                "mieru", "mtproxy", "naive", "shadowsocks", "shadowsocksr",
+                "snell", "socks", "ssh", "trojan", "trusttunnel", "tuic",
+                "vless", "vmess"
+            ],
             "protocol", section);
     for (let value in transports)
         validate_proxy_parameter_value(value,
-            [ "tcp", "ws", "grpc", "http", "httpupgrade", "xhttp" ],
+            [ "tcp", "ws", "grpc", "http", "httpupgrade", "mkcp", "quic", "xhttp" ],
             "transport", section);
     for (let value in securities)
         validate_proxy_parameter_value(value, [ "none", "tls", "reality" ], "security", section);
@@ -1103,12 +1103,7 @@ function validate_priority_group(section, group_id) {
     if (trim(connections.priority_group_display_name(section, group_id)) == "")
         fail_validation("Priority group '" + group_id + "' in rule '" + name + "' has no display name. Aborted.");
 
-    validate_http_url_option(connections.priority_group_health_url(section, group_id), "rule." + name + ".priority." + group_id + ".health_url");
-    validate_required_duration_option(connections.priority_group_active_check_interval(section, group_id), "rule." + name + ".priority." + group_id + ".active_check_interval");
-    validate_required_duration_option(connections.priority_group_check_timeout(section, group_id), "rule." + name + ".priority." + group_id + ".check_timeout");
-    validate_required_duration_option(connections.priority_group_recovery_check_interval(section, group_id), "rule." + name + ".priority." + group_id + ".recovery_check_interval");
-    if (connections.priority_group_switch_to_faster_same_priority(section, group_id))
-        validate_required_duration_option(connections.priority_group_fastest_check_interval(section, group_id), "rule." + name + ".priority." + group_id + ".fastest_check_interval");
+    validate_required_duration_option(connections.priority_group_blacklist_timeout(section, group_id), "rule." + name + ".priority." + group_id + ".blacklist_timeout");
 
     for (let level_id in connections.priority_levels(group_id)) {
         validate_priority_identifier_value(level_id, name);
@@ -1247,6 +1242,112 @@ function validate_outbound_json_values(section) {
     }
 }
 
+function valid_wireguard_key(value) {
+    value = trim(as_string(value));
+    if (match(value, /^[A-Za-z0-9+\/]{43}=$/) == null)
+        return false;
+
+    let decoded = null;
+    try {
+        decoded = b64dec(value);
+    }
+    catch (e) {
+        return false;
+    }
+    return decoded != null && length(decoded) == 32;
+}
+
+function valid_amnezia_range(value) {
+    value = trim(as_string(value));
+    if (value == "")
+        return false;
+
+    let parts = split(value, "-");
+    if (length(parts) > 2)
+        return false;
+
+    for (let part in parts)
+        if (match(part, /^[0-9]+$/) == null || int(part) < 0 || int(part) > 4294967295)
+            return false;
+
+    return length(parts) == 1 || int(parts[0]) <= int(parts[1]);
+}
+
+function validate_tunnel_amnezia(endpoint, name) {
+    let amnezia = endpoint.amnezia;
+    if (type(amnezia) != "object")
+        return;
+
+    for (let key in [ "h1", "h2", "h3", "h4" ])
+        if (amnezia[key] != null && !valid_amnezia_range(amnezia[key]))
+            fail_validation("Connection rule '" + name + "' contains an invalid AmneziaWG " + key + " range. Use values from 0 to 4294967295 with the start no greater than the end. Aborted.");
+}
+
+function validate_tunnel_json_values(section) {
+    let name = section_name(section);
+
+    for (let value in connections.tunnel_jsons(section)) {
+        let wrapper = outbound_json_object(value);
+        let endpoint = type(wrapper) == "object" ? object_or_empty(wrapper.endpoint) : {};
+        let endpoint_type = lc(trim(as_string(endpoint.type || "")));
+        if (endpoint_type != "wireguard" && endpoint_type != "warp")
+            fail_validation("Connection rule '" + name + "' contains an invalid tunnel endpoint. Aborted.");
+        if (trim(as_string(wrapper.name || "")) == "")
+            fail_validation("Connection rule '" + name + "' contains a tunnel without a name. Aborted.");
+
+        validate_tunnel_amnezia(endpoint, name);
+
+        if (endpoint_type == "warp") {
+            let profile = object_or_empty(endpoint.profile);
+            let profile_values = 0;
+            for (let key in [ "id", "auth_token", "private_key" ])
+                if (trim(as_string(profile[key] || "")) != "")
+                    profile_values++;
+            if (profile_values != 3)
+                fail_validation("Connection rule '" + name + "' contains an incomplete WARP profile. Generate a profile and fill all profile fields. Aborted.");
+            continue;
+        }
+
+        let peers = array_or_empty(endpoint.peers);
+        if (length(array_or_empty(endpoint.address)) == 0 ||
+            trim(as_string(endpoint.private_key || "")) == "" ||
+            length(peers) == 0)
+            fail_validation("Connection rule '" + name + "' contains an incomplete WireGuard endpoint. Aborted.");
+
+        if (!valid_wireguard_key(endpoint.private_key))
+            fail_validation("Connection rule '" + name + "' contains an invalid WireGuard private key. Use standard base64-encoded 32-byte values. Aborted.");
+
+        for (let address in array_or_empty(endpoint.address))
+            if (type(address) != "string" || !core_ip.valid_ip_cidr(trim(address)))
+                fail_validation("Connection rule '" + name + "' contains an invalid WireGuard address. Use IP addresses with CIDR prefixes. Aborted.");
+
+        for (let peer in peers) {
+            peer = object_or_empty(peer);
+            let port = int(peer.port || 0);
+            if (trim(as_string(peer.address || "")) == "" ||
+                trim(as_string(peer.public_key || "")) == "" ||
+                port < 1 || port > 65535)
+                fail_validation("Connection rule '" + name + "' contains an invalid WireGuard peer. Aborted.");
+
+            if (!valid_wireguard_key(peer.public_key))
+                fail_validation("Connection rule '" + name + "' contains an invalid WireGuard peer public key. Use standard base64-encoded 32-byte values. Aborted.");
+
+            if (peer.pre_shared_key != null && trim(as_string(peer.pre_shared_key)) != "" &&
+                !valid_wireguard_key(peer.pre_shared_key))
+                fail_validation("Connection rule '" + name + "' contains an invalid WireGuard pre-shared key. Use standard base64-encoded 32-byte values. Aborted.");
+
+            let allowed_ips = peer.allowed_ips;
+            if (type(allowed_ips) == "string")
+                allowed_ips = [ allowed_ips ];
+            if (type(allowed_ips) != "array" || length(allowed_ips) == 0)
+                fail_validation("Connection rule '" + name + "' contains a WireGuard peer without AllowedIPs. Add at least one CIDR subnet. Aborted.");
+            for (let allowed_ip in allowed_ips)
+                if (type(allowed_ip) != "string" || !core_ip.valid_ip_cidr(trim(allowed_ip)))
+                    fail_validation("Connection rule '" + name + "' contains an invalid WireGuard AllowedIPs subnet. Use IP addresses with CIDR prefixes. Aborted.");
+        }
+    }
+}
+
 function rule_has_subscription_urls(section) {
     return length(connections.subscription_urls(section)) > 0;
 }
@@ -1258,14 +1359,45 @@ function subscription_update_interval_for_source(section, entry) {
     return value != "" ? value : "1h";
 }
 
+function validate_subscription_prefix(section, entry) {
+    if (connections.subscription_prefix_nodes(section, entry) &&
+        connections.subscription_node_prefix(section, entry) == "")
+        fail_validation("Subscription source in rule '" + section_name(section) + "' has node prefixing enabled but the prefix is empty. Fill the prefix or disable prefixing. Aborted.");
+}
+
 function validate_subscription_request_profile(section, entry) {
     if (connections.subscription_auto_hwid(section, entry))
-        return;
+        return validate_subscription_prefix(section, entry);
 
     if (connections.subscription_hwid(section, entry) != "")
-        return;
+        return validate_subscription_prefix(section, entry);
 
     fail_validation("Subscription source in rule '" + section_name(section) + "' has manual HWID enabled but HWID is empty. Fill HWID or enable auto-generation. Aborted.");
+}
+
+function validate_subscription_filter(section, entry) {
+    let name = section_name(section);
+    let settings = connections.subscription_url_settings(section, entry);
+    let filter_mode = option(settings, "filter_mode", "disabled");
+    validate_urltest_filter_mode_value(filter_mode, name);
+
+    if (filter_mode == "include" || filter_mode == "mixed") {
+        for (let value in list_option(settings, "include_countries"))
+            validate_country_code_value(value, name);
+        for (let value in list_option(settings, "include_regex"))
+            validate_urltest_regex_value(value, name);
+        if (bool_option(settings, "include_proxy_parameters", false))
+            validate_proxy_parameter_filters(list_option(settings, "include_protocols"), list_option(settings, "include_transports"), list_option(settings, "include_securities"), name);
+    }
+
+    if (filter_mode == "exclude" || filter_mode == "mixed") {
+        for (let value in list_option(settings, "exclude_countries"))
+            validate_country_code_value(value, name);
+        for (let value in list_option(settings, "exclude_regex"))
+            validate_urltest_regex_value(value, name);
+        if (bool_option(settings, "exclude_proxy_parameters", false))
+            validate_proxy_parameter_filters(list_option(settings, "exclude_protocols"), list_option(settings, "exclude_transports"), list_option(settings, "exclude_securities"), name);
+    }
 }
 
 function validate_provider_strategy(kind, section, context) {
@@ -1428,6 +1560,7 @@ function validate_rule(section, sections, context) {
             for (let value in connections.subscription_urls(section)) {
                 validate_subscription_source_entry_value(value, name);
                 validate_subscription_request_profile(section, value);
+                validate_subscription_filter(section, value);
                 let subscription_update_interval = subscription_update_interval_for_source(section, value);
                 if (subscription_update_interval != "")
                     validate_required_duration_option(subscription_update_interval, "rule." + name + ".subscription_update_interval");
@@ -1435,6 +1568,7 @@ function validate_rule(section, sections, context) {
         }
 
         validate_outbound_json_values(section);
+        validate_tunnel_json_values(section);
     }
 
     if (action == "outbound")
@@ -1575,7 +1709,7 @@ function validate_server_routing_sections(sections) {
     }
 }
 
-function validate_list_update_settings(settings) {
+function validate_native_rule_set_update_settings(settings) {
     if (!bool_option(settings, "list_update_enabled", true))
         return;
 
@@ -1629,7 +1763,7 @@ function validate_runtime_config(context) {
 
     validate_runtime_mark_ranges_context(context);
     validate_dns_settings(settings, sections, context);
-    validate_list_update_settings(settings);
+    validate_native_rule_set_update_settings(settings);
     validate_http_url_option(option(settings, "latency_test_url", DEFAULT_LATENCY_TEST_URL) || DEFAULT_LATENCY_TEST_URL, "settings.latency_test_url");
 
     if (download_via_proxy_enabled(settings, "lists")) {
@@ -1682,9 +1816,6 @@ function context_from_runtime() {
         nft_outbound_mark: constant_value(constants, "NFT_OUTBOUND_MARK"),
         coreutils_base64_required_version: constant_value(constants, "COREUTILS_BASE64_REQUIRED_VERSION"),
         sing_box_required_version: constant_value(constants, "SB_REQUIRED_VERSION"),
-        sing_box_variant_state_file: constant_value(constants, "SB_VARIANT_STATE_FILE"),
-        sing_box_version_state_file: constant_value(constants, "SB_VERSION_STATE_FILE"),
-        sing_box_managed_service_marker: constant_value(constants, "SB_MANAGED_SERVICE_MARKER"),
         zapret_legacy_runtime_base_dir: constant_value(constants, "ZAPRET_LEGACY_RUNTIME_BASE_DIR"),
         zapret_state_dir: constant_value(constants, "ZAPRET_STATE_DIR"),
         zapret_pid_dir: constant_value(constants, "ZAPRET_PID_DIR"),
@@ -1702,162 +1833,8 @@ function context_from_runtime() {
     };
 }
 
-function sing_box_variant_marker(ctx, value) {
-    let path = as_string(ctx.sing_box_variant_state_file);
-    if (path == "")
-        path = "/etc/forkop/sing-box-variant";
-
-    let data = fs.readfile(path);
-    return trim(as_string(data)) == as_string(value);
-}
-
-function sing_box_compressed_marker_set(ctx) {
-    return sing_box_variant_marker(ctx, "extended-compressed");
-}
-
-function sing_box_extended_marker_set(ctx) {
-    return sing_box_variant_marker(ctx, "extended");
-}
-
-function sing_box_version_state(ctx) {
-    let path = as_string(ctx.sing_box_version_state_file);
-    if (path == "")
-        path = "/etc/forkop/sing-box-version";
-
-    let data = fs.readfile(path);
-    if (data == null)
-        return "";
-
-    let newline = index(data, "\n");
-    return newline >= 0 ? substr(data, 0, newline) : as_string(data);
-}
-
-function get_sing_box_version(ctx) {
-    if (!command_exists("sing-box"))
-        return "";
-
-    if (sing_box_compressed_marker_set(ctx))
-        return sing_box_version_state(ctx);
-
-    return first_line_last_field(command_output_from_args([ "sing-box", "version" ]));
-}
-
-function sing_box_version_is_extended(version) {
-    return index(as_string(version), "extended") >= 0;
-}
-
-function sing_box_is_extended(ctx, version) {
-    if (as_string(version) == "" && command_exists("sing-box") &&
-        (sing_box_compressed_marker_set(ctx) || sing_box_extended_marker_set(ctx)))
-        return true;
-
-    return sing_box_version_is_extended(version != null ? version : get_sing_box_version(ctx));
-}
-
-function sing_box_output_has_build_tag(output, tag) {
-    tag = as_string(tag);
-    if (tag == "")
-        return false;
-
-    for (let token in split(replace(as_string(output), /[,: \t\r\n]+/g, " "), " "))
-        if (token == tag)
-            return true;
-
-    return false;
-}
-
-function sing_box_supports_tailscale(ctx, version, version_output) {
-    if (command_exists("sing-box") && sing_box_compressed_marker_set(ctx))
-        return true;
-
-    if (sing_box_is_extended(ctx, version))
-        return true;
-
-    if (as_string(version_output) == "")
-        version_output = command_output_from_args([ "sing-box", "version" ]);
-
-    return sing_box_output_has_build_tag(version_output, "with_tailscale");
-}
-
-function managed_sing_box_service_script(marker) {
-    marker = as_string(marker);
-    if (marker == "")
-        marker = "Forkop managed sing-box service for binary variants";
-
-    return "#!/bin/sh /etc/rc.common\n" +
-        "# " + marker + "\n" +
-        "\n" +
-        "USE_PROCD=1\n" +
-        "START=99\n" +
-        "PROG=\"/usr/bin/sing-box\"\n" +
-        "\n" +
-        "start_service() {\n" +
-        "    config_load \"sing-box\"\n" +
-        "    local enabled config_file working_directory\n" +
-        "    local log_stderr\n" +
-        "\n" +
-        "    config_get_bool enabled \"main\" \"enabled\" \"0\"\n" +
-        "    [ \"$enabled\" -eq \"1\" ] || return 0\n" +
-        "\n" +
-        "    config_get config_file \"main\" \"conffile\" \"/etc/sing-box/config.json\"\n" +
-        "    config_get working_directory \"main\" \"workdir\" \"/usr/share/sing-box\"\n" +
-        "    config_get_bool log_stderr \"main\" \"log_stderr\" \"1\"\n" +
-        "\n" +
-        "    procd_open_instance\n" +
-        "    procd_set_param command \"$PROG\" run -c \"$config_file\" -D \"$working_directory\"\n" +
-        "    procd_set_param file \"$config_file\"\n" +
-        "    procd_set_param stderr \"$log_stderr\"\n" +
-        "    procd_set_param limits core=\"unlimited\"\n" +
-        "    procd_set_param limits nofile=\"1000000 1000000\"\n" +
-        "    procd_set_param respawn\n" +
-        "    procd_close_instance\n" +
-        "}\n" +
-        "\n" +
-        "service_triggers() {\n" +
-        "    procd_add_reload_trigger \"sing-box\"\n" +
-        "}\n";
-}
-
-function install_managed_sing_box_service_script(ctx) {
-    let stamp = clock();
-    let tmp_file = sprintf("/etc/init.d/sing-box.forkop.%d.%d", stamp[0], stamp[1]);
-
-    if (!fs.writefile(tmp_file, managed_sing_box_service_script(ctx.sing_box_managed_service_marker)))
-        return false;
-
-    if (!run_args([ "chmod", "0755", tmp_file ]) || !run_args([ "mv", "-f", tmp_file, "/etc/init.d/sing-box" ])) {
-        fs.unlink(tmp_file);
-        return false;
-    }
-
-    return true;
-}
-
 function service_exists(service) {
     return file_executable("/etc/init.d/" + as_string(service));
-}
-
-function validate_extended_server_features(ctx, sing_box_version, sing_box_version_output) {
-    if (sing_box_is_extended(ctx, sing_box_version))
-        return;
-
-    for (let section in sections_by_type("server")) {
-        if (!server_enabled(section))
-            continue;
-
-        let name = section_name(section);
-        let protocol = option(section, "protocol", "vless");
-        let transport = option(section, "transport", "tcp");
-
-        if (protocol == "mtproto")
-            fail_requirement("Server '" + name + "' uses MTProto proxy, but sing-box-extended is not installed. Install sing-box-extended or disable this server. Aborted.", "fatal");
-
-        if (protocol == "tailscale" && !sing_box_supports_tailscale(ctx, sing_box_version, sing_box_version_output))
-            fail_requirement("Server '" + name + "' uses Tailscale, but the installed sing-box binary was built without Tailscale support. Install full sing-box or sing-box-extended, or disable this server. Aborted.", "fatal");
-
-        if (transport == "xhttp")
-            fail_requirement("Server '" + name + "' uses XHTTP transport, but sing-box-extended is not installed. Install sing-box-extended or change the transport. Aborted.", "fatal");
-    }
 }
 
 function has_outbound_section(ctx) {
@@ -1876,6 +1853,7 @@ function has_outbound_section(ctx) {
         if (length(connections.connection_urls(section)) > 0 ||
             length(connections.subscription_urls(section)) > 0 ||
             length(connections.outbound_jsons(section)) > 0 ||
+            length(connections.tunnel_jsons(section)) > 0 ||
             length(connections.interfaces(section)) > 0)
             return true;
     }
@@ -1960,25 +1938,25 @@ function check_runtime_requirements() {
     log_message("Checking required packages and runtime settings", "info");
 
     let ctx = context_from_runtime();
-    let sing_box_version_output = command_exists("sing-box") ? command_output_from_args([ "sing-box", "version" ]) : "";
-    let sing_box_version = sing_box_compressed_marker_set(ctx) ? sing_box_version_state(ctx) : first_line_last_field(sing_box_version_output);
+    let sing_box_package = package_installed("sing-box-forkop-compressed")
+        ? "sing-box-forkop-compressed"
+        : "sing-box-forkop";
+    let sing_box_version = trim(command_output_from_args([
+        "ucode", "-L", LIB_DIR, LIB_DIR + "/core/packages.uc", "version", sing_box_package
+    ]));
+    sing_box_version = replace(sing_box_version, /~/g, "-");
     let coreutils_base64_version = first_line_field_from_text(command_output("base64 --version 2>/dev/null"), 4);
 
-    if (sing_box_version == "") {
-        if (!command_exists("sing-box") || !sing_box_compressed_marker_set(ctx))
-            fail_requirement("Package 'sing-box' is not installed. Aborted.", "error");
-    }
+    if (!package_installed("sing-box-forkop") && !package_installed("sing-box-forkop-compressed"))
+        fail_requirement("Package 'sing-box-forkop' is not installed. Reinstall Forkop. Aborted.", "error");
+    if (sing_box_version == "")
+        fail_requirement("Binary 'sing-box' is not available. Reinstall sing-box-forkop. Aborted.", "error");
     else if (!version_at_least(sing_box_version, ctx.sing_box_required_version)) {
-        fail_requirement("Package 'sing-box' version (" + sing_box_version + ") is lower than the required minimum (" + ctx.sing_box_required_version + "). Update sing-box: opkg update && opkg remove sing-box && opkg install sing-box. Aborted.", "error");
+        fail_requirement("Package 'sing-box-forkop' version (" + sing_box_version + ") is lower than the required minimum (" + ctx.sing_box_required_version + "). Update it from Forkop Components. Aborted.", "error");
     }
-
-    if (!service_exists("sing-box") && sing_box_compressed_marker_set(ctx))
-        install_managed_sing_box_service_script(ctx);
 
     if (!service_exists("sing-box"))
-        fail_requirement("Service 'sing-box' is missing. Install a sing-box package or reinstall the compressed sing-box-extended binary variant. Aborted.", "error");
-
-    validate_extended_server_features(ctx, sing_box_version, sing_box_version_output);
+        fail_requirement("Service 'sing-box' is missing. Reinstall sing-box-forkop. Aborted.", "error");
 
     if (coreutils_base64_version == "")
         fail_requirement("Package 'coreutils-base64' is not installed. Aborted.", "error");

@@ -28,11 +28,18 @@ const validUrls = [
     ).toString('base64')}`,
   ],
   ['trojan', 'trojan://password@example.com:443'],
+  ['socks', 'socks://127.0.0.1:1080'],
   ['socks4', 'socks4://127.0.0.1:1080'],
   ['socks4a', 'socks4a://example.com:1080'],
   ['socks5', 'socks5://user:pass@example.com:1080'],
+  ['tuic', 'tuic://uuid:password@example.com:443'],
+  ['hysteria', 'hysteria://example.com:443?auth=secret'],
   ['hysteria2', 'hysteria2://password@example.com:443'],
   ['hy2', 'hy2://password@example.com:443'],
+  [
+    'mKCP transport delegated to core',
+    'vless://uuid@example.com:443?type=kcp&headerType=wechat-video&seed=secret',
+  ],
 ];
 
 describe('validateProxyUrl', () => {
@@ -54,7 +61,7 @@ describe('validateProxyUrl', () => {
 
     expect(res.valid).toBe(false);
     expect(res.message).toContain('vmess://');
-    expect(res.message).toContain('socks4a://');
+    expect(res.message).toContain('socks://');
     expect(res.message).toContain('hy2://');
   });
 
@@ -65,11 +72,12 @@ describe('validateProxyUrl', () => {
     expect(res.message).not.toContain('http://');
   });
 
-  it('rejects VMess configs with an invalid server host', () => {
-    const config = Buffer.from(
-      JSON.stringify({ add: 'bad_host', port: '443', id: 'uuid' }),
-    ).toString('base64');
+  it('leaves protocol-specific validation to sing-box-forkop', () => {
+    expect(validateProxyUrl('vmess://opaque-native-payload').valid).toBe(true);
+  });
 
-    expect(validateProxyUrl(`vmess://${config}`).valid).toBe(false);
+  it('rejects whitespace and empty payloads before they reach the core', () => {
+    expect(validateProxyUrl('vless://').valid).toBe(false);
+    expect(validateProxyUrl('vless://uuid @example.com:443').valid).toBe(false);
   });
 });

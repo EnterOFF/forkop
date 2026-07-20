@@ -61,18 +61,38 @@ grep -Fq '"forkop-stably-running", RT_TABLE_NAME, NFT_TABLE_NAME, NFT_FAKEIP_MAR
 grep -Fq '"sing-box-service-stable",' "$DIAGNOSTICS_RUNTIME" ||
   fail "diagnostics sing-box status must use stable runtime state to avoid crash-loop flicker"
 
-capabilities="$(
-  FORKOP_DIAGNOSTICS_SING_BOX_BIN_PATH="$WORK_DIR/missing-sing-box" \
+mkdir -p "$WORK_DIR/section-cache"
+printf '%s\n' '{"providerTags":["main-subscription-1-provider"],"urltestCandidateTags":["main-json-out"],"outboundMetadata":{"names":{"main-json-out":"JSON"}},"links":{"legacy":"vless://legacy"},"subscriptionMetadata":[{"title":"legacy"}]}' >"$WORK_DIR/section-cache/main.json"
+dashboard_cache="$(
+  FORKOP_SECTION_CACHE_DIR="$WORK_DIR/section-cache" \
   FORKOP_LIB="$FORKOP_LIB" \
-    ucode -L "$FORKOP_LIB" "$DIAGNOSTICS_RUNTIME" get-server-capabilities
+    ucode -L "$FORKOP_LIB" "$DIAGNOSTICS_RUNTIME" get-dashboard-section-cache main
 )"
-JSON_VALUE="$capabilities" node - <<'NODE'
+JSON_VALUE="$dashboard_cache" node - <<'NODE'
 const value = JSON.parse(process.env.JSON_VALUE);
-if (value.sing_box_extended !== 0 || value.sing_box_tiny !== 0 || value.sing_box_tailscale !== 0) {
-  console.error('missing sing-box must not expose stale capabilities');
+if (
+  value.providerTags?.[0] !== 'main-subscription-1-provider' ||
+  value.urltestCandidateTags?.[0] !== 'main-json-out' ||
+  value.outboundMetadata?.names?.['main-json-out'] !== 'JSON'
+) {
+  console.error('dashboard section cache lost client-owned provider/static metadata');
+  process.exit(1);
+}
+if ('links' in value || 'subscriptionMetadata' in value) {
+  console.error('dashboard section cache still exposes legacy subscription parser state');
   process.exit(1);
 }
 NODE
+
+if grep -Fq 'get-server-capabilities' "$DIAGNOSTICS_RUNTIME"; then
+  fail "diagnostics runtime must not retain sing-box variant capability probes"
+fi
+grep -Fq 'check_proxy_through_running_core' "$DIAGNOSTICS_RUNTIME" ||
+  fail "proxy diagnostics must reuse the running core on low-memory routers"
+grep -Fq '"--proxy", proxy' "$DIAGNOSTICS_RUNTIME" ||
+  fail "proxy diagnostics must not spawn a second sing-box process while the core is active"
+grep -Fq 'CHECK_PROXY_LOCK_DIR' "$DIAGNOSTICS_RUNTIME" ||
+  fail "proxy diagnostics must serialize concurrent checks"
 
 masked_config="$WORK_DIR/forkop-masked"
 cat >"$masked_config" <<'EOF'
@@ -142,6 +162,8 @@ cat >"$fake_bin/curl" <<'SH'
 #!/usr/bin/env sh
 printf '%s\n' "$*" >>"$FAKE_CURL_LOG"
 case "$*" in
+  *'127.0.0.1:9090/providers/proxies') printf '%s\n' '{"providers":{}}' ;;
+  *'127.0.0.1:9090/proxies/provider%2Fnode/link') printf '%s\n' '{"url":"vless://id@example.com:443"}' ;;
   *'127.0.0.1:9090/proxies') printf '%s\n' '{"proxies":{"urltest":{"type":"URLTest"},"provider-urltest":{"type":"urltest"},"proxy-a":{"type":"VLESS"},"proxy-b":{"type":"Trojan"}}}' ;;
   *) printf '%s\n' '{"delay":1}' ;;
 esac
@@ -151,6 +173,7 @@ uci_state="$WORK_DIR/uci-state.txt"
 cat >"$uci_state" <<'EOF'
 forkop.settings=settings
 forkop.settings.latency_test_url=https://latency.example/generate_204
+forkop.settings.yacd_secret_key=local-secret
 EOF
 FAKE_CURL_LOG="$WORK_DIR/fake-curl.log" \
 FORKOP_UCI_STATE_FILE="$uci_state" \
@@ -160,6 +183,65 @@ PATH="$fake_bin:$PATH" \
   fail "clash-api get_proxy_latency should use fake curl successfully"
 grep -Fq "url=https://latency.example/generate_204" "$WORK_DIR/fake-curl.log" ||
   fail "clash-api latency check must use settings.latency_test_url"
+
+FAKE_CURL_LOG="$WORK_DIR/fake-provider-curl.log" \
+FORKOP_UCI_STATE_FILE="$uci_state" \
+FORKOP_LIB="$FORKOP_LIB" \
+PATH="$fake_bin:$PATH" \
+  ucode -L "$FORKOP_LIB" "$DIAGNOSTICS_RUNTIME" clash-api get_proxy_providers >/dev/null ||
+  fail "clash-api get_proxy_providers should use fake curl successfully"
+grep -Fq '/providers/proxies' "$WORK_DIR/fake-provider-curl.log" ||
+  fail "provider dashboard data must come from the native provider API"
+
+proxy_link="$(FAKE_CURL_LOG="$WORK_DIR/fake-link-curl.log" \
+FORKOP_UCI_STATE_FILE="$uci_state" \
+FORKOP_LIB="$FORKOP_LIB" \
+PATH="$fake_bin:$PATH" \
+  ucode -L "$FORKOP_LIB" "$DIAGNOSTICS_RUNTIME" clash-api get_proxy_link 'provider/node')" ||
+  fail "clash-api get_proxy_link should use fake curl successfully"
+JSON_VALUE="$proxy_link" node - <<'NODE'
+const value = JSON.parse(process.env.JSON_VALUE);
+if (value.url !== 'vless://id@example.com:443') process.exit(1);
+NODE
+grep -Fq '/proxies/provider%2Fnode/link' "$WORK_DIR/fake-link-curl.log" ||
+  fail "proxy links must be requested from the native per-outbound endpoint"
+grep -Fq 'Authorization: Bearer local-secret' "$WORK_DIR/fake-link-curl.log" ||
+  fail "local Clash API calls must authenticate whenever the generated API has a secret"
+
+running_proxy_bin="$WORK_DIR/running-proxy-bin"
+mkdir -p "$running_proxy_bin"
+cat >"$running_proxy_bin/pgrep" <<'SH'
+#!/usr/bin/env sh
+[ "$1" = "-x" ] && [ "$2" = "sing-box" ]
+SH
+cat >"$running_proxy_bin/sing-box" <<'SH'
+#!/usr/bin/env sh
+printf '%s\n' "$*" >>"$FAKE_SING_BOX_LOG"
+exit 0
+SH
+cat >"$running_proxy_bin/curl" <<'SH'
+#!/usr/bin/env sh
+printf '%s\n' "$*" >>"$FAKE_RUNNING_CURL_LOG"
+printf '%s\n' '198.51.100.9'
+SH
+chmod +x "$running_proxy_bin"/*
+running_uci_state="$WORK_DIR/running-proxy-uci.state"
+printf 'forkop.settings=settings\nforkop.settings.config_path=%s\n' "$WORK_DIR/running-config.json" >"$running_uci_state"
+: >"$WORK_DIR/running-config.json"
+: >"$WORK_DIR/fake-sing-box.log"
+FAKE_SING_BOX_LOG="$WORK_DIR/fake-sing-box.log" \
+FAKE_RUNNING_CURL_LOG="$WORK_DIR/fake-running-curl.log" \
+FORKOP_UCI_STATE_FILE="$running_uci_state" \
+FORKOP_LIB="$FORKOP_LIB" \
+FORKOP_RUNTIME_STATE_DIR="$WORK_DIR/running-proxy-runtime" \
+PATH="$running_proxy_bin:$PATH" \
+  ucode -L "$FORKOP_LIB" "$DIAGNOSTICS_RUNTIME" check-proxy >"$WORK_DIR/running-proxy.output" ||
+  fail "active proxy diagnostics should use the running core mixed inbound"
+grep -Fq -- '--proxy socks5h://127.0.0.1:4534' "$WORK_DIR/fake-running-curl.log" ||
+  fail "active proxy diagnostics must route curl through the native mixed inbound"
+if grep -Fq 'tools fetch' "$WORK_DIR/fake-sing-box.log"; then
+  fail "active proxy diagnostics must not launch a second sing-box tools process"
+fi
 
 latency_action_dir="$WORK_DIR/ui-state/latency-actions"
 mkdir -p "$latency_action_dir"
@@ -209,6 +291,21 @@ if printf '%s\n' "$firewall_rules" |
   status_ucode firewall-required-protocols-open 8443 "tcp" >/dev/null 2>&1; then
   fail "wrong firewall port should not satisfy required protocols"
 fi
+
+[ "$(status_ucode server-required-inbound-proto hysteria2)" = "udp" ] ||
+  fail "Hysteria2 inbound diagnostics must require UDP"
+[ "$(status_ucode server-required-inbound-proto tuic)" = "udp" ] ||
+  fail "TUIC inbound diagnostics must require UDP"
+[ "$(status_ucode server-required-inbound-proto mieru UDP)" = "udp" ] ||
+  fail "Mieru UDP inbound diagnostics must require UDP"
+[ "$(status_ucode server-required-inbound-proto mieru TCP)" = "tcp" ] ||
+  fail "Mieru TCP inbound diagnostics must require TCP"
+[ "$(status_ucode server-required-inbound-proto naive udp)" = "udp" ] ||
+  fail "Naive UDP inbound diagnostics must require UDP"
+[ "$(status_ucode server-required-inbound-proto naive tcp_udp)" = "tcp udp" ] ||
+  fail "Naive TCP+UDP inbound diagnostics must require both transports"
+[ "$(status_ucode server-required-inbound-proto naive tcp)" = "tcp" ] ||
+  fail "Naive TCP inbound diagnostics must require TCP"
 
 firewall_src_port_rule="$(cat <<'EOF'
 firewall.@rule[0]=rule

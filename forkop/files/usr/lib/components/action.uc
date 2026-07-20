@@ -12,6 +12,7 @@ const FORKOP_RELEASE_REPO = getenv("FORKOP_RELEASE_REPO") || constants.FORKOP_RE
 const SING_BOX_FORKOP_RELEASE_REPO = getenv("SING_BOX_FORKOP_RELEASE_REPO") || "ushan0v/sing-box-forkop";
 const RUNTIME_STATE_DIR = getenv("FORKOP_RUNTIME_STATE_DIR") || "/var/run/forkop";
 const SYSTEM_INFO_CACHE_FILE = getenv("FORKOP_SYSTEM_INFO_CACHE_FILE") || RUNTIME_STATE_DIR + "/system-info.json";
+const SING_BOX_FORKOP_VERSION_FILE = getenv("SING_BOX_FORKOP_VERSION_FILE") || "/usr/share/sing-box-forkop/version";
 const COMPONENT_LOCK_DIR = getenv("UPDATES_LOCK_DIR") || RUNTIME_STATE_DIR + "/component-action.lock";
 const TMP_STALE_TTL_MINUTES = getenv("UPDATES_TMP_STALE_TTL_MINUTES") || "30";
 const TMP_FILE_STALE_TTL_MINUTES = getenv("UPDATES_TMP_FILE_STALE_TTL_MINUTES") || "10";
@@ -120,8 +121,9 @@ function now_seconds() {
 }
 
 function owner_pid() {
-    let pid = trim(command_output_from_args([ "sh", "-c", "echo $PPID" ]));
-    return match(pid, /^[0-9]+$/) != null ? pid : "0";
+    let stat = as_string(fs.readfile("/proc/self/stat"));
+    let separator = index(stat, " ");
+    return separator > 0 ? substr(stat, 0, separator) : "0";
 }
 
 function pid_running(pid) {
@@ -346,17 +348,6 @@ function installed_package_version(package_name) {
     return trim(module_output([ LIB_DIR + "/core/packages.uc", "opkg-version", package_name ]));
 }
 
-function opkg_package_version_from_list(package_name, output) {
-    return trim(helper_output_input(output, "updates-opkg-package-version", [ package_name ]));
-}
-
-function available_package_version(package_name) {
-    package_name = as_string(package_name);
-    if (is_apk())
-        return trim(module_output([ LIB_DIR + "/core/packages.uc", "apk-available-version", package_name ]));
-    return opkg_package_version_from_list(package_name, command_output_from_args([ "opkg", "list", package_name ]));
-}
-
 function pkg_list_update_command() {
     return is_apk() ? "apk update </dev/null" : "opkg update </dev/null";
 }
@@ -367,23 +358,12 @@ function pkg_install_name_command(package_name) {
 }
 
 function pkg_install_files_command(files) {
-    let args = is_apk() ? [ "apk", "add", "--allow-untrusted" ] : [ "opkg", "install", "--force-overwrite", "--force-downgrade" ];
+    let args = is_apk() ?
+        [ "apk", "add", "--allow-untrusted" ] :
+        [ "opkg", "install", "--force-reinstall", "--force-overwrite", "--force-downgrade" ];
     for (let file in files)
         push(args, file);
     return command_from_args(args) + " </dev/null";
-}
-
-function pkg_install_files(files) {
-    return command_success(pkg_install_files_command(files));
-}
-
-function pkg_remove_sing_box_conflict(package_name) {
-    package_name = as_string(package_name);
-    if (!pkg_is_installed(package_name))
-        return true;
-    if (is_apk())
-        return command_success(command_from_args([ "apk", "del", "--force-broken-world", package_name ]) + " </dev/null");
-    return command_success(command_from_args([ "opkg", "remove", "--force-depends", package_name ]) + " </dev/null");
 }
 
 function run_logged_pkg_remove_sing_box_conflict(package_name, description) {
@@ -735,10 +715,6 @@ function select_inner_package_path(bundle_file, component, arch, ext) {
     return trim(helper_output_input(command_output_from_args([ "unzip", "-l", bundle_file ]), "updates-zip-inner-package-path", [ component, arch, ext ]));
 }
 
-function select_archive_member_path(archive_file, member_name) {
-    return trim(helper_output_input(command_output_from_args([ "tar", "-tzf", archive_file ]), "updates-archive-member-path", [ member_name ]));
-}
-
 function extract_arch_package_version(package_name, package_arch) {
     return trim(helper_output("updates-arch-package-version", [ package_name, package_arch ]));
 }
@@ -983,10 +959,8 @@ function remove_optional_component(component, package_name, label, runtime_modul
     action_success(component, "remove", label + " package has been removed", current_version, "", 1);
 }
 
-function sing_box_binary_version() {
-    if (!file_exists("/usr/bin/sing-box"))
-        return "";
-    return trim(helper_output_input(command_output_from_args([ "/usr/bin/sing-box", "version" ]), "stdin-first-line-last-field", []));
+function sing_box_forkop_package_version(package_name) {
+    return package_name == "" ? "" : normalize_sing_box_version(trim(module_output([ LIB_DIR + "/core/packages.uc", "version", package_name ])));
 }
 
 function sing_box_forkop_installed_package() {
@@ -1003,7 +977,7 @@ function sing_box_forkop_target_package() {
         return "sing-box-forkop-compressed";
     if (flavor == "normal")
         return "sing-box-forkop";
-    return sing_box_forkop_installed_package() || "sing-box-forkop";
+    return sing_box_forkop_installed_package();
 }
 
 function latest_sing_box_forkop_release_json() {
@@ -1013,8 +987,18 @@ function latest_sing_box_forkop_release_json() {
     return fetch_github_release_json(parts[0], parts[1]);
 }
 
-function resolve_sing_box_forkop_release(package_name) {
-    let release_json = latest_sing_box_forkop_release_json();
+function tagged_sing_box_forkop_release_json(tag) {
+    let parts = split(SING_BOX_FORKOP_RELEASE_REPO, "/");
+    if (length(parts) != 2 || as_string(parts[0]) == "" || as_string(parts[1]) == "" || as_string(tag) == "")
+        return "";
+    let response = http_get("https://api.github.com/repos/" + as_string(parts[0]) + "/" + as_string(parts[1]) + "/releases/tags/" + as_string(tag));
+    if (response == "" || !helper_success_input(response, "github-response-ok", []))
+        return "";
+    return response;
+}
+
+function resolve_sing_box_forkop_release(package_name, release_tag) {
+    let release_json = as_string(release_tag) == "" ? latest_sing_box_forkop_release_json() : tagged_sing_box_forkop_release_json(release_tag);
     if (release_json == "")
         return null;
 
@@ -1037,50 +1021,172 @@ function resolve_sing_box_forkop_release(package_name) {
     };
 }
 
-function backup_sing_box_files() {
-    let backups = {};
-    for (let item in [
+function sing_box_rollback_files() {
+    return [
         [ "/usr/bin/sing-box", "binary" ],
         [ "/etc/init.d/sing-box", "service" ],
-        [ "/usr/lib/libcronet.so", "cronet" ]
-    ]) {
-        backups[item[1]] = "";
-        if (!file_nonempty(item[0]))
+        [ "/usr/lib/libcronet.so", "cronet" ],
+        [ SING_BOX_FORKOP_VERSION_FILE, "version" ]
+    ];
+}
+
+function valid_sing_box_forkop_version(value) {
+    return match(as_string(value), /^[0-9][0-9A-Za-z._+~-]*-forkop[.][0-9]+$/) != null;
+}
+
+function markerless_sing_box_version(current_version) {
+    current_version = normalize_sing_box_version(current_version);
+    if (valid_sing_box_forkop_version(current_version))
+        return current_version;
+
+    // Markerless APK metadata loses the named version parts. The service is
+    // already stopped here, so this one-time migration cannot overlap the core.
+    if (command_success_from_args([ "pgrep", "-x", "sing-box" ]) ||
+            command_success_from_args([ "pgrep", "-f", "^/usr/bin/sing-box[[:space:]]" ]))
+        return "";
+    let binary_version = trim(helper_output_input(
+        command_output_from_args([ "/usr/bin/sing-box", "version" ]),
+        "stdin-first-line-last-field",
+        []
+    ));
+    return valid_sing_box_forkop_version(binary_version) ? binary_version : "";
+}
+
+function backup_sing_box_files(current_version) {
+    let backups = {};
+    let markerless_version = file_exists(SING_BOX_FORKOP_VERSION_FILE) ? "" : markerless_sing_box_version(current_version);
+    for (let item in sing_box_rollback_files()) {
+        let existed = file_exists(item[0]);
+        backups[item[1]] = { existed, path: "" };
+        if (!existed && item[1] == "version" && markerless_version != "") {
+            let backup_path = tmp_dir + "/sing-box-version.backup";
+            if (!write_file(backup_path, markerless_version + "\n"))
+                return null;
+            backups[item[1]] = { existed: true, path: backup_path };
+            continue;
+        }
+        if (!existed)
             continue;
         let backup_path = tmp_dir + "/sing-box-" + item[1] + ".backup";
         if (!command_success_from_args([ "cp", "-p", item[0], backup_path ]))
             return null;
-        backups[item[1]] = backup_path;
+        backups[item[1]].path = backup_path;
     }
     return backups;
 }
 
 function restore_sing_box_files(backups) {
     let restored = true;
-    for (let item in [
-        [ "binary", "/usr/bin/sing-box" ],
-        [ "service", "/etc/init.d/sing-box" ],
-        [ "cronet", "/usr/lib/libcronet.so" ]
-    ]) {
-        let backup_path = as_string(backups[item[0]] || "");
-        if (backup_path != "" && !command_success_from_args([ "cp", "-p", backup_path, item[1] ]))
+    for (let item in sing_box_rollback_files()) {
+        let backup = backups[item[1]];
+        let existed = type(backup) == "object" && backup.existed === true;
+        let backup_path = type(backup) == "object" ? as_string(backup.path || "") : "";
+        if (existed && (backup_path == "" || !command_success_from_args([ "cp", "-p", backup_path, item[0] ])))
             restored = false;
+        else if (!existed && file_exists(item[0])) {
+            remove_file(item[0]);
+            if (file_exists(item[0]))
+                restored = false;
+        }
     }
     return restored;
 }
 
-function fail_sing_box_forkop_install(action, reason, current_version, latest_version, backups) {
-    let restored = restore_sing_box_files(backups);
+function sing_box_rollback_version(current_version, backups) {
+    current_version = normalize_sing_box_version(current_version);
+    if (valid_sing_box_forkop_version(current_version))
+        return current_version;
+
+    let version_backup = type(backups.version) == "object" ? as_string(backups.version.path || "") : "";
+    let backup_version = normalize_sing_box_version(trim(read_file(version_backup)));
+    return valid_sing_box_forkop_version(backup_version) ? backup_version : "";
+}
+
+function prepare_sing_box_package_rollback(installed_package, current_version, backups) {
+    installed_package = as_string(installed_package);
+    let rollback = {
+        package_name: installed_package,
+        package_version: installed_package_version(installed_package),
+        package_file: "",
+        asset_name: "",
+        legacy_package: ""
+    };
+    if (installed_package == "") {
+        for (let package_name in [ "sing-box", "sing-box-tiny", "sing-box-extended" ])
+            if (pkg_is_installed(package_name)) {
+                rollback.legacy_package = package_name;
+                break;
+            }
+        return rollback;
+    }
+
+    let rollback_version = sing_box_rollback_version(current_version, backups);
+    if (rollback.package_version == "" || rollback_version == "")
+        return null;
+    let release = resolve_sing_box_forkop_release(installed_package, "v" + rollback_version);
+    if (release == null || normalize_sing_box_version(release.tag) != rollback_version)
+        return null;
+    rollback.asset_name = release.asset_name;
+    rollback.package_file = tmp_dir + "/sing-box-rollback-" + release.asset_name;
+    if (!download_with_retry(release.asset_url, rollback.package_file, release.asset_name))
+        return null;
+    return rollback;
+}
+
+function sing_box_package_state_matches(package_name, rollback) {
+    let previous_package = as_string(rollback.package_name);
+    if (previous_package == "")
+        return !pkg_is_installed(package_name);
+    if (!pkg_is_installed(previous_package) ||
+            (package_name != previous_package && pkg_is_installed(package_name)))
+        return false;
+    return installed_package_version(previous_package) == as_string(rollback.package_version);
+}
+
+function restore_sing_box_package(package_name, rollback) {
+    if (as_string(rollback.package_name) == "") {
+        if (pkg_is_installed(package_name) &&
+                !run_logged_pkg_remove_sing_box_conflict(package_name, "Removing incomplete " + package_name + " installation"))
+            return false;
+        return !pkg_is_installed(package_name) &&
+            (rollback.legacy_package == "" || pkg_is_installed(rollback.legacy_package));
+    }
+
+    let package_file = as_string(rollback.package_file);
+    if (!file_nonempty(package_file))
+        return false;
+    if (!run_logged_pkg_remove_sing_box_conflict(package_name, "Removing incomplete " + package_name + " installation"))
+        return false;
+    if (rollback.package_name != package_name &&
+            !run_logged_pkg_remove_sing_box_conflict(rollback.package_name, "Removing stale " + rollback.package_name + " installation"))
+        return false;
+    let restored = run_logged("Restoring " + rollback.package_name + " package", pkg_install_files_command([ package_file ]));
+    return restored && sing_box_package_state_matches(package_name, rollback);
+}
+
+function cleanup_sing_box_package_rollback(rollback) {
+    let package_file = type(rollback) == "object" ? as_string(rollback.package_file) : "";
+    if (package_file != "")
+        remove_file(package_file);
+}
+
+function fail_sing_box_forkop_install(action, reason, current_version, latest_version, backups, package_name, rollback, package_file) {
+    remove_file(package_file);
+    let package_restored = restore_sing_box_package(package_name, rollback);
+    let files_restored = restore_sing_box_files(backups);
+    cleanup_sing_box_package_rollback(rollback);
     clear_version_caches();
-    if (restored)
-        action_fail("sing_box", action, reason + "; previous sing-box binary was restored", current_version, latest_version);
-    action_fail("sing_box", action, reason + " and previous sing-box binary could not be restored", current_version, latest_version);
+    if (package_restored && files_restored)
+        action_fail("sing_box", action, reason + "; previous sing-box installation was restored", current_version, latest_version);
+    action_fail("sing_box", action, reason + " and previous sing-box installation could not be restored completely", current_version, latest_version);
 }
 
 function install_sing_box_forkop(action) {
     let installed_package = sing_box_forkop_installed_package();
     let package_name = sing_box_forkop_target_package();
-    let current_version = sing_box_binary_version();
+    let current_version = sing_box_forkop_package_version(installed_package);
+    if (package_name == "")
+        action_fail("sing_box", action, "sing-box-forkop is not installed", current_version);
     let release = resolve_sing_box_forkop_release(package_name);
     if (release == null)
         action_fail("sing_box", action, "Failed to resolve " + package_name + " release", current_version);
@@ -1102,36 +1208,44 @@ function install_sing_box_forkop(action) {
 
     stop_forkop_before_sing_box_change();
 
-    let backups = backup_sing_box_files();
+    let backups = backup_sing_box_files(current_version);
     if (backups == null)
         action_fail("sing_box", action, "Failed to back up the current sing-box installation", current_version, latest_version);
+    let rollback = prepare_sing_box_package_rollback(installed_package, current_version, backups);
+    if (rollback == null)
+        action_fail("sing_box", action, "Failed to cache rollback for the current sing-box-forkop package", current_version, latest_version);
 
-    for (let conflict in [
-        "sing-box",
-        "sing-box-tiny",
-        "sing-box-extended",
-        package_name == "sing-box-forkop" ? "sing-box-forkop-compressed" : "sing-box-forkop"
-    ]) {
-        if (!run_logged_pkg_remove_sing_box_conflict(conflict, "Removing " + conflict + " before " + package_name + " installation"))
-            fail_sing_box_forkop_install(action, "Failed to remove " + conflict, current_version, latest_version, backups);
+    if (as_string(getenv("FORKOP_SING_BOX_INSTALL_FLAVOR")) != "") {
+        for (let conflict in [ "sing-box", "sing-box-tiny", "sing-box-extended" ]) {
+            if (!run_logged_pkg_remove_sing_box_conflict(conflict, "Removing " + conflict + " before " + package_name + " installation"))
+                fail_sing_box_forkop_install(action, "Failed to remove " + conflict, current_version, latest_version, backups, package_name, rollback, package_file);
+        }
     }
 
     if (!run_logged("Installing " + release.asset_name, pkg_install_files_command([ package_file ])))
-        fail_sing_box_forkop_install(action, "Failed to install " + package_name, current_version, latest_version, backups);
+        fail_sing_box_forkop_install(action, "Failed to install " + package_name, current_version, latest_version, backups, package_name, rollback, package_file);
     remove_file(package_file);
 
-    let new_version = sing_box_binary_version();
+    // Package metadata is the authoritative version and does not start a
+    // second Go process beside the active sing-box core on low-memory routers.
+    let new_version = sing_box_forkop_package_version(package_name);
     if (new_version == "" || index(new_version, "forkop") < 0)
-        fail_sing_box_forkop_install(action, "Installed package failed sing-box-forkop validation", current_version, latest_version, backups);
+        fail_sing_box_forkop_install(action, "Installed package failed sing-box-forkop validation", current_version, latest_version, backups, package_name, rollback, package_file);
 
-    remove_file("/etc/forkop/sing-box-variant");
-    remove_file("/etc/forkop/sing-box-version");
+    if (as_string(getenv("FORKOP_SING_BOX_INSTALL_FLAVOR")) != "") {
+        remove_file("/etc/forkop/sing-box-variant");
+        remove_file("/etc/forkop/sing-box-version");
+    }
     restart_forkop_after_successful_change();
     if (!wait_forkop_running_after_sing_box_change())
-        fail_sing_box_forkop_install(action, package_name + " was installed but Forkop did not start cleanly", current_version, latest_version, backups);
+        fail_sing_box_forkop_install(action, package_name + " was installed but Forkop did not start cleanly", current_version, latest_version, backups, package_name, rollback, package_file);
 
-    for (let _, backup_path in backups)
-        remove_file(backup_path);
+    for (let _, backup in backups) {
+        let backup_path = type(backup) == "object" ? as_string(backup.path || "") : "";
+        if (backup_path != "")
+            remove_file(backup_path);
+    }
+    cleanup_sing_box_package_rollback(rollback);
     clear_version_caches();
     updates_log("Installed " + package_name + " " + new_version);
     action_success("sing_box", action, package_name + " has been installed", new_version, latest_version,

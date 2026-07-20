@@ -135,7 +135,7 @@ function enrichUiValues(fileData, option, block, values) {
   }
 
   if (option === "protocol" && block.includes("populateProtocolValues(")) {
-    for (const constName of ["TAILSCALE_PROTOCOL_LABELS", "BASE_PROTOCOL_LABELS", "EXTENDED_PROTOCOL_LABELS", "CUSTOM_PROTOCOL_LABELS"]) {
+    for (const constName of ["PROTOCOL_LABELS", "TAILSCALE_PROTOCOL_LABELS", "BASE_PROTOCOL_LABELS", "EXTENDED_PROTOCOL_LABELS", "CUSTOM_PROTOCOL_LABELS"]) {
       for (const value of extractObjectKeys(fileData, constName))
         addUnique(values, value);
     }

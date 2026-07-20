@@ -37,7 +37,8 @@ function mtproto_secret(section) {
 }
 
 function users(section, protocol) {
-    let name = option(section, protocol == "socks" ? "server_username" : "label", section[".name"]);
+    let named_user = protocol == "socks" || protocol == "naive" || protocol == "ssh" || protocol == "mieru";
+    let name = option(section, named_user ? "server_username" : "label", section[".name"]);
     if (name == "")
         name = section[".name"];
 
@@ -77,6 +78,25 @@ function users(section, protocol) {
             user.name = name;
         return [ user ];
     }
+    if (protocol == "naive") {
+        return [{
+            username: name,
+            password: option(section, "server_password", "")
+        }];
+    }
+    if (protocol == "ssh" || protocol == "mieru" || protocol == "anytls") {
+        return [{
+            name,
+            password: option(section, "server_password", "")
+        }];
+    }
+    if (protocol == "tuic") {
+        return [{
+            name,
+            uuid: option(section, "server_uuid", ""),
+            password: option(section, "server_password", "")
+        }];
+    }
     return [];
 }
 
@@ -85,16 +105,17 @@ function effective_security(section, protocol) {
     if (security == "") {
         if (protocol == "vless")
             security = "reality";
-        else if (protocol == "trojan" || protocol == "hysteria2")
+        else if (protocol == "trojan" || protocol == "hysteria2" || protocol == "naive" ||
+            protocol == "anytls" || protocol == "tuic")
             security = "tls";
         else
             security = "none";
     }
 
-    if (protocol == "shadowsocks" || protocol == "socks" || protocol == "mtproto" ||
+    if (protocol == "shadowsocks" || protocol == "socks" || protocol == "ssh" || protocol == "mieru" || protocol == "mtproto" ||
         protocol == "tailscale" || protocol == "json_inbound")
         return "none";
-    if (protocol == "hysteria2")
+    if (protocol == "hysteria2" || protocol == "naive" || protocol == "anytls" || protocol == "tuic")
         return "tls";
     if ((protocol == "vmess" || protocol == "trojan") && security == "reality")
         return protocol == "trojan" ? "tls" : "none";
@@ -221,6 +242,36 @@ function add_standard_inbound(config, section, protocol, tag_name) {
         if (obfs_type != "" && obfs_password != "")
             inbound.obfs = { type: obfs_type, password: obfs_password };
     }
+    else if (protocol == "naive") {
+        inbound.users = users(section, protocol);
+        let network = option(section, "naive_network", "tcp");
+        inbound.network = network == "tcp_udp" ? [ "tcp", "udp" ] : network;
+        if (network != "tcp")
+            maybe_string(inbound, "quic_congestion_control", option(section, "naive_quic_congestion_control", "bbr"));
+    }
+    else if (protocol == "ssh") {
+        inbound.users = users(section, protocol);
+        let host_key_path = list_option(section, "ssh_host_key_path");
+        if (length(host_key_path) > 0)
+            inbound.host_key_path = host_key_path;
+    }
+    else if (protocol == "mieru") {
+        inbound.users = users(section, protocol);
+        inbound.transport = option(section, "mieru_transport", "TCP");
+        if (bool_option(section, "mieru_user_hint_mandatory", false))
+            inbound.user_hint_is_mandatory = true;
+    }
+    else if (protocol == "anytls") {
+        inbound.users = users(section, protocol);
+    }
+    else if (protocol == "tuic") {
+        inbound.users = users(section, protocol);
+        maybe_string(inbound, "congestion_control", option(section, "tuic_congestion_control", "cubic"));
+        maybe_string(inbound, "auth_timeout", option(section, "tuic_auth_timeout", "3s"));
+        maybe_string(inbound, "heartbeat", option(section, "tuic_heartbeat", "10s"));
+        if (bool_option(section, "tuic_zero_rtt_handshake", false))
+            inbound.zero_rtt_handshake = true;
+    }
     else if (protocol == "mtproto") {
         inbound.type = "mtproxy";
         inbound.users = users(section, protocol);
@@ -230,7 +281,7 @@ function add_standard_inbound(config, section, protocol, tag_name) {
         let fronting_port = option(section, "mtproto_domain_fronting_port", "443");
         if (fronting_port != "")
             inbound.domain_fronting_port = int(fronting_port, 10);
-        maybe_string(inbound, "domain_fronting_ip", option(section, "mtproto_domain_fronting_ip", ""));
+        maybe_string(inbound, "domain_fronting_host", option(section, "mtproto_domain_fronting_ip", ""));
         if (bool_option(section, "mtproto_domain_fronting_proxy_protocol", false))
             inbound.domain_fronting_proxy_protocol = true;
         maybe_string(inbound, "prefer_ip", option(section, "mtproto_prefer_ip", "prefer-ipv4"));

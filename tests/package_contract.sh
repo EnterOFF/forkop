@@ -117,6 +117,14 @@ if grep -Rqs 'require("fs")' "$FORKOP_LIB"; then
   require_package_dependency "ucode-mod-fs"
 fi
 
+if grep -Rqs 'require("ubus")' "$FORKOP_LIB"; then
+  require_package_dependency "ucode-mod-ubus"
+fi
+
+if grep -Rqs 'require("uloop")' "$FORKOP_LIB"; then
+  require_package_dependency "ucode-mod-uloop"
+fi
+
 if grep -Rqs 'forkop_dnsmasq_failsafe_restore_raw' \
   "$ROOT_DIR/forkop/files/usr/bin" \
   "$ROOT_DIR/forkop/files/usr/lib" \

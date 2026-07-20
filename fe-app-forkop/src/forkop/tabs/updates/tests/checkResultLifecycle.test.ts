@@ -58,7 +58,6 @@ describe('updates check result lifecycle', () => {
         actions: {
           service: [],
           latency: [],
-          subscription: [],
           component: [
             {
               success: true,

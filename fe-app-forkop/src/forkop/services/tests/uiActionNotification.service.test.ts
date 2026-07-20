@@ -40,10 +40,10 @@ describe('UiActionNotificationTracker', () => {
   it('notifies an owned job exactly once', () => {
     const tracker = new UiActionNotificationTracker(new MemoryStorage());
 
-    tracker.markOwned('subscription', 'subscription-1');
+    tracker.markOwned('component', 'component-1');
 
-    expect(tracker.shouldNotify('subscription', 'subscription-1')).toBe(true);
-    expect(tracker.shouldNotify('subscription', 'subscription-1')).toBe(false);
+    expect(tracker.shouldNotify('component', 'component-1')).toBe(true);
+    expect(tracker.shouldNotify('component', 'component-1')).toBe(false);
   });
 
   it('keeps ownership and notification state across reloads', () => {

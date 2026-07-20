@@ -16,6 +16,11 @@ export { validateSubnet } from './validators/validateSubnet';
 export { bulkValidate } from './validators/bulkValidate';
 export { validateOutboundJson } from './validators/validateOutboundJson';
 export { validateProxyUrl } from './validators/validateProxyUrl';
+export {
+  parseWireGuardConfig,
+  parseWireGuardInput,
+  validateWireGuardKey,
+} from './helpers/parseWireGuardConfig';
 export { parseValueList } from './helpers/parseValueList';
 export { getProxyUrlName } from './helpers/getProxyUrlName';
 export { injectGlobalStyles } from './helpers/injectGlobalStyles';

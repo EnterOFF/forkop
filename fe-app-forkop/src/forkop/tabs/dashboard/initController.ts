@@ -1,6 +1,5 @@
 import {
   getClashWsUrl,
-  isCopyableProxyLink,
   onMount,
   preserveScrollForPage,
 } from '../../../helpers';
@@ -11,10 +10,8 @@ import { renderCopyIcon24 } from '../../../icons';
 import { CustomForkopMethods, ForkopShellMethods } from '../../methods';
 import {
   logger,
-  markUiActionOwned,
   setLocalLatencyAction,
   setLocalSubscriptionAction,
-  shouldNotifyOwnedUiAction,
   socket,
   store,
   StoreType,
@@ -34,9 +31,9 @@ import {
   subscribeRuntimeUiState,
 } from '../../services/runtimeUiState.service';
 import { isActiveLuciTab } from '../../helpers/isActiveLuciTab';
-import { isTransientRpcError } from '../../helpers/isTransientRpcError';
 import { shouldShowLoadingForRestoredAction } from '../../helpers/restoredActionLoading';
 import { getServiceAvailability } from '../../helpers/serviceAvailability';
+import { resolveOutboundProxyLink } from './resolveOutboundProxyLink';
 
 const SECTIONS_REFRESH_INTERVAL_MS = 10000;
 const LATENCY_TEST_BUTTON_CLASS = 'dashboard-sections-grid-item-test-latency';
@@ -51,9 +48,7 @@ let dashboardMountId = 0;
 let dashboardDataUpdatesStarted = false;
 let dashboardDataUpdatesId = 0;
 let pageUnloading = false;
-const followedSubscriptionJobs = new Set<string>();
 const followedLatencyJobs = new Set<string>();
-const handledSubscriptionJobs = new Set<string>();
 const handledLatencyJobs = new Set<string>();
 
 if (typeof window !== 'undefined') {
@@ -257,104 +252,6 @@ function setLatencyFetching(
   });
 }
 
-async function completeSubscriptionUpdateJob(
-  jobId: string,
-  sectionName: string,
-  response: Forkop.MethodResponse<Forkop.SubscriptionUpdateJobState>,
-) {
-  if (pageUnloading) {
-    setSubscriptionUpdating(sectionName, false);
-    return;
-  }
-
-  if (jobId && handledSubscriptionJobs.has(jobId)) {
-    setSubscriptionUpdating(sectionName, false);
-    return;
-  }
-
-  const shouldNotify = jobId
-    ? shouldNotifyOwnedUiAction('subscription', jobId)
-    : false;
-  const failed = !response.success || response.data.success === false;
-  const message = response.success
-    ? response.data.message || _('Failed to update subscriptions')
-    : response.error || _('Failed to update subscriptions');
-
-  if (failed && isTransientRpcError(message)) {
-    void refreshRuntimeUiState({ force: true });
-    return;
-  }
-
-  if (jobId) {
-    handledSubscriptionJobs.add(jobId);
-  }
-
-  setSubscriptionUpdating(sectionName, false);
-
-  if (jobId && response.success) {
-    void ForkopShellMethods.uiActionAck('subscription', jobId);
-  }
-
-  if (failed) {
-    if (shouldNotify) {
-      showToast(_('Failed to update subscriptions'), 'error');
-    }
-    return;
-  }
-
-  if (shouldNotify) {
-    showToast(_('Subscriptions updated'), 'success');
-  }
-  void fetchDashboardSections({ force: true });
-  void fetchServicesInfo();
-}
-
-async function followSubscriptionUpdateState(
-  state: Forkop.SubscriptionUpdateJobState,
-) {
-  const jobId = state.job_id;
-  const sectionName = state.section || '';
-
-  if (!jobId || !sectionName || followedSubscriptionJobs.has(jobId)) {
-    return;
-  }
-
-  if (!state.running && handledSubscriptionJobs.has(jobId)) {
-    return;
-  }
-
-  followedSubscriptionJobs.add(jobId);
-  if (shouldShowLoadingForRestoredAction(state)) {
-    setSubscriptionUpdating(sectionName, true);
-  }
-
-  try {
-    const response = state.running
-      ? await ForkopShellMethods.waitSubscriptionUpdateJob(jobId)
-      : ({
-          success: true,
-          data: state,
-        } as Forkop.MethodSuccessResponse<Forkop.SubscriptionUpdateJobState>);
-
-    await completeSubscriptionUpdateJob(jobId, sectionName, response);
-  } catch (error) {
-    logger.error('[DASHBOARD]', 'followSubscriptionUpdateState failed', error);
-    if (!pageUnloading) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : _('Failed to update subscriptions');
-
-      setSubscriptionUpdating(sectionName, false);
-      if (!isTransientRpcError(message)) {
-        showToast(_('Failed to update subscriptions'), 'error');
-      }
-    }
-  } finally {
-    followedSubscriptionJobs.delete(jobId);
-  }
-}
-
 async function completeLatencyTestJob(jobId: string, sectionName: string) {
   setLatencyFetching(sectionName, false);
 
@@ -411,15 +308,6 @@ async function followLatencyTestState(state: Forkop.LatencyActionState) {
 }
 
 function followDashboardActionsFromUiState(uiState: Forkop.UiState) {
-  for (const state of uiState.actions.subscription || []) {
-    if (state.running || (state.job_id && state.section)) {
-      void followSubscriptionUpdateState(state);
-    } else if (state.job_id && !handledSubscriptionJobs.has(state.job_id)) {
-      handledSubscriptionJobs.add(state.job_id);
-      void ForkopShellMethods.uiActionAck('subscription', state.job_id);
-    }
-  }
-
   for (const state of uiState.actions.latency || []) {
     if (state.running || (state.job_id && state.section)) {
       void followLatencyTestState(state);
@@ -738,10 +626,12 @@ async function handleTestLatency(
   }
 }
 
-function handleCopyOutbound(outbound: Forkop.Outbound) {
-  const link = outbound.link;
-
-  if (link && isCopyableProxyLink(link)) {
+async function handleCopyOutbound(outbound: Forkop.Outbound) {
+  const link = await resolveOutboundProxyLink(
+    outbound,
+    ForkopShellMethods.getClashApiProxyLink,
+  );
+  if (link) {
     copyToClipboard(link);
     return;
   }
@@ -985,7 +875,7 @@ function renderUrlTestInfoModal(outbound: Forkop.Outbound) {
                   member.canCopyLink
                     ? renderUrlTestCopyButton(_('Copy proxy link'), (event) => {
                         event.preventDefault();
-                        handleCopyOutbound(member);
+                        void handleCopyOutbound(member);
                       })
                     : E('span', {
                         class:
@@ -1117,39 +1007,10 @@ function renderPriorityInfoModal(outbound: Forkop.Outbound) {
     children?: Array<HTMLElement | string>;
   }> = [
     {
-      label: _('Selected'),
+      label: _('Last used'),
       children: [renderPrioritySelectedValue(info)],
     },
-    { label: _('Check URL'), children: [renderDetailsUrl(info.healthUrl)] },
-    {
-      label: _('Check interval'),
-      value: info.activeCheckInterval,
-    },
-    { label: _('Unavailability timeout'), value: info.checkTimeout },
-    {
-      label: _('Higher-level check interval'),
-      value: info.recoveryCheckInterval,
-    },
-    {
-      label: _('Select the fastest node'),
-      value: info.pickFastest,
-    },
-    {
-      label: _('Automatically select the fastest node in the current level'),
-      value: info.switchToFasterSamePriority,
-    },
-    ...(info.switchToFasterSamePriority
-      ? [
-          {
-            label: _('Faster server search interval'),
-            value: info.fastestCheckInterval,
-          },
-        ]
-      : []),
-    {
-      label: _('Interrupt connections'),
-      value: info.interruptExistConnections,
-    },
+    { label: _('Blacklist timeout'), value: info.blacklistTimeout },
   ];
 
   return E('div', { class: 'fkp_dashboard-page__urltest-details' }, [
@@ -1235,7 +1096,7 @@ function renderPriorityInfoModal(outbound: Forkop.Outbound) {
                   member.canCopyLink
                     ? renderUrlTestCopyButton(_('Copy proxy link'), (event) => {
                         event.preventDefault();
-                        handleCopyOutbound(member);
+                        void handleCopyOutbound(member);
                       })
                     : E('span', {
                         class:
@@ -1275,7 +1136,7 @@ function handleShowPriorityInfo(outbound: Forkop.Outbound) {
   }
 
   ui.showModal(
-    `${_('Priority details')}: ${
+    `${_('priority details')}: ${
       outbound.priorityInfo.displayName || outbound.displayName
     }`,
     renderPriorityInfoModal(outbound),
@@ -1290,45 +1151,27 @@ async function handleUpdateSubscription(section: Forkop.OutboundGroup) {
   }
 
   setSubscriptionUpdating(section.sectionName, true, true);
-  let jobId = '';
-  let ownsJobFollow = false;
 
   try {
-    const startResponse = await ForkopShellMethods.subscriptionUpdateStart(
+    const response = await ForkopShellMethods.subscriptionUpdate(
       section.sectionName,
     );
 
-    if (!startResponse.success) {
-      throw new Error(startResponse.error);
+    if (!response.success) {
+      throw new Error(response.error);
     }
-
-    jobId = startResponse.data.job_id;
-    markUiActionOwned('subscription', jobId);
-    if (followedSubscriptionJobs.has(jobId)) {
-      return;
+    if (!pageUnloading) {
+      showToast(_('Subscriptions updated'), 'success');
+      void fetchDashboardSections({ force: true });
+      void fetchServicesInfo();
     }
-
-    followedSubscriptionJobs.add(jobId);
-    ownsJobFollow = true;
-    const response = await ForkopShellMethods.waitSubscriptionUpdateJob(jobId);
-    await completeSubscriptionUpdateJob(jobId, section.sectionName, response);
   } catch (error) {
     logger.error('[DASHBOARD]', 'handleUpdateSubscription: failed', error);
     if (!pageUnloading) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : _('Failed to update subscriptions');
-
-      setSubscriptionUpdating(section.sectionName, false);
-      if (!isTransientRpcError(message)) {
-        showToast(_('Failed to update subscriptions'), 'error');
-      }
+      showToast(_('Failed to update subscriptions'), 'error');
     }
   } finally {
-    if (ownsJobFollow) {
-      followedSubscriptionJobs.delete(jobId);
-    }
+    setSubscriptionUpdating(section.sectionName, false);
   }
 }
 
@@ -1490,7 +1333,7 @@ async function renderSectionsWidget() {
         void handleChooseOutbound(sectionName, selector, tag);
       },
       onCopyOutbound: (_section, outbound) => {
-        handleCopyOutbound(outbound);
+        void handleCopyOutbound(outbound);
       },
       onShowUrlTestInfo: (outbound) => {
         handleShowUrlTestInfo(outbound);

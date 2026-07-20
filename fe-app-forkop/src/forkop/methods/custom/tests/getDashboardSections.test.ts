@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   getConfigSections: vi.fn(),
   getClashApiProxies: vi.fn(),
+  getClashApiProxyProviders: vi.fn(),
   canUseDirectClashApi: vi.fn(),
   dashboardCacheRead: vi.fn(),
 }));
@@ -14,6 +15,7 @@ vi.mock('../getConfigSections', () => ({
 vi.mock('../../shell', () => ({
   ForkopShellMethods: {
     getClashApiProxies: mocks.getClashApiProxies,
+    getClashApiProxyProviders: mocks.getClashApiProxyProviders,
     getDashboardSectionCache: async (section: string) => {
       try {
         return {
@@ -52,6 +54,9 @@ function proxy(
     history: options.history || [],
     now: options.now,
     all: options.all,
+    url: options.url,
+    interval: options.interval,
+    idle_timeout: options.idle_timeout,
   };
 }
 
@@ -91,14 +96,7 @@ function priorityGroup(
     '.type': 'priority_group',
     section: 'main',
     name: 'Codex Priority',
-    health_url: 'https://priority.example/204',
-    active_check_interval: '5s',
-    check_timeout: '2s',
-    recovery_check_interval: '15s',
-    pick_fastest: '0',
-    switch_to_faster_same_priority: '0',
-    fastest_check_interval: '3m',
-    interrupt_exist_connections: '1',
+    blacklist_timeout: '45s',
     pin_dashboard: '1',
     ...options,
   };
@@ -148,6 +146,7 @@ describe('getDashboardSections', () => {
   beforeEach(() => {
     mocks.getConfigSections.mockReset();
     mocks.getClashApiProxies.mockReset();
+    mocks.getClashApiProxyProviders.mockReset();
     mocks.canUseDirectClashApi.mockReset();
     mocks.dashboardCacheRead.mockReset();
     mocks.dashboardCacheRead.mockResolvedValue('{}');
@@ -157,6 +156,10 @@ describe('getDashboardSections', () => {
     mocks.getClashApiProxies.mockResolvedValue({
       success: true,
       data: { proxies: clashProxies },
+    });
+    mocks.getClashApiProxyProviders.mockResolvedValue({
+      success: true,
+      data: { providers: {} },
     });
     mocks.canUseDirectClashApi.mockReturnValue(false);
   });
@@ -257,10 +260,80 @@ describe('getDashboardSections', () => {
       selected: true,
     });
     expect(urltest?.urlTestInfo?.outbounds[1]).toMatchObject({
-      displayName: 'one',
+      displayName: 'First cached',
       latency: 100,
       selected: false,
     });
+  });
+
+  it('hides overlapping URLTest and Priority members but keeps every group', async () => {
+    const urlTestCode = 'main-urltest-fast-out';
+    const priorityCode = 'main-priority-priority-out';
+    const priorityLevelCode = 'main-priority-priority-level-primary-out';
+    const nodeCodes = ['node-a', 'node-b', 'node-c', 'node-d'];
+
+    mocks.getConfigSections.mockResolvedValue([
+      proxySection({
+        selector_proxy_links: [],
+        urltests: [],
+        urltest_settings: undefined,
+      }),
+      {
+        '.name': 'fast',
+        '.type': 'urltest',
+        section: 'main',
+        name: 'Fast',
+      },
+      priorityGroup('priority', {
+        name: 'Priority',
+      }),
+      priorityLevel('primary', {
+        group: 'priority',
+        name: 'Primary',
+      }),
+    ]);
+    mocks.getClashApiProxies.mockResolvedValue({
+      success: true,
+      data: {
+        proxies: {
+          'main-out': proxy('Selector', {
+            now: priorityCode,
+            all: [urlTestCode, priorityCode, ...nodeCodes],
+          }),
+          [urlTestCode]: proxy('URLTest', {
+            all: ['node-a', 'node-b'],
+          }),
+          [priorityCode]: proxy('Fallback', {
+            all: [priorityLevelCode],
+            now: priorityLevelCode,
+          }),
+          [priorityLevelCode]: proxy('Fallback', {
+            all: ['node-c', 'node-d'],
+            now: 'node-c',
+          }),
+          ...Object.fromEntries(
+            nodeCodes.map((code) => [code, proxy('VLESS', { name: code })]),
+          ),
+        },
+      },
+    });
+    mocks.dashboardCacheRead.mockResolvedValue(
+      JSON.stringify({
+        urltestGroups: {
+          [urlTestCode]: { hide_dashboard_members: true },
+        },
+        priorityGroups: {
+          [priorityCode]: { hide_dashboard_members: true },
+        },
+      }),
+    );
+
+    const result = await getDashboardSections();
+
+    expect(result.data[0].outbounds.map((outbound) => outbound.code)).toEqual([
+      urlTestCode,
+      priorityCode,
+    ]);
   });
 
   it('keeps an empty configured URLTest visible when sing-box skipped the group', async () => {
@@ -343,10 +416,23 @@ describe('getDashboardSections', () => {
             now: 'main-priority-pg_main-out',
             all: ['main-1-out', 'main-2-out', 'main-priority-pg_main-out'],
           }),
-          'main-priority-pg_main-out': proxy('Selector', {
+          'main-priority-pg_main-out': proxy('Fallback', {
             name: 'main-priority-pg_main-out',
+            now: 'main-priority-pg_main-level-pl_de-out',
+            all: [
+              'main-priority-pg_main-level-pl_de-out',
+              'main-priority-pg_main-level-pl_nl-out',
+            ],
+          }),
+          'main-priority-pg_main-level-pl_de-out': proxy('Fallback', {
+            name: 'main-priority-pg_main-level-pl_de-out',
             now: 'main-2-out',
-            all: ['main-2-out', 'main-1-out'],
+            all: ['main-2-out'],
+          }),
+          'main-priority-pg_main-level-pl_nl-out': proxy('Fallback', {
+            name: 'main-priority-pg_main-level-pl_nl-out',
+            now: 'main-1-out',
+            all: ['main-1-out'],
           }),
         },
       },
@@ -362,26 +448,25 @@ describe('getDashboardSections', () => {
         priorityGroups: {
           'main-priority-pg_main-out': {
             displayName: 'Codex Priority',
-            health_url: 'https://priority.example/204',
-            active_check_interval: '5s',
-            check_timeout: '2s',
-            recovery_check_interval: '15s',
-            pick_fastest: false,
-            switch_to_faster_same_priority: false,
-            interrupt_exist_connections: true,
-            outbounds: ['main-2-out', 'main-1-out'],
+            blacklist_timeout: '45s',
+            outbounds: [
+              'main-priority-pg_main-level-pl_de-out',
+              'main-priority-pg_main-level-pl_nl-out',
+            ],
             levels: [
               {
                 id: 'pl_de',
+                tag: 'main-priority-pg_main-level-pl_de-out',
                 displayName: 'Germany',
                 order: 0,
-                outbounds: ['main-2-out'],
+                outbounds: [],
               },
               {
                 id: 'pl_nl',
+                tag: 'main-priority-pg_main-level-pl_nl-out',
                 displayName: 'Netherlands',
                 order: 1,
-                outbounds: ['main-1-out'],
+                outbounds: [],
               },
             ],
           },
@@ -404,12 +489,7 @@ describe('getDashboardSections', () => {
     expect(priority?.priorityInfo).toMatchObject({
       selectedCode: 'main-2-out',
       selectedName: 'Second cached',
-      healthUrl: 'https://priority.example/204',
-      activeCheckInterval: '5s',
-      checkTimeout: '2s',
-      recoveryCheckInterval: '15s',
-      pickFastest: false,
-      interruptExistConnections: true,
+      blacklistTimeout: '45s',
     });
     expect(
       priority?.priorityInfo?.outbounds.map((item) => ({
@@ -564,8 +644,87 @@ describe('getDashboardSections', () => {
     expect(section.outbounds.map((item) => item.displayName)).toEqual([
       'Fast group',
       'Stable group',
-      'one',
+      'Included 1',
       'Filtered 2',
+    ]);
+  });
+
+  it('keeps manual connection URLs on native local-provider runtime tags', async () => {
+    const firstCode = 'main-manual-provider/Manual VLESS';
+    const secondCode = 'main-manual-provider/Manual Trojan';
+    const firstLink = 'vless://id@example.com:443#Manual%20VLESS';
+    const secondLink = 'trojan://secret@example.com:443#Manual%20Trojan';
+    mocks.getConfigSections.mockResolvedValue([
+      proxySection({
+        selector_proxy_links: [firstLink, secondLink],
+        urltests: [],
+        urltest_settings: undefined,
+      }),
+    ]);
+    mocks.getClashApiProxies.mockResolvedValue({
+      success: true,
+      data: {
+        proxies: {
+          'main-out': proxy('Selector', {
+            name: 'main-out',
+            now: firstCode,
+            all: [firstCode, secondCode],
+          }),
+          [firstCode]: proxy('VLESS', { name: firstCode }),
+          [secondCode]: proxy('Trojan', { name: secondCode }),
+        },
+      },
+    });
+
+    const result = await getDashboardSections();
+
+    expect(result.data[0].outbounds).toEqual([
+      expect.objectContaining({
+        code: firstCode,
+        link: firstLink,
+        canCopyLink: true,
+      }),
+      expect.objectContaining({
+        code: secondCode,
+        link: secondLink,
+        canCopyLink: true,
+      }),
+    ]);
+  });
+
+  it('keeps duplicate manual node names paired in provider source order', async () => {
+    const firstCode = 'main-manual-provider/Same';
+    const secondCode = 'main-manual-provider/Same #2';
+    const firstLink = 'vless://first@example.com:443#Same';
+    const secondLink = 'vless://second@example.com:443#Same';
+    mocks.getConfigSections.mockResolvedValue([
+      proxySection({
+        selector_proxy_links: [firstLink, secondLink],
+        urltests: [],
+        urltest_settings: undefined,
+      }),
+    ]);
+    mocks.getClashApiProxies.mockResolvedValue({
+      success: true,
+      data: {
+        proxies: {
+          'main-out': proxy('Selector', {
+            name: 'main-out',
+            all: [firstCode, secondCode],
+          }),
+          [firstCode]: proxy('VLESS', { name: firstCode }),
+          [secondCode]: proxy('VLESS', { name: secondCode }),
+        },
+      },
+    });
+
+    const result = await getDashboardSections();
+
+    expect(
+      result.data[0].outbounds.map(({ code, link }) => ({ code, link })),
+    ).toEqual([
+      { code: firstCode, link: firstLink },
+      { code: secondCode, link: secondLink },
     ]);
   });
 
@@ -730,65 +889,119 @@ describe('getDashboardSections', () => {
     ]);
   });
 
-  it('ignores legacy link refs without a resolved proxy link', async () => {
+  it('uses native provider names and subscription metadata without cached links', async () => {
     mocks.getConfigSections.mockResolvedValue([
       proxySection({
-        subscription_urls: ['https://subscription.example/list'],
+        subscription_urls: [
+          'https://subscription.example/hidden',
+          'https://subscription.example/list',
+        ],
+        subscription_url_settings: JSON.stringify({
+          'https://subscription.example/hidden': {
+            show_dashboard_metadata: '0',
+          },
+        }),
+        selector_proxy_links: [],
+        urltests: [],
+        urltest_settings: undefined,
       }),
     ]);
-    mocks.dashboardCacheRead.mockResolvedValue(
-      JSON.stringify({
-        links: {},
-        linkRefs: {
-          'main-2-out': {
-            sourceSection: 'main-subscription-1',
-            sourceIndex: 1,
+    mocks.getClashApiProxies.mockResolvedValue({
+      success: true,
+      data: {
+        proxies: {
+          'main-out': proxy('Selector', {
+            name: 'main-out',
+            now: 'main-subscription-2-provider/DE Node',
+            all: [
+              'main-subscription-2-provider/DE Node',
+              'main-subscription-2-provider/Unsupported Node',
+            ],
+          }),
+          'main-subscription-2-provider/DE Node': proxy('VLESS', {
+            name: 'main-subscription-2-provider/DE Node',
+          }),
+          'main-subscription-2-provider/Unsupported Node': proxy('AnyTLS', {
+            name: 'main-subscription-2-provider/Unsupported Node',
+          }),
+        },
+      },
+    });
+    mocks.getClashApiProxyProviders.mockResolvedValue({
+      success: true,
+      data: {
+        providers: {
+          'main-subscription-1-provider': {
+            type: 'Proxy',
+            vehicleType: 'HTTP',
+            name: 'main-subscription-1-provider',
+            proxies: [],
+          },
+          'main-subscription-2-provider': {
+            type: 'Proxy',
+            vehicleType: 'HTTP',
+            name: 'main-subscription-2-provider',
+            proxies: [
+              proxy('VLESS', {
+                name: 'main-subscription-2-provider/DE Node',
+              }),
+              proxy('AnyTLS', {
+                name: 'main-subscription-2-provider/Unsupported Node',
+              }),
+            ],
+            subscriptionInfo: {
+              Upload: 10,
+              Download: 20,
+              Total: 100,
+              Expire: 2_000_000_000,
+            },
+            subscriptionMetadata: {
+              title: 'Native subscription',
+              supportUrl: 'https://subscription.example/support',
+            },
           },
         },
-      }),
-    );
-
-    const result = await getDashboardSections();
-    const [section] = result.data;
-    const subscriptionOutbound = section.outbounds.find(
-      (item) => item.code === 'main-2-out',
-    );
-
-    expect(result.success).toBe(true);
-    expect(subscriptionOutbound?.link).toBe('');
-    expect(subscriptionOutbound?.canCopyLink).toBe(false);
-  });
-
-  it('uses cached subscription links without a click-time backend lookup', async () => {
-    mocks.getConfigSections.mockResolvedValue([
-      proxySection({
-        subscription_urls: ['https://subscription.example/list'],
-      }),
-    ]);
+      },
+    });
     mocks.dashboardCacheRead.mockResolvedValue(
       JSON.stringify({
-        outboundMetadata: {
-          names: { 'main-2-out': 'Provider Subscription' },
-        },
-        links: {
-          'main-2-out':
-            'vless://00000000-0000-4000-8000-000000000002@example.com:443#Subscription',
-        },
+        providerTags: [
+          'main-subscription-1-provider',
+          'main-subscription-2-provider',
+        ],
       }),
     );
 
     const result = await getDashboardSections();
     const [section] = result.data;
     const subscriptionOutbound = section.outbounds.find(
-      (item) => item.code === 'main-2-out',
+      (item) => item.code === 'main-subscription-2-provider/DE Node',
+    );
+    const unsupportedOutbound = section.outbounds.find(
+      (item) => item.code === 'main-subscription-2-provider/Unsupported Node',
     );
 
     expect(result.success).toBe(true);
-    expect(subscriptionOutbound?.link).toBe(
-      'vless://00000000-0000-4000-8000-000000000002@example.com:443#Subscription',
-    );
-    expect(subscriptionOutbound?.displayName).toBe('Provider Subscription');
+    expect(subscriptionOutbound?.displayName).toBe('DE Node');
+    expect(subscriptionOutbound?.link).toBe('');
     expect(subscriptionOutbound?.canCopyLink).toBe(true);
+    expect(unsupportedOutbound?.canCopyLink).toBe(false);
+    expect(section.subscriptionMetadata).toEqual([
+      expect.objectContaining({
+        title: 'Native subscription',
+        sourceIndex: 2,
+        sourceSection: 'main-subscription-2-provider',
+        expire: 2_000_000_000,
+        traffic: expect.objectContaining({
+          upload: 10,
+          download: 20,
+          used: 30,
+          total: 100,
+          remaining: 70,
+          isUnlimited: false,
+        }),
+      }),
+    ]);
   });
 
   it('uses allocated tags for section names that collide with system tags', async () => {

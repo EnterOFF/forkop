@@ -532,10 +532,6 @@ function allocate_runtime_tag(base, postfix) {
     print_runtime_tag(base, postfix, slice(ARGV, 3));
 }
 
-function sing_box_version_is_extended(value) {
-    return index(as_string(value), "extended") >= 0;
-}
-
 let mode = ARGV[0] || "";
 
 if (mode == "stdin-lines-to-json-array")
@@ -580,8 +576,6 @@ else if (mode == "outbound-tag")
     print_runtime_tag(ARGV[1], "out", default_reserved_runtime_tags());
 else if (mode == "domain-resolver-tag")
     print_runtime_tag(ARGV[1], "domain-resolver", default_reserved_runtime_tags());
-else if (mode == "sing-box-version-is-extended")
-    exit(sing_box_version_is_extended(ARGV[1]) ? 0 : 1);
 else if (mode == "url-get-scheme")
     url_get_scheme(ARGV[1]);
 else if (mode == "url-get-userinfo")

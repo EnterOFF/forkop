@@ -3,10 +3,10 @@
 let fs = require("fs");
 let uci_core = require("core.uci");
 let common = require("core.common");
-let runtime_dns = require("singbox.dns");
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
+const PACKAGES_UC = LIB_DIR + "/core/packages.uc";
 const NFT_TABLE_NAME = getenv("NFT_TABLE_NAME") || "ForkopTable";
 const NFT_COMMON_SET_NAME = getenv("NFT_COMMON_SET_NAME") || "forkop_subnets";
 const NFT_COMMON6_SET_NAME = getenv("NFT_COMMON6_SET_NAME") || "forkop_subnets6";
@@ -19,9 +19,7 @@ const NFT_LOCALV6_SET_NAME = getenv("NFT_LOCALV6_SET_NAME") || "localv6";
 const NFT_FAKEIP_MARK = getenv("NFT_FAKEIP_MARK") || "0x04000000";
 const SB_SERVICE_MIXED_INBOUND_ADDRESS = getenv("SB_SERVICE_MIXED_INBOUND_ADDRESS") || "127.0.0.1";
 const SB_SERVICE_MIXED_INBOUND_PORT = getenv("SB_SERVICE_MIXED_INBOUND_PORT") || "4534";
-const SB_VARIANT_STATE_FILE = getenv("SB_VARIANT_STATE_FILE") || "/etc/forkop/sing-box-variant";
-const SB_VERSION_STATE_FILE = getenv("SB_VERSION_STATE_FILE") || "/etc/forkop/sing-box-version";
-const SB_MANAGED_SERVICE_MARKER = getenv("SB_MANAGED_SERVICE_MARKER") || "Forkop managed sing-box service for binary variants";
+const SING_BOX_BIN = getenv("FORKOP_SING_BOX_BIN") || "/usr/bin/sing-box";
 
 function as_string(value) {
     return value == null ? "" : "" + value;
@@ -35,13 +33,6 @@ function command_from_args(args) {
     let parts = [];
     for (let arg in args)
         push(parts, shell_quote(arg));
-    return join(" ", parts);
-}
-
-function command_env(assignments) {
-    let parts = [];
-    for (let name, value in assignments)
-        push(parts, name + "=" + shell_quote(value));
     return join(" ", parts);
 }
 
@@ -70,14 +61,6 @@ function command_success_from_args(args) {
     return system(command_from_args(args) + " >/dev/null 2>&1") == 0;
 }
 
-function command_exists(name) {
-    return command_success_from_args([ "command", "-v", name ]);
-}
-
-function write_file(path, value) {
-    return fs.writefile(as_string(path), as_string(value)) != null;
-}
-
 function remove_file(path) {
     try {
         fs.unlink(as_string(path));
@@ -90,14 +73,6 @@ function remove_files(paths) {
     for (let path in paths)
         if (as_string(path) != "")
             remove_file(path);
-}
-
-function file_first_line(path) {
-    let data = fs.readfile(as_string(path));
-    if (data == null)
-        return "";
-    let newline = index(data, "\n");
-    return trim(newline >= 0 ? substr(data, 0, newline) : data);
 }
 
 function object_or_empty(value) {
@@ -175,95 +150,13 @@ function md5_file(path) {
     return length(line) >= 32 ? substr(line, 0, 32) : "";
 }
 
-function first_line_last_field(value) {
-    value = as_string(value);
-    let newline = index(value, "\n");
-    let line = trim(newline >= 0 ? substr(value, 0, newline) : value);
-    let fields = split(line, /[ \t\r\n]+/);
-    return length(fields) > 0 ? as_string(fields[length(fields) - 1]) : "";
-}
-
-function sing_box_version_output() {
-    return command_exists("sing-box") ? command_output_from_args([ "sing-box", "version" ]) : "";
-}
-
-function sing_box_marker_is(value) {
-    return file_first_line(SB_VARIANT_STATE_FILE) == as_string(value);
-}
-
-function sing_box_version_state() {
-    return file_first_line(SB_VERSION_STATE_FILE);
-}
-
-function sing_box_write_version_state(version) {
-    version = as_string(version);
-    return version != "" && ensure_parent_dir(SB_VERSION_STATE_FILE) && write_file(SB_VERSION_STATE_FILE, version + "\n");
-}
-
-function sing_box_clear_version_state() {
-    remove_file(SB_VERSION_STATE_FILE);
-    return true;
-}
-
-function sing_box_restore_version_state(version) {
-    version = as_string(version);
-    return version != "" ? sing_box_write_version_state(version) : sing_box_clear_version_state();
-}
-
-function sing_box_variant_marker() {
-    return file_first_line(SB_VARIANT_STATE_FILE);
-}
-
-function sing_box_write_variant_marker(variant) {
-    variant = as_string(variant);
-    return variant != "" && ensure_parent_dir(SB_VARIANT_STATE_FILE) && write_file(SB_VARIANT_STATE_FILE, variant + "\n");
-}
-
-function sing_box_clear_variant_marker() {
-    remove_file(SB_VARIANT_STATE_FILE);
-    return true;
-}
-
-function sing_box_restore_variant_marker(variant) {
-    variant = as_string(variant);
-    return variant != "" ? sing_box_write_variant_marker(variant) : sing_box_clear_variant_marker();
-}
-
 function sing_box_version() {
-    if (!command_exists("sing-box"))
-        return "";
-    return first_line_last_field(sing_box_version_output());
-}
-
-function sing_box_version_is_extended(value) {
-    return index(as_string(value), "extended") >= 0;
-}
-
-function sing_box_is_extended(value) {
-    value = as_string(value);
-    return sing_box_version_is_extended(value != "" ? value : sing_box_version());
-}
-
-function output_has_build_tag(output, tag) {
-    tag = as_string(tag);
-    if (tag == "")
-        return false;
-
-    for (let item in split(trim(replace(as_string(output), /[,: \t\r\n]+/g, " ")), " "))
-        if (as_string(item) == tag)
-            return true;
-    return false;
-}
-
-function sing_box_supports_tailscale(version, version_output) {
-    version = as_string(version);
-    version_output = as_string(version_output);
-
-    if (sing_box_is_extended(version))
-        return true;
-    if (version_output != "")
-        return output_has_build_tag(version_output, "with_tailscale");
-    return output_has_build_tag(sing_box_version_output(), "with_tailscale");
+    for (let package_name in [ "sing-box-forkop-compressed", "sing-box-forkop" ]) {
+        let version = trim(command_output_from_args([ "ucode", "-L", LIB_DIR, PACKAGES_UC, "version", package_name ]));
+        if (version != "")
+            return replace(version, /~/g, "-");
+    }
+    return "";
 }
 
 function module_command(args) {
@@ -277,36 +170,9 @@ function module_success(args) {
     return command_status(module_command(args)) == 0;
 }
 
-function sing_box_package_installed(name) {
-    return module_success([ LIB_DIR + "/core/packages.uc", "installed", as_string(name) ]);
-}
-
-function sing_box_is_tiny(version, version_output) {
-    return false;
-}
-
-function sing_box_variant() {
-    if (sing_box_package_installed("sing-box-forkop-compressed"))
-        return "forkop-compressed";
-    if (sing_box_package_installed("sing-box-forkop"))
-        return "forkop";
-    return "not-installed";
-}
-
 function log_message(message, level) {
     level = as_string(level || "info");
     command_success_from_args([ "logger", "-t", "forkop", "[" + level + "] " + as_string(message) ]);
-}
-
-function module_env_capture(env, args) {
-    let output_path = temp_path();
-    if (output_path == "")
-        return { status: 1, output: "" };
-
-    let status = command_status(command_env(env) + " " + module_command(args) + " >" + shell_quote(output_path) + " 2>&1");
-    let output = as_string(fs.readfile(output_path) || "");
-    remove_file(output_path);
-    return { status, output };
 }
 
 function uci_settings() {
@@ -335,35 +201,6 @@ function uci_set_option(config, section, key, value) {
 
 function uci_commit(config) {
     return uci_core.commit(config);
-}
-
-function managed_service_installed() {
-    let data = fs.readfile("/etc/init.d/sing-box");
-    return data != null && index(as_string(data), SB_MANAGED_SERVICE_MARKER) >= 0;
-}
-
-function remove_managed_service_script() {
-    if (!managed_service_installed())
-        return;
-
-    command_success_from_args([ "/etc/init.d/sing-box", "stop" ]);
-    command_success_from_args([ "/etc/init.d/sing-box", "disable" ]);
-    remove_file("/etc/init.d/sing-box");
-}
-
-function disable_service_config() {
-    if (!ensure_sing_box_main_section())
-        return;
-    uci_set_option("sing-box", "main", "enabled", "0");
-    uci_commit("sing-box");
-}
-
-function prepare_service_disabled() {
-    disable_service_config();
-    if (file_exists("/etc/init.d/sing-box")) {
-        command_success_from_args([ "/etc/init.d/sing-box", "stop" ]);
-        command_success_from_args([ "/etc/init.d/sing-box", "disable" ]);
-    }
 }
 
 function configure_service() {
@@ -509,13 +346,16 @@ function first_nonblank_line(path) {
     return "";
 }
 
-function last_nonblank_line(path) {
+function last_nonblank_line_value(value) {
     let result = "";
-    let data = as_string(fs.readfile(path) || "");
-    for (let line in split(data, "\n"))
+    for (let line in split(as_string(value), "\n"))
         if (trim(as_string(line)) != "")
             result = as_string(line);
     return result;
+}
+
+function last_nonblank_line(path) {
+    return last_nonblank_line_value(fs.readfile(path) || "");
 }
 
 function generator_failure_reason(path, status) {
@@ -538,6 +378,66 @@ function sing_box_check(config_path, output_path) {
     return { status, reason };
 }
 
+function sing_box_process_running() {
+    return command_success_from_args([ "pgrep", "-x", "sing-box" ]) ||
+        command_success_from_args([ "pgrep", "-f", "^/usr/bin/sing-box[[:space:]]" ]);
+}
+
+function generate_warp_profile() {
+    let output = "";
+    if (sing_box_process_running()) {
+        let settings = uci_settings();
+        let address = service_listen_address_value(settings);
+        let args = [ "curl", "--connect-timeout", "5", "-m", "45", "-sS", "-X", "POST", "-w", "\n%{http_code}" ];
+        let secret = option(settings, "yacd_secret_key", "");
+        if (secret != "") {
+            push(args, "--header");
+            push(args, "Authorization: Bearer " + secret);
+        }
+        push(args, "http://" + address + ":9090/generate/warp-profile");
+        if (address != "")
+            output = command_output_from_args(args);
+
+        let status_line = last_nonblank_line_value(output);
+        if (match(status_line, /^[0-9]{3}$/) != null) {
+            let marker = "\n" + status_line;
+            let marker_index = rindex(output, marker);
+            if (marker_index >= 0)
+                output = substr(output, 0, marker_index);
+            let status_code = int(status_line);
+            if (status_code < 200 || status_code >= 300)
+                output = "";
+        }
+    }
+    else {
+        output = command_output(
+            command_from_args([ SING_BOX_BIN, "generate", "warp-profile", "--json" ]) +
+            " 2>/dev/null"
+        );
+    }
+    let profile = null;
+    try {
+        profile = json(output);
+    }
+    catch (e) {
+    }
+
+    let id = as_string(object_or_empty(profile).id);
+    let auth_token = as_string(object_or_empty(profile).auth_token);
+    let private_key = as_string(object_or_empty(profile).private_key);
+    if (id == "" || auth_token == "" || private_key == "") {
+        log_message("Failed to generate WARP profile.", "error");
+        warn("Failed to generate WARP profile.\n");
+        exit(1);
+    }
+
+    print(sprintf("%J", {
+        id: id,
+        auth_token: auth_token,
+        private_key: private_key
+    }), "\n");
+}
+
 function save_config_file(temp_file_path, config_path) {
     let current_hash = md5_file(config_path);
     let temp_hash = md5_file(temp_file_path);
@@ -554,83 +454,7 @@ function save_config_file(temp_file_path, config_path) {
     return true;
 }
 
-function replace_dns_server(config, replacement) {
-    let servers = array_or_empty(object_or_empty(config.dns).servers);
-    for (let i = 0; i < length(servers); i++) {
-        if (as_string(object_or_empty(servers[i]).tag) == as_string(replacement.tag)) {
-            servers[i] = replacement;
-            return true;
-        }
-    }
-    return false;
-}
-
-function patch_dns_config(state_path) {
-    let settings = uci_settings();
-    let candidate_state = common.read_json_file(state_path);
-    let expected = runtime_dns.state_template(settings);
-    if (!runtime_dns.state_matches(expected, candidate_state)) {
-        log_message("DNS failover state does not match the current UCI configuration", "warn");
-        exit(2);
-    }
-
-    let config_path = option(settings, "config_path", "");
-    let config = common.read_json_file(config_path);
-    if (config_path == "" || type(config) != "object") {
-        log_message("Cannot read the current sing-box configuration for DNS failover", "error");
-        exit(1);
-    }
-
-    let main = runtime_dns.server_config(settings, candidate_state);
-    let bootstrap = runtime_dns.bootstrap_config(settings, candidate_state);
-    if (main.unsupported || !replace_dns_server(config, main) || !replace_dns_server(config, bootstrap)) {
-        log_message("Cannot locate or build canonical DNS servers for failover", "error");
-        exit(1);
-    }
-
-    let backup_path = temp_path();
-    let temp_config = temp_path();
-    if (backup_path == "" || temp_config == "" ||
-        fs.writefile(backup_path, fs.readfile(config_path)) == null ||
-        !common.write_json_file(temp_config, config)) {
-        remove_files([ backup_path, temp_config ]);
-        exit(1);
-    }
-
-    let check_log = temp_path();
-    let check_result = check_log == ""
-        ? { status: 1, reason: "unable to create check output file" }
-        : sing_box_check(temp_config, check_log);
-    if (check_result.status != 0) {
-        log_message("DNS failover produced an invalid sing-box configuration: " + check_result.reason, "error");
-        remove_files([ backup_path, temp_config, check_log ]);
-        exit(1);
-    }
-    remove_file(check_log);
-
-    let changed = md5_file(config_path) != md5_file(temp_config);
-    if (!save_config_file(temp_config, config_path)) {
-        remove_file(backup_path);
-        exit(1);
-    }
-
-    if (!changed) {
-        remove_file(backup_path);
-        print("0\n");
-        return;
-    }
-
-    print("1\t", backup_path, "\n");
-}
-
-function restore_dns_config(backup_path) {
-    let config_path = option(uci_settings(), "config_path", "");
-    if (config_path == "" || !file_exists(backup_path))
-        return false;
-    return command_success_from_args([ "mv", "-f", backup_path, config_path ]);
-}
-
-function init_config(populate_nft) {
+function init_config(populate_nft, skip_check) {
     let settings = uci_settings();
     let config_path = option(settings, "config_path", "");
     if (config_path == "") {
@@ -659,7 +483,6 @@ function init_config(populate_nft) {
             temp_config,
             service_listen_address_value(settings),
             mwan3_active ? "1" : "0",
-            sing_box_is_extended(sing_box_version()) ? "1" : "0",
             ""
         ]) + " >" + shell_quote(runtime_log) + " 2>&1"
     );
@@ -671,11 +494,20 @@ function init_config(populate_nft) {
     }
     log_file_lines(runtime_log, "warn", "sing-box config generator: ");
 
-    let check_result = sing_box_check(temp_config, runtime_log);
-    if (check_result.status != 0) {
-        log_message("Generated sing-box configuration is invalid: " + check_result.reason + ". Aborted.", "fatal");
-        remove_files([ temp_config, runtime_log ]);
-        exit(1);
+    let config_unchanged = md5_file(temp_config) == md5_file(config_path);
+    let live_core = sing_box_process_running();
+    if (!arg_bool(skip_check) && !(live_core && config_unchanged)) {
+        if (live_core) {
+            log_message("Refusing a standalone sing-box config check while the core is running; use Forkop reload", "fatal");
+            remove_files([ temp_config, runtime_log ]);
+            exit(1);
+        }
+        let check_result = sing_box_check(temp_config, runtime_log);
+        if (check_result.status != 0) {
+            log_message("Generated sing-box configuration is invalid: " + check_result.reason + ". Aborted.", "fatal");
+            remove_files([ temp_config, runtime_log ]);
+            exit(1);
+        }
     }
 
     if (populate_nft && !module_success([
@@ -712,7 +544,7 @@ let mode = ARGV[0] || "";
 if (mode == "configure-service")
     configure_service();
 else if (mode == "init-config")
-    init_config(arg_bool(ARGV[1] || "1"));
+    init_config(arg_bool(ARGV[1] || "1"), arg_bool(ARGV[2] || "0"));
 else if (mode == "save-config-file-fixture")
     exit(save_config_file(ARGV[1] || "", ARGV[2] || "") ? 0 : 1);
 else if (mode == "check-config-fixture") {
@@ -723,16 +555,6 @@ else if (mode == "check-config-fixture") {
 }
 else if (mode == "generator-failure-reason-fixture")
     print(generator_failure_reason(ARGV[1] || "", int(ARGV[2] || "1")), "\n");
-else if (mode == "patch-dns-config")
-    patch_dns_config(ARGV[1] || "");
-else if (mode == "restore-dns-config")
-    exit(restore_dns_config(ARGV[1] || "") ? 0 : 1);
-else if (mode == "managed-service-installed")
-    exit(managed_service_installed() ? 0 : 1);
-else if (mode == "remove-managed-service-script")
-    remove_managed_service_script();
-else if (mode == "prepare-service-disabled")
-    prepare_service_disabled();
 else if (mode == "service-proxy-address")
     print(service_proxy_address(uci_settings(), ARGV[1] || "lists"), "\n");
 else if (mode == "service-listen-address") {
@@ -751,36 +573,8 @@ else if (mode == "ip-addr-first-inet4")
     print(ip_addr_first_inet4(fs.readfile("/dev/stdin")), "\n");
 else if (mode == "version")
     print(sing_box_version(), "\n");
-else if (mode == "version-output")
-    print(sing_box_version_output());
-else if (mode == "version-from-output")
-    print(first_line_last_field(fs.readfile("/dev/stdin")), "\n");
-else if (mode == "read-version-state")
-    print(sing_box_version_state(), "\n");
-else if (mode == "write-version-state")
-    exit(sing_box_write_version_state(ARGV[1]) ? 0 : 1);
-else if (mode == "clear-version-state")
-    exit(sing_box_clear_version_state() ? 0 : 1);
-else if (mode == "restore-version-state")
-    exit(sing_box_restore_version_state(ARGV[1]) ? 0 : 1);
-else if (mode == "read-variant-marker")
-    print(sing_box_variant_marker(), "\n");
-else if (mode == "write-variant-marker")
-    exit(sing_box_write_variant_marker(ARGV[1]) ? 0 : 1);
-else if (mode == "clear-variant-marker")
-    exit(sing_box_clear_variant_marker() ? 0 : 1);
-else if (mode == "restore-variant-marker")
-    exit(sing_box_restore_variant_marker(ARGV[1]) ? 0 : 1);
-else if (mode == "marker-is")
-    exit(sing_box_marker_is(ARGV[1]) ? 0 : 1);
-else if (mode == "is-extended")
-    exit(sing_box_is_extended(ARGV[1]) ? 0 : 1);
-else if (mode == "is-tiny")
-    exit(sing_box_is_tiny(ARGV[1], ARGV[2]) ? 0 : 1);
-else if (mode == "supports-tailscale")
-    exit(sing_box_supports_tailscale(ARGV[1], ARGV[2]) ? 0 : 1);
-else if (mode == "variant")
-    print(sing_box_variant(), "\n");
+else if (mode == "generate-warp-profile")
+    generate_warp_profile();
 else {
     warn("Usage: singbox/runtime.uc <operation> ...\n");
     exit(1);

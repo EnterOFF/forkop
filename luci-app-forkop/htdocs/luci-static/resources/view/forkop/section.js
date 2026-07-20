@@ -465,6 +465,8 @@ const REGION_NAME_FALLBACKS = {
   XK: "Kosovo",
 };
 let regionDisplayNamesCache = {};
+const regionDisplayNamesFormatters = new Map();
+const countryChoicesCache = new Map();
 
 function updateActionProvidersAvailabilityState(nextState) {
   if (!nextState) {
@@ -550,9 +552,13 @@ function getRegionDisplayName(code) {
 
   try {
     if (typeof Intl !== "undefined" && Intl.DisplayNames) {
-      const displayNames = new Intl.DisplayNames([language, "en"], {
-        type: "region",
-      });
+      let displayNames = regionDisplayNamesFormatters.get(language);
+      if (!displayNames) {
+        displayNames = new Intl.DisplayNames([language, "en"], {
+          type: "region",
+        });
+        regionDisplayNamesFormatters.set(language, displayNames);
+      }
       const displayName = displayNames.of(normalizedCode);
       if (displayName && displayName !== normalizedCode) {
         regionDisplayNamesCache[cacheKey] = displayName;
@@ -641,17 +647,84 @@ function filteredOutboundMetadataFromCache(cache) {
   return result;
 }
 
-function readOutboundMetadataFromSectionCache(section_id) {
+function nativeProviderOutboundNames(providerTags, value) {
+  const providers = plainObject(plainObject(value).providers);
+  const seen = new Set();
+  const result = [];
+
+  (Array.isArray(providerTags) ? providerTags : []).forEach((providerTag) => {
+    providerTag = `${providerTag || ""}`.trim();
+    const provider = plainObject(providers[providerTag]);
+    const runtimePrefix = `${providerTag}/`;
+
+    (Array.isArray(provider.proxies) ? provider.proxies : []).forEach(
+      (proxy) => {
+        proxy = plainObject(proxy);
+        const type = `${proxy.type || ""}`.toLowerCase();
+        if (["selector", "urltest", "fallback"].includes(type)) {
+          return;
+        }
+
+        let name = `${proxy.name || ""}`.trim();
+        if (name.startsWith(runtimePrefix)) {
+          name = name.slice(runtimePrefix.length);
+        }
+        if (name && !seen.has(name)) {
+          seen.add(name);
+          result.push(name);
+        }
+      },
+    );
+  });
+
+  return result;
+}
+
+function loadNativeProviderOutboundNames(providerTags) {
+  if (!Array.isArray(providerTags) || !providerTags.length) {
+    return Promise.resolve([]);
+  }
+
+  return fs
+    .exec("/usr/bin/forkop", ["clash_api", "get_proxy_providers"])
+    .then((response) =>
+      nativeProviderOutboundNames(
+        providerTags,
+        JSON.parse(response.stdout || "{}"),
+      ),
+    )
+    .catch(() => []);
+}
+
+function subscriptionSourceOutboundName(name, prefixNodes, nodePrefix) {
+  name = `${name || ""}`.trim();
+  nodePrefix = `${nodePrefix || ""}`.trim();
+  const enabled = prefixNodes === true || `${prefixNodes || ""}` === "1";
+  const prefix = `${nodePrefix} `;
+
+  return enabled && nodePrefix && name.startsWith(prefix)
+    ? name.slice(prefix.length)
+    : name;
+}
+
+function readOutboundChoiceState(section_id) {
   if (!safeCacheSectionName(section_id)) {
-    return Promise.resolve({ names: {} });
+    return Promise.resolve({ names: [], providerTags: [] });
   }
 
   return fs
     .exec("/usr/bin/forkop", ["get_dashboard_section_cache", section_id])
-    .then((response) =>
-      filteredOutboundMetadataFromCache(JSON.parse(response.stdout || "{}")),
-    )
-    .catch(() => ({ names: {} }));
+    .then((response) => {
+      const cache = JSON.parse(response.stdout || "{}");
+      const metadata = filteredOutboundMetadataFromCache(cache);
+      return {
+        names: Object.values(plainObject(metadata.names)),
+        providerTags: Array.isArray(cache.providerTags)
+          ? cache.providerTags
+          : [],
+      };
+    })
+    .catch(() => ({ names: [], providerTags: [] }));
 }
 
 function loadOutboundNameChoices(section_id) {
@@ -663,16 +736,21 @@ function loadOutboundNameChoices(section_id) {
     return outboundNameChoicesInflight.get(section_id);
   }
 
-  const task = readOutboundMetadataFromSectionCache(section_id)
-    .then((metadata) => {
-      const names = Object.values(plainObject(metadata.names));
-
+  const task = readOutboundChoiceState(section_id)
+    .then((state) =>
+      loadNativeProviderOutboundNames(state.providerTags).then(
+        (providerNames) => [...state.names, ...providerNames],
+      ),
+    )
+    .then((names) => {
       const choices = names
+        .map((name) => `${name || ""}`.trim())
         .filter(Boolean)
         .filter((name, index, values) => values.indexOf(name) === index)
-        .sort((a, b) => `${a}`.localeCompare(`${b}`));
+        .sort((a, b) => a.localeCompare(b));
 
       outboundNameChoicesCache.set(section_id, choices);
+      refreshDashboardFilterChoiceWidgets(section_id);
 
       return choices;
     })
@@ -1048,6 +1126,55 @@ function outboundJsonListItemLabel(value) {
     "span",
     { class: "fkp-dynlist-label" },
     outboundJsonDisplayTag(value) || _("JSON outbound"),
+  );
+}
+
+const AMNEZIA_INTEGER_FIELDS = [
+  "jc",
+  "jmin",
+  "jmax",
+  "s1",
+  "s2",
+  "s3",
+  "s4",
+  "itime",
+];
+const AMNEZIA_RANGE_FIELDS = ["h1", "h2", "h3", "h4"];
+const AMNEZIA_STRING_FIELDS = ["i1", "i2", "i3", "i4", "i5", "j1", "j2", "j3"];
+const WARP_JUNK_FIELDS = ["jc", "jmin", "jmax", "i1", "i2", "i3", "i4", "i5"];
+const WIREGUARD_PEER_FIELDS = new Set([
+  "address",
+  "port",
+  "public_key",
+  "pre_shared_key",
+  "allowed_ips",
+  "persistent_keepalive_interval",
+]);
+
+function parseTunnelJson(value) {
+  const parsed = parseOutboundJsonObject(value);
+  return parsed && parsed.endpoint && typeof parsed.endpoint === "object"
+    ? parsed
+    : null;
+}
+
+function tunnelDisplayName(value) {
+  const parsed = parseTunnelJson(value);
+  return `${(parsed && parsed.name) || ""}`.trim();
+}
+
+function tunnelListItemLabel(value) {
+  const parsed = parseTunnelJson(value);
+  const kind =
+    parsed && parsed.kind === "amneziawg"
+      ? "AmneziaWG"
+      : parsed && parsed.kind === "warp"
+        ? "WARP"
+        : "WireGuard";
+  return E(
+    "span",
+    { class: "fkp-dynlist-label" },
+    tunnelDisplayName(value) || kind,
   );
 }
 
@@ -1511,21 +1638,31 @@ function configureLiveDynamicListChoices(option, getChoices) {
 }
 
 function countryChoices() {
-  return COUNTRY_CODES.map((code) => ({
+  const language = getLuciLanguage();
+  if (countryChoicesCache.has(language)) {
+    return countryChoicesCache.get(language);
+  }
+
+  const choices = COUNTRY_CODES.map((code) => ({
     value: code,
     label: getCountryOptionLabel(code),
   })).sort((a, b) => a.label.localeCompare(b.label));
+  countryChoicesCache.set(language, choices);
+  return choices;
 }
 
-function currentOutboundNameChoices(section_id, values) {
+function currentOutboundNameChoices(section_id, values, normalizeChoice) {
   if (!outboundNameChoicesCache.has(section_id)) {
     loadOutboundNameChoices(section_id);
   }
 
   const seen = new Set();
   const result = [];
-  const append = (name) => {
-    const value = `${name || ""}`.trim();
+  const append = (name, normalize) => {
+    let value = `${name || ""}`.trim();
+    if (normalize && typeof normalizeChoice === "function") {
+      value = `${normalizeChoice(value) || ""}`.trim();
+    }
     if (!value || seen.has(value)) {
       return;
     }
@@ -1534,9 +1671,11 @@ function currentOutboundNameChoices(section_id, values) {
     result.push({ value, label: value });
   };
 
-  (outboundNameChoicesCache.get(section_id) || []).forEach(append);
-  currentDraftOutboundNames(section_id).forEach(append);
-  normalizeDynamicListItems(values).forEach(append);
+  (outboundNameChoicesCache.get(section_id) || []).forEach((name) =>
+    append(name, true),
+  );
+  currentDraftOutboundNames(section_id).forEach((name) => append(name, true));
+  normalizeDynamicListItems(values).forEach((name) => append(name, false));
 
   return result.sort((a, b) => a.label.localeCompare(b.label));
 }
@@ -1618,6 +1757,12 @@ function currentDraftOutboundNames(section_id) {
     const tag = outboundJsonDisplayTag(value);
     if (tag) {
       names.push(tag);
+    }
+  });
+  currentSourceOptionValues(section_id, "tunnel_jsons").forEach((value) => {
+    const name = tunnelDisplayName(value);
+    if (name) {
+      names.push(name);
     }
   });
 
@@ -1815,13 +1960,24 @@ function priorityLevelFilterModeChoices() {
 
 function proxyProtocolChoices() {
   return [
+    ["anytls", "AnyTLS"],
+    ["hysteria", "Hysteria"],
+    ["hysteria2", "Hysteria2"],
+    ["http", "HTTP"],
+    ["masque", "MASQUE"],
+    ["mieru", "Mieru"],
+    ["mtproxy", "MTProxy"],
+    ["naive", "Naive"],
+    ["shadowsocks", "Shadowsocks"],
+    ["shadowsocksr", "ShadowsocksR"],
+    ["snell", "Snell"],
+    ["socks", "SOCKS"],
+    ["ssh", "SSH"],
+    ["trojan", "Trojan"],
+    ["trusttunnel", "TrustTunnel"],
+    ["tuic", "TUIC"],
     ["vless", "VLESS"],
     ["vmess", "VMess"],
-    ["trojan", "Trojan"],
-    ["shadowsocks", "Shadowsocks"],
-    ["socks", "SOCKS"],
-    ["http", "HTTP"],
-    ["hysteria2", "Hysteria2"],
     ["direct", "Direct"],
   ];
 }
@@ -1833,6 +1989,8 @@ function proxyTransportChoices() {
     ["grpc", "gRPC"],
     ["http", "HTTP"],
     ["httpupgrade", "HTTPUpgrade"],
+    ["mkcp", "mKCP"],
+    ["quic", "QUIC"],
     ["xhttp", "XHTTP"],
   ];
 }
@@ -1898,6 +2056,142 @@ function addProxyParameterFilterOptions(itemSection, options) {
   });
 }
 
+function addServerFilterOptions(
+  itemSection,
+  parentSectionForItem,
+  options = {},
+) {
+  let o = itemSection.option(
+    form.ListValue,
+    "filter_mode",
+    _("Server filtering"),
+    _("Limit the servers used by this source or group"),
+  );
+  urlTestFilterModeChoices().forEach((choice) =>
+    o.value(choice.value, choice.label),
+  );
+  o.default = "disabled";
+
+  const parameterOptions = (prefix) => ({
+    prefix,
+    toggleLabel:
+      prefix === "include"
+        ? _("Include by proxy parameters")
+        : _("Exclude by proxy parameters"),
+    toggleDescription:
+      prefix === "include"
+        ? _(
+            "Additionally filter servers by protocol, transport, and security. Add only servers matching the specified parameters.",
+          )
+        : _(
+            "Additionally exclude servers by protocol, transport, and security. Exclude only servers matching the specified parameters.",
+          ),
+    dependencies: [{ filter_mode: prefix }, { filter_mode: "mixed" }],
+    protocolDescription:
+      prefix === "include"
+        ? _("Use only servers with one of the selected protocols.")
+        : _("Do not use servers with one of the selected protocols."),
+    transportDescription:
+      prefix === "include"
+        ? _("Use only servers with one of the selected transports.")
+        : _("Do not use servers with one of the selected transports."),
+    securityDescription:
+      prefix === "include"
+        ? _("Use only servers with one of the selected security types.")
+        : _("Do not use servers with one of the selected security types."),
+  });
+
+  [
+    [
+      "include_countries",
+      _("Include countries"),
+      _("Use servers only from the specified countries."),
+      countryChoices(),
+      validateCountryCode,
+      ["include", "mixed"],
+    ],
+    [
+      "include_outbounds",
+      _("Include servers"),
+      _("Use only selected servers."),
+      null,
+      null,
+      ["include", "mixed"],
+    ],
+    [
+      "include_regex",
+      _("Include by regular expression"),
+      _("Use servers whose names match the expression."),
+      null,
+      validateRegex,
+      ["include", "mixed"],
+    ],
+    [
+      "exclude_countries",
+      _("Exclude countries"),
+      _("Do not use servers from these countries."),
+      countryChoices(),
+      validateCountryCode,
+      ["exclude", "mixed"],
+    ],
+    [
+      "exclude_outbounds",
+      _("Exclude servers"),
+      _("Do not use specified servers."),
+      null,
+      null,
+      ["exclude", "mixed"],
+    ],
+    [
+      "exclude_regex",
+      _("Exclude by regular expression"),
+      _("Do not use servers whose names match the expression."),
+      null,
+      validateRegex,
+      ["exclude", "mixed"],
+    ],
+  ].forEach(([key, label, description, choices, validator, modes]) => {
+    const list = itemSection.option(form.DynamicList, key, label, description);
+    modes.forEach((mode) => list.depends("filter_mode", mode));
+    list.rmempty = true;
+    if (choices) {
+      choices.forEach((choice) => list.value(choice.value, choice.label));
+      list.placeholder = _("-- Select --");
+    }
+    if (key.endsWith("_outbounds")) {
+      const choicesForItem = (option, itemId, values) =>
+        currentOutboundNameChoices(
+          parentSectionForItem(itemId),
+          values,
+          typeof options.normalizeOutboundChoice === "function"
+            ? (name) => options.normalizeOutboundChoice(option, itemId, name)
+            : null,
+        );
+      list.load = function (itemId) {
+        const sectionId = parentSectionForItem(itemId);
+        const values = normalizeOptionValues(optionMapValue(this, itemId, key));
+        loadOutboundNameChoices(sectionId);
+        refreshOptionChoices(this, choicesForItem(this, itemId, values));
+        return values;
+      };
+      list.placeholder = _("-- Select --");
+      configureLiveDynamicListChoices(list, (itemId, values) =>
+        choicesForItem(list, itemId, values),
+      );
+    }
+    if (validator) {
+      list.validate = function (_itemId, value) {
+        return validator(null, value);
+      };
+    }
+    if (key === "include_regex") {
+      addProxyParameterFilterOptions(itemSection, parameterOptions("include"));
+    } else if (key === "exclude_regex") {
+      addProxyParameterFilterOptions(itemSection, parameterOptions("exclude"));
+    }
+  });
+}
+
 function urlTestUrlChoices() {
   return Array.isArray(main.LATENCY_TEST_URL_OPTIONS)
     ? main.LATENCY_TEST_URL_OPTIONS
@@ -1951,9 +2245,21 @@ function subscriptionUrlSettingsKeys() {
     "show_dashboard_metadata",
     "prefix_nodes",
     "node_prefix",
-    "include_urltest_groups",
-    "hide_urltest_group_outbounds",
-    "hide_detour_outbounds",
+    "filter_mode",
+    "include_countries",
+    "include_outbounds",
+    "include_regex",
+    "include_proxy_parameters",
+    "include_protocols",
+    "include_transports",
+    "include_securities",
+    "exclude_countries",
+    "exclude_outbounds",
+    "exclude_regex",
+    "exclude_proxy_parameters",
+    "exclude_protocols",
+    "exclude_transports",
+    "exclude_securities",
   ];
 }
 
@@ -1970,9 +2276,9 @@ function defaultSubscriptionUrlSettings() {
     show_dashboard_metadata: "1",
     prefix_nodes: "0",
     node_prefix: "",
-    include_urltest_groups: "1",
-    hide_urltest_group_outbounds: "1",
-    hide_detour_outbounds: "1",
+    filter_mode: "disabled",
+    include_proxy_parameters: "0",
+    exclude_proxy_parameters: "0",
   };
 }
 
@@ -2021,6 +2327,7 @@ function urlTestSettingsKeys() {
     "idle_timeout",
     "interrupt_exist_connections",
     "pin_dashboard",
+    "hide_dashboard_members",
     "filter_mode",
     "include_countries",
     "include_outbounds",
@@ -2048,6 +2355,7 @@ function defaultUrlTestSettings(name) {
     idle_timeout: "30m",
     interrupt_exist_connections: "1",
     pin_dashboard: "1",
+    hide_dashboard_members: "0",
     filter_mode: "disabled",
   };
 }
@@ -2060,6 +2368,7 @@ function urlTestChildDefaults() {
     idle_timeout: "30m",
     interrupt_exist_connections: "1",
     pin_dashboard: "1",
+    hide_dashboard_members: "0",
     filter_mode: "disabled",
   };
 }
@@ -2067,44 +2376,26 @@ function urlTestChildDefaults() {
 function priorityGroupSettingsKeys() {
   return [
     "name",
-    "health_url",
-    "active_check_interval",
-    "check_timeout",
-    "recovery_check_interval",
-    "pick_fastest",
-    "switch_to_faster_same_priority",
-    "fastest_check_interval",
-    "interrupt_exist_connections",
+    "blacklist_timeout",
     "pin_dashboard",
+    "hide_dashboard_members",
   ];
 }
 
 function defaultPriorityGroupSettings() {
   return {
     name: "",
-    health_url: "https://www.gstatic.com/generate_204",
-    active_check_interval: "5s",
-    check_timeout: "2s",
-    recovery_check_interval: "15s",
-    pick_fastest: "0",
-    switch_to_faster_same_priority: "0",
-    fastest_check_interval: "3m",
-    interrupt_exist_connections: "1",
+    blacklist_timeout: "1m",
     pin_dashboard: "1",
+    hide_dashboard_members: "0",
   };
 }
 
 function priorityGroupChildDefaults() {
   return {
-    health_url: "https://www.gstatic.com/generate_204",
-    active_check_interval: "5s",
-    check_timeout: "2s",
-    recovery_check_interval: "15s",
-    pick_fastest: "0",
-    switch_to_faster_same_priority: "0",
-    fastest_check_interval: "3m",
-    interrupt_exist_connections: "1",
+    blacklist_timeout: "1m",
     pin_dashboard: "1",
+    hide_dashboard_members: "0",
   };
 }
 
@@ -2297,35 +2588,14 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
   o.depends("prefix_nodes", "1");
   o.rmempty = false;
 
-  o = itemSection.option(
-    form.Flag,
-    "include_urltest_groups",
-    _("Import subscription URLTest groups"),
-    _("Import URLTest groups returned by this subscription provider"),
-  );
-  o.default = "1";
-  o.rmempty = false;
-
-  o = itemSection.option(
-    form.Flag,
-    "hide_urltest_group_outbounds",
-    _("Hide URLTest group nodes"),
-    _(
-      "Hide individual nodes that are already included in imported subscription URLTest groups",
-    ),
-  );
-  o.depends("include_urltest_groups", "1");
-  o.default = "1";
-  o.rmempty = false;
-
-  o = itemSection.option(
-    form.Flag,
-    "hide_detour_outbounds",
-    _("Hide cascade connection nodes"),
-    _("Hide intermediate nodes used as detours by other subscription nodes"),
-  );
-  o.default = "1";
-  o.rmempty = false;
+  addServerFilterOptions(itemSection, parentSectionForItem, {
+    normalizeOutboundChoice: (option, itemId, name) =>
+      subscriptionSourceOutboundName(
+        name,
+        optionMapValue(option, itemId, "prefix_nodes"),
+        optionMapValue(option, itemId, "node_prefix"),
+      ),
+  });
 }
 
 function addInterfaceItemOptions(itemSection) {
@@ -2433,7 +2703,7 @@ function addUrlTestItemOptions(itemSection, options = {}) {
     "idle_timeout",
     _("Idle timeout"),
     _(
-      "Stop checking when URLTest group is not used. Use sing-box duration format like 1d, 12h or 30m.",
+      "Stop health checks when the group is not used. Use sing-box duration format like 1d, 12h or 30m.",
     ),
   );
   o.default = "30m";
@@ -2455,143 +2725,21 @@ function addUrlTestItemOptions(itemSection, options = {}) {
     form.Flag,
     "pin_dashboard",
     _("Pin on dashboard"),
-    _("Keep URLTest before latency-sorted servers"),
+    _("Keep this group before latency-sorted servers"),
   );
   o.default = "1";
   o.rmempty = false;
 
   o = itemSection.option(
-    form.ListValue,
-    "filter_mode",
-    _("Server filtering"),
-    _("Allows limiting the list of servers for URLTest"),
+    form.Flag,
+    "hide_dashboard_members",
+    _("Hide servers from dashboard"),
+    _("Hide individual servers used by this group; keep the group visible."),
   );
-  urlTestFilterModeChoices().forEach((choice) =>
-    o.value(choice.value, choice.label),
-  );
-  o.default = "disabled";
+  o.default = "0";
+  o.rmempty = false;
 
-  const includeProxyParameterOptions = {
-    prefix: "include",
-    toggleLabel: _("Include by proxy parameters"),
-    toggleDescription: _(
-      "Additionally filter servers by protocol, transport, and security. Add only servers matching the specified parameters.",
-    ),
-    dependencies: [{ filter_mode: "include" }, { filter_mode: "mixed" }],
-    protocolDescription: _(
-      "Test only servers with one of the selected protocols.",
-    ),
-    transportDescription: _(
-      "Test only servers with one of the selected transports.",
-    ),
-    securityDescription: _(
-      "Test only servers with one of the selected security types.",
-    ),
-  };
-  const excludeProxyParameterOptions = {
-    prefix: "exclude",
-    toggleLabel: _("Exclude by proxy parameters"),
-    toggleDescription: _(
-      "Additionally exclude servers by protocol, transport, and security. Exclude only servers matching the specified parameters.",
-    ),
-    dependencies: [{ filter_mode: "exclude" }, { filter_mode: "mixed" }],
-    protocolDescription: _(
-      "Do not test servers with one of the selected protocols.",
-    ),
-    transportDescription: _(
-      "Do not test servers with one of the selected transports.",
-    ),
-    securityDescription: _(
-      "Do not test servers with one of the selected security types.",
-    ),
-  };
-
-  [
-    [
-      "include_countries",
-      _("Include countries"),
-      _("Test servers only from the specified countries."),
-      countryChoices(),
-      validateCountryCode,
-      ["include", "mixed"],
-    ],
-    [
-      "include_outbounds",
-      _("Include servers"),
-      _("Test only selected servers."),
-      null,
-      null,
-      ["include", "mixed"],
-    ],
-    [
-      "include_regex",
-      _("Include by regular expression"),
-      _("Test servers whose names match the expression."),
-      null,
-      validateRegex,
-      ["include", "mixed"],
-    ],
-    [
-      "exclude_countries",
-      _("Exclude countries"),
-      _("Do not test servers from these countries."),
-      countryChoices(),
-      validateCountryCode,
-      ["exclude", "mixed"],
-    ],
-    [
-      "exclude_outbounds",
-      _("Exclude servers"),
-      _("Do not test specified servers."),
-      null,
-      null,
-      ["exclude", "mixed"],
-    ],
-    [
-      "exclude_regex",
-      _("Exclude by regular expression"),
-      _("Do not test servers whose names match the expression."),
-      null,
-      validateRegex,
-      ["exclude", "mixed"],
-    ],
-  ].forEach(([key, label, description, choices, validator, modes]) => {
-    const list = itemSection.option(form.DynamicList, key, label, description);
-    modes.forEach((mode) => list.depends("filter_mode", mode));
-    list.rmempty = true;
-    if (choices) {
-      choices.forEach((choice) => list.value(choice.value, choice.label));
-      list.placeholder = _("-- Select --");
-    }
-    if (key.endsWith("_outbounds")) {
-      list.load = function (itemId) {
-        const sectionId = parentSectionForItem(itemId);
-        const values = normalizeOptionValues(optionMapValue(this, itemId, key));
-
-        return loadOutboundNameChoices(sectionId).then(() => {
-          refreshOptionChoices(
-            this,
-            currentOutboundNameChoices(sectionId, values),
-          );
-          return values;
-        });
-      };
-      list.placeholder = _("-- Select --");
-      configureLiveDynamicListChoices(list, (itemId, values) =>
-        currentOutboundNameChoices(parentSectionForItem(itemId), values),
-      );
-    }
-    if (validator) {
-      list.validate = function (_itemId, value) {
-        return validator(null, value);
-      };
-    }
-    if (key === "include_regex") {
-      addProxyParameterFilterOptions(itemSection, includeProxyParameterOptions);
-    } else if (key === "exclude_regex") {
-      addProxyParameterFilterOptions(itemSection, excludeProxyParameterOptions);
-    }
-  });
+  addServerFilterOptions(itemSection, parentSectionForItem);
 }
 
 function priorityLevelSettingsForValidation(groupId, levelId, option) {
@@ -2768,13 +2916,12 @@ function addPriorityLevelItemOptions(itemSection, options = {}) {
         const sectionId = parentSectionForItem(itemId);
         const values = normalizeOptionValues(optionMapValue(this, itemId, key));
 
-        return loadOutboundNameChoices(sectionId).then(() => {
-          refreshOptionChoices(
-            this,
-            currentOutboundNameChoices(sectionId, values),
-          );
-          return values;
-        });
+        loadOutboundNameChoices(sectionId);
+        refreshOptionChoices(
+          this,
+          currentOutboundNameChoices(sectionId, values),
+        );
+        return values;
       };
       list.placeholder = _("-- Select --");
       configureLiveDynamicListChoices(list, (itemId, values) =>
@@ -2815,101 +2962,17 @@ function addPriorityGroupItemOptions(itemSection, options = {}) {
 
   o = itemSection.option(
     form.Value,
-    "health_url",
-    _("Check URL"),
-    _("URL used to check whether a server is alive"),
+    "blacklist_timeout",
+    _("Blacklist timeout"),
+    _(
+      "How long a failed server or level is skipped before it can be tried again.",
+    ),
   );
-  o.default = "https://www.gstatic.com/generate_204";
-  o.rmempty = false;
-  urlTestUrlChoices().forEach((value) => o.value(value));
-  o.validate = function (_itemId, value) {
-    return validateUrlTestUrl(value);
-  };
-
-  o = itemSection.option(
-    form.Value,
-    "active_check_interval",
-    _("Check interval"),
-    _("How often the currently selected server is checked"),
-  );
-  o.default = "5s";
+  o.default = "1m";
   o.rmempty = false;
   o.validate = function (_itemId, value) {
     return validateRequiredSingBoxDuration(value);
   };
-
-  o = itemSection.option(
-    form.Value,
-    "check_timeout",
-    _("Unavailability timeout"),
-    _("Check timeout after which the server is considered dead"),
-  );
-  o.default = "2s";
-  o.rmempty = false;
-  o.validate = function (_itemId, value) {
-    return validateRequiredSingBoxDuration(value);
-  };
-
-  o = itemSection.option(
-    form.Value,
-    "recovery_check_interval",
-    _("Higher-level check interval"),
-    _(
-      "How often higher priority levels are checked while a lower level is active",
-    ),
-  );
-  o.default = "15s";
-  o.rmempty = false;
-  o.validate = function (_itemId, value) {
-    return validateRequiredSingBoxDuration(value);
-  };
-
-  o = itemSection.option(
-    form.Flag,
-    "pick_fastest",
-    _("Select the fastest node"),
-    _(
-      "When switching to another level, test every server and select the fastest instead of the first working one.",
-    ),
-  );
-  o.default = "0";
-  o.rmempty = false;
-
-  o = itemSection.option(
-    form.Flag,
-    "switch_to_faster_same_priority",
-    _("Automatically select the fastest node in the current level"),
-    _(
-      "Periodically check the current level and switch to a faster server even when the current one works.",
-    ),
-  );
-  o.default = "0";
-  o.rmempty = false;
-
-  o = itemSection.option(
-    form.Value,
-    "fastest_check_interval",
-    _("Faster server search interval"),
-    _("Use sing-box duration format like 1d, 12h or 30m"),
-  );
-  o.depends("switch_to_faster_same_priority", "1");
-  o.default = "3m";
-  o.rmempty = false;
-  o.validate = function (itemId, value) {
-    return optionMapValue(this, itemId, "switch_to_faster_same_priority") ===
-      "1"
-      ? validateRequiredSingBoxDuration(value)
-      : true;
-  };
-
-  o = itemSection.option(
-    form.Flag,
-    "interrupt_exist_connections",
-    _("Interrupt connections"),
-    _("Interrupt connections when priority failover switches server"),
-  );
-  o.default = "1";
-  o.rmempty = false;
 
   o = itemSection.option(
     form.Flag,
@@ -2918,6 +2981,15 @@ function addPriorityGroupItemOptions(itemSection, options = {}) {
     _("Keep Priority before latency-sorted servers"),
   );
   o.default = "1";
+  o.rmempty = false;
+
+  o = itemSection.option(
+    form.Flag,
+    "hide_dashboard_members",
+    _("Hide servers from dashboard"),
+    _("Hide individual servers used by this group; keep Priority visible."),
+  );
+  o.default = "0";
   o.rmempty = false;
 
   o = itemSection.option(
@@ -3071,39 +3143,6 @@ function renderStackedJsonSettingsModal(title, map, onSave) {
     const originalButtonNodes = Array.from(buttonRow.childNodes);
     let closed = false;
     let saveButton;
-    let validationSummary;
-
-    const clearValidationSummary = () => {
-      if (validationSummary && validationSummary.parentNode) {
-        validationSummary.parentNode.removeChild(validationSummary);
-      }
-      validationSummary = null;
-    };
-
-    const showValidationSummary = (error) => {
-      clearValidationSummary();
-
-      const message = error?.message || "";
-      validationSummary = E(
-        "div",
-        {
-          class:
-            "alert-message warning fkp-stacked-settings-validation-summary",
-        },
-        [
-          E("strong", {}, _("Cannot save settings")),
-          E("div", {}, _("Fix the highlighted fields and save again.")),
-          message ? E("small", {}, message) : "",
-        ],
-      );
-      buttonRow.parentNode.insertBefore(validationSummary, buttonRow);
-
-      const invalidInput = nodes.querySelector(".cbi-input-invalid");
-      if (invalidInput) {
-        invalidInput.scrollIntoView({ block: "center", behavior: "smooth" });
-        invalidInput.focus({ preventScroll: true });
-      }
-    };
 
     const restoreButtonRow = () => {
       buttonRow.textContent = "";
@@ -3117,7 +3156,6 @@ function renderStackedJsonSettingsModal(title, map, onSave) {
       }
 
       closed = true;
-      clearValidationSummary();
 
       if (nodes.parentNode) {
         nodes.parentNode.removeChild(nodes);
@@ -3134,19 +3172,19 @@ function renderStackedJsonSettingsModal(title, map, onSave) {
       if (saveButton) {
         saveButton.disabled = true;
       }
-      clearValidationSummary();
 
       return map
         .parse()
-        .then(() => {
-          onSave(cleanFormSectionData(map.data.get(map.config, "settings")));
-          close();
-        })
-        .catch((error) => {
+        .then(() =>
+          Promise.resolve(
+            onSave(cleanFormSectionData(map.data.get(map.config, "settings"))),
+          ),
+        )
+        .then(close)
+        .catch(() => {
           if (saveButton) {
             saveButton.disabled = false;
           }
-          showValidationSummary(error);
         });
     };
 
@@ -3467,6 +3505,909 @@ function validatePriorityGroupItemsBeforeSave(section_id, values) {
     }
   }
 
+  return true;
+}
+
+function tunnelInitialSettings(value) {
+  const wrapper = parseTunnelJson(value) || {};
+  const endpoint = wrapper.endpoint || {};
+  const kind =
+    wrapper.kind === "warp" || endpoint.type === "warp"
+      ? "warp"
+      : wrapper.kind === "amneziawg" || endpoint.amnezia
+        ? "amneziawg"
+        : "wireguard";
+  const settings = {
+    name: `${wrapper.name || ""}`,
+    tunnel_type: kind,
+    warp_junk_enabled:
+      kind === "warp" &&
+      WARP_JUNK_FIELDS.some((key) => endpoint.amnezia?.[key] != null)
+        ? "1"
+        : "0",
+    address: Array.isArray(endpoint.address) ? endpoint.address : [],
+    private_key: `${endpoint.private_key || ""}`,
+    listen_port: endpoint.listen_port ? `${endpoint.listen_port}` : "",
+    mtu: endpoint.mtu ? `${endpoint.mtu}` : "",
+    peer_jsons: Array.isArray(endpoint.peers)
+      ? endpoint.peers.map((peer) => JSON.stringify(peer))
+      : [],
+    warp_keepalive: endpoint.persistent_keepalive_interval
+      ? `${endpoint.persistent_keepalive_interval}`
+      : "",
+    warp_profile_id: `${endpoint.profile?.id || ""}`,
+    warp_auth_token: `${endpoint.profile?.auth_token || ""}`,
+    warp_private_key: `${endpoint.profile?.private_key || ""}`,
+  };
+
+  [
+    ...AMNEZIA_INTEGER_FIELDS,
+    ...AMNEZIA_RANGE_FIELDS,
+    ...AMNEZIA_STRING_FIELDS,
+  ].forEach((key) => {
+    settings[`amnezia_${key}`] =
+      endpoint.amnezia && endpoint.amnezia[key] != null
+        ? `${endpoint.amnezia[key]}`
+        : "";
+  });
+  return settings;
+}
+
+function setModalOptionValue(map, option, value) {
+  map.data.set(map.config, "settings", option.option, value);
+  const element =
+    typeof option.getUIElement === "function"
+      ? option.getUIElement("settings")
+      : null;
+  if (element && typeof element.setValue === "function") {
+    element.setValue(value);
+    element.triggerValidation();
+  }
+}
+
+function getModalOptionValue(map, option) {
+  const element =
+    typeof option.getUIElement === "function"
+      ? option.getUIElement("settings")
+      : null;
+  return element && typeof element.getValue === "function"
+    ? element.getValue()
+    : map.data.get(map.config, "settings", option.option);
+}
+
+function tunnelEndpointFromSettings(settings) {
+  const kind = `${settings.tunnel_type || ""}`;
+  if (kind === "warp") {
+    const endpoint = { type: "warp" };
+    if (`${settings.warp_keepalive || ""}`.trim()) {
+      endpoint.persistent_keepalive_interval = Number(settings.warp_keepalive);
+    }
+    const profile = {};
+    if (`${settings.warp_profile_id || ""}`.trim()) {
+      profile.id = `${settings.warp_profile_id}`.trim();
+    }
+    if (`${settings.warp_auth_token || ""}`.trim()) {
+      profile.auth_token = `${settings.warp_auth_token}`.trim();
+    }
+    if (`${settings.warp_private_key || ""}`.trim()) {
+      profile.private_key = `${settings.warp_private_key}`.trim();
+    }
+    if (Object.keys(profile).length > 0) {
+      // A user-supplied profile must win over sing-box's cached WARP config.
+      // The core uses this native flag to recreate the endpoint from the
+      // current credentials instead of silently reusing stale cache data.
+      profile.recreate = true;
+      endpoint.profile = profile;
+    }
+    if (`${settings.warp_junk_enabled || ""}` === "1") {
+      const amnezia = tunnelWarpJunkSettings(settings);
+      if (Object.keys(amnezia).length > 0) {
+        endpoint.amnezia = amnezia;
+      }
+    }
+    return endpoint;
+  }
+
+  const peers = L.toArray(settings.peer_jsons)
+    .map((value) => parseOutboundJsonObject(value))
+    .filter(Boolean);
+  if (peers.length !== L.toArray(settings.peer_jsons).filter(Boolean).length)
+    return null;
+
+  const endpoint = {
+    type: "wireguard",
+    address: normalizeOptionValues(settings.address),
+    private_key: `${settings.private_key || ""}`.trim(),
+    peers,
+  };
+  if (`${settings.listen_port || ""}`.trim()) {
+    endpoint.listen_port = Number(settings.listen_port);
+  }
+  if (`${settings.mtu || ""}`.trim()) {
+    endpoint.mtu = Number(settings.mtu);
+  }
+
+  if (kind === "amneziawg") {
+    endpoint.amnezia = tunnelAmneziaSettings(settings);
+  }
+
+  return endpoint;
+}
+
+function tunnelAmneziaSettings(settings) {
+  const amnezia = {};
+  AMNEZIA_INTEGER_FIELDS.forEach((key) => {
+    const value = `${settings[`amnezia_${key}`] || ""}`.trim();
+    if (value) {
+      amnezia[key] = Number(value);
+    }
+  });
+  AMNEZIA_RANGE_FIELDS.forEach((key) => {
+    const value = `${settings[`amnezia_${key}`] || ""}`.trim();
+    if (value) {
+      amnezia[key] = value.includes("-") ? value : Number(value);
+    }
+  });
+  AMNEZIA_STRING_FIELDS.forEach((key) => {
+    const value = `${settings[`amnezia_${key}`] || ""}`.trim();
+    if (value) {
+      amnezia[key] = value;
+    }
+  });
+  return amnezia;
+}
+
+function tunnelWarpJunkSettings(settings) {
+  const amnezia = {};
+  WARP_JUNK_FIELDS.forEach((key) => {
+    const value = `${settings[`amnezia_${key}`] || ""}`.trim();
+    if (value) {
+      amnezia[key] = ["jc", "jmin", "jmax"].includes(key)
+        ? Number(value)
+        : value;
+    }
+  });
+  return amnezia;
+}
+
+function wireGuardPeerInitialSettings(value) {
+  const peer = parseOutboundJsonObject(value) || {};
+  return {
+    address: `${peer.address || ""}`,
+    port: peer.port != null ? `${peer.port}` : "",
+    public_key: `${peer.public_key || ""}`,
+    pre_shared_key: `${peer.pre_shared_key || ""}`,
+    allowed_ips: L.toArray(peer.allowed_ips),
+    persistent_keepalive_interval:
+      peer.persistent_keepalive_interval != null
+        ? `${peer.persistent_keepalive_interval}`
+        : "",
+  };
+}
+
+function wireGuardPeerFromSettings(settings) {
+  const peer = {
+    address: `${settings.address || ""}`.trim(),
+    port: Number(settings.port),
+    public_key: `${settings.public_key || ""}`.trim(),
+    allowed_ips: normalizeOptionValues(settings.allowed_ips),
+  };
+  if (`${settings.pre_shared_key || ""}`.trim()) {
+    peer.pre_shared_key = `${settings.pre_shared_key}`.trim();
+  }
+  if (`${settings.persistent_keepalive_interval || ""}`.trim()) {
+    peer.persistent_keepalive_interval = Number(
+      settings.persistent_keepalive_interval,
+    );
+  }
+  return peer;
+}
+
+function wireGuardPeerDisplayName(value) {
+  const peer = parseOutboundJsonObject(value);
+  if (!peer) return _("WireGuard peer");
+  const address = `${peer.address || ""}`.trim();
+  const port = Number(peer.port);
+  return address && Number.isInteger(port)
+    ? `${address}:${port}`
+    : address || _("WireGuard peer");
+}
+
+function wireGuardPeerListItemLabel(value) {
+  return E(
+    "span",
+    { class: "fkp-dynlist-label" },
+    wireGuardPeerDisplayName(value),
+  );
+}
+
+function validateWireGuardPeer(peer) {
+  if (
+    !peer ||
+    typeof peer !== "object" ||
+    Array.isArray(peer) ||
+    typeof peer.address !== "string" ||
+    !peer.address.trim() ||
+    typeof peer.public_key !== "string" ||
+    !peer.public_key.trim() ||
+    typeof peer.port !== "number" ||
+    !Number.isInteger(peer.port) ||
+    peer.port < 1 ||
+    peer.port > 65535
+  ) {
+    return _(
+      "Every WireGuard peer needs string address/public key and a numeric port",
+    );
+  }
+
+  if (!main.validateWireGuardKey(peer.public_key)) {
+    return _("WireGuard keys must be standard base64-encoded 32-byte values");
+  }
+
+  if (Object.keys(peer).some((key) => !WIREGUARD_PEER_FIELDS.has(key))) {
+    return _("WireGuard peer contains unsupported fields");
+  }
+
+  if (
+    peer.pre_shared_key != null &&
+    (typeof peer.pre_shared_key !== "string" || !peer.pre_shared_key.trim())
+  ) {
+    return _("WireGuard peer fields must use native sing-box JSON types");
+  }
+
+  if (
+    typeof peer.pre_shared_key === "string" &&
+    peer.pre_shared_key.trim() &&
+    !main.validateWireGuardKey(peer.pre_shared_key)
+  ) {
+    return _("WireGuard keys must be standard base64-encoded 32-byte values");
+  }
+
+  const allowedIps = Array.isArray(peer.allowed_ips)
+    ? peer.allowed_ips
+    : peer.allowed_ips != null
+      ? [peer.allowed_ips]
+      : [];
+  if (allowedIps.length === 0) {
+    return _("Every WireGuard peer needs at least one AllowedIPs subnet");
+  }
+  if (
+    allowedIps.some((allowedIp) => validateWireGuardPrefix(allowedIp) !== true)
+  ) {
+    return _("WireGuard peer allowed_ips must contain valid CIDR subnets");
+  }
+
+  if (
+    peer.persistent_keepalive_interval != null &&
+    (typeof peer.persistent_keepalive_interval !== "number" ||
+      !Number.isInteger(peer.persistent_keepalive_interval) ||
+      peer.persistent_keepalive_interval < 0 ||
+      peer.persistent_keepalive_interval > 65535)
+  ) {
+    return _("WireGuard peer fields must use native sing-box JSON types");
+  }
+  return true;
+}
+
+function validateWireGuardPeerJson(value) {
+  const peer = parseOutboundJsonObject(value);
+  return peer
+    ? validateWireGuardPeer(peer)
+    : _("Open peer settings and complete the configuration");
+}
+
+function validateWireGuardPeers(values) {
+  const peers = L.toArray(values).filter((value) => `${value || ""}`.trim());
+  if (peers.length === 0) {
+    return _("Add at least one WireGuard peer");
+  }
+  for (const value of peers) {
+    const validation = validateWireGuardPeerJson(value);
+    if (validation !== true) return validation;
+  }
+  return true;
+}
+
+function validateWireGuardPrefix(value) {
+  if (typeof value !== "string") {
+    return _("Use an IP address with a CIDR prefix");
+  }
+  const address = `${value || ""}`.trim();
+  if (!address.includes("/")) {
+    return _("Use an IP address with a CIDR prefix");
+  }
+  const validation = main.validateSubnet(address);
+  return validation.valid ? true : validation.message;
+}
+
+function validateWireGuardListInput(value) {
+  return `${value || ""}`.trim() ? validateWireGuardPrefix(value) : true;
+}
+
+function validateAmneziaRange(value) {
+  const normalized = `${value || ""}`.trim();
+  if (!normalized) return true;
+  const parts = normalized.split("-");
+  if (parts.length > 2 || parts.some((part) => !/^\d+$/u.test(part))) {
+    return _(
+      "AmneziaWG ranges must be between 0 and 4294967295 with the start no greater than the end",
+    );
+  }
+  const from = Number(parts[0]);
+  const to = parts.length === 2 ? Number(parts[1]) : from;
+  return Number.isSafeInteger(from) &&
+    Number.isSafeInteger(to) &&
+    from <= 0xffffffff &&
+    to <= 0xffffffff &&
+    from <= to
+    ? true
+    : _(
+        "AmneziaWG ranges must be between 0 and 4294967295 with the start no greater than the end",
+      );
+}
+
+function validateTunnelSettings(settings) {
+  const name = `${settings.name || ""}`.trim();
+  if (!name) {
+    return _("Enter a tunnel name");
+  }
+  const endpoint = tunnelEndpointFromSettings(settings);
+  if (!endpoint) {
+    return _("Open peer settings and complete the configuration");
+  }
+  if (`${settings.tunnel_type || ""}` === "amneziawg") {
+    for (const key of AMNEZIA_RANGE_FIELDS) {
+      const rangeValidation = validateAmneziaRange(settings[`amnezia_${key}`]);
+      if (rangeValidation !== true) {
+        return rangeValidation;
+      }
+    }
+  }
+  if (endpoint.type === "warp") {
+    const profileValues = [
+      endpoint.profile?.id,
+      endpoint.profile?.auth_token,
+      endpoint.profile?.private_key,
+    ].filter(Boolean);
+    if (profileValues.length !== 3) {
+      return _(
+        "Register a Cloudflare WARP device and fill the profile fields.",
+      );
+    }
+    return true;
+  }
+  if (!endpoint.private_key || endpoint.address.length === 0) {
+    return _("WireGuard address and private key are required");
+  }
+  if (!main.validateWireGuardKey(endpoint.private_key)) {
+    return _("WireGuard keys must be standard base64-encoded 32-byte values");
+  }
+  for (const address of endpoint.address) {
+    const addressValidation = validateWireGuardPrefix(address);
+    if (addressValidation !== true) {
+      return addressValidation;
+    }
+  }
+  if (endpoint.peers.length === 0) {
+    return _("Add at least one WireGuard peer");
+  }
+  const peersValidation = validateWireGuardPeers(settings.peer_jsons);
+  if (peersValidation !== true) {
+    return peersValidation;
+  }
+  if (
+    `${settings.tunnel_type || ""}` === "amneziawg" &&
+    Object.keys(endpoint.amnezia || {}).length === 0
+  ) {
+    return _("Enter at least one AmneziaWG parameter");
+  }
+  return true;
+}
+
+function applyImportedTunnelEndpoint(map, fields, endpoint) {
+  setModalOptionValue(
+    map,
+    fields.type,
+    endpoint.amnezia ? "amneziawg" : "wireguard",
+  );
+  setModalOptionValue(map, fields.address, endpoint.address || []);
+  setModalOptionValue(map, fields.privateKey, endpoint.private_key || "");
+  setModalOptionValue(map, fields.listenPort, endpoint.listen_port || "");
+  setModalOptionValue(map, fields.mtu, endpoint.mtu || "");
+  setModalOptionValue(
+    map,
+    fields.peers,
+    (endpoint.peers || []).map((peer) => JSON.stringify(peer)),
+  );
+  [
+    ...AMNEZIA_INTEGER_FIELDS,
+    ...AMNEZIA_RANGE_FIELDS,
+    ...AMNEZIA_STRING_FIELDS,
+  ].forEach((key) => {
+    setModalOptionValue(
+      map,
+      fields.amnezia[key],
+      endpoint.amnezia && endpoint.amnezia[key] != null
+        ? `${endpoint.amnezia[key]}`
+        : "",
+    );
+  });
+  map.checkDepends();
+}
+
+function showWireGuardPeerSettingsModal(
+  _sectionId,
+  itemValue,
+  _option,
+  widget,
+  itemNode,
+  context = {},
+) {
+  const data = { settings: wireGuardPeerInitialSettings(itemValue) };
+  const map = new form.JSONMap(data);
+  const section = map.section(form.NamedSection, "settings");
+  section.anonymous = true;
+  section.addremove = false;
+
+  let o = section.option(
+    form.Value,
+    "address",
+    _("Server address"),
+    _("WireGuard peer hostname or IP address."),
+  );
+  o.rmempty = false;
+  o.validate = function (_itemId, value) {
+    return `${value || ""}`.trim() ? true : _("Enter a server address");
+  };
+
+  o = section.option(form.Value, "port", _("Server port"));
+  o.datatype = "port";
+  o.rmempty = false;
+
+  o = section.option(form.Value, "public_key", _("Public key"));
+  o.rmempty = false;
+  o.validate = function (_itemId, value) {
+    const key = `${value || ""}`.trim();
+    if (!key) return _("Enter a public key");
+    return main.validateWireGuardKey(key)
+      ? true
+      : _("WireGuard keys must be standard base64-encoded 32-byte values");
+  };
+
+  o = section.option(
+    form.Value,
+    "pre_shared_key",
+    _("Pre-shared key"),
+    _("Optional additional WireGuard key shared with this peer."),
+  );
+  o.password = true;
+  o.rmempty = true;
+  o.validate = function (_itemId, value) {
+    const key = `${value || ""}`.trim();
+    return !key || main.validateWireGuardKey(key)
+      ? true
+      : _("WireGuard keys must be standard base64-encoded 32-byte values");
+  };
+
+  o = section.option(
+    form.DynamicList,
+    "allowed_ips",
+    _("Allowed IPs"),
+    _("Traffic prefixes routed through this peer."),
+  );
+  o.rmempty = false;
+  o.validate = function (_itemId, value) {
+    return validateWireGuardListInput(value);
+  };
+
+  o = section.option(
+    form.Value,
+    "persistent_keepalive_interval",
+    _("Persistent keepalive"),
+    _("Optional keepalive interval in seconds."),
+  );
+  o.datatype = "range(0,65535)";
+  o.rmempty = true;
+
+  return renderStackedJsonSettingsModal(
+    _("WireGuard peer settings"),
+    map,
+    (settings) => {
+      const peer = wireGuardPeerFromSettings(settings);
+      const validation = validateWireGuardPeer(peer);
+      if (validation !== true) throw new TypeError(validation);
+      const value = JSON.stringify(peer);
+      if (context.adding) {
+        addDynamicListItem(widget, value);
+        return;
+      }
+      setDynamicListItemValue(itemNode, value);
+      updateDynamicListItemLabel(itemNode, wireGuardPeerDisplayName(value));
+      if (widget && widget.node) {
+        widget.dispatchCbiDynlistChange(widget.node, value);
+      }
+    },
+  );
+}
+
+function showTunnelImportModal(parentMap, fields) {
+  const data = { settings: { configuration: "" } };
+  const map = new form.JSONMap(data);
+  const itemSection = map.section(form.NamedSection, "settings");
+  itemSection.anonymous = true;
+  itemSection.addremove = false;
+
+  const configuration = itemSection.option(
+    form.TextValue,
+    "configuration",
+    _("Configuration"),
+    _(
+      "Paste a WireGuard or AmneziaWG .conf/.cfg file or an Amnezia vpn:// link.",
+    ),
+  );
+  configuration.rows = 12;
+  configuration.wrap = "off";
+  configuration.textarea = true;
+  configuration.rmempty = false;
+  let failedInput = "";
+  let importError = "";
+  configuration.validate = function (_itemId, value) {
+    const input = `${value || ""}`.trim();
+    if (importError && input === failedInput) {
+      return importError;
+    }
+    importError = "";
+    failedInput = "";
+    if (!input) {
+      return _("Paste a configuration or vpn:// link");
+    }
+    if (input.startsWith("vpn://")) {
+      return true;
+    }
+    const parsed = main.parseWireGuardConfig(input);
+    return parsed && parsed.valid === true
+      ? true
+      : parsed?.message || _("Invalid WireGuard configuration");
+  };
+  configureTextareaOption(configuration);
+
+  return renderStackedJsonSettingsModal(
+    _("Import configuration"),
+    map,
+    async (settings) => {
+      const parser = main.parseWireGuardInput || main.parseWireGuardConfig;
+      const parsed = await Promise.resolve(
+        parser(`${settings.configuration || ""}`),
+      );
+      if (!parsed || parsed.valid !== true) {
+        failedInput = `${settings.configuration || ""}`.trim();
+        importError = parsed?.message || _("Invalid WireGuard configuration");
+        if (typeof configuration.triggerValidation === "function") {
+          configuration.triggerValidation("settings");
+        }
+        throw new TypeError(importError);
+      }
+      applyImportedTunnelEndpoint(parentMap, fields, parsed.endpoint);
+    },
+  );
+}
+
+function showTunnelSettingsModal(
+  _section_id,
+  itemValue,
+  _option,
+  widget,
+  itemNode,
+  context = {},
+) {
+  const data = { settings: tunnelInitialSettings(itemValue) };
+  const map = new form.JSONMap(data);
+  const itemSection = map.section(form.NamedSection, "settings");
+  itemSection.anonymous = true;
+  itemSection.addremove = false;
+
+  let o = itemSection.option(
+    form.Value,
+    "name",
+    _("Tunnel name"),
+    _("Name displayed in this section and on the dashboard."),
+  );
+  o.rmempty = false;
+  o.validate = function (_itemId, value) {
+    return `${value || ""}`.trim() ? true : _("Enter a tunnel name");
+  };
+
+  const importButton = itemSection.option(
+    form.Button,
+    "_import_config",
+    _("Import configuration"),
+    _("Import all available tunnel parameters from a client configuration."),
+  );
+  importButton.inputtitle = _("Import");
+  importButton.inputstyle = "apply";
+  importButton.depends("tunnel_type", "wireguard");
+  importButton.depends("tunnel_type", "amneziawg");
+
+  const warpGenerateButton = itemSection.option(
+    form.Button,
+    "_generate_warp_profile",
+    _("WARP profile"),
+    _("Register a Cloudflare WARP device and fill the profile fields."),
+  );
+  warpGenerateButton.inputtitle = _("Generate profile");
+  warpGenerateButton.inputstyle = "apply";
+  warpGenerateButton.depends("tunnel_type", "warp");
+
+  const typeOption = itemSection.option(
+    form.ListValue,
+    "tunnel_type",
+    _("Tunnel type"),
+    _("Choose WireGuard, AmneziaWG, or Cloudflare WARP."),
+  );
+  typeOption.value("wireguard", "WireGuard");
+  typeOption.value("amneziawg", "AmneziaWG");
+  typeOption.value("warp", "Cloudflare WARP");
+  typeOption.default = "wireguard";
+  typeOption.rmempty = false;
+
+  const addressOption = itemSection.option(
+    form.DynamicList,
+    "address",
+    _("Tunnel addresses"),
+    _(
+      "Interface IPv4 or IPv6 addresses in CIDR format, for example 10.0.0.2/32.",
+    ),
+  );
+  addressOption.rmempty = false;
+  addressOption.depends("tunnel_type", "wireguard");
+  addressOption.depends("tunnel_type", "amneziawg");
+  addressOption.validate = function (_itemId, value) {
+    return validateWireGuardListInput(value);
+  };
+
+  const privateKeyOption = itemSection.option(
+    form.Value,
+    "private_key",
+    _("Private key"),
+    _("Private key of the local WireGuard interface."),
+  );
+  privateKeyOption.password = true;
+  privateKeyOption.rmempty = false;
+  privateKeyOption.depends("tunnel_type", "wireguard");
+  privateKeyOption.depends("tunnel_type", "amneziawg");
+  privateKeyOption.validate = function (_itemId, value) {
+    const key = `${value || ""}`.trim();
+    if (!key) return _("Enter a private key");
+    return main.validateWireGuardKey(key)
+      ? true
+      : _("WireGuard keys must be standard base64-encoded 32-byte values");
+  };
+
+  const listenPortOption = itemSection.option(
+    form.Value,
+    "listen_port",
+    _("Listen port"),
+    _("Optional local UDP port. Leave empty to let sing-box choose it."),
+  );
+  listenPortOption.datatype = "port";
+  listenPortOption.rmempty = true;
+  listenPortOption.depends("tunnel_type", "wireguard");
+  listenPortOption.depends("tunnel_type", "amneziawg");
+
+  const mtuOption = itemSection.option(
+    form.Value,
+    "mtu",
+    "MTU",
+    _(
+      "Maximum packet size for this tunnel. Leave empty to use the core default.",
+    ),
+  );
+  mtuOption.datatype = "range(1,65535)";
+  mtuOption.rmempty = true;
+  mtuOption.depends("tunnel_type", "wireguard");
+  mtuOption.depends("tunnel_type", "amneziawg");
+
+  const peersOption = itemSection.option(
+    ButtonAddSettingsDynamicList,
+    "peer_jsons",
+    _("Peers"),
+    _("Add one or more WireGuard peers and configure each one separately."),
+  );
+  peersOption.rmempty = false;
+  peersOption.depends("tunnel_type", "wireguard");
+  peersOption.depends("tunnel_type", "amneziawg");
+  peersOption.addButtonLabel = _("+ Add peer");
+  peersOption.renderItemSettingsModal = showWireGuardPeerSettingsModal;
+  peersOption.renderListItemLabel = function (_sectionId, value) {
+    return wireGuardPeerListItemLabel(value);
+  };
+  peersOption.validateItemsOnSave = function (_sectionId, values) {
+    return validateWireGuardPeers(values);
+  };
+  peersOption.validate = function (_itemId, value) {
+    if (!`${value || ""}`.trim()) return true;
+    return validateWireGuardPeerJson(value);
+  };
+
+  const amneziaOptions = {};
+  importButton.onclick = function () {
+    return showTunnelImportModal(map, {
+      type: typeOption,
+      address: addressOption,
+      privateKey: privateKeyOption,
+      listenPort: listenPortOption,
+      mtu: mtuOption,
+      peers: peersOption,
+      amnezia: amneziaOptions,
+    });
+  };
+
+  o = itemSection.option(
+    form.Value,
+    "warp_keepalive",
+    _("Persistent keepalive"),
+    _("Keepalive interval in seconds. Leave empty to use the core default."),
+  );
+  o.datatype = "range(0,65535)";
+  o.placeholder = "30";
+  o.rmempty = true;
+  o.depends("tunnel_type", "warp");
+
+  const warpProfileIdOption = itemSection.option(
+    form.Value,
+    "warp_profile_id",
+    _("WARP profile ID"),
+    _("Register a Cloudflare WARP device and fill the profile fields."),
+  );
+  warpProfileIdOption.rmempty = false;
+  warpProfileIdOption.depends("tunnel_type", "warp");
+
+  const warpAuthTokenOption = itemSection.option(
+    form.Value,
+    "warp_auth_token",
+    _("WARP auth token"),
+    _("Cloudflare device token. Generate a profile to fill it automatically."),
+  );
+  warpAuthTokenOption.password = true;
+  warpAuthTokenOption.rmempty = false;
+  warpAuthTokenOption.depends("tunnel_type", "warp");
+
+  const warpPrivateKeyOption = itemSection.option(
+    form.Value,
+    "warp_private_key",
+    _("WARP private key"),
+    _(
+      "Cloudflare WireGuard private key. Generate a profile to fill it automatically.",
+    ),
+  );
+  warpPrivateKeyOption.password = true;
+  warpPrivateKeyOption.rmempty = false;
+  warpPrivateKeyOption.depends("tunnel_type", "warp");
+
+  warpGenerateButton.onclick = function () {
+    const showError = () =>
+      ui.addNotification(
+        _("Forkop Error"),
+        E("p", {}, ["Failed to generate WARP profile."]),
+        "error",
+      );
+
+    return fs
+      .exec("/usr/bin/forkop", ["generate_warp_profile"])
+      .then((response) => {
+        let profile = {};
+        try {
+          profile = JSON.parse(response.stdout || "{}");
+        } catch (_error) {
+          // The response is validated below.
+        }
+        if (
+          (response.code ?? 0) !== 0 ||
+          !profile.id ||
+          !profile.auth_token ||
+          !profile.private_key
+        ) {
+          showError();
+          return;
+        }
+        setModalOptionValue(map, warpProfileIdOption, profile.id);
+        setModalOptionValue(map, warpAuthTokenOption, profile.auth_token);
+        setModalOptionValue(map, warpPrivateKeyOption, profile.private_key);
+      })
+      .catch(showError);
+  };
+
+  const warpJunkOption = itemSection.option(
+    form.Flag,
+    "warp_junk_enabled",
+    _("Junk packet obfuscation"),
+    _(
+      "Optional Jc, Jmin, Jmax, and I1-I5 junk-packet settings. They do not change the Cloudflare handshake.",
+    ),
+  );
+  warpJunkOption.default = "0";
+  warpJunkOption.rmempty = false;
+  warpJunkOption.depends("tunnel_type", "warp");
+
+  AMNEZIA_INTEGER_FIELDS.forEach((key) => {
+    const option = itemSection.option(
+      form.Value,
+      `amnezia_${key}`,
+      key.toUpperCase(),
+    );
+    option.datatype = "uinteger";
+    option.rmempty = true;
+    option.depends("tunnel_type", "amneziawg");
+    if (WARP_JUNK_FIELDS.includes(key)) {
+      option.depends({ tunnel_type: "warp", warp_junk_enabled: "1" });
+    }
+    amneziaOptions[key] = option;
+  });
+  AMNEZIA_RANGE_FIELDS.forEach((key) => {
+    const option = itemSection.option(
+      form.Value,
+      `amnezia_${key}`,
+      key.toUpperCase(),
+    );
+    option.placeholder = "100 or 100-200";
+    option.rmempty = true;
+    option.depends("tunnel_type", "amneziawg");
+    option.validate = function (_itemId, value) {
+      return validateAmneziaRange(value);
+    };
+    amneziaOptions[key] = option;
+  });
+  AMNEZIA_STRING_FIELDS.forEach((key) => {
+    const option = itemSection.option(
+      form.Value,
+      `amnezia_${key}`,
+      key.toUpperCase(),
+    );
+    option.rmempty = true;
+    option.depends("tunnel_type", "amneziawg");
+    if (WARP_JUNK_FIELDS.includes(key)) {
+      option.depends({ tunnel_type: "warp", warp_junk_enabled: "1" });
+    }
+    amneziaOptions[key] = option;
+  });
+
+  return renderStackedJsonSettingsModal(
+    _("Tunnel settings"),
+    map,
+    (settings) => {
+      const validation = validateTunnelSettings(settings);
+      if (validation !== true) {
+        throw new TypeError(validation);
+      }
+      const value = JSON.stringify({
+        name: `${settings.name || ""}`.trim(),
+        kind: settings.tunnel_type,
+        endpoint: tunnelEndpointFromSettings(settings),
+      });
+      if (context.adding) {
+        addDynamicListItem(widget, value);
+        return;
+      }
+      setDynamicListItemValue(itemNode, value);
+      updateDynamicListItemLabel(itemNode, tunnelDisplayName(value));
+      if (widget && widget.node) {
+        widget.dispatchCbiDynlistChange(widget.node, value);
+      }
+    },
+  );
+}
+
+function validateTunnelItemsBeforeSave(_section_id, values) {
+  for (const value of normalizeDynamicListItems(values)) {
+    const wrapper = parseTunnelJson(value);
+    if (!wrapper) {
+      return _("Open tunnel settings and complete the configuration");
+    }
+    const validation = validateTunnelSettings(tunnelInitialSettings(value));
+    if (validation !== true) {
+      return `${tunnelDisplayName(value) || _("Tunnel")}: ${validation}`;
+    }
+  }
   return true;
 }
 
@@ -6866,7 +7807,7 @@ function createSectionContent(section) {
     "selector_proxy_links",
     _("Connection URL"),
     _(
-      "vless://, vmess://, ss://, trojan://, socks4/5://, hy2/hysteria2:// links",
+      "Native sing-box links: vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, and hy2://",
     ),
   );
   o.depends("action", "connection");
@@ -6973,6 +7914,35 @@ function createSectionContent(section) {
   };
   o.onListChange = refreshDashboardFilterChoiceWidgets;
   outboundNameSourceOptions.set("interfaces", o);
+
+  o = section.taboption(
+    "settings",
+    ButtonAddSettingsDynamicList,
+    "tunnel_jsons",
+    _("Tunnels"),
+    _("Native WireGuard, AmneziaWG 2.0, and Cloudflare WARP endpoints"),
+  );
+  o.depends("action", "connection");
+  o.rmempty = true;
+  o.modalonly = true;
+  o.addButtonLabel = _("+ Add tunnel");
+  o.renderItemSettingsModal = showTunnelSettingsModal;
+  o.renderListItemLabel = function (_section_id, value) {
+    return tunnelListItemLabel(value);
+  };
+  o.validateItemsOnSave = validateTunnelItemsBeforeSave;
+  o.validate = function (_section_id, value) {
+    if (!`${value || ""}`.trim()) {
+      return true;
+    }
+    const wrapper = parseTunnelJson(value);
+    if (!wrapper) {
+      return _("Open tunnel settings and complete the configuration");
+    }
+    return validateTunnelSettings(tunnelInitialSettings(value));
+  };
+  o.onListChange = refreshDashboardFilterChoiceWidgets;
+  outboundNameSourceOptions.set("tunnel_jsons", o);
 
   o = section.taboption(
     "settings",

@@ -3,8 +3,7 @@ import { ClashAPI, Forkop } from '../../types';
 import { executeShellCommand } from '../../../helpers';
 import { isTransientRpcError } from '../../helpers/isTransientRpcError';
 
-const SUBSCRIPTION_UPDATE_RPC_TIMEOUT_MS = 15000;
-const SUBSCRIPTION_UPDATE_POLL_INTERVAL_MS = 1500;
+const SUBSCRIPTION_UPDATE_RPC_TIMEOUT_MS = 60000;
 const UI_ACTION_RPC_TIMEOUT_MS = 15000;
 const UI_ACTION_TRANSIENT_RPC_GRACE_MS = 30000;
 const SERVICE_ACTION_TIMEOUT_MS = 2 * 60 * 1000;
@@ -69,22 +68,6 @@ function parseComponentActionStartResult(
   }
 
   return parsedResponse as unknown as Forkop.ComponentActionStartResult;
-}
-
-function parseSubscriptionUpdateStartResult(
-  response: Awaited<ReturnType<typeof executeShellCommand>>,
-) {
-  return parseJsonObjectOutput<Forkop.SubscriptionUpdateStartResult>(
-    response.stdout,
-  );
-}
-
-function parseSubscriptionUpdateJobState(
-  response: Awaited<ReturnType<typeof executeShellCommand>>,
-) {
-  return parseJsonObjectOutput<Forkop.SubscriptionUpdateJobState>(
-    response.stdout,
-  );
 }
 
 function parseUiActionStartResult(
@@ -235,16 +218,6 @@ export const ForkopShellMethods = {
     ),
   getStatus: async () =>
     callBaseMethod<Forkop.GetStatus>(Forkop.AvailableMethods.GET_STATUS),
-  getOutboundMetadata: async (section: string) =>
-    callBaseMethod<Forkop.GetOutboundMetadata>(
-      Forkop.AvailableMethods.GET_OUTBOUND_METADATA,
-      [section],
-    ),
-  getSubscriptionMetadata: async (section: string) =>
-    callBaseMethod<Forkop.SubscriptionMetadata | Forkop.SubscriptionMetadata[]>(
-      Forkop.AvailableMethods.GET_SUBSCRIPTION_METADATA,
-      [section],
-    ),
   getDashboardSectionCache: async (section: string) =>
     callBaseMethod<Record<string, unknown>>(
       Forkop.AvailableMethods.GET_DASHBOARD_SECTION_CACHE,
@@ -278,6 +251,15 @@ export const ForkopShellMethods = {
     callBaseMethod<ClashAPI.Proxies>(Forkop.AvailableMethods.CLASH_API, [
       Forkop.AvailableClashAPIMethods.GET_PROXIES,
     ]),
+  getClashApiProxyProviders: async () =>
+    callBaseMethod<ClashAPI.ProxyProviders>(Forkop.AvailableMethods.CLASH_API, [
+      Forkop.AvailableClashAPIMethods.GET_PROXY_PROVIDERS,
+    ]),
+  getClashApiProxyLink: async (tag: string) =>
+    callBaseMethod<Forkop.GetClashApiProxyLink>(
+      Forkop.AvailableMethods.CLASH_API,
+      [Forkop.AvailableClashAPIMethods.GET_PROXY_LINK, tag],
+    ),
   getClashApiConnections: async () =>
     callBaseMethod<unknown>(Forkop.AvailableMethods.CLASH_API, [
       Forkop.AvailableClashAPIMethods.GET_CONNECTIONS,
@@ -343,10 +325,6 @@ export const ForkopShellMethods = {
   getSystemInfo: async () =>
     callBaseMethod<Forkop.GetSystemInfo>(
       Forkop.AvailableMethods.GET_SYSTEM_INFO,
-    ),
-  getServerCapabilities: async () =>
-    callBaseMethod<Forkop.GetServerCapabilities>(
-      Forkop.AvailableMethods.GET_SERVER_CAPABILITIES,
     ),
   getUiCapabilities: async () =>
     callBaseMethod<Forkop.GetUiCapabilities>(
@@ -516,7 +494,7 @@ export const ForkopShellMethods = {
     } as Forkop.MethodFailureResponse;
   },
   uiActionAck: async (
-    kind: 'service' | 'latency' | 'component' | 'subscription',
+    kind: 'service' | 'latency' | 'component',
     jobId: string,
   ) => {
     const response = await executeShellCommand({
@@ -689,47 +667,19 @@ export const ForkopShellMethods = {
       } as Forkop.MethodSuccessResponse<Forkop.ComponentActionResult>;
     }
   },
-  subscriptionUpdateStart: async (section?: string, sourceIndex?: number) => {
-    const startArgs = [
-      Forkop.AvailableMethods.SUBSCRIPTION_UPDATE_ASYNC,
+  subscriptionUpdate: async (section?: string, sourceIndex?: number) => {
+    const args = [
+      Forkop.AvailableMethods.SUBSCRIPTION_UPDATE,
       ...(section ? [section] : []),
       ...(section && sourceIndex !== undefined ? [String(sourceIndex)] : []),
     ];
     const response = await executeShellCommand({
       command: '/usr/bin/forkop',
-      args: startArgs,
+      args,
       timeout: SUBSCRIPTION_UPDATE_RPC_TIMEOUT_MS,
     });
-    const parsedResponse = parseSubscriptionUpdateStartResult(response);
 
-    if (
-      (response.code ?? 0) !== 0 ||
-      !parsedResponse?.success ||
-      !parsedResponse.job_id
-    ) {
-      return {
-        success: false,
-        error:
-          parsedResponse?.message ||
-          response.stderr ||
-          _('Subscription update failed'),
-      } as Forkop.MethodFailureResponse;
-    }
-
-    return {
-      success: true,
-      data: parsedResponse,
-    } as Forkop.MethodSuccessResponse<Forkop.SubscriptionUpdateStartResult>;
-  },
-  subscriptionUpdateStatus: async (jobId: string) => {
-    const response = await executeShellCommand({
-      command: '/usr/bin/forkop',
-      args: [Forkop.AvailableMethods.SUBSCRIPTION_UPDATE_STATUS, jobId],
-      timeout: SUBSCRIPTION_UPDATE_RPC_TIMEOUT_MS,
-    });
-    const parsedResponse = parseSubscriptionUpdateJobState(response);
-
-    if ((response.code ?? 0) !== 0 || !parsedResponse) {
+    if ((response.code ?? 0) !== 0) {
       return {
         success: false,
         error: response.stderr || _('Subscription update failed'),
@@ -738,33 +688,7 @@ export const ForkopShellMethods = {
 
     return {
       success: true,
-      data: parsedResponse,
-    } as Forkop.MethodSuccessResponse<Forkop.SubscriptionUpdateJobState>;
-  },
-  waitSubscriptionUpdateJob: async (jobId: string) => {
-    const transientRpc = createTransientRpcGraceTracker(
-      UI_ACTION_TRANSIENT_RPC_GRACE_MS,
-    );
-
-    while (true) {
-      await sleep(SUBSCRIPTION_UPDATE_POLL_INTERVAL_MS);
-
-      const response = await ForkopShellMethods.subscriptionUpdateStatus(jobId);
-
-      if (!response.success) {
-        if (transientRpc.shouldContinue(response.error)) {
-          continue;
-        }
-
-        return response;
-      }
-
-      transientRpc.reset();
-      if (response.data.running) {
-        continue;
-      }
-
-      return response;
-    }
+      data: true,
+    } as Forkop.MethodSuccessResponse<true>;
   },
 };

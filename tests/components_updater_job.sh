@@ -80,6 +80,119 @@ grep -Fq 'component-action-status' "$UPDATES_UC" ||
   fail "components/updates.uc must own component action status"
 grep -Fq 'components/action.uc' "$UPDATES_UC" ||
   fail "component action worker must execute components/action.uc directly"
+grep -Fq 'core/packages.uc", "version", package_name' "$ACTION_UC" ||
+  fail "sing-box-forkop updates must validate the package-owned canonical version"
+grep -Fq '[ SING_BOX_FORKOP_VERSION_FILE, "version" ]' "$ACTION_UC" ||
+  fail "sing-box-forkop rollback must include the package-owned canonical version"
+grep -Fq 'backups[item[1]] = { existed, path: "" }' "$ACTION_UC" ||
+  fail "sing-box-forkop rollback must remember files that did not exist before the update"
+grep -Fq 'else if (!existed && file_exists(item[0]))' "$ACTION_UC" ||
+  fail "sing-box-forkop rollback must remove files introduced by a failed update"
+grep -Fq 'backup_sing_box_files(current_version)' "$ACTION_UC" ||
+  fail "markerless sing-box-forkop installs must preserve their current version during rollback"
+grep -Fq 'The service is' "$ACTION_UC" ||
+  fail "the markerless binary version fallback must document that the core is already stopped"
+grep -Fq '[ "pgrep", "-x", "sing-box" ]' "$ACTION_UC" ||
+  fail "the markerless version fallback must not overlap a running sing-box core"
+grep -Fq '[ "pgrep", "-f", "^/usr/bin/sing-box[[:space:]]" ]' "$ACTION_UC" ||
+  fail "the markerless version fallback must work with BusyBox pgrep"
+grep -Fq '[ "apk", "add", "--allow-untrusted" ]' "$ACTION_UC" ||
+  fail "APK package files must use options supported by OpenWrt APKv3"
+if grep -Fq '[ "apk", "add", "--allow-untrusted", "--force-reinstall"' "$ACTION_UC" ||
+   grep -Fq '[ "apk", "add", "--allow-untrusted", "--allow-downgrades"' "$ACTION_UC"; then
+  fail "OpenWrt APKv3 does not support legacy force-reinstall or allow-downgrades flags"
+fi
+grep -Fq '[ "opkg", "install", "--force-reinstall", "--force-overwrite", "--force-downgrade" ]' "$ACTION_UC" ||
+  fail "opkg component retries must reinstall a version already recorded in the package database"
+awk '
+/^function prepare_sing_box_package_rollback\(/ { capture = 1 }
+/^function sing_box_package_state_matches\(/ { capture = 0 }
+capture { print }
+' "$ACTION_UC" >"$WORK_DIR/sing-box-package-rollback-prepare.uc"
+grep -Fq 'download_with_retry(release.asset_url, rollback.package_file, release.asset_name)' \
+  "$WORK_DIR/sing-box-package-rollback-prepare.uc" ||
+  fail "sing-box package rollback asset must be cached before package-manager mutation"
+grep -Fq 'rollback.legacy_package = package_name' "$WORK_DIR/sing-box-package-rollback-prepare.uc" ||
+  fail "a failed first transition must not claim that a removed legacy package was restored"
+grep -Fq 'resolve_sing_box_forkop_release(installed_package, "v" + rollback_version)' \
+  "$WORK_DIR/sing-box-package-rollback-prepare.uc" ||
+  fail "sing-box rollback must resolve the actual v-prefixed GitHub release tag"
+rollback_prepare_line="$(grep -n 'let rollback = prepare_sing_box_package_rollback' "$ACTION_UC" | cut -d: -f1)"
+package_install_line="$(grep -n 'if (!run_logged("Installing " + release.asset_name' "$ACTION_UC" | cut -d: -f1)"
+[ -n "$rollback_prepare_line" ] && [ -n "$package_install_line" ] && \
+  [ "$rollback_prepare_line" -lt "$package_install_line" ] ||
+  fail "sing-box rollback package must be cached before installing the replacement"
+awk '
+/^function restore_sing_box_package\(/ { capture = 1 }
+/^function cleanup_sing_box_package_rollback\(/ { capture = 0 }
+capture { print }
+' "$ACTION_UC" >"$WORK_DIR/sing-box-package-rollback-restore.uc"
+grep -Fq 'pkg_install_files_command([ package_file ])' "$WORK_DIR/sing-box-package-rollback-restore.uc" ||
+  fail "sing-box rollback must restore package-manager ownership through the previous package"
+grep -Fq 'run_logged_pkg_remove_sing_box_conflict(package_name' "$WORK_DIR/sing-box-package-rollback-restore.uc" ||
+  fail "sing-box rollback must remove a partial target before reinstalling the cached package"
+if grep -Fq 'if (sing_box_package_state_matches(package_name, rollback))' \
+  "$WORK_DIR/sing-box-package-rollback-restore.uc"; then
+  fail "sing-box rollback must reinstall the cached package even when a partial failure left stale package metadata"
+fi
+if grep -Fq 'download_with_retry' "$WORK_DIR/sing-box-package-rollback-restore.uc"; then
+  fail "sing-box rollback must not depend on network access after package-manager mutation"
+fi
+cat >"$WORK_DIR/sing-box-package-rollback-behavior.uc" <<'UCODE'
+let installed = {};
+let installs = 0;
+let removals = [];
+let restore_name = "";
+function as_string(value) { return value == null ? "" : "" + value; }
+function pkg_is_installed(name) { return installed[name] === true; }
+function run_logged_pkg_remove_sing_box_conflict(name, description) {
+    push(removals, name);
+    installed[name] = false;
+    return true;
+}
+function file_nonempty(path) { return as_string(path) != ""; }
+function pkg_install_files_command(files) { return files[0]; }
+function run_logged(description, command) {
+    installs++;
+    installed[restore_name] = true;
+    return true;
+}
+function sing_box_package_state_matches(package_name, rollback) {
+    return installed[rollback.package_name] === true &&
+        (package_name == rollback.package_name || installed[package_name] !== true);
+}
+UCODE
+cat "$WORK_DIR/sing-box-package-rollback-restore.uc" >>"$WORK_DIR/sing-box-package-rollback-behavior.uc"
+cat >>"$WORK_DIR/sing-box-package-rollback-behavior.uc" <<'UCODE'
+restore_name = "sing-box-forkop";
+installed = { "sing-box-forkop": true };
+if (!restore_sing_box_package("sing-box-forkop", { package_name: restore_name, package_file: "/cached.ipk" }) ||
+        installs != 1 || length(removals) != 1)
+    exit(1);
+
+installs = 0;
+removals = [];
+installed = { "sing-box-forkop-compressed": true };
+if (!restore_sing_box_package("sing-box-forkop-compressed", { package_name: restore_name, package_file: "/cached.ipk" }) ||
+        installs != 1 || installed["sing-box-forkop"] !== true || installed["sing-box-forkop-compressed"] === true)
+    exit(2);
+
+installs = 0;
+removals = [];
+installed = { "sing-box-forkop": true };
+if (!restore_sing_box_package("sing-box-forkop", { package_name: "", package_file: "", legacy_package: "" }) ||
+        installs != 0 || installed["sing-box-forkop"] === true)
+    exit(3);
+
+installed = {};
+if (restore_sing_box_package("sing-box-forkop", { package_name: "", package_file: "", legacy_package: "sing-box-extended" }))
+    exit(4);
+UCODE
+ucode "$WORK_DIR/sing-box-package-rollback-behavior.uc" ||
+  fail "sing-box package rollback behavior mismatch"
+cleanup_rollback_calls="$(grep -c 'cleanup_sing_box_package_rollback(rollback)' "$ACTION_UC")"
+[ "$cleanup_rollback_calls" -ge 3 ] ||
+  fail "cached sing-box rollback packages must be cleaned after the transaction"
 if grep -n -E 'function (configure_sing_box_service|rebuild_sing_box_config|save_sing_box_config_file|service_listen_address|managed_sing_box_service_text)' "$UPDATES_UC" >/dev/null 2>&1; then
   fail "components/updates.uc must not duplicate singbox/runtime.uc service/config ownership"
 fi
@@ -101,8 +214,9 @@ grep -Fq 'sing_box_forkop_installed_package()' "$ACTION_UC" ||
   fail "sing-box updater must detect the installed Forkop package flavor"
 grep -Fq 'FORKOP_SING_BOX_INSTALL_FLAVOR' "$ACTION_UC" ||
   fail "installer-selected Forkop package flavor must reach the component backend"
-grep -Fq 'package_name == "sing-box-forkop" ? "sing-box-forkop-compressed" : "sing-box-forkop"' "$ACTION_UC" ||
-  fail "sing-box updater must remove only the opposite Forkop flavor"
+if grep -Fq 'package_name == "sing-box-forkop" ? "sing-box-forkop-compressed" : "sing-box-forkop"' "$ACTION_UC"; then
+  fail "normal/compressed replacement must be owned by package Conflicts/Replaces"
+fi
 if grep -n -E 'install_(stable|tiny|extended)|resolve_sing_box_extended|install_package_sing_box' "$ACTION_UC" >/dev/null; then
   fail "component backend must not retain legacy sing-box variant actions"
 fi
@@ -214,6 +328,9 @@ assert_eq "-1" "$(ucode "$UPDATER" forkop-release-version-compare 1.2.3 1.2.4)" 
 assert_eq "1.13.14-extended-2.5.0" \
   "$(printf 'sing-box version 1.13.14-extended-2.5.0\n\nEnvironment: go1.26.4 linux/amd64\n' | ucode "$UPDATER" stdin-first-line-last-field)" \
   "sing-box extended binary version parsing"
+assert_eq "1.13.14-extended-2.5.2-forkop.2" \
+  "$(ucode "$UPDATER" updates-normalize-sing-box-version 1.13.14~extended~2.5.2~forkop.2)" \
+  "OpenWrt package version normalization"
 
 component_actions_dir="$WORK_DIR/component-actions"
 fake_lib="$WORK_DIR/lib"

@@ -427,68 +427,6 @@ function valid_cidr(value) {
     return false;
 }
 
-function server_users_from_tsv(protocol, path) {
-    let result = [];
-    let data = fs.readfile(path);
-
-    if (data != null) {
-        for (let line in split(as_string(data), "\n")) {
-            if (line == "")
-                continue;
-
-            let parts = split(line, "\t");
-            let name = as_string(parts[0] || "");
-            let credential = as_string(parts[1] || "");
-            let flow = as_string(parts[2] || "");
-
-            if (credential == "")
-                continue;
-
-            if (protocol == "vless") {
-                let user = { uuid: credential };
-                if (name != "")
-                    user.name = name;
-                if (flow != "")
-                    user.flow = flow;
-                push(result, user);
-            }
-            else if (protocol == "vmess") {
-                let user = { uuid: credential, alterId: int(flow || "0", 10) || 0 };
-                if (name != "")
-                    user.name = name;
-                push(result, user);
-            }
-            else if (protocol == "trojan") {
-                let user = { password: credential };
-                if (name != "")
-                    user.name = name;
-                push(result, user);
-            }
-            else if (protocol == "hysteria2") {
-                let user = { password: credential };
-                if (name != "")
-                    user.name = name;
-                push(result, user);
-            }
-            else if (protocol == "mtproto") {
-                let user = { secret: credential };
-                if (name != "")
-                    user.name = name;
-                push(result, user);
-            }
-            else if (protocol == "socks") {
-                let user = {
-                    username: name != "" ? name : "user",
-                    password: credential
-                };
-                push(result, user);
-            }
-        }
-    }
-
-    write_json(result);
-}
-
 function json_length(path) {
     let value = read_json_file(path);
     if (type(value) == "array" || type(value) == "object")
@@ -603,29 +541,35 @@ function valid_sha256_hex(value) {
     return regex_matches(value, "^[0-9a-f]{64}$");
 }
 
-function command_first_nonempty_line(command) {
-    for (let line in split(output(command), "\n"))
-        if (trim(as_string(line)) != "")
-            return line;
-    return "";
+function random_hex_bytes(bytes) {
+    bytes = int(bytes || 0);
+    if (bytes <= 0)
+        return "";
+    return replace(output("head -c " + bytes + " /dev/urandom | hexdump -ve '1/1 \"%02x\"' 2>/dev/null"), /[\r\n]+/g, "");
+}
+
+function random_base64_bytes(bytes) {
+    bytes = int(bytes || 0);
+    if (bytes <= 0)
+        return "";
+    return replace(output("head -c " + bytes + " /dev/urandom | base64 2>/dev/null"), /[[:space:]]/g, "");
 }
 
 function server_generate_uuid() {
-    return command_first_nonempty_line("sing-box generate uuid 2>/dev/null");
+    let value = as_string(fs.readfile("/proc/sys/kernel/random/uuid") || "");
+    return trim(value);
 }
 
 function server_generate_password() {
-    return replace(output("sing-box generate rand --base64 18 2>/dev/null"), /\n/g, "");
+    return random_base64_bytes(18);
 }
 
 function server_generate_short_id() {
-    return replace(output("sing-box generate rand --hex 4 2>/dev/null"), /\n/g, "");
+    return random_hex_bytes(4);
 }
 
 function server_generate_mtproto_secret() {
-    let random_hex = replace(output("sing-box generate rand --hex 16 2>/dev/null"), /\n/g, "");
-    if (random_hex == "")
-        random_hex = replace(output("head -c 16 /dev/urandom | hexdump -ve '1/1 \"%02x\"' 2>/dev/null"), /\n/g, "");
+    let random_hex = random_hex_bytes(16);
     if (random_hex == "00000000000000000000000000000000")
         random_hex = "11111111111111111111111111111111";
     return random_hex;
@@ -635,7 +579,8 @@ function default_security_value(protocol) {
     protocol = as_string(protocol);
     if (protocol == "vless")
         return "reality";
-    if (protocol == "trojan" || protocol == "hysteria2")
+    if (protocol == "trojan" || protocol == "hysteria2" || protocol == "naive" ||
+        protocol == "anytls" || protocol == "tuic")
         return "tls";
     return "none";
 }
@@ -646,9 +591,10 @@ function server_effective_security_value(section, protocol) {
     if (security == "")
         security = default_security_value(protocol);
 
-    if (protocol == "shadowsocks" || protocol == "socks" || protocol == "mtproto" || protocol == "tailscale" || protocol == "json_inbound")
+    if (protocol == "shadowsocks" || protocol == "socks" || protocol == "ssh" || protocol == "mieru" ||
+        protocol == "mtproto" || protocol == "tailscale" || protocol == "json_inbound")
         security = "none";
-    else if (protocol == "hysteria2")
+    else if (protocol == "hysteria2" || protocol == "naive" || protocol == "anytls" || protocol == "tuic")
         security = "tls";
     else if ((protocol == "vmess" || protocol == "trojan") && security == "reality")
         security = default_security_value(protocol);
@@ -809,44 +755,6 @@ function server_detect_default_public_host() {
     return valid_dotted_ipv4(lan_ip) ? lan_ip : "";
 }
 
-function first_server_user(section) {
-    let users = words(uci_get(config_path(section, "server_users")));
-    return length(users) > 0 ? users[0] : "";
-}
-
-function server_prepare_legacy_user_defaults(section, protocol) {
-    let entry = first_server_user(section);
-    if (entry == "")
-        return;
-
-    let parts = split(entry, "|");
-    let name = "client";
-    let credential = entry;
-    let extra = "";
-    if (length(parts) > 1) {
-        name = as_string(parts[0]);
-        credential = as_string(parts[1]);
-        extra = as_string(parts[2] || "");
-    }
-
-    if (protocol == "vless" || protocol == "vmess")
-        server_default_set_option(section, "server_uuid", credential);
-    else if (protocol == "shadowsocks" || protocol == "socks" || protocol == "trojan" || protocol == "hysteria2")
-        server_default_set_option(section, "server_password", credential);
-    else if (protocol == "mtproto") {
-        let mtproto_faketls = mtproto_faketls_value(credential);
-        let base_secret = mtproto_base_secret_value(credential);
-        server_default_set_option(section, "mtproto_secret", base_secret != "" ? base_secret : credential);
-        server_default_set_option(section, "mtproto_faketls", mtproto_faketls != "" ? mtproto_faketls : "google.com");
-        server_default_set_option(section, "mtproto_padding", "1");
-    }
-
-    if (protocol == "socks" && name != "")
-        server_default_set_option(section, "server_username", name);
-    if (protocol == "vless" && extra != "")
-        server_default_set_option(section, "vless_flow", extra);
-}
-
 function server_prepare_tls_defaults(section, protocol, security) {
     if (security != "tls")
         return;
@@ -895,11 +803,51 @@ function safe_filename_string(value) {
     return join("", result);
 }
 
+function server_prepare_ssh_host_key(section) {
+    let key_paths = words(config_get(section, "ssh_host_key_path", ""));
+    if (length(key_paths) == 0) {
+        key_paths = [ "/etc/forkop/server-ssh/" + safe_filename_string(section) + ".key" ];
+        server_set_option(section, "ssh_host_key_path", key_paths[0]);
+    }
+
+    for (let key_path in key_paths) {
+        if (!valid_file_path(key_path))
+            fatal("Server '" + section + "' has invalid SSH host key path. Specify a file path. Aborted.");
+        if (config_get(section, "enabled", "1") == "0" || run("[ -s " + shell_quote(key_path) + " ]"))
+            continue;
+
+        let key_dir = replace(key_path, /\/[^\/]*$/, "");
+        if (key_dir == "")
+            key_dir = "/";
+        if (!run("mkdir -p " + shell_quote(key_dir)))
+            fatal("Failed to create SSH host key directory for server '" + section + "'. Aborted.");
+
+        let temp_dir = output("mktemp -d " + shell_quote(key_dir + "/.forkop-ssh.XXXXXX") + " 2>/dev/null");
+        if (temp_dir == "")
+            fatal("Failed to create temporary SSH host key directory for server '" + section + "'. Aborted.");
+
+        let dropbear_key = temp_dir + "/dropbear";
+        let openssh_key = temp_dir + "/openssh";
+        let generated =
+            run("dropbearkey -t ed25519 -f " + shell_quote(dropbear_key) + " >/dev/null 2>&1") &&
+            run("dropbearconvert dropbear openssh " + shell_quote(dropbear_key) + " " + shell_quote(openssh_key) + " >/dev/null 2>&1") &&
+            run("chmod 600 " + shell_quote(openssh_key) + " >/dev/null 2>&1") &&
+            run("mv -f " + shell_quote(openssh_key) + " " + shell_quote(key_path));
+
+        fs.unlink(dropbear_key);
+        fs.unlink(openssh_key);
+        run("rmdir " + shell_quote(temp_dir) + " >/dev/null 2>&1");
+        if (!generated)
+            fatal("Failed to generate persistent SSH host key for server '" + section + "'. Aborted.");
+    }
+}
+
 function prepare_server_defaults(section) {
     let protocol = config_get(section, "protocol", "vless");
     if (!(protocol == "shadowsocks" || protocol == "socks" || protocol == "vmess" || protocol == "vless" ||
         protocol == "trojan" || protocol == "hysteria2" || protocol == "mtproto" || protocol == "tailscale" ||
-        protocol == "json_inbound"))
+        protocol == "json_inbound" || protocol == "naive" || protocol == "ssh" || protocol == "mieru" ||
+        protocol == "anytls" || protocol == "tuic"))
         fatal("Server '" + section + "' has unsupported protocol '" + protocol + "'. Aborted.");
 
     server_default_set_option(section, "protocol", protocol);
@@ -918,15 +866,15 @@ function prepare_server_defaults(section) {
 
     let security = server_effective_security_value(section, protocol);
     server_set_option(section, "security", security);
-    server_prepare_legacy_user_defaults(section, protocol);
 
-    if (protocol == "vless" || protocol == "vmess") {
+    if (protocol == "vless" || protocol == "vmess" || protocol == "tuic") {
         if (uci_get(config_path(section, "server_uuid")) == "") {
             let uuid = server_generate_uuid();
             server_default_set_option(section, "server_uuid", uuid);
         }
     }
-    else if (protocol == "shadowsocks" || protocol == "socks" || protocol == "trojan" || protocol == "hysteria2") {
+    if (protocol == "shadowsocks" || protocol == "socks" || protocol == "trojan" || protocol == "hysteria2" ||
+        protocol == "naive" || protocol == "ssh" || protocol == "mieru" || protocol == "anytls" || protocol == "tuic") {
         if (uci_get(config_path(section, "server_password")) == "") {
             let password = server_generate_password();
             server_default_set_option(section, "server_password", password);
@@ -946,7 +894,6 @@ function prepare_server_defaults(section) {
         if (mtproto_secret != mtproto_base_secret)
             server_set_option(section, "mtproto_secret", mtproto_base_secret);
         server_default_set_option(section, "mtproto_faketls", mtproto_faketls != "" ? mtproto_faketls : "google.com");
-        server_default_set_option(section, "mtproto_padding", "1");
         server_default_set_option(section, "mtproto_domain_fronting_port", "443");
         server_default_set_option(section, "mtproto_prefer_ip", "prefer-ipv4");
         server_default_set_option(section, "mtproto_tolerate_time_skewness", "3s");
@@ -954,8 +901,9 @@ function prepare_server_defaults(section) {
         server_default_set_option(section, "mtproto_handshake_timeout", "10s");
     }
 
-    if (protocol == "socks") {
-        server_default_set_option(section, "socks_auth_enabled", "1");
+    if (protocol == "socks" || protocol == "naive" || protocol == "ssh" || protocol == "mieru") {
+        if (protocol == "socks")
+            server_default_set_option(section, "socks_auth_enabled", "1");
         if (uci_get(config_path(section, "server_username")) == "")
             server_default_set_option(section, "server_username", config_get(section, "label", section));
     }
@@ -965,6 +913,19 @@ function prepare_server_defaults(section) {
         server_default_set_option(section, "vmess_alter_id", "0");
     if (protocol == "shadowsocks")
         server_default_set_option(section, "shadowsocks_method", "aes-128-gcm");
+    if (protocol == "naive") {
+        server_default_set_option(section, "naive_network", "tcp");
+        server_default_set_option(section, "naive_quic_congestion_control", "bbr");
+    }
+    if (protocol == "ssh")
+        server_prepare_ssh_host_key(section);
+    if (protocol == "mieru")
+        server_default_set_option(section, "mieru_transport", "TCP");
+    if (protocol == "tuic") {
+        server_default_set_option(section, "tuic_congestion_control", "cubic");
+        server_default_set_option(section, "tuic_auth_timeout", "3s");
+        server_default_set_option(section, "tuic_heartbeat", "10s");
+    }
     if (protocol == "tailscale") {
         let safe_name = safe_filename_string(section);
         server_default_set_option(section, "tailscale_control_url", "https://controlplane.tailscale.com");
@@ -1056,8 +1017,6 @@ else if (mode == "valid-public-ipv4")
     exit(valid_public_ipv4(ARGV[1]) ? 0 : 1);
 else if (mode == "valid-cidr")
     exit(valid_cidr(ARGV[1]) ? 0 : 1);
-else if (mode == "server-users-from-tsv")
-    server_users_from_tsv(ARGV[1], ARGV[2]);
 else if (mode == "json-length")
     json_length(ARGV[1]);
 else if (mode == "array-append-string")

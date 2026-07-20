@@ -2,6 +2,8 @@
 
 let fs = require("fs");
 
+const SING_BOX_FORKOP_VERSION_FILE = getenv("SING_BOX_FORKOP_VERSION_FILE") || "/usr/share/sing-box-forkop/version";
+
 function as_string(value) {
     return value == null ? "" : "" + value;
 }
@@ -174,7 +176,26 @@ function opkg_version(package_name) {
     return "";
 }
 
+function sing_box_forkop_version(package_name) {
+    package_name = as_string(package_name);
+    if (package_name != "sing-box-forkop" && package_name != "sing-box-forkop-compressed")
+        return null;
+    if (!installed(package_name))
+        return null;
+
+    let data = fs.readfile(SING_BOX_FORKOP_VERSION_FILE);
+    if (data == null)
+        return null;
+
+    let value = trim(as_string(data));
+    return match(value, /^[0-9][0-9A-Za-z._+~-]*-forkop[.][0-9]+$/) != null ? value : "";
+}
+
 function version(package_name) {
+    let canonical = sing_box_forkop_version(package_name);
+    if (canonical != null)
+        return canonical;
+
     let value = apk_version(package_name);
     return value != "" ? value : opkg_version(package_name);
 }

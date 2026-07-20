@@ -1,46 +1,30 @@
 import { ValidationResult } from './types';
-import { validateShadowsocksUrl } from './validateShadowsocksUrl';
-import { validateVlessUrl } from './validateVlessUrl';
-import { validateVmessUrl } from './validateVmessUrl';
-import { validateTrojanUrl } from './validateTrojanUrl';
-import { validateSocksUrl } from './validateSocksUrl';
-import { validateHysteria2Url } from './validateHysteriaUrl';
 
-// TODO refactor current validation and add tests
+const NATIVE_PROXY_SCHEMES = new Set([
+  'hysteria',
+  'hysteria2',
+  'hy2',
+  'socks',
+  'socks4',
+  'socks4a',
+  'socks5',
+  'ss',
+  'trojan',
+  'tuic',
+  'vless',
+  'vmess',
+]);
+
 export function validateProxyUrl(url: string): ValidationResult {
   const trimmedUrl = url.trim();
-
-  if (trimmedUrl.startsWith('ss://')) {
-    return validateShadowsocksUrl(trimmedUrl);
-  }
-
-  if (trimmedUrl.startsWith('vless://')) {
-    return validateVlessUrl(trimmedUrl);
-  }
-
-  if (trimmedUrl.startsWith('vmess://')) {
-    return validateVmessUrl(trimmedUrl);
-  }
-
-  if (trimmedUrl.startsWith('trojan://')) {
-    return validateTrojanUrl(trimmedUrl);
-  }
-
-  if (/^socks(4|4a|5):\/\//.test(trimmedUrl)) {
-    return validateSocksUrl(trimmedUrl);
-  }
-
-  if (
-    trimmedUrl.startsWith('hysteria2://') ||
-    trimmedUrl.startsWith('hy2://')
-  ) {
-    return validateHysteria2Url(trimmedUrl);
-  }
+  const match = /^([a-z0-9]+):\/\/(\S+)$/u.exec(trimmedUrl);
+  if (match && NATIVE_PROXY_SCHEMES.has(match[1]))
+    return { valid: true, message: _('Valid') };
 
   return {
     valid: false,
     message: _(
-      'URL must start with vless://, vmess://, ss://, trojan://, socks4://, socks4a://, socks5://, hysteria2://, or hy2://',
+      'Use a native sing-box link: vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, or hy2://',
     ),
   };
 }

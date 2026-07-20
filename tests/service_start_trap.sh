@@ -10,10 +10,9 @@ INITD_UC="$ROOT_DIR/forkop/files/usr/lib/service/initd.uc"
 STATE_UC="$ROOT_DIR/forkop/files/usr/lib/service/state.uc"
 UI_UC="$ROOT_DIR/forkop/files/usr/lib/service/ui.uc"
 UPDATES_UC="$ROOT_DIR/forkop/files/usr/lib/components/updates.uc"
-SUBSCRIPTION_CACHE_UC="$ROOT_DIR/forkop/files/usr/lib/subscription/cache.uc"
 NFQUEUE_RUNTIME_UC="$ROOT_DIR/forkop/files/usr/lib/providers/nfqueue/runtime.uc"
 BYEDPI_RUNTIME_UC="$ROOT_DIR/forkop/files/usr/lib/providers/byedpi/runtime.uc"
-PRIORITY_UC="$ROOT_DIR/forkop/files/usr/lib/singbox/priority.uc"
+SINGBOX_WATCH_UC="$ROOT_DIR/forkop/files/usr/lib/service/singbox_watch.uc"
 
 fail() {
   printf 'FAIL: %s\n' "$1" >&2
@@ -54,22 +53,33 @@ reject_pattern "trap " \
   "forkop shell entrypoint must not own startup fail-safe traps"
 reject_pattern "clear_startup_failsafe_trap" \
   "forkop shell entrypoint must not keep old trap helper"
-require_pattern 'module_background(UPDATES_UC, [ "list-update" ])' \
-  "startup list_update background job must be owned by service/lifecycle.uc"
+require_pattern 'module_status(RULESET_SYNC_UC, [ "start-worker" ])' \
+  "startup native rule-set sync worker must be owned by service/lifecycle.uc"
+require_pattern 'module_success(RULESET_SYNC_UC, [ "stop-worker" ])' \
+  "shutdown native rule-set sync worker must be owned by service/lifecycle.uc"
+require_pattern 'module_status(SINGBOX_WATCH_UC, [ "start-worker" ])' \
+  "startup sing-box crash watcher must be owned by service/lifecycle.uc"
+require_pattern 'module_success(SINGBOX_WATCH_UC, [ "stop-worker" ])' \
+  "shutdown sing-box crash watcher must be owned by service/lifecycle.uc"
 require_pattern 'module_background(DIAGNOSTICS_UC, [ "get-system-info" ])' \
   "startup system-info background job must be owned by service/lifecycle.uc"
 require_pattern 'startup_config_fingerprint = external_config_fingerprint();' \
   "startup must snapshot runtime-relevant config after validation"
 require_pattern 'mark_pending_reload_if_config_changed(startup_config_fingerprint, "config_changed_during_start")' \
   "startup must queue reload when config changes while service is starting"
+require_pattern '[ "forkop-running", RT_TABLE_NAME, NFT_TABLE_NAME, NFT_FAKEIP_MARK ]' \
+  "startup must skip an already running Forkop runtime"
+require_pattern '[ "acquire-runtime-dir-lock-wait", START_LOCK_DIR, owner_pid(), as_string(START_LOCK_TIMEOUT) ]' \
+  "startup and restart must serialize through the native runtime lock"
+require_pattern '[ "release-runtime-dir-lock", START_LOCK_DIR, pid ]' \
+  "startup and restart must release the native runtime lock"
 awk '
-  /function restart_runtime_for_reload\(\)/ { in_restart = 1 }
+  /function restart_runtime_for_reload_locked\(\)/ { in_restart = 1 }
   in_restart && /status = start_impl\(\);/ { saw_start_impl = 1 }
   in_restart && /dnsmasq_configure\(true\)/ { duplicated_dns = 1 }
   in_restart && /write-current-reload-state-clean/ { duplicated_state = 1 }
-  in_restart && /DNS_FAILOVER_UC.*start-runtime/ { duplicated_failover = 1 }
   in_restart && /^}/ { done = 1; exit }
-  END { exit done && saw_start_impl && !duplicated_dns && !duplicated_state && !duplicated_failover ? 0 : 1 }
+  END { exit done && saw_start_impl && !duplicated_dns && !duplicated_state ? 0 : 1 }
 ' "$LIFECYCLE_UC" ||
   fail "reload fallback restart must reuse the complete start_impl path without duplicating finalization"
 require_pattern 'function abort_reload(status, runtime_changed)' \
@@ -99,25 +109,32 @@ require_file_pattern "$UI_UC" '>/dev/null 2>&1 1000>&- & echo $!' \
   "service/ui.uc service action workers must close inherited procd lock fd"
 require_file_pattern "$UPDATES_UC" '>/dev/null 2>&1 1000>&- & echo $!' \
   "components/updates.uc async workers must close inherited procd lock fd"
-require_file_pattern "$SUBSCRIPTION_CACHE_UC" '>/dev/null 2>&1 1000>&- & echo $!' \
-  "subscription/cache.uc retry worker must close inherited procd lock fd"
 require_file_pattern "$NFQUEUE_RUNTIME_UC" '>>" + shell_quote(logfile) + " 2>&1 1000>&- & echo $!' \
   "nfqueue provider supervisors must close inherited procd lock fd"
 require_file_pattern "$BYEDPI_RUNTIME_UC" '>>" + shell_quote(logfile) + " 2>&1 1000>&- & echo $!' \
   "byedpi supervisor must close inherited procd lock fd"
-require_file_pattern "$PRIORITY_UC" '>/dev/null 2>&1 1000>&- & echo $!' \
-  "priority worker must close inherited procd lock fd"
+require_file_pattern "$SINGBOX_WATCH_UC" 'respawn: [ "3600", "5", "0" ]' \
+  "sing-box crash watcher must be supervised and restarted by procd"
+require_file_pattern "$SINGBOX_WATCH_UC" 'if (!procd_remove_worker())' \
+  "sing-box crash watcher shutdown must verify that its procd service was unregistered"
 awk '
   /function cleanup_failed_runtime\(\)/ { in_cleanup = 1 }
   in_cleanup && /stop_main\(\);/ { saw_stop = 1 }
   in_cleanup && /dnsmasq_restore_fail_safe\(\);/ && saw_stop { saw_dns = 1 }
-  in_cleanup && /mark_runtime_stopped_clean\(\);/ && saw_dns { ok = 1; exit }
+  in_cleanup && /if \(status == 0\)/ && saw_dns { ok = 1; exit }
   in_cleanup && /^}/ { exit }
   END { exit ok ? 0 : 1 }
 ' "$LIFECYCLE_UC" ||
   fail "failed runtime cleanup must stop partial runtime, roll back DNS, and mark clean shutdown"
 grep -Fq 'cleanup_failed_runtime();' "$LIFECYCLE_UC" ||
   fail "service failure paths must use failed runtime cleanup"
+awk '
+  /function cleanup_crashed_sing_box\(/ { in_cleanup = 1 }
+  in_cleanup && /cleanup_failed_runtime\(\)/ { ok = 1; exit }
+  in_cleanup && /^}/ { exit }
+  END { exit ok ? 0 : 1 }
+' "$LIFECYCLE_UC" ||
+  fail "sing-box crash exhaustion must use the complete failed-runtime cleanup"
 require_pattern "tproxy-marking-rule4-present" \
   "service stop must use direct ucode IPv4 tproxy marking rule check"
 require_pattern "tproxy-marking-rule6-present" \
@@ -126,6 +143,14 @@ require_pattern "tproxy-route4-present" \
   "service stop must use direct ucode IPv4 tproxy route check"
 require_pattern "tproxy-route6-present" \
   "service stop must use direct ucode IPv6 tproxy route check"
+require_pattern 'singbox_init_config_for_live_reload' \
+  "live reloads must skip the memory-heavy parallel sing-box config check"
+require_pattern 'command_success_from_args([ "pgrep", "-x", "sing-box" ]) ||' \
+  "startup must refuse to create a second sing-box process"
+require_pattern 'command_success_from_args([ "pgrep", "-f", "^/usr/bin/sing-box[[:space:]]" ])' \
+  "second-process protection must work with BusyBox pgrep"
+require_pattern '"wait-sing-box-stopped"' \
+  "runtime stop must wait until sing-box has fully exited before a restart"
 grep -Fq 'require("core.uci")' "$LIFECYCLE_UC" ||
   fail "service/lifecycle.uc must use core.uci for lifecycle UCI state"
 if grep -n -E 'uci -q|require\("uci"\)\.cursor|function uci_|uci_set\(' "$LIFECYCLE_UC" >/dev/null 2>&1; then

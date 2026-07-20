@@ -283,8 +283,12 @@ function failsafe_restore() {
         log("Rolling back Forkop DNS changes in dnsmasq", "warn");
     }
 
-    dnsmasq_restore("force", true);
-    return true;
+    let status = dnsmasq_restore("force", true);
+    if (status)
+        log("DNS rollback completed after the failed Forkop runtime", "info");
+    else
+        log("DNS rollback failed; keeping Forkop marked unclean for recovery", "error");
+    return status;
 }
 
 let mode = ARGV[0] || "";

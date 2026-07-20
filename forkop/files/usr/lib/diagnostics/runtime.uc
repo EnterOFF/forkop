@@ -15,11 +15,10 @@ const FORKOP_SERVICE_NAME = getenv("FORKOP_SERVICE_NAME") || constants.FORKOP_SE
 const FORKOP_RELEASE_REPO = getenv("FORKOP_RELEASE_REPO") || constants.FORKOP_RELEASE_REPO || "ushan0v/forkop";
 const FORKOP_LUCI_VIEW_DIR = getenv("FORKOP_LUCI_VIEW_DIR") || constants.FORKOP_LUCI_VIEW_DIR || "/www/luci-static/resources/view/forkop";
 const RUNTIME_STATE_DIR = getenv("FORKOP_RUNTIME_STATE_DIR") || "/var/run/forkop";
+const CHECK_PROXY_LOCK_DIR = getenv("FORKOP_CHECK_PROXY_LOCK_DIR") || RUNTIME_STATE_DIR + "/check-proxy.lock";
 const SYSTEM_INFO_CACHE_FILE = getenv("FORKOP_SYSTEM_INFO_CACHE_FILE") || RUNTIME_STATE_DIR + "/system-info.json";
 const SYSTEM_INFO_CACHE_TTL = int(getenv("FORKOP_SYSTEM_INFO_CACHE_TTL") || "3600");
 const TMP_SING_BOX_FOLDER = getenv("TMP_SING_BOX_FOLDER") || constants.TMP_SING_BOX_FOLDER || "/tmp/sing-box";
-const TMP_RULESET_FOLDER = getenv("TMP_RULESET_FOLDER") || constants.TMP_RULESET_FOLDER || TMP_SING_BOX_FOLDER + "/rulesets";
-const TMP_SUBSCRIPTION_FOLDER = getenv("TMP_SUBSCRIPTION_FOLDER") || constants.TMP_SUBSCRIPTION_FOLDER || TMP_SING_BOX_FOLDER + "/subscriptions";
 const SECTION_CACHE_DIR = getenv("FORKOP_SECTION_CACHE_DIR") || RUNTIME_STATE_DIR + "/section-cache";
 const CHECK_PROXY_IP_DOMAIN = getenv("CHECK_PROXY_IP_DOMAIN") || constants.CHECK_PROXY_IP_DOMAIN || "ip.podkop.fyi";
 const FAKEIP_TEST_DOMAIN = getenv("FAKEIP_TEST_DOMAIN") || constants.FAKEIP_TEST_DOMAIN || "fakeip.podkop.fyi";
@@ -35,8 +34,9 @@ const NFT_LOCALV4_SET_NAME = getenv("NFT_LOCALV4_SET_NAME") || constants.NFT_LOC
 const SB_DNS_INBOUND_ADDRESS = getenv("SB_DNS_INBOUND_ADDRESS") || constants.SB_DNS_INBOUND_ADDRESS || "127.0.0.42";
 const SB_TPROXY_INBOUND6_ADDRESS = getenv("SB_TPROXY_INBOUND6_ADDRESS") || constants.SB_TPROXY_INBOUND6_ADDRESS || "::1";
 const SB_TPROXY_INBOUND_PORT = getenv("SB_TPROXY_INBOUND_PORT") || constants.SB_TPROXY_INBOUND_PORT || "1602";
+const SB_SERVICE_MIXED_INBOUND_ADDRESS = getenv("SB_SERVICE_MIXED_INBOUND_ADDRESS") || constants.SB_SERVICE_MIXED_INBOUND_ADDRESS || "127.0.0.1";
+const SB_SERVICE_MIXED_INBOUND_PORT = getenv("SB_SERVICE_MIXED_INBOUND_PORT") || constants.SB_SERVICE_MIXED_INBOUND_PORT || "4534";
 const SB_CLASH_API_CONTROLLER_PORT = getenv("SB_CLASH_API_CONTROLLER_PORT") || constants.SB_CLASH_API_CONTROLLER_PORT || "9090";
-const SING_BOX_BIN_PATH = getenv("FORKOP_DIAGNOSTICS_SING_BOX_BIN_PATH") || "/usr/bin/sing-box";
 const CLOUDFLARE_OCTETS = getenv("CLOUDFLARE_OCTETS") || constants.CLOUDFLARE_OCTETS || "8.47 162.159 188.114";
 const ZAPRET_LEGACY_DEFAULT_NFQWS_OPT = getenv("ZAPRET_LEGACY_DEFAULT_NFQWS_OPT") || constants.ZAPRET_LEGACY_DEFAULT_NFQWS_OPT || "";
 const DEFAULT_LATENCY_TEST_URL = getenv("DEFAULT_LATENCY_TEST_URL") || "https://www.gstatic.com/generate_204";
@@ -48,7 +48,6 @@ const PACKAGES_UC = LIB_DIR + "/core/packages.uc";
 const DNS_APPLY_UC = LIB_DIR + "/dns/apply.uc";
 const SERVICE_STATE_UC = LIB_DIR + "/service/state.uc";
 const SERVICE_UI_UC = LIB_DIR + "/service/ui.uc";
-const SUBSCRIPTION_CACHE_UC = LIB_DIR + "/subscription/cache.uc";
 const PROVIDERS_STATUS_UC = LIB_DIR + "/providers/status.uc";
 const SINGBOX_RUNTIME_UC = LIB_DIR + "/singbox/runtime.uc";
 const ZAPRET_RUNTIME_UC = LIB_DIR + "/providers/zapret/runtime.uc";
@@ -150,11 +149,6 @@ function module_capture_stdin(module_path, args, input) {
 
 function module_output(module_path, args) {
     let result = module_capture(module_path, args);
-    return result.status == 0 ? result.output : "";
-}
-
-function module_output_stdin(module_path, args, input) {
-    let result = module_capture_stdin(module_path, args, input);
     return result.status == 0 ? result.output : "";
 }
 
@@ -529,11 +523,18 @@ function server_inbound_tag(section) {
     return helper_output("server-inbound-tag", [ section ]);
 }
 
-function server_required_inbound_proto(protocol) {
+function server_required_inbound_proto(protocol, transport) {
     protocol = as_string(protocol);
+    transport = lc(as_string(transport));
     if (protocol == "json_inbound")
         return "";
-    return protocol == "hysteria2" ? "udp" : "tcp";
+    if (protocol == "hysteria2" || protocol == "tuic")
+        return "udp";
+    if (protocol == "naive" && transport == "tcp_udp")
+        return "tcp udp";
+    if ((protocol == "naive" || protocol == "mieru") && transport == "udp")
+        return "udp";
+    return "tcp";
 }
 
 function server_runtime_type_for_protocol(protocol) {
@@ -648,7 +649,12 @@ function check_inbounds() {
         let routing_mode = option(section, "routing_mode", "rules");
         let inbound_tag = server_inbound_tag(section_name);
         let expected_type = server_runtime_type_for_protocol(protocol);
-        let required_proto = server_required_inbound_proto(protocol);
+        let inbound_transport = protocol == "naive"
+            ? option(section, "naive_network", "tcp")
+            : protocol == "mieru"
+                ? option(section, "mieru_transport", "TCP")
+                : "";
+        let required_proto = server_required_inbound_proto(protocol, inbound_transport);
         let runtime_json = protocol == "tailscale"
             ? module_output(PROVIDERS_STATUS_UC, [ "endpoint-summary", sing_box_config_path, inbound_tag ])
             : module_output(PROVIDERS_STATUS_UC, [ "inbound-summary", sing_box_config_path, inbound_tag ]);
@@ -723,7 +729,92 @@ function cleanup_check_proxy_dir(dir) {
         command_success_from_args([ "rm", "-rf", dir ]);
 }
 
-function check_proxy() {
+function current_pid() {
+    let stat = as_string(fs.readfile("/proc/self/stat"));
+    let separator = index(stat, " ");
+    return separator > 0 ? substr(stat, 0, separator) : "";
+}
+
+function pid_running(pid) {
+    pid = as_string(pid);
+    return match(pid, /^[0-9]+$/) != null && command_success_from_args([ "kill", "-0", pid ]);
+}
+
+function first_line(path) {
+    let data = fs.readfile(as_string(path));
+    if (data == null)
+        return "";
+    let newline = index(data, "\n");
+    return trim(newline >= 0 ? substr(data, 0, newline) : data);
+}
+
+function sing_box_process_running_for_check() {
+    return command_success_from_args([ "pgrep", "-x", "sing-box" ]) ||
+        command_success_from_args([ "pgrep", "-f", "^/usr/bin/sing-box[[:space:]]" ]);
+}
+
+function acquire_check_proxy_lock() {
+    if (!ensure_dir(RUNTIME_STATE_DIR))
+        return false;
+
+    let owner = current_pid();
+    if (owner == "")
+        return false;
+
+    if (command_success_from_args([ "mkdir", CHECK_PROXY_LOCK_DIR ]))
+        return fs.writefile(CHECK_PROXY_LOCK_DIR + "/pid", owner + "\n") != null;
+
+    let current_owner = first_line(CHECK_PROXY_LOCK_DIR + "/pid");
+    if (pid_running(current_owner))
+        return false;
+
+    let lock_stat = fs.stat(CHECK_PROXY_LOCK_DIR);
+    let lock_age = lock_stat == null ? 0 : int(clock()[0]) - int(lock_stat.mtime || 0);
+    if (current_owner == "" && lock_stat != null && lock_age >= 0 && lock_age < 5)
+        return false;
+
+    command_success_from_args([ "rm", "-f", CHECK_PROXY_LOCK_DIR + "/pid" ]);
+    command_success_from_args([ "rmdir", CHECK_PROXY_LOCK_DIR ]);
+    if (!command_success_from_args([ "mkdir", CHECK_PROXY_LOCK_DIR ]))
+        return false;
+    if (fs.writefile(CHECK_PROXY_LOCK_DIR + "/pid", owner + "\n") != null)
+        return true;
+
+    command_success_from_args([ "rmdir", CHECK_PROXY_LOCK_DIR ]);
+    return false;
+}
+
+function release_check_proxy_lock() {
+    let owner = current_pid();
+    if (owner == "" || first_line(CHECK_PROXY_LOCK_DIR + "/pid") != owner)
+        return;
+    command_success_from_args([ "rm", "-f", CHECK_PROXY_LOCK_DIR + "/pid" ]);
+    command_success_from_args([ "rmdir", CHECK_PROXY_LOCK_DIR ]);
+}
+
+function check_proxy_through_running_core() {
+    let proxy = "socks5h://" + SB_SERVICE_MIXED_INBOUND_ADDRESS + ":" + SB_SERVICE_MIXED_INBOUND_PORT;
+    let response = command_output_from_args([
+        "curl",
+        "--connect-timeout", "3",
+        "--max-time", "10",
+        "--fail",
+        "--silent",
+        "--show-error",
+        "--proxy", proxy,
+        "https://" + CHECK_PROXY_IP_DOMAIN + "/ip"
+    ]);
+    let masked_response = replace(status_output([ "proxy-response-ip-mask" ], response), /[\r\n]+$/g, "");
+    if (masked_response == "") {
+        nolog("Failed to get a valid IP through the running sing-box service");
+        return 1;
+    }
+
+    nolog(masked_response + " - should match proxy IP");
+    return 0;
+}
+
+function check_proxy_locked() {
     let sing_box_config_path = option(settings(), "config_path", "");
     if (!command_exists("sing-box")) {
         nolog("sing-box is not installed");
@@ -733,6 +824,13 @@ function check_proxy() {
         nolog("Configuration file not found");
         return 1;
     }
+
+    // Starting another sing-box tools process beside the full router core can
+    // exhaust RAM on low-memory OpenWrt devices. Reuse the already-running
+    // mixed inbound instead; it exercises the same proxy route without a
+    // second Go runtime.
+    if (sing_box_process_running_for_check())
+        return check_proxy_through_running_core();
 
     nolog("Checking sing-box configuration...");
     if (!command_success_from_args([ "sing-box", "-c", sing_box_config_path, "check" ])) {
@@ -762,6 +860,12 @@ function check_proxy() {
 
     let response = "";
     for (let attempt = 1; attempt <= 5; attempt++) {
+        // A core may have started after the initial check. Never start a
+        // standalone Go process beside it; use the mixed inbound instead.
+        if (sing_box_process_running_for_check()) {
+            cleanup_check_proxy_dir(check_proxy_dir);
+            return check_proxy_through_running_core();
+        }
         let args = [ "sing-box", "tools", "fetch", "ifconfig.me", "-c", check_proxy_config, "-D", check_proxy_dir, "--disable-color" ];
         if (outbound_tag != "") {
             push(args, "-o");
@@ -788,6 +892,17 @@ function check_proxy() {
 
     cleanup_check_proxy_dir(check_proxy_dir);
     return 1;
+}
+
+function check_proxy() {
+    if (!acquire_check_proxy_lock()) {
+        nolog("A proxy check is already running");
+        return 1;
+    }
+
+    let result = check_proxy_locked();
+    release_check_proxy_lock();
+    return result;
 }
 
 function domain_lists_contain_cloud_provider() {
@@ -947,15 +1062,12 @@ function system_info_cache_is_valid() {
     return cache.forkop_version == FORKOP_VERSION && cache.luci_app_version == get_luci_app_version();
 }
 
-function ensure_subscription_runtime_dirs() {
-    module_success(SUBSCRIPTION_CACHE_UC, [
-        "ensure-runtime-dirs"
-    ]);
+function ensure_runtime_dirs() {
     ensure_dir(RUNTIME_STATE_DIR);
 }
 
 function write_system_info_cache(value) {
-    ensure_subscription_runtime_dirs();
+    ensure_runtime_dirs();
     let tmpfile = SYSTEM_INFO_CACHE_FILE + "." + clock()[0] + "." + clock()[1] + ".tmp";
     if (fs.writefile(tmpfile, as_string(value) + "\n") == null)
         return false;
@@ -967,38 +1079,16 @@ function write_system_info_cache(value) {
     return true;
 }
 
-function sing_box_component_action_running() {
-    return module_success(SERVICE_UI_UC, [ "component-action-running-for", "sing_box" ]);
-}
-
-function sing_box_live_probe_disabled() {
-    return sing_box_component_action_running();
-}
-
-function sing_box_forkop_package_installed(package_name) {
+function package_installed(package_name) {
     return module_success(PACKAGES_UC, [ "installed", package_name ]);
 }
 
-function sing_box_capability_flags(sing_box_version, sing_box_version_output) {
-    let extended = 0;
-    let tiny = 0;
-    let tailscale = 0;
-
-    if (sing_box_forkop_package_installed("sing-box-forkop") ||
-        sing_box_forkop_package_installed("sing-box-forkop-compressed") ||
-        module_success(SINGBOX_RUNTIME_UC, [ "is-extended", sing_box_version ]))
-        extended = 1;
-
-    if (extended == 1)
-        tailscale = 1;
-    else if (as_string(sing_box_version_output) != "") {
-        if (module_success(SINGBOX_RUNTIME_UC, [ "supports-tailscale", sing_box_version, sing_box_version_output ]))
-            tailscale = 1;
-    }
-    else if (tiny == 0 && sing_box_component_action_running())
-        tailscale = 1;
-
-    return { extended, tiny, tailscale };
+function sing_box_package() {
+    if (package_installed("sing-box-forkop-compressed"))
+        return "sing-box-forkop-compressed";
+    if (package_installed("sing-box-forkop"))
+        return "sing-box-forkop";
+    return "";
 }
 
 function provider_installed(runtime_uc) {
@@ -1032,27 +1122,13 @@ function build_system_info() {
     let forkop_latest_version = first_line_value("/tmp/forkop.latest-version.cache", "unknown");
     let luci_app_version = get_luci_app_version();
     let sing_box_version = "";
-    let sing_box_version_output = "";
-
-    if (command_exists("sing-box")) {
-        if (sing_box_live_probe_disabled()) {
-            sing_box_version = replace(module_output(SINGBOX_RUNTIME_UC, [ "read-version-state" ]), /[\r\n]+$/g, "");
-            sing_box_version_output = "";
-        }
-        else {
-            sing_box_version_output = module_output(SINGBOX_RUNTIME_UC, [ "version-output" ]);
-            sing_box_version = replace(module_output_stdin(SINGBOX_RUNTIME_UC, [ "version-from-output" ], sing_box_version_output), /[\r\n]+$/g, "");
-        }
-        if (sing_box_version == "")
-            sing_box_version = "unknown";
-    }
-    else {
-        sing_box_version = "not installed";
-        sing_box_version_output = "";
-    }
-
-    let flags = sing_box_capability_flags(sing_box_version, sing_box_version_output);
-    let sing_box_compressed = sing_box_forkop_package_installed("sing-box-forkop-compressed") ? 1 : 0;
+    let sing_box_package_name = sing_box_package();
+    if (sing_box_package_name != "" && command_exists("sing-box"))
+        sing_box_version = replace(module_output(SINGBOX_RUNTIME_UC, [ "version" ]), /[\r\n]+$/g, "");
+    if (sing_box_version == "" && sing_box_package_name != "")
+        sing_box_version = replace(module_output(PACKAGES_UC, [ "version", sing_box_package_name ]), /[\r\n]+$/g, "");
+    if (sing_box_version == "")
+        sing_box_version = sing_box_package_name == "" ? "not installed" : "unknown";
 
     let zapret_installed = provider_installed(ZAPRET_RUNTIME_UC) ? 1 : 0;
     let zapret_version = zapret_installed ? provider_version(ZAPRET_RUNTIME_UC) : "not installed";
@@ -1067,10 +1143,7 @@ function build_system_info() {
         forkop_latest_version: forkop_latest_version || "unknown",
         luci_app_version,
         sing_box_version,
-        sing_box_extended: flags.extended,
-        sing_box_tiny: flags.tiny,
-        sing_box_compressed,
-        sing_box_tailscale: flags.tailscale,
+        sing_box_compressed: sing_box_package_name == "sing-box-forkop-compressed" ? 1 : 0,
         zapret_version,
         zapret_installed,
         zapret2_version,
@@ -1095,41 +1168,13 @@ function get_system_info() {
     return 0;
 }
 
-function get_server_capabilities() {
-    if (!file_executable(SING_BOX_BIN_PATH)) {
-        write_json({
-            sing_box_extended: 0,
-            sing_box_tiny: 0,
-            sing_box_tailscale: 0
-        });
-        return 0;
-    }
-
-    let sing_box_version_output = "";
-    let sing_box_version = "";
-    if (sing_box_live_probe_disabled())
-        sing_box_version = replace(module_output(SINGBOX_RUNTIME_UC, [ "read-version-state" ]), /[\r\n]+$/g, "");
-    else {
-        sing_box_version_output = module_output(SINGBOX_RUNTIME_UC, [ "version-output" ]);
-        sing_box_version = replace(module_output_stdin(SINGBOX_RUNTIME_UC, [ "version-from-output" ], sing_box_version_output), /[\r\n]+$/g, "");
-    }
-    let flags = sing_box_capability_flags(sing_box_version, sing_box_version_output);
-    write_json({
-        sing_box_extended: flags.extended,
-        sing_box_tiny: flags.tiny,
-        sing_box_tailscale: flags.tailscale
-    });
-    return 0;
-}
-
 function neutralize_zapret_defaults() {
     log_message("Standalone zapret is not neutralized automatically; Forkop uses /opt/zapret/nfq/nfqws as an external provider and manages only its own NFQUEUE range.", "info");
     return 0;
 }
 
 function sing_box_process_is_running() {
-    return command_success_from_args([ "pgrep", "-x", "sing-box" ]) ||
-        command_success_from_args([ "pgrep", "-f", "^/usr/bin/sing-box[[:space:]]" ]);
+    return sing_box_process_running_for_check();
 }
 
 function service_status_label(running, enabled) {
@@ -1172,50 +1217,9 @@ function get_status() {
     return 0;
 }
 
-function subscription_cache(args) {
-    return module_capture(SUBSCRIPTION_CACHE_UC, args);
-}
-
-function print_subscription_result(result, fallback) {
-    if (result.status == 0 && result.output != "") {
-        print(result.output);
-        return 0;
-    }
-    print(as_string(fallback));
-    return 0;
-}
-
 function section_safe(section) {
     section = as_string(section);
     return section != "" && index(section, "/") < 0 && index(section, "..") < 0;
-}
-
-function get_outbound_metadata(section) {
-    subscription_cache([ "ensure-runtime-dirs" ]);
-    if (!section_safe(section))
-        return print_subscription_result(subscription_cache([ "empty-outbound-metadata" ]), "");
-    let metadata_path = replace(module_output(SUBSCRIPTION_CACHE_UC, [ "outbound-metadata-path", section ]), /[\r\n]+$/g, "");
-    if (metadata_path == "")
-        return print_subscription_result(subscription_cache([ "empty-outbound-metadata" ]), "");
-    let result = subscription_cache([ "get-outbound-metadata", SECTION_CACHE_DIR, section, metadata_path ]);
-    if (result.status != 0)
-        result = subscription_cache([ "empty-outbound-metadata" ]);
-    return print_subscription_result(result, "");
-}
-
-function get_subscription_metadata(section) {
-    subscription_cache([ "ensure-runtime-dirs" ]);
-    if (!section_safe(section)) {
-        print("{}\n");
-        return 0;
-    }
-    let metadata_path = replace(module_output(SUBSCRIPTION_CACHE_UC, [ "subscription-metadata-path", section ]), /[\r\n]+$/g, "");
-    if (metadata_path == "") {
-        print("{}\n");
-        return 0;
-    }
-    let result = subscription_cache([ "get-subscription-metadata", SECTION_CACHE_DIR, section, metadata_path ]);
-    return print_subscription_result(result, "{}\n");
 }
 
 function get_dashboard_section_cache(section) {
@@ -1237,7 +1241,10 @@ function get_dashboard_section_cache(section) {
     }
 
     let result = {};
-    for (let key in [ "links", "outboundMetadata", "urltestGroups", "priorityGroups", "subscriptionMetadata" ])
+    for (let key in [
+        "outboundMetadata", "urltestCandidateTags", "urltestGroups",
+        "priorityGroups", "providerTags"
+    ])
         if (cache[key] != null)
             result[key] = cache[key];
     write_json(result);
@@ -1320,45 +1327,23 @@ function dns_check_router_resolver_available(domain) {
     return false;
 }
 
-function dns_check_timeout_seconds(value) {
-    let rest = as_string(value);
-    let milliseconds = 0.0;
-    let units = { ns: 0.000001, us: 0.001, ms: 1, s: 1000, m: 60000, h: 3600000, d: 86400000 };
-    while (rest != "") {
-        let matched = match(rest, /^([0-9]+(\.[0-9]+)?)(ns|us|ms|s|m|h|d)/);
-        if (!matched)
-            return 2;
-        milliseconds += (matched[1] * 1) * units[matched[3]];
-        rest = substr(rest, length(matched[0]));
-    }
-    return milliseconds > 0 ? int((milliseconds + 999) / 1000) : 2;
-}
-
 function check_dns_available() {
     let cfg = settings();
     let dns_type = option(cfg, "dns_type", "");
-    let active = runtime_dns.active_values(cfg);
-    let dns_server = active.main;
-    let bootstrap_dns_server = active.bootstrap;
+    let dns_servers = runtime_dns.server_list(cfg, "dns_server", "77.88.8.8");
+    let bootstrap_dns_servers = runtime_dns.server_list(cfg, "bootstrap_dns_server", "77.88.8.8");
     let dont_touch_dhcp = bool_option(cfg, "dont_touch_dhcp", false) ? 1 : 0;
     let domain = "example.com";
-    let timeout_seconds = dns_check_timeout_seconds(option(cfg, "dns_check_timeout", "2s"));
+    let timeout_seconds = 2;
     let dns_status = 0;
     let dns_on_router = 0;
     let bootstrap_dns_status = 0;
     let dhcp_config_status = 1;
 
-    let active_dns_args = [ "dig" ];
-    if (runtime_dns.failover_enabled(cfg)) {
-        push(active_dns_args, "-p");
-        push(active_dns_args, as_string(runtime_dns.health_port("active", 0)));
-    }
-    push(active_dns_args, "@" + SB_DNS_INBOUND_ADDRESS);
-    push(active_dns_args, domain);
-    push(active_dns_args, "A");
-    push(active_dns_args, "+short");
-    push(active_dns_args, "+timeout=" + as_string(timeout_seconds));
-    push(active_dns_args, "+tries=1");
+    let active_dns_args = [
+        "dig", "@" + SB_DNS_INBOUND_ADDRESS, domain, "A", "+short",
+        "+timeout=" + as_string(timeout_seconds), "+tries=1"
+    ];
     for (let line in split(command_output_from_args(active_dns_args), "\n"))
         if (valid_ipv4(trim(as_string(line)))) {
             dns_status = 1;
@@ -1368,44 +1353,31 @@ function check_dns_available() {
     if (dns_check_router_resolver_available(domain))
         dns_on_router = 1;
 
-    let dns_server_host = url_host(dns_server);
+    let dns_server_host = url_host(dns_servers[0]);
     if (dns_server_host == "")
-        dns_server_host = dns_server;
-    if (bootstrap_dns_server != "") {
-        if (length(active.state.bootstrap_servers) > 1) {
-            for (let line in split(command_output_from_args([
-                "dig", "-p", as_string(runtime_dns.health_port("bootstrap", active.state.bootstrap_index)),
-                "@" + runtime_dns.DNS_HEALTH_ADDRESS, domain, "A", "+short",
-                "+timeout=" + as_string(timeout_seconds), "+tries=1"
-            ]), "\n"))
-                if (valid_ipv4(trim(as_string(line)))) {
-                    bootstrap_dns_status = 1;
-                    break;
-                }
-        }
-        else {
-            let bootstrap_check_domain = domain;
-            if (dns_server_host != "" && !valid_ipv4(dns_server_host))
-                bootstrap_check_domain = dns_server_host;
-            if (dns_check_resolve_host(bootstrap_check_domain, bootstrap_dns_server, timeout_seconds) != "")
-                bootstrap_dns_status = 1;
+        dns_server_host = dns_servers[0];
+    let bootstrap_check_domain = domain;
+    if (dns_server_host != "" && !valid_ipv4(dns_server_host))
+        bootstrap_check_domain = dns_server_host;
+    for (let bootstrap_dns_server in bootstrap_dns_servers) {
+        if (dns_check_resolve_host(bootstrap_check_domain, bootstrap_dns_server, timeout_seconds) != "") {
+            bootstrap_dns_status = 1;
+            break;
         }
     }
 
     if (!module_success(DNS_APPLY_UC, [ "default-config-complete" ]))
         dhcp_config_status = 0;
 
-    let display_dns_server = replace(status_output([ "mask-dns-server", dns_server ], null), /[\r\n]+$/g, "");
+    let display_dns_servers = [];
+    for (let dns_server in dns_servers)
+        push(display_dns_servers, replace(status_output([ "mask-dns-server", dns_server ], null), /[\r\n]+$/g, ""));
     write_json({
         dns_type,
-        dns_server: display_dns_server,
-        dns_server_index: active.state.main_index,
-        dns_server_count: length(active.state.main_servers),
+        dns_server: join(", ", display_dns_servers),
         dns_status,
         dns_on_router,
-        bootstrap_dns_server,
-        bootstrap_dns_server_index: active.state.bootstrap_index,
-        bootstrap_dns_server_count: length(active.state.bootstrap_servers),
+        bootstrap_dns_server: join(", ", bootstrap_dns_servers),
         bootstrap_dns_status,
         dhcp_config_status,
         dont_touch_dhcp
@@ -1509,21 +1481,16 @@ function sing_box_standard_ports_listening_fixture() {
 function check_sing_box() {
     let sing_box_installed = 0;
     let sing_box_version_ok = 0;
-    let sing_box_extended = 0;
     let sing_box_service_exist = 0;
     let sing_box_autostart_disabled = 0;
     let sing_box_process_running = 0;
     let sing_box_ports_listening = 0;
 
-    if (command_exists("sing-box")) {
+    if (sing_box_package() != "" && command_exists("sing-box")) {
         sing_box_installed = 1;
         let version = strip_leading_v(replace(module_output(SINGBOX_RUNTIME_UC, [ "version" ]), /[\r\n]+$/g, ""));
-        if (version != "") {
-            if (module_success(SINGBOX_RUNTIME_UC, [ "is-extended", version ]))
-                sing_box_extended = 1;
-            if (module_success(HELPERS_UC, [ "version-at-least", version, "1.12.4" ]))
-                sing_box_version_ok = 1;
-        }
+        if (version != "" && module_success(HELPERS_UC, [ "version-at-least", version, "1.12.4" ]))
+            sing_box_version_ok = 1;
     }
 
     if (file_exists("/etc/init.d/sing-box")) {
@@ -1541,7 +1508,6 @@ function check_sing_box() {
     write_json({
         sing_box_installed,
         sing_box_version_ok,
-        sing_box_extended,
         sing_box_service_exist,
         sing_box_autostart_disabled,
         sing_box_process_running,
@@ -1594,9 +1560,10 @@ function clash_api_url() {
 
 function clash_auth_args() {
     let cfg = settings();
-    if (!bool_option(cfg, "enable_yacd_wan_access", false))
+    let secret = option(cfg, "yacd_secret_key", "");
+    if (secret == "")
         return [];
-    return [ "--header", "Authorization: Bearer " + option(cfg, "yacd_secret_key", "") ];
+    return [ "--header", "Authorization: Bearer " + secret ];
 }
 
 function clash_urlencode(value) {
@@ -1650,6 +1617,22 @@ function clash_api(action, arg1, arg2, arg3) {
         let args = [ "curl", "-s" ];
         for (let item in auth) push(args, item);
         push(args, base_url + "/proxies");
+        return clash_json_output(args);
+    }
+
+    if (action == "get_proxy_providers") {
+        let args = [ "curl", "-s" ];
+        for (let item in auth) push(args, item);
+        push(args, base_url + "/providers/proxies");
+        return clash_json_output(args);
+    }
+
+    if (action == "get_proxy_link") {
+        if (as_string(arg1) == "")
+            return clash_json_error("proxy_tag required");
+        let args = [ "curl", "-s", "--max-time", "5" ];
+        for (let item in auth) push(args, item);
+        push(args, base_url + "/proxies/" + clash_urlencode(arg1) + "/link");
         return clash_json_output(args);
     }
 
@@ -1960,10 +1943,6 @@ else if (mode == "show-sing-box-version")
     exit(show_sing_box_version());
 else if (mode == "get-status")
     exit(get_status());
-else if (mode == "get-outbound-metadata")
-    exit(get_outbound_metadata(ARGV[1]));
-else if (mode == "get-subscription-metadata")
-    exit(get_subscription_metadata(ARGV[1]));
 else if (mode == "get-dashboard-section-cache")
     exit(get_dashboard_section_cache(ARGV[1]));
 else if (mode == "get-sing-box-status")
@@ -1976,8 +1955,6 @@ else if (mode == "get-byedpi-status")
     exit(module_passthrough(BYEDPI_RUNTIME_UC, [ "status" ]));
 else if (mode == "get-system-info")
     exit(get_system_info());
-else if (mode == "get-server-capabilities")
-    exit(get_server_capabilities());
 else if (mode == "check-dns-available")
     exit(check_dns_available());
 else if (mode == "global-check")

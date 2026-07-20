@@ -26,6 +26,7 @@ export const invalidSubnets = [
   ['Invalid CIDR (too high)', '192.168.1.1/33'],
   ['Invalid CIDR (negative)', '192.168.1.1/-1'],
   ['CIDR not number', '192.168.1.1/abc'],
+  ['Empty CIDR prefix', '192.168.1.1/'],
   ['Forbidden 0.0.0.0', '0.0.0.0'],
   ['Forbidden ::', '::'],
   ['Invalid IPv6 CIDR', '2001:db8::1/129'],

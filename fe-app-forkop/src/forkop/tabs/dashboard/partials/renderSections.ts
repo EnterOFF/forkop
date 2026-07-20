@@ -412,7 +412,9 @@ function renderDefaultState({
           E(
             'div',
             { class: 'fkp_dashboard-page__outbound-grid__item__type' },
-            [outbound.type].filter(Boolean),
+            [outbound.priorityInfo ? _('Priority') : outbound.type].filter(
+              Boolean,
+            ),
           ),
           E(
             'div',

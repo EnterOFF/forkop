@@ -341,6 +341,10 @@ function outbound_jsons(section) {
     return result;
 }
 
+function tunnel_jsons(section) {
+    return list_value(section, "tunnel_jsons");
+}
+
 function urltests(section) {
     let result = [];
     for (let child in child_items(section, "urltest")) {
@@ -473,7 +477,8 @@ function has_connection_sources(section) {
     return length(connection_urls(section)) > 0 ||
         length(subscription_urls(section)) > 0 ||
         length(interfaces(section)) > 0 ||
-        length(outbound_jsons(section)) > 0;
+        length(outbound_jsons(section)) > 0 ||
+        length(tunnel_jsons(section)) > 0;
 }
 
 function subscription_url_settings(section, value) {
@@ -572,27 +577,6 @@ function subscription_auto_hwid(section, value) {
     if (raw_option(settings, "auto_hwid") != null)
         return item_bool(section, "subscription_url_settings", value, "auto_hwid", true);
     return item_option(section, "subscription_url_settings", value, "hwid", "") == "";
-}
-
-function subscription_include_urltest_groups(section, value) {
-    let child = child_item_by_value(section, "subscription_url", "url", value);
-    if (child != null)
-        return child_bool(child, "include_urltest_groups", true);
-    return item_bool(section, "subscription_url_settings", value, "include_urltest_groups", true);
-}
-
-function subscription_hide_urltest_group_outbounds(section, value) {
-    let child = child_item_by_value(section, "subscription_url", "url", value);
-    if (child != null)
-        return child_bool(child, "hide_urltest_group_outbounds", true);
-    return item_bool(section, "subscription_url_settings", value, "hide_urltest_group_outbounds", true);
-}
-
-function subscription_hide_detour_outbounds(section, value) {
-    let child = child_item_by_value(section, "subscription_url", "url", value);
-    if (child != null)
-        return child_bool(child, "hide_detour_outbounds", true);
-    return item_bool(section, "subscription_url_settings", value, "hide_detour_outbounds", true);
 }
 
 function subscription_prefix_nodes(section, value) {
@@ -711,6 +695,11 @@ function urltest_pin_dashboard(section, value) {
     return item_bool(section, "urltest_settings", value, "pin_dashboard", true);
 }
 
+function urltest_hide_dashboard_members(section, value) {
+    let child = urltest_child(section, value);
+    return child != null ? child_bool(child, "hide_dashboard_members", false) : false;
+}
+
 function urltest_include_countries(section, value) {
     let child = urltest_child(section, value);
     if (child != null)
@@ -804,49 +793,19 @@ function priority_group_display_name(section, value) {
     return child != null ? child_option(child, "name", as_string(value)) : as_string(value);
 }
 
-function priority_group_health_url(section, value) {
+function priority_group_blacklist_timeout(section, value) {
     let child = priority_group_child(section, value);
-    return child != null ? child_option(child, "health_url", "https://www.gstatic.com/generate_204") : "https://www.gstatic.com/generate_204";
-}
-
-function priority_group_active_check_interval(section, value) {
-    let child = priority_group_child(section, value);
-    return child != null ? child_option(child, "active_check_interval", "5s") : "5s";
-}
-
-function priority_group_check_timeout(section, value) {
-    let child = priority_group_child(section, value);
-    return child != null ? child_option(child, "check_timeout", "2s") : "2s";
-}
-
-function priority_group_recovery_check_interval(section, value) {
-    let child = priority_group_child(section, value);
-    return child != null ? child_option(child, "recovery_check_interval", "15s") : "15s";
-}
-
-function priority_group_pick_fastest(section, value) {
-    let child = priority_group_child(section, value);
-    return child != null ? child_bool(child, "pick_fastest", false) : false;
-}
-
-function priority_group_switch_to_faster_same_priority(section, value) {
-    let child = priority_group_child(section, value);
-    return child != null ? child_bool(child, "switch_to_faster_same_priority", false) : false;
-}
-
-function priority_group_fastest_check_interval(section, value) {
-    let child = priority_group_child(section, value);
-    return child != null ? child_option(child, "fastest_check_interval", "3m") : "3m";
-}
-
-function priority_group_interrupt_exist_connections(section, value) {
-    let child = priority_group_child(section, value);
-    return child != null ? child_bool(child, "interrupt_exist_connections", true) : true;
+    return child != null ? child_option(child, "blacklist_timeout", "1m") : "1m";
 }
 
 function priority_group_pin_dashboard(section, value) {
     let child = priority_group_child(section, value);
     return child != null ? child_bool(child, "pin_dashboard", true) : true;
+}
+
+function priority_group_hide_dashboard_members(section, value) {
+    let child = priority_group_child(section, value);
+    return child != null ? child_bool(child, "hide_dashboard_members", false) : false;
 }
 
 function priority_level_display_name(group_id, value) {
@@ -1008,6 +967,7 @@ return {
     subscription_urls,
     interfaces,
     outbound_jsons,
+    tunnel_jsons,
     urltests,
     community_lists,
     rule_sets,
@@ -1025,9 +985,6 @@ return {
     subscription_dashboard_metadata_enabled,
     subscription_auto_user_agent,
     subscription_auto_hwid,
-    subscription_include_urltest_groups,
-    subscription_hide_urltest_group_outbounds,
-    subscription_hide_detour_outbounds,
     subscription_prefix_nodes,
     subscription_node_prefix,
     subscription_user_agent,
@@ -1044,6 +1001,7 @@ return {
     urltest_interrupt_exist_connections,
     urltest_filter_mode,
     urltest_pin_dashboard,
+    urltest_hide_dashboard_members,
     urltest_include_countries,
     urltest_include_outbounds,
     urltest_include_regex,
@@ -1062,15 +1020,9 @@ return {
     priority_group_settings,
     priority_levels,
     priority_group_display_name,
-    priority_group_health_url,
-    priority_group_active_check_interval,
-    priority_group_check_timeout,
-    priority_group_recovery_check_interval,
-    priority_group_pick_fastest,
-    priority_group_switch_to_faster_same_priority,
-    priority_group_fastest_check_interval,
-    priority_group_interrupt_exist_connections,
+    priority_group_blacklist_timeout,
     priority_group_pin_dashboard,
+    priority_group_hide_dashboard_members,
     priority_level_display_name,
     priority_level_order,
     priority_level_direct,

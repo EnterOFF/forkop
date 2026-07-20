@@ -135,24 +135,6 @@ function configureDnsFailoverVisibility(option, dnsOption, bootstrapOption) {
   };
 }
 
-function configureDnsDuration(
-  option,
-  defaultValue,
-  dnsOption,
-  bootstrapOption,
-) {
-  option.default = defaultValue;
-  option.rmempty = false;
-  option.validate = function (_section_id, value) {
-    const normalized = `${value || ""}`.trim();
-    if (!normalized || !isSingBoxDuration(normalized)) {
-      return _("Use sing-box duration format like 10s, 1m or 2m30s");
-    }
-    return true;
-  };
-  configureDnsFailoverVisibility(option, dnsOption, bootstrapOption);
-}
-
 function createSettingsContent(section, capabilities) {
   let o = section.option(
     form.ListValue,
@@ -170,9 +152,7 @@ function createSettingsContent(section, capabilities) {
     form.DynamicList,
     "dns_server",
     _("DNS Servers"),
-    _(
-      "Main DNS server. If multiple servers are selected, a timeout switches to a backup.",
-    ),
+    _("Main DNS servers in fallback order."),
   );
   configureDnsList(dnsOption, main.DNS_SERVER_OPTIONS, "77.88.8.8");
 
@@ -181,7 +161,7 @@ function createSettingsContent(section, capabilities) {
     "bootstrap_dns_server",
     _("Bootstrap DNS Servers"),
     _(
-      "DNS server used to obtain IP addresses for upstream DNS and proxies. If multiple servers are selected, a timeout switches to a backup.",
+      "DNS servers used to obtain IP addresses for upstream DNS and proxies, in fallback order.",
     ),
   );
   configureDnsList(
@@ -191,30 +171,16 @@ function createSettingsContent(section, capabilities) {
   );
 
   o = section.option(
-    form.Value,
-    "dns_check_interval",
-    _("DNS Check Interval"),
-    _("How often to check the active DNS servers."),
+    form.ListValue,
+    "dns_fallback_strategy",
+    _("DNS Fallback Strategy"),
+    _("Try DNS servers in order or query all of them at once."),
   );
-  configureDnsDuration(o, "10s", dnsOption, bootstrapOption);
-
-  o = section.option(
-    form.Value,
-    "dns_recovery_check_interval",
-    _("Higher-priority DNS Check"),
-    _("How often to check whether a higher-priority DNS server has recovered."),
-  );
-  configureDnsDuration(o, "60s", dnsOption, bootstrapOption);
-
-  o = section.option(
-    form.Value,
-    "dns_check_timeout",
-    _("DNS Unavailability Timeout"),
-    _(
-      "Maximum time to wait for example.com to resolve during a DNS health check.",
-    ),
-  );
-  configureDnsDuration(o, "2s", dnsOption, bootstrapOption);
+  o.value("sequential", _("Sequential"));
+  o.value("parallel", _("Parallel"));
+  o.default = "sequential";
+  o.rmempty = false;
+  configureDnsFailoverVisibility(o, dnsOption, bootstrapOption);
 
   o = section.option(
     form.Value,
@@ -445,6 +411,17 @@ function createSettingsContent(section, capabilities) {
     _("Disable QUIC"),
     _(
       "Disable the QUIC protocol to improve compatibility or fix issues with video streaming",
+    ),
+  );
+  o.default = "0";
+  o.rmempty = false;
+
+  o = section.option(
+    form.Flag,
+    "unified_delay",
+    _("Unified Delay"),
+    _(
+      "Measure connection setup and TLS handshake delay for more comparable latency results.",
     ),
   );
   o.default = "0";

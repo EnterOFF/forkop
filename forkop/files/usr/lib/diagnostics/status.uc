@@ -363,7 +363,6 @@ function forkop_config_masked_line(line) {
     line = mask_after_token_space(line, "list ip_cidr");
     line = mask_after_token_space(line, "list source_ip_cidr");
     line = mask_after_token_space(line, "list fully_routed_ips");
-    line = mask_after_token(line, "list server_users");
     line = mask_after_token_space(line, "option dns_server");
     line = mask_after_token_space(line, "option bootstrap_dns_server");
     line = mask_after_token_space(line, "list dns_server");
@@ -559,12 +558,19 @@ function firewall_required_protocols_open(port, required_proto) {
     return true;
 }
 
-function server_required_inbound_proto(protocol) {
+function server_required_inbound_proto(protocol, transport) {
     protocol = as_string(protocol);
+    transport = lc(as_string(transport));
     if (protocol == "json_inbound")
         print("\n");
+    else if (protocol == "hysteria2" || protocol == "tuic")
+        print("udp\n");
+    else if (protocol == "naive" && transport == "tcp_udp")
+        print("tcp udp\n");
+    else if ((protocol == "naive" || protocol == "mieru") && transport == "udp")
+        print("udp\n");
     else
-        print(protocol == "hysteria2" ? "udp" : "tcp", "\n");
+        print("tcp\n");
 }
 
 function server_runtime_type_for_protocol(protocol) {
@@ -1144,27 +1150,6 @@ function write_inbounds_check_json(enabled_count, config_path, wan_ip, wan_publi
     });
 }
 
-function write_server_capabilities_json(sing_box_extended, sing_box_tiny, sing_box_tailscale) {
-    write_json({
-        sing_box_extended: arg_number(sing_box_extended),
-        sing_box_tiny: arg_number(sing_box_tiny),
-        sing_box_tailscale: arg_number(sing_box_tailscale)
-    });
-}
-
-function write_ui_capabilities_json(sing_box_extended, sing_box_tiny, sing_box_compressed, sing_box_tailscale, zapret_installed, zapret2_installed, byedpi_installed, server_inbounds_enabled_count) {
-    write_json({
-        sing_box_extended: arg_number(sing_box_extended),
-        sing_box_tiny: arg_number(sing_box_tiny),
-        sing_box_compressed: arg_number(sing_box_compressed),
-        sing_box_tailscale: arg_number(sing_box_tailscale),
-        zapret_installed: arg_number(zapret_installed),
-        zapret2_installed: arg_number(zapret2_installed),
-        byedpi_installed: arg_number(byedpi_installed),
-        server_inbounds_enabled_count: arg_number(server_inbounds_enabled_count)
-    });
-}
-
 function service_status_label(running, enabled) {
     running = arg_number(running);
     enabled = arg_number(enabled);
@@ -1235,11 +1220,10 @@ function write_nft_check_json(table_exist, rules_mangle_exist, rules_mangle_coun
     });
 }
 
-function write_sing_box_check_json(sing_box_installed, sing_box_version_ok, sing_box_extended, sing_box_service_exist, sing_box_autostart_disabled, sing_box_process_running, sing_box_ports_listening) {
+function write_sing_box_check_json(sing_box_installed, sing_box_version_ok, sing_box_service_exist, sing_box_autostart_disabled, sing_box_process_running, sing_box_ports_listening) {
     write_json({
         sing_box_installed: arg_number(sing_box_installed),
         sing_box_version_ok: arg_number(sing_box_version_ok),
-        sing_box_extended: arg_number(sing_box_extended),
         sing_box_service_exist: arg_number(sing_box_service_exist),
         sing_box_autostart_disabled: arg_number(sing_box_autostart_disabled),
         sing_box_process_running: arg_number(sing_box_process_running),
@@ -1317,51 +1301,11 @@ function render_flag_line(value, key, ok_message, fail_message) {
     print_line((flag_is_one(value[key]) ? ok_message : fail_message));
 }
 
-function sing_box_core_label(value) {
-    if (flag_is_one(value.sing_box_extended) && flag_is_one(value.sing_box_compressed))
-        return "extended compressed";
-    if (flag_is_one(value.sing_box_extended))
-        return "extended";
-    if (flag_is_one(value.sing_box_tiny))
-        return "tiny";
-    return "";
-}
-
-function sing_box_version_note_label(value) {
-    if (flag_is_one(value.sing_box_extended) && flag_is_one(value.sing_box_compressed))
-        return "compressed";
-    if (flag_is_one(value.sing_box_tiny))
-        return "tiny";
-    return "";
-}
-
-function sing_box_version_is_known(version) {
-    version = lc(trim(as_string(version)));
-    return version != "" &&
-        version != "loading" &&
-        version != "unknown" &&
-        version != "not installed";
-}
-
-function format_sing_box_version(value, version) {
-    version = as_string(version);
-    if (!sing_box_version_is_known(version))
-        return version;
-
-    let variant = sing_box_version_note_label(value);
-    return variant != "" ? version + " (" + variant + ")" : version;
-}
-
 function render_global_sing_box_check() {
     let value = object_or_empty(read_stdin_json());
 
     render_flag_line(value, "sing_box_installed", "\u2705 Sing-box installed", "\u274c Sing-box installed");
     render_flag_line(value, "sing_box_version_ok", "\u2705 Sing-box version is compatible (newer than 1.12.4)", "\u274c Sing-box version is not compatible (older than 1.12.4)");
-
-    if (flag_is_one(value.sing_box_extended))
-        print_line("Sing-box extended detected");
-    else
-        print_line("Sing-box regular build detected");
 
     render_flag_line(value, "sing_box_service_exist", "\u2705 Sing-box service exist", "\u274c Sing-box service exist");
     render_flag_line(value, "sing_box_autostart_disabled", "\u2705 Sing-box autostart disabled", "\u274c Sing-box autostart disabled");
@@ -1380,12 +1324,9 @@ function render_global_system_info() {
     let openwrt_version = object_value(value, "openwrt_version") || "unknown";
     let device_model = object_value(value, "device_model") || "unknown";
 
-    let sing_box_core = sing_box_core_label(value) || "regular";
-    print_line("Sing-box core: " + sing_box_core);
-
     print_line("\ud83d\udd73\ufe0f Forkop:   " + forkop_version);
     print_line("\ud83d\udd73\ufe0f LuCI App:      " + luci_app_version);
-    print_line("\ud83d\udce6 Sing-box:      " + format_sing_box_version(value, sing_box_version));
+    print_line("\ud83d\udce6 Sing-box:      " + sing_box_version);
     if (flag_is_one(value.zapret_installed))
         print_line("\ud83e\uddf5 Zapret:        " + zapret_version);
     if (flag_is_one(value.zapret2_installed))
@@ -1411,19 +1352,13 @@ function render_global_dns_check(dont_touch_dhcp) {
     let dns_type = object_value(value, "dns_type") || "unknown";
     let dns_server = object_value(value, "dns_server") || "unknown";
     let bootstrap_dns_server = object_value(value, "bootstrap_dns_server");
-    let dns_position = number_value(value.dns_server_count) > 1
-        ? " (priority " + as_string(number_value(value.dns_server_index) + 1) + "/" + as_string(number_value(value.dns_server_count)) + ")"
-        : "";
-    let bootstrap_position = number_value(value.bootstrap_dns_server_count) > 1
-        ? " (priority " + as_string(number_value(value.bootstrap_dns_server_index) + 1) + "/" + as_string(number_value(value.bootstrap_dns_server_count)) + ")"
-        : "";
     let dump_dhcp_config = false;
 
     if (bootstrap_dns_server != "") {
-        print_line((flag_is_one(value.bootstrap_dns_status) ? "\u2705 Bootstrap DNS: " : "\u274c Bootstrap DNS: ") + bootstrap_dns_server + bootstrap_position);
+        print_line((flag_is_one(value.bootstrap_dns_status) ? "\u2705 Bootstrap DNS: " : "\u274c Bootstrap DNS: ") + bootstrap_dns_server);
     }
 
-    print_line((flag_is_one(value.dns_status) ? "\u2705 Main DNS: " : "\u274c Main DNS: ") + dns_server + " [" + dns_type + "]" + dns_position);
+    print_line((flag_is_one(value.dns_status) ? "\u2705 Main DNS: " : "\u274c Main DNS: ") + dns_server + " [" + dns_type + "]");
     print_line(flag_is_one(value.dns_on_router) ? "\u2705 DNS on router" : "\u274c DNS on router");
 
     if (as_string(dont_touch_dhcp) == "1") {
@@ -1657,19 +1592,16 @@ function system_info_json() {
         forkop_latest_version: as_string(ARGV[2]),
         luci_app_version: as_string(ARGV[3]),
         sing_box_version: as_string(ARGV[4]),
-        sing_box_extended: arg_number(ARGV[5]),
-        sing_box_tiny: arg_number(ARGV[6]),
-        sing_box_compressed: arg_number(ARGV[7]),
-        sing_box_tailscale: arg_number(ARGV[8]),
-        zapret_version: as_string(ARGV[9]),
-        zapret_installed: arg_number(ARGV[10]),
-        zapret2_version: as_string(ARGV[11]),
-        zapret2_installed: arg_number(ARGV[12]),
-        byedpi_version: as_string(ARGV[13]),
-        byedpi_installed: arg_number(ARGV[14]),
-        openwrt_version: as_string(ARGV[15]),
-        device_model: as_string(ARGV[16]),
-        generated_at: arg_number(ARGV[17])
+        sing_box_compressed: arg_number(ARGV[5]),
+        zapret_version: as_string(ARGV[6]),
+        zapret_installed: arg_number(ARGV[7]),
+        zapret2_version: as_string(ARGV[8]),
+        zapret2_installed: arg_number(ARGV[9]),
+        byedpi_version: as_string(ARGV[10]),
+        byedpi_installed: arg_number(ARGV[11]),
+        openwrt_version: as_string(ARGV[12]),
+        device_model: as_string(ARGV[13]),
+        generated_at: arg_number(ARGV[14])
     });
 }
 
@@ -1926,7 +1858,7 @@ else if (mode == "firewall-port-open")
 else if (mode == "firewall-required-protocols-open")
     exit(firewall_required_protocols_open(ARGV[1], ARGV[2]) ? 0 : 1);
 else if (mode == "server-required-inbound-proto")
-    server_required_inbound_proto(ARGV[1]);
+    server_required_inbound_proto(ARGV[1], ARGV[2]);
 else if (mode == "server-runtime-type-for-protocol")
     server_runtime_type_for_protocol(ARGV[1]);
 else if (mode == "server-listen-requires-firewall")
@@ -1947,10 +1879,6 @@ else if (mode == "inbounds-config-json")
     write_inbounds_config_json(ARGV[1]);
 else if (mode == "inbounds-check-json")
     write_inbounds_check_json(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5]);
-else if (mode == "server-capabilities-json")
-    write_server_capabilities_json(ARGV[1], ARGV[2], ARGV[3]);
-else if (mode == "ui-capabilities-json")
-    write_ui_capabilities_json(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8]);
 else if (mode == "service-status-json")
     write_service_status_json(ARGV[1], ARGV[2], ARGV[3], ARGV[4]);
 else if (mode == "service-status-running")
@@ -1962,7 +1890,7 @@ else if (mode == "dns-check-json")
 else if (mode == "nft-check-json")
     write_nft_check_json(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8]);
 else if (mode == "sing-box-check-json")
-    write_sing_box_check_json(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7]);
+    write_sing_box_check_json(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6]);
 else if (mode == "fakeip-check-json")
     write_fakeip_check_json(ARGV[1], ARGV[2]);
 else if (mode == "fakeip-address-status")

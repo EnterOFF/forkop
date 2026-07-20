@@ -194,10 +194,7 @@ export interface StoreType {
     forkop_latest_version: string;
     luci_app_version: string;
     sing_box_version: string;
-    sing_box_extended: number;
-    sing_box_tiny: number;
     sing_box_compressed: number;
-    sing_box_tailscale: number;
     zapret_version: string;
     zapret_installed: number;
     zapret2_version: string;

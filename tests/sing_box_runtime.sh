@@ -76,23 +76,23 @@ END {
   fail "reload-state cleanup must not delete subscription section-cache"
 fi
 
-mkdir -p "$WORK_DIR/bin"
+mkdir -p "$WORK_DIR/bin" "$WORK_DIR/lib/core"
+cat >"$WORK_DIR/lib/core/packages.uc" <<'EOF_PACKAGES'
+#!/usr/bin/ucode
+if ((ARGV[0] || "") == "version" && (ARGV[1] || "") == "sing-box-forkop-compressed")
+  print("1.13.14~extended~2.5.2~forkop.1\n");
+EOF_PACKAGES
 cat >"$WORK_DIR/bin/sing-box" <<'EOF_SING_BOX'
 #!/bin/sh
-echo 'sing-box version 1.12.25'
+echo 'sing-box version 1.13.14-extended-2.5.2-forkop.1'
 EOF_SING_BOX
 chmod +x "$WORK_DIR/bin/sing-box"
-unsupported_variant="$({
-  PATH="$WORK_DIR/bin:$PATH" \
-    FORKOP_LIB="$FORKOP_LIB" \
-    SB_VARIANT_STATE_FILE="$WORK_DIR/sing-box-variant" \
-    ucode -L "$FORKOP_LIB" "$SINGBOX_RUNTIME_UC" variant
-} 2>"$WORK_DIR/stable-variant.stderr")" ||
-  fail "singbox/runtime.uc must reject an unmanaged binary without a ucode call-order failure"
-[ "$unsupported_variant" = "not-installed" ] ||
-  fail "singbox/runtime.uc must not classify an unmanaged sing-box as a supported variant"
-[ ! -s "$WORK_DIR/stable-variant.stderr" ] ||
-  fail "stable sing-box variant detection must not emit ucode runtime errors"
+runtime_version="$(
+  PATH="$WORK_DIR/bin:$PATH" FORKOP_LIB="$WORK_DIR/lib" \
+    ucode -L "$FORKOP_LIB" "$SINGBOX_RUNTIME_UC" version
+)"
+[ "$runtime_version" = "1.13.14-extended-2.5.2-forkop.1" ] ||
+  fail "singbox/runtime.uc must report the installed sing-box-forkop version"
 
 mkdir -p "$WORK_DIR/check-bin"
 cat >"$WORK_DIR/check-bin/sing-box" <<'EOF_SING_BOX_CHECK'
@@ -115,7 +115,7 @@ grep -Fq 'Generated sing-box configuration is invalid: " + check_result.reason' 
   fail "generated config failure must include the captured sing-box check diagnostic"
 
 cat >"$WORK_DIR/generator-failure.log" <<'EOF_GENERATOR_FAILURE'
-skipped incompatible subscription outbound for rule 'only_xhttp': Only XHTTP node (XHTTP requires sing-box-extended)
+skipped one optional outbound
 connection section has no usable outbounds
 EOF_GENERATOR_FAILURE
 generator_reason="$(ucode -L "$FORKOP_LIB" "$SINGBOX_RUNTIME_UC" generator-failure-reason-fixture \
@@ -198,6 +198,46 @@ if grep -Fq 'prepare_subscription_caches' "$SINGBOX_RUNTIME_UC"; then
   fail "singbox/runtime.uc must not prepare Forkop subscription caches"
 fi
 
+cat >"$WORK_DIR/tunnel-fixture.json" <<'JSON'
+{
+  "settings": {
+    ".name": "settings",
+    ".type": "settings",
+    "config_path": "/tmp/sing-box/config.json",
+    "cache_path": "/tmp/sing-box/cache.db",
+    "dns_server": "1.1.1.1",
+    "service_listen_address": "127.0.0.1"
+  },
+  "section": [
+    {
+      ".name": "tunnels",
+      ".type": "section",
+      "enabled": "1",
+      "action": "connection",
+      "tunnel_jsons": [
+        "{\"name\":\"Cloudflare WARP\",\"kind\":\"warp\",\"endpoint\":{\"type\":\"warp\"}}",
+        "{\"name\":\"Amnezia\",\"kind\":\"amneziawg\",\"endpoint\":{\"type\":\"wireguard\",\"address\":[\"10.0.0.2/32\"],\"private_key\":\"private\",\"peers\":[{\"address\":\"vpn.example.com\",\"port\":51820,\"public_key\":\"public\",\"allowed_ips\":[\"0.0.0.0/0\"]}],\"amnezia\":{\"jc\":5}}}"
+      ]
+    }
+  ]
+}
+JSON
+generate_config "$WORK_DIR/tunnel-fixture.json" "$WORK_DIR/tunnel.json"
+node - "$WORK_DIR/tunnel.json" <<'NODE'
+const fs = require('fs');
+const config = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const warp = config.endpoints.find((endpoint) => endpoint.tag === 'tunnels-tunnel-1-out');
+const amnezia = config.endpoints.find((endpoint) => endpoint.tag === 'tunnels-tunnel-2-out');
+const selector = config.outbounds.find((outbound) => outbound.tag === 'tunnels-out');
+if (!warp || warp.type !== 'warp') throw new Error('native WARP endpoint missing');
+if (!amnezia || amnezia.type !== 'wireguard' || amnezia.amnezia?.jc !== 5)
+  throw new Error('native AmneziaWG endpoint missing');
+if (!selector?.outbounds?.includes(warp.tag) || !selector.outbounds.includes(amnezia.tag))
+  throw new Error('tunnels are not selectable connection outbounds');
+if (config.experimental?.cache_file?.store_warp_config !== true)
+  throw new Error('WARP profile cache is not enabled');
+NODE
+
 cat >"$WORK_DIR/generator-uci.state" <<'EOF_UCI'
 forkop.settings=settings
 forkop.settings.dns_server=1.1.1.1
@@ -251,6 +291,7 @@ cat >"$WORK_DIR/default-updates-fixture.json" <<'JSON'
     ".name": "settings",
     ".type": "settings",
     "config_path": "/tmp/sing-box/config.json",
+    "unified_delay": "1",
     "dns_server": "1.1.1.1",
     "service_listen_address": "127.0.0.1"
   },
@@ -308,6 +349,92 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       "socks_auth_enabled": "0",
       "server_username": "ignored",
       "server_password": "ignored",
+      "routing_mode": "direct"
+    },
+    {
+      ".name": "mtproxy",
+      ".type": "server",
+      "enabled": "1",
+      "protocol": "mtproto",
+      "listen": "0.0.0.0",
+      "listen_port": "18442",
+      "mtproto_secret": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "mtproto_faketls": "google.com",
+      "mtproto_domain_fronting_ip": "203.0.113.7",
+      "routing_mode": "direct"
+    },
+    {
+      ".name": "naive",
+      ".type": "server",
+      "enabled": "1",
+      "protocol": "naive",
+      "listen": "0.0.0.0",
+      "listen_port": "18443",
+      "server_username": "naive-user",
+      "server_password": "naive-password",
+      "security": "tls",
+      "tls_certificate_path": "/etc/forkop/server-certs/naive.crt",
+      "tls_key_path": "/etc/forkop/server-certs/naive.key",
+      "naive_network": "tcp_udp",
+      "naive_quic_congestion_control": "bbr2",
+      "routing_mode": "direct"
+    },
+    {
+      ".name": "ssh",
+      ".type": "server",
+      "enabled": "1",
+      "protocol": "ssh",
+      "listen": "0.0.0.0",
+      "listen_port": "18222",
+      "server_username": "ssh-user",
+      "server_password": "ssh-password",
+      "ssh_host_key_path": [ "/etc/forkop/ssh/host_key" ],
+      "routing_mode": "direct"
+    },
+    {
+      ".name": "mieru",
+      ".type": "server",
+      "enabled": "1",
+      "protocol": "mieru",
+      "listen": "0.0.0.0",
+      "listen_port": "18444",
+      "server_username": "mieru-user",
+      "server_password": "mieru-password",
+      "mieru_transport": "UDP",
+      "mieru_user_hint_mandatory": "1",
+      "routing_mode": "direct"
+    },
+    {
+      ".name": "anytls",
+      ".type": "server",
+      "enabled": "1",
+      "protocol": "anytls",
+      "listen": "0.0.0.0",
+      "listen_port": "18445",
+      "label": "AnyTLS user",
+      "server_password": "anytls-password",
+      "security": "tls",
+      "tls_certificate_path": "/etc/forkop/server-certs/anytls.crt",
+      "tls_key_path": "/etc/forkop/server-certs/anytls.key",
+      "routing_mode": "direct"
+    },
+    {
+      ".name": "tuic",
+      ".type": "server",
+      "enabled": "1",
+      "protocol": "tuic",
+      "listen": "0.0.0.0",
+      "listen_port": "18446",
+      "label": "TUIC user",
+      "server_uuid": "33333333-3333-4333-8333-333333333333",
+      "server_password": "tuic-password",
+      "security": "tls",
+      "tls_certificate_path": "/etc/forkop/server-certs/tuic.crt",
+      "tls_key_path": "/etc/forkop/server-certs/tuic.key",
+      "tuic_congestion_control": "bbr",
+      "tuic_auth_timeout": "4s",
+      "tuic_heartbeat": "12s",
+      "tuic_zero_rtt_handshake": "1",
       "routing_mode": "direct"
     }
   ]
@@ -586,7 +713,8 @@ cat >"$WORK_DIR/download-via-proxy-fixture.json" <<'JSON'
       "outbound_json": "{\"type\":\"socks\",\"server\":\"127.0.0.1\",\"server_port\":1080}",
       "domain_suffix": [ "example.org" ],
       "community_lists": [ "discord" ],
-      "rule_set": [ "https://example.com/rules.srs" ]
+      "rule_set": [ "https://example.com/rules.srs" ],
+      "domain_ip_lists": [ "https://example.com/mixed.txt" ]
     },
     {
       ".name": "components_proxy",
@@ -716,174 +844,7 @@ cat >"$WORK_DIR/domain-ip-rulesets-fixture.json" <<JSON
       "outbound_json": "{\\"type\\":\\"direct\\"}",
       "domain_suffix": [ "example.org" ],
       "rule_set_with_subnets": [ "$WORK_DIR/with-subnets.json" ],
-      "domain_ip_lists": [ "$WORK_DIR/domain-ip.lst" ]
-    }
-  ]
-}
-JSON
-
-cat >"$WORK_DIR/subscription-metadata-fixture.json" <<'JSON'
-{
-  "settings": {
-    ".name": "settings",
-    ".type": "settings",
-    "config_path": "/tmp/sing-box/config.json",
-    "dns_server": "1.1.1.1",
-    "service_listen_address": "127.0.0.1"
-  },
-  "section": [
-    {
-      ".name": "proxy",
-      ".type": "section",
-      "enabled": "1",
-      "action": "proxy",
-      "subscription_urls": [
-        "https://example.com/sub-v2rayn.txt",
-        "https://example.com/sub.txt"
-      ],
-      "subscription_url_settings": "{\"https://example.com/sub-v2rayn.txt\":{\"user_agent\":\"v2rayN\"}}",
-      "domain_suffix": [ "proxy.example" ]
-    },
-    {
-      ".name": "test",
-      ".type": "section",
-      "enabled": "1",
-      "action": "proxy",
-      "subscription_urls": [
-        "https://example.com/test-sub.txt"
-      ],
-      "subscription_url_settings": "{\"https://example.com/test-sub.txt\":{\"user_agent\":\"v2rayN\"}}",
-      "domain_suffix": [ "test.example" ]
-    }
-  ]
-}
-JSON
-
-cat >"$WORK_DIR/subscription-group-fixture.json" <<'JSON'
-{
-  "settings": {
-    ".name": "settings",
-    ".type": "settings",
-    "config_path": "/tmp/sing-box/config.json",
-    "dns_server": "1.1.1.1",
-    "service_listen_address": "127.0.0.1"
-  },
-  "section": [
-    {
-      ".name": "detour",
-      ".type": "section",
-      "enabled": "1",
-      "action": "connection",
-      "outbound_jsons": [ "{\"type\":\"socks\",\"server\":\"127.0.0.1\",\"server_port\":1081}" ],
-      "domain_suffix": [ "detour.example" ]
-    },
-    {
-      ".name": "grouped",
-      ".type": "section",
-      "enabled": "1",
-      "action": "connection",
-      "subscription_urls": [
-        "https://example.com/group.json"
-      ],
-      "subscription_url_settings": "{\"https://example.com/group.json\":{\"user_agent\":\"Happ\"}}",
-      "domain_suffix": [ "grouped.example" ]
-    }
-  ]
-}
-JSON
-
-cat >"$WORK_DIR/subscription-group-disabled-fixture.json" <<'JSON'
-{
-  "settings": {
-    ".name": "settings",
-    ".type": "settings",
-    "config_path": "/tmp/sing-box/config.json",
-    "dns_server": "1.1.1.1",
-    "service_listen_address": "127.0.0.1"
-  },
-  "section": [
-    {
-      ".name": "grouped",
-      ".type": "section",
-      "enabled": "1",
-      "action": "connection",
-      "subscription_urls": [
-        "https://example.com/group.json"
-      ],
-      "subscription_url_settings": "{\"https://example.com/group.json\":{\"user_agent\":\"Happ\",\"include_urltest_groups\":\"0\"}}",
-      "domain_suffix": [ "grouped.example" ]
-    }
-  ]
-}
-JSON
-
-cat >"$WORK_DIR/subscription-xhttp-fixture.json" <<'JSON'
-{
-  "settings": {
-    ".name": "settings",
-    ".type": "settings",
-    "config_path": "/tmp/sing-box/config.json",
-    "dns_server": "1.1.1.1",
-    "service_listen_address": "127.0.0.1"
-  },
-  "section": [
-    {
-      ".name": "xhttp",
-      ".type": "section",
-      "enabled": "1",
-      "action": "connection",
-      "subscription_urls": [ "https://example.com/xhttp.json" ],
-      "subscription_url_settings": "{\"https://example.com/xhttp.json\":{\"user_agent\":\"Happ\"}}",
-      "domain_suffix": [ "xhttp.example" ]
-    }
-  ],
-  "urltest": [
-    {
-      ".name": "ut_xhttp",
-      ".type": "urltest",
-      "section": "xhttp",
-      "name": "Compatible URLTest"
-    }
-  ],
-  "priority_group": [
-    {
-      ".name": "pg_xhttp",
-      ".type": "priority_group",
-      "section": "xhttp",
-      "name": "Compatible Priority"
-    }
-  ],
-  "priority_level": [
-    {
-      ".name": "pl_xhttp",
-      ".type": "priority_level",
-      "group": "pg_xhttp",
-      "name": "All compatible",
-      "order": "0",
-      "filter_mode": "disabled"
-    }
-  ]
-}
-JSON
-
-cat >"$WORK_DIR/subscription-only-xhttp-fixture.json" <<'JSON'
-{
-  "settings": {
-    ".name": "settings",
-    ".type": "settings",
-    "config_path": "/tmp/sing-box/config.json",
-    "dns_server": "1.1.1.1",
-    "service_listen_address": "127.0.0.1"
-  },
-  "section": [
-    {
-      ".name": "only_xhttp",
-      ".type": "section",
-      "enabled": "1",
-      "action": "connection",
-      "subscription_urls": [ "https://example.com/only-xhttp.json" ],
-      "subscription_url_settings": "{\"https://example.com/only-xhttp.json\":{\"user_agent\":\"Happ\"}}",
-      "domain_suffix": [ "only-xhttp.example" ]
+      "domain_ip_lists": [ "$WORK_DIR/domain-ip.lst", "https://example.com/domain-ip.txt" ]
     }
   ]
 }
@@ -923,142 +884,6 @@ cat >"$WORK_DIR/json-xhttp-fixture.json" <<'JSON'
 }
 JSON
 
-mkdir -p "$WORK_DIR/subscriptions" "$WORK_DIR/persistent-subscription-cache"
-for source in proxy-subscription-1 proxy-subscription-2 test-subscription-1; do
-  cat >"$WORK_DIR/subscriptions/$source.json" <<'JSON'
-{"outbounds":[{"type":"socks","tag":"subscription-proxy","server":"127.0.0.1","server_port":1080}]}
-JSON
-  printf '%s' 'https://example.com/sub.txt' >"$WORK_DIR/subscriptions/$source.url"
-  cat >"$WORK_DIR/persistent-subscription-cache/$source.metadata.json" <<'JSON'
-{"version":1,"title":"WolfPN"}
-JSON
-  printf '%s' 'https://example.com/sub.txt' >"$WORK_DIR/persistent-subscription-cache/$source.url"
-done
-printf '%s' 'https://example.com/sub-v2rayn.txt' >"$WORK_DIR/subscriptions/proxy-subscription-1.url"
-printf '%s' 'https://example.com/sub-v2rayn.txt' >"$WORK_DIR/persistent-subscription-cache/proxy-subscription-1.url"
-printf '%s' 'https://example.com/test-sub.txt' >"$WORK_DIR/subscriptions/test-subscription-1.url"
-printf '%s' 'https://example.com/test-sub.txt' >"$WORK_DIR/persistent-subscription-cache/test-subscription-1.url"
-printf '%s' 'v2rayN' >"$WORK_DIR/subscriptions/proxy-subscription-1.user_agent"
-printf '%s' 'sing-box/default' >"$WORK_DIR/subscriptions/proxy-subscription-2.user_agent"
-printf '%s' 'v2rayN' >"$WORK_DIR/subscriptions/test-subscription-1.user_agent"
-printf '%s' 'v2rayN' >"$WORK_DIR/persistent-subscription-cache/proxy-subscription-1.user_agent"
-printf '%s' 'sing-box/default' >"$WORK_DIR/persistent-subscription-cache/proxy-subscription-2.user_agent"
-printf '%s' 'v2rayN' >"$WORK_DIR/persistent-subscription-cache/test-subscription-1.user_agent"
-cat >"$WORK_DIR/subscriptions/grouped-subscription-1.json" <<'JSON'
-{
-  "outbounds": [
-    {
-      "type": "urltest",
-      "tag": "Provider Group",
-      "outbounds": [ "grouped-out", "leaf" ],
-      "url": "https://www.gstatic.com/generate_204",
-      "interval": "10m",
-      "tolerance": 50,
-      "remark": "Provider Group",
-      "__forkop_allow_group": true
-    },
-    {
-      "type": "vless",
-      "tag": "grouped-out",
-      "server": "127.0.0.1",
-      "server_port": 443,
-      "uuid": "00000000-0000-4000-8000-000000000001",
-      "tls": { "enabled": true, "server_name": "example.com" },
-      "__forkop_hidden": true
-    },
-    {
-      "type": "vless",
-      "tag": "leaf",
-      "server": "127.0.0.2",
-      "server_port": 443,
-      "uuid": "00000000-0000-4000-8000-000000000002",
-      "tls": { "enabled": true, "server_name": "example.org" },
-      "__forkop_hidden": true
-    },
-    {
-      "type": "direct",
-      "tag": "provider-direct"
-    },
-    {
-      "type": "http",
-      "tag": "provider-http",
-      "server": "127.0.0.3",
-      "server_port": 8080
-    }
-  ]
-}
-JSON
-printf '%s' 'https://example.com/group.json' >"$WORK_DIR/subscriptions/grouped-subscription-1.url"
-printf '%s' 'Happ' >"$WORK_DIR/subscriptions/grouped-subscription-1.user_agent"
-cat >"$WORK_DIR/subscriptions/xhttp-subscription-1.json" <<'JSON'
-{
-  "outbounds": [
-    {
-      "type": "urltest",
-      "tag": "Provider XHTTP Group",
-      "outbounds": [ "xhttp-node", "plain-node" ],
-      "default": "xhttp-node",
-      "url": "https://www.gstatic.com/generate_204",
-      "remark": "Provider XHTTP Group",
-      "__forkop_allow_group": true
-    },
-    {
-      "type": "vless",
-      "tag": "xhttp-node",
-      "remark": "Moscow XHTTP",
-      "server": "127.0.0.10",
-      "server_port": 443,
-      "uuid": "00000000-0000-4000-8000-000000000010",
-      "transport": { "type": "xhttp" },
-      "__forkop_hidden": true
-    },
-    {
-      "type": "socks",
-      "tag": "plain-node",
-      "remark": "Plain node",
-      "server": "127.0.0.11",
-      "server_port": 1080,
-      "__forkop_hidden": true
-    },
-    {
-      "type": "socks",
-      "tag": "depends-on-xhttp",
-      "remark": "Depends on XHTTP",
-      "server": "127.0.0.12",
-      "server_port": 1080,
-      "detour": "xhttp-node"
-    },
-    {
-      "type": "socks",
-      "tag": "recursive-dependent",
-      "remark": "Recursive dependent",
-      "server": "127.0.0.13",
-      "server_port": 1080,
-      "detour": "depends-on-xhttp"
-    }
-  ]
-}
-JSON
-printf '%s' 'https://example.com/xhttp.json' >"$WORK_DIR/subscriptions/xhttp-subscription-1.url"
-printf '%s' 'Happ' >"$WORK_DIR/subscriptions/xhttp-subscription-1.user_agent"
-cat >"$WORK_DIR/subscriptions/only_xhttp-subscription-1.json" <<'JSON'
-{
-  "outbounds": [
-    {
-      "type": "vless",
-      "tag": "only-xhttp-node",
-      "remark": "Only XHTTP node",
-      "server": "127.0.0.20",
-      "server_port": 443,
-      "uuid": "00000000-0000-4000-8000-000000000020",
-      "transport": { "type": "xhttp" }
-    }
-  ]
-}
-JSON
-printf '%s' 'https://example.com/only-xhttp.json' >"$WORK_DIR/subscriptions/only_xhttp-subscription-1.url"
-printf '%s' 'Happ' >"$WORK_DIR/subscriptions/only_xhttp-subscription-1.user_agent"
-
 generate_config "$WORK_DIR/disabled-updates-fixture.json" "$WORK_DIR/disabled.json"
 generate_config "$WORK_DIR/default-updates-fixture.json" "$WORK_DIR/default.json"
 generate_config "$WORK_DIR/server-inbound-fixture.json" "$WORK_DIR/server.json"
@@ -1082,14 +907,9 @@ generate_config "$WORK_DIR/domain-ip-rulesets-fixture.json" "$WORK_DIR/domain-ip
 generate_config "$WORK_DIR/manual-xhttp-fixture.json" "$WORK_DIR/manual-xhttp.json"
 grep -Fq 'type=xhttp' "$WORK_DIR/manual-xhttp.json.providers/manual_xhttp-manual-provider.txt" ||
   fail "XHTTP connection URLs must be delegated to the native provider parser"
-if ucode -L "$FORKOP_LIB" "$SINGBOX_GENERATOR_UC" generate-config-fixture \
-  "$WORK_DIR/json-xhttp-fixture.json" "$WORK_DIR/json-xhttp-stable.json" "127.0.0.1" "0" "0" \
-  >"$WORK_DIR/json-xhttp-stable.stdout" 2>"$WORK_DIR/json-xhttp-stable.stderr"; then
-  fail "stable sing-box should reject an explicit JSON XHTTP configuration"
-fi
-grep -Fq "uses XHTTP transport, but sing-box-extended is not installed" "$WORK_DIR/json-xhttp-stable.stderr" ||
-  fail "explicit JSON XHTTP failure should explain the extended requirement"
-generate_config "$WORK_DIR/json-xhttp-fixture.json" "$WORK_DIR/json-xhttp-extended.json"
+generate_config "$WORK_DIR/json-xhttp-fixture.json" "$WORK_DIR/json-xhttp.json"
+grep -Fq '"type": "xhttp"' "$WORK_DIR/json-xhttp.json" ||
+  fail "sing-box-forkop must accept explicit JSON XHTTP configuration"
 
 ucode -e '
 let fs = require("fs");
@@ -1153,6 +973,13 @@ function ruleset(config, tag) {
 function ruleset_url(config, url) {
     for (let rule_set in config.route.rule_set || [])
         if (rule_set && rule_set.url == url)
+            return rule_set;
+    return null;
+}
+
+function ruleset_path(config, path) {
+    for (let rule_set in config.route.rule_set || [])
+        if (rule_set && rule_set.path == path)
             return rule_set;
     return null;
 }
@@ -1221,6 +1048,7 @@ assert(route_rule(disabled, r => r.action == "resolve" && r.server == "dns-serve
 
 let defaults = cfg("default");
 assert(first_remote_ruleset(defaults).update_interval == "1d", "default list update interval");
+assert(defaults.experimental.unified_delay.enabled === true, "Unified Delay setting is generated");
 assert(defaults.dns.strategy == "prefer_ipv4", "missing DNS strategy keeps the prefer_ipv4 default");
 assert(dns_server(defaults, r => r.tag == "dnsmasq-server") == null, "source-aware DNS server is omitted without device filters");
 
@@ -1231,6 +1059,27 @@ assert(socks.users && socks.users[0].username == "tester", "legacy server socks 
 let open_socks = inbound(server, "server-open-in");
 assert(open_socks && open_socks.type == "socks" && open_socks.listen_port == 18081, "server open socks inbound");
 assert(open_socks.users == null, "disabled server socks auth omits users");
+let mtproxy = inbound(server, "server-mtproxy-in");
+assert(mtproxy && mtproxy.type == "mtproxy" && mtproxy.listen_port == 18442, "MTProxy inbound");
+assert(mtproxy.domain_fronting_host == "203.0.113.7", "MTProxy fronting host uses the native schema key");
+assert(mtproxy.domain_fronting_ip == null, "legacy MTProxy fronting IP key is not emitted");
+let naive = inbound(server, "server-naive-in");
+assert(naive && naive.type == "naive" && naive.network[0] == "tcp" && naive.network[1] == "udp", "Naive inbound networks");
+assert(naive.users[0].username == "naive-user" && naive.quic_congestion_control == "bbr2", "Naive inbound credentials and QUIC");
+assert(naive.tls && naive.tls.enabled === true, "Naive inbound TLS");
+let ssh = inbound(server, "server-ssh-in");
+assert(ssh && ssh.type == "ssh" && ssh.users[0].name == "ssh-user", "SSH inbound credentials");
+assert(ssh.host_key_path[0] == "/etc/forkop/ssh/host_key", "SSH inbound host key path");
+let mieru = inbound(server, "server-mieru-in");
+assert(mieru && mieru.type == "mieru" && mieru.transport == "UDP", "Mieru inbound transport");
+assert(mieru.users[0].password == "mieru-password" && mieru.user_hint_is_mandatory === true, "Mieru inbound credentials");
+let anytls = inbound(server, "server-anytls-in");
+assert(anytls && anytls.type == "anytls" && anytls.users[0].password == "anytls-password", "AnyTLS inbound credentials");
+assert(anytls.tls && anytls.tls.enabled === true, "AnyTLS inbound TLS");
+let tuic = inbound(server, "server-tuic-in");
+assert(tuic && tuic.type == "tuic" && tuic.users[0].uuid == "33333333-3333-4333-8333-333333333333", "TUIC inbound identity");
+assert(tuic.congestion_control == "bbr" && tuic.auth_timeout == "4s" && tuic.heartbeat == "12s" && tuic.zero_rtt_handshake === true, "TUIC inbound options");
+assert(tuic.tls && tuic.tls.enabled === true, "TUIC inbound TLS");
 assert(route_rule(server, r => r.inbound == "server-edge-in" && r.outbound == "direct-out") != null, "server direct route");
 
 let matchers = cfg("matchers");
@@ -1323,12 +1172,13 @@ assert(dns_second_forced_index > proxy_first_index, "lower forced DNS action pre
 assert(dns_rule(dns_action, r => contains(r.rule_set, "dns_first-youtube-community-ruleset") && r.server == "dns_first-dns-server" && contains(r.source_ip_cidr, "192.0.2.1/32")) != null, "DNS action device filter covers built-in domain rule sets");
 let dns_custom_ruleset = ruleset_url(dns_action, "https://example.com/domain-only.srs");
 assert(dns_custom_ruleset && dns_rule(dns_action, r => contains(r.rule_set, dns_custom_ruleset.tag) && r.server == "dns_first-dns-server" && contains(r.source_ip_cidr, "192.0.2.1/32")) != null, "DNS action device filter covers custom domain rule sets");
+let dns_text_ruleset = ruleset_path(dns_action, dir + "/dns-action.lst");
+assert(dns_text_ruleset && dns_text_ruleset.type == "local" && dns_text_ruleset.format == "text", "DNS action keeps a plain list as a native text rule set");
+assert(dns_rule(dns_action, r => contains(r.rule_set, dns_text_ruleset.tag) && r.server == "dns_first-dns-server" && contains(r.source_ip_cidr, "192.0.2.1/32")) != null, "DNS action uses the native text rule set as a domain matcher");
 let dns_action_fallback = dns_rule(dns_action, r => r.server == "dnsmasq-server" && r.domain == null && r.domain_suffix == null && r.rule_set == null);
 assert(dns_action_fallback && contains(dns_action_fallback.source_ip_cidr, "192.0.2.1/32") && contains(dns_action_fallback.source_ip_cidr, "192.0.2.2/32") && contains(dns_action_fallback.source_ip_cidr, "192.0.2.3/32"), "unmatched device-aware DNS actions return through dnsmasq");
 assert(route_rule(dns_action, r => contains(r.source_ip_cidr, "192.0.2.2/32")) == null, "forced DNS action does not route device traffic");
-let dns_list = json(fs.readfile(dir + "/dns-action.json.rulesets/dns_first-lists-ruleset.json"));
-assert(index(sprintf("%J", dns_list), "list-dns.example") >= 0, "DNS action imports domains from plain lists");
-assert(index(sprintf("%J", dns_list), "198.51.100.0/24") < 0, "DNS action drops subnets from plain lists");
+assert(fs.stat(dir + "/dns-action.json.rulesets/dns_first-lists-ruleset.json") == null, "DNS action no longer builds a parsed Forkop rule-set cache");
 
 let urltest = cfg("urltest");
 let urltest_out = outbound(urltest, "proxy-urltest-out");
@@ -1356,6 +1206,8 @@ assert(inbound(download, "service-components-in") != null, "components service m
 assert(route_rule(download, r => r.inbound == "service-components-in" && r.outbound == "components_proxy-out") != null, "components service mixed route");
 assert(ruleset(download, "proxy-discord-community-ruleset").download_detour == "proxy-out", "download_detour on community ruleset");
 assert(ruleset_url(download, "https://example.com/rules.srs").download_detour == "proxy-out", "download_detour on custom remote ruleset");
+let download_text_ruleset = ruleset_url(download, "https://example.com/mixed.txt");
+assert(download_text_ruleset && download_text_ruleset.format == "text" && download_text_ruleset.update_interval == "1d" && download_text_ruleset.download_detour == "proxy-out", "native remote text rule set owns updates and detour");
 
 let fully = cfg("fully-routed");
 assert(route_rule(fully, r => r.outbound == "bypass-out" && contains(r.inbound, "tproxy-in") && contains(r.inbound, "tproxy6-in") && contains(r.source_ip_cidr, "192.168.1.20/32") && contains(r.source_ip_cidr, "192.168.1.30/32") && contains(r.source_ip_cidr, "2001:db8::20/128")) != null, "fully routed bypass IP route");
@@ -1386,24 +1238,14 @@ assert(mwan3_pinned.route.default_interface == "wan2", "mwan3 pinned interface i
 
 let lists = cfg("domain-ip-rulesets");
 assert(no_internal_fields(lists), "internal runtime fields stripped from generated config");
-let local_ruleset = null;
-for (let rule_set in lists.route.rule_set || [])
-    if (rule_set.tag == "proxy-lists-ruleset")
-        local_ruleset = rule_set;
-assert(local_ruleset && local_ruleset.type == "local" && local_ruleset.format == "source", "domain_ip_lists local ruleset");
-assert(route_rule(lists, r => contains(r.rule_set, "proxy-lists-ruleset") && length(as_array(r.rule_set)) >= 2) != null, "domain_ip_lists and rule_set_with_subnets route");
-assert(dns_rule(lists, r => contains(r.rule_set, "proxy-lists-ruleset")) != null, "domain_ip_lists fakeip DNS rule");
-
-let generated_list = json(fs.readfile(dir + "/domain-ip-rulesets.json.rulesets/proxy-lists-ruleset.json"));
-let has_domain = false;
-let has_ip = false;
-for (let rule in generated_list.rules || []) {
-    if (contains(rule.domain_suffix, "example.net"))
-        has_domain = true;
-    if (contains(rule.ip_cidr, "203.0.113.0/24"))
-        has_ip = true;
-}
-assert(has_domain && has_ip, "generated domain/IP source ruleset contents");
+let local_ruleset = ruleset_path(lists, dir + "/domain-ip.lst");
+let remote_text_ruleset = ruleset_url(lists, "https://example.com/domain-ip.txt");
+assert(local_ruleset && local_ruleset.type == "local" && local_ruleset.format == "text", "local domain_ip_lists reference stays native text");
+assert(remote_text_ruleset && remote_text_ruleset.type == "remote" && remote_text_ruleset.format == "text" && remote_text_ruleset.update_interval == "1d", "remote domain_ip_lists reference owns native updates");
+assert(local_ruleset.tag != remote_text_ruleset.tag, "each domain_ip_lists reference has a stable independent tag");
+assert(route_rule(lists, r => contains(r.rule_set, local_ruleset.tag) && contains(r.rule_set, remote_text_ruleset.tag) && length(as_array(r.rule_set)) >= 3) != null, "text lists and rule_set_with_subnets share the section route");
+assert(dns_rule(lists, r => contains(r.rule_set, local_ruleset.tag) && contains(r.rule_set, remote_text_ruleset.tag)) != null, "native text lists remain DNS matchers");
+assert(fs.stat(dir + "/domain-ip-rulesets.json.rulesets/proxy-lists-ruleset.json") == null, "Forkop no longer builds aggregate source JSON for domain_ip_lists");
 
 ' "$WORK_DIR"
 

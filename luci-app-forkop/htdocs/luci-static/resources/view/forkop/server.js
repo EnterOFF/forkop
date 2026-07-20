@@ -387,7 +387,6 @@ function qrSvgDataUri(text) {
 
 const SERVER_STYLE_ID = "forkop-server-styles";
 const DEFAULT_SERVER_PROTOCOL = "tailscale";
-const FALLBACK_SERVER_PROTOCOL = "vless";
 const STREAM_PROTOCOLS = ["vless", "vmess", "trojan"];
 const PORT_PROTOCOLS = [
   "shadowsocks",
@@ -396,32 +395,41 @@ const PORT_PROTOCOLS = [
   "vless",
   "trojan",
   "hysteria2",
+  "mtproto",
+  "naive",
+  "ssh",
+  "mieru",
+  "anytls",
+  "tuic",
 ];
-const EXTENDED_PORT_PROTOCOLS = ["mtproto"];
-const PASSWORD_PROTOCOLS = ["shadowsocks", "socks", "trojan", "hysteria2"];
+const PASSWORD_PROTOCOLS = [
+  "shadowsocks",
+  "socks",
+  "trojan",
+  "hysteria2",
+  "naive",
+  "ssh",
+  "mieru",
+  "anytls",
+  "tuic",
+];
+const USERNAME_PROTOCOLS = ["socks", "naive", "ssh", "mieru"];
 
-const BASE_PROTOCOL_LABELS = {
+const PROTOCOL_LABELS = {
   vless: "VLESS",
   shadowsocks: "Shadowsocks",
   socks: "SOCKS",
   vmess: "VMess",
   trojan: "Trojan",
   hysteria2: "Hysteria2",
-};
-const EXTENDED_PROTOCOL_LABELS = {
   mtproto: "MTProto",
-};
-const CUSTOM_PROTOCOL_LABELS = {
+  naive: "NaiveProxy",
+  ssh: "SSH",
+  mieru: "Mieru",
+  anytls: "AnyTLS",
+  tuic: "TUIC",
   json_inbound: "JSON Inbound",
-};
-const TAILSCALE_PROTOCOL_LABELS = {
   tailscale: "Tailscale",
-};
-const PROTOCOL_LABELS = {
-  ...BASE_PROTOCOL_LABELS,
-  ...EXTENDED_PROTOCOL_LABELS,
-  ...CUSTOM_PROTOCOL_LABELS,
-  ...TAILSCALE_PROTOCOL_LABELS,
 };
 
 const SECURITY_BY_PROTOCOL = {
@@ -429,6 +437,11 @@ const SECURITY_BY_PROTOCOL = {
   vmess: ["tls", "none"],
   trojan: ["tls", "none"],
   hysteria2: ["tls"],
+  naive: ["tls"],
+  ssh: ["none"],
+  mieru: ["none"],
+  anytls: ["tls"],
+  tuic: ["tls"],
   shadowsocks: ["none"],
   socks: ["none"],
   mtproto: ["none"],
@@ -517,46 +530,14 @@ function addOptionValue(option, value, label) {
   option.value(value, label);
 }
 
-function normalizeServerCapabilities(capabilities) {
-  return {
-    singBoxExtended: Boolean(capabilities?.singBoxExtended),
-    singBoxTailscale: capabilities?.singBoxTailscale !== false,
-  };
-}
-
-function getDefaultProtocolForCapabilities(capabilities) {
-  return normalizeServerCapabilities(capabilities).singBoxTailscale
-    ? DEFAULT_SERVER_PROTOCOL
-    : FALLBACK_SERVER_PROTOCOL;
-}
-
-function populateProtocolValues(option, capabilities) {
-  const normalized = normalizeServerCapabilities(capabilities);
-
+function populateProtocolValues(option) {
   resetOptionValues(option);
-
-  if (normalized.singBoxTailscale) {
-    Object.entries(TAILSCALE_PROTOCOL_LABELS).forEach(([value, label]) => {
-      addOptionValue(option, value, label);
-    });
-  }
-
-  Object.entries(BASE_PROTOCOL_LABELS).forEach(([value, label]) => {
-    addOptionValue(option, value, label);
-  });
-
-  if (normalized.singBoxExtended) {
-    Object.entries(EXTENDED_PROTOCOL_LABELS).forEach(([value, label]) => {
-      addOptionValue(option, value, label);
-    });
-  }
-
-  Object.entries(CUSTOM_PROTOCOL_LABELS).forEach(([value, label]) => {
+  Object.entries(PROTOCOL_LABELS).forEach(([value, label]) => {
     addOptionValue(option, value, label);
   });
 }
 
-function populateTransportValues(option, singBoxExtended) {
+function populateTransportValues(option) {
   resetOptionValues(option);
 
   addOptionValue(option, "tcp", "TCP");
@@ -564,37 +545,14 @@ function populateTransportValues(option, singBoxExtended) {
   addOptionValue(option, "grpc", "gRPC");
   addOptionValue(option, "http", "HTTP");
   addOptionValue(option, "httpupgrade", "HTTPUpgrade");
-
-  if (singBoxExtended) {
-    addOptionValue(option, "xhttp", "XHTTP");
-  }
-}
-
-function applyServerCapabilities(sectionRef, capabilities) {
-  const options = sectionRef.serverCapabilityOptions;
-  const normalized = normalizeServerCapabilities(capabilities);
-
-  sectionRef.serverCapabilities = normalized;
-
-  if (!options) {
-    return;
-  }
-
-  if (options.protocol) {
-    populateProtocolValues(options.protocol, normalized);
-    options.protocol.default = getDefaultProtocolForCapabilities(normalized);
-  }
-
-  if (options.transport) {
-    populateTransportValues(options.transport, normalized.singBoxExtended);
-  }
+  addOptionValue(option, "xhttp", "XHTTP");
 }
 
 function getServerName(sectionId) {
   return uci.get(UCI_PACKAGE, sectionId, "label") || sectionId;
 }
 
-function getSocksUsername(sectionId) {
+function getServerUsername(sectionId) {
   return (
     uci.get(UCI_PACKAGE, sectionId, "server_username") ||
     getServerName(sectionId) ||
@@ -614,7 +572,13 @@ function getDefaultSecurity(protocol) {
   if (protocol === "vless") {
     return "reality";
   }
-  if (protocol === "trojan" || protocol === "hysteria2") {
+  if (
+    protocol === "trojan" ||
+    protocol === "hysteria2" ||
+    protocol === "naive" ||
+    protocol === "anytls" ||
+    protocol === "tuic"
+  ) {
     return "tls";
   }
   return "none";
@@ -631,13 +595,20 @@ function getEffectiveSecurity(sectionId) {
   if (
     protocol === "shadowsocks" ||
     protocol === "socks" ||
+    protocol === "ssh" ||
+    protocol === "mieru" ||
     protocol === "mtproto" ||
     protocol === "tailscale" ||
     protocol === "json_inbound"
   ) {
     return "none";
   }
-  if (protocol === "hysteria2") {
+  if (
+    protocol === "hysteria2" ||
+    protocol === "naive" ||
+    protocol === "anytls" ||
+    protocol === "tuic"
+  ) {
     return "tls";
   }
   if (security === "reality" && protocol !== "vless") {
@@ -1038,7 +1009,7 @@ function ensureProtocolDefaults(sectionId, protocol, forceProtocolDefaults) {
     setDefault(sectionId, "transport", "tcp");
   }
 
-  if (protocol === "vless" || protocol === "vmess") {
+  if (protocol === "vless" || protocol === "vmess" || protocol === "tuic") {
     setDefault(sectionId, "server_uuid", generateUuid());
   }
 
@@ -1046,8 +1017,10 @@ function ensureProtocolDefaults(sectionId, protocol, forceProtocolDefaults) {
     setDefault(sectionId, "server_password", generatePassword());
   }
 
-  if (protocol === "socks") {
-    setDefault(sectionId, "socks_auth_enabled", "1");
+  if (USERNAME_PROTOCOLS.includes(protocol)) {
+    if (protocol === "socks") {
+      setDefault(sectionId, "socks_auth_enabled", "1");
+    }
     setDefault(sectionId, "server_username", getServerName(sectionId));
   }
 
@@ -1087,31 +1060,30 @@ function ensureProtocolDefaults(sectionId, protocol, forceProtocolDefaults) {
     setDefault(sectionId, "hysteria2_obfs_password", generatePassword());
   }
 
+  if (protocol === "naive") {
+    setDefault(sectionId, "naive_network", "tcp");
+    setDefault(sectionId, "naive_quic_congestion_control", "bbr");
+  }
+
+  if (protocol === "mieru") {
+    setDefault(sectionId, "mieru_transport", "TCP");
+  }
+
+  if (protocol === "tuic") {
+    setDefault(sectionId, "tuic_congestion_control", "cubic");
+    setDefault(sectionId, "tuic_auth_timeout", "3s");
+    setDefault(sectionId, "tuic_heartbeat", "10s");
+  }
+
   if (protocol === "mtproto") {
     setDefault(sectionId, "mtproto_secret", generateMtprotoSecret());
     setDefault(sectionId, "mtproto_faketls", "google.com");
-    setDefault(sectionId, "mtproto_padding", "1");
     setDefault(sectionId, "mtproto_domain_fronting_port", "443");
     setDefault(sectionId, "mtproto_prefer_ip", "prefer-ipv4");
     setDefault(sectionId, "mtproto_tolerate_time_skewness", "3s");
     setDefault(sectionId, "mtproto_idle_timeout", "5m");
     setDefault(sectionId, "mtproto_handshake_timeout", "10s");
   }
-}
-
-function parseLegacyServerUser(sectionId, protocol) {
-  const entry = asList(uci.get(UCI_PACKAGE, sectionId, "server_users"))[0];
-  if (!entry) {
-    return null;
-  }
-
-  const parts = `${entry}`.split("|");
-  return {
-    name: parts.length > 1 ? parts[0].trim() : "client",
-    credential: (parts.length > 1 ? parts[1] : parts[0] || "").trim(),
-    extra: (parts[2] || "").trim(),
-    protocol,
-  };
 }
 
 function normalizeMtprotoBaseSecret(value) {
@@ -1147,49 +1119,29 @@ function getMtprotoFaketls(sectionId) {
   );
 }
 
-function isMtprotoPaddingEnabled(sectionId) {
-  return uci.get(UCI_PACKAGE, sectionId, "mtproto_padding") !== "0";
-}
-
-function buildMtprotoFullSecret(baseSecret, faketls, padding) {
-  if (!padding) {
-    return baseSecret;
-  }
-
+function buildMtprotoFullSecret(baseSecret, faketls) {
   return `ee${baseSecret}${stringToHex(faketls || "google.com")}`;
 }
 
 function getServerIdentity(sectionId) {
   const protocol = getProtocol(sectionId);
-  const legacy = parseLegacyServerUser(sectionId, protocol);
   const name = getServerName(sectionId);
-  const uuid =
-    uci.get(UCI_PACKAGE, sectionId, "server_uuid") || legacy?.credential || "";
-  const password =
-    uci.get(UCI_PACKAGE, sectionId, "server_password") ||
-    (PASSWORD_PROTOCOLS.includes(protocol) ? legacy?.credential : "") ||
-    "";
+  const uuid = uci.get(UCI_PACKAGE, sectionId, "server_uuid") || "";
+  const password = uci.get(UCI_PACKAGE, sectionId, "server_password") || "";
   const mtprotoSecret =
     normalizeMtprotoBaseSecret(
       uci.get(UCI_PACKAGE, sectionId, "mtproto_secret"),
-    ) ||
-    normalizeMtprotoBaseSecret(
-      protocol === "mtproto" ? legacy?.credential : "",
-    ) ||
-    "";
+    ) || "";
 
   return {
     name,
-    username: getSocksUsername(sectionId),
+    username: getServerUsername(sectionId),
     uuid,
     password,
     mtprotoSecret,
     mtprotoFaketls: getMtprotoFaketls(sectionId),
-    mtprotoPadding: isMtprotoPaddingEnabled(sectionId),
     flow: normalizeVlessFlow(
-      uci.get(UCI_PACKAGE, sectionId, "vless_flow") ||
-        (protocol === "vless" ? legacy?.extra : "") ||
-        "",
+      uci.get(UCI_PACKAGE, sectionId, "vless_flow") || "",
     ),
   };
 }
@@ -1402,7 +1354,6 @@ function buildMtprotoLink(sectionId, identity) {
   const secret = buildMtprotoFullSecret(
     identity.mtprotoSecret,
     identity.mtprotoFaketls,
-    identity.mtprotoPadding,
   );
   const query = encodeQuery({
     server: host,
@@ -1451,6 +1402,12 @@ function buildClientLink(sectionId, options = {}) {
       return buildHysteria2Link(sectionId, identity, options);
     case "mtproto":
       return buildMtprotoLink(sectionId, identity);
+    case "naive":
+    case "ssh":
+    case "mieru":
+    case "anytls":
+    case "tuic":
+      return "";
     case "vless":
     default:
       return buildVlessTrojanLink(sectionId, identity);
@@ -1835,6 +1792,14 @@ function validateRequiredText(_sectionId, value) {
     : true;
 }
 
+function validateUuid(_sectionId, value) {
+  return /^[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$/.test(
+    `${value || ""}`,
+  )
+    ? true
+    : _("Use a valid UUID");
+}
+
 function isRoutingSectionAction(action) {
   return ROUTING_SECTION_ACTIONS.indexOf(`${action || ""}`) !== -1;
 }
@@ -1924,6 +1889,10 @@ function validateFilePath(_sectionId, value) {
   return validation.valid && path !== "/" && !path.endsWith("/")
     ? true
     : _("Specify a file path");
+}
+
+function validateOptionalFilePath(sectionId, value) {
+  return isEmptyValue(value) ? true : validateFilePath(sectionId, value);
 }
 
 function validateTlsCertificatePath(sectionId, value) {
@@ -2303,13 +2272,8 @@ function addStreamDepends(option) {
   STREAM_PROTOCOLS.forEach((protocol) => option.depends("protocol", protocol));
 }
 
-function addPortProtocolDepends(option, singBoxExtended) {
+function addPortProtocolDepends(option) {
   PORT_PROTOCOLS.forEach((protocol) => option.depends("protocol", protocol));
-  if (singBoxExtended) {
-    EXTENDED_PORT_PROTOCOLS.forEach((protocol) =>
-      option.depends("protocol", protocol),
-    );
-  }
 }
 
 function addTlsDepends(option) {
@@ -2317,17 +2281,17 @@ function addTlsDepends(option) {
   option.depends({ protocol: "vmess", security: "tls" });
   option.depends({ protocol: "trojan", security: "tls" });
   option.depends("protocol", "hysteria2");
+  option.depends("protocol", "naive");
+  option.depends("protocol", "anytls");
+  option.depends("protocol", "tuic");
 }
 
 function addRealityDepends(option) {
   option.depends({ protocol: "vless", security: "reality" });
 }
 
-function addTailscaleDepends(option, singBoxTailscale) {
-  option.depends(
-    "protocol",
-    singBoxTailscale ? "tailscale" : "__unsupported_tailscale__",
-  );
+function addTailscaleDepends(option) {
+  option.depends("protocol", "tailscale");
 }
 
 function addMtprotoDepends(option) {
@@ -2365,7 +2329,7 @@ function configureServerTextareaOption(option) {
   };
 }
 
-function configureServerSection(sectionRef, options = {}) {
+function configureServerSection(sectionRef) {
   sectionRef.sortable = false;
   sectionRef.nodescriptions = true;
   sectionRef.load = function () {
@@ -2378,20 +2342,13 @@ function configureServerSection(sectionRef, options = {}) {
     this.serverEditSnapshots ??= {};
     this.serverEditSnapshots[sectionId] = captureServerEditState(sectionId);
 
-    const capabilitiesTask =
-      typeof options.loadCapabilities === "function"
-        ? options.loadCapabilities()
-        : Promise.resolve();
-
-    return Promise.resolve(capabilitiesTask)
-      .then(() => prepareServerModal(sectionId))
-      .then(() =>
-        form.GridSection.prototype.renderMoreOptionsModal.call(
-          this,
-          sectionId,
-          ev,
-        ),
-      );
+    return prepareServerModal(sectionId).then(() =>
+      form.GridSection.prototype.renderMoreOptionsModal.call(
+        this,
+        sectionId,
+        ev,
+      ),
+    );
   };
 
   sectionRef.handleAdd = function (_ev, name) {
@@ -2401,29 +2358,13 @@ function configureServerSection(sectionRef, options = {}) {
     const prevMap = mapNode ? dom.findClassInstance(mapNode) : this.map;
 
     prevMap.addedSection = sectionId;
+    ensureProtocolDefaults(sectionId, DEFAULT_SERVER_PROTOCOL, true);
 
-    const capabilitiesTask =
-      typeof options.loadCapabilities === "function"
-        ? options.loadCapabilities()
-        : Promise.resolve(this.serverCapabilities);
+    loadDefaultPublicHost()
+      .then((host) => applyDefaultPublicHost(sectionId, host))
+      .catch(() => null);
 
-    return Promise.resolve(capabilitiesTask).then((capabilities) => {
-      if (capabilities) {
-        this.serverCapabilities = normalizeServerCapabilities(capabilities);
-      }
-
-      ensureProtocolDefaults(
-        sectionId,
-        getDefaultProtocolForCapabilities(this.serverCapabilities),
-        true,
-      );
-
-      loadDefaultPublicHost()
-        .then((host) => applyDefaultPublicHost(sectionId, host))
-        .catch(() => null);
-
-      return this.renderMoreOptionsModal(sectionId);
-    });
+    return this.renderMoreOptionsModal(sectionId);
   };
 
   sectionRef.handleModalCancel = function (modalMap, ev, isSaving) {
@@ -2465,13 +2406,8 @@ function configureServerSection(sectionRef, options = {}) {
   };
 }
 
-function createServerContent(section, options = {}) {
+function createServerContent(section) {
   injectServerStyles();
-  const capabilities = normalizeServerCapabilities(options);
-  const singBoxExtended = capabilities.singBoxExtended;
-  const singBoxTailscale = capabilities.singBoxTailscale;
-  section.serverCapabilityOptions = {};
-  section.serverCapabilities = capabilities;
 
   let o = section.option(form.Flag, "enabled", _("Enable"));
   o.default = "1";
@@ -2502,7 +2438,7 @@ function createServerContent(section, options = {}) {
     uci.set(UCI_PACKAGE, sectionId, "label", value);
 
     if (
-      getProtocol(sectionId) === "socks" &&
+      USERNAME_PROTOCOLS.includes(getProtocol(sectionId)) &&
       (!currentUsername ||
         currentUsername === previousLabel ||
         currentUsername === sectionId)
@@ -2514,9 +2450,8 @@ function createServerContent(section, options = {}) {
   };
 
   o = section.option(form.ListValue, "protocol", _("Protocol"));
-  section.serverCapabilityOptions.protocol = o;
-  populateProtocolValues(o, capabilities);
-  o.default = getDefaultProtocolForCapabilities(capabilities);
+  populateProtocolValues(o);
+  o.default = DEFAULT_SERVER_PROTOCOL;
   o.rmempty = false;
   o.modalonly = true;
   o.validate = validateRequired;
@@ -2533,20 +2468,20 @@ function createServerContent(section, options = {}) {
   o.rmempty = false;
   o.modalonly = true;
   o.validate = validateListenAddress;
-  addPortProtocolDepends(o, true);
+  addPortProtocolDepends(o);
 
   o = section.option(form.Value, "listen_port", _("Listen port"));
   o.default = "443";
   o.rmempty = false;
   o.modalonly = true;
   o.validate = validatePort;
-  addPortProtocolDepends(o, true);
+  addPortProtocolDepends(o);
 
   o = section.option(form.Value, "public_host", _("Public host"));
   o.modalonly = true;
   o.rmempty = false;
   o.validate = validateHost;
-  addPortProtocolDepends(o, true);
+  addPortProtocolDepends(o);
   o.load = function (sectionId) {
     return loadDefaultPublicHost().then((host) => {
       applyDefaultPublicHost(sectionId, host);
@@ -2599,6 +2534,11 @@ function createServerContent(section, options = {}) {
   o.modalonly = true;
   addStreamDepends(o);
   o.depends("protocol", "hysteria2");
+  o.depends("protocol", "naive");
+  o.depends("protocol", "ssh");
+  o.depends("protocol", "mieru");
+  o.depends("protocol", "anytls");
+  o.depends("protocol", "tuic");
   o.validate = validateSecurity;
   o.onchange = function (_ev, sectionId, value) {
     if (value === "reality") {
@@ -2758,8 +2698,7 @@ function createServerContent(section, options = {}) {
   addRealityDepends(o);
 
   o = section.option(form.ListValue, "transport", _("Transport"));
-  section.serverCapabilityOptions.transport = o;
-  populateTransportValues(o, singBoxExtended);
+  populateTransportValues(o);
   o.default = "tcp";
   o.rmempty = false;
   o.modalonly = true;
@@ -2855,6 +2794,9 @@ function createServerContent(section, options = {}) {
     return value;
   };
   o.depends({ protocol: "socks", socks_auth_enabled: "1" });
+  ["naive", "ssh", "mieru"].forEach((protocol) =>
+    o.depends("protocol", protocol),
+  );
 
   o = section.option(form.Value, "server_password", _("Password"));
   o.modalonly = true;
@@ -2871,6 +2813,118 @@ function createServerContent(section, options = {}) {
     return value;
   };
   o.depends({ protocol: "socks", socks_auth_enabled: "1" });
+  PASSWORD_PROTOCOLS.filter((protocol) => protocol !== "socks").forEach(
+    (protocol) => o.depends("protocol", protocol),
+  );
+
+  o = section.option(form.Value, "server_uuid", _("UUID"));
+  o.modalonly = true;
+  o.rmempty = false;
+  o.validate = validateUuid;
+  o.load = function (sectionId) {
+    const current = uci.get(UCI_PACKAGE, sectionId, "server_uuid");
+    if (current) {
+      return current;
+    }
+
+    const value = generateUuid();
+    uci.set(UCI_PACKAGE, sectionId, "server_uuid", value);
+    return value;
+  };
+  ["vless", "vmess", "tuic"].forEach((protocol) =>
+    o.depends("protocol", protocol),
+  );
+
+  o = section.option(form.ListValue, "naive_network", _("Network"));
+  o.value("tcp", "TCP (HTTP/2)");
+  o.value("udp", "UDP (HTTP/3)");
+  o.value("tcp_udp", _("TCP and UDP"));
+  o.default = "tcp";
+  o.rmempty = false;
+  o.modalonly = true;
+  o.depends("protocol", "naive");
+
+  o = section.option(
+    form.ListValue,
+    "naive_quic_congestion_control",
+    _("QUIC congestion control"),
+  );
+  ["bbr", "bbr_standard", "bbr2", "bbr2_variant", "cubic", "reno"].forEach(
+    (value) => o.value(value, value),
+  );
+  o.default = "bbr";
+  o.rmempty = false;
+  o.modalonly = true;
+  o.depends({ protocol: "naive", naive_network: "udp" });
+  o.depends({ protocol: "naive", naive_network: "tcp_udp" });
+
+  o = section.option(
+    form.DynamicList,
+    "ssh_host_key_path",
+    _("SSH host key path"),
+    _(
+      "Optional. Without a path, sing-box creates a temporary host key on start.",
+    ),
+  );
+  o.modalonly = true;
+  o.rmempty = true;
+  o.validate = validateOptionalFilePath;
+  o.depends("protocol", "ssh");
+
+  o = section.option(form.ListValue, "mieru_transport", _("Transport"));
+  o.value("TCP", "TCP");
+  o.value("UDP", "UDP");
+  o.default = "TCP";
+  o.rmempty = false;
+  o.modalonly = true;
+  o.depends("protocol", "mieru");
+
+  o = section.option(
+    form.Flag,
+    "mieru_user_hint_mandatory",
+    _("Require Mieru user hint"),
+  );
+  o.default = "0";
+  o.rmempty = true;
+  o.modalonly = true;
+  o.depends("protocol", "mieru");
+
+  o = section.option(
+    form.ListValue,
+    "tuic_congestion_control",
+    _("Congestion control"),
+  );
+  o.value("cubic", "cubic");
+  o.value("new_reno", "new_reno");
+  o.value("bbr", "bbr");
+  o.default = "cubic";
+  o.rmempty = false;
+  o.modalonly = true;
+  o.depends("protocol", "tuic");
+
+  o = section.option(form.Value, "tuic_auth_timeout", _("Auth timeout"));
+  o.default = "3s";
+  o.rmempty = false;
+  o.modalonly = true;
+  o.validate = validateRequiredDuration;
+  o.depends("protocol", "tuic");
+
+  o = section.option(form.Value, "tuic_heartbeat", _("Heartbeat"));
+  o.default = "10s";
+  o.rmempty = false;
+  o.modalonly = true;
+  o.validate = validateRequiredDuration;
+  o.depends("protocol", "tuic");
+
+  o = section.option(
+    form.Flag,
+    "tuic_zero_rtt_handshake",
+    _("Enable insecure 0-RTT handshake"),
+  );
+  o.default = "0";
+  o.rmempty = true;
+  o.modalonly = true;
+  o.depends("protocol", "tuic");
 
   o = section.option(form.Value, "vmess_alter_id", _("Alter ID"));
   o.default = "0";
@@ -2975,12 +3029,6 @@ function createServerContent(section, options = {}) {
   };
   addMtprotoDepends(o);
 
-  o = section.option(form.Flag, "mtproto_padding", _("Padding"));
-  o.default = "1";
-  o.modalonly = true;
-  o.rmempty = false;
-  addMtprotoDepends(o);
-
   o = section.option(form.Value, "mtproto_concurrency", _("Concurrency"));
   o.modalonly = true;
   o.rmempty = true;
@@ -3078,7 +3126,7 @@ function createServerContent(section, options = {}) {
   o.modalonly = true;
   o.rmempty = false;
   o.validate = validateRequired;
-  addTailscaleDepends(o, singBoxTailscale);
+  addTailscaleDepends(o);
 
   o = section.option(
     form.Value,
@@ -3089,7 +3137,7 @@ function createServerContent(section, options = {}) {
   o.modalonly = true;
   o.rmempty = false;
   o.validate = validateHttpUrl;
-  addTailscaleDepends(o, singBoxTailscale);
+  addTailscaleDepends(o);
 
   o = section.option(form.Value, "tailscale_hostname", _("Tailscale hostname"));
   o.modalonly = true;
@@ -3104,7 +3152,7 @@ function createServerContent(section, options = {}) {
     uci.set(UCI_PACKAGE, sectionId, "tailscale_hostname", value);
     return value;
   };
-  addTailscaleDepends(o, singBoxTailscale);
+  addTailscaleDepends(o);
 
   o = section.option(
     form.Flag,
@@ -3114,7 +3162,7 @@ function createServerContent(section, options = {}) {
   o.default = "1";
   o.modalonly = true;
   o.rmempty = false;
-  addTailscaleDepends(o, singBoxTailscale);
+  addTailscaleDepends(o);
 
   o = section.option(
     form.DynamicList,
@@ -3124,17 +3172,16 @@ function createServerContent(section, options = {}) {
   o.modalonly = true;
   o.rmempty = true;
   o.validate = (_sectionId, value) => validateOptionalCidrOrIp(value);
-  addTailscaleDepends(o, singBoxTailscale);
+  addTailscaleDepends(o);
 
   o = section.option(form.Flag, "tailscale_accept_routes", _("Accept routes"));
   o.default = "0";
   o.modalonly = true;
   o.rmempty = true;
-  addTailscaleDepends(o, singBoxTailscale);
+  addTailscaleDepends(o);
 }
 
 return baseclass.extend({
-  applyServerCapabilities,
   configureServerSection,
   createServerContent,
   preloadServerModalData,

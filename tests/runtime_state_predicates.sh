@@ -46,63 +46,6 @@ nft_ucode() {
   ucode -L "$FORKOP_LIB" "$NFT_UC" "$@"
 }
 
-state_ucode list-has-remote-references "local.lst https://example.com/list.txt" >/dev/null ||
-  fail "remote reference should be detected"
-if state_ucode list-has-remote-references "local.lst /tmp/list.txt" >/dev/null 2>&1; then
-  fail "local-only references should not be remote"
-fi
-
-state_ucode list-has-remote-sing-box-rulesets "https://example.com/rules.srs" >/dev/null ||
-  fail "remote sing-box ruleset should be detected"
-if state_ucode list-has-remote-sing-box-rulesets "/tmp/rules.srs" >/dev/null 2>&1; then
-  fail "local sing-box ruleset should not be remote"
-fi
-
-assert_eq "meta telegram discord" \
-  "$(state_ucode filter-community-subnet-lists "geoblock meta telegram youtube discord")" \
-  "community subnet list filter"
-
-state_ucode community-service-has-subnet-list roblox >/dev/null ||
-  fail "roblox should have subnet list"
-if state_ucode community-service-has-subnet-list youtube >/dev/null 2>&1; then
-  fail "youtube should not be a subnet-list community service"
-fi
-
-state_ucode rule-has-list-update-source 1 proxy "youtube telegram" "" "" "" "" >/dev/null ||
-  fail "community subnet service should require list update"
-state_ucode rule-has-list-update-source 1 proxy "" "https://example.com/domains.lst" "" "" "" >/dev/null ||
-  fail "remote domain list should require list update"
-state_ucode rule-has-list-update-source 1 proxy "" "" "" "" "local.lst https://example.com/mixed.lst" >/dev/null ||
-  fail "remote domain_ip list should require list update"
-if state_ucode rule-has-list-update-source 0 proxy "telegram" "https://example.com/domains.lst" "" "" "" >/dev/null 2>&1; then
-  fail "disabled rule should not require list update"
-fi
-state_ucode rule-has-list-update-source 1 dns "" "" "" "" "https://example.com/domains.lst" >/dev/null ||
-  fail "remote DNS domain list should require list update"
-if state_ucode rule-has-list-update-source 1 dns "telegram" "" "" "" "" >/dev/null 2>&1; then
-  fail "DNS rules should not import built-in subnet lists"
-fi
-
-state_ucode rule-has-nft-list-update-source 1 proxy "telegram" "" "" "" >/dev/null ||
-  fail "community subnet service should require nft list update"
-state_ucode rule-has-nft-list-update-source 1 proxy "" "https://example.com/subnets.lst" "" "" >/dev/null ||
-  fail "remote subnet list should require nft list update"
-if state_ucode rule-has-nft-list-update-source 1 proxy "" "" "" "local.lst" >/dev/null 2>&1; then
-  fail "local-only domain_ip list should not require nft list update"
-fi
-if state_ucode rule-has-nft-list-update-source 1 dns "telegram" "https://example.com/subnets.lst" "" "https://example.com/mixed.lst" >/dev/null 2>&1; then
-  fail "DNS rules should never require nft list updates"
-fi
-
-state_ucode rule-has-subscription-update-source 1 "1h" >/dev/null ||
-  fail "subscription proxy with update interval should require subscription update"
-if state_ucode rule-has-subscription-update-source 1 "" >/dev/null 2>&1; then
-  fail "empty subscription update interval should not require subscription update"
-fi
-if state_ucode rule-has-subscription-update-source 0 "1h" >/dev/null 2>&1; then
-  fail "non-subscription proxy should not require subscription update"
-fi
-
 state_ucode time-sync-needed 2023 >/dev/null ||
   fail "time sync should be needed for invalid pre-2024 clock"
 if state_ucode time-sync-needed 2024 >/dev/null 2>&1; then
@@ -321,7 +264,10 @@ fi
 if state_ucode acquire-runtime-dir-lock-wait "$LOCK_DIR" "$$" 0 >/dev/null 2>&1; then
   fail "ucode wait lock should time out for a live holder"
 fi
-state_ucode release-runtime-dir-lock "$LOCK_DIR"
+state_ucode release-runtime-dir-lock "$LOCK_DIR" 999999
+[ -e "$LOCK_DIR" ] ||
+  fail "ucode must not release a runtime lock owned by another pid"
+state_ucode release-runtime-dir-lock "$LOCK_DIR" "$$"
 [ ! -e "$LOCK_DIR" ] ||
   fail "ucode should remove runtime dir lock"
 
@@ -330,7 +276,7 @@ printf '%s\n' 999999 >"$LOCK_DIR/pid"
 state_ucode acquire-runtime-dir-lock "$LOCK_DIR" "$$" ||
   fail "ucode should replace a stale runtime dir lock"
 assert_eq "$$" "$(cat "$LOCK_DIR/pid")" "stale runtime lock owner pid"
-state_ucode release-runtime-dir-lock "$LOCK_DIR"
+state_ucode release-runtime-dir-lock "$LOCK_DIR" "$$"
 
 SNAPSHOT_FILE="$WORK_DIR/reload-state.snapshot"
 TARGET_RELOAD_STATE="$WORK_DIR/reload-state.target"
@@ -473,6 +419,7 @@ cat >"$WORK_DIR/sing-box-signature.json" <<'JSON'
     "dns_rewrite_ttl": "120",
     "output_network_interface": "wan",
     "disable_quic": "on",
+    "unified_delay": "yes",
     "list_update_enabled": "1",
     "update_interval": "2h",
     "cache_path": "/tmp/cache.db",
@@ -584,7 +531,6 @@ cat >"$WORK_DIR/sing-box-signature.json" <<'JSON'
       ".type": "server",
       "enabled": "1",
       "listen_port": "8443",
-      "server_users": [ "alice", "bob" ],
       "tls_server_name": "example.com",
       "transport": "ws",
       "transport_path": "/ws",
@@ -603,12 +549,8 @@ prefer_ipv6
 9.9.9.9
 [settings.bootstrap_dns_server]
 1.0.0.1
-[settings.dns_check_interval]
-10s
-[settings.dns_recovery_check_interval]
-60s
-[settings.dns_check_timeout]
-2s
+[settings.dns_fallback_strategy]
+sequential
 [settings.dns_detour_enabled]
 0
 [settings.dns_rewrite_ttl]
@@ -616,6 +558,8 @@ prefer_ipv6
 [settings.output_network_interface]
 wan
 [settings.disable_quic]
+1
+[settings.unified_delay]
 1
 [settings.update_interval]
 2h
@@ -644,17 +588,19 @@ proxy
 [rule.proxy1.connection_urls]
 [ "vless://one", "vless://two" ]
 [rule.proxy1.subscription_urls]
-[ { "url": "https://example.com/sub.txt", "subscription_update_enabled": "1", "subscription_update_interval": "1h", "download_via_proxy_section": "", "auto_user_agent": "1", "user_agent": "", "auto_hwid": "1", "hwid": "", "show_dashboard_metadata": "1", "prefix_nodes": "1", "node_prefix": "Example", "include_urltest_groups": "1", "hide_urltest_group_outbounds": "1", "hide_detour_outbounds": "1" } ]
+[ { "url": "https://example.com/sub.txt", "subscription_update_enabled": "1", "subscription_update_interval": "1h", "download_via_proxy_section": "", "auto_user_agent": "1", "user_agent": "", "auto_hwid": "1", "hwid": "", "show_dashboard_metadata": "1", "prefix_nodes": "1", "node_prefix": "Example", "filter_mode": "disabled", "include_countries": [ ], "include_outbounds": [ ], "include_regex": [ ], "include_proxy_parameters": "0", "include_protocols": [ ], "include_transports": [ ], "include_securities": [ ], "exclude_countries": [ ], "exclude_outbounds": [ ], "exclude_regex": [ ], "exclude_proxy_parameters": "0", "exclude_protocols": [ ], "exclude_transports": [ ], "exclude_securities": [ ] } ]
 [rule.proxy1.interfaces]
 [ ]
 [rule.proxy1.outbound_jsons]
 
+[rule.proxy1.tunnel_jsons]
+[ ]
 [rule.proxy1.legacy_interface]
 
 [rule.proxy1.legacy_outbound_json]
 
 [rule.proxy1.urltests]
-[ { "id": "urltest", "display_name": "Fastest", "check_interval": "3m", "tolerance": "75", "testing_url": "https://www.gstatic.com/generate_204", "idle_timeout": "", "interrupt_exist_connections": "1", "pin_dashboard": "1", "filter_mode": "exclude", "include_countries": [ ], "include_outbounds": [ "node-a" ], "include_regex": [ ], "exclude_countries": [ "RU" ], "exclude_outbounds": [ ], "exclude_regex": [ ] } ]
+[ { "id": "urltest", "display_name": "Fastest", "check_interval": "3m", "tolerance": "75", "testing_url": "https://www.gstatic.com/generate_204", "idle_timeout": "", "interrupt_exist_connections": "1", "pin_dashboard": "1", "hide_dashboard_members": "0", "filter_mode": "exclude", "include_countries": [ ], "include_outbounds": [ "node-a" ], "include_regex": [ ], "include_proxy_parameters": "0", "include_protocols": [ ], "include_transports": [ ], "include_securities": [ ], "exclude_countries": [ "RU" ], "exclude_outbounds": [ ], "exclude_regex": [ ], "exclude_proxy_parameters": "0", "exclude_protocols": [ ], "exclude_transports": [ ], "exclude_securities": [ ] } ]
 [rule.proxy1.priority_groups]
 [ ]
 [rule.proxy1.urltest_enabled]
@@ -731,6 +677,8 @@ outbound
 [ ]
 [rule.out1.outbound_jsons]
 
+[rule.out1.tunnel_jsons]
+[ ]
 [rule.out1.legacy_interface]
 
 [rule.out1.legacy_outbound_json]
@@ -835,6 +783,8 @@ vpn
 [ { "name": "wg0", "domain_resolver_enabled": "1", "domain_resolver_dns_type": "doh", "domain_resolver_dns_server": "https://dns.example/dns-query" } ]
 [rule.vpn1.outbound_jsons]
 
+[rule.vpn1.tunnel_jsons]
+[ ]
 [rule.vpn1.legacy_interface]
 wg0
 [rule.vpn1.legacy_outbound_json]
@@ -919,8 +869,6 @@ rules
 
 [server.srv1.security]
 reality
-[server.srv1.server_users]
-alice bob
 [server.srv1.tls_server_name]
 example.com
 [server.srv1.tls_alpn]
@@ -975,11 +923,27 @@ ws
 
 [server.srv1.hysteria2_obfs_password]
 
+[server.srv1.naive_network]
+tcp
+[server.srv1.naive_quic_congestion_control]
+bbr
+[server.srv1.ssh_host_key_path]
+
+[server.srv1.mieru_transport]
+TCP
+[server.srv1.mieru_user_hint_mandatory]
+0
+[server.srv1.tuic_congestion_control]
+cubic
+[server.srv1.tuic_auth_timeout]
+3s
+[server.srv1.tuic_heartbeat]
+10s
+[server.srv1.tuic_zero_rtt_handshake]
+0
 [server.srv1.mtproto_secret]
 
 [server.srv1.mtproto_faketls]
-
-[server.srv1.mtproto_padding]
 
 [server.srv1.mtproto_concurrency]
 
@@ -1043,9 +1007,7 @@ cat >"$WORK_DIR/dpi-signatures.json" <<'JSON'
       "domain_ip_lists": [ "local.lst", "https://example.com/ip.lst" ],
       "user_domain_list_type": "dynamic",
       "user_domains": [ "dyn.example" ],
-      "user_domains_text": "ignored.example",
-      "local_domain_lists": [ "local-a" ],
-      "remote_domain_lists": [ "remote-a" ]
+      "user_domains_text": "ignored.example"
     },
     {
       ".name": "zap2",
@@ -1061,9 +1023,7 @@ cat >"$WORK_DIR/dpi-signatures.json" <<'JSON'
       "domain_ip_lists": [ "https://example.com/zap2-ip.lst" ],
       "user_domain_list_type": "text",
       "user_domains": [ "ignored-dyn.example" ],
-      "user_domains_text": "text.example text2.example",
-      "local_domain_lists": [ "local-b" ],
-      "remote_domain_lists": [ "remote-b" ]
+      "user_domains_text": "text.example text2.example"
     },
     {
       ".name": "bye_disabled",
@@ -1116,10 +1076,6 @@ https://example.com/zap-sub.srs
 local.lst https://example.com/ip.lst
 [zapret.zap1.user_domain_list_type]
 dynamic
-[zapret.zap1.local_domain_lists]
-local-a
-[zapret.zap1.remote_domain_lists]
-remote-a
 [zapret.zap1.user_domains]
 dyn.example
 EOF_ZAPRET_RUNTIME
@@ -1141,10 +1097,6 @@ https://example.com/zap2-sub.srs
 https://example.com/zap2-ip.lst
 [zapret2.zap2.user_domain_list_type]
 text
-[zapret2.zap2.local_domain_lists]
-local-b
-[zapret2.zap2.remote_domain_lists]
-remote-b
 [zapret2.zap2.user_domains]
 text.example text2.example
 EOF_ZAPRET2_RUNTIME
@@ -1192,8 +1144,6 @@ cat >"$WORK_DIR/reload-state-signatures.json" <<'JSON'
       "action": "proxy",
       "ports": [ "1" ],
       "community_lists": [ "telegram" ],
-      "remote_domain_lists": [ "https://example.com/disabled-domains.lst" ],
-      "remote_subnet_lists": [ "https://example.com/disabled-subnets.lst" ],
       "rule_set_with_subnets": [ "https://example.com/disabled-subnets.srs" ],
       "domain_ip_lists": [ "https://example.com/disabled-mixed.lst" ],
       "subscription_urls": [ "https://example.com/disabled-sub.txt" ],
@@ -1207,8 +1157,6 @@ cat >"$WORK_DIR/reload-state-signatures.json" <<'JSON'
       "ports": [ "443", "bad" ],
       "ports_text": "80,443-444 # comment\nbad-port",
       "community_lists": [ "geoblock", "meta", "telegram", "youtube", "discord" ],
-      "remote_domain_lists": [ "https://example.com/domains.lst", "local-domains" ],
-      "remote_subnet_lists": [ "https://example.com/subnets.lst" ],
       "rule_set_with_subnets": [ "https://example.com/subnets.srs" ],
       "domain_ip_lists": [ "local.lst", "https://example.com/mixed.lst" ],
       "subscription_urls": [ "https://example.com/sub1.txt", "https://example.com/sub2.txt" ],
@@ -1244,7 +1192,6 @@ cat >"$WORK_DIR/reload-state-signatures.json" <<'JSON'
       "action": "dns",
       "ports": [ "5353" ],
       "community_lists": [ "telegram" ],
-      "remote_subnet_lists": [ "https://example.com/ignored-subnets.lst" ],
       "rule_set_with_subnets": [ "https://example.com/ignored-subnets.srs" ],
       "domain_ip_lists": [ "https://example.com/dns-domains.lst" ]
     }
@@ -1252,157 +1199,18 @@ cat >"$WORK_DIR/reload-state-signatures.json" <<'JSON'
 }
 JSON
 
-cat >"$WORK_DIR/list-signature.expected" <<'EOF_LIST_SIG'
-[lists.list_proxy.action]
-proxy
-[lists.list_proxy.ports]
-443,80,443-444
-[lists.list_proxy.community_subnet_lists]
-meta telegram discord
-[lists.list_proxy.remote_domain_lists]
-https://example.com/domains.lst local-domains
-[lists.list_proxy.remote_subnet_lists]
-https://example.com/subnets.lst
-[lists.list_proxy.rule_set_with_subnets]
-https://example.com/subnets.srs
-[lists.list_proxy.domain_ip_lists]
-local.lst https://example.com/mixed.lst
-[lists.sub_paused.action]
-proxy
-[lists.sub_paused.ports]
-
-[lists.sub_paused.community_subnet_lists]
-
-[lists.sub_paused.remote_domain_lists]
-
-[lists.sub_paused.remote_subnet_lists]
-
-[lists.sub_paused.rule_set_with_subnets]
-
-[lists.sub_paused.domain_ip_lists]
-
-[lists.implicit_action.action]
-
-[lists.implicit_action.ports]
-
-[lists.implicit_action.community_subnet_lists]
-
-[lists.implicit_action.remote_domain_lists]
-
-[lists.implicit_action.remote_subnet_lists]
-
-[lists.implicit_action.rule_set_with_subnets]
-
-[lists.implicit_action.domain_ip_lists]
-
-[lists.urltest_custom.action]
-proxy
-[lists.urltest_custom.ports]
-
-[lists.urltest_custom.community_subnet_lists]
-
-[lists.urltest_custom.remote_domain_lists]
-
-[lists.urltest_custom.remote_subnet_lists]
-
-[lists.urltest_custom.rule_set_with_subnets]
-
-[lists.urltest_custom.domain_ip_lists]
-
-[lists.dns_only.action]
-dns
-[lists.dns_only.domain_ip_lists]
-https://example.com/dns-domains.lst
-EOF_LIST_SIG
-
 cat >"$WORK_DIR/cron-signature.expected" <<'EOF_CRON_SIG'
-[settings.update_interval]
-6h
 [settings.component_update_check_interval]
 2h
-[lists.list_proxy.action]
-proxy
-[lists.list_proxy.ports]
-443,80,443-444
-[lists.list_proxy.community_subnet_lists]
-meta telegram discord
-[lists.list_proxy.remote_domain_lists]
-https://example.com/domains.lst local-domains
-[lists.list_proxy.remote_subnet_lists]
-https://example.com/subnets.lst
-[lists.list_proxy.rule_set_with_subnets]
-https://example.com/subnets.srs
-[lists.list_proxy.domain_ip_lists]
-local.lst https://example.com/mixed.lst
-[lists.sub_paused.action]
-proxy
-[lists.sub_paused.ports]
-
-[lists.sub_paused.community_subnet_lists]
-
-[lists.sub_paused.remote_domain_lists]
-
-[lists.sub_paused.remote_subnet_lists]
-
-[lists.sub_paused.rule_set_with_subnets]
-
-[lists.sub_paused.domain_ip_lists]
-
-[lists.implicit_action.action]
-
-[lists.implicit_action.ports]
-
-[lists.implicit_action.community_subnet_lists]
-
-[lists.implicit_action.remote_domain_lists]
-
-[lists.implicit_action.remote_subnet_lists]
-
-[lists.implicit_action.rule_set_with_subnets]
-
-[lists.implicit_action.domain_ip_lists]
-
-[lists.urltest_custom.action]
-proxy
-[lists.urltest_custom.ports]
-
-[lists.urltest_custom.community_subnet_lists]
-
-[lists.urltest_custom.remote_domain_lists]
-
-[lists.urltest_custom.remote_subnet_lists]
-
-[lists.urltest_custom.rule_set_with_subnets]
-
-[lists.urltest_custom.domain_ip_lists]
-
-[lists.dns_only.action]
-dns
-[lists.dns_only.domain_ip_lists]
-https://example.com/dns-domains.lst
-[subscription.list_proxy.subscription_urls]
-[ { "url": "https://example.com/sub1.txt", "subscription_update_enabled": "1", "subscription_update_interval": "1h", "download_via_proxy_section": "", "auto_user_agent": "1", "user_agent": "", "auto_hwid": "1", "hwid": "", "show_dashboard_metadata": "1", "prefix_nodes": "0", "node_prefix": "", "include_urltest_groups": "1", "hide_urltest_group_outbounds": "1", "hide_detour_outbounds": "1" }, { "url": "https://example.com/sub2.txt", "subscription_update_enabled": "1", "subscription_update_interval": "1h", "download_via_proxy_section": "", "auto_user_agent": "1", "user_agent": "", "auto_hwid": "1", "hwid": "", "show_dashboard_metadata": "1", "prefix_nodes": "0", "node_prefix": "", "include_urltest_groups": "1", "hide_urltest_group_outbounds": "1", "hide_detour_outbounds": "1" } ]
-[subscription.list_proxy.subscription_update_interval]
-1h
-[subscription.sub_paused.subscription_urls]
-[ { "url": "https://example.com/off.txt", "subscription_update_enabled": "0", "subscription_update_interval": "1h", "download_via_proxy_section": "", "auto_user_agent": "1", "user_agent": "", "auto_hwid": "1", "hwid": "", "show_dashboard_metadata": "1", "prefix_nodes": "0", "node_prefix": "", "include_urltest_groups": "1", "hide_urltest_group_outbounds": "1", "hide_detour_outbounds": "1" } ]
-[subscription.sub_paused.subscription_update_interval]
-
 EOF_CRON_SIG
 
-assert_eq "$(md5_file "$WORK_DIR/list-signature.expected")" \
-  "$(state_ucode list-update-signature-fixture "$WORK_DIR/reload-state-signatures.json")" \
-  "list update signature hash"
 assert_eq "$(md5_file "$WORK_DIR/cron-signature.expected")" \
   "$(state_ucode cron-signature-fixture "$WORK_DIR/reload-state-signatures.json")" \
-  "cron signature hash"
+  "component cron signature hash"
 nft_signature="$(nft_ucode nft-runtime-signature-fixture "$WORK_DIR/reload-state-signatures.json")"
 assert_eq "$nft_signature" \
   "$(state_ucode nft-signature-fixture "$WORK_DIR/reload-state-signatures.json")" \
   "state reload nft signature parity"
-assert_eq "list_proxy urltest_custom" \
-  "$(state_ucode urltest-enabled-sections-fixture "$WORK_DIR/reload-state-signatures.json")" \
-  "urltest enabled sections"
 assert_eq "6h" \
   "$(state_ucode settings-update-interval-fixture "$WORK_DIR/reload-state-signatures.json")" \
   "settings update interval"
@@ -1418,9 +1226,6 @@ assert_eq "3m" \
 assert_eq "7m" \
   "$(state_ucode urltest-check-interval-fixture "$WORK_DIR/reload-state-signatures.json" urltest_custom)" \
   "custom urltest check interval"
-state_ucode has-subscription-update-sources-fixture "$WORK_DIR/reload-state-signatures.json" >/dev/null ||
-  fail "fixture should have subscription update sources"
-
 cat >"$WORK_DIR/dns-action-signature-udp.json" <<'JSON'
 {
   "section": [
@@ -1466,9 +1271,7 @@ zapret_runtime_signature=$(state_ucode zapret-runtime-signature-fixture "$WORK_D
 zapret2_queue_signature=$(state_ucode zapret2-queue-signature-fixture "$WORK_DIR/reload-state-signatures.json")
 zapret2_runtime_signature=$(state_ucode zapret2-runtime-signature-fixture "$WORK_DIR/reload-state-signatures.json")
 byedpi_runtime_signature=$(state_ucode byedpi-runtime-signature-fixture "$WORK_DIR/reload-state-signatures.json")
-list_signature=$(state_ucode list-update-signature-fixture "$WORK_DIR/reload-state-signatures.json")
 cron_signature=$(state_ucode cron-signature-fixture "$WORK_DIR/reload-state-signatures.json")
-urltest_enabled_sections=list_proxy urltest_custom
 dont_touch_dhcp=$(state_ucode dont-touch-dhcp-fixture "$WORK_DIR/reload-state-signatures.json")
 EOF_RELOAD_STATE
 
@@ -1501,117 +1304,5 @@ JSON
 assert_eq "1d" \
   "$(state_ucode settings-update-interval-fixture "$WORK_DIR/empty-update-interval.json")" \
   "empty settings update interval default"
-
-cat >"$WORK_DIR/no-subscription-source.json" <<'JSON'
-{
-  "section": [
-    {
-      ".name": "implicit_action",
-      ".type": "section",
-      "enabled": "1",
-      "subscription_urls": [ "https://example.com/implicit.txt" ]
-    },
-    {
-      ".name": "paused",
-      ".type": "section",
-      "enabled": "1",
-      "action": "proxy",
-      "subscription_urls": [ "https://example.com/off.txt" ],
-      "subscription_update_enabled": "0"
-    }
-  ]
-}
-JSON
-
-if state_ucode has-subscription-update-sources-fixture "$WORK_DIR/no-subscription-source.json" >/dev/null 2>&1; then
-  fail "implicit or disabled subscription updates should not require subscription update"
-fi
-
-cat >"$WORK_DIR/source-detection.json" <<'JSON'
-{
-  "section": [
-    {
-      ".name": "disabled",
-      ".type": "section",
-      "enabled": "0",
-      "community_lists": [ "telegram" ],
-      "remote_domain_lists": [ "https://example.com/disabled-domains.lst" ],
-      "remote_subnet_lists": [ "https://example.com/disabled-subnets.lst" ],
-      "rule_set": [ "https://example.com/disabled.srs" ],
-      "domain_ip_lists": [ "https://example.com/disabled-mixed.lst" ]
-    },
-    {
-      ".name": "general",
-      ".type": "section",
-      "enabled": "1",
-      "remote_domain_lists": [ "https://example.com/domains.lst" ]
-    },
-    {
-      ".name": "nft",
-      ".type": "section",
-      "remote_subnet_lists": [ "https://example.com/subnets.lst" ]
-    },
-    {
-      ".name": "remote_ruleset",
-      ".type": "section",
-      "enabled": "1",
-      "rule_set": [ "/tmp/local.srs", "https://example.com/remote.srs" ]
-    }
-  ]
-}
-JSON
-
-state_ucode has-list-update-sources-fixture "$WORK_DIR/source-detection.json" >/dev/null ||
-  fail "fixture should have general list update sources"
-state_ucode has-nft-list-update-sources-fixture "$WORK_DIR/source-detection.json" >/dev/null ||
-  fail "fixture should have nft list update sources"
-state_ucode has-remote-sing-box-ruleset-sources-fixture "$WORK_DIR/source-detection.json" >/dev/null ||
-  fail "fixture should have remote sing-box ruleset sources"
-
-cat >"$WORK_DIR/general-only-source.json" <<'JSON'
-{
-  "section": [
-    {
-      ".name": "general",
-      ".type": "section",
-      "remote_domain_lists": [ "https://example.com/domains.lst" ]
-    }
-  ]
-}
-JSON
-
-state_ucode has-list-update-sources-fixture "$WORK_DIR/general-only-source.json" >/dev/null ||
-  fail "remote domain list should require general list update"
-if state_ucode has-nft-list-update-sources-fixture "$WORK_DIR/general-only-source.json" >/dev/null 2>&1; then
-  fail "remote domain list alone should not require nft list update"
-fi
-
-cat >"$WORK_DIR/disabled-only-source.json" <<'JSON'
-{
-  "section": [
-    {
-      ".name": "disabled",
-      ".type": "section",
-      "enabled": "0",
-      "community_lists": [ "telegram" ],
-      "remote_domain_lists": [ "https://example.com/domains.lst" ],
-      "remote_subnet_lists": [ "https://example.com/subnets.lst" ],
-      "rule_set": [ "https://example.com/remote.srs" ],
-      "rule_set_with_subnets": [ "https://example.com/subnets.srs" ],
-      "domain_ip_lists": [ "https://example.com/mixed.lst" ]
-    }
-  ]
-}
-JSON
-
-if state_ucode has-list-update-sources-fixture "$WORK_DIR/disabled-only-source.json" >/dev/null 2>&1; then
-  fail "disabled rule should not require general list update"
-fi
-if state_ucode has-nft-list-update-sources-fixture "$WORK_DIR/disabled-only-source.json" >/dev/null 2>&1; then
-  fail "disabled rule should not require nft list update"
-fi
-if state_ucode has-remote-sing-box-ruleset-sources-fixture "$WORK_DIR/disabled-only-source.json" >/dev/null 2>&1; then
-  fail "disabled rule should not require remote sing-box ruleset refresh"
-fi
 
 printf 'runtime state predicate checks passed\n'

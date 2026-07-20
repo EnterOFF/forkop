@@ -16,12 +16,6 @@ const SERVICE_ACTION_DIR = getenv("FORKOP_UI_SERVICE_ACTION_DIR") || STATE_DIR +
 const SERVICE_ACTION_LOCK_DIR = getenv("FORKOP_UI_SERVICE_ACTION_LOCK_DIR") || STATE_DIR + "/service-actions.lock";
 const LATENCY_ACTION_DIR = getenv("FORKOP_UI_LATENCY_ACTION_DIR") || STATE_DIR + "/latency-actions";
 const COMPONENT_ACTION_DIR = getenv("FORKOP_UI_COMPONENT_ACTION_DIR") || getenv("UPDATES_JOB_DIR") || "/var/run/forkop/component-actions";
-const SUBSCRIPTION_ACTION_DIR = getenv("FORKOP_UI_SUBSCRIPTION_ACTION_DIR") || getenv("FORKOP_SUBSCRIPTION_UPDATE_JOB_DIR") || "/var/run/forkop/subscription-update-jobs";
-const SING_BOX_VERSION_CACHE_FILE = getenv("FORKOP_UI_SING_BOX_VERSION_CACHE_FILE") || STATE_DIR + "/sing-box-version";
-const SING_BOX_VERSION_CACHE_LOCK_DIR = getenv("FORKOP_UI_SING_BOX_VERSION_CACHE_LOCK_DIR") || SING_BOX_VERSION_CACHE_FILE + ".lock";
-const SING_BOX_BIN_PATH = getenv("FORKOP_UI_SING_BOX_BIN_PATH") || "/usr/bin/sing-box";
-const SING_BOX_VERSION_PROBE_TIMEOUT_SECONDS = getenv("FORKOP_UI_SING_BOX_VERSION_PROBE_TIMEOUT_SECONDS") || "1";
-const SING_BOX_VERSION_PROBE_FAILURE_TTL_SECONDS = getenv("FORKOP_UI_SING_BOX_VERSION_PROBE_FAILURE_TTL_SECONDS") || "30";
 const ACTION_FINISHED_TTL_MINUTES = getenv("FORKOP_UI_ACTION_FINISHED_TTL_MINUTES") || "60";
 const ACTION_ACKED_TTL_SECONDS = getenv("FORKOP_UI_ACTION_ACKED_TTL_SECONDS") || "15";
 const ACTION_STALE_GRACE_SECONDS = getenv("FORKOP_UI_ACTION_STALE_GRACE_SECONDS") || "15";
@@ -151,8 +145,7 @@ function ensure_dirs() {
         STATE_DIR,
         SERVICE_ACTION_DIR,
         LATENCY_ACTION_DIR,
-        COMPONENT_ACTION_DIR,
-        SUBSCRIPTION_ACTION_DIR
+        COMPONENT_ACTION_DIR
     ])
         ensure_dir(dir);
 }
@@ -248,8 +241,7 @@ function read_state_paths() {
     let result = {
         service: [],
         latency: [],
-        component: [],
-        subscription: []
+        component: []
     };
 
     for (let line in split(read_stdin(), "\n")) {
@@ -318,14 +310,10 @@ function ui_state_json() {
             }
         },
         capabilities: {
-            sing_box_extended: arg_number(ARGV[8]),
-            sing_box_tiny: arg_number(ARGV[9]),
-            sing_box_compressed: arg_number(ARGV[10]),
-            sing_box_tailscale: arg_number(ARGV[11]),
-            zapret_installed: arg_number(ARGV[12]),
-            zapret2_installed: arg_number(ARGV[13]),
-            byedpi_installed: arg_number(ARGV[14]),
-            server_inbounds_enabled_count: arg_number(ARGV[15])
+            zapret_installed: arg_number(ARGV[8]),
+            zapret2_installed: arg_number(ARGV[9]),
+            byedpi_installed: arg_number(ARGV[10]),
+            server_inbounds_enabled_count: arg_number(ARGV[11])
         },
         actions: action_state
     });
@@ -765,7 +753,6 @@ function refresh_action_dirs() {
     cleanup_dir(SERVICE_ACTION_DIR);
     cleanup_dir(LATENCY_ACTION_DIR);
     cleanup_dir(COMPONENT_ACTION_DIR);
-    cleanup_dir(SUBSCRIPTION_ACTION_DIR);
 
     for (let path in fs.glob(SERVICE_ACTION_DIR + "/*.json"))
         refresh_pid_job_state(path, "Service action worker exited unexpectedly");
@@ -773,8 +760,6 @@ function refresh_action_dirs() {
         refresh_pid_job_state(path, "Latency test worker exited unexpectedly");
     for (let path in fs.glob(COMPONENT_ACTION_DIR + "/*.json"))
         refresh_pid_job_state(path, "Component action worker exited unexpectedly");
-    for (let path in fs.glob(SUBSCRIPTION_ACTION_DIR + "/*.json"))
-        refresh_pid_job_state(path, "Subscription update worker exited unexpectedly");
 }
 
 function active_service_action_default() {
@@ -801,8 +786,7 @@ function action_state_from_dirs() {
     return {
         service: action_state_from_dir(SERVICE_ACTION_DIR),
         latency: action_state_from_dir(LATENCY_ACTION_DIR),
-        component: action_state_from_dir(COMPONENT_ACTION_DIR),
-        subscription: action_state_from_dir(SUBSCRIPTION_ACTION_DIR)
+        component: action_state_from_dir(COMPONENT_ACTION_DIR)
     };
 }
 
@@ -875,137 +859,6 @@ function dns_configured() {
     return index(uci_core.get("dhcp.@dnsmasq[0].server"), SB_DNS_INBOUND_ADDRESS) >= 0;
 }
 
-function package_installed(package_name) {
-    if (command_success_from_args([ "sh", "-c", "command -v apk" ]))
-        return command_success_from_args([ "apk", "info", "-e", package_name ]);
-
-    let installed = command_output_from_args([ "opkg", "list-installed" ]);
-    for (let line in split(installed, "\n"))
-        if (split(trim(as_string(line)), /[ \t]+/)[0] == package_name)
-            return true;
-
-    return false;
-}
-
-function component_action_running_for(component) {
-    component = as_string(component);
-    for (let path in fs.glob(COMPONENT_ACTION_DIR + "/*.json")) {
-        let value = read_json_file(path);
-        if (type(value) == "object" && value.running === true && as_string(value.component) == component)
-            return true;
-    }
-
-    return false;
-}
-
-function sing_box_signature() {
-    let stat = fs.stat(SING_BOX_BIN_PATH);
-    if (stat == null)
-        return "";
-
-    return join(":", [ stat.inode, stat.size, stat.mtime, stat.ctime ]);
-}
-
-function sing_box_version_info_from_output(output) {
-    let first = split(as_string(output), "\n")[0] || "";
-    let fields = split(trim(as_string(first)), /[ \t]+/);
-    let version = length(fields) > 0 ? fields[length(fields) - 1] : "";
-    if (version == "")
-        return null;
-
-    let tags = "";
-    for (let line in split(as_string(output), "\n")) {
-        line = as_string(line);
-        if (substr(line, 0, 5) == "Tags:") {
-            tags = trim(substr(line, 5));
-            break;
-        }
-    }
-
-    return { version, tags };
-}
-
-function sing_box_cached_version_info(signature) {
-    let cache = read_json_file(SING_BOX_VERSION_CACHE_FILE);
-    if (type(cache) == "object" && as_string(cache.signature) == signature) {
-        if (cache.success === true && as_string(cache.version) != "")
-            return { hit: true, info: { version: as_string(cache.version), tags: as_string(cache.tags) } };
-
-        let checked_at = arg_number(cache.checked_at);
-        let failure_ttl = arg_number(SING_BOX_VERSION_PROBE_FAILURE_TTL_SECONDS);
-        if (cache.success === false && checked_at > 0) {
-            let failure_age = now_seconds() - checked_at;
-            if (failure_age >= 0 && failure_age < failure_ttl)
-                return { hit: true, info: null };
-        }
-    }
-
-    let legacy = split(as_string(fs.readfile(SING_BOX_VERSION_CACHE_FILE)), "\n");
-    let legacy_version = as_string(legacy[1] || "");
-    if (as_string(legacy[0] || "") == signature && index(legacy_version, "extended") >= 0)
-        return { hit: true, info: { version: legacy_version, tags: "" } };
-
-    return null;
-}
-
-function bounded_command_output_from_args(args, timeout_seconds) {
-    timeout_seconds = arg_number(timeout_seconds);
-    if (timeout_seconds <= 0)
-        timeout_seconds = 1;
-
-    let pid = current_pid();
-    if (!job_pid_valid(pid))
-        return "";
-
-    let output_path = SING_BOX_VERSION_CACHE_FILE + "." + pid + ".out";
-    remove_file(output_path);
-
-    let script = command_from_args(args) + " >" + shell_quote(output_path) + " 2>/dev/null & child=$!; " +
-        "(sleep " + as_string(timeout_seconds) + "; kill -KILL \"$child\" 2>/dev/null) & watchdog=$!; " +
-        "wait \"$child\"; rc=$?; kill \"$watchdog\" 2>/dev/null; wait \"$watchdog\" 2>/dev/null; exit \"$rc\"";
-    let status = command_status(command_from_args([ "sh", "-c", script ]) + " 2>/dev/null");
-    let output = as_string(fs.readfile(output_path));
-    remove_file(output_path);
-    return status == 0 ? output : "";
-}
-
-function sing_box_version_info() {
-    if (!file_executable(SING_BOX_BIN_PATH))
-        return null;
-
-    let signature = sing_box_signature();
-    if (signature == "")
-        return null;
-
-    let cached = sing_box_cached_version_info(signature);
-    if (cached != null)
-        return cached.info;
-
-    ensure_dir(STATE_DIR);
-    if (!acquire_dir_lock(SING_BOX_VERSION_CACHE_LOCK_DIR)) {
-        cached = sing_box_cached_version_info(signature);
-        return cached != null ? cached.info : null;
-    }
-
-    cached = sing_box_cached_version_info(signature);
-    if (cached != null) {
-        release_dir_lock(SING_BOX_VERSION_CACHE_LOCK_DIR);
-        return cached.info;
-    }
-
-    let output = bounded_command_output_from_args([ SING_BOX_BIN_PATH, "version" ], SING_BOX_VERSION_PROBE_TIMEOUT_SECONDS);
-    let info = sing_box_version_info_from_output(output);
-    write_state_file(SING_BOX_VERSION_CACHE_FILE, {
-        signature,
-        success: info != null,
-        version: info != null ? info.version : "",
-        tags: info != null ? info.tags : "",
-        checked_at: now_seconds()
-    });
-    release_dir_lock(SING_BOX_VERSION_CACHE_LOCK_DIR);
-    return info;
-}
-
 function server_inbounds_enabled_count() {
     let count = 0;
     for (let section in uci_core.section_objects(CONFIG_NAME, "server")) {
@@ -1019,39 +872,11 @@ function server_inbounds_enabled_count() {
 
 function capability_flags() {
     let result = {
-        sing_box_extended: 0,
-        sing_box_tiny: 0,
-        sing_box_compressed: 0,
-        sing_box_tailscale: 0,
         zapret_installed: file_executable(ZAPRET_PROVIDER_NFQWS_BIN) ? 1 : 0,
         zapret2_installed: file_executable(ZAPRET2_PROVIDER_NFQWS2_BIN) ? 1 : 0,
         byedpi_installed: file_executable(BYEDPI_BIN) ? 1 : 0,
         server_inbounds_enabled_count: 0
     };
-
-    if (file_executable(SING_BOX_BIN_PATH)) {
-        if (package_installed("sing-box-forkop-compressed")) {
-            result.sing_box_extended = 1;
-            result.sing_box_compressed = 1;
-            result.sing_box_tailscale = 1;
-        }
-        else if (package_installed("sing-box-forkop")) {
-            result.sing_box_extended = 1;
-            result.sing_box_tailscale = 1;
-        }
-        else if (component_action_running_for("sing_box")) {
-            result.sing_box_tailscale = 1;
-        }
-        else {
-            let info = sing_box_version_info();
-            if (info != null && (index(info.version, "extended") >= 0 || index(info.version, "forkop") >= 0)) {
-                result.sing_box_extended = 1;
-                result.sing_box_tailscale = 1;
-            }
-            else if (info != null && match(info.tags, /(^|[,: \t])with_tailscale([, \t]|$)/) != null)
-                result.sing_box_tailscale = 1;
-        }
-    }
 
     result.server_inbounds_enabled_count = server_inbounds_enabled_count();
     return result;
@@ -1200,12 +1025,6 @@ function launch_worker(args) {
         FORKOP_UI_SERVICE_ACTION_LOCK_DIR: SERVICE_ACTION_LOCK_DIR,
         FORKOP_UI_LATENCY_ACTION_DIR: LATENCY_ACTION_DIR,
         FORKOP_UI_COMPONENT_ACTION_DIR: COMPONENT_ACTION_DIR,
-        FORKOP_UI_SUBSCRIPTION_ACTION_DIR: SUBSCRIPTION_ACTION_DIR,
-        FORKOP_UI_SING_BOX_VERSION_CACHE_FILE: SING_BOX_VERSION_CACHE_FILE,
-        FORKOP_UI_SING_BOX_VERSION_CACHE_LOCK_DIR: SING_BOX_VERSION_CACHE_LOCK_DIR,
-        FORKOP_UI_SING_BOX_BIN_PATH: SING_BOX_BIN_PATH,
-        FORKOP_UI_SING_BOX_VERSION_PROBE_TIMEOUT_SECONDS: SING_BOX_VERSION_PROBE_TIMEOUT_SECONDS,
-        FORKOP_UI_SING_BOX_VERSION_PROBE_FAILURE_TTL_SECONDS: SING_BOX_VERSION_PROBE_FAILURE_TTL_SECONDS,
         FORKOP_UI_ACTION_FINISHED_TTL_MINUTES: ACTION_FINISHED_TTL_MINUTES,
         FORKOP_UI_ACTION_ACKED_TTL_SECONDS: ACTION_ACKED_TTL_SECONDS,
         FORKOP_UI_ACTION_STALE_GRACE_SECONDS: ACTION_STALE_GRACE_SECONDS,
@@ -1459,8 +1278,6 @@ function action_dir(kind) {
         return LATENCY_ACTION_DIR;
     if (kind == "component")
         return COMPONENT_ACTION_DIR;
-    if (kind == "subscription")
-        return SUBSCRIPTION_ACTION_DIR;
     return "";
 }
 
@@ -1536,8 +1353,6 @@ else if (mode == "job-refresh-plan")
     job_refresh_plan(ARGV[1], ARGV[2], ARGV[3]);
 else if (mode == "active-service-action")
     ARGV[1] == null ? active_service_action_default() : active_service_action(ARGV[1]);
-else if (mode == "component-action-running-for")
-    exit(component_action_running_for(ARGV[1]) ? 0 : 1);
 else if (mode == "service-action-begin-if-idle")
     begin_service_action_mode(ARGV[1], ARGV[2] || "ui");
 else if (mode == "service-action-update-pid")

@@ -414,29 +414,6 @@ if [ -s "$SYSCTL_LOG" ]; then
   fail "bridge netfilter absent should not call sysctl"
 fi
 
-input="$WORK_DIR/ips.txt"
-cat >"$input" <<'EOF_INPUT'
-198.51.100.1
-bad-value
-203.0.113.0/24
-EOF_INPUT
-
-nft_ucode nft-add-file-chunks-to-set "$input" ForkopTable forkop_subnets ips "" 2
-assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_subnets\t{ 198.51.100.1,203.0.113.0/24 }' "nft chunked ips"
-assert_contains "$LOGGER_LOG" "[debug] 'bad-value' is not IP or CIDR" "invalid element log"
-assert_contains "$LOGGER_LOG" "[debug] Adding 2 elements to nft set forkop_subnets" "chunk count log"
-
-: > "$NFT_LOG"
-ports_input="$WORK_DIR/ip-ports.txt"
-cat >"$ports_input" <<'EOF_INPUT'
-198.51.100.1
-203.0.113.0/24
-EOF_INPUT
-
-nft_ucode nft-add-file-chunks-to-set "$ports_input" ForkopTable forkop_ip_ports ip-port-from-ip "80,443-444" 3
-assert_contains "$NFT_LOG" $'198.51.100.1 . 80,198.51.100.1 . 443-444,203.0.113.0/24 . 80' "ip-port chunk"
-assert_contains "$NFT_LOG" $'203.0.113.0/24 . 443-444' "ip-port second chunk"
-
 cat >"$WORK_DIR/populate-fixture.json" <<'JSON'
 {
   "section": [
@@ -508,78 +485,6 @@ cat >"$WORK_DIR/populate-fixture.json" <<'JSON'
 }
 JSON
 
-plain_subnets="$WORK_DIR/plain-subnets.txt"
-cat >"$plain_subnets" <<'EOF_INPUT'
-198.51.100.210
-203.0.113.0/24
-2001:db8::210
-EOF_INPUT
-
-: > "$NFT_LOG"
-nft_ucode nft-add-subnet-file-for-section-fixture "$WORK_DIR/populate-fixture.json" inline_no_ports "$plain_subnets" ForkopTable forkop_subnets forkop_ip_ports 5000
-assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_rule_inline_no_ports_subnets\t{ 198.51.100.210,203.0.113.0/24 }' "plain subnet import without ports"
-assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_rule_inline_no_ports_subnets6\t{ 2001:db8::210 }' "plain subnet6 import without ports"
-
-: > "$NFT_LOG"
-nft_ucode nft-add-subnet-file-for-section-fixture "$WORK_DIR/populate-fixture.json" ports_only "$plain_subnets" ForkopTable forkop_subnets forkop_ip_ports 3
-assert_contains "$NFT_LOG" $'198.51.100.210 . 53,198.51.100.210 . 853,198.51.100.210 . 5353' "plain subnet import scoped first chunk"
-assert_contains "$NFT_LOG" $'203.0.113.0/24 . 53,203.0.113.0/24 . 853,203.0.113.0/24 . 5353' "plain subnet import scoped second chunk"
-assert_contains "$NFT_LOG" $'2001:db8::210 . 53,2001:db8::210 . 853,2001:db8::210 . 5353' "plain subnet6 import scoped chunk"
-
-json_ruleset="$WORK_DIR/subnets-ruleset.json"
-cat >"$json_ruleset" <<'JSON'
-{
-  "version": 3,
-  "rules": [
-    { "ip_cidr": [ "198.51.100.220", "2001:db8::220" ] },
-    { "ip_cidr": [ "198.51.100.221" ], "port": [ 443 ] },
-    {
-      "type": "logical",
-      "mode": "and",
-      "rules": [
-        { "ip_cidr": [ "198.51.100.222" ] },
-        { "port_range": [ "1000:1002" ] }
-      ]
-    }
-  ]
-}
-JSON
-
-: > "$NFT_LOG"
-unscoped_json="$WORK_DIR/unscoped-json.txt"
-scoped_json="$WORK_DIR/scoped-json.txt"
-nft_ucode nft-add-json-ruleset-subnets-for-section-fixture "$WORK_DIR/populate-fixture.json" inline_no_ports "$json_ruleset" "fixture json" ForkopTable forkop_subnets forkop_ip_ports "$unscoped_json" "$scoped_json" 5000
-assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_rule_inline_no_ports_subnets\t{ 198.51.100.220 }' "json ruleset unscoped import"
-assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_rule_inline_no_ports_subnets6\t{ 2001:db8::220 }' "json ruleset unscoped6 import"
-assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_rule_inline_no_ports_ip_ports\t{ 198.51.100.221 . 443,198.51.100.222 . 1000-1002 }' "json ruleset own port filters"
-
-: > "$NFT_LOG"
-unscoped_json="$WORK_DIR/unscoped-json-ports.txt"
-scoped_json="$WORK_DIR/scoped-json-ports.txt"
-nft_ucode nft-add-json-ruleset-subnets-for-section-fixture "$WORK_DIR/populate-fixture.json" ports_only "$json_ruleset" "fixture json ports" ForkopTable forkop_subnets forkop_ip_ports "$unscoped_json" "$scoped_json" 4
-assert_contains "$NFT_LOG" $'198.51.100.220 . 53,198.51.100.220 . 5353,198.51.100.220 . 853' "json ruleset scoped import"
-if grep -Fq '198.51.100.221' "$NFT_LOG" || grep -Fq '198.51.100.222' "$NFT_LOG"; then
-  fail "json ruleset section ports should intersect rule-owned port filters"
-fi
-
-: > "$NFT_LOG"
-nft_ucode nft-add-community-subnet-file-for-section-fixture "$WORK_DIR/populate-fixture.json" inline_no_ports discord "$plain_subnets" ForkopTable forkop_subnets forkop_ip_ports forkop_interfaces forkop_discord_subnets 0x00100000 5000
-assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_rule_inline_no_ports_subnets\t{ 198.51.100.210,203.0.113.0/24 }' "discord community subnet import"
-
-: > "$NFT_LOG"
-NFT_MANGLE_CHAIN_OUTPUT=$'iifname @forkop_interfaces ip daddr @forkop_discord_subnets udp dport { 19000-20000, 50000-65535 } meta mark set 0x00100000 counter\niifname @forkop_interfaces ip6 daddr @forkop_discord_subnets6 udp dport { 19000-20000, 50000-65535 } meta mark set 0x00100000 counter' \
-  nft_ucode nft-add-community-subnet-file-for-section-fixture "$WORK_DIR/populate-fixture.json" inline_no_ports discord "$plain_subnets" ForkopTable forkop_subnets forkop_ip_ports forkop_interfaces forkop_discord_subnets 0x00100000 5000
-if grep -Fq $'nft\tadd\trule' "$NFT_LOG"; then
-  fail "discord community existing rule should not insert"
-fi
-
-: > "$NFT_LOG"
-nft_ucode nft-add-community-subnet-file-for-section-fixture "$WORK_DIR/populate-fixture.json" ports_only discord "$plain_subnets" ForkopTable forkop_subnets forkop_ip_ports forkop_interfaces forkop_discord_subnets 0x00100000 3
-if grep -Fq 'forkop_discord_subnets' "$NFT_LOG"; then
-  fail "discord community with section ports should not use the discord nft set"
-fi
-assert_contains "$NFT_LOG" $'198.51.100.210 . 53,198.51.100.210 . 853,198.51.100.210 . 5353' "discord community with ports uses scoped import"
-
 : > "$NFT_LOG"
 nft_ucode nft-populate-runtime-sets-fixture "$WORK_DIR/populate-fixture.json" 1 "deferred" ForkopTable forkop_subnets forkop_ports forkop_ip_ports forkop_interfaces localv4 0x00100000
 assert_contains "$NFT_LOG" $'198.51.100.1 . 80,198.51.100.1 . 443-444,203.0.113.0/24 . 80' "populate inline ip-port first chunk"
@@ -640,7 +545,6 @@ cat >"$WORK_DIR/signature-fixture.json" <<'JSON'
       "ports_text": "80, 443-444\n0\n65536",
       "fully_routed_ips": [ "192.168.1.10/32" ],
       "community_lists": [ "geoblock", "meta", "telegram", "youtube", "discord" ],
-      "remote_subnet_lists": [ "https://example.com/subnets.lst" ],
       "rule_set_with_subnets": [ "/tmp/local.json" ],
       "domain_ip_lists": [ "https://example.com/mixed.lst" ]
     },
@@ -675,8 +579,6 @@ bypass
 192.168.1.10/32
 [rule.text_rule.community_subnet_lists]
 meta telegram discord
-[rule.text_rule.remote_subnet_lists]
-https://example.com/subnets.lst
 [rule.text_rule.rule_set_with_subnets]
 /tmp/local.json
 [rule.text_rule.domain_ip_lists]
@@ -695,8 +597,6 @@ proxy
 
 [rule.default_enabled.community_subnet_lists]
 cloudflare roblox
-[rule.default_enabled.remote_subnet_lists]
-
 [rule.default_enabled.rule_set_with_subnets]
 
 [rule.default_enabled.domain_ip_lists]
@@ -722,7 +622,6 @@ forkop.enabled.ports=443 bad-value
 forkop.enabled.ports_text=80 443-444 65536
 forkop.enabled.fully_routed_ips=192.168.1.10/32
 forkop.enabled.community_lists=geoblock meta telegram youtube discord
-forkop.enabled.remote_subnet_lists=https://example.com/subnets.lst
 forkop.enabled.rule_set_with_subnets=/tmp/local.json
 forkop.enabled.domain_ip_lists=https://example.com/mixed.lst
 EOF_UCI
@@ -745,8 +644,6 @@ bypass
 192.168.1.10/32
 [rule.enabled.community_subnet_lists]
 meta telegram discord
-[rule.enabled.remote_subnet_lists]
-https://example.com/subnets.lst
 [rule.enabled.rule_set_with_subnets]
 /tmp/local.json
 [rule.enabled.domain_ip_lists]

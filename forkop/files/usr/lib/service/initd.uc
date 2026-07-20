@@ -190,12 +190,20 @@ function acquire_runtime_dir_lock(lock_dir, owner_pid) {
     if (command_success_from_args([ "mkdir", lock_dir ])) {
         if (lock_dir_write_owner(lock_dir, owner_pid))
             return true;
-        release_runtime_dir_lock(lock_dir);
+        release_runtime_dir_lock(lock_dir, owner_pid);
         return false;
     }
 
-    if (pid_alive(first_line_value(lock_dir + "/pid")))
+    let current_owner = first_line_value(lock_dir + "/pid");
+    if (pid_alive(current_owner))
         return false;
+
+    let lock_stat = fs.stat(lock_dir);
+    if (current_owner == "" && lock_stat != null) {
+        let lock_age = (int(current_epoch(), 10) || 0) - int(lock_stat.mtime || 0);
+        if (lock_age >= 0 && lock_age < 30)
+            return false;
+    }
 
     command_success_from_args([ "rm", "-f", lock_dir + "/pid" ]);
     if (!command_success_from_args([ "rmdir", lock_dir ]))
@@ -206,13 +214,17 @@ function acquire_runtime_dir_lock(lock_dir, owner_pid) {
     if (lock_dir_write_owner(lock_dir, owner_pid))
         return true;
 
-    release_runtime_dir_lock(lock_dir);
+    release_runtime_dir_lock(lock_dir, owner_pid);
     return false;
 }
 
-function release_runtime_dir_lock(lock_dir) {
+function release_runtime_dir_lock(lock_dir, owner_pid) {
     lock_dir = as_string(lock_dir);
-    if (lock_dir == "")
+    owner_pid = as_string(owner_pid);
+    if (lock_dir == "" || owner_pid == "")
+        return;
+
+    if (first_line_value(lock_dir + "/pid") != owner_pid)
         return;
 
     command_success_from_args([ "rm", "-f", lock_dir + "/pid" ]);
@@ -418,8 +430,9 @@ function finish_external_service_action(action, job_id, status) {
 }
 
 function owner_pid_value() {
-    let pid = trim(command_output_from_args([ "sh", "-c", "echo $PPID" ]));
-    return match(pid, /^[0-9]+$/) != null ? pid : "0";
+    let stat = as_string(fs.readfile("/proc/self/stat"));
+    let separator = index(stat, " ");
+    return separator > 0 ? substr(stat, 0, separator) : "0";
 }
 
 function runtime_status_object() {
@@ -675,18 +688,18 @@ function reload_begin(reason, owner_pid, runtime_running_value, service_enabled_
     return 0;
 }
 
-function reload_finish_value(reason, job_id, status) {
+function reload_finish_value(reason, job_id, status, owner_pid) {
     status = int(status || 0);
     finish_external_service_action("reload", job_id, status);
     let sync = status == 0 && initd_should_sync_service_triggers(reason, CONFIG_CHANGE_REASON, SERVICE_TRIGGER_SYNC_FILE);
-    release_runtime_dir_lock(RELOAD_LOCK_DIR);
+    release_runtime_dir_lock(RELOAD_LOCK_DIR, owner_pid || owner_pid_value());
     if (active_service_action_value() == "")
         run_pending_reload_if_requested(PENDING_RELOAD_FILE, SERVICE_INIT);
     return { status, sync };
 }
 
-function reload_finish(reason, job_id, status) {
-    let plan = reload_finish_value(reason, job_id, status);
+function reload_finish(reason, job_id, status, owner_pid) {
+    let plan = reload_finish_value(reason, job_id, status, owner_pid);
     shell_assignment("INITD_SYNC_SERVICE_TRIGGERS", plan.sync ? "1" : "0");
     return plan.status;
 }
@@ -697,14 +710,14 @@ function reload_service(reason, owner_pid) {
         return 0;
 
     let status = command_status(command_from_args([ "env", "FORKOP_UI_ACTION_TRACKED=1", BIN_PATH, "reload", reason ]) + " >/dev/null 2>&1");
-    let finish = reload_finish_value(reason, plan.job_id, status);
+    let finish = reload_finish_value(reason, plan.job_id, status, owner_pid);
     if (finish.sync)
         print("sync\n");
     return finish.status;
 }
 
-function reload_release() {
-    release_runtime_dir_lock(RELOAD_LOCK_DIR);
+function reload_release(owner_pid) {
+    release_runtime_dir_lock(RELOAD_LOCK_DIR, owner_pid || owner_pid_value());
     return 0;
 }
 
@@ -795,11 +808,11 @@ else if (mode == "reload-begin-fixture") {
     exit(plan.action == "run" ? 0 : 1);
 }
 else if (mode == "reload-finish")
-    exit(reload_finish(ARGV[1], ARGV[2], ARGV[3]));
+    exit(reload_finish(ARGV[1], ARGV[2], ARGV[3], ARGV[4]));
 else if (mode == "reload-service")
     exit(reload_service(ARGV[1], ARGV[2]));
 else if (mode == "reload-release")
-    exit(reload_release());
+    exit(reload_release(ARGV[1]));
 else if (mode == "trigger-plan")
     trigger_plan(uci_settings());
 else if (mode == "trigger-plan-fixture")

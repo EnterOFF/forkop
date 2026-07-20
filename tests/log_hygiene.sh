@@ -40,6 +40,10 @@ reject_runtime_pattern "Trying subscription User-Agent" \
   "subscription logs must not expose automatic User-Agent fallback attempts"
 reject_runtime_pattern "Selected subscription User-Agent" \
   "subscription logs must not expose automatic User-Agent fallback selection"
+reject_runtime_pattern "Starting subscription update" \
+  "native subscription refresh must not duplicate core update logs"
+reject_runtime_pattern "Subscription providers refreshed without reloading sing-box" \
+  "native subscription refresh must not log orchestration success"
 reject_runtime_pattern "Current sing-box config hash:" \
   "sing-box config logs must not emit duplicate hash lines"
 reject_runtime_pattern "Temporary sing-box config hash:" \
@@ -60,9 +64,11 @@ reject_runtime_pattern "marking rule exist" \
   "nft logs must use correct grammar"
 reject_runtime_pattern "br_netfilter enabled detected. Disabling" \
   "nft logs must use polished bridge-netfilter wording"
+reject_runtime_pattern "IP/port entries" \
+  "native rule-set nft sync must log only the total number of nft values"
+reject_runtime_pattern "rule(s) that cannot be represented" \
+  "native rule-set nft sync must not expose ignored-rule details"
 
-reject_runtime_regex 'log_message\("subscription/cache\.uc: ' \
-  "runtime logs must not expose subscription/cache.uc as a user-facing prefix"
 reject_runtime_regex 'log_message\("singbox/runtime\.uc: ' \
   "runtime logs must not expose singbox/runtime.uc as a user-facing prefix"
 

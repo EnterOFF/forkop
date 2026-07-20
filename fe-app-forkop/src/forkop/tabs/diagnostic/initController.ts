@@ -54,10 +54,7 @@ import {
   shouldShowStopAction,
 } from './serviceTransition';
 import { isActiveLuciTab } from '../../helpers/isActiveLuciTab';
-import {
-  formatSingBoxVersion,
-  normalizeSingBoxVariantFields,
-} from '../../helpers/singBoxVariant';
+import { formatSingBoxVersion } from '../../helpers/singBoxVersion';
 import {
   clearPersistedDiagnosticRun,
   PersistedDiagnosticRun,
@@ -363,19 +360,15 @@ async function fetchDiagnosticsProviderInfo({
 
     if (uiState) {
       const currentSystemInfo = store.get().diagnosticsSystemInfo;
-      const nextSystemInfo = normalizeSingBoxVariantFields({
+      const nextSystemInfo = {
         ...currentSystemInfo,
         providerInfoLoaded: true,
-        sing_box_extended: uiState.capabilities.sing_box_extended,
-        sing_box_tiny: uiState.capabilities.sing_box_tiny,
-        sing_box_compressed: uiState.capabilities.sing_box_compressed,
-        sing_box_tailscale: uiState.capabilities.sing_box_tailscale,
         zapret_installed: uiState.capabilities.zapret_installed,
         zapret2_installed: uiState.capabilities.zapret2_installed,
         byedpi_installed: uiState.capabilities.byedpi_installed,
         server_inbounds_enabled_count:
           uiState.capabilities.server_inbounds_enabled_count,
-      });
+      };
 
       if (!nextSystemInfo.zapret_installed) {
         nextSystemInfo.zapret_version = 'not installed';
@@ -916,7 +909,7 @@ function renderDiagnosticSystemInfoWidget() {
     },
     {
       key: 'Sing-box',
-      value: formatSingBoxVersion(diagnosticsSystemInfo),
+      value: formatSingBoxVersion(diagnosticsSystemInfo, false),
     },
   ];
 

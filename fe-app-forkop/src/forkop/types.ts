@@ -12,10 +12,44 @@ export namespace ClashAPI {
     history: ProxyHistoryEntry[];
     now?: string;
     all?: string[];
+    url?: string;
+    interval?: string;
+    idle_timeout?: string;
   }
 
   export interface Proxies {
     proxies: Record<string, ProxyBase>;
+  }
+
+  export interface ProxyProvider {
+    type: string;
+    vehicleType: string;
+    name: string;
+    proxies: ProxyBase[];
+    updatedAt?: string;
+    subscriptionInfo?: {
+      Upload?: number;
+      Download?: number;
+      Total?: number;
+      Expire?: number;
+      upload?: number;
+      download?: number;
+      total?: number;
+      expire?: number;
+    };
+    subscriptionMetadata?: {
+      title?: string;
+      webPageUrl?: string;
+      supportUrl?: string;
+      announce?: string;
+      announceUrl?: string;
+      refillDate?: number;
+      fileName?: string;
+    };
+  }
+
+  export interface ProxyProviders {
+    providers: Record<string, ProxyProvider>;
   }
 }
 
@@ -30,7 +64,6 @@ export namespace Forkop {
   // disable                 Disable forkop autostart
   // uninstall               Remove forkop files installed outside opkg/apk
   // main                    Run main forkop process
-  // list_update             Update domain lists
   // check_proxy             Check proxy connectivity
   // check_nft               Check NFT rules
   // check_nft_rules         Check NFT rules status
@@ -60,8 +93,6 @@ export namespace Forkop {
     CHECK_BYEDPI_RUNTIME = 'check_byedpi_runtime',
     CHECK_INBOUNDS_CONFIG = 'check_inbounds_config',
     GET_STATUS = 'get_status',
-    GET_OUTBOUND_METADATA = 'get_outbound_metadata',
-    GET_SUBSCRIPTION_METADATA = 'get_subscription_metadata',
     GET_DASHBOARD_SECTION_CACHE = 'get_dashboard_section_cache',
     CHECK_SING_BOX = 'check_sing_box',
     CHECK_INBOUNDS = 'check_inbounds',
@@ -77,7 +108,6 @@ export namespace Forkop {
     CHECK_LOGS = 'check_logs',
     CHECK_SING_BOX_LOGS = 'check_sing_box_logs',
     GET_SYSTEM_INFO = 'get_system_info',
-    GET_SERVER_CAPABILITIES = 'get_server_capabilities',
     GET_UI_CAPABILITIES = 'get_ui_capabilities',
     GET_UI_STATE = 'get_ui_state',
     SERVICE_ACTION_ASYNC = 'service_action_async',
@@ -88,12 +118,13 @@ export namespace Forkop {
     COMPONENT_ACTION_ASYNC = 'component_action_async',
     COMPONENT_ACTION_STATUS = 'component_action_status',
     COMPONENT_UPDATE_CHECK_CACHE = 'component_update_check_cache',
-    SUBSCRIPTION_UPDATE_ASYNC = 'subscription_update_async',
-    SUBSCRIPTION_UPDATE_STATUS = 'subscription_update_status',
+    SUBSCRIPTION_UPDATE = 'subscription_update',
   }
 
   export enum AvailableClashAPIMethods {
     GET_PROXIES = 'get_proxies',
+    GET_PROXY_PROVIDERS = 'get_proxy_providers',
+    GET_PROXY_LINK = 'get_proxy_link',
     GET_CONNECTIONS = 'get_connections',
     GET_PROXY_LATENCY = 'get_proxy_latency',
     GET_PROXY_LATENCIES = 'get_proxy_latencies',
@@ -152,14 +183,7 @@ export namespace Forkop {
     displayName: string;
     selectedCode?: string;
     selectedName?: string;
-    healthUrl?: string;
-    activeCheckInterval?: string;
-    checkTimeout?: string;
-    recoveryCheckInterval?: string;
-    pickFastest?: boolean;
-    switchToFasterSamePriority?: boolean;
-    fastestCheckInterval?: string;
-    interruptExistConnections?: boolean;
+    blacklistTimeout?: string;
     outbounds: PriorityMember[];
   }
 
@@ -218,7 +242,6 @@ export namespace Forkop {
     | 'zapret'
     | 'zapret2'
     | 'byedpi';
-  type LegacyConnectionType = 'proxy' | 'vpn' | 'block' | 'exclusion';
   type ProxyConfigType =
     | 'urltest'
     | 'selector'
@@ -244,8 +267,6 @@ export namespace Forkop {
     label?: string;
     enabled?: string;
     action?: RuleAction;
-    connection_type?: LegacyConnectionType;
-    proxy_config_type?: ProxyConfigType;
     node?: string;
     rule_set?: string[];
     rule_set_with_subnets?: string[];
@@ -266,17 +287,11 @@ export namespace Forkop {
     urltest_settings?: string;
     priority_groups?: string[];
     priority_group_settings?: string;
-    urltest_proxy_links?: string[];
-    subscription_url?: string;
-    subscription_user_agent?: string;
     subscription_update_enabled?: '0' | '1';
     subscription_update_interval?: string;
-    subscription_update_interval_disabled?: '0' | '1';
     urltest_enabled?: '0' | '1';
     sort_by_latency?: '0' | '1';
-    urltest_check_interval_disabled?: '0' | '1';
     urltest_filter_mode?: 'disabled' | 'exclude' | 'include' | 'mixed';
-    urltest_hide_filtered_outbounds?: '0' | '1';
     urltest_exclude_countries?: string[];
     urltest_exclude_outbounds?: string[];
     urltest_exclude_regex?: string[];
@@ -296,23 +311,26 @@ export namespace Forkop {
     idle_timeout?: string;
     interrupt_exist_connections?: '0' | '1';
     pin_dashboard?: '0' | '1';
+    hide_dashboard_members?: '0' | '1';
     filter_mode?: 'disabled' | 'exclude' | 'include' | 'mixed';
     include_countries?: string[];
     include_outbounds?: string[];
     include_regex?: string[];
+    include_proxy_parameters?: '0' | '1';
+    include_protocols?: string[];
+    include_transports?: string[];
+    include_securities?: string[];
     exclude_countries?: string[];
     exclude_outbounds?: string[];
     exclude_regex?: string[];
+    exclude_proxy_parameters?: '0' | '1';
+    exclude_protocols?: string[];
+    exclude_transports?: string[];
+    exclude_securities?: string[];
     group?: string;
     order?: string;
     direct?: '0' | '1';
-    health_url?: string;
-    active_check_interval?: string;
-    check_timeout?: string;
-    recovery_check_interval?: string;
-    pick_fastest?: '0' | '1';
-    switch_to_faster_same_priority?: '0' | '1';
-    fastest_check_interval?: string;
+    blacklist_timeout?: string;
     country?: string[];
     server_name?: string[];
     regex?: string[];
@@ -327,9 +345,6 @@ export namespace Forkop {
     show_dashboard_metadata?: '0' | '1';
     prefix_nodes?: '0' | '1';
     node_prefix?: string;
-    include_urltest_groups?: '0' | '1';
-    hide_urltest_group_outbounds?: '0' | '1';
-    hide_detour_outbounds?: '0' | '1';
     yacd_secret_key?: string;
   }
 
@@ -350,13 +365,9 @@ export namespace Forkop {
   export interface DnsCheckResult {
     dns_type: 'udp' | 'doh' | 'dot';
     dns_server: string;
-    dns_server_index: number;
-    dns_server_count: number;
     dns_status: 0 | 1;
     dns_on_router: 0 | 1;
     bootstrap_dns_server: string;
-    bootstrap_dns_server_index: number;
-    bootstrap_dns_server_count: number;
     bootstrap_dns_status: 0 | 1;
     dhcp_config_status: 0 | 1;
     dont_touch_dhcp: 0 | 1;
@@ -449,10 +460,7 @@ export namespace Forkop {
     forkop_latest_version: string;
     luci_app_version: string;
     sing_box_version: string;
-    sing_box_extended: 0 | 1;
-    sing_box_tiny: 0 | 1;
     sing_box_compressed: 0 | 1;
-    sing_box_tailscale: 0 | 1;
     zapret_version: string;
     zapret_installed: 0 | 1;
     zapret2_version: string;
@@ -464,17 +472,7 @@ export namespace Forkop {
     generated_at?: number;
   }
 
-  export interface GetServerCapabilities {
-    sing_box_extended: 0 | 1;
-    sing_box_tiny: 0 | 1;
-    sing_box_tailscale: 0 | 1;
-  }
-
   export interface GetUiCapabilities {
-    sing_box_extended: 0 | 1;
-    sing_box_tiny: 0 | 1;
-    sing_box_compressed: 0 | 1;
-    sing_box_tailscale: 0 | 1;
     zapret_installed: 0 | 1;
     zapret2_installed: 0 | 1;
     byedpi_installed: 0 | 1;
@@ -525,7 +523,6 @@ export namespace Forkop {
       service: ServiceActionState[];
       latency: LatencyActionState[];
       component: ComponentActionResult[];
-      subscription: SubscriptionUpdateJobState[];
     };
   }
 
@@ -563,21 +560,6 @@ export namespace Forkop {
   }
 
   export type ComponentActionStartResult = UiActionStartResult;
-
-  export type SubscriptionUpdateStartResult = UiActionStartResult;
-
-  export interface SubscriptionUpdateJobState extends UiActionState {
-    kind?: 'subscription';
-    success: boolean;
-    running?: boolean;
-    message?: string;
-    section?: string;
-    source_index?: string;
-    pid?: string | null;
-    started_at?: number;
-    exit_code?: number | null;
-    updated_at?: number | null;
-  }
 
   export interface GetZapretStatus {
     installed: 0 | 1;
@@ -683,6 +665,10 @@ export namespace Forkop {
   export interface GetClashApiProxyLatency {
     delay: number;
     message?: string;
+  }
+
+  export interface GetClashApiProxyLink {
+    url: string;
   }
 
   export interface GetClashApiProxyLatencies {

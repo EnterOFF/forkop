@@ -48,8 +48,6 @@ config_name="$(ucode -L "$FORKOP_LIB" "$CONSTANTS_UC" get FORKOP_CONFIG_NAME)"
 eval "$(ucode -L "$FORKOP_LIB" "$CONSTANTS_UC" shell-env)"
 [ "$FORKOP_CONFIG" = "/etc/config/forkop" ] ||
   fail "core/constants.uc shell-env did not derive FORKOP_CONFIG"
-[ "$TMP_RULESET_FOLDER" = "/tmp/sing-box/rulesets" ] ||
-  fail "core/constants.uc shell-env did not derive TMP_RULESET_FOLDER"
 [ "$BYEDPI_PID_DIR" = "/var/run/forkop/byedpi/pid" ] ||
   fail "core/constants.uc shell-env did not derive BYEDPI_PID_DIR"
 

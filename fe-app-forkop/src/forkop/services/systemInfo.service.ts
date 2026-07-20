@@ -1,5 +1,4 @@
 import { ForkopShellMethods } from '../methods';
-import { normalizeSingBoxVariantFields } from '../helpers/singBoxVariant';
 import { logger } from './logger.service';
 import { store, StoreType } from './store.service';
 
@@ -11,10 +10,7 @@ const UNKNOWN_SYSTEM_INFO: StoreType['diagnosticsSystemInfo'] = {
   forkop_latest_version: _('unknown'),
   luci_app_version: _('unknown'),
   sing_box_version: _('unknown'),
-  sing_box_extended: 0,
-  sing_box_tiny: 0,
   sing_box_compressed: 0,
-  sing_box_tailscale: 1,
   zapret_version: _('unknown'),
   zapret_installed: 0,
   zapret2_version: _('unknown'),
@@ -72,16 +68,15 @@ export async function ensureSystemInfo({
       }
 
       if (systemInfo.success) {
-        const nextSystemInfo: StoreType['diagnosticsSystemInfo'] =
-          normalizeSingBoxVariantFields({
-            ...UNKNOWN_SYSTEM_INFO,
-            loading: false,
-            loaded: true,
-            providerInfoLoaded: true,
-            server_inbounds_enabled_count:
-              currentSystemInfo.server_inbounds_enabled_count,
-            ...systemInfo.data,
-          });
+        const nextSystemInfo: StoreType['diagnosticsSystemInfo'] = {
+          ...UNKNOWN_SYSTEM_INFO,
+          loading: false,
+          loaded: true,
+          providerInfoLoaded: true,
+          server_inbounds_enabled_count:
+            currentSystemInfo.server_inbounds_enabled_count,
+          ...systemInfo.data,
+        };
 
         store.set({
           diagnosticsSystemInfo: nextSystemInfo,

@@ -24,7 +24,7 @@ if grep -Fq 'http(s)://, hy2/hysteria2:// links' \
   "$SECTION_JS" "$SOURCE_PO" "$PACKAGE_PO" "$SOURCE_POT" "$PACKAGE_POT" "$CALLS_JSON"; then
   fail "Connection URL help must not advertise removed HTTP proxy links"
 fi
-grep -Fq 'socks4/5://, hy2/hysteria2:// links' "$SECTION_JS" ||
+grep -Fq 'socks://, tuic://, hysteria://, hysteria2://, and hy2://' "$SECTION_JS" ||
   fail "Connection URL help must list the remaining native proxy links"
 
 for po in "$SOURCE_PO" "$PACKAGE_PO"; do
@@ -48,14 +48,20 @@ for po in "$SOURCE_PO" "$PACKAGE_PO"; do
     fail "Dismiss must not override LuCI alert closing with Отмена in $po"
   fi
 
+done
+
+for po in "$SOURCE_PO" "$PACKAGE_PO"; do
   awk '
-    $0 == "msgid \"Cannot save settings\"" {
+    $0 ~ /^msgid "/ && $0 != "msgid \"\"" {
+      msgid = $0
       getline
-      if ($0 == "msgstr \"Не удалось сохранить настройки\"")
-        found = 1
+      if ($0 == "msgstr \"\"") {
+        print "untranslated: " msgid
+        missing = 1
+      }
     }
-    END { exit found ? 0 : 1 }
-  ' "$po" || fail "Cannot save settings must have a Russian translation in $po"
+    END { exit missing ? 1 : 0 }
+  ' "$po" || fail "Russian catalog must not leave user-facing strings untranslated in $po"
 done
 
 cmp -s "$SOURCE_PO" "$PACKAGE_PO" ||

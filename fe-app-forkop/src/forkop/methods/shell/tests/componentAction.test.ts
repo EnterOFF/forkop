@@ -214,10 +214,6 @@ describe('ForkopShellMethods.componentAction', () => {
               },
             },
             capabilities: {
-              sing_box_extended: 0,
-              sing_box_tiny: 1,
-              sing_box_compressed: 0,
-              sing_box_tailscale: 0,
               zapret_installed: 1,
               zapret2_installed: 1,
               byedpi_installed: 0,
@@ -236,7 +232,6 @@ describe('ForkopShellMethods.componentAction', () => {
                   job_id: 'job-1',
                 },
               ],
-              subscription: [],
             },
           }),
           stderr: '',

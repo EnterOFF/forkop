@@ -16,9 +16,9 @@ fail() {
 }
 
 base_args=(
-  svc dns sb nft zq zr z2q z2r br list cron 1 "alpha beta"
-  svc dns sb nft zq zr z2q z2r br list cron "alpha beta" 0
-  0 0 0 0 0
+  svc dns sb nft zq zr z2q z2r br cron
+  svc dns sb nft zq zr z2q z2r br cron 0
+  0 0 0
 )
 
 write_plan() {
@@ -69,11 +69,9 @@ write_state() {
   local zapret2_queue="$9"
   local zapret2_runtime="${10}"
   local byedpi_runtime="${11}"
-  local list="${12}"
-  local cron="${13}"
-  local urltest_sections="${14}"
-  local dont_touch_dhcp="${15:-0}"
-  local format="${16:-1}"
+  local cron="${12}"
+  local dont_touch_dhcp="${13:-0}"
+  local format="${14:-1}"
 
   {
     printf 'format=%s\n' "$format"
@@ -86,9 +84,7 @@ write_state() {
     printf 'zapret2_queue_signature=%s\n' "$zapret2_queue"
     printf 'zapret2_runtime_signature=%s\n' "$zapret2_runtime"
     printf 'byedpi_runtime_signature=%s\n' "$byedpi_runtime"
-    printf 'list_signature=%s\n' "$list"
     printf 'cron_signature=%s\n' "$cron"
-    printf 'urltest_enabled_sections=%s\n' "$urltest_sections"
     printf 'dont_touch_dhcp=%s\n' "$dont_touch_dhcp"
   } >"$file"
 }
@@ -123,28 +119,16 @@ args=("${base_args[@]}")
 plan="$(run_case unchanged "${args[@]}")"
 assert_plan_value "$plan" has_work 0
 assert_plan_value "$plan" changed_sing_box 0
-assert_plan_value "$plan" urltest_new_enabled_sections ""
 
 args=("${base_args[@]}")
-args[24]="alpha beta gamma"
-plan="$(run_case urltest_new_sections "${args[@]}")"
-assert_plan_value "$plan" urltest_new_enabled_sections "gamma"
-
-args=("${base_args[@]}")
-args[11]=0
-args[24]="alpha beta gamma"
-plan="$(run_case urltest_unknown_previous "${args[@]}")"
-assert_plan_value "$plan" urltest_new_enabled_sections ""
-
-args=("${base_args[@]}")
-args[15]=sb2
+args[12]=sb2
 plan="$(run_case sing_box_changed "${args[@]}")"
 assert_plan_value "$plan" changed_sing_box 1
 assert_plan_value "$plan" needs_sing_box_reload 1
 assert_plan_value "$plan" has_work 1
 
 args=("${base_args[@]}")
-args[17]=zq2
+args[14]=zq2
 plan="$(run_case zapret_queue_changed "${args[@]}")"
 assert_plan_value "$plan" changed_zapret_queue 1
 assert_plan_value "$plan" needs_zapret_restart 1
@@ -152,70 +136,57 @@ assert_plan_value "$plan" needs_nft_rebuild 1
 assert_plan_value "$plan" needs_sing_box_reload 1
 
 args=("${base_args[@]}")
-args[14]=dns2
+args[11]=dns2
 plan="$(run_case dnsmasq_configure "${args[@]}")"
 assert_plan_value "$plan" changed_dnsmasq 1
 assert_plan_value "$plan" needs_dnsmasq_configure 1
 assert_plan_value "$plan" needs_dnsmasq_restore 0
 
 args=("${base_args[@]}")
-args[14]=dns2
-args[25]=1
-args[27]=1
+args[11]=dns2
+args[20]=1
+args[22]=1
 plan="$(run_case dnsmasq_restore "${args[@]}")"
 assert_plan_value "$plan" needs_dnsmasq_configure 0
 assert_plan_value "$plan" needs_dnsmasq_restore 1
 
 args=("${base_args[@]}")
-args[22]=list2
-args[28]=1
-plan="$(run_case list_update_sources "${args[@]}")"
-assert_plan_value "$plan" changed_list 1
-assert_plan_value "$plan" needs_list_update 1
-
-args=("${base_args[@]}")
-args[16]=nft2
-args[29]=1
-plan="$(run_case nft_list_sources "${args[@]}")"
+args[13]=nft2
+plan="$(run_case nft_changed "${args[@]}")"
 assert_plan_value "$plan" needs_nft_rebuild 1
-assert_plan_value "$plan" needs_list_update 1
 
 args=("${base_args[@]}")
-args[30]=1
+args[23]=1
 plan="$(run_case cache_rebuild "${args[@]}")"
 assert_plan_value "$plan" changed_sing_box 1
 assert_plan_value "$plan" needs_sing_box_reload 1
 
 args=("${base_args[@]}")
-args[26]=1
+args[21]=1
 plan="$(run_case forced_reload "${args[@]}")"
 assert_plan_value "$plan" changed_sing_box 0
 assert_plan_value "$plan" needs_sing_box_reload 1
 
 previous_state="$WORK_DIR/previous.state"
 current_state="$WORK_DIR/current.state"
-write_state "$previous_state" service_trigger_signature svc dns sb nft zq zr z2q z2r br list cron "alpha beta" 0
-write_state "$current_state" service_trigger_signature svc dns sb nft zq zr z2q z2r br list cron "alpha beta" 0
-plan="$(run_state_case state_unchanged "$previous_state" "$current_state" 0 0 0 0 0)"
+write_state "$previous_state" service_trigger_signature svc dns sb nft zq zr z2q z2r br cron 0
+write_state "$current_state" service_trigger_signature svc dns sb nft zq zr z2q z2r br cron 0
+plan="$(run_state_case state_unchanged "$previous_state" "$current_state" 0 0 0)"
 assert_plan_value "$plan" has_work 0
 assert_plan_value "$plan" changed_sing_box 0
 
-write_state "$current_state" service_trigger_signature svc dns sb nft zq zr z2q z2r br list cron "alpha beta gamma" 0
-plan="$(run_state_case state_urltest_new "$previous_state" "$current_state" 0 0 0 0 0)"
-assert_plan_value "$plan" urltest_new_enabled_sections "gamma"
-
-write_state "$previous_state" restart_signature svc dns sb nft zq zr z2q z2r br list cron "alpha beta" 0
-write_state "$current_state" service_trigger_signature svc dns sb2 nft zq zr z2q z2r br list cron "alpha beta" 0
-plan="$(run_state_case state_legacy_restart_signature "$previous_state" "$current_state" 0 0 0 0 0)"
+write_state "$previous_state" restart_signature svc dns sb nft zq zr z2q z2r br cron 0
+write_state "$current_state" service_trigger_signature svc dns sb2 nft zq zr z2q z2r br cron 0
+plan="$(run_state_case state_legacy_restart_signature "$previous_state" "$current_state" 0 0 0)"
 assert_plan_value "$plan" changed_service_triggers 0
 assert_plan_value "$plan" changed_sing_box 1
 assert_plan_value "$plan" needs_sing_box_reload 1
 
-write_state "$previous_state" service_trigger_signature svc dns sb nft zq zr z2q z2r br list cron "alpha beta" 0 0
-write_state "$current_state" service_trigger_signature svc dns sb nft zq zr z2q z2r br list cron "alpha beta" 0 1
-assert_state_plan_exit 2 "$previous_state" "$current_state" 0 0 0 0 0
+write_state "$previous_state" service_trigger_signature svc dns sb nft zq zr z2q z2r br cron 0 0
+write_state "$current_state" service_trigger_signature svc dns sb nft zq zr z2q z2r br cron 0 1
+assert_state_plan_exit 2 "$previous_state" "$current_state" 0 0 0
 
 rm -f "$previous_state"
-assert_state_plan_exit 2 "$previous_state" "$current_state" 0 0 0 0 0
+assert_state_plan_exit 2 "$previous_state" "$current_state" 0 0 0
 
 printf 'service reload plan checks passed\n'
