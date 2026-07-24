@@ -16,6 +16,13 @@ fail() {
   exit 1
 }
 
+requirements_body="$(sed -n '/^function check_runtime_requirements()/,/^}/p' "$VALIDATOR")"
+printf '%s\n' "$requirements_body" | grep -Fq 'fs.readfile(SING_BOX_FORKOP_VERSION_FILE)' ||
+  fail "runtime requirements must read the package-owned sing-box-forkop version directly"
+if printf '%s\n' "$requirements_body" | grep -Eq 'package_installed|opkg|apk'; then
+  fail "runtime requirements must not invoke the package manager from package post-install"
+fi
+
 cat >"$WORK_DIR/context.json" <<'JSON'
 {}
 JSON

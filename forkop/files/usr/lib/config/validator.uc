@@ -14,6 +14,7 @@ let connections = require("config.connections");
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
+const SING_BOX_FORKOP_VERSION_FILE = getenv("SING_BOX_FORKOP_VERSION_FILE") || "/usr/share/sing-box-forkop/version";
 const DEFAULT_LATENCY_TEST_URL = "https://www.gstatic.com/generate_204";
 const TAILSCALE_FWMARK_MASK = 0x00ff0000;
 
@@ -191,17 +192,6 @@ function command_output_from_args(args) {
 
 function command_exists(name) {
     return system("command -v " + shell_quote(name) + " >/dev/null 2>&1") == 0;
-}
-
-function package_installed(name) {
-    if (command_exists("apk"))
-        return command_success_from_args([ "apk", "info", "-e", name ]);
-
-    let prefix = as_string(name) + " - ";
-    for (let line in split(command_output_from_args([ "opkg", "list-installed" ]), "\n"))
-        if (substr(trim(as_string(line)), 0, length(prefix)) == prefix)
-            return true;
-    return false;
 }
 
 function log_message(message, level) {
@@ -1938,19 +1928,16 @@ function check_runtime_requirements() {
     log_message("Checking required packages and runtime settings", "info");
 
     let ctx = context_from_runtime();
-    let sing_box_package = package_installed("sing-box-forkop-compressed")
-        ? "sing-box-forkop-compressed"
-        : "sing-box-forkop";
-    let sing_box_version = trim(command_output_from_args([
-        "ucode", "-L", LIB_DIR, LIB_DIR + "/core/packages.uc", "version", sing_box_package
-    ]));
+    let sing_box_version = trim(as_string(fs.readfile(SING_BOX_FORKOP_VERSION_FILE)));
+    if (match(sing_box_version, /^[0-9][0-9A-Za-z._+~-]*-forkop[.][0-9]+$/) == null)
+        sing_box_version = "";
     sing_box_version = replace(sing_box_version, /~/g, "-");
     let coreutils_base64_version = first_line_field_from_text(command_output("base64 --version 2>/dev/null"), 4);
 
-    if (!package_installed("sing-box-forkop") && !package_installed("sing-box-forkop-compressed"))
-        fail_requirement("Package 'sing-box-forkop' is not installed. Reinstall Forkop. Aborted.", "error");
-    if (sing_box_version == "")
+    if (!command_exists("sing-box"))
         fail_requirement("Binary 'sing-box' is not available. Reinstall sing-box-forkop. Aborted.", "error");
+    if (sing_box_version == "")
+        fail_requirement("Failed to read sing-box-forkop version. Reinstall sing-box-forkop. Aborted.", "error");
     else if (!version_at_least(sing_box_version, ctx.sing_box_required_version)) {
         fail_requirement("Package 'sing-box-forkop' version (" + sing_box_version + ") is lower than the required minimum (" + ctx.sing_box_required_version + "). Update it from Forkop Components. Aborted.", "error");
     }
