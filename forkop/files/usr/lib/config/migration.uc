@@ -1398,6 +1398,20 @@ function use_native_rule_sets(ctx) {
     push(ctx.removed_cron_markers, LEGACY_SUBSCRIPTION_UPDATE_CRON_MARKER);
 }
 
+function use_universal_rule_sets(ctx) {
+    for (let section in ctx.model.sections) {
+        if (!option_exists(section, "domain_ip_lists"))
+            continue;
+
+        let target = option(section, "action", "") == "dns"
+            ? "rule_set"
+            : "rule_set_with_subnets";
+        for (let value in list_option(section, "domain_ip_lists"))
+            add_list_unique(ctx, section, target, value);
+        delete_option(ctx, section, "domain_ip_lists");
+    }
+}
+
 const OBSOLETE_SUBSCRIPTION_GROUP_OPTIONS = [
     "include_urltest_groups",
     "hide_urltest_group_outbounds",
@@ -1577,6 +1591,7 @@ const MIGRATIONS = [
     { id: "remove_server_country_and_dashboard_filter", run: remove_server_country_and_dashboard_filter },
     { id: "native_fallbacks", run: use_native_fallbacks },
     { id: "native_rule_sets", run: use_native_rule_sets },
+    { id: "universal_rule_sets", run: use_universal_rule_sets },
     { id: "leaf_subscription_providers", run: use_leaf_subscription_providers },
     { id: "extended_server_defaults", run: add_extended_server_defaults },
     { id: "fallback_uci_tags", run: migrate_fallback_uci_tags }

@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-07-24 18:40+0300\n"
-"PO-Revision-Date: 2026-07-24 18:40+0300\n"
+"POT-Creation-Date: 2026-07-25 13:20+0300\n"
+"PO-Revision-Date: 2026-07-25 13:20+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -68,6 +68,9 @@ msgstr "Добавить секцию"
 msgid "Add a server inbound"
 msgstr "Добавить серверный inbound"
 
+msgid "Add an HTTP(S) URL or local path. The format is detected automatically."
+msgstr "Добавьте HTTP(S)-ссылку или локальный путь. Формат определяется автоматически."
+
 msgid "Add at least one DNS server"
 msgstr "Добавьте хотя бы один DNS-сервер"
 
@@ -76,18 +79,6 @@ msgstr "Добавьте хотя бы одного пира WireGuard"
 
 msgid "Add prefix to nodes"
 msgstr "Добавлять префикс к узлам"
-
-msgid "Add URLs or local paths to .lst lists containing domains and subnets."
-msgstr "Добавьте URL или локальные пути к спискам .lst с доменами и подсетями."
-
-msgid "Add URLs or local paths to .lst lists containing domains. IP entries are ignored."
-msgstr "Добавьте URL или локальные пути к спискам .lst с доменами. IP игнорируются."
-
-msgid "Add URLs or local paths to .srs / .json lists. Only domain rules are supported."
-msgstr "Добавьте URL или локальные пути к спискам .srs / .json. Поддерживаются только доменные правила."
-
-msgid "Add URLs or local paths to .srs / .json lists. Subnets are ignored by default."
-msgstr "Добавьте URL или локальные пути к спискам .srs / .json. Подсети по умолчанию игнорируются."
 
 msgid "Additional marking rules found"
 msgstr "Найдены дополнительные правила маркировки"
@@ -532,12 +523,6 @@ msgstr "Не использовать указанные серверы."
 
 msgid "Does not resolve"
 msgstr "Не резолвится"
-
-msgid "Domain and IP lists"
-msgstr "Списки доменов и IP"
-
-msgid "Domain lists"
-msgstr "Списки доменов"
 
 msgid "Domain Resolver"
 msgstr "Резолвер доменов"
@@ -1130,9 +1115,6 @@ msgstr "Уровни проверяются сверху вниз, пока не
 msgid "Limit the servers used by this source or group"
 msgstr "Ограничить серверы, используемые этим источником или группой"
 
-msgid "List must be an HTTP(S) URL or a local .lst path"
-msgstr "Список должен быть HTTP(S) URL или локальным путём .lst"
-
 msgid "List of remote WireGuard nodes to connect."
 msgstr "Список удаленных узлов WireGuard для подключения."
 
@@ -1568,8 +1550,8 @@ msgstr "Правила маршрутизации"
 msgid "Routing section"
 msgstr "Секция маршрутизации"
 
-msgid "Rule set must be an HTTP(S) URL or a local .srs / .json path"
-msgstr "Набор правил должен быть HTTP(S) URL или локальным путём .srs / .json"
+msgid "Rule set must be an HTTP(S) URL or an absolute local path"
+msgstr "Набор правил должен быть HTTP(S)-ссылкой или абсолютным локальным путем"
 
 msgid "Rule set settings"
 msgstr "Настройки набора правил"

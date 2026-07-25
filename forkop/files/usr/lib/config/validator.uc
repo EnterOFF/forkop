@@ -365,13 +365,9 @@ function remote_reference(value) {
     return string_starts_with(value, "http://") || string_starts_with(value, "https://");
 }
 
-function absolute_reference_with_extension(value, first_extension, second_extension) {
+function absolute_reference(value) {
     value = as_string(value);
-    if (!string_starts_with(value, "/"))
-        return false;
-
-    return string_ends_with(value, first_extension) ||
-        (second_extension != null && string_ends_with(value, second_extension));
+    return string_starts_with(value, "/");
 }
 
 function ruleset_reference_valid(reference, community_services) {
@@ -380,15 +376,7 @@ function ruleset_reference_valid(reference, community_services) {
     return reference == "" ||
         community_service_valid(reference, community_services) ||
         remote_reference(reference) ||
-        absolute_reference_with_extension(reference, ".srs", ".json");
-}
-
-function plain_domain_ip_list_reference_valid(reference) {
-    reference = as_string(reference);
-
-    return reference == "" ||
-        remote_reference(reference) ||
-        absolute_reference_with_extension(reference, ".lst", null);
+        absolute_reference(reference);
 }
 
 function valid_outbound() {
@@ -1164,13 +1152,6 @@ function validate_ruleset_reference_value(reference, context) {
     fail_validation("Unknown rule set reference '" + reference + "'. Aborted.");
 }
 
-function validate_plain_domain_ip_list_reference_value(reference) {
-    if (plain_domain_ip_list_reference_valid(reference))
-        return;
-
-    fail_validation("Unknown plain list reference '" + reference + "'. Aborted.");
-}
-
 function validate_common_rule_references(section, context) {
     for (let value in connections.community_lists(section))
         validate_service_value(value, context);
@@ -1178,8 +1159,6 @@ function validate_common_rule_references(section, context) {
         validate_ruleset_reference_value(value, context);
     for (let value in connections.rule_sets_with_subnets(section))
         validate_ruleset_reference_value(value, context);
-    for (let value in list_option(section, "domain_ip_lists"))
-        validate_plain_domain_ip_list_reference_value(value);
 }
 
 function outbound_json_object(value) {
@@ -1457,8 +1436,7 @@ function dns_action_has_domain_matchers(section) {
             return true;
 
     return length(connections.community_lists(section)) > 0 ||
-        length(connections.rule_sets(section)) > 0 ||
-        length(list_option(section, "domain_ip_lists")) > 0;
+        length(connections.rule_sets(section)) > 0;
 }
 
 function validate_dns_action(section, sections, context) {
@@ -2070,8 +2048,6 @@ else if (mode == "community-service-valid")
     exit(community_service_valid(ARGV[1], ARGV[2]) ? 0 : 1);
 else if (mode == "ruleset-reference-valid")
     exit(ruleset_reference_valid(ARGV[1], ARGV[2]) ? 0 : 1);
-else if (mode == "plain-domain-ip-list-reference-valid")
-    exit(plain_domain_ip_list_reference_valid(ARGV[1]) ? 0 : 1);
 else if (mode == "valid-outbound")
     exit(valid_outbound() ? 0 : 1);
 else if (mode == "valid-inbound")

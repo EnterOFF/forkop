@@ -40,6 +40,8 @@ grep -Fq '{ id: "native_fallbacks", run: use_native_fallbacks }' "$MIGRATION" ||
   fail "native fallback migration must have a stable named marker"
 grep -Fq '{ id: "native_rule_sets", run: use_native_rule_sets }' "$MIGRATION" ||
   fail "native rule-set migration must have a stable named marker"
+grep -Fq '{ id: "universal_rule_sets", run: use_universal_rule_sets }' "$MIGRATION" ||
+  fail "universal rule-set migration must have a stable named marker"
 grep -Fq '{ id: "leaf_subscription_providers", run: use_leaf_subscription_providers }' "$MIGRATION" ||
   fail "leaf subscription provider migration must have a stable named marker"
 grep -Fq '{ id: "extended_server_defaults", run: add_extended_server_defaults }' "$MIGRATION" ||
@@ -48,6 +50,8 @@ grep -Fq '{ id: "fallback_uci_tags", run: migrate_fallback_uci_tags }' "$MIGRATI
   fail "Fallback UCI tag migration must have a stable named marker"
 grep -Fq "list applied_migrations 'native_rule_sets'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
   fail "new-install config must mark the native rule-set migration as already applied"
+grep -Fq "list applied_migrations 'universal_rule_sets'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
+  fail "new-install config must mark the universal rule-set migration as already applied"
 grep -Fq "list applied_migrations 'leaf_subscription_providers'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
   fail "new-install config must mark the leaf subscription migration as already applied"
 grep -Fq "list applied_migrations 'fallback_uci_tags'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
@@ -148,6 +152,12 @@ const fixture = {
       ip_cidr: [ '203.0.113.0/24' ]
     },
     {
+      '.name': 'legacy-dns-list',
+      '.type': 'section',
+      action: 'dns',
+      domain_ip_lists: [ '/etc/forkop/dns-list.yml' ]
+    },
+    {
       '.name': 'legacy-zap',
       '.type': 'section',
       action: 'zapret',
@@ -240,7 +250,7 @@ assert(JSON.stringify(config.settings.bootstrap_dns_server) === JSON.stringify([
 assert(config.settings.unified_delay === '0', 'Unified Delay default missing');
 assert(config.settings.config_version === '1.0.5', 'legacy config should be marked at the current schema version');
 assert(config.settings.component_update_check_enabled === '1', 'component update checks should be enabled during migration');
-assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags']), 'legacy config should record named migrations');
+assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags']), 'legacy config should record named migrations');
 
 function assert(condition, message) {
   if (!condition) {
@@ -386,16 +396,21 @@ absent(legacyUrltest, 'urltest_exclude_regex', 'legacy-urltest');
 
 const legacyDirect = sections['legacy-direct'];
 assert(legacyDirect.action === 'bypass', 'direct action migrated to bypass');
-assert(JSON.stringify(legacyDirect.domain_ip_lists) === JSON.stringify([
+assert(JSON.stringify(legacyDirect.rule_set_with_subnets) === JSON.stringify([
   'existing.txt',
   'duplicate.txt',
   'local-domains.txt',
   '/etc/forkop/local-subnets.txt',
   'https://example.com/domains.txt',
   'https://example.com/subnets.txt',
-]), 'legacy domain and subnet sources should merge into native text rule sets without duplicates');
+]), 'legacy domain and subnet sources should merge into universal rule sets without duplicates');
+absent(legacyDirect, 'domain_ip_lists', 'legacy-direct');
 for (const key of ['local_domain_lists', 'local_subnet_lists', 'remote_domain_lists', 'remote_subnet_lists'])
   absent(legacyDirect, key, 'legacy-direct');
+
+const legacyDnsList = sections['legacy-dns-list'];
+assert(JSON.stringify(legacyDnsList.rule_set) === JSON.stringify(['/etc/forkop/dns-list.yml']), 'DNS lists should migrate without subnet settings');
+absent(legacyDnsList, 'domain_ip_lists', 'legacy-dns-list');
 
 const legacyExclusion = sections['legacy-exclusion'];
 assert(legacyExclusion.action === 'bypass', 'legacy exclusion connection type migrated to bypass');
@@ -531,7 +546,7 @@ function assert(condition, message) {
 assert(out.changed === true, '1.0.1 config should require migration');
 assert(out.config.settings.config_version === '1.0.5', 'config schema version should advance to 1.0.5');
 assert(out.config.settings.component_update_check_enabled === '1', 'updates from 1.0.1 and below should enable component update checks');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags']), 'named migrations should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags']), 'named migrations should be recorded');
 assert(!Object.prototype.hasOwnProperty.call(section, 'interfaces'), 'parent interface list should be removed');
 assert(JSON.stringify(interfaces.map(item => item.name)) === JSON.stringify(['awg0', 'tun0']), 'interfaces should keep their order');
 for (const item of interfaces) {
@@ -569,7 +584,7 @@ function assert(condition, message) {
 
 assert(out.config.settings.component_update_check_enabled === '0', '1.0.2 config must preserve an explicitly disabled component check');
 assert(out.config.settings.config_version === '1.0.5', '1.0.2 config should advance through the HTTP URL migration schema');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags']), 'newer configs should mark skipped migrations');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags']), 'newer configs should mark skipped migrations');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.4-http.json" <<'JSON'
@@ -635,7 +650,7 @@ assert(JSON.stringify(jsonOutbounds[1]) === JSON.stringify({
   server_port: 8080,
 }), 'unnamed HTTP URL should receive a unique http tag');
 assert(jsonOutbounds[2].type === 'direct' && jsonOutbounds[2].tag === 'http', 'existing JSON outbounds should remain unchanged');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags']), 'HTTP URL migration should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags']), 'HTTP URL migration should be recorded');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.5-http.json" <<'JSON'
@@ -756,7 +771,7 @@ grep -Fxq 'forkop.settings.config_version=1.0.5' "$WORK_DIR/runtime-version.stat
   fail "runtime version migration must advance config_version"
 grep -Fxq 'forkop.settings.component_update_check_enabled=1' "$WORK_DIR/runtime-version.state" ||
   fail "runtime version migration must enable component update checks"
-grep -Fq 'forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter native_fallbacks native_rule_sets leaf_subscription_providers extended_server_defaults fallback_uci_tags' "$WORK_DIR/runtime-version.state" ||
+grep -Fq 'forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter native_fallbacks native_rule_sets universal_rule_sets leaf_subscription_providers extended_server_defaults fallback_uci_tags' "$WORK_DIR/runtime-version.state" ||
   fail "runtime migration must record stable migration names"
 grep -Eq '^forkop\.main\.outbound_jsons=\{ "type": "http", "tag": "http", "server": "proxy\.example", "server_port": 8080 \}$' "$WORK_DIR/runtime-version.state" ||
   fail "runtime migration must convert native HTTP proxy links to JSON outbounds"
@@ -895,9 +910,9 @@ for path in \
   "$WORK_DIR/cache-migration/legacy-rulesets"; do
   [ ! -e "$path" ] || fail "native migration must remove obsolete state $path"
 done
-grep -Fxq 'forkop.main.domain_ip_lists=existing.txt duplicate.txt local-domains.txt /etc/forkop/local-subnets.txt https://example.com/domains.txt https://example.com/subnets.txt' "$WORK_DIR/cache-cleanup.state" ||
-  fail "native migration must merge legacy list sources into domain_ip_lists"
-if grep -Eq 'forkop\.main\.(local_domain_lists|local_subnet_lists|remote_domain_lists|remote_subnet_lists)=' "$WORK_DIR/cache-cleanup.state"; then
+grep -Fxq 'forkop.main.rule_set_with_subnets=existing.txt duplicate.txt local-domains.txt /etc/forkop/local-subnets.txt https://example.com/domains.txt https://example.com/subnets.txt' "$WORK_DIR/cache-cleanup.state" ||
+  fail "native migration must merge legacy list sources into universal rule sets"
+if grep -Eq 'forkop\.main\.(domain_ip_lists|local_domain_lists|local_subnet_lists|remote_domain_lists|remote_subnet_lists)=' "$WORK_DIR/cache-cleanup.state"; then
   fail "native migration must remove legacy list options"
 fi
 if grep -Eq 'forkop-(list|subscription)-update' "$WORK_DIR/legacy.crontab"; then

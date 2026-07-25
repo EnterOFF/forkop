@@ -36,13 +36,10 @@ assert_accepts "community ruleset reference" ruleset-reference-valid telegram "$
 assert_accepts "https ruleset reference" ruleset-reference-valid https://example.com/rule.srs "$COMMUNITY_SERVICES"
 assert_accepts "absolute srs ruleset reference" ruleset-reference-valid /tmp/rule.srs "$COMMUNITY_SERVICES"
 assert_accepts "absolute json ruleset reference" ruleset-reference-valid /tmp/rule.json "$COMMUNITY_SERVICES"
+assert_accepts "absolute yaml ruleset reference" ruleset-reference-valid /tmp/rule.yaml "$COMMUNITY_SERVICES"
+assert_accepts "absolute text ruleset reference" ruleset-reference-valid /tmp/rule.lst "$COMMUNITY_SERVICES"
+assert_accepts "extensionless ruleset reference" ruleset-reference-valid /tmp/rule "$COMMUNITY_SERVICES"
 assert_rejects "relative ruleset reference" ruleset-reference-valid relative/rule.srs "$COMMUNITY_SERVICES"
-assert_rejects "plain list as ruleset reference" ruleset-reference-valid /tmp/rule.lst "$COMMUNITY_SERVICES"
-
-assert_accepts "empty plain list reference" plain-domain-ip-list-reference-valid ""
-assert_accepts "https plain list reference" plain-domain-ip-list-reference-valid https://example.com/list.lst
-assert_accepts "absolute plain list reference" plain-domain-ip-list-reference-valid /tmp/list.lst
-assert_rejects "ruleset as plain list reference" plain-domain-ip-list-reference-valid /tmp/rule.srs
-assert_rejects "relative plain list reference" plain-domain-ip-list-reference-valid relative/list.lst
+assert_rejects "unsupported ruleset URL" ruleset-reference-valid ftp://example.com/rule.yaml "$COMMUNITY_SERVICES"
 
 printf 'config validator reference checks passed\n'

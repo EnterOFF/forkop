@@ -486,8 +486,7 @@ cat >"$WORK_DIR/sing-box-signature.json" <<'JSON'
       "fully_routed_ips": [ "198.51.100.2" ],
       "community_lists": [ "telegram" ],
       "rule_set": [ "https://example.com/remote.srs" ],
-      "rule_set_with_subnets": [ "local.srs" ],
-      "domain_ip_lists": [ "local.lst" ]
+      "rule_set_with_subnets": [ "local.srs", "local.lst" ]
     },
     {
       ".name": "out1",
@@ -672,9 +671,7 @@ telegram
 [rule.proxy1.rule_set]
 https://example.com/remote.srs
 [rule.proxy1.rule_set_with_subnets]
-local.srs
-[rule.proxy1.domain_ip_lists]
-local.lst
+local.srs local.lst
 [rule.out1.action]
 outbound
 [rule.out1.connection_urls]
@@ -747,8 +744,6 @@ disabled
 
 [rule.out1.rule_set_with_subnets]
 
-[rule.out1.domain_ip_lists]
-
 [rule.bye1.action]
 byedpi
 [rule.bye1.byedpi_index]
@@ -778,8 +773,6 @@ byedpi
 [rule.bye1.rule_set]
 
 [rule.bye1.rule_set_with_subnets]
-
-[rule.bye1.domain_ip_lists]
 
 [rule.vpn1.action]
 vpn
@@ -852,8 +845,6 @@ disabled
 [rule.vpn1.rule_set]
 
 [rule.vpn1.rule_set_with_subnets]
-
-[rule.vpn1.domain_ip_lists]
 
 [server.srv_disabled.enabled]
 0
@@ -1011,8 +1002,7 @@ cat >"$WORK_DIR/dpi-signatures.json" <<'JSON'
       "domain_suffix_text": "full:textfull.example text-suffix.example",
       "community_lists": [ "telegram", "youtube" ],
       "rule_set": [ "https://example.com/zap.srs" ],
-      "rule_set_with_subnets": [ "https://example.com/zap-sub.srs" ],
-      "domain_ip_lists": [ "local.lst", "https://example.com/ip.lst" ],
+      "rule_set_with_subnets": [ "https://example.com/zap-sub.srs", "local.lst", "https://example.com/ip.lst" ],
       "user_domain_list_type": "dynamic",
       "user_domains": [ "dyn.example" ],
       "user_domains_text": "ignored.example"
@@ -1027,8 +1017,7 @@ cat >"$WORK_DIR/dpi-signatures.json" <<'JSON'
       "domain_suffix": [ "z2-suffix.example" ],
       "community_lists": [ "discord" ],
       "rule_set": [ "https://example.com/zap2.srs" ],
-      "rule_set_with_subnets": [ "https://example.com/zap2-sub.srs" ],
-      "domain_ip_lists": [ "https://example.com/zap2-ip.lst" ],
+      "rule_set_with_subnets": [ "https://example.com/zap2-sub.srs", "https://example.com/zap2-ip.lst" ],
       "user_domain_list_type": "text",
       "user_domains": [ "ignored-dyn.example" ],
       "user_domains_text": "text.example text2.example"
@@ -1079,9 +1068,7 @@ telegram youtube
 [zapret.zap1.rule_set]
 https://example.com/zap.srs
 [zapret.zap1.rule_set_with_subnets]
-https://example.com/zap-sub.srs
-[zapret.zap1.domain_ip_lists]
-local.lst https://example.com/ip.lst
+https://example.com/zap-sub.srs local.lst https://example.com/ip.lst
 [zapret.zap1.user_domain_list_type]
 dynamic
 [zapret.zap1.user_domains]
@@ -1100,9 +1087,7 @@ discord
 [zapret2.zap2.rule_set]
 https://example.com/zap2.srs
 [zapret2.zap2.rule_set_with_subnets]
-https://example.com/zap2-sub.srs
-[zapret2.zap2.domain_ip_lists]
-https://example.com/zap2-ip.lst
+https://example.com/zap2-sub.srs https://example.com/zap2-ip.lst
 [zapret2.zap2.user_domain_list_type]
 text
 [zapret2.zap2.user_domains]
@@ -1152,8 +1137,7 @@ cat >"$WORK_DIR/reload-state-signatures.json" <<'JSON'
       "action": "proxy",
       "ports": [ "1" ],
       "community_lists": [ "telegram" ],
-      "rule_set_with_subnets": [ "https://example.com/disabled-subnets.srs" ],
-      "domain_ip_lists": [ "https://example.com/disabled-mixed.lst" ],
+      "rule_set_with_subnets": [ "https://example.com/disabled-subnets.srs", "https://example.com/disabled-mixed.lst" ],
       "subscription_urls": [ "https://example.com/disabled-sub.txt" ],
       "urltest_enabled": "1"
     },
@@ -1165,8 +1149,7 @@ cat >"$WORK_DIR/reload-state-signatures.json" <<'JSON'
       "ports": [ "443", "bad" ],
       "ports_text": "80,443-444 # comment\nbad-port",
       "community_lists": [ "geoblock", "meta", "telegram", "youtube", "discord" ],
-      "rule_set_with_subnets": [ "https://example.com/subnets.srs" ],
-      "domain_ip_lists": [ "local.lst", "https://example.com/mixed.lst" ],
+      "rule_set_with_subnets": [ "https://example.com/subnets.srs", "local.lst", "https://example.com/mixed.lst" ],
       "subscription_urls": [ "https://example.com/sub1.txt", "https://example.com/sub2.txt" ],
       "urltest_enabled": "1"
     },
@@ -1200,8 +1183,8 @@ cat >"$WORK_DIR/reload-state-signatures.json" <<'JSON'
       "action": "dns",
       "ports": [ "5353" ],
       "community_lists": [ "telegram" ],
-      "rule_set_with_subnets": [ "https://example.com/ignored-subnets.srs" ],
-      "domain_ip_lists": [ "https://example.com/dns-domains.lst" ]
+      "rule_set": [ "https://example.com/dns-domains.lst" ],
+      "rule_set_with_subnets": [ "https://example.com/ignored-subnets.srs" ]
     }
   ]
 }

@@ -126,7 +126,7 @@ sync_ucode render-fixture "$WORK_DIR/snapshot.json" "$WORK_DIR/fixture.json" mix
   cat "$WORK_DIR/render.err" >&2
   fail "render must produce one concise summary"
 }
-assert_contains "$WORK_DIR/render.err" "Added 18 values to nft" "sync summary"
+assert_contains "$WORK_DIR/render.err" "Added 5 IP addresses from rule sets to nft" "sync summary"
 assert_not_contains "$WORK_DIR/render.err" "ignored" "sync summary must hide internal filtering details"
 assert_not_contains "$WORK_DIR/render.err" "IP/port" "sync summary must describe generic nft values"
 assert_not_contains "$WORK_DIR/render.err" "mixed" "sync summary must not expose section details"
@@ -232,8 +232,8 @@ community_tag="$(FORKOP_TEST_SECTION=batch_one FORKOP_TEST_REFERENCE=discord \
   ucode -L "$FORKOP_LIB" -e 'let r=require("singbox.rulesets"); print(r.community_tag(getenv("FORKOP_TEST_SECTION"),getenv("FORKOP_TEST_REFERENCE")));')"
 subnet_tag="$(FORKOP_TEST_REFERENCE=https://example.com/with-subnets.srs \
   ucode -L "$FORKOP_LIB" -e 'let r=require("singbox.rulesets"); print(r.custom_reference_tag(getenv("FORKOP_TEST_REFERENCE")));')"
-text_tag="$(FORKOP_TEST_REFERENCE=https://example.com/mixed.txt \
-  ucode -L "$FORKOP_LIB" -e 'let r=require("singbox.rulesets"); print(r.text_reference_tag(getenv("FORKOP_TEST_REFERENCE")));')"
+mixed_tag="$(FORKOP_TEST_REFERENCE=https://example.com/mixed.txt \
+  ucode -L "$FORKOP_LIB" -e 'let r=require("singbox.rulesets"); print(r.custom_reference_tag(getenv("FORKOP_TEST_REFERENCE")));')"
 
 cat >"$WORK_DIR/batch-snapshot.json" <<EOF_BATCH_SNAPSHOT
 {
@@ -252,7 +252,7 @@ cat >"$WORK_DIR/batch-snapshot.json" <<EOF_BATCH_SNAPSHOT
         "ipv4": [], "ipv6": ["2001:db8:10::/48"], "scoped_ipv4": [], "scoped_ipv6": []
       }
     },
-    "$text_tag": {
+    "$mixed_tag": {
       "revision": 4,
       "ip_cidr": {
         "ipv4": [], "ipv6": [],
@@ -272,8 +272,7 @@ cat >"$WORK_DIR/batch-fixture.json" <<'EOF_BATCH_FIXTURE'
       "ip_cidr": ["10.0.0.0/8"], "ports": ["80"],
       "community_lists": ["discord", "youtube"],
       "rule_set": ["https://example.com/domain-only.srs"],
-      "rule_set_with_subnets": ["https://example.com/with-subnets.srs"],
-      "domain_ip_lists": ["https://example.com/mixed.txt"]
+      "rule_set_with_subnets": ["https://example.com/with-subnets.srs", "https://example.com/mixed.txt"]
     },
     {
       ".name": "batch_two", "enabled": "1", "action": "bypass",
@@ -281,11 +280,11 @@ cat >"$WORK_DIR/batch-fixture.json" <<'EOF_BATCH_FIXTURE'
     },
     {
       ".name": "dns_skip", "enabled": "1", "action": "dns",
-      "domain_ip_lists": ["https://example.com/dns.txt"]
+      "rule_set": ["https://example.com/dns.txt"]
     },
     {
       ".name": "disabled_skip", "enabled": "0", "action": "proxy",
-      "domain_ip_lists": ["https://example.com/disabled.txt"]
+      "rule_set_with_subnets": ["https://example.com/disabled.txt"]
     },
     {
       ".name": "domain_only_skip", "enabled": "1", "action": "proxy",
@@ -311,10 +310,17 @@ assert_not_contains "$NFT_INPUT" "dns_skip" "DNS action must not own nft priorit
 assert_not_contains "$NFT_INPUT" "disabled_skip" "disabled section must not own nft priority sets"
 assert_not_contains "$NFT_INPUT" "domain_only_skip" "domain-only section must not own nft priority sets"
 [ "$(wc -l <"$WORK_DIR/batch.err")" -eq 1 ] || fail "full sync must emit one concise summary"
-assert_contains "$WORK_DIR/batch.err" "Added 5 values to nft" "batch sync summary"
+assert_contains "$WORK_DIR/batch.err" "Added 3 IP addresses from rule sets to nft" "batch sync summary"
 assert_not_contains "$WORK_DIR/batch.err" "ignored" "batch summary must hide internal filtering details"
 assert_not_contains "$WORK_DIR/batch.err" "IP/port" "batch summary must describe generic nft values"
 assert_not_contains "$WORK_DIR/batch.err" "section" "batch summary must not expose section counts"
+
+sed 's/"discord", //' "$WORK_DIR/batch-fixture.json" >"$WORK_DIR/batch-without-discord.json"
+PATH="$WORK_DIR/bin:$PATH" NFT_LOG="$NFT_LOG" NFT_INPUT="$NFT_INPUT" \
+  sync_ucode apply-all-fixture "$WORK_DIR/batch-snapshot.json" "$WORK_DIR/batch-without-discord.json" \
+  >/dev/null 2>"$WORK_DIR/batch-without-discord.err"
+assert_contains "$WORK_DIR/batch-without-discord.err" "Added 2 IP addresses from rule sets to nft" \
+  "removing a subnet rule set must change the logged IP count"
 
 cat >"$WORK_DIR/incomplete-batch-snapshot.json" <<EOF_INCOMPLETE_BATCH
 {
@@ -428,10 +434,10 @@ forkop.batch=section
 forkop.batch.enabled=1
 forkop.batch.action=proxy
 forkop.batch.ports=80
-forkop.batch.domain_ip_lists=https://example.com/mixed.txt
+forkop.batch.rule_set_with_subnets=https://example.com/mixed.txt
 EOF_RUNTIME_STATE
 cat >"$WORK_DIR/runtime-snapshot.json" <<EOF_RUNTIME_SNAPSHOT
-{"revision":4,"providers":{"$text_tag":{"revision":4,"ip_cidr":{"ipv4":["198.51.100.0/24"],"ipv6":[],"scoped_ipv4":[],"scoped_ipv6":[]}}}}
+{"revision":4,"providers":{"$mixed_tag":{"revision":4,"ip_cidr":{"ipv4":["198.51.100.0/24"],"ipv6":[],"scoped_ipv4":[],"scoped_ipv6":[]}}}}
 EOF_RUNTIME_SNAPSHOT
 cat >"$WORK_DIR/bin/curl" <<'EOF_CURL'
 #!/usr/bin/env bash
@@ -465,7 +471,7 @@ let fs = require("fs");
 let sync = require("nft.ruleset_sync");
 let sections = [{
   ".name": "batch", "enabled": "1", "action": "proxy", "ports": ["80"],
-  "domain_ip_lists": ["https://example.com/mixed.txt"]
+  "rule_set_with_subnets": ["https://example.com/mixed.txt"]
 }];
 let initial = json(fs.readfile(getenv("FORKOP_TEST_INITIAL_SNAPSHOT")));
 let changed = json(fs.readfile(getenv("FORKOP_TEST_CHANGED_SNAPSHOT")));

@@ -100,9 +100,17 @@ function fail(plan, message) {
 function add_unique(values, seen, value) {
     value = as_string(value);
     if (seen[value])
-        return;
+        return false;
     seen[value] = true;
     push(values, value);
+    return true;
+}
+
+function add_rule_set_ip(plan, prefix) {
+    if (plan.rule_set_ip_seen[prefix])
+        return;
+    plan.rule_set_ip_seen[prefix] = true;
+    plan.rule_set_ips++;
 }
 
 function section_values(section, key) {
@@ -221,7 +229,7 @@ function port_text(value) {
     return value.start == value.end ? as_string(value.start) : value.start + "-" + value.end;
 }
 
-function add_prefix(plan, prefix, family, ranges) {
+function add_prefix(plan, prefix, family, ranges, from_rule_set) {
     prefix = trim(as_string(prefix));
     if ((family != 4 && family != 6) || !core_ip.nft_ip_or_cidr(prefix) || core_ip.ip_family(prefix) != family)
         return fail(plan, "invalid IP prefix: " + prefix);
@@ -229,20 +237,25 @@ function add_prefix(plan, prefix, family, ranges) {
     let plain = family == 4 ? plan.ipv4 : plan.ipv6;
     let scoped = family == 4 ? plan.scoped_ipv4 : plan.scoped_ipv6;
     if (length(ranges) == 0) {
-        add_unique(plain.values, plain.seen, prefix);
+        let added = add_unique(plain.values, plain.seen, prefix);
+        if (from_rule_set && added)
+            add_rule_set_ip(plan, prefix);
         return true;
     }
 
+    let added = false;
     for (let range in ranges)
-        add_unique(scoped.values, scoped.seen, prefix + " . " + port_text(range));
+        added = add_unique(scoped.values, scoped.seen, prefix + " . " + port_text(range)) || added;
+    if (from_rule_set && added)
+        add_rule_set_ip(plan, prefix);
     return true;
 }
 
-function add_prefix_array(plan, values, family, ranges, label) {
+function add_prefix_array(plan, values, family, ranges, label, from_rule_set) {
     if (type(values) != "array")
         return fail(plan, label + " must be an array");
     for (let prefix in values)
-        if (!add_prefix(plan, prefix, family, ranges))
+        if (!add_prefix(plan, prefix, family, ranges, from_rule_set))
             return false;
     return true;
 }
@@ -266,10 +279,13 @@ function add_scoped_groups(plan, groups, family, section_ranges, label) {
             prefix = trim(as_string(prefix));
             if (!core_ip.nft_ip_or_cidr(prefix) || core_ip.ip_family(prefix) != family)
                 return fail(plan, "invalid IP prefix: " + prefix);
+            let added = false;
             for (let range in ranges) {
                 let scoped = family == 4 ? plan.scoped_ipv4 : plan.scoped_ipv6;
-                add_unique(scoped.values, scoped.seen, prefix + " . " + port_text(range));
+                added = add_unique(scoped.values, scoped.seen, prefix + " . " + port_text(range)) || added;
             }
+            if (added)
+                add_rule_set_ip(plan, prefix);
         }
     }
     return true;
@@ -298,8 +314,8 @@ function add_provider(plan, provider, tag, section_ranges) {
         return fail(plan, label + ": missing ip_cidr snapshot");
 
     return validate_skipped(plan, ip_cidr.skipped, label) &&
-        add_prefix_array(plan, ip_cidr.ipv4, 4, section_ranges, label + ".ip_cidr.ipv4") &&
-        add_prefix_array(plan, ip_cidr.ipv6, 6, section_ranges, label + ".ip_cidr.ipv6") &&
+        add_prefix_array(plan, ip_cidr.ipv4, 4, section_ranges, label + ".ip_cidr.ipv4", true) &&
+        add_prefix_array(plan, ip_cidr.ipv6, 6, section_ranges, label + ".ip_cidr.ipv6", true) &&
         add_scoped_groups(plan, ip_cidr.scoped_ipv4, 4, section_ranges, label + ".ip_cidr.scoped_ipv4") &&
         add_scoped_groups(plan, ip_cidr.scoped_ipv6, 6, section_ranges, label + ".ip_cidr.scoped_ipv6");
 }
@@ -344,8 +360,6 @@ function expected_nft_tags(section) {
             add_unique(result, seen, runtime_rulesets.community_tag(section_name, community));
     for (let reference in connections.rule_sets_with_subnets(section))
         add_unique(result, seen, runtime_rulesets.custom_reference_tag(reference));
-    for (let reference in common.list_option(section, "domain_ip_lists"))
-        add_unique(result, seen, runtime_rulesets.text_reference_tag(reference));
     return result;
 }
 
@@ -377,7 +391,8 @@ function build_plan(snapshot, section, tags, table) {
         error: "",
         summary: "",
         script: "",
-        elements: 0,
+        rule_set_ips: 0,
+        rule_set_ip_seen: {},
         skipped: 0,
         ipv4: { values: [], seen: {} },
         ipv6: { values: [], seen: {} },
@@ -431,9 +446,7 @@ function build_plan(snapshot, section, tags, table) {
     append_set_transaction(lines, table, prefix + "_ip_ports", plan.scoped_ipv4.values);
     append_set_transaction(lines, table, prefix + "_ip6_ports", plan.scoped_ipv6.values);
     plan.script = join("\n", lines) + "\n";
-    plan.elements = length(plan.ipv4.values) + length(plan.ipv6.values) +
-        length(plan.scoped_ipv4.values) + length(plan.scoped_ipv6.values);
-    plan.summary = "Added " + plan.elements + " values to nft";
+    plan.summary = "Added " + plan.rule_set_ips + " IP addresses from rule sets to nft";
     return plan;
 }
 
@@ -457,7 +470,7 @@ function build_batch(snapshot, sections, table) {
         error: "",
         summary: "",
         script: "",
-        elements: 0,
+        rule_set_ips: 0,
         skipped: 0,
         sections: 0
     };
@@ -494,12 +507,12 @@ function build_batch(snapshot, sections, table) {
             return batch;
         }
         batch.script += plan.script;
-        batch.elements += plan.elements;
+        batch.rule_set_ips += plan.rule_set_ips;
         batch.skipped += plan.skipped;
         batch.sections++;
     }
 
-    batch.summary = "Added " + batch.elements + " values to nft";
+    batch.summary = "Added " + batch.rule_set_ips + " IP addresses from rule sets to nft";
     return batch;
 }
 

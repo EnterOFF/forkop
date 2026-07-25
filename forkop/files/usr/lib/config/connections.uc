@@ -622,8 +622,7 @@ function has_dns_matchers(section) {
         rule_condition_csv(section, "domain_regex", "generic") != "" ||
         length(community_lists(section)) > 0 ||
         length(rule_sets(section)) > 0 ||
-        length(rule_sets_with_subnets(section)) > 0 ||
-        option(section, "domain_ip_lists", "") != "";
+        length(rule_sets_with_subnets(section)) > 0;
 }
 
 function list_option_value_from_array(values) {

@@ -106,8 +106,7 @@ cat >"$WORK_DIR/valid.json" <<'JSON'
       "domain_suffix_text": "text.example\nmünich.example\nkeyword:stream",
       "community_lists": [ "discord" ],
       "rule_set": [ "https://example.com/rules.srs" ],
-      "rule_set_with_subnets": [ "/tmp/local.json" ],
-      "domain_ip_lists": [ "https://example.com/mixed.lst" ],
+      "rule_set_with_subnets": [ "/tmp/local.json", "https://example.com/mixed.lst" ],
       "outbound_detour_enabled": "1",
       "outbound_detour_section": "detour"
     },
@@ -123,7 +122,7 @@ cat >"$WORK_DIR/valid.json" <<'JSON'
       ".type": "section",
       "enabled": "1",
       "action": "zapret",
-      "domain_ip_lists": [ "https://example.com/provider.lst" ]
+      "rule_set_with_subnets": [ "https://example.com/provider.lst" ]
     },
     {
       ".name": "custom_dns",
@@ -135,8 +134,7 @@ cat >"$WORK_DIR/valid.json" <<'JSON'
       "dns_detour_enabled": "1",
       "dns_detour_section": "proxy",
       "domain_suffix": [ "dns.example" ],
-      "rule_set": [ "https://example.com/domain-only.srs" ],
-      "domain_ip_lists": [ "https://example.com/domains.lst" ]
+      "rule_set": [ "https://example.com/domain-only.srs", "https://example.com/domains.lst" ]
     },
     {
       ".name": "device_dns",
@@ -465,11 +463,11 @@ cat >"$WORK_DIR/bad-list-reference.json" <<'JSON'
 {
   "settings": { ".name": "settings", ".type": "settings" },
   "section": [
-    { ".name": "proxy", ".type": "section", "enabled": "1", "action": "proxy", "domain_ip_lists": [ "ftp://example.com/list.lst" ] }
+    { ".name": "proxy", ".type": "section", "enabled": "1", "action": "proxy", "rule_set": [ "ftp://example.com/list.lst" ] }
   ]
 }
 JSON
-assert_rejects "bad list reference" "$WORK_DIR/bad-list-reference.json" "Unknown plain list reference"
+assert_rejects "bad list reference" "$WORK_DIR/bad-list-reference.json" "Unknown rule set reference"
 
 cat >"$WORK_DIR/bad-country.json" <<'JSON'
 {

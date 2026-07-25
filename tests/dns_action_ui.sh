@@ -44,29 +44,26 @@ if (source.slice(server, requiredIndex('"dns_detour_enabled"', server)).includes
 for (const expected of [
   '_("DNS server used by the resolver")',
   '_("DNS requests through section")',
-  '"Add URLs or local paths to .srs / .json lists. Only domain rules are supported."',
-  '"Add URLs or local paths to .lst lists containing domains. IP entries are ignored."',
+  '_("Add an HTTP(S) URL or local path. The format is detected automatically.")',
 ]) {
   requiredIndex(expected);
 }
 
 const ruleSetOption = requiredIndex("const ruleSetOption = section.taboption(");
-const dnsRuleSetOption = requiredIndex("const dnsRuleSetOption = section.taboption(", ruleSetOption);
-const domainLists = requiredIndex("const domainIpListsOption", dnsRuleSetOption);
-if (!source.slice(ruleSetOption, dnsRuleSetOption).includes("SettingsDynamicList") ||
-    !source.slice(ruleSetOption, dnsRuleSetOption).includes("dependsOnRoutingAction(ruleSetOption)") ||
-    !source.slice(ruleSetOption, dnsRuleSetOption).includes("ruleSetOption.retain = true")) {
-  fail("routing rule sets must keep their retained settings DynamicList");
+const sourceIpOption = requiredIndex("const sourceIpOption = addLocalDeviceSubnetDynamicField(section", ruleSetOption);
+const ruleSetBlock = source.slice(ruleSetOption, sourceIpOption);
+if (!ruleSetBlock.includes("SettingsDynamicList") ||
+    !ruleSetBlock.includes("ruleSetOption.retain = true") ||
+    !ruleSetBlock.includes('getRuleResolvedAction(section_id) !== "dns"') ||
+    !ruleSetBlock.includes("writeCustomRulesetReferences")) {
+  fail("all actions must share one retained universal rule-set list");
 }
-if (!source.slice(dnsRuleSetOption, domainLists).includes("form.DynamicList") ||
-    !source.slice(dnsRuleSetOption, domainLists).includes('"_dns_rule_set"') ||
-    !source.slice(dnsRuleSetOption, domainLists).includes('dnsRuleSetOption.depends("action", "dns")') ||
-    !source.slice(dnsRuleSetOption, domainLists).includes("dnsRuleSetOption.retain = true") ||
-    !source.slice(dnsRuleSetOption, domainLists).includes("writeDnsRulesetReferences")) {
-  fail("DNS rule sets must use a retained classic DynamicList");
+for (const removed of ["dnsRuleSetOption", "domainIpListsOption", "dnsDomainListsOption", "domain_ip_lists"]) {
+  if (source.includes(removed)) {
+    fail(`legacy list UI remains: ${removed}`);
+  }
 }
 
-const sourceIpOption = requiredIndex("const sourceIpOption = addLocalDeviceSubnetDynamicField(section");
 const fullyRoutedOption = requiredIndex("const fullyRoutedOption = addLocalDeviceSubnetDynamicField(section", sourceIpOption);
 const portsOption = requiredIndex("const portsOption = addDynamicConditionField(section", fullyRoutedOption);
 if (!source.slice(sourceIpOption, fullyRoutedOption).includes("dependsOnRuleConditions(sourceIpOption)")) {
@@ -88,10 +85,7 @@ for (const condition of [
   '"ip_cidr"',
   '"community_lists"',
   '"rule_set"',
-  '"domain_ip_lists"',
   '"ports"',
-  '"_dns_rule_set"',
-  '"_dns_domain_ip_lists"',
 ]) {
   if (!conditionDependencies.includes(condition)) {
     fail(`device filter is missing dependency on ${condition}`);

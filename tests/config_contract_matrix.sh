@@ -70,7 +70,7 @@ if (missing.length) {
   fail(`stable config fields missing in current contract: ${missing.map((field) => field.name).join(", ")}`);
 }
 
-for (const name of ["dns_type", "subscription_urls", "selector_proxy_links", "action", "protocol", "transport", "security", "user_domains", "user_domains_text", "user_domain_list_type", "domain_ip_lists", "fully_routed_ips", "server_uuid", "tailscale_auth_key"]) {
+for (const name of ["dns_type", "subscription_urls", "selector_proxy_links", "action", "protocol", "transport", "security", "user_domains", "user_domains_text", "user_domain_list_type", "rule_set", "rule_set_with_subnets", "fully_routed_ips", "server_uuid", "tailscale_auth_key"]) {
   const field = matrix.fields.find((item) => item.name === name);
   if (!field) fail(`expected config field is absent from matrix: ${name}`);
   if (field.status !== "supported" && field.status !== "migrated") {

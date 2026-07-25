@@ -468,8 +468,7 @@ function section_has_destination_matchers(section) {
         section_rule_condition_csv(section, "ip_cidr", "subnets") != "" ||
         length(connections.community_lists(section)) > 0 ||
         length(connections.rule_sets(section)) > 0 ||
-        length(connections.rule_sets_with_subnets(section)) > 0 ||
-        section_option_nonempty(section, "domain_ip_lists");
+        length(connections.rule_sets_with_subnets(section)) > 0;
 }
 
 function section_action(section) {
@@ -523,8 +522,7 @@ function section_has_fully_routed_ips(section) {
 
 function section_has_subnet_update_sources(section) {
     return rule_config.has_community_subnet_list(connections.community_lists_value(section)) ||
-        length(connections.rule_sets_with_subnets(section)) > 0 ||
-        option(section, "domain_ip_lists", "") != "";
+        length(connections.rule_sets_with_subnets(section)) > 0;
 }
 
 function section_has_nft_ip_matchers(section) {
@@ -1320,7 +1318,6 @@ function nft_rule_signature_body(body, section) {
     body = signature_add_value(body, "rule." + section_name + ".fully_routed_ips", option(section, "fully_routed_ips", ""));
     body = signature_add_value(body, "rule." + section_name + ".community_subnet_lists", filter_community_subnet_lists_value(connections.community_lists_value(section)));
     body = signature_add_value(body, "rule." + section_name + ".rule_set_with_subnets", connections.rule_sets_with_subnets_value(section));
-    body = signature_add_value(body, "rule." + section_name + ".domain_ip_lists", option(section, "domain_ip_lists", ""));
 
     return body;
 }

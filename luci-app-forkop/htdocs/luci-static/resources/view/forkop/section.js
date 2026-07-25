@@ -183,7 +183,6 @@ function dependsOnRuleConditions(option) {
     "ip_cidr",
     "community_lists",
     "rule_set",
-    "domain_ip_lists",
     "ports",
   ];
   ROUTING_ACTIONS.forEach((action) =>
@@ -191,12 +190,7 @@ function dependsOnRuleConditions(option) {
       option.depends({ action, [condition]: /\S/ }),
     ),
   );
-  [
-    "domain",
-    "community_lists",
-    "_dns_rule_set",
-    "_dns_domain_ip_lists",
-  ].forEach((condition) =>
+  ["domain", "community_lists", "rule_set"].forEach((condition) =>
     option.depends({ action: "dns", [condition]: /\S/ }),
   );
   return option;
@@ -7908,61 +7902,20 @@ function isBuiltinRulesetValue(value) {
   return Object.prototype.hasOwnProperty.call(main.DOMAIN_LIST_OPTIONS, value);
 }
 
-function normalizeReferenceForExtensionCheck(value) {
-  return `${value || ""}`.split(/[?#]/, 1)[0].toLowerCase();
-}
-
-function hasAllowedReferenceExtension(value, extensions) {
-  const normalized = normalizeReferenceForExtensionCheck(value);
-  return extensions.some((extension) => normalized.endsWith(extension));
-}
-
-function validateFileReference(value, extensions, errorMessage, options = {}) {
-  if (!value || value.length === 0) {
+function validateCustomRulesetReference(value) {
+  const errorMessage = _(
+    "Rule set must be an HTTP(S) URL or an absolute local path",
+  );
+  if (!value) {
     return true;
   }
-
   if (value.startsWith("http://") || value.startsWith("https://")) {
-    const validation = main.validateUrl(value);
-    if (
-      validation.valid &&
-      (options.allowRemoteWithoutExtension ||
-        hasAllowedReferenceExtension(value, extensions))
-    ) {
-      return true;
-    }
-
-    return errorMessage;
+    return main.validateUrl(value).valid ? true : errorMessage;
   }
-
   if (value.startsWith("/")) {
-    const validation = main.validatePath(value);
-    if (validation.valid && hasAllowedReferenceExtension(value, extensions)) {
-      return true;
-    }
-
-    return errorMessage;
+    return main.validatePath(value).valid ? true : errorMessage;
   }
-
   return errorMessage;
-}
-
-function validateCustomRulesetReference(value) {
-  return validateFileReference(
-    value,
-    [".srs", ".json"],
-    _("Rule set must be an HTTP(S) URL or a local .srs / .json path"),
-    { allowRemoteWithoutExtension: true },
-  );
-}
-
-function validatePlainListReference(value) {
-  return validateFileReference(
-    value,
-    [".lst"],
-    _("List must be an HTTP(S) URL or a local .lst path"),
-    { allowRemoteWithoutExtension: true },
-  );
 }
 
 function getRulesetReferences(section_id) {
@@ -8844,15 +8797,14 @@ function createSectionContent(section) {
     SettingsDynamicList,
     "rule_set",
     _("Rule sets"),
-    _(
-      "Add URLs or local paths to .srs / .json lists. Subnets are ignored by default.",
-    ),
+    _("Add an HTTP(S) URL or local path. The format is detected automatically."),
   );
   ruleSetOption.modalonly = true;
-  // Both widgets map to rule_set, so neither inactive view may erase shared storage.
   ruleSetOption.retain = true;
-  dependsOnRoutingAction(ruleSetOption);
   ruleSetOption.renderItemSettingsModal = showRuleSetSettingsModal;
+  ruleSetOption.hasItemSettings = function (section_id) {
+    return getRuleResolvedAction(section_id) !== "dns";
+  };
   ruleSetOption.load = function (section_id) {
     return getCustomRulesetReferences(section_id);
   };
@@ -8864,79 +8816,8 @@ function createSectionContent(section) {
     uci.unset(UCI_PACKAGE, section_id, "rule_set_with_subnets");
     uci.unset(UCI_PACKAGE, section_id, RULE_SET_ITEM_SETTINGS_KEY);
   };
-  ruleSetOption.validate = function (section_id, value) {
+  ruleSetOption.validate = function (_section_id, value) {
     return validateCustomRulesetReference(value);
-  };
-
-  const dnsRuleSetOption = section.taboption(
-    "conditions",
-    form.DynamicList,
-    "_dns_rule_set",
-    _("Rule sets"),
-    _(
-      "Add URLs or local paths to .srs / .json lists. Only domain rules are supported.",
-    ),
-  );
-  dnsRuleSetOption.depends("action", "dns");
-  dnsRuleSetOption.modalonly = true;
-  dnsRuleSetOption.retain = true;
-  dnsRuleSetOption.load = function (section_id) {
-    return getCustomRulesetReferences(section_id);
-  };
-  dnsRuleSetOption.write = function (section_id, value) {
-    writeDnsRulesetReferences(section_id, value);
-  };
-  dnsRuleSetOption.remove = function (section_id) {
-    writeDnsRulesetReferences(section_id, []);
-  };
-  dnsRuleSetOption.validate = function (_section_id, value) {
-    return validateCustomRulesetReference(value);
-  };
-
-  const domainIpListsOption = section.taboption(
-    "conditions",
-    form.DynamicList,
-    "domain_ip_lists",
-    _("Domain and IP lists"),
-    _("Add URLs or local paths to .lst lists containing domains and subnets."),
-  );
-  domainIpListsOption.modalonly = true;
-  // Both widgets map to domain_ip_lists, so neither inactive view may erase shared storage.
-  domainIpListsOption.retain = true;
-  dependsOnRoutingAction(domainIpListsOption);
-  domainIpListsOption.load = function (section_id) {
-    return getConfigListValues(section_id, "domain_ip_lists");
-  };
-  domainIpListsOption.write = function (section_id, value) {
-    writeListOption(section_id, "domain_ip_lists", value);
-  };
-  domainIpListsOption.validate = function (_section_id, value) {
-    return validatePlainListReference(value);
-  };
-
-  const dnsDomainListsOption = section.taboption(
-    "conditions",
-    form.DynamicList,
-    "_dns_domain_ip_lists",
-    _("Domain lists"),
-    _(
-      "Add URLs or local paths to .lst lists containing domains. IP entries are ignored.",
-    ),
-  );
-  dnsDomainListsOption.depends("action", "dns");
-  dnsDomainListsOption.modalonly = true;
-  dnsDomainListsOption.retain = true;
-  dnsDomainListsOption.load = function (section_id) {
-    return getConfigListValues(section_id, "domain_ip_lists");
-  };
-  dnsDomainListsOption.write = function (section_id, value) {
-    writeListOption(section_id, "domain_ip_lists", value);
-  };
-  dnsDomainListsOption.remove = function (section_id) {
-    uci.unset(UCI_PACKAGE, section_id, "domain_ip_lists");
-  };
-  dnsDomainListsOption.validate = function (_section_id, value) {
-    return validatePlainListReference(value);
   };
 
   const sourceIpOption = addLocalDeviceSubnetDynamicField(section, {

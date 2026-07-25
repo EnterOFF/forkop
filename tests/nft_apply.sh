@@ -545,8 +545,7 @@ cat >"$WORK_DIR/signature-fixture.json" <<'JSON'
       "ports_text": "80, 443-444\n0\n65536",
       "fully_routed_ips": [ "192.168.1.10/32" ],
       "community_lists": [ "geoblock", "meta", "telegram", "youtube", "discord" ],
-      "rule_set_with_subnets": [ "/tmp/local.json" ],
-      "domain_ip_lists": [ "https://example.com/mixed.lst" ]
+      "rule_set_with_subnets": [ "/tmp/local.json", "https://example.com/mixed.lst" ]
     },
     {
       ".name": "default_enabled",
@@ -580,9 +579,7 @@ bypass
 [rule.text_rule.community_subnet_lists]
 meta telegram discord
 [rule.text_rule.rule_set_with_subnets]
-/tmp/local.json
-[rule.text_rule.domain_ip_lists]
-https://example.com/mixed.lst
+/tmp/local.json https://example.com/mixed.lst
 [rule.default_enabled.action]
 proxy
 [rule.default_enabled.ip_cidr]
@@ -598,8 +595,6 @@ proxy
 [rule.default_enabled.community_subnet_lists]
 cloudflare roblox
 [rule.default_enabled.rule_set_with_subnets]
-
-[rule.default_enabled.domain_ip_lists]
 
 EOF_EXPECTED
 expected_signature="$(md5sum "$WORK_DIR/signature-expected.txt" | awk '{print $1}')"
@@ -622,8 +617,7 @@ forkop.enabled.ports=443 bad-value
 forkop.enabled.ports_text=80 443-444 65536
 forkop.enabled.fully_routed_ips=192.168.1.10/32
 forkop.enabled.community_lists=geoblock meta telegram youtube discord
-forkop.enabled.rule_set_with_subnets=/tmp/local.json
-forkop.enabled.domain_ip_lists=https://example.com/mixed.lst
+forkop.enabled.rule_set_with_subnets=/tmp/local.json https://example.com/mixed.lst
 EOF_UCI
 cat >"$WORK_DIR/signature-uci-expected.txt" <<'EOF_EXPECTED'
 [settings.source_network_interfaces]
@@ -645,9 +639,7 @@ bypass
 [rule.enabled.community_subnet_lists]
 meta telegram discord
 [rule.enabled.rule_set_with_subnets]
-/tmp/local.json
-[rule.enabled.domain_ip_lists]
-https://example.com/mixed.lst
+/tmp/local.json https://example.com/mixed.lst
 EOF_EXPECTED
 expected_signature="$(md5sum "$WORK_DIR/signature-uci-expected.txt" | awk '{print $1}')"
 assert_eq "$expected_signature" \

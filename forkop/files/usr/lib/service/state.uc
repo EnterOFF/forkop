@@ -916,7 +916,6 @@ function nft_runtime_signature_body(settings, sections) {
         body = signature_add_value(body, "rule." + name + ".fully_routed_ips", option(section, "fully_routed_ips", ""));
         body = signature_add_value(body, "rule." + name + ".community_subnet_lists", rule_config.filter_community_subnet_lists_value(connections.community_lists_value(section)));
         body = signature_add_value(body, "rule." + name + ".rule_set_with_subnets", connections.rule_sets_with_subnets_value(section));
-        body = signature_add_value(body, "rule." + name + ".domain_ip_lists", option(section, "domain_ip_lists", ""));
     }
 
     return body;
@@ -1102,8 +1101,7 @@ function sing_box_signature_has_remote_ruleset_sources(sections) {
 
         if (length(connections.community_lists(section)) > 0 ||
             list_has_remote_references(connections.rule_sets_value(section)) ||
-            list_has_remote_references(connections.rule_sets_with_subnets_value(section)) ||
-            list_has_remote_references(option(section, "domain_ip_lists", "")))
+            list_has_remote_references(connections.rule_sets_with_subnets_value(section)))
             return true;
     }
 
@@ -1226,7 +1224,6 @@ function append_sing_box_rule_signature_body(body, section, sections) {
     body = signature_add_value(body, prefix + ".rule_set", connections.rule_sets_value(section));
     if (action != "dns")
         body = signature_add_value(body, prefix + ".rule_set_with_subnets", connections.rule_sets_with_subnets_value(section));
-    body = signature_add_value(body, prefix + ".domain_ip_lists", option(section, "domain_ip_lists", ""));
 
     return body;
 }
@@ -1406,7 +1403,6 @@ function append_zapret_runtime_signature_body(body, section, signature_prefix, o
     body = signature_add_value(body, signature_prefix + "." + name + ".community_lists", connections.community_lists_value(section));
     body = signature_add_value(body, signature_prefix + "." + name + ".rule_set", connections.rule_sets_value(section));
     body = signature_add_value(body, signature_prefix + "." + name + ".rule_set_with_subnets", connections.rule_sets_with_subnets_value(section));
-    body = signature_add_value(body, signature_prefix + "." + name + ".domain_ip_lists", option(section, "domain_ip_lists", ""));
     body = signature_add_value(body, signature_prefix + "." + name + ".user_domain_list_type", user_domain_list_type);
     body = signature_add_value(body, signature_prefix + "." + name + ".user_domains", section_user_domains_for_list_type(section));
 

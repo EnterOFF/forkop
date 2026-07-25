@@ -104,16 +104,13 @@ grep -Fq 'node.addEventListener("mousedown", refreshBeforeOpening, true);' <<<"$
   fail "dashboard selectors must refresh choices before opening"
 grep -Fq 'if (currentSignature === choiceSignature)' "$SECTION_JS" ||
   fail "dashboard selectors must not rebuild unchanged choices while selecting an item"
-grep -Fq 'dependsOnRoutingAction(domainIpListsOption);' <<<"$create_section" ||
-  fail "routing actions must use their own domain and subnet list copy"
-grep -Fq 'dnsDomainListsOption.depends("action", "dns");' <<<"$create_section" ||
-  fail "DNS actions must use their own domain-only list copy"
-[[ "$(grep -Fc 'writeListOption(section_id, "domain_ip_lists", value);' <<<"$create_section")" -eq 2 ]] ||
-  fail "both list views must write the shared domain_ip_lists option"
-grep -Fq 'Add URLs or local paths to .srs / .json lists. Subnets are ignored by default.' <<<"$create_section" ||
-  fail "routing rule-set copy must explain the default subnet behavior"
-grep -Fq 'Add URLs or local paths to .lst lists containing domains. IP entries are ignored.' <<<"$create_section" ||
-  fail "DNS list copy must explain that IP entries are ignored"
+grep -Fq 'Add an HTTP(S) URL or local path. The format is detected automatically.' <<<"$create_section" ||
+  fail "universal rule sets must explain automatic format detection"
+grep -Fq 'ruleSetOption.hasItemSettings = function (section_id)' <<<"$create_section" ||
+  fail "routing actions must retain per-item subnet settings"
+if grep -Eq 'domainIpListsOption|dnsDomainListsOption|dnsRuleSetOption|domain_ip_lists' <<<"$create_section"; then
+  fail "legacy domain/IP list controls must stay removed"
+fi
 
 grep -Fq 'background: transparent !important;' <<<"$close_all_styles" ||
   fail "close-all hover must match the pause button's transparent background"

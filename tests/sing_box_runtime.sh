@@ -595,8 +595,7 @@ cat >"$WORK_DIR/dns-action-fixture.json" <<JSON
       "dns_detour_section": "detour",
       "domain_suffix": [ "dns-first.example" ],
       "community_lists": [ "youtube" ],
-      "rule_set": [ "https://example.com/domain-only.srs" ],
-      "domain_ip_lists": [ "$WORK_DIR/dns-action.lst" ],
+      "rule_set": [ "https://example.com/domain-only.srs", "$WORK_DIR/dns-action.lst" ],
       "ip_cidr": [ "203.0.113.0/24" ],
       "source_ip_cidr": [ "192.0.2.1/32" ],
       "fully_routed_ips": [ "192.0.2.2/32" ],
@@ -777,7 +776,7 @@ cat >"$WORK_DIR/download-via-proxy-fixture.json" <<'JSON'
       "domain_suffix": [ "example.org" ],
       "community_lists": [ "discord" ],
       "rule_set": [ "https://example.com/rules.srs" ],
-      "domain_ip_lists": [ "https://example.com/mixed.txt" ]
+      "rule_set_with_subnets": [ "https://example.com/mixed.txt" ]
     },
     {
       ".name": "components_proxy",
@@ -889,7 +888,7 @@ cat >"$WORK_DIR/with-subnets.json" <<'JSON'
 }
 JSON
 
-cat >"$WORK_DIR/domain-ip-rulesets-fixture.json" <<JSON
+cat >"$WORK_DIR/universal-rulesets-fixture.json" <<JSON
 {
   "settings": {
     ".name": "settings",
@@ -906,8 +905,7 @@ cat >"$WORK_DIR/domain-ip-rulesets-fixture.json" <<JSON
       "action": "outbound",
       "outbound_json": "{\\"type\\":\\"direct\\"}",
       "domain_suffix": [ "example.org" ],
-      "rule_set_with_subnets": [ "$WORK_DIR/with-subnets.json" ],
-      "domain_ip_lists": [ "$WORK_DIR/domain-ip.lst", "https://example.com/domain-ip.txt" ]
+      "rule_set_with_subnets": [ "$WORK_DIR/with-subnets.json", "$WORK_DIR/domain-ip.lst", "https://example.com/domain-ip.txt" ]
     }
   ]
 }
@@ -966,7 +964,7 @@ generate_config "$WORK_DIR/download-via-proxy-fixture.json" "$WORK_DIR/download.
 generate_config "$WORK_DIR/fully-routed-fixture.json" "$WORK_DIR/fully-routed.json"
 generate_config "$WORK_DIR/mwan3-auto-fixture.json" "$WORK_DIR/mwan3-auto.json" 1
 generate_config "$WORK_DIR/mwan3-pinned-fixture.json" "$WORK_DIR/mwan3-pinned.json" 1
-generate_config "$WORK_DIR/domain-ip-rulesets-fixture.json" "$WORK_DIR/domain-ip-rulesets.json"
+generate_config "$WORK_DIR/universal-rulesets-fixture.json" "$WORK_DIR/universal-rulesets.json"
 generate_config "$WORK_DIR/manual-xhttp-fixture.json" "$WORK_DIR/manual-xhttp.json"
 grep -Fq 'type=xhttp' "$WORK_DIR/manual-xhttp.json.providers/manual_xhttp-manual-provider.txt" ||
   fail "XHTTP connection URLs must be delegated to the native provider parser"
@@ -1243,8 +1241,8 @@ assert(dns_rule(dns_action, r => contains(r.rule_set, "dns_first-youtube-communi
 let dns_custom_ruleset = ruleset_url(dns_action, "https://example.com/domain-only.srs");
 assert(dns_custom_ruleset && dns_rule(dns_action, r => contains(r.rule_set, dns_custom_ruleset.tag) && r.server == "dns_first-dns-server" && contains(r.source_ip_cidr, "192.0.2.1/32")) != null, "DNS action device filter covers custom domain rule sets");
 let dns_text_ruleset = ruleset_path(dns_action, dir + "/dns-action.lst");
-assert(dns_text_ruleset && dns_text_ruleset.type == "local" && dns_text_ruleset.format == "text", "DNS action keeps a plain list as a native text rule set");
-assert(dns_rule(dns_action, r => contains(r.rule_set, dns_text_ruleset.tag) && r.server == "dns_first-dns-server" && contains(r.source_ip_cidr, "192.0.2.1/32")) != null, "DNS action uses the native text rule set as a domain matcher");
+assert(dns_text_ruleset && dns_text_ruleset.type == "local" && dns_text_ruleset.format == "auto", "DNS action emits a local universal rule set");
+assert(dns_rule(dns_action, r => contains(r.rule_set, dns_text_ruleset.tag) && r.server == "dns_first-dns-server" && contains(r.source_ip_cidr, "192.0.2.1/32")) != null, "DNS action uses the universal rule set as a domain matcher");
 let dns_action_fallback = dns_rule(dns_action, r => r.server == "dnsmasq-server" && r.domain == null && r.domain_suffix == null && r.rule_set == null);
 assert(dns_action_fallback && contains(dns_action_fallback.source_ip_cidr, "192.0.2.1/32") && contains(dns_action_fallback.source_ip_cidr, "192.0.2.2/32") && contains(dns_action_fallback.source_ip_cidr, "192.0.2.3/32"), "unmatched device-aware DNS actions return through dnsmasq");
 assert(route_rule(dns_action, r => contains(r.source_ip_cidr, "192.0.2.2/32")) == null, "forced DNS action does not route device traffic");
@@ -1277,7 +1275,7 @@ assert(route_rule(download, r => r.inbound == "service-components-in" && r.outbo
 assert(ruleset(download, "proxy-discord-community-ruleset").download_detour == "proxy-out", "download_detour on community ruleset");
 assert(ruleset_url(download, "https://example.com/rules.srs").download_detour == "proxy-out", "download_detour on custom remote ruleset");
 let download_text_ruleset = ruleset_url(download, "https://example.com/mixed.txt");
-assert(download_text_ruleset && download_text_ruleset.format == "text" && download_text_ruleset.update_interval == "1d" && download_text_ruleset.download_detour == "proxy-out", "native remote text rule set owns updates and detour");
+assert(download_text_ruleset && download_text_ruleset.format == "auto" && download_text_ruleset.update_interval == "1d" && download_text_ruleset.download_detour == "proxy-out", "remote universal rule set owns updates and detour");
 
 let fully = cfg("fully-routed");
 assert(route_rule(fully, r => r.outbound == "bypass-out" && contains(r.inbound, "tproxy-in") && contains(r.inbound, "tproxy6-in") && contains(r.source_ip_cidr, "192.168.1.20/32") && contains(r.source_ip_cidr, "192.168.1.30/32") && contains(r.source_ip_cidr, "2001:db8::20/128")) != null, "fully routed bypass IP route");
@@ -1306,16 +1304,15 @@ let mwan3_pinned = cfg("mwan3-pinned");
 assert(mwan3_pinned.route.auto_detect_interface === false, "mwan3 pinned interface disables auto_detect_interface");
 assert(mwan3_pinned.route.default_interface == "wan2", "mwan3 pinned interface is preserved");
 
-let lists = cfg("domain-ip-rulesets");
+let lists = cfg("universal-rulesets");
 assert(no_internal_fields(lists), "internal runtime fields stripped from generated config");
 let local_ruleset = ruleset_path(lists, dir + "/domain-ip.lst");
 let remote_text_ruleset = ruleset_url(lists, "https://example.com/domain-ip.txt");
-assert(local_ruleset && local_ruleset.type == "local" && local_ruleset.format == "text", "local domain_ip_lists reference stays native text");
-assert(remote_text_ruleset && remote_text_ruleset.type == "remote" && remote_text_ruleset.format == "text" && remote_text_ruleset.update_interval == "1d", "remote domain_ip_lists reference owns native updates");
-assert(local_ruleset.tag != remote_text_ruleset.tag, "each domain_ip_lists reference has a stable independent tag");
-assert(route_rule(lists, r => contains(r.rule_set, local_ruleset.tag) && contains(r.rule_set, remote_text_ruleset.tag) && length(as_array(r.rule_set)) >= 3) != null, "text lists and rule_set_with_subnets share the section route");
-assert(dns_rule(lists, r => contains(r.rule_set, local_ruleset.tag) && contains(r.rule_set, remote_text_ruleset.tag)) != null, "native text lists remain DNS matchers");
-assert(fs.stat(dir + "/domain-ip-rulesets.json.rulesets/proxy-lists-ruleset.json") == null, "Forkop no longer builds aggregate source JSON for domain_ip_lists");
+assert(local_ruleset && local_ruleset.type == "local" && local_ruleset.format == "auto", "local rule-set format is detected by sing-box");
+assert(remote_text_ruleset && remote_text_ruleset.type == "remote" && remote_text_ruleset.format == "auto" && remote_text_ruleset.update_interval == "1d", "remote universal rule set owns native updates");
+assert(local_ruleset.tag != remote_text_ruleset.tag, "each universal rule-set reference has a stable independent tag");
+assert(route_rule(lists, r => contains(r.rule_set, local_ruleset.tag) && contains(r.rule_set, remote_text_ruleset.tag) && length(as_array(r.rule_set)) >= 3) != null, "all universal rule sets share the section route");
+assert(dns_rule(lists, r => contains(r.rule_set, local_ruleset.tag) && contains(r.rule_set, remote_text_ruleset.tag)) != null, "universal rule sets remain DNS matchers");
 
 ' "$WORK_DIR"
 

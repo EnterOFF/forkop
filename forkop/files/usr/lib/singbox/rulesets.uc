@@ -86,44 +86,6 @@ function custom_reference_tag(reference) {
         : "inline-custom-" + hash12(reference) + "-ruleset";
 }
 
-function text_reference_tag(reference) {
-    return "inline-text-" + hash12(reference) + "-ruleset";
-}
-
-function file_extension(value) {
-    let basename = as_string(value);
-    let slash = rindex(basename, "/");
-    if (slash >= 0)
-        basename = substr(basename, slash + 1);
-
-    let query = index(basename, "?");
-    if (query >= 0)
-        basename = substr(basename, 0, query);
-
-    let fragment = index(basename, "#");
-    if (fragment >= 0)
-        basename = substr(basename, 0, fragment);
-
-    let dot = rindex(basename, ".");
-    return dot >= 0 ? lc(substr(basename, dot + 1)) : "";
-}
-
-function kind_from_reference_hint(reference) {
-    reference = lc(as_string(reference));
-    if (index(reference, "geosite") >= 0 || index(reference, "domain") >= 0 ||
-        index(reference, "domains") >= 0 || index(reference, "adguard") >= 0 ||
-        index(reference, "filter") >= 0)
-        return "domains";
-    if (index(reference, "geoip") >= 0 || index(reference, "subnet") >= 0 ||
-        index(reference, "subnets") >= 0 || index(reference, "cidr") >= 0)
-        return "subnets";
-    return "unknown";
-}
-
-function remote_format(reference) {
-    return file_extension(reference) == "json" ? "source" : "binary";
-}
-
 function module_exports() {
     return {
         is_community,
@@ -131,11 +93,7 @@ function module_exports() {
         hash12,
         section_tag,
         community_tag,
-        custom_reference_tag,
-        text_reference_tag,
-        file_extension,
-        kind_from_reference_hint,
-        remote_format
+        custom_reference_tag
     };
 }
 
@@ -144,15 +102,9 @@ if ((sourcepath(1) != null && sourcepath(1) != "") || ARGV[0] == null)
 
 let mode = ARGV[0] || "";
 
-if (mode == "file-extension")
-    print(file_extension(ARGV[1]), "\n");
-else if (mode == "is-community")
+if (mode == "is-community")
     exit(is_community(ARGV[1]) ? 0 : 1);
-else if (mode == "kind-from-reference-hint")
-    print(kind_from_reference_hint(ARGV[1]), "\n");
-else if (mode == "remote-format")
-    print(remote_format(ARGV[1]), "\n");
 else {
-    warn("Usage: singbox/rulesets.uc <file-extension|is-community|kind-from-reference-hint|remote-format> ...\n");
+    warn("Usage: singbox/rulesets.uc is-community <name>\n");
     exit(1);
 }

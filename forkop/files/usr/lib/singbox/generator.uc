@@ -255,11 +255,9 @@ function ruleset_registered(config, tag_name) {
 
 function ensure_custom_ruleset(config, reference) {
     let tag_name;
-    let kind = runtime_rulesets.kind_from_reference_hint(reference);
 
     if (runtime_rulesets.is_community(reference)) {
         tag_name = runtime_rulesets.custom_reference_tag(reference);
-        kind = "domains";
         if (!ruleset_registered(config, tag_name)) {
             let rule_set = {
                 type: "remote",
@@ -267,29 +265,24 @@ function ensure_custom_ruleset(config, reference) {
                 format: "binary",
                 url: runtime_rulesets.community_url(reference)
             };
-            let detour = download_detour_tag(runtime_settings());
+            let detour = download_detour_tag(runtime_settings(), "lists");
             if (detour != "")
                 rule_set.download_detour = detour;
             rule_set.update_interval = remote_ruleset_update_interval();
             push(config.route.rule_set, rule_set);
         }
-        return { tag: tag_name, kind };
+        return tag_name;
     }
 
     tag_name = runtime_rulesets.custom_reference_tag(reference);
-    if (kind == "unknown")
-        kind = "domains";
     if (ruleset_registered(config, tag_name))
-        return { tag: tag_name, kind };
+        return tag_name;
 
-    let extension = runtime_rulesets.file_extension(reference);
     if (substr(reference, 0, 1) == "/") {
-        if (extension != "srs" && extension != "json")
-            runtime_generate_unsupported("local rule_set extension is not supported by sing-box config generation");
         push(config.route.rule_set, {
             type: "local",
             tag: tag_name,
-            format: extension == "json" ? "source" : "binary",
+            format: "auto",
             path: reference
         });
     }
@@ -297,10 +290,10 @@ function ensure_custom_ruleset(config, reference) {
         let rule_set = {
             type: "remote",
             tag: tag_name,
-            format: runtime_rulesets.remote_format(reference),
+            format: "auto",
             url: reference
         };
-        let detour = download_detour_tag(runtime_settings());
+        let detour = download_detour_tag(runtime_settings(), "lists");
         if (detour != "")
             rule_set.download_detour = detour;
         rule_set.update_interval = remote_ruleset_update_interval();
@@ -310,7 +303,7 @@ function ensure_custom_ruleset(config, reference) {
         runtime_generate_unsupported("rule_set reference is not supported by sing-box config generation");
     }
 
-    return { tag: tag_name, kind };
+    return tag_name;
 }
 
 function clash_api_config(settings, service_address) {
@@ -1683,48 +1676,6 @@ function ensure_community_ruleset(config, section_name, community) {
     };
 }
 
-function ensure_text_ruleset(config, reference) {
-    reference = as_string(reference);
-    let tag_name = runtime_rulesets.text_reference_tag(reference);
-    if (ruleset_registered(config, tag_name))
-        return tag_name;
-
-    if (substr(reference, 0, 1) == "/") {
-        push(config.route.rule_set, {
-            type: "local",
-            tag: tag_name,
-            format: "text",
-            path: reference
-        });
-    }
-    else if (substr(reference, 0, 7) == "http://" || substr(reference, 0, 8) == "https://") {
-        let rule_set = {
-            type: "remote",
-            tag: tag_name,
-            format: "text",
-            url: reference,
-            update_interval: remote_ruleset_update_interval()
-        };
-        let detour = download_detour_tag(runtime_settings(), "lists");
-        if (detour != "")
-            rule_set.download_detour = detour;
-        push(config.route.rule_set, rule_set);
-    }
-    else {
-        runtime_generate_unsupported("domain/IP list reference is not supported by sing-box config generation");
-    }
-    return tag_name;
-}
-
-function add_domain_ip_list_rulesets(config, rule_set_tags, dns_rule_set_tags, references, domains_only) {
-    for (let reference in references) {
-        let tag_name = ensure_text_ruleset(config, reference);
-        if (!domains_only)
-            push(rule_set_tags, tag_name);
-        push(dns_rule_set_tags, tag_name);
-    }
-}
-
 function legacy_condition_values(section, key) {
     let raw_values = object_or_empty(section)[key];
     let list_values = type(raw_values) == "array"
@@ -1953,17 +1904,8 @@ function add_dns_action_rules_for_section(config, section) {
         push(rule_set_tags, ensured.tag);
     }
     for (let reference in connections.rule_sets(section)) {
-        let ensured = ensure_custom_ruleset(config, as_string(reference));
-        if (ensured.kind == "domains")
-            push(rule_set_tags, ensured.tag);
+        push(rule_set_tags, ensure_custom_ruleset(config, as_string(reference)));
     }
-    add_domain_ip_list_rulesets(
-        config,
-        [],
-        rule_set_tags,
-        list_option(section, "domain_ip_lists"),
-        true
-    );
 
     let rewrite_ttl = int_option(runtime_settings(), "dns_rewrite_ttl", "60");
     let server_tag = dns_action_server_tag(section_name);
@@ -2095,24 +2037,15 @@ function add_combined_route_for_section(config, section) {
         push(dns_rule_set_tags, ensured.tag);
     }
     for (let reference in connections.rule_sets(section)) {
-        let ensured = ensure_custom_ruleset(config, as_string(reference));
-        push(rule_set_tags, ensured.tag);
-        if (ensured.kind == "domains")
-            push(dns_rule_set_tags, ensured.tag);
+        let tag_name = ensure_custom_ruleset(config, as_string(reference));
+        push(rule_set_tags, tag_name);
+        push(dns_rule_set_tags, tag_name);
     }
     for (let reference in connections.rule_sets_with_subnets(section)) {
-        let ensured = ensure_custom_ruleset(config, as_string(reference));
-        push(rule_set_tags, ensured.tag);
-        if (ensured.kind == "domains")
-            push(dns_rule_set_tags, ensured.tag);
+        let tag_name = ensure_custom_ruleset(config, as_string(reference));
+        push(rule_set_tags, tag_name);
+        push(dns_rule_set_tags, tag_name);
     }
-    add_domain_ip_list_rulesets(
-        config,
-        rule_set_tags,
-        dns_rule_set_tags,
-        list_option(section, "domain_ip_lists"),
-        false
-    );
 
     let target = runtime_route.target(section, outbound_tag(section_name));
     if (target.unsupported)
