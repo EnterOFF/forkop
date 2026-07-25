@@ -38,6 +38,26 @@ for (const protocol of ["naive", "anytls", "tuic"]) {
 }
 
 requireSource('option.depends("protocol", "tailscale")');
+for (const needle of [
+  '"tailscale_detour_enabled"',
+  '"tailscale_detour_section"',
+  '_("Control plane through section")',
+  'Auth Key from the Tailscale admin console',
+  'Name shown in the Tailscale admin console.',
+  'Accept subnets advertised by other devices in your Tailscale network.',
+  'Specify local subnets to give other devices in your Tailscale network access to them.',
+]) {
+  requireSource(needle);
+}
+
+if (source.indexOf('tailscale: "Tailscale"') > source.indexOf('json_inbound: "JSON Inbound"')) {
+  console.error('FAIL: Tailscale must be the penultimate protocol and JSON Inbound the last');
+  process.exit(1);
+}
+if (source.includes('"tailscale_advertise_exit_node"')) {
+  console.error('FAIL: Tailscale exit-node advertising must be fixed in the generator, not exposed in UI');
+  process.exit(1);
+}
 
 for (const legacy of [
   "singBoxExtended",

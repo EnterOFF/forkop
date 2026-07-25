@@ -6,6 +6,7 @@ let common = require("core.common");
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
+const SING_BOX_FORKOP_VERSION_FILE = getenv("SING_BOX_FORKOP_VERSION_FILE") || "/usr/share/sing-box-forkop/version";
 const PACKAGES_UC = LIB_DIR + "/core/packages.uc";
 const NFT_TABLE_NAME = getenv("NFT_TABLE_NAME") || "ForkopTable";
 const NFT_COMMON_SET_NAME = getenv("NFT_COMMON_SET_NAME") || "forkop_subnets";
@@ -156,6 +157,9 @@ function sing_box_version() {
         if (version != "")
             return replace(version, /~/g, "-");
     }
+    let marker = fs.readfile(SING_BOX_FORKOP_VERSION_FILE);
+    if (marker != null)
+        return replace(trim(as_string(marker)), /~/g, "-");
     return "";
 }
 

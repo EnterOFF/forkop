@@ -345,7 +345,7 @@ const EntryPoint = {
       form.GridSection,
       "section",
       _("Sections"),
-      _("Drag rows to change priority. The rule at the top is checked first."),
+      _("Drag rows to change order. The rule at the top is checked first."),
     );
     configureGridSection(
       rulesSection,

@@ -366,22 +366,6 @@ function running_service_action(action, source, started_at) {
     });
 }
 
-function running_latency_action(latency_type, section, tag, started_at) {
-    write_json({
-        success: true,
-        running: true,
-        kind: "latency",
-        latency_type: as_string(latency_type),
-        section: as_string(section),
-        tag: as_string(tag),
-        message: "Latency test is running",
-        pid: null,
-        started_at: arg_number(started_at),
-        updated_at: null,
-        exit_code: null
-    });
-}
-
 function set_running_job_pid(path, pid) {
     let value = object_or_empty(read_json_file(path));
     if (value.running === true)
@@ -582,7 +566,7 @@ function proxy_list_total(tag) {
 
 function initial_latency_progress(latency_type, tag) {
     if (as_string(latency_type) != "proxy_list")
-        return null;
+        return latency_progress_value(0, 1, 0);
 
     return latency_progress_value(0, proxy_list_total(tag), 0);
 }
@@ -607,6 +591,10 @@ function running_latency_action_value(latency_type, section, tag, started_at) {
         value.progress = progress;
 
     return value;
+}
+
+function running_latency_action(latency_type, section, tag, started_at) {
+    write_json(running_latency_action_value(latency_type, section, tag, started_at));
 }
 
 function latency_action_path_allowed(path) {
@@ -1218,7 +1206,10 @@ function latency_clash_method(latency_type) {
 
 function latency_worker(path, latency_type, tag, timeout) {
     let method = latency_clash_method(latency_type).method;
-    let status = command_status(command_from_args([ BIN_PATH, "clash_api", method, tag, timeout, path ]) + " >/dev/null 2>&1");
+    let args = [ BIN_PATH, "clash_api", method, tag, timeout ];
+    if (as_string(latency_type) == "proxy_list")
+        push(args, path);
+    let status = command_status(command_from_args(args) + " >/dev/null 2>&1");
     if (status == 0)
         write_finished_action_state(path, true, "Latency test completed", status);
     else

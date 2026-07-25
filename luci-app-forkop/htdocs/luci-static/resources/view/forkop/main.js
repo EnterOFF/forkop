@@ -1773,6 +1773,9 @@ function getLatencyTestLabel(latencyProgress) {
   }
   const completedValue = Number(latencyProgress?.completed ?? 0);
   const completed = Number.isFinite(completedValue) ? Math.trunc(completedValue) : 0;
+  if (completed >= total) {
+    return _("Test latency");
+  }
   return `${_("Test latency")}: ${Math.min(
     Math.max(0, completed),
     total
@@ -1783,10 +1786,12 @@ function renderDefaultState({
   onChooseOutbound,
   onCopyOutbound,
   onShowUrlTestInfo,
-  onShowPriorityInfo,
+  onShowFallbackInfo,
   onTestLatency,
+  onTestOutboundLatency,
   onUpdateSubscription,
   latencyFetching,
+  latencyFetchingTarget,
   latencyProgress,
   subscriptionUpdating,
   selectorSwitchingTag
@@ -1818,6 +1823,17 @@ function renderDefaultState({
     const selectorSwitching = Boolean(selectorSwitchingTag);
     const outboundSwitching = selectorSwitchingTag === outbound.code;
     const canChooseOutbound = section.withTagSelect && outbound.runtimeAvailable !== false && !selectorSwitching && !outbound.selected;
+    const groupInfo = outbound.urlTestInfo || outbound.fallbackInfo;
+    const groupTargets = Array.from(
+      new Set(
+        (groupInfo?.outbounds || []).map((member) => member.code).filter(Boolean)
+      )
+    );
+    const showLatency = !groupInfo || outbound.runtimeAvailable !== false && groupTargets.length > 0;
+    const latencyType = groupInfo ? "proxy_list" : "proxy";
+    const latencyTarget = groupInfo ? groupTargets : outbound.code;
+    const outboundLatencyFetching = latencyFetchingTarget === (Array.isArray(latencyTarget) ? JSON.stringify(latencyTarget) : latencyTarget);
+    const canTestOutboundLatency = showLatency && outbound.runtimeAvailable !== false && !latencyFetching;
     const className = [
       "fkp_dashboard-page__outbound-grid__item",
       outbound.selected ? "fkp_dashboard-page__outbound-grid__item--active" : "",
@@ -1825,6 +1841,36 @@ function renderDefaultState({
       section.withTagSelect && !canChooseOutbound ? "fkp_dashboard-page__outbound-grid__item--disabled" : "",
       outboundSwitching ? "fkp_dashboard-page__outbound-grid__item--switching" : ""
     ].filter(Boolean).join(" ");
+    const latencyClass = getLatencyClass();
+    const latencyValue = outbound.latency ? `${outbound.latency}ms` : "N/A";
+    const latency = showLatency ? E(
+      "button",
+      {
+        type: "button",
+        class: `btn fkp_dashboard-page__outbound-grid__item__latency ${latencyClass}`,
+        title: _("Test latency"),
+        "aria-label": _("Test latency"),
+        "aria-busy": outboundLatencyFetching ? "true" : void 0,
+        disabled: canTestOutboundLatency ? void 0 : true,
+        click: (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (canTestOutboundLatency) {
+            onTestOutboundLatency(latencyType, latencyTarget);
+          }
+        }
+      },
+      [
+        outboundLatencyFetching ? renderLoaderCircleIcon24() : renderRotateCcwIcon24(),
+        E(
+          "span",
+          {
+            class: "fkp_dashboard-page__outbound-grid__item__latency-value"
+          },
+          latencyValue
+        )
+      ]
+    ) : void 0;
     return E(
       "div",
       {
@@ -1884,17 +1930,17 @@ function renderDefaultState({
               renderInfoIcon24()
             )
           ] : [],
-          ...outbound.priorityInfo ? [
+          ...outbound.fallbackInfo ? [
             E(
               "button",
               {
                 type: "button",
                 class: "btn fkp_dashboard-page__outbound-grid__item__copy-button",
-                title: _("Priority details"),
-                "aria-label": _("Priority details"),
+                title: _("Fallback details"),
+                "aria-label": _("Fallback details"),
                 click: (event) => {
                   event.stopPropagation();
-                  onShowPriorityInfo(outbound);
+                  onShowFallbackInfo(outbound);
                 }
               },
               renderInfoIcon24()
@@ -1905,15 +1951,11 @@ function renderDefaultState({
           E(
             "div",
             { class: "fkp_dashboard-page__outbound-grid__item__type" },
-            [outbound.priorityInfo ? _("Priority") : outbound.type].filter(
+            [outbound.fallbackInfo ? _("Fallback") : outbound.type].filter(
               Boolean
             )
           ),
-          E(
-            "div",
-            { class: getLatencyClass() },
-            outbound.latency ? `${outbound.latency}ms` : "N/A"
-          )
+          ...latency ? [latency] : []
         ])
       ]
     );
@@ -2134,13 +2176,15 @@ function render() {
             },
             onTestLatency: () => {
             },
+            onTestOutboundLatency: () => {
+            },
             onChooseOutbound: () => {
             },
             onCopyOutbound: () => {
             },
             onShowUrlTestInfo: () => {
             },
-            onShowPriorityInfo: () => {
+            onShowFallbackInfo: () => {
             },
             onUpdateSubscription: () => {
             },
@@ -2941,8 +2985,9 @@ function hydrateConfigSections(configSections) {
   const subscriptionUrls = childSections(configSections, "subscription_url");
   const interfaces = childSections(configSections, "section_interface");
   const urltests = childSections(configSections, "urltest");
-  const priorityGroups = childSections(configSections, "priority_group");
-  const priorityLevels = childSections(configSections, "priority_level");
+  const fallbackGroups = childSections(configSections, "fallback_group");
+  const fallbackLevels = childSections(configSections, "fallback_level");
+  const tunnels = childSections(configSections, "tunnel");
   return configSections.map((section) => {
     if (section[".type"] !== "section") {
       return section;
@@ -2951,7 +2996,8 @@ function hydrateConfigSections(configSections) {
     const subscriptionUrlItems = ownedChildSections(next, subscriptionUrls);
     const interfaceItems = ownedChildSections(next, interfaces);
     const urltestItems = ownedChildSections(next, urltests);
-    const priorityGroupItems = ownedChildSections(next, priorityGroups);
+    const fallbackGroupItems = ownedChildSections(next, fallbackGroups);
+    const tunnelItems = ownedChildSections(next, tunnels);
     if (subscriptionUrlItems.length) {
       const settings = {};
       next.subscription_urls = subscriptionUrlItems.map((item) => item.url || "").filter(Boolean);
@@ -3002,12 +3048,12 @@ function hydrateConfigSections(configSections) {
       });
       next.urltest_settings = compactSettingsMap(settings);
     }
-    if (priorityGroupItems.length) {
+    if (fallbackGroupItems.length) {
       const settings = {};
-      next.priority_groups = priorityGroupItems.map((item) => item[".name"]);
-      priorityGroupItems.forEach((item) => {
+      next.fallback_groups = fallbackGroupItems.map((item) => item[".name"]);
+      fallbackGroupItems.forEach((item) => {
         const groupId = item[".name"];
-        const levels = childSectionsByOwner(priorityLevels, "group", groupId).map(
+        const levels = childSectionsByOwner(fallbackLevels, "group", groupId).map(
           (level, index) => ({
             id: level[".name"],
             displayName: level.name || level[".name"],
@@ -3024,7 +3070,10 @@ function hydrateConfigSections(configSections) {
           levels
         };
       });
-      next.priority_group_settings = compactSettingsMap(settings);
+      next.fallback_group_settings = compactSettingsMap(settings);
+    }
+    if (tunnelItems.length) {
+      next.tunnels = tunnelItems.map((item) => item[".name"]);
     }
     return next;
   });
@@ -3035,6 +3084,9 @@ function getManualProxyLinks(section) {
 function getConnectionInterfaces(section) {
   const values = getListValues(section.interfaces);
   return values.length ? values : getListValues(section.interface);
+}
+function getConnectionTunnels(section) {
+  return getListValues(section.tunnels);
 }
 function getJsonOutbounds(section) {
   const values = getListValues(section.outbound_jsons);
@@ -3057,8 +3109,8 @@ function shouldSortByLatency(section) {
 function hasConfiguredUrlTestList(section) {
   return getListValues(section.urltests).length > 0;
 }
-function hasConfiguredPriorityList(section) {
-  return getListValues(section.priority_groups).length > 0;
+function hasConfiguredFallbackList(section) {
+  return getListValues(section.fallback_groups).length > 0;
 }
 function getUrlTestIds(section) {
   const values = getListValues(section.urltests);
@@ -3068,7 +3120,7 @@ function isUrlTestEnabled(section) {
   return getUrlTestIds(section).length > 0;
 }
 function shouldUseProxyGroup(section) {
-  return getManualProxyLinks(section).length > 0 || hasSubscriptionSources(section) || getConnectionInterfaces(section).length > 0 || getJsonOutbounds(section).length > 0 || isUrlTestEnabled(section) || hasConfiguredPriorityList(section);
+  return getManualProxyLinks(section).length > 0 || hasSubscriptionSources(section) || getConnectionInterfaces(section).length > 0 || getConnectionTunnels(section).length > 0 || getJsonOutbounds(section).length > 0 || isUrlTestEnabled(section) || hasConfiguredFallbackList(section);
 }
 function getSectionProxyConfigType(section) {
   if (hasSubscriptionSources(section)) {
@@ -3080,13 +3132,16 @@ function getSectionProxyConfigType(section) {
   if (getManualProxyLinks(section).length > 0) {
     return "selector";
   }
+  if (getConnectionTunnels(section).length > 0) {
+    return "selector";
+  }
   if (getJsonOutbounds(section).length > 0) {
     return "outbound";
   }
   if (getConnectionInterfaces(section).length > 0) {
     return "interface";
   }
-  if (hasConfiguredPriorityList(section)) {
+  if (hasConfiguredFallbackList(section)) {
     return "selector";
   }
   return void 0;
@@ -3219,12 +3274,12 @@ function getUrlTestTag(sectionName, id) {
     id === "urltest" ? `${sectionName}-urltest` : `${sectionName}-urltest-${id}`
   );
 }
-function getPriorityTag(sectionName, id) {
-  return getOutboundTagBySection(`${sectionName}-priority-${id}`);
+function getFallbackTag(sectionName, id) {
+  return getOutboundTagBySection(`${sectionName}-fallback-${id}`);
 }
-function getPriorityLevelTag(sectionName, groupId, levelId) {
+function getFallbackLevelTag(sectionName, groupId, levelId) {
   return getOutboundTagBySection(
-    `${sectionName}-priority-${groupId}-level-${levelId}`
+    `${sectionName}-fallback-${groupId}-level-${levelId}`
   );
 }
 function getUrlTestDisplayName(section, id, settings) {
@@ -3253,7 +3308,7 @@ function getUrlTestConfigs(section) {
     };
   });
 }
-function priorityLevelConfigsFromSettings(settings) {
+function fallbackLevelConfigsFromSettings(settings) {
   const value = settings?.levels;
   if (!Array.isArray(value)) {
     return [];
@@ -3279,19 +3334,19 @@ function priorityLevelConfigsFromSettings(settings) {
     (left, right) => left.order === right.order ? left.id.localeCompare(right.id) : left.order - right.order
   );
 }
-function getPriorityGroupIds(section) {
-  return getListValues(section.priority_groups);
+function getFallbackGroupIds(section) {
+  return getListValues(section.fallback_groups);
 }
-function getPriorityConfigs(section) {
-  const settingsMap = itemSettingsMap(section.priority_group_settings);
+function getFallbackConfigs(section) {
+  const settingsMap = itemSettingsMap(section.fallback_group_settings);
   const sectionName = section[".name"];
-  return getPriorityGroupIds(section).map((id) => {
+  return getFallbackGroupIds(section).map((id) => {
     const settings = settingsMap[id] || {};
-    const levels = priorityLevelConfigsFromSettings(settings);
+    const levels = fallbackLevelConfigsFromSettings(settings);
     return {
       id,
       sectionName,
-      code: getPriorityTag(sectionName, id),
+      code: getFallbackTag(sectionName, id),
       displayName: itemSettingString(settings, "name", id),
       pinDashboard: itemSettingBoolean(settings, "pin_dashboard", true),
       hideDashboardMembers: itemSettingBoolean(
@@ -3322,8 +3377,8 @@ function getUrlTestGroups(dashboardCache) {
   }
   return groups;
 }
-function getPriorityGroups(dashboardCache) {
-  const groups = dashboardCache?.priorityGroups;
+function getFallbackGroups(dashboardCache) {
+  const groups = dashboardCache?.fallbackGroups;
   if (!groups || typeof groups !== "object" || Array.isArray(groups)) {
     return {};
   }
@@ -3332,6 +3387,12 @@ function getPriorityGroups(dashboardCache) {
 function getOutboundDisplayName(code, entry, link, outboundMetadata) {
   const metadataName = outboundMetadata?.names?.[code];
   return getProxyUrlName(link) || metadataName || entry?.value?.name || code;
+}
+function getOutboundDisplayType(code, entry, outboundMetadata) {
+  const protocol = outboundMetadata?.protocols?.[code]?.toLowerCase();
+  if (protocol === "amneziawg") return "AmneziaWG";
+  if (protocol === "tailscale") return "Tailscale";
+  return entry?.value?.type || "";
 }
 function buildUrlTestInfo({
   code,
@@ -3343,9 +3404,10 @@ function buildUrlTestInfo({
   exportableProviderTags,
   outboundMetadata
 }) {
-  const childCodes = uniqueCodes(
-    groupCache?.outbounds?.length ? groupCache.outbounds : entry?.value.all || []
-  );
+  const childCodes = uniqueCodes([
+    ...entry?.value.all || [],
+    ...groupCache?.outbounds || []
+  ]);
   const selectedCode = entry?.value.now || "";
   const outbounds = sortUrlTestMembers(
     childCodes.flatMap((childCode) => {
@@ -3366,7 +3428,7 @@ function buildUrlTestInfo({
             outboundMetadata
           ),
           latency: childEntry?.value?.history?.[0]?.delay || 0,
-          type: childEntry?.value?.type || "",
+          type: getOutboundDisplayType(childCode, childEntry, outboundMetadata),
           selected: selectedCode === childCode,
           link,
           canCopyLink
@@ -3388,7 +3450,7 @@ function buildUrlTestInfo({
     outbounds
   };
 }
-function buildPriorityInfo({
+function buildFallbackInfo({
   config,
   entry,
   groupCache,
@@ -3407,7 +3469,7 @@ function buildPriorityInfo({
     const configLevel = id ? configLevelById.get(id) : void 0;
     return {
       id: id || configLevel?.id || `level-${index + 1}`,
-      tag: level.tag || getPriorityLevelTag(
+      tag: level.tag || getFallbackLevelTag(
         config.sectionName,
         config.id,
         id || configLevel?.id || `level-${index + 1}`
@@ -3418,7 +3480,7 @@ function buildPriorityInfo({
     };
   }) : config.levels.map((level) => ({
     ...level,
-    tag: getPriorityLevelTag(config.sectionName, config.id, level.id),
+    tag: getFallbackLevelTag(config.sectionName, config.id, level.id),
     outbounds: uniqueCodes(level.outbounds || [])
   }))).sort(
     (left, right) => left.order === right.order ? left.id.localeCompare(right.id) : left.order - right.order
@@ -3445,7 +3507,7 @@ function buildPriorityInfo({
           outboundMetadata
         ),
         latency: childEntry?.value?.history?.[0]?.delay || 0,
-        type: childEntry?.value?.type || "",
+        type: getOutboundDisplayType(childCode, childEntry, outboundMetadata),
         selected: levelSelectedCode === childCode,
         link,
         canCopyLink,
@@ -3467,7 +3529,7 @@ function buildPriorityInfo({
     outbounds
   };
 }
-function buildProxyGroupOutbounds(section, proxies, outboundMetadata, urltestGroups = {}, priorityGroups = {}, exportableProviderTags = []) {
+function buildProxyGroupOutbounds(section, proxies, outboundMetadata, urltestGroups = {}, fallbackGroups = {}, exportableProviderTags = []) {
   const sectionName = section[".name"];
   const proxyByCode = getProxyEntryByCode(proxies);
   const selectorTag = getOutboundTagBySection(sectionName);
@@ -3476,22 +3538,22 @@ function buildProxyGroupOutbounds(section, proxies, outboundMetadata, urltestGro
   const urlTestConfigByCode = new Map(
     urlTestConfigs.map((config) => [config.code, config])
   );
-  const priorityConfigs = getPriorityConfigs(section);
-  const priorityConfigByCode = new Map(
-    priorityConfigs.map((config) => [config.code, config])
+  const fallbackConfigs = getFallbackConfigs(section);
+  const fallbackConfigByCode = new Map(
+    fallbackConfigs.map((config) => [config.code, config])
   );
   const urlTestEntries = urlTestConfigs.map((config) => ({
     config,
     entry: proxyByCode.get(config.code)
   }));
-  const priorityEntries = priorityConfigs.map((config) => ({
+  const fallbackEntries = fallbackConfigs.map((config) => ({
     config,
     entry: proxyByCode.get(config.code)
   }));
   const selectorCodes = selector?.value?.all ?? [];
   const manualLinkByCode = buildManualLinkByCode(section, selectorCodes);
   const urlTestCodes = urlTestConfigs.map((config) => config.code);
-  const priorityCodes = priorityConfigs.map((config) => config.code);
+  const fallbackGroupCodes = fallbackConfigs.map((config) => config.code);
   const hiddenMemberCodes = /* @__PURE__ */ new Set();
   const hideMembers = (codes) => {
     uniqueCodes(codes).forEach((code) => hiddenMemberCodes.add(code));
@@ -3504,38 +3566,38 @@ function buildProxyGroupOutbounds(section, proxies, outboundMetadata, urltestGro
       );
     }
   });
-  priorityEntries.forEach(({ config }) => {
-    const cache = priorityGroups[config.code];
+  fallbackEntries.forEach(({ config }) => {
+    const cache = fallbackGroups[config.code];
     if (!config.hideDashboardMembers && !cache?.hide_dashboard_members) {
       return;
     }
     const levels = cache?.levels?.length ? cache.levels : config.levels;
     levels.forEach((level, index) => {
       const id = `${level.id || config.levels[index]?.id || `level-${index + 1}`}`;
-      const tag = level.tag || getPriorityLevelTag(config.sectionName, config.id, id);
+      const tag = level.tag || getFallbackLevelTag(config.sectionName, config.id, id);
       const liveMembers = proxyByCode.get(tag)?.value.all || [];
       hideMembers(liveMembers.length ? liveMembers : level.outbounds || []);
     });
   });
   const builtInUrltestCode = urlTestCodes[0] || "";
-  const fallbackCodes = uniqueCodes([
+  const selectorFallbackCodes = uniqueCodes([
     ...urlTestCodes,
-    ...priorityCodes,
+    ...fallbackGroupCodes,
     ...urlTestEntries.flatMap(({ entry }) => entry?.value.all || [])
   ]);
   const groupCodes = uniqueCodes([
-    ...selectorCodes.length ? selectorCodes : fallbackCodes,
+    ...selectorCodes.length ? selectorCodes : selectorFallbackCodes,
     ...urlTestCodes,
-    ...priorityCodes
+    ...fallbackGroupCodes
   ]);
-  const groupOutboundCodes = /* @__PURE__ */ new Set([...urlTestCodes, ...priorityCodes]);
+  const groupOutboundCodes = /* @__PURE__ */ new Set([...urlTestCodes, ...fallbackGroupCodes]);
   const outbounds = uniqueCodes(groupCodes).filter(
     (code) => groupOutboundCodes.has(code) || !hiddenMemberCodes.has(code)
   ).flatMap((code) => {
     const item = proxyByCode.get(code);
     const urlTestConfig = urlTestConfigByCode.get(code);
-    const priorityConfig = priorityConfigByCode.get(code);
-    if (!item && !urlTestConfig && !priorityConfig) {
+    const fallbackConfig = fallbackConfigByCode.get(code);
+    if (!item && !urlTestConfig && !fallbackConfig) {
       return [];
     }
     const link = manualLinkByCode.get(code) || "";
@@ -3544,49 +3606,56 @@ function buildProxyGroupOutbounds(section, proxies, outboundMetadata, urltestGro
       item?.value?.type || "",
       exportableProviderTags
     );
-    const displayName = priorityConfig?.displayName || urlTestConfig?.displayName || getOutboundDisplayName(code, item, link, outboundMetadata);
+    const displayName = fallbackConfig?.displayName || urlTestConfig?.displayName || getOutboundDisplayName(code, item, link, outboundMetadata);
     const isRuntimeUrlTest = isUrlTestProxyEntry(item);
+    const urlTestInfo = urlTestConfig || isRuntimeUrlTest ? buildUrlTestInfo({
+      code,
+      displayName,
+      entry: item,
+      groupCache: urltestGroups[code],
+      proxyByCode,
+      manualLinkByCode,
+      exportableProviderTags,
+      outboundMetadata
+    }) : void 0;
+    const fallbackInfo = fallbackConfig ? buildFallbackInfo({
+      config: fallbackConfig,
+      entry: item,
+      groupCache: fallbackGroups[code],
+      proxyByCode,
+      manualLinkByCode,
+      exportableProviderTags,
+      outboundMetadata
+    }) : void 0;
+    const groupInfo = urlTestInfo || fallbackInfo;
+    const selectedGroupMember = groupInfo?.outbounds.find(
+      (member) => member.selected
+    );
+    const hasLiveGroupMember = !groupInfo || groupInfo.outbounds.length > 0;
     return [
       {
         code,
         displayName,
-        latency: item?.value.history?.[0]?.delay || 0,
-        type: priorityConfig ? "Priority" : item?.value.type || "URLTest",
+        latency: selectedGroupMember?.latency || item?.value.history?.[0]?.delay || 0,
+        type: fallbackConfig ? "Fallback" : getOutboundDisplayType(code, item, outboundMetadata) || "URLTest",
         selected: selector?.value?.now === code,
         link,
         canCopyLink,
-        runtimeAvailable: item ? void 0 : false,
-        urlTestInfo: urlTestConfig || isRuntimeUrlTest ? buildUrlTestInfo({
-          code,
-          displayName,
-          entry: item,
-          groupCache: urltestGroups[code],
-          proxyByCode,
-          manualLinkByCode,
-          exportableProviderTags,
-          outboundMetadata
-        }) : void 0,
-        priorityInfo: priorityConfig ? buildPriorityInfo({
-          config: priorityConfig,
-          entry: item,
-          groupCache: priorityGroups[code],
-          proxyByCode,
-          manualLinkByCode,
-          exportableProviderTags,
-          outboundMetadata
-        }) : void 0
+        runtimeAvailable: item && hasLiveGroupMember ? void 0 : false,
+        urlTestInfo,
+        fallbackInfo
       }
     ];
   });
   const sortedOutbounds = sortOutboundsForDashboard(outbounds, {
     pinnedCodes: [
       ...urlTestEntries.filter(({ config }) => config.pinDashboard).map(({ config }) => config.code),
-      ...priorityEntries.filter(({ config }) => config.pinDashboard).map(({ config }) => config.code)
+      ...fallbackEntries.filter(({ config }) => config.pinDashboard).map(({ config }) => config.code)
     ],
     sortByLatency: shouldSortByLatency(section)
   });
   const latencyTestCodes = sortedOutbounds.filter(
-    (outbound) => outbound.runtimeAvailable !== false && !isSelectorOutbound(outbound) && !outbound.priorityInfo
+    (outbound) => outbound.runtimeAvailable !== false && !isSelectorOutbound(outbound) && !outbound.fallbackInfo
   ).map((outbound) => outbound.code);
   return {
     selector,
@@ -3650,6 +3719,7 @@ function getSubscriptionMetadata(section, sourceCount, providerTags, providers) 
 function getOutboundMetadata(dashboardCache, providerTags = [], proxies = []) {
   const metadata = dashboardCache?.outboundMetadata;
   const names = objectMap(metadata?.names);
+  const protocols = objectMap(metadata?.protocols);
   const prefixes = providerTags.map((tag) => `${tag}/`);
   proxies.forEach((proxy) => {
     const prefix = prefixes.find((value) => proxy.code.startsWith(value));
@@ -3657,10 +3727,10 @@ function getOutboundMetadata(dashboardCache, providerTags = [], proxies = []) {
       names[proxy.code] = proxy.code.slice(prefix.length);
     }
   });
-  if (!Object.keys(names).length) {
+  if (!Object.keys(names).length && !Object.keys(protocols).length) {
     return void 0;
   }
-  return { names };
+  return { names, protocols };
 }
 async function getDashboardSections() {
   const configSections = hydrateConfigSections(await getConfigSections());
@@ -3710,13 +3780,13 @@ async function getDashboardSections() {
           providers
         ) : void 0;
         const urltestGroups = getUrlTestGroups(dashboardCache);
-        const priorityGroups = getPriorityGroups(dashboardCache);
+        const fallbackGroups = getFallbackGroups(dashboardCache);
         const { selector, latencyTestCode, latencyTestCodes, outbounds } = buildProxyGroupOutbounds(
           section,
           proxies,
           outboundMetadata,
           urltestGroups,
-          priorityGroups,
+          fallbackGroups,
           providerTags.slice(0, subscriptionSourceCount)
         );
         return {
@@ -5171,6 +5241,7 @@ var dashboardDataUpdatesId = 0;
 var pageUnloading = false;
 var followedLatencyJobs = /* @__PURE__ */ new Set();
 var handledLatencyJobs = /* @__PURE__ */ new Set();
+var latencyFetchingTargets = {};
 if (typeof window !== "undefined") {
   window.addEventListener("pagehide", () => {
     pageUnloading = true;
@@ -5289,7 +5360,7 @@ function setSelectorSwitching(sectionName, tag) {
     }
   });
 }
-function setLatencyFetching(sectionName, fetching, local = false, progress) {
+function setLatencyFetching(sectionName, fetching, local = false, progress, target) {
   if (local || !fetching) {
     setLocalLatencyAction(sectionName, fetching && local);
   }
@@ -5302,12 +5373,16 @@ function setLatencyFetching(sectionName, fetching, local = false, progress) {
   };
   if (fetching) {
     latencyFetchingSections[sectionName] = true;
+    if (target) {
+      latencyFetchingTargets[sectionName] = target;
+    }
     if (progress) {
       latencyProgressSections[sectionName] = progress;
     }
   } else {
     delete latencyFetchingSections[sectionName];
     delete latencyProgressSections[sectionName];
+    delete latencyFetchingTargets[sectionName];
   }
   store.set({
     sectionsWidget: {
@@ -5540,7 +5615,7 @@ async function handleChooseOutbound(sectionName, selector, tag) {
 }
 function getInitialLatencyProgress(latencyType, tag) {
   if (latencyType !== "proxy_list") {
-    return void 0;
+    return { completed: 0, total: 1, failed: 0 };
   }
   try {
     const tags = JSON.parse(tag);
@@ -5555,7 +5630,7 @@ function getInitialLatencyProgress(latencyType, tag) {
     return void 0;
   }
 }
-async function handleTestLatency(latencyType, sectionName, tag, timeout) {
+async function handleTestLatency(latencyType, sectionName, tag, timeout, target) {
   if (store.get().sectionsWidget.latencyFetchingSections[sectionName]) {
     return;
   }
@@ -5563,7 +5638,8 @@ async function handleTestLatency(latencyType, sectionName, tag, timeout) {
     sectionName,
     true,
     true,
-    getInitialLatencyProgress(latencyType, tag)
+    getInitialLatencyProgress(latencyType, tag),
+    target
   );
   let jobId = "";
   let ownsJobFollow = false;
@@ -5842,7 +5918,7 @@ function handleShowUrlTestInfo(outbound) {
     renderUrlTestInfoModal(outbound)
   );
 }
-function renderPrioritySelectedValue(info) {
+function renderFallbackSelectedValue(info) {
   const selectedMember = info.outbounds.find((member) => member.selected);
   const selectedName = selectedMember?.displayName || info.selectedName || info.selectedCode || "";
   const name = formatUrlTestModalValue(selectedName);
@@ -5858,10 +5934,10 @@ function renderPrioritySelectedValue(info) {
         {
           class: [
             "fkp_dashboard-page__urltest-details__selected-name",
-            selectedMember ? "fkp_dashboard-page__urltest-details__priority-name" : ""
+            selectedMember ? "fkp_dashboard-page__urltest-details__fallback-name" : ""
           ].filter(Boolean).join(" ")
         },
-        selectedMember ? renderPriorityMemberName(selectedMember) : name
+        selectedMember ? renderFallbackMemberName(selectedMember) : name
       ),
       ...selectedMember?.type ? [
         E(
@@ -5880,35 +5956,35 @@ function renderPrioritySelectedValue(info) {
     ]
   );
 }
-function renderPriorityMemberName(member) {
+function renderFallbackMemberName(member) {
   const levelName = member.levelName || _("Level");
   return [
     E(
       "span",
-      { class: "fkp_dashboard-page__urltest-details__priority-number" },
+      { class: "fkp_dashboard-page__urltest-details__fallback-number" },
       `#${member.levelIndex + 1}`
     ),
     E(
       "span",
-      { class: "fkp_dashboard-page__urltest-details__priority-level" },
+      { class: "fkp_dashboard-page__urltest-details__fallback-level" },
       levelName
     ),
     E(
       "span",
-      { class: "fkp_dashboard-page__urltest-details__priority-node" },
+      { class: "fkp_dashboard-page__urltest-details__fallback-node" },
       renderDetailsMemberName(member)
     )
   ];
 }
-function renderPriorityInfoModal(outbound) {
-  const info = outbound.priorityInfo;
+function renderFallbackInfoModal(outbound) {
+  const info = outbound.fallbackInfo;
   if (!info) {
-    return E("div", {}, _("Priority details are unavailable"));
+    return E("div", {}, _("Fallback details are unavailable"));
   }
   const fields = [
     {
       label: _("Last used"),
-      children: [renderPrioritySelectedValue(info)]
+      children: [renderFallbackSelectedValue(info)]
     },
     { label: _("Blacklist timeout"), value: info.blacklistTimeout }
   ];
@@ -5955,9 +6031,9 @@ function renderPriorityInfoModal(outbound) {
                   E(
                     "b",
                     {
-                      class: "fkp_dashboard-page__urltest-details__priority-name"
+                      class: "fkp_dashboard-page__urltest-details__fallback-name"
                     },
-                    renderPriorityMemberName(member)
+                    renderFallbackMemberName(member)
                   ),
                   ...member.type ? [
                     E(
@@ -6015,13 +6091,13 @@ function renderPriorityInfoModal(outbound) {
     ])
   ]);
 }
-function handleShowPriorityInfo(outbound) {
-  if (!outbound.priorityInfo) {
+function handleShowFallbackInfo(outbound) {
+  if (!outbound.fallbackInfo) {
     return;
   }
   ui.showModal(
-    `${_("priority details")}: ${outbound.priorityInfo.displayName || outbound.displayName}`,
-    renderPriorityInfoModal(outbound)
+    `${_("Fallback details")}: ${outbound.fallbackInfo.displayName || outbound.displayName}`,
+    renderFallbackInfoModal(outbound)
   );
 }
 async function handleUpdateSubscription(section) {
@@ -6122,13 +6198,15 @@ async function renderSectionsWidget() {
       },
       onTestLatency: () => {
       },
+      onTestOutboundLatency: () => {
+      },
       onChooseOutbound: () => {
       },
       onCopyOutbound: () => {
       },
       onShowUrlTestInfo: () => {
       },
-      onShowPriorityInfo: () => {
+      onShowFallbackInfo: () => {
       },
       onUpdateSubscription: () => {
       },
@@ -6150,6 +6228,7 @@ async function renderSectionsWidget() {
         sectionsWidget.latencyFetchingSections[section.sectionName]
       ),
       latencyProgress: sectionsWidget.latencyProgressSections[section.sectionName],
+      latencyFetchingTarget: latencyFetchingTargets[section.sectionName],
       subscriptionUpdating: Boolean(
         sectionsWidget.subscriptionUpdatingSections[section.sectionName]
       ),
@@ -6172,6 +6251,16 @@ async function renderSectionsWidget() {
           section.latencyTestTimeout
         );
       },
+      onTestOutboundLatency: (latencyType, tag) => {
+        const serializedTag = Array.isArray(tag) ? JSON.stringify(tag) : tag;
+        void handleTestLatency(
+          latencyType,
+          section.sectionName,
+          serializedTag,
+          section.latencyTestTimeout,
+          serializedTag
+        );
+      },
       onChooseOutbound: (sectionName, selector, tag) => {
         void handleChooseOutbound(sectionName, selector, tag);
       },
@@ -6181,8 +6270,8 @@ async function renderSectionsWidget() {
       onShowUrlTestInfo: (outbound) => {
         handleShowUrlTestInfo(outbound);
       },
-      onShowPriorityInfo: (outbound) => {
-        handleShowPriorityInfo(outbound);
+      onShowFallbackInfo: (outbound) => {
+        handleShowFallbackInfo(outbound);
       },
       onUpdateSubscription: (section2) => {
         void handleUpdateSubscription(section2);
@@ -6764,6 +6853,8 @@ var styles = `
     transition: border 0.2s ease;
     min-width: 0;
     position: relative;
+    display: flex;
+    flex-direction: column;
 }
 
 .fkp_dashboard-page__outbound-grid__item--selectable {
@@ -6851,16 +6942,53 @@ var styles = `
 }
 
 .fkp_dashboard-page__outbound-grid__item__footer {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(42px, max-content);
     align-items: center;
-    justify-content: space-between;
     gap: 8px;
-    margin-top: 10px;
+    margin-top: auto;
+    padding-top: 10px;
 }
 
 .fkp_dashboard-page__outbound-grid__item__type {
     min-width: 0;
     overflow-wrap: anywhere;
+}
+
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-grid__item__latency {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin-right: 0 !important;
+    text-decoration: none !important;
+    font: inherit;
+    line-height: inherit;
+    justify-self: end;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    cursor: pointer;
+    transition: color 0.15s ease, opacity 0.15s ease !important;
+}
+
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-grid__item__latency:hover,
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-grid__item__latency:focus-visible {
+    background: transparent !important;
+    color: var(--primary-color-high, #337ab7) !important;
+}
+
+.fkp_dashboard-page__outbound-grid__item__latency {
+    min-width: 42px;
+    justify-self: end;
+    text-align: right;
+}
+
+.fkp_dashboard-page__outbound-grid__item__latency svg {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 auto;
 }
 
 .fkp_dashboard-page__outbound-grid__item__latency--empty {
@@ -6871,12 +6999,30 @@ var styles = `
     color: var(--success-color-medium, green);
 }
 
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-grid__item__latency--green:hover,
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-grid__item__latency--green:focus-visible {
+    opacity: 0.7 !important;
+    color: var(--success-color-medium, green) !important;
+}
+
 .fkp_dashboard-page__outbound-grid__item__latency--yellow {
     color: var(--warn-color-medium, orange);
 }
 
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-grid__item__latency--yellow:hover,
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-grid__item__latency--yellow:focus-visible {
+    opacity: 0.7 !important;
+    color: var(--warn-color-medium, orange) !important;
+}
+
 .fkp_dashboard-page__outbound-grid__item__latency--red {
     color: var(--error-color-medium, red);
+}
+
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-grid__item__latency--red:hover,
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-grid__item__latency--red:focus-visible {
+    opacity: 0.7 !important;
+    color: var(--error-color-medium, red) !important;
 }
 
 .fkp_dashboard-page__urltest-details {
@@ -7005,14 +7151,14 @@ var styles = `
     line-height: 1.3;
 }
 
-.fkp_dashboard-page__urltest-details__priority-name {
+.fkp_dashboard-page__urltest-details__fallback-name {
     display: inline-flex;
     align-items: center;
     flex-wrap: wrap;
     gap: 2px 0;
 }
 
-.fkp_dashboard-page__urltest-details__priority-number {
+.fkp_dashboard-page__urltest-details__fallback-number {
     margin-right: 6px;
     color: var(--text-color-medium, #aaa);
     font-family: monospace;
@@ -7020,7 +7166,7 @@ var styles = `
     font-weight: 600;
 }
 
-.fkp_dashboard-page__urltest-details__priority-level {
+.fkp_dashboard-page__urltest-details__fallback-level {
     margin-right: 8px;
     padding: 2px 6px;
     border-radius: 4px;
@@ -7049,7 +7195,7 @@ var styles = `
     font-weight: normal;
 }
 
-.fkp_dashboard-page__urltest-details__priority-node {
+.fkp_dashboard-page__urltest-details__fallback-node {
     color: var(--text-color-high, #fff);
     font-weight: 600;
 }
@@ -13626,6 +13772,7 @@ return baseclass.extend({
   bulkValidate,
   coreService,
   getClashUIUrl,
+  getOutboundTagBySection,
   getProxyUrlName,
   injectGlobalStyles,
   parseValueList,

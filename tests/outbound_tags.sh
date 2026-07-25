@@ -67,18 +67,18 @@ cat >"$WORK_DIR/runtime-tags.json" <<'JSON'
       "include_regex": [ "^germany$" ]
     }
   ],
-  "priority_group": [
+  "fallback_group": [
     {
       ".name": "pg_main",
-      ".type": "priority_group",
+      ".type": "fallback_group",
       "section": "proxy",
-      "name": "Priority"
+      "name": "Fallback"
     }
   ],
-  "priority_level": [
+  "fallback_level": [
     {
       ".name": "pl_main",
-      ".type": "priority_level",
+      ".type": "fallback_level",
       "group": "pg_main",
       "name": "All",
       "order": "0",
@@ -114,7 +114,7 @@ for (let tag in [
     "germany", "germany-1", "service-mixed-in-1",
     "proxy-interface-1-out", "direct-out-1", "json-hop", "json-hop-1",
     "json-group", "proxy-urltest-ut_name-out", "proxy-urltest-ut_regex-out",
-    "proxy-priority-pg_main-out"
+    "proxy-fallback-pg_main-out"
 ])
     if (!by_tag[tag])
         die("missing allocated outbound tag: " + tag + "\n");

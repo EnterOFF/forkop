@@ -24,7 +24,7 @@ type DashboardSectionCache = {
   section?: string;
   outboundMetadata?: Forkop.GetOutboundMetadata;
   urltestGroups?: Record<string, UrlTestCacheGroup>;
-  priorityGroups?: Record<string, PriorityCacheGroup>;
+  fallbackGroups?: Record<string, FallbackCacheGroup>;
   providerTags?: string[];
 };
 
@@ -39,7 +39,7 @@ type UrlTestCacheGroup = {
   hide_dashboard_members?: boolean;
 };
 
-type PriorityCacheLevel = {
+type FallbackCacheLevel = {
   id?: string;
   tag?: string;
   displayName?: string;
@@ -47,7 +47,7 @@ type PriorityCacheLevel = {
   outbounds?: string[];
 };
 
-type PriorityCacheGroup = {
+type FallbackCacheGroup = {
   id?: string;
   tag?: string;
   section?: string;
@@ -56,10 +56,10 @@ type PriorityCacheGroup = {
   pin_dashboard?: boolean;
   hide_dashboard_members?: boolean;
   outbounds?: string[];
-  levels?: PriorityCacheLevel[];
+  levels?: FallbackCacheLevel[];
 };
 
-type PriorityLevelConfig = {
+type FallbackLevelConfig = {
   id: string;
   tag?: string;
   displayName: string;
@@ -67,7 +67,7 @@ type PriorityLevelConfig = {
   outbounds?: string[];
 };
 
-type ItemSettingsValue = string | string[] | PriorityLevelConfig[] | undefined;
+type ItemSettingsValue = string | string[] | FallbackLevelConfig[] | undefined;
 type ItemSettings = Record<string, ItemSettingsValue>;
 
 type UrlTestConfig = {
@@ -79,7 +79,7 @@ type UrlTestConfig = {
   hideDashboardMembers: boolean;
 };
 
-type PriorityConfig = {
+type FallbackConfig = {
   id: string;
   sectionName: string;
   code: string;
@@ -87,15 +87,17 @@ type PriorityConfig = {
   pinDashboard: boolean;
   hideDashboardMembers: boolean;
   blacklistTimeout: string;
-  levels: PriorityLevelConfig[];
+  levels: FallbackLevelConfig[];
 };
 
 type ChildType =
   | 'subscription_url'
   | 'section_interface'
   | 'urltest'
-  | 'priority_group'
-  | 'priority_level';
+  | 'fallback_group'
+  | 'fallback_level'
+  | 'tunnel'
+  | 'tunnel_peer';
 
 const CLASH_API_FETCH_TIMEOUT_MS = 5000;
 const EXPORTABLE_PROVIDER_PROXY_TYPES = new Set([
@@ -224,8 +226,9 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
   const subscriptionUrls = childSections(configSections, 'subscription_url');
   const interfaces = childSections(configSections, 'section_interface');
   const urltests = childSections(configSections, 'urltest');
-  const priorityGroups = childSections(configSections, 'priority_group');
-  const priorityLevels = childSections(configSections, 'priority_level');
+  const fallbackGroups = childSections(configSections, 'fallback_group');
+  const fallbackLevels = childSections(configSections, 'fallback_level');
+  const tunnels = childSections(configSections, 'tunnel');
 
   return configSections.map((section) => {
     if (section['.type'] !== 'section') {
@@ -236,7 +239,8 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
     const subscriptionUrlItems = ownedChildSections(next, subscriptionUrls);
     const interfaceItems = ownedChildSections(next, interfaces);
     const urltestItems = ownedChildSections(next, urltests);
-    const priorityGroupItems = ownedChildSections(next, priorityGroups);
+    const fallbackGroupItems = ownedChildSections(next, fallbackGroups);
+    const tunnelItems = ownedChildSections(next, tunnels);
 
     if (subscriptionUrlItems.length) {
       const settings: Record<string, ItemSettings> = {};
@@ -295,14 +299,14 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
       next.urltest_settings = compactSettingsMap(settings);
     }
 
-    if (priorityGroupItems.length) {
+    if (fallbackGroupItems.length) {
       const settings: Record<string, ItemSettings> = {};
-      next.priority_groups = priorityGroupItems.map((item) => item['.name']);
-      priorityGroupItems.forEach((item) => {
+      next.fallback_groups = fallbackGroupItems.map((item) => item['.name']);
+      fallbackGroupItems.forEach((item) => {
         const groupId = item['.name'];
-        const levels = childSectionsByOwner(priorityLevels, 'group', groupId)
+        const levels = childSectionsByOwner(fallbackLevels, 'group', groupId)
           .map(
-            (level, index): PriorityLevelConfig => ({
+            (level, index): FallbackLevelConfig => ({
               id: level['.name'],
               displayName: level.name || level['.name'],
               order: Number.parseInt(level.order || `${index}`, 10) || 0,
@@ -322,7 +326,11 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
           levels,
         };
       });
-      next.priority_group_settings = compactSettingsMap(settings);
+      next.fallback_group_settings = compactSettingsMap(settings);
+    }
+
+    if (tunnelItems.length) {
+      next.tunnels = tunnelItems.map((item) => item['.name']);
     }
 
     return next;
@@ -336,6 +344,10 @@ function getManualProxyLinks(section: Forkop.ConfigSection) {
 function getConnectionInterfaces(section: Forkop.ConfigSection) {
   const values = getListValues(section.interfaces);
   return values.length ? values : getListValues(section.interface);
+}
+
+function getConnectionTunnels(section: Forkop.ConfigSection) {
+  return getListValues(section.tunnels);
 }
 
 function getJsonOutbounds(section: Forkop.ConfigSection) {
@@ -365,8 +377,8 @@ function hasConfiguredUrlTestList(section: Forkop.ConfigSection) {
   return getListValues(section.urltests).length > 0;
 }
 
-function hasConfiguredPriorityList(section: Forkop.ConfigSection) {
-  return getListValues(section.priority_groups).length > 0;
+function hasConfiguredFallbackList(section: Forkop.ConfigSection) {
+  return getListValues(section.fallback_groups).length > 0;
 }
 
 function getUrlTestIds(section: Forkop.ConfigSection) {
@@ -387,9 +399,10 @@ function shouldUseProxyGroup(section: Forkop.ConfigSection) {
     getManualProxyLinks(section).length > 0 ||
     hasSubscriptionSources(section) ||
     getConnectionInterfaces(section).length > 0 ||
+    getConnectionTunnels(section).length > 0 ||
     getJsonOutbounds(section).length > 0 ||
     isUrlTestEnabled(section) ||
-    hasConfiguredPriorityList(section)
+    hasConfiguredFallbackList(section)
   );
 }
 
@@ -406,6 +419,10 @@ function getSectionProxyConfigType(section: Forkop.ConfigSection) {
     return 'selector' as const;
   }
 
+  if (getConnectionTunnels(section).length > 0) {
+    return 'selector' as const;
+  }
+
   if (getJsonOutbounds(section).length > 0) {
     return 'outbound' as const;
   }
@@ -414,7 +431,7 @@ function getSectionProxyConfigType(section: Forkop.ConfigSection) {
     return 'interface' as const;
   }
 
-  if (hasConfiguredPriorityList(section)) {
+  if (hasConfiguredFallbackList(section)) {
     return 'selector' as const;
   }
 
@@ -625,17 +642,17 @@ function getUrlTestTag(sectionName: string, id: string) {
   );
 }
 
-function getPriorityTag(sectionName: string, id: string) {
-  return getOutboundTagBySection(`${sectionName}-priority-${id}`);
+function getFallbackTag(sectionName: string, id: string) {
+  return getOutboundTagBySection(`${sectionName}-fallback-${id}`);
 }
 
-function getPriorityLevelTag(
+function getFallbackLevelTag(
   sectionName: string,
   groupId: string,
   levelId: string,
 ) {
   return getOutboundTagBySection(
-    `${sectionName}-priority-${groupId}-level-${levelId}`,
+    `${sectionName}-fallback-${groupId}-level-${levelId}`,
   );
 }
 
@@ -673,9 +690,9 @@ function getUrlTestConfigs(section: Forkop.ConfigSection): UrlTestConfig[] {
   });
 }
 
-function priorityLevelConfigsFromSettings(
+function fallbackLevelConfigsFromSettings(
   settings: ItemSettings | undefined,
-): PriorityLevelConfig[] {
+): FallbackLevelConfig[] {
   const value = settings?.levels;
 
   if (!Array.isArray(value)) {
@@ -688,7 +705,7 @@ function priorityLevelConfigsFromSettings(
         return [];
       }
 
-      const level = item as Partial<PriorityLevelConfig> &
+      const level = item as Partial<FallbackLevelConfig> &
         Record<string, unknown>;
       const id = `${level.id || ''}`.trim();
 
@@ -715,22 +732,22 @@ function priorityLevelConfigsFromSettings(
     );
 }
 
-function getPriorityGroupIds(section: Forkop.ConfigSection) {
-  return getListValues(section.priority_groups);
+function getFallbackGroupIds(section: Forkop.ConfigSection) {
+  return getListValues(section.fallback_groups);
 }
 
-function getPriorityConfigs(section: Forkop.ConfigSection): PriorityConfig[] {
-  const settingsMap = itemSettingsMap(section.priority_group_settings);
+function getFallbackConfigs(section: Forkop.ConfigSection): FallbackConfig[] {
+  const settingsMap = itemSettingsMap(section.fallback_group_settings);
   const sectionName = section['.name'];
 
-  return getPriorityGroupIds(section).map((id) => {
+  return getFallbackGroupIds(section).map((id) => {
     const settings = settingsMap[id] || {};
-    const levels = priorityLevelConfigsFromSettings(settings);
+    const levels = fallbackLevelConfigsFromSettings(settings);
 
     return {
       id,
       sectionName,
-      code: getPriorityTag(sectionName, id),
+      code: getFallbackTag(sectionName, id),
       displayName: itemSettingString(settings, 'name', id),
       pinDashboard: itemSettingBoolean(settings, 'pin_dashboard', true),
       hideDashboardMembers: itemSettingBoolean(
@@ -773,8 +790,8 @@ function getUrlTestGroups(dashboardCache?: DashboardSectionCache) {
   return groups;
 }
 
-function getPriorityGroups(dashboardCache?: DashboardSectionCache) {
-  const groups = dashboardCache?.priorityGroups;
+function getFallbackGroups(dashboardCache?: DashboardSectionCache) {
+  const groups = dashboardCache?.fallbackGroups;
 
   if (!groups || typeof groups !== 'object' || Array.isArray(groups)) {
     return {};
@@ -792,6 +809,17 @@ function getOutboundDisplayName(
   const metadataName = outboundMetadata?.names?.[code];
 
   return getProxyUrlName(link) || metadataName || entry?.value?.name || code;
+}
+
+function getOutboundDisplayType(
+  code: string,
+  entry: ClashProxyEntry | undefined,
+  outboundMetadata?: Forkop.GetOutboundMetadata,
+) {
+  const protocol = outboundMetadata?.protocols?.[code]?.toLowerCase();
+  if (protocol === 'amneziawg') return 'AmneziaWG';
+  if (protocol === 'tailscale') return 'Tailscale';
+  return entry?.value?.type || '';
 }
 
 function buildUrlTestInfo({
@@ -813,11 +841,10 @@ function buildUrlTestInfo({
   exportableProviderTags: string[];
   outboundMetadata?: Forkop.GetOutboundMetadata;
 }): Forkop.UrlTestInfo {
-  const childCodes = uniqueCodes(
-    groupCache?.outbounds?.length
-      ? groupCache.outbounds
-      : entry?.value.all || [],
-  );
+  const childCodes = uniqueCodes([
+    ...(entry?.value.all || []),
+    ...(groupCache?.outbounds || []),
+  ]);
   const selectedCode = entry?.value.now || '';
   const outbounds = sortUrlTestMembers(
     childCodes.flatMap((childCode) => {
@@ -841,7 +868,7 @@ function buildUrlTestInfo({
             outboundMetadata,
           ),
           latency: childEntry?.value?.history?.[0]?.delay || 0,
-          type: childEntry?.value?.type || '',
+          type: getOutboundDisplayType(childCode, childEntry, outboundMetadata),
           selected: selectedCode === childCode,
           link,
           canCopyLink,
@@ -867,7 +894,7 @@ function buildUrlTestInfo({
   };
 }
 
-function buildPriorityInfo({
+function buildFallbackInfo({
   config,
   entry,
   groupCache,
@@ -876,14 +903,14 @@ function buildPriorityInfo({
   exportableProviderTags,
   outboundMetadata,
 }: {
-  config: PriorityConfig;
+  config: FallbackConfig;
   entry?: ClashProxyEntry;
-  groupCache?: PriorityCacheGroup;
+  groupCache?: FallbackCacheGroup;
   proxyByCode: Map<string, ClashProxyEntry>;
   manualLinkByCode: Map<string, string>;
   exportableProviderTags: string[];
   outboundMetadata?: Forkop.GetOutboundMetadata;
-}): Forkop.PriorityInfo {
+}): Forkop.FallbackInfo {
   const selectedLevelTag = entry?.value.now || '';
   const cacheLevels = Array.isArray(groupCache?.levels)
     ? groupCache.levels
@@ -893,7 +920,7 @@ function buildPriorityInfo({
   );
   const levels = (
     cacheLevels.length
-      ? cacheLevels.map((level, index): PriorityLevelConfig => {
+      ? cacheLevels.map((level, index): FallbackLevelConfig => {
           const id = `${level.id || ''}`;
           const configLevel = id ? configLevelById.get(id) : undefined;
 
@@ -901,7 +928,7 @@ function buildPriorityInfo({
             id: id || configLevel?.id || `level-${index + 1}`,
             tag:
               level.tag ||
-              getPriorityLevelTag(
+              getFallbackLevelTag(
                 config.sectionName,
                 config.id,
                 id || configLevel?.id || `level-${index + 1}`,
@@ -917,7 +944,7 @@ function buildPriorityInfo({
         })
       : config.levels.map((level) => ({
           ...level,
-          tag: getPriorityLevelTag(config.sectionName, config.id, level.id),
+          tag: getFallbackLevelTag(config.sectionName, config.id, level.id),
           outbounds: uniqueCodes(level.outbounds || []),
         }))
   ).sort((left, right) =>
@@ -951,7 +978,7 @@ function buildPriorityInfo({
           outboundMetadata,
         ),
         latency: childEntry?.value?.history?.[0]?.delay || 0,
-        type: childEntry?.value?.type || '',
+        type: getOutboundDisplayType(childCode, childEntry, outboundMetadata),
         selected: levelSelectedCode === childCode,
         link,
         canCopyLink,
@@ -984,7 +1011,7 @@ function buildProxyGroupOutbounds(
   proxies: ClashProxyEntry[],
   outboundMetadata?: Forkop.GetOutboundMetadata,
   urltestGroups: Record<string, UrlTestCacheGroup> = {},
-  priorityGroups: Record<string, PriorityCacheGroup> = {},
+  fallbackGroups: Record<string, FallbackCacheGroup> = {},
   exportableProviderTags: string[] = [],
 ) {
   const sectionName = section['.name'];
@@ -995,22 +1022,22 @@ function buildProxyGroupOutbounds(
   const urlTestConfigByCode = new Map(
     urlTestConfigs.map((config) => [config.code, config]),
   );
-  const priorityConfigs = getPriorityConfigs(section);
-  const priorityConfigByCode = new Map(
-    priorityConfigs.map((config) => [config.code, config]),
+  const fallbackConfigs = getFallbackConfigs(section);
+  const fallbackConfigByCode = new Map(
+    fallbackConfigs.map((config) => [config.code, config]),
   );
   const urlTestEntries = urlTestConfigs.map((config) => ({
     config,
     entry: proxyByCode.get(config.code),
   }));
-  const priorityEntries = priorityConfigs.map((config) => ({
+  const fallbackEntries = fallbackConfigs.map((config) => ({
     config,
     entry: proxyByCode.get(config.code),
   }));
   const selectorCodes = selector?.value?.all ?? [];
   const manualLinkByCode = buildManualLinkByCode(section, selectorCodes);
   const urlTestCodes = urlTestConfigs.map((config) => config.code);
-  const priorityCodes = priorityConfigs.map((config) => config.code);
+  const fallbackGroupCodes = fallbackConfigs.map((config) => config.code);
   const hiddenMemberCodes = new Set<string>();
   const hideMembers = (codes: string[]) => {
     uniqueCodes(codes).forEach((code) => hiddenMemberCodes.add(code));
@@ -1024,8 +1051,8 @@ function buildProxyGroupOutbounds(
       );
     }
   });
-  priorityEntries.forEach(({ config }) => {
-    const cache = priorityGroups[config.code];
+  fallbackEntries.forEach(({ config }) => {
+    const cache = fallbackGroups[config.code];
     if (!config.hideDashboardMembers && !cache?.hide_dashboard_members) {
       return;
     }
@@ -1034,23 +1061,23 @@ function buildProxyGroupOutbounds(
     levels.forEach((level, index) => {
       const id = `${level.id || config.levels[index]?.id || `level-${index + 1}`}`;
       const tag =
-        level.tag || getPriorityLevelTag(config.sectionName, config.id, id);
+        level.tag || getFallbackLevelTag(config.sectionName, config.id, id);
       const liveMembers = proxyByCode.get(tag)?.value.all || [];
       hideMembers(liveMembers.length ? liveMembers : level.outbounds || []);
     });
   });
   const builtInUrltestCode = urlTestCodes[0] || '';
-  const fallbackCodes = uniqueCodes([
+  const selectorFallbackCodes = uniqueCodes([
     ...urlTestCodes,
-    ...priorityCodes,
+    ...fallbackGroupCodes,
     ...urlTestEntries.flatMap(({ entry }) => entry?.value.all || []),
   ]);
   const groupCodes = uniqueCodes([
-    ...(selectorCodes.length ? selectorCodes : fallbackCodes),
+    ...(selectorCodes.length ? selectorCodes : selectorFallbackCodes),
     ...urlTestCodes,
-    ...priorityCodes,
+    ...fallbackGroupCodes,
   ]);
-  const groupOutboundCodes = new Set([...urlTestCodes, ...priorityCodes]);
+  const groupOutboundCodes = new Set([...urlTestCodes, ...fallbackGroupCodes]);
 
   const outbounds = uniqueCodes(groupCodes)
     .filter(
@@ -1059,9 +1086,9 @@ function buildProxyGroupOutbounds(
     .flatMap((code) => {
       const item = proxyByCode.get(code);
       const urlTestConfig = urlTestConfigByCode.get(code);
-      const priorityConfig = priorityConfigByCode.get(code);
+      const fallbackConfig = fallbackConfigByCode.get(code);
 
-      if (!item && !urlTestConfig && !priorityConfig) {
+      if (!item && !urlTestConfig && !fallbackConfig) {
         return [];
       }
 
@@ -1074,45 +1101,57 @@ function buildProxyGroupOutbounds(
           exportableProviderTags,
         );
       const displayName =
-        priorityConfig?.displayName ||
+        fallbackConfig?.displayName ||
         urlTestConfig?.displayName ||
         getOutboundDisplayName(code, item, link, outboundMetadata);
       const isRuntimeUrlTest = isUrlTestProxyEntry(item);
+      const urlTestInfo =
+        urlTestConfig || isRuntimeUrlTest
+          ? buildUrlTestInfo({
+              code,
+              displayName,
+              entry: item,
+              groupCache: urltestGroups[code],
+              proxyByCode,
+              manualLinkByCode,
+              exportableProviderTags,
+              outboundMetadata,
+            })
+          : undefined;
+      const fallbackInfo = fallbackConfig
+        ? buildFallbackInfo({
+            config: fallbackConfig,
+            entry: item,
+            groupCache: fallbackGroups[code],
+            proxyByCode,
+            manualLinkByCode,
+            exportableProviderTags,
+            outboundMetadata,
+          })
+        : undefined;
+      const groupInfo = urlTestInfo || fallbackInfo;
+      const selectedGroupMember = groupInfo?.outbounds.find(
+        (member) => member.selected,
+      );
+      const hasLiveGroupMember = !groupInfo || groupInfo.outbounds.length > 0;
 
       return [
         {
           code,
           displayName,
-          latency: item?.value.history?.[0]?.delay || 0,
-          type: priorityConfig ? 'Priority' : item?.value.type || 'URLTest',
+          latency:
+            selectedGroupMember?.latency ||
+            item?.value.history?.[0]?.delay ||
+            0,
+          type: fallbackConfig
+            ? 'Fallback'
+            : getOutboundDisplayType(code, item, outboundMetadata) || 'URLTest',
           selected: selector?.value?.now === code,
           link,
           canCopyLink,
-          runtimeAvailable: item ? undefined : false,
-          urlTestInfo:
-            urlTestConfig || isRuntimeUrlTest
-              ? buildUrlTestInfo({
-                  code,
-                  displayName,
-                  entry: item,
-                  groupCache: urltestGroups[code],
-                  proxyByCode,
-                  manualLinkByCode,
-                  exportableProviderTags,
-                  outboundMetadata,
-                })
-              : undefined,
-          priorityInfo: priorityConfig
-            ? buildPriorityInfo({
-                config: priorityConfig,
-                entry: item,
-                groupCache: priorityGroups[code],
-                proxyByCode,
-                manualLinkByCode,
-                exportableProviderTags,
-                outboundMetadata,
-              })
-            : undefined,
+          runtimeAvailable: item && hasLiveGroupMember ? undefined : false,
+          urlTestInfo,
+          fallbackInfo,
         },
       ];
     });
@@ -1122,7 +1161,7 @@ function buildProxyGroupOutbounds(
       ...urlTestEntries
         .filter(({ config }) => config.pinDashboard)
         .map(({ config }) => config.code),
-      ...priorityEntries
+      ...fallbackEntries
         .filter(({ config }) => config.pinDashboard)
         .map(({ config }) => config.code),
     ],
@@ -1133,7 +1172,7 @@ function buildProxyGroupOutbounds(
       (outbound) =>
         outbound.runtimeAvailable !== false &&
         !isSelectorOutbound(outbound) &&
-        !outbound.priorityInfo,
+        !outbound.fallbackInfo,
     )
     .map((outbound) => outbound.code);
 
@@ -1248,6 +1287,7 @@ function getOutboundMetadata(
 ) {
   const metadata = dashboardCache?.outboundMetadata;
   const names = objectMap(metadata?.names);
+  const protocols = objectMap(metadata?.protocols);
   const prefixes = providerTags.map((tag) => `${tag}/`);
 
   proxies.forEach((proxy) => {
@@ -1257,11 +1297,11 @@ function getOutboundMetadata(
     }
   });
 
-  if (!Object.keys(names).length) {
+  if (!Object.keys(names).length && !Object.keys(protocols).length) {
     return undefined;
   }
 
-  return { names };
+  return { names, protocols };
 }
 
 export async function getDashboardSections(): Promise<IGetDashboardSectionsResponse> {
@@ -1324,14 +1364,14 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
               )
             : undefined;
           const urltestGroups = getUrlTestGroups(dashboardCache);
-          const priorityGroups = getPriorityGroups(dashboardCache);
+          const fallbackGroups = getFallbackGroups(dashboardCache);
           const { selector, latencyTestCode, latencyTestCodes, outbounds } =
             buildProxyGroupOutbounds(
               section,
               proxies,
               outboundMetadata,
               urltestGroups,
-              priorityGroups,
+              fallbackGroups,
               providerTags.slice(0, subscriptionSourceCount),
             );
 

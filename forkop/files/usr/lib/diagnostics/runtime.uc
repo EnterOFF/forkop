@@ -41,6 +41,7 @@ const CLOUDFLARE_OCTETS = getenv("CLOUDFLARE_OCTETS") || constants.CLOUDFLARE_OC
 const ZAPRET_LEGACY_DEFAULT_NFQWS_OPT = getenv("ZAPRET_LEGACY_DEFAULT_NFQWS_OPT") || constants.ZAPRET_LEGACY_DEFAULT_NFQWS_OPT || "";
 const DEFAULT_LATENCY_TEST_URL = getenv("DEFAULT_LATENCY_TEST_URL") || "https://www.gstatic.com/generate_204";
 const RUNTIME_STABLE_MIN_AGE = getenv("FORKOP_RUNTIME_STABLE_MIN_AGE") || "2";
+const SING_BOX_FORKOP_VERSION_FILE = getenv("SING_BOX_FORKOP_VERSION_FILE") || "/usr/share/sing-box-forkop/version";
 
 const STATUS_UC = LIB_DIR + "/diagnostics/status.uc";
 const HELPERS_UC = LIB_DIR + "/core/helpers.uc";
@@ -1059,6 +1060,12 @@ function system_info_cache_is_valid() {
     let generated_at = arg_number(cache.generated_at || 0);
     if (now > 0 && generated_at > 0 && SYSTEM_INFO_CACHE_TTL > 0 && now - generated_at >= SYSTEM_INFO_CACHE_TTL)
         return false;
+    let marker = fs.readfile(SING_BOX_FORKOP_VERSION_FILE);
+    if (marker != null) {
+        marker = replace(trim(as_string(marker)), /~/g, "-");
+        if (marker != "" && (!command_exists("sing-box") || as_string(cache.sing_box_version) != marker))
+            return false;
+    }
     return cache.forkop_version == FORKOP_VERSION && cache.luci_app_version == get_luci_app_version();
 }
 
@@ -1087,6 +1094,10 @@ function sing_box_package() {
     if (package_installed("sing-box-forkop-compressed"))
         return "sing-box-forkop-compressed";
     if (package_installed("sing-box-forkop"))
+        return "sing-box-forkop";
+    // The package manager can be locked while postinst starts Forkop. The
+    // package-owned marker still proves which Forkop core is present.
+    if (command_exists("sing-box") && file_exists(SING_BOX_FORKOP_VERSION_FILE))
         return "sing-box-forkop";
     return "";
 }
@@ -1243,7 +1254,7 @@ function get_dashboard_section_cache(section) {
     let result = {};
     for (let key in [
         "outboundMetadata", "urltestCandidateTags", "urltestGroups",
-        "priorityGroups", "providerTags"
+        "fallbackGroups", "providerTags"
     ])
         if (cache[key] != null)
             result[key] = cache[key];

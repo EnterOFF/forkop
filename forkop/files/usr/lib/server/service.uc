@@ -930,7 +930,6 @@ function prepare_server_defaults(section) {
         let safe_name = safe_filename_string(section);
         server_default_set_option(section, "tailscale_control_url", "https://controlplane.tailscale.com");
         server_default_set_option(section, "tailscale_hostname", "forkop-" + safe_name);
-        server_default_set_option(section, "tailscale_advertise_exit_node", "1");
     }
 
     if (security == "reality") {

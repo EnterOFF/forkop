@@ -27,6 +27,8 @@ function remember_outbound_metadata(state, tag_name, display_name, outbound) {
         return;
     state.outboundMetadata.names[tag_name] = display_name;
     let protocol = lc(as_string(outbound.type || ""));
+    if (protocol == "wireguard" && type(outbound.amnezia) == "object")
+        protocol = "amneziawg";
     if (protocol != "")
         state.outboundMetadata.protocols[tag_name] = protocol;
 
@@ -79,9 +81,9 @@ function remember_urltest_group_config(state, tag_name, input_group) {
     state.urltestGroups[tag_name] = output_group;
 }
 
-function remember_priority_group(state, tag_name, group) {
+function remember_fallback_group(state, tag_name, group) {
     if (type(state) == "object")
-        state.priorityGroups[tag_name] = object_or_empty(group);
+        state.fallbackGroups[tag_name] = object_or_empty(group);
 }
 
 function new_section_state(section_name) {
@@ -96,7 +98,7 @@ function new_section_state(section_name) {
         },
         urltestCandidateTags: [],
         urltestGroups: {},
-        priorityGroups: {}
+        fallbackGroups: {}
     };
 }
 
@@ -106,6 +108,6 @@ return {
     remember_outbound_metadata,
     remember_urltest_group,
     remember_urltest_group_config,
-    remember_priority_group,
+    remember_fallback_group,
     new_section_state
 };

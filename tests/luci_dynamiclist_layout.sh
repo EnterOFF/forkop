@@ -16,7 +16,7 @@ settings_styles="$(sed -n '/^\.fkp-connections-dynlist > \.item > \.fkp-dynlist-
 subscription_keys="$(sed -n '/^function subscriptionUrlSettingsKeys(/,/^function defaultSubscriptionUrlSettings(/p' "$SECTION_JS")"
 subscription_options="$(sed -n '/^function addSubscriptionUrlItemOptions(/,/^function addInterfaceItemOptions(/p' "$SECTION_JS")"
 server_filter_options="$(sed -n '/^function addServerFilterOptions(/,/^function urlTestUrlChoices(/p' "$SECTION_JS")"
-priority_options="$(sed -n '/^function addPriorityLevelItemOptions(/,/^function addPriorityGroupItemOptions(/p' "$SECTION_JS")"
+fallback_options="$(sed -n '/^function addFallbackLevelItemOptions(/,/^function addFallbackGroupItemOptions(/p' "$SECTION_JS")"
 create_section="$(sed -n '/^function createSectionContent(/,/^function loadSectionTableOptions(/p' "$SECTION_JS")"
 live_choices="$(sed -n '/^function configureLiveDynamicListChoices(/,/^function countryChoices(/p' "$SECTION_JS")"
 close_all_styles="$(sed -n '/^\.fkp_monitoring-page #monitoring-close-all\.btn\.fkp_monitoring-page__icon-button:hover:not(:disabled) {$/,/^}$/p' "$MONITORING_STYLES")"
@@ -59,12 +59,12 @@ grep -Fq 'else if (key === "exclude_regex") {' <<<"$server_filter_options" ||
   fail "URLTest exclude proxy parameters must follow the exclude regex option"
 grep -Fq 'configureLiveDynamicListChoices(list, (itemId, values) =>' <<<"$server_filter_options" ||
   fail "URLTest server filters must stay comboboxes when no choices exist"
-grep -Fq 'if (key === "regex") {' <<<"$priority_options" ||
-  fail "Priority include proxy parameters must follow the include regex option"
-grep -Fq 'else if (key === "exclude_regex") {' <<<"$priority_options" ||
-  fail "Priority exclude proxy parameters must follow the exclude regex option"
-grep -Fq 'configureLiveDynamicListChoices(list, (itemId, values) =>' <<<"$priority_options" ||
-  fail "Priority server filters must stay comboboxes when no choices exist"
+grep -Fq 'if (key === "regex") {' <<<"$fallback_options" ||
+  fail "Fallback include proxy parameters must follow the include regex option"
+grep -Fq 'else if (key === "exclude_regex") {' <<<"$fallback_options" ||
+  fail "Fallback exclude proxy parameters must follow the exclude regex option"
+grep -Fq 'configureLiveDynamicListChoices(list, (itemId, values) =>' <<<"$fallback_options" ||
+  fail "Fallback server filters must stay comboboxes when no choices exist"
 grep -Fq '["direct", "Direct"]' "$SECTION_JS" ||
   fail "proxy protocol choices must keep Direct untranslated"
 grep -Fq '["anytls", "AnyTLS"]' "$SECTION_JS" ||

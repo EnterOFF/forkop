@@ -213,11 +213,42 @@ cat >"$WORK_DIR/tunnel-fixture.json" <<'JSON'
       ".name": "tunnels",
       ".type": "section",
       "enabled": "1",
-      "action": "connection",
-      "tunnel_jsons": [
-        "{\"name\":\"Cloudflare WARP\",\"kind\":\"warp\",\"endpoint\":{\"type\":\"warp\"}}",
-        "{\"name\":\"Amnezia\",\"kind\":\"amneziawg\",\"endpoint\":{\"type\":\"wireguard\",\"address\":[\"10.0.0.2/32\"],\"private_key\":\"private\",\"peers\":[{\"address\":\"vpn.example.com\",\"port\":51820,\"public_key\":\"public\",\"allowed_ips\":[\"0.0.0.0/0\"]}],\"amnezia\":{\"jc\":5}}}"
-      ]
+      "action": "connection"
+    },
+    {
+      ".name": "control",
+      ".type": "section",
+      "enabled": "1",
+      "action": "outbound",
+      "outbound_json": "{\"type\":\"direct\"}"
+    }
+  ],
+  "tunnel": [
+    {
+      ".name": "tun_warp", ".type": "tunnel", "section": "tunnels", "order": "0",
+      "kind": "warp", "name": "Cloudflare WARP"
+    },
+    {
+      ".name": "tun_amnezia", ".type": "tunnel", "section": "tunnels", "order": "1",
+      "kind": "amneziawg", "name": "Amnezia", "address": ["10.0.0.2/32"],
+      "private_key": "private", "amnezia_jc": "5", "amnezia_h1": "100"
+    },
+    {
+      ".name": "tun_tailnet", ".type": "tunnel", "section": "tunnels", "order": "2",
+      "kind": "tailscale", "name": "Tailnet", "tailscale_auth_key": "tskey-auth-test",
+      "tailscale_hostname": "forkop-router", "tailscale_exit_node": "100.64.0.1",
+      "tailscale_detour_section": "control"
+    },
+    {
+      ".name": "tun_json", ".type": "tunnel", "section": "tunnels", "order": "3",
+      "kind": "json", "endpoint_json": "{\"type\":\"vpn-client\",\"tag\":\"custom-endpoint\",\"server\":\"vpn.example.com\"}"
+    }
+  ],
+  "tunnel_peer": [
+    {
+      ".name": "peer_amnezia", ".type": "tunnel_peer", "tunnel": "tun_amnezia", "order": "0",
+      "address": "vpn.example.com", "port": "51820", "public_key": "public",
+      "allowed_ips": ["0.0.0.0/0"]
     }
   ]
 }
@@ -228,11 +259,31 @@ const fs = require('fs');
 const config = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 const warp = config.endpoints.find((endpoint) => endpoint.tag === 'tunnels-tunnel-1-out');
 const amnezia = config.endpoints.find((endpoint) => endpoint.tag === 'tunnels-tunnel-2-out');
+const tailscale = config.endpoints.find((endpoint) => endpoint.tag === 'tunnels-tunnel-3-out');
+const custom = config.endpoints.find((endpoint) => endpoint.tag === 'custom-endpoint');
 const selector = config.outbounds.find((outbound) => outbound.tag === 'tunnels-out');
 if (!warp || warp.type !== 'warp') throw new Error('native WARP endpoint missing');
-if (!amnezia || amnezia.type !== 'wireguard' || amnezia.amnezia?.jc !== 5)
+if (
+  !amnezia ||
+  amnezia.type !== 'wireguard' ||
+  amnezia.amnezia?.jc !== 5 ||
+  amnezia.amnezia?.h1 !== 100
+)
   throw new Error('native AmneziaWG endpoint missing');
-if (!selector?.outbounds?.includes(warp.tag) || !selector.outbounds.includes(amnezia.tag))
+if (
+  tailscale?.type !== 'tailscale' ||
+  tailscale.state_directory !== '/etc/forkop/tailscale/tunnels-tunnel-3-out' ||
+  tailscale.detour !== 'control-out' ||
+  tailscale.exit_node_allow_lan_access !== true
+) throw new Error('native Tailscale endpoint settings are not generated correctly');
+if (custom?.type !== 'vpn-client' || custom.tag !== 'custom-endpoint' || custom.detour)
+  throw new Error('JSON endpoint was not preserved with a stable tag');
+if (
+  !selector?.outbounds?.includes(warp.tag) ||
+  !selector.outbounds.includes(amnezia.tag) ||
+  !selector.outbounds.includes(tailscale.tag) ||
+  !selector.outbounds.includes(custom.tag)
+)
   throw new Error('tunnels are not selectable connection outbounds');
 if (config.experimental?.cache_file?.store_warp_config !== true)
   throw new Error('WARP profile cache is not enabled');
@@ -337,6 +388,18 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       "listen_port": "18080",
       "server_username": "tester",
       "server_password": "secret",
+      "routing_mode": "direct"
+    },
+    {
+      ".name": "tailnet",
+      ".type": "server",
+      "enabled": "1",
+      "protocol": "tailscale",
+      "tailscale_auth_key": "tskey-auth-server",
+      "tailscale_hostname": "forkop-server",
+      "tailscale_detour_enabled": "1",
+      "tailscale_detour_section": "proxy",
+      "tailscale_advertise_exit_node": "0",
       "routing_mode": "direct"
     },
     {
@@ -1056,6 +1119,13 @@ let server = cfg("server");
 let socks = inbound(server, "server-edge-in");
 assert(socks && socks.type == "socks" && socks.listen_port == 18080, "server socks inbound");
 assert(socks.users && socks.users[0].username == "tester", "legacy server socks auth defaults to enabled");
+let tailscale_server = null;
+for (let endpoint in server.endpoints || [])
+    if (endpoint && endpoint.tag == "server-tailnet-in")
+        tailscale_server = endpoint;
+assert(tailscale_server && tailscale_server.type == "tailscale", "Tailscale server endpoint");
+assert(tailscale_server.detour == "proxy-out", "Tailscale server control-plane detour");
+assert(tailscale_server.advertise_exit_node === true, "Tailscale server always advertises an exit node");
 let open_socks = inbound(server, "server-open-in");
 assert(open_socks && open_socks.type == "socks" && open_socks.listen_port == 18081, "server open socks inbound");
 assert(open_socks.users == null, "disabled server socks auth omits users");

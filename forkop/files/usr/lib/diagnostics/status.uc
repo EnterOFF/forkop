@@ -356,6 +356,7 @@ function forkop_config_masked_line(line) {
     line = mask_after_token(line, "list urltest_proxy_links");
     line = mask_after_token(line, "list selector_proxy_links");
     line = mask_after_token_space(line, "option outbound_json");
+    line = mask_after_token_space(line, "option endpoint_json");
     line = mask_after_token_space(line, "list domain");
     line = mask_after_token_space(line, "list domain_suffix");
     line = mask_after_token_space(line, "list domain_keyword");
@@ -384,6 +385,9 @@ function forkop_config_masked_line(line) {
     line = mask_after_token_space(line, "option tailscale_auth_key");
     line = mask_after_token_space(line, "option tailscale_control_url");
     line = mask_after_token_space(line, "option tailscale_hostname");
+    line = mask_after_token_space(line, "option warp_profile_auth_token");
+    line = mask_after_token_space(line, "option warp_profile_private_key");
+    line = mask_after_token_space(line, "option pre_shared_key");
     line = mask_after_token_space(line, "list tailscale_advertise_routes");
     line = mask_after_token(line, "option hysteria2_obfs_password");
     line = mask_after_token(line, "option reality_private_key");
@@ -427,7 +431,7 @@ function forkop_config_masked(path) {
 
         let masked = forkop_config_masked_line(line);
         print(masked, "\n");
-        if (index(line, "option outbound_json") >= 0) {
+        if (index(line, "option outbound_json") >= 0 || index(line, "option endpoint_json") >= 0) {
             let first_quote = index(line, "'");
             if (first_quote >= 0 && index(substr(line, first_quote + 1), "'") < 0)
                 in_masked_multiline = true;

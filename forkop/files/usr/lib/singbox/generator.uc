@@ -104,7 +104,7 @@ function fixture_get_section(section_name) {
     if (section_name == "settings" && type(fixture.settings) == "object")
         return fixture.settings;
 
-    for (let type_name in [ "settings", "server", "section", "subscription_url", "section_interface", "urltest", "priority_group", "priority_level" ]) {
+    for (let type_name in [ "settings", "server", "section", "subscription_url", "section_interface", "urltest", "fallback_group", "fallback_level" ]) {
         for (let section in fixture_section_list(type_name)) {
             if (as_string(section[".name"]) == section_name)
                 return section;
@@ -625,23 +625,23 @@ function urltest_provider_filter(section, urltest_id) {
     return leaf_provider_filter(result);
 }
 
-function priority_level_provider_filter(group_id, level_id) {
-    let include_parameters = connections.priority_level_include_proxy_parameters(group_id, level_id);
-    let exclude_parameters = connections.priority_level_exclude_proxy_parameters(group_id, level_id);
+function fallback_level_provider_filter(group_id, level_id) {
+    let include_parameters = connections.fallback_level_include_proxy_parameters(group_id, level_id);
+    let exclude_parameters = connections.fallback_level_exclude_proxy_parameters(group_id, level_id);
     return leaf_provider_filter(native_filter_options(
-        connections.priority_level_filter_mode(group_id, level_id),
-        connections.priority_level_include_outbounds(group_id, level_id),
-        connections.priority_level_include_regex(group_id, level_id),
-        connections.priority_level_include_countries(group_id, level_id),
-        include_parameters ? connections.priority_level_include_protocols(group_id, level_id) : [],
-        include_parameters ? connections.priority_level_include_transports(group_id, level_id) : [],
-        include_parameters ? connections.priority_level_include_securities(group_id, level_id) : [],
-        connections.priority_level_exclude_outbounds(group_id, level_id),
-        connections.priority_level_exclude_regex(group_id, level_id),
-        connections.priority_level_exclude_countries(group_id, level_id),
-        exclude_parameters ? connections.priority_level_exclude_protocols(group_id, level_id) : [],
-        exclude_parameters ? connections.priority_level_exclude_transports(group_id, level_id) : [],
-        exclude_parameters ? connections.priority_level_exclude_securities(group_id, level_id) : []
+        connections.fallback_level_filter_mode(group_id, level_id),
+        connections.fallback_level_include_outbounds(group_id, level_id),
+        connections.fallback_level_include_regex(group_id, level_id),
+        connections.fallback_level_include_countries(group_id, level_id),
+        include_parameters ? connections.fallback_level_include_protocols(group_id, level_id) : [],
+        include_parameters ? connections.fallback_level_include_transports(group_id, level_id) : [],
+        include_parameters ? connections.fallback_level_include_securities(group_id, level_id) : [],
+        connections.fallback_level_exclude_outbounds(group_id, level_id),
+        connections.fallback_level_exclude_regex(group_id, level_id),
+        connections.fallback_level_exclude_countries(group_id, level_id),
+        exclude_parameters ? connections.fallback_level_exclude_protocols(group_id, level_id) : [],
+        exclude_parameters ? connections.fallback_level_exclude_transports(group_id, level_id) : [],
+        exclude_parameters ? connections.fallback_level_exclude_securities(group_id, level_id) : []
     ));
 }
 
@@ -822,10 +822,10 @@ function supported_urltest_filter_mode(mode) {
     return mode == "include" || mode == "exclude" || mode == "mixed";
 }
 
-function section_has_direct_priority_level(section) {
-    for (let group_id in connections.priority_groups(section))
-        for (let level_id in connections.priority_levels(group_id))
-            if (connections.priority_level_direct(group_id, level_id))
+function section_has_direct_fallback_level(section) {
+    for (let group_id in connections.fallback_groups(section))
+        for (let level_id in connections.fallback_levels(group_id))
+            if (connections.fallback_level_direct(group_id, level_id))
                 return true;
     return false;
 }
@@ -1049,40 +1049,40 @@ function urltest_filtered_outbounds(section, urltest_id, urltest_candidate_tags,
     );
 }
 
-function priority_level_filtered_outbounds(group_id, level_id, urltest_candidate_tags, state) {
-    if (connections.priority_level_direct(group_id, level_id))
+function fallback_level_filtered_outbounds(group_id, level_id, urltest_candidate_tags, state) {
+    if (connections.fallback_level_direct(group_id, level_id))
         return [ runtime_constants.DIRECT_OUTBOUND_TAG ];
 
     return filter_candidate_outbounds(
-        connections.priority_level_filter_mode(group_id, level_id),
+        connections.fallback_level_filter_mode(group_id, level_id),
         urltest_candidate_tags,
         object_or_empty(object_or_empty(state.outboundMetadata).names),
         flag_country_metadata(state),
         object_or_empty(state.outboundMetadata),
-        connections.priority_level_include_outbounds(group_id, level_id),
-        connections.priority_level_include_regex(group_id, level_id),
-        connections.priority_level_include_countries(group_id, level_id),
-        connections.priority_level_include_proxy_parameters(group_id, level_id),
-        connections.priority_level_include_protocols(group_id, level_id),
-        connections.priority_level_include_transports(group_id, level_id),
-        connections.priority_level_include_securities(group_id, level_id),
-        connections.priority_level_exclude_outbounds(group_id, level_id),
-        connections.priority_level_exclude_regex(group_id, level_id),
-        connections.priority_level_exclude_countries(group_id, level_id),
-        connections.priority_level_exclude_proxy_parameters(group_id, level_id),
-        connections.priority_level_exclude_protocols(group_id, level_id),
-        connections.priority_level_exclude_transports(group_id, level_id),
-        connections.priority_level_exclude_securities(group_id, level_id)
+        connections.fallback_level_include_outbounds(group_id, level_id),
+        connections.fallback_level_include_regex(group_id, level_id),
+        connections.fallback_level_include_countries(group_id, level_id),
+        connections.fallback_level_include_proxy_parameters(group_id, level_id),
+        connections.fallback_level_include_protocols(group_id, level_id),
+        connections.fallback_level_include_transports(group_id, level_id),
+        connections.fallback_level_include_securities(group_id, level_id),
+        connections.fallback_level_exclude_outbounds(group_id, level_id),
+        connections.fallback_level_exclude_regex(group_id, level_id),
+        connections.fallback_level_exclude_countries(group_id, level_id),
+        connections.fallback_level_exclude_proxy_parameters(group_id, level_id),
+        connections.fallback_level_exclude_protocols(group_id, level_id),
+        connections.fallback_level_exclude_transports(group_id, level_id),
+        connections.fallback_level_exclude_securities(group_id, level_id)
     );
 }
 
-function priority_levels_with_outbounds(group_id, urltest_candidate_tags, state) {
+function fallback_levels_with_outbounds(group_id, urltest_candidate_tags, state) {
     let result = [];
     let assigned = {};
 
-    for (let level_id in connections.priority_levels(group_id)) {
+    for (let level_id in connections.fallback_levels(group_id)) {
         let outbounds = [];
-        for (let tag_name in priority_level_filtered_outbounds(group_id, level_id, urltest_candidate_tags, state)) {
+        for (let tag_name in fallback_level_filtered_outbounds(group_id, level_id, urltest_candidate_tags, state)) {
             if (!assigned[tag_name]) {
                 assigned[tag_name] = true;
                 push(outbounds, tag_name);
@@ -1091,10 +1091,10 @@ function priority_levels_with_outbounds(group_id, urltest_candidate_tags, state)
 
         push(result, {
             id: level_id,
-            displayName: connections.priority_level_display_name(group_id, level_id),
-            order: int(connections.priority_level_order(group_id, level_id), 10),
-            direct: connections.priority_level_direct(group_id, level_id),
-            filter_mode: connections.priority_level_filter_mode(group_id, level_id),
+            displayName: connections.fallback_level_display_name(group_id, level_id),
+            order: int(connections.fallback_level_order(group_id, level_id), 10),
+            direct: connections.fallback_level_direct(group_id, level_id),
+            filter_mode: connections.fallback_level_filter_mode(group_id, level_id),
             outbounds
         });
     }
@@ -1109,12 +1109,12 @@ function urltest_outbound_tag(section_name, urltest_id) {
         : outbound_tag(section_name + "-urltest-" + urltest_id);
 }
 
-function priority_outbound_tag(section_name, group_id) {
-    return outbound_tag(section_name + "-priority-" + as_string(group_id));
+function fallback_outbound_tag(section_name, group_id) {
+    return outbound_tag(section_name + "-fallback-" + as_string(group_id));
 }
 
-function priority_level_outbound_tag(section_name, group_id, level_id) {
-    return outbound_tag(section_name + "-priority-" + as_string(group_id) + "-level-" + as_string(level_id));
+function fallback_level_outbound_tag(section_name, group_id, level_id) {
+    return outbound_tag(section_name + "-fallback-" + as_string(group_id) + "-level-" + as_string(level_id));
 }
 
 function provider_tags(provider_refs) {
@@ -1173,18 +1173,18 @@ function add_urltest_outbound(config, section, urltest_id, urltest_candidate_tag
     };
 }
 
-function add_priority_group_outbound(config, section, group_id, urltest_candidate_tags, provider_refs, state) {
+function add_fallback_group_outbound(config, section, group_id, urltest_candidate_tags, provider_refs, state) {
     let section_name = section[".name"];
-    let levels = priority_levels_with_outbounds(group_id, urltest_candidate_tags, state);
-    let priority_tag = priority_outbound_tag(section_name, group_id);
-    let display_name = connections.priority_group_display_name(section, group_id);
-    let blacklist_timeout = connections.priority_group_blacklist_timeout(section, group_id);
+    let levels = fallback_levels_with_outbounds(group_id, urltest_candidate_tags, state);
+    let fallback_tag = fallback_outbound_tag(section_name, group_id);
+    let display_name = connections.fallback_group_display_name(section, group_id);
+    let blacklist_timeout = connections.fallback_group_blacklist_timeout(section, group_id);
     let providers = provider_tags(provider_refs);
     let higher_level_tags = [];
     let generated_levels = [];
 
     for (let level in levels) {
-        let level_tag = priority_level_outbound_tag(section_name, group_id, level.id);
+        let level_tag = fallback_level_outbound_tag(section_name, group_id, level.id);
         let level_outbound = {
             type: "fallback",
             tag: level_tag,
@@ -1193,7 +1193,7 @@ function add_priority_group_outbound(config, section, group_id, urltest_candidat
         };
         if (!level.direct && length(providers) > 0) {
             level_outbound.providers = providers;
-            merge_object(level_outbound, priority_level_provider_filter(group_id, level.id));
+            merge_object(level_outbound, fallback_level_provider_filter(group_id, level.id));
         }
         if (length(higher_level_tags) > 0) {
             level_outbound.exclude_group_members = [];
@@ -1213,20 +1213,20 @@ function add_priority_group_outbound(config, section, group_id, urltest_candidat
 
     let outbound = {
         type: "fallback",
-        tag: priority_tag,
+        tag: fallback_tag,
         outbounds: higher_level_tags,
         blacklist_timeout
     };
 
-    runtime_subscription.remember_outbound_metadata(state, priority_tag, display_name, outbound);
-    runtime_subscription.remember_priority_group(state, priority_tag, {
+    runtime_subscription.remember_outbound_metadata(state, fallback_tag, display_name, outbound);
+    runtime_subscription.remember_fallback_group(state, fallback_tag, {
         id: group_id,
-        tag: priority_tag,
+        tag: fallback_tag,
         section: section_name,
         displayName: display_name,
         blacklist_timeout,
-        pin_dashboard: connections.priority_group_pin_dashboard(section, group_id),
-        hide_dashboard_members: connections.priority_group_hide_dashboard_members(section, group_id),
+        pin_dashboard: connections.fallback_group_pin_dashboard(section, group_id),
+        hide_dashboard_members: connections.fallback_group_hide_dashboard_members(section, group_id),
         outbounds: higher_level_tags,
         levels: generated_levels
     });
@@ -1239,7 +1239,7 @@ function add_priority_group_outbound(config, section, group_id, urltest_candidat
 
     push(config.outbounds, outbound);
     return {
-        tag: priority_tag,
+        tag: fallback_tag,
         outbounds: higher_level_tags
     };
 }
@@ -1250,7 +1250,7 @@ function add_proxy_selector(config, section, selector_tags, urltest_candidate_ta
     let selector_outbounds = selector_tags;
     let selector_default = selector_tags[0];
     let urltest_tags = [];
-    let priority_tags = [];
+    let fallback_tags = [];
 
     for (let urltest_id in connections.urltests(section)) {
         let urltest = add_urltest_outbound(config, section, urltest_id, urltest_candidate_tags, provider_refs, state);
@@ -1260,21 +1260,21 @@ function add_proxy_selector(config, section, selector_tags, urltest_candidate_ta
         push(urltest_tags, urltest.tag);
     }
 
-    for (let group_id in connections.priority_groups(section)) {
-        let priority = add_priority_group_outbound(config, section, group_id, urltest_candidate_tags, provider_refs, state);
-        if (priority.tag == "")
+    for (let group_id in connections.fallback_groups(section)) {
+        let fallback = add_fallback_group_outbound(config, section, group_id, urltest_candidate_tags, provider_refs, state);
+        if (fallback.tag == "")
             continue;
 
-        push(priority_tags, priority.tag);
+        push(fallback_tags, fallback.tag);
     }
 
-    if (length(urltest_tags) > 0 || length(priority_tags) > 0) {
+    if (length(urltest_tags) > 0 || length(fallback_tags) > 0) {
         for (let tag in urltest_tags)
             push(selector_outbounds, tag);
-        for (let tag in priority_tags)
+        for (let tag in fallback_tags)
             push(selector_outbounds, tag);
         selector_default = length(urltest_tags) > 0 ? urltest_tags[0]
-            : priority_tags[0];
+            : fallback_tags[0];
     }
 
     let selector = {
@@ -1463,30 +1463,47 @@ function parse_outbound_json(value) {
 }
 
 function add_connection_tunnels(config, state, section, taken, selector_tags, urltest_candidate_tags) {
-    let items = connections.tunnel_jsons(section);
+    let items = connections.tunnel_items(section);
     let section_name = section[".name"];
 
     for (let i = 0; i < length(items); i++) {
-        let wrapper = parse_outbound_json(items[i]);
-        let endpoint = type(wrapper) == "object" ? object_or_empty(wrapper.endpoint) : {};
+        let tunnel = items[i];
+        let endpoint = connections.tunnel_endpoint(tunnel);
         let endpoint_type = lc(as_string(endpoint.type || ""));
-        if (endpoint_type != "wireguard" && endpoint_type != "warp")
-            runtime_generate_unsupported("tunnel " + (i + 1) + " must be a WireGuard, AmneziaWG, or WARP endpoint");
+        let wrapper_kind = lc(as_string(connections.option(tunnel, "kind", "wireguard")));
+        if (endpoint_type == "" ||
+            (endpoint_type != "wireguard" && endpoint_type != "warp" && endpoint_type != "tailscale" && wrapper_kind != "json"))
+            runtime_generate_unsupported("tunnel " + (i + 1) + " has an unsupported endpoint type");
 
-        let tag_name = connection_item_tag(section_name, "tunnel", i + 1);
+        let display_name = trim(as_string(endpoint.tag || ""));
+        let tag_name = wrapper_kind == "json" && display_name != ""
+            ? unique_tag(display_name, taken)
+            : connection_item_tag(section_name, "tunnel", i + 1);
         if (taken[tag_name])
             tag_name = unique_tag(tag_name, taken);
         taken[tag_name] = true;
         endpoint.tag = tag_name;
 
-        let detour = outbound_detour_tag_for_section(section);
-        if (detour != "" && as_string(endpoint.detour || "") == "")
-            endpoint.detour = detour;
+        if (wrapper_kind != "json" && (endpoint_type == "wireguard" || endpoint_type == "warp")) {
+            let detour = outbound_detour_tag_for_section(section);
+            if (detour != "" && as_string(endpoint.detour || "") == "")
+                endpoint.detour = detour;
+        }
+
+        if (wrapper_kind != "json" && endpoint_type == "tailscale") {
+            let detour_section = connections.option(tunnel, "tailscale_detour_section", "");
+            if (detour_section != "")
+                endpoint.detour = outbound_tag(detour_section);
+            if (as_string(endpoint.state_directory || "") == "")
+                endpoint.state_directory = "/etc/forkop/tailscale/" + tag_name;
+            endpoint.exit_node_allow_lan_access = true;
+        }
 
         push(config.endpoints, endpoint);
         push(selector_tags, tag_name);
         push(urltest_candidate_tags, tag_name);
-        let display_name = trim(as_string(wrapper.name || ""));
+        if (display_name == "")
+            display_name = trim(as_string(connections.option(tunnel, "name", "")));
         runtime_subscription.remember_outbound_metadata(
             state,
             tag_name,
@@ -1585,7 +1602,7 @@ function add_connections_outbound(config, section, taken) {
     if (length(selector_tags) == 0 && length(provider_refs) == 0)
         runtime_generate_unsupported("connection section has no usable outbounds");
 
-    if (section_has_direct_priority_level(section))
+    if (section_has_direct_fallback_level(section))
         state.outboundMetadata.names[runtime_constants.DIRECT_OUTBOUND_TAG] = "Direct";
 
     state.providerTags = provider_tags(provider_refs);
@@ -2201,8 +2218,8 @@ function reserve_section_outbound_tags(sections, taken) {
 
         for (let urltest_id in connections.urltests(section))
             taken[urltest_outbound_tag(section[".name"], urltest_id)] = true;
-        for (let group_id in connections.priority_groups(section))
-            taken[priority_outbound_tag(section[".name"], group_id)] = true;
+        for (let group_id in connections.fallback_groups(section))
+            taken[fallback_outbound_tag(section[".name"], group_id)] = true;
     }
 }
 

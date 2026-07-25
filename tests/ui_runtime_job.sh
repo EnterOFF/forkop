@@ -138,6 +138,31 @@ if ui_ucode latency-type-valid invalid >/dev/null 2>&1; then
   fail "invalid latency type should be rejected"
 fi
 
+latency_worker_bin="$WORK_DIR/forkop-latency-worker"
+latency_worker_args="$WORK_DIR/latency-worker.args"
+latency_worker_state="$WORK_DIR/latency-worker.json"
+cat >"$latency_worker_bin" <<'SH'
+#!/usr/bin/env sh
+printf '%s\n' "$@" >"$LATENCY_WORKER_ARGS"
+SH
+chmod +x "$latency_worker_bin"
+printf '%s\n' '{"running":true}' >"$latency_worker_state"
+LATENCY_WORKER_ARGS="$latency_worker_args" \
+FORKOP_BIN="$latency_worker_bin" \
+  ui_ucode latency-worker "$latency_worker_state" proxy proxy-a 5000
+assert_eq "$(printf 'clash_api\nget_proxy_latency\nproxy-a\n5000')" \
+  "$(cat "$latency_worker_args")" \
+  "single-proxy latency worker arguments"
+
+single_latency_state="$(ui_ucode running-latency-action proxy main proxy-a 100)"
+SINGLE_LATENCY_STATE="$single_latency_state" node - <<'NODE'
+const value = JSON.parse(process.env.SINGLE_LATENCY_STATE);
+if (value.progress?.completed !== 0 || value.progress?.total !== 1) {
+  console.error("single-proxy latency progress must start at 0/1");
+  process.exit(1);
+}
+NODE
+
 latency_action_dir="$WORK_DIR/latency-actions"
 mkdir -p "$latency_action_dir"
 latency_state="$latency_action_dir/latency-1.json"

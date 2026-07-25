@@ -50,6 +50,7 @@ let dashboardDataUpdatesId = 0;
 let pageUnloading = false;
 const followedLatencyJobs = new Set<string>();
 const handledLatencyJobs = new Set<string>();
+const latencyFetchingTargets: Record<string, string> = {};
 
 if (typeof window !== 'undefined') {
   window.addEventListener('pagehide', () => {
@@ -220,6 +221,7 @@ function setLatencyFetching(
   fetching: boolean,
   local = false,
   progress?: Forkop.LatencyActionProgress,
+  target?: string,
 ) {
   if (local || !fetching) {
     setLocalLatencyAction(sectionName, fetching && local);
@@ -235,12 +237,16 @@ function setLatencyFetching(
 
   if (fetching) {
     latencyFetchingSections[sectionName] = true;
+    if (target) {
+      latencyFetchingTargets[sectionName] = target;
+    }
     if (progress) {
       latencyProgressSections[sectionName] = progress;
     }
   } else {
     delete latencyFetchingSections[sectionName];
     delete latencyProgressSections[sectionName];
+    delete latencyFetchingTargets[sectionName];
   }
 
   store.set({
@@ -551,7 +557,7 @@ function getInitialLatencyProgress(
   tag: string,
 ): Forkop.LatencyActionProgress | undefined {
   if (latencyType !== 'proxy_list') {
-    return undefined;
+    return { completed: 0, total: 1, failed: 0 };
   }
 
   try {
@@ -575,6 +581,7 @@ async function handleTestLatency(
   sectionName: string,
   tag: string,
   timeout?: string,
+  target?: string,
 ) {
   if (store.get().sectionsWidget.latencyFetchingSections[sectionName]) {
     return;
@@ -585,6 +592,7 @@ async function handleTestLatency(
     true,
     true,
     getInitialLatencyProgress(latencyType, tag),
+    target,
   );
   let jobId = '';
   let ownsJobFollow = false;
@@ -922,7 +930,7 @@ function handleShowUrlTestInfo(outbound: Forkop.Outbound) {
   );
 }
 
-function renderPrioritySelectedValue(info: Forkop.PriorityInfo) {
+function renderFallbackSelectedValue(info: Forkop.FallbackInfo) {
   const selectedMember = info.outbounds.find((member) => member.selected);
   const selectedName =
     selectedMember?.displayName || info.selectedName || info.selectedCode || '';
@@ -942,13 +950,13 @@ function renderPrioritySelectedValue(info: Forkop.PriorityInfo) {
           class: [
             'fkp_dashboard-page__urltest-details__selected-name',
             selectedMember
-              ? 'fkp_dashboard-page__urltest-details__priority-name'
+              ? 'fkp_dashboard-page__urltest-details__fallback-name'
               : '',
           ]
             .filter(Boolean)
             .join(' '),
         },
-        selectedMember ? renderPriorityMemberName(selectedMember) : name,
+        selectedMember ? renderFallbackMemberName(selectedMember) : name,
       ),
       ...(selectedMember?.type
         ? [
@@ -972,33 +980,33 @@ function renderPrioritySelectedValue(info: Forkop.PriorityInfo) {
   );
 }
 
-function renderPriorityMemberName(member: Forkop.PriorityMember) {
+function renderFallbackMemberName(member: Forkop.FallbackMember) {
   const levelName = member.levelName || _('Level');
 
   return [
     E(
       'span',
-      { class: 'fkp_dashboard-page__urltest-details__priority-number' },
+      { class: 'fkp_dashboard-page__urltest-details__fallback-number' },
       `#${member.levelIndex + 1}`,
     ),
     E(
       'span',
-      { class: 'fkp_dashboard-page__urltest-details__priority-level' },
+      { class: 'fkp_dashboard-page__urltest-details__fallback-level' },
       levelName,
     ),
     E(
       'span',
-      { class: 'fkp_dashboard-page__urltest-details__priority-node' },
+      { class: 'fkp_dashboard-page__urltest-details__fallback-node' },
       renderDetailsMemberName(member),
     ),
   ];
 }
 
-function renderPriorityInfoModal(outbound: Forkop.Outbound) {
-  const info = outbound.priorityInfo;
+function renderFallbackInfoModal(outbound: Forkop.Outbound) {
+  const info = outbound.fallbackInfo;
 
   if (!info) {
-    return E('div', {}, _('Priority details are unavailable'));
+    return E('div', {}, _('Fallback details are unavailable'));
   }
 
   const fields: Array<{
@@ -1008,7 +1016,7 @@ function renderPriorityInfoModal(outbound: Forkop.Outbound) {
   }> = [
     {
       label: _('Last used'),
-      children: [renderPrioritySelectedValue(info)],
+      children: [renderFallbackSelectedValue(info)],
     },
     { label: _('Blacklist timeout'), value: info.blacklistTimeout },
   ];
@@ -1062,9 +1070,9 @@ function renderPriorityInfoModal(outbound: Forkop.Outbound) {
                         'b',
                         {
                           class:
-                            'fkp_dashboard-page__urltest-details__priority-name',
+                            'fkp_dashboard-page__urltest-details__fallback-name',
                         },
-                        renderPriorityMemberName(member),
+                        renderFallbackMemberName(member),
                       ),
                       ...(member.type
                         ? [
@@ -1130,16 +1138,16 @@ function renderPriorityInfoModal(outbound: Forkop.Outbound) {
   ]);
 }
 
-function handleShowPriorityInfo(outbound: Forkop.Outbound) {
-  if (!outbound.priorityInfo) {
+function handleShowFallbackInfo(outbound: Forkop.Outbound) {
+  if (!outbound.fallbackInfo) {
     return;
   }
 
   ui.showModal(
-    `${_('priority details')}: ${
-      outbound.priorityInfo.displayName || outbound.displayName
+    `${_('Fallback details')}: ${
+      outbound.fallbackInfo.displayName || outbound.displayName
     }`,
-    renderPriorityInfoModal(outbound),
+    renderFallbackInfoModal(outbound),
   );
 }
 
@@ -1278,10 +1286,11 @@ async function renderSectionsWidget() {
         withTagSelect: false,
       },
       onTestLatency: () => {},
+      onTestOutboundLatency: () => {},
       onChooseOutbound: () => {},
       onCopyOutbound: () => {},
       onShowUrlTestInfo: () => {},
-      onShowPriorityInfo: () => {},
+      onShowFallbackInfo: () => {},
       onUpdateSubscription: () => {},
       latencyFetching: false,
       latencyProgress: undefined,
@@ -1304,6 +1313,7 @@ async function renderSectionsWidget() {
       ),
       latencyProgress:
         sectionsWidget.latencyProgressSections[section.sectionName],
+      latencyFetchingTarget: latencyFetchingTargets[section.sectionName],
       subscriptionUpdating: Boolean(
         sectionsWidget.subscriptionUpdatingSections[section.sectionName],
       ),
@@ -1329,6 +1339,16 @@ async function renderSectionsWidget() {
           section.latencyTestTimeout,
         );
       },
+      onTestOutboundLatency: (latencyType, tag) => {
+        const serializedTag = Array.isArray(tag) ? JSON.stringify(tag) : tag;
+        void handleTestLatency(
+          latencyType,
+          section.sectionName,
+          serializedTag,
+          section.latencyTestTimeout,
+          serializedTag,
+        );
+      },
       onChooseOutbound: (sectionName, selector, tag) => {
         void handleChooseOutbound(sectionName, selector, tag);
       },
@@ -1338,8 +1358,8 @@ async function renderSectionsWidget() {
       onShowUrlTestInfo: (outbound) => {
         handleShowUrlTestInfo(outbound);
       },
-      onShowPriorityInfo: (outbound) => {
-        handleShowPriorityInfo(outbound);
+      onShowFallbackInfo: (outbound) => {
+        handleShowFallbackInfo(outbound);
       },
       onUpdateSubscription: (section) => {
         void handleUpdateSubscription(section);

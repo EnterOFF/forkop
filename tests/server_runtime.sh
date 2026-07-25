@@ -193,7 +193,8 @@ assert_value forkop.socks_open.server_username guest
 assert_value forkop.tailscale.security none
 assert_value forkop.tailscale.tailscale_control_url https://controlplane.tailscale.com
 assert_value forkop.tailscale.tailscale_hostname forkop-tailscale
-assert_value forkop.tailscale.tailscale_advertise_exit_node 1
+[ -z "$(uci_get forkop.tailscale.tailscale_advertise_exit_node 2>/dev/null || true)" ] ||
+  fail "Tailscale exit-node advertising must not be stored as a user setting"
 assert_value forkop.json.security none
 assert_value forkop.mtproto.mtproto_secret aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 assert_value forkop.naive.security tls

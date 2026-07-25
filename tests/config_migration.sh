@@ -44,10 +44,14 @@ grep -Fq '{ id: "leaf_subscription_providers", run: use_leaf_subscription_provid
   fail "leaf subscription provider migration must have a stable named marker"
 grep -Fq '{ id: "extended_server_defaults", run: add_extended_server_defaults }' "$MIGRATION" ||
   fail "extended server defaults migration must have a stable named marker"
+grep -Fq '{ id: "fallback_uci_tags", run: migrate_fallback_uci_tags }' "$MIGRATION" ||
+  fail "Fallback UCI tag migration must have a stable named marker"
 grep -Fq "list applied_migrations 'native_rule_sets'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
   fail "new-install config must mark the native rule-set migration as already applied"
 grep -Fq "list applied_migrations 'leaf_subscription_providers'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
   fail "new-install config must mark the leaf subscription migration as already applied"
+grep -Fq "list applied_migrations 'fallback_uci_tags'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
+  fail "new-install config must mark the Fallback UCI tag migration as already applied"
 grep -Fq 'release_at_most(ctx, "1.0.1")' "$MIGRATION" ||
   fail "release-specific migrations must use the source release only as a condition"
 grep -Fq 'release_at_most(ctx, "1.0.4")' "$MIGRATION" ||
@@ -204,6 +208,15 @@ const fixture = {
       fastest_check_interval: '5m',
       interrupt_exist_connections: '0'
     }
+  ],
+  priority_level: [
+    {
+      '.name': 'legacy-priority-level',
+      '.type': 'priority_level',
+      group: 'legacy-priority',
+      name: 'Primary',
+      order: '0'
+    }
   ]
 };
 
@@ -227,7 +240,7 @@ assert(JSON.stringify(config.settings.bootstrap_dns_server) === JSON.stringify([
 assert(config.settings.unified_delay === '0', 'Unified Delay default missing');
 assert(config.settings.config_version === '1.0.5', 'legacy config should be marked at the current schema version');
 assert(config.settings.component_update_check_enabled === '1', 'component update checks should be enabled during migration');
-assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults']), 'legacy config should record named migrations');
+assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags']), 'legacy config should record named migrations');
 
 function assert(condition, message) {
   if (!condition) {
@@ -421,7 +434,9 @@ const legacyOutboundCollision = sections['legacy-outbound-collision'];
 assert(legacyOutboundCollision.outbound_jsons.length === 2, 'legacy JSON outbound is appended to an existing list');
 assert(JSON.parse(legacyOutboundCollision.outbound_jsons[1]).tag === 'legacy-outbound-collision-json-2-out-1', 'legacy JSON outbound tag avoids existing list tags');
 
-const legacyPriority = config.priority_group[0];
+const legacyPriority = config.fallback_group[0];
+assert(!config.priority_group && !config.priority_level, 'legacy Priority UCI section types should be removed');
+assert(config.fallback_level.every(level => level['.type'] === 'fallback_level'), 'legacy Priority levels should migrate to fallback_level');
 assert(legacyPriority.blacklist_timeout === '15s', 'native Priority fallback should preserve the old recovery timeout');
 for (const key of [
   'health_url',
@@ -516,7 +531,7 @@ function assert(condition, message) {
 assert(out.changed === true, '1.0.1 config should require migration');
 assert(out.config.settings.config_version === '1.0.5', 'config schema version should advance to 1.0.5');
 assert(out.config.settings.component_update_check_enabled === '1', 'updates from 1.0.1 and below should enable component update checks');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults']), 'named migrations should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags']), 'named migrations should be recorded');
 assert(!Object.prototype.hasOwnProperty.call(section, 'interfaces'), 'parent interface list should be removed');
 assert(JSON.stringify(interfaces.map(item => item.name)) === JSON.stringify(['awg0', 'tun0']), 'interfaces should keep their order');
 for (const item of interfaces) {
@@ -554,7 +569,7 @@ function assert(condition, message) {
 
 assert(out.config.settings.component_update_check_enabled === '0', '1.0.2 config must preserve an explicitly disabled component check');
 assert(out.config.settings.config_version === '1.0.5', '1.0.2 config should advance through the HTTP URL migration schema');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults']), 'newer configs should mark skipped migrations');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags']), 'newer configs should mark skipped migrations');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.4-http.json" <<'JSON'
@@ -620,7 +635,7 @@ assert(JSON.stringify(jsonOutbounds[1]) === JSON.stringify({
   server_port: 8080,
 }), 'unnamed HTTP URL should receive a unique http tag');
 assert(jsonOutbounds[2].type === 'direct' && jsonOutbounds[2].tag === 'http', 'existing JSON outbounds should remain unchanged');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults']), 'HTTP URL migration should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags']), 'HTTP URL migration should be recorded');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.5-http.json" <<'JSON'
@@ -741,7 +756,7 @@ grep -Fxq 'forkop.settings.config_version=1.0.5' "$WORK_DIR/runtime-version.stat
   fail "runtime version migration must advance config_version"
 grep -Fxq 'forkop.settings.component_update_check_enabled=1' "$WORK_DIR/runtime-version.state" ||
   fail "runtime version migration must enable component update checks"
-grep -Fq 'forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter native_fallbacks native_rule_sets leaf_subscription_providers extended_server_defaults' "$WORK_DIR/runtime-version.state" ||
+grep -Fq 'forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter native_fallbacks native_rule_sets leaf_subscription_providers extended_server_defaults fallback_uci_tags' "$WORK_DIR/runtime-version.state" ||
   fail "runtime migration must record stable migration names"
 grep -Eq '^forkop\.main\.outbound_jsons=\{ "type": "http", "tag": "http", "server": "proxy\.example", "server_port": 8080 \}$' "$WORK_DIR/runtime-version.state" ||
   fail "runtime migration must convert native HTTP proxy links to JSON outbounds"
@@ -902,6 +917,8 @@ if grep -Eq 'forkop\.subscription\.(include_urltest_groups|hide_urltest_group_ou
 fi
 grep -Fxq 'forkop.priority.blacklist_timeout=45s' "$WORK_DIR/cache-cleanup.state" ||
   fail "native migration must preserve the old Priority recovery timeout"
+grep -Fxq 'forkop.priority=fallback_group' "$WORK_DIR/cache-cleanup.state" ||
+  fail "UCI tag migration must rename priority_group to fallback_group"
 if grep -Eq 'forkop\.priority\.(recovery_check_interval|health_url|pick_fastest)=' "$WORK_DIR/cache-cleanup.state"; then
   fail "native migration must remove obsolete Priority worker settings"
 fi

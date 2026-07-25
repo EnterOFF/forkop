@@ -109,6 +109,31 @@ function refreshOutboundDetourSectionOptionValues(option, sectionId) {
   });
 }
 
+function tailscaleDetourSectionValue(detour, currentSectionId) {
+  detour = `${detour || ""}`.trim();
+  if (!detour) {
+    return "";
+  }
+
+  const target = getOutboundDetourTargetSections(currentSectionId).find(
+    (section) =>
+      main.getOutboundTagBySection(getUciSectionName(section)) === detour,
+  );
+  return target ? getUciSectionName(target) : detour;
+}
+
+function tailscaleDetourTag(sectionId) {
+  sectionId = `${sectionId || ""}`.trim();
+  if (!sectionId) {
+    return "";
+  }
+
+  const target = (uci.sections(UCI_PACKAGE, "section") || []).find(
+    (section) => getUciSectionName(section) === sectionId,
+  );
+  return target ? main.getOutboundTagBySection(sectionId) : sectionId;
+}
+
 function isDnsDetourTargetSection(section, currentSectionId) {
   const sectionName = getUciSectionName(section);
   const action = (section && section.action) || "";
@@ -1151,30 +1176,75 @@ const WIREGUARD_PEER_FIELDS = new Set([
   "persistent_keepalive_interval",
 ]);
 
-function parseTunnelJson(value) {
-  const parsed = parseOutboundJsonObject(value);
-  return parsed && parsed.endpoint && typeof parsed.endpoint === "object"
-    ? parsed
-    : null;
+function tunnelChild(sectionId, tunnelId) {
+  return (uci.sections(UCI_PACKAGE, "tunnel") || []).find(
+    (item) =>
+      item[".name"] === `${tunnelId || ""}` &&
+      item.section === `${sectionId || ""}`,
+  );
 }
 
-function tunnelDisplayName(value) {
-  const parsed = parseTunnelJson(value);
-  return `${(parsed && parsed.name) || ""}`.trim();
+function tunnelChildIds(sectionId) {
+  return (uci.sections(UCI_PACKAGE, "tunnel") || [])
+    .filter((item) => item.section === `${sectionId || ""}`)
+    .sort((left, right) => {
+      const order = (item) => Number.parseInt(item.order || "0", 10) || 0;
+      return (
+        order(left) - order(right) ||
+        `${left[".name"] || ""}`.localeCompare(`${right[".name"] || ""}`)
+      );
+    })
+    .map((item) => item[".name"])
+    .filter(Boolean);
 }
 
-function tunnelListItemLabel(value) {
-  const parsed = parseTunnelJson(value);
-  const kind =
-    parsed && parsed.kind === "amneziawg"
-      ? "AmneziaWG"
-      : parsed && parsed.kind === "warp"
-        ? "WARP"
-        : "WireGuard";
+function tunnelPeerIds(tunnelId) {
+  return (uci.sections(UCI_PACKAGE, "tunnel_peer") || [])
+    .filter((item) => item.tunnel === `${tunnelId || ""}`)
+    .sort((left, right) => {
+      const order = (item) => Number.parseInt(item.order || "0", 10) || 0;
+      return (
+        order(left) - order(right) ||
+        `${left[".name"] || ""}`.localeCompare(`${right[".name"] || ""}`)
+      );
+    })
+    .map((item) => item[".name"])
+    .filter(Boolean);
+}
+
+function tunnelKindLabel(kind, endpointType) {
+  return kind === "amneziawg"
+    ? "AmneziaWG"
+    : kind === "warp"
+      ? "WARP"
+      : kind === "tailscale"
+        ? "Tailscale"
+        : kind === "json"
+          ? endpointType || "JSON endpoint"
+          : "WireGuard";
+}
+
+function tunnelDisplayName(sectionId, tunnelId) {
+  const child = tunnelChild(sectionId, tunnelId);
+  const kind = `${child?.kind || "wireguard"}`.toLowerCase();
+  if (kind === "json") {
+    return outboundJsonDisplayTag(child?.endpoint_json || "");
+  }
+  return `${child?.name || ""}`.trim();
+}
+
+function tunnelListItemLabel(sectionId, tunnelId) {
+  const child = tunnelChild(sectionId, tunnelId);
+  const kind = `${child?.kind || "wireguard"}`.toLowerCase();
+  let endpointType = "";
+  if (kind === "json") {
+    endpointType = parseOutboundJsonObject(child?.endpoint_json)?.type || "";
+  }
   return E(
     "span",
     { class: "fkp-dynlist-label" },
-    tunnelDisplayName(value) || kind,
+    tunnelDisplayName(sectionId, tunnelId) ||
+      tunnelKindLabel(kind, `${endpointType}`.toLowerCase()),
   );
 }
 
@@ -1759,8 +1829,8 @@ function currentDraftOutboundNames(section_id) {
       names.push(tag);
     }
   });
-  currentSourceOptionValues(section_id, "tunnel_jsons").forEach((value) => {
-    const name = tunnelDisplayName(value);
+  tunnelChildIds(section_id).forEach((value) => {
+    const name = tunnelDisplayName(section_id, value);
     if (name) {
       names.push(name);
     }
@@ -1949,7 +2019,7 @@ function urlTestFilterModeChoices() {
   ];
 }
 
-function priorityLevelFilterModeChoices() {
+function fallbackLevelFilterModeChoices() {
   return [
     { value: "disabled", label: _("All remaining servers") },
     { value: "include", label: _("Only selected") },
@@ -2373,7 +2443,7 @@ function urlTestChildDefaults() {
   };
 }
 
-function priorityGroupSettingsKeys() {
+function fallbackGroupSettingsKeys() {
   return [
     "name",
     "blacklist_timeout",
@@ -2382,7 +2452,7 @@ function priorityGroupSettingsKeys() {
   ];
 }
 
-function defaultPriorityGroupSettings() {
+function defaultFallbackGroupSettings() {
   return {
     name: "",
     blacklist_timeout: "1m",
@@ -2391,7 +2461,7 @@ function defaultPriorityGroupSettings() {
   };
 }
 
-function priorityGroupChildDefaults() {
+function fallbackGroupChildDefaults() {
   return {
     blacklist_timeout: "1m",
     pin_dashboard: "1",
@@ -2399,7 +2469,7 @@ function priorityGroupChildDefaults() {
   };
 }
 
-function priorityLevelSettingsKeys() {
+function fallbackLevelSettingsKeys() {
   return [
     "name",
     "order",
@@ -2422,7 +2492,7 @@ function priorityLevelSettingsKeys() {
   ];
 }
 
-function defaultPriorityLevelSettings() {
+function defaultFallbackLevelSettings() {
   return {
     name: "",
     order: "0",
@@ -2431,7 +2501,7 @@ function defaultPriorityLevelSettings() {
   };
 }
 
-function randomPriorityGroupId() {
+function randomFallbackGroupId() {
   for (let i = 0; i < 100; i += 1) {
     const value = Math.floor(Math.random() * 0xffffffff)
       .toString(16)
@@ -2742,26 +2812,26 @@ function addUrlTestItemOptions(itemSection, options = {}) {
   addServerFilterOptions(itemSection, parentSectionForItem);
 }
 
-function priorityLevelSettingsForValidation(groupId, levelId, option) {
+function fallbackLevelSettingsForValidation(groupId, levelId, option) {
   const store = childPendingSettingsStore(option, groupId);
 
-  if (isExistingChildItem(groupId, levelId, "priority_level", "group")) {
+  if (isExistingChildItem(groupId, levelId, "fallback_level", "group")) {
     return readChildSettings(
       levelId,
-      priorityLevelSettingsKeys(),
-      defaultPriorityLevelSettings(),
+      fallbackLevelSettingsKeys(),
+      defaultFallbackLevelSettings(),
     );
   }
 
   return Object.assign({}, store[levelId] || {});
 }
 
-function validatePriorityLevelItemsBeforeSave(groupId, values, option) {
+function validateFallbackLevelItemsBeforeSave(groupId, values, option) {
   const normalizedValues = normalizeDynamicListItems(values);
 
   for (const value of normalizedValues) {
     const levelId = `${value || ""}`;
-    const settings = priorityLevelSettingsForValidation(
+    const settings = fallbackLevelSettingsForValidation(
       groupId,
       levelId,
       option,
@@ -2775,7 +2845,7 @@ function validatePriorityLevelItemsBeforeSave(groupId, values, option) {
   return true;
 }
 
-function addPriorityLevelItemOptions(itemSection, options = {}) {
+function addFallbackLevelItemOptions(itemSection, options = {}) {
   const parentSectionForItem =
     typeof options.parentSectionId === "function"
       ? options.parentSectionId
@@ -2785,7 +2855,7 @@ function addPriorityLevelItemOptions(itemSection, options = {}) {
     form.Value,
     "name",
     _("Level name"),
-    _("Name shown in the priority level list"),
+    _("Name shown in the fallback level list"),
   );
   o.rmempty = false;
   o.validate = function (_itemId, value) {
@@ -2806,10 +2876,10 @@ function addPriorityLevelItemOptions(itemSection, options = {}) {
     "filter_mode",
     _("Server filtering"),
     _(
-      "All remaining servers means every server not already assigned to a higher-priority level.",
+      "All remaining servers means every server not already assigned to an earlier level.",
     ),
   );
-  priorityLevelFilterModeChoices().forEach((choice) =>
+  fallbackLevelFilterModeChoices().forEach((choice) =>
     o.value(choice.value, choice.label),
   );
   o.default = "include";
@@ -2941,7 +3011,7 @@ function addPriorityLevelItemOptions(itemSection, options = {}) {
   });
 }
 
-function addPriorityGroupItemOptions(itemSection, options = {}) {
+function addFallbackGroupItemOptions(itemSection, options = {}) {
   const parentSectionForGroup =
     typeof options.parentSectionId === "function"
       ? options.parentSectionId
@@ -2978,7 +3048,7 @@ function addPriorityGroupItemOptions(itemSection, options = {}) {
     form.Flag,
     "pin_dashboard",
     _("Pin on dashboard"),
-    _("Keep Priority before latency-sorted servers"),
+    _("Keep Fallback before latency-sorted servers"),
   );
   o.default = "1";
   o.rmempty = false;
@@ -2987,34 +3057,34 @@ function addPriorityGroupItemOptions(itemSection, options = {}) {
     form.Flag,
     "hide_dashboard_members",
     _("Hide servers from dashboard"),
-    _("Hide individual servers used by this group; keep Priority visible."),
+    _("Hide individual servers used by this group; keep Fallback visible."),
   );
   o.default = "0";
   o.rmempty = false;
 
   o = itemSection.option(
     ButtonAddSettingsDynamicList,
-    "priority_level",
-    _("Priority levels"),
-    _("Top level has the highest priority; lower levels are used as fallback"),
+    "fallback_level",
+    _("Fallback levels"),
+    _("Levels are tried from top to bottom until one succeeds"),
   );
   o.rmempty = true;
   o.modalonly = true;
   o.addButtonLabel = _("+ Add level");
-  o.childType = "priority_level";
+  o.childType = "fallback_level";
   o.ownerOption = "group";
   o.childOwnerId = ownerId;
   o.parentSectionId = parentSectionForGroup;
   o.childValueOption = "name";
-  o.childDefaults = defaultPriorityLevelSettings();
-  o.renderItemSettingsModal = showPriorityLevelSettingsModal;
+  o.childDefaults = defaultFallbackLevelSettings();
+  o.renderItemSettingsModal = showFallbackLevelSettingsModal;
   o.validateItemsOnSave = function (groupId, values) {
-    return validatePriorityLevelItemsBeforeSave(groupId, values, this);
+    return validateFallbackLevelItemsBeforeSave(groupId, values, this);
   };
   o.hasItemSettings = function (groupId, value) {
     const normalized = `${value || ""}`.trim();
 
-    if (isExistingChildItem(groupId, normalized, "priority_level", "group")) {
+    if (isExistingChildItem(groupId, normalized, "fallback_level", "group")) {
       return true;
     }
 
@@ -3024,7 +3094,7 @@ function addPriorityGroupItemOptions(itemSection, options = {}) {
     const inputValue = childItemInputValue(
       groupId,
       value,
-      "priority_level",
+      "fallback_level",
       "name",
       "group",
     );
@@ -3037,7 +3107,7 @@ function addPriorityGroupItemOptions(itemSection, options = {}) {
     const id = childItemInputValue(
       groupId,
       value,
-      "priority_level",
+      "fallback_level",
       "name",
       "group",
     );
@@ -3363,7 +3433,7 @@ function showUrlTestSettingsModal(
   });
 }
 
-function showPriorityLevelSettingsModal(
+function showFallbackLevelSettingsModal(
   groupId,
   itemValue,
   option,
@@ -3372,20 +3442,20 @@ function showPriorityLevelSettingsModal(
   context = {},
 ) {
   return showChildItemSettingsModal(groupId, itemValue, option, {
-    typeName: "priority_level",
+    typeName: "fallback_level",
     ownerOption: "group",
     valueOption: "name",
-    keys: priorityLevelSettingsKeys(),
-    defaults: defaultPriorityLevelSettings(),
+    keys: fallbackLevelSettingsKeys(),
+    defaults: defaultFallbackLevelSettings(),
     addOptions: (itemSection) =>
-      addPriorityLevelItemOptions(itemSection, {
+      addFallbackLevelItemOptions(itemSection, {
         parentSectionId: () => context.parentSectionId || "",
       }),
     title: (name) => {
       const normalized = `${name || ""}`.trim();
       return normalized
-        ? `${_("Priority level settings")}: ${normalized}`
-        : _("Priority level settings");
+        ? `${_("Fallback level settings")}: ${normalized}`
+        : _("Fallback level settings");
     },
     afterSave: (itemId, inputValue, settings, existing) => {
       const displayName = `${settings.name || inputValue || ""}`.trim();
@@ -3404,11 +3474,11 @@ function showPriorityLevelSettingsModal(
   });
 }
 
-function createPriorityGroupItem(section_id, groupId, settings) {
-  const created = uci.add(UCI_PACKAGE, "priority_group", groupId) || groupId;
+function createFallbackGroupItem(section_id, groupId, settings) {
+  const created = uci.add(UCI_PACKAGE, "fallback_group", groupId) || groupId;
 
   uci.set(UCI_PACKAGE, created, "section", section_id);
-  Object.entries(priorityGroupChildDefaults()).forEach(([key, value]) => {
+  Object.entries(fallbackGroupChildDefaults()).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
       uci.set(UCI_PACKAGE, created, key, `${value}`);
     }
@@ -3418,7 +3488,7 @@ function createPriorityGroupItem(section_id, groupId, settings) {
   return created;
 }
 
-function showPriorityGroupSettingsModal(
+function showFallbackGroupSettingsModal(
   section_id,
   itemValue,
   option,
@@ -3427,7 +3497,7 @@ function showPriorityGroupSettingsModal(
   context = {},
 ) {
   const groupId = context.adding
-    ? randomPriorityGroupId()
+    ? randomFallbackGroupId()
     : `${itemValue || ""}`.trim();
 
   if (!groupId) {
@@ -3435,26 +3505,26 @@ function showPriorityGroupSettingsModal(
   }
 
   return showChildItemSettingsModal(section_id, groupId, option, {
-    typeName: "priority_group",
+    typeName: "fallback_group",
     valueOption: "name",
-    keys: priorityGroupSettingsKeys(),
-    defaults: defaultPriorityGroupSettings(),
-    addOptions: addPriorityGroupItemOptions,
+    keys: fallbackGroupSettingsKeys(),
+    defaults: defaultFallbackGroupSettings(),
+    addOptions: addFallbackGroupItemOptions,
     title: (name) => {
       if (context.adding) {
-        return _("Priority settings");
+        return _("Fallback settings");
       }
 
       const normalized = `${name || ""}`.trim();
       return normalized
-        ? `${_("Priority settings")}: ${normalized}`
-        : _("Priority settings");
+        ? `${_("Fallback settings")}: ${normalized}`
+        : _("Fallback settings");
     },
     afterSave: (itemId, inputValue, settings, existing) => {
       const displayName = `${settings.name || inputValue || ""}`.trim();
 
       if (!existing) {
-        const created = createPriorityGroupItem(section_id, groupId, settings);
+        const created = createFallbackGroupItem(section_id, groupId, settings);
         const store = childPendingSettingsStore(option, section_id);
         delete store[groupId];
         delete store[inputValue];
@@ -3492,12 +3562,12 @@ function validateUrlTestItemsBeforeSave(section_id, values, option) {
   return true;
 }
 
-function validatePriorityGroupItemsBeforeSave(section_id, values) {
+function validateFallbackGroupItemsBeforeSave(section_id, values) {
   for (const value of normalizeDynamicListItems(values)) {
     const groupId = `${value || ""}`.trim();
 
-    if (!isExistingChildItem(section_id, groupId, "priority_group")) {
-      return _("Open priority settings and enter a display name");
+    if (!isExistingChildItem(section_id, groupId, "fallback_group")) {
+      return _("Open Fallback settings and enter a display name");
     }
 
     if (!`${uci.get(UCI_PACKAGE, groupId, "name") || ""}`.trim()) {
@@ -3508,36 +3578,52 @@ function validatePriorityGroupItemsBeforeSave(section_id, values) {
   return true;
 }
 
-function tunnelInitialSettings(value) {
-  const wrapper = parseTunnelJson(value) || {};
-  const endpoint = wrapper.endpoint || {};
+function tunnelInitialSettings(value, sectionId) {
+  const tunnel = tunnelChild(sectionId, value) || {};
+  const endpoint =
+    `${tunnel.kind || ""}` === "json"
+      ? parseOutboundJsonObject(tunnel.endpoint_json) || {}
+      : {};
+  const endpointType = `${endpoint.type || ""}`.toLowerCase();
   const kind =
-    wrapper.kind === "warp" || endpoint.type === "warp"
-      ? "warp"
-      : wrapper.kind === "amneziawg" || endpoint.amnezia
-        ? "amneziawg"
-        : "wireguard";
+    tunnel.kind === "json"
+      ? "json"
+      : tunnel.kind === "warp" || endpointType === "warp"
+        ? "warp"
+        : tunnel.kind === "amneziawg" || endpoint.amnezia
+          ? "amneziawg"
+          : tunnel.kind === "tailscale" || endpointType === "tailscale"
+            ? "tailscale"
+            : "wireguard";
+  const tailscaleDetour = `${tunnel.tailscale_detour_section || ""}`.trim();
   const settings = {
-    name: `${wrapper.name || ""}`,
+    name: kind === "json" ? `${endpoint.tag || ""}` : `${tunnel.name || ""}`,
     tunnel_type: kind,
     warp_junk_enabled:
       kind === "warp" &&
-      WARP_JUNK_FIELDS.some((key) => endpoint.amnezia?.[key] != null)
+      WARP_JUNK_FIELDS.some((key) => tunnel[`amnezia_${key}`] != null)
         ? "1"
         : "0",
-    address: Array.isArray(endpoint.address) ? endpoint.address : [],
-    private_key: `${endpoint.private_key || ""}`,
-    listen_port: endpoint.listen_port ? `${endpoint.listen_port}` : "",
-    mtu: endpoint.mtu ? `${endpoint.mtu}` : "",
-    peer_jsons: Array.isArray(endpoint.peers)
-      ? endpoint.peers.map((peer) => JSON.stringify(peer))
-      : [],
-    warp_keepalive: endpoint.persistent_keepalive_interval
-      ? `${endpoint.persistent_keepalive_interval}`
-      : "",
-    warp_profile_id: `${endpoint.profile?.id || ""}`,
-    warp_auth_token: `${endpoint.profile?.auth_token || ""}`,
-    warp_private_key: `${endpoint.profile?.private_key || ""}`,
+    address: normalizeOptionValues(tunnel.address),
+    private_key: `${tunnel.private_key || ""}`,
+    listen_port: tunnel.listen_port ? `${tunnel.listen_port}` : "",
+    mtu: tunnel.mtu ? `${tunnel.mtu}` : "",
+    peer_ids: tunnelPeerIds(value),
+    warp_keepalive: tunnel.warp_keepalive ? `${tunnel.warp_keepalive}` : "",
+    warp_profile_id: `${tunnel.warp_profile_id || ""}`,
+    warp_auth_token: `${tunnel.warp_profile_auth_token || ""}`,
+    warp_private_key: `${tunnel.warp_profile_private_key || ""}`,
+    tailscale_auth_key: `${tunnel.tailscale_auth_key || ""}`,
+    tailscale_hostname: `${tunnel.tailscale_hostname || ""}`,
+    tailscale_control_url: `${tunnel.tailscale_control_url || "https://controlplane.tailscale.com"}`,
+    tailscale_accept_routes: tunnel.tailscale_accept_routes === "0" ? "0" : "1",
+    tailscale_exit_node: `${tunnel.tailscale_exit_node || ""}`,
+    tailscale_detour_enabled: tailscaleDetour ? "1" : "0",
+    tailscale_detour_section: tailscaleDetourSectionValue(
+      tailscaleDetour,
+      sectionId,
+    ),
+    endpoint_json: kind === "json" ? `${tunnel.endpoint_json || ""}` : "",
   };
 
   [
@@ -3546,11 +3632,113 @@ function tunnelInitialSettings(value) {
     ...AMNEZIA_STRING_FIELDS,
   ].forEach((key) => {
     settings[`amnezia_${key}`] =
-      endpoint.amnezia && endpoint.amnezia[key] != null
-        ? `${endpoint.amnezia[key]}`
-        : "";
+      tunnel[`amnezia_${key}`] != null ? `${tunnel[`amnezia_${key}`]}` : "";
   });
   return settings;
+}
+
+function tunnelSettingsKeys() {
+  return [
+    "name",
+    "kind",
+    "address",
+    "private_key",
+    "listen_port",
+    "mtu",
+    "warp_keepalive",
+    "warp_profile_id",
+    "warp_profile_auth_token",
+    "warp_profile_private_key",
+    "warp_junk_enabled",
+    "tailscale_auth_key",
+    "tailscale_hostname",
+    "tailscale_control_url",
+    "tailscale_accept_routes",
+    "tailscale_exit_node",
+    "tailscale_detour_section",
+    "endpoint_json",
+    ...AMNEZIA_INTEGER_FIELDS.map((key) => `amnezia_${key}`),
+    ...AMNEZIA_RANGE_FIELDS.map((key) => `amnezia_${key}`),
+    ...AMNEZIA_STRING_FIELDS.map((key) => `amnezia_${key}`),
+  ];
+}
+
+function tunnelStorageSettings(settings) {
+  const kind = `${settings.tunnel_type || "wireguard"}`;
+  const result = {
+    kind,
+    name: kind === "json" ? "" : `${settings.name || ""}`.trim(),
+    address: normalizeOptionValues(settings.address),
+    private_key: `${settings.private_key || ""}`.trim(),
+    listen_port: `${settings.listen_port || ""}`.trim(),
+    mtu: `${settings.mtu || ""}`.trim(),
+    warp_keepalive: `${settings.warp_keepalive || ""}`.trim(),
+    warp_profile_id: `${settings.warp_profile_id || ""}`.trim(),
+    warp_profile_auth_token: `${settings.warp_auth_token || ""}`.trim(),
+    warp_profile_private_key: `${settings.warp_private_key || ""}`.trim(),
+    warp_junk_enabled: `${settings.warp_junk_enabled || "0"}`,
+    tailscale_auth_key: `${settings.tailscale_auth_key || ""}`.trim(),
+    tailscale_hostname: `${settings.tailscale_hostname || ""}`.trim(),
+    tailscale_control_url: `${settings.tailscale_control_url || ""}`.trim(),
+    tailscale_accept_routes: `${settings.tailscale_accept_routes || "1"}`,
+    tailscale_exit_node: `${settings.tailscale_exit_node || ""}`.trim(),
+    tailscale_detour_section:
+      `${settings.tailscale_detour_enabled || ""}` === "1"
+        ? `${settings.tailscale_detour_section || ""}`.trim()
+        : "",
+    endpoint_json:
+      kind === "json" ? `${settings.endpoint_json || ""}`.trim() : "",
+  };
+
+  [
+    ...AMNEZIA_INTEGER_FIELDS,
+    ...AMNEZIA_RANGE_FIELDS,
+    ...AMNEZIA_STRING_FIELDS,
+  ].forEach((key) => {
+    result[`amnezia_${key}`] = `${settings[`amnezia_${key}`] || ""}`.trim();
+  });
+  return result;
+}
+
+function randomTunnelId() {
+  for (let i = 0; i < 100; i += 1) {
+    const id = `tun_${Math.floor(Math.random() * 0xffffffff)
+      .toString(16)
+      .padStart(8, "0")}`;
+    if (!uci.get(UCI_PACKAGE, id)) {
+      return id;
+    }
+  }
+
+  return `tun_${Date.now().toString(16)}`;
+}
+
+function createTunnelItem(sectionId, tunnelId, settings) {
+  const itemId = uci.add(UCI_PACKAGE, "tunnel", tunnelId) || tunnelId;
+  uci.set(UCI_PACKAGE, itemId, "section", sectionId);
+  tunnelSettingsKeys().forEach((key) => uci.unset(UCI_PACKAGE, itemId, key));
+  applyChildItemSettings(itemId, settings);
+  return itemId;
+}
+
+function materializeTunnelPeers(tunnelId, values, option) {
+  const store = childPendingSettingsStore(option, tunnelId);
+  const itemIds = materializeChildItems(
+    tunnelId,
+    {
+      typeName: "tunnel_peer",
+      ownerOption: "tunnel",
+      createId: (value) => `${value || ""}`.trim(),
+      stagedSettings: (value) => store[`${value || ""}`] || null,
+    },
+    values,
+  );
+  itemIds.forEach((itemId, index) => {
+    uci.set(UCI_PACKAGE, itemId, "order", `${index}`);
+  });
+  cleanupRemovedChildItems(tunnelId, "tunnel_peer", itemIds, "tunnel");
+  delete option.pendingChildSettings[tunnelId];
+  return itemIds;
 }
 
 function setModalOptionValue(map, option, value) {
@@ -3575,8 +3763,65 @@ function getModalOptionValue(map, option) {
     : map.data.get(map.config, "settings", option.option);
 }
 
-function tunnelEndpointFromSettings(settings) {
+function tunnelPeerFromChild(peerId) {
+  const peer = (uci.sections(UCI_PACKAGE, "tunnel_peer") || []).find(
+    (item) => item[".name"] === `${peerId || ""}`,
+  );
+  if (!peer) {
+    return null;
+  }
+
+  const result = {
+    address: `${peer.address || ""}`.trim(),
+    port: Number(peer.port),
+    public_key: `${peer.public_key || ""}`.trim(),
+    allowed_ips: normalizeOptionValues(peer.allowed_ips),
+  };
+  if (`${peer.pre_shared_key || ""}`.trim()) {
+    result.pre_shared_key = `${peer.pre_shared_key}`.trim();
+  }
+  if (`${peer.persistent_keepalive_interval || ""}`.trim()) {
+    result.persistent_keepalive_interval = Number(
+      peer.persistent_keepalive_interval,
+    );
+  }
+  return result;
+}
+
+function tunnelPeerForValue(tunnelId, value, option) {
+  const saved = tunnelPeerFromChild(value);
+  if (saved) {
+    return saved;
+  }
+
+  const staged = option?.pendingChildSettings?.[tunnelId]?.[value];
+  return staged ? wireGuardPeerFromSettings(staged) : null;
+}
+
+function tunnelEndpointFromSettings(settings, tunnelId, peerOption) {
   const kind = `${settings.tunnel_type || ""}`;
+  if (kind === "json") {
+    return parseOutboundJsonObject(settings.endpoint_json);
+  }
+  if (kind === "tailscale") {
+    const endpoint = {
+      type: "tailscale",
+      auth_key: `${settings.tailscale_auth_key || ""}`.trim(),
+      hostname: `${settings.tailscale_hostname || ""}`.trim(),
+      control_url:
+        `${settings.tailscale_control_url || "https://controlplane.tailscale.com"}`.trim(),
+      accept_routes: `${settings.tailscale_accept_routes || ""}` === "1",
+      exit_node: `${settings.tailscale_exit_node || ""}`.trim(),
+      exit_node_allow_lan_access: true,
+    };
+    if (`${settings.tailscale_detour_enabled || ""}` === "1") {
+      const detour = tailscaleDetourTag(settings.tailscale_detour_section);
+      if (detour) {
+        endpoint.detour = detour;
+      }
+    }
+    return endpoint;
+  }
   if (kind === "warp") {
     const endpoint = { type: "warp" };
     if (`${settings.warp_keepalive || ""}`.trim()) {
@@ -3608,10 +3853,10 @@ function tunnelEndpointFromSettings(settings) {
     return endpoint;
   }
 
-  const peers = L.toArray(settings.peer_jsons)
-    .map((value) => parseOutboundJsonObject(value))
+  const peers = L.toArray(settings.peer_ids)
+    .map((value) => tunnelPeerForValue(tunnelId, value, peerOption))
     .filter(Boolean);
-  if (peers.length !== L.toArray(settings.peer_jsons).filter(Boolean).length)
+  if (peers.length !== L.toArray(settings.peer_ids).filter(Boolean).length)
     return null;
 
   const endpoint = {
@@ -3670,21 +3915,6 @@ function tunnelWarpJunkSettings(settings) {
   return amnezia;
 }
 
-function wireGuardPeerInitialSettings(value) {
-  const peer = parseOutboundJsonObject(value) || {};
-  return {
-    address: `${peer.address || ""}`,
-    port: peer.port != null ? `${peer.port}` : "",
-    public_key: `${peer.public_key || ""}`,
-    pre_shared_key: `${peer.pre_shared_key || ""}`,
-    allowed_ips: L.toArray(peer.allowed_ips),
-    persistent_keepalive_interval:
-      peer.persistent_keepalive_interval != null
-        ? `${peer.persistent_keepalive_interval}`
-        : "",
-  };
-}
-
 function wireGuardPeerFromSettings(settings) {
   const peer = {
     address: `${settings.address || ""}`.trim(),
@@ -3703,21 +3933,12 @@ function wireGuardPeerFromSettings(settings) {
   return peer;
 }
 
-function wireGuardPeerDisplayName(value) {
-  const peer = parseOutboundJsonObject(value);
-  if (!peer) return _("WireGuard peer");
-  const address = `${peer.address || ""}`.trim();
-  const port = Number(peer.port);
-  return address && Number.isInteger(port)
-    ? `${address}:${port}`
-    : address || _("WireGuard peer");
-}
-
-function wireGuardPeerListItemLabel(value) {
+function wireGuardPeerListItemLabel(tunnelId, value, option) {
+  const peer = tunnelPeerForValue(tunnelId, value, option);
   return E(
     "span",
     { class: "fkp-dynlist-label" },
-    wireGuardPeerDisplayName(value),
+    wireGuardPeerDisplayNameFromObject(peer),
   );
 }
 
@@ -3789,20 +4010,20 @@ function validateWireGuardPeer(peer) {
   return true;
 }
 
-function validateWireGuardPeerJson(value) {
-  const peer = parseOutboundJsonObject(value);
+function validateWireGuardPeerValue(value, tunnelId, option) {
+  const peer = tunnelPeerForValue(tunnelId, value, option);
   return peer
     ? validateWireGuardPeer(peer)
     : _("Open peer settings and complete the configuration");
 }
 
-function validateWireGuardPeers(values) {
+function validateWireGuardPeers(values, tunnelId, option) {
   const peers = L.toArray(values).filter((value) => `${value || ""}`.trim());
   if (peers.length === 0) {
     return _("Add at least one WireGuard peer");
   }
   for (const value of peers) {
-    const validation = validateWireGuardPeerJson(value);
+    const validation = validateWireGuardPeerValue(value, tunnelId, option);
     if (validation !== true) return validation;
   }
   return true;
@@ -3821,6 +4042,14 @@ function validateWireGuardPrefix(value) {
 }
 
 function validateWireGuardListInput(value) {
+  if (Array.isArray(value)) {
+    const values = normalizeOptionValues(value);
+    return values.every((item) => validateWireGuardPrefix(item) === true)
+      ? true
+      : validateWireGuardPrefix(
+          values.find((item) => validateWireGuardPrefix(item) !== true) || "",
+        );
+  }
   return `${value || ""}`.trim() ? validateWireGuardPrefix(value) : true;
 }
 
@@ -3846,14 +4075,41 @@ function validateAmneziaRange(value) {
       );
 }
 
-function validateTunnelSettings(settings) {
+function validateTunnelSettings(settings, tunnelId, peerOption) {
+  const kind = `${settings.tunnel_type || ""}`;
   const name = `${settings.name || ""}`.trim();
-  if (!name) {
+  if (kind !== "json" && !name) {
     return _("Enter a tunnel name");
   }
-  const endpoint = tunnelEndpointFromSettings(settings);
+  const endpoint = tunnelEndpointFromSettings(settings, tunnelId, peerOption);
   if (!endpoint) {
-    return _("Open peer settings and complete the configuration");
+    return kind === "json"
+      ? _("Enter a valid JSON endpoint object")
+      : _("Open peer settings and complete the configuration");
+  }
+  if (kind === "json") {
+    if (typeof endpoint.type !== "string" || !endpoint.type.trim()) {
+      return _("JSON endpoint must contain a non-empty type");
+    }
+    if (typeof endpoint.tag !== "string" || !endpoint.tag.trim()) {
+      return _("JSON endpoint must contain a non-empty tag");
+    }
+    return true;
+  }
+  if (endpoint.type === "tailscale") {
+    if (!endpoint.auth_key) return _("Enter a Tailscale auth key");
+    if (!endpoint.hostname) return _("Enter a Tailscale hostname");
+    if (!endpoint.exit_node) return _("Enter a Tailscale exit node");
+    if (!main.validateUrl(endpoint.control_url || "").valid) {
+      return _("Enter a valid Tailscale control URL");
+    }
+    if (
+      `${settings.tailscale_detour_enabled || ""}` === "1" &&
+      !endpoint.detour
+    ) {
+      return _("Select a section");
+    }
+    return true;
   }
   if (`${settings.tunnel_type || ""}` === "amneziawg") {
     for (const key of AMNEZIA_RANGE_FIELDS) {
@@ -3891,7 +4147,11 @@ function validateTunnelSettings(settings) {
   if (endpoint.peers.length === 0) {
     return _("Add at least one WireGuard peer");
   }
-  const peersValidation = validateWireGuardPeers(settings.peer_jsons);
+  const peersValidation = validateWireGuardPeers(
+    settings.peer_ids,
+    tunnelId,
+    peerOption,
+  );
   if (peersValidation !== true) {
     return peersValidation;
   }
@@ -3914,11 +4174,23 @@ function applyImportedTunnelEndpoint(map, fields, endpoint) {
   setModalOptionValue(map, fields.privateKey, endpoint.private_key || "");
   setModalOptionValue(map, fields.listenPort, endpoint.listen_port || "");
   setModalOptionValue(map, fields.mtu, endpoint.mtu || "");
-  setModalOptionValue(
-    map,
-    fields.peers,
-    (endpoint.peers || []).map((peer) => JSON.stringify(peer)),
-  );
+  const peerStore = childPendingSettingsStore(fields.peers, fields.tunnelId);
+  const peerIds = (endpoint.peers || []).map((peer) => {
+    const id = randomTunnelPeerId();
+    peerStore[id] = {
+      address: `${peer.address || ""}`.trim(),
+      port: peer.port != null ? `${peer.port}` : "",
+      public_key: `${peer.public_key || ""}`.trim(),
+      pre_shared_key: `${peer.pre_shared_key || ""}`.trim(),
+      allowed_ips: normalizeOptionValues(peer.allowed_ips),
+      persistent_keepalive_interval:
+        peer.persistent_keepalive_interval != null
+          ? `${peer.persistent_keepalive_interval}`
+          : "",
+    };
+    return id;
+  });
+  setModalOptionValue(map, fields.peers, peerIds);
   [
     ...AMNEZIA_INTEGER_FIELDS,
     ...AMNEZIA_RANGE_FIELDS,
@@ -3935,20 +4207,44 @@ function applyImportedTunnelEndpoint(map, fields, endpoint) {
   map.checkDepends();
 }
 
-function showWireGuardPeerSettingsModal(
-  _sectionId,
-  itemValue,
-  _option,
-  widget,
-  itemNode,
-  context = {},
-) {
-  const data = { settings: wireGuardPeerInitialSettings(itemValue) };
-  const map = new form.JSONMap(data);
-  const section = map.section(form.NamedSection, "settings");
-  section.anonymous = true;
-  section.addremove = false;
+function wireGuardPeerSettingsKeys() {
+  return [
+    "address",
+    "port",
+    "public_key",
+    "pre_shared_key",
+    "allowed_ips",
+    "persistent_keepalive_interval",
+  ];
+}
 
+function defaultWireGuardPeerSettings() {
+  return {
+    address: "",
+    port: "",
+    public_key: "",
+    pre_shared_key: "",
+    allowed_ips: [],
+    persistent_keepalive_interval: "",
+  };
+}
+
+function wireGuardPeerDisplayNameFromObject(peer) {
+  if (!peer) {
+    return _("WireGuard peer");
+  }
+  const address = `${peer.address || ""}`.trim();
+  const port = Number(peer.port);
+  return address && Number.isInteger(port)
+    ? `${address}:${port}`
+    : address || _("WireGuard peer");
+}
+
+function randomTunnelPeerId() {
+  return `tp_${Date.now().toString(16)}_${Math.random().toString(16).slice(2, 8)}`;
+}
+
+function addWireGuardPeerItemOptions(section) {
   let o = section.option(
     form.Value,
     "address",
@@ -4004,30 +4300,41 @@ function showWireGuardPeerSettingsModal(
     form.Value,
     "persistent_keepalive_interval",
     _("Persistent keepalive"),
-    _("Optional keepalive interval in seconds."),
+    _(
+      "Time in seconds between packets sent to keep the tunnel open. Leave empty to use the default value.",
+    ),
   );
   o.datatype = "range(0,65535)";
   o.rmempty = true;
+}
 
-  return renderStackedJsonSettingsModal(
-    _("WireGuard peer settings"),
-    map,
-    (settings) => {
-      const peer = wireGuardPeerFromSettings(settings);
-      const validation = validateWireGuardPeer(peer);
-      if (validation !== true) throw new TypeError(validation);
-      const value = JSON.stringify(peer);
-      if (context.adding) {
-        addDynamicListItem(widget, value);
+function showWireGuardPeerSettingsModal(
+  tunnelId,
+  itemValue,
+  option,
+  widget,
+  itemNode,
+  context = {},
+) {
+  const peerId = context.adding ? randomTunnelPeerId() : `${itemValue || ""}`;
+  return showChildItemSettingsModal(tunnelId, peerId, option, {
+    typeName: "tunnel_peer",
+    ownerOption: "tunnel",
+    keys: wireGuardPeerSettingsKeys(),
+    defaults: defaultWireGuardPeerSettings(),
+    addOptions: addWireGuardPeerItemOptions,
+    title: () => _("WireGuard peer settings"),
+    afterSave: (itemId, _inputValue, settings, existing) => {
+      const displayName = wireGuardPeerDisplayNameFromObject(
+        wireGuardPeerFromSettings(settings),
+      );
+      if (!existing && context.adding) {
+        addDynamicListItem(widget, itemId, displayName);
         return;
       }
-      setDynamicListItemValue(itemNode, value);
-      updateDynamicListItemLabel(itemNode, wireGuardPeerDisplayName(value));
-      if (widget && widget.node) {
-        widget.dispatchCbiDynlistChange(widget.node, value);
-      }
+      updateDynamicListItemLabel(itemNode, displayName);
     },
-  );
+  });
 }
 
 function showTunnelImportModal(parentMap, fields) {
@@ -4042,7 +4349,7 @@ function showTunnelImportModal(parentMap, fields) {
     "configuration",
     _("Configuration"),
     _(
-      "Paste a WireGuard or AmneziaWG .conf/.cfg file or an Amnezia vpn:// link.",
+      "Paste a WireGuard or AmneziaWG configuration or a link in vpn:// format.",
     ),
   );
   configuration.rows = 12;
@@ -4093,29 +4400,52 @@ function showTunnelImportModal(parentMap, fields) {
 }
 
 function showTunnelSettingsModal(
-  _section_id,
+  section_id,
   itemValue,
   _option,
   widget,
   itemNode,
   context = {},
 ) {
-  const data = { settings: tunnelInitialSettings(itemValue) };
+  const tunnelId = context.adding
+    ? randomTunnelId()
+    : `${itemValue || ""}`.trim();
+  if (!tunnelId) {
+    return null;
+  }
+
+  const data = { settings: tunnelInitialSettings(tunnelId, section_id) };
   const map = new form.JSONMap(data);
   const itemSection = map.section(form.NamedSection, "settings");
   itemSection.anonymous = true;
   itemSection.addremove = false;
 
+  const typeOption = itemSection.option(
+    form.ListValue,
+    "tunnel_type",
+    _("Tunnel type"),
+  );
+  typeOption.value("wireguard", "WireGuard");
+  typeOption.value("amneziawg", "AmneziaWG");
+  typeOption.value("warp", "Cloudflare WARP");
+  typeOption.value("tailscale", "Tailscale");
+  typeOption.value("json", "JSON endpoint");
+  typeOption.default = "wireguard";
+  typeOption.rmempty = false;
+
   let o = itemSection.option(
     form.Value,
     "name",
     _("Tunnel name"),
-    _("Name displayed in this section and on the dashboard."),
+    _("Name displayed on the dashboard"),
   );
   o.rmempty = false;
   o.validate = function (_itemId, value) {
     return `${value || ""}`.trim() ? true : _("Enter a tunnel name");
   };
+  ["wireguard", "amneziawg", "warp", "tailscale"].forEach((kind) =>
+    o.depends("tunnel_type", kind),
+  );
 
   const importButton = itemSection.option(
     form.Button,
@@ -4132,31 +4462,132 @@ function showTunnelSettingsModal(
     form.Button,
     "_generate_warp_profile",
     _("WARP profile"),
-    _("Register a Cloudflare WARP device and fill the profile fields."),
+    _("Automatically register a device and fill the required fields."),
   );
   warpGenerateButton.inputtitle = _("Generate profile");
   warpGenerateButton.inputstyle = "apply";
   warpGenerateButton.depends("tunnel_type", "warp");
 
-  const typeOption = itemSection.option(
-    form.ListValue,
-    "tunnel_type",
-    _("Tunnel type"),
-    _("Choose WireGuard, AmneziaWG, or Cloudflare WARP."),
+  const tailscaleAuthKeyOption = itemSection.option(
+    form.Value,
+    "tailscale_auth_key",
+    _("Tailscale auth key"),
+    _("Auth Key from the Tailscale admin console"),
   );
-  typeOption.value("wireguard", "WireGuard");
-  typeOption.value("amneziawg", "AmneziaWG");
-  typeOption.value("warp", "Cloudflare WARP");
-  typeOption.default = "wireguard";
-  typeOption.rmempty = false;
+  tailscaleAuthKeyOption.password = true;
+  tailscaleAuthKeyOption.rmempty = false;
+  tailscaleAuthKeyOption.depends("tunnel_type", "tailscale");
+
+  const tailscaleHostnameOption = itemSection.option(
+    form.Value,
+    "tailscale_hostname",
+    _("Tailscale hostname"),
+    _("Name shown in the Tailscale admin console."),
+  );
+  tailscaleHostnameOption.rmempty = false;
+  tailscaleHostnameOption.depends("tunnel_type", "tailscale");
+
+  const tailscaleControlUrlOption = itemSection.option(
+    form.Value,
+    "tailscale_control_url",
+    _("Tailscale control URL"),
+    _(
+      "Address of the coordination server. Change it if you use a custom server.",
+    ),
+  );
+  tailscaleControlUrlOption.default = "https://controlplane.tailscale.com";
+  tailscaleControlUrlOption.rmempty = false;
+  tailscaleControlUrlOption.depends("tunnel_type", "tailscale");
+  tailscaleControlUrlOption.validate = function (_itemId, value) {
+    const validation = main.validateUrl(`${value || ""}`.trim());
+    return validation.valid ? true : validation.message;
+  };
+
+  const tailscaleDetourEnabledOption = itemSection.option(
+    form.Flag,
+    "tailscale_detour_enabled",
+    _("Control plane through section"),
+    _("Connect to the coordination server through a section"),
+  );
+  tailscaleDetourEnabledOption.default = "0";
+  tailscaleDetourEnabledOption.rmempty = false;
+  tailscaleDetourEnabledOption.depends("tunnel_type", "tailscale");
+
+  const tailscaleDetourSectionOption = itemSection.option(
+    form.ListValue,
+    "tailscale_detour_section",
+    _("Control plane through"),
+  );
+  refreshOutboundDetourSectionOptionValues(
+    tailscaleDetourSectionOption,
+    section_id,
+  );
+  tailscaleDetourSectionOption.rmempty = false;
+  tailscaleDetourSectionOption.depends({
+    tunnel_type: "tailscale",
+    tailscale_detour_enabled: "1",
+  });
+  tailscaleDetourSectionOption.validate = function (_itemId, value) {
+    if (!value) {
+      return _("Select a section");
+    }
+    return value === section_id
+      ? _("Current section cannot be used as its own transit section")
+      : true;
+  };
+
+  const tailscaleAcceptRoutesOption = itemSection.option(
+    form.Flag,
+    "tailscale_accept_routes",
+    _("Accept routes"),
+    _("Accept subnets advertised by other devices in your Tailscale network."),
+  );
+  tailscaleAcceptRoutesOption.default = "1";
+  tailscaleAcceptRoutesOption.rmempty = false;
+  tailscaleAcceptRoutesOption.depends("tunnel_type", "tailscale");
+
+  const tailscaleExitNodeOption = itemSection.option(
+    form.Value,
+    "tailscale_exit_node",
+    _("Exit node"),
+    _(
+      "IP address or device name in Tailscale through which traffic is forwarded.",
+    ),
+  );
+  tailscaleExitNodeOption.rmempty = false;
+  tailscaleExitNodeOption.depends("tunnel_type", "tailscale");
+
+  const endpointJsonOption = itemSection.option(
+    form.TextValue,
+    "endpoint_json",
+    _("JSON endpoint"),
+    _("Enter a complete sing-box endpoint object."),
+  );
+  endpointJsonOption.rows = 12;
+  endpointJsonOption.wrap = "soft";
+  endpointJsonOption.textarea = true;
+  endpointJsonOption.rmempty = false;
+  endpointJsonOption.depends("tunnel_type", "json");
+  endpointJsonOption.validate = function (_itemId, value) {
+    const endpoint = parseOutboundJsonObject(value);
+    if (
+      !endpoint ||
+      typeof endpoint.type !== "string" ||
+      !endpoint.type.trim()
+    ) {
+      return _("JSON endpoint must contain a non-empty type");
+    }
+    return typeof endpoint.tag === "string" && endpoint.tag.trim()
+      ? true
+      : _("JSON endpoint must contain a non-empty tag");
+  };
+  configureTextareaOption(endpointJsonOption);
 
   const addressOption = itemSection.option(
     form.DynamicList,
     "address",
     _("Tunnel addresses"),
-    _(
-      "Interface IPv4 or IPv6 addresses in CIDR format, for example 10.0.0.2/32.",
-    ),
+    _("Interface IPv4 or IPv6 addresses in CIDR format."),
   );
   addressOption.rmempty = false;
   addressOption.depends("tunnel_type", "wireguard");
@@ -4187,7 +4618,7 @@ function showTunnelSettingsModal(
     form.Value,
     "listen_port",
     _("Listen port"),
-    _("Optional local UDP port. Leave empty to let sing-box choose it."),
+    _("Optional local UDP port. Leave empty to use the default value."),
   );
   listenPortOption.datatype = "port";
   listenPortOption.rmempty = true;
@@ -4199,7 +4630,7 @@ function showTunnelSettingsModal(
     "mtu",
     "MTU",
     _(
-      "Maximum packet size for this tunnel. Leave empty to use the core default.",
+      "Maximum packet size for this tunnel. Leave empty to use the default value.",
     ),
   );
   mtuOption.datatype = "range(1,65535)";
@@ -4209,24 +4640,33 @@ function showTunnelSettingsModal(
 
   const peersOption = itemSection.option(
     ButtonAddSettingsDynamicList,
-    "peer_jsons",
+    "peer_ids",
     _("Peers"),
-    _("Add one or more WireGuard peers and configure each one separately."),
+    _("List of remote WireGuard nodes to connect."),
   );
   peersOption.rmempty = false;
   peersOption.depends("tunnel_type", "wireguard");
   peersOption.depends("tunnel_type", "amneziawg");
   peersOption.addButtonLabel = _("+ Add peer");
+  peersOption.ownerOption = "tunnel";
+  peersOption.childOwnerId = () => tunnelId;
+  peersOption.createId = (value) => `${value || ""}`.trim();
   peersOption.renderItemSettingsModal = showWireGuardPeerSettingsModal;
-  peersOption.renderListItemLabel = function (_sectionId, value) {
-    return wireGuardPeerListItemLabel(value);
+  peersOption.renderListItemLabel = function (ownerId, value) {
+    return wireGuardPeerListItemLabel(ownerId, value, this);
   };
-  peersOption.validateItemsOnSave = function (_sectionId, values) {
-    return validateWireGuardPeers(values);
+  peersOption.validateItemsOnSave = function (_ownerId, values) {
+    return validateWireGuardPeers(values, tunnelId, this);
   };
   peersOption.validate = function (_itemId, value) {
-    if (!`${value || ""}`.trim()) return true;
-    return validateWireGuardPeerJson(value);
+    if (!`${value || ""}`.trim()) {
+      const current =
+        typeof this.formvalue === "function" ? this.formvalue(_itemId) : [];
+      return normalizeDynamicListItems(current).length > 0
+        ? true
+        : _("Add at least one WireGuard peer");
+    }
+    return validateWireGuardPeerValue(value, tunnelId, this);
   };
 
   const amneziaOptions = {};
@@ -4238,6 +4678,7 @@ function showTunnelSettingsModal(
       listenPort: listenPortOption,
       mtu: mtuOption,
       peers: peersOption,
+      tunnelId,
       amnezia: amneziaOptions,
     });
   };
@@ -4246,10 +4687,11 @@ function showTunnelSettingsModal(
     form.Value,
     "warp_keepalive",
     _("Persistent keepalive"),
-    _("Keepalive interval in seconds. Leave empty to use the core default."),
+    _(
+      "Time in seconds between packets sent to keep the tunnel open. Leave empty to use the default value.",
+    ),
   );
   o.datatype = "range(0,65535)";
-  o.placeholder = "30";
   o.rmempty = true;
   o.depends("tunnel_type", "warp");
 
@@ -4257,7 +4699,6 @@ function showTunnelSettingsModal(
     form.Value,
     "warp_profile_id",
     _("WARP profile ID"),
-    _("Register a Cloudflare WARP device and fill the profile fields."),
   );
   warpProfileIdOption.rmempty = false;
   warpProfileIdOption.depends("tunnel_type", "warp");
@@ -4266,7 +4707,6 @@ function showTunnelSettingsModal(
     form.Value,
     "warp_auth_token",
     _("WARP auth token"),
-    _("Cloudflare device token. Generate a profile to fill it automatically."),
   );
   warpAuthTokenOption.password = true;
   warpAuthTokenOption.rmempty = false;
@@ -4276,9 +4716,6 @@ function showTunnelSettingsModal(
     form.Value,
     "warp_private_key",
     _("WARP private key"),
-    _(
-      "Cloudflare WireGuard private key. Generate a profile to fill it automatically.",
-    ),
   );
   warpPrivateKeyOption.password = true;
   warpPrivateKeyOption.rmempty = false;
@@ -4320,9 +4757,9 @@ function showTunnelSettingsModal(
   const warpJunkOption = itemSection.option(
     form.Flag,
     "warp_junk_enabled",
-    _("Junk packet obfuscation"),
+    _("Traffic masking"),
     _(
-      "Optional Jc, Jmin, Jmax, and I1-I5 junk-packet settings. They do not change the Cloudflare handshake.",
+      "Adds AmneziaWG traffic obfuscation to make the traffic harder to identify.",
     ),
   );
   warpJunkOption.default = "0";
@@ -4349,7 +4786,6 @@ function showTunnelSettingsModal(
       `amnezia_${key}`,
       key.toUpperCase(),
     );
-    option.placeholder = "100 or 100-200";
     option.rmempty = true;
     option.depends("tunnel_type", "amneziawg");
     option.validate = function (_itemId, value) {
@@ -4371,41 +4807,70 @@ function showTunnelSettingsModal(
     amneziaOptions[key] = option;
   });
 
+  typeOption.onchange = function (_event, sectionId, value) {
+    if (value === "warp") {
+      Object.values(amneziaOptions).forEach((option) =>
+        setModalOptionValue(map, option, ""),
+      );
+    }
+    map.checkDepends();
+  };
+
   return renderStackedJsonSettingsModal(
     _("Tunnel settings"),
     map,
     (settings) => {
-      const validation = validateTunnelSettings(settings);
+      const validation = validateTunnelSettings(
+        settings,
+        tunnelId,
+        peersOption,
+      );
       if (validation !== true) {
         throw new TypeError(validation);
       }
-      const value = JSON.stringify({
-        name: `${settings.name || ""}`.trim(),
-        kind: settings.tunnel_type,
-        endpoint: tunnelEndpointFromSettings(settings),
-      });
+      const storage = tunnelStorageSettings(settings);
+      const itemIds = L.toArray(settings.peer_ids).filter(Boolean);
+      const itemId = createTunnelItem(section_id, tunnelId, storage);
+      if (
+        settings.tunnel_type === "wireguard" ||
+        settings.tunnel_type === "amneziawg"
+      ) {
+        materializeTunnelPeers(tunnelId, itemIds, peersOption);
+      } else {
+        materializeTunnelPeers(tunnelId, [], peersOption);
+      }
       if (context.adding) {
-        addDynamicListItem(widget, value);
+        uci.set(UCI_PACKAGE, itemId, "section", section_id);
+        addDynamicListItem(
+          widget,
+          itemId,
+          tunnelDisplayName(section_id, itemId),
+        );
         return;
       }
-      setDynamicListItemValue(itemNode, value);
-      updateDynamicListItemLabel(itemNode, tunnelDisplayName(value));
+      setDynamicListItemValue(itemNode, itemId);
+      updateDynamicListItemLabel(
+        itemNode,
+        tunnelDisplayName(section_id, itemId),
+      );
       if (widget && widget.node) {
-        widget.dispatchCbiDynlistChange(widget.node, value);
+        widget.dispatchCbiDynlistChange(widget.node, itemId);
       }
     },
   );
 }
 
-function validateTunnelItemsBeforeSave(_section_id, values) {
+function validateTunnelItemsBeforeSave(section_id, values) {
   for (const value of normalizeDynamicListItems(values)) {
-    const wrapper = parseTunnelJson(value);
-    if (!wrapper) {
+    const tunnelId = `${value || ""}`.trim();
+    if (!isExistingChildItem(section_id, tunnelId, "tunnel")) {
       return _("Open tunnel settings and complete the configuration");
     }
-    const validation = validateTunnelSettings(tunnelInitialSettings(value));
+    const validation = validateTunnelSettings(
+      tunnelInitialSettings(tunnelId, section_id),
+    );
     if (validation !== true) {
-      return `${tunnelDisplayName(value) || _("Tunnel")}: ${validation}`;
+      return `${tunnelDisplayName(section_id, tunnelId) || _("Tunnel")}: ${validation}`;
     }
   }
   return true;
@@ -4808,7 +5273,7 @@ function getChildItemIds(section_id, typeName, ownerOption) {
     .sections(UCI_PACKAGE, typeName)
     .filter((item) => item[ownerKey] === section_id);
 
-  if (typeName === "priority_level") {
+  if (["fallback_level", "tunnel", "tunnel_peer"].includes(typeName)) {
     items.sort((a, b) => {
       const orderDiff = childItemOrder(a) - childItemOrder(b);
       if (orderDiff !== 0) {
@@ -4986,9 +5451,15 @@ function materializeChildItems(section_id, options, inputValue) {
   return result;
 }
 
-function cleanupPriorityLevelsForGroup(groupId) {
-  getChildItemIds(groupId, "priority_level", "group").forEach((levelId) => {
+function cleanupFallbackLevelsForGroup(groupId) {
+  getChildItemIds(groupId, "fallback_level", "group").forEach((levelId) => {
     uci.remove(UCI_PACKAGE, levelId);
+  });
+}
+
+function cleanupTunnelPeers(tunnelId) {
+  getChildItemIds(tunnelId, "tunnel_peer", "tunnel").forEach((peerId) => {
+    uci.remove(UCI_PACKAGE, peerId);
   });
 }
 
@@ -5002,8 +5473,10 @@ function cleanupRemovedChildItems(
 
   getChildItemIds(section_id, typeName, ownerOption).forEach((itemId) => {
     if (!keep.has(itemId)) {
-      if (typeName === "priority_group") {
-        cleanupPriorityLevelsForGroup(itemId);
+      if (typeName === "fallback_group") {
+        cleanupFallbackLevelsForGroup(itemId);
+      } else if (typeName === "tunnel") {
+        cleanupTunnelPeers(itemId);
       }
       uci.remove(UCI_PACKAGE, itemId);
     }
@@ -7918,31 +8391,41 @@ function createSectionContent(section) {
   o = section.taboption(
     "settings",
     ButtonAddSettingsDynamicList,
-    "tunnel_jsons",
+    "tunnels",
     _("Tunnels"),
-    _("Native WireGuard, AmneziaWG 2.0, and Cloudflare WARP endpoints"),
+    _("WireGuard, AmneziaWG 2.0, Cloudflare WARP, and Tailscale tunnels"),
   );
   o.depends("action", "connection");
   o.rmempty = true;
   o.modalonly = true;
   o.addButtonLabel = _("+ Add tunnel");
+  o.childType = "tunnel";
+  o.ownerOption = "section";
+  o.childValueOption = null;
+  o.createId = () => randomTunnelId();
   o.renderItemSettingsModal = showTunnelSettingsModal;
-  o.renderListItemLabel = function (_section_id, value) {
-    return tunnelListItemLabel(value);
+  o.renderListItemLabel = function (section_id, value) {
+    return tunnelListItemLabel(section_id, value);
   };
   o.validateItemsOnSave = validateTunnelItemsBeforeSave;
   o.validate = function (_section_id, value) {
     if (!`${value || ""}`.trim()) {
       return true;
     }
-    const wrapper = parseTunnelJson(value);
-    if (!wrapper) {
+    if (!isExistingChildItem(_section_id, `${value || ""}`.trim(), "tunnel")) {
       return _("Open tunnel settings and complete the configuration");
     }
-    return validateTunnelSettings(tunnelInitialSettings(value));
+    return validateTunnelSettings(
+      tunnelInitialSettings(`${value || ""}`.trim(), _section_id),
+    );
   };
   o.onListChange = refreshDashboardFilterChoiceWidgets;
-  outboundNameSourceOptions.set("tunnel_jsons", o);
+  o.afterMaterializeChildItems = function (_section_id, itemIds) {
+    itemIds.forEach((itemId, index) => {
+      uci.set(UCI_PACKAGE, itemId, "order", `${index}`);
+    });
+  };
+  outboundNameSourceOptions.set("tunnels", o);
 
   o = section.taboption(
     "settings",
@@ -8032,31 +8515,31 @@ function createSectionContent(section) {
   o = section.taboption(
     "settings",
     ButtonAddSettingsDynamicList,
-    "priority_group",
-    _("Priority"),
-    _("Server group for priority failover"),
+    "fallback_group",
+    _("Fallback"),
+    _("Server group for ordered fallback"),
   );
   o.depends("action", "connection");
   o.rmempty = true;
   o.modalonly = true;
-  o.addButtonLabel = _("+ Add priority");
-  o.childType = "priority_group";
+  o.addButtonLabel = _("+ Add fallback");
+  o.childType = "fallback_group";
   o.childValueOption = "name";
-  o.childDefaults = priorityGroupChildDefaults();
-  o.createId = () => randomPriorityGroupId();
-  o.renderItemSettingsModal = showPriorityGroupSettingsModal;
-  o.validateItemsOnSave = validatePriorityGroupItemsBeforeSave;
+  o.childDefaults = fallbackGroupChildDefaults();
+  o.createId = () => randomFallbackGroupId();
+  o.renderItemSettingsModal = showFallbackGroupSettingsModal;
+  o.validateItemsOnSave = validateFallbackGroupItemsBeforeSave;
   o.hasItemSettings = function (section_id, value) {
     const normalized = `${value || ""}`.trim();
 
-    if (isExistingChildItem(section_id, normalized, "priority_group")) {
+    if (isExistingChildItem(section_id, normalized, "fallback_group")) {
       return true;
     }
 
     return normalized.length > 0;
   };
   o.inputValueForItem = function (section_id, value) {
-    return childItemInputValue(section_id, value, "priority_group", "name");
+    return childItemInputValue(section_id, value, "fallback_group", "name");
   };
   o.renderListItemLabel = function (section_id, itemId) {
     return E(
@@ -8073,7 +8556,7 @@ function createSectionContent(section) {
     "outbound_detour_enabled",
     _("Cascade connection"),
     _(
-      "Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces or JSON outbounds.",
+      "Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, Tailscale, JSON endpoints, or JSON outbounds.",
     ),
   );
   o.default = "0";
@@ -8518,7 +9001,8 @@ function configureSectionSection(sectionRef, options = {}) {
     cleanupRemovedChildItems(section_id, "subscription_url", []);
     cleanupRemovedChildItems(section_id, "section_interface", []);
     cleanupRemovedChildItems(section_id, "urltest", []);
-    cleanupRemovedChildItems(section_id, "priority_group", []);
+    cleanupRemovedChildItems(section_id, "fallback_group", []);
+    cleanupRemovedChildItems(section_id, "tunnel", []);
     return handleRemove.apply(this, arguments);
   };
 

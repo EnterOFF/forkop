@@ -82,18 +82,18 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
       "include_securities": [ "none" ]
     }
   ],
-  "priority_group": [
+  "fallback_group": [
     {
       ".name": "pg_parameters",
-      ".type": "priority_group",
+      ".type": "fallback_group",
       "section": "proxy",
-      "name": "Parameter priority"
+      "name": "Parameter fallback"
     }
   ],
-  "priority_level": [
+  "fallback_level": [
     {
       ".name": "pl_grpc",
-      ".type": "priority_level",
+      ".type": "fallback_level",
       "group": "pg_parameters",
       "name": "gRPC VMess",
       "order": "0",
@@ -105,7 +105,7 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
     },
     {
       ".name": "pl_mixed",
-      ".type": "priority_level",
+      ".type": "fallback_level",
       "group": "pg_parameters",
       "name": "Mixed VLESS",
       "order": "1",
@@ -119,7 +119,7 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
     },
     {
       ".name": "pl_xhttp",
-      ".type": "priority_level",
+      ".type": "fallback_level",
       "group": "pg_parameters",
       "name": "XHTTP Trojan",
       "order": "2",
@@ -131,7 +131,7 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
     },
     {
       ".name": "pl_remaining",
-      ".type": "priority_level",
+      ".type": "fallback_level",
       "group": "pg_parameters",
       "name": "Remaining",
       "order": "3",
@@ -165,29 +165,29 @@ let config = json(fs.readfile(ARGV[0]));
 let cache = json(fs.readfile(ARGV[1]));
 assert_array(outbound_by_tag(config, "proxy-urltest-and_filter-out").outbounds, [ "Gamma" ], "URLTest AND/OR filter");
 assert_array(outbound_by_tag(config, "proxy-urltest-parameters_only-out").outbounds, [ "Echo" ], "URLTest parameter-only filter");
-assert_array(outbound_by_tag(config, "proxy-priority-pg_parameters-out").outbounds,
+assert_array(outbound_by_tag(config, "proxy-fallback-pg_parameters-out").outbounds,
     [
-        "proxy-priority-pg_parameters-level-pl_grpc-out",
-        "proxy-priority-pg_parameters-level-pl_xhttp-out",
-        "proxy-priority-pg_parameters-level-pl_remaining-out"
-    ], "Priority nested fallback levels");
-assert_array(outbound_by_tag(config, "proxy-priority-pg_parameters-level-pl_grpc-out").outbounds,
-    [ "Gamma" ], "Priority gRPC level filter");
-assert_array(outbound_by_tag(config, "proxy-priority-pg_parameters-level-pl_xhttp-out").outbounds,
-    [ "Delta" ], "Priority XHTTP level filter");
-assert_array(outbound_by_tag(config, "proxy-priority-pg_parameters-level-pl_remaining-out").outbounds,
-    [ "Alpha", "Beta", "Echo" ], "Priority remaining level filter");
-if (outbound_by_tag(config, "proxy-priority-pg_parameters-level-pl_mixed-out") != null)
-    fail("empty Priority level must not be generated");
-let priority_levels = ((cache.priorityGroups || {})["proxy-priority-pg_parameters-out"] || {}).levels || [];
+        "proxy-fallback-pg_parameters-level-pl_grpc-out",
+        "proxy-fallback-pg_parameters-level-pl_xhttp-out",
+        "proxy-fallback-pg_parameters-level-pl_remaining-out"
+    ], "Fallback nested fallback levels");
+assert_array(outbound_by_tag(config, "proxy-fallback-pg_parameters-level-pl_grpc-out").outbounds,
+    [ "Gamma" ], "Fallback gRPC level filter");
+assert_array(outbound_by_tag(config, "proxy-fallback-pg_parameters-level-pl_xhttp-out").outbounds,
+    [ "Delta" ], "Fallback XHTTP level filter");
+assert_array(outbound_by_tag(config, "proxy-fallback-pg_parameters-level-pl_remaining-out").outbounds,
+    [ "Alpha", "Beta", "Echo" ], "Fallback remaining level filter");
+if (outbound_by_tag(config, "proxy-fallback-pg_parameters-level-pl_mixed-out") != null)
+    fail("empty Fallback level must not be generated");
+let fallback_levels = ((cache.fallbackGroups || {})["proxy-fallback-pg_parameters-out"] || {}).levels || [];
 let cached_level_tags = [];
-for (let level in priority_levels)
+for (let level in fallback_levels)
     push(cached_level_tags, level.tag);
 assert_array(cached_level_tags, [
-    "proxy-priority-pg_parameters-level-pl_grpc-out",
-    "proxy-priority-pg_parameters-level-pl_xhttp-out",
-    "proxy-priority-pg_parameters-level-pl_remaining-out"
-], "Priority cached nested levels");
+    "proxy-fallback-pg_parameters-level-pl_grpc-out",
+    "proxy-fallback-pg_parameters-level-pl_xhttp-out",
+    "proxy-fallback-pg_parameters-level-pl_remaining-out"
+], "Fallback cached nested levels");
 
 let metadata = cache.outboundMetadata || {};
 if (metadata.protocols.Alpha != "vless" || metadata.protocols.Echo != "http")
@@ -197,7 +197,7 @@ if (metadata.transports.Alpha != "tcp" || metadata.transports.Beta != "ws" || me
 if (metadata.securities.Alpha != "tls" || metadata.securities.Beta != "reality" || metadata.securities.Gamma != "none")
     fail("security metadata was not normalized");
 ' "$WORK_DIR/config.json" "$WORK_DIR/config.json.section-cache/proxy.json" ||
-  fail "URLTest and Priority proxy parameter filtering"
+  fail "URLTest and Fallback proxy parameter filtering"
 
 node - "$WORK_DIR/fixture.json" "$WORK_DIR/invalid.json" "$WORK_DIR/extended.json" <<'JS'
 const fs = require('fs');

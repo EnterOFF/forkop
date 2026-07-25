@@ -324,15 +324,19 @@ function add_tailscale_endpoint(config, section, tag_name) {
         state_directory: "/etc/forkop/tailscale/" + safe_filename(section_name),
         auth_key: option(section, "tailscale_auth_key", ""),
         control_url: option(section, "tailscale_control_url", "https://controlplane.tailscale.com"),
-        hostname: option(section, "tailscale_hostname", "forkop-" + safe_filename(section_name))
+        hostname: option(section, "tailscale_hostname", "forkop-" + safe_filename(section_name)),
+        advertise_exit_node: true
     };
+    if (bool_option(section, "tailscale_detour_enabled", false)) {
+        let detour_section = option(section, "tailscale_detour_section", "");
+        if (detour_section != "")
+            endpoint.detour = runtime_constants.outbound_tag(detour_section);
+    }
     if (bool_option(section, "tailscale_accept_routes", false))
         endpoint.accept_routes = true;
     let advertise_routes = list_option(section, "tailscale_advertise_routes");
     if (length(advertise_routes) > 0)
         endpoint.advertise_routes = advertise_routes;
-    if (bool_option(section, "tailscale_advertise_exit_node", false))
-        endpoint.advertise_exit_node = true;
     push(config.endpoints, endpoint);
 }
 

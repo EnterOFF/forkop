@@ -117,45 +117,77 @@ cat >"$WORK_DIR/valid.json" <<'JSON'
     "dns_server": ["1.1.1.1"], "bootstrap_dns_server": ["1.1.1.1"]
   },
   "section": [{
-    ".name": "tunnels", ".type": "section", "enabled": "1", "action": "connection",
-    "tunnel_jsons": [
-      "{\"name\":\"Generated WARP\",\"kind\":\"warp\",\"endpoint\":{\"type\":\"warp\",\"profile\":{\"id\":\"profile-id\",\"auth_token\":\"auth-token\",\"private_key\":\"private-key\"}}}",
-      "{\"name\":\"Imported AmneziaWG\",\"kind\":\"amneziawg\",\"endpoint\":{\"type\":\"wireguard\",\"address\":[\"10.0.0.2/32\"],\"private_key\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\",\"peers\":[{\"address\":\"vpn.example.com\",\"port\":51820,\"public_key\":\"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=\",\"allowed_ips\":[\"0.0.0.0/0\"]}],\"amnezia\":{\"jc\":5,\"h1\":\"100-200\"}}}"
-    ]
+    ".name": "tunnels", ".type": "section", "enabled": "1", "action": "connection"
+  }],
+  "tunnel": [
+    {
+      ".name": "tun_warp", ".type": "tunnel", "section": "tunnels", "order": "0",
+      "kind": "warp", "name": "Generated WARP", "warp_profile_id": "profile-id",
+      "warp_profile_auth_token": "auth-token", "warp_profile_private_key": "private-key"
+    },
+    {
+      ".name": "tun_amnezia", ".type": "tunnel", "section": "tunnels", "order": "1",
+      "kind": "amneziawg", "name": "Imported AmneziaWG", "address": ["10.0.0.2/32"],
+      "private_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", "amnezia_jc": "5",
+      "amnezia_h1": "100-200"
+    },
+    {
+      ".name": "tun_tailnet", ".type": "tunnel", "section": "tunnels", "order": "2",
+      "kind": "tailscale", "name": "Tailnet", "tailscale_auth_key": "tskey-auth-test",
+      "tailscale_hostname": "forkop-router", "tailscale_exit_node": "100.64.0.1"
+    },
+    {
+      ".name": "tun_json", ".type": "tunnel", "section": "tunnels", "order": "3",
+      "kind": "json", "endpoint_json": "{\"type\":\"vpn-client\",\"tag\":\"custom-endpoint\"}"
+    }
+  ],
+  "tunnel_peer": [{
+    ".name": "peer_amnezia", ".type": "tunnel_peer", "tunnel": "tun_amnezia",
+    "address": "vpn.example.com", "port": "51820",
+    "public_key": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=",
+    "allowed_ips": ["0.0.0.0/0"]
   }]
 }
 JSON
 ucode -L "$FORKOP_LIB" "$VALIDATOR" validate-runtime-fixture "$WORK_DIR/valid.json" '{}'
 
-node - "$WORK_DIR/valid.json" "$WORK_DIR/missing-allowed-ips.json" "$WORK_DIR/bad-key.json" "$WORK_DIR/bad-amnezia-range.json" "$WORK_DIR/overflow-amnezia-range.json" "$WORK_DIR/missing-warp-profile.json" <<'NODE'
+node - "$WORK_DIR/valid.json" "$WORK_DIR/missing-allowed-ips.json" "$WORK_DIR/bad-key.json" "$WORK_DIR/bad-amnezia-range.json" "$WORK_DIR/overflow-amnezia-range.json" "$WORK_DIR/missing-warp-profile.json" "$WORK_DIR/missing-tailscale-auth.json" "$WORK_DIR/missing-json-type.json" "$WORK_DIR/missing-json-tag.json" "$WORK_DIR/incomplete.json" <<'NODE'
 const fs = require('fs');
 const input = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 const write = (path, mutate) => {
   const copy = JSON.parse(JSON.stringify(input));
-  const endpoint = JSON.parse(copy.section[0].tunnel_jsons[1]);
-  mutate(endpoint);
-  copy.section[0].tunnel_jsons[1] = JSON.stringify(endpoint);
+  mutate(copy);
   fs.writeFileSync(path, JSON.stringify(copy));
 };
-write(process.argv[3], (endpoint) => delete endpoint.endpoint.peers[0].allowed_ips);
-write(process.argv[4], (endpoint) => { endpoint.endpoint.peers[0].public_key = 'invalid'; });
-write(process.argv[5], (endpoint) => { endpoint.endpoint.amnezia.h1 = '200-100'; });
-write(process.argv[6], (endpoint) => { endpoint.endpoint.amnezia.h1 = '4294967296'; });
-const missingProfile = JSON.parse(JSON.stringify(input));
-const warp = JSON.parse(missingProfile.section[0].tunnel_jsons[0]);
-delete warp.endpoint.profile;
-missingProfile.section[0].tunnel_jsons[0] = JSON.stringify(warp);
-fs.writeFileSync(process.argv[7], JSON.stringify(missingProfile));
+write(process.argv[3], (copy) => delete copy.tunnel_peer[0].allowed_ips);
+write(process.argv[4], (copy) => { copy.tunnel_peer[0].public_key = 'invalid'; });
+write(process.argv[5], (copy) => { copy.tunnel[1].amnezia_h1 = '200-100'; });
+write(process.argv[6], (copy) => { copy.tunnel[1].amnezia_h1 = '4294967296'; });
+write(process.argv[7], (copy) => {
+  delete copy.tunnel[0].warp_profile_id;
+  delete copy.tunnel[0].warp_profile_auth_token;
+  delete copy.tunnel[0].warp_profile_private_key;
+});
+write(process.argv[8], (copy) => delete copy.tunnel[2].tailscale_auth_key);
+write(process.argv[9], (copy) => {
+  const endpoint = JSON.parse(copy.tunnel[3].endpoint_json);
+  delete endpoint.type;
+  copy.tunnel[3].endpoint_json = JSON.stringify(endpoint);
+});
+write(process.argv[10], (copy) => {
+  const endpoint = JSON.parse(copy.tunnel[3].endpoint_json);
+  delete endpoint.tag;
+  copy.tunnel[3].endpoint_json = JSON.stringify(endpoint);
+});
+write(process.argv[11], (copy) => delete copy.tunnel[0].warp_profile_private_key);
 NODE
 
-for invalid in "$WORK_DIR/missing-allowed-ips.json" "$WORK_DIR/bad-key.json" "$WORK_DIR/bad-amnezia-range.json" "$WORK_DIR/overflow-amnezia-range.json" "$WORK_DIR/missing-warp-profile.json"; do
+for invalid in "$WORK_DIR/missing-allowed-ips.json" "$WORK_DIR/bad-key.json" "$WORK_DIR/bad-amnezia-range.json" "$WORK_DIR/overflow-amnezia-range.json" "$WORK_DIR/missing-warp-profile.json" "$WORK_DIR/missing-tailscale-auth.json" "$WORK_DIR/missing-json-type.json" "$WORK_DIR/missing-json-tag.json"; do
   if ucode -L "$FORKOP_LIB" "$VALIDATOR" validate-runtime-fixture "$invalid" '{}' >/dev/null 2>&1; then
     fail "invalid tunnel fixture was accepted: $invalid"
   fi
 done
 
-sed 's/,\\"auth_token\\":\\"auth-token\\",\\"private_key\\":\\"private-key\\"//' \
-  "$WORK_DIR/valid.json" >"$WORK_DIR/incomplete.json"
 if ucode -L "$FORKOP_LIB" "$VALIDATOR" validate-runtime-fixture \
   "$WORK_DIR/incomplete.json" '{}' >/dev/null 2>&1; then
   fail "incomplete WARP profile passed backend validation"

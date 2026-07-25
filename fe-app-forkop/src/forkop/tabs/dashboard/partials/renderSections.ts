@@ -3,6 +3,7 @@ import {
   renderCopyIcon24,
   renderLinkIcon24,
   renderInfoIcon24,
+  renderRotateCcwIcon24,
 } from '../../../../icons';
 import { isCopyableProxyLink, svgEl } from '../../../../helpers';
 import { prettyBytes } from '../../../../helpers/prettyBytes';
@@ -14,6 +15,10 @@ interface IRenderSectionsProps {
   failed: boolean;
   section: Forkop.OutboundGroup;
   onTestLatency: (tag: string | string[]) => void;
+  onTestOutboundLatency: (
+    latencyType: Forkop.LatencyActionState['latency_type'],
+    tag: string | string[],
+  ) => void;
   onChooseOutbound: (
     sectionName: string,
     selector: string,
@@ -24,9 +29,10 @@ interface IRenderSectionsProps {
     outbound: Forkop.Outbound,
   ) => void;
   onShowUrlTestInfo: (outbound: Forkop.Outbound) => void;
-  onShowPriorityInfo: (outbound: Forkop.Outbound) => void;
+  onShowFallbackInfo: (outbound: Forkop.Outbound) => void;
   onUpdateSubscription: (section: Forkop.OutboundGroup) => void;
   latencyFetching: boolean;
+  latencyFetchingTarget?: string;
   latencyProgress?: Forkop.LatencyActionProgress;
   subscriptionUpdating: boolean;
   selectorSwitchingTag?: string;
@@ -242,6 +248,10 @@ export function getLatencyTestLabel(
     ? Math.trunc(completedValue)
     : 0;
 
+  if (completed >= total) {
+    return _('Test latency');
+  }
+
   return `${_('Test latency')}: ${Math.min(
     Math.max(0, completed),
     total,
@@ -253,10 +263,12 @@ function renderDefaultState({
   onChooseOutbound,
   onCopyOutbound,
   onShowUrlTestInfo,
-  onShowPriorityInfo,
+  onShowFallbackInfo,
   onTestLatency,
+  onTestOutboundLatency,
   onUpdateSubscription,
   latencyFetching,
+  latencyFetchingTarget,
   latencyProgress,
   subscriptionUpdating,
   selectorSwitchingTag,
@@ -301,6 +313,28 @@ function renderDefaultState({
       outbound.runtimeAvailable !== false &&
       !selectorSwitching &&
       !outbound.selected;
+    const groupInfo = outbound.urlTestInfo || outbound.fallbackInfo;
+    const groupTargets = Array.from(
+      new Set(
+        (groupInfo?.outbounds || [])
+          .map((member) => member.code)
+          .filter(Boolean),
+      ),
+    );
+    const showLatency =
+      !groupInfo ||
+      (outbound.runtimeAvailable !== false && groupTargets.length > 0);
+    const latencyType: Forkop.LatencyActionState['latency_type'] = groupInfo
+      ? 'proxy_list'
+      : 'proxy';
+    const latencyTarget = groupInfo ? groupTargets : outbound.code;
+    const outboundLatencyFetching =
+      latencyFetchingTarget ===
+      (Array.isArray(latencyTarget)
+        ? JSON.stringify(latencyTarget)
+        : latencyTarget);
+    const canTestOutboundLatency =
+      showLatency && outbound.runtimeAvailable !== false && !latencyFetching;
     const className = [
       'fkp_dashboard-page__outbound-grid__item',
       outbound.selected
@@ -318,6 +352,40 @@ function renderDefaultState({
     ]
       .filter(Boolean)
       .join(' ');
+    const latencyClass = getLatencyClass();
+    const latencyValue = outbound.latency ? `${outbound.latency}ms` : 'N/A';
+    const latency = showLatency
+      ? E(
+          'button',
+          {
+            type: 'button',
+            class: `btn fkp_dashboard-page__outbound-grid__item__latency ${latencyClass}`,
+            title: _('Test latency'),
+            'aria-label': _('Test latency'),
+            'aria-busy': outboundLatencyFetching ? 'true' : undefined,
+            disabled: canTestOutboundLatency ? undefined : true,
+            click: (event: MouseEvent) => {
+              event.preventDefault();
+              event.stopPropagation();
+              if (canTestOutboundLatency) {
+                onTestOutboundLatency(latencyType, latencyTarget);
+              }
+            },
+          },
+          [
+            outboundLatencyFetching
+              ? renderLoaderCircleIcon24()
+              : renderRotateCcwIcon24(),
+            E(
+              'span',
+              {
+                class: 'fkp_dashboard-page__outbound-grid__item__latency-value',
+              },
+              latencyValue,
+            ),
+          ],
+        )
+      : undefined;
     return E(
       'div',
       {
@@ -388,7 +456,7 @@ function renderDefaultState({
                 ),
               ]
             : []),
-          ...(outbound.priorityInfo
+          ...(outbound.fallbackInfo
             ? [
                 E(
                   'button',
@@ -396,11 +464,11 @@ function renderDefaultState({
                     type: 'button',
                     class:
                       'btn fkp_dashboard-page__outbound-grid__item__copy-button',
-                    title: _('Priority details'),
-                    'aria-label': _('Priority details'),
+                    title: _('Fallback details'),
+                    'aria-label': _('Fallback details'),
                     click: (event: MouseEvent) => {
                       event.stopPropagation();
-                      onShowPriorityInfo(outbound);
+                      onShowFallbackInfo(outbound);
                     },
                   },
                   renderInfoIcon24(),
@@ -412,15 +480,11 @@ function renderDefaultState({
           E(
             'div',
             { class: 'fkp_dashboard-page__outbound-grid__item__type' },
-            [outbound.priorityInfo ? _('Priority') : outbound.type].filter(
+            [outbound.fallbackInfo ? _('Fallback') : outbound.type].filter(
               Boolean,
             ),
           ),
-          E(
-            'div',
-            { class: getLatencyClass() },
-            outbound.latency ? `${outbound.latency}ms` : 'N/A',
-          ),
+          ...(latency ? [latency] : []),
         ]),
       ],
     );

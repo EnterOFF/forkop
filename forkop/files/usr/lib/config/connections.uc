@@ -12,8 +12,10 @@ const ITEM_TYPES = [
     "subscription_url",
     "section_interface",
     "urltest",
-    "priority_group",
-    "priority_level"
+    "fallback_group",
+    "fallback_level",
+    "tunnel",
+    "tunnel_peer"
 ];
 
 let item_sections = null;
@@ -47,6 +49,13 @@ function list_value(section, key) {
 
     value = as_string(value);
     return value == "" ? [] : [ value ];
+}
+
+function list_contains(values, value) {
+    for (let item in values)
+        if (item == value)
+            return true;
+    return false;
 }
 
 function whitespace_list_value(section, key) {
@@ -341,8 +350,168 @@ function outbound_jsons(section) {
     return result;
 }
 
-function tunnel_jsons(section) {
-    return list_value(section, "tunnel_jsons");
+function tunnel_sort(left, right) {
+    let left_order = int(option(left, "order", "0"), 10);
+    let right_order = int(option(right, "order", "0"), 10);
+    if (left_order != right_order)
+        return left_order < right_order ? -1 : 1;
+
+    let left_name = section_name(left);
+    let right_name = section_name(right);
+    return left_name == right_name ? 0 : (left_name < right_name ? -1 : 1);
+}
+
+function tunnel_items(section) {
+    let result = child_items(section, "tunnel");
+    sort(result, tunnel_sort);
+    return result;
+}
+
+function tunnels(section) {
+    let result = [];
+    for (let child in tunnel_items(section)) {
+        let id = section_name(child);
+        if (id != "")
+            push(result, id);
+    }
+    return result;
+}
+
+function tunnel_child(section, value) {
+    return owned_child_section(section, "tunnel", value);
+}
+
+function tunnel_peer_sort(left, right) {
+    let left_order = int(option(left, "order", "0"), 10);
+    let right_order = int(option(right, "order", "0"), 10);
+    if (left_order != right_order)
+        return left_order < right_order ? -1 : 1;
+
+    let left_name = section_name(left);
+    let right_name = section_name(right);
+    return left_name == right_name ? 0 : (left_name < right_name ? -1 : 1);
+}
+
+function tunnel_peer_items(tunnel_id) {
+    let result = child_items_by_owner("tunnel_peer", "tunnel", tunnel_id);
+    sort(result, tunnel_peer_sort);
+    return result;
+}
+
+function tunnel_endpoint(tunnel) {
+    tunnel = object_or_empty(tunnel);
+    let kind = lc(trim(as_string(option(tunnel, "kind", "wireguard"))));
+
+    if (kind == "json") {
+        try {
+            let endpoint = json(option(tunnel, "endpoint_json", ""));
+            return type(endpoint) == "object" ? endpoint : {};
+        }
+        catch (e) {
+            return {};
+        }
+    }
+
+    let endpoint = {
+        type: kind == "amneziawg" ? "wireguard" : kind
+    };
+
+    if (kind == "tailscale") {
+        endpoint.auth_key = trim(as_string(option(tunnel, "tailscale_auth_key", "")));
+        endpoint.hostname = trim(as_string(option(tunnel, "tailscale_hostname", "")));
+        endpoint.control_url = trim(as_string(option(tunnel, "tailscale_control_url", "https://controlplane.tailscale.com")));
+        endpoint.accept_routes = bool_option(tunnel, "tailscale_accept_routes", true);
+        endpoint.exit_node = trim(as_string(option(tunnel, "tailscale_exit_node", "")));
+        let detour = trim(as_string(option(tunnel, "tailscale_detour_section", "")));
+        if (detour != "")
+            endpoint.detour = detour;
+        return endpoint;
+    }
+
+    if (kind == "warp") {
+        let keepalive = int(option(tunnel, "warp_keepalive", "0"), 10);
+        if (keepalive > 0)
+            endpoint.persistent_keepalive_interval = keepalive;
+        let profile = {};
+        for (let key in [ "id", "auth_token", "private_key" ]) {
+            let value = trim(as_string(option(tunnel, "warp_profile_" + key, "")));
+            if (value != "")
+                profile[key] = value;
+        }
+        if (length(keys(profile)) > 0) {
+            profile.recreate = true;
+            endpoint.profile = profile;
+        }
+        if (bool_option(tunnel, "warp_junk_enabled", false)) {
+            let amnezia = {};
+            for (let key in [ "jc", "jmin", "jmax", "i1", "i2", "i3", "i4", "i5" ]) {
+                let value = trim(as_string(option(tunnel, "amnezia_" + key, "")));
+                if (value != "")
+                    amnezia[key] = list_contains([ "jc", "jmin", "jmax" ], key) ? int(value, 10) : value;
+            }
+            if (length(keys(amnezia)) > 0)
+                endpoint.amnezia = amnezia;
+        }
+        return endpoint;
+    }
+
+    endpoint.address = list_value(tunnel, "address");
+    endpoint.private_key = trim(as_string(option(tunnel, "private_key", "")));
+    let listen_port = int(option(tunnel, "listen_port", "0"), 10);
+    if (listen_port > 0)
+        endpoint.listen_port = listen_port;
+    let mtu = int(option(tunnel, "mtu", "0"), 10);
+    if (mtu > 0)
+        endpoint.mtu = mtu;
+
+    endpoint.peers = [];
+    for (let peer in tunnel_peer_items(section_name(tunnel))) {
+        let item = {
+            address: trim(as_string(option(peer, "address", ""))),
+            port: int(option(peer, "port", "0"), 10),
+            public_key: trim(as_string(option(peer, "public_key", ""))),
+            allowed_ips: list_value(peer, "allowed_ips")
+        };
+        let pre_shared_key = trim(as_string(option(peer, "pre_shared_key", "")));
+        if (pre_shared_key != "")
+            item.pre_shared_key = pre_shared_key;
+        let keepalive = int(option(peer, "persistent_keepalive_interval", "0"), 10);
+        if (keepalive > 0)
+            item.persistent_keepalive_interval = keepalive;
+        push(endpoint.peers, item);
+    }
+
+    if (kind == "amneziawg") {
+        let amnezia = {};
+        for (let key in [ "jc", "jmin", "jmax", "s1", "s2", "s3", "s4", "itime", "h1", "h2", "h3", "h4", "i1", "i2", "i3", "i4", "i5", "j1", "j2", "j3" ]) {
+            let value = trim(as_string(option(tunnel, "amnezia_" + key, "")));
+            if (value != "") {
+                if (list_contains([ "jc", "jmin", "jmax", "s1", "s2", "s3", "s4", "itime" ], key) ||
+                    (list_contains([ "h1", "h2", "h3", "h4" ], key) && index(value, "-") < 0))
+                    amnezia[key] = int(value, 10);
+                else
+                    amnezia[key] = value;
+            }
+        }
+        endpoint.amnezia = amnezia;
+    }
+
+    return endpoint;
+}
+
+function tunnels_signature(section) {
+    let result = [];
+    for (let tunnel_id in tunnels(section)) {
+        let tunnel = tunnel_child(section, tunnel_id);
+        push(result, {
+            id: tunnel_id,
+            order: option(tunnel, "order", "0"),
+            name: option(tunnel, "name", ""),
+            kind: option(tunnel, "kind", ""),
+            endpoint: tunnel_endpoint(tunnel)
+        });
+    }
+    return sprintf("%J", result);
 }
 
 function urltests(section) {
@@ -358,9 +527,9 @@ function urltests(section) {
     return bool_option(section, "urltest_enabled", false) ? [ "urltest" ] : [];
 }
 
-function priority_groups(section) {
+function fallback_groups(section) {
     let result = [];
-    for (let child in child_items(section, "priority_group")) {
+    for (let child in child_items(section, "fallback_group")) {
         let id = section_name(child);
         if (id != "")
             push(result, id);
@@ -368,23 +537,23 @@ function priority_groups(section) {
     return result;
 }
 
-function priority_group_child(section, value) {
-    return owned_child_section(section, "priority_group", value);
+function fallback_group_child(section, value) {
+    return owned_child_section(section, "fallback_group", value);
 }
 
-function priority_group_settings(section, value) {
-    let child = priority_group_child(section, value);
+function fallback_group_settings(section, value) {
+    let child = fallback_group_child(section, value);
     return child != null ? child : {};
 }
 
-function priority_level_child(group_id, value) {
-    let child = child_section("priority_level", value);
+function fallback_level_child(group_id, value) {
+    let child = child_section("fallback_level", value);
     if (type(child) != "object")
         return null;
     return option(child, "group", "") == as_string(group_id) ? child : null;
 }
 
-function priority_level_sort(left, right) {
+function fallback_level_sort(left, right) {
     let left_order = int(option(left, "order", "0"), 10);
     let right_order = int(option(right, "order", "0"), 10);
     if (left_order != right_order)
@@ -395,15 +564,15 @@ function priority_level_sort(left, right) {
     return left_name == right_name ? 0 : (left_name < right_name ? -1 : 1);
 }
 
-function priority_level_items(group_id) {
-    let result = child_items_by_owner("priority_level", "group", group_id);
-    sort(result, priority_level_sort);
+function fallback_level_items(group_id) {
+    let result = child_items_by_owner("fallback_level", "group", group_id);
+    sort(result, fallback_level_sort);
     return result;
 }
 
-function priority_levels(group_id) {
+function fallback_levels(group_id) {
     let result = [];
-    for (let child in priority_level_items(group_id)) {
+    for (let child in fallback_level_items(group_id)) {
         let id = section_name(child);
         if (id != "")
             push(result, id);
@@ -478,7 +647,7 @@ function has_connection_sources(section) {
         length(subscription_urls(section)) > 0 ||
         length(interfaces(section)) > 0 ||
         length(outbound_jsons(section)) > 0 ||
-        length(tunnel_jsons(section)) > 0;
+        length(tunnels(section)) > 0;
 }
 
 function subscription_url_settings(section, value) {
@@ -788,126 +957,126 @@ function urltest_exclude_securities(section, value) {
     return child != null ? child_list(child, "exclude_securities", []) : [];
 }
 
-function priority_group_display_name(section, value) {
-    let child = priority_group_child(section, value);
+function fallback_group_display_name(section, value) {
+    let child = fallback_group_child(section, value);
     return child != null ? child_option(child, "name", as_string(value)) : as_string(value);
 }
 
-function priority_group_blacklist_timeout(section, value) {
-    let child = priority_group_child(section, value);
+function fallback_group_blacklist_timeout(section, value) {
+    let child = fallback_group_child(section, value);
     return child != null ? child_option(child, "blacklist_timeout", "1m") : "1m";
 }
 
-function priority_group_pin_dashboard(section, value) {
-    let child = priority_group_child(section, value);
+function fallback_group_pin_dashboard(section, value) {
+    let child = fallback_group_child(section, value);
     return child != null ? child_bool(child, "pin_dashboard", true) : true;
 }
 
-function priority_group_hide_dashboard_members(section, value) {
-    let child = priority_group_child(section, value);
+function fallback_group_hide_dashboard_members(section, value) {
+    let child = fallback_group_child(section, value);
     return child != null ? child_bool(child, "hide_dashboard_members", false) : false;
 }
 
-function priority_level_display_name(group_id, value) {
-    let child = priority_level_child(group_id, value);
+function fallback_level_display_name(group_id, value) {
+    let child = fallback_level_child(group_id, value);
     return child != null ? child_option(child, "name", as_string(value)) : as_string(value);
 }
 
-function priority_level_order(group_id, value) {
-    let child = priority_level_child(group_id, value);
+function fallback_level_order(group_id, value) {
+    let child = fallback_level_child(group_id, value);
     return child != null ? child_option(child, "order", "0") : "0";
 }
 
-function priority_level_direct(group_id, value) {
-    let child = priority_level_child(group_id, value);
+function fallback_level_direct(group_id, value) {
+    let child = fallback_level_child(group_id, value);
     return child != null ? child_bool(child, "direct", false) : false;
 }
 
-function priority_level_filter_mode(group_id, value) {
-    let child = priority_level_child(group_id, value);
+function fallback_level_filter_mode(group_id, value) {
+    let child = fallback_level_child(group_id, value);
     return child != null ? child_option(child, "filter_mode", "include") : "include";
 }
 
-function priority_level_include_countries(group_id, value) {
-    let child = priority_level_child(group_id, value);
+function fallback_level_include_countries(group_id, value) {
+    let child = fallback_level_child(group_id, value);
     return child != null ? child_list_alias(child, [ "include_countries", "country" ], []) : [];
 }
 
-function priority_level_include_outbounds(group_id, value) {
-    let child = priority_level_child(group_id, value);
+function fallback_level_include_outbounds(group_id, value) {
+    let child = fallback_level_child(group_id, value);
     return child != null ? child_list_alias(child, [ "include_outbounds", "server_name" ], []) : [];
 }
 
-function priority_level_include_regex(group_id, value) {
-    let child = priority_level_child(group_id, value);
+function fallback_level_include_regex(group_id, value) {
+    let child = fallback_level_child(group_id, value);
     return child != null ? child_list_alias(child, [ "include_regex", "regex" ], []) : [];
 }
 
-function priority_level_include_proxy_parameters(group_id, value) {
-    let child = priority_level_child(group_id, value);
+function fallback_level_include_proxy_parameters(group_id, value) {
+    let child = fallback_level_child(group_id, value);
     return child != null ? child_bool(child, "include_proxy_parameters", false) : false;
 }
 
-function priority_level_include_protocols(group_id, value) {
-    let child = priority_level_child(group_id, value);
+function fallback_level_include_protocols(group_id, value) {
+    let child = fallback_level_child(group_id, value);
     return child != null ? child_list(child, "include_protocols", []) : [];
 }
 
-function priority_level_include_transports(group_id, value) {
-    let child = priority_level_child(group_id, value);
+function fallback_level_include_transports(group_id, value) {
+    let child = fallback_level_child(group_id, value);
     return child != null ? child_list(child, "include_transports", []) : [];
 }
 
-function priority_level_include_securities(group_id, value) {
-    let child = priority_level_child(group_id, value);
+function fallback_level_include_securities(group_id, value) {
+    let child = fallback_level_child(group_id, value);
     return child != null ? child_list(child, "include_securities", []) : [];
 }
 
-function priority_level_exclude_countries(group_id, value) {
-    let child = priority_level_child(group_id, value);
+function fallback_level_exclude_countries(group_id, value) {
+    let child = fallback_level_child(group_id, value);
     return child != null ? child_list(child, "exclude_countries", []) : [];
 }
 
-function priority_level_exclude_outbounds(group_id, value) {
-    let child = priority_level_child(group_id, value);
+function fallback_level_exclude_outbounds(group_id, value) {
+    let child = fallback_level_child(group_id, value);
     return child != null ? child_list(child, "exclude_outbounds", []) : [];
 }
 
-function priority_level_exclude_regex(group_id, value) {
-    let child = priority_level_child(group_id, value);
+function fallback_level_exclude_regex(group_id, value) {
+    let child = fallback_level_child(group_id, value);
     return child != null ? child_list(child, "exclude_regex", []) : [];
 }
 
-function priority_level_exclude_proxy_parameters(group_id, value) {
-    let child = priority_level_child(group_id, value);
+function fallback_level_exclude_proxy_parameters(group_id, value) {
+    let child = fallback_level_child(group_id, value);
     return child != null ? child_bool(child, "exclude_proxy_parameters", false) : false;
 }
 
-function priority_level_exclude_protocols(group_id, value) {
-    let child = priority_level_child(group_id, value);
+function fallback_level_exclude_protocols(group_id, value) {
+    let child = fallback_level_child(group_id, value);
     return child != null ? child_list(child, "exclude_protocols", []) : [];
 }
 
-function priority_level_exclude_transports(group_id, value) {
-    let child = priority_level_child(group_id, value);
+function fallback_level_exclude_transports(group_id, value) {
+    let child = fallback_level_child(group_id, value);
     return child != null ? child_list(child, "exclude_transports", []) : [];
 }
 
-function priority_level_exclude_securities(group_id, value) {
-    let child = priority_level_child(group_id, value);
+function fallback_level_exclude_securities(group_id, value) {
+    let child = fallback_level_child(group_id, value);
     return child != null ? child_list(child, "exclude_securities", []) : [];
 }
 
-function priority_level_countries(group_id, value) {
-    return priority_level_include_countries(group_id, value);
+function fallback_level_countries(group_id, value) {
+    return fallback_level_include_countries(group_id, value);
 }
 
-function priority_level_outbounds(group_id, value) {
-    return priority_level_include_outbounds(group_id, value);
+function fallback_level_outbounds(group_id, value) {
+    return fallback_level_include_outbounds(group_id, value);
 }
 
-function priority_level_regex(group_id, value) {
-    return priority_level_include_regex(group_id, value);
+function fallback_level_regex(group_id, value) {
+    return fallback_level_include_regex(group_id, value);
 }
 
 function append_unique(result, seen, value) {
@@ -967,7 +1136,12 @@ return {
     subscription_urls,
     interfaces,
     outbound_jsons,
-    tunnel_jsons,
+    tunnels,
+    tunnel_items,
+    tunnel_child,
+    tunnel_peer_items,
+    tunnel_endpoint,
+    tunnels_signature,
     urltests,
     community_lists,
     rule_sets,
@@ -1016,34 +1190,34 @@ return {
     urltest_exclude_protocols,
     urltest_exclude_transports,
     urltest_exclude_securities,
-    priority_groups,
-    priority_group_settings,
-    priority_levels,
-    priority_group_display_name,
-    priority_group_blacklist_timeout,
-    priority_group_pin_dashboard,
-    priority_group_hide_dashboard_members,
-    priority_level_display_name,
-    priority_level_order,
-    priority_level_direct,
-    priority_level_filter_mode,
-    priority_level_include_countries,
-    priority_level_include_outbounds,
-    priority_level_include_regex,
-    priority_level_include_proxy_parameters,
-    priority_level_include_protocols,
-    priority_level_include_transports,
-    priority_level_include_securities,
-    priority_level_exclude_countries,
-    priority_level_exclude_outbounds,
-    priority_level_exclude_regex,
-    priority_level_exclude_proxy_parameters,
-    priority_level_exclude_protocols,
-    priority_level_exclude_transports,
-    priority_level_exclude_securities,
-    priority_level_countries,
-    priority_level_outbounds,
-    priority_level_regex,
+    fallback_groups,
+    fallback_group_settings,
+    fallback_levels,
+    fallback_group_display_name,
+    fallback_group_blacklist_timeout,
+    fallback_group_pin_dashboard,
+    fallback_group_hide_dashboard_members,
+    fallback_level_display_name,
+    fallback_level_order,
+    fallback_level_direct,
+    fallback_level_filter_mode,
+    fallback_level_include_countries,
+    fallback_level_include_outbounds,
+    fallback_level_include_regex,
+    fallback_level_include_proxy_parameters,
+    fallback_level_include_protocols,
+    fallback_level_include_transports,
+    fallback_level_include_securities,
+    fallback_level_exclude_countries,
+    fallback_level_exclude_outbounds,
+    fallback_level_exclude_regex,
+    fallback_level_exclude_proxy_parameters,
+    fallback_level_exclude_protocols,
+    fallback_level_exclude_transports,
+    fallback_level_exclude_securities,
+    fallback_level_countries,
+    fallback_level_outbounds,
+    fallback_level_regex,
     subscription_download_targets,
     subscription_download_target_port
 };

@@ -11,6 +11,7 @@ let core_url = require("core.url");
 let core_ip = require("core.ip");
 let rule_config = require("config.rule");
 let connections = require("config.connections");
+let singbox_constants = require("singbox.constants");
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
@@ -747,7 +748,7 @@ function fixture_get_section(section_name) {
     if (section_name == "settings" && type(fixture.settings) == "object")
         return fixture.settings;
 
-    for (let type_name in [ "settings", "server", "section", "subscription_url", "section_interface", "urltest", "priority_group", "priority_level" ]) {
+    for (let type_name in [ "settings", "server", "section", "subscription_url", "section_interface", "urltest", "fallback_group", "fallback_level" ]) {
         for (let section in fixture_section_list(type_name)) {
             if (as_string(section[".name"]) == section_name)
                 return section;
@@ -1011,11 +1012,11 @@ function validate_urltest_filter_mode_value(value, section) {
     fail_validation("Invalid URLTest filter mode '" + value + "' in rule '" + section + "'. Aborted.");
 }
 
-function validate_priority_filter_mode_value(value, section, group_id, level_id) {
+function validate_fallback_filter_mode_value(value, section, group_id, level_id) {
     if (contains([ "disabled", "exclude", "include", "mixed" ], value))
         return;
 
-    fail_validation("Invalid Priority filter mode '" + value + "' in rule '" + section + "', priority '" + group_id + "', level '" + level_id + "'. Aborted.");
+    fail_validation("Invalid Fallback filter mode '" + value + "' in rule '" + section + "', fallback '" + group_id + "', level '" + level_id + "'. Aborted.");
 }
 
 function validate_proxy_parameter_value(value, allowed, parameter, section) {
@@ -1059,12 +1060,12 @@ function validate_urltest_identifier_value(value, section) {
     fail_validation("Invalid URLTest identifier '" + value + "' in rule '" + section + "'. Use latin letters, digits and underscores. Aborted.");
 }
 
-function validate_priority_identifier_value(value, section) {
+function validate_fallback_identifier_value(value, section) {
     value = as_string(value);
     if (value != "" && match(value, /^[A-Za-z0-9_]+$/) != null)
         return;
 
-    fail_validation("Invalid priority identifier '" + value + "' in rule '" + section + "'. Use latin letters, digits and underscores. Aborted.");
+    fail_validation("Invalid fallback identifier '" + value + "' in rule '" + section + "'. Use latin letters, digits and underscores. Aborted.");
 }
 
 function validate_urltest_tolerance_value(value, section, urltest_id) {
@@ -1078,57 +1079,57 @@ function validate_urltest_tolerance_value(value, section, urltest_id) {
     fail_validation("Invalid URLTest tolerance '" + value + "' in rule '" + section + "', URLTest '" + urltest_id + "'. Use a number from 0 to 10000. Aborted.");
 }
 
-function validate_priority_level_order(value, section, group_id, level_id) {
+function validate_fallback_level_order(value, section, group_id, level_id) {
     value = trim(as_string(value));
     if (match(value, /^[0-9]+$/) != null)
         return;
 
-    fail_validation("Invalid priority level order '" + value + "' in rule '" + section + "', priority '" + group_id + "', level '" + level_id + "'. Use a non-negative integer. Aborted.");
+    fail_validation("Invalid fallback level order '" + value + "' in rule '" + section + "', fallback '" + group_id + "', level '" + level_id + "'. Use a non-negative integer. Aborted.");
 }
 
-function validate_priority_group(section, group_id) {
+function validate_fallback_group(section, group_id) {
     let name = section_name(section);
-    validate_priority_identifier_value(group_id, name);
+    validate_fallback_identifier_value(group_id, name);
 
-    if (trim(connections.priority_group_display_name(section, group_id)) == "")
-        fail_validation("Priority group '" + group_id + "' in rule '" + name + "' has no display name. Aborted.");
+    if (trim(connections.fallback_group_display_name(section, group_id)) == "")
+        fail_validation("Fallback group '" + group_id + "' in rule '" + name + "' has no display name. Aborted.");
 
-    validate_required_duration_option(connections.priority_group_blacklist_timeout(section, group_id), "rule." + name + ".priority." + group_id + ".blacklist_timeout");
+    validate_required_duration_option(connections.fallback_group_blacklist_timeout(section, group_id), "rule." + name + ".fallback." + group_id + ".blacklist_timeout");
 
-    for (let level_id in connections.priority_levels(group_id)) {
-        validate_priority_identifier_value(level_id, name);
-        if (trim(connections.priority_level_display_name(group_id, level_id)) == "")
-            fail_validation("Priority level '" + level_id + "' in rule '" + name + "', priority '" + group_id + "' has no display name. Aborted.");
+    for (let level_id in connections.fallback_levels(group_id)) {
+        validate_fallback_identifier_value(level_id, name);
+        if (trim(connections.fallback_level_display_name(group_id, level_id)) == "")
+            fail_validation("Fallback level '" + level_id + "' in rule '" + name + "', fallback '" + group_id + "' has no display name. Aborted.");
 
-        validate_priority_level_order(connections.priority_level_order(group_id, level_id), name, group_id, level_id);
-        if (connections.priority_level_direct(group_id, level_id))
+        validate_fallback_level_order(connections.fallback_level_order(group_id, level_id), name, group_id, level_id);
+        if (connections.fallback_level_direct(group_id, level_id))
             continue;
 
-        let filter_mode = connections.priority_level_filter_mode(group_id, level_id);
-        validate_priority_filter_mode_value(filter_mode, name, group_id, level_id);
+        let filter_mode = connections.fallback_level_filter_mode(group_id, level_id);
+        validate_fallback_filter_mode_value(filter_mode, name, group_id, level_id);
         if (filter_mode == "include" || filter_mode == "mixed") {
-            for (let value in connections.priority_level_include_countries(group_id, level_id))
+            for (let value in connections.fallback_level_include_countries(group_id, level_id))
                 validate_country_code_value(value, name);
-            for (let value in connections.priority_level_include_regex(group_id, level_id))
+            for (let value in connections.fallback_level_include_regex(group_id, level_id))
                 validate_urltest_regex_value(value, name);
-            if (connections.priority_level_include_proxy_parameters(group_id, level_id))
+            if (connections.fallback_level_include_proxy_parameters(group_id, level_id))
                 validate_proxy_parameter_filters(
-                    connections.priority_level_include_protocols(group_id, level_id),
-                    connections.priority_level_include_transports(group_id, level_id),
-                    connections.priority_level_include_securities(group_id, level_id),
+                    connections.fallback_level_include_protocols(group_id, level_id),
+                    connections.fallback_level_include_transports(group_id, level_id),
+                    connections.fallback_level_include_securities(group_id, level_id),
                     name
                 );
         }
         if (filter_mode == "exclude" || filter_mode == "mixed") {
-            for (let value in connections.priority_level_exclude_countries(group_id, level_id))
+            for (let value in connections.fallback_level_exclude_countries(group_id, level_id))
                 validate_country_code_value(value, name);
-            for (let value in connections.priority_level_exclude_regex(group_id, level_id))
+            for (let value in connections.fallback_level_exclude_regex(group_id, level_id))
                 validate_urltest_regex_value(value, name);
-            if (connections.priority_level_exclude_proxy_parameters(group_id, level_id))
+            if (connections.fallback_level_exclude_proxy_parameters(group_id, level_id))
                 validate_proxy_parameter_filters(
-                    connections.priority_level_exclude_protocols(group_id, level_id),
-                    connections.priority_level_exclude_transports(group_id, level_id),
-                    connections.priority_level_exclude_securities(group_id, level_id),
+                    connections.fallback_level_exclude_protocols(group_id, level_id),
+                    connections.fallback_level_exclude_transports(group_id, level_id),
+                    connections.fallback_level_exclude_securities(group_id, level_id),
                     name
                 );
         }
@@ -1273,17 +1274,52 @@ function validate_tunnel_amnezia(endpoint, name) {
             fail_validation("Connection rule '" + name + "' contains an invalid AmneziaWG " + key + " range. Use values from 0 to 4294967295 with the start no greater than the end. Aborted.");
 }
 
-function validate_tunnel_json_values(section) {
+function validate_tailscale_tunnel_detour(source_name, detour) {
+    detour = trim(as_string(detour));
+    if (detour == "")
+        return;
+    if (detour == singbox_constants.outbound_tag(source_name))
+        fail_validation("Connection rule '" + source_name + "' cannot use itself for the Tailscale control plane. Aborted.");
+
+    for (let candidate in sections_by_type("section"))
+        if (section_enabled(candidate) &&
+            connections.is_connections_action(rule_action(candidate)) &&
+            singbox_constants.outbound_tag(section_name(candidate)) == detour)
+            return;
+
+    fail_validation("Connection rule '" + source_name + "' references an unavailable Tailscale control-plane section. Aborted.");
+}
+
+function validate_tunnel_values(section) {
     let name = section_name(section);
 
-    for (let value in connections.tunnel_jsons(section)) {
-        let wrapper = outbound_json_object(value);
-        let endpoint = type(wrapper) == "object" ? object_or_empty(wrapper.endpoint) : {};
+    for (let tunnel_id in connections.tunnels(section)) {
+        let tunnel = connections.tunnel_child(section, tunnel_id);
+        let endpoint = connections.tunnel_endpoint(tunnel);
         let endpoint_type = lc(trim(as_string(endpoint.type || "")));
-        if (endpoint_type != "wireguard" && endpoint_type != "warp")
+        let wrapper_kind = lc(trim(as_string(connections.option(tunnel, "kind", "wireguard"))));
+        if (endpoint_type == "" ||
+            (endpoint_type != "wireguard" && endpoint_type != "warp" && endpoint_type != "tailscale" && wrapper_kind != "json"))
             fail_validation("Connection rule '" + name + "' contains an invalid tunnel endpoint. Aborted.");
-        if (trim(as_string(wrapper.name || "")) == "")
+        if (wrapper_kind != "json" && trim(as_string(connections.option(tunnel, "name", ""))) == "")
             fail_validation("Connection rule '" + name + "' contains a tunnel without a name. Aborted.");
+
+        if (wrapper_kind == "json") {
+            if (trim(as_string(endpoint.tag || "")) == "")
+                fail_validation("Connection rule '" + name + "' contains a JSON endpoint without a tag. Aborted.");
+            continue;
+        }
+
+        if (endpoint_type == "tailscale") {
+            if (trim(as_string(endpoint.auth_key || "")) == "" ||
+                trim(as_string(endpoint.hostname || "")) == "" ||
+                trim(as_string(endpoint.exit_node || "")) == "")
+                fail_validation("Connection rule '" + name + "' contains an incomplete Tailscale endpoint. Aborted.");
+            validate_http_url_option(endpoint.control_url || "https://controlplane.tailscale.com", "rule." + name + ".tunnel.control_url");
+            let detour_section = connections.option(tunnel, "tailscale_detour_section", "");
+            validate_tailscale_tunnel_detour(name, detour_section == "" ? "" : singbox_constants.outbound_tag(detour_section));
+            continue;
+        }
 
         validate_tunnel_amnezia(endpoint, name);
 
@@ -1543,8 +1579,8 @@ function validate_rule(section, sections, context) {
             }
         }
 
-        for (let group_id in connections.priority_groups(section))
-            validate_priority_group(section, group_id);
+        for (let group_id in connections.fallback_groups(section))
+            validate_fallback_group(section, group_id);
 
         if (rule_has_subscription_urls(section)) {
             for (let value in connections.subscription_urls(section)) {
@@ -1558,7 +1594,7 @@ function validate_rule(section, sections, context) {
         }
 
         validate_outbound_json_values(section);
-        validate_tunnel_json_values(section);
+        validate_tunnel_values(section);
     }
 
     if (action == "outbound")
@@ -1678,6 +1714,18 @@ function validate_server_routing_sections(sections) {
             continue;
 
         let name = section_name(server);
+        if (option(server, "protocol", "") == "tailscale" &&
+            bool_option(server, "tailscale_detour_enabled", false)) {
+            let detour_name = option(server, "tailscale_detour_section", "");
+            if (detour_name == "")
+                fail_validation("Tailscale server '" + name + "' has no control-plane section selected. Aborted.");
+            if (detour_name == name)
+                fail_validation("Tailscale server '" + name + "' cannot use itself for the control plane. Aborted.");
+            let detour_target = by_section[detour_name];
+            if (type(detour_target) != "object" || !detour_target.enabled ||
+                !connections.is_connections_action(detour_target.action))
+                fail_validation("Tailscale server '" + name + "' references an unavailable control-plane section. Aborted.");
+        }
         let mode = option(server, "routing_mode", "rules");
         if (!contains([ "rules", "direct", "section" ], mode))
             fail_validation("Server '" + name + "' uses unsupported routing mode '" + mode + "'. Aborted.");
@@ -1843,7 +1891,7 @@ function has_outbound_section(ctx) {
         if (length(connections.connection_urls(section)) > 0 ||
             length(connections.subscription_urls(section)) > 0 ||
             length(connections.outbound_jsons(section)) > 0 ||
-            length(connections.tunnel_jsons(section)) > 0 ||
+            length(connections.tunnels(section)) > 0 ||
             length(connections.interfaces(section)) > 0)
             return true;
     }

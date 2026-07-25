@@ -26,6 +26,7 @@ export { getProxyUrlName } from './helpers/getProxyUrlName';
 export { injectGlobalStyles } from './helpers/injectGlobalStyles';
 export { showToast } from './helpers/showToast';
 export { getClashUIUrl } from './helpers/getClashApiUrl';
+export { getOutboundTagBySection } from './forkop/runtimeTags';
 export { ForkopShellMethods } from './forkop/methods/shell';
 export { coreService } from './forkop/services/core.service';
 export { store } from './forkop/services/store.service';

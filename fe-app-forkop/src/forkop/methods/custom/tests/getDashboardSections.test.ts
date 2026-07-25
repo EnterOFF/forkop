@@ -87,28 +87,28 @@ function urlTestSettings(
   });
 }
 
-function priorityGroup(
+function fallbackGroup(
   id: string,
   options: Partial<Forkop.ConfigSection> = {},
 ): Forkop.ConfigSection {
   return {
     '.name': id,
-    '.type': 'priority_group',
+    '.type': 'fallback_group',
     section: 'main',
-    name: 'Codex Priority',
+    name: 'Codex Fallback',
     blacklist_timeout: '45s',
     pin_dashboard: '1',
     ...options,
   };
 }
 
-function priorityLevel(
+function fallbackLevel(
   id: string,
   options: Partial<Forkop.ConfigSection> = {},
 ): Forkop.ConfigSection {
   return {
     '.name': id,
-    '.type': 'priority_level',
+    '.type': 'fallback_level',
     group: 'pg_main',
     name: 'Germany',
     order: '0',
@@ -186,6 +186,48 @@ describe('getDashboardSections', () => {
     ]);
   });
 
+  it('shows a tunnel-only AmneziaWG section with its native type', async () => {
+    mocks.getConfigSections.mockResolvedValue([
+      proxySection({
+        selector_proxy_links: [],
+        urltests: [],
+      }),
+      {
+        '.name': 'tun_amnezia',
+        '.type': 'tunnel',
+        section: 'main',
+        name: 'Amnezia',
+        kind: 'amneziawg',
+      },
+    ]);
+    mocks.getClashApiProxies.mockResolvedValue({
+      success: true,
+      data: {
+        proxies: {
+          'main-out': proxy('Selector', {
+            name: 'main-out',
+            now: 'main-tunnel-1-out',
+            all: ['main-tunnel-1-out'],
+          }),
+          'main-tunnel-1-out': proxy('WireGuard', { name: 'Amnezia' }),
+        },
+      },
+    });
+    mocks.dashboardCacheRead.mockResolvedValue(
+      JSON.stringify({
+        outboundMetadata: {
+          names: { 'main-tunnel-1-out': 'Amnezia' },
+          protocols: { 'main-tunnel-1-out': 'amneziawg' },
+        },
+      }),
+    );
+
+    const result = await getDashboardSections();
+
+    expect(result.data[0].proxyConfigType).toBe('selector');
+    expect(result.data[0].outbounds[0].type).toBe('AmneziaWG');
+  });
+
   it('surfaces dashboard section cache read failures', async () => {
     mocks.getConfigSections.mockResolvedValue([proxySection()]);
     mocks.dashboardCacheRead.mockRejectedValue(new Error('cache read failed'));
@@ -204,7 +246,7 @@ describe('getDashboardSections', () => {
             name: 'main-urltest-out',
             now: 'main-3-out',
             history: [{ time: '2026-05-27T00:00:00Z', delay: 10 }],
-            all: ['main-1-out', 'main-3-out'],
+            all: ['main-1-out', 'main-2-out', 'main-3-out'],
           }),
         },
       },
@@ -220,7 +262,7 @@ describe('getDashboardSections', () => {
         urltestGroups: {
           'main-urltest-out': {
             displayName: 'Fastest',
-            outbounds: ['main-1-out', 'main-3-out', 'main-2-out'],
+            outbounds: ['main-1-out', 'main-3-out'],
             url: 'https://probe.example/204',
             interval: '3m',
             tolerance: 50,
@@ -237,6 +279,7 @@ describe('getDashboardSections', () => {
     );
 
     expect(result.success).toBe(true);
+    expect(urltest?.latency).toBe(300);
     expect(urltest?.urlTestInfo).toMatchObject({
       code: 'main-urltest-out',
       displayName: 'Fastest',
@@ -266,10 +309,10 @@ describe('getDashboardSections', () => {
     });
   });
 
-  it('hides overlapping URLTest and Priority members but keeps every group', async () => {
+  it('hides overlapping URLTest and Fallback members but keeps every group', async () => {
     const urlTestCode = 'main-urltest-fast-out';
-    const priorityCode = 'main-priority-priority-out';
-    const priorityLevelCode = 'main-priority-priority-level-primary-out';
+    const fallbackCode = 'main-fallback-fallback-out';
+    const fallbackLevelCode = 'main-fallback-fallback-level-primary-out';
     const nodeCodes = ['node-a', 'node-b', 'node-c', 'node-d'];
 
     mocks.getConfigSections.mockResolvedValue([
@@ -284,11 +327,11 @@ describe('getDashboardSections', () => {
         section: 'main',
         name: 'Fast',
       },
-      priorityGroup('priority', {
-        name: 'Priority',
+      fallbackGroup('fallback', {
+        name: 'Fallback',
       }),
-      priorityLevel('primary', {
-        group: 'priority',
+      fallbackLevel('primary', {
+        group: 'fallback',
         name: 'Primary',
       }),
     ]);
@@ -297,17 +340,17 @@ describe('getDashboardSections', () => {
       data: {
         proxies: {
           'main-out': proxy('Selector', {
-            now: priorityCode,
-            all: [urlTestCode, priorityCode, ...nodeCodes],
+            now: fallbackCode,
+            all: [urlTestCode, fallbackCode, ...nodeCodes],
           }),
           [urlTestCode]: proxy('URLTest', {
             all: ['node-a', 'node-b'],
           }),
-          [priorityCode]: proxy('Fallback', {
-            all: [priorityLevelCode],
-            now: priorityLevelCode,
+          [fallbackCode]: proxy('Fallback', {
+            all: [fallbackLevelCode],
+            now: fallbackLevelCode,
           }),
-          [priorityLevelCode]: proxy('Fallback', {
+          [fallbackLevelCode]: proxy('Fallback', {
             all: ['node-c', 'node-d'],
             now: 'node-c',
           }),
@@ -322,8 +365,8 @@ describe('getDashboardSections', () => {
         urltestGroups: {
           [urlTestCode]: { hide_dashboard_members: true },
         },
-        priorityGroups: {
-          [priorityCode]: { hide_dashboard_members: true },
+        fallbackGroups: {
+          [fallbackCode]: { hide_dashboard_members: true },
         },
       }),
     );
@@ -332,7 +375,7 @@ describe('getDashboardSections', () => {
 
     expect(result.data[0].outbounds.map((outbound) => outbound.code)).toEqual([
       urlTestCode,
-      priorityCode,
+      fallbackCode,
     ]);
   });
 
@@ -392,15 +435,15 @@ describe('getDashboardSections', () => {
     expect(urltest?.urlTestInfo?.outbounds).toEqual([]);
   });
 
-  it('hydrates Priority dashboard details from config, cache and Clash API', async () => {
+  it('hydrates Fallback dashboard details from config, cache and Clash API', async () => {
     mocks.getConfigSections.mockResolvedValue([
       proxySection({ urltests: [], urltest_settings: undefined }),
-      priorityGroup('pg_main'),
-      priorityLevel('pl_de', {
+      fallbackGroup('pg_main'),
+      fallbackLevel('pl_de', {
         name: 'Germany',
         order: '0',
       }),
-      priorityLevel('pl_nl', {
+      fallbackLevel('pl_nl', {
         name: 'Netherlands',
         order: '1',
         regex: ['Filtered'],
@@ -413,24 +456,24 @@ describe('getDashboardSections', () => {
           ...clashProxies,
           'main-out': proxy('Selector', {
             name: 'main-out',
-            now: 'main-priority-pg_main-out',
-            all: ['main-1-out', 'main-2-out', 'main-priority-pg_main-out'],
+            now: 'main-fallback-pg_main-out',
+            all: ['main-1-out', 'main-2-out', 'main-fallback-pg_main-out'],
           }),
-          'main-priority-pg_main-out': proxy('Fallback', {
-            name: 'main-priority-pg_main-out',
-            now: 'main-priority-pg_main-level-pl_de-out',
+          'main-fallback-pg_main-out': proxy('Fallback', {
+            name: 'main-fallback-pg_main-out',
+            now: 'main-fallback-pg_main-level-pl_de-out',
             all: [
-              'main-priority-pg_main-level-pl_de-out',
-              'main-priority-pg_main-level-pl_nl-out',
+              'main-fallback-pg_main-level-pl_de-out',
+              'main-fallback-pg_main-level-pl_nl-out',
             ],
           }),
-          'main-priority-pg_main-level-pl_de-out': proxy('Fallback', {
-            name: 'main-priority-pg_main-level-pl_de-out',
+          'main-fallback-pg_main-level-pl_de-out': proxy('Fallback', {
+            name: 'main-fallback-pg_main-level-pl_de-out',
             now: 'main-2-out',
             all: ['main-2-out'],
           }),
-          'main-priority-pg_main-level-pl_nl-out': proxy('Fallback', {
-            name: 'main-priority-pg_main-level-pl_nl-out',
+          'main-fallback-pg_main-level-pl_nl-out': proxy('Fallback', {
+            name: 'main-fallback-pg_main-level-pl_nl-out',
             now: 'main-1-out',
             all: ['main-1-out'],
           }),
@@ -445,25 +488,25 @@ describe('getDashboardSections', () => {
             'main-2-out': 'Second cached',
           },
         },
-        priorityGroups: {
-          'main-priority-pg_main-out': {
-            displayName: 'Codex Priority',
+        fallbackGroups: {
+          'main-fallback-pg_main-out': {
+            displayName: 'Codex Fallback',
             blacklist_timeout: '45s',
             outbounds: [
-              'main-priority-pg_main-level-pl_de-out',
-              'main-priority-pg_main-level-pl_nl-out',
+              'main-fallback-pg_main-level-pl_de-out',
+              'main-fallback-pg_main-level-pl_nl-out',
             ],
             levels: [
               {
                 id: 'pl_de',
-                tag: 'main-priority-pg_main-level-pl_de-out',
+                tag: 'main-fallback-pg_main-level-pl_de-out',
                 displayName: 'Germany',
                 order: 0,
                 outbounds: [],
               },
               {
                 id: 'pl_nl',
-                tag: 'main-priority-pg_main-level-pl_nl-out',
+                tag: 'main-fallback-pg_main-level-pl_nl-out',
                 displayName: 'Netherlands',
                 order: 1,
                 outbounds: [],
@@ -476,23 +519,23 @@ describe('getDashboardSections', () => {
 
     const result = await getDashboardSections();
     const [section] = result.data;
-    const priority = section.outbounds.find(
-      (item) => item.code === 'main-priority-pg_main-out',
+    const fallback = section.outbounds.find(
+      (item) => item.code === 'main-fallback-pg_main-out',
     );
 
     expect(result.success).toBe(true);
-    expect(priority).toMatchObject({
-      displayName: 'Codex Priority',
-      type: 'Priority',
+    expect(fallback).toMatchObject({
+      displayName: 'Codex Fallback',
+      type: 'Fallback',
       selected: true,
     });
-    expect(priority?.priorityInfo).toMatchObject({
+    expect(fallback?.fallbackInfo).toMatchObject({
       selectedCode: 'main-2-out',
       selectedName: 'Second cached',
       blacklistTimeout: '45s',
     });
     expect(
-      priority?.priorityInfo?.outbounds.map((item) => ({
+      fallback?.fallbackInfo?.outbounds.map((item) => ({
         code: item.code,
         levelIndex: item.levelIndex,
         levelName: item.levelName,
@@ -514,14 +557,14 @@ describe('getDashboardSections', () => {
     ]);
   });
 
-  it('keeps an empty Priority group visible when sing-box skipped the selector', async () => {
+  it('keeps an empty Fallback group visible when sing-box skipped the selector', async () => {
     mocks.getConfigSections.mockResolvedValue([
       proxySection({
         selector_proxy_links: [],
         urltests: [],
         urltest_settings: undefined,
       }),
-      priorityGroup('pg_empty', { name: 'Empty Priority' }),
+      fallbackGroup('pg_empty', { name: 'Empty Fallback' }),
     ]);
     mocks.getClashApiProxies.mockResolvedValue({
       success: true,
@@ -529,9 +572,9 @@ describe('getDashboardSections', () => {
     });
     mocks.dashboardCacheRead.mockResolvedValue(
       JSON.stringify({
-        priorityGroups: {
-          'main-priority-pg_empty-out': {
-            displayName: 'Empty Priority',
+        fallbackGroups: {
+          'main-fallback-pg_empty-out': {
+            displayName: 'Empty Fallback',
             outbounds: [],
             levels: [],
             interrupt_exist_connections: true,
@@ -542,22 +585,70 @@ describe('getDashboardSections', () => {
 
     const result = await getDashboardSections();
     const [section] = result.data;
-    const priority = section.outbounds.find(
-      (item) => item.code === 'main-priority-pg_empty-out',
+    const fallback = section.outbounds.find(
+      (item) => item.code === 'main-fallback-pg_empty-out',
     );
 
     expect(result.success).toBe(true);
     expect(section.outbounds.map((item) => item.code)).toEqual([
-      'main-priority-pg_empty-out',
+      'main-fallback-pg_empty-out',
     ]);
-    expect(priority).toMatchObject({
-      displayName: 'Empty Priority',
-      type: 'Priority',
+    expect(fallback).toMatchObject({
+      displayName: 'Empty Fallback',
+      type: 'Fallback',
       runtimeAvailable: false,
       latency: 0,
     });
-    expect(priority?.priorityInfo?.selectedName).toBeUndefined();
-    expect(priority?.priorityInfo?.outbounds).toEqual([]);
+    expect(fallback?.fallbackInfo?.selectedName).toBeUndefined();
+    expect(fallback?.fallbackInfo?.outbounds).toEqual([]);
+  });
+
+  it('marks runtime URLTest and Fallback groups without nodes unavailable', async () => {
+    const urlTestCode = 'main-urltest-empty-out';
+    const fallbackCode = 'main-fallback-empty-out';
+
+    mocks.getConfigSections.mockResolvedValue([
+      proxySection({
+        selector_proxy_links: [],
+        urltests: [],
+        urltest_settings: undefined,
+      }),
+      {
+        '.name': 'empty',
+        '.type': 'urltest',
+        section: 'main',
+        name: 'Empty URLTest',
+      },
+      fallbackGroup('empty', { name: 'Empty Fallback' }),
+    ]);
+    mocks.getClashApiProxies.mockResolvedValue({
+      success: true,
+      data: {
+        proxies: {
+          'main-out': proxy('Selector', {
+            all: [urlTestCode, fallbackCode],
+          }),
+          [urlTestCode]: proxy('URLTest', { all: [] }),
+          [fallbackCode]: proxy('Fallback', { all: [] }),
+        },
+      },
+    });
+
+    const result = await getDashboardSections();
+    const [section] = result.data;
+
+    expect(result.success).toBe(true);
+    expect(section.latencyTestCodes).toBeUndefined();
+    expect(
+      section.outbounds.map(({ code, runtimeAvailable, latency }) => ({
+        code,
+        runtimeAvailable,
+        latency,
+      })),
+    ).toEqual([
+      { code: urlTestCode, runtimeAvailable: false, latency: 0 },
+      { code: fallbackCode, runtimeAvailable: false, latency: 0 },
+    ]);
   });
 
   it('keeps legacy URLTest sections compatible before migration', async () => {

@@ -1029,40 +1029,40 @@ function urltests_signature(section) {
     return sprintf("%J", result);
 }
 
-function priority_groups_signature(section) {
+function fallback_groups_signature(section) {
     let result = [];
-    for (let group_id in connections.priority_groups(section)) {
+    for (let group_id in connections.fallback_groups(section)) {
         let levels = [];
-        for (let level_id in connections.priority_levels(group_id)) {
+        for (let level_id in connections.fallback_levels(group_id)) {
             push(levels, {
                 id: level_id,
-                display_name: connections.priority_level_display_name(group_id, level_id),
-                order: connections.priority_level_order(group_id, level_id),
-                direct: connections.priority_level_direct(group_id, level_id) ? "1" : "0",
-                filter_mode: connections.priority_level_filter_mode(group_id, level_id),
-                include_countries: connections.priority_level_include_countries(group_id, level_id),
-                include_outbounds: connections.priority_level_include_outbounds(group_id, level_id),
-                include_regex: connections.priority_level_include_regex(group_id, level_id),
-                include_proxy_parameters: connections.priority_level_include_proxy_parameters(group_id, level_id) ? "1" : "0",
-                include_protocols: connections.priority_level_include_protocols(group_id, level_id),
-                include_transports: connections.priority_level_include_transports(group_id, level_id),
-                include_securities: connections.priority_level_include_securities(group_id, level_id),
-                exclude_countries: connections.priority_level_exclude_countries(group_id, level_id),
-                exclude_outbounds: connections.priority_level_exclude_outbounds(group_id, level_id),
-                exclude_regex: connections.priority_level_exclude_regex(group_id, level_id),
-                exclude_proxy_parameters: connections.priority_level_exclude_proxy_parameters(group_id, level_id) ? "1" : "0",
-                exclude_protocols: connections.priority_level_exclude_protocols(group_id, level_id),
-                exclude_transports: connections.priority_level_exclude_transports(group_id, level_id),
-                exclude_securities: connections.priority_level_exclude_securities(group_id, level_id)
+                display_name: connections.fallback_level_display_name(group_id, level_id),
+                order: connections.fallback_level_order(group_id, level_id),
+                direct: connections.fallback_level_direct(group_id, level_id) ? "1" : "0",
+                filter_mode: connections.fallback_level_filter_mode(group_id, level_id),
+                include_countries: connections.fallback_level_include_countries(group_id, level_id),
+                include_outbounds: connections.fallback_level_include_outbounds(group_id, level_id),
+                include_regex: connections.fallback_level_include_regex(group_id, level_id),
+                include_proxy_parameters: connections.fallback_level_include_proxy_parameters(group_id, level_id) ? "1" : "0",
+                include_protocols: connections.fallback_level_include_protocols(group_id, level_id),
+                include_transports: connections.fallback_level_include_transports(group_id, level_id),
+                include_securities: connections.fallback_level_include_securities(group_id, level_id),
+                exclude_countries: connections.fallback_level_exclude_countries(group_id, level_id),
+                exclude_outbounds: connections.fallback_level_exclude_outbounds(group_id, level_id),
+                exclude_regex: connections.fallback_level_exclude_regex(group_id, level_id),
+                exclude_proxy_parameters: connections.fallback_level_exclude_proxy_parameters(group_id, level_id) ? "1" : "0",
+                exclude_protocols: connections.fallback_level_exclude_protocols(group_id, level_id),
+                exclude_transports: connections.fallback_level_exclude_transports(group_id, level_id),
+                exclude_securities: connections.fallback_level_exclude_securities(group_id, level_id)
             });
         }
 
         push(result, {
             id: group_id,
-            display_name: connections.priority_group_display_name(section, group_id),
-            blacklist_timeout: connections.priority_group_blacklist_timeout(section, group_id),
-            pin_dashboard: connections.priority_group_pin_dashboard(section, group_id) ? "1" : "0",
-            hide_dashboard_members: connections.priority_group_hide_dashboard_members(section, group_id) ? "1" : "0",
+            display_name: connections.fallback_group_display_name(section, group_id),
+            blacklist_timeout: connections.fallback_group_blacklist_timeout(section, group_id),
+            pin_dashboard: connections.fallback_group_pin_dashboard(section, group_id) ? "1" : "0",
+            hide_dashboard_members: connections.fallback_group_hide_dashboard_members(section, group_id) ? "1" : "0",
             levels
         });
     }
@@ -1175,11 +1175,11 @@ function append_sing_box_rule_signature_body(body, section, sections) {
         body = signature_add_value(body, prefix + ".subscription_urls", subscription_urls_signature(section));
         body = signature_add_value(body, prefix + ".interfaces", interfaces_signature(section));
         body = signature_add_value(body, prefix + ".outbound_jsons", option(section, "outbound_jsons", ""));
-        body = signature_add_value(body, prefix + ".tunnel_jsons", sprintf("%J", connections.tunnel_jsons(section)));
+        body = signature_add_value(body, prefix + ".tunnels", connections.tunnels_signature(section));
         body = signature_add_value(body, prefix + ".legacy_interface", option(section, "interface", ""));
         body = signature_add_value(body, prefix + ".legacy_outbound_json", option(section, "outbound_json", ""));
         body = signature_add_value(body, prefix + ".urltests", urltests_signature(section));
-        body = signature_add_value(body, prefix + ".priority_groups", priority_groups_signature(section));
+        body = signature_add_value(body, prefix + ".fallback_groups", fallback_groups_signature(section));
         body = signature_add_value(body, prefix + ".urltest_enabled", bool_option_value(section, "urltest_enabled", false));
         body = signature_add_value(body, prefix + ".urltest_check_interval", section_urltest_check_interval(section));
         body = signature_add_value(body, prefix + ".urltest_tolerance", option(section, "urltest_tolerance", "50"));

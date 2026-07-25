@@ -145,7 +145,7 @@ export namespace Forkop {
     country?: string;
     runtimeAvailable?: boolean;
     urlTestInfo?: UrlTestInfo;
-    priorityInfo?: PriorityInfo;
+    fallbackInfo?: FallbackInfo;
   }
 
   export interface UrlTestMember {
@@ -172,19 +172,19 @@ export namespace Forkop {
     outbounds: UrlTestMember[];
   }
 
-  export interface PriorityMember extends UrlTestMember {
+  export interface FallbackMember extends UrlTestMember {
     levelIndex: number;
     levelName: string;
     levelId?: string;
   }
 
-  export interface PriorityInfo {
+  export interface FallbackInfo {
     code: string;
     displayName: string;
     selectedCode?: string;
     selectedName?: string;
     blacklistTimeout?: string;
-    outbounds: PriorityMember[];
+    outbounds: FallbackMember[];
   }
 
   export interface OutboundGroup {
@@ -262,8 +262,10 @@ export namespace Forkop {
       | 'subscription_url'
       | 'section_interface'
       | 'urltest'
-      | 'priority_group'
-      | 'priority_level';
+      | 'fallback_group'
+      | 'fallback_level'
+      | 'tunnel'
+      | 'tunnel_peer';
     label?: string;
     enabled?: string;
     action?: RuleAction;
@@ -281,12 +283,13 @@ export namespace Forkop {
     selector_proxy_links?: string[];
     subscription_urls?: string[];
     interfaces?: string[];
+    tunnels?: string[];
     outbound_jsons?: string[];
     subscription_url_settings?: string;
     urltests?: string[];
     urltest_settings?: string;
-    priority_groups?: string[];
-    priority_group_settings?: string;
+    fallback_groups?: string[];
+    fallback_group_settings?: string;
     subscription_update_enabled?: '0' | '1';
     subscription_update_interval?: string;
     urltest_enabled?: '0' | '1';
@@ -447,6 +450,7 @@ export namespace Forkop {
 
   export interface GetOutboundMetadata {
     names?: Record<string, string>;
+    protocols?: Record<string, string>;
   }
 
   export interface GetSingBoxStatus {

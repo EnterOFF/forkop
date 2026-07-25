@@ -428,8 +428,8 @@ const PROTOCOL_LABELS = {
   mieru: "Mieru",
   anytls: "AnyTLS",
   tuic: "TUIC",
-  json_inbound: "JSON Inbound",
   tailscale: "Tailscale",
+  json_inbound: "JSON Inbound",
 };
 
 const SECURITY_BY_PROTOCOL = {
@@ -515,6 +515,25 @@ function getProtocol(sectionId) {
 
 function getProtocolLabel(protocol) {
   return PROTOCOL_LABELS[protocol] || protocol || "";
+}
+
+function getTailscaleDetourTargetSections(currentSectionId) {
+  return (uci.sections(UCI_PACKAGE, "section") || []).filter(
+    (section) =>
+      section[".name"] &&
+      section[".name"] !== currentSectionId &&
+      section.enabled !== "0" &&
+      ["connection", "proxy", "outbound", "vpn"].includes(
+        section.action || "",
+      ),
+  );
+}
+
+function populateTailscaleDetourValues(option, currentSectionId) {
+  resetOptionValues(option);
+  getTailscaleDetourTargetSections(currentSectionId).forEach((section) => {
+    option.value(section[".name"], section.label || section[".name"]);
+  });
 }
 
 function resetOptionValues(option) {
@@ -1053,7 +1072,6 @@ function ensureProtocolDefaults(sectionId, protocol, forceProtocolDefaults) {
       "tailscale_hostname",
       defaultTailscaleHostname(sectionId),
     );
-    setDefault(sectionId, "tailscale_advertise_exit_node", "1");
   }
 
   if (protocol === "hysteria2") {
@@ -3122,7 +3140,12 @@ function createServerContent(section) {
   o.validate = validateRequiredDuration;
   addMtprotoDepends(o);
 
-  o = section.option(form.Value, "tailscale_auth_key", _("Tailscale auth key"));
+  o = section.option(
+    form.Value,
+    "tailscale_auth_key",
+    _("Tailscale auth key"),
+    _("Auth Key from the Tailscale admin console"),
+  );
   o.modalonly = true;
   o.rmempty = false;
   o.validate = validateRequired;
@@ -3132,6 +3155,9 @@ function createServerContent(section) {
     form.Value,
     "tailscale_control_url",
     _("Tailscale control URL"),
+    _(
+      "Address of the coordination server. Change it if you use a custom server.",
+    ),
   );
   o.default = "https://controlplane.tailscale.com";
   o.modalonly = true;
@@ -3139,7 +3165,49 @@ function createServerContent(section) {
   o.validate = validateHttpUrl;
   addTailscaleDepends(o);
 
-  o = section.option(form.Value, "tailscale_hostname", _("Tailscale hostname"));
+  o = section.option(
+    form.Flag,
+    "tailscale_detour_enabled",
+    _("Control plane through section"),
+    _("Connect to the coordination server through a section"),
+  );
+  o.default = "0";
+  o.modalonly = true;
+  o.rmempty = false;
+  addTailscaleDepends(o);
+
+  o = section.option(
+    form.ListValue,
+    "tailscale_detour_section",
+    _("Control plane through"),
+  );
+  o.modalonly = true;
+  o.rmempty = false;
+  o.depends({ protocol: "tailscale", tailscale_detour_enabled: "1" });
+  o.load = function (sectionId) {
+    populateTailscaleDetourValues(this, sectionId);
+    return uci.get(UCI_PACKAGE, sectionId, "tailscale_detour_section") || "";
+  };
+  o.validate = function (sectionId, value) {
+    if (!value) {
+      return _("Select a section");
+    }
+    if (value === sectionId) {
+      return _("Current section cannot be used as its own transit section");
+    }
+    return getTailscaleDetourTargetSections(sectionId).some(
+      (target) => target[".name"] === value,
+    )
+      ? true
+      : _("Select a section");
+  };
+
+  o = section.option(
+    form.Value,
+    "tailscale_hostname",
+    _("Tailscale hostname"),
+    _("Name shown in the Tailscale admin console."),
+  );
   o.modalonly = true;
   o.rmempty = false;
   o.validate = validateRequiredText;
@@ -3155,26 +3223,26 @@ function createServerContent(section) {
   addTailscaleDepends(o);
 
   o = section.option(
-    form.Flag,
-    "tailscale_advertise_exit_node",
-    _("Advertise exit node"),
-  );
-  o.default = "1";
-  o.modalonly = true;
-  o.rmempty = false;
-  addTailscaleDepends(o);
-
-  o = section.option(
     form.DynamicList,
     "tailscale_advertise_routes",
     _("Advertise routes"),
+    _(
+      "Specify local subnets to give other devices in your Tailscale network access to them.",
+    ),
   );
   o.modalonly = true;
   o.rmempty = true;
   o.validate = (_sectionId, value) => validateOptionalCidrOrIp(value);
   addTailscaleDepends(o);
 
-  o = section.option(form.Flag, "tailscale_accept_routes", _("Accept routes"));
+  o = section.option(
+    form.Flag,
+    "tailscale_accept_routes",
+    _("Accept routes"),
+    _(
+      "Accept subnets advertised by other devices in your Tailscale network.",
+    ),
+  );
   o.default = "0";
   o.modalonly = true;
   o.rmempty = true;

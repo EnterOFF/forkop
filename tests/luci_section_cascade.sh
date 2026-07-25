@@ -39,14 +39,20 @@ assert.deepStrictEqual(cleanupCalls, [
   ['parent', 'subscription_url', []],
   ['parent', 'section_interface', []],
   ['parent', 'urltest', []],
-  ['parent', 'priority_group', []],
+  ['parent', 'fallback_group', []],
+  ['parent', 'tunnel', []],
 ]);
 assert.deepStrictEqual(parentArgs, ['parent', event]);
 assert.strictEqual(parentThis, sectionRef);
 assert.match(
   source,
-  /typeName === "priority_group"[\s\S]*cleanupPriorityLevelsForGroup\(itemId\)/,
-  'priority_group cleanup does not cascade to priority_level',
+  /typeName === "fallback_group"[\s\S]*cleanupFallbackLevelsForGroup\(itemId\)/,
+  'fallback_group cleanup does not cascade to fallback_level',
+);
+assert.match(
+  source,
+  /typeName === "tunnel"[\s\S]*cleanupTunnelPeers\(itemId\)/,
+  'tunnel cleanup does not cascade to tunnel_peer',
 );
 
 console.log('LuCI section cascade checks passed');

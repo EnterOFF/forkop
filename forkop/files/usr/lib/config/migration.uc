@@ -44,6 +44,8 @@ const CHILD_ITEM_TYPES = [
     "subscription_url",
     "section_interface",
     "urltest",
+    "fallback_group",
+    "fallback_level",
     "priority_group",
     "priority_level"
 ];
@@ -1553,6 +1555,21 @@ function add_extended_server_defaults(ctx) {
     }
 }
 
+function migrate_fallback_uci_tags(ctx) {
+    for (let mapping in [
+        [ "priority_group", "fallback_group" ],
+        [ "priority_level", "fallback_level" ]
+    ]) {
+        let old_type = mapping[0];
+        let new_type = mapping[1];
+        for (let section in ctx.model[old_type] || []) {
+            set_section_type(ctx, section, new_type);
+            push(ctx.model[new_type], section);
+        }
+        ctx.model[old_type] = [];
+    }
+}
+
 const MIGRATIONS = [
     { id: "interface_sections", run: migrate_interface_sections },
     { id: "enable_component_checks", run: migrate_enable_component_checks },
@@ -1561,7 +1578,8 @@ const MIGRATIONS = [
     { id: "native_fallbacks", run: use_native_fallbacks },
     { id: "native_rule_sets", run: use_native_rule_sets },
     { id: "leaf_subscription_providers", run: use_leaf_subscription_providers },
-    { id: "extended_server_defaults", run: add_extended_server_defaults }
+    { id: "extended_server_defaults", run: add_extended_server_defaults },
+    { id: "fallback_uci_tags", run: migrate_fallback_uci_tags }
 ];
 
 function apply_migrations(ctx) {

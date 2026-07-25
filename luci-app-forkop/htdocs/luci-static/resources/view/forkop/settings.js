@@ -152,7 +152,7 @@ function createSettingsContent(section, capabilities) {
     form.DynamicList,
     "dns_server",
     _("DNS Servers"),
-    _("Main DNS servers in fallback order."),
+    _("Specify several for automatic failover"),
   );
   configureDnsList(dnsOption, main.DNS_SERVER_OPTIONS, "77.88.8.8");
 
@@ -161,7 +161,7 @@ function createSettingsContent(section, capabilities) {
     "bootstrap_dns_server",
     _("Bootstrap DNS Servers"),
     _(
-      "DNS servers used to obtain IP addresses for upstream DNS and proxies, in fallback order.",
+      "DNS servers used to resolve main DNS servers and proxies. Specify several for automatic failover",
     ),
   );
   configureDnsList(

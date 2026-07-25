@@ -601,7 +601,7 @@ proxy
 [ ]
 [rule.proxy1.outbound_jsons]
 
-[rule.proxy1.tunnel_jsons]
+[rule.proxy1.tunnels]
 [ ]
 [rule.proxy1.legacy_interface]
 
@@ -609,7 +609,7 @@ proxy
 
 [rule.proxy1.urltests]
 [ { "id": "urltest", "display_name": "Fastest", "check_interval": "3m", "tolerance": "75", "testing_url": "https://www.gstatic.com/generate_204", "idle_timeout": "", "interrupt_exist_connections": "1", "pin_dashboard": "1", "hide_dashboard_members": "0", "filter_mode": "exclude", "include_countries": [ ], "include_outbounds": [ "node-a" ], "include_regex": [ ], "include_proxy_parameters": "0", "include_protocols": [ ], "include_transports": [ ], "include_securities": [ ], "exclude_countries": [ "RU" ], "exclude_outbounds": [ ], "exclude_regex": [ ], "exclude_proxy_parameters": "0", "exclude_protocols": [ ], "exclude_transports": [ ], "exclude_securities": [ ] } ]
-[rule.proxy1.priority_groups]
+[rule.proxy1.fallback_groups]
 [ ]
 [rule.proxy1.urltest_enabled]
 1
@@ -685,7 +685,7 @@ outbound
 [ ]
 [rule.out1.outbound_jsons]
 
-[rule.out1.tunnel_jsons]
+[rule.out1.tunnels]
 [ ]
 [rule.out1.legacy_interface]
 
@@ -693,7 +693,7 @@ outbound
 {"type":"direct"}
 [rule.out1.urltests]
 [ ]
-[rule.out1.priority_groups]
+[rule.out1.fallback_groups]
 [ ]
 [rule.out1.urltest_enabled]
 0
@@ -791,7 +791,7 @@ vpn
 [ { "name": "wg0", "domain_resolver_enabled": "1", "domain_resolver_dns_type": "doh", "domain_resolver_dns_server": "https://dns.example/dns-query" } ]
 [rule.vpn1.outbound_jsons]
 
-[rule.vpn1.tunnel_jsons]
+[rule.vpn1.tunnels]
 [ ]
 [rule.vpn1.legacy_interface]
 wg0
@@ -799,7 +799,7 @@ wg0
 
 [rule.vpn1.urltests]
 [ ]
-[rule.vpn1.priority_groups]
+[rule.vpn1.fallback_groups]
 [ ]
 [rule.vpn1.urltest_enabled]
 0

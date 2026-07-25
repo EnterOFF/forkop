@@ -161,6 +161,60 @@ JSON
 
 validate_fixture "$WORK_DIR/valid.json"
 
+cat >"$WORK_DIR/bad-tailscale-exit-node.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "section": [
+    {
+      ".name": "proxy",
+      ".type": "section",
+      "enabled": "1",
+      "action": "connection"
+    }
+  ],
+  "tunnel": [
+    {
+      ".name": "tun_tailnet",
+      ".type": "tunnel",
+      "section": "proxy",
+      "kind": "tailscale",
+      "name": "Tailnet",
+      "tailscale_auth_key": "tskey-auth-test",
+      "tailscale_hostname": "forkop-router"
+    }
+  ]
+}
+JSON
+assert_rejects "Tailscale tunnel without exit node" "$WORK_DIR/bad-tailscale-exit-node.json" "incomplete Tailscale endpoint"
+
+cat >"$WORK_DIR/bad-tailscale-self-detour.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "section": [
+    {
+      ".name": "proxy",
+      ".type": "section",
+      "enabled": "1",
+      "action": "connection"
+    }
+  ],
+  "tunnel": [
+    {
+      ".name": "tun_tailnet",
+      ".type": "tunnel",
+      "section": "proxy",
+      "kind": "tailscale",
+      "name": "Tailnet",
+      "tailscale_auth_key": "tskey-auth-test",
+      "tailscale_hostname": "forkop-router",
+      "tailscale_exit_node": "100.64.0.1",
+      "tailscale_detour_section": "proxy"
+    }
+  ]
+}
+JSON
+assert_rejects "Tailscale tunnel self detour" "$WORK_DIR/bad-tailscale-self-detour.json" "cannot use itself for the Tailscale control plane"
+
 cat >"$WORK_DIR/bad-dns-fallback-strategy.json" <<'JSON'
 {
   "settings": {
@@ -454,6 +508,7 @@ runtime_lib="$WORK_DIR/runtime-lib"
 mkdir -p "$runtime_lib"
 ln -s "$FORKOP_LIB/core" "$runtime_lib/core"
 ln -s "$FORKOP_LIB/config" "$runtime_lib/config"
+ln -s "$FORKOP_LIB/singbox" "$runtime_lib/singbox"
 ln -s "$FORKOP_LIB/subscription" "$runtime_lib/subscription"
 ln -s "$FORKOP_LIB/providers" "$runtime_lib/providers"
 touch "$WORK_DIR/ciadpi-provider"

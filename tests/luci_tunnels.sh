@@ -18,24 +18,28 @@ function requireSource(source, needle) {
 }
 
 for (const needle of [
-  '"tunnel_jsons"',
+  '"tunnels"',
   '_("+ Add tunnel")',
   'typeOption.value("wireguard", "WireGuard")',
   'typeOption.value("amneziawg", "AmneziaWG")',
   'typeOption.value("warp", "Cloudflare WARP")',
+  'typeOption.value("tailscale", "Tailscale")',
+  'typeOption.value("json", "JSON endpoint")',
   '_("Tunnel settings")',
   '_("Import configuration")',
   'importButton.depends("tunnel_type", "wireguard")',
   'importButton.depends("tunnel_type", "amneziawg")',
   'main.parseWireGuardInput || main.parseWireGuardConfig',
-  'ButtonAddSettingsDynamicList,\n    "peer_jsons"',
+  'ButtonAddSettingsDynamicList,\n    "peer_ids"',
+  'typeName: "tunnel_peer"',
+  'o.childType = "tunnel"',
   '_("+ Add peer")',
   'showWireGuardPeerSettingsModal',
   'wireGuardPeerFromSettings',
   'endpoint.amnezia = tunnelAmneziaSettings(settings)',
   'const WARP_JUNK_FIELDS = [',
   '"jc", "jmin", "jmax", "i1", "i2", "i3", "i4", "i5"',
-  '_("Junk packet obfuscation")',
+  '_("Traffic masking")',
   '"warp_junk_enabled"',
   'main.parseWireGuardConfig',
   'endpoint.profile = profile',
@@ -58,6 +62,31 @@ for (const needle of [
   '_("WireGuard peer contains unsupported fields")',
   '_("Forkop Error")',
   'Failed to generate WARP profile.',
+  '"tailscale_auth_key"',
+  '"tailscale_hostname"',
+  '"tailscale_control_url"',
+  '"tailscale_exit_node"',
+  '"tailscale_detour_enabled"',
+  '"tailscale_detour_section"',
+  '_("Control plane through section")',
+  'main.getOutboundTagBySection',
+  'exit_node_allow_lan_access: true',
+  '_("Enter a Tailscale exit node")',
+  '"endpoint_json"',
+  '_("JSON endpoint must contain a non-empty type")',
+  '_("JSON endpoint must contain a non-empty tag")',
+  'this.formvalue(_itemId)',
+  '_("Add at least one WireGuard peer")',
+  '_("WireGuard, AmneziaWG 2.0, Cloudflare WARP, and Tailscale tunnels")',
+  '_("Name displayed on the dashboard")',
+  '["wireguard", "amneziawg", "warp", "tailscale"]',
+  'Automatically register a device and fill the required fields.',
+  'Paste a WireGuard or AmneziaWG configuration or a link in vpn:// format.',
+  'Leave empty to use the default value.',
+  'List of remote WireGuard nodes to connect.',
+  'Auth Key from the Tailscale admin console',
+  'Name shown in the Tailscale admin console.',
+  'Accept subnets advertised by other devices in your Tailscale network.',
 ]) {
   requireSource(section, needle);
 }
@@ -90,6 +119,15 @@ for (const forbidden of [
   'AmneziaWG packet header size or range from the client profile.',
   'AmneziaWG packet header template from the client profile.',
   'Fill all WARP profile fields or leave all of them empty',
+  'Choose WireGuard, AmneziaWG, or Cloudflare WARP.',
+  'Add one or more WireGuard peers and configure each one separately.',
+  'placeholder = "30"',
+  'placeholder = "100 or 100-200"',
+  'Junk packet obfuscation',
+  'Leave empty to use the core default.',
+  'Leave empty to let sing-box choose it.',
+  '"tailscale_exit_node_allow_lan_access"',
+  'Allow LAN access through exit node',
 ]) {
   if (section.includes(forbidden)) {
     console.error(`FAIL: obsolete tunnel UI remains: ${forbidden}`);
@@ -104,10 +142,13 @@ const generateIndex = section.indexOf('"_generate_warp_profile"', tunnelModalInd
 const typeIndex = section.indexOf('_("Tunnel type")', tunnelModalIndex);
 if (
   tunnelModalIndex < 0 ||
-  !(nameIndex < importIndex && nameIndex < generateIndex) ||
-  !(importIndex < typeIndex && generateIndex < typeIndex)
+  !(typeIndex < nameIndex && nameIndex < importIndex && nameIndex < generateIndex)
 ) {
-  console.error('FAIL: tunnel import/generate actions must be directly below the name');
+  console.error('FAIL: tunnel type must be first, followed by name and actions');
+  process.exit(1);
+}
+if (!section.includes('["wireguard", "amneziawg", "warp", "tailscale"]')) {
+  console.error('FAIL: tunnel name must remain visible for non-JSON tunnel types');
   process.exit(1);
 }
 
@@ -125,7 +166,7 @@ if (
   process.exit(1);
 }
 
-const tunnelIndex = section.indexOf('"tunnel_jsons"');
+const tunnelIndex = section.indexOf('"tunnels"');
 const jsonIndex = section.indexOf('"outbound_jsons"', tunnelIndex);
 if (tunnelIndex < 0 || jsonIndex < 0 || tunnelIndex >= jsonIndex) {
   console.error('FAIL: native tunnel control must appear before JSON outbound');

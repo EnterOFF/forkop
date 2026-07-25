@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-07-20 03:34+0300\n"
-"PO-Revision-Date: 2026-07-20 03:34+0300\n"
+"POT-Creation-Date: 2026-07-24 18:40+0300\n"
+"PO-Revision-Date: 2026-07-24 18:40+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -20,6 +20,9 @@ msgstr ""
 msgid "-- Select --"
 msgstr "-- Выберите --"
 
+msgid "+ Add fallback"
+msgstr "+ Добавить Fallback"
+
 msgid "+ Add JSON outbound"
 msgstr "+ Добавить JSON outbound"
 
@@ -28,9 +31,6 @@ msgstr "+ Добавить уровень"
 
 msgid "+ Add peer"
 msgstr "+ Добавить пир"
-
-msgid "+ Add priority"
-msgstr "+ Добавить приоритет"
 
 msgid "+ Add tunnel"
 msgstr "+ Добавить туннель"
@@ -49,6 +49,9 @@ msgstr "Принимает внешние прокси-подключения и
 
 msgid "Accept routes"
 msgstr "Принимать маршруты"
+
+msgid "Accept subnets advertised by other devices in your Tailscale network."
+msgstr "Принимать подсети, которые раздают другие устройства в вашей сети Tailscale."
 
 msgid "Action"
 msgstr "Действие"
@@ -70,9 +73,6 @@ msgstr "Добавьте хотя бы один DNS-сервер"
 
 msgid "Add at least one WireGuard peer"
 msgstr "Добавьте хотя бы одного пира WireGuard"
-
-msgid "Add one or more WireGuard peers and configure each one separately."
-msgstr "Добавьте одного или нескольких пиров WireGuard и настройте каждого отдельно."
 
 msgid "Add prefix to nodes"
 msgstr "Добавлять префикс к узлам"
@@ -101,8 +101,11 @@ msgstr "Дополнительно отбирать серверы по прот
 msgid "Address"
 msgstr "Адрес"
 
-msgid "Advertise exit node"
-msgstr "Анонсировать exit node"
+msgid "Address of the coordination server. Change it if you use a custom server."
+msgstr "Адрес сервера координации. Измените его, если используете собственный сервер"
+
+msgid "Adds AmneziaWG traffic obfuscation to make the traffic harder to identify."
+msgstr "Добавляет обфускацию трафика по механизму AmneziaWG, чтобы затруднить его распознавание."
 
 msgid "Advertise routes"
 msgstr "Анонсировать маршруты"
@@ -119,8 +122,8 @@ msgstr "Все оставшиеся, кроме выбранных"
 msgid "All remaining servers"
 msgstr "Все оставшиеся серверы"
 
-msgid "All remaining servers means every server not already assigned to a higher-priority level."
-msgstr "Добавляет все серверы, которые не попали в уровни с более высоким приоритетом."
+msgid "All remaining servers means every server not already assigned to an earlier level."
+msgstr "Добавляет все серверы, которые не попали в предыдущие уровни."
 
 msgid "All servers"
 msgstr "Все серверы"
@@ -155,6 +158,9 @@ msgstr "Нужно указать хотя бы один корректный д
 msgid "At least one valid IP or subnet must be specified."
 msgstr "Нужно указать хотя бы один корректный IP-адрес или подсеть."
 
+msgid "Auth Key from the Tailscale admin console"
+msgstr "Auth Key из панели управления Tailscale"
+
 msgid "Auth timeout"
 msgstr "Таймаут авторизации"
 
@@ -178,6 +184,9 @@ msgstr "Автоматически добавлять текст к имени �
 
 msgid "Automatically check installed components for new versions"
 msgstr "Автоматически проверять наличие новых версий установленных компонентов"
+
+msgid "Automatically register a device and fill the required fields."
+msgstr "Автоматически зарегистрировать устройство и заполнить необходимые поля."
 
 msgid "Available actions"
 msgstr "Доступные действия"
@@ -287,9 +296,6 @@ msgstr "Проверки пройдены"
 msgid "Checks passed with manual DHCP"
 msgstr "Проверки пройдены с ручным DHCP"
 
-msgid "Choose WireGuard, AmneziaWG, or Cloudflare WARP."
-msgstr "Выберите WireGuard, AmneziaWG или Cloudflare WARP."
-
 msgid "CIDR must be between 0 and 32 for IPv4 or 0 and 128 for IPv6"
 msgstr "CIDR должен быть от 0 до 32 для IPv4 или от 0 до 128 для IPv6"
 
@@ -316,12 +322,6 @@ msgstr "Закрыть подключение"
 
 msgid "Closed"
 msgstr "Закрытые"
-
-msgid "Cloudflare device token. Generate a profile to fill it automatically."
-msgstr "Токен устройства Cloudflare. Сгенерируйте профиль для автоматического заполнения."
-
-msgid "Cloudflare WireGuard private key. Generate a profile to fill it automatically."
-msgstr "Приватный ключ WireGuard Cloudflare. Сгенерируйте профиль для автоматического заполнения."
 
 msgid "Component update available"
 msgstr "Доступно обновление компонента"
@@ -359,6 +359,9 @@ msgstr "Управление перегрузкой"
 msgid "Connect through"
 msgstr "Подключаться через"
 
+msgid "Connect to the coordination server through a section"
+msgstr "Подключаться к серверу координации через секцию"
+
 msgid "Connection URL"
 msgstr "URL подключения"
 
@@ -367,6 +370,12 @@ msgstr "Подключения недоступны"
 
 msgid "Connectivity probe failed"
 msgstr "Проверка соединения не прошла"
+
+msgid "Control plane through"
+msgstr "Control plane через"
+
+msgid "Control plane through section"
+msgstr "Control plane через секцию"
 
 msgid "Copied"
 msgstr "Скопировано"
@@ -488,8 +497,8 @@ msgstr "DNS-сервер, который будет использовать р�
 msgid "DNS Servers"
 msgstr "DNS-серверы"
 
-msgid "DNS servers used to obtain IP addresses for upstream DNS and proxies, in fallback order."
-msgstr "DNS-серверы для получения IP-адресов вышестоящих DNS и прокси в порядке резервирования."
+msgid "DNS servers used to resolve main DNS servers and proxies. Specify several for automatic failover"
+msgstr "DNS-серверы для получения IP-адресов основных DNS и прокси. Укажите несколько для автоматического переключения при сбоях"
 
 msgid "DNS Strategy"
 msgstr "Стратегия DNS"
@@ -575,8 +584,8 @@ msgstr "Скачивать через"
 msgid "Downloaded"
 msgstr "Загружено"
 
-msgid "Drag rows to change priority. The rule at the top is checked first."
-msgstr "Перетаскивайте строки, чтобы изменить приоритет. Правило сверху проверяется первым."
+msgid "Drag rows to change order. The rule at the top is checked first."
+msgstr "Перетаскивайте строки, чтобы изменить порядок. Правило сверху проверяется первым."
 
 msgid "Duplicate JSON outbound tag"
 msgstr "Такой тег JSON outbound уже используется"
@@ -623,6 +632,9 @@ msgstr "Включить YACD"
 msgid "Enable YACD WAN Access"
 msgstr "Включить доступ YACD WAN"
 
+msgid "Enter a complete sing-box endpoint object."
+msgstr "Введите полный объект endpoint sing-box."
+
 msgid "Enter a complete sing-box inbound object"
 msgstr "Введите полный объект inbound sing-box"
 
@@ -644,11 +656,26 @@ msgstr "Введите публичный ключ"
 msgid "Enter a server address"
 msgstr "Введите адрес сервера"
 
+msgid "Enter a Tailscale auth key"
+msgstr "Введите ключ авторизации Tailscale"
+
+msgid "Enter a Tailscale exit node"
+msgstr "Введите выходной узел Tailscale"
+
+msgid "Enter a Tailscale hostname"
+msgstr "Введите hostname Tailscale"
+
 msgid "Enter a tunnel name"
 msgstr "Введите название туннеля"
 
 msgid "Enter a valid DNS server address"
 msgstr "Укажите корректный адрес DNS-сервера"
+
+msgid "Enter a valid JSON endpoint object"
+msgstr "Введите корректный объект JSON endpoint"
+
+msgid "Enter a valid Tailscale control URL"
+msgstr "Введите корректный URL control plane Tailscale"
 
 msgid "Enter at least one AmneziaWG parameter"
 msgstr "Введите хотя бы один параметр AmneziaWG"
@@ -698,6 +725,9 @@ msgstr "Исключить из этого уровня серверы с одн
 msgid "Exclude servers with one of the selected transports from this level."
 msgstr "Исключить из этого уровня серверы с одним из выбранных транспортов."
 
+msgid "Exit node"
+msgstr "Выходной узел"
+
 msgid "Expecting: %s"
 msgstr "Ожидается: %s"
 
@@ -740,14 +770,29 @@ msgstr "FakeIP работает; сравнение публичных IP не �
 msgid "FakeTLS host"
 msgstr "FakeTLS-хост"
 
+msgid "Fallback"
+msgstr "Fallback"
+
+msgid "Fallback details"
+msgstr "Детали Fallback"
+
+msgid "Fallback details are unavailable"
+msgstr "Детали Fallback недоступны"
+
+msgid "Fallback level settings"
+msgstr "Настройки уровня Fallback"
+
+msgid "Fallback levels"
+msgstr "Уровни Fallback"
+
 msgid "Fallback on unknown DC"
 msgstr "Fallback для неизвестного DC"
 
+msgid "Fallback settings"
+msgstr "Настройки Fallback"
+
 msgid "Fastest"
 msgstr "Самый быстрый"
-
-msgid "Fill all WARP profile fields or leave all of them empty"
-msgstr "Заполните все поля профиля WARP или оставьте их пустыми"
 
 msgid "Firewall WAN port"
 msgstr "Порт в firewall для WAN"
@@ -851,8 +896,8 @@ msgstr "Таймаут рукопожатия"
 msgid "Heartbeat"
 msgstr "Интервал поддержания соединения"
 
-msgid "Hide individual servers used by this group; keep Priority visible."
-msgstr "Скрывать отдельные серверы этой группы, сохраняя видимость Priority."
+msgid "Hide individual servers used by this group; keep Fallback visible."
+msgstr "Скрывать отдельные серверы этой группы, сохраняя видимость Fallback."
 
 msgid "Hide individual servers used by this group; keep the group visible."
 msgstr "Скрывать отдельные серверы этой группы, сохраняя видимость группы."
@@ -923,8 +968,8 @@ msgstr "Установить"
 msgid "Installed version is newer than release"
 msgstr "Установлена версия новее релиза"
 
-msgid "Interface IPv4 or IPv6 addresses in CIDR format, for example 10.0.0.2/32."
-msgstr "Адреса интерфейса IPv4 или IPv6 в формате CIDR, например 10.0.0.2/32."
+msgid "Interface IPv4 or IPv6 addresses in CIDR format."
+msgstr "IPv4- или IPv6-адреса интерфейса в формате CIDR."
 
 msgid "Interface Monitoring"
 msgstr "Мониторинг интерфейса"
@@ -1004,6 +1049,9 @@ msgstr "Недопустимый MTU WireGuard"
 msgid "Invalid WireGuard persistent keepalive"
 msgstr "Недопустимый интервал keepalive WireGuard"
 
+msgid "IP address or device name in Tailscale through which traffic is forwarded."
+msgstr "IP-адрес или имя устройства в Tailscale, через которое будет перенаправляться трафик."
+
 msgid "IPs"
 msgstr "IP-адреса"
 
@@ -1015,6 +1063,15 @@ msgstr "Только IPv6"
 
 msgid "Issues detected"
 msgstr "Обнаружены проблемы"
+
+msgid "JSON endpoint"
+msgstr "JSON endpoint"
+
+msgid "JSON endpoint must contain a non-empty tag"
+msgstr "JSON endpoint должен содержать непустой tag"
+
+msgid "JSON endpoint must contain a non-empty type"
+msgstr "JSON endpoint должен содержать непустое поле type"
 
 msgid "JSON outbound"
 msgstr "JSON outbound"
@@ -1034,17 +1091,11 @@ msgstr "JSON outbound должен содержать непустое поле 
 msgid "JSON outbound settings"
 msgstr "Настройки JSON outbound"
 
-msgid "Junk packet obfuscation"
-msgstr "Обфускация мусорными пакетами"
-
-msgid "Keep Priority before latency-sorted servers"
-msgstr "Показывать Priority перед серверами, отсортированными по задержке"
+msgid "Keep Fallback before latency-sorted servers"
+msgstr "Показывать Fallback перед серверами, отсортированными по задержке"
 
 msgid "Keep this group before latency-sorted servers"
 msgstr "Оставлять эту группу перед серверами, отсортированными по задержке"
-
-msgid "Keepalive interval in seconds. Leave empty to use the core default."
-msgstr "Интервал keepalive в секундах. Оставьте пустым для значения ядра."
 
 msgid "Key path"
 msgstr "Путь к ключу"
@@ -1073,11 +1124,17 @@ msgstr "Уровень"
 msgid "Level name"
 msgstr "Название уровня"
 
+msgid "Levels are tried from top to bottom until one succeeds"
+msgstr "Уровни проверяются сверху вниз, пока не найдется доступный"
+
 msgid "Limit the servers used by this source or group"
 msgstr "Ограничить серверы, используемые этим источником или группой"
 
 msgid "List must be an HTTP(S) URL or a local .lst path"
 msgstr "Список должен быть HTTP(S) URL или локальным путём .lst"
+
+msgid "List of remote WireGuard nodes to connect."
+msgstr "Список удаленных узлов WireGuard для подключения."
 
 msgid "List Update Frequency"
 msgstr "Частота обновления списков"
@@ -1106,17 +1163,14 @@ msgstr "Уровень логов"
 msgid "Main DNS"
 msgstr "Основной DNS"
 
-msgid "Main DNS servers in fallback order."
-msgstr "Основные DNS-серверы в порядке резервирования."
-
 msgid "Match destination IPs or subnets"
 msgstr "Совпадение по IP-адресам или подсетям назначения"
 
 msgid "Match destination ports. Use a single port or a range"
 msgstr "Совпадение по портам назначения. Используйте одиночный порт или диапазон"
 
-msgid "Maximum packet size for this tunnel. Leave empty to use the core default."
-msgstr "Максимальный размер пакета для этого туннеля. Оставьте пустым для значения ядра."
+msgid "Maximum packet size for this tunnel. Leave empty to use the default value."
+msgstr "Максимальный размер пакета для этого туннеля. Оставьте пустым для значения по умолчанию."
 
 msgid "Measure connection setup and TLS handshake delay for more comparable latency results."
 msgstr "Учитывать установку соединения и TLS-рукопожатие для более сопоставимых результатов задержки."
@@ -1148,20 +1202,17 @@ msgstr "Мониторинг"
 msgid "Must be a number in the range of 0 - 10000"
 msgstr "Должно быть числом в диапазоне 0 - 10000"
 
-msgid "Name displayed in this section and on the dashboard."
-msgstr "Название, отображаемое в этой секции и на дашборде."
-
 msgid "Name displayed on the dashboard"
 msgstr "Имя, которое отображается в дашборде"
 
-msgid "Name shown in the priority level list"
-msgstr "Имя, которое отображается в списке уровней приоритета"
+msgid "Name shown in the fallback level list"
+msgstr "Имя, которое отображается в списке уровней Fallback"
+
+msgid "Name shown in the Tailscale admin console."
+msgstr "Имя, которое будет отображаться в панели Tailscale."
 
 msgid "Native sing-box links: vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, and hy2://"
 msgstr "Нативные ссылки sing-box: vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2:// и hy2://"
-
-msgid "Native WireGuard, AmneziaWG 2.0, and Cloudflare WARP endpoints"
-msgstr "Нативные endpoint WireGuard, AmneziaWG 2.0 и Cloudflare WARP"
 
 msgid "Network"
 msgstr "Сеть"
@@ -1289,11 +1340,11 @@ msgstr "Только указанные серверы."
 msgid "Open"
 msgstr "Открыть"
 
+msgid "Open Fallback settings and enter a display name"
+msgstr "Откройте настройки Fallback и укажите отображаемое имя"
+
 msgid "Open peer settings and complete the configuration"
 msgstr "Откройте настройки пира и завершите конфигурацию"
-
-msgid "Open priority settings and enter a display name"
-msgstr "Откройте настройки приоритета и укажите отображаемое имя"
 
 msgid "Open Project Page"
 msgstr "Открыть страницу проекта"
@@ -1310,23 +1361,14 @@ msgstr "Параметр \"%s\" содержит некорректное зна
 msgid "Optional additional WireGuard key shared with this peer."
 msgstr "Необязательный дополнительный ключ WireGuard, общий с этим пиром."
 
-msgid "Optional Jc, Jmin, Jmax, and I1-I5 junk-packet settings. They do not change the Cloudflare handshake."
-msgstr "Необязательные параметры мусорных пакетов Jc, Jmin, Jmax и I1-I5. Они не изменяют рукопожатие Cloudflare."
-
-msgid "Optional keepalive interval in seconds."
-msgstr "Необязательный интервал поддержания соединения в секундах."
-
-msgid "Optional local UDP port. Leave empty to let sing-box choose it."
-msgstr "Необязательный локальный UDP-порт. Оставьте пустым, чтобы sing-box выбрал его автоматически."
+msgid "Optional local UDP port. Leave empty to use the default value."
+msgstr "Необязательный локальный UDP-порт. Оставьте пустым для значения по умолчанию."
 
 msgid "Optional values must be attached with '=' here; a separate token would be ignored by nfqws."
 msgstr "Необязательное значение здесь нужно передавать только через '='; отдельный токен nfqws проигнорирует."
 
 msgid "Optional values must be attached with '=' here; a separate token would be ignored by nfqws2."
 msgstr "Необязательные значения здесь должны задаваться через '='; отдельный токен будет проигнорирован nfqws2."
-
-msgid "Optional. Leave profile fields empty to register a new WARP profile automatically."
-msgstr "Необязательно. Оставьте поля профиля пустыми, чтобы автоматически зарегистрировать новый профиль WARP."
 
 msgid "Optional. Without a path, sing-box creates a temporary host key on start."
 msgstr "Необязательно. Без пути sing-box создаёт временный ключ хоста при запуске."
@@ -1349,8 +1391,8 @@ msgstr "Пароль не может быть пустым"
 msgid "Paste a configuration or vpn:// link"
 msgstr "Вставьте конфигурацию или ссылку vpn://"
 
-msgid "Paste a WireGuard or AmneziaWG .conf/.cfg file or an Amnezia vpn:// link."
-msgstr "Вставьте файл .conf/.cfg WireGuard или AmneziaWG либо ссылку Amnezia vpn://."
+msgid "Paste a WireGuard or AmneziaWG configuration or a link in vpn:// format."
+msgstr "Вставьте конфиг WireGuard или AmneziaWG либо ссылку в формате vpn://."
 
 msgid "Path cannot be empty"
 msgstr "Путь не может быть пустым"
@@ -1411,27 +1453,6 @@ msgstr "Предпочитаемый IP"
 
 msgid "Prefix text"
 msgstr "Текст префикса"
-
-msgid "Priority"
-msgstr "Приоритет"
-
-msgid "priority details"
-msgstr "Детали приоритета"
-
-msgid "Priority details"
-msgstr "Детали приоритета"
-
-msgid "Priority details are unavailable"
-msgstr "Детали приоритета недоступны"
-
-msgid "Priority level settings"
-msgstr "Настройки уровня приоритета"
-
-msgid "Priority levels"
-msgstr "Уровни приоритета"
-
-msgid "Priority settings"
-msgstr "Настройки приоритета"
 
 msgid "Private key"
 msgstr "Приватный ключ"
@@ -1679,8 +1700,8 @@ msgstr "Фильтрация серверов"
 msgid "Server group for automatic lowest-latency selection"
 msgstr "Группа серверов для автоматического выбора по наименьшей задержке"
 
-msgid "Server group for priority failover"
-msgstr "Группа автоматически выбирает рабочий узел на основе установленного приоритета."
+msgid "Server group for ordered fallback"
+msgstr "Группа последовательно выбирает первый доступный узел."
 
 msgid "Server information"
 msgstr "Информация о сервере"
@@ -1768,6 +1789,12 @@ msgstr "Укажите путь к файлу"
 
 msgid "Specify different files"
 msgstr "Укажите разные файлы"
+
+msgid "Specify local subnets to give other devices in your Tailscale network access to them."
+msgstr "Укажите локальные подсети, чтобы дать к ним доступ другим устройствам из сети Tailscale."
+
+msgid "Specify several for automatic failover"
+msgstr "Укажите несколько для автоматического переключения при сбоях"
 
 msgid "SSH host key path"
 msgstr "Путь к ключу хоста SSH"
@@ -1913,6 +1940,9 @@ msgstr "Этой опции требуется значение."
 msgid "Time"
 msgstr "Время"
 
+msgid "Time in seconds between packets sent to keep the tunnel open. Leave empty to use the default value."
+msgstr "Время в секундах между отправкой пакетов для удержания туннеля открытым. Оставьте пустым для значения по умолчанию."
+
 msgid "Time in seconds for DNS record caching (default: 60)"
 msgstr "Время в секундах для кэширования DNS записей (по умолчанию: 60)"
 
@@ -1922,14 +1952,14 @@ msgstr "Допуск расхождения времени"
 msgid "Tolerance"
 msgstr "Допуск"
 
-msgid "Top level has the highest priority; lower levels are used as fallback"
-msgstr "Верхний уровень имеет самый высокий приоритет; нижние уровни используются как резерв"
-
 msgid "Traffic"
 msgstr "Трафик"
 
 msgid "Traffic for this level goes directly."
 msgstr "Трафик этого уровня пойдёт напрямую."
+
+msgid "Traffic masking"
+msgstr "Маскировка трафика"
 
 msgid "Traffic prefixes routed through this peer."
 msgstr "Префиксы трафика, направляемые через этого пира."
@@ -2117,8 +2147,8 @@ msgstr "Укажите IP-адрес с префиксом CIDR"
 msgid "Use an IP listen address"
 msgstr "Используйте IP-адрес для прослушивания"
 
-msgid "Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces or JSON outbounds."
-msgstr "Использовать другую секцию как промежуточный узел подключения к серверам этой секции. Не применяется к сетевым интерфейсам и JSON outbound."
+msgid "Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, Tailscale, JSON endpoints, or JSON outbounds."
+msgstr "Используйте другую секцию как промежуточный узел для подключения к серверам этой секции. Не применяется к сетевым интерфейсам, Tailscale, JSON endpoint и JSON outbound."
 
 msgid "Use CIDR prefixes like 192.168.1.0/24 or 2001:db8::/32"
 msgstr "Используйте CIDR-префиксы, например 192.168.1.0/24 или 2001:db8::/32"
@@ -2236,6 +2266,9 @@ msgstr "Имя хоста или IP-адрес пира WireGuard."
 
 msgid "WireGuard peer settings"
 msgstr "Настройки пира WireGuard"
+
+msgid "WireGuard, AmneziaWG 2.0, Cloudflare WARP, and Tailscale tunnels"
+msgstr "Туннели WireGuard, AmneziaWG 2.0, Cloudflare WARP и Tailscale"
 
 msgid "XHTTP mode"
 msgstr "Режим XHTTP"

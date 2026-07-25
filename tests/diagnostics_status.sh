@@ -53,6 +53,38 @@ grep -Fq 'get_system_info: [ "diagnostics/runtime.uc", "get-system-info", 0 ]' "
   fail "service/cli.uc must dispatch get_system_info through diagnostics/runtime.uc"
 [ "$(FORKOP_VERSION=runtime-test ucode -L "$FORKOP_LIB" "$DIAGNOSTICS_RUNTIME" show-version)" = "runtime-test" ] ||
   fail "diagnostics/runtime.uc show-version mode failed"
+
+system_info_bin="$WORK_DIR/system-info-bin"
+system_info_luci="$WORK_DIR/system-info-luci"
+mkdir -p "$system_info_bin" "$system_info_luci"
+cat >"$system_info_bin/opkg" <<'SH'
+#!/usr/bin/env sh
+exit 1
+SH
+cat >"$system_info_bin/sing-box" <<'SH'
+#!/usr/bin/env sh
+exit 0
+SH
+chmod +x "$system_info_bin/opkg" "$system_info_bin/sing-box"
+printf '%s\n' 'var FORKOP_LUCI_APP_VERSION = "runtime-test";' >"$system_info_luci/main.js"
+printf '%s\n' '1.13.14-extended-2.5.2-forkop.12' >"$WORK_DIR/sing-box-version"
+printf '%s\n' '{"forkop_version":"runtime-test","luci_app_version":"runtime-test","sing_box_version":"not installed","generated_at":9999999999}' >"$WORK_DIR/system-info.json"
+system_info="$(
+  PATH="$system_info_bin:$PATH" \
+  FORKOP_VERSION=runtime-test \
+  FORKOP_LIB="$FORKOP_LIB" \
+  FORKOP_LUCI_VIEW_DIR="$system_info_luci" \
+  FORKOP_SYSTEM_INFO_CACHE_FILE="$WORK_DIR/system-info.json" \
+  SING_BOX_FORKOP_VERSION_FILE="$WORK_DIR/sing-box-version" \
+    ucode -L "$FORKOP_LIB" "$DIAGNOSTICS_RUNTIME" get-system-info
+)"
+JSON_VALUE="$system_info" node - <<'NODE'
+const value = JSON.parse(process.env.JSON_VALUE);
+if (value.sing_box_version !== '1.13.14-extended-2.5.2-forkop.12') {
+  console.error('system-info must recover sing-box version from the package marker while opkg is locked');
+  process.exit(1);
+}
+NODE
 if grep -n -E 'require\("uci"\)\.cursor|uci -q|uci", "show"|uci", "-q"' "$DIAGNOSTICS_RUNTIME" >/dev/null 2>&1; then
   fail "diagnostics/runtime.uc must use core.uci instead of owning direct UCI cursor or CLI calls"
 fi
@@ -101,10 +133,20 @@ config settings 'main'
         option proxy_string 'vless://secret@example.com:443'
 config subscription_url 'sub1'
         option url 'https://user:password@example.com/subscription?token=secret'
+config section 'tunnels'
+config tunnel 'tun_tailnet'
+        option section 'tunnels'
+        option kind 'tailscale'
+        option tailscale_auth_key 'tskey-secret'
+        option warp_profile_auth_token 'warp-token-secret'
+        option warp_profile_private_key 'warp-private-secret'
+config tunnel_peer 'peer_tailnet'
+        option tunnel 'tun_tailnet'
+        option pre_shared_key 'peer-secret'
 EOF
 masked_output="$(status_ucode forkop-config-masked "$masked_config")"
 case "$masked_output" in
-  *device-secret*|*vless://secret*|*token=secret*|*user:password*) fail "masked Forkop config leaked a secret" ;;
+  *device-secret*|*vless://secret*|*token=secret*|*user:password*|*tskey-secret*|*warp-token-secret*|*warp-private-secret*|*peer-secret*) fail "masked Forkop config leaked a secret" ;;
 esac
 case "$masked_output" in
   *"option hwid 'MASKED'"*) ;;
@@ -113,6 +155,10 @@ esac
 case "$masked_output" in
   *"option url 'MASKED'"*) ;;
   *) fail "masked Forkop config must mask subscription section URLs" ;;
+esac
+case "$masked_output" in
+  *"option tailscale_auth_key 'MASKED'"*"option warp_profile_auth_token 'MASKED'"*"option warp_profile_private_key 'MASKED'"*"option pre_shared_key 'MASKED'"*) ;;
+  *) fail "masked Forkop config must mask tunnel credentials" ;;
 esac
 
 wan_wireguard="$WORK_DIR/network-wireguard"
