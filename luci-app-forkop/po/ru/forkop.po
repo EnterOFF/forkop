@@ -1187,6 +1187,9 @@ msgstr "Должно быть числом в диапазоне 0 - 10000"
 msgid "Name displayed on the dashboard"
 msgstr "Имя, которое отображается в дашборде"
 
+msgid "Name must be unique"
+msgstr "Название должно быть уникальным"
+
 msgid "Name shown in the fallback level list"
 msgstr "Имя, которое отображается в списке уровней Fallback"
 

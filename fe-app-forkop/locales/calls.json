@@ -2867,6 +2867,13 @@
     ]
   },
   {
+    "call": "Name must be unique",
+    "key": "Name must be unique",
+    "places": [
+      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8906"
+    ]
+  },
+  {
     "call": "Name shown in the fallback level list",
     "key": "Name shown in the fallback level list",
     "places": [

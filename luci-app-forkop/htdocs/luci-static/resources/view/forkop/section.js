@@ -2720,7 +2720,7 @@ function addUrlTestItemOptions(itemSection, options = {}) {
     );
   };
   o.validate = function (_itemId, value) {
-    return `${value || ""}`.trim() ? true : _("Enter a display name");
+    return `${value || ""}`.trim() ? (options.validateName?.(value) ?? true) : _("Enter a display name");
   };
 
   o = itemSection.option(
@@ -3021,7 +3021,7 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
   );
   o.rmempty = false;
   o.validate = function (_itemId, value) {
-    return `${value || ""}`.trim() ? true : _("Enter a display name");
+    return `${value || ""}`.trim() ? (options.validateName?.(value) ?? true) : _("Enter a display name");
   };
 
   o = itemSection.option(
@@ -3313,7 +3313,7 @@ function showChildItemSettingsModal(section_id, itemValue, option, settings) {
   itemSection.addremove = false;
   settings.addOptions(itemSection, {
     parentSectionId: () => section_id,
-    ownerId: () => value || section_id,
+    ownerId: () => value || section_id, validateName: settings.validateName,
   });
 
   return renderStackedJsonSettingsModal(
@@ -3401,7 +3401,7 @@ function showUrlTestSettingsModal(
     valueOption: "name",
     keys: urlTestSettingsKeys(),
     defaults: defaultUrlTestSettings,
-    addOptions: addUrlTestItemOptions,
+    addOptions: addUrlTestItemOptions, validateName: validateUniqueDynamicListItemName.bind(null, widget, itemNode),
     title: (name) => {
       const normalized = `${name || ""}`.trim();
       return !normalized || /^urltest-[a-z0-9]+-\d+$/.test(normalized)
@@ -3503,7 +3503,7 @@ function showFallbackGroupSettingsModal(
     valueOption: "name",
     keys: fallbackGroupSettingsKeys(),
     defaults: defaultFallbackGroupSettings(),
-    addOptions: addFallbackGroupItemOptions,
+    addOptions: addFallbackGroupItemOptions, validateName: validateUniqueDynamicListItemName.bind(null, widget, itemNode),
     title: (name) => {
       if (context.adding) {
         return _("Fallback settings");
@@ -4435,7 +4435,7 @@ function showTunnelSettingsModal(
   );
   o.rmempty = false;
   o.validate = function (_itemId, value) {
-    return `${value || ""}`.trim() ? true : _("Enter a tunnel name");
+    return `${value || ""}`.trim() ? validateUniqueDynamicListItemName(widget, itemNode, value) : _("Enter a tunnel name");
   };
   ["wireguard", "amneziawg", "warp", "tailscale"].forEach((kind) =>
     o.depends("tunnel_type", kind),
@@ -8892,6 +8892,19 @@ function configureSectionSection(sectionRef, options = {}) {
     // action/provider details when the user opens it.
     return loadSectionTableOptions(this);
   };
+}
+
+function validateUniqueDynamicListItemName(widget, itemNode, value) {
+  const currentLabel = itemNode?.querySelector(".fkp-dynlist-label");
+  return Array.from(
+    widget?.node?.querySelectorAll(".fkp-dynlist-label") || [],
+  ).some(
+    (label) =>
+      label !== currentLabel &&
+      `${label.textContent || ""}`.trim() === `${value || ""}`.trim(),
+  )
+    ? _("Name must be unique")
+    : true;
 }
 
 const EntryPoint = {

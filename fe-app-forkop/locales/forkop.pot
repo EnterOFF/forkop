@@ -1713,6 +1713,10 @@ msgstr ""
 msgid "Name displayed on the dashboard"
 msgstr ""
 
+#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8906
+msgid "Name must be unique"
+msgstr ""
+
 #: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2852
 msgid "Name shown in the fallback level list"
 msgstr ""
