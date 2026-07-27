@@ -49,35 +49,14 @@ grep -Fq 'addServerFilterOptions(itemSection, parentSectionForItem, {' <<<"$subs
   fail "subscription settings must expose native provider filters"
 grep -Fq 'subscriptionSourceOutboundName(' <<<"$subscription_options" ||
   fail "subscription exact-name filters must account for provider tag prefixes"
-for key in filter_mode include_regex include_proxy_parameters exclude_regex exclude_proxy_parameters; do
+for key in filter_mode include_regex exclude_regex; do
   grep -Fq "\"$key\"" <<<"$subscription_keys" ||
     fail "subscription/provider filter key $key is missing"
 done
-grep -Fq 'if (key === "include_regex") {' <<<"$server_filter_options" ||
-  fail "URLTest include proxy parameters must follow the include regex option"
-grep -Fq 'else if (key === "exclude_regex") {' <<<"$server_filter_options" ||
-  fail "URLTest exclude proxy parameters must follow the exclude regex option"
 grep -Fq 'configureLiveDynamicListChoices(list, (itemId, values) =>' <<<"$server_filter_options" ||
   fail "URLTest server filters must stay comboboxes when no choices exist"
-grep -Fq 'if (key === "regex") {' <<<"$fallback_options" ||
-  fail "Fallback include proxy parameters must follow the include regex option"
-grep -Fq 'else if (key === "exclude_regex") {' <<<"$fallback_options" ||
-  fail "Fallback exclude proxy parameters must follow the exclude regex option"
 grep -Fq 'configureLiveDynamicListChoices(list, (itemId, values) =>' <<<"$fallback_options" ||
   fail "Fallback server filters must stay comboboxes when no choices exist"
-grep -Fq '["direct", "Direct"]' "$SECTION_JS" ||
-  fail "proxy protocol choices must keep Direct untranslated"
-grep -Fq '["anytls", "AnyTLS"]' "$SECTION_JS" ||
-  fail "proxy protocol filters must expose Extended protocols"
-grep -Fq '["mkcp", "mKCP"]' "$SECTION_JS" ||
-  fail "proxy transport filters must expose mKCP"
-grep -Fq '["none", "None"]' "$SECTION_JS" ||
-  fail "proxy security choices must keep None untranslated"
-grep -Fq '_("Security")' "$SECTION_JS" ||
-  fail "proxy parameter filters must use the short Security label"
-if grep -Fq 'Connection security' "$SECTION_JS"; then
-  fail "proxy parameter filter copy must not mention connection security"
-fi
 if grep -Eq 'dashboard_(filter|include|exclude|detect)|Servers on dashboard|addDashboardServerFilterOptions' "$SECTION_JS"; then
   fail "legacy section-wide dashboard server filtering must stay removed"
 fi

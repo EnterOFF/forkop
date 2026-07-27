@@ -167,22 +167,6 @@
     ]
   },
   {
-    "call": "Additionally exclude servers by protocol, transport, and security. Exclude only servers matching the specified parameters.",
-    "key": "Additionally exclude servers by protocol, transport, and security. Exclude only servers matching the specified parameters.",
-    "places": [
-      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2150",
-      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2903"
-    ]
-  },
-  {
-    "call": "Additionally filter servers by protocol, transport, and security. Add only servers matching the specified parameters.",
-    "key": "Additionally filter servers by protocol, transport, and security. Add only servers matching the specified parameters.",
-    "places": [
-      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2147",
-      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2885"
-    ]
-  },
-  {
     "call": "Address",
     "key": "Address",
     "places": [
@@ -1221,27 +1205,6 @@
     ]
   },
   {
-    "call": "Do not use servers with one of the selected protocols.",
-    "key": "Do not use servers with one of the selected protocols.",
-    "places": [
-      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2157"
-    ]
-  },
-  {
-    "call": "Do not use servers with one of the selected security types.",
-    "key": "Do not use servers with one of the selected security types.",
-    "places": [
-      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2165"
-    ]
-  },
-  {
-    "call": "Do not use servers with one of the selected transports.",
-    "key": "Do not use servers with one of the selected transports.",
-    "places": [
-      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2161"
-    ]
-  },
-  {
     "call": "Do not use specified servers.",
     "key": "Do not use specified servers.",
     "places": [
@@ -1637,14 +1600,6 @@
     ]
   },
   {
-    "call": "Exclude by proxy parameters",
-    "key": "Exclude by proxy parameters",
-    "places": [
-      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2144",
-      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2902"
-    ]
-  },
-  {
     "call": "Exclude by regular expression",
     "key": "Exclude by regular expression",
     "places": [
@@ -1680,27 +1635,6 @@
     "places": [
       "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2203",
       "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2956"
-    ]
-  },
-  {
-    "call": "Exclude servers with one of the selected protocols from this level.",
-    "key": "Exclude servers with one of the selected protocols from this level.",
-    "places": [
-      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2910"
-    ]
-  },
-  {
-    "call": "Exclude servers with one of the selected security types from this level.",
-    "key": "Exclude servers with one of the selected security types from this level.",
-    "places": [
-      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2916"
-    ]
-  },
-  {
-    "call": "Exclude servers with one of the selected transports from this level.",
-    "key": "Exclude servers with one of the selected transports from this level.",
-    "places": [
-      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2913"
     ]
   },
   {
@@ -2232,14 +2166,6 @@
     "key": "Inbound JSON must be an object with a type field",
     "places": [
       "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:1965"
-    ]
-  },
-  {
-    "call": "Include by proxy parameters",
-    "key": "Include by proxy parameters",
-    "places": [
-      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2143",
-      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2884"
     ]
   },
   {
@@ -3177,27 +3103,6 @@
     "key": "Only servers whose names match the expression.",
     "places": [
       "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2941"
-    ]
-  },
-  {
-    "call": "Only servers with one of the selected protocols.",
-    "key": "Only servers with one of the selected protocols.",
-    "places": [
-      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2892"
-    ]
-  },
-  {
-    "call": "Only servers with one of the selected security types.",
-    "key": "Only servers with one of the selected security types.",
-    "places": [
-      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2896"
-    ]
-  },
-  {
-    "call": "Only servers with one of the selected transports.",
-    "key": "Only servers with one of the selected transports.",
-    "places": [
-      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2893"
     ]
   },
   {
@@ -5216,27 +5121,6 @@
     "key": "Use only selected servers.",
     "places": [
       "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2180"
-    ]
-  },
-  {
-    "call": "Use only servers with one of the selected protocols.",
-    "key": "Use only servers with one of the selected protocols.",
-    "places": [
-      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2156"
-    ]
-  },
-  {
-    "call": "Use only servers with one of the selected security types.",
-    "key": "Use only servers with one of the selected security types.",
-    "places": [
-      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2164"
-    ]
-  },
-  {
-    "call": "Use only servers with one of the selected transports.",
-    "key": "Use only servers with one of the selected transports.",
-    "places": [
-      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2160"
     ]
   },
   {

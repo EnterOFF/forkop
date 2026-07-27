@@ -892,26 +892,6 @@ function urltest_include_regex(section, value) {
         list_value(section, "urltest_include_regex"));
 }
 
-function urltest_include_proxy_parameters(section, value) {
-    let child = urltest_child(section, value);
-    return child != null ? child_bool(child, "include_proxy_parameters", false) : false;
-}
-
-function urltest_include_protocols(section, value) {
-    let child = urltest_child(section, value);
-    return child != null ? child_list(child, "include_protocols", []) : [];
-}
-
-function urltest_include_transports(section, value) {
-    let child = urltest_child(section, value);
-    return child != null ? child_list(child, "include_transports", []) : [];
-}
-
-function urltest_include_securities(section, value) {
-    let child = urltest_child(section, value);
-    return child != null ? child_list(child, "include_securities", []) : [];
-}
-
 function urltest_exclude_countries(section, value) {
     let child = urltest_child(section, value);
     if (child != null)
@@ -934,26 +914,6 @@ function urltest_exclude_regex(section, value) {
         return child_list_alias(child, [ "exclude_regex", "urltest_exclude_regex" ], []);
     return item_list(section, "urltest_settings", value, "urltest_exclude_regex",
         list_value(section, "urltest_exclude_regex"));
-}
-
-function urltest_exclude_proxy_parameters(section, value) {
-    let child = urltest_child(section, value);
-    return child != null ? child_bool(child, "exclude_proxy_parameters", false) : false;
-}
-
-function urltest_exclude_protocols(section, value) {
-    let child = urltest_child(section, value);
-    return child != null ? child_list(child, "exclude_protocols", []) : [];
-}
-
-function urltest_exclude_transports(section, value) {
-    let child = urltest_child(section, value);
-    return child != null ? child_list(child, "exclude_transports", []) : [];
-}
-
-function urltest_exclude_securities(section, value) {
-    let child = urltest_child(section, value);
-    return child != null ? child_list(child, "exclude_securities", []) : [];
 }
 
 function fallback_group_display_name(section, value) {
@@ -1011,26 +971,6 @@ function fallback_level_include_regex(group_id, value) {
     return child != null ? child_list_alias(child, [ "include_regex", "regex" ], []) : [];
 }
 
-function fallback_level_include_proxy_parameters(group_id, value) {
-    let child = fallback_level_child(group_id, value);
-    return child != null ? child_bool(child, "include_proxy_parameters", false) : false;
-}
-
-function fallback_level_include_protocols(group_id, value) {
-    let child = fallback_level_child(group_id, value);
-    return child != null ? child_list(child, "include_protocols", []) : [];
-}
-
-function fallback_level_include_transports(group_id, value) {
-    let child = fallback_level_child(group_id, value);
-    return child != null ? child_list(child, "include_transports", []) : [];
-}
-
-function fallback_level_include_securities(group_id, value) {
-    let child = fallback_level_child(group_id, value);
-    return child != null ? child_list(child, "include_securities", []) : [];
-}
-
 function fallback_level_exclude_countries(group_id, value) {
     let child = fallback_level_child(group_id, value);
     return child != null ? child_list(child, "exclude_countries", []) : [];
@@ -1044,26 +984,6 @@ function fallback_level_exclude_outbounds(group_id, value) {
 function fallback_level_exclude_regex(group_id, value) {
     let child = fallback_level_child(group_id, value);
     return child != null ? child_list(child, "exclude_regex", []) : [];
-}
-
-function fallback_level_exclude_proxy_parameters(group_id, value) {
-    let child = fallback_level_child(group_id, value);
-    return child != null ? child_bool(child, "exclude_proxy_parameters", false) : false;
-}
-
-function fallback_level_exclude_protocols(group_id, value) {
-    let child = fallback_level_child(group_id, value);
-    return child != null ? child_list(child, "exclude_protocols", []) : [];
-}
-
-function fallback_level_exclude_transports(group_id, value) {
-    let child = fallback_level_child(group_id, value);
-    return child != null ? child_list(child, "exclude_transports", []) : [];
-}
-
-function fallback_level_exclude_securities(group_id, value) {
-    let child = fallback_level_child(group_id, value);
-    return child != null ? child_list(child, "exclude_securities", []) : [];
 }
 
 function fallback_level_countries(group_id, value) {
@@ -1178,17 +1098,9 @@ return {
     urltest_include_countries,
     urltest_include_outbounds,
     urltest_include_regex,
-    urltest_include_proxy_parameters,
-    urltest_include_protocols,
-    urltest_include_transports,
-    urltest_include_securities,
     urltest_exclude_countries,
     urltest_exclude_outbounds,
     urltest_exclude_regex,
-    urltest_exclude_proxy_parameters,
-    urltest_exclude_protocols,
-    urltest_exclude_transports,
-    urltest_exclude_securities,
     fallback_groups,
     fallback_group_settings,
     fallback_levels,
@@ -1203,17 +1115,9 @@ return {
     fallback_level_include_countries,
     fallback_level_include_outbounds,
     fallback_level_include_regex,
-    fallback_level_include_proxy_parameters,
-    fallback_level_include_protocols,
-    fallback_level_include_transports,
-    fallback_level_include_securities,
     fallback_level_exclude_countries,
     fallback_level_exclude_outbounds,
     fallback_level_exclude_regex,
-    fallback_level_exclude_proxy_parameters,
-    fallback_level_exclude_protocols,
-    fallback_level_exclude_transports,
-    fallback_level_exclude_securities,
     fallback_level_countries,
     fallback_level_outbounds,
     fallback_level_regex,

@@ -595,7 +595,7 @@ proxy
 [rule.proxy1.connection_urls]
 [ "vless://one", "vless://two" ]
 [rule.proxy1.subscription_urls]
-[ { "url": "https://example.com/sub.txt", "subscription_update_enabled": "1", "subscription_update_interval": "1h", "download_via_proxy_section": "", "auto_user_agent": "1", "user_agent": "", "auto_hwid": "1", "hwid": "", "show_dashboard_metadata": "1", "prefix_nodes": "1", "node_prefix": "Example", "filter_mode": "disabled", "include_countries": [ ], "include_outbounds": [ ], "include_regex": [ ], "include_proxy_parameters": "0", "include_protocols": [ ], "include_transports": [ ], "include_securities": [ ], "exclude_countries": [ ], "exclude_outbounds": [ ], "exclude_regex": [ ], "exclude_proxy_parameters": "0", "exclude_protocols": [ ], "exclude_transports": [ ], "exclude_securities": [ ] } ]
+[ { "url": "https://example.com/sub.txt", "subscription_update_enabled": "1", "subscription_update_interval": "1h", "download_via_proxy_section": "", "auto_user_agent": "1", "user_agent": "", "auto_hwid": "1", "hwid": "", "show_dashboard_metadata": "1", "prefix_nodes": "1", "node_prefix": "Example", "filter_mode": "disabled", "include_countries": [ ], "include_outbounds": [ ], "include_regex": [ ], "exclude_countries": [ ], "exclude_outbounds": [ ], "exclude_regex": [ ] } ]
 [rule.proxy1.interfaces]
 [ ]
 [rule.proxy1.outbound_jsons]
@@ -607,7 +607,7 @@ proxy
 [rule.proxy1.legacy_outbound_json]
 
 [rule.proxy1.urltests]
-[ { "id": "urltest", "display_name": "Fastest", "check_interval": "3m", "tolerance": "75", "testing_url": "https://www.gstatic.com/generate_204", "idle_timeout": "", "interrupt_exist_connections": "1", "pin_dashboard": "1", "hide_dashboard_members": "0", "filter_mode": "exclude", "include_countries": [ ], "include_outbounds": [ "node-a" ], "include_regex": [ ], "include_proxy_parameters": "0", "include_protocols": [ ], "include_transports": [ ], "include_securities": [ ], "exclude_countries": [ "RU" ], "exclude_outbounds": [ ], "exclude_regex": [ ], "exclude_proxy_parameters": "0", "exclude_protocols": [ ], "exclude_transports": [ ], "exclude_securities": [ ] } ]
+[ { "id": "urltest", "display_name": "Fastest", "check_interval": "3m", "tolerance": "75", "testing_url": "https://www.gstatic.com/generate_204", "idle_timeout": "", "interrupt_exist_connections": "1", "pin_dashboard": "1", "hide_dashboard_members": "0", "filter_mode": "exclude", "include_countries": [ ], "include_outbounds": [ "node-a" ], "include_regex": [ ], "exclude_countries": [ "RU" ], "exclude_outbounds": [ ], "exclude_regex": [ ] } ]
 [rule.proxy1.fallback_groups]
 [ ]
 [rule.proxy1.urltest_enabled]

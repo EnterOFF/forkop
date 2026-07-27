@@ -382,43 +382,11 @@ function sing_box_check(config_path, output_path) {
     return { status, reason };
 }
 
-function sing_box_process_running() {
-    return command_success_from_args([ "pgrep", "-x", "sing-box" ]) ||
-        command_success_from_args([ "pgrep", "-f", "^/usr/bin/sing-box[[:space:]]" ]);
-}
-
 function generate_warp_profile() {
-    let output = "";
-    if (sing_box_process_running()) {
-        let settings = uci_settings();
-        let address = service_listen_address_value(settings);
-        let args = [ "curl", "--connect-timeout", "5", "-m", "45", "-sS", "-X", "POST", "-w", "\n%{http_code}" ];
-        let secret = option(settings, "yacd_secret_key", "");
-        if (secret != "") {
-            push(args, "--header");
-            push(args, "Authorization: Bearer " + secret);
-        }
-        push(args, "http://" + address + ":9090/generate/warp-profile");
-        if (address != "")
-            output = command_output_from_args(args);
-
-        let status_line = last_nonblank_line_value(output);
-        if (match(status_line, /^[0-9]{3}$/) != null) {
-            let marker = "\n" + status_line;
-            let marker_index = rindex(output, marker);
-            if (marker_index >= 0)
-                output = substr(output, 0, marker_index);
-            let status_code = int(status_line);
-            if (status_code < 200 || status_code >= 300)
-                output = "";
-        }
-    }
-    else {
-        output = command_output(
-            command_from_args([ SING_BOX_BIN, "generate", "warp-profile", "--json" ]) +
-            " 2>/dev/null"
-        );
-    }
+	let output = command_output(
+		command_from_args([ SING_BOX_BIN, "generate", "warp-profile", "--json" ]) +
+		" 2>/dev/null"
+	);
     let profile = null;
     try {
         profile = json(output);

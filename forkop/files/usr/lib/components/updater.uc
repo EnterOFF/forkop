@@ -602,14 +602,15 @@ function sing_box_forkop_package_asset_url(package_name, distrib_arch, asset_ext
         distrib_arch == "" || asset_ext == "")
         exit(1);
 
-    suffix = "_openwrt_" + distrib_arch + "." + asset_ext;
+    suffix = "-openwrt-" + distrib_arch +
+        (package_name == "sing-box-forkop-compressed" ? "-compressed." : ".") + asset_ext;
     for (let asset in array_or_empty(release.assets)) {
         if (type(asset) != "object")
             continue;
 
         let name = as_string(asset.name || "");
         let url = as_string(asset.browser_download_url || "");
-        if (url != "" && str_startswith(name, package_name + "_") && str_endswith(name, suffix)) {
+        if (url != "" && str_startswith(name, "sing-box-") && str_endswith(name, suffix)) {
             print(url, "\n");
             return;
         }

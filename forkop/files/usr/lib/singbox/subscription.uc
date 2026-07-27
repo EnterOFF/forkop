@@ -22,30 +22,10 @@ function section_cache_path(section_name) {
     return section_cache_dir + "/" + section_name + ".json";
 }
 
-function remember_outbound_metadata(state, tag_name, display_name, outbound) {
+function remember_outbound_name(state, tag_name, display_name) {
     if (type(state) != "object")
         return;
     state.outboundMetadata.names[tag_name] = display_name;
-    let protocol = lc(as_string(outbound.type || ""));
-    if (protocol == "wireguard" && type(outbound.amnezia) == "object")
-        protocol = "amneziawg";
-    if (protocol != "")
-        state.outboundMetadata.protocols[tag_name] = protocol;
-
-    let transport = lc(as_string(object_or_empty(outbound.transport).type || ""));
-    if (transport == "" || transport == "raw")
-        transport = "tcp";
-    else if (transport == "h2")
-        transport = "http";
-    state.outboundMetadata.transports[tag_name] = transport;
-
-    let tls = type(outbound.tls) == "object" ? outbound.tls : null;
-    let security = "none";
-    if (tls != null && tls.enabled !== false) {
-        let reality = type(tls.reality) == "object" ? tls.reality : null;
-        security = reality != null && reality.enabled !== false ? "reality" : "tls";
-    }
-    state.outboundMetadata.securities[tag_name] = security;
 }
 
 function remember_urltest_group(state, tag_name, display_name, outbound) {
@@ -90,12 +70,7 @@ function new_section_state(section_name) {
     return {
         version: FORKOP_RUNTIME_CACHE_FORMAT,
         section: section_name,
-        outboundMetadata: {
-            names: {},
-            protocols: {},
-            transports: {},
-            securities: {}
-        },
+        outboundMetadata: { names: {} },
         urltestCandidateTags: [],
         urltestGroups: {},
         fallbackGroups: {}
@@ -105,7 +80,7 @@ function new_section_state(section_name) {
 return {
     set_section_cache_dir,
     section_cache_path,
-    remember_outbound_metadata,
+    remember_outbound_name,
     remember_urltest_group,
     remember_urltest_group_config,
     remember_fallback_group,

@@ -5,7 +5,6 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FORKOP_LIB="$ROOT_DIR/forkop/files/usr/lib"
 GENERATOR="$FORKOP_LIB/singbox/generator.uc"
 VALIDATOR="$FORKOP_LIB/config/validator.uc"
-STATE="$FORKOP_LIB/service/state.uc"
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
@@ -84,12 +83,6 @@ function same(actual, expected, label) {
     if (sprintf("%J", actual || []) != sprintf("%J", expected))
         fail(label + ": " + sprintf("%J", actual));
 }
-function excludes_groups(item) {
-    for (let kind in ["selector", "urltest", "fallback"])
-        if (index(item.exclude_types || [], kind) < 0) return false;
-    return true;
-}
-
 let config = json(fs.readfile(ARGV[0]));
 let cache = json(fs.readfile(ARGV[1]));
 let prefix = "proxy-fallback-pg_main-level-";
@@ -113,7 +106,7 @@ same(remaining.exclude_group_members, [top.tag, mixed.tag, providerOnly.tag, dir
 
 for (let item in [top, mixed, providerOnly, remaining]) {
     same(item.providers, ["proxy-subscription-1-provider"], "native provider binding");
-    if (!excludes_groups(item)) fail("leaf Fallback filter accepts non-leaf outbound types");
+    if (item.exclude_types != null) fail("Fallback still contains removed provider type filters");
     if (item.blacklist_timeout != "45s") fail("native blacklist timeout missing");
 }
 if (direct.providers != null) fail("direct level must not consume providers");
@@ -142,20 +135,6 @@ if output="$(validate "$WORK_DIR/bad-timeout.json" 2>/dev/null)"; then
   exit 1
 fi
 grep -Fq 'blacklist_timeout' <<<"$output"
-
-base_signature="$(ucode -L "$FORKOP_LIB" "$STATE" sing-box-signature-fixture "$WORK_DIR/fixture.json")"
-node - "$WORK_DIR/fixture.json" "$WORK_DIR/filter-change.json" <<'NODE'
-const fs = require('fs');
-const input = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-input.fallback_level[0].include_proxy_parameters = '1';
-input.fallback_level[0].include_protocols = ['vless'];
-fs.writeFileSync(process.argv[3], `${JSON.stringify(input)}\n`);
-NODE
-changed_signature="$(ucode -L "$FORKOP_LIB" "$STATE" sing-box-signature-fixture "$WORK_DIR/filter-change.json")"
-[ "$base_signature" != "$changed_signature" ] || {
-  printf 'Fallback provider filter change did not invalidate the sing-box config signature\n' >&2
-  exit 1
-}
 
 test ! -e "$FORKOP_LIB/singbox/fallback.uc"
 

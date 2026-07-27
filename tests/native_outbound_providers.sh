@@ -48,11 +48,7 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
       "node_prefix": "Main",
       "filter_mode": "mixed",
       "include_regex": [ "^(US|DE)" ],
-      "include_proxy_parameters": "1",
-      "include_protocols": [ "vless" ],
-      "exclude_regex": [ "expired" ],
-      "exclude_proxy_parameters": "1",
-      "exclude_transports": [ "grpc" ]
+      "exclude_regex": [ "expired" ]
     },
     {
       ".name": "source_auto",
@@ -68,11 +64,7 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
       "section": "proxy",
       "filter_mode": "mixed",
       "include_countries": [ "US" ],
-      "include_proxy_parameters": "1",
-      "include_protocols": [ "vless" ],
-      "exclude_regex": [ "slow" ],
-      "exclude_proxy_parameters": "1",
-      "exclude_securities": [ "none" ]
+      "exclude_regex": [ "slow" ]
     }
   ]
 }
@@ -126,13 +118,12 @@ if (remote.update_interval != "876000h")
     die("disabled provider updates must use the inert interval\n");
 if (remote.tag_prefix != "Main ")
     die("provider node prefix was not generated\n");
-if (remote.include != "(?:(?:^(US|DE)))" || remote.include_types[0] != "vless")
+if (remote.include != "(?:(?:^(US|DE)))")
     die("provider include filters were not generated\n");
-if (remote.exclude != "(?:(?:expired))" || remote.exclude_transports[0] != "grpc")
+if (remote.exclude != "(?:(?:expired))")
     die("provider exclude filters were not generated\n");
-for (let group in [ "selector", "urltest", "fallback" ])
-    if (index(remote.exclude_types, group) < 0)
-        die("subscription provider did not exclude group type " + group + "\n");
+if (remote.include_types != null || remote.include_transports != null || remote.include_securities != null || remote.exclude_types != null || remote.exclude_transports != null || remote.exclude_securities != null)
+    die("provider still contains removed parameter filters\n");
 if (trim(fs.readfile(local.path)) != "vless://id@example.com:443?security=tls#Manual")
     die("manual URI source was not written verbatim for the core parser\n");
 if (local.outbound_detour != "hop-out")
@@ -144,20 +135,12 @@ if (!selector || length(selector.providers || []) != 3)
 if (selector.exclude_provider_group_members != null || selector.exclude_provider_dependencies != null)
     die("subscription detour nodes must remain visible in the selector\n");
 let urltest = by_outbound["proxy-urltest-fast-out"];
-if (!urltest || length(urltest.providers || []) != 3 || urltest.include_types[0] != "vless" || urltest.exclude_securities[0] != "none")
+if (!urltest || length(urltest.providers || []) != 3)
     die("URLTest did not receive dynamic providers and filters\n");
-for (let group in [ "selector", "urltest", "fallback" ])
-    if (index(urltest.exclude_types, group) < 0)
-        die("URLTest provider filter includes group outbound " + group + "\n");
+if (urltest.include_types != null || urltest.include_transports != null || urltest.include_securities != null || urltest.exclude_types != null || urltest.exclude_transports != null || urltest.exclude_securities != null)
+    die("URLTest still contains removed parameter filters\n");
 if (index(urltest.include, "🇺🇸") < 0 || index(urltest.exclude, "slow") < 0)
     die("URLTest name/country regex filters were not compiled\n");
 ' "$output"
-
-sed '0,/"include_protocols": \[ "vless" \]/{s//"include_protocols": [ "invalid" ]/}' \
-  "$WORK_DIR/fixture.json" >"$WORK_DIR/invalid-filter.json"
-if ucode -L "$FORKOP_LIB" "$VALIDATOR" validate-runtime-fixture "$WORK_DIR/invalid-filter.json" '{}' >/dev/null 2>&1; then
-  printf 'invalid subscription provider protocol filter was accepted\n' >&2
-  exit 1
-fi
 
 printf 'native outbound providers tests passed\n'

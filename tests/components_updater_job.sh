@@ -253,15 +253,15 @@ sing_box_release_json="$(cat <<'JSON'
 {
   "assets": [
     {
-      "name": "sing-box-forkop_1.13.14-extended-2.5.2-forkop.1_openwrt_aarch64_cortex-a53.ipk",
+      "name": "sing-box-1.13.14-extended-2.5.3-f1-openwrt-aarch64_cortex-a53.ipk",
       "browser_download_url": "https://example.com/normal.ipk"
     },
     {
-      "name": "sing-box-forkop-compressed_1.13.14-extended-2.5.2-forkop.1_openwrt_aarch64_cortex-a53.ipk",
+      "name": "sing-box-1.13.14-extended-2.5.3-f1-openwrt-aarch64_cortex-a53-compressed.ipk",
       "browser_download_url": "https://example.com/compressed.ipk"
     },
     {
-      "name": "sing-box-forkop_1.13.14-extended-2.5.2-forkop.1_openwrt_x86_64.ipk",
+      "name": "sing-box-1.13.14-extended-2.5.3-f1-openwrt-x86_64.ipk",
       "browser_download_url": "https://example.com/wrong-arch.ipk"
     }
   ]
@@ -328,8 +328,8 @@ assert_eq "-1" "$(ucode "$UPDATER" forkop-release-version-compare 1.2.3 1.2.4)" 
 assert_eq "1.13.14-extended-2.5.0" \
   "$(printf 'sing-box version 1.13.14-extended-2.5.0\n\nEnvironment: go1.26.4 linux/amd64\n' | ucode "$UPDATER" stdin-first-line-last-field)" \
   "sing-box extended binary version parsing"
-assert_eq "1.13.14-extended-2.5.2-forkop.2" \
-  "$(ucode "$UPDATER" updates-normalize-sing-box-version 1.13.14~extended~2.5.2~forkop.2)" \
+assert_eq "1.13.14-extended-2.5.3-f1" \
+  "$(ucode "$UPDATER" updates-normalize-sing-box-version 1.13.14~extended~2.5.3~f1)" \
   "OpenWrt package version normalization"
 
 component_actions_dir="$WORK_DIR/component-actions"

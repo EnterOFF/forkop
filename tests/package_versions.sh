@@ -36,7 +36,7 @@ case "$*" in
     printf '<zapret> zapret-72.20260307-r1 aarch64_cortex-a53 {feeds/base/zapret} [installed]\n'
     ;;
   "list --installed sing-box-forkop"|"list --installed sing-box-forkop-compressed")
-    printf '<sing-box> %s-1.13.14.2.5.2.5-r0 aarch64_cortex-a53 {local} [installed]\n' "${3}"
+    printf '<sing-box> %s-1.13.14.2.5.3.1-r0 aarch64_cortex-a53 {local} [installed]\n' "${3}"
     ;;
   "info -v zapret")
     printf 'zapret: zapret\n'
@@ -72,22 +72,27 @@ invalid_version="$(FAKE_APK_LIST_EMPTY=1 PATH="$WORK_DIR:$PATH" ucode "$PACKAGES
 [ -z "$invalid_version" ] ||
   fail "APK v3 description was accepted as package version '$invalid_version'"
 
-printf '%s\n' '1.13.14-extended-2.5.2-forkop.5' > "$WORK_DIR/sing-box-forkop.version"
+printf '%s\n' '1.13.14-extended-2.5.3-f1' > "$WORK_DIR/sing-box-forkop.version"
 canonical_version="$(SING_BOX_FORKOP_VERSION_FILE="$WORK_DIR/sing-box-forkop.version" PATH="$WORK_DIR:$PATH" ucode "$PACKAGES_UC" version sing-box-forkop)"
-[ "$canonical_version" = '1.13.14-extended-2.5.2-forkop.5' ] ||
+[ "$canonical_version" = '1.13.14-extended-2.5.3-f1' ] ||
   fail "sing-box-forkop canonical package version was parsed as '$canonical_version'"
 compressed_version="$(SING_BOX_FORKOP_VERSION_FILE="$WORK_DIR/sing-box-forkop.version" PATH="$WORK_DIR:$PATH" ucode "$PACKAGES_UC" version sing-box-forkop-compressed)"
-[ "$compressed_version" = '1.13.14-extended-2.5.2-forkop.5' ] ||
+[ "$compressed_version" = '1.13.14-extended-2.5.3-f1' ] ||
   fail "compressed sing-box-forkop canonical package version was parsed as '$compressed_version'"
 
-printf '%s\n' '1.13.14.2.5.2.5-r0' > "$WORK_DIR/sing-box-forkop.version"
+printf '%s\n' '1.13.14-extended-2.5.2-forkop.14' > "$WORK_DIR/sing-box-forkop.version"
+legacy_canonical_version="$(SING_BOX_FORKOP_VERSION_FILE="$WORK_DIR/sing-box-forkop.version" PATH="$WORK_DIR:$PATH" ucode "$PACKAGES_UC" version sing-box-forkop)"
+[ "$legacy_canonical_version" = '1.13.14-extended-2.5.2-forkop.14' ] ||
+  fail "legacy sing-box-forkop canonical package version was parsed as '$legacy_canonical_version'"
+
+printf '%s\n' '1.13.14.2.5.3.1-r0' > "$WORK_DIR/sing-box-forkop.version"
 invalid_canonical_version="$(SING_BOX_FORKOP_VERSION_FILE="$WORK_DIR/sing-box-forkop.version" PATH="$WORK_DIR:$PATH" ucode "$PACKAGES_UC" version sing-box-forkop)"
 [ -z "$invalid_canonical_version" ] ||
   fail "invalid sing-box-forkop canonical version was accepted as '$invalid_canonical_version'"
 
 rm -f "$WORK_DIR/sing-box-forkop.version"
 legacy_version="$(SING_BOX_FORKOP_VERSION_FILE="$WORK_DIR/sing-box-forkop.version" PATH="$WORK_DIR:$PATH" ucode "$PACKAGES_UC" version sing-box-forkop)"
-[ "$legacy_version" = '1.13.14.2.5.2.5-r0' ] ||
+[ "$legacy_version" = '1.13.14.2.5.3.1-r0' ] ||
   fail "legacy sing-box-forkop APK metadata fallback was parsed as '$legacy_version'"
 
 : >"$WORK_DIR/apk.log"

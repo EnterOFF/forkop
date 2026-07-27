@@ -83,12 +83,6 @@ msgstr "Добавлять префикс к узлам"
 msgid "Additional marking rules found"
 msgstr "Найдены дополнительные правила маркировки"
 
-msgid "Additionally exclude servers by protocol, transport, and security. Exclude only servers matching the specified parameters."
-msgstr "Дополнительно исключать серверы по протоколу, транспорту и защите. Исключать только серверы, совпавшие по указанным параметрам."
-
-msgid "Additionally filter servers by protocol, transport, and security. Add only servers matching the specified parameters."
-msgstr "Дополнительно отбирать серверы по протоколу, транспорту и защите. Добавлять только серверы, совпавшие по указанным параметрам."
-
 msgid "Address"
 msgstr "Адрес"
 
@@ -509,15 +503,6 @@ msgstr "Не использовать серверы из этих стран."
 msgid "Do not use servers whose names match the expression."
 msgstr "Не использовать серверы, названия которых соответствуют выражению."
 
-msgid "Do not use servers with one of the selected protocols."
-msgstr "Не использовать серверы с одним из выбранных протоколов."
-
-msgid "Do not use servers with one of the selected security types."
-msgstr "Не использовать серверы с одним из выбранных типов защиты."
-
-msgid "Do not use servers with one of the selected transports."
-msgstr "Не использовать серверы с одним из выбранных транспортов."
-
 msgid "Do not use specified servers."
 msgstr "Не использовать указанные серверы."
 
@@ -683,9 +668,6 @@ msgstr "Для каждого пира WireGuard нужна хотя бы одн
 msgid "Every WireGuard peer needs string address/public key and a numeric port"
 msgstr "Для каждого пира WireGuard нужны строковые адрес и публичный ключ, а также числовой порт"
 
-msgid "Exclude by proxy parameters"
-msgstr "Исключить по параметрам прокси"
-
 msgid "Exclude by regular expression"
 msgstr "Исключить по регулярному выражению"
 
@@ -700,15 +682,6 @@ msgstr "Исключите трафик протокола NTP из туннел
 
 msgid "Exclude servers"
 msgstr "Исключить серверы"
-
-msgid "Exclude servers with one of the selected protocols from this level."
-msgstr "Исключить из этого уровня серверы с одним из выбранных протоколов."
-
-msgid "Exclude servers with one of the selected security types from this level."
-msgstr "Исключить из этого уровня серверы с одним из выбранных типов защиты."
-
-msgid "Exclude servers with one of the selected transports from this level."
-msgstr "Исключить из этого уровня серверы с одним из выбранных транспортов."
 
 msgid "Exit node"
 msgstr "Выходной узел"
@@ -928,9 +901,6 @@ msgstr "Inbound JSON не может быть пустым"
 
 msgid "Inbound JSON must be an object with a type field"
 msgstr "Inbound JSON должен быть объектом с полем type"
-
-msgid "Include by proxy parameters"
-msgstr "Включить по параметрам прокси"
 
 msgid "Include by regular expression"
 msgstr "Включить по регулярному выражению"
@@ -1309,15 +1279,6 @@ msgstr "Только выбранные, кроме исключений"
 
 msgid "Only servers whose names match the expression."
 msgstr "Только серверы, имена которых соответствуют выражению."
-
-msgid "Only servers with one of the selected protocols."
-msgstr "Только серверы с одним из выбранных протоколов."
-
-msgid "Only servers with one of the selected security types."
-msgstr "Только серверы с одним из выбранных типов защиты."
-
-msgid "Only servers with one of the selected transports."
-msgstr "Только серверы с одним из выбранных транспортов."
 
 msgid "Only the specified servers."
 msgstr "Только указанные серверы."
@@ -2146,15 +2107,6 @@ msgstr "Используйте буквы, цифры, точки, подчёр�
 
 msgid "Use only selected servers."
 msgstr "Использовать только выбранные серверы."
-
-msgid "Use only servers with one of the selected protocols."
-msgstr "Использовать только серверы с одним из выбранных протоколов."
-
-msgid "Use only servers with one of the selected security types."
-msgstr "Использовать только серверы с одним из выбранных типов защиты."
-
-msgid "Use only servers with one of the selected transports."
-msgstr "Использовать только серверы с одним из выбранных транспортов."
 
 msgid "Use servers only from the specified countries."
 msgstr "Использовать серверы только из указанных стран."

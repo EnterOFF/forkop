@@ -966,17 +966,9 @@ function subscription_urls_signature(section) {
             include_countries: list_option(settings, "include_countries"),
             include_outbounds: list_option(settings, "include_outbounds"),
             include_regex: list_option(settings, "include_regex"),
-            include_proxy_parameters: bool_option_value(settings, "include_proxy_parameters", false),
-            include_protocols: list_option(settings, "include_protocols"),
-            include_transports: list_option(settings, "include_transports"),
-            include_securities: list_option(settings, "include_securities"),
             exclude_countries: list_option(settings, "exclude_countries"),
             exclude_outbounds: list_option(settings, "exclude_outbounds"),
-            exclude_regex: list_option(settings, "exclude_regex"),
-            exclude_proxy_parameters: bool_option_value(settings, "exclude_proxy_parameters", false),
-            exclude_protocols: list_option(settings, "exclude_protocols"),
-            exclude_transports: list_option(settings, "exclude_transports"),
-            exclude_securities: list_option(settings, "exclude_securities")
+            exclude_regex: list_option(settings, "exclude_regex")
         });
     }
     return sprintf("%J", result);
@@ -1012,17 +1004,9 @@ function urltests_signature(section) {
             include_countries: connections.urltest_include_countries(section, entry),
             include_outbounds: connections.urltest_include_outbounds(section, entry),
             include_regex: connections.urltest_include_regex(section, entry),
-            include_proxy_parameters: connections.urltest_include_proxy_parameters(section, entry) ? "1" : "0",
-            include_protocols: connections.urltest_include_protocols(section, entry),
-            include_transports: connections.urltest_include_transports(section, entry),
-            include_securities: connections.urltest_include_securities(section, entry),
             exclude_countries: connections.urltest_exclude_countries(section, entry),
             exclude_outbounds: connections.urltest_exclude_outbounds(section, entry),
-            exclude_regex: connections.urltest_exclude_regex(section, entry),
-            exclude_proxy_parameters: connections.urltest_exclude_proxy_parameters(section, entry) ? "1" : "0",
-            exclude_protocols: connections.urltest_exclude_protocols(section, entry),
-            exclude_transports: connections.urltest_exclude_transports(section, entry),
-            exclude_securities: connections.urltest_exclude_securities(section, entry)
+            exclude_regex: connections.urltest_exclude_regex(section, entry)
         });
     }
     return sprintf("%J", result);
@@ -1042,17 +1026,9 @@ function fallback_groups_signature(section) {
                 include_countries: connections.fallback_level_include_countries(group_id, level_id),
                 include_outbounds: connections.fallback_level_include_outbounds(group_id, level_id),
                 include_regex: connections.fallback_level_include_regex(group_id, level_id),
-                include_proxy_parameters: connections.fallback_level_include_proxy_parameters(group_id, level_id) ? "1" : "0",
-                include_protocols: connections.fallback_level_include_protocols(group_id, level_id),
-                include_transports: connections.fallback_level_include_transports(group_id, level_id),
-                include_securities: connections.fallback_level_include_securities(group_id, level_id),
                 exclude_countries: connections.fallback_level_exclude_countries(group_id, level_id),
                 exclude_outbounds: connections.fallback_level_exclude_outbounds(group_id, level_id),
-                exclude_regex: connections.fallback_level_exclude_regex(group_id, level_id),
-                exclude_proxy_parameters: connections.fallback_level_exclude_proxy_parameters(group_id, level_id) ? "1" : "0",
-                exclude_protocols: connections.fallback_level_exclude_protocols(group_id, level_id),
-                exclude_transports: connections.fallback_level_exclude_transports(group_id, level_id),
-                exclude_securities: connections.fallback_level_exclude_securities(group_id, level_id)
+                exclude_regex: connections.fallback_level_exclude_regex(group_id, level_id)
             });
         }
 

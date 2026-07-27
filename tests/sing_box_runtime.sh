@@ -80,18 +80,18 @@ mkdir -p "$WORK_DIR/bin" "$WORK_DIR/lib/core"
 cat >"$WORK_DIR/lib/core/packages.uc" <<'EOF_PACKAGES'
 #!/usr/bin/ucode
 if ((ARGV[0] || "") == "version" && (ARGV[1] || "") == "sing-box-forkop-compressed")
-  print("1.13.14~extended~2.5.2~forkop.1\n");
+  print("1.13.14~extended~2.5.3~f1\n");
 EOF_PACKAGES
 cat >"$WORK_DIR/bin/sing-box" <<'EOF_SING_BOX'
 #!/bin/sh
-echo 'sing-box version 1.13.14-extended-2.5.2-forkop.1'
+echo 'sing-box version 1.13.14-extended-2.5.3-f1'
 EOF_SING_BOX
 chmod +x "$WORK_DIR/bin/sing-box"
 runtime_version="$(
   PATH="$WORK_DIR/bin:$PATH" FORKOP_LIB="$WORK_DIR/lib" \
     ucode -L "$FORKOP_LIB" "$SINGBOX_RUNTIME_UC" version
 )"
-[ "$runtime_version" = "1.13.14-extended-2.5.2-forkop.1" ] ||
+[ "$runtime_version" = "1.13.14-extended-2.5.3-f1" ] ||
   fail "singbox/runtime.uc must report the installed sing-box-forkop version"
 
 mkdir -p "$WORK_DIR/check-bin"

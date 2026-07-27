@@ -1584,6 +1584,79 @@ function migrate_fallback_uci_tags(ctx) {
     }
 }
 
+const OBSOLETE_PROXY_PARAMETER_FILTER_OPTIONS = [
+    "include_proxy_parameters",
+    "include_protocols",
+    "include_transports",
+    "include_securities",
+    "exclude_proxy_parameters",
+    "exclude_protocols",
+    "exclude_transports",
+    "exclude_securities"
+];
+
+function remove_proxy_parameter_fields(value) {
+    let changed = false;
+    if (type(value) == "array") {
+        for (let item in value)
+            if (remove_proxy_parameter_fields(item))
+                changed = true;
+        return changed;
+    }
+    if (type(value) != "object")
+        return false;
+
+    for (let key in OBSOLETE_PROXY_PARAMETER_FILTER_OPTIONS) {
+        if (!option_exists(value, key))
+            continue;
+        delete value[key];
+        changed = true;
+    }
+    for (let key, item in value)
+        if (remove_proxy_parameter_fields(item))
+            changed = true;
+    return changed;
+}
+
+function clean_proxy_parameter_settings_map(ctx, section, key) {
+    let raw = option(section, key, "");
+    if (raw == "")
+        return;
+
+    let settings;
+    try {
+        settings = json(raw);
+    }
+    catch (e) {
+        return;
+    }
+    if (remove_proxy_parameter_fields(settings))
+        set_option(ctx, section, key, sprintf("%J", settings));
+}
+
+function remove_proxy_parameter_filters(ctx) {
+    for (let type_name in [ "subscription_url", "urltest", "fallback_level", "priority_level" ])
+        for (let child in ctx.model[type_name] || [])
+            for (let key in OBSOLETE_PROXY_PARAMETER_FILTER_OPTIONS)
+                delete_option(ctx, child, key);
+
+    for (let section in ctx.model.sections || []) {
+        for (let key in OBSOLETE_PROXY_PARAMETER_FILTER_OPTIONS) {
+            delete_option(ctx, section, key);
+            delete_option(ctx, section, "urltest_" + key);
+        }
+        for (let map_key in [
+            "subscription_url_settings",
+            "urltest_settings",
+            "priority_group_settings",
+            "priority_level_settings",
+            "fallback_group_settings",
+            "fallback_level_settings"
+        ])
+            clean_proxy_parameter_settings_map(ctx, section, map_key);
+    }
+}
+
 const MIGRATIONS = [
     { id: "interface_sections", run: migrate_interface_sections },
     { id: "enable_component_checks", run: migrate_enable_component_checks },
@@ -1594,7 +1667,8 @@ const MIGRATIONS = [
     { id: "universal_rule_sets", run: use_universal_rule_sets },
     { id: "leaf_subscription_providers", run: use_leaf_subscription_providers },
     { id: "extended_server_defaults", run: add_extended_server_defaults },
-    { id: "fallback_uci_tags", run: migrate_fallback_uci_tags }
+    { id: "fallback_uci_tags", run: migrate_fallback_uci_tags },
+    { id: "remove_proxy_parameter_filters", run: remove_proxy_parameter_filters }
 ];
 
 function apply_migrations(ctx) {

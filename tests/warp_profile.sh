@@ -36,52 +36,6 @@ if (
 ' "$profile" ||
   fail "WARP profile wrapper changed the validated core response"
 
-mkdir -p "$WORK_DIR/api-bin"
-cat >"$WORK_DIR/api-bin/pgrep" <<'SH'
-#!/bin/sh
-[ "$1" = "-f" ]
-SH
-cat >"$WORK_DIR/api-bin/curl" <<'SH'
-#!/bin/sh
-printf '%s\n' "$*" >"$CURL_LOG"
-printf '%s\n%s\n' '{"id":"api-profile-id","auth_token":"api-auth-token","private_key":"api-private-key"}' '200'
-SH
-cat >"$WORK_DIR/should-not-run" <<'SH'
-#!/bin/sh
-exit 99
-SH
-chmod +x "$WORK_DIR/api-bin/pgrep" "$WORK_DIR/api-bin/curl" "$WORK_DIR/should-not-run"
-cat >"$WORK_DIR/warp-api-uci.state" <<'EOF_UCI'
-forkop.settings=settings
-forkop.settings.service_listen_address=192.0.2.1
-forkop.settings.yacd_secret_key=test-secret
-EOF_UCI
-
-set +e
-api_profile="$(
-  PATH="$WORK_DIR/api-bin:$PATH" \
-  CURL_LOG="$WORK_DIR/curl.log" \
-  FORKOP_UCI_STATE_FILE="$WORK_DIR/warp-api-uci.state" \
-  FORKOP_LIB="$FORKOP_LIB" \
-  FORKOP_SING_BOX_BIN="$WORK_DIR/should-not-run" \
-    ucode "$FORKOP_BIN" generate_warp_profile
-)"
-api_status="$?"
-set -e
-[ "$api_status" -eq 0 ] || {
-  cat "$WORK_DIR/curl.log" >&2 2>/dev/null || true
-  fail "running-core WARP API request failed"
-}
-node -e '
-const profile = JSON.parse(process.argv[1]);
-if (profile.id !== "api-profile-id" || profile.auth_token !== "api-auth-token" || profile.private_key !== "api-private-key") process.exit(1);
-' "$api_profile" || fail "running-core WARP API response was not returned"
-grep -Fq -- '-X POST' "$WORK_DIR/curl.log" || fail "running-core WARP generation did not use POST"
-grep -Fq 'http://192.0.2.1:9090/generate/warp-profile' "$WORK_DIR/curl.log" ||
-  fail "running-core WARP generation used the wrong API endpoint"
-grep -Fq 'Authorization: Bearer test-secret' "$WORK_DIR/curl.log" ||
-  fail "running-core WARP generation omitted Clash API authentication"
-
 cat >"$WORK_DIR/sing-box" <<'SH'
 #!/bin/sh
 printf '%s\n' '{"id":"secret-leak"}'
@@ -196,8 +150,8 @@ fi
 grep -Fq '[ SING_BOX_BIN, "generate", "warp-profile", "--json" ]' \
   "$FORKOP_LIB/singbox/runtime.uc" ||
   fail "WARP profile wrapper does not call sing-box-forkop directly"
-grep -Fq '[ "pgrep", "-f", "^/usr/bin/sing-box[[:space:]]" ]' \
-  "$FORKOP_LIB/singbox/runtime.uc" ||
-  fail "WARP profile generation must recognize the running core on BusyBox"
+if grep -Fq '/generate/warp-profile' "$FORKOP_LIB/singbox/runtime.uc"; then
+  fail "WARP profile wrapper still depends on the Clash API"
+fi
 
 printf 'WARP profile checks passed\n'

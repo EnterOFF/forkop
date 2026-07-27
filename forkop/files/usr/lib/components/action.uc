@@ -1031,7 +1031,9 @@ function sing_box_rollback_files() {
 }
 
 function valid_sing_box_forkop_version(value) {
-    return match(as_string(value), /^[0-9][0-9A-Za-z._+~-]*-forkop[.][0-9]+$/) != null;
+    value = as_string(value);
+    return match(value, /^[0-9][0-9A-Za-z._+~-]*-extended-[0-9][0-9A-Za-z._+~-]*-f[0-9]+$/) != null ||
+        match(value, /^[0-9][0-9A-Za-z._+~-]*-forkop[.][0-9]+$/) != null;
 }
 
 function markerless_sing_box_version(current_version) {
@@ -1229,7 +1231,7 @@ function install_sing_box_forkop(action) {
     // Package metadata is the authoritative version and does not start a
     // second Go process beside the active sing-box core on low-memory routers.
     let new_version = sing_box_forkop_package_version(package_name);
-    if (new_version == "" || index(new_version, "forkop") < 0)
+    if (!valid_sing_box_forkop_version(new_version))
         fail_sing_box_forkop_install(action, "Installed package failed sing-box-forkop validation", current_version, latest_version, backups, package_name, rollback, package_file);
 
     if (as_string(getenv("FORKOP_SING_BOX_INSTALL_FLAVOR")) != "") {

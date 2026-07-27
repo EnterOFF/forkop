@@ -535,31 +535,25 @@ function filter_name_pattern(exact_names, regexes, countries) {
     return length(parts) > 0 ? "(?:" + join("|", parts) + ")" : "";
 }
 
-function set_filter_side(result, side, pattern, protocols, transports, securities, require_match) {
+function set_filter_side(result, side, pattern, require_match) {
     if (pattern != "")
         result[side] = pattern;
-    else if (require_match && length(protocols) == 0 && length(transports) == 0 && length(securities) == 0)
+    else if (require_match)
         result[side] = "a^";
-    if (length(protocols) > 0)
-        result[side + "_types"] = protocols;
-    if (length(transports) > 0)
-        result[side + "_transports"] = transports;
-    if (length(securities) > 0)
-        result[side + "_securities"] = securities;
 }
 
 function native_filter_options(mode,
-    include_names, include_regexes, include_countries, include_protocols, include_transports, include_securities,
-    exclude_names, exclude_regexes, exclude_countries, exclude_protocols, exclude_transports, exclude_securities) {
+    include_names, include_regexes, include_countries,
+    exclude_names, exclude_regexes, exclude_countries) {
     let result = {};
     if (mode == "include" || mode == "mixed")
         set_filter_side(result, "include",
             filter_name_pattern(include_names, include_regexes, include_countries),
-            include_protocols, include_transports, include_securities, true);
+            true);
     if (mode == "exclude" || mode == "mixed")
         set_filter_side(result, "exclude",
             filter_name_pattern(exclude_names, exclude_regexes, exclude_countries),
-            exclude_protocols, exclude_transports, exclude_securities, false);
+            false);
     return result;
 }
 
@@ -571,71 +565,31 @@ function merge_object(target, source) {
 
 function subscription_provider_filter(section, source) {
     let settings = connections.subscription_url_settings(section, source);
-    let include_parameters = bool_option(settings, "include_proxy_parameters", false);
-    let exclude_parameters = bool_option(settings, "exclude_proxy_parameters", false);
     return native_filter_options(
         option(settings, "filter_mode", "disabled"),
         list_option(settings, "include_outbounds"), list_option(settings, "include_regex"), list_option(settings, "include_countries"),
-        include_parameters ? list_option(settings, "include_protocols") : [],
-        include_parameters ? list_option(settings, "include_transports") : [],
-        include_parameters ? list_option(settings, "include_securities") : [],
-        list_option(settings, "exclude_outbounds"), list_option(settings, "exclude_regex"), list_option(settings, "exclude_countries"),
-        exclude_parameters ? list_option(settings, "exclude_protocols") : [],
-        exclude_parameters ? list_option(settings, "exclude_transports") : [],
-        exclude_parameters ? list_option(settings, "exclude_securities") : []
+        list_option(settings, "exclude_outbounds"), list_option(settings, "exclude_regex"), list_option(settings, "exclude_countries")
     );
-}
-
-function leaf_provider_filter(result) {
-    let excluded_types = array_or_empty(result.exclude_types);
-    for (let group_type in [ "selector", "urltest", "fallback" ])
-        if (index(excluded_types, group_type) < 0)
-            push(excluded_types, group_type);
-    result.exclude_types = excluded_types;
-    return result;
 }
 
 function urltest_provider_filter(section, urltest_id) {
-    let include_protocols = connections.urltest_include_proxy_parameters(section, urltest_id)
-        ? connections.urltest_include_protocols(section, urltest_id) : [];
-    let include_transports = connections.urltest_include_proxy_parameters(section, urltest_id)
-        ? connections.urltest_include_transports(section, urltest_id) : [];
-    let include_securities = connections.urltest_include_proxy_parameters(section, urltest_id)
-        ? connections.urltest_include_securities(section, urltest_id) : [];
-    let exclude_protocols = connections.urltest_exclude_proxy_parameters(section, urltest_id)
-        ? connections.urltest_exclude_protocols(section, urltest_id) : [];
-    let exclude_transports = connections.urltest_exclude_proxy_parameters(section, urltest_id)
-        ? connections.urltest_exclude_transports(section, urltest_id) : [];
-    let exclude_securities = connections.urltest_exclude_proxy_parameters(section, urltest_id)
-        ? connections.urltest_exclude_securities(section, urltest_id) : [];
-    let result = native_filter_options(
+    return native_filter_options(
         connections.urltest_filter_mode(section, urltest_id),
         connections.urltest_include_outbounds(section, urltest_id), connections.urltest_include_regex(section, urltest_id), connections.urltest_include_countries(section, urltest_id),
-        include_protocols, include_transports, include_securities,
-        connections.urltest_exclude_outbounds(section, urltest_id), connections.urltest_exclude_regex(section, urltest_id), connections.urltest_exclude_countries(section, urltest_id),
-        exclude_protocols, exclude_transports, exclude_securities
+        connections.urltest_exclude_outbounds(section, urltest_id), connections.urltest_exclude_regex(section, urltest_id), connections.urltest_exclude_countries(section, urltest_id)
     );
-    return leaf_provider_filter(result);
 }
 
 function fallback_level_provider_filter(group_id, level_id) {
-    let include_parameters = connections.fallback_level_include_proxy_parameters(group_id, level_id);
-    let exclude_parameters = connections.fallback_level_exclude_proxy_parameters(group_id, level_id);
-    return leaf_provider_filter(native_filter_options(
+    return native_filter_options(
         connections.fallback_level_filter_mode(group_id, level_id),
         connections.fallback_level_include_outbounds(group_id, level_id),
         connections.fallback_level_include_regex(group_id, level_id),
         connections.fallback_level_include_countries(group_id, level_id),
-        include_parameters ? connections.fallback_level_include_protocols(group_id, level_id) : [],
-        include_parameters ? connections.fallback_level_include_transports(group_id, level_id) : [],
-        include_parameters ? connections.fallback_level_include_securities(group_id, level_id) : [],
         connections.fallback_level_exclude_outbounds(group_id, level_id),
         connections.fallback_level_exclude_regex(group_id, level_id),
-        connections.fallback_level_exclude_countries(group_id, level_id),
-        exclude_parameters ? connections.fallback_level_exclude_protocols(group_id, level_id) : [],
-        exclude_parameters ? connections.fallback_level_exclude_transports(group_id, level_id) : [],
-        exclude_parameters ? connections.fallback_level_exclude_securities(group_id, level_id) : []
-    ));
+        connections.fallback_level_exclude_countries(group_id, level_id)
+    );
 }
 
 function urltest_leaf_candidate_outbound(outbound) {
@@ -716,7 +670,7 @@ function add_remote_subscription_provider(config, section, source_index, source)
         update_interval: connections.subscription_update_enabled(section, source)
             ? connections.subscription_update_interval(section, source)
             : runtime_constants.DISABLED_UPDATE_INTERVAL
-    }, leaf_provider_filter(subscription_provider_filter(section, source)));
+    }, subscription_provider_filter(section, source));
 
     let download_section = connections.subscription_download_section(section, source);
     if (download_section != "")
@@ -879,77 +833,21 @@ function tag_country_filter_matches(tag, countries, country_filter) {
     return country != "" && array_contains(country_filter, country);
 }
 
-function tag_attribute_filter_matches(tag, metadata, selected_values) {
-    selected_values = array_or_empty(selected_values);
-    if (length(selected_values) == 0)
-        return true;
-
-    let value = lc(as_string(object_or_empty(metadata)[tag] || ""));
-    if (value == "")
-        return false;
-    for (let selected in selected_values)
-        if (lc(as_string(selected)) == value)
-            return true;
-    return false;
-}
-
-function proxy_parameter_filter_matches_all(tag, metadata, protocols, transports, securities) {
-    metadata = object_or_empty(metadata);
-    return tag_attribute_filter_matches(tag, metadata.protocols, protocols) &&
-        tag_attribute_filter_matches(tag, metadata.transports, transports) &&
-        tag_attribute_filter_matches(tag, metadata.securities, securities);
-}
-
-function proxy_parameter_filter_matches_any(tag, metadata, protocols, transports, securities) {
-    metadata = object_or_empty(metadata);
-    return (length(array_or_empty(protocols)) > 0 &&
-            tag_attribute_filter_matches(tag, metadata.protocols, protocols)) ||
-        (length(array_or_empty(transports)) > 0 &&
-            tag_attribute_filter_matches(tag, metadata.transports, transports)) ||
-        (length(array_or_empty(securities)) > 0 &&
-            tag_attribute_filter_matches(tag, metadata.securities, securities));
-}
-
-function name_or_country_filter_configured(name_filter, regexes, country_filter) {
-    return length(array_or_empty(name_filter)) > 0 ||
-        length(array_or_empty(regexes)) > 0 ||
-        length(array_or_empty(country_filter)) > 0;
-}
-
 function urltest_all_candidate_outbounds(urltest_candidate_tags) {
     return unique_string_array(urltest_candidate_tags);
 }
 
-function urltest_matching_candidate_outbounds(urltest_candidate_tags, names, countries, name_filter, regexes, country_filter,
-    metadata, proxy_parameters_enabled, proxy_parameters_operator, protocols, transports, securities, additional_matches) {
+function urltest_matching_candidate_outbounds(urltest_candidate_tags, names, countries, name_filter, regexes, country_filter) {
     names = object_or_empty(names);
     countries = object_or_empty(countries);
     country_filter = runtime_urltest.normalized_country_list(country_filter);
 
     let regex_set = regex_match_set(urltest_candidate_tags, names, regexes);
-    let base_filter_configured = name_or_country_filter_configured(name_filter, regexes, country_filter);
-    let additional_set = object_keys_set(additional_matches);
     let result = [];
 
     for (let tag in array_or_empty(urltest_candidate_tags)) {
-        let base_matches = tag_name_filter_matches(tag, names, name_filter, regex_set) ||
-            tag_country_filter_matches(tag, countries, country_filter);
-        let matches = additional_set[tag] || base_matches;
-        if (proxy_parameters_enabled && proxy_parameters_operator == "or") {
-            matches = additional_set[tag] || base_matches || proxy_parameter_filter_matches_any(
-                tag, metadata, protocols, transports, securities
-            );
-        }
-        else if (proxy_parameters_enabled) {
-            if (!base_filter_configured)
-                base_matches = true;
-            matches = additional_set[tag] ||
-                (base_matches && proxy_parameter_filter_matches_all(
-                    tag, metadata, protocols, transports, securities
-                ));
-        }
-
-        if (matches)
+        if (tag_name_filter_matches(tag, names, name_filter, regex_set) ||
+            tag_country_filter_matches(tag, countries, country_filter))
             push(result, tag);
     }
 
@@ -966,12 +864,9 @@ function urltest_exclude_outbounds(all_outbounds, excluded_outbounds) {
     return result;
 }
 
-function filter_candidate_outbounds(filter_mode, urltest_candidate_tags, names, countries, metadata,
+function filter_candidate_outbounds(filter_mode, urltest_candidate_tags, names, countries,
     include_names, include_regex, include_countries,
-    include_proxy_parameters, include_protocols, include_transports, include_securities,
-    exclude_names, exclude_regex, exclude_countries,
-    exclude_proxy_parameters, exclude_protocols, exclude_transports, exclude_securities,
-    include_additional_matches, exclude_additional_matches) {
+    exclude_names, exclude_regex, exclude_countries) {
     let all_outbounds = urltest_all_candidate_outbounds(urltest_candidate_tags);
     if (filter_mode == "" || filter_mode == "disabled")
         return all_outbounds;
@@ -984,14 +879,7 @@ function filter_candidate_outbounds(filter_mode, urltest_candidate_tags, names, 
         countries,
         include_names,
         include_regex,
-        include_countries,
-        metadata,
-        include_proxy_parameters,
-        "and",
-        include_protocols,
-        include_transports,
-        include_securities,
-        include_additional_matches
+        include_countries
     );
     let exclude_outbounds = urltest_matching_candidate_outbounds(
         urltest_candidate_tags,
@@ -999,14 +887,7 @@ function filter_candidate_outbounds(filter_mode, urltest_candidate_tags, names, 
         countries,
         exclude_names,
         exclude_regex,
-        exclude_countries,
-        metadata,
-        exclude_proxy_parameters,
-        "or",
-        exclude_protocols,
-        exclude_transports,
-        exclude_securities,
-        exclude_additional_matches
+        exclude_countries
     );
 
     if (filter_mode == "include")
@@ -1024,21 +905,12 @@ function urltest_filtered_outbounds(section, urltest_id, urltest_candidate_tags,
         urltest_candidate_tags,
         object_or_empty(object_or_empty(state.outboundMetadata).names),
         flag_country_metadata(state),
-        object_or_empty(state.outboundMetadata),
         connections.urltest_include_outbounds(section, urltest_id),
         connections.urltest_include_regex(section, urltest_id),
         connections.urltest_include_countries(section, urltest_id),
-        connections.urltest_include_proxy_parameters(section, urltest_id),
-        connections.urltest_include_protocols(section, urltest_id),
-        connections.urltest_include_transports(section, urltest_id),
-        connections.urltest_include_securities(section, urltest_id),
         connections.urltest_exclude_outbounds(section, urltest_id),
         connections.urltest_exclude_regex(section, urltest_id),
-        connections.urltest_exclude_countries(section, urltest_id),
-        connections.urltest_exclude_proxy_parameters(section, urltest_id),
-        connections.urltest_exclude_protocols(section, urltest_id),
-        connections.urltest_exclude_transports(section, urltest_id),
-        connections.urltest_exclude_securities(section, urltest_id)
+        connections.urltest_exclude_countries(section, urltest_id)
     );
 }
 
@@ -1051,21 +923,12 @@ function fallback_level_filtered_outbounds(group_id, level_id, urltest_candidate
         urltest_candidate_tags,
         object_or_empty(object_or_empty(state.outboundMetadata).names),
         flag_country_metadata(state),
-        object_or_empty(state.outboundMetadata),
         connections.fallback_level_include_outbounds(group_id, level_id),
         connections.fallback_level_include_regex(group_id, level_id),
         connections.fallback_level_include_countries(group_id, level_id),
-        connections.fallback_level_include_proxy_parameters(group_id, level_id),
-        connections.fallback_level_include_protocols(group_id, level_id),
-        connections.fallback_level_include_transports(group_id, level_id),
-        connections.fallback_level_include_securities(group_id, level_id),
         connections.fallback_level_exclude_outbounds(group_id, level_id),
         connections.fallback_level_exclude_regex(group_id, level_id),
-        connections.fallback_level_exclude_countries(group_id, level_id),
-        connections.fallback_level_exclude_proxy_parameters(group_id, level_id),
-        connections.fallback_level_exclude_protocols(group_id, level_id),
-        connections.fallback_level_exclude_transports(group_id, level_id),
-        connections.fallback_level_exclude_securities(group_id, level_id)
+        connections.fallback_level_exclude_countries(group_id, level_id)
     );
 }
 
@@ -1141,7 +1004,7 @@ function add_urltest_outbound(config, section, urltest_id, urltest_candidate_tag
     if (idle_timeout != "")
         urltest_outbound.idle_timeout = idle_timeout;
 
-    runtime_subscription.remember_outbound_metadata(state, urltest_tag, display_name, urltest_outbound);
+    runtime_subscription.remember_outbound_name(state, urltest_tag, display_name);
     runtime_subscription.remember_urltest_group_config(state, urltest_tag, {
         displayName: display_name,
         outbounds: urltest_outbounds,
@@ -1199,7 +1062,7 @@ function add_fallback_group_outbound(config, section, group_id, urltest_candidat
             continue;
 
         push(config.outbounds, level_outbound);
-        runtime_subscription.remember_outbound_metadata(state, level_tag, level.displayName, level_outbound);
+        runtime_subscription.remember_outbound_name(state, level_tag, level.displayName);
         push(generated_levels, level);
         push(higher_level_tags, level_tag);
     }
@@ -1211,7 +1074,7 @@ function add_fallback_group_outbound(config, section, group_id, urltest_candidat
         blacklist_timeout
     };
 
-    runtime_subscription.remember_outbound_metadata(state, fallback_tag, display_name, outbound);
+    runtime_subscription.remember_outbound_name(state, fallback_tag, display_name);
     runtime_subscription.remember_fallback_group(state, fallback_tag, {
         id: group_id,
         tag: fallback_tag,
@@ -1435,7 +1298,7 @@ function add_interface_connection_outbound(config, state, section, interface_ind
     push(config.outbounds, outbound);
     push(selector_tags, tag_name);
     push(urltest_candidate_tags, tag_name);
-    runtime_subscription.remember_outbound_metadata(state, tag_name, interface_name, outbound);
+    runtime_subscription.remember_outbound_name(state, tag_name, interface_name);
 }
 
 function add_connection_interfaces(config, state, section, taken, selector_tags, urltest_candidate_tags) {
@@ -1497,11 +1360,10 @@ function add_connection_tunnels(config, state, section, taken, selector_tags, ur
         push(urltest_candidate_tags, tag_name);
         if (display_name == "")
             display_name = trim(as_string(connections.option(tunnel, "name", "")));
-        runtime_subscription.remember_outbound_metadata(
+        runtime_subscription.remember_outbound_name(
             state,
             tag_name,
-            display_name != "" ? display_name : "Tunnel " + (i + 1),
-            endpoint
+            display_name != "" ? display_name : "Tunnel " + (i + 1)
         );
     }
 }
@@ -1574,7 +1436,7 @@ function add_connection_json_outbounds(config, state, section, taken, selector_t
         push(selector_tags, tag_name);
         if (urltest_leaf_candidate_outbound(outbound))
             push(urltest_candidate_tags, tag_name);
-        runtime_subscription.remember_outbound_metadata(state, tag_name, item.displayName, outbound);
+        runtime_subscription.remember_outbound_name(state, tag_name, item.displayName);
         runtime_subscription.remember_urltest_group(state, tag_name, item.displayName, outbound);
     }
 }

@@ -318,17 +318,9 @@ export namespace Forkop {
     include_countries?: string[];
     include_outbounds?: string[];
     include_regex?: string[];
-    include_proxy_parameters?: '0' | '1';
-    include_protocols?: string[];
-    include_transports?: string[];
-    include_securities?: string[];
     exclude_countries?: string[];
     exclude_outbounds?: string[];
     exclude_regex?: string[];
-    exclude_proxy_parameters?: '0' | '1';
-    exclude_protocols?: string[];
-    exclude_transports?: string[];
-    exclude_securities?: string[];
     group?: string;
     order?: string;
     direct?: '0' | '1';

@@ -1007,32 +1007,6 @@ function validate_fallback_filter_mode_value(value, section, group_id, level_id)
     fail_validation("Invalid Fallback filter mode '" + value + "' in rule '" + section + "', fallback '" + group_id + "', level '" + level_id + "'. Aborted.");
 }
 
-function validate_proxy_parameter_value(value, allowed, parameter, section) {
-    value = lc(as_string(value));
-    if (value == "" || contains(allowed, value))
-        return;
-
-    fail_validation("Invalid proxy " + parameter + " '" + value + "' in rule '" + section + "'. Aborted.");
-}
-
-function validate_proxy_parameter_filters(protocols, transports, securities, section) {
-    for (let value in protocols)
-        validate_proxy_parameter_value(value,
-            [
-                "anytls", "direct", "http", "hysteria", "hysteria2", "masque",
-                "mieru", "mtproxy", "naive", "shadowsocks", "shadowsocksr",
-                "snell", "socks", "ssh", "trojan", "trusttunnel", "tuic",
-                "vless", "vmess"
-            ],
-            "protocol", section);
-    for (let value in transports)
-        validate_proxy_parameter_value(value,
-            [ "tcp", "ws", "grpc", "http", "httpupgrade", "mkcp", "quic", "xhttp" ],
-            "transport", section);
-    for (let value in securities)
-        validate_proxy_parameter_value(value, [ "none", "tls", "reality" ], "security", section);
-}
-
 function validate_urltest_regex_value(value, section) {
     if (as_string(value) == "" || regex_valid(value))
         return;
@@ -1100,26 +1074,12 @@ function validate_fallback_group(section, group_id) {
                 validate_country_code_value(value, name);
             for (let value in connections.fallback_level_include_regex(group_id, level_id))
                 validate_urltest_regex_value(value, name);
-            if (connections.fallback_level_include_proxy_parameters(group_id, level_id))
-                validate_proxy_parameter_filters(
-                    connections.fallback_level_include_protocols(group_id, level_id),
-                    connections.fallback_level_include_transports(group_id, level_id),
-                    connections.fallback_level_include_securities(group_id, level_id),
-                    name
-                );
         }
         if (filter_mode == "exclude" || filter_mode == "mixed") {
             for (let value in connections.fallback_level_exclude_countries(group_id, level_id))
                 validate_country_code_value(value, name);
             for (let value in connections.fallback_level_exclude_regex(group_id, level_id))
                 validate_urltest_regex_value(value, name);
-            if (connections.fallback_level_exclude_proxy_parameters(group_id, level_id))
-                validate_proxy_parameter_filters(
-                    connections.fallback_level_exclude_protocols(group_id, level_id),
-                    connections.fallback_level_exclude_transports(group_id, level_id),
-                    connections.fallback_level_exclude_securities(group_id, level_id),
-                    name
-                );
         }
     }
 }
@@ -1391,8 +1351,6 @@ function validate_subscription_filter(section, entry) {
             validate_country_code_value(value, name);
         for (let value in list_option(settings, "include_regex"))
             validate_urltest_regex_value(value, name);
-        if (bool_option(settings, "include_proxy_parameters", false))
-            validate_proxy_parameter_filters(list_option(settings, "include_protocols"), list_option(settings, "include_transports"), list_option(settings, "include_securities"), name);
     }
 
     if (filter_mode == "exclude" || filter_mode == "mixed") {
@@ -1400,8 +1358,6 @@ function validate_subscription_filter(section, entry) {
             validate_country_code_value(value, name);
         for (let value in list_option(settings, "exclude_regex"))
             validate_urltest_regex_value(value, name);
-        if (bool_option(settings, "exclude_proxy_parameters", false))
-            validate_proxy_parameter_filters(list_option(settings, "exclude_protocols"), list_option(settings, "exclude_transports"), list_option(settings, "exclude_securities"), name);
     }
 }
 
@@ -1534,26 +1490,12 @@ function validate_rule(section, sections, context) {
                     validate_urltest_regex_value(value, name);
                 for (let value in connections.urltest_include_countries(section, urltest_id))
                     validate_country_code_value(value, name);
-                if (connections.urltest_include_proxy_parameters(section, urltest_id))
-                    validate_proxy_parameter_filters(
-                        connections.urltest_include_protocols(section, urltest_id),
-                        connections.urltest_include_transports(section, urltest_id),
-                        connections.urltest_include_securities(section, urltest_id),
-                        name
-                    );
             }
             if (contains([ "exclude", "mixed" ], urltest_filter_mode)) {
                 for (let value in connections.urltest_exclude_countries(section, urltest_id))
                     validate_country_code_value(value, name);
                 for (let value in connections.urltest_exclude_regex(section, urltest_id))
                     validate_urltest_regex_value(value, name);
-                if (connections.urltest_exclude_proxy_parameters(section, urltest_id))
-                    validate_proxy_parameter_filters(
-                        connections.urltest_exclude_protocols(section, urltest_id),
-                        connections.urltest_exclude_transports(section, urltest_id),
-                        connections.urltest_exclude_securities(section, urltest_id),
-                        name
-                    );
             }
         }
 
@@ -1955,7 +1897,8 @@ function check_runtime_requirements() {
 
     let ctx = context_from_runtime();
     let sing_box_version = trim(as_string(fs.readfile(SING_BOX_FORKOP_VERSION_FILE)));
-    if (match(sing_box_version, /^[0-9][0-9A-Za-z._+~-]*-forkop[.][0-9]+$/) == null)
+    if (match(sing_box_version, /^[0-9][0-9A-Za-z._+~-]*-extended-[0-9][0-9A-Za-z._+~-]*-f[0-9]+$/) == null &&
+        match(sing_box_version, /^[0-9][0-9A-Za-z._+~-]*-forkop[.][0-9]+$/) == null)
         sing_box_version = "";
     sing_box_version = replace(sing_box_version, /~/g, "-");
     let coreutils_base64_version = first_line_field_from_text(command_output("base64 --version 2>/dev/null"), 4);

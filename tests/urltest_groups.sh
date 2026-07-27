@@ -53,9 +53,8 @@ if (!selector || selector.providers[0] != provider.tag)
     die("section selector does not consume the subscription provider\n");
 if (selector.exclude_provider_group_members != null || selector.exclude_provider_dependencies != null)
     die("subscription detour nodes must remain visible in the selector\n");
-for (let group_type in [ "selector", "urltest", "fallback" ])
-    if (index(provider.exclude_types || [], group_type) < 0)
-        die("subscription provider did not exclude group type " + group_type + "\n");
+if (provider.exclude_types != null)
+    die("subscription provider still contains removed type filters\n");
 if (!urltest || urltest.providers[0] != provider.tag || index(urltest.include || "", "Riga") < 0)
     die("URLTest does not consume provider updates through its native filter\n");
 if (length(urltest.outbounds || []) != 0)

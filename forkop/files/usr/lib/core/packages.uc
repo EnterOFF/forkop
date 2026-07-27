@@ -188,7 +188,8 @@ function sing_box_forkop_version(package_name) {
         return null;
 
     let value = trim(as_string(data));
-    return match(value, /^[0-9][0-9A-Za-z._+~-]*-forkop[.][0-9]+$/) != null ? value : "";
+    return match(value, /^[0-9][0-9A-Za-z._+~-]*-extended-[0-9][0-9A-Za-z._+~-]*-f[0-9]+$/) != null ||
+        match(value, /^[0-9][0-9A-Za-z._+~-]*-forkop[.][0-9]+$/) != null ? value : "";
 }
 
 function version(package_name) {

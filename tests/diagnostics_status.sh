@@ -67,7 +67,7 @@ exit 0
 SH
 chmod +x "$system_info_bin/opkg" "$system_info_bin/sing-box"
 printf '%s\n' 'var FORKOP_LUCI_APP_VERSION = "runtime-test";' >"$system_info_luci/main.js"
-printf '%s\n' '1.13.14-extended-2.5.2-forkop.12' >"$WORK_DIR/sing-box-version"
+printf '%s\n' '1.13.14-extended-2.5.3-f1' >"$WORK_DIR/sing-box-version"
 printf '%s\n' '{"forkop_version":"runtime-test","luci_app_version":"runtime-test","sing_box_version":"not installed","generated_at":9999999999}' >"$WORK_DIR/system-info.json"
 system_info="$(
   PATH="$system_info_bin:$PATH" \
@@ -80,7 +80,7 @@ system_info="$(
 )"
 JSON_VALUE="$system_info" node - <<'NODE'
 const value = JSON.parse(process.env.JSON_VALUE);
-if (value.sing_box_version !== '1.13.14-extended-2.5.2-forkop.12') {
+if (value.sing_box_version !== '1.13.14-extended-2.5.3-f1') {
   console.error('system-info must recover sing-box version from the package marker while opkg is locked');
   process.exit(1);
 }
