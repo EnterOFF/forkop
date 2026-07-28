@@ -382,6 +382,11 @@ function sing_box_check(config_path, output_path) {
     return { status, reason };
 }
 
+function sing_box_process_running() {
+    return command_success_from_args([ "pgrep", "-x", "sing-box" ]) ||
+        command_success_from_args([ "pgrep", "-f", "^/usr/bin/sing-box[[:space:]]" ]);
+}
+
 function generate_warp_profile() {
 	let output = command_output(
 		command_from_args([ SING_BOX_BIN, "generate", "warp-profile", "--json" ]) +

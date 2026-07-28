@@ -36,6 +36,8 @@ grep -Fq 'mode == "configure-service"' "$SINGBOX_RUNTIME_UC" ||
   fail "singbox/runtime.uc must own sing-box service configuration"
 grep -Fq 'mode == "init-config"' "$SINGBOX_RUNTIME_UC" ||
   fail "singbox/runtime.uc must own sing-box config initialization"
+grep -Fq 'function sing_box_process_running()' "$SINGBOX_RUNTIME_UC" ||
+  fail "singbox/runtime.uc must retain the process check used by config initialization"
 grep -Fq 'mode == "service-listen-address"' "$SINGBOX_RUNTIME_UC" ||
   fail "singbox/runtime.uc must own service listen address detection"
 grep -Fq 'mode == "service-proxy-address"' "$SINGBOX_RUNTIME_UC" ||
