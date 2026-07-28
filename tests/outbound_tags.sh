@@ -19,7 +19,7 @@ fail() {
 
 cat >"$WORK_DIR/runtime-tags.json" <<'JSON'
 {
-  "settings": { ".name": "settings", ".type": "settings", "log_level": "warn" },
+  "settings": { ".name": "settings", ".type": "settings", "log_level": "warn", "bittorrent_direct": "1" },
   "section": [
     {
       ".name": "proxy",
@@ -100,6 +100,13 @@ let proxy_cache = json(fs.readfile(ARGV[1]));
 let backup_cache = json(fs.readfile(ARGV[2]));
 let by_tag = {};
 let count = 0;
+let torrent_rule = null;
+for (let rule in config.route.rules || [])
+    if (rule.protocol == "bittorrent")
+        torrent_rule = rule;
+if (!torrent_rule || torrent_rule.action != "route" || torrent_rule.outbound != "bypass-out" ||
+    index(torrent_rule.inbound, "tproxy-in") < 0 || index(torrent_rule.inbound, "tproxy6-in") < 0)
+    die("enabled BitTorrent direct routing rule is missing\n");
 for (let outbound in config.outbounds || []) {
     if (by_tag[outbound.tag])
         die("duplicate generated outbound tag: " + outbound.tag + "\n");

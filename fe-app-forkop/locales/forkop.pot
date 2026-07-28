@@ -2734,6 +2734,10 @@ msgstr ""
 msgid "Tolerance"
 msgstr ""
 
+#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:419
+msgid "Torrents directly"
+msgstr ""
+
 #: src/forkop/tabs/dashboard/initController.ts:1399
 #: src/forkop/tabs/dashboard/partials/renderSections.ts:131
 msgid "Traffic"

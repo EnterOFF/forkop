@@ -416,6 +416,10 @@ function createSettingsContent(section, capabilities) {
   o.default = "0";
   o.rmempty = false;
 
+  o = section.option(form.Flag, "bittorrent_direct", _("Torrents directly"));
+  o.default = "0";
+  o.rmempty = false;
+
   o = section.option(
     form.Flag,
     "unified_delay",

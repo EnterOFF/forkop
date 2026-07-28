@@ -1898,6 +1898,9 @@ msgstr "Допуск расхождения времени"
 msgid "Tolerance"
 msgstr "Допуск"
 
+msgid "Torrents directly"
+msgstr "Торренты напрямую"
+
 msgid "Traffic"
 msgstr "Трафик"
 

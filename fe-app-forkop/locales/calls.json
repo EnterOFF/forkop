@@ -4599,6 +4599,13 @@
     ]
   },
   {
+    "call": "Torrents directly",
+    "key": "Torrents directly",
+    "places": [
+      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:419"
+    ]
+  },
+  {
     "call": "Traffic",
     "key": "Traffic",
     "places": [
