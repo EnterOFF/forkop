@@ -339,7 +339,12 @@ describe('renderSections latency actions', () => {
       onShowFallbackInfo: vi.fn(),
       onUpdateSubscription: vi.fn(),
       latencyFetching: true,
-      latencyFetchingTarget: 'main/Node',
+      latencyProgress: {
+        completed: 0,
+        total: 1,
+        failed: 0,
+        pending: ['main/Node'],
+      },
       subscriptionUpdating: false,
     }) as unknown as FakeNode;
     const buttons = findNodes(
@@ -386,6 +391,208 @@ describe('renderSections latency actions', () => {
           typeof child !== 'string' && child.type === 'animateTransform',
       ),
     ).toBe(true);
+  }, 15000);
+
+  it('stops each tested node loader as its latency completes', async () => {
+    installElementFactory();
+    const { renderSections } = await import('../partials/renderSections');
+    const root = renderSections({
+      loading: false,
+      failed: false,
+      section: {
+        code: 'proxy-out',
+        sectionName: 'main',
+        displayName: 'Main',
+        withTagSelect: true,
+        outbounds: [
+          {
+            code: 'main/Node 1',
+            displayName: 'Node 1',
+            latency: 10,
+            type: 'VLESS',
+            selected: false,
+          },
+          {
+            code: 'main/Node 2',
+            displayName: 'Node 2',
+            latency: 0,
+            type: 'VLESS',
+            selected: false,
+          },
+        ],
+      },
+      onTestLatency: vi.fn(),
+      onTestOutboundLatency: vi.fn(),
+      onChooseOutbound: vi.fn(),
+      onCopyOutbound: vi.fn(),
+      onShowUrlTestInfo: vi.fn(),
+      onShowFallbackInfo: vi.fn(),
+      onUpdateSubscription: vi.fn(),
+      latencyFetching: true,
+      latencyProgress: {
+        completed: 1,
+        total: 2,
+        failed: 0,
+        pending: ['main/Node 2'],
+      },
+      subscriptionUpdating: false,
+    }) as unknown as FakeNode;
+    const buttons = findNodes(
+      root,
+      (node) =>
+        node.type === 'button' &&
+        String(node.attrs.class || '').includes(
+          'fkp_dashboard-page__outbound-grid__item__latency',
+        ),
+    );
+
+    expect(buttons[0]?.attrs['aria-busy']).toBeUndefined();
+    expect(buttons[1]?.attrs['aria-busy']).toBe('true');
+  }, 15000);
+
+  it('animates a group card and its tested member cards', async () => {
+    installElementFactory();
+    const { renderSections } = await import('../partials/renderSections');
+    const root = renderSections({
+      loading: false,
+      failed: false,
+      section: {
+        code: 'proxy-out',
+        sectionName: 'main',
+        displayName: 'Main',
+        withTagSelect: true,
+        outbounds: [
+          {
+            code: 'main/URLTest',
+            displayName: 'URLTest',
+            latency: 0,
+            type: 'URLTest',
+            selected: false,
+            urlTestInfo: {
+              code: 'main/URLTest',
+              displayName: 'URLTest',
+              outbounds: [
+                {
+                  code: 'main/Node',
+                  displayName: 'Node',
+                  latency: 0,
+                  type: 'VLESS',
+                  selected: false,
+                },
+              ],
+            },
+          },
+          {
+            code: 'main/Node',
+            displayName: 'Node',
+            latency: 0,
+            type: 'VLESS',
+            selected: false,
+          },
+        ],
+      },
+      onTestLatency: vi.fn(),
+      onTestOutboundLatency: vi.fn(),
+      onChooseOutbound: vi.fn(),
+      onCopyOutbound: vi.fn(),
+      onShowUrlTestInfo: vi.fn(),
+      onShowFallbackInfo: vi.fn(),
+      onUpdateSubscription: vi.fn(),
+      latencyFetching: true,
+      latencyProgress: {
+        completed: 0,
+        total: 1,
+        failed: 0,
+        pending: ['main/Node'],
+      },
+      latencyFetchingTarget: JSON.stringify(['main/Node']),
+      subscriptionUpdating: false,
+    }) as unknown as FakeNode;
+    const buttons = findNodes(
+      root,
+      (node) =>
+        node.type === 'button' &&
+        String(node.attrs.class || '').includes(
+          'fkp_dashboard-page__outbound-grid__item__latency',
+        ),
+    );
+
+    expect(buttons).toHaveLength(2);
+    expect(
+      buttons.every((button) => button.attrs['aria-busy'] === 'true'),
+    ).toBe(true);
+  }, 15000);
+
+  it('animates only a single node card when that node belongs to a group', async () => {
+    installElementFactory();
+    const { renderSections } = await import('../partials/renderSections');
+    const root = renderSections({
+      loading: false,
+      failed: false,
+      section: {
+        code: 'proxy-out',
+        sectionName: 'main',
+        displayName: 'Main',
+        withTagSelect: true,
+        outbounds: [
+          {
+            code: 'main/URLTest',
+            displayName: 'URLTest',
+            latency: 0,
+            type: 'URLTest',
+            selected: false,
+            urlTestInfo: {
+              code: 'main/URLTest',
+              displayName: 'URLTest',
+              outbounds: [
+                {
+                  code: 'main/Node',
+                  displayName: 'Node',
+                  latency: 0,
+                  type: 'VLESS',
+                  selected: false,
+                },
+              ],
+            },
+          },
+          {
+            code: 'main/Node',
+            displayName: 'Node',
+            latency: 0,
+            type: 'VLESS',
+            selected: false,
+          },
+        ],
+      },
+      onTestLatency: vi.fn(),
+      onTestOutboundLatency: vi.fn(),
+      onChooseOutbound: vi.fn(),
+      onCopyOutbound: vi.fn(),
+      onShowUrlTestInfo: vi.fn(),
+      onShowFallbackInfo: vi.fn(),
+      onUpdateSubscription: vi.fn(),
+      latencyFetching: true,
+      latencyFetchingTarget: 'main/Node',
+      latencyProgress: {
+        completed: 0,
+        total: 1,
+        failed: 0,
+        pending: ['main/Node'],
+      },
+      subscriptionUpdating: false,
+    }) as unknown as FakeNode;
+    const buttons = findNodes(
+      root,
+      (node) =>
+        node.type === 'button' &&
+        String(node.attrs.class || '').includes(
+          'fkp_dashboard-page__outbound-grid__item__latency',
+        ),
+    );
+
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0]?.attrs['aria-busy']).toBeUndefined();
+    expect(buttons[1]?.attrs['aria-busy']).toBe('true');
   }, 15000);
 
   it('does not render latency or selection actions for an empty group', async () => {

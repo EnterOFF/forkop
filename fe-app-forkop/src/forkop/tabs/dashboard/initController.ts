@@ -6,7 +6,11 @@ import {
 import { copyToClipboard } from '../../../helpers/copyToClipboard';
 import { showToast } from '../../../helpers/showToast';
 import { prettyBytes } from '../../../helpers/prettyBytes';
-import { renderCopyIcon24 } from '../../../icons';
+import {
+  renderCopyIcon24,
+  renderLoaderCircleIcon24,
+  renderRotateCcwIcon24,
+} from '../../../icons';
 import { CustomForkopMethods, ForkopShellMethods } from '../../methods';
 import {
   logger,
@@ -17,6 +21,8 @@ import {
   StoreType,
 } from '../../services';
 import {
+  getPendingLatencyTags,
+  getOutboundLatencyClass,
   getLatencyTestLabel,
   renderFlagEmojis,
   renderSections,
@@ -39,6 +45,15 @@ const SECTIONS_REFRESH_INTERVAL_MS = 10000;
 const LATENCY_TEST_BUTTON_CLASS = 'dashboard-sections-grid-item-test-latency';
 const LATENCY_TEST_BUTTON_LABEL_CLASS =
   'dashboard-sections-grid-item-test-latency__label';
+const OUTBOUND_LATENCY_BUTTON_CLASS =
+  'fkp_dashboard-page__outbound-grid__item__latency';
+const OUTBOUND_LATENCY_VALUE_CLASS = `${OUTBOUND_LATENCY_BUTTON_CLASS}-value`;
+const OUTBOUND_LATENCY_STATE_CLASSES = [
+  `${OUTBOUND_LATENCY_BUTTON_CLASS}--empty`,
+  `${OUTBOUND_LATENCY_BUTTON_CLASS}--green`,
+  `${OUTBOUND_LATENCY_BUTTON_CLASS}--yellow`,
+  `${OUTBOUND_LATENCY_BUTTON_CLASS}--red`,
+];
 let sectionsRefreshTimer: ReturnType<typeof setInterval> | null = null;
 let sectionsRefreshPromise: Promise<boolean> | null = null;
 let sectionsRefreshQueued = false;
@@ -51,6 +66,7 @@ let pageUnloading = false;
 const followedLatencyJobs = new Set<string>();
 const handledLatencyJobs = new Set<string>();
 const latencyFetchingTargets: Record<string, string> = {};
+let latencyAckQueue: Promise<unknown> = Promise.resolve();
 
 if (typeof window !== 'undefined') {
   window.addEventListener('pagehide', () => {
@@ -258,10 +274,15 @@ function setLatencyFetching(
   });
 }
 
-async function completeLatencyTestJob(jobId: string, sectionName: string) {
-  setLatencyFetching(sectionName, false);
+function queueLatencyAck(jobId: string) {
+  latencyAckQueue = latencyAckQueue
+    .catch(() => undefined)
+    .then(() => ForkopShellMethods.uiActionAck('latency', jobId));
+}
 
+async function completeLatencyTestJob(jobId: string, sectionName: string) {
   if (pageUnloading) {
+    setLatencyFetching(sectionName, false);
     return;
   }
 
@@ -271,40 +292,46 @@ async function completeLatencyTestJob(jobId: string, sectionName: string) {
 
   if (jobId) {
     handledLatencyJobs.add(jobId);
+    queueLatencyAck(jobId);
   }
 
-  if (jobId) {
-    void ForkopShellMethods.uiActionAck('latency', jobId);
+  try {
+    await fetchDashboardSections({ force: true });
+  } finally {
+    setLatencyFetching(sectionName, false);
   }
-
-  void fetchDashboardSections({ force: true });
 }
 
-async function followLatencyTestState(state: Forkop.LatencyActionState) {
-  const jobId = state.job_id;
-  const sectionName = state.section || '';
-
-  if (!jobId || !sectionName || followedLatencyJobs.has(jobId)) {
-    return;
-  }
-
-  if (!state.running && handledLatencyJobs.has(jobId)) {
+async function followLatencyTestJob(jobId: string, sectionName: string) {
+  if (followedLatencyJobs.has(jobId)) {
     return;
   }
 
   followedLatencyJobs.add(jobId);
-  if (shouldShowLoadingForRestoredAction(state)) {
-    setLatencyFetching(sectionName, true);
-  }
 
   try {
-    if (state.running) {
-      await ForkopShellMethods.waitLatencyTestJob(jobId);
+    const response = await ForkopShellMethods.waitLatencyTestJob(
+      jobId,
+      (state) => {
+        if (!pageUnloading && state.running) {
+          setLatencyFetching(
+            sectionName,
+            true,
+            false,
+            state.progress,
+            state.latency_type === 'proxy' ? state.tag : undefined,
+          );
+        }
+      },
+    );
+
+    if (!response.success) {
+      throw new Error(response.error);
     }
 
     await completeLatencyTestJob(jobId, sectionName);
   } catch (error) {
-    logger.error('[DASHBOARD]', 'followLatencyTestState failed', error);
+    logger.error('[DASHBOARD]', 'followLatencyTestJob failed', error);
     if (!pageUnloading) {
       setLatencyFetching(sectionName, false);
     }
@@ -313,13 +340,45 @@ async function followLatencyTestState(state: Forkop.LatencyActionState) {
   }
 }
 
+function followLatencyTestState(state: Forkop.LatencyActionState) {
+  const jobId = state.job_id;
+  const sectionName = state.section || '';
+
+  if (!jobId || !sectionName) {
+    return;
+  }
+
+  if (state.running) {
+    if (shouldShowLoadingForRestoredAction(state)) {
+      setLatencyFetching(
+        sectionName,
+        true,
+        false,
+        state.progress,
+        state.latency_type === 'proxy' ? state.tag : undefined,
+      );
+    }
+    void followLatencyTestJob(jobId, sectionName);
+    return;
+  }
+
+  if (handledLatencyJobs.has(jobId)) {
+    return;
+  }
+
+  void completeLatencyTestJob(jobId, sectionName).catch((error) => {
+    logger.error('[DASHBOARD]', 'completeLatencyTestJob failed', error);
+    if (!pageUnloading) setLatencyFetching(sectionName, false);
+  });
+}
+
 function followDashboardActionsFromUiState(uiState: Forkop.UiState) {
   for (const state of uiState.actions.latency || []) {
     if (state.running || (state.job_id && state.section)) {
-      void followLatencyTestState(state);
+      followLatencyTestState(state);
     } else if (state.job_id && !handledLatencyJobs.has(state.job_id)) {
       handledLatencyJobs.add(state.job_id);
-      void ForkopShellMethods.uiActionAck('latency', state.job_id);
+      queueLatencyAck(state.job_id);
     }
   }
 }
@@ -557,7 +616,7 @@ function getInitialLatencyProgress(
   tag: string,
 ): Forkop.LatencyActionProgress | undefined {
   if (latencyType !== 'proxy_list') {
-    return { completed: 0, total: 1, failed: 0 };
+    return { completed: 0, total: 1, failed: 0, pending: [tag] };
   }
 
   try {
@@ -566,11 +625,13 @@ function getInitialLatencyProgress(
       return undefined;
     }
 
-    const total = tags.filter(
+    const pending = tags.filter(
       (item) => typeof item === 'string' && item.length > 0,
-    ).length;
+    ) as string[];
 
-    return total > 0 ? { completed: 0, total, failed: 0 } : undefined;
+    return pending.length > 0
+      ? { completed: 0, total: pending.length, failed: 0, pending }
+      : undefined;
   } catch {
     return undefined;
   }
@@ -594,10 +655,6 @@ async function handleTestLatency(
     getInitialLatencyProgress(latencyType, tag),
     target,
   );
-  let jobId = '';
-  let ownsJobFollow = false;
-  let completed = false;
-
   try {
     const startResponse = await ForkopShellMethods.latencyTestStart(
       latencyType,
@@ -610,27 +667,10 @@ async function handleTestLatency(
       throw new Error(startResponse.error);
     }
 
-    jobId = startResponse.data.job_id;
-    if (followedLatencyJobs.has(jobId)) {
-      completed = true;
-      return;
-    }
-
-    followedLatencyJobs.add(jobId);
-    ownsJobFollow = true;
-    await ForkopShellMethods.waitLatencyTestJob(jobId);
-    await completeLatencyTestJob(jobId, sectionName);
-    completed = true;
+    await followLatencyTestJob(startResponse.data.job_id, sectionName);
   } catch (error) {
     logger.error('[DASHBOARD]', 'handleTestLatency: failed', error);
-  } finally {
-    if (ownsJobFollow) {
-      followedLatencyJobs.delete(jobId);
-    }
-
-    if (!completed) {
-      setLatencyFetching(sectionName, false);
-    }
+    setLatencyFetching(sectionName, false);
   }
 }
 
@@ -1197,6 +1237,25 @@ function shallowRecordEqual<T>(
   return leftKeys.every((key) => left[key] === right[key]);
 }
 
+function hasSameLatencyCardStructure(
+  left: Forkop.OutboundGroup[],
+  right: Forkop.OutboundGroup[],
+) {
+  return (
+    left.length === right.length &&
+    left.every(
+      (section, sectionIndex) =>
+        section.sectionName === right[sectionIndex]?.sectionName &&
+        section.outbounds.length === right[sectionIndex]?.outbounds.length &&
+        section.outbounds.every(
+          (outbound, outboundIndex) =>
+            outbound.code ===
+            right[sectionIndex]?.outbounds[outboundIndex]?.code,
+        ),
+    )
+  );
+}
+
 function canUpdateLatencyProgressInline(
   prev: StoreType['sectionsWidget'],
   next: StoreType['sectionsWidget'],
@@ -1204,7 +1263,9 @@ function canUpdateLatencyProgressInline(
   return (
     prev.loading === next.loading &&
     prev.failed === next.failed &&
-    prev.data === next.data &&
+    (prev.data === next.data ||
+      (Object.keys(next.latencyFetchingSections).length > 0 &&
+        hasSameLatencyCardStructure(prev.data, next.data))) &&
     shallowRecordEqual(
       prev.latencyFetchingSections,
       next.latencyFetchingSections,
@@ -1229,6 +1290,7 @@ function findLatencyTestButton(container: HTMLElement, sectionName: string) {
 }
 
 function updateLatencyProgressInline(
+  prev: StoreType['sectionsWidget'],
   sectionsWidget: StoreType['sectionsWidget'],
 ) {
   const container = document.getElementById('dashboard-sections-grid');
@@ -1236,6 +1298,8 @@ function updateLatencyProgressInline(
   if (!container) {
     return false;
   }
+
+  const dataChanged = prev.data !== sectionsWidget.data;
 
   for (const section of sectionsWidget.data) {
     if (!sectionsWidget.latencyFetchingSections[section.sectionName]) {
@@ -1257,6 +1321,82 @@ function updateLatencyProgressInline(
 
     if (label.textContent !== text) {
       label.textContent = text;
+    }
+
+    if (!dataChanged) {
+      continue;
+    }
+
+    const progress =
+      sectionsWidget.latencyProgressSections[section.sectionName];
+    if (!Array.isArray(progress?.pending)) {
+      continue;
+    }
+
+    const pending = getPendingLatencyTags(section, progress);
+    const latencyButtons = Array.from(
+      container.querySelectorAll<HTMLButtonElement>('[data-latency-targets]'),
+    ).filter(
+      (latencyButton) =>
+        latencyButton.dataset.latencySection === section.sectionName,
+    );
+    const exactTarget = latencyFetchingTargets[section.sectionName];
+    const hasExactTarget = section.outbounds.some(
+      (outbound) => outbound.code === exactTarget,
+    );
+
+    for (const latencyButton of latencyButtons) {
+      let targets: string[];
+      try {
+        const value = JSON.parse(latencyButton.dataset.latencyTargets || '[]');
+        if (!Array.isArray(value)) {
+          return false;
+        }
+        targets = value;
+      } catch {
+        return false;
+      }
+
+      const outbound = section.outbounds.find(
+        (item) => item.code === latencyButton.dataset.latencyCode,
+      );
+      if (!outbound) {
+        return false;
+      }
+
+      const latencyValue = latencyButton.querySelector<HTMLElement>(
+        `.${OUTBOUND_LATENCY_VALUE_CLASS}`,
+      );
+      if (!latencyValue) {
+        return false;
+      }
+
+      latencyValue.textContent = outbound.latency
+        ? `${outbound.latency}ms`
+        : 'N/A';
+      latencyButton.classList.remove(...OUTBOUND_LATENCY_STATE_CLASSES);
+      latencyButton.classList.add(getOutboundLatencyClass(outbound.latency));
+
+      const active = hasExactTarget
+        ? latencyButton.dataset.latencyCode === exactTarget
+        : targets.some((tag) => pending.has(tag));
+      if (active === (latencyButton.getAttribute('aria-busy') === 'true')) {
+        continue;
+      }
+
+      const icon = latencyButton.querySelector('svg');
+      if (!icon) {
+        return false;
+      }
+
+      icon.replaceWith(
+        active ? renderLoaderCircleIcon24() : renderRotateCcwIcon24(),
+      );
+      if (active) {
+        latencyButton.setAttribute('aria-busy', 'true');
+      } else {
+        latencyButton.removeAttribute('aria-busy');
+      }
     }
   }
 
@@ -1550,7 +1690,8 @@ async function onStoreUpdate(
       canUpdateLatencyProgressInline(
         prev.sectionsWidget,
         next.sectionsWidget,
-      ) && updateLatencyProgressInline(next.sectionsWidget);
+      ) &&
+      updateLatencyProgressInline(prev.sectionsWidget, next.sectionsWidget);
 
     if (!inlineUpdated) {
       renderSectionsWidget();

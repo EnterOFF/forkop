@@ -537,38 +537,46 @@ function running_service_action_value(action, source, started_at) {
     };
 }
 
-function latency_progress_value(completed, total, failed) {
+function latency_progress_value(completed, total, failed, pending, latencies) {
     let progress_total = non_negative_number(total);
     let progress_completed = non_negative_number(completed);
     if (progress_total > 0 && progress_completed > progress_total)
         progress_completed = progress_total;
 
-    return {
+    let value = {
         completed: progress_completed,
         total: progress_total,
         failed: non_negative_number(failed)
     };
+
+    if (type(pending) == "array")
+        value.pending = pending;
+    if (type(latencies) == "object")
+        value.latencies = latencies;
+
+    return value;
 }
 
-function proxy_list_total(tag) {
+function proxy_list_tags(tag) {
     let value = parse_json_or_null(tag);
     if (type(value) != "array")
-        return 0;
+        return [];
 
-    let total = 0;
+    let result = [];
     for (let proxy_tag in value) {
         if (type(proxy_tag) == "string" && proxy_tag != "")
-            total++;
+            push(result, proxy_tag);
     }
 
-    return total;
+    return result;
 }
 
 function initial_latency_progress(latency_type, tag) {
     if (as_string(latency_type) != "proxy_list")
-        return latency_progress_value(0, 1, 0);
+        return latency_progress_value(0, 1, 0, [ as_string(tag) ]);
 
-    return latency_progress_value(0, proxy_list_total(tag), 0);
+    let pending = proxy_list_tags(tag);
+    return latency_progress_value(0, length(pending), 0, pending);
 }
 
 function running_latency_action_value(latency_type, section, tag, started_at) {
@@ -607,7 +615,7 @@ function latency_action_path_allowed(path) {
         substr(path, length(path) - length(suffix)) == suffix;
 }
 
-function update_latency_progress_state(path, completed, total, failed) {
+function update_latency_progress_state(path, completed, total, failed, pending_json, latencies_json) {
     if (!latency_action_path_allowed(path))
         return false;
 
@@ -615,13 +623,15 @@ function update_latency_progress_state(path, completed, total, failed) {
     if (type(value) != "object" || value.kind != "latency" || value.running !== true)
         return false;
 
-    value.progress = latency_progress_value(completed, total, failed);
+    let pending = parse_json_or_null(pending_json);
+    let latencies = parse_json_or_null(latencies_json);
+    value.progress = latency_progress_value(completed, total, failed, pending, latencies);
     value.updated_at = now_seconds();
     return write_state_file(path, value);
 }
 
-function update_latency_progress_state_mode(path, completed, total, failed) {
-    exit(update_latency_progress_state(path, completed, total, failed) ? 0 : 1);
+function update_latency_progress_state_mode(path, completed, total, failed, pending_json, latencies_json) {
+    exit(update_latency_progress_state(path, completed, total, failed, pending_json, latencies_json) ? 0 : 1);
 }
 
 function finished_action_state_value(path, success, message, exit_code, updated_at) {
@@ -1354,7 +1364,7 @@ else if (mode == "service-action-update-pid")
 else if (mode == "service-action-finish")
     finish_service_action_mode(ARGV[1], ARGV[2], ARGV[3], ARGV[4]);
 else if (mode == "latency-progress-state")
-    update_latency_progress_state_mode(ARGV[1], ARGV[2], ARGV[3], ARGV[4]);
+    update_latency_progress_state_mode(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6]);
 else if (mode == "service-action-finish-after-command")
     finish_service_action_after_command_mode(ARGV[1], ARGV[2], ARGV[3]);
 else if (mode == "service-action-wait-worker")

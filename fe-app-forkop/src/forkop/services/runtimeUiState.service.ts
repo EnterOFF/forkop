@@ -4,8 +4,8 @@ import { logger } from './logger.service';
 import { applyUiStateToStore } from './uiState.service';
 
 const RUNTIME_UI_STATE_REFRESH_MIN_INTERVAL_MS = 500;
-const RUNTIME_UI_STATE_IDLE_POLL_INTERVAL_MS = 1000;
-const RUNTIME_UI_STATE_ACTIVE_POLL_INTERVAL_MS = 500;
+const RUNTIME_UI_STATE_IDLE_POLL_INTERVAL_MS = 10000;
+const RUNTIME_UI_STATE_ACTIVE_POLL_INTERVAL_MS = 1000;
 type RuntimeUiStateListener = (uiState: Forkop.UiState) => void;
 
 let runtimeUiStateRefreshPromise: Promise<Forkop.UiState | undefined> | null =
@@ -27,8 +27,8 @@ function isDocumentVisible() {
 }
 
 function hasRunningAction(uiState: Forkop.UiState) {
-  return Object.values(uiState.actions).some((actions) =>
-    actions.some((action) => action.running),
+  return [...uiState.actions.service, ...uiState.actions.component].some(
+    (action) => action.running,
   );
 }
 

@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-07-25 13:20+0300\n"
-"PO-Revision-Date: 2026-07-25 13:20+0300\n"
+"POT-Creation-Date: 2026-07-28 16:11+0300\n"
+"PO-Revision-Date: 2026-07-28 16:11+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -52,6 +52,9 @@ msgstr "Принимать маршруты"
 
 msgid "Accept subnets advertised by other devices in your Tailscale network."
 msgstr "Принимать подсети, которые раздают другие устройства в вашей сети Tailscale."
+
+msgid "Accurate latency measurement"
+msgstr "Точное измерение задержки"
 
 msgid "Action"
 msgstr "Действие"
@@ -758,6 +761,9 @@ msgstr "Порт в firewall для WAN"
 msgid "Fix the highlighted fields and save again."
 msgstr "Исправьте подсвеченные поля и сохраните снова."
 
+msgid "Force detected P2P BitTorrent traffic to route directly."
+msgstr "Маршрутизировать обнаруженный P2P торрент трафик напрямую принудительно."
+
 msgid "Forced device routing"
 msgstr "Принудительная маршрутизация устройств"
 
@@ -913,6 +919,9 @@ msgstr "Учитывать IP-адреса и подсети"
 
 msgid "Include servers"
 msgstr "Включить серверы"
+
+msgid "Includes connection setup and TLS handshake time. The measurement takes longer but provides more accurate and realistic results."
+msgstr "Учитывает время на установку соединения и TLS-рукопожатие. Измерение занимает больше времени, но показывает более точные и реалистичные результаты."
 
 msgid "Information"
 msgstr "Информация"
@@ -1123,9 +1132,6 @@ msgstr "Совпадение по портам назначения. Испол�
 
 msgid "Maximum packet size for this tunnel. Leave empty to use the default value."
 msgstr "Максимальный размер пакета для этого туннеля. Оставьте пустым для значения по умолчанию."
-
-msgid "Measure connection setup and TLS handshake delay for more comparable latency results."
-msgstr "Учитывать установку соединения и TLS-рукопожатие для более сопоставимых результатов задержки."
 
 msgid "Memory Usage"
 msgstr "Использование памяти"
@@ -1993,9 +1999,6 @@ msgstr "Обнаружен лишний NFQWS2 Forkop"
 
 msgid "Unexpected standalone token. Use explicit flags such as --name or --name=value."
 msgstr "Неожиданный отдельный токен. Используйте явные флаги вида --имя или --имя=значение."
-
-msgid "Unified Delay"
-msgstr "Единое измерение задержки"
 
 msgid "unique UCI identifier"
 msgstr "уникальный идентификатор UCI"

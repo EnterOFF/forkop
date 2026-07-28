@@ -157,7 +157,11 @@ assert_eq "$(printf 'clash_api\nget_proxy_latency\nproxy-a\n5000')" \
 single_latency_state="$(ui_ucode running-latency-action proxy main proxy-a 100)"
 SINGLE_LATENCY_STATE="$single_latency_state" node - <<'NODE'
 const value = JSON.parse(process.env.SINGLE_LATENCY_STATE);
-if (value.progress?.completed !== 0 || value.progress?.total !== 1) {
+if (
+  value.progress?.completed !== 0 ||
+  value.progress?.total !== 1 ||
+  value.progress?.pending?.[0] !== "proxy-a"
+) {
   console.error("single-proxy latency progress must start at 0/1");
   process.exit(1);
 }
@@ -168,12 +172,20 @@ mkdir -p "$latency_action_dir"
 latency_state="$latency_action_dir/latency-1.json"
 printf '%s\n' '{"success":true,"running":true,"kind":"latency","latency_type":"proxy_list","section":"main","tag":"[]","started_at":100}' >"$latency_state"
 FORKOP_UI_LATENCY_ACTION_DIR="$latency_action_dir" \
-  ui_ucode latency-progress-state "$latency_state" 2 5 1 >/dev/null ||
+  ui_ucode latency-progress-state "$latency_state" 2 5 1 '["proxy-c","proxy-d","proxy-e"]' '{"proxy-a":123,"proxy-b":0}' >/dev/null ||
   fail "latency-progress-state should update running latency jobs"
 JOB_STATE="$latency_state" node - <<'NODE'
 const fs = require("fs");
 const value = JSON.parse(fs.readFileSync(process.env.JOB_STATE, "utf8"));
-if (!value.progress || value.progress.completed !== 2 || value.progress.total !== 5 || value.progress.failed !== 1) {
+if (
+  !value.progress ||
+  value.progress.completed !== 2 ||
+  value.progress.total !== 5 ||
+  value.progress.failed !== 1 ||
+  value.progress.pending?.join(",") !== "proxy-c,proxy-d,proxy-e" ||
+  value.progress.latencies?.["proxy-a"] !== 123 ||
+  value.progress.latencies?.["proxy-b"] !== 0
+) {
   console.error("latency progress state mismatch");
   process.exit(1);
 }
@@ -272,7 +284,13 @@ latency_async_state="$FORKOP_UI_LATENCY_ACTION_DIR/$latency_job_id.json"
 JOB_STATE="$latency_async_state" node - <<'NODE'
 const fs = require("fs");
 const value = JSON.parse(fs.readFileSync(process.env.JOB_STATE, "utf8"));
-if (!value.progress || value.progress.completed !== 0 || value.progress.total !== 2 || value.progress.failed !== 0) {
+if (
+  !value.progress ||
+  value.progress.completed !== 0 ||
+  value.progress.total !== 2 ||
+  value.progress.failed !== 0 ||
+  value.progress.pending?.join(",") !== "proxy-a,proxy-b"
+) {
   console.error("initial latency progress state mismatch");
   process.exit(1);
 }

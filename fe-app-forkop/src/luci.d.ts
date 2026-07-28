@@ -9,7 +9,9 @@ type HtmlAttributes<T extends HtmlTag = 'div'> = Partial<
     'aria-busy'?: string;
     'aria-disabled'?: string;
     'aria-label'?: string;
+    'data-latency-code'?: string;
     'data-latency-section'?: string;
+    'data-latency-targets'?: string;
     click?: (event: MouseEvent) => void;
     onclick?: (event: MouseEvent) => void;
   }

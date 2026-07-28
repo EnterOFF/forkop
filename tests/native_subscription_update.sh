@@ -25,8 +25,15 @@ mkdir -p "$WORK_DIR/bin"
 cat >"$WORK_DIR/bin/curl" <<'EOF_CURL'
 #!/bin/sh
 printf '%s\n' "$*" >>"$CURL_LOG"
+[ "${CURL_FAIL:-0}" != 1 ]
 EOF_CURL
 chmod +x "$WORK_DIR/bin/curl"
+
+cat >"$WORK_DIR/bin/logger" <<'EOF_LOGGER'
+#!/bin/sh
+printf '%s\n' "$*" >>"$LOGGER_LOG"
+EOF_LOGGER
+chmod +x "$WORK_DIR/bin/logger"
 
 PATH="$WORK_DIR/bin:$PATH" \
 CURL_LOG="$WORK_DIR/curl.log" \
@@ -39,4 +46,18 @@ if [[ "$actual" != "$expected" ]]; then
   printf 'FAIL: native provider update request: expected %q, got %q\n' "$expected" "$actual" >&2
   exit 1
 fi
+
+if PATH="$WORK_DIR/bin:$PATH" \
+  CURL_FAIL=1 \
+  CURL_LOG="$WORK_DIR/curl.log" \
+  LOGGER_LOG="$WORK_DIR/logger.log" \
+  FORKOP_UCI_STATE_FILE="$WORK_DIR/uci.state" \
+  ucode -L "$FORKOP_LIB" "$FORKOP_LIB/components/updates.uc" subscription-update proxy 2; then
+  printf 'FAIL: failed native provider update returned success\n' >&2
+  exit 1
+fi
+grep -Fq 'Failed to refresh subscription provider proxy-subscription-2-provider' "$WORK_DIR/logger.log" || {
+  printf 'FAIL: failed native provider update did not identify its provider\n' >&2
+  exit 1
+}
 printf 'native subscription update tests passed\n'

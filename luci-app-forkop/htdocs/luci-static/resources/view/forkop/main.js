@@ -1781,6 +1781,31 @@ function getLatencyTestLabel(latencyProgress) {
     total
   )}/${total}`;
 }
+function getPendingLatencyTags(section, latencyProgress) {
+  const pending = new Set(latencyProgress?.pending || []);
+  for (const outbound of section.outbounds) {
+    const groupInfo = outbound.urlTestInfo || outbound.fallbackInfo;
+    if (!groupInfo || !pending.has(outbound.code)) {
+      continue;
+    }
+    for (const member of groupInfo.outbounds) {
+      pending.add(member.code);
+    }
+  }
+  return pending;
+}
+function getOutboundLatencyClass(latency) {
+  if (!latency) {
+    return "fkp_dashboard-page__outbound-grid__item__latency--empty";
+  }
+  if (latency < 800) {
+    return "fkp_dashboard-page__outbound-grid__item__latency--green";
+  }
+  if (latency < 1500) {
+    return "fkp_dashboard-page__outbound-grid__item__latency--yellow";
+  }
+  return "fkp_dashboard-page__outbound-grid__item__latency--red";
+}
 function renderDefaultState({
   section,
   onChooseOutbound,
@@ -1796,6 +1821,11 @@ function renderDefaultState({
   subscriptionUpdating,
   selectorSwitchingTag
 }) {
+  const hasPendingLatencyState = Array.isArray(latencyProgress?.pending);
+  const pendingLatencyTags = getPendingLatencyTags(section, latencyProgress);
+  const hasExactLatencyTarget = section.outbounds.some(
+    (outbound) => outbound.code === latencyFetchingTarget
+  );
   function testLatency() {
     if (section.withTagSelect) {
       return onTestLatency(
@@ -1807,18 +1837,6 @@ function renderDefaultState({
     }
   }
   function renderOutbound(outbound) {
-    function getLatencyClass() {
-      if (!outbound.latency) {
-        return "fkp_dashboard-page__outbound-grid__item__latency--empty";
-      }
-      if (outbound.latency < 800) {
-        return "fkp_dashboard-page__outbound-grid__item__latency--green";
-      }
-      if (outbound.latency < 1500) {
-        return "fkp_dashboard-page__outbound-grid__item__latency--yellow";
-      }
-      return "fkp_dashboard-page__outbound-grid__item__latency--red";
-    }
     const canCopyLink = Boolean(outbound.canCopyLink) || isCopyableProxyLink(outbound.link);
     const selectorSwitching = Boolean(selectorSwitchingTag);
     const outboundSwitching = selectorSwitchingTag === outbound.code;
@@ -1832,7 +1850,8 @@ function renderDefaultState({
     const showLatency = !groupInfo || outbound.runtimeAvailable !== false && groupTargets.length > 0;
     const latencyType = groupInfo ? "proxy_list" : "proxy";
     const latencyTarget = groupInfo ? groupTargets : outbound.code;
-    const outboundLatencyFetching = latencyFetchingTarget === (Array.isArray(latencyTarget) ? JSON.stringify(latencyTarget) : latencyTarget);
+    const serializedLatencyTarget = Array.isArray(latencyTarget) ? JSON.stringify(latencyTarget) : latencyTarget;
+    const outboundLatencyFetching = latencyFetching ? hasExactLatencyTarget ? latencyFetchingTarget === serializedLatencyTarget : hasPendingLatencyState ? (Array.isArray(latencyTarget) ? latencyTarget : [latencyTarget]).some((tag) => pendingLatencyTags.has(tag)) : latencyFetchingTarget === (Array.isArray(latencyTarget) ? JSON.stringify(latencyTarget) : latencyTarget) : false;
     const canTestOutboundLatency = showLatency && outbound.runtimeAvailable !== false && !latencyFetching;
     const className = [
       "fkp_dashboard-page__outbound-grid__item",
@@ -1841,7 +1860,7 @@ function renderDefaultState({
       section.withTagSelect && !canChooseOutbound ? "fkp_dashboard-page__outbound-grid__item--disabled" : "",
       outboundSwitching ? "fkp_dashboard-page__outbound-grid__item--switching" : ""
     ].filter(Boolean).join(" ");
-    const latencyClass = getLatencyClass();
+    const latencyClass = getOutboundLatencyClass(outbound.latency);
     const latencyValue = outbound.latency ? `${outbound.latency}ms` : "N/A";
     const latency = showLatency ? E(
       "button",
@@ -1851,6 +1870,11 @@ function renderDefaultState({
         title: _("Test latency"),
         "aria-label": _("Test latency"),
         "aria-busy": outboundLatencyFetching ? "true" : void 0,
+        "data-latency-section": section.sectionName,
+        "data-latency-code": outbound.code,
+        "data-latency-targets": JSON.stringify(
+          Array.isArray(latencyTarget) ? latencyTarget : [latencyTarget]
+        ),
         disabled: canTestOutboundLatency ? void 0 : true,
         click: (event) => {
           event.preventDefault();
@@ -2384,7 +2408,6 @@ var UI_ACTION_RPC_TIMEOUT_MS = 15e3;
 var UI_ACTION_TRANSIENT_RPC_GRACE_MS = 3e4;
 var SERVICE_ACTION_TIMEOUT_MS = 2 * 60 * 1e3;
 var SERVICE_ACTION_POLL_INTERVAL_MS = 1e3;
-var LATENCY_TEST_TIMEOUT_MS = 30 * 1e3;
 var LATENCY_TEST_POLL_INTERVAL_MS = 1e3;
 var COMPONENT_ACTION_RPC_TIMEOUT_MS = 15e3;
 var COMPONENT_ACTION_POLL_INTERVAL_MS = 1500;
@@ -2721,11 +2744,11 @@ var ForkopShellMethods = {
       data: parsedResponse
     };
   },
-  waitLatencyTestJob: async (jobId, startedAt = Date.now()) => {
+  waitLatencyTestJob: async (jobId, onState) => {
     const transientRpc = createTransientRpcGraceTracker(
       UI_ACTION_TRANSIENT_RPC_GRACE_MS
     );
-    while (Date.now() - startedAt < LATENCY_TEST_TIMEOUT_MS) {
+    while (true) {
       await sleep(LATENCY_TEST_POLL_INTERVAL_MS);
       const response = await ForkopShellMethods.latencyTestStatus(jobId);
       if (!response.success) {
@@ -2735,15 +2758,11 @@ var ForkopShellMethods = {
         return response;
       }
       transientRpc.reset();
-      if (response.data.running) {
-        continue;
+      onState?.(response.data);
+      if (!response.data.running) {
+        return response;
       }
-      return response;
     }
-    return {
-      success: false,
-      error: _("Operation timed out")
-    };
   },
   uiActionAck: async (kind, jobId) => {
     const response = await executeShellCommand({
@@ -3755,108 +3774,116 @@ async function getDashboardSections() {
     })
   );
   const providers = clashProviders.success ? clashProviders.data?.providers || {} : {};
-  const data = await Promise.all(
-    configSections.filter(
-      (section) => section.enabled !== "0" && isConnectionAction(section.action)
-    ).map(async (section) => {
-      const displayName = getDisplayName(section);
-      const sectionName = section[".name"];
-      const sectionAction = section.action;
-      const proxyConfigType = getSectionProxyConfigType(section);
-      if (isConnectionAction(sectionAction) && shouldUseProxyGroup(section)) {
-        const subscriptionSourceCount = getSubscriptionSourceCount(section);
-        const subscriptionEnabled = subscriptionSourceCount > 0;
-        const dashboardCache = await readDashboardSectionCache(sectionName);
-        const providerTags = getSectionProviderTags(dashboardCache);
-        const outboundMetadata = getOutboundMetadata(
-          dashboardCache,
-          providerTags,
-          proxies
-        );
-        const subscriptionMetadata = subscriptionEnabled ? getSubscriptionMetadata(
-          section,
-          subscriptionSourceCount,
-          providerTags,
-          providers
-        ) : void 0;
-        const urltestGroups = getUrlTestGroups(dashboardCache);
-        const fallbackGroups = getFallbackGroups(dashboardCache);
-        const { selector, latencyTestCode, latencyTestCodes, outbounds } = buildProxyGroupOutbounds(
-          section,
-          proxies,
-          outboundMetadata,
-          urltestGroups,
-          fallbackGroups,
-          providerTags.slice(0, subscriptionSourceCount)
-        );
-        return {
-          withTagSelect: true,
-          code: selector?.code || sectionName,
-          sectionName,
-          displayName,
-          action: sectionAction,
-          latencyTestCode,
-          latencyTestCodes,
-          proxyConfigType,
-          subscriptionSourceCount,
-          subscriptionMetadata,
-          outbounds
-        };
-      }
-      if (sectionAction === "vpn") {
-        const outboundTag = getOutboundTagBySection(sectionName);
-        const outbound = proxies.find((proxy) => proxy.code === outboundTag);
-        return {
-          withTagSelect: false,
-          code: outbound?.code || sectionName,
-          sectionName,
-          displayName,
-          action: sectionAction,
-          latencyTestTimeout: "10000",
-          outbounds: [
-            {
-              code: outbound?.code || sectionName,
-              displayName: section.interface || outbound?.value?.name || "",
-              latency: outbound?.value?.history?.[0]?.delay || 0,
-              type: outbound?.value?.type || "",
-              selected: true,
-              canCopyLink: false,
-              runtimeAvailable: Boolean(outbound)
-            }
-          ]
-        };
-      }
-      if (sectionAction === "outbound") {
-        const outboundTag = getOutboundTagBySection(sectionName);
-        const outbound = proxies.find((proxy) => proxy.code === outboundTag);
-        return {
-          withTagSelect: false,
-          code: outbound?.code || sectionName,
-          sectionName,
-          displayName,
-          action: sectionAction,
-          outbounds: [
-            {
-              code: outbound?.code || sectionName,
-              displayName: getJsonOutboundDisplayName(section) || outbound?.value?.name || "",
-              latency: outbound?.value?.history?.[0]?.delay || 0,
-              type: outbound?.value?.type || "",
-              selected: true,
-              canCopyLink: false
-            }
-          ]
-        };
-      }
+  const activeSections = configSections.filter(
+    (section) => section.enabled !== "0" && isConnectionAction(section.action)
+  );
+  const dashboardCaches = /* @__PURE__ */ new Map();
+  for (const section of activeSections) {
+    if (shouldUseProxyGroup(section)) {
+      dashboardCaches.set(
+        section[".name"],
+        await readDashboardSectionCache(section[".name"])
+      );
+    }
+  }
+  const data = activeSections.map((section) => {
+    const displayName = getDisplayName(section);
+    const sectionName = section[".name"];
+    const sectionAction = section.action;
+    const proxyConfigType = getSectionProxyConfigType(section);
+    if (isConnectionAction(sectionAction) && shouldUseProxyGroup(section)) {
+      const subscriptionSourceCount = getSubscriptionSourceCount(section);
+      const subscriptionEnabled = subscriptionSourceCount > 0;
+      const dashboardCache = dashboardCaches.get(sectionName);
+      const providerTags = getSectionProviderTags(dashboardCache);
+      const outboundMetadata = getOutboundMetadata(
+        dashboardCache,
+        providerTags,
+        proxies
+      );
+      const subscriptionMetadata = subscriptionEnabled ? getSubscriptionMetadata(
+        section,
+        subscriptionSourceCount,
+        providerTags,
+        providers
+      ) : void 0;
+      const urltestGroups = getUrlTestGroups(dashboardCache);
+      const fallbackGroups = getFallbackGroups(dashboardCache);
+      const { selector, latencyTestCode, latencyTestCodes, outbounds } = buildProxyGroupOutbounds(
+        section,
+        proxies,
+        outboundMetadata,
+        urltestGroups,
+        fallbackGroups,
+        providerTags.slice(0, subscriptionSourceCount)
+      );
       return {
-        withTagSelect: false,
-        code: sectionName,
+        withTagSelect: true,
+        code: selector?.code || sectionName,
         sectionName,
         displayName,
         action: sectionAction,
-        outbounds: []
+        latencyTestCode,
+        latencyTestCodes,
+        proxyConfigType,
+        subscriptionSourceCount,
+        subscriptionMetadata,
+        outbounds
       };
-    })
-  );
+    }
+    if (sectionAction === "vpn") {
+      const outboundTag = getOutboundTagBySection(sectionName);
+      const outbound = proxies.find((proxy) => proxy.code === outboundTag);
+      return {
+        withTagSelect: false,
+        code: outbound?.code || sectionName,
+        sectionName,
+        displayName,
+        action: sectionAction,
+        latencyTestTimeout: "10000",
+        outbounds: [
+          {
+            code: outbound?.code || sectionName,
+            displayName: section.interface || outbound?.value?.name || "",
+            latency: outbound?.value?.history?.[0]?.delay || 0,
+            type: outbound?.value?.type || "",
+            selected: true,
+            canCopyLink: false,
+            runtimeAvailable: Boolean(outbound)
+          }
+        ]
+      };
+    }
+    if (sectionAction === "outbound") {
+      const outboundTag = getOutboundTagBySection(sectionName);
+      const outbound = proxies.find((proxy) => proxy.code === outboundTag);
+      return {
+        withTagSelect: false,
+        code: outbound?.code || sectionName,
+        sectionName,
+        displayName,
+        action: sectionAction,
+        outbounds: [
+          {
+            code: outbound?.code || sectionName,
+            displayName: getJsonOutboundDisplayName(section) || outbound?.value?.name || "",
+            latency: outbound?.value?.history?.[0]?.delay || 0,
+            type: outbound?.value?.type || "",
+            selected: true,
+            canCopyLink: false
+          }
+        ]
+      };
+    }
+    return {
+      withTagSelect: false,
+      code: sectionName,
+      sectionName,
+      displayName,
+      action: sectionAction,
+      outbounds: []
+    };
+  });
   return {
     success: true,
     data
@@ -4591,11 +4618,76 @@ function normalizeLatencyProgress(progress) {
   const failedValue = Number(progress?.failed ?? 0);
   const completed = Number.isFinite(completedValue) ? Math.trunc(completedValue) : 0;
   const failed2 = Number.isFinite(failedValue) ? Math.trunc(failedValue) : 0;
+  const pending = Array.isArray(progress?.pending) ? progress.pending.filter(
+    (tag) => typeof tag === "string" && tag.length > 0
+  ) : void 0;
+  const rawLatencies = progress?.latencies;
+  const latencies = Object.fromEntries(
+    Object.entries(
+      rawLatencies && typeof rawLatencies === "object" && !Array.isArray(rawLatencies) ? rawLatencies : {}
+    ).flatMap(([tag, value]) => {
+      const latency = Number(value);
+      return tag && Number.isFinite(latency) && latency >= 0 ? [[tag, latency]] : [];
+    })
+  );
   return {
     completed: Math.min(Math.max(0, completed), total),
     total,
-    failed: Math.max(0, failed2)
+    failed: Math.max(0, failed2),
+    ...pending ? { pending } : {},
+    ...Object.keys(latencies).length > 0 ? { latencies } : {}
   };
+}
+function applyLatencyResults(data, sectionName, latencies) {
+  if (!latencies || Object.keys(latencies).length === 0) {
+    return data;
+  }
+  let dataChanged = false;
+  const nextData = data.map((section) => {
+    if (section.sectionName !== sectionName) {
+      return section;
+    }
+    let sectionChanged = false;
+    const outbounds = section.outbounds.map((outbound) => {
+      const groupKey = outbound.urlTestInfo ? "urlTestInfo" : outbound.fallbackInfo ? "fallbackInfo" : void 0;
+      const groupInfo = groupKey ? outbound[groupKey] : void 0;
+      if (!groupKey || !groupInfo) {
+        if (!Object.prototype.hasOwnProperty.call(latencies, outbound.code) || outbound.latency === latencies[outbound.code]) {
+          return outbound;
+        }
+        sectionChanged = true;
+        return { ...outbound, latency: latencies[outbound.code] };
+      }
+      let membersChanged = false;
+      const members = groupInfo.outbounds.map((member) => {
+        if (!Object.prototype.hasOwnProperty.call(latencies, member.code) || member.latency === latencies[member.code]) {
+          return member;
+        }
+        membersChanged = true;
+        return { ...member, latency: latencies[member.code] };
+      });
+      const hasDirectLatency = Object.prototype.hasOwnProperty.call(
+        latencies,
+        outbound.code
+      );
+      if (!membersChanged && !hasDirectLatency) {
+        return outbound;
+      }
+      sectionChanged = true;
+      const selected = members.find((member) => member.selected);
+      return {
+        ...outbound,
+        latency: hasDirectLatency ? latencies[outbound.code] : selected?.latency ?? outbound.latency,
+        [groupKey]: { ...groupInfo, outbounds: members }
+      };
+    });
+    if (!sectionChanged) {
+      return section;
+    }
+    dataChanged = true;
+    return { ...section, outbounds };
+  });
+  return dataChanged ? nextData : data;
 }
 function applyServiceState(uiState) {
   const currentSystemInfo = store.get().diagnosticsSystemInfo;
@@ -4630,10 +4722,14 @@ function applyActionState(actions = {}) {
   const latencyProgressSections = {};
   const updatesActions = getEmptyUpdatesActions();
   const diagnosticsActions = getEmptyDiagnosticsActions();
+  let data = current.sectionsWidget.data;
   for (const state of actions.latency || []) {
+    const progress = normalizeLatencyProgress(state.progress);
+    if (progress && state.section) {
+      data = applyLatencyResults(data, state.section, progress.latencies);
+    }
     if (isRunningAction(state) && state.section) {
       latencyFetchingSections[state.section] = true;
-      const progress = normalizeLatencyProgress(state.progress);
       if (progress) {
         latencyProgressSections[state.section] = progress;
       } else if (currentLatencyProgressSections[state.section]) {
@@ -4680,6 +4776,7 @@ function applyActionState(actions = {}) {
   store.set({
     sectionsWidget: {
       ...current.sectionsWidget,
+      data,
       subscriptionUpdatingSections,
       latencyFetchingSections,
       latencyProgressSections
@@ -4695,8 +4792,8 @@ function applyUiStateToStore(uiState) {
 
 // src/forkop/services/runtimeUiState.service.ts
 var RUNTIME_UI_STATE_REFRESH_MIN_INTERVAL_MS = 500;
-var RUNTIME_UI_STATE_IDLE_POLL_INTERVAL_MS = 1e3;
-var RUNTIME_UI_STATE_ACTIVE_POLL_INTERVAL_MS = 500;
+var RUNTIME_UI_STATE_IDLE_POLL_INTERVAL_MS = 1e4;
+var RUNTIME_UI_STATE_ACTIVE_POLL_INTERVAL_MS = 1e3;
 var runtimeUiStateRefreshPromise = null;
 var lastRuntimeUiStateRefreshAt = 0;
 var lastRuntimeUiState;
@@ -4709,8 +4806,8 @@ function isDocumentVisible() {
   return typeof document === "undefined" || !document.visibilityState || document.visibilityState === "visible";
 }
 function hasRunningAction(uiState) {
-  return Object.values(uiState.actions).some(
-    (actions) => actions.some((action) => action.running)
+  return [...uiState.actions.service, ...uiState.actions.component].some(
+    (action) => action.running
   );
 }
 function getNextPollDelay() {
@@ -5230,6 +5327,14 @@ async function resolveOutboundProxyLink(outbound, fetchProxyLink) {
 var SECTIONS_REFRESH_INTERVAL_MS = 1e4;
 var LATENCY_TEST_BUTTON_CLASS = "dashboard-sections-grid-item-test-latency";
 var LATENCY_TEST_BUTTON_LABEL_CLASS = "dashboard-sections-grid-item-test-latency__label";
+var OUTBOUND_LATENCY_BUTTON_CLASS = "fkp_dashboard-page__outbound-grid__item__latency";
+var OUTBOUND_LATENCY_VALUE_CLASS = `${OUTBOUND_LATENCY_BUTTON_CLASS}-value`;
+var OUTBOUND_LATENCY_STATE_CLASSES = [
+  `${OUTBOUND_LATENCY_BUTTON_CLASS}--empty`,
+  `${OUTBOUND_LATENCY_BUTTON_CLASS}--green`,
+  `${OUTBOUND_LATENCY_BUTTON_CLASS}--yellow`,
+  `${OUTBOUND_LATENCY_BUTTON_CLASS}--red`
+];
 var sectionsRefreshTimer = null;
 var sectionsRefreshPromise = null;
 var sectionsRefreshQueued = false;
@@ -5242,6 +5347,7 @@ var pageUnloading = false;
 var followedLatencyJobs = /* @__PURE__ */ new Set();
 var handledLatencyJobs = /* @__PURE__ */ new Set();
 var latencyFetchingTargets = {};
+var latencyAckQueue = Promise.resolve();
 if (typeof window !== "undefined") {
   window.addEventListener("pagehide", () => {
     pageUnloading = true;
@@ -5392,9 +5498,12 @@ function setLatencyFetching(sectionName, fetching, local = false, progress, targ
     }
   });
 }
+function queueLatencyAck(jobId) {
+  latencyAckQueue = latencyAckQueue.catch(() => void 0).then(() => ForkopShellMethods.uiActionAck("latency", jobId));
+}
 async function completeLatencyTestJob(jobId, sectionName) {
-  setLatencyFetching(sectionName, false);
   if (pageUnloading) {
+    setLatencyFetching(sectionName, false);
     return;
   }
   if (jobId && handledLatencyJobs.has(jobId)) {
@@ -5402,32 +5511,40 @@ async function completeLatencyTestJob(jobId, sectionName) {
   }
   if (jobId) {
     handledLatencyJobs.add(jobId);
+    queueLatencyAck(jobId);
   }
-  if (jobId) {
-    void ForkopShellMethods.uiActionAck("latency", jobId);
+  try {
+    await fetchDashboardSections({ force: true });
+  } finally {
+    setLatencyFetching(sectionName, false);
   }
-  void fetchDashboardSections({ force: true });
 }
-async function followLatencyTestState(state) {
-  const jobId = state.job_id;
-  const sectionName = state.section || "";
-  if (!jobId || !sectionName || followedLatencyJobs.has(jobId)) {
-    return;
-  }
-  if (!state.running && handledLatencyJobs.has(jobId)) {
+async function followLatencyTestJob(jobId, sectionName) {
+  if (followedLatencyJobs.has(jobId)) {
     return;
   }
   followedLatencyJobs.add(jobId);
-  if (shouldShowLoadingForRestoredAction(state)) {
-    setLatencyFetching(sectionName, true);
-  }
   try {
-    if (state.running) {
-      await ForkopShellMethods.waitLatencyTestJob(jobId);
+    const response = await ForkopShellMethods.waitLatencyTestJob(
+      jobId,
+      (state) => {
+        if (!pageUnloading && state.running) {
+          setLatencyFetching(
+            sectionName,
+            true,
+            false,
+            state.progress,
+            state.latency_type === "proxy" ? state.tag : void 0
+          );
+        }
+      }
+    );
+    if (!response.success) {
+      throw new Error(response.error);
     }
     await completeLatencyTestJob(jobId, sectionName);
   } catch (error) {
-    logger.error("[DASHBOARD]", "followLatencyTestState failed", error);
+    logger.error("[DASHBOARD]", "followLatencyTestJob failed", error);
     if (!pageUnloading) {
       setLatencyFetching(sectionName, false);
     }
@@ -5435,13 +5552,40 @@ async function followLatencyTestState(state) {
     followedLatencyJobs.delete(jobId);
   }
 }
+function followLatencyTestState(state) {
+  const jobId = state.job_id;
+  const sectionName = state.section || "";
+  if (!jobId || !sectionName) {
+    return;
+  }
+  if (state.running) {
+    if (shouldShowLoadingForRestoredAction(state)) {
+      setLatencyFetching(
+        sectionName,
+        true,
+        false,
+        state.progress,
+        state.latency_type === "proxy" ? state.tag : void 0
+      );
+    }
+    void followLatencyTestJob(jobId, sectionName);
+    return;
+  }
+  if (handledLatencyJobs.has(jobId)) {
+    return;
+  }
+  void completeLatencyTestJob(jobId, sectionName).catch((error) => {
+    logger.error("[DASHBOARD]", "completeLatencyTestJob failed", error);
+    if (!pageUnloading) setLatencyFetching(sectionName, false);
+  });
+}
 function followDashboardActionsFromUiState(uiState) {
   for (const state of uiState.actions.latency || []) {
     if (state.running || state.job_id && state.section) {
-      void followLatencyTestState(state);
+      followLatencyTestState(state);
     } else if (state.job_id && !handledLatencyJobs.has(state.job_id)) {
       handledLatencyJobs.add(state.job_id);
-      void ForkopShellMethods.uiActionAck("latency", state.job_id);
+      queueLatencyAck(state.job_id);
     }
   }
 }
@@ -5615,17 +5759,17 @@ async function handleChooseOutbound(sectionName, selector, tag) {
 }
 function getInitialLatencyProgress(latencyType, tag) {
   if (latencyType !== "proxy_list") {
-    return { completed: 0, total: 1, failed: 0 };
+    return { completed: 0, total: 1, failed: 0, pending: [tag] };
   }
   try {
     const tags = JSON.parse(tag);
     if (!Array.isArray(tags)) {
       return void 0;
     }
-    const total = tags.filter(
+    const pending = tags.filter(
       (item) => typeof item === "string" && item.length > 0
-    ).length;
-    return total > 0 ? { completed: 0, total, failed: 0 } : void 0;
+    );
+    return pending.length > 0 ? { completed: 0, total: pending.length, failed: 0, pending } : void 0;
   } catch {
     return void 0;
   }
@@ -5641,9 +5785,6 @@ async function handleTestLatency(latencyType, sectionName, tag, timeout, target)
     getInitialLatencyProgress(latencyType, tag),
     target
   );
-  let jobId = "";
-  let ownsJobFollow = false;
-  let completed = false;
   try {
     const startResponse = await ForkopShellMethods.latencyTestStart(
       latencyType,
@@ -5654,25 +5795,10 @@ async function handleTestLatency(latencyType, sectionName, tag, timeout, target)
     if (!startResponse.success) {
       throw new Error(startResponse.error);
     }
-    jobId = startResponse.data.job_id;
-    if (followedLatencyJobs.has(jobId)) {
-      completed = true;
-      return;
-    }
-    followedLatencyJobs.add(jobId);
-    ownsJobFollow = true;
-    await ForkopShellMethods.waitLatencyTestJob(jobId);
-    await completeLatencyTestJob(jobId, sectionName);
-    completed = true;
+    await followLatencyTestJob(startResponse.data.job_id, sectionName);
   } catch (error) {
     logger.error("[DASHBOARD]", "handleTestLatency: failed", error);
-  } finally {
-    if (ownsJobFollow) {
-      followedLatencyJobs.delete(jobId);
-    }
-    if (!completed) {
-      setLatencyFetching(sectionName, false);
-    }
+    setLatencyFetching(sectionName, false);
   }
 }
 async function handleCopyOutbound(outbound) {
@@ -6134,8 +6260,15 @@ function shallowRecordEqual(left, right) {
   }
   return leftKeys.every((key) => left[key] === right[key]);
 }
+function hasSameLatencyCardStructure(left, right) {
+  return left.length === right.length && left.every(
+    (section, sectionIndex) => section.sectionName === right[sectionIndex]?.sectionName && section.outbounds.length === right[sectionIndex]?.outbounds.length && section.outbounds.every(
+      (outbound, outboundIndex) => outbound.code === right[sectionIndex]?.outbounds[outboundIndex]?.code
+    )
+  );
+}
 function canUpdateLatencyProgressInline(prev, next) {
-  return prev.loading === next.loading && prev.failed === next.failed && prev.data === next.data && shallowRecordEqual(
+  return prev.loading === next.loading && prev.failed === next.failed && (prev.data === next.data || Object.keys(next.latencyFetchingSections).length > 0 && hasSameLatencyCardStructure(prev.data, next.data)) && shallowRecordEqual(
     prev.latencyFetchingSections,
     next.latencyFetchingSections
   ) && shallowRecordEqual(
@@ -6153,11 +6286,12 @@ function findLatencyTestButton(container, sectionName) {
     )
   ).find((button) => button.dataset.latencySection === sectionName);
 }
-function updateLatencyProgressInline(sectionsWidget) {
+function updateLatencyProgressInline(prev, sectionsWidget) {
   const container = document.getElementById("dashboard-sections-grid");
   if (!container) {
     return false;
   }
+  const dataChanged = prev.data !== sectionsWidget.data;
   for (const section of sectionsWidget.data) {
     if (!sectionsWidget.latencyFetchingSections[section.sectionName]) {
       continue;
@@ -6174,6 +6308,66 @@ function updateLatencyProgressInline(sectionsWidget) {
     );
     if (label.textContent !== text) {
       label.textContent = text;
+    }
+    if (!dataChanged) {
+      continue;
+    }
+    const progress = sectionsWidget.latencyProgressSections[section.sectionName];
+    if (!Array.isArray(progress?.pending)) {
+      continue;
+    }
+    const pending = getPendingLatencyTags(section, progress);
+    const latencyButtons = Array.from(
+      container.querySelectorAll("[data-latency-targets]")
+    ).filter(
+      (latencyButton) => latencyButton.dataset.latencySection === section.sectionName
+    );
+    const exactTarget = latencyFetchingTargets[section.sectionName];
+    const hasExactTarget = section.outbounds.some(
+      (outbound) => outbound.code === exactTarget
+    );
+    for (const latencyButton of latencyButtons) {
+      let targets;
+      try {
+        const value = JSON.parse(latencyButton.dataset.latencyTargets || "[]");
+        if (!Array.isArray(value)) {
+          return false;
+        }
+        targets = value;
+      } catch {
+        return false;
+      }
+      const outbound = section.outbounds.find(
+        (item) => item.code === latencyButton.dataset.latencyCode
+      );
+      if (!outbound) {
+        return false;
+      }
+      const latencyValue = latencyButton.querySelector(
+        `.${OUTBOUND_LATENCY_VALUE_CLASS}`
+      );
+      if (!latencyValue) {
+        return false;
+      }
+      latencyValue.textContent = outbound.latency ? `${outbound.latency}ms` : "N/A";
+      latencyButton.classList.remove(...OUTBOUND_LATENCY_STATE_CLASSES);
+      latencyButton.classList.add(getOutboundLatencyClass(outbound.latency));
+      const active = hasExactTarget ? latencyButton.dataset.latencyCode === exactTarget : targets.some((tag) => pending.has(tag));
+      if (active === (latencyButton.getAttribute("aria-busy") === "true")) {
+        continue;
+      }
+      const icon = latencyButton.querySelector("svg");
+      if (!icon) {
+        return false;
+      }
+      icon.replaceWith(
+        active ? renderLoaderCircleIcon24() : renderRotateCcwIcon24()
+      );
+      if (active) {
+        latencyButton.setAttribute("aria-busy", "true");
+      } else {
+        latencyButton.removeAttribute("aria-busy");
+      }
     }
   }
   return true;
@@ -6419,7 +6613,7 @@ async function onStoreUpdate(next, prev, diff) {
     const inlineUpdated = canUpdateLatencyProgressInline(
       prev.sectionsWidget,
       next.sectionsWidget
-    ) && updateLatencyProgressInline(next.sectionsWidget);
+    ) && updateLatencyProgressInline(prev.sectionsWidget, next.sectionsWidget);
     if (!inlineUpdated) {
       renderSectionsWidget();
     }

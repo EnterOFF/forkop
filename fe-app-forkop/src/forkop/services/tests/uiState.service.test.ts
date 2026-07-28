@@ -75,6 +75,7 @@ describe('applyUiStateToStore', () => {
               completed: 2,
               total: 5,
               failed: 1,
+              pending: ['three', 'four', 'five'],
             },
           },
         ],
@@ -122,6 +123,7 @@ describe('applyUiStateToStore', () => {
         completed: 2,
         total: 5,
         failed: 1,
+        pending: ['three', 'four', 'five'],
       },
     });
     expect(state.updatesActions.zapretInstall.loading).toBe(true);
@@ -261,6 +263,88 @@ describe('applyUiStateToStore', () => {
         failed: 0,
       },
     });
+  });
+
+  it('applies bulk latency results with the matching progress state', () => {
+    store.set({
+      sectionsWidget: {
+        ...store.get().sectionsWidget,
+        data: [
+          {
+            withTagSelect: true,
+            code: 'main',
+            sectionName: 'main',
+            displayName: 'Main',
+            outbounds: [
+              {
+                code: 'proxy-a',
+                displayName: 'Proxy A',
+                latency: 100,
+                type: 'VLESS',
+                selected: false,
+              },
+              {
+                code: 'auto',
+                displayName: 'Auto',
+                latency: 200,
+                type: 'URLTest',
+                selected: true,
+                urlTestInfo: {
+                  code: 'auto',
+                  displayName: 'Auto',
+                  outbounds: [
+                    {
+                      code: 'proxy-b',
+                      displayName: 'Proxy B',
+                      latency: 200,
+                      type: 'Trojan',
+                      selected: true,
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    applyUiStateToStore(
+      createUiState({
+        latency: [
+          {
+            success: true,
+            running: true,
+            kind: 'latency',
+            latency_type: 'proxy_list',
+            section: 'main',
+            tag: '["proxy-a","auto"]',
+            job_id: 'latency-1',
+            progress: {
+              completed: 2,
+              total: 2,
+              failed: 0,
+              pending: [],
+              latencies: {
+                'proxy-a': 321,
+                'proxy-b': 456,
+              },
+            },
+          },
+        ],
+      }),
+    );
+
+    const state = store.get().sectionsWidget;
+    expect(state.latencyProgressSections.main.latencies).toEqual({
+      'proxy-a': 321,
+      'proxy-b': 456,
+    });
+    expect(state.data[0].outbounds[0].latency).toBe(321);
+    expect(state.data[0].outbounds[1].latency).toBe(456);
+    expect(state.data[0].outbounds[1].urlTestInfo?.outbounds[0].latency).toBe(
+      456,
+    );
   });
 
   it('maps a running reload action to the restart control', () => {

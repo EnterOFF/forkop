@@ -206,6 +206,8 @@ export namespace Forkop {
     completed: number;
     total: number;
     failed?: number;
+    pending?: string[];
+    latencies?: Record<string, number>;
   }
 
   interface SubscriptionTraffic {

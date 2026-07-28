@@ -211,6 +211,8 @@ case "$*" in
   *'127.0.0.1:9090/providers/proxies') printf '%s\n' '{"providers":{}}' ;;
   *'127.0.0.1:9090/proxies/provider%2Fnode/link') printf '%s\n' '{"url":"vless://id@example.com:443"}' ;;
   *'127.0.0.1:9090/proxies') printf '%s\n' '{"proxies":{"urltest":{"type":"URLTest"},"provider-urltest":{"type":"urltest"},"proxy-a":{"type":"VLESS"},"proxy-b":{"type":"Trojan"}}}' ;;
+  *'/group/urltest/delay'*) printf '%s\n' '{"urltest-member":2}' ;;
+  *'/group/provider-urltest/delay'*) printf '%s\n' '{"provider-member":3}' ;;
   *) printf '%s\n' '{"delay":1}' ;;
 esac
 SH
@@ -303,7 +305,17 @@ PATH="$fake_bin:$PATH" \
 JOB_STATE="$latency_state" node - <<'NODE'
 const fs = require("fs");
 const value = JSON.parse(fs.readFileSync(process.env.JOB_STATE, "utf8"));
-if (!value.progress || value.progress.completed !== 4 || value.progress.total !== 4 || value.progress.failed !== 0) {
+if (
+  !value.progress ||
+  value.progress.completed !== 4 ||
+  value.progress.total !== 4 ||
+  value.progress.failed !== 0 ||
+  value.progress.pending?.length !== 0 ||
+  value.progress.latencies?.["proxy-a"] !== 1 ||
+  value.progress.latencies?.["proxy-b"] !== 1 ||
+  value.progress.latencies?.["urltest-member"] !== 2 ||
+  value.progress.latencies?.["provider-member"] !== 3
+) {
   console.error("latency progress after proxy list mismatch");
   process.exit(1);
 }

@@ -1176,8 +1176,11 @@ function subscription_update_common(target_section, target_source_index) {
             if (selected_index > 0 && i + 1 != selected_index)
                 continue;
             found++;
-            if (!update_native_subscription_provider(native_subscription_provider_tag(section, i + 1), settings))
+            let tag = native_subscription_provider_tag(section, i + 1);
+            if (!update_native_subscription_provider(tag, settings)) {
+                log_message("Failed to refresh subscription provider " + tag, "error");
                 failed++;
+            }
         }
     }
 

@@ -258,6 +258,42 @@ export function getLatencyTestLabel(
   )}/${total}`;
 }
 
+export function getPendingLatencyTags(
+  section: Forkop.OutboundGroup,
+  latencyProgress?: Forkop.LatencyActionProgress,
+) {
+  const pending = new Set(latencyProgress?.pending || []);
+
+  for (const outbound of section.outbounds) {
+    const groupInfo = outbound.urlTestInfo || outbound.fallbackInfo;
+    if (!groupInfo || !pending.has(outbound.code)) {
+      continue;
+    }
+
+    for (const member of groupInfo.outbounds) {
+      pending.add(member.code);
+    }
+  }
+
+  return pending;
+}
+
+export function getOutboundLatencyClass(latency: number) {
+  if (!latency) {
+    return 'fkp_dashboard-page__outbound-grid__item__latency--empty';
+  }
+
+  if (latency < 800) {
+    return 'fkp_dashboard-page__outbound-grid__item__latency--green';
+  }
+
+  if (latency < 1500) {
+    return 'fkp_dashboard-page__outbound-grid__item__latency--yellow';
+  }
+
+  return 'fkp_dashboard-page__outbound-grid__item__latency--red';
+}
+
 function renderDefaultState({
   section,
   onChooseOutbound,
@@ -273,6 +309,12 @@ function renderDefaultState({
   subscriptionUpdating,
   selectorSwitchingTag,
 }: IRenderSectionsProps) {
+  const hasPendingLatencyState = Array.isArray(latencyProgress?.pending);
+  const pendingLatencyTags = getPendingLatencyTags(section, latencyProgress);
+  const hasExactLatencyTarget = section.outbounds.some(
+    (outbound) => outbound.code === latencyFetchingTarget,
+  );
+
   function testLatency() {
     if (section.withTagSelect) {
       return onTestLatency(
@@ -288,22 +330,6 @@ function renderDefaultState({
   }
 
   function renderOutbound(outbound: Forkop.Outbound) {
-    function getLatencyClass() {
-      if (!outbound.latency) {
-        return 'fkp_dashboard-page__outbound-grid__item__latency--empty';
-      }
-
-      if (outbound.latency < 800) {
-        return 'fkp_dashboard-page__outbound-grid__item__latency--green';
-      }
-
-      if (outbound.latency < 1500) {
-        return 'fkp_dashboard-page__outbound-grid__item__latency--yellow';
-      }
-
-      return 'fkp_dashboard-page__outbound-grid__item__latency--red';
-    }
-
     const canCopyLink =
       Boolean(outbound.canCopyLink) || isCopyableProxyLink(outbound.link);
     const selectorSwitching = Boolean(selectorSwitchingTag);
@@ -328,11 +354,22 @@ function renderDefaultState({
       ? 'proxy_list'
       : 'proxy';
     const latencyTarget = groupInfo ? groupTargets : outbound.code;
-    const outboundLatencyFetching =
-      latencyFetchingTarget ===
-      (Array.isArray(latencyTarget)
-        ? JSON.stringify(latencyTarget)
-        : latencyTarget);
+    const serializedLatencyTarget = Array.isArray(latencyTarget)
+      ? JSON.stringify(latencyTarget)
+      : latencyTarget;
+    const outboundLatencyFetching = latencyFetching
+      ? hasExactLatencyTarget
+        ? latencyFetchingTarget === serializedLatencyTarget
+        : hasPendingLatencyState
+          ? (Array.isArray(latencyTarget)
+              ? latencyTarget
+              : [latencyTarget]
+            ).some((tag) => pendingLatencyTags.has(tag))
+          : latencyFetchingTarget ===
+            (Array.isArray(latencyTarget)
+              ? JSON.stringify(latencyTarget)
+              : latencyTarget)
+      : false;
     const canTestOutboundLatency =
       showLatency && outbound.runtimeAvailable !== false && !latencyFetching;
     const className = [
@@ -352,7 +389,7 @@ function renderDefaultState({
     ]
       .filter(Boolean)
       .join(' ');
-    const latencyClass = getLatencyClass();
+    const latencyClass = getOutboundLatencyClass(outbound.latency);
     const latencyValue = outbound.latency ? `${outbound.latency}ms` : 'N/A';
     const latency = showLatency
       ? E(
@@ -363,6 +400,11 @@ function renderDefaultState({
             title: _('Test latency'),
             'aria-label': _('Test latency'),
             'aria-busy': outboundLatencyFetching ? 'true' : undefined,
+            'data-latency-section': section.sectionName,
+            'data-latency-code': outbound.code,
+            'data-latency-targets': JSON.stringify(
+              Array.isArray(latencyTarget) ? latencyTarget : [latencyTarget],
+            ),
             disabled: canTestOutboundLatency ? undefined : true,
             click: (event: MouseEvent) => {
               event.preventDefault();

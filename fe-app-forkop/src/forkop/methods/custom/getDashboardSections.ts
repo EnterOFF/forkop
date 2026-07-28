@@ -1333,124 +1333,131 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
   const providers = clashProviders.success
     ? clashProviders.data?.providers || {}
     : {};
-  const data = await Promise.all(
-    configSections
-      .filter(
-        (section) =>
-          section.enabled !== '0' && isConnectionAction(section.action),
-      )
-      .map(async (section) => {
-        const displayName = getDisplayName(section);
-        const sectionName = section['.name'];
-        const sectionAction = section.action;
-        const proxyConfigType = getSectionProxyConfigType(section);
-
-        if (isConnectionAction(sectionAction) && shouldUseProxyGroup(section)) {
-          const subscriptionSourceCount = getSubscriptionSourceCount(section);
-          const subscriptionEnabled = subscriptionSourceCount > 0;
-          const dashboardCache = await readDashboardSectionCache(sectionName);
-          const providerTags = getSectionProviderTags(dashboardCache);
-          const outboundMetadata = getOutboundMetadata(
-            dashboardCache,
-            providerTags,
-            proxies,
-          );
-          const subscriptionMetadata = subscriptionEnabled
-            ? getSubscriptionMetadata(
-                section,
-                subscriptionSourceCount,
-                providerTags,
-                providers,
-              )
-            : undefined;
-          const urltestGroups = getUrlTestGroups(dashboardCache);
-          const fallbackGroups = getFallbackGroups(dashboardCache);
-          const { selector, latencyTestCode, latencyTestCodes, outbounds } =
-            buildProxyGroupOutbounds(
-              section,
-              proxies,
-              outboundMetadata,
-              urltestGroups,
-              fallbackGroups,
-              providerTags.slice(0, subscriptionSourceCount),
-            );
-
-          return {
-            withTagSelect: true,
-            code: selector?.code || sectionName,
-            sectionName,
-            displayName,
-            action: sectionAction,
-            latencyTestCode,
-            latencyTestCodes,
-            proxyConfigType,
-            subscriptionSourceCount,
-            subscriptionMetadata,
-            outbounds,
-          };
-        }
-
-        if (sectionAction === 'vpn') {
-          const outboundTag = getOutboundTagBySection(sectionName);
-          const outbound = proxies.find((proxy) => proxy.code === outboundTag);
-
-          return {
-            withTagSelect: false,
-            code: outbound?.code || sectionName,
-            sectionName,
-            displayName,
-            action: sectionAction,
-            latencyTestTimeout: '10000',
-            outbounds: [
-              {
-                code: outbound?.code || sectionName,
-                displayName: section.interface || outbound?.value?.name || '',
-                latency: outbound?.value?.history?.[0]?.delay || 0,
-                type: outbound?.value?.type || '',
-                selected: true,
-                canCopyLink: false,
-                runtimeAvailable: Boolean(outbound),
-              },
-            ],
-          };
-        }
-
-        if (sectionAction === 'outbound') {
-          const outboundTag = getOutboundTagBySection(sectionName);
-          const outbound = proxies.find((proxy) => proxy.code === outboundTag);
-
-          return {
-            withTagSelect: false,
-            code: outbound?.code || sectionName,
-            sectionName,
-            displayName,
-            action: sectionAction,
-            outbounds: [
-              {
-                code: outbound?.code || sectionName,
-                displayName:
-                  getJsonOutboundDisplayName(section) ||
-                  outbound?.value?.name ||
-                  '',
-                latency: outbound?.value?.history?.[0]?.delay || 0,
-                type: outbound?.value?.type || '',
-                selected: true,
-                canCopyLink: false,
-              },
-            ],
-          };
-        }
-
-        return {
-          withTagSelect: false,
-          code: sectionName,
-          sectionName,
-          displayName,
-          action: sectionAction,
-          outbounds: [],
-        };
-      }),
+  const activeSections = configSections.filter(
+    (section) => section.enabled !== '0' && isConnectionAction(section.action),
   );
+  const dashboardCaches = new Map<string, DashboardSectionCache | undefined>();
+
+  for (const section of activeSections) {
+    if (shouldUseProxyGroup(section)) {
+      dashboardCaches.set(
+        section['.name'],
+        await readDashboardSectionCache(section['.name']),
+      );
+    }
+  }
+
+  const data = activeSections.map((section) => {
+    const displayName = getDisplayName(section);
+    const sectionName = section['.name'];
+    const sectionAction = section.action;
+    const proxyConfigType = getSectionProxyConfigType(section);
+
+    if (isConnectionAction(sectionAction) && shouldUseProxyGroup(section)) {
+      const subscriptionSourceCount = getSubscriptionSourceCount(section);
+      const subscriptionEnabled = subscriptionSourceCount > 0;
+      const dashboardCache = dashboardCaches.get(sectionName);
+      const providerTags = getSectionProviderTags(dashboardCache);
+      const outboundMetadata = getOutboundMetadata(
+        dashboardCache,
+        providerTags,
+        proxies,
+      );
+      const subscriptionMetadata = subscriptionEnabled
+        ? getSubscriptionMetadata(
+            section,
+            subscriptionSourceCount,
+            providerTags,
+            providers,
+          )
+        : undefined;
+      const urltestGroups = getUrlTestGroups(dashboardCache);
+      const fallbackGroups = getFallbackGroups(dashboardCache);
+      const { selector, latencyTestCode, latencyTestCodes, outbounds } =
+        buildProxyGroupOutbounds(
+          section,
+          proxies,
+          outboundMetadata,
+          urltestGroups,
+          fallbackGroups,
+          providerTags.slice(0, subscriptionSourceCount),
+        );
+
+      return {
+        withTagSelect: true,
+        code: selector?.code || sectionName,
+        sectionName,
+        displayName,
+        action: sectionAction,
+        latencyTestCode,
+        latencyTestCodes,
+        proxyConfigType,
+        subscriptionSourceCount,
+        subscriptionMetadata,
+        outbounds,
+      };
+    }
+
+    if (sectionAction === 'vpn') {
+      const outboundTag = getOutboundTagBySection(sectionName);
+      const outbound = proxies.find((proxy) => proxy.code === outboundTag);
+
+      return {
+        withTagSelect: false,
+        code: outbound?.code || sectionName,
+        sectionName,
+        displayName,
+        action: sectionAction,
+        latencyTestTimeout: '10000',
+        outbounds: [
+          {
+            code: outbound?.code || sectionName,
+            displayName: section.interface || outbound?.value?.name || '',
+            latency: outbound?.value?.history?.[0]?.delay || 0,
+            type: outbound?.value?.type || '',
+            selected: true,
+            canCopyLink: false,
+            runtimeAvailable: Boolean(outbound),
+          },
+        ],
+      };
+    }
+
+    if (sectionAction === 'outbound') {
+      const outboundTag = getOutboundTagBySection(sectionName);
+      const outbound = proxies.find((proxy) => proxy.code === outboundTag);
+
+      return {
+        withTagSelect: false,
+        code: outbound?.code || sectionName,
+        sectionName,
+        displayName,
+        action: sectionAction,
+        outbounds: [
+          {
+            code: outbound?.code || sectionName,
+            displayName:
+              getJsonOutboundDisplayName(section) ||
+              outbound?.value?.name ||
+              '',
+            latency: outbound?.value?.history?.[0]?.delay || 0,
+            type: outbound?.value?.type || '',
+            selected: true,
+            canCopyLink: false,
+          },
+        ],
+      };
+    }
+
+    return {
+      withTagSelect: false,
+      code: sectionName,
+      sectionName,
+      displayName,
+      action: sectionAction,
+      outbounds: [],
+    };
+  });
 
   return {
     success: true,

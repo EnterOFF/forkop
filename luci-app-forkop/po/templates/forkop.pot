@@ -1102,6 +1102,10 @@ msgstr ""
 msgid "Fix the highlighted fields and save again."
 msgstr ""
 
+#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:423
+msgid "Force detected P2P BitTorrent traffic to route directly."
+msgstr ""
+
 #: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8834
 msgid "Forced device routing"
 msgstr ""
@@ -1535,7 +1539,7 @@ msgstr ""
 msgid "Latency test failed"
 msgstr ""
 
-#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:522
+#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:531
 msgid "Latency test URL"
 msgstr ""
 
@@ -1622,8 +1626,8 @@ msgstr ""
 msgid "Maximum packet size for this tunnel. Leave empty to use the default value."
 msgstr ""
 
-#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:423
-msgid "Measure connection setup and TLS handshake delay for more comparable latency results."
+#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:522
+msgid "Includes connection setup and TLS handshake time. The measurement takes longer but provides more accurate and realistic results."
 msgstr ""
 
 #: src/forkop/tabs/dashboard/initController.ts:1480
@@ -2872,8 +2876,8 @@ msgstr ""
 msgid "Unexpected standalone token. Use explicit flags such as --name or --name=value."
 msgstr ""
 
-#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:422
-msgid "Unified Delay"
+#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:520
+msgid "Accurate latency measurement"
 msgstr ""
 
 #: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:53

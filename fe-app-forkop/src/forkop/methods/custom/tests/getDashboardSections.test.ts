@@ -235,6 +235,26 @@ describe('getDashboardSections', () => {
     await expect(getDashboardSections()).rejects.toThrow('cache read failed');
   });
 
+  it('reads dashboard section caches without parallel RPC bursts', async () => {
+    mocks.getConfigSections.mockResolvedValue([
+      proxySection(),
+      proxySection({ '.name': 'backup' }),
+    ]);
+    let activeReads = 0;
+    let maxActiveReads = 0;
+    mocks.dashboardCacheRead.mockImplementation(async () => {
+      activeReads++;
+      maxActiveReads = Math.max(maxActiveReads, activeReads);
+      await Promise.resolve();
+      activeReads--;
+      return '{}';
+    });
+
+    await getDashboardSections();
+
+    expect(maxActiveReads).toBe(1);
+  });
+
   it('hydrates URLTest details from the section cache and Clash API', async () => {
     mocks.getConfigSections.mockResolvedValue([proxySection()]);
     mocks.getClashApiProxies.mockResolvedValue({

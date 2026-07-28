@@ -416,17 +416,11 @@ function createSettingsContent(section, capabilities) {
   o.default = "0";
   o.rmempty = false;
 
-  o = section.option(form.Flag, "bittorrent_direct", _("Torrents directly"));
-  o.default = "0";
-  o.rmempty = false;
-
   o = section.option(
     form.Flag,
-    "unified_delay",
-    _("Unified Delay"),
-    _(
-      "Measure connection setup and TLS handshake delay for more comparable latency results.",
-    ),
+    "bittorrent_direct",
+    _("Torrents directly"),
+    _("Force detected P2P BitTorrent traffic to route directly."),
   );
   o.default = "0";
   o.rmempty = false;
@@ -519,6 +513,17 @@ function createSettingsContent(section, capabilities) {
 
     return _("Use sing-box duration format like 1d, 12h or 30m");
   };
+
+  o = section.option(
+    form.Flag,
+    "unified_delay",
+    _("Accurate latency measurement"),
+    _(
+      "Includes connection setup and TLS handshake time. The measurement takes longer but provides more accurate and realistic results.",
+    ),
+  );
+  o.default = "0";
+  o.rmempty = false;
 
   o = section.option(
     form.Value,

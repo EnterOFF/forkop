@@ -8,7 +8,6 @@ const UI_ACTION_RPC_TIMEOUT_MS = 15000;
 const UI_ACTION_TRANSIENT_RPC_GRACE_MS = 30000;
 const SERVICE_ACTION_TIMEOUT_MS = 2 * 60 * 1000;
 const SERVICE_ACTION_POLL_INTERVAL_MS = 1000;
-const LATENCY_TEST_TIMEOUT_MS = 30 * 1000;
 const LATENCY_TEST_POLL_INTERVAL_MS = 1000;
 const COMPONENT_ACTION_RPC_TIMEOUT_MS = 15000;
 const COMPONENT_ACTION_POLL_INTERVAL_MS = 1500;
@@ -462,12 +461,15 @@ export const ForkopShellMethods = {
       data: parsedResponse,
     } as Forkop.MethodSuccessResponse<Forkop.LatencyActionState>;
   },
-  waitLatencyTestJob: async (jobId: string, startedAt = Date.now()) => {
+  waitLatencyTestJob: async (
+    jobId: string,
+    onState?: (state: Forkop.LatencyActionState) => void,
+  ) => {
     const transientRpc = createTransientRpcGraceTracker(
       UI_ACTION_TRANSIENT_RPC_GRACE_MS,
     );
 
-    while (Date.now() - startedAt < LATENCY_TEST_TIMEOUT_MS) {
+    while (true) {
       await sleep(LATENCY_TEST_POLL_INTERVAL_MS);
 
       const response = await ForkopShellMethods.latencyTestStatus(jobId);
@@ -481,17 +483,11 @@ export const ForkopShellMethods = {
       }
 
       transientRpc.reset();
-      if (response.data.running) {
-        continue;
+      onState?.(response.data);
+      if (!response.data.running) {
+        return response;
       }
-
-      return response;
     }
-
-    return {
-      success: false,
-      error: _('Operation timed out'),
-    } as Forkop.MethodFailureResponse;
   },
   uiActionAck: async (
     kind: 'service' | 'latency' | 'component',
