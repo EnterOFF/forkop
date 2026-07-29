@@ -377,6 +377,9 @@ function add_server(config, section) {
 }
 
 function add_sniff_rule(config, section) {
+    if (option(section, "protocol", "vless") == "tailscale")
+        return;
+
     let rules = array_or_empty(config.route.rules);
     let rule = {
         action: "sniff",

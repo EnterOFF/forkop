@@ -2043,6 +2043,13 @@ function add_service_route_rules(config, sections) {
         }
     }
     if (first != null) {
+        if (option(first, "action", "") == "byedpi")
+            push(config.route.rules, {
+                action: "resolve",
+                inbound: tproxy_inbound_matcher(),
+                domain: runtime_constants.CHECK_PROXY_IP_DOMAIN,
+                server: runtime_constants.DNS_SERVER_TAG
+            });
         push(config.route.rules, {
             action: "route",
             inbound: tproxy_inbound_matcher(),
@@ -2092,6 +2099,14 @@ function section_by_name(sections, name) {
         if (as_string(section[".name"]) == name)
             return section;
     return null;
+}
+
+function has_direct_tailscale_server(servers) {
+    for (let server in servers)
+        if (option(server, "protocol", "vless") == "tailscale" &&
+            option(server, "routing_mode", "rules") == "direct")
+            return true;
+    return false;
 }
 
 function add_server_routes(config, servers, sections) {
@@ -2154,7 +2169,8 @@ function generate_config(output_path, service_address, mwan3_active, deferred_se
     let source_aware_dns = source_aware_dns_sources(sections);
     let config = base_config(settings, service_address, {
         mwan3_active: cli_bool(mwan3_active),
-        source_aware_dns: length(source_aware_dns) > 0
+        source_aware_dns: length(source_aware_dns) > 0,
+        direct_server_route: has_direct_tailscale_server(servers)
     });
     add_source_aware_dns_support(config, source_aware_dns);
     let taken = reserved_runtime_tag_set(config.outbounds);

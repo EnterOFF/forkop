@@ -18,8 +18,10 @@ function bool_value(value) {
 function config(settings, runtime) {
     let output_network_interface = option(settings, "output_network_interface", "");
     let mwan3_active = type(runtime) == "object" && bool_value(runtime.mwan3_active);
+    let direct_server_route = type(runtime) == "object" && bool_value(runtime.direct_server_route);
+    let source_aware_dns = type(runtime) == "object" && bool_value(runtime.source_aware_dns);
     let sniff_inbounds = [ runtime_constants.TPROXY_INBOUND_TAG, runtime_constants.TPROXY_INBOUND6_TAG, runtime_constants.DNS_INBOUND_TAG ];
-    if (type(runtime) == "object" && bool_value(runtime.source_aware_dns))
+    if (source_aware_dns)
         push(sniff_inbounds, runtime_constants.SOURCE_DNS_INBOUND_TAG);
     let result = {
         rules: [
@@ -29,13 +31,15 @@ function config(settings, runtime) {
         ],
         rule_set: [],
         final: runtime_constants.DIRECT_OUTBOUND_TAG,
-        auto_detect_interface: output_network_interface == "" && !mwan3_active,
+        auto_detect_interface: output_network_interface == "" && !mwan3_active && !direct_server_route,
         default_domain_resolver: type(runtime) == "object" && as_string(runtime.default_domain_resolver) != ""
             ? as_string(runtime.default_domain_resolver)
             : runtime_constants.DNS_SERVER_TAG,
         default_mark: runtime_constants.OUTBOUND_MARK
     };
 
+    if (source_aware_dns)
+        push(result.rules, { action: "reject", inbound: runtime_constants.SOURCE_DNS_INBOUND_TAG });
     if (output_network_interface != "")
         result.default_interface = output_network_interface;
     if (bool_option(settings, "disable_quic", false))

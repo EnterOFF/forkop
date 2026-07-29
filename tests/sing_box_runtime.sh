@@ -698,9 +698,10 @@ cat >"$WORK_DIR/provider-actions-fixture.json" <<'JSON'
     "service_listen_address": "127.0.0.1"
   },
   "section": [
+    { ".name": "bye", ".type": "section", "enabled": "1", "action": "byedpi", "domain_suffix": [ "bye.example" ] },
+    { ".name": "zap_disabled", ".type": "section", "enabled": "0", "action": "zapret", "domain_suffix": [ "disabled.example" ] },
     { ".name": "zap", ".type": "section", "enabled": "1", "action": "zapret", "domain_suffix": [ "zap.example" ] },
-    { ".name": "zap2", ".type": "section", "enabled": "1", "action": "zapret2", "domain_suffix": [ "zap2.example" ] },
-    { ".name": "bye", ".type": "section", "enabled": "1", "action": "byedpi", "domain_suffix": [ "bye.example" ] }
+    { ".name": "zap2", ".type": "section", "enabled": "1", "action": "zapret2", "domain_suffix": [ "zap2.example" ] }
   ]
 }
 JSON
@@ -1135,6 +1136,8 @@ for (let endpoint in server.endpoints || [])
 assert(tailscale_server && tailscale_server.type == "tailscale", "Tailscale server endpoint");
 assert(tailscale_server.detour == "proxy-out", "Tailscale server control-plane detour");
 assert(tailscale_server.advertise_exit_node === true, "Tailscale server always advertises an exit node");
+assert(server.route.auto_detect_interface === false, "direct Tailscale server does not pin advertised LAN routes to the default WAN");
+assert(route_rule(server, r => r.action == "sniff" && r.inbound == "server-tailnet-in") == null, "Tailscale endpoint is not sniffed");
 let open_socks = inbound(server, "server-open-in");
 assert(open_socks && open_socks.type == "socks" && open_socks.listen_port == 18081, "server open socks inbound");
 assert(open_socks.users == null, "disabled server socks auth omits users");
@@ -1175,6 +1178,7 @@ assert(route_rule(matchers, r => r.inbound == "proxy-mixed-in" && r.outbound == 
 let source_dns_in = inbound(matchers, "source-dns-in");
 assert(source_dns_in && source_dns_in.type == "direct" && source_dns_in.listen == "::" && source_dns_in.listen_port == 1603, "source-aware DNS uses one dual-stack inbound");
 assert(route_rule(matchers, r => r.action == "sniff" && contains(r.inbound, "source-dns-in")) != null, "source-aware DNS inbound is sniffed before hijacking");
+assert(route_rule(matchers, r => r.action == "reject" && r.inbound == "source-dns-in") != null, "non-DNS traffic cannot loop through the source-aware DNS listener");
 assert(dns_server(matchers, r => r.tag == "dnsmasq-server" && r.type == "udp" && r.server == "127.0.0.1" && r.server_port == 53) != null, "source-aware DNS uses the existing dnsmasq instance");
 let bypass_fake = dns_rule(matchers, r =>
     r.server == "fakeip-server" && contains(r.domain_suffix, "example.org") &&
@@ -1267,6 +1271,7 @@ let providers = cfg("providers");
 assert(outbound(providers, "zap-out").routing_mark == 0x01000001, "Zapret mark");
 assert(outbound(providers, "zap2-out").routing_mark == 0x02000001, "Zapret2 mark");
 assert(outbound(providers, "bye-out").type == "socks" && outbound(providers, "bye-out").server_port == 1080, "ByeDPI outbound");
+assert(route_rule(providers, r => r.action == "resolve" && contains(r.inbound, "tproxy-in") && r.domain == "ip.podkop.fyi" && r.server == "dns-server") != null, "ByeDPI service check resolves before routing");
 
 let vpn = cfg("vpn");
 assert(outbound(vpn, "renamed_awg-interface-1-out").bind_interface == "tun0", "renamed VPN interface outbound");
