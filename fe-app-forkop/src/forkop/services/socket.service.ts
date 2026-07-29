@@ -86,9 +86,20 @@ class SocketManager {
     });
 
     ws.addEventListener('close', () => {
+      if (this.sockets.get(url) !== ws) return;
+
+      this.sockets.delete(url);
       this.connected.set(url, false);
       logger.warn('[SOCKET]', `Disconnected: ${url}`);
       this.triggerError(url, 'Connection closed');
+      setTimeout(() => {
+        if (
+          !this.sockets.has(url) &&
+          (this.listeners.get(url)?.size || 0) > 0
+        ) {
+          this.connect(url);
+        }
+      }, 1000);
     });
 
     ws.addEventListener('error', (err) => {
@@ -137,11 +148,11 @@ class SocketManager {
     const ws = this.sockets.get(url);
     if (ws) {
       ws.close();
-      this.sockets.delete(url);
-      this.listeners.delete(url);
-      this.errorListeners.delete(url);
-      this.connected.delete(url);
     }
+    this.sockets.delete(url);
+    this.listeners.delete(url);
+    this.errorListeners.delete(url);
+    this.connected.delete(url);
   }
 
   disconnectAll(): void {

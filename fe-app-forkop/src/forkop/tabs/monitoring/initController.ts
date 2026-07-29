@@ -1455,8 +1455,14 @@ async function connectToConnectionsSocket(updatesId: number) {
         return;
       }
 
-      failed = true;
-      loading = false;
+      const failedSocketUrl = connectionsSocketUrl;
+      connectionsSocketUrl = '';
+      if (failedSocketUrl) {
+        socket.disconnect(failedSocketUrl);
+      }
+      failed = false;
+      loading = true;
+      startConnectionsPolling();
       renderConnections();
     },
   );

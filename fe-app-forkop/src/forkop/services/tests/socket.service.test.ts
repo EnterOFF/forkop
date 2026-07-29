@@ -38,6 +38,7 @@ describe('socket service', () => {
 
   afterEach(() => {
     socket.resetAll();
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -48,5 +49,15 @@ describe('socket service', () => {
     FakeWebSocket.instances[0].emit('error');
 
     expect(onError).toHaveBeenCalledOnce();
+  });
+
+  it('reconnects a subscribed socket after the server closes it', async () => {
+    vi.useFakeTimers();
+
+    socket.subscribe('ws://router.test', vi.fn());
+    FakeWebSocket.instances[0].emit('close');
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(FakeWebSocket.instances).toHaveLength(2);
   });
 });

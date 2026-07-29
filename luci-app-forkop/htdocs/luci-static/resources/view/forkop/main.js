@@ -3937,8 +3937,7 @@ async function createBaseApiRequest(fetchFn, options) {
 async function getFakeIpCheck() {
   return createBaseApiRequest(
     () => fetch(`https://${FAKEIP_CHECK_DOMAIN}/check`, {
-      method: "GET",
-      headers: { "Content-Type": "application/json" }
+      method: "GET"
     }),
     {
       operationName: "getFakeIpCheck",
@@ -3951,8 +3950,7 @@ async function getFakeIpCheck() {
 async function getIpCheck() {
   return createBaseApiRequest(
     () => fetch(`https://${IP_CHECK_DOMAIN}/check`, {
-      method: "GET",
-      headers: { "Content-Type": "application/json" }
+      method: "GET"
     }),
     {
       operationName: "getIpCheck",
@@ -5058,9 +5056,16 @@ var SocketManager = class _SocketManager {
       }
     });
     ws.addEventListener("close", () => {
+      if (this.sockets.get(url) !== ws) return;
+      this.sockets.delete(url);
       this.connected.set(url, false);
       logger.warn("[SOCKET]", `Disconnected: ${url}`);
       this.triggerError(url, "Connection closed");
+      setTimeout(() => {
+        if (!this.sockets.has(url) && (this.listeners.get(url)?.size || 0) > 0) {
+          this.connect(url);
+        }
+      }, 1e3);
     });
     ws.addEventListener("error", (err) => {
       logger.error("[SOCKET]", `Socket error for ${url}:`, err);
@@ -5102,11 +5107,11 @@ var SocketManager = class _SocketManager {
     const ws = this.sockets.get(url);
     if (ws) {
       ws.close();
-      this.sockets.delete(url);
-      this.listeners.delete(url);
-      this.errorListeners.delete(url);
-      this.connected.delete(url);
     }
+    this.sockets.delete(url);
+    this.listeners.delete(url);
+    this.errorListeners.delete(url);
+    this.connected.delete(url);
   }
   disconnectAll() {
     for (const url of this.sockets.keys()) {
@@ -11893,8 +11898,14 @@ async function connectToConnectionsSocket(updatesId) {
       if (!monitoringMounted || mountId !== monitoringMountId || updatesId !== connectionsUpdatesId || serviceAvailability !== "running") {
         return;
       }
-      failed = true;
-      loading = false;
+      const failedSocketUrl = connectionsSocketUrl;
+      connectionsSocketUrl = "";
+      if (failedSocketUrl) {
+        socket.disconnect(failedSocketUrl);
+      }
+      failed = false;
+      loading = true;
+      startConnectionsPolling();
       renderConnections();
     }
   );

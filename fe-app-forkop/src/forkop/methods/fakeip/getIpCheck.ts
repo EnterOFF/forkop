@@ -13,7 +13,6 @@ export async function getIpCheck(): Promise<
     () =>
       fetch(`https://${IP_CHECK_DOMAIN}/check`, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
       }),
     {
       operationName: 'getIpCheck',
