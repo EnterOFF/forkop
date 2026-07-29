@@ -9,6 +9,7 @@ let domain_config = require("config.domain");
 let connections = require("config.connections");
 let runtime_constants = require("singbox.constants");
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
+const IP_BIN = getenv("FORKOP_IP_BIN") || "/usr/libexec/ip-full";
 const DNS_SOURCE_SET = "forkop_dns_sources";
 const DNS_SOURCE6_SET = "forkop_dns_sources6";
 
@@ -1177,11 +1178,11 @@ function ensure_rt_table_entry(path, table_id, table_name) {
 }
 
 function tproxy_route4_present(table) {
-    return has_local_default_route_text(command_output_quiet_from_args([ "ip", "route", "list", "table", table ]), 4);
+    return has_local_default_route_text(command_output_quiet_from_args([ IP_BIN, "route", "list", "table", table ]), 4);
 }
 
 function tproxy_route6_present(table) {
-    return has_local_default_route_text(command_output_quiet_from_args([ "ip", "-6", "route", "list", "table", table ]), 6);
+    return has_local_default_route_text(command_output_quiet_from_args([ IP_BIN, "-6", "route", "list", "table", table ]), 6);
 }
 
 function tproxy_route_present(table) {
@@ -1189,11 +1190,11 @@ function tproxy_route_present(table) {
 }
 
 function tproxy_marking_rule4_present(table, mark) {
-    return has_tproxy_marking_rule_text(command_output_from_args([ "ip", "-4", "rule", "list" ]), table, mark);
+    return has_tproxy_marking_rule_text(command_output_from_args([ IP_BIN, "-4", "rule", "list" ]), table, mark);
 }
 
 function tproxy_marking_rule6_present(table, mark) {
-    return has_tproxy_marking_rule_text(command_output_from_args([ "ip", "-6", "rule", "list" ]), table, mark);
+    return has_tproxy_marking_rule_text(command_output_from_args([ IP_BIN, "-6", "rule", "list" ]), table, mark);
 }
 
 function tproxy_marking_rule_present(table, mark) {
@@ -1214,7 +1215,7 @@ function ensure_tproxy_route_rule(table, mark, rt_tables_path) {
 
     if (!tproxy_route4_present(table)) {
         log_debug("Added IPv4 TPROXY route");
-        if (!run_args([ "ip", "route", "add", "local", "0.0.0.0/0", "dev", "lo", "table", table ]) && !tproxy_route4_present(table)) {
+        if (!run_args([ IP_BIN, "route", "add", "local", "0.0.0.0/0", "dev", "lo", "table", table ]) && !tproxy_route4_present(table)) {
             log_fatal("Failed to add IPv4 route for tproxy. Aborted.");
             return false;
         }
@@ -1225,7 +1226,7 @@ function ensure_tproxy_route_rule(table, mark, rt_tables_path) {
 
     if (!tproxy_route6_present(table)) {
         log_debug("Added IPv6 TPROXY route");
-        if (!run_args([ "ip", "-6", "route", "add", "local", "::/0", "dev", "lo", "table", table ]) && !tproxy_route6_present(table)) {
+        if (!run_args([ IP_BIN, "-6", "route", "add", "local", "::/0", "dev", "lo", "table", table ]) && !tproxy_route6_present(table)) {
             log_fatal("Failed to add IPv6 route for tproxy. Aborted.");
             return false;
         }
@@ -1236,7 +1237,7 @@ function ensure_tproxy_route_rule(table, mark, rt_tables_path) {
 
     if (!tproxy_marking_rule4_present(table, mark)) {
         log_debug("Creating IPv4 TPROXY marking rule");
-        if (!run_args([ "ip", "-4", "rule", "add", "fwmark", as_string(mark) + "/" + as_string(mark), "table", table, "priority", "105" ]) && !tproxy_marking_rule4_present(table, mark)) {
+        if (!run_args([ IP_BIN, "-4", "rule", "add", "fwmark", as_string(mark) + "/" + as_string(mark), "table", table, "priority", "105" ]) && !tproxy_marking_rule4_present(table, mark)) {
             log_fatal("Failed to create IPv4 marking rule. Aborted.");
             return false;
         }
@@ -1247,7 +1248,7 @@ function ensure_tproxy_route_rule(table, mark, rt_tables_path) {
 
     if (!tproxy_marking_rule6_present(table, mark)) {
         log_debug("Creating IPv6 TPROXY marking rule");
-        if (!run_args([ "ip", "-6", "rule", "add", "fwmark", as_string(mark) + "/" + as_string(mark), "table", table, "priority", "105" ]) && !tproxy_marking_rule6_present(table, mark)) {
+        if (!run_args([ IP_BIN, "-6", "rule", "add", "fwmark", as_string(mark) + "/" + as_string(mark), "table", table, "priority", "105" ]) && !tproxy_marking_rule6_present(table, mark)) {
             log_fatal("Failed to create IPv6 marking rule. Aborted.");
             return false;
         }

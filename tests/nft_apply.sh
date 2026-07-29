@@ -178,6 +178,7 @@ export NFT_LOG
 export LOGGER_LOG
 export IP_LOG
 export SYSCTL_LOG
+export FORKOP_IP_BIN="$WORK_DIR/bin/ip"
 
 assert_eq "/tmp/forkop-cache/condition_rule_1_domain_domains" \
   "$(nft_ucode cache-path 1 /tmp/forkop-cache condition rule_1 domain domains)" \
