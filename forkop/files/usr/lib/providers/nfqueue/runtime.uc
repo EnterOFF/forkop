@@ -561,6 +561,16 @@ function external_queue_overlap(cfg) {
     return command_success(command);
 }
 
+function own_queue_rules_present(cfg, expected) {
+    let command = "nft list chain inet " + shell_quote(NFT_TABLE_NAME) + " mangle_output 2>/dev/null | " + module_command([
+        cfg.check_path,
+        "nft-queues-present",
+        cfg.queue_base,
+        "" + expected
+    ]);
+    return command_success(command);
+}
+
 function status_json(cfg) {
     let sections = enabled_sections(cfg);
     let configured = length(sections) > 0;
@@ -581,12 +591,14 @@ function status_json(cfg) {
     let legacy_runtime = legacy_runtime_path_present(cfg);
     let luci_installed = luci_app_installed(cfg);
     let config_state = runtime_config_status(cfg, sections);
+    let queue_rules_present = own_queue_rules_present(cfg, expected);
     let conflict = running > expected || queue_overlap || legacy_runtime;
     let ready = configured &&
         provider &&
         !conflict &&
         config_state.outbounds_configured &&
         config_state.routes_configured &&
+        queue_rules_present &&
         expected > 0 &&
         running == expected;
 
@@ -599,6 +611,8 @@ function status_json(cfg) {
         message = "legacy zapret runtime paths are still present and should be migrated";
     else if (running > expected || supervisors > expected)
         message = "unexpected Forkop-managed " + cfg.binary_name + " processes are running without matching action=" + cfg.action + " rules";
+    else if (configured && !queue_rules_present)
+        message = "action=" + cfg.action + " is configured, but its NFQUEUE rules are missing from " + NFT_TABLE_NAME + "/mangle_output";
     else if (configured && !ready)
         message = "action=" + cfg.action + " is configured, but the Forkop-managed " + cfg.binary_name + " runtime is not ready";
     else if (standalone_conflict)
@@ -629,6 +643,7 @@ function status_json(cfg) {
         queue_base: int(cfg.queue_base),
         queue_range_end: queue_range_end(cfg),
         queue_overlap,
+        queue_rules_present,
         ready,
         conflict,
         outbounds_configured: config_state.outbounds_configured,

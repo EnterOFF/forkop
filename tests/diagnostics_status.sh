@@ -126,6 +126,60 @@ grep -Fq '"--proxy", proxy' "$DIAGNOSTICS_RUNTIME" ||
 grep -Fq 'CHECK_PROXY_LOCK_DIR' "$DIAGNOSTICS_RUNTIME" ||
   fail "proxy diagnostics must serialize concurrent checks"
 
+diagnostics_bin="$WORK_DIR/diagnostics-bin"
+mkdir -p "$diagnostics_bin"
+cat >"$diagnostics_bin/dig" <<'SH'
+#!/usr/bin/env sh
+printf '%s\n' "$*" >"$DIG_ARGS_FILE"
+printf '%s\n' '203.0.113.7'
+SH
+chmod +x "$diagnostics_bin/dig"
+dns_result="$(
+  DIG_ARGS_FILE="$WORK_DIR/dig-args" PATH="$diagnostics_bin:$PATH" \
+    ucode -L "$FORKOP_LIB" "$DIAGNOSTICS_RUNTIME" dns-check-resolve-host-fixture example.com 127.0.0.1:5335 2
+)"
+[ "$dns_result" = "203.0.113.7" ] ||
+  fail "custom-port bootstrap DNS fixture did not resolve"
+[ "$(cat "$WORK_DIR/dig-args")" = "@127.0.0.1 -p 5335 example.com A +short +timeout=2 +tries=1" ] ||
+  fail "custom-port bootstrap DNS must pass the resolver port through dig -p"
+
+cat >"$diagnostics_bin/curl" <<'SH'
+#!/usr/bin/env sh
+exit 0
+SH
+cat >"$diagnostics_bin/sleep" <<'SH'
+#!/usr/bin/env sh
+exit 0
+SH
+cat >"$diagnostics_bin/nft" <<'SH'
+#!/usr/bin/env sh
+case "$*" in
+  "list table inet ForkopTable") exit 0 ;;
+  "list chain inet ForkopTable mangle")
+    printf '%s\n' 'counter packets 0 bytes 0'
+    ;;
+  "list chain inet ForkopTable priority_rules")
+    printf '%s\n' 'counter packets 4 bytes 256'
+    ;;
+  "list chain inet ForkopTable mangle_output"|"list chain inet ForkopTable proxy")
+    printf '%s\n' 'counter packets 1 bytes 64'
+    ;;
+  "list tables")
+    printf '%s\n' 'table inet ForkopTable'
+    ;;
+esac
+SH
+chmod +x "$diagnostics_bin/curl" "$diagnostics_bin/sleep" "$diagnostics_bin/nft"
+nft_status="$(FORKOP_LIB="$FORKOP_LIB" PATH="$diagnostics_bin:$PATH" \
+  ucode -L "$FORKOP_LIB" "$DIAGNOSTICS_RUNTIME" check-nft-rules)"
+JSON_VALUE="$nft_status" node - <<'NODE'
+const value = JSON.parse(process.env.JSON_VALUE);
+if (value.rules_mangle_counters !== 1) {
+  console.error('priority_rules traffic must satisfy the mangle counter diagnostic');
+  process.exit(1);
+}
+NODE
+
 masked_config="$WORK_DIR/forkop-masked"
 cat >"$masked_config" <<'EOF'
 config settings 'main'

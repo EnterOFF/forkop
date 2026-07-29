@@ -149,4 +149,20 @@ printf 'table inet x { chain y { queue num 4301 bypass } }\n' |
   ucode -L "$FORKOP_LIB" "$ZAPRET2_CHECK" nft-queue-overlap ForkopTable 4300 4555 >/dev/null ||
   fail "providers/zapret2/check.uc must own zapret2 queue overlap checks"
 
+printf '%s\n' \
+  'meta l4proto tcp counter queue num 4300 bypass' \
+  'meta l4proto udp counter queue num 4300 bypass' \
+  'meta l4proto tcp counter queue num 4301 bypass' \
+  'meta l4proto udp counter queue num 4301 bypass' |
+  ucode -L "$FORKOP_LIB" "$NFQUEUE_CHECK" nft-queues-present 4300 2 >/dev/null ||
+  fail "NFQUEUE status must accept complete TCP and UDP queue rules"
+
+if printf '%s\n' \
+  'meta l4proto tcp counter queue num 4300 bypass' \
+  'meta l4proto udp counter queue num 4300 bypass' \
+  'meta l4proto tcp counter queue num 4301 bypass' |
+  ucode -L "$FORKOP_LIB" "$NFQUEUE_CHECK" nft-queues-present 4300 2 >/dev/null 2>&1; then
+  fail "NFQUEUE status must reject a missing protocol queue rule"
+fi
+
 printf 'zapret runtime ownership checks passed\n'

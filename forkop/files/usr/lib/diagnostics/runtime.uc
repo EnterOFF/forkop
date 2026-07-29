@@ -3,6 +3,7 @@
 let fs = require("fs");
 let constants = require("core.constants");
 let core_ip = require("core.ip");
+let core_url = require("core.url");
 let uci_core = require("core.uci");
 let runtime_dns = require("singbox.dns");
 let netstat = require("core.netstat");
@@ -1293,9 +1294,18 @@ function dns_check_resolve_host(host, resolver, timeout_seconds) {
         return "";
 
     timeout_seconds = int(timeout_seconds || 2);
-    for (let line in split(command_output_from_args([
-        "dig", "@" + resolver, host, "A", "+short", "+timeout=" + as_string(timeout_seconds), "+tries=1"
-    ]), "\n")) {
+    let resolver_host = core_url.host(resolver);
+    let resolver_port = core_url.port(resolver);
+    if (resolver_host == "")
+        resolver_host = resolver;
+
+    let args = [ "dig", "@" + resolver_host ];
+    if (resolver_port != "")
+        push(args, "-p", resolver_port);
+    for (let arg in [ host, "A", "+short", "+timeout=" + as_string(timeout_seconds), "+tries=1" ])
+        push(args, arg);
+
+    for (let line in split(command_output_from_args(args), "\n")) {
         line = trim(as_string(line));
         if (valid_ipv4(line))
             return line;
@@ -1431,6 +1441,10 @@ function check_nft_rules() {
             let status = nft_chain_counter_status("mangle");
             rules_mangle_exist = status[0];
             rules_mangle_counters = status[1];
+        }
+        if (command_success_from_args([ "nft", "list", "chain", "inet", NFT_TABLE_NAME, "priority_rules" ])) {
+            let status = nft_chain_counter_status("priority_rules");
+            rules_mangle_counters = rules_mangle_counters || status[1];
         }
         if (command_success_from_args([ "nft", "list", "chain", "inet", NFT_TABLE_NAME, "mangle_output" ])) {
             let status = nft_chain_counter_status("mangle_output");
@@ -1950,6 +1964,12 @@ else if (mode == "check-sing-box")
     exit(check_sing_box());
 else if (mode == "sing-box-standard-ports-listening-fixture")
     sing_box_standard_ports_listening_fixture();
+else if (mode == "dns-check-resolve-host-fixture") {
+    let address = dns_check_resolve_host(ARGV[1], ARGV[2], ARGV[3]);
+    if (address == "")
+        exit(1);
+    print(address, "\n");
+}
 else if (mode == "check-inbounds-config")
     exit(check_inbounds_config());
 else if (mode == "check-inbounds")

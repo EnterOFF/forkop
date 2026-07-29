@@ -285,6 +285,30 @@ function nft_queue_overlap(own_table, range_start, range_end) {
     return false;
 }
 
+function nft_queues_present(range_start, count) {
+    range_start = int(range_start || 0);
+    count = int(count || 0);
+    if (count <= 0)
+        return false;
+
+    let matches = {};
+    for (let line in split(read_stdin(), "\n")) {
+        let fields = split(trim(as_string(line)), /[ \t\r\n]+/);
+        for (let i = 0; i + 2 < length(fields); i++) {
+            if (fields[i] != "queue" || fields[i + 1] != "num")
+                continue;
+            let queue = cleaned_queue_token(fields[i + 2]);
+            if (match(queue, /^[0-9]+$/) != null)
+                matches[queue] = int(matches[queue] || 0) + 1;
+        }
+    }
+
+    for (let queue = range_start; queue < range_start + count; queue++)
+        if (int(matches["" + queue] || 0) < 2)
+            return false;
+    return true;
+}
+
 function rewrite_legacy_runtime_path(legacy_path, provider_path) {
     let data = read_stdin();
     legacy_path = as_string(legacy_path);
@@ -335,6 +359,8 @@ function run(argv, usage_path) {
         validation_needles(argv[1]);
     else if (mode == "nft-queue-overlap")
         exit(nft_queue_overlap(argv[1], argv[2], argv[3]) ? 0 : 1);
+    else if (mode == "nft-queues-present")
+        exit(nft_queues_present(argv[1], argv[2]) ? 0 : 1);
     else if (mode == "rewrite-legacy-runtime-path")
         rewrite_legacy_runtime_path(argv[1], argv[2]);
     else if (mode == "stdin-contains")
@@ -342,7 +368,7 @@ function run(argv, usage_path) {
     else if (mode == "ps-matching-pids")
         ps_matching_pids(argv[1]);
     else {
-        warn("Usage: " + usage_path + " <summary|value-hint|option-hint|needles|nft-queue-overlap|rewrite-legacy-runtime-path|stdin-contains|ps-matching-pids> ...\n");
+        warn("Usage: " + usage_path + " <summary|value-hint|option-hint|needles|nft-queue-overlap|nft-queues-present|rewrite-legacy-runtime-path|stdin-contains|ps-matching-pids> ...\n");
         exit(1);
     }
 }
@@ -350,7 +376,8 @@ function run(argv, usage_path) {
 if (sourcepath(1) != null && sourcepath(1) != "") {
     return {
         run,
-        nft_queue_overlap
+        nft_queue_overlap,
+        nft_queues_present
     };
 }
 
