@@ -1331,13 +1331,7 @@ function validate_subscription_prefix(section, entry) {
 }
 
 function validate_subscription_request_profile(section, entry) {
-    if (connections.subscription_auto_hwid(section, entry))
-        return validate_subscription_prefix(section, entry);
-
-    if (connections.subscription_hwid(section, entry) != "")
-        return validate_subscription_prefix(section, entry);
-
-    fail_validation("Subscription source in rule '" + section_name(section) + "' has manual HWID enabled but HWID is empty. Fill HWID or enable auto-generation. Aborted.");
+    validate_subscription_prefix(section, entry);
 }
 
 function validate_subscription_filter(section, entry) {
@@ -1478,12 +1472,18 @@ function validate_rule(section, sections, context) {
 
             let urltest_filter_mode = connections.urltest_filter_mode(section, urltest_id);
             validate_urltest_filter_mode_value(urltest_filter_mode, name);
-            validate_required_duration_option(connections.urltest_check_interval(section, urltest_id), "rule." + name + ".urltest." + urltest_id + ".urltest_check_interval");
+            let check_interval = connections.urltest_check_interval(section, urltest_id);
+            validate_required_duration_option(check_interval, "rule." + name + ".urltest." + urltest_id + ".urltest_check_interval");
             validate_urltest_tolerance_value(connections.urltest_tolerance(section, urltest_id), name, urltest_id);
             validate_http_url_option(connections.urltest_testing_url(section, urltest_id), "rule." + name + ".urltest." + urltest_id + ".testing_url");
             let idle_timeout = connections.urltest_idle_timeout(section, urltest_id);
             if (idle_timeout != "")
                 validate_required_duration_option(idle_timeout, "rule." + name + ".urltest." + urltest_id + ".idle_timeout");
+            let effective_idle_timeout = idle_timeout != ""
+                ? idle_timeout
+                : as_string(singbox_constants.URLTEST_DEFAULT_IDLE_TIMEOUT || "30m");
+            if (duration_to_seconds_value(check_interval) > duration_to_seconds_value(effective_idle_timeout))
+                fail_validation("URLTest '" + urltest_id + "' in rule '" + name + "' has a check interval longer than its idle timeout. Increase the idle timeout or shorten the check interval. Aborted.");
 
             if (contains([ "include", "mixed" ], urltest_filter_mode)) {
                 for (let value in connections.urltest_include_regex(section, urltest_id))

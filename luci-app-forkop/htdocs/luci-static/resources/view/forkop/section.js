@@ -2462,13 +2462,7 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
     _("Enter the HWID sent with subscription requests"),
   );
   o.depends("auto_hwid", "0");
-  o.rmempty = false;
-  o.validate = function (itemId, value) {
-    if (optionMapValue(this, itemId, "auto_hwid") !== "0") {
-      return true;
-    }
-    return `${value || ""}`.trim() ? true : _("Enter HWID");
-  };
+  o.rmempty = true;
 
   o = itemSection.option(
     form.Flag,

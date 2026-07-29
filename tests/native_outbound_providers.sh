@@ -55,6 +55,13 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
       ".type": "subscription_url",
       "section": "proxy",
       "url": "https://example.com/auto"
+    },
+    {
+      ".name": "source_without_hwid",
+      ".type": "subscription_url",
+      "section": "proxy",
+      "url": "https://example.com/no-hwid",
+      "auto_hwid": "0"
     }
   ],
   "urltest": [
@@ -101,8 +108,9 @@ for (let outbound in config.outbounds || [])
 
 let remote = by_provider["proxy-subscription-1-provider"];
 let automatic = by_provider["proxy-subscription-2-provider"];
+let without_hwid = by_provider["proxy-subscription-3-provider"];
 let local = by_provider["proxy-manual-provider"];
-if (!remote || !automatic || !local)
+if (!remote || !automatic || !without_hwid || !local)
     die("native remote/local providers were not generated\n");
 if (remote.url != "https://example.com/subscription" || remote.user_agent[0] != "Happ")
     die("remote provider request profile was not preserved\n");
@@ -112,6 +120,8 @@ if (automatic.headers["X-HWID"][0] != getenv("EXPECTED_HWID"))
     die("automatic HWID diverged from the legacy router identity algorithm\n");
 if (remote.headers["X-HWID"][0] != "router-hwid" || remote.headers["X-Device-OS"][0] != "OpenWrt Linux")
     die("remote provider device headers were not preserved\n");
+if (without_hwid.headers["X-HWID"] != null)
+    die("disabled empty HWID must omit the request header\n");
 if (remote.download_detour != "hop-out" || remote.outbound_detour != "hop-out")
     die("provider download/cascade detours were not generated\n");
 if (remote.update_interval != "876000h")
@@ -130,12 +140,12 @@ if (local.outbound_detour != "hop-out")
     die("manual provider cascade detour was not generated\n");
 
 let selector = by_outbound["proxy-out"];
-if (!selector || length(selector.providers || []) != 3)
+if (!selector || length(selector.providers || []) != 4)
     die("section selector does not consume all providers\n");
 if (selector.exclude_provider_group_members != null || selector.exclude_provider_dependencies != null)
     die("subscription detour nodes must remain visible in the selector\n");
 let urltest = by_outbound["proxy-urltest-fast-out"];
-if (!urltest || length(urltest.providers || []) != 3)
+if (!urltest || length(urltest.providers || []) != 4)
     die("URLTest did not receive dynamic providers and filters\n");
 if (urltest.include_types != null || urltest.include_transports != null || urltest.include_securities != null || urltest.exclude_types != null || urltest.exclude_transports != null || urltest.exclude_securities != null)
     die("URLTest still contains removed parameter filters\n");

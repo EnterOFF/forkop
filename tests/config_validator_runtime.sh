@@ -374,7 +374,7 @@ cat >"$WORK_DIR/bad-subscription.json" <<'JSON'
 JSON
 assert_rejects "bad subscription" "$WORK_DIR/bad-subscription.json" "Configure User-Agent in the subscription item settings"
 
-cat >"$WORK_DIR/bad-manual-hwid.json" <<'JSON'
+cat >"$WORK_DIR/disabled-hwid.json" <<'JSON'
 {
   "settings": { ".name": "settings", ".type": "settings" },
   "section": [
@@ -391,7 +391,7 @@ cat >"$WORK_DIR/bad-manual-hwid.json" <<'JSON'
   ]
 }
 JSON
-assert_rejects "bad manual HWID" "$WORK_DIR/bad-manual-hwid.json" "manual HWID enabled but HWID is empty"
+validate_fixture "$WORK_DIR/disabled-hwid.json"
 
 cat >"$WORK_DIR/bad-latency-url.json" <<'JSON'
 {
@@ -421,6 +421,23 @@ cat >"$WORK_DIR/bad-urltest-tolerance.json" <<'JSON'
 }
 JSON
 assert_rejects "bad URLTest tolerance" "$WORK_DIR/bad-urltest-tolerance.json" "Use a number from 0 to 10000"
+
+cat >"$WORK_DIR/bad-urltest-idle-timeout.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "section": [
+    {
+      ".name": "proxy",
+      ".type": "section",
+      "enabled": "1",
+      "action": "proxy",
+      "urltest_enabled": "1",
+      "urltest_check_interval": "31m"
+    }
+  ]
+}
+JSON
+assert_rejects "URLTest interval longer than idle timeout" "$WORK_DIR/bad-urltest-idle-timeout.json" "check interval longer than its idle timeout"
 
 cat >"$WORK_DIR/bad-server-routing-bypass.json" <<'JSON'
 {

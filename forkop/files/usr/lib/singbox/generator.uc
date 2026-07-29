@@ -446,6 +446,8 @@ function subscription_hwid(section, source) {
     let configured = connections.subscription_hwid(section, source);
     if (configured != "")
         return configured;
+    if (!connections.subscription_auto_hwid(section, source))
+        return "";
 
     let mac = trim(as_string(fs.readfile("/sys/class/net/eth0/address")));
     if (mac == "")
@@ -457,14 +459,17 @@ function subscription_hwid(section, source) {
 }
 
 function subscription_headers(section, source) {
-    return {
-        "X-HWID": [ subscription_hwid(section, source) ],
+    let result = {
         "X-Device-OS": [ "OpenWrt Linux" ],
         "X-Device-Model": [ subscription_device_model() ],
         "X-Ver-OS": [ trim(as_string(fs.readfile("/proc/sys/kernel/osrelease"))) ],
         "Accept-Language": [ "ru-RU,en,*" ],
         "X-Device-Locale": [ "EN" ]
     };
+    let hwid = subscription_hwid(section, source);
+    if (hwid != "")
+        result["X-HWID"] = [ hwid ];
+    return result;
 }
 
 function subscription_user_agents(section, source) {
