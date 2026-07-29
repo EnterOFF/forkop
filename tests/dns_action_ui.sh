@@ -4,11 +4,13 @@ set -eo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SECTION_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js"
 LOCAL_DEVICES_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/local_devices.js"
+ACL_JSON="$ROOT_DIR/luci-app-forkop/root/usr/share/rpcd/acl.d/luci-app-forkop.json"
 
-node - "$SECTION_JS" "$LOCAL_DEVICES_JS" <<'NODE'
+node - "$SECTION_JS" "$LOCAL_DEVICES_JS" "$ACL_JSON" <<'NODE'
 const fs = require("fs");
 const source = fs.readFileSync(process.argv[2], "utf8");
 const localDevicesSource = fs.readFileSync(process.argv[3], "utf8");
+const acl = JSON.parse(fs.readFileSync(process.argv[4], "utf8"));
 
 function fail(message) {
   console.error(`FAIL: ${message}`);
@@ -44,9 +46,17 @@ if (source.slice(server, requiredIndex('"dns_detour_enabled"', server)).includes
 for (const expected of [
   '_("DNS server used by the resolver")',
   '_("DNS requests through section")',
-  '_("Add an HTTP(S) URL or local path. The format is detected automatically.")',
+  '"Add an HTTP(S) URL or local path. The format is detected automatically."',
 ]) {
   requiredIndex(expected);
+}
+for (const expected of ['"require uci"', '.load("dhcp")', 'uci.sections("dhcp", "host")']) {
+  if (!localDevicesSource.includes(expected)) {
+    fail(`static DHCP hosts are missing local-device contract: ${expected}`);
+  }
+}
+if (!acl["luci-app-forkop"]?.read?.uci?.includes("dhcp")) {
+  fail("local-device selector needs read access to DHCP UCI host sections");
 }
 
 const ruleSetOption = requiredIndex("const ruleSetOption = section.taboption(");

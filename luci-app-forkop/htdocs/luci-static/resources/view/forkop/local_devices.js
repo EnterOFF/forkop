@@ -1,6 +1,7 @@
 "use strict";
 "require baseclass";
 "require rpc";
+"require uci";
 "require ui";
 "require view.forkop.main as main";
 
@@ -104,7 +105,12 @@ function buildRouterIpMap(networkInterfaces) {
   return routerIps;
 }
 
-function buildLocalDeviceChoices(hostHints, dhcpLeases, networkInterfaces) {
+function buildLocalDeviceChoices(
+  hostHints,
+  dhcpLeases,
+  networkInterfaces,
+  staticHosts,
+) {
   const choices = {};
   const routerIps = buildRouterIpMap(networkInterfaces);
 
@@ -134,6 +140,18 @@ function buildLocalDeviceChoices(hostHints, dhcpLeases, networkInterfaces) {
     });
   }
 
+  if (Array.isArray(staticHosts)) {
+    staticHosts.forEach((host) => {
+      if (!host || typeof host !== "object") {
+        return;
+      }
+
+      normalizeOptionValues(host.ip).forEach((ip) => {
+        addLocalDeviceChoice(choices, ip, host.name);
+      });
+    });
+  }
+
   Object.keys(routerIps).forEach((ip) => {
     delete choices[ip];
   });
@@ -154,12 +172,17 @@ function loadLocalDeviceChoices() {
     callHostHints().catch(() => ({})),
     callDHCPLeases().catch(() => ({})),
     callNetworkInterfaceDump().catch(() => []),
+    uci
+      .load("dhcp")
+      .then(() => uci.sections("dhcp", "host"))
+      .catch(() => []),
   ])
-    .then(([hostHints, dhcpLeases, networkInterfaces]) => {
+    .then(([hostHints, dhcpLeases, networkInterfaces, staticHosts]) => {
       localDeviceChoicesCache = buildLocalDeviceChoices(
         hostHints,
         dhcpLeases,
         networkInterfaces,
+        staticHosts,
       );
       return localDeviceChoicesCache;
     })
