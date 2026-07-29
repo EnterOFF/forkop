@@ -586,33 +586,36 @@ function nft_source_match_args(section, family, sets) {
         : [ "ip", "saddr", "@" + as_string(sets.sources) ];
 }
 
-function nft_priority_rule_args(section, family, local_set, match_args, mark) {
+function nft_priority_rule_args(section, family, local_set, fakeip_range, match_args, mark) {
     let sets = section_priority_sets(section);
+    let ip_key = family == 6 ? "ip6" : "ip";
     let args = [];
     if (family == 4)
         append_array(args, nft_source_match_args(section, 4, sets));
     else
         append_array(args, nft_source_match_args(section, 6, sets));
-    append_array(args, [ family == 6 ? "ip6" : "ip", "daddr", "!=", "@" + as_string(local_set) ]);
+    append_array(args, [ ip_key, "daddr", "!=", "@" + as_string(local_set) ]);
+    if (section_priority_action(section) == "bypass")
+        append_array(args, [ ip_key, "daddr", "!=", fakeip_range ]);
     append_array(args, match_args);
     append_array(args, nft_priority_verdict_args(section_priority_action(section), mark));
     return args;
 }
 
-function nft_priority_prerouting_args(section, family, interface_set, local_set, match_args, mark) {
+function nft_priority_prerouting_args(section, family, interface_set, local_set, fakeip_range, match_args, mark) {
     let args = [ "iifname", "@" + as_string(interface_set) ];
-    append_array(args, nft_priority_rule_args(section, family, local_set, match_args, mark));
+    append_array(args, nft_priority_rule_args(section, family, local_set, fakeip_range, match_args, mark));
     return args;
 }
 
-function nft_add_priority_rule_pair(table, chain, section, interface_set, localv4_set, localv6_set, match4, match6, mark) {
+function nft_add_priority_rule_pair(table, chain, section, interface_set, localv4_set, localv6_set, fakeip_range, fakeip6_range, match4, match6, mark) {
     if (chain == "priority_rules") {
-        return nft_add_rule(table, chain, nft_priority_prerouting_args(section, 4, interface_set, localv4_set, match4, mark)) &&
-            nft_add_rule(table, chain, nft_priority_prerouting_args(section, 6, interface_set, localv6_set, match6, mark));
+        return nft_add_rule(table, chain, nft_priority_prerouting_args(section, 4, interface_set, localv4_set, fakeip_range, match4, mark)) &&
+            nft_add_rule(table, chain, nft_priority_prerouting_args(section, 6, interface_set, localv6_set, fakeip6_range, match6, mark));
     }
 
-    return nft_add_rule(table, chain, nft_priority_rule_args(section, 4, localv4_set, match4, mark)) &&
-        nft_add_rule(table, chain, nft_priority_rule_args(section, 6, localv6_set, match6, mark));
+    return nft_add_rule(table, chain, nft_priority_rule_args(section, 4, localv4_set, fakeip_range, match4, mark)) &&
+        nft_add_rule(table, chain, nft_priority_rule_args(section, 6, localv6_set, fakeip6_range, match6, mark));
 }
 
 function nft_fully_routed_priority_args(section, family, interface_set, local_set, fakeip_range, protocol, mark) {
@@ -677,22 +680,22 @@ function nft_add_section_priority_rules(table, section, interface_set, localv4_s
     let match_port6_udp = [ "udp", "dport", "@" + as_string(sets.ports) ];
 
     if (needs_plain_ip_rules &&
-        (!nft_add_priority_rule_pair(table, "priority_rules", section, interface_set, localv4_set, localv6_set, match_ip4, match_ip6, mark) ||
-            !nft_add_priority_rule_pair(table, "priority_output_rules", section, interface_set, localv4_set, localv6_set, match_ip4, match_ip6, mark)))
+        (!nft_add_priority_rule_pair(table, "priority_rules", section, interface_set, localv4_set, localv6_set, fakeip_range, fakeip6_range, match_ip4, match_ip6, mark) ||
+            !nft_add_priority_rule_pair(table, "priority_output_rules", section, interface_set, localv4_set, localv6_set, fakeip_range, fakeip6_range, match_ip4, match_ip6, mark)))
         return false;
 
     if (needs_ip_port_rules &&
-        (!nft_add_priority_rule_pair(table, "priority_rules", section, interface_set, localv4_set, localv6_set, match_ip_port4_tcp, match_ip_port6_tcp, mark) ||
-            !nft_add_priority_rule_pair(table, "priority_rules", section, interface_set, localv4_set, localv6_set, match_ip_port4_udp, match_ip_port6_udp, mark) ||
-            !nft_add_priority_rule_pair(table, "priority_output_rules", section, interface_set, localv4_set, localv6_set, match_ip_port4_tcp, match_ip_port6_tcp, mark) ||
-            !nft_add_priority_rule_pair(table, "priority_output_rules", section, interface_set, localv4_set, localv6_set, match_ip_port4_udp, match_ip_port6_udp, mark)))
+        (!nft_add_priority_rule_pair(table, "priority_rules", section, interface_set, localv4_set, localv6_set, fakeip_range, fakeip6_range, match_ip_port4_tcp, match_ip_port6_tcp, mark) ||
+            !nft_add_priority_rule_pair(table, "priority_rules", section, interface_set, localv4_set, localv6_set, fakeip_range, fakeip6_range, match_ip_port4_udp, match_ip_port6_udp, mark) ||
+            !nft_add_priority_rule_pair(table, "priority_output_rules", section, interface_set, localv4_set, localv6_set, fakeip_range, fakeip6_range, match_ip_port4_tcp, match_ip_port6_tcp, mark) ||
+            !nft_add_priority_rule_pair(table, "priority_output_rules", section, interface_set, localv4_set, localv6_set, fakeip_range, fakeip6_range, match_ip_port4_udp, match_ip_port6_udp, mark)))
         return false;
 
     if (has_port_only_matchers &&
-        (!nft_add_priority_rule_pair(table, "priority_rules", section, interface_set, localv4_set, localv6_set, match_port4_tcp, match_port6_tcp, mark) ||
-            !nft_add_priority_rule_pair(table, "priority_rules", section, interface_set, localv4_set, localv6_set, match_port4_udp, match_port6_udp, mark) ||
-            !nft_add_priority_rule_pair(table, "priority_output_rules", section, interface_set, localv4_set, localv6_set, match_port4_tcp, match_port6_tcp, mark) ||
-            !nft_add_priority_rule_pair(table, "priority_output_rules", section, interface_set, localv4_set, localv6_set, match_port4_udp, match_port6_udp, mark)))
+        (!nft_add_priority_rule_pair(table, "priority_rules", section, interface_set, localv4_set, localv6_set, fakeip_range, fakeip6_range, match_port4_tcp, match_port6_tcp, mark) ||
+            !nft_add_priority_rule_pair(table, "priority_rules", section, interface_set, localv4_set, localv6_set, fakeip_range, fakeip6_range, match_port4_udp, match_port6_udp, mark) ||
+            !nft_add_priority_rule_pair(table, "priority_output_rules", section, interface_set, localv4_set, localv6_set, fakeip_range, fakeip6_range, match_port4_tcp, match_port6_tcp, mark) ||
+            !nft_add_priority_rule_pair(table, "priority_output_rules", section, interface_set, localv4_set, localv6_set, fakeip_range, fakeip6_range, match_port4_udp, match_port6_udp, mark)))
         return false;
 
     return true;

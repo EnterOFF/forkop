@@ -531,8 +531,17 @@ cat >"$WORK_DIR/runtime-matchers-fixture.json" <<'JSON'
       "enabled": "1",
       "action": "bypass",
       "domain_suffix": [ "example.org" ],
-      "ip_cidr": [ "198.51.100.0/24" ],
-      "source_ip_cidr": [ "10.0.0.3/32" ]
+      "source_ip_cidr": [ "10.0.0.3/32" ],
+      "ports": [ "443" ]
+    },
+    {
+      ".name": "bypass_ruleset",
+      ".type": "section",
+      "enabled": "1",
+      "action": "bypass",
+      "rule_set": [ "https://example.com/bypass-port.srs" ],
+      "source_ip_cidr": [ "10.0.0.4/32" ],
+      "ports": [ "8443" ]
     },
     {
       ".name": "proxy",
@@ -1167,17 +1176,15 @@ let source_dns_in = inbound(matchers, "source-dns-in");
 assert(source_dns_in && source_dns_in.type == "direct" && source_dns_in.listen == "::" && source_dns_in.listen_port == 1603, "source-aware DNS uses one dual-stack inbound");
 assert(route_rule(matchers, r => r.action == "sniff" && contains(r.inbound, "source-dns-in")) != null, "source-aware DNS inbound is sniffed before hijacking");
 assert(dns_server(matchers, r => r.tag == "dnsmasq-server" && r.type == "udp" && r.server == "127.0.0.1" && r.server_port == 53) != null, "source-aware DNS uses the existing dnsmasq instance");
-let bypass_dnsmasq = dns_rule(matchers, r =>
-    r.type == "logical" && r.server == "dnsmasq-server" &&
-    length(r.rules || []) == 2 && contains(r.rules[0].domain_suffix, "example.org"));
-assert(bypass_dnsmasq != null, "filtered bypass probes dnsmasq before real DNS fallback");
-assert(contains(bypass_dnsmasq.rules[0].inbound, "source-dns-in"), "filtered bypass DNS is limited to source-aware DNS clients");
-assert(contains(bypass_dnsmasq.rules[0].source_ip_cidr, "10.0.0.3/32"), "filtered bypass DNS keeps the client source");
-assert(bypass_dnsmasq.rules[1].invert === true && contains(bypass_dnsmasq.rules[1].ip_cidr, "198.18.0.0/15") && contains(bypass_dnsmasq.rules[1].ip_cidr, "fc00::/18"), "filtered bypass rejects nested FakeIP answers");
-let bypass_real = dns_rule(matchers, r =>
-    r.server == "dns-server" && contains(r.domain_suffix, "example.org") &&
+let bypass_fake = dns_rule(matchers, r =>
+    r.server == "fakeip-server" && contains(r.domain_suffix, "example.org") &&
     contains(r.source_ip_cidr, "10.0.0.3/32"));
-assert(bypass_real != null && contains(bypass_real.query_type, "A") && contains(bypass_real.query_type, "AAAA"), "filtered bypass falls back to real address resolution");
+assert(bypass_fake != null, "domain and port bypass keeps FakeIP so sing-box can match the destination port");
+let bypass_port_ruleset = ruleset_url(matchers, "https://example.com/bypass-port.srs");
+assert(bypass_port_ruleset != null, "domain and port bypass rule set");
+assert(dns_rule(matchers, r =>
+    r.server == "fakeip-server" && contains(r.rule_set, bypass_port_ruleset.tag) &&
+    contains(r.source_ip_cidr, "10.0.0.4/32")) != null, "rule-set and port bypass keeps FakeIP domain identity");
 assert(dns_rule(matchers, r => r.server == "dns-server" && contains(r.domain_suffix, "example.org") && r.source_ip_cidr == null) == null, "filtered bypass no longer changes DNS for every device");
 assert(dns_rule(matchers, r => r.server == "fakeip-server" && contains(r.domain_suffix, "example.org") && r.source_ip_cidr == null) != null, "lower global proxy still gives FakeIP to other devices");
 let scoped_proxy_dns = dns_rule(matchers, r => r.server == "fakeip-server" && contains(r.domain_suffix, "proxy.example.org"));
@@ -1186,10 +1193,9 @@ let source_dns_fallback = dns_rule(matchers, r =>
     r.server == "dnsmasq-server" && r.type == null && r.domain == null &&
     r.domain_suffix == null && r.rule_set == null);
 assert(source_dns_fallback != null && contains(source_dns_fallback.source_ip_cidr, "10.0.0.3/32") && contains(source_dns_fallback.source_ip_cidr, "10.0.0.2/32") && contains(source_dns_fallback.source_ip_cidr, "2001:db8::2/128"), "unmatched source-aware DNS returns through dnsmasq");
-let bypass_probe_index = dns_rule_index(matchers, r => r.type == "logical" && r.server == "dnsmasq-server" && length(r.rules || []) > 0 && contains(r.rules[0].domain_suffix, "example.org"));
-let bypass_real_index = dns_rule_index(matchers, r => r.server == "dns-server" && contains(r.domain_suffix, "example.org") && contains(r.source_ip_cidr, "10.0.0.3/32"));
+let bypass_fake_index = dns_rule_index(matchers, r => r.server == "fakeip-server" && contains(r.domain_suffix, "example.org") && contains(r.source_ip_cidr, "10.0.0.3/32"));
 let proxy_below_bypass_index = dns_rule_index(matchers, r => r.server == "fakeip-server" && contains(r.domain_suffix, "example.org") && r.source_ip_cidr == null);
-assert(bypass_probe_index >= 0 && bypass_real_index > bypass_probe_index && proxy_below_bypass_index > bypass_real_index, "source-aware bypass keeps its section priority over lower proxy DNS");
+assert(bypass_fake_index >= 0 && proxy_below_bypass_index > bypass_fake_index, "source-aware port bypass keeps its section priority over lower proxy DNS");
 let scoped_proxy_index = dns_rule_index(matchers, r => r.server == "fakeip-server" && contains(r.domain, "source-priority.test") && contains(r.source_ip_cidr, "10.0.0.2/32"));
 let bypass_below_proxy_index = dns_rule_index(matchers, r => r.server == "dns-server" && contains(r.domain, "source-priority.test") && r.source_ip_cidr == null);
 assert(scoped_proxy_index >= 0 && bypass_below_proxy_index > scoped_proxy_index, "source-aware proxy keeps its section priority over lower bypass DNS");
@@ -1204,7 +1210,8 @@ assert(dns_rule(matchers, r => contains(r.domain_suffix, "commented.example")).s
 assert(dns_rule(matchers, r => contains(r.domain, "exact-comment.example")).server == "fakeip-server", "commented full domain generated");
 assert(dns_rule(matchers, r => contains(r.domain_keyword, "clip")).server == "fakeip-server", "commented keyword generated");
 assert(index(sprintf("%J", matchers), "ignored.example") < 0 && index(sprintf("%J", matchers), "ignored-full.example") < 0, "domain comments excluded from generated config");
-assert(route_rule(matchers, r => r.outbound == "bypass-out" && contains(r.domain_suffix, "example.org") && contains(r.source_ip_cidr, "10.0.0.3/32")) != null, "bypass fallback route");
+assert(route_rule(matchers, r => r.outbound == "bypass-out" && contains(r.domain_suffix, "example.org") && contains(r.source_ip_cidr, "10.0.0.3/32") && contains(r.port, 443)) != null, "domain bypass keeps its port matcher");
+assert(route_rule(matchers, r => r.outbound == "bypass-out" && contains(r.rule_set, bypass_port_ruleset.tag) && contains(r.source_ip_cidr, "10.0.0.4/32") && contains(r.port, 8443)) != null, "rule-set bypass keeps its port matcher");
 assert(route_rule(matchers, r => r.outbound == "proxy-out" && contains(r.domain_suffix, "xn--80aswg.xn--p1ai")) != null, "IDN suffix converted for route rule");
 assert(route_rule(matchers, r => r.outbound == "proxy-out" && contains(r.domain, "xn--e1afmkfd.xn--80akhbyknj4f")) != null, "IDN full domain converted for route rule");
 assert(route_rule(matchers, r => r.outbound == "proxy-out" && contains(r.domain_keyword, "xn--e1afmkfd")) != null, "IDN keyword converted for route rule");

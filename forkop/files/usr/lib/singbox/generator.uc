@@ -1612,8 +1612,13 @@ function push_dns_matcher_rule(config, rule) {
     push(config.dns.rules, rule);
 }
 
+function section_has_port_matchers(section) {
+    return length(list_option(section, "ports")) > 0 ||
+        length(rule_config.text_list_values(option(section, "ports_text", ""), "comma-space")) > 0;
+}
+
 function section_dns_server(section) {
-    return option(section, "action", "") == "bypass"
+    return option(section, "action", "") == "bypass" && !section_has_port_matchers(section)
         ? runtime_constants.DNS_SERVER_TAG
         : runtime_constants.FAKEIP_DNS_SERVER_TAG;
 }
@@ -1665,7 +1670,9 @@ function add_section_dns_matcher_rule(config, section, matchers, rewrite_ttl) {
     let source_ip_cidr = legacy_condition_values(section, "source_ip_cidr");
     add_source_dns_matchers(matchers, source_ip_cidr);
 
-    if (option(section, "action", "") == "bypass" && length(source_ip_cidr) > 0) {
+    if (option(section, "action", "") == "bypass" &&
+        !section_has_port_matchers(section) &&
+        length(source_ip_cidr) > 0) {
         add_source_aware_bypass_dns_rules(config, matchers, rewrite_ttl);
         return;
     }
