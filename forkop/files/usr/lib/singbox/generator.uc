@@ -504,61 +504,34 @@ function regex_escape(value) {
     return result;
 }
 
-function utf8_four_byte(codepoint) {
-    return chr(0xf0 | ((codepoint >> 18) & 0x07)) +
-        chr(0x80 | ((codepoint >> 12) & 0x3f)) +
-        chr(0x80 | ((codepoint >> 6) & 0x3f)) +
-        chr(0x80 | (codepoint & 0x3f));
-}
-
-function country_filter_pattern(country) {
-    country = uc(as_string(country));
-    if (match(country, /^[A-Z]{2}$/) == null)
-        return "";
-    let first = 0x1f1e6 + ord(substr(country, 0, 1)) - 65;
-    let second = 0x1f1e6 + ord(substr(country, 1, 1)) - 65;
-    return utf8_four_byte(first) + utf8_four_byte(second);
-}
-
-function filter_name_pattern(exact_names, regexes, countries) {
+function filter_name_pattern(exact_names, regex_pattern) {
     let parts = [];
     for (let value in array_or_empty(exact_names)) {
         value = trim(as_string(value));
         if (value != "")
             push(parts, "^(?:" + regex_escape(value) + ")$");
     }
-    for (let pattern in array_or_empty(regexes)) {
-        pattern = as_string(pattern);
-        if (pattern != "")
-            push(parts, "(?:" + pattern + ")");
-    }
-    for (let country in array_or_empty(countries)) {
-        let pattern = country_filter_pattern(country);
-        if (pattern != "")
-            push(parts, pattern);
-    }
+    regex_pattern = trim(as_string(regex_pattern));
+    if (regex_pattern != "")
+        push(parts, "(?:" + regex_pattern + ")");
     return length(parts) > 0 ? "(?:" + join("|", parts) + ")" : "";
 }
 
-function set_filter_side(result, side, pattern, require_match) {
+function set_filter_side(result, side, pattern) {
     if (pattern != "")
         result[side] = pattern;
-    else if (require_match)
-        result[side] = "a^";
 }
 
-function native_filter_options(mode,
-    include_names, include_regexes, include_countries,
-    exclude_names, exclude_regexes, exclude_countries) {
+function native_filter_options(enabled,
+    include_names, include_regex,
+    exclude_names, exclude_regex) {
     let result = {};
-    if (mode == "include" || mode == "mixed")
-        set_filter_side(result, "include",
-            filter_name_pattern(include_names, include_regexes, include_countries),
-            true);
-    if (mode == "exclude" || mode == "mixed")
-        set_filter_side(result, "exclude",
-            filter_name_pattern(exclude_names, exclude_regexes, exclude_countries),
-            false);
+    if (!enabled)
+        return result;
+    set_filter_side(result, "include",
+        filter_name_pattern(include_names, include_regex));
+    set_filter_side(result, "exclude",
+        filter_name_pattern(exclude_names, exclude_regex));
     return result;
 }
 
@@ -571,29 +544,27 @@ function merge_object(target, source) {
 function subscription_provider_filter(section, source) {
     let settings = connections.subscription_url_settings(section, source);
     return native_filter_options(
-        option(settings, "filter_mode", "disabled"),
-        list_option(settings, "include_outbounds"), list_option(settings, "include_regex"), list_option(settings, "include_countries"),
-        list_option(settings, "exclude_outbounds"), list_option(settings, "exclude_regex"), list_option(settings, "exclude_countries")
+        bool_option(settings, "filter_enabled", false),
+        list_option(settings, "include_outbounds"), option(settings, "include_regex", ""),
+        list_option(settings, "exclude_outbounds"), option(settings, "exclude_regex", "")
     );
 }
 
 function urltest_provider_filter(section, urltest_id) {
     return native_filter_options(
-        connections.urltest_filter_mode(section, urltest_id),
-        connections.urltest_include_outbounds(section, urltest_id), connections.urltest_include_regex(section, urltest_id), connections.urltest_include_countries(section, urltest_id),
-        connections.urltest_exclude_outbounds(section, urltest_id), connections.urltest_exclude_regex(section, urltest_id), connections.urltest_exclude_countries(section, urltest_id)
+        connections.urltest_filter_enabled(section, urltest_id),
+        connections.urltest_include_outbounds(section, urltest_id), connections.urltest_include_regex(section, urltest_id),
+        connections.urltest_exclude_outbounds(section, urltest_id), connections.urltest_exclude_regex(section, urltest_id)
     );
 }
 
 function fallback_level_provider_filter(group_id, level_id) {
     return native_filter_options(
-        connections.fallback_level_filter_mode(group_id, level_id),
+        connections.fallback_level_filter_enabled(group_id, level_id),
         connections.fallback_level_include_outbounds(group_id, level_id),
         connections.fallback_level_include_regex(group_id, level_id),
-        connections.fallback_level_include_countries(group_id, level_id),
         connections.fallback_level_exclude_outbounds(group_id, level_id),
-        connections.fallback_level_exclude_regex(group_id, level_id),
-        connections.fallback_level_exclude_countries(group_id, level_id)
+        connections.fallback_level_exclude_regex(group_id, level_id)
     );
 }
 
@@ -770,29 +741,11 @@ function urltest_idle_timeout(section, urltest_id) {
     return configured != "" ? configured : legacy_urltest_idle_timeout(section, urltest_id);
 }
 
-function supported_urltest_filter_mode(mode) {
-    return mode == "include" || mode == "exclude" || mode == "mixed";
-}
-
 function section_has_direct_fallback_level(section) {
     for (let group_id in connections.fallback_groups(section))
         for (let level_id in connections.fallback_levels(group_id))
             if (connections.fallback_level_direct(group_id, level_id))
                 return true;
-    return false;
-}
-
-function flag_country_metadata(state) {
-    return runtime_urltest.countries_from_flag_names(
-        object_or_empty(object_or_empty(state.outboundMetadata).names)
-    );
-}
-
-function array_contains(values, needle) {
-    for (let value in array_or_empty(values)) {
-        if (value == needle)
-            return true;
-    }
     return false;
 }
 
@@ -822,7 +775,10 @@ function tag_display_name(tag, names) {
 }
 
 function regex_match_set(tags, names, regexes) {
-    return object_keys_set(runtime_urltest.regex_matching_tag_array(tags, names, regexes));
+    let pattern = trim(as_string(regexes));
+    return object_keys_set(runtime_urltest.regex_matching_tag_array(
+        tags, names, pattern == "" ? [] : [ pattern ]
+    ));
 }
 
 function tag_name_filter_matches(tag, names, name_filter, regex_set) {
@@ -833,26 +789,18 @@ function tag_name_filter_matches(tag, names, name_filter, regex_set) {
     return regex_set[tag];
 }
 
-function tag_country_filter_matches(tag, countries, country_filter) {
-    let country = uc(as_string(object_or_empty(countries)[tag] || ""));
-    return country != "" && array_contains(country_filter, country);
-}
-
 function urltest_all_candidate_outbounds(urltest_candidate_tags) {
     return unique_string_array(urltest_candidate_tags);
 }
 
-function urltest_matching_candidate_outbounds(urltest_candidate_tags, names, countries, name_filter, regexes, country_filter) {
+function urltest_matching_candidate_outbounds(urltest_candidate_tags, names, name_filter, regexes) {
     names = object_or_empty(names);
-    countries = object_or_empty(countries);
-    country_filter = runtime_urltest.normalized_country_list(country_filter);
 
     let regex_set = regex_match_set(urltest_candidate_tags, names, regexes);
     let result = [];
 
     for (let tag in array_or_empty(urltest_candidate_tags)) {
-        if (tag_name_filter_matches(tag, names, name_filter, regex_set) ||
-            tag_country_filter_matches(tag, countries, country_filter))
+        if (tag_name_filter_matches(tag, names, name_filter, regex_set))
             push(result, tag);
     }
 
@@ -869,53 +817,49 @@ function urltest_exclude_outbounds(all_outbounds, excluded_outbounds) {
     return result;
 }
 
-function filter_candidate_outbounds(filter_mode, urltest_candidate_tags, names, countries,
-    include_names, include_regex, include_countries,
-    exclude_names, exclude_regex, exclude_countries) {
+function has_name_filter(names, regex_pattern) {
+    if (trim(as_string(regex_pattern)) != "")
+        return true;
+    for (let name in array_or_empty(names))
+        if (trim(as_string(name)) != "")
+            return true;
+    return false;
+}
+
+function filter_candidate_outbounds(enabled, urltest_candidate_tags, names,
+    include_names, include_regex,
+    exclude_names, exclude_regex) {
     let all_outbounds = urltest_all_candidate_outbounds(urltest_candidate_tags);
-    if (filter_mode == "" || filter_mode == "disabled")
-        return all_outbounds;
-    if (!supported_urltest_filter_mode(filter_mode))
+    if (!enabled)
         return all_outbounds;
 
     let include_outbounds = urltest_matching_candidate_outbounds(
         urltest_candidate_tags,
         names,
-        countries,
         include_names,
-        include_regex,
-        include_countries
+        include_regex
     );
     let exclude_outbounds = urltest_matching_candidate_outbounds(
         urltest_candidate_tags,
         names,
-        countries,
         exclude_names,
-        exclude_regex,
-        exclude_countries
+        exclude_regex
     );
-
-    if (filter_mode == "include")
-        return include_outbounds;
-    if (filter_mode == "exclude")
-        return urltest_exclude_outbounds(all_outbounds, exclude_outbounds);
-    if (filter_mode == "mixed")
-        return urltest_exclude_outbounds(include_outbounds, exclude_outbounds);
-    return all_outbounds;
+    let matched = has_name_filter(include_names, include_regex)
+        ? include_outbounds
+        : all_outbounds;
+    return urltest_exclude_outbounds(matched, exclude_outbounds);
 }
 
 function urltest_filtered_outbounds(section, urltest_id, urltest_candidate_tags, state) {
     return filter_candidate_outbounds(
-        connections.urltest_filter_mode(section, urltest_id),
+        connections.urltest_filter_enabled(section, urltest_id),
         urltest_candidate_tags,
         object_or_empty(object_or_empty(state.outboundMetadata).names),
-        flag_country_metadata(state),
         connections.urltest_include_outbounds(section, urltest_id),
         connections.urltest_include_regex(section, urltest_id),
-        connections.urltest_include_countries(section, urltest_id),
         connections.urltest_exclude_outbounds(section, urltest_id),
-        connections.urltest_exclude_regex(section, urltest_id),
-        connections.urltest_exclude_countries(section, urltest_id)
+        connections.urltest_exclude_regex(section, urltest_id)
     );
 }
 
@@ -924,16 +868,13 @@ function fallback_level_filtered_outbounds(group_id, level_id, urltest_candidate
         return [ runtime_constants.DIRECT_OUTBOUND_TAG ];
 
     return filter_candidate_outbounds(
-        connections.fallback_level_filter_mode(group_id, level_id),
+        connections.fallback_level_filter_enabled(group_id, level_id),
         urltest_candidate_tags,
         object_or_empty(object_or_empty(state.outboundMetadata).names),
-        flag_country_metadata(state),
         connections.fallback_level_include_outbounds(group_id, level_id),
         connections.fallback_level_include_regex(group_id, level_id),
-        connections.fallback_level_include_countries(group_id, level_id),
         connections.fallback_level_exclude_outbounds(group_id, level_id),
-        connections.fallback_level_exclude_regex(group_id, level_id),
-        connections.fallback_level_exclude_countries(group_id, level_id)
+        connections.fallback_level_exclude_regex(group_id, level_id)
     );
 }
 
@@ -955,7 +896,7 @@ function fallback_levels_with_outbounds(group_id, urltest_candidate_tags, state)
             displayName: connections.fallback_level_display_name(group_id, level_id),
             order: int(connections.fallback_level_order(group_id, level_id), 10),
             direct: connections.fallback_level_direct(group_id, level_id),
-            filter_mode: connections.fallback_level_filter_mode(group_id, level_id),
+            filter_enabled: connections.fallback_level_filter_enabled(group_id, level_id),
             outbounds
         });
     }
@@ -2295,22 +2236,6 @@ function array_append_string(value) {
     write_json(result);
 }
 
-function normalized_country_list() {
-    write_json(runtime_urltest.normalized_country_list(read_stdin_json()));
-}
-
-function urltest_filter(mode, tags_path, names_path, countries_path, names_filter_path, regex_tags_path, countries_filter_path) {
-    write_json(runtime_urltest.filter_array(
-        mode,
-        read_json_file(tags_path),
-        read_json_file(names_path),
-        read_json_file(countries_path),
-        read_json_file(names_filter_path),
-        read_json_file(regex_tags_path),
-        read_json_file(countries_filter_path)
-    ));
-}
-
 function object_nonempty_stdin() {
     let value = read_stdin_json();
     return (type(value) == "array" || type(value) == "object") && length(value) > 0;
@@ -2342,10 +2267,6 @@ else if (mode == "stdin-first-field")
     stdin_first_field();
 else if (mode == "array-append-string")
     array_append_string(ARGV[1]);
-else if (mode == "normalized-country-list")
-    normalized_country_list();
-else if (mode == "urltest-filter")
-    urltest_filter(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7]);
 else if (mode == "object-nonempty")
     exit(object_nonempty_stdin() ? 0 : 1);
 else {

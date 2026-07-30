@@ -23,8 +23,8 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
       "action": "connection",
       "subscription_urls": [ "https://xray.example/sub" ],
       "urltest_enabled": "1",
-      "urltest_filter_mode": "include",
-      "urltest_include_regex": [ "Riga" ]
+      "urltest_filter_enabled": "1",
+      "urltest_include_regex": "Riga"
     }
   ]
 }

@@ -311,11 +311,6 @@ function stdin_first_line_field(field_index) {
         print(fields[field_index - 1], "\n");
 }
 
-function country_code_valid(value) {
-    value = uc(as_string(value));
-    return match(value, /^[A-Z][A-Z]$/) != null;
-}
-
 function enum_valid(value, start_index) {
     value = as_string(value);
     for (let i = start_index; i < length(ARGV); i++)
@@ -986,27 +981,6 @@ function validate_http_url_option(value, label) {
     fail_validation("Invalid URL value for " + label + ": " + value + ". Use http:// or https:// URL. Aborted.");
 }
 
-function validate_country_code_value(value, section) {
-    if (as_string(value) == "" || country_code_valid(value))
-        return;
-
-    fail_validation("Invalid country code '" + value + "' in rule '" + section + "'. Aborted.");
-}
-
-function validate_urltest_filter_mode_value(value, section) {
-    if (as_string(value) == "" || contains([ "disabled", "exclude", "include", "mixed" ], value))
-        return;
-
-    fail_validation("Invalid URLTest filter mode '" + value + "' in rule '" + section + "'. Aborted.");
-}
-
-function validate_fallback_filter_mode_value(value, section, group_id, level_id) {
-    if (contains([ "disabled", "exclude", "include", "mixed" ], value))
-        return;
-
-    fail_validation("Invalid Fallback filter mode '" + value + "' in rule '" + section + "', fallback '" + group_id + "', level '" + level_id + "'. Aborted.");
-}
-
 function validate_urltest_regex_value(value, section) {
     if (as_string(value) == "" || regex_valid(value))
         return;
@@ -1058,7 +1032,11 @@ function validate_fallback_group(section, group_id) {
 
     validate_required_duration_option(connections.fallback_group_blacklist_timeout(section, group_id), "rule." + name + ".fallback." + group_id + ".blacklist_timeout");
 
-    for (let level_id in connections.fallback_levels(group_id)) {
+    let levels = connections.fallback_levels(group_id);
+    if (length(levels) == 0)
+        fail_validation("Fallback group '" + group_id + "' in rule '" + name + "' has no levels. Add at least one Fallback level. Aborted.");
+
+    for (let level_id in levels) {
         validate_fallback_identifier_value(level_id, name);
         if (trim(connections.fallback_level_display_name(group_id, level_id)) == "")
             fail_validation("Fallback level '" + level_id + "' in rule '" + name + "', fallback '" + group_id + "' has no display name. Aborted.");
@@ -1067,20 +1045,11 @@ function validate_fallback_group(section, group_id) {
         if (connections.fallback_level_direct(group_id, level_id))
             continue;
 
-        let filter_mode = connections.fallback_level_filter_mode(group_id, level_id);
-        validate_fallback_filter_mode_value(filter_mode, name, group_id, level_id);
-        if (filter_mode == "include" || filter_mode == "mixed") {
-            for (let value in connections.fallback_level_include_countries(group_id, level_id))
-                validate_country_code_value(value, name);
-            for (let value in connections.fallback_level_include_regex(group_id, level_id))
-                validate_urltest_regex_value(value, name);
-        }
-        if (filter_mode == "exclude" || filter_mode == "mixed") {
-            for (let value in connections.fallback_level_exclude_countries(group_id, level_id))
-                validate_country_code_value(value, name);
-            for (let value in connections.fallback_level_exclude_regex(group_id, level_id))
-                validate_urltest_regex_value(value, name);
-        }
+        if (!connections.fallback_level_filter_enabled(group_id, level_id))
+            continue;
+
+        validate_urltest_regex_value(connections.fallback_level_include_regex(group_id, level_id), name);
+        validate_urltest_regex_value(connections.fallback_level_exclude_regex(group_id, level_id), name);
     }
 }
 
@@ -1337,22 +1306,11 @@ function validate_subscription_request_profile(section, entry) {
 function validate_subscription_filter(section, entry) {
     let name = section_name(section);
     let settings = connections.subscription_url_settings(section, entry);
-    let filter_mode = option(settings, "filter_mode", "disabled");
-    validate_urltest_filter_mode_value(filter_mode, name);
+    if (!bool_option(settings, "filter_enabled", false))
+        return;
 
-    if (filter_mode == "include" || filter_mode == "mixed") {
-        for (let value in list_option(settings, "include_countries"))
-            validate_country_code_value(value, name);
-        for (let value in list_option(settings, "include_regex"))
-            validate_urltest_regex_value(value, name);
-    }
-
-    if (filter_mode == "exclude" || filter_mode == "mixed") {
-        for (let value in list_option(settings, "exclude_countries"))
-            validate_country_code_value(value, name);
-        for (let value in list_option(settings, "exclude_regex"))
-            validate_urltest_regex_value(value, name);
-    }
+    validate_urltest_regex_value(option(settings, "include_regex", ""), name);
+    validate_urltest_regex_value(option(settings, "exclude_regex", ""), name);
 }
 
 function validate_provider_strategy(kind, section, context) {
@@ -1470,8 +1428,6 @@ function validate_rule(section, sections, context) {
         for (let urltest_id in connections.urltests(section)) {
             validate_urltest_identifier_value(urltest_id, name);
 
-            let urltest_filter_mode = connections.urltest_filter_mode(section, urltest_id);
-            validate_urltest_filter_mode_value(urltest_filter_mode, name);
             let check_interval = connections.urltest_check_interval(section, urltest_id);
             validate_required_duration_option(check_interval, "rule." + name + ".urltest." + urltest_id + ".urltest_check_interval");
             validate_urltest_tolerance_value(connections.urltest_tolerance(section, urltest_id), name, urltest_id);
@@ -1485,17 +1441,9 @@ function validate_rule(section, sections, context) {
             if (duration_to_seconds_value(check_interval) > duration_to_seconds_value(effective_idle_timeout))
                 fail_validation("URLTest '" + urltest_id + "' in rule '" + name + "' has a check interval longer than its idle timeout. Increase the idle timeout or shorten the check interval. Aborted.");
 
-            if (contains([ "include", "mixed" ], urltest_filter_mode)) {
-                for (let value in connections.urltest_include_regex(section, urltest_id))
-                    validate_urltest_regex_value(value, name);
-                for (let value in connections.urltest_include_countries(section, urltest_id))
-                    validate_country_code_value(value, name);
-            }
-            if (contains([ "exclude", "mixed" ], urltest_filter_mode)) {
-                for (let value in connections.urltest_exclude_countries(section, urltest_id))
-                    validate_country_code_value(value, name);
-                for (let value in connections.urltest_exclude_regex(section, urltest_id))
-                    validate_urltest_regex_value(value, name);
+            if (connections.urltest_filter_enabled(section, urltest_id)) {
+                validate_urltest_regex_value(connections.urltest_include_regex(section, urltest_id), name);
+                validate_urltest_regex_value(connections.urltest_exclude_regex(section, urltest_id), name);
             }
         }
 
@@ -1977,8 +1925,6 @@ let mode = ARGV[0] || "";
 
 if (mode == "stdin-first-line-field")
     stdin_first_line_field(ARGV[1]);
-else if (mode == "country-code-valid")
-    exit(country_code_valid(ARGV[1]) ? 0 : 1);
 else if (mode == "enum-valid")
     exit(enum_valid(ARGV[1], 2) ? 0 : 1);
 else if (mode == "regex-valid")

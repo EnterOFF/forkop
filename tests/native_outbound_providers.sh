@@ -46,9 +46,9 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
       "download_via_proxy_section": "hop",
       "prefix_nodes": "1",
       "node_prefix": "Main",
-      "filter_mode": "mixed",
-      "include_regex": [ "^(US|DE)" ],
-      "exclude_regex": [ "expired" ]
+      "filter_enabled": "1",
+      "include_regex": "^(US|DE)",
+      "exclude_regex": "expired"
     },
     {
       ".name": "source_auto",
@@ -69,9 +69,9 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
       ".name": "fast",
       ".type": "urltest",
       "section": "proxy",
-      "filter_mode": "mixed",
-      "include_countries": [ "US" ],
-      "exclude_regex": [ "slow" ]
+      "filter_enabled": "1",
+      "include_regex": "🇺🇸",
+      "exclude_regex": "slow"
     }
   ]
 }
@@ -150,7 +150,7 @@ if (!urltest || length(urltest.providers || []) != 4)
 if (urltest.include_types != null || urltest.include_transports != null || urltest.include_securities != null || urltest.exclude_types != null || urltest.exclude_transports != null || urltest.exclude_securities != null)
     die("URLTest still contains removed parameter filters\n");
 if (index(urltest.include, "🇺🇸") < 0 || index(urltest.exclude, "slow") < 0)
-    die("URLTest name/country regex filters were not compiled\n");
+    die("URLTest name regex filters were not compiled\n");
 ' "$output"
 
 printf 'native outbound providers tests passed\n'

@@ -56,7 +56,7 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
       "urltest_check_interval": "3m",
       "urltest_tolerance": "50",
       "urltest_testing_url": "https://www.gstatic.com/generate_204",
-      "urltest_filter_mode": "disabled",
+      "urltest_filter_enabled": "0",
       "selector_proxy_links": [
         "vless://00000000-0000-4000-8000-000000000001@example.com:443?encryption=none&security=tls&sni=example.com#first",
         "vless://00000000-0000-4000-8000-000000000002@example.org:443?encryption=none&security=tls&sni=example.org#second"

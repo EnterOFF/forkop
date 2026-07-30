@@ -1657,6 +1657,219 @@ function remove_proxy_parameter_filters(ctx) {
     }
 }
 
+function filter_utf8_four_byte(codepoint) {
+    return chr(0xf0 | ((codepoint >> 18) & 0x07)) +
+        chr(0x80 | ((codepoint >> 12) & 0x3f)) +
+        chr(0x80 | ((codepoint >> 6) & 0x3f)) +
+        chr(0x80 | (codepoint & 0x3f));
+}
+
+function country_flag_pattern(country) {
+    country = uc(trim(as_string(country)));
+    if (match(country, /^[A-Z]{2}$/) == null)
+        return "";
+    let first = 0x1f1e6 + ord(substr(country, 0, 1)) - 65;
+    let second = 0x1f1e6 + ord(substr(country, 1, 1)) - 65;
+    return filter_utf8_four_byte(first) + filter_utf8_four_byte(second);
+}
+
+function unique_values_from_options(section, option_names) {
+    let result = [];
+    let seen = {};
+    for (let option_name in option_names) {
+        for (let value in option_list_values(section, option_name)) {
+            value = trim(as_string(value));
+            if (value == "" || seen[value])
+                continue;
+            seen[value] = true;
+            push(result, value);
+        }
+    }
+    return result;
+}
+
+function combined_filter_pattern(section, regex_options, country_options) {
+    let parts = unique_values_from_options(section, regex_options);
+    let seen = {};
+    for (let value in parts)
+        seen[value] = true;
+    for (let country in unique_values_from_options(section, country_options)) {
+        let flag = country_flag_pattern(country);
+        if (flag == "" || seen[flag])
+            continue;
+        seen[flag] = true;
+        push(parts, flag);
+    }
+
+    if (length(parts) == 0)
+        return "";
+    if (length(parts) == 1)
+        return parts[0];
+
+    let grouped = [];
+    for (let part in parts)
+        push(grouped, "(?:" + part + ")");
+    return join("|", grouped);
+}
+
+function migrated_filter_values(section, kind) {
+    let fallback = kind == "fallback";
+    let mode_exists = option_exists(section, "filter_mode");
+    let mode = option(section, "filter_mode", fallback ? "include" : "disabled");
+    let legacy = mode_exists || !option_exists(section, "filter_enabled");
+    let include_enabled = mode == "include" || mode == "mixed";
+    let exclude_enabled = mode == "exclude" || mode == "mixed";
+    let enabled = legacy
+        ? (include_enabled || exclude_enabled)
+        : bool_option(section, "filter_enabled", false);
+
+    let include_outbounds = unique_values_from_options(
+        section,
+        fallback ? [ "include_outbounds", "server_name" ] : [ "include_outbounds" ]
+    );
+    let exclude_outbounds = unique_values_from_options(section, [ "exclude_outbounds" ]);
+    let include_regex = combined_filter_pattern(
+        section,
+        fallback ? [ "include_regex", "regex" ] : [ "include_regex" ],
+        fallback ? [ "include_countries", "country" ] : [ "include_countries" ]
+    );
+    let exclude_regex = combined_filter_pattern(
+        section,
+        [ "exclude_regex" ],
+        [ "exclude_countries" ]
+    );
+
+    if (legacy && mode == "include") {
+        exclude_outbounds = [];
+        exclude_regex = "";
+    }
+    else if (legacy && mode == "exclude") {
+        include_outbounds = [];
+        include_regex = "";
+    }
+
+    return {
+        filter_enabled: enabled ? "1" : "0",
+        include_outbounds,
+        include_regex,
+        exclude_outbounds,
+        exclude_regex
+    };
+}
+
+const LEGACY_SERVER_FILTER_OPTIONS = [
+    "filter_mode",
+    "include_countries",
+    "country",
+    "server_name",
+    "regex",
+    "exclude_countries"
+];
+
+function has_server_filter_fields(section) {
+    for (let key in [
+        "filter_enabled",
+        "filter_mode",
+        "include_countries",
+        "include_outbounds",
+        "include_regex",
+        "country",
+        "server_name",
+        "regex",
+        "exclude_countries",
+        "exclude_outbounds",
+        "exclude_regex"
+    ])
+        if (option_exists(section, key))
+            return true;
+    return false;
+}
+
+function apply_migrated_filter_values(ctx, section, values) {
+    set_option(ctx, section, "filter_enabled", values.filter_enabled);
+    for (let key in [ "include_outbounds", "exclude_outbounds" ]) {
+        if (length(values[key]) > 0)
+            set_list_option(ctx, section, key, values[key]);
+        else
+            delete_option(ctx, section, key);
+    }
+    for (let key in [ "include_regex", "exclude_regex" ]) {
+        if (values[key] != "") {
+            if (type(object_or_empty(section)[key]) == "array")
+                delete_option(ctx, section, key);
+            set_option(ctx, section, key, values[key]);
+        }
+        else
+            delete_option(ctx, section, key);
+    }
+    for (let key in LEGACY_SERVER_FILTER_OPTIONS)
+        delete_option(ctx, section, key);
+}
+
+function apply_migrated_filter_object(section, values) {
+    section.filter_enabled = values.filter_enabled;
+    for (let key in [ "include_outbounds", "exclude_outbounds" ]) {
+        if (length(values[key]) > 0)
+            section[key] = values[key];
+        else
+            delete section[key];
+    }
+    for (let key in [ "include_regex", "exclude_regex" ]) {
+        if (values[key] != "")
+            section[key] = values[key];
+        else
+            delete section[key];
+    }
+    for (let key in LEGACY_SERVER_FILTER_OPTIONS)
+        delete section[key];
+}
+
+function migrate_filter_settings_map(ctx, section, key, kind) {
+    let raw = option(section, key, "");
+    if (raw == "")
+        return;
+
+    let settings;
+    try {
+        settings = json(raw);
+    }
+    catch (e) {
+        return;
+    }
+    if (type(settings) != "object")
+        return;
+
+    let before = sprintf("%J", settings);
+    for (let _, item in settings) {
+        if (type(item) != "object" || !has_server_filter_fields(item))
+            continue;
+        let values = migrated_filter_values(item, kind);
+        apply_migrated_filter_object(item, values);
+    }
+    if (sprintf("%J", settings) != before)
+        set_option(ctx, section, key, sprintf("%J", settings));
+}
+
+function migrate_server_filter_model(ctx) {
+    for (let child in ctx.model.subscription_url || [])
+        if (has_server_filter_fields(child))
+            apply_migrated_filter_values(ctx, child, migrated_filter_values(child, "subscription"));
+    for (let child in ctx.model.urltest || [])
+        if (has_server_filter_fields(child))
+            apply_migrated_filter_values(ctx, child, migrated_filter_values(child, "urltest"));
+    for (let type_name in [ "fallback_level", "priority_level" ])
+        for (let child in ctx.model[type_name] || [])
+            if (has_server_filter_fields(child))
+                apply_migrated_filter_values(ctx, child, migrated_filter_values(child, "fallback"));
+
+    for (let section in ctx.model.sections || []) {
+        migrate_filter_settings_map(ctx, section, "subscription_url_settings", "subscription");
+        migrate_filter_settings_map(ctx, section, "urltest_settings", "urltest");
+        migrate_filter_settings_map(ctx, section, "fallback_level_settings", "fallback");
+        migrate_filter_settings_map(ctx, section, "priority_level_settings", "fallback");
+    }
+}
+
 const MIGRATIONS = [
     { id: "interface_sections", run: migrate_interface_sections },
     { id: "enable_component_checks", run: migrate_enable_component_checks },
@@ -1668,7 +1881,8 @@ const MIGRATIONS = [
     { id: "leaf_subscription_providers", run: use_leaf_subscription_providers },
     { id: "extended_server_defaults", run: add_extended_server_defaults },
     { id: "fallback_uci_tags", run: migrate_fallback_uci_tags },
-    { id: "remove_proxy_parameter_filters", run: remove_proxy_parameter_filters }
+    { id: "remove_proxy_parameter_filters", run: remove_proxy_parameter_filters },
+    { id: "server_filter_model", run: migrate_server_filter_model }
 ];
 
 function apply_migrations(ctx) {

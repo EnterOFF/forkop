@@ -476,16 +476,6 @@ const outboundNameChoicesCache = new Map();
 const outboundNameChoicesInflight = new Map();
 const outboundNameSourceOptions = new Map();
 const dashboardFilterChoiceRefreshers = new Map();
-const COUNTRY_CODES =
-  "AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW XK".split(
-    " ",
-  );
-const REGION_NAME_FALLBACKS = {
-  XK: "Kosovo",
-};
-let regionDisplayNamesCache = {};
-const regionDisplayNamesFormatters = new Map();
-const countryChoicesCache = new Map();
 
 function updateActionProvidersAvailabilityState(nextState) {
   if (!nextState) {
@@ -546,84 +536,6 @@ if (main.store && typeof main.store.subscribe === "function") {
       );
     }
   });
-}
-
-function getLuciLanguage() {
-  if (typeof L !== "undefined" && L.env && L.env.lang) {
-    return `${L.env.lang}`.replace("_", "-");
-  }
-
-  if (document.documentElement.lang) {
-    return document.documentElement.lang;
-  }
-
-  return navigator.language || "en";
-}
-
-function getRegionDisplayName(code) {
-  const normalizedCode = `${code || ""}`.toUpperCase();
-  const language = getLuciLanguage();
-  const cacheKey = `${language}:${normalizedCode}`;
-
-  if (regionDisplayNamesCache[cacheKey]) {
-    return regionDisplayNamesCache[cacheKey];
-  }
-
-  try {
-    if (typeof Intl !== "undefined" && Intl.DisplayNames) {
-      let displayNames = regionDisplayNamesFormatters.get(language);
-      if (!displayNames) {
-        displayNames = new Intl.DisplayNames([language, "en"], {
-          type: "region",
-        });
-        regionDisplayNamesFormatters.set(language, displayNames);
-      }
-      const displayName = displayNames.of(normalizedCode);
-      if (displayName && displayName !== normalizedCode) {
-        regionDisplayNamesCache[cacheKey] = displayName;
-        return displayName;
-      }
-    }
-  } catch (_error) {
-    // Fall through to the static fallback.
-  }
-
-  const fallback = REGION_NAME_FALLBACKS[normalizedCode] || normalizedCode;
-  regionDisplayNamesCache[cacheKey] = fallback;
-  return fallback;
-}
-
-function getCountryFlagEmoji(code) {
-  const normalizedCode = `${code || ""}`.toUpperCase();
-
-  if (!/^[A-Z]{2}$/.test(normalizedCode)) {
-    return "";
-  }
-
-  return String.fromCodePoint(
-    ...normalizedCode
-      .split("")
-      .map((char) => 0x1f1e6 + char.charCodeAt(0) - 65),
-  );
-}
-
-function getCountryOptionLabel(code) {
-  return `${getCountryFlagEmoji(code)} ${getRegionDisplayName(code)}`;
-}
-
-function validateCountryCode(_section_id, value) {
-  const values = Array.isArray(value) ? value : [value];
-  const normalizedValues = values
-    .filter((item) => item && `${item}`.length)
-    .map((item) => `${item}`.toUpperCase());
-
-  if (!normalizedValues.length) {
-    return true;
-  }
-
-  return normalizedValues.every((item) => COUNTRY_CODES.includes(item))
-    ? true
-    : _("Unknown country");
 }
 
 function plainObject(value) {
@@ -1701,20 +1613,6 @@ function configureLiveDynamicListChoices(option, getChoices) {
   };
 }
 
-function countryChoices() {
-  const language = getLuciLanguage();
-  if (countryChoicesCache.has(language)) {
-    return countryChoicesCache.get(language);
-  }
-
-  const choices = COUNTRY_CODES.map((code) => ({
-    value: code,
-    label: getCountryOptionLabel(code),
-  })).sort((a, b) => a.label.localeCompare(b.label));
-  countryChoicesCache.set(language, choices);
-  return choices;
-}
-
 function currentOutboundNameChoices(section_id, values, normalizeChoice) {
   if (!outboundNameChoicesCache.has(section_id)) {
     loadOutboundNameChoices(section_id);
@@ -2004,97 +1902,44 @@ const InterfaceSettingsDynamicList = SettingsDynamicList.extend({
   },
 });
 
-function urlTestFilterModeChoices() {
-  return [
-    { value: "disabled", label: _("All servers") },
-    { value: "exclude", label: _("All except selected") },
-    { value: "include", label: _("Only selected") },
-    { value: "mixed", label: _("Only selected except exclusions") },
-  ];
-}
-
-function fallbackLevelFilterModeChoices() {
-  return [
-    { value: "disabled", label: _("All remaining servers") },
-    { value: "include", label: _("Only selected") },
-    { value: "exclude", label: _("All remaining except selected") },
-    { value: "mixed", label: _("Only selected except exclusions") },
-  ];
-}
-
 function addServerFilterOptions(
   itemSection,
   parentSectionForItem,
   options = {},
 ) {
-  let o = itemSection.option(
-    form.ListValue,
-    "filter_mode",
-    _("Server filtering"),
-    _("Limit the servers used by this source or group"),
-  );
-  urlTestFilterModeChoices().forEach((choice) =>
-    o.value(choice.value, choice.label),
-  );
-  o.default = "disabled";
+  const baseDepends = Object.assign({}, options.depends || {});
+  const filterDepends = Object.assign({}, baseDepends, {
+    filter_enabled: "1",
+  });
+  let o = itemSection.option(form.Flag, "filter_enabled", _("Filter servers"));
+  o.default = "0";
+  o.rmempty = false;
+  if (Object.keys(baseDepends).length) {
+    o.depends(baseDepends);
+  }
 
   [
-    [
-      "include_countries",
-      _("Include countries"),
-      _("Use servers only from the specified countries."),
-      countryChoices(),
-      validateCountryCode,
-      ["include", "mixed"],
-    ],
-    [
-      "include_outbounds",
-      _("Include servers"),
-      _("Use only selected servers."),
-      null,
-      null,
-      ["include", "mixed"],
-    ],
-    [
-      "include_regex",
-      _("Include by regular expression"),
-      _("Use servers whose names match the expression."),
-      null,
-      validateRegex,
-      ["include", "mixed"],
-    ],
-    [
-      "exclude_countries",
-      _("Exclude countries"),
-      _("Do not use servers from these countries."),
-      countryChoices(),
-      validateCountryCode,
-      ["exclude", "mixed"],
-    ],
-    [
-      "exclude_outbounds",
-      _("Exclude servers"),
-      _("Do not use specified servers."),
-      null,
-      null,
-      ["exclude", "mixed"],
-    ],
-    [
-      "exclude_regex",
-      _("Exclude by regular expression"),
-      _("Do not use servers whose names match the expression."),
-      null,
-      validateRegex,
-      ["exclude", "mixed"],
-    ],
-  ].forEach(([key, label, description, choices, validator, modes]) => {
-    const list = itemSection.option(form.DynamicList, key, label, description);
-    modes.forEach((mode) => list.depends("filter_mode", mode));
-    list.rmempty = true;
-    if (choices) {
-      choices.forEach((choice) => list.value(choice.value, choice.label));
-      list.placeholder = _("-- Select --");
+    ["_filter_matches", _("Matches"), null, true],
+    ["include_outbounds", _("Servers"), null, false],
+    ["include_regex", _("Name pattern (RegExp)"), validateRegex, false],
+    ["_filter_exclusions", _("Exclusions"), null, true],
+    ["exclude_outbounds", _("Servers"), null, false],
+    ["exclude_regex", _("Name pattern (RegExp)"), validateRegex, false],
+  ].forEach(([key, label, validator, heading]) => {
+    if (heading) {
+      const group = itemSection.option(form.DummyValue, key);
+      group.depends(filterDepends);
+      group.renderWidget = () => E("strong", {}, [label]);
+      return;
     }
+
+    const field = itemSection.option(
+      key.endsWith("_outbounds") ? form.DynamicList : form.Value,
+      key,
+      label,
+    );
+    field.depends(filterDepends);
+    field.rmempty = true;
     if (key.endsWith("_outbounds")) {
       const choicesForItem = (option, itemId, values) =>
         currentOutboundNameChoices(
@@ -2104,20 +1949,20 @@ function addServerFilterOptions(
             ? (name) => options.normalizeOutboundChoice(option, itemId, name)
             : null,
         );
-      list.load = function (itemId) {
+      field.load = function (itemId) {
         const sectionId = parentSectionForItem(itemId);
         const values = normalizeOptionValues(optionMapValue(this, itemId, key));
         loadOutboundNameChoices(sectionId);
         refreshOptionChoices(this, choicesForItem(this, itemId, values));
         return values;
       };
-      list.placeholder = _("-- Select --");
-      configureLiveDynamicListChoices(list, (itemId, values) =>
-        choicesForItem(list, itemId, values),
+      field.placeholder = _("-- Select --");
+      configureLiveDynamicListChoices(field, (itemId, values) =>
+        choicesForItem(field, itemId, values),
       );
     }
     if (validator) {
-      list.validate = function (_itemId, value) {
+      field.validate = function (_itemId, value) {
         return validator(null, value);
       };
     }
@@ -2177,11 +2022,9 @@ function subscriptionUrlSettingsKeys() {
     "show_dashboard_metadata",
     "prefix_nodes",
     "node_prefix",
-    "filter_mode",
-    "include_countries",
+    "filter_enabled",
     "include_outbounds",
     "include_regex",
-    "exclude_countries",
     "exclude_outbounds",
     "exclude_regex",
   ];
@@ -2200,7 +2043,7 @@ function defaultSubscriptionUrlSettings() {
     show_dashboard_metadata: "1",
     prefix_nodes: "0",
     node_prefix: "",
-    filter_mode: "disabled",
+    filter_enabled: "0",
   };
 }
 
@@ -2250,11 +2093,9 @@ function urlTestSettingsKeys() {
     "interrupt_exist_connections",
     "pin_dashboard",
     "hide_dashboard_members",
-    "filter_mode",
-    "include_countries",
+    "filter_enabled",
     "include_outbounds",
     "include_regex",
-    "exclude_countries",
     "exclude_outbounds",
     "exclude_regex",
   ];
@@ -2270,7 +2111,7 @@ function defaultUrlTestSettings(name) {
     interrupt_exist_connections: "1",
     pin_dashboard: "1",
     hide_dashboard_members: "0",
-    filter_mode: "disabled",
+    filter_enabled: "0",
   };
 }
 
@@ -2283,7 +2124,7 @@ function urlTestChildDefaults() {
     interrupt_exist_connections: "1",
     pin_dashboard: "1",
     hide_dashboard_members: "0",
-    filter_mode: "disabled",
+    filter_enabled: "0",
   };
 }
 
@@ -2318,11 +2159,9 @@ function fallbackLevelSettingsKeys() {
     "name",
     "order",
     "direct",
-    "filter_mode",
-    "country",
-    "server_name",
-    "regex",
-    "exclude_countries",
+    "filter_enabled",
+    "include_outbounds",
+    "include_regex",
     "exclude_outbounds",
     "exclude_regex",
   ];
@@ -2333,7 +2172,7 @@ function defaultFallbackLevelSettings() {
     name: "",
     order: "0",
     direct: "0",
-    filter_mode: "include",
+    filter_enabled: "0",
   };
 }
 
@@ -2660,6 +2499,9 @@ function fallbackLevelSettingsForValidation(groupId, levelId, option) {
 
 function validateFallbackLevelItemsBeforeSave(groupId, values, option) {
   const normalizedValues = normalizeDynamicListItems(values);
+  if (!normalizedValues.length) {
+    return _("Add at least one Fallback level");
+  }
 
   for (const value of normalizedValues) {
     const levelId = `${value || ""}`;
@@ -2703,99 +2545,8 @@ function addFallbackLevelItemOptions(itemSection, options = {}) {
   o.default = "0";
   o.rmempty = false;
 
-  o = itemSection.option(
-    form.ListValue,
-    "filter_mode",
-    _("Server filtering"),
-    _(
-      "All remaining servers means every server not already assigned to an earlier level.",
-    ),
-  );
-  fallbackLevelFilterModeChoices().forEach((choice) =>
-    o.value(choice.value, choice.label),
-  );
-  o.default = "include";
-  o.depends("direct", "0");
-
-  [
-    [
-      "country",
-      _("Include countries"),
-      _("Only from the specified countries."),
-      countryChoices(),
-      validateCountryCode,
-      ["include", "mixed"],
-    ],
-    [
-      "server_name",
-      _("Include servers"),
-      _("Only the specified servers."),
-      null,
-      null,
-      ["include", "mixed"],
-    ],
-    [
-      "regex",
-      _("Include by regular expression"),
-      _("Only servers whose names match the expression."),
-      null,
-      validateRegex,
-      ["include", "mixed"],
-    ],
-    [
-      "exclude_countries",
-      _("Exclude countries"),
-      _("Remove servers from the specified countries from this level."),
-      countryChoices(),
-      validateCountryCode,
-      ["exclude", "mixed"],
-    ],
-    [
-      "exclude_outbounds",
-      _("Exclude servers"),
-      _("Remove the specified servers from this level."),
-      null,
-      null,
-      ["exclude", "mixed"],
-    ],
-    [
-      "exclude_regex",
-      _("Exclude by regular expression"),
-      _("Remove servers whose names match the expression from this level."),
-      null,
-      validateRegex,
-      ["exclude", "mixed"],
-    ],
-  ].forEach(([key, label, description, choices, validator, modes]) => {
-    const list = itemSection.option(form.DynamicList, key, label, description);
-    modes.forEach((mode) => list.depends({ direct: "0", filter_mode: mode }));
-    list.rmempty = true;
-    if (choices) {
-      choices.forEach((choice) => list.value(choice.value, choice.label));
-      list.placeholder = _("-- Select --");
-    }
-    if (key === "server_name" || key === "exclude_outbounds") {
-      list.load = function (itemId) {
-        const sectionId = parentSectionForItem(itemId);
-        const values = normalizeOptionValues(optionMapValue(this, itemId, key));
-
-        loadOutboundNameChoices(sectionId);
-        refreshOptionChoices(
-          this,
-          currentOutboundNameChoices(sectionId, values),
-        );
-        return values;
-      };
-      list.placeholder = _("-- Select --");
-      configureLiveDynamicListChoices(list, (itemId, values) =>
-        currentOutboundNameChoices(parentSectionForItem(itemId), values),
-      );
-    }
-    if (validator) {
-      list.validate = function (_itemId, value) {
-        return validator(null, value);
-      };
-    }
+  addServerFilterOptions(itemSection, parentSectionForItem, {
+    depends: { direct: "0" },
   });
 }
 
@@ -2858,7 +2609,7 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
     _("Fallback levels"),
     _("Levels are tried from top to bottom until one succeeds"),
   );
-  o.rmempty = true;
+  o.rmempty = false;
   o.modalonly = true;
   o.addButtonLabel = _("+ Add level");
   o.childType = "fallback_level";
@@ -2870,6 +2621,16 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
   o.renderItemSettingsModal = showFallbackLevelSettingsModal;
   o.validateItemsOnSave = function (groupId, values) {
     return validateFallbackLevelItemsBeforeSave(groupId, values, this);
+  };
+  o.validate = function (groupId, value) {
+    if (!`${value || ""}`.trim()) {
+      const current =
+        typeof this.formvalue === "function" ? this.formvalue(groupId) : [];
+      return normalizeDynamicListItems(current).length
+        ? true
+        : _("Add at least one Fallback level");
+    }
+    return true;
   };
   o.hasItemSettings = function (groupId, value) {
     const normalized = `${value || ""}`.trim();
@@ -3237,12 +2998,35 @@ function showFallbackLevelSettingsModal(
   itemNode,
   context = {},
 ) {
+  let currentLevels = [];
+  if (option && typeof option.formvalue === "function") {
+    currentLevels = normalizeDynamicListItems(option.formvalue("settings"));
+  }
+  if (!currentLevels.length) {
+    currentLevels = getChildItemIds(groupId, "fallback_level", "group");
+  }
+  const defaults = defaultFallbackLevelSettings();
+  if (context.adding) {
+    const names = new Set(
+      currentLevels.map((value) =>
+        typeof option.inputValueForItem === "function"
+          ? option.inputValueForItem(groupId, value)
+          : `${value || ""}`,
+      ),
+    );
+    let number = currentLevels.length + 1;
+    while (names.has(`Priority #${number}`)) {
+      number += 1;
+    }
+    defaults.name = `Priority #${number}`;
+  }
+
   return showChildItemSettingsModal(groupId, itemValue, option, {
     typeName: "fallback_level",
     ownerOption: "group",
     valueOption: "name",
     keys: fallbackLevelSettingsKeys(),
-    defaults: defaultFallbackLevelSettings(),
+    defaults,
     addOptions: (itemSection) =>
       addFallbackLevelItemOptions(itemSection, {
         parentSectionId: () => context.parentSectionId || "",

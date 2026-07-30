@@ -96,11 +96,11 @@ cat >"$WORK_DIR/valid.json" <<'JSON'
       "subscription_update_interval": "12h",
       "urltest_enabled": "1",
       "urltest_check_interval": "3m",
-      "urltest_filter_mode": "mixed",
+      "urltest_filter_enabled": "1",
       "urltest_tolerance": "10000",
       "urltest_testing_url": "https://urltest.example/generate_204",
-      "urltest_include_countries": [ "US" ],
-      "urltest_exclude_regex": [ "bad.*" ],
+      "urltest_include_regex": "🇺🇸",
+      "urltest_exclude_regex": "bad.*",
       "domain": "commented.example # keep this note\nfull:exact-comment.example // and this note\nkeyword:clip",
       "domain_suffix": [ "example.org", "сайт.рф", "full:exact.example", "full:full:legacy.example", "full:пример.испытание", "keyword:video", "keyword:пример", "regex:^api[.]example$", "regex:^сайт[.]рф$" ],
       "domain_suffix_text": "text.example\nmünich.example\nkeyword:stream",
@@ -486,7 +486,7 @@ cat >"$WORK_DIR/bad-list-reference.json" <<'JSON'
 JSON
 assert_rejects "bad list reference" "$WORK_DIR/bad-list-reference.json" "Unknown rule set reference"
 
-cat >"$WORK_DIR/bad-country.json" <<'JSON'
+cat >"$WORK_DIR/bad-filter-regex.json" <<'JSON'
 {
   "settings": { ".name": "settings", ".type": "settings" },
   "section": [
@@ -496,13 +496,13 @@ cat >"$WORK_DIR/bad-country.json" <<'JSON'
       "enabled": "1",
       "action": "proxy",
       "urltest_enabled": "1",
-      "urltest_filter_mode": "include",
-      "urltest_include_countries": [ "USA" ]
+      "urltest_filter_enabled": "1",
+      "urltest_include_regex": "["
     }
   ]
 }
 JSON
-assert_rejects "bad country" "$WORK_DIR/bad-country.json" "Invalid country code 'USA'"
+assert_rejects "bad filter regex" "$WORK_DIR/bad-filter-regex.json" "Invalid URLTest regular expression"
 
 provider_context="$(node -e 'const fs=require("fs"); const c=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); c.byedpi_installed=true; process.stdout.write(JSON.stringify(c));' "$WORK_DIR/context.json")"
 cat >"$WORK_DIR/bad-byedpi.json" <<'JSON'

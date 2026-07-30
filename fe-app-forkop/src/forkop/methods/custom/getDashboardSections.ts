@@ -287,11 +287,9 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
           interrupt_exist_connections: item.interrupt_exist_connections,
           pin_dashboard: item.pin_dashboard,
           hide_dashboard_members: item.hide_dashboard_members,
-          urltest_filter_mode: item.filter_mode,
-          urltest_include_countries: item.include_countries,
+          urltest_filter_enabled: item.filter_enabled,
           urltest_include_outbounds: item.include_outbounds,
           urltest_include_regex: item.include_regex,
-          urltest_exclude_countries: item.exclude_countries,
           urltest_exclude_outbounds: item.exclude_outbounds,
           urltest_exclude_regex: item.exclude_regex,
         };

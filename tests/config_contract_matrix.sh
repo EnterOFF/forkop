@@ -62,7 +62,9 @@ const retiredMissingCurrent = new Set([
   "log_stderr",
   "remote_domain_lists",
   "remote_subnet_lists",
+  "urltest_exclude_countries",
   "urltest_hide_filtered_outbounds",
+  "urltest_include_countries",
   "workdir",
 ]);
 const missing = matrix.fields.filter((field) => field.status === "missing_current" && !retiredMissingCurrent.has(field.name));
@@ -117,7 +119,6 @@ assertCurrentKeepsStableValues("action", ["connection", "bypass", "block", "zapr
 assertCurrentKeepsStableValues("protocol", ["tailscale", "vless", "vmess", "trojan", "shadowsocks", "hysteria2", "socks", "mtproto", "naive", "ssh", "mieru", "anytls", "tuic", "json_inbound"]);
 assertCurrentKeepsStableValues("security", ["reality", "tls", "none"]);
 assertCurrentKeepsStableValues("transport", ["tcp", "ws", "grpc", "http", "httpupgrade", "xhttp"]);
-assertCurrentKeepsStableValues("urltest_filter_mode", ["disabled", "exclude", "include", "mixed"]);
 assertCurrentKeepsStableValues("dns_type", ["doh", "dot", "udp"]);
 assertCurrentKeepsStableValues("routing_mode", ["rules", "direct", "section"]);
 assertCurrentKeepsStableValues("shadowsocks_method", ["aes-128-gcm", "aes-256-gcm", "chacha20-ietf-poly1305"]);

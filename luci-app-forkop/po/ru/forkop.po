@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-07-28 16:11+0300\n"
-"PO-Revision-Date: 2026-07-28 16:11+0300\n"
+"POT-Creation-Date: 2026-07-30 05:40+0300\n"
+"PO-Revision-Date: 2026-07-30 05:40+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -77,6 +77,9 @@ msgstr "Добавьте HTTP(S)-ссылку или локальный путь
 msgid "Add at least one DNS server"
 msgstr "Добавьте хотя бы один DNS-сервер"
 
+msgid "Add at least one Fallback level"
+msgstr "Добавьте хотя бы один уровень Fallback"
+
 msgid "Add at least one WireGuard peer"
 msgstr "Добавьте хотя бы одного пира WireGuard"
 
@@ -100,21 +103,6 @@ msgstr "Анонсировать маршруты"
 
 msgid "All"
 msgstr "Все"
-
-msgid "All except selected"
-msgstr "Все, кроме выбранных"
-
-msgid "All remaining except selected"
-msgstr "Все оставшиеся, кроме выбранных"
-
-msgid "All remaining servers"
-msgstr "Все оставшиеся серверы"
-
-msgid "All remaining servers means every server not already assigned to an earlier level."
-msgstr "Добавляет все серверы, которые не попали в предыдущие уровни."
-
-msgid "All servers"
-msgstr "Все серверы"
 
 msgid "All traffic from these IP addresses will be routed through the section unconditionally, ignoring all other conditions."
 msgstr "Весь трафик с этих IP-адресов будет направлен через секцию безусловно, игнорируя остальные условия."
@@ -500,15 +488,6 @@ msgstr "DNS через секцию"
 msgid "Do not panic, everything can be fixed, just..."
 msgstr "Не паникуйте, всё можно исправить, просто..."
 
-msgid "Do not use servers from these countries."
-msgstr "Не использовать серверы из этих стран."
-
-msgid "Do not use servers whose names match the expression."
-msgstr "Не использовать серверы, названия которых соответствуют выражению."
-
-msgid "Do not use specified servers."
-msgstr "Не использовать указанные серверы."
-
 msgid "Does not resolve"
 msgstr "Не резолвится"
 
@@ -653,9 +632,6 @@ msgstr "Введите корректный URL control plane Tailscale"
 msgid "Enter at least one AmneziaWG parameter"
 msgstr "Введите хотя бы один параметр AmneziaWG"
 
-msgid "Enter HWID"
-msgstr "Укажите HWID"
-
 msgid "Enter the HWID sent with subscription requests"
 msgstr "HWID, который будет отправляться при запросах подписки"
 
@@ -671,20 +647,14 @@ msgstr "Для каждого пира WireGuard нужна хотя бы одн
 msgid "Every WireGuard peer needs string address/public key and a numeric port"
 msgstr "Для каждого пира WireGuard нужны строковые адрес и публичный ключ, а также числовой порт"
 
-msgid "Exclude by regular expression"
-msgstr "Исключить по регулярному выражению"
-
-msgid "Exclude countries"
-msgstr "Исключить страны"
-
 msgid "Exclude NTP"
 msgstr "Исключить NTP"
 
 msgid "Exclude NTP protocol traffic from the tunnel to prevent it from being routed through the proxy or VPN"
 msgstr "Исключите трафик протокола NTP из туннеля, чтобы предотвратить его маршрутизацию через прокси-сервер или VPN."
 
-msgid "Exclude servers"
-msgstr "Исключить серверы"
+msgid "Exclusions"
+msgstr "Исключения"
 
 msgid "Exit node"
 msgstr "Выходной узел"
@@ -754,6 +724,9 @@ msgstr "Настройки Fallback"
 
 msgid "Fastest"
 msgstr "Самый быстрый"
+
+msgid "Filter servers"
+msgstr "Фильтровать серверы"
 
 msgid "Firewall WAN port"
 msgstr "Порт в firewall для WAN"
@@ -908,17 +881,8 @@ msgstr "Inbound JSON не может быть пустым"
 msgid "Inbound JSON must be an object with a type field"
 msgstr "Inbound JSON должен быть объектом с полем type"
 
-msgid "Include by regular expression"
-msgstr "Включить по регулярному выражению"
-
-msgid "Include countries"
-msgstr "Включить страны"
-
 msgid "Include IP addresses and subnets"
 msgstr "Учитывать IP-адреса и подсети"
-
-msgid "Include servers"
-msgstr "Включить серверы"
 
 msgid "Includes connection setup and TLS handshake time. The measurement takes longer but provides more accurate and realistic results."
 msgstr "Учитывает время на установку соединения и TLS-рукопожатие. Измерение занимает больше времени, но показывает более точные и реалистичные результаты."
@@ -1091,9 +1055,6 @@ msgstr "Название уровня"
 msgid "Levels are tried from top to bottom until one succeeds"
 msgstr "Уровни проверяются сверху вниз, пока не найдется доступный"
 
-msgid "Limit the servers used by this source or group"
-msgstr "Ограничить серверы, используемые этим источником или группой"
-
 msgid "List of remote WireGuard nodes to connect."
 msgstr "Список удаленных узлов WireGuard для подключения."
 
@@ -1130,6 +1091,9 @@ msgstr "Совпадение по IP-адресам или подсетям на
 msgid "Match destination ports. Use a single port or a range"
 msgstr "Совпадение по портам назначения. Используйте одиночный порт или диапазон"
 
+msgid "Matches"
+msgstr "Совпадения"
+
 msgid "Maximum packet size for this tunnel. Leave empty to use the default value."
 msgstr "Максимальный размер пакета для этого туннеля. Оставьте пустым для значения по умолчанию."
 
@@ -1165,6 +1129,9 @@ msgstr "Имя, которое отображается в дашборде"
 
 msgid "Name must be unique"
 msgstr "Название должно быть уникальным"
+
+msgid "Name pattern (RegExp)"
+msgstr "Шаблон имени (RegExp)"
 
 msgid "Name shown in the fallback level list"
 msgstr "Имя, которое отображается в списке уровней Fallback"
@@ -1273,21 +1240,6 @@ msgstr "Обфускация"
 
 msgid "Obfuscation password"
 msgstr "Пароль обфускации"
-
-msgid "Only from the specified countries."
-msgstr "Только из указанных стран."
-
-msgid "Only selected"
-msgstr "Только выбранные"
-
-msgid "Only selected except exclusions"
-msgstr "Только выбранные, кроме исключений"
-
-msgid "Only servers whose names match the expression."
-msgstr "Только серверы, имена которых соответствуют выражению."
-
-msgid "Only the specified servers."
-msgstr "Только указанные серверы."
 
 msgid "Open"
 msgstr "Открыть"
@@ -1463,15 +1415,6 @@ msgstr "Регулярное выражение не должно содержа
 msgid "Remove"
 msgstr "Удалить"
 
-msgid "Remove servers from the specified countries from this level."
-msgstr "Исключить из уровня серверы из указанных стран."
-
-msgid "Remove servers whose names match the expression from this level."
-msgstr "Исключить из уровня серверы, имена которых соответствуют выражению."
-
-msgid "Remove the specified servers from this level."
-msgstr "Исключить из уровня указанные серверы."
-
 msgid "Require a username and password for the local mixed proxy"
 msgstr "Требовать логин и пароль для локального смешанного прокси"
 
@@ -1645,9 +1588,6 @@ msgstr "Сервер"
 
 msgid "Server address"
 msgstr "Адрес сервера"
-
-msgid "Server filtering"
-msgstr "Фильтрация серверов"
 
 msgid "Server group for automatic lowest-latency selection"
 msgstr "Группа серверов для автоматического выбора по наименьшей задержке"
@@ -2009,9 +1949,6 @@ msgstr "неизвестно"
 msgid "Unknown ByeDPI option: %s"
 msgstr "Неизвестная опция ByeDPI: %s"
 
-msgid "Unknown country"
-msgstr "Неизвестная страна"
-
 msgid "Unknown error"
 msgstr "Неизвестная ошибка"
 
@@ -2110,15 +2047,6 @@ msgstr "Используйте CIDR-префиксы или IP-адреса, н�
 
 msgid "Use letters, digits, dots, underscores, or hyphens"
 msgstr "Используйте буквы, цифры, точки, подчёркивания или дефисы"
-
-msgid "Use only selected servers."
-msgstr "Использовать только выбранные серверы."
-
-msgid "Use servers only from the specified countries."
-msgstr "Использовать серверы только из указанных стран."
-
-msgid "Use servers whose names match the expression."
-msgstr "Использовать серверы, названия которых соответствуют выражению."
 
 msgid "Use sing-box duration format like 1d, 12h or 30m"
 msgstr "Используйте формат длительности sing-box, например 1d, 12h или 30m"

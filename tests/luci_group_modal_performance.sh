@@ -9,11 +9,6 @@ fail() {
   exit 1
 }
 
-grep -Fq 'const regionDisplayNamesFormatters = new Map();' "$SECTION_JS" ||
-  fail "country labels must reuse one Intl.DisplayNames formatter"
-grep -Fq 'const countryChoicesCache = new Map();' "$SECTION_JS" ||
-  fail "country choices must not be rebuilt for every group modal"
-
 if grep -Fq 'return loadOutboundNameChoices(sectionId).then(() =>' "$SECTION_JS"; then
   fail "group modals must not wait for live provider choices before opening"
 fi

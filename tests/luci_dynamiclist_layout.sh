@@ -18,7 +18,7 @@ subscription_options="$(sed -n '/^function addSubscriptionUrlItemOptions(/,/^fun
 server_filter_options="$(sed -n '/^function addServerFilterOptions(/,/^function urlTestUrlChoices(/p' "$SECTION_JS")"
 fallback_options="$(sed -n '/^function addFallbackLevelItemOptions(/,/^function addFallbackGroupItemOptions(/p' "$SECTION_JS")"
 create_section="$(sed -n '/^function createSectionContent(/,/^function loadSectionTableOptions(/p' "$SECTION_JS")"
-live_choices="$(sed -n '/^function configureLiveDynamicListChoices(/,/^function countryChoices(/p' "$SECTION_JS")"
+live_choices="$(sed -n '/^function configureLiveDynamicListChoices(/,/^function currentOutboundNameChoices(/p' "$SECTION_JS")"
 close_all_styles="$(sed -n '/^\.fkp_monitoring-page #monitoring-close-all\.btn\.fkp_monitoring-page__icon-button:hover:not(:disabled) {$/,/^}$/p' "$MONITORING_STYLES")"
 
 grep -Fq 'display: flex;' <<<"$wrapper_styles" ||
@@ -49,14 +49,23 @@ grep -Fq 'addServerFilterOptions(itemSection, parentSectionForItem, {' <<<"$subs
   fail "subscription settings must expose native provider filters"
 grep -Fq 'subscriptionSourceOutboundName(' <<<"$subscription_options" ||
   fail "subscription exact-name filters must account for provider tag prefixes"
-for key in filter_mode include_regex exclude_regex; do
+for key in filter_enabled include_regex exclude_regex; do
   grep -Fq "\"$key\"" <<<"$subscription_keys" ||
     fail "subscription/provider filter key $key is missing"
 done
-grep -Fq 'configureLiveDynamicListChoices(list, (itemId, values) =>' <<<"$server_filter_options" ||
+grep -Fq 'configureLiveDynamicListChoices(field, (itemId, values) =>' <<<"$server_filter_options" ||
   fail "URLTest server filters must stay comboboxes when no choices exist"
-grep -Fq 'configureLiveDynamicListChoices(list, (itemId, values) =>' <<<"$fallback_options" ||
+grep -Fq 'addServerFilterOptions(itemSection, parentSectionForItem, {' <<<"$fallback_options" ||
   fail "Fallback server filters must stay comboboxes when no choices exist"
+grep -Fq 'form.Value' <<<"$server_filter_options" ||
+  fail "server filter regular expressions must use single-value fields"
+if grep -Eq 'include_countries|exclude_countries|countryChoices' <<<"$server_filter_options$fallback_options"; then
+  fail "server filters must not expose country selectors"
+fi
+grep -Fq 'Add at least one Fallback level' "$SECTION_JS" ||
+  fail "Fallback settings must require at least one level"
+grep -Fq 'defaults.name = `Priority #${number}`;' "$SECTION_JS" ||
+  fail "new Fallback levels must receive sequential Priority names"
 if grep -Eq 'dashboard_(filter|include|exclude|detect)|Servers on dashboard|addDashboardServerFilterOptions' "$SECTION_JS"; then
   fail "legacy section-wide dashboard server filtering must stay removed"
 fi

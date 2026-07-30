@@ -848,12 +848,12 @@ function urltest_interrupt_exist_connections(section, value) {
     return item_bool(section, "urltest_settings", value, "interrupt_exist_connections", true);
 }
 
-function urltest_filter_mode(section, value) {
+function urltest_filter_enabled(section, value) {
     let child = urltest_child(section, value);
     if (child != null)
-        return child_option_alias(child, [ "filter_mode", "urltest_filter_mode" ], "disabled");
-    return item_option(section, "urltest_settings", value, "urltest_filter_mode",
-        option(section, "urltest_filter_mode", "disabled") || "disabled");
+        return child_bool(child, "filter_enabled", false);
+    return item_bool(section, "urltest_settings", value, "filter_enabled",
+        bool_option(section, "urltest_filter_enabled", false));
 }
 
 function urltest_pin_dashboard(section, value) {
@@ -868,14 +868,6 @@ function urltest_hide_dashboard_members(section, value) {
     return child != null ? child_bool(child, "hide_dashboard_members", false) : false;
 }
 
-function urltest_include_countries(section, value) {
-    let child = urltest_child(section, value);
-    if (child != null)
-        return child_list_alias(child, [ "include_countries", "urltest_include_countries" ], []);
-    return item_list(section, "urltest_settings", value, "urltest_include_countries",
-        list_value(section, "urltest_include_countries"));
-}
-
 function urltest_include_outbounds(section, value) {
     let child = urltest_child(section, value);
     if (child != null)
@@ -887,17 +879,9 @@ function urltest_include_outbounds(section, value) {
 function urltest_include_regex(section, value) {
     let child = urltest_child(section, value);
     if (child != null)
-        return child_list_alias(child, [ "include_regex", "urltest_include_regex" ], []);
-    return item_list(section, "urltest_settings", value, "urltest_include_regex",
-        list_value(section, "urltest_include_regex"));
-}
-
-function urltest_exclude_countries(section, value) {
-    let child = urltest_child(section, value);
-    if (child != null)
-        return child_list_alias(child, [ "exclude_countries", "urltest_exclude_countries" ], []);
-    return item_list(section, "urltest_settings", value, "urltest_exclude_countries",
-        list_value(section, "urltest_exclude_countries"));
+        return child_option_alias(child, [ "include_regex", "urltest_include_regex" ], "");
+    return item_option(section, "urltest_settings", value, "include_regex",
+        option(section, "urltest_include_regex", ""));
 }
 
 function urltest_exclude_outbounds(section, value) {
@@ -911,9 +895,9 @@ function urltest_exclude_outbounds(section, value) {
 function urltest_exclude_regex(section, value) {
     let child = urltest_child(section, value);
     if (child != null)
-        return child_list_alias(child, [ "exclude_regex", "urltest_exclude_regex" ], []);
-    return item_list(section, "urltest_settings", value, "urltest_exclude_regex",
-        list_value(section, "urltest_exclude_regex"));
+        return child_option_alias(child, [ "exclude_regex", "urltest_exclude_regex" ], "");
+    return item_option(section, "urltest_settings", value, "exclude_regex",
+        option(section, "urltest_exclude_regex", ""));
 }
 
 function fallback_group_display_name(section, value) {
@@ -951,14 +935,9 @@ function fallback_level_direct(group_id, value) {
     return child != null ? child_bool(child, "direct", false) : false;
 }
 
-function fallback_level_filter_mode(group_id, value) {
+function fallback_level_filter_enabled(group_id, value) {
     let child = fallback_level_child(group_id, value);
-    return child != null ? child_option(child, "filter_mode", "include") : "include";
-}
-
-function fallback_level_include_countries(group_id, value) {
-    let child = fallback_level_child(group_id, value);
-    return child != null ? child_list_alias(child, [ "include_countries", "country" ], []) : [];
+    return child != null ? child_bool(child, "filter_enabled", false) : false;
 }
 
 function fallback_level_include_outbounds(group_id, value) {
@@ -968,12 +947,7 @@ function fallback_level_include_outbounds(group_id, value) {
 
 function fallback_level_include_regex(group_id, value) {
     let child = fallback_level_child(group_id, value);
-    return child != null ? child_list_alias(child, [ "include_regex", "regex" ], []) : [];
-}
-
-function fallback_level_exclude_countries(group_id, value) {
-    let child = fallback_level_child(group_id, value);
-    return child != null ? child_list(child, "exclude_countries", []) : [];
+    return child != null ? child_option(child, "include_regex", "") : "";
 }
 
 function fallback_level_exclude_outbounds(group_id, value) {
@@ -983,19 +957,7 @@ function fallback_level_exclude_outbounds(group_id, value) {
 
 function fallback_level_exclude_regex(group_id, value) {
     let child = fallback_level_child(group_id, value);
-    return child != null ? child_list(child, "exclude_regex", []) : [];
-}
-
-function fallback_level_countries(group_id, value) {
-    return fallback_level_include_countries(group_id, value);
-}
-
-function fallback_level_outbounds(group_id, value) {
-    return fallback_level_include_outbounds(group_id, value);
-}
-
-function fallback_level_regex(group_id, value) {
-    return fallback_level_include_regex(group_id, value);
+    return child != null ? child_option(child, "exclude_regex", "") : "";
 }
 
 function append_unique(result, seen, value) {
@@ -1092,13 +1054,11 @@ return {
     urltest_display_name,
     urltest_idle_timeout,
     urltest_interrupt_exist_connections,
-    urltest_filter_mode,
+    urltest_filter_enabled,
     urltest_pin_dashboard,
     urltest_hide_dashboard_members,
-    urltest_include_countries,
     urltest_include_outbounds,
     urltest_include_regex,
-    urltest_exclude_countries,
     urltest_exclude_outbounds,
     urltest_exclude_regex,
     fallback_groups,
@@ -1111,16 +1071,11 @@ return {
     fallback_level_display_name,
     fallback_level_order,
     fallback_level_direct,
-    fallback_level_filter_mode,
-    fallback_level_include_countries,
+    fallback_level_filter_enabled,
     fallback_level_include_outbounds,
     fallback_level_include_regex,
-    fallback_level_exclude_countries,
     fallback_level_exclude_outbounds,
     fallback_level_exclude_regex,
-    fallback_level_countries,
-    fallback_level_outbounds,
-    fallback_level_regex,
     subscription_download_targets,
     subscription_download_target_port
 };

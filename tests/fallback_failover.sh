@@ -49,16 +49,16 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
   "fallback_level": [
     {
       ".name": "pl_top", ".type": "fallback_level", "group": "pg_main",
-      "name": "Top", "order": "0", "filter_mode": "include", "server_name": ["Beta"]
+      "name": "Top", "order": "0", "filter_enabled": "1", "include_outbounds": ["Beta"]
     },
     {
       ".name": "pl_mixed", ".type": "fallback_level", "group": "pg_main",
-      "name": "Mixed", "order": "1", "filter_mode": "mixed",
-      "regex": ["Alpha|Gamma"], "exclude_outbounds": ["Gamma"]
+      "name": "Mixed", "order": "1", "filter_enabled": "1",
+      "include_regex": "Alpha|Gamma", "exclude_outbounds": ["Gamma"]
     },
     {
       ".name": "pl_provider", ".type": "fallback_level", "group": "pg_main",
-      "name": "Provider only", "order": "2", "filter_mode": "include", "regex": ["Provider only"]
+      "name": "Provider only", "order": "2", "filter_enabled": "1", "include_regex": "Provider only"
     },
     {
       ".name": "pl_direct", ".type": "fallback_level", "group": "pg_main",
@@ -66,7 +66,7 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
     },
     {
       ".name": "pl_remaining", ".type": "fallback_level", "group": "pg_main",
-      "name": "Remaining", "order": "4", "filter_mode": "disabled"
+      "name": "Remaining", "order": "4", "filter_enabled": "0"
     }
   ]
 }
@@ -135,6 +135,19 @@ if output="$(validate "$WORK_DIR/bad-timeout.json" 2>/dev/null)"; then
   exit 1
 fi
 grep -Fq 'blacklist_timeout' <<<"$output"
+
+cat >"$WORK_DIR/no-levels.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings", "dns_server": ["77.88.8.8"], "bootstrap_dns_server": ["77.88.8.8"] },
+  "section": [{ ".name": "proxy", ".type": "section", "enabled": "1", "action": "connection" }],
+  "fallback_group": [{ ".name": "pg", ".type": "fallback_group", "section": "proxy", "name": "Empty", "blacklist_timeout": "1m" }]
+}
+JSON
+if output="$(validate "$WORK_DIR/no-levels.json" 2>/dev/null)"; then
+  printf 'Fallback without levels was accepted\n' >&2
+  exit 1
+fi
+grep -Fq 'has no levels' <<<"$output"
 
 test ! -e "$FORKOP_LIB/singbox/fallback.uc"
 
