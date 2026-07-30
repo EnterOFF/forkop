@@ -17,6 +17,9 @@ fail() {
   exit 1
 }
 
+WORK_DIR="$(mktemp -d)"
+trap 'rm -rf "$WORK_DIR"' EXIT
+
 [ ! -e "$RUNTIME_STATE" ] ||
   fail "runtime_state.sh shell owner must be removed"
 [ ! -e "$UPDATES_RUNTIME" ] ||
@@ -90,6 +93,22 @@ grep -Fq 'mode == "reload-sing-box-runtime"' "$STATE_UC" ||
   fail "service/state.uc must own sing-box runtime reload"
 grep -Fq 'mode == "wait-sing-box-stopped"' "$STATE_UC" ||
   fail "service/state.uc must expose a complete sing-box stop wait"
+FORKOP_SING_BOX_INIT="$WORK_DIR/missing-sing-box-init" \
+  ucode -L "$ROOT_DIR/forkop/files/usr/lib" "$LIFECYCLE_UC" sing-box-stop-service-fixture ||
+  fail "missing sing-box init script must already count as stopped"
+touch "$WORK_DIR/non-executable-sing-box-init"
+FORKOP_SING_BOX_INIT="$WORK_DIR/non-executable-sing-box-init" \
+  ucode -L "$ROOT_DIR/forkop/files/usr/lib" "$LIFECYCLE_UC" sing-box-stop-service-fixture ||
+  fail "non-executable sing-box init script must already count as stopped"
+printf '%s\n' '#!/bin/sh' 'exit 23' >"$WORK_DIR/failing-sing-box-init"
+chmod 0755 "$WORK_DIR/failing-sing-box-init"
+set +e
+FORKOP_SING_BOX_INIT="$WORK_DIR/failing-sing-box-init" \
+  ucode -L "$ROOT_DIR/forkop/files/usr/lib" "$LIFECYCLE_UC" sing-box-stop-service-fixture
+failing_status="$?"
+set -e
+[ "$failing_status" -eq 23 ] ||
+  fail "sing-box init failure status must be preserved"
 grep -Fq '"wait-forkop-stable-start"' "$LIFECYCLE_UC" ||
   fail "service/lifecycle.uc must verify stable runtime after sing-box start/reload"
 grep -Fq 'SING_BOX_START_STABLE_MIN_AGE' "$LIFECYCLE_UC" ||

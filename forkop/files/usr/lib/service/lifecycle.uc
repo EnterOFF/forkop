@@ -19,6 +19,7 @@ const CONFIG_FILE = getenv("FORKOP_CONFIG_FILE") || "/etc/config/" + CONFIG_NAME
 const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
 const BIN_PATH = getenv("FORKOP_BIN") || constant_value("FORKOP_BIN", "/usr/bin/forkop");
 const SERVICE_INIT = getenv("FORKOP_SERVICE_INIT") || constant_value("FORKOP_SERVICE_INIT", "/etc/init.d/forkop");
+const SING_BOX_INIT = getenv("FORKOP_SING_BOX_INIT") || "/etc/init.d/sing-box";
 const SERVICE_NAME = getenv("FORKOP_SERVICE_NAME") || constant_value("FORKOP_SERVICE_NAME", "forkop");
 const LUCI_VIEW_DIR = getenv("FORKOP_LUCI_VIEW_DIR") || constant_value("FORKOP_LUCI_VIEW_DIR", "/www/luci-static/resources/view/forkop");
 const LUCI_I18N_DOMAIN = getenv("FORKOP_LUCI_I18N_DOMAIN") || constant_value("FORKOP_LUCI_I18N_DOMAIN", "forkop");
@@ -163,6 +164,17 @@ function command_output_from_args(args) {
 
 function command_success_from_args(args) {
     return command_status(command_from_args(args) + " >/dev/null 2>&1") == 0;
+}
+
+function file_executable(path) {
+    let stat = fs.stat(as_string(path));
+    return stat != null && stat.mode != null && (int(stat.mode) & 73) != 0;
+}
+
+function stop_sing_box_service() {
+    if (!file_executable(SING_BOX_INIT))
+        return 0;
+    return command_status_from_args([ SING_BOX_INIT, "stop" ]);
 }
 
 function external_config_fingerprint() {
@@ -766,7 +778,7 @@ function stop_main() {
     if (module_success(NFT_UC, [ "tproxy-route6-present", RT_TABLE_NAME ]))
         command_success_from_args([ "ip", "-6", "route", "flush", "table", RT_TABLE_NAME ]);
 
-    let sing_box_status = command_status_from_args([ "/etc/init.d/sing-box", "stop" ]);
+    let sing_box_status = stop_sing_box_service();
     if (sing_box_status != 0)
         status = sing_box_status;
     if (!module_success(STATE_UC, [
@@ -1360,6 +1372,8 @@ else if (mode == "sing-box-planned-stop-guard-fixture") {
     else if (action == "check")
         status = sing_box_planned_stop() ? 0 : 1;
 }
+else if (mode == "sing-box-stop-service-fixture")
+    status = stop_sing_box_service();
 else if (mode == "start")
     status = start();
 else if (mode == "stop")
