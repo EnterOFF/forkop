@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-07-30 05:40+0300\n"
-"PO-Revision-Date: 2026-07-30 05:40+0300\n"
+"POT-Creation-Date: 2026-07-30 13:44+0300\n"
+"PO-Revision-Date: 2026-07-30 13:44+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -151,9 +151,6 @@ msgstr "Авто-генерация HWID"
 
 msgid "Automatic component update checks"
 msgstr "Автоматическая проверка обновлений компонентов"
-
-msgid "Automatic User-Agent selection"
-msgstr "Авто-подбор User-Agent"
 
 msgid "Automatically add text to the name of each server from this subscription for convenient filtering."
 msgstr "Автоматически добавлять текст к имени каждого сервера из этой подписки для удобной фильтрации."
@@ -1879,9 +1876,6 @@ msgstr "Путь транспорта должен начинаться с /"
 
 msgid "Troubleshooting"
 msgstr "Устранение неполадок"
-
-msgid "Try compatible User-Agent profiles automatically when downloading this subscription"
-msgstr "Автоматически пробовать совместимые профили User-Agent при загрузке этой подписки"
 
 msgid "Try DNS servers in order or query all of them at once."
 msgstr "Пробовать DNS-серверы по порядку или запрашивать их одновременно."

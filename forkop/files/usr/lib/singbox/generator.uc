@@ -32,7 +32,6 @@ let list_option = common.list_option;
 let bool_option = common.bool_option;
 let int_option = common.int_option;
 const CONFIG_NAME = "forkop";
-const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
 
 function parent_dir(path) {
     path = as_string(path);
@@ -416,14 +415,6 @@ function base_config(settings, service_address, runtime_context) {
     };
 }
 
-let subscription_auto_user_agents = [
-    "Happ",
-    "v2rayN",
-    "v2rayNG",
-    "Mihomo",
-    "Clash.Meta"
-];
-
 function shell_quote(value) {
     return "'" + replace(as_string(value), /'/g, "'\\''") + "'";
 }
@@ -469,26 +460,6 @@ function subscription_headers(section, source) {
     let hwid = subscription_hwid(section, source);
     if (hwid != "")
         result["X-HWID"] = [ hwid ];
-    return result;
-}
-
-function subscription_user_agents(section, source) {
-    let configured = connections.subscription_user_agent(section, source);
-    if (configured != "")
-        return [ configured ];
-
-    let version = "";
-    for (let package_name in [ "sing-box-forkop-compressed", "sing-box-forkop" ]) {
-        version = trim(command_output("ucode -L " + shell_quote(LIB_DIR) + " " +
-            shell_quote(LIB_DIR + "/core/packages.uc") + " version " + shell_quote(package_name) + " 2>/dev/null"));
-        if (version != "") {
-            version = replace(version, /~/g, "-");
-            break;
-        }
-    }
-    let result = [ "sing-box/" + (version != "" ? version : "unknown") ];
-    for (let user_agent in subscription_auto_user_agents)
-        push(result, user_agent);
     return result;
 }
 
@@ -641,7 +612,7 @@ function add_remote_subscription_provider(config, section, source_index, source)
         type: "remote",
         tag: tag_name,
         url: source,
-        user_agent: subscription_user_agents(section, source),
+        user_agent: connections.subscription_user_agent(section, source),
         headers: subscription_headers(section, source),
         update_interval: connections.subscription_update_enabled(section, source)
             ? connections.subscription_update_interval(section, source)

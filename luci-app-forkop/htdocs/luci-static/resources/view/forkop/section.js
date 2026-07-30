@@ -2015,7 +2015,6 @@ function subscriptionUrlSettingsKeys() {
     "subscription_update_interval",
     "download_via_proxy_enabled",
     "download_via_proxy_section",
-    "auto_user_agent",
     "user_agent",
     "auto_hwid",
     "hwid",
@@ -2036,8 +2035,7 @@ function defaultSubscriptionUrlSettings() {
     subscription_update_interval: "1h",
     download_via_proxy_enabled: "0",
     download_via_proxy_section: "",
-    auto_user_agent: "1",
-    user_agent: "",
+    user_agent: "sing-box",
     auto_hwid: "1",
     hwid: "",
     show_dashboard_metadata: "1",
@@ -2255,33 +2253,19 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
   };
 
   o = itemSection.option(
-    form.Flag,
-    "auto_user_agent",
-    _("Automatic User-Agent selection"),
-    _(
-      "Try compatible User-Agent profiles automatically when downloading this subscription",
-    ),
-  );
-  o.default = "1";
-  o.rmempty = false;
-
-  o = itemSection.option(
     form.Value,
     "user_agent",
     _("User-Agent"),
     _("Select a common client profile or enter a custom User-Agent"),
   );
-  o.depends("auto_user_agent", "0");
+  o.default = "sing-box";
   o.placeholder = _("-- Select --");
   o.rmempty = false;
   subscriptionUserAgentChoices().forEach((choice) => o.value(choice));
   o.load = function (itemId) {
-    return optionMapValue(this, itemId, "user_agent") || "";
+    return optionMapValue(this, itemId, "user_agent") || "sing-box";
   };
-  o.validate = function (itemId, value) {
-    if (optionMapValue(this, itemId, "auto_user_agent") !== "0") {
-      return true;
-    }
+  o.validate = function (_itemId, value) {
     return `${value || ""}`.trim() ? true : _("Select or enter a User-Agent");
   };
 

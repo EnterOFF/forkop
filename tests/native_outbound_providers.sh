@@ -37,7 +37,6 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
       ".type": "subscription_url",
       "section": "proxy",
       "url": "https://example.com/subscription",
-      "auto_user_agent": "0",
       "user_agent": "Happ",
       "auto_hwid": "0",
       "hwid": "router-hwid",
@@ -79,15 +78,7 @@ JSON
 
 output="$WORK_DIR/config.json"
 ucode -L "$FORKOP_LIB" "$VALIDATOR" validate-runtime-fixture "$WORK_DIR/fixture.json" '{}' >/dev/null
-mkdir -p "$WORK_DIR/bin" "$WORK_DIR/lib/core"
-cat >"$WORK_DIR/lib/core/packages.uc" <<'EOF_PACKAGES'
-#!/usr/bin/ucode
-if ((ARGV[0] || "") == "version" && (ARGV[1] || "") == "sing-box-forkop-compressed")
-  print("1.13.14~forkop\n");
-EOF_PACKAGES
-printf '#!/bin/sh\nprintf "sing-box version 1.13.14-forkop\\nEnvironment: test\\n"\n' >"$WORK_DIR/bin/sing-box"
-chmod +x "$WORK_DIR/bin/sing-box"
-PATH="$WORK_DIR/bin:$PATH" FORKOP_LIB="$WORK_DIR/lib" ucode -L "$FORKOP_LIB" "$FORKOP_LIB/singbox/generator.uc" generate-config-fixture \
+ucode -L "$FORKOP_LIB" "$FORKOP_LIB/singbox/generator.uc" generate-config-fixture \
   "$WORK_DIR/fixture.json" "$output" 127.0.0.1 0
 
 mac="$(cat /sys/class/net/eth0/address 2>/dev/null || cat /sys/class/net/br-lan/address 2>/dev/null || true)"
@@ -112,10 +103,10 @@ let without_hwid = by_provider["proxy-subscription-3-provider"];
 let local = by_provider["proxy-manual-provider"];
 if (!remote || !automatic || !without_hwid || !local)
     die("native remote/local providers were not generated\n");
-if (remote.url != "https://example.com/subscription" || remote.user_agent[0] != "Happ")
+if (remote.url != "https://example.com/subscription" || remote.user_agent != "Happ")
     die("remote provider request profile was not preserved\n");
-if (automatic.user_agent[0] != "sing-box/1.13.14-forkop" || automatic.user_agent[1] != "Happ")
-    die("automatic User-Agent order diverged from the legacy request profile\n");
+if (automatic.user_agent != "sing-box")
+    die("default subscription User-Agent was not generated\n");
 if (automatic.headers["X-HWID"][0] != getenv("EXPECTED_HWID"))
     die("automatic HWID diverged from the legacy router identity algorithm\n");
 if (remote.headers["X-HWID"][0] != "router-hwid" || remote.headers["X-Device-OS"][0] != "OpenWrt Linux")

@@ -36,10 +36,6 @@ reject_runtime_pattern "Reload signature changes:" \
   "reload logs must not dump internal signature vectors"
 reject_runtime_pattern "Reload plan: sing-box=" \
   "reload logs must not dump boolean plan internals"
-reject_runtime_pattern "Trying subscription User-Agent" \
-  "subscription logs must not expose automatic User-Agent fallback attempts"
-reject_runtime_pattern "Selected subscription User-Agent" \
-  "subscription logs must not expose automatic User-Agent fallback selection"
 reject_runtime_pattern "Starting subscription update" \
   "native subscription refresh must not duplicate core update logs"
 reject_runtime_pattern "Subscription providers refreshed without reloading sing-box" \

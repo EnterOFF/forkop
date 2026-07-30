@@ -336,7 +336,6 @@ export namespace Forkop {
     outbound_detour_section?: string;
     download_via_proxy_enabled?: '0' | '1';
     download_via_proxy_section?: string;
-    auto_user_agent?: '0' | '1';
     user_agent?: string;
     auto_hwid?: '0' | '1';
     hwid?: string;

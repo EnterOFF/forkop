@@ -656,9 +656,7 @@ function migrate_subscription_url_item_settings(ctx, section) {
         set_option(ctx, child, "url", profile.value);
         set_option(ctx, child, "subscription_update_enabled", update_enabled ? "1" : "0");
         set_option(ctx, child, "subscription_update_interval", update_enabled ? update_interval : "");
-        set_option(ctx, child, "auto_user_agent", profile.user_agent != "" ? "0" : "1");
-        if (profile.user_agent != "")
-            set_option(ctx, child, "user_agent", profile.user_agent);
+        set_option(ctx, child, "user_agent", profile.user_agent != "" ? profile.user_agent : "sing-box");
         set_option(ctx, child, "auto_hwid", "1");
         set_option(ctx, child, "show_dashboard_metadata", "1");
         set_option(ctx, child, "prefix_nodes", "0");
@@ -1870,6 +1868,54 @@ function migrate_server_filter_model(ctx) {
     }
 }
 
+function single_subscription_user_agent(item) {
+    let configured = as_string(object_or_empty(item).user_agent);
+    return bool_option(item, "auto_user_agent", false) || trim(configured) == ""
+        ? "sing-box"
+        : configured;
+}
+
+function migrate_single_subscription_user_agent(ctx) {
+    for (let child in ctx.model.subscription_url || []) {
+        set_option(ctx, child, "user_agent", single_subscription_user_agent(child));
+        delete_option(ctx, child, "auto_user_agent");
+    }
+
+    for (let section in ctx.model.sections || []) {
+        let raw = option(section, "subscription_url_settings", "");
+        if (raw == "")
+            continue;
+
+        let settings;
+        try {
+            settings = json(raw);
+        }
+        catch (e) {
+            continue;
+        }
+        if (type(settings) != "object")
+            continue;
+
+        let changed = false;
+        for (let _, item in settings) {
+            if (type(item) != "object")
+                continue;
+
+            let user_agent = single_subscription_user_agent(item);
+            if (as_string(item.user_agent) != user_agent || !option_exists(item, "user_agent")) {
+                item.user_agent = user_agent;
+                changed = true;
+            }
+            if (option_exists(item, "auto_user_agent")) {
+                delete item.auto_user_agent;
+                changed = true;
+            }
+        }
+        if (changed)
+            set_option(ctx, section, "subscription_url_settings", sprintf("%J", settings));
+    }
+}
+
 const MIGRATIONS = [
     { id: "interface_sections", run: migrate_interface_sections },
     { id: "enable_component_checks", run: migrate_enable_component_checks },
@@ -1882,7 +1928,8 @@ const MIGRATIONS = [
     { id: "extended_server_defaults", run: add_extended_server_defaults },
     { id: "fallback_uci_tags", run: migrate_fallback_uci_tags },
     { id: "remove_proxy_parameter_filters", run: remove_proxy_parameter_filters },
-    { id: "server_filter_model", run: migrate_server_filter_model }
+    { id: "server_filter_model", run: migrate_server_filter_model },
+    { id: "single_subscription_user_agent", run: migrate_single_subscription_user_agent }
 ];
 
 function apply_migrations(ctx) {

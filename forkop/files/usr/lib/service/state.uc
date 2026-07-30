@@ -955,7 +955,6 @@ function subscription_urls_signature(section) {
             subscription_update_enabled: connections.subscription_update_enabled(section, entry) ? "1" : "0",
             subscription_update_interval: connections.subscription_update_interval(section, entry),
             download_via_proxy_section: connections.subscription_download_section(section, entry),
-            auto_user_agent: connections.subscription_auto_user_agent(section, entry) ? "1" : "0",
             user_agent: connections.subscription_user_agent(section, entry),
             auto_hwid: connections.subscription_auto_hwid(section, entry) ? "1" : "0",
             hwid: connections.subscription_hwid(section, entry),

@@ -719,20 +719,6 @@ function subscription_dashboard_metadata_enabled(section, value) {
     return item_bool(section, "subscription_url_settings", value, "show_dashboard_metadata", true);
 }
 
-function subscription_auto_user_agent(section, value) {
-    let child = child_item_by_value(section, "subscription_url", "url", value);
-    if (child != null) {
-        if (raw_option(child, "auto_user_agent") != null)
-            return child_bool(child, "auto_user_agent", true);
-        return child_option(child, "user_agent", "") == "";
-    }
-
-    let settings = item_settings(section, "subscription_url_settings", value);
-    if (raw_option(settings, "auto_user_agent") != null)
-        return item_bool(section, "subscription_url_settings", value, "auto_user_agent", true);
-    return item_option(section, "subscription_url_settings", value, "user_agent", "") == "";
-}
-
 function subscription_auto_hwid(section, value) {
     let child = child_item_by_value(section, "subscription_url", "url", value);
     if (child != null) {
@@ -766,9 +752,6 @@ function subscription_node_prefix(section, value) {
 }
 
 function subscription_user_agent(section, value) {
-    if (subscription_auto_user_agent(section, value))
-        return "";
-
     let child = child_item_by_value(section, "subscription_url", "url", value);
     let configured = child != null
         ? child_option(child, "user_agent", "")
@@ -1038,7 +1021,6 @@ return {
     subscription_update_enabled,
     subscription_update_interval,
     subscription_dashboard_metadata_enabled,
-    subscription_auto_user_agent,
     subscription_auto_hwid,
     subscription_prefix_nodes,
     subscription_node_prefix,
