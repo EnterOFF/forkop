@@ -295,7 +295,7 @@ export namespace Forkop {
     subscription_update_interval?: string;
     urltest_enabled?: '0' | '1';
     sort_by_latency?: '0' | '1';
-    urltest_filter_enabled?: '0' | '1';
+    urltest_server_filter_mode?: 'all' | 'exclude' | 'include';
     urltest_filter_mode?: 'disabled' | 'exclude' | 'include' | 'mixed';
     urltest_exclude_countries?: string[];
     urltest_exclude_outbounds?: string[];
@@ -317,7 +317,7 @@ export namespace Forkop {
     interrupt_exist_connections?: '0' | '1';
     pin_dashboard?: '0' | '1';
     hide_dashboard_members?: '0' | '1';
-    filter_enabled?: '0' | '1';
+    server_filter_mode?: 'all' | 'exclude' | 'include' | 'direct';
     filter_mode?: 'disabled' | 'exclude' | 'include' | 'mixed';
     include_countries?: string[];
     include_outbounds?: string[];

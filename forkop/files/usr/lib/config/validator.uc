@@ -1023,6 +1023,21 @@ function validate_fallback_level_order(value, section, group_id, level_id) {
     fail_validation("Invalid fallback level order '" + value + "' in rule '" + section + "', fallback '" + group_id + "', level '" + level_id + "'. Use a non-negative integer. Aborted.");
 }
 
+function validate_server_filter_mode(value, context, direct_allowed) {
+    if (contains([ "all", "exclude", "include" ], value) ||
+        (direct_allowed && value == "direct"))
+        return;
+
+    fail_validation("Invalid server filter mode '" + value + "' in " + context + ". Aborted.");
+}
+
+function validate_server_filter_regexes(mode, include_regex, exclude_regex, section) {
+    if (mode == "include")
+        validate_urltest_regex_value(include_regex, section);
+    if (mode == "include" || mode == "exclude")
+        validate_urltest_regex_value(exclude_regex, section);
+}
+
 function validate_fallback_group(section, group_id) {
     let name = section_name(section);
     validate_fallback_identifier_value(group_id, name);
@@ -1042,14 +1057,14 @@ function validate_fallback_group(section, group_id) {
             fail_validation("Fallback level '" + level_id + "' in rule '" + name + "', fallback '" + group_id + "' has no display name. Aborted.");
 
         validate_fallback_level_order(connections.fallback_level_order(group_id, level_id), name, group_id, level_id);
-        if (connections.fallback_level_direct(group_id, level_id))
-            continue;
-
-        if (!connections.fallback_level_filter_enabled(group_id, level_id))
-            continue;
-
-        validate_urltest_regex_value(connections.fallback_level_include_regex(group_id, level_id), name);
-        validate_urltest_regex_value(connections.fallback_level_exclude_regex(group_id, level_id), name);
+        let mode = connections.fallback_level_mode(group_id, level_id);
+        validate_server_filter_mode(mode, "Fallback level '" + level_id + "'", true);
+        validate_server_filter_regexes(
+            mode,
+            connections.fallback_level_include_regex(group_id, level_id),
+            connections.fallback_level_exclude_regex(group_id, level_id),
+            name
+        );
     }
 }
 
@@ -1306,11 +1321,14 @@ function validate_subscription_request_profile(section, entry) {
 function validate_subscription_filter(section, entry) {
     let name = section_name(section);
     let settings = connections.subscription_url_settings(section, entry);
-    if (!bool_option(settings, "filter_enabled", false))
-        return;
-
-    validate_urltest_regex_value(option(settings, "include_regex", ""), name);
-    validate_urltest_regex_value(option(settings, "exclude_regex", ""), name);
+    let mode = option(settings, "server_filter_mode", "all");
+    validate_server_filter_mode(mode, "subscription in rule '" + name + "'", false);
+    validate_server_filter_regexes(
+        mode,
+        option(settings, "include_regex", ""),
+        option(settings, "exclude_regex", ""),
+        name
+    );
 }
 
 function validate_provider_strategy(kind, section, context) {
@@ -1441,10 +1459,14 @@ function validate_rule(section, sections, context) {
             if (duration_to_seconds_value(check_interval) > duration_to_seconds_value(effective_idle_timeout))
                 fail_validation("URLTest '" + urltest_id + "' in rule '" + name + "' has a check interval longer than its idle timeout. Increase the idle timeout or shorten the check interval. Aborted.");
 
-            if (connections.urltest_filter_enabled(section, urltest_id)) {
-                validate_urltest_regex_value(connections.urltest_include_regex(section, urltest_id), name);
-                validate_urltest_regex_value(connections.urltest_exclude_regex(section, urltest_id), name);
-            }
+            let filter_mode = connections.urltest_filter_mode(section, urltest_id);
+            validate_server_filter_mode(filter_mode, "URLTest '" + urltest_id + "'", false);
+            validate_server_filter_regexes(
+                filter_mode,
+                connections.urltest_include_regex(section, urltest_id),
+                connections.urltest_exclude_regex(section, urltest_id),
+                name
+            );
         }
 
         for (let group_id in connections.fallback_groups(section))

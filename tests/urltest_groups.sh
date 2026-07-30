@@ -21,10 +21,18 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
       ".type": "section",
       "enabled": "1",
       "action": "connection",
-      "subscription_urls": [ "https://xray.example/sub" ],
-      "urltest_enabled": "1",
-      "urltest_filter_enabled": "1",
-      "urltest_include_regex": "Riga"
+      "subscription_urls": [ "https://xray.example/sub" ]
+    }
+  ],
+  "urltest": [
+    {
+      ".name": "black", ".type": "urltest", "section": "proxy",
+      "name": "Blacklist", "server_filter_mode": "exclude",
+      "exclude_regex": "Riga"
+    },
+    {
+      ".name": "empty", ".type": "urltest", "section": "proxy",
+      "name": "Empty whitelist", "server_filter_mode": "include"
     }
   ]
 }
@@ -38,14 +46,17 @@ let config = json(fs.readfile(ARGV[0]));
 let provider = null;
 let selector = null;
 let urltest = null;
+let empty = null;
 for (let item in config.providers || [])
     if (item.tag == "proxy-subscription-1-provider")
         provider = item;
 for (let outbound in config.outbounds || []) {
     if (outbound.tag == "proxy-out")
         selector = outbound;
-    if (outbound.tag == "proxy-urltest-out")
+    if (outbound.tag == "proxy-urltest-black-out")
         urltest = outbound;
+    if (outbound.tag == "proxy-urltest-empty-out")
+        empty = outbound;
 }
 if (!provider || provider.type != "remote" || provider.url != "https://xray.example/sub")
     die("subscription was not delegated to a native remote provider\n");
@@ -55,8 +66,11 @@ if (selector.exclude_provider_group_members != null || selector.exclude_provider
     die("subscription detour nodes must remain visible in the selector\n");
 if (provider.exclude_types != null)
     die("subscription provider still contains removed type filters\n");
-if (!urltest || urltest.providers[0] != provider.tag || index(urltest.include || "", "Riga") < 0)
+if (!urltest || urltest.providers[0] != provider.tag ||
+    urltest.include != null || index(urltest.exclude || "", "Riga") < 0)
     die("URLTest does not consume provider updates through its native filter\n");
+if (!empty || empty.include != "a^")
+    die("empty URLTest whitelist must match no provider nodes\n");
 if (length(urltest.outbounds || []) != 0)
     die("Forkop parsed provider nodes into static URLTest membership\n");
 ' "$WORK_DIR/config.json" || fail "native provider URLTest wiring"

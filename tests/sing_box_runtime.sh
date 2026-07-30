@@ -661,7 +661,7 @@ cat >"$WORK_DIR/urltest-filter-fixture.json" <<'JSON'
         "{\"type\":\"http\",\"tag\":\"Drop\",\"server\":\"127.0.0.1\",\"server_port\":18082}"
       ],
       "urltest_enabled": "1",
-      "urltest_filter_enabled": "1",
+      "urltest_server_filter_mode": "include",
       "urltest_include_outbounds": [ "Keep" ],
       "domain_suffix": [ "example.org" ]
     }

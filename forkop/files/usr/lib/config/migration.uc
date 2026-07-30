@@ -1712,14 +1712,8 @@ function combined_filter_pattern(section, regex_options, country_options) {
 
 function migrated_filter_values(section, kind) {
     let fallback = kind == "fallback";
-    let mode_exists = option_exists(section, "filter_mode");
-    let mode = option(section, "filter_mode", fallback ? "include" : "disabled");
-    let legacy = mode_exists || !option_exists(section, "filter_enabled");
-    let include_enabled = mode == "include" || mode == "mixed";
-    let exclude_enabled = mode == "exclude" || mode == "mixed";
-    let enabled = legacy
-        ? (include_enabled || exclude_enabled)
-        : bool_option(section, "filter_enabled", false);
+    let legacy_mode_exists = option_exists(section, "filter_mode");
+    let legacy_mode = option(section, "filter_mode", fallback ? "include" : "disabled");
 
     let include_outbounds = unique_values_from_options(
         section,
@@ -1737,17 +1731,41 @@ function migrated_filter_values(section, kind) {
         [ "exclude_countries" ]
     );
 
-    if (legacy && mode == "include") {
+    if (legacy_mode_exists && legacy_mode == "include") {
         exclude_outbounds = [];
         exclude_regex = "";
     }
-    else if (legacy && mode == "exclude") {
+    else if (legacy_mode_exists && legacy_mode == "exclude") {
         include_outbounds = [];
         include_regex = "";
     }
 
+    let mode = option(section, "server_filter_mode", "");
+    if (mode != "all" && mode != "exclude" && mode != "include" && mode != "direct") {
+        if (fallback && bool_option(section, "direct", false))
+            mode = "direct";
+        else if (option_exists(section, "filter_enabled")) {
+            if (!bool_option(section, "filter_enabled", false))
+                mode = "all";
+            else if (length(include_outbounds) > 0 || include_regex != "")
+                mode = "include";
+            else if (length(exclude_outbounds) > 0 || exclude_regex != "")
+                mode = "exclude";
+            else
+                mode = "all";
+        }
+        else if (legacy_mode == "include" || legacy_mode == "mixed")
+            mode = "include";
+        else if (legacy_mode == "exclude")
+            mode = "exclude";
+        else
+            mode = "all";
+    }
+    if (!fallback && mode == "direct")
+        mode = "all";
+
     return {
-        filter_enabled: enabled ? "1" : "0",
+        server_filter_mode: mode,
         include_outbounds,
         include_regex,
         exclude_outbounds,
@@ -1756,7 +1774,9 @@ function migrated_filter_values(section, kind) {
 }
 
 const LEGACY_SERVER_FILTER_OPTIONS = [
+    "filter_enabled",
     "filter_mode",
+    "direct",
     "include_countries",
     "country",
     "server_name",
@@ -1766,6 +1786,7 @@ const LEGACY_SERVER_FILTER_OPTIONS = [
 
 function has_server_filter_fields(section) {
     for (let key in [
+        "server_filter_mode",
         "filter_enabled",
         "filter_mode",
         "include_countries",
@@ -1784,7 +1805,7 @@ function has_server_filter_fields(section) {
 }
 
 function apply_migrated_filter_values(ctx, section, values) {
-    set_option(ctx, section, "filter_enabled", values.filter_enabled);
+    set_option(ctx, section, "server_filter_mode", values.server_filter_mode);
     for (let key in [ "include_outbounds", "exclude_outbounds" ]) {
         if (length(values[key]) > 0)
             set_list_option(ctx, section, key, values[key]);
@@ -1805,7 +1826,7 @@ function apply_migrated_filter_values(ctx, section, values) {
 }
 
 function apply_migrated_filter_object(section, values) {
-    section.filter_enabled = values.filter_enabled;
+    section.server_filter_mode = values.server_filter_mode;
     for (let key in [ "include_outbounds", "exclude_outbounds" ]) {
         if (length(values[key]) > 0)
             section[key] = values[key];
@@ -1866,6 +1887,10 @@ function migrate_server_filter_model(ctx) {
         migrate_filter_settings_map(ctx, section, "fallback_level_settings", "fallback");
         migrate_filter_settings_map(ctx, section, "priority_level_settings", "fallback");
     }
+}
+
+function migrate_server_filter_modes(ctx) {
+    migrate_server_filter_model(ctx);
 }
 
 function single_subscription_user_agent(item) {
@@ -1929,6 +1954,7 @@ const MIGRATIONS = [
     { id: "fallback_uci_tags", run: migrate_fallback_uci_tags },
     { id: "remove_proxy_parameter_filters", run: remove_proxy_parameter_filters },
     { id: "server_filter_model", run: migrate_server_filter_model },
+    { id: "server_filter_modes", run: migrate_server_filter_modes },
     { id: "single_subscription_user_agent", run: migrate_single_subscription_user_agent }
 ];
 

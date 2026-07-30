@@ -286,7 +286,7 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
           interrupt_exist_connections: item.interrupt_exist_connections,
           pin_dashboard: item.pin_dashboard,
           hide_dashboard_members: item.hide_dashboard_members,
-          urltest_filter_enabled: item.filter_enabled,
+          urltest_server_filter_mode: item.server_filter_mode,
           urltest_include_outbounds: item.include_outbounds,
           urltest_include_regex: item.include_regex,
           urltest_exclude_outbounds: item.exclude_outbounds,

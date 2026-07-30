@@ -463,7 +463,7 @@ cat >"$WORK_DIR/sing-box-signature.json" <<'JSON'
       "subscription_url_settings": "{\"https://example.com/sub.txt\":{\"prefix_nodes\":\"1\",\"node_prefix\":\"Example\"}}",
       "urltest_enabled": "1",
       "urltest_tolerance": "75",
-      "urltest_filter_enabled": "1",
+      "urltest_server_filter_mode": "include",
       "urltest_exclude_regex": "🇷🇺",
       "urltest_include_outbounds": [ "node-a" ],
       "subscription_update_enabled": "1",
@@ -595,7 +595,7 @@ proxy
 [rule.proxy1.connection_urls]
 [ "vless://one", "vless://two" ]
 [rule.proxy1.subscription_urls]
-[ { "url": "https://example.com/sub.txt", "subscription_update_enabled": "1", "subscription_update_interval": "1h", "download_via_proxy_section": "", "user_agent": "sing-box", "auto_hwid": "1", "hwid": "", "show_dashboard_metadata": "1", "prefix_nodes": "1", "node_prefix": "Example", "filter_enabled": "0", "include_outbounds": [ ], "include_regex": "", "exclude_outbounds": [ ], "exclude_regex": "" } ]
+[ { "url": "https://example.com/sub.txt", "subscription_update_enabled": "1", "subscription_update_interval": "1h", "download_via_proxy_section": "", "user_agent": "sing-box", "auto_hwid": "1", "hwid": "", "show_dashboard_metadata": "1", "prefix_nodes": "1", "node_prefix": "Example", "server_filter_mode": "all", "include_outbounds": [ ], "include_regex": "", "exclude_outbounds": [ ], "exclude_regex": "" } ]
 [rule.proxy1.interfaces]
 [ ]
 [rule.proxy1.outbound_jsons]
@@ -607,7 +607,7 @@ proxy
 [rule.proxy1.legacy_outbound_json]
 
 [rule.proxy1.urltests]
-[ { "id": "urltest", "display_name": "Fastest", "check_interval": "3m", "tolerance": "75", "testing_url": "https://www.gstatic.com/generate_204", "idle_timeout": "", "interrupt_exist_connections": "1", "pin_dashboard": "1", "hide_dashboard_members": "0", "filter_enabled": "1", "include_outbounds": [ "node-a" ], "include_regex": "", "exclude_outbounds": [ ], "exclude_regex": "🇷🇺" } ]
+[ { "id": "urltest", "display_name": "Fastest", "check_interval": "3m", "tolerance": "75", "testing_url": "https://www.gstatic.com/generate_204", "idle_timeout": "", "interrupt_exist_connections": "1", "pin_dashboard": "1", "hide_dashboard_members": "0", "server_filter_mode": "include", "include_outbounds": [ "node-a" ], "include_regex": "", "exclude_outbounds": [ ], "exclude_regex": "🇷🇺" } ]
 [rule.proxy1.fallback_groups]
 [ ]
 [rule.proxy1.urltest_enabled]
@@ -618,8 +618,8 @@ proxy
 75
 [rule.proxy1.urltest_testing_url]
 https://www.gstatic.com/generate_204
-[rule.proxy1.urltest_filter_enabled]
-1
+[rule.proxy1.urltest_filter_mode]
+disabled
 [rule.proxy1.urltest_exclude_outbounds]
 
 [rule.proxy1.urltest_exclude_regex]
@@ -696,8 +696,8 @@ outbound
 50
 [rule.out1.urltest_testing_url]
 https://www.gstatic.com/generate_204
-[rule.out1.urltest_filter_enabled]
-0
+[rule.out1.urltest_filter_mode]
+disabled
 [rule.out1.urltest_exclude_outbounds]
 
 [rule.out1.urltest_exclude_regex]
@@ -794,8 +794,8 @@ wg0
 50
 [rule.vpn1.urltest_testing_url]
 https://www.gstatic.com/generate_204
-[rule.vpn1.urltest_filter_enabled]
-0
+[rule.vpn1.urltest_filter_mode]
+disabled
 [rule.vpn1.urltest_exclude_outbounds]
 
 [rule.vpn1.urltest_exclude_regex]

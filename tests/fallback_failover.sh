@@ -49,24 +49,24 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
   "fallback_level": [
     {
       ".name": "pl_top", ".type": "fallback_level", "group": "pg_main",
-      "name": "Top", "order": "0", "filter_enabled": "1", "include_outbounds": ["Beta"]
+      "name": "Top", "order": "0", "server_filter_mode": "include", "include_outbounds": ["Beta"]
     },
     {
       ".name": "pl_mixed", ".type": "fallback_level", "group": "pg_main",
-      "name": "Mixed", "order": "1", "filter_enabled": "1",
+      "name": "Mixed", "order": "1", "server_filter_mode": "include",
       "include_regex": "Alpha|Gamma", "exclude_outbounds": ["Gamma"]
     },
     {
       ".name": "pl_provider", ".type": "fallback_level", "group": "pg_main",
-      "name": "Provider only", "order": "2", "filter_enabled": "1", "include_regex": "Provider only"
+      "name": "Provider only", "order": "2", "server_filter_mode": "include", "include_regex": "Provider only"
     },
     {
       ".name": "pl_direct", ".type": "fallback_level", "group": "pg_main",
-      "name": "Direct", "order": "3", "direct": "1"
+      "name": "Direct", "order": "3", "server_filter_mode": "direct"
     },
     {
       ".name": "pl_remaining", ".type": "fallback_level", "group": "pg_main",
-      "name": "Remaining", "order": "4", "filter_enabled": "0"
+      "name": "Remaining", "order": "4", "server_filter_mode": "all"
     }
   ]
 }

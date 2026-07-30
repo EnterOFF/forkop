@@ -96,7 +96,7 @@ cat >"$WORK_DIR/valid.json" <<'JSON'
       "subscription_update_interval": "12h",
       "urltest_enabled": "1",
       "urltest_check_interval": "3m",
-      "urltest_filter_enabled": "1",
+      "urltest_server_filter_mode": "include",
       "urltest_tolerance": "10000",
       "urltest_testing_url": "https://urltest.example/generate_204",
       "urltest_include_regex": "🇺🇸",
@@ -496,13 +496,29 @@ cat >"$WORK_DIR/bad-filter-regex.json" <<'JSON'
       "enabled": "1",
       "action": "proxy",
       "urltest_enabled": "1",
-      "urltest_filter_enabled": "1",
+      "urltest_server_filter_mode": "include",
       "urltest_include_regex": "["
     }
   ]
 }
 JSON
 assert_rejects "bad filter regex" "$WORK_DIR/bad-filter-regex.json" "Invalid URLTest regular expression"
+
+cat >"$WORK_DIR/bad-filter-mode.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "section": [
+    { ".name": "proxy", ".type": "section", "enabled": "1", "action": "proxy" }
+  ],
+  "urltest": [
+    {
+      ".name": "bad", ".type": "urltest", "section": "proxy",
+      "name": "Bad mode", "server_filter_mode": "direct"
+    }
+  ]
+}
+JSON
+assert_rejects "bad filter mode" "$WORK_DIR/bad-filter-mode.json" "Invalid server filter mode 'direct'"
 
 provider_context="$(node -e 'const fs=require("fs"); const c=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); c.byedpi_installed=true; process.stdout.write(JSON.stringify(c));' "$WORK_DIR/context.json")"
 cat >"$WORK_DIR/bad-byedpi.json" <<'JSON'

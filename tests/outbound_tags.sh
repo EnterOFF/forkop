@@ -55,7 +55,7 @@ cat >"$WORK_DIR/runtime-tags.json" <<'JSON'
       ".type": "urltest",
       "section": "proxy",
       "name": "By name",
-      "filter_enabled": "1",
+      "server_filter_mode": "include",
       "include_outbounds": [ "germany", "wg0", "json-hop" ]
     },
     {
@@ -63,7 +63,7 @@ cat >"$WORK_DIR/runtime-tags.json" <<'JSON'
       ".type": "urltest",
       "section": "proxy",
       "name": "By regex",
-      "filter_enabled": "1",
+      "server_filter_mode": "include",
       "include_regex": "^germany$"
     }
   ],
@@ -82,7 +82,7 @@ cat >"$WORK_DIR/runtime-tags.json" <<'JSON'
       "group": "pg_main",
       "name": "All",
       "order": "0",
-      "filter_enabled": "0"
+      "server_filter_mode": "all"
     }
   ]
 }

@@ -94,6 +94,16 @@ assert.strictEqual(
     /normalizeOutboundChoice:[\s\S]*subscriptionSourceOutboundName\(/,
     'subscription choices do not account for native tag_prefix ordering',
   );
+  assert.match(
+    source,
+    /loadNativeProviderOutboundNames\(\[state\.providerTags\[providerIndex\]\]\)/,
+    'subscription settings must load only their own native provider',
+  );
+  assert.match(
+    source,
+    /ownerId: options\.ownerId/,
+    'subscription settings must identify their own child provider',
+  );
 
   console.log('LuCI native provider choice checks passed');
 })().catch((error) => {

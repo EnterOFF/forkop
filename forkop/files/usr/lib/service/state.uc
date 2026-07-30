@@ -961,7 +961,7 @@ function subscription_urls_signature(section) {
             show_dashboard_metadata: connections.subscription_dashboard_metadata_enabled(section, entry) ? "1" : "0",
             prefix_nodes: connections.subscription_prefix_nodes(section, entry) ? "1" : "0",
             node_prefix: connections.subscription_node_prefix(section, entry),
-            filter_enabled: bool_option(settings, "filter_enabled", false) ? "1" : "0",
+            server_filter_mode: option(settings, "server_filter_mode", "all"),
             include_outbounds: list_option(settings, "include_outbounds"),
             include_regex: option(settings, "include_regex", ""),
             exclude_outbounds: list_option(settings, "exclude_outbounds"),
@@ -997,7 +997,7 @@ function urltests_signature(section) {
             interrupt_exist_connections: connections.urltest_interrupt_exist_connections(section, entry) ? "1" : "0",
             pin_dashboard: connections.urltest_pin_dashboard(section, entry) ? "1" : "0",
             hide_dashboard_members: connections.urltest_hide_dashboard_members(section, entry) ? "1" : "0",
-            filter_enabled: connections.urltest_filter_enabled(section, entry) ? "1" : "0",
+            server_filter_mode: connections.urltest_filter_mode(section, entry),
             include_outbounds: connections.urltest_include_outbounds(section, entry),
             include_regex: connections.urltest_include_regex(section, entry),
             exclude_outbounds: connections.urltest_exclude_outbounds(section, entry),
@@ -1016,8 +1016,7 @@ function fallback_groups_signature(section) {
                 id: level_id,
                 display_name: connections.fallback_level_display_name(group_id, level_id),
                 order: connections.fallback_level_order(group_id, level_id),
-                direct: connections.fallback_level_direct(group_id, level_id) ? "1" : "0",
-                filter_enabled: connections.fallback_level_filter_enabled(group_id, level_id) ? "1" : "0",
+                server_filter_mode: connections.fallback_level_mode(group_id, level_id),
                 include_outbounds: connections.fallback_level_include_outbounds(group_id, level_id),
                 include_regex: connections.fallback_level_include_regex(group_id, level_id),
                 exclude_outbounds: connections.fallback_level_exclude_outbounds(group_id, level_id),
@@ -1151,7 +1150,7 @@ function append_sing_box_rule_signature_body(body, section, sections) {
         body = signature_add_value(body, prefix + ".urltest_check_interval", section_urltest_check_interval(section));
         body = signature_add_value(body, prefix + ".urltest_tolerance", option(section, "urltest_tolerance", "50"));
         body = signature_add_value(body, prefix + ".urltest_testing_url", option(section, "urltest_testing_url", "https://www.gstatic.com/generate_204"));
-        body = signature_add_value(body, prefix + ".urltest_filter_enabled", bool_option_value(section, "urltest_filter_enabled", false));
+        body = signature_add_value(body, prefix + ".urltest_filter_mode", option(section, "urltest_filter_mode", "disabled"));
         body = signature_add_value(body, prefix + ".urltest_exclude_outbounds", option(section, "urltest_exclude_outbounds", ""));
         body = signature_add_value(body, prefix + ".urltest_exclude_regex", option(section, "urltest_exclude_regex", ""));
         body = signature_add_value(body, prefix + ".urltest_include_outbounds", option(section, "urltest_include_outbounds", ""));

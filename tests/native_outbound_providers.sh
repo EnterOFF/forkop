@@ -45,7 +45,7 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
       "download_via_proxy_section": "hop",
       "prefix_nodes": "1",
       "node_prefix": "Main",
-      "filter_enabled": "1",
+      "server_filter_mode": "include",
       "include_regex": "^(US|DE)",
       "exclude_regex": "expired"
     },
@@ -68,7 +68,7 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
       ".name": "fast",
       ".type": "urltest",
       "section": "proxy",
-      "filter_enabled": "1",
+      "server_filter_mode": "include",
       "include_regex": "🇺🇸",
       "exclude_regex": "slow"
     }

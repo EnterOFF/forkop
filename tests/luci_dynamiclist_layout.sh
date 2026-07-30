@@ -16,10 +16,44 @@ settings_styles="$(sed -n '/^\.fkp-connections-dynlist > \.item > \.fkp-dynlist-
 subscription_keys="$(sed -n '/^function subscriptionUrlSettingsKeys(/,/^function defaultSubscriptionUrlSettings(/p' "$SECTION_JS")"
 subscription_options="$(sed -n '/^function addSubscriptionUrlItemOptions(/,/^function addInterfaceItemOptions(/p' "$SECTION_JS")"
 server_filter_options="$(sed -n '/^function addServerFilterOptions(/,/^function urlTestUrlChoices(/p' "$SECTION_JS")"
+urltest_options="$(sed -n '/^function addUrlTestItemOptions(/,/^function fallbackLevelSettingsForValidation(/p' "$SECTION_JS")"
 fallback_options="$(sed -n '/^function addFallbackLevelItemOptions(/,/^function addFallbackGroupItemOptions(/p' "$SECTION_JS")"
 create_section="$(sed -n '/^function createSectionContent(/,/^function loadSectionTableOptions(/p' "$SECTION_JS")"
 live_choices="$(sed -n '/^function configureLiveDynamicListChoices(/,/^function currentOutboundNameChoices(/p' "$SECTION_JS")"
 close_all_styles="$(sed -n '/^\.fkp_monitoring-page #monitoring-close-all\.btn\.fkp_monitoring-page__icon-button:hover:not(:disabled) {$/,/^}$/p' "$MONITORING_STYLES")"
+
+node - "$SECTION_JS" <<'NODE'
+const assert = require('assert');
+const fs = require('fs');
+
+const source = fs.readFileSync(process.argv[2], 'utf8');
+const helper = source.match(
+  /function syncServerFilterFields\([\s\S]*?\n}\n\nfunction addServerFilterOptions\(/,
+);
+assert(helper, 'server filter synchronization helper not found');
+eval(helper[0].slice(0, -'\n\nfunction addServerFilterOptions('.length));
+
+const values = { include: ['Alpha'], exclude: [] };
+const field = (mode) => ({
+  getUIElement() {
+    return {
+      getValue: () => values[mode],
+      setValue: (value) => {
+        values[mode] = value;
+      },
+    };
+  },
+});
+syncServerFilterFields(
+  {
+    include: { exclude_outbounds: field('include') },
+    exclude: { exclude_outbounds: field('exclude') },
+  },
+  'include',
+  'settings',
+);
+assert.deepStrictEqual(values.exclude, ['Alpha']);
+NODE
 
 grep -Fq 'display: flex;' <<<"$wrapper_styles" ||
   fail "button-only DynamicList add rows must use a content-sized flex wrapper"
@@ -49,7 +83,7 @@ grep -Fq 'addServerFilterOptions(itemSection, parentSectionForItem, {' <<<"$subs
   fail "subscription settings must expose native provider filters"
 grep -Fq 'subscriptionSourceOutboundName(' <<<"$subscription_options" ||
   fail "subscription exact-name filters must account for provider tag prefixes"
-for key in filter_enabled include_regex exclude_regex; do
+for key in server_filter_mode include_regex exclude_regex; do
   grep -Fq "\"$key\"" <<<"$subscription_keys" ||
     fail "subscription/provider filter key $key is missing"
 done
@@ -59,6 +93,63 @@ grep -Fq 'addServerFilterOptions(itemSection, parentSectionForItem, {' <<<"$fall
   fail "Fallback server filters must stay comboboxes when no choices exist"
 grep -Fq 'form.Value' <<<"$server_filter_options" ||
   fail "server filter regular expressions must use single-value fields"
+grep -Fq 'form.ListValue' <<<"$server_filter_options" ||
+  fail "server filtering must use an explicit mode selector"
+if grep -Fq 'form.DummyValue' <<<"$server_filter_options"; then
+  fail "server filters must not emulate group headings with DummyValue rows"
+fi
+for label in \
+  'Include servers' \
+  'Include by pattern (RegExp)' \
+  'Exclude servers' \
+  'Exclude by pattern (RegExp)'; do
+  grep -Fq "$label" <<<"$server_filter_options" ||
+    fail "server filter field label is missing: $label"
+done
+grep -Fq 'field.ucioption = storageKey;' <<<"$server_filter_options" ||
+  fail "conditional exclusion fields must use LuCI native shared UCI storage"
+grep -Fq 'targetElement.setValue(sourceElement.getValue());' "$SECTION_JS" ||
+  fail "switching filter modes must preserve pending exclusion values"
+for description in \
+  'Only the selected servers will be added from the subscription.' \
+  'Servers that should not be added from the subscription.' \
+  'Exclude servers from the subscription using a regular expression.'; do
+  grep -Fq "$description" <<<"$subscription_options" ||
+    fail "subscription filter description is missing: $description"
+done
+for description in \
+  'Only the selected servers will be added to the URLTest group.' \
+  'Servers that should not be added to the URLTest group.' \
+  'Exclude servers from the URLTest group using a regular expression.'; do
+  grep -Fq "$description" <<<"$urltest_options" ||
+    fail "URLTest filter description is missing: $description"
+done
+for description in \
+  'Only the selected servers will be added to this priority level.' \
+  'Servers that should not be added to this priority level.' \
+  'Exclude servers from this level using a regular expression.'; do
+  grep -Fq "$description" <<<"$fallback_options" ||
+    fail "Fallback filter description is missing: $description"
+done
+for description in \
+  'Add servers whose names match the regular expression.' \
+  'Optional. Remove specific servers from the selection above.' \
+  'Optional. Exclude servers from the selection above using a regular expression.'; do
+  grep -Fq "$description" "$SECTION_JS" ||
+    fail "shared server filter description is missing: $description"
+done
+grep -Fq '{ value: "direct", label: _("Direct") }' <<<"$fallback_options" ||
+  fail "Fallback direct mode must use the concise Direct label"
+for label in 'Server import mode' 'Testing group filter' 'Level formation mode'; do
+  grep -Fq "$label" "$SECTION_JS" ||
+    fail "context-specific filter selector is missing: $label"
+done
+if grep -Fq '"filter_enabled"' "$SECTION_JS"; then
+  fail "server filter toggle must stay removed"
+fi
+if grep -Fq 'form.Flag' <<<"$fallback_options"; then
+  fail "Fallback Direct must not use a separate toggle"
+fi
 if grep -Eq 'include_countries|exclude_countries|countryChoices' <<<"$server_filter_options$fallback_options"; then
   fail "server filters must not expose country selectors"
 fi

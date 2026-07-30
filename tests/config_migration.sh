@@ -52,6 +52,8 @@ grep -Fq '{ id: "remove_proxy_parameter_filters", run: remove_proxy_parameter_fi
   fail "proxy parameter filter removal must have a stable named marker"
 grep -Fq '{ id: "server_filter_model", run: migrate_server_filter_model }' "$MIGRATION" ||
   fail "server filter migration must have a stable named marker"
+grep -Fq '{ id: "server_filter_modes", run: migrate_server_filter_modes }' "$MIGRATION" ||
+  fail "server filter mode migration must have a stable named marker"
 grep -Fq '{ id: "single_subscription_user_agent", run: migrate_single_subscription_user_agent }' "$MIGRATION" ||
   fail "single subscription User-Agent migration must have a stable named marker"
 grep -Fq "list applied_migrations 'native_rule_sets'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
@@ -66,6 +68,8 @@ grep -Fq "list applied_migrations 'remove_proxy_parameter_filters'" "$ROOT_DIR/f
   fail "new-install config must mark the proxy parameter filter removal as already applied"
 grep -Fq "list applied_migrations 'server_filter_model'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
   fail "new-install config must mark the server filter migration as already applied"
+grep -Fq "list applied_migrations 'server_filter_modes'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
+  fail "new-install config must mark the server filter mode migration as already applied"
 grep -Fq "list applied_migrations 'single_subscription_user_agent'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
   fail "new-install config must mark the single subscription User-Agent migration as already applied"
 grep -Fq 'release_at_most(ctx, "1.0.1")' "$MIGRATION" ||
@@ -262,7 +266,7 @@ assert(JSON.stringify(config.settings.bootstrap_dns_server) === JSON.stringify([
 assert(config.settings.unified_delay === '0', 'Unified Delay default missing');
 assert(config.settings.config_version === '1.0.5', 'legacy config should be marked at the current schema version');
 assert(config.settings.component_update_check_enabled === '1', 'component update checks should be enabled during migration');
-assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'remove_proxy_parameter_filters', 'server_filter_model', 'single_subscription_user_agent']), 'legacy config should record named migrations');
+assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent']), 'legacy config should record named migrations');
 
 function assert(condition, message) {
   if (!condition) {
@@ -358,7 +362,7 @@ assert(legacySubUrltest.name === 'Fastest', 'legacy-sub URLTest name migrated');
 assert(legacySubUrltest.check_interval === '3m', 'legacy-sub URLTest interval default migrated');
 assert(legacySubUrltest.tolerance === '50', 'legacy-sub URLTest tolerance default migrated');
 assert(legacySubUrltest.testing_url === 'https://www.gstatic.com/generate_204', 'legacy-sub URLTest URL default migrated');
-assert(legacySubUrltest.filter_enabled === '1', 'legacy-sub URLTest filter activation migrated');
+assert(legacySubUrltest.server_filter_mode === 'include', 'legacy-sub URLTest filter mode migrated');
 absent(legacySubUrltest, 'filter_mode', 'legacy-sub URLTest');
 absent(legacySubUrltest, 'detect_server_country', 'legacy-sub URLTest');
 assert(legacySubUrltest.interrupt_exist_connections === '1', 'legacy-sub URLTest interrupt default migrated');
@@ -398,7 +402,7 @@ assert(Boolean(legacyUrltestConfig), 'legacy-urltest URLTest child migrated');
 absent(legacyUrltestConfig, 'id', 'legacy-urltest URLTest');
 absent(legacyUrltestConfig, 'display_name', 'legacy-urltest URLTest');
 assert(legacyUrltestConfig.name === 'Fastest', 'legacy-urltest URLTest name migrated');
-assert(legacyUrltestConfig.filter_enabled === '1', 'legacy-urltest URLTest filter activation migrated');
+assert(legacyUrltestConfig.server_filter_mode === 'exclude', 'legacy-urltest URLTest filter mode migrated');
 absent(legacyUrltestConfig, 'filter_mode', 'legacy-urltest URLTest');
 absent(legacyUrltestConfig, 'detect_server_country', 'legacy-urltest URLTest');
 assert(legacyUrltestConfig.exclude_regex === 'bad.*', `legacy-urltest exclude regex migrated: ${JSON.stringify(legacyUrltestConfig)}`);
@@ -560,7 +564,7 @@ function assert(condition, message) {
 assert(out.changed === true, '1.0.1 config should require migration');
 assert(out.config.settings.config_version === '1.0.5', 'config schema version should advance to 1.0.5');
 assert(out.config.settings.component_update_check_enabled === '1', 'updates from 1.0.1 and below should enable component update checks');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'remove_proxy_parameter_filters', 'server_filter_model', 'single_subscription_user_agent']), 'named migrations should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent']), 'named migrations should be recorded');
 assert(!Object.prototype.hasOwnProperty.call(section, 'interfaces'), 'parent interface list should be removed');
 assert(JSON.stringify(interfaces.map(item => item.name)) === JSON.stringify(['awg0', 'tun0']), 'interfaces should keep their order');
 for (const item of interfaces) {
@@ -598,7 +602,7 @@ function assert(condition, message) {
 
 assert(out.config.settings.component_update_check_enabled === '0', '1.0.2 config must preserve an explicitly disabled component check');
 assert(out.config.settings.config_version === '1.0.5', '1.0.2 config should advance through the HTTP URL migration schema');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'remove_proxy_parameter_filters', 'server_filter_model', 'single_subscription_user_agent']), 'newer configs should mark skipped migrations');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent']), 'newer configs should mark skipped migrations');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.4-http.json" <<'JSON'
@@ -664,7 +668,7 @@ assert(JSON.stringify(jsonOutbounds[1]) === JSON.stringify({
   server_port: 8080,
 }), 'unnamed HTTP URL should receive a unique http tag');
 assert(jsonOutbounds[2].type === 'direct' && jsonOutbounds[2].tag === 'http', 'existing JSON outbounds should remain unchanged');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'remove_proxy_parameter_filters', 'server_filter_model', 'single_subscription_user_agent']), 'HTTP URL migration should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent']), 'HTTP URL migration should be recorded');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.5-http.json" <<'JSON'
@@ -743,7 +747,7 @@ if (JSON.stringify(subscriptionSettings) !== JSON.stringify({
 }
 const urltestSettings = JSON.parse(section.urltest_settings);
 const fallbackSettings = JSON.parse(section.fallback_level_settings);
-if (JSON.stringify(urltestSettings) !== JSON.stringify({ fast: { include_regex: 'ok', filter_enabled: '0' } }) ||
+if (JSON.stringify(urltestSettings) !== JSON.stringify({ fast: { include_regex: 'ok', server_filter_mode: 'all' } }) ||
     JSON.stringify(fallbackSettings) !== JSON.stringify({ legacy: { name: 'Legacy' } })) {
   console.error('proxy parameter migration must clean legacy JSON settings without losing other filters');
   process.exit(1);
@@ -752,7 +756,7 @@ const source = out.config.subscription_url[0];
 const autoSource = out.config.subscription_url[1];
 const urltest = out.config.urltest[0];
 const level = out.config.fallback_level[0];
-if (source.filter_enabled !== '1' ||
+if (source.server_filter_mode !== 'include' ||
     source.include_regex !== '(?:fast)|(?:premium)|(?:🇷🇺)|(?:🇺🇸)' ||
     JSON.stringify(source.exclude_outbounds) !== JSON.stringify(['Expired node']) ||
     Object.prototype.hasOwnProperty.call(source, 'filter_mode') ||
@@ -767,14 +771,14 @@ if (source.user_agent !== 'Happ' ||
   console.error('subscription child migration must preserve custom User-Agent values and replace automatic selection');
   process.exit(1);
 }
-if (urltest.filter_enabled !== '1' ||
+if (urltest.server_filter_mode !== 'exclude' ||
     urltest.exclude_regex !== '(?:slow)|(?:expired)|(?:🇩🇪)' ||
     Object.prototype.hasOwnProperty.call(urltest, 'filter_mode') ||
     Object.prototype.hasOwnProperty.call(urltest, 'exclude_countries')) {
   console.error('URLTest filters were not migrated to the unified model');
   process.exit(1);
 }
-if (level.filter_enabled !== '1' ||
+if (level.server_filter_mode !== 'include' ||
     JSON.stringify(level.include_outbounds) !== JSON.stringify(['Primary node']) ||
     level.include_regex !== '(?:primary)|(?:backup)|(?:🇳🇱)' ||
     Object.prototype.hasOwnProperty.call(level, 'filter_mode') ||
@@ -791,6 +795,72 @@ const removedFields = [
 for (const child of [...(out.config.subscription_url || []), ...(out.config.urltest || []), ...(out.config.fallback_level || [])]) {
   if (removedFields.some(key => Object.prototype.hasOwnProperty.call(child, key))) {
     console.error('proxy parameter migration left a removed child-section field');
+    process.exit(1);
+  }
+}
+NODE
+
+cat >"$WORK_DIR/filter-enabled.json" <<'JSON'
+{
+  "settings": {
+    ".name": "settings",
+    ".type": "settings",
+    "config_version": "1.0.5",
+    "applied_migrations": [
+      "interface_sections", "enable_component_checks", "http_connection_urls",
+      "remove_server_country_and_dashboard_filter", "native_fallbacks",
+      "native_rule_sets", "universal_rule_sets", "leaf_subscription_providers",
+      "extended_server_defaults", "fallback_uci_tags",
+      "remove_proxy_parameter_filters", "server_filter_model",
+      "single_subscription_user_agent"
+    ]
+  },
+  "subscription_url": [
+    {
+      ".name": "source", ".type": "subscription_url", "section": "main",
+      "url": "https://example.com/sub", "filter_enabled": "1",
+      "exclude_regex": "backup"
+    }
+  ],
+  "urltest": [
+    {
+      ".name": "test", ".type": "urltest", "section": "main",
+      "name": "Test", "filter_enabled": "1", "include_regex": "fast"
+    }
+  ],
+  "fallback_level": [
+    {
+      ".name": "direct", ".type": "fallback_level", "group": "group",
+      "name": "Direct", "direct": "1", "filter_enabled": "0"
+    },
+    {
+      ".name": "remaining", ".type": "fallback_level", "group": "group",
+      "name": "Remaining", "direct": "0", "filter_enabled": "0"
+    }
+  ]
+}
+JSON
+
+FORKOP_LIB="$FORKOP_LIB" ucode -L "$FORKOP_LIB" "$MIGRATION" migrate-fixture "$WORK_DIR/filter-enabled.json" >"$WORK_DIR/filter-enabled-output.json"
+
+node - "$WORK_DIR/filter-enabled-output.json" <<'NODE'
+const fs = require('fs');
+const out = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const source = out.config.subscription_url[0];
+const urltest = out.config.urltest[0];
+const levels = Object.fromEntries(out.config.fallback_level.map(level => [level['.name'], level]));
+
+if (source.server_filter_mode !== 'exclude' ||
+    urltest.server_filter_mode !== 'include' ||
+    levels.direct.server_filter_mode !== 'direct' ||
+    levels.remaining.server_filter_mode !== 'all') {
+  console.error('boolean server filters were not migrated to explicit modes');
+  process.exit(1);
+}
+for (const item of [source, urltest, ...Object.values(levels)]) {
+  if (Object.prototype.hasOwnProperty.call(item, 'filter_enabled') ||
+      Object.prototype.hasOwnProperty.call(item, 'direct')) {
+    console.error('boolean server filter migration left obsolete fields');
     process.exit(1);
   }
 }
@@ -877,7 +947,7 @@ grep -Fxq 'forkop.settings.config_version=1.0.5' "$WORK_DIR/runtime-version.stat
   fail "runtime version migration must advance config_version"
 grep -Fxq 'forkop.settings.component_update_check_enabled=1' "$WORK_DIR/runtime-version.state" ||
   fail "runtime version migration must enable component update checks"
-grep -Fq 'forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter native_fallbacks native_rule_sets universal_rule_sets leaf_subscription_providers extended_server_defaults fallback_uci_tags remove_proxy_parameter_filters server_filter_model single_subscription_user_agent' "$WORK_DIR/runtime-version.state" ||
+grep -Fq 'forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter native_fallbacks native_rule_sets universal_rule_sets leaf_subscription_providers extended_server_defaults fallback_uci_tags remove_proxy_parameter_filters server_filter_model server_filter_modes single_subscription_user_agent' "$WORK_DIR/runtime-version.state" ||
   fail "runtime migration must record stable migration names"
 grep -Eq '^forkop\.main\.outbound_jsons=\{ "type": "http", "tag": "http", "server": "proxy\.example", "server_port": 8080 \}$' "$WORK_DIR/runtime-version.state" ||
   fail "runtime migration must convert native HTTP proxy links to JSON outbounds"

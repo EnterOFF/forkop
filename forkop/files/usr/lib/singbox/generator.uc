@@ -488,21 +488,25 @@ function filter_name_pattern(exact_names, regex_pattern) {
     return length(parts) > 0 ? "(?:" + join("|", parts) + ")" : "";
 }
 
-function set_filter_side(result, side, pattern) {
+function set_filter_side(result, side, pattern, require_match) {
     if (pattern != "")
         result[side] = pattern;
+    else if (require_match)
+        result[side] = "a^";
 }
 
-function native_filter_options(enabled,
+function native_filter_options(mode,
     include_names, include_regex,
     exclude_names, exclude_regex) {
     let result = {};
-    if (!enabled)
+    if (mode == "all")
         return result;
-    set_filter_side(result, "include",
-        filter_name_pattern(include_names, include_regex));
-    set_filter_side(result, "exclude",
-        filter_name_pattern(exclude_names, exclude_regex));
+    if (mode == "include")
+        set_filter_side(result, "include",
+            filter_name_pattern(include_names, include_regex), true);
+    if (mode == "include" || mode == "exclude")
+        set_filter_side(result, "exclude",
+            filter_name_pattern(exclude_names, exclude_regex), false);
     return result;
 }
 
@@ -515,7 +519,7 @@ function merge_object(target, source) {
 function subscription_provider_filter(section, source) {
     let settings = connections.subscription_url_settings(section, source);
     return native_filter_options(
-        bool_option(settings, "filter_enabled", false),
+        option(settings, "server_filter_mode", "all"),
         list_option(settings, "include_outbounds"), option(settings, "include_regex", ""),
         list_option(settings, "exclude_outbounds"), option(settings, "exclude_regex", "")
     );
@@ -523,7 +527,7 @@ function subscription_provider_filter(section, source) {
 
 function urltest_provider_filter(section, urltest_id) {
     return native_filter_options(
-        connections.urltest_filter_enabled(section, urltest_id),
+        connections.urltest_filter_mode(section, urltest_id),
         connections.urltest_include_outbounds(section, urltest_id), connections.urltest_include_regex(section, urltest_id),
         connections.urltest_exclude_outbounds(section, urltest_id), connections.urltest_exclude_regex(section, urltest_id)
     );
@@ -531,7 +535,7 @@ function urltest_provider_filter(section, urltest_id) {
 
 function fallback_level_provider_filter(group_id, level_id) {
     return native_filter_options(
-        connections.fallback_level_filter_enabled(group_id, level_id),
+        connections.fallback_level_mode(group_id, level_id),
         connections.fallback_level_include_outbounds(group_id, level_id),
         connections.fallback_level_include_regex(group_id, level_id),
         connections.fallback_level_exclude_outbounds(group_id, level_id),
@@ -715,7 +719,7 @@ function urltest_idle_timeout(section, urltest_id) {
 function section_has_direct_fallback_level(section) {
     for (let group_id in connections.fallback_groups(section))
         for (let level_id in connections.fallback_levels(group_id))
-            if (connections.fallback_level_direct(group_id, level_id))
+            if (connections.fallback_level_mode(group_id, level_id) == "direct")
                 return true;
     return false;
 }
@@ -788,20 +792,11 @@ function urltest_exclude_outbounds(all_outbounds, excluded_outbounds) {
     return result;
 }
 
-function has_name_filter(names, regex_pattern) {
-    if (trim(as_string(regex_pattern)) != "")
-        return true;
-    for (let name in array_or_empty(names))
-        if (trim(as_string(name)) != "")
-            return true;
-    return false;
-}
-
-function filter_candidate_outbounds(enabled, urltest_candidate_tags, names,
+function filter_candidate_outbounds(mode, urltest_candidate_tags, names,
     include_names, include_regex,
     exclude_names, exclude_regex) {
     let all_outbounds = urltest_all_candidate_outbounds(urltest_candidate_tags);
-    if (!enabled)
+    if (mode == "all")
         return all_outbounds;
 
     let include_outbounds = urltest_matching_candidate_outbounds(
@@ -816,15 +811,13 @@ function filter_candidate_outbounds(enabled, urltest_candidate_tags, names,
         exclude_names,
         exclude_regex
     );
-    let matched = has_name_filter(include_names, include_regex)
-        ? include_outbounds
-        : all_outbounds;
+    let matched = mode == "include" ? include_outbounds : all_outbounds;
     return urltest_exclude_outbounds(matched, exclude_outbounds);
 }
 
 function urltest_filtered_outbounds(section, urltest_id, urltest_candidate_tags, state) {
     return filter_candidate_outbounds(
-        connections.urltest_filter_enabled(section, urltest_id),
+        connections.urltest_filter_mode(section, urltest_id),
         urltest_candidate_tags,
         object_or_empty(object_or_empty(state.outboundMetadata).names),
         connections.urltest_include_outbounds(section, urltest_id),
@@ -835,11 +828,12 @@ function urltest_filtered_outbounds(section, urltest_id, urltest_candidate_tags,
 }
 
 function fallback_level_filtered_outbounds(group_id, level_id, urltest_candidate_tags, state) {
-    if (connections.fallback_level_direct(group_id, level_id))
+    let mode = connections.fallback_level_mode(group_id, level_id);
+    if (mode == "direct")
         return [ runtime_constants.DIRECT_OUTBOUND_TAG ];
 
     return filter_candidate_outbounds(
-        connections.fallback_level_filter_enabled(group_id, level_id),
+        mode,
         urltest_candidate_tags,
         object_or_empty(object_or_empty(state.outboundMetadata).names),
         connections.fallback_level_include_outbounds(group_id, level_id),
@@ -866,8 +860,7 @@ function fallback_levels_with_outbounds(group_id, urltest_candidate_tags, state)
             id: level_id,
             displayName: connections.fallback_level_display_name(group_id, level_id),
             order: int(connections.fallback_level_order(group_id, level_id), 10),
-            direct: connections.fallback_level_direct(group_id, level_id),
-            filter_enabled: connections.fallback_level_filter_enabled(group_id, level_id),
+            mode: connections.fallback_level_mode(group_id, level_id),
             outbounds
         });
     }
@@ -964,7 +957,7 @@ function add_fallback_group_outbound(config, section, group_id, urltest_candidat
             outbounds: level.outbounds,
             blacklist_timeout
         };
-        if (!level.direct && length(providers) > 0) {
+        if (level.mode != "direct" && length(providers) > 0) {
             level_outbound.providers = providers;
             merge_object(level_outbound, fallback_level_provider_filter(group_id, level.id));
         }

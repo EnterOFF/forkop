@@ -474,6 +474,8 @@ let actionProvidersAvailabilityPromise = null;
 let actionProvidersAvailabilityLoader = null;
 const outboundNameChoicesCache = new Map();
 const outboundNameChoicesInflight = new Map();
+const subscriptionOutboundNameChoicesCache = new Map();
+const subscriptionOutboundNameChoicesInflight = new Map();
 const outboundNameSourceOptions = new Map();
 const dashboardFilterChoiceRefreshers = new Map();
 
@@ -692,6 +694,44 @@ function loadOutboundNameChoices(section_id) {
 
   outboundNameChoicesInflight.set(section_id, task);
 
+  return task;
+}
+
+function subscriptionProviderIndex(section_id, itemId) {
+  return getChildItemIds(section_id, "subscription_url").indexOf(
+    `${itemId || ""}`,
+  );
+}
+
+function loadSubscriptionOutboundNameChoices(section_id, itemId) {
+  const cacheKey = `${section_id}:${itemId}`;
+  if (subscriptionOutboundNameChoicesCache.has(cacheKey)) {
+    return Promise.resolve(subscriptionOutboundNameChoicesCache.get(cacheKey));
+  }
+  if (subscriptionOutboundNameChoicesInflight.has(cacheKey)) {
+    return subscriptionOutboundNameChoicesInflight.get(cacheKey);
+  }
+
+  const providerIndex = subscriptionProviderIndex(section_id, itemId);
+  if (providerIndex < 0) {
+    return Promise.resolve([]);
+  }
+
+  const task = readOutboundChoiceState(section_id)
+    .then((state) =>
+      loadNativeProviderOutboundNames([state.providerTags[providerIndex]]),
+    )
+    .then((names) => {
+      subscriptionOutboundNameChoicesCache.set(cacheKey, names);
+      refreshDashboardFilterChoiceWidgets(section_id);
+      return names;
+    })
+    .catch(() => [])
+    .finally(() => {
+      subscriptionOutboundNameChoicesInflight.delete(cacheKey);
+    });
+
+  subscriptionOutboundNameChoicesInflight.set(cacheKey, task);
   return task;
 }
 
@@ -1613,11 +1653,7 @@ function configureLiveDynamicListChoices(option, getChoices) {
   };
 }
 
-function currentOutboundNameChoices(section_id, values, normalizeChoice) {
-  if (!outboundNameChoicesCache.has(section_id)) {
-    loadOutboundNameChoices(section_id);
-  }
-
+function outboundNameChoiceItems(names, values, normalizeChoice) {
   const seen = new Set();
   const result = [];
   const append = (name, normalize) => {
@@ -1633,13 +1669,43 @@ function currentOutboundNameChoices(section_id, values, normalizeChoice) {
     result.push({ value, label: value });
   };
 
-  (outboundNameChoicesCache.get(section_id) || []).forEach((name) =>
-    append(name, true),
-  );
-  currentDraftOutboundNames(section_id).forEach((name) => append(name, true));
+  names.forEach((name) => append(name, true));
   normalizeDynamicListItems(values).forEach((name) => append(name, false));
 
   return result.sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function currentOutboundNameChoices(section_id, values, normalizeChoice) {
+  if (!outboundNameChoicesCache.has(section_id)) {
+    loadOutboundNameChoices(section_id);
+  }
+
+  return outboundNameChoiceItems(
+    [
+      ...(outboundNameChoicesCache.get(section_id) || []),
+      ...currentDraftOutboundNames(section_id),
+    ],
+    values,
+    normalizeChoice,
+  );
+}
+
+function currentSubscriptionOutboundNameChoices(
+  section_id,
+  itemId,
+  values,
+  normalizeChoice,
+) {
+  const cacheKey = `${section_id}:${itemId}`;
+  if (!subscriptionOutboundNameChoicesCache.has(cacheKey)) {
+    loadSubscriptionOutboundNameChoices(section_id, itemId);
+  }
+
+  return outboundNameChoiceItems(
+    subscriptionOutboundNameChoicesCache.get(cacheKey) || [],
+    values,
+    normalizeChoice,
+  );
 }
 
 function currentSourceOptionValues(section_id, optionName) {
@@ -1902,71 +1968,161 @@ const InterfaceSettingsDynamicList = SettingsDynamicList.extend({
   },
 });
 
+function syncServerFilterFields(sharedFields, sourceMode, itemId) {
+  const sourceFields = sharedFields[sourceMode];
+  if (!sourceFields) {
+    return;
+  }
+
+  Object.entries(sourceFields).forEach(([storageKey, sourceField]) => {
+    const sourceElement = sourceField.getUIElement(itemId);
+    if (!sourceElement || typeof sourceElement.getValue !== "function") {
+      return;
+    }
+    Object.values(sharedFields).forEach((fields) => {
+      const targetElement = fields[storageKey]?.getUIElement(itemId);
+      if (targetElement && typeof targetElement.setValue === "function") {
+        targetElement.setValue(sourceElement.getValue());
+      }
+    });
+  });
+}
+
 function addServerFilterOptions(
   itemSection,
   parentSectionForItem,
   options = {},
 ) {
-  const baseDepends = Object.assign({}, options.depends || {});
-  const filterDepends = Object.assign({}, baseDepends, {
-    filter_enabled: "1",
-  });
-  let o = itemSection.option(form.Flag, "filter_enabled", _("Filter servers"));
-  o.default = "0";
+  const modes = Array.isArray(options.modes) ? options.modes : [];
+  let o = itemSection.option(
+    form.ListValue,
+    "server_filter_mode",
+    options.modeLabel,
+    options.modeDescription,
+  );
+  modes.forEach((mode) => o.value(mode.value, mode.label));
+  o.default = options.defaultMode || "all";
   o.rmempty = false;
-  if (Object.keys(baseDepends).length) {
-    o.depends(baseDepends);
-  }
 
+  const modeOption = o;
+  const sharedFields = {};
   [
-    ["_filter_matches", _("Matches"), null, true],
-    ["include_outbounds", _("Servers"), null, false],
-    ["include_regex", _("Name pattern (RegExp)"), validateRegex, false],
-    ["_filter_exclusions", _("Exclusions"), null, true],
-    ["exclude_outbounds", _("Servers"), null, false],
-    ["exclude_regex", _("Name pattern (RegExp)"), validateRegex, false],
-  ].forEach(([key, label, validator, heading]) => {
-    if (heading) {
-      const group = itemSection.option(form.DummyValue, key);
-      group.depends(filterDepends);
-      group.renderWidget = () => E("strong", {}, [label]);
-      return;
-    }
-
-    const field = itemSection.option(
-      key.endsWith("_outbounds") ? form.DynamicList : form.Value,
-      key,
-      label,
-    );
-    field.depends(filterDepends);
-    field.rmempty = true;
-    if (key.endsWith("_outbounds")) {
-      const choicesForItem = (option, itemId, values) =>
-        currentOutboundNameChoices(
-          parentSectionForItem(itemId),
-          values,
-          typeof options.normalizeOutboundChoice === "function"
-            ? (name) => options.normalizeOutboundChoice(option, itemId, name)
-            : null,
-        );
-      field.load = function (itemId) {
-        const sectionId = parentSectionForItem(itemId);
-        const values = normalizeOptionValues(optionMapValue(this, itemId, key));
-        loadOutboundNameChoices(sectionId);
-        refreshOptionChoices(this, choicesForItem(this, itemId, values));
-        return values;
-      };
-      field.placeholder = _("-- Select --");
-      configureLiveDynamicListChoices(field, (itemId, values) =>
-        choicesForItem(field, itemId, values),
+    [
+      "include_outbounds",
+      "include_outbounds",
+      _("Include servers"),
+      options.includeServersDescription,
+      null,
+      ["include"],
+    ],
+    [
+      "include_regex",
+      "include_regex",
+      _("Include by pattern"),
+      options.includeRegexDescription,
+      validateRegex,
+      ["include"],
+    ],
+    [
+      "_blacklist_exclude_outbounds",
+      "exclude_outbounds",
+      _("Exclude servers"),
+      options.blacklistExcludeServersDescription,
+      null,
+      ["exclude"],
+    ],
+    [
+      "_blacklist_exclude_regex",
+      "exclude_regex",
+      _("Exclude by pattern"),
+      options.blacklistExcludeRegexDescription,
+      validateRegex,
+      ["exclude"],
+    ],
+    [
+      "_whitelist_exclude_outbounds",
+      "exclude_outbounds",
+      _("Exclude servers"),
+      options.whitelistExcludeServersDescription,
+      null,
+      ["include"],
+    ],
+    [
+      "_whitelist_exclude_regex",
+      "exclude_regex",
+      _("Exclude by pattern"),
+      options.whitelistExcludeRegexDescription,
+      validateRegex,
+      ["include"],
+    ],
+  ].forEach(
+    ([key, storageKey, label, description, validator, visibleModes]) => {
+      const field = itemSection.option(
+        storageKey.endsWith("_outbounds") ? form.DynamicList : form.Value,
+        key,
+        label,
+        description,
       );
-    }
-    if (validator) {
-      field.validate = function (_itemId, value) {
-        return validator(null, value);
-      };
-    }
-  });
+      visibleModes.forEach((mode) => field.depends("server_filter_mode", mode));
+      field.rmempty = true;
+      if (key !== storageKey) {
+        field.ucioption = storageKey;
+        field.retain = true;
+        const mode = visibleModes[0];
+        if (!sharedFields[mode]) {
+          sharedFields[mode] = {};
+        }
+        sharedFields[mode][storageKey] = field;
+      }
+      if (storageKey.endsWith("_outbounds")) {
+        const choicesForItem = (option, itemId, values) => {
+          const sectionId = parentSectionForItem(itemId);
+          const normalizeChoice =
+            typeof options.normalizeOutboundChoice === "function"
+              ? (name) => options.normalizeOutboundChoice(option, itemId, name)
+              : null;
+          return typeof options.ownerId === "function"
+            ? currentSubscriptionOutboundNameChoices(
+                sectionId,
+                options.ownerId(),
+                values,
+                normalizeChoice,
+              )
+            : currentOutboundNameChoices(sectionId, values, normalizeChoice);
+        };
+        field.load = function (itemId) {
+          const sectionId = parentSectionForItem(itemId);
+          const values = normalizeOptionValues(
+            optionMapValue(this, itemId, storageKey),
+          );
+          if (typeof options.ownerId === "function") {
+            loadSubscriptionOutboundNameChoices(sectionId, options.ownerId());
+          } else {
+            loadOutboundNameChoices(sectionId);
+          }
+          refreshOptionChoices(this, choicesForItem(this, itemId, values));
+          return values;
+        };
+        field.placeholder = _("-- Select --");
+        configureLiveDynamicListChoices(field, (itemId, values) =>
+          choicesForItem(field, itemId, values),
+        );
+      }
+      if (validator) {
+        field.validate = function (_itemId, value) {
+          return validator(null, value);
+        };
+      }
+    },
+  );
+
+  let activeMode =
+    optionMapValue(modeOption, "settings", "server_filter_mode") ||
+    modeOption.default;
+  modeOption.onchange = function (_event, itemId, value) {
+    syncServerFilterFields(sharedFields, activeMode, itemId);
+    activeMode = value;
+  };
 }
 
 function urlTestUrlChoices() {
@@ -2021,7 +2177,7 @@ function subscriptionUrlSettingsKeys() {
     "show_dashboard_metadata",
     "prefix_nodes",
     "node_prefix",
-    "filter_enabled",
+    "server_filter_mode",
     "include_outbounds",
     "include_regex",
     "exclude_outbounds",
@@ -2041,7 +2197,7 @@ function defaultSubscriptionUrlSettings() {
     show_dashboard_metadata: "1",
     prefix_nodes: "0",
     node_prefix: "",
-    filter_enabled: "0",
+    server_filter_mode: "all",
   };
 }
 
@@ -2091,7 +2247,7 @@ function urlTestSettingsKeys() {
     "interrupt_exist_connections",
     "pin_dashboard",
     "hide_dashboard_members",
-    "filter_enabled",
+    "server_filter_mode",
     "include_outbounds",
     "include_regex",
     "exclude_outbounds",
@@ -2109,7 +2265,7 @@ function defaultUrlTestSettings(name) {
     interrupt_exist_connections: "1",
     pin_dashboard: "1",
     hide_dashboard_members: "0",
-    filter_enabled: "0",
+    server_filter_mode: "all",
   };
 }
 
@@ -2122,7 +2278,7 @@ function urlTestChildDefaults() {
     interrupt_exist_connections: "1",
     pin_dashboard: "1",
     hide_dashboard_members: "0",
-    filter_enabled: "0",
+    server_filter_mode: "all",
   };
 }
 
@@ -2156,8 +2312,7 @@ function fallbackLevelSettingsKeys() {
   return [
     "name",
     "order",
-    "direct",
-    "filter_enabled",
+    "server_filter_mode",
     "include_outbounds",
     "include_regex",
     "exclude_outbounds",
@@ -2169,8 +2324,7 @@ function defaultFallbackLevelSettings() {
   return {
     name: "",
     order: "0",
-    direct: "0",
-    filter_enabled: "0",
+    server_filter_mode: "include",
   };
 }
 
@@ -2312,6 +2466,34 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
   o.rmempty = false;
 
   addServerFilterOptions(itemSection, parentSectionForItem, {
+    ownerId: options.ownerId,
+    modeLabel: _("Subscription server filter"),
+    modeDescription: _(
+      "Determines which servers will be imported from this subscription.",
+    ),
+    modes: [
+      { value: "all", label: _("All servers") },
+      { value: "exclude", label: _("Blacklist") },
+      { value: "include", label: _("Whitelist") },
+    ],
+    includeServersDescription: _(
+      "Only the selected servers will be added from the subscription.",
+    ),
+    includeRegexDescription: _(
+      "Add servers whose names match the regular expression.",
+    ),
+    blacklistExcludeServersDescription: _(
+      "Servers that should not be added from the subscription.",
+    ),
+    blacklistExcludeRegexDescription: _(
+      "Exclude servers from the subscription using a regular expression.",
+    ),
+    whitelistExcludeServersDescription: _(
+      "Optional. Remove specific servers from the selection above.",
+    ),
+    whitelistExcludeRegexDescription: _(
+      "Optional. Exclude servers from the selection above using a regular expression.",
+    ),
     normalizeOutboundChoice: (option, itemId, name) =>
       subscriptionSourceOutboundName(
         name,
@@ -2464,7 +2646,35 @@ function addUrlTestItemOptions(itemSection, options = {}) {
   o.default = "0";
   o.rmempty = false;
 
-  addServerFilterOptions(itemSection, parentSectionForItem);
+  addServerFilterOptions(itemSection, parentSectionForItem, {
+    modeLabel: _("URLTest group filter"),
+    modeDescription: _(
+      "Determines which servers will be included in the URLTest group",
+    ),
+    modes: [
+      { value: "all", label: _("All servers") },
+      { value: "exclude", label: _("Blacklist") },
+      { value: "include", label: _("Whitelist") },
+    ],
+    includeServersDescription: _(
+      "Only the selected servers will be added to the URLTest group.",
+    ),
+    includeRegexDescription: _(
+      "Add servers whose names match the regular expression.",
+    ),
+    blacklistExcludeServersDescription: _(
+      "Servers that should not be added to the URLTest group.",
+    ),
+    blacklistExcludeRegexDescription: _(
+      "Exclude servers from the URLTest group using a regular expression.",
+    ),
+    whitelistExcludeServersDescription: _(
+      "Optional. Remove specific servers from the selection above.",
+    ),
+    whitelistExcludeRegexDescription: _(
+      "Optional. Exclude servers from the selection above using a regular expression.",
+    ),
+  });
 }
 
 function fallbackLevelSettingsForValidation(groupId, levelId, option) {
@@ -2520,17 +2730,36 @@ function addFallbackLevelItemOptions(itemSection, options = {}) {
     return `${value || ""}`.trim() ? true : _("Enter a level name");
   };
 
-  o = itemSection.option(
-    form.Flag,
-    "direct",
-    _("Direct connection"),
-    _("Traffic for this level goes directly."),
-  );
-  o.default = "0";
-  o.rmempty = false;
-
   addServerFilterOptions(itemSection, parentSectionForItem, {
-    depends: { direct: "0" },
+    modeLabel: _("Level server filter"),
+    modeDescription: _(
+      "Determines where traffic will be sent at this priority level if servers from higher levels stop responding",
+    ),
+    modes: [
+      { value: "all", label: _("All remaining servers") },
+      { value: "exclude", label: _("Blacklist") },
+      { value: "include", label: _("Whitelist") },
+      { value: "direct", label: _("Direct") },
+    ],
+    defaultMode: "include",
+    includeServersDescription: _(
+      "Only the selected servers will be added to this priority level.",
+    ),
+    includeRegexDescription: _(
+      "Add servers whose names match the regular expression.",
+    ),
+    blacklistExcludeServersDescription: _(
+      "Servers that should not be added to this priority level.",
+    ),
+    blacklistExcludeRegexDescription: _(
+      "Exclude servers from this level using a regular expression.",
+    ),
+    whitelistExcludeServersDescription: _(
+      "Optional. Remove specific servers from the selection above.",
+    ),
+    whitelistExcludeRegexDescription: _(
+      "Optional. Exclude servers from the selection above using a regular expression.",
+    ),
   });
 }
 
@@ -2573,7 +2802,7 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
     form.Flag,
     "pin_dashboard",
     _("Pin on dashboard"),
-    _("Keep Fallback before latency-sorted servers"),
+    _("Keep this group before latency-sorted servers"),
   );
   o.default = "1";
   o.rmempty = false;
@@ -2582,7 +2811,7 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
     form.Flag,
     "hide_dashboard_members",
     _("Hide servers from dashboard"),
-    _("Hide individual servers used by this group; keep Fallback visible."),
+    _("Hide individual servers used by this group; keep the group visible."),
   );
   o.default = "0";
   o.rmempty = false;
