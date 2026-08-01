@@ -66,6 +66,10 @@ let pageUnloading = false;
 const followedLatencyJobs = new Set<string>();
 const handledLatencyJobs = new Set<string>();
 const latencyFetchingTargets: Record<string, string> = {};
+const latencyJobIds: Record<string, string> = {};
+const latencyCancelRequests = new Set<string>();
+const cancellingLatencyJobs = new Set<string>();
+const cancellingLatencySections = new Set<string>();
 let latencyAckQueue: Promise<unknown> = Promise.resolve();
 
 if (typeof window !== 'undefined') {
@@ -263,6 +267,13 @@ function setLatencyFetching(
     delete latencyFetchingSections[sectionName];
     delete latencyProgressSections[sectionName];
     delete latencyFetchingTargets[sectionName];
+    const jobId = latencyJobIds[sectionName];
+    delete latencyJobIds[sectionName];
+    latencyCancelRequests.delete(sectionName);
+    cancellingLatencySections.delete(sectionName);
+    if (jobId) {
+      cancellingLatencyJobs.delete(jobId);
+    }
   }
 
   store.set({
@@ -349,6 +360,7 @@ function followLatencyTestState(state: Forkop.LatencyActionState) {
   }
 
   if (state.running) {
+    latencyJobIds[sectionName] = jobId;
     if (shouldShowLoadingForRestoredAction(state)) {
       setLatencyFetching(
         sectionName,
@@ -370,6 +382,29 @@ function followLatencyTestState(state: Forkop.LatencyActionState) {
     logger.error('[DASHBOARD]', 'completeLatencyTestJob failed', error);
     if (!pageUnloading) setLatencyFetching(sectionName, false);
   });
+}
+
+async function cancelLatencyTest(sectionName: string) {
+  latencyCancelRequests.add(sectionName);
+  if (!cancellingLatencySections.has(sectionName)) {
+    cancellingLatencySections.add(sectionName);
+    renderSectionsWidget();
+  }
+
+  const jobId = latencyJobIds[sectionName];
+  if (!jobId || cancellingLatencyJobs.has(jobId)) {
+    return;
+  }
+
+  cancellingLatencyJobs.add(jobId);
+  const response = await ForkopShellMethods.latencyTestCancel(jobId);
+  if (!response.success) {
+    cancellingLatencyJobs.delete(jobId);
+    latencyCancelRequests.delete(sectionName);
+    cancellingLatencySections.delete(sectionName);
+    renderSectionsWidget();
+    logger.error('[DASHBOARD]', 'cancelLatencyTest failed', response.error);
+  }
 }
 
 function followDashboardActionsFromUiState(uiState: Forkop.UiState) {
@@ -645,6 +680,7 @@ async function handleTestLatency(
   target?: string,
 ) {
   if (store.get().sectionsWidget.latencyFetchingSections[sectionName]) {
+    await cancelLatencyTest(sectionName);
     return;
   }
 
@@ -667,7 +703,12 @@ async function handleTestLatency(
       throw new Error(startResponse.error);
     }
 
-    await followLatencyTestJob(startResponse.data.job_id, sectionName);
+    const jobId = startResponse.data.job_id;
+    latencyJobIds[sectionName] = jobId;
+    if (latencyCancelRequests.has(sectionName)) {
+      await cancelLatencyTest(sectionName);
+    }
+    await followLatencyTestJob(jobId, sectionName);
   } catch (error) {
     logger.error('[DASHBOARD]', 'handleTestLatency: failed', error);
     setLatencyFetching(sectionName, false);
@@ -1451,6 +1492,7 @@ async function renderSectionsWidget() {
       latencyFetching: Boolean(
         sectionsWidget.latencyFetchingSections[section.sectionName],
       ),
+      latencyCancelling: cancellingLatencySections.has(section.sectionName),
       latencyProgress:
         sectionsWidget.latencyProgressSections[section.sectionName],
       latencyFetchingTarget: latencyFetchingTargets[section.sectionName],

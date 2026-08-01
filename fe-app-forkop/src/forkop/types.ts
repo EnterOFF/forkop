@@ -114,6 +114,7 @@ export namespace Forkop {
     SERVICE_ACTION_STATUS = 'service_action_status',
     LATENCY_TEST_ASYNC = 'latency_test_async',
     LATENCY_TEST_STATUS = 'latency_test_status',
+    LATENCY_TEST_CANCEL = 'latency_test_cancel',
     UI_ACTION_ACK = 'ui_action_ack',
     COMPONENT_ACTION_ASYNC = 'component_action_async',
     COMPONENT_ACTION_STATUS = 'component_action_status',

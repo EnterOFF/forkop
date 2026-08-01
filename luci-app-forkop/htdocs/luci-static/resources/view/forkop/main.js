@@ -1769,17 +1769,17 @@ function renderSubscriptionUpdateAction(section, subscriptionUpdating, onUpdateS
 function getLatencyTestLabel(latencyProgress) {
   const total = Math.trunc(Number(latencyProgress?.total ?? 0));
   if (!Number.isFinite(total) || total <= 0) {
-    return _("Test latency");
+    return _("Cancel latency test");
   }
   const completedValue = Number(latencyProgress?.completed ?? 0);
   const completed = Number.isFinite(completedValue) ? Math.trunc(completedValue) : 0;
   if (completed >= total) {
-    return _("Test latency");
+    return _("Cancel latency test");
   }
-  return `${_("Test latency")}: ${Math.min(
+  return `${_("Cancel latency test")} (${Math.min(
     Math.max(0, completed),
     total
-  )}/${total}`;
+  )}/${total})`;
 }
 function getPendingLatencyTags(section, latencyProgress) {
   const pending = new Set(latencyProgress?.pending || []);
@@ -1816,6 +1816,7 @@ function renderDefaultState({
   onTestOutboundLatency,
   onUpdateSubscription,
   latencyFetching,
+  latencyCancelling,
   latencyFetchingTarget,
   latencyProgress,
   subscriptionUpdating,
@@ -2013,11 +2014,11 @@ function renderDefaultState({
               type: "button",
               class: "btn dashboard-sections-grid-item-test-latency",
               "data-latency-section": section.sectionName,
-              disabled: latencyFetching ? true : void 0,
+              disabled: latencyFetching && latencyCancelling ? true : void 0,
               click: (event) => {
                 event.preventDefault();
                 event.stopPropagation();
-                if (latencyFetching) {
+                if (latencyFetching && latencyCancelling) {
                   return;
                 }
                 testLatency();
@@ -2365,6 +2366,7 @@ var Forkop;
     AvailableMethods2["SERVICE_ACTION_STATUS"] = "service_action_status";
     AvailableMethods2["LATENCY_TEST_ASYNC"] = "latency_test_async";
     AvailableMethods2["LATENCY_TEST_STATUS"] = "latency_test_status";
+    AvailableMethods2["LATENCY_TEST_CANCEL"] = "latency_test_cancel";
     AvailableMethods2["UI_ACTION_ACK"] = "ui_action_ack";
     AvailableMethods2["COMPONENT_ACTION_ASYNC"] = "component_action_async";
     AvailableMethods2["COMPONENT_ACTION_STATUS"] = "component_action_status";
@@ -2737,6 +2739,25 @@ var ForkopShellMethods = {
         response,
         parsedResponse,
         _("Latency test failed")
+      );
+    }
+    return {
+      success: true,
+      data: parsedResponse
+    };
+  },
+  latencyTestCancel: async (jobId) => {
+    const response = await executeShellCommand({
+      command: "/usr/bin/forkop",
+      args: [Forkop.AvailableMethods.LATENCY_TEST_CANCEL, jobId],
+      timeout: UI_ACTION_RPC_TIMEOUT_MS
+    });
+    const parsedResponse = parseUiActionStartResult(response);
+    if ((response.code ?? 0) !== 0 || !parsedResponse?.success || !parsedResponse.job_id) {
+      return uiActionFailure(
+        response,
+        parsedResponse,
+        _("Latency test cancellation failed")
       );
     }
     return {
@@ -5348,6 +5369,10 @@ var pageUnloading = false;
 var followedLatencyJobs = /* @__PURE__ */ new Set();
 var handledLatencyJobs = /* @__PURE__ */ new Set();
 var latencyFetchingTargets = {};
+var latencyJobIds = {};
+var latencyCancelRequests = /* @__PURE__ */ new Set();
+var cancellingLatencyJobs = /* @__PURE__ */ new Set();
+var cancellingLatencySections = /* @__PURE__ */ new Set();
 var latencyAckQueue = Promise.resolve();
 if (typeof window !== "undefined") {
   window.addEventListener("pagehide", () => {
@@ -5490,6 +5515,13 @@ function setLatencyFetching(sectionName, fetching, local = false, progress, targ
     delete latencyFetchingSections[sectionName];
     delete latencyProgressSections[sectionName];
     delete latencyFetchingTargets[sectionName];
+    const jobId = latencyJobIds[sectionName];
+    delete latencyJobIds[sectionName];
+    latencyCancelRequests.delete(sectionName);
+    cancellingLatencySections.delete(sectionName);
+    if (jobId) {
+      cancellingLatencyJobs.delete(jobId);
+    }
   }
   store.set({
     sectionsWidget: {
@@ -5560,6 +5592,7 @@ function followLatencyTestState(state) {
     return;
   }
   if (state.running) {
+    latencyJobIds[sectionName] = jobId;
     if (shouldShowLoadingForRestoredAction(state)) {
       setLatencyFetching(
         sectionName,
@@ -5579,6 +5612,26 @@ function followLatencyTestState(state) {
     logger.error("[DASHBOARD]", "completeLatencyTestJob failed", error);
     if (!pageUnloading) setLatencyFetching(sectionName, false);
   });
+}
+async function cancelLatencyTest(sectionName) {
+  latencyCancelRequests.add(sectionName);
+  if (!cancellingLatencySections.has(sectionName)) {
+    cancellingLatencySections.add(sectionName);
+    renderSectionsWidget();
+  }
+  const jobId = latencyJobIds[sectionName];
+  if (!jobId || cancellingLatencyJobs.has(jobId)) {
+    return;
+  }
+  cancellingLatencyJobs.add(jobId);
+  const response = await ForkopShellMethods.latencyTestCancel(jobId);
+  if (!response.success) {
+    cancellingLatencyJobs.delete(jobId);
+    latencyCancelRequests.delete(sectionName);
+    cancellingLatencySections.delete(sectionName);
+    renderSectionsWidget();
+    logger.error("[DASHBOARD]", "cancelLatencyTest failed", response.error);
+  }
 }
 function followDashboardActionsFromUiState(uiState) {
   for (const state of uiState.actions.latency || []) {
@@ -5777,6 +5830,7 @@ function getInitialLatencyProgress(latencyType, tag) {
 }
 async function handleTestLatency(latencyType, sectionName, tag, timeout, target) {
   if (store.get().sectionsWidget.latencyFetchingSections[sectionName]) {
+    await cancelLatencyTest(sectionName);
     return;
   }
   setLatencyFetching(
@@ -5796,7 +5850,12 @@ async function handleTestLatency(latencyType, sectionName, tag, timeout, target)
     if (!startResponse.success) {
       throw new Error(startResponse.error);
     }
-    await followLatencyTestJob(startResponse.data.job_id, sectionName);
+    const jobId = startResponse.data.job_id;
+    latencyJobIds[sectionName] = jobId;
+    if (latencyCancelRequests.has(sectionName)) {
+      await cancelLatencyTest(sectionName);
+    }
+    await followLatencyTestJob(jobId, sectionName);
   } catch (error) {
     logger.error("[DASHBOARD]", "handleTestLatency: failed", error);
     setLatencyFetching(sectionName, false);
@@ -6422,6 +6481,7 @@ async function renderSectionsWidget() {
       latencyFetching: Boolean(
         sectionsWidget.latencyFetchingSections[section.sectionName]
       ),
+      latencyCancelling: cancellingLatencySections.has(section.sectionName),
       latencyProgress: sectionsWidget.latencyProgressSections[section.sectionName],
       latencyFetchingTarget: latencyFetchingTargets[section.sectionName],
       subscriptionUpdating: Boolean(

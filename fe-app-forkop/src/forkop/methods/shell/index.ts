@@ -461,6 +461,31 @@ export const ForkopShellMethods = {
       data: parsedResponse,
     } as Forkop.MethodSuccessResponse<Forkop.LatencyActionState>;
   },
+  latencyTestCancel: async (jobId: string) => {
+    const response = await executeShellCommand({
+      command: '/usr/bin/forkop',
+      args: [Forkop.AvailableMethods.LATENCY_TEST_CANCEL, jobId],
+      timeout: UI_ACTION_RPC_TIMEOUT_MS,
+    });
+    const parsedResponse = parseUiActionStartResult(response);
+
+    if (
+      (response.code ?? 0) !== 0 ||
+      !parsedResponse?.success ||
+      !parsedResponse.job_id
+    ) {
+      return uiActionFailure(
+        response,
+        parsedResponse,
+        _('Latency test cancellation failed'),
+      );
+    }
+
+    return {
+      success: true,
+      data: parsedResponse,
+    } as Forkop.MethodSuccessResponse<Forkop.UiActionStartResult>;
+  },
   waitLatencyTestJob: async (
     jobId: string,
     onState?: (state: Forkop.LatencyActionState) => void,

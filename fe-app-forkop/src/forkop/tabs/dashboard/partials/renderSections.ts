@@ -32,6 +32,7 @@ interface IRenderSectionsProps {
   onShowFallbackInfo: (outbound: Forkop.Outbound) => void;
   onUpdateSubscription: (section: Forkop.OutboundGroup) => void;
   latencyFetching: boolean;
+  latencyCancelling?: boolean;
   latencyFetchingTarget?: string;
   latencyProgress?: Forkop.LatencyActionProgress;
   subscriptionUpdating: boolean;
@@ -240,7 +241,7 @@ export function getLatencyTestLabel(
 ) {
   const total = Math.trunc(Number(latencyProgress?.total ?? 0));
   if (!Number.isFinite(total) || total <= 0) {
-    return _('Test latency');
+    return _('Cancel latency test');
   }
 
   const completedValue = Number(latencyProgress?.completed ?? 0);
@@ -249,13 +250,13 @@ export function getLatencyTestLabel(
     : 0;
 
   if (completed >= total) {
-    return _('Test latency');
+    return _('Cancel latency test');
   }
 
-  return `${_('Test latency')}: ${Math.min(
+  return `${_('Cancel latency test')} (${Math.min(
     Math.max(0, completed),
     total,
-  )}/${total}`;
+  )}/${total})`;
 }
 
 export function getPendingLatencyTags(
@@ -304,6 +305,7 @@ function renderDefaultState({
   onTestOutboundLatency,
   onUpdateSubscription,
   latencyFetching,
+  latencyCancelling,
   latencyFetchingTarget,
   latencyProgress,
   subscriptionUpdating,
@@ -564,14 +566,13 @@ function renderDefaultState({
               type: 'button',
               class: 'btn dashboard-sections-grid-item-test-latency',
               'data-latency-section': section.sectionName,
-              disabled: latencyFetching ? true : undefined,
+              disabled: latencyFetching && latencyCancelling ? true : undefined,
               click: (event: MouseEvent) => {
                 event.preventDefault();
                 event.stopPropagation();
-                if (latencyFetching) {
+                if (latencyFetching && latencyCancelling) {
                   return;
                 }
-
                 testLatency();
               },
             },

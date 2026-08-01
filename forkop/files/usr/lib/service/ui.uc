@@ -686,6 +686,17 @@ function write_stale_action_state(path, message) {
     return write_state_file(path, stale_action_state_value(path, message, now_seconds()));
 }
 
+function write_cancelled_latency_action_state(path) {
+    let value = object_or_empty(read_json_file(path));
+    value.success = true;
+    value.running = false;
+    value.cancelled = true;
+    value.message = "Latency test cancelled";
+    value.exit_code = null;
+    value.updated_at = now_seconds();
+    return write_state_file(path, value);
+}
+
 function pid_running(pid) {
     pid = as_string(pid);
     return job_pid_valid(pid) && command_success_from_args([ "kill", "-0", pid ]);
@@ -695,6 +706,19 @@ function current_pid() {
     let stat = as_string(fs.readfile("/proc/self/stat"));
     let separator = index(stat, " ");
     return separator > 0 ? substr(stat, 0, separator) : "";
+}
+
+function latency_worker_pid_matches(pid, path) {
+    if (!job_pid_valid(pid))
+        return false;
+
+    let command_line = command_output(
+        "tr '\\000' ' ' < " + shell_quote("/proc/" + as_string(pid) + "/cmdline")
+    );
+    return command_line != "" &&
+        index(command_line, "/service/ui.uc") >= 0 &&
+        index(command_line, "latency-worker") >= 0 &&
+        index(command_line, as_string(path)) >= 0;
 }
 
 function refresh_pid_job_state(path, stale_message) {
@@ -1279,6 +1303,48 @@ function latency_test_status(job_id_value) {
     print(as_string(fs.readfile(path)));
 }
 
+function latency_test_cancel(job_id_value) {
+    let path = job_state_path_value(LATENCY_ACTION_DIR, job_id_value);
+    if (path == "") {
+        action_start_response(false, "", "Invalid latency test job id");
+        exit(1);
+    }
+    if (fs.stat(path) == null) {
+        action_start_response(false, "", "Latency test job was not found");
+        exit(1);
+    }
+
+    refresh_pid_job_state(path, "Latency test worker exited unexpectedly");
+    let value = read_json_file(path);
+    if (type(value) != "object" || value.kind != "latency") {
+        action_start_response(false, "", "Invalid latency test state");
+        exit(1);
+    }
+    if (value.running !== true) {
+        action_start_response(true, job_id_value, "Latency test already finished");
+        return;
+    }
+
+    let pid = as_string(value.pid || "");
+    if (pid_running(pid)) {
+        if (!latency_worker_pid_matches(pid, path)) {
+            action_start_response(false, job_id_value, "Latency test worker does not match job");
+            exit(1);
+        }
+        if (!command_success_from_args([ "kill", pid ])) {
+            action_start_response(false, job_id_value, "Failed to stop latency test worker");
+            exit(1);
+        }
+    }
+
+    if (!write_cancelled_latency_action_state(path)) {
+        action_start_response(false, job_id_value, "Failed to write cancelled latency test state");
+        exit(1);
+    }
+
+    action_start_response(true, job_id_value, "Latency test cancelled");
+}
+
 function action_dir(kind) {
     kind = as_string(kind);
     if (kind == "service")
@@ -1388,6 +1454,8 @@ else if (mode == "latency-test-async")
     latency_test_async(ARGV[1], ARGV[2], ARGV[3], ARGV[4]);
 else if (mode == "latency-test-status")
     latency_test_status(ARGV[1]);
+else if (mode == "latency-test-cancel")
+    latency_test_cancel(ARGV[1]);
 else if (mode == "action-ack")
     action_ack(ARGV[1], ARGV[2]);
 else if (mode == "cleanup-action-dir-fixture")

@@ -306,7 +306,8 @@ describe('renderSections latency actions', () => {
   it('renders a rotating loader while an outbound latency test is running', async () => {
     installElementFactory();
     const { renderSections } = await import('../partials/renderSections');
-    const root = renderSections({
+    const onTestLatency = vi.fn();
+    const props = {
       loading: false,
       failed: false,
       section: {
@@ -331,7 +332,7 @@ describe('renderSections latency actions', () => {
           },
         ],
       },
-      onTestLatency: vi.fn(),
+      onTestLatency,
       onTestOutboundLatency: vi.fn(),
       onChooseOutbound: vi.fn(),
       onCopyOutbound: vi.fn(),
@@ -346,7 +347,8 @@ describe('renderSections latency actions', () => {
         pending: ['main/Node'],
       },
       subscriptionUpdating: false,
-    }) as unknown as FakeNode;
+    };
+    const root = renderSections(props) as unknown as FakeNode;
     const buttons = findNodes(
       root,
       (node) =>
@@ -372,6 +374,12 @@ describe('renderSections latency actions', () => {
         String(node.attrs.class || '') ===
           'btn dashboard-sections-grid-item-test-latency',
     );
+    const sectionButtonLabel = findNode(
+      sectionButton as FakeNode,
+      (node) =>
+        String(node.attrs.class || '') ===
+        'dashboard-sections-grid-item-test-latency__label',
+    );
 
     expect(buttons).toHaveLength(2);
     expect(icon).toBeDefined();
@@ -383,6 +391,14 @@ describe('renderSections latency actions', () => {
           String(child.attrs.class || '').includes('loader-circle'),
       ),
     ).toBe(true);
+    expect(sectionButton?.attrs.disabled).toBeUndefined();
+    expect(sectionButtonLabel?.children).toEqual(['Cancel latency test (0/1)']);
+    const event = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+    } as unknown as MouseEvent;
+    (sectionButton?.attrs.click as (event: MouseEvent) => void)(event);
+    expect(onTestLatency).toHaveBeenCalledWith('proxy-out');
     expect(buttons[0]?.attrs['aria-busy']).toBe('true');
     expect(buttons[1]?.attrs['aria-busy']).toBeUndefined();
     expect(
@@ -391,6 +407,40 @@ describe('renderSections latency actions', () => {
           typeof child !== 'string' && child.type === 'animateTransform',
       ),
     ).toBe(true);
+
+    const cancellingRoot = renderSections({
+      ...props,
+      latencyCancelling: true,
+    }) as unknown as FakeNode;
+    const cancellingButton = findNode(
+      cancellingRoot,
+      (node) =>
+        node.type === 'button' &&
+        String(node.attrs.class || '') ===
+          'btn dashboard-sections-grid-item-test-latency',
+    );
+    expect(cancellingButton?.attrs.disabled).toBe(true);
+    expect(
+      cancellingButton?.children.some(
+        (child) =>
+          typeof child !== 'string' &&
+          String(child.attrs.class || '').includes('loader-circle'),
+      ),
+    ).toBe(true);
+
+    const completedRoot = renderSections({
+      ...props,
+      latencyFetching: false,
+      latencyCancelling: true,
+    }) as unknown as FakeNode;
+    const completedButton = findNode(
+      completedRoot,
+      (node) =>
+        node.type === 'button' &&
+        String(node.attrs.class || '') ===
+          'btn dashboard-sections-grid-item-test-latency',
+    );
+    expect(completedButton?.attrs.disabled).toBeUndefined();
   }, 15000);
 
   it('stops each tested node loader as its latency completes', async () => {

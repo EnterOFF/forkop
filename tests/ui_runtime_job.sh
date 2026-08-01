@@ -102,6 +102,7 @@ for mode in \
   service-action-status \
   latency-test-async \
   latency-test-status \
+  latency-test-cancel \
   action-ack; do
   grep -Fq "\"$mode\"" "$UI_UC" ||
     fail "service/ui.uc must expose $mode"
@@ -295,6 +296,39 @@ if (
   process.exit(1);
 }
 NODE
+
+slow_latency_worker="$WORK_DIR/forkop-slow-latency-worker"
+cat >"$slow_latency_worker" <<'SH'
+#!/usr/bin/env sh
+state_path="$5"
+while grep -q '"running"[[:space:]]*:[[:space:]]*true' "$state_path"; do
+  sleep 0.1
+done
+SH
+chmod +x "$slow_latency_worker"
+latency_cancel_start="$(
+  FORKOP_BIN="$slow_latency_worker" \
+  FORKOP_LIB="$FORKOP_FILES/usr/lib" \
+    ui_ucode latency-test-async proxy_list main '["proxy-a"]' 5000
+)"
+latency_cancel_job_id="$(printf '%s' "$latency_cancel_start" | sed -n 's/.*"job_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+[ -n "$latency_cancel_job_id" ] || fail "cancellable latency test should return a job id"
+latency_cancel_state="$FORKOP_UI_LATENCY_ACTION_DIR/$latency_cancel_job_id.json"
+latency_cancel_pid="$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).pid)' "$latency_cancel_state")"
+kill -0 "$latency_cancel_pid" 2>/dev/null || fail "latency worker should be running before cancellation"
+if ! latency_cancel_response="$(ui_ucode latency-test-cancel "$latency_cancel_job_id")"; then
+  fail "latency-test-cancel should stop a running latency job: $latency_cancel_response"
+fi
+JOB_STATE="$latency_cancel_state" node - <<'NODE'
+const fs = require("fs");
+const value = JSON.parse(fs.readFileSync(process.env.JOB_STATE, "utf8"));
+if (value.running !== false || value.success !== true || value.cancelled !== true) {
+  console.error("cancelled latency state mismatch");
+  process.exit(1);
+}
+NODE
+ui_ucode latency-test-cancel "$latency_cancel_job_id" >/dev/null ||
+  fail "latency-test-cancel should be idempotent"
 
 job_id="$(ui_ucode service-action-begin-if-idle reload test)"
 [ -n "$job_id" ] || fail "service-action-begin-if-idle should create a job"

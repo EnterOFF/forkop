@@ -1710,8 +1710,9 @@ function clash_api(action, arg1, arg2, arg3) {
             if (lc(as_string(proxy_types[proxy_tag])) == "urltest")
                 push(ordered_proxy_tags, proxy_tag);
 
-        if (progress_path != "")
-            module_success(SERVICE_UI_UC, [ "latency-progress-state", progress_path, count, total, failed, sprintf("%J", ordered_proxy_tags), sprintf("%J", latencies) ]);
+        if (progress_path != "" &&
+            !module_success(SERVICE_UI_UC, [ "latency-progress-state", progress_path, count, total, failed, sprintf("%J", ordered_proxy_tags), sprintf("%J", latencies) ]))
+            return 1;
 
         for (let proxy_tag in ordered_proxy_tags) {
             let args = [ "curl", "-G", "-s", clash_latency_endpoint(base_url, proxy_tag, proxy_types[proxy_tag]) ];
@@ -1750,7 +1751,8 @@ function clash_api(action, arg1, arg2, arg3) {
                 let pending = [];
                 for (let i = count; i < length(ordered_proxy_tags); i++)
                     push(pending, ordered_proxy_tags[i]);
-                module_success(SERVICE_UI_UC, [ "latency-progress-state", progress_path, count, total, failed, sprintf("%J", pending), sprintf("%J", latencies) ]);
+                if (!module_success(SERVICE_UI_UC, [ "latency-progress-state", progress_path, count, total, failed, sprintf("%J", pending), sprintf("%J", latencies) ]))
+                    return 1;
             }
         }
         let result = status_capture([ "clash-proxy-latencies-result", count, failed ], null);

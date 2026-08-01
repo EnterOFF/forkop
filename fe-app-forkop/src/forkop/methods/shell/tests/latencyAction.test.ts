@@ -37,6 +37,22 @@ describe('ForkopShellMethods.latencyAction', () => {
     });
   });
 
+  it('cancels a running latency job', async () => {
+    mocks.executeShellCommand.mockResolvedValue({
+      stdout: JSON.stringify({ success: true, job_id: 'latency-1' }),
+      stderr: '',
+      code: 0,
+    });
+
+    await ForkopShellMethods.latencyTestCancel('latency-1');
+
+    expect(mocks.executeShellCommand).toHaveBeenCalledWith({
+      command: '/usr/bin/forkop',
+      args: ['latency_test_cancel', 'latency-1'],
+      timeout: 15000,
+    });
+  });
+
   it('keeps following a latency job beyond 30 seconds', async () => {
     vi.useFakeTimers();
     let statusCalls = 0;
