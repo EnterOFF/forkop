@@ -426,7 +426,7 @@ export const styles = `
     padding: 2px 6px;
     border-radius: 4px;
     background: rgba(128, 128, 128, 0.15);
-    color: var(--text-color-high, #eee);
+    color: var(--text-color-high);
     font-size: 11px;
     font-weight: 500;
 }
