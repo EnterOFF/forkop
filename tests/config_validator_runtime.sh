@@ -374,7 +374,7 @@ cat >"$WORK_DIR/bad-subscription.json" <<'JSON'
 JSON
 assert_rejects "bad subscription" "$WORK_DIR/bad-subscription.json" "Configure User-Agent in the subscription item settings"
 
-cat >"$WORK_DIR/disabled-hwid.json" <<'JSON'
+cat >"$WORK_DIR/bad-subscription-header.json" <<'JSON'
 {
   "settings": { ".name": "settings", ".type": "settings" },
   "section": [
@@ -386,12 +386,12 @@ cat >"$WORK_DIR/disabled-hwid.json" <<'JSON'
       ".type": "subscription_url",
       "section": "proxy",
       "url": "https://example.com/sub.txt",
-      "auto_hwid": "0"
+      "header": [ "Broken Header: value" ]
     }
   ]
 }
 JSON
-validate_fixture "$WORK_DIR/disabled-hwid.json"
+assert_rejects "bad subscription header" "$WORK_DIR/bad-subscription-header.json" "invalid header 1"
 
 cat >"$WORK_DIR/bad-latency-url.json" <<'JSON'
 {

@@ -2,6 +2,7 @@
 
 let fs = require("fs");
 let uci_core = require("core.uci");
+let subscription_headers_module = require("singbox.subscription_headers");
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
@@ -887,6 +888,10 @@ function ui_capabilities_json() {
     write_json(capability_flags());
 }
 
+function subscription_default_headers_json() {
+    write_json(subscription_headers_module.default_header_lines());
+}
+
 function current_ui_state_json() {
     refresh_action_dirs();
 
@@ -1323,6 +1328,8 @@ if (mode == "ui-state-json")
     ui_state_json();
 else if (mode == "get-ui-capabilities")
     ui_capabilities_json();
+else if (mode == "get-subscription-default-headers")
+    subscription_default_headers_json();
 else if (mode == "get-ui-state")
     current_ui_state_json();
 else if (mode == "service-status-text")

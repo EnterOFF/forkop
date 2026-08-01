@@ -91,6 +91,8 @@ function show_help() {
     print("    get_byedpi_status       Get ByeDPI provider and Forkop-managed ciadpi status\n");
     print("    get_system_info         Get system information in JSON format\n");
     print("    get_ui_capabilities     Get lightweight UI capabilities in JSON format\n");
+    print("    get_subscription_default_headers\n");
+    print("                            Get default subscription request headers in JSON format\n");
     print("    get_ui_state            Get lightweight UI service/action state in JSON format\n");
     print("    service_action_async    Start a service action in the background\n");
     print("    service_action_status   Get background service action status\n");
@@ -157,6 +159,7 @@ function command_spec(command) {
         get_byedpi_status: [ "diagnostics/runtime.uc", "get-byedpi-status", 0 ],
         get_system_info: [ "diagnostics/runtime.uc", "get-system-info", 0 ],
         get_ui_capabilities: [ "service/ui.uc", "get-ui-capabilities", 0 ],
+        get_subscription_default_headers: [ "service/ui.uc", "get-subscription-default-headers", 0 ],
         get_ui_state: [ "service/ui.uc", "get-ui-state", 0 ],
         service_action_async: [ "service/ui.uc", "service-action-async", 1 ],
         service_action_status: [ "service/ui.uc", "service-action-status", 1 ],

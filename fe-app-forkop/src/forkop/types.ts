@@ -337,8 +337,7 @@ export namespace Forkop {
     download_via_proxy_enabled?: '0' | '1';
     download_via_proxy_section?: string;
     user_agent?: string;
-    auto_hwid?: '0' | '1';
-    hwid?: string;
+    header?: string[];
     show_dashboard_metadata?: '0' | '1';
     prefix_nodes?: '0' | '1';
     node_prefix?: string;

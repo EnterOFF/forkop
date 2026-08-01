@@ -9,6 +9,7 @@ let runtime_route = require("singbox.route");
 let runtime_rulesets = require("singbox.rulesets");
 let runtime_servers = require("singbox.servers");
 let runtime_subscription = require("singbox.subscription");
+let subscription_headers_module = require("singbox.subscription_headers");
 let runtime_urltest = require("singbox.urltest");
 let rule_config = require("config.rule");
 let connections = require("config.connections");
@@ -415,52 +416,13 @@ function base_config(settings, service_address, runtime_context) {
     };
 }
 
-function shell_quote(value) {
-    return "'" + replace(as_string(value), /'/g, "'\\''") + "'";
-}
-
-function command_output(command) {
-    let pipe = fs.popen(command, "r");
-    if (!pipe)
-        return "";
-    let output = pipe.read("all");
-    let status = pipe.close();
-    return status == 0 && output != null ? as_string(output) : "";
-}
-
-function subscription_device_model() {
-    let model = trim(as_string(fs.readfile("/tmp/sysinfo/model")));
-    return model != "" ? model : "OpenWrt Router";
-}
-
-function subscription_hwid(section, source) {
-    let configured = connections.subscription_hwid(section, source);
-    if (configured != "")
-        return configured;
-    if (!connections.subscription_auto_hwid(section, source))
-        return "";
-
-    let mac = trim(as_string(fs.readfile("/sys/class/net/eth0/address")));
-    if (mac == "")
-        mac = trim(as_string(fs.readfile("/sys/class/net/br-lan/address")));
-    let input = mac + "-" + subscription_device_model();
-    let output = split(trim(command_output("printf %s " + shell_quote(input) + " | md5sum")), /[ \t]+/)[0] || "";
-    let hash = substr(output, 0, 16);
-    return substr(hash, 0, 4) + "-" + substr(hash, 4, 4) + "-" + substr(hash, 8, 4) + "-" + substr(hash, 12, 4);
-}
-
 function subscription_headers(section, source) {
-    let result = {
-        "X-Device-OS": [ "OpenWrt Linux" ],
-        "X-Device-Model": [ subscription_device_model() ],
-        "X-Ver-OS": [ trim(as_string(fs.readfile("/proc/sys/kernel/osrelease"))) ],
-        "Accept-Language": [ "ru-RU,en,*" ],
-        "X-Device-Locale": [ "EN" ]
-    };
-    let hwid = subscription_hwid(section, source);
-    if (hwid != "")
-        result["X-HWID"] = [ hwid ];
-    return result;
+    let parsed = subscription_headers_module.parse_header_lines(
+        connections.subscription_headers(section, source)
+    );
+    if (!parsed.valid)
+        runtime_generate_unsupported("invalid subscription request " + parsed.message);
+    return parsed.headers;
 }
 
 function regex_escape(value) {

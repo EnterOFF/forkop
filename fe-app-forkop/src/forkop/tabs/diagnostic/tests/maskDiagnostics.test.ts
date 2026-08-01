@@ -73,6 +73,7 @@ describe('diagnostic masking', () => {
       "\toption password 'provider-password'",
       "config subscription_url 'sub1'",
       "\toption url 'https://user:password@example.com/subscription?token=secret'",
+      "\tlist header 'Authorization: Bearer header-secret'",
       "config interface 'wireguard_wan'",
       "\toption private_key 'wireguard-private-secret'",
       '',
@@ -87,10 +88,12 @@ describe('diagnostic masking', () => {
     expect(masked).not.toContain('192.168.1.1');
     expect(masked).not.toContain('provider-password');
     expect(masked).not.toContain('token=secret');
+    expect(masked).not.toContain('header-secret');
     expect(masked).not.toContain('wireguard-private-secret');
     expect(masked).toContain("option proxy_string 'MASKED'");
     expect(masked).toContain("option ipaddr 'MASKED'");
     expect(masked).toContain("option url 'MASKED'");
+    expect(masked).toContain("list header 'MASKED'");
     expect(masked).toContain("option private_key 'MASKED'");
   });
 });

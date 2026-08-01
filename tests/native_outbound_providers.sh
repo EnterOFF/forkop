@@ -38,8 +38,7 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
       "section": "proxy",
       "url": "https://example.com/subscription",
       "user_agent": "Happ",
-      "auto_hwid": "0",
-      "hwid": "router-hwid",
+      "header": [ "X-HWID: router-hwid", "X-Device-OS: OpenWrt Linux", "X-Test: one", "x-test: two", "X-Empty:" ],
       "subscription_update_enabled": "0",
       "download_via_proxy_enabled": "1",
       "download_via_proxy_section": "hop",
@@ -53,14 +52,14 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
       ".name": "source_auto",
       ".type": "subscription_url",
       "section": "proxy",
-      "url": "https://example.com/auto"
+      "url": "https://example.com/auto",
+      "header": [ "X-HWID: configured-hwid" ]
     },
     {
       ".name": "source_without_hwid",
       ".type": "subscription_url",
       "section": "proxy",
-      "url": "https://example.com/no-hwid",
-      "auto_hwid": "0"
+      "url": "https://example.com/no-hwid"
     }
   ],
   "urltest": [
@@ -81,13 +80,14 @@ ucode -L "$FORKOP_LIB" "$VALIDATOR" validate-runtime-fixture "$WORK_DIR/fixture.
 ucode -L "$FORKOP_LIB" "$FORKOP_LIB/singbox/generator.uc" generate-config-fixture \
   "$WORK_DIR/fixture.json" "$output" 127.0.0.1 0
 
-mac="$(cat /sys/class/net/eth0/address 2>/dev/null || cat /sys/class/net/br-lan/address 2>/dev/null || true)"
-model="$(cat /tmp/sysinfo/model 2>/dev/null || true)"
-model="${model:-OpenWrt Router}"
-hash="$(printf %s "$mac-$model" | md5sum | cut -c1-16)"
-expected_hwid="${hash:0:4}-${hash:4:4}-${hash:8:4}-${hash:12:4}"
+ucode -L "$FORKOP_LIB" -e '
+let subscription_headers = require("singbox.subscription_headers");
+let parsed = subscription_headers.parse_header_lines(subscription_headers.default_header_lines());
+if (!parsed.valid || length(keys(parsed.headers)) != 6 || parsed.headers["X-HWID"][0] == "")
+    die("default subscription headers were not generated\n");
+'
 
-EXPECTED_HWID="$expected_hwid" ucode -e '
+ucode -e '
 let fs = require("fs");
 let config = json(fs.readfile(ARGV[0]));
 let by_provider = {};
@@ -107,10 +107,14 @@ if (remote.url != "https://example.com/subscription" || remote.user_agent != "Ha
     die("remote provider request profile was not preserved\n");
 if (automatic.user_agent != "sing-box")
     die("default subscription User-Agent was not generated\n");
-if (automatic.headers["X-HWID"][0] != getenv("EXPECTED_HWID"))
-    die("automatic HWID diverged from the legacy router identity algorithm\n");
+if (automatic.headers["X-HWID"][0] != "configured-hwid")
+    die("configured subscription headers were not generated\n");
 if (remote.headers["X-HWID"][0] != "router-hwid" || remote.headers["X-Device-OS"][0] != "OpenWrt Linux")
     die("remote provider device headers were not preserved\n");
+if (length(remote.headers["X-Test"]) != 2 || remote.headers["X-Test"][1] != "two")
+    die("repeated subscription headers were not combined case-insensitively\n");
+if (type(remote.headers["X-Empty"]) != "array" || remote.headers["X-Empty"][0] != "")
+    die("empty subscription header values must stay valid\n");
 if (without_hwid.headers["X-HWID"] != null)
     die("disabled empty HWID must omit the request header\n");
 if (remote.download_detour != "hop-out" || remote.outbound_detour != "hop-out")

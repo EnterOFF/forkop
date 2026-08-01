@@ -595,7 +595,7 @@ proxy
 [rule.proxy1.connection_urls]
 [ "vless://one", "vless://two" ]
 [rule.proxy1.subscription_urls]
-[ { "url": "https://example.com/sub.txt", "subscription_update_enabled": "1", "subscription_update_interval": "1h", "download_via_proxy_section": "", "user_agent": "sing-box", "auto_hwid": "1", "hwid": "", "show_dashboard_metadata": "1", "prefix_nodes": "1", "node_prefix": "Example", "server_filter_mode": "all", "include_outbounds": [ ], "include_regex": "", "exclude_outbounds": [ ], "exclude_regex": "" } ]
+[ { "url": "https://example.com/sub.txt", "subscription_update_enabled": "1", "subscription_update_interval": "1h", "download_via_proxy_section": "", "user_agent": "sing-box", "header": [ ], "show_dashboard_metadata": "1", "prefix_nodes": "1", "node_prefix": "Example", "server_filter_mode": "all", "include_outbounds": [ ], "include_regex": "", "exclude_outbounds": [ ], "exclude_regex": "" } ]
 [rule.proxy1.interfaces]
 [ ]
 [rule.proxy1.outbound_jsons]

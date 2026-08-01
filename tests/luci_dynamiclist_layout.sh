@@ -15,6 +15,7 @@ button_styles="$(sed -n '/^\.fkp-button-add-dynlist > \.add-item > \.cbi-button-
 settings_styles="$(sed -n '/^\.fkp-connections-dynlist > \.item > \.fkp-dynlist-settings {$/,/^}$/p' "$SECTION_JS")"
 subscription_keys="$(sed -n '/^function subscriptionUrlSettingsKeys(/,/^function defaultSubscriptionUrlSettings(/p' "$SECTION_JS")"
 subscription_options="$(sed -n '/^function addSubscriptionUrlItemOptions(/,/^function addInterfaceItemOptions(/p' "$SECTION_JS")"
+subscription_header_editor="$(sed -n '/^function subscriptionHeaderValues(/,/^function interfaceSettingsKeys(/p' "$SECTION_JS")"
 server_filter_options="$(sed -n '/^function addServerFilterOptions(/,/^function urlTestUrlChoices(/p' "$SECTION_JS")"
 urltest_options="$(sed -n '/^function addUrlTestItemOptions(/,/^function fallbackLevelSettingsForValidation(/p' "$SECTION_JS")"
 fallback_options="$(sed -n '/^function addFallbackLevelItemOptions(/,/^function addFallbackGroupItemOptions(/p' "$SECTION_JS")"
@@ -53,6 +54,48 @@ syncServerFilterFields(
   'settings',
 );
 assert.deepStrictEqual(values.exclude, ['Alpha']);
+
+const headerHelpers = source.match(
+  /function subscriptionHeaderValues\([\s\S]*?\n}\n\nfunction showSubscriptionHeadersModal\(/,
+);
+assert(headerHelpers, 'subscription header helpers not found');
+eval(headerHelpers[0].slice(0, -'\n\nfunction showSubscriptionHeadersModal('.length));
+assert.deepStrictEqual(subscriptionHeaderRows(['Authorization: Bearer token', 'X-Empty:']), [
+  { '.name': 'header_0', '.type': 'header', name: 'Authorization', value: 'Bearer token' },
+  { '.name': 'header_1', '.type': 'header', name: 'X-Empty', value: '' },
+]);
+assert.deepStrictEqual(subscriptionHeaderLines({
+  config: 'json',
+  data: { sections: () => [{ name: 'Authorization', value: 'Bearer token' }, { name: 'X-Empty' }] },
+}), ['Authorization: Bearer token', 'X-Empty:']);
+const storedHeaders = {
+  header_0: { name: 'Old', value: 'old' },
+  header_1: { name: '', value: '' },
+};
+const headerSection = {
+  map: {
+    config: 'json',
+    data: {
+      get: (_config, section) => storedHeaders[section] ?? null,
+      set: (_config, section, option, value) => { storedHeaders[section][option] = value; },
+      unset: (_config, section, option) => { delete storedHeaders[section][option]; },
+    },
+  },
+  cfgsections: () => ['header_0', 'header_1'],
+  children: [
+    { editable: true, option: 'name', formvalue: (section) => section === 'header_0' ? 'Changed' : '' },
+    { editable: true, option: 'value', formvalue: (section) => section === 'header_0' ? 'current' : '' },
+  ],
+  nextHeaderRowIndex: 2,
+};
+syncSubscriptionHeaderRows(headerSection);
+assert.deepStrictEqual(storedHeaders.header_0, { name: 'Changed', value: 'current' });
+assert.deepStrictEqual(storedHeaders.header_1, { name: '', value: '' });
+assert.strictEqual(nextSubscriptionHeaderRowId(headerSection), 'header_2');
+storedHeaders.header_2 = {};
+assert.strictEqual(nextSubscriptionHeaderRowId(headerSection), 'header_3');
+delete storedHeaders.header_2;
+assert.strictEqual(nextSubscriptionHeaderRowId(headerSection), 'header_4');
 NODE
 
 grep -Fq 'display: flex;' <<<"$wrapper_styles" ||
@@ -87,6 +130,32 @@ for key in server_filter_mode include_regex exclude_regex; do
   grep -Fq "\"$key\"" <<<"$subscription_keys" ||
     fail "subscription/provider filter key $key is missing"
 done
+grep -Fq '"header"' <<<"$subscription_keys" ||
+  fail "subscription settings must persist request headers"
+if grep -Eq '"auto_hwid"|"hwid"' <<<"$subscription_keys"; then
+  fail "subscription settings must not persist legacy HWID controls"
+fi
+grep -Fq 'form.Button' <<<"$subscription_options" ||
+  fail "subscription settings must expose the header editor as a native LuCI button"
+grep -Fq '_("Edit headers")' <<<"$subscription_options" ||
+  fail "subscription settings header editor button is missing"
+grep -Fq 'form.GridSection' <<<"$subscription_header_editor" ||
+  fail "subscription headers must use a native LuCI grid"
+grep -Fq 'headers.hidetitle = true' <<<"$subscription_header_editor" ||
+  fail "subscription header grid must not repeat the modal title"
+grep -Fq 'headers.handleAdd = function' <<<"$subscription_header_editor" ||
+  fail "subscription header add button must create an inline row"
+grep -Fq 'headers.handleRemove = function' <<<"$subscription_header_editor" ||
+  fail "subscription header delete button must remove one inline row"
+grep -Fq 'syncSubscriptionHeaderRows(section)' <<<"$subscription_header_editor" ||
+  fail "subscription header grid must preserve unsaved inline values"
+grep -Fq 'refreshSubscriptionHeaderRows(section)' <<<"$subscription_header_editor" ||
+  fail "subscription header grid must reload cached inline values"
+grep -Fq 'form.TableSection.prototype.renderRowActions.call' <<<"$subscription_header_editor" ||
+  fail "subscription header rows must expose delete without a nested edit action"
+if grep -Fq 'headers.modaltitle' <<<"$subscription_header_editor"; then
+  fail "subscription header grid must not open a nested add modal"
+fi
 grep -Fq 'configureLiveDynamicListChoices(field, (itemId, values) =>' <<<"$server_filter_options" ||
   fail "URLTest server filters must stay comboboxes when no choices exist"
 grep -Fq 'addServerFilterOptions(itemSection, parentSectionForItem, {' <<<"$fallback_options" ||
@@ -100,9 +169,9 @@ if grep -Fq 'form.DummyValue' <<<"$server_filter_options"; then
 fi
 for label in \
   'Include servers' \
-  'Include by pattern (RegExp)' \
+  'Include by pattern' \
   'Exclude servers' \
-  'Exclude by pattern (RegExp)'; do
+  'Exclude by pattern'; do
   grep -Fq "$label" <<<"$server_filter_options" ||
     fail "server filter field label is missing: $label"
 done
@@ -140,7 +209,7 @@ for description in \
 done
 grep -Fq '{ value: "direct", label: _("Direct") }' <<<"$fallback_options" ||
   fail "Fallback direct mode must use the concise Direct label"
-for label in 'Server import mode' 'Testing group filter' 'Level formation mode'; do
+for label in 'Subscription server filter' 'URLTest group filter' 'Level server filter'; do
   grep -Fq "$label" "$SECTION_JS" ||
     fail "context-specific filter selector is missing: $label"
 done

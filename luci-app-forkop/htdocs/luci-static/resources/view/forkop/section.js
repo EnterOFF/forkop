@@ -34,6 +34,38 @@ const CONNECTIONS_BLOCKED_INTERFACES = [
   "pppoe-wan",
   "lan",
 ];
+let defaultSubscriptionHeaderLines = [];
+let defaultSubscriptionHeadersPromise = null;
+
+function loadDefaultSubscriptionHeaders() {
+  if (defaultSubscriptionHeadersPromise) {
+    return defaultSubscriptionHeadersPromise;
+  }
+
+  defaultSubscriptionHeadersPromise = fs
+    .exec("/usr/bin/forkop", ["get_subscription_default_headers"])
+    .then((response) => {
+      if (response.code) {
+        throw new Error(_("Failed to load default subscription headers"));
+      }
+
+      const parsed = JSON.parse(response.stdout || "[]");
+      if (!Array.isArray(parsed)) {
+        throw new Error(_("Failed to load default subscription headers"));
+      }
+
+      defaultSubscriptionHeaderLines = parsed
+        .map((value) => `${value || ""}`.trim())
+        .filter(Boolean);
+      return defaultSubscriptionHeaderLines.slice();
+    })
+    .catch((error) => {
+      defaultSubscriptionHeadersPromise = null;
+      throw error;
+    });
+
+  return defaultSubscriptionHeadersPromise;
+}
 
 function valuesToText(values) {
   if (!values) {
@@ -2172,8 +2204,7 @@ function subscriptionUrlSettingsKeys() {
     "download_via_proxy_enabled",
     "download_via_proxy_section",
     "user_agent",
-    "auto_hwid",
-    "hwid",
+    "header",
     "show_dashboard_metadata",
     "prefix_nodes",
     "node_prefix",
@@ -2185,20 +2216,170 @@ function subscriptionUrlSettingsKeys() {
   ];
 }
 
-function defaultSubscriptionUrlSettings() {
+function defaultSubscriptionUrlSettings(headers = []) {
   return {
     subscription_update_enabled: "1",
     subscription_update_interval: "1h",
     download_via_proxy_enabled: "0",
     download_via_proxy_section: "",
     user_agent: "sing-box",
-    auto_hwid: "1",
-    hwid: "",
+    header: Array.isArray(headers) ? headers.slice() : [],
     show_dashboard_metadata: "1",
     prefix_nodes: "0",
     node_prefix: "",
     server_filter_mode: "all",
   };
+}
+
+function subscriptionHeaderValues(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => `${item || ""}`).filter(Boolean);
+  }
+  return value ? [`${value}`] : [];
+}
+
+function parseSubscriptionHeader(value) {
+  value = `${value || ""}`;
+  const separator = value.indexOf(":");
+  return separator < 0
+    ? { name: value.trim(), value: "" }
+    : {
+        name: value.slice(0, separator).trim(),
+        value: value.slice(separator + 1).trim(),
+      };
+}
+
+function subscriptionHeaderRows(value) {
+  return subscriptionHeaderValues(value).map((line, index) => ({
+    ".name": `header_${index}`,
+    ".type": "header",
+    ...parseSubscriptionHeader(line),
+  }));
+}
+
+function validateSubscriptionHeaderName(_sectionId, value) {
+  value = `${value || ""}`.trim();
+  if (!value) {
+    return _("Enter a header name");
+  }
+  return /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(value)
+    ? true
+    : _("Header name contains invalid characters");
+}
+
+function validateSubscriptionHeaderValue(_sectionId, value) {
+  return /[\r\n\0]/.test(`${value || ""}`)
+    ? _("Header value must stay on one line")
+    : true;
+}
+
+function subscriptionHeaderLines(map) {
+  return map.data.sections(map.config, "header").map((row) => {
+    const name = `${row.name || ""}`.trim();
+    const value = `${row.value || ""}`.trim();
+    return `${name}:${value ? ` ${value}` : ""}`;
+  });
+}
+
+function syncSubscriptionHeaderRows(section) {
+  const configName = section.uciconfig ?? section.map.config;
+
+  section.cfgsections().forEach((sectionId) => {
+    section.children.forEach((option) => {
+      if (!option.editable || option.modalonly) {
+        return;
+      }
+
+      const value = option.formvalue(sectionId);
+      if (value == null) {
+        section.map.data.unset(configName, sectionId, option.option);
+      } else {
+        section.map.data.set(configName, sectionId, option.option, value);
+      }
+    });
+  });
+}
+
+function refreshSubscriptionHeaderRows(section) {
+  return section.map.load().then(() => section.map.reset());
+}
+
+function nextSubscriptionHeaderRowId(section) {
+  const configName = section.uciconfig ?? section.map.config;
+  let sectionId;
+
+  do {
+    sectionId = `header_${section.nextHeaderRowIndex}`;
+    section.nextHeaderRowIndex += 1;
+  } while (section.map.data.get(configName, sectionId) != null);
+
+  return sectionId;
+}
+
+function addSubscriptionHeaderRow(section) {
+  syncSubscriptionHeaderRows(section);
+  section.map.data.add(
+    section.uciconfig ?? section.map.config,
+    section.sectiontype,
+    nextSubscriptionHeaderRowId(section),
+  );
+  return refreshSubscriptionHeaderRows(section);
+}
+
+function removeSubscriptionHeaderRow(section, sectionId) {
+  syncSubscriptionHeaderRows(section);
+  section.map.data.remove(section.uciconfig ?? section.map.config, sectionId);
+  return refreshSubscriptionHeaderRows(section);
+}
+
+function showSubscriptionHeadersModal(parentMap, itemId) {
+  const data = {
+    header: subscriptionHeaderRows(
+      parentMap.data.get(parentMap.config, itemId, "header"),
+    ),
+  };
+  const map = new form.JSONMap(data);
+  const headers = map.section(
+    form.GridSection,
+    "header",
+    _("Subscription headers"),
+  );
+  headers.anonymous = true;
+  headers.addremove = true;
+  headers.sortable = false;
+  headers.rowcolors = true;
+  headers.nodescriptions = true;
+  headers.hidetitle = true;
+  headers.addbtntitle = _("Add header");
+  headers.nextHeaderRowIndex = data.header.length;
+  headers.handleAdd = function () {
+    return addSubscriptionHeaderRow(this);
+  };
+  headers.handleRemove = function (sectionId) {
+    return removeSubscriptionHeaderRow(this, sectionId);
+  };
+  headers.renderRowActions = function (sectionId) {
+    return form.TableSection.prototype.renderRowActions.call(this, sectionId);
+  };
+
+  let o = headers.option(form.Value, "name", _("Header name"));
+  o.editable = true;
+  o.rmempty = false;
+  o.validate = validateSubscriptionHeaderName;
+
+  o = headers.option(form.Value, "value", _("Header value"));
+  o.editable = true;
+  o.rmempty = true;
+  o.validate = validateSubscriptionHeaderValue;
+
+  return renderStackedJsonSettingsModal(_("Subscription headers"), map, () => {
+    parentMap.data.set(
+      parentMap.config,
+      itemId,
+      "header",
+      subscriptionHeaderLines(map),
+    );
+  });
 }
 
 function interfaceSettingsKeys() {
@@ -2424,22 +2605,16 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
   };
 
   o = itemSection.option(
-    form.Flag,
-    "auto_hwid",
-    _("Auto-generate HWID"),
-    _("Generate HWID from router hardware information for this subscription"),
+    form.Button,
+    "_subscription_headers",
+    _("Subscription headers"),
+    _("Configure headers sent with this subscription request."),
   );
-  o.default = "1";
-  o.rmempty = false;
-
-  o = itemSection.option(
-    form.Value,
-    "hwid",
-    _("HWID"),
-    _("Enter the HWID sent with subscription requests"),
-  );
-  o.depends("auto_hwid", "0");
-  o.rmempty = true;
+  o.inputtitle = _("Edit headers");
+  o.inputstyle = "edit";
+  o.onclick = function () {
+    return showSubscriptionHeadersModal(itemSection.map, "settings");
+  };
 
   o = itemSection.option(
     form.Flag,
@@ -3066,7 +3241,7 @@ function showChildItemSettingsModal(section_id, itemValue, option, settings) {
   );
   const defaults =
     typeof settings.defaults === "function"
-      ? settings.defaults(inputValue)
+      ? settings.defaults(inputValue, existing)
       : Object.assign({}, settings.defaults || {});
   const initialSettings = existing
     ? readChildSettings(value, settings.keys, defaults)
@@ -3138,14 +3313,17 @@ function ruleSetIncludesSubnets(section_id, value) {
 }
 
 function showSubscriptionUrlSettingsModal(_section_id, itemValue, option) {
-  return showChildItemSettingsModal(_section_id, itemValue, option, {
-    typeName: "subscription_url",
-    valueOption: "url",
-    keys: subscriptionUrlSettingsKeys(),
-    defaults: defaultSubscriptionUrlSettings(),
-    addOptions: addSubscriptionUrlItemOptions,
-    title: () => _("Subscription URL settings"),
-  });
+  return loadDefaultSubscriptionHeaders().then((headers) =>
+    showChildItemSettingsModal(_section_id, itemValue, option, {
+      typeName: "subscription_url",
+      valueOption: "url",
+      keys: subscriptionUrlSettingsKeys(),
+      defaults: (_inputValue, existing) =>
+        defaultSubscriptionUrlSettings(existing ? [] : headers),
+      addOptions: addSubscriptionUrlItemOptions,
+      title: () => _("Subscription URL settings"),
+    }),
+  );
 }
 
 function showInterfaceSettingsModal(_section_id, itemValue, option) {
@@ -5191,7 +5369,14 @@ function createChildItem(section_id, options, inputValue) {
           ? value(rawValue, section_id, itemId)
           : value;
       if (value !== undefined && value !== null && value !== "") {
-        uci.set(UCI_PACKAGE, itemId, key, `${value}`);
+        uci.set(
+          UCI_PACKAGE,
+          itemId,
+          key,
+          Array.isArray(value)
+            ? value.map((item) => `${item || ""}`).filter(Boolean)
+            : `${value}`,
+        );
       }
     });
   }
@@ -8070,7 +8255,9 @@ function createSectionContent(section) {
   o.modalonly = true;
   o.childType = "subscription_url";
   o.childValueOption = "url";
-  o.childDefaults = defaultSubscriptionUrlSettings();
+  o.childDefaults = Object.assign(defaultSubscriptionUrlSettings(), {
+    header: () => defaultSubscriptionHeaderLines.slice(),
+  });
   o.renderItemSettingsModal = showSubscriptionUrlSettingsModal;
   o.hasItemSettings = function (section_id, value) {
     const normalized = `${value || ""}`.trim();
@@ -8698,7 +8885,10 @@ function configureSectionSection(sectionRef, options = {}) {
   sectionRef.load = function () {
     // The table renders only non-modal fields; the cloned Add/Edit modal loads
     // action/provider details when the user opens it.
-    return loadSectionTableOptions(this);
+    return Promise.all([
+      loadDefaultSubscriptionHeaders(),
+      loadSectionTableOptions(this),
+    ]);
   };
 }
 

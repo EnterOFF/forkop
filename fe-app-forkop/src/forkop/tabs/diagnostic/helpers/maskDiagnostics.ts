@@ -31,6 +31,7 @@ const SING_BOX_MASKED_KEYS = new Set([
 const FORKOP_MASK_AFTER_TOKEN = [
   'option proxy_string',
   'option hwid',
+  'list header',
   'option subscription_url',
   'list subscription_urls',
   'list urltest_proxy_links',

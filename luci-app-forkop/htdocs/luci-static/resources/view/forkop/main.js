@@ -3030,8 +3030,7 @@ function hydrateConfigSections(configSections) {
           download_via_proxy_enabled: item.download_via_proxy_enabled,
           download_via_proxy_section: item.download_via_proxy_section,
           user_agent: item.user_agent,
-          auto_hwid: item.auto_hwid,
-          hwid: item.hwid,
+          header: item.header,
           show_dashboard_metadata: item.show_dashboard_metadata,
           prefix_nodes: item.prefix_nodes,
           node_prefix: item.node_prefix
@@ -9438,6 +9437,7 @@ var SING_BOX_MASKED_KEYS = /* @__PURE__ */ new Set([
 var FORKOP_MASK_AFTER_TOKEN = [
   "option proxy_string",
   "option hwid",
+  "list header",
   "option subscription_url",
   "list subscription_urls",
   "list urltest_proxy_links",
@@ -12499,7 +12499,7 @@ var styles5 = `
     padding: 2px 6px;
     border-radius: 4px;
     background: rgba(128, 128, 128, 0.15);
-    color: var(--text-color-high, #eee);
+    color: var(--text-color-high);
     font-size: 11px;
     font-weight: 500;
 }

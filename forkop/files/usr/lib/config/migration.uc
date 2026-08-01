@@ -9,6 +9,7 @@ let uci_core = require("core.uci");
 let core_url = require("core.url");
 let constants_module = require("core.constants");
 let singbox_constants_module = require("singbox.constants");
+let subscription_headers_module = require("singbox.subscription_headers");
 let domain_config = require("config.domain");
 
 let as_string = common.as_string;
@@ -1941,6 +1942,19 @@ function migrate_single_subscription_user_agent(ctx) {
     }
 }
 
+function migrate_subscription_headers(ctx) {
+    for (let child in ctx.model.subscription_url || []) {
+        let configured_hwid = trim(option(child, "hwid", ""));
+        let hwid = configured_hwid != ""
+            ? configured_hwid
+            : (bool_option(child, "auto_hwid", true) ? subscription_headers_module.generated_hwid() : "");
+
+        set_list_option(ctx, child, "header", subscription_headers_module.default_header_lines(hwid));
+        delete_option(ctx, child, "auto_hwid");
+        delete_option(ctx, child, "hwid");
+    }
+}
+
 const MIGRATIONS = [
     { id: "interface_sections", run: migrate_interface_sections },
     { id: "enable_component_checks", run: migrate_enable_component_checks },
@@ -1955,7 +1969,8 @@ const MIGRATIONS = [
     { id: "remove_proxy_parameter_filters", run: remove_proxy_parameter_filters },
     { id: "server_filter_model", run: migrate_server_filter_model },
     { id: "server_filter_modes", run: migrate_server_filter_modes },
-    { id: "single_subscription_user_agent", run: migrate_single_subscription_user_agent }
+    { id: "single_subscription_user_agent", run: migrate_single_subscription_user_agent },
+    { id: "subscription_headers", run: migrate_subscription_headers }
 ];
 
 function apply_migrations(ctx) {

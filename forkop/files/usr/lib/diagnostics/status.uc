@@ -351,6 +351,7 @@ function mask_option_path(line, token) {
 function forkop_config_masked_line(line) {
     line = mask_after_token(line, "option proxy_string");
     line = mask_after_token(line, "option hwid");
+    line = mask_after_token(line, "list header");
     line = mask_after_token(line, "option subscription_url");
     line = mask_after_token(line, "list subscription_urls");
     line = mask_after_token(line, "list urltest_proxy_links");

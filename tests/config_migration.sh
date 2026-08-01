@@ -56,6 +56,8 @@ grep -Fq '{ id: "server_filter_modes", run: migrate_server_filter_modes }' "$MIG
   fail "server filter mode migration must have a stable named marker"
 grep -Fq '{ id: "single_subscription_user_agent", run: migrate_single_subscription_user_agent }' "$MIGRATION" ||
   fail "single subscription User-Agent migration must have a stable named marker"
+grep -Fq '{ id: "subscription_headers", run: migrate_subscription_headers }' "$MIGRATION" ||
+  fail "subscription header migration must have a stable named marker"
 grep -Fq "list applied_migrations 'native_rule_sets'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
   fail "new-install config must mark the native rule-set migration as already applied"
 grep -Fq "list applied_migrations 'universal_rule_sets'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
@@ -72,6 +74,8 @@ grep -Fq "list applied_migrations 'server_filter_modes'" "$ROOT_DIR/forkop/files
   fail "new-install config must mark the server filter mode migration as already applied"
 grep -Fq "list applied_migrations 'single_subscription_user_agent'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
   fail "new-install config must mark the single subscription User-Agent migration as already applied"
+grep -Fq "list applied_migrations 'subscription_headers'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
+  fail "new-install config must mark the subscription header migration as already applied"
 grep -Fq 'release_at_most(ctx, "1.0.1")' "$MIGRATION" ||
   fail "release-specific migrations must use the source release only as a condition"
 grep -Fq 'release_at_most(ctx, "1.0.4")' "$MIGRATION" ||
@@ -266,7 +270,7 @@ assert(JSON.stringify(config.settings.bootstrap_dns_server) === JSON.stringify([
 assert(config.settings.unified_delay === '0', 'Unified Delay default missing');
 assert(config.settings.config_version === '1.0.5', 'legacy config should be marked at the current schema version');
 assert(config.settings.component_update_check_enabled === '1', 'component update checks should be enabled during migration');
-assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent']), 'legacy config should record named migrations');
+assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers']), 'legacy config should record named migrations');
 
 function assert(condition, message) {
   if (!condition) {
@@ -277,6 +281,20 @@ function assert(condition, message) {
 
 function absent(object, key, label) {
   assert(!Object.prototype.hasOwnProperty.call(object, key), `${label}: ${key} should be absent`);
+}
+
+function headerValue(source, name) {
+  const prefix = `${name}:`.toLowerCase();
+  const line = (source.header || []).find(value => `${value}`.toLowerCase().startsWith(prefix));
+  return line == null ? undefined : `${line}`.slice(`${line}`.indexOf(':') + 1).trim();
+}
+
+function assertDefaultSubscriptionHeaders(source, label) {
+  assert(headerValue(source, 'X-Device-OS') === 'OpenWrt Linux', `${label}: device OS header`);
+  assert(Boolean(headerValue(source, 'X-Device-Model')), `${label}: device model header`);
+  assert(headerValue(source, 'Accept-Language') === 'ru-RU,en,*', `${label}: language header`);
+  assert(headerValue(source, 'X-Device-Locale') === 'EN', `${label}: locale header`);
+  assert(/^[0-9a-f]{4}(?:-[0-9a-f]{4}){3}$/.test(headerValue(source, 'X-HWID') || ''), `${label}: generated HWID header`);
 }
 
 function childObjects(parent, children) {
@@ -344,7 +362,9 @@ assert(legacySub.action === 'connection', 'legacy-sub action');
 const legacySubSource = childObjects(legacySub, subscriptionUrls)[0];
 assert(legacySubSource.user_agent === 'Agent/1.0', 'subscription user-agent setting');
 absent(legacySubSource, 'auto_user_agent', 'subscription source');
-assert(legacySubSource.auto_hwid === '1', 'subscription HWID auto-generation');
+assertDefaultSubscriptionHeaders(legacySubSource, 'subscription source');
+absent(legacySubSource, 'auto_hwid', 'subscription source');
+absent(legacySubSource, 'hwid', 'subscription source');
 assert(legacySubSource.prefix_nodes === '0', 'subscription node prefix disabled by default');
 absent(legacySubSource, 'include_urltest_groups', 'subscription source');
 absent(legacySubSource, 'hide_urltest_group_outbounds', 'subscription source');
@@ -564,7 +584,7 @@ function assert(condition, message) {
 assert(out.changed === true, '1.0.1 config should require migration');
 assert(out.config.settings.config_version === '1.0.5', 'config schema version should advance to 1.0.5');
 assert(out.config.settings.component_update_check_enabled === '1', 'updates from 1.0.1 and below should enable component update checks');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent']), 'named migrations should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers']), 'named migrations should be recorded');
 assert(!Object.prototype.hasOwnProperty.call(section, 'interfaces'), 'parent interface list should be removed');
 assert(JSON.stringify(interfaces.map(item => item.name)) === JSON.stringify(['awg0', 'tun0']), 'interfaces should keep their order');
 for (const item of interfaces) {
@@ -602,7 +622,7 @@ function assert(condition, message) {
 
 assert(out.config.settings.component_update_check_enabled === '0', '1.0.2 config must preserve an explicitly disabled component check');
 assert(out.config.settings.config_version === '1.0.5', '1.0.2 config should advance through the HTTP URL migration schema');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent']), 'newer configs should mark skipped migrations');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers']), 'newer configs should mark skipped migrations');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.4-http.json" <<'JSON'
@@ -668,7 +688,7 @@ assert(JSON.stringify(jsonOutbounds[1]) === JSON.stringify({
   server_port: 8080,
 }), 'unnamed HTTP URL should receive a unique http tag');
 assert(jsonOutbounds[2].type === 'direct' && jsonOutbounds[2].tag === 'http', 'existing JSON outbounds should remain unchanged');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent']), 'HTTP URL migration should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers']), 'HTTP URL migration should be recorded');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.5-http.json" <<'JSON'
@@ -693,6 +713,7 @@ cat >"$WORK_DIR/forkop-1.0.5-http.json" <<'JSON'
     {
       ".name": "source", ".type": "subscription_url", "section": "main",
       "url": "https://example.com/subscription", "auto_user_agent": "0", "user_agent": "Happ",
+      "auto_hwid": "0", "hwid": "custom-router-hwid",
       "filter_mode": "mixed",
       "include_countries": [ "RU", "US" ],
       "include_regex": [ "fast", "premium" ],
@@ -701,7 +722,7 @@ cat >"$WORK_DIR/forkop-1.0.5-http.json" <<'JSON'
     },
     {
       ".name": "source_auto", ".type": "subscription_url", "section": "main",
-      "url": "https://example.com/auto", "auto_user_agent": "1", "user_agent": "v2rayN"
+      "url": "https://example.com/auto", "auto_user_agent": "1", "user_agent": "v2rayN", "auto_hwid": "1"
     }
   ],
   "urltest": [
@@ -756,6 +777,11 @@ const source = out.config.subscription_url[0];
 const autoSource = out.config.subscription_url[1];
 const urltest = out.config.urltest[0];
 const level = out.config.fallback_level[0];
+const headerValue = (item, name) => {
+  const prefix = `${name}:`.toLowerCase();
+  const line = (item.header || []).find(value => `${value}`.toLowerCase().startsWith(prefix));
+  return line == null ? undefined : `${line}`.slice(`${line}`.indexOf(':') + 1).trim();
+};
 if (source.server_filter_mode !== 'include' ||
     source.include_regex !== '(?:fast)|(?:premium)|(?:🇷🇺)|(?:🇺🇸)' ||
     JSON.stringify(source.exclude_outbounds) !== JSON.stringify(['Expired node']) ||
@@ -769,6 +795,13 @@ if (source.user_agent !== 'Happ' ||
     autoSource.user_agent !== 'sing-box' ||
     Object.prototype.hasOwnProperty.call(autoSource, 'auto_user_agent')) {
   console.error('subscription child migration must preserve custom User-Agent values and replace automatic selection');
+  process.exit(1);
+}
+if (headerValue(source, 'X-HWID') !== 'custom-router-hwid' ||
+    !headerValue(autoSource, 'X-HWID') ||
+    source.auto_hwid !== undefined || source.hwid !== undefined ||
+    autoSource.auto_hwid !== undefined || autoSource.hwid !== undefined) {
+  console.error('subscription header migration must preserve a custom HWID and materialize automatic request headers');
   process.exit(1);
 }
 if (urltest.server_filter_mode !== 'exclude' ||
@@ -947,7 +980,7 @@ grep -Fxq 'forkop.settings.config_version=1.0.5' "$WORK_DIR/runtime-version.stat
   fail "runtime version migration must advance config_version"
 grep -Fxq 'forkop.settings.component_update_check_enabled=1' "$WORK_DIR/runtime-version.state" ||
   fail "runtime version migration must enable component update checks"
-grep -Fq 'forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter native_fallbacks native_rule_sets universal_rule_sets leaf_subscription_providers extended_server_defaults fallback_uci_tags remove_proxy_parameter_filters server_filter_model server_filter_modes single_subscription_user_agent' "$WORK_DIR/runtime-version.state" ||
+grep -Fq 'forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter native_fallbacks native_rule_sets universal_rule_sets leaf_subscription_providers extended_server_defaults fallback_uci_tags remove_proxy_parameter_filters server_filter_model server_filter_modes single_subscription_user_agent subscription_headers' "$WORK_DIR/runtime-version.state" ||
   fail "runtime migration must record stable migration names"
 grep -Eq '^forkop\.main\.outbound_jsons=\{ "type": "http", "tag": "http", "server": "proxy\.example", "server_port": 8080 \}$' "$WORK_DIR/runtime-version.state" ||
   fail "runtime migration must convert native HTTP proxy links to JSON outbounds"

@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-07-30 20:49+0300\n"
-"PO-Revision-Date: 2026-07-30 20:49+0300\n"
+"POT-Creation-Date: 2026-08-01 23:10+0300\n"
+"PO-Revision-Date: 2026-08-01 23:10+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -83,6 +83,9 @@ msgstr "Добавьте хотя бы один уровень Fallback"
 msgid "Add at least one WireGuard peer"
 msgstr "Добавьте хотя бы одного пира WireGuard"
 
+msgid "Add header"
+msgstr "Добавить заголовок"
+
 msgid "Add prefix to nodes"
 msgstr "Добавлять префикс к узлам"
 
@@ -154,9 +157,6 @@ msgstr "Автообновление"
 
 msgid "Auto update"
 msgstr "Автообновление"
-
-msgid "Auto-generate HWID"
-msgstr "Авто-генерация HWID"
 
 msgid "Automatic component update checks"
 msgstr "Автоматическая проверка обновлений компонентов"
@@ -334,6 +334,9 @@ msgstr "Конфигурация"
 
 msgid "Configuration for Forkop service"
 msgstr "Настройки сервиса Forkop"
+
+msgid "Configure headers sent with this subscription request."
+msgstr "Настроить заголовки, отправляемые при запросе этой подписки."
 
 msgid "Configure User-Agent in the item settings"
 msgstr "Настройте User-Agent в настройках элемента"
@@ -560,6 +563,9 @@ msgstr "Такой тег JSON outbound уже используется"
 msgid "Duplicate value"
 msgstr "Дублирующееся значение"
 
+msgid "Edit headers"
+msgstr "Редактировать заголовки"
+
 msgid "Edit rule action"
 msgstr "Изменить"
 
@@ -611,6 +617,9 @@ msgstr "Введите полный объект outbound sing-box"
 msgid "Enter a display name"
 msgstr "Введите отображаемое имя"
 
+msgid "Enter a header name"
+msgstr "Введите название заголовка"
+
 msgid "Enter a level name"
 msgstr "Введите название уровня"
 
@@ -646,9 +655,6 @@ msgstr "Введите корректный URL control plane Tailscale"
 
 msgid "Enter at least one AmneziaWG parameter"
 msgstr "Введите хотя бы один параметр AmneziaWG"
-
-msgid "Enter the HWID sent with subscription requests"
-msgstr "HWID, который будет отправляться при запросах подписки"
 
 msgid "Enter the subscription URL"
 msgstr "Введите URL подписки"
@@ -712,6 +718,9 @@ msgstr "Не удалось скопировать!"
 
 msgid "Failed to execute"
 msgstr "Не удалось выполнить"
+
+msgid "Failed to load default subscription headers"
+msgstr "Не удалось загрузить заголовки подписки по умолчанию"
 
 msgid "Failed to update subscriptions"
 msgstr "Не удалось обновить подписки"
@@ -833,9 +842,6 @@ msgstr "Proxy protocol для фронтинга"
 msgid "Fuzzing is not supported here because Forkop needs deterministic runtime validation."
 msgstr "Fuzzing здесь не поддерживается, потому что Forkop нужна предсказуемая runtime-валидация."
 
-msgid "Generate HWID from router hardware information for this subscription"
-msgstr "Генерировать HWID из аппаратной информации роутера для этой подписки"
-
 msgid "Generate profile"
 msgstr "Сгенерировать профиль"
 
@@ -853,6 +859,18 @@ msgstr "gRPC-сервис"
 
 msgid "Handshake timeout"
 msgstr "Таймаут рукопожатия"
+
+msgid "Header name"
+msgstr "Название заголовка"
+
+msgid "Header name contains invalid characters"
+msgstr "Название заголовка содержит недопустимые символы"
+
+msgid "Header value"
+msgstr "Значение заголовка"
+
+msgid "Header value must stay on one line"
+msgstr "Значение заголовка должно быть в одной строке"
 
 msgid "Heartbeat"
 msgstr "Интервал поддержания соединения"
@@ -877,9 +895,6 @@ msgstr "Ошибка HTTP"
 
 msgid "HTTP hosts"
 msgstr "HTTP-хосты"
-
-msgid "HWID"
-msgstr "HWID"
 
 msgid "Idle timeout"
 msgstr "Таймаут простоя"
@@ -1783,6 +1798,9 @@ msgstr "IP-адреса и подсети из списка будут извл�
 
 msgid "Subscription auto update"
 msgstr "Автообновление подписи"
+
+msgid "Subscription headers"
+msgstr "Заголовки подписки"
 
 msgid "Subscription info:"
 msgstr "Информация о подписке:"

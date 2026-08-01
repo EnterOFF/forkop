@@ -12,6 +12,7 @@ let core_ip = require("core.ip");
 let rule_config = require("config.rule");
 let connections = require("config.connections");
 let singbox_constants = require("singbox.constants");
+let subscription_headers_module = require("singbox.subscription_headers");
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
@@ -1316,6 +1317,11 @@ function validate_subscription_prefix(section, entry) {
 
 function validate_subscription_request_profile(section, entry) {
     validate_subscription_prefix(section, entry);
+    let parsed = subscription_headers_module.parse_header_lines(
+        connections.subscription_headers(section, entry)
+    );
+    if (!parsed.valid)
+        fail_validation("Subscription source in rule '" + section_name(section) + "' has invalid " + parsed.message + ". Aborted.");
 }
 
 function validate_subscription_filter(section, entry) {

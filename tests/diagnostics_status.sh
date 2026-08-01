@@ -187,6 +187,7 @@ config settings 'main'
         option proxy_string 'vless://secret@example.com:443'
 config subscription_url 'sub1'
         option url 'https://user:password@example.com/subscription?token=secret'
+        list header 'Authorization: Bearer header-secret'
 config section 'tunnels'
 config tunnel 'tun_tailnet'
         option section 'tunnels'
@@ -200,7 +201,11 @@ config tunnel_peer 'peer_tailnet'
 EOF
 masked_output="$(status_ucode forkop-config-masked "$masked_config")"
 case "$masked_output" in
-  *device-secret*|*vless://secret*|*token=secret*|*user:password*|*tskey-secret*|*warp-token-secret*|*warp-private-secret*|*peer-secret*) fail "masked Forkop config leaked a secret" ;;
+  *device-secret*|*vless://secret*|*token=secret*|*user:password*|*header-secret*|*tskey-secret*|*warp-token-secret*|*warp-private-secret*|*peer-secret*) fail "masked Forkop config leaked a secret" ;;
+esac
+case "$masked_output" in
+  *"list header 'MASKED'"*) ;;
+  *) fail "masked Forkop config must mask subscription request headers" ;;
 esac
 case "$masked_output" in
   *"option hwid 'MASKED'"*) ;;

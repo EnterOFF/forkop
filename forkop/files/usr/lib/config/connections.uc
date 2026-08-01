@@ -719,18 +719,13 @@ function subscription_dashboard_metadata_enabled(section, value) {
     return item_bool(section, "subscription_url_settings", value, "show_dashboard_metadata", true);
 }
 
-function subscription_auto_hwid(section, value) {
+function subscription_headers(section, value) {
     let child = child_item_by_value(section, "subscription_url", "url", value);
-    if (child != null) {
-        if (raw_option(child, "auto_hwid") != null)
-            return child_bool(child, "auto_hwid", true);
-        return child_option(child, "hwid", "") == "";
-    }
+    if (child != null)
+        return list_value(child, "header");
 
     let settings = item_settings(section, "subscription_url_settings", value);
-    if (raw_option(settings, "auto_hwid") != null)
-        return item_bool(section, "subscription_url_settings", value, "auto_hwid", true);
-    return item_option(section, "subscription_url_settings", value, "hwid", "") == "";
+    return list_value(settings, "header");
 }
 
 function subscription_prefix_nodes(section, value) {
@@ -757,16 +752,6 @@ function subscription_user_agent(section, value) {
         ? child_option(child, "user_agent", "")
         : item_option(section, "subscription_url_settings", value, "user_agent", "");
     return configured != "" ? configured : "sing-box";
-}
-
-function subscription_hwid(section, value) {
-    if (subscription_auto_hwid(section, value))
-        return "";
-
-    let child = child_item_by_value(section, "subscription_url", "url", value);
-    if (child != null)
-        return child_option(child, "hwid", "");
-    return item_option(section, "subscription_url_settings", value, "hwid", "");
 }
 
 function subscription_download_section(section, value) {
@@ -1016,11 +1001,10 @@ return {
     subscription_update_enabled,
     subscription_update_interval,
     subscription_dashboard_metadata_enabled,
-    subscription_auto_hwid,
+    subscription_headers,
     subscription_prefix_nodes,
     subscription_node_prefix,
     subscription_user_agent,
-    subscription_hwid,
     subscription_download_section,
     interface_domain_resolver_enabled,
     interface_domain_resolver_dns_type,
