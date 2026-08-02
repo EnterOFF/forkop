@@ -34,6 +34,7 @@ export { applyUiStateToStore } from './forkop/services/uiState.service';
 export { DashboardTab } from './forkop/tabs/dashboard';
 export { DiagnosticTab } from './forkop/tabs/diagnostic';
 export { MonitoringTab } from './forkop/tabs/monitoring';
+export { LogsTab } from './forkop/tabs/logs';
 export { UpdatesTab } from './forkop/tabs/updates';
 export {
   BOOTSTRAP_DNS_SERVER_OPTIONS,

@@ -7,7 +7,6 @@ import {
   renderPauseIcon24,
   renderPlayIcon24,
   renderRotateCcwIcon24,
-  renderSquareChartGanttIcon24,
 } from '../../../../icons';
 import { insertIf } from '../../../../helpers';
 
@@ -25,7 +24,6 @@ interface IRenderAvailableActionsProps {
   enable: ActionProps;
   disable: ActionProps;
   globalCheck: ActionProps;
-  viewLogs: ActionProps;
   showSingBoxConfig: ActionProps;
 }
 
@@ -36,7 +34,6 @@ export function renderAvailableActions({
   enable,
   disable,
   globalCheck,
-  viewLogs,
   showSingBoxConfig,
 }: IRenderAvailableActionsProps) {
   return E('div', { class: 'fkp_diagnostic-page__right-bar__actions' }, [
@@ -98,15 +95,6 @@ export function renderAvailableActions({
         text: _('Get global check'),
         loading: globalCheck.loading,
         disabled: globalCheck.disabled,
-      }),
-    ]),
-    ...insertIf(viewLogs.visible, [
-      renderButton({
-        onClick: viewLogs.onClick,
-        icon: renderSquareChartGanttIcon24,
-        text: _('View logs'),
-        loading: viewLogs.loading,
-        disabled: viewLogs.disabled,
       }),
     ]),
     ...insertIf(showSingBoxConfig.visible, [

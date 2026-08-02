@@ -21,6 +21,9 @@
 // Monitoring
 "require view.forkop.monitoring as monitoring";
 
+// Logs
+"require view.forkop.logs as logs";
+
 // Diagnostic
 "require view.forkop.diagnostic as diagnostic";
 
@@ -420,6 +423,14 @@ const EntryPoint = {
       return ["monitoring"];
     };
     monitoring.createMonitoringContent(monitoringSection);
+
+    const logsSection = forkopMap.section(form.TypedSection, "logs", _("Logs"));
+    logsSection.anonymous = true;
+    logsSection.addremove = false;
+    logsSection.cfgsections = function () {
+      return ["logs"];
+    };
+    logs.createLogsContent(logsSection);
 
     const updatesSection = forkopMap.section(
       form.TypedSection,

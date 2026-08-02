@@ -1365,36 +1365,6 @@ function renderCircleCheckBigIcon24() {
   );
 }
 
-// src/icons/renderSquareChartGanttIcon24.ts
-function renderSquareChartGanttIcon24() {
-  const NS = "http://www.w3.org/2000/svg";
-  return svgEl(
-    "svg",
-    {
-      xmlns: NS,
-      viewBox: "0 0 24 24",
-      fill: "none",
-      stroke: "currentColor",
-      "stroke-width": "2",
-      "stroke-linecap": "round",
-      "stroke-linejoin": "round",
-      class: "lucide lucide-square-chart-gantt-icon lucide-square-chart-gantt"
-    },
-    [
-      svgEl("rect", {
-        width: "18",
-        height: "18",
-        x: "3",
-        y: "3",
-        rx: "2"
-      }),
-      svgEl("path", { d: "M9 8h7" }),
-      svgEl("path", { d: "M8 12h6" }),
-      svgEl("path", { d: "M11 16h5" })
-    ]
-  );
-}
-
 // src/icons/renderCogIcon24.ts
 function renderCogIcon24() {
   const NS = "http://www.w3.org/2000/svg";
@@ -4179,9 +4149,6 @@ var initialDiagnosticStore = {
     globalCheck: {
       loading: false
     },
-    viewLogs: {
-      loading: false
-    },
     showSingBoxConfig: {
       loading: false
     }
@@ -4458,6 +4425,7 @@ var ForkopLogWatcher = class _ForkopLogWatcher {
 // src/forkop/services/logNotificationDeduper.service.ts
 var LOG_NOTIFICATION_STORAGE_KEY = "forkop:shown-log-error-notifications:v1";
 var MAX_STORED_LOG_NOTIFICATIONS = 500;
+var FORKOP_LOG_SOURCE_PATTERN = /\bforkop(?:\[\d+\])?:/i;
 function getSessionStorage() {
   if (typeof window === "undefined") {
     return null;
@@ -4495,7 +4463,7 @@ function writeStoredKeys(storage, keys) {
 }
 function isErrorLogLine(line) {
   const lower = line.toLowerCase();
-  return lower.includes("[error]") || lower.includes("[fatal]") || lower.includes("sing-box") && lower.includes("rule-set") && /\b(error|fatal)\b/.test(lower);
+  return FORKOP_LOG_SOURCE_PATTERN.test(line) && (lower.includes("[error]") || lower.includes("[fatal]"));
 }
 function getForkopLogNotification(line) {
   if (isErrorLogLine(line)) {
@@ -5322,11 +5290,11 @@ function shouldShowLoadingForRestoredAction(state) {
 
 // src/forkop/helpers/serviceAvailability.ts
 function getServiceAvailability({
-  loading: loading2,
+  loading: loading3,
   failed: failed2,
   running
 }) {
-  if (loading2) {
+  if (loading3) {
     return "loading";
   }
   if (failed2) {
@@ -8504,17 +8472,17 @@ var styles3 = `
 function renderButton({
   classNames = [],
   disabled,
-  loading: loading2,
+  loading: loading3,
   onClick,
   text,
   icon
 }) {
-  const hasIcon = !!loading2 || !!icon;
+  const hasIcon = !!loading3 || !!icon;
   function getWrappedIcon() {
     const iconWrap = E("span", {
       class: "fkp-partial-button__icon"
     });
-    if (loading2) {
+    if (loading3) {
       iconWrap.appendChild(renderLoaderCircleIcon24());
       return iconWrap;
     }
@@ -8529,13 +8497,13 @@ function renderButton({
       "btn",
       "fkp-partial-button",
       ...insertIf(Boolean(disabled), ["fkp-partial-button--disabled"]),
-      ...insertIf(Boolean(loading2), ["fkp-partial-button--loading"]),
+      ...insertIf(Boolean(loading3), ["fkp-partial-button--loading"]),
       ...insertIf(Boolean(hasIcon), ["fkp-partial-button--with-icon"]),
       ...classNames
     ].filter(Boolean).join(" ");
   }
   function getDisabled() {
-    if (loading2 || disabled) {
+    if (loading3 || disabled) {
       return true;
     }
     return void 0;
@@ -8823,7 +8791,6 @@ function renderAvailableActions({
   enable,
   disable,
   globalCheck,
-  viewLogs,
   showSingBoxConfig
 }) {
   return E("div", { class: "fkp_diagnostic-page__right-bar__actions" }, [
@@ -8885,15 +8852,6 @@ function renderAvailableActions({
         text: _("Get global check"),
         loading: globalCheck.loading,
         disabled: globalCheck.disabled
-      })
-    ]),
-    ...insertIf(viewLogs.visible, [
-      renderButton({
-        onClick: viewLogs.onClick,
-        icon: renderSquareChartGanttIcon24,
-        text: _("View logs"),
-        loading: viewLogs.loading,
-        disabled: viewLogs.disabled
       })
     ]),
     ...insertIf(showSingBoxConfig.visible, [
@@ -9065,7 +9023,7 @@ function renderCheckSection(props) {
 
 // src/forkop/tabs/diagnostic/partials/renderRunAction.ts
 function renderRunAction({
-  loading: loading2,
+  loading: loading3,
   disabled,
   click
 }) {
@@ -9074,7 +9032,7 @@ function renderRunAction({
       text: _("Run Diagnostic"),
       onClick: click,
       icon: renderSearchIcon24,
-      loading: loading2,
+      loading: loading3,
       disabled,
       classNames: ["cbi-button-apply"]
     })
@@ -9333,8 +9291,7 @@ function getAvailableActionsDisabledState({
 }) {
   return {
     serviceControlsDisabled: servicesInfoLoading || mutatingServiceActionLoading || componentActionLoading,
-    utilityActionsDisabled: mutatingServiceActionLoading || componentActionLoading,
-    viewLogsDisabled: false
+    utilityActionsDisabled: mutatingServiceActionLoading || componentActionLoading
   };
 }
 function shouldShowRestartAction({
@@ -9690,15 +9647,15 @@ function resetDiagnosticsChecks() {
     diagnosticsChecks: getNotRunningDiagnosticsChecks()
   });
 }
-function setDiagnosticActionLoading(action, loading2, local = false) {
-  if (local || !loading2) {
-    setLocalServiceAction(action, loading2 && local);
+function setDiagnosticActionLoading(action, loading3, local = false) {
+  if (local || !loading3) {
+    setLocalServiceAction(action, loading3 && local);
   }
   const diagnosticsActions = store.get().diagnosticsActions;
   store.set({
     diagnosticsActions: {
       ...diagnosticsActions,
-      [action]: { loading: loading2 }
+      [action]: { loading: loading3 }
     }
   });
 }
@@ -9800,11 +9757,11 @@ function stopServiceActionStateWatcher() {
 function isVisibleServiceRuntimeAction(action) {
   return action === "restart" || action === "start" || action === "stop";
 }
-function setServiceActionStateLoading(state, loading2) {
+function setServiceActionStateLoading(state, loading3) {
   if (!isVisibleServiceRuntimeAction(state.action)) {
     return;
   }
-  setDiagnosticActionLoading(state.action, loading2);
+  setDiagnosticActionLoading(state.action, loading3);
 }
 async function followServiceActionState(state) {
   const jobId = state.job_id;
@@ -9987,13 +9944,13 @@ function renderDiagnosticsChecks() {
 }
 function renderDiagnosticRunActionWidget() {
   logger.debug("[DIAGNOSTIC]", "renderDiagnosticRunActionWidget");
-  const { loading: loading2 } = store.get().diagnosticsRunAction;
+  const { loading: loading3 } = store.get().diagnosticsRunAction;
   const providerInfoLoaded = store.get().diagnosticsSystemInfo.providerInfoLoaded;
   const servicesInfoWidget = store.get().servicesInfoWidget;
   const forkopRunning = Boolean(servicesInfoWidget.data.forkopRunning);
   const container = document.getElementById("fkp_diagnostic-page-run-check");
   const renderedAction = renderRunAction({
-    loading: loading2,
+    loading: loading3,
     disabled: shouldDisableDiagnosticRunAction({
       providerInfoLoaded,
       servicesInfoLoading: servicesInfoWidget.loading,
@@ -10126,37 +10083,6 @@ async function handleShowGlobalCheck() {
     setDiagnosticActionLoading("globalCheck", false);
   }
 }
-async function handleViewLogs() {
-  setDiagnosticActionLoading("viewLogs", true);
-  try {
-    const viewLogs = await ForkopShellMethods.checkLogs();
-    if (viewLogs.success) {
-      const getLatestLogs = async () => {
-        const latestLogs = await ForkopShellMethods.checkLogs();
-        if (!latestLogs.success) {
-          throw latestLogs;
-        }
-        return latestLogs.data ?? "";
-      };
-      ui.showModal(
-        _("View logs"),
-        renderModal(viewLogs.data, "view_logs", {
-          getText: getLatestLogs,
-          refreshMs: 250,
-          initialAutoRefresh: true,
-          showAutoRefreshToggle: true,
-          startAtEnd: true
-        })
-      );
-    } else {
-      logger.error("[DIAGNOSTIC]", "handleViewLogs - e", viewLogs);
-    }
-  } catch (e) {
-    logger.error("[DIAGNOSTIC]", "handleViewLogs - e", e);
-  } finally {
-    setDiagnosticActionLoading("viewLogs", false);
-  }
-}
 async function handleShowSingBoxConfig() {
   setDiagnosticActionLoading("showSingBoxConfig", true);
   try {
@@ -10221,7 +10147,7 @@ function renderDiagnosticAvailableActionsWidget() {
   const stopLoading = diagnosticsActions.stop.loading || serviceTransition.stopping;
   const atLeastOneMutatingActionLoading = restartLoading || startLoading || stopLoading || diagnosticsActions.enable.loading || diagnosticsActions.disable.loading;
   const componentActionLoading = hasComponentActionLoading(updatesActions);
-  const { serviceControlsDisabled, utilityActionsDisabled, viewLogsDisabled } = getAvailableActionsDisabledState({
+  const { serviceControlsDisabled, utilityActionsDisabled } = getAvailableActionsDisabledState({
     servicesInfoLoading: servicesInfoWidget.loading,
     mutatingServiceActionLoading: atLeastOneMutatingActionLoading,
     componentActionLoading
@@ -10280,12 +10206,6 @@ function renderDiagnosticAvailableActionsWidget() {
       visible: true,
       onClick: handleShowGlobalCheck,
       disabled: utilityActionsDisabled
-    },
-    viewLogs: {
-      loading: diagnosticsActions.viewLogs.loading,
-      visible: true,
-      onClick: handleViewLogs,
-      disabled: viewLogsDisabled
     },
     showSingBoxConfig: {
       loading: diagnosticsActions.showSingBoxConfig.loading,
@@ -11407,7 +11327,7 @@ function renderControls() {
 }
 function renderValue(value, className = "") {
   const text = value || "-";
-  const element = E(
+  const element2 = E(
     "span",
     {
       class: ["fkp_monitoring-page__value", className].filter(Boolean).join(" "),
@@ -11415,13 +11335,13 @@ function renderValue(value, className = "") {
     },
     text
   );
-  element.setAttribute("data-copy-value", text);
-  return element;
+  element2.setAttribute("data-copy-value", text);
+  return element2;
 }
 function renderSourceValue(source) {
   const fullText = source.copyValue || source.primary || "-";
   if (!source.ip) {
-    const element2 = E(
+    const element3 = E(
       "span",
       {
         class: "fkp_monitoring-page__value fkp_monitoring-page__source-value fkp_monitoring-page__source-value--ip-only",
@@ -11429,10 +11349,10 @@ function renderSourceValue(source) {
       },
       source.primary || "-"
     );
-    element2.setAttribute("data-copy-value", fullText);
-    return element2;
+    element3.setAttribute("data-copy-value", fullText);
+    return element3;
   }
-  const element = E(
+  const element2 = E(
     "span",
     {
       class: "fkp_monitoring-page__value fkp_monitoring-page__source-value",
@@ -11443,8 +11363,8 @@ function renderSourceValue(source) {
       E("span", { class: "fkp_monitoring-page__source-ip" }, source.ip)
     ]
   );
-  element.setAttribute("data-copy-value", fullText);
-  return element;
+  element2.setAttribute("data-copy-value", fullText);
+  return element2;
 }
 function renderTableCell(label, children) {
   const cell = E("td", {}, children);
@@ -11628,47 +11548,47 @@ function setMonitoringPaused(paused) {
   }
   renderConnections();
 }
-function isElementOverflowing(element) {
-  return element.scrollWidth > element.clientWidth + 1;
+function isElementOverflowing(element2) {
+  return element2.scrollWidth > element2.clientWidth + 1;
 }
-function getMonitoringValueOverflowElements(element) {
+function getMonitoringValueOverflowElements(element2) {
   return [
-    element,
-    ...Array.from(element.querySelectorAll("*"))
+    element2,
+    ...Array.from(element2.querySelectorAll("*"))
   ].filter(isElementOverflowing);
 }
-function getElementCopyText(element, fallback) {
-  return element.getAttribute("data-copy-value") || element.textContent || fallback;
+function getElementCopyText(element2, fallback) {
+  return element2.getAttribute("data-copy-value") || element2.textContent || fallback;
 }
 function compactMonitoringText(value) {
   return value.replace(/\u2026/g, "").trim().replace(/\s+/g, "");
 }
-function getMonitoringValueTextElements(element) {
-  const children = Array.from(element.children).filter(
+function getMonitoringValueTextElements(element2) {
+  const children = Array.from(element2.children).filter(
     (child) => child instanceof HTMLElement
   );
   if (children.length === 0) {
-    return [element];
+    return [element2];
   }
   const textElements = children.flatMap(getMonitoringValueTextElements).filter((child) => compactMonitoringText(getElementCopyText(child, "")));
-  return textElements.length > 0 ? textElements : [element];
+  return textElements.length > 0 ? textElements : [element2];
 }
-function estimateVisibleMonitoringTextLength(element, fallbackText) {
-  const text = compactMonitoringText(getElementCopyText(element, fallbackText));
+function estimateVisibleMonitoringTextLength(element2, fallbackText) {
+  const text = compactMonitoringText(getElementCopyText(element2, fallbackText));
   if (!text) {
     return 0;
   }
-  if (!isElementOverflowing(element)) {
+  if (!isElementOverflowing(element2)) {
     return text.length;
   }
   return Math.floor(
-    element.clientWidth / Math.max(element.scrollWidth, 1) * text.length
+    element2.clientWidth / Math.max(element2.scrollWidth, 1) * text.length
   );
 }
-function getEstimatedVisibleMonitoringTextLength(element, fallbackText) {
-  const textElements = getMonitoringValueTextElements(element);
-  if (textElements.length === 1 && textElements[0] === element) {
-    return estimateVisibleMonitoringTextLength(element, fallbackText);
+function getEstimatedVisibleMonitoringTextLength(element2, fallbackText) {
+  const textElements = getMonitoringValueTextElements(element2);
+  if (textElements.length === 1 && textElements[0] === element2) {
+    return estimateVisibleMonitoringTextLength(element2, fallbackText);
   }
   return textElements.reduce(
     (total, textElement) => total + estimateVisibleMonitoringTextLength(textElement, fallbackText),
@@ -11695,10 +11615,10 @@ function getSelectionValueElements(selection) {
     root.querySelectorAll(
       ".fkp_monitoring-page__value[data-copy-value]"
     )
-  ).filter((element) => {
+  ).filter((element2) => {
     for (let index = 0; index < selection.rangeCount; index += 1) {
       try {
-        if (selection.getRangeAt(index).intersectsNode(element)) {
+        if (selection.getRangeAt(index).intersectsNode(element2)) {
           return true;
         }
       } catch (_error) {
@@ -11708,13 +11628,13 @@ function getSelectionValueElements(selection) {
     return false;
   });
 }
-function shouldCopyFullMonitoringValue(element, selectedText, fullText) {
+function shouldCopyFullMonitoringValue(element2, selectedText, fullText) {
   const normalizedSelectedText = selectedText.replace(/\u2026/g, "").trim();
   const normalizedFullText = fullText.trim();
   const compactSelectedText = compactMonitoringText(selectedText);
   const compactFullText = compactMonitoringText(fullText);
-  const overflowElements = getMonitoringValueOverflowElements(element);
-  const hasCompositeText = getMonitoringValueTextElements(element).length > 1;
+  const overflowElements = getMonitoringValueOverflowElements(element2);
+  const hasCompositeText = getMonitoringValueTextElements(element2).length > 1;
   if (!normalizedSelectedText || !normalizedFullText) {
     return false;
   }
@@ -11736,7 +11656,7 @@ function shouldCopyFullMonitoringValue(element, selectedText, fullText) {
     return false;
   }
   const estimatedVisibleChars = getEstimatedVisibleMonitoringTextLength(
-    element,
+    element2,
     normalizedFullText
   );
   return compactSelectedText.length >= Math.max(4, estimatedVisibleChars - 2);
@@ -12773,8 +12693,345 @@ var MonitoringTab = {
   styles: styles5
 };
 
-// src/forkop/tabs/updates/render.ts
+// src/forkop/tabs/logs/render.ts
+function renderActionButton(id, label) {
+  return E(
+    "button",
+    {
+      id,
+      class: "btn cbi-button",
+      type: "button",
+      title: label
+    },
+    label
+  );
+}
 function render4() {
+  return E("div", { id: "logs-status", class: "fkp_logs-page" }, [
+    E("div", { class: "fkp_logs-page__toolbar" }, [
+      E("div", { class: "fkp_logs-page__controls" }, [
+        E("label", { class: "fkp_logs-page__search" }, [
+          E("span", { class: "fkp_logs-page__search-icon" }, []),
+          E("input", {
+            id: "logs-search",
+            class: "cbi-input-text fkp_logs-page__search-input",
+            type: "search",
+            placeholder: _("Search"),
+            autocomplete: "off"
+          })
+        ]),
+        E("label", { class: "fkp_logs-page__checkbox" }, [
+          E("input", {
+            id: "logs-auto-refresh",
+            class: "cbi-input-checkbox",
+            type: "checkbox",
+            checked: true
+          }),
+          E("span", {}, _("Auto refresh"))
+        ])
+      ]),
+      E("div", { class: "fkp_logs-page__actions" }, [
+        renderActionButton("logs-copy", _("Copy")),
+        renderActionButton("logs-download", _("Download"))
+      ])
+    ]),
+    E(
+      "pre",
+      {
+        id: "logs-output",
+        class: "fkp_logs-page__output fkp_logs-page__output--empty",
+        tabIndex: 0,
+        role: "log",
+        "aria-label": _("Forkop system logs"),
+        "aria-busy": "true"
+      },
+      _("Loading logs")
+    )
+  ]);
+}
+
+// src/forkop/tabs/logs/filterLogs.ts
+function filterLogText(text, query) {
+  const normalizedQuery = query.trim().toLowerCase();
+  return text.split(/\r?\n/).filter((line) => {
+    if (!line) {
+      return false;
+    }
+    return !normalizedQuery || line.toLowerCase().includes(normalizedQuery);
+  }).join("\n");
+}
+
+// src/forkop/tabs/logs/initController.ts
+var AUTO_REFRESH_INTERVAL_MS = 2e3;
+var controllerInitialized = false;
+var loading2 = false;
+var rawLogs = "";
+function element(id) {
+  return document.getElementById(id);
+}
+function getVisibleLogs() {
+  const query = element("logs-search").value;
+  return filterLogText(rawLogs, query);
+}
+function renderLogs(scrollToTop = false) {
+  const output = element("logs-output");
+  const visibleLogs = getVisibleLogs();
+  output.textContent = visibleLogs || (rawLogs ? _("No logs match the current filters") : _("No logs available"));
+  output.classList.toggle("fkp_logs-page__output--empty", !visibleLogs);
+  element("logs-copy").disabled = !visibleLogs;
+  element("logs-download").disabled = !visibleLogs;
+  if (scrollToTop) {
+    output.scrollTop = 0;
+    output.scrollLeft = 0;
+  }
+}
+function setLoading(nextLoading) {
+  loading2 = nextLoading;
+  element("logs-output").setAttribute("aria-busy", String(nextLoading));
+}
+async function refreshLogs(initial = false) {
+  if (loading2) {
+    return;
+  }
+  const output = element("logs-output");
+  const distanceFromEnd = output.scrollHeight - output.scrollTop - output.clientHeight;
+  const followEnd = initial || distanceFromEnd < 32;
+  const previousScrollTop = output.scrollTop;
+  const previousScrollLeft = output.scrollLeft;
+  setLoading(true);
+  try {
+    const response = await ForkopShellMethods.checkLogs();
+    if (!response.success) {
+      throw new Error(response.error);
+    }
+    const nextLogs = String(response.data ?? "");
+    if (nextLogs === rawLogs) {
+      return;
+    }
+    rawLogs = nextLogs;
+    renderLogs();
+    requestAnimationFrame(() => {
+      output.scrollTop = followEnd ? output.scrollHeight : previousScrollTop;
+      output.scrollLeft = previousScrollLeft;
+    });
+  } catch (error) {
+    console.error("[LOGS] Failed to load logs", error);
+    if (!rawLogs) {
+      element("logs-output").textContent = _("Failed to load logs");
+    }
+  } finally {
+    setLoading(false);
+  }
+}
+function copyVisibleLogs() {
+  const visibleLogs = getVisibleLogs();
+  if (visibleLogs) {
+    copyToClipboard(visibleLogs);
+  }
+}
+function downloadVisibleLogs() {
+  const visibleLogs = getVisibleLogs();
+  if (visibleLogs) {
+    const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
+    downloadAsTxt(visibleLogs, `forkop-logs-${timestamp}`);
+  }
+}
+async function initController4() {
+  if (controllerInitialized) {
+    return;
+  }
+  controllerInitialized = true;
+  await onMount("logs-status");
+  const autoRefresh = element("logs-auto-refresh");
+  autoRefresh.checked = true;
+  document.querySelector(".fkp_logs-page__search-icon")?.replaceChildren(renderSearchIcon24());
+  element("logs-search").addEventListener("input", () => renderLogs(true));
+  autoRefresh.addEventListener("change", () => {
+    if (autoRefresh.checked) {
+      void refreshLogs();
+    }
+  });
+  element("logs-copy").addEventListener("click", copyVisibleLogs);
+  element("logs-download").addEventListener("click", downloadVisibleLogs);
+  setInterval(() => {
+    if (autoRefresh.checked && element("logs-status").offsetParent !== null) {
+      void refreshLogs();
+    }
+  }, AUTO_REFRESH_INTERVAL_MS);
+  void refreshLogs(true);
+}
+
+// src/forkop/tabs/logs/styles.ts
+var styles6 = `
+#cbi-${FORKOP_UCI_PACKAGE}-logs,
+#cbi-${FORKOP_UCI_PACKAGE}-logs > .cbi-section-node,
+#cbi-${FORKOP_UCI_PACKAGE}-logs .cbi-value,
+#cbi-${FORKOP_UCI_PACKAGE}-logs-_mount_node,
+#cbi-${FORKOP_UCI_PACKAGE}-logs-_mount_node > .cbi-value-field,
+#cbi-${FORKOP_UCI_PACKAGE}-logs-_mount_node > div,
+.fkp_logs-page {
+    box-sizing: border-box;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+}
+
+#cbi-${FORKOP_UCI_PACKAGE}-logs-_mount_node {
+    display: block !important;
+    margin: 16px 0 22px;
+    padding: 0;
+}
+
+#cbi-${FORKOP_UCI_PACKAGE}-logs-_mount_node > .cbi-value-title {
+    display: none;
+}
+
+#cbi-${FORKOP_UCI_PACKAGE}-logs-_mount_node > .cbi-value-field {
+    display: block !important;
+    float: none !important;
+    margin-left: 0 !important;
+}
+
+#cbi-${FORKOP_UCI_PACKAGE}-logs > h3 {
+    display: none;
+}
+
+.fkp_logs-page {
+    --fkp-logs-control-height: 34px;
+}
+
+.fkp_logs-page__toolbar,
+.fkp_logs-page__controls,
+.fkp_logs-page__actions,
+.fkp_logs-page__checkbox {
+    display: flex;
+    align-items: center;
+}
+
+.fkp_logs-page__toolbar {
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    margin-bottom: 0.75em;
+}
+
+.fkp_logs-page__controls {
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    min-width: 0;
+    gap: 0.75em;
+}
+
+.fkp_logs-page__search {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: min(320px, 100%);
+    min-width: 0;
+    height: var(--fkp-logs-control-height);
+    margin: 0;
+}
+
+.fkp_logs-page__search-icon {
+    position: absolute;
+    left: 8px;
+    width: 16px;
+    height: 16px;
+    color: var(--text-color-medium);
+    pointer-events: none;
+}
+
+.fkp_logs-page__search-icon svg {
+    display: block;
+    width: 16px;
+    height: 16px;
+}
+
+.fkp_logs-page__search-input {
+    box-sizing: border-box;
+    width: 100%;
+    height: var(--fkp-logs-control-height) !important;
+    min-height: var(--fkp-logs-control-height) !important;
+    margin: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    padding-left: 30px !important;
+    line-height: calc(var(--fkp-logs-control-height) - 2px) !important;
+}
+
+.fkp_logs-page__checkbox {
+    gap: 0.4em;
+    margin: 0;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+}
+
+.fkp_logs-page__checkbox input {
+    margin: 0;
+}
+
+.fkp_logs-page__actions {
+    gap: 0.4em;
+}
+
+.fkp_logs-page__output {
+    display: block;
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    inline-size: 100% !important;
+    max-inline-size: 100% !important;
+    height: 65vh !important;
+    min-height: 24rem;
+    max-height: none !important;
+    margin: 0;
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    contain: inline-size;
+    border-radius: 4px;
+    white-space: pre;
+    overflow-wrap: normal;
+    word-break: normal;
+    user-select: text;
+}
+
+.fkp_logs-page__output--empty {
+    opacity: 0.75;
+}
+
+@media (max-width: 600px) {
+    .fkp_logs-page__search {
+        width: 100%;
+    }
+
+    .fkp_logs-page__actions {
+        width: 100%;
+    }
+
+    .fkp_logs-page__actions .btn {
+        flex: 1 1 0;
+    }
+
+    .fkp_logs-page__output {
+        height: 60vh !important;
+        min-height: 20rem;
+    }
+}
+`;
+
+// src/forkop/tabs/logs/index.ts
+var LogsTab = {
+  render: render4,
+  initController: initController4,
+  styles: styles6
+};
+
+// src/forkop/tabs/updates/render.ts
+function render5() {
   return E("div", { id: "updates-status", class: "fkp_updates-page" }, [
     E("div", {
       id: "fkp_updates-components",
@@ -12877,15 +13134,15 @@ function isSystemInfoLoading() {
   const systemInfo = store.get().diagnosticsSystemInfo;
   return systemInfo.loading || !systemInfo.loaded;
 }
-function setActionLoading(action, loading2, local = false) {
-  if (local || !loading2) {
-    setLocalComponentAction(action, loading2 && local);
+function setActionLoading(action, loading3, local = false) {
+  if (local || !loading3) {
+    setLocalComponentAction(action, loading3 && local);
   }
   const updatesActions = store.get().updatesActions;
   store.set({
     updatesActions: {
       ...updatesActions,
-      [action]: { loading: loading2 }
+      [action]: { loading: loading3 }
     }
   });
 }
@@ -13531,25 +13788,25 @@ function renderComponentCard(card) {
   });
   const actionElements = [];
   const primaryButtons = primaryActions.map((action) => {
-    const loading2 = updatesActions[action.key].loading;
+    const loading3 = updatesActions[action.key].loading;
     const isUpdateOrInstall = action.action === "install";
     return renderButton({
       classNames: isUpdateOrInstall ? ["cbi-button-save"] : [],
       text: action.text,
       icon: action.icon,
-      loading: loading2,
-      disabled: systemInfoLoading || serviceRuntimeActionLoading || anyActionLoading && !loading2,
+      loading: loading3,
+      disabled: systemInfoLoading || serviceRuntimeActionLoading || anyActionLoading && !loading3,
       onClick: () => void handleComponentAction(action)
     });
   });
   const dangerButtons = dangerActions.map((action) => {
-    const loading2 = updatesActions[action.key].loading;
+    const loading3 = updatesActions[action.key].loading;
     return renderButton({
       classNames: ["cbi-button-remove"],
       text: action.text,
       icon: action.icon,
-      loading: loading2,
-      disabled: systemInfoLoading || serviceRuntimeActionLoading || anyActionLoading && !loading2,
+      loading: loading3,
+      disabled: systemInfoLoading || serviceRuntimeActionLoading || anyActionLoading && !loading3,
       onClick: () => void handleComponentAction(action)
     });
   });
@@ -13673,7 +13930,7 @@ function registerLifecycleListeners4() {
     }
   });
 }
-async function initController4() {
+async function initController5() {
   if (updatesControllerInitialized) {
     return;
   }
@@ -13689,7 +13946,7 @@ async function initController4() {
 }
 
 // src/forkop/tabs/updates/styles.ts
-var styles6 = `
+var styles7 = `
 #cbi-${FORKOP_UCI_PACKAGE}-updates-_mount_node > div {
     width: 100%;
 }
@@ -13833,9 +14090,9 @@ var styles6 = `
 
 // src/forkop/tabs/updates/index.ts
 var UpdatesTab = {
-  render: render4,
-  initController: initController4,
-  styles: styles6
+  render: render5,
+  initController: initController5,
+  styles: styles7
 };
 
 // src/styles.ts
@@ -13843,6 +14100,7 @@ var GlobalStyles = `
 ${DashboardTab.styles}
 ${DiagnosticTab.styles}
 ${MonitoringTab.styles}
+${LogsTab.styles}
 ${UpdatesTab.styles}
 ${PartialStyles}
 
@@ -14028,6 +14286,7 @@ return baseclass.extend({
   FORKOP_UCI_PACKAGE,
   ForkopShellMethods,
   LATENCY_TEST_URL_OPTIONS,
+  LogsTab,
   MonitoringTab,
   UpdatesTab,
   applyUiStateToStore,

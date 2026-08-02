@@ -183,7 +183,6 @@ export interface StoreType {
     enable: { loading: boolean };
     disable: { loading: boolean };
     globalCheck: { loading: boolean };
-    viewLogs: { loading: boolean };
     showSingBoxConfig: { loading: boolean };
   };
   diagnosticsSystemInfo: {

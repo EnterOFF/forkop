@@ -1451,6 +1451,57 @@ function is_udp_unsupported_outbound_log(line) {
     return index(as_string(line), "UDP is not supported by outbound:") >= 0;
 }
 
+function normalize_sing_box_log_message(message) {
+    let matched = match(message, /^([A-Z]+)\[[0-9]+\] \[[^]]+\] (.*)$/);
+    if (matched == null)
+        matched = match(message, /^([A-Z]+)\[[0-9]+\] (.*)$/);
+
+    if (matched != null && match(matched[1], /^(TRACE|DEBUG|INFO|WARN|ERROR|FATAL|PANIC)$/) != null)
+        message = "[" + lc(matched[1]) + "] " + matched[2];
+
+    matched = match(message, /^(\[[a-z]+\] )dns: exchange failed for (.+)\. IN ([A-Z0-9]+): (.*)$/);
+    if (matched != null)
+        return matched[1] + "DNS exchange failed for " + matched[2] + " (" + matched[3] + "): " + matched[4];
+
+    matched = match(message, /^(\[[a-z]+\] )connection: open connection to ([^ ]+) using outbound\/[^\[]+\[([^]]+)\]: (.*)$/);
+    if (matched != null) {
+        let outbound = replace(matched[3], /^.*\//, "");
+        return matched[1] + "Connection to " + matched[2] + " via " + outbound + " failed: " + matched[4];
+    }
+
+    return message;
+}
+
+function normalize_log_payload(payload) {
+    let matched = match(payload, /^([^:]+):[ \t]+(.*)$/);
+    if (matched == null)
+        return payload;
+
+    let source = matched[1];
+    let message = matched[2];
+
+    if (match(source, /^sing-box(\[[0-9]+\])?$/) != null)
+        message = normalize_sing_box_log_message(message);
+    else if (match(source, /^uhttpd(\[[0-9]+\])?$/) != null) {
+        let login = match(message, /^(\[[a-z]+\] )luci: accepted login on [^ ]+ for (.*)$/);
+        if (login != null)
+            message = login[1] + "Accepted login for " + login[2];
+    }
+
+    return source + ": " + message;
+}
+
+function normalize_log_line(line) {
+    line = replace(as_string(line), /\x1b\[[0-9;]*m/g, "");
+    let matched = match(line, /^[A-Z][a-z]{2} ([A-Z][a-z]{2})[ ]+([0-9]{1,2}) ([0-9]{2}:[0-9]{2}:[0-9]{2}) [0-9]{4} [^ ]+ (.*)$/);
+
+    if (matched == null)
+        return normalize_log_payload(line);
+
+    let day = length(matched[2]) == 1 ? "0" + matched[2] : matched[2];
+    return matched[1] + " " + day + " " + matched[3] + " " + normalize_log_payload(matched[4]);
+}
+
 function render_matching_log_tail(needle, max_lines) {
     let lines = split(read_stdin(), "\n");
     let filtered = [];
@@ -1469,22 +1520,21 @@ function render_matching_log_tail(needle, max_lines) {
                 continue;
             }
 
-            push(filtered, line);
+            push(filtered, normalize_log_line(line));
         }
     }
 
     if (length(filtered) == 0)
         exit(1);
 
-    max_lines = int(max_lines || "100", 10) || 100;
-    let start = length(filtered) > max_lines ? length(filtered) - max_lines : 0;
+    max_lines = int(max_lines || "100", 10);
+    let start = max_lines > 0 && length(filtered) > max_lines ? length(filtered) - max_lines : 0;
     print_lines(filtered, start, length(filtered));
 }
 
 function render_forkop_logs() {
     let lines = split(read_stdin(), "\n");
     let filtered = [];
-    let start = -1;
     let udp_http_notice_emitted = false;
 
     for (let line in lines) {
@@ -1501,23 +1551,13 @@ function render_forkop_logs() {
             continue;
         }
 
-        if (line_contains(line, "forkop") && line_contains(line, "Starting Forkop"))
-            start = length(filtered);
-
-        push(filtered, line);
+        push(filtered, normalize_log_line(line));
     }
 
     if (length(filtered) == 0)
         exit(1);
 
-    if (start >= 0) {
-        print_lines(filtered, start, length(filtered));
-        return;
-    }
-
-    print_line("No 'Starting Forkop' message found, showing last 100 lines");
-    start = length(filtered) > 100 ? length(filtered) - 100 : 0;
-    print_lines(filtered, start, length(filtered));
+    print_lines(filtered, 0, length(filtered));
 }
 
 function file_first_line(path, fallback) {

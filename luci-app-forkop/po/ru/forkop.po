@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-01 01:34+0300\n"
-"PO-Revision-Date: 2026-08-01 01:34+0300\n"
+"POT-Creation-Date: 2026-08-02 04:17+0300\n"
+"PO-Revision-Date: 2026-08-02 04:17+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -725,6 +725,9 @@ msgstr "Не удалось выполнить"
 msgid "Failed to load default subscription headers"
 msgstr "Не удалось загрузить заголовки подписки по умолчанию"
 
+msgid "Failed to load logs"
+msgstr "Не удалось загрузить логи"
+
 msgid "Failed to update subscriptions"
 msgstr "Не удалось обновить подписки"
 
@@ -799,6 +802,9 @@ msgstr "Служба Forkop остановлена. Запустите серв�
 
 msgid "Forkop Settings"
 msgstr "Настройки Forkop"
+
+msgid "Forkop system logs"
+msgstr "Системные логи Forkop"
 
 msgid "Forkop will not modify your DHCP configuration"
 msgstr "Forkop не будет изменять вашу конфигурацию DHCP"
@@ -1124,11 +1130,17 @@ msgstr "Загрузка клиентской ссылки..."
 msgid "Loading connections"
 msgstr "Загрузка подключений"
 
+msgid "Loading logs"
+msgstr "Загрузка логов"
+
 msgid "Loading..."
 msgstr "Загрузка..."
 
 msgid "Log Level"
 msgstr "Уровень логов"
+
+msgid "Logs"
+msgstr "Логи"
 
 msgid "Main DNS"
 msgstr "Основной DNS"
@@ -1228,6 +1240,12 @@ msgstr "Конфликт не обнаружен"
 
 msgid "No enabled server inbounds configured"
 msgstr "Включённые серверные inbounds не настроены"
+
+msgid "No logs available"
+msgstr "Логи отсутствуют"
+
+msgid "No logs match the current filters"
+msgstr "Нет логов, соответствующих текущим фильтрам"
 
 msgid "No other marking rules found"
 msgstr "Другие правила маркировки не найдены"
@@ -2146,9 +2164,6 @@ msgstr "Значение не может быть пустым"
 
 msgid "Value must not contain control characters"
 msgstr "Значение не должно содержать управляющие символы"
-
-msgid "View logs"
-msgstr "Посмотреть логи"
 
 msgid "Visible name of this section"
 msgstr "Видимое имя этой секции"

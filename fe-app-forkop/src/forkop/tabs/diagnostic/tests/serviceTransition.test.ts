@@ -175,11 +175,10 @@ describe('diagnostic service transitions', () => {
     ).toEqual({
       serviceControlsDisabled: true,
       utilityActionsDisabled: true,
-      viewLogsDisabled: false,
     });
   });
 
-  it('keeps logs available during service-only mutations', () => {
+  it('blocks utility actions during service-only mutations', () => {
     expect(
       getAvailableActionsDisabledState({
         servicesInfoLoading: false,
@@ -189,7 +188,6 @@ describe('diagnostic service transitions', () => {
     ).toEqual({
       serviceControlsDisabled: true,
       utilityActionsDisabled: true,
-      viewLogsDisabled: false,
     });
   });
 

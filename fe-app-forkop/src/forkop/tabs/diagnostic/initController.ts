@@ -689,43 +689,6 @@ async function handleShowGlobalCheck() {
   }
 }
 
-async function handleViewLogs() {
-  setDiagnosticActionLoading('viewLogs', true);
-
-  try {
-    const viewLogs = await ForkopShellMethods.checkLogs();
-
-    if (viewLogs.success) {
-      const getLatestLogs = async () => {
-        const latestLogs = await ForkopShellMethods.checkLogs();
-
-        if (!latestLogs.success) {
-          throw latestLogs;
-        }
-
-        return (latestLogs.data as string) ?? '';
-      };
-
-      ui.showModal(
-        _('View logs'),
-        renderModal(viewLogs.data as string, 'view_logs', {
-          getText: getLatestLogs,
-          refreshMs: 250,
-          initialAutoRefresh: true,
-          showAutoRefreshToggle: true,
-          startAtEnd: true,
-        }),
-      );
-    } else {
-      logger.error('[DIAGNOSTIC]', 'handleViewLogs - e', viewLogs);
-    }
-  } catch (e) {
-    logger.error('[DIAGNOSTIC]', 'handleViewLogs - e', e);
-  } finally {
-    setDiagnosticActionLoading('viewLogs', false);
-  }
-}
-
 async function handleShowSingBoxConfig() {
   setDiagnosticActionLoading('showSingBoxConfig', true);
 
@@ -810,7 +773,7 @@ function renderDiagnosticAvailableActionsWidget() {
     diagnosticsActions.enable.loading ||
     diagnosticsActions.disable.loading;
   const componentActionLoading = hasComponentActionLoading(updatesActions);
-  const { serviceControlsDisabled, utilityActionsDisabled, viewLogsDisabled } =
+  const { serviceControlsDisabled, utilityActionsDisabled } =
     getAvailableActionsDisabledState({
       servicesInfoLoading: servicesInfoWidget.loading,
       mutatingServiceActionLoading: atLeastOneMutatingActionLoading,
@@ -872,12 +835,6 @@ function renderDiagnosticAvailableActionsWidget() {
       visible: true,
       onClick: handleShowGlobalCheck,
       disabled: utilityActionsDisabled,
-    },
-    viewLogs: {
-      loading: diagnosticsActions.viewLogs.loading,
-      visible: true,
-      onClick: handleViewLogs,
-      disabled: viewLogsDisabled,
     },
     showSingBoxConfig: {
       loading: diagnosticsActions.showSingBoxConfig.loading,

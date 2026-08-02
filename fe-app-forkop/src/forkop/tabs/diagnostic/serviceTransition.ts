@@ -95,7 +95,6 @@ export function getAvailableActionsDisabledState({
       componentActionLoading,
     utilityActionsDisabled:
       mutatingServiceActionLoading || componentActionLoading,
-    viewLogsDisabled: false,
   };
 }
 

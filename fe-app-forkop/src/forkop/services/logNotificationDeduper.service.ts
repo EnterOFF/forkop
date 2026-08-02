@@ -1,5 +1,6 @@
 const LOG_NOTIFICATION_STORAGE_KEY = 'forkop:shown-log-error-notifications:v1';
 const MAX_STORED_LOG_NOTIFICATIONS = 500;
+const FORKOP_LOG_SOURCE_PATTERN = /\bforkop(?:\[\d+\])?:/i;
 
 export type ForkopLogNotification =
   | { kind: 'error'; line: string }
@@ -58,11 +59,8 @@ function writeStoredKeys(storage: Storage | null, keys: string[]) {
 export function isErrorLogLine(line: string) {
   const lower = line.toLowerCase();
   return (
-    lower.includes('[error]') ||
-    lower.includes('[fatal]') ||
-    (lower.includes('sing-box') &&
-      lower.includes('rule-set') &&
-      /\b(error|fatal)\b/.test(lower))
+    FORKOP_LOG_SOURCE_PATTERN.test(line) &&
+    (lower.includes('[error]') || lower.includes('[fatal]'))
   );
 }
 

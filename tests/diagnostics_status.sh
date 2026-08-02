@@ -248,6 +248,7 @@ if (value.status !== "running but disabled" || value.dns_configured !== 1) {
 NODE
 
 {
+  printf 'Tue Jun 30 10:59:59 2026 user.notice forkop: [info] historical log retained\n'
   printf 'Tue Jun 30 11:00:00 2026 user.notice forkop: [info] Starting Forkop\n'
   for i in $(seq 1 4500); do
     printf 'Tue Jun 30 11:00:%02d 2026 daemon.info unrelated[%04d]: filler filler filler filler filler filler filler filler filler filler\n' "$((i % 60))" "$i"
@@ -260,6 +261,42 @@ case "$large_logs" in
   *"large logread marker survived stdin transport"*) ;;
   *) fail "large logread marker missing from rendered logs" ;;
 esac
+case "$large_logs" in
+  *"historical log retained"*) ;;
+  *) fail "Forkop logs must include entries from before the latest service start" ;;
+esac
+
+{
+  for i in $(seq 1 125); do
+    printf 'Tue Jun 30 11:02:%02d 2026 daemon.info sing-box[%04d]: retained line\n' "$((i % 60))" "$i"
+  done
+} >"$WORK_DIR/sing-box-logread.txt"
+full_sing_box_logs="$(status_ucode matching-log-tail sing-box 0 <"$WORK_DIR/sing-box-logread.txt")" ||
+  fail "full sing-box log rendering failed"
+case "$full_sing_box_logs" in
+  *"sing-box[0001]"*"sing-box[0125]"*) ;;
+  *) fail "sing-box logs must not be limited to the last 100 lines" ;;
+esac
+grep -Fq '[ "matching-log-tail", "sing-box", "0" ]' "$DIAGNOSTICS_RUNTIME" ||
+  fail "check_sing_box_logs must request the complete available sing-box log"
+
+formatted_logs="$({
+  printf 'Sat Aug  1 21:31:03 2026 daemon.err sing-box[31969]: \033[31mERROR\033[0m[120870] [\033[38;5;136m3042278520\033[0m 10.0s] dns: exchange failed for discord.com. IN A: context deadline exceeded\n'
+  printf 'Sat Aug  1 21:43:33 2026 daemon.err uhttpd[2032]: [info] luci: accepted login on /admin/services/forkop for root from 192.168.1.140\n'
+  printf 'Sat Aug  1 21:54:07 2026 daemon.err sing-box[31969]: \033[31mERROR\033[0m[122254] [\033[38;5;202m2228374970\033[0m 177ms] connection: open connection to api.github.com:443 using outbound/vless[proxy-manual-provider/Vless no warp-dpfsfl50]: EOF\n'
+  printf 'Sat Aug  1 22:39:57 2026 user.notice forkop: [info] Stopping Forkop\n'
+} | status_ucode forkop-logs)" || fail "formatted log rendering failed"
+expected_formatted_logs="$(cat <<'EOF'
+Aug 01 21:31:03 sing-box[31969]: [error] DNS exchange failed for discord.com (A): context deadline exceeded
+Aug 01 21:43:33 uhttpd[2032]: [info] Accepted login for root from 192.168.1.140
+Aug 01 21:54:07 sing-box[31969]: [error] Connection to api.github.com:443 via Vless no warp-dpfsfl50 failed: EOF
+Aug 01 22:39:57 forkop: [info] Stopping Forkop
+EOF
+)"
+[ "$formatted_logs" = "$expected_formatted_logs" ] || {
+  printf 'FAIL: normalized logs differ\nEXPECTED:\n%s\nACTUAL:\n%s\n' "$expected_formatted_logs" "$formatted_logs" >&2
+  exit 1
+}
 
 fake_bin="$WORK_DIR/bin"
 mkdir -p "$fake_bin"

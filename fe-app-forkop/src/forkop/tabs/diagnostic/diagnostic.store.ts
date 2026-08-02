@@ -111,9 +111,6 @@ export const initialDiagnosticStore: Pick<
     globalCheck: {
       loading: false,
     },
-    viewLogs: {
-      loading: false,
-    },
     showSingBoxConfig: {
       loading: false,
     },

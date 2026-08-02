@@ -36,15 +36,11 @@ class MemoryStorage implements Storage {
 }
 
 describe('LogNotificationDeduper', () => {
-  it('accepts error, fatal, and component update log lines', () => {
+  it('accepts only Forkop errors and component update log lines', () => {
     expect(isErrorLogLine('forkop: [info] ok')).toBe(false);
     expect(isErrorLogLine('forkop: [error] failed')).toBe(true);
     expect(isErrorLogLine('forkop: [fatal] failed')).toBe(true);
-    expect(
-      isErrorLogLine(
-        'daemon.err sing-box[123]: FATAL[0000] start service: initialize rule-set[0]: download failed',
-      ),
-    ).toBe(true);
+    expect(isErrorLogLine('sing-box[123]: [error] dial failed')).toBe(false);
     expect(
       isErrorLogLine(
         'daemon.err sing-box[123]: ERROR[0000] connection: dial failed',
@@ -61,6 +57,9 @@ describe('LogNotificationDeduper', () => {
       version: 'v1.2.3',
     });
     expect(getForkopLogNotification('forkop: [info] ok')).toBeNull();
+    expect(
+      getForkopLogNotification('sing-box[123]: [error] dial failed'),
+    ).toBeNull();
   });
 
   it('dedupes already shown log lines through session storage', () => {
@@ -70,6 +69,9 @@ describe('LogNotificationDeduper', () => {
     expect(first.shouldNotify('forkop: [error] failed')).toBe(true);
     expect(first.shouldNotify('forkop: [error] failed')).toBe(false);
     expect(first.shouldNotify('forkop: [error] another failure')).toBe(true);
+    expect(first.shouldNotify('sing-box[123]: [error] dial failed')).toBe(
+      false,
+    );
     expect(
       first.shouldNotify('forkop: [info] [component-update] forkop 1.2.3'),
     ).toBe(true);

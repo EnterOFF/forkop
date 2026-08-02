@@ -984,7 +984,7 @@ function check_sing_box_logs() {
         nolog("Error: logread command not found");
         return 1;
     }
-    let rendered = status_capture([ "matching-log-tail", "sing-box", "100" ], command_output_from_args([ "logread" ]));
+    let rendered = status_capture([ "matching-log-tail", "sing-box", "0" ], command_output_from_args([ "logread" ]));
     if (rendered.output != "")
         print(rendered.output);
     if (rendered.status != 0) {
