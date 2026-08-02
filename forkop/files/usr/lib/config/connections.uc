@@ -8,6 +8,7 @@ let as_string = common.as_string;
 let object_or_empty = common.object_or_empty;
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
+const SYSTEM_DEVICE_VALUE = "@system";
 const ITEM_TYPES = [
     "subscription_url",
     "section_interface",
@@ -56,6 +57,35 @@ function list_contains(values, value) {
         if (item == value)
             return true;
     return false;
+}
+
+function device_matchers(section, key) {
+    let raw = raw_option(section, key);
+    let values = type(raw) == "array"
+        ? raw
+        : rule_config.text_list_values(raw, "comma-space");
+    let text_values = rule_config.text_list_values(option(section, key + "_text", ""), "comma-space");
+
+    if (bool_option(section, key + "_text_mode", false) || bool_option(section, "conditions_text_mode", false))
+        values = text_values;
+    else if (length(values) == 0)
+        values = text_values;
+
+    let result = { selected: length(values) > 0, system: false, ips: [] };
+    let seen = {};
+    for (let value in values) {
+        value = trim(as_string(value));
+        if (value == SYSTEM_DEVICE_VALUE)
+            result.system = true;
+        else {
+            let normalized = rule_config.normalize_domain_subnet_value(value, "subnets");
+            if (normalized != null && !seen[normalized]) {
+                seen[normalized] = true;
+                push(result.ips, normalized);
+            }
+        }
+    }
+    return result;
 }
 
 function whitespace_list_value(section, key) {
@@ -962,9 +992,11 @@ function subscription_download_target_port(sections, target, base_port) {
 }
 
 return {
+    SYSTEM_DEVICE_VALUE,
     option,
     bool_option,
     list_value,
+    device_matchers,
     whitespace_list_value,
     set_item_sections,
     set_item_sections_from_cursor,

@@ -55,11 +55,11 @@ let single = json(fs.readfile(ARGV[0]));
 assert(length(single.dns.servers) == 3, "single DNS must use direct canonical transports plus FakeIP");
 assert(find_tag(single.dns.servers, "dns-server").server == "77.88.8.8", "single main DNS changed");
 assert(find_tag(single.dns.servers, "bootstrap-dns-server").server == "77.88.8.8", "single bootstrap DNS changed");
-assert(length(single.inbounds) == 3, "single DNS must not create health inbounds");
+assert(length(single.inbounds) == 5, "single DNS must keep only standard traffic inbounds");
 
 let multi = json(fs.readfile(ARGV[1]));
 assert(length(multi.dns.servers) == 7, "multi DNS must create four candidates, two fallbacks and FakeIP");
-assert(length(multi.inbounds) == 3, "native DNS fallback must not create health inbounds");
+assert(length(multi.inbounds) == 5, "native DNS fallback must keep only standard traffic inbounds");
 let bootstrap = find_tag(multi.dns.servers, "bootstrap-dns-server");
 let main = find_tag(multi.dns.servers, "dns-server");
 assert(bootstrap.type == "fallback" && bootstrap.strategy == "parallel", "bootstrap must use native parallel fallback");

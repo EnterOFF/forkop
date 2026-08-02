@@ -10831,6 +10831,8 @@ var RENDER_INTERVAL_MS = 500;
 var CONNECTIONS_RPC_POLL_INTERVAL_MS = 1500;
 var CLOSED_CONNECTION_LIMIT = 300;
 var ALL_FILTER_VALUE = "all";
+var SYSTEM_DEVICE_VALUE = "@system";
+var SYSTEM_INBOUND_TAGS = /* @__PURE__ */ new Set(["system-in", "system6-in"]);
 var dependencies = {};
 var monitoringMounted = false;
 var monitoringMountId = 0;
@@ -11008,6 +11010,12 @@ function getConnectionInboundTag(connection) {
   );
   return normalizeString(ruleInbound?.[1]);
 }
+function isSystemConnection(connection) {
+  return SYSTEM_INBOUND_TAGS.has(getConnectionInboundTag(connection));
+}
+function getConnectionSourceFilterValue(connection) {
+  return isSystemConnection(connection) ? SYSTEM_DEVICE_VALUE : getConnectionSourceIp(connection);
+}
 function getServerDisplayNameByInboundTag(tag) {
   return normalizeString(serverDisplayNames[tag]);
 }
@@ -11036,6 +11044,9 @@ function getServerSourceNameByIp(ip) {
   return "";
 }
 function getDeviceFilterLabel(ip) {
+  if (ip === SYSTEM_DEVICE_VALUE) {
+    return "System";
+  }
   const serverName = getServerSourceNameByIp(ip);
   if (serverName) {
     return serverName;
@@ -11046,6 +11057,14 @@ function getDeviceFilterLabel(ip) {
 function getSourceCellParts(connection) {
   const ip = getConnectionSourceIp(connection);
   const inboundTag = getConnectionInboundTag(connection);
+  if (isSystemConnection(connection)) {
+    return {
+      primary: "System",
+      ip: "",
+      copyValue: "System",
+      searchValue: ["System", ip, inboundTag].filter(Boolean).join(" ")
+    };
+  }
   const serverName = getServerDisplayNameByInboundTag(inboundTag);
   if (serverName) {
     return {
@@ -11127,7 +11146,7 @@ function getSearchValues(connection) {
 function getVisibleConnections() {
   const normalizedSearch = normalizeSearchValue(searchQuery);
   return getConnectionsForActiveTab().filter((connection) => {
-    const sourceIp = getConnectionSourceIp(connection);
+    const sourceIp = getConnectionSourceFilterValue(connection);
     if (selectedDeviceFilter !== ALL_FILTER_VALUE && sourceIp !== selectedDeviceFilter) {
       return false;
     }
@@ -11202,13 +11221,13 @@ function setTab(tab) {
 function getKnownSourceIps() {
   const ips = /* @__PURE__ */ new Set();
   activeConnections.forEach((connection) => {
-    const ip = getConnectionSourceIp(connection);
+    const ip = getConnectionSourceFilterValue(connection);
     if (ip) {
       ips.add(ip);
     }
   });
   closedConnections.forEach((connection) => {
-    const ip = getConnectionSourceIp(connection);
+    const ip = getConnectionSourceFilterValue(connection);
     if (ip) {
       ips.add(ip);
     }

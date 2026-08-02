@@ -74,6 +74,8 @@ const RENDER_INTERVAL_MS = 500;
 const CONNECTIONS_RPC_POLL_INTERVAL_MS = 1500;
 const CLOSED_CONNECTION_LIMIT = 300;
 const ALL_FILTER_VALUE = 'all';
+const SYSTEM_DEVICE_VALUE = '@system';
+const SYSTEM_INBOUND_TAGS = new Set(['system-in', 'system6-in']);
 
 let dependencies: MonitoringControllerDependencies = {};
 let monitoringMounted = false;
@@ -317,6 +319,16 @@ function getConnectionInboundTag(connection: ClashConnection): string {
   return normalizeString(ruleInbound?.[1]);
 }
 
+function isSystemConnection(connection: ClashConnection): boolean {
+  return SYSTEM_INBOUND_TAGS.has(getConnectionInboundTag(connection));
+}
+
+function getConnectionSourceFilterValue(connection: ClashConnection): string {
+  return isSystemConnection(connection)
+    ? SYSTEM_DEVICE_VALUE
+    : getConnectionSourceIp(connection);
+}
+
 function getServerDisplayNameByInboundTag(tag: string): string {
   return normalizeString(serverDisplayNames[tag]);
 }
@@ -353,6 +365,10 @@ function getServerSourceNameByIp(ip: string): string {
 }
 
 function getDeviceFilterLabel(ip: string): string {
+  if (ip === SYSTEM_DEVICE_VALUE) {
+    return 'System';
+  }
+
   const serverName = getServerSourceNameByIp(ip);
   if (serverName) {
     return serverName;
@@ -365,6 +381,14 @@ function getDeviceFilterLabel(ip: string): string {
 function getSourceCellParts(connection: MonitoredConnection) {
   const ip = getConnectionSourceIp(connection);
   const inboundTag = getConnectionInboundTag(connection);
+  if (isSystemConnection(connection)) {
+    return {
+      primary: 'System',
+      ip: '',
+      copyValue: 'System',
+      searchValue: ['System', ip, inboundTag].filter(Boolean).join(' '),
+    };
+  }
   const serverName = getServerDisplayNameByInboundTag(inboundTag);
 
   if (serverName) {
@@ -477,7 +501,7 @@ function getVisibleConnections(): MonitoredConnection[] {
   const normalizedSearch = normalizeSearchValue(searchQuery);
 
   return getConnectionsForActiveTab().filter((connection) => {
-    const sourceIp = getConnectionSourceIp(connection);
+    const sourceIp = getConnectionSourceFilterValue(connection);
     if (
       selectedDeviceFilter !== ALL_FILTER_VALUE &&
       sourceIp !== selectedDeviceFilter
@@ -573,14 +597,14 @@ function getKnownSourceIps(): string[] {
   const ips = new Set<string>();
 
   activeConnections.forEach((connection) => {
-    const ip = getConnectionSourceIp(connection);
+    const ip = getConnectionSourceFilterValue(connection);
     if (ip) {
       ips.add(ip);
     }
   });
 
   closedConnections.forEach((connection) => {
-    const ip = getConnectionSourceIp(connection);
+    const ip = getConnectionSourceFilterValue(connection);
     if (ip) {
       ips.add(ip);
     }

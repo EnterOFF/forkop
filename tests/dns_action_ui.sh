@@ -55,6 +55,19 @@ for (const expected of ['"require uci"', '.load("dhcp")', 'uci.sections("dhcp", 
     fail(`static DHCP hosts are missing local-device contract: ${expected}`);
   }
 }
+for (const expected of [
+  'const SYSTEM_DEVICE_VALUE = "@system"',
+  'choices[SYSTEM_DEVICE_VALUE] = _("System")',
+  'normalizedName.toLowerCase() === "system"',
+  '"%s (%s)".format(normalizedName, normalizedIp)',
+]) {
+  if (!localDevicesSource.includes(expected)) {
+    fail(`System device choice is missing contract: ${expected}`);
+  }
+}
+if (!source.includes('value === localDevices.SYSTEM_DEVICE_VALUE')) {
+  fail("System device sentinel must pass device-selector validation");
+}
 if (!acl["luci-app-forkop"]?.read?.uci?.includes("dhcp")) {
   fail("local-device selector needs read access to DHCP UCI host sections");
 }

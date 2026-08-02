@@ -889,6 +889,14 @@ function section_rule_condition_csv(section, key, kind) {
     );
 }
 
+function section_source_signature_value(section) {
+    let devices = connections.device_matchers(section, "source_ip_cidr");
+    let value = join(",", devices.ips);
+    if (devices.system)
+        value += (value == "" ? "" : ",") + connections.SYSTEM_DEVICE_VALUE;
+    return value;
+}
+
 function nft_runtime_signature_body(settings, sections) {
     let body = "";
 
@@ -904,13 +912,13 @@ function nft_runtime_signature_body(settings, sections) {
         let action = option(section, "action", "");
         body = signature_add_value(body, "rule." + name + ".action", action);
         if (action == "dns") {
-            body = signature_add_value(body, "rule." + name + ".source_ip_cidr", section_rule_condition_csv(section, "source_ip_cidr", "subnets"));
+            body = signature_add_value(body, "rule." + name + ".source_ip_cidr", section_source_signature_value(section));
             body = signature_add_value(body, "rule." + name + ".source_aware_dns", connections.has_dns_matchers(section) ? "1" : "0");
             body = signature_add_value(body, "rule." + name + ".fully_routed_ips", option(section, "fully_routed_ips", ""));
             continue;
         }
         body = signature_add_value(body, "rule." + name + ".ip_cidr", section_rule_condition_csv(section, "ip_cidr", "subnets"));
-        body = signature_add_value(body, "rule." + name + ".source_ip_cidr", section_rule_condition_csv(section, "source_ip_cidr", "subnets"));
+        body = signature_add_value(body, "rule." + name + ".source_ip_cidr", section_source_signature_value(section));
         body = signature_add_value(body, "rule." + name + ".source_aware_dns", connections.has_dns_matchers(section) ? "1" : "0");
         body = signature_add_value(body, "rule." + name + ".ports", section_rule_ports_csv(section));
         body = signature_add_value(body, "rule." + name + ".fully_routed_ips", option(section, "fully_routed_ips", ""));
@@ -1181,7 +1189,7 @@ function append_sing_box_rule_signature_body(body, section, sections) {
     body = signature_add_value(body, prefix + ".domain_regex", section_rule_condition_csv(section, "domain_regex", "generic"));
     if (action != "dns")
         body = signature_add_value(body, prefix + ".ip_cidr", section_rule_condition_csv(section, "ip_cidr", "subnets"));
-    body = signature_add_value(body, prefix + ".source_ip_cidr", section_rule_condition_csv(section, "source_ip_cidr", "subnets"));
+    body = signature_add_value(body, prefix + ".source_ip_cidr", section_source_signature_value(section));
     if (action != "dns")
         body = signature_add_value(body, prefix + ".ports", section_rule_ports_csv(section));
     body = signature_add_value(body, prefix + ".fully_routed_ips", option(section, "fully_routed_ips", ""));

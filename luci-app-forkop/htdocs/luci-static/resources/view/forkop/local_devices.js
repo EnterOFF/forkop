@@ -20,6 +20,7 @@ const callNetworkInterfaceDump = rpc.declare({
   method: "dump",
   expect: { interface: [] },
 });
+const SYSTEM_DEVICE_VALUE = "@system";
 
 let localDeviceChoicesCache = null;
 let localDeviceChoicesPromise = null;
@@ -58,7 +59,10 @@ function addLocalDeviceChoice(choices, ip, name) {
     return;
   }
 
-  choices[normalizedIp] = normalizedName;
+  choices[normalizedIp] =
+    normalizedName.toLowerCase() === "system"
+      ? "%s (%s)".format(normalizedName, normalizedIp)
+      : normalizedName;
 }
 
 function addRouterIp(routerIps, ip) {
@@ -155,6 +159,7 @@ function buildLocalDeviceChoices(
   Object.keys(routerIps).forEach((ip) => {
     delete choices[ip];
   });
+  choices[SYSTEM_DEVICE_VALUE] = "System";
 
   return choices;
 }
@@ -195,6 +200,9 @@ function loadLocalDeviceChoices() {
 
 function sortLocalDeviceChoiceValues(choices) {
   return Object.keys(choices).sort((a, b) => {
+    if (a === SYSTEM_DEVICE_VALUE || b === SYSTEM_DEVICE_VALUE) {
+      return a === SYSTEM_DEVICE_VALUE ? -1 : 1;
+    }
     const byName = `${choices[a]}`.localeCompare(`${choices[b]}`);
     return byName || a.localeCompare(b);
   });
@@ -202,7 +210,7 @@ function sortLocalDeviceChoiceValues(choices) {
 
 function hasSingleIpValue(values) {
   return normalizeOptionValues(values).some(
-    (value) => main.validateIP(value).valid,
+    (value) => value === SYSTEM_DEVICE_VALUE || main.validateIP(value).valid,
   );
 }
 
@@ -281,6 +289,7 @@ function createLocalDeviceDynamicListWidget(option, section_id, cfgvalue) {
 }
 
 const EntryPoint = {
+  SYSTEM_DEVICE_VALUE,
   createLocalDeviceDynamicListWidget,
   hasSingleIpValue,
   loadLocalDeviceChoices,

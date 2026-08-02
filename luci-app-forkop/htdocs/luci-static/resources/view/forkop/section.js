@@ -7785,6 +7785,9 @@ function addLocalDeviceSubnetDynamicField(section, config) {
     if (!value || value.length === 0) {
       return true;
     }
+    if (value === localDevices.SYSTEM_DEVICE_VALUE) {
+      return true;
+    }
 
     const validation = main.validateSubnet(value);
     return validation.valid ? true : validation.message;

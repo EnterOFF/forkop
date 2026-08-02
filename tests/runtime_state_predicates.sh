@@ -1222,7 +1222,7 @@ JSON
 cat >"$WORK_DIR/dns-action-signature-device.json" <<'JSON'
 {
   "section": [
-    { ".name": "dns", ".type": "section", "enabled": "1", "action": "dns", "dns_type": "udp", "dns_server": "9.9.9.9", "domain_suffix": [ "example.org" ], "source_ip_cidr": [ "192.0.2.1/32" ], "fully_routed_ips": [ "192.0.2.2/32" ] }
+    { ".name": "dns", ".type": "section", "enabled": "1", "action": "dns", "dns_type": "udp", "dns_server": "9.9.9.9", "domain_suffix": [ "example.org" ], "source_ip_cidr": [ "@system" ] }
   ]
 }
 JSON

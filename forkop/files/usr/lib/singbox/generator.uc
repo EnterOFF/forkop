@@ -329,12 +329,59 @@ function cli_bool(value) {
     return value === true || value == "1" || value == "true" || value == "yes" || value == "on";
 }
 
-function tproxy_inbound_matcher() {
+function single_or_array(values) {
+    return length(values) == 1 ? values[0] : values;
+}
+
+function client_tproxy_inbound_matcher() {
     return [ runtime_constants.TPROXY_INBOUND_TAG, runtime_constants.TPROXY_INBOUND6_TAG ];
+}
+
+function system_tproxy_inbound_matcher() {
+    return [ runtime_constants.SYSTEM_TPROXY_INBOUND_TAG, runtime_constants.SYSTEM_TPROXY_INBOUND6_TAG ];
+}
+
+function tproxy_inbound_matcher() {
+    let result = client_tproxy_inbound_matcher();
+    for (let inbound in system_tproxy_inbound_matcher())
+        push(result, inbound);
+    return result;
 }
 
 function source_dns_inbound_matcher() {
     return [ runtime_constants.SOURCE_DNS_INBOUND_TAG ];
+}
+
+function system_dns_inbound_matcher() {
+    return [ runtime_constants.SYSTEM_DNS_INBOUND_TAG ];
+}
+
+function device_matcher_variants(section, key, dns) {
+    let devices = connections.device_matchers(section, key);
+    if (!devices.selected)
+        return [ dns ? {} : { inbound: tproxy_inbound_matcher() } ];
+
+    let result = [];
+    if (length(devices.ips) > 0)
+        push(result, {
+            inbound: dns ? source_dns_inbound_matcher() : client_tproxy_inbound_matcher(),
+            source_ip_cidr: single_or_array(devices.ips)
+        });
+    if (devices.system)
+        push(result, { inbound: dns ? system_dns_inbound_matcher() : system_tproxy_inbound_matcher() });
+    return result;
+}
+
+function copy_matchers(matchers) {
+    let copy = {};
+    for (let key, value in matchers)
+        copy[key] = value;
+    return copy;
+}
+
+function apply_matchers(rule, matchers) {
+    for (let key, value in matchers)
+        rule[key] = value;
 }
 
 function base_config(settings, service_address, runtime_context) {
@@ -370,10 +417,14 @@ function base_config(settings, service_address, runtime_context) {
     let inbounds = [
         { type: "tproxy", tag: runtime_constants.TPROXY_INBOUND_TAG, listen: runtime_constants.TPROXY_INBOUND_ADDRESS, listen_port: runtime_constants.TPROXY_INBOUND_PORT, tcp_fast_open: true, udp_fragment: true },
         { type: "tproxy", tag: runtime_constants.TPROXY_INBOUND6_TAG, listen: runtime_constants.TPROXY_INBOUND6_ADDRESS, listen_port: runtime_constants.TPROXY_INBOUND_PORT, tcp_fast_open: true, udp_fragment: true },
+        { type: "tproxy", tag: runtime_constants.SYSTEM_TPROXY_INBOUND_TAG, listen: runtime_constants.TPROXY_INBOUND_ADDRESS, listen_port: runtime_constants.SYSTEM_TPROXY_INBOUND_PORT, tcp_fast_open: true, udp_fragment: true },
+        { type: "tproxy", tag: runtime_constants.SYSTEM_TPROXY_INBOUND6_TAG, listen: runtime_constants.TPROXY_INBOUND6_ADDRESS, listen_port: runtime_constants.SYSTEM_TPROXY_INBOUND_PORT, tcp_fast_open: true, udp_fragment: true },
         { type: "direct", tag: runtime_constants.DNS_INBOUND_TAG, listen: runtime_constants.DNS_INBOUND_ADDRESS, listen_port: runtime_constants.DNS_INBOUND_PORT }
     ];
     if (runtime_context.source_aware_dns)
         push(inbounds, { type: "direct", tag: runtime_constants.SOURCE_DNS_INBOUND_TAG, listen: runtime_constants.SOURCE_DNS_INBOUND_ADDRESS, listen_port: runtime_constants.SOURCE_DNS_INBOUND_PORT });
+    if (runtime_context.system_aware_dns)
+        push(inbounds, { type: "direct", tag: runtime_constants.SYSTEM_DNS_INBOUND_TAG, listen: runtime_constants.SYSTEM_DNS_INBOUND_ADDRESS, listen_port: runtime_constants.SYSTEM_DNS_INBOUND_PORT });
 
     runtime_context.default_domain_resolver = runtime_dns.default_domain_resolver(settings);
 
@@ -1495,31 +1546,12 @@ function section_dns_server(section) {
         : runtime_constants.FAKEIP_DNS_SERVER_TAG;
 }
 
-function single_or_array(values) {
-    return length(values) == 1 ? values[0] : values;
-}
-
-function copy_dns_matchers(matchers) {
-    let copy = {};
-    for (let key, value in matchers)
-        copy[key] = value;
-    return copy;
-}
-
-function add_source_dns_matchers(rule, source_ip_cidr) {
-    if (length(source_ip_cidr) == 0)
-        return;
-
-    rule.inbound = source_dns_inbound_matcher();
-    rule.source_ip_cidr = single_or_array(source_ip_cidr);
-}
-
 function add_source_aware_bypass_dns_rules(config, matchers, rewrite_ttl) {
     push_dns_matcher_rule(config, {
         type: "logical",
         mode: "and",
         rules: [
-            copy_dns_matchers(matchers),
+            copy_matchers(matchers),
             {
                 ip_cidr: [ runtime_constants.FAKEIP_INET4_RANGE, runtime_constants.FAKEIP_INET6_RANGE ],
                 invert: true
@@ -1530,7 +1562,7 @@ function add_source_aware_bypass_dns_rules(config, matchers, rewrite_ttl) {
         rewrite_ttl
     });
 
-    let fallback = copy_dns_matchers(matchers);
+    let fallback = copy_matchers(matchers);
     fallback.action = "route";
     fallback.server = runtime_constants.DNS_SERVER_TAG;
     fallback.query_type = [ "A", "AAAA" ];
@@ -1539,50 +1571,58 @@ function add_source_aware_bypass_dns_rules(config, matchers, rewrite_ttl) {
 }
 
 function add_section_dns_matcher_rule(config, section, matchers, rewrite_ttl) {
-    let source_ip_cidr = legacy_condition_values(section, "source_ip_cidr");
-    add_source_dns_matchers(matchers, source_ip_cidr);
+    let devices = connections.device_matchers(section, "source_ip_cidr");
+    for (let device_matchers in device_matcher_variants(section, "source_ip_cidr", true)) {
+        let rule = copy_matchers(matchers);
+        apply_matchers(rule, device_matchers);
+        if (option(section, "action", "") == "bypass" &&
+            !section_has_port_matchers(section) && devices.selected) {
+            add_source_aware_bypass_dns_rules(config, rule, rewrite_ttl);
+            continue;
+        }
 
-    if (option(section, "action", "") == "bypass" &&
-        !section_has_port_matchers(section) &&
-        length(source_ip_cidr) > 0) {
-        add_source_aware_bypass_dns_rules(config, matchers, rewrite_ttl);
-        return;
+        rule.action = "route";
+        rule.server = section_dns_server(section);
+        rule.rewrite_ttl = rewrite_ttl;
+        push_dns_matcher_rule(config, rule);
     }
-
-    matchers.action = "route";
-    matchers.server = section_dns_server(section);
-    matchers.rewrite_ttl = rewrite_ttl;
-    push_dns_matcher_rule(config, matchers);
 }
 
 function source_aware_dns_sources(sections) {
     let seen = {};
     let values = [];
+    let system = false;
 
     for (let section in sections) {
         let action = option(section, "action", "");
-        let candidates = [];
-        if (connections.has_dns_matchers(section))
-            for (let value in legacy_condition_values(section, "source_ip_cidr"))
-                push(candidates, value);
-        if (action == "bypass" || action == "dns")
-            for (let value in list_option(section, "fully_routed_ips"))
-                push(candidates, value);
+        let candidates = { ips: [], system: false };
+        if (connections.has_dns_matchers(section)) {
+            let devices = connections.device_matchers(section, "source_ip_cidr");
+            candidates.ips = devices.ips;
+            candidates.system = devices.system;
+        }
+        if (action == "bypass" || action == "dns") {
+            let fully_routed = connections.device_matchers(section, "fully_routed_ips");
+            for (let value in fully_routed.ips)
+                push(candidates.ips, value);
+            candidates.system = candidates.system || fully_routed.system;
+        }
 
-        for (let value in candidates) {
+        for (let value in candidates.ips) {
             value = trim(as_string(value));
             if (value != "" && !seen[value]) {
                 seen[value] = true;
                 push(values, value);
             }
         }
+        system = system || candidates.system;
     }
 
-    return values;
+    return { ips: values, system };
 }
 
-function add_source_aware_dns_support(config, source_ip_cidr) {
-    if (length(source_ip_cidr) == 0)
+function add_source_aware_dns_support(config, sources) {
+    if (length(sources.ips) == 0 && !sources.system)
         return;
 
     push(config.dns.servers, {
@@ -1593,17 +1633,24 @@ function add_source_aware_dns_support(config, source_ip_cidr) {
     });
 }
 
-function add_source_aware_dns_fallback(config, source_ip_cidr) {
-    if (length(source_ip_cidr) == 0)
+function add_source_aware_dns_fallback(config, sources) {
+    if (length(sources.ips) == 0 && !sources.system)
         return;
 
-    let rule = {
-        action: "route",
-        server: runtime_constants.DNSMASQ_DNS_SERVER_TAG,
-        rewrite_ttl: int_option(runtime_settings(), "dns_rewrite_ttl", "60")
-    };
-    add_source_dns_matchers(rule, source_ip_cidr);
-    push_dns_matcher_rule(config, rule);
+    let matchers = [];
+    if (length(sources.ips) > 0)
+        push(matchers, { inbound: source_dns_inbound_matcher(), source_ip_cidr: single_or_array(sources.ips) });
+    if (sources.system)
+        push(matchers, { inbound: system_dns_inbound_matcher() });
+    for (let matcher in matchers) {
+        let rule = {
+            action: "route",
+            server: runtime_constants.DNSMASQ_DNS_SERVER_TAG,
+            rewrite_ttl: int_option(runtime_settings(), "dns_rewrite_ttl", "60")
+        };
+        apply_matchers(rule, matcher);
+        push_dns_matcher_rule(config, rule);
+    }
 }
 
 function dns_action_server_tag(section_name) {
@@ -1637,8 +1684,7 @@ function add_dns_action_rules_for_section(config, section) {
     let domain_regex = domains.domain_regex;
     let rule_set_tags = [];
     let section_name = section[".name"];
-    let source_ip_cidr = legacy_condition_values(section, "source_ip_cidr");
-    let fully_routed_ips = list_option(section, "fully_routed_ips");
+    let fully_routed_devices = connections.device_matchers(section, "fully_routed_ips");
 
     for (let community in connections.community_lists(section)) {
         let ensured = ensure_community_ruleset(config, section_name, as_string(community));
@@ -1653,39 +1699,45 @@ function add_dns_action_rules_for_section(config, section) {
     let has_inline_domains = length(domain) > 0 || length(domain_suffix) > 0 ||
         length(domain_keyword) > 0 || length(domain_regex) > 0;
 
-    if (length(fully_routed_ips) > 0) {
-        let dns_rule = {
-            action: "route",
-            server: server_tag,
-            rewrite_ttl
-        };
-        add_source_dns_matchers(dns_rule, fully_routed_ips);
-        push_dns_matcher_rule(config, dns_rule);
+    if (fully_routed_devices.selected) {
+        for (let device_matchers in device_matcher_variants(section, "fully_routed_ips", true)) {
+            let dns_rule = {
+                action: "route",
+                server: server_tag,
+                rewrite_ttl
+            };
+            apply_matchers(dns_rule, device_matchers);
+            push_dns_matcher_rule(config, dns_rule);
+        }
     }
     if (has_inline_domains) {
-        let dns_rule = {
-            action: "route",
-            server: server_tag,
-            rewrite_ttl
-        };
-        add_domain_array(dns_rule, "domain", domain);
-        add_domain_array(dns_rule, "domain_suffix", domain_suffix);
-        add_domain_array(dns_rule, "domain_keyword", domain_keyword);
-        add_domain_array(dns_rule, "domain_regex", domain_regex);
-        add_source_dns_matchers(dns_rule, source_ip_cidr);
-        push_dns_matcher_rule(config, dns_rule);
+        for (let device_matchers in device_matcher_variants(section, "source_ip_cidr", true)) {
+            let dns_rule = {
+                action: "route",
+                server: server_tag,
+                rewrite_ttl
+            };
+            add_domain_array(dns_rule, "domain", domain);
+            add_domain_array(dns_rule, "domain_suffix", domain_suffix);
+            add_domain_array(dns_rule, "domain_keyword", domain_keyword);
+            add_domain_array(dns_rule, "domain_regex", domain_regex);
+            apply_matchers(dns_rule, device_matchers);
+            push_dns_matcher_rule(config, dns_rule);
+        }
     }
     if (length(rule_set_tags) > 0) {
-        let dns_rule = {
-            action: "route",
-            server: server_tag,
-            rewrite_ttl,
-            rule_set: single_or_array(rule_set_tags)
-        };
-        add_source_dns_matchers(dns_rule, source_ip_cidr);
-        push_dns_matcher_rule(config, dns_rule);
+        for (let device_matchers in device_matcher_variants(section, "source_ip_cidr", true)) {
+            let dns_rule = {
+                action: "route",
+                server: server_tag,
+                rewrite_ttl,
+                rule_set: single_or_array(rule_set_tags)
+            };
+            apply_matchers(dns_rule, device_matchers);
+            push_dns_matcher_rule(config, dns_rule);
+        }
     }
-    if (!has_inline_domains && length(rule_set_tags) == 0 && length(fully_routed_ips) == 0)
+    if (!has_inline_domains && length(rule_set_tags) == 0 && !fully_routed_devices.selected)
         runtime_generate_unsupported("DNS action '" + section_name + "' has no domain matchers");
 }
 
@@ -1730,32 +1782,30 @@ function add_port_matchers(rule, section) {
 }
 
 function add_fully_routed_ips_rules(config, section) {
-    let source_ip_cidr = list_option(section, "fully_routed_ips");
-    if (length(source_ip_cidr) == 0)
+    let devices = connections.device_matchers(section, "fully_routed_ips");
+    if (!devices.selected)
         return;
 
     if (option(section, "action", "") == "bypass") {
-        let dns_matchers = {};
-        add_source_dns_matchers(dns_matchers, source_ip_cidr);
-        add_source_aware_bypass_dns_rules(
-            config,
-            dns_matchers,
-            int_option(runtime_settings(), "dns_rewrite_ttl", "60")
-        );
+        for (let dns_matchers in device_matcher_variants(section, "fully_routed_ips", true))
+            add_source_aware_bypass_dns_rules(
+                config,
+                dns_matchers,
+                int_option(runtime_settings(), "dns_rewrite_ttl", "60")
+            );
     }
 
     let target = runtime_route.target(section, outbound_tag(section[".name"]));
     if (target.unsupported)
         runtime_generate_unsupported(target.unsupported);
 
-    let route_rule = {
-        action: target.action,
-        inbound: tproxy_inbound_matcher()
-    };
-    if (target.outbound)
-        route_rule.outbound = target.outbound;
-    route_rule.source_ip_cidr = single_or_array(source_ip_cidr);
-    push(config.route.rules, route_rule);
+    for (let device_matchers in device_matcher_variants(section, "fully_routed_ips", false)) {
+        let route_rule = { action: target.action };
+        if (target.outbound)
+            route_rule.outbound = target.outbound;
+        apply_matchers(route_rule, device_matchers);
+        push(config.route.rules, route_rule);
+    }
 }
 
 function add_combined_route_for_section(config, section) {
@@ -1765,7 +1815,6 @@ function add_combined_route_for_section(config, section) {
     let domain_keyword = domains.domain_keyword;
     let domain_regex = domains.domain_regex;
     let ip_cidr = legacy_condition_values(section, "ip_cidr");
-    let source_ip_cidr = legacy_condition_values(section, "source_ip_cidr");
     let rule_set_tags = [];
     let dns_rule_set_tags = [];
     let section_name = section[".name"];
@@ -1791,10 +1840,7 @@ function add_combined_route_for_section(config, section) {
     let target = runtime_route.target(section, outbound_tag(section_name));
     if (target.unsupported)
         runtime_generate_unsupported(target.unsupported);
-    let route_rule = {
-        action: target.action,
-        inbound: tproxy_inbound_matcher()
-    };
+    let route_rule = { action: target.action };
     if (target.outbound)
         route_rule.outbound = target.outbound;
     add_domain_array(route_rule, "domain", domain);
@@ -1803,8 +1849,6 @@ function add_combined_route_for_section(config, section) {
     add_domain_array(route_rule, "domain_regex", domain_regex);
     if (length(ip_cidr) > 0)
         route_rule.ip_cidr = ip_cidr;
-    if (length(source_ip_cidr) > 0)
-        route_rule.source_ip_cidr = source_ip_cidr;
     add_port_matchers(route_rule, section);
     if (length(rule_set_tags) > 0)
         route_rule.rule_set = single_or_array(rule_set_tags);
@@ -1814,12 +1858,16 @@ function add_combined_route_for_section(config, section) {
         route_rule.ip_cidr != null || route_rule.port != null || route_rule.port_range != null ||
         route_rule.rule_set != null;
     if (has_route_matchers) {
-        let resolve = runtime_route.resolve_rule_for_section(section, route_rule);
-        if (type(resolve) == "object" && resolve.warning)
-            warn(resolve.warning, "\n");
-        else if (type(resolve) == "object" && resolve.rule)
-            push(config.route.rules, resolve.rule);
-        push(config.route.rules, route_rule);
+        for (let device_matchers in device_matcher_variants(section, "source_ip_cidr", false)) {
+            let device_route_rule = copy_matchers(route_rule);
+            apply_matchers(device_route_rule, device_matchers);
+            let resolve = runtime_route.resolve_rule_for_section(section, device_route_rule);
+            if (type(resolve) == "object" && resolve.warning)
+                warn(resolve.warning, "\n");
+            else if (type(resolve) == "object" && resolve.rule)
+                push(config.route.rules, resolve.rule);
+            push(config.route.rules, device_route_rule);
+        }
     }
 
     let rewrite_ttl = int_option(runtime_settings(), "dns_rewrite_ttl", "60");
@@ -2041,7 +2089,8 @@ function generate_config(output_path, service_address, mwan3_active, deferred_se
     let source_aware_dns = source_aware_dns_sources(sections);
     let config = base_config(settings, service_address, {
         mwan3_active: cli_bool(mwan3_active),
-        source_aware_dns: length(source_aware_dns) > 0,
+        source_aware_dns: length(source_aware_dns.ips) > 0,
+        system_aware_dns: source_aware_dns.system,
         direct_server_route: has_direct_tailscale_server(servers)
     });
     add_source_aware_dns_support(config, source_aware_dns);

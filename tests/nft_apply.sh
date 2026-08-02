@@ -242,6 +242,12 @@ assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle\tiifname\
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle\tiifname\t@forkop_interfaces\tip6\tdaddr\t@forkop_subnets6\tmeta\tl4proto\ttcp\tmeta\tmark\tset\t0x00100000\tcounter' "runtime common6 tcp rule"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tproxy\tmeta\tmark\t&\t0x00100000\t==\t0x00100000\tmeta\tl4proto\ttcp\ttproxy\tip\tto\t:1602\tcounter' "runtime proxy tcp rule"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tproxy\tmeta\tmark\t&\t0x00100000\t==\t0x00100000\tmeta\tl4proto\ttcp\ttproxy\tip6\tto\t[::1]:1602\tcounter' "runtime proxy6 tcp rule"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tproxy\tiifname\tlo\tmeta\tmark\t&\t0x00100000\t==\t0x00100000\tmeta\tl4proto\ttcp\ttproxy\tip\tto\t:1604\tcounter\taccept' "runtime System proxy tcp rule"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tproxy\tiifname\tlo\tmeta\tmark\t&\t0x00100000\t==\t0x00100000\tmeta\tl4proto\ttcp\ttproxy\tip6\tto\t[::1]:1604\tcounter\taccept' "runtime System proxy6 tcp rule"
+assert_line_before "$NFT_LOG" \
+  $'nft\tadd\trule\tinet\tForkopTable\tproxy\tiifname\tlo\tmeta\tmark\t&\t0x00100000\t==\t0x00100000\tmeta\tl4proto\ttcp\ttproxy\tip\tto\t:1604\tcounter\taccept' \
+  $'nft\tadd\trule\tinet\tForkopTable\tproxy\tmeta\tmark\t&\t0x00100000\t==\t0x00100000\tmeta\tl4proto\ttcp\ttproxy\tip\tto\t:1602\tcounter' \
+  "System TProxy classification precedes the generic inbound"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle_output\tmeta\tmark\t0x00200000\tcounter\treturn' "runtime outbound return"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle_output\tip6\tdaddr\t@localv6\tip6\tdaddr\t!=\tfc00::/18\treturn' "runtime output local6 return preserves FakeIP6 capture"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle_output\tjump\tpriority_output_rules' "runtime priority output jump"
@@ -315,7 +321,7 @@ cat >"$WORK_DIR/priority-rules.json" <<'JSON'
       "enabled": "1",
       "action": "bypass",
       "ip_cidr": [ "198.51.100.0/24" ],
-      "fully_routed_ips": [ "192.168.1.10/32", "2001:db8::10/128" ]
+      "fully_routed_ips": [ "192.168.1.10/32", "2001:db8::10/128", "@system" ]
     },
     {
       ".name": "wide_proxy",
@@ -323,7 +329,7 @@ cat >"$WORK_DIR/priority-rules.json" <<'JSON'
       "enabled": "1",
       "action": "proxy",
       "ip_cidr": [ "0.0.0.0/0" ],
-      "fully_routed_ips": [ "192.168.1.20/32", "2001:db8::20/128" ]
+      "fully_routed_ips": [ "192.168.1.20/32", "2001:db8::20/128", "@system" ]
     },
     {
       ".name": "port_bypass",
@@ -331,6 +337,22 @@ cat >"$WORK_DIR/priority-rules.json" <<'JSON'
       "enabled": "1",
       "action": "bypass",
       "ports": [ "8443" ]
+    },
+    {
+      ".name": "system_filter",
+      ".type": "section",
+      "enabled": "1",
+      "action": "proxy",
+      "ip_cidr": [ "203.0.113.0/24" ],
+      "source_ip_cidr": [ "@system" ]
+    },
+    {
+      ".name": "client_filter",
+      ".type": "section",
+      "enabled": "1",
+      "action": "proxy",
+      "ip_cidr": [ "192.0.2.0/24" ],
+      "source_ip_cidr": [ "192.168.1.50/32" ]
     }
   ]
 }
@@ -344,6 +366,19 @@ assert_contains "$NFT_LOG" $'nft\tadd\tset\tinet\tForkopTable\tforkop_rule_bypas
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tpriority_rules\tiifname\t@forkop_interfaces\tip\tsaddr\t@forkop_rule_bypass_first_fully_sources\tip\tdaddr\t!=\t@localv4\tip\tdaddr\t!=\t198.18.0.0/15\tcounter\taccept' "bypass fully routed real IP fast path"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tpriority_rules\tiifname\t@forkop_interfaces\tip6\tsaddr\t@forkop_rule_bypass_first_fully_sources6\tip6\tdaddr\t!=\t@localv6\tip6\tdaddr\t!=\tfc00::/18\tcounter\taccept' "bypass fully routed6 real IP fast path"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tpriority_rules\tiifname\t@forkop_interfaces\tip\tsaddr\t@forkop_rule_wide_proxy_fully_sources\tip\tdaddr\t!=\t@localv4\tmeta\tl4proto\ttcp\tmeta\tmark\tset\t0x00100000\tcounter\taccept' "proxy fully routed capture path"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tpriority_output_rules\tip\tdaddr\t!=\t@localv4\tip\tdaddr\t!=\t198.18.0.0/15\tcounter\taccept' "System fully routed bypass real-IP path"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tpriority_output_rules\tip\tdaddr\t!=\t@localv4\tmeta\tl4proto\ttcp\tmeta\tmark\tset\t0x00100000\tcounter\taccept' "System fully routed proxy capture path"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tpriority_output_rules\tip\tdaddr\t!=\t@localv4\tip\tdaddr\t@forkop_rule_system_filter_subnets\tmeta\tmark\tset\t0x00100000\tcounter\taccept' "System device filter applies to local output"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tpriority_rules\tiifname\t@forkop_interfaces\tip\tsaddr\t@forkop_rule_client_filter_sources\tip\tdaddr\t!=\t@localv4\tip\tdaddr\t@forkop_rule_client_filter_subnets\tmeta\tmark\tset\t0x00100000\tcounter\taccept' "ordinary device filter stays on forwarded traffic"
+if grep -F $'priority_rules\tiifname\t@forkop_interfaces' "$NFT_LOG" | grep -Fq 'forkop_rule_system_filter'; then
+  fail "System-only device filter must not match forwarded traffic"
+fi
+if grep -F $'priority_output_rules' "$NFT_LOG" | grep -Fq 'forkop_rule_client_filter'; then
+  fail "ordinary device filter must not match local output"
+fi
+if grep -Fq '@system' "$NFT_LOG"; then
+  fail "System sentinel must not be emitted into nft rules or sets"
+fi
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tpriority_rules\tiifname\t@forkop_interfaces\tip\tdaddr\t!=\t@localv4\tip\tdaddr\t!=\t198.18.0.0/15\tip\tdaddr\t@forkop_rule_bypass_first_subnets\tcounter\taccept' "bypass priority accept rule"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tpriority_rules\tiifname\t@forkop_interfaces\tip\tdaddr\t!=\t@localv4\tip\tdaddr\t@forkop_rule_wide_proxy_subnets\tmeta\tmark\tset\t0x00100000\tcounter\taccept' "proxy priority capture rule"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tpriority_rules\tiifname\t@forkop_interfaces\tip\tdaddr\t!=\t@localv4\tip\tdaddr\t!=\t198.18.0.0/15\ttcp\tdport\t@forkop_rule_port_bypass_ports\tcounter\taccept' "port-only bypass priority rule"
@@ -444,7 +479,7 @@ cat >"$WORK_DIR/populate-fixture.json" <<'JSON'
       "ip_cidr": [ "198.51.100.1", "203.0.113.0/24", "2001:db8::1" ],
       "source_ip_cidr": [ "192.168.1.60/32" ],
       "ports": [ "80", "443-444" ],
-      "fully_routed_ips": [ "192.168.1.20/32", "192.168.1.20/32", "2001:db8::20/128" ]
+      "fully_routed_ips": [ "192.168.1.20/32", "192.168.1.20/32", "2001:db8::20/128", "@system" ]
     },
     {
       ".name": "inline_no_ports",
@@ -468,7 +503,7 @@ cat >"$WORK_DIR/populate-fixture.json" <<'JSON'
       "enabled": "1",
       "action": "proxy",
       "domain_suffix": [ "example.org" ],
-      "source_ip_cidr": [ "192.168.1.22/32", "2001:db8::22/128" ],
+      "source_ip_cidr": [ "192.168.1.22/32", "2001:db8::22/128", "@system" ],
       "ports": [ "8443" ]
     },
     {
@@ -500,6 +535,12 @@ assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_rule_i
 assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_rule_inline_no_ports_fully_sources\t{ 192.168.1.21/32 }' "populate bypass fully routed source set"
 assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_dns_sources\t{ 192.168.1.21/32,192.168.1.22/32,192.168.1.54/32,192.168.1.53/32 }' "populate source-aware DNS IPv4 sources"
 assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_dns_sources6\t{ 2001:db8::21/128,2001:db8::22/128 }' "populate source-aware DNS IPv6 sources"
+assert_contains "$NFT_LOG" $'nft\tadd\tchain\tinet\tForkopTable\tsystem_dns_redirect\t{ type nat hook output priority -151; policy accept; }' "System DNS output redirect chain"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tsystem_dns_redirect\tmeta\tmark\t!=\t0\treturn' "System DNS keeps sing-box outbounds out of the redirect"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tsystem_dns_redirect\tudp\tdport\t53\tcounter\tredirect\tto\t:1605' "System DNS redirect"
+if grep -Fq '@system' "$NFT_LOG"; then
+  fail "System sentinel must not be emitted into nft sets"
+fi
 if grep -F $'ForkopTable\tforkop_dns_sources\t' "$NFT_LOG" | grep -Fq '192.168.1.60/32'; then
   fail "IP-only source filter should not intercept DNS"
 fi
@@ -553,6 +594,7 @@ cat >"$WORK_DIR/signature-fixture.json" <<'JSON'
       ".type": "section",
       "action": "proxy",
       "ip_cidr": [ "10.0.0.0/8", "192.0.2.1" ],
+      "source_ip_cidr": [ "@system" ],
       "ports_text": "53 853",
       "community_lists": [ "youtube", "cloudflare", "roblox" ]
     }
@@ -586,7 +628,7 @@ proxy
 [rule.default_enabled.ip_cidr]
 10.0.0.0/8,192.0.2.1
 [rule.default_enabled.source_ip_cidr]
-
+@system
 [rule.default_enabled.source_aware_dns]
 1
 [rule.default_enabled.ports]

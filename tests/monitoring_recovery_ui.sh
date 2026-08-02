@@ -28,6 +28,18 @@ for (const source of [fakeIp, ip]) {
     throw new Error('cross-origin diagnostic GET must stay a simple CORS request');
   }
 }
+
+for (const expected of [
+  "const SYSTEM_DEVICE_VALUE = '@system'",
+  "new Set(['system-in', 'system6-in'])",
+  'isSystemConnection(connection)',
+  "primary: _('System')",
+  '? SYSTEM_DEVICE_VALUE',
+]) {
+  if (!monitoring.includes(expected)) {
+    throw new Error(`monitoring must identify System by its dedicated inbound: ${expected}`);
+  }
+}
 NODE
 
 printf 'monitoring recovery UI checks passed\n'

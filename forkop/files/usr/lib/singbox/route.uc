@@ -15,14 +15,27 @@ function bool_value(value) {
     return value === true || value == "1" || value == "true" || value == "yes" || value == "on";
 }
 
+function tproxy_inbounds() {
+    return [
+        runtime_constants.TPROXY_INBOUND_TAG,
+        runtime_constants.TPROXY_INBOUND6_TAG,
+        runtime_constants.SYSTEM_TPROXY_INBOUND_TAG,
+        runtime_constants.SYSTEM_TPROXY_INBOUND6_TAG
+    ];
+}
+
 function config(settings, runtime) {
     let output_network_interface = option(settings, "output_network_interface", "");
     let mwan3_active = type(runtime) == "object" && bool_value(runtime.mwan3_active);
     let direct_server_route = type(runtime) == "object" && bool_value(runtime.direct_server_route);
     let source_aware_dns = type(runtime) == "object" && bool_value(runtime.source_aware_dns);
-    let sniff_inbounds = [ runtime_constants.TPROXY_INBOUND_TAG, runtime_constants.TPROXY_INBOUND6_TAG, runtime_constants.DNS_INBOUND_TAG ];
+    let system_aware_dns = type(runtime) == "object" && bool_value(runtime.system_aware_dns);
+    let sniff_inbounds = tproxy_inbounds();
+    push(sniff_inbounds, runtime_constants.DNS_INBOUND_TAG);
     if (source_aware_dns)
         push(sniff_inbounds, runtime_constants.SOURCE_DNS_INBOUND_TAG);
+    if (system_aware_dns)
+        push(sniff_inbounds, runtime_constants.SYSTEM_DNS_INBOUND_TAG);
     let result = {
         rules: [
             { action: "sniff", inbound: sniff_inbounds },
@@ -40,12 +53,14 @@ function config(settings, runtime) {
 
     if (source_aware_dns)
         push(result.rules, { action: "reject", inbound: runtime_constants.SOURCE_DNS_INBOUND_TAG });
+    if (system_aware_dns)
+        push(result.rules, { action: "reject", inbound: runtime_constants.SYSTEM_DNS_INBOUND_TAG });
     if (output_network_interface != "")
         result.default_interface = output_network_interface;
     if (bool_option(settings, "disable_quic", false))
-        push(result.rules, { action: "reject", inbound: runtime_constants.TPROXY_INBOUND_TAG, protocol: "quic" });
+        push(result.rules, { action: "reject", inbound: tproxy_inbounds(), protocol: "quic" });
     if (bool_option(settings, "bittorrent_direct", false))
-        push(result.rules, { action: "route", inbound: [ runtime_constants.TPROXY_INBOUND_TAG, runtime_constants.TPROXY_INBOUND6_TAG ], protocol: "bittorrent", outbound: runtime_constants.BYPASS_OUTBOUND_TAG });
+        push(result.rules, { action: "route", inbound: tproxy_inbounds(), protocol: "bittorrent", outbound: runtime_constants.BYPASS_OUTBOUND_TAG });
 
     return result;
 }
