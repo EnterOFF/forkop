@@ -1369,10 +1369,13 @@ function add_connections_outbound(config, section, taken) {
     let selector_tags = [];
     let urltest_candidate_tags = [];
     let state = runtime_subscription.new_section_state(section_name);
-    let provider_refs = add_subscription_providers(config, section);
+    let subscription_provider_refs = add_subscription_providers(config, section);
+    let provider_refs = [];
     let manual_provider = add_manual_link_provider(config, section);
     if (manual_provider != null)
         push(provider_refs, manual_provider);
+    for (let provider in subscription_provider_refs)
+        push(provider_refs, provider);
     add_connection_interfaces(config, state, section, taken, selector_tags, urltest_candidate_tags);
     add_connection_tunnels(config, state, section, taken, selector_tags, urltest_candidate_tags);
     add_connection_json_outbounds(config, state, section, taken, selector_tags, urltest_candidate_tags);
@@ -1383,7 +1386,9 @@ function add_connections_outbound(config, section, taken) {
     if (section_has_direct_fallback_level(section))
         state.outboundMetadata.names[runtime_constants.DIRECT_OUTBOUND_TAG] = "Direct";
 
-    state.providerTags = provider_tags(provider_refs);
+    state.providerTags = provider_tags(subscription_provider_refs);
+    if (manual_provider != null)
+        push(state.providerTags, manual_provider.tag);
     state.urltestCandidateTags = unique_string_array(urltest_candidate_tags);
     add_proxy_selector(config, section, selector_tags, urltest_candidate_tags, provider_refs, state);
     if (!atomic_write_json_file(runtime_subscription.section_cache_path(section_name), state))

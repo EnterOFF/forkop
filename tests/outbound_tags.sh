@@ -27,6 +27,7 @@ cat >"$WORK_DIR/runtime-tags.json" <<'JSON'
       "enabled": "1",
       "action": "connection",
       "subscription_urls": [ "https://duplicate.example/sub" ],
+      "selector_proxy_links": [ "socks://127.0.0.1:1080#manual" ],
       "interfaces": [ "wg0" ],
       "outbound_jsons": [
         "{\"type\":\"socks\",\"tag\":\"germany\",\"server\":\"127.0.0.1\",\"server_port\":1201}",
@@ -126,6 +127,11 @@ for (let tag in [
     if (!by_tag[tag])
         die("missing allocated outbound tag: " + tag + "\n");
 
+let proxy_selector = by_tag["proxy-out"];
+let expected_providers = [ "proxy-manual-provider", "proxy-subscription-1-provider" ];
+if (sprintf("%J", proxy_selector.providers || []) != sprintf("%J", expected_providers))
+    die("manual connection URL provider must precede subscription providers in the selector\n");
+
 let json_group = by_tag["json-group"];
 if (length(json_group.outbounds || []) != 2 ||
     json_group.outbounds[0] != "json-hop" || json_group.outbounds[1] != "direct-out-1")
@@ -145,9 +151,12 @@ if (length(regex_group.outbounds || []) != 2)
 for (let tag in [ "germany", "germany-1" ])
     if (index(regex_group.outbounds, tag) < 0)
         die("display-name regex is missing " + tag + "\n");
-if (length(name_group.providers || []) != 1 || name_group.providers[0] != "proxy-subscription-1-provider" ||
+if (sprintf("%J", name_group.providers || []) != sprintf("%J", expected_providers) ||
     index(name_group.include || "", "germany") < 0)
     die("native provider filter was not attached to the URLTest group\n");
+let fallback_level = by_tag["proxy-fallback-pg_main-level-pl_main-out"];
+if (!fallback_level || sprintf("%J", fallback_level.providers || []) != sprintf("%J", expected_providers))
+    die("manual connection URL provider must precede subscription providers in Fallback\n");
 
 let names = proxy_cache.outboundMetadata.names || {};
 for (let tag in [ "germany", "germany-1" ])
@@ -159,6 +168,9 @@ if (names["service-mixed-in-1"] != "service-mixed-in")
     die("system-tag collision suffix leaked into display metadata\n");
 if ((backup_cache.outboundMetadata.names || {})["json-hop-1"] != "json-hop")
     die("cross-section JSON tag allocation or display metadata is invalid\n");
+if (sprintf("%J", proxy_cache.providerTags || []) !=
+    sprintf("%J", [ "proxy-subscription-1-provider", "proxy-manual-provider" ]))
+    die("subscription provider cache order changed\n");
 ' "$runtime_config" "$runtime_config.section-cache/proxy.json" \
   "$runtime_config.section-cache/backup.json" || fail "runtime outbound tag allocation"
 
