@@ -4,6 +4,7 @@
 "require baseclass";
 "require uci";
 "require ui";
+"require dom";
 "require view.forkop.main as main";
 
 // Global settings
@@ -33,30 +34,39 @@
 const UCI_PACKAGE = main.FORKOP_UCI_PACKAGE;
 
 function renderSectionAdd(sectionRef, extra_class) {
-  const el = form.GridSection.prototype.renderSectionAdd.apply(sectionRef, [
-    extra_class,
-  ]);
-  const nameEl = el.querySelector(".cbi-section-create-name");
+  const el = E("div", { class: "cbi-section-create" });
+  const buttonTitle = sectionRef.titleFn("addbtntitle") || _("Add");
+  const nameEl = E("input", {
+    type: "text",
+    class: "cbi-section-create-name",
+    disabled: sectionRef.map.readonly || null,
+  });
+  const button = E(
+    "button",
+    {
+      class: "cbi-button cbi-button-add",
+      title: buttonTitle,
+      click: ui.createHandlerFn(sectionRef, (ev) =>
+        sectionRef.handleAdd(ev, nameEl.value),
+      ),
+      disabled: true,
+    },
+    [buttonTitle],
+  );
+
+  if (extra_class) {
+    el.classList.add(extra_class);
+  }
+
+  el.appendChild(E("div", {}, nameEl));
+  el.appendChild(button);
 
   ui.addValidator(
     nameEl,
-    "uciname",
+    "string",
     true,
     (value) => {
-      const button = el.querySelector(".cbi-section-create > .cbi-button-add");
-      const uciconfig = sectionRef.uciconfig || sectionRef.map.config;
-
-      if (!value) {
-        button.disabled = true;
-        return true;
-      }
-
-      if (uci.get(uciconfig, value)) {
-        button.disabled = true;
-        return _("Expecting: %s").format(_("unique UCI identifier"));
-      }
-
-      button.disabled = null;
+      button.disabled = sectionRef.map.readonly || !value;
       return true;
     },
     "blur",
@@ -64,6 +74,18 @@ function renderSectionAdd(sectionRef, extra_class) {
   );
 
   return el;
+}
+
+function addLabeledSection(sectionRef, label) {
+  const configName = sectionRef.uciconfig || sectionRef.map.config;
+  const sectionId = sectionRef.map.data.add(
+    configName,
+    sectionRef.sectiontype,
+    sectionRef.map.data.createSID(configName),
+  );
+
+  sectionRef.map.data.set(configName, sectionId, "label", label);
+  return sectionId;
 }
 
 function getRuleEditButtonText() {
@@ -87,6 +109,17 @@ function configureGridSection(sectionRef, type, title, addTitle) {
   };
   sectionRef.renderSectionAdd = function (extra_class) {
     return renderSectionAdd(sectionRef, extra_class);
+  };
+  sectionRef.addLabeledSection = function (label) {
+    return addLabeledSection(this, label);
+  };
+  sectionRef.handleAdd = function (_ev, label) {
+    const sectionId = this.addLabeledSection(label);
+    const mapNode = this.getPreviousModalMap();
+    const prevMap = mapNode ? dom.findClassInstance(mapNode) : this.map;
+
+    prevMap.addedSection = sectionId;
+    return this.renderMoreOptionsModal(sectionId);
   };
 
   if (type === "section") {

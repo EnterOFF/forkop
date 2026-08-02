@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-02 04:57+0300\n"
-"PO-Revision-Date: 2026-08-02 04:57+0300\n"
+"POT-Creation-Date: 2026-08-02 02:06+0300\n"
+"PO-Revision-Date: 2026-08-02 02:06+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -64,6 +64,9 @@ msgstr "Активные"
 
 msgid "Active Connections"
 msgstr "Активные соединения"
+
+msgid "Add"
+msgstr "Добавить"
 
 msgid "Add a section"
 msgstr "Добавить секцию"
@@ -694,9 +697,6 @@ msgstr "Исключить серверы с этого уровня по рег
 
 msgid "Exit node"
 msgstr "Выходной узел"
-
-msgid "Expecting: %s"
-msgstr "Ожидается: %s"
 
 msgid "Expires"
 msgstr "Истекает"
@@ -1847,9 +1847,6 @@ msgstr "Настройки URL подписки"
 msgid "Subscriptions updated"
 msgstr "Подписки обновлены"
 
-msgid "System"
-msgstr ""
-
 msgid "System info"
 msgstr "Системная информация"
 
@@ -2026,9 +2023,6 @@ msgstr "Обнаружен лишний NFQWS2 Forkop"
 
 msgid "Unexpected standalone token. Use explicit flags such as --name or --name=value."
 msgstr "Неожиданный отдельный токен. Используйте явные флаги вида --имя или --имя=значение."
-
-msgid "unique UCI identifier"
-msgstr "уникальный идентификатор UCI"
 
 msgid "unknown"
 msgstr "неизвестно"

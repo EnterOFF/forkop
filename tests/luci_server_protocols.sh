@@ -75,6 +75,26 @@ for (const legacy of [
     process.exit(1);
   }
 }
+
+for (const needle of [
+  'sectionRef.map.data.createSID(configName)',
+  'sectionRef.map.data.set(configName, sectionId, "label", label)',
+  'sectionRef.addLabeledSection = function (label)',
+  'this.addLabeledSection(label)',
+  'return this.renderMoreOptionsModal(sectionId)',
+]) {
+  if (!entrySource.includes(needle)) {
+    console.error(`FAIL: labeled section creation contract is missing: ${needle}`);
+    process.exit(1);
+  }
+}
+
+if (entrySource.includes('"uciname"')) {
+  console.error('FAIL: section display names must not use the UCI identifier validator');
+  process.exit(1);
+}
+
+requireSource('const sectionId = this.addLabeledSection(name)');
 NODE
 
 if grep -R -n -E 'singBoxVariant|sing_box_(extended|tiny|tailscale)|GET_SERVER_CAPABILITIES|GetServerCapabilities|Install another build|startsWith\(.install_' \

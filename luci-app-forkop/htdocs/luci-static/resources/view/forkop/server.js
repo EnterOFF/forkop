@@ -2370,8 +2370,7 @@ function configureServerSection(sectionRef) {
   };
 
   sectionRef.handleAdd = function (_ev, name) {
-    const configName = this.uciconfig ?? this.map.config;
-    const sectionId = this.map.data.add(configName, this.sectiontype, name);
+    const sectionId = this.addLabeledSection(name);
     const mapNode = this.getPreviousModalMap();
     const prevMap = mapNode ? dom.findClassInstance(mapNode) : this.map;
 
