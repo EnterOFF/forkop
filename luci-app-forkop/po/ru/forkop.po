@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-02 02:06+0300\n"
-"PO-Revision-Date: 2026-08-02 02:06+0300\n"
+"POT-Creation-Date: 2026-08-03 02:33+0300\n"
+"PO-Revision-Date: 2026-08-03 02:33+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -173,6 +173,9 @@ msgstr "Автоматически проверять наличие новых 
 msgid "Automatically register a device and fill the required fields."
 msgstr "Автоматически зарегистрировать устройство и заполнить необходимые поля."
 
+msgid "Availability timeout"
+msgstr "Таймаут доступности"
+
 msgid "Available actions"
 msgstr "Доступные действия"
 
@@ -181,9 +184,6 @@ msgstr "Backend-проверка завершилась ошибкой: %s"
 
 msgid "Blacklist"
 msgstr "Черный список"
-
-msgid "Blacklist timeout"
-msgstr "Время блокировки"
 
 msgid "Bootstrap DNS"
 msgstr "Bootstrap DNS"
@@ -896,8 +896,8 @@ msgstr "Скрывать значения"
 msgid "Host"
 msgstr "Хост"
 
-msgid "How long a failed server or level is skipped before it can be tried again."
-msgstr "Как долго не проверять отказавшийся сервер или уровень перед повторной попыткой."
+msgid "How often to check availability of the selected server"
+msgstr "Как часто проверять доступность выбранного сервера"
 
 msgid "HTTP error"
 msgstr "Ошибка HTTP"
@@ -964,6 +964,9 @@ msgstr "Прерывать соединения"
 
 msgid "Interrupt connections when URLTest switches the selected server"
 msgstr "Прерывать соединения, когда URLTest переключает выбранный сервер"
+
+msgid "Interrupt existing connections when Fallback switches servers"
+msgstr "Прерывать существующие соединения при переключении сервера Fallback"
 
 msgid "Interval"
 msgstr "Интервал"
@@ -1153,6 +1156,9 @@ msgstr "Совпадение по портам назначения. Испол�
 
 msgid "Maximum packet size for this tunnel. Leave empty to use the default value."
 msgstr "Максимальный размер пакета для этого туннеля. Оставьте пустым для значения по умолчанию."
+
+msgid "Maximum time allowed for one server health check"
+msgstr "Максимальное время проверки доступности одного сервера"
 
 msgid "Memory Usage"
 msgstr "Использование памяти"
@@ -1814,6 +1820,9 @@ msgstr "Запустить Forkop"
 msgid "Stop Forkop"
 msgstr "Остановить Forkop"
 
+msgid "Stop health checks when the group is not used"
+msgstr "Останавливать проверки доступности, когда группа не используется"
+
 msgid "Stop health checks when the group is not used. Use sing-box duration format like 1d, 12h or 30m."
 msgstr "Останавливать проверки, когда группа не используется. Используйте формат длительности sing-box: 1d, 12h или 30m."
 
@@ -2068,6 +2077,9 @@ msgstr "Отдано"
 
 msgid "URL must use one of the following protocols:"
 msgstr "URL должен использовать один из следующих протоколов:"
+
+msgid "URL used to check whether each server is available"
+msgstr "URL для проверки доступности каждого сервера"
 
 msgid "URL used to test server latency"
 msgstr "URL который будет использоваться для тестирования задержки серверов"

@@ -15,6 +15,10 @@ export namespace ClashAPI {
     url?: string;
     interval?: string;
     idle_timeout?: string;
+    levels?: Array<{
+      tag?: string;
+      outbounds?: string[];
+    }>;
   }
 
   export interface Proxies {
@@ -184,7 +188,11 @@ export namespace Forkop {
     displayName: string;
     selectedCode?: string;
     selectedName?: string;
-    blacklistTimeout?: string;
+    healthCheckUrl?: string;
+    healthCheckInterval?: string;
+    healthCheckTimeout?: string;
+    idleTimeout?: string;
+    interruptExistConnections?: boolean;
     outbounds: FallbackMember[];
   }
 
@@ -329,7 +337,9 @@ export namespace Forkop {
     group?: string;
     order?: string;
     direct?: '0' | '1';
-    blacklist_timeout?: string;
+    health_check_url?: string;
+    health_check_interval?: string;
+    health_check_timeout?: string;
     country?: string[];
     server_name?: string[];
     regex?: string[];

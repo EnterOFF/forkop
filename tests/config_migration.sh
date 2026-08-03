@@ -490,7 +490,6 @@ assert(JSON.parse(legacyOutboundCollision.outbound_jsons[1]).tag === 'legacy-out
 const legacyPriority = config.fallback_group[0];
 assert(!config.priority_group && !config.priority_level, 'legacy Priority UCI section types should be removed');
 assert(config.fallback_level.every(level => level['.type'] === 'fallback_level'), 'legacy Priority levels should migrate to fallback_level');
-assert(legacyPriority.blacklist_timeout === '15s', 'native Priority fallback should preserve the old recovery timeout');
 for (const key of [
   'health_url',
   'active_check_interval',
@@ -500,6 +499,7 @@ for (const key of [
   'switch_to_faster_same_priority',
   'fastest_check_interval',
   'interrupt_exist_connections',
+  'blacklist_timeout',
 ]) absent(legacyPriority, key, 'legacy-priority');
 
 const servers = Object.fromEntries(config.server.map(server => [server['.name'], server]));
@@ -1139,11 +1139,9 @@ fi
 if grep -Eq 'forkop\.subscription\.(include_urltest_groups|hide_urltest_group_outbounds|hide_detour_outbounds)=' "$WORK_DIR/cache-cleanup.state"; then
   fail "leaf subscription migration must remove provider group visibility options"
 fi
-grep -Fxq 'forkop.priority.blacklist_timeout=45s' "$WORK_DIR/cache-cleanup.state" ||
-  fail "native migration must preserve the old Priority recovery timeout"
 grep -Fxq 'forkop.priority=fallback_group' "$WORK_DIR/cache-cleanup.state" ||
   fail "UCI tag migration must rename priority_group to fallback_group"
-if grep -Eq 'forkop\.priority\.(recovery_check_interval|health_url|pick_fastest)=' "$WORK_DIR/cache-cleanup.state"; then
+if grep -Eq 'forkop\.priority\.(recovery_check_interval|health_url|pick_fastest|blacklist_timeout)=' "$WORK_DIR/cache-cleanup.state"; then
   fail "native migration must remove obsolete Priority worker settings"
 fi
 grep -Fxq 'forkop.naive.naive_network=tcp' "$WORK_DIR/cache-cleanup.state" ||

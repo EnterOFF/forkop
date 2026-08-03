@@ -154,8 +154,10 @@ for (let tag in [ "germany", "germany-1" ])
 if (sprintf("%J", name_group.providers || []) != sprintf("%J", expected_providers) ||
     index(name_group.include || "", "germany") < 0)
     die("native provider filter was not attached to the URLTest group\n");
-let fallback_level = by_tag["proxy-fallback-pg_main-level-pl_main-out"];
-if (!fallback_level || sprintf("%J", fallback_level.providers || []) != sprintf("%J", expected_providers))
+let fallback_group = by_tag["proxy-fallback-pg_main-out"];
+let fallback_level = fallback_group && (fallback_group.levels || [])[0];
+if (!fallback_level || fallback_level.tag != "pl_main" ||
+    sprintf("%J", fallback_level.providers || []) != sprintf("%J", expected_providers))
     die("manual connection URL provider must precede subscription providers in Fallback\n");
 
 let names = proxy_cache.outboundMetadata.names || {};

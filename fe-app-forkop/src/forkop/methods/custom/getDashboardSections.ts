@@ -52,7 +52,11 @@ type FallbackCacheGroup = {
   tag?: string;
   section?: string;
   displayName?: string;
-  blacklist_timeout?: string;
+  url?: string;
+  interval?: string;
+  timeout?: string;
+  idle_timeout?: string;
+  interrupt_exist_connections?: boolean;
   pin_dashboard?: boolean;
   hide_dashboard_members?: boolean;
   outbounds?: string[];
@@ -86,7 +90,11 @@ type FallbackConfig = {
   displayName: string;
   pinDashboard: boolean;
   hideDashboardMembers: boolean;
-  blacklistTimeout: string;
+  healthCheckUrl: string;
+  healthCheckInterval: string;
+  healthCheckTimeout: string;
+  idleTimeout: string;
+  interruptExistConnections: boolean;
   levels: FallbackLevelConfig[];
 };
 
@@ -316,7 +324,11 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
 
         settings[groupId] = {
           name: item.name,
-          blacklist_timeout: item.blacklist_timeout,
+          health_check_url: item.health_check_url,
+          health_check_interval: item.health_check_interval,
+          health_check_timeout: item.health_check_timeout,
+          idle_timeout: item.idle_timeout,
+          interrupt_exist_connections: item.interrupt_exist_connections,
           pin_dashboard: item.pin_dashboard,
           hide_dashboard_members: item.hide_dashboard_members,
           levels,
@@ -642,16 +654,6 @@ function getFallbackTag(sectionName: string, id: string) {
   return getOutboundTagBySection(`${sectionName}-fallback-${id}`);
 }
 
-function getFallbackLevelTag(
-  sectionName: string,
-  groupId: string,
-  levelId: string,
-) {
-  return getOutboundTagBySection(
-    `${sectionName}-fallback-${groupId}-level-${levelId}`,
-  );
-}
-
 function getUrlTestDisplayName(
   section: Forkop.ConfigSection,
   id: string,
@@ -751,7 +753,27 @@ function getFallbackConfigs(section: Forkop.ConfigSection): FallbackConfig[] {
         'hide_dashboard_members',
         false,
       ),
-      blacklistTimeout: itemSettingString(settings, 'blacklist_timeout', '1m'),
+      healthCheckUrl: itemSettingString(
+        settings,
+        'health_check_url',
+        'https://www.gstatic.com/generate_204',
+      ),
+      healthCheckInterval: itemSettingString(
+        settings,
+        'health_check_interval',
+        '5m',
+      ),
+      healthCheckTimeout: itemSettingString(
+        settings,
+        'health_check_timeout',
+        '5s',
+      ),
+      idleTimeout: itemSettingString(settings, 'idle_timeout', '5m'),
+      interruptExistConnections: itemSettingBoolean(
+        settings,
+        'interrupt_exist_connections',
+        true,
+      ),
       levels,
     };
   });
@@ -907,28 +929,50 @@ function buildFallbackInfo({
   exportableProviderTags: string[];
   outboundMetadata?: Forkop.GetOutboundMetadata;
 }): Forkop.FallbackInfo {
-  const selectedLevelTag = entry?.value.now || '';
+  const selectedCode = entry?.value.now || '';
   const cacheLevels = Array.isArray(groupCache?.levels)
     ? groupCache.levels
     : [];
   const configLevelById = new Map(
     config.levels.map((level) => [level.id, level]),
   );
+  const configuredLevels = cacheLevels.length ? cacheLevels : config.levels;
+  const runtimeLevels = Array.isArray(entry?.value.levels)
+    ? entry.value.levels
+    : [];
   const levels = (
-    cacheLevels.length
-      ? cacheLevels.map((level, index): FallbackLevelConfig => {
-          const id = `${level.id || ''}`;
-          const configLevel = id ? configLevelById.get(id) : undefined;
+    runtimeLevels.length
+      ? runtimeLevels.map((runtimeLevel, index): FallbackLevelConfig => {
+          const runtimeTag = `${runtimeLevel.tag || ''}`;
+          const metadata =
+            configuredLevels.find(
+              (level) => level.tag === runtimeTag || level.id === runtimeTag,
+            ) || configuredLevels[index];
+          const id = `${metadata?.id || runtimeTag || `level-${index + 1}`}`;
+          const configLevel = configLevelById.get(id);
 
           return {
-            id: id || configLevel?.id || `level-${index + 1}`,
-            tag:
-              level.tag ||
-              getFallbackLevelTag(
-                config.sectionName,
-                config.id,
-                id || configLevel?.id || `level-${index + 1}`,
-              ),
+            id,
+            tag: runtimeTag || metadata?.tag || id,
+            displayName:
+              metadata?.displayName ||
+              configLevel?.displayName ||
+              `${index + 1}`,
+            order:
+              typeof metadata?.order === 'number' &&
+              Number.isFinite(metadata.order)
+                ? metadata.order
+                : (configLevel?.order ?? index),
+            outbounds: uniqueCodes(runtimeLevel.outbounds || []),
+          };
+        })
+      : configuredLevels.map((level, index) => {
+          const id = `${level.id || `level-${index + 1}`}`;
+          const configLevel = configLevelById.get(id);
+
+          return {
+            id,
+            tag: level.tag || id,
             displayName:
               level.displayName || configLevel?.displayName || `${index + 1}`,
             order:
@@ -938,23 +982,13 @@ function buildFallbackInfo({
             outbounds: uniqueCodes(level.outbounds || []),
           };
         })
-      : config.levels.map((level) => ({
-          ...level,
-          tag: getFallbackLevelTag(config.sectionName, config.id, level.id),
-          outbounds: uniqueCodes(level.outbounds || []),
-        }))
   ).sort((left, right) =>
     left.order === right.order
       ? left.id.localeCompare(right.id)
       : left.order - right.order,
   );
   const outbounds = levels.flatMap((level, levelIndex) => {
-    const levelEntry = level.tag ? proxyByCode.get(level.tag) : undefined;
-    const levelSelectedCode =
-      level.tag === selectedLevelTag ? levelEntry?.value.now || '' : '';
-    const members = uniqueCodes(
-      levelEntry?.value.all || level.outbounds || [],
-    ).map((childCode) => {
+    const members = uniqueCodes(level.outbounds || []).map((childCode) => {
       const childEntry = proxyByCode.get(childCode);
       const link = manualLinkByCode.get(childCode) || '';
       const canCopyLink =
@@ -975,7 +1009,7 @@ function buildFallbackInfo({
         ),
         latency: childEntry?.value?.history?.[0]?.delay || 0,
         type: getOutboundDisplayType(childCode, childEntry, outboundMetadata),
-        selected: levelSelectedCode === childCode,
+        selected: selectedCode === childCode,
         link,
         canCopyLink,
         levelIndex,
@@ -986,8 +1020,6 @@ function buildFallbackInfo({
 
     return members;
   });
-  const selectedCode =
-    outbounds.find((outbound) => outbound.selected)?.code || '';
   const selectedName =
     outbounds.find((outbound) => outbound.code === selectedCode)?.displayName ||
     selectedCode;
@@ -997,7 +1029,13 @@ function buildFallbackInfo({
     displayName: groupCache?.displayName || config.displayName,
     selectedCode: selectedCode || undefined,
     selectedName: selectedName || undefined,
-    blacklistTimeout: groupCache?.blacklist_timeout || config.blacklistTimeout,
+    healthCheckUrl: groupCache?.url || config.healthCheckUrl,
+    healthCheckInterval: groupCache?.interval || config.healthCheckInterval,
+    healthCheckTimeout: groupCache?.timeout || config.healthCheckTimeout,
+    idleTimeout: groupCache?.idle_timeout || config.idleTimeout,
+    interruptExistConnections:
+      groupCache?.interrupt_exist_connections ??
+      config.interruptExistConnections,
     outbounds,
   };
 }
@@ -1047,20 +1085,18 @@ function buildProxyGroupOutbounds(
       );
     }
   });
-  fallbackEntries.forEach(({ config }) => {
+  fallbackEntries.forEach(({ config, entry }) => {
     const cache = fallbackGroups[config.code];
     if (!config.hideDashboardMembers && !cache?.hide_dashboard_members) {
       return;
     }
 
-    const levels = cache?.levels?.length ? cache.levels : config.levels;
-    levels.forEach((level, index) => {
-      const id = `${level.id || config.levels[index]?.id || `level-${index + 1}`}`;
-      const tag =
-        level.tag || getFallbackLevelTag(config.sectionName, config.id, id);
-      const liveMembers = proxyByCode.get(tag)?.value.all || [];
-      hideMembers(liveMembers.length ? liveMembers : level.outbounds || []);
-    });
+    const levels = entry?.value.levels?.length
+      ? entry.value.levels
+      : cache?.levels?.length
+        ? cache.levels
+        : config.levels;
+    levels.forEach((level) => hideMembers(level.outbounds || []));
   });
   const builtInUrltestCode = urlTestCodes[0] || '';
   const selectorFallbackCodes = uniqueCodes([

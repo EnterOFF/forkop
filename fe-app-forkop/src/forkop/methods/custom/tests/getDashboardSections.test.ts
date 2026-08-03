@@ -57,6 +57,7 @@ function proxy(
     url: options.url,
     interval: options.interval,
     idle_timeout: options.idle_timeout,
+    levels: options.levels,
   };
 }
 
@@ -96,7 +97,11 @@ function fallbackGroup(
     '.type': 'fallback_group',
     section: 'main',
     name: 'Codex Fallback',
-    blacklist_timeout: '45s',
+    health_check_url: 'https://health.example/generate_204',
+    health_check_interval: '10s',
+    health_check_timeout: '3s',
+    idle_timeout: '20m',
+    interrupt_exist_connections: '0',
     pin_dashboard: '1',
     ...options,
   };
@@ -332,7 +337,6 @@ describe('getDashboardSections', () => {
   it('hides overlapping URLTest and Fallback members but keeps every group', async () => {
     const urlTestCode = 'main-urltest-fast-out';
     const fallbackCode = 'main-fallback-fallback-out';
-    const fallbackLevelCode = 'main-fallback-fallback-level-primary-out';
     const nodeCodes = ['node-a', 'node-b', 'node-c', 'node-d'];
 
     mocks.getConfigSections.mockResolvedValue([
@@ -367,12 +371,9 @@ describe('getDashboardSections', () => {
             all: ['node-a', 'node-b'],
           }),
           [fallbackCode]: proxy('Fallback', {
-            all: [fallbackLevelCode],
-            now: fallbackLevelCode,
-          }),
-          [fallbackLevelCode]: proxy('Fallback', {
             all: ['node-c', 'node-d'],
             now: 'node-c',
+            levels: [{ tag: 'primary', outbounds: ['node-c', 'node-d'] }],
           }),
           ...Object.fromEntries(
             nodeCodes.map((code) => [code, proxy('VLESS', { name: code })]),
@@ -481,21 +482,12 @@ describe('getDashboardSections', () => {
           }),
           'main-fallback-pg_main-out': proxy('Fallback', {
             name: 'main-fallback-pg_main-out',
-            now: 'main-fallback-pg_main-level-pl_de-out',
-            all: [
-              'main-fallback-pg_main-level-pl_de-out',
-              'main-fallback-pg_main-level-pl_nl-out',
-            ],
-          }),
-          'main-fallback-pg_main-level-pl_de-out': proxy('Fallback', {
-            name: 'main-fallback-pg_main-level-pl_de-out',
             now: 'main-2-out',
-            all: ['main-2-out'],
-          }),
-          'main-fallback-pg_main-level-pl_nl-out': proxy('Fallback', {
-            name: 'main-fallback-pg_main-level-pl_nl-out',
-            now: 'main-1-out',
-            all: ['main-1-out'],
+            all: ['main-2-out', 'main-1-out'],
+            levels: [
+              { tag: 'pl_de', outbounds: ['main-2-out'] },
+              { tag: 'pl_nl', outbounds: ['main-1-out'] },
+            ],
           }),
         },
       },
@@ -511,22 +503,23 @@ describe('getDashboardSections', () => {
         fallbackGroups: {
           'main-fallback-pg_main-out': {
             displayName: 'Codex Fallback',
-            blacklist_timeout: '45s',
-            outbounds: [
-              'main-fallback-pg_main-level-pl_de-out',
-              'main-fallback-pg_main-level-pl_nl-out',
-            ],
+            url: 'https://health.example/generate_204',
+            interval: '10s',
+            timeout: '3s',
+            idle_timeout: '20m',
+            interrupt_exist_connections: false,
+            outbounds: ['main-2-out', 'main-1-out'],
             levels: [
               {
                 id: 'pl_de',
-                tag: 'main-fallback-pg_main-level-pl_de-out',
+                tag: 'pl_de',
                 displayName: 'Germany',
                 order: 0,
                 outbounds: [],
               },
               {
                 id: 'pl_nl',
-                tag: 'main-fallback-pg_main-level-pl_nl-out',
+                tag: 'pl_nl',
                 displayName: 'Netherlands',
                 order: 1,
                 outbounds: [],
@@ -552,7 +545,11 @@ describe('getDashboardSections', () => {
     expect(fallback?.fallbackInfo).toMatchObject({
       selectedCode: 'main-2-out',
       selectedName: 'Second cached',
-      blacklistTimeout: '45s',
+      healthCheckUrl: 'https://health.example/generate_204',
+      healthCheckInterval: '10s',
+      healthCheckTimeout: '3s',
+      idleTimeout: '20m',
+      interruptExistConnections: false,
     });
     expect(
       fallback?.fallbackInfo?.outbounds.map((item) => ({

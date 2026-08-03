@@ -19,6 +19,7 @@ subscription_header_editor="$(sed -n '/^function subscriptionHeaderValues(/,/^fu
 server_filter_options="$(sed -n '/^function addServerFilterOptions(/,/^function urlTestUrlChoices(/p' "$SECTION_JS")"
 urltest_options="$(sed -n '/^function addUrlTestItemOptions(/,/^function fallbackLevelSettingsForValidation(/p' "$SECTION_JS")"
 fallback_options="$(sed -n '/^function addFallbackLevelItemOptions(/,/^function addFallbackGroupItemOptions(/p' "$SECTION_JS")"
+fallback_group_options="$(sed -n '/^function addFallbackGroupItemOptions(/,/^function settingValueEquals(/p' "$SECTION_JS")"
 create_section="$(sed -n '/^function createSectionContent(/,/^function loadSectionTableOptions(/p' "$SECTION_JS")"
 live_choices="$(sed -n '/^function configureLiveDynamicListChoices(/,/^function currentOutboundNameChoices(/p' "$SECTION_JS")"
 close_all_styles="$(sed -n '/^\.fkp_monitoring-page #monitoring-close-all\.btn\.fkp_monitoring-page__icon-button:hover:not(:disabled) {$/,/^}$/p' "$MONITORING_STYLES")"
@@ -28,6 +29,26 @@ const assert = require('assert');
 const fs = require('fs');
 
 const source = fs.readFileSync(process.argv[2], 'utf8');
+const fallbackGroupOptions = source.match(
+  /function addFallbackGroupItemOptions\([\s\S]*?\n}\n\nfunction settingValueEquals\(/,
+);
+assert(fallbackGroupOptions, 'Fallback group options not found');
+const fallbackSource = fallbackGroupOptions[0];
+const fallbackDefault = (name) => {
+  const match = fallbackSource.match(
+    new RegExp(`"${name}",[\\s\\S]*?\\);\\n  o\\.default = "([^"]+)";`),
+  );
+  assert(match, `Fallback default not found: ${name}`);
+  return match[1];
+};
+assert.strictEqual(fallbackDefault('health_check_interval'), '5m');
+assert.strictEqual(fallbackDefault('health_check_timeout'), '5s');
+assert.strictEqual(fallbackDefault('idle_timeout'), '5m');
+assert.strictEqual(fallbackDefault('interrupt_exist_connections'), '1');
+assert.match(
+  fallbackSource,
+  /urlTestUrlChoices\(\)\.forEach\(\(value\) => o\.value\(value\)\);/,
+);
 const helper = source.match(
   /function syncServerFilterFields\([\s\S]*?\n}\n\nfunction addServerFilterOptions\(/,
 );
@@ -224,6 +245,21 @@ if grep -Eq 'include_countries|exclude_countries|countryChoices' <<<"$server_fil
 fi
 grep -Fq 'Add at least one Fallback level' "$SECTION_JS" ||
   fail "Fallback settings must require at least one level"
+for option in health_check_url health_check_interval health_check_timeout idle_timeout interrupt_exist_connections; do
+  grep -Fq "\"$option\"" <<<"$fallback_group_options" ||
+    fail "Fallback settings are missing $option"
+done
+grep -Fq 'health_check_interval: "5m"' "$SECTION_JS" ||
+  fail "Fallback health interval default must match Mihomo"
+grep -Fq 'health_check_timeout: "5s"' "$SECTION_JS" ||
+  fail "Fallback health timeout default must match Mihomo"
+grep -Fq 'idle_timeout: "5m"' "$SECTION_JS" ||
+  fail "Fallback idle timeout must preserve Mihomo lazy behavior"
+grep -Fq 'interrupt_exist_connections: "1"' "$SECTION_JS" ||
+  fail "Fallback connection interruption must be enabled by default"
+if grep -Fq 'blacklist_timeout' <<<"$fallback_group_options"; then
+  fail "Fallback settings still expose blacklist_timeout"
+fi
 grep -Fq 'defaults.name = `Priority #${number}`;' "$SECTION_JS" ||
   fail "new Fallback levels must receive sequential Priority names"
 if grep -Eq 'dashboard_(filter|include|exclude|detect)|Servers on dashboard|addDashboardServerFilterOptions' "$SECTION_JS"; then

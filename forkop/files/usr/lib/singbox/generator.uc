@@ -892,10 +892,6 @@ function fallback_outbound_tag(section_name, group_id) {
     return outbound_tag(section_name + "-fallback-" + as_string(group_id));
 }
 
-function fallback_level_outbound_tag(section_name, group_id, level_id) {
-    return outbound_tag(section_name + "-fallback-" + as_string(group_id) + "-level-" + as_string(level_id));
-}
-
 function provider_tags(provider_refs) {
     let result = [];
     for (let provider in array_or_empty(provider_refs))
@@ -957,45 +953,40 @@ function add_fallback_group_outbound(config, section, group_id, urltest_candidat
     let levels = fallback_levels_with_outbounds(group_id, urltest_candidate_tags, state);
     let fallback_tag = fallback_outbound_tag(section_name, group_id);
     let display_name = connections.fallback_group_display_name(section, group_id);
-    let blacklist_timeout = connections.fallback_group_blacklist_timeout(section, group_id);
     let providers = provider_tags(provider_refs);
-    let higher_level_tags = [];
     let generated_levels = [];
-
-    for (let level in levels) {
-        let level_tag = fallback_level_outbound_tag(section_name, group_id, level.id);
-        let level_outbound = {
-            type: "fallback",
-            tag: level_tag,
-            outbounds: level.outbounds,
-            blacklist_timeout
-        };
-        if (level.mode != "direct" && length(providers) > 0) {
-            level_outbound.providers = providers;
-            merge_object(level_outbound, fallback_level_provider_filter(group_id, level.id));
-        }
-        if (length(higher_level_tags) > 0) {
-            level_outbound.exclude_group_members = [];
-            for (let higher_tag in higher_level_tags)
-                push(level_outbound.exclude_group_members, higher_tag);
-        }
-
-        level.tag = level_tag;
-        if (length(level.outbounds) == 0 && length(level_outbound.providers || []) == 0)
-            continue;
-
-        push(config.outbounds, level_outbound);
-        runtime_subscription.remember_outbound_name(state, level_tag, level.displayName);
-        push(generated_levels, level);
-        push(higher_level_tags, level_tag);
-    }
-
+    let flattened_outbounds = [];
+    let has_members = false;
     let outbound = {
         type: "fallback",
         tag: fallback_tag,
-        outbounds: higher_level_tags,
-        blacklist_timeout
+        levels: []
     };
+
+    for (let level in levels) {
+        let native_level = {
+            tag: level.id,
+            outbounds: level.outbounds
+        };
+        if (level.mode != "direct" && length(providers) > 0) {
+            native_level.providers = providers;
+            merge_object(native_level, fallback_level_provider_filter(group_id, level.id));
+        }
+
+        level.tag = level.id;
+        if (length(native_level.outbounds) > 0 || length(native_level.providers || []) > 0)
+            has_members = true;
+        for (let tag_name in level.outbounds)
+            push(flattened_outbounds, tag_name);
+        push(outbound.levels, native_level);
+        push(generated_levels, level);
+    }
+
+    outbound.url = connections.fallback_group_health_check_url(section, group_id);
+    outbound.interval = connections.fallback_group_health_check_interval(section, group_id);
+    outbound.timeout = connections.fallback_group_health_check_timeout(section, group_id);
+    outbound.idle_timeout = connections.fallback_group_idle_timeout(section, group_id);
+    outbound.interrupt_exist_connections = connections.fallback_group_interrupt_exist_connections(section, group_id);
 
     runtime_subscription.remember_outbound_name(state, fallback_tag, display_name);
     runtime_subscription.remember_fallback_group(state, fallback_tag, {
@@ -1003,14 +994,18 @@ function add_fallback_group_outbound(config, section, group_id, urltest_candidat
         tag: fallback_tag,
         section: section_name,
         displayName: display_name,
-        blacklist_timeout,
+        url: outbound.url,
+        interval: outbound.interval,
+        timeout: outbound.timeout,
+        idle_timeout: outbound.idle_timeout,
+        interrupt_exist_connections: outbound.interrupt_exist_connections,
         pin_dashboard: connections.fallback_group_pin_dashboard(section, group_id),
         hide_dashboard_members: connections.fallback_group_hide_dashboard_members(section, group_id),
-        outbounds: higher_level_tags,
+        outbounds: flattened_outbounds,
         levels: generated_levels
     });
 
-    if (length(higher_level_tags) == 0)
+    if (!has_members)
         return {
             tag: "",
             outbounds: []
@@ -1019,7 +1014,7 @@ function add_fallback_group_outbound(config, section, group_id, urltest_candidat
     push(config.outbounds, outbound);
     return {
         tag: fallback_tag,
-        outbounds: higher_level_tags
+        outbounds: flattened_outbounds
     };
 }
 

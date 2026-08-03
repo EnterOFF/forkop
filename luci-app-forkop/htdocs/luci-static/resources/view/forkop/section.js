@@ -2466,7 +2466,11 @@ function urlTestChildDefaults() {
 function fallbackGroupSettingsKeys() {
   return [
     "name",
-    "blacklist_timeout",
+    "health_check_url",
+    "health_check_interval",
+    "health_check_timeout",
+    "idle_timeout",
+    "interrupt_exist_connections",
     "pin_dashboard",
     "hide_dashboard_members",
   ];
@@ -2475,7 +2479,11 @@ function fallbackGroupSettingsKeys() {
 function defaultFallbackGroupSettings() {
   return {
     name: "",
-    blacklist_timeout: "1m",
+    health_check_url: "https://www.gstatic.com/generate_204",
+    health_check_interval: "5m",
+    health_check_timeout: "5s",
+    idle_timeout: "5m",
+    interrupt_exist_connections: "1",
     pin_dashboard: "1",
     hide_dashboard_members: "0",
   };
@@ -2483,7 +2491,11 @@ function defaultFallbackGroupSettings() {
 
 function fallbackGroupChildDefaults() {
   return {
-    blacklist_timeout: "1m",
+    health_check_url: "https://www.gstatic.com/generate_204",
+    health_check_interval: "5m",
+    health_check_timeout: "5s",
+    idle_timeout: "5m",
+    interrupt_exist_connections: "1",
     pin_dashboard: "1",
     hide_dashboard_members: "0",
   };
@@ -2961,17 +2973,63 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
 
   o = itemSection.option(
     form.Value,
-    "blacklist_timeout",
-    _("Blacklist timeout"),
-    _(
-      "How long a failed server or level is skipped before it can be tried again.",
-    ),
+    "health_check_url",
+    _("Check URL"),
+    _("URL used to check whether each server is available"),
   );
-  o.default = "1m";
+  o.default = "https://www.gstatic.com/generate_204";
+  o.rmempty = false;
+  urlTestUrlChoices().forEach((value) => o.value(value));
+  o.validate = function (_itemId, value) {
+    return validateUrlTestUrl(value);
+  };
+
+  o = itemSection.option(
+    form.Value,
+    "health_check_interval",
+    _("Check interval"),
+    _("How often to check availability of the selected server"),
+  );
+  o.default = "5m";
   o.rmempty = false;
   o.validate = function (_itemId, value) {
     return validateRequiredSingBoxDuration(value);
   };
+
+  o = itemSection.option(
+    form.Value,
+    "health_check_timeout",
+    _("Availability timeout"),
+    _(
+      "Maximum time allowed for one server health check",
+    ),
+  );
+  o.default = "5s";
+  o.rmempty = false;
+  o.validate = function (_itemId, value) {
+    return validateRequiredSingBoxDuration(value);
+  };
+
+  o = itemSection.option(
+    form.Value,
+    "idle_timeout",
+    _("Idle timeout"),
+    _("Stop health checks when the group is not used"),
+  );
+  o.default = "5m";
+  o.rmempty = false;
+  o.validate = function (_itemId, value) {
+    return validateRequiredSingBoxDuration(value);
+  };
+
+  o = itemSection.option(
+    form.Flag,
+    "interrupt_exist_connections",
+    _("Interrupt connections"),
+    _("Interrupt existing connections when Fallback switches servers"),
+  );
+  o.default = "1";
+  o.rmempty = false;
 
   o = itemSection.option(
     form.Flag,

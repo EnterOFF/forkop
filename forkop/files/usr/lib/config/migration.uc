@@ -1307,6 +1307,7 @@ const OBSOLETE_PRIORITY_GROUP_OPTIONS = [
     "active_check_interval",
     "check_timeout",
     "recovery_check_interval",
+    "blacklist_timeout",
     "pick_fastest",
     "switch_to_faster_same_priority",
     "fastest_check_interval",
@@ -1320,10 +1321,6 @@ function use_native_fallbacks(ctx) {
     set_option_if_missing(ctx, settings, "dns_fallback_strategy", "sequential");
 
     for (let group in ctx.model.priority_group || []) {
-        let blacklist_timeout = option(group, "blacklist_timeout", "");
-        if (blacklist_timeout == "")
-            blacklist_timeout = option(group, "recovery_check_interval", "1m") || "1m";
-        set_option(ctx, group, "blacklist_timeout", blacklist_timeout);
         for (let key in OBSOLETE_PRIORITY_GROUP_OPTIONS)
             delete_option(ctx, group, key);
     }

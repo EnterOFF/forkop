@@ -903,9 +903,29 @@ function fallback_group_display_name(section, value) {
     return child != null ? child_option(child, "name", as_string(value)) : as_string(value);
 }
 
-function fallback_group_blacklist_timeout(section, value) {
+function fallback_group_health_check_url(section, value) {
     let child = fallback_group_child(section, value);
-    return child != null ? child_option(child, "blacklist_timeout", "1m") : "1m";
+    return child != null ? child_option(child, "health_check_url", "https://www.gstatic.com/generate_204") : "https://www.gstatic.com/generate_204";
+}
+
+function fallback_group_health_check_interval(section, value) {
+    let child = fallback_group_child(section, value);
+    return child != null ? child_option(child, "health_check_interval", "5m") : "5m";
+}
+
+function fallback_group_health_check_timeout(section, value) {
+    let child = fallback_group_child(section, value);
+    return child != null ? child_option(child, "health_check_timeout", "5s") : "5s";
+}
+
+function fallback_group_idle_timeout(section, value) {
+    let child = fallback_group_child(section, value);
+    return child != null ? child_option(child, "idle_timeout", "5m") : "5m";
+}
+
+function fallback_group_interrupt_exist_connections(section, value) {
+    let child = fallback_group_child(section, value);
+    return child != null ? child_bool(child, "interrupt_exist_connections", true) : true;
 }
 
 function fallback_group_pin_dashboard(section, value) {
@@ -1058,7 +1078,11 @@ return {
     fallback_group_settings,
     fallback_levels,
     fallback_group_display_name,
-    fallback_group_blacklist_timeout,
+    fallback_group_health_check_url,
+    fallback_group_health_check_interval,
+    fallback_group_health_check_timeout,
+    fallback_group_idle_timeout,
+    fallback_group_interrupt_exist_connections,
     fallback_group_pin_dashboard,
     fallback_group_hide_dashboard_members,
     fallback_level_display_name,

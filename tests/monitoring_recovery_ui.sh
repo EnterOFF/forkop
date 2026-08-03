@@ -33,7 +33,7 @@ for (const expected of [
   "const SYSTEM_DEVICE_VALUE = '@system'",
   "new Set(['system-in', 'system6-in'])",
   'isSystemConnection(connection)',
-  "primary: _('System')",
+  "primary: 'System'",
   '? SYSTEM_DEVICE_VALUE',
 ]) {
   if (!monitoring.includes(expected)) {

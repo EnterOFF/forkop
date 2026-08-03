@@ -57,7 +57,7 @@ for (const expected of ['"require uci"', '.load("dhcp")', 'uci.sections("dhcp", 
 }
 for (const expected of [
   'const SYSTEM_DEVICE_VALUE = "@system"',
-  'choices[SYSTEM_DEVICE_VALUE] = _("System")',
+  'choices[SYSTEM_DEVICE_VALUE] = "System"',
   'normalizedName.toLowerCase() === "system"',
   '"%s (%s)".format(normalizedName, normalizedIp)',
 ]) {

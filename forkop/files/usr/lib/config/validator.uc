@@ -1046,7 +1046,15 @@ function validate_fallback_group(section, group_id) {
     if (trim(connections.fallback_group_display_name(section, group_id)) == "")
         fail_validation("Fallback group '" + group_id + "' in rule '" + name + "' has no display name. Aborted.");
 
-    validate_required_duration_option(connections.fallback_group_blacklist_timeout(section, group_id), "rule." + name + ".fallback." + group_id + ".blacklist_timeout");
+    let option_prefix = "rule." + name + ".fallback." + group_id + ".";
+    let health_check_interval = connections.fallback_group_health_check_interval(section, group_id);
+    let idle_timeout = connections.fallback_group_idle_timeout(section, group_id);
+    validate_http_url_option(connections.fallback_group_health_check_url(section, group_id), option_prefix + "health_check_url");
+    validate_required_duration_option(health_check_interval, option_prefix + "health_check_interval");
+    validate_required_duration_option(connections.fallback_group_health_check_timeout(section, group_id), option_prefix + "health_check_timeout");
+    validate_required_duration_option(idle_timeout, option_prefix + "idle_timeout");
+    if (duration_to_seconds_value(health_check_interval) > duration_to_seconds_value(idle_timeout))
+        fail_validation("Fallback group '" + group_id + "' in rule '" + name + "' has a health check interval longer than its idle timeout. Increase the idle timeout or shorten the health check interval. Aborted.");
 
     let levels = connections.fallback_levels(group_id);
     if (length(levels) == 0)
