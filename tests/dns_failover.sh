@@ -30,7 +30,8 @@ cat >"$WORK_DIR/multi.json" <<'JSON'
     ".name": "settings", ".type": "settings", "dns_type": "doh",
     "dns_server": ["dns.google/dns-query", "cloudflare-dns.com/dns-query"],
     "bootstrap_dns_server": ["1.1.1.1", "8.8.8.8"],
-    "dns_fallback_strategy": "parallel",
+    "dns_main_fallback_strategy": "sequential",
+    "dns_bootstrap_fallback_strategy": "parallel",
     "dns_detour_enabled": "1", "dns_detour_section": "proxy"
   },
   "section": [
@@ -63,7 +64,7 @@ assert(length(multi.inbounds) == 5, "native DNS fallback must keep only standard
 let bootstrap = find_tag(multi.dns.servers, "bootstrap-dns-server");
 let main = find_tag(multi.dns.servers, "dns-server");
 assert(bootstrap.type == "fallback" && bootstrap.strategy == "parallel", "bootstrap must use native parallel fallback");
-assert(main.type == "fallback" && main.strategy == "parallel", "main must use native parallel fallback");
+assert(main.type == "fallback" && main.strategy == "sequential", "main must use its independent sequential fallback mode");
 assert(sprintf("%J", bootstrap.servers) == sprintf("%J", ["bootstrap-dns-server-1", "bootstrap-dns-server-2"]), "bootstrap order changed");
 assert(sprintf("%J", main.servers) == sprintf("%J", ["dns-server-1", "dns-server-2"]), "main order changed");
 for (let tag in main.servers) {

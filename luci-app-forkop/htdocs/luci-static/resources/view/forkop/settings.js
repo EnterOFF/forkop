@@ -123,15 +123,11 @@ function configureDnsList(option, choices, defaultValue) {
   };
 }
 
-function configureDnsFailoverVisibility(option, dnsOption, bootstrapOption) {
-  option.depends("dns_server", "__forkop_multiple_dns__");
-  option.depends("bootstrap_dns_server", "__forkop_multiple_dns__");
+function configureDnsFailoverVisibility(option, dnsOption, dnsKey) {
+  option.depends(dnsKey, "__forkop_multiple_dns__");
   option.retain = true;
   option.checkDepends = function (section_id) {
-    return (
-      optionListValues(dnsOption, section_id).length > 1 ||
-      optionListValues(bootstrapOption, section_id).length > 1
-    );
+    return optionListValues(dnsOption, section_id).length > 1;
   };
 }
 
@@ -156,6 +152,20 @@ function createSettingsContent(section, capabilities) {
   );
   configureDnsList(dnsOption, main.DNS_SERVER_OPTIONS, "77.88.8.8");
 
+  o = section.option(
+    form.ListValue,
+    "dns_main_fallback_strategy",
+    _("Main DNS Query Mode"),
+    _(
+      "Query servers one at a time until the first successful response, or query all servers simultaneously for maximum speed.",
+    ),
+  );
+  o.value("sequential", _("Sequential"));
+  o.value("parallel", _("Parallel"));
+  o.default = "parallel";
+  o.rmempty = false;
+  configureDnsFailoverVisibility(o, dnsOption, "dns_server");
+
   const bootstrapOption = section.option(
     form.DynamicList,
     "bootstrap_dns_server",
@@ -172,15 +182,17 @@ function createSettingsContent(section, capabilities) {
 
   o = section.option(
     form.ListValue,
-    "dns_fallback_strategy",
-    _("DNS Fallback Strategy"),
-    _("Try DNS servers in order or query all of them at once."),
+    "dns_bootstrap_fallback_strategy",
+    _("Bootstrap DNS Query Mode"),
+    _(
+      "Query servers one at a time until the first successful response, or query all servers simultaneously for maximum speed.",
+    ),
   );
   o.value("sequential", _("Sequential"));
   o.value("parallel", _("Parallel"));
-  o.default = "sequential";
+  o.default = "parallel";
   o.rmempty = false;
-  configureDnsFailoverVisibility(o, dnsOption, bootstrapOption);
+  configureDnsFailoverVisibility(o, bootstrapOption, "bootstrap_dns_server");
 
   o = section.option(
     form.Value,

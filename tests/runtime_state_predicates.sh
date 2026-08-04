@@ -424,6 +424,8 @@ cat >"$WORK_DIR/sing-box-signature.json" <<'JSON'
     "dns_strategy": "prefer_ipv6",
     "dns_server": "9.9.9.9",
     "bootstrap_dns_server": "1.0.0.1",
+    "dns_main_fallback_strategy": "sequential",
+    "dns_bootstrap_fallback_strategy": "parallel",
     "dns_rewrite_ttl": "120",
     "output_network_interface": "wan",
     "disable_quic": "on",
@@ -556,8 +558,10 @@ prefer_ipv6
 9.9.9.9
 [settings.bootstrap_dns_server]
 1.0.0.1
-[settings.dns_fallback_strategy]
+[settings.dns_main_fallback_strategy]
 sequential
+[settings.dns_bootstrap_fallback_strategy]
+parallel
 [settings.dns_detour_enabled]
 0
 [settings.dns_rewrite_ttl]

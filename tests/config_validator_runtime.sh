@@ -68,7 +68,8 @@ cat >"$WORK_DIR/valid.json" <<'JSON'
     "dns_type": "doh",
     "dns_server": [ "dns.google/dns-query", "cloudflare-dns.com/dns-query" ],
     "bootstrap_dns_server": [ "1.1.1.1", "8.8.8.8" ],
-    "dns_fallback_strategy": "parallel",
+    "dns_main_fallback_strategy": "sequential",
+    "dns_bootstrap_fallback_strategy": "parallel",
     "dns_strategy": "prefer_ipv6",
     "dns_detour_enabled": "1",
     "dns_detour_section": "proxy",
@@ -220,7 +221,7 @@ cat >"$WORK_DIR/bad-dns-fallback-strategy.json" <<'JSON'
     ".type": "settings",
     "dns_server": [ "1.1.1.1", "8.8.8.8" ],
     "bootstrap_dns_server": [ "77.88.8.8" ],
-    "dns_fallback_strategy": "random"
+    "dns_main_fallback_strategy": "random"
   },
   "section": []
 }

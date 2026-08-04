@@ -38,6 +38,8 @@ grep -Fq '{ id: "http_connection_urls", run: migrate_http_connection_urls }' "$M
   fail "HTTP connection URL migration must have a stable named marker"
 grep -Fq '{ id: "native_fallbacks", run: use_native_fallbacks }' "$MIGRATION" ||
   fail "native fallback migration must have a stable named marker"
+grep -Fq '{ id: "dns_fallback_modes", run: migrate_dns_fallback_modes }' "$MIGRATION" ||
+  fail "DNS fallback mode migration must have a stable named marker"
 grep -Fq '{ id: "native_rule_sets", run: use_native_rule_sets }' "$MIGRATION" ||
   fail "native rule-set migration must have a stable named marker"
 grep -Fq '{ id: "universal_rule_sets", run: use_universal_rule_sets }' "$MIGRATION" ||
@@ -60,6 +62,12 @@ grep -Fq '{ id: "subscription_headers", run: migrate_subscription_headers }' "$M
   fail "subscription header migration must have a stable named marker"
 grep -Fq "list applied_migrations 'native_rule_sets'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
   fail "new-install config must mark the native rule-set migration as already applied"
+grep -Fq "option dns_main_fallback_strategy 'parallel'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
+  fail "new-install config must default Main DNS fallback to parallel"
+grep -Fq "option dns_bootstrap_fallback_strategy 'parallel'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
+  fail "new-install config must default Bootstrap DNS fallback to parallel"
+grep -Fq "list applied_migrations 'dns_fallback_modes'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
+  fail "new-install config must mark the DNS fallback mode migration as already applied"
 grep -Fq "list applied_migrations 'universal_rule_sets'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
   fail "new-install config must mark the universal rule-set migration as already applied"
 grep -Fq "list applied_migrations 'leaf_subscription_providers'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
@@ -94,6 +102,7 @@ const fixture = {
     download_lists_via_proxy_section: 'legacy-urltest',
     dns_server: '9.9.9.9',
     bootstrap_dns_server: '1.1.1.1',
+    dns_fallback_strategy: 'sequential',
     dns_check_interval: '10s',
     dns_recovery_check_interval: '60s',
     dns_check_timeout: '2s',
@@ -270,7 +279,7 @@ assert(JSON.stringify(config.settings.bootstrap_dns_server) === JSON.stringify([
 assert(config.settings.unified_delay === '0', 'Unified Delay default missing');
 assert(config.settings.config_version === '1.0.5', 'legacy config should be marked at the current schema version');
 assert(config.settings.component_update_check_enabled === '1', 'component update checks should be enabled during migration');
-assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers']), 'legacy config should record named migrations');
+assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers']), 'legacy config should record named migrations');
 
 function assert(condition, message) {
   if (!condition) {
@@ -318,7 +327,9 @@ assert(!config.rule, 'legacy rule sections should be converted');
 
 assert(config.settings.list_update_enabled === '0', 'missing list_update_enabled should become disabled');
 assert(config.settings.update_interval === '1d', 'missing update_interval should get 1d default');
-assert(config.settings.dns_fallback_strategy === 'sequential', 'native DNS fallback should default to ordered sequential attempts');
+assert(config.settings.dns_main_fallback_strategy === 'parallel', 'Main DNS fallback should default to parallel');
+assert(config.settings.dns_bootstrap_fallback_strategy === 'parallel', 'Bootstrap DNS fallback should default to parallel');
+absent(config.settings, 'dns_fallback_strategy', 'settings');
 absent(config.settings, 'dns_check_interval', 'settings');
 absent(config.settings, 'dns_recovery_check_interval', 'settings');
 absent(config.settings, 'dns_check_timeout', 'settings');
@@ -584,7 +595,7 @@ function assert(condition, message) {
 assert(out.changed === true, '1.0.1 config should require migration');
 assert(out.config.settings.config_version === '1.0.5', 'config schema version should advance to 1.0.5');
 assert(out.config.settings.component_update_check_enabled === '1', 'updates from 1.0.1 and below should enable component update checks');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers']), 'named migrations should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers']), 'named migrations should be recorded');
 assert(!Object.prototype.hasOwnProperty.call(section, 'interfaces'), 'parent interface list should be removed');
 assert(JSON.stringify(interfaces.map(item => item.name)) === JSON.stringify(['awg0', 'tun0']), 'interfaces should keep their order');
 for (const item of interfaces) {
@@ -622,7 +633,7 @@ function assert(condition, message) {
 
 assert(out.config.settings.component_update_check_enabled === '0', '1.0.2 config must preserve an explicitly disabled component check');
 assert(out.config.settings.config_version === '1.0.5', '1.0.2 config should advance through the HTTP URL migration schema');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers']), 'newer configs should mark skipped migrations');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers']), 'newer configs should mark skipped migrations');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.4-http.json" <<'JSON'
@@ -688,7 +699,7 @@ assert(JSON.stringify(jsonOutbounds[1]) === JSON.stringify({
   server_port: 8080,
 }), 'unnamed HTTP URL should receive a unique http tag');
 assert(jsonOutbounds[2].type === 'direct' && jsonOutbounds[2].tag === 'http', 'existing JSON outbounds should remain unchanged');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers']), 'HTTP URL migration should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers']), 'HTTP URL migration should be recorded');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.5-http.json" <<'JSON'
@@ -980,7 +991,7 @@ grep -Fxq 'forkop.settings.config_version=1.0.5' "$WORK_DIR/runtime-version.stat
   fail "runtime version migration must advance config_version"
 grep -Fxq 'forkop.settings.component_update_check_enabled=1' "$WORK_DIR/runtime-version.state" ||
   fail "runtime version migration must enable component update checks"
-grep -Fq 'forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter native_fallbacks native_rule_sets universal_rule_sets leaf_subscription_providers extended_server_defaults fallback_uci_tags remove_proxy_parameter_filters server_filter_model server_filter_modes single_subscription_user_agent subscription_headers' "$WORK_DIR/runtime-version.state" ||
+grep -Fq 'forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter native_fallbacks dns_fallback_modes native_rule_sets universal_rule_sets leaf_subscription_providers extended_server_defaults fallback_uci_tags remove_proxy_parameter_filters server_filter_model server_filter_modes single_subscription_user_agent subscription_headers' "$WORK_DIR/runtime-version.state" ||
   fail "runtime migration must record stable migration names"
 grep -Eq '^forkop\.main\.outbound_jsons=\{ "type": "http", "tag": "http", "server": "proxy\.example", "server_port": 8080 \}$' "$WORK_DIR/runtime-version.state" ||
   fail "runtime migration must convert native HTTP proxy links to JSON outbounds"
@@ -1007,6 +1018,7 @@ cat >"$WORK_DIR/cache-cleanup.state" <<'EOF_UCI'
 forkop.settings=settings
 forkop.settings.config_version=1.0.5
 forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter
+forkop.settings.dns_fallback_strategy=sequential
 forkop.settings.dns_check_interval=10s
 forkop.settings.dns_recovery_check_interval=60s
 forkop.settings.dns_check_timeout=2s
@@ -1129,8 +1141,10 @@ if grep -Eq 'forkop-(list|subscription)-update' "$WORK_DIR/legacy.crontab"; then
 fi
 grep -Fq '# forkop-component-update-check' "$WORK_DIR/legacy.crontab" ||
   fail "native migration must preserve component update cron jobs"
-grep -Fxq 'forkop.settings.dns_fallback_strategy=sequential' "$WORK_DIR/cache-cleanup.state" ||
-  fail "native migration must add the DNS fallback strategy default"
+grep -Fxq 'forkop.settings.dns_main_fallback_strategy=parallel' "$WORK_DIR/cache-cleanup.state" ||
+  fail "DNS migration must default Main fallback to parallel"
+grep -Fxq 'forkop.settings.dns_bootstrap_fallback_strategy=parallel' "$WORK_DIR/cache-cleanup.state" ||
+  fail "DNS migration must default Bootstrap fallback to parallel"
 grep -Fxq 'forkop.settings.unified_delay=0' "$WORK_DIR/cache-cleanup.state" ||
   fail "extended migration must add the Unified Delay default"
 if grep -Eq 'forkop\.settings\.dns_(check_interval|recovery_check_interval|check_timeout)=' "$WORK_DIR/cache-cleanup.state"; then

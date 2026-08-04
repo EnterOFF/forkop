@@ -1318,7 +1318,6 @@ function use_native_fallbacks(ctx) {
     let settings = ctx.model.settings;
     for (let key in [ "dns_check_interval", "dns_recovery_check_interval", "dns_check_timeout" ])
         delete_option(ctx, settings, key);
-    set_option_if_missing(ctx, settings, "dns_fallback_strategy", "sequential");
 
     for (let group in ctx.model.priority_group || []) {
         for (let key in OBSOLETE_PRIORITY_GROUP_OPTIONS)
@@ -1342,6 +1341,13 @@ function use_native_fallbacks(ctx) {
         FORKOP_RUNTIME_STATE_DIR + "/priority.pid"
     ])
         push(ctx.removed_caches, path);
+}
+
+function migrate_dns_fallback_modes(ctx) {
+    let settings = ctx.model.settings;
+    set_option_if_missing(ctx, settings, "dns_main_fallback_strategy", "parallel");
+    set_option_if_missing(ctx, settings, "dns_bootstrap_fallback_strategy", "parallel");
+    delete_option(ctx, settings, "dns_fallback_strategy");
 }
 
 function use_native_rule_sets(ctx) {
@@ -1958,6 +1964,7 @@ const MIGRATIONS = [
     { id: "http_connection_urls", run: migrate_http_connection_urls },
     { id: "remove_server_country_and_dashboard_filter", run: remove_server_country_and_dashboard_filter },
     { id: "native_fallbacks", run: use_native_fallbacks },
+    { id: "dns_fallback_modes", run: migrate_dns_fallback_modes },
     { id: "native_rule_sets", run: use_native_rule_sets },
     { id: "universal_rule_sets", run: use_universal_rule_sets },
     { id: "leaf_subscription_providers", run: use_leaf_subscription_providers },

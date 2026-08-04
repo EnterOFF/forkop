@@ -105,7 +105,8 @@ function add_server_group(result, values, canonical_tag, strategy, create_server
 
 function config(settings) {
     let servers = [];
-    let strategy = option(settings, "dns_fallback_strategy", "sequential");
+    let main_strategy = option(settings, "dns_main_fallback_strategy", "parallel");
+    let bootstrap_strategy = option(settings, "dns_bootstrap_fallback_strategy", "parallel");
     let bootstrap_values = server_list(settings, "bootstrap_dns_server", "77.88.8.8");
     let main_values = server_list(settings, "dns_server", "77.88.8.8");
     let dns_type = option(settings, "dns_type", "udp");
@@ -115,7 +116,7 @@ function config(settings) {
         servers,
         bootstrap_values,
         runtime_constants.BOOTSTRAP_DNS_SERVER_TAG,
-        strategy,
+        bootstrap_strategy,
         bootstrap_server
     );
     if (unsupported != "")
@@ -125,7 +126,7 @@ function config(settings) {
         servers,
         main_values,
         runtime_constants.DNS_SERVER_TAG,
-        strategy,
+        main_strategy,
         function(tag_name, value) {
             return server_from_options(tag_name, dns_type, value, detour);
         }

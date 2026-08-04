@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-03 02:33+0300\n"
-"PO-Revision-Date: 2026-08-03 02:33+0300\n"
+"POT-Creation-Date: 2026-08-04 14:49+0300\n"
+"PO-Revision-Date: 2026-08-04 14:49+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -187,6 +187,9 @@ msgstr "Черный список"
 
 msgid "Bootstrap DNS"
 msgstr "Bootstrap DNS"
+
+msgid "Bootstrap DNS Query Mode"
+msgstr "Режим опроса Bootstrap DNS"
 
 msgid "Bootstrap DNS Servers"
 msgstr "Bootstrap DNS-серверы"
@@ -457,9 +460,6 @@ msgstr "Отключение перехвата несовместимо с acti
 
 msgid "Display name"
 msgstr "Отображаемое имя"
-
-msgid "DNS Fallback Strategy"
-msgstr "Стратегия резервного DNS"
 
 msgid "DNS on router"
 msgstr "DNS на роутере"
@@ -1148,6 +1148,9 @@ msgstr "Логи"
 msgid "Main DNS"
 msgstr "Основной DNS"
 
+msgid "Main DNS Query Mode"
+msgstr "Режим опроса основного DNS"
+
 msgid "Match destination IPs or subnets"
 msgstr "Совпадение по IP-адресам или подсетям назначения"
 
@@ -1459,6 +1462,9 @@ msgstr "Публичный ключ"
 
 msgid "QR code is too large"
 msgstr "QR-код слишком большой"
+
+msgid "Query servers one at a time until the first successful response, or query all servers simultaneously for maximum speed."
+msgstr "Опрашивать серверы по очереди до первого успешного ответа или отправлять запросы всем одновременно для максимальной скорости."
 
 msgid "QUIC congestion control"
 msgstr "Управление перегрузкой QUIC"
@@ -1975,9 +1981,6 @@ msgstr "Путь транспорта должен начинаться с /"
 
 msgid "Troubleshooting"
 msgstr "Устранение неполадок"
-
-msgid "Try DNS servers in order or query all of them at once."
-msgstr "Пробовать DNS-серверы по порядку или запрашивать их одновременно."
 
 msgid "TTL must be a positive number"
 msgstr "TTL должно быть положительным числом"

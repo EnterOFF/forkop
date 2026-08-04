@@ -1302,7 +1302,8 @@ function sing_box_signature_body(settings, sections, servers, mwan3_active) {
         body = signature_add_value(body, "settings.dns_server", value);
     for (let value in list_option(settings, "bootstrap_dns_server", "77.88.8.8"))
         body = signature_add_value(body, "settings.bootstrap_dns_server", value);
-    body = signature_add_value(body, "settings.dns_fallback_strategy", option(settings, "dns_fallback_strategy", "sequential"));
+    body = signature_add_value(body, "settings.dns_main_fallback_strategy", option(settings, "dns_main_fallback_strategy", "parallel"));
+    body = signature_add_value(body, "settings.dns_bootstrap_fallback_strategy", option(settings, "dns_bootstrap_fallback_strategy", "parallel"));
     let dns_detour_enabled = bool_option_value(settings, "dns_detour_enabled", false);
     body = signature_add_value(body, "settings.dns_detour_enabled", dns_detour_enabled);
     if (dns_detour_enabled == "1")
