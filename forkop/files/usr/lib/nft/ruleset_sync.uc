@@ -107,10 +107,7 @@ function add_unique(values, seen, value) {
 }
 
 function add_rule_set_ip(plan, prefix) {
-    if (plan.rule_set_ip_seen[prefix])
-        return;
-    plan.rule_set_ip_seen[prefix] = true;
-    plan.rule_set_ips++;
+    push(plan.rule_set_ip_values, prefix);
 }
 
 function section_values(section, key) {
@@ -229,24 +226,30 @@ function port_text(value) {
     return value.start == value.end ? as_string(value.start) : value.start + "-" + value.end;
 }
 
+function provider_prefix_is_nft_safe(prefix, family) {
+    return family == 4
+        ? index(prefix, ".") >= 0 && match(prefix, /[^0-9.\/]/) == null
+        : family == 6 && index(prefix, ":") >= 0 && match(prefix, /[^0-9A-Fa-f:.\/]/) == null;
+}
+
 function add_prefix(plan, prefix, family, ranges, from_rule_set) {
     prefix = trim(as_string(prefix));
-    if ((family != 4 && family != 6) || !core_ip.nft_ip_or_cidr(prefix) || core_ip.ip_family(prefix) != family)
+    let valid = provider_prefix_is_nft_safe(prefix, family);
+    if ((family != 4 && family != 6) || (from_rule_set ? !valid : !core_ip.nft_ip_or_cidr(prefix) || core_ip.ip_family(prefix) != family))
         return fail(plan, "invalid IP prefix: " + prefix);
 
     let plain = family == 4 ? plan.ipv4 : plan.ipv6;
     let scoped = family == 4 ? plan.scoped_ipv4 : plan.scoped_ipv6;
     if (length(ranges) == 0) {
-        let added = add_unique(plain.values, plain.seen, prefix);
-        if (from_rule_set && added)
+        push(plain.values, prefix);
+        if (from_rule_set)
             add_rule_set_ip(plan, prefix);
         return true;
     }
 
-    let added = false;
     for (let range in ranges)
-        added = add_unique(scoped.values, scoped.seen, prefix + " . " + port_text(range)) || added;
-    if (from_rule_set && added)
+        push(scoped.values, prefix + " . " + port_text(range));
+    if (from_rule_set)
         add_rule_set_ip(plan, prefix);
     return true;
 }
@@ -277,14 +280,12 @@ function add_scoped_groups(plan, groups, family, section_ranges, label) {
 
         for (let prefix in group.prefixes) {
             prefix = trim(as_string(prefix));
-            if (!core_ip.nft_ip_or_cidr(prefix) || core_ip.ip_family(prefix) != family)
+            if (!provider_prefix_is_nft_safe(prefix, family))
                 return fail(plan, "invalid IP prefix: " + prefix);
-            let added = false;
-            for (let range in ranges) {
-                let scoped = family == 4 ? plan.scoped_ipv4 : plan.scoped_ipv6;
-                added = add_unique(scoped.values, scoped.seen, prefix + " . " + port_text(range)) || added;
-            }
-            if (added)
+            let scoped = family == 4 ? plan.scoped_ipv4 : plan.scoped_ipv6;
+            for (let range in ranges)
+                push(scoped.values, prefix + " . " + port_text(range));
+            if (length(ranges) > 0)
                 add_rule_set_ip(plan, prefix);
         }
     }
@@ -327,7 +328,11 @@ function append_set_transaction(lines, table, set_name, elements) {
     let prefix = "add element inet " + table + " " + set_name + " { ";
     let chunk = [];
     let chunk_length = length(prefix) + 2;
+    let last = null;
     for (let element in elements) {
+        if (element == last)
+            continue;
+        last = element;
         let added_length = length(element) + (length(chunk) > 0 ? 2 : 0);
         if (length(chunk) > 0 &&
             (length(chunk) >= MAX_ELEMENTS_PER_LINE || chunk_length + added_length > MAX_LINE_LENGTH)) {
@@ -340,6 +345,18 @@ function append_set_transaction(lines, table, set_name, elements) {
     }
     if (length(chunk) > 0)
         push(lines, prefix + join(", ", chunk) + " }");
+}
+
+function finalize_rule_set_ip_count(plan) {
+    sort(plan.rule_set_ip_values);
+    let last = null;
+    for (let prefix in plan.rule_set_ip_values) {
+        if (prefix != last) {
+            plan.rule_set_ips++;
+            last = prefix;
+        }
+    }
+    plan.rule_set_ip_values = null;
 }
 
 function fixture_tags(section) {
@@ -392,12 +409,12 @@ function build_plan(snapshot, section, tags, table) {
         summary: "",
         script: "",
         rule_set_ips: 0,
-        rule_set_ip_seen: {},
+        rule_set_ip_values: [],
         skipped: 0,
-        ipv4: { values: [], seen: {} },
-        ipv6: { values: [], seen: {} },
-        scoped_ipv4: { values: [], seen: {} },
-        scoped_ipv6: { values: [], seen: {} }
+        ipv4: { values: [] },
+        ipv6: { values: [] },
+        scoped_ipv4: { values: [] },
+        scoped_ipv6: { values: [] }
     };
 
     if (!safe_identifier(table) || !safe_identifier(section_name)) {
@@ -438,6 +455,8 @@ function build_plan(snapshot, section, tags, table) {
         if (!add_provider(plan, snapshot.providers[tag], tag, ports))
             return plan;
     }
+
+    finalize_rule_set_ip_count(plan);
 
     let prefix = "forkop_rule_" + section_name;
     let lines = [];

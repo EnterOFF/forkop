@@ -76,7 +76,7 @@ cat >"$WORK_DIR/snapshot.json" <<'EOF_SNAPSHOT'
     "beta": {
       "revision": 4,
       "ip_cidr": {
-        "ipv4": ["192.0.2.0/24"],
+        "ipv4": ["192.0.2.0/24", "198.51.100.0/24"],
         "ipv6": [],
         "scoped_ipv4": [],
         "scoped_ipv6": []
@@ -137,6 +137,8 @@ done
 assert_contains "$WORK_DIR/render.nft" "10.0.0.0/8 . 80" "inline IPv4 gets section port"
 assert_contains "$WORK_DIR/render.nft" "fd00::/8 . 443" "inline IPv6 gets section port"
 assert_contains "$WORK_DIR/render.nft" "198.51.100.0/24 . 1000-1050" "provider IPv4 gets section port"
+[ "$(grep -Fo '198.51.100.0/24 . 80' "$WORK_DIR/render.nft" | wc -l)" -eq 1 ] ||
+  fail "overlapping providers must produce one nft element"
 assert_contains "$WORK_DIR/render.nft" "2001:db8:1::/48 . 80" "provider IPv6 gets section port"
 assert_contains "$WORK_DIR/render.nft" "203.0.113.1 . 80" "scoped IPv4 ports are intersected"
 assert_contains "$WORK_DIR/render.nft" "203.0.113.1 . 1000-1050" "scoped IPv4 range is intersected"
