@@ -160,8 +160,8 @@ function createSettingsContent(section, capabilities) {
       "Query servers one at a time until the first successful response, or query all servers simultaneously for maximum speed.",
     ),
   );
-  o.value("sequential", _("Sequential"));
   o.value("parallel", _("Parallel"));
+  o.value("sequential", _("Sequential"));
   o.default = "parallel";
   o.rmempty = false;
   configureDnsFailoverVisibility(o, dnsOption, "dns_server");
@@ -188,8 +188,8 @@ function createSettingsContent(section, capabilities) {
       "Query servers one at a time until the first successful response, or query all servers simultaneously for maximum speed.",
     ),
   );
-  o.value("sequential", _("Sequential"));
   o.value("parallel", _("Parallel"));
+  o.value("sequential", _("Sequential"));
   o.default = "parallel";
   o.rmempty = false;
   configureDnsFailoverVisibility(o, bootstrapOption, "bootstrap_dns_server");
