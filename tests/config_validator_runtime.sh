@@ -241,6 +241,19 @@ cat >"$WORK_DIR/bad-dns-server.json" <<'JSON'
 JSON
 assert_rejects "bad DNS server" "$WORK_DIR/bad-dns-server.json" "Invalid main DNS server"
 
+cat >"$WORK_DIR/domain-bootstrap-dns.json" <<'JSON'
+{
+  "settings": {
+    ".name": "settings",
+    ".type": "settings",
+    "dns_server": [ "1.1.1.1" ],
+    "bootstrap_dns_server": [ "bootstrap.example.com" ]
+  },
+  "section": []
+}
+JSON
+assert_rejects "domain Bootstrap DNS" "$WORK_DIR/domain-bootstrap-dns.json" "must use an IP address"
+
 cat >"$WORK_DIR/bad-dns-strategy.json" <<'JSON'
 {
   "settings": {
@@ -303,6 +316,16 @@ cat >"$WORK_DIR/bad-direct-action.json" <<'JSON'
 }
 JSON
 assert_rejects "bad direct action" "$WORK_DIR/bad-direct-action.json" "unsupported action 'direct'"
+
+cat >"$WORK_DIR/empty-connection.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "section": [
+    { ".name": "empty", ".type": "section", "enabled": "1", "action": "connection" }
+  ]
+}
+JSON
+assert_rejects "empty Connection rule" "$WORK_DIR/empty-connection.json" "has no configured outbounds"
 
 cat >"$WORK_DIR/bad-dns-rule-server.json" <<'JSON'
 {

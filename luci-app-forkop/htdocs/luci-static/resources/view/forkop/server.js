@@ -1352,7 +1352,8 @@ function buildHysteria2Link(sectionId, identity, options = {}) {
   const obfsType = uci.get(UCI_PACKAGE, sectionId, "hysteria2_obfs_type") || "";
   const params = {
     sni: uci.get(UCI_PACKAGE, sectionId, "tls_server_name") || "",
-    pcs: certificatePin,
+    insecure: certificatePin ? "1" : "",
+    pinSHA256: certificatePin,
   };
 
   if (obfsType === "salamander") {

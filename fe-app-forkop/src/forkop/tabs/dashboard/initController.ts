@@ -339,6 +339,9 @@ async function followLatencyTestJob(jobId: string, sectionName: string) {
     if (!response.success) {
       throw new Error(response.error);
     }
+    if (!response.data.success) {
+      showToast(response.data.message || _('Latency test failed'), 'error');
+    }
 
     await completeLatencyTestJob(jobId, sectionName);
   } catch (error) {

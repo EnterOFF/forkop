@@ -59,7 +59,7 @@ describe('buildHysteria2Link', () => {
   const certificatePin =
     '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
-  it('exports a single certificate pin alias and omits stale obfs password when obfs is disabled', () => {
+  it('exports the official certificate pin parameters and omits stale obfs password when obfs is disabled', () => {
     const buildHysteria2Link = loadBuildHysteria2Link({
       'server1.public_host': 'vpn.example.com',
       'server1.listen_port': '8443',
@@ -75,8 +75,9 @@ describe('buildHysteria2Link', () => {
     );
     const params = new URL(link).searchParams;
 
-    expect(params.get('pcs')).toBe(certificatePin);
-    expect(params.has('pinSHA256')).toBe(false);
+    expect(params.get('pinSHA256')).toBe(certificatePin);
+    expect(params.get('insecure')).toBe('1');
+    expect(params.has('pcs')).toBe(false);
     expect(params.has('obfs')).toBe(false);
     expect(params.has('obfs-password')).toBe(false);
   });
@@ -96,8 +97,9 @@ describe('buildHysteria2Link', () => {
     );
     const params = new URL(link).searchParams;
 
-    expect(params.get('pcs')).toBe(certificatePin);
-    expect(params.has('pinSHA256')).toBe(false);
+    expect(params.get('pinSHA256')).toBe(certificatePin);
+    expect(params.get('insecure')).toBe('1');
+    expect(params.has('pcs')).toBe(false);
     expect(params.get('obfs')).toBe('salamander');
     expect(params.get('obfs-password')).toBe('secret');
   });

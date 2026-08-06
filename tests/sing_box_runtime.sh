@@ -1179,6 +1179,8 @@ assert(route_rule(matchers, r => r.inbound == "proxy-mixed-in" && r.outbound == 
 let source_dns_in = inbound(matchers, "source-dns-in");
 assert(source_dns_in && source_dns_in.type == "direct" && source_dns_in.listen == "::" && source_dns_in.listen_port == 1603, "source-aware DNS uses one dual-stack inbound");
 assert(route_rule(matchers, r => r.action == "sniff" && contains(r.inbound, "source-dns-in")) != null, "source-aware DNS inbound is sniffed before hijacking");
+assert(route_rule(matchers, r => r.action == "hijack-dns" && r.protocol == "dns") != null, "sniffed DNS traffic is hijacked by protocol");
+assert(route_rule(matchers, r => r.action == "hijack-dns" && r.port == 53) == null, "non-DNS traffic on port 53 is not hijacked");
 assert(route_rule(matchers, r => r.action == "reject" && r.inbound == "source-dns-in") != null, "non-DNS traffic cannot loop through the source-aware DNS listener");
 assert(inbound(matchers, "system-dns-in").listen_port == 1605, "system-aware DNS has a dedicated inbound");
 assert(route_rule(matchers, r => r.action == "reject" && r.inbound == "system-dns-in") != null, "non-DNS traffic cannot loop through the system DNS listener");

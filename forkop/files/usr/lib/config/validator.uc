@@ -641,7 +641,8 @@ function mwan3_has_enabled_interface() {
 }
 
 function mwan3_has_enabled_interface_from_sections() {
-    for (let section in uci_core().section_objects("mwan3", "interface"))
+    let uci = uci_core();
+    for (let section in uci.section_objects("mwan3", "interface"))
         if (option(section, "enabled", "0") == "1")
             return true;
     return false;
@@ -750,7 +751,8 @@ function use_fixture_cursor(path) {
 function settings_section() {
     if (fixture_uci_data != null)
         return object_or_empty(fixture_get_section("settings"));
-    return object_or_empty(uci_core().get_all(CONFIG_NAME, "settings"));
+    let uci = uci_core();
+    return object_or_empty(uci.get_all(CONFIG_NAME, "settings"));
 }
 
 function sections_by_type(type_name) {
@@ -758,7 +760,8 @@ function sections_by_type(type_name) {
         return fixture_section_list(type_name);
 
     let result = [];
-    for (let section in uci_core().section_objects(CONFIG_NAME, type_name))
+    let uci = uci_core();
+    for (let section in uci.section_objects(CONFIG_NAME, type_name))
         push(result, object_or_empty(section));
     return result;
 }
@@ -895,6 +898,8 @@ function validate_dns_settings(settings, sections, context) {
     for (let value in bootstrap_servers)
         if (!dns_server_value_valid(value))
             fail_validation("Invalid Bootstrap DNS server '" + value + "'. Aborted.");
+        else if (!core_ip.valid_ip(core_url.host(value)))
+            fail_validation("Bootstrap DNS server '" + value + "' must use an IP address. Aborted.");
 
     if (!bool_option(settings, "dns_detour_enabled", false))
         return;
@@ -1511,6 +1516,8 @@ function validate_rule(section, sections, context) {
         validate_combined_domain_value(value, name);
     validate_combined_domain_text_value(option(section, "domain_suffix_text", ""), name);
     validate_common_rule_references(section, context);
+    if (connections.is_connections_action(action) && !connections.has_connection_sources(section))
+        fail_validation("Connection rule '" + name + "' has no configured outbounds. Add a proxy link, subscription, interface, tunnel, or JSON outbound. Aborted.");
 }
 
 function download_via_proxy_option_for_purpose(purpose) {

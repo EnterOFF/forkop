@@ -39,7 +39,6 @@ function config(settings, runtime) {
     let result = {
         rules: [
             { action: "sniff", inbound: sniff_inbounds },
-            { action: "hijack-dns", port: 53 },
             { action: "hijack-dns", protocol: "dns" }
         ],
         rule_set: [],

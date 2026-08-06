@@ -35,6 +35,9 @@ grep -Fq 'mode == "mwan3-is-active"' "$VALIDATOR" ||
   fail "config validator must own mwan3 runtime predicate"
 grep -Fq 'require("core.uci")' "$VALIDATOR" ||
   fail "config validator must use core.uci for runtime UCI access"
+if grep -Fq 'uci_core().' "$VALIDATOR"; then
+  fail "config validator must store the lazy core.uci module before method calls"
+fi
 grep -Fq 'text_list_values,' "$RULE_CONFIG" ||
   fail "config.rule must export the shared comment-aware text parser"
 grep -Fq 'rule_config.text_list_values(value, "comma-space")' "$VALIDATOR" ||
