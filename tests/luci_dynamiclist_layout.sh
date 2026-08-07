@@ -177,7 +177,7 @@ grep -Fq 'form.TableSection.prototype.renderRowActions.call' <<<"$subscription_h
 if grep -Fq 'headers.modaltitle' <<<"$subscription_header_editor"; then
   fail "subscription header grid must not open a nested add modal"
 fi
-grep -Fq 'configureLiveDynamicListChoices(field, (itemId, values) =>' <<<"$server_filter_options" ||
+grep -Fq 'configureLiveDynamicListChoices(field, (itemId) =>' <<<"$server_filter_options" ||
   fail "URLTest server filters must stay comboboxes when no choices exist"
 grep -Fq 'addServerFilterOptions(itemSection, parentSectionForItem, {' <<<"$fallback_options" ||
   fail "Fallback server filters must stay comboboxes when no choices exist"
@@ -282,12 +282,15 @@ grep -Fq 'const node = widget.render();' <<<"$live_choices" ||
 if grep -Fq 'form.DynamicList.prototype.renderWidget' <<<"$live_choices"; then
   fail "empty dashboard choices must not fall back to a plain DynamicList input"
 fi
-grep -Fq 'dashboardFilterChoiceRefreshers.get(section_id).add(refreshChoices);' <<<"$live_choices" ||
+grep -Fq 'dashboardFilterChoiceRefreshers.get(refreshSectionId).add(refreshChoices);' <<<"$live_choices" ||
   fail "dashboard selectors must register the rendered modal widget for source changes"
 grep -Fq 'node.addEventListener("mousedown", refreshBeforeOpening, true);' <<<"$live_choices" ||
   fail "dashboard selectors must refresh choices before opening"
 grep -Fq 'if (currentSignature === choiceSignature)' "$SECTION_JS" ||
   fail "dashboard selectors must not rebuild unchanged choices while selecting an item"
+if grep -Fq 'widget.setValue(' <<<"$live_choices"; then
+  fail "live choice refresh must not rewrite selected server filters"
+fi
 grep -Fq 'Add an HTTP(S) URL or local path. The format is detected automatically.' <<<"$create_section" ||
   fail "universal rule sets must explain automatic format detection"
 grep -Fq 'ruleSetOption.hasItemSettings = function (section_id)' <<<"$create_section" ||

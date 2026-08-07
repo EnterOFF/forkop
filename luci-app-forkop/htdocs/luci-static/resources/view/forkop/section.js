@@ -517,6 +517,7 @@ const subscriptionOutboundNameChoicesCache = new Map();
 const subscriptionOutboundNameChoicesInflight = new Map();
 const outboundNameSourceOptions = new Map();
 const dashboardFilterChoiceRefreshers = new Map();
+const sharedChildPendingSettings = new Map();
 
 function updateActionProvidersAvailabilityState(nextState) {
   if (!nextState) {
@@ -589,36 +590,6 @@ function safeCacheSectionName(section_id) {
   return /^[A-Za-z0-9_-]+$/.test(`${section_id || ""}`);
 }
 
-function filteredOutboundMetadataFromCache(cache) {
-  const metadata = plainObject(plainObject(cache).outboundMetadata);
-  const names = plainObject(metadata.names);
-  const candidateTags = Array.isArray(cache.urltestCandidateTags)
-    ? cache.urltestCandidateTags
-    : [];
-  const groups = plainObject(cache.urltestGroups);
-  const result = { names: {} };
-
-  if (candidateTags.length > 0) {
-    candidateTags.forEach((tag) => {
-      tag = `${tag || ""}`;
-      if (!tag) {
-        return;
-      }
-      if (names[tag] != null) {
-        result.names[tag] = names[tag];
-      }
-    });
-    return result;
-  }
-
-  Object.entries(names).forEach(([tag, name]) => {
-    if (!groups[tag]) {
-      result.names[tag] = name;
-    }
-  });
-  return result;
-}
-
 function nativeProviderOutboundNames(providerTags, value) {
   const providers = plainObject(plainObject(value).providers);
   const seen = new Set();
@@ -659,13 +630,19 @@ function loadNativeProviderOutboundNames(providerTags) {
 
   return fs
     .exec("/usr/bin/forkop", ["clash_api", "get_proxy_providers"])
-    .then((response) =>
-      nativeProviderOutboundNames(
-        providerTags,
-        JSON.parse(response.stdout || "{}"),
-      ),
-    )
-    .catch(() => []);
+    .then((response) => {
+      const value = JSON.parse(response.stdout || "{}");
+      if (
+        (response.code ?? 0) !== 0 ||
+        !value.providers ||
+        typeof value.providers !== "object" ||
+        Array.isArray(value.providers)
+      ) {
+        throw new Error("Native provider lookup failed");
+      }
+      return nativeProviderOutboundNames(providerTags, value);
+    })
+    .catch(() => null);
 }
 
 function subscriptionSourceOutboundName(name, prefixNodes, nodePrefix) {
@@ -681,22 +658,23 @@ function subscriptionSourceOutboundName(name, prefixNodes, nodePrefix) {
 
 function readOutboundChoiceState(section_id) {
   if (!safeCacheSectionName(section_id)) {
-    return Promise.resolve({ names: [], providerTags: [] });
+    return Promise.resolve(null);
   }
 
   return fs
     .exec("/usr/bin/forkop", ["get_dashboard_section_cache", section_id])
     .then((response) => {
+      if ((response.code ?? 0) !== 0) {
+        throw new Error("Dashboard section cache lookup failed");
+      }
       const cache = JSON.parse(response.stdout || "{}");
-      const metadata = filteredOutboundMetadataFromCache(cache);
       return {
-        names: Object.values(plainObject(metadata.names)),
         providerTags: Array.isArray(cache.providerTags)
           ? cache.providerTags
           : [],
       };
     })
-    .catch(() => ({ names: [], providerTags: [] }));
+    .catch(() => null);
 }
 
 function loadOutboundNameChoices(section_id) {
@@ -710,11 +688,18 @@ function loadOutboundNameChoices(section_id) {
 
   const task = readOutboundChoiceState(section_id)
     .then((state) =>
-      loadNativeProviderOutboundNames(state.providerTags).then(
-        (providerNames) => [...state.names, ...providerNames],
-      ),
+      state
+        ? loadNativeProviderOutboundNames(
+            state.providerTags.filter((providerTag) =>
+              /-subscription-\d+-provider$/.test(`${providerTag || ""}`),
+            ),
+          )
+        : null,
     )
     .then((names) => {
+      if (names == null) {
+        return [];
+      }
       const choices = names
         .map((name) => `${name || ""}`.trim())
         .filter(Boolean)
@@ -758,9 +743,14 @@ function loadSubscriptionOutboundNameChoices(section_id, itemId) {
 
   const task = readOutboundChoiceState(section_id)
     .then((state) =>
-      loadNativeProviderOutboundNames([state.providerTags[providerIndex]]),
+      state
+        ? loadNativeProviderOutboundNames([state.providerTags[providerIndex]])
+        : null,
     )
     .then((names) => {
+      if (names == null) {
+        return [];
+      }
       subscriptionOutboundNameChoicesCache.set(cacheKey, names);
       refreshDashboardFilterChoiceWidgets(section_id);
       return names;
@@ -1620,10 +1610,16 @@ const ButtonAddSettingsDynamicList = SettingsDynamicList.extend({
   buttonAdd: true,
 });
 
-function configureLiveDynamicListChoices(option, getChoices) {
+function configureLiveDynamicListChoices(
+  option,
+  getChoices,
+  getRefreshSectionId = (section_id) => section_id,
+) {
   option.renderWidget = function (section_id, _option_index, cfgvalue) {
+    const refreshSectionId =
+      `${getRefreshSectionId(section_id) || section_id}`.trim();
     const values = L.toArray(cfgvalue != null ? cfgvalue : this.default);
-    const choices = getChoices(section_id, values);
+    const choices = getChoices(section_id);
     const labels = {};
     choices.forEach((choice) => {
       labels[choice.value] = choice.label;
@@ -1651,8 +1647,7 @@ function configureLiveDynamicListChoices(option, getChoices) {
         return false;
       }
 
-      const currentValues = widget.getValue();
-      const currentChoices = getChoices(section_id, currentValues);
+      const currentChoices = getChoices(section_id);
       const currentLabels = {};
       currentChoices.forEach((choice) => {
         currentLabels[choice.value] = choice.label;
@@ -1683,21 +1678,21 @@ function configureLiveDynamicListChoices(option, getChoices) {
     node.addEventListener("mousedown", refreshBeforeOpening, true);
     node.addEventListener("focusin", refreshBeforeOpening, true);
 
-    if (!dashboardFilterChoiceRefreshers.has(section_id)) {
-      dashboardFilterChoiceRefreshers.set(section_id, new Set());
+    if (!dashboardFilterChoiceRefreshers.has(refreshSectionId)) {
+      dashboardFilterChoiceRefreshers.set(refreshSectionId, new Set());
     }
-    dashboardFilterChoiceRefreshers.get(section_id).add(refreshChoices);
+    dashboardFilterChoiceRefreshers.get(refreshSectionId).add(refreshChoices);
 
     return node;
   };
 }
 
-function outboundNameChoiceItems(names, values, normalizeChoice) {
+function outboundNameChoiceItems(names, normalizeChoice) {
   const seen = new Set();
   const result = [];
-  const append = (name, normalize) => {
+  const append = (name) => {
     let value = `${name || ""}`.trim();
-    if (normalize && typeof normalizeChoice === "function") {
+    if (typeof normalizeChoice === "function") {
       value = `${normalizeChoice(value) || ""}`.trim();
     }
     if (!value || seen.has(value)) {
@@ -1708,13 +1703,12 @@ function outboundNameChoiceItems(names, values, normalizeChoice) {
     result.push({ value, label: value });
   };
 
-  names.forEach((name) => append(name, true));
-  normalizeDynamicListItems(values).forEach((name) => append(name, false));
+  names.forEach(append);
 
   return result.sort((a, b) => a.label.localeCompare(b.label));
 }
 
-function currentOutboundNameChoices(section_id, values, normalizeChoice) {
+function currentOutboundNameChoices(section_id, normalizeChoice) {
   if (!outboundNameChoicesCache.has(section_id)) {
     loadOutboundNameChoices(section_id);
   }
@@ -1724,7 +1718,6 @@ function currentOutboundNameChoices(section_id, values, normalizeChoice) {
       ...(outboundNameChoicesCache.get(section_id) || []),
       ...currentDraftOutboundNames(section_id),
     ],
-    values,
     normalizeChoice,
   );
 }
@@ -1732,7 +1725,6 @@ function currentOutboundNameChoices(section_id, values, normalizeChoice) {
 function currentSubscriptionOutboundNameChoices(
   section_id,
   itemId,
-  values,
   normalizeChoice,
 ) {
   const cacheKey = `${section_id}:${itemId}`;
@@ -1742,7 +1734,6 @@ function currentSubscriptionOutboundNameChoices(
 
   return outboundNameChoiceItems(
     subscriptionOutboundNameChoicesCache.get(cacheKey) || [],
-    values,
     normalizeChoice,
   );
 }
@@ -1774,9 +1765,21 @@ function currentLiveDynamicListValues(section_id, optionName) {
     return null;
   }
 
-  const widget = document.getElementById(
-    `cbid.${UCI_PACKAGE}.${section_id}.${optionName}`,
-  );
+  const option = outboundNameSourceOptions.get(optionName);
+  const trackedWidget = option?.liveDynamicListNodes?.get(section_id);
+  let widget;
+
+  if (trackedWidget) {
+    if (trackedWidget.isConnected === false) {
+      return null;
+    }
+    widget = trackedWidget;
+  } else {
+    widget = document.getElementById(
+      `cbid.${UCI_PACKAGE}.${section_id}.${optionName}`,
+    );
+  }
+
   if (!widget) {
     return null;
   }
@@ -1817,23 +1820,30 @@ function currentDraftOutboundNames(section_id) {
       "name",
     ).trim();
     const option = outboundNameSourceOptions.get("interfaces");
-    const staged = option?.pendingChildSettings?.[section_id]?.[interfaceName];
+    const staged = childPendingSettingsStore(option, section_id)[interfaceName];
     const displayName = `${
+      staged?.display_name ||
       (isExistingChildItem(section_id, itemId, "section_interface")
         ? uci.get(UCI_PACKAGE, itemId, "display_name")
-        : staged?.display_name) || interfaceName
+        : "") ||
+      interfaceName
     }`.trim();
     if (displayName) {
       names.push(displayName);
     }
   });
   currentSourceOptionValues(section_id, "outbound_jsons").forEach((value) => {
+    const outbound = parseOutboundJsonObject(value);
+    const type = `${outbound?.type || ""}`.trim().toLowerCase();
     const tag = outboundJsonDisplayTag(value);
-    if (tag) {
+    if (
+      tag &&
+      !["selector", "urltest", "fallback", "dns", "block"].includes(type)
+    ) {
       names.push(tag);
     }
   });
-  tunnelChildIds(section_id).forEach((value) => {
+  currentSourceOptionValues(section_id, "tunnels").forEach((value) => {
     const name = tunnelDisplayName(section_id, value);
     if (name) {
       names.push(name);
@@ -2105,7 +2115,7 @@ function addServerFilterOptions(
         sharedFields[mode][storageKey] = field;
       }
       if (storageKey.endsWith("_outbounds")) {
-        const choicesForItem = (option, itemId, values) => {
+        const choicesForItem = (option, itemId) => {
           const sectionId = parentSectionForItem(itemId);
           const normalizeChoice =
             typeof options.normalizeOutboundChoice === "function"
@@ -2115,10 +2125,9 @@ function addServerFilterOptions(
             ? currentSubscriptionOutboundNameChoices(
                 sectionId,
                 options.ownerId(),
-                values,
                 normalizeChoice,
               )
-            : currentOutboundNameChoices(sectionId, values, normalizeChoice);
+            : currentOutboundNameChoices(sectionId, normalizeChoice);
         };
         field.load = function (itemId) {
           const sectionId = parentSectionForItem(itemId);
@@ -2130,12 +2139,13 @@ function addServerFilterOptions(
           } else {
             loadOutboundNameChoices(sectionId);
           }
-          refreshOptionChoices(this, choicesForItem(this, itemId, values));
+          refreshOptionChoices(this, choicesForItem(this, itemId));
           return values;
         };
         field.placeholder = _("-- Select --");
-        configureLiveDynamicListChoices(field, (itemId, values) =>
-          choicesForItem(field, itemId, values),
+        configureLiveDynamicListChoices(field, (itemId) =>
+          choicesForItem(field, itemId),
+          parentSectionForItem,
         );
       }
       if (validator) {
@@ -3183,6 +3193,14 @@ function hasChangedSettings(settings) {
 }
 
 function childPendingSettingsStore(option, section_id) {
+  if (option.sharedPendingSettingsKey) {
+    const key = `${option.sharedPendingSettingsKey}:${section_id}`;
+    if (!sharedChildPendingSettings.has(key)) {
+      sharedChildPendingSettings.set(key, {});
+    }
+    return sharedChildPendingSettings.get(key);
+  }
+
   if (!option.pendingChildSettings) {
     option.pendingChildSettings = {};
   }
@@ -3203,6 +3221,19 @@ function pendingChildSettings(option, section_id, value, defaults) {
   }
 
   return store[value];
+}
+
+function clearChildPendingSettings(option, section_id) {
+  if (option.sharedPendingSettingsKey) {
+    sharedChildPendingSettings.delete(
+      `${option.sharedPendingSettingsKey}:${section_id}`,
+    );
+    return;
+  }
+
+  if (option.pendingChildSettings) {
+    delete option.pendingChildSettings[section_id];
+  }
 }
 
 function renderStackedJsonSettingsModal(title, map, onSave) {
@@ -3396,6 +3427,7 @@ function showSubscriptionUrlSettingsModal(_section_id, itemValue, option) {
 }
 
 function showInterfaceSettingsModal(_section_id, itemValue, option) {
+  option.sharedPendingSettingsKey = "interfaces";
   return showChildItemSettingsModal(_section_id, itemValue, option, {
     typeName: "section_interface",
     valueOption: "name",
@@ -8323,8 +8355,20 @@ function createSectionContent(section) {
     const validation = main.validateProxyUrl(value);
     return validation.valid ? true : validation.message;
   };
-  o.onchange = function (_event, section_id) {
-    refreshDashboardFilterChoiceWidgets(section_id);
+  o.liveDynamicListNodes = new Map();
+  const originalRenderWidget = o.renderWidget;
+  o.renderWidget = function (section_id, option_index, cfgvalue) {
+    const node = originalRenderWidget.call(
+      this,
+      section_id,
+      option_index,
+      cfgvalue,
+    );
+    this.liveDynamicListNodes.set(section_id, node);
+    node.addEventListener("cbi-dynlist-change", () => {
+      refreshDashboardFilterChoiceWidgets(section_id);
+    });
+    return node;
   };
   outboundNameSourceOptions.set("selector_proxy_links", o);
 
@@ -8392,6 +8436,7 @@ function createSectionContent(section) {
   o.placeholder = _("Select a network interface");
   o.childType = "section_interface";
   o.childValueOption = "name";
+  o.sharedPendingSettingsKey = "interfaces";
   o.childDefaults = Object.assign(defaultInterfaceSettings(), {
     display_name: (interfaceName) => interfaceName,
   });
@@ -8415,9 +8460,7 @@ function createSectionContent(section) {
     return store[inputValue] ? Object.assign({}, store[inputValue]) : null;
   };
   o.clearStagedChildSettings = function (section_id) {
-    if (this.pendingChildSettings) {
-      delete this.pendingChildSettings[section_id];
-    }
+    clearChildPendingSettings(this, section_id);
   };
   o.onListChange = refreshDashboardFilterChoiceWidgets;
   outboundNameSourceOptions.set("interfaces", o);
