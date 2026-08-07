@@ -137,6 +137,59 @@ describe('renderSections latency actions', () => {
     expect(event.stopPropagation).toHaveBeenCalledOnce();
   }, 15000);
 
+  it('does not choose an outbound when its name is selected', async () => {
+    installElementFactory();
+    const getSelection = vi.fn(() => ({ isCollapsed: false }));
+    vi.stubGlobal('window', { getSelection });
+    const { renderSections } = await import('../partials/renderSections');
+    const onChooseOutbound = vi.fn();
+    const root = renderSections({
+      loading: false,
+      failed: false,
+      section: {
+        code: 'proxy-out',
+        sectionName: 'main',
+        displayName: 'Main',
+        withTagSelect: true,
+        outbounds: [
+          {
+            code: 'main/Node',
+            displayName: 'Node',
+            latency: 0,
+            type: 'VLESS',
+            selected: false,
+          },
+        ],
+      },
+      onTestLatency: vi.fn(),
+      onTestOutboundLatency: vi.fn(),
+      onChooseOutbound,
+      onCopyOutbound: vi.fn(),
+      onShowUrlTestInfo: vi.fn(),
+      onShowFallbackInfo: vi.fn(),
+      onUpdateSubscription: vi.fn(),
+      latencyFetching: false,
+      subscriptionUpdating: false,
+    }) as unknown as FakeNode;
+    const card = findNode(root, (node) =>
+      String(node.attrs.class || '')
+        .split(' ')
+        .includes('fkp_dashboard-page__outbound-grid__item'),
+    );
+    const click = card?.attrs.click as () => void;
+
+    click();
+    expect(onChooseOutbound).not.toHaveBeenCalled();
+
+    getSelection.mockReturnValue({ isCollapsed: true });
+    click();
+    expect(onChooseOutbound).toHaveBeenCalledWith(
+      'main',
+      'proxy-out',
+      'main/Node',
+    );
+  }, 15000);
+
   it('tests all URLTest members without testing the whole section', async () => {
     installElementFactory();
     const { renderSections } = await import('../partials/renderSections');

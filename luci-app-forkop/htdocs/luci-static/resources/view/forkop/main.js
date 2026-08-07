@@ -1877,7 +1877,7 @@ function renderDefaultState({
         class: className,
         "aria-busy": outboundSwitching ? "true" : void 0,
         "aria-disabled": section.withTagSelect && !canChooseOutbound ? "true" : void 0,
-        click: () => canChooseOutbound && onChooseOutbound(section.sectionName, section.code, outbound.code)
+        click: () => canChooseOutbound && window.getSelection()?.isCollapsed !== false && onChooseOutbound(section.sectionName, section.code, outbound.code)
       },
       [
         ...outboundSwitching ? [

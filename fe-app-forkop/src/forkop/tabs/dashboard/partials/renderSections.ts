@@ -439,6 +439,7 @@ function renderDefaultState({
           section.withTagSelect && !canChooseOutbound ? 'true' : undefined,
         click: () =>
           canChooseOutbound &&
+          window.getSelection()?.isCollapsed !== false &&
           onChooseOutbound(section.sectionName, section.code, outbound.code),
       },
       [
