@@ -1803,14 +1803,21 @@ function currentDraftOutboundNames(section_id) {
     },
   );
   currentSourceOptionValues(section_id, "interfaces").forEach((itemId) => {
-    const normalized = childItemInputValue(
+    const interfaceName = childItemInputValue(
       section_id,
       itemId,
       "section_interface",
       "name",
     ).trim();
-    if (normalized) {
-      names.push(normalized);
+    const option = outboundNameSourceOptions.get("interfaces");
+    const staged = option?.pendingChildSettings?.[section_id]?.[interfaceName];
+    const displayName = `${
+      (isExistingChildItem(section_id, itemId, "section_interface")
+        ? uci.get(UCI_PACKAGE, itemId, "display_name")
+        : staged?.display_name) || interfaceName
+    }`.trim();
+    if (displayName) {
+      names.push(displayName);
     }
   });
   currentSourceOptionValues(section_id, "outbound_jsons").forEach((value) => {
@@ -1943,7 +1950,6 @@ function renderNetworkInterfaceListItem(device, fallbackName) {
 function refreshNetworkInterfaceOptionValues(option) {
   option.keylist = [];
   option.vallist = [];
-  option.interfaceChoiceMap = {};
   option.interfaceDeviceMap = {};
 
   (option.devices || []).forEach((device) => {
@@ -1959,7 +1965,6 @@ function refreshNetworkInterfaceOptionValues(option) {
     }
 
     option.value(name, renderNetworkInterfaceChoice(device));
-    option.interfaceChoiceMap[name] = true;
     option.interfaceDeviceMap[name] = device;
   });
 }
@@ -1974,20 +1979,6 @@ const InterfaceSettingsDynamicList = SettingsDynamicList.extend({
         return this.super("load", section_id);
       }, this),
     );
-  },
-
-  validate(section_id, value) {
-    value = childItemInputValue(section_id, value, "section_interface", "name");
-
-    if (!value || value.length === 0) {
-      return true;
-    }
-
-    if (!this.interfaceChoiceMap || !this.interfaceChoiceMap[value]) {
-      return _("Select an existing network interface");
-    }
-
-    return true;
   },
 
   renderListItemLabel(section_id, value, text) {
@@ -2384,14 +2375,16 @@ function showSubscriptionHeadersModal(parentMap, itemId) {
 
 function interfaceSettingsKeys() {
   return [
+    "display_name",
     "domain_resolver_enabled",
     "domain_resolver_dns_type",
     "domain_resolver_dns_server",
   ];
 }
 
-function defaultInterfaceSettings() {
+function defaultInterfaceSettings(displayName = "") {
   return {
+    display_name: displayName,
     domain_resolver_enabled: "0",
     domain_resolver_dns_type: "udp",
     domain_resolver_dns_server: "8.8.8.8",
@@ -2692,6 +2685,17 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
 
 function addInterfaceItemOptions(itemSection) {
   let o = itemSection.option(
+    form.Value,
+    "display_name",
+    _("Display name"),
+    _("Name displayed on the dashboard"),
+  );
+  o.rmempty = false;
+  o.validate = function (_itemId, value) {
+    return `${value || ""}`.trim() ? true : _("Enter a display name");
+  };
+
+  o = itemSection.option(
     form.Flag,
     "domain_resolver_enabled",
     _("Domain Resolver"),
@@ -3389,9 +3393,10 @@ function showInterfaceSettingsModal(_section_id, itemValue, option) {
     typeName: "section_interface",
     valueOption: "name",
     keys: interfaceSettingsKeys(),
-    defaults: defaultInterfaceSettings(),
+    defaults: (inputValue) => defaultInterfaceSettings(inputValue),
     addOptions: addInterfaceItemOptions,
     title: () => _("Network interface settings"),
+    afterSave: () => refreshDashboardFilterChoiceWidgets(_section_id),
   });
 }
 
@@ -8364,10 +8369,13 @@ function createSectionContent(section) {
   o.depends("action", "connection");
   o.rmempty = true;
   o.modalonly = true;
+  o.datatype = "netdevname";
   o.placeholder = _("Select a network interface");
   o.childType = "section_interface";
   o.childValueOption = "name";
-  o.childDefaults = defaultInterfaceSettings();
+  o.childDefaults = Object.assign(defaultInterfaceSettings(), {
+    display_name: (interfaceName) => interfaceName,
+  });
   o.renderItemSettingsModal = showInterfaceSettingsModal;
   o.hasItemSettings = function (section_id, value) {
     const normalized = `${value || ""}`.trim();

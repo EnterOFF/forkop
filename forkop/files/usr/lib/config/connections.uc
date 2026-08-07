@@ -689,6 +689,12 @@ function interface_settings(section, value) {
     return child != null ? child : item_settings(section, "interface_settings", value);
 }
 
+function interface_display_name(section, value) {
+    let child = child_item_by_value(section, "section_interface", "name", value);
+    let display_name = child != null ? trim(child_option(child, "display_name", value)) : "";
+    return display_name != "" ? display_name : value;
+}
+
 function interface_domain_resolver_enabled(section, value) {
     let child = child_item_by_value(section, "section_interface", "name", value);
     if (child != null)
@@ -1058,6 +1064,7 @@ return {
     subscription_node_prefix,
     subscription_user_agent,
     subscription_download_section,
+    interface_display_name,
     interface_domain_resolver_enabled,
     interface_domain_resolver_dns_type,
     interface_domain_resolver_dns_server,

@@ -1216,7 +1216,11 @@ function add_interface_connection_outbound(config, state, section, interface_ind
     push(config.outbounds, outbound);
     push(selector_tags, tag_name);
     push(urltest_candidate_tags, tag_name);
-    runtime_subscription.remember_outbound_name(state, tag_name, interface_name);
+    runtime_subscription.remember_outbound_name(
+        state,
+        tag_name,
+        connections.interface_display_name(section, interface_name)
+    );
 }
 
 function add_connection_interfaces(config, state, section, taken, selector_tags, urltest_candidate_tags) {

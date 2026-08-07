@@ -1202,6 +1202,7 @@ describe('getDashboardSections', () => {
         '.type': 'section_interface',
         section: 'AWG',
         name: 'awg1',
+        display_name: 'NL Amsterdam',
       },
     ]);
     mocks.getClashApiProxies.mockResolvedValue({
@@ -1220,6 +1221,11 @@ describe('getDashboardSections', () => {
         },
       },
     });
+    mocks.dashboardCacheRead.mockResolvedValue(
+      JSON.stringify({
+        outboundMetadata: { names: { 'AWG-interface-1-out': 'NL Amsterdam' } },
+      }),
+    );
 
     const result = await getDashboardSections();
     const [section] = result.data;
@@ -1230,7 +1236,7 @@ describe('getDashboardSections', () => {
     expect(section.proxyConfigType).toBe('interface');
     expect(section.outbounds[0]).toMatchObject({
       code: 'AWG-interface-1-out',
-      displayName: 'awg1',
+      displayName: 'NL Amsterdam',
       selected: true,
     });
   });

@@ -15,5 +15,15 @@ grep -Fq 'dnsTypeChoices().forEach((choice) => o.value(choice.value, choice.labe
   fail "network interface settings must populate the DNS protocol field"
 grep -Fq 'o.renderItemSettingsModal = showInterfaceSettingsModal;' "$SECTION_JS" ||
   fail "network interfaces must keep their settings modal handler"
+grep -Fq 'defaults: (inputValue) => defaultInterfaceSettings(inputValue),' "$SECTION_JS" ||
+  fail "new interface settings must default the display name to the interface name"
+grep -Fq '"display_name",' "$SECTION_JS" ||
+  fail "network interface settings must expose a display name"
+
+grep -Fq 'o.datatype = "netdevname";' "$SECTION_JS" ||
+  fail "custom network interfaces must use LuCI network device name validation"
+if grep -Fq 'Select an existing network interface' "$SECTION_JS"; then
+  fail "custom network interfaces must not be restricted to discovered devices"
+fi
 
 printf 'LuCI network interface settings checks passed\n'

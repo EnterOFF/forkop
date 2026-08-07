@@ -1160,6 +1160,17 @@ function migrate_interface_sections(ctx) {
         migrate_interface_item_settings(ctx, section);
 }
 
+function migrate_interface_display_names(ctx) {
+    if (!release_at_most(ctx, "1.0.5"))
+        return;
+
+    for (let child in ctx.model.section_interface || []) {
+        let name = trim(option(child, "name", ""));
+        if (name != "")
+            set_option_if_missing(ctx, child, "display_name", name);
+    }
+}
+
 function migrate_enable_component_checks(ctx) {
     if (!release_at_most(ctx, "1.0.1"))
         return;
@@ -1974,7 +1985,8 @@ const MIGRATIONS = [
     { id: "server_filter_model", run: migrate_server_filter_model },
     { id: "server_filter_modes", run: migrate_server_filter_modes },
     { id: "single_subscription_user_agent", run: migrate_single_subscription_user_agent },
-    { id: "subscription_headers", run: migrate_subscription_headers }
+    { id: "subscription_headers", run: migrate_subscription_headers },
+    { id: "interface_display_names", run: migrate_interface_display_names }
 ];
 
 function apply_migrations(ctx) {

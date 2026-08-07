@@ -28,7 +28,6 @@ cat >"$WORK_DIR/runtime-tags.json" <<'JSON'
       "action": "connection",
       "subscription_urls": [ "https://duplicate.example/sub" ],
       "selector_proxy_links": [ "socks://127.0.0.1:1080#manual" ],
-      "interfaces": [ "wg0" ],
       "outbound_jsons": [
         "{\"type\":\"socks\",\"tag\":\"germany\",\"server\":\"127.0.0.1\",\"server_port\":1201}",
         "{\"type\":\"socks\",\"tag\":\"germany\",\"server\":\"127.0.0.1\",\"server_port\":1203}",
@@ -50,6 +49,15 @@ cat >"$WORK_DIR/runtime-tags.json" <<'JSON'
       "domain_suffix": [ "backup.example.org" ]
     }
   ],
+  "section_interface": [
+    {
+      ".name": "cfg-interface",
+      ".type": "section_interface",
+      "section": "proxy",
+      "name": "wg0",
+      "display_name": "NL Amsterdam"
+    }
+  ],
   "urltest": [
     {
       ".name": "ut_name",
@@ -57,7 +65,7 @@ cat >"$WORK_DIR/runtime-tags.json" <<'JSON'
       "section": "proxy",
       "name": "By name",
       "server_filter_mode": "include",
-      "include_outbounds": [ "germany", "wg0", "json-hop" ]
+      "include_outbounds": [ "germany", "NL Amsterdam", "json-hop" ]
     },
     {
       ".name": "ut_regex",
@@ -164,7 +172,7 @@ let names = proxy_cache.outboundMetadata.names || {};
 for (let tag in [ "germany", "germany-1" ])
     if (names[tag] != "germany")
         die("runtime suffix leaked into display name for " + tag + "\n");
-if (names["proxy-interface-1-out"] != "wg0" || names["json-hop"] != "json-hop")
+if (names["proxy-interface-1-out"] != "NL Amsterdam" || names["json-hop"] != "json-hop")
     die("interface or JSON display tag metadata is missing\n");
 if (names["service-mixed-in-1"] != "service-mixed-in")
     die("system-tag collision suffix leaked into display metadata\n");
