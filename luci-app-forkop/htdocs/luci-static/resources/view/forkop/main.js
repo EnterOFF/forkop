@@ -284,6 +284,11 @@ function validateOutboundJson(value, usedTags = []) {
   if (!nonEmptyString(parsed.type)) {
     return invalid(_("JSON outbound must contain a non-empty type field"));
   }
+  if (parsed.type !== parsed.type.trim() || parsed.type !== parsed.type.toLowerCase()) {
+    return invalid(
+      _("JSON outbound type must be lowercase without surrounding whitespace")
+    );
+  }
   if (!nonEmptyString(parsed.tag)) {
     return invalid(_("JSON outbound must contain a non-empty tag field"));
   }
@@ -291,7 +296,7 @@ function validateOutboundJson(value, usedTags = []) {
   if (usedTags.some((usedTag) => `${usedTag || ""}`.trim() === tag)) {
     return invalid(_("Duplicate JSON outbound tag"));
   }
-  const type = parsed.type.trim().toLowerCase();
+  const type = parsed.type;
   if ((type === "selector" || type === "urltest") && !validateOutbounds(parsed.outbounds)) {
     return invalid(
       _(

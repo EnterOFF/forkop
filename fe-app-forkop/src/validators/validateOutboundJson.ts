@@ -66,6 +66,15 @@ export function validateOutboundJson(
     return invalid(_('JSON outbound must contain a non-empty type field'));
   }
 
+  if (
+    parsed.type !== parsed.type.trim() ||
+    parsed.type !== parsed.type.toLowerCase()
+  ) {
+    return invalid(
+      _('JSON outbound type must be lowercase without surrounding whitespace'),
+    );
+  }
+
   if (!nonEmptyString(parsed.tag)) {
     return invalid(_('JSON outbound must contain a non-empty tag field'));
   }
@@ -75,7 +84,7 @@ export function validateOutboundJson(
     return invalid(_('Duplicate JSON outbound tag'));
   }
 
-  const type = parsed.type.trim().toLowerCase();
+  const type = parsed.type;
 
   if (
     (type === 'selector' || type === 'urltest') &&

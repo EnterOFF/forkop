@@ -1556,6 +1556,10 @@ msgstr ""
 msgid "JSON outbound must contain a non-empty type field"
 msgstr ""
 
+#: src/validators/validateOutboundJson.ts:74
+msgid "JSON outbound type must be lowercase without surrounding whitespace"
+msgstr ""
+
 #: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4960
 msgid "JSON outbound settings"
 msgstr ""

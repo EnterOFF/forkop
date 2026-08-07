@@ -1347,6 +1347,9 @@ msgstr ""
 msgid "Inbound JSON must be an object with a type field"
 msgstr ""
 
+msgid "Unsupported JSON inbound type"
+msgstr ""
+
 #: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2053
 msgid "Include by pattern"
 msgstr ""
@@ -1533,6 +1536,9 @@ msgstr ""
 msgid "JSON endpoint must contain a non-empty type"
 msgstr ""
 
+msgid "Unsupported JSON endpoint type"
+msgstr ""
+
 #: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:1131
 #: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4936
 #: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5172
@@ -1554,6 +1560,10 @@ msgstr ""
 
 #: src/validators/validateOutboundJson.ts:66
 msgid "JSON outbound must contain a non-empty type field"
+msgstr ""
+
+#: src/validators/validateOutboundJson.ts:74
+msgid "JSON outbound type must be lowercase without surrounding whitespace"
 msgstr ""
 
 #: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4960

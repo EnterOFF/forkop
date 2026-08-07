@@ -160,6 +160,85 @@ JSON
 
 validate_fixture "$WORK_DIR/valid.json"
 
+cat >"$WORK_DIR/valid-json-endpoint.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "section": [
+    { ".name": "proxy", ".type": "section", "enabled": "1", "action": "connection" }
+  ],
+  "tunnel": [
+    {
+      ".name": "tun_json",
+      ".type": "tunnel",
+      "section": "proxy",
+      "kind": "json",
+      "endpoint_json": "{\"type\":\"vpn-client\",\"tag\":\"vpn-client\"}"
+    }
+  ],
+  "server": [
+    {
+      ".name": "json",
+      ".type": "server",
+      "enabled": "1",
+      "protocol": "json_inbound",
+      "inbound_json": "{\"type\":\"mixed\"}"
+    }
+  ]
+}
+JSON
+validate_fixture "$WORK_DIR/valid-json-endpoint.json"
+
+cat >"$WORK_DIR/bad-json-outbound-type.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "section": [
+    {
+      ".name": "proxy",
+      ".type": "section",
+      "enabled": "1",
+      "action": "connection",
+      "outbound_jsons": ["{\"type\":\"SOCKS \",\"tag\":\"proxy\",\"server\":\"127.0.0.1\",\"server_port\":1080}"]
+    }
+  ]
+}
+JSON
+assert_rejects "non-canonical JSON outbound type" "$WORK_DIR/bad-json-outbound-type.json" "lowercase type fields without surrounding whitespace"
+
+cat >"$WORK_DIR/bad-json-endpoint-type.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "section": [
+    { ".name": "proxy", ".type": "section", "enabled": "1", "action": "connection" }
+  ],
+  "tunnel": [
+    {
+      ".name": "tun_json",
+      ".type": "tunnel",
+      "section": "proxy",
+      "kind": "json",
+      "endpoint_json": "{\"type\":\"vless\",\"tag\":\"wrong-container\"}"
+    }
+  ]
+}
+JSON
+assert_rejects "JSON endpoint with inbound type" "$WORK_DIR/bad-json-endpoint-type.json" "unsupported JSON endpoint type 'vless'"
+
+cat >"$WORK_DIR/bad-json-inbound-type.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "server": [
+    {
+      ".name": "wg",
+      ".type": "server",
+      "enabled": "1",
+      "protocol": "json_inbound",
+      "inbound_json": "{\"type\":\"wireguard\"}"
+    }
+  ]
+}
+JSON
+assert_rejects "JSON inbound with endpoint type" "$WORK_DIR/bad-json-inbound-type.json" "unsupported JSON inbound type 'wireguard'"
+
 cat >"$WORK_DIR/bad-tailscale-exit-node.json" <<'JSON'
 {
   "settings": { ".name": "settings", ".type": "settings" },

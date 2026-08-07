@@ -2593,6 +2593,13 @@
     ]
   },
   {
+    "call": "JSON outbound type must be lowercase without surrounding whitespace",
+    "key": "JSON outbound type must be lowercase without surrounding whitespace",
+    "places": [
+      "src/validators/validateOutboundJson.ts:74"
+    ]
+  },
+  {
     "call": "JSON outbound settings",
     "key": "JSON outbound settings",
     "places": [

@@ -1134,7 +1134,11 @@ function outbound_json_object(value) {
 
 function valid_outbound_json(value) {
     value = outbound_json_object(value);
-    return value != null && type(value.type) == "string" && trim(as_string(value.type)) != "";
+    if (value == null || type(value.type) != "string")
+        return false;
+
+    let outbound_type = as_string(value.type);
+    return outbound_type != "" && outbound_type == trim(outbound_type) && outbound_type == lc(outbound_type);
 }
 
 function validate_outbound_json_rule(section) {
@@ -1145,7 +1149,7 @@ function validate_outbound_json_rule(section) {
         fail_validation("JSON outbound rule '" + name + "' has empty outbound_json. Aborted.");
 
     if (!valid_outbound_json(outbound_json))
-        fail_validation("JSON outbound rule '" + name + "' must contain a valid sing-box outbound JSON object with a type field. Aborted.");
+        fail_validation("JSON outbound rule '" + name + "' must contain a valid sing-box outbound JSON object with a lowercase type field without surrounding whitespace. Aborted.");
 }
 
 function validate_outbound_json_values(section) {
@@ -1159,7 +1163,7 @@ function validate_outbound_json_values(section) {
             fail_validation("Connection rule '" + name + "' has empty JSON outbound. Aborted.");
 
         if (!valid_outbound_json(value))
-            fail_validation("Connection rule '" + name + "' must contain valid sing-box outbound JSON objects with a type field. Aborted.");
+            fail_validation("Connection rule '" + name + "' must contain valid sing-box outbound JSON objects with lowercase type fields without surrounding whitespace. Aborted.");
 
         let outbound = outbound_json_object(value);
         let tag_name = trim(as_string(outbound.tag || ""));
@@ -1244,6 +1248,10 @@ function validate_tunnel_values(section) {
             fail_validation("Connection rule '" + name + "' contains a tunnel without a name. Aborted.");
 
         if (wrapper_kind == "json") {
+            let json_endpoint_type = as_string(endpoint.type || "");
+            if (json_endpoint_type != trim(json_endpoint_type) ||
+                !contains(singbox_constants.JSON_ENDPOINT_TYPES, json_endpoint_type))
+                fail_validation("Connection rule '" + name + "' contains unsupported JSON endpoint type '" + json_endpoint_type + "'. Aborted.");
             if (trim(as_string(endpoint.tag || "")) == "")
                 fail_validation("Connection rule '" + name + "' contains a JSON endpoint without a tag. Aborted.");
             continue;
@@ -1310,6 +1318,31 @@ function validate_tunnel_values(section) {
                 if (type(allowed_ip) != "string" || !core_ip.valid_ip_cidr(trim(allowed_ip)))
                     fail_validation("Connection rule '" + name + "' contains an invalid WireGuard AllowedIPs subnet. Use IP addresses with CIDR prefixes. Aborted.");
         }
+    }
+}
+
+function validate_json_inbound_values() {
+    for (let server in sections_by_type("server")) {
+        server = object_or_empty(server);
+        if (!server_enabled(server) || option(server, "protocol", "") != "json_inbound")
+            continue;
+
+        let name = section_name(server);
+        let inbound = null;
+        try {
+            inbound = json(option(server, "inbound_json", ""));
+        }
+        catch (e) {
+            fail_validation("Server '" + name + "' contains invalid JSON inbound. Aborted.");
+        }
+
+        if (type(inbound) != "object" || type(inbound.type) != "string" || trim(as_string(inbound.type)) == "")
+            fail_validation("Server '" + name + "' must contain a JSON inbound object with a type field. Aborted.");
+
+        let inbound_type = as_string(inbound.type);
+        if (inbound_type != trim(inbound_type) ||
+            !contains(singbox_constants.JSON_INBOUND_TYPES, inbound_type))
+            fail_validation("Server '" + name + "' contains unsupported JSON inbound type '" + inbound_type + "'. Aborted.");
     }
 }
 
@@ -1738,6 +1771,7 @@ function validate_runtime_config(context) {
 
     validate_outbound_detours_rows(detour_rows_from_sections(sections));
     validate_subscription_download_sections(sections, context);
+    validate_json_inbound_values();
     validate_server_routing_sections(sections);
 
     for (let section in sections)

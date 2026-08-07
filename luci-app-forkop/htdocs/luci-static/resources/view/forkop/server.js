@@ -413,6 +413,34 @@ const PASSWORD_PROTOCOLS = [
   "anytls",
   "tuic",
 ];
+const JSON_INBOUND_TYPES = new Set([
+  "tun",
+  "redirect",
+  "tproxy",
+  "direct",
+  "socks",
+  "http",
+  "mixed",
+  "shadowsocks",
+  "vmess",
+  "trojan",
+  "naive",
+  "shadowtls",
+  "vless",
+  "anytls",
+  "mieru",
+  "ssh",
+  "bond",
+  "failover",
+  "trusttunnel",
+  "hysteria",
+  "tuic",
+  "hysteria2",
+  "mtproto",
+  "sudoku",
+  "snell",
+  "call",
+]);
 const USERNAME_PROTOCOLS = ["socks", "naive", "ssh", "mieru"];
 
 const PROTOCOL_LABELS = {
@@ -1957,13 +1985,19 @@ function validateInboundJson(_sectionId, value) {
 
   try {
     const parsed = JSON.parse(`${value}`);
-    return parsed &&
-      typeof parsed === "object" &&
-      !Array.isArray(parsed) &&
-      typeof parsed.type === "string" &&
-      parsed.type
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      Array.isArray(parsed) ||
+      typeof parsed.type !== "string" ||
+      !parsed.type
+    ) {
+      return _("Inbound JSON must be an object with a type field");
+    }
+    return parsed.type === parsed.type.trim() &&
+      JSON_INBOUND_TYPES.has(parsed.type.trim())
       ? true
-      : _("Inbound JSON must be an object with a type field");
+      : _("Unsupported JSON inbound type");
   } catch (_err) {
     return _("Invalid JSON format");
   }

@@ -926,6 +926,9 @@ msgstr "Inbound JSON не может быть пустым"
 msgid "Inbound JSON must be an object with a type field"
 msgstr "Inbound JSON должен быть объектом с полем type"
 
+msgid "Unsupported JSON inbound type"
+msgstr "Неподдерживаемый тип JSON inbound"
+
 msgid "Include by pattern"
 msgstr "Включить по шаблону"
 
@@ -1055,6 +1058,9 @@ msgstr "JSON endpoint должен содержать непустой tag"
 msgid "JSON endpoint must contain a non-empty type"
 msgstr "JSON endpoint должен содержать непустое поле type"
 
+msgid "Unsupported JSON endpoint type"
+msgstr "Неподдерживаемый тип JSON endpoint"
+
 msgid "JSON outbound"
 msgstr "JSON outbound"
 
@@ -1069,6 +1075,9 @@ msgstr "JSON outbound должен содержать непустое поле 
 
 msgid "JSON outbound must contain a non-empty type field"
 msgstr "JSON outbound должен содержать непустое поле type"
+
+msgid "JSON outbound type must be lowercase without surrounding whitespace"
+msgstr "Тип JSON outbound должен быть в нижнем регистре и без пробелов по краям"
 
 msgid "JSON outbound settings"
 msgstr "Настройки JSON outbound"

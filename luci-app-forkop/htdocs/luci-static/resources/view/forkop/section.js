@@ -24,6 +24,13 @@ const ROUTING_ACTIONS = [
   "zapret2",
   "byedpi",
 ];
+const JSON_ENDPOINT_TYPES = new Set([
+  "vpn-server",
+  "vpn-client",
+  "wireguard",
+  "warp",
+  "tailscale",
+]);
 const CONNECTIONS_BLOCKED_INTERFACES = [
   "br-lan",
   "eth0",
@@ -4130,6 +4137,12 @@ function validateTunnelSettings(settings, tunnelId, peerOption) {
     if (typeof endpoint.type !== "string" || !endpoint.type.trim()) {
       return _("JSON endpoint must contain a non-empty type");
     }
+    if (
+      endpoint.type !== endpoint.type.trim() ||
+      !JSON_ENDPOINT_TYPES.has(endpoint.type.trim())
+    ) {
+      return _("Unsupported JSON endpoint type");
+    }
     if (typeof endpoint.tag !== "string" || !endpoint.tag.trim()) {
       return _("JSON endpoint must contain a non-empty tag");
     }
@@ -4617,6 +4630,12 @@ function showTunnelSettingsModal(
       !endpoint.type.trim()
     ) {
       return _("JSON endpoint must contain a non-empty type");
+    }
+    if (
+      endpoint.type !== endpoint.type.trim() ||
+      !JSON_ENDPOINT_TYPES.has(endpoint.type.trim())
+    ) {
+      return _("Unsupported JSON endpoint type");
     }
     return typeof endpoint.tag === "string" && endpoint.tag.trim()
       ? true

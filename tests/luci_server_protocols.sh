@@ -77,6 +77,14 @@ for (const legacy of [
 }
 
 for (const needle of [
+  'const JSON_INBOUND_TYPES = new Set([',
+  'JSON_INBOUND_TYPES.has(parsed.type.trim())',
+  '_("Unsupported JSON inbound type")',
+]) {
+  requireSource(needle);
+}
+
+for (const needle of [
   'sectionRef.map.data.createSID(configName)',
   'sectionRef.map.data.set(configName, sectionId, "label", label)',
   'sectionRef.addLabeledSection = function (label)',

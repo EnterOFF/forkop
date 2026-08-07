@@ -55,6 +55,22 @@ describe('validateOutboundJson', () => {
     );
   });
 
+  it.each(['SOCKS', 'socks '])('rejects non-canonical type %j', (type) => {
+    const result = validateOutboundJson(
+      JSON.stringify({
+        type,
+        tag: 'proxy',
+        server: '127.0.0.1',
+        server_port: 1080,
+      }),
+    );
+
+    expect(result.valid).toBe(false);
+    expect(result.message).toBe(
+      'JSON outbound type must be lowercase without surrounding whitespace',
+    );
+  });
+
   it('requires a non-empty tag field', () => {
     const result = validateOutboundJson('{"type":"direct"}');
 
