@@ -91,6 +91,11 @@ grep -Fq 'mode == "write-captured-reload-state"' "$STATE_UC" ||
   fail "service/state.uc must own captured reload state writes"
 grep -Fq 'mode == "reload-sing-box-runtime"' "$STATE_UC" ||
   fail "service/state.uc must own sing-box runtime reload"
+grep -Fq 'command_success_from_args([ SING_BOX_INIT, "reload" ])' "$STATE_UC" ||
+  fail "sing-box runtime reload must use the init.d SIGHUP reload path"
+if sed -n '/^function reload_sing_box_runtime(/,/^}$/p' "$STATE_UC" | grep -Eq '"(stop|start)"'; then
+  fail "sing-box runtime reload must not stop or restart the process"
+fi
 grep -Fq 'mode == "wait-sing-box-stopped"' "$STATE_UC" ||
   fail "service/state.uc must expose a complete sing-box stop wait"
 FORKOP_SING_BOX_INIT="$WORK_DIR/missing-sing-box-init" \

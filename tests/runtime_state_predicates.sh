@@ -52,26 +52,6 @@ if state_ucode time-sync-needed 2024 >/dev/null 2>&1; then
   fail "time sync should not be needed for current clock"
 fi
 
-if state_ucode sing-box-pid-replaced-fixture 3285 3285 1 >/dev/null 2>&1; then
-  fail "sing-box reload must not accept the old stable PID"
-fi
-if state_ucode sing-box-pid-replaced-fixture 3285 0 0 >/dev/null 2>&1; then
-  fail "sing-box reload must not accept a missing replacement process"
-fi
-state_ucode sing-box-pid-replaced-fixture 3285 4127 1 >/dev/null ||
-  fail "sing-box reload should accept a different live sing-box PID"
-if state_ucode sing-box-pid-replaced-fixture 3285 4127 0 >/dev/null 2>&1; then
-  fail "sing-box reload must reject a replacement PID owned by another executable"
-fi
-assert_eq "3285" \
-  "$(state_ucode sing-box-reload-previous-pid-fixture 3285 old new)" \
-  "changed sing-box config replacement PID"
-assert_eq "0" \
-  "$(state_ucode sing-box-reload-previous-pid-fixture 3285 same same)" \
-  "unchanged sing-box config replacement PID"
-assert_eq "0" \
-  "$(state_ucode sing-box-reload-previous-pid-fixture missing old new)" \
-  "missing sing-box PID replacement constraint"
 if state_ucode sing-box-runtime-reload-needed-fixture same same 0 >/dev/null 2>&1; then
   fail "unchanged sing-box config must skip an ordinary runtime reload"
 fi
@@ -79,6 +59,26 @@ state_ucode sing-box-runtime-reload-needed-fixture old new 0 >/dev/null ||
   fail "changed sing-box config must reload the runtime"
 state_ucode sing-box-runtime-reload-needed-fixture same same 1 >/dev/null ||
   fail "forced runtime reload must reload unchanged sing-box config"
+
+cat >"$WORK_DIR/sing-box-init" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >"$FORKOP_FAKE_SING_BOX_INIT_CAPTURE"
+SH
+chmod 0755 "$WORK_DIR/sing-box-init"
+capture="$WORK_DIR/sing-box-init.args"
+FORKOP_SING_BOX_INIT="$WORK_DIR/sing-box-init" \
+FORKOP_FAKE_SING_BOX_INIT_CAPTURE="$capture" \
+  state_ucode reload-sing-box-runtime old new 0
+assert_eq "reload" "$(cat "$capture")" "changed config sing-box init action"
+rm -f "$capture"
+FORKOP_SING_BOX_INIT="$WORK_DIR/sing-box-init" \
+FORKOP_FAKE_SING_BOX_INIT_CAPTURE="$capture" \
+  state_ucode reload-sing-box-runtime same same 0
+[ ! -e "$capture" ] || fail "unchanged config must not call sing-box init"
+FORKOP_SING_BOX_INIT="$WORK_DIR/sing-box-init" \
+FORKOP_FAKE_SING_BOX_INIT_CAPTURE="$capture" \
+  state_ucode reload-sing-box-runtime same same 1
+assert_eq "reload" "$(cat "$capture")" "forced sing-box init action"
 
 assert_eq "8" \
   "$(state_ucode process-age-seconds-fixture 786161359 786162159)" \
@@ -185,6 +185,19 @@ if ! PATH="$WORK_DIR/stable-start-bin:$PATH" \
   wait "$sing_box_pid" 2>/dev/null || true
   fail "stable-start wait must accept a ready stable process"
 fi
+
+sleep 2
+if ! PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
+  REAL_UCODE="$UCODE_BIN" \
+  FORKOP_SING_BOX_START_MAX_WAIT_SECONDS=1 \
+  SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
+  SING_BOX_TEST_NETSTAT_FILE="$WORK_DIR/sing-box.netstat" \
+  SING_BOX_TEST_NETSTAT_READY_AFTER=2 \
+  SING_BOX_TEST_NETSTAT_COUNT_FILE="$WORK_DIR/hot-reload-netstat.count" \
+  state_ucode wait-forkop-stable-start forkop ForkopTable 0x00100000 2; then
+  fail "stable-start wait must retry readiness for a long-lived SIGHUP process"
+fi
+assert_eq "2" "$(cat "$WORK_DIR/hot-reload-netstat.count")" "SIGHUP readiness polls"
 
 if ! PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
   REAL_UCODE="$UCODE_BIN" \

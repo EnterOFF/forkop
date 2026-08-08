@@ -12,6 +12,7 @@ const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
 const DEFAULT_PENDING_RELOAD_FILE = getenv("FORKOP_PENDING_RELOAD_FILE") || "/var/run/forkop/reload.pending";
 const DEFAULT_SERVICE_INIT = getenv("FORKOP_SERVICE_INIT") || "/etc/init.d/forkop";
+const SING_BOX_INIT = getenv("FORKOP_SING_BOX_INIT") || "/etc/init.d/sing-box";
 const ZAPRET_DEFAULT_NFQWS_OPT = getenv("ZAPRET_DEFAULT_NFQWS_OPT") || "";
 const ZAPRET2_DEFAULT_NFQWS2_OPT = getenv("ZAPRET2_DEFAULT_NFQWS2_OPT") || "";
 const BYEDPI_DEFAULT_CMD_OPTS = getenv("BYEDPI_DEFAULT_CMD_OPTS") || "";
@@ -515,37 +516,6 @@ function process_age_seconds(pid, expected_start_ticks) {
     return process_age_seconds_from_ticks(start_ticks, current_ticks);
 }
 
-function sing_box_pid_replaced(previous_pid, current_pid, current_is_sing_box) {
-    previous_pid = int(previous_pid || 0);
-    current_pid = int(current_pid || 0);
-    current_is_sing_box = lc(as_string(current_is_sing_box));
-    let executable_matches = current_is_sing_box == "1" || current_is_sing_box == "true" ||
-        current_is_sing_box == "yes" || current_is_sing_box == "on";
-    return current_pid > 0 && executable_matches &&
-        (previous_pid <= 0 || current_pid != previous_pid);
-}
-
-function wait_sing_box_pid_replacement(previous_pid, timeout) {
-    timeout = int(timeout || 15);
-    while (timeout > 0) {
-        let current_pid = sing_box_service_pid_runtime();
-        if (sing_box_pid_replaced(previous_pid, current_pid, pid_is_sing_box(current_pid)))
-            return true;
-
-        command_success_from_args([ "sleep", "1" ]);
-        timeout--;
-    }
-    return false;
-}
-
-function sing_box_reload_previous_pid(previous_pid, config_hash_before, config_hash_after) {
-    previous_pid = as_string(previous_pid);
-    if (as_string(config_hash_before) == as_string(config_hash_after) ||
-        match(previous_pid, /^[0-9]+$/) == null || int(previous_pid) <= 0)
-        return 0;
-    return int(previous_pid);
-}
-
 function arg_bool(value) {
     value = lc(as_string(value));
     return value == "1" || value == "true" || value == "yes" || value == "on";
@@ -576,31 +546,15 @@ function wait_sing_box_stopped(timeout) {
     return !sing_box_process_running() && !sing_box_service_running();
 }
 
-function reload_sing_box_runtime(previous_pid, config_hash_before, config_hash_after, force) {
+function reload_sing_box_runtime(config_hash_before, config_hash_after, force) {
     if (!sing_box_runtime_reload_needed(config_hash_before, config_hash_after, force)) {
         command_success_from_args([ "logger", "-t", "forkop", "[info] sing-box reload skipped: configuration is unchanged" ]);
         return;
     }
 
-    previous_pid = sing_box_reload_previous_pid(previous_pid, config_hash_before, config_hash_after);
     command_success_from_args([ "logger", "-t", "forkop", "[info] Reloading sing-box runtime" ]);
-    if (!command_success_from_args([ "/etc/init.d/sing-box", "stop" ])) {
-        command_success_from_args([ "logger", "-t", "forkop", "[fatal] Failed to stop sing-box before reload. Aborted." ]);
-        exit(1);
-    }
-
-    let timeout = getenv("FORKOP_SING_BOX_RELOAD_PID_TIMEOUT") || "15";
-    if (!wait_sing_box_stopped(timeout)) {
-        command_success_from_args([ "logger", "-t", "forkop", "[fatal] sing-box did not stop before reload. Aborted." ]);
-        exit(1);
-    }
-    if (!command_success_from_args([ "/etc/init.d/sing-box", "start" ])) {
-        command_success_from_args([ "logger", "-t", "forkop", "[fatal] Failed to start sing-box after reload. Aborted." ]);
-        exit(1);
-    }
-
-    if (previous_pid > 0 && !wait_sing_box_pid_replacement(previous_pid, timeout)) {
-        command_success_from_args([ "logger", "-t", "forkop", "[fatal] sing-box reload did not replace the running process. Aborted." ]);
+    if (!command_success_from_args([ SING_BOX_INIT, "reload" ])) {
+        command_success_from_args([ "logger", "-t", "forkop", "[fatal] Failed to reload sing-box. Aborted." ]);
         exit(1);
     }
 }
@@ -651,6 +605,7 @@ function wait_forkop_stable_start(rt_table, nft_table, mark, min_age) {
     if (start_ticks == null)
         return false;
 
+    let waited = 0;
     while (true) {
         let age = process_age_seconds(pid, start_ticks);
         if (age == null)
@@ -660,10 +615,11 @@ function wait_forkop_stable_start(rt_table, nft_table, mark, min_age) {
             forkop_runtime_network_configured(rt_table, nft_table, mark))
             return true;
 
-        if (age >= SING_BOX_START_MAX_WAIT_SECONDS)
+        if (waited >= SING_BOX_START_MAX_WAIT_SECONDS)
             return false;
 
         command_success_from_args([ "sleep", "1" ]);
+        waited++;
     }
 
     return false;
@@ -1651,7 +1607,7 @@ else if (mode == "release-runtime-dir-lock")
 else if (mode == "wait-sing-box-stopped")
     exit(wait_sing_box_stopped(ARGV[1] || "15") ? 0 : 1);
 else if (mode == "reload-sing-box-runtime")
-    reload_sing_box_runtime(ARGV[1], ARGV[2], ARGV[3], ARGV[4]);
+    reload_sing_box_runtime(ARGV[1], ARGV[2], ARGV[3]);
 else if (mode == "clear-reload-state")
     clear_reload_state(ARGV[1], ARGV[2]);
 else if (mode == "remove-file")
@@ -1692,10 +1648,6 @@ else if (mode == "process-age-seconds-fixture") {
         exit(1);
     print(age, "\n");
 }
-else if (mode == "sing-box-pid-replaced-fixture")
-    exit(sing_box_pid_replaced(ARGV[1], ARGV[2], ARGV[3]) ? 0 : 1);
-else if (mode == "sing-box-reload-previous-pid-fixture")
-    print(sing_box_reload_previous_pid(ARGV[1], ARGV[2], ARGV[3]), "\n");
 else if (mode == "sing-box-runtime-reload-needed-fixture")
     exit(sing_box_runtime_reload_needed(ARGV[1], ARGV[2], ARGV[3]) ? 0 : 1);
 else if (mode == "forkop-running")

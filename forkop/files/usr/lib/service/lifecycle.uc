@@ -1151,8 +1151,6 @@ function reload_impl(reason) {
             return abort_reload(status, true);
         let sing_box_config_path = config_get(CONFIG_NAME + ".settings.config_path", "");
         let sing_box_config_hash_before = file_md5(sing_box_config_path);
-        let sing_box_pid_result = module_capture(STATE_UC, [ "sing-box-service-runtime-pid" ]);
-        let sing_box_pid_before = sing_box_pid_result.status == 0 ? trim(sing_box_pid_result.output) : "";
         nft_populate_enabled = plan.needs_nft_rebuild == 1 ? 1 : 0;
         status = singbox_init_config_for_live_reload();
         if (status != 0)
@@ -1160,7 +1158,6 @@ function reload_impl(reason) {
         nft_populate_enabled = NFT_POPULATE_ENABLED_DEFAULT;
         status = module_status(STATE_UC, [
             "reload-sing-box-runtime",
-            sing_box_pid_before,
             sing_box_config_hash_before,
             file_md5(sing_box_config_path),
             as_string(force_runtime_reload)
