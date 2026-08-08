@@ -62,12 +62,6 @@ function string_starts_with(value, prefix) {
     return substr(value, 0, length(prefix)) == prefix;
 }
 
-function string_ends_with(value, suffix) {
-    value = as_string(value);
-    suffix = as_string(suffix);
-    return length(value) >= length(suffix) && substr(value, length(value) - length(suffix)) == suffix;
-}
-
 function whitespace_values(value) {
     let result = [];
     for (let item in split(trim(as_string(value)), /[ \t\r\n]+/))

@@ -1170,7 +1170,6 @@ function buildMtprotoFullSecret(baseSecret, faketls) {
 }
 
 function getServerIdentity(sectionId) {
-  const protocol = getProtocol(sectionId);
   const name = getServerName(sectionId);
   const uuid = uci.get(UCI_PACKAGE, sectionId, "server_uuid") || "";
   const password = uci.get(UCI_PACKAGE, sectionId, "server_password") || "";

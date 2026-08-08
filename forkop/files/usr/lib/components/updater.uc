@@ -165,19 +165,6 @@ function release_asset_url(name) {
     }
 }
 
-function release_asset_url_by_suffix_from_release(release, suffix) {
-    suffix = as_string(suffix);
-    for (let asset in array_or_empty(release.assets)) {
-        if (type(asset) != "object")
-            continue;
-        let name = as_string(asset.name || "");
-        if (str_endswith(name, suffix))
-            return as_string(asset.browser_download_url || "");
-    }
-
-    return "";
-}
-
 function release_asset_pair(release, expected_name) {
     for (let asset in array_or_empty(release.assets)) {
         if (type(asset) != "object")

@@ -455,10 +455,6 @@ function section_rule_ports_csv(section) {
     return rule_ports_csv_value(option(section, "ports", ""), option(section, "ports_text", ""));
 }
 
-function section_option_nonempty(section, key) {
-    return option(section, key, "") != "";
-}
-
 function section_has_destination_matchers(section) {
     return section_rule_condition_csv(section, "domain", "domains") != "" ||
         section_rule_condition_csv(section, "domain_suffix", "domains") != "" ||

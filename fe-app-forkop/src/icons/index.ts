@@ -12,7 +12,6 @@ export * from './renderRotateCcwIcon24';
 export * from './renderCircleStopIcon24';
 export * from './renderCirclePlayIcon24';
 export * from './renderCircleCheckBigIcon24';
-export * from './renderSquareChartGanttIcon24';
 export * from './renderCogIcon24';
 export * from './renderSearchIcon24';
 export * from './renderBookOpenTextIcon24';

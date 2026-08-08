@@ -86,23 +86,7 @@ function valuesToText(values) {
   return values ? `${values}` : "";
 }
 
-function normalizeOptionValues(value) {
-  if (!value) {
-    return [];
-  }
-
-  if (Array.isArray(value)) {
-    return value
-      .filter(Boolean)
-      .map((item) => `${item}`.trim())
-      .filter(Boolean);
-  }
-
-  return `${value}`
-    .split(/\s+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
+const normalizeOptionValues = localDevices.normalizeOptionValues;
 
 function getUciSectionName(section) {
   return section && section[".name"] ? section[".name"] : "";
@@ -1165,20 +1149,6 @@ function tunnelChild(sectionId, tunnelId) {
       item[".name"] === `${tunnelId || ""}` &&
       item.section === `${sectionId || ""}`,
   );
-}
-
-function tunnelChildIds(sectionId) {
-  return (uci.sections(UCI_PACKAGE, "tunnel") || [])
-    .filter((item) => item.section === `${sectionId || ""}`)
-    .sort((left, right) => {
-      const order = (item) => Number.parseInt(item.order || "0", 10) || 0;
-      return (
-        order(left) - order(right) ||
-        `${left[".name"] || ""}`.localeCompare(`${right[".name"] || ""}`)
-      );
-    })
-    .map((item) => item[".name"])
-    .filter(Boolean);
 }
 
 function tunnelPeerIds(tunnelId) {
@@ -3978,16 +3948,6 @@ function setModalOptionValue(map, option, value) {
   }
 }
 
-function getModalOptionValue(map, option) {
-  const element =
-    typeof option.getUIElement === "function"
-      ? option.getUIElement("settings")
-      : null;
-  return element && typeof element.getValue === "function"
-    ? element.getValue()
-    : map.data.get(map.config, "settings", option.option);
-}
-
 function tunnelPeerFromChild(peerId) {
   const peer = (uci.sections(UCI_PACKAGE, "tunnel_peer") || []).find(
     (item) => item[".name"] === `${peerId || ""}`,
@@ -5794,19 +5754,6 @@ function isSingBoxDuration(value) {
   return /^(?=.*[1-9])([0-9]+(?:\.[0-9]+)?(?:ns|us|ms|s|m|h|d))+$/.test(value);
 }
 
-function writeOptionalDurationOption(section_id, key, value) {
-  const normalized = value ? `${value}`.trim() : "";
-  const disabledKey = `${key}_disabled`;
-
-  if (normalized.length) {
-    uci.set(UCI_PACKAGE, section_id, key, normalized);
-    uci.unset(UCI_PACKAGE, section_id, disabledKey);
-  } else {
-    uci.unset(UCI_PACKAGE, section_id, key);
-    uci.set(UCI_PACKAGE, section_id, disabledKey, "1");
-  }
-}
-
 function validateOptionalSingBoxDuration(value) {
   const normalized = value ? `${value}`.trim() : "";
 
@@ -5864,26 +5811,6 @@ function validateSubscriptionUrlEntry(_section_id, value) {
 
   const validation = main.validateUrl(parsed.url);
   return validation.valid ? true : validation.message;
-}
-
-function getDuplicateTextListErrors(values, normalizeValue, duplicateMessage) {
-  const seen = new Set();
-  const duplicates = [];
-
-  values.forEach((item) => {
-    const normalized = normalizeValue ? normalizeValue(item) : item;
-
-    if (seen.has(normalized)) {
-      if (!duplicates.includes(item)) {
-        duplicates.push(item);
-      }
-      return;
-    }
-
-    seen.add(normalized);
-  });
-
-  return duplicates.map((item) => `${item}: ${duplicateMessage}`);
 }
 
 function getValidationHeaderText() {

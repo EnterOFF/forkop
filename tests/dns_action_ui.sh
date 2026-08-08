@@ -130,13 +130,17 @@ if (!source.includes('node.dispatchEvent(new CustomEvent("widget-change", { bubb
   fail("text conditions must refresh device-filter visibility while editing");
 }
 
-function extractFunction(name, nextName) {
-  const start = requiredIndex(`function ${name}(`);
-  const end = requiredIndex(`function ${nextName}(`, start);
-  return source.slice(start, end);
+function extractFunction(name, nextName, text = source) {
+  const start = text.indexOf(`function ${name}(`);
+  const end = text.indexOf(`function ${nextName}(`, start);
+  if (start < 0 || end < 0) fail(`missing function source: ${name}`);
+  return text.slice(start, end);
 }
 
-eval(extractFunction("normalizeOptionValues", "getUciSectionName"));
+if (!source.includes("const normalizeOptionValues = localDevices.normalizeOptionValues;")) {
+  fail("section must reuse the local-device option normalizer");
+}
+eval(extractFunction("normalizeOptionValues", "normalizeLocalDeviceName", localDevicesSource));
 eval(extractFunction("normalizeDynamicListItems", "uniqueDynamicListItems"));
 eval(extractFunction("stringArraysEqual", "writeListOption"));
 eval(extractFunction("makeDeviceOptionsExclusive", "childOwnerOption"));
