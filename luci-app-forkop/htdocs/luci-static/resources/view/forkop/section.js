@@ -1015,7 +1015,7 @@ function updateButtonAddDynamicListLayout(dl, label) {
       E(
         "ul",
         { tabindex: "-1" },
-        E("li", { selected: "", display: "0" }),
+        E("li", { placeholder: "", selected: "", display: "0" }),
       ),
       E("span", { "aria-hidden": "true" }, "\u200b"),
     );

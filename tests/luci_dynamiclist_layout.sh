@@ -125,7 +125,7 @@ NODE
 
 grep -Fq 'addButton.className = "cbi-dropdown fkp-button-add-control";' <<<"$button_add_widget" ||
   fail "button-only DynamicList actions must use the native LuCI dropdown surface"
-grep -Fq 'E("li", { selected: "", display: "0" })' <<<"$button_add_widget" ||
+grep -Fq 'E("li", { placeholder: "", selected: "", display: "0" })' <<<"$button_add_widget" ||
   fail "button-only DynamicList actions must use the native dropdown label structure"
 grep -Fq 'E("span", { "aria-hidden": "true" }, "\u200b")' <<<"$button_add_widget" ||
   fail "button-only DynamicList actions must retain the native dropdown line height"
