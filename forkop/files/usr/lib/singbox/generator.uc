@@ -1594,43 +1594,25 @@ function add_section_dns_matcher_rule(config, section, matchers, rewrite_ttl) {
     }
 }
 
-function source_aware_dns_sources(sections) {
-    let seen = {};
-    let values = [];
-    let system = false;
-
+function system_aware_dns_enabled(sections) {
     for (let section in sections) {
         let action = option(section, "action", "");
-        let candidates = { ips: [], system: false };
         if (connections.has_dns_matchers(section)) {
             let devices = connections.device_matchers(section, "source_ip_cidr");
-            candidates.ips = devices.ips;
-            candidates.system = devices.system;
+            if (devices.system)
+                return true;
         }
         if (action == "bypass" || action == "dns") {
             let fully_routed = connections.device_matchers(section, "fully_routed_ips");
-            for (let value in fully_routed.ips)
-                push(candidates.ips, value);
-            candidates.system = candidates.system || fully_routed.system;
+            if (fully_routed.system)
+                return true;
         }
-
-        for (let value in candidates.ips) {
-            value = trim(as_string(value));
-            if (value != "" && !seen[value]) {
-                seen[value] = true;
-                push(values, value);
-            }
-        }
-        system = system || candidates.system;
     }
 
-    return { ips: values, system };
+    return false;
 }
 
-function add_source_aware_dns_support(config, sources) {
-    if (length(sources.ips) == 0 && !sources.system)
-        return;
-
+function add_source_aware_dns_support(config) {
     push(config.dns.servers, {
         type: "udp",
         tag: runtime_constants.DNSMASQ_DNS_SERVER_TAG,
@@ -1639,14 +1621,9 @@ function add_source_aware_dns_support(config, sources) {
     });
 }
 
-function add_source_aware_dns_fallback(config, sources) {
-    if (length(sources.ips) == 0 && !sources.system)
-        return;
-
-    let matchers = [];
-    if (length(sources.ips) > 0)
-        push(matchers, { inbound: source_dns_inbound_matcher(), source_ip_cidr: single_or_array(sources.ips) });
-    if (sources.system)
+function add_source_aware_dns_fallback(config, system_aware_dns) {
+    let matchers = [ { inbound: source_dns_inbound_matcher() } ];
+    if (system_aware_dns)
         push(matchers, { inbound: system_dns_inbound_matcher() });
     for (let matcher in matchers) {
         let rule = {
@@ -2092,14 +2069,14 @@ function generate_config(output_path, service_address, mwan3_active, deferred_se
     if (length(sections) == 0 && length(servers) == 0 && trim(as_string(deferred_sections)) == "")
         runtime_generate_unsupported("no enabled sections");
 
-    let source_aware_dns = source_aware_dns_sources(sections);
+    let system_aware_dns = system_aware_dns_enabled(sections);
     let config = base_config(settings, service_address, {
         mwan3_active: cli_bool(mwan3_active),
-        source_aware_dns: length(source_aware_dns.ips) > 0,
-        system_aware_dns: source_aware_dns.system,
+        source_aware_dns: true,
+        system_aware_dns,
         direct_server_route: has_direct_tailscale_server(servers)
     });
-    add_source_aware_dns_support(config, source_aware_dns);
+    add_source_aware_dns_support(config);
     let taken = reserved_runtime_tag_set(config.outbounds);
     reserve_section_outbound_tags(sections, taken);
     for (let server in servers)
@@ -2109,7 +2086,7 @@ function generate_config(output_path, service_address, mwan3_active, deferred_se
     add_service_route_rules(config, sections);
     for (let section in sections)
         add_route_for_section(config, section);
-    add_source_aware_dns_fallback(config, source_aware_dns);
+    add_source_aware_dns_fallback(config, system_aware_dns);
     add_server_routes(config, servers, sections);
     add_service_mixed_proxy(config, settings, sections);
     for (let section in sections)

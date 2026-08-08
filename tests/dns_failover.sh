@@ -53,14 +53,14 @@ function assert(value, message) { if (!value) die(message + "\n"); }
 function find_tag(values, tag) { for (let value in values || []) if (value.tag == tag) return value; return null; }
 
 let single = json(fs.readfile(ARGV[0]));
-assert(length(single.dns.servers) == 3, "single DNS must use direct canonical transports plus FakeIP");
+assert(length(single.dns.servers) == 4, "single DNS must use direct canonical transports, dnsmasq fallback and FakeIP");
 assert(find_tag(single.dns.servers, "dns-server").server == "77.88.8.8", "single main DNS changed");
 assert(find_tag(single.dns.servers, "bootstrap-dns-server").server == "77.88.8.8", "single bootstrap DNS changed");
-assert(length(single.inbounds) == 5, "single DNS must keep only standard traffic inbounds");
+assert(length(single.inbounds) == 6, "single DNS must add the selected-interface DNS inbound");
 
 let multi = json(fs.readfile(ARGV[1]));
-assert(length(multi.dns.servers) == 7, "multi DNS must create four candidates, two fallbacks and FakeIP");
-assert(length(multi.inbounds) == 5, "native DNS fallback must keep only standard traffic inbounds");
+assert(length(multi.dns.servers) == 8, "multi DNS must create four candidates, two fallbacks, dnsmasq fallback and FakeIP");
+assert(length(multi.inbounds) == 6, "native DNS fallback must add the selected-interface DNS inbound");
 let bootstrap = find_tag(multi.dns.servers, "bootstrap-dns-server");
 let main = find_tag(multi.dns.servers, "dns-server");
 assert(bootstrap.type == "fallback" && bootstrap.strategy == "parallel", "bootstrap must use native parallel fallback");

@@ -228,13 +228,11 @@ assert_contains "$NFT_LOG" $'nft\tadd\tchain\tinet\tForkopTable\tmangle\t{ type 
 assert_contains "$NFT_LOG" $'nft\tadd\tchain\tinet\tForkopTable\tpriority_rules\t{ }' "runtime priority chain"
 assert_contains "$NFT_LOG" $'nft\tadd\tchain\tinet\tForkopTable\tpriority_output_rules\t{ }' "runtime priority output chain"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tpriority_output_rules\tmeta\tmark\t!=\t0\treturn' "runtime priority output preserves provider marks"
-assert_contains "$NFT_LOG" $'nft\tadd\tset\tinet\tForkopTable\tforkop_dns_sources\t{ type ipv4_addr; flags interval; auto-merge; }' "runtime source-aware DNS IPv4 set"
-assert_contains "$NFT_LOG" $'nft\tadd\tset\tinet\tForkopTable\tforkop_dns_sources6\t{ type ipv6_addr; flags interval; auto-merge; }' "runtime source-aware DNS IPv6 set"
 assert_contains "$NFT_LOG" $'nft\tadd\tchain\tinet\tForkopTable\tdns_redirect\t{ type nat hook prerouting priority -101; policy accept; }' "runtime source-aware DNS redirect chain"
-assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tdns_redirect\tiifname\t@forkop_interfaces\tip\tsaddr\t@forkop_dns_sources\tudp\tdport\t53\tcounter\tredirect\tto\t:1603' "runtime source-aware DNS IPv4 redirect"
-assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tdns_redirect\tiifname\t@forkop_interfaces\tip6\tsaddr\t@forkop_dns_sources6\ttcp\tdport\t53\tcounter\tredirect\tto\t:1603' "runtime source-aware DNS IPv6 redirect"
-if grep -Fq $'forkop_dns_sources\tudp\tdport\t53\tmeta\tmark' "$NFT_LOG"; then
-  fail "source-aware DNS must not use TPROXY marks"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tdns_redirect\tiifname\t@forkop_interfaces\tudp\tdport\t53\tcounter\tredirect\tto\t:1603' "selected interfaces redirect UDP DNS"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tdns_redirect\tiifname\t@forkop_interfaces\ttcp\tdport\t53\tcounter\tredirect\tto\t:1603' "selected interfaces redirect TCP DNS"
+if grep -Fq 'forkop_dns_sources' "$NFT_LOG"; then
+  fail "interface-scoped DNS must not depend on device source sets"
 fi
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle\tiifname\t@forkop_interfaces\tip6\tdaddr\t@localv6\tip6\tdaddr\t!=\tfc00::/18\treturn' "runtime local6 return preserves FakeIP6 capture"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle\tjump\tpriority_rules' "runtime priority jump"
@@ -533,16 +531,11 @@ assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_rule_p
 assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_rule_inline_fully_sources\t{ 192.168.1.20/32 }' "populate fully routed source set"
 assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_rule_inline_fully_sources6\t{ 2001:db8::20/128 }' "populate fully routed6 source set"
 assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_rule_inline_no_ports_fully_sources\t{ 192.168.1.21/32 }' "populate bypass fully routed source set"
-assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_dns_sources\t{ 192.168.1.21/32,192.168.1.22/32,192.168.1.54/32,192.168.1.53/32 }' "populate source-aware DNS IPv4 sources"
-assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_dns_sources6\t{ 2001:db8::21/128,2001:db8::22/128 }' "populate source-aware DNS IPv6 sources"
 assert_contains "$NFT_LOG" $'nft\tadd\tchain\tinet\tForkopTable\tsystem_dns_redirect\t{ type nat hook output priority -151; policy accept; }' "System DNS output redirect chain"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tsystem_dns_redirect\tmeta\tmark\t!=\t0\treturn' "System DNS keeps sing-box outbounds out of the redirect"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tsystem_dns_redirect\tudp\tdport\t53\tcounter\tredirect\tto\t:1605' "System DNS redirect"
 if grep -Fq '@system' "$NFT_LOG"; then
   fail "System sentinel must not be emitted into nft sets"
-fi
-if grep -F $'ForkopTable\tforkop_dns_sources\t' "$NFT_LOG" | grep -Fq '192.168.1.60/32'; then
-  fail "IP-only source filter should not intercept DNS"
 fi
 if grep -Fq $'nft\tinsert\trule' "$NFT_LOG"; then
   fail "fully routed sources should use ordered priority sets"

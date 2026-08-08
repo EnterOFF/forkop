@@ -1132,7 +1132,9 @@ let defaults = cfg("default");
 assert(first_remote_ruleset(defaults).update_interval == "1d", "default list update interval");
 assert(defaults.experimental.unified_delay.enabled === true, "Unified Delay setting is generated");
 assert(defaults.dns.strategy == "prefer_ipv4", "missing DNS strategy keeps the prefer_ipv4 default");
-assert(dns_server(defaults, r => r.tag == "dnsmasq-server") == null, "source-aware DNS server is omitted without device filters");
+assert(inbound(defaults, "source-dns-in") != null, "interface DNS inbound is always generated");
+assert(dns_server(defaults, r => r.tag == "dnsmasq-server") != null, "interface DNS can return unmatched queries through dnsmasq");
+assert(dns_rule(defaults, r => r.server == "dnsmasq-server" && contains(r.inbound, "source-dns-in") && r.source_ip_cidr == null) != null, "unmatched interface DNS returns through dnsmasq");
 
 let server = cfg("server");
 let socks = inbound(server, "server-edge-in");
@@ -1211,7 +1213,7 @@ assert(dns_rule(matchers, r => r.server == "fakeip-server" && contains(r.domain_
 let source_dns_fallback = dns_rule(matchers, r =>
     r.server == "dnsmasq-server" && r.type == null && r.domain == null &&
     r.domain_suffix == null && r.rule_set == null);
-assert(source_dns_fallback != null && contains(source_dns_fallback.source_ip_cidr, "10.0.0.3/32") && contains(source_dns_fallback.source_ip_cidr, "10.0.0.2/32") && contains(source_dns_fallback.source_ip_cidr, "2001:db8::2/128"), "unmatched source-aware DNS returns through dnsmasq");
+assert(source_dns_fallback != null && contains(source_dns_fallback.inbound, "source-dns-in") && source_dns_fallback.source_ip_cidr == null, "unmatched selected-interface DNS returns through dnsmasq");
 assert(dns_rule(matchers, r => r.server == "dnsmasq-server" && r.domain == null && contains(r.inbound, "system-dns-in")) != null, "unmatched System DNS returns through dnsmasq");
 let bypass_fake_index = dns_rule_index(matchers, r => r.server == "fakeip-server" && contains(r.domain_suffix, "example.org") && contains(r.source_ip_cidr, "10.0.0.3/32"));
 let proxy_below_bypass_index = dns_rule_index(matchers, r => r.server == "fakeip-server" && contains(r.domain_suffix, "example.org") && r.source_ip_cidr == null);
@@ -1274,8 +1276,8 @@ assert(dns_custom_ruleset && dns_rule(dns_action, r => contains(r.rule_set, dns_
 let dns_text_ruleset = ruleset_path(dns_action, dir + "/dns-action.lst");
 assert(dns_text_ruleset && dns_text_ruleset.type == "local" && dns_text_ruleset.format == "auto", "DNS action emits a local universal rule set");
 assert(dns_rule(dns_action, r => contains(r.rule_set, dns_text_ruleset.tag) && r.server == "dns_first-dns-server" && contains(r.source_ip_cidr, "192.0.2.1/32")) != null, "DNS action uses the universal rule set as a domain matcher");
-let dns_action_fallback = dns_rule(dns_action, r => r.server == "dnsmasq-server" && r.domain == null && r.domain_suffix == null && r.rule_set == null);
-assert(dns_action_fallback && contains(dns_action_fallback.source_ip_cidr, "192.0.2.1/32") && contains(dns_action_fallback.source_ip_cidr, "192.0.2.2/32") && contains(dns_action_fallback.source_ip_cidr, "192.0.2.3/32"), "unmatched device-aware DNS actions return through dnsmasq");
+let dns_action_fallback = dns_rule(dns_action, r => r.server == "dnsmasq-server" && r.domain == null && r.domain_suffix == null && r.rule_set == null && contains(r.inbound, "source-dns-in"));
+assert(dns_action_fallback && dns_action_fallback.source_ip_cidr == null, "unmatched selected-interface DNS actions return through dnsmasq");
 assert(route_rule(dns_action, r => contains(r.source_ip_cidr, "192.0.2.2/32")) == null, "forced DNS action does not route device traffic");
 assert(fs.stat(dir + "/dns-action.json.rulesets/dns_first-lists-ruleset.json") == null, "DNS action no longer builds a parsed Forkop rule-set cache");
 

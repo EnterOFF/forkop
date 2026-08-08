@@ -1204,8 +1204,8 @@ function write_service_status(running, enabled, dns_configured) {
     });
 }
 
-function dnsmasq_has_forkop_dns() {
-    return module_success(DNS_APPLY_UC, [ "has-forkop-dns" ]);
+function dnsmasq_ready_for_interface_dns() {
+    return module_success(DNS_APPLY_UC, [ "default-config-complete" ]);
 }
 
 function get_sing_box_status() {
@@ -1214,7 +1214,7 @@ function get_sing_box_status() {
         RUNTIME_STABLE_MIN_AGE
     ]) ? 1 : 0;
     let enabled = file_executable("/etc/rc.d/S99sing-box") ? 1 : 0;
-    let dns_configured = dnsmasq_has_forkop_dns() ? 1 : 0;
+    let dns_configured = running && dnsmasq_ready_for_interface_dns() ? 1 : 0;
     write_service_status(running, enabled, dns_configured);
     return 0;
 }
@@ -1224,7 +1224,7 @@ function get_status() {
         "forkop-stably-running", RT_TABLE_NAME, NFT_TABLE_NAME, NFT_FAKEIP_MARK, RUNTIME_STABLE_MIN_AGE
     ]) ? 1 : 0;
     let enabled = file_executable("/etc/rc.d/S99" + FORKOP_SERVICE_NAME) ? 1 : 0;
-    let dns_configured = dnsmasq_has_forkop_dns() ? 1 : 0;
+    let dns_configured = running && dnsmasq_ready_for_interface_dns() ? 1 : 0;
     write_service_status(running, enabled, dns_configured);
     return 0;
 }

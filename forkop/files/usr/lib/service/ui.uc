@@ -881,8 +881,8 @@ function forkop_running() {
     ]);
 }
 
-function dns_configured() {
-    return index(uci_core.get("dhcp.@dnsmasq[0].server"), SB_DNS_INBOUND_ADDRESS) >= 0;
+function dns_configured(running) {
+    return running && module_success(LIB_DIR + "/dns/apply.uc", [ "default-config-complete" ]);
 }
 
 function server_inbounds_enabled_count() {
@@ -943,7 +943,7 @@ function current_ui_state_json() {
                 running: forkop_is_running,
                 enabled: forkop_is_enabled,
                 status: forkop_status,
-                dns_configured: dns_configured() ? 1 : 0
+                dns_configured: dns_configured(forkop_is_running) ? 1 : 0
             },
             sing_box: {
                 running: sing_box_is_running,

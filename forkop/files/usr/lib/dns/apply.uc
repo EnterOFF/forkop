@@ -1,6 +1,5 @@
 #!/usr/bin/env ucode
 
-let fs = require("fs");
 let uci = require("core.uci");
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
@@ -94,7 +93,8 @@ function dnsmasq_has_forkop_dns() {
 }
 
 function dnsmasq_has_forkop_managed_state() {
-    return uci_get("dhcp.@dnsmasq[0].forkop_server") != "" ||
+    return dnsmasq_default_has_forkop_dns() ||
+        uci_get("dhcp.@dnsmasq[0].forkop_server") != "" ||
         uci_get("dhcp.@dnsmasq[0].forkop_noresolv") != "" ||
         uci_get("dhcp.@dnsmasq[0].forkop_cachesize") != "" ||
         uci_get("dhcp.@dnsmasq[0].forkop_rebind_protection") != "" ||
@@ -107,11 +107,7 @@ function dnsmasq_management_disabled() {
 }
 
 function dnsmasq_default_config_is_complete() {
-    return dnsmasq_default_has_forkop_dns() &&
-        uci_get("dhcp.@dnsmasq[0].noresolv") == "1" &&
-        uci_get("dhcp.@dnsmasq[0].cachesize") == "0" &&
-        uci_get("dhcp.@dnsmasq[0].rebind_protection") == "0" &&
-        !dnsmasq_legacy_instance_exists();
+    return !dnsmasq_has_forkop_managed_state();
 }
 
 function dnsmasq_legacy_interfaces() {
@@ -125,23 +121,6 @@ function dnsmasq_legacy_interfaces() {
     return legacy_interfaces;
 }
 
-function backup_dnsmasq_config_option(key, backup_key) {
-    if (uci_get("dhcp.@dnsmasq[0]." + backup_key) != "")
-        return;
-
-    let value = uci_get("dhcp.@dnsmasq[0]." + key);
-    if (value != "")
-        uci_set("dhcp.@dnsmasq[0]." + backup_key, value);
-}
-
-function backup_dnsmasq_rebind_protection() {
-    if (uci_get("dhcp.@dnsmasq[0].forkop_rebind_protection") != "")
-        return;
-
-    let value = uci_get("dhcp.@dnsmasq[0].rebind_protection");
-    uci_set("dhcp.@dnsmasq[0].forkop_rebind_protection", value != "" ? value : "__unset__");
-}
-
 function restore_dnsmasq_rebind_protection(managed_global_dns) {
     let value = uci_get("dhcp.@dnsmasq[0].forkop_rebind_protection");
     if (value == "__unset__")
@@ -151,16 +130,6 @@ function restore_dnsmasq_rebind_protection(managed_global_dns) {
     else if (managed_global_dns)
         uci_set("dhcp.@dnsmasq[0].rebind_protection", "1");
     uci_delete("dhcp.@dnsmasq[0].forkop_rebind_protection");
-}
-
-function backup_dnsmasq_server_list() {
-    if (uci_get("dhcp.@dnsmasq[0].forkop_server") != "")
-        return;
-
-    for (let server in words(dnsmasq_default_servers())) {
-        if (server != SB_DNS_INBOUND_ADDRESS)
-            uci_add_list("dhcp.@dnsmasq[0].forkop_server", server);
-    }
 }
 
 function restore_dnsmasq_config_option(key, backup_key, default_value) {
@@ -198,23 +167,6 @@ function dnsmasq_cleanup_legacy_instance() {
     }
 
     uci_delete("dhcp.@dnsmasq[0].forkop_notinterface");
-}
-
-function dnsmasq_configure_default_instance() {
-    let default_has_forkop_dns = dnsmasq_default_has_forkop_dns();
-
-    backup_dnsmasq_server_list();
-    if (!default_has_forkop_dns) {
-        backup_dnsmasq_config_option("noresolv", "forkop_noresolv");
-        backup_dnsmasq_config_option("cachesize", "forkop_cachesize");
-        backup_dnsmasq_rebind_protection();
-    }
-
-    uci_delete("dhcp.@dnsmasq[0].server");
-    uci_add_list("dhcp.@dnsmasq[0].server", SB_DNS_INBOUND_ADDRESS);
-    uci_set("dhcp.@dnsmasq[0].noresolv", "1");
-    uci_set("dhcp.@dnsmasq[0].cachesize", "0");
-    uci_set("dhcp.@dnsmasq[0].rebind_protection", "0");
 }
 
 function dnsmasq_restore_default_instance() {
@@ -255,17 +207,15 @@ function dnsmasq_configure(force) {
     if (!uci_available())
         return true;
 
-    if (as_string(force) != "force" && uci_get(CONFIG_NAME + ".settings.shutdown_correctly") == "0") {
-        if (dnsmasq_default_config_is_complete()) {
-            log("Previous Forkop shutdown was unclean; dnsmasq already points to sing-box", "info");
-            return true;
-        }
-        log("Previous Forkop shutdown was unclean and dnsmasq is not ready; applying Forkop DNS settings", "info");
+    if (dnsmasq_default_config_is_complete()) {
+        if (as_string(force) != "force" && uci_get(CONFIG_NAME + ".settings.shutdown_correctly") == "0")
+            log("Previous Forkop shutdown was unclean; dnsmasq already uses ordinary DNS settings", "info");
+        return true;
     }
 
-    log("Configuring dnsmasq to forward DNS to sing-box", "info");
+    log("Restoring ordinary dnsmasq DNS for interface-scoped Forkop capture", "info");
     dnsmasq_cleanup_legacy_instance();
-    dnsmasq_configure_default_instance();
+    dnsmasq_restore_default_instance();
     uci_commit("dhcp");
 
     return restart_dnsmasq();
@@ -275,15 +225,16 @@ function dnsmasq_restore(force, quiet) {
     if (!uci_available())
         return true;
 
+    if (dnsmasq_default_config_is_complete()) {
+        if (!quiet)
+            log("dnsmasq already uses non-Forkop DNS settings; restore is not required", "info");
+        return true;
+    }
+
     if (!quiet)
         log("Restoring DNS settings in dnsmasq", "info");
-    if (as_string(force) != "force" && uci_get(CONFIG_NAME + ".settings.shutdown_correctly") == "1") {
-        if (!dnsmasq_has_forkop_dns()) {
-            log("dnsmasq already uses non-Forkop DNS settings; restore is not required", "info");
-            return true;
-        }
+    if (as_string(force) != "force" && uci_get(CONFIG_NAME + ".settings.shutdown_correctly") == "1")
         log("Forkop DNS settings are still present after a clean shutdown; restoring DNS settings in dnsmasq", "info");
-    }
 
     dnsmasq_cleanup_legacy_instance();
     dnsmasq_restore_default_instance();

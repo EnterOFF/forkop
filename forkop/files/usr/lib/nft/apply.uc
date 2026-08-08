@@ -10,8 +10,6 @@ let connections = require("config.connections");
 let runtime_constants = require("singbox.constants");
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const IP_BIN = getenv("FORKOP_IP_BIN") || "/usr/libexec/ip-full";
-const DNS_SOURCE_SET = "forkop_dns_sources";
-const DNS_SOURCE6_SET = "forkop_dns_sources6";
 
 let common_read_json_file = common.read_json_file;
 let list_option = common.list_option;
@@ -771,8 +769,6 @@ function nft_create_runtime_base(table, localv4_set, common_set, port_set, ip_po
         !nft_create_inet_service_set(table, port_set) ||
         !nft_create_ipv4_port_set(table, ip_port_set) ||
         !nft_create_ipv6_port_set(table, ip_port6_set) ||
-        !nft_create_ipv4_set(table, DNS_SOURCE_SET) ||
-        !nft_create_ipv6_set(table, DNS_SOURCE6_SET) ||
         !nft_create_ifname_set(table, interface_set))
         return false;
 
@@ -787,10 +783,8 @@ function nft_create_runtime_base(table, localv4_set, common_set, port_set, ip_po
         !nft_create_chain(table, "proxy", "{ type filter hook prerouting priority -100; policy accept; }"))
         return false;
 
-    if (!nft_add_rule(table, "dns_redirect", [ "iifname", "@" + as_string(interface_set), "ip", "saddr", "@" + DNS_SOURCE_SET, "tcp", "dport", "53", "counter", "redirect", "to", ":" + as_string(runtime_constants.SOURCE_DNS_INBOUND_PORT) ]) ||
-        !nft_add_rule(table, "dns_redirect", [ "iifname", "@" + as_string(interface_set), "ip", "saddr", "@" + DNS_SOURCE_SET, "udp", "dport", "53", "counter", "redirect", "to", ":" + as_string(runtime_constants.SOURCE_DNS_INBOUND_PORT) ]) ||
-        !nft_add_rule(table, "dns_redirect", [ "iifname", "@" + as_string(interface_set), "ip6", "saddr", "@" + DNS_SOURCE6_SET, "tcp", "dport", "53", "counter", "redirect", "to", ":" + as_string(runtime_constants.SOURCE_DNS_INBOUND_PORT) ]) ||
-        !nft_add_rule(table, "dns_redirect", [ "iifname", "@" + as_string(interface_set), "ip6", "saddr", "@" + DNS_SOURCE6_SET, "udp", "dport", "53", "counter", "redirect", "to", ":" + as_string(runtime_constants.SOURCE_DNS_INBOUND_PORT) ]) ||
+    if (!nft_add_rule(table, "dns_redirect", [ "iifname", "@" + as_string(interface_set), "tcp", "dport", "53", "counter", "redirect", "to", ":" + as_string(runtime_constants.SOURCE_DNS_INBOUND_PORT) ]) ||
+        !nft_add_rule(table, "dns_redirect", [ "iifname", "@" + as_string(interface_set), "udp", "dport", "53", "counter", "redirect", "to", ":" + as_string(runtime_constants.SOURCE_DNS_INBOUND_PORT) ]) ||
         !nft_add_rule(table, "mangle", [ "ct", "status", "dnat", "return" ]) ||
         !nft_add_rule(table, "mangle", [ "iifname", "@" + as_string(interface_set), "ip", "daddr", "@" + as_string(localv4_set), "return" ]) ||
         !nft_add_rule(table, "mangle", [ "iifname", "@" + as_string(interface_set), "ip6", "daddr", "@" + as_string(localv6_set), "ip6", "daddr", "!=", fakeip6_range, "return" ]) ||
@@ -1494,11 +1488,7 @@ function nft_add_section_fully_routed_sources(section, table, chunk_size_text) {
     return nft_add_csv_chunks_to_family_sets(join(",", values), table, sets.fully_sources, sets.fully_sources6, "ips", "", chunk_size_text);
 }
 
-function source_aware_dns_values(sections, deferred_sections) {
-    let seen = {};
-    let values = [];
-    let system = false;
-
+function system_aware_dns_enabled(sections, deferred_sections) {
     for (let section in sections) {
         if (!bool_option(section, "enabled", true) ||
             deferred_sections[as_string(section[".name"])])
@@ -1508,28 +1498,18 @@ function source_aware_dns_values(sections, deferred_sections) {
 
         if (connections.has_dns_matchers(section)) {
             let devices = connections.device_matchers(section, "source_ip_cidr");
-            for (let value in devices.ips) {
-                if (!seen[value]) {
-                    seen[value] = true;
-                    push(values, value);
-                }
-            }
-            system = system || devices.system;
+            if (devices.system)
+                return true;
         }
 
         if (action == "bypass" || action == "dns") {
             let devices = connections.device_matchers(section, "fully_routed_ips");
-            for (let value in devices.ips) {
-                if (!seen[value]) {
-                    seen[value] = true;
-                    push(values, value);
-                }
-            }
-            system = system || devices.system;
+            if (devices.system)
+                return true;
         }
     }
 
-    return { ips: values, system };
+    return false;
 }
 
 function nft_add_system_dns_redirect(table) {
@@ -1540,22 +1520,9 @@ function nft_add_system_dns_redirect(table) {
         nft_add_rule(table, "system_dns_redirect", [ "udp", "dport", "53", "counter", "redirect", "to", ":" + as_string(runtime_constants.SYSTEM_DNS_INBOUND_PORT) ]);
 }
 
-function nft_add_source_aware_dns_sources(sections, deferred_sections, table) {
-    let sources = source_aware_dns_values(sections, deferred_sections);
-    if (sources.system && !nft_add_system_dns_redirect(table))
-        return false;
-    if (length(sources.ips) == 0)
-        return true;
-
-    return nft_add_csv_chunks_to_family_sets(
-        join(",", sources.ips),
-        table,
-        DNS_SOURCE_SET,
-        DNS_SOURCE6_SET,
-        "ips",
-        "",
-        5000
-    );
+function nft_add_system_aware_dns_support(sections, deferred_sections, table) {
+    return !system_aware_dns_enabled(sections, deferred_sections) ||
+        nft_add_system_dns_redirect(table);
 }
 
 function nft_populate_runtime_set_for_section(section, deferred_sections, table, common_set, port_set, ip_port_set, common6_set, ip_port6_set) {
@@ -1595,7 +1562,7 @@ function nft_populate_runtime_sets_from_sections(sections, populate_enabled, def
 
     let deferred_sections = word_set(deferred_section_names);
 
-    if (!nft_add_source_aware_dns_sources(sections, deferred_sections, table))
+    if (!nft_add_system_aware_dns_support(sections, deferred_sections, table))
         return false;
 
     for (let section in sections)
