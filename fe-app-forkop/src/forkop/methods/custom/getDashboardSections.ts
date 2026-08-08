@@ -58,6 +58,8 @@ type FallbackConfig = {
   healthCheckUrl: string;
   healthCheckInterval: string;
   healthCheckTimeout: string;
+  maxFailedTimes: number;
+  expectedStatus: string;
   idleTimeout: string;
   interruptExistConnections: boolean;
   levels: FallbackLevelConfig[];
@@ -292,6 +294,8 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
           health_check_url: item.health_check_url,
           health_check_interval: item.health_check_interval,
           health_check_timeout: item.health_check_timeout,
+          max_failed_times: item.max_failed_times,
+          expected_status: item.expected_status,
           idle_timeout: item.idle_timeout,
           interrupt_exist_connections: item.interrupt_exist_connections,
           pin_dashboard: item.pin_dashboard,
@@ -758,6 +762,8 @@ function getFallbackConfigs(section: Forkop.ConfigSection): FallbackConfig[] {
         'health_check_timeout',
         '5s',
       ),
+      maxFailedTimes: itemSettingNumber(settings, 'max_failed_times', 5),
+      expectedStatus: itemSettingString(settings, 'expected_status', '*'),
       idleTimeout: itemSettingString(settings, 'idle_timeout', '5m'),
       interruptExistConnections: itemSettingBoolean(
         settings,
@@ -971,6 +977,8 @@ function buildFallbackInfo({
     healthCheckUrl: config.healthCheckUrl,
     healthCheckInterval: config.healthCheckInterval,
     healthCheckTimeout: config.healthCheckTimeout,
+    maxFailedTimes: config.maxFailedTimes,
+    expectedStatus: config.expectedStatus,
     idleTimeout: config.idleTimeout,
     interruptExistConnections: config.interruptExistConnections,
     outbounds,

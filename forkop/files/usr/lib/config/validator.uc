@@ -1031,6 +1031,32 @@ function validate_fallback_level_order(value, section, group_id, level_id) {
     fail_validation("Invalid fallback level order '" + value + "' in rule '" + section + "', fallback '" + group_id + "', level '" + level_id + "'. Use a non-negative integer. Aborted.");
 }
 
+function fallback_expected_status_valid(value) {
+    value = trim(as_string(value));
+    if (value == "" || value == "*")
+        return true;
+
+    let parts = split(replace(value, /,/g, "/"), "/");
+    if (length(parts) > 28)
+        return false;
+
+    for (let part in parts) {
+        part = trim(as_string(part));
+        if (part == "")
+            continue;
+
+        let bounds = split(part, "-");
+        if (length(bounds) < 1 || length(bounds) > 2)
+            return false;
+        for (let bound in bounds) {
+            bound = replace(trim(as_string(bound)), /[\[\] ]/g, "");
+            if (match(bound, /^[0-9]+$/) == null || int(bound, 10) > 65535)
+                return false;
+        }
+    }
+    return true;
+}
+
 function validate_server_filter_mode(value, context, direct_allowed) {
     if (contains([ "all", "exclude", "include" ], value) ||
         (direct_allowed && value == "direct"))
@@ -1059,6 +1085,12 @@ function validate_fallback_group(section, group_id) {
     validate_http_url_option(connections.fallback_group_health_check_url(section, group_id), option_prefix + "health_check_url");
     validate_required_duration_option(health_check_interval, option_prefix + "health_check_interval");
     validate_required_duration_option(connections.fallback_group_health_check_timeout(section, group_id), option_prefix + "health_check_timeout");
+    let max_failed_times = connections.fallback_group_max_failed_times(section, group_id);
+    if (match(max_failed_times, /^[1-9][0-9]*$/) == null || int(max_failed_times, 10) > 2147483647)
+        fail_validation("Fallback group '" + group_id + "' in rule '" + name + "' has an invalid max_failed_times value. Use a positive integer. Aborted.");
+    let expected_status = connections.fallback_group_expected_status(section, group_id);
+    if (!fallback_expected_status_valid(expected_status))
+        fail_validation("Fallback group '" + group_id + "' in rule '" + name + "' has an invalid expected_status value. Use *, status codes, or ranges such as 204/200-299. Aborted.");
     validate_required_duration_option(idle_timeout, option_prefix + "idle_timeout");
     if (duration_to_seconds_value(health_check_interval) > duration_to_seconds_value(idle_timeout))
         fail_validation("Fallback group '" + group_id + "' in rule '" + name + "' has a health check interval longer than its idle timeout. Increase the idle timeout or shorten the health check interval. Aborted.");

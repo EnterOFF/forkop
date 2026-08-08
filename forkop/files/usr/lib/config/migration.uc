@@ -1313,7 +1313,6 @@ function remove_server_country_and_dashboard_filter(ctx) {
 }
 
 const OBSOLETE_PRIORITY_GROUP_OPTIONS = [
-    "health_url",
     "active_check_interval",
     "check_timeout",
     "recovery_check_interval",
@@ -1585,6 +1584,21 @@ function migrate_fallback_uci_tags(ctx) {
             push(ctx.model[new_type], section);
         }
         ctx.model[old_type] = [];
+    }
+}
+
+function reset_fallback_defaults(ctx) {
+    for (let group in ctx.model.fallback_group || []) {
+        let health_check_url = option(group, "health_check_url", option(group, "health_url", ""));
+        let reset_keys = [];
+        for (let key in group)
+            if (substr(key, 0, 1) != "." &&
+                key != "section" && key != "name" && key != "health_check_url")
+                push(reset_keys, key);
+        for (let key in reset_keys)
+            delete_option(ctx, group, key);
+        if (health_check_url != "")
+            set_option(ctx, group, "health_check_url", health_check_url);
     }
 }
 
@@ -1972,6 +1986,7 @@ const MIGRATIONS = [
     { id: "leaf_subscription_providers", run: use_leaf_subscription_providers },
     { id: "extended_server_defaults", run: add_extended_server_defaults },
     { id: "fallback_uci_tags", run: migrate_fallback_uci_tags },
+    { id: "reset_fallback_defaults", run: reset_fallback_defaults },
     { id: "remove_proxy_parameter_filters", run: remove_proxy_parameter_filters },
     { id: "server_filter_model", run: migrate_server_filter_model },
     { id: "server_filter_modes", run: migrate_server_filter_modes },

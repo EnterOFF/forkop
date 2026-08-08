@@ -190,6 +190,8 @@ export namespace Forkop {
     healthCheckUrl?: string;
     healthCheckInterval?: string;
     healthCheckTimeout?: string;
+    maxFailedTimes?: number;
+    expectedStatus?: string;
     idleTimeout?: string;
     interruptExistConnections?: boolean;
     outbounds: FallbackMember[];
@@ -339,6 +341,8 @@ export namespace Forkop {
     health_check_url?: string;
     health_check_interval?: string;
     health_check_timeout?: string;
+    max_failed_times?: string;
+    expected_status?: string;
     country?: string[];
     server_name?: string[];
     regex?: string[];

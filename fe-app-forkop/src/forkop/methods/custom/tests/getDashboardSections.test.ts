@@ -100,6 +100,8 @@ function fallbackGroup(
     health_check_url: 'https://health.example/generate_204',
     health_check_interval: '10s',
     health_check_timeout: '3s',
+    max_failed_times: '2',
+    expected_status: '204/200-299',
     idle_timeout: '20m',
     interrupt_exist_connections: '0',
     pin_dashboard: '1',
@@ -505,6 +507,8 @@ describe('getDashboardSections', () => {
       healthCheckUrl: 'https://health.example/generate_204',
       healthCheckInterval: '10s',
       healthCheckTimeout: '3s',
+      maxFailedTimes: 2,
+      expectedStatus: '204/200-299',
       idleTimeout: '20m',
       interruptExistConnections: false,
     });

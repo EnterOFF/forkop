@@ -2244,6 +2244,44 @@ function validateUrlTestUrl(value) {
   return validation.valid ? true : validation.message;
 }
 
+function validateFallbackMaxFailedTimes(value) {
+  const normalized = `${value || ""}`.trim();
+  const parsed = Number(normalized);
+  return /^[1-9][0-9]*$/.test(normalized) &&
+    Number.isSafeInteger(parsed) &&
+    parsed <= 2147483647
+    ? true
+    : _("Use a positive integer");
+}
+
+function validateFallbackExpectedStatus(value) {
+  const normalized = `${value || ""}`.trim();
+  if (!normalized || normalized === "*") {
+    return true;
+  }
+
+  const parts = normalized.replaceAll(",", "/").split("/");
+  if (parts.length > 28) {
+    return _("Use *, status codes, or ranges such as 204/200-299");
+  }
+  for (const part of parts) {
+    if (!part.trim()) {
+      continue;
+    }
+    const bounds = part.split("-");
+    if (
+      bounds.length > 2 ||
+      bounds.some((bound) => {
+        const code = bound.trim().replace(/[\[\] ]/g, "");
+        return !/^[0-9]+$/.test(code) || Number(code) > 65535;
+      })
+    ) {
+      return _("Use *, status codes, or ranges such as 204/200-299");
+    }
+  }
+  return true;
+}
+
 function optionMapValue(option, section_id, key) {
   const value =
     option && option.map && option.map.data
@@ -2527,6 +2565,8 @@ function fallbackGroupSettingsKeys() {
     "health_check_url",
     "health_check_interval",
     "health_check_timeout",
+    "max_failed_times",
+    "expected_status",
     "idle_timeout",
     "interrupt_exist_connections",
     "pin_dashboard",
@@ -2540,6 +2580,8 @@ function defaultFallbackGroupSettings() {
     health_check_url: "https://www.gstatic.com/generate_204",
     health_check_interval: "5m",
     health_check_timeout: "5s",
+    max_failed_times: "5",
+    expected_status: "*",
     idle_timeout: "5m",
     interrupt_exist_connections: "1",
     pin_dashboard: "1",
@@ -2552,6 +2594,8 @@ function fallbackGroupChildDefaults() {
     health_check_url: "https://www.gstatic.com/generate_204",
     health_check_interval: "5m",
     health_check_timeout: "5s",
+    max_failed_times: "5",
+    expected_status: "*",
     idle_timeout: "5m",
     interrupt_exist_connections: "1",
     pin_dashboard: "1",
@@ -3077,6 +3121,34 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
   o.rmempty = false;
   o.validate = function (_itemId, value) {
     return validateRequiredSingBoxDuration(value);
+  };
+
+  o = itemSection.option(
+    form.Value,
+    "max_failed_times",
+    _("Maximum failed attempts"),
+    _(
+      "Number of connection failures during the availability timeout after which Fallback starts an immediate health check. Connection refused is checked immediately.",
+    ),
+  );
+  o.default = "5";
+  o.rmempty = false;
+  o.validate = function (_itemId, value) {
+    return validateFallbackMaxFailedTimes(value);
+  };
+
+  o = itemSection.option(
+    form.Value,
+    "expected_status",
+    _("Expected status"),
+    _(
+      "HTTP status codes that count as a successful health check. Use * for any response, or values and ranges such as 204/200-299.",
+    ),
+  );
+  o.default = "*";
+  o.rmempty = false;
+  o.validate = function (_itemId, value) {
+    return validateFallbackExpectedStatus(value);
   };
 
   o = itemSection.option(

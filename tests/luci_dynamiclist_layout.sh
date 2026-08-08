@@ -43,6 +43,8 @@ const fallbackDefault = (name) => {
 };
 assert.strictEqual(fallbackDefault('health_check_interval'), '5m');
 assert.strictEqual(fallbackDefault('health_check_timeout'), '5s');
+assert.strictEqual(fallbackDefault('max_failed_times'), '5');
+assert.strictEqual(fallbackDefault('expected_status'), '*');
 assert.strictEqual(fallbackDefault('idle_timeout'), '5m');
 assert.strictEqual(fallbackDefault('interrupt_exist_connections'), '1');
 assert.match(
@@ -245,7 +247,7 @@ if grep -Eq 'include_countries|exclude_countries|countryChoices' <<<"$server_fil
 fi
 grep -Fq 'Add at least one Fallback level' "$SECTION_JS" ||
   fail "Fallback settings must require at least one level"
-for option in health_check_url health_check_interval health_check_timeout idle_timeout interrupt_exist_connections; do
+for option in health_check_url health_check_interval health_check_timeout max_failed_times expected_status idle_timeout interrupt_exist_connections; do
   grep -Fq "\"$option\"" <<<"$fallback_group_options" ||
     fail "Fallback settings are missing $option"
 done

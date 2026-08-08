@@ -1107,7 +1107,7 @@ function renderFallbackInfoModal(outbound: Forkop.Outbound) {
     children?: Array<HTMLElement | string>;
   }> = [
     {
-      label: _('Last used'),
+      label: _('Selected'),
       children: [renderFallbackSelectedValue(info)],
     },
     {
@@ -1116,6 +1116,8 @@ function renderFallbackInfoModal(outbound: Forkop.Outbound) {
     },
     { label: _('Check interval'), value: info.healthCheckInterval },
     { label: _('Availability timeout'), value: info.healthCheckTimeout },
+    { label: _('Maximum failed attempts'), value: info.maxFailedTimes },
+    { label: _('Expected status'), value: info.expectedStatus },
     { label: _('Idle timeout'), value: info.idleTimeout },
     {
       label: _('Interrupt connections'),

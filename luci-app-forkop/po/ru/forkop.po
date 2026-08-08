@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-04 14:49+0300\n"
-"PO-Revision-Date: 2026-08-04 14:49+0300\n"
+"POT-Creation-Date: 2026-08-08 05:53+0300\n"
+"PO-Revision-Date: 2026-08-08 05:53+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -98,7 +98,6 @@ msgstr "Добавить серверы, названия которых сов�
 msgid "Additional marking rules found"
 msgstr "Найдены дополнительные правила маркировки"
 
-#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4214
 msgid "Additional packet padding"
 msgstr "Дополнительное заполнение пакета"
 
@@ -408,7 +407,6 @@ msgstr "Дашборд"
 msgid "Dashboard currently unavailable"
 msgstr "Дашборд сейчас недоступен"
 
-#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4220
 msgid "Data rejection timeout"
 msgstr "Таймаут отклонения данных"
 
@@ -706,6 +704,9 @@ msgstr "Исключить серверы с этого уровня по рег
 msgid "Exit node"
 msgstr "Выходной узел"
 
+msgid "Expected status"
+msgstr "Ожидаемый статус"
+
 msgid "Expires"
 msgstr "Истекает"
 
@@ -764,7 +765,7 @@ msgid "Fallback level settings"
 msgstr "Настройки уровня Fallback"
 
 msgid "Fallback levels"
-msgstr "Уровни Fallback"
+msgstr "Группы серверов"
 
 msgid "Fallback on unknown DC"
 msgstr "Fallback для неизвестного DC"
@@ -883,7 +884,6 @@ msgstr "Название заголовка"
 msgid "Header name contains invalid characters"
 msgstr "Название заголовка содержит недопустимые символы"
 
-#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4212
 msgid "Header protection key"
 msgstr "Ключ защиты заголовка"
 
@@ -917,6 +917,9 @@ msgstr "Ошибка HTTP"
 msgid "HTTP hosts"
 msgstr "HTTP-хосты"
 
+msgid "HTTP status codes that count as a successful health check. Use * for any response, or values and ranges such as 204/200-299."
+msgstr "HTTP-коды, при которых проверка доступности считается успешной. Укажите * для любого ответа либо коды и диапазоны, например 204/200-299."
+
 msgid "Idle timeout"
 msgstr "Таймаут простоя"
 
@@ -937,9 +940,6 @@ msgstr "Inbound JSON не может быть пустым"
 
 msgid "Inbound JSON must be an object with a type field"
 msgstr "Inbound JSON должен быть объектом с полем type"
-
-msgid "Unsupported JSON inbound type"
-msgstr "Неподдерживаемый тип JSON inbound"
 
 msgid "Include by pattern"
 msgstr "Включить по шаблону"
@@ -1070,9 +1070,6 @@ msgstr "JSON endpoint должен содержать непустой tag"
 msgid "JSON endpoint must contain a non-empty type"
 msgstr "JSON endpoint должен содержать непустое поле type"
 
-msgid "Unsupported JSON endpoint type"
-msgstr "Неподдерживаемый тип JSON endpoint"
-
 msgid "JSON outbound"
 msgstr "JSON outbound"
 
@@ -1088,16 +1085,15 @@ msgstr "JSON outbound должен содержать непустое поле 
 msgid "JSON outbound must contain a non-empty type field"
 msgstr "JSON outbound должен содержать непустое поле type"
 
-msgid "JSON outbound type must be lowercase without surrounding whitespace"
-msgstr "Тип JSON outbound должен быть в нижнем регистре и без пробелов по краям"
-
 msgid "JSON outbound settings"
 msgstr "Настройки JSON outbound"
+
+msgid "JSON outbound type must be lowercase without surrounding whitespace"
+msgstr "Тип JSON outbound должен быть в нижнем регистре и без пробелов по краям"
 
 msgid "Keep this group before latency-sorted servers"
 msgstr "Показывать группу перед серверами, отсортированными по задержке"
 
-#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4222
 msgid "Keepalive timeout"
 msgstr "Таймаут keepalive"
 
@@ -1106,9 +1102,6 @@ msgstr "Путь к ключу"
 
 msgid "Keyword must not contain spaces or commas"
 msgstr "Ключевое слово не должно содержать пробелы или запятые"
-
-msgid "Last used"
-msgstr "Использован последним"
 
 msgid "Latency test cancellation failed"
 msgstr "Не удалось отменить тестирование задержки"
@@ -1135,7 +1128,7 @@ msgid "Level server filter"
 msgstr "Фильтр серверов уровня"
 
 msgid "Levels are tried from top to bottom until one succeeds"
-msgstr "Уровни проверяются сверху вниз, пока не найдется доступный"
+msgstr "Группы проверяются сверху вниз, пока не найдется доступный сервер"
 
 msgid "List of remote WireGuard nodes to connect."
 msgstr "Список удаленных узлов WireGuard для подключения."
@@ -1182,7 +1175,9 @@ msgstr "Совпадение по IP-адресам или подсетям на
 msgid "Match destination ports. Use a single port or a range"
 msgstr "Совпадение по портам назначения. Используйте одиночный порт или диапазон"
 
-#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4224
+msgid "Maximum failed attempts"
+msgstr "Максимум неудачных попыток"
+
 msgid "Maximum handshake attempts"
 msgstr "Максимум попыток рукопожатия"
 
@@ -1230,9 +1225,6 @@ msgstr "Имя, которое отображается в списке уров
 
 msgid "Name shown in the Tailscale admin console."
 msgstr "Имя, которое будет отображаться в панели Tailscale."
-
-msgid "vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, hy2://, naive+https://, naive+quic://, mieru://, and mierus://"
-msgstr "vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, hy2://, naive+https://, naive+quic://, mieru:// и mierus://"
 
 msgid "Network"
 msgstr "Сеть"
@@ -1332,6 +1324,9 @@ msgstr "Не отвечает"
 
 msgid "Not running"
 msgstr "Не запущено"
+
+msgid "Number of connection failures during the availability timeout after which Fallback starts an immediate health check. Connection refused is checked immediately."
+msgstr "Количество ошибок подключения за время ожидания доступности, после которого Fallback немедленно запускает проверку. При отказе в соединении проверка запускается сразу."
 
 msgid "Obfuscation"
 msgstr "Обфускация"
@@ -1528,11 +1523,9 @@ msgstr "Зарегистрировать устройство Cloudflare WARP и
 msgid "Regular expression must not contain spaces or commas"
 msgstr "Регулярное выражение не должно содержать пробелы или запятые"
 
-#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4216
 msgid "Rekey interval"
 msgstr "Интервал обновления ключа"
 
-#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4218
 msgid "Rekey timeout"
 msgstr "Таймаут обновления ключа"
 
@@ -1661,9 +1654,6 @@ msgstr "Выберите секцию для скачивания этой по�
 
 msgid "Select a transit section"
 msgstr "Выберите транзитную секцию"
-
-msgid "Select an existing network interface"
-msgstr "Выберите существующий сетевой интерфейс"
 
 msgid "Select an intermediate section"
 msgstr "Выберите промежуточную секцию"
@@ -2091,6 +2081,12 @@ msgstr "Неизвестный флаг NFQWS2."
 msgid "Unspecified IP address is not allowed"
 msgstr "Неуказанный IP-адрес не разрешён"
 
+msgid "Unsupported JSON endpoint type"
+msgstr "Неподдерживаемый тип JSON endpoint"
+
+msgid "Unsupported JSON inbound type"
+msgstr "Неподдерживаемый тип JSON inbound"
+
 msgid "Unsupported security mode for this protocol"
 msgstr "Этот протокол не поддерживает выбранный режим защиты"
 
@@ -2139,6 +2135,9 @@ msgstr "Фильтр URLTest группы"
 msgid "URLTest settings"
 msgstr "Настройки URLTest"
 
+msgid "Use *, status codes, or ranges such as 204/200-299"
+msgstr "Укажите *, HTTP-коды или диапазоны, например 204/200-299"
+
 msgid "Use 32 hex characters"
 msgstr "Укажите 32 hex-символа"
 
@@ -2156,6 +2155,9 @@ msgstr "Используйте неотрицательное целое чис�
 
 msgid "Use a non-zero secret"
 msgstr "Укажите ненулевой секрет"
+
+msgid "Use a positive integer"
+msgstr "Укажите положительное целое число"
 
 msgid "Use a valid UUID"
 msgstr "Укажите корректный UUID"
@@ -2219,6 +2221,9 @@ msgstr "Видимое имя этой секции"
 
 msgid "VLESS flow"
 msgstr "VLESS flow"
+
+msgid "vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, hy2://, naive+https://, naive+quic://, mieru://, and mierus://"
+msgstr "vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, hy2://, naive+https://, naive+quic://, mieru:// и mierus://"
 
 msgid "WAN"
 msgstr "WAN"
