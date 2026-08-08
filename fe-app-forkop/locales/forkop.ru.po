@@ -98,14 +98,18 @@ msgstr "Добавить серверы, названия которых сов�
 msgid "Additional marking rules found"
 msgstr "Найдены дополнительные правила маркировки"
 
+#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4214
+msgid "Additional packet padding"
+msgstr "Дополнительное заполнение пакета"
+
 msgid "Address"
 msgstr "Адрес"
 
 msgid "Address of the coordination server. Change it if you use a custom server."
 msgstr "Адрес сервера координации. Измените его, если используете собственный сервер"
 
-msgid "Adds AmneziaWG traffic obfuscation to make the traffic harder to identify."
-msgstr "Добавляет обфускацию трафика по механизму AmneziaWG, чтобы затруднить его распознавание."
+msgid "Adds traffic masking using the Amnezia mechanism to make it harder to identify."
+msgstr "Добавляет маскировку трафика по механизму Amnezia, чтобы затруднить его распознавание."
 
 msgid "Advertise routes"
 msgstr "Анонсировать маршруты"
@@ -403,6 +407,10 @@ msgstr "Дашборд"
 
 msgid "Dashboard currently unavailable"
 msgstr "Дашборд сейчас недоступен"
+
+#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4220
+msgid "Data rejection timeout"
+msgstr "Таймаут отклонения данных"
 
 msgid "Default address for checking server availability and latency. URLTest uses its own address."
 msgstr "Адрес по умолчанию для проверки доступности и задержки серверов. Для URLTest используется собственный адрес."
@@ -875,6 +883,10 @@ msgstr "Название заголовка"
 msgid "Header name contains invalid characters"
 msgstr "Название заголовка содержит недопустимые символы"
 
+#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4212
+msgid "Header protection key"
+msgstr "Ключ защиты заголовка"
+
 msgid "Header value"
 msgstr "Значение заголовка"
 
@@ -1085,6 +1097,10 @@ msgstr "Настройки JSON outbound"
 msgid "Keep this group before latency-sorted servers"
 msgstr "Показывать группу перед серверами, отсортированными по задержке"
 
+#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4222
+msgid "Keepalive timeout"
+msgstr "Таймаут keepalive"
+
 msgid "Key path"
 msgstr "Путь к ключу"
 
@@ -1165,6 +1181,10 @@ msgstr "Совпадение по IP-адресам или подсетям на
 
 msgid "Match destination ports. Use a single port or a range"
 msgstr "Совпадение по портам назначения. Используйте одиночный порт или диапазон"
+
+#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4224
+msgid "Maximum handshake attempts"
+msgstr "Максимум попыток рукопожатия"
 
 msgid "Maximum packet size for this tunnel. Leave empty to use the default value."
 msgstr "Максимальный размер пакета для этого туннеля. Оставьте пустым для значения по умолчанию."
@@ -1507,6 +1527,14 @@ msgstr "Зарегистрировать устройство Cloudflare WARP и
 
 msgid "Regular expression must not contain spaces or commas"
 msgstr "Регулярное выражение не должно содержать пробелы или запятые"
+
+#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4216
+msgid "Rekey interval"
+msgstr "Интервал обновления ключа"
+
+#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4218
+msgid "Rekey timeout"
+msgstr "Таймаут обновления ключа"
 
 msgid "Remove"
 msgstr "Удалить"
@@ -1964,8 +1992,8 @@ msgstr "Торренты напрямую"
 msgid "Traffic"
 msgstr "Трафик"
 
-msgid "Traffic masking"
-msgstr "Маскировка трафика"
+msgid "Traffic obfuscation"
+msgstr "Обфускация трафика"
 
 msgid "Traffic prefixes routed through this peer."
 msgstr "Префиксы трафика, направляемые через этого пира."
@@ -2246,8 +2274,8 @@ msgstr "Имя хоста или IP-адрес пира WireGuard."
 msgid "WireGuard peer settings"
 msgstr "Настройки пира WireGuard"
 
-msgid "WireGuard, AmneziaWG 2.0, Cloudflare WARP, and Tailscale tunnels"
-msgstr "Туннели WireGuard, AmneziaWG 2.0, Cloudflare WARP и Tailscale"
+msgid "WireGuard, AmneziaWG, Cloudflare WARP, and Tailscale tunnels"
+msgstr "Туннели WireGuard, AmneziaWG, Cloudflare WARP и Tailscale"
 
 msgid "XHTTP mode"
 msgstr "Режим XHTTP"

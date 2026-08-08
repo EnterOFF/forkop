@@ -70,7 +70,7 @@ function new_section_state(section_name) {
     return {
         version: FORKOP_RUNTIME_CACHE_FORMAT,
         section: section_name,
-        outboundMetadata: { names: {} },
+        outboundMetadata: { names: {}, protocols: {} },
         urltestCandidateTags: [],
         urltestGroups: {},
         fallbackGroups: {}

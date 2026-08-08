@@ -369,7 +369,7 @@ function validate_strategy_or_exit(cfg, section_name_value, raw_opt) {
     let result = cfg.validator().validate_strategy(cfg.validator_kind, raw_opt, cfg.legacy_default_strategy);
     if (result.valid)
         return;
-    log_message("Invalid " + cfg.binary_name + " strategy for rule '" + section_name_value + "': " + result.message, "fatal");
+    log_message("Invalid " + cfg.binary_name + " strategy for rule '" + section_name_value + "': " + result.message, "error");
     exit(1);
 }
 
@@ -442,13 +442,13 @@ function start_rule(cfg, section, index_value) {
     ]) + " >>" + shell_quote(logfile) + " 2>&1 1000>&- & echo $!";
     let pid = trim(command_output("sh -c " + shell_quote(command)));
     if (pid == "" || fs.writefile(pidfile, pid + "\n") == null) {
-        log_message(cfg.binary_name + " failed to start for rule '" + name + "'. Check " + logfile + ". Aborted.", "fatal");
+        log_message(cfg.binary_name + " failed to start for rule '" + name + "'. Check " + logfile + ". Aborted.", "error");
         exit(1);
     }
 
     command_success_from_args([ "sleep", "1" ]);
     if (!runtime_pid_running(pid)) {
-        log_message(cfg.binary_name + " failed to start for rule '" + name + "'. Check " + logfile + ". Aborted.", "fatal");
+        log_message(cfg.binary_name + " failed to start for rule '" + name + "'. Check " + logfile + ". Aborted.", "error");
         exit(1);
     }
 
@@ -466,7 +466,7 @@ function start_runtime(cfg) {
 
     cleanup_legacy_runtime(cfg);
     if (!ensure_runtime_dirs(cfg)) {
-        log_message("Failed to prepare the Forkop " + cfg.status_label + " state directory in " + cfg.state_dir + ". Aborted.", "fatal");
+        log_message("Failed to prepare the Forkop " + cfg.status_label + " state directory in " + cfg.state_dir + ". Aborted.", "error");
         exit(1);
     }
 

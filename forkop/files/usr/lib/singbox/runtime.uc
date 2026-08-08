@@ -475,7 +475,7 @@ function init_config(populate_nft, skip_check) {
     let live_core = sing_box_process_running();
     if (!arg_bool(skip_check) && !(live_core && config_unchanged)) {
         if (live_core) {
-            log_message("Refusing a standalone sing-box config check while the core is running; use Forkop reload", "fatal");
+            log_message("Refusing a standalone sing-box config check while the core is running; use Forkop reload", "error");
             remove_files([ temp_config, runtime_log ]);
             exit(1);
         }

@@ -379,6 +379,14 @@ function parseUnsigned(value, maximum) {
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed <= maximum ? parsed : void 0;
 }
+function parseRange(value, maximum) {
+  const parts = value.split("-");
+  if (parts.length > 2 || parts.some((part) => part === "")) return void 0;
+  const from = parseUnsigned(parts[0], maximum);
+  const to = parts.length === 2 ? parseUnsigned(parts[1], maximum) : from;
+  if (from === void 0 || to === void 0 || from > to) return void 0;
+  return parts.length === 2 ? value : from;
+}
 function validateWireGuardKey(value) {
   const normalized = value.trim();
   if (!/^[A-Za-z0-9+/]{43}=$/u.test(normalized)) return false;
@@ -440,28 +448,49 @@ function readSections(input) {
 }
 function parseAmnezia(section) {
   const result = {};
-  const integers = ["jc", "jmin", "jmax", "s1", "s2", "s3", "s4", "itime"];
-  const ranges = ["h1", "h2", "h3", "h4"];
-  const strings = ["i1", "i2", "i3", "i4", "i5", "j1", "j2", "j3"];
+  const integers = ["jc", "jmin", "jmax", "s1", "s2", "s3", "s4"];
+  const ranges = [
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "content_padding_addition",
+    "rekey_after_time",
+    "rekey_timeout",
+    "reject_after_time",
+    "keepalive_timeout",
+    "max_handshake_attempts"
+  ];
+  const strings = ["i1", "i2", "i3", "i4", "i5", "header_protection_key"];
+  const aliases = {
+    header_protection_key: ["header_protection_key", "headerprotectionkey"],
+    content_padding_addition: [
+      "content_padding_addition",
+      "contentpaddingaddition"
+    ],
+    rekey_after_time: ["rekey_after_time", "rekeyaftertime"],
+    rekey_timeout: ["rekey_timeout", "rekeytimeout"],
+    reject_after_time: ["reject_after_time", "rejectaftertime"],
+    keepalive_timeout: ["keepalive_timeout", "keepalivetimeout"],
+    max_handshake_attempts: ["max_handshake_attempts", "maxhandshakeattempts"]
+  };
+  const valueFor = (key) => (aliases[key] || [key]).map((alias) => firstValue(section, alias)).find(Boolean) || "";
   for (const key of integers) {
-    const value = firstValue(section, key);
+    const value = valueFor(key);
     if (!value) continue;
     const parsed = parseUnsigned(value, Number.MAX_SAFE_INTEGER);
     if (parsed === void 0) return void 0;
     result[key] = parsed;
   }
   for (const key of ranges) {
-    const value = firstValue(section, key);
+    const value = valueFor(key);
     if (!value) continue;
-    const parts = value.split("-");
-    if (parts.length > 2 || parts.some((part) => part === "")) return void 0;
-    const from = parseUnsigned(parts[0], 4294967295);
-    const to = parts.length === 2 ? parseUnsigned(parts[1], 4294967295) : from;
-    if (from === void 0 || to === void 0 || from > to) return void 0;
-    result[key] = value.includes("-") ? value : Number(value);
+    const parsed = parseRange(value, 4294967295);
+    if (parsed === void 0) return void 0;
+    result[key] = parsed;
   }
   for (const key of strings) {
-    const value = firstValue(section, key);
+    const value = valueFor(key);
     if (value) result[key] = value;
   }
   return Object.keys(result).length > 0 ? result : void 0;
@@ -542,7 +571,7 @@ function parseWireGuardConfig(input) {
     if (preSharedKey) peer.pre_shared_key = preSharedKey;
     peer.allowed_ips = allowedIps;
     if (keepaliveValue) {
-      const keepalive = parseUnsigned(keepaliveValue, 65535);
+      const keepalive = parseRange(keepaliveValue, 4294967295);
       if (keepalive === void 0)
         return {
           valid: false,
@@ -590,10 +619,20 @@ function parseWireGuardConfig(input) {
     "i3",
     "i4",
     "i5",
-    "j1",
-    "j2",
-    "j3",
-    "itime"
+    "header_protection_key",
+    "content_padding_addition",
+    "rekey_after_time",
+    "rekey_timeout",
+    "reject_after_time",
+    "keepalive_timeout",
+    "max_handshake_attempts",
+    "headerprotectionkey",
+    "contentpaddingaddition",
+    "rekeyaftertime",
+    "rekeytimeout",
+    "rejectaftertime",
+    "keepalivetimeout",
+    "maxhandshakeattempts"
   ].some((key) => Boolean(firstValue(iface, key)));
   if (hasAmneziaInput && !amnezia)
     return { valid: false, message: _("Invalid AmneziaWG parameters") };

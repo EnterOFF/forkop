@@ -37,10 +37,23 @@ for (const needle of [
   'showWireGuardPeerSettingsModal',
   'wireGuardPeerFromSettings',
   'endpoint.amnezia = tunnelAmneziaSettings(settings)',
-  'const WARP_JUNK_FIELDS = [',
-  '"jc", "jmin", "jmax", "i1", "i2", "i3", "i4", "i5"',
-  '_("Traffic masking")',
+  'isExistingChildItem(sectionId, tunnelId, "tunnel", "section")',
+  'const WARP_JUNK_FIELDS = AMNEZIA_FIELDS;',
+  '"content_padding_addition"',
+  '_("Header protection key")',
+  '_("Additional packet padding")',
+  '_("Rekey interval")',
+  '_("Rekey timeout")',
+  '_("Data rejection timeout")',
+  '_("Keepalive timeout")',
+  '_("Maximum handshake attempts")',
+  '_("Traffic obfuscation")',
+  'Adds traffic masking using the Amnezia mechanism to make it harder to identify.',
   '"warp_junk_enabled"',
+  'option.retain = true;',
+  'let previousTunnelType = `${data.settings.tunnel_type || "wireguard"}`;',
+  'value === "warp" && previousTunnelType === "amneziawg"',
+  'setModalOptionValue(map, warpJunkOption, "1");',
   'main.parseWireGuardConfig',
   'endpoint.profile = profile',
   '["generate_warp_profile"]',
@@ -80,7 +93,7 @@ for (const needle of [
   '_("Unsupported JSON endpoint type")',
   'this.formvalue(_itemId)',
   '_("Add at least one WireGuard peer")',
-  '_("WireGuard, AmneziaWG 2.0, Cloudflare WARP, and Tailscale tunnels")',
+  '_("WireGuard, AmneziaWG, Cloudflare WARP, and Tailscale tunnels")',
   '_("Name displayed on the dashboard")',
   '["wireguard", "amneziawg", "warp", "tailscale"]',
   'Automatically register a device and fill the required fields.',
@@ -99,6 +112,28 @@ if ((section.match(/validateWireGuardListInput\(value\)/g) || []).length !== 3) 
   process.exit(1);
 }
 
+const amneziaFieldsStart = section.indexOf('const AMNEZIA_FIELDS = [');
+const amneziaFieldsEnd = section.indexOf('];', amneziaFieldsStart);
+const amneziaFields = section.slice(amneziaFieldsStart, amneziaFieldsEnd);
+let previousAmneziaField = -1;
+for (const key of [
+  'jc', 'jmin', 'jmax',
+  's1', 's2', 's3', 's4',
+  'h1', 'h2', 'h3', 'h4',
+  'i1', 'i2', 'i3', 'i4', 'i5',
+  'header_protection_key',
+  'content_padding_addition',
+  'rekey_after_time', 'rekey_timeout', 'reject_after_time',
+  'keepalive_timeout', 'max_handshake_attempts',
+]) {
+  const fieldIndex = amneziaFields.indexOf(`"${key}"`);
+  if (fieldIndex <= previousAmneziaField) {
+    console.error(`FAIL: AmneziaWG field order is incorrect at ${key}`);
+    process.exit(1);
+  }
+  previousAmneziaField = fieldIndex;
+}
+
 if (section.includes('_("WireGuard or AmneziaWG configuration")')) {
   console.error('FAIL: tunnel settings must not embed the old import textarea');
   process.exit(1);
@@ -106,6 +141,46 @@ if (section.includes('_("WireGuard or AmneziaWG configuration")')) {
 
 if (section.includes('`${_("WARP profile generation failed")}: ${reason}`')) {
   console.error('FAIL: WARP errors must not render arbitrary backend stderr');
+  process.exit(1);
+}
+
+if (section.includes('Object.values(amneziaOptions).forEach((option) =>')) {
+  console.error('FAIL: switching to WARP must preserve AmneziaWG parameters');
+  process.exit(1);
+}
+
+const storageStart = section.indexOf('function tunnelStorageSettings');
+const storageEnd = section.indexOf('function randomTunnelId', storageStart);
+const tunnelStorage = section.slice(storageStart, storageEnd);
+if (
+  tunnelStorage.includes('warp_junk_enabled:') ||
+  !tunnelStorage.includes('const storeAmnezia =') ||
+  !tunnelStorage.includes('settings.warp_junk_enabled') ||
+  !tunnelStorage.includes('result[`amnezia_${key}`] = storeAmnezia')
+) {
+  console.error('FAIL: the LuCI-only traffic obfuscation toggle must not be stored in UCI');
+  process.exit(1);
+}
+
+const applySettingsStart = section.indexOf('function applyChildItemSettings');
+const applySettingsEnd = section.indexOf('function materializeChildItems', applySettingsStart);
+const applySettings = section.slice(applySettingsStart, applySettingsEnd);
+if (
+  !applySettings.includes('if (values.length) {') ||
+  (applySettings.match(/uci\.unset\(UCI_PACKAGE, itemId, key\)/g) || []).length !== 2
+) {
+  console.error('FAIL: empty child list settings must be removed instead of passed to uci.set');
+  process.exit(1);
+}
+
+const warpEndpointStart = section.indexOf('if (kind === "warp")');
+const warpEndpointEnd = section.indexOf('const peers =', warpEndpointStart);
+const warpEndpoint = section.slice(warpEndpointStart, warpEndpointEnd);
+if (
+  !warpEndpoint.includes('const amnezia = tunnelAmneziaSettings(settings);') ||
+  !warpEndpoint.includes('settings.warp_junk_enabled')
+) {
+  console.error('FAIL: WARP must apply Amnezia parameters only when traffic obfuscation is enabled');
   process.exit(1);
 }
 
@@ -127,10 +202,16 @@ for (const forbidden of [
   'placeholder = "30"',
   'placeholder = "100 or 100-200"',
   'Junk packet obfuscation',
+  'Traffic masking',
+  'Adds AmneziaWG traffic obfuscation to make the traffic harder to identify.',
   'Leave empty to use the core default.',
   'Leave empty to let sing-box choose it.',
   '"tailscale_exit_node_allow_lan_access"',
   'Allow LAN access through exit node',
+  '"j1"',
+  '"j2"',
+  '"j3"',
+  '"itime"',
 ]) {
   if (section.includes(forbidden)) {
     console.error(`FAIL: obsolete tunnel UI remains: ${forbidden}`);
@@ -176,5 +257,10 @@ if (tunnelIndex < 0 || jsonIndex < 0 || tunnelIndex >= jsonIndex) {
   process.exit(1);
 }
 NODE
+
+if grep -Fq 'warp_junk_enabled' "$ROOT_DIR/forkop/files/usr/lib/config/connections.uc"; then
+  printf 'FAIL: LuCI-only traffic obfuscation toggle reached the UCI generator\n' >&2
+  exit 1
+fi
 
 printf 'LuCI native tunnel checks passed\n'

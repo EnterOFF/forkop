@@ -538,7 +538,7 @@ function validate_start_config() {
 
     status = module_status(VALIDATOR_UC, [ "validate-runtime" ]);
     if (status != 0) {
-        log_message("Runtime config validation failed. Aborted.", "fatal");
+        log_message("Runtime config validation failed. Aborted.", "error");
         return status;
     }
 

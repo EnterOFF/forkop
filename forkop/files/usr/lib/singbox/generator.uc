@@ -1280,6 +1280,8 @@ function add_connection_tunnels(config, state, section, taken, selector_tags, ur
         push(config.endpoints, endpoint);
         push(selector_tags, tag_name);
         push(urltest_candidate_tags, tag_name);
+        if (endpoint_type == "wireguard" && type(endpoint.amnezia) == "object" && length(keys(endpoint.amnezia)) > 0)
+            state.outboundMetadata.protocols[tag_name] = "amneziawg";
         if (display_name == "")
             display_name = trim(as_string(connections.option(tunnel, "name", "")));
         runtime_subscription.remember_outbound_name(

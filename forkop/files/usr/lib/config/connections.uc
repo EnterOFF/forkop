@@ -18,6 +18,9 @@ const ITEM_TYPES = [
     "tunnel",
     "tunnel_peer"
 ];
+const AMNEZIA_INTEGER_KEYS = [ "jc", "jmin", "jmax", "s1", "s2", "s3", "s4" ];
+const AMNEZIA_RANGE_KEYS = [ "h1", "h2", "h3", "h4", "content_padding_addition", "rekey_after_time", "rekey_timeout", "reject_after_time", "keepalive_timeout", "max_handshake_attempts" ];
+const AMNEZIA_KEYS = [ "jc", "jmin", "jmax", "s1", "s2", "s3", "s4", "h1", "h2", "h3", "h4", "content_padding_addition", "rekey_after_time", "rekey_timeout", "reject_after_time", "keepalive_timeout", "max_handshake_attempts", "i1", "i2", "i3", "i4", "i5", "header_protection_key" ];
 
 let item_sections = null;
 
@@ -459,9 +462,9 @@ function tunnel_endpoint(tunnel) {
     }
 
     if (kind == "warp") {
-        let keepalive = int(option(tunnel, "warp_keepalive", "0"), 10);
-        if (keepalive > 0)
-            endpoint.persistent_keepalive_interval = keepalive;
+        let keepalive = trim(as_string(option(tunnel, "warp_keepalive", "")));
+        if (keepalive != "")
+            endpoint.persistent_keepalive_interval = index(keepalive, "-") >= 0 ? keepalive : int(keepalive, 10);
         let profile = {};
         for (let key in [ "id", "auth_token", "private_key" ]) {
             let value = trim(as_string(option(tunnel, "warp_profile_" + key, "")));
@@ -472,16 +475,15 @@ function tunnel_endpoint(tunnel) {
             profile.recreate = true;
             endpoint.profile = profile;
         }
-        if (bool_option(tunnel, "warp_junk_enabled", false)) {
-            let amnezia = {};
-            for (let key in [ "jc", "jmin", "jmax", "i1", "i2", "i3", "i4", "i5" ]) {
-                let value = trim(as_string(option(tunnel, "amnezia_" + key, "")));
-                if (value != "")
-                    amnezia[key] = list_contains([ "jc", "jmin", "jmax" ], key) ? int(value, 10) : value;
-            }
-            if (length(keys(amnezia)) > 0)
-                endpoint.amnezia = amnezia;
+        let amnezia = {};
+        for (let key in AMNEZIA_KEYS) {
+            let value = trim(as_string(option(tunnel, "amnezia_" + key, "")));
+            if (value != "")
+                amnezia[key] = list_contains(AMNEZIA_INTEGER_KEYS, key) ||
+                    (list_contains(AMNEZIA_RANGE_KEYS, key) && index(value, "-") < 0) ? int(value, 10) : value;
         }
+        if (length(keys(amnezia)) > 0)
+            endpoint.amnezia = amnezia;
         return endpoint;
     }
 
@@ -505,19 +507,19 @@ function tunnel_endpoint(tunnel) {
         let pre_shared_key = trim(as_string(option(peer, "pre_shared_key", "")));
         if (pre_shared_key != "")
             item.pre_shared_key = pre_shared_key;
-        let keepalive = int(option(peer, "persistent_keepalive_interval", "0"), 10);
-        if (keepalive > 0)
-            item.persistent_keepalive_interval = keepalive;
+        let keepalive = trim(as_string(option(peer, "persistent_keepalive_interval", "")));
+        if (keepalive != "")
+            item.persistent_keepalive_interval = index(keepalive, "-") >= 0 ? keepalive : int(keepalive, 10);
         push(endpoint.peers, item);
     }
 
     if (kind == "amneziawg") {
         let amnezia = {};
-        for (let key in [ "jc", "jmin", "jmax", "s1", "s2", "s3", "s4", "itime", "h1", "h2", "h3", "h4", "i1", "i2", "i3", "i4", "i5", "j1", "j2", "j3" ]) {
+        for (let key in AMNEZIA_KEYS) {
             let value = trim(as_string(option(tunnel, "amnezia_" + key, "")));
             if (value != "") {
-                if (list_contains([ "jc", "jmin", "jmax", "s1", "s2", "s3", "s4", "itime" ], key) ||
-                    (list_contains([ "h1", "h2", "h3", "h4" ], key) && index(value, "-") < 0))
+                if (list_contains(AMNEZIA_INTEGER_KEYS, key) ||
+                    (list_contains(AMNEZIA_RANGE_KEYS, key) && index(value, "-") < 0))
                     amnezia[key] = int(value, 10);
                 else
                     amnezia[key] = value;

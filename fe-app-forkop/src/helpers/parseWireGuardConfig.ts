@@ -13,7 +13,7 @@ export type NativeWireGuardEndpoint = {
     public_key: string;
     pre_shared_key?: string;
     allowed_ips: string[];
-    persistent_keepalive_interval?: number;
+    persistent_keepalive_interval?: number | string;
   }>;
   amnezia?: Record<string, number | string>;
 };
@@ -67,6 +67,18 @@ function parseUnsigned(value: string, maximum: number): number | undefined {
   if (!/^\d+$/u.test(value)) return undefined;
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed <= maximum ? parsed : undefined;
+}
+
+function parseRange(
+  value: string,
+  maximum: number,
+): number | string | undefined {
+  const parts = value.split('-');
+  if (parts.length > 2 || parts.some((part) => part === '')) return undefined;
+  const from = parseUnsigned(parts[0], maximum);
+  const to = parts.length === 2 ? parseUnsigned(parts[1], maximum) : from;
+  if (from === undefined || to === undefined || from > to) return undefined;
+  return parts.length === 2 ? value : from;
 }
 
 /** WireGuard keys are standard padded base64 encodings of exactly 32 bytes. */
@@ -143,29 +155,53 @@ function parseAmnezia(
   section: ConfigSection,
 ): Record<string, number | string> | undefined {
   const result: Record<string, number | string> = {};
-  const integers = ['jc', 'jmin', 'jmax', 's1', 's2', 's3', 's4', 'itime'];
-  const ranges = ['h1', 'h2', 'h3', 'h4'];
-  const strings = ['i1', 'i2', 'i3', 'i4', 'i5', 'j1', 'j2', 'j3'];
+  const integers = ['jc', 'jmin', 'jmax', 's1', 's2', 's3', 's4'];
+  const ranges = [
+    'h1',
+    'h2',
+    'h3',
+    'h4',
+    'content_padding_addition',
+    'rekey_after_time',
+    'rekey_timeout',
+    'reject_after_time',
+    'keepalive_timeout',
+    'max_handshake_attempts',
+  ];
+  const strings = ['i1', 'i2', 'i3', 'i4', 'i5', 'header_protection_key'];
+  const aliases: Record<string, string[]> = {
+    header_protection_key: ['header_protection_key', 'headerprotectionkey'],
+    content_padding_addition: [
+      'content_padding_addition',
+      'contentpaddingaddition',
+    ],
+    rekey_after_time: ['rekey_after_time', 'rekeyaftertime'],
+    rekey_timeout: ['rekey_timeout', 'rekeytimeout'],
+    reject_after_time: ['reject_after_time', 'rejectaftertime'],
+    keepalive_timeout: ['keepalive_timeout', 'keepalivetimeout'],
+    max_handshake_attempts: ['max_handshake_attempts', 'maxhandshakeattempts'],
+  };
+  const valueFor = (key: string) =>
+    (aliases[key] || [key])
+      .map((alias) => firstValue(section, alias))
+      .find(Boolean) || '';
 
   for (const key of integers) {
-    const value = firstValue(section, key);
+    const value = valueFor(key);
     if (!value) continue;
     const parsed = parseUnsigned(value, Number.MAX_SAFE_INTEGER);
     if (parsed === undefined) return undefined;
     result[key] = parsed;
   }
   for (const key of ranges) {
-    const value = firstValue(section, key);
+    const value = valueFor(key);
     if (!value) continue;
-    const parts = value.split('-');
-    if (parts.length > 2 || parts.some((part) => part === '')) return undefined;
-    const from = parseUnsigned(parts[0], 0xffffffff);
-    const to = parts.length === 2 ? parseUnsigned(parts[1], 0xffffffff) : from;
-    if (from === undefined || to === undefined || from > to) return undefined;
-    result[key] = value.includes('-') ? value : Number(value);
+    const parsed = parseRange(value, 0xffffffff);
+    if (parsed === undefined) return undefined;
+    result[key] = parsed;
   }
   for (const key of strings) {
-    const value = firstValue(section, key);
+    const value = valueFor(key);
     if (value) result[key] = value;
   }
 
@@ -254,7 +290,7 @@ export function parseWireGuardConfig(input: string): WireGuardConfigResult {
     if (preSharedKey) peer.pre_shared_key = preSharedKey;
     peer.allowed_ips = allowedIps;
     if (keepaliveValue) {
-      const keepalive = parseUnsigned(keepaliveValue, 65535);
+      const keepalive = parseRange(keepaliveValue, 0xffffffff);
       if (keepalive === undefined)
         return {
           valid: false,
@@ -304,10 +340,20 @@ export function parseWireGuardConfig(input: string): WireGuardConfigResult {
     'i3',
     'i4',
     'i5',
-    'j1',
-    'j2',
-    'j3',
-    'itime',
+    'header_protection_key',
+    'content_padding_addition',
+    'rekey_after_time',
+    'rekey_timeout',
+    'reject_after_time',
+    'keepalive_timeout',
+    'max_handshake_attempts',
+    'headerprotectionkey',
+    'contentpaddingaddition',
+    'rekeyaftertime',
+    'rekeytimeout',
+    'rejectaftertime',
+    'keepalivetimeout',
+    'maxhandshakeattempts',
   ].some((key) => Boolean(firstValue(iface, key)));
   if (hasAmneziaInput && !amnezia)
     return { valid: false, message: _('Invalid AmneziaWG parameters') };

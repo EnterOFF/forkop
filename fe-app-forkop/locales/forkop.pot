@@ -136,6 +136,10 @@ msgstr ""
 msgid "Additional marking rules found"
 msgstr ""
 
+#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4214
+msgid "Additional packet padding"
+msgstr ""
+
 #: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:1624
 msgid "Address"
 msgstr ""
@@ -145,8 +149,8 @@ msgstr ""
 msgid "Address of the coordination server. Change it if you use a custom server."
 msgstr ""
 
-#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4797
-msgid "Adds AmneziaWG traffic obfuscation to make the traffic harder to identify."
+#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4921
+msgid "Adds traffic masking using the Amnezia mechanism to make it harder to identify."
 msgstr ""
 
 #: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3227
@@ -602,6 +606,10 @@ msgstr ""
 
 #: src/forkop/tabs/dashboard/partials/renderSections.ts:49
 msgid "Dashboard currently unavailable"
+msgstr ""
+
+#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4220
+msgid "Data rejection timeout"
 msgstr ""
 
 #: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:544
@@ -1271,6 +1279,10 @@ msgstr ""
 msgid "Header name contains invalid characters"
 msgstr ""
 
+#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4212
+msgid "Header protection key"
+msgstr ""
+
 #: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2370
 msgid "Header value"
 msgstr ""
@@ -1569,6 +1581,10 @@ msgstr ""
 msgid "Keep this group before latency-sorted servers"
 msgstr ""
 
+#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4222
+msgid "Keepalive timeout"
+msgstr ""
+
 #: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:2623
 msgid "Key path"
 msgstr ""
@@ -1683,6 +1699,10 @@ msgstr ""
 
 #: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8902
 msgid "Match destination ports. Use a single port or a range"
+msgstr ""
+
+#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4224
+msgid "Maximum handshake attempts"
 msgstr ""
 
 #: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4668
@@ -2184,6 +2204,14 @@ msgstr ""
 
 #: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6222
 msgid "Regular expression must not contain spaces or commas"
+msgstr ""
+
+#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4216
+msgid "Rekey interval"
+msgstr ""
+
+#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4218
+msgid "Rekey timeout"
 msgstr ""
 
 #: src/forkop/tabs/updates/initController.ts:766
@@ -2831,8 +2859,8 @@ msgstr ""
 msgid "Traffic"
 msgstr ""
 
-#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4796
-msgid "Traffic masking"
+#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4919
+msgid "Traffic obfuscation"
 msgstr ""
 
 #: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4326
@@ -3275,7 +3303,7 @@ msgid "WireGuard peer settings"
 msgstr ""
 
 #: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8403
-msgid "WireGuard, AmneziaWG 2.0, Cloudflare WARP, and Tailscale tunnels"
+msgid "WireGuard, AmneziaWG, Cloudflare WARP, and Tailscale tunnels"
 msgstr ""
 
 #: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:2753

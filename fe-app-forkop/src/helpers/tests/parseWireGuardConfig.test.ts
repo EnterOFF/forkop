@@ -81,7 +81,7 @@ AllowedIPs = 192.0.2.0/24
     });
   });
 
-  it('preserves AmneziaWG 2.0 fields in native endpoint format', () => {
+  it('imports current AmneziaWG fields and ignores legacy fields', () => {
     const result = parseWireGuardConfig(`
 [Interface]
  PrivateKey = ${PRIVATE_KEY}
@@ -94,6 +94,9 @@ H1 = 100-200
 I1 = <b 0x01>
 J1 = <c>
 ITime = 500
+HeaderProtectionKey = ${PRIVATE_KEY}
+ContentPaddingAddition = 1-2
+RekeyAfterTime = 5
 [Peer]
  PublicKey = ${PUBLIC_KEY}
 Endpoint = vpn.example.com:443
@@ -109,8 +112,9 @@ AllowedIPs = 0.0.0.0/0
       s1: 64,
       h1: '100-200',
       i1: '<b 0x01>',
-      j1: '<c>',
-      itime: 500,
+      header_protection_key: PRIVATE_KEY,
+      content_padding_addition: '1-2',
+      rekey_after_time: 5,
     });
   });
 

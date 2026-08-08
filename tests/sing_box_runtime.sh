@@ -228,7 +228,7 @@ cat >"$WORK_DIR/tunnel-fixture.json" <<'JSON'
   "tunnel": [
     {
       ".name": "tun_warp", ".type": "tunnel", "section": "tunnels", "order": "0",
-      "kind": "warp", "name": "Cloudflare WARP"
+      "kind": "warp", "name": "Cloudflare WARP", "amnezia_jc": "7", "amnezia_h1": "100-200"
     },
     {
       ".name": "tun_amnezia", ".type": "tunnel", "section": "tunnels", "order": "1",
@@ -256,15 +256,22 @@ cat >"$WORK_DIR/tunnel-fixture.json" <<'JSON'
 }
 JSON
 generate_config "$WORK_DIR/tunnel-fixture.json" "$WORK_DIR/tunnel.json"
-node - "$WORK_DIR/tunnel.json" <<'NODE'
+node - "$WORK_DIR/tunnel.json" "$WORK_DIR/tunnel.json.section-cache/tunnels.json" <<'NODE'
 const fs = require('fs');
 const config = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const cache = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
 const warp = config.endpoints.find((endpoint) => endpoint.tag === 'tunnels-tunnel-1-out');
 const amnezia = config.endpoints.find((endpoint) => endpoint.tag === 'tunnels-tunnel-2-out');
 const tailscale = config.endpoints.find((endpoint) => endpoint.tag === 'tunnels-tunnel-3-out');
 const custom = config.endpoints.find((endpoint) => endpoint.tag === 'custom-endpoint');
 const selector = config.outbounds.find((outbound) => outbound.tag === 'tunnels-out');
-if (!warp || warp.type !== 'warp') throw new Error('native WARP endpoint missing');
+if (
+  !warp ||
+  warp.type !== 'warp' ||
+  warp.amnezia?.jc !== 7 ||
+  warp.amnezia?.h1 !== '100-200'
+)
+  throw new Error('native WARP endpoint with Amnezia obfuscation missing');
 if (
   !amnezia ||
   amnezia.type !== 'wireguard' ||
@@ -289,6 +296,8 @@ if (
   throw new Error('tunnels are not selectable connection outbounds');
 if (config.experimental?.cache_file?.store_warp_config !== true)
   throw new Error('WARP profile cache is not enabled');
+if (cache.outboundMetadata?.protocols?.[amnezia.tag] !== 'amneziawg')
+  throw new Error('AmneziaWG dashboard metadata is missing');
 NODE
 
 cat >"$WORK_DIR/generator-uci.state" <<'EOF_UCI'

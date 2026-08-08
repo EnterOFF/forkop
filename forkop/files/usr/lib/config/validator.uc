@@ -1212,9 +1212,14 @@ function validate_tunnel_amnezia(endpoint, name) {
     if (type(amnezia) != "object")
         return;
 
-    for (let key in [ "h1", "h2", "h3", "h4" ])
+    for (let key in [ "h1", "h2", "h3", "h4", "content_padding_addition", "rekey_after_time", "rekey_timeout", "reject_after_time", "keepalive_timeout", "max_handshake_attempts" ])
         if (amnezia[key] != null && !valid_amnezia_range(amnezia[key]))
             fail_validation("Connection rule '" + name + "' contains an invalid AmneziaWG " + key + " range. Use values from 0 to 4294967295 with the start no greater than the end. Aborted.");
+
+    if (amnezia.header_protection_key != null &&
+        trim(as_string(amnezia.header_protection_key)) != "" &&
+        !valid_wireguard_key(amnezia.header_protection_key))
+        fail_validation("Connection rule '" + name + "' contains an invalid AmneziaWG header protection key. Use a standard base64-encoded 32-byte value. Aborted.");
 }
 
 function validate_tailscale_tunnel_detour(source_name, detour) {
@@ -1270,6 +1275,10 @@ function validate_tunnel_values(section) {
 
         validate_tunnel_amnezia(endpoint, name);
 
+        if (endpoint_type == "warp" && endpoint.persistent_keepalive_interval != null &&
+            !valid_amnezia_range(endpoint.persistent_keepalive_interval))
+            fail_validation("Connection rule '" + name + "' contains an invalid WARP persistent keepalive interval. Use values from 0 to 4294967295 with the start no greater than the end. Aborted.");
+
         if (endpoint_type == "warp") {
             let profile = object_or_empty(endpoint.profile);
             let profile_values = 0;
@@ -1308,6 +1317,10 @@ function validate_tunnel_values(section) {
             if (peer.pre_shared_key != null && trim(as_string(peer.pre_shared_key)) != "" &&
                 !valid_wireguard_key(peer.pre_shared_key))
                 fail_validation("Connection rule '" + name + "' contains an invalid WireGuard pre-shared key. Use standard base64-encoded 32-byte values. Aborted.");
+
+            if (peer.persistent_keepalive_interval != null &&
+                !valid_amnezia_range(peer.persistent_keepalive_interval))
+                fail_validation("Connection rule '" + name + "' contains an invalid WireGuard persistent keepalive interval. Use values from 0 to 4294967295 with the start no greater than the end. Aborted.");
 
             let allowed_ips = peer.allowed_ips;
             if (type(allowed_ips) == "string")
@@ -1885,7 +1898,7 @@ function check_provider_requirement(action, display_name, bin_path, dirs, missin
     }
 
     if (!mkdir_p(dirs))
-        fail_requirement(prepare_failure_message, "fatal");
+        fail_requirement(prepare_failure_message, "error");
 }
 
 function check_provider_requirements(ctx) {

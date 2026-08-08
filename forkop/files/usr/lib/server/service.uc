@@ -50,7 +50,7 @@ function log(message, level) {
 }
 
 function fatal(message) {
-    log(message, "fatal");
+    log(message, "error");
     exit(1);
 }
 

@@ -1137,11 +1137,53 @@ const AMNEZIA_INTEGER_FIELDS = [
   "s2",
   "s3",
   "s4",
-  "itime",
 ];
-const AMNEZIA_RANGE_FIELDS = ["h1", "h2", "h3", "h4"];
-const AMNEZIA_STRING_FIELDS = ["i1", "i2", "i3", "i4", "i5", "j1", "j2", "j3"];
-const WARP_JUNK_FIELDS = ["jc", "jmin", "jmax", "i1", "i2", "i3", "i4", "i5"];
+const AMNEZIA_RANGE_FIELDS = [
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "content_padding_addition",
+  "rekey_after_time",
+  "rekey_timeout",
+  "reject_after_time",
+  "keepalive_timeout",
+  "max_handshake_attempts",
+];
+const AMNEZIA_STRING_FIELDS = [
+  "i1",
+  "i2",
+  "i3",
+  "i4",
+  "i5",
+  "header_protection_key",
+];
+const AMNEZIA_FIELDS = [
+  "jc",
+  "jmin",
+  "jmax",
+  "s1",
+  "s2",
+  "s3",
+  "s4",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "i1",
+  "i2",
+  "i3",
+  "i4",
+  "i5",
+  "header_protection_key",
+  "content_padding_addition",
+  "rekey_after_time",
+  "rekey_timeout",
+  "reject_after_time",
+  "keepalive_timeout",
+  "max_handshake_attempts",
+];
+const WARP_JUNK_FIELDS = AMNEZIA_FIELDS;
 const WIREGUARD_PEER_FIELDS = new Set([
   "address",
   "port",
@@ -3673,15 +3715,14 @@ function tunnelInitialSettings(value, sectionId) {
           : tunnel.kind === "tailscale" || endpointType === "tailscale"
             ? "tailscale"
             : "wireguard";
+  const warpJunkEnabled =
+    kind === "warp" &&
+    WARP_JUNK_FIELDS.some((key) => tunnel[`amnezia_${key}`] != null);
   const tailscaleDetour = `${tunnel.tailscale_detour_section || ""}`.trim();
   const settings = {
     name: kind === "json" ? `${endpoint.tag || ""}` : `${tunnel.name || ""}`,
     tunnel_type: kind,
-    warp_junk_enabled:
-      kind === "warp" &&
-      WARP_JUNK_FIELDS.some((key) => tunnel[`amnezia_${key}`] != null)
-        ? "1"
-        : "0",
+    warp_junk_enabled: warpJunkEnabled ? "1" : "0",
     address: normalizeOptionValues(tunnel.address),
     private_key: `${tunnel.private_key || ""}`,
     listen_port: tunnel.listen_port ? `${tunnel.listen_port}` : "",
@@ -3743,6 +3784,9 @@ function tunnelSettingsKeys() {
 
 function tunnelStorageSettings(settings) {
   const kind = `${settings.tunnel_type || "wireguard"}`;
+  const storeAmnezia =
+    kind === "amneziawg" ||
+    (kind === "warp" && `${settings.warp_junk_enabled || ""}` === "1");
   const result = {
     kind,
     name: kind === "json" ? "" : `${settings.name || ""}`.trim(),
@@ -3754,7 +3798,6 @@ function tunnelStorageSettings(settings) {
     warp_profile_id: `${settings.warp_profile_id || ""}`.trim(),
     warp_profile_auth_token: `${settings.warp_auth_token || ""}`.trim(),
     warp_profile_private_key: `${settings.warp_private_key || ""}`.trim(),
-    warp_junk_enabled: `${settings.warp_junk_enabled || "0"}`,
     tailscale_auth_key: `${settings.tailscale_auth_key || ""}`.trim(),
     tailscale_hostname: `${settings.tailscale_hostname || ""}`.trim(),
     tailscale_control_url: `${settings.tailscale_control_url || ""}`.trim(),
@@ -3773,7 +3816,9 @@ function tunnelStorageSettings(settings) {
     ...AMNEZIA_RANGE_FIELDS,
     ...AMNEZIA_STRING_FIELDS,
   ].forEach((key) => {
-    result[`amnezia_${key}`] = `${settings[`amnezia_${key}`] || ""}`.trim();
+    result[`amnezia_${key}`] = storeAmnezia
+      ? `${settings[`amnezia_${key}`] || ""}`.trim()
+      : "";
   });
   return result;
 }
@@ -3792,7 +3837,9 @@ function randomTunnelId() {
 }
 
 function createTunnelItem(sectionId, tunnelId, settings) {
-  const itemId = uci.add(UCI_PACKAGE, "tunnel", tunnelId) || tunnelId;
+  const itemId = isExistingChildItem(sectionId, tunnelId, "tunnel", "section")
+    ? tunnelId
+    : uci.add(UCI_PACKAGE, "tunnel", tunnelId) || tunnelId;
   uci.set(UCI_PACKAGE, itemId, "section", sectionId);
   tunnelSettingsKeys().forEach((key) => uci.unset(UCI_PACKAGE, itemId, key));
   applyChildItemSettings(itemId, settings);
@@ -3859,9 +3906,10 @@ function tunnelPeerFromChild(peerId) {
     result.pre_shared_key = `${peer.pre_shared_key}`.trim();
   }
   if (`${peer.persistent_keepalive_interval || ""}`.trim()) {
-    result.persistent_keepalive_interval = Number(
-      peer.persistent_keepalive_interval,
-    );
+    const value = `${peer.persistent_keepalive_interval}`.trim();
+    result.persistent_keepalive_interval = value.includes("-")
+      ? value
+      : Number(value);
   }
   return result;
 }
@@ -3903,7 +3951,10 @@ function tunnelEndpointFromSettings(settings, tunnelId, peerOption) {
   if (kind === "warp") {
     const endpoint = { type: "warp" };
     if (`${settings.warp_keepalive || ""}`.trim()) {
-      endpoint.persistent_keepalive_interval = Number(settings.warp_keepalive);
+      const value = `${settings.warp_keepalive}`.trim();
+      endpoint.persistent_keepalive_interval = value.includes("-")
+        ? value
+        : Number(value);
     }
     const profile = {};
     if (`${settings.warp_profile_id || ""}`.trim()) {
@@ -3923,7 +3974,7 @@ function tunnelEndpointFromSettings(settings, tunnelId, peerOption) {
       endpoint.profile = profile;
     }
     if (`${settings.warp_junk_enabled || ""}` === "1") {
-      const amnezia = tunnelWarpJunkSettings(settings);
+      const amnezia = tunnelAmneziaSettings(settings);
       if (Object.keys(amnezia).length > 0) {
         endpoint.amnezia = amnezia;
       }
@@ -3980,19 +4031,6 @@ function tunnelAmneziaSettings(settings) {
   return amnezia;
 }
 
-function tunnelWarpJunkSettings(settings) {
-  const amnezia = {};
-  WARP_JUNK_FIELDS.forEach((key) => {
-    const value = `${settings[`amnezia_${key}`] || ""}`.trim();
-    if (value) {
-      amnezia[key] = ["jc", "jmin", "jmax"].includes(key)
-        ? Number(value)
-        : value;
-    }
-  });
-  return amnezia;
-}
-
 function wireGuardPeerFromSettings(settings) {
   const peer = {
     address: `${settings.address || ""}`.trim(),
@@ -4004,9 +4042,10 @@ function wireGuardPeerFromSettings(settings) {
     peer.pre_shared_key = `${settings.pre_shared_key}`.trim();
   }
   if (`${settings.persistent_keepalive_interval || ""}`.trim()) {
-    peer.persistent_keepalive_interval = Number(
-      settings.persistent_keepalive_interval,
-    );
+    const value = `${settings.persistent_keepalive_interval}`.trim();
+    peer.persistent_keepalive_interval = value.includes("-")
+      ? value
+      : Number(value);
   }
   return peer;
 }
@@ -4078,10 +4117,12 @@ function validateWireGuardPeer(peer) {
 
   if (
     peer.persistent_keepalive_interval != null &&
-    (typeof peer.persistent_keepalive_interval !== "number" ||
-      !Number.isInteger(peer.persistent_keepalive_interval) ||
-      peer.persistent_keepalive_interval < 0 ||
-      peer.persistent_keepalive_interval > 65535)
+    (typeof peer.persistent_keepalive_interval === "string"
+      ? validateAmneziaRange(peer.persistent_keepalive_interval) !== true
+      : typeof peer.persistent_keepalive_interval !== "number" ||
+        !Number.isInteger(peer.persistent_keepalive_interval) ||
+        peer.persistent_keepalive_interval < 0 ||
+        peer.persistent_keepalive_interval > 0xffffffff)
   ) {
     return _("WireGuard peer fields must use native sing-box JSON types");
   }
@@ -4153,6 +4194,27 @@ function validateAmneziaRange(value) {
       );
 }
 
+function amneziaFieldLabel(key) {
+  switch (key) {
+    case "header_protection_key":
+      return _("Header protection key");
+    case "content_padding_addition":
+      return _("Additional packet padding");
+    case "rekey_after_time":
+      return _("Rekey interval");
+    case "rekey_timeout":
+      return _("Rekey timeout");
+    case "reject_after_time":
+      return _("Data rejection timeout");
+    case "keepalive_timeout":
+      return _("Keepalive timeout");
+    case "max_handshake_attempts":
+      return _("Maximum handshake attempts");
+    default:
+      return key.toUpperCase();
+  }
+}
+
 function validateTunnelSettings(settings, tunnelId, peerOption) {
   const kind = `${settings.tunnel_type || ""}`;
   const name = `${settings.name || ""}`.trim();
@@ -4195,12 +4257,20 @@ function validateTunnelSettings(settings, tunnelId, peerOption) {
     }
     return true;
   }
-  if (`${settings.tunnel_type || ""}` === "amneziawg") {
+  if (
+    `${settings.tunnel_type || ""}` === "amneziawg" ||
+    (`${settings.tunnel_type || ""}` === "warp" &&
+      `${settings.warp_junk_enabled || ""}` === "1")
+  ) {
     for (const key of AMNEZIA_RANGE_FIELDS) {
       const rangeValidation = validateAmneziaRange(settings[`amnezia_${key}`]);
       if (rangeValidation !== true) {
         return rangeValidation;
       }
+    }
+    const headerProtectionKey = `${settings.amnezia_header_protection_key || ""}`.trim();
+    if (headerProtectionKey && !main.validateWireGuardKey(headerProtectionKey)) {
+      return _("WireGuard keys must be standard base64-encoded 32-byte values");
     }
   }
   if (endpoint.type === "warp") {
@@ -4388,7 +4458,9 @@ function addWireGuardPeerItemOptions(section) {
       "Time in seconds between packets sent to keep the tunnel open. Leave empty to use the default value.",
     ),
   );
-  o.datatype = "range(0,65535)";
+  o.validate = function (_itemId, value) {
+    return validateAmneziaRange(value);
+  };
   o.rmempty = true;
 }
 
@@ -4516,6 +4588,7 @@ function showTunnelSettingsModal(
   typeOption.value("json", "JSON endpoint");
   typeOption.default = "wireguard";
   typeOption.rmempty = false;
+  let previousTunnelType = `${data.settings.tunnel_type || "wireguard"}`;
 
   let o = itemSection.option(
     form.Value,
@@ -4783,7 +4856,9 @@ function showTunnelSettingsModal(
       "Time in seconds between packets sent to keep the tunnel open. Leave empty to use the default value.",
     ),
   );
-  o.datatype = "range(0,65535)";
+  o.validate = function (_itemId, value) {
+    return validateAmneziaRange(value);
+  };
   o.rmempty = true;
   o.depends("tunnel_type", "warp");
 
@@ -4849,62 +4924,51 @@ function showTunnelSettingsModal(
   const warpJunkOption = itemSection.option(
     form.Flag,
     "warp_junk_enabled",
-    _("Traffic masking"),
+    _("Traffic obfuscation"),
     _(
-      "Adds AmneziaWG traffic obfuscation to make the traffic harder to identify.",
+      "Adds traffic masking using the Amnezia mechanism to make it harder to identify.",
     ),
   );
   warpJunkOption.default = "0";
   warpJunkOption.rmempty = false;
   warpJunkOption.depends("tunnel_type", "warp");
 
-  AMNEZIA_INTEGER_FIELDS.forEach((key) => {
+  AMNEZIA_FIELDS.forEach((key) => {
     const option = itemSection.option(
       form.Value,
       `amnezia_${key}`,
-      key.toUpperCase(),
+      amneziaFieldLabel(key),
     );
-    option.datatype = "uinteger";
-    option.rmempty = true;
-    option.depends("tunnel_type", "amneziawg");
-    if (WARP_JUNK_FIELDS.includes(key)) {
-      option.depends({ tunnel_type: "warp", warp_junk_enabled: "1" });
+    if (AMNEZIA_INTEGER_FIELDS.includes(key)) {
+      option.datatype = "uinteger";
     }
-    amneziaOptions[key] = option;
-  });
-  AMNEZIA_RANGE_FIELDS.forEach((key) => {
-    const option = itemSection.option(
-      form.Value,
-      `amnezia_${key}`,
-      key.toUpperCase(),
-    );
+    if (AMNEZIA_RANGE_FIELDS.includes(key)) {
+      option.validate = function (_itemId, value) {
+        return validateAmneziaRange(value);
+      };
+    }
     option.rmempty = true;
+    option.retain = true;
     option.depends("tunnel_type", "amneziawg");
-    option.validate = function (_itemId, value) {
-      return validateAmneziaRange(value);
-    };
-    amneziaOptions[key] = option;
-  });
-  AMNEZIA_STRING_FIELDS.forEach((key) => {
-    const option = itemSection.option(
-      form.Value,
-      `amnezia_${key}`,
-      key.toUpperCase(),
-    );
-    option.rmempty = true;
-    option.depends("tunnel_type", "amneziawg");
-    if (WARP_JUNK_FIELDS.includes(key)) {
-      option.depends({ tunnel_type: "warp", warp_junk_enabled: "1" });
+    option.depends({ tunnel_type: "warp", warp_junk_enabled: "1" });
+    if (key === "header_protection_key") {
+      option.validate = function (_itemId, value) {
+        const normalized = `${value || ""}`.trim();
+        return !normalized || main.validateWireGuardKey(normalized)
+          ? true
+          : _(
+              "WireGuard keys must be standard base64-encoded 32-byte values",
+            );
+      };
     }
     amneziaOptions[key] = option;
   });
 
-  typeOption.onchange = function (_event, sectionId, value) {
-    if (value === "warp") {
-      Object.values(amneziaOptions).forEach((option) =>
-        setModalOptionValue(map, option, ""),
-      );
+  typeOption.onchange = function (_event, _sectionId, value) {
+    if (value === "warp" && previousTunnelType === "amneziawg") {
+      setModalOptionValue(map, warpJunkOption, "1");
     }
+    previousTunnelType = value;
     map.checkDepends();
   };
 
@@ -5511,14 +5575,14 @@ function applyChildItemSettings(itemId, settings) {
     if (value === undefined || value === null || value === "") {
       uci.unset(UCI_PACKAGE, itemId, key);
     } else if (Array.isArray(value)) {
-      uci.set(
-        UCI_PACKAGE,
-        itemId,
-        key,
-        value
-          .map((item) => `${item || ""}`.trim())
-          .filter((item) => item.length),
-      );
+      const values = value
+        .map((item) => `${item || ""}`.trim())
+        .filter((item) => item.length);
+      if (values.length) {
+        uci.set(UCI_PACKAGE, itemId, key, values);
+      } else {
+        uci.unset(UCI_PACKAGE, itemId, key);
+      }
     } else {
       uci.set(UCI_PACKAGE, itemId, key, `${value}`);
     }
@@ -8470,7 +8534,7 @@ function createSectionContent(section) {
     ButtonAddSettingsDynamicList,
     "tunnels",
     _("Tunnels"),
-    _("WireGuard, AmneziaWG 2.0, Cloudflare WARP, and Tailscale tunnels"),
+    _("WireGuard, AmneziaWG, Cloudflare WARP, and Tailscale tunnels"),
   );
   o.depends("action", "connection");
   o.rmempty = true;

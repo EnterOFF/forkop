@@ -276,7 +276,7 @@ function start_rule(section, index_value) {
     let raw_opt = normalize_strategy(option(section, "byedpi_cmd_opts", ""));
     let validation = validator().validate_byedpi_strategy(raw_opt);
     if (!validation.valid) {
-        log_message("Invalid ByeDPI strategy for rule '" + name + "': " + validation.message, "fatal");
+        log_message("Invalid ByeDPI strategy for rule '" + name + "': " + validation.message, "error");
         exit(1);
     }
 
@@ -297,13 +297,13 @@ function start_rule(section, index_value) {
     ]) + " >>" + shell_quote(logfile) + " 2>&1 1000>&- & echo $!";
     let pid = trim(command_output("sh -c " + shell_quote(command)));
     if (pid == "" || !fs.writefile(pidfile, pid + "\n")) {
-        log_message("ciadpi failed to start for rule '" + name + "'. Check " + logfile + ". Aborted.", "fatal");
+        log_message("ciadpi failed to start for rule '" + name + "'. Check " + logfile + ". Aborted.", "error");
         exit(1);
     }
 
     command_success_from_args([ "sleep", "1" ]);
     if (!runtime_pid_running(pid)) {
-        log_message("ciadpi failed to start for rule '" + name + "'. Check " + logfile + ". Aborted.", "fatal");
+        log_message("ciadpi failed to start for rule '" + name + "'. Check " + logfile + ". Aborted.", "error");
         exit(1);
     }
 
@@ -327,13 +327,13 @@ function start_runtime() {
         command_success_from_args([ BYEDPI_SERVICE_INIT, "stop" ]);
         command_success_from_args([ "sleep", "1" ]);
         if (standalone_service_running()) {
-            log_message("Standalone byedpi service is still running and may conflict with Forkop-managed ciadpi runtime. Aborted.", "fatal");
+            log_message("Standalone byedpi service is still running and may conflict with Forkop-managed ciadpi runtime. Aborted.", "error");
             exit(1);
         }
     }
 
     if (!ensure_runtime_dirs()) {
-        log_message("Failed to prepare the Forkop ByeDPI state directory in " + BYEDPI_STATE_DIR + ". Aborted.", "fatal");
+        log_message("Failed to prepare the Forkop ByeDPI state directory in " + BYEDPI_STATE_DIR + ". Aborted.", "error");
         exit(1);
     }
 

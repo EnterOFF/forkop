@@ -201,6 +201,13 @@
     ]
   },
   {
+    "call": "Additional packet padding",
+    "key": "Additional packet padding",
+    "places": [
+      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4214"
+    ]
+  },
+  {
     "call": "Address",
     "key": "Address",
     "places": [
@@ -216,10 +223,10 @@
     ]
   },
   {
-    "call": "Adds AmneziaWG traffic obfuscation to make the traffic harder to identify.",
-    "key": "Adds AmneziaWG traffic obfuscation to make the traffic harder to identify.",
+    "call": "Adds traffic masking using the Amnezia mechanism to make it harder to identify.",
+    "key": "Adds traffic masking using the Amnezia mechanism to make it harder to identify.",
     "places": [
-      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4797"
+      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4921"
     ]
   },
   {
@@ -972,6 +979,13 @@
     "key": "Dashboard currently unavailable",
     "places": [
       "src/forkop/tabs/dashboard/partials/renderSections.ts:49"
+    ]
+  },
+  {
+    "call": "Data rejection timeout",
+    "key": "Data rejection timeout",
+    "places": [
+      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4220"
     ]
   },
   {
@@ -2113,6 +2127,13 @@
     ]
   },
   {
+    "call": "Header protection key",
+    "key": "Header protection key",
+    "places": [
+      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4212"
+    ]
+  },
+  {
     "call": "Header value",
     "key": "Header value",
     "places": [
@@ -2615,6 +2636,13 @@
     ]
   },
   {
+    "call": "Keepalive timeout",
+    "key": "Keepalive timeout",
+    "places": [
+      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4222"
+    ]
+  },
+  {
     "call": "Key path",
     "key": "Key path",
     "places": [
@@ -2809,6 +2837,13 @@
     "key": "Match destination ports. Use a single port or a range",
     "places": [
       "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8902"
+    ]
+  },
+  {
+    "call": "Maximum handshake attempts",
+    "key": "Maximum handshake attempts",
+    "places": [
+      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4224"
     ]
   },
   {
@@ -3652,6 +3687,20 @@
     "key": "Regular expression must not contain spaces or commas",
     "places": [
       "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6222"
+    ]
+  },
+  {
+    "call": "Rekey interval",
+    "key": "Rekey interval",
+    "places": [
+      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4216"
+    ]
+  },
+  {
+    "call": "Rekey timeout",
+    "key": "Rekey timeout",
+    "places": [
+      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4218"
     ]
   },
   {
@@ -4756,10 +4805,10 @@
     ]
   },
   {
-    "call": "Traffic masking",
-    "key": "Traffic masking",
+    "call": "Traffic obfuscation",
+    "key": "Traffic obfuscation",
     "places": [
-      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4796"
+      "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4919"
     ]
   },
   {
@@ -5481,8 +5530,8 @@
     ]
   },
   {
-    "call": "WireGuard, AmneziaWG 2.0, Cloudflare WARP, and Tailscale tunnels",
-    "key": "WireGuard, AmneziaWG 2.0, Cloudflare WARP, and Tailscale tunnels",
+    "call": "WireGuard, AmneziaWG, Cloudflare WARP, and Tailscale tunnels",
+    "key": "WireGuard, AmneziaWG, Cloudflare WARP, and Tailscale tunnels",
     "places": [
       "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8403"
     ]
