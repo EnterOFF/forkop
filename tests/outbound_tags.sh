@@ -113,7 +113,7 @@ let torrent_rule = null;
 for (let rule in config.route.rules || [])
     if (rule.protocol == "bittorrent")
         torrent_rule = rule;
-if (!torrent_rule || torrent_rule.action != "route" || torrent_rule.outbound != "bypass-out" ||
+if (!torrent_rule || torrent_rule.action != "route" || torrent_rule.outbound != "direct-out" ||
     index(torrent_rule.inbound, "tproxy-in") < 0 || index(torrent_rule.inbound, "tproxy6-in") < 0)
     die("enabled BitTorrent direct routing rule is missing\n");
 for (let outbound in config.outbounds || []) {
@@ -126,7 +126,7 @@ if (length(keys(by_tag)) != count)
     die("generated outbound tags are not globally unique\n");
 
 for (let tag in [
-    "direct-out", "bypass-out", "proxy-out", "backup-out",
+    "direct-out", "proxy-out", "backup-out",
     "germany", "germany-1", "service-mixed-in-1",
     "proxy-interface-1-out", "direct-out-1", "json-hop", "json-hop-1",
     "json-group", "proxy-urltest-ut_name-out", "proxy-urltest-ut_regex-out",

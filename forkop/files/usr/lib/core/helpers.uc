@@ -16,7 +16,6 @@ const SB_SYSTEM_TPROXY_INBOUND6_TAG = getenv("SB_SYSTEM_TPROXY_INBOUND6_TAG") ||
 const SB_SYSTEM_DNS_INBOUND_TAG = getenv("SB_SYSTEM_DNS_INBOUND_TAG") || "system-dns-in";
 const SB_SERVICE_MIXED_INBOUND_TAG = getenv("SB_SERVICE_MIXED_INBOUND_TAG") || "service-mixed-in";
 const SB_DIRECT_OUTBOUND_TAG = getenv("SB_DIRECT_OUTBOUND_TAG") || "direct-out";
-const SB_BYPASS_OUTBOUND_TAG = getenv("SB_BYPASS_OUTBOUND_TAG") || "bypass-out";
 
 function as_string(value) {
     return value == null ? "" : "" + value;
@@ -525,8 +524,7 @@ function default_reserved_runtime_tags() {
         SB_SYSTEM_TPROXY_INBOUND6_TAG,
         SB_SYSTEM_DNS_INBOUND_TAG,
         SB_SERVICE_MIXED_INBOUND_TAG,
-        SB_DIRECT_OUTBOUND_TAG,
-        SB_BYPASS_OUTBOUND_TAG
+        SB_DIRECT_OUTBOUND_TAG
     ];
 }
 

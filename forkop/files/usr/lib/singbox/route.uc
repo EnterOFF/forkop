@@ -59,7 +59,7 @@ function config(settings, runtime) {
     if (bool_option(settings, "disable_quic", false))
         push(result.rules, { action: "reject", inbound: tproxy_inbounds(), protocol: "quic" });
     if (bool_option(settings, "bittorrent_direct", false))
-        push(result.rules, { action: "route", inbound: tproxy_inbounds(), protocol: "bittorrent", outbound: runtime_constants.BYPASS_OUTBOUND_TAG });
+        push(result.rules, { action: "route", inbound: tproxy_inbounds(), protocol: "bittorrent", outbound: runtime_constants.DIRECT_OUTBOUND_TAG });
 
     return result;
 }
@@ -70,7 +70,7 @@ function target(section, outbound_tag_name) {
         action == "byedpi" || action == "zapret" || action == "zapret2")
         return { action: "route", outbound: outbound_tag_name };
     if (action == "bypass")
-        return { action: "route", outbound: runtime_constants.BYPASS_OUTBOUND_TAG };
+        return { action: "route", outbound: runtime_constants.DIRECT_OUTBOUND_TAG };
     if (action == "block")
         return { action: "reject" };
     return { unsupported: "unsupported action " + action };

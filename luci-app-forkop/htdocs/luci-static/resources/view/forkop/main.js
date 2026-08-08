@@ -2290,8 +2290,7 @@ var RESERVED_RUNTIME_TAGS = /* @__PURE__ */ new Set([
   "tproxy6-in",
   "dns-in",
   "service-mixed-in",
-  "direct-out",
-  "bypass-out"
+  "direct-out"
 ]);
 function allocateRuntimeTag(base, postfix) {
   let suffix = 1;
@@ -10987,8 +10986,7 @@ function getDisplayName2(section) {
 }
 function buildRouteDisplayNames(sections) {
   const map = {
-    "bypass-out": "Bypass",
-    "direct-out": "direct"
+    "direct-out": "Direct"
   };
   const serverMap = {};
   const routeSectionItems = [];

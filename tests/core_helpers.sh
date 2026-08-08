@@ -47,9 +47,9 @@ assert_eq dns-server-out-1 \
 assert_eq direct-out-1 \
   "$(ucode "$HELPERS_UC" outbound-tag direct)" \
   "reserved direct outbound tag"
-assert_eq bypass-out-1 \
+assert_eq bypass-out \
   "$(ucode "$HELPERS_UC" outbound-tag bypass)" \
-  "reserved bypass outbound tag"
+  "unreserved bypass outbound tag"
 assert_eq tproxy6-in-1 \
   "$(ucode "$HELPERS_UC" inbound-tag tproxy6)" \
   "reserved IPv6 TProxy inbound tag"

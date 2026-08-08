@@ -175,8 +175,7 @@ function getDisplayName(section: Forkop.ConfigSection) {
 
 function buildRouteDisplayNames(sections: Forkop.ConfigSection[]) {
   const map: Record<string, string> = {
-    'bypass-out': 'Bypass',
-    'direct-out': 'direct',
+    'direct-out': 'Direct',
   };
   const serverMap: Record<string, string> = {};
   const routeSectionItems: Array<{ sectionName: string; displayName: string }> =

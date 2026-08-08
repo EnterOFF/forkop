@@ -1189,7 +1189,7 @@ assert(inbound(matchers, "tproxy6-in") != null, "IPv6 TProxy inbound");
 assert(inbound(matchers, "tproxy6-in").listen == "::1", "IPv6 TProxy listen address");
 assert(inbound(matchers, "system-in").listen_port == 1604 && inbound(matchers, "system6-in").listen_port == 1604, "system traffic has dedicated TProxy inbounds");
 assert(route_rule(matchers, r => r.action == "reject" && r.ip_version == 6) == null, "IPv6 traffic is not rejected globally");
-assert(outbound(matchers, "bypass-out").type == "direct", "bypass fallback outbound");
+assert(outbound(matchers, "direct-out").type == "direct", "direct outbound");
 assert(provider(matchers, "proxy-manual-provider").outbound_detour == "detour-out", "connection URL provider detour");
 let mixed = inbound(matchers, "proxy-mixed-in");
 assert(mixed && mixed.listen_port == 19090 && mixed.users[0].username == "user", "mixed inbound auth");
@@ -1229,7 +1229,7 @@ let scoped_proxy_index = dns_rule_index(matchers, r => r.server == "fakeip-serve
 let bypass_below_proxy_index = dns_rule_index(matchers, r => r.server == "dns-server" && contains(r.domain, "source-priority.test") && r.source_ip_cidr == null);
 assert(scoped_proxy_index >= 0 && bypass_below_proxy_index > scoped_proxy_index, "source-aware proxy keeps its section priority over lower bypass DNS");
 let scoped_proxy_route_index = route_rule_index(matchers, r => r.outbound == "proxy-out" && contains(r.domain, "source-priority.test") && contains(r.source_ip_cidr, "10.0.0.2/32"));
-let bypass_below_proxy_route_index = route_rule_index(matchers, r => r.outbound == "bypass-out" && contains(r.domain, "source-priority.test") && r.source_ip_cidr == null);
+let bypass_below_proxy_route_index = route_rule_index(matchers, r => r.outbound == "direct-out" && contains(r.domain, "source-priority.test") && r.source_ip_cidr == null);
 assert(scoped_proxy_route_index >= 0 && bypass_below_proxy_route_index > scoped_proxy_route_index, "route and DNS priorities stay aligned for filtered proxy");
 assert(dns_rule(matchers, r => contains(r.domain_suffix, "xn--80aswg.xn--p1ai")).server == "fakeip-server", "IDN suffix converted for DNS rule");
 assert(dns_rule(matchers, r => contains(r.domain, "xn--e1afmkfd.xn--80akhbyknj4f")).server == "fakeip-server", "IDN full domain converted for DNS rule");
@@ -1239,8 +1239,8 @@ assert(dns_rule(matchers, r => contains(r.domain_suffix, "commented.example")).s
 assert(dns_rule(matchers, r => contains(r.domain, "exact-comment.example")).server == "fakeip-server", "commented full domain generated");
 assert(dns_rule(matchers, r => contains(r.domain_keyword, "clip")).server == "fakeip-server", "commented keyword generated");
 assert(index(sprintf("%J", matchers), "ignored.example") < 0 && index(sprintf("%J", matchers), "ignored-full.example") < 0, "domain comments excluded from generated config");
-assert(route_rule(matchers, r => r.outbound == "bypass-out" && contains(r.domain_suffix, "example.org") && contains(r.source_ip_cidr, "10.0.0.3/32") && contains(r.port, 443)) != null, "domain bypass keeps its port matcher");
-assert(route_rule(matchers, r => r.outbound == "bypass-out" && contains(r.rule_set, bypass_port_ruleset.tag) && contains(r.source_ip_cidr, "10.0.0.4/32") && contains(r.port, 8443)) != null, "rule-set bypass keeps its port matcher");
+assert(route_rule(matchers, r => r.outbound == "direct-out" && contains(r.domain_suffix, "example.org") && contains(r.source_ip_cidr, "10.0.0.3/32") && contains(r.port, 443)) != null, "domain bypass keeps its port matcher");
+assert(route_rule(matchers, r => r.outbound == "direct-out" && contains(r.rule_set, bypass_port_ruleset.tag) && contains(r.source_ip_cidr, "10.0.0.4/32") && contains(r.port, 8443)) != null, "rule-set bypass keeps its port matcher");
 assert(route_rule(matchers, r => r.outbound == "proxy-out" && contains(r.domain_suffix, "xn--80aswg.xn--p1ai")) != null, "IDN suffix converted for route rule");
 assert(route_rule(matchers, r => r.outbound == "proxy-out" && contains(r.domain, "xn--e1afmkfd.xn--80akhbyknj4f")) != null, "IDN full domain converted for route rule");
 assert(route_rule(matchers, r => r.outbound == "proxy-out" && contains(r.domain_keyword, "xn--e1afmkfd")) != null, "IDN keyword converted for route rule");
@@ -1319,8 +1319,8 @@ let download_text_ruleset = ruleset_url(download, "https://example.com/mixed.txt
 assert(download_text_ruleset && download_text_ruleset.format == "auto" && download_text_ruleset.update_interval == "1d" && download_text_ruleset.download_detour == "proxy-out", "remote universal rule set owns updates and detour");
 
 let fully = cfg("fully-routed");
-assert(route_rule(fully, r => r.outbound == "bypass-out" && contains(r.inbound, "tproxy-in") && contains(r.inbound, "tproxy6-in") && contains(r.source_ip_cidr, "192.168.1.20/32") && contains(r.source_ip_cidr, "192.168.1.30/32") && contains(r.source_ip_cidr, "2001:db8::20/128")) != null, "fully routed bypass IP route");
-assert(route_rule(fully, r => r.outbound == "bypass-out" && contains(r.inbound, "system-in") && contains(r.inbound, "system6-in") && r.source_ip_cidr == null && r.domain == null) != null, "fully routed System bypass route");
+assert(route_rule(fully, r => r.outbound == "direct-out" && contains(r.inbound, "tproxy-in") && contains(r.inbound, "tproxy6-in") && contains(r.source_ip_cidr, "192.168.1.20/32") && contains(r.source_ip_cidr, "192.168.1.30/32") && contains(r.source_ip_cidr, "2001:db8::20/128")) != null, "fully routed bypass IP route");
+assert(route_rule(fully, r => r.outbound == "direct-out" && contains(r.inbound, "system-in") && contains(r.inbound, "system6-in") && r.source_ip_cidr == null && r.domain == null) != null, "fully routed System bypass route");
 assert(route_rule(fully, r => r.outbound == "proxy-out" && contains(r.source_ip_cidr, "192.168.1.40/32")) != null, "fully routed proxy IP route");
 let fully_bypass_dns = dns_rule(fully, r =>
     r.type == "logical" && r.server == "dnsmasq-server" &&
@@ -1335,7 +1335,7 @@ let forced_bypass_dns_index = dns_rule_index(fully, r => r.type == "logical" && 
 let lower_proxy_dns_index = dns_rule_index(fully, r => r.server == "fakeip-server" && contains(r.domain_suffix, "forced-lower.test"));
 assert(higher_proxy_dns_index >= 0 && forced_bypass_dns_index > higher_proxy_dns_index && lower_proxy_dns_index > forced_bypass_dns_index, "forced bypass stays at its section priority in DNS rules");
 let higher_proxy_route_index = route_rule_index(fully, r => r.outbound == "proxy_high-out" && contains(r.domain_suffix, "forced-higher.test"));
-let forced_bypass_route_index = route_rule_index(fully, r => r.outbound == "bypass-out" && contains(r.source_ip_cidr, "192.168.1.20/32") && r.domain == null && r.domain_suffix == null);
+let forced_bypass_route_index = route_rule_index(fully, r => r.outbound == "direct-out" && contains(r.source_ip_cidr, "192.168.1.20/32") && r.domain == null && r.domain_suffix == null);
 let lower_proxy_route_index = route_rule_index(fully, r => r.outbound == "proxy-out" && contains(r.domain_suffix, "forced-lower.test"));
 assert(higher_proxy_route_index >= 0 && forced_bypass_route_index > higher_proxy_route_index && lower_proxy_route_index > forced_bypass_route_index, "forced bypass stays at its section priority in route rules");
 assert(index(sprintf("%J", fully), "@system") < 0, "fully routed System sentinel never leaks into sing-box config");

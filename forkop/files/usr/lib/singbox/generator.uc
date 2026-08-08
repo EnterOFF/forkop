@@ -447,8 +447,7 @@ function base_config(settings, service_address, runtime_context) {
         inbounds,
         providers: [],
         outbounds: [
-            { type: "direct", tag: runtime_constants.DIRECT_OUTBOUND_TAG },
-            { type: "direct", tag: runtime_constants.BYPASS_OUTBOUND_TAG }
+            { type: "direct", tag: runtime_constants.DIRECT_OUTBOUND_TAG }
         ],
         route: runtime_route.config(settings, runtime_context),
         services: [],
