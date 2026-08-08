@@ -36,6 +36,13 @@ const validUrls = [
   ['hysteria', 'hysteria://example.com:443?auth=secret'],
   ['hysteria2', 'hysteria2://password@example.com:443'],
   ['hy2', 'hy2://password@example.com:443'],
+  ['naive HTTPS', 'naive+https://user:password@example.com:443'],
+  ['naive QUIC', 'naive+quic://user:password@example.com:443'],
+  [
+    'mieru simple',
+    'mierus://user:password@example.com?profile=default&port=443&protocol=TCP',
+  ],
+  ['mieru standard', 'mieru://opaque-native-payload'],
   [
     'mKCP transport delegated to core',
     'vless://uuid@example.com:443?type=kcp&headerType=wechat-video&seed=secret',
@@ -63,6 +70,8 @@ describe('validateProxyUrl', () => {
     expect(res.message).toContain('vmess://');
     expect(res.message).toContain('socks://');
     expect(res.message).toContain('hy2://');
+    expect(res.message).toContain('naive+https://');
+    expect(res.message).toContain('mierus://');
   });
 
   it('rejects native HTTP proxy URLs', () => {

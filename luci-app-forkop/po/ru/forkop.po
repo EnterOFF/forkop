@@ -1231,8 +1231,8 @@ msgstr "Имя, которое отображается в списке уров
 msgid "Name shown in the Tailscale admin console."
 msgstr "Имя, которое будет отображаться в панели Tailscale."
 
-msgid "Native sing-box links: vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, and hy2://"
-msgstr "Нативные ссылки sing-box: vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2:// и hy2://"
+msgid "vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, hy2://, naive+https://, naive+quic://, mieru://, and mierus://"
+msgstr "vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, hy2://, naive+https://, naive+quic://, mieru:// и mierus://"
 
 msgid "Network"
 msgstr "Сеть"
@@ -2148,8 +2148,8 @@ msgstr "Используйте доменное имя или IP-адрес"
 msgid "Use a duration like 30s, 5m, or 1h30m"
 msgstr "Укажите длительность в формате 30s, 5m или 1h30m"
 
-msgid "Use a native sing-box link: vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, or hy2://"
-msgstr "Используйте нативную ссылку sing-box: vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2:// или hy2://"
+msgid "Use a native sing-box link: vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, hy2://, naive+https://, naive+quic://, mieru://, or mierus://"
+msgstr "Используйте нативную ссылку sing-box: vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, hy2://, naive+https://, naive+quic://, mieru:// или mierus://"
 
 msgid "Use a non-negative integer"
 msgstr "Используйте неотрицательное целое число"

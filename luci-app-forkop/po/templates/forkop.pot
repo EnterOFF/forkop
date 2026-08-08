@@ -1775,8 +1775,8 @@ msgstr ""
 msgid "Name shown in the Tailscale admin console."
 msgstr ""
 
-#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8287
-msgid "Native sing-box links: vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, and hy2://"
+#: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8428
+msgid "vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, hy2://, naive+https://, naive+quic://, mieru://, and mierus://"
 msgstr ""
 
 #: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:2855
@@ -3103,8 +3103,8 @@ msgstr ""
 msgid "Use a duration like 30s, 5m, or 1h30m"
 msgstr ""
 
-#: src/validators/validateProxyUrl.ts:26
-msgid "Use a native sing-box link: vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, or hy2://"
+#: src/validators/validateProxyUrl.ts:31
+msgid "Use a native sing-box link: vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, hy2://, naive+https://, naive+quic://, mieru://, or mierus://"
 msgstr ""
 
 #: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:1984

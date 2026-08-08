@@ -24,8 +24,11 @@ if grep -Fq 'http(s)://, hy2/hysteria2:// links' \
   "$SECTION_JS" "$SOURCE_PO" "$PACKAGE_PO" "$SOURCE_POT" "$PACKAGE_POT" "$CALLS_JSON"; then
   fail "Connection URL help must not advertise removed HTTP proxy links"
 fi
-grep -Fq 'socks://, tuic://, hysteria://, hysteria2://, and hy2://' "$SECTION_JS" ||
-  fail "Connection URL help must list the remaining native proxy links"
+grep -Fq 'vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, hy2://, naive+https://, naive+quic://, mieru://, and mierus://' "$SECTION_JS" ||
+  fail "Connection URL help must list all supported proxy links"
+if grep -Fq 'Native sing-box links:' "$SECTION_JS"; then
+  fail "Connection URL help must start with examples"
+fi
 
 for po in "$SOURCE_PO" "$PACKAGE_PO"; do
   awk '
