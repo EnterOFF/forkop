@@ -884,45 +884,39 @@ function ensureConnectionsDynamicListStyles() {
       "style",
       { id: CONNECTIONS_DYNLIST_STYLE_ID },
       `
-.fkp-connections-dynlist > .item {
-  --fkp-dynlist-action-width: 2em;
-  padding-right: calc(var(--fkp-dynlist-action-width) * 2);
-  position: relative;
+.fkp-connections-dynlist {
+  --fkp-dynlist-action-gap: 0.5em;
+  --fkp-dynlist-action-size: 2.5em;
+  column-gap: var(--fkp-dynlist-action-gap);
+  display: inline-grid;
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
-.fkp-connections-dynlist > .item > .fkp-dynlist-settings {
+.fkp-connections-dynlist > .item {
+  grid-column: 1;
+  min-inline-size: 0;
+}
+
+.fkp-connections-dynlist > .fkp-dynlist-settings {
   align-items: center;
-  border: 1px solid var(--border-color-high, currentColor);
-  border-right: 0;
-  border-radius: 0;
-  bottom: -1px;
-  color: inherit;
-  cursor: pointer;
+  align-self: start;
+  block-size: var(--fkp-dynlist-row-size, auto);
+  box-sizing: border-box;
   display: inline-flex;
-  font: inherit;
-  font-size: 0.9em;
+  grid-column: 2;
+  inline-size: var(--fkp-dynlist-action-size) !important;
   justify-content: center;
   line-height: 1;
-  min-height: 0;
-  min-width: var(--fkp-dynlist-action-width);
+  margin: 0;
+  margin-block-start: var(--fkp-dynlist-row-offset, 0px);
+  min-block-size: 0;
+  min-inline-size: 0;
   padding: 0;
-  pointer-events: auto;
-  position: absolute;
-  right: calc(var(--fkp-dynlist-action-width) - 1px);
   user-select: none;
-  text-decoration: none;
-  top: -1px;
-  width: var(--fkp-dynlist-action-width);
-  z-index: 1;
 }
 
-.fkp-connections-dynlist > .item > .fkp-dynlist-settings:hover,
-.fkp-connections-dynlist > .item > .fkp-dynlist-settings:focus {
-  --focus-color-rgb: 82, 168, 236;
-  outline: 0;
-  border-color: rgba(var(--focus-color-rgb), 0.8) !important;
-  box-shadow: inset 0 1px 3px hsla(var(--border-color-low-hsl), .01), 0 0 8px rgba(var(--focus-color-rgb), 0.6);
-  text-decoration: none;
+.fkp-connections-dynlist > .add-item {
+  grid-column: 1 / -1;
 }
 
 .fkp-connections-dynlist > .add-item > .cbi-dropdown {
@@ -947,57 +941,6 @@ function ensureConnectionsDynamicListStyles() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.fkp-button-add-dynlist > .add-item {
-  align-items: stretch;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  display: flex;
-  margin-top: 4px;
-  max-width: 100%;
-  min-width: 0;
-  overflow: visible;
-  padding: 0;
-  width: var(--fkp-button-add-width, 210px);
-}
-
-.fkp-button-add-dynlist > .add-item > input[type="text"] {
-  display: none !important;
-}
-
-.fkp-button-add-dynlist > .add-item > .cbi-button-add {
-  align-items: center !important;
-  background: linear-gradient(var(--background-color-high, var(--primary, ButtonFace)) 0%, var(--border-color-low, var(--primary, ButtonFace)) 100%) !important;
-  border: 1px solid var(--border-color-high, var(--primary, currentColor)) !important;
-  border-radius: 3px !important;
-  box-shadow: inset 0 1px 3px hsla(var(--border-color-low-hsl, 0, 0%, 0%), .01) !important;
-  box-sizing: border-box !important;
-  color: var(--text-color-medium, var(--white, ButtonText)) !important;
-  cursor: pointer !important;
-  display: flex !important;
-  font-size: 13px !important;
-  height: 30px !important;
-  justify-content: flex-start !important;
-  margin-left: 0 !important;
-  max-height: 30px !important;
-  min-height: 30px !important;
-  max-width: 100% !important;
-  overflow: hidden !important;
-  padding: 0 4px !important;
-  text-overflow: ellipsis !important;
-  transition: border linear .2s, box-shadow linear .2s !important;
-  white-space: nowrap !important;
-  width: 100% !important;
-}
-
-.fkp-button-add-dynlist > .add-item > .cbi-button-add:hover,
-.fkp-button-add-dynlist > .add-item > .cbi-button-add:focus {
-  border-color: rgba(82, 168, 236, .8) !important;
-  box-shadow: inset 0 1px 3px hsla(var(--border-color-low-hsl, 0, 0%, 0%), .01), 0 0 8px rgba(82, 168, 236, .6) !important;
-  outline: 0;
 }
 
 body.modal-overlay-active > #modal_overlay > .modal.cbi-modal > .cbi-map.flash {
@@ -1074,17 +1017,34 @@ function addDynamicListItem(widget, value, text) {
 }
 
 function updateButtonAddDynamicListLayout(dl, label) {
-  const addButton = dl ? dl.querySelector(".add-item > .cbi-button-add") : null;
+  const addButton = dl
+    ? dl.querySelector(".add-item > .fkp-button-add-control") ||
+      dl.querySelector(".add-item > .cbi-button-add")
+    : null;
   if (!addButton) {
     return;
   }
 
-  addButton.textContent = label || "+";
+  if (!addButton.classList.contains("fkp-button-add-control")) {
+    addButton.className = "cbi-dropdown fkp-button-add-control";
+    addButton.replaceChildren(
+      E(
+        "ul",
+        { tabindex: "-1" },
+        E("li", { selected: "", display: "0" }),
+      ),
+      E("span", { "aria-hidden": "true" }, "\u200b"),
+    );
+  }
+
+  const buttonLabel = label || "+";
+  addButton.querySelector("li").textContent = buttonLabel;
   addButton.setAttribute("role", "button");
   addButton.setAttribute("tabindex", "0");
-  dl.style.setProperty(
-    "--fkp-button-add-width",
-    dl.querySelector(".item") ? "100%" : "210px",
+  addButton.setAttribute("aria-label", buttonLabel);
+  addButton.setAttribute(
+    "aria-disabled",
+    dl.hasAttribute("disabled") ? "true" : "false",
   );
 }
 
@@ -1288,10 +1248,48 @@ function cleanFormSectionData(sectionData) {
 const SettingsUIDynamicList = ui.DynamicList.extend({
   render() {
     ensureConnectionsDynamicListStyles();
+    this.settingsButtonResizeObserver?.disconnect();
+    this.settingsButtonResizeObserver =
+      typeof ResizeObserver === "function"
+        ? new ResizeObserver((entries) => {
+            entries.forEach((entry) => {
+              this.syncSettingsButtonSize(entry.target);
+            });
+          })
+        : null;
 
     const node = ui.DynamicList.prototype.render.apply(this, arguments);
     node.classList.add("fkp-connections-dynlist");
+    node.addEventListener("cbi-dynlist-change", () => {
+      this.syncSettingsButtons(node);
+    });
     return node;
+  },
+
+  syncSettingsButtonSize(item) {
+    const button = item && item.fkpDynamicListSettingsButton;
+    const height = item && item.clientHeight;
+    if (button && height > 0) {
+      button.style.setProperty("--fkp-dynlist-row-size", `${height}px`);
+      button.style.setProperty(
+        "--fkp-dynlist-row-offset",
+        `${item.clientTop}px`,
+      );
+    }
+  },
+
+  syncSettingsButtons(dl) {
+    Array.from(dl.children).forEach((item) => {
+      const button = item.fkpDynamicListSettingsButton;
+      if (
+        item.classList.contains("item") &&
+        button &&
+        button.parentNode === dl &&
+        item.nextElementSibling !== button
+      ) {
+        item.after(button);
+      }
+    });
   },
 
   addItem(dl, value, text, flash) {
@@ -1317,67 +1315,91 @@ const SettingsUIDynamicList = ui.DynamicList.extend({
         ? this.options.hasSettings(value)
         : true;
 
-    if (!item || item.querySelector(".fkp-dynlist-settings") || !hasSettings) {
+    if (!item || item.fkpDynamicListSettingsButton || !hasSettings) {
       return;
     }
 
-    item.appendChild(
-      E(
-        "span",
-        {
-          role: "button",
-          tabindex: this.options.disabled ? null : "0",
-          class: "fkp-dynlist-settings",
-          "aria-label": _("Settings"),
-          "aria-disabled": this.options.disabled ? "true" : null,
-          click: (event) => {
-            event.preventDefault();
-            event.stopPropagation();
+    const settingsButton = E(
+      "button",
+      {
+        type: "button",
+        class: "btn cbi-button cbi-button-neutral fkp-dynlist-settings",
+        "aria-label": _("Settings"),
+        disabled: this.options.disabled ? "" : null,
+        click: (event) => {
+          event.preventDefault();
+          event.stopPropagation();
 
-            if (this.options.disabled) {
-              return;
-            }
+          if (this.options.disabled) {
+            return;
+          }
 
-            if (typeof this.options.settingsHandler === "function") {
-              this.options.settingsHandler(
-                dynamicListItemCurrentValue(item, value),
-                item,
-                this,
-                {},
-              );
-            }
-          },
-          keydown: (event) => {
-            if (event.key !== "Enter" && event.key !== " ") {
-              return;
-            }
-
-            event.preventDefault();
-            event.stopPropagation();
-
-            if (
-              !this.options.disabled &&
-              typeof this.options.settingsHandler === "function"
-            ) {
-              this.options.settingsHandler(
-                dynamicListItemCurrentValue(item, value),
-                item,
-                this,
-                {},
-              );
-            }
-          },
+          if (typeof this.options.settingsHandler === "function") {
+            this.options.settingsHandler(
+              dynamicListItemCurrentValue(item, value),
+              item,
+              this,
+              {},
+            );
+          }
         },
-        "\u2699",
-      ),
+      },
+      "\u2699",
     );
+    item.fkpDynamicListSettingsButton = settingsButton;
+    item.after(settingsButton);
+    this.settingsButtonResizeObserver?.observe(item);
+    this.syncSettingsButtonSize(item);
   },
+
+  removeItem(dl, item) {
+    const settingsButton = item && item.fkpDynamicListSettingsButton;
+    this.settingsButtonResizeObserver?.unobserve(item);
+    if (settingsButton && settingsButton.parentNode === dl) {
+      settingsButton.remove();
+    }
+
+    return ui.DynamicList.prototype.removeItem.apply(this, arguments);
+  },
+
   handleClick(event) {
     if (event.target.closest(".fkp-dynlist-settings")) {
       return;
     }
 
     return ui.DynamicList.prototype.handleClick.apply(this, arguments);
+  },
+
+  handleKeydown(event) {
+    const dl = event.currentTarget;
+    const item = event.target.closest(".item");
+    const isBackspace = event.key === "Backspace" || event.keyCode === 8;
+    const isDelete = event.key === "Delete" || event.keyCode === 46;
+
+    if (
+      !this.options.disabled &&
+      item &&
+      item.parentNode === dl &&
+      (isBackspace || isDelete)
+    ) {
+      const items = Array.from(dl.children).filter((node) =>
+        node.classList.contains("item"),
+      );
+      const index = items.indexOf(item);
+      const nextItem = items[index + (isBackspace ? -1 : 1)];
+
+      if (nextItem) {
+        nextItem.focus();
+      } else if (isDelete) {
+        dl.querySelector(".add-item > *")?.focus();
+      }
+
+      this.removeItem(dl, item);
+      event.preventDefault();
+      return;
+    }
+
+    return ui.DynamicList.prototype.handleKeydown.apply(this, arguments);
   },
 });
 
@@ -1387,10 +1409,7 @@ const ButtonAddSettingsUIDynamicList = SettingsUIDynamicList.extend({
     node.classList.add("fkp-button-add-dynlist");
 
     const input = node.querySelector('.add-item > input[type="text"]');
-    if (input) {
-      input.setAttribute("aria-hidden", "true");
-      input.setAttribute("tabindex", "-1");
-    }
+    input?.remove();
 
     updateButtonAddDynamicListLayout(node, this.options.addButtonLabel);
 
@@ -1410,7 +1429,7 @@ const ButtonAddSettingsUIDynamicList = SettingsUIDynamicList.extend({
   handleClick(event) {
     if (
       !this.options.disabled &&
-      event.target.closest(".add-item > .cbi-button-add")
+      event.target.closest(".add-item > .fkp-button-add-control")
     ) {
       event.preventDefault();
       event.stopPropagation();
@@ -1424,7 +1443,7 @@ const ButtonAddSettingsUIDynamicList = SettingsUIDynamicList.extend({
   handleKeydown(event) {
     if (
       !this.options.disabled &&
-      event.target.closest(".add-item > .cbi-button-add") &&
+      event.target.closest(".add-item > .fkp-button-add-control") &&
       (event.key === "Enter" || event.key === " ")
     ) {
       event.preventDefault();

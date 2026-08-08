@@ -10,9 +10,11 @@ fail() {
   exit 1
 }
 
-wrapper_styles="$(sed -n '/^\.fkp-button-add-dynlist > \.add-item {$/,/^}$/p' "$SECTION_JS")"
-button_styles="$(sed -n '/^\.fkp-button-add-dynlist > \.add-item > \.cbi-button-add {$/,/^}$/p' "$SECTION_JS")"
-settings_styles="$(sed -n '/^\.fkp-connections-dynlist > \.item > \.fkp-dynlist-settings {$/,/^}$/p' "$SECTION_JS")"
+settings_list_styles="$(sed -n '/^\.fkp-connections-dynlist {$/,/^}$/p' "$SECTION_JS")"
+settings_styles="$(sed -n '/^\.fkp-connections-dynlist > \.fkp-dynlist-settings {$/,/^}$/p' "$SECTION_JS")"
+settings_item_styles="$(sed -n '/^\.fkp-connections-dynlist > \.item {$/,/^}$/p' "$SECTION_JS")"
+settings_widget="$(sed -n '/^const SettingsUIDynamicList =/,/^const ButtonAddSettingsUIDynamicList/p' "$SECTION_JS")"
+button_add_widget="$(sed -n '/^function updateButtonAddDynamicListLayout(/,/^function setDynamicListItemValue(/p' "$SECTION_JS"; sed -n '/^const ButtonAddSettingsUIDynamicList =/,/^const SettingsDynamicList/p' "$SECTION_JS")"
 subscription_keys="$(sed -n '/^function subscriptionUrlSettingsKeys(/,/^function defaultSubscriptionUrlSettings(/p' "$SECTION_JS")"
 subscription_options="$(sed -n '/^function addSubscriptionUrlItemOptions(/,/^function addInterfaceItemOptions(/p' "$SECTION_JS")"
 subscription_header_editor="$(sed -n '/^function subscriptionHeaderValues(/,/^function interfaceSettingsKeys(/p' "$SECTION_JS")"
@@ -121,29 +123,61 @@ delete storedHeaders.header_2;
 assert.strictEqual(nextSubscriptionHeaderRowId(headerSection), 'header_4');
 NODE
 
-grep -Fq 'display: flex;' <<<"$wrapper_styles" ||
-  fail "button-only DynamicList add rows must use a content-sized flex wrapper"
-grep -Fq 'width: var(--fkp-button-add-width, 210px);' <<<"$wrapper_styles" ||
-  fail "button-only DynamicList wrappers must follow the measured button width"
-grep -Fq 'max-width: 100%;' <<<"$wrapper_styles" ||
-  fail "button-only DynamicList wrappers must stay inside narrow option fields"
-grep -Fq 'min-width: 0;' <<<"$wrapper_styles" ||
-  fail "button-only DynamicList wrappers must not inherit theme minimum widths"
-grep -Fq 'background: transparent;' <<<"$wrapper_styles" ||
-  fail "button-only DynamicList wrappers must not render as empty input groups"
-grep -Fq 'border: 0;' <<<"$wrapper_styles" ||
-  fail "button-only DynamicList wrappers must leave framing to the button"
-
-grep -Fq 'width: 100% !important;' <<<"$button_styles" ||
-  fail "button-only DynamicList buttons must fill their content-sized wrapper"
-grep -Fq 'max-width: 100% !important;' <<<"$button_styles" ||
-  fail "button-only DynamicList buttons must not overflow narrow wrappers"
-grep -Fq 'text-overflow: ellipsis !important;' <<<"$button_styles" ||
-  fail "button-only DynamicList labels must truncate instead of overflowing"
-grep -Fq 'var(--background-color-high, var(--primary, ButtonFace))' <<<"$button_styles" ||
-  fail "button-only DynamicList buttons must remain visible outside Bootstrap themes"
-grep -Fq 'min-width: var(--fkp-dynlist-action-width);' <<<"$settings_styles" ||
-  fail "DynamicList settings buttons must resist theme label sizing"
+grep -Fq 'addButton.className = "cbi-dropdown fkp-button-add-control";' <<<"$button_add_widget" ||
+  fail "button-only DynamicList actions must use the native LuCI dropdown surface"
+grep -Fq 'E("li", { selected: "", display: "0" })' <<<"$button_add_widget" ||
+  fail "button-only DynamicList actions must use the native dropdown label structure"
+grep -Fq 'E("span", { "aria-hidden": "true" }, "\u200b")' <<<"$button_add_widget" ||
+  fail "button-only DynamicList actions must retain the native dropdown line height"
+grep -Fq 'input?.remove();' <<<"$button_add_widget" ||
+  fail "button-only DynamicList actions must not retain the text-input layout"
+grep -Fq 'event.target.closest(".add-item > .fkp-button-add-control")' <<<"$button_add_widget" ||
+  fail "button-only DynamicList actions must preserve click and keyboard behavior"
+if grep -Fq '.fkp-button-add-dynlist > .add-item' "$SECTION_JS"; then
+  fail "button-only DynamicList actions must not carry theme-specific presentation CSS"
+fi
+grep -Fq 'display: inline-grid;' <<<"$settings_list_styles" ||
+  fail "DynamicList values and settings buttons must use a shared grid"
+grep -Fq 'grid-template-columns: minmax(0, 1fr) auto;' <<<"$settings_list_styles" ||
+  fail "DynamicList settings buttons must occupy a separate content-sized column"
+grep -Fq 'column-gap: var(--fkp-dynlist-action-gap);' <<<"$settings_list_styles" ||
+  fail "DynamicList settings buttons must keep a theme-relative gap from values"
+grep -Fq 'grid-column: 1;' <<<"$settings_item_styles" ||
+  fail "DynamicList values must stay in the value column"
+grep -Fq 'grid-column: 2;' <<<"$settings_styles" ||
+  fail "DynamicList settings buttons must sit outside the value field"
+grep -Fq 'block-size: var(--fkp-dynlist-row-size, auto);' <<<"$settings_styles" ||
+  fail "DynamicList settings buttons must follow their measured value row height"
+grep -Fq 'inline-size: var(--fkp-dynlist-action-size) !important;' <<<"$settings_styles" ||
+  fail "DynamicList settings buttons must preserve their original theme-relative width"
+grep -Fq 'min-block-size: 0;' <<<"$settings_styles" ||
+  fail "DynamicList settings buttons must override oversized theme minimum heights"
+grep -Fq 'min-inline-size: 0;' <<<"$settings_styles" ||
+  fail "DynamicList settings buttons must override oversized theme minimum widths"
+grep -Fq 'margin-block-start: var(--fkp-dynlist-row-offset, 0px);' <<<"$settings_styles" ||
+  fail "DynamicList settings buttons must align with the value's inner border edge"
+grep -Fq '"btn cbi-button cbi-button-neutral fkp-dynlist-settings"' "$SECTION_JS" ||
+  fail "DynamicList settings actions must use a native neutral LuCI button"
+grep -Fq 'item.after(settingsButton);' <<<"$settings_widget" ||
+  fail "DynamicList settings actions must be DOM siblings so item hover stays isolated"
+grep -Fq 'settingsButton.remove();' <<<"$settings_widget" ||
+  fail "DynamicList settings actions must be removed with their value"
+grep -Fq 'this.syncSettingsButtons(node);' <<<"$settings_widget" ||
+  fail "DynamicList settings actions must follow values after drag-and-drop"
+grep -Fq 'new ResizeObserver((entries) =>' <<<"$settings_widget" ||
+  fail "DynamicList settings actions must track responsive value row heights"
+grep -Fq 'const height = item && item.clientHeight;' <<<"$settings_widget" ||
+  fail "DynamicList settings actions must measure the value's inner height"
+grep -Fq '`${item.clientTop}px`' <<<"$settings_widget" ||
+  fail "DynamicList settings actions must follow the value's actual border offset"
+grep -Fq 'button.style.setProperty("--fkp-dynlist-row-size", `${height}px`);' <<<"$settings_widget" ||
+  fail "DynamicList settings actions must use the measured value row height"
+if grep -Fq 'title: _("Settings")' <<<"$settings_widget"; then
+  fail "DynamicList settings actions must not expose a redundant hover tooltip"
+fi
+if grep -Eq '^[[:space:]]*(background|border(-|:)|box-shadow|color:)' <<<"$settings_styles"; then
+  fail "DynamicList settings button colors and framing must remain theme-owned"
+fi
 
 grep -Fq 'addServerFilterOptions(itemSection, parentSectionForItem, {' <<<"$subscription_options" ||
   fail "subscription settings must expose native provider filters"
