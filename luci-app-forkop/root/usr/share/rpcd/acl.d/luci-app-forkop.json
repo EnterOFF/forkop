@@ -9,6 +9,9 @@
         "/var/run/forkop/component-actions/*": [
           "read"
         ],
+        "/var/run/forkop/runtime-manifest.json": [
+          "read"
+        ],
         "/var/run/forkop/ui-state/*": [
           "read"
         ],

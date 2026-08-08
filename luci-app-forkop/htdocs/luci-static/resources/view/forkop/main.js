@@ -2362,7 +2362,6 @@ var Forkop;
     AvailableMethods2["CHECK_BYEDPI_RUNTIME"] = "check_byedpi_runtime";
     AvailableMethods2["CHECK_INBOUNDS_CONFIG"] = "check_inbounds_config";
     AvailableMethods2["GET_STATUS"] = "get_status";
-    AvailableMethods2["GET_DASHBOARD_SECTION_CACHE"] = "get_dashboard_section_cache";
     AvailableMethods2["CHECK_SING_BOX"] = "check_sing_box";
     AvailableMethods2["CHECK_INBOUNDS"] = "check_inbounds";
     AvailableMethods2["GET_SING_BOX_STATUS"] = "get_sing_box_status";
@@ -2434,6 +2433,7 @@ var COMPONENT_ACTION_STATUS_REFRESH_INTERVAL_MS = 15e3;
 var COMPONENT_ACTION_SELF_UPDATE_SETTLE_MS = 3e4;
 var COMPONENT_ACTION_TRANSIENT_RPC_GRACE_MS = 3e4;
 var COMPONENT_ACTION_STATE_DIR = "/var/run/forkop/component-actions";
+var RUNTIME_MANIFEST_FILE = "/var/run/forkop/runtime-manifest.json";
 var GET_UI_STATE_RPC_TIMEOUT_MS = 3e3;
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -2571,10 +2571,19 @@ var ForkopShellMethods = {
     Forkop.AvailableMethods.CHECK_INBOUNDS_CONFIG
   ),
   getStatus: async () => callBaseMethod(Forkop.AvailableMethods.GET_STATUS),
-  getDashboardSectionCache: async (section) => callBaseMethod(
-    Forkop.AvailableMethods.GET_DASHBOARD_SECTION_CACHE,
-    [section]
-  ),
+  getRuntimeManifest: async () => {
+    try {
+      const data = parseJsonObjectOutput(
+        await fs.read(RUNTIME_MANIFEST_FILE)
+      );
+      return data ? { success: true, data } : { success: false, error: "Invalid runtime manifest" };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : `${error}`
+      };
+    }
+  },
   checkSingBox: async () => callBaseMethod(
     Forkop.AvailableMethods.CHECK_SING_BOX
   ),
@@ -3286,9 +3295,6 @@ function sortUrlTestMembers(outbounds) {
     return left.index - right.index;
   }).map((item) => item.outbound);
 }
-function isSafeSectionName(sectionName) {
-  return /^[A-Za-z0-9_-]+$/.test(sectionName);
-}
 function objectMap(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {};
@@ -3326,6 +3332,14 @@ function itemSettingBoolean(settings, key, fallback) {
   }
   return value === "1" || value === "true";
 }
+function itemSettingNumber(settings, key, fallback) {
+  const raw = settings?.[key];
+  if (raw === void 0 || raw === null || raw === "" || Array.isArray(raw)) {
+    return fallback;
+  }
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : fallback;
+}
 function getUrlTestTag(sectionName, id) {
   return getOutboundTagBySection(
     id === "urltest" ? `${sectionName}-urltest` : `${sectionName}-urltest-${id}`
@@ -3350,12 +3364,28 @@ function getUrlTestConfigs(section) {
       id,
       code: getUrlTestTag(sectionName, id),
       displayName: getUrlTestDisplayName(section, id, settings),
-      settings,
       pinDashboard: itemSettingBoolean(settings, "pin_dashboard", true),
       hideDashboardMembers: itemSettingBoolean(
         settings,
         "hide_dashboard_members",
         false
+      ),
+      testingUrl: itemSettingString(
+        settings,
+        "urltest_testing_url",
+        "https://www.gstatic.com/generate_204"
+      ),
+      checkInterval: itemSettingString(
+        settings,
+        "urltest_check_interval",
+        "3m"
+      ),
+      tolerance: itemSettingNumber(settings, "urltest_tolerance", 50),
+      idleTimeout: itemSettingString(settings, "idle_timeout", "30m"),
+      interruptExistConnections: itemSettingBoolean(
+        settings,
+        "interrupt_exist_connections",
+        true
       )
     };
   });
@@ -3431,31 +3461,6 @@ function getFallbackConfigs(section) {
     };
   });
 }
-async function readDashboardSectionCache(sectionName) {
-  if (!isSafeSectionName(sectionName)) {
-    return void 0;
-  }
-  const response = await ForkopShellMethods.getDashboardSectionCache(sectionName);
-  if (!response.success) {
-    throw new Error(response.error || "Failed to read dashboard section cache");
-  }
-  const parsed = response.data;
-  return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : void 0;
-}
-function getUrlTestGroups(dashboardCache) {
-  const groups = dashboardCache?.urltestGroups;
-  if (!groups || typeof groups !== "object" || Array.isArray(groups)) {
-    return {};
-  }
-  return groups;
-}
-function getFallbackGroups(dashboardCache) {
-  const groups = dashboardCache?.fallbackGroups;
-  if (!groups || typeof groups !== "object" || Array.isArray(groups)) {
-    return {};
-  }
-  return groups;
-}
 function getOutboundDisplayName(code, entry, link, outboundMetadata) {
   const metadataName = outboundMetadata?.names?.[code];
   return getProxyUrlName(link) || metadataName || entry?.value?.name || code;
@@ -3467,19 +3472,14 @@ function getOutboundDisplayType(code, entry, outboundMetadata) {
   return entry?.value?.type || "";
 }
 function buildUrlTestInfo({
-  code,
-  displayName,
+  config,
   entry,
-  groupCache,
   proxyByCode,
   manualLinkByCode,
   exportableProviderTags,
   outboundMetadata
 }) {
-  const childCodes = uniqueCodes([
-    ...entry?.value.all || [],
-    ...groupCache?.outbounds || []
-  ]);
+  const childCodes = uniqueCodes(entry?.value.all || []);
   const selectedCode = entry?.value.now || "";
   const outbounds = sortUrlTestMembers(
     childCodes.flatMap((childCode) => {
@@ -3510,33 +3510,31 @@ function buildUrlTestInfo({
   );
   const selectedName = outbounds.find((outbound) => outbound.code === selectedCode)?.displayName || selectedCode;
   return {
-    code,
-    displayName: groupCache?.displayName || displayName,
+    code: config.code,
+    displayName: config.displayName,
     selectedCode: selectedCode || void 0,
     selectedName: selectedName || void 0,
-    url: groupCache?.url,
-    interval: groupCache?.interval,
-    tolerance: groupCache?.tolerance,
-    idleTimeout: groupCache?.idle_timeout || "30m",
-    interruptExistConnections: groupCache?.interrupt_exist_connections,
+    url: entry?.value.url || config.testingUrl,
+    interval: entry?.value.interval || config.checkInterval,
+    tolerance: config.tolerance,
+    idleTimeout: entry?.value.idle_timeout || config.idleTimeout || "30m",
+    interruptExistConnections: config.interruptExistConnections,
     outbounds
   };
 }
 function buildFallbackInfo({
   config,
   entry,
-  groupCache,
   proxyByCode,
   manualLinkByCode,
   exportableProviderTags,
   outboundMetadata
 }) {
   const selectedCode = entry?.value.now || "";
-  const cacheLevels = Array.isArray(groupCache?.levels) ? groupCache.levels : [];
   const configLevelById = new Map(
     config.levels.map((level) => [level.id, level])
   );
-  const configuredLevels = cacheLevels.length ? cacheLevels : config.levels;
+  const configuredLevels = config.levels;
   const runtimeLevels = Array.isArray(entry?.value.levels) ? entry.value.levels : [];
   const levels = (runtimeLevels.length ? runtimeLevels.map((runtimeLevel, index) => {
     const runtimeTag = `${runtimeLevel.tag || ""}`;
@@ -3597,18 +3595,18 @@ function buildFallbackInfo({
   const selectedName = outbounds.find((outbound) => outbound.code === selectedCode)?.displayName || selectedCode;
   return {
     code: config.code,
-    displayName: groupCache?.displayName || config.displayName,
+    displayName: config.displayName,
     selectedCode: selectedCode || void 0,
     selectedName: selectedName || void 0,
-    healthCheckUrl: groupCache?.url || config.healthCheckUrl,
-    healthCheckInterval: groupCache?.interval || config.healthCheckInterval,
-    healthCheckTimeout: groupCache?.timeout || config.healthCheckTimeout,
-    idleTimeout: groupCache?.idle_timeout || config.idleTimeout,
-    interruptExistConnections: groupCache?.interrupt_exist_connections ?? config.interruptExistConnections,
+    healthCheckUrl: config.healthCheckUrl,
+    healthCheckInterval: config.healthCheckInterval,
+    healthCheckTimeout: config.healthCheckTimeout,
+    idleTimeout: config.idleTimeout,
+    interruptExistConnections: config.interruptExistConnections,
     outbounds
   };
 }
-function buildProxyGroupOutbounds(section, proxies, outboundMetadata, urltestGroups = {}, fallbackGroups = {}, exportableProviderTags = []) {
+function buildProxyGroupOutbounds(section, proxies, outboundMetadata, exportableProviderTags = []) {
   const sectionName = section[".name"];
   const proxyByCode = getProxyEntryByCode(proxies);
   const selectorTag = getOutboundTagBySection(sectionName);
@@ -3638,19 +3636,13 @@ function buildProxyGroupOutbounds(section, proxies, outboundMetadata, urltestGro
     uniqueCodes(codes).forEach((code) => hiddenMemberCodes.add(code));
   };
   urlTestEntries.forEach(({ config, entry }) => {
-    const cache = urltestGroups[config.code];
-    if (config.hideDashboardMembers || cache?.hide_dashboard_members) {
-      hideMembers(
-        entry?.value.all?.length ? entry.value.all : cache?.outbounds || []
-      );
-    }
+    if (config.hideDashboardMembers) hideMembers(entry?.value.all || []);
   });
   fallbackEntries.forEach(({ config, entry }) => {
-    const cache = fallbackGroups[config.code];
-    if (!config.hideDashboardMembers && !cache?.hide_dashboard_members) {
+    if (!config.hideDashboardMembers) {
       return;
     }
-    const levels = entry?.value.levels?.length ? entry.value.levels : cache?.levels?.length ? cache.levels : config.levels;
+    const levels = entry?.value.levels?.length ? entry.value.levels : config.levels;
     levels.forEach((level) => hideMembers(level.outbounds || []));
   });
   const builtInUrltestCode = urlTestCodes[0] || "";
@@ -3682,11 +3674,16 @@ function buildProxyGroupOutbounds(section, proxies, outboundMetadata, urltestGro
     );
     const displayName = fallbackConfig?.displayName || urlTestConfig?.displayName || getOutboundDisplayName(code, item, link, outboundMetadata);
     const isRuntimeUrlTest = isUrlTestProxyEntry(item);
-    const urlTestInfo = urlTestConfig || isRuntimeUrlTest ? buildUrlTestInfo({
+    const effectiveUrlTestConfig = urlTestConfig || (isRuntimeUrlTest ? {
+      id: code,
       code,
       displayName,
+      pinDashboard: false,
+      hideDashboardMembers: false
+    } : void 0);
+    const urlTestInfo = effectiveUrlTestConfig ? buildUrlTestInfo({
+      config: effectiveUrlTestConfig,
       entry: item,
-      groupCache: urltestGroups[code],
       proxyByCode,
       manualLinkByCode,
       exportableProviderTags,
@@ -3695,7 +3692,6 @@ function buildProxyGroupOutbounds(section, proxies, outboundMetadata, urltestGro
     const fallbackInfo = fallbackConfig ? buildFallbackInfo({
       config: fallbackConfig,
       entry: item,
-      groupCache: fallbackGroups[code],
       proxyByCode,
       manualLinkByCode,
       exportableProviderTags,
@@ -3743,8 +3739,19 @@ function isSubscriptionMetadataVisible(section, sourceIndex) {
   const settings = itemSettingsMap(section.subscription_url_settings)[sourceEntry];
   return settings?.show_dashboard_metadata !== "0";
 }
-function getSectionProviderTags(dashboardCache) {
-  return getListValues(dashboardCache?.providerTags);
+function getSectionProviderTags(section) {
+  const sectionName = section[".name"];
+  const tags = Array.from(
+    { length: getSubscriptionSourceCount(section) },
+    (_item, index) => allocateRuntimeTag(
+      `${sectionName}-subscription-${index + 1}`,
+      "provider"
+    )
+  );
+  if (getManualProxyLinks(section).length) {
+    tags.push(allocateRuntimeTag(`${sectionName}-manual`, "provider"));
+  }
+  return tags;
 }
 function providerNumber(value, lower) {
   const upper = `${lower[0].toUpperCase()}${lower.slice(1)}`;
@@ -3790,8 +3797,7 @@ function getSubscriptionMetadata(section, sourceCount, providerTags, providers) 
   });
   return items.length ? items : void 0;
 }
-function getOutboundMetadata(dashboardCache, providerTags = [], proxies = []) {
-  const metadata = dashboardCache?.outboundMetadata;
+function getOutboundMetadata(metadata, providerTags = [], proxies = []) {
   const names = objectMap(metadata?.names);
   const protocols = objectMap(metadata?.protocols);
   const prefixes = providerTags.map((tag) => `${tag}/`);
@@ -3832,14 +3838,17 @@ async function getDashboardSections() {
   const activeSections = configSections.filter(
     (section) => section.enabled !== "0" && isConnectionAction(section.action)
   );
-  const dashboardCaches = /* @__PURE__ */ new Map();
-  for (const section of activeSections) {
-    if (shouldUseProxyGroup(section)) {
-      dashboardCaches.set(
-        section[".name"],
-        await readDashboardSectionCache(section[".name"])
-      );
+  let runtimeManifest = {};
+  if (activeSections.some(shouldUseProxyGroup)) {
+    const response = await ForkopShellMethods.getRuntimeManifest();
+    if (!response.success) {
+      throw new Error(response.error || "Failed to read runtime manifest");
     }
+    const parsed = response.data;
+    if (parsed.version !== 1 || !parsed.sections) {
+      throw new Error("Invalid runtime manifest");
+    }
+    runtimeManifest = parsed;
   }
   const data = activeSections.map((section) => {
     const displayName = getDisplayName(section);
@@ -3849,10 +3858,9 @@ async function getDashboardSections() {
     if (isConnectionAction(sectionAction) && shouldUseProxyGroup(section)) {
       const subscriptionSourceCount = getSubscriptionSourceCount(section);
       const subscriptionEnabled = subscriptionSourceCount > 0;
-      const dashboardCache = dashboardCaches.get(sectionName);
-      const providerTags = getSectionProviderTags(dashboardCache);
+      const providerTags = getSectionProviderTags(section);
       const outboundMetadata = getOutboundMetadata(
-        dashboardCache,
+        runtimeManifest.sections?.[sectionName],
         providerTags,
         proxies
       );
@@ -3862,14 +3870,10 @@ async function getDashboardSections() {
         providerTags,
         providers
       ) : void 0;
-      const urltestGroups = getUrlTestGroups(dashboardCache);
-      const fallbackGroups = getFallbackGroups(dashboardCache);
       const { selector, latencyTestCode, latencyTestCodes, outbounds } = buildProxyGroupOutbounds(
         section,
         proxies,
         outboundMetadata,
-        urltestGroups,
-        fallbackGroups,
         providerTags.slice(0, subscriptionSourceCount)
       );
       return {

@@ -58,25 +58,11 @@ grep -Fq 'require("core.uci")' "$SINGBOX_GENERATOR_UC" ||
   fail "singbox/generator.uc must import core.uci"
 grep -Fq 'FORKOP_RULE_CONDITION_CACHE_DIR' "$LIFECYCLE_UC" ||
   fail "service/lifecycle.uc must pass rule-condition cache dir through module environment"
-if awk '
-/"write-current-reload-state-clean"|"write-captured-reload-state"/ {
-  in_block = 1
-  bad = 0
-}
-in_block && /SECTION_CACHE_DIR/ {
-  bad = 1
-}
-in_block && /\]\);/ {
-  if (bad)
-    found_bad = 1
-  in_block = 0
-}
-END {
-  exit found_bad ? 0 : 1
-}
-' "$LIFECYCLE_UC"; then
-  fail "reload-state cleanup must not delete subscription section-cache"
+if grep -Fq 'FORKOP_SECTION_CACHE_DIR' "$LIFECYCLE_UC"; then
+  fail "service/lifecycle.uc must not transport the retired section-cache path"
 fi
+grep -Fq 'publish_runtime_manifest(temp_manifest)' "$SINGBOX_RUNTIME_UC" ||
+  fail "singbox/runtime.uc must publish generated runtime metadata after config validation"
 
 mkdir -p "$WORK_DIR/bin" "$WORK_DIR/lib/core"
 cat >"$WORK_DIR/lib/core/packages.uc" <<'EOF_PACKAGES'
@@ -140,7 +126,7 @@ generate_config() {
   local output="$2"
   local mwan3_active="${3:-0}"
 
-  mkdir -p "$output.section-cache" "$output.rulesets"
+  mkdir -p "$output.rulesets"
   ucode -L "$FORKOP_LIB" "$FORKOP_LIB/singbox/generator.uc" generate-config-fixture \
     "$fixture" "$output" "127.0.0.1" "$mwan3_active"
 }
@@ -259,10 +245,10 @@ cat >"$WORK_DIR/tunnel-fixture.json" <<'JSON'
 }
 JSON
 generate_config "$WORK_DIR/tunnel-fixture.json" "$WORK_DIR/tunnel.json"
-node - "$WORK_DIR/tunnel.json" "$WORK_DIR/tunnel.json.section-cache/tunnels.json" <<'NODE'
+node - "$WORK_DIR/tunnel.json" "$WORK_DIR/tunnel.json.runtime-manifest.json" <<'NODE'
 const fs = require('fs');
 const config = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-const cache = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
+const manifest = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
 const warp = config.endpoints.find((endpoint) => endpoint.tag === 'tunnels-tunnel-1-out');
 const amnezia = config.endpoints.find((endpoint) => endpoint.tag === 'tunnels-tunnel-2-out');
 const tailscale = config.endpoints.find((endpoint) => endpoint.tag === 'tunnels-tunnel-3-out');
@@ -303,8 +289,10 @@ if (
   throw new Error('tunnels are not selectable connection outbounds');
 if (config.experimental?.cache_file?.store_warp_config !== true)
   throw new Error('WARP profile cache is not enabled');
-if (cache.outboundMetadata?.protocols?.[amnezia.tag] !== 'amneziawg')
+if (manifest.sections?.tunnels?.protocols?.[amnezia.tag] !== 'amneziawg')
   throw new Error('AmneziaWG dashboard metadata is missing');
+if (manifest.version !== 1 || manifest.sections?.tunnels?.providerTags != null)
+  throw new Error('runtime manifest contains legacy section cache data');
 NODE
 
 cat >"$WORK_DIR/generator-uci.state" <<'EOF_UCI'
@@ -321,7 +309,6 @@ forkop.uci_proxy.outbound_jsons={"type":"direct"}
 forkop.uci_proxy.domain_suffix=example.org
 EOF_UCI
 FORKOP_UCI_STATE_FILE="$WORK_DIR/generator-uci.state" \
-  FORKOP_SECTION_CACHE_DIR="$WORK_DIR/generated-from-uci.section-cache" \
   ucode -L "$FORKOP_LIB" "$SINGBOX_GENERATOR_UC" generate-config "$WORK_DIR/generated-from-uci.json" "127.0.0.1" "0"
 grep -Fq '"example.org"' "$WORK_DIR/generated-from-uci.json" ||
   fail "singbox/generator.uc must read section matchers from core.uci"

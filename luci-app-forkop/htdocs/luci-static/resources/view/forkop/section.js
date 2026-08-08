@@ -586,7 +586,7 @@ function plainObject(value) {
     : {};
 }
 
-function safeCacheSectionName(section_id) {
+function safeRuntimeSectionName(section_id) {
   return /^[A-Za-z0-9_-]+$/.test(`${section_id || ""}`);
 }
 
@@ -657,24 +657,15 @@ function subscriptionSourceOutboundName(name, prefixNodes, nodePrefix) {
 }
 
 function readOutboundChoiceState(section_id) {
-  if (!safeCacheSectionName(section_id)) {
+  if (!safeRuntimeSectionName(section_id)) {
     return Promise.resolve(null);
   }
 
-  return fs
-    .exec("/usr/bin/forkop", ["get_dashboard_section_cache", section_id])
-    .then((response) => {
-      if ((response.code ?? 0) !== 0) {
-        throw new Error("Dashboard section cache lookup failed");
-      }
-      const cache = JSON.parse(response.stdout || "{}");
-      return {
-        providerTags: Array.isArray(cache.providerTags)
-          ? cache.providerTags
-          : [],
-      };
-    })
-    .catch(() => null);
+  return Promise.resolve({
+    providerTags: getChildItemIds(section_id, "subscription_url").map(
+      (_itemId, index) => `${section_id}-subscription-${index + 1}-provider`,
+    ),
+  });
 }
 
 function loadOutboundNameChoices(section_id) {

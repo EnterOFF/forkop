@@ -97,7 +97,6 @@ export namespace Forkop {
     CHECK_BYEDPI_RUNTIME = 'check_byedpi_runtime',
     CHECK_INBOUNDS_CONFIG = 'check_inbounds_config',
     GET_STATUS = 'get_status',
-    GET_DASHBOARD_SECTION_CACHE = 'get_dashboard_section_cache',
     CHECK_SING_BOX = 'check_sing_box',
     CHECK_INBOUNDS = 'check_inbounds',
     GET_SING_BOX_STATUS = 'get_sing_box_status',

@@ -20,7 +20,6 @@ const CHECK_PROXY_LOCK_DIR = getenv("FORKOP_CHECK_PROXY_LOCK_DIR") || RUNTIME_ST
 const SYSTEM_INFO_CACHE_FILE = getenv("FORKOP_SYSTEM_INFO_CACHE_FILE") || RUNTIME_STATE_DIR + "/system-info.json";
 const SYSTEM_INFO_CACHE_TTL = int(getenv("FORKOP_SYSTEM_INFO_CACHE_TTL") || "3600");
 const TMP_SING_BOX_FOLDER = getenv("TMP_SING_BOX_FOLDER") || constants.TMP_SING_BOX_FOLDER || "/tmp/sing-box";
-const SECTION_CACHE_DIR = getenv("FORKOP_SECTION_CACHE_DIR") || RUNTIME_STATE_DIR + "/section-cache";
 const CHECK_PROXY_IP_DOMAIN = getenv("CHECK_PROXY_IP_DOMAIN") || constants.CHECK_PROXY_IP_DOMAIN || "ip.podkop.fyi";
 const FAKEIP_TEST_DOMAIN = getenv("FAKEIP_TEST_DOMAIN") || constants.FAKEIP_TEST_DOMAIN || "fakeip.podkop.fyi";
 const RT_TABLE_NAME = getenv("RT_TABLE_NAME") || constants.RT_TABLE_NAME || "forkop";
@@ -1229,40 +1228,6 @@ function get_status() {
     return 0;
 }
 
-function section_safe(section) {
-    section = as_string(section);
-    return section != "" && index(section, "/") < 0 && index(section, "..") < 0;
-}
-
-function get_dashboard_section_cache(section) {
-    if (!section_safe(section)) {
-        warn("invalid section name\n");
-        return 1;
-    }
-
-    let path = SECTION_CACHE_DIR + "/" + as_string(section) + ".json";
-    if (!fs.stat(path)) {
-        write_json({});
-        return 0;
-    }
-
-    let cache = read_json_file(path);
-    if (type(cache) != "object") {
-        warn("failed to read dashboard section cache\n");
-        return 1;
-    }
-
-    let result = {};
-    for (let key in [
-        "outboundMetadata", "urltestCandidateTags", "urltestGroups",
-        "fallbackGroups", "providerTags"
-    ])
-        if (cache[key] != null)
-            result[key] = cache[key];
-    write_json(result);
-    return 0;
-}
-
 function validate_nfqws_strategy_json(raw_opt) {
     let result = module_capture(ZAPRET_VALIDATOR_UC, [
         "validate-json", "nfqws", as_string(raw_opt), ZAPRET_LEGACY_DEFAULT_NFQWS_OPT
@@ -2004,8 +1969,6 @@ else if (mode == "show-sing-box-version")
     exit(show_sing_box_version());
 else if (mode == "get-status")
     exit(get_status());
-else if (mode == "get-dashboard-section-cache")
-    exit(get_dashboard_section_cache(ARGV[1]));
 else if (mode == "get-sing-box-status")
     exit(get_sing_box_status());
 else if (mode == "get-zapret-status")

@@ -479,7 +479,6 @@ function subscription_cache_paths(section) {
         FORKOP_SUBSCRIPTION_METADATA_DIR + "/" + section + ".json",
         FORKOP_SUBSCRIPTION_LINKS_DIR + "/" + section + ".json",
         FORKOP_OUTBOUND_METADATA_DIR + "/" + section + ".json",
-        FORKOP_SECTION_CACHE_DIR + "/" + section + ".json",
         TMP_SUBSCRIPTION_FOLDER + "/" + section + "-subscription-*.json",
         TMP_SUBSCRIPTION_FOLDER + "/" + section + "-subscription-*.url",
         TMP_SUBSCRIPTION_FOLDER + "/" + section + "-subscription-*.user_agent"
@@ -1342,7 +1341,6 @@ function use_native_fallbacks(ctx) {
         FORKOP_SUBSCRIPTION_LINKS_DIR,
         FORKOP_SUBSCRIPTION_METADATA_DIR,
         FORKOP_OUTBOUND_METADATA_DIR,
-        FORKOP_SECTION_CACHE_DIR,
         FORKOP_SUBSCRIPTION_UPDATE_LOCK_DIR,
         FORKOP_SUBSCRIPTION_UPDATE_JOB_DIR,
         FORKOP_SUBSCRIPTION_BOOTSTRAP_RETRY_PID_FILE,
@@ -1463,26 +1461,19 @@ function remove_subscription_group_settings_map(ctx, section) {
 }
 
 function use_leaf_subscription_providers(ctx) {
-    let changed = false;
     for (let child in ctx.model.subscription_url || []) {
-        for (let key in OBSOLETE_SUBSCRIPTION_GROUP_OPTIONS) {
-            if (option_exists(child, key))
-                changed = true;
+        for (let key in OBSOLETE_SUBSCRIPTION_GROUP_OPTIONS)
             delete_option(ctx, child, key);
-        }
     }
     for (let section in ctx.model.sections || []) {
-        for (let key in OBSOLETE_SUBSCRIPTION_GROUP_OPTIONS) {
-            if (option_exists(section, key))
-                changed = true;
+        for (let key in OBSOLETE_SUBSCRIPTION_GROUP_OPTIONS)
             delete_option(ctx, section, key);
-        }
-        if (remove_subscription_group_settings_map(ctx, section))
-            changed = true;
+        remove_subscription_group_settings_map(ctx, section);
     }
+}
 
-    if (changed)
-        push(ctx.removed_caches, FORKOP_SECTION_CACHE_DIR);
+function remove_section_cache(ctx) {
+    push(ctx.removed_caches, FORKOP_SECTION_CACHE_DIR);
 }
 
 function set_option_if_blank(ctx, section, key, value) {
@@ -1986,7 +1977,8 @@ const MIGRATIONS = [
     { id: "server_filter_modes", run: migrate_server_filter_modes },
     { id: "single_subscription_user_agent", run: migrate_single_subscription_user_agent },
     { id: "subscription_headers", run: migrate_subscription_headers },
-    { id: "interface_display_names", run: migrate_interface_display_names }
+    { id: "interface_display_names", run: migrate_interface_display_names },
+    { id: "remove_section_cache", run: remove_section_cache }
 ];
 
 function apply_migrations(ctx) {

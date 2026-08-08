@@ -93,28 +93,9 @@ grep -Fq '"forkop-stably-running", RT_TABLE_NAME, NFT_TABLE_NAME, NFT_FAKEIP_MAR
 grep -Fq '"sing-box-service-stable",' "$DIAGNOSTICS_RUNTIME" ||
   fail "diagnostics sing-box status must use stable runtime state to avoid crash-loop flicker"
 
-mkdir -p "$WORK_DIR/section-cache"
-printf '%s\n' '{"providerTags":["main-subscription-1-provider"],"urltestCandidateTags":["main-json-out"],"outboundMetadata":{"names":{"main-json-out":"JSON"}},"links":{"legacy":"vless://legacy"},"subscriptionMetadata":[{"title":"legacy"}]}' >"$WORK_DIR/section-cache/main.json"
-dashboard_cache="$(
-  FORKOP_SECTION_CACHE_DIR="$WORK_DIR/section-cache" \
-  FORKOP_LIB="$FORKOP_LIB" \
-    ucode -L "$FORKOP_LIB" "$DIAGNOSTICS_RUNTIME" get-dashboard-section-cache main
-)"
-JSON_VALUE="$dashboard_cache" node - <<'NODE'
-const value = JSON.parse(process.env.JSON_VALUE);
-if (
-  value.providerTags?.[0] !== 'main-subscription-1-provider' ||
-  value.urltestCandidateTags?.[0] !== 'main-json-out' ||
-  value.outboundMetadata?.names?.['main-json-out'] !== 'JSON'
-) {
-  console.error('dashboard section cache lost client-owned provider/static metadata');
-  process.exit(1);
-}
-if ('links' in value || 'subscriptionMetadata' in value) {
-  console.error('dashboard section cache still exposes legacy subscription parser state');
-  process.exit(1);
-}
-NODE
+if grep -Fq 'get-dashboard-section-cache' "$DIAGNOSTICS_RUNTIME"; then
+  fail "diagnostics runtime must not retain the retired section-cache API"
+fi
 
 if grep -Fq 'get-server-capabilities' "$DIAGNOSTICS_RUNTIME"; then
   fail "diagnostics runtime must not retain sing-box variant capability probes"

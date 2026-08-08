@@ -67,7 +67,6 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
 JSON
 
 output="$WORK_DIR/config.json"
-mkdir -p "$output.section-cache"
 ucode -L "$FORKOP_LIB" "$FORKOP_LIB/singbox/generator.uc" generate-config-fixture \
   "$WORK_DIR/fixture.json" "$output" "127.0.0.1"
 
@@ -146,14 +145,13 @@ cat >"$WORK_DIR/multi-fixture.json" <<'JSON'
 JSON
 
 multi_output="$WORK_DIR/multi-config.json"
-mkdir -p "$multi_output.section-cache"
 ucode -L "$FORKOP_LIB" "$FORKOP_LIB/singbox/generator.uc" generate-config-fixture \
   "$WORK_DIR/multi-fixture.json" "$multi_output" "127.0.0.1"
 
 ucode -e '
 let fs = require("fs");
 let cfg = json(fs.readfile(ARGV[0]));
-let cache = json(fs.readfile(ARGV[1]));
+let manifest = json(fs.readfile(ARGV[1]));
 let fast = null;
 let stable = null;
 let selector = null;
@@ -178,10 +176,11 @@ if (stable.interrupt_exist_connections !== true)
 if (!selector || selector.outbounds[length(selector.outbounds || []) - 2] != "proxy-urltest-cfg010001-out" ||
     selector.outbounds[length(selector.outbounds || []) - 1] != "proxy-urltest-cfg010002-out")
     die("selector should include configured URLTests in list order\n");
-if (cache.urltestGroups["proxy-urltest-cfg010001-out"].displayName != "Fast URLTest")
-    die("fast URLTest display name was not cached\n");
-if (cache.urltestGroups["proxy-urltest-cfg010002-out"].displayName != "Stable URLTest")
-    die("stable URLTest display name was not cached\n");
-' "$multi_output" "$multi_output.section-cache/proxy.json" || fail "multi URLTest settings regression"
+let names = (((manifest.sections || {}).proxy || {}).names || {});
+if (names["proxy-urltest-cfg010001-out"] != "Fast URLTest")
+    die("fast URLTest display name is missing from runtime manifest\n");
+if (names["proxy-urltest-cfg010002-out"] != "Stable URLTest")
+    die("stable URLTest display name is missing from runtime manifest\n");
+' "$multi_output" "$multi_output.runtime-manifest.json" || fail "multi URLTest settings regression"
 
 printf 'URLTest interrupt checks passed\n'

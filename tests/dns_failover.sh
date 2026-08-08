@@ -8,7 +8,6 @@ WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
 generate() {
-  mkdir -p "$2.section-cache"
   ucode -L "$FORKOP_LIB" "$GENERATOR" generate-config-fixture "$1" "$2" 192.168.1.1 0
 }
 

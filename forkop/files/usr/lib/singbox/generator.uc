@@ -8,7 +8,7 @@ let runtime_dns = require("singbox.dns");
 let runtime_route = require("singbox.route");
 let runtime_rulesets = require("singbox.rulesets");
 let runtime_servers = require("singbox.servers");
-let runtime_subscription = require("singbox.subscription");
+let runtime_manifest = require("singbox.runtime_manifest");
 let subscription_headers_module = require("singbox.subscription_headers");
 let runtime_urltest = require("singbox.urltest");
 let rule_config = require("config.rule");
@@ -56,21 +56,6 @@ function ensure_dir(path) {
 
 function ensure_parent_dir(path) {
     return ensure_dir(parent_dir(path));
-}
-
-function atomic_write_json_file(path, value) {
-    let stamp = clock();
-    let tmp_path = sprintf("%s.%d.%d.tmp", path, stamp[0], stamp[1]);
-
-    if (!ensure_parent_dir(path))
-        return false;
-    if (!write_json_file(tmp_path, value))
-        return false;
-    if (!fs.rename(tmp_path, path)) {
-        fs.unlink(tmp_path);
-        return false;
-    }
-    return true;
 }
 
 function atomic_write_text_file(path, value) {
@@ -914,37 +899,20 @@ function add_urltest_outbound(config, section, urltest_id, urltest_candidate_tag
         interrupt_exist_connections: connections.urltest_interrupt_exist_connections(section, urltest_id)
     };
     let providers = provider_tags(provider_refs);
-    if (length(providers) > 0) {
+    if (length(providers) > 0)
         urltest_outbound.providers = providers;
-        merge_object(urltest_outbound, urltest_provider_filter(section, urltest_id));
-    }
+    merge_object(urltest_outbound, urltest_provider_filter(section, urltest_id));
     let idle_timeout = urltest_idle_timeout(section, urltest_id);
     if (idle_timeout != "")
         urltest_outbound.idle_timeout = idle_timeout;
 
-    runtime_subscription.remember_outbound_name(state, urltest_tag, display_name);
-    runtime_subscription.remember_urltest_group_config(state, urltest_tag, {
-        displayName: display_name,
-        outbounds: urltest_outbounds,
-        url: urltest_outbound.url,
-        interval: urltest_outbound.interval,
-        tolerance: urltest_outbound.tolerance,
-        idle_timeout: urltest_outbound.idle_timeout,
-        interrupt_exist_connections: urltest_outbound.interrupt_exist_connections,
-        hide_dashboard_members: connections.urltest_hide_dashboard_members(section, urltest_id)
-    });
+    runtime_manifest.remember_outbound_name(state, urltest_tag, display_name);
 
     if (length(urltest_outbounds) == 0 && length(providers) == 0)
-        return {
-            tag: "",
-            outbounds: []
-        };
+        return "";
 
     push(config.outbounds, urltest_outbound);
-    return {
-        tag: urltest_tag,
-        outbounds: urltest_outbounds
-    };
+    return urltest_tag;
 }
 
 function add_fallback_group_outbound(config, section, group_id, urltest_candidate_tags, provider_refs, state) {
@@ -953,8 +921,6 @@ function add_fallback_group_outbound(config, section, group_id, urltest_candidat
     let fallback_tag = fallback_outbound_tag(section_name, group_id);
     let display_name = connections.fallback_group_display_name(section, group_id);
     let providers = provider_tags(provider_refs);
-    let generated_levels = [];
-    let flattened_outbounds = [];
     let has_members = false;
     let outbound = {
         type: "fallback",
@@ -967,18 +933,15 @@ function add_fallback_group_outbound(config, section, group_id, urltest_candidat
             tag: level.id,
             outbounds: level.outbounds
         };
-        if (level.mode != "direct" && length(providers) > 0) {
-            native_level.providers = providers;
+        if (level.mode != "direct") {
+            if (length(providers) > 0)
+                native_level.providers = providers;
             merge_object(native_level, fallback_level_provider_filter(group_id, level.id));
         }
 
-        level.tag = level.id;
         if (length(native_level.outbounds) > 0 || length(native_level.providers || []) > 0)
             has_members = true;
-        for (let tag_name in level.outbounds)
-            push(flattened_outbounds, tag_name);
         push(outbound.levels, native_level);
-        push(generated_levels, level);
     }
 
     outbound.url = connections.fallback_group_health_check_url(section, group_id);
@@ -987,34 +950,13 @@ function add_fallback_group_outbound(config, section, group_id, urltest_candidat
     outbound.idle_timeout = connections.fallback_group_idle_timeout(section, group_id);
     outbound.interrupt_exist_connections = connections.fallback_group_interrupt_exist_connections(section, group_id);
 
-    runtime_subscription.remember_outbound_name(state, fallback_tag, display_name);
-    runtime_subscription.remember_fallback_group(state, fallback_tag, {
-        id: group_id,
-        tag: fallback_tag,
-        section: section_name,
-        displayName: display_name,
-        url: outbound.url,
-        interval: outbound.interval,
-        timeout: outbound.timeout,
-        idle_timeout: outbound.idle_timeout,
-        interrupt_exist_connections: outbound.interrupt_exist_connections,
-        pin_dashboard: connections.fallback_group_pin_dashboard(section, group_id),
-        hide_dashboard_members: connections.fallback_group_hide_dashboard_members(section, group_id),
-        outbounds: flattened_outbounds,
-        levels: generated_levels
-    });
+    runtime_manifest.remember_outbound_name(state, fallback_tag, display_name);
 
     if (!has_members)
-        return {
-            tag: "",
-            outbounds: []
-        };
+        return "";
 
     push(config.outbounds, outbound);
-    return {
-        tag: fallback_tag,
-        outbounds: flattened_outbounds
-    };
+    return fallback_tag;
 }
 
 function add_proxy_selector(config, section, selector_tags, urltest_candidate_tags, provider_refs, state) {
@@ -1026,19 +968,19 @@ function add_proxy_selector(config, section, selector_tags, urltest_candidate_ta
     let fallback_tags = [];
 
     for (let urltest_id in connections.urltests(section)) {
-        let urltest = add_urltest_outbound(config, section, urltest_id, urltest_candidate_tags, provider_refs, state);
-        if (urltest.tag == "")
+        let urltest_tag = add_urltest_outbound(config, section, urltest_id, urltest_candidate_tags, provider_refs, state);
+        if (urltest_tag == "")
             continue;
 
-        push(urltest_tags, urltest.tag);
+        push(urltest_tags, urltest_tag);
     }
 
     for (let group_id in connections.fallback_groups(section)) {
-        let fallback = add_fallback_group_outbound(config, section, group_id, urltest_candidate_tags, provider_refs, state);
-        if (fallback.tag == "")
+        let fallback_tag = add_fallback_group_outbound(config, section, group_id, urltest_candidate_tags, provider_refs, state);
+        if (fallback_tag == "")
             continue;
 
-        push(fallback_tags, fallback.tag);
+        push(fallback_tags, fallback_tag);
     }
 
     if (length(urltest_tags) > 0 || length(fallback_tags) > 0) {
@@ -1215,7 +1157,7 @@ function add_interface_connection_outbound(config, state, section, interface_ind
     push(config.outbounds, outbound);
     push(selector_tags, tag_name);
     push(urltest_candidate_tags, tag_name);
-    runtime_subscription.remember_outbound_name(
+    runtime_manifest.remember_outbound_name(
         state,
         tag_name,
         connections.interface_display_name(section, interface_name)
@@ -1283,7 +1225,7 @@ function add_connection_tunnels(config, state, section, taken, selector_tags, ur
             state.outboundMetadata.protocols[tag_name] = "amneziawg";
         if (display_name == "")
             display_name = trim(as_string(connections.option(tunnel, "name", "")));
-        runtime_subscription.remember_outbound_name(
+        runtime_manifest.remember_outbound_name(
             state,
             tag_name,
             display_name != "" ? display_name : "Tunnel " + (i + 1)
@@ -1359,16 +1301,15 @@ function add_connection_json_outbounds(config, state, section, taken, selector_t
         push(selector_tags, tag_name);
         if (urltest_leaf_candidate_outbound(outbound))
             push(urltest_candidate_tags, tag_name);
-        runtime_subscription.remember_outbound_name(state, tag_name, item.displayName);
-        runtime_subscription.remember_urltest_group(state, tag_name, item.displayName, outbound);
+        runtime_manifest.remember_outbound_name(state, tag_name, item.displayName);
     }
 }
 
-function add_connections_outbound(config, section, taken) {
+function add_connections_outbound(config, section, taken, manifest) {
     let section_name = section[".name"];
     let selector_tags = [];
     let urltest_candidate_tags = [];
-    let state = runtime_subscription.new_section_state(section_name);
+    let state = runtime_manifest.new_section_state();
     let subscription_provider_refs = add_subscription_providers(config, section);
     let provider_refs = [];
     let manual_provider = add_manual_link_provider(config, section);
@@ -1386,13 +1327,8 @@ function add_connections_outbound(config, section, taken) {
     if (section_has_direct_fallback_level(section))
         state.outboundMetadata.names[runtime_constants.DIRECT_OUTBOUND_TAG] = "Direct";
 
-    state.providerTags = provider_tags(subscription_provider_refs);
-    if (manual_provider != null)
-        push(state.providerTags, manual_provider.tag);
-    state.urltestCandidateTags = unique_string_array(urltest_candidate_tags);
     add_proxy_selector(config, section, selector_tags, urltest_candidate_tags, provider_refs, state);
-    if (!atomic_write_json_file(runtime_subscription.section_cache_path(section_name), state))
-        runtime_generate_unsupported("failed to write section cache for " + section_name);
+    runtime_manifest.remember_section(manifest, section_name, state);
 }
 
 function enabled_action_index(sections, target_section, action_name) {
@@ -1879,7 +1815,7 @@ function unsupported_matcher_key(section) {
     return "";
 }
 
-function add_outbound_for_section(config, section, taken, sections) {
+function add_outbound_for_section(config, section, taken, sections, manifest) {
     let action = option(section, "action", "");
     let section_name = section[".name"];
     if (!valid_section_name(section_name))
@@ -1889,7 +1825,7 @@ function add_outbound_for_section(config, section, taken, sections) {
         runtime_generate_unsupported("section has unsupported matcher " + unsupported_matcher);
 
     if (connections.is_connections_action(action))
-        add_connections_outbound(config, section, taken);
+        add_connections_outbound(config, section, taken, manifest);
     else if (action == "zapret")
         add_zapret_outbound(config, section, sections);
     else if (action == "zapret2")
@@ -2069,6 +2005,7 @@ function generate_config(output_path, service_address, mwan3_active, deferred_se
         runtime_generate_unsupported("no enabled sections");
 
     let system_aware_dns = system_aware_dns_enabled(sections);
+    let manifest = runtime_manifest.new_manifest();
     let config = base_config(settings, service_address, {
         mwan3_active: cli_bool(mwan3_active),
         source_aware_dns: true,
@@ -2081,7 +2018,7 @@ function generate_config(output_path, service_address, mwan3_active, deferred_se
     for (let server in servers)
         runtime_servers.add_server(config, server);
     for (let section in sections)
-        add_outbound_for_section(config, section, taken, sections);
+        add_outbound_for_section(config, section, taken, sections, manifest);
     add_service_route_rules(config, sections);
     for (let section in sections)
         add_route_for_section(config, section);
@@ -2097,11 +2034,14 @@ function generate_config(output_path, service_address, mwan3_active, deferred_se
         warn("failed to write ", output_path, "\n");
         exit(1);
     }
+    if (!write_json_file(runtime_manifest.config_path(output_path), manifest)) {
+        warn("failed to write runtime manifest for ", output_path, "\n");
+        exit(1);
+    }
 }
 
 function generate_config_fixture(fixture_path, output_path, service_address, mwan3_active, deferred_sections) {
     use_fixture_cursor(fixture_path);
-    runtime_subscription.set_section_cache_dir(output_path + ".section-cache");
     runtime_provider_folder = output_path + ".providers";
     generate_config(output_path, service_address, mwan3_active, deferred_sections);
 }

@@ -19,48 +19,9 @@ type ClashProxyEntry = {
   value: ClashAPI.ProxyBase;
 };
 
-type DashboardSectionCache = {
+type RuntimeManifest = {
   version?: number;
-  section?: string;
-  outboundMetadata?: Forkop.GetOutboundMetadata;
-  urltestGroups?: Record<string, UrlTestCacheGroup>;
-  fallbackGroups?: Record<string, FallbackCacheGroup>;
-  providerTags?: string[];
-};
-
-type UrlTestCacheGroup = {
-  displayName?: string;
-  outbounds?: string[];
-  url?: string;
-  interval?: string;
-  tolerance?: string | number;
-  idle_timeout?: string;
-  interrupt_exist_connections?: boolean;
-  hide_dashboard_members?: boolean;
-};
-
-type FallbackCacheLevel = {
-  id?: string;
-  tag?: string;
-  displayName?: string;
-  order?: number;
-  outbounds?: string[];
-};
-
-type FallbackCacheGroup = {
-  id?: string;
-  tag?: string;
-  section?: string;
-  displayName?: string;
-  url?: string;
-  interval?: string;
-  timeout?: string;
-  idle_timeout?: string;
-  interrupt_exist_connections?: boolean;
-  pin_dashboard?: boolean;
-  hide_dashboard_members?: boolean;
-  outbounds?: string[];
-  levels?: FallbackCacheLevel[];
+  sections?: Record<string, Forkop.GetOutboundMetadata>;
 };
 
 type FallbackLevelConfig = {
@@ -78,9 +39,13 @@ type UrlTestConfig = {
   id: string;
   code: string;
   displayName: string;
-  settings: ItemSettings;
   pinDashboard: boolean;
   hideDashboardMembers: boolean;
+  testingUrl?: string;
+  checkInterval?: string;
+  tolerance?: number;
+  idleTimeout?: string;
+  interruptExistConnections?: boolean;
 };
 
 type FallbackConfig = {
@@ -582,10 +547,6 @@ function sortUrlTestMembers(outbounds: Forkop.UrlTestMember[]) {
     .map((item) => item.outbound);
 }
 
-function isSafeSectionName(sectionName: string) {
-  return /^[A-Za-z0-9_-]+$/.test(sectionName);
-}
-
 function objectMap(value: unknown): Record<string, string> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {};
@@ -642,6 +603,19 @@ function itemSettingBoolean(
   return value === '1' || value === 'true';
 }
 
+function itemSettingNumber(
+  settings: ItemSettings | undefined,
+  key: string,
+  fallback: number,
+) {
+  const raw = settings?.[key];
+  if (raw === undefined || raw === null || raw === '' || Array.isArray(raw)) {
+    return fallback;
+  }
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : fallback;
+}
+
 function getUrlTestTag(sectionName: string, id: string) {
   return getOutboundTagBySection(
     id === 'urltest'
@@ -677,12 +651,28 @@ function getUrlTestConfigs(section: Forkop.ConfigSection): UrlTestConfig[] {
       id,
       code: getUrlTestTag(sectionName, id),
       displayName: getUrlTestDisplayName(section, id, settings),
-      settings,
       pinDashboard: itemSettingBoolean(settings, 'pin_dashboard', true),
       hideDashboardMembers: itemSettingBoolean(
         settings,
         'hide_dashboard_members',
         false,
+      ),
+      testingUrl: itemSettingString(
+        settings,
+        'urltest_testing_url',
+        'https://www.gstatic.com/generate_204',
+      ),
+      checkInterval: itemSettingString(
+        settings,
+        'urltest_check_interval',
+        '3m',
+      ),
+      tolerance: itemSettingNumber(settings, 'urltest_tolerance', 50),
+      idleTimeout: itemSettingString(settings, 'idle_timeout', '30m'),
+      interruptExistConnections: itemSettingBoolean(
+        settings,
+        'interrupt_exist_connections',
+        true,
       ),
     };
   });
@@ -779,45 +769,6 @@ function getFallbackConfigs(section: Forkop.ConfigSection): FallbackConfig[] {
   });
 }
 
-async function readDashboardSectionCache(
-  sectionName: string,
-): Promise<DashboardSectionCache | undefined> {
-  if (!isSafeSectionName(sectionName)) {
-    return undefined;
-  }
-
-  const response =
-    await ForkopShellMethods.getDashboardSectionCache(sectionName);
-  if (!response.success) {
-    throw new Error(response.error || 'Failed to read dashboard section cache');
-  }
-
-  const parsed = response.data as DashboardSectionCache;
-  return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-    ? parsed
-    : undefined;
-}
-
-function getUrlTestGroups(dashboardCache?: DashboardSectionCache) {
-  const groups = dashboardCache?.urltestGroups;
-
-  if (!groups || typeof groups !== 'object' || Array.isArray(groups)) {
-    return {};
-  }
-
-  return groups;
-}
-
-function getFallbackGroups(dashboardCache?: DashboardSectionCache) {
-  const groups = dashboardCache?.fallbackGroups;
-
-  if (!groups || typeof groups !== 'object' || Array.isArray(groups)) {
-    return {};
-  }
-
-  return groups;
-}
-
 function getOutboundDisplayName(
   code: string,
   entry: ClashProxyEntry | undefined,
@@ -841,28 +792,21 @@ function getOutboundDisplayType(
 }
 
 function buildUrlTestInfo({
-  code,
-  displayName,
+  config,
   entry,
-  groupCache,
   proxyByCode,
   manualLinkByCode,
   exportableProviderTags,
   outboundMetadata,
 }: {
-  code: string;
-  displayName: string;
+  config: UrlTestConfig;
   entry?: ClashProxyEntry;
-  groupCache?: UrlTestCacheGroup;
   proxyByCode: Map<string, ClashProxyEntry>;
   manualLinkByCode: Map<string, string>;
   exportableProviderTags: string[];
   outboundMetadata?: Forkop.GetOutboundMetadata;
 }): Forkop.UrlTestInfo {
-  const childCodes = uniqueCodes([
-    ...(entry?.value.all || []),
-    ...(groupCache?.outbounds || []),
-  ]);
+  const childCodes = uniqueCodes(entry?.value.all || []);
   const selectedCode = entry?.value.now || '';
   const outbounds = sortUrlTestMembers(
     childCodes.flatMap((childCode) => {
@@ -899,15 +843,15 @@ function buildUrlTestInfo({
     selectedCode;
 
   return {
-    code,
-    displayName: groupCache?.displayName || displayName,
+    code: config.code,
+    displayName: config.displayName,
     selectedCode: selectedCode || undefined,
     selectedName: selectedName || undefined,
-    url: groupCache?.url,
-    interval: groupCache?.interval,
-    tolerance: groupCache?.tolerance,
-    idleTimeout: groupCache?.idle_timeout || '30m',
-    interruptExistConnections: groupCache?.interrupt_exist_connections,
+    url: entry?.value.url || config.testingUrl,
+    interval: entry?.value.interval || config.checkInterval,
+    tolerance: config.tolerance,
+    idleTimeout: entry?.value.idle_timeout || config.idleTimeout || '30m',
+    interruptExistConnections: config.interruptExistConnections,
     outbounds,
   };
 }
@@ -915,7 +859,6 @@ function buildUrlTestInfo({
 function buildFallbackInfo({
   config,
   entry,
-  groupCache,
   proxyByCode,
   manualLinkByCode,
   exportableProviderTags,
@@ -923,20 +866,16 @@ function buildFallbackInfo({
 }: {
   config: FallbackConfig;
   entry?: ClashProxyEntry;
-  groupCache?: FallbackCacheGroup;
   proxyByCode: Map<string, ClashProxyEntry>;
   manualLinkByCode: Map<string, string>;
   exportableProviderTags: string[];
   outboundMetadata?: Forkop.GetOutboundMetadata;
 }): Forkop.FallbackInfo {
   const selectedCode = entry?.value.now || '';
-  const cacheLevels = Array.isArray(groupCache?.levels)
-    ? groupCache.levels
-    : [];
   const configLevelById = new Map(
     config.levels.map((level) => [level.id, level]),
   );
-  const configuredLevels = cacheLevels.length ? cacheLevels : config.levels;
+  const configuredLevels = config.levels;
   const runtimeLevels = Array.isArray(entry?.value.levels)
     ? entry.value.levels
     : [];
@@ -1026,16 +965,14 @@ function buildFallbackInfo({
 
   return {
     code: config.code,
-    displayName: groupCache?.displayName || config.displayName,
+    displayName: config.displayName,
     selectedCode: selectedCode || undefined,
     selectedName: selectedName || undefined,
-    healthCheckUrl: groupCache?.url || config.healthCheckUrl,
-    healthCheckInterval: groupCache?.interval || config.healthCheckInterval,
-    healthCheckTimeout: groupCache?.timeout || config.healthCheckTimeout,
-    idleTimeout: groupCache?.idle_timeout || config.idleTimeout,
-    interruptExistConnections:
-      groupCache?.interrupt_exist_connections ??
-      config.interruptExistConnections,
+    healthCheckUrl: config.healthCheckUrl,
+    healthCheckInterval: config.healthCheckInterval,
+    healthCheckTimeout: config.healthCheckTimeout,
+    idleTimeout: config.idleTimeout,
+    interruptExistConnections: config.interruptExistConnections,
     outbounds,
   };
 }
@@ -1044,8 +981,6 @@ function buildProxyGroupOutbounds(
   section: Forkop.ConfigSection,
   proxies: ClashProxyEntry[],
   outboundMetadata?: Forkop.GetOutboundMetadata,
-  urltestGroups: Record<string, UrlTestCacheGroup> = {},
-  fallbackGroups: Record<string, FallbackCacheGroup> = {},
   exportableProviderTags: string[] = [],
 ) {
   const sectionName = section['.name'];
@@ -1078,24 +1013,16 @@ function buildProxyGroupOutbounds(
   };
 
   urlTestEntries.forEach(({ config, entry }) => {
-    const cache = urltestGroups[config.code];
-    if (config.hideDashboardMembers || cache?.hide_dashboard_members) {
-      hideMembers(
-        entry?.value.all?.length ? entry.value.all : cache?.outbounds || [],
-      );
-    }
+    if (config.hideDashboardMembers) hideMembers(entry?.value.all || []);
   });
   fallbackEntries.forEach(({ config, entry }) => {
-    const cache = fallbackGroups[config.code];
-    if (!config.hideDashboardMembers && !cache?.hide_dashboard_members) {
+    if (!config.hideDashboardMembers) {
       return;
     }
 
     const levels = entry?.value.levels?.length
       ? entry.value.levels
-      : cache?.levels?.length
-        ? cache.levels
-        : config.levels;
+      : config.levels;
     levels.forEach((level) => hideMembers(level.outbounds || []));
   });
   const builtInUrltestCode = urlTestCodes[0] || '';
@@ -1137,24 +1064,31 @@ function buildProxyGroupOutbounds(
         urlTestConfig?.displayName ||
         getOutboundDisplayName(code, item, link, outboundMetadata);
       const isRuntimeUrlTest = isUrlTestProxyEntry(item);
-      const urlTestInfo =
-        urlTestConfig || isRuntimeUrlTest
-          ? buildUrlTestInfo({
+      const effectiveUrlTestConfig =
+        urlTestConfig ||
+        (isRuntimeUrlTest
+          ? {
+              id: code,
               code,
               displayName,
-              entry: item,
-              groupCache: urltestGroups[code],
-              proxyByCode,
-              manualLinkByCode,
-              exportableProviderTags,
-              outboundMetadata,
-            })
-          : undefined;
+              pinDashboard: false,
+              hideDashboardMembers: false,
+            }
+          : undefined);
+      const urlTestInfo = effectiveUrlTestConfig
+        ? buildUrlTestInfo({
+            config: effectiveUrlTestConfig,
+            entry: item,
+            proxyByCode,
+            manualLinkByCode,
+            exportableProviderTags,
+            outboundMetadata,
+          })
+        : undefined;
       const fallbackInfo = fallbackConfig
         ? buildFallbackInfo({
             config: fallbackConfig,
             entry: item,
-            groupCache: fallbackGroups[code],
             proxyByCode,
             manualLinkByCode,
             exportableProviderTags,
@@ -1229,8 +1163,22 @@ function isSubscriptionMetadataVisible(
   return settings?.show_dashboard_metadata !== '0';
 }
 
-function getSectionProviderTags(dashboardCache?: DashboardSectionCache) {
-  return getListValues(dashboardCache?.providerTags);
+function getSectionProviderTags(section: Forkop.ConfigSection) {
+  const sectionName = section['.name'];
+  const tags = Array.from(
+    { length: getSubscriptionSourceCount(section) },
+    (_item, index) =>
+      allocateRuntimeTag(
+        `${sectionName}-subscription-${index + 1}`,
+        'provider',
+      ),
+  );
+
+  if (getManualProxyLinks(section).length) {
+    tags.push(allocateRuntimeTag(`${sectionName}-manual`, 'provider'));
+  }
+
+  return tags;
 }
 
 function providerNumber(
@@ -1313,11 +1261,10 @@ function getSubscriptionMetadata(
 }
 
 function getOutboundMetadata(
-  dashboardCache?: DashboardSectionCache,
+  metadata?: Forkop.GetOutboundMetadata,
   providerTags: string[] = [],
   proxies: ClashProxyEntry[] = [],
 ) {
-  const metadata = dashboardCache?.outboundMetadata;
   const names = objectMap(metadata?.names);
   const protocols = objectMap(metadata?.protocols);
   const prefixes = providerTags.map((tag) => `${tag}/`);
@@ -1368,15 +1315,18 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
   const activeSections = configSections.filter(
     (section) => section.enabled !== '0' && isConnectionAction(section.action),
   );
-  const dashboardCaches = new Map<string, DashboardSectionCache | undefined>();
+  let runtimeManifest: RuntimeManifest = {};
 
-  for (const section of activeSections) {
-    if (shouldUseProxyGroup(section)) {
-      dashboardCaches.set(
-        section['.name'],
-        await readDashboardSectionCache(section['.name']),
-      );
+  if (activeSections.some(shouldUseProxyGroup)) {
+    const response = await ForkopShellMethods.getRuntimeManifest();
+    if (!response.success) {
+      throw new Error(response.error || 'Failed to read runtime manifest');
     }
+    const parsed = response.data as RuntimeManifest;
+    if (parsed.version !== 1 || !parsed.sections) {
+      throw new Error('Invalid runtime manifest');
+    }
+    runtimeManifest = parsed;
   }
 
   const data = activeSections.map((section) => {
@@ -1388,10 +1338,9 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
     if (isConnectionAction(sectionAction) && shouldUseProxyGroup(section)) {
       const subscriptionSourceCount = getSubscriptionSourceCount(section);
       const subscriptionEnabled = subscriptionSourceCount > 0;
-      const dashboardCache = dashboardCaches.get(sectionName);
-      const providerTags = getSectionProviderTags(dashboardCache);
+      const providerTags = getSectionProviderTags(section);
       const outboundMetadata = getOutboundMetadata(
-        dashboardCache,
+        runtimeManifest.sections?.[sectionName],
         providerTags,
         proxies,
       );
@@ -1403,15 +1352,11 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
             providers,
           )
         : undefined;
-      const urltestGroups = getUrlTestGroups(dashboardCache);
-      const fallbackGroups = getFallbackGroups(dashboardCache);
       const { selector, latencyTestCode, latencyTestCodes, outbounds } =
         buildProxyGroupOutbounds(
           section,
           proxies,
           outboundMetadata,
-          urltestGroups,
-          fallbackGroups,
           providerTags.slice(0, subscriptionSourceCount),
         );
 

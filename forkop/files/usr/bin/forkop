@@ -83,8 +83,6 @@ function show_help() {
     print("    show_sing_box_config    Show sing-box configuration\n");
     print("    show_sing_box_version   Show sing-box version\n");
     print("    get_status              Get Forkop service status\n");
-    print("    get_dashboard_section_cache\n");
-    print("                            Get dashboard data for a connection rule\n");
     print("    get_sing_box_status     Get sing-box service status\n");
     print("    get_zapret_status       Get zapret provider and Forkop-managed nfqws status\n");
     print("    get_zapret2_status      Get zapret2 provider and Forkop-managed nfqws2 status\n");
@@ -153,7 +151,6 @@ function command_spec(command) {
         show_sing_box_config: [ "diagnostics/runtime.uc", "show-sing-box-config", 1 ],
         show_sing_box_version: [ "diagnostics/runtime.uc", "show-sing-box-version", 0 ],
         get_status: [ "diagnostics/runtime.uc", "get-status", 0 ],
-        get_dashboard_section_cache: [ "diagnostics/runtime.uc", "get-dashboard-section-cache", 1 ],
         get_sing_box_status: [ "diagnostics/runtime.uc", "get-sing-box-status", 0 ],
         get_zapret_status: [ "diagnostics/runtime.uc", "get-zapret-status", 0 ],
         get_zapret2_status: [ "diagnostics/runtime.uc", "get-zapret2-status", 0 ],

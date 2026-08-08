@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
   getClashApiProxies: vi.fn(),
   getClashApiProxyProviders: vi.fn(),
   canUseDirectClashApi: vi.fn(),
-  dashboardCacheRead: vi.fn(),
+  runtimeManifestRead: vi.fn(),
 }));
 
 vi.mock('../getConfigSections', () => ({
@@ -16,11 +16,11 @@ vi.mock('../../shell', () => ({
   ForkopShellMethods: {
     getClashApiProxies: mocks.getClashApiProxies,
     getClashApiProxyProviders: mocks.getClashApiProxyProviders,
-    getDashboardSectionCache: async (section: string) => {
+    getRuntimeManifest: async () => {
       try {
         return {
           success: true,
-          data: JSON.parse(await mocks.dashboardCacheRead(section)),
+          data: JSON.parse(await mocks.runtimeManifestRead()),
         };
       } catch (error) {
         return {
@@ -153,8 +153,8 @@ describe('getDashboardSections', () => {
     mocks.getClashApiProxies.mockReset();
     mocks.getClashApiProxyProviders.mockReset();
     mocks.canUseDirectClashApi.mockReset();
-    mocks.dashboardCacheRead.mockReset();
-    mocks.dashboardCacheRead.mockResolvedValue('{}');
+    mocks.runtimeManifestRead.mockReset();
+    mocks.runtimeManifestRead.mockResolvedValue('{"version":1,"sections":{}}');
     vi.stubGlobal('window', undefined);
     vi.stubGlobal('fetch', undefined);
 
@@ -218,11 +218,14 @@ describe('getDashboardSections', () => {
         },
       },
     });
-    mocks.dashboardCacheRead.mockResolvedValue(
+    mocks.runtimeManifestRead.mockResolvedValue(
       JSON.stringify({
-        outboundMetadata: {
-          names: { 'main-tunnel-1-out': 'Amnezia' },
-          protocols: { 'main-tunnel-1-out': 'amneziawg' },
+        version: 1,
+        sections: {
+          main: {
+            names: { 'main-tunnel-1-out': 'Amnezia' },
+            protocols: { 'main-tunnel-1-out': 'amneziawg' },
+          },
         },
       }),
     );
@@ -233,35 +236,40 @@ describe('getDashboardSections', () => {
     expect(result.data[0].outbounds[0].type).toBe('AmneziaWG');
   });
 
-  it('surfaces dashboard section cache read failures', async () => {
+  it('surfaces runtime manifest read failures', async () => {
     mocks.getConfigSections.mockResolvedValue([proxySection()]);
-    mocks.dashboardCacheRead.mockRejectedValue(new Error('cache read failed'));
+    mocks.runtimeManifestRead.mockRejectedValue(
+      new Error('manifest read failed'),
+    );
 
-    await expect(getDashboardSections()).rejects.toThrow('cache read failed');
+    await expect(getDashboardSections()).rejects.toThrow(
+      'manifest read failed',
+    );
   });
 
-  it('reads dashboard section caches without parallel RPC bursts', async () => {
+  it('reads one runtime manifest for all sections', async () => {
     mocks.getConfigSections.mockResolvedValue([
       proxySection(),
       proxySection({ '.name': 'backup' }),
     ]);
-    let activeReads = 0;
-    let maxActiveReads = 0;
-    mocks.dashboardCacheRead.mockImplementation(async () => {
-      activeReads++;
-      maxActiveReads = Math.max(maxActiveReads, activeReads);
-      await Promise.resolve();
-      activeReads--;
-      return '{}';
-    });
 
     await getDashboardSections();
 
-    expect(maxActiveReads).toBe(1);
+    expect(mocks.runtimeManifestRead).toHaveBeenCalledTimes(1);
   });
 
-  it('hydrates URLTest details from the section cache and Clash API', async () => {
-    mocks.getConfigSections.mockResolvedValue([proxySection()]);
+  it('hydrates URLTest settings from UCI and members from Clash API', async () => {
+    mocks.getConfigSections.mockResolvedValue([
+      proxySection({
+        urltest_settings: urlTestSettings('urltest', {
+          display_name: 'Fastest',
+          urltest_testing_url: 'https://probe.example/204',
+          urltest_check_interval: '3m',
+          urltest_tolerance: '50',
+          interrupt_exist_connections: '1',
+        }),
+      }),
+    ]);
     mocks.getClashApiProxies.mockResolvedValue({
       success: true,
       data: {
@@ -276,22 +284,15 @@ describe('getDashboardSections', () => {
         },
       },
     });
-    mocks.dashboardCacheRead.mockResolvedValue(
+    mocks.runtimeManifestRead.mockResolvedValue(
       JSON.stringify({
-        outboundMetadata: {
-          names: {
-            'main-1-out': 'First cached',
-            'main-3-out': 'Third cached',
-          },
-        },
-        urltestGroups: {
-          'main-urltest-out': {
-            displayName: 'Fastest',
-            outbounds: ['main-1-out', 'main-3-out'],
-            url: 'https://probe.example/204',
-            interval: '3m',
-            tolerance: 50,
-            interrupt_exist_connections: true,
+        version: 1,
+        sections: {
+          main: {
+            names: {
+              'main-1-out': 'First manifest',
+              'main-3-out': 'Third manifest',
+            },
           },
         },
       }),
@@ -314,7 +315,7 @@ describe('getDashboardSections', () => {
       idleTimeout: '30m',
       interruptExistConnections: true,
       selectedCode: 'main-3-out',
-      selectedName: 'Third cached',
+      selectedName: 'Third manifest',
     });
     expect(urltest?.urlTestInfo?.outbounds.map((item) => item.code)).toEqual([
       'main-3-out',
@@ -322,13 +323,13 @@ describe('getDashboardSections', () => {
       'main-2-out',
     ]);
     expect(urltest?.urlTestInfo?.outbounds[0]).toMatchObject({
-      displayName: 'Third cached',
+      displayName: 'Third manifest',
       latency: 300,
       type: 'VLESS',
       selected: true,
     });
     expect(urltest?.urlTestInfo?.outbounds[1]).toMatchObject({
-      displayName: 'First cached',
+      displayName: 'First manifest',
       latency: 100,
       selected: false,
     });
@@ -350,9 +351,11 @@ describe('getDashboardSections', () => {
         '.type': 'urltest',
         section: 'main',
         name: 'Fast',
+        hide_dashboard_members: '1',
       },
       fallbackGroup('fallback', {
         name: 'Fallback',
+        hide_dashboard_members: '1',
       }),
       fallbackLevel('primary', {
         group: 'fallback',
@@ -381,17 +384,6 @@ describe('getDashboardSections', () => {
         },
       },
     });
-    mocks.dashboardCacheRead.mockResolvedValue(
-      JSON.stringify({
-        urltestGroups: {
-          [urlTestCode]: { hide_dashboard_members: true },
-        },
-        fallbackGroups: {
-          [fallbackCode]: { hide_dashboard_members: true },
-        },
-      }),
-    );
-
     const result = await getDashboardSections();
 
     expect(result.data[0].outbounds.map((outbound) => outbound.code)).toEqual([
@@ -406,6 +398,9 @@ describe('getDashboardSections', () => {
         urltest_settings: urlTestSettings('urltest', {
           display_name: 'Empty URLTest',
           urltest_filter_mode: 'include',
+          urltest_testing_url: 'https://probe.example/204',
+          urltest_check_interval: '3m',
+          urltest_tolerance: '50',
         }),
       }),
     ]);
@@ -422,20 +417,6 @@ describe('getDashboardSections', () => {
         },
       },
     });
-    mocks.dashboardCacheRead.mockResolvedValue(
-      JSON.stringify({
-        urltestGroups: {
-          'main-urltest-out': {
-            displayName: 'Empty URLTest',
-            outbounds: [],
-            url: 'https://probe.example/204',
-            interval: '3m',
-            tolerance: 50,
-          },
-        },
-      }),
-    );
-
     const result = await getDashboardSections();
     const [section] = result.data;
     const urltest = section.outbounds.find(
@@ -456,7 +437,7 @@ describe('getDashboardSections', () => {
     expect(urltest?.urlTestInfo?.outbounds).toEqual([]);
   });
 
-  it('hydrates Fallback dashboard details from config, cache and Clash API', async () => {
+  it('hydrates Fallback settings from UCI and members from Clash API', async () => {
     mocks.getConfigSections.mockResolvedValue([
       proxySection({ urltests: [], urltest_settings: undefined }),
       fallbackGroup('pg_main'),
@@ -492,39 +473,15 @@ describe('getDashboardSections', () => {
         },
       },
     });
-    mocks.dashboardCacheRead.mockResolvedValue(
+    mocks.runtimeManifestRead.mockResolvedValue(
       JSON.stringify({
-        outboundMetadata: {
-          names: {
-            'main-1-out': 'First cached',
-            'main-2-out': 'Second cached',
-          },
-        },
-        fallbackGroups: {
-          'main-fallback-pg_main-out': {
-            displayName: 'Codex Fallback',
-            url: 'https://health.example/generate_204',
-            interval: '10s',
-            timeout: '3s',
-            idle_timeout: '20m',
-            interrupt_exist_connections: false,
-            outbounds: ['main-2-out', 'main-1-out'],
-            levels: [
-              {
-                id: 'pl_de',
-                tag: 'pl_de',
-                displayName: 'Germany',
-                order: 0,
-                outbounds: [],
-              },
-              {
-                id: 'pl_nl',
-                tag: 'pl_nl',
-                displayName: 'Netherlands',
-                order: 1,
-                outbounds: [],
-              },
-            ],
+        version: 1,
+        sections: {
+          main: {
+            names: {
+              'main-1-out': 'First manifest',
+              'main-2-out': 'Second manifest',
+            },
           },
         },
       }),
@@ -544,7 +501,7 @@ describe('getDashboardSections', () => {
     });
     expect(fallback?.fallbackInfo).toMatchObject({
       selectedCode: 'main-2-out',
-      selectedName: 'Second cached',
+      selectedName: 'Second manifest',
       healthCheckUrl: 'https://health.example/generate_204',
       healthCheckInterval: '10s',
       healthCheckTimeout: '3s',
@@ -587,19 +544,6 @@ describe('getDashboardSections', () => {
       success: true,
       data: { proxies: {} },
     });
-    mocks.dashboardCacheRead.mockResolvedValue(
-      JSON.stringify({
-        fallbackGroups: {
-          'main-fallback-pg_empty-out': {
-            displayName: 'Empty Fallback',
-            outbounds: [],
-            levels: [],
-            interrupt_exist_connections: true,
-          },
-        },
-      }),
-    );
-
     const result = await getDashboardSections();
     const [section] = result.data;
     const fallback = section.outbounds.find(
@@ -1071,15 +1015,6 @@ describe('getDashboardSections', () => {
         },
       },
     });
-    mocks.dashboardCacheRead.mockResolvedValue(
-      JSON.stringify({
-        providerTags: [
-          'main-subscription-1-provider',
-          'main-subscription-2-provider',
-        ],
-      }),
-    );
-
     const result = await getDashboardSections();
     const [section] = result.data;
     const subscriptionOutbound = section.outbounds.find(
@@ -1221,9 +1156,12 @@ describe('getDashboardSections', () => {
         },
       },
     });
-    mocks.dashboardCacheRead.mockResolvedValue(
+    mocks.runtimeManifestRead.mockResolvedValue(
       JSON.stringify({
-        outboundMetadata: { names: { 'AWG-interface-1-out': 'NL Amsterdam' } },
+        version: 1,
+        sections: {
+          AWG: { names: { 'AWG-interface-1-out': 'NL Amsterdam' } },
+        },
       }),
     );
 

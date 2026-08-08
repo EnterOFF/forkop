@@ -98,15 +98,15 @@ cat >"$WORK_DIR/runtime-tags.json" <<'JSON'
 JSON
 
 runtime_config="$WORK_DIR/runtime-config.json"
-mkdir -p "$runtime_config.section-cache"
 ucode -L "$FORKOP_LIB" "$GENERATOR_UC" generate-config-fixture \
   "$WORK_DIR/runtime-tags.json" "$runtime_config" "127.0.0.1" "0"
 
 ucode -e '
 let fs = require("fs");
 let config = json(fs.readfile(ARGV[0]));
-let proxy_cache = json(fs.readfile(ARGV[1]));
-let backup_cache = json(fs.readfile(ARGV[2]));
+let manifest = json(fs.readfile(ARGV[1]));
+let proxy_metadata = (manifest.sections || {}).proxy || {};
+let backup_metadata = (manifest.sections || {}).backup || {};
 let by_tag = {};
 let count = 0;
 let torrent_rule = null;
@@ -168,7 +168,7 @@ if (!fallback_level || fallback_level.tag != "pl_main" ||
     sprintf("%J", fallback_level.providers || []) != sprintf("%J", expected_providers))
     die("manual connection URL provider must precede subscription providers in Fallback\n");
 
-let names = proxy_cache.outboundMetadata.names || {};
+let names = proxy_metadata.names || {};
 for (let tag in [ "germany", "germany-1" ])
     if (names[tag] != "germany")
         die("runtime suffix leaked into display name for " + tag + "\n");
@@ -176,13 +176,13 @@ if (names["proxy-interface-1-out"] != "NL Amsterdam" || names["json-hop"] != "js
     die("interface or JSON display tag metadata is missing\n");
 if (names["service-mixed-in-1"] != "service-mixed-in")
     die("system-tag collision suffix leaked into display metadata\n");
-if ((backup_cache.outboundMetadata.names || {})["json-hop-1"] != "json-hop")
+if ((backup_metadata.names || {})["json-hop-1"] != "json-hop")
     die("cross-section JSON tag allocation or display metadata is invalid\n");
-if (sprintf("%J", proxy_cache.providerTags || []) !=
-    sprintf("%J", [ "proxy-subscription-1-provider", "proxy-manual-provider" ]))
-    die("subscription provider cache order changed\n");
-' "$runtime_config" "$runtime_config.section-cache/proxy.json" \
-  "$runtime_config.section-cache/backup.json" || fail "runtime outbound tag allocation"
+if (manifest.version != 1 || manifest.providerTags != null ||
+    proxy_metadata.providerTags != null || proxy_metadata.urltestGroups != null ||
+    proxy_metadata.fallbackGroups != null || proxy_metadata.urltestCandidateTags != null)
+    die("legacy section cache fields leaked into runtime manifest\n");
+' "$runtime_config" "$runtime_config.runtime-manifest.json" || fail "runtime outbound tag allocation"
 
 cat >"$WORK_DIR/duplicate-json-tags.json" <<'JSON'
 {

@@ -10,7 +10,6 @@ WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
 generate() {
-  mkdir -p "$2.section-cache"
   ucode -L "$FORKOP_LIB" "$GENERATOR" generate-config-fixture "$1" "$2" 127.0.0.1
 }
 
@@ -108,7 +107,7 @@ function same(actual, expected, label) {
         fail(label + ": " + sprintf("%J", actual));
 }
 let config = json(fs.readfile(ARGV[0]));
-let cache = json(fs.readfile(ARGV[1]));
+let manifest = json(fs.readfile(ARGV[1]));
 let group = outbound(config, "proxy-fallback-pg_main-out");
 let defaultGroup = outbound(config, "proxy-fallback-pg_default-out");
 if (!group || group.type != "fallback" || length(group.levels || []) != 5)
@@ -145,21 +144,19 @@ if (!defaultGroup || defaultGroup.interval != "5m" || defaultGroup.timeout != "5
     defaultGroup.interrupt_exist_connections != true)
     fail("native Fallback defaults do not match Mihomo timing");
 
-let cached = (cache.fallbackGroups || {})[group.tag];
-if (!cached || cached.url != group.url || cached.interval != group.interval ||
-    cached.timeout != group.timeout ||
-    cached.idle_timeout != group.idle_timeout || cached.interrupt_exist_connections != true ||
-    length(cached.levels || []) != 5)
-    fail("native Fallback dashboard metadata is incomplete");
-if (cached.levels[0].tag != "pl_top" || cached.levels[4].tag != "pl_remaining")
-    fail("Fallback level metadata is not cached");
+let metadata = (manifest.sections || {}).proxy || {};
+if (manifest.version != 1 || (metadata.names || {})[group.tag] != "Main fallback")
+    fail("Fallback display metadata is missing from runtime manifest");
+for (let key in ["providerTags", "urltestCandidateTags", "urltestGroups", "fallbackGroups"])
+    if (metadata[key] != null || manifest[key] != null)
+        fail("legacy section cache field leaked into runtime manifest: " + key);
 for (let item in config.outbounds || [])
     if (index(item.tag || "", "proxy-fallback-pg_main-level-") == 0)
         fail("Fallback still generates nested level outbounds");
 let selector = outbound(config, "proxy-out");
 if (!selector || selector.default != group.tag)
     fail("section selector must default to its first Fallback group");
-' "$WORK_DIR/config.json" "$WORK_DIR/config.json.section-cache/proxy.json"
+' "$WORK_DIR/config.json" "$WORK_DIR/config.json.runtime-manifest.json"
 
 cat >"$WORK_DIR/bad-timeout.json" <<'JSON'
 {
