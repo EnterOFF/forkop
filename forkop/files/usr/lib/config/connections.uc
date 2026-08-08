@@ -21,6 +21,7 @@ const ITEM_TYPES = [
 const AMNEZIA_INTEGER_KEYS = [ "jc", "jmin", "jmax", "s1", "s2", "s3", "s4" ];
 const AMNEZIA_RANGE_KEYS = [ "h1", "h2", "h3", "h4", "content_padding_addition", "rekey_after_time", "rekey_timeout", "reject_after_time", "keepalive_timeout", "max_handshake_attempts" ];
 const AMNEZIA_KEYS = [ "jc", "jmin", "jmax", "s1", "s2", "s3", "s4", "h1", "h2", "h3", "h4", "content_padding_addition", "rekey_after_time", "rekey_timeout", "reject_after_time", "keepalive_timeout", "max_handshake_attempts", "i1", "i2", "i3", "i4", "i5", "header_protection_key" ];
+const WARP_AMNEZIA_KEYS = [ "jc", "jmin", "jmax", "i1", "i2", "i3", "i4", "i5", "content_padding_addition", "rekey_after_time", "rekey_timeout", "reject_after_time", "keepalive_timeout", "max_handshake_attempts" ];
 
 let item_sections = null;
 
@@ -476,7 +477,7 @@ function tunnel_endpoint(tunnel) {
             endpoint.profile = profile;
         }
         let amnezia = {};
-        for (let key in AMNEZIA_KEYS) {
+        for (let key in WARP_AMNEZIA_KEYS) {
             let value = trim(as_string(option(tunnel, "amnezia_" + key, "")));
             if (value != "")
                 amnezia[key] = list_contains(AMNEZIA_INTEGER_KEYS, key) ||

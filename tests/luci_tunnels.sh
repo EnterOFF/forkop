@@ -4,11 +4,13 @@ set -eo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SECTION_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js"
 MAIN_TS="$ROOT_DIR/fe-app-forkop/src/main.ts"
+CONNECTIONS_UC="$ROOT_DIR/forkop/files/usr/lib/config/connections.uc"
 
-node - "$SECTION_JS" "$MAIN_TS" <<'NODE'
+node - "$SECTION_JS" "$MAIN_TS" "$CONNECTIONS_UC" <<'NODE'
 const fs = require('fs');
 const section = fs.readFileSync(process.argv[2], 'utf8');
 const main = fs.readFileSync(process.argv[3], 'utf8');
+const connections = fs.readFileSync(process.argv[4], 'utf8');
 
 function requireSource(source, needle) {
   if (!source.includes(needle)) {
@@ -38,7 +40,7 @@ for (const needle of [
   'wireGuardPeerFromSettings',
   'endpoint.amnezia = tunnelAmneziaSettings(settings)',
   'isExistingChildItem(sectionId, tunnelId, "tunnel", "section")',
-  'const WARP_JUNK_FIELDS = AMNEZIA_FIELDS;',
+  'const WARP_JUNK_FIELDS = [',
   '"content_padding_addition"',
   '_("Header protection key")',
   '_("Additional packet padding")',
@@ -51,6 +53,7 @@ for (const needle of [
   'Adds traffic masking using the Amnezia mechanism to make it harder to identify.',
   '"warp_junk_enabled"',
   'option.retain = true;',
+  'if (WARP_JUNK_FIELDS.includes(key)) {',
   'let previousTunnelType = `${data.settings.tunnel_type || "wireguard"}`;',
   'value === "warp" && previousTunnelType === "amneziawg"',
   'setModalOptionValue(map, warpJunkOption, "1");',
@@ -107,6 +110,32 @@ for (const needle of [
   requireSource(section, needle);
 }
 
+const warpFieldsStart = section.indexOf('const WARP_JUNK_FIELDS = [');
+const warpFieldsEnd = section.indexOf('];', warpFieldsStart);
+const warpFields = section.slice(warpFieldsStart, warpFieldsEnd);
+for (const key of [
+  'jc', 'jmin', 'jmax',
+  'i1', 'i2', 'i3', 'i4', 'i5',
+  'content_padding_addition',
+  'rekey_after_time', 'rekey_timeout', 'reject_after_time',
+  'keepalive_timeout', 'max_handshake_attempts',
+]) {
+  if (!warpFields.includes(`"${key}"`)) {
+    console.error(`FAIL: WARP Amnezia field is missing: ${key}`);
+    process.exit(1);
+  }
+}
+for (const key of [
+  's1', 's2', 's3', 's4',
+  'h1', 'h2', 'h3', 'h4',
+  'header_protection_key',
+]) {
+  if (warpFields.includes(`"${key}"`)) {
+    console.error(`FAIL: incompatible WARP Amnezia field remains: ${key}`);
+    process.exit(1);
+  }
+}
+
 if ((section.match(/validateWireGuardListInput\(value\)/g) || []).length !== 3) {
   console.error('FAIL: WireGuard DynamicList inputs must tolerate their empty add field');
   process.exit(1);
@@ -154,9 +183,9 @@ const storageEnd = section.indexOf('function randomTunnelId', storageStart);
 const tunnelStorage = section.slice(storageStart, storageEnd);
 if (
   tunnelStorage.includes('warp_junk_enabled:') ||
-  !tunnelStorage.includes('const storeAmnezia =') ||
+  !tunnelStorage.includes('const storedAmneziaFields =') ||
   !tunnelStorage.includes('settings.warp_junk_enabled') ||
-  !tunnelStorage.includes('result[`amnezia_${key}`] = storeAmnezia')
+  !tunnelStorage.includes('result[`amnezia_${key}`] = storedAmneziaFields.includes(key)')
 ) {
   console.error('FAIL: the LuCI-only traffic obfuscation toggle must not be stored in UCI');
   process.exit(1);
@@ -177,7 +206,7 @@ const warpEndpointStart = section.indexOf('if (kind === "warp")');
 const warpEndpointEnd = section.indexOf('const peers =', warpEndpointStart);
 const warpEndpoint = section.slice(warpEndpointStart, warpEndpointEnd);
 if (
-  !warpEndpoint.includes('const amnezia = tunnelAmneziaSettings(settings);') ||
+  !warpEndpoint.includes('const amnezia = tunnelAmneziaSettings(settings, WARP_JUNK_FIELDS);') ||
   !warpEndpoint.includes('settings.warp_junk_enabled')
 ) {
   console.error('FAIL: WARP must apply Amnezia parameters only when traffic obfuscation is enabled');
@@ -247,6 +276,18 @@ if (
   !main.includes("./helpers/parseWireGuardConfig")
 ) {
   console.error('FAIL: main must export the WireGuard and vpn:// import parsers');
+  process.exit(1);
+}
+
+const warpGeneratorStart = connections.indexOf('if (kind == "warp")');
+const warpGeneratorEnd = connections.indexOf('    endpoint.address', warpGeneratorStart);
+const warpGenerator = connections.slice(warpGeneratorStart, warpGeneratorEnd);
+if (
+  !connections.includes('const WARP_AMNEZIA_KEYS = [') ||
+  !warpGenerator.includes('for (let key in WARP_AMNEZIA_KEYS)') ||
+  warpGenerator.includes('for (let key in AMNEZIA_KEYS)')
+) {
+  console.error('FAIL: backend WARP generation must use the compatible Amnezia field whitelist');
   process.exit(1);
 }
 

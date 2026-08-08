@@ -1183,7 +1183,22 @@ const AMNEZIA_FIELDS = [
   "keepalive_timeout",
   "max_handshake_attempts",
 ];
-const WARP_JUNK_FIELDS = AMNEZIA_FIELDS;
+const WARP_JUNK_FIELDS = [
+  "jc",
+  "jmin",
+  "jmax",
+  "i1",
+  "i2",
+  "i3",
+  "i4",
+  "i5",
+  "content_padding_addition",
+  "rekey_after_time",
+  "rekey_timeout",
+  "reject_after_time",
+  "keepalive_timeout",
+  "max_handshake_attempts",
+];
 const WIREGUARD_PEER_FIELDS = new Set([
   "address",
   "port",
@@ -3784,9 +3799,12 @@ function tunnelSettingsKeys() {
 
 function tunnelStorageSettings(settings) {
   const kind = `${settings.tunnel_type || "wireguard"}`;
-  const storeAmnezia =
-    kind === "amneziawg" ||
-    (kind === "warp" && `${settings.warp_junk_enabled || ""}` === "1");
+  const storedAmneziaFields =
+    kind === "amneziawg"
+      ? AMNEZIA_FIELDS
+      : kind === "warp" && `${settings.warp_junk_enabled || ""}` === "1"
+        ? WARP_JUNK_FIELDS
+        : [];
   const result = {
     kind,
     name: kind === "json" ? "" : `${settings.name || ""}`.trim(),
@@ -3816,7 +3834,7 @@ function tunnelStorageSettings(settings) {
     ...AMNEZIA_RANGE_FIELDS,
     ...AMNEZIA_STRING_FIELDS,
   ].forEach((key) => {
-    result[`amnezia_${key}`] = storeAmnezia
+    result[`amnezia_${key}`] = storedAmneziaFields.includes(key)
       ? `${settings[`amnezia_${key}`] || ""}`.trim()
       : "";
   });
@@ -3974,7 +3992,7 @@ function tunnelEndpointFromSettings(settings, tunnelId, peerOption) {
       endpoint.profile = profile;
     }
     if (`${settings.warp_junk_enabled || ""}` === "1") {
-      const amnezia = tunnelAmneziaSettings(settings);
+      const amnezia = tunnelAmneziaSettings(settings, WARP_JUNK_FIELDS);
       if (Object.keys(amnezia).length > 0) {
         endpoint.amnezia = amnezia;
       }
@@ -4008,25 +4026,16 @@ function tunnelEndpointFromSettings(settings, tunnelId, peerOption) {
   return endpoint;
 }
 
-function tunnelAmneziaSettings(settings) {
+function tunnelAmneziaSettings(settings, fields = AMNEZIA_FIELDS) {
   const amnezia = {};
-  AMNEZIA_INTEGER_FIELDS.forEach((key) => {
+  fields.forEach((key) => {
     const value = `${settings[`amnezia_${key}`] || ""}`.trim();
-    if (value) {
-      amnezia[key] = Number(value);
-    }
-  });
-  AMNEZIA_RANGE_FIELDS.forEach((key) => {
-    const value = `${settings[`amnezia_${key}`] || ""}`.trim();
-    if (value) {
-      amnezia[key] = value.includes("-") ? value : Number(value);
-    }
-  });
-  AMNEZIA_STRING_FIELDS.forEach((key) => {
-    const value = `${settings[`amnezia_${key}`] || ""}`.trim();
-    if (value) {
-      amnezia[key] = value;
-    }
+    if (!value) return;
+    amnezia[key] = AMNEZIA_STRING_FIELDS.includes(key)
+      ? value
+      : AMNEZIA_RANGE_FIELDS.includes(key) && value.includes("-")
+        ? value
+        : Number(value);
   });
   return amnezia;
 }
@@ -4262,14 +4271,23 @@ function validateTunnelSettings(settings, tunnelId, peerOption) {
     (`${settings.tunnel_type || ""}` === "warp" &&
       `${settings.warp_junk_enabled || ""}` === "1")
   ) {
-    for (const key of AMNEZIA_RANGE_FIELDS) {
+    const rangeFields =
+      kind === "warp"
+        ? AMNEZIA_RANGE_FIELDS.filter((key) => WARP_JUNK_FIELDS.includes(key))
+        : AMNEZIA_RANGE_FIELDS;
+    for (const key of rangeFields) {
       const rangeValidation = validateAmneziaRange(settings[`amnezia_${key}`]);
       if (rangeValidation !== true) {
         return rangeValidation;
       }
     }
-    const headerProtectionKey = `${settings.amnezia_header_protection_key || ""}`.trim();
-    if (headerProtectionKey && !main.validateWireGuardKey(headerProtectionKey)) {
+    const headerProtectionKey =
+      `${settings.amnezia_header_protection_key || ""}`.trim();
+    if (
+      kind === "amneziawg" &&
+      headerProtectionKey &&
+      !main.validateWireGuardKey(headerProtectionKey)
+    ) {
       return _("WireGuard keys must be standard base64-encoded 32-byte values");
     }
   }
@@ -4950,7 +4968,9 @@ function showTunnelSettingsModal(
     option.rmempty = true;
     option.retain = true;
     option.depends("tunnel_type", "amneziawg");
-    option.depends({ tunnel_type: "warp", warp_junk_enabled: "1" });
+    if (WARP_JUNK_FIELDS.includes(key)) {
+      option.depends({ tunnel_type: "warp", warp_junk_enabled: "1" });
+    }
     if (key === "header_protection_key") {
       option.validate = function (_itemId, value) {
         const normalized = `${value || ""}`.trim();

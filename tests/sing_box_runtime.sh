@@ -228,7 +228,10 @@ cat >"$WORK_DIR/tunnel-fixture.json" <<'JSON'
   "tunnel": [
     {
       ".name": "tun_warp", ".type": "tunnel", "section": "tunnels", "order": "0",
-      "kind": "warp", "name": "Cloudflare WARP", "amnezia_jc": "7", "amnezia_h1": "100-200"
+      "kind": "warp", "name": "Cloudflare WARP", "amnezia_jc": "7",
+      "amnezia_i1": "<r 1>", "amnezia_content_padding_addition": "8-16",
+      "amnezia_s1": "40", "amnezia_h1": "100-200",
+      "amnezia_header_protection_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
     },
     {
       ".name": "tun_amnezia", ".type": "tunnel", "section": "tunnels", "order": "1",
@@ -269,9 +272,13 @@ if (
   !warp ||
   warp.type !== 'warp' ||
   warp.amnezia?.jc !== 7 ||
-  warp.amnezia?.h1 !== '100-200'
+  warp.amnezia?.i1 !== '<r 1>' ||
+  warp.amnezia?.content_padding_addition !== '8-16' ||
+  warp.amnezia?.s1 != null ||
+  warp.amnezia?.h1 != null ||
+  warp.amnezia?.header_protection_key != null
 )
-  throw new Error('native WARP endpoint with Amnezia obfuscation missing');
+  throw new Error('native WARP endpoint contains incorrect Amnezia obfuscation fields');
 if (
   !amnezia ||
   amnezia.type !== 'wireguard' ||
