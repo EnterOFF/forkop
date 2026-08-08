@@ -15,13 +15,23 @@ export const styles = `
     display: none;
 }
 
-#cbi-${FORKOP_CBI_PREFIX}-dashboard-_mount_node > .cbi-value-field {
-    margin-left: 0;
-    width: 100%;
+#cbi-${FORKOP_CBI_PREFIX}-dashboard-_mount_node,
+#cbi-${FORKOP_CBI_PREFIX}-dashboard-_mount_node > .cbi-value-field,
+.fkp_dashboard-page {
+    box-sizing: border-box;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
 }
 
-#cbi-${FORKOP_CBI_PREFIX}-dashboard-_mount_node > div {
-    width: 100%;
+#cbi-${FORKOP_CBI_PREFIX}-dashboard-_mount_node {
+    display: block !important;
+}
+
+#cbi-${FORKOP_CBI_PREFIX}-dashboard-_mount_node > .cbi-value-field {
+    display: block !important;
+    float: none !important;
+    margin-left: 0 !important;
 }
 
 #cbi-${FORKOP_CBI_PREFIX}-dashboard > h3 {
