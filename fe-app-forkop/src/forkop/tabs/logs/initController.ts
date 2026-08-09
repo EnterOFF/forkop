@@ -124,7 +124,11 @@ export async function initController(): Promise<void> {
   element('logs-download').addEventListener('click', downloadVisibleLogs);
 
   setInterval(() => {
-    if (autoRefresh.checked && element('logs-status').offsetParent !== null) {
+    if (
+      !document.hidden &&
+      autoRefresh.checked &&
+      element('logs-status').offsetParent !== null
+    ) {
       void refreshLogs();
     }
   }, AUTO_REFRESH_INTERVAL_MS);

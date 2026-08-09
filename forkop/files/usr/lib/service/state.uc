@@ -1,25 +1,52 @@
 #!/usr/bin/env ucode
 
+let health = require("service.health");
+const HEALTH_MODE = ARGV[0] || "";
+
+if (HEALTH_MODE == "sing-box-service-runtime-pid") {
+    let pid = health.sing_box_service_pid_runtime();
+    if (pid <= 0)
+        exit(1);
+    print(pid, "\n");
+    exit(0);
+}
+else if (HEALTH_MODE == "sing-box-service-running")
+    exit(health.sing_box_service_running() ? 0 : 1);
+else if (HEALTH_MODE == "sing-box-service-stable")
+    exit(health.sing_box_service_stable(ARGV[1]) ? 0 : 1);
+else if (HEALTH_MODE == "forkop-running")
+    exit(health.forkop_running(ARGV[1], ARGV[2], ARGV[3]) ? 0 : 1);
+else if (HEALTH_MODE == "forkop-stably-running")
+    exit(health.forkop_stably_running(ARGV[1], ARGV[2], ARGV[3], ARGV[4]) ? 0 : 1);
+
 let fs = require("fs");
 let uci_core = require("core.uci");
-let netstat = require("core.netstat");
 let rule_config = require("config.rule");
 let connections = require("config.connections");
 let zapret_validator = require("providers.zapret.validator");
 let zapret2_validator = require("providers.zapret2.validator");
 let byedpi_validator = require("providers.byedpi.validator");
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
-const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
 const DEFAULT_PENDING_RELOAD_FILE = getenv("FORKOP_PENDING_RELOAD_FILE") || "/var/run/forkop/reload.pending";
 const DEFAULT_SERVICE_INIT = getenv("FORKOP_SERVICE_INIT") || "/etc/init.d/forkop";
 const SING_BOX_INIT = getenv("FORKOP_SING_BOX_INIT") || "/etc/init.d/sing-box";
 const ZAPRET_DEFAULT_NFQWS_OPT = getenv("ZAPRET_DEFAULT_NFQWS_OPT") || "";
 const ZAPRET2_DEFAULT_NFQWS2_OPT = getenv("ZAPRET2_DEFAULT_NFQWS2_OPT") || "";
 const BYEDPI_DEFAULT_CMD_OPTS = getenv("BYEDPI_DEFAULT_CMD_OPTS") || "";
-const SB_DNS_INBOUND_ADDRESS = getenv("SB_DNS_INBOUND_ADDRESS") || "127.0.0.42";
-const SB_TPROXY_INBOUND_PORT = getenv("SB_TPROXY_INBOUND_PORT") || "1602";
-const SB_TPROXY_INBOUND6_ADDRESS = getenv("SB_TPROXY_INBOUND6_ADDRESS") || "::1";
 const SING_BOX_START_MAX_WAIT_SECONDS = int(getenv("FORKOP_SING_BOX_START_MAX_WAIT_SECONDS") || "300");
+
+let sing_box_service_pid_from_value = health.sing_box_service_pid_from_value;
+let sing_box_service_pid_runtime = health.sing_box_service_pid_runtime;
+let pid_is_sing_box = health.pid_is_sing_box;
+let process_start_ticks = health.process_start_ticks;
+let process_age_seconds_from_ticks = health.process_age_seconds_from_ticks;
+let process_age_seconds = health.process_age_seconds;
+let sing_box_service_running = health.sing_box_service_running;
+let sing_box_service_stable = health.sing_box_service_stable;
+let sing_box_runtime_ports_ready = health.sing_box_runtime_ports_ready;
+let forkop_runtime_network_configured = health.forkop_runtime_network_configured;
+let forkop_running = health.forkop_running;
+let forkop_stably_running = health.forkop_stably_running;
 
 function as_string(value) {
     return value == null ? "" : "" + value;
@@ -424,96 +451,10 @@ function stdin_first_field() {
         print(fields[0], "\n");
 }
 
-function sing_box_service_pid_from_value(value) {
-    let service = type(value) == "object" ? value["sing-box"] : null;
-    let instances = service && type(service.instances) == "object" ? service.instances : {};
-
-    for (let _, instance in instances) {
-        if (type(instance) == "object" && instance.running === true && int(instance.pid || 0) > 0)
-            return int(instance.pid);
-    }
-
-    return 0;
-}
-
 function sing_box_service_pid() {
     let pid = sing_box_service_pid_from_value(read_stdin_json());
     if (pid > 0)
         print(pid, "\n");
-}
-
-function sing_box_service_pid_runtime() {
-    let data = command_output_from_args([ "ubus", "call", "service", "list", "{\"name\":\"sing-box\"}" ]);
-    try {
-        return sing_box_service_pid_from_value(json(data));
-    }
-    catch (e) {
-        return 0;
-    }
-}
-
-function path_basename(path) {
-    path = as_string(path);
-    let slash = rindex(path, "/");
-    return slash >= 0 ? substr(path, slash + 1) : path;
-}
-
-function pid_is_sing_box(pid) {
-    pid = as_string(pid);
-    if (match(pid, /^[0-9]+$/) == null)
-        return false;
-
-    try {
-        return path_basename(fs.readlink("/proc/" + pid + "/exe")) == "sing-box";
-    }
-    catch (e) {
-        return false;
-    }
-}
-
-function process_start_ticks(stat) {
-    stat = as_string(stat);
-    let marker = index(stat, ") ");
-    if (marker < 0)
-        return null;
-
-    let fields = split(trim(substr(stat, marker + 2)), /[ \t\r\n]+/);
-    if (length(fields) < 20)
-        return null;
-
-    let start_ticks = fields[19];
-    if (match(start_ticks, /^[0-9]+$/) == null)
-        return null;
-
-    return int(start_ticks);
-}
-
-function process_age_seconds_from_ticks(start_ticks, current_ticks) {
-    start_ticks = as_string(start_ticks);
-    current_ticks = as_string(current_ticks);
-    if (match(start_ticks, /^[0-9]+$/) == null || match(current_ticks, /^[0-9]+$/) == null)
-        return null;
-
-    start_ticks = int(start_ticks);
-    current_ticks = int(current_ticks);
-    if (current_ticks < start_ticks)
-        return null;
-
-    return int((current_ticks - start_ticks) / 100);
-}
-
-function process_age_seconds(pid, expected_start_ticks) {
-    pid = as_string(pid);
-    if (match(pid, /^[0-9]+$/) == null)
-        return null;
-
-    let start_ticks = process_start_ticks(fs.readfile("/proc/" + pid + "/stat"));
-    if (start_ticks == null ||
-        (expected_start_ticks != null && start_ticks != int(expected_start_ticks)))
-        return null;
-
-    let current_ticks = process_start_ticks(command_output_from_args([ "cat", "/proc/self/stat" ]));
-    return process_age_seconds_from_ticks(start_ticks, current_ticks);
 }
 
 function arg_bool(value) {
@@ -523,11 +464,6 @@ function arg_bool(value) {
 
 function sing_box_runtime_reload_needed(config_hash_before, config_hash_after, force) {
     return arg_bool(force) || as_string(config_hash_before) != as_string(config_hash_after);
-}
-
-function sing_box_service_running() {
-    let pid = sing_box_service_pid_runtime();
-    return pid > 0 && pid_is_sing_box(pid);
 }
 
 function sing_box_process_running() {
@@ -557,41 +493,6 @@ function reload_sing_box_runtime(config_hash_before, config_hash_after, force) {
         command_success_from_args([ "logger", "-t", "forkop", "[fatal] Failed to reload sing-box. Aborted." ]);
         exit(1);
     }
-}
-
-function sing_box_service_stable(min_age) {
-    min_age = int(min_age || 2);
-
-    let pid = sing_box_service_pid_runtime();
-    if (pid <= 0 || !pid_is_sing_box(pid))
-        return false;
-
-    let age = process_age_seconds(pid);
-    return age != null && age >= min_age;
-}
-
-function forkop_runtime_network_configured(rt_table, nft_table, mark) {
-    return command_success_from_args([ "nft", "list", "table", "inet", nft_table ]) &&
-        command_success_from_args([ "ucode", "-L", LIB_DIR, LIB_DIR + "/nft/apply.uc", "tproxy-route-rule-present", rt_table, mark ]);
-}
-
-function sing_box_runtime_ports_ready() {
-    return netstat.sing_box_standard_ports_listening(
-        command_output_from_args([ "netstat", "-ln" ]),
-        SB_DNS_INBOUND_ADDRESS,
-        SB_TPROXY_INBOUND_PORT,
-        SB_TPROXY_INBOUND6_ADDRESS
-    );
-}
-
-function forkop_running(rt_table, nft_table, mark) {
-    return sing_box_service_running() && sing_box_runtime_ports_ready() &&
-        forkop_runtime_network_configured(rt_table, nft_table, mark);
-}
-
-function forkop_stably_running(rt_table, nft_table, mark, min_age) {
-    return sing_box_service_stable(min_age) && sing_box_runtime_ports_ready() &&
-        forkop_runtime_network_configured(rt_table, nft_table, mark);
 }
 
 function wait_forkop_stable_start(rt_table, nft_table, mark, min_age) {
@@ -1632,16 +1533,6 @@ else if (mode == "stdin-first-field")
     stdin_first_field();
 else if (mode == "sing-box-service-pid")
     sing_box_service_pid();
-else if (mode == "sing-box-service-runtime-pid") {
-    let pid = sing_box_service_pid_runtime();
-    if (pid <= 0)
-        exit(1);
-    print(pid, "\n");
-}
-else if (mode == "sing-box-service-running")
-    exit(sing_box_service_running() ? 0 : 1);
-else if (mode == "sing-box-service-stable")
-    exit(sing_box_service_stable(ARGV[1]) ? 0 : 1);
 else if (mode == "process-age-seconds-fixture") {
     let age = process_age_seconds_from_ticks(ARGV[1], ARGV[2]);
     if (age == null)
@@ -1650,10 +1541,6 @@ else if (mode == "process-age-seconds-fixture") {
 }
 else if (mode == "sing-box-runtime-reload-needed-fixture")
     exit(sing_box_runtime_reload_needed(ARGV[1], ARGV[2], ARGV[3]) ? 0 : 1);
-else if (mode == "forkop-running")
-    exit(forkop_running(ARGV[1], ARGV[2], ARGV[3]) ? 0 : 1);
-else if (mode == "forkop-stably-running")
-    exit(forkop_stably_running(ARGV[1], ARGV[2], ARGV[3], ARGV[4]) ? 0 : 1);
 else if (mode == "wait-forkop-stable-start")
     exit(wait_forkop_stable_start(ARGV[1], ARGV[2], ARGV[3], ARGV[4]) ? 0 : 1);
 else if (mode == "service-trigger-signature")

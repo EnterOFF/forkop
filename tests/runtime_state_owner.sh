@@ -10,6 +10,7 @@ UPDATES_RUNTIME="$ROOT_DIR/forkop/files/usr/lib/updates_runtime.sh"
 LIFECYCLE_UC="$ROOT_DIR/forkop/files/usr/lib/service/lifecycle.uc"
 UPDATES_UC="$ROOT_DIR/forkop/files/usr/lib/components/updates.uc"
 STATE_UC="$ROOT_DIR/forkop/files/usr/lib/service/state.uc"
+HEALTH_UC="$ROOT_DIR/forkop/files/usr/lib/service/health.uc"
 NFT_UC="$ROOT_DIR/forkop/files/usr/lib/nft/apply.uc"
 
 fail() {
@@ -73,10 +74,12 @@ if grep -Fq 'mode == "list-update"' "$UPDATES_UC"; then
 fi
 grep -Fq 'mode == "subscription-update"' "$UPDATES_UC" ||
   fail "components/updates.uc must own subscription update"
-grep -Fq 'mode == "forkop-running"' "$STATE_UC" ||
-  fail "service/state.uc must own Forkop running predicate"
-grep -Fq 'mode == "sing-box-service-stable"' "$STATE_UC" ||
-  fail "service/state.uc must expose stable sing-box predicate"
+grep -Fq 'HEALTH_MODE == "forkop-running"' "$STATE_UC" ||
+  fail "service/state.uc must dispatch Forkop running checks before heavy imports"
+grep -Fq 'function forkop_running(' "$HEALTH_UC" ||
+  fail "service/health.uc must own the lightweight Forkop running predicate"
+grep -Fq 'HEALTH_MODE == "sing-box-service-stable"' "$STATE_UC" ||
+  fail "service/state.uc must dispatch stable sing-box checks before heavy imports"
 grep -Fq 'mode == "wait-forkop-stable-start"' "$STATE_UC" ||
   fail "service/state.uc must own stable-start waiting"
 grep -Fq 'getenv("FORKOP_SING_BOX_START_MAX_WAIT_SECONDS") || "300"' "$STATE_UC" ||

@@ -3,6 +3,7 @@
 let fs = require("fs");
 let uci_core = require("core.uci");
 let subscription_headers_module = require("singbox.subscription_headers");
+let health = require("service.health");
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
@@ -865,20 +866,16 @@ function sing_box_enabled() {
 }
 
 function sing_box_running() {
-    return module_success(LIB_DIR + "/service/state.uc", [
-        "sing-box-service-stable",
-        RUNTIME_STABLE_MIN_AGE
-    ]);
+    return health.sing_box_service_stable(RUNTIME_STABLE_MIN_AGE);
 }
 
 function forkop_running() {
-    return module_success(LIB_DIR + "/service/state.uc", [
-        "forkop-stably-running",
+    return health.forkop_stably_running(
         RT_TABLE_NAME,
         NFT_TABLE_NAME,
         NFT_FAKEIP_MARK,
         RUNTIME_STABLE_MIN_AGE
-    ]);
+    );
 }
 
 function dns_configured(running) {

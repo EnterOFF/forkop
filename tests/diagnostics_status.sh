@@ -4,6 +4,7 @@ set -eo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIAGNOSTICS="$ROOT_DIR/forkop/files/usr/lib/diagnostics/status.uc"
 DIAGNOSTICS_RUNTIME="$ROOT_DIR/forkop/files/usr/lib/diagnostics/runtime.uc"
+DIAGNOSTICS_LOGS="$ROOT_DIR/forkop/files/usr/lib/diagnostics/logs.uc"
 FORKOP_BIN="$ROOT_DIR/forkop/files/usr/bin/forkop"
 FORKOP_LIB="$ROOT_DIR/forkop/files/usr/lib"
 CLI_UC="$FORKOP_BIN"
@@ -51,6 +52,8 @@ assert_status 0 0 0 "stopped & disabled"
   fail "status_diagnostics.sh shell owner must be removed"
 grep -Fq 'get_system_info: [ "diagnostics/runtime.uc", "get-system-info", 0 ]' "$CLI_UC" ||
   fail "service/cli.uc must dispatch get_system_info through diagnostics/runtime.uc"
+grep -Fq 'check_logs: [ "diagnostics/logs.uc", "forkop", 0 ]' "$CLI_UC" ||
+  fail "forkop must dispatch check_logs through the lightweight log reader"
 [ "$(FORKOP_VERSION=runtime-test ucode -L "$FORKOP_LIB" "$DIAGNOSTICS_RUNTIME" show-version)" = "runtime-test" ] ||
   fail "diagnostics/runtime.uc show-version mode failed"
 
@@ -228,6 +231,15 @@ if (value.status !== "running but disabled" || value.dns_configured !== 1) {
 }
 NODE
 
+logs_bin="$WORK_DIR/logs-bin"
+mkdir -p "$logs_bin"
+cat >"$logs_bin/logread" <<'SH'
+#!/usr/bin/env sh
+[ "$1" = "-e" ] || exit 2
+grep "$2" "$FORKOP_LOGREAD_FIXTURE"
+SH
+chmod +x "$logs_bin/logread"
+
 {
   printf 'Tue Jun 30 10:59:59 2026 user.notice forkop: [info] historical log retained\n'
   printf 'Tue Jun 30 11:00:00 2026 user.notice forkop: [info] Starting Forkop\n'
@@ -236,8 +248,10 @@ NODE
   done
   printf 'Tue Jun 30 11:01:00 2026 user.notice forkop: [info] large logread marker survived stdin transport\n'
 } >"$WORK_DIR/large-logread.txt"
-large_logs="$(FORKOP_LIB="$FORKOP_LIB" ucode -L "$FORKOP_LIB" "$DIAGNOSTICS_RUNTIME" forkop-logs-fixture <"$WORK_DIR/large-logread.txt")" ||
-  fail "diagnostics/runtime.uc must process large logread payloads through stdin without shell argument limits"
+large_logs="$(
+  PATH="$logs_bin:$PATH" FORKOP_LOGREAD_FIXTURE="$WORK_DIR/large-logread.txt" \
+    ucode "$DIAGNOSTICS_LOGS" forkop
+)" || fail "diagnostics/logs.uc must process large logread payloads without shell argument limits"
 case "$large_logs" in
   *"large logread marker survived stdin transport"*) ;;
   *) fail "large logread marker missing from rendered logs" ;;
@@ -252,32 +266,36 @@ esac
     printf 'Tue Jun 30 11:02:%02d 2026 daemon.info sing-box[%04d]: retained line\n' "$((i % 60))" "$i"
   done
 } >"$WORK_DIR/sing-box-logread.txt"
-full_sing_box_logs="$(status_ucode matching-log-tail sing-box 0 <"$WORK_DIR/sing-box-logread.txt")" ||
+full_sing_box_logs="$(
+  PATH="$logs_bin:$PATH" FORKOP_LOGREAD_FIXTURE="$WORK_DIR/sing-box-logread.txt" \
+    ucode "$DIAGNOSTICS_LOGS" sing-box
+)" ||
   fail "full sing-box log rendering failed"
 case "$full_sing_box_logs" in
   *"sing-box[0001]"*"sing-box[0125]"*) ;;
   *) fail "sing-box logs must not be limited to the last 100 lines" ;;
 esac
-grep -Fq '[ "matching-log-tail", "sing-box", "0" ]' "$DIAGNOSTICS_RUNTIME" ||
-  fail "check_sing_box_logs must request the complete available sing-box log"
-
-formatted_logs="$({
+{
   printf 'Sat Aug  1 21:31:03 2026 daemon.err sing-box[31969]: \033[31mERROR\033[0m[120870] [\033[38;5;136m3042278520\033[0m 10.0s] dns: exchange failed for discord.com. IN A: context deadline exceeded\n'
   printf 'Sat Aug  1 21:43:33 2026 daemon.err uhttpd[2032]: [info] luci: accepted login on /admin/services/forkop for root from 192.168.1.140\n'
   printf 'Sat Aug  1 21:54:07 2026 daemon.err sing-box[31969]: \033[31mERROR\033[0m[122254] [\033[38;5;202m2228374970\033[0m 177ms] connection: open connection to api.github.com:443 using outbound/vless[proxy-manual-provider/Vless no warp-dpfsfl50]: EOF\n'
+  printf 'Sat Aug  1 22:01:00 2026 daemon.err sing-box[31969]: \033[31mERROR\033[0m[122255] UDP is not supported by outbound: proxy-http\n'
   printf 'Sat Aug  1 22:39:57 2026 user.notice forkop: [info] Stopping Forkop\n'
-} | status_ucode forkop-logs)" || fail "formatted log rendering failed"
-expected_formatted_logs="$(cat <<'EOF'
-Aug 01 21:31:03 sing-box[31969]: [error] DNS exchange failed for discord.com (A): context deadline exceeded
-Aug 01 21:43:33 uhttpd[2032]: [info] Accepted login for root from 192.168.1.140
-Aug 01 21:54:07 sing-box[31969]: [error] Connection to api.github.com:443 via Vless no warp-dpfsfl50 failed: EOF
-Aug 01 22:39:57 forkop: [info] Stopping Forkop
-EOF
-)"
+} >"$WORK_DIR/formatted-logread.txt"
+formatted_logs="$(
+  PATH="$logs_bin:$PATH" FORKOP_LOGREAD_FIXTURE="$WORK_DIR/formatted-logread.txt" \
+    ucode "$DIAGNOSTICS_LOGS" forkop
+)" || fail "formatted log rendering failed"
+expected_formatted_logs="$(cat "$WORK_DIR/formatted-logread.txt")"
 [ "$formatted_logs" = "$expected_formatted_logs" ] || {
-  printf 'FAIL: normalized logs differ\nEXPECTED:\n%s\nACTUAL:\n%s\n' "$expected_formatted_logs" "$formatted_logs" >&2
+  printf 'FAIL: filtered logs differ\nEXPECTED:\n%s\nACTUAL:\n%s\n' "$expected_formatted_logs" "$formatted_logs" >&2
   exit 1
 }
+ansi_red="$(printf '\033[31m')"
+case "$formatted_logs" in
+  *"$ansi_red"*) ;;
+  *) fail "raw sing-box ANSI sequences must remain untouched" ;;
+esac
 
 fake_bin="$WORK_DIR/bin"
 mkdir -p "$fake_bin"

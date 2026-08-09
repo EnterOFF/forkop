@@ -4,8 +4,8 @@ set -eo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FORKOP_LIB="$ROOT_DIR/forkop/files/usr/lib"
 STATE_UC="$ROOT_DIR/forkop/files/usr/lib/service/state.uc"
+HEALTH_UC="$ROOT_DIR/forkop/files/usr/lib/service/health.uc"
 NFT_UC="$ROOT_DIR/forkop/files/usr/lib/nft/apply.uc"
-UCODE_BIN="$(command -v ucode)"
 WORK_DIR="$(mktemp -d)"
 export ZAPRET_DEFAULT_NFQWS_OPT="--default-zapret"
 export ZAPRET2_DEFAULT_NFQWS2_OPT="--default-zapret2"
@@ -86,7 +86,9 @@ assert_eq "8" \
 if state_ucode process-age-seconds-fixture 786162159 786161359 >/dev/null 2>&1; then
   fail "process age must reject a current tick value older than the process"
 fi
-if sed -n '/^function process_age_seconds(pid) {$/,/^}$/p' "$STATE_UC" | grep -Fq '/proc/uptime'; then
+grep -Fq 'require("service.health")' "$STATE_UC" ||
+  fail "service/state.uc must reuse the lightweight health predicates"
+if sed -n '/^function process_age_seconds(pid, expected_start_ticks) {$/,/^}$/p' "$HEALTH_UC" | grep -Fq '/proc/uptime'; then
   fail "process age must not mix process start ticks with virtualized /proc/uptime"
 fi
 
@@ -107,6 +109,20 @@ cat >"$WORK_DIR/stable-start-bin/nft" <<'SH'
 #!/usr/bin/env bash
 exit 0
 SH
+cat >"$WORK_DIR/stable-start-bin/ip-full" <<'SH'
+#!/usr/bin/env bash
+case "$1" in
+  route) printf '%s\n' 'local default dev lo scope host' ;;
+  -6)
+    if [ "$2" = "route" ]; then
+      printf '%s\n' 'local default dev lo metric 1024 pref medium'
+    else
+      printf '%s\n' '105: from all fwmark 0x100000/0x100000 lookup forkop'
+    fi
+    ;;
+  -4) printf '%s\n' '105: from all fwmark 0x100000/0x100000 lookup forkop' ;;
+esac
+SH
 cat >"$WORK_DIR/stable-start-bin/netstat" <<'SH'
 #!/usr/bin/env bash
 if [ -n "${SING_BOX_TEST_NETSTAT_READY_AFTER:-}" ]; then
@@ -119,14 +135,8 @@ if [ -n "${SING_BOX_TEST_NETSTAT_READY_AFTER:-}" ]; then
 fi
 cat "${SING_BOX_TEST_NETSTAT_FILE:?}"
 SH
-cat >"$WORK_DIR/stable-start-bin/ucode" <<'SH'
-#!/usr/bin/env bash
-if [ "$#" -ge 4 ] && [ "$1" = "-L" ] && [ "${3##*/}" = "apply.uc" ] && [ "$4" = "tproxy-route-rule-present" ]; then
-  exit 0
-fi
-exec "${REAL_UCODE:?}" "$@"
-SH
-chmod 0755 "$WORK_DIR/stable-start-bin/ubus" "$WORK_DIR/stable-start-bin/nft" "$WORK_DIR/stable-start-bin/ucode" "$WORK_DIR/stable-start-bin/netstat"
+chmod 0755 "$WORK_DIR/stable-start-bin/ubus" "$WORK_DIR/stable-start-bin/nft" "$WORK_DIR/stable-start-bin/ip-full" "$WORK_DIR/stable-start-bin/netstat"
+export FORKOP_IP_BIN="$WORK_DIR/stable-start-bin/ip-full"
 mkdir -p "$WORK_DIR/fast-wait-bin"
 cat >"$WORK_DIR/fast-wait-bin/sleep" <<'SH'
 #!/usr/bin/env bash
@@ -149,7 +159,6 @@ EOF_NETSTAT
 sing_box_pid=$!
 printf '%s\n' "$sing_box_pid" >"$WORK_DIR/sing-box.pid"
 if ! PATH="$WORK_DIR/stable-start-bin:$PATH" \
-  REAL_UCODE="$UCODE_BIN" \
   SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
   SING_BOX_TEST_NETSTAT_FILE="$WORK_DIR/sing-box.netstat" \
   state_ucode sing-box-service-running; then
@@ -158,7 +167,6 @@ if ! PATH="$WORK_DIR/stable-start-bin:$PATH" \
   fail "stable-start fixture must expose a running sing-box process"
 fi
 if ! PATH="$WORK_DIR/stable-start-bin:$PATH" \
-  REAL_UCODE="$UCODE_BIN" \
   SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
   SING_BOX_TEST_NETSTAT_FILE="$WORK_DIR/sing-box.netstat" \
   state_ucode forkop-running forkop ForkopTable 0x00100000; then
@@ -168,7 +176,6 @@ if ! PATH="$WORK_DIR/stable-start-bin:$PATH" \
 fi
 sed '/127.0.0.42:53/d' "$WORK_DIR/sing-box.netstat" >"$WORK_DIR/sing-box.no-dns.netstat"
 if PATH="$WORK_DIR/stable-start-bin:$PATH" \
-  REAL_UCODE="$UCODE_BIN" \
   SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
   SING_BOX_TEST_NETSTAT_FILE="$WORK_DIR/sing-box.no-dns.netstat" \
   state_ucode forkop-running forkop ForkopTable 0x00100000 >/dev/null 2>&1; then
@@ -177,7 +184,6 @@ if PATH="$WORK_DIR/stable-start-bin:$PATH" \
   fail "runtime state must reject sing-box without the DNS inbound"
 fi
 if ! PATH="$WORK_DIR/stable-start-bin:$PATH" \
-  REAL_UCODE="$UCODE_BIN" \
   SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
   SING_BOX_TEST_NETSTAT_FILE="$WORK_DIR/sing-box.netstat" \
   state_ucode wait-forkop-stable-start forkop ForkopTable 0x00100000 2; then
@@ -188,7 +194,6 @@ fi
 
 sleep 2
 if ! PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
-  REAL_UCODE="$UCODE_BIN" \
   FORKOP_SING_BOX_START_MAX_WAIT_SECONDS=1 \
   SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
   SING_BOX_TEST_NETSTAT_FILE="$WORK_DIR/sing-box.netstat" \
@@ -200,7 +205,6 @@ fi
 assert_eq "2" "$(cat "$WORK_DIR/hot-reload-netstat.count")" "SIGHUP readiness polls"
 
 if ! PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
-  REAL_UCODE="$UCODE_BIN" \
   SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
   SING_BOX_TEST_NETSTAT_FILE="$WORK_DIR/sing-box.netstat" \
   SING_BOX_TEST_NETSTAT_READY_AFTER=12 \
@@ -211,7 +215,6 @@ fi
 assert_eq "12" "$(cat "$WORK_DIR/netstat.count")" "slow stable-start readiness polls"
 
 if PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
-  REAL_UCODE="$UCODE_BIN" \
   FORKOP_SING_BOX_START_MAX_WAIT_SECONDS=1 \
   SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
   SING_BOX_TEST_NETSTAT_FILE="$WORK_DIR/sing-box.no-dns.netstat" \
@@ -222,7 +225,6 @@ kill -0 "$sing_box_pid" >/dev/null 2>&1 ||
   fail "stable-start readiness timeout must not be confused with process exit"
 
 if PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
-  REAL_UCODE="$UCODE_BIN" \
   SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
   SING_BOX_TEST_NETSTAT_FILE="$WORK_DIR/sing-box.no-dns.netstat" \
   SING_BOX_TEST_KILL_PID_FILE="$WORK_DIR/sing-box.pid" \

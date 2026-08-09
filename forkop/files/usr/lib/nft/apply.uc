@@ -8,12 +8,22 @@ let rule_config = require("config.rule");
 let domain_config = require("config.domain");
 let connections = require("config.connections");
 let runtime_constants = require("singbox.constants");
+let nft_state = require("nft.state");
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const IP_BIN = getenv("FORKOP_IP_BIN") || "/usr/libexec/ip-full";
 
 let common_read_json_file = common.read_json_file;
 let list_option = common.list_option;
 let bool_option = common.bool_option;
+let parse_mark_number = nft_state.parse_mark_number;
+let rt_table_has_entry = nft_state.rt_table_has_entry;
+let tproxy_route4_present = nft_state.tproxy_route4_present;
+let tproxy_route6_present = nft_state.tproxy_route6_present;
+let tproxy_route_present = nft_state.tproxy_route_present;
+let tproxy_marking_rule4_present = nft_state.tproxy_marking_rule4_present;
+let tproxy_marking_rule6_present = nft_state.tproxy_marking_rule6_present;
+let tproxy_marking_rule_present = nft_state.tproxy_marking_rule_present;
+let tproxy_route_rule_present = nft_state.tproxy_route_rule_present;
 
 function as_string(value) {
     return value == null ? "" : "" + value;
@@ -869,34 +879,6 @@ function nft_create_runtime_output_rules(table, localv4_set, common_set, port_se
     );
 }
 
-function hex_digit_value(value) {
-    let pos = index("0123456789abcdef", lc(as_string(value)));
-    return pos >= 0 ? pos : null;
-}
-
-function parse_mark_number(value) {
-    value = lc(trim(as_string(value)));
-    if (value == "")
-        return null;
-
-    if (substr(value, 0, 2) == "0x") {
-        value = substr(value, 2);
-        if (value == "")
-            return null;
-
-        let result = 0;
-        for (let i = 0; i < length(value); i++) {
-            let digit = hex_digit_value(substr(value, i, 1));
-            if (digit == null)
-                return null;
-            result = result * 16 + digit;
-        }
-        return result;
-    }
-
-    return match(value, /^[0-9]+$/) == null ? null : int(value);
-}
-
 function nft_provider_mark_hex(route_mark_base, index) {
     let base = parse_mark_number(route_mark_base);
     index = int(index || 0);
@@ -1114,91 +1096,6 @@ function nft_add_inline_ip_cidr_matchers(csv, ports_csv, table, common_set, ip_p
     return nft_add_csv_chunks_to_family_sets(csv, table, common_set, default_arg(common6_set, "forkop_subnets6"), "ips", "", chunk_size_text);
 }
 
-function normalized_fields(line) {
-    line = trim(replace(as_string(line), /\r/g, ""));
-    line = replace(line, /[[:space:]]+/g, " ");
-    return line == "" ? [] : split(line, " ");
-}
-
-function rule_line_has_lookup_table(fields, table) {
-    table = as_string(table);
-
-    for (let i = 0; i + 1 < length(fields); i++)
-        if (fields[i] == "lookup" && fields[i + 1] == table)
-            return true;
-
-    return false;
-}
-
-function rule_line_has_fwmark(fields, expected_mark) {
-    for (let i = 0; i + 1 < length(fields); i++) {
-        if (fields[i] != "fwmark")
-            continue;
-
-        let parts = split(fields[i + 1], "/");
-        if (length(parts) != 2)
-            continue;
-
-        if (parse_mark_number(parts[0]) == expected_mark && parse_mark_number(parts[1]) == expected_mark)
-            return true;
-    }
-
-    return false;
-}
-
-function has_tproxy_marking_rule_text(rule_list, table, mark) {
-    let expected_mark = parse_mark_number(mark);
-    let has_lookup = false;
-    let has_fwmark = false;
-
-    if (expected_mark == null)
-        return false;
-
-    for (let line in split(rule_list, "\n")) {
-        let fields = normalized_fields(line);
-        if (length(fields) == 0)
-            continue;
-
-        if (!has_lookup && rule_line_has_lookup_table(fields, table))
-            has_lookup = true;
-        if (!has_fwmark && rule_line_has_fwmark(fields, expected_mark))
-            has_fwmark = true;
-
-        if (has_lookup && has_fwmark)
-            return true;
-    }
-
-    return false;
-}
-
-function has_local_default_route_text(route_list, family) {
-    family = int(family || 4);
-
-    for (let line in split(as_string(route_list), "\n")) {
-        line = trim(replace(as_string(line), /\r/g, ""));
-        line = replace(line, /[[:space:]]+/g, " ");
-        if (family == 4 && index(line, "local default dev lo scope host") >= 0)
-            return true;
-        if (family == 6 && (index(line, "local ::") >= 0 || index(line, "local default") >= 0) && index(line, " dev lo") >= 0)
-            return true;
-    }
-
-    return false;
-}
-
-function rt_table_has_entry(text, table_id, table_name) {
-    table_id = as_string(table_id);
-    table_name = as_string(table_name);
-
-    for (let line in split(as_string(text), "\n")) {
-        let fields = normalized_fields(line);
-        if (length(fields) >= 2 && fields[0] == table_id && fields[1] == table_name)
-            return true;
-    }
-
-    return false;
-}
-
 function ensure_rt_table_entry(path, table_id, table_name) {
     let data = fs.readfile(path);
     if (data != null && rt_table_has_entry(data, table_id, table_name))
@@ -1209,34 +1106,6 @@ function ensure_rt_table_entry(path, table_id, table_name) {
         data += "\n";
 
     return write_text_file(path, data + as_string(table_id) + " " + as_string(table_name) + "\n");
-}
-
-function tproxy_route4_present(table) {
-    return has_local_default_route_text(command_output_quiet_from_args([ IP_BIN, "route", "list", "table", table ]), 4);
-}
-
-function tproxy_route6_present(table) {
-    return has_local_default_route_text(command_output_quiet_from_args([ IP_BIN, "-6", "route", "list", "table", table ]), 6);
-}
-
-function tproxy_route_present(table) {
-    return tproxy_route4_present(table) && tproxy_route6_present(table);
-}
-
-function tproxy_marking_rule4_present(table, mark) {
-    return has_tproxy_marking_rule_text(command_output_from_args([ IP_BIN, "-4", "rule", "list" ]), table, mark);
-}
-
-function tproxy_marking_rule6_present(table, mark) {
-    return has_tproxy_marking_rule_text(command_output_from_args([ IP_BIN, "-6", "rule", "list" ]), table, mark);
-}
-
-function tproxy_marking_rule_present(table, mark) {
-    return tproxy_marking_rule4_present(table, mark) && tproxy_marking_rule6_present(table, mark);
-}
-
-function tproxy_route_rule_present(table, mark) {
-    return tproxy_route_present(table) && tproxy_marking_rule_present(table, mark);
 }
 
 function ensure_tproxy_route_rule(table, mark, rt_tables_path) {

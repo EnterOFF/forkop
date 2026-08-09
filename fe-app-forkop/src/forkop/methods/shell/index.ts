@@ -18,12 +18,26 @@ const COMPONENT_ACTION_STATE_DIR = '/var/run/forkop/component-actions';
 const RUNTIME_MANIFEST_FILE = '/var/run/forkop/runtime-manifest.json';
 const GET_UI_STATE_RPC_TIMEOUT_MS = 3000;
 
+let checkLogsRequest: ReturnType<typeof callBaseMethod<unknown>> | null = null;
+
 function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
 function translate(message: string) {
   return typeof _ === 'function' ? _(message) : message;
+}
+
+function checkLogs() {
+  if (!checkLogsRequest) {
+    checkLogsRequest = callBaseMethod<unknown>(
+      Forkop.AvailableMethods.CHECK_LOGS,
+    ).finally(() => {
+      checkLogsRequest = null;
+    });
+  }
+
+  return checkLogsRequest;
 }
 
 function parseJsonObjectOutput<T>(output: string): T | null {
@@ -329,8 +343,7 @@ export const ForkopShellMethods = {
     callBaseMethod<unknown>(Forkop.AvailableMethods.SHOW_SING_BOX_CONFIG, [
       masked ? 'masked' : 'raw',
     ]),
-  checkLogs: async () =>
-    callBaseMethod<unknown>(Forkop.AvailableMethods.CHECK_LOGS),
+  checkLogs,
   checkSingBoxLogs: async () =>
     callBaseMethod<unknown>(Forkop.AvailableMethods.CHECK_SING_BOX_LOGS),
   getSystemInfo: async () =>

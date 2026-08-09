@@ -1438,128 +1438,6 @@ function nft_set_element_count() {
     print_line("0");
 }
 
-function line_contains(line, needle) {
-    return index(as_string(line), as_string(needle)) >= 0;
-}
-
-function print_lines(lines, start, end) {
-    for (let i = start; i < end; i++)
-        print_line(lines[i]);
-}
-
-function is_udp_unsupported_outbound_log(line) {
-    return index(as_string(line), "UDP is not supported by outbound:") >= 0;
-}
-
-function normalize_sing_box_log_message(message) {
-    let matched = match(message, /^([A-Z]+)\[[0-9]+\] \[[^]]+\] (.*)$/);
-    if (matched == null)
-        matched = match(message, /^([A-Z]+)\[[0-9]+\] (.*)$/);
-
-    if (matched != null && match(matched[1], /^(TRACE|DEBUG|INFO|WARN|ERROR|FATAL|PANIC)$/) != null)
-        message = "[" + lc(matched[1]) + "] " + matched[2];
-
-    matched = match(message, /^(\[[a-z]+\] )dns: exchange failed for (.+)\. IN ([A-Z0-9]+): (.*)$/);
-    if (matched != null)
-        return matched[1] + "DNS exchange failed for " + matched[2] + " (" + matched[3] + "): " + matched[4];
-
-    matched = match(message, /^(\[[a-z]+\] )connection: open connection to ([^ ]+) using outbound\/[^\[]+\[([^]]+)\]: (.*)$/);
-    if (matched != null) {
-        let outbound = replace(matched[3], /^.*\//, "");
-        return matched[1] + "Connection to " + matched[2] + " via " + outbound + " failed: " + matched[4];
-    }
-
-    return message;
-}
-
-function normalize_log_payload(payload) {
-    let matched = match(payload, /^([^:]+):[ \t]+(.*)$/);
-    if (matched == null)
-        return payload;
-
-    let source = matched[1];
-    let message = matched[2];
-
-    if (match(source, /^sing-box(\[[0-9]+\])?$/) != null)
-        message = normalize_sing_box_log_message(message);
-    else if (match(source, /^uhttpd(\[[0-9]+\])?$/) != null) {
-        let login = match(message, /^(\[[a-z]+\] )luci: accepted login on [^ ]+ for (.*)$/);
-        if (login != null)
-            message = login[1] + "Accepted login for " + login[2];
-    }
-
-    return source + ": " + message;
-}
-
-function normalize_log_line(line) {
-    line = replace(as_string(line), /\x1b\[[0-9;]*m/g, "");
-    let matched = match(line, /^[A-Z][a-z]{2} ([A-Z][a-z]{2})[ ]+([0-9]{1,2}) ([0-9]{2}:[0-9]{2}:[0-9]{2}) [0-9]{4} [^ ]+ (.*)$/);
-
-    if (matched == null)
-        return normalize_log_payload(line);
-
-    let day = length(matched[2]) == 1 ? "0" + matched[2] : matched[2];
-    return matched[1] + " " + day + " " + matched[3] + " " + normalize_log_payload(matched[4]);
-}
-
-function render_matching_log_tail(needle, max_lines) {
-    let lines = split(read_stdin(), "\n");
-    let filtered = [];
-    let udp_http_notice_emitted = false;
-
-    for (let line in lines) {
-        if (line == "")
-            continue;
-        if (line_contains(line, needle))
-        {
-            if (needle == "sing-box" && is_udp_unsupported_outbound_log(line)) {
-                if (!udp_http_notice_emitted) {
-                    push(filtered, "UDP traffic through HTTP outbounds is not supported by sing-box; repeated UDP warnings for HTTP outbounds are hidden by Forkop.");
-                    udp_http_notice_emitted = true;
-                }
-                continue;
-            }
-
-            push(filtered, normalize_log_line(line));
-        }
-    }
-
-    if (length(filtered) == 0)
-        exit(1);
-
-    max_lines = int(max_lines || "100", 10);
-    let start = max_lines > 0 && length(filtered) > max_lines ? length(filtered) - max_lines : 0;
-    print_lines(filtered, start, length(filtered));
-}
-
-function render_forkop_logs() {
-    let lines = split(read_stdin(), "\n");
-    let filtered = [];
-    let udp_http_notice_emitted = false;
-
-    for (let line in lines) {
-        if (line == "")
-            continue;
-        if (!line_contains(line, "forkop") && !line_contains(line, "sing-box"))
-            continue;
-
-        if (line_contains(line, "sing-box") && is_udp_unsupported_outbound_log(line)) {
-            if (!udp_http_notice_emitted) {
-                push(filtered, "UDP traffic through HTTP outbounds is not supported by sing-box; repeated UDP warnings for HTTP outbounds are hidden by Forkop.");
-                udp_http_notice_emitted = true;
-            }
-            continue;
-        }
-
-        push(filtered, normalize_log_line(line));
-    }
-
-    if (length(filtered) == 0)
-        exit(1);
-
-    print_lines(filtered, 0, length(filtered));
-}
-
 function file_first_line(path, fallback) {
     let data = fs.readfile(path);
     let result = "";
@@ -1964,10 +1842,6 @@ else if (mode == "nft-chain-config-blocks")
     render_nft_chain_config_blocks();
 else if (mode == "nft-chain-counter-status")
     nft_chain_counter_status();
-else if (mode == "forkop-logs")
-    render_forkop_logs();
-else if (mode == "matching-log-tail")
-    render_matching_log_tail(ARGV[1], ARGV[2]);
 else if (mode == "file-first-line")
     file_first_line(ARGV[1], ARGV[2]);
 else if (mode == "js-var-string-value")

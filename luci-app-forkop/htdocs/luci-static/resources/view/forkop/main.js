@@ -2435,11 +2435,22 @@ var COMPONENT_ACTION_TRANSIENT_RPC_GRACE_MS = 3e4;
 var COMPONENT_ACTION_STATE_DIR = "/var/run/forkop/component-actions";
 var RUNTIME_MANIFEST_FILE = "/var/run/forkop/runtime-manifest.json";
 var GET_UI_STATE_RPC_TIMEOUT_MS = 3e3;
+var checkLogsRequest = null;
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 function translate(message) {
   return typeof _ === "function" ? _(message) : message;
+}
+function checkLogs() {
+  if (!checkLogsRequest) {
+    checkLogsRequest = callBaseMethod(
+      Forkop.AvailableMethods.CHECK_LOGS
+    ).finally(() => {
+      checkLogsRequest = null;
+    });
+  }
+  return checkLogsRequest;
 }
 function parseJsonObjectOutput(output) {
   if (!output) {
@@ -2659,7 +2670,7 @@ var ForkopShellMethods = {
   showSingBoxConfig: async (masked = true) => callBaseMethod(Forkop.AvailableMethods.SHOW_SING_BOX_CONFIG, [
     masked ? "masked" : "raw"
   ]),
-  checkLogs: async () => callBaseMethod(Forkop.AvailableMethods.CHECK_LOGS),
+  checkLogs,
   checkSingBoxLogs: async () => callBaseMethod(Forkop.AvailableMethods.CHECK_SING_BOX_LOGS),
   getSystemInfo: async () => callBaseMethod(
     Forkop.AvailableMethods.GET_SYSTEM_INFO
@@ -12978,7 +12989,7 @@ async function initController4() {
   element("logs-copy").addEventListener("click", copyVisibleLogs);
   element("logs-download").addEventListener("click", downloadVisibleLogs);
   setInterval(() => {
-    if (autoRefresh.checked && element("logs-status").offsetParent !== null) {
+    if (!document.hidden && autoRefresh.checked && element("logs-status").offsetParent !== null) {
       void refreshLogs();
     }
   }, AUTO_REFRESH_INTERVAL_MS);

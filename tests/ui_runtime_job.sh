@@ -59,9 +59,11 @@ grep -Fq 'require("core.uci")' "$UI_UC" ||
 if grep -n -E 'require\("uci"\)\.cursor|uci -q|uci", "-q"' "$UI_UC" >/dev/null 2>&1; then
   fail "service/ui.uc must not own direct UCI cursor or CLI reads"
 fi
-grep -Fq '"forkop-stably-running"' "$UI_UC" ||
+grep -Fq 'require("service.health")' "$UI_UC" ||
+  fail "UI runtime status must use the lightweight health module"
+grep -Fq 'health.forkop_stably_running(' "$UI_UC" ||
   fail "UI Forkop status must use stable runtime state to avoid crash-loop flicker"
-grep -Fq '"sing-box-service-stable"' "$UI_UC" ||
+grep -Fq 'health.sing_box_service_stable(' "$UI_UC" ||
   fail "UI sing-box status must use stable runtime state to avoid crash-loop flicker"
 if sed -n '/^function ensure_dir(/,/^}/p' "$UI_UC" | grep -Fq 'mkdir", "-p'; then
   fail "UI state refresh must not spawn mkdir for existing directories"

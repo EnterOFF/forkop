@@ -1,0 +1,166 @@
+#!/usr/bin/env ucode
+
+let fs = require("fs");
+let netstat = require("core.netstat");
+let nft_state = require("nft.state");
+
+const SB_DNS_INBOUND_ADDRESS = getenv("SB_DNS_INBOUND_ADDRESS") || "127.0.0.42";
+const SB_TPROXY_INBOUND_PORT = getenv("SB_TPROXY_INBOUND_PORT") || "1602";
+const SB_TPROXY_INBOUND6_ADDRESS = getenv("SB_TPROXY_INBOUND6_ADDRESS") || "::1";
+
+function as_string(value) {
+    return value == null ? "" : "" + value;
+}
+
+function shell_quote(value) {
+    return "'" + replace(as_string(value), /'/g, "'\\''") + "'";
+}
+
+function command_from_args(args) {
+    let parts = [];
+    for (let arg in args)
+        push(parts, shell_quote(arg));
+    return join(" ", parts);
+}
+
+function command_output_from_args(args) {
+    let pipe = fs.popen(command_from_args(args), "r");
+    if (!pipe)
+        return "";
+
+    let data = pipe.read("all");
+    let status = pipe.close();
+    return status == 0 && data != null ? as_string(data) : "";
+}
+
+function command_success_from_args(args) {
+    return system(command_from_args(args) + " >/dev/null 2>&1") == 0;
+}
+
+function sing_box_service_pid_from_value(value) {
+    let service = type(value) == "object" ? value["sing-box"] : null;
+    let instances = service && type(service.instances) == "object" ? service.instances : {};
+    for (let _, instance in instances)
+        if (type(instance) == "object" && instance.running === true && int(instance.pid || 0) > 0)
+            return int(instance.pid);
+    return 0;
+}
+
+function sing_box_service_pid_runtime() {
+    let data = command_output_from_args([ "ubus", "call", "service", "list", "{\"name\":\"sing-box\"}" ]);
+    try {
+        return sing_box_service_pid_from_value(json(data));
+    }
+    catch (e) {
+        return 0;
+    }
+}
+
+function path_basename(path) {
+    path = as_string(path);
+    let slash = rindex(path, "/");
+    return slash >= 0 ? substr(path, slash + 1) : path;
+}
+
+function pid_is_sing_box(pid) {
+    pid = as_string(pid);
+    if (match(pid, /^[0-9]+$/) == null)
+        return false;
+    try {
+        return path_basename(fs.readlink("/proc/" + pid + "/exe")) == "sing-box";
+    }
+    catch (e) {
+        return false;
+    }
+}
+
+function process_start_ticks(stat) {
+    stat = as_string(stat);
+    let marker = index(stat, ") ");
+    if (marker < 0)
+        return null;
+
+    let fields = split(trim(substr(stat, marker + 2)), /[ \t\r\n]+/);
+    if (length(fields) < 20 || match(fields[19], /^[0-9]+$/) == null)
+        return null;
+    return int(fields[19]);
+}
+
+function process_age_seconds_from_ticks(start_ticks, current_ticks) {
+    start_ticks = as_string(start_ticks);
+    current_ticks = as_string(current_ticks);
+    if (match(start_ticks, /^[0-9]+$/) == null || match(current_ticks, /^[0-9]+$/) == null)
+        return null;
+
+    start_ticks = int(start_ticks);
+    current_ticks = int(current_ticks);
+    return current_ticks < start_ticks ? null : int((current_ticks - start_ticks) / 100);
+}
+
+function process_age_seconds(pid, expected_start_ticks) {
+    pid = as_string(pid);
+    if (match(pid, /^[0-9]+$/) == null)
+        return null;
+
+    let start_ticks = process_start_ticks(fs.readfile("/proc/" + pid + "/stat"));
+    if (start_ticks == null ||
+        (expected_start_ticks != null && start_ticks != int(expected_start_ticks)))
+        return null;
+
+    let current_ticks = process_start_ticks(command_output_from_args([ "cat", "/proc/self/stat" ]));
+    return process_age_seconds_from_ticks(start_ticks, current_ticks);
+}
+
+function sing_box_service_running() {
+    let pid = sing_box_service_pid_runtime();
+    return pid > 0 && pid_is_sing_box(pid);
+}
+
+function sing_box_service_stable(min_age) {
+    min_age = int(min_age || 2);
+    let pid = sing_box_service_pid_runtime();
+    if (pid <= 0 || !pid_is_sing_box(pid))
+        return false;
+
+    let age = process_age_seconds(pid);
+    return age != null && age >= min_age;
+}
+
+function sing_box_runtime_ports_ready() {
+    return netstat.sing_box_standard_ports_listening(
+        command_output_from_args([ "netstat", "-ln" ]),
+        SB_DNS_INBOUND_ADDRESS,
+        SB_TPROXY_INBOUND_PORT,
+        SB_TPROXY_INBOUND6_ADDRESS
+    );
+}
+
+function forkop_runtime_network_configured(rt_table, nft_table, mark) {
+    return command_success_from_args([ "nft", "list", "table", "inet", nft_table ]) &&
+        nft_state.tproxy_route_rule_present(rt_table, mark);
+}
+
+function forkop_running(rt_table, nft_table, mark) {
+    return sing_box_service_running() && sing_box_runtime_ports_ready() &&
+        forkop_runtime_network_configured(rt_table, nft_table, mark);
+}
+
+function forkop_stably_running(rt_table, nft_table, mark, min_age) {
+    return sing_box_service_stable(min_age) && sing_box_runtime_ports_ready() &&
+        forkop_runtime_network_configured(rt_table, nft_table, mark);
+}
+
+return {
+    sing_box_service_pid_from_value,
+    sing_box_service_pid_runtime,
+    pid_is_sing_box,
+    process_start_ticks,
+    process_age_seconds_from_ticks,
+    process_age_seconds,
+    sing_box_service_running,
+    sing_box_service_stable,
+    sing_box_runtime_ports_ready,
+    forkop_runtime_network_configured,
+    forkop_running,
+    forkop_stably_running
+};

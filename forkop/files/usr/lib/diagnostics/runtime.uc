@@ -963,43 +963,6 @@ function check_nft() {
     return 0;
 }
 
-function check_logs() {
-    if (!command_exists("logread")) {
-        nolog("Error: logread command not found");
-        return 1;
-    }
-    let rendered = status_capture([ "forkop-logs" ], command_output_from_args([ "logread" ]));
-    if (rendered.output != "")
-        print(rendered.output);
-    if (rendered.status != 0) {
-        nolog("Logs not found");
-        return 1;
-    }
-    return 0;
-}
-
-function check_sing_box_logs() {
-    if (!command_exists("logread")) {
-        nolog("Error: logread command not found");
-        return 1;
-    }
-    let rendered = status_capture([ "matching-log-tail", "sing-box", "0" ], command_output_from_args([ "logread" ]));
-    if (rendered.output != "")
-        print(rendered.output);
-    if (rendered.status != 0) {
-        nolog("sing-box logs not found");
-        return 1;
-    }
-    return 0;
-}
-
-function forkop_logs_fixture() {
-    let rendered = status_capture([ "forkop-logs" ], read_stdin());
-    if (rendered.output != "")
-        print(rendered.output);
-    return rendered.status;
-}
-
 function show_sing_box_config(visibility) {
     visibility = as_string(visibility || "masked");
     let sing_box_config_path = option(settings(), "config_path", "");
@@ -1941,12 +1904,6 @@ else if (mode == "check-inbounds-config")
     exit(check_inbounds_config());
 else if (mode == "check-inbounds")
     exit(check_inbounds());
-else if (mode == "check-logs")
-    exit(check_logs());
-else if (mode == "check-sing-box-logs")
-    exit(check_sing_box_logs());
-else if (mode == "forkop-logs-fixture")
-    exit(forkop_logs_fixture());
 else if (mode == "check-fakeip")
     exit(check_fakeip());
 else if (mode == "check-zapret-runtime")
