@@ -58,6 +58,17 @@ cat >"$WORK_DIR/runtime-tags.json" <<'JSON'
       "display_name": "NL Amsterdam"
     }
   ],
+  "tunnel": [
+    {
+      ".name": "tun_tailnet",
+      ".type": "tunnel",
+      "section": "proxy",
+      "order": "0",
+      "kind": "tailscale",
+      "name": "Tailnet",
+      "tailscale_auth_key": "tskey-auth-test"
+    }
+  ],
   "urltest": [
     {
       ".name": "ut_name",
@@ -139,6 +150,30 @@ let proxy_selector = by_tag["proxy-out"];
 let expected_providers = [ "proxy-manual-provider", "proxy-subscription-1-provider" ];
 if (sprintf("%J", proxy_selector.providers || []) != sprintf("%J", expected_providers))
     die("manual connection URL provider must precede subscription providers in the selector\n");
+let expected_selector_outbounds = [
+    "proxy-urltest-ut_name-out", "proxy-urltest-ut_regex-out", "proxy-fallback-pg_main-out",
+    "proxy-interface-1-out", "proxy-tunnel-1-out", "germany", "germany-1", "direct-out-1", "json-hop",
+    "json-group", "service-mixed-in-1"
+];
+if (sprintf("%J", proxy_selector.outbounds || []) != sprintf("%J", expected_selector_outbounds))
+    die("selector outbounds do not follow group and configured-node order\n");
+let expected_dashboard_sources = [
+    { type: "outbound", tag: "proxy-urltest-ut_name-out" },
+    { type: "outbound", tag: "proxy-urltest-ut_regex-out" },
+    { type: "outbound", tag: "proxy-fallback-pg_main-out" },
+    { type: "provider", tag: "proxy-manual-provider" },
+    { type: "outbound", tag: "proxy-interface-1-out" },
+    { type: "outbound", tag: "proxy-tunnel-1-out" },
+    { type: "outbound", tag: "germany" },
+    { type: "outbound", tag: "germany-1" },
+    { type: "outbound", tag: "direct-out-1" },
+    { type: "outbound", tag: "json-hop" },
+    { type: "outbound", tag: "json-group" },
+    { type: "outbound", tag: "service-mixed-in-1" },
+    { type: "provider", tag: "proxy-subscription-1-provider" }
+];
+if (sprintf("%J", proxy_metadata.dashboardSources || []) != sprintf("%J", expected_dashboard_sources))
+    die("runtime manifest does not preserve canonical dashboard source order\n");
 
 let json_group = by_tag["json-group"];
 if (length(json_group.outbounds || []) != 2 ||

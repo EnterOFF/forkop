@@ -19,9 +19,18 @@ type ClashProxyEntry = {
   value: ClashAPI.ProxyBase;
 };
 
+type DashboardSource = {
+  type?: 'outbound' | 'provider';
+  tag?: string;
+};
+
+type RuntimeSectionManifest = Forkop.GetOutboundMetadata & {
+  dashboardSources?: DashboardSource[];
+};
+
 type RuntimeManifest = {
   version?: number;
-  sections?: Record<string, Forkop.GetOutboundMetadata>;
+  sections?: Record<string, RuntimeSectionManifest>;
 };
 
 type FallbackLevelConfig = {
@@ -39,7 +48,6 @@ type UrlTestConfig = {
   id: string;
   code: string;
   displayName: string;
-  pinDashboard: boolean;
   hideDashboardMembers: boolean;
   testingUrl?: string;
   checkInterval?: string;
@@ -53,7 +61,6 @@ type FallbackConfig = {
   sectionName: string;
   code: string;
   displayName: string;
-  pinDashboard: boolean;
   hideDashboardMembers: boolean;
   healthCheckUrl: string;
   healthCheckInterval: string;
@@ -258,7 +265,6 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
           urltest_testing_url: item.testing_url,
           idle_timeout: item.idle_timeout,
           interrupt_exist_connections: item.interrupt_exist_connections,
-          pin_dashboard: item.pin_dashboard,
           hide_dashboard_members: item.hide_dashboard_members,
           urltest_server_filter_mode: item.server_filter_mode,
           urltest_include_outbounds: item.include_outbounds,
@@ -298,7 +304,6 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
           expected_status: item.expected_status,
           idle_timeout: item.idle_timeout,
           interrupt_exist_connections: item.interrupt_exist_connections,
-          pin_dashboard: item.pin_dashboard,
           hide_dashboard_members: item.hide_dashboard_members,
           levels,
         };
@@ -344,10 +349,6 @@ function hasSubscriptionSources(section: Forkop.ConfigSection) {
 
 function getSubscriptionSourceCount(section: Forkop.ConfigSection) {
   return getListValues(section.subscription_urls).length;
-}
-
-function shouldSortByLatency(section: Forkop.ConfigSection) {
-  return section.sort_by_latency === '1';
 }
 
 function hasConfiguredUrlTestList(section: Forkop.ConfigSection) {
@@ -443,6 +444,34 @@ function buildManualLinkByCode(
   );
 }
 
+function orderCodesByDashboardSources(
+  codes: string[],
+  sources?: DashboardSource[],
+) {
+  if (!sources?.length) {
+    return codes;
+  }
+
+  const remaining = new Set(codes);
+  const ordered: string[] = [];
+  sources.forEach((source) => {
+    const sourceCodes =
+      source.type === 'provider' && source.tag
+        ? codes.filter((code) => code.startsWith(`${source.tag}/`))
+        : source.type === 'outbound' && source.tag
+          ? [source.tag]
+          : [];
+
+    sourceCodes.forEach((code) => {
+      if (remaining.delete(code)) {
+        ordered.push(code);
+      }
+    });
+  });
+
+  return [...ordered, ...codes.filter((code) => remaining.has(code))];
+}
+
 function canExportProviderProxyLink(
   code: string,
   type: string,
@@ -476,58 +505,6 @@ function getLatencySortValue(outbound: { latency: number }) {
   return Number.isFinite(latency) && latency > 0
     ? latency
     : Number.POSITIVE_INFINITY;
-}
-
-function sortOutboundsForDashboard(
-  outbounds: Forkop.Outbound[],
-  options: {
-    pinnedCode?: string;
-    pinnedCodes?: string[];
-    sortByLatency?: boolean;
-  } = {},
-) {
-  const pinnedCodes = [
-    ...(options.pinnedCode ? [options.pinnedCode] : []),
-    ...(options.pinnedCodes || []),
-  ].filter(Boolean);
-  const pinnedRank = new Map(
-    pinnedCodes.map((code, index) => [code, index] as const),
-  );
-  const sortByLatency = options.sortByLatency === true;
-
-  return outbounds
-    .map((outbound, index) => ({ outbound, index }))
-    .sort((left, right) => {
-      const leftPinned = pinnedRank.has(left.outbound.code);
-      const rightPinned = pinnedRank.has(right.outbound.code);
-
-      if (leftPinned !== rightPinned) {
-        return leftPinned ? -1 : 1;
-      }
-
-      if (leftPinned && rightPinned) {
-        const rankDiff =
-          (pinnedRank.get(left.outbound.code) ?? 0) -
-          (pinnedRank.get(right.outbound.code) ?? 0);
-
-        if (rankDiff !== 0) {
-          return rankDiff;
-        }
-      }
-
-      if (sortByLatency) {
-        const latencyDiff =
-          getLatencySortValue(left.outbound) -
-          getLatencySortValue(right.outbound);
-
-        if (latencyDiff !== 0) {
-          return latencyDiff;
-        }
-      }
-
-      return left.index - right.index;
-    })
-    .map((item) => item.outbound);
 }
 
 function sortUrlTestMembers(outbounds: Forkop.UrlTestMember[]) {
@@ -655,7 +632,6 @@ function getUrlTestConfigs(section: Forkop.ConfigSection): UrlTestConfig[] {
       id,
       code: getUrlTestTag(sectionName, id),
       displayName: getUrlTestDisplayName(section, id, settings),
-      pinDashboard: itemSettingBoolean(settings, 'pin_dashboard', true),
       hideDashboardMembers: itemSettingBoolean(
         settings,
         'hide_dashboard_members',
@@ -741,7 +717,6 @@ function getFallbackConfigs(section: Forkop.ConfigSection): FallbackConfig[] {
       sectionName,
       code: getFallbackTag(sectionName, id),
       displayName: itemSettingString(settings, 'name', id),
-      pinDashboard: itemSettingBoolean(settings, 'pin_dashboard', true),
       hideDashboardMembers: itemSettingBoolean(
         settings,
         'hide_dashboard_members',
@@ -990,6 +965,7 @@ function buildProxyGroupOutbounds(
   proxies: ClashProxyEntry[],
   outboundMetadata?: Forkop.GetOutboundMetadata,
   exportableProviderTags: string[] = [],
+  dashboardSources?: DashboardSource[],
 ) {
   const sectionName = section['.name'];
   const proxyByCode = getProxyEntryByCode(proxies);
@@ -1011,7 +987,10 @@ function buildProxyGroupOutbounds(
     config,
     entry: proxyByCode.get(config.code),
   }));
-  const selectorCodes = selector?.value?.all ?? [];
+  const selectorCodes = orderCodesByDashboardSources(
+    selector?.value?.all ?? [],
+    dashboardSources,
+  );
   const manualLinkByCode = buildManualLinkByCode(section, selectorCodes);
   const urlTestCodes = urlTestConfigs.map((config) => config.code);
   const fallbackGroupCodes = fallbackConfigs.map((config) => config.code);
@@ -1079,7 +1058,6 @@ function buildProxyGroupOutbounds(
               id: code,
               code,
               displayName,
-              pinDashboard: false,
               hideDashboardMembers: false,
             }
           : undefined);
@@ -1130,18 +1108,7 @@ function buildProxyGroupOutbounds(
       ];
     });
 
-  const sortedOutbounds = sortOutboundsForDashboard(outbounds, {
-    pinnedCodes: [
-      ...urlTestEntries
-        .filter(({ config }) => config.pinDashboard)
-        .map(({ config }) => config.code),
-      ...fallbackEntries
-        .filter(({ config }) => config.pinDashboard)
-        .map(({ config }) => config.code),
-    ],
-    sortByLatency: shouldSortByLatency(section),
-  });
-  const latencyTestCodes = sortedOutbounds
+  const latencyTestCodes = outbounds
     .filter(
       (outbound) =>
         outbound.runtimeAvailable !== false &&
@@ -1155,7 +1122,7 @@ function buildProxyGroupOutbounds(
     latencyTestCode: selector?.code || builtInUrltestCode,
     latencyTestCodes:
       latencyTestCodes.length > 0 ? latencyTestCodes : undefined,
-    outbounds: sortedOutbounds,
+    outbounds,
   };
 }
 
@@ -1347,8 +1314,9 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
       const subscriptionSourceCount = getSubscriptionSourceCount(section);
       const subscriptionEnabled = subscriptionSourceCount > 0;
       const providerTags = getSectionProviderTags(section);
+      const runtimeSection = runtimeManifest.sections?.[sectionName];
       const outboundMetadata = getOutboundMetadata(
-        runtimeManifest.sections?.[sectionName],
+        runtimeSection,
         providerTags,
         proxies,
       );
@@ -1366,6 +1334,7 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
           proxies,
           outboundMetadata,
           providerTags.slice(0, subscriptionSourceCount),
+          runtimeSection?.dashboardSources,
         );
 
       return {

@@ -137,6 +137,124 @@ describe('renderSections latency actions', () => {
     expect(event.stopPropagation).toHaveBeenCalledOnce();
   }, 15000);
 
+  it('toggles temporary latency sorting for multi-card sections', async () => {
+    installElementFactory();
+    const { renderSections } = await import('../partials/renderSections');
+    const onSortByLatencyChange = vi.fn();
+    const outbound = (
+      displayName: string,
+      latency: number,
+      type = 'VLESS',
+    ): Forkop.Outbound => ({
+      code: displayName.toLowerCase(),
+      displayName,
+      latency,
+      type,
+      selected: false,
+    });
+    const outbounds: Forkop.Outbound[] = [
+      outbound('Missing', 0),
+      outbound('Fallback', 200, 'Fallback'),
+      outbound('Node', 50),
+      outbound('URLTest', 100, 'URLTest'),
+    ];
+    const render = (sortByLatency = false) =>
+      renderSections({
+        loading: false,
+        failed: false,
+        section: {
+          code: 'main-out',
+          sectionName: 'main',
+          displayName: 'Main',
+          withTagSelect: true,
+          outbounds,
+        },
+        onTestLatency: vi.fn(),
+        onTestOutboundLatency: vi.fn(),
+        onChooseOutbound: vi.fn(),
+        onCopyOutbound: vi.fn(),
+        onShowUrlTestInfo: vi.fn(),
+        onShowFallbackInfo: vi.fn(),
+        onUpdateSubscription: vi.fn(),
+        onSortByLatencyChange,
+        sortByLatency,
+        latencyFetching: false,
+        subscriptionUpdating: false,
+      }) as unknown as FakeNode;
+    const findSortButton = (root: FakeNode) =>
+      findNode(
+        root,
+        (node) =>
+          node.type === 'button' &&
+          String(node.attrs.class || '')
+            .split(' ')
+            .includes('fkp_dashboard-page__outbound-section__sort-by-latency'),
+      );
+    const inactiveRoot = render();
+    const inactiveButton = findSortButton(inactiveRoot);
+    const event = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+    } as unknown as MouseEvent;
+
+    expect(inactiveButton?.attrs.title).toBe('Sort by latency');
+    expect(inactiveButton?.attrs['aria-label']).toBe('Sort by latency');
+    expect(inactiveButton?.attrs['aria-pressed']).toBe('false');
+    (inactiveButton?.attrs.click as (event: MouseEvent) => void)(event);
+    expect(onSortByLatencyChange).toHaveBeenCalledWith('main', true);
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(event.stopPropagation).toHaveBeenCalledOnce();
+
+    const activeRoot = render(true);
+    const activeButton = findSortButton(activeRoot);
+    const cards = findNodes(activeRoot, (node) =>
+      String(node.attrs.class || '')
+        .split(' ')
+        .includes('fkp_dashboard-page__outbound-grid__item'),
+    );
+    const names = cards.map(
+      (card) => findNode(card, (node) => node.type === 'b')?.children[0],
+    );
+
+    expect(names).toEqual(['Node', 'URLTest', 'Fallback', 'Missing']);
+    expect(outbounds.map((outbound) => outbound.displayName)).toEqual([
+      'Missing',
+      'Fallback',
+      'Node',
+      'URLTest',
+    ]);
+    expect(activeButton?.attrs['aria-pressed']).toBe('true');
+    expect(String(activeButton?.attrs.class)).toContain(
+      'fkp_dashboard-page__outbound-section__sort-by-latency--active',
+    );
+
+    (activeButton?.attrs.click as (event: MouseEvent) => void)(event);
+    expect(onSortByLatencyChange).toHaveBeenLastCalledWith('main', false);
+
+    const singleCardRoot = renderSections({
+      loading: false,
+      failed: false,
+      section: {
+        code: 'main-out',
+        sectionName: 'main',
+        displayName: 'Main',
+        withTagSelect: true,
+        outbounds: [outbounds[0]],
+      },
+      onTestLatency: vi.fn(),
+      onTestOutboundLatency: vi.fn(),
+      onChooseOutbound: vi.fn(),
+      onCopyOutbound: vi.fn(),
+      onShowUrlTestInfo: vi.fn(),
+      onShowFallbackInfo: vi.fn(),
+      onUpdateSubscription: vi.fn(),
+      latencyFetching: false,
+      subscriptionUpdating: false,
+    }) as unknown as FakeNode;
+
+    expect(findSortButton(singleCardRoot)).toBeUndefined();
+  }, 15000);
+
   it('does not choose an outbound when its name is selected', async () => {
     installElementFactory();
     const getSelection = vi.fn(() => ({ isCollapsed: false }));

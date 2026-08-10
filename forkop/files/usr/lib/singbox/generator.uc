@@ -961,10 +961,10 @@ function add_fallback_group_outbound(config, section, group_id, urltest_candidat
     return fallback_tag;
 }
 
-function add_proxy_selector(config, section, selector_tags, urltest_candidate_tags, provider_refs, state) {
+function add_proxy_selector(config, section, selector_tags, urltest_candidate_tags, provider_refs, state, dashboard_sources) {
     let section_name = section[".name"];
     let selector_tag = outbound_tag(section_name);
-    let selector_outbounds = selector_tags;
+    let selector_outbounds = [];
     let selector_default = selector_tags[0];
     let urltest_tags = [];
     let fallback_tags = [];
@@ -985,11 +985,20 @@ function add_proxy_selector(config, section, selector_tags, urltest_candidate_ta
         push(fallback_tags, fallback_tag);
     }
 
+    for (let tag in urltest_tags) {
+        push(selector_outbounds, tag);
+        runtime_manifest.remember_dashboard_source(state, "outbound", tag);
+    }
+    for (let tag in fallback_tags) {
+        push(selector_outbounds, tag);
+        runtime_manifest.remember_dashboard_source(state, "outbound", tag);
+    }
+    for (let tag in selector_tags)
+        push(selector_outbounds, tag);
+    for (let source in dashboard_sources)
+        runtime_manifest.remember_dashboard_source(state, source.type, source.tag);
+
     if (length(urltest_tags) > 0 || length(fallback_tags) > 0) {
-        for (let tag in urltest_tags)
-            push(selector_outbounds, tag);
-        for (let tag in fallback_tags)
-            push(selector_outbounds, tag);
         selector_default = length(urltest_tags) > 0 ? urltest_tags[0]
             : fallback_tags[0];
     }
@@ -1319,9 +1328,15 @@ function add_connections_outbound(config, section, taken, manifest) {
         push(provider_refs, manual_provider);
     for (let provider in subscription_provider_refs)
         push(provider_refs, provider);
-    add_connection_interfaces(config, state, section, taken, selector_tags, urltest_candidate_tags);
-    add_connection_tunnels(config, state, section, taken, selector_tags, urltest_candidate_tags);
-    add_connection_json_outbounds(config, state, section, taken, selector_tags, urltest_candidate_tags);
+    let interface_tags = [];
+    let tunnel_tags = [];
+    let json_tags = [];
+    add_connection_interfaces(config, state, section, taken, interface_tags, urltest_candidate_tags);
+    add_connection_tunnels(config, state, section, taken, tunnel_tags, urltest_candidate_tags);
+    add_connection_json_outbounds(config, state, section, taken, json_tags, urltest_candidate_tags);
+    for (let tags in [ interface_tags, tunnel_tags, json_tags ])
+        for (let tag_name in tags)
+            push(selector_tags, tag_name);
 
     if (length(selector_tags) == 0 && length(provider_refs) == 0)
         runtime_generate_unsupported("connection section has no usable outbounds");
@@ -1329,7 +1344,16 @@ function add_connections_outbound(config, section, taken, manifest) {
     if (section_has_direct_fallback_level(section))
         state.outboundMetadata.names[runtime_constants.DIRECT_OUTBOUND_TAG] = "Direct";
 
-    add_proxy_selector(config, section, selector_tags, urltest_candidate_tags, provider_refs, state);
+    let dashboard_sources = [];
+    if (manual_provider != null)
+        push(dashboard_sources, { type: "provider", tag: manual_provider.tag });
+    for (let tags in [ interface_tags, tunnel_tags, json_tags ])
+        for (let tag_name in tags)
+            push(dashboard_sources, { type: "outbound", tag: tag_name });
+    for (let provider in subscription_provider_refs)
+        push(dashboard_sources, { type: "provider", tag: provider.tag });
+
+    add_proxy_selector(config, section, selector_tags, urltest_candidate_tags, provider_refs, state, dashboard_sources);
     runtime_manifest.remember_section(manifest, section_name, state);
 }
 

@@ -2527,7 +2527,6 @@ function urlTestSettingsKeys() {
     "testing_url",
     "idle_timeout",
     "interrupt_exist_connections",
-    "pin_dashboard",
     "hide_dashboard_members",
     "server_filter_mode",
     "include_outbounds",
@@ -2545,7 +2544,6 @@ function defaultUrlTestSettings(name) {
     testing_url: "https://www.gstatic.com/generate_204",
     idle_timeout: "30m",
     interrupt_exist_connections: "1",
-    pin_dashboard: "1",
     hide_dashboard_members: "0",
     server_filter_mode: "all",
   };
@@ -2558,7 +2556,6 @@ function urlTestChildDefaults() {
     testing_url: "https://www.gstatic.com/generate_204",
     idle_timeout: "30m",
     interrupt_exist_connections: "1",
-    pin_dashboard: "1",
     hide_dashboard_members: "0",
     server_filter_mode: "all",
   };
@@ -2574,7 +2571,6 @@ function fallbackGroupSettingsKeys() {
     "expected_status",
     "idle_timeout",
     "interrupt_exist_connections",
-    "pin_dashboard",
     "hide_dashboard_members",
   ];
 }
@@ -2589,7 +2585,6 @@ function defaultFallbackGroupSettings(name = "") {
     expected_status: "*",
     idle_timeout: "5m",
     interrupt_exist_connections: "1",
-    pin_dashboard: "1",
     hide_dashboard_members: "0",
   };
 }
@@ -2603,7 +2598,6 @@ function fallbackGroupChildDefaults() {
     expected_status: "*",
     idle_timeout: "5m",
     interrupt_exist_connections: "1",
-    pin_dashboard: "1",
     hide_dashboard_members: "0",
   };
 }
@@ -2935,15 +2929,6 @@ function addUrlTestItemOptions(itemSection, options = {}) {
 
   o = itemSection.option(
     form.Flag,
-    "pin_dashboard",
-    _("Pin on dashboard"),
-    _("Keep this group before latency-sorted servers"),
-  );
-  o.default = "1";
-  o.rmempty = false;
-
-  o = itemSection.option(
-    form.Flag,
     "hide_dashboard_members",
     _("Hide group servers"),
     _("Hide servers included in this group from the dashboard."),
@@ -3173,15 +3158,6 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
     "interrupt_exist_connections",
     _("Interrupt connections"),
     _("Interrupt existing connections when Fallback switches servers"),
-  );
-  o.default = "1";
-  o.rmempty = false;
-
-  o = itemSection.option(
-    form.Flag,
-    "pin_dashboard",
-    _("Pin on dashboard"),
-    _("Keep this group before latency-sorted servers"),
   );
   o.default = "1";
   o.rmempty = false;
@@ -8812,18 +8788,6 @@ function createSectionContent(section) {
     }
     return true;
   };
-
-  o = section.taboption(
-    "settings",
-    form.Flag,
-    "sort_by_latency",
-    _("Sort by latency"),
-    _("Sorts servers in this section by lowest latency in the dashboard."),
-  );
-  o.default = "0";
-  o.rmempty = false;
-  o.depends("action", "connection");
-  o.modalonly = true;
 
   o = section.taboption(
     "settings",

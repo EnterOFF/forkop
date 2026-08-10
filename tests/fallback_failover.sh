@@ -47,7 +47,7 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
       "health_check_interval": "12s", "health_check_timeout": "4s",
       "max_failed_times": "2", "expected_status": "204/200-299",
       "idle_timeout": "20m",
-      "interrupt_exist_connections": "1", "pin_dashboard": "1"
+      "interrupt_exist_connections": "1"
     },
     {
       ".name": "pg_default", ".type": "fallback_group", "section": "proxy",

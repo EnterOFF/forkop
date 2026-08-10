@@ -21,7 +21,8 @@ function new_manifest() {
 
 function new_section_state() {
     return {
-        outboundMetadata: { names: {}, protocols: {} }
+        outboundMetadata: { names: {}, protocols: {} },
+        dashboardSources: []
     };
 }
 
@@ -30,10 +31,22 @@ function remember_outbound_name(state, tag_name, display_name) {
         state.outboundMetadata.names[tag_name] = display_name;
 }
 
+function remember_dashboard_source(state, source_type, tag_name) {
+    if (type(state) != "object" || as_string(tag_name) == "")
+        return;
+    push(state.dashboardSources, {
+        type: as_string(source_type),
+        tag: as_string(tag_name)
+    });
+}
+
 function remember_section(manifest, section_name, state) {
     if (type(manifest) != "object" || type(state) != "object")
         return;
-    manifest.sections[as_string(section_name)] = object_or_empty(state.outboundMetadata);
+    let section = object_or_empty(state.outboundMetadata);
+    if (type(state.dashboardSources) == "array" && length(state.dashboardSources) > 0)
+        section.dashboardSources = state.dashboardSources;
+    manifest.sections[as_string(section_name)] = section;
 }
 
 return {
@@ -41,5 +54,6 @@ return {
     new_manifest,
     new_section_state,
     remember_outbound_name,
+    remember_dashboard_source,
     remember_section
 };

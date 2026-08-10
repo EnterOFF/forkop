@@ -149,8 +149,31 @@ export const styles = `
     display: flex;
     align-items: center;
     justify-content: flex-end;
+    flex-wrap: wrap;
     gap: 6px;
     flex: 0 0 auto;
+}
+
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__sort-by-latency {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+}
+
+.fkp_dashboard-page__outbound-section__sort-by-latency svg {
+    width: 15px;
+    height: 15px;
+    display: block;
+}
+
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__sort-by-latency--active {
+    background: color-mix(in srgb, currentColor 14%, transparent) !important;
 }
 
 .fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__subscription-update {

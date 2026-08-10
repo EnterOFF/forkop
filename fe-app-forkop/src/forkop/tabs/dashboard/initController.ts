@@ -70,6 +70,7 @@ const latencyJobIds: Record<string, string> = {};
 const latencyCancelRequests = new Set<string>();
 const cancellingLatencyJobs = new Set<string>();
 const cancellingLatencySections = new Set<string>();
+const latencySortedSections = new Set<string>();
 let latencyAckQueue: Promise<unknown> = Promise.resolve();
 
 if (typeof window !== 'undefined') {
@@ -234,6 +235,16 @@ function setSelectorSwitching(sectionName: string, tag?: string) {
       selectorSwitchingSections,
     },
   });
+}
+
+function handleSortByLatency(sectionName: string, enabled: boolean) {
+  if (enabled) {
+    latencySortedSections.add(sectionName);
+  } else {
+    latencySortedSections.delete(sectionName);
+  }
+
+  void renderSectionsWidget();
 }
 
 function setLatencyFetching(
@@ -1514,6 +1525,8 @@ async function renderSectionsWidget() {
       ),
       selectorSwitchingTag:
         sectionsWidget.selectorSwitchingSections[section.sectionName],
+      sortByLatency: latencySortedSections.has(section.sectionName),
+      onSortByLatencyChange: handleSortByLatency,
       onTestLatency: (tag) => {
         if (section.withTagSelect) {
           if (Array.isArray(tag)) {

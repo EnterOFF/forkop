@@ -2,6 +2,7 @@ import {
   renderLoaderCircleIcon24,
   renderCopyIcon24,
   renderInfoIcon24,
+  renderListFilterIcon24,
   renderRotateCcwIcon24,
 } from '../../../../icons';
 import { isCopyableProxyLink, svgEl } from '../../../../helpers';
@@ -30,12 +31,14 @@ interface IRenderSectionsProps {
   onShowUrlTestInfo: (outbound: Forkop.Outbound) => void;
   onShowFallbackInfo: (outbound: Forkop.Outbound) => void;
   onUpdateSubscription: (section: Forkop.OutboundGroup) => void;
+  onSortByLatencyChange?: (sectionName: string, enabled: boolean) => void;
   latencyFetching: boolean;
   latencyCancelling?: boolean;
   latencyFetchingTarget?: string;
   latencyProgress?: Forkop.LatencyActionProgress;
   subscriptionUpdating: boolean;
   selectorSwitchingTag?: string;
+  sortByLatency?: boolean;
 }
 
 function renderFailedState() {
@@ -88,6 +91,12 @@ function formatDate(seconds?: number) {
     month: '2-digit',
     day: '2-digit',
   });
+}
+
+function getLatencySortValue(outbound: Forkop.Outbound) {
+  return Number.isFinite(outbound.latency) && outbound.latency > 0
+    ? outbound.latency
+    : Number.POSITIVE_INFINITY;
 }
 
 function renderMetadataAction(label: string, url?: string) {
@@ -303,12 +312,14 @@ function renderDefaultState({
   onTestLatency,
   onTestOutboundLatency,
   onUpdateSubscription,
+  onSortByLatencyChange,
   latencyFetching,
   latencyCancelling,
   latencyFetchingTarget,
   latencyProgress,
   subscriptionUpdating,
   selectorSwitchingTag,
+  sortByLatency,
 }: IRenderSectionsProps) {
   const hasPendingLatencyState = Array.isArray(latencyProgress?.pending);
   const pendingLatencyTags = getPendingLatencyTags(section, latencyProgress);
@@ -542,6 +553,37 @@ function renderDefaultState({
     subscriptionUpdating,
     onUpdateSubscription,
   );
+  const outbounds = sortByLatency
+    ? [...section.outbounds].sort(
+        (left, right) => getLatencySortValue(left) - getLatencySortValue(right),
+      )
+    : section.outbounds;
+  const latencySortAction =
+    section.outbounds.length > 1
+      ? E(
+          'button',
+          {
+            type: 'button',
+            class: [
+              'btn fkp_dashboard-page__outbound-section__sort-by-latency',
+              sortByLatency
+                ? 'fkp_dashboard-page__outbound-section__sort-by-latency--active'
+                : '',
+            ]
+              .filter(Boolean)
+              .join(' '),
+            title: _('Sort by latency'),
+            'aria-label': _('Sort by latency'),
+            'aria-pressed': sortByLatency ? 'true' : 'false',
+            click: (event: MouseEvent) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onSortByLatencyChange?.(section.sectionName, !sortByLatency);
+            },
+          },
+          renderListFilterIcon24(),
+        )
+      : undefined;
 
   return E('div', { class: 'fkp_dashboard-page__outbound-section' }, [
     // Title with test latency
@@ -559,6 +601,7 @@ function renderDefaultState({
           class: 'fkp_dashboard-page__outbound-section__title-section__actions',
         },
         [
+          ...(latencySortAction ? [latencySortAction] : []),
           ...(subscriptionUpdateAction ? [subscriptionUpdateAction] : []),
           E(
             'button',
@@ -600,7 +643,7 @@ function renderDefaultState({
     ]),
     E('div', { class: 'fkp_dashboard-page__outbound-grid' }, [
       ...metadataNodes,
-      ...section.outbounds.map((outbound) => renderOutbound(outbound)),
+      ...outbounds.map((outbound) => renderOutbound(outbound)),
     ]),
   ]);
 }

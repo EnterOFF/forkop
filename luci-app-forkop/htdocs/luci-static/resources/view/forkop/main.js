@@ -1588,6 +1588,29 @@ function renderInfoIcon24() {
   );
 }
 
+// src/icons/renderListFilterIcon24.ts
+function renderListFilterIcon24() {
+  const NS = "http://www.w3.org/2000/svg";
+  return svgEl(
+    "svg",
+    {
+      xmlns: NS,
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": "2",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+      class: "lucide lucide-list-filter-icon lucide-list-filter"
+    },
+    [
+      svgEl("path", { d: "M3 6h18" }),
+      svgEl("path", { d: "M7 12h10" }),
+      svgEl("path", { d: "M10 18h4" })
+    ]
+  );
+}
+
 // src/helpers/prettyBytes.ts
 function prettyBytes(n) {
   const UNITS = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
@@ -1640,6 +1663,9 @@ function formatDate(seconds) {
     month: "2-digit",
     day: "2-digit"
   });
+}
+function getLatencySortValue(outbound) {
+  return Number.isFinite(outbound.latency) && outbound.latency > 0 ? outbound.latency : Number.POSITIVE_INFINITY;
 }
 function renderMetadataAction(label, url) {
   if (!isValidHttpUrl(url)) {
@@ -1804,12 +1830,14 @@ function renderDefaultState({
   onTestLatency,
   onTestOutboundLatency,
   onUpdateSubscription,
+  onSortByLatencyChange,
   latencyFetching,
   latencyCancelling,
   latencyFetchingTarget,
   latencyProgress,
   subscriptionUpdating,
-  selectorSwitchingTag
+  selectorSwitchingTag,
+  sortByLatency
 }) {
   const hasPendingLatencyState = Array.isArray(latencyProgress?.pending);
   const pendingLatencyTags = getPendingLatencyTags(section, latencyProgress);
@@ -1980,6 +2008,28 @@ function renderDefaultState({
     subscriptionUpdating,
     onUpdateSubscription
   );
+  const outbounds = sortByLatency ? [...section.outbounds].sort(
+    (left, right) => getLatencySortValue(left) - getLatencySortValue(right)
+  ) : section.outbounds;
+  const latencySortAction = section.outbounds.length > 1 ? E(
+    "button",
+    {
+      type: "button",
+      class: [
+        "btn fkp_dashboard-page__outbound-section__sort-by-latency",
+        sortByLatency ? "fkp_dashboard-page__outbound-section__sort-by-latency--active" : ""
+      ].filter(Boolean).join(" "),
+      title: _("Sort by latency"),
+      "aria-label": _("Sort by latency"),
+      "aria-pressed": sortByLatency ? "true" : "false",
+      click: (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onSortByLatencyChange?.(section.sectionName, !sortByLatency);
+      }
+    },
+    renderListFilterIcon24()
+  ) : void 0;
   return E("div", { class: "fkp_dashboard-page__outbound-section" }, [
     // Title with test latency
     E("div", { class: "fkp_dashboard-page__outbound-section__title-section" }, [
@@ -1996,6 +2046,7 @@ function renderDefaultState({
           class: "fkp_dashboard-page__outbound-section__title-section__actions"
         },
         [
+          ...latencySortAction ? [latencySortAction] : [],
           ...subscriptionUpdateAction ? [subscriptionUpdateAction] : [],
           E(
             "button",
@@ -2035,7 +2086,7 @@ function renderDefaultState({
     ]),
     E("div", { class: "fkp_dashboard-page__outbound-grid" }, [
       ...metadataNodes,
-      ...section.outbounds.map((outbound) => renderOutbound(outbound))
+      ...outbounds.map((outbound) => renderOutbound(outbound))
     ])
   ]);
 }
@@ -3081,7 +3132,6 @@ function hydrateConfigSections(configSections) {
           urltest_testing_url: item.testing_url,
           idle_timeout: item.idle_timeout,
           interrupt_exist_connections: item.interrupt_exist_connections,
-          pin_dashboard: item.pin_dashboard,
           hide_dashboard_members: item.hide_dashboard_members,
           urltest_server_filter_mode: item.server_filter_mode,
           urltest_include_outbounds: item.include_outbounds,
@@ -3115,7 +3165,6 @@ function hydrateConfigSections(configSections) {
           expected_status: item.expected_status,
           idle_timeout: item.idle_timeout,
           interrupt_exist_connections: item.interrupt_exist_connections,
-          pin_dashboard: item.pin_dashboard,
           hide_dashboard_members: item.hide_dashboard_members,
           levels
         };
@@ -3152,9 +3201,6 @@ function hasSubscriptionSources(section) {
 }
 function getSubscriptionSourceCount(section) {
   return getListValues(section.subscription_urls).length;
-}
-function shouldSortByLatency(section) {
-  return section.sort_by_latency === "1";
 }
 function hasConfiguredUrlTestList(section) {
   return getListValues(section.urltests).length > 0;
@@ -3218,6 +3264,22 @@ function buildManualLinkByCode(section, selectorCodes) {
     })
   );
 }
+function orderCodesByDashboardSources(codes, sources) {
+  if (!sources?.length) {
+    return codes;
+  }
+  const remaining = new Set(codes);
+  const ordered = [];
+  sources.forEach((source) => {
+    const sourceCodes = source.type === "provider" && source.tag ? codes.filter((code) => code.startsWith(`${source.tag}/`)) : source.type === "outbound" && source.tag ? [source.tag] : [];
+    sourceCodes.forEach((code) => {
+      if (remaining.delete(code)) {
+        ordered.push(code);
+      }
+    });
+  });
+  return [...ordered, ...codes.filter((code) => remaining.has(code))];
+}
 function canExportProviderProxyLink(code, type, providerTags) {
   return EXPORTABLE_PROVIDER_PROXY_TYPES.has(type.toLowerCase()) && providerTags.some((tag) => code.startsWith(`${tag}/`));
 }
@@ -3233,46 +3295,16 @@ function isSelectorOutbound(outbound) {
 function isUrlTestProxyEntry(entry) {
   return entry?.value?.type?.toLowerCase() === "urltest";
 }
-function getLatencySortValue(outbound) {
+function getLatencySortValue2(outbound) {
   const latency = Number(outbound.latency);
   return Number.isFinite(latency) && latency > 0 ? latency : Number.POSITIVE_INFINITY;
-}
-function sortOutboundsForDashboard(outbounds, options = {}) {
-  const pinnedCodes = [
-    ...options.pinnedCode ? [options.pinnedCode] : [],
-    ...options.pinnedCodes || []
-  ].filter(Boolean);
-  const pinnedRank = new Map(
-    pinnedCodes.map((code, index) => [code, index])
-  );
-  const sortByLatency = options.sortByLatency === true;
-  return outbounds.map((outbound, index) => ({ outbound, index })).sort((left, right) => {
-    const leftPinned = pinnedRank.has(left.outbound.code);
-    const rightPinned = pinnedRank.has(right.outbound.code);
-    if (leftPinned !== rightPinned) {
-      return leftPinned ? -1 : 1;
-    }
-    if (leftPinned && rightPinned) {
-      const rankDiff = (pinnedRank.get(left.outbound.code) ?? 0) - (pinnedRank.get(right.outbound.code) ?? 0);
-      if (rankDiff !== 0) {
-        return rankDiff;
-      }
-    }
-    if (sortByLatency) {
-      const latencyDiff = getLatencySortValue(left.outbound) - getLatencySortValue(right.outbound);
-      if (latencyDiff !== 0) {
-        return latencyDiff;
-      }
-    }
-    return left.index - right.index;
-  }).map((item) => item.outbound);
 }
 function sortUrlTestMembers(outbounds) {
   return outbounds.map((outbound, index) => ({ outbound, index })).sort((left, right) => {
     if (left.outbound.selected !== right.outbound.selected) {
       return left.outbound.selected ? -1 : 1;
     }
-    const latencyDiff = getLatencySortValue(left.outbound) - getLatencySortValue(right.outbound);
+    const latencyDiff = getLatencySortValue2(left.outbound) - getLatencySortValue2(right.outbound);
     if (latencyDiff !== 0) {
       return latencyDiff;
     }
@@ -3348,7 +3380,6 @@ function getUrlTestConfigs(section) {
       id,
       code: getUrlTestTag(sectionName, id),
       displayName: getUrlTestDisplayName(section, id, settings),
-      pinDashboard: itemSettingBoolean(settings, "pin_dashboard", true),
       hideDashboardMembers: itemSettingBoolean(
         settings,
         "hide_dashboard_members",
@@ -3414,7 +3445,6 @@ function getFallbackConfigs(section) {
       sectionName,
       code: getFallbackTag(sectionName, id),
       displayName: itemSettingString(settings, "name", id),
-      pinDashboard: itemSettingBoolean(settings, "pin_dashboard", true),
       hideDashboardMembers: itemSettingBoolean(
         settings,
         "hide_dashboard_members",
@@ -3594,7 +3624,7 @@ function buildFallbackInfo({
     outbounds
   };
 }
-function buildProxyGroupOutbounds(section, proxies, outboundMetadata, exportableProviderTags = []) {
+function buildProxyGroupOutbounds(section, proxies, outboundMetadata, exportableProviderTags = [], dashboardSources) {
   const sectionName = section[".name"];
   const proxyByCode = getProxyEntryByCode(proxies);
   const selectorTag = getOutboundTagBySection(sectionName);
@@ -3615,7 +3645,10 @@ function buildProxyGroupOutbounds(section, proxies, outboundMetadata, exportable
     config,
     entry: proxyByCode.get(config.code)
   }));
-  const selectorCodes = selector?.value?.all ?? [];
+  const selectorCodes = orderCodesByDashboardSources(
+    selector?.value?.all ?? [],
+    dashboardSources
+  );
   const manualLinkByCode = buildManualLinkByCode(section, selectorCodes);
   const urlTestCodes = urlTestConfigs.map((config) => config.code);
   const fallbackGroupCodes = fallbackConfigs.map((config) => config.code);
@@ -3666,7 +3699,6 @@ function buildProxyGroupOutbounds(section, proxies, outboundMetadata, exportable
       id: code,
       code,
       displayName,
-      pinDashboard: false,
       hideDashboardMembers: false
     } : void 0);
     const urlTestInfo = effectiveUrlTestConfig ? buildUrlTestInfo({
@@ -3705,21 +3737,14 @@ function buildProxyGroupOutbounds(section, proxies, outboundMetadata, exportable
       }
     ];
   });
-  const sortedOutbounds = sortOutboundsForDashboard(outbounds, {
-    pinnedCodes: [
-      ...urlTestEntries.filter(({ config }) => config.pinDashboard).map(({ config }) => config.code),
-      ...fallbackEntries.filter(({ config }) => config.pinDashboard).map(({ config }) => config.code)
-    ],
-    sortByLatency: shouldSortByLatency(section)
-  });
-  const latencyTestCodes = sortedOutbounds.filter(
+  const latencyTestCodes = outbounds.filter(
     (outbound) => outbound.runtimeAvailable !== false && !isSelectorOutbound(outbound) && !outbound.fallbackInfo
   ).map((outbound) => outbound.code);
   return {
     selector,
     latencyTestCode: selector?.code || builtInUrltestCode,
     latencyTestCodes: latencyTestCodes.length > 0 ? latencyTestCodes : void 0,
-    outbounds: sortedOutbounds
+    outbounds
   };
 }
 function isSubscriptionMetadataVisible(section, sourceIndex) {
@@ -3847,8 +3872,9 @@ async function getDashboardSections() {
       const subscriptionSourceCount = getSubscriptionSourceCount(section);
       const subscriptionEnabled = subscriptionSourceCount > 0;
       const providerTags = getSectionProviderTags(section);
+      const runtimeSection = runtimeManifest.sections?.[sectionName];
       const outboundMetadata = getOutboundMetadata(
-        runtimeManifest.sections?.[sectionName],
+        runtimeSection,
         providerTags,
         proxies
       );
@@ -3862,7 +3888,8 @@ async function getDashboardSections() {
         section,
         proxies,
         outboundMetadata,
-        providerTags.slice(0, subscriptionSourceCount)
+        providerTags.slice(0, subscriptionSourceCount),
+        runtimeSection?.dashboardSources
       );
       return {
         withTagSelect: true,
@@ -5401,6 +5428,7 @@ var latencyJobIds = {};
 var latencyCancelRequests = /* @__PURE__ */ new Set();
 var cancellingLatencyJobs = /* @__PURE__ */ new Set();
 var cancellingLatencySections = /* @__PURE__ */ new Set();
+var latencySortedSections = /* @__PURE__ */ new Set();
 var latencyAckQueue = Promise.resolve();
 if (typeof window !== "undefined") {
   window.addEventListener("pagehide", () => {
@@ -5519,6 +5547,14 @@ function setSelectorSwitching(sectionName, tag) {
       selectorSwitchingSections
     }
   });
+}
+function handleSortByLatency(sectionName, enabled) {
+  if (enabled) {
+    latencySortedSections.add(sectionName);
+  } else {
+    latencySortedSections.delete(sectionName);
+  }
+  void renderSectionsWidget();
 }
 function setLatencyFetching(sectionName, fetching, local = false, progress, target) {
   if (local || !fetching) {
@@ -6529,6 +6565,8 @@ async function renderSectionsWidget() {
         sectionsWidget.subscriptionUpdatingSections[section.sectionName]
       ),
       selectorSwitchingTag: sectionsWidget.selectorSwitchingSections[section.sectionName],
+      sortByLatency: latencySortedSections.has(section.sectionName),
+      onSortByLatencyChange: handleSortByLatency,
       onTestLatency: (tag) => {
         if (section.withTagSelect) {
           if (Array.isArray(tag)) {
@@ -6968,8 +7006,31 @@ var styles = `
     display: flex;
     align-items: center;
     justify-content: flex-end;
+    flex-wrap: wrap;
     gap: 6px;
     flex: 0 0 auto;
+}
+
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__sort-by-latency {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+}
+
+.fkp_dashboard-page__outbound-section__sort-by-latency svg {
+    width: 15px;
+    height: 15px;
+    display: block;
+}
+
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__sort-by-latency--active {
+    background: color-mix(in srgb, currentColor 14%, transparent) !important;
 }
 
 .fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__subscription-update {

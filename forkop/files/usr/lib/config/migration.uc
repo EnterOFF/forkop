@@ -678,7 +678,6 @@ function migrate_urltest_item_settings(ctx, section, constants) {
         set_option(ctx, child, "testing_url", option(section, "urltest_testing_url", "https://www.gstatic.com/generate_204") || "https://www.gstatic.com/generate_204");
         set_option(ctx, child, "filter_mode", option(section, "urltest_filter_mode", "disabled") || "disabled");
         set_option(ctx, child, "interrupt_exist_connections", "1");
-        set_option(ctx, child, "pin_dashboard", "1");
 
         let idle_timeout = legacy_urltest_idle_timeout(section, constants);
         if (idle_timeout != "")
@@ -1974,6 +1973,14 @@ function migrate_subscription_headers(ctx) {
     }
 }
 
+function remove_dashboard_sort_options(ctx) {
+    for (let section in ctx.model.sections || [])
+        delete_option(ctx, section, "sort_by_latency");
+    for (let type_name in [ "urltest", "fallback_group" ])
+        for (let child in ctx.model[type_name] || [])
+            delete_option(ctx, child, "pin_dashboard");
+}
+
 const MIGRATIONS = [
     { id: "interface_sections", run: migrate_interface_sections },
     { id: "enable_component_checks", run: migrate_enable_component_checks },
@@ -1993,7 +2000,8 @@ const MIGRATIONS = [
     { id: "single_subscription_user_agent", run: migrate_single_subscription_user_agent },
     { id: "subscription_headers", run: migrate_subscription_headers },
     { id: "interface_display_names", run: migrate_interface_display_names },
-    { id: "remove_section_cache", run: remove_section_cache }
+    { id: "remove_section_cache", run: remove_section_cache },
+    { id: "remove_dashboard_sort_options", run: remove_dashboard_sort_options }
 ];
 
 function apply_migrations(ctx) {

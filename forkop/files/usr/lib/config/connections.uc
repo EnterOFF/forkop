@@ -863,13 +863,6 @@ function urltest_filter_mode(section, value) {
         option(section, "urltest_server_filter_mode", "all"));
 }
 
-function urltest_pin_dashboard(section, value) {
-    let child = urltest_child(section, value);
-    if (child != null)
-        return child_bool(child, "pin_dashboard", true);
-    return item_bool(section, "urltest_settings", value, "pin_dashboard", true);
-}
-
 function urltest_hide_dashboard_members(section, value) {
     let child = urltest_child(section, value);
     return child != null ? child_bool(child, "hide_dashboard_members", false) : false;
@@ -945,11 +938,6 @@ function fallback_group_idle_timeout(section, value) {
 function fallback_group_interrupt_exist_connections(section, value) {
     let child = fallback_group_child(section, value);
     return child != null ? child_bool(child, "interrupt_exist_connections", true) : true;
-}
-
-function fallback_group_pin_dashboard(section, value) {
-    let child = fallback_group_child(section, value);
-    return child != null ? child_bool(child, "pin_dashboard", true) : true;
 }
 
 function fallback_group_hide_dashboard_members(section, value) {
@@ -1088,7 +1076,6 @@ return {
     urltest_idle_timeout,
     urltest_interrupt_exist_connections,
     urltest_filter_mode,
-    urltest_pin_dashboard,
     urltest_hide_dashboard_members,
     urltest_include_outbounds,
     urltest_include_regex,
@@ -1105,7 +1092,6 @@ return {
     fallback_group_expected_status,
     fallback_group_idle_timeout,
     fallback_group_interrupt_exist_connections,
-    fallback_group_pin_dashboard,
     fallback_group_hide_dashboard_members,
     fallback_level_display_name,
     fallback_level_order,

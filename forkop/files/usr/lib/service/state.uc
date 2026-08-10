@@ -859,7 +859,6 @@ function urltests_signature(section) {
             testing_url: connections.urltest_testing_url(section, entry),
             idle_timeout: connections.urltest_idle_timeout(section, entry),
             interrupt_exist_connections: connections.urltest_interrupt_exist_connections(section, entry) ? "1" : "0",
-            pin_dashboard: connections.urltest_pin_dashboard(section, entry) ? "1" : "0",
             hide_dashboard_members: connections.urltest_hide_dashboard_members(section, entry) ? "1" : "0",
             server_filter_mode: connections.urltest_filter_mode(section, entry),
             include_outbounds: connections.urltest_include_outbounds(section, entry),
@@ -898,7 +897,6 @@ function fallback_groups_signature(section) {
             expected_status: connections.fallback_group_expected_status(section, group_id),
             idle_timeout: connections.fallback_group_idle_timeout(section, group_id),
             interrupt_exist_connections: connections.fallback_group_interrupt_exist_connections(section, group_id) ? "1" : "0",
-            pin_dashboard: connections.fallback_group_pin_dashboard(section, group_id) ? "1" : "0",
             hide_dashboard_members: connections.fallback_group_hide_dashboard_members(section, group_id) ? "1" : "0",
             levels
         });
