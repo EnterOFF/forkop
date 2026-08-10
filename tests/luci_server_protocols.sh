@@ -8,6 +8,7 @@ FE_SRC="$ROOT_DIR/fe-app-forkop/src"
 
 node - "$SERVER_JS" "$FORKOP_JS" <<'NODE'
 const fs = require("fs");
+const assert = require("assert");
 const source = fs.readFileSync(process.argv[2], "utf8");
 const entrySource = fs.readFileSync(process.argv[3], "utf8");
 
@@ -87,8 +88,9 @@ for (const needle of [
 for (const needle of [
   'sectionRef.map.data.createSID(configName)',
   'sectionRef.map.data.set(configName, sectionId, "label", label)',
-  'sectionRef.addLabeledSection = function (label)',
-  'this.addLabeledSection(label)',
+  'sectionRef.addLabeledSection = function ()',
+  'this.addLabeledSection()',
+  'click: ui.createHandlerFn(sectionRef, "handleAdd")',
   'return this.renderMoreOptionsModal(sectionId)',
 ]) {
   if (!entrySource.includes(needle)) {
@@ -97,12 +99,40 @@ for (const needle of [
   }
 }
 
-if (entrySource.includes('"uciname"')) {
-  console.error('FAIL: section display names must not use the UCI identifier validator');
+if (entrySource.includes('cbi-section-create-name')) {
+  console.error('FAIL: section tables must not require a name before adding');
   process.exit(1);
 }
 
-requireSource('const sectionId = this.addLabeledSection(name)');
+const addSectionHelper = entrySource.match(
+  /function addLabeledSection\([\s\S]*?\n}\n\nfunction getRuleEditButtonText\(/,
+);
+assert(addSectionHelper, 'labeled section helper not found');
+eval(addSectionHelper[0].slice(0, -'\n\nfunction getRuleEditButtonText('.length));
+
+for (const [sectiontype, expectedLabel] of [
+  ['section', 'Section #3'],
+  ['server', 'Server #3'],
+]) {
+  let savedLabel = null;
+  const sectionRef = {
+    sectiontype,
+    cfgsections: () => ['active-1', 'active-2'],
+    map: {
+      config: 'forkop',
+      data: {
+        createSID: () => 'cfg-new',
+        add: () => 'cfg-new',
+        set: (_config, _sectionId, _option, value) => { savedLabel = value; },
+      },
+    },
+  };
+
+  assert.strictEqual(addLabeledSection(sectionRef), 'cfg-new');
+  assert.strictEqual(savedLabel, expectedLabel);
+}
+
+requireSource('const sectionId = this.addLabeledSection()');
 NODE
 
 if grep -R -n -E 'singBoxVariant|sing_box_(extended|tiny|tailscale)|GET_SERVER_CAPABILITIES|GetServerCapabilities|Install another build|startsWith\(.install_' \

@@ -36,20 +36,13 @@ const UCI_PACKAGE = main.FORKOP_UCI_PACKAGE;
 function renderSectionAdd(sectionRef, extra_class) {
   const el = E("div", { class: "cbi-section-create" });
   const buttonTitle = sectionRef.titleFn("addbtntitle") || _("Add");
-  const nameEl = E("input", {
-    type: "text",
-    class: "cbi-section-create-name",
-    disabled: sectionRef.map.readonly || null,
-  });
   const button = E(
     "button",
     {
       class: "cbi-button cbi-button-add",
       title: buttonTitle,
-      click: ui.createHandlerFn(sectionRef, (ev) =>
-        sectionRef.handleAdd(ev, nameEl.value),
-      ),
-      disabled: true,
+      click: ui.createHandlerFn(sectionRef, "handleAdd"),
+      disabled: sectionRef.map.readonly || null,
     },
     [buttonTitle],
   );
@@ -58,26 +51,15 @@ function renderSectionAdd(sectionRef, extra_class) {
     el.classList.add(extra_class);
   }
 
-  el.appendChild(E("div", {}, nameEl));
   el.appendChild(button);
-
-  ui.addValidator(
-    nameEl,
-    "string",
-    true,
-    (value) => {
-      button.disabled = sectionRef.map.readonly || !value;
-      return true;
-    },
-    "blur",
-    "keyup",
-  );
 
   return el;
 }
 
-function addLabeledSection(sectionRef, label) {
+function addLabeledSection(sectionRef) {
   const configName = sectionRef.uciconfig || sectionRef.map.config;
+  const prefix = sectionRef.sectiontype === "section" ? "Section" : "Server";
+  const label = `${prefix} #${sectionRef.cfgsections().length + 1}`;
   const sectionId = sectionRef.map.data.add(
     configName,
     sectionRef.sectiontype,
@@ -110,11 +92,11 @@ function configureGridSection(sectionRef, type, title, addTitle) {
   sectionRef.renderSectionAdd = function (extra_class) {
     return renderSectionAdd(sectionRef, extra_class);
   };
-  sectionRef.addLabeledSection = function (label) {
-    return addLabeledSection(this, label);
+  sectionRef.addLabeledSection = function () {
+    return addLabeledSection(this);
   };
-  sectionRef.handleAdd = function (_ev, label) {
-    const sectionId = this.addLabeledSection(label);
+  sectionRef.handleAdd = function () {
+    const sectionId = this.addLabeledSection();
     const mapNode = this.getPreviousModalMap();
     const prevMap = mapNode ? dom.findClassInstance(mapNode) : this.map;
 

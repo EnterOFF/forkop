@@ -2403,8 +2403,8 @@ function configureServerSection(sectionRef) {
     );
   };
 
-  sectionRef.handleAdd = function (_ev, name) {
-    const sectionId = this.addLabeledSection(name);
+  sectionRef.handleAdd = function () {
+    const sectionId = this.addLabeledSection();
     const mapNode = this.getPreviousModalMap();
     const prevMap = mapNode ? dom.findClassInstance(mapNode) : this.map;
 
