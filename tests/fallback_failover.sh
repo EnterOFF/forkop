@@ -196,6 +196,16 @@ if output="$(validate "$WORK_DIR/bad-status.json" 2>/dev/null)"; then
 fi
 grep -Fq 'expected_status' <<<"$output"
 
+for invalid_status in 99 600 299-200; do
+  sed -e 's/"max_failed_times": "0"/"max_failed_times": "5"/' \
+      -e "s/\"expected_status\": \"200-bad\"/\"expected_status\": \"$invalid_status\"/" \
+      "$WORK_DIR/bad-health-policy.json" >"$WORK_DIR/bad-status-range.json"
+  if validate "$WORK_DIR/bad-status-range.json" >/dev/null 2>&1; then
+    printf 'invalid Fallback expected status %s was accepted\n' "$invalid_status" >&2
+    exit 1
+  fi
+done
+
 cat >"$WORK_DIR/bad-idle.json" <<'JSON'
 {
   "settings": { ".name": "settings", ".type": "settings", "dns_server": ["77.88.8.8"], "bootstrap_dns_server": ["77.88.8.8"] },

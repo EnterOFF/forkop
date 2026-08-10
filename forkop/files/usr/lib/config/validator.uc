@@ -362,6 +362,9 @@ function absolute_reference(value) {
 
 function ruleset_reference_valid(reference, community_services) {
     reference = as_string(reference);
+    let path = lc(replace(reference, /[?#].*$/, ""));
+    if (match(path, /\.ya?ml$/) != null)
+        return false;
 
     return reference == "" ||
         community_service_valid(reference, community_services) ||
@@ -1042,11 +1045,18 @@ function fallback_expected_status_valid(value) {
         let bounds = split(part, "-");
         if (length(bounds) < 1 || length(bounds) > 2)
             return false;
+        let parsed_bounds = [];
         for (let bound in bounds) {
             bound = replace(trim(as_string(bound)), /[\[\] ]/g, "");
-            if (match(bound, /^[0-9]+$/) == null || int(bound, 10) > 65535)
+            if (match(bound, /^[0-9]+$/) == null)
                 return false;
+            let parsed = int(bound, 10);
+            if (parsed < 100 || parsed > 599)
+                return false;
+            push(parsed_bounds, parsed);
         }
+        if (length(parsed_bounds) == 2 && parsed_bounds[0] > parsed_bounds[1])
+            return false;
     }
     return true;
 }

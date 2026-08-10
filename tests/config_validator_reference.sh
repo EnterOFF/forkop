@@ -36,10 +36,11 @@ assert_accepts "community ruleset reference" ruleset-reference-valid telegram "$
 assert_accepts "https ruleset reference" ruleset-reference-valid https://example.com/rule.srs "$COMMUNITY_SERVICES"
 assert_accepts "absolute srs ruleset reference" ruleset-reference-valid /tmp/rule.srs "$COMMUNITY_SERVICES"
 assert_accepts "absolute json ruleset reference" ruleset-reference-valid /tmp/rule.json "$COMMUNITY_SERVICES"
-assert_accepts "absolute yaml ruleset reference" ruleset-reference-valid /tmp/rule.yaml "$COMMUNITY_SERVICES"
 assert_accepts "absolute text ruleset reference" ruleset-reference-valid /tmp/rule.lst "$COMMUNITY_SERVICES"
 assert_accepts "extensionless ruleset reference" ruleset-reference-valid /tmp/rule "$COMMUNITY_SERVICES"
+assert_rejects "absolute yaml ruleset reference" ruleset-reference-valid /tmp/rule.yaml "$COMMUNITY_SERVICES"
+assert_rejects "remote yml ruleset reference" ruleset-reference-valid 'https://example.com/rule.yml?token=secret' "$COMMUNITY_SERVICES"
 assert_rejects "relative ruleset reference" ruleset-reference-valid relative/rule.srs "$COMMUNITY_SERVICES"
-assert_rejects "unsupported ruleset URL" ruleset-reference-valid ftp://example.com/rule.yaml "$COMMUNITY_SERVICES"
+assert_rejects "unsupported ruleset URL" ruleset-reference-valid ftp://example.com/rule.srs "$COMMUNITY_SERVICES"
 
 printf 'config validator reference checks passed\n'

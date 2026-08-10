@@ -200,7 +200,7 @@ const fixture = {
       '.name': 'legacy-dns-list',
       '.type': 'section',
       action: 'dns',
-      domain_ip_lists: [ '/etc/forkop/dns-list.yml' ]
+      domain_ip_lists: [ '/etc/forkop/dns-list.txt' ]
     },
     {
       '.name': 'legacy-zap',
@@ -474,7 +474,7 @@ for (const key of ['local_domain_lists', 'local_subnet_lists', 'remote_domain_li
   absent(legacyDirect, key, 'legacy-direct');
 
 const legacyDnsList = sections['legacy-dns-list'];
-assert(JSON.stringify(legacyDnsList.rule_set) === JSON.stringify(['/etc/forkop/dns-list.yml']), 'DNS lists should migrate without subnet settings');
+assert(JSON.stringify(legacyDnsList.rule_set) === JSON.stringify(['/etc/forkop/dns-list.txt']), 'DNS lists should migrate without subnet settings');
 absent(legacyDnsList, 'domain_ip_lists', 'legacy-dns-list');
 
 const legacyExclusion = sections['legacy-exclusion'];
