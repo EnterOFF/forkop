@@ -27,8 +27,6 @@ export function validateProxyUrl(url: string): ValidationResult {
 
   return {
     valid: false,
-    message: _(
-      'Use a native sing-box link: vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, hy2://, naive+https://, naive+quic://, mieru://, or mierus://',
-    ),
+    message: _('The pasted link is not supported. Try JSON outbound.'),
   };
 }

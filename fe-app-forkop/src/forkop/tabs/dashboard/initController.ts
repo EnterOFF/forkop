@@ -1040,12 +1040,7 @@ function renderFallbackSelectedValue(info: Forkop.FallbackInfo) {
             .filter(Boolean)
             .join(' '),
         },
-        selectedMember
-          ? renderFallbackMemberName(
-              selectedMember,
-              info.outbounds.indexOf(selectedMember),
-            )
-          : name,
+        selectedMember ? renderFallbackMemberName(selectedMember) : name,
       ),
       ...(selectedMember?.type
         ? [
@@ -1069,18 +1064,10 @@ function renderFallbackSelectedValue(info: Forkop.FallbackInfo) {
   );
 }
 
-function renderFallbackMemberName(
-  member: Forkop.FallbackMember,
-  priorityIndex = 0,
-) {
+function renderFallbackMemberName(member: Forkop.FallbackMember) {
   const levelName = member.levelName || _('Level');
 
   return [
-    E(
-      'span',
-      { class: 'fkp_dashboard-page__urltest-details__fallback-number' },
-      `#${priorityIndex + 1}`,
-    ),
     E(
       'span',
       { class: 'fkp_dashboard-page__urltest-details__fallback-level' },
@@ -1117,7 +1104,10 @@ function renderFallbackInfoModal(outbound: Forkop.Outbound) {
     { label: _('Check interval'), value: info.healthCheckInterval },
     { label: _('Availability timeout'), value: info.healthCheckTimeout },
     { label: _('Maximum failed attempts'), value: info.maxFailedTimes },
-    { label: _('Expected status'), value: info.expectedStatus },
+    {
+      label: _('Expected status'),
+      value: info.expectedStatus === '*' ? _('Any') : info.expectedStatus,
+    },
     { label: _('Idle timeout'), value: info.idleTimeout },
     {
       label: _('Interrupt connections'),
@@ -1150,7 +1140,7 @@ function renderFallbackInfoModal(outbound: Forkop.Outbound) {
         'div',
         { class: 'fkp_dashboard-page__urltest-details__table' },
         info.outbounds.length
-          ? info.outbounds.map((member, index) =>
+          ? info.outbounds.map((member) =>
               E(
                 'div',
                 {
@@ -1176,7 +1166,7 @@ function renderFallbackInfoModal(outbound: Forkop.Outbound) {
                           class:
                             'fkp_dashboard-page__urltest-details__fallback-name',
                         },
-                        renderFallbackMemberName(member, index),
+                        renderFallbackMemberName(member),
                       ),
                       ...(member.type
                         ? [

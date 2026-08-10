@@ -203,8 +203,6 @@ export const styles = `
 }
 
 .fkp_dashboard-page__subscription-meta {
-    --subscription-meta-action-size: 28px;
-    --subscription-meta-action-gap: 6px;
     grid-column: 1 / -1;
     border: 2px var(--background-color-low, lightgray) solid;
     border-radius: 4px;
@@ -239,7 +237,7 @@ export const styles = `
 }
 
 .fkp_dashboard-page__subscription-meta__facts {
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     min-width: 0;
     display: flex;
     flex-wrap: wrap;
@@ -269,32 +267,23 @@ export const styles = `
 
 .fkp_dashboard-page__subscription-meta__actions {
     flex: 0 0 auto;
-    margin-left: auto;
     display: flex;
-    justify-content: flex-end;
-    gap: var(--subscription-meta-action-gap);
+    justify-content: flex-start;
+    gap: 8px;
 }
 
-.fkp_dashboard-page .btn.fkp_dashboard-page__subscription-meta__action {
-    width: var(--subscription-meta-action-size);
-    height: var(--subscription-meta-action-size);
-    min-width: var(--subscription-meta-action-size);
-    min-height: var(--subscription-meta-action-size);
-    padding: 2px;
-    box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 auto;
-    line-height: 1;
-    margin: 0;
+.fkp_dashboard-page__subscription-meta__action {
+    color: var(--text-color-medium, #888);
+    font-size: 12px;
+    text-decoration: none;
+    transition: color 0.15s ease;
 }
 
-.fkp_dashboard-page__subscription-meta__action svg {
-    width: 15px;
-    height: 15px;
-    display: block;
-    flex: 0 0 auto;
+.fkp_dashboard-page__subscription-meta__action:hover,
+.fkp_dashboard-page__subscription-meta__action:focus-visible {
+    color: var(--primary-color-high, #337ab7);
+    text-decoration: underline;
+    text-underline-offset: 3px;
 }
 
 .fkp_dashboard-page__subscription-meta__announce {
@@ -643,14 +632,6 @@ export const styles = `
     align-items: center;
     flex-wrap: wrap;
     gap: 2px 0;
-}
-
-.fkp_dashboard-page__urltest-details__fallback-number {
-    margin-right: 6px;
-    color: var(--text-color-medium, #aaa);
-    font-family: monospace;
-    font-size: 13px;
-    font-weight: 600;
 }
 
 .fkp_dashboard-page__urltest-details__fallback-level {

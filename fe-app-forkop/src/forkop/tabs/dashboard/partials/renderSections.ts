@@ -1,7 +1,6 @@
 import {
   renderLoaderCircleIcon24,
   renderCopyIcon24,
-  renderLinkIcon24,
   renderInfoIcon24,
   renderRotateCcwIcon24,
 } from '../../../../icons';
@@ -99,14 +98,14 @@ function renderMetadataAction(label: string, url?: string) {
   return E(
     'a',
     {
-      class: 'btn fkp_dashboard-page__subscription-meta__action',
+      class: 'fkp_dashboard-page__subscription-meta__action',
       href: url,
       target: '_blank',
       rel: 'noopener noreferrer',
       title: label,
       'aria-label': label,
     },
-    renderLinkIcon24(),
+    `${label} ↗`,
   );
 }
 

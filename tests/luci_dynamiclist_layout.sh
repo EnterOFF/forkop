@@ -59,6 +59,25 @@ const helper = source.match(
 assert(helper, 'server filter synchronization helper not found');
 eval(helper[0].slice(0, -'\n\nfunction addServerFilterOptions('.length));
 
+const nameHelpers = source.match(
+  /function normalizeDynamicListItems\([\s\S]*?\n}\n\nfunction uniqueDynamicListItems\(/,
+);
+assert(nameHelpers, 'DynamicList name helper not found');
+eval(nameHelpers[0].slice(0, -'\n\nfunction uniqueDynamicListItems('.length));
+
+const visibleItems = { value: [] };
+const nameOption = { formvalue: () => visibleItems.value };
+assert.strictEqual(
+  nextDynamicListName(nameOption, 'settings', ['saved-1', 'saved-2'], 'Group'),
+  'Group #1',
+  'deleted unsaved rows must not affect the next generated name',
+);
+visibleItems.value = ['visible-1', 'visible-2'];
+assert.strictEqual(
+  nextDynamicListName(nameOption, 'settings', [], 'Group'),
+  'Group #3',
+);
+
 const values = { include: ['Alpha'], exclude: [] };
 const field = (mode) => ({
   getUIElement() {
@@ -296,8 +315,14 @@ grep -Fq 'interrupt_exist_connections: "1"' "$SECTION_JS" ||
 if grep -Fq 'blacklist_timeout' <<<"$fallback_group_options"; then
   fail "Fallback settings still expose blacklist_timeout"
 fi
-grep -Fq 'defaults.name = `Priority #${number}`;' "$SECTION_JS" ||
-  fail "new Fallback levels must receive sequential Priority names"
+for generated_name in \
+  '"Tunnel"' \
+  '"URLTest"' \
+  '"Fallback"' \
+  '"Group"'; do
+  grep -Fq "$generated_name" "$SECTION_JS" ||
+    fail "generated DynamicList name is missing: $generated_name"
+done
 if grep -Eq 'dashboard_(filter|include|exclude|detect)|Servers on dashboard|addDashboardServerFilterOptions' "$SECTION_JS"; then
   fail "legacy section-wide dashboard server filtering must stay removed"
 fi
@@ -327,7 +352,7 @@ grep -Fq 'if (currentSignature === choiceSignature)' "$SECTION_JS" ||
 if grep -Fq 'widget.setValue(' <<<"$live_choices"; then
   fail "live choice refresh must not rewrite selected server filters"
 fi
-grep -Fq 'Add an HTTP(S) URL or local path. The format is detected automatically.' <<<"$create_section" ||
+grep -Fq 'Add a link or local path. The format is detected automatically.' <<<"$create_section" ||
   fail "universal rule sets must explain automatic format detection"
 grep -Fq 'ruleSetOption.hasItemSettings = function (section_id)' <<<"$create_section" ||
   fail "routing actions must retain per-item subnet settings"

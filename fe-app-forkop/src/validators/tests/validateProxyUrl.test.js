@@ -67,11 +67,9 @@ describe('validateProxyUrl', () => {
     const res = validateProxyUrl('wireguard://example.com');
 
     expect(res.valid).toBe(false);
-    expect(res.message).toContain('vmess://');
-    expect(res.message).toContain('socks://');
-    expect(res.message).toContain('hy2://');
-    expect(res.message).toContain('naive+https://');
-    expect(res.message).toContain('mierus://');
+    expect(res.message).toBe(
+      'The pasted link is not supported. Try JSON outbound.',
+    );
   });
 
   it('rejects native HTTP proxy URLs', () => {

@@ -3,6 +3,7 @@ set -eo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SECTION_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js"
+FORKOP_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js"
 SOURCE_PO="$ROOT_DIR/fe-app-forkop/locales/forkop.ru.po"
 PACKAGE_PO="$ROOT_DIR/luci-app-forkop/po/ru/forkop.po"
 SOURCE_POT="$ROOT_DIR/fe-app-forkop/locales/forkop.pot"
@@ -24,10 +25,17 @@ if grep -Fq 'http(s)://, hy2/hysteria2:// links' \
   "$SECTION_JS" "$SOURCE_PO" "$PACKAGE_PO" "$SOURCE_POT" "$PACKAGE_POT" "$CALLS_JSON"; then
   fail "Connection URL help must not advertise removed HTTP proxy links"
 fi
-grep -Fq 'vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, hy2://, naive+https://, naive+quic://, mieru://, and mierus://' "$SECTION_JS" ||
-  fail "Connection URL help must list all supported proxy links"
+grep -Fq 'Supported links: vless, vmess, shadowsocks, trojan, socks, tuic, hysteria, naiveproxy, mieru' "$SECTION_JS" ||
+  fail "Connection URL help must summarize the supported proxy link types"
 if grep -Fq 'Native sing-box links:' "$SECTION_JS"; then
   fail "Connection URL help must start with examples"
+fi
+grep -Fq 'querySelector?.(".placeholder em")' "$FORKOP_JS" ||
+  fail "empty sections text must preserve the LuCI table cell"
+grep -Fq 'What Forkop should do when this section'"'"'s conditions match' "$SECTION_JS" ||
+  fail "section action help must mention matching conditions"
+if grep -Fq 'Visible name of this section' "$SECTION_JS"; then
+  fail "section name must not keep the redundant description"
 fi
 
 for po in "$SOURCE_PO" "$PACKAGE_PO"; do

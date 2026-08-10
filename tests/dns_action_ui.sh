@@ -3,8 +3,24 @@ set -eo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SECTION_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js"
+SETTINGS_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js"
 LOCAL_DEVICES_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/local_devices.js"
 ACL_JSON="$ROOT_DIR/luci-app-forkop/root/usr/share/rpcd/acl.d/luci-app-forkop.json"
+
+for expected in \
+  '_("Preferred IP address type for domains")' \
+  '_("DNS through section")' \
+  '_("DNS requests through")'; do
+  grep -Fq "$expected" "$SETTINGS_JS" || {
+    printf 'FAIL: missing settings DNS copy: %s\n' "$expected" >&2
+    exit 1
+  }
+done
+
+if grep -Fq '_("DNS through proxy")' "$SETTINGS_JS"; then
+  printf 'FAIL: settings still use the proxy-specific DNS label\n' >&2
+  exit 1
+fi
 
 node - "$SECTION_JS" "$LOCAL_DEVICES_JS" "$ACL_JSON" <<'NODE'
 const fs = require("fs");
@@ -46,7 +62,7 @@ if (source.slice(server, requiredIndex('"dns_detour_enabled"', server)).includes
 for (const expected of [
   '_("DNS server used by the resolver")',
   '_("DNS requests through section")',
-  '"Add an HTTP(S) URL or local path. The format is detected automatically."',
+  '"Add a link or local path. The format is detected automatically."',
 ]) {
   requiredIndex(expected);
 }

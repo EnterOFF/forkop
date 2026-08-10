@@ -215,7 +215,12 @@ function createSettingsContent(section, capabilities) {
     return true;
   };
 
-  o = section.option(form.ListValue, "dns_strategy", _("DNS Strategy"));
+  o = section.option(
+    form.ListValue,
+    "dns_strategy",
+    _("DNS Strategy"),
+    _("Preferred IP address type for domains"),
+  );
   o.value("prefer_ipv4", _("Prefer IPv4"));
   o.value("ipv4_only", _("IPv4 only"));
   o.value("prefer_ipv6", _("Prefer IPv6"));
@@ -226,7 +231,7 @@ function createSettingsContent(section, capabilities) {
   o = section.option(
     form.Flag,
     "dns_detour_enabled",
-    _("DNS through proxy"),
+    _("DNS through section"),
     _("Route main DNS requests through the selected section."),
   );
   configureDownloadViaProxyFlag(o, "dns_detour_section");
@@ -234,7 +239,7 @@ function createSettingsContent(section, capabilities) {
   o = section.option(
     form.ListValue,
     "dns_detour_section",
-    _("DNS requests through section"),
+    _("DNS requests through"),
   );
   o.depends("dns_detour_enabled", "1");
   configureDownloadSectionOption(o, "dns_detour_section", capabilities);
@@ -432,7 +437,7 @@ function createSettingsContent(section, capabilities) {
     form.Flag,
     "bittorrent_direct",
     _("Torrents directly"),
-    _("Force detected P2P BitTorrent traffic to route directly."),
+    _("Route BitTorrent traffic handled by sing-box directly."),
   );
   o.default = "0";
   o.rmempty = false;
@@ -531,7 +536,7 @@ function createSettingsContent(section, capabilities) {
     "unified_delay",
     _("Accurate latency measurement"),
     _(
-      "Includes connection setup and TLS handshake time. The measurement takes longer but provides more accurate and realistic results.",
+      "Includes connection setup and TLS handshake time. The measurement takes longer but provides a more accurate result.",
     ),
   );
   o.default = "0";
@@ -542,7 +547,7 @@ function createSettingsContent(section, capabilities) {
     "latency_test_url",
     _("Latency test URL"),
     _(
-      "Default address for checking server availability and latency. URLTest uses its own address.",
+      "Default URL for latency testing.",
     ),
   );
   latencyTestUrlChoices().forEach((value) => o.value(value));

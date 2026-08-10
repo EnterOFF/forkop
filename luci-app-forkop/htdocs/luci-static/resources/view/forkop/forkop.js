@@ -389,6 +389,15 @@ const EntryPoint = {
       _("Section"),
       _("Add a section"),
     );
+    const renderRuleContents = rulesSection.renderContents;
+    rulesSection.renderContents = function () {
+      const node = renderRuleContents.apply(this, arguments);
+      const placeholder = node.querySelector?.(".placeholder em");
+      if (placeholder) {
+        placeholder.textContent = _("Add a section to configure routing");
+      }
+      return node;
+    };
     section.configureSectionSection(rulesSection, {
       loadActionProvidersAvailability: loadUiCapabilities,
     });

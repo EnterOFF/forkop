@@ -353,9 +353,7 @@ function validateProxyUrl(url) {
     return { valid: true, message: _("Valid") };
   return {
     valid: false,
-    message: _(
-      "Use a native sing-box link: vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, hy2://, naive+https://, naive+quic://, mieru://, or mierus://"
-    )
+    message: _("The pasted link is not supported. Try JSON outbound.")
   };
 }
 
@@ -1529,33 +1527,6 @@ function renderCopyIcon24() {
   );
 }
 
-// src/icons/renderLinkIcon24.ts
-function renderLinkIcon24() {
-  return svgEl(
-    "svg",
-    {
-      xmlns: "http://www.w3.org/2000/svg",
-      width: "24",
-      height: "24",
-      viewBox: "0 0 24 24",
-      fill: "none",
-      stroke: "currentColor",
-      "stroke-width": "2",
-      "stroke-linecap": "round",
-      "stroke-linejoin": "round",
-      class: "lucide lucide-link-icon lucide-link"
-    },
-    [
-      svgEl("path", {
-        d: "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"
-      }),
-      svgEl("path", {
-        d: "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"
-      })
-    ]
-  );
-}
-
 // src/icons/renderDownloadIcon24.ts
 function renderDownloadIcon24() {
   const NS = "http://www.w3.org/2000/svg";
@@ -1677,14 +1648,14 @@ function renderMetadataAction(label, url) {
   return E(
     "a",
     {
-      class: "btn fkp_dashboard-page__subscription-meta__action",
+      class: "fkp_dashboard-page__subscription-meta__action",
       href: url,
       target: "_blank",
       rel: "noopener noreferrer",
       title: label,
       "aria-label": label
     },
-    renderLinkIcon24()
+    `${label} \u2197`
   );
 }
 function renderSubscriptionMetadata(metadata) {
@@ -6183,10 +6154,7 @@ function renderFallbackSelectedValue(info) {
             selectedMember ? "fkp_dashboard-page__urltest-details__fallback-name" : ""
           ].filter(Boolean).join(" ")
         },
-        selectedMember ? renderFallbackMemberName(
-          selectedMember,
-          info.outbounds.indexOf(selectedMember)
-        ) : name
+        selectedMember ? renderFallbackMemberName(selectedMember) : name
       ),
       ...selectedMember?.type ? [
         E(
@@ -6205,14 +6173,9 @@ function renderFallbackSelectedValue(info) {
     ]
   );
 }
-function renderFallbackMemberName(member, priorityIndex = 0) {
+function renderFallbackMemberName(member) {
   const levelName = member.levelName || _("Level");
   return [
-    E(
-      "span",
-      { class: "fkp_dashboard-page__urltest-details__fallback-number" },
-      `#${priorityIndex + 1}`
-    ),
     E(
       "span",
       { class: "fkp_dashboard-page__urltest-details__fallback-level" },
@@ -6242,7 +6205,10 @@ function renderFallbackInfoModal(outbound) {
     { label: _("Check interval"), value: info.healthCheckInterval },
     { label: _("Availability timeout"), value: info.healthCheckTimeout },
     { label: _("Maximum failed attempts"), value: info.maxFailedTimes },
-    { label: _("Expected status"), value: info.expectedStatus },
+    {
+      label: _("Expected status"),
+      value: info.expectedStatus === "*" ? _("Any") : info.expectedStatus
+    },
     { label: _("Idle timeout"), value: info.idleTimeout },
     {
       label: _("Interrupt connections"),
@@ -6274,7 +6240,7 @@ function renderFallbackInfoModal(outbound) {
         "div",
         { class: "fkp_dashboard-page__urltest-details__table" },
         info.outbounds.length ? info.outbounds.map(
-          (member, index) => E(
+          (member) => E(
             "div",
             {
               class: [
@@ -6294,7 +6260,7 @@ function renderFallbackInfoModal(outbound) {
                     {
                       class: "fkp_dashboard-page__urltest-details__fallback-name"
                     },
-                    renderFallbackMemberName(member, index)
+                    renderFallbackMemberName(member)
                   ),
                   ...member.type ? [
                     E(
@@ -7056,8 +7022,6 @@ var styles = `
 }
 
 .fkp_dashboard-page__subscription-meta {
-    --subscription-meta-action-size: 28px;
-    --subscription-meta-action-gap: 6px;
     grid-column: 1 / -1;
     border: 2px var(--background-color-low, lightgray) solid;
     border-radius: 4px;
@@ -7092,7 +7056,7 @@ var styles = `
 }
 
 .fkp_dashboard-page__subscription-meta__facts {
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     min-width: 0;
     display: flex;
     flex-wrap: wrap;
@@ -7122,32 +7086,23 @@ var styles = `
 
 .fkp_dashboard-page__subscription-meta__actions {
     flex: 0 0 auto;
-    margin-left: auto;
     display: flex;
-    justify-content: flex-end;
-    gap: var(--subscription-meta-action-gap);
+    justify-content: flex-start;
+    gap: 8px;
 }
 
-.fkp_dashboard-page .btn.fkp_dashboard-page__subscription-meta__action {
-    width: var(--subscription-meta-action-size);
-    height: var(--subscription-meta-action-size);
-    min-width: var(--subscription-meta-action-size);
-    min-height: var(--subscription-meta-action-size);
-    padding: 2px;
-    box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 auto;
-    line-height: 1;
-    margin: 0;
+.fkp_dashboard-page__subscription-meta__action {
+    color: var(--text-color-medium, #888);
+    font-size: 12px;
+    text-decoration: none;
+    transition: color 0.15s ease;
 }
 
-.fkp_dashboard-page__subscription-meta__action svg {
-    width: 15px;
-    height: 15px;
-    display: block;
-    flex: 0 0 auto;
+.fkp_dashboard-page__subscription-meta__action:hover,
+.fkp_dashboard-page__subscription-meta__action:focus-visible {
+    color: var(--primary-color-high, #337ab7);
+    text-decoration: underline;
+    text-underline-offset: 3px;
 }
 
 .fkp_dashboard-page__subscription-meta__announce {
@@ -7496,14 +7451,6 @@ var styles = `
     align-items: center;
     flex-wrap: wrap;
     gap: 2px 0;
-}
-
-.fkp_dashboard-page__urltest-details__fallback-number {
-    margin-right: 6px;
-    color: var(--text-color-medium, #aaa);
-    font-family: monospace;
-    font-size: 13px;
-    font-weight: 600;
 }
 
 .fkp_dashboard-page__urltest-details__fallback-level {

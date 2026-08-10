@@ -754,6 +754,22 @@ function normalizeDynamicListItems(value) {
   return normalized.length ? [normalized] : [];
 }
 
+function nextDynamicListName(option, formSectionId, savedItems, prefix) {
+  let current = null;
+  if (option && typeof option.formvalue === "function") {
+    try {
+      current = option.formvalue(formSectionId);
+    } catch (_error) {
+      // The widget is not mounted; use the saved child sections below.
+    }
+  }
+
+  const items = normalizeDynamicListItems(
+    current == null ? savedItems : current,
+  );
+  return `${prefix} #${items.length + 1}`;
+}
+
 function uniqueDynamicListItems(value) {
   const seen = new Set();
   const result = [];
@@ -2523,7 +2539,7 @@ function urlTestSettingsKeys() {
 
 function defaultUrlTestSettings(name) {
   return {
-    name: "",
+    name: `${name || ""}`,
     check_interval: "3m",
     tolerance: "50",
     testing_url: "https://www.gstatic.com/generate_204",
@@ -2563,9 +2579,9 @@ function fallbackGroupSettingsKeys() {
   ];
 }
 
-function defaultFallbackGroupSettings() {
+function defaultFallbackGroupSettings(name = "") {
   return {
-    name: "",
+    name,
     health_check_url: "https://www.gstatic.com/generate_204",
     health_check_interval: "5m",
     health_check_timeout: "5s",
@@ -2929,8 +2945,8 @@ function addUrlTestItemOptions(itemSection, options = {}) {
   o = itemSection.option(
     form.Flag,
     "hide_dashboard_members",
-    _("Hide servers from dashboard"),
-    _("Hide individual servers used by this group; keep the group visible."),
+    _("Hide group servers"),
+    _("Hide servers included in this group from the dashboard."),
   );
   o.default = "0";
   o.rmempty = false;
@@ -3117,7 +3133,7 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
     "max_failed_times",
     _("Maximum failed attempts"),
     _(
-      "Number of connection failures during the availability timeout after which Fallback starts an immediate health check. Connection refused is checked immediately.",
+      "Number of connection failures after which an immediate health check starts.",
     ),
   );
   o.default = "5";
@@ -3173,8 +3189,8 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
   o = itemSection.option(
     form.Flag,
     "hide_dashboard_members",
-    _("Hide servers from dashboard"),
-    _("Hide individual servers used by this group; keep the group visible."),
+    _("Hide group servers"),
+    _("Hide servers included in this group from the dashboard."),
   );
   o.default = "0";
   o.rmempty = false;
@@ -3183,11 +3199,11 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
     ButtonAddSettingsDynamicList,
     "fallback_level",
     _("Fallback levels"),
-    _("Levels are tried from top to bottom until one succeeds"),
+    _("Required. Levels are tried from top to bottom until one succeeds"),
   );
   o.rmempty = false;
   o.modalonly = true;
-  o.addButtonLabel = _("+ Add level");
+  o.addButtonLabel = _("+ Add servers");
   o.childType = "fallback_level";
   o.ownerOption = "group";
   o.childOwnerId = ownerId;
@@ -3556,11 +3572,19 @@ function showUrlTestSettingsModal(
   itemNode,
   context = {},
 ) {
+  const defaultName = context.adding
+    ? nextDynamicListName(
+        option,
+        _section_id,
+        getChildItemIds(_section_id, "urltest"),
+        "URLTest",
+      )
+    : "";
   return showChildItemSettingsModal(_section_id, itemValue, option, {
     typeName: "urltest",
     valueOption: "name",
     keys: urlTestSettingsKeys(),
-    defaults: defaultUrlTestSettings,
+    defaults: () => defaultUrlTestSettings(defaultName),
     addOptions: addUrlTestItemOptions,
     validateName: validateUniqueDynamicListItemName.bind(
       null,
@@ -3600,27 +3624,14 @@ function showFallbackLevelSettingsModal(
   itemNode,
   context = {},
 ) {
-  let currentLevels = [];
-  if (option && typeof option.formvalue === "function") {
-    currentLevels = normalizeDynamicListItems(option.formvalue("settings"));
-  }
-  if (!currentLevels.length) {
-    currentLevels = getChildItemIds(groupId, "fallback_level", "group");
-  }
   const defaults = defaultFallbackLevelSettings();
   if (context.adding) {
-    const names = new Set(
-      currentLevels.map((value) =>
-        typeof option.inputValueForItem === "function"
-          ? option.inputValueForItem(groupId, value)
-          : `${value || ""}`,
-      ),
+    defaults.name = nextDynamicListName(
+      option,
+      "settings",
+      getChildItemIds(groupId, "fallback_level", "group"),
+      "Group",
     );
-    let number = currentLevels.length + 1;
-    while (names.has(`Priority #${number}`)) {
-      number += 1;
-    }
-    defaults.name = `Priority #${number}`;
   }
 
   return showChildItemSettingsModal(groupId, itemValue, option, {
@@ -3686,11 +3697,20 @@ function showFallbackGroupSettingsModal(
     return null;
   }
 
+  const defaultName = context.adding
+    ? nextDynamicListName(
+        option,
+        section_id,
+        getChildItemIds(section_id, "fallback_group"),
+        "Fallback",
+      )
+    : "";
+
   return showChildItemSettingsModal(section_id, groupId, option, {
     typeName: "fallback_group",
     valueOption: "name",
     keys: fallbackGroupSettingsKeys(),
-    defaults: defaultFallbackGroupSettings(),
+    defaults: defaultFallbackGroupSettings(defaultName),
     addOptions: addFallbackGroupItemOptions,
     validateName: validateUniqueDynamicListItemName.bind(
       null,
@@ -4618,7 +4638,7 @@ function showTunnelImportModal(parentMap, fields) {
 function showTunnelSettingsModal(
   section_id,
   itemValue,
-  _option,
+  option,
   widget,
   itemNode,
   context = {},
@@ -4631,6 +4651,14 @@ function showTunnelSettingsModal(
   }
 
   const data = { settings: tunnelInitialSettings(tunnelId, section_id) };
+  if (context.adding) {
+    data.settings.name = nextDynamicListName(
+      option,
+      section_id,
+      getChildItemIds(section_id, "tunnel"),
+      "Tunnel",
+    );
+  }
   const map = new form.JSONMap(data);
   const itemSection = map.section(form.NamedSection, "settings");
   itemSection.anonymous = true;
@@ -4867,7 +4895,7 @@ function showTunnelSettingsModal(
     ButtonAddSettingsDynamicList,
     "peer_ids",
     _("Peers"),
-    _("List of remote WireGuard nodes to connect."),
+    _("Required. List of remote nodes to connect."),
   );
   peersOption.rmempty = false;
   peersOption.depends("tunnel_type", "wireguard");
@@ -8210,7 +8238,6 @@ function createSectionContent(section) {
     form.Value,
     "label",
     _("Section name"),
-    _("Visible name of this section"),
   );
   o.rmempty = false;
   o.modalonly = true;
@@ -8223,7 +8250,7 @@ function createSectionContent(section) {
     form.ListValue,
     "action",
     _("Action"),
-    _("What Forkop should do when this section matches"),
+    _("What Forkop should do when this section's conditions match"),
   );
   populateActionOptionValues(o);
   o.default = "connection";
@@ -8432,9 +8459,9 @@ function createSectionContent(section) {
     "settings",
     form.DynamicList,
     "selector_proxy_links",
-    _("Connection URL"),
+    _("Connection URI"),
     _(
-      "vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, hy2://, naive+https://, naive+quic://, mieru://, and mierus://",
+      "Supported links: vless, vmess, shadowsocks, trojan, socks, tuic, hysteria, naiveproxy, mieru",
     ),
   );
   o.depends("action", "connection");
@@ -8469,8 +8496,8 @@ function createSectionContent(section) {
     "settings",
     SettingsDynamicList,
     "subscription_url",
-    _("Subscription URL"),
-    _("Enter the subscription URL"),
+    _("Subscription"),
+    _("Add a subscription provider link"),
   );
   o.depends("action", "connection");
   o.rmempty = true;
@@ -8562,8 +8589,10 @@ function createSectionContent(section) {
     "settings",
     ButtonAddSettingsDynamicList,
     "tunnels",
-    _("Tunnels"),
-    _("WireGuard, AmneziaWG, Cloudflare WARP, and Tailscale tunnels"),
+    _("Tunnel"),
+    _(
+      "WireGuard, AmneziaWG, Cloudflare WARP, Tailscale, and JSON endpoint tunnels",
+    ),
   );
   o.depends("action", "connection");
   o.rmempty = true;
@@ -8602,7 +8631,7 @@ function createSectionContent(section) {
     ButtonAddSettingsDynamicList,
     "outbound_jsons",
     _("JSON outbound"),
-    _("Custom outbound configurations in JSON format"),
+    _("Custom sing-box outbound objects in JSON format"),
   );
   o.depends("action", "connection");
   o.rmempty = true;
@@ -8726,7 +8755,7 @@ function createSectionContent(section) {
     "outbound_detour_enabled",
     _("Cascade connection"),
     _(
-      "Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, Tailscale, JSON endpoints, or JSON outbounds.",
+      "Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, Tailscale, JSON outbounds, or JSON endpoints.",
     ),
   );
   o.default = "0";
@@ -9015,7 +9044,7 @@ function createSectionContent(section) {
     "rule_set",
     _("Rule sets"),
     _(
-      "Add an HTTP(S) URL or local path. The format is detected automatically.",
+      "Add a link or local path. The format is detected automatically.",
     ),
   );
   ruleSetOption.modalonly = true;
@@ -9043,7 +9072,7 @@ function createSectionContent(section) {
     key: "source_ip_cidr",
     label: _("Device filter"),
     description: _(
-      "Apply section rules only to the specified local IP addresses",
+      "Apply section rules only to the specified source IP addresses",
     ),
   });
   dependsOnRuleConditions(sourceIpOption);
@@ -9052,7 +9081,7 @@ function createSectionContent(section) {
     key: "fully_routed_ips",
     label: _("Forced device routing"),
     description: _(
-      "All traffic from these IP addresses will be routed through the section unconditionally, ignoring all other conditions.",
+      "All traffic from these source IP addresses will be routed through the section.",
     ),
   });
   dependsOnRoutingAction(fullyRoutedOption);

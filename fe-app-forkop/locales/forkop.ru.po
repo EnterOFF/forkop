@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-08 05:53+0300\n"
-"PO-Revision-Date: 2026-08-08 05:53+0300\n"
+"POT-Creation-Date: 2026-08-10 05:34+0300\n"
+"PO-Revision-Date: 2026-08-10 05:34+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -26,11 +26,11 @@ msgstr "+ Добавить Fallback"
 msgid "+ Add JSON outbound"
 msgstr "+ Добавить JSON outbound"
 
-msgid "+ Add level"
-msgstr "+ Добавить уровень"
-
 msgid "+ Add peer"
 msgstr "+ Добавить пир"
+
+msgid "+ Add servers"
+msgstr "+ Добавить серверы"
 
 msgid "+ Add tunnel"
 msgstr "+ Добавить туннель"
@@ -68,14 +68,20 @@ msgstr "Активные соединения"
 msgid "Add"
 msgstr "Добавить"
 
+msgid "Add a link or local path. The format is detected automatically."
+msgstr "Добавьте ссылку или локальный путь. Формат определяется автоматически."
+
 msgid "Add a section"
 msgstr "Добавить секцию"
+
+msgid "Add a section to configure routing"
+msgstr "Добавьте секцию чтобы настроить маршрутизацию"
 
 msgid "Add a server inbound"
 msgstr "Добавить серверный inbound"
 
-msgid "Add an HTTP(S) URL or local path. The format is detected automatically."
-msgstr "Добавьте HTTP(S)-ссылку или локальный путь. Формат определяется автоматически."
+msgid "Add a subscription provider link"
+msgstr "Добавьте ссылку провайдера подписки"
 
 msgid "Add at least one DNS server"
 msgstr "Добавьте хотя бы один DNS-сервер"
@@ -122,8 +128,8 @@ msgstr "Все оставшиеся серверы"
 msgid "All servers"
 msgstr "Все серверы"
 
-msgid "All traffic from these IP addresses will be routed through the section unconditionally, ignoring all other conditions."
-msgstr "Весь трафик с этих IP-адресов будет направлен через секцию безусловно, игнорируя остальные условия."
+msgid "All traffic from these source IP addresses will be routed through the section."
+msgstr "Весь трафик исходящих IP-адресов будет направлен через секцию."
 
 msgid "Allowed domain prefixes are full:, keyword:, and regex:"
 msgstr "Разрешённые префиксы доменов: full:, keyword: и regex:"
@@ -143,8 +149,11 @@ msgstr "Alter ID"
 msgid "AmneziaWG ranges must be between 0 and 4294967295 with the start no greater than the end"
 msgstr "Диапазоны AmneziaWG должны быть от 0 до 4294967295, а начало не может быть больше конца"
 
-msgid "Apply section rules only to the specified local IP addresses"
-msgstr "Применять правила секции только к указанным локальным IP-адресам"
+msgid "Any"
+msgstr "Любой"
+
+msgid "Apply section rules only to the specified source IP addresses"
+msgstr "Применять правила секции только к указанным исходящим IP-адресам"
 
 msgid "At least one valid domain must be specified."
 msgstr "Нужно указать хотя бы один корректный домен."
@@ -362,8 +371,8 @@ msgstr "Подключаться через"
 msgid "Connect to the coordination server through a section"
 msgstr "Подключаться к серверу координации через секцию"
 
-msgid "Connection URL"
-msgstr "URL подключения"
+msgid "Connection URI"
+msgstr "URI подключения"
 
 msgid "Connections are unavailable"
 msgstr "Подключения недоступны"
@@ -398,8 +407,8 @@ msgstr "Текущую секцию нельзя выбрать для скач�
 msgid "Currently unavailable"
 msgstr "Временно недоступно"
 
-msgid "Custom outbound configurations in JSON format"
-msgstr "Пользовательские конфигурации outbound в формате JSON"
+msgid "Custom sing-box outbound objects in JSON format"
+msgstr "Пользовательские объекты outbound для singbox в формате JSON"
 
 msgid "Dashboard"
 msgstr "Дашборд"
@@ -410,8 +419,8 @@ msgstr "Дашборд сейчас недоступен"
 msgid "Data rejection timeout"
 msgstr "Таймаут отклонения данных"
 
-msgid "Default address for checking server availability and latency. URLTest uses its own address."
-msgstr "Адрес по умолчанию для проверки доступности и задержки серверов. Для URLTest используется собственный адрес."
+msgid "Default URL for latency testing."
+msgstr "URL по умолчанию для тестирования задержки."
 
 msgid "Delay in milliseconds before reloading Forkop after interface UP"
 msgstr "Задержка в миллисекундах перед перезапуском Forkop после поднятия интерфейса"
@@ -485,6 +494,9 @@ msgstr "Тип протокола DNS"
 msgid "DNS protocol used by the resolver"
 msgstr "DNS-протокол, который будет использовать резолвер"
 
+msgid "DNS requests through"
+msgstr "DNS запросы через"
+
 msgid "DNS requests through section"
 msgstr "DNS-запросы через секцию"
 
@@ -508,9 +520,6 @@ msgstr "DNS-серверы для получения IP-адресов осно�
 
 msgid "DNS Strategy"
 msgstr "Стратегия DNS"
-
-msgid "DNS through proxy"
-msgstr "DNS через прокси"
 
 msgid "DNS through section"
 msgstr "DNS через секцию"
@@ -668,9 +677,6 @@ msgstr "Введите корректный URL control plane Tailscale"
 msgid "Enter at least one AmneziaWG parameter"
 msgstr "Введите хотя бы один параметр AmneziaWG"
 
-msgid "Enter the subscription URL"
-msgstr "Введите URL подписки"
-
 msgid "Every WireGuard peer needs a public key and endpoint"
 msgstr "Для каждого пира WireGuard нужны публичный ключ и endpoint"
 
@@ -781,9 +787,6 @@ msgstr "Порт в firewall для WAN"
 
 msgid "Fix the highlighted fields and save again."
 msgstr "Исправьте подсвеченные поля и сохраните снова."
-
-msgid "Force detected P2P BitTorrent traffic to route directly."
-msgstr "Маршрутизировать обнаруженный P2P торрент трафик напрямую принудительно."
 
 msgid "Forced device routing"
 msgstr "Принудительная маршрутизация устройств"
@@ -896,11 +899,11 @@ msgstr "Значение заголовка должно быть в одной 
 msgid "Heartbeat"
 msgstr "Интервал поддержания соединения"
 
-msgid "Hide individual servers used by this group; keep the group visible."
-msgstr "Скрывать серверы входящие в эту группу из дашборда"
+msgid "Hide group servers"
+msgstr "Скрыть серверы группы"
 
-msgid "Hide servers from dashboard"
-msgstr "Скрывать серверы из дашборда"
+msgid "Hide servers included in this group from the dashboard."
+msgstr "Скрывать серверы попавшие в эту группу из дашборда"
 
 msgid "Hide values"
 msgstr "Скрывать значения"
@@ -950,8 +953,8 @@ msgstr "Учитывать IP-адреса и подсети"
 msgid "Include servers"
 msgstr "Включить серверы"
 
-msgid "Includes connection setup and TLS handshake time. The measurement takes longer but provides more accurate and realistic results."
-msgstr "Учитывает время на установку соединения и TLS-рукопожатие. Измерение занимает больше времени, но показывает более точные и реалистичные результаты."
+msgid "Includes connection setup and TLS handshake time. The measurement takes longer but provides a more accurate result."
+msgstr "Учитывает время на установку соединения и TLS-рукопожатие. Измерение занимает больше времени, но показывает более точный результат."
 
 msgid "Information"
 msgstr "Информация"
@@ -1110,7 +1113,7 @@ msgid "Latency test failed"
 msgstr "Проверка задержки не удалась"
 
 msgid "Latency test URL"
-msgstr "URL для проверки задержки"
+msgstr "URL для тестирования задержки"
 
 msgid "Latest version is installed"
 msgstr "Установлена последняя версия"
@@ -1126,12 +1129,6 @@ msgstr "Название уровня"
 
 msgid "Level server filter"
 msgstr "Фильтр серверов уровня"
-
-msgid "Levels are tried from top to bottom until one succeeds"
-msgstr "Группы проверяются сверху вниз, пока не найдется доступный сервер"
-
-msgid "List of remote WireGuard nodes to connect."
-msgstr "Список удаленных узлов WireGuard для подключения."
 
 msgid "List Update Frequency"
 msgstr "Частота обновления списков"
@@ -1325,8 +1322,8 @@ msgstr "Не отвечает"
 msgid "Not running"
 msgstr "Не запущено"
 
-msgid "Number of connection failures during the availability timeout after which Fallback starts an immediate health check. Connection refused is checked immediately."
-msgstr "Количество ошибок подключения за время ожидания доступности, после которого Fallback немедленно запускает проверку. При отказе в соединении проверка запускается сразу."
+msgid "Number of connection failures after which an immediate health check starts."
+msgstr "Количество ошибок подключения, после которых немедленно запускается проверка доступности."
 
 msgid "Obfuscation"
 msgstr "Обфускация"
@@ -1463,6 +1460,9 @@ msgstr "Предпочитать IPv6"
 msgid "Preferred IP"
 msgstr "Предпочитаемый IP"
 
+msgid "Preferred IP address type for domains"
+msgstr "Предпочтительный тип IP-адресов для доменов"
+
 msgid "Prefix text"
 msgstr "Текст префикса"
 
@@ -1538,6 +1538,12 @@ msgstr "Требовать логин и пароль для локальног�
 msgid "Require Mieru user hint"
 msgstr "Требовать указание пользователя Mieru"
 
+msgid "Required. Levels are tried from top to bottom until one succeeds"
+msgstr "Обязательно. Группы проверяются сверху вниз, пока не найдется доступный сервер"
+
+msgid "Required. List of remote nodes to connect."
+msgstr "Обязательно. Список удаленных узлов для подключения."
+
 msgid "Resolve domain names before routing so sing-box can use real destination IPs."
 msgstr "Разрешать доменные имена перед маршрутизацией, чтобы sing-box использовал реальные IP-адреса назначения."
 
@@ -1564,6 +1570,9 @@ msgstr "Продолжить обновление"
 
 msgid "Route"
 msgstr "Маршрут"
+
+msgid "Route BitTorrent traffic handled by sing-box directly."
+msgstr "Маршрутизировать попавший в sing-box торрент трафик напрямую."
 
 msgid "Route main DNS requests through the selected section."
 msgstr "Маршрутизировать основные DNS-запросы через выбранную секцию."
@@ -1862,6 +1871,9 @@ msgstr "Останавливать проверки, когда группа н�
 msgid "Subnets from the list will be extracted and added to nftables"
 msgstr "IP-адреса и подсети из списка будут извлечены и добавлены в nftables"
 
+msgid "Subscription"
+msgstr "Подписка"
+
 msgid "Subscription auto update"
 msgstr "Автообновление подписи"
 
@@ -1880,14 +1892,14 @@ msgstr "Обновление подписки завершилось ошибк�
 msgid "Subscription update interval"
 msgstr "Интервал обновления подписки"
 
-msgid "Subscription URL"
-msgstr "URL подписки"
-
 msgid "Subscription URL settings"
 msgstr "Настройки URL подписки"
 
 msgid "Subscriptions updated"
 msgstr "Подписки обновлены"
+
+msgid "Supported links: vless, vmess, shadowsocks, trojan, socks, tuic, hysteria, naiveproxy, mieru"
+msgstr "Поддерживаются ссылки vless, vmess, shadowsocks, trojan, socks, tuic, hysteria, naiveproxy, mieru"
 
 msgid "System info"
 msgstr "Системная информация"
@@ -1924,6 +1936,9 @@ msgstr "Desync fwmark управляется Forkop для защиты от ц�
 
 msgid "The NFQUEUE number is assigned by Forkop for each rule and must not be overridden here."
 msgstr "Номер NFQUEUE назначается Forkop для каждого правила и не должен переопределяться здесь."
+
+msgid "The pasted link is not supported. Try JSON outbound."
+msgstr "Вставленная ссылка не поддерживается. Попробуй JSON outbound."
 
 msgid "The rule applies to the domain and all its subdomains. Use full:, keyword:, or regex: prefixes for exact match, keyword match, or regular expression."
 msgstr "Правило применяется к домену и всем его поддоменам. Для полного совпадения, совпадению по слову или регулярному выражению используйте префиксы full:, keyword: или regex:."
@@ -2029,9 +2044,6 @@ msgstr "Настройки туннеля"
 
 msgid "Tunnel type"
 msgstr "Тип туннеля"
-
-msgid "Tunnels"
-msgstr "Туннели"
 
 msgid "Type"
 msgstr "Тип"
@@ -2147,9 +2159,6 @@ msgstr "Используйте доменное имя или IP-адрес"
 msgid "Use a duration like 30s, 5m, or 1h30m"
 msgstr "Укажите длительность в формате 30s, 5m или 1h30m"
 
-msgid "Use a native sing-box link: vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, hy2://, naive+https://, naive+quic://, mieru://, or mierus://"
-msgstr "Используйте нативную ссылку sing-box: vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, hy2://, naive+https://, naive+quic://, mieru:// или mierus://"
-
 msgid "Use a non-negative integer"
 msgstr "Используйте неотрицательное целое число"
 
@@ -2174,8 +2183,8 @@ msgstr "Укажите IP-адрес с префиксом CIDR"
 msgid "Use an IP listen address"
 msgstr "Используйте IP-адрес для прослушивания"
 
-msgid "Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, Tailscale, JSON endpoints, or JSON outbounds."
-msgstr "Используйте другую секцию как промежуточный узел для подключения к серверам этой секции. Не применяется к сетевым интерфейсам, Tailscale, JSON endpoint и JSON outbound."
+msgid "Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, Tailscale, JSON outbounds, or JSON endpoints."
+msgstr "Используйте другую секцию как промежуточный узел для подключения к серверам этой секции. Не применяется к сетевым интерфейсам, Tailscale, JSON outbound и JSON endpoint."
 
 msgid "Use CIDR prefixes like 192.168.1.0/24 or 2001:db8::/32"
 msgstr "Используйте CIDR-префиксы, например 192.168.1.0/24 или 2001:db8::/32"
@@ -2216,14 +2225,8 @@ msgstr "Значение не может быть пустым"
 msgid "Value must not contain control characters"
 msgstr "Значение не должно содержать управляющие символы"
 
-msgid "Visible name of this section"
-msgstr "Видимое имя этой секции"
-
 msgid "VLESS flow"
 msgstr "VLESS flow"
-
-msgid "vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, hy2://, naive+https://, naive+quic://, mieru://, and mierus://"
-msgstr "vless://, vmess://, ss://, trojan://, socks://, tuic://, hysteria://, hysteria2://, hy2://, naive+https://, naive+quic://, mieru:// и mierus://"
 
 msgid "WAN"
 msgstr "WAN"
@@ -2243,8 +2246,8 @@ msgstr "Профиль WARP"
 msgid "WARP profile ID"
 msgstr "Идентификатор профиля WARP"
 
-msgid "What Forkop should do when this section matches"
-msgstr "Что Forkop должен делать при совпадении этой секции"
+msgid "What Forkop should do when this section's conditions match"
+msgstr "Что Forkop должен делать при совпадении условий этой секции"
 
 msgid "Whitelist"
 msgstr "Белый список"
@@ -2279,8 +2282,8 @@ msgstr "Имя хоста или IP-адрес пира WireGuard."
 msgid "WireGuard peer settings"
 msgstr "Настройки пира WireGuard"
 
-msgid "WireGuard, AmneziaWG, Cloudflare WARP, and Tailscale tunnels"
-msgstr "Туннели WireGuard, AmneziaWG, Cloudflare WARP и Tailscale"
+msgid "WireGuard, AmneziaWG, Cloudflare WARP, Tailscale, and JSON endpoint tunnels"
+msgstr "Туннели WireGuard, AmneziaWG, Cloudflare WARP, Tailscale и JSON endpoint"
 
 msgid "XHTTP mode"
 msgstr "Режим XHTTP"

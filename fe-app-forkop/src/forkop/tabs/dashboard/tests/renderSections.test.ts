@@ -758,3 +758,56 @@ describe('renderSections latency actions', () => {
     expect(onChooseOutbound).not.toHaveBeenCalled();
   }, 15000);
 });
+
+describe('renderSections subscription metadata', () => {
+  it('renders metadata URLs as compact text links', async () => {
+    installElementFactory();
+    const { renderSections } = await import('../partials/renderSections');
+    const root = renderSections({
+      loading: false,
+      failed: false,
+      section: {
+        code: 'proxy-out',
+        sectionName: 'main',
+        displayName: 'Main',
+        withTagSelect: true,
+        outbounds: [],
+        subscriptionMetadata: [
+          {
+            title: 'Subscription',
+            webPageUrl: 'https://subscription.example/profile',
+            supportUrl: 'https://subscription.example/support',
+            announceUrl: 'https://subscription.example/announce',
+          },
+        ],
+      },
+      onTestLatency: vi.fn(),
+      onTestOutboundLatency: vi.fn(),
+      onChooseOutbound: vi.fn(),
+      onCopyOutbound: vi.fn(),
+      onShowUrlTestInfo: vi.fn(),
+      onShowFallbackInfo: vi.fn(),
+      onUpdateSubscription: vi.fn(),
+      latencyFetching: false,
+      subscriptionUpdating: false,
+    }) as unknown as FakeNode;
+    const links = findNodes(
+      root,
+      (node) =>
+        node.type === 'a' &&
+        String(node.attrs.class || '') ===
+          'fkp_dashboard-page__subscription-meta__action',
+    );
+
+    expect(links.map((link) => link.children[0])).toEqual([
+      'Profile ↗',
+      'Support ↗',
+      'More details ↗',
+    ]);
+    expect(links.map((link) => link.attrs.href)).toEqual([
+      'https://subscription.example/profile',
+      'https://subscription.example/support',
+      'https://subscription.example/announce',
+    ]);
+  });
+});

@@ -1117,7 +1117,7 @@ function ensure_tproxy_route_rule(table, mark, rt_tables_path) {
     }
 
     if (!tproxy_route4_present(table)) {
-        log_debug("Added IPv4 TPROXY route");
+        log_debug("Added IPv4 tproxy route");
         if (!run_args([ IP_BIN, "route", "add", "local", "0.0.0.0/0", "dev", "lo", "table", table ]) && !tproxy_route4_present(table)) {
             log_fatal("Failed to add IPv4 route for tproxy. Aborted.");
             return false;
@@ -1128,7 +1128,7 @@ function ensure_tproxy_route_rule(table, mark, rt_tables_path) {
     }
 
     if (!tproxy_route6_present(table)) {
-        log_debug("Added IPv6 TPROXY route");
+        log_debug("Added IPv6 tproxy route");
         if (!run_args([ IP_BIN, "-6", "route", "add", "local", "::/0", "dev", "lo", "table", table ]) && !tproxy_route6_present(table)) {
             log_fatal("Failed to add IPv6 route for tproxy. Aborted.");
             return false;
@@ -1139,7 +1139,7 @@ function ensure_tproxy_route_rule(table, mark, rt_tables_path) {
     }
 
     if (!tproxy_marking_rule4_present(table, mark)) {
-        log_debug("Creating IPv4 TPROXY marking rule");
+        log_debug("Creating IPv4 tproxy marking rule");
         if (!run_args([ IP_BIN, "-4", "rule", "add", "fwmark", as_string(mark) + "/" + as_string(mark), "table", table, "priority", "105" ]) && !tproxy_marking_rule4_present(table, mark)) {
             log_fatal("Failed to create IPv4 marking rule. Aborted.");
             return false;
@@ -1150,7 +1150,7 @@ function ensure_tproxy_route_rule(table, mark, rt_tables_path) {
     }
 
     if (!tproxy_marking_rule6_present(table, mark)) {
-        log_debug("Creating IPv6 TPROXY marking rule");
+        log_debug("Creating IPv6 tproxy marking rule");
         if (!run_args([ IP_BIN, "-6", "rule", "add", "fwmark", as_string(mark) + "/" + as_string(mark), "table", table, "priority", "105" ]) && !tproxy_marking_rule6_present(table, mark)) {
             log_fatal("Failed to create IPv6 marking rule. Aborted.");
             return false;
