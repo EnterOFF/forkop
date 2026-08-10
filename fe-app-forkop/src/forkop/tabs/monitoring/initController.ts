@@ -646,7 +646,7 @@ function renderDeviceFilterOptions() {
   lastDeviceFilterSignature = signature;
 
   const options = [
-    E('option', { value: ALL_FILTER_VALUE }, _('All')),
+    E('option', { value: ALL_FILTER_VALUE }, _('All devices')),
     ...sourceIps.map((ip) =>
       E('option', { value: ip }, getDeviceFilterLabel(ip)),
     ),
@@ -940,7 +940,12 @@ function renderConnections(options: { force?: boolean } = {}) {
   }
 
   renderSkippedForSelection = false;
-  const previousScrollLeft = container.scrollLeft;
+  const previousScrollLeft =
+    (
+      container.querySelector(
+        '.fkp_monitoring-page__table-wrap',
+      ) as HTMLElement | null
+    )?.scrollLeft ?? 0;
 
   if (serviceAvailability === 'stopped') {
     container.replaceChildren(
@@ -987,8 +992,9 @@ function renderConnections(options: { force?: boolean } = {}) {
     return;
   }
 
-  container.replaceChildren(renderConnectionsTable(visibleConnections));
-  container.scrollLeft = previousScrollLeft;
+  const tableWrap = renderConnectionsTable(visibleConnections);
+  container.replaceChildren(tableWrap);
+  tableWrap.scrollLeft = previousScrollLeft;
 }
 
 function flushRenderAfterSelection() {

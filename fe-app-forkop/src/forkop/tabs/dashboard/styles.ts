@@ -61,7 +61,7 @@ export const styles = `
     font-size: inherit;
     font-weight: inherit;
     line-height: inherit;
-    font-style: italic;
+    font-style: normal;
     text-align: center;
 }
 
@@ -132,6 +132,7 @@ export const styles = `
 
 .fkp_dashboard-page__outbound-section__title-section {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 8px 10px;
@@ -148,10 +149,11 @@ export const styles = `
 .fkp_dashboard-page__outbound-section__title-section__actions {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: flex-start;
     flex-wrap: wrap;
     gap: 6px;
     flex: 0 0 auto;
+    max-width: 100%;
 }
 
 .fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__sort-by-latency {

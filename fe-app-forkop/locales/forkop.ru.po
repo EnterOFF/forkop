@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-10 05:34+0300\n"
-"PO-Revision-Date: 2026-08-10 05:34+0300\n"
+"POT-Creation-Date: 2026-08-10 05:36+0300\n"
+"PO-Revision-Date: 2026-08-10 05:36+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -119,8 +119,8 @@ msgstr "Добавляет маскировку трафика по механи
 msgid "Advertise routes"
 msgstr "Анонсировать маршруты"
 
-msgid "All"
-msgstr "Все"
+msgid "All devices"
+msgstr "Все устройства"
 
 msgid "All remaining servers"
 msgstr "Все оставшиеся серверы"
@@ -1094,9 +1094,6 @@ msgstr "Настройки JSON outbound"
 msgid "JSON outbound type must be lowercase without surrounding whitespace"
 msgstr "Тип JSON outbound должен быть в нижнем регистре и без пробелов по краям"
 
-msgid "Keep this group before latency-sorted servers"
-msgstr "Показывать группу перед серверами, отсортированными по задержке"
-
 msgid "Keepalive timeout"
 msgstr "Таймаут keepalive"
 
@@ -1426,9 +1423,6 @@ msgstr "Ожидает запуска"
 
 msgid "Persistent keepalive"
 msgstr "Постоянный keepalive"
-
-msgid "Pin on dashboard"
-msgstr "Закрепить в дашборде"
 
 msgid "Port cannot be empty"
 msgstr "Порт не может быть пустым"
@@ -1798,9 +1792,6 @@ msgstr "Версия Sing-box совместима (новее 1.12.4)"
 
 msgid "Sort by latency"
 msgstr "Сортировать по задержке"
-
-msgid "Sorts servers in this section by lowest latency in the dashboard."
-msgstr "Сортирует серверы этой секции по наименьшей задержке в дашборде"
 
 msgid "Source"
 msgstr "Источник"

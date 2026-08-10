@@ -36,7 +36,7 @@ export function render() {
                 id: 'monitoring-device-filter',
                 class: 'cbi-input-select fkp_monitoring-page__device-filter',
               },
-              [E('option', { value: 'all' }, _('All'))],
+              [E('option', { value: 'all' }, _('All devices'))],
             ),
             E('label', { class: 'fkp_monitoring-page__search' }, [
               E('span', { class: 'fkp_monitoring-page__search-icon' }, []),

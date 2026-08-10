@@ -40,6 +40,15 @@ for (const expected of [
     throw new Error(`monitoring must identify System by its dedicated inbound: ${expected}`);
   }
 }
+
+for (const expected of [
+  "querySelector(\n        '.fkp_monitoring-page__table-wrap'",
+  'tableWrap.scrollLeft = previousScrollLeft',
+]) {
+  if (!monitoring.includes(expected)) {
+    throw new Error(`monitoring refresh must preserve table scroll position: ${expected}`);
+  }
+}
 NODE
 
 printf 'monitoring recovery UI checks passed\n'

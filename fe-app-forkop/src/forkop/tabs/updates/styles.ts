@@ -39,6 +39,10 @@ export const styles = `
         width: 100%;
         min-width: 0;
     }
+
+    .fkp_updates-page__component {
+        min-width: 0;
+    }
 }
 
 .fkp_updates-page__component {
@@ -137,7 +141,7 @@ export const styles = `
     display: flex;
     justify-content: flex-start;
     align-items: center;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     gap: 6px;
 }
 

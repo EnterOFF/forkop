@@ -509,126 +509,56 @@ export const styles = `
 
 @media (max-width: 900px) {
     .fkp_monitoring-page__controls {
-        align-items: center;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: end;
+        gap: 12px;
     }
 
     .fkp_monitoring-page__tabs {
-        flex: 1 0 100%;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-column: 1 / -1;
+        width: 100%;
     }
 
     .fkp_monitoring-page__filters {
-        flex: 1 1 0;
+        display: grid;
+        grid-template-columns: minmax(160px, 220px) minmax(180px, 320px);
+        gap: 12px;
+    }
+
+    .fkp_monitoring-page__actions {
+        grid-column: 2;
     }
 
     .fkp_monitoring-page__device-filter,
     .fkp_monitoring-page__search {
+        width: 100%;
         max-width: none;
     }
 
     .fkp_monitoring-page__table {
-        min-width: 0;
+        min-width: 620px;
     }
 
-    .fkp_monitoring-page__table thead {
-        display: none;
-    }
-
-    .fkp_monitoring-page__table,
-    .fkp_monitoring-page__table tbody,
-    .fkp_monitoring-page__table tr,
+    .fkp_monitoring-page__table th,
     .fkp_monitoring-page__table td {
-        display: block;
-        width: 100%;
-    }
-
-    .fkp_monitoring-page__table tr {
-        border: 1px var(--background-color-low, lightgray) solid;
-        border-radius: 4px;
-        padding: 8px;
-        box-sizing: border-box;
-        margin-bottom: 8px;
-    }
-
-    .fkp_monitoring-page__table td {
-        display: grid;
-        grid-template-columns: minmax(92px, 34%) minmax(0, 1fr);
-        gap: 8px;
-        border: 0;
-        border-bottom: 1px solid var(--fkp-monitoring-divider-color);
-        padding: 4px 0;
-        box-sizing: border-box;
-        text-align: left;
-    }
-
-    .fkp_monitoring-page__table td::before {
-        content: attr(data-label);
-        color: var(--text-color-medium);
-        font-weight: 700;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .fkp_monitoring-page__table td:last-child {
-        grid-template-columns: minmax(92px, 34%) minmax(0, 1fr);
-        align-items: center;
-        border-bottom: 0;
-        min-height: var(--fkp-monitoring-row-action-size);
-        padding: 0;
-    }
-
-    .fkp_monitoring-page__value {
-        text-align: right;
-    }
-
-    .fkp_monitoring-page__source-value {
-        justify-content: flex-end;
-    }
-
-    .fkp_monitoring-page__state-row td::before {
-        display: none;
+        padding-right: 4px;
+        padding-left: 4px;
     }
 }
 
 @media (max-width: 520px) {
-    .fkp_monitoring-page__controls,
     .fkp_monitoring-page__filters {
-        align-items: stretch;
-    }
-
-    .fkp_monitoring-page__tabs,
-    .fkp_monitoring-page__filters,
-    .fkp_monitoring-page__device-filter,
-    .fkp_monitoring-page__search {
-        width: 100%;
-    }
-
-    .fkp_monitoring-page__controls,
-    .fkp_monitoring-page__filters {
-        flex-direction: column;
+        grid-column: 1 / -1;
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .fkp_monitoring-page__actions {
+        grid-column: 2;
         align-self: flex-end;
     }
 
-    .fkp_monitoring-page__tabs {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-        width: 100%;
-    }
-
-    .fkp_monitoring-page__table td {
-        grid-template-columns: 1fr;
-        gap: 2px;
-    }
-
-    .fkp_monitoring-page__value {
-        text-align: left;
-    }
-
-    .fkp_monitoring-page__source-value {
-        justify-content: flex-start;
-    }
 }
 `;
