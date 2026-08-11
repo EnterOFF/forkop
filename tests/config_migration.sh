@@ -68,6 +68,8 @@ grep -Fq '{ id: "remove_section_cache", run: remove_section_cache }' "$MIGRATION
   fail "section-cache removal must have a stable named marker"
 grep -Fq '{ id: "remove_dashboard_sort_options", run: remove_dashboard_sort_options }' "$MIGRATION" ||
   fail "dashboard sort option removal must have a stable named marker"
+grep -Fq '{ id: "dns_server_uris", run: migrate_dns_server_uris }' "$MIGRATION" ||
+  fail "DNS server URI migration must have a stable named marker"
 grep -Fq "list applied_migrations 'native_rule_sets'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
   fail "new-install config must mark the native rule-set migration as already applied"
 grep -Fq "option dns_main_fallback_strategy 'parallel'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
@@ -100,6 +102,8 @@ grep -Fq "list applied_migrations 'remove_section_cache'" "$ROOT_DIR/forkop/file
   fail "new-install config must mark the section-cache removal as already applied"
 grep -Fq "list applied_migrations 'remove_dashboard_sort_options'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
   fail "new-install config must mark the dashboard sort option removal as already applied"
+grep -Fq "list applied_migrations 'dns_server_uris'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
+  fail "new-install config must mark the DNS server URI migration as already applied"
 grep -Fq 'release_at_most(ctx, "1.0.1")' "$MIGRATION" ||
   fail "release-specific migrations must use the source release only as a condition"
 grep -Fq 'release_at_most(ctx, "1.0.4")' "$MIGRATION" ||
@@ -295,7 +299,7 @@ assert(JSON.stringify(config.settings.bootstrap_dns_server) === JSON.stringify([
 assert(config.settings.unified_delay === '0', 'Unified Delay default missing');
 assert(config.settings.config_version === '1.0.5', 'legacy config should be marked at the current schema version');
 assert(config.settings.component_update_check_enabled === '1', 'component update checks should be enabled during migration');
-assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options']), 'legacy config should record named migrations');
+assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris']), 'legacy config should record named migrations');
 
 function assert(condition, message) {
   if (!condition) {
@@ -612,7 +616,7 @@ function assert(condition, message) {
 assert(out.changed === true, '1.0.1 config should require migration');
 assert(out.config.settings.config_version === '1.0.5', 'config schema version should advance to 1.0.5');
 assert(out.config.settings.component_update_check_enabled === '1', 'updates from 1.0.1 and below should enable component update checks');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options']), 'named migrations should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris']), 'named migrations should be recorded');
 assert(!Object.prototype.hasOwnProperty.call(section, 'interfaces'), 'parent interface list should be removed');
 assert(JSON.stringify(interfaces.map(item => item.name)) === JSON.stringify(['awg0', 'tun0']), 'interfaces should keep their order');
 for (const item of interfaces) {
@@ -711,7 +715,7 @@ function assert(condition, message) {
 
 assert(out.config.settings.component_update_check_enabled === '0', '1.0.2 config must preserve an explicitly disabled component check');
 assert(out.config.settings.config_version === '1.0.5', '1.0.2 config should advance through the HTTP URL migration schema');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options']), 'newer configs should mark skipped migrations');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris']), 'newer configs should mark skipped migrations');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.4-http.json" <<'JSON'
@@ -777,7 +781,7 @@ assert(JSON.stringify(jsonOutbounds[1]) === JSON.stringify({
   server_port: 8080,
 }), 'unnamed HTTP URL should receive a unique http tag');
 assert(jsonOutbounds[2].type === 'direct' && jsonOutbounds[2].tag === 'http', 'existing JSON outbounds should remain unchanged');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options']), 'HTTP URL migration should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris']), 'HTTP URL migration should be recorded');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.5-http.json" <<'JSON'
@@ -1001,7 +1005,8 @@ if (!out.changed || config.section[0].sort_by_latency !== undefined ||
   process.exit(1);
 }
 if (config.urltest[0].name !== 'Fast' || config.fallback_group[0].name !== 'Fallback' ||
-    config.settings.applied_migrations.at(-1) !== 'remove_dashboard_sort_options') {
+    !config.settings.applied_migrations.includes('remove_dashboard_sort_options') ||
+    config.settings.applied_migrations.at(-1) !== 'dns_server_uris') {
   console.error('dashboard sort migration changed unrelated settings or missed its marker');
   process.exit(1);
 }
@@ -1020,6 +1025,95 @@ const second = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
 if (second.changed || JSON.stringify(first.config) !== JSON.stringify(second.config)) {
   console.error('dashboard sort UCI option removal is not idempotent');
   process.exit(1);
+}
+NODE
+
+cat >"$WORK_DIR/forkop-1.0.5-dns.json" <<'JSON'
+{
+  "settings": {
+    ".name": "settings",
+    ".type": "settings",
+    "config_version": "1.0.5",
+    "applied_migrations": [
+      "interface_sections", "enable_component_checks", "http_connection_urls",
+      "remove_server_country_and_dashboard_filter", "native_fallbacks",
+      "dns_fallback_modes", "native_rule_sets", "universal_rule_sets",
+      "leaf_subscription_providers", "extended_server_defaults",
+      "fallback_uci_tags", "reset_fallback_defaults", "remove_proxy_parameter_filters",
+      "server_filter_model", "server_filter_modes", "single_subscription_user_agent",
+      "subscription_headers", "interface_display_names", "remove_section_cache",
+      "remove_dashboard_sort_options"
+    ],
+    "dns_type": "doh",
+    "dns_server": [ "dns.google/dns-query", "1.1.1.1:444/custom" ],
+    "bootstrap_dns_server": [ "1.1.1.1", "[2606:4700:4700::1111]:5353" ]
+  },
+  "section": [
+    {
+      ".name": "dot", ".type": "section", "action": "dns",
+      "dns_type": "dot", "dns_server": "9.9.9.9:5353",
+      "domain_suffix": [ "dot.example" ]
+    },
+    {
+      ".name": "doh", ".type": "section", "action": "dns",
+      "dns_type": "doh", "dns_server": "dns.example/dns-query",
+      "domain_suffix": [ "doh.example" ]
+    },
+    {
+      ".name": "udp", ".type": "section", "action": "dns",
+      "dns_server": "8.8.8.8",
+      "domain_suffix": [ "udp.example" ]
+    }
+  ]
+}
+JSON
+
+FORKOP_LIB="$FORKOP_LIB" ucode -L "$FORKOP_LIB" "$MIGRATION" migrate-fixture \
+  "$WORK_DIR/forkop-1.0.5-dns.json" >"$WORK_DIR/forkop-1.0.5-dns-output.json"
+
+node - "$WORK_DIR/forkop-1.0.5-dns-output.json" "$WORK_DIR/forkop-1.0.5-dns-rerun.json" <<'NODE'
+const fs = require('fs');
+const out = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const config = out.config;
+const sections = Object.fromEntries(config.section.map(section => [section['.name'], section]));
+
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+assert(out.changed, 'Forkop 1.0.5 DNS configuration should require URI migration');
+assert(config.settings.dns_type === undefined, 'global DNS protocol selector should be removed');
+assert(JSON.stringify(config.settings.dns_server) === JSON.stringify([
+  'https://dns.google/dns-query',
+  'https://1.1.1.1:444/custom',
+]), 'main DNS servers should preserve DoH hosts, ports, paths, and order');
+assert(JSON.stringify(config.settings.bootstrap_dns_server) === JSON.stringify([
+  'udp://1.1.1.1',
+  'udp://[2606:4700:4700::1111]:5353',
+]), 'Bootstrap DNS servers should preserve their UDP endpoints and order');
+assert(sections.dot.dns_type === undefined &&
+  JSON.stringify(sections.dot.dns_server) === JSON.stringify(['tls://9.9.9.9:5353']),
+  'DNS action should preserve the old DoT server as a list');
+assert(sections.doh.dns_type === undefined &&
+  JSON.stringify(sections.doh.dns_server) === JSON.stringify(['https://dns.example/dns-query']),
+  'DNS action should preserve the old DoH path as a list');
+assert(JSON.stringify(sections.udp.dns_server) === JSON.stringify(['8.8.8.8']),
+  'DNS action without an explicit old type should stay default UDP and become a list');
+assert(config.settings.applied_migrations.at(-1) === 'dns_server_uris',
+  'DNS URI migration marker should be recorded');
+
+fs.writeFileSync(process.argv[3], JSON.stringify(config));
+NODE
+
+FORKOP_LIB="$FORKOP_LIB" ucode -L "$FORKOP_LIB" "$MIGRATION" migrate-fixture \
+  "$WORK_DIR/forkop-1.0.5-dns-rerun.json" >"$WORK_DIR/forkop-1.0.5-dns-rerun-output.json"
+
+node - "$WORK_DIR/forkop-1.0.5-dns-output.json" "$WORK_DIR/forkop-1.0.5-dns-rerun-output.json" <<'NODE'
+const fs = require('fs');
+const first = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const second = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
+if (second.changed || JSON.stringify(first.config) !== JSON.stringify(second.config)) {
+  throw new Error('DNS server URI migration is not idempotent');
 }
 NODE
 
@@ -1170,7 +1264,7 @@ grep -Fxq 'forkop.settings.config_version=1.0.5' "$WORK_DIR/runtime-version.stat
   fail "runtime version migration must advance config_version"
 grep -Fxq 'forkop.settings.component_update_check_enabled=1' "$WORK_DIR/runtime-version.state" ||
   fail "runtime version migration must enable component update checks"
-grep -Fq 'forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter native_fallbacks dns_fallback_modes native_rule_sets universal_rule_sets leaf_subscription_providers extended_server_defaults fallback_uci_tags reset_fallback_defaults remove_proxy_parameter_filters server_filter_model server_filter_modes single_subscription_user_agent subscription_headers interface_display_names remove_section_cache remove_dashboard_sort_options' "$WORK_DIR/runtime-version.state" ||
+grep -Fq 'forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter native_fallbacks dns_fallback_modes native_rule_sets universal_rule_sets leaf_subscription_providers extended_server_defaults fallback_uci_tags reset_fallback_defaults remove_proxy_parameter_filters server_filter_model server_filter_modes single_subscription_user_agent subscription_headers interface_display_names remove_section_cache remove_dashboard_sort_options dns_server_uris' "$WORK_DIR/runtime-version.state" ||
   fail "runtime migration must record stable migration names"
 grep -Eq '^forkop\.main\.outbound_jsons=\{ "type": "http", "tag": "http", "server": "proxy\.example", "server_port": 8080 \}$' "$WORK_DIR/runtime-version.state" ||
   fail "runtime migration must convert native HTTP proxy links to JSON outbounds"

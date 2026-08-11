@@ -435,9 +435,8 @@ assert_eq "$(md5_file "$WORK_DIR/service-trigger-default-delay.expected")" \
 cat >"$WORK_DIR/sing-box-signature.json" <<'JSON'
 {
   "settings": {
-    "dns_type": "tcp",
     "dns_strategy": "prefer_ipv6",
-    "dns_server": "9.9.9.9",
+    "dns_server": "tcp://9.9.9.9",
     "bootstrap_dns_server": "1.0.0.1",
     "dns_main_fallback_strategy": "sequential",
     "dns_bootstrap_fallback_strategy": "parallel",
@@ -565,12 +564,10 @@ cat >"$WORK_DIR/sing-box-signature.json" <<'JSON'
 JSON
 
 cat >"$WORK_DIR/sing-box-signature.expected" <<'EOF_SING_BOX_SIG'
-[settings.dns_type]
-tcp
 [settings.dns_strategy]
 prefer_ipv6
 [settings.dns_server]
-9.9.9.9
+tcp://9.9.9.9
 [settings.bootstrap_dns_server]
 1.0.0.1
 [settings.dns_main_fallback_strategy]
@@ -1227,27 +1224,27 @@ assert_eq "7m" \
 cat >"$WORK_DIR/dns-action-signature-udp.json" <<'JSON'
 {
   "section": [
-    { ".name": "dns", ".type": "section", "enabled": "1", "action": "dns", "dns_type": "udp", "dns_server": "9.9.9.9", "domain_suffix": [ "example.org" ] }
+    { ".name": "dns", ".type": "section", "enabled": "1", "action": "dns", "dns_server": [ "9.9.9.9" ], "domain_suffix": [ "example.org" ] }
   ]
 }
 JSON
 cat >"$WORK_DIR/dns-action-signature-dot.json" <<'JSON'
 {
   "section": [
-    { ".name": "dns", ".type": "section", "enabled": "1", "action": "dns", "dns_type": "dot", "dns_server": "9.9.9.9", "domain_suffix": [ "example.org" ] }
+    { ".name": "dns", ".type": "section", "enabled": "1", "action": "dns", "dns_server": [ "tls://9.9.9.9" ], "domain_suffix": [ "example.org" ] }
   ]
 }
 JSON
 cat >"$WORK_DIR/dns-action-signature-device.json" <<'JSON'
 {
   "section": [
-    { ".name": "dns", ".type": "section", "enabled": "1", "action": "dns", "dns_type": "udp", "dns_server": "9.9.9.9", "domain_suffix": [ "example.org" ], "source_ip_cidr": [ "@system" ] }
+    { ".name": "dns", ".type": "section", "enabled": "1", "action": "dns", "dns_server": [ "9.9.9.9" ], "domain_suffix": [ "example.org" ], "source_ip_cidr": [ "@system" ] }
   ]
 }
 JSON
 if [ "$(state_ucode sing-box-signature-fixture "$WORK_DIR/dns-action-signature-udp.json")" = \
   "$(state_ucode sing-box-signature-fixture "$WORK_DIR/dns-action-signature-dot.json")" ]; then
-  fail "DNS action protocol should change the sing-box signature"
+  fail "DNS action server URI should change the sing-box signature"
 fi
 if [ "$(state_ucode sing-box-signature-fixture "$WORK_DIR/dns-action-signature-udp.json")" = \
   "$(state_ucode sing-box-signature-fixture "$WORK_DIR/dns-action-signature-device.json")" ]; then

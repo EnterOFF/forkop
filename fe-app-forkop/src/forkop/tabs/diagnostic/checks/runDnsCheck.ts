@@ -1,4 +1,3 @@
-import { insertIf } from '../../../../helpers';
 import { DIAGNOSTICS_CHECKS_MAP } from './contstants';
 import { ForkopShellMethods } from '../../../methods';
 import type { IDiagnosticsChecksItem } from '../../../services';
@@ -43,23 +42,15 @@ export async function runDnsCheck() {
     description,
     state,
     items: [
-      ...insertIf<IDiagnosticsChecksItem>(
-        data.dns_type === 'doh' ||
-          data.dns_type === 'dot' ||
-          data.bootstrap_dns_server.includes(', ') ||
-          !data.bootstrap_dns_status,
-        [
-          {
-            state: data.bootstrap_dns_status ? 'success' : 'error',
-            key: _('Bootstrap DNS'),
-            value: data.bootstrap_dns_server,
-          },
-        ],
-      ),
+      {
+        state: data.bootstrap_dns_status ? 'success' : 'error',
+        key: _('Bootstrap DNS'),
+        value: data.bootstrap_dns_server,
+      } satisfies IDiagnosticsChecksItem,
       {
         state: data.dns_status ? 'success' : 'error',
         key: _('Main DNS'),
-        value: `${data.dns_server} [${data.dns_type}]`,
+        value: data.dns_server,
       },
       {
         state: data.dns_on_router ? 'success' : 'error',

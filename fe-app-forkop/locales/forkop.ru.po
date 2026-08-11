@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-10 05:36+0300\n"
-"PO-Revision-Date: 2026-08-10 05:36+0300\n"
+"POT-Creation-Date: 2026-08-11 04:06+0300\n"
+"PO-Revision-Date: 2026-08-11 04:06+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -202,6 +202,9 @@ msgstr "Bootstrap DNS"
 
 msgid "Bootstrap DNS Query Mode"
 msgstr "Режим опроса Bootstrap DNS"
+
+msgid "Bootstrap DNS server must use an IP address"
+msgstr "Bootstrap DNS-сервер должен быть указан IP-адресом"
 
 msgid "Bootstrap DNS Servers"
 msgstr "Bootstrap DNS-серверы"
@@ -488,17 +491,11 @@ msgstr "DNS через TLS (DoT)"
 msgid "DNS protocol"
 msgstr "Протокол DNS"
 
-msgid "DNS Protocol Type"
-msgstr "Тип протокола DNS"
-
 msgid "DNS protocol used by the resolver"
 msgstr "DNS-протокол, который будет использовать резолвер"
 
 msgid "DNS requests through"
 msgstr "DNS запросы через"
-
-msgid "DNS requests through section"
-msgstr "DNS-запросы через секцию"
 
 msgid "DNS Rewrite TTL"
 msgstr "Перезапись TTL для DNS"
@@ -509,14 +506,26 @@ msgstr "DNS-сервер"
 msgid "DNS server address cannot be empty"
 msgstr "Адрес DNS-сервера не может быть пустым"
 
+msgid "DNS server paths are supported only for https:// and h3://"
+msgstr "Путь DNS-сервера поддерживается только для https:// и h3://"
+
+msgid "DNS server URI must not contain whitespace, credentials, query parameters, or fragments"
+msgstr "URI DNS-сервера не должен содержать пробелы, учётные данные, параметры запроса или фрагмент"
+
 msgid "DNS server used by the resolver"
 msgstr "DNS-сервер, который будет использовать резолвер"
+
+msgid "DNS servers"
+msgstr "DNS-серверы"
 
 msgid "DNS Servers"
 msgstr "DNS-серверы"
 
-msgid "DNS servers used to resolve main DNS servers and proxies. Specify several for automatic failover"
-msgstr "DNS-серверы для получения IP-адресов основных DNS и прокси. Укажите несколько для автоматического переключения при сбоях"
+msgid "DNS servers used to resolve domains matching the conditions. To specify a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; without a scheme, UDP is used."
+msgstr "DNS-серверы, используемые для резолвинга доменов, совпавших с условиями. Для указания протокола используйте udp://, tcp://, tls://, https://, quic:// или h3://; без схемы используется UDP."
+
+msgid "DNS servers used to resolve main DNS servers and proxies. Specify several for automatic failover. To specify a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; without a scheme, UDP is used."
+msgstr "DNS-серверы, используемые для резолвинга основных DNS-серверов и прокси. Укажите несколько серверов для автоматического переключения. Для указания протокола используйте udp://, tcp://, tls://, https://, quic:// или h3://; без схемы используется UDP."
 
 msgid "DNS Strategy"
 msgstr "Стратегия DNS"
@@ -664,9 +673,6 @@ msgstr "Введите hostname Tailscale"
 
 msgid "Enter a tunnel name"
 msgstr "Введите название туннеля"
-
-msgid "Enter a valid DNS server address"
-msgstr "Укажите корректный адрес DNS-сервера"
 
 msgid "Enter a valid JSON endpoint object"
 msgstr "Введите корректный объект JSON endpoint"
@@ -998,8 +1004,8 @@ msgstr "Некорректная стратегия ByeDPI"
 msgid "Invalid CIDR prefix"
 msgstr "Неверный префикс CIDR"
 
-msgid "Invalid DNS server format. Examples: 8.8.8.8 or dns.example.com or dns.example.com/nicedns for DoH"
-msgstr "Неверный формат DNS-сервера. Примеры: 8.8.8.8, dns.example.com или dns.example.com/nicedns для DoH"
+msgid "Invalid DNS server format. Examples: 8.8.8.8, tls://1.1.1.1, or https://dns.example.com/dns-query"
+msgstr "Неверный формат DNS-сервера. Примеры: 8.8.8.8, tls://1.1.1.1 или https://dns.example.com/dns-query"
 
 msgid "Invalid DNS server port"
 msgstr "Недопустимый порт DNS-сервера"
@@ -1571,8 +1577,8 @@ msgstr "Маршрутизировать попавший в sing-box торре
 msgid "Route main DNS requests through the selected section."
 msgstr "Маршрутизировать основные DNS-запросы через выбранную секцию."
 
-msgid "Route requests to this DNS server through another section."
-msgstr "Направлять запросы к этому DNS-серверу через другую секцию."
+msgid "Route requests to DNS servers through a section."
+msgstr "Направлять запросы к DNS-серверам через секцию."
 
 msgid "Routing mode"
 msgstr "Режим маршрутизации"
@@ -1660,9 +1666,6 @@ msgstr "Выберите транзитную секцию"
 
 msgid "Select an intermediate section"
 msgstr "Выберите промежуточную секцию"
-
-msgid "Select DNS protocol to use"
-msgstr "Выберите протокол DNS"
 
 msgid "Select network interface for VPN connection"
 msgstr "Выберите сетевой интерфейс для VPN-подключения"
@@ -1808,8 +1811,8 @@ msgstr "Укажите разные файлы"
 msgid "Specify local subnets to give other devices in your Tailscale network access to them."
 msgstr "Укажите локальные подсети, чтобы дать к ним доступ другим устройствам из сети Tailscale."
 
-msgid "Specify several for automatic failover"
-msgstr "Укажите несколько для автоматического переключения при сбоях"
+msgid "Specify several for automatic failover. To specify a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; without a scheme, UDP is used."
+msgstr "Укажите несколько серверов для автоматического переключения. Для указания протокола используйте udp://, tcp://, tls://, https://, quic:// или h3://; без схемы используется UDP."
 
 msgid "SSH host key path"
 msgstr "Путь к ключу хоста SSH"
@@ -2039,9 +2042,6 @@ msgstr "Тип туннеля"
 msgid "Type"
 msgstr "Тип"
 
-msgid "UDP (Unprotected DNS)"
-msgstr "UDP (Незащищённый DNS)"
-
 msgid "Unable to validate the ByeDPI strategy through the backend parser."
 msgstr "Не удалось проверить стратегию ByeDPI через backend-парсер."
 
@@ -2083,6 +2083,9 @@ msgstr "Неизвестный флаг NFQWS2."
 
 msgid "Unspecified IP address is not allowed"
 msgstr "Неуказанный IP-адрес не разрешён"
+
+msgid "Unsupported DNS server protocol. Use udp://, tcp://, tls://, https://, quic://, or h3://"
+msgstr "Неподдерживаемый протокол DNS-сервера. Используйте udp://, tcp://, tls://, https://, quic:// или h3://"
 
 msgid "Unsupported JSON endpoint type"
 msgstr "Неподдерживаемый тип JSON endpoint"

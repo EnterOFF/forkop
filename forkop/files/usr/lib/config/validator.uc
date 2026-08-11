@@ -12,6 +12,7 @@ let core_ip = require("core.ip");
 let rule_config = require("config.rule");
 let connections = require("config.connections");
 let singbox_constants = require("singbox.constants");
+let runtime_dns = require("singbox.dns");
 let subscription_headers_module = require("singbox.subscription_headers");
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
@@ -835,29 +836,6 @@ function validate_required_duration_option(value, label) {
     validate_duration_option(value, label);
 }
 
-function dns_server_value_valid(value) {
-    value = trim(as_string(value));
-    if (value == "" || match(value, /[ \t\r\n@]/) != null)
-        return false;
-
-    let host = core_url.host(value);
-    if (host == "")
-        return false;
-
-    let port = core_url.port(value);
-    if (port != "" && (match(port, /^[0-9]+$/) == null || int(port) < 1 || int(port) > 65535))
-        return false;
-
-    if (core_ip.valid_ip(host))
-        return true;
-
-    return length(host) <= 253 &&
-        index(host, ".") > 0 &&
-        substr(host, 0, 1) != "." &&
-        substr(host, length(host) - 1, 1) != "." &&
-        match(host, /[\/:\[\]]/) == null;
-}
-
 function dns_setting_values(settings, key) {
     let values = [];
     for (let value in option_list_values(settings, key)) {
@@ -869,10 +847,6 @@ function dns_setting_values(settings, key) {
 }
 
 function validate_dns_settings(settings, sections, context) {
-    let dns_type = option(settings, "dns_type", "udp");
-    if (!contains([ "udp", "dot", "doh" ], dns_type))
-        fail_validation("Unsupported DNS protocol type '" + dns_type + "'. Use udp, dot, or doh. Aborted.");
-
     let dns_strategy = option(settings, "dns_strategy", "prefer_ipv4");
     if (!contains([ "prefer_ipv4", "ipv4_only", "prefer_ipv6", "ipv6_only" ], dns_strategy))
         fail_validation("Unsupported DNS strategy '" + dns_strategy + "'. Use prefer_ipv4, ipv4_only, prefer_ipv6, or ipv6_only. Aborted.");
@@ -889,14 +863,16 @@ function validate_dns_settings(settings, sections, context) {
         fail_validation("At least one main DNS server is required. Aborted.");
     if (length(bootstrap_servers) == 0)
         fail_validation("At least one Bootstrap DNS server is required. Aborted.");
-    for (let value in main_servers)
-        if (!dns_server_value_valid(value))
-            fail_validation("Invalid main DNS server '" + value + "'. Aborted.");
-    for (let value in bootstrap_servers)
-        if (!dns_server_value_valid(value))
-            fail_validation("Invalid Bootstrap DNS server '" + value + "'. Aborted.");
-        else if (!core_ip.valid_ip(core_url.host(value)))
-            fail_validation("Bootstrap DNS server '" + value + "' must use an IP address. Aborted.");
+    for (let value in main_servers) {
+        let parsed = runtime_dns.parse_server_uri(value, false);
+        if (parsed.unsupported)
+            fail_validation("Invalid main DNS server '" + value + "': " + parsed.unsupported + ". Aborted.");
+    }
+    for (let value in bootstrap_servers) {
+        let parsed = runtime_dns.parse_server_uri(value, true);
+        if (parsed.unsupported)
+            fail_validation("Invalid Bootstrap DNS server '" + value + "': " + parsed.unsupported + ". Aborted.");
+    }
 
     if (!bool_option(settings, "dns_detour_enabled", false))
         return;
@@ -1470,12 +1446,14 @@ function dns_action_has_domain_matchers(section) {
 
 function validate_dns_action(section, sections, context) {
     let name = section_name(section);
-    let dns_type = option(section, "dns_type", "udp");
-    if (!contains([ "udp", "dot", "doh" ], dns_type))
-        fail_validation("DNS rule '" + name + "' uses unsupported protocol '" + dns_type + "'. Use udp, dot, or doh. Aborted.");
-    let dns_server = option(section, "dns_server", "");
-    if (!dns_server_value_valid(dns_server))
-        fail_validation("DNS rule '" + name + "' has an invalid DNS server '" + dns_server + "'. Aborted.");
+    let dns_servers = dns_setting_values(section, "dns_server");
+    if (length(dns_servers) == 0)
+        fail_validation("DNS rule '" + name + "' must contain at least one DNS server. Aborted.");
+    for (let dns_server in dns_servers) {
+        let parsed = runtime_dns.parse_server_uri(dns_server, false);
+        if (parsed.unsupported)
+            fail_validation("DNS rule '" + name + "' has an invalid DNS server '" + dns_server + "': " + parsed.unsupported + ". Aborted.");
+    }
     if (length(connections.rule_sets_with_subnets(section)) > 0)
         fail_validation("DNS rule '" + name + "' can use domain-only rule sets, but subnet extraction is enabled. Disable 'Include IP addresses and subnets'. Aborted.");
     if (!dns_action_has_domain_matchers(section) && length(list_option(section, "fully_routed_ips")) == 0)

@@ -8244,34 +8244,27 @@ function createSectionContent(section) {
 
   o = section.taboption(
     "settings",
-    form.ListValue,
-    "dns_type",
-    _("DNS protocol"),
-    _("DNS protocol used by the resolver"),
-  );
-  o.depends("action", "dns");
-  dnsTypeChoices().forEach((choice) => o.value(choice.value, choice.label));
-  o.default = "udp";
-  o.rmempty = false;
-  o.modalonly = true;
-
-  o = section.taboption(
-    "settings",
-    form.Value,
+    form.DynamicList,
     "dns_server",
-    _("DNS server"),
-    _("DNS server used by the resolver"),
+    _("DNS servers"),
+    _(
+      "DNS servers used to resolve domains matching the conditions. To specify a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; without a scheme, UDP is used.",
+    ),
   );
   o.depends("action", "dns");
   o.rmempty = false;
   o.modalonly = true;
-  o.validate = function (_section_id, value) {
+  o.validate = function (section_id, value) {
     const normalized = `${value || ""}`.trim();
     if (!normalized) {
-      return _("DNS server address cannot be empty");
+      return L.toArray(this.formvalue(section_id)).some((item) =>
+        `${item || ""}`.trim(),
+      )
+        ? true
+        : _("Add at least one DNS server");
     }
     const validation = main.validateDNS(normalized);
-    return validation.valid ? true : _("Enter a valid DNS server address");
+    return validation.valid ? true : validation.message;
   };
 
   o = section.taboption(
@@ -8279,7 +8272,7 @@ function createSectionContent(section) {
     form.Flag,
     "dns_detour_enabled",
     _("DNS through section"),
-    _("Route requests to this DNS server through another section."),
+    _("Route requests to DNS servers through a section."),
   );
   o.depends("action", "dns");
   o.default = "0";
@@ -8290,7 +8283,7 @@ function createSectionContent(section) {
     "settings",
     form.ListValue,
     "dns_detour_section",
-    _("DNS requests through section"),
+    _("DNS requests through"),
   );
   o.depends({ action: "dns", dns_detour_enabled: "1" });
   o.rmempty = false;

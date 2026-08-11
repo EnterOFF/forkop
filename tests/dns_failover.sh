@@ -14,7 +14,7 @@ generate() {
 cat >"$WORK_DIR/single.json" <<'JSON'
 {
   "settings": {
-    ".name": "settings", ".type": "settings", "dns_type": "udp",
+    ".name": "settings", ".type": "settings",
     "dns_server": ["77.88.8.8"], "bootstrap_dns_server": ["77.88.8.8"]
   },
   "section": [
@@ -26,8 +26,8 @@ JSON
 cat >"$WORK_DIR/multi.json" <<'JSON'
 {
   "settings": {
-    ".name": "settings", ".type": "settings", "dns_type": "doh",
-    "dns_server": ["dns.google/dns-query", "cloudflare-dns.com/dns-query"],
+    ".name": "settings", ".type": "settings",
+    "dns_server": ["https://dns.google/dns-query", "https://cloudflare-dns.com/dns-query"],
     "bootstrap_dns_server": ["1.1.1.1", "8.8.8.8"],
     "dns_main_fallback_strategy": "sequential",
     "dns_bootstrap_fallback_strategy": "parallel",

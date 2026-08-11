@@ -1037,8 +1037,8 @@ function append_sing_box_rule_signature_body(body, section, sections) {
         body = signature_add_mixed_proxy_body(body, section, prefix);
     }
     else if (action == "dns") {
-        body = signature_add_value(body, prefix + ".dns_type", option(section, "dns_type", "udp"));
-        body = signature_add_value(body, prefix + ".dns_server", option(section, "dns_server", ""));
+        for (let value in list_option(section, "dns_server"))
+            body = signature_add_value(body, prefix + ".dns_server", value);
         body = signature_add_value(body, prefix + ".dns_detour_enabled", bool_option_value(section, "dns_detour_enabled", false));
         if (bool_option(section, "dns_detour_enabled", false))
             body = signature_add_value(body, prefix + ".dns_detour_section", option(section, "dns_detour_section", ""));
@@ -1153,7 +1153,6 @@ function sing_box_signature_body(settings, sections, servers, mwan3_active) {
     settings = object_or_empty(settings);
     let body = "";
 
-    body = signature_add_value(body, "settings.dns_type", option(settings, "dns_type", "doh"));
     body = signature_add_value(body, "settings.dns_strategy", option(settings, "dns_strategy", "prefer_ipv4"));
     for (let value in list_option(settings, "dns_server", "77.88.8.8"))
         body = signature_add_value(body, "settings.dns_server", value);

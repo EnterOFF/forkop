@@ -9,6 +9,7 @@ let uci_core = require("core.uci");
 let core_url = require("core.url");
 let constants_module = require("core.constants");
 let singbox_constants_module = require("singbox.constants");
+let runtime_dns = require("singbox.dns");
 let subscription_headers_module = require("singbox.subscription_headers");
 let domain_config = require("config.domain");
 
@@ -1981,6 +1982,34 @@ function remove_dashboard_sort_options(ctx) {
             delete_option(ctx, child, "pin_dashboard");
 }
 
+function migrate_dns_server_uris(ctx) {
+    let settings = ctx.model.settings;
+    if (option_exists(settings, "dns_type")) {
+        let dns_type = option(settings, "dns_type", "udp");
+        let main_servers = [];
+        let bootstrap_servers = [];
+        for (let value in option_list_values(settings, "dns_server"))
+            push(main_servers, runtime_dns.uri_from_legacy_options(dns_type, value));
+        for (let value in option_list_values(settings, "bootstrap_dns_server"))
+            push(bootstrap_servers, runtime_dns.uri_from_legacy_options("udp", value));
+        set_list_option(ctx, settings, "dns_server", main_servers);
+        set_list_option(ctx, settings, "bootstrap_dns_server", bootstrap_servers);
+        delete_option(ctx, settings, "dns_type");
+    }
+
+    for (let section in ctx.model.sections || []) {
+        if (option_exists(section, "dns_type")) {
+            let dns_type = option(section, "dns_type", "udp");
+            let servers = [];
+            for (let value in option_list_values(section, "dns_server"))
+                push(servers, runtime_dns.uri_from_legacy_options(dns_type, value));
+            set_list_option(ctx, section, "dns_server", servers);
+            delete_option(ctx, section, "dns_type");
+        }
+        normalize_existing_list_option(ctx, section, "dns_server");
+    }
+}
+
 const MIGRATIONS = [
     { id: "interface_sections", run: migrate_interface_sections },
     { id: "enable_component_checks", run: migrate_enable_component_checks },
@@ -2001,7 +2030,8 @@ const MIGRATIONS = [
     { id: "subscription_headers", run: migrate_subscription_headers },
     { id: "interface_display_names", run: migrate_interface_display_names },
     { id: "remove_section_cache", run: remove_section_cache },
-    { id: "remove_dashboard_sort_options", run: remove_dashboard_sort_options }
+    { id: "remove_dashboard_sort_options", run: remove_dashboard_sort_options },
+    { id: "dns_server_uris", run: migrate_dns_server_uris }
 ];
 
 function apply_migrations(ctx) {

@@ -1222,14 +1222,13 @@ function dns_check_resolve_host(host, resolver, timeout_seconds) {
         return "";
 
     timeout_seconds = int(timeout_seconds || 2);
-    let resolver_host = core_url.host(resolver);
-    let resolver_port = core_url.port(resolver);
-    if (resolver_host == "")
-        resolver_host = resolver;
+    let parsed = runtime_dns.parse_server_uri(resolver, true);
+    if (parsed.unsupported || (parsed.type != "udp" && parsed.type != "tcp"))
+        return "";
 
-    let args = [ "dig", "@" + resolver_host ];
-    if (resolver_port != "")
-        push(args, "-p", resolver_port);
+    let args = [ "dig", "@" + parsed.server, "-p", as_string(parsed.server_port) ];
+    if (parsed.type == "tcp")
+        push(args, "+tcp");
     for (let arg in [ host, "A", "+short", "+timeout=" + as_string(timeout_seconds), "+tries=1" ])
         push(args, arg);
 
@@ -1278,7 +1277,6 @@ function dns_check_router_resolver_available(domain) {
 
 function check_dns_available() {
     let cfg = settings();
-    let dns_type = option(cfg, "dns_type", "");
     let dns_servers = runtime_dns.server_list(cfg, "dns_server", "77.88.8.8");
     let bootstrap_dns_servers = runtime_dns.server_list(cfg, "bootstrap_dns_server", "77.88.8.8");
     let dont_touch_dhcp = bool_option(cfg, "dont_touch_dhcp", false) ? 1 : 0;
@@ -1287,6 +1285,7 @@ function check_dns_available() {
     let dns_status = 0;
     let dns_on_router = 0;
     let bootstrap_dns_status = 0;
+    let encrypted_bootstrap = false;
     let dhcp_config_status = 1;
 
     let active_dns_args = [
@@ -1309,11 +1308,16 @@ function check_dns_available() {
     if (dns_server_host != "" && !valid_ipv4(dns_server_host))
         bootstrap_check_domain = dns_server_host;
     for (let bootstrap_dns_server in bootstrap_dns_servers) {
+        let parsed = runtime_dns.parse_server_uri(bootstrap_dns_server, true);
+        if (!parsed.unsupported && parsed.type != "udp" && parsed.type != "tcp")
+            encrypted_bootstrap = true;
         if (dns_check_resolve_host(bootstrap_check_domain, bootstrap_dns_server, timeout_seconds) != "") {
             bootstrap_dns_status = 1;
             break;
         }
     }
+    if (!bootstrap_dns_status && encrypted_bootstrap && dns_status)
+        bootstrap_dns_status = 1;
 
     if (!module_success(DNS_APPLY_UC, [ "default-config-complete" ]))
         dhcp_config_status = 0;
@@ -1322,7 +1326,6 @@ function check_dns_available() {
     for (let dns_server in dns_servers)
         push(display_dns_servers, replace(status_output([ "mask-dns-server", dns_server ], null), /[\r\n]+$/g, ""));
     write_json({
-        dns_type,
         dns_server: join(", ", display_dns_servers),
         dns_status,
         dns_on_router,

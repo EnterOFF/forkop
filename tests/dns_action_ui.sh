@@ -17,6 +17,20 @@ for expected in \
   }
 done
 
+if grep -Fq '"dns_type"' "$SETTINGS_JS" ||
+   grep -Eq 'DNS_SERVER_OPTIONS|BOOTSTRAP_DNS_SERVER_OPTIONS' "$SETTINGS_JS"; then
+  printf 'FAIL: settings still expose the shared DNS protocol or preset selector\n' >&2
+  exit 1
+fi
+for expected in \
+  '"Specify several for automatic failover. To specify a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; without a scheme, UDP is used."' \
+  '"DNS servers used to resolve main DNS servers and proxies. Specify several for automatic failover. To specify a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; without a scheme, UDP is used."'; do
+  grep -Fq "$expected" "$SETTINGS_JS" || {
+    printf 'FAIL: missing DNS URI help: %s\n' "$expected" >&2
+    exit 1
+  }
+done
+
 if grep -Fq '_("DNS through proxy")' "$SETTINGS_JS"; then
   printf 'FAIL: settings still use the proxy-specific DNS label\n' >&2
   exit 1
@@ -50,18 +64,23 @@ if (!source.slice(ips, builtIns).includes("dependsOnRoutingAction(ipConditionOpt
 }
 
 const sectionContent = requiredIndex("function createSectionContent(section)");
-const protocol = requiredIndex('"dns_type"', sectionContent);
-const server = requiredIndex('"dns_server"', protocol);
-if (server <= protocol || !source.slice(protocol, server).includes('_("DNS protocol")')) {
-  fail("DNS protocol must be rendered before DNS server");
+const server = requiredIndex('"dns_server"', sectionContent);
+const serverOption = source.lastIndexOf("section.taboption(", server);
+const serverBlock = source.slice(serverOption, requiredIndex('"dns_detour_enabled"', server));
+if (serverBlock.includes('"dns_type"') || source.slice(sectionContent, server).includes('"dns_type"')) {
+  fail("DNS action must not render a shared protocol selector");
 }
-if (source.slice(server, requiredIndex('"dns_detour_enabled"', server)).includes('placeholder = "1.1.1.1"')) {
+if (!serverBlock.includes("form.DynamicList") || !serverBlock.includes('_("DNS servers")')) {
+  fail("DNS action servers must use a plural DynamicList");
+}
+if (serverBlock.includes('placeholder = "1.1.1.1"')) {
   fail("DNS server must not render the 1.1.1.1 placeholder");
 }
 
 for (const expected of [
-  '_("DNS server used by the resolver")',
-  '_("DNS requests through section")',
+  '"DNS servers used to resolve domains matching the conditions. To specify a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; without a scheme, UDP is used."',
+  '_("Route requests to DNS servers through a section.")',
+  '_("DNS requests through")',
   '"Add a link or local path. The format is detected automatically."',
 ]) {
   requiredIndex(expected);

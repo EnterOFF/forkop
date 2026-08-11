@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { getDnsCheckPresentation } from '../getDnsCheckPresentation';
 
 const baseDnsResult = {
-  dns_type: 'udp' as const,
   dns_server: '77.88.8.8',
   dns_status: 1 as const,
   dns_on_router: 1 as const,

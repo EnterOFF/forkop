@@ -2,6 +2,7 @@
 
 let fs = require("fs");
 let core_ip = require("core.ip");
+let core_url = require("core.url");
 
 function as_string(value) {
     return value == null ? "" : "" + value;
@@ -1199,9 +1200,8 @@ function service_list_instance_running(name) {
     exit(1);
 }
 
-function write_dns_check_json(dns_type, dns_server, dns_status, dns_on_router, bootstrap_dns_server, bootstrap_dns_status, dhcp_config_status, dont_touch_dhcp) {
+function write_dns_check_json(dns_server, dns_status, dns_on_router, bootstrap_dns_server, bootstrap_dns_status, dhcp_config_status, dont_touch_dhcp) {
     write_json({
-        dns_type: as_string(dns_type),
         dns_server: as_string(dns_server),
         dns_status: arg_number(dns_status),
         dns_on_router: arg_number(dns_on_router),
@@ -1261,15 +1261,21 @@ function first_field(value, separator) {
 
 function mask_dns_server(value) {
     value = as_string(value);
-    if (str_endswith(value, ".dns.nextdns.io")) {
-        let nextdns_id = first_field(value, ".");
-        print_line(repeat_char("*", length(nextdns_id)) + ".dns.nextdns.io");
+    let scheme = core_url.scheme(value);
+    let prefix = scheme == "" ? "" : scheme + "://";
+    let host = core_url.host(value);
+    let port = core_url.port(value);
+    let suffix = port == "" ? "" : ":" + port;
+    let path = core_url.path(value);
+
+    if (str_endswith(host, ".dns.nextdns.io")) {
+        let nextdns_id = first_field(host, ".");
+        print_line(prefix + repeat_char("*", length(nextdns_id)) + ".dns.nextdns.io" + suffix + path);
         return;
     }
 
-    if (str_startswith(value, "dns.nextdns.io/")) {
-        let path = substr(value, length("dns.nextdns.io/"));
-        print_line("dns.nextdns.io/" + repeat_char("*", length(path)));
+    if (host == "dns.nextdns.io" && length(path) > 1) {
+        print_line(prefix + host + suffix + "/" + repeat_char("*", length(path) - 1));
         return;
     }
 
@@ -1354,7 +1360,6 @@ function render_global_fakeip_check() {
 
 function render_global_dns_check(dont_touch_dhcp) {
     let value = object_or_empty(read_stdin_json());
-    let dns_type = object_value(value, "dns_type") || "unknown";
     let dns_server = object_value(value, "dns_server") || "unknown";
     let bootstrap_dns_server = object_value(value, "bootstrap_dns_server");
     let dump_dhcp_config = false;
@@ -1363,7 +1368,7 @@ function render_global_dns_check(dont_touch_dhcp) {
         print_line((flag_is_one(value.bootstrap_dns_status) ? "\u2705 Bootstrap DNS: " : "\u274c Bootstrap DNS: ") + bootstrap_dns_server);
     }
 
-    print_line((flag_is_one(value.dns_status) ? "\u2705 Main DNS: " : "\u274c Main DNS: ") + dns_server + " [" + dns_type + "]");
+    print_line((flag_is_one(value.dns_status) ? "\u2705 Main DNS: " : "\u274c Main DNS: ") + dns_server);
     print_line(flag_is_one(value.dns_on_router) ? "\u2705 DNS on router" : "\u274c DNS on router");
 
     if (as_string(dont_touch_dhcp) == "1") {
@@ -1809,7 +1814,7 @@ else if (mode == "service-status-running")
 else if (mode == "service-list-instance-running")
     service_list_instance_running(ARGV[1]);
 else if (mode == "dns-check-json")
-    write_dns_check_json(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8]);
+    write_dns_check_json(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7]);
 else if (mode == "nft-check-json")
     write_nft_check_json(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8]);
 else if (mode == "sing-box-check-json")

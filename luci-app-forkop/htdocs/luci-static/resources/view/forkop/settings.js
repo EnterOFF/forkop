@@ -105,10 +105,7 @@ function optionListValues(option, section_id) {
     .filter(Boolean);
 }
 
-function configureDnsList(option, choices, defaultValue) {
-  Object.entries(choices).forEach(([key, label]) => {
-    option.value(key, _(label));
-  });
+function configureDnsList(option, defaultValue, ipOnly = false) {
   option.default = [defaultValue];
   option.rmempty = false;
   option.validate = function (_section_id, value) {
@@ -118,7 +115,7 @@ function configureDnsList(option, choices, defaultValue) {
         ? true
         : _("Add at least one DNS server");
     }
-    const validation = main.validateDNS(normalized);
+    const validation = main.validateDNS(normalized, ipOnly);
     return validation.valid ? true : validation.message;
   };
 }
@@ -132,27 +129,17 @@ function configureDnsFailoverVisibility(option, dnsOption, dnsKey) {
 }
 
 function createSettingsContent(section, capabilities) {
-  let o = section.option(
-    form.ListValue,
-    "dns_type",
-    _("DNS Protocol Type"),
-    _("Select DNS protocol to use"),
-  );
-  o.value("doh", _("DNS over HTTPS (DoH)"));
-  o.value("dot", _("DNS over TLS (DoT)"));
-  o.value("udp", _("UDP (Unprotected DNS)"));
-  o.default = "udp";
-  o.rmempty = false;
-
   const dnsOption = section.option(
     form.DynamicList,
     "dns_server",
     _("DNS Servers"),
-    _("Specify several for automatic failover"),
+    _(
+      "Specify several for automatic failover. To specify a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; without a scheme, UDP is used.",
+    ),
   );
-  configureDnsList(dnsOption, main.DNS_SERVER_OPTIONS, "77.88.8.8");
+  configureDnsList(dnsOption, "77.88.8.8");
 
-  o = section.option(
+  let o = section.option(
     form.ListValue,
     "dns_main_fallback_strategy",
     _("Main DNS Query Mode"),
@@ -171,14 +158,10 @@ function createSettingsContent(section, capabilities) {
     "bootstrap_dns_server",
     _("Bootstrap DNS Servers"),
     _(
-      "DNS servers used to resolve main DNS servers and proxies. Specify several for automatic failover",
+      "DNS servers used to resolve main DNS servers and proxies. Specify several for automatic failover. To specify a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; without a scheme, UDP is used.",
     ),
   );
-  configureDnsList(
-    bootstrapOption,
-    main.BOOTSTRAP_DNS_SERVER_OPTIONS,
-    "77.88.8.8",
-  );
+  configureDnsList(bootstrapOption, "77.88.8.8", true);
 
   o = section.option(
     form.ListValue,

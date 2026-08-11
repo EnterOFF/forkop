@@ -65,9 +65,8 @@ cat >"$WORK_DIR/valid.json" <<'JSON'
     "list_update_enabled": "1",
     "update_interval": "1d",
     "latency_test_url": "https://latency.example/generate_204",
-    "dns_type": "doh",
-    "dns_server": [ "dns.google/dns-query", "cloudflare-dns.com/dns-query" ],
-    "bootstrap_dns_server": [ "1.1.1.1", "8.8.8.8" ],
+    "dns_server": [ "https://dns.google/dns-query", "tls://cloudflare-dns.com", "quic://dns.adguard-dns.com", "h3://dns.google/dns-query", "tcp://8.8.8.8", "1.1.1.1" ],
+    "bootstrap_dns_server": [ "https://1.1.1.1/dns-query", "tcp://8.8.8.8" ],
     "dns_main_fallback_strategy": "sequential",
     "dns_bootstrap_fallback_strategy": "parallel",
     "dns_strategy": "prefer_ipv6",
@@ -130,8 +129,7 @@ cat >"$WORK_DIR/valid.json" <<'JSON'
       ".type": "section",
       "enabled": "1",
       "action": "dns",
-      "dns_type": "dot",
-      "dns_server": "9.9.9.9:5353",
+      "dns_server": [ "tls://9.9.9.9:5353", "https://1.1.1.1/dns-query" ],
       "dns_detour_enabled": "1",
       "dns_detour_section": "proxy",
       "domain_suffix": [ "dns.example" ],
@@ -142,7 +140,7 @@ cat >"$WORK_DIR/valid.json" <<'JSON'
       ".type": "section",
       "enabled": "1",
       "action": "dns",
-      "dns_server": "1.1.1.1",
+      "dns_server": [ "1.1.1.1" ],
       "fully_routed_ips": [ "192.0.2.2/32" ]
     }
   ],
@@ -420,11 +418,11 @@ cat >"$WORK_DIR/bad-dns-rule-protocol.json" <<'JSON'
 {
   "settings": { ".name": "settings", ".type": "settings" },
   "section": [
-    { ".name": "dns", ".type": "section", "enabled": "1", "action": "dns", "dns_type": "tcp", "dns_server": "9.9.9.9", "domain_suffix": [ "example.org" ] }
+    { ".name": "dns", ".type": "section", "enabled": "1", "action": "dns", "dns_server": [ "http://9.9.9.9/dns-query" ], "domain_suffix": [ "example.org" ] }
   ]
 }
 JSON
-assert_rejects "bad DNS rule protocol" "$WORK_DIR/bad-dns-rule-protocol.json" "unsupported protocol 'tcp'"
+assert_rejects "bad DNS rule protocol" "$WORK_DIR/bad-dns-rule-protocol.json" "unsupported DNS server URI scheme 'http'"
 
 cat >"$WORK_DIR/bad-dns-rule-matchers.json" <<'JSON'
 {

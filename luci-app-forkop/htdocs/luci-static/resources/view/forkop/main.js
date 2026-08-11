@@ -125,27 +125,61 @@ function parseHostPort(value) {
 }
 
 // src/validators/validateDns.ts
-function validateDNS(value) {
-  if (!value) {
+var DNS_SCHEMES = /* @__PURE__ */ new Set(["udp", "tcp", "tls", "https", "quic", "h3"]);
+function validateDNS(value, ipOnly = false) {
+  const normalized = `${value || ""}`.trim();
+  if (!normalized) {
     return { valid: false, message: _("DNS server address cannot be empty") };
   }
-  const [addressPart, ...pathParts] = value.split("/");
-  const parsedHostPort = parseHostPort(addressPart);
-  const host = parsedHostPort ? parsedHostPort.host : unbracketHost(addressPart);
-  const domainValue = parsedHostPort ? host + (pathParts.length > 0 ? `/${pathParts.join("/")}` : "") : value.replace(/:(\d+)(?=\/|$)/, "");
+  if (/[\s@?#]/.test(normalized)) {
+    return {
+      valid: false,
+      message: _(
+        "DNS server URI must not contain whitespace, credentials, query parameters, or fragments"
+      )
+    };
+  }
+  const schemeMatch = normalized.match(/^([a-z][a-z0-9+.-]*):\/\//i);
+  const scheme = schemeMatch?.[1].toLowerCase() || "udp";
+  if (!DNS_SCHEMES.has(scheme)) {
+    return {
+      valid: false,
+      message: _(
+        "Unsupported DNS server protocol. Use udp://, tcp://, tls://, https://, quic://, or h3://"
+      )
+    };
+  }
+  const endpoint = schemeMatch ? normalized.slice(schemeMatch[0].length) : normalized;
+  const slash = endpoint.indexOf("/");
+  const authority = slash >= 0 ? endpoint.slice(0, slash) : endpoint;
+  const path = slash >= 0 ? endpoint.slice(slash) : "";
+  if (path && scheme !== "https" && scheme !== "h3") {
+    return {
+      valid: false,
+      message: _("DNS server paths are supported only for https:// and h3://")
+    };
+  }
+  const parsedHostPort = parseHostPort(authority);
+  const host = parsedHostPort ? parsedHostPort.host : unbracketHost(authority);
   if (parsedHostPort && !isValidPort(parsedHostPort.port)) {
     return { valid: false, message: _("Invalid DNS server port") };
   }
   if (validateIP(host).valid) {
     return { valid: true, message: _("Valid") };
   }
-  if (validateDomain(domainValue).valid) {
+  if (ipOnly) {
+    return {
+      valid: false,
+      message: _("Bootstrap DNS server must use an IP address")
+    };
+  }
+  if (validateDomain(host).valid) {
     return { valid: true, message: _("Valid") };
   }
   return {
     valid: false,
     message: _(
-      "Invalid DNS server format. Examples: 8.8.8.8 or dns.example.com or dns.example.com/nicedns for DoH"
+      "Invalid DNS server format. Examples: 8.8.8.8, tls://1.1.1.1, or https://dns.example.com/dns-query"
     )
   };
 }
@@ -882,24 +916,6 @@ var DOMAIN_LIST_OPTIONS = {
   ovh: "OVH ASN",
   digitalocean: "Digital Ocean ASN",
   cloudfront: "CloudFront ASN"
-};
-var DNS_SERVER_OPTIONS = {
-  "1.1.1.1": "1.1.1.1 (Cloudflare)",
-  "8.8.8.8": "8.8.8.8 (Google)",
-  "9.9.9.9": "9.9.9.9 (Quad9)",
-  "dns.adguard-dns.com": "dns.adguard-dns.com (AdGuard Default)",
-  "unfiltered.adguard-dns.com": "unfiltered.adguard-dns.com (AdGuard Unfiltered)",
-  "family.adguard-dns.com": "family.adguard-dns.com (AdGuard Family)"
-};
-var BOOTSTRAP_DNS_SERVER_OPTIONS = {
-  "77.88.8.8": "77.88.8.8 (Yandex DNS)",
-  "77.88.8.1": "77.88.8.1 (Yandex DNS)",
-  "1.1.1.1": "1.1.1.1 (Cloudflare DNS)",
-  "1.0.0.1": "1.0.0.1 (Cloudflare DNS)",
-  "8.8.8.8": "8.8.8.8 (Google DNS)",
-  "8.8.4.4": "8.8.4.4 (Google DNS)",
-  "9.9.9.9": "9.9.9.9 (Quad9 DNS)",
-  "9.9.9.11": "9.9.9.11 (Quad9 DNS)"
 };
 var COMMAND_TIMEOUT = 1e4;
 
@@ -7733,20 +7749,15 @@ async function runDnsCheck() {
     description,
     state,
     items: [
-      ...insertIf(
-        data.dns_type === "doh" || data.dns_type === "dot" || data.bootstrap_dns_server.includes(", ") || !data.bootstrap_dns_status,
-        [
-          {
-            state: data.bootstrap_dns_status ? "success" : "error",
-            key: _("Bootstrap DNS"),
-            value: data.bootstrap_dns_server
-          }
-        ]
-      ),
+      {
+        state: data.bootstrap_dns_status ? "success" : "error",
+        key: _("Bootstrap DNS"),
+        value: data.bootstrap_dns_server
+      },
       {
         state: data.dns_status ? "success" : "error",
         key: _("Main DNS"),
-        value: `${data.dns_server} [${data.dns_type}]`
+        value: data.dns_server
       },
       {
         state: data.dns_on_router ? "success" : "error",
@@ -14358,9 +14369,7 @@ function injectGlobalStyles() {
 if (typeof structuredClone !== "function")
   globalThis.structuredClone = (obj) => JSON.parse(JSON.stringify(obj));
 return baseclass.extend({
-  BOOTSTRAP_DNS_SERVER_OPTIONS,
   DEFAULT_LATENCY_TEST_URL,
-  DNS_SERVER_OPTIONS,
   DOMAIN_LIST_OPTIONS,
   DashboardTab,
   DiagnosticTab,

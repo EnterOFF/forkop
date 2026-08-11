@@ -603,8 +603,7 @@ cat >"$WORK_DIR/dns-action-fixture.json" <<JSON
       ".type": "section",
       "enabled": "1",
       "action": "dns",
-      "dns_type": "dot",
-      "dns_server": "9.9.9.9:5353",
+      "dns_server": [ "tls://9.9.9.9:5353", "https://1.1.1.1/dns-query", "quic://9.9.9.9", "h3://1.1.1.1/dns-query", "tcp://8.8.8.8", "8.8.4.4" ],
       "dns_detour_enabled": "1",
       "dns_detour_section": "detour",
       "domain_suffix": [ "dns-first.example" ],
@@ -628,7 +627,7 @@ cat >"$WORK_DIR/dns-action-fixture.json" <<JSON
       ".type": "section",
       "enabled": "1",
       "action": "dns",
-      "dns_server": "8.8.8.8",
+      "dns_server": [ "8.8.8.8" ],
       "domain_suffix": [ "proxy-first.example" ],
       "fully_routed_ips": [ "192.0.2.3/32" ]
     },
@@ -1246,8 +1245,13 @@ assert(index(commented_rule_json, "443") < 0 && index(commented_rule_json, "8443
 
 let dns_action = cfg("dns-action");
 let dns_first_server = dns_server(dns_action, r => r.tag == "dns_first-dns-server");
-assert(dns_first_server && dns_first_server.type == "tls" && dns_first_server.server == "9.9.9.9" && dns_first_server.server_port == 5353, "DNS action protocol and server");
-assert(dns_first_server.detour == "detour-out", "DNS action detour");
+assert(dns_first_server && dns_first_server.type == "fallback" && dns_first_server.strategy == "parallel" && length(dns_first_server.servers) == 6, "DNS action server list uses one fallback tag");
+assert(dns_server(dns_action, r => r.tag == "dns_first-dns-server-1" && r.type == "tls" && r.server == "9.9.9.9" && r.server_port == 5353 && r.detour == "detour-out") != null, "DNS action TLS server and detour");
+assert(dns_server(dns_action, r => r.tag == "dns_first-dns-server-2" && r.type == "https" && r.path == "/dns-query") != null, "DNS action HTTPS server");
+assert(dns_server(dns_action, r => r.tag == "dns_first-dns-server-3" && r.type == "quic" && r.server_port == 853) != null, "DNS action QUIC server");
+assert(dns_server(dns_action, r => r.tag == "dns_first-dns-server-4" && r.type == "h3" && r.server_port == 443) != null, "DNS action HTTP3 server");
+assert(dns_server(dns_action, r => r.tag == "dns_first-dns-server-5" && r.type == "tcp" && r.server_port == 53) != null, "DNS action TCP server");
+assert(dns_server(dns_action, r => r.tag == "dns_first-dns-server-6" && r.type == "udp" && r.server_port == 53) != null, "DNS action default UDP server");
 assert(dns_server(dns_action, r => r.tag == "dns_second-dns-server" && r.server == "8.8.8.8") != null, "second DNS action server");
 assert(outbound(dns_action, "dns_first-out") == null && outbound(dns_action, "dns_second-out") == null, "DNS actions do not create outbounds");
 assert(route_rule(dns_action, r => contains(r.domain_suffix, "dns-first.example") && r.outbound != null) != null, "proxy still owns its route rule");

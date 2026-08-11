@@ -37,9 +37,7 @@ export { MonitoringTab } from './forkop/tabs/monitoring';
 export { LogsTab } from './forkop/tabs/logs';
 export { UpdatesTab } from './forkop/tabs/updates';
 export {
-  BOOTSTRAP_DNS_SERVER_OPTIONS,
   DEFAULT_LATENCY_TEST_URL,
-  DNS_SERVER_OPTIONS,
   DOMAIN_LIST_OPTIONS,
   LATENCY_TEST_URL_OPTIONS,
   FORKOP_ACTION_PROVIDERS_AVAILABILITY_EVENT,

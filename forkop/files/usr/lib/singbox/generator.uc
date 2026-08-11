@@ -1609,15 +1609,16 @@ function dns_action_detour_tag(section) {
 }
 
 function add_dns_server_for_section(config, section) {
-    let server = runtime_dns.server_from_options(
+    let unsupported = runtime_dns.add_uri_server_group(
+        config.dns.servers,
+        runtime_dns.server_list(section, "dns_server", ""),
         dns_action_server_tag(section[".name"]),
-        option(section, "dns_type", "udp"),
-        option(section, "dns_server", ""),
-        dns_action_detour_tag(section)
+        "parallel",
+        dns_action_detour_tag(section),
+        false
     );
-    if (server.unsupported)
-        runtime_generate_unsupported(server.unsupported);
-    push(config.dns.servers, server);
+    if (unsupported != "")
+        runtime_generate_unsupported(unsupported);
 }
 
 function add_dns_action_rules_for_section(config, section) {
