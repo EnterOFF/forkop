@@ -461,7 +461,7 @@
     "call": "Bootstrap DNS server must use an IP address",
     "key": "Bootstrap DNS server must use an IP address",
     "places": [
-      "src/validators/validateDns.ts:64"
+      "src/validators/validateDns.ts:61"
     ]
   },
   {
@@ -1214,21 +1214,21 @@
     "call": "DNS server address cannot be empty",
     "key": "DNS server address cannot be empty",
     "places": [
-      "src/validators/validateDns.ts:14"
+      "src/validators/validateDns.ts:11"
     ]
   },
   {
     "call": "DNS server paths are supported only for https:// and h3://",
     "key": "DNS server paths are supported only for https:// and h3://",
     "places": [
-      "src/validators/validateDns.ts:46"
+      "src/validators/validateDns.ts:43"
     ]
   },
   {
     "call": "DNS server URI must not contain whitespace, credentials, query parameters, or fragments",
     "key": "DNS server URI must not contain whitespace, credentials, query parameters, or fragments",
     "places": [
-      "src/validators/validateDns.ts:20"
+      "src/validators/validateDns.ts:17"
     ]
   },
   {
@@ -2427,14 +2427,14 @@
     "call": "Invalid DNS server format. Examples: 8.8.8.8, tls://1.1.1.1, or https://dns.example.com/dns-query",
     "key": "Invalid DNS server format. Examples: 8.8.8.8, tls://1.1.1.1, or https://dns.example.com/dns-query",
     "places": [
-      "src/validators/validateDns.ts:74"
+      "src/validators/validateDns.ts:71"
     ]
   },
   {
     "call": "Invalid DNS server port",
     "key": "Invalid DNS server port",
     "places": [
-      "src/validators/validateDns.ts:54"
+      "src/validators/validateDns.ts:51"
     ]
   },
   {
@@ -3947,8 +3947,8 @@
     "call": "Search",
     "key": "Search",
     "places": [
-      "src/forkop/tabs/monitoring/render.ts:47",
-      "src/forkop/tabs/logs/render.ts:24"
+      "src/forkop/tabs/logs/render.ts:24",
+      "src/forkop/tabs/monitoring/render.ts:47"
     ]
   },
   {
@@ -4586,8 +4586,8 @@
     ]
   },
   {
-    "call": "Supported links: vless, vmess, shadowsocks, trojan, socks, tuic, hysteria, naiveproxy, mieru",
-    "key": "Supported links: vless, vmess, shadowsocks, trojan, socks, tuic, hysteria, naiveproxy, mieru",
+    "call": "Supported links: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, naiveproxy, mieru",
+    "key": "Supported links: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, naiveproxy, mieru",
     "places": [
       "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8432"
     ]
@@ -4687,7 +4687,7 @@
     "call": "The pasted link is not supported. Try JSON outbound.",
     "key": "The pasted link is not supported. Try JSON outbound.",
     "places": [
-      "src/validators/validateProxyUrl.ts:30"
+      "src/validators/validateProxyUrl.ts:34"
     ]
   },
   {
@@ -5076,7 +5076,7 @@
     "call": "Unsupported DNS server protocol. Use udp://, tcp://, tls://, https://, quic://, or h3://",
     "key": "Unsupported DNS server protocol. Use udp://, tcp://, tls://, https://, quic://, or h3://",
     "places": [
-      "src/validators/validateDns.ts:31"
+      "src/validators/validateDns.ts:28"
     ]
   },
   {
@@ -5388,14 +5388,14 @@
     "places": [
       "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6368",
       "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6381",
-      "src/validators/validateDns.ts:58",
-      "src/validators/validateDns.ts:69",
+      "src/validators/validateDns.ts:55",
+      "src/validators/validateDns.ts:66",
       "src/validators/validateDomain.ts:57",
       "src/validators/validateDomain.ts:76",
       "src/validators/validateIp.ts:25",
       "src/validators/validateOutboundJson.ts:127",
       "src/validators/validatePath.ts:16",
-      "src/validators/validateProxyUrl.ts:26",
+      "src/validators/validateProxyUrl.ts:30",
       "src/validators/validateSubnet.ts:42",
       "src/validators/validateUrl.ts:32"
     ]

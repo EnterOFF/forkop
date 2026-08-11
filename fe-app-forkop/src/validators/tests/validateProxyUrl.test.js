@@ -36,6 +36,16 @@ const validUrls = [
   ['hysteria', 'hysteria://example.com:443?auth=secret'],
   ['hysteria2', 'hysteria2://password@example.com:443'],
   ['hy2', 'hy2://password@example.com:443'],
+  ['HTTP proxy', 'http://user:password@example.com:8080'],
+  ['HTTPS proxy', 'https://user:password@example.com:443'],
+  [
+    'Shadowrocket Naive HTTP2',
+    'http2://dXNlcjpwYXNzd29yZEBleGFtcGxlLmNvbTo0NDM=',
+  ],
+  [
+    'Shadowrocket Naive HTTP3',
+    'http3://dXNlcjpwYXNzd29yZEBleGFtcGxlLmNvbTo0NDM=',
+  ],
   ['naive HTTPS', 'naive+https://user:password@example.com:443'],
   ['naive QUIC', 'naive+quic://user:password@example.com:443'],
   [
@@ -70,13 +80,6 @@ describe('validateProxyUrl', () => {
     expect(res.message).toBe(
       'The pasted link is not supported. Try JSON outbound.',
     );
-  });
-
-  it('rejects native HTTP proxy URLs', () => {
-    const res = validateProxyUrl('https://user:pass@example.com:443');
-
-    expect(res.valid).toBe(false);
-    expect(res.message).not.toContain('http://');
   });
 
   it('leaves protocol-specific validation to sing-box-forkop', () => {

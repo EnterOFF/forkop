@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-11 01:06+0300\n"
-"PO-Revision-Date: 2026-08-11 01:06+0300\n"
+"POT-Creation-Date: 2026-08-11 02:04+0300\n"
+"PO-Revision-Date: 2026-08-11 02:04+0300\n"
 "Last-Translator: ushan0v <ushanov2204@gmail.com>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "Language: \n"
@@ -288,7 +288,7 @@ msgstr ""
 msgid "Bootstrap DNS Query Mode"
 msgstr ""
 
-#: src/validators/validateDns.ts:64
+#: src/validators/validateDns.ts:61
 msgid "Bootstrap DNS server must use an IP address"
 msgstr ""
 
@@ -741,15 +741,15 @@ msgstr ""
 msgid "DNS server"
 msgstr ""
 
-#: src/validators/validateDns.ts:14
+#: src/validators/validateDns.ts:11
 msgid "DNS server address cannot be empty"
 msgstr ""
 
-#: src/validators/validateDns.ts:46
+#: src/validators/validateDns.ts:43
 msgid "DNS server paths are supported only for https:// and h3://"
 msgstr ""
 
-#: src/validators/validateDns.ts:20
+#: src/validators/validateDns.ts:17
 msgid "DNS server URI must not contain whitespace, credentials, query parameters, or fragments"
 msgstr ""
 
@@ -1453,11 +1453,11 @@ msgstr ""
 msgid "Invalid CIDR prefix"
 msgstr ""
 
-#: src/validators/validateDns.ts:74
+#: src/validators/validateDns.ts:71
 msgid "Invalid DNS server format. Examples: 8.8.8.8, tls://1.1.1.1, or https://dns.example.com/dns-query"
 msgstr ""
 
-#: src/validators/validateDns.ts:54
+#: src/validators/validateDns.ts:51
 msgid "Invalid DNS server port"
 msgstr ""
 
@@ -2352,8 +2352,8 @@ msgstr ""
 msgid "Save"
 msgstr ""
 
-#: src/forkop/tabs/monitoring/render.ts:47
 #: src/forkop/tabs/logs/render.ts:24
+#: src/forkop/tabs/monitoring/render.ts:47
 msgid "Search"
 msgstr ""
 
@@ -2728,7 +2728,7 @@ msgid "Subscriptions updated"
 msgstr ""
 
 #: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8432
-msgid "Supported links: vless, vmess, shadowsocks, trojan, socks, tuic, hysteria, naiveproxy, mieru"
+msgid "Supported links: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, naiveproxy, mieru"
 msgstr ""
 
 #: src/forkop/tabs/dashboard/initController.ts:1681
@@ -2786,7 +2786,7 @@ msgstr ""
 msgid "The NFQUEUE number is assigned by Forkop for each rule and must not be overridden here."
 msgstr ""
 
-#: src/validators/validateProxyUrl.ts:30
+#: src/validators/validateProxyUrl.ts:34
 msgid "The pasted link is not supported. Try JSON outbound."
 msgstr ""
 
@@ -3022,7 +3022,7 @@ msgstr ""
 msgid "Unspecified IP address is not allowed"
 msgstr ""
 
-#: src/validators/validateDns.ts:31
+#: src/validators/validateDns.ts:28
 msgid "Unsupported DNS server protocol. Use udp://, tcp://, tls://, https://, quic://, or h3://"
 msgstr ""
 
@@ -3211,14 +3211,14 @@ msgstr ""
 
 #: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6368
 #: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6381
-#: src/validators/validateDns.ts:58
-#: src/validators/validateDns.ts:69
+#: src/validators/validateDns.ts:55
+#: src/validators/validateDns.ts:66
 #: src/validators/validateDomain.ts:57
 #: src/validators/validateDomain.ts:76
 #: src/validators/validateIp.ts:25
 #: src/validators/validateOutboundJson.ts:127
 #: src/validators/validatePath.ts:16
-#: src/validators/validateProxyUrl.ts:26
+#: src/validators/validateProxyUrl.ts:30
 #: src/validators/validateSubnet.ts:42
 #: src/validators/validateUrl.ts:32
 msgid "Valid"
