@@ -1446,6 +1446,9 @@ function dns_action_has_domain_matchers(section) {
 
 function validate_dns_action(section, sections, context) {
     let name = section_name(section);
+    let fallback_strategy = option(section, "dns_fallback_strategy", "parallel");
+    if (!contains([ "sequential", "parallel" ], fallback_strategy))
+        fail_validation("DNS rule '" + name + "' uses unsupported fallback strategy '" + fallback_strategy + "'. Use sequential or parallel. Aborted.");
     let dns_servers = dns_setting_values(section, "dns_server");
     if (length(dns_servers) == 0)
         fail_validation("DNS rule '" + name + "' must contain at least one DNS server. Aborted.");

@@ -213,8 +213,8 @@ function dependsOnRuleConditions(option) {
       option.depends({ action, [condition]: /\S/ }),
     ),
   );
-  ["domain", "community_lists", "rule_set"].forEach((condition) =>
-    option.depends({ action: "dns", [condition]: /\S/ }),
+  ["domain", "community_lists", "rule_set", "_dns_rule_set"].forEach(
+    (condition) => option.depends({ action: "dns", [condition]: /\S/ }),
   );
   return option;
 }
@@ -8242,15 +8242,16 @@ function createSectionContent(section) {
     });
   };
 
-  o = section.taboption(
+  const dnsServerOption = section.taboption(
     "settings",
     form.DynamicList,
     "dns_server",
-    _("DNS servers"),
+    _("DNS Server"),
     _(
-      "DNS servers used to resolve domains matching the conditions. To specify a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; without a scheme, UDP is used.",
+      "DNS server used to resolve domains matching the section conditions. Specify several servers for automatic failover on failure. To select a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; UDP is used by default.",
     ),
   );
+  o = dnsServerOption;
   o.depends("action", "dns");
   o.rmempty = false;
   o.modalonly = true;
@@ -8267,12 +8268,52 @@ function createSectionContent(section) {
     return validation.valid ? true : validation.message;
   };
 
+  const dnsQueryModeOption = section.taboption(
+    "settings",
+    form.ListValue,
+    "dns_fallback_strategy",
+    _("DNS Query Mode"),
+    _(
+      "Query servers one at a time until the first successful response, or query all servers simultaneously for maximum speed.",
+    ),
+  );
+  dnsQueryModeOption.value("parallel", _("Parallel"));
+  dnsQueryModeOption.value("sequential", _("Sequential"));
+  dnsQueryModeOption.default = "parallel";
+  dnsQueryModeOption.rmempty = false;
+  dnsQueryModeOption.modalonly = true;
+  dnsQueryModeOption.retain = true;
+  dnsQueryModeOption.depends({
+    action: "dns",
+    dns_server: "__forkop_multiple_dns__",
+  });
+  dnsQueryModeOption.checkDepends = function (section_id) {
+    const actionOption = this.map.lookupOption("action", section_id);
+    const dnsServerOption = this.map.lookupOption("dns_server", section_id);
+    const action = actionOption?.[0].formvalue(actionOption[1]);
+    const servers = dnsServerOption?.[0].formvalue(dnsServerOption[1]);
+    return action === "dns" && normalizeDynamicListItems(servers).length > 1;
+  };
+  const originalDnsServerRenderWidget = dnsServerOption.renderWidget;
+  dnsServerOption.renderWidget = function (section_id, option_index, cfgvalue) {
+    const node = originalDnsServerRenderWidget.call(
+      this,
+      section_id,
+      option_index,
+      cfgvalue,
+    );
+    node.addEventListener("cbi-dynlist-change", () => {
+      this.map.checkDepends();
+    });
+    return node;
+  };
+
   o = section.taboption(
     "settings",
     form.Flag,
     "dns_detour_enabled",
     _("DNS through section"),
-    _("Route requests to DNS servers through a section."),
+    _("Route DNS requests through a section."),
   );
   o.depends("action", "dns");
   o.default = "0";
@@ -8995,6 +9036,30 @@ function createSectionContent(section) {
     uci.unset(UCI_PACKAGE, section_id, "community_lists");
   };
 
+  const dnsRuleSetOption = section.taboption(
+    "conditions",
+    form.DynamicList,
+    "_dns_rule_set",
+    _("Rule sets"),
+    _(
+      "Add a link or local path. The format is detected automatically.",
+    ),
+  );
+  dnsRuleSetOption.depends("action", "dns");
+  dnsRuleSetOption.modalonly = true;
+  dnsRuleSetOption.load = function (section_id) {
+    return getCustomRulesetReferences(section_id);
+  };
+  dnsRuleSetOption.write = function (section_id, value) {
+    writeDnsRulesetReferences(section_id, value);
+  };
+  dnsRuleSetOption.remove = function (section_id) {
+    writeDnsRulesetReferences(section_id, []);
+  };
+  dnsRuleSetOption.validate = function (_section_id, value) {
+    return validateCustomRulesetReference(value);
+  };
+
   const ruleSetOption = section.taboption(
     "conditions",
     SettingsDynamicList,
@@ -9004,6 +9069,7 @@ function createSectionContent(section) {
       "Add a link or local path. The format is detected automatically.",
     ),
   );
+  dependsOnRoutingAction(ruleSetOption);
   ruleSetOption.modalonly = true;
   ruleSetOption.retain = true;
   ruleSetOption.renderItemSettingsModal = showRuleSetSettingsModal;

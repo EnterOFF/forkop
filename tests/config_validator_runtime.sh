@@ -130,6 +130,7 @@ cat >"$WORK_DIR/valid.json" <<'JSON'
       "enabled": "1",
       "action": "dns",
       "dns_server": [ "tls://9.9.9.9:5353", "https://1.1.1.1/dns-query" ],
+      "dns_fallback_strategy": "sequential",
       "dns_detour_enabled": "1",
       "dns_detour_section": "proxy",
       "domain_suffix": [ "dns.example" ],
@@ -434,6 +435,16 @@ cat >"$WORK_DIR/bad-dns-rule-protocol.json" <<'JSON'
 }
 JSON
 assert_rejects "bad DNS rule protocol" "$WORK_DIR/bad-dns-rule-protocol.json" "unsupported DNS server URI scheme 'http'"
+
+cat >"$WORK_DIR/bad-dns-rule-fallback.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "section": [
+    { ".name": "dns", ".type": "section", "enabled": "1", "action": "dns", "dns_server": [ "9.9.9.9", "1.1.1.1" ], "dns_fallback_strategy": "random", "domain_suffix": [ "example.org" ] }
+  ]
+}
+JSON
+assert_rejects "bad DNS rule fallback strategy" "$WORK_DIR/bad-dns-rule-fallback.json" "unsupported fallback strategy 'random'"
 
 cat >"$WORK_DIR/bad-dns-rule-matchers.json" <<'JSON'
 {

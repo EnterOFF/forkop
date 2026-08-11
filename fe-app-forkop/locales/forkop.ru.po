@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-11 05:04+0300\n"
-"PO-Revision-Date: 2026-08-11 05:04+0300\n"
+"POT-Creation-Date: 2026-08-11 06:29+0300\n"
+"PO-Revision-Date: 2026-08-11 06:29+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -494,6 +494,9 @@ msgstr "Протокол DNS"
 msgid "DNS protocol used by the resolver"
 msgstr "DNS-протокол, который будет использовать резолвер"
 
+msgid "DNS Query Mode"
+msgstr "Режим опроса DNS"
+
 msgid "DNS requests through"
 msgstr "DNS запросы через"
 
@@ -501,6 +504,9 @@ msgid "DNS Rewrite TTL"
 msgstr "Перезапись TTL для DNS"
 
 msgid "DNS server"
+msgstr "DNS-сервер"
+
+msgid "DNS Server"
 msgstr "DNS-сервер"
 
 msgid "DNS server address cannot be empty"
@@ -515,17 +521,11 @@ msgstr "URI DNS-сервера не должен содержать пробел
 msgid "DNS server used by the resolver"
 msgstr "DNS-сервер, который будет использовать резолвер"
 
-msgid "DNS servers"
-msgstr "DNS-серверы"
+msgid "DNS server used to resolve domains matching the section conditions. Specify several servers for automatic failover on failure. To select a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; UDP is used by default."
+msgstr "DNS-сервер для резолвинга доменов, совпавших с условиями секции. Укажите несколько серверов для автоматического переключения при сбоях. Для выбора протокола используйте udp://, tcp://, tls://, https://, quic:// или h3://; по умолчанию UDP."
 
-msgid "DNS Servers"
-msgstr "DNS-серверы"
-
-msgid "DNS servers used to resolve domains matching the conditions. To specify a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; without a scheme, UDP is used."
-msgstr "DNS-серверы, используемые для резолвинга доменов, совпавших с условиями. Для указания протокола используйте udp://, tcp://, tls://, https://, quic:// или h3://; без схемы используется UDP."
-
-msgid "DNS servers used to resolve main DNS servers and proxies. Specify several for automatic failover. To specify a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; without a scheme, UDP is used."
-msgstr "DNS-серверы, используемые для резолвинга основных DNS-серверов и прокси. Укажите несколько серверов для автоматического переключения. Для указания протокола используйте udp://, tcp://, tls://, https://, quic:// или h3://; без схемы используется UDP."
+msgid "DNS servers used to resolve main DNS servers and proxies."
+msgstr "DNS-серверы, используемые для резолвинга основных DNS-серверов и прокси."
 
 msgid "DNS Strategy"
 msgstr "Стратегия DNS"
@@ -1574,11 +1574,11 @@ msgstr "Маршрут"
 msgid "Route BitTorrent traffic handled by sing-box directly."
 msgstr "Маршрутизировать попавший в sing-box торрент трафик напрямую."
 
-msgid "Route main DNS requests through the selected section."
-msgstr "Маршрутизировать основные DNS-запросы через выбранную секцию."
+msgid "Route DNS requests through a section."
+msgstr "Маршрутизировать DNS-запросы через секцию."
 
-msgid "Route requests to DNS servers through a section."
-msgstr "Направлять запросы к DNS-серверам через секцию."
+msgid "Route main DNS requests through a section."
+msgstr "Маршрутизировать основные DNS-запросы через секцию."
 
 msgid "Routing mode"
 msgstr "Режим маршрутизации"
@@ -1811,8 +1811,8 @@ msgstr "Укажите разные файлы"
 msgid "Specify local subnets to give other devices in your Tailscale network access to them."
 msgstr "Укажите локальные подсети, чтобы дать к ним доступ другим устройствам из сети Tailscale."
 
-msgid "Specify several for automatic failover. To specify a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; without a scheme, UDP is used."
-msgstr "Укажите несколько серверов для автоматического переключения. Для указания протокола используйте udp://, tcp://, tls://, https://, quic:// или h3://; без схемы используется UDP."
+msgid "Specify several servers for automatic failover on failure. To select a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; UDP is used by default."
+msgstr "Укажите несколько серверов для автоматического переключения при сбоях. Для выбора протокола используйте udp://, tcp://, tls://, https://, quic:// или h3://; по умолчанию UDP."
 
 msgid "SSH host key path"
 msgstr "Путь к ключу хоста SSH"

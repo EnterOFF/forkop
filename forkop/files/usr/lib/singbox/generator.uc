@@ -1613,7 +1613,7 @@ function add_dns_server_for_section(config, section) {
         config.dns.servers,
         runtime_dns.server_list(section, "dns_server", ""),
         dns_action_server_tag(section[".name"]),
-        "parallel",
+        option(section, "dns_fallback_strategy", "parallel"),
         dns_action_detour_tag(section),
         false
     );

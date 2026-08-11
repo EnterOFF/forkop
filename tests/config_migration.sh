@@ -1061,6 +1061,7 @@ cat >"$WORK_DIR/forkop-1.0.5-dns.json" <<'JSON'
     },
     {
       ".name": "udp", ".type": "section", "action": "dns",
+      "dns_type": "udp",
       "dns_server": "8.8.8.8",
       "domain_suffix": [ "udp.example" ]
     }
@@ -1088,9 +1089,9 @@ assert(JSON.stringify(config.settings.dns_server) === JSON.stringify([
   'https://1.1.1.1:444/custom',
 ]), 'main DNS servers should preserve DoH hosts, ports, paths, and order');
 assert(JSON.stringify(config.settings.bootstrap_dns_server) === JSON.stringify([
-  'udp://1.1.1.1',
-  'udp://[2606:4700:4700::1111]:5353',
-]), 'Bootstrap DNS servers should preserve their UDP endpoints and order');
+  '1.1.1.1',
+  '[2606:4700:4700::1111]:5353',
+]), 'Bootstrap DNS servers should preserve their UDP endpoints and order without a redundant scheme');
 assert(sections.dot.dns_type === undefined &&
   JSON.stringify(sections.dot.dns_server) === JSON.stringify(['tls://9.9.9.9:5353']),
   'DNS action should preserve the old DoT server as a list');
@@ -1098,7 +1099,7 @@ assert(sections.doh.dns_type === undefined &&
   JSON.stringify(sections.doh.dns_server) === JSON.stringify(['https://dns.example/dns-query']),
   'DNS action should preserve the old DoH path as a list');
 assert(JSON.stringify(sections.udp.dns_server) === JSON.stringify(['8.8.8.8']),
-  'DNS action without an explicit old type should stay default UDP and become a list');
+  'DNS action should migrate explicit UDP without a redundant scheme');
 assert(config.settings.applied_migrations.at(-1) === 'dns_server_uris',
   'DNS URI migration marker should be recorded');
 

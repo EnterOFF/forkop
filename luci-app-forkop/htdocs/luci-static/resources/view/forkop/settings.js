@@ -132,9 +132,9 @@ function createSettingsContent(section, capabilities) {
   const dnsOption = section.option(
     form.DynamicList,
     "dns_server",
-    _("DNS Servers"),
+    _("DNS Server"),
     _(
-      "Specify several for automatic failover. To specify a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; without a scheme, UDP is used.",
+      "Specify several servers for automatic failover on failure. To select a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; UDP is used by default.",
     ),
   );
   configureDnsList(dnsOption, "77.88.8.8");
@@ -157,9 +157,7 @@ function createSettingsContent(section, capabilities) {
     form.DynamicList,
     "bootstrap_dns_server",
     _("Bootstrap DNS Servers"),
-    _(
-      "DNS servers used to resolve main DNS servers and proxies. Specify several for automatic failover. To specify a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; without a scheme, UDP is used.",
-    ),
+    _("DNS servers used to resolve main DNS servers and proxies."),
   );
   configureDnsList(bootstrapOption, "77.88.8.8", true);
 
@@ -215,7 +213,7 @@ function createSettingsContent(section, capabilities) {
     form.Flag,
     "dns_detour_enabled",
     _("DNS through section"),
-    _("Route main DNS requests through the selected section."),
+    _("Route main DNS requests through a section."),
   );
   configureDownloadViaProxyFlag(o, "dns_detour_section");
 

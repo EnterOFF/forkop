@@ -630,6 +630,7 @@ cat >"$WORK_DIR/dns-action-fixture.json" <<JSON
       "enabled": "1",
       "action": "dns",
       "dns_server": [ "tls://9.9.9.9:5353", "https://1.1.1.1/dns-query", "quic://9.9.9.9", "h3://1.1.1.1/dns-query", "tcp://8.8.8.8", "8.8.4.4" ],
+      "dns_fallback_strategy": "sequential",
       "dns_detour_enabled": "1",
       "dns_detour_section": "detour",
       "domain_suffix": [ "dns-first.example" ],
@@ -1271,7 +1272,7 @@ assert(index(commented_rule_json, "443") < 0 && index(commented_rule_json, "8443
 
 let dns_action = cfg("dns-action");
 let dns_first_server = dns_server(dns_action, r => r.tag == "dns_first-dns-server");
-assert(dns_first_server && dns_first_server.type == "fallback" && dns_first_server.strategy == "parallel" && length(dns_first_server.servers) == 6, "DNS action server list uses one fallback tag");
+assert(dns_first_server && dns_first_server.type == "fallback" && dns_first_server.strategy == "sequential" && length(dns_first_server.servers) == 6, "DNS action server list uses its configured query mode");
 assert(dns_server(dns_action, r => r.tag == "dns_first-dns-server-1" && r.type == "tls" && r.server == "9.9.9.9" && r.server_port == 5353 && r.detour == "detour-out") != null, "DNS action TLS server and detour");
 assert(dns_server(dns_action, r => r.tag == "dns_first-dns-server-2" && r.type == "https" && r.path == "/dns-query") != null, "DNS action HTTPS server");
 assert(dns_server(dns_action, r => r.tag == "dns_first-dns-server-3" && r.type == "quic" && r.server_port == 853) != null, "DNS action QUIC server");

@@ -23,8 +23,10 @@ if grep -Fq '"dns_type"' "$SETTINGS_JS" ||
   exit 1
 fi
 for expected in \
-  '"Specify several for automatic failover. To specify a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; without a scheme, UDP is used."' \
-  '"DNS servers used to resolve main DNS servers and proxies. Specify several for automatic failover. To specify a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; without a scheme, UDP is used."'; do
+  '_("DNS Server")' \
+  '"Specify several servers for automatic failover on failure. To select a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; UDP is used by default."' \
+  '_("DNS servers used to resolve main DNS servers and proxies.")' \
+  '_("Route main DNS requests through a section.")'; do
   grep -Fq "$expected" "$SETTINGS_JS" || {
     printf 'FAIL: missing DNS URI help: %s\n' "$expected" >&2
     exit 1
@@ -70,21 +72,26 @@ const serverBlock = source.slice(serverOption, requiredIndex('"dns_detour_enable
 if (serverBlock.includes('"dns_type"') || source.slice(sectionContent, server).includes('"dns_type"')) {
   fail("DNS action must not render a shared protocol selector");
 }
-if (!serverBlock.includes("form.DynamicList") || !serverBlock.includes('_("DNS servers")')) {
-  fail("DNS action servers must use a plural DynamicList");
+if (!serverBlock.includes("form.DynamicList") || !serverBlock.includes('_("DNS Server")')) {
+  fail("DNS action servers must use a DynamicList");
 }
 if (serverBlock.includes('placeholder = "1.1.1.1"')) {
   fail("DNS server must not render the 1.1.1.1 placeholder");
 }
 
 for (const expected of [
-  '"DNS servers used to resolve domains matching the conditions. To specify a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; without a scheme, UDP is used."',
-  '_("Route requests to DNS servers through a section.")',
+  '"DNS server used to resolve domains matching the section conditions. Specify several servers for automatic failover on failure. To select a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; UDP is used by default."',
+  '"dns_fallback_strategy"',
+  '_("DNS Query Mode")',
+  'action === "dns" && normalizeDynamicListItems(servers).length > 1',
+  'node.addEventListener("cbi-dynlist-change"',
+  '_("Route DNS requests through a section.")',
   '_("DNS requests through")',
   '"Add a link or local path. The format is detected automatically."',
 ]) {
   requiredIndex(expected);
 }
+
 for (const expected of ['"require uci"', '.load("dhcp")', 'uci.sections("dhcp", "host")']) {
   if (!localDevicesSource.includes(expected)) {
     fail(`static DHCP hosts are missing local-device contract: ${expected}`);
@@ -107,16 +114,24 @@ if (!acl["luci-app-forkop"]?.read?.uci?.includes("dhcp")) {
   fail("local-device selector needs read access to DHCP UCI host sections");
 }
 
-const ruleSetOption = requiredIndex("const ruleSetOption = section.taboption(");
+const dnsRuleSetOption = requiredIndex("const dnsRuleSetOption = section.taboption(");
+const ruleSetOption = requiredIndex("const ruleSetOption = section.taboption(", dnsRuleSetOption);
+const nativeRuleSetBlock = source.slice(dnsRuleSetOption, ruleSetOption);
+if (!nativeRuleSetBlock.includes("form.DynamicList") ||
+    nativeRuleSetBlock.includes("SettingsDynamicList") ||
+    !nativeRuleSetBlock.includes('dnsRuleSetOption.depends("action", "dns")') ||
+    !nativeRuleSetBlock.includes("writeDnsRulesetReferences")) {
+  fail("DNS action rule sets must use the classic DynamicList");
+}
 const sourceIpOption = requiredIndex("const sourceIpOption = addLocalDeviceSubnetDynamicField(section", ruleSetOption);
 const ruleSetBlock = source.slice(ruleSetOption, sourceIpOption);
 if (!ruleSetBlock.includes("SettingsDynamicList") ||
     !ruleSetBlock.includes("ruleSetOption.retain = true") ||
-    !ruleSetBlock.includes('getRuleResolvedAction(section_id) !== "dns"') ||
+    !ruleSetBlock.includes("dependsOnRoutingAction(ruleSetOption)") ||
     !ruleSetBlock.includes("writeCustomRulesetReferences")) {
-  fail("all actions must share one retained universal rule-set list");
+  fail("routing actions must retain the settings-enabled rule-set list");
 }
-for (const removed of ["dnsRuleSetOption", "domainIpListsOption", "dnsDomainListsOption", "domain_ip_lists"]) {
+for (const removed of ["domainIpListsOption", "dnsDomainListsOption", "domain_ip_lists"]) {
   if (source.includes(removed)) {
     fail(`legacy list UI remains: ${removed}`);
   }
@@ -179,6 +194,49 @@ eval(extractFunction("normalizeOptionValues", "normalizeLocalDeviceName", localD
 eval(extractFunction("normalizeDynamicListItems", "uniqueDynamicListItems"));
 eval(extractFunction("stringArraysEqual", "writeListOption"));
 eval(extractFunction("makeDeviceOptionsExclusive", "childOwnerOption"));
+
+const dnsModeVisibilityStart = requiredIndex("dnsQueryModeOption.checkDepends = function");
+const dnsModeVisibilityEnd = requiredIndex("  o = section.taboption(", dnsModeVisibilityStart);
+const dnsModeListeners = {};
+const dnsModeNode = {
+  addEventListener: (name, listener) => { dnsModeListeners[name] = listener; },
+};
+let currentDnsServers = ["1.1.1.1"];
+let currentDnsAction = "dns";
+const actionOption = {
+  formvalue: () => currentDnsAction,
+};
+const dnsServerOption = {
+  renderWidget: () => dnsModeNode,
+  formvalue: () => currentDnsServers,
+};
+const dnsModeVisibility = [];
+const modalMap = {
+  lookupOption: (name, sectionId) => [
+    name === "action" ? actionOption : dnsServerOption,
+    sectionId,
+  ],
+  checkDepends: () => {
+    dnsModeVisibility.push(dnsQueryModeOption.checkDepends("section"));
+  },
+};
+const dnsQueryModeOption = {
+  map: modalMap,
+};
+dnsServerOption.map = modalMap;
+eval(source.slice(dnsModeVisibilityStart, dnsModeVisibilityEnd));
+dnsServerOption.renderWidget("section", 0, currentDnsServers);
+if (typeof dnsModeListeners["cbi-dynlist-change"] !== "function") {
+  fail("DNS server list must listen to the native DynamicList change event");
+}
+dnsModeListeners["cbi-dynlist-change"]();
+currentDnsServers = ["1.1.1.1", "8.8.8.8"];
+dnsModeListeners["cbi-dynlist-change"]();
+currentDnsAction = "connection";
+dnsModeListeners["cbi-dynlist-change"]();
+if (JSON.stringify(dnsModeVisibility) !== JSON.stringify([false, true, false])) {
+  fail("DNS query mode must react immediately to the live server count");
+}
 
 function deviceOption(values) {
   const widget = {

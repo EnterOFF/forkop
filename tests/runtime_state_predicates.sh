@@ -1242,6 +1242,13 @@ cat >"$WORK_DIR/dns-action-signature-device.json" <<'JSON'
   ]
 }
 JSON
+cat >"$WORK_DIR/dns-action-signature-sequential.json" <<'JSON'
+{
+  "section": [
+    { ".name": "dns", ".type": "section", "enabled": "1", "action": "dns", "dns_server": [ "9.9.9.9", "1.1.1.1" ], "dns_fallback_strategy": "sequential", "domain_suffix": [ "example.org" ] }
+  ]
+}
+JSON
 if [ "$(state_ucode sing-box-signature-fixture "$WORK_DIR/dns-action-signature-udp.json")" = \
   "$(state_ucode sing-box-signature-fixture "$WORK_DIR/dns-action-signature-dot.json")" ]; then
   fail "DNS action server URI should change the sing-box signature"
@@ -1249,6 +1256,10 @@ fi
 if [ "$(state_ucode sing-box-signature-fixture "$WORK_DIR/dns-action-signature-udp.json")" = \
   "$(state_ucode sing-box-signature-fixture "$WORK_DIR/dns-action-signature-device.json")" ]; then
   fail "DNS action devices should change the sing-box signature"
+fi
+if [ "$(state_ucode sing-box-signature-fixture "$WORK_DIR/dns-action-signature-udp.json")" = \
+  "$(state_ucode sing-box-signature-fixture "$WORK_DIR/dns-action-signature-sequential.json")" ]; then
+  fail "DNS action query mode should change the sing-box signature"
 fi
 if [ "$(nft_ucode nft-runtime-signature-fixture "$WORK_DIR/dns-action-signature-udp.json")" = \
   "$(nft_ucode nft-runtime-signature-fixture "$WORK_DIR/dns-action-signature-device.json")" ]; then

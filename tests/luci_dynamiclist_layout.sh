@@ -356,7 +356,7 @@ grep -Fq 'Add a link or local path. The format is detected automatically.' <<<"$
   fail "universal rule sets must explain automatic format detection"
 grep -Fq 'ruleSetOption.hasItemSettings = function (section_id)' <<<"$create_section" ||
   fail "routing actions must retain per-item subnet settings"
-if grep -Eq 'domainIpListsOption|dnsDomainListsOption|dnsRuleSetOption|domain_ip_lists' <<<"$create_section"; then
+if grep -Eq 'domainIpListsOption|dnsDomainListsOption|domain_ip_lists' <<<"$create_section"; then
   fail "legacy domain/IP list controls must stay removed"
 fi
 

@@ -1039,6 +1039,7 @@ function append_sing_box_rule_signature_body(body, section, sections) {
     else if (action == "dns") {
         for (let value in list_option(section, "dns_server"))
             body = signature_add_value(body, prefix + ".dns_server", value);
+        body = signature_add_value(body, prefix + ".dns_fallback_strategy", option(section, "dns_fallback_strategy", "parallel"));
         body = signature_add_value(body, prefix + ".dns_detour_enabled", bool_option_value(section, "dns_detour_enabled", false));
         if (bool_option(section, "dns_detour_enabled", false))
             body = signature_add_value(body, prefix + ".dns_detour_section", option(section, "dns_detour_section", ""));

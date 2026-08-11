@@ -135,7 +135,7 @@ function uri_from_legacy_options(dns_type, value) {
         authority += ":" + port;
 
     let path = scheme == "https" ? runtime_url.path(value) : "";
-    return scheme + "://" + authority + path;
+    return scheme == "udp" ? authority : scheme + "://" + authority + path;
 }
 
 function server_from_options(tag_name, dns_type, dns_server, detour) {
