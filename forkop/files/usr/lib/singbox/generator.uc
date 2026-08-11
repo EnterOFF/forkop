@@ -1949,6 +1949,14 @@ function enabled_sections(deferred_sections) {
     return result;
 }
 
+function runtime_sections(sections) {
+    let result = [];
+    for (let section in sections)
+        if (!connections.is_connections_action(option(section, "action", "")) || connections.has_connection_sources(section))
+            push(result, section);
+    return result;
+}
+
 function enabled_servers() {
     let result = [];
     uci_cursor().foreach(CONFIG_NAME, "server", function(section) {
@@ -2026,9 +2034,10 @@ function generate_config(output_path, service_address, mwan3_active, deferred_se
     runtime_settings_cache = object_or_empty(cursor.get_all(CONFIG_NAME, "settings"));
     let settings = runtime_settings_cache;
 
-    let sections = enabled_sections(deferred_sections);
+    let configured_sections = enabled_sections(deferred_sections);
+    let sections = runtime_sections(configured_sections);
     let servers = enabled_servers();
-    if (length(sections) == 0 && length(servers) == 0 && trim(as_string(deferred_sections)) == "")
+    if (length(configured_sections) == 0 && length(servers) == 0 && trim(as_string(deferred_sections)) == "")
         runtime_generate_unsupported("no enabled sections");
 
     let system_aware_dns = system_aware_dns_enabled(sections);

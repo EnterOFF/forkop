@@ -155,6 +155,32 @@ fi
 grep -Fxq 'no enabled sections' "$WORK_DIR/no-enabled.stderr" ||
   fail "generator failure reason should be concise"
 
+cat >"$WORK_DIR/empty-connection-fixture.json" <<'JSON'
+{
+  "settings": {
+    ".name": "settings",
+    ".type": "settings",
+    "config_path": "/tmp/sing-box/config.json",
+    "dns_server": "1.1.1.1",
+    "service_listen_address": "127.0.0.1"
+  },
+  "section": [
+    {
+      ".name": "empty",
+      ".type": "section",
+      "enabled": "1",
+      "action": "connection",
+      "domain_suffix": [ "empty.example" ],
+      "mixed_proxy_enabled": "1"
+    }
+  ]
+}
+JSON
+generate_config "$WORK_DIR/empty-connection-fixture.json" "$WORK_DIR/empty-connection.json"
+if grep -Fq 'empty-out' "$WORK_DIR/empty-connection.json" "$WORK_DIR/empty-connection.json.runtime-manifest.json"; then
+  fail "empty Connection rule must be omitted from sing-box config and runtime manifest"
+fi
+
 cat >"$WORK_DIR/deferred-section-fixture.json" <<'JSON'
 {
   "settings": {

@@ -1577,7 +1577,7 @@ function validate_rule(section, sections, context) {
     validate_combined_domain_text_value(option(section, "domain_suffix_text", ""), name);
     validate_common_rule_references(section, context);
     if (connections.is_connections_action(action) && !connections.has_connection_sources(section))
-        fail_validation("Connection rule '" + name + "' has no configured outbounds. Add a proxy link, subscription, interface, tunnel, or JSON outbound. Aborted.");
+        log_message("Connection rule '" + name + "' has no configured outbounds.", "error");
 }
 
 function download_via_proxy_option_for_purpose(purpose) {

@@ -402,7 +402,18 @@ cat >"$WORK_DIR/empty-connection.json" <<'JSON'
   ]
 }
 JSON
-assert_rejects "empty Connection rule" "$WORK_DIR/empty-connection.json" "has no configured outbounds"
+mkdir -p "$WORK_DIR/log-bin"
+cat >"$WORK_DIR/log-bin/logger" <<'SH'
+#!/bin/sh
+printf '%s\n' "$*" >>"$FORKOP_TEST_LOG"
+SH
+chmod +x "$WORK_DIR/log-bin/logger"
+if ! PATH="$WORK_DIR/log-bin:$PATH" FORKOP_TEST_LOG="$WORK_DIR/forkop.log" \
+  validate_fixture "$WORK_DIR/empty-connection.json"; then
+  fail "empty Connection rule should be accepted"
+fi
+grep -Fq "[error] Connection rule 'empty' has no configured outbounds." "$WORK_DIR/forkop.log" ||
+  fail "empty Connection rule should be logged as an error"
 
 cat >"$WORK_DIR/bad-dns-rule-server.json" <<'JSON'
 {
