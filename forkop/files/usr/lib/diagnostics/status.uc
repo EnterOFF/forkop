@@ -389,6 +389,7 @@ function forkop_config_masked_line(line) {
     line = mask_after_token_space(line, "option tailscale_hostname");
     line = mask_after_token_space(line, "option warp_profile_auth_token");
     line = mask_after_token_space(line, "option warp_profile_private_key");
+    line = mask_after_token_space(line, "option warp_profile_license_key");
     line = mask_after_token_space(line, "option pre_shared_key");
     line = mask_after_token_space(line, "list tailscale_advertise_routes");
     line = mask_after_token(line, "option hysteria2_obfs_password");

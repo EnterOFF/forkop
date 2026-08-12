@@ -241,6 +241,8 @@ cat >"$WORK_DIR/tunnel-fixture.json" <<'JSON'
     {
       ".name": "tun_warp", ".type": "tunnel", "section": "tunnels", "order": "0",
       "kind": "warp", "name": "Cloudflare WARP", "amnezia_jc": "7",
+      "warp_profile_id": "profile-id", "warp_profile_auth_token": "auth-token",
+      "warp_profile_private_key": "private-key", "warp_profile_license_key": "license-key",
       "amnezia_i1": "<r 1>", "amnezia_content_padding_addition": "8-16",
       "amnezia_s1": "40", "amnezia_h1": "100-200",
       "amnezia_header_protection_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
@@ -283,6 +285,7 @@ const selector = config.outbounds.find((outbound) => outbound.tag === 'tunnels-o
 if (
   !warp ||
   warp.type !== 'warp' ||
+  warp.profile?.license_key !== 'license-key' ||
   warp.amnezia?.jc !== 7 ||
   warp.amnezia?.i1 !== '<r 1>' ||
   warp.amnezia?.content_padding_addition !== '8-16' ||

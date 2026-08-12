@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-11 06:29+0300\n"
-"PO-Revision-Date: 2026-08-11 06:29+0300\n"
+"POT-Creation-Date: 2026-08-12 18:43+0300\n"
+"PO-Revision-Date: 2026-08-12 18:43+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -1376,6 +1376,9 @@ msgstr "Необязательное значение здесь нужно пе
 msgid "Optional values must be attached with '=' here; a separate token would be ignored by nfqws2."
 msgstr "Необязательные значения здесь должны задаваться через '='; отдельный токен будет проигнорирован nfqws2."
 
+msgid "Optional. Applies a Cloudflare WARP+ license key to the profile account."
+msgstr "Необязательно. Применяет лицензионный ключ Cloudflare WARP+ к аккаунту профиля."
+
 msgid "Optional. Exclude servers from the selection above using a regular expression."
 msgstr "Необязательно. Исключить серверы из выборки выше по регулярному выражению."
 
@@ -2230,6 +2233,9 @@ msgstr "Публичный WAN IP"
 
 msgid "WARP auth token"
 msgstr "Токен авторизации WARP"
+
+msgid "WARP license key"
+msgstr "Лицензионный ключ WARP"
 
 msgid "WARP private key"
 msgstr "Приватный ключ WARP"

@@ -3797,6 +3797,7 @@ function tunnelInitialSettings(value, sectionId) {
     warp_profile_id: `${tunnel.warp_profile_id || ""}`,
     warp_auth_token: `${tunnel.warp_profile_auth_token || ""}`,
     warp_private_key: `${tunnel.warp_profile_private_key || ""}`,
+    warp_license_key: `${tunnel.warp_profile_license_key || ""}`,
     tailscale_auth_key: `${tunnel.tailscale_auth_key || ""}`,
     tailscale_hostname: `${tunnel.tailscale_hostname || ""}`,
     tailscale_control_url: `${tunnel.tailscale_control_url || "https://controlplane.tailscale.com"}`,
@@ -3833,6 +3834,7 @@ function tunnelSettingsKeys() {
     "warp_profile_id",
     "warp_profile_auth_token",
     "warp_profile_private_key",
+    "warp_profile_license_key",
     "warp_junk_enabled",
     "tailscale_auth_key",
     "tailscale_hostname",
@@ -3866,6 +3868,7 @@ function tunnelStorageSettings(settings) {
     warp_profile_id: `${settings.warp_profile_id || ""}`.trim(),
     warp_profile_auth_token: `${settings.warp_auth_token || ""}`.trim(),
     warp_profile_private_key: `${settings.warp_private_key || ""}`.trim(),
+    warp_profile_license_key: `${settings.warp_license_key || ""}`.trim(),
     tailscale_auth_key: `${settings.tailscale_auth_key || ""}`.trim(),
     tailscale_hostname: `${settings.tailscale_hostname || ""}`.trim(),
     tailscale_control_url: `${settings.tailscale_control_url || ""}`.trim(),
@@ -4023,6 +4026,9 @@ function tunnelEndpointFromSettings(settings, tunnelId, peerOption) {
     }
     if (`${settings.warp_private_key || ""}`.trim()) {
       profile.private_key = `${settings.warp_private_key}`.trim();
+    }
+    if (`${settings.warp_license_key || ""}`.trim()) {
+      profile.license_key = `${settings.warp_license_key}`.trim();
     }
     if (Object.keys(profile).length > 0) {
       // A user-supplied profile must win over sing-box's cached WARP config.
@@ -4953,6 +4959,18 @@ function showTunnelSettingsModal(
   warpPrivateKeyOption.password = true;
   warpPrivateKeyOption.rmempty = false;
   warpPrivateKeyOption.depends("tunnel_type", "warp");
+
+  const warpLicenseKeyOption = itemSection.option(
+    form.Value,
+    "warp_license_key",
+    _("WARP license key"),
+    _(
+      "Optional. Applies a Cloudflare WARP+ license key to the profile account.",
+    ),
+  );
+  warpLicenseKeyOption.password = true;
+  warpLicenseKeyOption.rmempty = true;
+  warpLicenseKeyOption.depends("tunnel_type", "warp");
 
   warpGenerateButton.onclick = function () {
     const showError = () =>

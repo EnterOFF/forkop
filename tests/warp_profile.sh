@@ -78,6 +78,7 @@ cat >"$WORK_DIR/valid.json" <<'JSON'
       ".name": "tun_warp", ".type": "tunnel", "section": "tunnels", "order": "0",
       "kind": "warp", "name": "Generated WARP", "warp_profile_id": "profile-id",
       "warp_profile_auth_token": "auth-token", "warp_profile_private_key": "private-key",
+      "warp_profile_license_key": "license-key",
       "amnezia_jc": "7", "amnezia_h1": "100-200"
     },
     {

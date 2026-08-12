@@ -179,13 +179,14 @@ config tunnel 'tun_tailnet'
         option tailscale_auth_key 'tskey-secret'
         option warp_profile_auth_token 'warp-token-secret'
         option warp_profile_private_key 'warp-private-secret'
+        option warp_profile_license_key 'warp-license-secret'
 config tunnel_peer 'peer_tailnet'
         option tunnel 'tun_tailnet'
         option pre_shared_key 'peer-secret'
 EOF
 masked_output="$(status_ucode forkop-config-masked "$masked_config")"
 case "$masked_output" in
-  *device-secret*|*vless://secret*|*token=secret*|*user:password*|*header-secret*|*tskey-secret*|*warp-token-secret*|*warp-private-secret*|*peer-secret*) fail "masked Forkop config leaked a secret" ;;
+  *device-secret*|*vless://secret*|*token=secret*|*user:password*|*header-secret*|*tskey-secret*|*warp-token-secret*|*warp-private-secret*|*warp-license-secret*|*peer-secret*) fail "masked Forkop config leaked a secret" ;;
 esac
 case "$masked_output" in
   *"list header 'MASKED'"*) ;;
@@ -200,7 +201,7 @@ case "$masked_output" in
   *) fail "masked Forkop config must mask subscription section URLs" ;;
 esac
 case "$masked_output" in
-  *"option tailscale_auth_key 'MASKED'"*"option warp_profile_auth_token 'MASKED'"*"option warp_profile_private_key 'MASKED'"*"option pre_shared_key 'MASKED'"*) ;;
+  *"option tailscale_auth_key 'MASKED'"*"option warp_profile_auth_token 'MASKED'"*"option warp_profile_private_key 'MASKED'"*"option warp_profile_license_key 'MASKED'"*"option pre_shared_key 'MASKED'"*) ;;
   *) fail "masked Forkop config must mask tunnel credentials" ;;
 esac
 

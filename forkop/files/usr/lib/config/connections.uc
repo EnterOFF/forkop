@@ -467,7 +467,7 @@ function tunnel_endpoint(tunnel) {
         if (keepalive != "")
             endpoint.persistent_keepalive_interval = index(keepalive, "-") >= 0 ? keepalive : int(keepalive, 10);
         let profile = {};
-        for (let key in [ "id", "auth_token", "private_key" ]) {
+        for (let key in [ "id", "auth_token", "private_key", "license_key" ]) {
             let value = trim(as_string(option(tunnel, "warp_profile_" + key, "")));
             if (value != "")
                 profile[key] = value;
