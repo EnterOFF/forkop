@@ -183,6 +183,10 @@ grep -Fq 'settingsButton.remove();' <<<"$settings_widget" ||
   fail "DynamicList settings actions must be removed with their value"
 grep -Fq 'this.syncSettingsButtons(node);' <<<"$settings_widget" ||
   fail "DynamicList settings actions must follow values after drag-and-drop"
+grep -Fq 'node.addEventListener("touchstart", () => this.syncSettingsButtons(node));' <<<"$settings_widget" ||
+  fail "DynamicList settings actions must stay paired when mobile dragging starts"
+grep -Fq 'node.addEventListener("touchmove", () => this.syncSettingsButtons(node));' <<<"$settings_widget" ||
+  fail "DynamicList settings actions must stay paired while mobile dragging moves"
 grep -Fq 'new ResizeObserver((entries) =>' <<<"$settings_widget" ||
   fail "DynamicList settings actions must track responsive value row heights"
 grep -Fq 'const height = item && item.clientHeight;' <<<"$settings_widget" ||

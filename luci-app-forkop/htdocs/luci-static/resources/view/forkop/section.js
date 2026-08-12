@@ -1249,6 +1249,8 @@ const SettingsUIDynamicList = ui.DynamicList.extend({
     node.addEventListener("cbi-dynlist-change", () => {
       this.syncSettingsButtons(node);
     });
+    node.addEventListener("touchstart", () => this.syncSettingsButtons(node));
+    node.addEventListener("touchmove", () => this.syncSettingsButtons(node));
     return node;
   },
 
