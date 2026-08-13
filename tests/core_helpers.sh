@@ -32,28 +32,28 @@ if ucode "$HELPERS_UC" download-via-proxy-option-for-purpose unknown >/dev/null 
   fail "unknown download purpose should fail"
 fi
 
-assert_eq proxy-out \
+assert_eq proxy \
   "$(ucode "$HELPERS_UC" outbound-tag proxy)" \
   "outbound tag"
-assert_eq server-edge-in \
+assert_eq edge \
   "$(ucode "$HELPERS_UC" server-inbound-tag edge)" \
   "server inbound tag"
 assert_eq server-edge-tailscale-dns \
   "$(ucode "$HELPERS_UC" tailscale-dns-tag edge)" \
   "tailscale DNS tag"
-assert_eq dns-server-out-1 \
+assert_eq dns-server \
   "$(SB_DIRECT_OUTBOUND_TAG=dns-server-out ucode "$HELPERS_UC" outbound-tag dns-server)" \
   "reserved outbound tag"
-assert_eq direct-out-1 \
+assert_eq direct \
   "$(ucode "$HELPERS_UC" outbound-tag direct)" \
   "reserved direct outbound tag"
-assert_eq bypass-out \
+assert_eq bypass \
   "$(ucode "$HELPERS_UC" outbound-tag bypass)" \
   "unreserved bypass outbound tag"
 assert_eq tproxy6-in-1 \
   "$(ucode "$HELPERS_UC" inbound-tag tproxy6)" \
   "reserved IPv6 TProxy inbound tag"
-assert_eq direct-1-out \
+assert_eq direct-1 \
   "$(ucode "$HELPERS_UC" outbound-tag direct-1)" \
   "numbered direct outbound tag"
 

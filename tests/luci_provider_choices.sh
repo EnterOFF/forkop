@@ -34,7 +34,7 @@ function plainObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
-const providerTag = 'main-subscription-1-provider';
+const providerTag = 'Main/sub1';
 const payload = {
   providers: {
     [providerTag]: {
@@ -43,9 +43,6 @@ const payload = {
         { name: `${providerTag}/Main DE`, type: 'AnyTLS' },
         { name: `${providerTag}/Main Auto`, type: 'URLTest' },
       ],
-    },
-    'main-manual-provider': {
-      proxies: [{ name: 'main-manual-provider/Removed manual node', type: 'VLESS' }],
     },
     'other-subscription-provider': {
       proxies: [{ name: 'other-subscription-provider/Other JP', type: 'VLESS' }],
@@ -67,8 +64,7 @@ const outboundNameChoicesCache = new Map();
 const outboundNameChoicesInflight = new Map();
 function readOutboundChoiceState() {
   return Promise.resolve({
-    names: ['Removed manual node'],
-    providerTags: [providerTag, 'main-manual-provider'],
+    providerTags: [providerTag],
   });
 }
 function refreshDashboardFilterChoiceWidgets() {}
@@ -198,22 +194,6 @@ assert.deepStrictEqual(nativeProviderOutboundNames([providerTag], payload), [
   'Main US',
   'Main DE',
 ]);
-assert.strictEqual(
-  subscriptionSourceOutboundName('Main US', '1', 'Main'),
-  'US',
-  'subscription filter must use the pre-tag_prefix node name',
-);
-assert.strictEqual(
-  subscriptionSourceOutboundName('Main US', '0', 'Main'),
-  'Main US',
-  'disabled prefixing must leave the node name unchanged',
-);
-assert.strictEqual(
-  subscriptionSourceOutboundName('Mainland US', '1', 'Main'),
-  'Mainland US',
-  'partial prefix matches must not change the node name',
-);
-
 (async () => {
   assert.deepStrictEqual(await loadNativeProviderOutboundNames([providerTag]), [
     'Main US',
@@ -261,16 +241,8 @@ assert.strictEqual(
     'a deleted unsaved URL must disappear from available choices immediately',
   );
 
-  assert.match(
-    source,
-    /state\.providerTags\.filter\(\(providerTag\) =>[\s\S]*subscription-\\d\+-provider/,
-    'loadOutboundNameChoices must use subscription provider tags only',
-  );
-  assert.match(
-    source,
-    /normalizeOutboundChoice:[\s\S]*subscriptionSourceOutboundName\(/,
-    'subscription choices do not account for native tag_prefix ordering',
-  );
+  assert.match(source, /`\$\{sectionDisplayName\}\/\$\{/,
+    'provider tags must be derived from the displayed section name and subscription tag');
   assert.match(
     source,
     /loadNativeProviderOutboundNames\(\[state\.providerTags\[providerIndex\]\]\)/,

@@ -6,7 +6,6 @@
 let fs = require("fs");
 let common = require("core.common");
 let uci_core = require("core.uci");
-let core_url = require("core.url");
 let constants_module = require("core.constants");
 let singbox_constants_module = require("singbox.constants");
 let runtime_dns = require("singbox.dns");
@@ -29,6 +28,7 @@ const FORKOP_SUBSCRIPTION_LINKS_DIR = getenv("FORKOP_SUBSCRIPTION_LINKS_DIR") ||
 const FORKOP_SUBSCRIPTION_METADATA_DIR = getenv("FORKOP_SUBSCRIPTION_METADATA_DIR") || FORKOP_RUNTIME_STATE_DIR + "/subscription-metadata";
 const FORKOP_OUTBOUND_METADATA_DIR = getenv("FORKOP_OUTBOUND_METADATA_DIR") || FORKOP_RUNTIME_STATE_DIR + "/outbound-metadata";
 const FORKOP_SECTION_CACHE_DIR = getenv("FORKOP_SECTION_CACHE_DIR") || FORKOP_RUNTIME_STATE_DIR + "/section-cache";
+const FORKOP_RUNTIME_MANIFEST_FILE = getenv("FORKOP_RUNTIME_MANIFEST_FILE") || FORKOP_RUNTIME_STATE_DIR + "/runtime-manifest.json";
 const FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_DIR = getenv("FORKOP_PERSISTENT_SUBSCRIPTION_CACHE_DIR") || "/etc/forkop/subscription-cache";
 const FORKOP_SUBSCRIPTION_UPDATE_LOCK_DIR = getenv("FORKOP_SUBSCRIPTION_UPDATE_LOCK_DIR") || FORKOP_RUNTIME_STATE_DIR + "/subscription-update.lock";
 const FORKOP_SUBSCRIPTION_UPDATE_JOB_DIR = getenv("FORKOP_SUBSCRIPTION_UPDATE_JOB_DIR") || FORKOP_RUNTIME_STATE_DIR + "/subscription-update-jobs";
@@ -660,7 +660,7 @@ function migrate_subscription_url_item_settings(ctx, section) {
         set_option(ctx, child, "user_agent", profile.user_agent != "" ? profile.user_agent : "sing-box");
         set_option(ctx, child, "auto_hwid", "1");
         set_option(ctx, child, "show_dashboard_metadata", "1");
-        set_option(ctx, child, "prefix_nodes", "0");
+        set_option(ctx, child, "show_subscription_name", "0");
         index++;
     }
 
@@ -1177,104 +1177,7 @@ function migrate_enable_component_checks(ctx) {
     set_option(ctx, ctx.model.settings, "component_update_check_enabled", "1");
 }
 
-function migration_port(value) {
-    value = as_string(value);
-    if (match(value, /^[0-9]+$/) == null)
-        return null;
-
-    value = int(value);
-    return value >= 1 && value <= 65535 ? value : null;
-}
-
-function unique_migration_tag(base, taken) {
-    base = trim(as_string(base));
-    if (base == "")
-        base = "http";
-    if (!taken[base])
-        return base;
-
-    for (let suffix = 1; suffix < 100000; suffix++) {
-        let candidate = base + "-" + suffix;
-        if (!taken[candidate])
-            return candidate;
-    }
-    return base + "-overflow";
-}
-
-function migrated_http_outbound(link, tag_name) {
-    link = core_url.strip_fragment(core_url.decode(link));
-    let scheme = core_url.scheme(link);
-    if (scheme != "http" && scheme != "https")
-        return null;
-
-    let host = core_url.host(link);
-    let port = migration_port(core_url.port(link));
-    let path = core_url.path(link);
-    if (host == "" || port == null || (path != "" && path != "/") || index(link, "?") >= 0)
-        return null;
-
-    let outbound = {
-        type: "http",
-        tag: tag_name,
-        server: host,
-        server_port: port
-    };
-    let userinfo = core_url.userinfo(link);
-    if (userinfo != "") {
-        let colon = index(userinfo, ":");
-        outbound.username = colon >= 0 ? substr(userinfo, 0, colon) : userinfo;
-        if (colon >= 0)
-            outbound.password = substr(userinfo, colon + 1);
-    }
-    if (scheme == "https")
-        outbound.tls = { enabled: true };
-    return outbound;
-}
-
-function migrate_http_connection_urls(ctx) {
-    if (!release_at_most(ctx, "1.0.4"))
-        return;
-
-    for (let section in ctx.model.sections) {
-        let existing_jsons = option_list_values(section, "outbound_jsons");
-        let taken = {};
-        for (let value in existing_jsons) {
-            try {
-                let outbound = json(value);
-                let tag_name = type(outbound) == "object" ? trim(as_string(outbound.tag || "")) : "";
-                if (tag_name != "")
-                    taken[tag_name] = true;
-            }
-            catch (e) {
-            }
-        }
-
-        let remaining_links = [];
-        let migrated_jsons = [];
-        for (let link in option_list_values(section, "selector_proxy_links")) {
-            let tag_name = unique_migration_tag(core_url.fragment(link), taken);
-            let outbound = migrated_http_outbound(link, tag_name);
-            if (outbound == null) {
-                push(remaining_links, link);
-                continue;
-            }
-
-            taken[tag_name] = true;
-            push(migrated_jsons, sprintf("%J", outbound));
-        }
-
-        if (length(migrated_jsons) == 0)
-            continue;
-
-        if (length(remaining_links) > 0)
-            set_list_option(ctx, section, "selector_proxy_links", remaining_links);
-        else
-            delete_option(ctx, section, "selector_proxy_links");
-
-        for (let value in existing_jsons)
-            push(migrated_jsons, value);
-        set_list_option(ctx, section, "outbound_jsons", migrated_jsons);
-    }
+function migrate_http_connection_urls(_ctx) {
 }
 
 const OBSOLETE_SERVER_FILTER_OPTIONS = [
@@ -2010,6 +1913,88 @@ function migrate_dns_server_uris(ctx) {
     }
 }
 
+function readable_tag_component(value, fallback) {
+    value = trim(as_string(value));
+    if (value == "")
+        value = as_string(fallback);
+    return replace(value, /\//g, "／");
+}
+
+function unique_display_value(value, taken) {
+    let base = as_string(value);
+    if (!taken[base]) {
+        taken[base] = true;
+        return base;
+    }
+    for (let number = 2; number < 100000; number++) {
+        let candidate = base + " #" + number;
+        if (!taken[candidate]) {
+            taken[candidate] = true;
+            return candidate;
+        }
+    }
+    return base + " #overflow";
+}
+
+function migrate_display_names(ctx, sections, taken) {
+    for (let section in sections || []) {
+        let label = readable_tag_component(option(section, "label", ""), section_name(section));
+        set_option(ctx, section, "label", unique_display_value(label, taken));
+    }
+}
+
+function migrate_subscription_tags(ctx) {
+    let counters = {};
+    let taken_by_section = {};
+    for (let child in ctx.model.subscription_url || []) {
+        let owner = option(child, "section", "");
+        counters[owner] = int(counters[owner] || 0) + 1;
+        let taken = taken_by_section[owner] || {};
+        taken_by_section[owner] = taken;
+        let configured = option(child, "tag", "");
+        if (configured == "")
+            configured = option(child, "node_prefix", "");
+        let tag_name = readable_tag_component(configured, "sub" + counters[owner]);
+        set_option(ctx, child, "tag", unique_display_value(tag_name, taken));
+        if (option_exists(child, "prefix_nodes"))
+            set_option(ctx, child, "show_subscription_name", option(child, "prefix_nodes", "0"));
+        delete_option(ctx, child, "node_prefix");
+        delete_option(ctx, child, "prefix_nodes");
+    }
+}
+
+function migrate_fallback_group_names(ctx) {
+    let taken_by_section = {};
+    for (let group in ctx.model.fallback_group || []) {
+        let owner = option(group, "section", "");
+        let taken = taken_by_section[owner] || {};
+        taken_by_section[owner] = taken;
+        let name = trim(option(group, "name", "")) || section_name(group);
+        set_option(ctx, group, "name", unique_display_value(name, taken));
+    }
+
+    let taken_by_group = {};
+    for (let level in ctx.model.fallback_level || []) {
+        let owner = option(level, "group", "");
+        let taken = taken_by_group[owner] || {};
+        taken_by_group[owner] = taken;
+        let name = trim(option(level, "name", "")) || section_name(level);
+        set_option(ctx, level, "name", unique_display_value(name, taken));
+    }
+}
+
+function migrate_readable_runtime_tags(ctx) {
+    let taken = {};
+    for (let tag_name in keys(object_or_empty(singbox_constants_module.RESERVED_TAGS)))
+        taken[tag_name] = true;
+    migrate_display_names(ctx, ctx.model.sections, taken);
+    migrate_display_names(ctx, ctx.model.servers, taken);
+    migrate_subscription_tags(ctx);
+    migrate_fallback_group_names(ctx);
+    push(ctx.removed_caches, FORKOP_SECTION_CACHE_DIR);
+    push(ctx.removed_caches, FORKOP_RUNTIME_MANIFEST_FILE);
+}
+
 const MIGRATIONS = [
     { id: "interface_sections", run: migrate_interface_sections },
     { id: "enable_component_checks", run: migrate_enable_component_checks },
@@ -2031,7 +2016,8 @@ const MIGRATIONS = [
     { id: "interface_display_names", run: migrate_interface_display_names },
     { id: "remove_section_cache", run: remove_section_cache },
     { id: "remove_dashboard_sort_options", run: remove_dashboard_sort_options },
-    { id: "dns_server_uris", run: migrate_dns_server_uris }
+    { id: "dns_server_uris", run: migrate_dns_server_uris },
+    { id: "readable_runtime_tags", run: migrate_readable_runtime_tags }
 ];
 
 function apply_migrations(ctx) {

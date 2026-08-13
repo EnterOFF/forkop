@@ -5,6 +5,7 @@ let core_ip = require("core.ip");
 let runtime_constants = require("singbox.constants");
 let runtime_url = require("core.url");
 let domain_config = require("config.domain");
+let connections = require("config.connections");
 
 let as_string = common.as_string;
 let bool_option = common.bool_option;
@@ -45,7 +46,7 @@ function detour_tag(settings) {
     if (!bool_option(settings, "dns_detour_enabled", false))
         return "";
     let section_name = option(settings, "dns_detour_section", "");
-    return section_name == "" ? "" : runtime_constants.outbound_tag(section_name);
+    return section_name == "" ? "" : runtime_constants.outbound_tag(connections.section_display_name(section_name));
 }
 
 function dns_domain_valid(value) {

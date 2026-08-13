@@ -48,14 +48,14 @@ let selector = null;
 let urltest = null;
 let empty = null;
 for (let item in config.providers || [])
-    if (item.tag == "proxy-subscription-1-provider")
+    if (item.tag == "proxy/sub1")
         provider = item;
 for (let outbound in config.outbounds || []) {
-    if (outbound.tag == "proxy-out")
+    if (outbound.tag == "proxy")
         selector = outbound;
-    if (outbound.tag == "proxy-urltest-black-out")
+    if (outbound.tag == "proxy/Blacklist")
         urltest = outbound;
-    if (outbound.tag == "proxy-urltest-empty-out")
+    if (outbound.tag == "proxy/Empty whitelist")
         empty = outbound;
 }
 if (!provider || provider.type != "remote" || provider.url != "https://xray.example/sub")

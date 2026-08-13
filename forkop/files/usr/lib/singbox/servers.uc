@@ -2,6 +2,7 @@
 
 let common = require("core.common");
 let runtime_constants = require("singbox.constants");
+let connections = require("config.connections");
 
 let as_string = common.as_string;
 let option = common.option;
@@ -330,7 +331,7 @@ function add_tailscale_endpoint(config, section, tag_name) {
     if (bool_option(section, "tailscale_detour_enabled", false)) {
         let detour_section = option(section, "tailscale_detour_section", "");
         if (detour_section != "")
-            endpoint.detour = runtime_constants.outbound_tag(detour_section);
+            endpoint.detour = runtime_constants.outbound_tag(connections.section_display_name(detour_section));
     }
     if (bool_option(section, "tailscale_accept_routes", false))
         endpoint.accept_routes = true;
@@ -345,7 +346,7 @@ function add_dns_bypass(config, section) {
         return;
 
     let section_name = section[".name"];
-    let inbound = runtime_constants.server_inbound_tag(section_name);
+    let inbound = runtime_constants.server_inbound_tag(connections.server_display_name(section));
     let dns_tag = runtime_constants.tailscale_dns_server_tag(section_name);
     let rule_tag = "tailscale-server-dns-" + safe_filename(section_name);
     push(config.dns.servers, {
@@ -365,7 +366,7 @@ function add_dns_bypass(config, section) {
 function add_server(config, section) {
     let section_name = section[".name"];
     let protocol = option(section, "protocol", "vless");
-    let tag_name = runtime_constants.server_inbound_tag(section_name);
+    let tag_name = runtime_constants.server_inbound_tag(connections.server_display_name(section));
 
     if (protocol == "tailscale")
         add_tailscale_endpoint(config, section, tag_name);
@@ -383,7 +384,7 @@ function add_sniff_rule(config, section) {
     let rules = array_or_empty(config.route.rules);
     let rule = {
         action: "sniff",
-        inbound: runtime_constants.server_inbound_tag(section[".name"])
+        inbound: runtime_constants.server_inbound_tag(connections.server_display_name(section))
     };
     let insert_at = 0;
     while (insert_at < length(rules) && type(rules[insert_at]) == "object" && rules[insert_at].action == "sniff")

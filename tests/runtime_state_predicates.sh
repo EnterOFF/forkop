@@ -476,7 +476,7 @@ cat >"$WORK_DIR/sing-box-signature.json" <<'JSON'
       "action": "proxy",
       "selector_proxy_links": [ "vless://one", "vless://two" ],
       "subscription_urls": [ "https://example.com/sub.txt" ],
-      "subscription_url_settings": "{\"https://example.com/sub.txt\":{\"prefix_nodes\":\"1\",\"node_prefix\":\"Example\"}}",
+      "subscription_url_settings": "{\"https://example.com/sub.txt\":{\"show_subscription_name\":\"1\",\"tag\":\"Example\"}}",
       "urltest_enabled": "1",
       "urltest_tolerance": "75",
       "urltest_server_filter_mode": "include",
@@ -611,7 +611,7 @@ proxy
 [rule.proxy1.connection_urls]
 [ "vless://one", "vless://two" ]
 [rule.proxy1.subscription_urls]
-[ { "url": "https://example.com/sub.txt", "subscription_update_enabled": "1", "subscription_update_interval": "1h", "download_via_proxy_section": "", "user_agent": "sing-box", "header": [ ], "show_dashboard_metadata": "1", "prefix_nodes": "1", "node_prefix": "Example", "server_filter_mode": "all", "include_outbounds": [ ], "include_regex": "", "exclude_outbounds": [ ], "exclude_regex": "" } ]
+[ { "url": "https://example.com/sub.txt", "subscription_update_enabled": "1", "subscription_update_interval": "1h", "download_via_proxy_section": "", "user_agent": "sing-box", "header": [ ], "show_dashboard_metadata": "1", "show_subscription_name": "1", "tag": "Example", "server_filter_mode": "all", "include_outbounds": [ ], "include_regex": "", "exclude_outbounds": [ ], "exclude_regex": "" } ]
 [rule.proxy1.interfaces]
 [ ]
 [rule.proxy1.outbound_jsons]

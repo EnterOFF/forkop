@@ -40,7 +40,7 @@ CURL_LOG="$WORK_DIR/curl.log" \
 FORKOP_UCI_STATE_FILE="$WORK_DIR/uci.state" \
 ucode -L "$FORKOP_LIB" "$FORKOP_LIB/components/updates.uc" subscription-update proxy 2
 
-expected='-fsS -X PUT http://192.0.2.1:9090/providers/proxies/proxy-subscription-2-provider -H Authorization: Bearer test-secret'
+expected='-fsS -X PUT http://192.0.2.1:9090/providers/proxies/proxy%2Fsub2 -H Authorization: Bearer test-secret'
 actual="$(cat "$WORK_DIR/curl.log")"
 if [[ "$actual" != "$expected" ]]; then
   printf 'FAIL: native provider update request: expected %q, got %q\n' "$expected" "$actual" >&2
@@ -56,7 +56,7 @@ if PATH="$WORK_DIR/bin:$PATH" \
   printf 'FAIL: failed native provider update returned success\n' >&2
   exit 1
 fi
-grep -Fq 'Failed to refresh subscription provider proxy-subscription-2-provider' "$WORK_DIR/logger.log" || {
+grep -Fq 'Failed to refresh subscription provider proxy/sub2' "$WORK_DIR/logger.log" || {
   printf 'FAIL: failed native provider update did not identify its provider\n' >&2
   exit 1
 }

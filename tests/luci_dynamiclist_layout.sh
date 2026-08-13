@@ -204,8 +204,8 @@ fi
 
 grep -Fq 'addServerFilterOptions(itemSection, parentSectionForItem, {' <<<"$subscription_options" ||
   fail "subscription settings must expose native provider filters"
-grep -Fq 'subscriptionSourceOutboundName(' <<<"$subscription_options" ||
-  fail "subscription exact-name filters must account for provider tag prefixes"
+grep -Fq 'loadSubscriptionOutboundNameChoices(sectionId, options.ownerId());' "$SECTION_JS" ||
+  fail "subscription exact-name filters must load their own provider nodes"
 for key in server_filter_mode include_regex exclude_regex; do
   grep -Fq "\"$key\"" <<<"$subscription_keys" ||
     fail "subscription/provider filter key $key is missing"
@@ -219,6 +219,8 @@ grep -Fq 'form.Button' <<<"$subscription_options" ||
   fail "subscription settings must expose the header editor as a native LuCI button"
 grep -Fq '_("Edit headers")' <<<"$subscription_options" ||
   fail "subscription settings header editor button is missing"
+grep -Fq 'o.depends("show_subscription_name", "1");' <<<"$subscription_options" ||
+  fail "subscription tag must stay hidden until subscription names are enabled"
 grep -Fq 'form.GridSection' <<<"$subscription_header_editor" ||
   fail "subscription headers must use a native LuCI grid"
 grep -Fq 'headers.hidetitle = true' <<<"$subscription_header_editor" ||
@@ -274,9 +276,9 @@ for description in \
     fail "URLTest filter description is missing: $description"
 done
 for description in \
-  'Only the selected servers will be added to this priority level.' \
-  'Servers that should not be added to this priority level.' \
-  'Exclude servers from this level using a regular expression.'; do
+  'Only the selected servers will be added to this server group.' \
+  'Servers that should not be added to this server group.' \
+  'Exclude servers from this server group using a regular expression.'; do
   grep -Fq "$description" <<<"$fallback_options" ||
     fail "Fallback filter description is missing: $description"
 done
@@ -289,7 +291,7 @@ for description in \
 done
 grep -Fq '{ value: "direct", label: _("Direct") }' <<<"$fallback_options" ||
   fail "Fallback direct mode must use the concise Direct label"
-for label in 'Subscription server filter' 'URLTest group filter' 'Level server filter'; do
+for label in 'Subscription server filter' 'URLTest group filter' 'Server group filter'; do
   grep -Fq "$label" "$SECTION_JS" ||
     fail "context-specific filter selector is missing: $label"
 done
@@ -302,8 +304,8 @@ fi
 if grep -Eq 'include_countries|exclude_countries|countryChoices' <<<"$server_filter_options$fallback_options"; then
   fail "server filters must not expose country selectors"
 fi
-grep -Fq 'Add at least one Fallback level' "$SECTION_JS" ||
-  fail "Fallback settings must require at least one level"
+grep -Fq 'Add at least one server group' "$SECTION_JS" ||
+  fail "Fallback settings must require at least one server group"
 for option in health_check_url health_check_interval health_check_timeout max_failed_times expected_status idle_timeout interrupt_exist_connections; do
   grep -Fq "\"$option\"" <<<"$fallback_group_options" ||
     fail "Fallback settings are missing $option"

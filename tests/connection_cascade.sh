@@ -84,13 +84,14 @@ function assert(condition, message) {
         die(message + "\n");
 }
 
-assert(provider("source-manual-provider").outbound_detour == "hop-out", "manual provider did not receive the section detour");
-assert(provider("source-subscription-1-provider").outbound_detour == "hop-out", "subscription provider did not receive the section detour");
-assert(outbound("source-interface-1-out").bind_interface == "wg0", "interface binding was not preserved");
-assert(outbound("source-interface-1-out").detour == null, "network interface must be excluded from section cascade");
-assert(outbound("JSON plain").detour == null, "plain JSON outbound must be excluded from section cascade");
-assert(outbound("JSON explicit").detour == "direct-out", "explicit JSON detour was not preserved");
-assert(outbound("source-out").detour == null, "section selector must not receive its own detour");
+assert(outbound("source/Manual").type == "parser", "manual URI was not generated as a parser outbound");
+assert(outbound("source/Manual").detour == "hop", "manual parser did not receive the section detour");
+assert(provider("source/sub1").outbound_detour == "hop", "subscription provider did not receive the section detour");
+assert(outbound("source/wg0").bind_interface == "wg0", "interface binding was not preserved");
+assert(outbound("source/wg0").detour == null, "network interface must be excluded from section cascade");
+assert(outbound("source/JSON plain").detour == null, "plain JSON outbound must be excluded from section cascade");
+assert(outbound("source/JSON explicit").detour == "direct-out", "explicit JSON detour was not preserved");
+assert(outbound("source").detour == null, "section selector must not receive its own detour");
 ' "$WORK_DIR/output.json" || fail "section cascade generation"
 
 printf 'connection cascade checks passed\n'

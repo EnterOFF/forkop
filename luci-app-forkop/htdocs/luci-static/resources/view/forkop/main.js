@@ -776,6 +776,20 @@ function parseValueList(value) {
 // src/helpers/getProxyUrlName.ts
 function getProxyUrlName(url) {
   try {
+    if (url.startsWith("vmess://")) {
+      const source = url.slice("vmess://".length);
+      const encoded = source.startsWith("{") ? source : source.split(/[@?#]/, 1)[0];
+      const payload = encoded.startsWith("{") ? encoded : new TextDecoder().decode(
+        Uint8Array.from(
+          atob(
+            encoded.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(encoded.length / 4) * 4, "=")
+          ),
+          (character) => character.charCodeAt(0)
+        )
+      );
+      const name = JSON.parse(payload)?.ps;
+      if (typeof name === "string" && name) return name;
+    }
     const [_link, hash] = url.split("#");
     if (!hash) {
       return "";
@@ -1023,7 +1037,7 @@ function insertIf(condition, elements) {
 }
 
 // src/helpers/isCopyableProxyLink.ts
-var COPYABLE_PROXY_URI_RE = /^(vless|vmess|trojan|ss|hysteria|hysteria2|hy2|tuic|socks|socks4|socks4a|socks5):\/\//i;
+var COPYABLE_PROXY_URI_RE = /^(anytls|http2|http3|https?|naive\+https|naive\+quic|mieru|mierus|vless|vmess|trojan|ss|hysteria|hysteria2|hy2|tuic|socks|socks4|socks4a|socks5):\/\//i;
 function isCopyableProxyLink(link) {
   return COPYABLE_PROXY_URI_RE.test((link || "").trim());
 }
@@ -1959,7 +1973,18 @@ function renderDefaultState({
           )
         ] : [],
         E("div", { class: "fkp_dashboard-page__outbound-grid__item__header" }, [
-          E("b", {}, renderFlagEmojis(outbound.displayName)),
+          E("b", {}, [
+            ...outbound.subscriptionTag ? [
+              E(
+                "span",
+                {
+                  class: "fkp_dashboard-page__outbound-grid__item__subscription-tag"
+                },
+                outbound.subscriptionTag
+              )
+            ] : [],
+            ...renderFlagEmojis(outbound.displayName)
+          ]),
           ...canCopyLink ? [
             E(
               "button",
@@ -2325,30 +2350,8 @@ async function getConfigSections() {
 }
 
 // src/forkop/runtimeTags.ts
-var RESERVED_RUNTIME_TAGS = /* @__PURE__ */ new Set([
-  "dns-server",
-  "fakeip-server",
-  "bootstrap-dns-server",
-  "fakeip-dns-rule-tag",
-  "fakeip-ruleset-dns-rule-tag",
-  "service-fakeip-dns-rule-tag",
-  "tproxy-in",
-  "tproxy6-in",
-  "dns-in",
-  "service-mixed-in",
-  "direct-out"
-]);
-function allocateRuntimeTag(base, postfix) {
-  let suffix = 1;
-  let candidate = `${base}-${postfix}`;
-  while (RESERVED_RUNTIME_TAGS.has(candidate)) {
-    candidate = `${base}-${postfix}-${suffix}`;
-    suffix += 1;
-  }
-  return candidate;
-}
 function getOutboundTagBySection(sectionName) {
-  return allocateRuntimeTag(sectionName, "out");
+  return sectionName;
 }
 
 // src/forkop/methods/shell/callBaseMethod.ts
@@ -2475,7 +2478,6 @@ var COMPONENT_ACTION_STATUS_REFRESH_INTERVAL_MS = 15e3;
 var COMPONENT_ACTION_SELF_UPDATE_SETTLE_MS = 3e4;
 var COMPONENT_ACTION_TRANSIENT_RPC_GRACE_MS = 3e4;
 var COMPONENT_ACTION_STATE_DIR = "/var/run/forkop/component-actions";
-var RUNTIME_MANIFEST_FILE = "/var/run/forkop/runtime-manifest.json";
 var GET_UI_STATE_RPC_TIMEOUT_MS = 3e3;
 var checkLogsRequest = null;
 function sleep(ms) {
@@ -2624,19 +2626,6 @@ var ForkopShellMethods = {
     Forkop.AvailableMethods.CHECK_INBOUNDS_CONFIG
   ),
   getStatus: async () => callBaseMethod(Forkop.AvailableMethods.GET_STATUS),
-  getRuntimeManifest: async () => {
-    try {
-      const data = parseJsonObjectOutput(
-        await fs.read(RUNTIME_MANIFEST_FILE)
-      );
-      return data ? { success: true, data } : { success: false, error: "Invalid runtime manifest" };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : `${error}`
-      };
-    }
-  },
   checkSingBox: async () => callBaseMethod(
     Forkop.AvailableMethods.CHECK_SING_BOX
   ),
@@ -3016,6 +3005,7 @@ var ForkopShellMethods = {
 // src/forkop/methods/custom/getDashboardSections.ts
 var CLASH_API_FETCH_TIMEOUT_MS = 5e3;
 var EXPORTABLE_PROVIDER_PROXY_TYPES = /* @__PURE__ */ new Set([
+  "http",
   "hysteria",
   "hysteria2",
   "shadowsocks",
@@ -3132,8 +3122,8 @@ function hydrateConfigSections(configSections) {
           user_agent: item.user_agent,
           header: item.header,
           show_dashboard_metadata: item.show_dashboard_metadata,
-          prefix_nodes: item.prefix_nodes,
-          node_prefix: item.node_prefix
+          show_subscription_name: item.show_subscription_name,
+          tag: item.tag
         };
       });
       next.subscription_url_settings = compactSettingsMap(settings);
@@ -3272,33 +3262,21 @@ function getJsonOutboundDisplayName(section) {
 }
 function buildManualLinkByCode(section, selectorCodes) {
   const links = getManualProxyLinks(section);
-  const prefix = `${allocateRuntimeTag(
-    `${section[".name"]}-manual`,
-    "provider"
-  )}/`;
-  const runtimeCodes = selectorCodes.filter((code) => code.startsWith(prefix));
+  const available = new Set(selectorCodes);
+  const taken = /* @__PURE__ */ new Set();
+  const sectionPrefix = `${getDisplayName(section)}/`;
   return new Map(
-    runtimeCodes.flatMap((code, index) => {
-      const link = links[index];
-      return isCopyableProxyLink(link) ? [[code, link]] : [];
+    links.flatMap((link, index) => {
+      const name = getProxyUrlName(link) || `Node #${index + 1}`;
+      const base = `${sectionPrefix}${name}`;
+      let code = base;
+      for (let number = 2; taken.has(code); number += 1) {
+        code = `${base} #${number}`;
+      }
+      taken.add(code);
+      return available.has(code) && isCopyableProxyLink(link) ? [[code, link]] : [];
     })
   );
-}
-function orderCodesByDashboardSources(codes, sources) {
-  if (!sources?.length) {
-    return codes;
-  }
-  const remaining = new Set(codes);
-  const ordered = [];
-  sources.forEach((source) => {
-    const sourceCodes = source.type === "provider" && source.tag ? codes.filter((code) => code.startsWith(`${source.tag}/`)) : source.type === "outbound" && source.tag ? [source.tag] : [];
-    sourceCodes.forEach((code) => {
-      if (remaining.delete(code)) {
-        ordered.push(code);
-      }
-    });
-  });
-  return [...ordered, ...codes.filter((code) => remaining.has(code))];
 }
 function canExportProviderProxyLink(code, type, providerTags) {
   return EXPORTABLE_PROVIDER_PROXY_TYPES.has(type.toLowerCase()) && providerTags.some((tag) => code.startsWith(`${tag}/`));
@@ -3330,14 +3308,6 @@ function sortUrlTestMembers(outbounds) {
     }
     return left.index - right.index;
   }).map((item) => item.outbound);
-}
-function objectMap(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {};
-  }
-  return Object.fromEntries(
-    Object.entries(value).filter(([, item]) => typeof item === "string").map(([key, item]) => [key, item])
-  );
 }
 function itemSettingsMap(value) {
   if (!value) {
@@ -3376,13 +3346,8 @@ function itemSettingNumber(settings, key, fallback) {
   const value = Number(raw);
   return Number.isFinite(value) ? value : fallback;
 }
-function getUrlTestTag(sectionName, id) {
-  return getOutboundTagBySection(
-    id === "urltest" ? `${sectionName}-urltest` : `${sectionName}-urltest-${id}`
-  );
-}
-function getFallbackTag(sectionName, id) {
-  return getOutboundTagBySection(`${sectionName}-fallback-${id}`);
+function getChildTag(section, displayName) {
+  return `${getDisplayName(section)}/${displayName}`;
 }
 function getUrlTestDisplayName(section, id, settings) {
   return itemSettingString(
@@ -3393,13 +3358,13 @@ function getUrlTestDisplayName(section, id, settings) {
 }
 function getUrlTestConfigs(section) {
   const settingsMap = itemSettingsMap(section.urltest_settings);
-  const sectionName = section[".name"];
   return getUrlTestIds(section).map((id) => {
     const settings = settingsMap[id] || {};
+    const displayName = getUrlTestDisplayName(section, id, settings);
     return {
       id,
-      code: getUrlTestTag(sectionName, id),
-      displayName: getUrlTestDisplayName(section, id, settings),
+      code: getChildTag(section, displayName),
+      displayName,
       hideDashboardMembers: itemSettingBoolean(
         settings,
         "hide_dashboard_members",
@@ -3460,11 +3425,12 @@ function getFallbackConfigs(section) {
   return getFallbackGroupIds(section).map((id) => {
     const settings = settingsMap[id] || {};
     const levels = fallbackLevelConfigsFromSettings(settings);
+    const displayName = itemSettingString(settings, "name", id);
     return {
       id,
       sectionName,
-      code: getFallbackTag(sectionName, id),
-      displayName: itemSettingString(settings, "name", id),
+      code: getChildTag(section, displayName),
+      displayName,
       hideDashboardMembers: itemSettingBoolean(
         settings,
         "hide_dashboard_members",
@@ -3497,14 +3463,18 @@ function getFallbackConfigs(section) {
     };
   });
 }
-function getOutboundDisplayName(code, entry, link, outboundMetadata) {
-  const metadataName = outboundMetadata?.names?.[code];
-  return getProxyUrlName(link) || metadataName || entry?.value?.name || code;
+function getOutboundPresentation(code, sectionDisplayName, subscriptionTags) {
+  const sectionPrefix = `${sectionDisplayName}/`;
+  const relativeCode = code.startsWith(sectionPrefix) ? code.slice(sectionPrefix.length) : code;
+  const subscription = subscriptionTags.find(
+    (item) => item.outboundCodes.has(code)
+  );
+  return {
+    displayName: subscription ? code.slice(subscription.runtimeTag.length + 1) : relativeCode,
+    subscriptionTag: subscription?.showInDashboard ? subscription.displayTag : void 0
+  };
 }
-function getOutboundDisplayType(code, entry, outboundMetadata) {
-  const protocol = outboundMetadata?.protocols?.[code]?.toLowerCase();
-  if (protocol === "amneziawg") return "AmneziaWG";
-  if (protocol === "tailscale") return "Tailscale";
+function getOutboundDisplayType(entry) {
   return entry?.value?.type || "";
 }
 function buildUrlTestInfo({
@@ -3513,7 +3483,8 @@ function buildUrlTestInfo({
   proxyByCode,
   manualLinkByCode,
   exportableProviderTags,
-  outboundMetadata
+  sectionDisplayName,
+  subscriptionTags
 }) {
   const childCodes = uniqueCodes(entry?.value.all || []);
   const selectedCode = entry?.value.now || "";
@@ -3526,17 +3497,17 @@ function buildUrlTestInfo({
         childEntry?.value?.type || "",
         exportableProviderTags
       );
+      const presentation = getOutboundPresentation(
+        childCode,
+        sectionDisplayName,
+        subscriptionTags
+      );
       return [
         {
           code: childCode,
-          displayName: getOutboundDisplayName(
-            childCode,
-            childEntry,
-            link,
-            outboundMetadata
-          ),
+          ...presentation,
           latency: childEntry?.value?.history?.[0]?.delay || 0,
-          type: getOutboundDisplayType(childCode, childEntry, outboundMetadata),
+          type: getOutboundDisplayType(childEntry),
           selected: selectedCode === childCode,
           link,
           canCopyLink
@@ -3564,36 +3535,26 @@ function buildFallbackInfo({
   proxyByCode,
   manualLinkByCode,
   exportableProviderTags,
-  outboundMetadata
+  sectionDisplayName,
+  subscriptionTags
 }) {
   const selectedCode = entry?.value.now || "";
-  const configLevelById = new Map(
-    config.levels.map((level) => [level.id, level])
-  );
   const configuredLevels = config.levels;
-  const runtimeLevels = Array.isArray(entry?.value.levels) ? entry.value.levels : [];
-  const levels = (runtimeLevels.length ? runtimeLevels.map((runtimeLevel, index) => {
-    const runtimeTag = `${runtimeLevel.tag || ""}`;
-    const metadata = configuredLevels.find(
-      (level) => level.tag === runtimeTag || level.id === runtimeTag
-    ) || configuredLevels[index];
-    const id = `${metadata?.id || runtimeTag || `level-${index + 1}`}`;
-    const configLevel = configLevelById.get(id);
+  const runtimeGroups = Array.isArray(entry?.value.groups) ? entry.value.groups : [];
+  const levels = (runtimeGroups.length ? runtimeGroups.map((runtimeGroup, index) => {
+    const metadata = configuredLevels[index];
     return {
-      id,
-      tag: runtimeTag || metadata?.tag || id,
-      displayName: metadata?.displayName || configLevel?.displayName || `${index + 1}`,
-      order: typeof metadata?.order === "number" && Number.isFinite(metadata.order) ? metadata.order : configLevel?.order ?? index,
-      outbounds: uniqueCodes(runtimeLevel.outbounds || [])
+      id: metadata?.id || `level-${index + 1}`,
+      displayName: metadata?.displayName || `${index + 1}`,
+      order: typeof metadata?.order === "number" && Number.isFinite(metadata.order) ? metadata.order : index,
+      outbounds: uniqueCodes(runtimeGroup.outbounds || [])
     };
   }) : configuredLevels.map((level, index) => {
     const id = `${level.id || `level-${index + 1}`}`;
-    const configLevel = configLevelById.get(id);
     return {
       id,
-      tag: level.tag || id,
-      displayName: level.displayName || configLevel?.displayName || `${index + 1}`,
-      order: typeof level.order === "number" && Number.isFinite(level.order) ? level.order : configLevel?.order ?? index,
+      displayName: level.displayName || `${index + 1}`,
+      order: typeof level.order === "number" && Number.isFinite(level.order) ? level.order : index,
       outbounds: uniqueCodes(level.outbounds || [])
     };
   })).sort(
@@ -3608,16 +3569,16 @@ function buildFallbackInfo({
         childEntry?.value?.type || "",
         exportableProviderTags
       );
+      const presentation = getOutboundPresentation(
+        childCode,
+        sectionDisplayName,
+        subscriptionTags
+      );
       return {
         code: childCode,
-        displayName: getOutboundDisplayName(
-          childCode,
-          childEntry,
-          link,
-          outboundMetadata
-        ),
+        ...presentation,
         latency: childEntry?.value?.history?.[0]?.delay || 0,
-        type: getOutboundDisplayType(childCode, childEntry, outboundMetadata),
+        type: getOutboundDisplayType(childEntry),
         selected: selectedCode === childCode,
         link,
         canCopyLink,
@@ -3644,16 +3605,39 @@ function buildFallbackInfo({
     outbounds
   };
 }
-function buildProxyGroupOutbounds(section, proxies, outboundMetadata, exportableProviderTags = [], dashboardSources) {
-  const sectionName = section[".name"];
+function buildProxyGroupOutbounds(section, proxies, subscriptionTags) {
+  const sectionDisplayName = getDisplayName(section);
+  const exportableProviderTags = subscriptionTags.map(
+    (item) => item.runtimeTag
+  );
   const proxyByCode = getProxyEntryByCode(proxies);
-  const selectorTag = getOutboundTagBySection(sectionName);
+  const selectorTag = getOutboundTagBySection(sectionDisplayName);
   const selector = proxyByCode.get(selectorTag);
-  const urlTestConfigs = getUrlTestConfigs(section);
+  const selectorCodes = selector?.value?.all ?? [];
+  const bindRuntimeCodes = (configs, type) => {
+    const candidates = selectorCodes.filter(
+      (code) => proxyByCode.get(code)?.value.type.toLowerCase() === type
+    );
+    const remaining = new Set(candidates);
+    return configs.map((config) => {
+      const code = candidates.find(
+        (candidate) => remaining.has(candidate) && (candidate === config.code || candidate.startsWith(`${config.code} #`))
+      ) || candidates.find((candidate) => remaining.has(candidate));
+      if (code) remaining.delete(code);
+      return code ? { ...config, code } : config;
+    });
+  };
+  const urlTestConfigs = bindRuntimeCodes(
+    getUrlTestConfigs(section),
+    "urltest"
+  );
   const urlTestConfigByCode = new Map(
     urlTestConfigs.map((config) => [config.code, config])
   );
-  const fallbackConfigs = getFallbackConfigs(section);
+  const fallbackConfigs = bindRuntimeCodes(
+    getFallbackConfigs(section),
+    "fallback"
+  );
   const fallbackConfigByCode = new Map(
     fallbackConfigs.map((config) => [config.code, config])
   );
@@ -3665,10 +3649,6 @@ function buildProxyGroupOutbounds(section, proxies, outboundMetadata, exportable
     config,
     entry: proxyByCode.get(config.code)
   }));
-  const selectorCodes = orderCodesByDashboardSources(
-    selector?.value?.all ?? [],
-    dashboardSources
-  );
   const manualLinkByCode = buildManualLinkByCode(section, selectorCodes);
   const urlTestCodes = urlTestConfigs.map((config) => config.code);
   const fallbackGroupCodes = fallbackConfigs.map((config) => config.code);
@@ -3683,7 +3663,7 @@ function buildProxyGroupOutbounds(section, proxies, outboundMetadata, exportable
     if (!config.hideDashboardMembers) {
       return;
     }
-    const levels = entry?.value.levels?.length ? entry.value.levels : config.levels;
+    const levels = entry?.value.groups?.length ? entry.value.groups : config.levels;
     levels.forEach((level) => hideMembers(level.outbounds || []));
   });
   const builtInUrltestCode = urlTestCodes[0] || "";
@@ -3713,7 +3693,12 @@ function buildProxyGroupOutbounds(section, proxies, outboundMetadata, exportable
       item?.value?.type || "",
       exportableProviderTags
     );
-    const displayName = fallbackConfig?.displayName || urlTestConfig?.displayName || getOutboundDisplayName(code, item, link, outboundMetadata);
+    const presentation = getOutboundPresentation(
+      code,
+      sectionDisplayName,
+      subscriptionTags
+    );
+    const displayName = fallbackConfig?.displayName || urlTestConfig?.displayName || presentation.displayName;
     const isRuntimeUrlTest = isUrlTestProxyEntry(item);
     const effectiveUrlTestConfig = urlTestConfig || (isRuntimeUrlTest ? {
       id: code,
@@ -3727,7 +3712,8 @@ function buildProxyGroupOutbounds(section, proxies, outboundMetadata, exportable
       proxyByCode,
       manualLinkByCode,
       exportableProviderTags,
-      outboundMetadata
+      sectionDisplayName,
+      subscriptionTags
     }) : void 0;
     const fallbackInfo = fallbackConfig ? buildFallbackInfo({
       config: fallbackConfig,
@@ -3735,7 +3721,8 @@ function buildProxyGroupOutbounds(section, proxies, outboundMetadata, exportable
       proxyByCode,
       manualLinkByCode,
       exportableProviderTags,
-      outboundMetadata
+      sectionDisplayName,
+      subscriptionTags
     }) : void 0;
     const groupInfo = urlTestInfo || fallbackInfo;
     const selectedGroupMember = groupInfo?.outbounds.find(
@@ -3746,8 +3733,9 @@ function buildProxyGroupOutbounds(section, proxies, outboundMetadata, exportable
       {
         code,
         displayName,
+        subscriptionTag: fallbackConfig || urlTestConfig ? void 0 : presentation.subscriptionTag,
         latency: selectedGroupMember?.latency || item?.value.history?.[0]?.delay || 0,
-        type: fallbackConfig ? "Fallback" : getOutboundDisplayType(code, item, outboundMetadata) || "URLTest",
+        type: fallbackConfig ? "Fallback" : getOutboundDisplayType(item) || "URLTest",
         selected: selector?.value?.now === code,
         link,
         canCopyLink,
@@ -3772,19 +3760,31 @@ function isSubscriptionMetadataVisible(section, sourceIndex) {
   const settings = itemSettingsMap(section.subscription_url_settings)[sourceEntry];
   return settings?.show_dashboard_metadata !== "0";
 }
-function getSectionProviderTags(section) {
-  const sectionName = section[".name"];
-  const tags = Array.from(
-    { length: getSubscriptionSourceCount(section) },
-    (_item, index) => allocateRuntimeTag(
-      `${sectionName}-subscription-${index + 1}`,
-      "provider"
-    )
-  );
-  if (getManualProxyLinks(section).length) {
-    tags.push(allocateRuntimeTag(`${sectionName}-manual`, "provider"));
-  }
-  return tags;
+function getSectionSubscriptionTags(section, providers) {
+  const sectionDisplayName = getDisplayName(section);
+  const settings = itemSettingsMap(section.subscription_url_settings);
+  return getListValues(section.subscription_urls).map((source, index) => {
+    const sourceSettings = settings[source];
+    const displayTag = itemSettingString(
+      sourceSettings,
+      "tag",
+      `sub${index + 1}`
+    );
+    return {
+      runtimeTag: `${sectionDisplayName}/${displayTag}`,
+      displayTag,
+      showInDashboard: itemSettingBoolean(
+        sourceSettings,
+        "show_subscription_name",
+        false
+      ),
+      outboundCodes: new Set(
+        (providers[`${sectionDisplayName}/${displayTag}`]?.proxies || []).map(
+          (proxy) => proxy.name
+        )
+      )
+    };
+  });
 }
 function providerNumber(value, lower) {
   const upper = `${lower[0].toUpperCase()}${lower.slice(1)}`;
@@ -3830,21 +3830,6 @@ function getSubscriptionMetadata(section, sourceCount, providerTags, providers) 
   });
   return items.length ? items : void 0;
 }
-function getOutboundMetadata(metadata, providerTags = [], proxies = []) {
-  const names = objectMap(metadata?.names);
-  const protocols = objectMap(metadata?.protocols);
-  const prefixes = providerTags.map((tag) => `${tag}/`);
-  proxies.forEach((proxy) => {
-    const prefix = prefixes.find((value) => proxy.code.startsWith(value));
-    if (prefix) {
-      names[proxy.code] = proxy.code.slice(prefix.length);
-    }
-  });
-  if (!Object.keys(names).length && !Object.keys(protocols).length) {
-    return void 0;
-  }
-  return { names, protocols };
-}
 async function getDashboardSections() {
   const configSections = hydrateConfigSections(await getConfigSections());
   const hasSubscriptions = configSections.some(hasSubscriptionSources);
@@ -3871,18 +3856,6 @@ async function getDashboardSections() {
   const activeSections = configSections.filter(
     (section) => section.enabled !== "0" && isConnectionAction(section.action)
   );
-  let runtimeManifest = {};
-  if (activeSections.some(shouldUseProxyGroup)) {
-    const response = await ForkopShellMethods.getRuntimeManifest();
-    if (!response.success) {
-      throw new Error(response.error || "Failed to read runtime manifest");
-    }
-    const parsed = response.data;
-    if (parsed.version !== 1 || !parsed.sections) {
-      throw new Error("Invalid runtime manifest");
-    }
-    runtimeManifest = parsed;
-  }
   const data = activeSections.map((section) => {
     const displayName = getDisplayName(section);
     const sectionName = section[".name"];
@@ -3891,29 +3864,17 @@ async function getDashboardSections() {
     if (isConnectionAction(sectionAction) && shouldUseProxyGroup(section)) {
       const subscriptionSourceCount = getSubscriptionSourceCount(section);
       const subscriptionEnabled = subscriptionSourceCount > 0;
-      const providerTags = getSectionProviderTags(section);
-      const runtimeSection = runtimeManifest.sections?.[sectionName];
-      const outboundMetadata = getOutboundMetadata(
-        runtimeSection,
-        providerTags,
-        proxies
-      );
+      const subscriptionTags = getSectionSubscriptionTags(section, providers);
       const subscriptionMetadata = subscriptionEnabled ? getSubscriptionMetadata(
         section,
         subscriptionSourceCount,
-        providerTags,
+        subscriptionTags.map((item) => item.runtimeTag),
         providers
       ) : void 0;
-      const { selector, latencyTestCode, latencyTestCodes, outbounds } = buildProxyGroupOutbounds(
-        section,
-        proxies,
-        outboundMetadata,
-        providerTags.slice(0, subscriptionSourceCount),
-        runtimeSection?.dashboardSources
-      );
+      const { selector, latencyTestCode, latencyTestCodes, outbounds } = buildProxyGroupOutbounds(section, proxies, subscriptionTags);
       return {
         withTagSelect: true,
-        code: selector?.code || sectionName,
+        code: selector?.code || displayName,
         sectionName,
         displayName,
         action: sectionAction,
@@ -3926,18 +3887,18 @@ async function getDashboardSections() {
       };
     }
     if (sectionAction === "vpn") {
-      const outboundTag = getOutboundTagBySection(sectionName);
+      const outboundTag = getOutboundTagBySection(displayName);
       const outbound = proxies.find((proxy) => proxy.code === outboundTag);
       return {
         withTagSelect: false,
-        code: outbound?.code || sectionName,
+        code: outbound?.code || displayName,
         sectionName,
         displayName,
         action: sectionAction,
         latencyTestTimeout: "10000",
         outbounds: [
           {
-            code: outbound?.code || sectionName,
+            code: outbound?.code || displayName,
             displayName: section.interface || outbound?.value?.name || "",
             latency: outbound?.value?.history?.[0]?.delay || 0,
             type: outbound?.value?.type || "",
@@ -3949,17 +3910,17 @@ async function getDashboardSections() {
       };
     }
     if (sectionAction === "outbound") {
-      const outboundTag = getOutboundTagBySection(sectionName);
+      const outboundTag = getOutboundTagBySection(displayName);
       const outbound = proxies.find((proxy) => proxy.code === outboundTag);
       return {
         withTagSelect: false,
-        code: outbound?.code || sectionName,
+        code: outbound?.code || displayName,
         sectionName,
         displayName,
         action: sectionAction,
         outbounds: [
           {
-            code: outbound?.code || sectionName,
+            code: outbound?.code || displayName,
             displayName: getJsonOutboundDisplayName(section) || outbound?.value?.name || "",
             latency: outbound?.value?.history?.[0]?.delay || 0,
             type: outbound?.value?.type || "",
@@ -3971,7 +3932,7 @@ async function getDashboardSections() {
     }
     return {
       withTagSelect: false,
-      code: sectionName,
+      code: displayName,
       sectionName,
       displayName,
       action: sectionAction,
@@ -6008,15 +5969,23 @@ function getDetectedCountryFlag(country) {
 }
 function renderDetailsMemberName(member) {
   const countryFlag = getDetectedCountryFlag(member.country);
-  if (!countryFlag) {
-    return renderFlagEmojis(member.displayName);
-  }
   return [
-    E(
-      "span",
-      { class: "fkp_dashboard-page__urltest-details__country-badge" },
-      countryFlag
-    ),
+    ...member.subscriptionTag ? [
+      E(
+        "span",
+        {
+          class: "fkp_dashboard-page__outbound-grid__item__subscription-tag"
+        },
+        member.subscriptionTag
+      )
+    ] : [],
+    ...countryFlag ? [
+      E(
+        "span",
+        { class: "fkp_dashboard-page__urltest-details__country-badge" },
+        countryFlag
+      )
+    ] : [],
     ...renderFlagEmojis(member.displayName)
   ];
 }
@@ -7298,6 +7267,17 @@ var styles = `
     overflow-wrap: anywhere;
 }
 
+.fkp_dashboard-page__outbound-grid__item__subscription-tag {
+  display: inline-block;
+  margin-right: 0.4rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 400;
+  line-height: 1.2;
+  vertical-align: 0.08rem;
+}
+
 .fkp_dashboard-page .btn.fkp_dashboard-page__outbound-grid__item__copy-button {
     width: 22px;
     height: 22px;
@@ -7540,10 +7520,14 @@ var styles = `
     margin-right: 8px;
     padding: 2px 6px;
     border-radius: 4px;
-    color: var(--text-color-medium, #aaa);
-    background: rgba(128, 128, 128, 0.15);
     font-size: 11px;
     font-weight: 400;
+}
+
+.fkp_dashboard-page__outbound-grid__item__subscription-tag,
+.fkp_dashboard-page__urltest-details__fallback-level {
+    color: var(--text-color-medium);
+    background: var(--background-color-low);
 }
 
 .fkp_dashboard-page__urltest-details__country-badge {
@@ -11008,24 +10992,6 @@ var closingConnectionIds = /* @__PURE__ */ new Set();
 function normalizeString(value) {
   return value == null ? "" : String(value).trim();
 }
-function getListValues2(value) {
-  if (!value) {
-    return [];
-  }
-  if (Array.isArray(value)) {
-    return value.map((item) => normalizeString(item)).filter(Boolean);
-  }
-  return normalizeString(value).split(/\s+/).map((item) => item.trim()).filter(Boolean);
-}
-function getUrlTestIds2(section) {
-  const values = getListValues2(section.urltests);
-  return values.length ? values : section.urltest_enabled === "1" ? ["urltest"] : [];
-}
-function getUrlTestTag2(sectionName, id) {
-  return getOutboundTagBySection(
-    id === "urltest" ? `${sectionName}-urltest` : `${sectionName}-urltest-${id}`
-  );
-}
 function formatEndpoint(address, port) {
   const normalizedAddress = normalizeString(address);
   const normalizedPort = normalizeString(port);
@@ -11052,30 +11018,14 @@ function buildRouteDisplayNames(sections) {
   };
   const serverMap = {};
   const routeSectionItems = [];
-  const urltestsBySection = /* @__PURE__ */ new Map();
-  sections.filter((section) => section[".type"] === "urltest").forEach((section) => {
-    const owner = normalizeString(section.section);
-    const id = normalizeString(section.id) || section[".name"];
-    if (!owner || !id) {
-      return;
-    }
-    urltestsBySection.set(owner, [
-      ...urltestsBySection.get(owner) || [],
-      id
-    ]);
-  });
   sections.filter((section) => section[".type"] === "section").filter((section) => section.enabled !== "0").forEach((section) => {
     const sectionName = section[".name"];
     const displayName = getDisplayName2(section);
     if (!sectionName || !displayName) {
       return;
     }
-    routeSectionItems.push({ sectionName, displayName });
-    map[getOutboundTagBySection(sectionName)] = displayName;
-    const urltestIds = urltestsBySection.get(sectionName) || getUrlTestIds2(section);
-    urltestIds.forEach((id) => {
-      map[getUrlTestTag2(sectionName, id)] = displayName;
-    });
+    routeSectionItems.push({ sectionName: displayName, displayName });
+    map[getOutboundTagBySection(displayName)] = displayName;
   });
   sections.filter((section) => section[".type"] === "server").filter((section) => section.enabled !== "0").forEach((section) => {
     const sectionName = section[".name"];
@@ -11083,7 +11033,7 @@ function buildRouteDisplayNames(sections) {
     if (!sectionName || !displayName) {
       return;
     }
-    serverMap[`server-${sectionName}-in`] = displayName;
+    serverMap[displayName] = displayName;
   });
   routeDisplayNames = map;
   serverDisplayNames = serverMap;
@@ -11098,13 +11048,9 @@ function getRouteDisplayNameByTag(tag) {
   if (routeDisplayNames[tag]) {
     return routeDisplayNames[tag];
   }
-  const manualSection = routeSections.find(({ sectionName }) => {
-    if (!tag.startsWith(`${sectionName}-`) || !tag.endsWith("-out")) {
-      return false;
-    }
-    const middle = tag.slice(sectionName.length + 1, -4);
-    return /^\d+(?:-\d+)?$/.test(middle);
-  });
+  const manualSection = routeSections.find(
+    ({ sectionName }) => tag.startsWith(`${sectionName}/`)
+  );
   return manualSection?.displayName || "";
 }
 function getRouteTagFromRule(rule) {

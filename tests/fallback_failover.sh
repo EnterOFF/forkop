@@ -108,29 +108,28 @@ function same(actual, expected, label) {
         fail(label + ": " + sprintf("%J", actual));
 }
 let config = json(fs.readfile(ARGV[0]));
-let manifest = json(fs.readfile(ARGV[1]));
-let group = outbound(config, "proxy-fallback-pg_main-out");
-let defaultGroup = outbound(config, "proxy-fallback-pg_default-out");
-if (!group || group.type != "fallback" || length(group.levels || []) != 5)
-    fail("Fallback must be one native group with inline levels");
-let top = group.levels[0];
-let mixed = group.levels[1];
-let providerOnly = group.levels[2];
-let direct = group.levels[3];
-let remaining = group.levels[4];
+let group = outbound(config, "proxy/Main fallback");
+let defaultGroup = outbound(config, "proxy/Default fallback");
+if (!group || group.type != "fallback" || length(group.groups || []) != 5 || group.levels != null)
+    fail("Fallback must be one native group with inline server groups");
+let top = group.groups[0];
+let mixed = group.groups[1];
+let providerOnly = group.groups[2];
+let direct = group.groups[3];
+let remaining = group.groups[4];
 
-same(top.outbounds, ["Beta"], "top static members");
-same(mixed.outbounds, ["Alpha"], "mixed static members");
+same(top.outbounds, ["proxy/Beta"], "top static members");
+same(mixed.outbounds, ["proxy/Alpha"], "mixed static members");
 same(providerOnly.outbounds, [], "provider-only static members");
 same(direct.outbounds, ["direct-out"], "direct level");
-same(remaining.outbounds, ["Gamma"], "remaining static members");
-same([top.tag, mixed.tag, providerOnly.tag, direct.tag, remaining.tag],
-    ["pl_top", "pl_mixed", "pl_provider", "pl_direct", "pl_remaining"], "level order");
+same(remaining.outbounds, ["proxy/Gamma"], "remaining static members");
+if (top.tag != null || mixed.tag != null || providerOnly.tag != null || direct.tag != null || remaining.tag != null)
+    fail("server groups still expose the removed tag field");
 if (group.outbounds != null || group.exclude_group_members != null)
     fail("Fallback still contains nested group fields");
 
 for (let item in [top, mixed, providerOnly, remaining]) {
-    same(item.providers, ["proxy-subscription-1-provider"], "native provider binding");
+    same(item.providers, ["proxy/sub1"], "native provider binding");
     if (item.exclude_types != null) fail("Fallback still contains removed provider type filters");
 }
 if (direct.providers != null) fail("direct level must not consume providers");
@@ -147,19 +146,13 @@ if (!defaultGroup || defaultGroup.interval != "5m" || defaultGroup.timeout != "5
     defaultGroup.interrupt_exist_connections != true)
     fail("native Fallback defaults do not match Mihomo timing");
 
-let metadata = (manifest.sections || {}).proxy || {};
-if (manifest.version != 1 || (metadata.names || {})[group.tag] != "Main fallback")
-    fail("Fallback display metadata is missing from runtime manifest");
-for (let key in ["providerTags", "urltestCandidateTags", "urltestGroups", "fallbackGroups"])
-    if (metadata[key] != null || manifest[key] != null)
-        fail("legacy section cache field leaked into runtime manifest: " + key);
 for (let item in config.outbounds || [])
     if (index(item.tag || "", "proxy-fallback-pg_main-level-") == 0)
         fail("Fallback still generates nested level outbounds");
-let selector = outbound(config, "proxy-out");
+let selector = outbound(config, "proxy");
 if (!selector || selector.default != group.tag)
     fail("section selector must default to its first Fallback group");
-' "$WORK_DIR/config.json" "$WORK_DIR/config.json.runtime-manifest.json"
+' "$WORK_DIR/config.json"
 
 cat >"$WORK_DIR/bad-timeout.json" <<'JSON'
 {
@@ -228,10 +221,27 @@ cat >"$WORK_DIR/no-levels.json" <<'JSON'
 }
 JSON
 if output="$(validate "$WORK_DIR/no-levels.json" 2>/dev/null)"; then
-  printf 'Fallback without levels was accepted\n' >&2
+  printf 'Fallback without server groups was accepted\n' >&2
   exit 1
 fi
-grep -Fq 'has no levels' <<<"$output"
+grep -Fq 'has no server groups' <<<"$output"
+
+cat >"$WORK_DIR/duplicate-server-groups.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings", "dns_server": ["77.88.8.8"], "bootstrap_dns_server": ["77.88.8.8"] },
+  "section": [{ ".name": "proxy", ".type": "section", "label": "Proxy", "enabled": "1", "action": "connection" }],
+  "fallback_group": [{ ".name": "pg", ".type": "fallback_group", "section": "proxy", "name": "Fallback" }],
+  "fallback_level": [
+    { ".name": "primary", ".type": "fallback_level", "group": "pg", "name": "Servers", "server_filter_mode": "direct" },
+    { ".name": "backup", ".type": "fallback_level", "group": "pg", "name": "Servers", "server_filter_mode": "all" }
+  ]
+}
+JSON
+if output="$(validate "$WORK_DIR/duplicate-server-groups.json" 2>/dev/null)"; then
+  printf 'Fallback with duplicate server group names was accepted\n' >&2
+  exit 1
+fi
+grep -Fq "duplicate server group name 'Servers'" <<<"$output"
 
 test ! -e "$FORKOP_LIB/singbox/fallback.uc"
 

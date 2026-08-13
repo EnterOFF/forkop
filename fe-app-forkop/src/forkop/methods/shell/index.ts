@@ -15,7 +15,6 @@ const COMPONENT_ACTION_STATUS_REFRESH_INTERVAL_MS = 15000;
 const COMPONENT_ACTION_SELF_UPDATE_SETTLE_MS = 30000;
 const COMPONENT_ACTION_TRANSIENT_RPC_GRACE_MS = 30000;
 const COMPONENT_ACTION_STATE_DIR = '/var/run/forkop/component-actions';
-const RUNTIME_MANIFEST_FILE = '/var/run/forkop/runtime-manifest.json';
 const GET_UI_STATE_RPC_TIMEOUT_MS = 3000;
 
 let checkLogsRequest: ReturnType<typeof callBaseMethod<unknown>> | null = null;
@@ -232,22 +231,6 @@ export const ForkopShellMethods = {
     ),
   getStatus: async () =>
     callBaseMethod<Forkop.GetStatus>(Forkop.AvailableMethods.GET_STATUS),
-  getRuntimeManifest: async () => {
-    try {
-      const data = parseJsonObjectOutput<Record<string, unknown>>(
-        await fs.read(RUNTIME_MANIFEST_FILE),
-      );
-
-      return data
-        ? { success: true as const, data }
-        : { success: false as const, error: 'Invalid runtime manifest' };
-    } catch (error) {
-      return {
-        success: false as const,
-        error: error instanceof Error ? error.message : `${error}`,
-      };
-    }
-  },
   checkSingBox: async () =>
     callBaseMethod<Forkop.SingBoxCheckResult>(
       Forkop.AvailableMethods.CHECK_SING_BOX,

@@ -6,7 +6,7 @@ import {
   getProxyUrlName,
   isCopyableProxyLink,
 } from '../../../helpers';
-import { allocateRuntimeTag, getOutboundTagBySection } from '../../runtimeTags';
+import { getOutboundTagBySection } from '../../runtimeTags';
 import { ForkopShellMethods } from '../shell';
 
 interface IGetDashboardSectionsResponse {
@@ -19,23 +19,8 @@ type ClashProxyEntry = {
   value: ClashAPI.ProxyBase;
 };
 
-type DashboardSource = {
-  type?: 'outbound' | 'provider';
-  tag?: string;
-};
-
-type RuntimeSectionManifest = Forkop.GetOutboundMetadata & {
-  dashboardSources?: DashboardSource[];
-};
-
-type RuntimeManifest = {
-  version?: number;
-  sections?: Record<string, RuntimeSectionManifest>;
-};
-
 type FallbackLevelConfig = {
   id: string;
-  tag?: string;
   displayName: string;
   order: number;
   outbounds?: string[];
@@ -72,6 +57,13 @@ type FallbackConfig = {
   levels: FallbackLevelConfig[];
 };
 
+type SubscriptionTagConfig = {
+  runtimeTag: string;
+  displayTag: string;
+  showInDashboard: boolean;
+  outboundCodes: Set<string>;
+};
+
 type ChildType =
   | 'subscription_url'
   | 'section_interface'
@@ -83,6 +75,7 @@ type ChildType =
 
 const CLASH_API_FETCH_TIMEOUT_MS = 5000;
 const EXPORTABLE_PROVIDER_PROXY_TYPES = new Set([
+  'http',
   'hysteria',
   'hysteria2',
   'shadowsocks',
@@ -241,8 +234,8 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
           user_agent: item.user_agent,
           header: item.header,
           show_dashboard_metadata: item.show_dashboard_metadata,
-          prefix_nodes: item.prefix_nodes,
-          node_prefix: item.node_prefix,
+          show_subscription_name: item.show_subscription_name,
+          tag: item.tag,
         };
       });
       next.subscription_url_settings = compactSettingsMap(settings);
@@ -430,46 +423,24 @@ function buildManualLinkByCode(
   selectorCodes: string[],
 ) {
   const links = getManualProxyLinks(section);
-  const prefix = `${allocateRuntimeTag(
-    `${section['.name']}-manual`,
-    'provider',
-  )}/`;
-  const runtimeCodes = selectorCodes.filter((code) => code.startsWith(prefix));
+  const available = new Set(selectorCodes);
+  const taken = new Set<string>();
+  const sectionPrefix = `${getDisplayName(section)}/`;
 
   return new Map(
-    runtimeCodes.flatMap((code, index) => {
-      const link = links[index];
-      return isCopyableProxyLink(link) ? [[code, link] as const] : [];
+    links.flatMap((link, index) => {
+      const name = getProxyUrlName(link) || `Node #${index + 1}`;
+      const base = `${sectionPrefix}${name}`;
+      let code = base;
+      for (let number = 2; taken.has(code); number += 1) {
+        code = `${base} #${number}`;
+      }
+      taken.add(code);
+      return available.has(code) && isCopyableProxyLink(link)
+        ? [[code, link] as const]
+        : [];
     }),
   );
-}
-
-function orderCodesByDashboardSources(
-  codes: string[],
-  sources?: DashboardSource[],
-) {
-  if (!sources?.length) {
-    return codes;
-  }
-
-  const remaining = new Set(codes);
-  const ordered: string[] = [];
-  sources.forEach((source) => {
-    const sourceCodes =
-      source.type === 'provider' && source.tag
-        ? codes.filter((code) => code.startsWith(`${source.tag}/`))
-        : source.type === 'outbound' && source.tag
-          ? [source.tag]
-          : [];
-
-    sourceCodes.forEach((code) => {
-      if (remaining.delete(code)) {
-        ordered.push(code);
-      }
-    });
-  });
-
-  return [...ordered, ...codes.filter((code) => remaining.has(code))];
 }
 
 function canExportProviderProxyLink(
@@ -526,18 +497,6 @@ function sortUrlTestMembers(outbounds: Forkop.UrlTestMember[]) {
       return left.index - right.index;
     })
     .map((item) => item.outbound);
-}
-
-function objectMap(value: unknown): Record<string, string> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return {};
-  }
-
-  return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>)
-      .filter(([, item]) => typeof item === 'string')
-      .map(([key, item]) => [key, item as string]),
-  );
 }
 
 function itemSettingsMap(value?: string): Record<string, ItemSettings> {
@@ -597,16 +556,8 @@ function itemSettingNumber(
   return Number.isFinite(value) ? value : fallback;
 }
 
-function getUrlTestTag(sectionName: string, id: string) {
-  return getOutboundTagBySection(
-    id === 'urltest'
-      ? `${sectionName}-urltest`
-      : `${sectionName}-urltest-${id}`,
-  );
-}
-
-function getFallbackTag(sectionName: string, id: string) {
-  return getOutboundTagBySection(`${sectionName}-fallback-${id}`);
+function getChildTag(section: Forkop.ConfigSection, displayName: string) {
+  return `${getDisplayName(section)}/${displayName}`;
 }
 
 function getUrlTestDisplayName(
@@ -623,15 +574,15 @@ function getUrlTestDisplayName(
 
 function getUrlTestConfigs(section: Forkop.ConfigSection): UrlTestConfig[] {
   const settingsMap = itemSettingsMap(section.urltest_settings);
-  const sectionName = section['.name'];
 
   return getUrlTestIds(section).map((id) => {
     const settings = settingsMap[id] || {};
+    const displayName = getUrlTestDisplayName(section, id, settings);
 
     return {
       id,
-      code: getUrlTestTag(sectionName, id),
-      displayName: getUrlTestDisplayName(section, id, settings),
+      code: getChildTag(section, displayName),
+      displayName,
       hideDashboardMembers: itemSettingBoolean(
         settings,
         'hide_dashboard_members',
@@ -711,12 +662,13 @@ function getFallbackConfigs(section: Forkop.ConfigSection): FallbackConfig[] {
   return getFallbackGroupIds(section).map((id) => {
     const settings = settingsMap[id] || {};
     const levels = fallbackLevelConfigsFromSettings(settings);
+    const displayName = itemSettingString(settings, 'name', id);
 
     return {
       id,
       sectionName,
-      code: getFallbackTag(sectionName, id),
-      displayName: itemSettingString(settings, 'name', id),
+      code: getChildTag(section, displayName),
+      displayName,
       hideDashboardMembers: itemSettingBoolean(
         settings,
         'hide_dashboard_members',
@@ -750,25 +702,30 @@ function getFallbackConfigs(section: Forkop.ConfigSection): FallbackConfig[] {
   });
 }
 
-function getOutboundDisplayName(
+function getOutboundPresentation(
   code: string,
-  entry: ClashProxyEntry | undefined,
-  link: string,
-  outboundMetadata?: Forkop.GetOutboundMetadata,
+  sectionDisplayName: string,
+  subscriptionTags: SubscriptionTagConfig[],
 ) {
-  const metadataName = outboundMetadata?.names?.[code];
+  const sectionPrefix = `${sectionDisplayName}/`;
+  const relativeCode = code.startsWith(sectionPrefix)
+    ? code.slice(sectionPrefix.length)
+    : code;
+  const subscription = subscriptionTags.find((item) =>
+    item.outboundCodes.has(code),
+  );
 
-  return getProxyUrlName(link) || metadataName || entry?.value?.name || code;
+  return {
+    displayName: subscription
+      ? code.slice(subscription.runtimeTag.length + 1)
+      : relativeCode,
+    subscriptionTag: subscription?.showInDashboard
+      ? subscription.displayTag
+      : undefined,
+  };
 }
 
-function getOutboundDisplayType(
-  code: string,
-  entry: ClashProxyEntry | undefined,
-  outboundMetadata?: Forkop.GetOutboundMetadata,
-) {
-  const protocol = outboundMetadata?.protocols?.[code]?.toLowerCase();
-  if (protocol === 'amneziawg') return 'AmneziaWG';
-  if (protocol === 'tailscale') return 'Tailscale';
+function getOutboundDisplayType(entry: ClashProxyEntry | undefined) {
   return entry?.value?.type || '';
 }
 
@@ -778,14 +735,16 @@ function buildUrlTestInfo({
   proxyByCode,
   manualLinkByCode,
   exportableProviderTags,
-  outboundMetadata,
+  sectionDisplayName,
+  subscriptionTags,
 }: {
   config: UrlTestConfig;
   entry?: ClashProxyEntry;
   proxyByCode: Map<string, ClashProxyEntry>;
   manualLinkByCode: Map<string, string>;
   exportableProviderTags: string[];
-  outboundMetadata?: Forkop.GetOutboundMetadata;
+  sectionDisplayName: string;
+  subscriptionTags: SubscriptionTagConfig[];
 }): Forkop.UrlTestInfo {
   const childCodes = uniqueCodes(entry?.value.all || []);
   const selectedCode = entry?.value.now || '';
@@ -800,18 +759,18 @@ function buildUrlTestInfo({
           childEntry?.value?.type || '',
           exportableProviderTags,
         );
+      const presentation = getOutboundPresentation(
+        childCode,
+        sectionDisplayName,
+        subscriptionTags,
+      );
 
       return [
         {
           code: childCode,
-          displayName: getOutboundDisplayName(
-            childCode,
-            childEntry,
-            link,
-            outboundMetadata,
-          ),
+          ...presentation,
           latency: childEntry?.value?.history?.[0]?.delay || 0,
-          type: getOutboundDisplayType(childCode, childEntry, outboundMetadata),
+          type: getOutboundDisplayType(childEntry),
           selected: selectedCode === childCode,
           link,
           canCopyLink,
@@ -843,62 +802,47 @@ function buildFallbackInfo({
   proxyByCode,
   manualLinkByCode,
   exportableProviderTags,
-  outboundMetadata,
+  sectionDisplayName,
+  subscriptionTags,
 }: {
   config: FallbackConfig;
   entry?: ClashProxyEntry;
   proxyByCode: Map<string, ClashProxyEntry>;
   manualLinkByCode: Map<string, string>;
   exportableProviderTags: string[];
-  outboundMetadata?: Forkop.GetOutboundMetadata;
+  sectionDisplayName: string;
+  subscriptionTags: SubscriptionTagConfig[];
 }): Forkop.FallbackInfo {
   const selectedCode = entry?.value.now || '';
-  const configLevelById = new Map(
-    config.levels.map((level) => [level.id, level]),
-  );
   const configuredLevels = config.levels;
-  const runtimeLevels = Array.isArray(entry?.value.levels)
-    ? entry.value.levels
+  const runtimeGroups = Array.isArray(entry?.value.groups)
+    ? entry.value.groups
     : [];
   const levels = (
-    runtimeLevels.length
-      ? runtimeLevels.map((runtimeLevel, index): FallbackLevelConfig => {
-          const runtimeTag = `${runtimeLevel.tag || ''}`;
-          const metadata =
-            configuredLevels.find(
-              (level) => level.tag === runtimeTag || level.id === runtimeTag,
-            ) || configuredLevels[index];
-          const id = `${metadata?.id || runtimeTag || `level-${index + 1}`}`;
-          const configLevel = configLevelById.get(id);
-
+    runtimeGroups.length
+      ? runtimeGroups.map((runtimeGroup, index): FallbackLevelConfig => {
+          const metadata = configuredLevels[index];
           return {
-            id,
-            tag: runtimeTag || metadata?.tag || id,
-            displayName:
-              metadata?.displayName ||
-              configLevel?.displayName ||
-              `${index + 1}`,
+            id: metadata?.id || `level-${index + 1}`,
+            displayName: metadata?.displayName || `${index + 1}`,
             order:
               typeof metadata?.order === 'number' &&
               Number.isFinite(metadata.order)
                 ? metadata.order
-                : (configLevel?.order ?? index),
-            outbounds: uniqueCodes(runtimeLevel.outbounds || []),
+                : index,
+            outbounds: uniqueCodes(runtimeGroup.outbounds || []),
           };
         })
       : configuredLevels.map((level, index) => {
           const id = `${level.id || `level-${index + 1}`}`;
-          const configLevel = configLevelById.get(id);
 
           return {
             id,
-            tag: level.tag || id,
-            displayName:
-              level.displayName || configLevel?.displayName || `${index + 1}`,
+            displayName: level.displayName || `${index + 1}`,
             order:
               typeof level.order === 'number' && Number.isFinite(level.order)
                 ? level.order
-                : (configLevel?.order ?? index),
+                : index,
             outbounds: uniqueCodes(level.outbounds || []),
           };
         })
@@ -918,17 +862,17 @@ function buildFallbackInfo({
           childEntry?.value?.type || '',
           exportableProviderTags,
         );
+      const presentation = getOutboundPresentation(
+        childCode,
+        sectionDisplayName,
+        subscriptionTags,
+      );
 
       return {
         code: childCode,
-        displayName: getOutboundDisplayName(
-          childCode,
-          childEntry,
-          link,
-          outboundMetadata,
-        ),
+        ...presentation,
         latency: childEntry?.value?.history?.[0]?.delay || 0,
-        type: getOutboundDisplayType(childCode, childEntry, outboundMetadata),
+        type: getOutboundDisplayType(childEntry),
         selected: selectedCode === childCode,
         link,
         canCopyLink,
@@ -963,19 +907,47 @@ function buildFallbackInfo({
 function buildProxyGroupOutbounds(
   section: Forkop.ConfigSection,
   proxies: ClashProxyEntry[],
-  outboundMetadata?: Forkop.GetOutboundMetadata,
-  exportableProviderTags: string[] = [],
-  dashboardSources?: DashboardSource[],
+  subscriptionTags: SubscriptionTagConfig[],
 ) {
-  const sectionName = section['.name'];
+  const sectionDisplayName = getDisplayName(section);
+  const exportableProviderTags = subscriptionTags.map(
+    (item) => item.runtimeTag,
+  );
   const proxyByCode = getProxyEntryByCode(proxies);
-  const selectorTag = getOutboundTagBySection(sectionName);
+  const selectorTag = getOutboundTagBySection(sectionDisplayName);
   const selector = proxyByCode.get(selectorTag);
-  const urlTestConfigs = getUrlTestConfigs(section);
+  const selectorCodes = selector?.value?.all ?? [];
+  const bindRuntimeCodes = <T extends { code: string }>(
+    configs: T[],
+    type: string,
+  ) => {
+    const candidates = selectorCodes.filter(
+      (code) => proxyByCode.get(code)?.value.type.toLowerCase() === type,
+    );
+    const remaining = new Set(candidates);
+    return configs.map((config) => {
+      const code =
+        candidates.find(
+          (candidate) =>
+            remaining.has(candidate) &&
+            (candidate === config.code ||
+              candidate.startsWith(`${config.code} #`)),
+        ) || candidates.find((candidate) => remaining.has(candidate));
+      if (code) remaining.delete(code);
+      return code ? { ...config, code } : config;
+    });
+  };
+  const urlTestConfigs = bindRuntimeCodes(
+    getUrlTestConfigs(section),
+    'urltest',
+  );
   const urlTestConfigByCode = new Map(
     urlTestConfigs.map((config) => [config.code, config]),
   );
-  const fallbackConfigs = getFallbackConfigs(section);
+  const fallbackConfigs = bindRuntimeCodes(
+    getFallbackConfigs(section),
+    'fallback',
+  );
   const fallbackConfigByCode = new Map(
     fallbackConfigs.map((config) => [config.code, config]),
   );
@@ -987,10 +959,6 @@ function buildProxyGroupOutbounds(
     config,
     entry: proxyByCode.get(config.code),
   }));
-  const selectorCodes = orderCodesByDashboardSources(
-    selector?.value?.all ?? [],
-    dashboardSources,
-  );
   const manualLinkByCode = buildManualLinkByCode(section, selectorCodes);
   const urlTestCodes = urlTestConfigs.map((config) => config.code);
   const fallbackGroupCodes = fallbackConfigs.map((config) => config.code);
@@ -1007,8 +975,8 @@ function buildProxyGroupOutbounds(
       return;
     }
 
-    const levels = entry?.value.levels?.length
-      ? entry.value.levels
+    const levels = entry?.value.groups?.length
+      ? entry.value.groups
       : config.levels;
     levels.forEach((level) => hideMembers(level.outbounds || []));
   });
@@ -1046,10 +1014,15 @@ function buildProxyGroupOutbounds(
           item?.value?.type || '',
           exportableProviderTags,
         );
+      const presentation = getOutboundPresentation(
+        code,
+        sectionDisplayName,
+        subscriptionTags,
+      );
       const displayName =
         fallbackConfig?.displayName ||
         urlTestConfig?.displayName ||
-        getOutboundDisplayName(code, item, link, outboundMetadata);
+        presentation.displayName;
       const isRuntimeUrlTest = isUrlTestProxyEntry(item);
       const effectiveUrlTestConfig =
         urlTestConfig ||
@@ -1068,7 +1041,8 @@ function buildProxyGroupOutbounds(
             proxyByCode,
             manualLinkByCode,
             exportableProviderTags,
-            outboundMetadata,
+            sectionDisplayName,
+            subscriptionTags,
           })
         : undefined;
       const fallbackInfo = fallbackConfig
@@ -1078,7 +1052,8 @@ function buildProxyGroupOutbounds(
             proxyByCode,
             manualLinkByCode,
             exportableProviderTags,
-            outboundMetadata,
+            sectionDisplayName,
+            subscriptionTags,
           })
         : undefined;
       const groupInfo = urlTestInfo || fallbackInfo;
@@ -1091,13 +1066,17 @@ function buildProxyGroupOutbounds(
         {
           code,
           displayName,
+          subscriptionTag:
+            fallbackConfig || urlTestConfig
+              ? undefined
+              : presentation.subscriptionTag,
           latency:
             selectedGroupMember?.latency ||
             item?.value.history?.[0]?.delay ||
             0,
           type: fallbackConfig
             ? 'Fallback'
-            : getOutboundDisplayType(code, item, outboundMetadata) || 'URLTest',
+            : getOutboundDisplayType(item) || 'URLTest',
           selected: selector?.value?.now === code,
           link,
           canCopyLink,
@@ -1138,22 +1117,35 @@ function isSubscriptionMetadataVisible(
   return settings?.show_dashboard_metadata !== '0';
 }
 
-function getSectionProviderTags(section: Forkop.ConfigSection) {
-  const sectionName = section['.name'];
-  const tags = Array.from(
-    { length: getSubscriptionSourceCount(section) },
-    (_item, index) =>
-      allocateRuntimeTag(
-        `${sectionName}-subscription-${index + 1}`,
-        'provider',
+function getSectionSubscriptionTags(
+  section: Forkop.ConfigSection,
+  providers: Record<string, ClashAPI.ProxyProvider>,
+) {
+  const sectionDisplayName = getDisplayName(section);
+  const settings = itemSettingsMap(section.subscription_url_settings);
+
+  return getListValues(section.subscription_urls).map((source, index) => {
+    const sourceSettings = settings[source];
+    const displayTag = itemSettingString(
+      sourceSettings,
+      'tag',
+      `sub${index + 1}`,
+    );
+    return {
+      runtimeTag: `${sectionDisplayName}/${displayTag}`,
+      displayTag,
+      showInDashboard: itemSettingBoolean(
+        sourceSettings,
+        'show_subscription_name',
+        false,
       ),
-  );
-
-  if (getManualProxyLinks(section).length) {
-    tags.push(allocateRuntimeTag(`${sectionName}-manual`, 'provider'));
-  }
-
-  return tags;
+      outboundCodes: new Set(
+        (providers[`${sectionDisplayName}/${displayTag}`]?.proxies || []).map(
+          (proxy) => proxy.name,
+        ),
+      ),
+    };
+  });
 }
 
 function providerNumber(
@@ -1235,29 +1227,6 @@ function getSubscriptionMetadata(
   return items.length ? items : undefined;
 }
 
-function getOutboundMetadata(
-  metadata?: Forkop.GetOutboundMetadata,
-  providerTags: string[] = [],
-  proxies: ClashProxyEntry[] = [],
-) {
-  const names = objectMap(metadata?.names);
-  const protocols = objectMap(metadata?.protocols);
-  const prefixes = providerTags.map((tag) => `${tag}/`);
-
-  proxies.forEach((proxy) => {
-    const prefix = prefixes.find((value) => proxy.code.startsWith(value));
-    if (prefix) {
-      names[proxy.code] = proxy.code.slice(prefix.length);
-    }
-  });
-
-  if (!Object.keys(names).length && !Object.keys(protocols).length) {
-    return undefined;
-  }
-
-  return { names, protocols };
-}
-
 export async function getDashboardSections(): Promise<IGetDashboardSectionsResponse> {
   const configSections = hydrateConfigSections(await getConfigSections());
   const hasSubscriptions = configSections.some(hasSubscriptionSources);
@@ -1290,20 +1259,6 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
   const activeSections = configSections.filter(
     (section) => section.enabled !== '0' && isConnectionAction(section.action),
   );
-  let runtimeManifest: RuntimeManifest = {};
-
-  if (activeSections.some(shouldUseProxyGroup)) {
-    const response = await ForkopShellMethods.getRuntimeManifest();
-    if (!response.success) {
-      throw new Error(response.error || 'Failed to read runtime manifest');
-    }
-    const parsed = response.data as RuntimeManifest;
-    if (parsed.version !== 1 || !parsed.sections) {
-      throw new Error('Invalid runtime manifest');
-    }
-    runtimeManifest = parsed;
-  }
-
   const data = activeSections.map((section) => {
     const displayName = getDisplayName(section);
     const sectionName = section['.name'];
@@ -1313,33 +1268,21 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
     if (isConnectionAction(sectionAction) && shouldUseProxyGroup(section)) {
       const subscriptionSourceCount = getSubscriptionSourceCount(section);
       const subscriptionEnabled = subscriptionSourceCount > 0;
-      const providerTags = getSectionProviderTags(section);
-      const runtimeSection = runtimeManifest.sections?.[sectionName];
-      const outboundMetadata = getOutboundMetadata(
-        runtimeSection,
-        providerTags,
-        proxies,
-      );
+      const subscriptionTags = getSectionSubscriptionTags(section, providers);
       const subscriptionMetadata = subscriptionEnabled
         ? getSubscriptionMetadata(
             section,
             subscriptionSourceCount,
-            providerTags,
+            subscriptionTags.map((item) => item.runtimeTag),
             providers,
           )
         : undefined;
       const { selector, latencyTestCode, latencyTestCodes, outbounds } =
-        buildProxyGroupOutbounds(
-          section,
-          proxies,
-          outboundMetadata,
-          providerTags.slice(0, subscriptionSourceCount),
-          runtimeSection?.dashboardSources,
-        );
+        buildProxyGroupOutbounds(section, proxies, subscriptionTags);
 
       return {
         withTagSelect: true,
-        code: selector?.code || sectionName,
+        code: selector?.code || displayName,
         sectionName,
         displayName,
         action: sectionAction,
@@ -1353,19 +1296,19 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
     }
 
     if (sectionAction === 'vpn') {
-      const outboundTag = getOutboundTagBySection(sectionName);
+      const outboundTag = getOutboundTagBySection(displayName);
       const outbound = proxies.find((proxy) => proxy.code === outboundTag);
 
       return {
         withTagSelect: false,
-        code: outbound?.code || sectionName,
+        code: outbound?.code || displayName,
         sectionName,
         displayName,
         action: sectionAction,
         latencyTestTimeout: '10000',
         outbounds: [
           {
-            code: outbound?.code || sectionName,
+            code: outbound?.code || displayName,
             displayName: section.interface || outbound?.value?.name || '',
             latency: outbound?.value?.history?.[0]?.delay || 0,
             type: outbound?.value?.type || '',
@@ -1378,18 +1321,18 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
     }
 
     if (sectionAction === 'outbound') {
-      const outboundTag = getOutboundTagBySection(sectionName);
+      const outboundTag = getOutboundTagBySection(displayName);
       const outbound = proxies.find((proxy) => proxy.code === outboundTag);
 
       return {
         withTagSelect: false,
-        code: outbound?.code || sectionName,
+        code: outbound?.code || displayName,
         sectionName,
         displayName,
         action: sectionAction,
         outbounds: [
           {
-            code: outbound?.code || sectionName,
+            code: outbound?.code || displayName,
             displayName:
               getJsonOutboundDisplayName(section) ||
               outbound?.value?.name ||
@@ -1405,7 +1348,7 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
 
     return {
       withTagSelect: false,
-      code: sectionName,
+      code: displayName,
       sectionName,
       displayName,
       action: sectionAction,

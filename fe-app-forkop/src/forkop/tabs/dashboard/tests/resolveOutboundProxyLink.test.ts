@@ -38,7 +38,7 @@ describe('resolveOutboundProxyLink', () => {
   it('rejects an unexpected URI returned by the runtime endpoint', async () => {
     const fetchProxyLink = vi.fn().mockResolvedValue({
       success: true,
-      data: { url: 'https://example.com/credentials' },
+      data: { url: 'javascript:alert(1)' },
     });
 
     await expect(

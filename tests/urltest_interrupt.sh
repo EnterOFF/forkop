@@ -94,7 +94,7 @@ print(count, "\n");
 [ "$selector_count" = "1" ] ||
   fail "expected exactly one selector outbound with interrupt_exist_connections=true, got $selector_count"
 
-assert_contains "$output" '"tag": "proxy-urltest-out"' "generated config"
+assert_contains "$output" '"tag": "proxy/Fastest"' "generated config"
 assert_contains "$output" '"url": "https://www.gstatic.com/generate_204"' "generated config"
 assert_contains "$output" '"interval": "3m"' "generated config"
 assert_not_contains "$output" '"idle_timeout":' "generated config"
@@ -151,16 +151,15 @@ ucode -L "$FORKOP_LIB" "$FORKOP_LIB/singbox/generator.uc" generate-config-fixtur
 ucode -e '
 let fs = require("fs");
 let cfg = json(fs.readfile(ARGV[0]));
-let manifest = json(fs.readfile(ARGV[1]));
 let fast = null;
 let stable = null;
 let selector = null;
 for (let outbound in cfg.outbounds || []) {
-    if (outbound && outbound.tag == "proxy-urltest-cfg010001-out")
+    if (outbound && outbound.tag == "proxy/Fast URLTest")
         fast = outbound;
-    if (outbound && outbound.tag == "proxy-urltest-cfg010002-out")
+    if (outbound && outbound.tag == "proxy/Stable URLTest")
         stable = outbound;
-    if (outbound && outbound.tag == "proxy-out")
+    if (outbound && outbound.tag == "proxy")
         selector = outbound;
 }
 if (!fast || !stable)
@@ -173,14 +172,9 @@ if (stable.url != "https://stable.example/204" || stable.interval != "5m" || sta
     die("stable URLTest settings were not generated\n");
 if (stable.interrupt_exist_connections !== true)
     die("stable URLTest interrupt flag should be true\n");
-if (!selector || selector.outbounds[length(selector.outbounds || []) - 2] != "proxy-urltest-cfg010001-out" ||
-    selector.outbounds[length(selector.outbounds || []) - 1] != "proxy-urltest-cfg010002-out")
+if (!selector || selector.outbounds[0] != "proxy/Fast URLTest" ||
+    selector.outbounds[1] != "proxy/Stable URLTest")
     die("selector should include configured URLTests in list order\n");
-let names = (((manifest.sections || {}).proxy || {}).names || {});
-if (names["proxy-urltest-cfg010001-out"] != "Fast URLTest")
-    die("fast URLTest display name is missing from runtime manifest\n");
-if (names["proxy-urltest-cfg010002-out"] != "Stable URLTest")
-    die("stable URLTest display name is missing from runtime manifest\n");
-' "$multi_output" "$multi_output.runtime-manifest.json" || fail "multi URLTest settings regression"
+' "$multi_output" || fail "multi URLTest settings regression"
 
 printf 'URLTest interrupt checks passed\n'

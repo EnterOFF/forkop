@@ -52,6 +52,43 @@ function decode(value) {
     return result;
 }
 
+function decode_path(value) {
+    value = as_string(value);
+    let result = "";
+
+    for (let i = 0; i < length(value); i++) {
+        let c = substr(value, i, 1);
+        if (c == "%") {
+            let high = i + 1 < length(value) ? hex_digit_value(substr(value, i + 1, 1)) : -1;
+            let low = i + 2 < length(value) ? hex_digit_value(substr(value, i + 2, 1)) : -1;
+            if (high >= 0 && low >= 0) {
+                result += chr(high * 16 + low);
+                i += 2;
+                continue;
+            }
+        }
+        result += c;
+    }
+    return result;
+}
+
+function encode(value) {
+    value = as_string(value);
+    let result = "";
+    for (let i = 0; i < length(value); i++) {
+        let c = substr(value, i, 1);
+        let code = ord(c);
+        if ((code >= 48 && code <= 57) ||
+            (code >= 65 && code <= 90) ||
+            (code >= 97 && code <= 122) ||
+            c == "-" || c == "_" || c == "." || c == "~")
+            result += c;
+        else
+            result += sprintf("%%%02X", code);
+    }
+    return result;
+}
+
 function scheme(value) {
     value = as_string(value);
     let marker = index(value, "://");
@@ -61,7 +98,7 @@ function scheme(value) {
 function fragment(value) {
     value = as_string(value);
     let marker = index(value, "#");
-    return marker >= 0 ? decode(substr(value, marker + 1)) : "";
+    return marker >= 0 ? decode_path(substr(value, marker + 1)) : "";
 }
 
 function strip_fragment(value) {
@@ -175,6 +212,7 @@ function query_params(value) {
 
 return {
     decode,
+    encode,
     scheme,
     fragment,
     strip_fragment,

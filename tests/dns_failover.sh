@@ -68,7 +68,7 @@ assert(sprintf("%J", bootstrap.servers) == sprintf("%J", ["bootstrap-dns-server-
 assert(sprintf("%J", main.servers) == sprintf("%J", ["dns-server-1", "dns-server-2"]), "main order changed");
 for (let tag in main.servers) {
     let candidate = find_tag(multi.dns.servers, tag);
-    assert(candidate.detour == "proxy-out", "main DNS candidate lost detour");
+    assert(candidate.detour == "proxy", "main DNS candidate lost detour");
     assert(candidate.domain_resolver == "bootstrap-dns-server", "main DNS candidate lost bootstrap resolver");
 }
 assert(multi.route.default_domain_resolver == "bootstrap-dns-server", "detoured DNS must use bootstrap as endpoint resolver");

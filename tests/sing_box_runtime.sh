@@ -61,8 +61,9 @@ grep -Fq 'FORKOP_RULE_CONDITION_CACHE_DIR' "$LIFECYCLE_UC" ||
 if grep -Fq 'FORKOP_SECTION_CACHE_DIR' "$LIFECYCLE_UC"; then
   fail "service/lifecycle.uc must not transport the retired section-cache path"
 fi
-grep -Fq 'publish_runtime_manifest(temp_manifest)' "$SINGBOX_RUNTIME_UC" ||
-  fail "singbox/runtime.uc must publish generated runtime metadata after config validation"
+if grep -Fq 'runtime_manifest' "$SINGBOX_RUNTIME_UC"; then
+  fail "singbox/runtime.uc must not depend on the retired runtime manifest"
+fi
 
 mkdir -p "$WORK_DIR/bin" "$WORK_DIR/lib/core"
 cat >"$WORK_DIR/lib/core/packages.uc" <<'EOF_PACKAGES'
@@ -177,8 +178,8 @@ cat >"$WORK_DIR/empty-connection-fixture.json" <<'JSON'
 }
 JSON
 generate_config "$WORK_DIR/empty-connection-fixture.json" "$WORK_DIR/empty-connection.json"
-if grep -Fq 'empty-out' "$WORK_DIR/empty-connection.json" "$WORK_DIR/empty-connection.json.runtime-manifest.json"; then
-  fail "empty Connection rule must be omitted from sing-box config and runtime manifest"
+if grep -Fq '"empty"' "$WORK_DIR/empty-connection.json"; then
+  fail "empty Connection rule must be omitted from sing-box config"
 fi
 
 cat >"$WORK_DIR/deferred-section-fixture.json" <<'JSON'
@@ -205,7 +206,7 @@ if ! ucode -L "$FORKOP_LIB" "$SINGBOX_GENERATOR_UC" generate-config-fixture \
   "$WORK_DIR/deferred-section-fixture.json" "$WORK_DIR/deferred-section.json" "127.0.0.1" "0"; then
   fail "generator must emit subscription-only sections as native providers"
 fi
-if ! grep -Fq 'subscription_only-subscription-1-provider' "$WORK_DIR/deferred-section.json"; then
+if ! grep -Fq 'subscription_only/sub1' "$WORK_DIR/deferred-section.json"; then
   fail "subscription-only section must be emitted as a native provider"
 fi
 if grep -Fq 'prepare_subscription_caches' "$SINGBOX_RUNTIME_UC"; then
@@ -273,15 +274,14 @@ cat >"$WORK_DIR/tunnel-fixture.json" <<'JSON'
 }
 JSON
 generate_config "$WORK_DIR/tunnel-fixture.json" "$WORK_DIR/tunnel.json"
-node - "$WORK_DIR/tunnel.json" "$WORK_DIR/tunnel.json.runtime-manifest.json" <<'NODE'
+node - "$WORK_DIR/tunnel.json" <<'NODE'
 const fs = require('fs');
 const config = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-const manifest = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
-const warp = config.endpoints.find((endpoint) => endpoint.tag === 'tunnels-tunnel-1-out');
-const amnezia = config.endpoints.find((endpoint) => endpoint.tag === 'tunnels-tunnel-2-out');
-const tailscale = config.endpoints.find((endpoint) => endpoint.tag === 'tunnels-tunnel-3-out');
-const custom = config.endpoints.find((endpoint) => endpoint.tag === 'custom-endpoint');
-const selector = config.outbounds.find((outbound) => outbound.tag === 'tunnels-out');
+const warp = config.endpoints.find((endpoint) => endpoint.tag === 'tunnels/Cloudflare WARP');
+const amnezia = config.endpoints.find((endpoint) => endpoint.tag === 'tunnels/Amnezia');
+const tailscale = config.endpoints.find((endpoint) => endpoint.tag === 'tunnels/Tailnet');
+const custom = config.endpoints.find((endpoint) => endpoint.tag === 'tunnels/custom-endpoint');
+const selector = config.outbounds.find((outbound) => outbound.tag === 'tunnels');
 if (
   !warp ||
   warp.type !== 'warp' ||
@@ -303,11 +303,11 @@ if (
   throw new Error('native AmneziaWG endpoint missing');
 if (
   tailscale?.type !== 'tailscale' ||
-  tailscale.state_directory !== '/etc/forkop/tailscale/tunnels-tunnel-3-out' ||
-  tailscale.detour !== 'control-out' ||
+  tailscale.state_directory !== '/etc/forkop/tailscale/tunnels-tun_tailnet' ||
+  tailscale.detour !== 'control' ||
   tailscale.exit_node_allow_lan_access !== true
-) throw new Error('native Tailscale endpoint settings are not generated correctly');
-if (custom?.type !== 'vpn-client' || custom.tag !== 'custom-endpoint' || custom.detour)
+) throw new Error(`native Tailscale endpoint settings are not generated correctly: ${JSON.stringify(tailscale)}`);
+if (custom?.type !== 'vpn-client' || custom.tag !== 'tunnels/custom-endpoint' || custom.detour)
   throw new Error('JSON endpoint was not preserved with a stable tag');
 if (
   !selector?.outbounds?.includes(warp.tag) ||
@@ -318,10 +318,6 @@ if (
   throw new Error('tunnels are not selectable connection outbounds');
 if (config.experimental?.cache_file?.store_warp_config !== true)
   throw new Error('WARP profile cache is not enabled');
-if (manifest.sections?.tunnels?.protocols?.[amnezia.tag] !== 'amneziawg')
-  throw new Error('AmneziaWG dashboard metadata is missing');
-if (manifest.version !== 1 || manifest.sections?.tunnels?.providerTags != null)
-  throw new Error('runtime manifest contains legacy section cache data');
 NODE
 
 cat >"$WORK_DIR/generator-uci.state" <<'EOF_UCI'
@@ -341,7 +337,7 @@ FORKOP_UCI_STATE_FILE="$WORK_DIR/generator-uci.state" \
   ucode -L "$FORKOP_LIB" "$SINGBOX_GENERATOR_UC" generate-config "$WORK_DIR/generated-from-uci.json" "127.0.0.1" "0"
 grep -Fq '"example.org"' "$WORK_DIR/generated-from-uci.json" ||
   fail "singbox/generator.uc must read section matchers from core.uci"
-grep -Fq '"uci_proxy-out"' "$WORK_DIR/generated-from-uci.json" ||
+grep -Fq '"uci_proxy"' "$WORK_DIR/generated-from-uci.json" ||
   fail "singbox/generator.uc must read section names from core.uci"
 
 cat >"$WORK_DIR/disabled-updates-fixture.json" <<'JSON'
@@ -996,13 +992,13 @@ generate_config "$WORK_DIR/runtime-matchers-fixture.json" "$WORK_DIR/matchers.js
 generate_config "$WORK_DIR/dns-action-fixture.json" "$WORK_DIR/dns-action.json"
 generate_config "$WORK_DIR/urltest-filter-fixture.json" "$WORK_DIR/urltest.json"
 generate_config "$WORK_DIR/manual-http-fixture.json" "$WORK_DIR/manual-http.json"
-grep -Fq 'http://' "$WORK_DIR/manual-http.json.providers/proxy-manual-provider.txt" ||
-  fail "manual connection URLs must be passed to the native local provider parser"
+grep -Fq '"type": "parser"' "$WORK_DIR/manual-http.json" ||
+  fail "manual connection URLs must be passed to parser outbounds"
 generate_config "$WORK_DIR/provider-actions-fixture.json" "$WORK_DIR/providers.json"
 generate_config "$WORK_DIR/manual-transport-fixture.json" "$WORK_DIR/manual.json"
-grep -Fxq 'vless://11111111-1111-4111-8111-111111111111@127.0.0.1:443?security=tls&type=ws&path=%2Fws&host=example.com&sni=example.com&alpn=h2%2Chttp%2F1.1&encryption=mlkem768x25519plus.native.test#WS' \
-  "$WORK_DIR/manual.json.providers/proxy-manual-provider.txt" ||
-  fail "manual connection URLs must stay verbatim for the native provider parser"
+grep -Fq 'vless://11111111-1111-4111-8111-111111111111@127.0.0.1:443?security=tls&amp;type=ws' "$WORK_DIR/manual.json" ||
+  grep -Fq 'vless://11111111-1111-4111-8111-111111111111@127.0.0.1:443?security=tls&type=ws' "$WORK_DIR/manual.json" ||
+  fail "manual connection URLs must stay verbatim for parser outbounds"
 generate_config "$WORK_DIR/vpn-interface-fixture.json" "$WORK_DIR/vpn.json"
 generate_config "$WORK_DIR/download-via-proxy-fixture.json" "$WORK_DIR/download.json"
 generate_config "$WORK_DIR/fully-routed-fixture.json" "$WORK_DIR/fully-routed.json"
@@ -1010,7 +1006,7 @@ generate_config "$WORK_DIR/mwan3-auto-fixture.json" "$WORK_DIR/mwan3-auto.json" 
 generate_config "$WORK_DIR/mwan3-pinned-fixture.json" "$WORK_DIR/mwan3-pinned.json" 1
 generate_config "$WORK_DIR/universal-rulesets-fixture.json" "$WORK_DIR/universal-rulesets.json"
 generate_config "$WORK_DIR/manual-xhttp-fixture.json" "$WORK_DIR/manual-xhttp.json"
-grep -Fq 'type=xhttp' "$WORK_DIR/manual-xhttp.json.providers/manual_xhttp-manual-provider.txt" ||
+grep -Fq 'type=xhttp' "$WORK_DIR/manual-xhttp.json" ||
   fail "XHTTP connection URLs must be delegated to the native provider parser"
 generate_config "$WORK_DIR/json-xhttp-fixture.json" "$WORK_DIR/json-xhttp.json"
 grep -Fq '"type": "xhttp"' "$WORK_DIR/json-xhttp.json" ||
@@ -1160,43 +1156,43 @@ assert(dns_server(defaults, r => r.tag == "dnsmasq-server") != null, "interface 
 assert(dns_rule(defaults, r => r.server == "dnsmasq-server" && contains(r.inbound, "source-dns-in") && r.source_ip_cidr == null) != null, "unmatched interface DNS returns through dnsmasq");
 
 let server = cfg("server");
-let socks = inbound(server, "server-edge-in");
+let socks = inbound(server, "edge");
 assert(socks && socks.type == "socks" && socks.listen_port == 18080, "server socks inbound");
 assert(socks.users && socks.users[0].username == "tester", "legacy server socks auth defaults to enabled");
 let tailscale_server = null;
 for (let endpoint in server.endpoints || [])
-    if (endpoint && endpoint.tag == "server-tailnet-in")
+    if (endpoint && endpoint.tag == "tailnet")
         tailscale_server = endpoint;
 assert(tailscale_server && tailscale_server.type == "tailscale", "Tailscale server endpoint");
-assert(tailscale_server.detour == "proxy-out", "Tailscale server control-plane detour");
+assert(tailscale_server.detour == "proxy", "Tailscale server control-plane detour");
 assert(tailscale_server.advertise_exit_node === true, "Tailscale server always advertises an exit node");
 assert(server.route.auto_detect_interface === false, "direct Tailscale server does not pin advertised LAN routes to the default WAN");
-assert(route_rule(server, r => r.action == "sniff" && r.inbound == "server-tailnet-in") == null, "Tailscale endpoint is not sniffed");
-let open_socks = inbound(server, "server-open-in");
+assert(route_rule(server, r => r.action == "sniff" && r.inbound == "tailnet") == null, "Tailscale endpoint is not sniffed");
+let open_socks = inbound(server, "open");
 assert(open_socks && open_socks.type == "socks" && open_socks.listen_port == 18081, "server open socks inbound");
 assert(open_socks.users == null, "disabled server socks auth omits users");
-let mtproxy = inbound(server, "server-mtproxy-in");
+let mtproxy = inbound(server, "mtproxy");
 assert(mtproxy && mtproxy.type == "mtproxy" && mtproxy.listen_port == 18442, "MTProxy inbound");
 assert(mtproxy.domain_fronting_host == "203.0.113.7", "MTProxy fronting host uses the native schema key");
 assert(mtproxy.domain_fronting_ip == null, "legacy MTProxy fronting IP key is not emitted");
-let naive = inbound(server, "server-naive-in");
+let naive = inbound(server, "naive");
 assert(naive && naive.type == "naive" && naive.network[0] == "tcp" && naive.network[1] == "udp", "Naive inbound networks");
 assert(naive.users[0].username == "naive-user" && naive.quic_congestion_control == "bbr2", "Naive inbound credentials and QUIC");
 assert(naive.tls && naive.tls.enabled === true, "Naive inbound TLS");
-let ssh = inbound(server, "server-ssh-in");
+let ssh = inbound(server, "ssh");
 assert(ssh && ssh.type == "ssh" && ssh.users[0].name == "ssh-user", "SSH inbound credentials");
 assert(ssh.host_key_path[0] == "/etc/forkop/ssh/host_key", "SSH inbound host key path");
-let mieru = inbound(server, "server-mieru-in");
+let mieru = inbound(server, "mieru");
 assert(mieru && mieru.type == "mieru" && mieru.transport == "UDP", "Mieru inbound transport");
 assert(mieru.users[0].password == "mieru-password" && mieru.user_hint_is_mandatory === true, "Mieru inbound credentials");
-let anytls = inbound(server, "server-anytls-in");
+let anytls = inbound(server, "AnyTLS user");
 assert(anytls && anytls.type == "anytls" && anytls.users[0].password == "anytls-password", "AnyTLS inbound credentials");
 assert(anytls.tls && anytls.tls.enabled === true, "AnyTLS inbound TLS");
-let tuic = inbound(server, "server-tuic-in");
+let tuic = inbound(server, "TUIC user");
 assert(tuic && tuic.type == "tuic" && tuic.users[0].uuid == "33333333-3333-4333-8333-333333333333", "TUIC inbound identity");
 assert(tuic.congestion_control == "bbr" && tuic.auth_timeout == "4s" && tuic.heartbeat == "12s" && tuic.zero_rtt_handshake === true, "TUIC inbound options");
 assert(tuic.tls && tuic.tls.enabled === true, "TUIC inbound TLS");
-assert(route_rule(server, r => r.inbound == "server-edge-in" && r.outbound == "direct-out") != null, "server direct route");
+assert(route_rule(server, r => r.inbound == "edge" && r.outbound == "direct-out") != null, "server direct route");
 
 let matchers = cfg("matchers");
 assert(matchers.dns.strategy == "prefer_ipv6", "configured DNS strategy is generated");
@@ -1206,10 +1202,10 @@ assert(inbound(matchers, "tproxy6-in").listen == "::1", "IPv6 TProxy listen addr
 assert(inbound(matchers, "system-in").listen_port == 1604 && inbound(matchers, "system6-in").listen_port == 1604, "system traffic has dedicated TProxy inbounds");
 assert(route_rule(matchers, r => r.action == "reject" && r.ip_version == 6) == null, "IPv6 traffic is not rejected globally");
 assert(outbound(matchers, "direct-out").type == "direct", "direct outbound");
-assert(provider(matchers, "proxy-manual-provider").outbound_detour == "detour-out", "connection URL provider detour");
-let mixed = inbound(matchers, "proxy-mixed-in");
+assert(outbound(matchers, "proxy/Node #1").detour == "detour", "connection parser detour");
+let mixed = inbound(matchers, "proxy/Mixed");
 assert(mixed && mixed.listen_port == 19090 && mixed.users[0].username == "user", "mixed inbound auth");
-assert(route_rule(matchers, r => r.inbound == "proxy-mixed-in" && r.outbound == "proxy-out") != null, "mixed inbound route");
+assert(route_rule(matchers, r => r.inbound == "proxy/Mixed" && r.outbound == "proxy") != null, "mixed inbound route");
 let source_dns_in = inbound(matchers, "source-dns-in");
 assert(source_dns_in && source_dns_in.type == "direct" && source_dns_in.listen == "::" && source_dns_in.listen_port == 1603, "source-aware DNS uses one dual-stack inbound");
 assert(route_rule(matchers, r => r.action == "sniff" && contains(r.inbound, "source-dns-in")) != null, "source-aware DNS inbound is sniffed before hijacking");
@@ -1244,7 +1240,7 @@ assert(bypass_fake_index >= 0 && proxy_below_bypass_index > bypass_fake_index, "
 let scoped_proxy_index = dns_rule_index(matchers, r => r.server == "fakeip-server" && contains(r.domain, "source-priority.test") && contains(r.source_ip_cidr, "10.0.0.2/32"));
 let bypass_below_proxy_index = dns_rule_index(matchers, r => r.server == "dns-server" && contains(r.domain, "source-priority.test") && r.source_ip_cidr == null);
 assert(scoped_proxy_index >= 0 && bypass_below_proxy_index > scoped_proxy_index, "source-aware proxy keeps its section priority over lower bypass DNS");
-let scoped_proxy_route_index = route_rule_index(matchers, r => r.outbound == "proxy-out" && contains(r.domain, "source-priority.test") && contains(r.source_ip_cidr, "10.0.0.2/32"));
+let scoped_proxy_route_index = route_rule_index(matchers, r => r.outbound == "proxy" && contains(r.domain, "source-priority.test") && contains(r.source_ip_cidr, "10.0.0.2/32"));
 let bypass_below_proxy_route_index = route_rule_index(matchers, r => r.outbound == "direct-out" && contains(r.domain, "source-priority.test") && r.source_ip_cidr == null);
 assert(scoped_proxy_route_index >= 0 && bypass_below_proxy_route_index > scoped_proxy_route_index, "route and DNS priorities stay aligned for filtered proxy");
 assert(dns_rule(matchers, r => contains(r.domain_suffix, "xn--80aswg.xn--p1ai")).server == "fakeip-server", "IDN suffix converted for DNS rule");
@@ -1257,16 +1253,16 @@ assert(dns_rule(matchers, r => contains(r.domain_keyword, "clip")).server == "fa
 assert(index(sprintf("%J", matchers), "ignored.example") < 0 && index(sprintf("%J", matchers), "ignored-full.example") < 0, "domain comments excluded from generated config");
 assert(route_rule(matchers, r => r.outbound == "direct-out" && contains(r.domain_suffix, "example.org") && contains(r.source_ip_cidr, "10.0.0.3/32") && contains(r.port, 443)) != null, "domain bypass keeps its port matcher");
 assert(route_rule(matchers, r => r.outbound == "direct-out" && contains(r.rule_set, bypass_port_ruleset.tag) && contains(r.source_ip_cidr, "10.0.0.4/32") && contains(r.port, 8443)) != null, "rule-set bypass keeps its port matcher");
-assert(route_rule(matchers, r => r.outbound == "proxy-out" && contains(r.domain_suffix, "xn--80aswg.xn--p1ai")) != null, "IDN suffix converted for route rule");
-assert(route_rule(matchers, r => r.outbound == "proxy-out" && contains(r.domain, "xn--e1afmkfd.xn--80akhbyknj4f")) != null, "IDN full domain converted for route rule");
-assert(route_rule(matchers, r => r.outbound == "proxy-out" && contains(r.domain_keyword, "xn--e1afmkfd")) != null, "IDN keyword converted for route rule");
-assert(route_rule(matchers, r => r.outbound == "proxy-out" && contains(r.domain_regex, "^xn--80aswg[.]xn--p1ai$")) != null, "IDN regex converted for route rule");
-assert(route_rule(matchers, r => contains(r.inbound, "tproxy-in") && contains(r.inbound, "tproxy6-in") && r.outbound == "proxy-out") != null, "section route dual tproxy inbound");
+assert(route_rule(matchers, r => r.outbound == "proxy" && contains(r.domain_suffix, "xn--80aswg.xn--p1ai")) != null, "IDN suffix converted for route rule");
+assert(route_rule(matchers, r => r.outbound == "proxy" && contains(r.domain, "xn--e1afmkfd.xn--80akhbyknj4f")) != null, "IDN full domain converted for route rule");
+assert(route_rule(matchers, r => r.outbound == "proxy" && contains(r.domain_keyword, "xn--e1afmkfd")) != null, "IDN keyword converted for route rule");
+assert(route_rule(matchers, r => r.outbound == "proxy" && contains(r.domain_regex, "^xn--80aswg[.]xn--p1ai$")) != null, "IDN regex converted for route rule");
+assert(route_rule(matchers, r => contains(r.inbound, "tproxy-in") && contains(r.inbound, "tproxy6-in") && r.outbound == "proxy") != null, "section route dual tproxy inbound");
 assert(route_rule(matchers, r => r.outbound == "direct-out" && contains(r.source_ip_cidr, "192.168.1.5/32")) == null, "routing excluded source removed");
-assert(route_rule(matchers, r => r.outbound == "proxy-out" && contains(r.source_ip_cidr, "10.0.0.2/32") && contains(r.source_ip_cidr, "2001:db8::2/128")) != null, "source_ip_cidr matcher");
-assert(route_rule(matchers, r => r.outbound == "proxy-out" && contains(r.inbound, "system-in") && contains(r.inbound, "system6-in") && r.source_ip_cidr == null && contains(r.domain_suffix, "proxy.example.org")) != null, "System device filter keeps the same route conditions");
+assert(route_rule(matchers, r => r.outbound == "proxy" && contains(r.source_ip_cidr, "10.0.0.2/32") && contains(r.source_ip_cidr, "2001:db8::2/128")) != null, "source_ip_cidr matcher");
+assert(route_rule(matchers, r => r.outbound == "proxy" && contains(r.inbound, "system-in") && contains(r.inbound, "system6-in") && r.source_ip_cidr == null && contains(r.domain_suffix, "proxy.example.org")) != null, "System device filter keeps the same route conditions");
 assert(index(sprintf("%J", matchers), "@system") < 0, "System sentinel never leaks into sing-box IP matchers");
-let commented_ip_rule = route_rule(matchers, r => r.outbound == "proxy-out" && contains(r.ip_cidr, "77.111.247.0/24") && contains(r.ip_cidr, "198.51.100.0/24"));
+let commented_ip_rule = route_rule(matchers, r => r.outbound == "proxy" && contains(r.ip_cidr, "77.111.247.0/24") && contains(r.ip_cidr, "198.51.100.0/24"));
 assert(commented_ip_rule != null, "comment-aware ip_cidr matcher");
 assert(contains(commented_ip_rule.port, 80) && contains(commented_ip_rule.port, 8080), "comment-aware port matcher");
 let commented_rule_json = sprintf("%J", commented_ip_rule);
@@ -1276,7 +1272,7 @@ assert(index(commented_rule_json, "443") < 0 && index(commented_rule_json, "8443
 let dns_action = cfg("dns-action");
 let dns_first_server = dns_server(dns_action, r => r.tag == "dns_first-dns-server");
 assert(dns_first_server && dns_first_server.type == "fallback" && dns_first_server.strategy == "sequential" && length(dns_first_server.servers) == 6, "DNS action server list uses its configured query mode");
-assert(dns_server(dns_action, r => r.tag == "dns_first-dns-server-1" && r.type == "tls" && r.server == "9.9.9.9" && r.server_port == 5353 && r.detour == "detour-out") != null, "DNS action TLS server and detour");
+assert(dns_server(dns_action, r => r.tag == "dns_first-dns-server-1" && r.type == "tls" && r.server == "9.9.9.9" && r.server_port == 5353 && r.detour == "detour") != null, "DNS action TLS server and detour");
 assert(dns_server(dns_action, r => r.tag == "dns_first-dns-server-2" && r.type == "https" && r.path == "/dns-query") != null, "DNS action HTTPS server");
 assert(dns_server(dns_action, r => r.tag == "dns_first-dns-server-3" && r.type == "quic" && r.server_port == 853) != null, "DNS action QUIC server");
 assert(dns_server(dns_action, r => r.tag == "dns_first-dns-server-4" && r.type == "h3" && r.server_port == 443) != null, "DNS action HTTP3 server");
@@ -1310,39 +1306,39 @@ assert(route_rule(dns_action, r => contains(r.source_ip_cidr, "192.0.2.2/32")) =
 assert(fs.stat(dir + "/dns-action.json.rulesets/dns_first-lists-ruleset.json") == null, "DNS action no longer builds a parsed Forkop rule-set cache");
 
 let urltest = cfg("urltest");
-let urltest_out = outbound(urltest, "proxy-urltest-out");
-assert(urltest_out && length(urltest_out.outbounds) == 1 && urltest_out.outbounds[0] == "Keep", "URLTest include filter");
-assert(outbound(urltest, "Keep").type == "http", "HTTP JSON outbound remains supported");
-assert(outbound(urltest, "proxy-out").default == "proxy-urltest-out", "selector defaults to URLTest");
+let urltest_out = outbound(urltest, "proxy/Fastest");
+assert(urltest_out && length(urltest_out.outbounds) == 1 && urltest_out.outbounds[0] == "proxy/Keep", "URLTest include filter");
+assert(outbound(urltest, "proxy/Keep").type == "http", "HTTP JSON outbound remains supported");
+assert(outbound(urltest, "proxy").default == "proxy/Fastest", "selector defaults to URLTest");
 
 let providers = cfg("providers");
-assert(outbound(providers, "zap-out").routing_mark == 0x01000001, "Zapret mark");
-assert(outbound(providers, "zap2-out").routing_mark == 0x02000001, "Zapret2 mark");
-assert(outbound(providers, "bye-out").type == "socks" && outbound(providers, "bye-out").server_port == 1080, "ByeDPI outbound");
+assert(outbound(providers, "zap").routing_mark == 0x01000001, "Zapret mark");
+assert(outbound(providers, "zap2").routing_mark == 0x02000001, "Zapret2 mark");
+assert(outbound(providers, "bye").type == "socks" && outbound(providers, "bye").server_port == 1080, "ByeDPI outbound");
 assert(route_rule(providers, r => r.action == "resolve" && contains(r.inbound, "tproxy-in") && r.domain == "ip.podkop.fyi" && r.server == "dns-server") != null, "ByeDPI service check resolves before routing");
 
 let vpn = cfg("vpn");
-assert(outbound(vpn, "renamed_awg-interface-1-out").bind_interface == "tun0", "renamed VPN interface outbound");
-assert(outbound(vpn, "renamed_awg-interface-1-out").domain_resolver == "renamed_awg-interface-1-domain-resolver", "renamed VPN domain resolver tag");
+assert(outbound(vpn, "renamed_awg/tun0").bind_interface == "tun0", "renamed VPN interface outbound");
+assert(outbound(vpn, "renamed_awg/tun0").domain_resolver == "renamed_awg-interface-1-domain-resolver", "renamed VPN domain resolver tag");
 assert(dns_server(vpn, r => r.tag == "renamed_awg-interface-1-domain-resolver") != null, "renamed VPN domain resolver DNS server");
-assert(outbound(vpn, "renamed_awg-interface-1-out").detour == null, "interface outbound must not receive a detour");
-assert(route_rule(vpn, r => r.outbound == "renamed_awg-out" && contains(r.domain_suffix, "vpn.example")) != null, "renamed VPN custom domain route");
+assert(outbound(vpn, "renamed_awg/tun0").detour == null, "interface outbound must not receive a detour");
+assert(route_rule(vpn, r => r.outbound == "renamed_awg" && contains(r.domain_suffix, "vpn.example")) != null, "renamed VPN custom domain route");
 assert(dns_rule(vpn, r => contains(r.domain_suffix, "vpn.example")) != null, "renamed VPN custom domain DNS rule");
 
 let download = cfg("download");
 assert(inbound(download, "service-mixed-in") != null, "service mixed inbound");
-assert(route_rule(download, r => r.inbound == "service-mixed-in" && r.outbound == "proxy-out") != null, "service mixed route");
+assert(route_rule(download, r => r.inbound == "service-mixed-in" && r.outbound == "proxy") != null, "service mixed route");
 assert(inbound(download, "service-components-in") != null, "components service mixed inbound");
-assert(route_rule(download, r => r.inbound == "service-components-in" && r.outbound == "components_proxy-out") != null, "components service mixed route");
-assert(ruleset(download, "proxy-discord-community-ruleset").download_detour == "proxy-out", "download_detour on community ruleset");
-assert(ruleset_url(download, "https://example.com/rules.srs").download_detour == "proxy-out", "download_detour on custom remote ruleset");
+assert(route_rule(download, r => r.inbound == "service-components-in" && r.outbound == "components_proxy") != null, "components service mixed route");
+assert(ruleset(download, "proxy-discord-community-ruleset").download_detour == "proxy", "download_detour on community ruleset");
+assert(ruleset_url(download, "https://example.com/rules.srs").download_detour == "proxy", "download_detour on custom remote ruleset");
 let download_text_ruleset = ruleset_url(download, "https://example.com/mixed.txt");
-assert(download_text_ruleset && download_text_ruleset.format == "auto" && download_text_ruleset.update_interval == "1d" && download_text_ruleset.download_detour == "proxy-out", "remote universal rule set owns updates and detour");
+assert(download_text_ruleset && download_text_ruleset.format == "auto" && download_text_ruleset.update_interval == "1d" && download_text_ruleset.download_detour == "proxy", "remote universal rule set owns updates and detour");
 
 let fully = cfg("fully-routed");
 assert(route_rule(fully, r => r.outbound == "direct-out" && contains(r.inbound, "tproxy-in") && contains(r.inbound, "tproxy6-in") && contains(r.source_ip_cidr, "192.168.1.20/32") && contains(r.source_ip_cidr, "192.168.1.30/32") && contains(r.source_ip_cidr, "2001:db8::20/128")) != null, "fully routed bypass IP route");
 assert(route_rule(fully, r => r.outbound == "direct-out" && contains(r.inbound, "system-in") && contains(r.inbound, "system6-in") && r.source_ip_cidr == null && r.domain == null) != null, "fully routed System bypass route");
-assert(route_rule(fully, r => r.outbound == "proxy-out" && contains(r.source_ip_cidr, "192.168.1.40/32")) != null, "fully routed proxy IP route");
+assert(route_rule(fully, r => r.outbound == "proxy" && contains(r.source_ip_cidr, "192.168.1.40/32")) != null, "fully routed proxy IP route");
 let fully_bypass_dns = dns_rule(fully, r =>
     r.type == "logical" && r.server == "dnsmasq-server" &&
     length(r.rules || []) == 2 && contains(r.rules[0].source_ip_cidr, "192.168.1.20/32") &&
@@ -1355,9 +1351,9 @@ let higher_proxy_dns_index = dns_rule_index(fully, r => r.server == "fakeip-serv
 let forced_bypass_dns_index = dns_rule_index(fully, r => r.type == "logical" && r.server == "dnsmasq-server" && length(r.rules || []) > 0 && contains(r.rules[0].source_ip_cidr, "192.168.1.20/32"));
 let lower_proxy_dns_index = dns_rule_index(fully, r => r.server == "fakeip-server" && contains(r.domain_suffix, "forced-lower.test"));
 assert(higher_proxy_dns_index >= 0 && forced_bypass_dns_index > higher_proxy_dns_index && lower_proxy_dns_index > forced_bypass_dns_index, "forced bypass stays at its section priority in DNS rules");
-let higher_proxy_route_index = route_rule_index(fully, r => r.outbound == "proxy_high-out" && contains(r.domain_suffix, "forced-higher.test"));
+let higher_proxy_route_index = route_rule_index(fully, r => r.outbound == "proxy_high" && contains(r.domain_suffix, "forced-higher.test"));
 let forced_bypass_route_index = route_rule_index(fully, r => r.outbound == "direct-out" && contains(r.source_ip_cidr, "192.168.1.20/32") && r.domain == null && r.domain_suffix == null);
-let lower_proxy_route_index = route_rule_index(fully, r => r.outbound == "proxy-out" && contains(r.domain_suffix, "forced-lower.test"));
+let lower_proxy_route_index = route_rule_index(fully, r => r.outbound == "proxy" && contains(r.domain_suffix, "forced-lower.test"));
 assert(higher_proxy_route_index >= 0 && forced_bypass_route_index > higher_proxy_route_index && lower_proxy_route_index > forced_bypass_route_index, "forced bypass stays at its section priority in route rules");
 assert(index(sprintf("%J", fully), "@system") < 0, "fully routed System sentinel never leaks into sing-box config");
 

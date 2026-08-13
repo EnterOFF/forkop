@@ -573,11 +573,11 @@ else if (mode == "allocate-runtime-tag")
 else if (mode == "inbound-tag")
     print_runtime_tag(ARGV[1], "in", default_reserved_runtime_tags());
 else if (mode == "server-inbound-tag")
-    print_runtime_tag("server-" + as_string(ARGV[1]), "in", default_reserved_runtime_tags());
+    print(as_string(ARGV[1]), "\n");
 else if (mode == "tailscale-dns-tag")
     print_runtime_tag("server-" + as_string(ARGV[1]), "tailscale-dns", default_reserved_runtime_tags());
 else if (mode == "outbound-tag")
-    print_runtime_tag(ARGV[1], "out", default_reserved_runtime_tags());
+    print(as_string(ARGV[1]), "\n");
 else if (mode == "domain-resolver-tag")
     print_runtime_tag(ARGV[1], "domain-resolver", default_reserved_runtime_tags());
 else if (mode == "url-get-scheme")

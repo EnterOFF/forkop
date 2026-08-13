@@ -42,8 +42,8 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
       "subscription_update_enabled": "0",
       "download_via_proxy_enabled": "1",
       "download_via_proxy_section": "hop",
-      "prefix_nodes": "1",
-      "node_prefix": "Main",
+      "show_subscription_name": "1",
+      "tag": "premium",
       "server_filter_mode": "include",
       "include_regex": "^(US|DE)",
       "exclude_regex": "expired"
@@ -67,6 +67,7 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
       ".name": "fast",
       ".type": "urltest",
       "section": "proxy",
+      "name": "Fastest",
       "server_filter_mode": "include",
       "include_regex": "🇺🇸",
       "exclude_regex": "slow"
@@ -97,12 +98,11 @@ for (let provider in config.providers || [])
 for (let outbound in config.outbounds || [])
     by_outbound[outbound.tag] = outbound;
 
-let remote = by_provider["proxy-subscription-1-provider"];
-let automatic = by_provider["proxy-subscription-2-provider"];
-let without_hwid = by_provider["proxy-subscription-3-provider"];
-let local = by_provider["proxy-manual-provider"];
-if (!remote || !automatic || !without_hwid || !local)
-    die("native remote/local providers were not generated\n");
+let remote = by_provider["proxy/premium"];
+let automatic = by_provider["proxy/sub2"];
+let without_hwid = by_provider["proxy/sub3"];
+if (!remote || !automatic || !without_hwid || length(keys(by_provider)) != 3)
+    die("remote subscription providers were not generated with readable tags\n");
 if (remote.url != "https://example.com/subscription" || remote.user_agent != "Happ")
     die("remote provider request profile was not preserved\n");
 if (automatic.user_agent != "sing-box")
@@ -117,30 +117,31 @@ if (type(remote.headers["X-Empty"]) != "array" || remote.headers["X-Empty"][0] !
     die("empty subscription header values must stay valid\n");
 if (without_hwid.headers["X-HWID"] != null)
     die("disabled empty HWID must omit the request header\n");
-if (remote.download_detour != "hop-out" || remote.outbound_detour != "hop-out")
+if (remote.download_detour != "hop" || remote.outbound_detour != "hop")
     die("provider download/cascade detours were not generated\n");
 if (remote.update_interval != "876000h")
     die("disabled provider updates must use the inert interval\n");
-if (remote.tag_prefix != "Main ")
-    die("provider node prefix was not generated\n");
+if (remote.tag_prefix != null)
+    die("removed provider tag_prefix leaked into the config\n");
 if (remote.include != "(?:(?:^(US|DE)))")
     die("provider include filters were not generated\n");
 if (remote.exclude != "(?:(?:expired))")
     die("provider exclude filters were not generated\n");
 if (remote.include_types != null || remote.include_transports != null || remote.include_securities != null || remote.exclude_types != null || remote.exclude_transports != null || remote.exclude_securities != null)
     die("provider still contains removed parameter filters\n");
-if (trim(fs.readfile(local.path)) != "vless://id@example.com:443?security=tls#Manual")
-    die("manual URI source was not written verbatim for the core parser\n");
-if (local.outbound_detour != "hop-out")
-    die("manual provider cascade detour was not generated\n");
+let manual = by_outbound["proxy/Manual"];
+if (!manual || manual.type != "parser" || manual.link != "vless://id@example.com:443?security=tls#Manual")
+    die("manual URI was not delegated to the core parser\n");
+if (manual.detour != "hop")
+    die("manual parser cascade detour was not generated\n");
 
-let selector = by_outbound["proxy-out"];
-if (!selector || length(selector.providers || []) != 4)
+let selector = by_outbound["proxy"];
+if (!selector || length(selector.providers || []) != 3 || selector.outbounds[1] != "proxy/Manual")
     die("section selector does not consume all providers\n");
 if (selector.exclude_provider_group_members != null || selector.exclude_provider_dependencies != null)
     die("subscription detour nodes must remain visible in the selector\n");
-let urltest = by_outbound["proxy-urltest-fast-out"];
-if (!urltest || length(urltest.providers || []) != 4)
+let urltest = by_outbound["proxy/Fastest"];
+if (!urltest || length(urltest.providers || []) != 3)
     die("URLTest did not receive dynamic providers and filters\n");
 if (urltest.include_types != null || urltest.include_transports != null || urltest.include_securities != null || urltest.exclude_types != null || urltest.exclude_transports != null || urltest.exclude_securities != null)
     die("URLTest still contains removed parameter filters\n");

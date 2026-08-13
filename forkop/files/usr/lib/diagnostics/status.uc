@@ -9,19 +9,7 @@ function as_string(value) {
 }
 
 function url_encode(value) {
-    value = as_string(value);
-    for (let i = 0; i < length(value); i++) {
-        let c = substr(value, i, 1);
-        let code = ord(c);
-        if ((code >= 48 && code <= 57) ||
-            (code >= 65 && code <= 90) ||
-            (code >= 97 && code <= 122) ||
-            c == "-" || c == "_" || c == "." || c == "~")
-            print(c);
-        else
-            print(sprintf("%%%02X", code));
-    }
-    print("\n");
+    print(core_url.encode(value), "\n");
 }
 
 function read_stdin() {

@@ -2,6 +2,7 @@
 
 let fs = require("fs");
 let uci_core = require("core.uci");
+let core_url = require("core.url");
 let connections = require("config.connections");
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
@@ -1122,8 +1123,9 @@ function component_updates_if_due() {
     release_runtime_lock(COMPONENT_UPDATE_CHECK_LOCK_DIR);
 }
 
-function native_subscription_provider_tag(section, source_index) {
-    return section_name(section) + "-subscription-" + source_index + "-provider";
+function native_subscription_provider_tag(section, source, source_index) {
+    return connections.section_display_name(section) + "/" +
+        connections.subscription_tag(section, source, source_index);
 }
 
 function native_subscription_api_url(settings) {
@@ -1142,7 +1144,7 @@ function native_subscription_api_url(settings) {
 }
 
 function update_native_subscription_provider(tag, settings) {
-    if (match(as_string(tag), /^[A-Za-z0-9_-]+$/) == null)
+    if (as_string(tag) == "")
         return false;
 
     let api_url = native_subscription_api_url(settings);
@@ -1151,7 +1153,7 @@ function update_native_subscription_provider(tag, settings) {
 
     let args = [
         "curl", "-fsS", "-X", "PUT",
-        api_url + "/providers/proxies/" + as_string(tag)
+        api_url + "/providers/proxies/" + core_url.encode(tag)
     ];
     let secret = option(settings, "yacd_secret_key", "");
     if (secret != "") {
@@ -1176,7 +1178,7 @@ function subscription_update_common(target_section, target_source_index) {
             if (selected_index > 0 && i + 1 != selected_index)
                 continue;
             found++;
-            let tag = native_subscription_provider_tag(section, i + 1);
+            let tag = native_subscription_provider_tag(section, sources[i], i + 1);
             if (!update_native_subscription_provider(tag, settings)) {
                 log_message("Failed to refresh subscription provider " + tag, "error");
                 failed++;

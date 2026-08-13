@@ -648,7 +648,7 @@ function check_inbounds() {
         let listen_port = option(section, "listen_port", "");
         let public_host = option(section, "public_host", "");
         let routing_mode = option(section, "routing_mode", "rules");
-        let inbound_tag = server_inbound_tag(section_name);
+        let inbound_tag = server_inbound_tag(label);
         let expected_type = server_runtime_type_for_protocol(protocol);
         let inbound_transport = protocol == "naive"
             ? option(section, "naive_network", "tcp")

@@ -421,6 +421,17 @@ export const styles = `
     overflow-wrap: anywhere;
 }
 
+.fkp_dashboard-page__outbound-grid__item__subscription-tag {
+  display: inline-block;
+  margin-right: 0.4rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 400;
+  line-height: 1.2;
+  vertical-align: 0.08rem;
+}
+
 .fkp_dashboard-page .btn.fkp_dashboard-page__outbound-grid__item__copy-button {
     width: 22px;
     height: 22px;
@@ -663,10 +674,14 @@ export const styles = `
     margin-right: 8px;
     padding: 2px 6px;
     border-radius: 4px;
-    color: var(--text-color-medium, #aaa);
-    background: rgba(128, 128, 128, 0.15);
     font-size: 11px;
     font-weight: 400;
+}
+
+.fkp_dashboard-page__outbound-grid__item__subscription-tag,
+.fkp_dashboard-page__urltest-details__fallback-level {
+    color: var(--text-color-medium);
+    background: var(--background-color-low);
 }
 
 .fkp_dashboard-page__urltest-details__country-badge {

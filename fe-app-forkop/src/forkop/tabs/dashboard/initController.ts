@@ -804,16 +804,28 @@ function getDetectedCountryFlag(country?: string) {
 
 function renderDetailsMemberName(member: Forkop.UrlTestMember) {
   const countryFlag = getDetectedCountryFlag(member.country);
-  if (!countryFlag) {
-    return renderFlagEmojis(member.displayName);
-  }
-
   return [
-    E(
-      'span',
-      { class: 'fkp_dashboard-page__urltest-details__country-badge' },
-      countryFlag,
-    ),
+    ...(member.subscriptionTag
+      ? [
+          E(
+            'span',
+            {
+              class:
+                'fkp_dashboard-page__outbound-grid__item__subscription-tag',
+            },
+            member.subscriptionTag,
+          ),
+        ]
+      : []),
+    ...(countryFlag
+      ? [
+          E(
+            'span',
+            { class: 'fkp_dashboard-page__urltest-details__country-badge' },
+            countryFlag,
+          ),
+        ]
+      : []),
     ...renderFlagEmojis(member.displayName),
   ];
 }

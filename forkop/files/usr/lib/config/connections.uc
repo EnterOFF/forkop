@@ -10,6 +10,8 @@ let object_or_empty = common.object_or_empty;
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const SYSTEM_DEVICE_VALUE = "@system";
 const ITEM_TYPES = [
+    "section",
+    "server",
     "subscription_url",
     "section_interface",
     "urltest",
@@ -103,6 +105,12 @@ function section_name(section) {
     return option(section, ".name", "");
 }
 
+function display_name(section) {
+    section = object_or_empty(section);
+    let name = trim(option(section, "label", ""));
+    return name != "" ? name : section_name(section);
+}
+
 function empty_item_sections() {
     let result = {};
     for (let type_name in ITEM_TYPES) {
@@ -193,6 +201,25 @@ function get_item_sections() {
 
 function child_section(type_name, item_id) {
     return object_or_empty(object_or_empty(object_or_empty(get_item_sections())[type_name]).by_name)[as_string(item_id)];
+}
+
+function named_display_name(type_name, value) {
+    if (type(value) == "object")
+        return display_name(value);
+    let section = child_section(type_name, value);
+    return type(section) == "object" ? display_name(section) : as_string(value);
+}
+
+function section_display_name(value) {
+    return named_display_name("section", value);
+}
+
+function section_exists(value) {
+    return type(child_section("section", value)) == "object";
+}
+
+function server_display_name(value) {
+    return named_display_name("server", value);
 }
 
 function owned_child_section(parent, type_name, item_id) {
@@ -767,22 +794,20 @@ function subscription_headers(section, value) {
     return list_value(settings, "header");
 }
 
-function subscription_prefix_nodes(section, value) {
+function subscription_show_name(section, value) {
     let child = child_item_by_value(section, "subscription_url", "url", value);
     if (child != null)
-        return child_bool(child, "prefix_nodes", false);
-    return item_bool(section, "subscription_url_settings", value, "prefix_nodes", false);
+        return child_bool(child, "show_subscription_name", false);
+    return item_bool(section, "subscription_url_settings", value, "show_subscription_name", false);
 }
 
-function subscription_node_prefix(section, value) {
-    if (!subscription_prefix_nodes(section, value))
-        return "";
-
+function subscription_tag(section, value, source_index) {
     let child = child_item_by_value(section, "subscription_url", "url", value);
-    let prefix = child != null
-        ? child_option(child, "node_prefix", "")
-        : item_option(section, "subscription_url_settings", value, "node_prefix", "");
-    return trim(as_string(prefix));
+    let tag_name = child != null
+        ? child_option(child, "tag", "")
+        : item_option(section, "subscription_url_settings", value, "tag", "");
+    tag_name = trim(as_string(tag_name));
+    return tag_name != "" ? tag_name : "sub" + int(source_index || 1);
 }
 
 function subscription_user_agent(section, value) {
@@ -1061,8 +1086,8 @@ return {
     subscription_update_interval,
     subscription_dashboard_metadata_enabled,
     subscription_headers,
-    subscription_prefix_nodes,
-    subscription_node_prefix,
+    subscription_show_name,
+    subscription_tag,
     subscription_user_agent,
     subscription_download_section,
     interface_display_name,
@@ -1101,5 +1126,8 @@ return {
     fallback_level_exclude_outbounds,
     fallback_level_exclude_regex,
     subscription_download_targets,
-    subscription_download_target_port
+    subscription_download_target_port,
+    section_display_name,
+    section_exists,
+    server_display_name
 };

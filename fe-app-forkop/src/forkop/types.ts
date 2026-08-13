@@ -15,8 +15,7 @@ export namespace ClashAPI {
     url?: string;
     interval?: string;
     idle_timeout?: string;
-    levels?: Array<{
-      tag?: string;
+    groups?: Array<{
       outbounds?: string[];
     }>;
   }
@@ -147,6 +146,7 @@ export namespace Forkop {
     link?: string;
     canCopyLink?: boolean;
     country?: string;
+    subscriptionTag?: string;
     runtimeAvailable?: boolean;
     urlTestInfo?: UrlTestInfo;
     fallbackInfo?: FallbackInfo;
@@ -161,6 +161,7 @@ export namespace Forkop {
     link?: string;
     canCopyLink?: boolean;
     country?: string;
+    subscriptionTag?: string;
   }
 
   export interface UrlTestInfo {
@@ -351,8 +352,8 @@ export namespace Forkop {
     user_agent?: string;
     header?: string[];
     show_dashboard_metadata?: '0' | '1';
-    prefix_nodes?: '0' | '1';
-    node_prefix?: string;
+    show_subscription_name?: '0' | '1';
+    tag?: string;
     yacd_secret_key?: string;
   }
 
@@ -450,11 +451,6 @@ export namespace Forkop {
     enabled: number;
     status: string;
     dns_configured?: number;
-  }
-
-  export interface GetOutboundMetadata {
-    names?: Record<string, string>;
-    protocols?: Record<string, string>;
   }
 
   export interface GetSingBoxStatus {

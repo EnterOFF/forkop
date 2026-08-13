@@ -18,6 +18,24 @@ const ROUTING_SECTION_ACTIONS = [
   "zapret",
   "zapret2",
 ];
+const RESERVED_RUNTIME_TAGS = new Set([
+  "dns-server",
+  "fakeip-server",
+  "bootstrap-dns-server",
+  "dnsmasq-server",
+  "fakeip-dns-rule-tag",
+  "fakeip-ruleset-dns-rule-tag",
+  "service-fakeip-dns-rule-tag",
+  "tproxy-in",
+  "tproxy6-in",
+  "dns-in",
+  "source-dns-in",
+  "system-in",
+  "system6-in",
+  "system-dns-in",
+  "service-mixed-in",
+  "direct-out",
+]);
 const callNetworkInterfaceDump = rpc.declare({
   object: "network.interface",
   method: "dump",
@@ -2480,7 +2498,25 @@ function createServerContent(section) {
   o = section.option(form.Value, "label", _("Server name"));
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validateRequiredText;
+  o.validate = function (sectionId, value) {
+    const required = validateRequiredText(sectionId, value);
+    if (required !== true) return required;
+    const normalized = `${value}`.trim();
+    if (normalized.includes("/")) return _("Server name must not contain /");
+    if (RESERVED_RUNTIME_TAGS.has(normalized)) {
+      return _("This server name is reserved by Forkop");
+    }
+    return [
+      ...(uci.sections(UCI_PACKAGE, "server") || []),
+      ...(uci.sections(UCI_PACKAGE, "section") || []),
+    ].some(
+      (item) =>
+        item[".name"] !== sectionId &&
+        `${item.label || item[".name"] || ""}`.trim() === normalized,
+    )
+      ? _("Server name must be unique")
+      : true;
+  };
   o.onchange = function (_ev, sectionId, value) {
     const previousLabel = getServerName(sectionId);
     const currentUsername =

@@ -114,38 +114,6 @@ function normalizeString(value?: string | number | null): string {
   return value == null ? '' : String(value).trim();
 }
 
-function getListValues(value?: string[] | string) {
-  if (!value) {
-    return [];
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((item) => normalizeString(item)).filter(Boolean);
-  }
-
-  return normalizeString(value)
-    .split(/\s+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function getUrlTestIds(section: Forkop.ConfigSection) {
-  const values = getListValues(section.urltests);
-  return values.length
-    ? values
-    : section.urltest_enabled === '1'
-      ? ['urltest']
-      : [];
-}
-
-function getUrlTestTag(sectionName: string, id: string) {
-  return getOutboundTagBySection(
-    id === 'urltest'
-      ? `${sectionName}-urltest`
-      : `${sectionName}-urltest-${id}`,
-  );
-}
-
 function formatEndpoint(address?: string, port?: string | number): string {
   const normalizedAddress = normalizeString(address);
   const normalizedPort = normalizeString(port);
@@ -180,23 +148,6 @@ function buildRouteDisplayNames(sections: Forkop.ConfigSection[]) {
   const serverMap: Record<string, string> = {};
   const routeSectionItems: Array<{ sectionName: string; displayName: string }> =
     [];
-  const urltestsBySection = new Map<string, string[]>();
-
-  sections
-    .filter((section) => section['.type'] === 'urltest')
-    .forEach((section) => {
-      const owner = normalizeString(section.section);
-      const id = normalizeString(section.id) || section['.name'];
-      if (!owner || !id) {
-        return;
-      }
-
-      urltestsBySection.set(owner, [
-        ...(urltestsBySection.get(owner) || []),
-        id,
-      ]);
-    });
-
   sections
     .filter((section) => section['.type'] === 'section')
     .filter((section) => section.enabled !== '0')
@@ -208,13 +159,8 @@ function buildRouteDisplayNames(sections: Forkop.ConfigSection[]) {
         return;
       }
 
-      routeSectionItems.push({ sectionName, displayName });
-      map[getOutboundTagBySection(sectionName)] = displayName;
-      const urltestIds =
-        urltestsBySection.get(sectionName) || getUrlTestIds(section);
-      urltestIds.forEach((id) => {
-        map[getUrlTestTag(sectionName, id)] = displayName;
-      });
+      routeSectionItems.push({ sectionName: displayName, displayName });
+      map[getOutboundTagBySection(displayName)] = displayName;
     });
 
   sections
@@ -228,7 +174,7 @@ function buildRouteDisplayNames(sections: Forkop.ConfigSection[]) {
         return;
       }
 
-      serverMap[`server-${sectionName}-in`] = displayName;
+      serverMap[displayName] = displayName;
     });
 
   routeDisplayNames = map;
@@ -247,14 +193,9 @@ function getRouteDisplayNameByTag(tag: string): string {
     return routeDisplayNames[tag];
   }
 
-  const manualSection = routeSections.find(({ sectionName }) => {
-    if (!tag.startsWith(`${sectionName}-`) || !tag.endsWith('-out')) {
-      return false;
-    }
-
-    const middle = tag.slice(sectionName.length + 1, -4);
-    return /^\d+(?:-\d+)?$/.test(middle);
-  });
+  const manualSection = routeSections.find(({ sectionName }) =>
+    tag.startsWith(`${sectionName}/`),
+  );
 
   return manualSection?.displayName || '';
 }

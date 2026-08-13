@@ -3,7 +3,6 @@
 let fs = require("fs");
 let uci_core = require("core.uci");
 let common = require("core.common");
-let runtime_manifest = require("singbox.runtime_manifest");
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
@@ -22,8 +21,6 @@ const NFT_FAKEIP_MARK = getenv("NFT_FAKEIP_MARK") || "0x04000000";
 const SB_SERVICE_MIXED_INBOUND_ADDRESS = getenv("SB_SERVICE_MIXED_INBOUND_ADDRESS") || "127.0.0.1";
 const SB_SERVICE_MIXED_INBOUND_PORT = getenv("SB_SERVICE_MIXED_INBOUND_PORT") || "4534";
 const SING_BOX_BIN = getenv("FORKOP_SING_BOX_BIN") || "/usr/bin/sing-box";
-const RUNTIME_STATE_DIR = getenv("FORKOP_RUNTIME_STATE_DIR") || "/var/run/forkop";
-const RUNTIME_MANIFEST_FILE = getenv("FORKOP_RUNTIME_MANIFEST_FILE") || RUNTIME_STATE_DIR + "/runtime-manifest.json";
 
 function as_string(value) {
     return value == null ? "" : "" + value;
@@ -434,12 +431,6 @@ function save_config_file(temp_file_path, config_path) {
     return true;
 }
 
-function publish_runtime_manifest(temp_manifest_path) {
-    if (!ensure_parent_dir(RUNTIME_MANIFEST_FILE))
-        return false;
-    return command_success_from_args([ "mv", "-f", temp_manifest_path, RUNTIME_MANIFEST_FILE ]);
-}
-
 function init_config(populate_nft, skip_check) {
     let settings = uci_settings();
     let config_path = option(settings, "config_path", "");
@@ -461,8 +452,6 @@ function init_config(populate_nft, skip_check) {
         remove_files([ temp_config, runtime_log ]);
         exit(1);
     }
-    let temp_manifest = runtime_manifest.config_path(temp_config);
-
     let generate_status = command_status(
         module_command([
             LIB_DIR + "/singbox/generator.uc",
@@ -476,7 +465,7 @@ function init_config(populate_nft, skip_check) {
     if (generate_status != 0) {
         let reason = generator_failure_reason(runtime_log, generate_status);
         log_message("Failed to generate sing-box configuration: " + reason, "fatal");
-        remove_files([ temp_config, temp_manifest, runtime_log ]);
+        remove_files([ temp_config, runtime_log ]);
         exit(1);
     }
     log_file_lines(runtime_log, "warn", "sing-box config generator: ");
@@ -486,13 +475,13 @@ function init_config(populate_nft, skip_check) {
     if (!arg_bool(skip_check) && !(live_core && config_unchanged)) {
         if (live_core) {
             log_message("Refusing a standalone sing-box config check while the core is running; use Forkop reload", "error");
-            remove_files([ temp_config, temp_manifest, runtime_log ]);
+            remove_files([ temp_config, runtime_log ]);
             exit(1);
         }
         let check_result = sing_box_check(temp_config, runtime_log);
         if (check_result.status != 0) {
             log_message("Generated sing-box configuration is invalid: " + check_result.reason + ". Aborted.", "fatal");
-            remove_files([ temp_config, temp_manifest, runtime_log ]);
+            remove_files([ temp_config, runtime_log ]);
             exit(1);
         }
     }
@@ -514,17 +503,12 @@ function init_config(populate_nft, skip_check) {
         NFT_LOCALV6_SET_NAME
     ])) {
         log_message("Failed to update nftables runtime sets from the generated sing-box configuration. Aborted.", "fatal");
-        remove_files([ temp_config, temp_manifest, runtime_log ]);
+        remove_files([ temp_config, runtime_log ]);
         exit(1);
     }
 
     if (!save_config_file(temp_config, config_path)) {
-        remove_files([ temp_manifest, runtime_log ]);
-        exit(1);
-    }
-    if (!publish_runtime_manifest(temp_manifest)) {
-        log_message("Failed to publish sing-box runtime manifest. Aborted.", "fatal");
-        remove_files([ temp_manifest, runtime_log ]);
+        remove_file(runtime_log);
         exit(1);
     }
     remove_file(runtime_log);

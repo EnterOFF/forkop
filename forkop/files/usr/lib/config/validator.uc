@@ -776,6 +776,37 @@ function server_enabled(section) {
     return bool_option(section, "enabled", false);
 }
 
+function validate_runtime_display_names(sections, kind, seen) {
+    let reserved = object_or_empty(singbox_constants.RESERVED_TAGS);
+    for (let section in sections) {
+        let name = trim(option(section, "label", "")) || section_name(section);
+        if (name == "")
+            fail_validation(kind + " has no display name. Aborted.");
+        if (index(name, "/") >= 0)
+            fail_validation(kind + " display name '" + name + "' contains '/'. Use another character. Aborted.");
+        if (reserved[name])
+            fail_validation(kind + " display name '" + name + "' is reserved by Forkop. Choose another name. Aborted.");
+        if (seen[name])
+            fail_validation("Duplicate " + lc(kind) + " display name '" + name + "'. Display names must be unique. Aborted.");
+        seen[name] = true;
+    }
+}
+
+function validate_subscription_tags(section) {
+    let seen = {};
+    let sources = connections.subscription_urls(section);
+    for (let source_index = 0; source_index < length(sources); source_index++) {
+        let tag_name = connections.subscription_tag(section, sources[source_index], source_index + 1);
+        if (trim(tag_name) == "")
+            fail_validation("Subscription in rule '" + section_name(section) + "' has an empty tag. Aborted.");
+        if (index(tag_name, "/") >= 0)
+            fail_validation("Subscription tag '" + tag_name + "' in rule '" + section_name(section) + "' contains '/'. Use another character. Aborted.");
+        if (seen[tag_name])
+            fail_validation("Duplicate subscription tag '" + tag_name + "' in rule '" + section_name(section) + "'. Aborted.");
+        seen[tag_name] = true;
+    }
+}
+
 function rule_action(section) {
     return option(section, "action", "");
 }
@@ -1077,16 +1108,21 @@ function validate_fallback_group(section, group_id) {
 
     let levels = connections.fallback_levels(group_id);
     if (length(levels) == 0)
-        fail_validation("Fallback group '" + group_id + "' in rule '" + name + "' has no levels. Add at least one Fallback level. Aborted.");
+        fail_validation("Fallback group '" + group_id + "' in rule '" + name + "' has no server groups. Add at least one server group. Aborted.");
 
+    let level_names = {};
     for (let level_id in levels) {
         validate_fallback_identifier_value(level_id, name);
-        if (trim(connections.fallback_level_display_name(group_id, level_id)) == "")
-            fail_validation("Fallback level '" + level_id + "' in rule '" + name + "', fallback '" + group_id + "' has no display name. Aborted.");
+        let level_name = trim(connections.fallback_level_display_name(group_id, level_id));
+        if (level_name == "")
+            fail_validation("Server group '" + level_id + "' in rule '" + name + "', fallback '" + group_id + "' has no display name. Aborted.");
+        if (level_names[level_name])
+            fail_validation("Fallback '" + group_id + "' in rule '" + name + "' has duplicate server group name '" + level_name + "'. Aborted.");
+        level_names[level_name] = true;
 
         validate_fallback_level_order(connections.fallback_level_order(group_id, level_id), name, group_id, level_id);
         let mode = connections.fallback_level_mode(group_id, level_id);
-        validate_server_filter_mode(mode, "Fallback level '" + level_id + "'", true);
+        validate_server_filter_mode(mode, "Server group '" + level_id + "'", true);
         validate_server_filter_regexes(
             mode,
             connections.fallback_level_include_regex(group_id, level_id),
@@ -1382,14 +1418,7 @@ function subscription_update_interval_for_source(section, entry) {
     return value != "" ? value : "1h";
 }
 
-function validate_subscription_prefix(section, entry) {
-    if (connections.subscription_prefix_nodes(section, entry) &&
-        connections.subscription_node_prefix(section, entry) == "")
-        fail_validation("Subscription source in rule '" + section_name(section) + "' has node prefixing enabled but the prefix is empty. Fill the prefix or disable prefixing. Aborted.");
-}
-
 function validate_subscription_request_profile(section, entry) {
-    validate_subscription_prefix(section, entry);
     let parsed = subscription_headers_module.parse_header_lines(
         connections.subscription_headers(section, entry)
     );
@@ -1553,8 +1582,14 @@ function validate_rule(section, sections, context) {
             );
         }
 
-        for (let group_id in connections.fallback_groups(section))
+        let fallback_names = {};
+        for (let group_id in connections.fallback_groups(section)) {
+            let fallback_name = trim(connections.fallback_group_display_name(section, group_id));
+            if (fallback_names[fallback_name])
+                fail_validation("Connection rule '" + name + "' has duplicate fallback name '" + fallback_name + "'. Aborted.");
+            fallback_names[fallback_name] = true;
             validate_fallback_group(section, group_id);
+        }
 
         if (rule_has_subscription_urls(section)) {
             for (let value in connections.subscription_urls(section)) {
@@ -1774,7 +1809,11 @@ function validate_runtime_mark_ranges_context(context) {
 function validate_runtime_config(context) {
     let settings = settings_section();
     let sections = sections_by_type("section");
+    let servers = sections_by_type("server");
 
+    let display_names = {};
+    validate_runtime_display_names(sections, "Section", display_names);
+    validate_runtime_display_names(servers, "Server", display_names);
     validate_runtime_mark_ranges_context(context);
     validate_dns_settings(settings, sections, context);
     validate_native_rule_set_update_settings(settings);
@@ -1804,8 +1843,10 @@ function validate_runtime_config(context) {
     validate_json_inbound_values();
     validate_server_routing_sections(sections);
 
-    for (let section in sections)
+    for (let section in sections) {
+        validate_subscription_tags(section);
         validate_rule(section, sections, context);
+    }
 }
 
 function context_from_runtime() {

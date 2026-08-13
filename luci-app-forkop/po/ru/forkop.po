@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-12 18:43+0300\n"
-"PO-Revision-Date: 2026-08-12 18:43+0300\n"
+"POT-Creation-Date: 2026-08-13 03:10+0300\n"
+"PO-Revision-Date: 2026-08-13 03:10+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -86,8 +86,8 @@ msgstr "Добавьте ссылку провайдера подписки"
 msgid "Add at least one DNS server"
 msgstr "Добавьте хотя бы один DNS-сервер"
 
-msgid "Add at least one Fallback level"
-msgstr "Добавьте хотя бы один уровень Fallback"
+msgid "Add at least one server group"
+msgstr "Добавьте хотя бы одну группу серверов"
 
 msgid "Add at least one WireGuard peer"
 msgstr "Добавьте хотя бы одного пира WireGuard"
@@ -95,11 +95,11 @@ msgstr "Добавьте хотя бы одного пира WireGuard"
 msgid "Add header"
 msgstr "Добавить заголовок"
 
-msgid "Add prefix to nodes"
-msgstr "Добавлять префикс к узлам"
-
 msgid "Add servers whose names match the regular expression."
 msgstr "Добавить серверы, названия которых совпадают с регулярным выражением."
+
+msgid "Add the subscription tag to each of its nodes in the dashboard"
+msgstr "Добавить тег подписки для каждого ее узла в дашборде"
 
 msgid "Additional marking rules found"
 msgstr "Найдены дополнительные правила маркировки"
@@ -175,9 +175,6 @@ msgstr "Автообновление"
 
 msgid "Automatic component update checks"
 msgstr "Автоматическая проверка обновлений компонентов"
-
-msgid "Automatically add text to the name of each server from this subscription for convenient filtering."
-msgstr "Автоматически добавлять текст к имени каждого сервера из этой подписки для удобной фильтрации."
 
 msgid "Automatically check installed components for new versions"
 msgstr "Автоматически проверять наличие новых версий установленных компонентов"
@@ -434,8 +431,8 @@ msgstr "Значение задержки не может быть пустым"
 msgid "Delete"
 msgstr "Удалить"
 
-msgid "Determines where traffic will be sent at this priority level if servers from higher levels stop responding"
-msgstr "Определяет, куда будет направлен трафик на этом уровне приоритета, если серверы с уровней выше перестанут отвечать."
+msgid "Determines where traffic will be sent when servers from earlier groups stop responding"
+msgstr "Определяет, куда направлять трафик, если серверы из предыдущих групп перестали отвечать"
 
 msgid "Determines which servers will be imported from this subscription."
 msgstr "Определяет, какие серверы будут импортированы из этой подписки."
@@ -650,17 +647,23 @@ msgstr "Введите отображаемое имя"
 msgid "Enter a header name"
 msgstr "Введите название заголовка"
 
-msgid "Enter a level name"
-msgstr "Введите название уровня"
-
 msgid "Enter a private key"
 msgstr "Введите приватный ключ"
 
 msgid "Enter a public key"
 msgstr "Введите публичный ключ"
 
+msgid "Enter a section name"
+msgstr "Введите название секции"
+
 msgid "Enter a server address"
 msgstr "Введите адрес сервера"
+
+msgid "Enter a server group name"
+msgstr "Введите название группы серверов"
+
+msgid "Enter a subscription tag"
+msgstr "Введите тег подписки"
 
 msgid "Enter a Tailscale auth key"
 msgstr "Введите ключ авторизации Tailscale"
@@ -710,8 +713,8 @@ msgstr "Исключить серверы из подписки по регул�
 msgid "Exclude servers from the URLTest group using a regular expression."
 msgstr "Исключить серверы из URLTest группы по регулярному выражению."
 
-msgid "Exclude servers from this level using a regular expression."
-msgstr "Исключить серверы с этого уровня по регулярному выражению."
+msgid "Exclude servers from this server group using a regular expression."
+msgstr "Исключить серверы из этой группы с помощью регулярного выражения."
 
 msgid "Exit node"
 msgstr "Выходной узел"
@@ -772,12 +775,6 @@ msgstr "Детали Fallback"
 
 msgid "Fallback details are unavailable"
 msgstr "Детали Fallback недоступны"
-
-msgid "Fallback level settings"
-msgstr "Настройки уровня Fallback"
-
-msgid "Fallback levels"
-msgstr "Группы серверов"
 
 msgid "Fallback on unknown DC"
 msgstr "Fallback для неизвестного DC"
@@ -901,6 +898,9 @@ msgstr "Значение заголовка"
 
 msgid "Header value must stay on one line"
 msgstr "Значение заголовка должно быть в одной строке"
+
+msgid "Headers"
+msgstr "Заголовки"
 
 msgid "Heartbeat"
 msgstr "Интервал поддержания соединения"
@@ -1127,12 +1127,6 @@ msgstr "Последняя версия:"
 msgid "Level"
 msgstr "Уровень"
 
-msgid "Level name"
-msgstr "Название уровня"
-
-msgid "Level server filter"
-msgstr "Фильтр серверов уровня"
-
 msgid "List Update Frequency"
 msgstr "Частота обновления списков"
 
@@ -1220,8 +1214,8 @@ msgstr "Имя, которое отображается в дашборде"
 msgid "Name must be unique"
 msgstr "Название должно быть уникальным"
 
-msgid "Name shown in the fallback level list"
-msgstr "Имя, которое отображается в списке уровней Fallback"
+msgid "Name shown in the fallback server group list"
+msgstr "Название в списке групп серверов Fallback"
 
 msgid "Name shown in the Tailscale admin console."
 msgstr "Имя, которое будет отображаться в панели Tailscale."
@@ -1340,8 +1334,8 @@ msgstr "Только выбранные серверы будут добавле
 msgid "Only the selected servers will be added to the URLTest group."
 msgstr "Только выбранные серверы будут добавлены в URLTest группу."
 
-msgid "Only the selected servers will be added to this priority level."
-msgstr "Только выбранные серверы будут добавлены в этот уровень приоритета."
+msgid "Only the selected servers will be added to this server group."
+msgstr "В эту группу будут добавлены только выбранные серверы."
 
 msgid "Open"
 msgstr "Открыть"
@@ -1466,9 +1460,6 @@ msgstr "Предпочитаемый IP"
 msgid "Preferred IP address type for domains"
 msgstr "Предпочтительный тип IP-адресов для доменов"
 
-msgid "Prefix text"
-msgstr "Текст префикса"
-
 msgid "Private key"
 msgstr "Приватный ключ"
 
@@ -1541,11 +1532,11 @@ msgstr "Требовать логин и пароль для локальног�
 msgid "Require Mieru user hint"
 msgstr "Требовать указание пользователя Mieru"
 
-msgid "Required. Levels are tried from top to bottom until one succeeds"
-msgstr "Обязательно. Группы проверяются сверху вниз, пока не найдется доступный сервер"
-
 msgid "Required. List of remote nodes to connect."
 msgstr "Обязательно. Список удаленных узлов для подключения."
+
+msgid "Required. Server groups are tried from top to bottom until one succeeds"
+msgstr "Обязательно. Группы серверов проверяются сверху вниз до первой рабочей"
 
 msgid "Resolve domain names before routing so sing-box can use real destination IPs."
 msgstr "Разрешать доменные имена перед маршрутизацией, чтобы sing-box использовал реальные IP-адреса назначения."
@@ -1643,6 +1634,12 @@ msgstr "Секция"
 msgid "Section name"
 msgstr "Имя секции"
 
+msgid "Section name must be unique"
+msgstr "Название секции должно быть уникальным"
+
+msgid "Section name must not contain /"
+msgstr "Название секции не должно содержать /"
+
 msgid "Sections"
 msgstr "Секции"
 
@@ -1712,11 +1709,26 @@ msgstr "Сервер"
 msgid "Server address"
 msgstr "Адрес сервера"
 
+msgid "Server group filter"
+msgstr "Фильтр группы серверов"
+
 msgid "Server group for automatic lowest-latency selection"
 msgstr "Группа серверов для автоматического выбора по наименьшей задержке"
 
 msgid "Server group for ordered fallback"
 msgstr "Группа последовательно выбирает первый доступный узел."
+
+msgid "Server group name"
+msgstr "Название группы серверов"
+
+msgid "Server group names must be unique"
+msgstr "Названия групп серверов должны быть уникальными"
+
+msgid "Server group settings"
+msgstr "Настройки группы серверов"
+
+msgid "Server groups"
+msgstr "Группы серверов"
 
 msgid "Server information"
 msgstr "Информация о сервере"
@@ -1726,6 +1738,12 @@ msgstr "Имя сервера"
 
 msgid "Server name / SNI"
 msgstr "Имя сервера / SNI"
+
+msgid "Server name must be unique"
+msgstr "Название сервера должно быть уникальным"
+
+msgid "Server name must not contain /"
+msgstr "Название сервера не должно содержать /"
 
 msgid "Server outbound must contain a non-empty server field"
 msgstr "Серверный outbound должен содержать непустое поле server"
@@ -1748,8 +1766,8 @@ msgstr "Серверы, которые не нужно добавлять из �
 msgid "Servers that should not be added to the URLTest group."
 msgstr "Серверы, которые не нужно добавлять в URLTest группу."
 
-msgid "Servers that should not be added to this priority level."
-msgstr "Серверы, которые не нужно добавлять в этот уровень приоритета."
+msgid "Servers that should not be added to this server group."
+msgstr "Серверы, которые не нужно добавлять в эту группу."
 
 msgid "Service action failed"
 msgstr "Действие сервиса не выполнено"
@@ -1763,14 +1781,17 @@ msgstr "Информация о сервисах"
 msgid "Settings"
 msgstr "Настройки"
 
-msgid "Show metadata on dashboard"
-msgstr "Отображать метаданные в дашборде"
+msgid "Show metadata"
+msgstr "Отображать метаданные"
 
 msgid "Show sing-box config"
 msgstr "Показать sing-box конфигурацию"
 
 msgid "Show subscription metadata for this source on the dashboard"
 msgstr "Отображать метаданные этой подписки в дашборде"
+
+msgid "Show subscription name"
+msgstr "Отображать имя подписки"
 
 msgid "Sing-box autostart disabled"
 msgstr "Автостарт sing-box отключен"
@@ -1874,23 +1895,29 @@ msgstr "Подписка"
 msgid "Subscription auto update"
 msgstr "Автообновление подписи"
 
-msgid "Subscription headers"
-msgstr "Заголовки подписки"
-
 msgid "Subscription info:"
 msgstr "Информация о подписке:"
 
 msgid "Subscription server filter"
 msgstr "Фильтр серверов подписки"
 
+msgid "Subscription settings"
+msgstr "Настройки подписки"
+
+msgid "Subscription tag"
+msgstr "Тег подписки"
+
+msgid "Subscription tag must be unique within the section"
+msgstr "Тег подписки должен быть уникальным внутри секции"
+
+msgid "Subscription tag must not contain /"
+msgstr "Тег подписки не должен содержать /"
+
 msgid "Subscription update failed"
 msgstr "Обновление подписки завершилось ошибкой"
 
 msgid "Subscription update interval"
 msgstr "Интервал обновления подписки"
-
-msgid "Subscription URL settings"
-msgstr "Настройки URL подписки"
 
 msgid "Subscriptions updated"
 msgstr "Подписки обновлены"
@@ -1972,6 +1999,12 @@ msgstr "Этот флаг не принимает значение."
 
 msgid "This option requires a value."
 msgstr "Этой опции требуется значение."
+
+msgid "This section name is reserved by Forkop"
+msgstr "Это название секции зарезервировано Forkop"
+
+msgid "This server name is reserved by Forkop"
+msgstr "Это название сервера зарезервировано Forkop"
 
 msgid "Time"
 msgstr "Время"

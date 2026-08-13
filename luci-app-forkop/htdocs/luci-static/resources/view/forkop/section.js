@@ -31,6 +31,24 @@ const JSON_ENDPOINT_TYPES = new Set([
   "warp",
   "tailscale",
 ]);
+const RESERVED_RUNTIME_TAGS = new Set([
+  "dns-server",
+  "fakeip-server",
+  "bootstrap-dns-server",
+  "dnsmasq-server",
+  "fakeip-dns-rule-tag",
+  "fakeip-ruleset-dns-rule-tag",
+  "service-fakeip-dns-rule-tag",
+  "tproxy-in",
+  "tproxy6-in",
+  "dns-in",
+  "source-dns-in",
+  "system-in",
+  "system6-in",
+  "system-dns-in",
+  "service-mixed-in",
+  "direct-out",
+]);
 const CONNECTIONS_BLOCKED_INTERFACES = [
   "br-lan",
   "eth0",
@@ -140,7 +158,7 @@ function tailscaleDetourSectionValue(detour, currentSectionId) {
 
   const target = getOutboundDetourTargetSections(currentSectionId).find(
     (section) =>
-      main.getOutboundTagBySection(getUciSectionName(section)) === detour,
+      main.getOutboundTagBySection(getUciSectionLabel(section)) === detour,
   );
   return target ? getUciSectionName(target) : detour;
 }
@@ -154,7 +172,9 @@ function tailscaleDetourTag(sectionId) {
   const target = (uci.sections(UCI_PACKAGE, "section") || []).find(
     (section) => getUciSectionName(section) === sectionId,
   );
-  return target ? main.getOutboundTagBySection(sectionId) : sectionId;
+  return target
+    ? main.getOutboundTagBySection(getUciSectionLabel(target))
+    : sectionId;
 }
 
 function isDnsDetourTargetSection(section, currentSectionId) {
@@ -629,25 +649,20 @@ function loadNativeProviderOutboundNames(providerTags) {
     .catch(() => null);
 }
 
-function subscriptionSourceOutboundName(name, prefixNodes, nodePrefix) {
-  name = `${name || ""}`.trim();
-  nodePrefix = `${nodePrefix || ""}`.trim();
-  const enabled = prefixNodes === true || `${prefixNodes || ""}` === "1";
-  const prefix = `${nodePrefix} `;
-
-  return enabled && nodePrefix && name.startsWith(prefix)
-    ? name.slice(prefix.length)
-    : name;
-}
-
 function readOutboundChoiceState(section_id) {
   if (!safeRuntimeSectionName(section_id)) {
     return Promise.resolve(null);
   }
 
+  const sectionDisplayName = `${
+    uci.get(UCI_PACKAGE, section_id, "label") || section_id
+  }`.trim();
   return Promise.resolve({
     providerTags: getChildItemIds(section_id, "subscription_url").map(
-      (_itemId, index) => `${section_id}-subscription-${index + 1}-provider`,
+      (itemId, index) =>
+        `${sectionDisplayName}/${
+          uci.get(UCI_PACKAGE, itemId, "tag") || `sub${index + 1}`
+        }`,
     ),
   });
 }
@@ -664,11 +679,7 @@ function loadOutboundNameChoices(section_id) {
   const task = readOutboundChoiceState(section_id)
     .then((state) =>
       state
-        ? loadNativeProviderOutboundNames(
-            state.providerTags.filter((providerTag) =>
-              /-subscription-\d+-provider$/.test(`${providerTag || ""}`),
-            ),
-          )
+        ? loadNativeProviderOutboundNames(state.providerTags)
         : null,
     )
     .then((names) => {
@@ -1864,7 +1875,7 @@ function currentDraftOutboundNames(section_id) {
   currentSourceOptionValues(section_id, "selector_proxy_links").forEach(
     (value, index) => {
       const name = main.getProxyUrlName(`${value || ""}`);
-      names.push(name || `${section_id}-${index + 1}-out`);
+      names.push(name || `Node #${index + 1}`);
     },
   );
   currentSourceOptionValues(section_id, "interfaces").forEach((itemId) => {
@@ -1887,25 +1898,33 @@ function currentDraftOutboundNames(section_id) {
       names.push(displayName);
     }
   });
-  currentSourceOptionValues(section_id, "outbound_jsons").forEach((value) => {
-    const outbound = parseOutboundJsonObject(value);
-    const type = `${outbound?.type || ""}`.trim().toLowerCase();
-    const tag = outboundJsonDisplayTag(value);
-    if (
-      tag &&
-      !["selector", "urltest", "fallback", "dns", "block"].includes(type)
-    ) {
-      names.push(tag);
-    }
-  });
   currentSourceOptionValues(section_id, "tunnels").forEach((value) => {
     const name = tunnelDisplayName(section_id, value);
     if (name) {
       names.push(name);
     }
   });
+  currentSourceOptionValues(section_id, "outbound_jsons").forEach(
+    (value, index) => {
+      const outbound = parseOutboundJsonObject(value);
+      const type = `${outbound?.type || ""}`.trim().toLowerCase();
+      const tag = outboundJsonDisplayTag(value) || `JSON outbound #${index + 1}`;
+      if (!["selector", "urltest", "fallback", "dns", "block"].includes(type)) {
+        names.push(tag);
+      }
+    },
+  );
 
-  return names;
+  const taken = new Set();
+  return names.map((name) => {
+    const base = `${name || ""}`.trim();
+    let unique = base;
+    for (let number = 2; taken.has(unique); number += 1) {
+      unique = `${base} #${number}`;
+    }
+    taken.add(unique);
+    return unique;
+  });
 }
 
 function refreshDashboardFilterChoiceWidgets(section_id) {
@@ -2307,8 +2326,8 @@ function subscriptionUrlSettingsKeys() {
     "user_agent",
     "header",
     "show_dashboard_metadata",
-    "prefix_nodes",
-    "node_prefix",
+    "show_subscription_name",
+    "tag",
     "server_filter_mode",
     "include_outbounds",
     "include_regex",
@@ -2317,7 +2336,7 @@ function subscriptionUrlSettingsKeys() {
   ];
 }
 
-function defaultSubscriptionUrlSettings(headers = []) {
+function defaultSubscriptionUrlSettings(headers = [], tag = "sub1") {
   return {
     subscription_update_enabled: "1",
     subscription_update_interval: "1h",
@@ -2326,10 +2345,37 @@ function defaultSubscriptionUrlSettings(headers = []) {
     user_agent: "sing-box",
     header: Array.isArray(headers) ? headers.slice() : [],
     show_dashboard_metadata: "1",
-    prefix_nodes: "0",
-    node_prefix: "",
+    show_subscription_name: "0",
+    tag,
     server_filter_mode: "all",
   };
+}
+
+function configuredSubscriptionTags(sectionId, option, excludedItemId, excludedInputValue) {
+  const result = [];
+  getChildItemIds(sectionId, "subscription_url").forEach((itemId) => {
+    if (itemId !== excludedItemId) {
+      const value = `${uci.get(UCI_PACKAGE, itemId, "tag") || ""}`.trim();
+      if (value) result.push(value);
+    }
+  });
+  const store = childPendingSettingsStore(option, sectionId);
+  Object.entries(store).forEach(([inputValue, settings]) => {
+    if (inputValue !== excludedInputValue) {
+      const value = `${settings?.tag || ""}`.trim();
+      if (value) result.push(value);
+    }
+  });
+  return result;
+}
+
+function nextSubscriptionTag(sectionId, option) {
+  const taken = new Set(configuredSubscriptionTags(sectionId, option));
+  for (let number = 1; number < 100000; number += 1) {
+    const value = `sub${number}`;
+    if (!taken.has(value)) return value;
+  }
+  return `sub${Date.now()}`;
 }
 
 function subscriptionHeaderValues(value) {
@@ -2443,7 +2489,7 @@ function showSubscriptionHeadersModal(parentMap, itemId) {
   const headers = map.section(
     form.GridSection,
     "header",
-    _("Subscription headers"),
+    _("Headers"),
   );
   headers.anonymous = true;
   headers.addremove = true;
@@ -2473,7 +2519,7 @@ function showSubscriptionHeadersModal(parentMap, itemId) {
   o.rmempty = true;
   o.validate = validateSubscriptionHeaderValue;
 
-  return renderStackedJsonSettingsModal(_("Subscription headers"), map, () => {
+  return renderStackedJsonSettingsModal(_("Headers"), map, () => {
     parentMap.data.set(
       parentMap.config,
       itemId,
@@ -2722,7 +2768,7 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
   o = itemSection.option(
     form.Button,
     "_subscription_headers",
-    _("Subscription headers"),
+    _("Headers"),
     _("Configure headers sent with this subscription request."),
   );
   o.inputtitle = _("Edit headers");
@@ -2734,7 +2780,7 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
   o = itemSection.option(
     form.Flag,
     "show_dashboard_metadata",
-    _("Show metadata on dashboard"),
+    _("Show metadata"),
     _("Show subscription metadata for this source on the dashboard"),
   );
   o.default = "1";
@@ -2742,18 +2788,37 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
 
   o = itemSection.option(
     form.Flag,
-    "prefix_nodes",
-    _("Add prefix to nodes"),
+    "show_subscription_name",
+    _("Show subscription name"),
     _(
-      "Automatically add text to the name of each server from this subscription for convenient filtering.",
+      "Add the subscription tag to each of its nodes in the dashboard",
     ),
   );
   o.default = "0";
   o.rmempty = false;
 
-  o = itemSection.option(form.Value, "node_prefix", _("Prefix text"));
-  o.depends("prefix_nodes", "1");
+  o = itemSection.option(form.Value, "tag", _("Subscription tag"));
+  o.depends("show_subscription_name", "1");
   o.rmempty = false;
+  o.validate = function (_itemId, value) {
+    const normalized = `${value || ""}`.trim();
+    if (!normalized) return _("Enter a subscription tag");
+    if (normalized.includes("/")) {
+      return _("Subscription tag must not contain /");
+    }
+    const sectionId = parentSectionForItem(_itemId);
+    const ownerId = typeof options.ownerId === "function" ? options.ownerId() : "";
+    const inputValue =
+      typeof options.itemValue === "function" ? options.itemValue() : "";
+    return configuredSubscriptionTags(
+      sectionId,
+      options.listOption,
+      ownerId === sectionId ? "" : ownerId,
+      inputValue,
+    ).includes(normalized)
+      ? _("Subscription tag must be unique within the section")
+      : true;
+  };
 
   addServerFilterOptions(itemSection, parentSectionForItem, {
     ownerId: options.ownerId,
@@ -2784,12 +2849,6 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
     whitelistExcludeRegexDescription: _(
       "Optional. Exclude servers from the selection above using a regular expression.",
     ),
-    normalizeOutboundChoice: (option, itemId, name) =>
-      subscriptionSourceOutboundName(
-        name,
-        optionMapValue(option, itemId, "prefix_nodes"),
-        optionMapValue(option, itemId, "node_prefix"),
-      ),
   });
 }
 
@@ -2986,9 +3045,10 @@ function fallbackLevelSettingsForValidation(groupId, levelId, option) {
 function validateFallbackLevelItemsBeforeSave(groupId, values, option) {
   const normalizedValues = normalizeDynamicListItems(values);
   if (!normalizedValues.length) {
-    return _("Add at least one Fallback level");
+    return _("Add at least one server group");
   }
 
+  const names = new Set();
   for (const value of normalizedValues) {
     const levelId = `${value || ""}`;
     const settings = fallbackLevelSettingsForValidation(
@@ -2998,8 +3058,11 @@ function validateFallbackLevelItemsBeforeSave(groupId, values, option) {
     );
 
     if (!`${settings.name || ""}`.trim()) {
-      return _("Enter a level name");
+      return _("Enter a server group name");
     }
+    const name = `${settings.name}`.trim();
+    if (names.has(name)) return _("Server group names must be unique");
+    names.add(name);
   }
 
   return true;
@@ -3014,18 +3077,21 @@ function addFallbackLevelItemOptions(itemSection, options = {}) {
   let o = itemSection.option(
     form.Value,
     "name",
-    _("Level name"),
-    _("Name shown in the fallback level list"),
+    _("Server group name"),
+    _("Name shown in the fallback server group list"),
   );
   o.rmempty = false;
   o.validate = function (_itemId, value) {
-    return `${value || ""}`.trim() ? true : _("Enter a level name");
+    if (!`${value || ""}`.trim()) return _("Enter a server group name");
+    return typeof options.validateName === "function"
+      ? options.validateName(value)
+      : true;
   };
 
   addServerFilterOptions(itemSection, parentSectionForItem, {
-    modeLabel: _("Level server filter"),
+    modeLabel: _("Server group filter"),
     modeDescription: _(
-      "Determines where traffic will be sent at this priority level if servers from higher levels stop responding",
+      "Determines where traffic will be sent when servers from earlier groups stop responding",
     ),
     modes: [
       { value: "all", label: _("All remaining servers") },
@@ -3035,16 +3101,16 @@ function addFallbackLevelItemOptions(itemSection, options = {}) {
     ],
     defaultMode: "include",
     includeServersDescription: _(
-      "Only the selected servers will be added to this priority level.",
+      "Only the selected servers will be added to this server group.",
     ),
     includeRegexDescription: _(
       "Add servers whose names match the regular expression.",
     ),
     blacklistExcludeServersDescription: _(
-      "Servers that should not be added to this priority level.",
+      "Servers that should not be added to this server group.",
     ),
     blacklistExcludeRegexDescription: _(
-      "Exclude servers from this level using a regular expression.",
+      "Exclude servers from this server group using a regular expression.",
     ),
     whitelistExcludeServersDescription: _(
       "Optional. Remove specific servers from the selection above.",
@@ -3176,8 +3242,8 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
   o = itemSection.option(
     ButtonAddSettingsDynamicList,
     "fallback_level",
-    _("Fallback levels"),
-    _("Required. Levels are tried from top to bottom until one succeeds"),
+    _("Server groups"),
+    _("Required. Server groups are tried from top to bottom until one succeeds"),
   );
   o.rmempty = false;
   o.modalonly = true;
@@ -3198,7 +3264,7 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
         typeof this.formvalue === "function" ? this.formvalue(groupId) : [];
       return normalizeDynamicListItems(current).length
         ? true
-        : _("Add at least one Fallback level");
+        : _("Add at least one server group");
     }
     return true;
   };
@@ -3462,6 +3528,8 @@ function showChildItemSettingsModal(section_id, itemValue, option, settings) {
   settings.addOptions(itemSection, {
     parentSectionId: () => section_id,
     ownerId: () => value || section_id,
+    itemValue: () => inputValue,
+    listOption: option,
     validateName: settings.validateName,
   });
 
@@ -3522,9 +3590,12 @@ function showSubscriptionUrlSettingsModal(_section_id, itemValue, option) {
       valueOption: "url",
       keys: subscriptionUrlSettingsKeys(),
       defaults: (_inputValue, existing) =>
-        defaultSubscriptionUrlSettings(existing ? [] : headers),
+        defaultSubscriptionUrlSettings(
+          existing ? [] : headers,
+          nextSubscriptionTag(_section_id, option),
+        ),
       addOptions: addSubscriptionUrlItemOptions,
-      title: () => _("Subscription URL settings"),
+      title: () => _("Subscription settings"),
     }),
   );
 }
@@ -3621,12 +3692,17 @@ function showFallbackLevelSettingsModal(
     addOptions: (itemSection) =>
       addFallbackLevelItemOptions(itemSection, {
         parentSectionId: () => context.parentSectionId || "",
+        validateName: validateUniqueDynamicListItemName.bind(
+          null,
+          widget,
+          itemNode,
+        ),
       }),
     title: (name) => {
       const normalized = `${name || ""}`.trim();
       return normalized
-        ? `${_("Fallback level settings")}: ${normalized}`
-        : _("Fallback level settings");
+        ? `${_("Server group settings")}: ${normalized}`
+        : _("Server group settings");
     },
     afterSave: (itemId, inputValue, settings, existing) => {
       const displayName = `${settings.name || inputValue || ""}`.trim();
@@ -8240,6 +8316,24 @@ function createSectionContent(section) {
   o.load = function (section_id) {
     return uci.get(UCI_PACKAGE, section_id, "label") || section_id;
   };
+  o.validate = function (section_id, value) {
+    const normalized = `${value || ""}`.trim();
+    if (!normalized) return _("Enter a section name");
+    if (normalized.includes("/")) return _("Section name must not contain /");
+    if (RESERVED_RUNTIME_TAGS.has(normalized)) {
+      return _("This section name is reserved by Forkop");
+    }
+    return [
+      ...(uci.sections(UCI_PACKAGE, "section") || []),
+      ...(uci.sections(UCI_PACKAGE, "server") || []),
+    ].some(
+      (item) =>
+        item[".name"] !== section_id &&
+        `${item.label || item[".name"] || ""}`.trim() === normalized,
+    )
+      ? _("Section name must be unique")
+      : true;
+  };
 
   o = section.taboption(
     "settings",
@@ -8536,6 +8630,7 @@ function createSectionContent(section) {
   o.childValueOption = "url";
   o.childDefaults = Object.assign(defaultSubscriptionUrlSettings(), {
     header: () => defaultSubscriptionHeaderLines.slice(),
+    tag: (_value, sectionId) => nextSubscriptionTag(sectionId, o),
   });
   o.renderItemSettingsModal = showSubscriptionUrlSettingsModal;
   o.hasItemSettings = function (section_id, value) {

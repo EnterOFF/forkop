@@ -472,7 +472,21 @@ function renderDefaultState({
             ]
           : []),
         E('div', { class: 'fkp_dashboard-page__outbound-grid__item__header' }, [
-          E('b', {}, renderFlagEmojis(outbound.displayName)),
+          E('b', {}, [
+            ...(outbound.subscriptionTag
+              ? [
+                  E(
+                    'span',
+                    {
+                      class:
+                        'fkp_dashboard-page__outbound-grid__item__subscription-tag',
+                    },
+                    outbound.subscriptionTag,
+                  ),
+                ]
+              : []),
+            ...renderFlagEmojis(outbound.displayName),
+          ]),
           ...(canCopyLink
             ? [
                 E(

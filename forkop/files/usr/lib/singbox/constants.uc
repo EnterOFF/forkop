@@ -84,7 +84,15 @@ function inbound_tag(section_name) {
 }
 
 function outbound_tag(section_name) {
-    return tag(section_name, "out");
+    return as_string(section_name);
+}
+
+function child_tag(section_name, display_name) {
+    return as_string(section_name) + "/" + as_string(display_name);
+}
+
+function section_inbound_tag(section_name, display_name) {
+    return child_tag(section_name, display_name);
 }
 
 function domain_resolver_tag(section_name) {
@@ -92,7 +100,7 @@ function domain_resolver_tag(section_name) {
 }
 
 function server_inbound_tag(section_name) {
-    return tag("server-" + as_string(section_name), "in");
+    return as_string(section_name);
 }
 
 function tailscale_dns_server_tag(section_name) {
@@ -146,6 +154,8 @@ return {
     tag,
     inbound_tag,
     outbound_tag,
+    child_tag,
+    section_inbound_tag,
     domain_resolver_tag,
     server_inbound_tag,
     tailscale_dns_server_tag
