@@ -15,7 +15,7 @@ settings_styles="$(sed -n '/^\.fkp-connections-dynlist > \.fkp-dynlist-settings 
 settings_item_styles="$(sed -n '/^\.fkp-connections-dynlist > \.item {$/,/^}$/p' "$SECTION_JS")"
 settings_widget="$(sed -n '/^const SettingsUIDynamicList =/,/^const ButtonAddSettingsUIDynamicList/p' "$SECTION_JS")"
 button_add_widget="$(sed -n '/^function updateButtonAddDynamicListLayout(/,/^function setDynamicListItemValue(/p' "$SECTION_JS"; sed -n '/^const ButtonAddSettingsUIDynamicList =/,/^const SettingsDynamicList/p' "$SECTION_JS")"
-subscription_keys="$(sed -n '/^function subscriptionUrlSettingsKeys(/,/^function defaultSubscriptionUrlSettings(/p' "$SECTION_JS")"
+subscription_keys="$(sed -n '/^function remoteSubscriptionUrlSettingsKeys(/,/^function defaultSubscriptionUrlSettings(/p' "$SECTION_JS")"
 subscription_options="$(sed -n '/^function addSubscriptionUrlItemOptions(/,/^function addInterfaceItemOptions(/p' "$SECTION_JS")"
 subscription_header_editor="$(sed -n '/^function subscriptionHeaderValues(/,/^function interfaceSettingsKeys(/p' "$SECTION_JS")"
 server_filter_options="$(sed -n '/^function addServerFilterOptions(/,/^function urlTestUrlChoices(/p' "$SECTION_JS")"
@@ -31,6 +31,76 @@ const assert = require('assert');
 const fs = require('fs');
 
 const source = fs.readFileSync(process.argv[2], 'utf8');
+const subscriptionValidationSource = source.match(
+  /function parseSubscriptionUrlEntry\([\s\S]*?\n}\n\nfunction getValidationHeaderText\(/,
+);
+assert(subscriptionValidationSource, 'subscription validation helpers not found');
+const validateSubscription = new Function(
+  'main',
+  '_',
+  `${subscriptionValidationSource[0].slice(0, -'\n\nfunction getValidationHeaderText('.length)}; return validateSubscriptionUrlEntry;`,
+)(
+  {
+    validateUrl: (value) => ({ valid: /^https?:\/\/[^/]+/.test(value) }),
+    validatePath: (value) => ({ valid: /^\/[a-zA-Z0-9_\-/.]+$/.test(value) }),
+  },
+  (value) => value,
+);
+assert.strictEqual(validateSubscription('settings', 'https://example.com/sub'), true);
+assert.strictEqual(validateSubscription('settings', '/etc/forkop/subscription.txt'), true);
+assert.match(validateSubscription('settings', 'relative/subscription.txt'), /absolute local path/);
+
+const subscriptionOptionsSource = source.match(
+  /function addSubscriptionUrlItemOptions\([\s\S]*?\n}\n\nfunction addInterfaceItemOptions\(/,
+);
+assert(subscriptionOptionsSource, 'subscription options not found');
+const addSubscriptionOptions = new Function(
+  'form',
+  '_',
+  'subscriptionUserAgentChoices',
+  'addServerFilterOptions',
+  `${subscriptionOptionsSource[0].slice(0, -'\n\nfunction addInterfaceItemOptions('.length)}; return addSubscriptionUrlItemOptions;`,
+)(
+  { Flag: 'flag', Value: 'value', ListValue: 'list', Button: 'button' },
+  (value) => value,
+  () => [],
+  (section) => section.created.push('server_filter_mode'),
+);
+const optionNames = (remote) => {
+  const section = {
+    created: [],
+    map: {},
+    option: (_type, name) => {
+      section.created.push(name);
+      return { depends() {}, value() {} };
+    },
+  };
+  addSubscriptionOptions(section, { remote, parentSectionId: () => 'proxy' });
+  return section.created;
+};
+const remoteOptionNames = optionNames(true);
+const localOptionNames = optionNames(false);
+[
+  'subscription_update_enabled',
+  'subscription_update_interval',
+  'download_via_proxy_enabled',
+  'download_via_proxy_section',
+  'user_agent',
+  '_subscription_headers',
+  'show_dashboard_metadata',
+].forEach((name) => {
+  assert(remoteOptionNames.includes(name), `remote subscription option missing: ${name}`);
+  assert(!localOptionNames.includes(name), `local subscription exposes remote option: ${name}`);
+});
+['show_subscription_name', 'tag', 'server_filter_mode'].forEach((name) =>
+  assert(localOptionNames.includes(name), `local subscription option missing: ${name}`),
+);
+assert.match(
+  source,
+  /if \(!remote && existing\) cleanupRemoteSubscriptionUrlSettings\(itemId\);/,
+  'saving existing local subscription settings must remove stale remote options',
+);
+
 const fallbackGroupOptions = source.match(
   /function addFallbackGroupItemOptions\([\s\S]*?\n}\n\nfunction settingValueEquals\(/,
 );

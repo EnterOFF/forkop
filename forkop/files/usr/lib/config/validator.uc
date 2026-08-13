@@ -976,14 +976,19 @@ function valid_http_url(value) {
     return core_url.host(value) != "";
 }
 
+function valid_local_subscription_path(value) {
+    value = trim(as_string(value));
+    return match(value, /^\/[-a-zA-Z0-9_\/.]+$/) != null;
+}
+
 function validate_subscription_source_entry_value(entry, section) {
     if (index(as_string(entry), "|") >= 0)
         fail_validation("Invalid subscription URL in rule '" + section + "': Configure User-Agent in the subscription item settings. Aborted.");
 
-    if (valid_http_url(entry))
+    if (valid_http_url(entry) || valid_local_subscription_path(entry))
         return;
 
-    fail_validation("Invalid subscription URL in rule '" + section + "': Use an http:// or https:// URL. Aborted.");
+    fail_validation("Invalid subscription source in rule '" + section + "': Use an http:// or https:// URL or an absolute local path. Aborted.");
 }
 
 function validate_http_url_option(value, label) {

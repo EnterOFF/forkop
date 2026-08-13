@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-13 03:10+0300\n"
-"PO-Revision-Date: 2026-08-13 03:10+0300\n"
+"POT-Creation-Date: 2026-08-13 22:49+0300\n"
+"PO-Revision-Date: 2026-08-13 22:49+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -80,8 +80,8 @@ msgstr "Добавьте секцию чтобы настроить маршру
 msgid "Add a server inbound"
 msgstr "Добавить серверный inbound"
 
-msgid "Add a subscription provider link"
-msgstr "Добавьте ссылку провайдера подписки"
+msgid "Add a subscription provider link or local path"
+msgstr "Добавьте ссылку провайдера подписки или локальный путь"
 
 msgid "Add at least one DNS server"
 msgstr "Добавьте хотя бы один DNS-сервер"
@@ -1058,6 +1058,9 @@ msgstr "Недопустимый интервал keepalive WireGuard"
 msgid "IP address or device name in Tailscale through which traffic is forwarded."
 msgstr "IP-адрес или имя устройства в Tailscale, через которое будет перенаправляться трафик."
 
+msgid "IP addresses and subnets, including their port constraints, will be extracted and added to nftables"
+msgstr "IP-адреса и подсети, включая заданные для них ограничения по портам, будут извлечены и добавлены в nftables"
+
 msgid "IPs"
 msgstr "IP-адреса"
 
@@ -1886,9 +1889,6 @@ msgstr "Останавливать проверки доступности, ко
 msgid "Stop health checks when the group is not used. Use sing-box duration format like 1d, 12h or 30m."
 msgstr "Останавливать проверки, когда группа не используется. Используйте формат длительности sing-box: 1d, 12h или 30m."
 
-msgid "IP addresses and subnets, including their port constraints, will be extracted and added to nftables"
-msgstr "IP-адреса и подсети, включая заданные для них ограничения по портам, будут извлечены и добавлены в nftables"
-
 msgid "Subscription"
 msgstr "Подписка"
 
@@ -1897,6 +1897,9 @@ msgstr "Автообновление подписи"
 
 msgid "Subscription info:"
 msgstr "Информация о подписке:"
+
+msgid "Subscription must be an HTTP(S) URL or an absolute local path"
+msgstr "Подписка должна быть HTTP(S)-ссылкой или абсолютным локальным путём"
 
 msgid "Subscription server filter"
 msgstr "Фильтр серверов подписки"

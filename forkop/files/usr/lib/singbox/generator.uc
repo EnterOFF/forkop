@@ -565,22 +565,28 @@ function outbound_detour_tag_for_section(section) {
     return detour_section == "" ? "" : outbound_tag(detour_section);
 }
 
-function add_remote_subscription_provider(config, section, source_index, source) {
+function add_subscription_provider(config, section, source_index, source) {
     let tag_name = child_outbound_tag(section, connections.subscription_tag(section, source, source_index));
-    let provider = merge_object({
-        type: "remote",
-        tag: tag_name,
-        url: source,
-        user_agent: connections.subscription_user_agent(section, source),
-        headers: subscription_headers(section, source),
-        update_interval: connections.subscription_update_enabled(section, source)
-            ? connections.subscription_update_interval(section, source)
-            : runtime_constants.DISABLED_UPDATE_INTERVAL
-    }, subscription_provider_filter(section, source));
+    let source_type = connections.subscription_source_type(source);
+    if (source_type == "")
+        runtime_generate_unsupported("subscription source is not supported by sing-box config generation");
 
-    let download_section = connections.subscription_download_section(section, source);
-    if (download_section != "")
-        provider.download_detour = outbound_tag(download_section);
+    let provider = merge_object({ type: source_type, tag: tag_name }, subscription_provider_filter(section, source));
+    if (source_type == "local") {
+        provider.path = source;
+    }
+    else {
+        provider.url = source;
+        provider.user_agent = connections.subscription_user_agent(section, source);
+        provider.headers = subscription_headers(section, source);
+        provider.update_interval = connections.subscription_update_enabled(section, source)
+            ? connections.subscription_update_interval(section, source)
+            : runtime_constants.DISABLED_UPDATE_INTERVAL;
+
+        let download_section = connections.subscription_download_section(section, source);
+        if (download_section != "")
+            provider.download_detour = outbound_tag(download_section);
+    }
     let detour = outbound_detour_tag_for_section(section);
     if (detour != "")
         provider.outbound_detour = detour;
@@ -592,7 +598,7 @@ function add_subscription_providers(config, section) {
     let result = [];
     let sources = connections.subscription_urls(section);
     for (let i = 0; i < length(sources); i++)
-        push(result, add_remote_subscription_provider(config, section, i + 1, sources[i]));
+        push(result, add_subscription_provider(config, section, i + 1, sources[i]));
     return result;
 }
 

@@ -2317,7 +2317,7 @@ function optionMapValue(option, section_id, key) {
   return value == null ? "" : value;
 }
 
-function subscriptionUrlSettingsKeys() {
+function remoteSubscriptionUrlSettingsKeys() {
   return [
     "subscription_update_enabled",
     "subscription_update_interval",
@@ -2326,6 +2326,11 @@ function subscriptionUrlSettingsKeys() {
     "user_agent",
     "header",
     "show_dashboard_metadata",
+  ];
+}
+
+function subscriptionUrlSettingsKeys(remote = true) {
+  const keys = [
     "show_subscription_name",
     "tag",
     "server_filter_mode",
@@ -2334,21 +2339,37 @@ function subscriptionUrlSettingsKeys() {
     "exclude_outbounds",
     "exclude_regex",
   ];
+  return remote ? [...remoteSubscriptionUrlSettingsKeys(), ...keys] : keys;
 }
 
-function defaultSubscriptionUrlSettings(headers = [], tag = "sub1") {
-  return {
-    subscription_update_enabled: "1",
-    subscription_update_interval: "1h",
-    download_via_proxy_enabled: "0",
-    download_via_proxy_section: "",
-    user_agent: "sing-box",
-    header: Array.isArray(headers) ? headers.slice() : [],
-    show_dashboard_metadata: "1",
+function cleanupRemoteSubscriptionUrlSettings(itemId) {
+  remoteSubscriptionUrlSettingsKeys().forEach((key) =>
+    uci.unset(UCI_PACKAGE, itemId, key),
+  );
+}
+
+function defaultSubscriptionUrlSettings(
+  headers = [],
+  tag = "sub1",
+  remote = true,
+) {
+  const settings = {
     show_subscription_name: "0",
     tag,
     server_filter_mode: "all",
   };
+  if (remote) {
+    Object.assign(settings, {
+      subscription_update_enabled: "1",
+      subscription_update_interval: "1h",
+      download_via_proxy_enabled: "0",
+      download_via_proxy_section: "",
+      user_agent: "sing-box",
+      header: Array.isArray(headers) ? headers.slice() : [],
+      show_dashboard_metadata: "1",
+    });
+  }
+  return settings;
 }
 
 function configuredSubscriptionTags(sectionId, option, excludedItemId, excludedInputValue) {
@@ -2691,100 +2712,103 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
       ? options.parentSectionId
       : parentSectionIdForItem;
 
-  let o = itemSection.option(
-    form.Flag,
-    "subscription_update_enabled",
-    _("Subscription auto update"),
-    _("Update this subscription automatically"),
-  );
-  o.default = "1";
-  o.rmempty = false;
+  let o;
+  if (options.remote !== false) {
+    o = itemSection.option(
+      form.Flag,
+      "subscription_update_enabled",
+      _("Subscription auto update"),
+      _("Update this subscription automatically"),
+    );
+    o.default = "1";
+    o.rmempty = false;
 
-  o = itemSection.option(
-    form.Value,
-    "subscription_update_interval",
-    _("Subscription update interval"),
-    _("Use sing-box duration format like 1d, 12h or 30m"),
-  );
-  o.depends("subscription_update_enabled", "1");
-  o.placeholder = "1h";
-  o.validate = function (itemId, value) {
-    return optionMapValue(this, itemId, "subscription_update_enabled") === "1"
-      ? validateRequiredSingBoxDuration(value)
-      : validateOptionalSingBoxDuration(value);
-  };
+    o = itemSection.option(
+      form.Value,
+      "subscription_update_interval",
+      _("Subscription update interval"),
+      _("Use sing-box duration format like 1d, 12h or 30m"),
+    );
+    o.depends("subscription_update_enabled", "1");
+    o.placeholder = "1h";
+    o.validate = function (itemId, value) {
+      return optionMapValue(this, itemId, "subscription_update_enabled") === "1"
+        ? validateRequiredSingBoxDuration(value)
+        : validateOptionalSingBoxDuration(value);
+    };
 
-  o = itemSection.option(
-    form.Flag,
-    "download_via_proxy_enabled",
-    _("Download subscription through a section"),
-    _("Download subscriptions via the selected section"),
-  );
-  o.default = "0";
-  o.rmempty = false;
+    o = itemSection.option(
+      form.Flag,
+      "download_via_proxy_enabled",
+      _("Download subscription through a section"),
+      _("Download subscriptions via the selected section"),
+    );
+    o.default = "0";
+    o.rmempty = false;
 
-  o = itemSection.option(
-    form.ListValue,
-    "download_via_proxy_section",
-    _("Download through"),
-  );
-  o.depends("download_via_proxy_enabled", "1");
-  o.load = function (itemId) {
-    const sectionId = parentSectionForItem(itemId);
-    refreshOptionChoices(this, subscriptionDownloadTargetChoices(sectionId));
-    return optionMapValue(this, itemId, "download_via_proxy_section") || "";
-  };
-  o.validate = function (itemId, value) {
-    const sectionId = parentSectionForItem(itemId);
-    if (optionMapValue(this, itemId, "download_via_proxy_enabled") !== "1") {
+    o = itemSection.option(
+      form.ListValue,
+      "download_via_proxy_section",
+      _("Download through"),
+    );
+    o.depends("download_via_proxy_enabled", "1");
+    o.load = function (itemId) {
+      const sectionId = parentSectionForItem(itemId);
+      refreshOptionChoices(this, subscriptionDownloadTargetChoices(sectionId));
+      return optionMapValue(this, itemId, "download_via_proxy_section") || "";
+    };
+    o.validate = function (itemId, value) {
+      const sectionId = parentSectionForItem(itemId);
+      if (optionMapValue(this, itemId, "download_via_proxy_enabled") !== "1") {
+        return true;
+      }
+      if (!value) {
+        return _("Select a section for downloading this subscription");
+      }
+      if (value === sectionId) {
+        return _("Current section cannot download its own subscription");
+      }
       return true;
-    }
-    if (!value) {
-      return _("Select a section for downloading this subscription");
-    }
-    if (value === sectionId) {
-      return _("Current section cannot download its own subscription");
-    }
-    return true;
-  };
+    };
 
-  o = itemSection.option(
-    form.Value,
-    "user_agent",
-    _("User-Agent"),
-    _("Select a common client profile or enter a custom User-Agent"),
-  );
-  o.default = "sing-box";
-  o.placeholder = _("-- Select --");
-  o.rmempty = false;
-  subscriptionUserAgentChoices().forEach((choice) => o.value(choice));
-  o.load = function (itemId) {
-    return optionMapValue(this, itemId, "user_agent") || "sing-box";
-  };
-  o.validate = function (_itemId, value) {
-    return `${value || ""}`.trim() ? true : _("Select or enter a User-Agent");
-  };
+    o = itemSection.option(
+      form.Value,
+      "user_agent",
+      _("User-Agent"),
+      _("Select a common client profile or enter a custom User-Agent"),
+    );
+    o.default = "sing-box";
+    o.placeholder = _("-- Select --");
+    o.rmempty = false;
+    subscriptionUserAgentChoices().forEach((choice) => o.value(choice));
+    o.load = function (itemId) {
+      return optionMapValue(this, itemId, "user_agent") || "sing-box";
+    };
+    o.validate = function (_itemId, value) {
+      return `${value || ""}`.trim() ? true : _("Select or enter a User-Agent");
+    };
 
-  o = itemSection.option(
-    form.Button,
-    "_subscription_headers",
-    _("Headers"),
-    _("Configure headers sent with this subscription request."),
-  );
-  o.inputtitle = _("Edit headers");
-  o.inputstyle = "edit";
-  o.onclick = function () {
-    return showSubscriptionHeadersModal(itemSection.map, "settings");
-  };
+    o = itemSection.option(
+      form.Button,
+      "_subscription_headers",
+      _("Headers"),
+      _("Configure headers sent with this subscription request."),
+    );
+    o.inputtitle = _("Edit headers");
+    o.inputstyle = "edit";
+    o.onclick = function () {
+      return showSubscriptionHeadersModal(itemSection.map, "settings");
+    };
 
-  o = itemSection.option(
-    form.Flag,
-    "show_dashboard_metadata",
-    _("Show metadata"),
-    _("Show subscription metadata for this source on the dashboard"),
-  );
-  o.default = "1";
-  o.rmempty = false;
+    o = itemSection.option(
+      form.Flag,
+      "show_dashboard_metadata",
+      _("Show metadata"),
+      _("Show subscription metadata for this source on the dashboard"),
+    );
+    o.default = "1";
+    o.rmempty = false;
+  }
 
   o = itemSection.option(
     form.Flag,
@@ -3584,18 +3608,36 @@ function ruleSetIncludesSubnets(section_id, value) {
 }
 
 function showSubscriptionUrlSettingsModal(_section_id, itemValue, option) {
-  return loadDefaultSubscriptionHeaders().then((headers) =>
+  const source = childItemInputValue(
+    _section_id,
+    itemValue,
+    "subscription_url",
+    "url",
+  );
+  const remote = isRemoteSubscriptionSource(source);
+  const headers = remote
+    ? loadDefaultSubscriptionHeaders()
+    : Promise.resolve([]);
+  return headers.then((headers) =>
     showChildItemSettingsModal(_section_id, itemValue, option, {
       typeName: "subscription_url",
       valueOption: "url",
-      keys: subscriptionUrlSettingsKeys(),
+      keys: subscriptionUrlSettingsKeys(remote),
       defaults: (_inputValue, existing) =>
         defaultSubscriptionUrlSettings(
           existing ? [] : headers,
           nextSubscriptionTag(_section_id, option),
+          remote,
         ),
-      addOptions: addSubscriptionUrlItemOptions,
+      addOptions: (itemSection, options) =>
+        addSubscriptionUrlItemOptions(
+          itemSection,
+          Object.assign({}, options, { remote }),
+        ),
       title: () => _("Subscription settings"),
+      afterSave: (itemId, _inputValue, _settings, existing) => {
+        if (!remote && existing) cleanupRemoteSubscriptionUrlSettings(itemId);
+      },
     }),
   );
 }
@@ -5899,6 +5941,11 @@ function parseSubscriptionUrlEntry(value) {
   return { valid: true, url: normalized };
 }
 
+function isRemoteSubscriptionSource(value) {
+  const source = `${value || ""}`.trim();
+  return source.startsWith("http://") || source.startsWith("https://");
+}
+
 function validateSubscriptionUrlEntry(_section_id, value) {
   if (!value || value.length === 0) {
     return true;
@@ -5909,8 +5956,12 @@ function validateSubscriptionUrlEntry(_section_id, value) {
     return parsed.message;
   }
 
-  const validation = main.validateUrl(parsed.url);
-  return validation.valid ? true : validation.message;
+  const validation = isRemoteSubscriptionSource(parsed.url)
+    ? main.validateUrl(parsed.url)
+    : main.validatePath(parsed.url);
+  return validation.valid
+    ? true
+    : _("Subscription must be an HTTP(S) URL or an absolute local path");
 }
 
 function getValidationHeaderText() {
@@ -8621,17 +8672,34 @@ function createSectionContent(section) {
     SettingsDynamicList,
     "subscription_url",
     _("Subscription"),
-    _("Add a subscription provider link"),
+    _("Add a subscription provider link or local path"),
   );
   o.depends("action", "connection");
   o.rmempty = true;
   o.modalonly = true;
   o.childType = "subscription_url";
   o.childValueOption = "url";
-  o.childDefaults = Object.assign(defaultSubscriptionUrlSettings(), {
-    header: () => defaultSubscriptionHeaderLines.slice(),
-    tag: (_value, sectionId) => nextSubscriptionTag(sectionId, o),
-  });
+  o.childDefaults = Object.assign(
+    defaultSubscriptionUrlSettings([], "", false),
+    {
+      subscription_update_enabled: (value) =>
+        isRemoteSubscriptionSource(value) ? "1" : null,
+      subscription_update_interval: (value) =>
+        isRemoteSubscriptionSource(value) ? "1h" : null,
+      download_via_proxy_enabled: (value) =>
+        isRemoteSubscriptionSource(value) ? "0" : null,
+      download_via_proxy_section: () => null,
+      user_agent: (value) =>
+        isRemoteSubscriptionSource(value) ? "sing-box" : null,
+      header: (value) =>
+        isRemoteSubscriptionSource(value)
+          ? defaultSubscriptionHeaderLines.slice()
+          : null,
+      show_dashboard_metadata: (value) =>
+        isRemoteSubscriptionSource(value) ? "1" : null,
+      tag: (_value, sectionId) => nextSubscriptionTag(sectionId, o),
+    },
+  );
   o.renderItemSettingsModal = showSubscriptionUrlSettingsModal;
   o.hasItemSettings = function (section_id, value) {
     const normalized = `${value || ""}`.trim();
@@ -8655,6 +8723,19 @@ function createSectionContent(section) {
     if (this.pendingChildSettings) {
       delete this.pendingChildSettings[section_id];
     }
+  };
+  o.afterMaterializeChildItems = function (_section_id, itemIds) {
+    itemIds.forEach((itemId) => {
+      const source = childItemInputValue(
+        _section_id,
+        itemId,
+        "subscription_url",
+        "url",
+      );
+      if (!isRemoteSubscriptionSource(source)) {
+        cleanupRemoteSubscriptionUrlSettings(itemId);
+      }
+    });
   };
   o.renderListItemLabel = function (section_id, itemId) {
     return childItemInputValue(section_id, itemId, "subscription_url", "url");

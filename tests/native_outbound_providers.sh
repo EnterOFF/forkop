@@ -60,6 +60,24 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
       ".type": "subscription_url",
       "section": "proxy",
       "url": "https://example.com/no-hwid"
+    },
+    {
+      ".name": "source_local",
+      ".type": "subscription_url",
+      "section": "proxy",
+      "url": "/etc/forkop/local-subscription.txt",
+      "subscription_update_enabled": "1",
+      "subscription_update_interval": "invalid",
+      "download_via_proxy_enabled": "1",
+      "download_via_proxy_section": "proxy",
+      "user_agent": "ignored",
+      "header": [ "Broken Header" ],
+      "show_dashboard_metadata": "1",
+      "show_subscription_name": "1",
+      "tag": "local",
+      "server_filter_mode": "include",
+      "include_regex": "^Local",
+      "exclude_regex": "Expired"
     }
   ],
   "urltest": [
@@ -101,7 +119,8 @@ for (let outbound in config.outbounds || [])
 let remote = by_provider["proxy/premium"];
 let automatic = by_provider["proxy/sub2"];
 let without_hwid = by_provider["proxy/sub3"];
-if (!remote || !automatic || !without_hwid || length(keys(by_provider)) != 3)
+let local = by_provider["proxy/local"];
+if (!remote || !automatic || !without_hwid || !local || length(keys(by_provider)) != 4)
     die("remote subscription providers were not generated with readable tags\n");
 if (remote.url != "https://example.com/subscription" || remote.user_agent != "Happ")
     die("remote provider request profile was not preserved\n");
@@ -129,6 +148,12 @@ if (remote.exclude != "(?:(?:expired))")
     die("provider exclude filters were not generated\n");
 if (remote.include_types != null || remote.include_transports != null || remote.include_securities != null || remote.exclude_types != null || remote.exclude_transports != null || remote.exclude_securities != null)
     die("provider still contains removed parameter filters\n");
+if (local.type != "local" || local.path != "/etc/forkop/local-subscription.txt")
+    die("local subscription provider was not generated from its path\n");
+if (local.url != null || local.user_agent != null || local.headers != null || local.update_interval != null || local.download_detour != null)
+    die("local subscription provider contains unsupported remote options\n");
+if (local.outbound_detour != "hop" || local.include != "(?:(?:^Local))" || local.exclude != "(?:(?:Expired))")
+    die("local subscription provider did not preserve detour and server filters\n");
 let manual = by_outbound["proxy/Manual"];
 if (!manual || manual.type != "parser" || manual.link != "vless://id@example.com:443?security=tls#Manual")
     die("manual URI was not delegated to the core parser\n");
@@ -136,12 +161,12 @@ if (manual.detour != "hop")
     die("manual parser cascade detour was not generated\n");
 
 let selector = by_outbound["proxy"];
-if (!selector || length(selector.providers || []) != 3 || selector.outbounds[1] != "proxy/Manual")
+if (!selector || length(selector.providers || []) != 4 || selector.outbounds[1] != "proxy/Manual")
     die("section selector does not consume all providers\n");
 if (selector.exclude_provider_group_members != null || selector.exclude_provider_dependencies != null)
     die("subscription detour nodes must remain visible in the selector\n");
 let urltest = by_outbound["proxy/Fastest"];
-if (!urltest || length(urltest.providers || []) != 3)
+if (!urltest || length(urltest.providers || []) != 4)
     die("URLTest did not receive dynamic providers and filters\n");
 if (urltest.include_types != null || urltest.include_transports != null || urltest.include_securities != null || urltest.exclude_types != null || urltest.exclude_transports != null || urltest.exclude_securities != null)
     die("URLTest still contains removed parameter filters\n");

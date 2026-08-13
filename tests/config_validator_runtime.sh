@@ -497,6 +497,16 @@ cat >"$WORK_DIR/bad-subscription.json" <<'JSON'
 JSON
 assert_rejects "bad subscription" "$WORK_DIR/bad-subscription.json" "Configure User-Agent in the subscription item settings"
 
+cat >"$WORK_DIR/bad-local-subscription.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "section": [
+    { ".name": "proxy", ".type": "section", "enabled": "1", "action": "proxy", "subscription_urls": [ "relative/subscription.txt" ] }
+  ]
+}
+JSON
+assert_rejects "bad local subscription" "$WORK_DIR/bad-local-subscription.json" "absolute local path"
+
 cat >"$WORK_DIR/bad-subscription-header.json" <<'JSON'
 {
   "settings": { ".name": "settings", ".type": "settings" },

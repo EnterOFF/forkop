@@ -387,6 +387,15 @@ function subscription_urls(section) {
     return child_values(section, "subscription_url", "url", "subscription_urls");
 }
 
+function subscription_source_type(value) {
+    value = lc(trim(as_string(value)));
+    if (substr(value, 0, 7) == "http://" || substr(value, 0, 8) == "https://")
+        return "remote";
+    if (substr(value, 0, 1) == "/")
+        return "local";
+    return "";
+}
+
 function interfaces(section) {
     let items = child_values(section, "section_interface", "name", "");
     if (length(items) > 0)
@@ -763,6 +772,8 @@ function urltest_settings(section, value) {
 }
 
 function subscription_update_enabled(section, value) {
+    if (subscription_source_type(value) != "remote")
+        return false;
     let child = child_item_by_value(section, "subscription_url", "url", value);
     if (child != null)
         return child_bool(child, "subscription_update_enabled", true);
@@ -771,6 +782,8 @@ function subscription_update_enabled(section, value) {
 }
 
 function subscription_update_interval(section, value) {
+    if (subscription_source_type(value) != "remote")
+        return "";
     let child = child_item_by_value(section, "subscription_url", "url", value);
     if (child != null)
         return child_option(child, "subscription_update_interval", "1h");
@@ -779,6 +792,8 @@ function subscription_update_interval(section, value) {
 }
 
 function subscription_dashboard_metadata_enabled(section, value) {
+    if (subscription_source_type(value) != "remote")
+        return false;
     let child = child_item_by_value(section, "subscription_url", "url", value);
     if (child != null)
         return child_bool(child, "show_dashboard_metadata", true);
@@ -786,6 +801,8 @@ function subscription_dashboard_metadata_enabled(section, value) {
 }
 
 function subscription_headers(section, value) {
+    if (subscription_source_type(value) != "remote")
+        return [];
     let child = child_item_by_value(section, "subscription_url", "url", value);
     if (child != null)
         return list_value(child, "header");
@@ -811,6 +828,8 @@ function subscription_tag(section, value, source_index) {
 }
 
 function subscription_user_agent(section, value) {
+    if (subscription_source_type(value) != "remote")
+        return "";
     let child = child_item_by_value(section, "subscription_url", "url", value);
     let configured = child != null
         ? child_option(child, "user_agent", "")
@@ -819,6 +838,8 @@ function subscription_user_agent(section, value) {
 }
 
 function subscription_download_section(section, value) {
+    if (subscription_source_type(value) != "remote")
+        return "";
     let child = child_item_by_value(section, "subscription_url", "url", value);
     if (child != null) {
         if (!child_bool(child, "download_via_proxy_enabled", false))
@@ -1062,6 +1083,7 @@ return {
     action,
     connection_urls,
     subscription_urls,
+    subscription_source_type,
     interfaces,
     outbound_jsons,
     tunnels,
