@@ -77,6 +77,12 @@ function target(section, outbound_tag_name) {
 }
 
 function has_resolve_matchers(rule) {
+    if (rule.type == "logical") {
+        for (let nested_rule in rule.rules || [])
+            if (has_resolve_matchers(nested_rule))
+                return true;
+        return false;
+    }
     return rule.domain != null || rule.domain_suffix != null || rule.domain_keyword != null ||
         rule.domain_regex != null || rule.rule_set != null;
 }
@@ -97,7 +103,7 @@ function resolve_rule_for_section(section, route_rule) {
     }
 
     let resolve_rule = {};
-    for (let key in [ "inbound", "source_ip_cidr", "domain", "domain_suffix", "domain_keyword", "domain_regex", "rule_set", "port", "port_range" ]) {
+    for (let key in [ "type", "mode", "rules", "invert", "inbound", "source_ip_cidr", "domain", "domain_suffix", "domain_keyword", "domain_regex", "rule_set", "port", "port_range" ]) {
         if (route_rule[key] != null)
             resolve_rule[key] = route_rule[key];
     }

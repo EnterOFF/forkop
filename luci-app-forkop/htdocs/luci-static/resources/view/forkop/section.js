@@ -5292,7 +5292,7 @@ function showRuleSetSettingsModal(section_id, itemValue, option, widget) {
     form.Flag,
     "include_subnets",
     _("Include IP addresses and subnets"),
-    _("Subnets from the list will be extracted and added to nftables"),
+    _("IP addresses and subnets, including their port constraints, will be extracted and added to nftables"),
   );
   includeSubnets.default = "0";
   includeSubnets.rmempty = false;
@@ -9229,7 +9229,9 @@ function createSectionContent(section) {
   const portsOption = addDynamicConditionField(section, {
     key: "ports",
     label: _("Ports"),
-    description: _("Match destination ports. Use a single port or a range"),
+    description: _(
+      "Match destination ports. Section ports constrain all selected conditions. Domain-port rules embedded in a rule set cannot select FakeIP during DNS resolution.",
+    ),
     dynamicValidate: validatePortCondition,
   });
   dependsOnRoutingAction(portsOption);

@@ -360,6 +360,7 @@ cat >"$WORK_DIR/disabled-updates-fixture.json" <<'JSON'
       "outbound_jsons": [ "{\"type\":\"direct\"}" ],
       "domain_suffix": [ "example.org" ],
       "rule_set": [ "https://example.com/rules.srs" ],
+      "ports": [ "8443" ],
       "resolve_real_ip_for_routing": "1"
     }
   ]
@@ -1145,7 +1146,14 @@ function dns_server(config, predicate) {
 
 let disabled = cfg("disabled");
 assert(first_remote_ruleset(disabled).update_interval == "876000h", "disabled list update interval");
-assert(route_rule(disabled, r => r.action == "resolve" && r.server == "dns-server") != null, "resolve rule generated");
+let disabled_resolve = route_rule(disabled, r => r.type == "logical" && r.action == "resolve" && r.server == "dns-server");
+assert(disabled_resolve != null && length(disabled_resolve.rules || []) == 2 &&
+    contains(disabled_resolve.rules[0].rule_set, first_remote_ruleset(disabled).tag) &&
+    contains(disabled_resolve.rules[1].port, 8443), "logical resolve rule preserves the section port constraint");
+let disabled_route = route_rule(disabled, r => r.type == "logical" && r.outbound == "proxy");
+assert(disabled_route != null && length(disabled_route.rules || []) == 2 &&
+    contains(disabled_route.rules[0].rule_set, first_remote_ruleset(disabled).tag) &&
+    contains(disabled_route.rules[1].port, 8443), "section ports constrain the complete rule-set matcher");
 
 let defaults = cfg("default");
 assert(first_remote_ruleset(defaults).update_interval == "1d", "default list update interval");
@@ -1252,7 +1260,11 @@ assert(dns_rule(matchers, r => contains(r.domain, "exact-comment.example")).serv
 assert(dns_rule(matchers, r => contains(r.domain_keyword, "clip")).server == "fakeip-server", "commented keyword generated");
 assert(index(sprintf("%J", matchers), "ignored.example") < 0 && index(sprintf("%J", matchers), "ignored-full.example") < 0, "domain comments excluded from generated config");
 assert(route_rule(matchers, r => r.outbound == "direct-out" && contains(r.domain_suffix, "example.org") && contains(r.source_ip_cidr, "10.0.0.3/32") && contains(r.port, 443)) != null, "domain bypass keeps its port matcher");
-assert(route_rule(matchers, r => r.outbound == "direct-out" && contains(r.rule_set, bypass_port_ruleset.tag) && contains(r.source_ip_cidr, "10.0.0.4/32") && contains(r.port, 8443)) != null, "rule-set bypass keeps its port matcher");
+let bypass_ruleset_route = route_rule(matchers, r => r.type == "logical" && r.mode == "and" && r.outbound == "direct-out");
+assert(bypass_ruleset_route != null && length(bypass_ruleset_route.rules || []) == 2 &&
+    contains(bypass_ruleset_route.rules[0].rule_set, bypass_port_ruleset.tag) &&
+    contains(bypass_ruleset_route.rules[0].source_ip_cidr, "10.0.0.4/32") &&
+    contains(bypass_ruleset_route.rules[1].port, 8443), "rule-set bypass applies the section port as an AND condition");
 assert(route_rule(matchers, r => r.outbound == "proxy" && contains(r.domain_suffix, "xn--80aswg.xn--p1ai")) != null, "IDN suffix converted for route rule");
 assert(route_rule(matchers, r => r.outbound == "proxy" && contains(r.domain, "xn--e1afmkfd.xn--80akhbyknj4f")) != null, "IDN full domain converted for route rule");
 assert(route_rule(matchers, r => r.outbound == "proxy" && contains(r.domain_keyword, "xn--e1afmkfd")) != null, "IDN keyword converted for route rule");

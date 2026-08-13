@@ -2827,8 +2827,8 @@
     ]
   },
   {
-    "call": "Match destination ports. Use a single port or a range",
-    "key": "Match destination ports. Use a single port or a range",
+    "call": "Match destination ports. Section ports constrain all selected conditions. Domain-port rules embedded in a rule set cannot select FakeIP during DNS resolution.",
+    "key": "Match destination ports. Section ports constrain all selected conditions. Domain-port rules embedded in a rule set cannot select FakeIP during DNS resolution.",
     "places": [
       "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:9226"
     ]
@@ -4578,8 +4578,8 @@
     ]
   },
   {
-    "call": "Subnets from the list will be extracted and added to nftables",
-    "key": "Subnets from the list will be extracted and added to nftables",
+    "call": "IP addresses and subnets, including their port constraints, will be extracted and added to nftables",
+    "key": "IP addresses and subnets, including their port constraints, will be extracted and added to nftables",
     "places": [
       "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5292"
     ]

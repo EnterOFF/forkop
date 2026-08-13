@@ -1166,8 +1166,8 @@ msgstr "Режим опроса основного DNS"
 msgid "Match destination IPs or subnets"
 msgstr "Совпадение по IP-адресам или подсетям назначения"
 
-msgid "Match destination ports. Use a single port or a range"
-msgstr "Совпадение по портам назначения. Используйте одиночный порт или диапазон"
+msgid "Match destination ports. Section ports constrain all selected conditions. Domain-port rules embedded in a rule set cannot select FakeIP during DNS resolution."
+msgstr "Совпадение по портам назначения. Порты секции ограничивают все выбранные условия. Правила домен + порт внутри rule set не могут выбрать FakeIP во время DNS-разрешения."
 
 msgid "Maximum failed attempts"
 msgstr "Максимум неудачных попыток"
@@ -1886,8 +1886,8 @@ msgstr "Останавливать проверки доступности, ко
 msgid "Stop health checks when the group is not used. Use sing-box duration format like 1d, 12h or 30m."
 msgstr "Останавливать проверки, когда группа не используется. Используйте формат длительности sing-box: 1d, 12h или 30m."
 
-msgid "Subnets from the list will be extracted and added to nftables"
-msgstr "IP-адреса и подсети из списка будут извлечены и добавлены в nftables"
+msgid "IP addresses and subnets, including their port constraints, will be extracted and added to nftables"
+msgstr "IP-адреса и подсети, включая заданные для них ограничения по портам, будут извлечены и добавлены в nftables"
 
 msgid "Subscription"
 msgstr "Подписка"

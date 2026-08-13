@@ -1742,6 +1742,27 @@ function add_combined_route_for_section(config, section) {
         for (let device_matchers in device_matcher_variants(section, "source_ip_cidr", false)) {
             let device_route_rule = copy_matchers(route_rule);
             apply_matchers(device_route_rule, device_matchers);
+            if (device_route_rule.rule_set != null &&
+                (device_route_rule.port != null || device_route_rule.port_range != null)) {
+                let identity_rule = copy_matchers(device_route_rule);
+                let port_rule = {};
+                if (device_route_rule.port != null)
+                    port_rule.port = device_route_rule.port;
+                if (device_route_rule.port_range != null)
+                    port_rule.port_range = device_route_rule.port_range;
+                delete identity_rule.action;
+                delete identity_rule.outbound;
+                delete identity_rule.port;
+                delete identity_rule.port_range;
+                device_route_rule = {
+                    type: "logical",
+                    mode: "and",
+                    rules: [ identity_rule, port_rule ],
+                    action: target.action
+                };
+                if (target.outbound)
+                    device_route_rule.outbound = target.outbound;
+            }
             let resolve = runtime_route.resolve_rule_for_section(section, device_route_rule);
             if (type(resolve) == "object" && resolve.warning)
                 warn(resolve.warning, "\n");
