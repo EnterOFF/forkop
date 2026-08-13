@@ -308,7 +308,7 @@ describe('renderSections latency actions', () => {
     );
   }, 15000);
 
-  it('tests all URLTest members without testing the whole section', async () => {
+  it('tests a URLTest through its group endpoint', async () => {
     installElementFactory();
     const { renderSections } = await import('../partials/renderSections');
     const onTestOutboundLatency = vi.fn();
@@ -379,13 +379,10 @@ describe('renderSections latency actions', () => {
     } as unknown as MouseEvent;
     (button?.attrs.click as (event: MouseEvent) => void)(event);
 
-    expect(onTestOutboundLatency).toHaveBeenCalledWith('proxy_list', [
-      'main/Node 1',
-      'main/Node 2',
-    ]);
+    expect(onTestOutboundLatency).toHaveBeenCalledWith('group', 'main/URLTest');
   }, 15000);
 
-  it('tests all fallback members without testing the whole section', async () => {
+  it('tests a fallback through its group endpoint', async () => {
     installElementFactory();
     const { renderSections } = await import('../partials/renderSections');
     const onTestLatency = vi.fn();
@@ -398,7 +395,7 @@ describe('renderSections latency actions', () => {
         sectionName: 'main',
         displayName: 'Main',
         withTagSelect: true,
-        latencyTestCodes: ['main/Node 1', 'main/Node 2', 'main/Other'],
+        latencyTestCode: 'main-out',
         outbounds: [
           {
             code: 'main/Fallback',
@@ -460,21 +457,17 @@ describe('renderSections latency actions', () => {
     } as unknown as MouseEvent;
 
     (fallbackButton?.attrs.click as (event: MouseEvent) => void)(event);
-    expect(onTestOutboundLatency).toHaveBeenCalledWith('proxy_list', [
-      'main/Node 1',
-      'main/Node 2',
-    ]);
+    expect(onTestOutboundLatency).toHaveBeenCalledWith(
+      'group',
+      'main/Fallback',
+    );
     expect(onTestLatency).not.toHaveBeenCalled();
 
     (sectionButton?.attrs.click as (event: MouseEvent) => void)(event);
-    expect(onTestLatency).toHaveBeenCalledWith([
-      'main/Node 1',
-      'main/Node 2',
-      'main/Other',
-    ]);
+    expect(onTestLatency).toHaveBeenCalledWith('main-out');
   }, 15000);
 
-  it('renders a rotating loader while an outbound latency test is running', async () => {
+  it('blocks only the section button during a section latency test', async () => {
     installElementFactory();
     const { renderSections } = await import('../partials/renderSections');
     const onTestLatency = vi.fn();
@@ -511,12 +504,6 @@ describe('renderSections latency actions', () => {
       onShowFallbackInfo: vi.fn(),
       onUpdateSubscription: vi.fn(),
       latencyFetching: true,
-      latencyProgress: {
-        completed: 0,
-        total: 1,
-        failed: 0,
-        pending: ['main/Node'],
-      },
       subscriptionUpdating: false,
     };
     const root = renderSections(props) as unknown as FakeNode;
@@ -528,16 +515,6 @@ describe('renderSections latency actions', () => {
           'fkp_dashboard-page__outbound-grid__item__latency',
         ),
     );
-    const icon = buttons[0]?.children.find(
-      (child): child is FakeNode =>
-        typeof child !== 'string' &&
-        String(child.attrs.class || '').includes('loader-circle'),
-    );
-    const otherIcon = buttons[1]?.children.find(
-      (child): child is FakeNode =>
-        typeof child !== 'string' &&
-        String(child.attrs.class || '').includes('loader-circle'),
-    );
     const sectionButton = findNode(
       root,
       (node) =>
@@ -545,16 +522,11 @@ describe('renderSections latency actions', () => {
         String(node.attrs.class || '') ===
           'btn dashboard-sections-grid-item-test-latency',
     );
-    const sectionButtonLabel = findNode(
-      sectionButton as FakeNode,
-      (node) =>
-        String(node.attrs.class || '') ===
-        'dashboard-sections-grid-item-test-latency__label',
-    );
-
     expect(buttons).toHaveLength(2);
-    expect(icon).toBeDefined();
-    expect(otherIcon).toBeUndefined();
+    expect(buttons[0]?.attrs.disabled).toBeUndefined();
+    expect(buttons[1]?.attrs.disabled).toBeUndefined();
+    expect(buttons[0]?.attrs['aria-busy']).toBeUndefined();
+    expect(buttons[1]?.attrs['aria-busy']).toBeUndefined();
     expect(
       sectionButton?.children.some(
         (child) =>
@@ -562,258 +534,91 @@ describe('renderSections latency actions', () => {
           String(child.attrs.class || '').includes('loader-circle'),
       ),
     ).toBe(true);
-    expect(sectionButton?.attrs.disabled).toBeUndefined();
-    expect(sectionButtonLabel?.children).toEqual(['Cancel latency test (0/1)']);
+    expect(sectionButton?.attrs.disabled).toBe(true);
+    expect(sectionButton?.attrs['aria-busy']).toBe('true');
     const event = {
       preventDefault: vi.fn(),
       stopPropagation: vi.fn(),
     } as unknown as MouseEvent;
     (sectionButton?.attrs.click as (event: MouseEvent) => void)(event);
-    expect(onTestLatency).toHaveBeenCalledWith('proxy-out');
-    expect(buttons[0]?.attrs['aria-busy']).toBe('true');
-    expect(buttons[1]?.attrs['aria-busy']).toBeUndefined();
-    expect(
-      icon?.children.some(
-        (child) =>
-          typeof child !== 'string' && child.type === 'animateTransform',
-      ),
-    ).toBe(true);
+    expect(onTestLatency).not.toHaveBeenCalled();
+  }, 15000);
 
-    const cancellingRoot = renderSections({
-      ...props,
-      latencyCancelling: true,
-    }) as unknown as FakeNode;
-    const cancellingButton = findNode(
-      cancellingRoot,
-      (node) =>
-        node.type === 'button' &&
-        String(node.attrs.class || '') ===
-          'btn dashboard-sections-grid-item-test-latency',
-    );
-    expect(cancellingButton?.attrs.disabled).toBe(true);
-    expect(
-      cancellingButton?.children.some(
-        (child) =>
-          typeof child !== 'string' &&
-          String(child.attrs.class || '').includes('loader-circle'),
-      ),
-    ).toBe(true);
-
-    const completedRoot = renderSections({
-      ...props,
+  it('blocks only the exact card during an outbound latency test', async () => {
+    installElementFactory();
+    const { renderSections } = await import('../partials/renderSections');
+    const root = renderSections({
+      loading: false,
+      failed: false,
+      section: {
+        code: 'proxy-out',
+        sectionName: 'main',
+        displayName: 'Main',
+        withTagSelect: true,
+        outbounds: [
+          {
+            code: 'main/URLTest',
+            displayName: 'URLTest',
+            latency: 0,
+            type: 'URLTest',
+            selected: false,
+            urlTestInfo: {
+              code: 'main/URLTest',
+              displayName: 'URLTest',
+              outbounds: [
+                {
+                  code: 'main/Node',
+                  displayName: 'Node',
+                  latency: 0,
+                  type: 'VLESS',
+                  selected: false,
+                },
+              ],
+            },
+          },
+          {
+            code: 'main/Node',
+            displayName: 'Node',
+            latency: 0,
+            type: 'VLESS',
+            selected: false,
+          },
+        ],
+      },
+      onTestLatency: vi.fn(),
+      onTestOutboundLatency: vi.fn(),
+      onChooseOutbound: vi.fn(),
+      onCopyOutbound: vi.fn(),
+      onShowUrlTestInfo: vi.fn(),
+      onShowFallbackInfo: vi.fn(),
+      onUpdateSubscription: vi.fn(),
       latencyFetching: false,
-      latencyCancelling: true,
+      latencyFetchingTargets: new Set(['main/URLTest']),
+      subscriptionUpdating: false,
     }) as unknown as FakeNode;
-    const completedButton = findNode(
-      completedRoot,
+    const buttons = findNodes(
+      root,
+      (node) =>
+        node.type === 'button' &&
+        String(node.attrs.class || '').includes(
+          'fkp_dashboard-page__outbound-grid__item__latency',
+        ),
+    );
+
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0]?.attrs['aria-busy']).toBe('true');
+    expect(buttons[0]?.attrs.disabled).toBe(true);
+    expect(buttons[1]?.attrs['aria-busy']).toBeUndefined();
+    expect(buttons[1]?.attrs.disabled).toBeUndefined();
+    const sectionButton = findNode(
+      root,
       (node) =>
         node.type === 'button' &&
         String(node.attrs.class || '') ===
           'btn dashboard-sections-grid-item-test-latency',
     );
-    expect(completedButton?.attrs.disabled).toBeUndefined();
-  }, 15000);
-
-  it('stops each tested node loader as its latency completes', async () => {
-    installElementFactory();
-    const { renderSections } = await import('../partials/renderSections');
-    const root = renderSections({
-      loading: false,
-      failed: false,
-      section: {
-        code: 'proxy-out',
-        sectionName: 'main',
-        displayName: 'Main',
-        withTagSelect: true,
-        outbounds: [
-          {
-            code: 'main/Node 1',
-            displayName: 'Node 1',
-            latency: 10,
-            type: 'VLESS',
-            selected: false,
-          },
-          {
-            code: 'main/Node 2',
-            displayName: 'Node 2',
-            latency: 0,
-            type: 'VLESS',
-            selected: false,
-          },
-        ],
-      },
-      onTestLatency: vi.fn(),
-      onTestOutboundLatency: vi.fn(),
-      onChooseOutbound: vi.fn(),
-      onCopyOutbound: vi.fn(),
-      onShowUrlTestInfo: vi.fn(),
-      onShowFallbackInfo: vi.fn(),
-      onUpdateSubscription: vi.fn(),
-      latencyFetching: true,
-      latencyProgress: {
-        completed: 1,
-        total: 2,
-        failed: 0,
-        pending: ['main/Node 2'],
-      },
-      subscriptionUpdating: false,
-    }) as unknown as FakeNode;
-    const buttons = findNodes(
-      root,
-      (node) =>
-        node.type === 'button' &&
-        String(node.attrs.class || '').includes(
-          'fkp_dashboard-page__outbound-grid__item__latency',
-        ),
-    );
-
-    expect(buttons[0]?.attrs['aria-busy']).toBeUndefined();
-    expect(buttons[1]?.attrs['aria-busy']).toBe('true');
-  }, 15000);
-
-  it('animates a group card and its tested member cards', async () => {
-    installElementFactory();
-    const { renderSections } = await import('../partials/renderSections');
-    const root = renderSections({
-      loading: false,
-      failed: false,
-      section: {
-        code: 'proxy-out',
-        sectionName: 'main',
-        displayName: 'Main',
-        withTagSelect: true,
-        outbounds: [
-          {
-            code: 'main/URLTest',
-            displayName: 'URLTest',
-            latency: 0,
-            type: 'URLTest',
-            selected: false,
-            urlTestInfo: {
-              code: 'main/URLTest',
-              displayName: 'URLTest',
-              outbounds: [
-                {
-                  code: 'main/Node',
-                  displayName: 'Node',
-                  latency: 0,
-                  type: 'VLESS',
-                  selected: false,
-                },
-              ],
-            },
-          },
-          {
-            code: 'main/Node',
-            displayName: 'Node',
-            latency: 0,
-            type: 'VLESS',
-            selected: false,
-          },
-        ],
-      },
-      onTestLatency: vi.fn(),
-      onTestOutboundLatency: vi.fn(),
-      onChooseOutbound: vi.fn(),
-      onCopyOutbound: vi.fn(),
-      onShowUrlTestInfo: vi.fn(),
-      onShowFallbackInfo: vi.fn(),
-      onUpdateSubscription: vi.fn(),
-      latencyFetching: true,
-      latencyProgress: {
-        completed: 0,
-        total: 1,
-        failed: 0,
-        pending: ['main/Node'],
-      },
-      latencyFetchingTarget: JSON.stringify(['main/Node']),
-      subscriptionUpdating: false,
-    }) as unknown as FakeNode;
-    const buttons = findNodes(
-      root,
-      (node) =>
-        node.type === 'button' &&
-        String(node.attrs.class || '').includes(
-          'fkp_dashboard-page__outbound-grid__item__latency',
-        ),
-    );
-
-    expect(buttons).toHaveLength(2);
-    expect(
-      buttons.every((button) => button.attrs['aria-busy'] === 'true'),
-    ).toBe(true);
-  }, 15000);
-
-  it('animates only a single node card when that node belongs to a group', async () => {
-    installElementFactory();
-    const { renderSections } = await import('../partials/renderSections');
-    const root = renderSections({
-      loading: false,
-      failed: false,
-      section: {
-        code: 'proxy-out',
-        sectionName: 'main',
-        displayName: 'Main',
-        withTagSelect: true,
-        outbounds: [
-          {
-            code: 'main/URLTest',
-            displayName: 'URLTest',
-            latency: 0,
-            type: 'URLTest',
-            selected: false,
-            urlTestInfo: {
-              code: 'main/URLTest',
-              displayName: 'URLTest',
-              outbounds: [
-                {
-                  code: 'main/Node',
-                  displayName: 'Node',
-                  latency: 0,
-                  type: 'VLESS',
-                  selected: false,
-                },
-              ],
-            },
-          },
-          {
-            code: 'main/Node',
-            displayName: 'Node',
-            latency: 0,
-            type: 'VLESS',
-            selected: false,
-          },
-        ],
-      },
-      onTestLatency: vi.fn(),
-      onTestOutboundLatency: vi.fn(),
-      onChooseOutbound: vi.fn(),
-      onCopyOutbound: vi.fn(),
-      onShowUrlTestInfo: vi.fn(),
-      onShowFallbackInfo: vi.fn(),
-      onUpdateSubscription: vi.fn(),
-      latencyFetching: true,
-      latencyFetchingTarget: 'main/Node',
-      latencyProgress: {
-        completed: 0,
-        total: 1,
-        failed: 0,
-        pending: ['main/Node'],
-      },
-      subscriptionUpdating: false,
-    }) as unknown as FakeNode;
-    const buttons = findNodes(
-      root,
-      (node) =>
-        node.type === 'button' &&
-        String(node.attrs.class || '').includes(
-          'fkp_dashboard-page__outbound-grid__item__latency',
-        ),
-    );
-
-    expect(buttons).toHaveLength(2);
-    expect(buttons[0]?.attrs['aria-busy']).toBeUndefined();
-    expect(buttons[1]?.attrs['aria-busy']).toBe('true');
+    expect(sectionButton?.attrs['aria-busy']).toBeUndefined();
+    expect(sectionButton?.attrs.disabled).toBeUndefined();
   }, 15000);
 
   it('does not render latency or selection actions for an empty group', async () => {

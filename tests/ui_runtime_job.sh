@@ -71,11 +71,9 @@ fi
 missing_state_dir="$WORK_DIR/missing-parent/ui-state"
 FORKOP_UI_STATE_DIR="$missing_state_dir" \
   FORKOP_UI_SERVICE_ACTION_DIR="$missing_state_dir/service-actions" \
-  FORKOP_UI_LATENCY_ACTION_DIR="$missing_state_dir/latency-actions" \
   FORKOP_UI_COMPONENT_ACTION_DIR="$missing_state_dir/component-actions" \
   ui_ucode active-service-action >/dev/null 2>&1 || true
 [ -d "$missing_state_dir/service-actions" ] &&
-  [ -d "$missing_state_dir/latency-actions" ] &&
   [ -d "$missing_state_dir/component-actions" ] ||
   fail "UI action state directories must bootstrap on a clean /var/run"
 if sed -n '/^function cleanup_dir(/,/^}/p' "$UI_UC" | grep -Fq '"find"'; then
@@ -99,12 +97,8 @@ for mode in \
   service-action-begin-if-idle \
   service-action-update-pid \
   service-action-finish-after-command \
-  latency-progress-state \
   service-action-async \
   service-action-status \
-  latency-test-async \
-  latency-test-status \
-  latency-test-cancel \
   action-ack; do
   grep -Fq "\"$mode\"" "$UI_UC" ||
     fail "service/ui.uc must expose $mode"
@@ -135,65 +129,6 @@ assert_eq "0" \
 if ui_ucode service-action-expected-running invalid >/dev/null 2>&1; then
   fail "invalid service action expected state should be rejected"
 fi
-ui_ucode latency-type-valid proxy_list >/dev/null ||
-  fail "proxy_list latency type should be valid"
-if ui_ucode latency-type-valid invalid >/dev/null 2>&1; then
-  fail "invalid latency type should be rejected"
-fi
-
-latency_worker_bin="$WORK_DIR/forkop-latency-worker"
-latency_worker_args="$WORK_DIR/latency-worker.args"
-latency_worker_state="$WORK_DIR/latency-worker.json"
-cat >"$latency_worker_bin" <<'SH'
-#!/usr/bin/env sh
-printf '%s\n' "$@" >"$LATENCY_WORKER_ARGS"
-SH
-chmod +x "$latency_worker_bin"
-printf '%s\n' '{"running":true}' >"$latency_worker_state"
-LATENCY_WORKER_ARGS="$latency_worker_args" \
-FORKOP_BIN="$latency_worker_bin" \
-  ui_ucode latency-worker "$latency_worker_state" proxy proxy-a 5000
-assert_eq "$(printf 'clash_api\nget_proxy_latency\nproxy-a\n5000')" \
-  "$(cat "$latency_worker_args")" \
-  "single-proxy latency worker arguments"
-
-single_latency_state="$(ui_ucode running-latency-action proxy main proxy-a 100)"
-SINGLE_LATENCY_STATE="$single_latency_state" node - <<'NODE'
-const value = JSON.parse(process.env.SINGLE_LATENCY_STATE);
-if (
-  value.progress?.completed !== 0 ||
-  value.progress?.total !== 1 ||
-  value.progress?.pending?.[0] !== "proxy-a"
-) {
-  console.error("single-proxy latency progress must start at 0/1");
-  process.exit(1);
-}
-NODE
-
-latency_action_dir="$WORK_DIR/latency-actions"
-mkdir -p "$latency_action_dir"
-latency_state="$latency_action_dir/latency-1.json"
-printf '%s\n' '{"success":true,"running":true,"kind":"latency","latency_type":"proxy_list","section":"main","tag":"[]","started_at":100}' >"$latency_state"
-FORKOP_UI_LATENCY_ACTION_DIR="$latency_action_dir" \
-  ui_ucode latency-progress-state "$latency_state" 2 5 1 '["proxy-c","proxy-d","proxy-e"]' '{"proxy-a":123,"proxy-b":0}' >/dev/null ||
-  fail "latency-progress-state should update running latency jobs"
-JOB_STATE="$latency_state" node - <<'NODE'
-const fs = require("fs");
-const value = JSON.parse(fs.readFileSync(process.env.JOB_STATE, "utf8"));
-if (
-  !value.progress ||
-  value.progress.completed !== 2 ||
-  value.progress.total !== 5 ||
-  value.progress.failed !== 1 ||
-  value.progress.pending?.join(",") !== "proxy-c,proxy-d,proxy-e" ||
-  value.progress.latencies?.["proxy-a"] !== 123 ||
-  value.progress.latencies?.["proxy-b"] !== 0
-) {
-  console.error("latency progress state mismatch");
-  process.exit(1);
-}
-NODE
-
 assert_eq "running & enabled" \
   "$(ui_ucode service-status-text 1 1)" \
   "running enabled status"
@@ -272,65 +207,7 @@ FORKOP_UI_ACTION_FINISHED_TTL_MINUTES=60 ui_ucode cleanup-action-dir-fixture "$c
 export FORKOP_UI_STATE_DIR="$WORK_DIR/ui-state"
 export FORKOP_UI_SERVICE_ACTION_DIR="$FORKOP_UI_STATE_DIR/service-actions"
 export FORKOP_UI_SERVICE_ACTION_LOCK_DIR="$FORKOP_UI_STATE_DIR/service-actions.lock"
-export FORKOP_UI_LATENCY_ACTION_DIR="$FORKOP_UI_STATE_DIR/latency-actions"
 export FORKOP_UI_COMPONENT_ACTION_DIR="$FORKOP_UI_STATE_DIR/component-actions"
-
-latency_start="$(
-  FORKOP_BIN=/bin/true \
-  FORKOP_LIB="$FORKOP_FILES/usr/lib" \
-    ui_ucode latency-test-async proxy_list main '["proxy-a","proxy-b"]' 5000
-)"
-latency_job_id="$(printf '%s' "$latency_start" | sed -n 's/.*"job_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
-[ -n "$latency_job_id" ] || fail "latency-test-async should return a job id"
-latency_async_state="$FORKOP_UI_LATENCY_ACTION_DIR/$latency_job_id.json"
-[ -f "$latency_async_state" ] || fail "latency-test-async should create a state file"
-JOB_STATE="$latency_async_state" node - <<'NODE'
-const fs = require("fs");
-const value = JSON.parse(fs.readFileSync(process.env.JOB_STATE, "utf8"));
-if (
-  !value.progress ||
-  value.progress.completed !== 0 ||
-  value.progress.total !== 2 ||
-  value.progress.failed !== 0 ||
-  value.progress.pending?.join(",") !== "proxy-a,proxy-b"
-) {
-  console.error("initial latency progress state mismatch");
-  process.exit(1);
-}
-NODE
-
-slow_latency_worker="$WORK_DIR/forkop-slow-latency-worker"
-cat >"$slow_latency_worker" <<'SH'
-#!/usr/bin/env sh
-state_path="$5"
-while grep -q '"running"[[:space:]]*:[[:space:]]*true' "$state_path"; do
-  sleep 0.1
-done
-SH
-chmod +x "$slow_latency_worker"
-latency_cancel_start="$(
-  FORKOP_BIN="$slow_latency_worker" \
-  FORKOP_LIB="$FORKOP_FILES/usr/lib" \
-    ui_ucode latency-test-async proxy_list main '["proxy-a"]' 5000
-)"
-latency_cancel_job_id="$(printf '%s' "$latency_cancel_start" | sed -n 's/.*"job_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
-[ -n "$latency_cancel_job_id" ] || fail "cancellable latency test should return a job id"
-latency_cancel_state="$FORKOP_UI_LATENCY_ACTION_DIR/$latency_cancel_job_id.json"
-latency_cancel_pid="$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).pid)' "$latency_cancel_state")"
-kill -0 "$latency_cancel_pid" 2>/dev/null || fail "latency worker should be running before cancellation"
-if ! latency_cancel_response="$(ui_ucode latency-test-cancel "$latency_cancel_job_id")"; then
-  fail "latency-test-cancel should stop a running latency job: $latency_cancel_response"
-fi
-JOB_STATE="$latency_cancel_state" node - <<'NODE'
-const fs = require("fs");
-const value = JSON.parse(fs.readFileSync(process.env.JOB_STATE, "utf8"));
-if (value.running !== false || value.success !== true || value.cancelled !== true) {
-  console.error("cancelled latency state mismatch");
-  process.exit(1);
-}
-NODE
-ui_ucode latency-test-cancel "$latency_cancel_job_id" >/dev/null ||
-  fail "latency-test-cancel should be idempotent"
 
 job_id="$(ui_ucode service-action-begin-if-idle reload test)"
 [ -n "$job_id" ] || fail "service-action-begin-if-idle should create a job"

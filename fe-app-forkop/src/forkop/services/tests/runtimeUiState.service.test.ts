@@ -42,7 +42,6 @@ function createUiState(
     },
     actions: {
       service: [],
-      latency: [],
       component: [],
     },
   };

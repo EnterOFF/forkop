@@ -877,6 +877,13 @@ function urltest_testing_url(section, value) {
         option(section, "urltest_testing_url", "https://www.gstatic.com/generate_204") || "https://www.gstatic.com/generate_204");
 }
 
+function urltest_expected_status(section, value) {
+    let child = urltest_child(section, value);
+    if (child != null)
+        return child_option(child, "expected_status", "*");
+    return item_option(section, "urltest_settings", value, "expected_status", "*");
+}
+
 function urltest_display_name(section, value) {
     let fallback = as_string(value);
     if (fallback == "urltest" && length(child_items(section, "urltest")) == 0)
@@ -1119,6 +1126,7 @@ return {
     urltest_check_interval,
     urltest_tolerance,
     urltest_testing_url,
+    urltest_expected_status,
     urltest_display_name,
     urltest_idle_timeout,
     urltest_interrupt_exist_connections,

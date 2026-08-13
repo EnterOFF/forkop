@@ -16,7 +16,6 @@ const STATE_DIR = getenv("FORKOP_UI_STATE_DIR") || "/var/run/forkop/ui-state";
 const PENDING_RELOAD_FILE = getenv("FORKOP_PENDING_RELOAD_FILE") || "/var/run/forkop/reload.pending";
 const SERVICE_ACTION_DIR = getenv("FORKOP_UI_SERVICE_ACTION_DIR") || STATE_DIR + "/service-actions";
 const SERVICE_ACTION_LOCK_DIR = getenv("FORKOP_UI_SERVICE_ACTION_LOCK_DIR") || STATE_DIR + "/service-actions.lock";
-const LATENCY_ACTION_DIR = getenv("FORKOP_UI_LATENCY_ACTION_DIR") || STATE_DIR + "/latency-actions";
 const COMPONENT_ACTION_DIR = getenv("FORKOP_UI_COMPONENT_ACTION_DIR") || getenv("UPDATES_JOB_DIR") || "/var/run/forkop/component-actions";
 const ACTION_FINISHED_TTL_MINUTES = getenv("FORKOP_UI_ACTION_FINISHED_TTL_MINUTES") || "60";
 const ACTION_ACKED_TTL_SECONDS = getenv("FORKOP_UI_ACTION_ACKED_TTL_SECONDS") || "15";
@@ -52,15 +51,6 @@ function read_json_file(path) {
 
     try {
         return json(data);
-    }
-    catch (e) {
-        return null;
-    }
-}
-
-function parse_json_or_null(value) {
-    try {
-        return json(as_string(value));
     }
     catch (e) {
         return null;
@@ -149,7 +139,6 @@ function ensure_dirs() {
     for (let dir in [
         STATE_DIR,
         SERVICE_ACTION_DIR,
-        LATENCY_ACTION_DIR,
         COMPONENT_ACTION_DIR
     ])
         ensure_dir(dir);
@@ -205,11 +194,6 @@ function arg_number(value) {
     return int(value);
 }
 
-function non_negative_number(value) {
-    let number = arg_number(value);
-    return number < 0 ? 0 : number;
-}
-
 function unsigned_number(value) {
     value = as_string(value);
     if (value == "" || match(value, /[^0-9]/) != null)
@@ -245,7 +229,6 @@ function valid_action_state(value) {
 function read_state_paths() {
     let result = {
         service: [],
-        latency: [],
         component: []
     };
 
@@ -335,11 +318,6 @@ function action_start_response(success, job_id, message) {
 function service_action_valid(action) {
     action = as_string(action);
     return action == "start" || action == "stop" || action == "restart" || action == "reload";
-}
-
-function latency_type_valid(latency_type) {
-    latency_type = as_string(latency_type);
-    return latency_type == "group" || latency_type == "proxy" || latency_type == "proxy_list";
 }
 
 function service_action_expected_running(action) {
@@ -539,103 +517,6 @@ function running_service_action_value(action, source, started_at) {
     };
 }
 
-function latency_progress_value(completed, total, failed, pending, latencies) {
-    let progress_total = non_negative_number(total);
-    let progress_completed = non_negative_number(completed);
-    if (progress_total > 0 && progress_completed > progress_total)
-        progress_completed = progress_total;
-
-    let value = {
-        completed: progress_completed,
-        total: progress_total,
-        failed: non_negative_number(failed)
-    };
-
-    if (type(pending) == "array")
-        value.pending = pending;
-    if (type(latencies) == "object")
-        value.latencies = latencies;
-
-    return value;
-}
-
-function proxy_list_tags(tag) {
-    let value = parse_json_or_null(tag);
-    if (type(value) != "array")
-        return [];
-
-    let result = [];
-    for (let proxy_tag in value) {
-        if (type(proxy_tag) == "string" && proxy_tag != "")
-            push(result, proxy_tag);
-    }
-
-    return result;
-}
-
-function initial_latency_progress(latency_type, tag) {
-    if (as_string(latency_type) != "proxy_list")
-        return latency_progress_value(0, 1, 0, [ as_string(tag) ]);
-
-    let pending = proxy_list_tags(tag);
-    return latency_progress_value(0, length(pending), 0, pending);
-}
-
-function running_latency_action_value(latency_type, section, tag, started_at) {
-    let value = {
-        success: true,
-        running: true,
-        kind: "latency",
-        latency_type: as_string(latency_type),
-        section: as_string(section),
-        tag: as_string(tag),
-        message: "Latency test is running",
-        pid: null,
-        started_at: arg_number(started_at),
-        updated_at: null,
-        exit_code: null
-    };
-
-    let progress = initial_latency_progress(latency_type, tag);
-    if (type(progress) == "object")
-        value.progress = progress;
-
-    return value;
-}
-
-function running_latency_action(latency_type, section, tag, started_at) {
-    write_json(running_latency_action_value(latency_type, section, tag, started_at));
-}
-
-function latency_action_path_allowed(path) {
-    path = as_string(path);
-    let prefix = LATENCY_ACTION_DIR + "/";
-    let suffix = ".json";
-    return path != "" &&
-        substr(path, 0, length(prefix)) == prefix &&
-        length(path) > length(prefix) + length(suffix) &&
-        substr(path, length(path) - length(suffix)) == suffix;
-}
-
-function update_latency_progress_state(path, completed, total, failed, pending_json, latencies_json) {
-    if (!latency_action_path_allowed(path))
-        return false;
-
-    let value = read_json_file(path);
-    if (type(value) != "object" || value.kind != "latency" || value.running !== true)
-        return false;
-
-    let pending = parse_json_or_null(pending_json);
-    let latencies = parse_json_or_null(latencies_json);
-    value.progress = latency_progress_value(completed, total, failed, pending, latencies);
-    value.updated_at = now_seconds();
-    return write_state_file(path, value);
-}
-
-function update_latency_progress_state_mode(path, completed, total, failed, pending_json, latencies_json) {
-    exit(update_latency_progress_state(path, completed, total, failed, pending_json, latencies_json) ? 0 : 1);
-}
-
 function finished_action_state_value(path, success, message, exit_code, updated_at) {
     let value = object_or_empty(read_json_file(path));
     value.success = arg_bool(success);
@@ -687,17 +568,6 @@ function write_stale_action_state(path, message) {
     return write_state_file(path, stale_action_state_value(path, message, now_seconds()));
 }
 
-function write_cancelled_latency_action_state(path) {
-    let value = object_or_empty(read_json_file(path));
-    value.success = true;
-    value.running = false;
-    value.cancelled = true;
-    value.message = "Latency test cancelled";
-    value.exit_code = null;
-    value.updated_at = now_seconds();
-    return write_state_file(path, value);
-}
-
 function pid_running(pid) {
     pid = as_string(pid);
     return job_pid_valid(pid) && command_success_from_args([ "kill", "-0", pid ]);
@@ -707,19 +577,6 @@ function current_pid() {
     let stat = as_string(fs.readfile("/proc/self/stat"));
     let separator = index(stat, " ");
     return separator > 0 ? substr(stat, 0, separator) : "";
-}
-
-function latency_worker_pid_matches(pid, path) {
-    if (!job_pid_valid(pid))
-        return false;
-
-    let command_line = command_output(
-        "tr '\\000' ' ' < " + shell_quote("/proc/" + as_string(pid) + "/cmdline")
-    );
-    return command_line != "" &&
-        index(command_line, "/service/ui.uc") >= 0 &&
-        index(command_line, "latency-worker") >= 0 &&
-        index(command_line, as_string(path)) >= 0;
 }
 
 function refresh_pid_job_state(path, stale_message) {
@@ -778,13 +635,10 @@ function cleanup_dir(dir) {
 function refresh_action_dirs() {
     ensure_dirs();
     cleanup_dir(SERVICE_ACTION_DIR);
-    cleanup_dir(LATENCY_ACTION_DIR);
     cleanup_dir(COMPONENT_ACTION_DIR);
 
     for (let path in fs.glob(SERVICE_ACTION_DIR + "/*.json"))
         refresh_pid_job_state(path, "Service action worker exited unexpectedly");
-    for (let path in fs.glob(LATENCY_ACTION_DIR + "/*.json"))
-        refresh_pid_job_state(path, "Latency test worker exited unexpectedly");
     for (let path in fs.glob(COMPONENT_ACTION_DIR + "/*.json"))
         refresh_pid_job_state(path, "Component action worker exited unexpectedly");
 }
@@ -812,7 +666,6 @@ function action_state_from_dir(dir) {
 function action_state_from_dirs() {
     return {
         service: action_state_from_dir(SERVICE_ACTION_DIR),
-        latency: action_state_from_dir(LATENCY_ACTION_DIR),
         component: action_state_from_dir(COMPONENT_ACTION_DIR)
     };
 }
@@ -1050,7 +903,6 @@ function launch_worker(args) {
         FORKOP_UI_STATE_DIR: STATE_DIR,
         FORKOP_UI_SERVICE_ACTION_DIR: SERVICE_ACTION_DIR,
         FORKOP_UI_SERVICE_ACTION_LOCK_DIR: SERVICE_ACTION_LOCK_DIR,
-        FORKOP_UI_LATENCY_ACTION_DIR: LATENCY_ACTION_DIR,
         FORKOP_UI_COMPONENT_ACTION_DIR: COMPONENT_ACTION_DIR,
         FORKOP_UI_ACTION_FINISHED_TTL_MINUTES: ACTION_FINISHED_TTL_MINUTES,
         FORKOP_UI_ACTION_ACKED_TTL_SECONDS: ACTION_ACKED_TTL_SECONDS,
@@ -1231,123 +1083,10 @@ function service_action_status(job_id_value) {
     print(as_string(fs.readfile(path)));
 }
 
-function latency_clash_method(latency_type) {
-    latency_type = as_string(latency_type);
-    if (latency_type == "group")
-        return { method: "get_group_latency", timeout: "10000" };
-    if (latency_type == "proxy_list")
-        return { method: "get_proxy_latencies", timeout: "5000" };
-    return { method: "get_proxy_latency", timeout: "5000" };
-}
-
-function latency_worker(path, latency_type, tag, timeout) {
-    let method = latency_clash_method(latency_type).method;
-    let args = [ BIN_PATH, "clash_api", method, tag, timeout ];
-    if (as_string(latency_type) == "proxy_list")
-        push(args, path);
-    let status = command_status(command_from_args(args) + " >/dev/null 2>&1");
-    if (status == 0)
-        write_finished_action_state(path, true, "Latency test completed", status);
-    else
-        write_finished_action_state(path, false, "Latency test failed", status);
-}
-
-function latency_test_async(latency_type, section, tag, requested_timeout) {
-    latency_type = as_string(latency_type);
-    tag = as_string(tag);
-    if (!latency_type_valid(latency_type)) {
-        action_start_response(false, "", "Invalid latency test type");
-        exit(1);
-    }
-    if (tag == "") {
-        action_start_response(false, "", "Latency test tag is required");
-        exit(1);
-    }
-
-    ensure_dirs();
-    let id = job_id();
-    let path = job_state_path_value(LATENCY_ACTION_DIR, id);
-    if (path == "" || !write_state_file(path, running_latency_action_value(latency_type, section, tag, now_seconds()))) {
-        action_start_response(false, "", "Failed to write latency test state");
-        exit(1);
-    }
-
-    let plan = latency_clash_method(latency_type);
-    let timeout = as_string(requested_timeout) != "" ? as_string(requested_timeout) : plan.timeout;
-    let pid = launch_worker([ "latency-worker", path, latency_type, tag, timeout ]);
-    if (pid == "" || !set_running_job_pid_file(path, pid)) {
-        if (pid != "")
-            command_success_from_args([ "kill", pid ]);
-        action_start_response(false, "", "Failed to write latency test worker pid");
-        exit(1);
-    }
-
-    action_start_response(true, id, "Latency test started");
-}
-
-function latency_test_status(job_id_value) {
-    let path = job_state_path_value(LATENCY_ACTION_DIR, job_id_value);
-    if (path == "") {
-        action_start_response(false, "", "Invalid latency test job id");
-        exit(1);
-    }
-    if (fs.stat(path) == null) {
-        action_start_response(false, "", "Latency test job was not found");
-        exit(1);
-    }
-
-    refresh_pid_job_state(path, "Latency test worker exited unexpectedly");
-    print(as_string(fs.readfile(path)));
-}
-
-function latency_test_cancel(job_id_value) {
-    let path = job_state_path_value(LATENCY_ACTION_DIR, job_id_value);
-    if (path == "") {
-        action_start_response(false, "", "Invalid latency test job id");
-        exit(1);
-    }
-    if (fs.stat(path) == null) {
-        action_start_response(false, "", "Latency test job was not found");
-        exit(1);
-    }
-
-    refresh_pid_job_state(path, "Latency test worker exited unexpectedly");
-    let value = read_json_file(path);
-    if (type(value) != "object" || value.kind != "latency") {
-        action_start_response(false, "", "Invalid latency test state");
-        exit(1);
-    }
-    if (value.running !== true) {
-        action_start_response(true, job_id_value, "Latency test already finished");
-        return;
-    }
-
-    let pid = as_string(value.pid || "");
-    if (pid_running(pid)) {
-        if (!latency_worker_pid_matches(pid, path)) {
-            action_start_response(false, job_id_value, "Latency test worker does not match job");
-            exit(1);
-        }
-        if (!command_success_from_args([ "kill", pid ])) {
-            action_start_response(false, job_id_value, "Failed to stop latency test worker");
-            exit(1);
-        }
-    }
-
-    if (!write_cancelled_latency_action_state(path)) {
-        action_start_response(false, job_id_value, "Failed to write cancelled latency test state");
-        exit(1);
-    }
-
-    action_start_response(true, job_id_value, "Latency test cancelled");
-}
-
 function action_dir(kind) {
     kind = as_string(kind);
     if (kind == "service")
         return SERVICE_ACTION_DIR;
-    if (kind == "latency")
-        return LATENCY_ACTION_DIR;
     if (kind == "component")
         return COMPONENT_ACTION_DIR;
     return "";
@@ -1401,14 +1140,10 @@ else if (mode == "action-start-response")
     action_start_response(ARGV[1], ARGV[2], ARGV[3]);
 else if (mode == "service-action-valid")
     exit(service_action_valid(ARGV[1]) ? 0 : 1);
-else if (mode == "latency-type-valid")
-    exit(latency_type_valid(ARGV[1]) ? 0 : 1);
 else if (mode == "service-action-expected-running")
     service_action_expected_running(ARGV[1]);
 else if (mode == "running-service-action")
     running_service_action(ARGV[1], ARGV[2], ARGV[3]);
-else if (mode == "running-latency-action")
-    running_latency_action(ARGV[1], ARGV[2], ARGV[3], ARGV[4]);
 else if (mode == "set-running-job-pid")
     set_running_job_pid(ARGV[1], ARGV[2]);
 else if (mode == "finished-action-state")
@@ -1433,8 +1168,6 @@ else if (mode == "service-action-update-pid")
     update_service_action_pid_mode(ARGV[1], ARGV[2]);
 else if (mode == "service-action-finish")
     finish_service_action_mode(ARGV[1], ARGV[2], ARGV[3], ARGV[4]);
-else if (mode == "latency-progress-state")
-    update_latency_progress_state_mode(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6]);
 else if (mode == "service-action-finish-after-command")
     finish_service_action_after_command_mode(ARGV[1], ARGV[2], ARGV[3]);
 else if (mode == "service-action-wait-worker")
@@ -1445,14 +1178,6 @@ else if (mode == "service-action-async")
     service_action_async(ARGV[1]);
 else if (mode == "service-action-status")
     service_action_status(ARGV[1]);
-else if (mode == "latency-worker")
-    latency_worker(ARGV[1], ARGV[2], ARGV[3], ARGV[4]);
-else if (mode == "latency-test-async")
-    latency_test_async(ARGV[1], ARGV[2], ARGV[3], ARGV[4]);
-else if (mode == "latency-test-status")
-    latency_test_status(ARGV[1]);
-else if (mode == "latency-test-cancel")
-    latency_test_cancel(ARGV[1]);
 else if (mode == "action-ack")
     action_ack(ARGV[1], ARGV[2]);
 else if (mode == "cleanup-action-dir-fixture")

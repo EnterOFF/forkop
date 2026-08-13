@@ -6,72 +6,46 @@ import {
 import { copyToClipboard } from '../../../helpers/copyToClipboard';
 import { showToast } from '../../../helpers/showToast';
 import { prettyBytes } from '../../../helpers/prettyBytes';
-import {
-  renderCopyIcon24,
-  renderLoaderCircleIcon24,
-  renderRotateCcwIcon24,
-} from '../../../icons';
+import { renderCopyIcon24 } from '../../../icons';
 import { CustomForkopMethods, ForkopShellMethods } from '../../methods';
 import {
   logger,
-  setLocalLatencyAction,
   setLocalSubscriptionAction,
   socket,
   store,
   StoreType,
 } from '../../services';
-import {
-  getPendingLatencyTags,
-  getOutboundLatencyClass,
-  getLatencyTestLabel,
-  renderFlagEmojis,
-  renderSections,
-  renderWidget,
-} from './partials';
+import { renderFlagEmojis, renderSections, renderWidget } from './partials';
 import { fetchServicesInfo } from '../../fetchers/fetchServicesInfo';
 import { getClashApiSecret } from '../../methods/custom/getClashApiSecret';
 import { Forkop } from '../../types';
 import {
   getCachedRuntimeUiState,
   refreshRuntimeUiState,
-  subscribeRuntimeUiState,
 } from '../../services/runtimeUiState.service';
 import { isActiveLuciTab } from '../../helpers/isActiveLuciTab';
-import { shouldShowLoadingForRestoredAction } from '../../helpers/restoredActionLoading';
 import { getServiceAvailability } from '../../helpers/serviceAvailability';
 import { resolveOutboundProxyLink } from './resolveOutboundProxyLink';
 
 const SECTIONS_REFRESH_INTERVAL_MS = 10000;
-const LATENCY_TEST_BUTTON_CLASS = 'dashboard-sections-grid-item-test-latency';
-const LATENCY_TEST_BUTTON_LABEL_CLASS =
-  'dashboard-sections-grid-item-test-latency__label';
-const OUTBOUND_LATENCY_BUTTON_CLASS =
-  'fkp_dashboard-page__outbound-grid__item__latency';
-const OUTBOUND_LATENCY_VALUE_CLASS = `${OUTBOUND_LATENCY_BUTTON_CLASS}-value`;
-const OUTBOUND_LATENCY_STATE_CLASSES = [
-  `${OUTBOUND_LATENCY_BUTTON_CLASS}--empty`,
-  `${OUTBOUND_LATENCY_BUTTON_CLASS}--green`,
-  `${OUTBOUND_LATENCY_BUTTON_CLASS}--yellow`,
-  `${OUTBOUND_LATENCY_BUTTON_CLASS}--red`,
-];
 let sectionsRefreshTimer: ReturnType<typeof setInterval> | null = null;
 let sectionsRefreshPromise: Promise<boolean> | null = null;
 let sectionsRefreshQueued = false;
-let actionStateUnsubscribe: (() => void) | null = null;
 let dashboardMounted = false;
 let dashboardMountId = 0;
 let dashboardDataUpdatesStarted = false;
 let dashboardDataUpdatesId = 0;
 let pageUnloading = false;
-const followedLatencyJobs = new Set<string>();
-const handledLatencyJobs = new Set<string>();
-const latencyFetchingTargets: Record<string, string> = {};
-const latencyJobIds: Record<string, string> = {};
-const latencyCancelRequests = new Set<string>();
-const cancellingLatencyJobs = new Set<string>();
-const cancellingLatencySections = new Set<string>();
+const latencyRequests = new Set<string>();
 const latencySortedSections = new Set<string>();
-let latencyAckQueue: Promise<unknown> = Promise.resolve();
+
+function sectionLatencyRequestKey(sectionName: string) {
+  return `section:${sectionName}`;
+}
+
+function outboundLatencyRequestKey(sectionName: string, tag: string) {
+  return `outbound:${sectionName}:${tag}`;
+}
 
 if (typeof window !== 'undefined') {
   window.addEventListener('pagehide', () => {
@@ -245,212 +219,6 @@ function handleSortByLatency(sectionName: string, enabled: boolean) {
   }
 
   void renderSectionsWidget();
-}
-
-function setLatencyFetching(
-  sectionName: string,
-  fetching: boolean,
-  local = false,
-  progress?: Forkop.LatencyActionProgress,
-  target?: string,
-) {
-  if (local || !fetching) {
-    setLocalLatencyAction(sectionName, fetching && local);
-  }
-
-  const sectionsWidget = store.get().sectionsWidget;
-  const latencyFetchingSections = {
-    ...sectionsWidget.latencyFetchingSections,
-  };
-  const latencyProgressSections = {
-    ...sectionsWidget.latencyProgressSections,
-  };
-
-  if (fetching) {
-    latencyFetchingSections[sectionName] = true;
-    if (target) {
-      latencyFetchingTargets[sectionName] = target;
-    }
-    if (progress) {
-      latencyProgressSections[sectionName] = progress;
-    }
-  } else {
-    delete latencyFetchingSections[sectionName];
-    delete latencyProgressSections[sectionName];
-    delete latencyFetchingTargets[sectionName];
-    const jobId = latencyJobIds[sectionName];
-    delete latencyJobIds[sectionName];
-    latencyCancelRequests.delete(sectionName);
-    cancellingLatencySections.delete(sectionName);
-    if (jobId) {
-      cancellingLatencyJobs.delete(jobId);
-    }
-  }
-
-  store.set({
-    sectionsWidget: {
-      ...sectionsWidget,
-      latencyFetchingSections,
-      latencyProgressSections,
-    },
-  });
-}
-
-function queueLatencyAck(jobId: string) {
-  latencyAckQueue = latencyAckQueue
-    .catch(() => undefined)
-    .then(() => ForkopShellMethods.uiActionAck('latency', jobId));
-}
-
-async function completeLatencyTestJob(jobId: string, sectionName: string) {
-  if (pageUnloading) {
-    setLatencyFetching(sectionName, false);
-    return;
-  }
-
-  if (jobId && handledLatencyJobs.has(jobId)) {
-    return;
-  }
-
-  if (jobId) {
-    handledLatencyJobs.add(jobId);
-    queueLatencyAck(jobId);
-  }
-
-  try {
-    await fetchDashboardSections({ force: true });
-  } finally {
-    setLatencyFetching(sectionName, false);
-  }
-}
-
-async function followLatencyTestJob(jobId: string, sectionName: string) {
-  if (followedLatencyJobs.has(jobId)) {
-    return;
-  }
-
-  followedLatencyJobs.add(jobId);
-
-  try {
-    const response = await ForkopShellMethods.waitLatencyTestJob(
-      jobId,
-      (state) => {
-        if (!pageUnloading && state.running) {
-          setLatencyFetching(
-            sectionName,
-            true,
-            false,
-            state.progress,
-            state.latency_type === 'proxy' ? state.tag : undefined,
-          );
-        }
-      },
-    );
-
-    if (!response.success) {
-      throw new Error(response.error);
-    }
-    if (!response.data.success) {
-      showToast(response.data.message || _('Latency test failed'), 'error');
-    }
-
-    await completeLatencyTestJob(jobId, sectionName);
-  } catch (error) {
-    logger.error('[DASHBOARD]', 'followLatencyTestJob failed', error);
-    if (!pageUnloading) {
-      setLatencyFetching(sectionName, false);
-    }
-  } finally {
-    followedLatencyJobs.delete(jobId);
-  }
-}
-
-function followLatencyTestState(state: Forkop.LatencyActionState) {
-  const jobId = state.job_id;
-  const sectionName = state.section || '';
-
-  if (!jobId || !sectionName) {
-    return;
-  }
-
-  if (state.running) {
-    latencyJobIds[sectionName] = jobId;
-    if (shouldShowLoadingForRestoredAction(state)) {
-      setLatencyFetching(
-        sectionName,
-        true,
-        false,
-        state.progress,
-        state.latency_type === 'proxy' ? state.tag : undefined,
-      );
-    }
-    void followLatencyTestJob(jobId, sectionName);
-    return;
-  }
-
-  if (handledLatencyJobs.has(jobId)) {
-    return;
-  }
-
-  void completeLatencyTestJob(jobId, sectionName).catch((error) => {
-    logger.error('[DASHBOARD]', 'completeLatencyTestJob failed', error);
-    if (!pageUnloading) setLatencyFetching(sectionName, false);
-  });
-}
-
-async function cancelLatencyTest(sectionName: string) {
-  latencyCancelRequests.add(sectionName);
-  if (!cancellingLatencySections.has(sectionName)) {
-    cancellingLatencySections.add(sectionName);
-    renderSectionsWidget();
-  }
-
-  const jobId = latencyJobIds[sectionName];
-  if (!jobId || cancellingLatencyJobs.has(jobId)) {
-    return;
-  }
-
-  cancellingLatencyJobs.add(jobId);
-  const response = await ForkopShellMethods.latencyTestCancel(jobId);
-  if (!response.success) {
-    cancellingLatencyJobs.delete(jobId);
-    latencyCancelRequests.delete(sectionName);
-    cancellingLatencySections.delete(sectionName);
-    renderSectionsWidget();
-    logger.error('[DASHBOARD]', 'cancelLatencyTest failed', response.error);
-  }
-}
-
-function followDashboardActionsFromUiState(uiState: Forkop.UiState) {
-  for (const state of uiState.actions.latency || []) {
-    if (state.running || (state.job_id && state.section)) {
-      followLatencyTestState(state);
-    } else if (state.job_id && !handledLatencyJobs.has(state.job_id)) {
-      handledLatencyJobs.add(state.job_id);
-      queueLatencyAck(state.job_id);
-    }
-  }
-}
-
-function startActionStateWatcher() {
-  if (actionStateUnsubscribe) {
-    return;
-  }
-
-  actionStateUnsubscribe = subscribeRuntimeUiState((uiState) => {
-    if (dashboardMounted) {
-      followDashboardActionsFromUiState(uiState);
-    }
-  });
-}
-
-function stopActionStateWatcher() {
-  if (!actionStateUnsubscribe) {
-    return;
-  }
-
-  actionStateUnsubscribe();
-  actionStateUnsubscribe = null;
 }
 
 async function connectToClashSockets(dataUpdatesId: number) {
@@ -653,79 +421,144 @@ async function handleChooseOutbound(
   setSelectorSwitching(sectionName, tag);
 
   try {
-    await ForkopShellMethods.setClashApiGroupProxy(selector, tag);
-    await fetchDashboardSections({ force: true });
+    const response = await CustomForkopMethods.setClashApiGroupProxy(
+      selector,
+      tag,
+    );
+    if (!response.success) {
+      throw new Error(response.error);
+    }
+
+    const current = store.get().sectionsWidget;
+    store.set({
+      sectionsWidget: {
+        ...current,
+        data: current.data.map((item) =>
+          item.sectionName === sectionName
+            ? {
+                ...item,
+                outbounds: item.outbounds.map((outbound) => ({
+                  ...outbound,
+                  selected: outbound.code === tag,
+                })),
+              }
+            : item,
+        ),
+      },
+    });
+    void fetchDashboardSections({ force: true });
+  } catch (error) {
+    logger.error('[DASHBOARD]', 'handleChooseOutbound failed', error);
   } finally {
     setSelectorSwitching(sectionName);
   }
 }
 
-function getInitialLatencyProgress(
-  latencyType: Forkop.LatencyActionState['latency_type'],
+function applyLatencyResult(
+  sectionName: string,
   tag: string,
-): Forkop.LatencyActionProgress | undefined {
-  if (latencyType !== 'proxy_list') {
-    return { completed: 0, total: 1, failed: 0, pending: [tag] };
-  }
+  latencies: Record<string, number>,
+  group: boolean,
+) {
+  const sectionsWidget = store.get().sectionsWidget;
+  store.set({
+    sectionsWidget: {
+      ...sectionsWidget,
+      data: sectionsWidget.data.map((section) => {
+        if (section.sectionName !== sectionName) {
+          return section;
+        }
 
-  try {
-    const tags = JSON.parse(tag);
-    if (!Array.isArray(tags)) {
-      return undefined;
-    }
+        return {
+          ...section,
+          outbounds: section.outbounds.map((outbound) => {
+            const testedGroup = group && outbound.code === tag;
+            const updateMembers = <T extends Forkop.UrlTestMember>(
+              members: T[],
+            ) =>
+              members.map((member) => ({
+                ...member,
+                latency:
+                  latencies[member.code] ?? (testedGroup ? 0 : member.latency),
+              }));
+            const urlTestInfo = outbound.urlTestInfo
+              ? {
+                  ...outbound.urlTestInfo,
+                  outbounds: updateMembers(outbound.urlTestInfo.outbounds),
+                }
+              : undefined;
+            const fallbackInfo = outbound.fallbackInfo
+              ? {
+                  ...outbound.fallbackInfo,
+                  outbounds: updateMembers(outbound.fallbackInfo.outbounds),
+                }
+              : undefined;
+            const selectedLatency = (
+              urlTestInfo?.outbounds || fallbackInfo?.outbounds
+            )?.find((member) => member.selected)?.latency;
 
-    const pending = tags.filter(
-      (item) => typeof item === 'string' && item.length > 0,
-    ) as string[];
-
-    return pending.length > 0
-      ? { completed: 0, total: pending.length, failed: 0, pending }
-      : undefined;
-  } catch {
-    return undefined;
-  }
+            return {
+              ...outbound,
+              latency:
+                latencies[outbound.code] ??
+                selectedLatency ??
+                (outbound.code === tag ? 0 : outbound.latency),
+              urlTestInfo,
+              fallbackInfo,
+            };
+          }),
+        };
+      }),
+    },
+  });
 }
 
 async function handleTestLatency(
-  latencyType: Forkop.LatencyActionState['latency_type'],
+  latencyType: 'group' | 'proxy',
   sectionName: string,
   tag: string,
+  requestKey: string,
   timeout?: string,
-  target?: string,
 ) {
-  if (store.get().sectionsWidget.latencyFetchingSections[sectionName]) {
-    await cancelLatencyTest(sectionName);
+  if (latencyRequests.has(requestKey)) {
     return;
   }
 
-  setLatencyFetching(
-    sectionName,
-    true,
-    true,
-    getInitialLatencyProgress(latencyType, tag),
-    target,
-  );
+  latencyRequests.add(requestKey);
+  void renderSectionsWidget();
   try {
-    const startResponse = await ForkopShellMethods.latencyTestStart(
-      latencyType,
-      sectionName,
-      tag,
-      timeout,
-    );
+    const response =
+      latencyType === 'group'
+        ? await CustomForkopMethods.getClashApiGroupLatency(
+            tag,
+            timeout || '10000',
+          )
+        : await CustomForkopMethods.getClashApiProxyLatency(
+            tag,
+            timeout || '5000',
+          );
+    if (!response.success) throw new Error(response.error);
 
-    if (!startResponse.success) {
-      throw new Error(startResponse.error);
+    if (latencyType === 'group') {
+      applyLatencyResult(
+        sectionName,
+        tag,
+        response.data as Record<string, number>,
+        true,
+      );
+    } else {
+      applyLatencyResult(
+        sectionName,
+        tag,
+        { [tag]: response.data.delay },
+        false,
+      );
     }
-
-    const jobId = startResponse.data.job_id;
-    latencyJobIds[sectionName] = jobId;
-    if (latencyCancelRequests.has(sectionName)) {
-      await cancelLatencyTest(sectionName);
-    }
-    await followLatencyTestJob(jobId, sectionName);
   } catch (error) {
     logger.error('[DASHBOARD]', 'handleTestLatency: failed', error);
-    setLatencyFetching(sectionName, false);
+  } finally {
+    latencyRequests.delete(requestKey);
+    void renderSectionsWidget();
   }
 }
 
@@ -905,6 +738,7 @@ function renderUrlTestInfoModal(outbound: Forkop.Outbound) {
       children: [renderUrlTestSelectedValue(info)],
     },
     { label: _('Testing URL'), children: [renderDetailsUrl(info.url)] },
+    { label: _('Expected status'), value: info.expectedStatus },
     { label: _('Interval'), value: info.interval },
     { label: _('Tolerance'), value: info.tolerance },
     { label: _('Idle timeout'), value: info.idleTimeout },
@@ -1300,186 +1134,6 @@ async function handleUpdateSubscription(section: Forkop.OutboundGroup) {
   }
 }
 
-function shallowRecordEqual<T>(
-  left: Record<string, T>,
-  right: Record<string, T>,
-) {
-  const leftKeys = Object.keys(left);
-  const rightKeys = Object.keys(right);
-
-  if (leftKeys.length !== rightKeys.length) {
-    return false;
-  }
-
-  return leftKeys.every((key) => left[key] === right[key]);
-}
-
-function hasSameLatencyCardStructure(
-  left: Forkop.OutboundGroup[],
-  right: Forkop.OutboundGroup[],
-) {
-  return (
-    left.length === right.length &&
-    left.every(
-      (section, sectionIndex) =>
-        section.sectionName === right[sectionIndex]?.sectionName &&
-        section.outbounds.length === right[sectionIndex]?.outbounds.length &&
-        section.outbounds.every(
-          (outbound, outboundIndex) =>
-            outbound.code ===
-            right[sectionIndex]?.outbounds[outboundIndex]?.code,
-        ),
-    )
-  );
-}
-
-function canUpdateLatencyProgressInline(
-  prev: StoreType['sectionsWidget'],
-  next: StoreType['sectionsWidget'],
-) {
-  return (
-    prev.loading === next.loading &&
-    prev.failed === next.failed &&
-    (prev.data === next.data ||
-      (Object.keys(next.latencyFetchingSections).length > 0 &&
-        hasSameLatencyCardStructure(prev.data, next.data))) &&
-    shallowRecordEqual(
-      prev.latencyFetchingSections,
-      next.latencyFetchingSections,
-    ) &&
-    shallowRecordEqual(
-      prev.subscriptionUpdatingSections,
-      next.subscriptionUpdatingSections,
-    ) &&
-    shallowRecordEqual(
-      prev.selectorSwitchingSections,
-      next.selectorSwitchingSections,
-    )
-  );
-}
-
-function findLatencyTestButton(container: HTMLElement, sectionName: string) {
-  return Array.from(
-    container.querySelectorAll<HTMLButtonElement>(
-      `.${LATENCY_TEST_BUTTON_CLASS}`,
-    ),
-  ).find((button) => button.dataset.latencySection === sectionName);
-}
-
-function updateLatencyProgressInline(
-  prev: StoreType['sectionsWidget'],
-  sectionsWidget: StoreType['sectionsWidget'],
-) {
-  const container = document.getElementById('dashboard-sections-grid');
-
-  if (!container) {
-    return false;
-  }
-
-  const dataChanged = prev.data !== sectionsWidget.data;
-
-  for (const section of sectionsWidget.data) {
-    if (!sectionsWidget.latencyFetchingSections[section.sectionName]) {
-      continue;
-    }
-
-    const button = findLatencyTestButton(container, section.sectionName);
-    const label = button?.querySelector<HTMLElement>(
-      `.${LATENCY_TEST_BUTTON_LABEL_CLASS}`,
-    );
-
-    if (!label) {
-      return false;
-    }
-
-    const text = getLatencyTestLabel(
-      sectionsWidget.latencyProgressSections[section.sectionName],
-    );
-
-    if (label.textContent !== text) {
-      label.textContent = text;
-    }
-
-    if (!dataChanged) {
-      continue;
-    }
-
-    const progress =
-      sectionsWidget.latencyProgressSections[section.sectionName];
-    if (!Array.isArray(progress?.pending)) {
-      continue;
-    }
-
-    const pending = getPendingLatencyTags(section, progress);
-    const latencyButtons = Array.from(
-      container.querySelectorAll<HTMLButtonElement>('[data-latency-targets]'),
-    ).filter(
-      (latencyButton) =>
-        latencyButton.dataset.latencySection === section.sectionName,
-    );
-    const exactTarget = latencyFetchingTargets[section.sectionName];
-    const hasExactTarget = section.outbounds.some(
-      (outbound) => outbound.code === exactTarget,
-    );
-
-    for (const latencyButton of latencyButtons) {
-      let targets: string[];
-      try {
-        const value = JSON.parse(latencyButton.dataset.latencyTargets || '[]');
-        if (!Array.isArray(value)) {
-          return false;
-        }
-        targets = value;
-      } catch {
-        return false;
-      }
-
-      const outbound = section.outbounds.find(
-        (item) => item.code === latencyButton.dataset.latencyCode,
-      );
-      if (!outbound) {
-        return false;
-      }
-
-      const latencyValue = latencyButton.querySelector<HTMLElement>(
-        `.${OUTBOUND_LATENCY_VALUE_CLASS}`,
-      );
-      if (!latencyValue) {
-        return false;
-      }
-
-      latencyValue.textContent = outbound.latency
-        ? `${outbound.latency}ms`
-        : 'N/A';
-      latencyButton.classList.remove(...OUTBOUND_LATENCY_STATE_CLASSES);
-      latencyButton.classList.add(getOutboundLatencyClass(outbound.latency));
-
-      const active = hasExactTarget
-        ? latencyButton.dataset.latencyCode === exactTarget
-        : targets.some((tag) => pending.has(tag));
-      if (active === (latencyButton.getAttribute('aria-busy') === 'true')) {
-        continue;
-      }
-
-      const icon = latencyButton.querySelector('svg');
-      if (!icon) {
-        return false;
-      }
-
-      icon.replaceWith(
-        active ? renderLoaderCircleIcon24() : renderRotateCcwIcon24(),
-      );
-      if (active) {
-        latencyButton.setAttribute('aria-busy', 'true');
-      } else {
-        latencyButton.removeAttribute('aria-busy');
-      }
-    }
-  }
-
-  return true;
-}
-
 // Renderer
 
 async function renderSectionsWidget() {
@@ -1510,7 +1164,6 @@ async function renderSectionsWidget() {
       onShowFallbackInfo: () => {},
       onUpdateSubscription: () => {},
       latencyFetching: false,
-      latencyProgress: undefined,
       subscriptionUpdating: false,
       selectorSwitchingTag: undefined,
     });
@@ -1525,13 +1178,18 @@ async function renderSectionsWidget() {
       loading: sectionsWidget.loading,
       failed: sectionsWidget.failed,
       section,
-      latencyFetching: Boolean(
-        sectionsWidget.latencyFetchingSections[section.sectionName],
+      latencyFetching: latencyRequests.has(
+        sectionLatencyRequestKey(section.sectionName),
       ),
-      latencyCancelling: cancellingLatencySections.has(section.sectionName),
-      latencyProgress:
-        sectionsWidget.latencyProgressSections[section.sectionName],
-      latencyFetchingTarget: latencyFetchingTargets[section.sectionName],
+      latencyFetchingTargets: new Set(
+        section.outbounds
+          .map((outbound) => outbound.code)
+          .filter((tag) =>
+            latencyRequests.has(
+              outboundLatencyRequestKey(section.sectionName, tag),
+            ),
+          ),
+      ),
       subscriptionUpdating: Boolean(
         sectionsWidget.subscriptionUpdatingSections[section.sectionName],
       ),
@@ -1540,33 +1198,21 @@ async function renderSectionsWidget() {
       sortByLatency: latencySortedSections.has(section.sectionName),
       onSortByLatencyChange: handleSortByLatency,
       onTestLatency: (tag) => {
-        if (section.withTagSelect) {
-          if (Array.isArray(tag)) {
-            return handleTestLatency(
-              'proxy_list',
-              section.sectionName,
-              JSON.stringify(tag),
-            );
-          }
-
-          return handleTestLatency('group', section.sectionName, tag);
-        }
-
-        return handleTestLatency(
-          'proxy',
+        void handleTestLatency(
+          section.withTagSelect ? 'group' : 'proxy',
           section.sectionName,
-          Array.isArray(tag) ? JSON.stringify(tag) : tag,
+          tag,
+          sectionLatencyRequestKey(section.sectionName),
           section.latencyTestTimeout,
         );
       },
       onTestOutboundLatency: (latencyType, tag) => {
-        const serializedTag = Array.isArray(tag) ? JSON.stringify(tag) : tag;
         void handleTestLatency(
           latencyType,
           section.sectionName,
-          serializedTag,
+          tag,
+          outboundLatencyRequestKey(section.sectionName, tag),
           section.latencyTestTimeout,
-          serializedTag,
         );
       },
       onChooseOutbound: (sectionName, selector, tag) => {
@@ -1766,16 +1412,7 @@ async function onStoreUpdate(
   diff: Partial<StoreType>,
 ) {
   if (diff.sectionsWidget) {
-    const inlineUpdated =
-      canUpdateLatencyProgressInline(
-        prev.sectionsWidget,
-        next.sectionsWidget,
-      ) &&
-      updateLatencyProgressInline(prev.sectionsWidget, next.sectionsWidget);
-
-    if (!inlineUpdated) {
-      renderSectionsWidget();
-    }
+    renderSectionsWidget();
   }
 
   if (diff.bandwidthWidget) {
@@ -1819,7 +1456,6 @@ async function onPageMount() {
 
   // Add new listener
   store.subscribe(onStoreUpdate);
-  startActionStateWatcher();
   void renderSectionsWidget();
   void renderBandwidthWidget();
   void renderTrafficTotalWidget();
@@ -1837,7 +1473,6 @@ function onPageUnmount() {
   dashboardMountId += 1;
 
   stopDashboardDataUpdates();
-  stopActionStateWatcher();
   sectionsRefreshQueued = false;
   sectionsRefreshPromise = null;
   // Remove old listener

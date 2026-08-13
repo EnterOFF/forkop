@@ -14,11 +14,8 @@ interface IRenderSectionsProps {
   loading: boolean;
   failed: boolean;
   section: Forkop.OutboundGroup;
-  onTestLatency: (tag: string | string[]) => void;
-  onTestOutboundLatency: (
-    latencyType: Forkop.LatencyActionState['latency_type'],
-    tag: string | string[],
-  ) => void;
+  onTestLatency: (tag: string) => void;
+  onTestOutboundLatency: (latencyType: 'group' | 'proxy', tag: string) => void;
   onChooseOutbound: (
     sectionName: string,
     selector: string,
@@ -33,9 +30,7 @@ interface IRenderSectionsProps {
   onUpdateSubscription: (section: Forkop.OutboundGroup) => void;
   onSortByLatencyChange?: (sectionName: string, enabled: boolean) => void;
   latencyFetching: boolean;
-  latencyCancelling?: boolean;
-  latencyFetchingTarget?: string;
-  latencyProgress?: Forkop.LatencyActionProgress;
+  latencyFetchingTargets?: Set<string>;
   subscriptionUpdating: boolean;
   selectorSwitchingTag?: string;
   sortByLatency?: boolean;
@@ -244,49 +239,6 @@ function renderSubscriptionUpdateAction(
   );
 }
 
-export function getLatencyTestLabel(
-  latencyProgress?: Forkop.LatencyActionProgress,
-) {
-  const total = Math.trunc(Number(latencyProgress?.total ?? 0));
-  if (!Number.isFinite(total) || total <= 0) {
-    return _('Cancel latency test');
-  }
-
-  const completedValue = Number(latencyProgress?.completed ?? 0);
-  const completed = Number.isFinite(completedValue)
-    ? Math.trunc(completedValue)
-    : 0;
-
-  if (completed >= total) {
-    return _('Cancel latency test');
-  }
-
-  return `${_('Cancel latency test')} (${Math.min(
-    Math.max(0, completed),
-    total,
-  )}/${total})`;
-}
-
-export function getPendingLatencyTags(
-  section: Forkop.OutboundGroup,
-  latencyProgress?: Forkop.LatencyActionProgress,
-) {
-  const pending = new Set(latencyProgress?.pending || []);
-
-  for (const outbound of section.outbounds) {
-    const groupInfo = outbound.urlTestInfo || outbound.fallbackInfo;
-    if (!groupInfo || !pending.has(outbound.code)) {
-      continue;
-    }
-
-    for (const member of groupInfo.outbounds) {
-      pending.add(member.code);
-    }
-  }
-
-  return pending;
-}
-
 export function getOutboundLatencyClass(latency: number) {
   if (!latency) {
     return 'fkp_dashboard-page__outbound-grid__item__latency--empty';
@@ -314,26 +266,14 @@ function renderDefaultState({
   onUpdateSubscription,
   onSortByLatencyChange,
   latencyFetching,
-  latencyCancelling,
-  latencyFetchingTarget,
-  latencyProgress,
+  latencyFetchingTargets = new Set(),
   subscriptionUpdating,
   selectorSwitchingTag,
   sortByLatency,
 }: IRenderSectionsProps) {
-  const hasPendingLatencyState = Array.isArray(latencyProgress?.pending);
-  const pendingLatencyTags = getPendingLatencyTags(section, latencyProgress);
-  const hasExactLatencyTarget = section.outbounds.some(
-    (outbound) => outbound.code === latencyFetchingTarget,
-  );
-
   function testLatency() {
     if (section.withTagSelect) {
-      return onTestLatency(
-        section.latencyTestCodes?.length
-          ? section.latencyTestCodes
-          : section.latencyTestCode || section.code,
-      );
+      return onTestLatency(section.latencyTestCode || section.code);
     }
 
     if (section.outbounds.length) {
@@ -352,38 +292,16 @@ function renderDefaultState({
       !selectorSwitching &&
       !outbound.selected;
     const groupInfo = outbound.urlTestInfo || outbound.fallbackInfo;
-    const groupTargets = Array.from(
-      new Set(
-        (groupInfo?.outbounds || [])
-          .map((member) => member.code)
-          .filter(Boolean),
-      ),
-    );
     const showLatency =
       !groupInfo ||
-      (outbound.runtimeAvailable !== false && groupTargets.length > 0);
-    const latencyType: Forkop.LatencyActionState['latency_type'] = groupInfo
-      ? 'proxy_list'
-      : 'proxy';
-    const latencyTarget = groupInfo ? groupTargets : outbound.code;
-    const serializedLatencyTarget = Array.isArray(latencyTarget)
-      ? JSON.stringify(latencyTarget)
-      : latencyTarget;
-    const outboundLatencyFetching = latencyFetching
-      ? hasExactLatencyTarget
-        ? latencyFetchingTarget === serializedLatencyTarget
-        : hasPendingLatencyState
-          ? (Array.isArray(latencyTarget)
-              ? latencyTarget
-              : [latencyTarget]
-            ).some((tag) => pendingLatencyTags.has(tag))
-          : latencyFetchingTarget ===
-            (Array.isArray(latencyTarget)
-              ? JSON.stringify(latencyTarget)
-              : latencyTarget)
-      : false;
+      (outbound.runtimeAvailable !== false && groupInfo.outbounds.length > 0);
+    const latencyType: 'group' | 'proxy' = groupInfo ? 'group' : 'proxy';
+    const latencyTarget = outbound.code;
+    const outboundLatencyFetching = latencyFetchingTargets.has(latencyTarget);
     const canTestOutboundLatency =
-      showLatency && outbound.runtimeAvailable !== false && !latencyFetching;
+      showLatency &&
+      outbound.runtimeAvailable !== false &&
+      !outboundLatencyFetching;
     const className = [
       'fkp_dashboard-page__outbound-grid__item',
       outbound.selected
@@ -414,9 +332,6 @@ function renderDefaultState({
             'aria-busy': outboundLatencyFetching ? 'true' : undefined,
             'data-latency-section': section.sectionName,
             'data-latency-code': outbound.code,
-            'data-latency-targets': JSON.stringify(
-              Array.isArray(latencyTarget) ? latencyTarget : [latencyTarget],
-            ),
             disabled: canTestOutboundLatency ? undefined : true,
             click: (event: MouseEvent) => {
               event.preventDefault();
@@ -623,14 +538,12 @@ function renderDefaultState({
               type: 'button',
               class: 'btn dashboard-sections-grid-item-test-latency',
               'data-latency-section': section.sectionName,
-              disabled: latencyFetching && latencyCancelling ? true : undefined,
+              'aria-busy': latencyFetching ? 'true' : undefined,
+              disabled: latencyFetching ? true : undefined,
               click: (event: MouseEvent) => {
                 event.preventDefault();
                 event.stopPropagation();
-                if (latencyFetching && latencyCancelling) {
-                  return;
-                }
-                testLatency();
+                if (!latencyFetching) testLatency();
               },
             },
             latencyFetching
@@ -641,7 +554,7 @@ function renderDefaultState({
                     {
                       class: 'dashboard-sections-grid-item-test-latency__label',
                     },
-                    getLatencyTestLabel(latencyProgress),
+                    _('Test latency'),
                   ),
                 ]
               : E(

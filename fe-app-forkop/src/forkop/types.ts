@@ -114,9 +114,6 @@ export namespace Forkop {
     GET_UI_STATE = 'get_ui_state',
     SERVICE_ACTION_ASYNC = 'service_action_async',
     SERVICE_ACTION_STATUS = 'service_action_status',
-    LATENCY_TEST_ASYNC = 'latency_test_async',
-    LATENCY_TEST_STATUS = 'latency_test_status',
-    LATENCY_TEST_CANCEL = 'latency_test_cancel',
     UI_ACTION_ACK = 'ui_action_ack',
     COMPONENT_ACTION_ASYNC = 'component_action_async',
     COMPONENT_ACTION_STATUS = 'component_action_status',
@@ -130,7 +127,6 @@ export namespace Forkop {
     GET_PROXY_LINK = 'get_proxy_link',
     GET_CONNECTIONS = 'get_connections',
     GET_PROXY_LATENCY = 'get_proxy_latency',
-    GET_PROXY_LATENCIES = 'get_proxy_latencies',
     GET_GROUP_LATENCY = 'get_group_latency',
     SET_GROUP_PROXY = 'set_group_proxy',
     CLOSE_CONNECTION = 'close_connection',
@@ -170,6 +166,7 @@ export namespace Forkop {
     selectedCode?: string;
     selectedName?: string;
     url?: string;
+    expectedStatus?: string;
     interval?: string;
     tolerance?: string | number;
     idleTimeout?: string;
@@ -205,20 +202,11 @@ export namespace Forkop {
     displayName: string;
     action?: ConfigSection['action'];
     latencyTestCode?: string;
-    latencyTestCodes?: string[];
     latencyTestTimeout?: string;
     proxyConfigType?: ProxyConfigType;
     subscriptionSourceCount?: number;
     subscriptionMetadata?: SubscriptionMetadata[];
     outbounds: Outbound[];
-  }
-
-  export interface LatencyActionProgress {
-    completed: number;
-    total: number;
-    failed?: number;
-    pending?: string[];
-    latencies?: Record<string, number>;
   }
 
   interface SubscriptionTraffic {
@@ -355,6 +343,7 @@ export namespace Forkop {
     show_subscription_name?: '0' | '1';
     tag?: string;
     yacd_secret_key?: string;
+    latency_test_url?: string;
   }
 
   export interface MethodSuccessResponse<T> {
@@ -509,14 +498,6 @@ export namespace Forkop {
     source?: string;
   }
 
-  export interface LatencyActionState extends UiActionState {
-    kind: 'latency';
-    latency_type: 'group' | 'proxy' | 'proxy_list';
-    section: string;
-    tag: string;
-    progress?: LatencyActionProgress;
-  }
-
   export interface UiState {
     service: {
       forkop: GetStatus;
@@ -525,7 +506,6 @@ export namespace Forkop {
     capabilities: GetUiCapabilities;
     actions: {
       service: ServiceActionState[];
-      latency: LatencyActionState[];
       component: ComponentActionResult[];
     };
   }
@@ -673,12 +653,6 @@ export namespace Forkop {
 
   export interface GetClashApiProxyLink {
     url: string;
-  }
-
-  export interface GetClashApiProxyLatencies {
-    success: boolean;
-    count: number;
-    failed: boolean;
   }
 
   export type GetClashApiGroupLatency = Record<string, number>;

@@ -84,7 +84,6 @@ export function render() {
             onShowFallbackInfo: () => {},
             onUpdateSubscription: () => {},
             latencyFetching: false,
-            latencyProgress: undefined,
             subscriptionUpdating: false,
             selectorSwitchingTag: undefined,
           }),

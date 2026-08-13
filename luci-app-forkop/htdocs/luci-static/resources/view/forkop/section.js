@@ -2280,7 +2280,7 @@ function validateFallbackMaxFailedTimes(value) {
     : _("Use a positive integer");
 }
 
-function validateFallbackExpectedStatus(value) {
+function validateExpectedStatus(value) {
   const normalized = `${value || ""}`.trim();
   if (!normalized || normalized === "*") {
     return true;
@@ -2594,6 +2594,7 @@ function urlTestSettingsKeys() {
     "check_interval",
     "tolerance",
     "testing_url",
+    "expected_status",
     "idle_timeout",
     "interrupt_exist_connections",
     "hide_dashboard_members",
@@ -2611,6 +2612,7 @@ function defaultUrlTestSettings(name) {
     check_interval: "3m",
     tolerance: "50",
     testing_url: "https://www.gstatic.com/generate_204",
+    expected_status: "*",
     idle_timeout: "30m",
     interrupt_exist_connections: "1",
     hide_dashboard_members: "0",
@@ -2623,6 +2625,7 @@ function urlTestChildDefaults() {
     check_interval: "3m",
     tolerance: "50",
     testing_url: "https://www.gstatic.com/generate_204",
+    expected_status: "*",
     idle_timeout: "30m",
     interrupt_exist_connections: "1",
     hide_dashboard_members: "0",
@@ -2991,6 +2994,20 @@ function addUrlTestItemOptions(itemSection, options = {}) {
 
   o = itemSection.option(
     form.Value,
+    "expected_status",
+    _("Expected status"),
+    _(
+      "HTTP status codes that count as a successful health check. Use * for any response, or values and ranges such as 204/200-299.",
+    ),
+  );
+  o.default = "*";
+  o.rmempty = false;
+  o.validate = function (_itemId, value) {
+    return validateExpectedStatus(value);
+  };
+
+  o = itemSection.option(
+    form.Value,
     "idle_timeout",
     _("Idle timeout"),
     _(
@@ -3230,7 +3247,7 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
   o.default = "*";
   o.rmempty = false;
   o.validate = function (_itemId, value) {
-    return validateFallbackExpectedStatus(value);
+    return validateExpectedStatus(value);
   };
 
   o = itemSection.option(

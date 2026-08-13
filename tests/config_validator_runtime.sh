@@ -555,6 +555,19 @@ cat >"$WORK_DIR/bad-urltest-tolerance.json" <<'JSON'
 JSON
 assert_rejects "bad URLTest tolerance" "$WORK_DIR/bad-urltest-tolerance.json" "Use a number from 0 to 10000"
 
+cat >"$WORK_DIR/bad-urltest-status.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "section": [
+    { ".name": "proxy", ".type": "section", "enabled": "1", "action": "proxy" }
+  ],
+  "urltest": [
+    { ".name": "fast", ".type": "urltest", "section": "proxy", "name": "Fast", "expected_status": "600" }
+  ]
+}
+JSON
+assert_rejects "bad URLTest expected status" "$WORK_DIR/bad-urltest-status.json" "invalid expected_status"
+
 cat >"$WORK_DIR/bad-urltest-idle-timeout.json" <<'JSON'
 {
   "settings": { ".name": "settings", ".type": "settings" },

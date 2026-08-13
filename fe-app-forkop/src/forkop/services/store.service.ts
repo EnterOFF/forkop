@@ -167,8 +167,6 @@ export interface StoreType {
     loading: boolean;
     failed: boolean;
     data: Forkop.OutboundGroup[];
-    latencyFetchingSections: Record<string, boolean>;
-    latencyProgressSections: Record<string, Forkop.LatencyActionProgress>;
     selectorSwitchingSections: Record<string, string>;
     subscriptionUpdatingSections: Record<string, boolean>;
   };
@@ -262,8 +260,6 @@ const initialStore: StoreType = {
   sectionsWidget: {
     loading: true,
     failed: false,
-    latencyFetchingSections: {},
-    latencyProgressSections: {},
     selectorSwitchingSections: {},
     subscriptionUpdatingSections: {},
     data: [],

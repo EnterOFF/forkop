@@ -5,10 +5,8 @@ import { isTransientRpcError } from '../../helpers/isTransientRpcError';
 
 const SUBSCRIPTION_UPDATE_RPC_TIMEOUT_MS = 60000;
 const UI_ACTION_RPC_TIMEOUT_MS = 15000;
-const UI_ACTION_TRANSIENT_RPC_GRACE_MS = 30000;
 const SERVICE_ACTION_TIMEOUT_MS = 2 * 60 * 1000;
 const SERVICE_ACTION_POLL_INTERVAL_MS = 1000;
-const LATENCY_TEST_POLL_INTERVAL_MS = 1000;
 const COMPONENT_ACTION_RPC_TIMEOUT_MS = 15000;
 const COMPONENT_ACTION_POLL_INTERVAL_MS = 1500;
 const COMPONENT_ACTION_STATUS_REFRESH_INTERVAL_MS = 15000;
@@ -93,12 +91,6 @@ function parseServiceActionState(
   response: Awaited<ReturnType<typeof executeShellCommand>>,
 ) {
   return parseJsonObjectOutput<Forkop.ServiceActionState>(response.stdout);
-}
-
-function parseLatencyActionState(
-  response: Awaited<ReturnType<typeof executeShellCommand>>,
-) {
-  return parseJsonObjectOutput<Forkop.LatencyActionState>(response.stdout);
 }
 
 function isComponentActionJobId(jobId: string) {
@@ -276,20 +268,15 @@ export const ForkopShellMethods = {
     callBaseMethod<Forkop.GetClashApiProxyLatency>(
       Forkop.AvailableMethods.CLASH_API,
       [Forkop.AvailableClashAPIMethods.GET_PROXY_LATENCY, tag, timeout],
+      '/usr/bin/forkop',
+      { timeout: null },
     ),
-  getClashApiProxyLatencies: async (tags: string[]) =>
-    callBaseMethod<Forkop.GetClashApiProxyLatencies>(
-      Forkop.AvailableMethods.CLASH_API,
-      [
-        Forkop.AvailableClashAPIMethods.GET_PROXY_LATENCIES,
-        JSON.stringify(tags),
-        '5000',
-      ],
-    ),
-  getClashApiGroupLatency: async (tag: string) =>
+  getClashApiGroupLatency: async (tag: string, timeout = '10000') =>
     callBaseMethod<Forkop.GetClashApiGroupLatency>(
       Forkop.AvailableMethods.CLASH_API,
-      [Forkop.AvailableClashAPIMethods.GET_GROUP_LATENCY, tag, '10000'],
+      [Forkop.AvailableClashAPIMethods.GET_GROUP_LATENCY, tag, timeout],
+      '/usr/bin/forkop',
+      { timeout: null },
     ),
   setClashApiGroupProxy: async (group: string, proxy: string) =>
     callBaseMethod<unknown>(Forkop.AvailableMethods.CLASH_API, [
@@ -412,120 +399,7 @@ export const ForkopShellMethods = {
       error: _('Operation timed out'),
     } as Forkop.MethodFailureResponse;
   },
-  latencyTestStart: async (
-    latencyType: Forkop.LatencyActionState['latency_type'],
-    section: string,
-    tag: string,
-    timeout?: string,
-  ) => {
-    const response = await executeShellCommand({
-      command: '/usr/bin/forkop',
-      args: [
-        Forkop.AvailableMethods.LATENCY_TEST_ASYNC,
-        latencyType,
-        section,
-        tag,
-        ...(timeout ? [timeout] : []),
-      ],
-      timeout: UI_ACTION_RPC_TIMEOUT_MS,
-    });
-    const parsedResponse = parseUiActionStartResult(response);
-
-    if (
-      (response.code ?? 0) !== 0 ||
-      !parsedResponse?.success ||
-      !parsedResponse.job_id
-    ) {
-      return uiActionFailure(
-        response,
-        parsedResponse,
-        _('Latency test failed'),
-      );
-    }
-
-    return {
-      success: true,
-      data: parsedResponse,
-    } as Forkop.MethodSuccessResponse<Forkop.UiActionStartResult>;
-  },
-  latencyTestStatus: async (jobId: string) => {
-    const response = await executeShellCommand({
-      command: '/usr/bin/forkop',
-      args: [Forkop.AvailableMethods.LATENCY_TEST_STATUS, jobId],
-      timeout: UI_ACTION_RPC_TIMEOUT_MS,
-    });
-    const parsedResponse = parseLatencyActionState(response);
-
-    if ((response.code ?? 0) !== 0 || !parsedResponse) {
-      return uiActionFailure(
-        response,
-        parsedResponse,
-        _('Latency test failed'),
-      );
-    }
-
-    return {
-      success: true,
-      data: parsedResponse,
-    } as Forkop.MethodSuccessResponse<Forkop.LatencyActionState>;
-  },
-  latencyTestCancel: async (jobId: string) => {
-    const response = await executeShellCommand({
-      command: '/usr/bin/forkop',
-      args: [Forkop.AvailableMethods.LATENCY_TEST_CANCEL, jobId],
-      timeout: UI_ACTION_RPC_TIMEOUT_MS,
-    });
-    const parsedResponse = parseUiActionStartResult(response);
-
-    if (
-      (response.code ?? 0) !== 0 ||
-      !parsedResponse?.success ||
-      !parsedResponse.job_id
-    ) {
-      return uiActionFailure(
-        response,
-        parsedResponse,
-        _('Latency test cancellation failed'),
-      );
-    }
-
-    return {
-      success: true,
-      data: parsedResponse,
-    } as Forkop.MethodSuccessResponse<Forkop.UiActionStartResult>;
-  },
-  waitLatencyTestJob: async (
-    jobId: string,
-    onState?: (state: Forkop.LatencyActionState) => void,
-  ) => {
-    const transientRpc = createTransientRpcGraceTracker(
-      UI_ACTION_TRANSIENT_RPC_GRACE_MS,
-    );
-
-    while (true) {
-      await sleep(LATENCY_TEST_POLL_INTERVAL_MS);
-
-      const response = await ForkopShellMethods.latencyTestStatus(jobId);
-
-      if (!response.success) {
-        if (transientRpc.shouldContinue(response.error)) {
-          continue;
-        }
-
-        return response;
-      }
-
-      transientRpc.reset();
-      onState?.(response.data);
-      if (!response.data.running) {
-        return response;
-      }
-    }
-  },
-  uiActionAck: async (
-    kind: 'service' | 'latency' | 'component',
-    jobId: string,
-  ) => {
+  uiActionAck: async (kind: 'service' | 'component', jobId: string) => {
     const response = await executeShellCommand({
       command: '/usr/bin/forkop',
       args: [Forkop.AvailableMethods.UI_ACTION_ACK, kind, jobId],

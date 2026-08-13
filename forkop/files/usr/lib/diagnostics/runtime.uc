@@ -48,7 +48,6 @@ const HELPERS_UC = LIB_DIR + "/core/helpers.uc";
 const PACKAGES_UC = LIB_DIR + "/core/packages.uc";
 const DNS_APPLY_UC = LIB_DIR + "/dns/apply.uc";
 const SERVICE_STATE_UC = LIB_DIR + "/service/state.uc";
-const SERVICE_UI_UC = LIB_DIR + "/service/ui.uc";
 const PROVIDERS_STATUS_UC = LIB_DIR + "/providers/status.uc";
 const SINGBOX_RUNTIME_UC = LIB_DIR + "/singbox/runtime.uc";
 const ZAPRET_RUNTIME_UC = LIB_DIR + "/providers/zapret/runtime.uc";
@@ -1533,32 +1532,6 @@ function clash_json_error(message) {
     return 1;
 }
 
-function clash_proxy_type_map(base_url, auth) {
-    let args = [ "curl", "-s" ];
-    for (let item in auth) push(args, item);
-    push(args, base_url + "/proxies");
-
-    let value = {};
-    try {
-        value = json(command_output(command_from_args(args)));
-    }
-    catch (e) {
-        return {};
-    }
-
-    let result = {};
-    for (let tag, proxy in object_or_empty(value.proxies))
-        result[tag] = as_string(object_or_empty(proxy).type || "");
-    return result;
-}
-
-function clash_latency_endpoint(base_url, proxy_tag, proxy_type) {
-    proxy_type = as_string(proxy_type);
-    if (lc(proxy_type) == "urltest")
-        return base_url + "/group/" + clash_urlencode(proxy_tag) + "/delay";
-    return base_url + "/proxies/" + clash_urlencode(proxy_tag) + "/delay";
-}
-
 function latency_test_url() {
     let value = option(settings(), "latency_test_url", DEFAULT_LATENCY_TEST_URL);
     return value == "" ? DEFAULT_LATENCY_TEST_URL : value;
@@ -1612,84 +1585,6 @@ function clash_api(action, arg1, arg2, arg3) {
         push(args, "--data-urlencode");
         push(args, "timeout=" + as_string(arg2 || "2000"));
         return clash_json_output(args);
-    }
-
-    if (action == "get_proxy_latencies") {
-        if (as_string(arg1) == "")
-            return clash_json_error("proxy_tags_json required");
-        let tags = status_capture([ "clash-proxy-tags-lines", arg1 ], null);
-        if (tags.status != 0)
-            return clash_json_error("proxy_tags_json must be a JSON array of non-empty strings");
-        let proxy_tags = [];
-        for (let proxy_tag in split(tags.output, "\n")) {
-            proxy_tag = as_string(proxy_tag);
-            if (proxy_tag != "")
-                push(proxy_tags, proxy_tag);
-        }
-
-        let count = 0;
-        let failed = 0;
-        let latencies = {};
-        let progress_path = as_string(arg3);
-        let total = length(proxy_tags);
-        let proxy_types = clash_proxy_type_map(base_url, auth);
-        let ordered_proxy_tags = [];
-        for (let proxy_tag in proxy_tags)
-            if (lc(as_string(proxy_types[proxy_tag])) != "urltest")
-                push(ordered_proxy_tags, proxy_tag);
-        for (let proxy_tag in proxy_tags)
-            if (lc(as_string(proxy_types[proxy_tag])) == "urltest")
-                push(ordered_proxy_tags, proxy_tag);
-
-        if (progress_path != "" &&
-            !module_success(SERVICE_UI_UC, [ "latency-progress-state", progress_path, count, total, failed, sprintf("%J", ordered_proxy_tags), sprintf("%J", latencies) ]))
-            return 1;
-
-        for (let proxy_tag in ordered_proxy_tags) {
-            let args = [ "curl", "-G", "-s", clash_latency_endpoint(base_url, proxy_tag, proxy_types[proxy_tag]) ];
-            for (let item in auth) push(args, item);
-            push(args, "--data-urlencode");
-            push(args, "url=" + test_url);
-            push(args, "--data-urlencode");
-            push(args, "timeout=" + as_string(arg2 || "5000"));
-            let response = status_capture([ "stdin-json" ], command_output(command_from_args(args)));
-            let response_value = response.status == 0 ? parse_json_or_null(response.output) : null;
-            let result_count = 0;
-            if (type(response_value) == "object") {
-                if (lc(as_string(proxy_types[proxy_tag])) == "urltest") {
-                    for (let result_tag in response_value) {
-                        let delay = arg_number(response_value[result_tag]);
-                        if (result_tag != "" && delay > 0) {
-                            latencies[result_tag] = delay;
-                            result_count++;
-                        }
-                    }
-                }
-                else {
-                    let delay = arg_number(response_value.delay);
-                    if (delay > 0) {
-                        latencies[proxy_tag] = delay;
-                        result_count++;
-                    }
-                }
-            }
-            if (result_count == 0) {
-                latencies[proxy_tag] = 0;
-                failed++;
-            }
-            count++;
-            if (progress_path != "") {
-                let pending = [];
-                for (let i = count; i < length(ordered_proxy_tags); i++)
-                    push(pending, ordered_proxy_tags[i]);
-                if (!module_success(SERVICE_UI_UC, [ "latency-progress-state", progress_path, count, total, failed, sprintf("%J", pending), sprintf("%J", latencies) ]))
-                    return 1;
-            }
-        }
-        let result = status_capture([ "clash-proxy-latencies-result", count, failed ], null);
-        if (result.output != "")
-            print(result.output);
-        return result.status;
     }
 
     if (action == "get_group_latency") {

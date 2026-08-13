@@ -1040,7 +1040,7 @@ function validate_fallback_level_order(value, section, group_id, level_id) {
     fail_validation("Invalid fallback level order '" + value + "' in rule '" + section + "', fallback '" + group_id + "', level '" + level_id + "'. Use a non-negative integer. Aborted.");
 }
 
-function fallback_expected_status_valid(value) {
+function expected_status_valid(value) {
     value = trim(as_string(value));
     if (value == "" || value == "*")
         return true;
@@ -1105,7 +1105,7 @@ function validate_fallback_group(section, group_id) {
     if (match(max_failed_times, /^[1-9][0-9]*$/) == null || int(max_failed_times, 10) > 2147483647)
         fail_validation("Fallback group '" + group_id + "' in rule '" + name + "' has an invalid max_failed_times value. Use a positive integer. Aborted.");
     let expected_status = connections.fallback_group_expected_status(section, group_id);
-    if (!fallback_expected_status_valid(expected_status))
+    if (!expected_status_valid(expected_status))
         fail_validation("Fallback group '" + group_id + "' in rule '" + name + "' has an invalid expected_status value. Use *, status codes, or ranges such as 204/200-299. Aborted.");
     validate_required_duration_option(idle_timeout, option_prefix + "idle_timeout");
     if (duration_to_seconds_value(health_check_interval) > duration_to_seconds_value(idle_timeout))
@@ -1568,6 +1568,8 @@ function validate_rule(section, sections, context) {
             validate_required_duration_option(check_interval, "rule." + name + ".urltest." + urltest_id + ".urltest_check_interval");
             validate_urltest_tolerance_value(connections.urltest_tolerance(section, urltest_id), name, urltest_id);
             validate_http_url_option(connections.urltest_testing_url(section, urltest_id), "rule." + name + ".urltest." + urltest_id + ".testing_url");
+            if (!expected_status_valid(connections.urltest_expected_status(section, urltest_id)))
+                fail_validation("URLTest '" + urltest_id + "' in rule '" + name + "' has an invalid expected_status value. Use *, status codes, or ranges such as 204/200-299. Aborted.");
             let idle_timeout = connections.urltest_idle_timeout(section, urltest_id);
             if (idle_timeout != "")
                 validate_required_duration_option(idle_timeout, "rule." + name + ".urltest." + urltest_id + ".idle_timeout");

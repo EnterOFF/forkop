@@ -307,8 +307,7 @@ case "$*" in
   *'127.0.0.1:9090/providers/proxies') printf '%s\n' '{"providers":{}}' ;;
   *'127.0.0.1:9090/proxies/provider%2Fnode/link') printf '%s\n' '{"url":"vless://id@example.com:443"}' ;;
   *'127.0.0.1:9090/proxies') printf '%s\n' '{"proxies":{"urltest":{"type":"URLTest"},"provider-urltest":{"type":"urltest"},"proxy-a":{"type":"VLESS"},"proxy-b":{"type":"Trojan"}}}' ;;
-  *'/group/urltest/delay'*) printf '%s\n' '{"urltest-member":2}' ;;
-  *'/group/provider-urltest/delay'*) printf '%s\n' '{"provider-member":3}' ;;
+  *'/proxies/proxy-fail/delay'*) printf '%s\n' '{"message":"unavailable"}' ;;
   *) printf '%s\n' '{"delay":1}' ;;
 esac
 SH
@@ -386,47 +385,6 @@ grep -Fq -- '--proxy socks5h://127.0.0.1:4534' "$WORK_DIR/fake-running-curl.log"
 if grep -Fq 'tools fetch' "$WORK_DIR/fake-sing-box.log"; then
   fail "active proxy diagnostics must not launch a second sing-box tools process"
 fi
-
-latency_action_dir="$WORK_DIR/ui-state/latency-actions"
-mkdir -p "$latency_action_dir"
-latency_state="$latency_action_dir/latency-1.json"
-printf '%s\n' '{"success":true,"running":true,"kind":"latency","latency_type":"proxy_list","section":"main","tag":"[]","started_at":100}' >"$latency_state"
-FAKE_CURL_LOG="$WORK_DIR/fake-curl-latencies.log" \
-FORKOP_UCI_STATE_FILE="$uci_state" \
-FORKOP_LIB="$FORKOP_LIB" \
-FORKOP_UI_LATENCY_ACTION_DIR="$latency_action_dir" \
-PATH="$fake_bin:$PATH" \
-  ucode -L "$FORKOP_LIB" "$DIAGNOSTICS_RUNTIME" clash-api get_proxy_latencies '["urltest","proxy-a","provider-urltest","proxy-b"]' 5000 "$latency_state" >/dev/null ||
-  fail "clash-api get_proxy_latencies should update latency progress"
-JOB_STATE="$latency_state" node - <<'NODE'
-const fs = require("fs");
-const value = JSON.parse(fs.readFileSync(process.env.JOB_STATE, "utf8"));
-if (
-  !value.progress ||
-  value.progress.completed !== 4 ||
-  value.progress.total !== 4 ||
-  value.progress.failed !== 0 ||
-  value.progress.pending?.length !== 0 ||
-  value.progress.latencies?.["proxy-a"] !== 1 ||
-  value.progress.latencies?.["proxy-b"] !== 1 ||
-  value.progress.latencies?.["urltest-member"] !== 2 ||
-  value.progress.latencies?.["provider-member"] !== 3
-) {
-  console.error("latency progress after proxy list mismatch");
-  process.exit(1);
-}
-NODE
-expected_latency_paths=(
-  '/proxies/proxy-a/delay'
-  '/proxies/proxy-b/delay'
-  '/group/urltest/delay'
-  '/group/provider-urltest/delay'
-)
-for index in "${!expected_latency_paths[@]}"; do
-  sed -n "$((index + 2))p" "$WORK_DIR/fake-curl-latencies.log" |
-    grep -Fq "${expected_latency_paths[$index]}" ||
-    fail "bulk latency must test ordinary proxies before URLTest groups"
-done
 
 firewall_rules="$(cat <<'EOF'
 firewall.@rule[0]=rule

@@ -133,7 +133,6 @@ failed_start_env=(
   FORKOP_UI_STATE_DIR="$failed_start_dir/ui"
   FORKOP_UI_SERVICE_ACTION_DIR="$failed_start_dir/ui/service-actions"
   FORKOP_UI_SERVICE_ACTION_LOCK_DIR="$failed_start_dir/ui/service-actions.lock"
-  FORKOP_UI_LATENCY_ACTION_DIR="$failed_start_dir/ui/latency-actions"
   FORKOP_UI_COMPONENT_ACTION_DIR="$failed_start_dir/component-actions"
 )
 if env "${failed_start_env[@]}" ucode -L "$FORKOP_LIB" "$INITD_UC" start-service "" "$$" >/dev/null 2>&1; then

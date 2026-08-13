@@ -5,7 +5,6 @@ import { Forkop } from '../../types';
 import {
   clearLocalActionOverlay,
   setLocalComponentAction,
-  setLocalLatencyAction,
   setLocalServiceAction,
   setLocalSubscriptionAction,
 } from '../localActionOverlay.service';
@@ -37,7 +36,6 @@ function createUiState(
     },
     actions: {
       service: [],
-      latency: [],
       component: [],
       ...actions,
     },
@@ -60,23 +58,6 @@ describe('applyUiStateToStore', () => {
             kind: 'service',
             action: 'start',
             job_id: 'service-1',
-          },
-        ],
-        latency: [
-          {
-            success: true,
-            running: true,
-            kind: 'latency',
-            latency_type: 'group',
-            section: 'main',
-            tag: 'AUTO',
-            job_id: 'latency-1',
-            progress: {
-              completed: 2,
-              total: 5,
-              failed: 1,
-              pending: ['three', 'four', 'five'],
-            },
           },
         ],
         component: [
@@ -115,17 +96,6 @@ describe('applyUiStateToStore', () => {
     });
     expect(state.diagnosticsActions.start.loading).toBe(true);
     expect(state.sectionsWidget.subscriptionUpdatingSections).toEqual({});
-    expect(state.sectionsWidget.latencyFetchingSections).toEqual({
-      main: true,
-    });
-    expect(state.sectionsWidget.latencyProgressSections).toEqual({
-      main: {
-        completed: 2,
-        total: 5,
-        failed: 1,
-        pending: ['three', 'four', 'five'],
-      },
-    });
     expect(state.updatesActions.zapretInstall.loading).toBe(true);
   });
 
@@ -139,14 +109,6 @@ describe('applyUiStateToStore', () => {
       sectionsWidget: {
         ...store.get().sectionsWidget,
         subscriptionUpdatingSections: { main: true },
-        latencyFetchingSections: { main: true },
-        latencyProgressSections: {
-          main: {
-            completed: 1,
-            total: 2,
-            failed: 0,
-          },
-        },
       },
       updatesActions: {
         ...store.get().updatesActions,
@@ -161,15 +123,12 @@ describe('applyUiStateToStore', () => {
     expect(state.diagnosticsActions.start.loading).toBe(false);
     expect(state.diagnosticsActions.enable.loading).toBe(true);
     expect(state.sectionsWidget.subscriptionUpdatingSections).toEqual({});
-    expect(state.sectionsWidget.latencyFetchingSections).toEqual({});
-    expect(state.sectionsWidget.latencyProgressSections).toEqual({});
     expect(state.updatesActions.zapretInstall.loading).toBe(false);
   });
 
   it('keeps locally started actions loading until their owner clears them', () => {
     setLocalComponentAction('zapretInstall', true);
     setLocalSubscriptionAction('proxy', true);
-    setLocalLatencyAction('gemini', true);
     setLocalServiceAction('restart', true);
 
     applyUiStateToStore(createUiState());
@@ -178,9 +137,6 @@ describe('applyUiStateToStore', () => {
     expect(store.get().sectionsWidget.subscriptionUpdatingSections).toEqual({
       proxy: true,
     });
-    expect(store.get().sectionsWidget.latencyFetchingSections).toEqual({
-      gemini: true,
-    });
     expect(store.get().diagnosticsActions.restart.loading).toBe(true);
 
     clearLocalActionOverlay();
@@ -188,163 +144,7 @@ describe('applyUiStateToStore', () => {
 
     expect(store.get().updatesActions.zapretInstall.loading).toBe(false);
     expect(store.get().sectionsWidget.subscriptionUpdatingSections).toEqual({});
-    expect(store.get().sectionsWidget.latencyFetchingSections).toEqual({});
     expect(store.get().diagnosticsActions.restart.loading).toBe(false);
-  });
-
-  it('preserves local latency progress while waiting for runtime progress', () => {
-    setLocalLatencyAction('gemini', true);
-    store.set({
-      sectionsWidget: {
-        ...store.get().sectionsWidget,
-        latencyFetchingSections: { gemini: true },
-        latencyProgressSections: {
-          gemini: {
-            completed: 0,
-            total: 3,
-            failed: 0,
-          },
-        },
-      },
-    });
-
-    applyUiStateToStore(createUiState());
-
-    expect(store.get().sectionsWidget.latencyFetchingSections).toEqual({
-      gemini: true,
-    });
-    expect(store.get().sectionsWidget.latencyProgressSections).toEqual({
-      gemini: {
-        completed: 0,
-        total: 3,
-        failed: 0,
-      },
-    });
-  });
-
-  it('preserves latency progress for running runtime actions without progress', () => {
-    store.set({
-      sectionsWidget: {
-        ...store.get().sectionsWidget,
-        latencyFetchingSections: { main: true },
-        latencyProgressSections: {
-          main: {
-            completed: 2,
-            total: 5,
-            failed: 0,
-          },
-        },
-      },
-    });
-
-    applyUiStateToStore(
-      createUiState({
-        latency: [
-          {
-            success: true,
-            running: true,
-            kind: 'latency',
-            latency_type: 'proxy_list',
-            section: 'main',
-            tag: '["one","two"]',
-            job_id: 'latency-1',
-          },
-        ],
-      }),
-    );
-
-    expect(store.get().sectionsWidget.latencyFetchingSections).toEqual({
-      main: true,
-    });
-    expect(store.get().sectionsWidget.latencyProgressSections).toEqual({
-      main: {
-        completed: 2,
-        total: 5,
-        failed: 0,
-      },
-    });
-  });
-
-  it('applies bulk latency results with the matching progress state', () => {
-    store.set({
-      sectionsWidget: {
-        ...store.get().sectionsWidget,
-        data: [
-          {
-            withTagSelect: true,
-            code: 'main',
-            sectionName: 'main',
-            displayName: 'Main',
-            outbounds: [
-              {
-                code: 'proxy-a',
-                displayName: 'Proxy A',
-                latency: 100,
-                type: 'VLESS',
-                selected: false,
-              },
-              {
-                code: 'auto',
-                displayName: 'Auto',
-                latency: 200,
-                type: 'URLTest',
-                selected: true,
-                urlTestInfo: {
-                  code: 'auto',
-                  displayName: 'Auto',
-                  outbounds: [
-                    {
-                      code: 'proxy-b',
-                      displayName: 'Proxy B',
-                      latency: 200,
-                      type: 'Trojan',
-                      selected: true,
-                    },
-                  ],
-                },
-              },
-            ],
-          },
-        ],
-      },
-    });
-
-    applyUiStateToStore(
-      createUiState({
-        latency: [
-          {
-            success: true,
-            running: true,
-            kind: 'latency',
-            latency_type: 'proxy_list',
-            section: 'main',
-            tag: '["proxy-a","auto"]',
-            job_id: 'latency-1',
-            progress: {
-              completed: 2,
-              total: 2,
-              failed: 0,
-              pending: [],
-              latencies: {
-                'proxy-a': 321,
-                'proxy-b': 456,
-              },
-            },
-          },
-        ],
-      }),
-    );
-
-    const state = store.get().sectionsWidget;
-    expect(state.latencyProgressSections.main.latencies).toEqual({
-      'proxy-a': 321,
-      'proxy-b': 456,
-    });
-    expect(state.data[0].outbounds[0].latency).toBe(321);
-    expect(state.data[0].outbounds[1].latency).toBe(456);
-    expect(state.data[0].outbounds[1].urlTestInfo?.outbounds[0].latency).toBe(
-      456,
-    );
   });
 
   it('maps a running reload action to the restart control', () => {

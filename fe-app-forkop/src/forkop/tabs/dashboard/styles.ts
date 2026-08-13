@@ -377,7 +377,6 @@ export const styles = `
 .fkp_dashboard-page__outbound-grid__item--switching {
     border-color: transparent !important;
     overflow: hidden;
-    cursor: wait;
 }
 
 .fkp_dashboard-page__outbound-grid__item__snake {

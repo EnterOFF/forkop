@@ -3,7 +3,7 @@ import { Forkop } from '../../types';
 
 interface CallBaseMethodOptions {
   allowNonZeroWithStdout?: boolean;
-  timeout?: number;
+  timeout?: number | null;
 }
 
 export async function callBaseMethod<T>(
@@ -16,7 +16,7 @@ export async function callBaseMethod<T>(
     const response = await executeShellCommand({
       command,
       args: [method as string, ...args],
-      timeout: options.timeout ?? 15000,
+      timeout: options.timeout === undefined ? 15000 : options.timeout,
     });
     const exitCode = response.code ?? 0;
 

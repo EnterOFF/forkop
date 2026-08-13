@@ -72,6 +72,8 @@ grep -Fq '{ id: "dns_server_uris", run: migrate_dns_server_uris }' "$MIGRATION" 
   fail "DNS server URI migration must have a stable named marker"
 grep -Fq '{ id: "readable_runtime_tags", run: migrate_readable_runtime_tags }' "$MIGRATION" ||
   fail "readable runtime tag migration must have a stable named marker"
+grep -Fq '{ id: "urltest_expected_status", run: migrate_urltest_expected_status }' "$MIGRATION" ||
+  fail "URLTest expected status migration must have a stable named marker"
 grep -Fq "list applied_migrations 'native_rule_sets'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
   fail "new-install config must mark the native rule-set migration as already applied"
 grep -Fq "option dns_main_fallback_strategy 'parallel'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
@@ -108,6 +110,8 @@ grep -Fq "list applied_migrations 'dns_server_uris'" "$ROOT_DIR/forkop/files/etc
   fail "new-install config must mark the DNS server URI migration as already applied"
 grep -Fq "list applied_migrations 'readable_runtime_tags'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
   fail "new-install config must mark the readable runtime tag migration as already applied"
+grep -Fq "list applied_migrations 'urltest_expected_status'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
+  fail "new-install config must mark the URLTest expected status migration as already applied"
 grep -Fq 'release_at_most(ctx, "1.0.1")' "$MIGRATION" ||
   fail "release-specific migrations must use the source release only as a condition"
 grep -Fq 'release_at_most(ctx, "1.0.4")' "$MIGRATION" ||
@@ -303,7 +307,7 @@ assert(JSON.stringify(config.settings.bootstrap_dns_server) === JSON.stringify([
 assert(config.settings.unified_delay === '0', 'Unified Delay default missing');
 assert(config.settings.config_version === '1.0.5', 'legacy config should be marked at the current schema version');
 assert(config.settings.component_update_check_enabled === '1', 'component update checks should be enabled during migration');
-assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'readable_runtime_tags']), 'legacy config should record named migrations');
+assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'readable_runtime_tags', 'urltest_expected_status']), 'legacy config should record named migrations');
 
 function assert(condition, message) {
   if (!condition) {
@@ -417,6 +421,7 @@ assert(legacySubUrltest.name === 'Fastest', 'legacy-sub URLTest name migrated');
 assert(legacySubUrltest.check_interval === '3m', 'legacy-sub URLTest interval default migrated');
 assert(legacySubUrltest.tolerance === '50', 'legacy-sub URLTest tolerance default migrated');
 assert(legacySubUrltest.testing_url === 'https://www.gstatic.com/generate_204', 'legacy-sub URLTest URL default migrated');
+assert(legacySubUrltest.expected_status === '*', 'legacy-sub URLTest expected status default migrated');
 assert(legacySubUrltest.server_filter_mode === 'include', 'legacy-sub URLTest filter mode migrated');
 absent(legacySubUrltest, 'filter_mode', 'legacy-sub URLTest');
 absent(legacySubUrltest, 'detect_server_country', 'legacy-sub URLTest');
@@ -457,6 +462,7 @@ assert(Boolean(legacyUrltestConfig), 'legacy-urltest URLTest child migrated');
 absent(legacyUrltestConfig, 'id', 'legacy-urltest URLTest');
 absent(legacyUrltestConfig, 'display_name', 'legacy-urltest URLTest');
 assert(legacyUrltestConfig.name === 'Fastest', 'legacy-urltest URLTest name migrated');
+assert(legacyUrltestConfig.expected_status === '*', 'legacy-urltest URLTest expected status default migrated');
 assert(legacyUrltestConfig.server_filter_mode === 'exclude', 'legacy-urltest URLTest filter mode migrated');
 absent(legacyUrltestConfig, 'filter_mode', 'legacy-urltest URLTest');
 absent(legacyUrltestConfig, 'detect_server_country', 'legacy-urltest URLTest');
@@ -620,7 +626,7 @@ function assert(condition, message) {
 assert(out.changed === true, '1.0.1 config should require migration');
 assert(out.config.settings.config_version === '1.0.5', 'config schema version should advance to 1.0.5');
 assert(out.config.settings.component_update_check_enabled === '1', 'updates from 1.0.1 and below should enable component update checks');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'readable_runtime_tags']), 'named migrations should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'readable_runtime_tags', 'urltest_expected_status']), 'named migrations should be recorded');
 assert(!Object.prototype.hasOwnProperty.call(section, 'interfaces'), 'parent interface list should be removed');
 assert(JSON.stringify(interfaces.map(item => item.name)) === JSON.stringify(['awg0', 'tun0']), 'interfaces should keep their order');
 for (const item of interfaces) {
@@ -719,7 +725,7 @@ function assert(condition, message) {
 
 assert(out.config.settings.component_update_check_enabled === '0', '1.0.2 config must preserve an explicitly disabled component check');
 assert(out.config.settings.config_version === '1.0.5', '1.0.2 config should advance through the HTTP URL migration schema');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'readable_runtime_tags']), 'newer configs should mark skipped migrations');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'readable_runtime_tags', 'urltest_expected_status']), 'newer configs should mark skipped migrations');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.4-http.json" <<'JSON'
@@ -772,7 +778,7 @@ assert(JSON.stringify(section.selector_proxy_links) === JSON.stringify([
 ]), 'connection URLs must stay owned by sing-box parser outbounds');
 assert(jsonOutbounds.length === 1 && jsonOutbounds[0].type === 'direct' && jsonOutbounds[0].tag === 'http',
   'the retired HTTP conversion must leave existing JSON outbounds unchanged');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'readable_runtime_tags']), 'HTTP URL migration should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'readable_runtime_tags', 'urltest_expected_status']), 'HTTP URL migration should be recorded');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.5-http.json" <<'JSON'
@@ -1013,7 +1019,7 @@ assert(JSON.stringify(config.fallback_level.map(item => item.name)) === JSON.str
 assert(out.removed_caches.includes('/var/run/forkop/section-cache') &&
   out.removed_caches.includes('/var/run/forkop/runtime-manifest.json'),
   'readable tag migration must remove both legacy runtime graph files');
-assert(config.settings.applied_migrations.at(-1) === 'readable_runtime_tags',
+assert(config.settings.applied_migrations.at(-1) === 'urltest_expected_status',
   'readable runtime tag migration must be recorded');
 NODE
 
@@ -1071,7 +1077,7 @@ if (!out.changed || config.section[0].sort_by_latency !== undefined ||
 }
 if (config.urltest[0].name !== 'Fast' || config.fallback_group[0].name !== 'Fallback' ||
     !config.settings.applied_migrations.includes('remove_dashboard_sort_options') ||
-    config.settings.applied_migrations.at(-1) !== 'readable_runtime_tags') {
+    config.settings.applied_migrations.at(-1) !== 'urltest_expected_status') {
   console.error('dashboard sort migration changed unrelated settings or missed its marker');
   process.exit(1);
 }
@@ -1165,7 +1171,7 @@ assert(sections.doh.dns_type === undefined &&
   'DNS action should preserve the old DoH path as a list');
 assert(JSON.stringify(sections.udp.dns_server) === JSON.stringify(['8.8.8.8']),
   'DNS action should migrate explicit UDP without a redundant scheme');
-assert(config.settings.applied_migrations.at(-1) === 'readable_runtime_tags',
+assert(config.settings.applied_migrations.at(-1) === 'urltest_expected_status',
   'DNS URI migration marker should be recorded');
 
 fs.writeFileSync(process.argv[3], JSON.stringify(config));
@@ -1330,7 +1336,7 @@ grep -Fxq 'forkop.settings.config_version=1.0.5' "$WORK_DIR/runtime-version.stat
   fail "runtime version migration must advance config_version"
 grep -Fxq 'forkop.settings.component_update_check_enabled=1' "$WORK_DIR/runtime-version.state" ||
   fail "runtime version migration must enable component update checks"
-grep -Fq 'forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter native_fallbacks dns_fallback_modes native_rule_sets universal_rule_sets leaf_subscription_providers extended_server_defaults fallback_uci_tags reset_fallback_defaults remove_proxy_parameter_filters server_filter_model server_filter_modes single_subscription_user_agent subscription_headers interface_display_names remove_section_cache remove_dashboard_sort_options dns_server_uris readable_runtime_tags' "$WORK_DIR/runtime-version.state" ||
+grep -Fq 'forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter native_fallbacks dns_fallback_modes native_rule_sets universal_rule_sets leaf_subscription_providers extended_server_defaults fallback_uci_tags reset_fallback_defaults remove_proxy_parameter_filters server_filter_model server_filter_modes single_subscription_user_agent subscription_headers interface_display_names remove_section_cache remove_dashboard_sort_options dns_server_uris readable_runtime_tags urltest_expected_status' "$WORK_DIR/runtime-version.state" ||
   fail "runtime migration must record stable migration names"
 grep -Fxq 'forkop.main.selector_proxy_links=http://proxy.example:8080' "$WORK_DIR/runtime-version.state" ||
   fail "runtime migration must preserve connection URLs for sing-box parser outbounds"

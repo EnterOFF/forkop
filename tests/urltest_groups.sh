@@ -28,6 +28,7 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
     {
       ".name": "black", ".type": "urltest", "section": "proxy",
       "name": "Blacklist", "server_filter_mode": "exclude",
+      "expected_status": "204/200-299",
       "exclude_regex": "Riga"
     },
     {
@@ -67,9 +68,10 @@ if (selector.exclude_provider_group_members != null || selector.exclude_provider
 if (provider.exclude_types != null)
     die("subscription provider still contains removed type filters\n");
 if (!urltest || urltest.providers[0] != provider.tag ||
+    urltest.expected_status != "204/200-299" ||
     urltest.include != null || index(urltest.exclude || "", "Riga") < 0)
     die("URLTest does not consume provider updates through its native filter\n");
-if (!empty || empty.include != "a^")
+if (!empty || empty.include != "a^" || empty.expected_status != "*")
     die("empty URLTest whitelist must match no provider nodes\n");
 if (length(urltest.outbounds || []) != 0)
     die("Forkop parsed provider nodes into static URLTest membership\n");

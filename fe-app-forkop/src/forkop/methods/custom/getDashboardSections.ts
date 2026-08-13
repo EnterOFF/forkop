@@ -35,6 +35,7 @@ type UrlTestConfig = {
   displayName: string;
   hideDashboardMembers: boolean;
   testingUrl?: string;
+  expectedStatus?: string;
   checkInterval?: string;
   tolerance?: number;
   idleTimeout?: string;
@@ -74,6 +75,8 @@ type ChildType =
   | 'tunnel_peer';
 
 const CLASH_API_FETCH_TIMEOUT_MS = 5000;
+const DEFAULT_LATENCY_TEST_URL = 'https://www.gstatic.com/generate_204';
+let clashApiConfigSections: Forkop.ConfigSection[] = [];
 const EXPORTABLE_PROVIDER_PROXY_TYPES = new Set([
   'http',
   'hysteria',
@@ -106,14 +109,15 @@ async function getClashApi<T>(
   configSections: Forkop.ConfigSection[],
   path: string,
   fallback: () => Promise<Forkop.MethodResponse<T>>,
+  timeout?: number,
+  fallbackOnHttpError = true,
 ): Promise<Forkop.MethodResponse<T>> {
   if (canFetchClashApiDirectly()) {
     const secret = getClashApiSecret(configSections);
     const controller = new AbortController();
-    const timeoutId = setTimeout(
-      () => controller.abort(),
-      CLASH_API_FETCH_TIMEOUT_MS,
-    );
+    const timeoutId = timeout
+      ? setTimeout(() => controller.abort(), timeout)
+      : undefined;
 
     try {
       const response = await fetch(`${getClashHttpUrl()}${path}`, {
@@ -127,14 +131,92 @@ async function getClashApi<T>(
           data: (await response.json()) as T,
         };
       }
+      if (!fallbackOnHttpError) {
+        return {
+          success: false,
+          error:
+            (await response.text()) ||
+            `Clash API returned HTTP ${response.status}`,
+        };
+      }
     } catch (_error) {
       // Fall back to rpcd below for controllers unavailable from the browser.
     } finally {
-      clearTimeout(timeoutId);
+      if (timeoutId) clearTimeout(timeoutId);
     }
   }
 
   return fallback();
+}
+
+function getLatencyTestUrl() {
+  return (
+    getSettingsSection(clashApiConfigSections)?.latency_test_url ||
+    DEFAULT_LATENCY_TEST_URL
+  );
+}
+
+export function getClashApiProxyLatency(tag: string, timeout = '5000') {
+  const params = new URLSearchParams({
+    url: getLatencyTestUrl(),
+    timeout,
+  });
+
+  return getClashApi(
+    clashApiConfigSections,
+    `/proxies/${encodeURIComponent(tag)}/delay?${params}`,
+    () => ForkopShellMethods.getClashApiProxyLatency(tag, timeout),
+    undefined,
+    false,
+  );
+}
+
+export function getClashApiGroupLatency(tag: string, timeout = '10000') {
+  const params = new URLSearchParams({
+    url: getLatencyTestUrl(),
+    timeout,
+  });
+
+  return getClashApi(
+    clashApiConfigSections,
+    `/group/${encodeURIComponent(tag)}/delay?${params}`,
+    () => ForkopShellMethods.getClashApiGroupLatency(tag, timeout),
+    undefined,
+    false,
+  );
+}
+
+export async function setClashApiGroupProxy(group: string, proxy: string) {
+  if (canFetchClashApiDirectly()) {
+    const secret = getClashApiSecret(clashApiConfigSections);
+
+    try {
+      const response = await fetch(
+        `${getClashHttpUrl()}/proxies/${encodeURIComponent(group)}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
+          },
+          body: JSON.stringify({ name: proxy }),
+        },
+      );
+
+      if (response.ok) return { success: true } as const;
+
+      return {
+        success: false,
+        error:
+          (await response.text()) ||
+          `Clash API returned HTTP ${response.status}`,
+      } as const;
+    } catch (_error) {
+      // Fall back to rpcd when the browser cannot reach the local API.
+    }
+  }
+
+  return ForkopShellMethods.setClashApiGroupProxy(group, proxy);
 }
 
 function getClashApiProxies(configSections: Forkop.ConfigSection[]) {
@@ -142,6 +224,7 @@ function getClashApiProxies(configSections: Forkop.ConfigSection[]) {
     configSections,
     '/proxies',
     ForkopShellMethods.getClashApiProxies,
+    CLASH_API_FETCH_TIMEOUT_MS,
   );
 }
 
@@ -150,6 +233,7 @@ function getClashApiProxyProviders(configSections: Forkop.ConfigSection[]) {
     configSections,
     '/providers/proxies',
     ForkopShellMethods.getClashApiProxyProviders,
+    CLASH_API_FETCH_TIMEOUT_MS,
   );
 }
 
@@ -256,6 +340,7 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
           urltest_check_interval: item.check_interval,
           urltest_tolerance: item.tolerance,
           urltest_testing_url: item.testing_url,
+          expected_status: item.expected_status,
           idle_timeout: item.idle_timeout,
           interrupt_exist_connections: item.interrupt_exist_connections,
           hide_dashboard_members: item.hide_dashboard_members,
@@ -462,10 +547,6 @@ function uniqueCodes(codes: string[]) {
   return Array.from(new Set(codes.filter(Boolean)));
 }
 
-function isSelectorOutbound(outbound: Forkop.Outbound) {
-  return outbound.type?.toLowerCase() === 'selector';
-}
-
 function isUrlTestProxyEntry(entry?: ClashProxyEntry) {
   return entry?.value?.type?.toLowerCase() === 'urltest';
 }
@@ -593,6 +674,7 @@ function getUrlTestConfigs(section: Forkop.ConfigSection): UrlTestConfig[] {
         'urltest_testing_url',
         'https://www.gstatic.com/generate_204',
       ),
+      expectedStatus: itemSettingString(settings, 'expected_status', '*'),
       checkInterval: itemSettingString(
         settings,
         'urltest_check_interval',
@@ -788,6 +870,7 @@ function buildUrlTestInfo({
     selectedCode: selectedCode || undefined,
     selectedName: selectedName || undefined,
     url: entry?.value.url || config.testingUrl,
+    expectedStatus: config.expectedStatus || '*',
     interval: entry?.value.interval || config.checkInterval,
     tolerance: config.tolerance,
     idleTimeout: entry?.value.idle_timeout || config.idleTimeout || '30m',
@@ -1087,20 +1170,9 @@ function buildProxyGroupOutbounds(
       ];
     });
 
-  const latencyTestCodes = outbounds
-    .filter(
-      (outbound) =>
-        outbound.runtimeAvailable !== false &&
-        !isSelectorOutbound(outbound) &&
-        !outbound.fallbackInfo,
-    )
-    .map((outbound) => outbound.code);
-
   return {
     selector,
     latencyTestCode: selector?.code || builtInUrltestCode,
-    latencyTestCodes:
-      latencyTestCodes.length > 0 ? latencyTestCodes : undefined,
     outbounds,
   };
 }
@@ -1229,6 +1301,7 @@ function getSubscriptionMetadata(
 
 export async function getDashboardSections(): Promise<IGetDashboardSectionsResponse> {
   const configSections = hydrateConfigSections(await getConfigSections());
+  clashApiConfigSections = configSections;
   const hasSubscriptions = configSections.some(hasSubscriptionSources);
   const [clashProxies, clashProviders] = await Promise.all([
     getClashApiProxies(configSections),
@@ -1277,8 +1350,11 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
             providers,
           )
         : undefined;
-      const { selector, latencyTestCode, latencyTestCodes, outbounds } =
-        buildProxyGroupOutbounds(section, proxies, subscriptionTags);
+      const { selector, latencyTestCode, outbounds } = buildProxyGroupOutbounds(
+        section,
+        proxies,
+        subscriptionTags,
+      );
 
       return {
         withTagSelect: true,
@@ -1287,7 +1363,6 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
         displayName,
         action: sectionAction,
         latencyTestCode,
-        latencyTestCodes,
         proxyConfigType,
         subscriptionSourceCount,
         subscriptionMetadata,

@@ -57,7 +57,6 @@ describe('updates check result lifecycle', () => {
       shouldRefreshComponentStateBeforeRender({
         actions: {
           service: [],
-          latency: [],
           component: [
             {
               success: true,

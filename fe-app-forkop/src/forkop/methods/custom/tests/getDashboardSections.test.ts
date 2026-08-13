@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   getConfigSections: vi.fn(),
   getClashApiProxies: vi.fn(),
   getClashApiProxyProviders: vi.fn(),
+  setClashApiGroupProxy: vi.fn(),
   canUseDirectClashApi: vi.fn(),
 }));
 
@@ -15,6 +16,7 @@ vi.mock('../../shell', () => ({
   ForkopShellMethods: {
     getClashApiProxies: mocks.getClashApiProxies,
     getClashApiProxyProviders: mocks.getClashApiProxyProviders,
+    setClashApiGroupProxy: mocks.setClashApiGroupProxy,
   },
 }));
 
@@ -26,7 +28,10 @@ vi.mock('../../../../helpers', () => ({
   isCopyableProxyLink: (link?: string) => Boolean(link),
 }));
 
-import { getDashboardSections } from '../getDashboardSections';
+import {
+  getDashboardSections,
+  setClashApiGroupProxy,
+} from '../getDashboardSections';
 import { ClashAPI, Forkop } from '../../../types';
 
 function proxy(
@@ -85,6 +90,7 @@ describe('getDashboardSections', () => {
     mocks.getConfigSections.mockReset();
     mocks.getClashApiProxies.mockReset();
     mocks.getClashApiProxyProviders.mockReset();
+    mocks.setClashApiGroupProxy.mockReset();
     mocks.canUseDirectClashApi.mockReset();
     mocks.canUseDirectClashApi.mockReturnValue(false);
     mocks.getClashApiProxyProviders.mockResolvedValue({
@@ -265,6 +271,7 @@ describe('getDashboardSections', () => {
       child('urltest', 'fast', {
         name: 'Fast',
         testing_url: 'https://fast.example/204',
+        expected_status: '204/200-299',
         check_interval: '30s',
         tolerance: '25',
       }),
@@ -289,7 +296,7 @@ describe('getDashboardSections', () => {
       Office: proxy('Selector', {
         name: 'Office',
         now: 'Office/Rescue',
-        all: ['Office/Fast', 'Office/Rescue'],
+        all: ['Office/Fast', 'Office/Rescue', 'Office/Nested'],
       }),
       'Office/Fast': proxy('URLTest', {
         name: 'Office/Fast',
@@ -312,6 +319,11 @@ describe('getDashboardSections', () => {
       'Office/Node B': proxy('Trojan', {
         history: [{ time: '2026-08-13T00:00:00Z', delay: 120 }],
       }),
+      'Office/Nested': proxy('Selector', {
+        all: ['Office/Node C'],
+        now: 'Office/Node C',
+      }),
+      'Office/Node C': proxy('VLESS'),
     });
 
     const result = await getDashboardSections();
@@ -326,8 +338,10 @@ describe('getDashboardSections', () => {
         url: 'https://runtime.example/204',
         interval: '45s',
         tolerance: 25,
+        expectedStatus: '204/200-299',
       },
     });
+    expect(result.data[0].latencyTestCode).toBe('Office');
     expect(fallback).toMatchObject({
       code: 'Office/Rescue',
       displayName: 'Rescue',
@@ -425,5 +439,30 @@ describe('getDashboardSections', () => {
 
     expect(result.success).toBe(true);
     expect(mocks.getClashApiProxies).toHaveBeenCalledOnce();
+  });
+
+  it('switches selectors through the direct Clash API', async () => {
+    mocks.getConfigSections.mockResolvedValue([section()]);
+    setClashProxies({
+      Office: proxy('Selector', { all: ['Office/Node'] }),
+      'Office/Node': proxy('VLESS'),
+    });
+    await getDashboardSections();
+
+    mocks.canUseDirectClashApi.mockReturnValue(true);
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await setClashApiGroupProxy('Office/OUT', 'Office/Node');
+
+    expect(result.success).toBe(true);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      'http://router.example:9090/proxies/Office%2FOUT',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ name: 'Office/Node' }),
+      }),
+    );
+    expect(mocks.setClashApiGroupProxy).not.toHaveBeenCalled();
   });
 });

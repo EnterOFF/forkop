@@ -4,7 +4,7 @@ import { withTimeout } from './withTimeout';
 interface ExecuteShellCommandParams {
   command: string;
   args: string[];
-  timeout?: number;
+  timeout?: number | null;
 }
 
 interface ExecuteShellCommandResponse {
@@ -19,11 +19,10 @@ export async function executeShellCommand({
   timeout = COMMAND_TIMEOUT,
 }: ExecuteShellCommandParams): Promise<ExecuteShellCommandResponse> {
   try {
-    return await withTimeout(
-      fs.exec(command, args),
-      timeout,
-      [command, ...args].join(' '),
-    );
+    const request = fs.exec(command, args);
+    return timeout === null
+      ? await request
+      : await withTimeout(request, timeout, [command, ...args].join(' '));
   } catch (err) {
     const error = err as Error & { code?: unknown };
     const code = typeof error?.code === 'number' ? error.code : 1;

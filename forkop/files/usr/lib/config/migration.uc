@@ -1995,6 +1995,11 @@ function migrate_readable_runtime_tags(ctx) {
     push(ctx.removed_caches, FORKOP_RUNTIME_MANIFEST_FILE);
 }
 
+function migrate_urltest_expected_status(ctx) {
+    for (let child in ctx.model.urltest || [])
+        set_option_if_missing(ctx, child, "expected_status", "*");
+}
+
 const MIGRATIONS = [
     { id: "interface_sections", run: migrate_interface_sections },
     { id: "enable_component_checks", run: migrate_enable_component_checks },
@@ -2017,7 +2022,8 @@ const MIGRATIONS = [
     { id: "remove_section_cache", run: remove_section_cache },
     { id: "remove_dashboard_sort_options", run: remove_dashboard_sort_options },
     { id: "dns_server_uris", run: migrate_dns_server_uris },
-    { id: "readable_runtime_tags", run: migrate_readable_runtime_tags }
+    { id: "readable_runtime_tags", run: migrate_readable_runtime_tags },
+    { id: "urltest_expected_status", run: migrate_urltest_expected_status }
 ];
 
 function apply_migrations(ctx) {

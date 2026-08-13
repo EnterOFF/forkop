@@ -857,6 +857,7 @@ function urltests_signature(section) {
             check_interval: connections.urltest_check_interval(section, entry),
             tolerance: connections.urltest_tolerance(section, entry),
             testing_url: connections.urltest_testing_url(section, entry),
+            expected_status: connections.urltest_expected_status(section, entry),
             idle_timeout: connections.urltest_idle_timeout(section, entry),
             interrupt_exist_connections: connections.urltest_interrupt_exist_connections(section, entry) ? "1" : "0",
             hide_dashboard_members: connections.urltest_hide_dashboard_members(section, entry) ? "1" : "0",
@@ -1018,6 +1019,7 @@ function append_sing_box_rule_signature_body(body, section, sections) {
         body = signature_add_value(body, prefix + ".urltest_check_interval", section_urltest_check_interval(section));
         body = signature_add_value(body, prefix + ".urltest_tolerance", option(section, "urltest_tolerance", "50"));
         body = signature_add_value(body, prefix + ".urltest_testing_url", option(section, "urltest_testing_url", "https://www.gstatic.com/generate_204"));
+        body = signature_add_value(body, prefix + ".urltest_expected_status", option(section, "urltest_expected_status", "*"));
         body = signature_add_value(body, prefix + ".urltest_filter_mode", option(section, "urltest_filter_mode", "disabled"));
         body = signature_add_value(body, prefix + ".urltest_exclude_outbounds", option(section, "urltest_exclude_outbounds", ""));
         body = signature_add_value(body, prefix + ".urltest_exclude_regex", option(section, "urltest_exclude_regex", ""));

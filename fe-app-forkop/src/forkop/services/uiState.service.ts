@@ -37,128 +37,6 @@ function getEmptyDiagnosticsActions(): StoreType['diagnosticsActions'] {
   };
 }
 
-function normalizeLatencyProgress(
-  progress?: Forkop.LatencyActionProgress,
-): Forkop.LatencyActionProgress | undefined {
-  const total = Math.trunc(Number(progress?.total ?? 0));
-
-  if (!Number.isFinite(total) || total <= 0) {
-    return undefined;
-  }
-
-  const completedValue = Number(progress?.completed ?? 0);
-  const failedValue = Number(progress?.failed ?? 0);
-  const completed = Number.isFinite(completedValue)
-    ? Math.trunc(completedValue)
-    : 0;
-  const failed = Number.isFinite(failedValue) ? Math.trunc(failedValue) : 0;
-  const pending = Array.isArray(progress?.pending)
-    ? progress.pending.filter(
-        (tag): tag is string => typeof tag === 'string' && tag.length > 0,
-      )
-    : undefined;
-  const rawLatencies = progress?.latencies;
-  const latencies = Object.fromEntries(
-    Object.entries(
-      rawLatencies &&
-        typeof rawLatencies === 'object' &&
-        !Array.isArray(rawLatencies)
-        ? rawLatencies
-        : {},
-    ).flatMap(([tag, value]) => {
-      const latency = Number(value);
-      return tag && Number.isFinite(latency) && latency >= 0
-        ? [[tag, latency]]
-        : [];
-    }),
-  );
-
-  return {
-    completed: Math.min(Math.max(0, completed), total),
-    total,
-    failed: Math.max(0, failed),
-    ...(pending ? { pending } : {}),
-    ...(Object.keys(latencies).length > 0 ? { latencies } : {}),
-  };
-}
-
-function applyLatencyResults(
-  data: Forkop.OutboundGroup[],
-  sectionName: string,
-  latencies?: Record<string, number>,
-) {
-  if (!latencies || Object.keys(latencies).length === 0) {
-    return data;
-  }
-
-  let dataChanged = false;
-  const nextData = data.map((section) => {
-    if (section.sectionName !== sectionName) {
-      return section;
-    }
-
-    let sectionChanged = false;
-    const outbounds = section.outbounds.map((outbound) => {
-      const groupKey = outbound.urlTestInfo
-        ? 'urlTestInfo'
-        : outbound.fallbackInfo
-          ? 'fallbackInfo'
-          : undefined;
-      const groupInfo = groupKey ? outbound[groupKey] : undefined;
-      if (!groupKey || !groupInfo) {
-        if (
-          !Object.prototype.hasOwnProperty.call(latencies, outbound.code) ||
-          outbound.latency === latencies[outbound.code]
-        ) {
-          return outbound;
-        }
-
-        sectionChanged = true;
-        return { ...outbound, latency: latencies[outbound.code] };
-      }
-
-      let membersChanged = false;
-      const members = groupInfo.outbounds.map((member) => {
-        if (
-          !Object.prototype.hasOwnProperty.call(latencies, member.code) ||
-          member.latency === latencies[member.code]
-        ) {
-          return member;
-        }
-
-        membersChanged = true;
-        return { ...member, latency: latencies[member.code] };
-      });
-      const hasDirectLatency = Object.prototype.hasOwnProperty.call(
-        latencies,
-        outbound.code,
-      );
-      if (!membersChanged && !hasDirectLatency) {
-        return outbound;
-      }
-
-      sectionChanged = true;
-      const selected = members.find((member) => member.selected);
-      return {
-        ...outbound,
-        latency: hasDirectLatency
-          ? latencies[outbound.code]
-          : (selected?.latency ?? outbound.latency),
-        [groupKey]: { ...groupInfo, outbounds: members },
-      };
-    });
-
-    if (!sectionChanged) {
-      return section;
-    }
-
-    dataChanged = true;
-    return { ...section, outbounds };
-  });
-
-  return dataChanged ? nextData : data;
-}
-
 function applyServiceState(uiState: Forkop.UiState) {
   const currentSystemInfo = store.get().diagnosticsSystemInfo;
   const nextSystemInfo = {
@@ -189,32 +67,9 @@ function applyServiceState(uiState: Forkop.UiState) {
 function applyActionState(actions: UiActionMap = {}) {
   const current = store.get();
   const localOverlay = getLocalActionOverlay();
-  const currentLatencyProgressSections =
-    current.sectionsWidget.latencyProgressSections;
   const subscriptionUpdatingSections: Record<string, boolean> = {};
-  const latencyFetchingSections: Record<string, boolean> = {};
-  const latencyProgressSections: Record<string, Forkop.LatencyActionProgress> =
-    {};
   const updatesActions = getEmptyUpdatesActions();
   const diagnosticsActions = getEmptyDiagnosticsActions();
-  let data = current.sectionsWidget.data;
-
-  for (const state of actions.latency || []) {
-    const progress = normalizeLatencyProgress(state.progress);
-    if (progress && state.section) {
-      data = applyLatencyResults(data, state.section, progress.latencies);
-    }
-
-    if (isRunningAction(state) && state.section) {
-      latencyFetchingSections[state.section] = true;
-      if (progress) {
-        latencyProgressSections[state.section] = progress;
-      } else if (currentLatencyProgressSections[state.section]) {
-        latencyProgressSections[state.section] =
-          currentLatencyProgressSections[state.section];
-      }
-    }
-  }
 
   for (const state of actions.component || []) {
     if (!isRunningAction(state)) {
@@ -245,17 +100,6 @@ function applyActionState(actions: UiActionMap = {}) {
     subscriptionUpdatingSections[section] = true;
   }
 
-  for (const section of localOverlay.latencySections) {
-    latencyFetchingSections[section] = true;
-    if (
-      !latencyProgressSections[section] &&
-      currentLatencyProgressSections[section]
-    ) {
-      latencyProgressSections[section] =
-        currentLatencyProgressSections[section];
-    }
-  }
-
   for (const key of localOverlay.componentActions) {
     updatesActions[key] = { loading: true };
   }
@@ -267,10 +111,7 @@ function applyActionState(actions: UiActionMap = {}) {
   store.set({
     sectionsWidget: {
       ...current.sectionsWidget,
-      data,
       subscriptionUpdatingSections,
-      latencyFetchingSections,
-      latencyProgressSections,
     },
     updatesActions,
     diagnosticsActions,
