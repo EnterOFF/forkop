@@ -1837,7 +1837,6 @@ function renderDefaultState({
   latencyFetching,
   latencyFetchingTargets = /* @__PURE__ */ new Set(),
   subscriptionUpdating,
-  selectorSwitchingTag,
   sortByLatency
 }) {
   function testLatency() {
@@ -1850,9 +1849,7 @@ function renderDefaultState({
   }
   function renderOutbound(outbound) {
     const canCopyLink = Boolean(outbound.canCopyLink) || isCopyableProxyLink(outbound.link);
-    const selectorSwitching = Boolean(selectorSwitchingTag);
-    const outboundSwitching = selectorSwitchingTag === outbound.code;
-    const canChooseOutbound = section.withTagSelect && outbound.runtimeAvailable !== false && !selectorSwitching && !outbound.selected;
+    const canChooseOutbound = section.withTagSelect && outbound.runtimeAvailable !== false && !outbound.selected;
     const groupInfo = outbound.urlTestInfo || outbound.fallbackInfo;
     const showLatency = !groupInfo || outbound.runtimeAvailable !== false && groupInfo.outbounds.length > 0;
     const latencyType = groupInfo ? "group" : "proxy";
@@ -1863,8 +1860,7 @@ function renderDefaultState({
       "fkp_dashboard-page__outbound-grid__item",
       outbound.selected ? "fkp_dashboard-page__outbound-grid__item--active" : "",
       canChooseOutbound ? "fkp_dashboard-page__outbound-grid__item--selectable" : "",
-      section.withTagSelect && !canChooseOutbound ? "fkp_dashboard-page__outbound-grid__item--disabled" : "",
-      outboundSwitching ? "fkp_dashboard-page__outbound-grid__item--switching" : ""
+      section.withTagSelect && !canChooseOutbound ? "fkp_dashboard-page__outbound-grid__item--disabled" : ""
     ].filter(Boolean).join(" ");
     const latencyClass = getOutboundLatencyClass(outbound.latency);
     const latencyValue = outbound.latency ? `${outbound.latency}ms` : "N/A";
@@ -1902,27 +1898,10 @@ function renderDefaultState({
       "div",
       {
         class: className,
-        "aria-busy": outboundSwitching ? "true" : void 0,
         "aria-disabled": section.withTagSelect && !canChooseOutbound ? "true" : void 0,
         click: () => canChooseOutbound && window.getSelection()?.isCollapsed !== false && onChooseOutbound(section.sectionName, section.code, outbound.code)
       },
       [
-        ...outboundSwitching ? [
-          svgEl(
-            "svg",
-            { class: "fkp_dashboard-page__outbound-grid__item__snake" },
-            [
-              svgEl("rect", {
-                width: "100%",
-                height: "100%",
-                fill: "none",
-                rx: 4,
-                ry: 4,
-                pathLength: 100
-              })
-            ]
-          )
-        ] : [],
         E("div", { class: "fkp_dashboard-page__outbound-grid__item__header" }, [
           E("b", {}, [
             ...outbound.subscriptionTag ? [
@@ -2248,8 +2227,7 @@ function render() {
             onUpdateSubscription: () => {
             },
             latencyFetching: false,
-            subscriptionUpdating: false,
-            selectorSwitchingTag: void 0
+            subscriptionUpdating: false
           })
         )
       ])
@@ -2410,7 +2388,6 @@ function isTransientRpcError(message) {
 }
 
 // src/forkop/methods/shell/index.ts
-var SUBSCRIPTION_UPDATE_RPC_TIMEOUT_MS = 6e4;
 var UI_ACTION_RPC_TIMEOUT_MS = 15e3;
 var SERVICE_ACTION_TIMEOUT_MS = 2 * 60 * 1e3;
 var SERVICE_ACTION_POLL_INTERVAL_MS = 1e3;
@@ -2839,7 +2816,7 @@ var ForkopShellMethods = {
     const response = await executeShellCommand({
       command: "/usr/bin/forkop",
       args,
-      timeout: SUBSCRIPTION_UPDATE_RPC_TIMEOUT_MS
+      timeout: null
     });
     if ((response.code ?? 0) !== 0) {
       return {
@@ -2881,31 +2858,41 @@ function getClashApiSecret(configSections) {
 function canFetchClashApiDirectly() {
   return canUseDirectClashApi() && typeof fetch === "function";
 }
-async function getClashApi(configSections, path, fallback, timeout, fallbackOnHttpError = true) {
-  if (canFetchClashApiDirectly()) {
-    const secret = getClashApiSecret(configSections);
-    const controller = new AbortController();
-    const timeoutId = timeout ? setTimeout(() => controller.abort(), timeout) : void 0;
-    try {
-      const response = await fetch(`${getClashHttpUrl()}${path}`, {
-        headers: secret ? { Authorization: `Bearer ${secret}` } : void 0,
-        signal: controller.signal
-      });
-      if (response.ok) {
-        return {
-          success: true,
-          data: await response.json()
-        };
-      }
-      if (!fallbackOnHttpError) {
-        return {
-          success: false,
-          error: await response.text() || `Clash API returned HTTP ${response.status}`
-        };
-      }
-    } catch (_error) {
-    } finally {
-      if (timeoutId) clearTimeout(timeoutId);
+async function fetchClashApi(configSections, path, init, timeout) {
+  if (!canFetchClashApiDirectly()) return void 0;
+  const secret = getClashApiSecret(configSections);
+  const controller = timeout ? new AbortController() : void 0;
+  const timeoutId = timeout ? setTimeout(() => controller?.abort(), timeout) : void 0;
+  const headers = {
+    ...init?.headers
+  };
+  if (secret) headers.Authorization = `Bearer ${secret}`;
+  try {
+    return await fetch(`${getClashHttpUrl()}${path}`, {
+      ...init,
+      headers,
+      signal: controller?.signal
+    });
+  } catch (_error) {
+    return void 0;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+async function getClashApi(configSections, path, fallback, timeout, fallbackOnHttpError = true, init) {
+  const response = await fetchClashApi(configSections, path, init, timeout);
+  if (response) {
+    if (response.ok) {
+      return {
+        success: true,
+        data: response.status === 204 ? void 0 : await response.json()
+      };
+    }
+    if (!fallbackOnHttpError) {
+      return {
+        success: false,
+        error: await response.text() || `Clash API returned HTTP ${response.status}`
+      };
     }
   }
   return fallback();
@@ -2940,29 +2927,51 @@ function getClashApiGroupLatency(tag, timeout = "10000") {
   );
 }
 async function setClashApiGroupProxy(group, proxy) {
-  if (canFetchClashApiDirectly()) {
-    const secret = getClashApiSecret(clashApiConfigSections);
-    try {
-      const response = await fetch(
-        `${getClashHttpUrl()}/proxies/${encodeURIComponent(group)}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            ...secret ? { Authorization: `Bearer ${secret}` } : {}
-          },
-          body: JSON.stringify({ name: proxy })
-        }
-      );
-      if (response.ok) return { success: true };
+  return getClashApi(
+    clashApiConfigSections,
+    `/proxies/${encodeURIComponent(group)}`,
+    () => ForkopShellMethods.setClashApiGroupProxy(group, proxy),
+    void 0,
+    false,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: proxy })
+    }
+  );
+}
+function getClashApiProxyLink(tag) {
+  return getClashApi(
+    clashApiConfigSections,
+    `/proxies/${encodeURIComponent(tag)}/link`,
+    () => ForkopShellMethods.getClashApiProxyLink(tag)
+  );
+}
+async function updateClashApiProxyProviders(providerTags, sectionName) {
+  if (providerTags.length && canFetchClashApiDirectly()) {
+    const responses = await Promise.all(
+      providerTags.map(
+        (tag) => fetchClashApi(
+          clashApiConfigSections,
+          `/providers/proxies/${encodeURIComponent(tag)}`,
+          { method: "PUT" }
+        )
+      )
+    );
+    if (responses.every((response) => response?.ok)) {
+      return { success: true };
+    }
+    const failed2 = responses.find(
+      (response) => Boolean(response && !response.ok)
+    );
+    if (failed2) {
       return {
         success: false,
-        error: await response.text() || `Clash API returned HTTP ${response.status}`
+        error: await failed2.text() || `Clash API returned HTTP ${failed2.status}`
       };
-    } catch (_error) {
     }
   }
-  return ForkopShellMethods.setClashApiGroupProxy(group, proxy);
+  return ForkopShellMethods.subscriptionUpdate(sectionName);
 }
 function getClashApiProxies(configSections) {
   return getClashApi(
@@ -3795,6 +3804,9 @@ async function getDashboardSections() {
         latencyTestCode,
         proxyConfigType,
         subscriptionSourceCount,
+        subscriptionProviderTags: subscriptionTags.map(
+          (item) => item.runtimeTag
+        ),
         subscriptionMetadata,
         outbounds
       };
@@ -3870,8 +3882,10 @@ var CustomForkopMethods = {
   getConfigSections,
   getDashboardSections,
   getClashApiGroupLatency,
+  getClashApiProxyLink,
   getClashApiProxyLatency,
   setClashApiGroupProxy,
+  updateClashApiProxyProviders,
   getClashApiSecret: getClashApiSecret2
 };
 
@@ -4284,7 +4298,6 @@ var initialStore = {
   sectionsWidget: {
     loading: true,
     failed: false,
-    selectorSwitchingSections: {},
     subscriptionUpdatingSections: {},
     data: []
   },
@@ -5188,6 +5201,7 @@ var dashboardDataUpdatesId = 0;
 var pageUnloading = false;
 var latencyRequests = /* @__PURE__ */ new Set();
 var latencySortedSections = /* @__PURE__ */ new Set();
+var selectorRequests = /* @__PURE__ */ new Set();
 function sectionLatencyRequestKey(sectionName) {
   return `section:${sectionName}`;
 }
@@ -5292,23 +5306,6 @@ function setSubscriptionUpdating(sectionName, updating, local = false) {
     sectionsWidget: {
       ...sectionsWidget,
       subscriptionUpdatingSections
-    }
-  });
-}
-function setSelectorSwitching(sectionName, tag) {
-  const sectionsWidget = store.get().sectionsWidget;
-  const selectorSwitchingSections = {
-    ...sectionsWidget.selectorSwitchingSections
-  };
-  if (tag) {
-    selectorSwitchingSections[sectionName] = tag;
-  } else {
-    delete selectorSwitchingSections[sectionName];
-  }
-  store.set({
-    sectionsWidget: {
-      ...sectionsWidget,
-      selectorSwitchingSections
     }
   });
 }
@@ -5458,12 +5455,12 @@ async function handleChooseOutbound(sectionName, selector, tag) {
   const section = sectionsWidget.data.find(
     (item) => item.sectionName === sectionName
   );
-  if (!section?.withTagSelect || sectionsWidget.selectorSwitchingSections[sectionName] || section.outbounds.some(
+  if (!section?.withTagSelect || selectorRequests.has(selector) || section.outbounds.some(
     (outbound) => outbound.code === tag && outbound.selected
   )) {
     return;
   }
-  setSelectorSwitching(sectionName, tag);
+  selectorRequests.add(selector);
   try {
     const response = await CustomForkopMethods.setClashApiGroupProxy(
       selector,
@@ -5491,7 +5488,7 @@ async function handleChooseOutbound(sectionName, selector, tag) {
   } catch (error) {
     logger.error("[DASHBOARD]", "handleChooseOutbound failed", error);
   } finally {
-    setSelectorSwitching(sectionName);
+    selectorRequests.delete(selector);
   }
 }
 function applyLatencyResult(sectionName, tag, latencies, group) {
@@ -5572,7 +5569,7 @@ async function handleTestLatency(latencyType, sectionName, tag, requestKey, time
 async function handleCopyOutbound(outbound) {
   const link = await resolveOutboundProxyLink(
     outbound,
-    ForkopShellMethods.getClashApiProxyLink
+    CustomForkopMethods.getClashApiProxyLink
   );
   if (link) {
     copyToClipboard(link);
@@ -6019,7 +6016,8 @@ async function handleUpdateSubscription(section) {
   }
   setSubscriptionUpdating(section.sectionName, true, true);
   try {
-    const response = await ForkopShellMethods.subscriptionUpdate(
+    const response = await CustomForkopMethods.updateClashApiProxyProviders(
+      section.subscriptionProviderTags || [],
       section.sectionName
     );
     if (!response.success) {
@@ -6072,8 +6070,7 @@ async function renderSectionsWidget() {
       onUpdateSubscription: () => {
       },
       latencyFetching: false,
-      subscriptionUpdating: false,
-      selectorSwitchingTag: void 0
+      subscriptionUpdating: false
     });
     return preserveScrollForPage(() => {
       container.replaceChildren(renderedWidget);
@@ -6097,7 +6094,6 @@ async function renderSectionsWidget() {
       subscriptionUpdating: Boolean(
         sectionsWidget.subscriptionUpdatingSections[section.sectionName]
       ),
-      selectorSwitchingTag: sectionsWidget.selectorSwitchingSections[section.sectionName],
       sortByLatency: latencySortedSections.has(section.sectionName),
       onSortByLatencyChange: handleSortByLatency,
       onTestLatency: (tag) => {
@@ -6744,39 +6740,6 @@ var styles = `
 
 .fkp_dashboard-page__outbound-grid__item--disabled {
     cursor: default;
-}
-
-.fkp_dashboard-page__outbound-grid__item--switching {
-    border-color: transparent !important;
-    overflow: hidden;
-}
-
-.fkp_dashboard-page__outbound-grid__item__snake {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: 9999;
-    box-sizing: border-box;
-}
-
-.fkp_dashboard-page__outbound-grid__item__snake rect {
-    stroke: var(--primary-color-high, dodgerblue);
-    stroke-width: 4;
-    animation: fkp-dashboard-selector-snake-svg 1.2s linear infinite;
-}
-
-@keyframes fkp-dashboard-selector-snake-svg {
-    0% {
-        stroke-dasharray: 30 70;
-        stroke-dashoffset: 100;
-    }
-    100% {
-        stroke-dasharray: 30 70;
-        stroke-dashoffset: 0;
-    }
 }
 
 .fkp_dashboard-page__outbound-grid__item__header {

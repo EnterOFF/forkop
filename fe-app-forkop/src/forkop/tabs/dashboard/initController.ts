@@ -7,7 +7,7 @@ import { copyToClipboard } from '../../../helpers/copyToClipboard';
 import { showToast } from '../../../helpers/showToast';
 import { prettyBytes } from '../../../helpers/prettyBytes';
 import { renderCopyIcon24 } from '../../../icons';
-import { CustomForkopMethods, ForkopShellMethods } from '../../methods';
+import { CustomForkopMethods } from '../../methods';
 import {
   logger,
   setLocalSubscriptionAction,
@@ -38,6 +38,7 @@ let dashboardDataUpdatesId = 0;
 let pageUnloading = false;
 const latencyRequests = new Set<string>();
 const latencySortedSections = new Set<string>();
+const selectorRequests = new Set<string>();
 
 function sectionLatencyRequestKey(sectionName: string) {
   return `section:${sectionName}`;
@@ -187,26 +188,6 @@ function setSubscriptionUpdating(
     sectionsWidget: {
       ...sectionsWidget,
       subscriptionUpdatingSections,
-    },
-  });
-}
-
-function setSelectorSwitching(sectionName: string, tag?: string) {
-  const sectionsWidget = store.get().sectionsWidget;
-  const selectorSwitchingSections = {
-    ...sectionsWidget.selectorSwitchingSections,
-  };
-
-  if (tag) {
-    selectorSwitchingSections[sectionName] = tag;
-  } else {
-    delete selectorSwitchingSections[sectionName];
-  }
-
-  store.set({
-    sectionsWidget: {
-      ...sectionsWidget,
-      selectorSwitchingSections,
     },
   });
 }
@@ -410,7 +391,7 @@ async function handleChooseOutbound(
 
   if (
     !section?.withTagSelect ||
-    sectionsWidget.selectorSwitchingSections[sectionName] ||
+    selectorRequests.has(selector) ||
     section.outbounds.some(
       (outbound) => outbound.code === tag && outbound.selected,
     )
@@ -418,7 +399,7 @@ async function handleChooseOutbound(
     return;
   }
 
-  setSelectorSwitching(sectionName, tag);
+  selectorRequests.add(selector);
 
   try {
     const response = await CustomForkopMethods.setClashApiGroupProxy(
@@ -450,7 +431,7 @@ async function handleChooseOutbound(
   } catch (error) {
     logger.error('[DASHBOARD]', 'handleChooseOutbound failed', error);
   } finally {
-    setSelectorSwitching(sectionName);
+    selectorRequests.delete(selector);
   }
 }
 
@@ -565,7 +546,7 @@ async function handleTestLatency(
 async function handleCopyOutbound(outbound: Forkop.Outbound) {
   const link = await resolveOutboundProxyLink(
     outbound,
-    ForkopShellMethods.getClashApiProxyLink,
+    CustomForkopMethods.getClashApiProxyLink,
   );
   if (link) {
     copyToClipboard(link);
@@ -1112,7 +1093,8 @@ async function handleUpdateSubscription(section: Forkop.OutboundGroup) {
   setSubscriptionUpdating(section.sectionName, true, true);
 
   try {
-    const response = await ForkopShellMethods.subscriptionUpdate(
+    const response = await CustomForkopMethods.updateClashApiProxyProviders(
+      section.subscriptionProviderTags || [],
       section.sectionName,
     );
 
@@ -1165,7 +1147,6 @@ async function renderSectionsWidget() {
       onUpdateSubscription: () => {},
       latencyFetching: false,
       subscriptionUpdating: false,
-      selectorSwitchingTag: undefined,
     });
 
     return preserveScrollForPage(() => {
@@ -1193,8 +1174,6 @@ async function renderSectionsWidget() {
       subscriptionUpdating: Boolean(
         sectionsWidget.subscriptionUpdatingSections[section.sectionName],
       ),
-      selectorSwitchingTag:
-        sectionsWidget.selectorSwitchingSections[section.sectionName],
       sortByLatency: latencySortedSections.has(section.sectionName),
       onSortByLatencyChange: handleSortByLatency,
       onTestLatency: (tag) => {

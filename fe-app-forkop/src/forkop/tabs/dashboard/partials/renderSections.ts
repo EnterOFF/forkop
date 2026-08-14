@@ -5,7 +5,7 @@ import {
   renderListFilterIcon24,
   renderRotateCcwIcon24,
 } from '../../../../icons';
-import { isCopyableProxyLink, svgEl } from '../../../../helpers';
+import { isCopyableProxyLink } from '../../../../helpers';
 import { prettyBytes } from '../../../../helpers/prettyBytes';
 import { Forkop } from '../../../types';
 import { renderFlagEmojis } from './renderFlagEmojis';
@@ -32,7 +32,6 @@ interface IRenderSectionsProps {
   latencyFetching: boolean;
   latencyFetchingTargets?: Set<string>;
   subscriptionUpdating: boolean;
-  selectorSwitchingTag?: string;
   sortByLatency?: boolean;
 }
 
@@ -268,7 +267,6 @@ function renderDefaultState({
   latencyFetching,
   latencyFetchingTargets = new Set(),
   subscriptionUpdating,
-  selectorSwitchingTag,
   sortByLatency,
 }: IRenderSectionsProps) {
   function testLatency() {
@@ -284,12 +282,9 @@ function renderDefaultState({
   function renderOutbound(outbound: Forkop.Outbound) {
     const canCopyLink =
       Boolean(outbound.canCopyLink) || isCopyableProxyLink(outbound.link);
-    const selectorSwitching = Boolean(selectorSwitchingTag);
-    const outboundSwitching = selectorSwitchingTag === outbound.code;
     const canChooseOutbound =
       section.withTagSelect &&
       outbound.runtimeAvailable !== false &&
-      !selectorSwitching &&
       !outbound.selected;
     const groupInfo = outbound.urlTestInfo || outbound.fallbackInfo;
     const showLatency =
@@ -312,9 +307,6 @@ function renderDefaultState({
         : '',
       section.withTagSelect && !canChooseOutbound
         ? 'fkp_dashboard-page__outbound-grid__item--disabled'
-        : '',
-      outboundSwitching
-        ? 'fkp_dashboard-page__outbound-grid__item--switching'
         : '',
     ]
       .filter(Boolean)
@@ -359,7 +351,6 @@ function renderDefaultState({
       'div',
       {
         class: className,
-        'aria-busy': outboundSwitching ? 'true' : undefined,
         'aria-disabled':
           section.withTagSelect && !canChooseOutbound ? 'true' : undefined,
         click: () =>
@@ -368,24 +359,6 @@ function renderDefaultState({
           onChooseOutbound(section.sectionName, section.code, outbound.code),
       },
       [
-        ...(outboundSwitching
-          ? [
-              svgEl(
-                'svg',
-                { class: 'fkp_dashboard-page__outbound-grid__item__snake' },
-                [
-                  svgEl('rect', {
-                    width: '100%',
-                    height: '100%',
-                    fill: 'none',
-                    rx: 4,
-                    ry: 4,
-                    pathLength: 100,
-                  }),
-                ],
-              ),
-            ]
-          : []),
         E('div', { class: 'fkp_dashboard-page__outbound-grid__item__header' }, [
           E('b', {}, [
             ...(outbound.subscriptionTag

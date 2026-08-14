@@ -31,7 +31,7 @@ describe('ForkopShellMethods.subscriptionUpdate', () => {
     expect(mocks.executeShellCommand).toHaveBeenCalledWith({
       command: '/usr/bin/forkop',
       args: ['subscription_update', 'main', '2'],
-      timeout: 60000,
+      timeout: null,
     });
   });
 

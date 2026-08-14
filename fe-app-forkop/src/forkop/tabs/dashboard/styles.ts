@@ -374,39 +374,6 @@ export const styles = `
     cursor: default;
 }
 
-.fkp_dashboard-page__outbound-grid__item--switching {
-    border-color: transparent !important;
-    overflow: hidden;
-}
-
-.fkp_dashboard-page__outbound-grid__item__snake {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: 9999;
-    box-sizing: border-box;
-}
-
-.fkp_dashboard-page__outbound-grid__item__snake rect {
-    stroke: var(--primary-color-high, dodgerblue);
-    stroke-width: 4;
-    animation: fkp-dashboard-selector-snake-svg 1.2s linear infinite;
-}
-
-@keyframes fkp-dashboard-selector-snake-svg {
-    0% {
-        stroke-dasharray: 30 70;
-        stroke-dashoffset: 100;
-    }
-    100% {
-        stroke-dasharray: 30 70;
-        stroke-dashoffset: 0;
-    }
-}
-
 .fkp_dashboard-page__outbound-grid__item__header {
     display: flex;
     align-items: flex-start;

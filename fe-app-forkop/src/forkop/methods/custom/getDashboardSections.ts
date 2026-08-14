@@ -105,44 +105,65 @@ function canFetchClashApiDirectly() {
   return canUseDirectClashApi() && typeof fetch === 'function';
 }
 
+async function fetchClashApi(
+  configSections: Forkop.ConfigSection[],
+  path: string,
+  init?: RequestInit,
+  timeout?: number,
+) {
+  if (!canFetchClashApiDirectly()) return undefined;
+
+  const secret = getClashApiSecret(configSections);
+  const controller = timeout ? new AbortController() : undefined;
+  const timeoutId = timeout
+    ? setTimeout(() => controller?.abort(), timeout)
+    : undefined;
+  const headers: Record<string, string> = {
+    ...(init?.headers as Record<string, string> | undefined),
+  };
+
+  if (secret) headers.Authorization = `Bearer ${secret}`;
+
+  try {
+    return await fetch(`${getClashHttpUrl()}${path}`, {
+      ...init,
+      headers,
+      signal: controller?.signal,
+    });
+  } catch (_error) {
+    return undefined;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 async function getClashApi<T>(
   configSections: Forkop.ConfigSection[],
   path: string,
   fallback: () => Promise<Forkop.MethodResponse<T>>,
   timeout?: number,
   fallbackOnHttpError = true,
+  init?: RequestInit,
 ): Promise<Forkop.MethodResponse<T>> {
-  if (canFetchClashApiDirectly()) {
-    const secret = getClashApiSecret(configSections);
-    const controller = new AbortController();
-    const timeoutId = timeout
-      ? setTimeout(() => controller.abort(), timeout)
-      : undefined;
+  const response = await fetchClashApi(configSections, path, init, timeout);
 
-    try {
-      const response = await fetch(`${getClashHttpUrl()}${path}`, {
-        headers: secret ? { Authorization: `Bearer ${secret}` } : undefined,
-        signal: controller.signal,
-      });
-
-      if (response.ok) {
-        return {
-          success: true,
-          data: (await response.json()) as T,
-        };
-      }
-      if (!fallbackOnHttpError) {
-        return {
-          success: false,
-          error:
-            (await response.text()) ||
-            `Clash API returned HTTP ${response.status}`,
-        };
-      }
-    } catch (_error) {
-      // Fall back to rpcd below for controllers unavailable from the browser.
-    } finally {
-      if (timeoutId) clearTimeout(timeoutId);
+  if (response) {
+    if (response.ok) {
+      return {
+        success: true,
+        data:
+          response.status === 204
+            ? (undefined as T)
+            : ((await response.json()) as T),
+      };
+    }
+    if (!fallbackOnHttpError) {
+      return {
+        success: false,
+        error:
+          (await response.text()) ||
+          `Clash API returned HTTP ${response.status}`,
+      };
     }
   }
 
@@ -187,36 +208,60 @@ export function getClashApiGroupLatency(tag: string, timeout = '10000') {
 }
 
 export async function setClashApiGroupProxy(group: string, proxy: string) {
-  if (canFetchClashApiDirectly()) {
-    const secret = getClashApiSecret(clashApiConfigSections);
+  return getClashApi(
+    clashApiConfigSections,
+    `/proxies/${encodeURIComponent(group)}`,
+    () => ForkopShellMethods.setClashApiGroupProxy(group, proxy),
+    undefined,
+    false,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: proxy }),
+    },
+  );
+}
 
-    try {
-      const response = await fetch(
-        `${getClashHttpUrl()}/proxies/${encodeURIComponent(group)}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
-          },
-          body: JSON.stringify({ name: proxy }),
-        },
-      );
+export function getClashApiProxyLink(tag: string) {
+  return getClashApi<Forkop.GetClashApiProxyLink>(
+    clashApiConfigSections,
+    `/proxies/${encodeURIComponent(tag)}/link`,
+    () => ForkopShellMethods.getClashApiProxyLink(tag),
+  );
+}
 
-      if (response.ok) return { success: true } as const;
+export async function updateClashApiProxyProviders(
+  providerTags: string[],
+  sectionName: string,
+) {
+  if (providerTags.length && canFetchClashApiDirectly()) {
+    const responses = await Promise.all(
+      providerTags.map((tag) =>
+        fetchClashApi(
+          clashApiConfigSections,
+          `/providers/proxies/${encodeURIComponent(tag)}`,
+          { method: 'PUT' },
+        ),
+      ),
+    );
+    if (responses.every((response) => response?.ok)) {
+      return { success: true } as const;
+    }
 
+    const failed = responses.find((response): response is Response =>
+      Boolean(response && !response.ok),
+    );
+
+    if (failed) {
       return {
         success: false,
         error:
-          (await response.text()) ||
-          `Clash API returned HTTP ${response.status}`,
+          (await failed.text()) || `Clash API returned HTTP ${failed.status}`,
       } as const;
-    } catch (_error) {
-      // Fall back to rpcd when the browser cannot reach the local API.
     }
   }
 
-  return ForkopShellMethods.setClashApiGroupProxy(group, proxy);
+  return ForkopShellMethods.subscriptionUpdate(sectionName);
 }
 
 function getClashApiProxies(configSections: Forkop.ConfigSection[]) {
@@ -1365,6 +1410,9 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
         latencyTestCode,
         proxyConfigType,
         subscriptionSourceCount,
+        subscriptionProviderTags: subscriptionTags.map(
+          (item) => item.runtimeTag,
+        ),
         subscriptionMetadata,
         outbounds,
       };

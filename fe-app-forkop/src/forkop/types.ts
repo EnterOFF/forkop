@@ -205,6 +205,7 @@ export namespace Forkop {
     latencyTestTimeout?: string;
     proxyConfigType?: ProxyConfigType;
     subscriptionSourceCount?: number;
+    subscriptionProviderTags?: string[];
     subscriptionMetadata?: SubscriptionMetadata[];
     outbounds: Outbound[];
   }

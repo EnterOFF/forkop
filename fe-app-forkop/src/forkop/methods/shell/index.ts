@@ -3,7 +3,6 @@ import { ClashAPI, Forkop } from '../../types';
 import { executeShellCommand } from '../../../helpers';
 import { isTransientRpcError } from '../../helpers/isTransientRpcError';
 
-const SUBSCRIPTION_UPDATE_RPC_TIMEOUT_MS = 60000;
 const UI_ACTION_RPC_TIMEOUT_MS = 15000;
 const SERVICE_ACTION_TIMEOUT_MS = 2 * 60 * 1000;
 const SERVICE_ACTION_POLL_INTERVAL_MS = 1000;
@@ -579,7 +578,7 @@ export const ForkopShellMethods = {
     const response = await executeShellCommand({
       command: '/usr/bin/forkop',
       args,
-      timeout: SUBSCRIPTION_UPDATE_RPC_TIMEOUT_MS,
+      timeout: null,
     });
 
     if ((response.code ?? 0) !== 0) {

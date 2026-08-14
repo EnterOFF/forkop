@@ -85,7 +85,6 @@ export function render() {
             onUpdateSubscription: () => {},
             latencyFetching: false,
             subscriptionUpdating: false,
-            selectorSwitchingTag: undefined,
           }),
         ),
       ]),

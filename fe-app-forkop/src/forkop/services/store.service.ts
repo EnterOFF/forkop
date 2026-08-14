@@ -167,7 +167,6 @@ export interface StoreType {
     loading: boolean;
     failed: boolean;
     data: Forkop.OutboundGroup[];
-    selectorSwitchingSections: Record<string, string>;
     subscriptionUpdatingSections: Record<string, boolean>;
   };
   diagnosticsRunAction: {
@@ -260,7 +259,6 @@ const initialStore: StoreType = {
   sectionsWidget: {
     loading: true,
     failed: false,
-    selectorSwitchingSections: {},
     subscriptionUpdatingSections: {},
     data: [],
   },
