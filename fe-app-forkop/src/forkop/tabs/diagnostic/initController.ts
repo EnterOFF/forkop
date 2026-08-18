@@ -698,23 +698,10 @@ async function handleUpdateRuleSets() {
     if (!response.success) {
       throw new Error(response.error);
     }
-
-    // Nothing on the page reflects rule-set content, so the outcome has to be
-    // reported explicitly or the action looks like it did nothing.
-    ui.addNotification(
-      _('Rule sets updated'),
-      E('div', {}, _('All remote rule sets were refreshed')),
-      'info',
-      'fkp-rule-sets-update-notification',
-    );
   } catch (e) {
+    // sing-box logs which rule-set failed and why, so the page stays quiet here
+    // like every other action in this block.
     logger.error('[DIAGNOSTIC]', 'handleUpdateRuleSets - e', e);
-    ui.addNotification(
-      _('Failed to update rule sets'),
-      E('div', {}, e instanceof Error ? e.message : String(e)),
-      'error',
-      'fkp-rule-sets-update-notification',
-    );
   } finally {
     setDiagnosticActionLoading('updateRuleSets', false);
   }

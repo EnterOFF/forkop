@@ -8758,7 +8758,7 @@ function renderAvailableActions({
       renderButton({
         onClick: updateRuleSets.onClick,
         icon: renderDownloadIcon24,
-        text: _("Update rule sets"),
+        text: _("Update remote rule sets"),
         loading: updateRuleSets.loading,
         disabled: updateRuleSets.disabled
       })
@@ -10034,20 +10034,8 @@ async function handleUpdateRuleSets() {
     if (!response.success) {
       throw new Error(response.error);
     }
-    ui.addNotification(
-      _("Rule sets updated"),
-      E("div", {}, _("All remote rule sets were refreshed")),
-      "info",
-      "fkp-rule-sets-update-notification"
-    );
   } catch (e) {
     logger.error("[DIAGNOSTIC]", "handleUpdateRuleSets - e", e);
-    ui.addNotification(
-      _("Failed to update rule sets"),
-      E("div", {}, e instanceof Error ? e.message : String(e)),
-      "error",
-      "fkp-rule-sets-update-notification"
-    );
   } finally {
     setDiagnosticActionLoading("updateRuleSets", false);
   }

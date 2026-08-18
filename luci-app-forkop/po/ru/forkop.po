@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-18 01:46+0300\n"
-"PO-Revision-Date: 2026-08-18 01:46+0300\n"
+"POT-Creation-Date: 2026-08-18 02:13+0300\n"
+"PO-Revision-Date: 2026-08-18 02:13+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -127,9 +127,6 @@ msgstr "Все устройства"
 
 msgid "All remaining servers"
 msgstr "Все оставшиеся серверы"
-
-msgid "All remote rule sets were refreshed"
-msgstr "Все удалённые наборы правил обновлены"
 
 msgid "All servers"
 msgstr "Все серверы"
@@ -757,9 +754,6 @@ msgstr "Не удалось загрузить логи"
 
 msgid "Failed to pin the server"
 msgstr "Не удалось закрепить сервер"
-
-msgid "Failed to update rule sets"
-msgstr "Не удалось обновить наборы правил"
 
 msgid "FakeIP and control checks use different public IPs"
 msgstr "FakeIP и контрольная проверка используют разные публичные IP"
@@ -1595,9 +1589,6 @@ msgstr "Настройки набора правил"
 msgid "Rule sets"
 msgstr "Наборы правил"
 
-msgid "Rule sets updated"
-msgstr "Наборы правил обновлены"
-
 msgid "Rules"
 msgstr "Правила"
 
@@ -2144,8 +2135,8 @@ msgstr "Доступно обновление"
 msgid "Update is available:"
 msgstr "Доступна новая версия:"
 
-msgid "Update rule sets"
-msgstr "Обновить наборы правил"
+msgid "Update remote rule sets"
+msgstr "Обновить удаленные наборы правил"
 
 msgid "Update subscriptions"
 msgstr "Обновить подписки"

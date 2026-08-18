@@ -107,7 +107,7 @@ export function renderAvailableActions({
       renderButton({
         onClick: updateRuleSets.onClick,
         icon: renderDownloadIcon24,
-        text: _('Update rule sets'),
+        text: _('Update remote rule sets'),
         loading: updateRuleSets.loading,
         disabled: updateRuleSets.disabled,
       }),
