@@ -1171,7 +1171,7 @@ function dns_server(config, predicate) {
 }
 
 let disabled = cfg("disabled");
-assert(first_remote_ruleset(disabled).update_interval == "876000h", "disabled list update interval");
+assert(first_remote_ruleset(disabled).update_interval == null, "disabled list updates omit the interval");
 let disabled_resolve = route_rule(disabled, r => r.type == "logical" && r.action == "resolve" && r.server == "dns-server");
 assert(disabled_resolve != null && length(disabled_resolve.rules || []) == 2 &&
     contains(disabled_resolve.rules[0].rule_set, first_remote_ruleset(disabled).tag) &&

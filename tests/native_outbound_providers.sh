@@ -138,8 +138,10 @@ if (without_hwid.headers["X-HWID"] != null)
     die("disabled empty HWID must omit the request header\n");
 if (remote.download_detour != "hop" || remote.outbound_detour != "hop")
     die("provider download/cascade detours were not generated\n");
-if (remote.update_interval != "876000h")
-    die("disabled provider updates must use the inert interval\n");
+if (remote.update_interval != null)
+    die("disabled provider updates must omit the interval\n");
+if (automatic.update_interval != "1h")
+    die("enabled provider updates must generate the interval\n");
 if (remote.tag_prefix != null)
     die("removed provider tag_prefix leaked into the config\n");
 if (remote.include != "(?:(?:^(US|DE)))")

@@ -134,9 +134,11 @@ function settings_update_interval() {
     return update_interval != "" ? update_interval : "1d";
 }
 
-function remote_ruleset_update_interval() {
+function apply_remote_ruleset_update_interval(rule_set) {
     let update_interval = settings_update_interval();
-    return update_interval != "" ? update_interval : runtime_constants.DISABLED_UPDATE_INTERVAL;
+    if (update_interval != "")
+        rule_set.update_interval = update_interval;
+    return rule_set;
 }
 
 function tag(base, postfix) {
@@ -221,8 +223,7 @@ function ensure_custom_ruleset(config, reference) {
             let detour = download_detour_tag(runtime_settings(), "lists");
             if (detour != "")
                 rule_set.download_detour = detour;
-            rule_set.update_interval = remote_ruleset_update_interval();
-            push(config.route.rule_set, rule_set);
+            push(config.route.rule_set, apply_remote_ruleset_update_interval(rule_set));
         }
         return tag_name;
     }
@@ -249,8 +250,7 @@ function ensure_custom_ruleset(config, reference) {
         let detour = download_detour_tag(runtime_settings(), "lists");
         if (detour != "")
             rule_set.download_detour = detour;
-        rule_set.update_interval = remote_ruleset_update_interval();
-        push(config.route.rule_set, rule_set);
+        push(config.route.rule_set, apply_remote_ruleset_update_interval(rule_set));
     }
     else {
         runtime_generate_unsupported("rule_set reference is not supported by sing-box config generation");
@@ -585,9 +585,8 @@ function add_subscription_provider(config, section, source_index, source) {
         provider.url = source;
         provider.user_agent = connections.subscription_user_agent(section, source);
         provider.headers = subscription_headers(section, source);
-        provider.update_interval = connections.subscription_update_enabled(section, source)
-            ? connections.subscription_update_interval(section, source)
-            : runtime_constants.DISABLED_UPDATE_INTERVAL;
+        if (connections.subscription_update_enabled(section, source))
+            provider.update_interval = connections.subscription_update_interval(section, source);
 
         let download_section = connections.subscription_download_section(section, source);
         if (download_section != "")
@@ -1413,13 +1412,12 @@ function ensure_community_ruleset(config, section_name, community) {
             type: "remote",
             tag: tag_name,
             format: "binary",
-            url: runtime_rulesets.community_url(community),
-            update_interval: remote_ruleset_update_interval()
+            url: runtime_rulesets.community_url(community)
         };
         let detour = download_detour_tag(runtime_settings(), "lists");
         if (detour != "")
             rule_set.download_detour = detour;
-        push(config.route.rule_set, rule_set);
+        push(config.route.rule_set, apply_remote_ruleset_update_interval(rule_set));
     }
     return {
         tag: tag_name,
