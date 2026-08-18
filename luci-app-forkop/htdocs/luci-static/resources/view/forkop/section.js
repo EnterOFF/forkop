@@ -1617,7 +1617,7 @@ const SettingsDynamicList = form.DynamicList.extend({
   write(section_id, value) {
     if (this.childType) {
       const ownerId = this.childOwner(section_id);
-      const itemIds = materializeChildItems(
+      const { itemIds, resolved } = materializeChildItems(
         ownerId,
         {
           typeName: this.childType,
@@ -1633,6 +1633,7 @@ const SettingsDynamicList = form.DynamicList.extend({
         },
         value,
       );
+      adoptMaterializedChildItems(this, section_id, resolved);
       cleanupRemovedChildItems(
         ownerId,
         this.childType,
@@ -3583,7 +3584,12 @@ function showChildItemSettingsModal(section_id, itemValue, option, settings) {
     ? readChildSettings(value, settings.keys, defaults)
     : Object.assign(
         {},
-        pendingChildSettings(option, section_id, inputValue, defaults),
+        // A pending item is stored under its display value, so an item that is
+        // still being added has nothing to restore and must use fresh defaults
+        // instead of the state a dismissed modal left behind.
+        inputValue
+          ? pendingChildSettings(option, section_id, inputValue, defaults)
+          : defaults,
       );
   const data = {
     settings: Object.assign({}, initialSettings),
@@ -3624,6 +3630,9 @@ function showChildItemSettingsModal(section_id, itemValue, option, settings) {
       const store = childPendingSettingsStore(option, section_id);
       if (nextInputValue !== inputValue) {
         delete store[inputValue];
+        // A draft item is identified by its display value, so the list item has
+        // to follow the rename to keep pointing at its staged settings.
+        setDynamicListItemValue(settings.itemNode, nextInputValue);
       }
       store[nextInputValue] = nextSettings;
       if (typeof settings.afterSave === "function") {
@@ -3718,6 +3727,7 @@ function showUrlTestSettingsModal(
     typeName: "urltest",
     valueOption: "name",
     keys: urlTestSettingsKeys(),
+    itemNode,
     defaults: () => defaultUrlTestSettings(defaultName),
     addOptions: addUrlTestItemOptions,
     validateName: validateUniqueDynamicListItemName.bind(
@@ -3773,6 +3783,7 @@ function showFallbackLevelSettingsModal(
     ownerOption: "group",
     valueOption: "name",
     keys: fallbackLevelSettingsKeys(),
+    itemNode,
     defaults,
     addOptions: (itemSection) =>
       addFallbackLevelItemOptions(itemSection, {
@@ -4080,7 +4091,7 @@ function createTunnelItem(sectionId, tunnelId, settings) {
 
 function materializeTunnelPeers(tunnelId, values, option) {
   const store = childPendingSettingsStore(option, tunnelId);
-  const itemIds = materializeChildItems(
+  const { itemIds } = materializeChildItems(
     tunnelId,
     {
       typeName: "tunnel_peer",
@@ -5725,9 +5736,13 @@ function isExistingChildItem(section_id, itemId, typeName, ownerOption) {
   );
 }
 
-function findChildItemForInput(section_id, options, inputValue) {
+function createChildItem(section_id, options, inputValue) {
   const rawValue = `${inputValue || ""}`.trim();
 
+  // Only a stored child section id identifies an existing item. A display value
+  // is always a draft, even when an item that is still stored carries the same
+  // name, so removing an item and adding a new one with the same name keeps the
+  // freshly entered settings instead of resurrecting the removed section.
   if (
     isExistingChildItem(
       section_id,
@@ -5736,33 +5751,11 @@ function findChildItemForInput(section_id, options, inputValue) {
       options.ownerOption,
     )
   ) {
-    return rawValue;
-  }
-
-  if (options.valueOption) {
-    return getChildItemIds(
-      section_id,
-      options.typeName,
-      options.ownerOption,
-    ).find(
-      (itemId) =>
-        childItemValue(itemId, options.valueOption, itemId) === rawValue,
-    );
-  }
-
-  return null;
-}
-
-function createChildItem(section_id, options, inputValue) {
-  const rawValue = `${inputValue || ""}`.trim();
-  const existing = findChildItemForInput(section_id, options, rawValue);
-
-  if (existing) {
     return {
-      value: existing,
+      value: rawValue,
       text: options.valueOption
-        ? childItemValue(existing, options.valueOption, existing)
-        : existing,
+        ? childItemValue(rawValue, options.valueOption, rawValue)
+        : rawValue,
       created: false,
     };
   }
@@ -5837,28 +5830,65 @@ function applyChildItemSettings(itemId, settings) {
 }
 
 function materializeChildItems(section_id, options, inputValue) {
-  const result = [];
+  const itemIds = [];
   const seen = new Set();
+  const resolved = new Map();
 
   normalizeDynamicListItems(inputValue).forEach((value) => {
-    const createdItem = createChildItem(section_id, options, value);
-    const itemId = createdItem.value;
-    const stagedSettings =
-      createdItem.created && typeof options.stagedSettings === "function"
-        ? options.stagedSettings(value, itemId, createdItem.created)
-        : null;
+    let itemId = resolved.get(value);
 
-    if (stagedSettings) {
-      applyChildItemSettings(itemId, stagedSettings);
+    if (itemId == null) {
+      const createdItem = createChildItem(section_id, options, value);
+      itemId = createdItem.value;
+      const stagedSettings =
+        createdItem.created && typeof options.stagedSettings === "function"
+          ? options.stagedSettings(value, itemId, createdItem.created)
+          : null;
+
+      if (stagedSettings) {
+        applyChildItemSettings(itemId, stagedSettings);
+      }
+
+      if (itemId) {
+        resolved.set(value, itemId);
+      }
     }
 
     if (itemId && !seen.has(itemId)) {
       seen.add(itemId);
-      result.push(itemId);
+      itemIds.push(itemId);
     }
   });
 
-  return result;
+  return { itemIds, resolved };
+}
+
+// Replaces draft list values with the child section ids they were stored as, so
+// a repeated write of the same widget updates those sections instead of storing
+// duplicates and losing the staged settings.
+function adoptMaterializedChildItems(option, section_id, resolved) {
+  let widget = null;
+
+  try {
+    widget = option.getUIElement(section_id);
+  } catch (_error) {
+    // The widget is not mounted; the stored ids are loaded on the next render.
+  }
+
+  if (!widget || !widget.node) {
+    return;
+  }
+
+  resolved.forEach((itemId, value) => {
+    if (itemId === value) {
+      return;
+    }
+
+    const item = findDynamicListItemByValue(widget.node, value);
+    if (item) {
+      setDynamicListItemValue(item, itemId);
+    }
+  });
 }
 
 function cleanupFallbackLevelsForGroup(groupId) {
