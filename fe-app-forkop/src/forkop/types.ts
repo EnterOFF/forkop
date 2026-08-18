@@ -76,7 +76,7 @@ export namespace Forkop {
   // check_logs              Show forkop logs from system journal
   // check_sing_box_logs     Show sing-box logs
   // check_fakeip            Test sing-box FakeIP DNS
-  // clash_api               Clash API interface for managing proxies and groups
+  // clash_http              Allowlisted Clash API transport fallback
   // show_config             Display current forkop configuration
   // show_version            Show forkop version
   // show_sing_box_config    Show sing-box configuration
@@ -102,7 +102,7 @@ export namespace Forkop {
     GET_ZAPRET_STATUS = 'get_zapret_status',
     GET_ZAPRET2_STATUS = 'get_zapret2_status',
     GET_BYEDPI_STATUS = 'get_byedpi_status',
-    CLASH_API = 'clash_api',
+    CLASH_HTTP = 'clash_http',
     ENABLE = 'enable',
     DISABLE = 'disable',
     GLOBAL_CHECK = 'global_check',
@@ -118,19 +118,6 @@ export namespace Forkop {
     COMPONENT_ACTION_ASYNC = 'component_action_async',
     COMPONENT_ACTION_STATUS = 'component_action_status',
     COMPONENT_UPDATE_CHECK_CACHE = 'component_update_check_cache',
-    SUBSCRIPTION_UPDATE = 'subscription_update',
-  }
-
-  export enum AvailableClashAPIMethods {
-    GET_PROXIES = 'get_proxies',
-    GET_PROXY_PROVIDERS = 'get_proxy_providers',
-    GET_PROXY_LINK = 'get_proxy_link',
-    GET_CONNECTIONS = 'get_connections',
-    GET_PROXY_LATENCY = 'get_proxy_latency',
-    GET_GROUP_LATENCY = 'get_group_latency',
-    SET_GROUP_PROXY = 'set_group_proxy',
-    CLOSE_CONNECTION = 'close_connection',
-    CLOSE_ALL_CONNECTIONS = 'close_all_connections',
   }
 
   export interface Outbound {
@@ -657,4 +644,9 @@ export namespace Forkop {
   }
 
   export type GetClashApiGroupLatency = Record<string, number>;
+
+  export interface ClashHttpResponse {
+    status: number;
+    body: string;
+  }
 }

@@ -1095,7 +1095,6 @@ async function handleUpdateSubscription(section: Forkop.OutboundGroup) {
   try {
     const response = await CustomForkopMethods.updateClashApiProxyProviders(
       section.subscriptionProviderTags || [],
-      section.sectionName,
     );
 
     if (!response.success) {

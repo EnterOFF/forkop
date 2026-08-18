@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-13 02:52+0300\n"
-"PO-Revision-Date: 2026-08-13 02:52+0300\n"
+"POT-Creation-Date: 2026-08-18 15:56+0300\n"
+"PO-Revision-Date: 2026-08-18 15:56+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -301,6 +301,9 @@ msgstr "Проверки пройдены с ручным DHCP"
 
 msgid "CIDR must be between 0 and 32 for IPv4 or 0 and 128 for IPv6"
 msgstr "CIDR должен быть от 0 до 32 для IPv4 или от 0 до 128 для IPv6"
+
+msgid "Clash API request timed out after it was sent"
+msgstr "Запрос к Clash API был отправлен, но истекло время ожидания ответа"
 
 msgid "Client fingerprint"
 msgstr "Отпечаток клиента"
@@ -1000,6 +1003,9 @@ msgstr "Некорректная стратегия ByeDPI"
 
 msgid "Invalid CIDR prefix"
 msgstr "Неверный префикс CIDR"
+
+msgid "Invalid Clash API response"
+msgstr "Некорректный ответ Clash API"
 
 msgid "Invalid DNS server format. Examples: 8.8.8.8, tls://1.1.1.1, or https://dns.example.com/dns-query"
 msgstr "Неверный формат DNS-сервера. Примеры: 8.8.8.8, tls://1.1.1.1 или https://dns.example.com/dns-query"
@@ -1906,9 +1912,6 @@ msgstr "Тег подписки должен быть уникальным вн�
 
 msgid "Subscription tag must not contain /"
 msgstr "Тег подписки не должен содержать /"
-
-msgid "Subscription update failed"
-msgstr "Обновление подписки завершилось ошибкой"
 
 msgid "Subscription update interval"
 msgstr "Интервал обновления подписки"

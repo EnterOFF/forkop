@@ -2,8 +2,6 @@
 
 let fs = require("fs");
 let uci_core = require("core.uci");
-let core_url = require("core.url");
-let connections = require("config.connections");
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
 const BIN_PATH = getenv("FORKOP_BIN") || "/usr/bin/forkop";
@@ -199,10 +197,6 @@ function bool_option(section, key, fallback) {
     return value == null ? !!fallback : arg_bool(value);
 }
 
-function section_name(section) {
-    return as_string(object_or_empty(section)[".name"]);
-}
-
 function temp_path() {
     return trim(command_output_from_args([ "mktemp" ]));
 }
@@ -211,10 +205,6 @@ function owner_pid() {
     let stat = as_string(fs.readfile("/proc/self/stat"));
     let separator = index(stat, " ");
     return separator > 0 ? substr(stat, 0, separator) : "0";
-}
-
-function uci_sections(type_name) {
-    return uci_core.section_objects(CONFIG_NAME, as_string(type_name));
 }
 
 function uci_settings() {
@@ -1123,84 +1113,6 @@ function component_updates_if_due() {
     release_runtime_lock(COMPONENT_UPDATE_CHECK_LOCK_DIR);
 }
 
-function native_subscription_provider_tag(section, source, source_index) {
-    return connections.section_display_name(section) + "/" +
-        connections.subscription_tag(section, source, source_index);
-}
-
-function native_subscription_api_url(settings) {
-    let config = read_json_file(option(settings, "config_path", "/etc/sing-box/config.json"));
-    let experimental = object_or_empty(object_or_empty(config).experimental);
-    let controller = option(object_or_empty(experimental.clash_api), "external_controller", "");
-    if (controller == "") {
-        let address = option(settings, "service_listen_address", "");
-        if (address == "")
-            return "";
-        controller = address + ":9090";
-    }
-    if (substr(controller, 0, 8) == "0.0.0.0:")
-        controller = "127.0.0.1:" + substr(controller, 8);
-    return "http://" + controller;
-}
-
-function update_native_subscription_provider(tag, settings) {
-    if (as_string(tag) == "")
-        return false;
-
-    let api_url = native_subscription_api_url(settings);
-    if (api_url == "")
-        return false;
-
-    let args = [
-        "curl", "-fsS", "-X", "PUT",
-        api_url + "/providers/proxies/" + core_url.encode(tag)
-    ];
-    let secret = option(settings, "yacd_secret_key", "");
-    if (secret != "") {
-        push(args, "-H");
-        push(args, "Authorization: Bearer " + secret);
-    }
-    return command_status(command_from_args(args)) == 0;
-}
-
-function subscription_update_common(target_section, target_source_index) {
-    target_section = as_string(target_section);
-    let selected_index = as_string(target_source_index) != "" ? arg_number(target_source_index) : 0;
-    let settings = uci_settings();
-    let found = 0;
-    let failed = 0;
-
-    for (let section in uci_sections("section")) {
-        if (target_section != "" && section_name(section) != target_section)
-            continue;
-        let sources = connections.subscription_urls(section);
-        for (let i = 0; i < length(sources); i++) {
-            if (selected_index > 0 && i + 1 != selected_index)
-                continue;
-            found++;
-            let tag = native_subscription_provider_tag(section, sources[i], i + 1);
-            if (!update_native_subscription_provider(tag, settings)) {
-                log_message("Failed to refresh subscription provider " + tag, "error");
-                failed++;
-            }
-        }
-    }
-
-    if (found == 0) {
-        log_message("No matching subscription provider was found", "error");
-        return 1;
-    }
-    if (failed > 0) {
-        log_message("Failed to refresh " + failed + " of " + found + " subscription providers", "error");
-        return 1;
-    }
-    return 0;
-}
-
-function subscription_update(target_section, target_source_index) {
-    exit(subscription_update_common(target_section, target_source_index));
-}
-
 function fixture_section_list(data, type_name) {
     type_name = as_string(type_name || "section");
     let value = object_or_empty(data)[type_name];
@@ -1277,8 +1189,6 @@ else if (mode == "refresh-cron-fixture")
     fixture_cron_refresh_apply(ARGV[1], ARGV[2], ARGV[3], ARGV[4]);
 else if (mode == "remove-cron-jobs")
     remove_cron_jobs(ARGV[1]);
-else if (mode == "subscription-update")
-    subscription_update(ARGV[1], ARGV[2]);
 else if (mode == "component-action-worker")
     component_action_worker(ARGV[1], ARGV[2], ARGV[3], ARGV[4]);
 else if (mode == "component-action-async")

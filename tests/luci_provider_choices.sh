@@ -49,7 +49,9 @@ const payload = {
     },
   },
 };
-let response = Promise.resolve({ stdout: JSON.stringify(payload) });
+const transport = (value) =>
+  JSON.stringify({ status: 200, body: JSON.stringify(value) });
+let response = Promise.resolve({ stdout: transport(payload) });
 const calls = [];
 const fs = {
   exec(path, args) {
@@ -200,7 +202,7 @@ assert.deepStrictEqual(nativeProviderOutboundNames([providerTag], payload), [
     'Main DE',
   ]);
   assert.deepStrictEqual(calls, [
-    ['/usr/bin/forkop', ['clash_api', 'get_proxy_providers']],
+    ['/usr/bin/forkop', ['clash_http', 'GET', '/providers/proxies', '']],
   ]);
 
   response = Promise.reject(new Error('sing-box is unavailable'));
@@ -214,7 +216,7 @@ assert.deepStrictEqual(nativeProviderOutboundNames([providerTag], payload), [
   assert.deepStrictEqual(await loadNativeProviderOutboundNames([]), []);
   assert.strictEqual(calls.length, callsBeforeEmptyLookup);
 
-  response = Promise.resolve({ stdout: JSON.stringify(payload) });
+  response = Promise.resolve({ stdout: transport(payload) });
   assert.deepStrictEqual(await loadOutboundNameChoices('main'), [
     'Main DE',
     'Main US',

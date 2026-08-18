@@ -3,6 +3,7 @@
 let fs = require("fs");
 let constants = require("core.constants");
 let core_netstat = require("core.netstat");
+let core_url = require("core.url");
 let uci_core = require("core.uci");
 
 function as_string(value) {
@@ -394,13 +395,12 @@ function selector_restore_pairs(snapshot, payload) {
     return result;
 }
 
-function clash_api_json(action, arg1, arg2, arg3) {
+function clash_http(method, path, body) {
     let result = module_capture(DIAGNOSTICS_UC, [
-        "clash-api",
-        action,
-        as_string(arg1 || ""),
-        as_string(arg2 || ""),
-        as_string(arg3 || "")
+        "clash-http",
+        as_string(method),
+        as_string(path),
+        as_string(body || "")
     ]);
     if (result.status != 0)
         return null;
@@ -413,15 +413,37 @@ function clash_api_json(action, arg1, arg2, arg3) {
     }
 }
 
+function clash_http_json(method, path, body) {
+    let response = clash_http(method, path, body);
+    if (type(response) != "object")
+        return null;
+
+    let status = int(response.status || 0);
+    if (status < 200 || status >= 300)
+        return null;
+
+    try {
+        return json(as_string(response.body));
+    }
+    catch (e) {
+        return null;
+    }
+}
+
+function clash_api_proxies() {
+    return clash_http_json("GET", "/proxies", "");
+}
+
 function capture_selector_state() {
-    return selector_state_from_proxies_payload(clash_api_json("get_proxies"));
+    return selector_state_from_proxies_payload(clash_api_proxies());
 }
 
 function restore_selector_state(snapshot) {
-    let pairs = selector_restore_pairs(snapshot, clash_api_json("get_proxies"));
+    let pairs = selector_restore_pairs(snapshot, clash_api_proxies());
 
     for (let pair in pairs)
-        module_success(DIAGNOSTICS_UC, [ "clash-api", "set_group_proxy", pair.group, pair.proxy, "" ]);
+        clash_http("PUT", "/proxies/" + core_url.encode(pair.group),
+            sprintf("%J", { name: pair.proxy }));
 }
 
 function module_background(module_path, args) {

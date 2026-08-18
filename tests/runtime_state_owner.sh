@@ -60,8 +60,11 @@ grep -Fq 'RULESET_SYNC_UC, [ "start-worker" ]' "$LIFECYCLE_UC" ||
   fail "service/lifecycle.uc must start native rule-set nft synchronization"
 grep -Fq 'RULESET_SYNC_UC, [ "stop-worker" ]' "$LIFECYCLE_UC" ||
   fail "service/lifecycle.uc must stop native rule-set nft synchronization"
-grep -Fq 'subscription_update: [ "components/updates.uc", "subscription-update", 2 ]' "$CLI_UC" ||
-  fail "service/cli.uc must run subscription updates through components/updates.uc"
+grep -Fq 'clash_http: [ "diagnostics/runtime.uc", "clash-http", 3 ]' "$CLI_UC" ||
+  fail "service/cli.uc must expose exactly one allowlisted Clash API transport command"
+if grep -Eq 'subscription_update:|clash_api:' "$CLI_UC"; then
+  fail "service/cli.uc must not keep CLI commands that only duplicate Clash API endpoints"
+fi
 if grep -R -n -F 'updates_runtime.sh' "$FORKOP_BIN" "$ROOT_DIR/forkop/files/usr/lib" --include='*.sh' >/dev/null 2>&1; then
   fail "runtime shell must not reference updates_runtime.sh"
 fi
@@ -72,8 +75,9 @@ grep -Fq 'mode == "remove-cron-jobs"' "$UPDATES_UC" ||
 if grep -Fq 'mode == "list-update"' "$UPDATES_UC"; then
   fail "components/updates.uc must not retain native rule-set update orchestration"
 fi
-grep -Fq 'mode == "subscription-update"' "$UPDATES_UC" ||
-  fail "components/updates.uc must own subscription update"
+if grep -Fq 'mode == "subscription-update"' "$UPDATES_UC"; then
+  fail "components/updates.uc must not retain native subscription update orchestration"
+fi
 grep -Fq 'HEALTH_MODE == "forkop-running"' "$STATE_UC" ||
   fail "service/state.uc must dispatch Forkop running checks before heavy imports"
 grep -Fq 'function forkop_running(' "$HEALTH_UC" ||

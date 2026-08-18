@@ -64,9 +64,9 @@ show_version_out="$(FORKOP_LIB="$fake_lib" ucode "$FORKOP_BIN" show_version)"
 [ "$show_version_out" = $'diagnostics\tshow-version\t\t\t' ] ||
   fail "show_version must dispatch through diagnostics/runtime.uc"
 
-subscription_out="$(FORKOP_LIB="$fake_lib" ucode "$FORKOP_BIN" subscription_update proxy 2)"
-[ "$subscription_out" = $'updates\tsubscription-update\tproxy\t2' ] ||
-  fail "subscription_update must dispatch through components/updates.uc with arguments"
+clash_http_out="$(FORKOP_LIB="$fake_lib" ucode "$FORKOP_BIN" clash_http PUT /proxies/main-out '{"name":"main-1-out"}')"
+[ "$clash_http_out" = $'diagnostics\tclash-http\tPUT\t/proxies/main-out\t{"name":"main-1-out"}' ] ||
+  fail "clash_http must dispatch through diagnostics/runtime.uc with method, path and body"
 
 component_out="$(FORKOP_LIB="$fake_lib" ucode "$FORKOP_BIN" component_action sing_box update)"
 [ "$component_out" = $'action\tcomponent-action\tsing_box\tupdate' ] ||

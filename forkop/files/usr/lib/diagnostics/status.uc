@@ -8,10 +8,6 @@ function as_string(value) {
     return value == null ? "" : "" + value;
 }
 
-function url_encode(value) {
-    print(core_url.encode(value), "\n");
-}
-
 function read_stdin() {
     let input = fs.open("/dev/stdin", "r");
     if (!input)
@@ -941,17 +937,6 @@ function write_json(value) {
     print(sprintf("%J", value), "\n");
 }
 
-function stdin_json() {
-    let value = read_stdin_json();
-    if (value == null)
-        exit(1);
-    write_json(value);
-}
-
-function json_error(message) {
-    write_json({ error: as_string(message) });
-}
-
 function mask_ipv6_line(line) {
     let matched = match(line, /([0-9a-fA-F]+:[0-9a-fA-F]+:[0-9a-fA-F]+):.*/);
     return matched ? matched[1] + ":XXXX:XXXX:XXXX" : line;
@@ -1613,109 +1598,10 @@ function check_proxy_outbound_tag(config_path, domain) {
     }
 }
 
-function http_response_with_status() {
-    let lines = split(read_stdin(), "\n");
-    let status = length(lines) > 0 ? as_string(lines[length(lines) - 1]) : "";
-    let body_lines = length(lines) > 0 ? slice(lines, 0, length(lines) - 1) : [];
-
-    return {
-        status_text: status,
-        status: int(status || "0", 10) || 0,
-        body: join("\n", body_lines)
-    };
-}
-
-function write_clash_api_error(status, body) {
-    let result = {
-        success: false,
-        http_code: status
-    };
-
-    if (body != "")
-        result.body = body;
-
-    write_json(result);
-    exit(1);
-}
-
-function clash_set_group_proxy_result(group_tag, proxy_tag) {
-    let response = http_response_with_status();
-
-    if (response.status == 204) {
-        write_json({ success: true, group: as_string(group_tag), proxy: as_string(proxy_tag) });
-        return;
-    }
-
-    if (response.status == 404) {
-        write_json({ success: false, error: "group_not_found", message: as_string(group_tag) + " does not exist" });
-        exit(1);
-    }
-
-    if (response.status == 400) {
-        if (line_contains(response.body, "not found"))
-            write_json({ success: false, error: "proxy_not_found", message: as_string(proxy_tag) + " not found in group " + as_string(group_tag) });
-        else
-            write_json({ success: false, error: "bad_request", message: "Invalid request" });
-        exit(1);
-    }
-
-    write_clash_api_error(response.status, response.body);
-}
-
-function clash_close_connection_result(connection_id) {
-    let response = http_response_with_status();
-
-    if (response.status == 200 || response.status == 204) {
-        write_json({ success: true, connection_id: as_string(connection_id) });
-        return;
-    }
-
-    if (response.status == 404) {
-        write_json({ success: false, error: "connection_not_found", connection_id: as_string(connection_id) });
-        exit(1);
-    }
-
-    write_clash_api_error(response.status, response.body);
-}
-
-function clash_close_all_connections_result() {
-    let response = http_response_with_status();
-
-    if (response.status == 200 || response.status == 204) {
-        write_json({ success: true });
-        return;
-    }
-
-    write_clash_api_error(response.status, response.body);
-}
-
-function clash_set_group_proxy_payload(proxy_tag) {
-    write_json({ name: as_string(proxy_tag) });
-}
-
-function clash_unknown_action() {
-    write_json({
-        error: "unknown action",
-        available: [
-            "get_proxies",
-            "get_connections",
-            "get_proxy_latency",
-            "get_group_latency",
-            "set_group_proxy",
-            "close_connection",
-            "close_all_connections"
-        ]
-    });
-}
-
 let mode = ARGV[0];
 
 if (mode == "proxy-response-ip-mask")
     render_proxy_response_ip_mask();
-else if (mode == "url-encode")
-    url_encode(ARGV[1]);
-else if (mode == "stdin-json")
-    stdin_json();
 else if (mode == "stdin-first-line-last-field")
     stdin_first_line_last_field();
 else if (mode == "stdin-first-line")
@@ -1764,8 +1650,6 @@ else if (mode == "server-port-conflict-owners")
     netstat_server_port_conflict_owners(ARGV[1], ARGV[2], ARGV[3]);
 else if (mode == "server-required-port-conflict-owners")
     server_required_port_conflict_owners(ARGV[1], ARGV[2], ARGV[3]);
-else if (mode == "json-error")
-    json_error(ARGV[1]);
 else if (mode == "inbound-item-json")
     write_inbound_item_json(slice(ARGV, 1));
 else if (mode == "inbounds-config-json")
@@ -1832,16 +1716,6 @@ else if (mode == "prepare-check-proxy-config")
     prepare_check_proxy_config(ARGV[1], ARGV[2], ARGV[3]);
 else if (mode == "check-proxy-outbound-tag")
     check_proxy_outbound_tag(ARGV[1], ARGV[2]);
-else if (mode == "clash-set-group-proxy-result")
-    clash_set_group_proxy_result(ARGV[1], ARGV[2]);
-else if (mode == "clash-close-connection-result")
-    clash_close_connection_result(ARGV[1]);
-else if (mode == "clash-close-all-connections-result")
-    clash_close_all_connections_result();
-else if (mode == "clash-set-group-proxy-payload")
-    clash_set_group_proxy_payload(ARGV[1]);
-else if (mode == "clash-unknown-action")
-    clash_unknown_action();
 else {
     warn("Usage: diagnostics/status.uc <operation> ...\n");
     exit(1);

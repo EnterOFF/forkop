@@ -2,11 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   getConfigSections: vi.fn(),
-  getClashApiProxies: vi.fn(),
-  getClashApiProxyProviders: vi.fn(),
-  getClashApiProxyLink: vi.fn(),
-  setClashApiGroupProxy: vi.fn(),
-  subscriptionUpdate: vi.fn(),
+  clashHttp: vi.fn(),
   canUseDirectClashApi: vi.fn(),
 }));
 
@@ -16,11 +12,7 @@ vi.mock('../getConfigSections', () => ({
 
 vi.mock('../../shell', () => ({
   ForkopShellMethods: {
-    getClashApiProxies: mocks.getClashApiProxies,
-    getClashApiProxyProviders: mocks.getClashApiProxyProviders,
-    getClashApiProxyLink: mocks.getClashApiProxyLink,
-    setClashApiGroupProxy: mocks.setClashApiGroupProxy,
-    subscriptionUpdate: mocks.subscriptionUpdate,
+    clashHttp: mocks.clashHttp,
   },
 }));
 
@@ -33,6 +25,8 @@ vi.mock('../../../../helpers', () => ({
 }));
 
 import {
+  closeAllClashApiConnections,
+  getClashApiConnections,
   getDashboardSections,
   getClashApiProxyLink,
   setClashApiGroupProxy,
@@ -84,27 +78,57 @@ function child(
   };
 }
 
-function setClashProxies(proxies: Record<string, ClashAPI.ProxyBase>) {
-  mocks.getClashApiProxies.mockResolvedValue({
+function neverAnsweringFetch() {
+  return vi.fn(
+    (_url: string, init?: RequestInit) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          reject(new Error('The operation was aborted'));
+        });
+      }),
+  );
+}
+
+function clashHttpJson(status: number, payload: unknown) {
+  return {
     success: true,
-    data: { proxies },
-  });
+    data: {
+      status,
+      body: payload === undefined ? '' : JSON.stringify(payload),
+    },
+  };
+}
+
+let clashProxies: Record<string, ClashAPI.ProxyBase> = {};
+let clashProviders: Record<string, unknown> = {};
+
+function useClashHttpRuntime() {
+  mocks.clashHttp.mockImplementation(async (_method: string, path: string) =>
+    path === '/providers/proxies'
+      ? clashHttpJson(200, { providers: clashProviders })
+      : clashHttpJson(200, { proxies: clashProxies }),
+  );
+}
+
+function setClashProxies(proxies: Record<string, ClashAPI.ProxyBase>) {
+  clashProxies = proxies;
+  useClashHttpRuntime();
+}
+
+function setClashProviders(providers: Record<string, unknown>) {
+  clashProviders = providers;
+  useClashHttpRuntime();
 }
 
 describe('getDashboardSections', () => {
   beforeEach(() => {
     mocks.getConfigSections.mockReset();
-    mocks.getClashApiProxies.mockReset();
-    mocks.getClashApiProxyProviders.mockReset();
-    mocks.getClashApiProxyLink.mockReset();
-    mocks.setClashApiGroupProxy.mockReset();
-    mocks.subscriptionUpdate.mockReset();
+    mocks.clashHttp.mockReset();
+    clashProxies = {};
+    clashProviders = {};
+    useClashHttpRuntime();
     mocks.canUseDirectClashApi.mockReset();
     mocks.canUseDirectClashApi.mockReturnValue(false);
-    mocks.getClashApiProxyProviders.mockResolvedValue({
-      success: true,
-      data: { providers: {} },
-    });
     vi.stubGlobal('window', undefined);
     vi.stubGlobal('fetch', undefined);
   });
@@ -184,22 +208,17 @@ describe('getDashboardSections', () => {
       }),
       'Office/premium/DE/Frankfurt': proxy('HTTP'),
     });
-    mocks.getClashApiProxyProviders.mockResolvedValue({
-      success: true,
-      data: {
-        providers: {
-          'Office/premium': {
-            name: 'Office/premium',
-            type: 'Remote',
-            vehicleType: 'HTTP',
-            proxies: [proxy('HTTP', { name: 'Office/premium/DE/Frankfurt' })],
-            subscriptionInfo: {
-              upload: 10,
-              download: 20,
-              total: 100,
-              expire: 200,
-            },
-          },
+    setClashProviders({
+      'Office/premium': {
+        name: 'Office/premium',
+        type: 'Remote',
+        vehicleType: 'HTTP',
+        proxies: [proxy('HTTP', { name: 'Office/premium/DE/Frankfurt' })],
+        subscriptionInfo: {
+          upload: 10,
+          download: 20,
+          total: 100,
+          expire: 200,
         },
       },
     });
@@ -246,17 +265,12 @@ describe('getDashboardSections', () => {
       'Office/premium/Static': proxy('VLESS'),
       'Office/premium/Remote': proxy('Trojan'),
     });
-    mocks.getClashApiProxyProviders.mockResolvedValue({
-      success: true,
-      data: {
-        providers: {
-          'Office/premium': {
-            name: 'Office/premium',
-            type: 'Remote',
-            vehicleType: 'HTTP',
-            proxies: [proxy('Trojan', { name: 'Office/premium/Remote' })],
-          },
-        },
+    setClashProviders({
+      'Office/premium': {
+        name: 'Office/premium',
+        type: 'Remote',
+        vehicleType: 'HTTP',
+        proxies: [proxy('Trojan', { name: 'Office/premium/Remote' })],
       },
     });
 
@@ -415,13 +429,14 @@ describe('getDashboardSections', () => {
     ]);
     mocks.canUseDirectClashApi.mockReturnValue(true);
     const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        proxies: {
-          Office: proxy('Selector', { all: ['Office/Node'] }),
-          'Office/Node': proxy('VLESS'),
-        },
-      }),
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          proxies: {
+            Office: proxy('Selector', { all: ['Office/Node'] }),
+            'Office/Node': proxy('VLESS'),
+          },
+        }),
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -432,15 +447,18 @@ describe('getDashboardSections', () => {
       'http://router.example:9090/proxies',
       expect.objectContaining({ signal: expect.anything() }),
     );
-    expect(mocks.getClashApiProxies).not.toHaveBeenCalled();
+    expect(mocks.clashHttp).not.toHaveBeenCalled();
   });
 
-  it('falls back to rpcd when direct Clash API access fails', async () => {
+  it('falls back to the CLI transport when the controller is unreachable', async () => {
     mocks.getConfigSections.mockResolvedValue([
       section({ selector_proxy_links: ['vless://example#Node'] }),
     ]);
     mocks.canUseDirectClashApi.mockReturnValue(true);
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('timeout')));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(new TypeError('Failed to fetch')),
+    );
     setClashProxies({
       Office: proxy('Selector', { all: ['Office/Node'] }),
       'Office/Node': proxy('VLESS'),
@@ -449,7 +467,7 @@ describe('getDashboardSections', () => {
     const result = await getDashboardSections();
 
     expect(result.success).toBe(true);
-    expect(mocks.getClashApiProxies).toHaveBeenCalledOnce();
+    expect(mocks.clashHttp).toHaveBeenCalledWith('GET', '/proxies', '');
   });
 
   it('switches selectors through the direct Clash API', async () => {
@@ -459,9 +477,10 @@ describe('getDashboardSections', () => {
       'Office/Node': proxy('VLESS'),
     });
     await getDashboardSections();
+    mocks.clashHttp.mockClear();
 
     mocks.canUseDirectClashApi.mockReturnValue(true);
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 204 });
+    const fetchMock = vi.fn().mockResolvedValue({ status: 204 });
     vi.stubGlobal('fetch', fetchMock);
 
     const result = await setClashApiGroupProxy('Office/OUT', 'Office/Node');
@@ -474,7 +493,7 @@ describe('getDashboardSections', () => {
         body: JSON.stringify({ name: 'Office/Node' }),
       }),
     );
-    expect(mocks.setClashApiGroupProxy).not.toHaveBeenCalled();
+    expect(mocks.clashHttp).not.toHaveBeenCalled();
   });
 
   it('fetches provider links and refreshes providers through the direct Clash API', async () => {
@@ -484,17 +503,16 @@ describe('getDashboardSections', () => {
       'Office/Node': proxy('VLESS'),
     });
     await getDashboardSections();
+    mocks.clashHttp.mockClear();
 
     mocks.canUseDirectClashApi.mockReturnValue(true);
-    vi.stubGlobal('Headers', undefined);
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({
-        ok: true,
         status: 200,
-        json: async () => ({ url: 'vless://id@example.com:443' }),
+        text: async () => JSON.stringify({ url: 'vless://id@example.com:443' }),
       })
-      .mockResolvedValue({ ok: true, status: 204 });
+      .mockResolvedValue({ status: 204 });
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(getClashApiProxyLink('Office/Node')).resolves.toEqual({
@@ -502,8 +520,8 @@ describe('getDashboardSections', () => {
       data: { url: 'vless://id@example.com:443' },
     });
     await expect(
-      updateClashApiProxyProviders(['Office/premium', 'Office/backup'], 'main'),
-    ).resolves.toEqual({ success: true });
+      updateClashApiProxyProviders(['Office/premium', 'Office/backup']),
+    ).resolves.toEqual({ success: true, data: undefined });
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -520,36 +538,79 @@ describe('getDashboardSections', () => {
       'http://router.example:9090/providers/proxies/Office%2Fbackup',
       expect.objectContaining({ method: 'PUT' }),
     );
-    expect(mocks.getClashApiProxyLink).not.toHaveBeenCalled();
-    expect(mocks.subscriptionUpdate).not.toHaveBeenCalled();
+    expect(mocks.clashHttp).not.toHaveBeenCalled();
   });
 
-  it('falls back to rpcd for a proxy link rejected by an unauthenticated controller', async () => {
+  it('surfaces a real Clash API HTTP error instead of retrying through the CLI', async () => {
     mocks.getConfigSections.mockResolvedValue([section()]);
     setClashProxies({
       Office: proxy('Selector', { all: ['Office/Node'] }),
       'Office/Node': proxy('VLESS'),
     });
     await getDashboardSections();
+    mocks.clashHttp.mockClear();
 
     mocks.canUseDirectClashApi.mockReturnValue(true);
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
-        ok: false,
         status: 403,
         text: async () => 'Forbidden',
       }),
     );
-    mocks.getClashApiProxyLink.mockResolvedValue({
-      success: true,
-      data: { url: 'vless://id@example.com:443' },
-    });
 
     await expect(getClashApiProxyLink('Office/Node')).resolves.toEqual({
-      success: true,
-      data: { url: 'vless://id@example.com:443' },
+      success: false,
+      error: 'Forbidden',
     });
-    expect(mocks.getClashApiProxyLink).toHaveBeenCalledWith('Office/Node');
+    expect(mocks.clashHttp).not.toHaveBeenCalled();
+  });
+
+  it('does not repeat a mutation that timed out after it was sent', async () => {
+    mocks.getConfigSections.mockResolvedValue([section()]);
+    setClashProxies({
+      Office: proxy('Selector', { all: ['Office/Node'] }),
+      'Office/Node': proxy('VLESS'),
+    });
+    await getDashboardSections();
+    mocks.clashHttp.mockClear();
+
+    mocks.canUseDirectClashApi.mockReturnValue(true);
+    vi.stubGlobal('fetch', neverAnsweringFetch());
+    vi.useFakeTimers();
+
+    const pending = closeAllClashApiConnections();
+    await vi.advanceTimersByTimeAsync(60000);
+    const result = await pending;
+    vi.useRealTimers();
+
+    expect(result.success).toBe(false);
+    expect(mocks.clashHttp).not.toHaveBeenCalled();
+  });
+
+  it('retries an aborted read through the CLI transport', async () => {
+    mocks.getConfigSections.mockResolvedValue([section()]);
+    setClashProxies({
+      Office: proxy('Selector', { all: ['Office/Node'] }),
+      'Office/Node': proxy('VLESS'),
+    });
+    await getDashboardSections();
+    mocks.clashHttp.mockClear();
+    mocks.clashHttp.mockResolvedValue(clashHttpJson(200, { connections: [] }));
+
+    mocks.canUseDirectClashApi.mockReturnValue(true);
+    vi.stubGlobal('fetch', neverAnsweringFetch());
+    vi.useFakeTimers();
+
+    const pending = getClashApiConnections();
+    await vi.advanceTimersByTimeAsync(60000);
+    const result = await pending;
+    vi.useRealTimers();
+
+    expect(result).toEqual({
+      success: true,
+      data: { connections: [] },
+    });
+    expect(mocks.clashHttp).toHaveBeenCalledWith('GET', '/connections', '');
   });
 });

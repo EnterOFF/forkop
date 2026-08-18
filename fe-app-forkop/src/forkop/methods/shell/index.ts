@@ -1,5 +1,5 @@
 import { callBaseMethod } from './callBaseMethod';
-import { ClashAPI, Forkop } from '../../types';
+import { Forkop } from '../../types';
 import { executeShellCommand } from '../../../helpers';
 import { isTransientRpcError } from '../../helpers/isTransientRpcError';
 
@@ -246,52 +246,13 @@ export const ForkopShellMethods = {
     callBaseMethod<Forkop.GetByedpiStatus>(
       Forkop.AvailableMethods.GET_BYEDPI_STATUS,
     ),
-  getClashApiProxies: async () =>
-    callBaseMethod<ClashAPI.Proxies>(Forkop.AvailableMethods.CLASH_API, [
-      Forkop.AvailableClashAPIMethods.GET_PROXIES,
-    ]),
-  getClashApiProxyProviders: async () =>
-    callBaseMethod<ClashAPI.ProxyProviders>(Forkop.AvailableMethods.CLASH_API, [
-      Forkop.AvailableClashAPIMethods.GET_PROXY_PROVIDERS,
-    ]),
-  getClashApiProxyLink: async (tag: string) =>
-    callBaseMethod<Forkop.GetClashApiProxyLink>(
-      Forkop.AvailableMethods.CLASH_API,
-      [Forkop.AvailableClashAPIMethods.GET_PROXY_LINK, tag],
-    ),
-  getClashApiConnections: async () =>
-    callBaseMethod<unknown>(Forkop.AvailableMethods.CLASH_API, [
-      Forkop.AvailableClashAPIMethods.GET_CONNECTIONS,
-    ]),
-  getClashApiProxyLatency: async (tag: string, timeout = '5000') =>
-    callBaseMethod<Forkop.GetClashApiProxyLatency>(
-      Forkop.AvailableMethods.CLASH_API,
-      [Forkop.AvailableClashAPIMethods.GET_PROXY_LATENCY, tag, timeout],
+  clashHttp: async (method: string, path: string, body = '') =>
+    callBaseMethod<Forkop.ClashHttpResponse>(
+      Forkop.AvailableMethods.CLASH_HTTP,
+      [method, path, body],
       '/usr/bin/forkop',
       { timeout: null },
     ),
-  getClashApiGroupLatency: async (tag: string, timeout = '10000') =>
-    callBaseMethod<Forkop.GetClashApiGroupLatency>(
-      Forkop.AvailableMethods.CLASH_API,
-      [Forkop.AvailableClashAPIMethods.GET_GROUP_LATENCY, tag, timeout],
-      '/usr/bin/forkop',
-      { timeout: null },
-    ),
-  setClashApiGroupProxy: async (group: string, proxy: string) =>
-    callBaseMethod<unknown>(Forkop.AvailableMethods.CLASH_API, [
-      Forkop.AvailableClashAPIMethods.SET_GROUP_PROXY,
-      group,
-      proxy,
-    ]),
-  closeClashApiConnection: async (connectionId: string) =>
-    callBaseMethod<unknown>(Forkop.AvailableMethods.CLASH_API, [
-      Forkop.AvailableClashAPIMethods.CLOSE_CONNECTION,
-      connectionId,
-    ]),
-  closeAllClashApiConnections: async () =>
-    callBaseMethod<unknown>(Forkop.AvailableMethods.CLASH_API, [
-      Forkop.AvailableClashAPIMethods.CLOSE_ALL_CONNECTIONS,
-    ]),
   enable: async () =>
     callBaseMethod<unknown>(
       Forkop.AvailableMethods.ENABLE,
@@ -568,29 +529,5 @@ export const ForkopShellMethods = {
         data: parsedResponse,
       } as Forkop.MethodSuccessResponse<Forkop.ComponentActionResult>;
     }
-  },
-  subscriptionUpdate: async (section?: string, sourceIndex?: number) => {
-    const args = [
-      Forkop.AvailableMethods.SUBSCRIPTION_UPDATE,
-      ...(section ? [section] : []),
-      ...(section && sourceIndex !== undefined ? [String(sourceIndex)] : []),
-    ];
-    const response = await executeShellCommand({
-      command: '/usr/bin/forkop',
-      args,
-      timeout: null,
-    });
-
-    if ((response.code ?? 0) !== 0) {
-      return {
-        success: false,
-        error: response.stderr || _('Subscription update failed'),
-      } as Forkop.MethodFailureResponse;
-    }
-
-    return {
-      success: true,
-      data: true,
-    } as Forkop.MethodSuccessResponse<true>;
   },
 };

@@ -1,5 +1,8 @@
 import { getConfigSections } from './getConfigSections';
 import {
+  closeAllClashApiConnections,
+  closeClashApiConnection,
+  getClashApiConnections,
   getClashApiGroupLatency,
   getClashApiProxyLink,
   getClashApiProxyLatency,
@@ -12,10 +15,13 @@ import { getClashApiSecret } from './getClashApiSecret';
 export const CustomForkopMethods = {
   getConfigSections,
   getDashboardSections,
+  getClashApiConnections,
   getClashApiGroupLatency,
   getClashApiProxyLink,
   getClashApiProxyLatency,
   setClashApiGroupProxy,
   updateClashApiProxyProviders,
+  closeClashApiConnection,
+  closeAllClashApiConnections,
   getClashApiSecret,
 };

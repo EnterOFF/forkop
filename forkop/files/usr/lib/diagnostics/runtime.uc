@@ -3,7 +3,6 @@
 let fs = require("fs");
 let constants = require("core.constants");
 let core_ip = require("core.ip");
-let core_url = require("core.url");
 let uci_core = require("core.uci");
 let runtime_dns = require("singbox.dns");
 let netstat = require("core.netstat");
@@ -39,8 +38,8 @@ const SB_SERVICE_MIXED_INBOUND_PORT = getenv("SB_SERVICE_MIXED_INBOUND_PORT") ||
 const SB_CLASH_API_CONTROLLER_PORT = getenv("SB_CLASH_API_CONTROLLER_PORT") || constants.SB_CLASH_API_CONTROLLER_PORT || "9090";
 const CLOUDFLARE_OCTETS = getenv("CLOUDFLARE_OCTETS") || constants.CLOUDFLARE_OCTETS || "8.47 162.159 188.114";
 const ZAPRET_LEGACY_DEFAULT_NFQWS_OPT = getenv("ZAPRET_LEGACY_DEFAULT_NFQWS_OPT") || constants.ZAPRET_LEGACY_DEFAULT_NFQWS_OPT || "";
-const DEFAULT_LATENCY_TEST_URL = getenv("DEFAULT_LATENCY_TEST_URL") || "https://www.gstatic.com/generate_204";
 const RUNTIME_STABLE_MIN_AGE = getenv("FORKOP_RUNTIME_STABLE_MIN_AGE") || "2";
+const CLASH_HTTP_MAX_TIME = getenv("FORKOP_CLASH_HTTP_MAX_TIME") || "60";
 const SING_BOX_FORKOP_VERSION_FILE = getenv("SING_BOX_FORKOP_VERSION_FILE") || "/usr/share/sing-box-forkop/version";
 
 const STATUS_UC = LIB_DIR + "/diagnostics/status.uc";
@@ -1501,16 +1500,11 @@ function check_fakeip() {
     return 0;
 }
 
-function clash_json_output(args) {
-    print(status_output([ "stdin-json" ], command_output(command_from_args(args))));
-    return 0;
-}
-
 function clash_api_url() {
     let address = replace(module_output(SINGBOX_RUNTIME_UC, [ "service-listen-address" ]), /[\r\n]+$/g, "");
     if (address == "")
         address = "127.0.0.1";
-    return address + ":" + SB_CLASH_API_CONTROLLER_PORT;
+    return "http://" + address + ":" + SB_CLASH_API_CONTROLLER_PORT;
 }
 
 function clash_auth_args() {
@@ -1521,122 +1515,131 @@ function clash_auth_args() {
     return [ "--header", "Authorization: Bearer " + secret ];
 }
 
-function clash_urlencode(value) {
-    return replace(status_output([ "url-encode", value ], null), /[\r\n]+$/g, "");
+const CLASH_HTTP_STATUS_MARKER = "__FORKOP_CLASH_STATUS__";
+
+function clash_http_safe_segment(value) {
+    value = as_string(value);
+    return value != "" && value != "." && value != ".." &&
+        match(value, /^[^\/?#]+$/) != null;
 }
 
-function clash_json_error(message) {
-    let result = status_capture([ "json-error", message ], null);
-    if (result.output != "")
-        print(result.output);
-    return 1;
+function clash_http_path_segments(path, prefix) {
+    path = as_string(path);
+    prefix = as_string(prefix);
+    if (substr(path, 0, length(prefix)) != prefix)
+        return null;
+
+    let rest = substr(path, length(prefix));
+    let segments = rest == "" ? [] : split(rest, "/");
+    for (let segment in segments)
+        if (!clash_http_safe_segment(segment))
+            return null;
+    return segments;
 }
 
-function latency_test_url() {
-    let value = option(settings(), "latency_test_url", DEFAULT_LATENCY_TEST_URL);
-    return value == "" ? DEFAULT_LATENCY_TEST_URL : value;
+// Only the endpoints the dashboard and monitoring pages actually drive are
+// reachable through this transport, so a compromised page cannot turn it into
+// an arbitrary HTTP client for the sing-box control plane.
+function clash_http_allowed(method, path, body) {
+    method = uc(as_string(method));
+    path = as_string(path);
+    body = as_string(body);
+
+    if (path == "" || length(path) > 4096 ||
+        index(path, "\r") >= 0 || index(path, "\n") >= 0 || index(path, " ") >= 0)
+        return false;
+
+    if (method == "GET") {
+        if (body != "")
+            return false;
+        if (path == "/proxies" || path == "/providers/proxies" || path == "/connections")
+            return true;
+
+        let query = index(path, "?");
+        if (query < 0) {
+            let link = clash_http_path_segments(path, "/proxies/");
+            return length(link) == 2 && link[1] == "link";
+        }
+
+        let delay = clash_http_path_segments(substr(path, 0, query), "/");
+        if (length(delay) != 3 || delay[2] != "delay" ||
+            (delay[0] != "proxies" && delay[0] != "group"))
+            return false;
+        return match(substr(path, query), /^\?url=[^&]+&timeout=[0-9]+$/) != null;
+    }
+
+    if (method == "DELETE") {
+        if (body != "")
+            return false;
+        if (path == "/connections")
+            return true;
+        return length(clash_http_path_segments(path, "/connections/")) == 1;
+    }
+
+    if (method == "PUT") {
+        if (length(clash_http_path_segments(path, "/providers/proxies/")) == 1)
+            return body == "";
+        if (length(clash_http_path_segments(path, "/proxies/")) != 1)
+            return false;
+        let payload = parse_json_or_null(body);
+        return type(payload) == "object" && length(keys(payload)) == 1 &&
+            type(payload.name) == "string" && payload.name != "";
+    }
+
+    return false;
 }
 
-function clash_api(action, arg1, arg2, arg3) {
-    let base_url = clash_api_url();
-    let test_url = latency_test_url();
-    let auth = clash_auth_args();
+// Transparent Clash API transport for browsers that cannot reach the
+// controller directly (HTTPS pages, a firewalled controller port, CORS).
+// The original status and body are returned untouched so the caller sees the
+// same result it would have seen from a direct request.
+function clash_http(method, path, body) {
+    method = uc(as_string(method));
+    path = as_string(path);
+    body = as_string(body);
 
-    if (action == "get_proxies") {
-        let args = [ "curl", "-s" ];
-        for (let item in auth) push(args, item);
-        push(args, base_url + "/proxies");
-        return clash_json_output(args);
+    if (!clash_http_allowed(method, path, body)) {
+        warn("Clash API request is not allowlisted: " + method + " " + path + "\n");
+        return 1;
     }
 
-    if (action == "get_proxy_providers") {
-        let args = [ "curl", "-s" ];
-        for (let item in auth) push(args, item);
-        push(args, base_url + "/providers/proxies");
-        return clash_json_output(args);
-    }
-
-    if (action == "get_proxy_link") {
-        if (as_string(arg1) == "")
-            return clash_json_error("proxy_tag required");
-        let args = [ "curl", "-s", "--max-time", "5" ];
-        for (let item in auth) push(args, item);
-        push(args, base_url + "/proxies/" + clash_urlencode(arg1) + "/link");
-        return clash_json_output(args);
-    }
-
-    if (action == "get_connections") {
-        let args = [ "curl", "-s" ];
-        for (let item in auth) push(args, item);
-        push(args, base_url + "/connections");
-        return clash_json_output(args);
-    }
-
-    if (action == "get_proxy_latency") {
-        if (as_string(arg1) == "")
-            return clash_json_error("proxy_tag required");
-        let url = as_string(arg3 || "");
-        if (url == "")
-            url = test_url;
-        let args = [ "curl", "-G", "-s", base_url + "/proxies/" + clash_urlencode(arg1) + "/delay" ];
-        for (let item in auth) push(args, item);
-        push(args, "--data-urlencode");
-        push(args, "url=" + url);
-        push(args, "--data-urlencode");
-        push(args, "timeout=" + as_string(arg2 || "2000"));
-        return clash_json_output(args);
-    }
-
-    if (action == "get_group_latency") {
-        if (as_string(arg1) == "")
-            return clash_json_error("group_tag required");
-        let args = [ "curl", "-G", "-s", base_url + "/group/" + clash_urlencode(arg1) + "/delay" ];
-        for (let item in auth) push(args, item);
-        push(args, "--data-urlencode");
-        push(args, "url=" + test_url);
-        push(args, "--data-urlencode");
-        push(args, "timeout=" + as_string(arg2 || "5000"));
-        return clash_json_output(args);
-    }
-
-    if (action == "set_group_proxy") {
-        if (as_string(arg1) == "" || as_string(arg2) == "")
-            return clash_json_error("group_tag and proxy_tag required");
-        let payload = status_output([ "clash-set-group-proxy-payload", arg2 ], null);
-        let args = [ "curl", "-X", "PUT", "-s", "-w", "\n%{http_code}", base_url + "/proxies/" + clash_urlencode(arg1) ];
-        for (let item in auth) push(args, item);
+    let args = [
+        "curl", "-sS", "--path-as-is",
+        "--connect-timeout", "3", "--max-time", as_string(CLASH_HTTP_MAX_TIME),
+        "-X", method
+    ];
+    for (let item in clash_auth_args())
+        push(args, item);
+    if (body != "") {
+        push(args, "--header");
+        push(args, "Content-Type: application/json");
         push(args, "--data-raw");
-        push(args, payload);
-        let result = status_capture([ "clash-set-group-proxy-result", arg1, arg2 ], command_output(command_from_args(args)));
-        if (result.output != "")
-            print(result.output);
-        return result.status;
+        push(args, body);
+    }
+    push(args, "-w");
+    push(args, CLASH_HTTP_STATUS_MARKER + "%{http_code}");
+    push(args, clash_api_url() + path);
+
+    let result = command_capture(command_from_args(args));
+    // The status marker is appended after the body, so the last field is the
+    // HTTP status and everything before it is the untouched response body.
+    let parts = split(result.output, CLASH_HTTP_STATUS_MARKER);
+    if (result.status != 0 || length(parts) < 2) {
+        warn("Clash API request failed: " + method + " " + path + "\n");
+        return result.status != 0 ? result.status : 1;
     }
 
-    if (action == "close_connection") {
-        if (as_string(arg1) == "")
-            return clash_json_error("connection_id required");
-        let args = [ "curl", "-X", "DELETE", "-s", "-w", "\n%{http_code}", base_url + "/connections/" + clash_urlencode(arg1) ];
-        for (let item in auth) push(args, item);
-        let result = status_capture([ "clash-close-connection-result", arg1 ], command_output(command_from_args(args)));
-        if (result.output != "")
-            print(result.output);
-        return result.status;
+    let status = int(parts[length(parts) - 1], 10) || 0;
+    if (status < 100 || status > 599) {
+        warn("Clash API returned no HTTP status: " + method + " " + path + "\n");
+        return 1;
     }
 
-    if (action == "close_all_connections") {
-        let args = [ "curl", "-X", "DELETE", "-s", "-w", "\n%{http_code}", base_url + "/connections" ];
-        for (let item in auth) push(args, item);
-        let result = status_capture([ "clash-close-all-connections-result" ], command_output(command_from_args(args)));
-        if (result.output != "")
-            print(result.output);
-        return result.status;
-    }
-
-    let unknown = status_capture([ "clash-unknown-action" ], null);
-    if (unknown.output != "")
-        print(unknown.output);
-    return 1;
+    write_json({
+        status: status,
+        body: join(CLASH_HTTP_STATUS_MARKER, slice(parts, 0, length(parts) - 1))
+    });
+    return 0;
 }
 
 function print_global(message) {
@@ -1812,8 +1815,8 @@ else if (mode == "check-byedpi-runtime")
     exit(module_passthrough(BYEDPI_RUNTIME_UC, [ "check" ]));
 else if (mode == "neutralize-zapret-defaults")
     exit(neutralize_zapret_defaults());
-else if (mode == "clash-api")
-    exit(clash_api(ARGV[1], ARGV[2], ARGV[3], ARGV[4]));
+else if (mode == "clash-http")
+    exit(clash_http(ARGV[1], ARGV[2], ARGV[3]));
 else if (mode == "show-config")
     exit(show_config(ARGV[1] || "masked"));
 else if (mode == "show-version")

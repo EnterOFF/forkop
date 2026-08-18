@@ -61,8 +61,6 @@ function show_help() {
     print("    disable                 Disable Forkop autostart\n");
     print("    uninstall               Remove Forkop files installed outside opkg/apk\n");
     print("    main                    Run main Forkop process\n");
-    print("    subscription_update [rule] [source_index]\n");
-    print("                            Update all subscription proxies, one rule, or one source in a rule\n");
     print("    check_proxy             Check proxy connectivity\n");
     print("    check_nft               Check NFT rules\n");
     print("    check_nft_rules         Check NFT rules status\n");
@@ -77,7 +75,7 @@ function show_help() {
     print("    check_byedpi_runtime    Check external ByeDPI provider state\n");
     print("    neutralize_zapret_defaults\n");
     print("                            Compatibility no-op; Forkop does not manage standalone zapret\n");
-    print("    clash_api               Clash API interface for managing proxies and groups\n");
+    print("    clash_http              Allowlisted Clash API transport fallback\n");
     print("    show_config             Display current Forkop configuration\n");
     print("    show_version            Show Forkop version\n");
     print("    show_sing_box_config    Show sing-box configuration\n");
@@ -128,7 +126,6 @@ function command_spec(command) {
         restore_dnsmasq: [ "service/lifecycle.uc", "dnsmasq-restore", 0 ],
         main: [ "service/lifecycle.uc", "main", 0 ],
         sing_box_crash_cleanup: [ "service/lifecycle.uc", "sing-box-crash-cleanup", 1 ],
-        subscription_update: [ "components/updates.uc", "subscription-update", 2 ],
         check_proxy: [ "diagnostics/runtime.uc", "check-proxy", 0 ],
         check_nft: [ "diagnostics/runtime.uc", "check-nft", 0 ],
         check_nft_rules: [ "diagnostics/runtime.uc", "check-nft-rules", 0 ],
@@ -142,7 +139,7 @@ function command_spec(command) {
         check_zapret2_runtime: [ "diagnostics/runtime.uc", "check-zapret2-runtime", 0 ],
         check_byedpi_runtime: [ "diagnostics/runtime.uc", "check-byedpi-runtime", 0 ],
         neutralize_zapret_defaults: [ "diagnostics/runtime.uc", "neutralize-zapret-defaults", 0 ],
-        clash_api: [ "diagnostics/runtime.uc", "clash-api", 4 ],
+        clash_http: [ "diagnostics/runtime.uc", "clash-http", 3 ],
         show_config: [ "diagnostics/runtime.uc", "show-config", 1 ],
         show_version: [ "diagnostics/runtime.uc", "show-version", 0 ],
         show_sing_box_config: [ "diagnostics/runtime.uc", "show-sing-box-config", 1 ],

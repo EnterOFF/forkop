@@ -303,13 +303,30 @@ mkdir -p "$fake_bin"
 cat >"$fake_bin/curl" <<'SH'
 #!/usr/bin/env sh
 printf '%s\n' "$*" >>"$FAKE_CURL_LOG"
-case "$*" in
-  *'127.0.0.1:9090/providers/proxies') printf '%s\n' '{"providers":{}}' ;;
-  *'127.0.0.1:9090/proxies/provider%2Fnode/link') printf '%s\n' '{"url":"vless://id@example.com:443"}' ;;
-  *'127.0.0.1:9090/proxies') printf '%s\n' '{"proxies":{"urltest":{"type":"URLTest"},"provider-urltest":{"type":"urltest"},"proxy-a":{"type":"VLESS"},"proxy-b":{"type":"Trojan"}}}' ;;
-  *'/proxies/proxy-fail/delay'*) printf '%s\n' '{"message":"unavailable"}' ;;
-  *) printf '%s\n' '{"delay":1}' ;;
-esac
+status_format=""
+url=""
+method="GET"
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -w) status_format="$2"; shift 2 ;;
+    -X) method="$2"; shift 2 ;;
+    http://*) url="$1"; shift ;;
+    *) shift ;;
+  esac
+done
+if [ "$method" = "GET" ]; then
+  case "$url" in
+    *'/providers/proxies') body='{"providers":{}}' ;;
+    *'/proxies/provider%2Fnode/link') body='{"url":"vless://id@example.com:443"}' ;;
+    *'/proxies') body='{"proxies":{"proxy-a":{"type":"VLESS"}}}' ;;
+    *'/delay'*) body='{"delay":1}' ;;
+    *) body='{}' ;;
+  esac
+else
+  body=''
+fi
+printf '%s' "$body"
+printf '%s' "$status_format" | sed 's/%{http_code}/204/'
 SH
 chmod +x "$fake_bin/curl"
 uci_state="$WORK_DIR/uci-state.txt"
@@ -318,38 +335,77 @@ forkop.settings=settings
 forkop.settings.latency_test_url=https://latency.example/generate_204
 forkop.settings.yacd_secret_key=local-secret
 EOF
-FAKE_CURL_LOG="$WORK_DIR/fake-curl.log" \
-FORKOP_UCI_STATE_FILE="$uci_state" \
-FORKOP_LIB="$FORKOP_LIB" \
-PATH="$fake_bin:$PATH" \
-  ucode -L "$FORKOP_LIB" "$DIAGNOSTICS_RUNTIME" clash-api get_proxy_latency proxy-out 5000 >/dev/null ||
-  fail "clash-api get_proxy_latency should use fake curl successfully"
-grep -Fq "url=https://latency.example/generate_204" "$WORK_DIR/fake-curl.log" ||
-  fail "clash-api latency check must use settings.latency_test_url"
 
-FAKE_CURL_LOG="$WORK_DIR/fake-provider-curl.log" \
-FORKOP_UCI_STATE_FILE="$uci_state" \
-FORKOP_LIB="$FORKOP_LIB" \
-PATH="$fake_bin:$PATH" \
-  ucode -L "$FORKOP_LIB" "$DIAGNOSTICS_RUNTIME" clash-api get_proxy_providers >/dev/null ||
-  fail "clash-api get_proxy_providers should use fake curl successfully"
-grep -Fq '/providers/proxies' "$WORK_DIR/fake-provider-curl.log" ||
-  fail "provider dashboard data must come from the native provider API"
+clash_http() {
+  FAKE_CURL_LOG="$1" \
+  FORKOP_UCI_STATE_FILE="$uci_state" \
+  FORKOP_LIB="$FORKOP_LIB" \
+  PATH="$fake_bin:$PATH" \
+    ucode -L "$FORKOP_LIB" "$DIAGNOSTICS_RUNTIME" clash-http "$2" "$3" "${4-}"
+}
 
-proxy_link="$(FAKE_CURL_LOG="$WORK_DIR/fake-link-curl.log" \
-FORKOP_UCI_STATE_FILE="$uci_state" \
-FORKOP_LIB="$FORKOP_LIB" \
-PATH="$fake_bin:$PATH" \
-  ucode -L "$FORKOP_LIB" "$DIAGNOSTICS_RUNTIME" clash-api get_proxy_link 'provider/node')" ||
-  fail "clash-api get_proxy_link should use fake curl successfully"
-JSON_VALUE="$proxy_link" node - <<'NODE'
+link_response="$(clash_http "$WORK_DIR/fake-link-curl.log" GET '/proxies/provider%2Fnode/link')" ||
+  fail "clash-http must return an allowlisted read through curl"
+JSON_VALUE="$link_response" node - <<'NODE'
 const value = JSON.parse(process.env.JSON_VALUE);
-if (value.url !== 'vless://id@example.com:443') process.exit(1);
+if (value.status !== 204) process.exit(1);
+if (JSON.parse(value.body).url !== 'vless://id@example.com:443') process.exit(1);
 NODE
 grep -Fq '/proxies/provider%2Fnode/link' "$WORK_DIR/fake-link-curl.log" ||
   fail "proxy links must be requested from the native per-outbound endpoint"
 grep -Fq 'Authorization: Bearer local-secret' "$WORK_DIR/fake-link-curl.log" ||
   fail "local Clash API calls must authenticate whenever the generated API has a secret"
+grep -Fq -- '--path-as-is' "$WORK_DIR/fake-link-curl.log" ||
+  fail "clash-http must not let curl normalize an allowlisted path"
+
+clash_http "$WORK_DIR/fake-provider-curl.log" GET '/providers/proxies' >/dev/null ||
+  fail "clash-http must reach the native provider endpoint"
+grep -Fq '/providers/proxies' "$WORK_DIR/fake-provider-curl.log" ||
+  fail "provider dashboard data must come from the native provider API"
+
+clash_http "$WORK_DIR/fake-delay-curl.log" GET \
+  '/proxies/proxy-out/delay?url=https%3A%2F%2Flatency.example%2Fgenerate_204&timeout=5000' >/dev/null ||
+  fail "clash-http must forward an allowlisted latency probe"
+grep -Fq 'timeout=5000' "$WORK_DIR/fake-delay-curl.log" ||
+  fail "clash-http must forward the caller latency query untouched"
+
+set_group_response="$(clash_http "$WORK_DIR/fake-put-curl.log" PUT '/proxies/main-out' '{"name":"main-1-out"}')" ||
+  fail "clash-http must forward an allowlisted selector change"
+grep -Fq -- '-X PUT' "$WORK_DIR/fake-put-curl.log" ||
+  fail "clash-http must preserve the requested HTTP method"
+grep -Fq 'Content-Type: application/json' "$WORK_DIR/fake-put-curl.log" ||
+  fail "clash-http must send a JSON body with a JSON content type"
+JSON_VALUE="$set_group_response" node - <<'NODE'
+const value = JSON.parse(process.env.JSON_VALUE);
+if (value.status !== 204 || value.body !== '') process.exit(1);
+NODE
+
+clash_http "$WORK_DIR/fake-delete-curl.log" DELETE '/connections/abc-123' >/dev/null ||
+  fail "clash-http must forward an allowlisted connection close"
+grep -Fq -- '-X DELETE' "$WORK_DIR/fake-delete-curl.log" ||
+  fail "clash-http must preserve a DELETE method"
+
+: >"$WORK_DIR/fake-rejected-curl.log"
+for rejected in \
+  'GET|/configs|' \
+  'PUT|/configs|{"mode":"global"}' \
+  'POST|/proxies|{"name":"main-1-out"}' \
+  'GET|/proxies/../configs|' \
+  'PUT|/proxies/main-out|{"name":"main-1-out","extra":1}' \
+  'PUT|/proxies/main-out|not-json' \
+  'GET|/proxies/main-out/delay?url=x&timeout=abc|' \
+  'DELETE|/connections|{"all":true}'
+do
+  method="${rejected%%|*}"
+  rest="${rejected#*|}"
+  path="${rest%%|*}"
+  body="${rest#*|}"
+  if clash_http "$WORK_DIR/fake-rejected-curl.log" "$method" "$path" "$body" >/dev/null 2>&1; then
+    fail "clash-http must reject $method $path"
+  fi
+done
+[ ! -s "$WORK_DIR/fake-rejected-curl.log" ] ||
+  fail "clash-http must reject a request before it reaches the controller"
 
 running_proxy_bin="$WORK_DIR/running-proxy-bin"
 mkdir -p "$running_proxy_bin"

@@ -633,11 +633,14 @@ function loadNativeProviderOutboundNames(providerTags) {
   }
 
   return fs
-    .exec("/usr/bin/forkop", ["clash_api", "get_proxy_providers"])
+    .exec("/usr/bin/forkop", ["clash_http", "GET", "/providers/proxies", ""])
     .then((response) => {
-      const value = JSON.parse(response.stdout || "{}");
+      const transport = JSON.parse(response.stdout || "{}");
+      if ((response.code ?? 0) !== 0 || transport.status !== 200) {
+        throw new Error("Native provider lookup failed");
+      }
+      const value = JSON.parse(transport.body || "{}");
       if (
-        (response.code ?? 0) !== 0 ||
         !value.providers ||
         typeof value.providers !== "object" ||
         Array.isArray(value.providers)

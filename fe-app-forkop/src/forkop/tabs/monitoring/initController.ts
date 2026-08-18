@@ -7,7 +7,7 @@ import {
   renderSearchIcon24,
   renderXIcon24,
 } from '../../../icons';
-import { CustomForkopMethods, ForkopShellMethods } from '../../methods';
+import { CustomForkopMethods } from '../../methods';
 import { getOutboundTagBySection } from '../../runtimeTags';
 import { getClashApiSecret } from '../../methods/custom/getClashApiSecret';
 import { logger, socket, store, StoreType } from '../../services';
@@ -1177,7 +1177,7 @@ async function closeConnection(connectionId: string) {
 
   try {
     const response =
-      await ForkopShellMethods.closeClashApiConnection(connectionId);
+      await CustomForkopMethods.closeClashApiConnection(connectionId);
 
     if (!response.success) {
       showToast(_('Failed to close connection'), 'error');
@@ -1211,7 +1211,7 @@ async function closeAllConnections() {
   renderControls();
 
   try {
-    const response = await ForkopShellMethods.closeAllClashApiConnections();
+    const response = await CustomForkopMethods.closeAllClashApiConnections();
 
     if (!response.success) {
       showToast(_('Failed to close connections'), 'error');
@@ -1337,7 +1337,7 @@ async function pollConnectionsSnapshot() {
   pollingConnections = true;
 
   try {
-    const response = await ForkopShellMethods.getClashApiConnections();
+    const response = await CustomForkopMethods.getClashApiConnections();
 
     if (
       !monitoringMounted ||
