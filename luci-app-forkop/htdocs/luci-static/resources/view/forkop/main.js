@@ -1476,6 +1476,33 @@ function renderCogIcon24() {
   );
 }
 
+// src/icons/renderFileTextIcon24.ts
+function renderFileTextIcon24() {
+  const NS = "http://www.w3.org/2000/svg";
+  return svgEl(
+    "svg",
+    {
+      xmlns: NS,
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": "2",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+      class: "lucide lucide-file-text-icon lucide-file-text"
+    },
+    [
+      svgEl("path", {
+        d: "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"
+      }),
+      svgEl("path", { d: "M14 2v4a2 2 0 0 0 2 2h4" }),
+      svgEl("path", { d: "M10 9H8" }),
+      svgEl("path", { d: "M16 13H8" }),
+      svgEl("path", { d: "M16 17H8" })
+    ]
+  );
+}
+
 // src/icons/renderSearchIcon24.ts
 function renderSearchIcon24() {
   const NS = "http://www.w3.org/2000/svg";
@@ -2328,21 +2355,18 @@ var Forkop;
     AvailableMethods2["CHECK_DNS_AVAILABLE"] = "check_dns_available";
     AvailableMethods2["CHECK_FAKEIP"] = "check_fakeip";
     AvailableMethods2["CHECK_NFT_RULES"] = "check_nft_rules";
-    AvailableMethods2["CHECK_ZAPRET_RUNTIME"] = "check_zapret_runtime";
-    AvailableMethods2["CHECK_ZAPRET2_RUNTIME"] = "check_zapret2_runtime";
-    AvailableMethods2["CHECK_BYEDPI_RUNTIME"] = "check_byedpi_runtime";
+    AvailableMethods2["CHECK_PROVIDER_RUNTIME"] = "check_provider_runtime";
     AvailableMethods2["CHECK_INBOUNDS_CONFIG"] = "check_inbounds_config";
     AvailableMethods2["GET_STATUS"] = "get_status";
     AvailableMethods2["CHECK_SING_BOX"] = "check_sing_box";
     AvailableMethods2["CHECK_INBOUNDS"] = "check_inbounds";
     AvailableMethods2["GET_SING_BOX_STATUS"] = "get_sing_box_status";
-    AvailableMethods2["GET_ZAPRET_STATUS"] = "get_zapret_status";
-    AvailableMethods2["GET_ZAPRET2_STATUS"] = "get_zapret2_status";
-    AvailableMethods2["GET_BYEDPI_STATUS"] = "get_byedpi_status";
+    AvailableMethods2["GET_PROVIDER_STATUS"] = "get_provider_status";
     AvailableMethods2["CLASH_HTTP"] = "clash_http";
     AvailableMethods2["ENABLE"] = "enable";
     AvailableMethods2["DISABLE"] = "disable";
     AvailableMethods2["GLOBAL_CHECK"] = "global_check";
+    AvailableMethods2["SHOW_CONFIG"] = "show_config";
     AvailableMethods2["SHOW_SING_BOX_CONFIG"] = "show_sing_box_config";
     AvailableMethods2["CHECK_LOGS"] = "check_logs";
     AvailableMethods2["CHECK_SING_BOX_LOGS"] = "check_sing_box_logs";
@@ -2506,6 +2530,16 @@ function createTransientRpcGraceTracker(graceMs) {
     }
   };
 }
+function checkProviderRuntime(provider) {
+  return callBaseMethod(Forkop.AvailableMethods.CHECK_PROVIDER_RUNTIME, [
+    provider
+  ]);
+}
+function getProviderStatus(provider) {
+  return callBaseMethod(Forkop.AvailableMethods.GET_PROVIDER_STATUS, [
+    provider
+  ]);
+}
 var ForkopShellMethods = {
   checkDNSAvailable: async () => callBaseMethod(
     Forkop.AvailableMethods.CHECK_DNS_AVAILABLE
@@ -2516,15 +2550,9 @@ var ForkopShellMethods = {
   checkNftRules: async () => callBaseMethod(
     Forkop.AvailableMethods.CHECK_NFT_RULES
   ),
-  checkZapretRuntime: async () => callBaseMethod(
-    Forkop.AvailableMethods.CHECK_ZAPRET_RUNTIME
-  ),
-  checkZapret2Runtime: async () => callBaseMethod(
-    Forkop.AvailableMethods.CHECK_ZAPRET2_RUNTIME
-  ),
-  checkByedpiRuntime: async () => callBaseMethod(
-    Forkop.AvailableMethods.CHECK_BYEDPI_RUNTIME
-  ),
+  checkZapretRuntime: async () => checkProviderRuntime("zapret"),
+  checkZapret2Runtime: async () => checkProviderRuntime("zapret2"),
+  checkByedpiRuntime: async () => checkProviderRuntime("byedpi"),
   checkInboundsConfig: async () => callBaseMethod(
     Forkop.AvailableMethods.CHECK_INBOUNDS_CONFIG
   ),
@@ -2538,15 +2566,9 @@ var ForkopShellMethods = {
   getSingBoxStatus: async () => callBaseMethod(
     Forkop.AvailableMethods.GET_SING_BOX_STATUS
   ),
-  getZapretStatus: async () => callBaseMethod(
-    Forkop.AvailableMethods.GET_ZAPRET_STATUS
-  ),
-  getZapret2Status: async () => callBaseMethod(
-    Forkop.AvailableMethods.GET_ZAPRET2_STATUS
-  ),
-  getByedpiStatus: async () => callBaseMethod(
-    Forkop.AvailableMethods.GET_BYEDPI_STATUS
-  ),
+  getZapretStatus: async () => getProviderStatus("zapret"),
+  getZapret2Status: async () => getProviderStatus("zapret2"),
+  getByedpiStatus: async () => getProviderStatus("byedpi"),
   clashHttp: async (method, path, body = "") => callBaseMethod(
     Forkop.AvailableMethods.CLASH_HTTP,
     [method, path, body],
@@ -2564,6 +2586,9 @@ var ForkopShellMethods = {
     "/etc/init.d/forkop"
   ),
   globalCheck: async (masked = true) => callBaseMethod(Forkop.AvailableMethods.GLOBAL_CHECK, [
+    masked ? "masked" : "raw"
+  ]),
+  showConfig: async (masked = true) => callBaseMethod(Forkop.AvailableMethods.SHOW_CONFIG, [
     masked ? "masked" : "raw"
   ]),
   showSingBoxConfig: async (masked = true) => callBaseMethod(Forkop.AvailableMethods.SHOW_SING_BOX_CONFIG, [
@@ -4144,6 +4169,9 @@ var initialDiagnosticStore = {
       loading: false
     },
     globalCheck: {
+      loading: false
+    },
+    showConfig: {
       loading: false
     },
     showSingBoxConfig: {
@@ -6022,15 +6050,11 @@ async function handleUpdateSubscription(section) {
       throw new Error(response.error);
     }
     if (!pageUnloading) {
-      showToast(_("Subscriptions updated"), "success");
       void fetchDashboardSections({ force: true });
       void fetchServicesInfo();
     }
   } catch (error) {
     logger.error("[DASHBOARD]", "handleUpdateSubscription: failed", error);
-    if (!pageUnloading) {
-      showToast(_("Failed to update subscriptions"), "error");
-    }
   } finally {
     setSubscriptionUpdating(section.sectionName, false);
   }
@@ -8403,6 +8427,7 @@ function renderAvailableActions({
   enable,
   disable,
   globalCheck,
+  showConfig,
   showSingBoxConfig
 }) {
   return E("div", { class: "fkp_diagnostic-page__right-bar__actions" }, [
@@ -8464,6 +8489,15 @@ function renderAvailableActions({
         text: _("Get global check"),
         loading: globalCheck.loading,
         disabled: globalCheck.disabled
+      })
+    ]),
+    ...insertIf(showConfig.visible, [
+      renderButton({
+        onClick: showConfig.onClick,
+        icon: renderFileTextIcon24,
+        text: _("Show forkop config"),
+        loading: showConfig.loading,
+        disabled: showConfig.disabled
       })
     ]),
     ...insertIf(showSingBoxConfig.visible, [
@@ -9061,7 +9095,18 @@ var SING_BOX_MASKED_KEYS = /* @__PURE__ */ new Set([
   "domain_keyword",
   "domain_regex",
   "ip_cidr",
-  "source_ip_cidr"
+  "source_ip_cidr",
+  // WireGuard, AmneziaWG and WARP endpoints. `id` only ever appears inside a
+  // generated WARP profile, so it is the device identity rather than a tag.
+  "address",
+  "port",
+  "allowed_ips",
+  "pre_shared_key",
+  "reserved",
+  "id",
+  "auth_token",
+  "license_key",
+  "link"
 ]);
 var FORKOP_MASK_AFTER_TOKEN = [
   "option proxy_string",
@@ -9084,6 +9129,21 @@ var FORKOP_MASK_AFTER_TOKEN = [
 ];
 var FORKOP_MASK_AFTER_TOKEN_SPACE = [
   "option outbound_json",
+  "option endpoint_json",
+  "option warp_profile_id",
+  "option warp_profile_auth_token",
+  "option warp_profile_private_key",
+  "option warp_profile_license_key",
+  "option private_key",
+  "option public_key",
+  "option pre_shared_key",
+  "option address",
+  "list address",
+  "option port",
+  "list allowed_ips",
+  "option mixed_proxy_username",
+  "option mixed_proxy_password",
+  "option url",
   "list domain",
   "list domain_suffix",
   "list domain_keyword",
@@ -9214,7 +9274,7 @@ function maskGlobalCheckText(text = "") {
       return maskMultilineContinuation(line);
     }
     const maskedLine = maskGlobalCheckLine(line);
-    if (line.includes("option outbound_json")) {
+    if (line.includes("option outbound_json") || line.includes("option endpoint_json")) {
       const firstQuote = line.indexOf("'");
       if (firstQuote >= 0 && line.slice(firstQuote + 1).indexOf("'") < 0) {
         inMaskedMultiline = true;
@@ -9695,6 +9755,30 @@ async function handleShowGlobalCheck() {
     setDiagnosticActionLoading("globalCheck", false);
   }
 }
+async function handleShowForkopConfig() {
+  setDiagnosticActionLoading("showConfig", true);
+  try {
+    const showConfig = await ForkopShellMethods.showConfig(false);
+    if (showConfig.success) {
+      const rawConfigText = showConfig.data ?? "";
+      const maskedConfigText = maskGlobalCheckText(rawConfigText);
+      ui.showModal(
+        _("Show forkop config"),
+        renderModal(rawConfigText, "show_config", {
+          maskText: () => maskedConfigText,
+          initialAutoRefresh: false,
+          showMaskValuesToggle: true
+        })
+      );
+    } else {
+      logger.error("[DIAGNOSTIC]", "handleShowForkopConfig - e", showConfig);
+    }
+  } catch (e) {
+    logger.error("[DIAGNOSTIC]", "handleShowForkopConfig - e", e);
+  } finally {
+    setDiagnosticActionLoading("showConfig", false);
+  }
+}
 async function handleShowSingBoxConfig() {
   setDiagnosticActionLoading("showSingBoxConfig", true);
   try {
@@ -9817,6 +9901,12 @@ function renderDiagnosticAvailableActionsWidget() {
       loading: diagnosticsActions.globalCheck.loading,
       visible: true,
       onClick: handleShowGlobalCheck,
+      disabled: utilityActionsDisabled
+    },
+    showConfig: {
+      loading: diagnosticsActions.showConfig.loading,
+      visible: true,
+      onClick: handleShowForkopConfig,
       disabled: utilityActionsDisabled
     },
     showSingBoxConfig: {

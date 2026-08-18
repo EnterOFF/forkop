@@ -58,54 +58,24 @@ export namespace ClashAPI {
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace Forkop {
-  // Available commands:
-  // start                   Start forkop service
-  // stop                    Stop forkop service
-  // reload                  Reload forkop configuration
-  // restart                 Restart forkop service
-  // enable                  Enable forkop autostart
-  // disable                 Disable forkop autostart
-  // uninstall               Remove forkop files installed outside opkg/apk
-  // main                    Run main forkop process
-  // check_proxy             Check proxy connectivity
-  // check_nft               Check NFT rules
-  // check_nft_rules         Check NFT rules status
-  // check_sing_box          Check sing-box installation and status
-  // check_inbounds_config   Check whether enabled server inbounds are configured
-  // check_inbounds          Check server inbounds from the Servers tab
-  // check_logs              Show forkop logs from system journal
-  // check_sing_box_logs     Show sing-box logs
-  // check_fakeip            Test sing-box FakeIP DNS
-  // clash_http              Allowlisted Clash API transport fallback
-  // show_config             Display current forkop configuration
-  // show_version            Show forkop version
-  // show_sing_box_config    Show sing-box configuration
-  // show_sing_box_version   Show sing-box version
-  // get_status              Get forkop service status
-  // get_sing_box_status     Get sing-box service status
-  // get_ui_capabilities     Get lightweight UI capabilities
-  // check_dns_available     Check DNS server availability
-  // global_check            Run global system check
-
+  // Subset of the Forkop CLI this app drives. `forkop` without arguments
+  // prints the authoritative command list, so it is not duplicated here.
   export enum AvailableMethods {
     CHECK_DNS_AVAILABLE = 'check_dns_available',
     CHECK_FAKEIP = 'check_fakeip',
     CHECK_NFT_RULES = 'check_nft_rules',
-    CHECK_ZAPRET_RUNTIME = 'check_zapret_runtime',
-    CHECK_ZAPRET2_RUNTIME = 'check_zapret2_runtime',
-    CHECK_BYEDPI_RUNTIME = 'check_byedpi_runtime',
+    CHECK_PROVIDER_RUNTIME = 'check_provider_runtime',
     CHECK_INBOUNDS_CONFIG = 'check_inbounds_config',
     GET_STATUS = 'get_status',
     CHECK_SING_BOX = 'check_sing_box',
     CHECK_INBOUNDS = 'check_inbounds',
     GET_SING_BOX_STATUS = 'get_sing_box_status',
-    GET_ZAPRET_STATUS = 'get_zapret_status',
-    GET_ZAPRET2_STATUS = 'get_zapret2_status',
-    GET_BYEDPI_STATUS = 'get_byedpi_status',
+    GET_PROVIDER_STATUS = 'get_provider_status',
     CLASH_HTTP = 'clash_http',
     ENABLE = 'enable',
     DISABLE = 'disable',
     GLOBAL_CHECK = 'global_check',
+    SHOW_CONFIG = 'show_config',
     SHOW_SING_BOX_CONFIG = 'show_sing_box_config',
     CHECK_LOGS = 'check_logs',
     CHECK_SING_BOX_LOGS = 'check_sing_box_logs',
@@ -498,12 +468,9 @@ export namespace Forkop {
     };
   }
 
-  export type ComponentName =
-    | 'forkop'
-    | 'sing_box'
-    | 'zapret'
-    | 'zapret2'
-    | 'byedpi';
+  export type DpiProvider = 'zapret' | 'zapret2' | 'byedpi';
+
+  export type ComponentName = 'forkop' | 'sing_box' | DpiProvider;
 
   export type ComponentAction = 'check_update' | 'install' | 'remove';
 

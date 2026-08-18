@@ -1101,15 +1101,11 @@ async function handleUpdateSubscription(section: Forkop.OutboundGroup) {
       throw new Error(response.error);
     }
     if (!pageUnloading) {
-      showToast(_('Subscriptions updated'), 'success');
       void fetchDashboardSections({ force: true });
       void fetchServicesInfo();
     }
   } catch (error) {
     logger.error('[DASHBOARD]', 'handleUpdateSubscription: failed', error);
-    if (!pageUnloading) {
-      showToast(_('Failed to update subscriptions'), 'error');
-    }
   } finally {
     setSubscriptionUpdating(section.sectionName, false);
   }

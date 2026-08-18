@@ -371,10 +371,16 @@ function forkop_config_masked_line(line) {
     line = mask_after_token_space(line, "option tailscale_auth_key");
     line = mask_after_token_space(line, "option tailscale_control_url");
     line = mask_after_token_space(line, "option tailscale_hostname");
+    line = mask_after_token_space(line, "option warp_profile_id");
     line = mask_after_token_space(line, "option warp_profile_auth_token");
     line = mask_after_token_space(line, "option warp_profile_private_key");
     line = mask_after_token_space(line, "option warp_profile_license_key");
     line = mask_after_token_space(line, "option pre_shared_key");
+    line = mask_after_token_space(line, "option public_key");
+    line = mask_after_token_space(line, "option address");
+    line = mask_after_token_space(line, "list address");
+    line = mask_after_token_space(line, "option port");
+    line = mask_after_token_space(line, "list allowed_ips");
     line = mask_after_token_space(line, "list tailscale_advertise_routes");
     line = mask_after_token(line, "option hysteria2_obfs_password");
     line = mask_after_token(line, "option reality_private_key");
@@ -882,36 +888,6 @@ function server_required_port_conflict_owners(listen, port, required_proto) {
     print(join(" ", sorted_unique_strings(owners)), "\n");
 }
 
-function nft_line_is_count_element(line) {
-    line = trim(as_string(line));
-    return line != "" && match(substr(line, 0, 1), /^[0-9]$/) != null;
-}
-
-function render_nft_chain_config_blocks() {
-    let lines = split(read_stdin(), "\n");
-
-    for (let i = 1; i < length(ARGV); i++) {
-        let chain = as_string(ARGV[i]);
-        let in_block = false;
-        let needle = "chain " + chain + " {";
-
-        for (let line in lines) {
-            line = as_string(line);
-            if (!in_block && index(line, needle) < 0)
-                continue;
-
-            if (!in_block)
-                in_block = true;
-
-            if (index(line, "elements") < 0 && !nft_line_is_count_element(line))
-                print(line, "\n");
-
-            if (index(line, "}") >= 0)
-                in_block = false;
-        }
-    }
-}
-
 function nft_chain_counter_status() {
     let rules_exist = 0;
     let counters = 0;
@@ -1403,20 +1379,6 @@ function nft_ruleset_other_mark_lines(table_name) {
     }
 }
 
-function nft_set_element_count() {
-    let value = object_or_empty(read_stdin_json());
-
-    for (let item in array_or_empty(value.nftables)) {
-        if (type(item) != "object" || type(item.set) != "object")
-            continue;
-
-        print_line(length(array_or_empty(item.set.elem)));
-        return;
-    }
-
-    print_line("0");
-}
-
 function file_first_line(path, fallback) {
     let data = fs.readfile(path);
     let result = "";
@@ -1690,10 +1652,6 @@ else if (mode == "global-nft-other-mark-exists")
     global_nft_other_mark_exists();
 else if (mode == "nft-ruleset-other-mark-lines")
     nft_ruleset_other_mark_lines(ARGV[1]);
-else if (mode == "nft-set-element-count")
-    nft_set_element_count();
-else if (mode == "nft-chain-config-blocks")
-    render_nft_chain_config_blocks();
 else if (mode == "nft-chain-counter-status")
     nft_chain_counter_status();
 else if (mode == "file-first-line")

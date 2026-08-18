@@ -96,4 +96,116 @@ describe('diagnostic masking', () => {
     expect(masked).toContain("list header 'MASKED'");
     expect(masked).toContain("option private_key 'MASKED'");
   });
+
+  it('masks every credential a WireGuard, AmneziaWG or WARP tunnel can carry', () => {
+    const raw = [
+      "config tunnel 'tun_warp'",
+      "\toption kind 'warp'",
+      "\toption warp_profile_id 'warp-device-id'",
+      "\toption warp_profile_auth_token 'warp-auth-token'",
+      "\toption warp_profile_private_key 'warp-private-key'",
+      "\toption warp_profile_license_key 'warp-license-key'",
+      "\toption amnezia_jc '4'",
+      "config tunnel 'tun_awg'",
+      "\tlist address '10.8.1.9/32'",
+      "\toption private_key 'awg-private-key'",
+      "\toption mtu '1280'",
+      "config tunnel_peer 'tp_awg'",
+      "\toption address 'peer.example.com'",
+      "\toption port '47132'",
+      "\toption public_key 'peer-public-key'",
+      "\toption pre_shared_key 'peer-preshared-key'",
+      "\tlist allowed_ips '0.0.0.0/0'",
+      "\toption persistent_keepalive_interval '25'",
+      "config tunnel 'tun_json'",
+      "\toption endpoint_json '{",
+      '\t"private_key": "json-leaked"',
+      "}'",
+      '',
+    ].join('\n');
+
+    const masked = maskGlobalCheckText(raw);
+
+    for (const secret of [
+      'warp-device-id',
+      'warp-auth-token',
+      'warp-private-key',
+      'warp-license-key',
+      '10.8.1.9/32',
+      'awg-private-key',
+      'peer.example.com',
+      '47132',
+      'peer-public-key',
+      'peer-preshared-key',
+      '0.0.0.0/0',
+      'json-leaked',
+    ]) {
+      expect(masked).not.toContain(secret);
+    }
+
+    expect(masked).toContain("option kind 'warp'");
+    expect(masked).toContain("option amnezia_jc '4'");
+    expect(masked).toContain("option mtu '1280'");
+    expect(masked).toContain("option persistent_keepalive_interval '25'");
+  });
+
+  it('masks tunnel and WARP keys in a generated sing-box config', () => {
+    const config = {
+      endpoints: [
+        {
+          type: 'wireguard',
+          tag: 'proxy/awg',
+          address: ['10.8.1.9/32'],
+          private_key: 'awg-private-key',
+          mtu: 1280,
+          peers: [
+            {
+              address: 'peer.example.com',
+              port: 47132,
+              public_key: 'peer-public-key',
+              allowed_ips: ['0.0.0.0/0'],
+              pre_shared_key: 'peer-preshared-key',
+              persistent_keepalive_interval: 25,
+            },
+          ],
+        },
+        {
+          type: 'warp',
+          tag: 'proxy/warp',
+          profile: {
+            id: 'warp-device-id',
+            auth_token: 'warp-auth-token',
+            private_key: 'warp-private-key',
+            recreate: true,
+          },
+        },
+      ],
+      outbounds: [
+        { type: 'parser', tag: 'proxy/node', link: 'vless://uuid@example.com' },
+      ],
+    };
+
+    const masked = formatMaskedSingBoxConfig(config);
+
+    for (const secret of [
+      '10.8.1.9/32',
+      'awg-private-key',
+      'peer.example.com',
+      '47132',
+      'peer-public-key',
+      '0.0.0.0/0',
+      'peer-preshared-key',
+      'warp-device-id',
+      'warp-auth-token',
+      'warp-private-key',
+      'vless://uuid@example.com',
+    ]) {
+      expect(masked).not.toContain(secret);
+    }
+
+    expect(masked).toContain('"mtu": 1280');
+    expect(masked).toContain('"persistent_keepalive_interval": 25');
+    expect(masked).toContain('"tag": "proxy/warp"');
+    expect(masked).toContain('"recreate": true');
+  });
 });

@@ -58,6 +58,9 @@ function fail(message) {
 
 const retiredMissingCurrent = new Set([
   "conffile",
+  // Never written by the released UI or shipped template; the stable baseline
+  // only read it inside the unreferenced NFT text diagnostic that Forkop dropped.
+  "domain_list_enabled",
   "local_domain_lists",
   "log_stderr",
   "remote_domain_lists",

@@ -68,6 +68,28 @@ clash_http_out="$(FORKOP_LIB="$fake_lib" ucode "$FORKOP_BIN" clash_http PUT /pro
 [ "$clash_http_out" = $'diagnostics\tclash-http\tPUT\t/proxies/main-out\t{"name":"main-1-out"}' ] ||
   fail "clash_http must dispatch through diagnostics/runtime.uc with method, path and body"
 
+provider_runtime_out="$(FORKOP_LIB="$fake_lib" ucode "$FORKOP_BIN" check_provider_runtime zapret2)"
+[ "$provider_runtime_out" = $'diagnostics\tcheck-provider-runtime\tzapret2\t\t' ] ||
+  fail "check_provider_runtime must forward the DPI provider name"
+
+provider_status_out="$(FORKOP_LIB="$fake_lib" ucode "$FORKOP_BIN" get_provider_status byedpi)"
+[ "$provider_status_out" = $'diagnostics\tget-provider-status\tbyedpi\t\t' ] ||
+  fail "get_provider_status must forward the DPI provider name"
+
+# The strategy is passed without a leading dash on purpose: the ucode build
+# used by this harness keeps parsing options past the script path, while the
+# OpenWrt build stops there.
+provider_validate_out="$(FORKOP_LIB="$fake_lib" ucode "$FORKOP_BIN" validate_provider_strategy_json zapret 'dpi-desync=fake')"
+[ "$provider_validate_out" = $'diagnostics\tvalidate-provider-strategy-json\tzapret\tdpi-desync=fake\t' ] ||
+  fail "validate_provider_strategy_json must forward the provider and the strategy"
+
+for removed in check_nft show_sing_box_version neutralize_zapret_defaults dnsmasq_restore \
+  check_zapret_runtime get_byedpi_status validate_nfqws_strategy_json subscription_update clash_api; do
+  if FORKOP_LIB="$fake_lib" ucode "$FORKOP_BIN" "$removed" 2>/dev/null | grep -Fq $'diagnostics\t'; then
+    fail "removed command $removed must not dispatch to a module"
+  fi
+done
+
 component_out="$(FORKOP_LIB="$fake_lib" ucode "$FORKOP_BIN" component_action sing_box update)"
 [ "$component_out" = $'action\tcomponent-action\tsing_box\tupdate' ] ||
   fail "component_action must dispatch through components/action.uc with arguments"

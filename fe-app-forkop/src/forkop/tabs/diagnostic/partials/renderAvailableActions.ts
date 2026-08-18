@@ -4,6 +4,7 @@ import {
   renderCirclePlayIcon24,
   renderCircleStopIcon24,
   renderCogIcon24,
+  renderFileTextIcon24,
   renderPauseIcon24,
   renderPlayIcon24,
   renderRotateCcwIcon24,
@@ -24,6 +25,7 @@ interface IRenderAvailableActionsProps {
   enable: ActionProps;
   disable: ActionProps;
   globalCheck: ActionProps;
+  showConfig: ActionProps;
   showSingBoxConfig: ActionProps;
 }
 
@@ -34,6 +36,7 @@ export function renderAvailableActions({
   enable,
   disable,
   globalCheck,
+  showConfig,
   showSingBoxConfig,
 }: IRenderAvailableActionsProps) {
   return E('div', { class: 'fkp_diagnostic-page__right-bar__actions' }, [
@@ -95,6 +98,15 @@ export function renderAvailableActions({
         text: _('Get global check'),
         loading: globalCheck.loading,
         disabled: globalCheck.disabled,
+      }),
+    ]),
+    ...insertIf(showConfig.visible, [
+      renderButton({
+        onClick: showConfig.onClick,
+        icon: renderFileTextIcon24,
+        text: _('Show forkop config'),
+        loading: showConfig.loading,
+        disabled: showConfig.disabled,
       }),
     ]),
     ...insertIf(showSingBoxConfig.visible, [

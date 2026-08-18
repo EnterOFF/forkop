@@ -26,6 +26,17 @@ const SING_BOX_MASKED_KEYS = new Set([
   'domain_regex',
   'ip_cidr',
   'source_ip_cidr',
+  // WireGuard, AmneziaWG and WARP endpoints. `id` only ever appears inside a
+  // generated WARP profile, so it is the device identity rather than a tag.
+  'address',
+  'port',
+  'allowed_ips',
+  'pre_shared_key',
+  'reserved',
+  'id',
+  'auth_token',
+  'license_key',
+  'link',
 ]);
 
 const FORKOP_MASK_AFTER_TOKEN = [
@@ -48,8 +59,25 @@ const FORKOP_MASK_AFTER_TOKEN = [
   'option yacd_secret_key',
 ];
 
+// Keep in sync with forkop_config_masked_line() in diagnostics/status.uc.
+// tests/luci_config_masking.sh compares both lists.
 const FORKOP_MASK_AFTER_TOKEN_SPACE = [
   'option outbound_json',
+  'option endpoint_json',
+  'option warp_profile_id',
+  'option warp_profile_auth_token',
+  'option warp_profile_private_key',
+  'option warp_profile_license_key',
+  'option private_key',
+  'option public_key',
+  'option pre_shared_key',
+  'option address',
+  'list address',
+  'option port',
+  'list allowed_ips',
+  'option mixed_proxy_username',
+  'option mixed_proxy_password',
+  'option url',
   'list domain',
   'list domain_suffix',
   'list domain_keyword',
@@ -223,7 +251,10 @@ export function maskGlobalCheckText(text: string = '') {
 
       const maskedLine = maskGlobalCheckLine(line);
 
-      if (line.includes('option outbound_json')) {
+      if (
+        line.includes('option outbound_json') ||
+        line.includes('option endpoint_json')
+      ) {
         const firstQuote = line.indexOf("'");
 
         if (firstQuote >= 0 && line.slice(firstQuote + 1).indexOf("'") < 0) {

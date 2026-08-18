@@ -65,6 +65,18 @@ grep -Fq 'clash_http: [ "diagnostics/runtime.uc", "clash-http", 3 ]' "$CLI_UC" |
 if grep -Eq 'subscription_update:|clash_api:' "$CLI_UC"; then
   fail "service/cli.uc must not keep CLI commands that only duplicate Clash API endpoints"
 fi
+for merged in check_provider_runtime get_provider_status validate_provider_strategy_json; do
+  grep -Fq "$merged: [" "$CLI_UC" ||
+    fail "service/cli.uc must expose one $merged command for every DPI provider"
+done
+for retired in check_nft show_sing_box_version neutralize_zapret_defaults dnsmasq_restore \
+  check_zapret_runtime check_zapret2_runtime check_byedpi_runtime \
+  get_zapret_status get_zapret2_status get_byedpi_status \
+  validate_nfqws_strategy_json validate_nfqws2_strategy_json validate_byedpi_strategy_json; do
+  if grep -Fq "$retired: [" "$CLI_UC"; then
+    fail "service/cli.uc must not reintroduce the retired $retired command"
+  fi
+done
 if grep -R -n -F 'updates_runtime.sh' "$FORKOP_BIN" "$ROOT_DIR/forkop/files/usr/lib" --include='*.sh' >/dev/null 2>&1; then
   fail "runtime shell must not reference updates_runtime.sh"
 fi

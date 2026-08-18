@@ -6791,7 +6791,8 @@ function validateNfqwsStrategyRemotely(value) {
 
   const validationTask = fs
     .exec(NFQWS_VALIDATION_COMMAND, [
-      "validate_nfqws_strategy_json",
+      "validate_provider_strategy_json",
+      "zapret",
       normalized,
     ])
     .then((result) => {
@@ -7236,7 +7237,8 @@ function validateNfqws2StrategyRemotely(value) {
 
   const validationTask = fs
     .exec(NFQWS_VALIDATION_COMMAND, [
-      "validate_nfqws2_strategy_json",
+      "validate_provider_strategy_json",
+      "zapret2",
       normalized,
     ])
     .then((result) => {
@@ -7648,7 +7650,8 @@ function validateByedpiStrategyRemotely(value) {
 
   const validationTask = fs
     .exec(NFQWS_VALIDATION_COMMAND, [
-      "validate_byedpi_strategy_json",
+      "validate_provider_strategy_json",
+      "byedpi",
       normalized,
     ])
     .then((result) => {

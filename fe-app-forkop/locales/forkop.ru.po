@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-18 15:56+0300\n"
-"PO-Revision-Date: 2026-08-18 15:56+0300\n"
+"POT-Creation-Date: 2026-08-18 16:57+0300\n"
+"PO-Revision-Date: 2026-08-18 16:57+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -751,9 +751,6 @@ msgstr "Не удалось загрузить заголовки подписк
 
 msgid "Failed to load logs"
 msgstr "Не удалось загрузить логи"
-
-msgid "Failed to update subscriptions"
-msgstr "Не удалось обновить подписки"
 
 msgid "FakeIP and control checks use different public IPs"
 msgstr "FakeIP и контрольная проверка используют разные публичные IP"
@@ -1781,6 +1778,9 @@ msgstr "Информация о сервисах"
 msgid "Settings"
 msgstr "Настройки"
 
+msgid "Show forkop config"
+msgstr "Показать forkop конфигурацию"
+
 msgid "Show metadata"
 msgstr "Отображать метаданные"
 
@@ -1915,9 +1915,6 @@ msgstr "Тег подписки не должен содержать /"
 
 msgid "Subscription update interval"
 msgstr "Интервал обновления подписки"
-
-msgid "Subscriptions updated"
-msgstr "Подписки обновлены"
 
 msgid "Supported links: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, naiveproxy, mieru"
 msgstr "Поддерживаются ссылки vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, naiveproxy, mieru"

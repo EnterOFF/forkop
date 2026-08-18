@@ -191,6 +191,18 @@ function createTransientRpcGraceTracker(graceMs: number) {
   };
 }
 
+function checkProviderRuntime<T>(provider: Forkop.DpiProvider) {
+  return callBaseMethod<T>(Forkop.AvailableMethods.CHECK_PROVIDER_RUNTIME, [
+    provider,
+  ]);
+}
+
+function getProviderStatus<T>(provider: Forkop.DpiProvider) {
+  return callBaseMethod<T>(Forkop.AvailableMethods.GET_PROVIDER_STATUS, [
+    provider,
+  ]);
+}
+
 export const ForkopShellMethods = {
   checkDNSAvailable: async () =>
     callBaseMethod<Forkop.DnsCheckResult>(
@@ -205,17 +217,11 @@ export const ForkopShellMethods = {
       Forkop.AvailableMethods.CHECK_NFT_RULES,
     ),
   checkZapretRuntime: async () =>
-    callBaseMethod<Forkop.ZapretCheckResult>(
-      Forkop.AvailableMethods.CHECK_ZAPRET_RUNTIME,
-    ),
+    checkProviderRuntime<Forkop.ZapretCheckResult>('zapret'),
   checkZapret2Runtime: async () =>
-    callBaseMethod<Forkop.Zapret2CheckResult>(
-      Forkop.AvailableMethods.CHECK_ZAPRET2_RUNTIME,
-    ),
+    checkProviderRuntime<Forkop.Zapret2CheckResult>('zapret2'),
   checkByedpiRuntime: async () =>
-    callBaseMethod<Forkop.ByedpiCheckResult>(
-      Forkop.AvailableMethods.CHECK_BYEDPI_RUNTIME,
-    ),
+    checkProviderRuntime<Forkop.ByedpiCheckResult>('byedpi'),
   checkInboundsConfig: async () =>
     callBaseMethod<Forkop.InboundsConfigCheckResult>(
       Forkop.AvailableMethods.CHECK_INBOUNDS_CONFIG,
@@ -235,17 +241,11 @@ export const ForkopShellMethods = {
       Forkop.AvailableMethods.GET_SING_BOX_STATUS,
     ),
   getZapretStatus: async () =>
-    callBaseMethod<Forkop.GetZapretStatus>(
-      Forkop.AvailableMethods.GET_ZAPRET_STATUS,
-    ),
+    getProviderStatus<Forkop.GetZapretStatus>('zapret'),
   getZapret2Status: async () =>
-    callBaseMethod<Forkop.GetZapret2Status>(
-      Forkop.AvailableMethods.GET_ZAPRET2_STATUS,
-    ),
+    getProviderStatus<Forkop.GetZapret2Status>('zapret2'),
   getByedpiStatus: async () =>
-    callBaseMethod<Forkop.GetByedpiStatus>(
-      Forkop.AvailableMethods.GET_BYEDPI_STATUS,
-    ),
+    getProviderStatus<Forkop.GetByedpiStatus>('byedpi'),
   clashHttp: async (method: string, path: string, body = '') =>
     callBaseMethod<Forkop.ClashHttpResponse>(
       Forkop.AvailableMethods.CLASH_HTTP,
@@ -267,6 +267,10 @@ export const ForkopShellMethods = {
     ),
   globalCheck: async (masked = true) =>
     callBaseMethod<unknown>(Forkop.AvailableMethods.GLOBAL_CHECK, [
+      masked ? 'masked' : 'raw',
+    ]),
+  showConfig: async (masked = true) =>
+    callBaseMethod<unknown>(Forkop.AvailableMethods.SHOW_CONFIG, [
       masked ? 'masked' : 'raw',
     ]),
   showSingBoxConfig: async (masked = true) =>

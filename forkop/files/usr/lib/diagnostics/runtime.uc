@@ -24,12 +24,6 @@ const FAKEIP_TEST_DOMAIN = getenv("FAKEIP_TEST_DOMAIN") || constants.FAKEIP_TEST
 const RT_TABLE_NAME = getenv("RT_TABLE_NAME") || constants.RT_TABLE_NAME || "forkop";
 const NFT_TABLE_NAME = getenv("NFT_TABLE_NAME") || constants.NFT_TABLE_NAME || "ForkopTable";
 const NFT_FAKEIP_MARK = getenv("NFT_FAKEIP_MARK") || constants.NFT_FAKEIP_MARK || "0x04000000";
-const NFT_COMMON_SET_NAME = getenv("NFT_COMMON_SET_NAME") || constants.NFT_COMMON_SET_NAME || "forkop_subnets";
-const NFT_PORT_SET_NAME = getenv("NFT_PORT_SET_NAME") || constants.NFT_PORT_SET_NAME || "forkop_ports";
-const NFT_IP_PORT_SET_NAME = getenv("NFT_IP_PORT_SET_NAME") || constants.NFT_IP_PORT_SET_NAME || "forkop_ip_ports";
-const NFT_INTERFACE_SET_NAME = getenv("NFT_INTERFACE_SET_NAME") || constants.NFT_INTERFACE_SET_NAME || "forkop_interfaces";
-const NFT_DISCORD_SET_NAME = getenv("NFT_DISCORD_SET_NAME") || constants.NFT_DISCORD_SET_NAME || "forkop_discord_subnets";
-const NFT_LOCALV4_SET_NAME = getenv("NFT_LOCALV4_SET_NAME") || constants.NFT_LOCALV4_SET_NAME || "localv4";
 const SB_DNS_INBOUND_ADDRESS = getenv("SB_DNS_INBOUND_ADDRESS") || constants.SB_DNS_INBOUND_ADDRESS || "127.0.0.42";
 const SB_TPROXY_INBOUND6_ADDRESS = getenv("SB_TPROXY_INBOUND6_ADDRESS") || constants.SB_TPROXY_INBOUND6_ADDRESS || "::1";
 const SB_TPROXY_INBOUND_PORT = getenv("SB_TPROXY_INBOUND_PORT") || constants.SB_TPROXY_INBOUND_PORT || "1602";
@@ -54,6 +48,7 @@ const ZAPRET2_RUNTIME_UC = LIB_DIR + "/providers/zapret2/runtime.uc";
 const BYEDPI_RUNTIME_UC = LIB_DIR + "/providers/byedpi/runtime.uc";
 const ZAPRET_VALIDATOR_UC = LIB_DIR + "/providers/zapret/validator.uc";
 const ZAPRET2_VALIDATOR_UC = LIB_DIR + "/providers/zapret2/validator.uc";
+const BYEDPI_VALIDATOR_UC = LIB_DIR + "/providers/byedpi/validator.uc";
 
 function as_string(value) {
     return value == null ? "" : "" + value;
@@ -904,63 +899,6 @@ function check_proxy() {
     return result;
 }
 
-function domain_lists_contain_cloud_provider() {
-    for (let section in uci_sections("section")) {
-        if (!bool_option(section, "domain_list_enabled", false))
-            continue;
-        for (let value in list_option(section, "domain_list"))
-            if (value == "hetzner" || value == "ovh")
-                return true;
-    }
-    return false;
-}
-
-function check_nft() {
-    if (!command_exists("nft")) {
-        nolog("nft is not installed");
-        return 1;
-    }
-
-    nolog("Checking " + NFT_TABLE_NAME + " rules...");
-    if (!command_success_from_args([ "nft", "list", "table", "inet", NFT_TABLE_NAME ])) {
-        nolog("❌ " + NFT_TABLE_NAME + " not found");
-        return 1;
-    }
-
-    if (domain_lists_contain_cloud_provider()) {
-        nolog("Sets statistics:");
-        for (let set_name in [
-            NFT_COMMON_SET_NAME,
-            NFT_PORT_SET_NAME,
-            NFT_IP_PORT_SET_NAME,
-            NFT_INTERFACE_SET_NAME,
-            NFT_DISCORD_SET_NAME,
-            NFT_LOCALV4_SET_NAME
-        ]) {
-            if (!command_success_from_args([ "nft", "list", "set", "inet", NFT_TABLE_NAME, set_name ]))
-                continue;
-            let count = replace(status_output(
-                [ "nft-set-element-count" ],
-                command_output_from_args([ "nft", "-j", "list", "set", "inet", NFT_TABLE_NAME, set_name ])
-            ), /[\r\n]+$/g, "");
-            print("- ", set_name, ": ", count, " elements\n");
-        }
-
-        nolog("Chain configurations:");
-        print(status_output(
-            [ "nft-chain-config-blocks", "mangle", "proxy" ],
-            command_output_from_args([ "nft", "list", "table", "inet", NFT_TABLE_NAME ])
-        ));
-    }
-    else {
-        nolog("Sets configuration:");
-        print(command_output_from_args([ "nft", "list", "table", "inet", NFT_TABLE_NAME ]));
-    }
-
-    nolog("NFT check completed");
-    return 0;
-}
-
 function show_sing_box_config(visibility) {
     visibility = as_string(visibility || "masked");
     let sing_box_config_path = option(settings(), "config_path", "");
@@ -991,11 +929,6 @@ function show_config(visibility) {
 
 function show_version() {
     print(FORKOP_VERSION, "\n");
-    return 0;
-}
-
-function show_sing_box_version() {
-    print(replace(module_output(SINGBOX_RUNTIME_UC, [ "version" ]), /[\r\n]+$/g, ""), "\n");
     return 0;
 }
 
@@ -1189,17 +1122,51 @@ function get_status() {
     return 0;
 }
 
-function validate_nfqws_strategy_json(raw_opt) {
-    let result = module_capture(ZAPRET_VALIDATOR_UC, [
-        "validate-json", "nfqws", as_string(raw_opt), ZAPRET_LEGACY_DEFAULT_NFQWS_OPT
-    ]);
-    if (result.output != "")
-        print(result.output);
-    return 0;
+// The three external DPI providers differ only in which module owns them, so
+// the CLI exposes one command per operation and resolves the owner here.
+function provider_runtime_module(provider) {
+    let modules = {
+        zapret: ZAPRET_RUNTIME_UC,
+        zapret2: ZAPRET2_RUNTIME_UC,
+        byedpi: BYEDPI_RUNTIME_UC
+    };
+    return modules[lc(as_string(provider))];
 }
 
-function validate_nfqws2_strategy_json(raw_opt) {
-    let result = module_capture(ZAPRET2_VALIDATOR_UC, [ "validate-json", "nfqws2", as_string(raw_opt) ]);
+function provider_validator_args(provider, raw_opt) {
+    raw_opt = as_string(raw_opt);
+    let args = {
+        zapret: [ ZAPRET_VALIDATOR_UC, "validate-json", "nfqws", raw_opt, ZAPRET_LEGACY_DEFAULT_NFQWS_OPT ],
+        zapret2: [ ZAPRET2_VALIDATOR_UC, "validate-json", "nfqws2", raw_opt ],
+        byedpi: [ BYEDPI_VALIDATOR_UC, "validate-json", raw_opt ]
+    };
+    return args[lc(as_string(provider))];
+}
+
+function unknown_provider(provider) {
+    warn("Unknown DPI provider: " + as_string(provider) + "\n");
+    return 1;
+}
+
+function check_provider_runtime(provider) {
+    let module = provider_runtime_module(provider);
+    if (module == null)
+        return unknown_provider(provider);
+    return module_passthrough(module, [ "check" ]);
+}
+
+function get_provider_status(provider) {
+    let module = provider_runtime_module(provider);
+    if (module == null)
+        return unknown_provider(provider);
+    return module_passthrough(module, [ "status" ]);
+}
+
+function validate_provider_strategy_json(provider, raw_opt) {
+    let args = provider_validator_args(provider, raw_opt);
+    if (args == null)
+        return unknown_provider(provider);
+    let result = module_capture(args[0], slice(args, 1));
     if (result.output != "")
         print(result.output);
     return 0;
@@ -1787,8 +1754,6 @@ let mode = ARGV[0] || "";
 
 if (mode == "check-proxy")
     exit(check_proxy());
-else if (mode == "check-nft")
-    exit(check_nft());
 else if (mode == "check-nft-rules")
     exit(check_nft_rules());
 else if (mode == "check-sing-box")
@@ -1807,14 +1772,8 @@ else if (mode == "check-inbounds")
     exit(check_inbounds());
 else if (mode == "check-fakeip")
     exit(check_fakeip());
-else if (mode == "check-zapret-runtime")
-    exit(module_passthrough(ZAPRET_RUNTIME_UC, [ "check" ]));
-else if (mode == "check-zapret2-runtime")
-    exit(module_passthrough(ZAPRET2_RUNTIME_UC, [ "check" ]));
-else if (mode == "check-byedpi-runtime")
-    exit(module_passthrough(BYEDPI_RUNTIME_UC, [ "check" ]));
-else if (mode == "neutralize-zapret-defaults")
-    exit(neutralize_zapret_defaults());
+else if (mode == "check-provider-runtime")
+    exit(check_provider_runtime(ARGV[1]));
 else if (mode == "clash-http")
     exit(clash_http(ARGV[1], ARGV[2], ARGV[3]));
 else if (mode == "show-config")
@@ -1823,28 +1782,20 @@ else if (mode == "show-version")
     exit(show_version());
 else if (mode == "show-sing-box-config")
     exit(show_sing_box_config(ARGV[1] || "masked"));
-else if (mode == "show-sing-box-version")
-    exit(show_sing_box_version());
 else if (mode == "get-status")
     exit(get_status());
 else if (mode == "get-sing-box-status")
     exit(get_sing_box_status());
-else if (mode == "get-zapret-status")
-    exit(module_passthrough(ZAPRET_RUNTIME_UC, [ "status" ]));
-else if (mode == "get-zapret2-status")
-    exit(module_passthrough(ZAPRET2_RUNTIME_UC, [ "status" ]));
-else if (mode == "get-byedpi-status")
-    exit(module_passthrough(BYEDPI_RUNTIME_UC, [ "status" ]));
+else if (mode == "get-provider-status")
+    exit(get_provider_status(ARGV[1]));
 else if (mode == "get-system-info")
     exit(get_system_info());
 else if (mode == "check-dns-available")
     exit(check_dns_available());
 else if (mode == "global-check")
     exit(global_check(ARGV[1] || "", ARGV[2] || ""));
-else if (mode == "validate-nfqws-strategy-json")
-    exit(validate_nfqws_strategy_json(ARGV[1] || ""));
-else if (mode == "validate-nfqws2-strategy-json")
-    exit(validate_nfqws2_strategy_json(ARGV[1] || ""));
+else if (mode == "validate-provider-strategy-json")
+    exit(validate_provider_strategy_json(ARGV[1], ARGV[2] || ""));
 else {
     warn("Usage: diagnostics/runtime.uc <operation> ...\n");
     exit(1);

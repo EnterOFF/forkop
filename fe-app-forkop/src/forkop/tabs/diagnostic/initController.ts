@@ -689,6 +689,34 @@ async function handleShowGlobalCheck() {
   }
 }
 
+async function handleShowForkopConfig() {
+  setDiagnosticActionLoading('showConfig', true);
+
+  try {
+    const showConfig = await ForkopShellMethods.showConfig(false);
+
+    if (showConfig.success) {
+      const rawConfigText = (showConfig.data as string) ?? '';
+      const maskedConfigText = maskGlobalCheckText(rawConfigText);
+
+      ui.showModal(
+        _('Show forkop config'),
+        renderModal(rawConfigText, 'show_config', {
+          maskText: () => maskedConfigText,
+          initialAutoRefresh: false,
+          showMaskValuesToggle: true,
+        }),
+      );
+    } else {
+      logger.error('[DIAGNOSTIC]', 'handleShowForkopConfig - e', showConfig);
+    }
+  } catch (e) {
+    logger.error('[DIAGNOSTIC]', 'handleShowForkopConfig - e', e);
+  } finally {
+    setDiagnosticActionLoading('showConfig', false);
+  }
+}
+
 async function handleShowSingBoxConfig() {
   setDiagnosticActionLoading('showSingBoxConfig', true);
 
@@ -834,6 +862,12 @@ function renderDiagnosticAvailableActionsWidget() {
       loading: diagnosticsActions.globalCheck.loading,
       visible: true,
       onClick: handleShowGlobalCheck,
+      disabled: utilityActionsDisabled,
+    },
+    showConfig: {
+      loading: diagnosticsActions.showConfig.loading,
+      visible: true,
+      onClick: handleShowForkopConfig,
       disabled: utilityActionsDisabled,
     },
     showSingBoxConfig: {

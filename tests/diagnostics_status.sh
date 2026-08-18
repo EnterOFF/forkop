@@ -578,4 +578,51 @@ owners="$(printf '%s\n' "$netstat_owners" |
 [ "$owners" = "111/nginx 222/dnsmasq" ] ||
   fail "unexpected conflict owners: $owners"
 
+provider_lib="$WORK_DIR/provider-lib"
+cp -r "$FORKOP_LIB" "$provider_lib"
+for provider in zapret zapret2 byedpi; do
+  cat >"$provider_lib/providers/$provider/runtime.uc" <<UCODE
+#!/usr/bin/env ucode
+print("$provider runtime ", ARGV[0], "\n");
+UCODE
+  cat >"$provider_lib/providers/$provider/validator.uc" <<UCODE
+#!/usr/bin/env ucode
+print("$provider validator ", join(" ", ARGV), "\n");
+UCODE
+done
+
+# The shipped zapret legacy default starts with a dash, and the ucode build used
+# by this harness keeps parsing options past the script path, so it is replaced
+# with a dash-free value here.
+provider_ucode() {
+  FORKOP_LIB="$provider_lib" \
+  ZAPRET_LEGACY_DEFAULT_NFQWS_OPT="legacy-default" \
+    ucode -L "$provider_lib" "$provider_lib/diagnostics/runtime.uc" "$@"
+}
+
+for provider in zapret zapret2 byedpi; do
+  out="$(provider_ucode check-provider-runtime "$provider" 2>/dev/null)"
+  [ "$out" = "$provider runtime check" ] ||
+    fail "check-provider-runtime must reach the $provider runtime owner, got: $out"
+
+  out="$(provider_ucode get-provider-status "$provider" 2>/dev/null)"
+  [ "$out" = "$provider runtime status" ] ||
+    fail "get-provider-status must reach the $provider runtime owner, got: $out"
+
+  out="$(provider_ucode validate-provider-strategy-json "$provider" 'dpi-desync=fake' 2>/dev/null)"
+  case "$provider" in
+    byedpi) expected="byedpi validator validate-json dpi-desync=fake" ;;
+    zapret) expected="zapret validator validate-json nfqws dpi-desync=fake legacy-default" ;;
+    zapret2) expected="zapret2 validator validate-json nfqws2 dpi-desync=fake" ;;
+  esac
+  [ "$out" = "$expected" ] ||
+    fail "validate-provider-strategy-json must reach the $provider validator owner, got: $out"
+done
+
+for mode in check-provider-runtime get-provider-status validate-provider-strategy-json; do
+  if provider_ucode "$mode" nfqws3 >/dev/null 2>&1; then
+    fail "$mode must reject an unknown DPI provider"
+  fi
+done
+
 printf 'diagnostics status checks passed\n'
