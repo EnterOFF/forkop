@@ -87,6 +87,10 @@ grep -Fq 'let args = [ SERVICE_INIT, action ];' "$UI_UC" ||
   fail "UI service action worker must use init.d so procd triggers stay registered"
 grep -Fq 'start_service_action("reload", "initd", "pending")' "$UI_UC" ||
   fail "pending reload must enter the normal reload service action immediately"
+grep -Fq 'if (reload_lock_held())' "$UI_UC" ||
+  fail "pending reload must stay queued while another reload owns the reload lock"
+grep -Fq '"runtime-dir-lock-held",' "$UI_UC" ||
+  fail "pending reload must ask service/state.uc whether the reload lock is held"
 if grep -n -E 'pgrep.*sing-box|service-list-instance-running' "$UI_UC" >/dev/null 2>&1; then
   fail "service/ui.uc must not use transient sing-box process probes for visible status"
 fi

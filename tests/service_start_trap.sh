@@ -143,6 +143,11 @@ require_pattern "tproxy-route4-present" \
   "service stop must use direct ucode IPv4 tproxy route check"
 require_pattern "tproxy-route6-present" \
   "service stop must use direct ucode IPv6 tproxy route check"
+require_pattern 'const IP_BIN = getenv("FORKOP_IP_BIN") || "/usr/libexec/ip-full";' \
+  "service stop must resolve the iproute2 binary that created the Forkop table"
+if grep -n -E '\[ "ip", "-[46]"|\[ "ip", "route"' "$LIFECYCLE_UC" >/dev/null 2>&1; then
+  fail "route and rule cleanup must not fall back to BusyBox ip"
+fi
 require_pattern 'singbox_init_config_for_live_reload' \
   "live reloads must skip the memory-heavy parallel sing-box config check"
 require_pattern 'command_success_from_args([ "pgrep", "-x", "sing-box" ]) ||' \

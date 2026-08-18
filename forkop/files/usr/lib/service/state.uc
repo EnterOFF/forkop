@@ -34,6 +34,7 @@ const ZAPRET_DEFAULT_NFQWS_OPT = getenv("ZAPRET_DEFAULT_NFQWS_OPT") || "";
 const ZAPRET2_DEFAULT_NFQWS2_OPT = getenv("ZAPRET2_DEFAULT_NFQWS2_OPT") || "";
 const BYEDPI_DEFAULT_CMD_OPTS = getenv("BYEDPI_DEFAULT_CMD_OPTS") || "";
 const SING_BOX_START_MAX_WAIT_SECONDS = int(getenv("FORKOP_SING_BOX_START_MAX_WAIT_SECONDS") || "300");
+const RUNTIME_DIR_LOCK_OWNER_GRACE = int(getenv("FORKOP_RUNTIME_DIR_LOCK_OWNER_GRACE") || "30");
 
 let sing_box_service_pid_from_value = health.sing_box_service_pid_from_value;
 let sing_box_service_pid_runtime = health.sing_box_service_pid_runtime;
@@ -312,6 +313,26 @@ function lock_dir_write_owner(lock_dir, owner_pid) {
     return write_text_file(as_string(lock_dir) + "/pid", as_string(owner_pid) + "\n");
 }
 
+// True while another process owns the lock. mkdir() and writing the owner pid
+// are separate operations, so a freshly created lock gets time to receive its
+// owner before an empty pid counts as stale; otherwise two simultaneous
+// service actions can both proceed.
+function runtime_dir_lock_held(lock_dir) {
+    lock_dir = as_string(lock_dir);
+    let lock_stat = lock_dir == "" ? null : fs.stat(lock_dir);
+    if (lock_stat == null)
+        return false;
+
+    let current_owner = first_line_value(lock_dir + "/pid");
+    if (pid_alive(current_owner))
+        return true;
+    if (current_owner != "")
+        return false;
+
+    let lock_age = (int(current_epoch(), 10) || 0) - int(lock_stat.mtime || 0);
+    return lock_age >= 0 && lock_age < RUNTIME_DIR_LOCK_OWNER_GRACE;
+}
+
 function acquire_runtime_dir_lock(lock_dir, owner_pid) {
     lock_dir = as_string(lock_dir);
     owner_pid = as_string(owner_pid);
@@ -327,19 +348,8 @@ function acquire_runtime_dir_lock(lock_dir, owner_pid) {
         return false;
     }
 
-    let current_owner = first_line_value(lock_dir + "/pid");
-    if (pid_alive(current_owner))
+    if (runtime_dir_lock_held(lock_dir))
         return false;
-
-    // mkdir() and writing pid are separate operations. Give a freshly
-    // created lock time to receive its owner before treating an empty pid as
-    // stale, otherwise two simultaneous service actions can both proceed.
-    let lock_stat = fs.stat(lock_dir);
-    if (current_owner == "" && lock_stat != null) {
-        let lock_age = (int(current_epoch(), 10) || 0) - int(lock_stat.mtime || 0);
-        if (lock_age >= 0 && lock_age < 30)
-            return false;
-    }
 
     command_success_from_args([ "rm", "-f", lock_dir + "/pid" ]);
     if (!command_success_from_args([ "rmdir", lock_dir ]))
@@ -1504,6 +1514,8 @@ else if (mode == "consume-pending-reload")
     exit(consume_pending_reload(ARGV[1]) ? 0 : 1);
 else if (mode == "run-pending-reload-if-requested")
     run_pending_reload_if_requested(ARGV[1], ARGV[2]);
+else if (mode == "runtime-dir-lock-held")
+    exit(runtime_dir_lock_held(ARGV[1]) ? 0 : 1);
 else if (mode == "acquire-runtime-dir-lock")
     exit(acquire_runtime_dir_lock(ARGV[1], ARGV[2]) ? 0 : 1);
 else if (mode == "acquire-runtime-dir-lock-wait")

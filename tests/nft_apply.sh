@@ -124,12 +124,12 @@ if [ "$#" -eq 5 ] && [ "$1" = "-6" ] && [ "$2" = "route" ] && [ "$3" = "list" ] 
   exit 0
 fi
 
-if [ "$#" -eq 3 ] && [ "$1" = "-4" ] && [ "$2" = "rule" ] && [ "$3" = "list" ]; then
+if [ "$#" -eq 5 ] && [ "$1" = "-4" ] && [ "$2" = "rule" ] && [ "$3" = "list" ] && [ "$4" = "table" ]; then
   printf '%s\n' "${IP_RULE_OUTPUT:-}"
   exit 0
 fi
 
-if [ "$#" -eq 3 ] && [ "$1" = "-6" ] && [ "$2" = "rule" ] && [ "$3" = "list" ]; then
+if [ "$#" -eq 5 ] && [ "$1" = "-6" ] && [ "$2" = "rule" ] && [ "$3" = "list" ] && [ "$4" = "table" ]; then
   printf '%s\n' "${IP_RULE6_OUTPUT:-}"
   exit 0
 fi
@@ -428,11 +428,23 @@ IP_ROUTE_OUTPUT='local default dev lo scope host' \
   nft_ucode tproxy-route-rule-present forkop 0x00100000
 if IP_ROUTE_OUTPUT='local default dev lo scope host' \
   IP_ROUTE6_OUTPUT='local default dev lo metric 1024 pref medium' \
-  IP_RULE_OUTPUT='105: from all fwmark 0x100000/0x100000 lookup other' \
+  IP_RULE_OUTPUT='105: from all fwmark 0x200000/0x200000 lookup forkop' \
   IP_RULE6_OUTPUT='105: from all fwmark 0x100000/0x100000 lookup forkop' \
   nft_ucode tproxy-route-rule-present forkop 0x00100000 >/dev/null 2>&1; then
-  fail "tproxy route/rule presence should require matching lookup table"
+  fail "tproxy route/rule presence should require the Forkop fwmark"
 fi
+# Another package can register the same table id in /etc/iproute2/rt_tables, so
+# iproute2 may print a foreign name for the Forkop table. The rule list is
+# already scoped to the table, so the Forkop rule must still be recognized.
+: > "$IP_LOG"
+IP_ROUTE_OUTPUT='local default dev lo scope host' \
+  IP_ROUTE6_OUTPUT='local default dev lo metric 1024 pref medium' \
+  IP_RULE_OUTPUT='105: from all fwmark 0x100000/0x100000 lookup podkop' \
+  IP_RULE6_OUTPUT='105: from all fwmark 0x100000/0x100000 lookup podkop' \
+  nft_ucode tproxy-route-rule-present forkop 0x00100000 ||
+  fail "tproxy rule presence must not depend on the printed table name"
+assert_contains "$IP_LOG" $'ip\t-4\trule\tlist\ttable\tforkop' "tproxy marking rule query is table scoped"
+assert_contains "$IP_LOG" $'ip\t-6\trule\tlist\ttable\tforkop' "tproxy marking rule6 query is table scoped"
 
 : > "$SYSCTL_LOG"
 : > "$LOGGER_LOG"

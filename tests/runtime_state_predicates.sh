@@ -273,6 +273,9 @@ LOCK_DIR="$WORK_DIR/runtime.lock"
 state_ucode acquire-runtime-dir-lock "$LOCK_DIR" "$$" ||
   fail "ucode should acquire runtime dir lock"
 assert_eq "$$" "$(cat "$LOCK_DIR/pid")" "runtime lock owner pid"
+if ! state_ucode runtime-dir-lock-held "$LOCK_DIR"; then
+  fail "a lock owned by a live pid must report as held"
+fi
 if state_ucode acquire-runtime-dir-lock "$LOCK_DIR" "$$" >/dev/null 2>&1; then
   fail "ucode should reject a lock held by a live pid"
 fi
@@ -285,6 +288,15 @@ state_ucode release-runtime-dir-lock "$LOCK_DIR" 999999
 state_ucode release-runtime-dir-lock "$LOCK_DIR" "$$"
 [ ! -e "$LOCK_DIR" ] ||
   fail "ucode should remove runtime dir lock"
+if state_ucode runtime-dir-lock-held "$LOCK_DIR"; then
+  fail "a released lock must not report as held"
+fi
+mkdir -p "$LOCK_DIR"
+printf '%s\n' 999999 >"$LOCK_DIR/pid"
+if state_ucode runtime-dir-lock-held "$LOCK_DIR"; then
+  fail "a lock left by a dead owner must not report as held"
+fi
+rm -rf "$LOCK_DIR"
 
 NESTED_LOCK_DIR="$WORK_DIR/missing-runtime-dir/start.lock"
 state_ucode acquire-runtime-dir-lock "$NESTED_LOCK_DIR" "$$" ||

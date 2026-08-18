@@ -17,6 +17,9 @@ function constant_value(name, fallback) {
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || constant_value("FORKOP_CONFIG_NAME", "forkop");
 const CONFIG_FILE = getenv("FORKOP_CONFIG_FILE") || "/etc/config/" + CONFIG_NAME;
+// Routing table and rule cleanup must use the same binary that created them:
+// BusyBox `ip` does not report or remove the Forkop table entries reliably.
+const IP_BIN = getenv("FORKOP_IP_BIN") || "/usr/libexec/ip-full";
 const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
 const BIN_PATH = getenv("FORKOP_BIN") || constant_value("FORKOP_BIN", "/usr/bin/forkop");
 const SERVICE_INIT = getenv("FORKOP_SERVICE_INIT") || constant_value("FORKOP_SERVICE_INIT", "/etc/init.d/forkop");
@@ -787,14 +790,14 @@ function stop_main() {
         command_success_from_args([ "nft", "delete", "table", "inet", NFT_TABLE_NAME ]);
 
     if (module_success(NFT_UC, [ "tproxy-marking-rule4-present", RT_TABLE_NAME, NFT_FAKEIP_MARK ]))
-        command_success_from_args([ "ip", "-4", "rule", "del", "fwmark", NFT_FAKEIP_MARK + "/" + NFT_FAKEIP_MARK, "table", RT_TABLE_NAME, "priority", "105" ]);
+        command_success_from_args([ IP_BIN, "-4", "rule", "del", "fwmark", NFT_FAKEIP_MARK + "/" + NFT_FAKEIP_MARK, "table", RT_TABLE_NAME, "priority", "105" ]);
     if (module_success(NFT_UC, [ "tproxy-marking-rule6-present", RT_TABLE_NAME, NFT_FAKEIP_MARK ]))
-        command_success_from_args([ "ip", "-6", "rule", "del", "fwmark", NFT_FAKEIP_MARK + "/" + NFT_FAKEIP_MARK, "table", RT_TABLE_NAME, "priority", "105" ]);
+        command_success_from_args([ IP_BIN, "-6", "rule", "del", "fwmark", NFT_FAKEIP_MARK + "/" + NFT_FAKEIP_MARK, "table", RT_TABLE_NAME, "priority", "105" ]);
 
     if (module_success(NFT_UC, [ "tproxy-route4-present", RT_TABLE_NAME ]))
-        command_success_from_args([ "ip", "route", "flush", "table", RT_TABLE_NAME ]);
+        command_success_from_args([ IP_BIN, "route", "flush", "table", RT_TABLE_NAME ]);
     if (module_success(NFT_UC, [ "tproxy-route6-present", RT_TABLE_NAME ]))
-        command_success_from_args([ "ip", "-6", "route", "flush", "table", RT_TABLE_NAME ]);
+        command_success_from_args([ IP_BIN, "-6", "route", "flush", "table", RT_TABLE_NAME ]);
 
     let sing_box_status = stop_sing_box_service();
     if (sing_box_status != 0)

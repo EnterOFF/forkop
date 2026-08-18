@@ -104,6 +104,40 @@ grep -Fxq 'stop-with-route-table' "$WORK_DIR/stop-order.log" ||
 [ ! -s "$WORK_DIR/rt_tables_stop_order" ] ||
   fail "package prerm must remove the routing table name after Forkop stops"
 
+# A WAN-up trigger restarts Forkop while /etc/rc.d/S99forkop exists, so removal
+# must take autostart away before it stops the service and cleans up.
+cat >"$WORK_DIR/autostart-init" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$1" >>"${FORKOP_AUTOSTART_LOG:?}"
+SH
+chmod 0755 "$WORK_DIR/autostart-init"
+printf '105 forkop\n' >"$WORK_DIR/rt_tables_autostart"
+: >"$WORK_DIR/autostart-remove.log"
+FORKOP_UCI_STATE_FILE="$WORK_DIR/dont-touch-missing.state" \
+FORKOP_INIT="$WORK_DIR/autostart-init" \
+FORKOP_AUTOSTART_LOG="$WORK_DIR/autostart-remove.log" \
+FORKOP_BIN="$WORK_DIR/missing-forkop-bin" \
+FORKOP_DNS_APPLY_UC="$WORK_DIR/missing-dns-apply.uc" \
+FORKOP_RT_TABLES="$WORK_DIR/rt_tables_autostart" \
+  ucode -L "$FORKOP_LIB" "$PACKAGE_UC" prerm remove
+[ "$(head -n 1 "$WORK_DIR/autostart-remove.log")" = "disable" ] ||
+  fail "package removal must disable autostart before stopping Forkop"
+grep -Fxq stop "$WORK_DIR/autostart-remove.log" ||
+  fail "package removal must still stop Forkop"
+
+printf '105 forkop\n' >"$WORK_DIR/rt_tables_autostart_upgrade"
+: >"$WORK_DIR/autostart-upgrade.log"
+FORKOP_UCI_STATE_FILE="$WORK_DIR/dont-touch-missing.state" \
+FORKOP_INIT="$WORK_DIR/autostart-init" \
+FORKOP_AUTOSTART_LOG="$WORK_DIR/autostart-upgrade.log" \
+FORKOP_BIN="$WORK_DIR/missing-forkop-bin" \
+FORKOP_DNS_APPLY_UC="$WORK_DIR/missing-dns-apply.uc" \
+FORKOP_RT_TABLES="$WORK_DIR/rt_tables_autostart_upgrade" \
+  ucode -L "$FORKOP_LIB" "$PACKAGE_UC" prerm upgrade
+if grep -Fxq disable "$WORK_DIR/autostart-upgrade.log"; then
+  fail "package upgrade must keep autostart enabled"
+fi
+
 touch "$WORK_DIR/luci-indexcache.one" "$WORK_DIR/luci-indexcache.two"
 FORKOP_PACKAGE_TEST_MODE=1 FORKOP_LUCI_CACHE_GLOBS="$WORK_DIR/luci-indexcache*" \
   ucode -L "$FORKOP_LIB" "$PACKAGE_UC" luci-postinst

@@ -1513,9 +1513,45 @@ pkg_install_name() {
     fi
 }
 
+apk_installed_version() {
+    apk list --installed "$1" 2>/dev/null |
+        awk -v prefix="$1-" '
+            {
+                for (i = 1; i <= NF; i++)
+                    if (index($i, prefix) == 1) {
+                        print substr($i, length(prefix) + 1)
+                        exit
+                    }
+            }
+        '
+}
+
+# apk exits nonzero for database problems that have nothing to do with the
+# requested transaction, for example locally installed packages that no longer
+# exist in any repository on FriendlyWrt. The transaction itself is committed in
+# that case, so the outcome is confirmed instead of trusted to the exit status.
+apk_local_files_installed() {
+    for package_file in "$@"; do
+        package_id="${package_file##*/}"
+        package_id="${package_id%.apk}"
+        package_name="${package_id%%_*}"
+        package_version="${package_id#*_}"
+
+        [ -n "$package_name" ] || return 1
+        [ "$package_name" != "$package_id" ] || return 1
+        [ -n "$package_version" ] || return 1
+        pkg_is_installed "$package_name" || return 1
+        [ "$(apk_installed_version "$package_name")" = "$package_version" ] || return 1
+    done
+
+    return 0
+}
+
 pkg_install_files() {
     if [ "$PKG_IS_APK" -eq 1 ]; then
-        apk add --allow-untrusted "$@" </dev/null
+        apk add --allow-untrusted "$@" </dev/null && return 0
+        apk_local_files_installed "$@" || return 1
+        warn "apk reported unrelated package database errors; the requested packages are installed"
     else
         opkg install --force-overwrite --force-downgrade "$@" </dev/null
     fi

@@ -1263,6 +1263,16 @@ assert(dns_rule(matchers, r => r.server == "fakeip-server" && contains(r.domain_
 let scoped_proxy_dns = dns_rule(matchers, r => r.server == "fakeip-server" && contains(r.domain_suffix, "proxy.example.org"));
 assert(scoped_proxy_dns != null && contains(scoped_proxy_dns.source_ip_cidr, "10.0.0.2/32") && contains(scoped_proxy_dns.inbound, "source-dns-in"), "filtered proxy gives FakeIP only to its devices");
 assert(dns_rule(matchers, r => r.server == "fakeip-server" && contains(r.domain_suffix, "proxy.example.org") && contains(r.inbound, "system-dns-in") && r.source_ip_cidr == null) != null, "System device filter keeps the same proxy DNS conditions");
+let fakeip_dns_rule_count = 0;
+for (let rule in matchers.dns.rules || []) {
+    if (!rule || rule.server != "fakeip-server")
+        continue;
+    fakeip_dns_rule_count++;
+    assert(rule.query_type != null && length(rule.query_type) == 2 &&
+        contains(rule.query_type, "A") && contains(rule.query_type, "AAAA"),
+        "FakeIP DNS rules stay limited to address queries so other types reach ordinary DNS");
+}
+assert(fakeip_dns_rule_count > 0, "matcher fixture must exercise FakeIP DNS rules");
 let source_dns_fallback = dns_rule(matchers, r =>
     r.server == "dnsmasq-server" && r.type == null && r.domain == null &&
     r.domain_suffix == null && r.rule_set == null);

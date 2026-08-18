@@ -109,6 +109,12 @@ function prerm_cleanup(action) {
 
     remember_upgrade_state(action);
     if (!PACKAGE_TEST_MODE) {
+        // While /etc/rc.d/S99forkop exists, a WAN-up trigger can restart the
+        // service in the middle of the removal, so autostart goes first. An
+        // upgrade keeps it: the service is enabled again only by its own
+        // rc.d symlink, which postinst does not recreate.
+        if (as_string(action) != "upgrade")
+            command_success_from_args([ INIT_PATH, "disable" ]);
         command_success_from_args([ INIT_PATH, "stop" ]);
         restore_dnsmasq_if_needed();
     }

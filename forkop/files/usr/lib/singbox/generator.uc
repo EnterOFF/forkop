@@ -31,6 +31,11 @@ let list_option = common.list_option;
 let bool_option = common.bool_option;
 let int_option = common.int_option;
 const CONFIG_NAME = "forkop";
+// The sing-box FakeIP transport answers address queries only and fails the
+// query with `only IP queries are supported by fakeip` for anything else, so
+// every rule that routes to it stays limited to A/AAAA and the remaining
+// types fall through to the ordinary DNS rules.
+const FAKEIP_QUERY_TYPES = [ "A", "AAAA" ];
 
 function fixture_section_list(type_name) {
     let value = object_or_empty(fixture_uci_data)[type_name];
@@ -347,6 +352,7 @@ function base_config(settings, service_address, runtime_context) {
             action: "route",
             server: runtime_constants.FAKEIP_DNS_SERVER_TAG,
             rewrite_ttl,
+            query_type: FAKEIP_QUERY_TYPES,
             domain: [ runtime_constants.FAKEIP_TEST_DOMAIN, runtime_constants.CHECK_PROXY_IP_DOMAIN ]
         }
     ];
@@ -1507,6 +1513,8 @@ function add_section_dns_matcher_rule(config, section, matchers, rewrite_ttl) {
 
         rule.action = "route";
         rule.server = section_dns_server(section);
+        if (rule.server == runtime_constants.FAKEIP_DNS_SERVER_TAG)
+            rule.query_type = FAKEIP_QUERY_TYPES;
         rule.rewrite_ttl = rewrite_ttl;
         push_dns_matcher_rule(config, rule);
     }

@@ -63,14 +63,6 @@ function normalized_fields(line) {
     return line == "" ? [] : split(line, " ");
 }
 
-function rule_line_has_lookup_table(fields, table) {
-    table = as_string(table);
-    for (let i = 0; i + 1 < length(fields); i++)
-        if (fields[i] == "lookup" && fields[i + 1] == table)
-            return true;
-    return false;
-}
-
 function rule_line_has_fwmark(fields, expected_mark) {
     for (let i = 0; i + 1 < length(fields); i++) {
         if (fields[i] != "fwmark")
@@ -84,22 +76,18 @@ function rule_line_has_fwmark(fields, expected_mark) {
     return false;
 }
 
-function has_tproxy_marking_rule_text(rule_list, table, mark) {
+// The rule list is requested for a single table, so the query itself proves
+// the table. Matching the printed table name would be wrong: any other
+// package that registers the same table id in /etc/iproute2/rt_tables, for
+// example `105 podkop`, can own the name that iproute2 prints for table 105.
+function has_tproxy_marking_rule_text(rule_list, mark) {
     let expected_mark = parse_mark_number(mark);
-    let has_lookup = false;
-    let has_fwmark = false;
     if (expected_mark == null)
         return false;
 
     for (let line in split(as_string(rule_list), "\n")) {
         let fields = normalized_fields(line);
-        if (length(fields) == 0)
-            continue;
-        if (!has_lookup && rule_line_has_lookup_table(fields, table))
-            has_lookup = true;
-        if (!has_fwmark && rule_line_has_fwmark(fields, expected_mark))
-            has_fwmark = true;
-        if (has_lookup && has_fwmark)
+        if (length(fields) > 0 && rule_line_has_fwmark(fields, expected_mark))
             return true;
     }
     return false;
@@ -142,11 +130,13 @@ function tproxy_route_present(table) {
 }
 
 function tproxy_marking_rule4_present(table, mark) {
-    return has_tproxy_marking_rule_text(command_output_from_args([ IP_BIN, "-4", "rule", "list" ]), table, mark);
+    return has_tproxy_marking_rule_text(
+        command_output_from_args([ IP_BIN, "-4", "rule", "list", "table", table ]), mark);
 }
 
 function tproxy_marking_rule6_present(table, mark) {
-    return has_tproxy_marking_rule_text(command_output_from_args([ IP_BIN, "-6", "rule", "list" ]), table, mark);
+    return has_tproxy_marking_rule_text(
+        command_output_from_args([ IP_BIN, "-6", "rule", "list", "table", table ]), mark);
 }
 
 function tproxy_marking_rule_present(table, mark) {

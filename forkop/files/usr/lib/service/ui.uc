@@ -14,6 +14,7 @@ const STATE_UC = LIB_DIR + "/service/state.uc";
 const UI_UC = LIB_DIR + "/service/ui.uc";
 const STATE_DIR = getenv("FORKOP_UI_STATE_DIR") || "/var/run/forkop/ui-state";
 const PENDING_RELOAD_FILE = getenv("FORKOP_PENDING_RELOAD_FILE") || "/var/run/forkop/reload.pending";
+const RELOAD_LOCK_DIR = getenv("FORKOP_RELOAD_LOCK_DIR") || "/var/run/forkop.reload.lock";
 const SERVICE_ACTION_DIR = getenv("FORKOP_UI_SERVICE_ACTION_DIR") || STATE_DIR + "/service-actions";
 const SERVICE_ACTION_LOCK_DIR = getenv("FORKOP_UI_SERVICE_ACTION_LOCK_DIR") || STATE_DIR + "/service-actions.lock";
 const COMPONENT_ACTION_DIR = getenv("FORKOP_UI_COMPONENT_ACTION_DIR") || getenv("UPDATES_JOB_DIR") || "/var/run/forkop/component-actions";
@@ -969,8 +970,25 @@ function mark_pending_reload(reason) {
     ]);
 }
 
+function reload_lock_held() {
+    return command_success_from_args([
+        "ucode",
+        "-L", LIB_DIR,
+        STATE_UC,
+        "runtime-dir-lock-held",
+        RELOAD_LOCK_DIR
+    ]);
+}
+
 function run_pending_reload_after_service_action(action, success) {
     if (!success || !service_action_allows_pending_reload(action) || fs.stat(STATE_UC) == null)
+        return;
+
+    // Another reload owns the lock and applies the pending request itself once
+    // it finishes. Consuming it here would start a UI reload action that
+    // defers immediately, restores the pending marker and returns success,
+    // which brings this path straight back and loops until the lock is free.
+    if (reload_lock_held())
         return;
 
     if (!consume_pending_reload())
