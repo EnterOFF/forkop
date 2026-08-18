@@ -724,9 +724,12 @@ function renderUrlTestInfoModal(outbound: Forkop.Outbound) {
       label: _('Selected'),
       children: [renderUrlTestSelectedValue(info)],
     },
-    { label: _('Testing URL'), children: [renderDetailsUrl(info.url)] },
-    { label: _('Expected status'), value: info.expectedStatus },
-    { label: _('Interval'), value: info.interval },
+    { label: _('Check URL'), children: [renderDetailsUrl(info.url)] },
+    {
+      label: _('Expected status'),
+      value: info.expectedStatus === '*' ? _('Any') : info.expectedStatus,
+    },
+    { label: _('Check interval'), value: info.interval },
     { label: _('Tolerance'), value: info.tolerance },
     { label: _('Idle timeout'), value: info.idleTimeout },
     {
@@ -1078,14 +1081,13 @@ function renderFallbackInfoModal(info?: Forkop.FallbackInfo) {
       label: _('Check URL'),
       children: [renderDetailsUrl(info.healthCheckUrl)],
     },
-    { label: _('Check interval'), value: info.healthCheckInterval },
-    { label: _('Availability timeout'), value: info.healthCheckTimeout },
-    { label: _('Connection attempt timeout'), value: info.attemptTimeout },
-    { label: _('Maximum failed attempts'), value: info.maxFailedTimes },
     {
       label: _('Expected status'),
       value: info.expectedStatus === '*' ? _('Any') : info.expectedStatus,
     },
+    { label: _('Check interval'), value: info.healthCheckInterval },
+    { label: _('Check timeout'), value: info.healthCheckTimeout },
+    { label: _('Connection timeout'), value: info.attemptTimeout },
     { label: _('Idle timeout'), value: info.idleTimeout },
     {
       label: _('Interrupt connections'),

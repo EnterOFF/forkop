@@ -148,7 +148,6 @@ export namespace Forkop {
     healthCheckInterval?: string;
     healthCheckTimeout?: string;
     attemptTimeout?: string;
-    maxFailedTimes?: number;
     expectedStatus?: string;
     idleTimeout?: string;
     interruptExistConnections?: boolean;
@@ -290,7 +289,6 @@ export namespace Forkop {
     health_check_interval?: string;
     health_check_timeout?: string;
     attempt_timeout?: string;
-    max_failed_times?: string;
     expected_status?: string;
     country?: string[];
     server_name?: string[];

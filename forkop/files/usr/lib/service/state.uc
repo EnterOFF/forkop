@@ -897,7 +897,6 @@ function fallback_groups_signature(section) {
             health_check_interval: connections.fallback_group_health_check_interval(section, group_id),
             health_check_timeout: connections.fallback_group_health_check_timeout(section, group_id),
             attempt_timeout: connections.fallback_group_attempt_timeout(section, group_id),
-            max_failed_times: connections.fallback_group_max_failed_times(section, group_id),
             expected_status: connections.fallback_group_expected_status(section, group_id),
             idle_timeout: connections.fallback_group_idle_timeout(section, group_id),
             interrupt_exist_connections: connections.fallback_group_interrupt_exist_connections(section, group_id) ? "1" : "0",

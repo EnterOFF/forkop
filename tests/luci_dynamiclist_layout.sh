@@ -116,7 +116,6 @@ const fallbackDefault = (name) => {
 assert.strictEqual(fallbackDefault('health_check_interval'), '5m');
 assert.strictEqual(fallbackDefault('health_check_timeout'), '5s');
 assert.strictEqual(fallbackDefault('attempt_timeout'), '5s');
-assert.strictEqual(fallbackDefault('max_failed_times'), '5');
 assert.strictEqual(fallbackDefault('expected_status'), '*');
 assert.strictEqual(fallbackDefault('idle_timeout'), '5m');
 assert.strictEqual(fallbackDefault('interrupt_exist_connections'), '0');
@@ -377,10 +376,13 @@ if grep -Eq 'include_countries|exclude_countries|countryChoices' <<<"$server_fil
 fi
 grep -Fq 'Add at least one server group' "$SECTION_JS" ||
   fail "Fallback settings must require at least one server group"
-for option in health_check_url health_check_interval health_check_timeout attempt_timeout max_failed_times expected_status idle_timeout interrupt_exist_connections; do
+for option in health_check_url health_check_interval health_check_timeout attempt_timeout expected_status idle_timeout interrupt_exist_connections; do
   grep -Fq "\"$option\"" <<<"$fallback_group_options" ||
     fail "Fallback settings are missing $option"
 done
+if grep -Fq '"max_failed_times"' <<<"$fallback_group_options"; then
+  fail "the failure counter must stay a core constant instead of a setting"
+fi
 grep -Fq 'health_check_interval: "5m"' "$SECTION_JS" ||
   fail "Fallback health interval default must match Mihomo"
 grep -Fq 'health_check_timeout: "5s"' "$SECTION_JS" ||

@@ -2266,16 +2266,6 @@ function validateUrlTestUrl(value) {
   return validation.valid ? true : validation.message;
 }
 
-function validateFallbackMaxFailedTimes(value) {
-  const normalized = `${value || ""}`.trim();
-  const parsed = Number(normalized);
-  return /^[1-9][0-9]*$/.test(normalized) &&
-    Number.isSafeInteger(parsed) &&
-    parsed <= 2147483647
-    ? true
-    : _("Use a positive integer");
-}
-
 function validateExpectedStatus(value) {
   const normalized = `${value || ""}`.trim();
   if (!normalized || normalized === "*") {
@@ -2639,7 +2629,6 @@ function fallbackGroupSettingsKeys() {
     "health_check_interval",
     "health_check_timeout",
     "attempt_timeout",
-    "max_failed_times",
     "expected_status",
     "idle_timeout",
     "interrupt_exist_connections",
@@ -2654,7 +2643,6 @@ function defaultFallbackGroupSettings(name = "") {
     health_check_interval: "5m",
     health_check_timeout: "5s",
     attempt_timeout: "5s",
-    max_failed_times: "5",
     expected_status: "*",
     idle_timeout: "5m",
     interrupt_exist_connections: "0",
@@ -2668,7 +2656,6 @@ function fallbackGroupChildDefaults() {
     health_check_interval: "5m",
     health_check_timeout: "5s",
     attempt_timeout: "5s",
-    max_failed_times: "5",
     expected_status: "*",
     idle_timeout: "5m",
     interrupt_exist_connections: "0",
@@ -3042,32 +3029,6 @@ function addUrlTestItemOptions(itemSection, options = {}) {
 
   o = itemSection.option(
     form.Value,
-    "check_interval",
-    _("Check interval"),
-    _("Use sing-box duration format like 1d, 12h or 30m"),
-  );
-  o.default = "3m";
-  o.rmempty = false;
-  o.validate = function (_itemId, value) {
-    return validateRequiredSingBoxDuration(value);
-  };
-
-  o = itemSection.option(
-    form.Value,
-    "tolerance",
-    _("Tolerance"),
-    _(
-      "Minimum latency difference in milliseconds that triggers switching to a faster server.",
-    ),
-  );
-  o.default = "50";
-  o.rmempty = false;
-  o.validate = function (_itemId, value) {
-    return validateUrlTestTolerance(value);
-  };
-
-  o = itemSection.option(
-    form.Value,
     "testing_url",
     _("Check URL"),
     _("URL used to test server latency"),
@@ -3095,6 +3056,32 @@ function addUrlTestItemOptions(itemSection, options = {}) {
 
   o = itemSection.option(
     form.Value,
+    "check_interval",
+    _("Check interval"),
+    _("Use sing-box duration format like 1d, 12h or 30m"),
+  );
+  o.default = "3m";
+  o.rmempty = false;
+  o.validate = function (_itemId, value) {
+    return validateRequiredSingBoxDuration(value);
+  };
+
+  o = itemSection.option(
+    form.Value,
+    "tolerance",
+    _("Tolerance"),
+    _(
+      "Minimum latency difference in milliseconds that triggers switching to a faster server.",
+    ),
+  );
+  o.default = "50";
+  o.rmempty = false;
+  o.validate = function (_itemId, value) {
+    return validateUrlTestTolerance(value);
+  };
+
+  o = itemSection.option(
+    form.Value,
     "idle_timeout",
     _("Idle timeout"),
     _(
@@ -3111,9 +3098,7 @@ function addUrlTestItemOptions(itemSection, options = {}) {
     form.Flag,
     "interrupt_exist_connections",
     _("Interrupt connections"),
-    _(
-      "Close active connections when URLTest switches the selected server. Off by default: the switch itself is far less disruptive than dropping every established connection.",
-    ),
+    _("Drop every active connection when the selected server changes"),
   );
   o.default = "0";
   o.rmempty = false;
@@ -3287,6 +3272,20 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
 
   o = itemSection.option(
     form.Value,
+    "expected_status",
+    _("Expected status"),
+    _(
+      "HTTP status codes that count as a successful health check. Use * for any response, or values and ranges such as 204/200-299.",
+    ),
+  );
+  o.default = "*";
+  o.rmempty = false;
+  o.validate = function (_itemId, value) {
+    return validateExpectedStatus(value);
+  };
+
+  o = itemSection.option(
+    form.Value,
     "health_check_interval",
     _("Check interval"),
     _(
@@ -3302,10 +3301,8 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
   o = itemSection.option(
     form.Value,
     "health_check_timeout",
-    _("Availability timeout"),
-    _(
-      "Maximum time allowed for one server health check. The same value is the window within which consecutive connection failures are counted.",
-    ),
+    _("Check timeout"),
+    _("How long to wait for a server to answer the URLTest check"),
   );
   o.default = "5s";
   o.rmempty = false;
@@ -3316,43 +3313,13 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
   o = itemSection.option(
     form.Value,
     "attempt_timeout",
-    _("Connection attempt timeout"),
-    _(
-      "How long one server may take to accept a connection before the next server is tried. Raise it for slow links or slow handshakes.",
-    ),
+    _("Connection timeout"),
+    _("How long to wait for a connection to a server before trying the next one"),
   );
   o.default = "5s";
   o.rmempty = false;
   o.validate = function (_itemId, value) {
     return validateRequiredSingBoxDuration(value);
-  };
-
-  o = itemSection.option(
-    form.Value,
-    "max_failed_times",
-    _("Maximum failed attempts"),
-    _(
-      "Number of connection failures of one server after which an out of schedule check of the whole group starts. The server is not switched by the counter itself, the check result decides.",
-    ),
-  );
-  o.default = "5";
-  o.rmempty = false;
-  o.validate = function (_itemId, value) {
-    return validateFallbackMaxFailedTimes(value);
-  };
-
-  o = itemSection.option(
-    form.Value,
-    "expected_status",
-    _("Expected status"),
-    _(
-      "HTTP status codes that count as a successful health check. Use * for any response, or values and ranges such as 204/200-299.",
-    ),
-  );
-  o.default = "*";
-  o.rmempty = false;
-  o.validate = function (_itemId, value) {
-    return validateExpectedStatus(value);
   };
 
   o = itemSection.option(
@@ -3371,9 +3338,7 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
     form.Flag,
     "interrupt_exist_connections",
     _("Interrupt connections"),
-    _(
-      "Close active connections when Fallback switches servers. Off by default: a flapping server would otherwise drop every established connection on each switch.",
-    ),
+    _("Drop every active connection when the selected server changes"),
   );
   o.default = "0";
   o.rmempty = false;

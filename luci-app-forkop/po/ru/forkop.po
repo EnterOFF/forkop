@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-18 19:55+0300\n"
-"PO-Revision-Date: 2026-08-18 19:55+0300\n"
+"POT-Creation-Date: 2026-08-18 21:56+0300\n"
+"PO-Revision-Date: 2026-08-18 21:56+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -182,9 +182,6 @@ msgstr "Автоматически проверять наличие новых 
 msgid "Automatically register a device and fill the required fields."
 msgstr "Автоматически зарегистрировать устройство и заполнить необходимые поля."
 
-msgid "Availability timeout"
-msgstr "Таймаут доступности"
-
 msgid "Available actions"
 msgstr "Доступные действия"
 
@@ -278,6 +275,9 @@ msgstr "Пин сертификата недоступен. Примените �
 msgid "Check interval"
 msgstr "Интервал проверки"
 
+msgid "Check timeout"
+msgstr "Таймаут проверки"
+
 msgid "Check update"
 msgstr "Проверить обновление"
 
@@ -322,12 +322,6 @@ msgstr "QR-код клиентской ссылки"
 
 msgid "Close"
 msgstr "Закрыть"
-
-msgid "Close active connections when Fallback switches servers. Off by default: a flapping server would otherwise drop every established connection on each switch."
-msgstr "Закрывать активные соединения при смене сервера в Fallback. По умолчанию выключено: иначе нестабильный сервер будет рвать все установленные соединения при каждом переключении."
-
-msgid "Close active connections when URLTest switches the selected server. Off by default: the switch itself is far less disruptive than dropping every established connection."
-msgstr "Закрывать активные соединения при смене выбранного сервера в URLTest. По умолчанию выключено: само переключение мешает гораздо меньше, чем обрыв всех установленных соединений."
 
 msgid "Close all connections"
 msgstr "Закрыть все подключения"
@@ -380,8 +374,8 @@ msgstr "Подключаться через"
 msgid "Connect to the coordination server through a section"
 msgstr "Подключаться к серверу координации через секцию"
 
-msgid "Connection attempt timeout"
-msgstr "Таймаут попытки подключения"
+msgid "Connection timeout"
+msgstr "Таймаут подключения"
 
 msgid "Connection URI"
 msgstr "URI подключения"
@@ -580,6 +574,9 @@ msgstr "Загружено"
 
 msgid "Drag rows to change order. The rule at the top is checked first."
 msgstr "Перетаскивайте строки, чтобы изменить порядок. Правило сверху проверяется первым."
+
+msgid "Drop every active connection when the selected server changes"
+msgstr "Сбрасывать все активные соединения при переключении сервера"
 
 msgid "Duplicate JSON outbound tag"
 msgstr "Такой тег JSON outbound уже используется"
@@ -914,8 +911,11 @@ msgstr "Скрывать значения"
 msgid "Host"
 msgstr "Хост"
 
-msgid "How long one server may take to accept a connection before the next server is tried. Raise it for slow links or slow handshakes."
-msgstr "Сколько времени даётся одному серверу на приём соединения, прежде чем будет испробован следующий. Увеличьте для медленных каналов или медленных рукопожатий."
+msgid "How long to wait for a connection to a server before trying the next one"
+msgstr "Сколько ждать подключение к серверу, прежде чем попробовать следующий"
+
+msgid "How long to wait for a server to answer the URLTest check"
+msgstr "Сколько ждать ответа при URLTest проверке сервера"
 
 msgid "How often every server of the group is checked, not only the selected one. Checks pause while the group is unused."
 msgstr "Как часто проверяются все серверы группы, а не только выбранный. Пока группа не используется, проверки приостанавливаются."
@@ -985,9 +985,6 @@ msgstr "Мониторинг интерфейса для Bad WAN"
 
 msgid "Interrupt connections"
 msgstr "Прерывать соединения"
-
-msgid "Interval"
-msgstr "Интервал"
 
 msgid "Invalid AmneziaWG parameters"
 msgstr "Недопустимые параметры AmneziaWG"
@@ -1163,17 +1160,11 @@ msgstr "Совпадение по IP-адресам или подсетям на
 msgid "Match destination ports. Section ports constrain all selected conditions. Domain-port rules embedded in a rule set cannot select FakeIP during DNS resolution."
 msgstr "Совпадение по портам назначения. Порты секции ограничивают все выбранные условия. Правила домен + порт внутри rule set не могут выбрать FakeIP во время DNS-разрешения."
 
-msgid "Maximum failed attempts"
-msgstr "Максимум неудачных попыток"
-
 msgid "Maximum handshake attempts"
 msgstr "Максимум попыток рукопожатия"
 
 msgid "Maximum packet size for this tunnel. Leave empty to use the default value."
 msgstr "Максимальный размер пакета для этого туннеля. Оставьте пустым для значения по умолчанию."
-
-msgid "Maximum time allowed for one server health check. The same value is the window within which consecutive connection failures are counted."
-msgstr "Максимальное время одной проверки сервера. Это же значение задаёт окно, в котором считаются подряд идущие ошибки подключения."
 
 msgid "Memory Usage"
 msgstr "Использование памяти"
@@ -1312,9 +1303,6 @@ msgstr "Не отвечает"
 
 msgid "Not running"
 msgstr "Не запущено"
-
-msgid "Number of connection failures of one server after which an out of schedule check of the whole group starts. The server is not switched by the counter itself, the check result decides."
-msgstr "Сколько ошибок подключения одного сервера запускают внеочередную проверку всей группы. Сам счётчик сервер не переключает — решает результат проверки."
 
 msgid "Obfuscation"
 msgstr "Обфускация"
@@ -1946,9 +1934,6 @@ msgstr "TCP и UDP"
 msgid "Test latency"
 msgstr "Тестирование задержки"
 
-msgid "Testing URL"
-msgstr "URL проверки"
-
 msgid "The desync fwmark is managed by Forkop for loop prevention and must not be overridden here."
 msgstr "Desync fwmark управляется Forkop для защиты от циклов и не должен переопределяться здесь."
 
@@ -2188,9 +2173,6 @@ msgstr "Используйте неотрицательное целое чис�
 
 msgid "Use a non-zero secret"
 msgstr "Укажите ненулевой секрет"
-
-msgid "Use a positive integer"
-msgstr "Укажите положительное целое число"
 
 msgid "Use a valid UUID"
 msgstr "Укажите корректный UUID"

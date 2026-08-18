@@ -45,8 +45,7 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
       ".name": "pg_main", ".type": "fallback_group", "section": "proxy",
       "name": "Main fallback", "health_check_url": "https://health.example/generate_204",
       "health_check_interval": "12s", "health_check_timeout": "4s",
-      "attempt_timeout": "9s",
-      "max_failed_times": "2", "expected_status": "204/200-299",
+      "attempt_timeout": "9s", "expected_status": "204/200-299",
       "idle_timeout": "20m",
       "interrupt_exist_connections": "1"
     },
@@ -89,7 +88,7 @@ validate "$WORK_DIR/fixture.json"
 generate "$WORK_DIR/fixture.json" "$WORK_DIR/config.json"
 
 signature="$(ucode -L "$FORKOP_LIB" "$STATE" sing-box-signature-body-fixture "$WORK_DIR/fixture.json")"
-for field in health_check_url health_check_interval health_check_timeout attempt_timeout max_failed_times expected_status idle_timeout interrupt_exist_connections; do
+for field in health_check_url health_check_interval health_check_timeout attempt_timeout expected_status idle_timeout interrupt_exist_connections; do
   grep -Fq "\"$field\"" <<<"$signature" || {
     printf 'Fallback runtime signature is missing %s\n' "$field" >&2
     exit 1
@@ -138,16 +137,17 @@ if (top.include == null || mixed.include == null || mixed.exclude == null)
     fail("native include/exclude filters are missing");
 if (group.url != "https://health.example/generate_204" || group.interval != "12s" ||
     group.timeout != "4s" || group.attempt_timeout != "9s" ||
-    group.max_failed_times != 2 || group.expected_status != "204/200-299" ||
+    group.expected_status != "204/200-299" ||
     group.idle_timeout != "20m" ||
     group.interrupt_exist_connections != true)
     fail("native Fallback health settings are incomplete");
 if (!defaultGroup || defaultGroup.interval != "5m" || defaultGroup.timeout != "5s" ||
-    defaultGroup.attempt_timeout != "5s" ||
-    defaultGroup.max_failed_times != 5 || defaultGroup.expected_status != "*" ||
+    defaultGroup.attempt_timeout != "5s" || defaultGroup.expected_status != "*" ||
     defaultGroup.idle_timeout != "5m" ||
     defaultGroup.interrupt_exist_connections != false)
     fail("native Fallback defaults do not match Mihomo timing");
+if (group.max_failed_times != null || defaultGroup.max_failed_times != null)
+    fail("the failure counter is a core constant and must not be generated");
 
 for (let item in config.outbounds || [])
     if (index(item.tag || "", "proxy-fallback-pg_main-level-") == 0)
@@ -171,21 +171,14 @@ if output="$(validate "$WORK_DIR/bad-timeout.json" 2>/dev/null)"; then
 fi
 grep -Fq 'attempt_timeout' <<<"$output"
 
-cat >"$WORK_DIR/bad-health-policy.json" <<'JSON'
+cat >"$WORK_DIR/bad-status.json" <<'JSON'
 {
   "settings": { ".name": "settings", ".type": "settings", "dns_server": ["77.88.8.8"], "bootstrap_dns_server": ["77.88.8.8"] },
   "section": [{ ".name": "proxy", ".type": "section", "enabled": "1", "action": "connection" }],
-  "fallback_group": [{ ".name": "pg", ".type": "fallback_group", "section": "proxy", "name": "Bad", "max_failed_times": "0", "expected_status": "200-bad" }],
+  "fallback_group": [{ ".name": "pg", ".type": "fallback_group", "section": "proxy", "name": "Bad", "expected_status": "200-bad" }],
   "fallback_level": [{ ".name": "level", ".type": "fallback_level", "group": "pg", "name": "Level" }]
 }
 JSON
-if output="$(validate "$WORK_DIR/bad-health-policy.json" 2>/dev/null)"; then
-  printf 'invalid Fallback failure threshold was accepted\n' >&2
-  exit 1
-fi
-grep -Fq 'max_failed_times' <<<"$output"
-
-sed 's/"max_failed_times": "0"/"max_failed_times": "5"/' "$WORK_DIR/bad-health-policy.json" >"$WORK_DIR/bad-status.json"
 if output="$(validate "$WORK_DIR/bad-status.json" 2>/dev/null)"; then
   printf 'invalid Fallback expected status was accepted\n' >&2
   exit 1
@@ -193,9 +186,8 @@ fi
 grep -Fq 'expected_status' <<<"$output"
 
 for invalid_status in 99 600 299-200; do
-  sed -e 's/"max_failed_times": "0"/"max_failed_times": "5"/' \
-      -e "s/\"expected_status\": \"200-bad\"/\"expected_status\": \"$invalid_status\"/" \
-      "$WORK_DIR/bad-health-policy.json" >"$WORK_DIR/bad-status-range.json"
+  sed -e "s/\"expected_status\": \"200-bad\"/\"expected_status\": \"$invalid_status\"/" \
+      "$WORK_DIR/bad-status.json" >"$WORK_DIR/bad-status-range.json"
   if validate "$WORK_DIR/bad-status-range.json" >/dev/null 2>&1; then
     printf 'invalid Fallback expected status %s was accepted\n' "$invalid_status" >&2
     exit 1

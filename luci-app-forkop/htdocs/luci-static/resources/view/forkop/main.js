@@ -3140,7 +3140,6 @@ function hydrateConfigSections(configSections) {
           health_check_interval: item.health_check_interval,
           health_check_timeout: item.health_check_timeout,
           attempt_timeout: item.attempt_timeout,
-          max_failed_times: item.max_failed_times,
           expected_status: item.expected_status,
           idle_timeout: item.idle_timeout,
           interrupt_exist_connections: item.interrupt_exist_connections,
@@ -3419,7 +3418,6 @@ function getFallbackConfigs(section) {
         "5s"
       ),
       attemptTimeout: itemSettingString(settings, "attempt_timeout", "5s"),
-      maxFailedTimes: itemSettingNumber(settings, "max_failed_times", 5),
       expectedStatus: itemSettingString(settings, "expected_status", "*"),
       idleTimeout: itemSettingString(settings, "idle_timeout", "5m"),
       interruptExistConnections: itemSettingBoolean(
@@ -3570,7 +3568,6 @@ function buildFallbackInfo({
     healthCheckInterval: config.healthCheckInterval,
     healthCheckTimeout: config.healthCheckTimeout,
     attemptTimeout: config.attemptTimeout,
-    maxFailedTimes: config.maxFailedTimes,
     expectedStatus: config.expectedStatus,
     idleTimeout: config.idleTimeout,
     interruptExistConnections: config.interruptExistConnections,
@@ -5761,9 +5758,12 @@ function renderUrlTestInfoModal(outbound) {
       label: _("Selected"),
       children: [renderUrlTestSelectedValue(info)]
     },
-    { label: _("Testing URL"), children: [renderDetailsUrl(info.url)] },
-    { label: _("Expected status"), value: info.expectedStatus },
-    { label: _("Interval"), value: info.interval },
+    { label: _("Check URL"), children: [renderDetailsUrl(info.url)] },
+    {
+      label: _("Expected status"),
+      value: info.expectedStatus === "*" ? _("Any") : info.expectedStatus
+    },
+    { label: _("Check interval"), value: info.interval },
     { label: _("Tolerance"), value: info.tolerance },
     { label: _("Idle timeout"), value: info.idleTimeout },
     {
@@ -6053,14 +6053,13 @@ function renderFallbackInfoModal(info) {
       label: _("Check URL"),
       children: [renderDetailsUrl(info.healthCheckUrl)]
     },
-    { label: _("Check interval"), value: info.healthCheckInterval },
-    { label: _("Availability timeout"), value: info.healthCheckTimeout },
-    { label: _("Connection attempt timeout"), value: info.attemptTimeout },
-    { label: _("Maximum failed attempts"), value: info.maxFailedTimes },
     {
       label: _("Expected status"),
       value: info.expectedStatus === "*" ? _("Any") : info.expectedStatus
     },
+    { label: _("Check interval"), value: info.healthCheckInterval },
+    { label: _("Check timeout"), value: info.healthCheckTimeout },
+    { label: _("Connection timeout"), value: info.attemptTimeout },
     { label: _("Idle timeout"), value: info.idleTimeout },
     {
       label: _("Interrupt connections"),
