@@ -9,6 +9,7 @@ import {
   getDashboardSections,
   setClashApiGroupProxy,
   updateClashApiProxyProviders,
+  updateClashApiRuleProviders,
 } from './getDashboardSections';
 import { getClashApiSecret } from './getClashApiSecret';
 
@@ -21,6 +22,7 @@ export const CustomForkopMethods = {
   getClashApiProxyLatency,
   setClashApiGroupProxy,
   updateClashApiProxyProviders,
+  updateClashApiRuleProviders,
   closeClashApiConnection,
   closeAllClashApiConnections,
   getClashApiSecret,

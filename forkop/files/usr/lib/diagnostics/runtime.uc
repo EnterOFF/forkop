@@ -1547,6 +1547,8 @@ function clash_http_allowed(method, path, body) {
     }
 
     if (method == "PUT") {
+        if (path == "/providers/rules")
+            return body == "";
         if (length(clash_http_path_segments(path, "/providers/proxies/")) == 1)
             return body == "";
         if (length(clash_http_path_segments(path, "/proxies/")) != 1)

@@ -380,6 +380,11 @@ const value = JSON.parse(process.env.JSON_VALUE);
 if (value.status !== 204 || value.body !== '') process.exit(1);
 NODE
 
+clash_http "$WORK_DIR/fake-rules-curl.log" PUT '/providers/rules' >/dev/null ||
+  fail "clash-http must forward an allowlisted rule-set refresh"
+grep -Fq '/providers/rules' "$WORK_DIR/fake-rules-curl.log" ||
+  fail "rule-set refreshes must reach the native rule provider collection"
+
 clash_http "$WORK_DIR/fake-delete-curl.log" DELETE '/connections/abc-123' >/dev/null ||
   fail "clash-http must forward an allowlisted connection close"
 grep -Fq -- '-X DELETE' "$WORK_DIR/fake-delete-curl.log" ||
@@ -394,7 +399,9 @@ for rejected in \
   'PUT|/proxies/main-out|{"name":"main-1-out","extra":1}' \
   'PUT|/proxies/main-out|not-json' \
   'GET|/proxies/main-out/delay?url=x&timeout=abc|' \
-  'DELETE|/connections|{"all":true}'
+  'DELETE|/connections|{"all":true}' \
+  'PUT|/providers/rules|{"name":"geosite"}' \
+  'PUT|/providers/rules/geosite%2Fextra|'
 do
   method="${rejected%%|*}"
   rest="${rejected#*|}"

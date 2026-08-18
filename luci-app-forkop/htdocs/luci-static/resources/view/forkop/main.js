@@ -3028,6 +3028,14 @@ async function updateClashApiProxyProviders(providerTags) {
     data: void 0
   };
 }
+var CLASH_API_RULE_SET_UPDATE_TIMEOUT_MS = 6e4;
+function updateClashApiRuleProviders() {
+  return requestClashApi(
+    "/providers/rules",
+    { method: "PUT" },
+    CLASH_API_RULE_SET_UPDATE_TIMEOUT_MS
+  );
+}
 function getClashApiProxies() {
   return requestClashApi(
     "/proxies",
@@ -3964,6 +3972,7 @@ var CustomForkopMethods = {
   getClashApiProxyLatency,
   setClashApiGroupProxy,
   updateClashApiProxyProviders,
+  updateClashApiRuleProviders,
   closeClashApiConnection,
   closeAllClashApiConnections,
   getClashApiSecret: getClashApiSecret2
@@ -4225,6 +4234,9 @@ var initialDiagnosticStore = {
       loading: false
     },
     globalCheck: {
+      loading: false
+    },
+    updateRuleSets: {
       loading: false
     },
     showConfig: {
@@ -8615,6 +8627,7 @@ function renderAvailableActions({
   enable,
   disable,
   globalCheck,
+  updateRuleSets,
   showConfig,
   showSingBoxConfig
 }) {
@@ -8677,6 +8690,15 @@ function renderAvailableActions({
         text: _("Get global check"),
         loading: globalCheck.loading,
         disabled: globalCheck.disabled
+      })
+    ]),
+    ...insertIf(updateRuleSets.visible, [
+      renderButton({
+        onClick: updateRuleSets.onClick,
+        icon: renderDownloadIcon24,
+        text: _("Update rule sets"),
+        loading: updateRuleSets.loading,
+        disabled: updateRuleSets.disabled
       })
     ]),
     ...insertIf(showConfig.visible, [
@@ -9943,6 +9965,31 @@ async function handleShowGlobalCheck() {
     setDiagnosticActionLoading("globalCheck", false);
   }
 }
+async function handleUpdateRuleSets() {
+  setDiagnosticActionLoading("updateRuleSets", true);
+  try {
+    const response = await CustomForkopMethods.updateClashApiRuleProviders();
+    if (!response.success) {
+      throw new Error(response.error);
+    }
+    ui.addNotification(
+      _("Rule sets updated"),
+      E("div", {}, _("All remote rule sets were refreshed")),
+      "info",
+      "fkp-rule-sets-update-notification"
+    );
+  } catch (e) {
+    logger.error("[DIAGNOSTIC]", "handleUpdateRuleSets - e", e);
+    ui.addNotification(
+      _("Failed to update rule sets"),
+      E("div", {}, e instanceof Error ? e.message : String(e)),
+      "error",
+      "fkp-rule-sets-update-notification"
+    );
+  } finally {
+    setDiagnosticActionLoading("updateRuleSets", false);
+  }
+}
 async function handleShowForkopConfig() {
   setDiagnosticActionLoading("showConfig", true);
   try {
@@ -10090,6 +10137,12 @@ function renderDiagnosticAvailableActionsWidget() {
       visible: true,
       onClick: handleShowGlobalCheck,
       disabled: utilityActionsDisabled
+    },
+    updateRuleSets: {
+      loading: diagnosticsActions.updateRuleSets.loading,
+      visible: true,
+      onClick: handleUpdateRuleSets,
+      disabled: utilityActionsDisabled || !forkopRunning
     },
     showConfig: {
       loading: diagnosticsActions.showConfig.loading,

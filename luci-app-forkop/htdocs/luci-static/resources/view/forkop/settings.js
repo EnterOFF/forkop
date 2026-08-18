@@ -426,8 +426,8 @@ function createSettingsContent(section, capabilities) {
   o = section.option(
     form.Flag,
     "list_update_enabled",
-    _("Enable list updates"),
-    _("Enable automatic updates for remote lists and rule sets"),
+    _("Rule set auto update"),
+    _("Automatically update remote rule sets on a schedule"),
   );
   o.default = "1";
   o.rmempty = false;

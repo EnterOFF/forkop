@@ -4,6 +4,7 @@ import {
   renderCirclePlayIcon24,
   renderCircleStopIcon24,
   renderCogIcon24,
+  renderDownloadIcon24,
   renderFileTextIcon24,
   renderPauseIcon24,
   renderPlayIcon24,
@@ -25,6 +26,7 @@ interface IRenderAvailableActionsProps {
   enable: ActionProps;
   disable: ActionProps;
   globalCheck: ActionProps;
+  updateRuleSets: ActionProps;
   showConfig: ActionProps;
   showSingBoxConfig: ActionProps;
 }
@@ -36,6 +38,7 @@ export function renderAvailableActions({
   enable,
   disable,
   globalCheck,
+  updateRuleSets,
   showConfig,
   showSingBoxConfig,
 }: IRenderAvailableActionsProps) {
@@ -98,6 +101,15 @@ export function renderAvailableActions({
         text: _('Get global check'),
         loading: globalCheck.loading,
         disabled: globalCheck.disabled,
+      }),
+    ]),
+    ...insertIf(updateRuleSets.visible, [
+      renderButton({
+        onClick: updateRuleSets.onClick,
+        icon: renderDownloadIcon24,
+        text: _('Update rule sets'),
+        loading: updateRuleSets.loading,
+        disabled: updateRuleSets.disabled,
       }),
     ]),
     ...insertIf(showConfig.visible, [

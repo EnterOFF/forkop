@@ -32,7 +32,7 @@ import {
   renderRunAction,
   renderSystemInfo,
 } from './partials';
-import { ForkopShellMethods } from '../../methods';
+import { CustomForkopMethods, ForkopShellMethods } from '../../methods';
 import { fetchServicesInfo } from '../../fetchers/fetchServicesInfo';
 import { normalizeCompiledVersion } from '../../../helpers/normalizeCompiledVersion';
 import { renderModal } from '../../../partials';
@@ -689,6 +689,37 @@ async function handleShowGlobalCheck() {
   }
 }
 
+async function handleUpdateRuleSets() {
+  setDiagnosticActionLoading('updateRuleSets', true);
+
+  try {
+    const response = await CustomForkopMethods.updateClashApiRuleProviders();
+
+    if (!response.success) {
+      throw new Error(response.error);
+    }
+
+    // Nothing on the page reflects rule-set content, so the outcome has to be
+    // reported explicitly or the action looks like it did nothing.
+    ui.addNotification(
+      _('Rule sets updated'),
+      E('div', {}, _('All remote rule sets were refreshed')),
+      'info',
+      'fkp-rule-sets-update-notification',
+    );
+  } catch (e) {
+    logger.error('[DIAGNOSTIC]', 'handleUpdateRuleSets - e', e);
+    ui.addNotification(
+      _('Failed to update rule sets'),
+      E('div', {}, e instanceof Error ? e.message : String(e)),
+      'error',
+      'fkp-rule-sets-update-notification',
+    );
+  } finally {
+    setDiagnosticActionLoading('updateRuleSets', false);
+  }
+}
+
 async function handleShowForkopConfig() {
   setDiagnosticActionLoading('showConfig', true);
 
@@ -863,6 +894,12 @@ function renderDiagnosticAvailableActionsWidget() {
       visible: true,
       onClick: handleShowGlobalCheck,
       disabled: utilityActionsDisabled,
+    },
+    updateRuleSets: {
+      loading: diagnosticsActions.updateRuleSets.loading,
+      visible: true,
+      onClick: handleUpdateRuleSets,
+      disabled: utilityActionsDisabled || !forkopRunning,
     },
     showConfig: {
       loading: diagnosticsActions.showConfig.loading,

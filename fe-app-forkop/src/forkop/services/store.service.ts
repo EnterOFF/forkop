@@ -180,6 +180,7 @@ export interface StoreType {
     enable: { loading: boolean };
     disable: { loading: boolean };
     globalCheck: { loading: boolean };
+    updateRuleSets: { loading: boolean };
     showConfig: { loading: boolean };
     showSingBoxConfig: { loading: boolean };
   };

@@ -337,6 +337,18 @@ export async function updateClashApiProxyProviders(providerTags: string[]) {
   );
 }
 
+// Refreshing every rule-set downloads one file per remote rule-set, so it needs
+// the same ceiling the router-side transport allows rather than the mutation one.
+const CLASH_API_RULE_SET_UPDATE_TIMEOUT_MS = 60000;
+
+export function updateClashApiRuleProviders() {
+  return requestClashApi<undefined>(
+    '/providers/rules',
+    { method: 'PUT' },
+    CLASH_API_RULE_SET_UPDATE_TIMEOUT_MS,
+  );
+}
+
 function getClashApiProxies() {
   return requestClashApi<ClashAPI.Proxies>(
     '/proxies',
