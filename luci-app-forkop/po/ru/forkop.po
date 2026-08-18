@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-18 01:25+0300\n"
-"PO-Revision-Date: 2026-08-18 01:25+0300\n"
+"POT-Creation-Date: 2026-08-18 01:46+0300\n"
+"PO-Revision-Date: 2026-08-18 01:46+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -86,6 +86,9 @@ msgstr "Добавьте ссылку провайдера подписки ил
 msgid "Add at least one DNS server"
 msgstr "Добавьте хотя бы один DNS-сервер"
 
+msgid "Add at least one domain"
+msgstr "Добавьте хотя бы один домен"
+
 msgid "Add at least one server group"
 msgstr "Добавьте хотя бы одну группу серверов"
 
@@ -109,9 +112,6 @@ msgstr "Дополнительное заполнение пакета"
 
 msgid "Address"
 msgstr "Адрес"
-
-msgid "Address and its domains on one line, # starts a comment."
-msgstr "Адрес и его домены в одной строке, # начинает комментарий."
 
 msgid "Address of the coordination server. Change it if you use a custom server."
 msgstr "Адрес сервера координации. Измените его, если используете собственный сервер"
@@ -157,9 +157,6 @@ msgstr "Диапазоны AmneziaWG должны быть от 0 до 429496729
 
 msgid "Any"
 msgstr "Любой"
-
-msgid "Apply"
-msgstr "Применить"
 
 msgid "Apply section rules only to the specified source IP addresses"
 msgstr "Применять правила секции только к указанным исходящим IP-адресам"
@@ -599,9 +596,6 @@ msgstr "Такой тег JSON outbound уже используется"
 msgid "Duplicate value"
 msgstr "Дублирующееся значение"
 
-msgid "Each line needs an address followed by at least one domain"
-msgstr "В каждой строке нужен адрес и хотя бы один домен"
-
 msgid "Edit"
 msgstr "Редактировать"
 
@@ -803,8 +797,8 @@ msgstr "Порт в firewall для WAN"
 msgid "Fix the highlighted fields and save again."
 msgstr "Исправьте подсвеченные поля и сохраните снова."
 
-msgid "Fixed addresses for domains, like a hosts file."
-msgstr "Постоянные адреса для доменов, как в файле hosts."
+msgid "Fixed addresses for domains, expects the hosts file format."
+msgstr "Постоянные адреса для доменов, ожидает формат файла hosts."
 
 msgid "Forced device routing"
 msgstr "Принудительная маршрутизация устройств"

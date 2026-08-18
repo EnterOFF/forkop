@@ -5,6 +5,7 @@
 "require baseclass";
 "require tools.widgets as widgets";
 "require view.forkop.main as main";
+"require view.forkop.section as sectionView";
 
 const UCI_PACKAGE = main.FORKOP_UCI_PACKAGE;
 
@@ -131,88 +132,82 @@ function configureDnsFailoverVisibility(option, dnsOption, dnsKey) {
 
 const STATIC_HOSTS_PLACEHOLDER = "130.255.77.28 ntc.party www.ntc.party";
 
-function staticHostsSummary(value) {
-  const text = `${value || ""}`;
-  const validation = main.validateStaticHosts(text);
-
-  if (!validation.valid) {
-    return validation.message;
-  }
-
-  const count = main.staticHostsDomainCount(text);
-  return count > 0 ? `${_("Domains")}: ${count}` : _("Not configured");
+function configureStaticHostsTextarea(option) {
+  option.rows = 16;
+  option.wrap = "soft";
+  option.rmempty = true;
+  option.placeholder = STATIC_HOSTS_PLACEHOLDER;
+  option.validate = function (_section_id, value) {
+    const analysis = main.analyzeStaticHosts(`${value || ""}`);
+    return analysis.valid ? true : analysis.message;
+  };
 }
 
-function showStaticHostsModal(textareaNode, summaryNode) {
-  const editor = E(
-    "textarea",
-    {
-      class: "cbi-input-textarea",
-      style:
-        "width:100%;max-width:100%;resize:vertical;font-family:monospace;white-space:pre;",
-      rows: 16,
-      wrap: "off",
-      spellcheck: "false",
-      autocomplete: "off",
-      autocorrect: "off",
-      autocapitalize: "off",
-      placeholder: STATIC_HOSTS_PLACEHOLDER,
-    },
-    textareaNode.value || "",
-  );
-  const error = E("div", { style: "color:#c00;margin-top:0.5em;" });
+function showStaticHostsModal(textareaNode) {
+  const data = { settings: { static_hosts_text: textareaNode.value || "" } };
+  const map = new form.JSONMap(data);
+  const itemSection = map.section(form.NamedSection, "settings");
+  itemSection.anonymous = true;
+  itemSection.addremove = false;
 
-  const apply = () => {
-    const value = `${editor.value || ""}`.replace(/\r/g, "").trim();
-    const validation = main.validateStaticHosts(value);
-
-    if (!validation.valid) {
-      error.textContent = validation.message;
-      return;
-    }
-
-    textareaNode.value = value ? `${value}\n` : "";
-    textareaNode.dispatchEvent(new Event("change", { bubbles: true }));
-    summaryNode.textContent = staticHostsSummary(textareaNode.value);
-    ui.hideModal();
-  };
-
-  ui.showModal(
+  const records = itemSection.option(
+    form.TextValue,
+    "static_hosts_text",
     _("Static DNS records"),
-    [
-      editor,
-      E(
-        "div",
-        { style: "margin-top:0.5em;opacity:0.7;" },
-        _("Address and its domains on one line, # starts a comment."),
-      ),
-      error,
-      E("div", { class: "button-row" }, [
-        E(
-          "button",
-          {
-            class: "btn cbi-button",
-            type: "button",
-            click: () => ui.hideModal(),
-          },
-          _("Close"),
-        ),
-        " ",
-        E(
-          "button",
-          {
-            class: "btn cbi-button cbi-button-positive",
-            type: "button",
-            click: apply,
-          },
-          _("Apply"),
-        ),
-      ]),
-    ],
-    "cbi-modal",
   );
+  configureStaticHostsTextarea(records);
+  sectionView.configureTextareaOption(records, main.analyzeStaticHosts);
 
-  editor.focus();
+  const save = () =>
+    map
+      .parse()
+      .then(() => {
+        const value =
+          `${map.data.get(map.config, "settings").static_hosts_text || ""}`
+            .replace(/\r/g, "")
+            .trim();
+
+        textareaNode.value = value ? `${value}\n` : "";
+        textareaNode.dispatchEvent(new Event("change", { bubbles: true }));
+        ui.hideModal();
+      })
+      .catch(() => {});
+
+  return map.render().then((nodes) => {
+    ui.showModal(
+      _("Static DNS records"),
+      [
+        nodes,
+        E("div", { class: "button-row" }, [
+          E(
+            "button",
+            {
+              class: "btn cbi-button",
+              type: "button",
+              click: () => ui.hideModal(),
+            },
+            _("Close"),
+          ),
+          " ",
+          E(
+            "button",
+            {
+              class: "btn cbi-button cbi-button-positive important",
+              type: "button",
+              click: save,
+            },
+            _("Save"),
+          ),
+        ]),
+      ],
+      "cbi-modal",
+    );
+
+    const editor = nodes.querySelector("textarea");
+    if (editor) {
+      editor.focus();
+    }
+  });
 }
 
 function createStaticHostsOption(section) {
@@ -220,15 +215,9 @@ function createStaticHostsOption(section) {
     form.TextValue,
     "static_hosts_text",
     _("Static DNS records"),
-    _("Fixed addresses for domains, like a hosts file."),
+    _("Fixed addresses for domains, expects the hosts file format."),
   );
-  option.rows = 16;
-  option.wrap = "off";
-  option.placeholder = STATIC_HOSTS_PLACEHOLDER;
-  option.validate = function (_section_id, value) {
-    const validation = main.validateStaticHosts(`${value || ""}`);
-    return validation.valid ? true : validation.message;
-  };
+  configureStaticHostsTextarea(option);
 
   const renderTextarea = option.renderWidget;
   option.renderWidget = function (section_id, option_index, cfgvalue) {
@@ -248,27 +237,20 @@ function createStaticHostsOption(section) {
 
     widget.style.display = "none";
 
-    const summary = E(
-      "span",
-      { style: "margin-left:0.75em;opacity:0.7;" },
-      staticHostsSummary(textareaNode.value),
-    );
-
     return E("div", {}, [
       widget,
       E(
         "button",
         {
-          class: "btn cbi-button cbi-button-neutral",
+          class: "btn cbi-button cbi-button-action",
           type: "button",
           click: (event) => {
             event.preventDefault();
-            showStaticHostsModal(textareaNode, summary);
+            showStaticHostsModal(textareaNode);
           },
         },
         _("Edit"),
       ),
-      summary,
     ]);
   };
 

@@ -15,10 +15,7 @@ export { validateSubnet } from './validators/validateSubnet';
 export { bulkValidate } from './validators/bulkValidate';
 export { validateOutboundJson } from './validators/validateOutboundJson';
 export { validateProxyUrl } from './validators/validateProxyUrl';
-export {
-  staticHostsDomainCount,
-  validateStaticHosts,
-} from './validators/validateStaticHosts';
+export { analyzeStaticHosts } from './validators/validateStaticHosts';
 export {
   parseWireGuardConfig,
   parseWireGuardInput,

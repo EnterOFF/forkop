@@ -401,55 +401,56 @@ function validateProxyUrl(url) {
 }
 
 // src/validators/validateStaticHosts.ts
-function staticHostsLines(text) {
-  return `${text || ""}`.split("\n").map(
-    (line) => line.replace(/\r/g, "").replace(/[ \t]*(?:\/\/|#).*$/, "").trim()
-  ).filter(Boolean);
-}
-function parseStaticHosts(text) {
-  const records = [];
-  for (const line of staticHostsLines(text)) {
-    const [address, ...domains] = line.split(/[ \t]+/).filter(Boolean);
-    records.push({ address: address || "", domains });
+function lineFields(line, offset) {
+  const commentIndex = line.search(/\/\/|#/);
+  const body = commentIndex >= 0 ? line.slice(0, commentIndex) : line;
+  const fields = [];
+  const pattern = /[^\s]+/g;
+  let match;
+  while ((match = pattern.exec(body)) !== null) {
+    fields.push({
+      value: match[0],
+      start: offset + match.index,
+      end: offset + match.index + match[0].length
+    });
   }
-  return records;
+  return fields;
 }
-function staticHostsDomainCount(text) {
-  const domains = /* @__PURE__ */ new Set();
-  for (const record of parseStaticHosts(text)) {
-    for (const domain of record.domains) {
-      domains.add(domain.toLowerCase());
+function analyzeStaticHosts(text) {
+  const value = `${text || ""}`;
+  const annotations = [];
+  const errors = [];
+  let offset = 0;
+  const reject = (field, message) => {
+    annotations.push({ start: field.start, end: field.end, message });
+    errors.push(`${field.value}: ${message}`);
+  };
+  for (const line of value.split("\n")) {
+    const fields = lineFields(line, offset);
+    offset += line.length + 1;
+    if (!fields.length) {
+      continue;
     }
-  }
-  return domains.size;
-}
-function validateStaticHosts(text) {
-  for (const record of parseStaticHosts(text)) {
-    if (!record.domains.length) {
-      return {
-        valid: false,
-        message: _(
-          "Each line needs an address followed by at least one domain"
-        )
-      };
+    const [address, ...domains] = fields;
+    if (!isIPv4(address.value) && !isIPv6(address.value)) {
+      reject(address, _("Invalid IP address"));
     }
-    if (!isIPv4(record.address) && !isIPv6(record.address)) {
-      return {
-        valid: false,
-        message: `${_("Invalid IP address")}: ${record.address}`
-      };
+    if (!domains.length) {
+      reject(address, _("Add at least one domain"));
+      continue;
     }
-    for (const domain of record.domains) {
-      const ascii = asciiHostname(domain.toLowerCase());
+    for (const domain of domains) {
+      const ascii = asciiHostname(domain.value.toLowerCase());
       if (!ascii || !validAsciiDomain(ascii, false)) {
-        return {
-          valid: false,
-          message: `${_("Invalid domain address")}: ${domain}`
-        };
+        reject(domain, _("Invalid domain address"));
       }
     }
   }
-  return { valid: true, message: _("Valid") };
+  if (!errors.length) {
+    return { valid: true, message: _("Valid"), annotations: [] };
+  }
+  annotations.sort((left, right) => left.start - right.start);
+  return { valid: false, message: errors.join("\n"), annotations };
 }
 
 // src/helpers/parseWireGuardConfig.ts
@@ -14221,6 +14222,7 @@ return baseclass.extend({
   LogsTab,
   MonitoringTab,
   UpdatesTab,
+  analyzeStaticHosts,
   applyUiStateToStore,
   bulkValidate,
   coreService,
@@ -14232,7 +14234,6 @@ return baseclass.extend({
   parseWireGuardConfig,
   parseWireGuardInput,
   showToast,
-  staticHostsDomainCount,
   store,
   validateDNS,
   validateDomain,
@@ -14240,7 +14241,6 @@ return baseclass.extend({
   validateOutboundJson,
   validatePath,
   validateProxyUrl,
-  validateStaticHosts,
   validateSubnet,
   validateUrl,
   validateWireGuardKey

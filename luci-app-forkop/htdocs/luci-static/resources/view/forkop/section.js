@@ -9634,6 +9634,7 @@ function validateUniqueDynamicListItemName(widget, itemNode, value) {
 
 const EntryPoint = {
   configureSectionSection,
+  configureTextareaOption,
   createSectionContent,
   setActionProvidersAvailabilityLoader,
 };
