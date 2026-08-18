@@ -1005,6 +1005,9 @@ function append_sing_box_rule_signature_body(body, section, sections) {
 
     let prefix = "rule." + name;
     body = signature_add_value(body, prefix + ".action", action);
+    // The display name is the prefix of every outbound and inbound tag this
+    // section generates, so renaming it rewrites the whole runtime graph.
+    body = signature_add_value(body, prefix + ".label", connections.section_display_name(section));
 
     if (connections.is_connections_action(action)) {
         body = signature_add_value(body, prefix + ".connection_urls", connection_urls_signature(section));

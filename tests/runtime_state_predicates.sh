@@ -608,6 +608,8 @@ secret
 0
 [rule.proxy1.action]
 proxy
+[rule.proxy1.label]
+proxy1
 [rule.proxy1.connection_urls]
 [ "vless://one", "vless://two" ]
 [rule.proxy1.subscription_urls]
@@ -688,6 +690,8 @@ https://example.com/remote.srs
 local.srs local.lst
 [rule.out1.action]
 outbound
+[rule.out1.label]
+out1
 [rule.out1.connection_urls]
 [ ]
 [rule.out1.subscription_urls]
@@ -758,6 +762,8 @@ disabled
 
 [rule.bye1.action]
 byedpi
+[rule.bye1.label]
+bye1
 [rule.bye1.byedpi_index]
 1
 [rule.bye1.mixed_proxy_enabled]
@@ -788,6 +794,8 @@ byedpi
 
 [rule.vpn1.action]
 vpn
+[rule.vpn1.label]
+vpn1
 [rule.vpn1.connection_urls]
 [ ]
 [rule.vpn1.subscription_urls]
@@ -991,6 +999,22 @@ EOF_SING_BOX_SIG
 assert_eq "$(md5_file "$WORK_DIR/sing-box-signature.expected")" \
   "$(state_ucode sing-box-signature-fixture "$WORK_DIR/sing-box-signature.json")" \
   "sing-box signature hash"
+
+# The display name prefixes every tag a section generates, so renaming one has
+# to be seen as a runtime change instead of being skipped as "unchanged".
+node -e 'const fs = require("fs");
+const config = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+config.section = config.section.map((item) =>
+  item[".name"] === "proxy1" ? { ...item, label: "proxy 1" } : item);
+fs.writeFileSync(process.argv[2], JSON.stringify(config));' \
+  "$WORK_DIR/sing-box-signature.json" "$WORK_DIR/sing-box-signature-renamed.json"
+if [ "$(state_ucode sing-box-signature-fixture "$WORK_DIR/sing-box-signature-renamed.json")" = \
+     "$(state_ucode sing-box-signature-fixture "$WORK_DIR/sing-box-signature.json")" ]; then
+  fail "renaming a section must change the sing-box signature"
+fi
+renamed_body="$(state_ucode sing-box-signature-body-fixture "$WORK_DIR/sing-box-signature-renamed.json")"
+grep -Fq 'proxy 1' <<<"$renamed_body" ||
+  fail "the section display name is missing from the sing-box signature"
 
 cat >"$WORK_DIR/dpi-signatures.json" <<'JSON'
 {
