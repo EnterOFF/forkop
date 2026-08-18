@@ -1581,6 +1581,44 @@ function add_source_aware_dns_support(config) {
     });
 }
 
+function static_hosts_config() {
+    let hosts = runtime_dns.static_hosts(runtime_settings());
+    if (hosts.unsupported)
+        runtime_generate_unsupported(hosts.unsupported);
+    return hosts;
+}
+
+// Static records answer before sing-box dials the destination itself, so ByeDPI,
+// Zapret and direct sections reach domains that the configured DNS servers cannot
+// resolve. Section DNS rules keep their FakeIP answers for client queries.
+function add_static_hosts_support(config, hosts) {
+    if (length(hosts.domains) == 0)
+        return;
+
+    push(config.dns.servers, {
+        type: "hosts",
+        tag: runtime_constants.HOSTS_DNS_SERVER_TAG,
+        predefined: hosts.predefined
+    });
+    push(config.route.rules, {
+        action: "resolve",
+        server: runtime_constants.HOSTS_DNS_SERVER_TAG,
+        domain: hosts.domains
+    });
+}
+
+function add_static_hosts_dns_rule(config, hosts) {
+    if (length(hosts.domains) == 0)
+        return;
+
+    push_dns_matcher_rule(config, {
+        action: "route",
+        server: runtime_constants.HOSTS_DNS_SERVER_TAG,
+        domain: hosts.domains,
+        rewrite_ttl: int_option(runtime_settings(), "dns_rewrite_ttl", "60")
+    });
+}
+
 function add_source_aware_dns_fallback(config, system_aware_dns) {
     let matchers = [ { inbound: source_dns_inbound_matcher() } ];
     if (system_aware_dns)
@@ -2053,6 +2091,8 @@ function generate_config(output_path, service_address, mwan3_active, deferred_se
         direct_server_route: has_direct_tailscale_server(servers)
     });
     add_source_aware_dns_support(config);
+    let static_hosts = static_hosts_config();
+    add_static_hosts_support(config, static_hosts);
     let taken = reserved_runtime_tag_set(config.outbounds);
     reserve_section_outbound_tags(sections, taken);
     for (let server in servers)
@@ -2062,6 +2102,7 @@ function generate_config(output_path, service_address, mwan3_active, deferred_se
     add_service_route_rules(config, sections);
     for (let section in sections)
         add_route_for_section(config, section);
+    add_static_hosts_dns_rule(config, static_hosts);
     add_source_aware_dns_fallback(config, system_aware_dns);
     add_server_routes(config, servers, sections);
     add_service_mixed_proxy(config, settings, sections);

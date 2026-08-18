@@ -400,6 +400,58 @@ function validateProxyUrl(url) {
   };
 }
 
+// src/validators/validateStaticHosts.ts
+function staticHostsLines(text) {
+  return `${text || ""}`.split("\n").map(
+    (line) => line.replace(/\r/g, "").replace(/[ \t]*(?:\/\/|#).*$/, "").trim()
+  ).filter(Boolean);
+}
+function parseStaticHosts(text) {
+  const records = [];
+  for (const line of staticHostsLines(text)) {
+    const [address, ...domains] = line.split(/[ \t]+/).filter(Boolean);
+    records.push({ address: address || "", domains });
+  }
+  return records;
+}
+function staticHostsDomainCount(text) {
+  const domains = /* @__PURE__ */ new Set();
+  for (const record of parseStaticHosts(text)) {
+    for (const domain of record.domains) {
+      domains.add(domain.toLowerCase());
+    }
+  }
+  return domains.size;
+}
+function validateStaticHosts(text) {
+  for (const record of parseStaticHosts(text)) {
+    if (!record.domains.length) {
+      return {
+        valid: false,
+        message: _(
+          "Each line needs an address followed by at least one domain"
+        )
+      };
+    }
+    if (!isIPv4(record.address) && !isIPv6(record.address)) {
+      return {
+        valid: false,
+        message: `${_("Invalid IP address")}: ${record.address}`
+      };
+    }
+    for (const domain of record.domains) {
+      const ascii = asciiHostname(domain.toLowerCase());
+      if (!ascii || !validAsciiDomain(ascii, false)) {
+        return {
+          valid: false,
+          message: `${_("Invalid domain address")}: ${domain}`
+        };
+      }
+    }
+  }
+  return { valid: true, message: _("Valid") };
+}
+
 // src/helpers/parseWireGuardConfig.ts
 var MAX_AMNEZIA_CONFIG_SIZE = 1024 * 1024;
 var DEFAULT_WIREGUARD_PORT = 51820;
@@ -14180,6 +14232,7 @@ return baseclass.extend({
   parseWireGuardConfig,
   parseWireGuardInput,
   showToast,
+  staticHostsDomainCount,
   store,
   validateDNS,
   validateDomain,
@@ -14187,6 +14240,7 @@ return baseclass.extend({
   validateOutboundJson,
   validatePath,
   validateProxyUrl,
+  validateStaticHosts,
   validateSubnet,
   validateUrl,
   validateWireGuardKey

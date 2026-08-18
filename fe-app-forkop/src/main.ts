@@ -16,6 +16,10 @@ export { bulkValidate } from './validators/bulkValidate';
 export { validateOutboundJson } from './validators/validateOutboundJson';
 export { validateProxyUrl } from './validators/validateProxyUrl';
 export {
+  staticHostsDomainCount,
+  validateStaticHosts,
+} from './validators/validateStaticHosts';
+export {
   parseWireGuardConfig,
   parseWireGuardInput,
   validateWireGuardKey,

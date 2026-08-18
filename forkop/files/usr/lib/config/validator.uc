@@ -905,6 +905,10 @@ function validate_dns_settings(settings, sections, context) {
             fail_validation("Invalid Bootstrap DNS server '" + value + "': " + parsed.unsupported + ". Aborted.");
     }
 
+    let static_hosts = runtime_dns.static_hosts(settings);
+    if (static_hosts.unsupported)
+        fail_validation("Static DNS records are invalid: " + static_hosts.unsupported + ". Aborted.");
+
     if (!bool_option(settings, "dns_detour_enabled", false))
         return;
 

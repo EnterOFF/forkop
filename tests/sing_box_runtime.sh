@@ -1172,10 +1172,11 @@ function dns_server(config, predicate) {
 
 let disabled = cfg("disabled");
 assert(first_remote_ruleset(disabled).update_interval == null, "disabled list updates omit the interval");
-let disabled_resolve = route_rule(disabled, r => r.type == "logical" && r.action == "resolve" && r.server == "dns-server");
+let disabled_resolve = route_rule(disabled, r => r.type == "logical" && r.action == "resolve");
 assert(disabled_resolve != null && length(disabled_resolve.rules || []) == 2 &&
     contains(disabled_resolve.rules[0].rule_set, first_remote_ruleset(disabled).tag) &&
     contains(disabled_resolve.rules[1].port, 8443), "logical resolve rule preserves the section port constraint");
+assert(disabled_resolve.server == null, "section resolve follows dns.rules instead of pinning the main DNS server");
 let disabled_route = route_rule(disabled, r => r.type == "logical" && r.outbound == "proxy");
 assert(disabled_route != null && length(disabled_route.rules || []) == 2 &&
     contains(disabled_route.rules[0].rule_set, first_remote_ruleset(disabled).tag) &&

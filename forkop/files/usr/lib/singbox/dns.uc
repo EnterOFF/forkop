@@ -65,6 +65,67 @@ function dns_domain_valid(value) {
     return match(tld, /^[a-z]{2,}$/) != null || match(tld, /^xn--[a-z0-9-]{2,59}$/) != null;
 }
 
+function static_host_domain(value) {
+    value = lc(trim(as_string(value)));
+    if (value == "" || length(value) > 253 ||
+        substr(value, 0, 1) == "." || substr(value, length(value) - 1, 1) == ".")
+        return null;
+
+    let ascii = domain_config.suffix_to_ascii(value);
+    if (ascii == null)
+        return null;
+
+    for (let label in split(ascii, ".")) {
+        if (label == "" || length(label) > 63 ||
+            match(label, /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/) == null)
+            return null;
+    }
+
+    return ascii;
+}
+
+function static_hosts(settings) {
+    let domains = [];
+    let predefined = {};
+
+    for (let raw_line in split(as_string(option(settings, "static_hosts_text", "")), "\n")) {
+        let line = replace(as_string(raw_line), /\r/g, "");
+        line = replace(line, /[[:space:]]*\/\/.*$/, "");
+        line = trim(replace(line, /[[:space:]]*#.*$/, ""));
+        if (line == "")
+            continue;
+
+        let fields = [];
+        for (let field in split(line, /[[:space:]]+/))
+            if (field != "")
+                push(fields, field);
+        if (length(fields) < 2)
+            return { unsupported: "static DNS record '" + line + "' must contain an address followed by at least one domain" };
+
+        let address = fields[0];
+        if (!core_ip.valid_ip(address))
+            return { unsupported: "invalid address '" + address + "' in static DNS records" };
+
+        for (let i = 1; i < length(fields); i++) {
+            let domain = static_host_domain(fields[i]);
+            if (domain == null)
+                return { unsupported: "invalid domain '" + fields[i] + "' in static DNS records" };
+            if (predefined[domain] == null) {
+                predefined[domain] = [];
+                push(domains, domain);
+            }
+            let known = false;
+            for (let value in predefined[domain])
+                if (value == address)
+                    known = true;
+            if (!known)
+                push(predefined[domain], address);
+        }
+    }
+
+    return { domains, predefined };
+}
+
 function parse_server_uri(value, ip_only) {
     value = trim(as_string(value));
     if (value == "")
@@ -223,6 +284,7 @@ return {
     detour_tag,
     parse_server_uri,
     server_from_uri,
+    static_hosts,
     uri_from_legacy_options,
     server_list
 };

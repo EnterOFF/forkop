@@ -1,6 +1,6 @@
 import { ValidationResult } from './types';
 
-function asciiHostname(hostname: string): string | null {
+export function asciiHostname(hostname: string): string | null {
   if (
     !hostname ||
     /[\s@:/]/.test(hostname) ||
@@ -17,7 +17,7 @@ function asciiHostname(hostname: string): string | null {
   }
 }
 
-function validAsciiDomain(hostname: string, requireDot = true): boolean {
+export function validAsciiDomain(hostname: string, requireDot = true): boolean {
   if (!hostname || hostname.length > 253) {
     return false;
   }

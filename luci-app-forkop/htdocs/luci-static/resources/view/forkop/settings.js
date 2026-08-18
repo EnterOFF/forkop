@@ -1,6 +1,7 @@
 "use strict";
 "require form";
 "require uci";
+"require ui";
 "require baseclass";
 "require tools.widgets as widgets";
 "require view.forkop.main as main";
@@ -128,6 +129,152 @@ function configureDnsFailoverVisibility(option, dnsOption, dnsKey) {
   };
 }
 
+const STATIC_HOSTS_PLACEHOLDER = "130.255.77.28 ntc.party www.ntc.party";
+
+function staticHostsSummary(value) {
+  const text = `${value || ""}`;
+  const validation = main.validateStaticHosts(text);
+
+  if (!validation.valid) {
+    return validation.message;
+  }
+
+  const count = main.staticHostsDomainCount(text);
+  return count > 0 ? `${_("Domains")}: ${count}` : _("Not configured");
+}
+
+function showStaticHostsModal(textareaNode, summaryNode) {
+  const editor = E(
+    "textarea",
+    {
+      class: "cbi-input-textarea",
+      style:
+        "width:100%;max-width:100%;resize:vertical;font-family:monospace;white-space:pre;",
+      rows: 16,
+      wrap: "off",
+      spellcheck: "false",
+      autocomplete: "off",
+      autocorrect: "off",
+      autocapitalize: "off",
+      placeholder: STATIC_HOSTS_PLACEHOLDER,
+    },
+    textareaNode.value || "",
+  );
+  const error = E("div", { style: "color:#c00;margin-top:0.5em;" });
+
+  const apply = () => {
+    const value = `${editor.value || ""}`.replace(/\r/g, "").trim();
+    const validation = main.validateStaticHosts(value);
+
+    if (!validation.valid) {
+      error.textContent = validation.message;
+      return;
+    }
+
+    textareaNode.value = value ? `${value}\n` : "";
+    textareaNode.dispatchEvent(new Event("change", { bubbles: true }));
+    summaryNode.textContent = staticHostsSummary(textareaNode.value);
+    ui.hideModal();
+  };
+
+  ui.showModal(
+    _("Static DNS records"),
+    [
+      editor,
+      E(
+        "div",
+        { style: "margin-top:0.5em;opacity:0.7;" },
+        _("Address and its domains on one line, # starts a comment."),
+      ),
+      error,
+      E("div", { class: "button-row" }, [
+        E(
+          "button",
+          {
+            class: "btn cbi-button",
+            type: "button",
+            click: () => ui.hideModal(),
+          },
+          _("Close"),
+        ),
+        " ",
+        E(
+          "button",
+          {
+            class: "btn cbi-button cbi-button-positive",
+            type: "button",
+            click: apply,
+          },
+          _("Apply"),
+        ),
+      ]),
+    ],
+    "cbi-modal",
+  );
+
+  editor.focus();
+}
+
+function createStaticHostsOption(section) {
+  const option = section.option(
+    form.TextValue,
+    "static_hosts_text",
+    _("Static DNS records"),
+    _("Fixed addresses for domains, like a hosts file."),
+  );
+  option.rows = 16;
+  option.wrap = "off";
+  option.placeholder = STATIC_HOSTS_PLACEHOLDER;
+  option.validate = function (_section_id, value) {
+    const validation = main.validateStaticHosts(`${value || ""}`);
+    return validation.valid ? true : validation.message;
+  };
+
+  const renderTextarea = option.renderWidget;
+  option.renderWidget = function (section_id, option_index, cfgvalue) {
+    const widget = renderTextarea.call(
+      this,
+      section_id,
+      option_index,
+      cfgvalue,
+    );
+    const textareaNode = widget.querySelector
+      ? widget.querySelector("textarea")
+      : null;
+
+    if (!textareaNode) {
+      return widget;
+    }
+
+    widget.style.display = "none";
+
+    const summary = E(
+      "span",
+      { style: "margin-left:0.75em;opacity:0.7;" },
+      staticHostsSummary(textareaNode.value),
+    );
+
+    return E("div", {}, [
+      widget,
+      E(
+        "button",
+        {
+          class: "btn cbi-button cbi-button-neutral",
+          type: "button",
+          click: (event) => {
+            event.preventDefault();
+            showStaticHostsModal(textareaNode, summary);
+          },
+        },
+        _("Edit"),
+      ),
+      summary,
+    ]);
+  };
+
+  return option;
+}
+
 function createSettingsContent(section, capabilities) {
   const dnsOption = section.option(
     form.DynamicList,
@@ -224,6 +371,8 @@ function createSettingsContent(section, capabilities) {
   );
   o.depends("dns_detour_enabled", "1");
   configureDownloadSectionOption(o, "dns_detour_section", capabilities);
+
+  createStaticHostsOption(section);
 
   o = section.option(
     widgets.DeviceSelect,
@@ -527,9 +676,7 @@ function createSettingsContent(section, capabilities) {
     form.Value,
     "latency_test_url",
     _("Latency test URL"),
-    _(
-      "Default URL for latency testing.",
-    ),
+    _("Default URL for latency testing."),
   );
   latencyTestUrlChoices().forEach((value) => o.value(value));
   o.default =

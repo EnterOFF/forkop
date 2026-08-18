@@ -107,8 +107,10 @@ function resolve_rule_for_section(section, route_rule) {
         if (route_rule[key] != null)
             resolve_rule[key] = route_rule[key];
     }
+    // Without an explicit server the lookup follows dns.rules, so static records and
+    // per-section DNS servers are honoured. FakeIP servers are skipped by sing-box for
+    // this kind of lookup, and unmatched domains still fall back to the main DNS server.
     resolve_rule.action = "resolve";
-    resolve_rule.server = runtime_constants.DNS_SERVER_TAG;
 
     return { rule: resolve_rule };
 }
