@@ -130,13 +130,46 @@ function configureDnsFailoverVisibility(option, dnsOption, dnsKey) {
   };
 }
 
-const STATIC_HOSTS_PLACEHOLDER = "130.255.77.28 ntc.party www.ntc.party";
+const STATIC_HOSTS_STYLE_ID = "fkp-static-hosts-styles";
+
+// The modal heading already names the field, so the row drops its label and
+// gives the whole width to the editor. Everything else stays a plain LuCI form.
+function ensureStaticHostsStyles() {
+  if (
+    typeof document === "undefined" ||
+    !document.head ||
+    document.getElementById(STATIC_HOSTS_STYLE_ID)
+  ) {
+    return;
+  }
+
+  document.head.insertAdjacentHTML(
+    "beforeend",
+    `<style id="${STATIC_HOSTS_STYLE_ID}">
+      .fkp-static-hosts .cbi-value-title {
+        display: none;
+      }
+
+      .fkp-static-hosts .cbi-value-field {
+        width: 100%;
+        max-width: 100%;
+        flex: 1 1 auto;
+        float: none;
+        padding-left: 0;
+        margin-left: 0;
+      }
+
+      .fkp-static-hosts .cbi-value {
+        margin-bottom: 0;
+      }
+    </style>`,
+  );
+}
 
 function configureStaticHostsTextarea(option) {
   option.rows = 16;
   option.wrap = "soft";
   option.rmempty = true;
-  option.placeholder = STATIC_HOSTS_PLACEHOLDER;
   option.validate = function (_section_id, value) {
     const analysis = main.analyzeStaticHosts(`${value || ""}`);
     return analysis.valid ? true : analysis.message;
@@ -173,7 +206,10 @@ function showStaticHostsModal(textareaNode) {
       })
       .catch(() => {});
 
+  ensureStaticHostsStyles();
+
   return map.render().then((nodes) => {
+    nodes.classList.add("fkp-static-hosts");
     ui.showModal(
       _("Static DNS records"),
       [
