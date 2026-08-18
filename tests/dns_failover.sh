@@ -59,7 +59,9 @@ assert(length(single.inbounds) == 6, "single DNS must add the selected-interface
 
 let multi = json(fs.readfile(ARGV[1]));
 assert(length(multi.dns.servers) == 8, "multi DNS must create four candidates, two fallbacks, dnsmasq fallback and FakeIP");
-assert(length(multi.inbounds) == 6, "native DNS fallback must add the selected-interface DNS inbound");
+assert(length(multi.inbounds) == 7, "native DNS fallback must add the selected-interface DNS inbound beside the proxy diagnostic inbound");
+assert(find_tag(multi.inbounds, "service-mixed-in") != null, "a section with an outbound must expose the proxy diagnostic inbound");
+assert(find_tag(single.inbounds, "service-mixed-in") == null, "a bypass-only configuration needs no proxy diagnostic inbound");
 let bootstrap = find_tag(multi.dns.servers, "bootstrap-dns-server");
 let main = find_tag(multi.dns.servers, "dns-server");
 assert(bootstrap.type == "fallback" && bootstrap.strategy == "parallel", "bootstrap must use native parallel fallback");

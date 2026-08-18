@@ -50,6 +50,12 @@ declare global {
 
   const _ = (_key: string) => string;
 
+  const L: {
+    env?: {
+      rpctimeout?: number;
+    };
+  };
+
   const ui = {
     showModal: (_title: string, _content: HTMLElement) => undefined,
     hideModal: () => undefined,

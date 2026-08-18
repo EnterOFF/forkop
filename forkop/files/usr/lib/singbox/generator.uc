@@ -1086,13 +1086,49 @@ function add_subscription_download_service_mixed_proxies(config, sections) {
     }
 }
 
-function add_service_mixed_proxy(config, settings, sections) {
-    if (!download_via_proxy_any_enabled(settings, sections))
+function first_outbound_section(sections) {
+    for (let section in sections) {
+        let action = option(section, "action", "");
+        if (connections.is_connections_action(action) ||
+            action == "byedpi" || action == "zapret" || action == "zapret2")
+            return section;
+    }
+    return null;
+}
+
+function inbound_registered(config, tag_name) {
+    for (let inbound in config.inbounds)
+        if (type(inbound) == "object" && as_string(inbound.tag) == as_string(tag_name))
+            return true;
+    return false;
+}
+
+// The proxy diagnostic measures the running core through this inbound instead
+// of starting a second sing-box process beside it. A download detour creates it
+// already; without one it is added for the outbound the diagnostic checks.
+function add_service_check_mixed_proxy(config, sections) {
+    let first = first_outbound_section(sections);
+    if (first == null || inbound_registered(config, runtime_constants.SERVICE_MIXED_INBOUND_TAG))
         return;
+
+    add_service_mixed_proxy_inbound(
+        config,
+        runtime_constants.SERVICE_MIXED_INBOUND_TAG,
+        runtime_constants.SERVICE_MIXED_INBOUND_PORT,
+        outbound_tag(first[".name"])
+    );
+}
+
+function add_service_mixed_proxy(config, settings, sections) {
+    if (!download_via_proxy_any_enabled(settings, sections)) {
+        add_service_check_mixed_proxy(config, sections);
+        return;
+    }
 
     add_global_download_service_mixed_proxy(config, settings, "lists");
     add_global_download_service_mixed_proxy(config, settings, "components");
     add_subscription_download_service_mixed_proxies(config, sections);
+    add_service_check_mixed_proxy(config, sections);
 
     if (download_via_proxy_enabled(settings, "lists") && download_detour_tag(settings, "lists") == "")
         runtime_generate_unsupported("download lists via proxy section is not set");
@@ -1877,15 +1913,7 @@ function add_route_for_section(config, section) {
 }
 
 function add_service_route_rules(config, sections) {
-    let first = null;
-    for (let section in sections) {
-        let action = option(section, "action", "");
-        if (connections.is_connections_action(action) ||
-            action == "byedpi" || action == "zapret" || action == "zapret2") {
-            first = section;
-            break;
-        }
-    }
+    let first = first_outbound_section(sections);
     if (first != null) {
         if (option(first, "action", "") == "byedpi")
             push(config.route.rules, {

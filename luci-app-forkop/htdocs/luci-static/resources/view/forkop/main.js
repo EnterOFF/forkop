@@ -5,6 +5,11 @@
 "require uci";
 "require ui";
 
+// src/helpers/structuredClonePolyfill.ts
+if (typeof structuredClone !== "function") {
+  globalThis.structuredClone = (value) => JSON.parse(JSON.stringify(value));
+}
+
 // src/validators/validateIp.ts
 function isIPv4(ip) {
   const ipRegex = /^(?:(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])$/;
@@ -937,6 +942,21 @@ var DOMAIN_LIST_OPTIONS = {
 };
 var COMMAND_TIMEOUT = 1e4;
 
+// src/helpers/alignLuciRpcTimeout.ts
+var LUCI_RPC_TIMEOUT_DEFAULT_SECONDS = 20;
+var LUCI_RPC_TIMEOUT_HEADROOM_SECONDS = 5;
+function alignLuciRpcTimeout(timeoutMs) {
+  const env = typeof L === "undefined" ? void 0 : L?.env;
+  if (!env || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    return;
+  }
+  const required = Math.ceil(timeoutMs / 1e3) + LUCI_RPC_TIMEOUT_HEADROOM_SECONDS;
+  const current = typeof env.rpctimeout === "number" && Number.isFinite(env.rpctimeout) ? env.rpctimeout : LUCI_RPC_TIMEOUT_DEFAULT_SECONDS;
+  if (current < required) {
+    env.rpctimeout = required;
+  }
+}
+
 // src/helpers/executeShellCommand.ts
 async function executeShellCommand({
   command,
@@ -944,6 +964,9 @@ async function executeShellCommand({
   timeout = COMMAND_TIMEOUT
 }) {
   try {
+    if (timeout !== null) {
+      alignLuciRpcTimeout(timeout);
+    }
     const request = fs.exec(command, args);
     return timeout === null ? await request : await withTimeout(request, timeout, [command, ...args].join(" "));
   } catch (err) {
@@ -2434,6 +2457,7 @@ var COMPONENT_ACTION_SELF_UPDATE_SETTLE_MS = 3e4;
 var COMPONENT_ACTION_TRANSIENT_RPC_GRACE_MS = 3e4;
 var COMPONENT_ACTION_STATE_DIR = "/var/run/forkop/component-actions";
 var GET_UI_STATE_RPC_TIMEOUT_MS = 3e3;
+var DIAGNOSTIC_CHECK_RPC_TIMEOUT_MS = 3 * 60 * 1e3;
 var checkLogsRequest = null;
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -2556,9 +2580,14 @@ function createTransientRpcGraceTracker(graceMs) {
   };
 }
 function checkProviderRuntime(provider) {
-  return callBaseMethod(Forkop.AvailableMethods.CHECK_PROVIDER_RUNTIME, [
+  return diagnosticCheck(Forkop.AvailableMethods.CHECK_PROVIDER_RUNTIME, [
     provider
   ]);
+}
+function diagnosticCheck(method, args = []) {
+  return callBaseMethod(method, args, "/usr/bin/forkop", {
+    timeout: DIAGNOSTIC_CHECK_RPC_TIMEOUT_MS
+  });
 }
 function getProviderStatus(provider) {
   return callBaseMethod(Forkop.AvailableMethods.GET_PROVIDER_STATUS, [
@@ -2566,26 +2595,26 @@ function getProviderStatus(provider) {
   ]);
 }
 var ForkopShellMethods = {
-  checkDNSAvailable: async () => callBaseMethod(
+  checkDNSAvailable: async () => diagnosticCheck(
     Forkop.AvailableMethods.CHECK_DNS_AVAILABLE
   ),
-  checkFakeIP: async () => callBaseMethod(
+  checkFakeIP: async () => diagnosticCheck(
     Forkop.AvailableMethods.CHECK_FAKEIP
   ),
-  checkNftRules: async () => callBaseMethod(
+  checkNftRules: async () => diagnosticCheck(
     Forkop.AvailableMethods.CHECK_NFT_RULES
   ),
   checkZapretRuntime: async () => checkProviderRuntime("zapret"),
   checkZapret2Runtime: async () => checkProviderRuntime("zapret2"),
   checkByedpiRuntime: async () => checkProviderRuntime("byedpi"),
-  checkInboundsConfig: async () => callBaseMethod(
+  checkInboundsConfig: async () => diagnosticCheck(
     Forkop.AvailableMethods.CHECK_INBOUNDS_CONFIG
   ),
   getStatus: async () => callBaseMethod(Forkop.AvailableMethods.GET_STATUS),
-  checkSingBox: async () => callBaseMethod(
+  checkSingBox: async () => diagnosticCheck(
     Forkop.AvailableMethods.CHECK_SING_BOX
   ),
-  checkInbounds: async () => callBaseMethod(
+  checkInbounds: async () => diagnosticCheck(
     Forkop.AvailableMethods.CHECK_INBOUNDS
   ),
   getSingBoxStatus: async () => callBaseMethod(
@@ -2610,7 +2639,7 @@ var ForkopShellMethods = {
     [],
     "/etc/init.d/forkop"
   ),
-  globalCheck: async (masked = true) => callBaseMethod(Forkop.AvailableMethods.GLOBAL_CHECK, [
+  globalCheck: async (masked = true) => diagnosticCheck(Forkop.AvailableMethods.GLOBAL_CHECK, [
     masked ? "masked" : "raw"
   ]),
   showConfig: async (masked = true) => callBaseMethod(Forkop.AvailableMethods.SHOW_CONFIG, [
@@ -14075,10 +14104,6 @@ function injectGlobalStyles() {
     `
   );
 }
-
-// src/main.ts
-if (typeof structuredClone !== "function")
-  globalThis.structuredClone = (obj) => JSON.parse(JSON.stringify(obj));
 return baseclass.extend({
   DEFAULT_LATENCY_TEST_URL,
   DOMAIN_LIST_OPTIONS,

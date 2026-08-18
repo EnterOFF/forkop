@@ -1,4 +1,5 @@
 import { COMMAND_TIMEOUT } from '../constants';
+import { alignLuciRpcTimeout } from './alignLuciRpcTimeout';
 import { withTimeout } from './withTimeout';
 
 interface ExecuteShellCommandParams {
@@ -19,6 +20,10 @@ export async function executeShellCommand({
   timeout = COMMAND_TIMEOUT,
 }: ExecuteShellCommandParams): Promise<ExecuteShellCommandResponse> {
   try {
+    if (timeout !== null) {
+      alignLuciRpcTimeout(timeout);
+    }
+
     const request = fs.exec(command, args);
     return timeout === null
       ? await request

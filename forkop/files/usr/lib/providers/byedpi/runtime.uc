@@ -125,12 +125,10 @@ function normalize_strategy(value) {
     return validator().strategy_or_default(value, BYEDPI_DEFAULT_CMD_OPTS);
 }
 
+// The validator owns strategy parsing, so the runtime builds the ciadpi argv
+// from the same quote-aware split that validation accepted.
 function strategy_words(value) {
-    value = replace(as_string(value), /[\t\r\n]/g, " ");
-    value = replace(value, / +/g, " ");
-    value = replace(value, /^ /, "");
-    value = replace(value, / $/, "");
-    return value == "" ? [] : split(value, " ");
+    return validator().strategy_argv(value).tokens;
 }
 
 function enabled_byedpi_sections() {

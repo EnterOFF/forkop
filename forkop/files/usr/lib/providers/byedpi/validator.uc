@@ -26,9 +26,55 @@ function print_strategy_or_default(value, default_value) {
     print(strategy_or_default(value, default_value), "\n");
 }
 
-function words(value) {
+// ciadpi options can take a value that contains spaces, for example the inline
+// host list of -H:"a.example b.example". Quotes are syntax: they group one
+// argument and are removed before the argument reaches ciadpi.
+function strategy_argv(value) {
     value = normalize_strategy_whitespace(value);
-    return value == "" ? [] : split(value, " ");
+    let tokens = [];
+    let current = "";
+    let started = false;
+    let quote = "";
+
+    for (let i = 0; i < length(value); i++) {
+        let character = substr(value, i, 1);
+
+        if (quote != "") {
+            if (character == quote)
+                quote = "";
+            else
+                current += character;
+            continue;
+        }
+
+        if (character == '"' || character == "'") {
+            quote = character;
+            started = true;
+            continue;
+        }
+
+        if (character == " ") {
+            if (started)
+                push(tokens, current);
+            current = "";
+            started = false;
+            continue;
+        }
+
+        current += character;
+        started = true;
+    }
+
+    if (quote != "")
+        return { tokens: [], unterminated_quote: quote };
+    if (started)
+        push(tokens, current);
+
+    return { tokens, unterminated_quote: "" };
+}
+
+function words(value) {
+    return strategy_argv(value).tokens;
 }
 
 function contains(values, needle) {
@@ -192,7 +238,14 @@ function validate_token(tokens, index_value) {
 }
 
 function validate_byedpi_strategy(raw_opt) {
-    let tokens = words(raw_opt);
+    let parsed = strategy_argv(raw_opt);
+    let tokens = parsed.tokens;
+
+    if (parsed.unterminated_quote != "")
+        return validation_failure(
+            "ByeDPI strategy has an unterminated " + parsed.unterminated_quote + " quote.",
+            []
+        );
 
     if (length(tokens) == 0)
         return validation_failure("ByeDPI strategy cannot be empty.", []);
@@ -227,6 +280,7 @@ function validate_exit(raw_opt) {
 function module_exports() {
     return {
         normalize_strategy_whitespace,
+        strategy_argv,
         strategy_or_default,
         validate_byedpi_strategy
     };

@@ -85,4 +85,12 @@ if (value.byedpi_installed !== false || value.byedpi_package_installed !== false
 }
 '
 
+# The runtime must build the ciadpi argv from the same quote-aware split the
+# validator accepted, otherwise quotes reach ciadpi as literal characters.
+grep -Fq 'validator().strategy_argv(value).tokens' "$BYEDPI_RUNTIME_UC" ||
+  fail "providers/byedpi/runtime.uc must reuse the validator strategy split"
+if grep -n 'split(value, " ")' "$BYEDPI_RUNTIME_UC" >/dev/null 2>&1; then
+  fail "providers/byedpi/runtime.uc must not split the strategy on bare spaces"
+fi
+
 printf 'ByeDPI runtime ownership checks passed\n'

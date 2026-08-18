@@ -20,6 +20,9 @@ const SYSTEM_INFO_CACHE_FILE = getenv("FORKOP_SYSTEM_INFO_CACHE_FILE") || RUNTIM
 const SYSTEM_INFO_CACHE_TTL = int(getenv("FORKOP_SYSTEM_INFO_CACHE_TTL") || "3600");
 const TMP_SING_BOX_FOLDER = getenv("TMP_SING_BOX_FOLDER") || constants.TMP_SING_BOX_FOLDER || "/tmp/sing-box";
 const CHECK_PROXY_IP_DOMAIN = getenv("CHECK_PROXY_IP_DOMAIN") || constants.CHECK_PROXY_IP_DOMAIN || "ip.podkop.fyi";
+// The public endpoint reports the address that reached it under /check; both
+// the proxy check and the nftables counter probe use that same path.
+const CHECK_PROXY_IP_PATH = "/check";
 const FAKEIP_TEST_DOMAIN = getenv("FAKEIP_TEST_DOMAIN") || constants.FAKEIP_TEST_DOMAIN || "fakeip.podkop.fyi";
 const RT_TABLE_NAME = getenv("RT_TABLE_NAME") || constants.RT_TABLE_NAME || "forkop";
 const NFT_TABLE_NAME = getenv("NFT_TABLE_NAME") || constants.NFT_TABLE_NAME || "ForkopTable";
@@ -796,7 +799,7 @@ function check_proxy_through_running_core() {
         "--silent",
         "--show-error",
         "--proxy", proxy,
-        "https://" + CHECK_PROXY_IP_DOMAIN + "/ip"
+        "https://" + CHECK_PROXY_IP_DOMAIN + CHECK_PROXY_IP_PATH
     ]);
     let masked_response = replace(status_output([ "proxy-response-ip-mask" ], response), /[\r\n]+$/g, "");
     if (masked_response == "") {
@@ -1317,7 +1320,7 @@ function nft_table_has_other_mark_rules(family, table_name) {
 
 function check_nft_rules() {
     command_status("sh -c " + shell_quote(
-        "curl -m 3 -s " + shell_quote("https://" + CHECK_PROXY_IP_DOMAIN + "/check") + " >/dev/null 2>&1 & pid1=$!; " +
+        "curl -m 3 -s " + shell_quote("https://" + CHECK_PROXY_IP_DOMAIN + CHECK_PROXY_IP_PATH) + " >/dev/null 2>&1 & pid1=$!; " +
         "curl -m 3 -s " + shell_quote("https://" + FAKEIP_TEST_DOMAIN + "/check") + " >/dev/null 2>&1 & pid2=$!; " +
         "wait $pid1 2>/dev/null; wait $pid2 2>/dev/null; sleep 1"
     ));

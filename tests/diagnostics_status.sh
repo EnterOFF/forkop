@@ -625,4 +625,99 @@ for mode in check-provider-runtime get-provider-status validate-provider-strateg
   fi
 done
 
+# A temporary check-proxy instance gets an empty cache file, so remote
+# rule-sets would be downloaded again through the FakeIP rules of the very
+# configuration under test and fail before the proxy is reached.
+cat >"$WORK_DIR/check-proxy-source.json" <<'JSON'
+{
+  "dns": {
+    "rules": [
+      { "rule_set": ["remote-lists"], "server": "fakeip-server" },
+      { "domain": ["example.org"], "server": "fakeip-server" }
+    ]
+  },
+  "inbounds": [{ "type": "tproxy", "tag": "tproxy-in" }],
+  "route": {
+    "rule_set": [
+      { "type": "remote", "tag": "remote-lists", "url": "https://example.com/lists.srs" },
+      { "type": "local", "tag": "local-lists", "path": "/tmp/lists.srs" }
+    ],
+    "rules": [
+      { "rule_set": ["remote-lists"], "outbound": "proxy" },
+      {
+        "type": "logical",
+        "mode": "and",
+        "rules": [{ "rule_set": "remote-lists" }, { "port": 443 }],
+        "outbound": "proxy"
+      },
+      { "rule_set": ["local-lists"], "outbound": "proxy" },
+      { "domain": "ip.podkop.fyi", "outbound": "proxy 1" }
+    ]
+  },
+  "experimental": {
+    "cache_file": { "enabled": true, "path": "/tmp/sing-box/cache.db" },
+    "clash_api": { "external_controller": "127.0.0.1:9090" }
+  }
+}
+JSON
+status_ucode prepare-check-proxy-config \
+  "$WORK_DIR/check-proxy-source.json" \
+  "$WORK_DIR/check-proxy-result.json" \
+  "$WORK_DIR/check-proxy-cache.db"
+CHECK_PROXY_JSON="$WORK_DIR/check-proxy-result.json" \
+CHECK_PROXY_CACHE="$WORK_DIR/check-proxy-cache.db" node - <<'NODE'
+const value = JSON.parse(
+  require('fs').readFileSync(process.env.CHECK_PROXY_JSON, 'utf8'),
+);
+const tags = (value.route.rule_set || []).map((item) => item.tag);
+if (tags.includes('remote-lists')) {
+  console.error('remote rule-sets must be dropped from the check-proxy config');
+  process.exit(1);
+}
+if (!tags.includes('local-lists')) {
+  console.error('local rule-sets must be kept in the check-proxy config');
+  process.exit(1);
+}
+const routeText = JSON.stringify(value.route.rules);
+const dnsText = JSON.stringify(value.dns.rules);
+if (routeText.includes('remote-lists') || dnsText.includes('remote-lists')) {
+  console.error('rules referencing a dropped rule-set must be removed');
+  process.exit(1);
+}
+if (!routeText.includes('ip.podkop.fyi')) {
+  console.error('the proxy check route rule must survive');
+  process.exit(1);
+}
+if (!dnsText.includes('example.org')) {
+  console.error('unrelated DNS rules must survive');
+  process.exit(1);
+}
+if (value.experimental.clash_api || value.inbounds.length) {
+  console.error('inbounds and the clash controller must still be removed');
+  process.exit(1);
+}
+if (value.experimental.cache_file.path !== process.env.CHECK_PROXY_CACHE) {
+  console.error('cache file must point at the temporary cache');
+  process.exit(1);
+}
+NODE
+
+# The generated rule carries a single domain as a plain string, and missing it
+# would run the check through the default outbound instead of the proxy.
+# The public endpoint answers with JSON, while a plain address service answers
+# with a bare address; both must yield a masked address.
+[ "$(printf '%s\n' '{"fakeip": false, "IP": "194.76.146.236"}' | status_ucode proxy-response-ip-mask)" = "X.X.X.236" ] ||
+  fail "the public proxy check endpoint response must be masked"
+[ "$(printf '198.51.100.9\n' | status_ucode proxy-response-ip-mask)" = "X.X.X.9" ] ||
+  fail "a bare address response must still be masked"
+grep -Fq 'CHECK_PROXY_IP_DOMAIN + CHECK_PROXY_IP_PATH' "$ROOT_DIR/forkop/files/usr/lib/diagnostics/runtime.uc" ||
+  fail "the proxy check must request the same endpoint path as the other probes"
+if grep -Fq 'CHECK_PROXY_IP_DOMAIN + "/ip"' "$ROOT_DIR/forkop/files/usr/lib/diagnostics/runtime.uc"; then
+  fail "the proxy check must not request the retired /ip path"
+fi
+
+check_proxy_tag="$(status_ucode check-proxy-outbound-tag "$WORK_DIR/check-proxy-result.json" ip.podkop.fyi)"
+[ "$check_proxy_tag" = "proxy 1" ] ||
+  fail "proxy check must resolve the outbound of its route rule, got '$check_proxy_tag'"
+
 printf 'diagnostics status checks passed\n'

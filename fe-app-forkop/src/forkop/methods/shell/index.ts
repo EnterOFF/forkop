@@ -13,6 +13,10 @@ const COMPONENT_ACTION_SELF_UPDATE_SETTLE_MS = 30000;
 const COMPONENT_ACTION_TRANSIENT_RPC_GRACE_MS = 30000;
 const COMPONENT_ACTION_STATE_DIR = '/var/run/forkop/component-actions';
 const GET_UI_STATE_RPC_TIMEOUT_MS = 3000;
+// Diagnostic checks inspect the whole runtime: nftables chains, sing-box, DNS
+// probes. On slow routers a single check takes far longer than an ordinary RPC,
+// and cutting it short reports a healthy runtime as unreachable.
+const DIAGNOSTIC_CHECK_RPC_TIMEOUT_MS = 3 * 60 * 1000;
 
 let checkLogsRequest: ReturnType<typeof callBaseMethod<unknown>> | null = null;
 
@@ -192,9 +196,18 @@ function createTransientRpcGraceTracker(graceMs: number) {
 }
 
 function checkProviderRuntime<T>(provider: Forkop.DpiProvider) {
-  return callBaseMethod<T>(Forkop.AvailableMethods.CHECK_PROVIDER_RUNTIME, [
+  return diagnosticCheck<T>(Forkop.AvailableMethods.CHECK_PROVIDER_RUNTIME, [
     provider,
   ]);
+}
+
+function diagnosticCheck<T>(
+  method: Forkop.AvailableMethods,
+  args: string[] = [],
+) {
+  return callBaseMethod<T>(method, args, '/usr/bin/forkop', {
+    timeout: DIAGNOSTIC_CHECK_RPC_TIMEOUT_MS,
+  });
 }
 
 function getProviderStatus<T>(provider: Forkop.DpiProvider) {
@@ -205,15 +218,15 @@ function getProviderStatus<T>(provider: Forkop.DpiProvider) {
 
 export const ForkopShellMethods = {
   checkDNSAvailable: async () =>
-    callBaseMethod<Forkop.DnsCheckResult>(
+    diagnosticCheck<Forkop.DnsCheckResult>(
       Forkop.AvailableMethods.CHECK_DNS_AVAILABLE,
     ),
   checkFakeIP: async () =>
-    callBaseMethod<Forkop.FakeIPCheckResult>(
+    diagnosticCheck<Forkop.FakeIPCheckResult>(
       Forkop.AvailableMethods.CHECK_FAKEIP,
     ),
   checkNftRules: async () =>
-    callBaseMethod<Forkop.NftRulesCheckResult>(
+    diagnosticCheck<Forkop.NftRulesCheckResult>(
       Forkop.AvailableMethods.CHECK_NFT_RULES,
     ),
   checkZapretRuntime: async () =>
@@ -223,17 +236,17 @@ export const ForkopShellMethods = {
   checkByedpiRuntime: async () =>
     checkProviderRuntime<Forkop.ByedpiCheckResult>('byedpi'),
   checkInboundsConfig: async () =>
-    callBaseMethod<Forkop.InboundsConfigCheckResult>(
+    diagnosticCheck<Forkop.InboundsConfigCheckResult>(
       Forkop.AvailableMethods.CHECK_INBOUNDS_CONFIG,
     ),
   getStatus: async () =>
     callBaseMethod<Forkop.GetStatus>(Forkop.AvailableMethods.GET_STATUS),
   checkSingBox: async () =>
-    callBaseMethod<Forkop.SingBoxCheckResult>(
+    diagnosticCheck<Forkop.SingBoxCheckResult>(
       Forkop.AvailableMethods.CHECK_SING_BOX,
     ),
   checkInbounds: async () =>
-    callBaseMethod<Forkop.InboundsCheckResult>(
+    diagnosticCheck<Forkop.InboundsCheckResult>(
       Forkop.AvailableMethods.CHECK_INBOUNDS,
     ),
   getSingBoxStatus: async () =>
@@ -266,7 +279,7 @@ export const ForkopShellMethods = {
       '/etc/init.d/forkop',
     ),
   globalCheck: async (masked = true) =>
-    callBaseMethod<unknown>(Forkop.AvailableMethods.GLOBAL_CHECK, [
+    diagnosticCheck<unknown>(Forkop.AvailableMethods.GLOBAL_CHECK, [
       masked ? 'masked' : 'raw',
     ]),
   showConfig: async (masked = true) =>

@@ -64,6 +64,17 @@ eval(helpers[0].slice(0, -'\nfunction readOutboundChoiceState('.length));
 
 const outboundNameChoicesCache = new Map();
 const outboundNameChoicesInflight = new Map();
+const outboundNameChoicesEmptyAt = new Map();
+const emptyTtl = source.match(
+  /const OUTBOUND_NAME_CHOICES_EMPTY_TTL_MS = (\d+);/,
+);
+assert(emptyTtl, 'empty outbound choice TTL not found');
+const OUTBOUND_NAME_CHOICES_EMPTY_TTL_MS = Number(emptyTtl[1]);
+const cacheHelpers = source.match(
+  /function cacheOutboundNameChoices\([\s\S]*?\nfunction loadOutboundNameChoices\(/,
+);
+assert(cacheHelpers, 'outbound choice cache helpers not found');
+eval(cacheHelpers[0].slice(0, -'\nfunction loadOutboundNameChoices('.length));
 function readOutboundChoiceState() {
   return Promise.resolve({
     providerTags: [providerTag],
@@ -241,6 +252,20 @@ assert.deepStrictEqual(nativeProviderOutboundNames([providerTag], payload), [
     currentDraftOutboundNames('main'),
     ['Renamed interface', 'Draft interface', 'Leaf JSON'],
     'a deleted unsaved URL must disappear from available choices immediately',
+  );
+
+  // The core knows a subscription only after it has been fetched, so an empty
+  // answer must not be cached until the page is reloaded.
+  outboundNameChoicesCache.clear();
+  outboundNameChoicesEmptyAt.clear();
+  response = Promise.resolve({ stdout: transport({ providers: {} }) });
+  assert.deepStrictEqual(await loadOutboundNameChoices('main'), []);
+  outboundNameChoicesEmptyAt.set('main', Date.now() - OUTBOUND_NAME_CHOICES_EMPTY_TTL_MS - 1);
+  response = Promise.resolve({ stdout: transport(payload) });
+  assert.deepStrictEqual(
+    await loadOutboundNameChoices('main'),
+    ['Main DE', 'Main US'],
+    'an expired empty result must be looked up again',
   );
 
   assert.match(source, /`\$\{sectionDisplayName\}\/\$\{/,

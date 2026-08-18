@@ -59,6 +59,17 @@ if ucode -- "$VALIDATOR" validate '--disorder --fake example.org' >/dev/null 2>&
   fail "missing value should be rejected"
 fi
 
+# ciadpi takes inline lists as one argument, for example -H:"a.example
+# b.example", so quotes group the value instead of splitting it into argv.
+quoted_json="$(ucode -- "$VALIDATOR" validate-json '-H:"one.example two.example" --disorder 3')"
+assert_json_field "$quoted_json" valid true
+
+if ucode -- "$VALIDATOR" validate '-H:"one.example two.example --disorder 3' >"$WORK_DIR/byedpi-quote.out" 2>/dev/null; then
+  fail "unterminated quote should be rejected"
+fi
+grep -q 'unterminated' "$WORK_DIR/byedpi-quote.out" ||
+  fail "reject message should explain the unterminated quote"
+
 cat >"$WORK_DIR/require-byedpi-validator.uc" <<'UCODE'
 let validator = require("providers.byedpi.validator");
 
@@ -71,6 +82,14 @@ if (invalid.valid || invalid.needle != "--port")
     exit(1);
 
 if (validator.strategy_or_default("", "--default\t1") != "--default 1")
+    exit(1);
+
+let argv = validator.strategy_argv('-H:"one.example two.example" -N');
+if (length(argv.tokens) != 2 || argv.tokens[0] != "-H:one.example two.example" ||
+    argv.tokens[1] != "-N" || argv.unterminated_quote != "")
+    exit(1);
+
+if (validator.strategy_argv('-H:"one.example').unterminated_quote != '"')
     exit(1);
 UCODE
 

@@ -517,8 +517,14 @@ let actionProvidersAvailabilityPromise = null;
 let actionProvidersAvailabilityLoader = null;
 const outboundNameChoicesCache = new Map();
 const outboundNameChoicesInflight = new Map();
+const outboundNameChoicesEmptyAt = new Map();
 const subscriptionOutboundNameChoicesCache = new Map();
 const subscriptionOutboundNameChoicesInflight = new Map();
+const subscriptionOutboundNameChoicesEmptyAt = new Map();
+// The runtime knows the server names of a subscription only after the core has
+// fetched it, so an empty answer is not a final one. Keeping it forever leaves
+// the group and dashboard filters without servers until the page is reloaded.
+const OUTBOUND_NAME_CHOICES_EMPTY_TTL_MS = 5000;
 const outboundNameSourceOptions = new Map();
 const dashboardFilterChoiceRefreshers = new Map();
 const sharedChildPendingSettings = new Map();
@@ -670,8 +676,38 @@ function readOutboundChoiceState(section_id) {
   });
 }
 
+function cacheOutboundNameChoices(cache, emptyAt, key, names) {
+  cache.set(key, names);
+  if (names.length) {
+    emptyAt.delete(key);
+  } else {
+    emptyAt.set(key, Date.now());
+  }
+}
+
+function outboundNameChoicesCached(cache, emptyAt, key) {
+  if (!cache.has(key)) {
+    return false;
+  }
+
+  const names = cache.get(key);
+  if (Array.isArray(names) && names.length) {
+    return true;
+  }
+
+  return (
+    Date.now() - (emptyAt.get(key) || 0) < OUTBOUND_NAME_CHOICES_EMPTY_TTL_MS
+  );
+}
+
 function loadOutboundNameChoices(section_id) {
-  if (outboundNameChoicesCache.has(section_id)) {
+  if (
+    outboundNameChoicesCached(
+      outboundNameChoicesCache,
+      outboundNameChoicesEmptyAt,
+      section_id,
+    )
+  ) {
     return Promise.resolve(outboundNameChoicesCache.get(section_id));
   }
 
@@ -695,7 +731,12 @@ function loadOutboundNameChoices(section_id) {
         .filter((name, index, values) => values.indexOf(name) === index)
         .sort((a, b) => a.localeCompare(b));
 
-      outboundNameChoicesCache.set(section_id, choices);
+      cacheOutboundNameChoices(
+        outboundNameChoicesCache,
+        outboundNameChoicesEmptyAt,
+        section_id,
+        choices,
+      );
       refreshDashboardFilterChoiceWidgets(section_id);
 
       return choices;
@@ -718,7 +759,13 @@ function subscriptionProviderIndex(section_id, itemId) {
 
 function loadSubscriptionOutboundNameChoices(section_id, itemId) {
   const cacheKey = `${section_id}:${itemId}`;
-  if (subscriptionOutboundNameChoicesCache.has(cacheKey)) {
+  if (
+    outboundNameChoicesCached(
+      subscriptionOutboundNameChoicesCache,
+      subscriptionOutboundNameChoicesEmptyAt,
+      cacheKey,
+    )
+  ) {
     return Promise.resolve(subscriptionOutboundNameChoicesCache.get(cacheKey));
   }
   if (subscriptionOutboundNameChoicesInflight.has(cacheKey)) {
@@ -740,7 +787,12 @@ function loadSubscriptionOutboundNameChoices(section_id, itemId) {
       if (names == null) {
         return [];
       }
-      subscriptionOutboundNameChoicesCache.set(cacheKey, names);
+      cacheOutboundNameChoices(
+        subscriptionOutboundNameChoicesCache,
+        subscriptionOutboundNameChoicesEmptyAt,
+        cacheKey,
+        names,
+      );
       refreshDashboardFilterChoiceWidgets(section_id);
       return names;
     })
@@ -1779,7 +1831,13 @@ function outboundNameChoiceItems(names, normalizeChoice) {
 }
 
 function currentOutboundNameChoices(section_id, normalizeChoice) {
-  if (!outboundNameChoicesCache.has(section_id)) {
+  if (
+    !outboundNameChoicesCached(
+      outboundNameChoicesCache,
+      outboundNameChoicesEmptyAt,
+      section_id,
+    )
+  ) {
     loadOutboundNameChoices(section_id);
   }
 
@@ -1798,7 +1856,13 @@ function currentSubscriptionOutboundNameChoices(
   normalizeChoice,
 ) {
   const cacheKey = `${section_id}:${itemId}`;
-  if (!subscriptionOutboundNameChoicesCache.has(cacheKey)) {
+  if (
+    !outboundNameChoicesCached(
+      subscriptionOutboundNameChoicesCache,
+      subscriptionOutboundNameChoicesEmptyAt,
+      cacheKey,
+    )
+  ) {
     loadSubscriptionOutboundNameChoices(section_id, itemId);
   }
 
@@ -6813,6 +6877,63 @@ function parseNfqwsRuntimeTokens(value) {
 
   return tokens;
 }
+
+// ciadpi options can take a value that contains spaces, for example the inline
+// host list of -H:"a.example b.example". Quotes group one argument and are
+// removed before the argument reaches ciadpi, so validation sees the same argv
+// that providers/byedpi/validator.uc builds on the router.
+function parseByedpiStrategyTokens(value) {
+  const text = value ? `${value}` : "";
+  const tokens = [];
+  let current = "";
+  let start = -1;
+  let quote = "";
+
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+
+    if (quote) {
+      if (character === quote) {
+        quote = "";
+      } else {
+        current += character;
+      }
+      continue;
+    }
+
+    if (character === '"' || character === "'") {
+      quote = character;
+      if (start < 0) {
+        start = index;
+      }
+      continue;
+    }
+
+    if (/\s/.test(character)) {
+      if (start >= 0) {
+        tokens.push({ value: current, start, end: index });
+      }
+      current = "";
+      start = -1;
+      continue;
+    }
+
+    if (start < 0) {
+      start = index;
+    }
+    current += character;
+  }
+
+  if (quote) {
+    return { tokens: [], unterminatedQuote: quote };
+  }
+
+  if (start >= 0) {
+    tokens.push({ value: current, start, end: text.length });
+  }
+
+  return { tokens, unterminatedQuote: "" };
+}
 function normalizeNfqwsStrategyValue(value) {
   const normalized = normalizeNfqwsStrategyWhitespace(value);
   if (!normalized.length) {
@@ -7998,7 +8119,18 @@ function buildByedpiLocalAnalysis(value) {
     };
   }
 
-  const tokens = parseNfqwsRuntimeTokens(text);
+  const parsed = parseByedpiStrategyTokens(text);
+  if (parsed.unterminatedQuote) {
+    return {
+      valid: false,
+      message: _("ByeDPI strategy has an unterminated %s quote").format(
+        parsed.unterminatedQuote,
+      ),
+      annotations: [],
+    };
+  }
+
+  const tokens = parsed.tokens;
   const annotationMap = new Map();
   const errors = [];
 

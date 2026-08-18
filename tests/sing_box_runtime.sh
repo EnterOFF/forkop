@@ -1387,6 +1387,16 @@ assert(outbound(vpn, "renamed_awg/tun0").detour == null, "interface outbound mus
 assert(route_rule(vpn, r => r.outbound == "renamed_awg" && contains(r.domain_suffix, "vpn.example")) != null, "renamed VPN custom domain route");
 assert(dns_rule(vpn, r => contains(r.domain_suffix, "vpn.example")) != null, "renamed VPN custom domain DNS rule");
 
+// The proxy diagnostic reaches the running core through the service mixed
+// inbound, so it must exist even without a download detour.
+let check_inbound = inbound(matchers, "service-mixed-in");
+assert(check_inbound != null && check_inbound.listen == "127.0.0.1" && check_inbound.listen_port == 4534,
+    "proxy diagnostics must reach the running core through a loopback mixed inbound");
+let check_route = route_rule(matchers, r => r.inbound == "service-mixed-in");
+let check_domain_route = route_rule(matchers, r => r.domain == "ip.podkop.fyi" && r.outbound != null);
+assert(check_route != null && check_domain_route != null && check_route.outbound == check_domain_route.outbound,
+    "the proxy diagnostic inbound must measure the same outbound as its route rule");
+
 let download = cfg("download");
 assert(inbound(download, "service-mixed-in") != null, "service mixed inbound");
 assert(route_rule(download, r => r.inbound == "service-mixed-in" && r.outbound == "proxy") != null, "service mixed route");
