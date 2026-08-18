@@ -10966,20 +10966,33 @@ function getSearchValues(connection) {
     source.searchValue
   ].filter(Boolean);
 }
+function matchesConnectionFilters(connection, normalizedSearch) {
+  const sourceIp = getConnectionSourceFilterValue(connection);
+  if (selectedDeviceFilter !== ALL_FILTER_VALUE && sourceIp !== selectedDeviceFilter) {
+    return false;
+  }
+  if (!normalizedSearch) {
+    return true;
+  }
+  return getSearchValues(connection).some(
+    (value) => normalizeSearchValue(value).includes(normalizedSearch)
+  );
+}
 function getVisibleConnections() {
   const normalizedSearch = normalizeSearchValue(searchQuery);
-  return getConnectionsForActiveTab().filter((connection) => {
-    const sourceIp = getConnectionSourceFilterValue(connection);
-    if (selectedDeviceFilter !== ALL_FILTER_VALUE && sourceIp !== selectedDeviceFilter) {
-      return false;
+  return getConnectionsForActiveTab().filter(
+    (connection) => matchesConnectionFilters(connection, normalizedSearch)
+  );
+}
+function countFilteredConnections(connections) {
+  const normalizedSearch = normalizeSearchValue(searchQuery);
+  let count = 0;
+  connections.forEach((connection) => {
+    if (matchesConnectionFilters(connection, normalizedSearch)) {
+      count += 1;
     }
-    if (!normalizedSearch) {
-      return true;
-    }
-    return getSearchValues(connection).some(
-      (value) => normalizeSearchValue(value).includes(normalizedSearch)
-    );
   });
+  return count;
 }
 function moveConnectionToClosed(connection, now) {
   closedConnections.set(connection.id, {
@@ -11118,13 +11131,19 @@ function renderControls() {
   );
   if (activeButton) {
     activeButton.replaceChildren(
-      ...renderTabButtonContent(_("Active"), activeConnections.size)
+      ...renderTabButtonContent(
+        _("Active"),
+        countFilteredConnections(activeConnections)
+      )
     );
     activeButton.disabled = serviceAvailability === "stopped";
   }
   if (closedButton) {
     closedButton.replaceChildren(
-      ...renderTabButtonContent(_("Closed"), closedConnections.size)
+      ...renderTabButtonContent(
+        _("Closed"),
+        countFilteredConnections(closedConnections)
+      )
     );
     closedButton.disabled = serviceAvailability === "stopped";
   }
@@ -11615,12 +11634,14 @@ function bindControls() {
   if (select) {
     select.onchange = () => {
       selectedDeviceFilter = select.value || ALL_FILTER_VALUE;
+      renderControls();
       renderConnections();
     };
   }
   if (searchInput) {
     searchInput.oninput = () => {
       searchQuery = searchInput.value;
+      renderControls();
       renderConnections();
     };
   }

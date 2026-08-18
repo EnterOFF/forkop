@@ -49,6 +49,17 @@ for (const expected of [
     throw new Error(`monitoring refresh must preserve table scroll position: ${expected}`);
   }
 }
+
+for (const expected of [
+  'countFilteredConnections(activeConnections)',
+  'countFilteredConnections(closedConnections)',
+  'searchQuery = searchInput.value;\n      renderControls();',
+  'selectedDeviceFilter = select.value || ALL_FILTER_VALUE;\n      renderControls();',
+]) {
+  if (!monitoring.includes(expected)) {
+    throw new Error(`monitoring tab counters must follow the active filters: ${expected}`);
+  }
+}
 NODE
 
 printf 'monitoring recovery UI checks passed\n'
