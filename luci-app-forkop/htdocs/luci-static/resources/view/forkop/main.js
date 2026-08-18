@@ -2928,6 +2928,15 @@ function canFetchClashApiDirectly() {
   return !directClashApiUnreachable && canUseDirectClashApi() && typeof fetch === "function";
 }
 function clashApiError(status, body) {
+  if (body) {
+    try {
+      const payload = JSON.parse(body);
+      if (typeof payload?.message === "string" && payload.message) {
+        return payload.message;
+      }
+    } catch {
+    }
+  }
   return body || `Clash API returned HTTP ${status}`;
 }
 function parseClashApiPayload(status, body) {

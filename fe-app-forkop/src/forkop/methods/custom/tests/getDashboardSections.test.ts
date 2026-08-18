@@ -31,6 +31,7 @@ import {
   getClashApiProxyLink,
   setClashApiGroupProxy,
   updateClashApiProxyProviders,
+  updateClashApiRuleProviders,
 } from '../getDashboardSections';
 import { ClashAPI, Forkop } from '../../../types';
 
@@ -571,6 +572,30 @@ describe('getDashboardSections', () => {
       error: 'Forbidden',
     });
     expect(mocks.clashHttp).not.toHaveBeenCalled();
+  });
+
+  it('reports the Clash API failure message instead of its JSON envelope', async () => {
+    mocks.getConfigSections.mockResolvedValue([section()]);
+    setClashProxies({
+      Office: proxy('Selector', { all: ['Office/Node'] }),
+      'Office/Node': proxy('VLESS'),
+    });
+    await getDashboardSections();
+
+    mocks.canUseDirectClashApi.mockReturnValue(true);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        status: 503,
+        text: async () =>
+          '{"message":"update 1 of 3 rule-sets failed: geosite: timeout"}',
+      }),
+    );
+
+    await expect(updateClashApiRuleProviders()).resolves.toEqual({
+      success: false,
+      error: 'update 1 of 3 rule-sets failed: geosite: timeout',
+    });
   });
 
   it('does not repeat a mutation that timed out after it was sent', async () => {

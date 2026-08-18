@@ -121,6 +121,20 @@ function canFetchClashApiDirectly() {
 }
 
 function clashApiError(status: number, body: string) {
+  // The Clash API reports failures as {"message": "..."}. Show that text rather
+  // than the raw JSON, since this string is what the user ends up reading.
+  if (body) {
+    try {
+      const payload = JSON.parse(body);
+
+      if (typeof payload?.message === 'string' && payload.message) {
+        return payload.message;
+      }
+    } catch {
+      // Not a JSON error payload, so the body is already the message.
+    }
+  }
+
   return body || `Clash API returned HTTP ${status}`;
 }
 
