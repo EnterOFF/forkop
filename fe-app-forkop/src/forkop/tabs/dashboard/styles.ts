@@ -610,6 +610,40 @@ export const styles = `
     background: transparent;
 }
 
+.fkp_dashboard-page__urltest-details__row--selectable {
+    cursor: pointer;
+}
+
+.fkp_dashboard-page__urltest-details__row--selectable:hover,
+.fkp_dashboard-page__urltest-details__row--selectable:focus-visible {
+    border-color: var(--primary-color-high, dodgerblue);
+    outline: none;
+}
+
+.fkp_dashboard-page__urltest-details__row--busy {
+    cursor: progress;
+    opacity: 0.6;
+}
+
+.fkp_dashboard-page__urltest-details__row-pin {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    color: var(--success-color-medium, green);
+}
+
+.fkp_dashboard-page__urltest-details__row-pin svg {
+    width: 14px;
+    height: 14px;
+}
+
+.fkp_dashboard-page__urltest-details__hint {
+    margin-bottom: 6px;
+    color: var(--text-color-medium, #666);
+    font-size: 12px;
+    line-height: 1.35;
+}
+
 .fkp_dashboard-page__urltest-details__row-name,
 .fkp_dashboard-page__urltest-details__row-meta {
     display: flex;

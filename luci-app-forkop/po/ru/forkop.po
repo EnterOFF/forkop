@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-18 16:57+0300\n"
-"PO-Revision-Date: 2026-08-18 16:57+0300\n"
+"POT-Creation-Date: 2026-08-18 18:44+0300\n"
+"PO-Revision-Date: 2026-08-18 18:44+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -305,6 +305,9 @@ msgstr "CIDR должен быть от 0 до 32 для IPv4 или от 0 до
 msgid "Clash API request timed out after it was sent"
 msgstr "Запрос к Clash API был отправлен, но истекло время ожидания ответа"
 
+msgid "Click a server to pin its priority. Click it again to unpin."
+msgstr "Нажмите на сервер, чтобы закрепить его приоритет. Повторное нажатие чтобы открепить."
+
 msgid "Client fingerprint"
 msgstr "Отпечаток клиента"
 
@@ -319,6 +322,12 @@ msgstr "QR-код клиентской ссылки"
 
 msgid "Close"
 msgstr "Закрыть"
+
+msgid "Close active connections when Fallback switches servers. Off by default: a flapping server would otherwise drop every established connection on each switch."
+msgstr "Закрывать активные соединения при смене сервера в Fallback. По умолчанию выключено: иначе нестабильный сервер будет рвать все установленные соединения при каждом переключении."
+
+msgid "Close active connections when URLTest switches the selected server. Off by default: the switch itself is far less disruptive than dropping every established connection."
+msgstr "Закрывать активные соединения при смене выбранного сервера в URLTest. По умолчанию выключено: само переключение мешает гораздо меньше, чем обрыв всех установленных соединений."
 
 msgid "Close all connections"
 msgstr "Закрыть все подключения"
@@ -370,6 +379,9 @@ msgstr "Подключаться через"
 
 msgid "Connect to the coordination server through a section"
 msgstr "Подключаться к серверу координации через секцию"
+
+msgid "Connection attempt timeout"
+msgstr "Таймаут попытки подключения"
 
 msgid "Connection URI"
 msgstr "URI подключения"
@@ -752,6 +764,9 @@ msgstr "Не удалось загрузить заголовки подписк
 msgid "Failed to load logs"
 msgstr "Не удалось загрузить логи"
 
+msgid "Failed to pin the server"
+msgstr "Не удалось закрепить сервер"
+
 msgid "FakeIP and control checks use different public IPs"
 msgstr "FakeIP и контрольная проверка используют разные публичные IP"
 
@@ -914,8 +929,11 @@ msgstr "Скрывать значения"
 msgid "Host"
 msgstr "Хост"
 
-msgid "How often to check availability of the selected server"
-msgstr "Как часто проверять доступность выбранного сервера"
+msgid "How long one server may take to accept a connection before the next server is tried. Raise it for slow links or slow handshakes."
+msgstr "Сколько времени даётся одному серверу на приём соединения, прежде чем будет испробован следующий. Увеличьте для медленных каналов или медленных рукопожатий."
+
+msgid "How often every server of the group is checked, not only the selected one. Checks pause while the group is unused."
+msgstr "Как часто проверяются все серверы группы, а не только выбранный. Пока группа не используется, проверки приостанавливаются."
 
 msgid "HTTP error"
 msgstr "Ошибка HTTP"
@@ -982,12 +1000,6 @@ msgstr "Мониторинг интерфейса для Bad WAN"
 
 msgid "Interrupt connections"
 msgstr "Прерывать соединения"
-
-msgid "Interrupt connections when URLTest switches the selected server"
-msgstr "Прерывать соединения, когда URLTest переключает выбранный сервер"
-
-msgid "Interrupt existing connections when Fallback switches servers"
-msgstr "Прерывать существующие соединения при переключении сервера Fallback"
 
 msgid "Interval"
 msgstr "Интервал"
@@ -1175,8 +1187,8 @@ msgstr "Максимум попыток рукопожатия"
 msgid "Maximum packet size for this tunnel. Leave empty to use the default value."
 msgstr "Максимальный размер пакета для этого туннеля. Оставьте пустым для значения по умолчанию."
 
-msgid "Maximum time allowed for one server health check"
-msgstr "Максимальное время проверки доступности одного сервера"
+msgid "Maximum time allowed for one server health check. The same value is the window within which consecutive connection failures are counted."
+msgstr "Максимальное время одной проверки сервера. Это же значение задаёт окно, в котором считаются подряд идущие ошибки подключения."
 
 msgid "Memory Usage"
 msgstr "Использование памяти"
@@ -1316,8 +1328,8 @@ msgstr "Не отвечает"
 msgid "Not running"
 msgstr "Не запущено"
 
-msgid "Number of connection failures after which an immediate health check starts."
-msgstr "Количество ошибок подключения, после которых немедленно запускается проверка доступности."
+msgid "Number of connection failures of one server after which an out of schedule check of the whole group starts. The server is not switched by the counter itself, the check result decides."
+msgstr "Сколько ошибок подключения одного сервера запускают внеочередную проверку всей группы. Сам счётчик сервер не переключает — решает результат проверки."
 
 msgid "Obfuscation"
 msgstr "Обфускация"

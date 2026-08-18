@@ -6,7 +6,7 @@ import {
 import { copyToClipboard } from '../../../helpers/copyToClipboard';
 import { showToast } from '../../../helpers/showToast';
 import { prettyBytes } from '../../../helpers/prettyBytes';
-import { renderCopyIcon24 } from '../../../icons';
+import { renderCopyIcon24, renderPinIcon24 } from '../../../icons';
 import { CustomForkopMethods } from '../../methods';
 import {
   logger,
@@ -39,6 +39,12 @@ let pageUnloading = false;
 const latencyRequests = new Set<string>();
 const latencySortedSections = new Set<string>();
 const selectorRequests = new Set<string>();
+const fallbackPinRequests = new Set<string>();
+let activeFallbackModal: {
+  code: string;
+  container: HTMLElement;
+  unsubscribe: () => void;
+} | null = null;
 
 function sectionLatencyRequestKey(sectionName: string) {
   return `section:${sectionName}`;
@@ -919,11 +925,144 @@ function renderFallbackMemberName(member: Forkop.FallbackMember) {
   ];
 }
 
-function renderFallbackInfoModal(outbound: Forkop.Outbound) {
-  const info = outbound.fallbackInfo;
+function findFallbackInfo(code: string) {
+  for (const section of store.get().sectionsWidget.data) {
+    for (const outbound of section.outbounds) {
+      if (outbound.fallbackInfo?.code === code) {
+        return outbound.fallbackInfo;
+      }
+    }
+  }
 
+  return undefined;
+}
+
+function fallbackPinRequestKey(code: string, memberCode: string) {
+  return `${code}:${memberCode}`;
+}
+
+async function handleFallbackPin(code: string, member: Forkop.FallbackMember) {
+  const requestKey = fallbackPinRequestKey(code, member.code);
+
+  if (fallbackPinRequests.has(requestKey)) {
+    return;
+  }
+
+  fallbackPinRequests.add(requestKey);
+  refreshFallbackModal();
+
+  try {
+    const response = await CustomForkopMethods.setClashApiGroupProxy(
+      code,
+      member.pinned ? '' : member.code,
+    );
+
+    if (!response.success) {
+      throw new Error(response.error);
+    }
+
+    await fetchDashboardSections({ force: true });
+  } catch (error) {
+    showToast(_('Failed to pin the server'), 'error');
+    logger.error('[DASHBOARD]', 'handleFallbackPin failed', error);
+  } finally {
+    fallbackPinRequests.delete(requestKey);
+    refreshFallbackModal();
+  }
+}
+
+function renderFallbackMemberRow(
+  info: Forkop.FallbackInfo,
+  member: Forkop.FallbackMember,
+) {
+  const busy = fallbackPinRequests.has(
+    fallbackPinRequestKey(info.code, member.code),
+  );
+  const choose = () => {
+    void handleFallbackPin(info.code, member);
+  };
+
+  return E(
+    'div',
+    {
+      class: [
+        'fkp_dashboard-page__urltest-details__row',
+        'fkp_dashboard-page__urltest-details__row--selectable',
+        member.selected
+          ? 'fkp_dashboard-page__urltest-details__row--active'
+          : '',
+        busy ? 'fkp_dashboard-page__urltest-details__row--busy' : '',
+      ]
+        .filter(Boolean)
+        .join(' '),
+      role: 'button',
+      tabIndex: 0,
+      'aria-pressed': member.pinned ? 'true' : 'false',
+      click: (event: MouseEvent) => {
+        event.preventDefault();
+        choose();
+      },
+      keydown: (event: KeyboardEvent) => {
+        if (event.key !== 'Enter' && event.key !== ' ') {
+          return;
+        }
+
+        event.preventDefault();
+        choose();
+      },
+    },
+    [
+      E('div', { class: 'fkp_dashboard-page__urltest-details__row-name' }, [
+        E(
+          'b',
+          { class: 'fkp_dashboard-page__urltest-details__fallback-name' },
+          renderFallbackMemberName(member),
+        ),
+        ...(member.type
+          ? [
+              E(
+                'span',
+                { class: 'fkp_dashboard-page__urltest-details__row-type' },
+                member.type,
+              ),
+            ]
+          : []),
+        ...(member.pinned
+          ? [
+              E(
+                'span',
+                {
+                  class: 'fkp_dashboard-page__urltest-details__row-pin',
+                  'aria-hidden': 'true',
+                },
+                renderPinIcon24(),
+              ),
+            ]
+          : []),
+      ]),
+      E('div', { class: 'fkp_dashboard-page__urltest-details__row-meta' }, [
+        E(
+          'span',
+          { class: getUrlTestLatencyClass(member.latency) },
+          formatUrlTestLatency(member.latency),
+        ),
+      ]),
+      member.canCopyLink
+        ? renderUrlTestCopyButton(_('Copy proxy link'), (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            void handleCopyOutbound(member);
+          })
+        : E('span', {
+            class: 'fkp_dashboard-page__urltest-details__copy-placeholder',
+          }),
+    ],
+  );
+}
+
+function renderFallbackInfoModal(info?: Forkop.FallbackInfo) {
   if (!info) {
-    return E('div', {}, _('Fallback details are unavailable'));
+    return [E('div', {}, _('Fallback details are unavailable'))];
   }
 
   const fields: Array<{
@@ -941,6 +1080,7 @@ function renderFallbackInfoModal(outbound: Forkop.Outbound) {
     },
     { label: _('Check interval'), value: info.healthCheckInterval },
     { label: _('Availability timeout'), value: info.healthCheckTimeout },
+    { label: _('Connection attempt timeout'), value: info.attemptTimeout },
     { label: _('Maximum failed attempts'), value: info.maxFailedTimes },
     {
       label: _('Expected status'),
@@ -953,7 +1093,7 @@ function renderFallbackInfoModal(outbound: Forkop.Outbound) {
     },
   ];
 
-  return E('div', { class: 'fkp_dashboard-page__urltest-details' }, [
+  return [
     E(
       'dl',
       { class: 'fkp_dashboard-page__urltest-details__params' },
@@ -976,74 +1116,15 @@ function renderFallbackInfoModal(outbound: Forkop.Outbound) {
       ),
       E(
         'div',
+        { class: 'fkp_dashboard-page__urltest-details__hint' },
+        _('Click a server to pin its priority. Click it again to unpin.'),
+      ),
+      E(
+        'div',
         { class: 'fkp_dashboard-page__urltest-details__table' },
         info.outbounds.length
           ? info.outbounds.map((member) =>
-              E(
-                'div',
-                {
-                  class: [
-                    'fkp_dashboard-page__urltest-details__row',
-                    member.selected
-                      ? 'fkp_dashboard-page__urltest-details__row--active'
-                      : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' '),
-                },
-                [
-                  E(
-                    'div',
-                    {
-                      class: 'fkp_dashboard-page__urltest-details__row-name',
-                    },
-                    [
-                      E(
-                        'b',
-                        {
-                          class:
-                            'fkp_dashboard-page__urltest-details__fallback-name',
-                        },
-                        renderFallbackMemberName(member),
-                      ),
-                      ...(member.type
-                        ? [
-                            E(
-                              'span',
-                              {
-                                class:
-                                  'fkp_dashboard-page__urltest-details__row-type',
-                              },
-                              member.type,
-                            ),
-                          ]
-                        : []),
-                    ],
-                  ),
-                  E(
-                    'div',
-                    {
-                      class: 'fkp_dashboard-page__urltest-details__row-meta',
-                    },
-                    [
-                      E(
-                        'span',
-                        { class: getUrlTestLatencyClass(member.latency) },
-                        formatUrlTestLatency(member.latency),
-                      ),
-                    ],
-                  ),
-                  member.canCopyLink
-                    ? renderUrlTestCopyButton(_('Copy proxy link'), (event) => {
-                        event.preventDefault();
-                        void handleCopyOutbound(member);
-                      })
-                    : E('span', {
-                        class:
-                          'fkp_dashboard-page__urltest-details__copy-placeholder',
-                      }),
-                ],
-              ),
+              renderFallbackMemberRow(info, member),
             )
           : [
               E(
@@ -1061,25 +1142,64 @@ function renderFallbackInfoModal(outbound: Forkop.Outbound) {
           type: 'button',
           class: 'btn cbi-button cbi-button-neutral',
           click: () => {
+            closeFallbackModal();
             ui.hideModal();
           },
         },
         _('Close'),
       ),
     ]),
-  ]);
+  ];
 }
 
-function handleShowFallbackInfo(outbound: Forkop.Outbound) {
-  if (!outbound.fallbackInfo) {
+function closeFallbackModal() {
+  activeFallbackModal?.unsubscribe();
+  activeFallbackModal = null;
+}
+
+function refreshFallbackModal() {
+  const modal = activeFallbackModal;
+
+  if (!modal) {
     return;
   }
 
+  if (!document.body.contains(modal.container)) {
+    closeFallbackModal();
+    return;
+  }
+
+  modal.container.replaceChildren(
+    ...renderFallbackInfoModal(findFallbackInfo(modal.code)),
+  );
+}
+
+function handleShowFallbackInfo(outbound: Forkop.Outbound) {
+  const info = outbound.fallbackInfo;
+
+  if (!info) {
+    return;
+  }
+
+  closeFallbackModal();
+
+  const container = E(
+    'div',
+    { class: 'fkp_dashboard-page__urltest-details' },
+    renderFallbackInfoModal(info),
+  ) as HTMLElement;
+
+  activeFallbackModal = {
+    code: info.code,
+    container,
+    unsubscribe: store.subscribeKey('sectionsWidget', () => {
+      refreshFallbackModal();
+    }),
+  };
+
   ui.showModal(
-    `${_('Fallback details')}: ${
-      outbound.fallbackInfo.displayName || outbound.displayName
-    }`,
-    renderFallbackInfoModal(outbound),
+    `${_('Fallback details')}: ${info.displayName || outbound.displayName}`,
+    container,
   );
 }
 

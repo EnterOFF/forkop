@@ -904,8 +904,8 @@ function urltest_idle_timeout(section, value) {
 function urltest_interrupt_exist_connections(section, value) {
     let child = urltest_child(section, value);
     if (child != null)
-        return child_bool(child, "interrupt_exist_connections", true);
-    return item_bool(section, "urltest_settings", value, "interrupt_exist_connections", true);
+        return child_bool(child, "interrupt_exist_connections", false);
+    return item_bool(section, "urltest_settings", value, "interrupt_exist_connections", false);
 }
 
 function urltest_filter_mode(section, value) {
@@ -973,6 +973,11 @@ function fallback_group_health_check_timeout(section, value) {
     return child != null ? child_option(child, "health_check_timeout", "5s") : "5s";
 }
 
+function fallback_group_attempt_timeout(section, value) {
+    let child = fallback_group_child(section, value);
+    return child != null ? child_option(child, "attempt_timeout", "5s") : "5s";
+}
+
 function fallback_group_max_failed_times(section, value) {
     let child = fallback_group_child(section, value);
     return child != null ? child_option(child, "max_failed_times", "5") : "5";
@@ -990,7 +995,7 @@ function fallback_group_idle_timeout(section, value) {
 
 function fallback_group_interrupt_exist_connections(section, value) {
     let child = fallback_group_child(section, value);
-    return child != null ? child_bool(child, "interrupt_exist_connections", true) : true;
+    return child != null ? child_bool(child, "interrupt_exist_connections", false) : false;
 }
 
 function fallback_group_hide_dashboard_members(section, value) {
@@ -1143,6 +1148,7 @@ return {
     fallback_group_health_check_url,
     fallback_group_health_check_interval,
     fallback_group_health_check_timeout,
+    fallback_group_attempt_timeout,
     fallback_group_max_failed_times,
     fallback_group_expected_status,
     fallback_group_idle_timeout,

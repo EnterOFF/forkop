@@ -918,6 +918,7 @@ function add_fallback_group_outbound(config, section, group_id, urltest_candidat
     outbound.url = connections.fallback_group_health_check_url(section, group_id);
     outbound.interval = connections.fallback_group_health_check_interval(section, group_id);
     outbound.timeout = connections.fallback_group_health_check_timeout(section, group_id);
+    outbound.attempt_timeout = connections.fallback_group_attempt_timeout(section, group_id);
     outbound.max_failed_times = int(connections.fallback_group_max_failed_times(section, group_id), 10);
     outbound.expected_status = connections.fallback_group_expected_status(section, group_id);
     outbound.idle_timeout = connections.fallback_group_idle_timeout(section, group_id);

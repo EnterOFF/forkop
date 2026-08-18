@@ -51,6 +51,7 @@ type FallbackConfig = {
   healthCheckUrl: string;
   healthCheckInterval: string;
   healthCheckTimeout: string;
+  attemptTimeout: string;
   maxFailedTimes: number;
   expectedStatus: string;
   idleTimeout: string;
@@ -518,6 +519,7 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
           health_check_url: item.health_check_url,
           health_check_interval: item.health_check_interval,
           health_check_timeout: item.health_check_timeout,
+          attempt_timeout: item.attempt_timeout,
           max_failed_times: item.max_failed_times,
           expected_status: item.expected_status,
           idle_timeout: item.idle_timeout,
@@ -911,13 +913,14 @@ function getFallbackConfigs(section: Forkop.ConfigSection): FallbackConfig[] {
         'health_check_timeout',
         '5s',
       ),
+      attemptTimeout: itemSettingString(settings, 'attempt_timeout', '5s'),
       maxFailedTimes: itemSettingNumber(settings, 'max_failed_times', 5),
       expectedStatus: itemSettingString(settings, 'expected_status', '*'),
       idleTimeout: itemSettingString(settings, 'idle_timeout', '5m'),
       interruptExistConnections: itemSettingBoolean(
         settings,
         'interrupt_exist_connections',
-        true,
+        false,
       ),
       levels,
     };
@@ -1037,6 +1040,7 @@ function buildFallbackInfo({
   subscriptionTags: SubscriptionTagConfig[];
 }): Forkop.FallbackInfo {
   const selectedCode = entry?.value.now || '';
+  const pinnedCode = entry?.value.fixed || '';
   const configuredLevels = config.levels;
   const runtimeGroups = Array.isArray(entry?.value.groups)
     ? entry.value.groups
@@ -1097,6 +1101,7 @@ function buildFallbackInfo({
         latency: childEntry?.value?.history?.[0]?.delay || 0,
         type: getOutboundDisplayType(childEntry),
         selected: selectedCode === childCode,
+        pinned: pinnedCode === childCode,
         link,
         canCopyLink,
         levelIndex,
@@ -1119,6 +1124,7 @@ function buildFallbackInfo({
     healthCheckUrl: config.healthCheckUrl,
     healthCheckInterval: config.healthCheckInterval,
     healthCheckTimeout: config.healthCheckTimeout,
+    attemptTimeout: config.attemptTimeout,
     maxFailedTimes: config.maxFailedTimes,
     expectedStatus: config.expectedStatus,
     idleTimeout: config.idleTimeout,

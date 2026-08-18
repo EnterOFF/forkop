@@ -2617,7 +2617,7 @@ function defaultUrlTestSettings(name) {
     testing_url: "https://www.gstatic.com/generate_204",
     expected_status: "*",
     idle_timeout: "30m",
-    interrupt_exist_connections: "1",
+    interrupt_exist_connections: "0",
     hide_dashboard_members: "0",
     server_filter_mode: "all",
   };
@@ -2630,7 +2630,7 @@ function urlTestChildDefaults() {
     testing_url: "https://www.gstatic.com/generate_204",
     expected_status: "*",
     idle_timeout: "30m",
-    interrupt_exist_connections: "1",
+    interrupt_exist_connections: "0",
     hide_dashboard_members: "0",
     server_filter_mode: "all",
   };
@@ -2642,6 +2642,7 @@ function fallbackGroupSettingsKeys() {
     "health_check_url",
     "health_check_interval",
     "health_check_timeout",
+    "attempt_timeout",
     "max_failed_times",
     "expected_status",
     "idle_timeout",
@@ -2656,10 +2657,11 @@ function defaultFallbackGroupSettings(name = "") {
     health_check_url: "https://www.gstatic.com/generate_204",
     health_check_interval: "5m",
     health_check_timeout: "5s",
+    attempt_timeout: "5s",
     max_failed_times: "5",
     expected_status: "*",
     idle_timeout: "5m",
-    interrupt_exist_connections: "1",
+    interrupt_exist_connections: "0",
     hide_dashboard_members: "0",
   };
 }
@@ -2669,10 +2671,11 @@ function fallbackGroupChildDefaults() {
     health_check_url: "https://www.gstatic.com/generate_204",
     health_check_interval: "5m",
     health_check_timeout: "5s",
+    attempt_timeout: "5s",
     max_failed_times: "5",
     expected_status: "*",
     idle_timeout: "5m",
-    interrupt_exist_connections: "1",
+    interrupt_exist_connections: "0",
     hide_dashboard_members: "0",
   };
 }
@@ -3027,9 +3030,11 @@ function addUrlTestItemOptions(itemSection, options = {}) {
     form.Flag,
     "interrupt_exist_connections",
     _("Interrupt connections"),
-    _("Interrupt connections when URLTest switches the selected server"),
+    _(
+      "Close active connections when URLTest switches the selected server. Off by default: the switch itself is far less disruptive than dropping every established connection.",
+    ),
   );
-  o.default = "1";
+  o.default = "0";
   o.rmempty = false;
 
   o = itemSection.option(
@@ -3203,7 +3208,9 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
     form.Value,
     "health_check_interval",
     _("Check interval"),
-    _("How often to check availability of the selected server"),
+    _(
+      "How often every server of the group is checked, not only the selected one. Checks pause while the group is unused.",
+    ),
   );
   o.default = "5m";
   o.rmempty = false;
@@ -3216,7 +3223,21 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
     "health_check_timeout",
     _("Availability timeout"),
     _(
-      "Maximum time allowed for one server health check",
+      "Maximum time allowed for one server health check. The same value is the window within which consecutive connection failures are counted.",
+    ),
+  );
+  o.default = "5s";
+  o.rmempty = false;
+  o.validate = function (_itemId, value) {
+    return validateRequiredSingBoxDuration(value);
+  };
+
+  o = itemSection.option(
+    form.Value,
+    "attempt_timeout",
+    _("Connection attempt timeout"),
+    _(
+      "How long one server may take to accept a connection before the next server is tried. Raise it for slow links or slow handshakes.",
     ),
   );
   o.default = "5s";
@@ -3230,7 +3251,7 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
     "max_failed_times",
     _("Maximum failed attempts"),
     _(
-      "Number of connection failures after which an immediate health check starts.",
+      "Number of connection failures of one server after which an out of schedule check of the whole group starts. The server is not switched by the counter itself, the check result decides.",
     ),
   );
   o.default = "5";
@@ -3269,9 +3290,11 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
     form.Flag,
     "interrupt_exist_connections",
     _("Interrupt connections"),
-    _("Interrupt existing connections when Fallback switches servers"),
+    _(
+      "Close active connections when Fallback switches servers. Off by default: a flapping server would otherwise drop every established connection on each switch.",
+    ),
   );
-  o.default = "1";
+  o.default = "0";
   o.rmempty = false;
 
   o = itemSection.option(

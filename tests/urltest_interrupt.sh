@@ -75,12 +75,12 @@ let fs = require("fs");
 let cfg = json(fs.readfile(ARGV[0]));
 let count = 0;
 for (let outbound in cfg.outbounds || [])
-    if (outbound && outbound.type == "urltest" && outbound.interrupt_exist_connections === true)
+    if (outbound && outbound.type == "urltest" && outbound.interrupt_exist_connections === false)
         count++;
 print(count, "\n");
 ' "$output")"
 [ "$urltest_count" = "1" ] ||
-  fail "expected exactly one URLTest outbound with interrupt_exist_connections=true, got $urltest_count"
+  fail "expected exactly one URLTest outbound with interrupt_exist_connections=false, got $urltest_count"
 
 selector_count="$(ucode -e '
 let fs = require("fs");

@@ -18,6 +18,7 @@ export namespace ClashAPI {
     groups?: Array<{
       outbounds?: string[];
     }>;
+    fixed?: string;
   }
 
   export interface Proxies {
@@ -135,6 +136,7 @@ export namespace Forkop {
     levelIndex: number;
     levelName: string;
     levelId?: string;
+    pinned: boolean;
   }
 
   export interface FallbackInfo {
@@ -145,6 +147,7 @@ export namespace Forkop {
     healthCheckUrl?: string;
     healthCheckInterval?: string;
     healthCheckTimeout?: string;
+    attemptTimeout?: string;
     maxFailedTimes?: number;
     expectedStatus?: string;
     idleTimeout?: string;
@@ -286,6 +289,7 @@ export namespace Forkop {
     health_check_url?: string;
     health_check_interval?: string;
     health_check_timeout?: string;
+    attempt_timeout?: string;
     max_failed_times?: string;
     expected_status?: string;
     country?: string[];

@@ -3,10 +3,11 @@ type HtmlTag = keyof HTMLElementTagNameMap;
 type HtmlElement<T extends HtmlTag> = HTMLElementTagNameMap[T];
 
 type HtmlAttributes<T extends HtmlTag = 'div'> = Partial<
-  Omit<HtmlElement<T>, 'style' | 'children' | 'click'> & {
+  Omit<HtmlElement<T>, 'style' | 'children' | 'click' | 'keydown'> & {
     style?: string | Partial<CSSStyleDeclaration>;
     class?: string;
     'aria-busy'?: string;
+    'aria-hidden'?: string;
     'aria-disabled'?: string;
     'aria-label'?: string;
     'aria-pressed'?: string;
@@ -15,6 +16,7 @@ type HtmlAttributes<T extends HtmlTag = 'div'> = Partial<
     'data-latency-targets'?: string;
     click?: (event: MouseEvent) => void;
     onclick?: (event: MouseEvent) => void;
+    keydown?: (event: KeyboardEvent) => void;
   }
 >;
 

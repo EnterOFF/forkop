@@ -49,6 +49,7 @@ function proxy(
     interval: options.interval,
     idle_timeout: options.idle_timeout,
     groups: options.groups,
+    fixed: options.fixed,
   };
 }
 
@@ -303,6 +304,7 @@ describe('getDashboardSections', () => {
       child('fallback_group', 'rescue', {
         name: 'Rescue',
         health_check_url: 'https://fallback.example/204',
+        attempt_timeout: '9s',
       }),
       child('fallback_level', 'primary', {
         section: undefined,
@@ -333,6 +335,7 @@ describe('getDashboardSections', () => {
       'Office/Rescue': proxy('Fallback', {
         name: 'Office/Rescue',
         now: 'Office/Node B',
+        fixed: 'Office/Node B',
         groups: [
           { outbounds: ['Office/Node A'] },
           { outbounds: ['Office/Node B'] },
@@ -375,6 +378,8 @@ describe('getDashboardSections', () => {
       fallbackInfo: {
         selectedName: 'Node B',
         healthCheckUrl: 'https://fallback.example/204',
+        attemptTimeout: '9s',
+        interruptExistConnections: false,
       },
     });
     expect(fallback.fallbackInfo?.outbounds).toEqual([
@@ -382,12 +387,14 @@ describe('getDashboardSections', () => {
         code: 'Office/Node A',
         displayName: 'Node A',
         levelName: 'Primary',
+        pinned: false,
       }),
       expect.objectContaining({
         code: 'Office/Node B',
         displayName: 'Node B',
         levelName: 'Backup',
         selected: true,
+        pinned: true,
       }),
     ]);
   });

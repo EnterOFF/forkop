@@ -1669,6 +1669,31 @@ function renderListFilterIcon24() {
   );
 }
 
+// src/icons/renderPinIcon24.ts
+function renderPinIcon24() {
+  return svgEl(
+    "svg",
+    {
+      xmlns: "http://www.w3.org/2000/svg",
+      width: "24",
+      height: "24",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": "2",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+      class: "lucide lucide-pin-icon lucide-pin"
+    },
+    [
+      svgEl("path", { d: "M12 17v5" }),
+      svgEl("path", {
+        d: "M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"
+      })
+    ]
+  );
+}
+
 // src/helpers/prettyBytes.ts
 function prettyBytes(n) {
   const UNITS = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
@@ -3114,6 +3139,7 @@ function hydrateConfigSections(configSections) {
           health_check_url: item.health_check_url,
           health_check_interval: item.health_check_interval,
           health_check_timeout: item.health_check_timeout,
+          attempt_timeout: item.attempt_timeout,
           max_failed_times: item.max_failed_times,
           expected_status: item.expected_status,
           idle_timeout: item.idle_timeout,
@@ -3392,13 +3418,14 @@ function getFallbackConfigs(section) {
         "health_check_timeout",
         "5s"
       ),
+      attemptTimeout: itemSettingString(settings, "attempt_timeout", "5s"),
       maxFailedTimes: itemSettingNumber(settings, "max_failed_times", 5),
       expectedStatus: itemSettingString(settings, "expected_status", "*"),
       idleTimeout: itemSettingString(settings, "idle_timeout", "5m"),
       interruptExistConnections: itemSettingBoolean(
         settings,
         "interrupt_exist_connections",
-        true
+        false
       ),
       levels
     };
@@ -3481,6 +3508,7 @@ function buildFallbackInfo({
   subscriptionTags
 }) {
   const selectedCode = entry?.value.now || "";
+  const pinnedCode = entry?.value.fixed || "";
   const configuredLevels = config.levels;
   const runtimeGroups = Array.isArray(entry?.value.groups) ? entry.value.groups : [];
   const levels = (runtimeGroups.length ? runtimeGroups.map((runtimeGroup, index) => {
@@ -3522,6 +3550,7 @@ function buildFallbackInfo({
         latency: childEntry?.value?.history?.[0]?.delay || 0,
         type: getOutboundDisplayType(childEntry),
         selected: selectedCode === childCode,
+        pinned: pinnedCode === childCode,
         link,
         canCopyLink,
         levelIndex,
@@ -3540,6 +3569,7 @@ function buildFallbackInfo({
     healthCheckUrl: config.healthCheckUrl,
     healthCheckInterval: config.healthCheckInterval,
     healthCheckTimeout: config.healthCheckTimeout,
+    attemptTimeout: config.attemptTimeout,
     maxFailedTimes: config.maxFailedTimes,
     expectedStatus: config.expectedStatus,
     idleTimeout: config.idleTimeout,
@@ -5229,6 +5259,8 @@ var pageUnloading = false;
 var latencyRequests = /* @__PURE__ */ new Set();
 var latencySortedSections = /* @__PURE__ */ new Set();
 var selectorRequests = /* @__PURE__ */ new Set();
+var fallbackPinRequests = /* @__PURE__ */ new Set();
+var activeFallbackModal = null;
 function sectionLatencyRequestKey(sectionName) {
   return `section:${sectionName}`;
 }
@@ -5898,10 +5930,119 @@ function renderFallbackMemberName(member) {
     )
   ];
 }
-function renderFallbackInfoModal(outbound) {
-  const info = outbound.fallbackInfo;
+function findFallbackInfo(code) {
+  for (const section of store.get().sectionsWidget.data) {
+    for (const outbound of section.outbounds) {
+      if (outbound.fallbackInfo?.code === code) {
+        return outbound.fallbackInfo;
+      }
+    }
+  }
+  return void 0;
+}
+function fallbackPinRequestKey(code, memberCode) {
+  return `${code}:${memberCode}`;
+}
+async function handleFallbackPin(code, member) {
+  const requestKey = fallbackPinRequestKey(code, member.code);
+  if (fallbackPinRequests.has(requestKey)) {
+    return;
+  }
+  fallbackPinRequests.add(requestKey);
+  refreshFallbackModal();
+  try {
+    const response = await CustomForkopMethods.setClashApiGroupProxy(
+      code,
+      member.pinned ? "" : member.code
+    );
+    if (!response.success) {
+      throw new Error(response.error);
+    }
+    await fetchDashboardSections({ force: true });
+  } catch (error) {
+    showToast(_("Failed to pin the server"), "error");
+    logger.error("[DASHBOARD]", "handleFallbackPin failed", error);
+  } finally {
+    fallbackPinRequests.delete(requestKey);
+    refreshFallbackModal();
+  }
+}
+function renderFallbackMemberRow(info, member) {
+  const busy = fallbackPinRequests.has(
+    fallbackPinRequestKey(info.code, member.code)
+  );
+  const choose = () => {
+    void handleFallbackPin(info.code, member);
+  };
+  return E(
+    "div",
+    {
+      class: [
+        "fkp_dashboard-page__urltest-details__row",
+        "fkp_dashboard-page__urltest-details__row--selectable",
+        member.selected ? "fkp_dashboard-page__urltest-details__row--active" : "",
+        busy ? "fkp_dashboard-page__urltest-details__row--busy" : ""
+      ].filter(Boolean).join(" "),
+      role: "button",
+      tabIndex: 0,
+      "aria-pressed": member.pinned ? "true" : "false",
+      click: (event) => {
+        event.preventDefault();
+        choose();
+      },
+      keydown: (event) => {
+        if (event.key !== "Enter" && event.key !== " ") {
+          return;
+        }
+        event.preventDefault();
+        choose();
+      }
+    },
+    [
+      E("div", { class: "fkp_dashboard-page__urltest-details__row-name" }, [
+        E(
+          "b",
+          { class: "fkp_dashboard-page__urltest-details__fallback-name" },
+          renderFallbackMemberName(member)
+        ),
+        ...member.type ? [
+          E(
+            "span",
+            { class: "fkp_dashboard-page__urltest-details__row-type" },
+            member.type
+          )
+        ] : [],
+        ...member.pinned ? [
+          E(
+            "span",
+            {
+              class: "fkp_dashboard-page__urltest-details__row-pin",
+              "aria-hidden": "true"
+            },
+            renderPinIcon24()
+          )
+        ] : []
+      ]),
+      E("div", { class: "fkp_dashboard-page__urltest-details__row-meta" }, [
+        E(
+          "span",
+          { class: getUrlTestLatencyClass(member.latency) },
+          formatUrlTestLatency(member.latency)
+        )
+      ]),
+      member.canCopyLink ? renderUrlTestCopyButton(_("Copy proxy link"), (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        void handleCopyOutbound(member);
+      }) : E("span", {
+        class: "fkp_dashboard-page__urltest-details__copy-placeholder"
+      })
+    ]
+  );
+}
+function renderFallbackInfoModal(info) {
   if (!info) {
-    return E("div", {}, _("Fallback details are unavailable"));
+    return [E("div", {}, _("Fallback details are unavailable"))];
   }
   const fields = [
     {
@@ -5914,6 +6055,7 @@ function renderFallbackInfoModal(outbound) {
     },
     { label: _("Check interval"), value: info.healthCheckInterval },
     { label: _("Availability timeout"), value: info.healthCheckTimeout },
+    { label: _("Connection attempt timeout"), value: info.attemptTimeout },
     { label: _("Maximum failed attempts"), value: info.maxFailedTimes },
     {
       label: _("Expected status"),
@@ -5925,7 +6067,7 @@ function renderFallbackInfoModal(outbound) {
       value: info.interruptExistConnections
     }
   ];
-  return E("div", { class: "fkp_dashboard-page__urltest-details" }, [
+  return [
     E(
       "dl",
       { class: "fkp_dashboard-page__urltest-details__params" },
@@ -5948,62 +6090,14 @@ function renderFallbackInfoModal(outbound) {
       ),
       E(
         "div",
+        { class: "fkp_dashboard-page__urltest-details__hint" },
+        _("Click a server to pin its priority. Click it again to unpin.")
+      ),
+      E(
+        "div",
         { class: "fkp_dashboard-page__urltest-details__table" },
         info.outbounds.length ? info.outbounds.map(
-          (member) => E(
-            "div",
-            {
-              class: [
-                "fkp_dashboard-page__urltest-details__row",
-                member.selected ? "fkp_dashboard-page__urltest-details__row--active" : ""
-              ].filter(Boolean).join(" ")
-            },
-            [
-              E(
-                "div",
-                {
-                  class: "fkp_dashboard-page__urltest-details__row-name"
-                },
-                [
-                  E(
-                    "b",
-                    {
-                      class: "fkp_dashboard-page__urltest-details__fallback-name"
-                    },
-                    renderFallbackMemberName(member)
-                  ),
-                  ...member.type ? [
-                    E(
-                      "span",
-                      {
-                        class: "fkp_dashboard-page__urltest-details__row-type"
-                      },
-                      member.type
-                    )
-                  ] : []
-                ]
-              ),
-              E(
-                "div",
-                {
-                  class: "fkp_dashboard-page__urltest-details__row-meta"
-                },
-                [
-                  E(
-                    "span",
-                    { class: getUrlTestLatencyClass(member.latency) },
-                    formatUrlTestLatency(member.latency)
-                  )
-                ]
-              ),
-              member.canCopyLink ? renderUrlTestCopyButton(_("Copy proxy link"), (event) => {
-                event.preventDefault();
-                void handleCopyOutbound(member);
-              }) : E("span", {
-                class: "fkp_dashboard-page__urltest-details__copy-placeholder"
-              })
-            ]
-          )
+          (member) => renderFallbackMemberRow(info, member)
         ) : [
           E(
             "div",
@@ -6020,21 +6114,53 @@ function renderFallbackInfoModal(outbound) {
           type: "button",
           class: "btn cbi-button cbi-button-neutral",
           click: () => {
+            closeFallbackModal();
             ui.hideModal();
           }
         },
         _("Close")
       )
     ])
-  ]);
+  ];
 }
-function handleShowFallbackInfo(outbound) {
-  if (!outbound.fallbackInfo) {
+function closeFallbackModal() {
+  activeFallbackModal?.unsubscribe();
+  activeFallbackModal = null;
+}
+function refreshFallbackModal() {
+  const modal = activeFallbackModal;
+  if (!modal) {
     return;
   }
+  if (!document.body.contains(modal.container)) {
+    closeFallbackModal();
+    return;
+  }
+  modal.container.replaceChildren(
+    ...renderFallbackInfoModal(findFallbackInfo(modal.code))
+  );
+}
+function handleShowFallbackInfo(outbound) {
+  const info = outbound.fallbackInfo;
+  if (!info) {
+    return;
+  }
+  closeFallbackModal();
+  const container = E(
+    "div",
+    { class: "fkp_dashboard-page__urltest-details" },
+    renderFallbackInfoModal(info)
+  );
+  activeFallbackModal = {
+    code: info.code,
+    container,
+    unsubscribe: store.subscribeKey("sectionsWidget", () => {
+      refreshFallbackModal();
+    })
+  };
   ui.showModal(
-    `${_("Fallback details")}: ${outbound.fallbackInfo.displayName || outbound.displayName}`,
-    renderFallbackInfoModal(outbound)
+    `${_("Fallback details")}: ${info.displayName || outbound.displayName}`,
+    container
   );
 }
 async function handleUpdateSubscription(section) {
@@ -6998,6 +7124,40 @@ var styles = `
 .fkp_dashboard-page__urltest-details__row--active {
     border-color: var(--success-color-low, #2d7d46);
     background: transparent;
+}
+
+.fkp_dashboard-page__urltest-details__row--selectable {
+    cursor: pointer;
+}
+
+.fkp_dashboard-page__urltest-details__row--selectable:hover,
+.fkp_dashboard-page__urltest-details__row--selectable:focus-visible {
+    border-color: var(--primary-color-high, dodgerblue);
+    outline: none;
+}
+
+.fkp_dashboard-page__urltest-details__row--busy {
+    cursor: progress;
+    opacity: 0.6;
+}
+
+.fkp_dashboard-page__urltest-details__row-pin {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    color: var(--success-color-medium, green);
+}
+
+.fkp_dashboard-page__urltest-details__row-pin svg {
+    width: 14px;
+    height: 14px;
+}
+
+.fkp_dashboard-page__urltest-details__hint {
+    margin-bottom: 6px;
+    color: var(--text-color-medium, #666);
+    font-size: 12px;
+    line-height: 1.35;
 }
 
 .fkp_dashboard-page__urltest-details__row-name,

@@ -678,7 +678,6 @@ function migrate_urltest_item_settings(ctx, section, constants) {
         set_option(ctx, child, "tolerance", option(section, "urltest_tolerance", "50") || "50");
         set_option(ctx, child, "testing_url", option(section, "urltest_testing_url", "https://www.gstatic.com/generate_204") || "https://www.gstatic.com/generate_204");
         set_option(ctx, child, "filter_mode", option(section, "urltest_filter_mode", "disabled") || "disabled");
-        set_option(ctx, child, "interrupt_exist_connections", "1");
 
         let idle_timeout = legacy_urltest_idle_timeout(section, constants);
         if (idle_timeout != "")
@@ -2000,6 +1999,18 @@ function migrate_urltest_expected_status(ctx) {
         set_option_if_missing(ctx, child, "expected_status", "*");
 }
 
+// Interrupting live connections on every automatic switch is far more
+// disruptive than the switch itself, so both group types now default to
+// leaving connections alone. Released configs stored the previous default
+// explicitly, therefore that stored value has to be dropped for the new
+// default to take effect.
+function migrate_group_interrupt_defaults(ctx) {
+    for (let type_name in [ "urltest", "fallback_group" ])
+        for (let child in ctx.model[type_name] || [])
+            if (option(child, "interrupt_exist_connections", "") == "1")
+                delete_option(ctx, child, "interrupt_exist_connections");
+}
+
 const MIGRATIONS = [
     { id: "interface_sections", run: migrate_interface_sections },
     { id: "enable_component_checks", run: migrate_enable_component_checks },
@@ -2023,7 +2034,8 @@ const MIGRATIONS = [
     { id: "remove_dashboard_sort_options", run: remove_dashboard_sort_options },
     { id: "dns_server_uris", run: migrate_dns_server_uris },
     { id: "readable_runtime_tags", run: migrate_readable_runtime_tags },
-    { id: "urltest_expected_status", run: migrate_urltest_expected_status }
+    { id: "urltest_expected_status", run: migrate_urltest_expected_status },
+    { id: "group_interrupt_defaults", run: migrate_group_interrupt_defaults }
 ];
 
 function apply_migrations(ctx) {

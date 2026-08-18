@@ -45,6 +45,7 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
       ".name": "pg_main", ".type": "fallback_group", "section": "proxy",
       "name": "Main fallback", "health_check_url": "https://health.example/generate_204",
       "health_check_interval": "12s", "health_check_timeout": "4s",
+      "attempt_timeout": "9s",
       "max_failed_times": "2", "expected_status": "204/200-299",
       "idle_timeout": "20m",
       "interrupt_exist_connections": "1"
@@ -88,7 +89,7 @@ validate "$WORK_DIR/fixture.json"
 generate "$WORK_DIR/fixture.json" "$WORK_DIR/config.json"
 
 signature="$(ucode -L "$FORKOP_LIB" "$STATE" sing-box-signature-body-fixture "$WORK_DIR/fixture.json")"
-for field in health_check_url health_check_interval health_check_timeout max_failed_times expected_status idle_timeout interrupt_exist_connections; do
+for field in health_check_url health_check_interval health_check_timeout attempt_timeout max_failed_times expected_status idle_timeout interrupt_exist_connections; do
   grep -Fq "\"$field\"" <<<"$signature" || {
     printf 'Fallback runtime signature is missing %s\n' "$field" >&2
     exit 1
@@ -136,14 +137,16 @@ if (direct.providers != null) fail("direct level must not consume providers");
 if (top.include == null || mixed.include == null || mixed.exclude == null)
     fail("native include/exclude filters are missing");
 if (group.url != "https://health.example/generate_204" || group.interval != "12s" ||
-    group.timeout != "4s" || group.max_failed_times != 2 || group.expected_status != "204/200-299" ||
+    group.timeout != "4s" || group.attempt_timeout != "9s" ||
+    group.max_failed_times != 2 || group.expected_status != "204/200-299" ||
     group.idle_timeout != "20m" ||
     group.interrupt_exist_connections != true)
     fail("native Fallback health settings are incomplete");
 if (!defaultGroup || defaultGroup.interval != "5m" || defaultGroup.timeout != "5s" ||
+    defaultGroup.attempt_timeout != "5s" ||
     defaultGroup.max_failed_times != 5 || defaultGroup.expected_status != "*" ||
     defaultGroup.idle_timeout != "5m" ||
-    defaultGroup.interrupt_exist_connections != true)
+    defaultGroup.interrupt_exist_connections != false)
     fail("native Fallback defaults do not match Mihomo timing");
 
 for (let item in config.outbounds || [])
@@ -158,7 +161,7 @@ cat >"$WORK_DIR/bad-timeout.json" <<'JSON'
 {
   "settings": { ".name": "settings", ".type": "settings", "dns_server": ["77.88.8.8"], "bootstrap_dns_server": ["77.88.8.8"] },
   "section": [{ ".name": "proxy", ".type": "section", "enabled": "1", "action": "connection" }],
-  "fallback_group": [{ ".name": "pg", ".type": "fallback_group", "section": "proxy", "name": "Bad", "health_check_timeout": "later" }],
+  "fallback_group": [{ ".name": "pg", ".type": "fallback_group", "section": "proxy", "name": "Bad", "attempt_timeout": "later" }],
   "fallback_level": [{ ".name": "level", ".type": "fallback_level", "group": "pg", "name": "Level" }]
 }
 JSON
@@ -166,7 +169,7 @@ if output="$(validate "$WORK_DIR/bad-timeout.json" 2>/dev/null)"; then
   printf 'invalid Fallback health check timeout was accepted\n' >&2
   exit 1
 fi
-grep -Fq 'health_check_timeout' <<<"$output"
+grep -Fq 'attempt_timeout' <<<"$output"
 
 cat >"$WORK_DIR/bad-health-policy.json" <<'JSON'
 {

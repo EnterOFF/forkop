@@ -1101,6 +1101,7 @@ function validate_fallback_group(section, group_id) {
     validate_http_url_option(connections.fallback_group_health_check_url(section, group_id), option_prefix + "health_check_url");
     validate_required_duration_option(health_check_interval, option_prefix + "health_check_interval");
     validate_required_duration_option(connections.fallback_group_health_check_timeout(section, group_id), option_prefix + "health_check_timeout");
+    validate_required_duration_option(connections.fallback_group_attempt_timeout(section, group_id), option_prefix + "attempt_timeout");
     let max_failed_times = connections.fallback_group_max_failed_times(section, group_id);
     if (match(max_failed_times, /^[1-9][0-9]*$/) == null || int(max_failed_times, 10) > 2147483647)
         fail_validation("Fallback group '" + group_id + "' in rule '" + name + "' has an invalid max_failed_times value. Use a positive integer. Aborted.");

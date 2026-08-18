@@ -115,10 +115,11 @@ const fallbackDefault = (name) => {
 };
 assert.strictEqual(fallbackDefault('health_check_interval'), '5m');
 assert.strictEqual(fallbackDefault('health_check_timeout'), '5s');
+assert.strictEqual(fallbackDefault('attempt_timeout'), '5s');
 assert.strictEqual(fallbackDefault('max_failed_times'), '5');
 assert.strictEqual(fallbackDefault('expected_status'), '*');
 assert.strictEqual(fallbackDefault('idle_timeout'), '5m');
-assert.strictEqual(fallbackDefault('interrupt_exist_connections'), '1');
+assert.strictEqual(fallbackDefault('interrupt_exist_connections'), '0');
 assert.match(
   fallbackSource,
   /urlTestUrlChoices\(\)\.forEach\(\(value\) => o\.value\(value\)\);/,
@@ -376,7 +377,7 @@ if grep -Eq 'include_countries|exclude_countries|countryChoices' <<<"$server_fil
 fi
 grep -Fq 'Add at least one server group' "$SECTION_JS" ||
   fail "Fallback settings must require at least one server group"
-for option in health_check_url health_check_interval health_check_timeout max_failed_times expected_status idle_timeout interrupt_exist_connections; do
+for option in health_check_url health_check_interval health_check_timeout attempt_timeout max_failed_times expected_status idle_timeout interrupt_exist_connections; do
   grep -Fq "\"$option\"" <<<"$fallback_group_options" ||
     fail "Fallback settings are missing $option"
 done
@@ -386,8 +387,11 @@ grep -Fq 'health_check_timeout: "5s"' "$SECTION_JS" ||
   fail "Fallback health timeout default must match Mihomo"
 grep -Fq 'idle_timeout: "5m"' "$SECTION_JS" ||
   fail "Fallback idle timeout must preserve Mihomo lazy behavior"
-grep -Fq 'interrupt_exist_connections: "1"' "$SECTION_JS" ||
-  fail "Fallback connection interruption must be enabled by default"
+grep -Fq 'attempt_timeout: "5s"' "$SECTION_JS" ||
+  fail "Fallback attempt timeout default is missing"
+if grep -Fq 'interrupt_exist_connections: "1"' "$SECTION_JS"; then
+  fail "group connection interruption must be disabled by default"
+fi
 if grep -Fq 'blacklist_timeout' <<<"$fallback_group_options"; then
   fail "Fallback settings still expose blacklist_timeout"
 fi
