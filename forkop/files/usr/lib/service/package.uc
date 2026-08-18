@@ -18,6 +18,9 @@ const BIN_PATH = env("FORKOP_BIN", "/usr/bin/forkop");
 const INIT_PATH = env("FORKOP_INIT", "/etc/init.d/forkop");
 const DNS_APPLY_UC = env("FORKOP_DNS_APPLY_UC", "/usr/lib/forkop/dns/apply.uc");
 const PACKAGE_UPGRADE_STATE = env("FORKOP_PACKAGE_UPGRADE_STATE", "/tmp/forkop-package-was-running");
+const FIREWALL_INIT = env("FORKOP_FIREWALL_INIT", "/etc/init.d/firewall");
+const FIREWALL_INPUT_INCLUDE = env("FORKOP_FIREWALL_INPUT_INCLUDE", "/usr/share/nftables.d/chain-pre/input/forkop.nft");
+const FIREWALL_INPUT_MARKER = "forkop: TPROXY traffic";
 const PACKAGE_TEST_MODE = env("FORKOP_PACKAGE_TEST_MODE", "") != "";
 
 function shell_quote(value) {
@@ -47,6 +50,39 @@ function path_exists(path) {
 function unlink_if_exists(path) {
     if (path_exists(path))
         fs.unlink(as_string(path));
+}
+
+function command_output(command) {
+    let proc = fs.popen(as_string(command) + " 2>/dev/null", "r");
+    if (proc == null)
+        return null;
+
+    let data = proc.read("all");
+    proc.close();
+    return data == null ? "" : data;
+}
+
+// fw4 reads /usr/share/nftables.d only while it builds its ruleset, so the
+// input accept the package ships stays out of the running firewall until
+// something reloads it. A firewall that is not loaded picks the file up on its
+// own next start.
+function reload_firewall_input_include() {
+    if (!path_exists(FIREWALL_INPUT_INCLUDE) || !path_exists(FIREWALL_INIT))
+        return true;
+
+    let input_chain = command_output("nft list chain inet fw4 input");
+    if (input_chain == null || trim(input_chain) == "")
+        return true;
+
+    if (index(input_chain, FIREWALL_INPUT_MARKER) >= 0)
+        return true;
+
+    if (command_success_from_args([ FIREWALL_INIT, "reload" ]))
+        return true;
+
+    command_success_from_args([ "logger", "-t", "forkop",
+        "[warning] Failed to reload the firewall. Reload it manually so Forkop traffic is accepted in the input chain" ]);
+    return false;
 }
 
 function remove_rt_tables_entry() {
@@ -132,6 +168,14 @@ function postinst_restore() {
     return true;
 }
 
+// The firewall include is what lets an isolated zone reach the TPROXY inbound,
+// so it goes in before a service that was running is brought back up. Its
+// failure is reported but does not fail the installation.
+function postinst() {
+    reload_firewall_input_include();
+    return postinst_restore();
+}
+
 function luci_cache_globs() {
     let configured = env("FORKOP_LUCI_CACHE_GLOBS", "");
     if (configured != "")
@@ -166,7 +210,7 @@ let mode = ARGV[0] || "";
 if (mode == "prerm")
     exit(prerm_cleanup(ARGV[1]) ? 0 : 1);
 else if (mode == "postinst")
-    exit(postinst_restore() ? 0 : 1);
+    exit(postinst() ? 0 : 1);
 else if (mode == "remove-rt-tables-entry")
     exit(remove_rt_tables_entry() ? 0 : 1);
 else if (mode == "luci-postinst")
