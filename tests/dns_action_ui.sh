@@ -195,7 +195,8 @@ eval(extractFunction("normalizeDynamicListItems", "uniqueDynamicListItems"));
 eval(extractFunction("stringArraysEqual", "writeListOption"));
 eval(extractFunction("makeDeviceOptionsExclusive", "childOwnerOption"));
 
-const dnsModeVisibilityStart = requiredIndex("dnsQueryModeOption.checkDepends = function");
+// The interface resolver reuses the same option names, so stay inside the rule form.
+const dnsModeVisibilityStart = requiredIndex("dnsQueryModeOption.checkDepends = function", sectionContent);
 const dnsModeVisibilityEnd = requiredIndex("  o = section.taboption(", dnsModeVisibilityStart);
 const dnsModeListeners = {};
 const dnsModeNode = {

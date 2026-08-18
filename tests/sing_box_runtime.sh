@@ -777,6 +777,22 @@ cat >"$WORK_DIR/vpn-interface-fixture.json" <<'JSON'
       "enabled": "1",
       "action": "connection",
       "domain_suffix": [ "vpn.example" ]
+    },
+    {
+      ".name": "detoured_awg",
+      ".type": "section",
+      "enabled": "1",
+      "action": "connection",
+      "label": "Detoured",
+      "domain_suffix": [ "detour.example" ]
+    },
+    {
+      ".name": "resolver_detour",
+      ".type": "section",
+      "enabled": "1",
+      "action": "connection",
+      "label": "Resolver detour",
+      "selector_proxy_links": [ "vless://00000000-0000-4000-8000-000000000003@127.0.0.1:8443?security=none&type=tcp#Detour" ]
     }
   ],
   "section_interface": [
@@ -786,8 +802,18 @@ cat >"$WORK_DIR/vpn-interface-fixture.json" <<'JSON'
       "section": "renamed_awg",
       "name": "tun0",
       "domain_resolver_enabled": "1",
-      "domain_resolver_dns_type": "doh",
-      "domain_resolver_dns_server": "https://dns.example/dns-query"
+      "domain_resolver_dns_server": [ "https://dns.example/dns-query", "tls://1.1.1.1" ],
+      "domain_resolver_dns_fallback_strategy": "sequential"
+    },
+    {
+      ".name": "detour-interface",
+      ".type": "section_interface",
+      "section": "detoured_awg",
+      "name": "tun1",
+      "domain_resolver_enabled": "1",
+      "domain_resolver_dns_server": [ "9.9.9.9" ],
+      "domain_resolver_dns_detour_enabled": "1",
+      "domain_resolver_dns_detour_section": "resolver_detour"
     }
   ]
 }
@@ -1332,7 +1358,21 @@ assert(route_rule(providers, r => r.action == "resolve" && contains(r.inbound, "
 let vpn = cfg("vpn");
 assert(outbound(vpn, "renamed_awg/tun0").bind_interface == "tun0", "renamed VPN interface outbound");
 assert(outbound(vpn, "renamed_awg/tun0").domain_resolver == "renamed_awg-interface-1-domain-resolver", "renamed VPN domain resolver tag");
-assert(dns_server(vpn, r => r.tag == "renamed_awg-interface-1-domain-resolver") != null, "renamed VPN domain resolver DNS server");
+let vpn_resolver = dns_server(vpn, r => r.tag == "renamed_awg-interface-1-domain-resolver");
+assert(vpn_resolver != null, "renamed VPN domain resolver DNS server");
+assert(vpn_resolver.type == "fallback" && vpn_resolver.strategy == "sequential", "several resolver servers must build a fallback group with the selected query mode");
+assert(sprintf("%J", vpn_resolver.servers) == sprintf("%J", [ "renamed_awg-interface-1-domain-resolver-1", "renamed_awg-interface-1-domain-resolver-2" ]), "resolver fallback group must reference its own members");
+let vpn_resolver_first = dns_server(vpn, r => r.tag == "renamed_awg-interface-1-domain-resolver-1");
+assert(vpn_resolver_first.type == "https" && vpn_resolver_first.server == "dns.example" && vpn_resolver_first.path == "/dns-query",
+    "resolver URI must keep its protocol, host, and path");
+assert(vpn_resolver_first.detour == "renamed_awg/tun0", "a resolver without a DNS detour must query through its own interface");
+let vpn_resolver_second = dns_server(vpn, r => r.tag == "renamed_awg-interface-1-domain-resolver-2");
+assert(vpn_resolver_second.type == "tls" && vpn_resolver_second.server == "1.1.1.1" && vpn_resolver_second.server_port == 853,
+    "resolver failover server must keep its own protocol and default port");
+let detour_resolver = dns_server(vpn, r => r.tag == "detoured_awg-interface-1-domain-resolver");
+assert(detour_resolver != null && detour_resolver.type == "udp" && detour_resolver.server == "9.9.9.9",
+    "a single resolver server must stay a plain DNS server");
+assert(detour_resolver.detour == "Resolver detour", "an enabled DNS detour must replace the interface with the selected section");
 assert(outbound(vpn, "renamed_awg/tun0").detour == null, "interface outbound must not receive a detour");
 assert(route_rule(vpn, r => r.outbound == "renamed_awg" && contains(r.domain_suffix, "vpn.example")) != null, "renamed VPN custom domain route");
 assert(dns_rule(vpn, r => contains(r.domain_suffix, "vpn.example")) != null, "renamed VPN custom domain DNS rule");

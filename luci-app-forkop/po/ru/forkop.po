@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-18 18:44+0300\n"
-"PO-Revision-Date: 2026-08-18 18:44+0300\n"
+"POT-Creation-Date: 2026-08-18 19:55+0300\n"
+"PO-Revision-Date: 2026-08-18 19:55+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -491,18 +491,6 @@ msgstr "Отображаемое имя"
 msgid "DNS on router"
 msgstr "DNS на роутере"
 
-msgid "DNS over HTTPS (DoH)"
-msgstr "DNS через HTTPS (DoH)"
-
-msgid "DNS over TLS (DoT)"
-msgstr "DNS через TLS (DoT)"
-
-msgid "DNS protocol"
-msgstr "Протокол DNS"
-
-msgid "DNS protocol used by the resolver"
-msgstr "DNS-протокол, который будет использовать резолвер"
-
 msgid "DNS Query Mode"
 msgstr "Режим опроса DNS"
 
@@ -511,9 +499,6 @@ msgstr "DNS запросы через"
 
 msgid "DNS Rewrite TTL"
 msgstr "Перезапись TTL для DNS"
-
-msgid "DNS server"
-msgstr "DNS-сервер"
 
 msgid "DNS Server"
 msgstr "DNS-сервер"
@@ -527,8 +512,8 @@ msgstr "Путь DNS-сервера поддерживается только д
 msgid "DNS server URI must not contain whitespace, credentials, query parameters, or fragments"
 msgstr "URI DNS-сервера не должен содержать пробелы, учётные данные, параметры запроса или фрагмент"
 
-msgid "DNS server used by the resolver"
-msgstr "DNS-сервер, который будет использовать резолвер"
+msgid "DNS server used by the resolver. Specify several servers for automatic failover on failure. To select a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; UDP is used by default."
+msgstr "DNS-сервер, используемый резолвером. Укажите несколько серверов для автоматического переключения при сбоях. Для выбора протокола используйте udp://, tcp://, tls://, https://, quic:// или h3://; по умолчанию UDP."
 
 msgid "DNS server used to resolve domains matching the section conditions. Specify several servers for automatic failover on failure. To select a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; UDP is used by default."
 msgstr "DNS-сервер для резолвинга доменов, совпавших с условиями секции. Укажите несколько серверов для автоматического переключения при сбоях. Для выбора протокола используйте udp://, tcp://, tls://, https://, quic:// или h3://; по умолчанию UDP."
@@ -1582,6 +1567,9 @@ msgstr "Маршрутизировать DNS-запросы через секц�
 
 msgid "Route main DNS requests through a section."
 msgstr "Маршрутизировать основные DNS-запросы через секцию."
+
+msgid "Route the resolver's DNS requests through a section instead of this network interface."
+msgstr "Маршрутизировать DNS-запросы резолвера через секцию, а не через этот сетевой интерфейс."
 
 msgid "Routing mode"
 msgstr "Режим маршрутизации"

@@ -1479,6 +1479,47 @@ function dns_action_has_domain_matchers(section) {
         length(connections.rule_sets(section)) > 0;
 }
 
+function validate_interface_domain_resolvers(section, sections, context) {
+    let name = section_name(section);
+    for (let interface_name in connections.interfaces(section)) {
+        if (!connections.interface_domain_resolver_enabled(section, interface_name))
+            continue;
+
+        let label = "Resolver of interface '" + interface_name + "' in rule '" + name + "'";
+        let strategy = connections.interface_domain_resolver_dns_fallback_strategy(section, interface_name);
+        if (!contains([ "sequential", "parallel" ], strategy))
+            fail_validation(label + " uses unsupported fallback strategy '" + strategy + "'. Use sequential or parallel. Aborted.");
+
+        for (let value in connections.interface_domain_resolver_dns_servers(section, interface_name)) {
+            let parsed = runtime_dns.parse_server_uri(value, false);
+            if (parsed.unsupported)
+                fail_validation(label + " has an invalid DNS server '" + value + "': " + parsed.unsupported + ". Aborted.");
+        }
+
+        if (!connections.interface_domain_resolver_dns_detour_enabled(section, interface_name))
+            continue;
+
+        let target_name = connections.interface_domain_resolver_dns_detour_section(section, interface_name);
+        if (target_name == "")
+            fail_validation(label + " routes DNS through a section, but no section is selected. Aborted.");
+        if (target_name == name)
+            fail_validation(label + " cannot use its own section as a DNS detour. Aborted.");
+
+        let target = null;
+        for (let candidate in sections)
+            if (section_name(candidate) == target_name) {
+                target = candidate;
+                break;
+            }
+        if (target == null)
+            fail_validation(label + " references missing detour section '" + target_name + "'. Aborted.");
+        if (!section_enabled(target))
+            fail_validation(label + " references disabled detour section '" + target_name + "'. Aborted.");
+        if (!download_section_action_available(rule_action(target), context.byedpi_installed, context.zapret_installed, context.zapret2_installed))
+            fail_validation(label + " references detour section '" + target_name + "' with unsupported action '" + rule_action(target) + "'. Select an enabled Connection, VPN, Zapret, Zapret2, or ByeDPI section. Aborted.");
+    }
+}
+
 function validate_dns_action(section, sections, context) {
     let name = section_name(section);
     let fallback_strategy = option(section, "dns_fallback_strategy", "parallel");
@@ -1612,6 +1653,7 @@ function validate_rule(section, sections, context) {
 
         validate_outbound_json_values(section);
         validate_tunnel_values(section);
+        validate_interface_domain_resolvers(section, sections, context);
     }
 
     if (action == "outbound")

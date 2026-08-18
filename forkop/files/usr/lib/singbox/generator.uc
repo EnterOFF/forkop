@@ -1095,6 +1095,19 @@ function add_service_mixed_proxy(config, settings, sections) {
         runtime_generate_unsupported("download components via proxy section is not set");
 }
 
+// A resolver without an explicit detour keeps resolving through its own interface,
+// so a selected section only overrides that default.
+function interface_domain_resolver_detour_tag(section, interface_name, interface_tag) {
+    if (!connections.interface_domain_resolver_dns_detour_enabled(section, interface_name))
+        return interface_tag;
+
+    let target_section = connections.interface_domain_resolver_dns_detour_section(section, interface_name);
+    if (target_section == "")
+        runtime_generate_unsupported("interface '" + interface_name + "' routes resolver DNS through a section, but no section is selected");
+
+    return outbound_tag(target_section);
+}
+
 function add_interface_connection_outbound(config, section, interface_index, interface_name, taken, selector_tags, urltest_candidate_tags) {
     let section_name = section[".name"];
     let display_name = connections.interface_display_name(section, interface_name);
@@ -1106,15 +1119,16 @@ function add_interface_connection_outbound(config, section, interface_index, int
     let domain_resolver = "";
     if (connections.interface_domain_resolver_enabled(section, interface_name)) {
         domain_resolver = runtime_constants.domain_resolver_tag(section_name + "-interface-" + interface_index);
-        let dns_server = runtime_dns.server_from_options(
+        let unsupported = runtime_dns.add_uri_server_group(
+            config.dns.servers,
+            connections.interface_domain_resolver_dns_servers(section, interface_name),
             domain_resolver,
-            connections.interface_domain_resolver_dns_type(section, interface_name),
-            connections.interface_domain_resolver_dns_server(section, interface_name),
-            tag_name
+            connections.interface_domain_resolver_dns_fallback_strategy(section, interface_name),
+            interface_domain_resolver_detour_tag(section, interface_name, tag_name),
+            false
         );
-        if (dns_server.unsupported)
-            runtime_generate_unsupported(dns_server.unsupported);
-        push(config.dns.servers, dns_server);
+        if (unsupported != "")
+            runtime_generate_unsupported(unsupported);
     }
 
     let outbound = {

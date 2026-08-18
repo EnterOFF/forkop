@@ -538,8 +538,10 @@ cat >"$WORK_DIR/sing-box-signature.json" <<'JSON'
       "section": "vpn1",
       "name": "wg0",
       "domain_resolver_enabled": "1",
-      "domain_resolver_dns_type": "doh",
-      "domain_resolver_dns_server": "https://dns.example/dns-query"
+      "domain_resolver_dns_server": [ "https://dns.example/dns-query", "tls://1.1.1.1" ],
+      "domain_resolver_dns_fallback_strategy": "sequential",
+      "domain_resolver_dns_detour_enabled": "1",
+      "domain_resolver_dns_detour_section": "proxy1"
     }
   ],
   "server": [
@@ -801,7 +803,7 @@ vpn1
 [rule.vpn1.subscription_urls]
 [ ]
 [rule.vpn1.interfaces]
-[ { "name": "wg0", "domain_resolver_enabled": "1", "domain_resolver_dns_type": "doh", "domain_resolver_dns_server": "https://dns.example/dns-query" } ]
+[ { "name": "wg0", "domain_resolver_enabled": "1", "domain_resolver_dns_server": [ "https://dns.example/dns-query", "tls://1.1.1.1" ], "domain_resolver_dns_fallback_strategy": "sequential", "domain_resolver_dns_detour_enabled": "1", "domain_resolver_dns_detour_section": "proxy1" } ]
 [rule.vpn1.outbound_jsons]
 
 [rule.vpn1.tunnels]

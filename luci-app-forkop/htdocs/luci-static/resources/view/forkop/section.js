@@ -1988,14 +1988,6 @@ function subscriptionDownloadTargetChoices(section_id) {
     }));
 }
 
-function dnsTypeChoices() {
-  return [
-    { value: "doh", label: _("DNS over HTTPS (DoH)") },
-    { value: "dot", label: _("DNS over TLS (DoT)") },
-    { value: "udp", label: "UDP" },
-  ];
-}
-
 function isConnectionNetworkInterfaceAllowed(deviceName, device) {
   if (CONNECTIONS_BLOCKED_INTERFACES.includes(deviceName)) {
     return false;
@@ -2558,8 +2550,10 @@ function interfaceSettingsKeys() {
   return [
     "display_name",
     "domain_resolver_enabled",
-    "domain_resolver_dns_type",
     "domain_resolver_dns_server",
+    "domain_resolver_dns_fallback_strategy",
+    "domain_resolver_dns_detour_enabled",
+    "domain_resolver_dns_detour_section",
   ];
 }
 
@@ -2567,8 +2561,9 @@ function defaultInterfaceSettings(displayName = "") {
   return {
     display_name: displayName,
     domain_resolver_enabled: "0",
-    domain_resolver_dns_type: "udp",
-    domain_resolver_dns_server: "8.8.8.8",
+    domain_resolver_dns_server: ["8.8.8.8"],
+    domain_resolver_dns_fallback_strategy: "parallel",
+    domain_resolver_dns_detour_enabled: "0",
   };
 }
 
@@ -2886,7 +2881,12 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
   });
 }
 
-function addInterfaceItemOptions(itemSection) {
+function addInterfaceItemOptions(itemSection, options = {}) {
+  const parentSectionForItem =
+    typeof options.parentSectionId === "function"
+      ? options.parentSectionId
+      : parentSectionIdForItem;
+
   let o = itemSection.option(
     form.Value,
     "display_name",
@@ -2907,30 +2907,110 @@ function addInterfaceItemOptions(itemSection) {
   o.default = "0";
   o.rmempty = false;
 
-  o = itemSection.option(
-    form.ListValue,
-    "domain_resolver_dns_type",
-    _("DNS protocol"),
-    _("DNS protocol used by the resolver"),
-  );
-  o.depends("domain_resolver_enabled", "1");
-  dnsTypeChoices().forEach((choice) => o.value(choice.value, choice.label));
-  o.default = "udp";
-
-  o = itemSection.option(
-    form.Value,
+  const dnsServerOption = itemSection.option(
+    form.DynamicList,
     "domain_resolver_dns_server",
-    _("DNS server"),
-    _("DNS server used by the resolver"),
+    _("DNS Server"),
+    _(
+      "DNS server used by the resolver. Specify several servers for automatic failover on failure. To select a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; UDP is used by default.",
+    ),
   );
-  o.depends("domain_resolver_enabled", "1");
-  o.default = "8.8.8.8";
-  o.validate = function (itemId, value) {
+  dnsServerOption.depends("domain_resolver_enabled", "1");
+  dnsServerOption.rmempty = false;
+  dnsServerOption.validate = function (itemId, value) {
     if (optionMapValue(this, itemId, "domain_resolver_enabled") !== "1") {
       return true;
     }
-    const validation = main.validateDNS(value);
+    const normalized = `${value || ""}`.trim();
+    if (!normalized) {
+      return L.toArray(this.formvalue(itemId)).some((item) =>
+        `${item || ""}`.trim(),
+      )
+        ? true
+        : _("Add at least one DNS server");
+    }
+    const validation = main.validateDNS(normalized);
     return validation.valid ? true : validation.message;
+  };
+
+  const dnsQueryModeOption = itemSection.option(
+    form.ListValue,
+    "domain_resolver_dns_fallback_strategy",
+    _("DNS Query Mode"),
+    _(
+      "Query servers one at a time until the first successful response, or query all servers simultaneously for maximum speed.",
+    ),
+  );
+  dnsQueryModeOption.value("parallel", _("Parallel"));
+  dnsQueryModeOption.value("sequential", _("Sequential"));
+  dnsQueryModeOption.default = "parallel";
+  dnsQueryModeOption.rmempty = false;
+  dnsQueryModeOption.retain = true;
+  dnsQueryModeOption.depends({
+    domain_resolver_enabled: "1",
+    domain_resolver_dns_server: "__forkop_multiple_dns__",
+  });
+  dnsQueryModeOption.checkDepends = function (itemId) {
+    const enabledOption = this.map.lookupOption(
+      "domain_resolver_enabled",
+      itemId,
+    );
+    const serverOption = this.map.lookupOption(
+      "domain_resolver_dns_server",
+      itemId,
+    );
+    const enabled = enabledOption?.[0].formvalue(enabledOption[1]);
+    const servers = serverOption?.[0].formvalue(serverOption[1]);
+    return enabled === "1" && normalizeDynamicListItems(servers).length > 1;
+  };
+  const originalDnsServerRenderWidget = dnsServerOption.renderWidget;
+  dnsServerOption.renderWidget = function (itemId, option_index, cfgvalue) {
+    const node = originalDnsServerRenderWidget.call(
+      this,
+      itemId,
+      option_index,
+      cfgvalue,
+    );
+    node.addEventListener("cbi-dynlist-change", () => {
+      this.map.checkDepends();
+    });
+    return node;
+  };
+
+  o = itemSection.option(
+    form.Flag,
+    "domain_resolver_dns_detour_enabled",
+    _("DNS through section"),
+    _(
+      "Route the resolver's DNS requests through a section instead of this network interface.",
+    ),
+  );
+  o.depends("domain_resolver_enabled", "1");
+  o.default = "0";
+  o.rmempty = false;
+
+  o = itemSection.option(
+    form.ListValue,
+    "domain_resolver_dns_detour_section",
+    _("DNS requests through"),
+  );
+  o.depends({
+    domain_resolver_enabled: "1",
+    domain_resolver_dns_detour_enabled: "1",
+  });
+  o.rmempty = false;
+  o.load = function (itemId) {
+    refreshDnsDetourSectionOptionValues(this, parentSectionForItem(itemId));
+    return optionMapValue(this, itemId, "domain_resolver_dns_detour_section");
+  };
+  o.validate = function (itemId, value) {
+    if (
+      optionMapValue(this, itemId, "domain_resolver_enabled") !== "1" ||
+      optionMapValue(this, itemId, "domain_resolver_dns_detour_enabled") !== "1"
+    ) {
+      return true;
+    }
+    return value ? true : _("Select a section");
   };
 }
 

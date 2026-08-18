@@ -145,6 +145,19 @@ cat >"$WORK_DIR/valid.json" <<'JSON'
       "fully_routed_ips": [ "192.0.2.2/32" ]
     }
   ],
+  "section_interface": [
+    {
+      ".name": "resolver_interface",
+      ".type": "section_interface",
+      "section": "detour",
+      "name": "wg0",
+      "domain_resolver_enabled": "1",
+      "domain_resolver_dns_server": [ "https://dns.google/dns-query", "tls://1.1.1.1" ],
+      "domain_resolver_dns_fallback_strategy": "sequential",
+      "domain_resolver_dns_detour_enabled": "1",
+      "domain_resolver_dns_detour_section": "proxy"
+    }
+  ],
   "server": [
     {
       ".name": "srv",
@@ -476,6 +489,72 @@ cat >"$WORK_DIR/bad-dns-rule-detour.json" <<'JSON'
 }
 JSON
 assert_rejects "DNS rule unsupported detour" "$WORK_DIR/bad-dns-rule-detour.json" "unsupported action 'bypass'"
+
+cat >"$WORK_DIR/bad-resolver-server.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "section": [
+    { ".name": "vpn", ".type": "section", "enabled": "1", "action": "connection" }
+  ],
+  "section_interface": [
+    { ".name": "iface", ".type": "section_interface", "section": "vpn", "name": "wg0", "domain_resolver_enabled": "1", "domain_resolver_dns_server": [ "http://dns.example" ] }
+  ]
+}
+JSON
+assert_rejects "bad interface resolver server" "$WORK_DIR/bad-resolver-server.json" "unsupported DNS server URI scheme 'http'"
+
+cat >"$WORK_DIR/bad-resolver-strategy.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "section": [
+    { ".name": "vpn", ".type": "section", "enabled": "1", "action": "connection" }
+  ],
+  "section_interface": [
+    { ".name": "iface", ".type": "section_interface", "section": "vpn", "name": "wg0", "domain_resolver_enabled": "1", "domain_resolver_dns_server": [ "1.1.1.1", "8.8.8.8" ], "domain_resolver_dns_fallback_strategy": "random" }
+  ]
+}
+JSON
+assert_rejects "bad interface resolver query mode" "$WORK_DIR/bad-resolver-strategy.json" "unsupported fallback strategy 'random'"
+
+cat >"$WORK_DIR/bad-resolver-detour-missing.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "section": [
+    { ".name": "vpn", ".type": "section", "enabled": "1", "action": "connection" }
+  ],
+  "section_interface": [
+    { ".name": "iface", ".type": "section_interface", "section": "vpn", "name": "wg0", "domain_resolver_enabled": "1", "domain_resolver_dns_server": [ "1.1.1.1" ], "domain_resolver_dns_detour_enabled": "1" }
+  ]
+}
+JSON
+assert_rejects "interface resolver detour without a section" "$WORK_DIR/bad-resolver-detour-missing.json" "routes DNS through a section, but no section is selected"
+
+cat >"$WORK_DIR/bad-resolver-detour-self.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "section": [
+    { ".name": "vpn", ".type": "section", "enabled": "1", "action": "connection" }
+  ],
+  "section_interface": [
+    { ".name": "iface", ".type": "section_interface", "section": "vpn", "name": "wg0", "domain_resolver_enabled": "1", "domain_resolver_dns_server": [ "1.1.1.1" ], "domain_resolver_dns_detour_enabled": "1", "domain_resolver_dns_detour_section": "vpn" }
+  ]
+}
+JSON
+assert_rejects "interface resolver detour through its own section" "$WORK_DIR/bad-resolver-detour-self.json" "cannot use its own section as a DNS detour"
+
+cat >"$WORK_DIR/bad-resolver-detour-action.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "section": [
+    { ".name": "vpn", ".type": "section", "enabled": "1", "action": "connection" },
+    { ".name": "bypass", ".type": "section", "enabled": "1", "action": "bypass", "domain_suffix": [ "bypass.example" ] }
+  ],
+  "section_interface": [
+    { ".name": "iface", ".type": "section_interface", "section": "vpn", "name": "wg0", "domain_resolver_enabled": "1", "domain_resolver_dns_server": [ "1.1.1.1" ], "domain_resolver_dns_detour_enabled": "1", "domain_resolver_dns_detour_section": "bypass" }
+  ]
+}
+JSON
+assert_rejects "interface resolver detour with an unsupported action" "$WORK_DIR/bad-resolver-detour-action.json" "unsupported action 'bypass'"
 
 cat >"$WORK_DIR/bad-port.json" <<'JSON'
 {

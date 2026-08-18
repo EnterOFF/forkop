@@ -9,6 +9,7 @@ let object_or_empty = common.object_or_empty;
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const SYSTEM_DEVICE_VALUE = "@system";
+const DEFAULT_DOMAIN_RESOLVER_DNS_SERVER = "8.8.8.8";
 const ITEM_TYPES = [
     "section",
     "server",
@@ -742,20 +743,36 @@ function interface_domain_resolver_enabled(section, value) {
         bool_option(section, "domain_resolver_enabled", false));
 }
 
-function interface_domain_resolver_dns_type(section, value) {
+function interface_domain_resolver_dns_servers(section, value) {
     let child = child_item_by_value(section, "section_interface", "name", value);
-    if (child != null)
-        return child_option(child, "domain_resolver_dns_type", "udp");
-    return item_option(section, "interface_settings", value, "domain_resolver_dns_type",
-        option(section, "domain_resolver_dns_type", "udp") || "udp");
+    let values = child != null
+        ? child_list(child, "domain_resolver_dns_server", null)
+        : item_list(section, "interface_settings", value, "domain_resolver_dns_server", null);
+    let result = [];
+    for (let entry in values) {
+        entry = trim(as_string(entry));
+        if (entry != "")
+            push(result, entry);
+    }
+    return length(result) > 0 ? result : [ DEFAULT_DOMAIN_RESOLVER_DNS_SERVER ];
 }
 
-function interface_domain_resolver_dns_server(section, value) {
+function interface_domain_resolver_dns_fallback_strategy(section, value) {
     let child = child_item_by_value(section, "section_interface", "name", value);
-    if (child != null)
-        return child_option(child, "domain_resolver_dns_server", "8.8.8.8");
-    return item_option(section, "interface_settings", value, "domain_resolver_dns_server",
-        option(section, "domain_resolver_dns_server", "8.8.8.8") || "8.8.8.8");
+    let strategy = child_option(child, "domain_resolver_dns_fallback_strategy", "parallel");
+    return strategy != "" ? strategy : "parallel";
+}
+
+function interface_domain_resolver_dns_detour_enabled(section, value) {
+    let child = child_item_by_value(section, "section_interface", "name", value);
+    return child_bool(child, "domain_resolver_dns_detour_enabled", false);
+}
+
+function interface_domain_resolver_dns_detour_section(section, value) {
+    let child = child_item_by_value(section, "section_interface", "name", value);
+    return interface_domain_resolver_dns_detour_enabled(section, value)
+        ? child_option(child, "domain_resolver_dns_detour_section", "")
+        : "";
 }
 
 function urltest_child(section, value) {
@@ -1126,8 +1143,10 @@ return {
     subscription_download_section,
     interface_display_name,
     interface_domain_resolver_enabled,
-    interface_domain_resolver_dns_type,
-    interface_domain_resolver_dns_server,
+    interface_domain_resolver_dns_servers,
+    interface_domain_resolver_dns_fallback_strategy,
+    interface_domain_resolver_dns_detour_enabled,
+    interface_domain_resolver_dns_detour_section,
     urltest_check_interval,
     urltest_tolerance,
     urltest_testing_url,

@@ -1912,6 +1912,23 @@ function migrate_dns_server_uris(ctx) {
     }
 }
 
+function migrate_interface_domain_resolver_uris(ctx) {
+    if (!release_at_most(ctx, "1.0.5"))
+        return;
+
+    for (let child in ctx.model.section_interface || []) {
+        if (option_exists(child, "domain_resolver_dns_type")) {
+            let dns_type = option(child, "domain_resolver_dns_type", "udp") || "udp";
+            let servers = [];
+            for (let value in option_list_values(child, "domain_resolver_dns_server"))
+                push(servers, runtime_dns.uri_from_legacy_options(dns_type, value));
+            set_list_option(ctx, child, "domain_resolver_dns_server", servers);
+            delete_option(ctx, child, "domain_resolver_dns_type");
+        }
+        normalize_existing_list_option(ctx, child, "domain_resolver_dns_server");
+    }
+}
+
 function readable_tag_component(value, fallback) {
     value = trim(as_string(value));
     if (value == "")
@@ -2033,6 +2050,7 @@ const MIGRATIONS = [
     { id: "remove_section_cache", run: remove_section_cache },
     { id: "remove_dashboard_sort_options", run: remove_dashboard_sort_options },
     { id: "dns_server_uris", run: migrate_dns_server_uris },
+    { id: "interface_domain_resolver_uris", run: migrate_interface_domain_resolver_uris },
     { id: "readable_runtime_tags", run: migrate_readable_runtime_tags },
     { id: "urltest_expected_status", run: migrate_urltest_expected_status },
     { id: "group_interrupt_defaults", run: migrate_group_interrupt_defaults }

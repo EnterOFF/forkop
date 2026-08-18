@@ -139,13 +139,6 @@ function uri_from_legacy_options(dns_type, value) {
     return scheme == "udp" ? authority : scheme + "://" + authority + path;
 }
 
-function server_from_options(tag_name, dns_type, dns_server, detour) {
-    let uri = uri_from_legacy_options(dns_type, dns_server);
-    if (uri == as_string(dns_server) && dns_type != "udp" && dns_type != "dot" && dns_type != "doh")
-        return { unsupported: "unsupported dns_type " + dns_type };
-    return server_from_uri(tag_name, uri, detour, false);
-}
-
 function bootstrap_server(tag_name, value) {
     return server_from_uri(tag_name, value, "", true);
 }
@@ -229,7 +222,6 @@ return {
     default_domain_resolver,
     detour_tag,
     parse_server_uri,
-    server_from_options,
     server_from_uri,
     uri_from_legacy_options,
     server_list

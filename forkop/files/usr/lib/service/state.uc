@@ -841,8 +841,10 @@ function interfaces_signature(section) {
         push(result, {
             name: entry,
             domain_resolver_enabled: connections.interface_domain_resolver_enabled(section, entry) ? "1" : "0",
-            domain_resolver_dns_type: connections.interface_domain_resolver_dns_type(section, entry),
-            domain_resolver_dns_server: connections.interface_domain_resolver_dns_server(section, entry)
+            domain_resolver_dns_server: connections.interface_domain_resolver_dns_servers(section, entry),
+            domain_resolver_dns_fallback_strategy: connections.interface_domain_resolver_dns_fallback_strategy(section, entry),
+            domain_resolver_dns_detour_enabled: connections.interface_domain_resolver_dns_detour_enabled(section, entry) ? "1" : "0",
+            domain_resolver_dns_detour_section: connections.interface_domain_resolver_dns_detour_section(section, entry)
         });
     }
     return sprintf("%J", result);
