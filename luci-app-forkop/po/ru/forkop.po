@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-19 03:40+0300\n"
-"PO-Revision-Date: 2026-08-19 03:40+0300\n"
+"POT-Creation-Date: 2026-08-19 06:02+0300\n"
+"PO-Revision-Date: 2026-08-19 06:02+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -1643,9 +1643,6 @@ msgstr "Секции"
 msgid "Security"
 msgstr "Защита"
 
-msgid "Select a common client profile or enter a custom User-Agent"
-msgstr "Выберите распространённый профиль клиента или введите свой User-Agent"
-
 msgid "Select a network interface"
 msgstr "Выберите сетевой интерфейс"
 
@@ -1666,9 +1663,6 @@ msgstr "Выберите промежуточную секцию"
 
 msgid "Select network interface for VPN connection"
 msgstr "Выберите сетевой интерфейс для VPN-подключения"
-
-msgid "Select or enter a User-Agent"
-msgstr "Выберите или введите User-Agent"
 
 msgid "Select or enter path for sing-box cache file. Change this ONLY if you know what you are doing"
 msgstr "Выберите или введите путь к файлу кеша sing-box. Изменяйте это, ТОЛЬКО если вы знаете, что делаете"
@@ -2224,9 +2218,6 @@ msgstr "Используйте формат длительности sing-box, �
 
 msgid "Used by"
 msgstr "Используется"
-
-msgid "User-Agent"
-msgstr "User-Agent"
 
 msgid "Username"
 msgstr "Имя пользователя"

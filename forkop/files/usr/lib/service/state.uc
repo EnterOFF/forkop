@@ -830,7 +830,6 @@ function subscription_urls_signature(section) {
             subscription_update_enabled: connections.subscription_update_enabled(section, entry) ? "1" : "0",
             subscription_update_interval: connections.subscription_update_interval(section, entry),
             download_via_proxy_section: connections.subscription_download_section(section, entry),
-            user_agent: connections.subscription_user_agent(section, entry),
             header: connections.subscription_headers(section, entry),
             show_dashboard_metadata: connections.subscription_dashboard_metadata_enabled(section, entry) ? "1" : "0",
             show_subscription_name: connections.subscription_show_name(section, entry) ? "1" : "0",

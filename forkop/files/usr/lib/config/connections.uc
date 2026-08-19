@@ -844,16 +844,6 @@ function subscription_tag(section, value, source_index) {
     return tag_name != "" ? tag_name : "sub" + int(source_index || 1);
 }
 
-function subscription_user_agent(section, value) {
-    if (subscription_source_type(value) != "remote")
-        return "";
-    let child = child_item_by_value(section, "subscription_url", "url", value);
-    let configured = child != null
-        ? child_option(child, "user_agent", "")
-        : item_option(section, "subscription_url_settings", value, "user_agent", "");
-    return configured != "" ? configured : "sing-box";
-}
-
 function subscription_download_section(section, value) {
     if (subscription_source_type(value) != "remote")
         return "";
@@ -1134,7 +1124,6 @@ return {
     subscription_headers,
     subscription_show_name,
     subscription_tag,
-    subscription_user_agent,
     subscription_download_section,
     interface_display_name,
     interface_domain_resolver_enabled,

@@ -583,7 +583,6 @@ function add_subscription_provider(config, section, source_index, source) {
     }
     else {
         provider.url = source;
-        provider.user_agent = connections.subscription_user_agent(section, source);
         provider.headers = subscription_headers(section, source);
         if (connections.subscription_update_enabled(section, source))
             provider.update_interval = connections.subscription_update_interval(section, source);

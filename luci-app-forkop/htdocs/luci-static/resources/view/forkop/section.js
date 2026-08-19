@@ -2373,7 +2373,6 @@ function remoteSubscriptionUrlSettingsKeys() {
     "subscription_update_interval",
     "download_via_proxy_enabled",
     "download_via_proxy_section",
-    "user_agent",
     "header",
     "show_dashboard_metadata",
   ];
@@ -2414,7 +2413,6 @@ function defaultSubscriptionUrlSettings(
       subscription_update_interval: "1h",
       download_via_proxy_enabled: "0",
       download_via_proxy_section: "",
-      user_agent: "sing-box",
       header: Array.isArray(headers) ? headers.slice() : [],
       show_dashboard_metadata: "1",
     });
@@ -2550,6 +2548,13 @@ function removeSubscriptionHeaderRow(section, sectionId) {
   return refreshSubscriptionHeaderRows(section);
 }
 
+function isUserAgentHeaderRow(option, sectionId) {
+  return (
+    `${optionMapValue(option, sectionId, "name") || ""}`.trim().toLowerCase() ===
+    "user-agent"
+  );
+}
+
 function showSubscriptionHeadersModal(parentMap, itemId) {
   const data = {
     header: subscriptionHeaderRows(
@@ -2589,6 +2594,30 @@ function showSubscriptionHeadersModal(parentMap, itemId) {
   o.editable = true;
   o.rmempty = true;
   o.validate = validateSubscriptionHeaderValue;
+  // The User-Agent is an ordinary header now, so the client profiles that used
+  // to have their own field are offered as suggestions on its value instead.
+  o.renderWidget = function (sectionId, optionIndex, cfgvalue) {
+    if (isUserAgentHeaderRow(this, sectionId)) {
+      const widget = new ui.Combobox(
+        cfgvalue != null ? cfgvalue : this.default,
+        subscriptionUserAgentChoices().reduce((choices, choice) => {
+          choices[choice] = choice;
+          return choices;
+        }, {}),
+        {
+          id: this.cbid(sectionId),
+          optional: true,
+          placeholder: _("-- Select --"),
+        },
+      );
+      return widget.render();
+    }
+    return form.Value.prototype.renderWidget.apply(this, [
+      sectionId,
+      optionIndex,
+      cfgvalue,
+    ]);
+  };
 
   return renderStackedJsonSettingsModal(_("Headers"), map, () => {
     parentMap.data.set(
@@ -2825,23 +2854,6 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
         return _("Current section cannot download its own subscription");
       }
       return true;
-    };
-
-    o = itemSection.option(
-      form.Value,
-      "user_agent",
-      _("User-Agent"),
-      _("Select a common client profile or enter a custom User-Agent"),
-    );
-    o.default = "sing-box";
-    o.placeholder = _("-- Select --");
-    o.rmempty = false;
-    subscriptionUserAgentChoices().forEach((choice) => o.value(choice));
-    o.load = function (itemId) {
-      return optionMapValue(this, itemId, "user_agent") || "sing-box";
-    };
-    o.validate = function (_itemId, value) {
-      return `${value || ""}`.trim() ? true : _("Select or enter a User-Agent");
     };
 
     o = itemSection.option(

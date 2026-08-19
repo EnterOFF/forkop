@@ -62,6 +62,8 @@ grep -Fq '{ id: "single_subscription_user_agent", run: migrate_single_subscripti
   fail "single subscription User-Agent migration must have a stable named marker"
 grep -Fq '{ id: "subscription_headers", run: migrate_subscription_headers }' "$MIGRATION" ||
   fail "subscription header migration must have a stable named marker"
+grep -Fq '{ id: "subscription_user_agent_header", run: migrate_subscription_user_agent_header }' "$MIGRATION" ||
+  fail "subscription User-Agent header migration must have a stable named marker"
 grep -Fq '{ id: "interface_display_names", run: migrate_interface_display_names }' "$MIGRATION" ||
   fail "interface display name migration must have a stable named marker"
 grep -Fq '{ id: "remove_section_cache", run: remove_section_cache }' "$MIGRATION" ||
@@ -104,6 +106,8 @@ grep -Fq "list applied_migrations 'single_subscription_user_agent'" "$ROOT_DIR/f
   fail "new-install config must mark the single subscription User-Agent migration as already applied"
 grep -Fq "list applied_migrations 'subscription_headers'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
   fail "new-install config must mark the subscription header migration as already applied"
+grep -Fq "list applied_migrations 'subscription_user_agent_header'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
+  fail "new-install config must mark the subscription User-Agent header migration as already applied"
 grep -Fq "list applied_migrations 'interface_display_names'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
   fail "new-install config must mark the interface display name migration as already applied"
 grep -Fq "list applied_migrations 'remove_section_cache'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
@@ -315,7 +319,7 @@ assert(JSON.stringify(config.settings.bootstrap_dns_server) === JSON.stringify([
 assert(config.settings.unified_delay === '0', 'Unified Delay default missing');
 assert(config.settings.config_version === '1.0.5', 'legacy config should be marked at the current schema version');
 assert(config.settings.component_update_check_enabled === '1', 'component update checks should be enabled during migration');
-assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults']), 'legacy config should record named migrations');
+assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header']), 'legacy config should record named migrations');
 
 function assert(condition, message) {
   if (!condition) {
@@ -332,6 +336,12 @@ function headerValue(source, name) {
   const prefix = `${name}:`.toLowerCase();
   const line = (source.header || []).find(value => `${value}`.toLowerCase().startsWith(prefix));
   return line == null ? undefined : `${line}`.slice(`${line}`.indexOf(':') + 1).trim();
+}
+
+function assertSubscriptionUserAgent(source, expected, label) {
+  assert(headerValue(source, 'User-Agent') === expected, `${label}: User-Agent header`);
+  assert(`${(source.header || [])[0]}` === `User-Agent: ${expected}`, `${label}: User-Agent header comes first`);
+  absent(source, 'user_agent', label);
 }
 
 function assertDefaultSubscriptionHeaders(source, label) {
@@ -407,7 +417,7 @@ const legacySub = sections['legacy-sub'];
 assert(JSON.stringify(childValues(legacySub, subscriptionUrls, 'url')) === JSON.stringify(['https://example.com/sub.txt']), 'subscription entry');
 assert(legacySub.action === 'connection', 'legacy-sub action');
 const legacySubSource = childObjects(legacySub, subscriptionUrls)[0];
-assert(legacySubSource.user_agent === 'Agent/1.0', 'subscription user-agent setting');
+assertSubscriptionUserAgent(legacySubSource, 'Agent/1.0', 'subscription source');
 absent(legacySubSource, 'auto_user_agent', 'subscription source');
 assertDefaultSubscriptionHeaders(legacySubSource, 'subscription source');
 absent(legacySubSource, 'auto_hwid', 'subscription source');
@@ -453,10 +463,10 @@ const legacyListSub = sections['legacy-list-sub'];
 assert(JSON.stringify(childValues(legacyListSub, subscriptionUrls, 'url')) === JSON.stringify(['https://example.com/list.txt', 'https://example.com/auto.txt']), 'legacy list subscription entries normalized');
 const legacyListSubSource = childByValue(legacyListSub, subscriptionUrls, 'url', 'https://example.com/list.txt');
 const legacyListSubAutoSource = childByValue(legacyListSub, subscriptionUrls, 'url', 'https://example.com/auto.txt');
-assert(legacyListSubSource.user_agent === 'ListAgent/2.0', 'legacy list subscription user-agent migrated');
+assertSubscriptionUserAgent(legacyListSubSource, 'ListAgent/2.0', 'legacy list subscription source');
 absent(legacyListSubSource, 'auto_user_agent', 'legacy list subscription source');
 assert(legacyListSubSource.subscription_update_interval === '6h', 'legacy list subscription interval migrated');
-assert(legacyListSubAutoSource.user_agent === 'sing-box', 'legacy list subscription without User-Agent gets the single default');
+assertSubscriptionUserAgent(legacyListSubAutoSource, 'sing-box', 'legacy automatic subscription source');
 absent(legacyListSubAutoSource, 'auto_user_agent', 'legacy automatic subscription source');
 absent(legacyListSub, 'subscription_url_settings', 'legacy-list-sub');
 absent(legacyListSub, 'subscription_url_items', 'legacy-list-sub');
@@ -634,7 +644,7 @@ function assert(condition, message) {
 assert(out.changed === true, '1.0.1 config should require migration');
 assert(out.config.settings.config_version === '1.0.5', 'config schema version should advance to 1.0.5');
 assert(out.config.settings.component_update_check_enabled === '1', 'updates from 1.0.1 and below should enable component update checks');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults']), 'named migrations should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header']), 'named migrations should be recorded');
 assert(!Object.prototype.hasOwnProperty.call(section, 'interfaces'), 'parent interface list should be removed');
 assert(JSON.stringify(interfaces.map(item => item.name)) === JSON.stringify(['awg0', 'tun0']), 'interfaces should keep their order');
 for (const item of interfaces) {
@@ -835,7 +845,7 @@ function assert(condition, message) {
 
 assert(out.config.settings.component_update_check_enabled === '0', '1.0.2 config must preserve an explicitly disabled component check');
 assert(out.config.settings.config_version === '1.0.5', '1.0.2 config should advance through the HTTP URL migration schema');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults']), 'newer configs should mark skipped migrations');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header']), 'newer configs should mark skipped migrations');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.4-http.json" <<'JSON'
@@ -888,7 +898,7 @@ assert(JSON.stringify(section.selector_proxy_links) === JSON.stringify([
 ]), 'connection URLs must stay owned by sing-box parser outbounds');
 assert(jsonOutbounds.length === 1 && jsonOutbounds[0].type === 'direct' && jsonOutbounds[0].tag === 'http',
   'the retired HTTP conversion must leave existing JSON outbounds unchanged');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults']), 'HTTP URL migration should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header']), 'HTTP URL migration should be recorded');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.5-http.json" <<'JSON'
@@ -973,10 +983,10 @@ if (JSON.stringify(section.selector_proxy_links) !== JSON.stringify(['http://pro
 }
 const subscriptionSettings = JSON.parse(section.subscription_url_settings);
 if (JSON.stringify(subscriptionSettings) !== JSON.stringify({
-  'https://example.com/subscription': { user_agent: 'Happ' },
-  'https://example.com/auto': { user_agent: 'sing-box' },
+  'https://example.com/subscription': { header: ['User-Agent: Happ'] },
+  'https://example.com/auto': { header: ['User-Agent: sing-box'] },
 })) {
-  console.error('subscription settings migration must preserve custom User-Agent values and replace automatic selection');
+  console.error('subscription settings migration must move custom User-Agent values into the request headers');
   process.exit(1);
 }
 const urltestSettings = JSON.parse(section.urltest_settings);
@@ -1005,11 +1015,14 @@ if (source.server_filter_mode !== 'include' ||
   console.error('subscription filters were not migrated to the unified model');
   process.exit(1);
 }
-if (source.user_agent !== 'Happ' ||
+if (headerValue(source, 'User-Agent') !== 'Happ' ||
+    `${source.header[0]}` !== 'User-Agent: Happ' ||
+    Object.prototype.hasOwnProperty.call(source, 'user_agent') ||
     Object.prototype.hasOwnProperty.call(source, 'auto_user_agent') ||
-    autoSource.user_agent !== 'sing-box' ||
+    headerValue(autoSource, 'User-Agent') !== 'sing-box' ||
+    Object.prototype.hasOwnProperty.call(autoSource, 'user_agent') ||
     Object.prototype.hasOwnProperty.call(autoSource, 'auto_user_agent')) {
-  console.error('subscription child migration must preserve custom User-Agent values and replace automatic selection');
+  console.error('subscription child migration must move custom User-Agent values into the request headers');
   process.exit(1);
 }
 if (headerValue(source, 'X-HWID') !== 'custom-router-hwid' ||
@@ -1130,7 +1143,7 @@ assert(JSON.stringify(config.fallback_level.map(item => item.name)) === JSON.str
 assert(out.removed_caches.includes('/var/run/forkop/section-cache') &&
   out.removed_caches.includes('/var/run/forkop/runtime-manifest.json'),
   'readable tag migration must remove both legacy runtime graph files');
-assert(config.settings.applied_migrations.at(-1) === 'group_interrupt_defaults',
+assert(config.settings.applied_migrations.at(-1) === 'subscription_user_agent_header',
   'readable runtime tag migration must be recorded');
 NODE
 
@@ -1243,7 +1256,7 @@ if (!out.changed || config.section[0].sort_by_latency !== undefined ||
 }
 if (config.urltest[0].name !== 'Fast' || config.fallback_group[0].name !== 'Fallback' ||
     !config.settings.applied_migrations.includes('remove_dashboard_sort_options') ||
-    config.settings.applied_migrations.at(-1) !== 'group_interrupt_defaults') {
+    config.settings.applied_migrations.at(-1) !== 'subscription_user_agent_header') {
   console.error('dashboard sort migration changed unrelated settings or missed its marker');
   process.exit(1);
 }
@@ -1337,7 +1350,7 @@ assert(sections.doh.dns_type === undefined &&
   'DNS action should preserve the old DoH path as a list');
 assert(JSON.stringify(sections.udp.dns_server) === JSON.stringify(['8.8.8.8']),
   'DNS action should migrate explicit UDP without a redundant scheme');
-assert(config.settings.applied_migrations.at(-1) === 'group_interrupt_defaults',
+assert(config.settings.applied_migrations.at(-1) === 'subscription_user_agent_header',
   'DNS URI migration marker should be recorded');
 
 fs.writeFileSync(process.argv[3], JSON.stringify(config));
@@ -1502,7 +1515,7 @@ grep -Fxq 'forkop.settings.config_version=1.0.5' "$WORK_DIR/runtime-version.stat
   fail "runtime version migration must advance config_version"
 grep -Fxq 'forkop.settings.component_update_check_enabled=1' "$WORK_DIR/runtime-version.state" ||
   fail "runtime version migration must enable component update checks"
-grep -Fq 'forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter native_fallbacks dns_fallback_modes native_rule_sets universal_rule_sets leaf_subscription_providers extended_server_defaults fallback_uci_tags reset_fallback_defaults remove_proxy_parameter_filters server_filter_model server_filter_modes single_subscription_user_agent subscription_headers interface_display_names remove_section_cache remove_dashboard_sort_options dns_server_uris interface_domain_resolver_uris readable_runtime_tags urltest_expected_status group_interrupt_defaults' "$WORK_DIR/runtime-version.state" ||
+grep -Fq 'forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter native_fallbacks dns_fallback_modes native_rule_sets universal_rule_sets leaf_subscription_providers extended_server_defaults fallback_uci_tags reset_fallback_defaults remove_proxy_parameter_filters server_filter_model server_filter_modes single_subscription_user_agent subscription_headers interface_display_names remove_section_cache remove_dashboard_sort_options dns_server_uris interface_domain_resolver_uris readable_runtime_tags urltest_expected_status group_interrupt_defaults subscription_user_agent_header' "$WORK_DIR/runtime-version.state" ||
   fail "runtime migration must record stable migration names"
 grep -Fxq 'forkop.main.selector_proxy_links=http://proxy.example:8080' "$WORK_DIR/runtime-version.state" ||
   fail "runtime migration must preserve connection URLs for sing-box parser outbounds"

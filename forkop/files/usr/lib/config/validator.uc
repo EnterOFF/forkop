@@ -987,7 +987,7 @@ function valid_local_subscription_path(value) {
 
 function validate_subscription_source_entry_value(entry, section) {
     if (index(as_string(entry), "|") >= 0)
-        fail_validation("Invalid subscription URL in rule '" + section + "': Configure User-Agent in the subscription item settings. Aborted.");
+        fail_validation("Invalid subscription URL in rule '" + section + "': Configure User-Agent in the subscription headers. Aborted.");
 
     if (valid_http_url(entry) || valid_local_subscription_path(entry))
         return;

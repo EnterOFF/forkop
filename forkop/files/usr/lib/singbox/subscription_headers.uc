@@ -5,6 +5,8 @@ let common = require("core.common");
 
 let as_string = common.as_string;
 
+const DEFAULT_USER_AGENT = "sing-box";
+
 function clean_header_value(value) {
     return trim(replace(as_string(value), /[\r\n]+/g, " "));
 }
@@ -50,6 +52,7 @@ function default_header_lines(hwid) {
         hwid = clean_header_value(hwid);
 
     let result = [
+        header_line("User-Agent", DEFAULT_USER_AGENT),
         header_line("X-Device-OS", "OpenWrt Linux"),
         header_line("X-Device-Model", device_model()),
         header_line("X-Ver-OS", fs.readfile("/proc/sys/kernel/osrelease")),
@@ -102,6 +105,7 @@ function parse_header_lines(lines) {
 }
 
 return {
+    DEFAULT_USER_AGENT,
     generated_hwid,
     default_header_lines,
     parse_header_line,

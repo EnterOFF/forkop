@@ -1876,6 +1876,73 @@ function migrate_subscription_headers(ctx) {
     }
 }
 
+// Released configs carried the User-Agent as its own option, and the provider
+// now reads it from the ordinary headers. A missing header would fall back to
+// the core default instead of the value the release actually sent, so every
+// subscription gets the header written out explicitly.
+function subscription_user_agent_header_lines(item) {
+    let configured = trim(as_string(option(item, "user_agent", "")));
+    if (configured == "")
+        configured = subscription_headers_module.DEFAULT_USER_AGENT;
+
+    let line = "User-Agent: " + configured;
+    let result = [];
+    let replaced = false;
+    for (let value in list_option(item, "header")) {
+        let parsed = subscription_headers_module.parse_header_line(value);
+        if (parsed.valid && lc(parsed.name) == "user-agent") {
+            if (!replaced) {
+                replaced = true;
+                push(result, line);
+            }
+            continue;
+        }
+        push(result, as_string(value));
+    }
+    if (replaced)
+        return result;
+
+    let prefixed = [ line ];
+    for (let value in result)
+        push(prefixed, value);
+    return prefixed;
+}
+
+function migrate_subscription_user_agent_header(ctx) {
+    for (let child in ctx.model.subscription_url || []) {
+        set_list_option(ctx, child, "header", subscription_user_agent_header_lines(child));
+        delete_option(ctx, child, "user_agent");
+    }
+
+    for (let section in ctx.model.sections || []) {
+        let raw = option(section, "subscription_url_settings", "");
+        if (raw == "")
+            continue;
+
+        let settings;
+        try {
+            settings = json(raw);
+        }
+        catch (e) {
+            continue;
+        }
+        if (type(settings) != "object")
+            continue;
+
+        let changed = false;
+        for (let _, item in settings) {
+            if (type(item) != "object" || !option_exists(item, "user_agent"))
+                continue;
+
+            item.header = subscription_user_agent_header_lines(item);
+            delete item.user_agent;
+            changed = true;
+        }
+        if (changed)
+            set_option(ctx, section, "subscription_url_settings", sprintf("%J", settings));
+    }
+}
+
 function remove_dashboard_sort_options(ctx) {
     for (let section in ctx.model.sections || [])
         delete_option(ctx, section, "sort_by_latency");
@@ -2053,7 +2120,8 @@ const MIGRATIONS = [
     { id: "interface_domain_resolver_uris", run: migrate_interface_domain_resolver_uris },
     { id: "readable_runtime_tags", run: migrate_readable_runtime_tags },
     { id: "urltest_expected_status", run: migrate_urltest_expected_status },
-    { id: "group_interrupt_defaults", run: migrate_group_interrupt_defaults }
+    { id: "group_interrupt_defaults", run: migrate_group_interrupt_defaults },
+    { id: "subscription_user_agent_header", run: migrate_subscription_user_agent_header }
 ];
 
 function apply_migrations(ctx) {

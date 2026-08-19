@@ -85,7 +85,6 @@ const localOptionNames = optionNames(false);
   'subscription_update_interval',
   'download_via_proxy_enabled',
   'download_via_proxy_section',
-  'user_agent',
   '_subscription_headers',
   'show_dashboard_metadata',
 ].forEach((name) => {

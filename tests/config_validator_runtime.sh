@@ -574,7 +574,7 @@ cat >"$WORK_DIR/bad-subscription.json" <<'JSON'
   ]
 }
 JSON
-assert_rejects "bad subscription" "$WORK_DIR/bad-subscription.json" "Configure User-Agent in the subscription item settings"
+assert_rejects "bad subscription" "$WORK_DIR/bad-subscription.json" "Configure User-Agent in the subscription headers"
 
 cat >"$WORK_DIR/bad-local-subscription.json" <<'JSON'
 {

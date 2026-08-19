@@ -37,8 +37,7 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
       ".type": "subscription_url",
       "section": "proxy",
       "url": "https://example.com/subscription",
-      "user_agent": "Happ",
-      "header": [ "X-HWID: router-hwid", "X-Device-OS: OpenWrt Linux", "X-Test: one", "x-test: two", "X-Empty:" ],
+      "header": [ "User-Agent: Happ", "X-HWID: router-hwid", "X-Device-OS: OpenWrt Linux", "X-Test: one", "x-test: two", "X-Empty:" ],
       "subscription_update_enabled": "0",
       "download_via_proxy_enabled": "1",
       "download_via_proxy_section": "hop",
@@ -70,7 +69,6 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
       "subscription_update_interval": "invalid",
       "download_via_proxy_enabled": "1",
       "download_via_proxy_section": "proxy",
-      "user_agent": "ignored",
       "header": [ "Broken Header" ],
       "show_dashboard_metadata": "1",
       "show_subscription_name": "1",
@@ -102,7 +100,7 @@ ucode -L "$FORKOP_LIB" "$FORKOP_LIB/singbox/generator.uc" generate-config-fixtur
 ucode -L "$FORKOP_LIB" -e '
 let subscription_headers = require("singbox.subscription_headers");
 let parsed = subscription_headers.parse_header_lines(subscription_headers.default_header_lines());
-if (!parsed.valid || length(keys(parsed.headers)) != 6 || parsed.headers["X-HWID"][0] == "")
+if (!parsed.valid || length(keys(parsed.headers)) != 7 || parsed.headers["User-Agent"][0] != "sing-box" || parsed.headers["X-HWID"][0] == "")
     die("default subscription headers were not generated\n");
 '
 
@@ -122,10 +120,10 @@ let without_hwid = by_provider["proxy/sub3"];
 let local = by_provider["proxy/local"];
 if (!remote || !automatic || !without_hwid || !local || length(keys(by_provider)) != 4)
     die("remote subscription providers were not generated with readable tags\n");
-if (remote.url != "https://example.com/subscription" || remote.user_agent != "Happ")
+if (remote.url != "https://example.com/subscription" || remote.headers["User-Agent"][0] != "Happ")
     die("remote provider request profile was not preserved\n");
-if (automatic.user_agent != "sing-box")
-    die("default subscription User-Agent was not generated\n");
+if (remote.user_agent != null || automatic.user_agent != null || automatic.headers["User-Agent"] != null)
+    die("the removed user_agent option leaked or an unset User-Agent was materialized\n");
 if (automatic.headers["X-HWID"][0] != "configured-hwid")
     die("configured subscription headers were not generated\n");
 if (remote.headers["X-HWID"][0] != "router-hwid" || remote.headers["X-Device-OS"][0] != "OpenWrt Linux")
@@ -152,7 +150,7 @@ if (remote.include_types != null || remote.include_transports != null || remote.
     die("provider still contains removed parameter filters\n");
 if (local.type != "local" || local.path != "/etc/forkop/local-subscription.txt")
     die("local subscription provider was not generated from its path\n");
-if (local.url != null || local.user_agent != null || local.headers != null || local.update_interval != null || local.download_detour != null)
+if (local.url != null || local.headers != null || local.update_interval != null || local.download_detour != null)
     die("local subscription provider contains unsupported remote options\n");
 if (local.outbound_detour != "hop" || local.include != "(?:(?:^Local))" || local.exclude != "(?:(?:Expired))")
     die("local subscription provider did not preserve detour and server filters\n");
