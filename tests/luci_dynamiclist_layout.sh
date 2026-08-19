@@ -32,13 +32,13 @@ const fs = require('fs');
 
 const source = fs.readFileSync(process.argv[2], 'utf8');
 const subscriptionValidationSource = source.match(
-  /function parseSubscriptionUrlEntry\([\s\S]*?\n}\n\nfunction getValidationHeaderText\(/,
+  /function parseSubscriptionUrlEntry\([\s\S]*?\n}\n\nfunction escapeHtml\(/,
 );
 assert(subscriptionValidationSource, 'subscription validation helpers not found');
 const validateSubscription = new Function(
   'main',
   '_',
-  `${subscriptionValidationSource[0].slice(0, -'\n\nfunction getValidationHeaderText('.length)}; return validateSubscriptionUrlEntry;`,
+  `${subscriptionValidationSource[0].slice(0, -'\n\nfunction escapeHtml('.length)}; return validateSubscriptionUrlEntry;`,
 )(
   {
     validateUrl: (value) => ({ valid: /^https?:\/\/[^/]+/.test(value) }),

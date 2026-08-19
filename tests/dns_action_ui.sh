@@ -151,7 +151,7 @@ if (!source.slice(fullyRoutedOption, portsOption).includes("makeDeviceOptionsExc
 
 const conditionDependencies = source.slice(
   requiredIndex("function dependsOnRuleConditions(option)"),
-  requiredIndex("const ZAPRET_LEGACY_DEFAULT_NFQWS_OPT"),
+  requiredIndex("const ANNOTATED_TEXTAREA_STYLE_ID"),
 );
 for (const condition of [
   '"domain"',

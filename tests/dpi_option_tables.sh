@@ -4,7 +4,7 @@ set -eo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NFQUEUE_UC="$ROOT_DIR/forkop/files/usr/lib/providers/nfqueue/validator.uc"
 BYEDPI_UC="$ROOT_DIR/forkop/files/usr/lib/providers/byedpi/validator.uc"
-SECTION_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js"
+DPI_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js"
 
 # The DPI strategy editor annotates a strategy while it is typed, so it carries
 # its own copy of the nfqws, nfqws2 and ByeDPI option tables. The backend
@@ -12,12 +12,12 @@ SECTION_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/s
 # drifts the editor either rejects a strategy the backend accepts - and the
 # local check runs first, so the user cannot save at all - or accepts one the
 # backend refuses only after the round trip.
-NFQUEUE_UC="$NFQUEUE_UC" BYEDPI_UC="$BYEDPI_UC" SECTION_JS="$SECTION_JS" node - <<'NODE'
+NFQUEUE_UC="$NFQUEUE_UC" BYEDPI_UC="$BYEDPI_UC" DPI_JS="$DPI_JS" node - <<'NODE'
 const fs = require('fs');
 
 const nfqueue = fs.readFileSync(process.env.NFQUEUE_UC, 'utf8');
 const byedpi = fs.readFileSync(process.env.BYEDPI_UC, 'utf8');
-const section = fs.readFileSync(process.env.SECTION_JS, 'utf8');
+const editor = fs.readFileSync(process.env.DPI_JS, 'utf8');
 
 const problems = [];
 
@@ -34,9 +34,9 @@ function jsSet(name) {
   const matched = new RegExp(
     `const ${name} = new Set\\(\\[(.*?)\\]\\);`,
     's',
-  ).exec(section);
+  ).exec(editor);
   if (!matched) {
-    problems.push(`${name} is absent from section.js`);
+    problems.push(`${name} is absent from dpi_strategy.js`);
     return null;
   }
   return [...matched[1].matchAll(/"([^"]+)"/g)].map((item) => item[1]);
@@ -113,13 +113,13 @@ function backendRejected(otherKind) {
 }
 
 function editorRejected(fnName) {
-  const start = section.indexOf(`function ${fnName}(`);
+  const start = editor.indexOf(`function ${fnName}(`);
   if (start < 0) {
-    problems.push(`${fnName}() is absent from section.js`);
+    problems.push(`${fnName}() is absent from dpi_strategy.js`);
     return null;
   }
-  const end = section.indexOf('\n}\n', start);
-  const body = end < 0 ? section.slice(start) : section.slice(start, end);
+  const end = editor.indexOf('\n}\n', start);
+  const body = end < 0 ? editor.slice(start) : editor.slice(start, end);
   return [
     ...new Set(
       [...body.matchAll(/token === "(--[a-z0-9-]+)"/g)].map((item) => item[1]),

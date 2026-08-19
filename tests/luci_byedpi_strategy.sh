@@ -2,17 +2,17 @@
 set -eo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SECTION_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js"
+VIEW_DIR="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop"
+SECTION_JS="$VIEW_DIR/section.js"
+LOADER="$ROOT_DIR/tests/helpers/luci_module.js"
 
-node - "$SECTION_JS" <<'NODE'
+VIEW_DIR="$VIEW_DIR" LOADER="$LOADER" SECTION_JS="$SECTION_JS" node - <<'NODE'
 const assert = require('assert');
-const source = require('fs').readFileSync(process.argv[2], 'utf8');
+const fs = require('fs');
+const { createLoader } = require(process.env.LOADER);
 
-const tokenizer = source.match(
-  /function parseByedpiStrategyTokens\([\s\S]*?\n}\n/,
-);
-assert(tokenizer, 'ByeDPI strategy tokenizer not found');
-eval(tokenizer[0]);
+const dpi = createLoader(process.env.VIEW_DIR)('dpi_strategy');
+const { parseByedpiStrategyTokens } = dpi;
 
 const quoted = parseByedpiStrategyTokens('-H:"one.example two.example" -N');
 assert.strictEqual(quoted.unterminatedQuote, '');
@@ -28,9 +28,10 @@ assert.strictEqual(
   'annotation offsets must cover the quoted span of the original text',
 );
 
-const plain = parseByedpiStrategyTokens('--disorder 3  --fake-sni example.org');
 assert.deepStrictEqual(
-  plain.tokens.map((token) => token.value),
+  parseByedpiStrategyTokens('--disorder 3 --fake-sni example.org').tokens.map(
+    (token) => token.value,
+  ),
   ['--disorder', '3', '--fake-sni', 'example.org'],
   'unquoted strategies must tokenize on whitespace as before',
 );
@@ -41,27 +42,31 @@ assert.strictEqual(
   'an unterminated quote must be reported instead of guessed',
 );
 
-const analysis = source.match(
-  /function buildByedpiLocalAnalysis\([\s\S]*?\nconst analyzeByedpiStrategy /,
-);
-assert(analysis, 'ByeDPI local analysis not found');
+// The local analysis has to use the quote-aware tokenizer, otherwise a quoted
+// host list is annotated at the wrong offsets.
+const unterminated = dpi.buildByedpiLocalAnalysis('-H:"one.example');
+assert.strictEqual(unterminated.valid, false);
 assert.match(
-  analysis[0],
-  /parseByedpiStrategyTokens\(text\)/,
-  'ByeDPI analysis must use the quote-aware tokenizer',
-);
-assert.match(
-  analysis[0],
-  /unterminated %s quote/,
+  unterminated.message,
+  /unterminated . quote/i,
   'ByeDPI analysis must explain an unterminated quote',
+);
+
+const quotedAnalysis = dpi.buildByedpiLocalAnalysis(
+  '-H:"one.example two.example" -N',
+);
+assert.strictEqual(
+  quotedAnalysis.valid,
+  true,
+  'a quoted ciadpi argument must stay valid',
 );
 
 // The backend matches its needle against quote-stripped argv, so the analyzer
 // that renders a backend rejection has to tokenize the same way the local one
 // does - not on plain whitespace.
-const wiring = source.match(
-  /const analyzeByedpiStrategy = createStrategyAnalyzer\([\s\S]*?\);/,
-);
+const wiring = fs
+  .readFileSync(process.env.SECTION_JS, 'utf8')
+  .match(/const analyzeByedpiStrategy = createStrategyAnalyzer\([\s\S]*?\);/);
 assert(wiring, 'ByeDPI analyzer wiring not found');
 assert.match(
   wiring[0],
