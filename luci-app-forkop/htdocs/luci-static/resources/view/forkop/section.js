@@ -470,8 +470,11 @@ const NFQWS2_REQUIRED_ARG_OPTIONS = new Set([
   "--blob",
   "--cookie",
   "--ctrack-timeouts",
+  "--filter-icmp",
+  "--filter-ipp",
   "--filter-l3",
   "--filter-l7",
+  "--filter-ssid",
   "--filter-tcp",
   "--filter-udp",
   "--fwmark",
@@ -481,7 +484,11 @@ const NFQWS2_REQUIRED_ARG_OPTIONS = new Set([
   "--hostlist-auto-debug",
   "--hostlist-auto-fail-threshold",
   "--hostlist-auto-fail-time",
+  "--hostlist-auto-incoming-maxseq",
+  "--hostlist-auto-retrans-maxseq",
   "--hostlist-auto-retrans-threshold",
+  "--hostlist-auto-udp-in",
+  "--hostlist-auto-udp-out",
   "--hostlist-domains",
   "--hostlist-exclude",
   "--hostlist-exclude-domains",
@@ -7778,7 +7785,15 @@ function getNfqws2ForbiddenTokenInfo(token, index, nextToken) {
     token === "--hostlist-auto-debug" ||
     token.startsWith("--hostlist-auto-debug=") ||
     token === "--hostlist-auto-retrans-reset" ||
-    token.startsWith("--hostlist-auto-retrans-reset=")
+    token.startsWith("--hostlist-auto-retrans-reset=") ||
+    token === "--hostlist-auto-retrans-maxseq" ||
+    token.startsWith("--hostlist-auto-retrans-maxseq=") ||
+    token === "--hostlist-auto-incoming-maxseq" ||
+    token.startsWith("--hostlist-auto-incoming-maxseq=") ||
+    token === "--hostlist-auto-udp-in" ||
+    token.startsWith("--hostlist-auto-udp-in=") ||
+    token === "--hostlist-auto-udp-out" ||
+    token.startsWith("--hostlist-auto-udp-out=")
   ) {
     return {
       reason: hostSelectionMessage,
