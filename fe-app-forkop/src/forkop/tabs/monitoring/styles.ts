@@ -302,6 +302,7 @@ export const styles = `
     font-weight: 600;
     text-transform: uppercase;
     white-space: nowrap;
+    text-overflow: ellipsis;
     border-bottom-color: rgba(127, 127, 127, 0.32);
 }
 
@@ -549,16 +550,167 @@ export const styles = `
     }
 }
 
+/*
+ * Below the width where the eight-column table still fits, every connection
+ * becomes a three-line card built from the same cells, so nothing scrolls
+ * sideways. Line one is the host with the close action, line two the source
+ * with route and protocol, line three the duration with the traffic counters.
+ */
+@media (max-width: 640px) {
+    .fkp_monitoring-page__table-wrap {
+        overflow-x: visible;
+    }
+
+    .fkp_monitoring-page__table,
+    .fkp_monitoring-page__table tbody {
+        display: block;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .fkp_monitoring-page__table thead {
+        display: none;
+    }
+
+    .fkp_monitoring-page__state-row {
+        display: block;
+    }
+
+    .fkp_monitoring-page__state-cell {
+        display: block;
+    }
+
+    .fkp_monitoring-page__row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        column-gap: 8px;
+        row-gap: 2px;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--fkp-monitoring-divider-color);
+    }
+
+    .fkp_monitoring-page__row:last-child {
+        border-bottom: 0;
+    }
+
+    .fkp_monitoring-page__row::before,
+    .fkp_monitoring-page__row::after {
+        content: '';
+        flex: 0 0 100%;
+        height: 0;
+    }
+
+    .fkp_monitoring-page__row::before {
+        order: 3;
+    }
+
+    .fkp_monitoring-page__row::after {
+        display: none;
+        order: 7;
+    }
+
+    .fkp_monitoring-page__table td {
+        display: block;
+        flex: 0 0 auto;
+        max-width: 100%;
+        padding: 0;
+        border-bottom: 0;
+    }
+
+    .fkp_monitoring-page__table td:nth-child(1) {
+        order: 1;
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .fkp_monitoring-page__table td:nth-child(8) {
+        order: 2;
+    }
+
+    .fkp_monitoring-page__table td:nth-child(7) {
+        order: 4;
+        flex: 0 1 auto;
+        min-width: 0;
+    }
+
+    .fkp_monitoring-page__table td:nth-child(3) {
+        order: 5;
+    }
+
+    .fkp_monitoring-page__table td:nth-child(2) {
+        order: 6;
+    }
+
+    .fkp_monitoring-page__table td:nth-child(4) {
+        order: 8;
+    }
+
+    .fkp_monitoring-page__table td:nth-child(5) {
+        order: 9;
+        margin-left: auto;
+    }
+
+    .fkp_monitoring-page__table td:nth-child(6) {
+        order: 10;
+    }
+
+    .fkp_monitoring-page__table td:nth-child(1) .fkp_monitoring-page__value {
+        font-weight: 600;
+    }
+
+    .fkp_monitoring-page__table td:nth-child(4),
+    .fkp_monitoring-page__table td:nth-child(5),
+    .fkp_monitoring-page__table td:nth-child(6) {
+        display: flex;
+        align-items: baseline;
+        gap: 3px;
+        color: var(--text-color-medium);
+        font-size: 12px;
+    }
+
+    .fkp_monitoring-page__table td:nth-child(4) .fkp_monitoring-page__value,
+    .fkp_monitoring-page__table td:nth-child(5) .fkp_monitoring-page__value,
+    .fkp_monitoring-page__table td:nth-child(6) .fkp_monitoring-page__value {
+        font-size: 12px;
+    }
+
+    .fkp_monitoring-page__table td:nth-child(5)::before {
+        content: '\\2193';
+    }
+
+    .fkp_monitoring-page__table td:nth-child(6)::before {
+        content: '\\2191';
+    }
+
+    .fkp_monitoring-page__row-action-placeholder {
+        display: none;
+    }
+}
+
 @media (max-width: 520px) {
     .fkp_monitoring-page__filters {
+        display: contents;
+    }
+
+    .fkp_monitoring-page__device-filter {
         grid-column: 1 / -1;
-        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .fkp_monitoring-page__search {
+        grid-column: 1;
     }
 
     .fkp_monitoring-page__actions {
         grid-column: 2;
         align-self: flex-end;
     }
+}
 
+/* Narrow phones cannot hold the source and the counters on one line. */
+@media (max-width: 480px) {
+    .fkp_monitoring-page__row::after {
+        display: block;
+    }
 }
 `;

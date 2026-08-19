@@ -796,12 +796,21 @@ function renderConnectionRow(connection: MonitoredConnection) {
           },
           [renderXIcon24()],
         )
-      : E('span', {}, '-');
+      : E(
+          'span',
+          { class: 'fkp_monitoring-page__row-action-placeholder' },
+          '-',
+        );
 
   return E(
     'tr',
     {
-      class: isClosing ? 'fkp_monitoring-page__row--closing' : '',
+      class: [
+        'fkp_monitoring-page__row',
+        isClosing ? 'fkp_monitoring-page__row--closing' : '',
+      ]
+        .filter(Boolean)
+        .join(' '),
     },
     [
       renderTableCell(_('Host'), [renderValue(target.primary)]),
@@ -857,26 +866,25 @@ function renderConnectionsTable(
     ? [renderStateRow(state.text, state.className)]
     : connections.map(renderConnectionRow);
 
+  // No LuCI `table` class here: the theme turns it into a flex column on
+  // phones, which splits the head and the body into two independently sized
+  // tables and pulls the column headers away from their values.
   return E('div', { class: 'fkp_monitoring-page__table-wrap' }, [
-    E(
-      'table',
-      { class: 'table cbi-section-table fkp_monitoring-page__table' },
-      [
-        E('thead', {}, [
-          E('tr', {}, [
-            E('th', {}, _('Host')),
-            E('th', {}, _('Type')),
-            E('th', {}, _('Route')),
-            E('th', {}, _('Time')),
-            E('th', {}, `\u2193 ${_('Downloaded')}`),
-            E('th', {}, `\u2191 ${_('Uploaded')}`),
-            E('th', {}, _('Source')),
-            E('th', {}, _('Close')),
-          ]),
+    E('table', { class: 'fkp_monitoring-page__table' }, [
+      E('thead', {}, [
+        E('tr', {}, [
+          E('th', {}, _('Host')),
+          E('th', {}, _('Type')),
+          E('th', {}, _('Route')),
+          E('th', {}, _('Time')),
+          E('th', {}, `\u2193 ${_('Downloaded')}`),
+          E('th', {}, `\u2191 ${_('Uploaded')}`),
+          E('th', {}, _('Source')),
+          E('th', {}, _('Close')),
         ]),
-        E('tbody', {}, rows),
-      ],
-    ),
+      ]),
+      E('tbody', {}, rows),
+    ]),
   ]);
 }
 
