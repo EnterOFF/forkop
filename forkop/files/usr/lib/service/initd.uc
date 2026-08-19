@@ -179,6 +179,19 @@ function lock_dir_write_owner(lock_dir, owner_pid) {
     return write_text_file(as_string(lock_dir) + "/pid", as_string(owner_pid) + "\n");
 }
 
+function release_runtime_dir_lock(lock_dir, owner_pid) {
+    lock_dir = as_string(lock_dir);
+    owner_pid = as_string(owner_pid);
+    if (lock_dir == "" || owner_pid == "")
+        return;
+
+    if (first_line_value(lock_dir + "/pid") != owner_pid)
+        return;
+
+    command_success_from_args([ "rm", "-f", lock_dir + "/pid" ]);
+    command_success_from_args([ "rmdir", lock_dir ]);
+}
+
 function acquire_runtime_dir_lock(lock_dir, owner_pid) {
     lock_dir = as_string(lock_dir);
     owner_pid = as_string(owner_pid);
@@ -214,19 +227,6 @@ function acquire_runtime_dir_lock(lock_dir, owner_pid) {
 
     release_runtime_dir_lock(lock_dir, owner_pid);
     return false;
-}
-
-function release_runtime_dir_lock(lock_dir, owner_pid) {
-    lock_dir = as_string(lock_dir);
-    owner_pid = as_string(owner_pid);
-    if (lock_dir == "" || owner_pid == "")
-        return;
-
-    if (first_line_value(lock_dir + "/pid") != owner_pid)
-        return;
-
-    command_success_from_args([ "rm", "-f", lock_dir + "/pid" ]);
-    command_success_from_args([ "rmdir", lock_dir ]);
 }
 
 function mark_pending_reload(path, reason) {
@@ -374,6 +374,12 @@ function restore_dnsmasq_failsafe() {
     return module_status(DNS_APPLY_UC, [ "failsafe-restore" ]);
 }
 
+function owner_pid_value() {
+    let stat = as_string(fs.readfile("/proc/self/stat"));
+    let separator = index(stat, " ");
+    return separator > 0 ? substr(stat, 0, separator) : "0";
+}
+
 function begin_external_service_action(action, source, owner_pid) {
     if (as_string(getenv("FORKOP_UI_ACTION_TRACKED") || "0") == "1")
         return "";
@@ -391,12 +397,6 @@ function finish_external_service_action(action, job_id, status) {
     if (as_string(job_id) == "" || !file_exists(UI_UC))
         return 0;
     return module_status(UI_UC, [ "service-action-finish-after-command", action, job_id, as_string(status) ]);
-}
-
-function owner_pid_value() {
-    let stat = as_string(fs.readfile("/proc/self/stat"));
-    let separator = index(stat, " ");
-    return separator > 0 ? substr(stat, 0, separator) : "0";
 }
 
 function runtime_status_object() {
