@@ -714,17 +714,17 @@
     "call": "Checks failed",
     "key": "Checks failed",
     "places": [
-      "src/forkop/tabs/diagnostic/helpers/getMeta.ts:26",
-      "src/forkop/tabs/diagnostic/checks/getCheckItemsMeta.ts:10"
+      "src/forkop/tabs/diagnostic/checks/getCheckItemsMeta.ts:10",
+      "src/forkop/tabs/diagnostic/helpers/getMeta.ts:26"
     ]
   },
   {
     "call": "Checks passed",
     "key": "Checks passed",
     "places": [
-      "src/forkop/tabs/diagnostic/helpers/getMeta.ts:13",
       "src/forkop/tabs/diagnostic/checks/getCheckItemsMeta.ts:23",
-      "src/forkop/tabs/diagnostic/checks/runFakeIPCheck.ts:43"
+      "src/forkop/tabs/diagnostic/checks/runFakeIPCheck.ts:43",
+      "src/forkop/tabs/diagnostic/helpers/getMeta.ts:13"
     ]
   },
   {
@@ -793,8 +793,8 @@
       "src/partials/modal/renderModal.ts:263",
       "src/forkop/tabs/dashboard/initController.ts:845",
       "src/forkop/tabs/dashboard/initController.ts:1151",
-      "src/forkop/tabs/monitoring/initController.ts:824",
-      "src/forkop/tabs/monitoring/initController.ts:874"
+      "src/forkop/tabs/monitoring/initController.ts:833",
+      "src/forkop/tabs/monitoring/initController.ts:883"
     ]
   },
   {
@@ -939,7 +939,7 @@
     "call": "Connections are unavailable",
     "key": "Connections are unavailable",
     "places": [
-      "src/forkop/tabs/monitoring/initController.ts:943"
+      "src/forkop/tabs/monitoring/initController.ts:951"
     ]
   },
   {
@@ -1402,8 +1402,8 @@
     "call": "Downloaded",
     "key": "Downloaded",
     "places": [
-      "src/forkop/tabs/monitoring/initController.ts:817",
-      "src/forkop/tabs/monitoring/initController.ts:871"
+      "src/forkop/tabs/monitoring/initController.ts:826",
+      "src/forkop/tabs/monitoring/initController.ts:880"
     ]
   },
   {
@@ -1782,16 +1782,16 @@
     "call": "Failed to close connection",
     "key": "Failed to close connection",
     "places": [
-      "src/forkop/tabs/monitoring/initController.ts:1211",
-      "src/forkop/tabs/monitoring/initController.ts:1226"
+      "src/forkop/tabs/monitoring/initController.ts:1219",
+      "src/forkop/tabs/monitoring/initController.ts:1234"
     ]
   },
   {
     "call": "Failed to close connections",
     "key": "Failed to close connections",
     "places": [
-      "src/forkop/tabs/monitoring/initController.ts:1245",
-      "src/forkop/tabs/monitoring/initController.ts:1258"
+      "src/forkop/tabs/monitoring/initController.ts:1253",
+      "src/forkop/tabs/monitoring/initController.ts:1266"
     ]
   },
   {
@@ -1979,7 +1979,7 @@
     "call": "Forkop service is stopped. Start the service to display connections.",
     "key": "Forkop service is stopped. Start the service to display connections.",
     "places": [
-      "src/forkop/tabs/monitoring/initController.ts:922"
+      "src/forkop/tabs/monitoring/initController.ts:930"
     ]
   },
   {
@@ -2228,8 +2228,8 @@
     "call": "Host",
     "key": "Host",
     "places": [
-      "src/forkop/tabs/monitoring/initController.ts:807",
-      "src/forkop/tabs/monitoring/initController.ts:867"
+      "src/forkop/tabs/monitoring/initController.ts:816",
+      "src/forkop/tabs/monitoring/initController.ts:876"
     ]
   },
   {
@@ -2613,8 +2613,8 @@
     "call": "Issues detected",
     "key": "Issues detected",
     "places": [
-      "src/forkop/tabs/diagnostic/helpers/getMeta.ts:20",
-      "src/forkop/tabs/diagnostic/checks/getCheckItemsMeta.ts:17"
+      "src/forkop/tabs/diagnostic/checks/getCheckItemsMeta.ts:17",
+      "src/forkop/tabs/diagnostic/helpers/getMeta.ts:20"
     ]
   },
   {
@@ -2782,7 +2782,7 @@
     "call": "Loading connections",
     "key": "Loading connections",
     "places": [
-      "src/forkop/tabs/monitoring/initController.ts:933",
+      "src/forkop/tabs/monitoring/initController.ts:941",
       "src/forkop/tabs/monitoring/render.ts:88"
     ]
   },
@@ -3043,14 +3043,14 @@
     "call": "No active connections",
     "key": "No active connections",
     "places": [
-      "src/forkop/tabs/monitoring/initController.ts:957"
+      "src/forkop/tabs/monitoring/initController.ts:965"
     ]
   },
   {
     "call": "No closed connections",
     "key": "No closed connections",
     "places": [
-      "src/forkop/tabs/monitoring/initController.ts:958"
+      "src/forkop/tabs/monitoring/initController.ts:966"
     ]
   },
   {
@@ -3795,8 +3795,8 @@
     "call": "Route",
     "key": "Route",
     "places": [
-      "src/forkop/tabs/monitoring/initController.ts:811",
-      "src/forkop/tabs/monitoring/initController.ts:869"
+      "src/forkop/tabs/monitoring/initController.ts:820",
+      "src/forkop/tabs/monitoring/initController.ts:878"
     ]
   },
   {
@@ -3947,8 +3947,8 @@
     "call": "Search",
     "key": "Search",
     "places": [
-      "src/forkop/tabs/logs/render.ts:24",
-      "src/forkop/tabs/monitoring/render.ts:47"
+      "src/forkop/tabs/monitoring/render.ts:47",
+      "src/forkop/tabs/logs/render.ts:24"
     ]
   },
   {
@@ -4443,8 +4443,8 @@
     "call": "Source",
     "key": "Source",
     "places": [
-      "src/forkop/tabs/monitoring/initController.ts:823",
-      "src/forkop/tabs/monitoring/initController.ts:873"
+      "src/forkop/tabs/monitoring/initController.ts:832",
+      "src/forkop/tabs/monitoring/initController.ts:882"
     ]
   },
   {
@@ -4881,8 +4881,8 @@
     "call": "Time",
     "key": "Time",
     "places": [
-      "src/forkop/tabs/monitoring/initController.ts:814",
-      "src/forkop/tabs/monitoring/initController.ts:870"
+      "src/forkop/tabs/monitoring/initController.ts:823",
+      "src/forkop/tabs/monitoring/initController.ts:879"
     ]
   },
   {
@@ -5049,8 +5049,8 @@
     "key": "Type",
     "places": [
       "../luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:1655",
-      "src/forkop/tabs/monitoring/initController.ts:808",
-      "src/forkop/tabs/monitoring/initController.ts:868"
+      "src/forkop/tabs/monitoring/initController.ts:817",
+      "src/forkop/tabs/monitoring/initController.ts:877"
     ]
   },
   {
@@ -5220,8 +5220,8 @@
     ]
   },
   {
-    "call": "Update remote rule sets",
-    "key": "Update remote rule sets",
+    "call": "Update remote lists",
+    "key": "Update remote lists",
     "places": [
       "src/forkop/tabs/diagnostic/partials/renderAvailableActions.ts:110"
     ]
@@ -5254,8 +5254,8 @@
     "call": "Uploaded",
     "key": "Uploaded",
     "places": [
-      "src/forkop/tabs/monitoring/initController.ts:820",
-      "src/forkop/tabs/monitoring/initController.ts:872"
+      "src/forkop/tabs/monitoring/initController.ts:829",
+      "src/forkop/tabs/monitoring/initController.ts:881"
     ]
   },
   {

@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-18 23:13+0300\n"
-"PO-Revision-Date: 2026-08-18 23:13+0300\n"
+"POT-Creation-Date: 2026-08-19 00:40+0300\n"
+"PO-Revision-Date: 2026-08-19 00:40+0300\n"
 "Last-Translator: ushan0v <ushanov2204@gmail.com>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "Language: \n"
@@ -445,14 +445,14 @@ msgstr ""
 msgid "checks"
 msgstr ""
 
-#: src/forkop/tabs/diagnostic/helpers/getMeta.ts:26
 #: src/forkop/tabs/diagnostic/checks/getCheckItemsMeta.ts:10
+#: src/forkop/tabs/diagnostic/helpers/getMeta.ts:26
 msgid "Checks failed"
 msgstr ""
 
-#: src/forkop/tabs/diagnostic/helpers/getMeta.ts:13
 #: src/forkop/tabs/diagnostic/checks/getCheckItemsMeta.ts:23
 #: src/forkop/tabs/diagnostic/checks/runFakeIPCheck.ts:43
+#: src/forkop/tabs/diagnostic/helpers/getMeta.ts:13
 msgid "Checks passed"
 msgstr ""
 
@@ -494,8 +494,8 @@ msgstr ""
 #: src/partials/modal/renderModal.ts:263
 #: src/forkop/tabs/dashboard/initController.ts:845
 #: src/forkop/tabs/dashboard/initController.ts:1151
-#: src/forkop/tabs/monitoring/initController.ts:824
-#: src/forkop/tabs/monitoring/initController.ts:874
+#: src/forkop/tabs/monitoring/initController.ts:833
+#: src/forkop/tabs/monitoring/initController.ts:883
 msgid "Close"
 msgstr ""
 
@@ -580,7 +580,7 @@ msgstr ""
 msgid "Connection URI"
 msgstr ""
 
-#: src/forkop/tabs/monitoring/initController.ts:943
+#: src/forkop/tabs/monitoring/initController.ts:951
 msgid "Connections are unavailable"
 msgstr ""
 
@@ -854,8 +854,8 @@ msgstr ""
 msgid "Download through"
 msgstr ""
 
-#: src/forkop/tabs/monitoring/initController.ts:817
-#: src/forkop/tabs/monitoring/initController.ts:871
+#: src/forkop/tabs/monitoring/initController.ts:826
+#: src/forkop/tabs/monitoring/initController.ts:880
 msgid "Downloaded"
 msgstr ""
 
@@ -1078,13 +1078,13 @@ msgstr ""
 msgid "External nfqws2 config files bypass Forkop queue management and explicit validation."
 msgstr ""
 
-#: src/forkop/tabs/monitoring/initController.ts:1211
-#: src/forkop/tabs/monitoring/initController.ts:1226
+#: src/forkop/tabs/monitoring/initController.ts:1219
+#: src/forkop/tabs/monitoring/initController.ts:1234
 msgid "Failed to close connection"
 msgstr ""
 
-#: src/forkop/tabs/monitoring/initController.ts:1245
-#: src/forkop/tabs/monitoring/initController.ts:1258
+#: src/forkop/tabs/monitoring/initController.ts:1253
+#: src/forkop/tabs/monitoring/initController.ts:1266
 msgid "Failed to close connections"
 msgstr ""
 
@@ -1197,7 +1197,7 @@ msgstr ""
 msgid "Forkop manages the nfqws2 process lifecycle itself, so daemon mode is not allowed here."
 msgstr ""
 
-#: src/forkop/tabs/monitoring/initController.ts:922
+#: src/forkop/tabs/monitoring/initController.ts:930
 msgid "Forkop service is stopped. Start the service to display connections."
 msgstr ""
 
@@ -1341,8 +1341,8 @@ msgstr ""
 msgid "Hide values"
 msgstr ""
 
-#: src/forkop/tabs/monitoring/initController.ts:807
-#: src/forkop/tabs/monitoring/initController.ts:867
+#: src/forkop/tabs/monitoring/initController.ts:816
+#: src/forkop/tabs/monitoring/initController.ts:876
 msgid "Host"
 msgstr ""
 
@@ -1570,8 +1570,8 @@ msgstr ""
 msgid "IPv6 only"
 msgstr ""
 
-#: src/forkop/tabs/diagnostic/helpers/getMeta.ts:20
 #: src/forkop/tabs/diagnostic/checks/getCheckItemsMeta.ts:17
+#: src/forkop/tabs/diagnostic/helpers/getMeta.ts:20
 msgid "Issues detected"
 msgstr ""
 
@@ -1670,7 +1670,7 @@ msgstr ""
 msgid "Loading client link..."
 msgstr ""
 
-#: src/forkop/tabs/monitoring/initController.ts:933
+#: src/forkop/tabs/monitoring/initController.ts:941
 #: src/forkop/tabs/monitoring/render.ts:88
 msgid "Loading connections"
 msgstr ""
@@ -1826,11 +1826,11 @@ msgstr ""
 msgid "No"
 msgstr ""
 
-#: src/forkop/tabs/monitoring/initController.ts:957
+#: src/forkop/tabs/monitoring/initController.ts:965
 msgid "No active connections"
 msgstr ""
 
-#: src/forkop/tabs/monitoring/initController.ts:958
+#: src/forkop/tabs/monitoring/initController.ts:966
 msgid "No closed connections"
 msgstr ""
 
@@ -2272,8 +2272,8 @@ msgstr ""
 msgid "Resume updates"
 msgstr ""
 
-#: src/forkop/tabs/monitoring/initController.ts:811
-#: src/forkop/tabs/monitoring/initController.ts:869
+#: src/forkop/tabs/monitoring/initController.ts:820
+#: src/forkop/tabs/monitoring/initController.ts:878
 msgid "Route"
 msgstr ""
 
@@ -2361,8 +2361,8 @@ msgstr ""
 msgid "Save"
 msgstr ""
 
-#: src/forkop/tabs/logs/render.ts:24
 #: src/forkop/tabs/monitoring/render.ts:47
+#: src/forkop/tabs/logs/render.ts:24
 msgid "Search"
 msgstr ""
 
@@ -2653,8 +2653,8 @@ msgstr ""
 msgid "Sort by latency"
 msgstr ""
 
-#: src/forkop/tabs/monitoring/initController.ts:823
-#: src/forkop/tabs/monitoring/initController.ts:873
+#: src/forkop/tabs/monitoring/initController.ts:832
+#: src/forkop/tabs/monitoring/initController.ts:882
 msgid "Source"
 msgstr ""
 
@@ -2911,8 +2911,8 @@ msgstr ""
 msgid "This server name is reserved by Forkop"
 msgstr ""
 
-#: src/forkop/tabs/monitoring/initController.ts:814
-#: src/forkop/tabs/monitoring/initController.ts:870
+#: src/forkop/tabs/monitoring/initController.ts:823
+#: src/forkop/tabs/monitoring/initController.ts:879
 msgid "Time"
 msgstr ""
 
@@ -3010,8 +3010,8 @@ msgid "Tunnel type"
 msgstr ""
 
 #: ../luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:1655
-#: src/forkop/tabs/monitoring/initController.ts:808
-#: src/forkop/tabs/monitoring/initController.ts:868
+#: src/forkop/tabs/monitoring/initController.ts:817
+#: src/forkop/tabs/monitoring/initController.ts:877
 msgid "Type"
 msgstr ""
 
@@ -3119,7 +3119,7 @@ msgid "Update is available:"
 msgstr ""
 
 #: src/forkop/tabs/diagnostic/partials/renderAvailableActions.ts:110
-msgid "Update remote rule sets"
+msgid "Update remote lists"
 msgstr ""
 
 #: src/forkop/tabs/dashboard/partials/renderSections.ts:223
@@ -3137,8 +3137,8 @@ msgstr ""
 msgid "Uplink"
 msgstr ""
 
-#: src/forkop/tabs/monitoring/initController.ts:820
-#: src/forkop/tabs/monitoring/initController.ts:872
+#: src/forkop/tabs/monitoring/initController.ts:829
+#: src/forkop/tabs/monitoring/initController.ts:881
 msgid "Uploaded"
 msgstr ""
 
