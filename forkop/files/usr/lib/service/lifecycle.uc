@@ -542,10 +542,17 @@ function validate_start_config() {
     if (status != 0)
         return status;
 
-    status = module_status(VALIDATOR_UC, [ "validate-runtime" ]);
-    if (status != 0) {
+    // The validator names the option and the value it refused, so the reason is
+    // logged next to the failure instead of being discarded with its output.
+    let validation = module_capture(VALIDATOR_UC, [ "validate-runtime" ]);
+    if (validation.status != 0) {
+        for (let line in split(as_string(validation.output), "\n")) {
+            line = trim(line);
+            if (line != "")
+                log_message(line, "error");
+        }
         log_message("Runtime config validation failed. Aborted.", "error");
-        return status;
+        return validation.status;
     }
 
     return 0;
