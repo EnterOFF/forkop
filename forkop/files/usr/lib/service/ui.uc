@@ -214,15 +214,8 @@ function valid_action_state(value) {
     return type(value) == "object" && (value.running === true || value.running === false);
 }
 
-function service_status_text(running, enabled) {
-    if (arg_bool(running))
-        return arg_bool(enabled) ? "running & enabled" : "running but disabled";
-
-    return arg_bool(enabled) ? "stopped but enabled" : "stopped & disabled";
-}
-
 function print_service_status_text(running, enabled) {
-    print(service_status_text(running, enabled), "\n");
+    print(health.service_status_text(running, enabled), "\n");
 }
 
 function action_start_response(success, job_id, message) {
@@ -633,8 +626,8 @@ function current_ui_state_json() {
     let forkop_is_enabled = service_enabled() ? 1 : 0;
     let sing_box_is_running = forkop_is_running ? 1 : (sing_box_running() ? 1 : 0);
     let sing_box_is_enabled = sing_box_enabled() ? 1 : 0;
-    let forkop_status = service_status_text(forkop_is_running, forkop_is_enabled);
-    let sing_box_status = service_status_text(sing_box_is_running, sing_box_is_enabled);
+    let forkop_status = health.service_status_text(forkop_is_running, forkop_is_enabled);
+    let sing_box_status = health.service_status_text(sing_box_is_running, sing_box_is_enabled);
     let active_action = active_service_action_value();
 
     if (active_action == "start")

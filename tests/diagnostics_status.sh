@@ -2,7 +2,6 @@
 set -eo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DIAGNOSTICS="$ROOT_DIR/forkop/files/usr/lib/diagnostics/status.uc"
 DIAGNOSTICS_RUNTIME="$ROOT_DIR/forkop/files/usr/lib/diagnostics/runtime.uc"
 DIAGNOSTICS_LOGS="$ROOT_DIR/forkop/files/usr/lib/diagnostics/logs.uc"
 FORKOP_BIN="$ROOT_DIR/forkop/files/usr/bin/forkop"
@@ -10,8 +9,65 @@ FORKOP_LIB="$ROOT_DIR/forkop/files/usr/lib"
 CLI_UC="$FORKOP_BIN"
 WORK_DIR="$(mktemp -d)"
 
-status_ucode() {
-  ucode -L "$FORKOP_LIB" "$DIAGNOSTICS" "$@"
+# The diagnostics helpers are ucode library modules that diagnostics/runtime.uc
+# requires directly, so every check below drives the module instead of a helper
+# process.
+uc_eval() {
+  ucode -L "$FORKOP_LIB" -e "$1"
+}
+
+READ_STDIN_UC="let stdin_file = require('fs').open('/dev/stdin', 'r');
+let stdin_data = stdin_file ? stdin_file.read('all') : '';
+if (stdin_file) stdin_file.close();
+stdin_data = stdin_data == null ? '' : stdin_data;"
+
+mask_config_file() {  # <mask function> <path>
+  uc_eval "let data = require('fs').readfile('$2');
+    if (data == null) exit(1);
+    print(require('diagnostics.mask').$1(data));"
+}
+
+firewall_open() {  # <port> <protocols>, uci show firewall on stdin
+  uc_eval "$READ_STDIN_UC
+    exit(require('diagnostics.firewall').required_protocols_open(stdin_data, '$1', '$2') ? 0 : 1);"
+}
+
+ports_listening() {  # <listen> <port> <protocols>, netstat on stdin
+  uc_eval "$READ_STDIN_UC
+    let net = require('core.netstat');
+    for (let proto in split('$3', ' '))
+      if (!net.port_listening(stdin_data, '$1', '$2', proto)) exit(1);
+    exit(0);"
+}
+
+port_conflict_owners() {  # <listen> <port> <protocols>, netstat -lnp on stdin
+  uc_eval "$READ_STDIN_UC
+    let net = require('core.netstat');
+    let owners = [];
+    for (let proto in split('$3', ' '))
+      for (let owner in net.port_conflict_owners(stdin_data, '$1', '$2', proto))
+        push(owners, owner);
+    print(join(' ', net.sorted_unique(owners)), '\n');"
+}
+
+inbound_required_proto() {  # <protocol> [transport]
+  uc_eval "print(require('diagnostics.inbounds').required_proto('$1', '${2:-}'), '\n');"
+}
+
+listen_requires_firewall() {  # <listen> <wan addresses>
+  uc_eval "exit(require('diagnostics.inbounds').listen_requires_firewall('$1', '$2') ? 0 : 1);"
+}
+
+public_host_flags() {  # <host> <host addresses> <wan addresses> <wan is public>
+  uc_eval "let flags = require('diagnostics.inbounds').public_host_flags('$1', '$2', '$3', '$4');
+    print(flags.resolved, ' ', flags.public_ip, ' ', flags.matches_wan, '\n');"
+}
+
+proxy_response_ip_mask() {  # proxy response on stdin
+  uc_eval "$READ_STDIN_UC
+    let masked = require('diagnostics.mask').proxy_response_ip(stdin_data);
+    if (masked == null) exit(1);
+    print(masked, '\n');"
 }
 
 cleanup() {
@@ -24,29 +80,10 @@ fail() {
   exit 1
 }
 
-assert_status() {
-  local running="$1"
-  local enabled="$2"
-  local dns="$3"
-  local expected="$4"
-  local json
-
-  json="$(status_ucode service-status-json "$running" "$enabled" "$dns")"
-  JSON_VALUE="$json" node - "$expected" "$dns" <<'NODE'
-const expected = process.argv[2];
-const expectedDns = Number(process.argv[3]);
-const value = JSON.parse(process.env.JSON_VALUE);
-if (value.status !== expected || value.dns_configured !== expectedDns) {
-  console.error(`expected ${expected}/${expectedDns}, got ${value.status}/${value.dns_configured}`);
-  process.exit(1);
-}
-NODE
-}
-
-assert_status 1 1 1 "running & enabled"
-assert_status 1 0 0 "running but disabled"
-assert_status 0 1 1 "stopped but enabled"
-assert_status 0 0 0 "stopped & disabled"
+# diagnostics/runtime.uc and service/ui.uc report the same four service status
+# words, so both read them from service/health.uc.
+grep -Fq 'health.service_status_text(running, enabled)' "$DIAGNOSTICS_RUNTIME" ||
+  fail "diagnostics status must take the service status wording from service/health.uc"
 
 [ ! -e "$FORKOP_LIB/status_diagnostics.sh" ] ||
   fail "status_diagnostics.sh shell owner must be removed"
@@ -184,7 +221,7 @@ config tunnel_peer 'peer_tailnet'
         option tunnel 'tun_tailnet'
         option pre_shared_key 'peer-secret'
 EOF
-masked_output="$(status_ucode forkop-config-masked "$masked_config")"
+masked_output="$(mask_config_file forkop_config "$masked_config")"
 case "$masked_output" in
   *device-secret*|*vless://secret*|*token=secret*|*user:password*|*header-secret*|*tskey-secret*|*warp-token-secret*|*warp-private-secret*|*warp-license-secret*|*peer-secret*) fail "masked Forkop config leaked a secret" ;;
 esac
@@ -214,7 +251,7 @@ config interface 'wan'
 config interface 'lan'
         option private_key 'not-in-wan'
 EOF
-wan_output="$(status_ucode wan-config-masked "$wan_wireguard")"
+wan_output="$(mask_config_file wan_config "$wan_wireguard")"
 case "$wan_output" in
   *wireguard-private-secret*) fail "masked WAN config leaked the WireGuard private key" ;;
 esac
@@ -222,15 +259,6 @@ case "$wan_output" in
   *"option private_key '******'"*) ;;
   *) fail "masked WAN config must preserve a masked WireGuard private key option" ;;
 esac
-
-legacy_json="$(status_ucode service-status-json 1 0 ignored 1)"
-JSON_VALUE="$legacy_json" node - <<'NODE'
-const value = JSON.parse(process.env.JSON_VALUE);
-if (value.status !== "running but disabled" || value.dns_configured !== 1) {
-  console.error("legacy service-status-json call shape changed");
-  process.exit(1);
-}
-NODE
 
 logs_bin="$WORK_DIR/logs-bin"
 mkdir -p "$logs_bin"
@@ -459,27 +487,25 @@ firewall.@rule[0].dest_port='443'
 EOF
 )"
 
-printf '%s\n' "$firewall_rules" |
-  status_ucode firewall-required-protocols-open 443 "tcp udp" >/dev/null ||
+printf '%s\n' "$firewall_rules" | firewall_open 443 "tcp udp" ||
   fail "tcp+udp firewall rule should satisfy required protocols"
-if printf '%s\n' "$firewall_rules" |
-  status_ucode firewall-required-protocols-open 8443 "tcp" >/dev/null 2>&1; then
+if printf '%s\n' "$firewall_rules" | firewall_open 8443 "tcp"; then
   fail "wrong firewall port should not satisfy required protocols"
 fi
 
-[ "$(status_ucode server-required-inbound-proto hysteria2)" = "udp" ] ||
+[ "$(inbound_required_proto hysteria2)" = "udp" ] ||
   fail "Hysteria2 inbound diagnostics must require UDP"
-[ "$(status_ucode server-required-inbound-proto tuic)" = "udp" ] ||
+[ "$(inbound_required_proto tuic)" = "udp" ] ||
   fail "TUIC inbound diagnostics must require UDP"
-[ "$(status_ucode server-required-inbound-proto mieru UDP)" = "udp" ] ||
+[ "$(inbound_required_proto mieru UDP)" = "udp" ] ||
   fail "Mieru UDP inbound diagnostics must require UDP"
-[ "$(status_ucode server-required-inbound-proto mieru TCP)" = "tcp" ] ||
+[ "$(inbound_required_proto mieru TCP)" = "tcp" ] ||
   fail "Mieru TCP inbound diagnostics must require TCP"
-[ "$(status_ucode server-required-inbound-proto naive udp)" = "udp" ] ||
+[ "$(inbound_required_proto naive udp)" = "udp" ] ||
   fail "Naive UDP inbound diagnostics must require UDP"
-[ "$(status_ucode server-required-inbound-proto naive tcp_udp)" = "tcp udp" ] ||
+[ "$(inbound_required_proto naive tcp_udp)" = "tcp udp" ] ||
   fail "Naive TCP+UDP inbound diagnostics must require both transports"
-[ "$(status_ucode server-required-inbound-proto naive tcp)" = "tcp" ] ||
+[ "$(inbound_required_proto naive tcp)" = "tcp" ] ||
   fail "Naive TCP inbound diagnostics must require TCP"
 
 firewall_src_port_rule="$(cat <<'EOF'
@@ -492,36 +518,40 @@ firewall.@rule[0].src_port='12345'
 firewall.@rule[0].dest_port='443'
 EOF
 )"
-if printf '%s\n' "$firewall_src_port_rule" |
-  status_ucode firewall-required-protocols-open 443 "tcp" >/dev/null 2>&1; then
+if printf '%s\n' "$firewall_src_port_rule" | firewall_open 443 "tcp"; then
   fail "firewall rule limited by source port should not satisfy public inbound diagnostic"
 fi
 
-status_ucode server-listen-requires-firewall 0.0.0.0 "" 0 >/dev/null ||
+listen_requires_firewall 0.0.0.0 "" ||
   fail "wildcard listen should require firewall"
-status_ucode server-listen-requires-firewall :: "" 0 >/dev/null ||
+listen_requires_firewall :: "" ||
   fail "IPv6 wildcard listen should require firewall"
-status_ucode server-listen-requires-firewall 198.51.100.2 198.51.100.2 0 >/dev/null ||
+listen_requires_firewall 198.51.100.2 198.51.100.2 ||
   fail "WAN listen address should require firewall"
-status_ucode server-listen-requires-firewall 2001:db8::2 "198.51.100.2 2001:db8::2" 0 >/dev/null ||
+listen_requires_firewall 2001:db8::2 "198.51.100.2 2001:db8::2" ||
   fail "IPv6 WAN listen address should require firewall"
-status_ucode server-listen-requires-firewall 203.0.113.2 "" 1 >/dev/null ||
+listen_requires_firewall 1.1.1.1 "" ||
   fail "public listen address should require firewall"
-if status_ucode server-listen-requires-firewall 192.168.1.2 198.51.100.2 0 >/dev/null 2>&1; then
+listen_requires_firewall 2606:4700:4700::1111 "" ||
+  fail "public IPv6 listen address should require firewall"
+if listen_requires_firewall 192.168.1.2 198.51.100.2; then
   fail "private non-WAN listen address should not require firewall"
 fi
+if listen_requires_firewall 203.0.113.2 ""; then
+  fail "a documentation address is not reachable and must not require firewall"
+fi
 
-[ "$(status_ucode public-host-flags '' '' 8.8.8.8 1)" = "-1 -1 -1" ] ||
+[ "$(public_host_flags '' '' 8.8.8.8 1)" = "-1 -1 -1" ] ||
   fail "empty public host flags changed"
-[ "$(status_ucode public-host-flags example.com '' 8.8.8.8 1)" = "0 -1 -1" ] ||
+[ "$(public_host_flags example.com '' 8.8.8.8 1)" = "0 -1 -1" ] ||
   fail "unresolved public host flags changed"
-[ "$(status_ucode public-host-flags example.com '1.1.1.1 8.8.8.8' 8.8.8.8 1)" = "1 1 1" ] ||
+[ "$(public_host_flags example.com '1.1.1.1 8.8.8.8' 8.8.8.8 1)" = "1 1 1" ] ||
   fail "public host WAN match flags changed"
-[ "$(status_ucode public-host-flags example.com '192.168.1.10' 8.8.8.8 1)" = "1 0 0" ] ||
+[ "$(public_host_flags example.com '192.168.1.10' 8.8.8.8 1)" = "1 0 0" ] ||
   fail "private public host flags changed"
-[ "$(status_ucode public-host-flags example.com '8.8.8.8' 8.8.8.8 0)" = "1 1 -1" ] ||
+[ "$(public_host_flags example.com '8.8.8.8' 8.8.8.8 0)" = "1 1 -1" ] ||
   fail "non-public WAN host match flags changed"
-[ "$(status_ucode public-host-flags example.com '2606:4700:4700::1111' '198.51.100.2 2606:4700:4700::1111' 1)" = "1 1 1" ] ||
+[ "$(public_host_flags example.com '2606:4700:4700::1111' '198.51.100.2 2606:4700:4700::1111' 1)" = "1 1 1" ] ||
   fail "IPv6 public host flags changed"
 
 netstat_listening="$(cat <<'EOF'
@@ -532,11 +562,9 @@ udp        0      0 0.0.0.0:443             0.0.0.0:*
 EOF
 )"
 
-printf '%s\n' "$netstat_listening" |
-  status_ucode server-required-ports-listening 0.0.0.0 443 "tcp udp" >/dev/null ||
+printf '%s\n' "$netstat_listening" | ports_listening 0.0.0.0 443 "tcp udp" ||
   fail "tcp+udp netstat listeners should satisfy required protocols"
-if printf '%s\n' "$netstat_listening" |
-  status_ucode server-required-ports-listening 0.0.0.0 8443 "tcp" >/dev/null 2>&1; then
+if printf '%s\n' "$netstat_listening" | ports_listening 0.0.0.0 8443 "tcp"; then
   fail "missing netstat listener should fail"
 fi
 
@@ -547,8 +575,7 @@ tcp        0      0 ::1:8443                :::*                    LISTEN
 EOF
 )"
 
-printf '%s\n' "$netstat_listening6" |
-  status_ucode server-required-ports-listening ::1 8443 "tcp" >/dev/null ||
+printf '%s\n' "$netstat_listening6" | ports_listening ::1 8443 "tcp" ||
   fail "IPv6 tcp netstat listener should satisfy required protocols"
 
 sing_box_netstat="$(cat <<'EOF'
@@ -581,7 +608,7 @@ EOF
 )"
 
 owners="$(printf '%s\n' "$netstat_owners" |
-  status_ucode server-required-port-conflict-owners 0.0.0.0 443 "tcp udp")"
+  port_conflict_owners 0.0.0.0 443 "tcp udp")"
 [ "$owners" = "111/nginx 222/dnsmasq" ] ||
   fail "unexpected conflict owners: $owners"
 
@@ -667,10 +694,11 @@ cat >"$WORK_DIR/check-proxy-source.json" <<'JSON'
   }
 }
 JSON
-status_ucode prepare-check-proxy-config \
-  "$WORK_DIR/check-proxy-source.json" \
-  "$WORK_DIR/check-proxy-result.json" \
-  "$WORK_DIR/check-proxy-cache.db"
+uc_eval "let fs = require('fs');
+  let prepared = require('diagnostics.check_proxy').prepare_config(
+    json(fs.readfile('$WORK_DIR/check-proxy-source.json')),
+    '$WORK_DIR/check-proxy-cache.db');
+  if (!fs.writefile('$WORK_DIR/check-proxy-result.json', sprintf('%J', prepared))) exit(1);"
 CHECK_PROXY_JSON="$WORK_DIR/check-proxy-result.json" \
 CHECK_PROXY_CACHE="$WORK_DIR/check-proxy-cache.db" node - <<'NODE'
 const value = JSON.parse(
@@ -713,9 +741,9 @@ NODE
 # would run the check through the default outbound instead of the proxy.
 # The public endpoint answers with JSON, while a plain address service answers
 # with a bare address; both must yield a masked address.
-[ "$(printf '%s\n' '{"fakeip": false, "IP": "194.76.146.236"}' | status_ucode proxy-response-ip-mask)" = "X.X.X.236" ] ||
+[ "$(printf '%s\n' '{"fakeip": false, "IP": "194.76.146.236"}' | proxy_response_ip_mask)" = "X.X.X.236" ] ||
   fail "the public proxy check endpoint response must be masked"
-[ "$(printf '198.51.100.9\n' | status_ucode proxy-response-ip-mask)" = "X.X.X.9" ] ||
+[ "$(printf '198.51.100.9\n' | proxy_response_ip_mask)" = "X.X.X.9" ] ||
   fail "a bare address response must still be masked"
 grep -Fq 'CHECK_PROXY_IP_DOMAIN + CHECK_PROXY_IP_PATH' "$ROOT_DIR/forkop/files/usr/lib/diagnostics/runtime.uc" ||
   fail "the proxy check must request the same endpoint path as the other probes"
@@ -723,7 +751,8 @@ if grep -Fq 'CHECK_PROXY_IP_DOMAIN + "/ip"' "$ROOT_DIR/forkop/files/usr/lib/diag
   fail "the proxy check must not request the retired /ip path"
 fi
 
-check_proxy_tag="$(status_ucode check-proxy-outbound-tag "$WORK_DIR/check-proxy-result.json" ip.podkop.fyi)"
+check_proxy_tag="$(uc_eval "print(require('diagnostics.check_proxy').outbound_tag(
+  json(require('fs').readfile('$WORK_DIR/check-proxy-result.json')), 'ip.podkop.fyi'), '\n');")"
 [ "$check_proxy_tag" = "proxy 1" ] ||
   fail "proxy check must resolve the outbound of its route rule, got '$check_proxy_tag'"
 

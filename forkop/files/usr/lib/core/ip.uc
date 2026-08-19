@@ -131,6 +131,57 @@ function ip_family(value) {
         (valid_ipv6(value) || valid_ipv6_cidr(value) ? 6 : 0);
 }
 
+// Addresses that are routable on the public Internet: everything the IANA
+// special-purpose registries reserve for private, link-local, loopback,
+// documentation or multicast use is not. A trailing dot is rejected here even
+// though valid_ipv4() can accept one, because these predicates answer "is this
+// literal reachable from outside" and an address literal has no trailing dot.
+function valid_public_ipv4(value) {
+    value = as_string(value);
+    if (!valid_ipv4(value, false, false))
+        return false;
+
+    let parts = split(value, ".");
+    let a = int(parts[0], 10);
+    let b = int(parts[1], 10);
+
+    if (a == 0 || a == 10 || a == 127 || a >= 224)
+        return false;
+    if (a == 169 && b == 254)
+        return false;
+    if (a == 192 && (b == 168 || b == 0 || b == 2))
+        return false;
+    if (a == 198 && (b == 18 || b == 19 || b == 51))
+        return false;
+    if (a == 203 && b == 0)
+        return false;
+    if (a == 100 && b >= 64 && b <= 127)
+        return false;
+    if (a == 172 && b >= 16 && b <= 31)
+        return false;
+
+    return true;
+}
+
+function valid_public_ipv6(value) {
+    value = lc(as_string(value));
+    if (!valid_ipv6(value))
+        return false;
+    if (value == "::" || value == "::1")
+        return false;
+    if (substr(value, 0, 4) == "fe80" || substr(value, 0, 2) == "ff")
+        return false;
+    if (substr(value, 0, 2) == "fc" || substr(value, 0, 2) == "fd")
+        return false;
+    if (index(value, "2001:db8") == 0)
+        return false;
+    return true;
+}
+
+function valid_public_ip(value) {
+    return valid_public_ipv4(value) || valid_public_ipv6(value);
+}
+
 function format_ipv6_tproxy_target(address, port) {
     address = as_string(address);
     if (substr(address, 0, 1) == "[" && substr(address, length(address) - 1, 1) == "]")
@@ -145,6 +196,9 @@ return {
     valid_ip,
     valid_ip_cidr,
     valid_ip_or_cidr,
+    valid_public_ipv4,
+    valid_public_ipv6,
+    valid_public_ip,
     nft_ip_or_cidr,
     ip_family,
     format_ipv6_tproxy_target

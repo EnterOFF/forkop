@@ -2,7 +2,7 @@
 set -eo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-STATUS_UC="$ROOT_DIR/forkop/files/usr/lib/diagnostics/status.uc"
+MASK_UC="$ROOT_DIR/forkop/files/usr/lib/diagnostics/mask.uc"
 MASK_TS="$ROOT_DIR/fe-app-forkop/src/forkop/tabs/diagnostic/helpers/maskDiagnostics.ts"
 FORKOP_LIB="$ROOT_DIR/forkop/files/usr/lib"
 WORK_DIR="$(mktemp -d)"
@@ -17,13 +17,13 @@ fail() {
   exit 1
 }
 
-# The Forkop config masker exists twice: diagnostics/status.uc masks the copy
+# The Forkop config masker exists twice: diagnostics/mask.uc masks the copy
 # embedded in global_check, and maskDiagnostics.ts masks the copy the LuCI app
 # fetches for its "show values" toggle. They must cover the same options.
-STATUS_UC="$STATUS_UC" MASK_TS="$MASK_TS" node - <<'NODE'
+MASK_UC="$MASK_UC" MASK_TS="$MASK_TS" node - <<'NODE'
 const fs = require("fs");
 
-const uc = fs.readFileSync(process.env.STATUS_UC, "utf8");
+const uc = fs.readFileSync(process.env.MASK_UC, "utf8");
 const ts = fs.readFileSync(process.env.MASK_TS, "utf8");
 
 function fail(message) {
@@ -37,8 +37,8 @@ function tsArray(name) {
   return [...matched[1].matchAll(/'([^']+)'/g)].map((item) => item[1]);
 }
 
-const ucBody = /function forkop_config_masked_line\(line\) \{(.*?)\n\}/s.exec(uc);
-if (!ucBody) fail("forkop_config_masked_line is absent from status.uc");
+const ucBody = /function forkop_config_line\(line\) \{(.*?)\n\}/s.exec(uc);
+if (!ucBody) fail("forkop_config_line is absent from mask.uc");
 
 function ucTokens(fn, body) {
   return [
@@ -54,9 +54,9 @@ const ucDeleted = [
   ...uc.matchAll(/delete_token_space\(line, "([^"]+)"\)/g),
 ].map((item) => item[1]);
 
-// status.uc masks the WAN interface options in wan_config_masked(), while the
-// LuCI masker sees the whole global_check text in one pass and covers them
-// inline. status.uc drops the tailscale toggles that the LuCI masker masks.
+// mask.uc masks the WAN interface options in wan_config(), while the LuCI
+// masker sees the whole global_check text in one pass and covers them inline.
+// mask.uc drops the tailscale toggles that the LuCI masker masks.
 const luciOnly = new Set([
   ...ucDeleted,
   "option ipaddr",
@@ -82,7 +82,7 @@ const missingInRuntime = [
   ...tsSpace.filter((token) => !ucSpace.includes(token) && !luciOnly.has(token)),
 ];
 if (missingInRuntime.length) {
-  fail(`status.uc does not mask: ${missingInRuntime.join(", ")}`);
+  fail(`mask.uc does not mask: ${missingInRuntime.join(", ")}`);
 }
 
 // Every credential a tunnel can carry has to be covered by both maskers.
@@ -159,7 +159,8 @@ config tunnel 'tun_json'
 }'
 EOF
 
-masked="$(ucode -L "$FORKOP_LIB" "$STATUS_UC" forkop-config-masked "$WORK_DIR/forkop")"
+masked="$(ucode -L "$FORKOP_LIB" -e "print(require('diagnostics.mask').forkop_config(
+  require('fs').readfile('$WORK_DIR/forkop')));")"
 
 for secret in \
   'e9f13cd5-37ec-442f-b288-5833ad86b9e5' \
@@ -191,15 +192,15 @@ printf '%s\n' "$masked" | grep -Fq "option mtu '1280'" ||
 # paste into the support chat, so every one of them has to be masked there.
 # The WARP fields are named differently in the tunnel dialog than in UCI, so the
 # name they are stored under is what must be covered.
-node - "$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop" "$STATUS_UC" <<'NODE'
+node - "$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop" "$MASK_UC" <<'NODE'
 const fs = require('fs');
 const path = require('path');
 
 const viewDir = process.argv[2];
-const status = fs.readFileSync(process.argv[3], 'utf8');
-const block = status.slice(
-  status.indexOf('function forkop_config_masked_line'),
-  status.indexOf('\n    return line;'),
+const maskSource = fs.readFileSync(process.argv[3], 'utf8');
+const block = maskSource.slice(
+  maskSource.indexOf('function forkop_config_line'),
+  maskSource.indexOf('\n    return line;'),
 );
 const masked = new Set(
   [...block.matchAll(/"(?:option|list) ([a-z0-9_]+)/g)].map((m) => m[1]),

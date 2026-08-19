@@ -8,6 +8,12 @@ let core_version = require("core.version");
 let uci_core = require("core.uci");
 let runtime_dns = require("singbox.dns");
 let netstat = require("core.netstat");
+let health = require("service.health");
+let mask = require("diagnostics.mask");
+let inbounds = require("diagnostics.inbounds");
+let report = require("diagnostics.report");
+let diag_firewall = require("diagnostics.firewall");
+let proxy_check = require("diagnostics.check_proxy");
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || constants.FORKOP_CONFIG_NAME || "forkop";
 const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
@@ -42,7 +48,8 @@ const RUNTIME_STABLE_MIN_AGE = getenv("FORKOP_RUNTIME_STABLE_MIN_AGE") || "2";
 const CLASH_HTTP_MAX_TIME = getenv("FORKOP_CLASH_HTTP_MAX_TIME") || "60";
 const SING_BOX_FORKOP_VERSION_FILE = getenv("SING_BOX_FORKOP_VERSION_FILE") || "/usr/share/sing-box-forkop/version";
 
-const STATUS_UC = LIB_DIR + "/diagnostics/status.uc";
+const GLOBAL_CHECK_SEPARATOR = "━━━━━━━━━━━━━━━━━━━━━━━━━━━";
+
 const PACKAGES_UC = LIB_DIR + "/core/packages.uc";
 const DNS_APPLY_UC = LIB_DIR + "/dns/apply.uc";
 const SERVICE_STATE_UC = LIB_DIR + "/service/state.uc";
@@ -131,21 +138,6 @@ function module_capture(module_path, args) {
     return command_capture(command_from_args(module_args(module_path, args)));
 }
 
-function module_capture_stdin(module_path, args, input) {
-    let tmp = trim(command_output_from_args([ "mktemp" ]));
-    if (tmp == "")
-        return { status: 1, output: "" };
-
-    if (!fs.writefile(tmp, as_string(input))) {
-        fs.unlink(tmp);
-        return { status: 1, output: "" };
-    }
-
-    let result = command_capture(command_from_args(module_args(module_path, args)) + " < " + shell_quote(tmp));
-    fs.unlink(tmp);
-    return result;
-}
-
 function module_output(module_path, args) {
     let result = module_capture(module_path, args);
     return result.status == 0 ? result.output : "";
@@ -162,21 +154,6 @@ function module_passthrough(module_path, args) {
     return result.status;
 }
 
-function status_capture(args, input) {
-    if (input != null)
-        return module_capture_stdin(STATUS_UC, args, input);
-    return command_capture(command_from_args(module_args(STATUS_UC, args)));
-}
-
-function status_output(args, input) {
-    let result = status_capture(args, input);
-    return result.status == 0 ? result.output : "";
-}
-
-function status_success(args, input) {
-    return status_capture(args, input).status == 0;
-}
-
 function write_json(value) {
     print(sprintf("%J", value), "\n");
 }
@@ -188,6 +165,10 @@ function read_stdin() {
     let data = input.read("all");
     input.close();
     return data == null ? "" : as_string(data);
+}
+
+function write_json_file(path, value) {
+    return fs.writefile(as_string(path), sprintf("%J", value) + "\n");
 }
 
 function read_json_file(path) {
@@ -224,15 +205,6 @@ function option(section, key, fallback) {
     if (type(value) == "array")
         return join(" ", value);
     return as_string(value);
-}
-
-function list_option(section, key) {
-    let value = object_or_empty(section)[key];
-    if (type(value) == "array")
-        return value;
-    if (as_string(value) != "")
-        return [ as_string(value) ];
-    return [];
 }
 
 function bool_option(section, key, fallback) {
@@ -364,64 +336,42 @@ function nolog(message) {
     print("\033[0;36m[", timestamp, "]\033[0m \033[0;32m", as_string(message), "\033[0m\n");
 }
 
-function log_message(message, level) {
-    level = as_string(level || "info");
-    command_success_from_args([ "logger", "-t", "forkop", "[" + level + "] " + as_string(message) ]);
-}
-
 function valid_ipv4(value) {
     return core_ip.valid_ipv4(value, true, false);
-}
-
-function valid_public_ipv4(value) {
-    value = as_string(value);
-    if (!valid_ipv4(value))
-        return false;
-
-    let parts = split(value, ".");
-    let a = int(parts[0], 10);
-    let b = int(parts[1], 10);
-
-    if (a == 0 || a == 10 || a == 127 || a >= 224)
-        return false;
-    if (a == 169 && b == 254)
-        return false;
-    if (a == 192 && (b == 168 || b == 0 || b == 2))
-        return false;
-    if (a == 198 && (b == 18 || b == 19 || b == 51))
-        return false;
-    if (a == 203 && b == 0)
-        return false;
-    if (a == 100 && b >= 64 && b <= 127)
-        return false;
-    if (a == 172 && b >= 16 && b <= 31)
-        return false;
-
-    return true;
-}
-
-function valid_public_ipv6(value) {
-    value = lc(as_string(value));
-    if (!core_ip.valid_ipv6(value))
-        return false;
-    if (value == "::" || value == "::1")
-        return false;
-    if (substr(value, 0, 4) == "fe80" || substr(value, 0, 2) == "ff")
-        return false;
-    if (substr(value, 0, 2) == "fc" || substr(value, 0, 2) == "fd")
-        return false;
-    if (substr(value, 0, 4) == "2001" && index(value, "2001:db8") == 0)
-        return false;
-    return true;
-}
-
-function valid_public_ip(value) {
-    return valid_public_ipv4(value) || valid_public_ipv6(value);
 }
 
 function words(value) {
     value = trim(as_string(value));
     return value == "" ? [] : split(value, /[ \t\r\n]+/);
+}
+
+function contains(values, needle) {
+    needle = as_string(needle);
+    for (let value in values)
+        if (as_string(value) == needle)
+            return true;
+    return false;
+}
+
+// The value of a `package.section.option=value` line from `uci show`, with the
+// quoting removed. A list prints several values on one line, so only the first
+// one is taken.
+function uci_show_option_value(line) {
+    let equals = index(as_string(line), "=");
+    if (equals < 0)
+        return "";
+
+    let value = substr(line, equals + 1);
+    let next_equals = index(value, "=");
+    if (next_equals >= 0)
+        value = substr(value, 0, next_equals);
+
+    return replace(value, /['" ]/g, "");
+}
+
+function first_two_dot_fields(value) {
+    let parts = split(as_string(value), ".");
+    return length(parts) >= 2 ? parts[0] + "." + parts[1] : as_string(value);
 }
 
 function allowed_ips_default_routes(value) {
@@ -511,56 +461,25 @@ function get_wan_ip_addresses() {
     return join(" ", result);
 }
 
-function server_required_inbound_proto(protocol, transport) {
-    protocol = as_string(protocol);
-    transport = lc(as_string(transport));
-    if (protocol == "json_inbound")
-        return "";
-    if (protocol == "hysteria2" || protocol == "tuic")
-        return "udp";
-    if (protocol == "naive" && transport == "tcp_udp")
-        return "tcp udp";
-    if ((protocol == "naive" || protocol == "mieru") && transport == "udp")
-        return "udp";
-    return "tcp";
-}
-
-function server_runtime_type_for_protocol(protocol) {
-    protocol = as_string(protocol);
-    if (protocol == "json_inbound")
-        return "";
-    if (protocol == "mtproto")
-        return "mtproxy";
-    return protocol;
-}
-
-function server_listen_requires_firewall(listen, wan_ip) {
-    listen = as_string(listen);
-    if (listen == "0.0.0.0" || listen == "::" || valid_public_ip(listen))
-        return true;
-    for (let ip in words(wan_ip))
-        if (ip == listen)
-            return true;
-    return false;
-}
-
 function firewall_required_protocols_open(port, required_proto) {
-    let firewall = firewall_show_data();
-    return status_success([ "firewall-required-protocols-open", port, required_proto ], firewall);
+    return diag_firewall.required_protocols_open(firewall_show_data(), port, required_proto);
 }
 
 function server_required_port_conflict_owners(listen, port, required_proto) {
-    return replace(status_output(
-        [ "server-required-port-conflict-owners", listen, port, required_proto ],
-        command_output_from_args([ "netstat", "-lnp" ])
-    ), /[\r\n]+$/g, "");
+    let data = command_output_from_args([ "netstat", "-lnp" ]);
+    let owners = [];
+    for (let proto in words(required_proto))
+        for (let owner in netstat.port_conflict_owners(data, listen, port, proto))
+            push(owners, owner);
+    return join(" ", netstat.sorted_unique(owners));
 }
 
 function server_required_ports_listening(listen, port, required_proto) {
-    return status_success(
-        [ "server-required-ports-listening", listen, port, required_proto ],
-        command_output_from_args([ "netstat", "-ln" ])
-    );
+    let data = command_output_from_args([ "netstat", "-ln" ]);
+    for (let proto in words(required_proto))
+        if (!netstat.port_listening(data, listen, port, proto))
+            return false;
+    return true;
 }
 
 function resolve_public_host_ips(host) {
@@ -593,11 +512,13 @@ function resolve_public_host_ips(host) {
     return join(" ", sort(keys(seen)));
 }
 
-function public_host_flags(public_host, public_host_ips, wan_ip, wan_public) {
-    return replace(status_output(
-        [ "public-host-flags", public_host, public_host_ips, wan_ip, wan_public ],
-        null
-    ), /[\r\n]+$/g, "");
+function field_text(value, key) {
+    return type(value) == "object" && value[key] != null ? as_string(value[key]) : "";
+}
+
+function number_value(value) {
+    value = as_string(value);
+    return value == "" ? 0 : int(value);
 }
 
 function check_inbounds_config() {
@@ -609,13 +530,13 @@ function check_inbounds_config() {
     return 0;
 }
 
-function check_inbounds() {
+function inbounds_value() {
     let cfg = settings();
     let sing_box_config_path = option(cfg, "config_path", "");
     let wan_ip = get_wan_ip_addresses();
     let wan_public = 0;
     for (let ip in words(wan_ip)) {
-        if (valid_public_ip(ip)) {
+        if (core_ip.valid_public_ip(ip)) {
             wan_public = 1;
             break;
         }
@@ -636,13 +557,13 @@ function check_inbounds() {
         let public_host = option(section, "public_host", "");
         let routing_mode = option(section, "routing_mode", "rules");
         let inbound_tag = label;
-        let expected_type = server_runtime_type_for_protocol(protocol);
+        let expected_type = inbounds.runtime_type(protocol);
         let inbound_transport = protocol == "naive"
             ? option(section, "naive_network", "tcp")
             : protocol == "mieru"
                 ? option(section, "mieru_transport", "TCP")
                 : "";
-        let required_proto = server_required_inbound_proto(protocol, inbound_transport);
+        let required_proto = inbounds.required_proto(protocol, inbound_transport);
         let runtime_json = protocol == "tailscale"
             ? module_output(PROVIDERS_STATUS_UC, [ "endpoint-summary", sing_box_config_path, inbound_tag ])
             : module_output(PROVIDERS_STATUS_UC, [ "inbound-summary", sing_box_config_path, inbound_tag ]);
@@ -657,7 +578,7 @@ function check_inbounds() {
             if (port_conflict_owners != "")
                 port_conflict = 1;
             listening = server_required_ports_listening(listen, listen_port, required_proto) ? 1 : 0;
-            if (server_listen_requires_firewall(listen, wan_ip)) {
+            if (inbounds.listen_requires_firewall(listen, wan_ip)) {
                 firewall_required = 1;
                 firewall_open = firewall_required_protocols_open(listen_port, required_proto) ? 1 : 0;
             }
@@ -668,45 +589,57 @@ function check_inbounds() {
         ]) ? 1 : 0;
 
         let public_host_ips = protocol == "json_inbound" ? "" : resolve_public_host_ips(public_host);
-        let flags = words(public_host_flags(public_host, public_host_ips, wan_ip, wan_public));
-        while (length(flags) < 3)
-            push(flags, "-1");
+        let flags = inbounds.public_host_flags(public_host, public_host_ips, wan_ip, wan_public);
 
-        let item_json = status_output([
-            "inbound-item-json",
-            runtime_json,
-            section_name,
+        let runtime = object_or_empty(parse_json_or_null(runtime_json));
+        let runtime_exists = field_text(runtime, "exists") || "0";
+        let runtime_type = field_text(runtime, "type");
+        let runtime_listen = field_text(runtime, "listen");
+        let runtime_port_text = field_text(runtime, "listen_port") || "0";
+
+        push(items, {
+            section: section_name,
             label,
             protocol,
             routing_mode,
-            inbound_tag,
+            tag: inbound_tag,
             listen,
-            listen_port,
+            listen_port: number_value(listen_port),
             public_host,
             public_host_ips,
             expected_type,
             required_proto,
+            runtime_exists: number_value(runtime_exists),
+            runtime_type,
+            runtime_listen,
+            runtime_port: number_value(runtime_port_text),
+            runtime_ok: inbounds.runtime_ok(
+                protocol, runtime_exists, runtime_type, runtime_listen, runtime_port_text,
+                expected_type, listen, listen_port
+            ),
             listening,
             firewall_required,
             firewall_open,
             port_conflict,
             port_conflict_owners,
             routes_configured,
-            flags[0],
-            flags[1],
-            flags[2]
-        ], null);
-        let item = parse_json_or_null(item_json);
-        push(items, type(item) == "object" ? item : {});
+            public_host_resolved: flags.resolved,
+            public_host_public: flags.public_ip,
+            public_host_matches_wan: flags.matches_wan
+        });
     }
 
-    write_json({
+    return {
         enabled_count,
         config_path: sing_box_config_path,
         wan_ip,
         wan_public,
         items
-    });
+    };
+}
+
+function check_inbounds() {
+    write_json(inbounds_value());
     return 0;
 }
 
@@ -792,7 +725,7 @@ function check_proxy_through_running_core() {
         "--proxy", proxy,
         CHECK_PROXY_URL
     ]);
-    let masked_response = replace(status_output([ "proxy-response-ip-mask" ], response), /[\r\n]+$/g, "");
+    let masked_response = as_string(mask.proxy_response_ip(response));
     if (masked_response == "") {
         nolog("Failed to get a valid IP through the running sing-box service");
         return 1;
@@ -826,7 +759,7 @@ function check_proxy_locked() {
         return 1;
     }
 
-    print(status_output([ "mask-sing-box-config", sing_box_config_path ], null));
+    write_json(mask.sing_box_config(read_json_file(sing_box_config_path)));
     nolog("Checking proxy connection...");
 
     let check_proxy_dir = TMP_SING_BOX_FOLDER + "/check-proxy-" + clock()[0] + "-" + clock()[1];
@@ -835,16 +768,14 @@ function check_proxy_locked() {
 
     cleanup_check_proxy_dir(check_proxy_dir);
     ensure_dir(check_proxy_dir);
-    if (!status_success([ "prepare-check-proxy-config", sing_box_config_path, check_proxy_config, check_proxy_cache ], null)) {
+    let prepared = proxy_check.prepare_config(read_json_file(sing_box_config_path), check_proxy_cache);
+    if (!write_json_file(check_proxy_config, prepared)) {
         nolog("Failed to prepare temporary configuration");
         cleanup_check_proxy_dir(check_proxy_dir);
         return 1;
     }
 
-    let outbound_tag = replace(status_output(
-        [ "check-proxy-outbound-tag", check_proxy_config, CHECK_PROXY_IP_DOMAIN ],
-        null
-    ), /[\r\n]+$/g, "");
+    let outbound_tag = proxy_check.outbound_tag(prepared, CHECK_PROXY_IP_DOMAIN);
 
     let response = "";
     for (let attempt = 1; attempt <= 5; attempt++) {
@@ -860,10 +791,10 @@ function check_proxy_locked() {
             push(args, outbound_tag);
         }
         response = command_output(command_from_args(args) + " 2>/dev/null");
-        if (status_success([ "proxy-response-is-retryable-error" ], response))
+        if (mask.proxy_response_is_retryable_error(response))
             continue;
 
-        let masked_response_ip = replace(status_output([ "proxy-response-ip-mask" ], response), /[\r\n]+$/g, "");
+        let masked_response_ip = as_string(mask.proxy_response_ip(response));
         if (masked_response_ip != "") {
             nolog(masked_response_ip + " - should match proxy IP");
             cleanup_check_proxy_dir(check_proxy_dir);
@@ -904,7 +835,7 @@ function show_sing_box_config(visibility) {
     if (visibility == "raw")
         print(as_string(fs.readfile(sing_box_config_path)));
     else
-        print(status_output([ "mask-sing-box-config", sing_box_config_path ], null));
+        write_json(mask.sing_box_config(read_json_file(sing_box_config_path)));
     return 0;
 }
 
@@ -917,7 +848,7 @@ function show_config(visibility) {
     if (visibility == "raw")
         print(as_string(fs.readfile(FORKOP_CONFIG)));
     else
-        print(status_output([ "forkop-config-masked", FORKOP_CONFIG ], null));
+        print(mask.forkop_config(fs.readfile(FORKOP_CONFIG)));
     return 0;
 }
 
@@ -1071,17 +1002,11 @@ function sing_box_process_is_running() {
     return sing_box_process_running_for_check();
 }
 
-function service_status_label(running, enabled) {
-    if (arg_number(running) == 1)
-        return arg_number(enabled) == 1 ? "running & enabled" : "running but disabled";
-    return arg_number(enabled) == 1 ? "stopped but enabled" : "stopped & disabled";
-}
-
 function write_service_status(running, enabled, dns_configured) {
     write_json({
         running,
         enabled,
-        status: service_status_label(running, enabled),
+        status: health.service_status_text(running, enabled),
         dns_configured
     });
 }
@@ -1225,7 +1150,7 @@ function dns_check_router_resolver_available(domain) {
     return false;
 }
 
-function check_dns_available() {
+function dns_available_value() {
     let cfg = settings();
     let dns_servers = runtime_dns.server_list(cfg, "dns_server", "77.88.8.8");
     let bootstrap_dns_servers = runtime_dns.server_list(cfg, "bootstrap_dns_server", "77.88.8.8");
@@ -1274,8 +1199,8 @@ function check_dns_available() {
 
     let display_dns_servers = [];
     for (let dns_server in dns_servers)
-        push(display_dns_servers, replace(status_output([ "mask-dns-server", dns_server ], null), /[\r\n]+$/g, ""));
-    write_json({
+        push(display_dns_servers, mask.dns_server(dns_server));
+    return {
         dns_server: join(", ", display_dns_servers),
         dns_status,
         dns_on_router,
@@ -1283,24 +1208,40 @@ function check_dns_available() {
         bootstrap_dns_status,
         dhcp_config_status,
         dont_touch_dhcp
-    });
+    };
+}
+
+function check_dns_available() {
+    write_json(dns_available_value());
     return 0;
 }
 
+// A chain reports two things at once: whether Forkop installed its rules there
+// and whether any of them ever matched a packet. A counter that stayed at zero
+// means the rule exists but nothing reached it.
 function nft_chain_counter_status(chain) {
     let output = command_output_from_args([ "nft", "list", "chain", "inet", NFT_TABLE_NAME, chain ]);
-    let status = words(status_output([ "nft-chain-counter-status" ], output));
-    while (length(status) < 2)
-        push(status, "0");
-    return [ arg_number(status[0]), arg_number(status[1]) ];
+    let rules_exist = 0;
+    let counters = 0;
+
+    for (let line in split(output, "\n")) {
+        if (index(as_string(line), "counter") < 0)
+            continue;
+
+        rules_exist = 1;
+        if (index(as_string(line), "packets 0 bytes 0") < 0)
+            counters = 1;
+    }
+
+    return [ rules_exist, counters ];
 }
 
 function nft_table_has_other_mark_rules(family, table_name) {
     let output = command_output_from_args([ "nft", "list", "table", family, table_name ]);
-    return status_success([ "stdin-contains", "meta mark set" ], output);
+    return index(output, "meta mark set") >= 0;
 }
 
-function check_nft_rules() {
+function nft_rules_value() {
     command_status("sh -c " + shell_quote(
         "curl -m 3 -s " + shell_quote(CHECK_PROXY_URL) + " >/dev/null 2>&1 & pid1=$!; " +
         "curl -m 3 -s " + shell_quote("https://" + FAKEIP_TEST_DOMAIN + "/check") + " >/dev/null 2>&1 & pid2=$!; " +
@@ -1353,7 +1294,7 @@ function check_nft_rules() {
         }
     }
 
-    write_json({
+    return {
         table_exist,
         rules_mangle_exist,
         rules_mangle_counters,
@@ -1362,7 +1303,11 @@ function check_nft_rules() {
         rules_proxy_exist,
         rules_proxy_counters,
         rules_other_mark_exist
-    });
+    };
+}
+
+function check_nft_rules() {
+    write_json(nft_rules_value());
     return 0;
 }
 
@@ -1384,7 +1329,7 @@ function sing_box_standard_ports_listening_fixture() {
     exit(sing_box_standard_ports_listening(read_stdin()) ? 0 : 1);
 }
 
-function check_sing_box() {
+function sing_box_value() {
     let sing_box_installed = 0;
     let sing_box_version_ok = 0;
     let sing_box_service_exist = 0;
@@ -1411,18 +1356,22 @@ function check_sing_box() {
     if (sing_box_standard_ports_listening(command_output_from_args([ "netstat", "-ln" ])))
         sing_box_ports_listening = 1;
 
-    write_json({
+    return {
         sing_box_installed,
         sing_box_version_ok,
         sing_box_service_exist,
         sing_box_autostart_disabled,
         sing_box_process_running,
         sing_box_ports_listening
-    });
+    };
+}
+
+function check_sing_box() {
+    write_json(sing_box_value());
     return 0;
 }
 
-function check_fakeip() {
+function fakeip_value() {
     let fakeip_address = "";
     let fakeip6_address = "";
     for (let line in split(command_output_from_args([
@@ -1443,12 +1392,16 @@ function check_fakeip() {
             break;
         }
     }
-    write_json({
+    return {
         fakeip: match(fakeip_address, /^198\.(18|19)\./) != null || match(fakeip6_address, /^fc[0-3][0-9a-f]:/) != null,
         IP: fakeip_address != "" ? fakeip_address : fakeip6_address,
         IPv4: fakeip_address,
         IPv6: fakeip6_address
-    });
+    };
+}
+
+function check_fakeip() {
+    write_json(fakeip_value());
     return 0;
 }
 
@@ -1600,15 +1553,58 @@ function print_global(message) {
     print(as_string(message), "\n");
 }
 
-function render_or_fail(mode_args, input, fail_message, ok_statuses) {
-    let result = status_capture(mode_args, input);
-    if (result.output != "")
-        print(result.output);
-    for (let status in ok_statuses)
-        if (result.status == status)
-            return result.status;
-    print_global(fail_message);
-    return result.status;
+function print_global_lines(lines) {
+    for (let line in lines)
+        print(as_string(line), "\n");
+}
+
+// The WARP client hides behind a plain WireGuard interface, so it is
+// recognised either by the Cloudflare enrolment host or by an endpoint inside
+// a Cloudflare prefix. Both mean traffic already leaves through another
+// tunnel, which changes what every later check means.
+function network_warp_endpoints(network_show) {
+    let cloudflare_octets = words(CLOUDFLARE_OCTETS);
+    let result = [];
+
+    for (let line in split(as_string(network_show), "\n")) {
+        line = as_string(line);
+        if (index(line, "endpoint_host") < 0)
+            continue;
+
+        let host = uci_show_option_value(line);
+        if (host == "")
+            continue;
+
+        if (host == "engage.cloudflareclient.com") {
+            push(result, { kind: "engage", host });
+            continue;
+        }
+
+        if (contains(cloudflare_octets, first_two_dot_fields(host)))
+            push(result, { kind: "prefix", host });
+    }
+
+    return result;
+}
+
+// A WireGuard peer that installs its own default route sends everything past
+// the Forkop rules, so the sections carrying one are reported.
+function network_wireguard_route_allowed_peers(network_show) {
+    let result = [];
+
+    for (let line in split(as_string(network_show), "\n")) {
+        line = as_string(line);
+        if (index(line, "wireguard_") < 0 || index(line, ".route_allowed_ips=") < 0)
+            continue;
+        if (uci_show_option_value(line) != "1")
+            continue;
+
+        let route_option = index(line, ".route_allowed_ips=");
+        if (route_option > 0)
+            push(result, substr(line, 0, route_option));
+    }
+
+    return result;
 }
 
 function global_check(arg1, arg2) {
@@ -1617,122 +1613,83 @@ function global_check(arg1, arg2) {
         visibility = as_string(arg1);
 
     print_global("📡 Global check run!");
-    print_global("━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    print_global(GLOBAL_CHECK_SEPARATOR);
     print_global("🛠️ System info");
+    print_global_lines(report.system_info(build_system_info()));
 
-    let system_info_json = sprintf("%J", build_system_info());
-    render_or_fail([ "global-system-info" ], system_info_json, "❌ Failed to parse system info", [ 0 ]);
-
-    print_global("━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    print_global(GLOBAL_CHECK_SEPARATOR);
     print_global("➡️ DNS status");
+    let dns_value = dns_available_value();
+    let dns_render = report.dns_check(dns_value, dns_value.dont_touch_dhcp == 1);
+    print_global_lines(dns_render.lines);
+    if (dns_render.dump_dhcp_config)
+        print_global_lines(report.dnsmasq_config(mask.config_lines(fs.readfile("/etc/config/dhcp"))));
 
-    let dns_check_capture = command_capture(command_from_args(module_args(LIB_DIR + "/diagnostics/runtime.uc", [ "check-dns-available" ])));
-    if (dns_check_capture.output != "") {
-        let dns_render = render_or_fail(
-            [ "global-dns-check", bool_option(settings(), "dont_touch_dhcp", false) ? "1" : "0" ],
-            dns_check_capture.output,
-            "❌ Failed to parse DNS info",
-            [ 0, 10 ]
-        );
-        if (dns_render == 10)
-            print(status_output([ "dhcp-dnsmasq-config", "/etc/config/dhcp" ], null));
-    }
-    else
-        print_global("❌ Failed to get DNS info");
-
-    print_global("━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    print_global(GLOBAL_CHECK_SEPARATOR);
     print_global("📦 Sing-box status");
-    let singbox_check_json = command_capture(command_from_args(module_args(LIB_DIR + "/diagnostics/runtime.uc", [ "check-sing-box" ]))).output;
-    if (singbox_check_json != "")
-        render_or_fail([ "global-sing-box-check" ], singbox_check_json, "❌ Failed to parse sing-box info", [ 0 ]);
-    else
-        print_global("❌ Failed to get sing-box info");
+    print_global_lines(report.sing_box_check(sing_box_value()));
 
     print_global("---------------------------");
     print_global("Inbounds checks");
-    let inbounds_check_json = command_capture(command_from_args(module_args(LIB_DIR + "/diagnostics/runtime.uc", [ "check-inbounds" ]))).output;
-    if (inbounds_check_json != "")
-        render_or_fail([ "global-inbounds-check" ], inbounds_check_json, "[FAIL] Failed to parse inbounds check details", [ 0 ]);
-    else
-        print_global("[FAIL] Failed to get inbounds info");
+    print_global_lines(report.inbounds_check(inbounds_value()));
 
-    print_global("━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    print_global(GLOBAL_CHECK_SEPARATOR);
     print_global("🧱 NFT rules status");
-    let nft_check_json = command_capture(command_from_args(module_args(LIB_DIR + "/diagnostics/runtime.uc", [ "check-nft-rules" ]))).output;
-    if (nft_check_json != "") {
-        let nft_render = render_or_fail([ "global-nft-check" ], nft_check_json, "❌ Failed to parse NFT rules info", [ 0 ]);
-        if (nft_render == 0 && status_success([ "global-nft-other-mark-exists" ], nft_check_json))
-            print(status_output([ "nft-ruleset-other-mark-lines", NFT_TABLE_NAME ], command_output_from_args([ "nft", "list", "ruleset" ])));
-    }
-    else
-        print_global("❌ Failed to get NFT rules info");
+    let nft_value = nft_rules_value();
+    print_global_lines(report.nft_check(nft_value));
+    if (nft_value.rules_other_mark_exist == 1)
+        print_global_lines(report.nft_other_mark_lines(
+            command_output_from_args([ "nft", "list", "ruleset" ]), NFT_TABLE_NAME));
 
-    print_global("━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    print_global(GLOBAL_CHECK_SEPARATOR);
     print_global("📄 Forkop config");
     show_config(visibility);
 
-    print_global("━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    print_global(GLOBAL_CHECK_SEPARATOR);
     print_global("📄 WAN config");
     if (uci_show("network.wan")) {
-        if (visibility == "raw")
-            print(as_string(fs.readfile("/etc/config/network")));
-        else
-            print(status_output([ "wan-config-masked", "/etc/config/network" ], null));
+        let network_config = fs.readfile("/etc/config/network");
+        print(visibility == "raw" ? as_string(network_config) : mask.wan_config(network_config));
     }
     else
         print_global("❌ WAN configuration not found");
 
     let network_show = network_show_data();
-    for (let line in split(status_output([ "network-endpoint-host-warnings", CLOUDFLARE_OCTETS ], network_show), "\n")) {
-        if (line == "")
-            continue;
-        let fields = split(line, "\t");
-        if (length(fields) < 2)
-            continue;
-        if (fields[0] == "engage")
-            print_global("⚠️ WARP detected: " + fields[1]);
-        else if (fields[0] == "prefix") {
-            print_global("━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            print_global("⚠️ WARP detected: " + fields[1]);
-        }
+    for (let endpoint in network_warp_endpoints(network_show)) {
+        if (endpoint.kind == "prefix")
+            print_global(GLOBAL_CHECK_SEPARATOR);
+        print_global("⚠️ WARP detected: " + endpoint.host);
     }
 
-    for (let peer_section in split(status_output([ "network-wireguard-route-allowed-peers" ], network_show), "\n")) {
-        peer_section = as_string(peer_section);
-        if (peer_section == "")
-            continue;
+    for (let peer_section in network_wireguard_route_allowed_peers(network_show)) {
         let default_routes = allowed_ips_default_routes(uci_get(peer_section + ".allowed_ips"));
         if (length(default_routes) > 0) {
-            print_global("━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            print_global(GLOBAL_CHECK_SEPARATOR);
             print_global("⚠️ WG Route allowed IP enabled with " + join(", ", default_routes));
         }
     }
 
     if (file_executable("/etc/init.d/zapret") && command_success_from_args([ "/etc/init.d/zapret", "status" ])) {
-        print_global("━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        print_global(GLOBAL_CHECK_SEPARATOR);
         print_global("⚠️ Standalone zapret service is active. Forkop uses separate queues, but packet-level policy overlap is possible.");
     }
     else if (file_executable("/etc/init.d/zapret") && command_success_from_args([ "/etc/init.d/zapret", "enabled" ])) {
-        print_global("━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        print_global(GLOBAL_CHECK_SEPARATOR);
         print_global("⚠️ Standalone zapret autostart is enabled. Forkop will not modify /etc/config/zapret.");
     }
 
     if (file_executable("/etc/init.d/zapret2") && command_success_from_args([ "/etc/init.d/zapret2", "status" ])) {
-        print_global("━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        print_global(GLOBAL_CHECK_SEPARATOR);
         print_global("⚠️ Standalone zapret2 service is active. Forkop uses separate queues, but packet-level policy overlap is possible.");
     }
     else if (file_executable("/etc/init.d/zapret2") && command_success_from_args([ "/etc/init.d/zapret2", "enabled" ])) {
-        print_global("━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        print_global(GLOBAL_CHECK_SEPARATOR);
         print_global("⚠️ Standalone zapret2 autostart is enabled. Forkop will not modify /etc/config/zapret2.");
     }
 
-    print_global("━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    print_global(GLOBAL_CHECK_SEPARATOR);
     print_global("🥸 FakeIP status");
-    let fakeip_check_json = command_capture(command_from_args(module_args(LIB_DIR + "/diagnostics/runtime.uc", [ "check-fakeip" ]))).output;
-    if (fakeip_check_json != "")
-        render_or_fail([ "global-fakeip-check" ], fakeip_check_json, "❌ Failed to parse FakeIP info", [ 0 ]);
-    else
-        print_global("❌ Failed to get FakeIP info");
+    print_global_lines(report.fakeip_check(fakeip_value()));
 
     return 0;
 }

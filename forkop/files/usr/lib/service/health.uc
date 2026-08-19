@@ -150,7 +150,19 @@ function forkop_stably_running(rt_table, nft_table, mark, min_age) {
         forkop_runtime_network_configured(rt_table, nft_table, mark);
 }
 
+// The four words the UI shows for a service. Both the LuCI state feed and the
+// diagnostics status command report them, so the wording lives in one place.
+function service_status_text(running, enabled) {
+    running = running === true || running == "true" || running == "1" || running == 1;
+    enabled = enabled === true || enabled == "true" || enabled == "1" || enabled == 1;
+
+    if (running)
+        return enabled ? "running & enabled" : "running but disabled";
+    return enabled ? "stopped but enabled" : "stopped & disabled";
+}
+
 return {
+    service_status_text,
     sing_box_service_pid_from_value,
     sing_box_service_pid_runtime,
     pid_is_sing_box,

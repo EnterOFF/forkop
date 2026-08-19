@@ -59,7 +59,7 @@ const FORKOP_MASK_AFTER_TOKEN = [
   'option yacd_secret_key',
 ];
 
-// Keep in sync with forkop_config_masked_line() in diagnostics/status.uc.
+// Keep in sync with forkop_config_line() in diagnostics/mask.uc.
 // tests/luci_config_masking.sh compares both lists.
 const FORKOP_MASK_AFTER_TOKEN_SPACE = [
   'option outbound_json',

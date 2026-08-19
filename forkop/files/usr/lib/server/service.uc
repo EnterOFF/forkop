@@ -181,33 +181,6 @@ function mtproto_faketls_value(value) {
     return result == null ? "" : result;
 }
 
-function valid_public_ipv4(value) {
-    value = as_string(value);
-    if (!valid_ipv4(value))
-        return false;
-
-    let parts = split(value, ".");
-    let a = int(parts[0]);
-    let b = int(parts[1]);
-
-    if (a == 0 || a == 10 || a == 127 || a >= 224)
-        return false;
-    if (a == 169 && b == 254)
-        return false;
-    if (a == 192 && (b == 168 || b == 0 || b == 2))
-        return false;
-    if (a == 198 && (b == 18 || b == 19 || b == 51))
-        return false;
-    if (a == 203 && b == 0)
-        return false;
-    if (a == 100 && b >= 64 && b <= 127)
-        return false;
-    if (a == 172 && b >= 16 && b <= 31)
-        return false;
-
-    return true;
-}
-
 function error_response(message) {
     write_json({
         success: false,
@@ -469,7 +442,7 @@ function network_status_ipv4_address(data) {
 function server_detect_default_public_host() {
     for (let interface in [ "wan", "wwan" ]) {
         let ip = network_status_ipv4_address(output("ubus -S call " + shell_quote("network.interface." + interface) + " status 2>/dev/null"));
-        if (valid_public_ipv4(ip))
+        if (core_ip.valid_public_ipv4(ip))
             return ip;
     }
 
