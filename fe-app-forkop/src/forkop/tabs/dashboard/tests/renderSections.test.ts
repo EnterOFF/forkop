@@ -735,4 +735,46 @@ describe('renderSections subscription metadata', () => {
       'https://subscription.example/announce',
     ]);
   });
+
+  it('puts the subscription tag in front of the metadata heading', async () => {
+    installElementFactory();
+    const { renderSections } = await import('../partials/renderSections');
+    const root = renderSections({
+      loading: false,
+      failed: false,
+      section: {
+        code: 'proxy-out',
+        sectionName: 'main',
+        displayName: 'Main',
+        withTagSelect: true,
+        outbounds: [],
+        subscriptionMetadata: [
+          { title: 'Subscription', subscriptionTag: 'Premium' },
+        ],
+      },
+      onTestLatency: vi.fn(),
+      onTestOutboundLatency: vi.fn(),
+      onChooseOutbound: vi.fn(),
+      onCopyOutbound: vi.fn(),
+      onShowUrlTestInfo: vi.fn(),
+      onShowFallbackInfo: vi.fn(),
+      onUpdateSubscription: vi.fn(),
+      latencyFetching: false,
+      subscriptionUpdating: false,
+    }) as unknown as FakeNode;
+    const heading = findNodes(
+      root,
+      (node) =>
+        String(node.attrs.class || '') ===
+        'fkp_dashboard-page__subscription-meta__heading',
+    )[0];
+
+    expect(heading).toBeTruthy();
+    const tag = (heading.children as FakeNode[])[0] as FakeNode;
+    expect(String(tag.attrs.class || '')).toBe(
+      'fkp_dashboard-page__outbound-grid__item__subscription-tag',
+    );
+    expect(tag.children[0]).toBe('Premium');
+    expect(heading.children[1]).toBe('Subscription info:');
+  });
 });

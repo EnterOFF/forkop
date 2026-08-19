@@ -181,6 +181,7 @@ export namespace Forkop {
   export interface SubscriptionMetadata {
     version?: number;
     title?: string;
+    subscriptionTag?: string;
     traffic?: SubscriptionTraffic;
     expire?: number;
     refillDate?: number;

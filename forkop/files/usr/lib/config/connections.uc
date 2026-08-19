@@ -844,6 +844,47 @@ function subscription_tag(section, value, source_index) {
     return tag_name != "" ? tag_name : "sub" + int(source_index || 1);
 }
 
+function subscription_exclude_types(section, value) {
+    let child = child_item_by_value(section, "subscription_url", "url", value);
+    if (child != null)
+        return child_list(child, "exclude_types", []);
+    return item_list(section, "subscription_url_settings", value, "exclude_types", []);
+}
+
+// A rename rule is stored the way it is written: "pattern => replacement".
+// The first separator wins, so a replacement may contain one itself.
+function parse_rename_rule(value) {
+    value = as_string(value);
+    let separator = index(value, "=>");
+    if (separator < 0)
+        return null;
+
+    let pattern = trim(substr(value, 0, separator));
+    if (pattern == "")
+        return null;
+
+    return { pattern, target: trim(substr(value, separator + 2)) };
+}
+
+function subscription_override(section, value) {
+    let settings = subscription_url_settings(section, value);
+    return {
+        prefix: option(settings, "override_prefix", ""),
+        suffix: option(settings, "override_suffix", ""),
+        rename: list_value(settings, "override_rename"),
+        tcp_fast_open: option(settings, "override_tcp_fast_open", ""),
+        tcp_multi_path: option(settings, "override_tcp_multi_path", ""),
+        udp_fragment: option(settings, "override_udp_fragment", ""),
+        connect_timeout: option(settings, "override_connect_timeout", ""),
+        tls_insecure: option(settings, "override_tls_insecure", ""),
+        tls_server_name: option(settings, "override_tls_server_name", ""),
+        multiplex: option(settings, "override_multiplex", ""),
+        multiplex_protocol: option(settings, "override_multiplex_protocol", ""),
+        multiplex_max_streams: option(settings, "override_multiplex_max_streams", ""),
+        patch: option(settings, "override_patch", "")
+    };
+}
+
 function subscription_download_section(section, value) {
     if (subscription_source_type(value) != "remote")
         return "";
@@ -960,6 +1001,13 @@ function urltest_exclude_regex(section, value) {
         option(section, "urltest_exclude_regex", ""));
 }
 
+function urltest_exclude_types(section, value) {
+    let child = urltest_child(section, value);
+    if (child != null)
+        return child_list(child, "exclude_types", []);
+    return item_list(section, "urltest_settings", value, "exclude_types", []);
+}
+
 function fallback_group_display_name(section, value) {
     let child = fallback_group_child(section, value);
     return child != null ? child_option(child, "name", as_string(value)) : as_string(value);
@@ -1038,6 +1086,16 @@ function fallback_level_exclude_outbounds(group_id, value) {
 function fallback_level_exclude_regex(group_id, value) {
     let child = fallback_level_child(group_id, value);
     return child != null ? child_option(child, "exclude_regex", "") : "";
+}
+
+function fallback_level_include_groups(group_id, value) {
+    let child = fallback_level_child(group_id, value);
+    return child != null ? child_list(child, "include_groups", []) : [];
+}
+
+function fallback_level_exclude_types(group_id, value) {
+    let child = fallback_level_child(group_id, value);
+    return child != null ? child_list(child, "exclude_types", []) : [];
 }
 
 function append_unique(result, seen, value) {
@@ -1123,6 +1181,9 @@ return {
     subscription_dashboard_metadata_enabled,
     subscription_headers,
     subscription_show_name,
+    subscription_exclude_types,
+    subscription_override,
+    parse_rename_rule,
     subscription_tag,
     subscription_download_section,
     interface_display_name,
@@ -1144,6 +1205,7 @@ return {
     urltest_include_regex,
     urltest_exclude_outbounds,
     urltest_exclude_regex,
+    urltest_exclude_types,
     fallback_groups,
     fallback_group_settings,
     fallback_levels,
@@ -1163,6 +1225,8 @@ return {
     fallback_level_include_regex,
     fallback_level_exclude_outbounds,
     fallback_level_exclude_regex,
+    fallback_level_exclude_types,
+    fallback_level_include_groups,
     subscription_download_targets,
     subscription_download_target_port,
     section_display_name,

@@ -57,13 +57,11 @@ assert(subscriptionOptionsSource, 'subscription options not found');
 const addSubscriptionOptions = new Function(
   'form',
   '_',
-  'subscriptionUserAgentChoices',
   'addServerFilterOptions',
   `${subscriptionOptionsSource[0].slice(0, -'\n\nfunction addInterfaceItemOptions('.length)}; return addSubscriptionUrlItemOptions;`,
 )(
   { Flag: 'flag', Value: 'value', ListValue: 'list', Button: 'button' },
   (value) => value,
-  () => [],
   (section) => section.created.push('server_filter_mode'),
 );
 const optionNames = (remote) => {
@@ -286,7 +284,7 @@ if grep -Eq '"auto_hwid"|"hwid"' <<<"$subscription_keys"; then
 fi
 grep -Fq 'form.Button' <<<"$subscription_options" ||
   fail "subscription settings must expose the header editor as a native LuCI button"
-grep -Fq '_("Edit headers")' <<<"$subscription_options" ||
+grep -Fq '_("Headers")' <<<"$subscription_options" ||
   fail "subscription settings header editor button is missing"
 grep -Fq 'o.depends("show_subscription_name", "1");' <<<"$subscription_options" ||
   fail "subscription tag must stay hidden until subscription names are enabled"

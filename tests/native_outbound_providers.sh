@@ -134,8 +134,8 @@ if (type(remote.headers["X-Empty"]) != "array" || remote.headers["X-Empty"][0] !
     die("empty subscription header values must stay valid\n");
 if (without_hwid.headers["X-HWID"] != null)
     die("disabled empty HWID must omit the request header\n");
-if (remote.download_detour != "hop" || remote.outbound_detour != "hop")
-    die("provider download/cascade detours were not generated\n");
+if (remote.download_detour != "hop" || remote.override.detour != "hop")
+    die("provider download detour or override cascade was not generated\n");
 if (remote.update_interval != null)
     die("disabled provider updates must omit the interval\n");
 if (automatic.update_interval != "1h")
@@ -152,7 +152,7 @@ if (local.type != "local" || local.path != "/etc/forkop/local-subscription.txt")
     die("local subscription provider was not generated from its path\n");
 if (local.url != null || local.headers != null || local.update_interval != null || local.download_detour != null)
     die("local subscription provider contains unsupported remote options\n");
-if (local.outbound_detour != "hop" || local.include != "(?:(?:^Local))" || local.exclude != "(?:(?:Expired))")
+if (local.override.detour != "hop" || local.include != "(?:(?:^Local))" || local.exclude != "(?:(?:Expired))")
     die("local subscription provider did not preserve detour and server filters\n");
 let manual = by_outbound["proxy/Manual"];
 if (!manual || manual.type != "parser" || manual.link != "vless://id@example.com:443?security=tls#Manual")

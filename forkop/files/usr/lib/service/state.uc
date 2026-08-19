@@ -838,7 +838,9 @@ function subscription_urls_signature(section) {
             include_outbounds: list_option(settings, "include_outbounds"),
             include_regex: option(settings, "include_regex", ""),
             exclude_outbounds: list_option(settings, "exclude_outbounds"),
-            exclude_regex: option(settings, "exclude_regex", "")
+            exclude_regex: option(settings, "exclude_regex", ""),
+            exclude_types: connections.subscription_exclude_types(section, entry),
+            override: connections.subscription_override(section, entry)
         });
     }
     return sprintf("%J", result);
@@ -876,7 +878,8 @@ function urltests_signature(section) {
             include_outbounds: connections.urltest_include_outbounds(section, entry),
             include_regex: connections.urltest_include_regex(section, entry),
             exclude_outbounds: connections.urltest_exclude_outbounds(section, entry),
-            exclude_regex: connections.urltest_exclude_regex(section, entry)
+            exclude_regex: connections.urltest_exclude_regex(section, entry),
+            exclude_types: connections.urltest_exclude_types(section, entry)
         });
     }
     return sprintf("%J", result);
@@ -895,7 +898,9 @@ function fallback_groups_signature(section) {
                 include_outbounds: connections.fallback_level_include_outbounds(group_id, level_id),
                 include_regex: connections.fallback_level_include_regex(group_id, level_id),
                 exclude_outbounds: connections.fallback_level_exclude_outbounds(group_id, level_id),
-                exclude_regex: connections.fallback_level_exclude_regex(group_id, level_id)
+                exclude_regex: connections.fallback_level_exclude_regex(group_id, level_id),
+                exclude_types: connections.fallback_level_exclude_types(group_id, level_id),
+                include_groups: connections.fallback_level_include_groups(group_id, level_id)
             });
         }
 

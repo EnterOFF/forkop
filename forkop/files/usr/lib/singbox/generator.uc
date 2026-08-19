@@ -461,18 +461,41 @@ function set_filter_side(result, side, pattern, require_match) {
         result[side] = "a^";
 }
 
+function normalized_outbound_types(values, allowed) {
+    let supported = {};
+    for (let value in array_or_empty(allowed))
+        supported[value] = true;
+
+    let result = [];
+    let seen = {};
+    for (let value in array_or_empty(values)) {
+        value = lc(trim(as_string(value)));
+        if (value == "" || seen[value] || !supported[value])
+            continue;
+        seen[value] = true;
+        push(result, value);
+    }
+    return result;
+}
+
 function native_filter_options(mode,
     include_names, include_regex,
-    exclude_names, exclude_regex) {
+    exclude_names, exclude_regex, exclude_types) {
     let result = {};
     if (mode == "all")
         return result;
     if (mode == "include")
         set_filter_side(result, "include",
             filter_name_pattern(include_names, include_regex), true);
-    if (mode == "include" || mode == "exclude")
+    if (mode == "include" || mode == "exclude") {
         set_filter_side(result, "exclude",
             filter_name_pattern(exclude_names, exclude_regex), false);
+        // Only outbounds reach a provider, so an endpoint protocol in the
+        // native filter could never match and is left out of the config.
+        let types = normalized_outbound_types(exclude_types, runtime_constants.FILTERABLE_PROVIDER_TYPES);
+        if (length(types) > 0)
+            result.exclude_types = types;
+    }
     return result;
 }
 
@@ -487,7 +510,8 @@ function subscription_provider_filter(section, source) {
     return native_filter_options(
         option(settings, "server_filter_mode", "all"),
         list_option(settings, "include_outbounds"), option(settings, "include_regex", ""),
-        list_option(settings, "exclude_outbounds"), option(settings, "exclude_regex", "")
+        list_option(settings, "exclude_outbounds"), option(settings, "exclude_regex", ""),
+        connections.subscription_exclude_types(section, source)
     );
 }
 
@@ -495,7 +519,8 @@ function urltest_provider_filter(section, urltest_id) {
     return native_filter_options(
         connections.urltest_filter_mode(section, urltest_id),
         connections.urltest_include_outbounds(section, urltest_id), connections.urltest_include_regex(section, urltest_id),
-        connections.urltest_exclude_outbounds(section, urltest_id), connections.urltest_exclude_regex(section, urltest_id)
+        connections.urltest_exclude_outbounds(section, urltest_id), connections.urltest_exclude_regex(section, urltest_id),
+        connections.urltest_exclude_types(section, urltest_id)
     );
 }
 
@@ -505,7 +530,8 @@ function fallback_level_provider_filter(group_id, level_id) {
         connections.fallback_level_include_outbounds(group_id, level_id),
         connections.fallback_level_include_regex(group_id, level_id),
         connections.fallback_level_exclude_outbounds(group_id, level_id),
-        connections.fallback_level_exclude_regex(group_id, level_id)
+        connections.fallback_level_exclude_regex(group_id, level_id),
+        connections.fallback_level_exclude_types(group_id, level_id)
     );
 }
 
@@ -571,6 +597,114 @@ function outbound_detour_tag_for_section(section) {
     return detour_section == "" ? "" : outbound_tag(detour_section);
 }
 
+function override_flag(value) {
+    value = trim(as_string(value));
+    if (value == "1")
+        return true;
+    if (value == "0")
+        return false;
+    return null;
+}
+
+function override_rename_rules(values) {
+    let result = [];
+    for (let value in array_or_empty(values)) {
+        let rule = connections.parse_rename_rule(value);
+        if (rule == null)
+            runtime_generate_unsupported("subscription rename rule must be written as 'pattern => replacement'");
+        push(result, rule);
+    }
+    return result;
+}
+
+function override_patch_object(raw) {
+    raw = trim(as_string(raw));
+    if (raw == "")
+        return {};
+
+    let parsed;
+    try {
+        parsed = json(raw);
+    }
+    catch (e) {
+        runtime_generate_unsupported("subscription override patch is not valid JSON");
+    }
+    if (type(parsed) != "object")
+        runtime_generate_unsupported("subscription override patch is not a JSON object");
+    return parsed;
+}
+
+function override_multiplex_patch(settings) {
+    let enabled = override_flag(settings.multiplex);
+    if (enabled == null)
+        return null;
+    if (!enabled)
+        return { enabled: false };
+
+    let multiplex = { enabled: true };
+    let protocol = trim(as_string(settings.multiplex_protocol));
+    if (protocol != "")
+        multiplex.protocol = protocol;
+    let max_streams = trim(as_string(settings.multiplex_max_streams));
+    if (max_streams != "")
+        multiplex.max_streams = int(max_streams, 10);
+    return multiplex;
+}
+
+function subscription_override_options(section, source) {
+    let settings = connections.subscription_override(section, source);
+    let result = {};
+
+    let prefix = as_string(settings.prefix);
+    if (prefix != "")
+        result.prefix = prefix;
+    let suffix = as_string(settings.suffix);
+    if (suffix != "")
+        result.suffix = suffix;
+    let rename = override_rename_rules(settings.rename);
+    if (length(rename) > 0)
+        result.rename = rename;
+
+    let detour = outbound_detour_tag_for_section(section);
+    if (detour != "")
+        result.detour = detour;
+
+    for (let entry in [
+        [ "tcp_fast_open", settings.tcp_fast_open ],
+        [ "tcp_multi_path", settings.tcp_multi_path ],
+        [ "udp_fragment", settings.udp_fragment ]
+    ]) {
+        let value = override_flag(entry[1]);
+        if (value != null)
+            result[entry[0]] = value;
+    }
+
+    let connect_timeout = trim(as_string(settings.connect_timeout));
+    if (connect_timeout != "")
+        result.connect_timeout = connect_timeout;
+
+    let tls = {};
+    let insecure = override_flag(settings.tls_insecure);
+    if (insecure != null)
+        tls.insecure = insecure;
+    let server_name = trim(as_string(settings.tls_server_name));
+    if (server_name != "")
+        tls.server_name = server_name;
+    if (length(keys(tls)) > 0)
+        result.tls = tls;
+
+    let patch = {};
+    let multiplex = override_multiplex_patch(settings);
+    if (multiplex != null)
+        patch.multiplex = multiplex;
+    for (let key, value in override_patch_object(settings.patch))
+        patch[key] = value;
+    if (length(keys(patch)) > 0)
+        result.patch = patch;
+
+    return result;
+}
+
 function add_subscription_provider(config, section, source_index, source) {
     let tag_name = child_outbound_tag(section, connections.subscription_tag(section, source, source_index));
     let source_type = connections.subscription_source_type(source);
@@ -591,9 +725,9 @@ function add_subscription_provider(config, section, source_index, source) {
         if (download_section != "")
             provider.download_detour = outbound_tag(download_section);
     }
-    let detour = outbound_detour_tag_for_section(section);
-    if (detour != "")
-        provider.outbound_detour = detour;
+    let override = subscription_override_options(section, source);
+    if (length(keys(override)) > 0)
+        provider.override = override;
     push(config.providers, provider);
     return { tag: tag_name };
 }
@@ -752,6 +886,62 @@ function tag_name_filter_matches(tag, section, name_filter, regex_set) {
     return regex_set[tag];
 }
 
+function link_scheme(link) {
+    link = as_string(link);
+    let separator = index(link, "://");
+    return separator > 0 ? lc(substr(link, 0, separator)) : "";
+}
+
+// sing-box resolves a manual link at runtime, so a generated "parser" outbound
+// has to be matched by the protocol of the link it carries. AmneziaWG is a
+// Forkop tunnel type rather than a sing-box protocol, so it is recognized by
+// the amnezia block of its WireGuard endpoint; WARP carries one too, which is
+// why the check is bound to the endpoint type.
+function outbound_effective_type(outbound) {
+    outbound = object_or_empty(outbound);
+    let type_name = lc(as_string(outbound.type || ""));
+    if (type_name == "parser")
+        return as_string(
+            runtime_constants.LINK_SCHEME_OUTBOUND_TYPES[link_scheme(outbound.link)] || ""
+        );
+    if (type_name == "wireguard" && type(outbound.amnezia) == "object")
+        return "amneziawg";
+    return type_name;
+}
+
+function candidate_outbound_types(config) {
+    let result = {};
+    for (let group in [ array_or_empty(config.outbounds), array_or_empty(config.endpoints) ])
+        for (let outbound in group) {
+            if (type(outbound) != "object")
+                continue;
+            let tag_name = as_string(outbound.tag || "");
+            if (tag_name != "")
+                result[tag_name] = outbound_effective_type(outbound);
+        }
+    return result;
+}
+
+// Native exclude_types only reaches provider members, so the manually
+// configured servers of the section are filtered by the same list here.
+function exclude_typed_candidates(mode, tags, candidate_types, exclude_types) {
+    if (mode == "all")
+        return tags;
+
+    let excluded = {};
+    let types = normalized_outbound_types(exclude_types, runtime_constants.FILTERABLE_GROUP_TYPES);
+    if (length(types) == 0)
+        return tags;
+    for (let value in types)
+        excluded[value] = true;
+
+    let result = [];
+    for (let tag_name in array_or_empty(tags))
+        if (!excluded[as_string(object_or_empty(candidate_types)[tag_name] || "")])
+            push(result, tag_name);
+    return result;
+}
+
 function urltest_all_candidate_outbounds(urltest_candidate_tags) {
     return unique_string_array(urltest_candidate_tags);
 }
@@ -801,11 +991,13 @@ function filter_candidate_outbounds(mode, section, urltest_candidate_tags,
     return urltest_exclude_outbounds(matched, exclude_outbounds);
 }
 
-function urltest_filtered_outbounds(section, urltest_id, urltest_candidate_tags) {
+function urltest_filtered_outbounds(section, urltest_id, urltest_candidate_tags, candidate_types) {
+    let mode = connections.urltest_filter_mode(section, urltest_id);
     return filter_candidate_outbounds(
-        connections.urltest_filter_mode(section, urltest_id),
+        mode,
         section,
-        urltest_candidate_tags,
+        exclude_typed_candidates(mode, urltest_candidate_tags, candidate_types,
+            connections.urltest_exclude_types(section, urltest_id)),
         connections.urltest_include_outbounds(section, urltest_id),
         connections.urltest_include_regex(section, urltest_id),
         connections.urltest_exclude_outbounds(section, urltest_id),
@@ -813,7 +1005,7 @@ function urltest_filtered_outbounds(section, urltest_id, urltest_candidate_tags)
     );
 }
 
-function fallback_level_filtered_outbounds(section, group_id, level_id, urltest_candidate_tags) {
+function fallback_level_filtered_outbounds(section, group_id, level_id, urltest_candidate_tags, candidate_types) {
     let mode = connections.fallback_level_mode(group_id, level_id);
     if (mode == "direct")
         return [ runtime_constants.DIRECT_OUTBOUND_TAG ];
@@ -821,7 +1013,8 @@ function fallback_level_filtered_outbounds(section, group_id, level_id, urltest_
     return filter_candidate_outbounds(
         mode,
         section,
-        urltest_candidate_tags,
+        exclude_typed_candidates(mode, urltest_candidate_tags, candidate_types,
+            connections.fallback_level_exclude_types(group_id, level_id)),
         connections.fallback_level_include_outbounds(group_id, level_id),
         connections.fallback_level_include_regex(group_id, level_id),
         connections.fallback_level_exclude_outbounds(group_id, level_id),
@@ -829,13 +1022,13 @@ function fallback_level_filtered_outbounds(section, group_id, level_id, urltest_
     );
 }
 
-function fallback_levels_with_outbounds(section, group_id, urltest_candidate_tags) {
+function fallback_levels_with_outbounds(section, group_id, urltest_candidate_tags, candidate_types) {
     let result = [];
     let assigned = {};
 
     for (let level_id in connections.fallback_levels(group_id)) {
         let outbounds = [];
-        for (let tag_name in fallback_level_filtered_outbounds(section, group_id, level_id, urltest_candidate_tags)) {
+        for (let tag_name in fallback_level_filtered_outbounds(section, group_id, level_id, urltest_candidate_tags, candidate_types)) {
             if (!assigned[tag_name]) {
                 assigned[tag_name] = true;
                 push(outbounds, tag_name);
@@ -862,13 +1055,139 @@ function provider_tags(provider_refs) {
     return result;
 }
 
-function add_urltest_outbound(config, section, urltest_id, urltest_candidate_tags, provider_refs, taken) {
-    let urltest_outbounds = urltest_filtered_outbounds(section, urltest_id, urltest_candidate_tags);
-    let display_name = connections.urltest_display_name(section, urltest_id);
-    let urltest_tag = unique_tag(child_outbound_tag(section, display_name), taken);
+function section_group_items(section) {
+    let result = [];
+    for (let urltest_id in connections.urltests(section))
+        push(result, {
+            kind: "urltest",
+            id: urltest_id,
+            display_name: connections.urltest_display_name(section, urltest_id)
+        });
+    for (let group_id in connections.fallback_groups(section))
+        push(result, {
+            kind: "fallback",
+            id: group_id,
+            display_name: connections.fallback_group_display_name(section, group_id)
+        });
+    return result;
+}
+
+// A Fallback level can hold a URLTest group, so every tag is allocated before
+// any group is built and the references resolve by display name. Only URLTest
+// names are resolvable: a nested Fallback would add nothing its parent levels
+// cannot express.
+function allocate_group_tags(section, items, taken) {
+    let by_name = {};
+    for (let item in items) {
+        item.tag = unique_tag(child_outbound_tag(section, item.display_name), taken);
+        taken[item.tag] = true;
+        let name = trim(as_string(item.display_name));
+        if (item.kind == "urltest" && name != "" && by_name[name] == null)
+            by_name[name] = item.tag;
+    }
+    return by_name;
+}
+
+function included_group_tags(names, group_tags_by_name, own_tag) {
+    let result = [];
+    let seen = {};
+    for (let name in array_or_empty(names)) {
+        let tag_name = as_string(object_or_empty(group_tags_by_name)[trim(as_string(name))] || "");
+        if (tag_name == "" || tag_name == own_tag || seen[tag_name])
+            continue;
+        seen[tag_name] = true;
+        push(result, tag_name);
+    }
+    return result;
+}
+
+function append_unique_tags(target, tags) {
+    let seen = {};
+    for (let tag_name in array_or_empty(target))
+        seen[tag_name] = true;
+    for (let tag_name in array_or_empty(tags)) {
+        if (seen[tag_name])
+            continue;
+        seen[tag_name] = true;
+        push(target, tag_name);
+    }
+    return target;
+}
+
+function group_member_lists(descriptor) {
+    if (descriptor.kind == "urltest")
+        return [ descriptor.outbound.outbounds ];
+
+    let result = [];
+    for (let level in array_or_empty(descriptor.outbound.groups))
+        push(result, level.outbounds);
+    return result;
+}
+
+function group_has_members(descriptor) {
+    if (descriptor.kind == "urltest")
+        return length(array_or_empty(descriptor.outbound.outbounds)) > 0 ||
+            length(array_or_empty(descriptor.outbound.providers)) > 0;
+
+    for (let level in array_or_empty(descriptor.outbound.groups))
+        if (length(array_or_empty(level.outbounds)) > 0 ||
+            length(array_or_empty(level.providers)) > 0)
+            return true;
+    return false;
+}
+
+function prune_group_member_list(members, available, group_tags) {
+    let filtered = [];
+    for (let tag_name in array_or_empty(members))
+        if (!group_tags[tag_name] || available[tag_name])
+            push(filtered, tag_name);
+    return filtered;
+}
+
+// A referenced group that ended up without members is dropped, and so is every
+// group left empty because it only pointed at such a group.
+function usable_group_descriptors(descriptors, group_tags) {
+    let result = descriptors;
+    for (let changed = true; changed; ) {
+        changed = false;
+        let available = {};
+        for (let descriptor in result)
+            available[descriptor.tag] = true;
+
+        for (let descriptor in result) {
+            if (descriptor.kind == "urltest") {
+                let members = prune_group_member_list(descriptor.outbound.outbounds, available, group_tags);
+                if (length(members) != length(array_or_empty(descriptor.outbound.outbounds)))
+                    changed = true;
+                descriptor.outbound.outbounds = members;
+                continue;
+            }
+            for (let level in array_or_empty(descriptor.outbound.groups)) {
+                let members = prune_group_member_list(level.outbounds, available, group_tags);
+                if (length(members) != length(array_or_empty(level.outbounds)))
+                    changed = true;
+                level.outbounds = members;
+            }
+        }
+
+        let kept = [];
+        for (let descriptor in result) {
+            if (group_has_members(descriptor))
+                push(kept, descriptor);
+            else
+                changed = true;
+        }
+        result = kept;
+    }
+    return result;
+}
+
+function build_urltest_outbound(section, item, urltest_candidate_tags, candidate_types, provider_refs) {
+    let urltest_id = item.id;
+    let urltest_outbounds = urltest_filtered_outbounds(section, urltest_id, urltest_candidate_tags, candidate_types);
     let urltest_outbound = {
         type: "urltest",
-        tag: urltest_tag,
+        tag: item.tag,
         outbounds: urltest_outbounds,
         url: connections.urltest_testing_url(section, urltest_id),
         expected_status: connections.urltest_expected_status(section, urltest_id),
@@ -884,23 +1203,16 @@ function add_urltest_outbound(config, section, urltest_id, urltest_candidate_tag
     if (idle_timeout != "")
         urltest_outbound.idle_timeout = idle_timeout;
 
-    if (length(urltest_outbounds) == 0 && length(providers) == 0)
-        return "";
-
-    taken[urltest_tag] = true;
-    push(config.outbounds, urltest_outbound);
-    return urltest_tag;
+    return urltest_outbound;
 }
 
-function add_fallback_group_outbound(config, section, group_id, urltest_candidate_tags, provider_refs, taken) {
-    let levels = fallback_levels_with_outbounds(section, group_id, urltest_candidate_tags);
-    let display_name = connections.fallback_group_display_name(section, group_id);
-    let fallback_tag = unique_tag(child_outbound_tag(section, display_name), taken);
+function build_fallback_group_outbound(section, item, urltest_candidate_tags, candidate_types, group_tags_by_name, provider_refs) {
+    let group_id = item.id;
+    let levels = fallback_levels_with_outbounds(section, group_id, urltest_candidate_tags, candidate_types);
     let providers = provider_tags(provider_refs);
-    let has_members = false;
     let outbound = {
         type: "fallback",
-        tag: fallback_tag,
+        tag: item.tag,
         groups: []
     };
 
@@ -909,13 +1221,14 @@ function add_fallback_group_outbound(config, section, group_id, urltest_candidat
             outbounds: level.outbounds
         };
         if (level.mode != "direct") {
+            append_unique_tags(native_level.outbounds, included_group_tags(
+                connections.fallback_level_include_groups(group_id, level.id), group_tags_by_name, item.tag
+            ));
             if (length(providers) > 0)
                 native_level.providers = providers;
             merge_object(native_level, fallback_level_provider_filter(group_id, level.id));
         }
 
-        if (length(native_level.outbounds) > 0 || length(native_level.providers || []) > 0)
-            has_members = true;
         push(outbound.groups, native_level);
     }
 
@@ -927,12 +1240,7 @@ function add_fallback_group_outbound(config, section, group_id, urltest_candidat
     outbound.idle_timeout = connections.fallback_group_idle_timeout(section, group_id);
     outbound.interrupt_exist_connections = connections.fallback_group_interrupt_exist_connections(section, group_id);
 
-    if (!has_members)
-        return "";
-
-    taken[fallback_tag] = true;
-    push(config.outbounds, outbound);
-    return fallback_tag;
+    return outbound;
 }
 
 function add_proxy_selector(config, section, selector_tags, urltest_candidate_tags, provider_refs, taken) {
@@ -942,21 +1250,24 @@ function add_proxy_selector(config, section, selector_tags, urltest_candidate_ta
     let selector_default = selector_tags[0];
     let urltest_tags = [];
     let fallback_tags = [];
+    let candidate_types = candidate_outbound_types(config);
+    let items = section_group_items(section);
+    let group_tags_by_name = allocate_group_tags(section, items, taken);
+    let group_tags = {};
+    for (let item in items)
+        group_tags[item.tag] = true;
 
-    for (let urltest_id in connections.urltests(section)) {
-        let urltest_tag = add_urltest_outbound(config, section, urltest_id, urltest_candidate_tags, provider_refs, taken);
-        if (urltest_tag == "")
-            continue;
-
-        push(urltest_tags, urltest_tag);
+    let descriptors = [];
+    for (let item in items) {
+        let outbound = item.kind == "urltest"
+            ? build_urltest_outbound(section, item, urltest_candidate_tags, candidate_types, provider_refs)
+            : build_fallback_group_outbound(section, item, urltest_candidate_tags, candidate_types, group_tags_by_name, provider_refs);
+        push(descriptors, { kind: item.kind, tag: item.tag, outbound });
     }
 
-    for (let group_id in connections.fallback_groups(section)) {
-        let fallback_tag = add_fallback_group_outbound(config, section, group_id, urltest_candidate_tags, provider_refs, taken);
-        if (fallback_tag == "")
-            continue;
-
-        push(fallback_tags, fallback_tag);
+    for (let descriptor in usable_group_descriptors(descriptors, group_tags)) {
+        push(config.outbounds, descriptor.outbound);
+        push(descriptor.kind == "urltest" ? urltest_tags : fallback_tags, descriptor.tag);
     }
 
     for (let tag in urltest_tags)

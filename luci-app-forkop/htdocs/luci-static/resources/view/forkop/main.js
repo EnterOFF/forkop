@@ -1868,11 +1868,18 @@ function renderSubscriptionMetadata(metadata) {
   ].filter(Boolean);
   return E("div", { class: "fkp_dashboard-page__subscription-meta" }, [
     E("div", { class: "fkp_dashboard-page__subscription-meta__main" }, [
-      E(
-        "div",
-        { class: "fkp_dashboard-page__subscription-meta__heading" },
+      E("div", { class: "fkp_dashboard-page__subscription-meta__heading" }, [
+        ...metadata.subscriptionTag ? [
+          E(
+            "span",
+            {
+              class: "fkp_dashboard-page__outbound-grid__item__subscription-tag"
+            },
+            metadata.subscriptionTag
+          )
+        ] : [],
         _("Subscription info:")
-      ),
+      ]),
       title ? E(
         "div",
         { class: "fkp_dashboard-page__subscription-meta__title" },
@@ -3855,7 +3862,7 @@ function providerNumber(value, lower) {
   const number = Number(value?.[lower] ?? value?.[upper] ?? 0);
   return Number.isFinite(number) ? number : 0;
 }
-function providerSubscriptionMetadata(provider, sourceIndex) {
+function providerSubscriptionMetadata(provider, sourceIndex, subscriptionTag) {
   const metadata = provider.subscriptionMetadata || {};
   const upload = providerNumber(provider.subscriptionInfo, "upload");
   const download = providerNumber(provider.subscriptionInfo, "download");
@@ -3869,6 +3876,7 @@ function providerSubscriptionMetadata(provider, sourceIndex) {
     ...metadata,
     sourceIndex,
     sourceSection: provider.name,
+    ...subscriptionTag ? { subscriptionTag } : {},
     ...upload || download || total ? {
       traffic: {
         upload,
@@ -3882,14 +3890,18 @@ function providerSubscriptionMetadata(provider, sourceIndex) {
     ...expire ? { expire } : {}
   };
 }
-function getSubscriptionMetadata(section, sourceCount, providerTags, providers) {
-  const items = providerTags.slice(0, sourceCount).flatMap((tag, index) => {
+function getSubscriptionMetadata(section, sourceCount, subscriptionTags, providers) {
+  const items = subscriptionTags.slice(0, sourceCount).flatMap((tag, index) => {
     const sourceIndex = index + 1;
-    const provider = providers[tag];
+    const provider = providers[tag.runtimeTag];
     if (!provider || provider.subscriptionInfo === void 0 && provider.subscriptionMetadata === void 0) {
       return [];
     }
-    const metadata = providerSubscriptionMetadata(provider, sourceIndex);
+    const metadata = providerSubscriptionMetadata(
+      provider,
+      sourceIndex,
+      tag.showInDashboard ? tag.displayTag : ""
+    );
     return metadata && isSubscriptionMetadataVisible(section, sourceIndex) ? [metadata] : [];
   });
   return items.length ? items : void 0;
@@ -3934,7 +3946,7 @@ async function getDashboardSections() {
       const subscriptionMetadata = subscriptionEnabled ? getSubscriptionMetadata(
         section,
         subscriptionSourceCount,
-        subscriptionTags.map((item) => item.runtimeTag),
+        subscriptionTags,
         providers
       ) : void 0;
       const { selector, latencyTestCode, outbounds } = buildProxyGroupOutbounds(

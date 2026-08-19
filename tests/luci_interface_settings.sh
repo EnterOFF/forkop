@@ -71,7 +71,7 @@ for (const expected of [
 
 const keysBlock = source.slice(
   requiredIndex("function interfaceSettingsKeys()"),
-  requiredIndex("function subscriptionUserAgentChoices()"),
+  requiredIndex("function urlTestSettingsKeys()"),
 );
 for (const expected of [
   '"domain_resolver_dns_server"',

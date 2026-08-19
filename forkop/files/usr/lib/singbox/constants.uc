@@ -51,6 +51,62 @@ const JSON_INBOUND_TYPES = [
     "hysteria", "tuic", "hysteria2", "mtproto", "sudoku", "snell", "call"
 ];
 
+// Outbound types a subscription can produce. sing-box builds provider nodes
+// from outbounds only, so endpoint protocols and the types its parsers refuse
+// are not offered here.
+const FILTERABLE_PROVIDER_TYPES = [
+    "vless", "vmess", "trojan", "shadowsocks",
+    "hysteria2", "hysteria", "tuic", "anytls",
+    "naive", "mieru", "snell", "shadowtls",
+    "sudoku", "trusttunnel", "masque", "openvpn",
+    "ssh", "tor", "socks", "http"
+];
+
+// A group also holds the servers a section configures itself, which is the
+// only way a tunnel or a network interface becomes a member. sing-box has no
+// AmneziaWG protocol, so Forkop resolves it from the WireGuard endpoint that
+// carries an amnezia block.
+const FILTERABLE_GROUP_TYPES = [
+    ...FILTERABLE_PROVIDER_TYPES,
+    "wireguard", "amneziawg", "warp", "tailscale", "direct"
+];
+
+// sing-box resolves a manual link at runtime, so the generated "parser"
+// outbound has to be matched by the protocol its link carries.
+const LINK_SCHEME_OUTBOUND_TYPES = {
+    "ss": "shadowsocks",
+    "vmess": "vmess",
+    "vless": "vless",
+    "trojan": "trojan",
+    "tuic": "tuic",
+    "anytls": "anytls",
+    "hysteria": "hysteria",
+    "hy2": "hysteria2",
+    "hysteria2": "hysteria2",
+    "mieru": "mieru",
+    "mierus": "mieru",
+    "naive+https": "naive",
+    "naive+quic": "naive",
+    "http2": "naive",
+    "http3": "naive",
+    "http": "http",
+    "https": "http",
+    "socks": "socks",
+    "socks4": "socks",
+    "socks4a": "socks",
+    "socks5": "socks"
+};
+
+// Parameters the subscription settings already own. Repeating one of them in
+// the free-form patch would silently fight a control the user cannot see from
+// there, so they are refused instead of resolved by precedence.
+const RESERVED_OVERRIDE_PATCH_PATHS = [
+    "type", "tag", "detour",
+    "tcp_fast_open", "tcp_multi_path", "udp_fragment", "connect_timeout",
+    "tls.insecure", "tls.server_name",
+    "multiplex.enabled", "multiplex.protocol", "multiplex.max_streams"
+];
+
 const RESERVED_TAGS = {
     [DNS_SERVER_TAG]: true,
     [FAKEIP_DNS_SERVER_TAG]: true,
@@ -151,6 +207,10 @@ return {
     BYEDPI_PORT_BASE,
     JSON_ENDPOINT_TYPES,
     JSON_INBOUND_TYPES,
+    FILTERABLE_PROVIDER_TYPES,
+    FILTERABLE_GROUP_TYPES,
+    RESERVED_OVERRIDE_PATCH_PATHS,
+    LINK_SCHEME_OUTBOUND_TYPES,
     RESERVED_TAGS,
     tag,
     inbound_tag,

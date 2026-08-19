@@ -1404,6 +1404,7 @@ function providerNumber(
 function providerSubscriptionMetadata(
   provider: ClashAPI.ProxyProvider,
   sourceIndex: number,
+  subscriptionTag: string,
 ): Forkop.SubscriptionMetadata | undefined {
   const metadata = provider.subscriptionMetadata || {};
   const upload = providerNumber(provider.subscriptionInfo, 'upload');
@@ -1426,6 +1427,7 @@ function providerSubscriptionMetadata(
     ...metadata,
     sourceIndex,
     sourceSection: provider.name,
+    ...(subscriptionTag ? { subscriptionTag } : {}),
     ...(upload || download || total
       ? {
           traffic: {
@@ -1445,12 +1447,12 @@ function providerSubscriptionMetadata(
 function getSubscriptionMetadata(
   section: Forkop.ConfigSection,
   sourceCount: number,
-  providerTags: string[],
+  subscriptionTags: SubscriptionTagConfig[],
   providers: Record<string, ClashAPI.ProxyProvider>,
 ) {
-  const items = providerTags.slice(0, sourceCount).flatMap((tag, index) => {
+  const items = subscriptionTags.slice(0, sourceCount).flatMap((tag, index) => {
     const sourceIndex = index + 1;
-    const provider = providers[tag];
+    const provider = providers[tag.runtimeTag];
     if (
       !provider ||
       (provider.subscriptionInfo === undefined &&
@@ -1458,7 +1460,11 @@ function getSubscriptionMetadata(
     ) {
       return [];
     }
-    const metadata = providerSubscriptionMetadata(provider, sourceIndex);
+    const metadata = providerSubscriptionMetadata(
+      provider,
+      sourceIndex,
+      tag.showInDashboard ? tag.displayTag : '',
+    );
     return metadata && isSubscriptionMetadataVisible(section, sourceIndex)
       ? [metadata]
       : [];
@@ -1515,7 +1521,7 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
         ? getSubscriptionMetadata(
             section,
             subscriptionSourceCount,
-            subscriptionTags.map((item) => item.runtimeTag),
+            subscriptionTags,
             providers,
           )
         : undefined;

@@ -1092,6 +1092,18 @@ function validate_server_filter_regexes(mode, include_regex, exclude_regex, sect
         validate_urltest_regex_value(exclude_regex, section);
 }
 
+function validate_server_filter_types(values, allowed, context) {
+    let supported = {};
+    for (let value in array_or_empty(allowed))
+        supported[value] = true;
+
+    for (let value in array_or_empty(values)) {
+        value = trim(as_string(value));
+        if (value != "" && !supported[lc(value)])
+            fail_validation("Server type '" + value + "' is not available in " + context + ". Aborted.");
+    }
+}
+
 function validate_fallback_group(section, group_id) {
     let name = section_name(section);
     validate_fallback_identifier_value(group_id, name);
@@ -1136,7 +1148,34 @@ function validate_fallback_group(section, group_id) {
             connections.fallback_level_exclude_regex(group_id, level_id),
             name
         );
+        validate_server_filter_types(
+            connections.fallback_level_exclude_types(group_id, level_id),
+            singbox_constants.FILTERABLE_GROUP_TYPES,
+            "server group '" + level_id + "' in rule '" + name + "'"
+        );
     }
+}
+
+// Only a Fallback level can hold another group, and only a URLTest, because a
+// nested Fallback adds nothing its parent levels cannot already express. That
+// keeps the references one level deep, so a cycle cannot form.
+function validate_section_group_references(section) {
+    let name = section_name(section);
+    let urltest_names = {};
+    for (let urltest_id in connections.urltests(section)) {
+        let display_name = trim(as_string(connections.urltest_display_name(section, urltest_id)));
+        if (display_name != "")
+            urltest_names[display_name] = true;
+    }
+
+    for (let group_id in connections.fallback_groups(section))
+        for (let level_id in connections.fallback_levels(group_id))
+            for (let value in array_or_empty(connections.fallback_level_include_groups(group_id, level_id))) {
+                value = trim(as_string(value));
+                if (value != "" && !urltest_names[value])
+                    fail_validation("Server group '" + level_id + "' in rule '" + name +
+                        "' includes missing URLTest '" + value + "'. Aborted.");
+            }
 }
 
 function validate_combined_domain_value(value, section) {
@@ -1433,6 +1472,56 @@ function validate_subscription_request_profile(section, entry) {
         fail_validation("Subscription source in rule '" + section_name(section) + "' has invalid " + parsed.message + ". Aborted.");
 }
 
+function validate_subscription_override(section, entry) {
+    let name = section_name(section);
+    let settings = connections.subscription_override(section, entry);
+    let context = "subscription in rule '" + name + "'";
+
+    for (let value in array_or_empty(settings.rename)) {
+        let rule = connections.parse_rename_rule(value);
+        if (rule == null)
+            fail_validation("Rename rule '" + trim(as_string(value)) + "' in " + context +
+                " must be written as 'pattern => replacement'. Aborted.");
+        if (!regex_valid(rule.pattern))
+            fail_validation("Invalid rename pattern '" + rule.pattern + "' in " + context + ". Aborted.");
+    }
+
+    let connect_timeout = trim(as_string(settings.connect_timeout));
+    if (connect_timeout != "")
+        validate_required_duration_option(connect_timeout, "rule." + name + ".override_connect_timeout");
+
+    let max_streams = trim(as_string(settings.multiplex_max_streams));
+    if (max_streams != "" && match(max_streams, /^[0-9]+$/) == null)
+        fail_validation("Multiplex stream limit in " + context + " must be a number. Aborted.");
+
+    let patch = trim(as_string(settings.patch));
+    if (patch == "")
+        return;
+
+    let parsed;
+    try {
+        parsed = json(patch);
+    }
+    catch (e) {
+        fail_validation("Additional parameters in " + context + " are not valid JSON. Aborted.");
+    }
+    if (type(parsed) != "object")
+        fail_validation("Additional parameters in " + context + " must be a JSON object. Aborted.");
+    for (let path in array_or_empty(singbox_constants.RESERVED_OVERRIDE_PATCH_PATHS)) {
+        let node = parsed;
+        for (let segment in split(path, ".")) {
+            if (type(node) != "object") {
+                node = null;
+                break;
+            }
+            node = node[segment];
+        }
+        if (node != null)
+            fail_validation("Additional parameters in " + context + " must not set '" + path +
+                "': it already has its own setting. Aborted.");
+    }
+}
+
 function validate_subscription_filter(section, entry) {
     let name = section_name(section);
     let settings = connections.subscription_url_settings(section, entry);
@@ -1443,6 +1532,11 @@ function validate_subscription_filter(section, entry) {
         option(settings, "include_regex", ""),
         option(settings, "exclude_regex", ""),
         name
+    );
+    validate_server_filter_types(
+        connections.subscription_exclude_types(section, entry),
+        singbox_constants.FILTERABLE_PROVIDER_TYPES,
+        "subscription in rule '" + name + "'"
     );
 }
 
@@ -1630,6 +1724,11 @@ function validate_rule(section, sections, context) {
                 connections.urltest_exclude_regex(section, urltest_id),
                 name
             );
+            validate_server_filter_types(
+                connections.urltest_exclude_types(section, urltest_id),
+                singbox_constants.FILTERABLE_GROUP_TYPES,
+                "URLTest '" + urltest_id + "' in rule '" + name + "'"
+            );
         }
 
         let fallback_names = {};
@@ -1646,12 +1745,14 @@ function validate_rule(section, sections, context) {
                 validate_subscription_source_entry_value(value, name);
                 validate_subscription_request_profile(section, value);
                 validate_subscription_filter(section, value);
+                validate_subscription_override(section, value);
                 let subscription_update_interval = subscription_update_interval_for_source(section, value);
                 if (subscription_update_interval != "")
                     validate_required_duration_option(subscription_update_interval, "rule." + name + ".subscription_update_interval");
             }
         }
 
+        validate_section_group_references(section);
         validate_outbound_json_values(section);
         validate_tunnel_values(section);
         validate_interface_domain_resolvers(section, sections, context);

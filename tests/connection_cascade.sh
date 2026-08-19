@@ -86,7 +86,7 @@ function assert(condition, message) {
 
 assert(outbound("source/Manual").type == "parser", "manual URI was not generated as a parser outbound");
 assert(outbound("source/Manual").detour == "hop", "manual parser did not receive the section detour");
-assert(provider("source/sub1").outbound_detour == "hop", "subscription provider did not receive the section detour");
+assert(provider("source/sub1").override.detour == "hop", "subscription provider did not receive the section detour");
 assert(outbound("source/wg0").bind_interface == "wg0", "interface binding was not preserved");
 assert(outbound("source/wg0").detour == null, "network interface must be excluded from section cascade");
 assert(outbound("source/JSON plain").detour == null, "plain JSON outbound must be excluded from section cascade");

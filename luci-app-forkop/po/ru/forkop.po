@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-19 06:02+0300\n"
-"PO-Revision-Date: 2026-08-19 06:02+0300\n"
+"POT-Creation-Date: 2026-08-19 08:19+0300\n"
+"PO-Revision-Date: 2026-08-19 08:19+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -19,6 +19,9 @@ msgstr ""
 
 msgid "-- Select --"
 msgstr "-- Выберите --"
+
+msgid "%s already has its own setting above"
+msgstr "%s уже настраивается отдельным параметром выше"
 
 msgid "+ Add fallback"
 msgstr "+ Добавить Fallback"
@@ -43,6 +46,9 @@ msgstr "✔ Работает"
 
 msgid "✘ Stopped"
 msgstr "✘ Остановлен"
+
+msgid "A JSON object merged into every server of this subscription. Parameters a server does not support are skipped. Matching parameters are overwritten. Parameters that have their own setting above cannot be set here."
+msgstr "JSON-объект, добавляемый к каждому серверу этой подписки. Параметры, которые сервер не поддерживает, пропускаются. Совпадающие параметры перезаписываются. Параметры, у которых есть отдельная настройка выше, задавать здесь нельзя."
 
 msgid "Accept external proxy connections and route them with sing-box."
 msgstr "Принимает внешние прокси-подключения и маршрутизирует их через sing-box."
@@ -98,17 +104,32 @@ msgstr "Добавьте хотя бы одного пира WireGuard"
 msgid "Add header"
 msgstr "Добавить заголовок"
 
+msgid "Add or change the parameters of the servers this subscription imports."
+msgstr "Добавить или изменить параметры серверов, которые добавляются из этой подписки."
+
 msgid "Add servers whose names match the regular expression."
 msgstr "Добавить серверы, названия которых совпадают с регулярным выражением."
 
-msgid "Add the subscription tag to each of its nodes in the dashboard"
-msgstr "Добавить тег подписки для каждого ее узла в дашборде"
+msgid "Add the subscription tag to its nodes and to its metadata in the dashboard"
+msgstr "Добавлять тег подписки к её узлам и к её метаданным на панели управления"
+
+msgid "Add URLTest"
+msgstr "Добавить URLTest"
+
+msgid "Added after every server name imported from this subscription."
+msgstr "Добавляется после имени каждого сервера, полученного из этой подписки."
+
+msgid "Added in front of every server name imported from this subscription."
+msgstr "Добавляется перед именем каждого сервера, полученного из этой подписки."
 
 msgid "Additional marking rules found"
 msgstr "Найдены дополнительные правила маркировки"
 
 msgid "Additional packet padding"
 msgstr "Дополнительное заполнение пакета"
+
+msgid "Additional parameters"
+msgstr "Дополнительные параметры"
 
 msgid "Address"
 msgstr "Адрес"
@@ -118,6 +139,9 @@ msgstr "Адрес сервера координации. Измените ег�
 
 msgid "Adds traffic masking using the Amnezia mechanism to make it harder to identify."
 msgstr "Добавляет маскировку трафика по механизму Amnezia, чтобы затруднить его распознавание."
+
+msgid "Advanced settings"
+msgstr "Дополнительные настройки"
 
 msgid "Advertise routes"
 msgstr "Анонсировать маршруты"
@@ -133,6 +157,9 @@ msgstr "Все серверы"
 
 msgid "All traffic from these source IP addresses will be routed through the section."
 msgstr "Весь трафик исходящих IP-адресов будет направлен через секцию."
+
+msgid "Allow untrusted certificates"
+msgstr "Разрешить недоверенные сертификаты"
 
 msgid "Allowed domain prefixes are full:, keyword:, and regex:"
 msgstr "Разрешённые префиксы доменов: full:, keyword: и regex:"
@@ -272,8 +299,14 @@ msgstr "Не удалось получить результаты проверк
 msgid "Cannot save server"
 msgstr "Не удалось сохранить сервер"
 
+msgid "Carry several connections over one, which is only supported by some protocols."
+msgstr "Передавать несколько соединений через одно. Поддерживается не всеми протоколами."
+
 msgid "Cascade connection"
 msgstr "Каскадное подключение"
+
+msgid "Certificate domain (SNI)"
+msgstr "Домен сертификата (SNI)"
 
 msgid "Certificate path"
 msgstr "Путь к сертификату"
@@ -383,6 +416,9 @@ msgstr "Подключаться через"
 msgid "Connect to the coordination server through a section"
 msgstr "Подключаться к серверу координации через секцию"
 
+msgid "Connection limit"
+msgstr "Лимит соединений"
+
 msgid "Connection timeout"
 msgstr "Таймаут подключения"
 
@@ -434,6 +470,9 @@ msgstr "Дашборд сейчас недоступен"
 msgid "Data rejection timeout"
 msgstr "Таймаут отклонения данных"
 
+msgid "Default"
+msgstr "По умолчанию"
+
 msgid "Default URL for latency testing."
 msgstr "URL по умолчанию для тестирования задержки."
 
@@ -484,6 +523,9 @@ msgstr "Отключить QUIC"
 
 msgid "Disable the QUIC protocol to improve compatibility or fix issues with video streaming"
 msgstr "Отключить QUIC протокол для улучшения совместимости или исправления видео стриминга"
+
+msgid "Disabled"
+msgstr "Отключено"
 
 msgid "Disabling interception is incompatible with action=zapret2 because Forkop sends matched traffic through NFQUEUE."
 msgstr "Отключение перехвата несовместимо с action=zapret2, потому что Forkop отправляет совпавший трафик через NFQUEUE."
@@ -596,9 +638,6 @@ msgstr "Дублирующееся значение"
 msgid "Edit"
 msgstr "Редактировать"
 
-msgid "Edit headers"
-msgstr "Редактировать заголовки"
-
 msgid "Edit rule action"
 msgstr "Изменить"
 
@@ -632,6 +671,9 @@ msgstr "Включить YACD"
 msgid "Enable YACD WAN Access"
 msgstr "Включить доступ YACD WAN"
 
+msgid "Enabled"
+msgstr "Включено"
+
 msgid "Enter a complete sing-box endpoint object."
 msgstr "Введите полный объект endpoint sing-box."
 
@@ -647,11 +689,17 @@ msgstr "Введите отображаемое имя"
 msgid "Enter a header name"
 msgstr "Введите название заголовка"
 
+msgid "Enter a number"
+msgstr "Введите число"
+
 msgid "Enter a private key"
 msgstr "Введите приватный ключ"
 
 msgid "Enter a public key"
 msgstr "Введите публичный ключ"
+
+msgid "Enter a regular expression before =>"
+msgstr "Введите регулярное выражение перед =>"
 
 msgid "Enter a section name"
 msgstr "Введите название секции"
@@ -679,6 +727,9 @@ msgstr "Введите название туннеля"
 
 msgid "Enter a valid JSON endpoint object"
 msgstr "Введите корректный объект JSON endpoint"
+
+msgid "Enter a valid JSON object"
+msgstr "Введите корректный JSON-объект"
 
 msgid "Enter a valid Tailscale control URL"
 msgstr "Введите корректный URL control plane Tailscale"
@@ -715,6 +766,9 @@ msgstr "Исключить серверы из URLTest группы по рег�
 
 msgid "Exclude servers from this server group using a regular expression."
 msgstr "Исключить серверы из этой группы с помощью регулярного выражения."
+
+msgid "Exclude types"
+msgstr "Исключить типы"
 
 msgid "Exit node"
 msgstr "Выходной узел"
@@ -925,6 +979,9 @@ msgstr "Сколько ждать подключение к серверу, пр
 
 msgid "How long to wait for a server to answer the URLTest check"
 msgstr "Сколько ждать ответа при URLTest проверке сервера"
+
+msgid "How many connections one multiplexed connection carries. Leave empty for no limit."
+msgstr "Сколько соединений передаётся через одно мультиплексированное. Оставьте пустым, чтобы не ограничивать."
 
 msgid "How often every server of the group is checked, not only the selected one. Checks pause while the group is unused."
 msgstr "Как часто проверяются все серверы группы, а не только выбранный. Пока группа не используется, проверки приостанавливаются."
@@ -1199,6 +1256,15 @@ msgstr "Наблюдаемые интерфейсы"
 msgid "Monitoring"
 msgstr "Мониторинг"
 
+msgid "Multipath TCP"
+msgstr "Multipath TCP"
+
+msgid "Multiplexing"
+msgstr "Мультиплексирование"
+
+msgid "Multiplexing protocol"
+msgstr "Протокол мультиплексирования"
+
 msgid "Must be a number in the range of 0 - 10000"
 msgstr "Должно быть числом в диапазоне 0 - 10000"
 
@@ -1208,14 +1274,23 @@ msgstr "Имя, которое отображается в дашборде"
 msgid "Name must be unique"
 msgstr "Название должно быть уникальным"
 
+msgid "Name prefix"
+msgstr "Префикс имени"
+
 msgid "Name shown in the fallback server group list"
 msgstr "Название в списке групп серверов Fallback"
 
 msgid "Name shown in the Tailscale admin console."
 msgstr "Имя, которое будет отображаться в панели Tailscale."
 
+msgid "Name suffix"
+msgstr "Суффикс имени"
+
 msgid "Network"
 msgstr "Сеть"
+
+msgid "Network interface"
+msgstr "Сетевой интерфейс"
 
 msgid "Network Interface"
 msgstr "Сетевой интерфейс"
@@ -1318,6 +1393,12 @@ msgstr "Обфускация"
 
 msgid "Obfuscation password"
 msgstr "Пароль обфускации"
+
+msgid "One rule per line as pattern => replacement, applied in order. The pattern is a regular expression; use $1 in the replacement to keep a captured group. Example: ^HK-(.*)$ => Hong Kong $1"
+msgstr "По одному правилу в строке в виде шаблон => замена, применяются по порядку. Шаблон — регулярное выражение; используйте $1 в замене, чтобы сохранить найденную группу. Пример: ^HK-(.*)$ => Гонконг $1"
+
+msgid "Only affects servers that already use TLS."
+msgstr "Влияет только на серверы, которые уже используют TLS."
 
 msgid "Only the selected servers will be added from the subscription."
 msgstr "Только выбранные серверы будут добавлены из подписки."
@@ -1517,6 +1598,12 @@ msgstr "Таймаут обновления ключа"
 msgid "Remove"
 msgstr "Удалить"
 
+msgid "Rename servers"
+msgstr "Переименование серверов"
+
+msgid "Replaces the domain servers of this subscription send during the TLS handshake."
+msgstr "Заменяет домен, который серверы этой подписки отправляют при TLS-рукопожатии."
+
 msgid "Require a username and password for the local mixed proxy"
 msgstr "Требовать логин и пароль для локального смешанного прокси"
 
@@ -1691,6 +1778,9 @@ msgstr "Выбранная секция"
 msgid "Selector and URLTest outbounds must contain a non-empty outbounds array"
 msgstr "Selector и URLTest outbound должны содержать непустой массив outbounds"
 
+msgid "Send the first data packet together with the connection request."
+msgstr "Отправлять первый пакет данных вместе с запросом на соединение."
+
 msgid "Sequential"
 msgstr "Последовательно"
 
@@ -1751,6 +1841,15 @@ msgstr "server_port должен быть числом от 1 до 65535"
 msgid "Servers"
 msgstr "Серверы"
 
+msgid "Servers of the selected protocols will not be added from the subscription."
+msgstr "Серверы выбранных протоколов не будут добавлены из подписки."
+
+msgid "Servers of the selected protocols will not be added to the URLTest group."
+msgstr "Серверы выбранных протоколов не будут добавлены в группу URLTest."
+
+msgid "Servers of the selected protocols will not be added to this server group."
+msgstr "Серверы выбранных протоколов не будут добавлены в эту группу серверов."
+
 msgid "Servers that should not be added from the subscription."
 msgstr "Серверы, которые не нужно добавлять из подписки."
 
@@ -1784,8 +1883,8 @@ msgstr "Показать sing-box конфигурацию"
 msgid "Show subscription metadata for this source on the dashboard"
 msgstr "Отображать метаданные этой подписки в дашборде"
 
-msgid "Show subscription name"
-msgstr "Отображать имя подписки"
+msgid "Show subscription tag"
+msgstr "Отображать тег подписки"
 
 msgid "Sing-box autostart disabled"
 msgstr "Автостарт sing-box отключен"
@@ -1831,6 +1930,9 @@ msgstr "Укажите локальные подсети, чтобы дать к
 
 msgid "Specify several servers for automatic failover on failure. To select a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; UDP is used by default."
 msgstr "Укажите несколько серверов для автоматического переключения при сбоях. Для выбора протокола используйте udp://, tcp://, tls://, https://, quic:// или h3://; по умолчанию UDP."
+
+msgid "Split large UDP packets, which helps on links with a small MTU."
+msgstr "Разбивать большие UDP-пакеты. Помогает на каналах с малым MTU."
 
 msgid "SSH host key path"
 msgstr "Путь к ключу хоста SSH"
@@ -1901,9 +2003,6 @@ msgstr "Фильтр серверов подписки"
 msgid "Subscription settings"
 msgstr "Настройки подписки"
 
-msgid "Subscription tag"
-msgstr "Тег подписки"
-
 msgid "Subscription tag must be unique within the section"
 msgstr "Тег подписки должен быть уникальным внутри секции"
 
@@ -1925,6 +2024,9 @@ msgstr "Системная информация"
 msgid "Table exist"
 msgstr "Таблица существует"
 
+msgid "Tag"
+msgstr "Тег"
+
 msgid "Tailscale auth key"
 msgstr "Ключ авторизации Tailscale"
 
@@ -1939,6 +2041,9 @@ msgstr "Hostname Tailscale"
 
 msgid "TCP and UDP"
 msgstr "TCP и UDP"
+
+msgid "TCP Fast Open"
+msgstr "TCP Fast Open"
 
 msgid "Test latency"
 msgstr "Тестирование задержки"
@@ -2066,6 +2171,9 @@ msgstr "Тип туннеля"
 msgid "Type"
 msgstr "Тип"
 
+msgid "UDP fragmentation"
+msgstr "Фрагментация UDP"
+
 msgid "Unable to validate the ByeDPI strategy through the backend parser."
 msgstr "Не удалось проверить стратегию ByeDPI через backend-парсер."
 
@@ -2165,6 +2273,9 @@ msgstr "Детали URLTest недоступны"
 msgid "URLTest group filter"
 msgstr "Фильтр URLTest группы"
 
+msgid "URLTest groups of this section that become members of this server group, alongside the servers selected below."
+msgstr "Группы URLTest этой секции, которые войдут в эту группу серверов наравне с серверами, отобранными фильтром ниже."
+
 msgid "URLTest settings"
 msgstr "Настройки URLTest"
 
@@ -2213,8 +2324,17 @@ msgstr "Используйте CIDR-префиксы или IP-адреса, н�
 msgid "Use letters, digits, dots, underscores, or hyphens"
 msgstr "Используйте буквы, цифры, точки, подчёркивания или дефисы"
 
+msgid "Use several network paths for one connection when the server allows it."
+msgstr "Использовать несколько сетевых путей для одного соединения, если сервер это позволяет."
+
 msgid "Use sing-box duration format like 1d, 12h or 30m"
 msgstr "Используйте формат длительности sing-box, например 1d, 12h или 30m"
+
+msgid "Use sing-box duration format like 5s or 500ms. Leave empty to keep the server value."
+msgstr "Используйте формат длительности sing-box, например 5s или 500ms. Оставьте пустым, чтобы сохранить значение сервера."
+
+msgid "Use the pattern => replacement form"
+msgstr "Используйте форму шаблон => замена"
 
 msgid "Used by"
 msgstr "Используется"
