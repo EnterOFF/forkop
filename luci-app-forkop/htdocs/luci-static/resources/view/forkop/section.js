@@ -253,12 +253,8 @@ const ANNOTATED_TEXTAREA_STYLE_ID = "fkp-annotated-textarea-styles";
 const CONNECTIONS_DYNLIST_STYLE_ID = "fkp-connections-dynlist-styles";
 const NFQWS_REMOTE_VALIDATION_DEBOUNCE_MS = 500;
 const NFQWS_VALIDATION_COMMAND = "/usr/bin/forkop";
-const nfqwsRemoteValidationCache = new Map();
-const nfqwsRemoteValidationInflight = new Map();
-const nfqws2RemoteValidationCache = new Map();
-const nfqws2RemoteValidationInflight = new Map();
-const byedpiRemoteValidationCache = new Map();
-const byedpiRemoteValidationInflight = new Map();
+const strategyValidationCache = new Map();
+const strategyValidationInflight = new Map();
 const BYEDPI_LONG_VALUE_OPTIONS = new Set([
   "--max-conn",
   "--conn-ip",
@@ -518,9 +514,6 @@ let actionProvidersAvailabilityLoader = null;
 const outboundNameChoicesCache = new Map();
 const outboundNameChoicesInflight = new Map();
 const outboundNameChoicesEmptyAt = new Map();
-const subscriptionOutboundNameChoicesCache = new Map();
-const subscriptionOutboundNameChoicesInflight = new Map();
-const subscriptionOutboundNameChoicesEmptyAt = new Map();
 // The runtime knows the server names of a subscription only after the core has
 // fetched it, so an empty answer is not a final one. Keeping it forever leaves
 // the group and dashboard filters without servers until the page is reloaded.
@@ -676,77 +669,69 @@ function readOutboundChoiceState(section_id) {
   });
 }
 
-function cacheOutboundNameChoices(cache, emptyAt, key, names) {
-  cache.set(key, names);
+function cacheOutboundNameChoices(key, names) {
+  outboundNameChoicesCache.set(key, names);
   if (names.length) {
-    emptyAt.delete(key);
+    outboundNameChoicesEmptyAt.delete(key);
   } else {
-    emptyAt.set(key, Date.now());
+    outboundNameChoicesEmptyAt.set(key, Date.now());
   }
 }
 
-function outboundNameChoicesCached(cache, emptyAt, key) {
-  if (!cache.has(key)) {
+function outboundNameChoicesCached(key) {
+  if (!outboundNameChoicesCache.has(key)) {
     return false;
   }
 
-  const names = cache.get(key);
+  const names = outboundNameChoicesCache.get(key);
   if (Array.isArray(names) && names.length) {
     return true;
   }
 
   return (
-    Date.now() - (emptyAt.get(key) || 0) < OUTBOUND_NAME_CHOICES_EMPTY_TTL_MS
+    Date.now() - (outboundNameChoicesEmptyAt.get(key) || 0) <
+    OUTBOUND_NAME_CHOICES_EMPTY_TTL_MS
   );
 }
 
-function loadOutboundNameChoices(section_id) {
-  if (
-    outboundNameChoicesCached(
-      outboundNameChoicesCache,
-      outboundNameChoicesEmptyAt,
-      section_id,
-    )
-  ) {
-    return Promise.resolve(outboundNameChoicesCache.get(section_id));
+// providerIndex selects one subscription of the section; null takes them all.
+function loadOutboundNameChoices(section_id, key, providerIndex) {
+  if (outboundNameChoicesCached(key)) {
+    return Promise.resolve(outboundNameChoicesCache.get(key));
   }
-
-  if (outboundNameChoicesInflight.has(section_id)) {
-    return outboundNameChoicesInflight.get(section_id);
+  if (outboundNameChoicesInflight.has(key)) {
+    return outboundNameChoicesInflight.get(key);
+  }
+  if (providerIndex != null && providerIndex < 0) {
+    return Promise.resolve([]);
   }
 
   const task = readOutboundChoiceState(section_id)
     .then((state) =>
       state
-        ? loadNativeProviderOutboundNames(state.providerTags)
+        ? loadNativeProviderOutboundNames(
+            providerIndex == null
+              ? state.providerTags
+              : [state.providerTags[providerIndex]],
+          )
         : null,
     )
     .then((names) => {
       if (names == null) {
         return [];
       }
-      const choices = names
-        .map((name) => `${name || ""}`.trim())
-        .filter(Boolean)
-        .filter((name, index, values) => values.indexOf(name) === index)
-        .sort((a, b) => a.localeCompare(b));
-
-      cacheOutboundNameChoices(
-        outboundNameChoicesCache,
-        outboundNameChoicesEmptyAt,
-        section_id,
-        choices,
-      );
+      // nativeProviderOutboundNames already trimmed and deduplicated them.
+      const choices = [...names].sort((a, b) => a.localeCompare(b));
+      cacheOutboundNameChoices(key, choices);
       refreshDashboardFilterChoiceWidgets(section_id);
-
       return choices;
     })
     .catch(() => [])
     .finally(() => {
-      outboundNameChoicesInflight.delete(section_id);
+      outboundNameChoicesInflight.delete(key);
     });
 
-  outboundNameChoicesInflight.set(section_id, task);
+  outboundNameChoicesInflight.set(key, task);
 
   return task;
 }
@@ -757,52 +742,16 @@ function subscriptionProviderIndex(section_id, itemId) {
   );
 }
 
+function loadSectionOutboundNameChoices(section_id) {
+  return loadOutboundNameChoices(section_id, section_id, null);
+}
+
 function loadSubscriptionOutboundNameChoices(section_id, itemId) {
-  const cacheKey = `${section_id}:${itemId}`;
-  if (
-    outboundNameChoicesCached(
-      subscriptionOutboundNameChoicesCache,
-      subscriptionOutboundNameChoicesEmptyAt,
-      cacheKey,
-    )
-  ) {
-    return Promise.resolve(subscriptionOutboundNameChoicesCache.get(cacheKey));
-  }
-  if (subscriptionOutboundNameChoicesInflight.has(cacheKey)) {
-    return subscriptionOutboundNameChoicesInflight.get(cacheKey);
-  }
-
-  const providerIndex = subscriptionProviderIndex(section_id, itemId);
-  if (providerIndex < 0) {
-    return Promise.resolve([]);
-  }
-
-  const task = readOutboundChoiceState(section_id)
-    .then((state) =>
-      state
-        ? loadNativeProviderOutboundNames([state.providerTags[providerIndex]])
-        : null,
-    )
-    .then((names) => {
-      if (names == null) {
-        return [];
-      }
-      cacheOutboundNameChoices(
-        subscriptionOutboundNameChoicesCache,
-        subscriptionOutboundNameChoicesEmptyAt,
-        cacheKey,
-        names,
-      );
-      refreshDashboardFilterChoiceWidgets(section_id);
-      return names;
-    })
-    .catch(() => [])
-    .finally(() => {
-      subscriptionOutboundNameChoicesInflight.delete(cacheKey);
-    });
-
-  subscriptionOutboundNameChoicesInflight.set(cacheKey, task);
-  return task;
+  return loadOutboundNameChoices(
+    section_id,
+    `${section_id}:${itemId}`,
+    subscriptionProviderIndex(section_id, itemId),
+  );
 }
 
 function normalizeDynamicListItems(value) {
@@ -1831,14 +1780,8 @@ function outboundNameChoiceItems(names, normalizeChoice) {
 }
 
 function currentOutboundNameChoices(section_id, normalizeChoice) {
-  if (
-    !outboundNameChoicesCached(
-      outboundNameChoicesCache,
-      outboundNameChoicesEmptyAt,
-      section_id,
-    )
-  ) {
-    loadOutboundNameChoices(section_id);
+  if (!outboundNameChoicesCached(section_id)) {
+    loadSectionOutboundNameChoices(section_id);
   }
 
   return outboundNameChoiceItems(
@@ -1856,18 +1799,12 @@ function currentSubscriptionOutboundNameChoices(
   normalizeChoice,
 ) {
   const cacheKey = `${section_id}:${itemId}`;
-  if (
-    !outboundNameChoicesCached(
-      subscriptionOutboundNameChoicesCache,
-      subscriptionOutboundNameChoicesEmptyAt,
-      cacheKey,
-    )
-  ) {
+  if (!outboundNameChoicesCached(cacheKey)) {
     loadSubscriptionOutboundNameChoices(section_id, itemId);
   }
 
   return outboundNameChoiceItems(
-    subscriptionOutboundNameChoicesCache.get(cacheKey) || [],
+    outboundNameChoicesCache.get(cacheKey) || [],
     normalizeChoice,
   );
 }
@@ -2375,7 +2312,7 @@ function addServerFilterOptions(
           if (typeof options.ownerId === "function") {
             loadSubscriptionOutboundNameChoices(sectionId, options.ownerId());
           } else {
-            loadOutboundNameChoices(sectionId);
+            loadSectionOutboundNameChoices(sectionId);
           }
           refreshOptionChoices(this, choicesForItem(this, itemId));
           return values;
@@ -3045,20 +2982,6 @@ function urlTestSettingsKeys() {
   ];
 }
 
-function defaultUrlTestSettings(name) {
-  return {
-    name: `${name || ""}`,
-    check_interval: "3m",
-    tolerance: "50",
-    testing_url: "https://www.gstatic.com/generate_204",
-    expected_status: "*",
-    idle_timeout: "30m",
-    interrupt_exist_connections: "0",
-    hide_dashboard_members: "0",
-    server_filter_mode: "all",
-  };
-}
-
 function urlTestChildDefaults() {
   return {
     check_interval: "3m",
@@ -3070,6 +2993,10 @@ function urlTestChildDefaults() {
     hide_dashboard_members: "0",
     server_filter_mode: "all",
   };
+}
+
+function defaultUrlTestSettings(name) {
+  return { name: `${name || ""}`, ...urlTestChildDefaults() };
 }
 
 function fallbackGroupSettingsKeys() {
@@ -3086,20 +3013,6 @@ function fallbackGroupSettingsKeys() {
   ];
 }
 
-function defaultFallbackGroupSettings(name = "") {
-  return {
-    name,
-    health_check_url: "https://www.gstatic.com/generate_204",
-    health_check_interval: "5m",
-    health_check_timeout: "5s",
-    attempt_timeout: "5s",
-    expected_status: "*",
-    idle_timeout: "5m",
-    interrupt_exist_connections: "0",
-    hide_dashboard_members: "0",
-  };
-}
-
 function fallbackGroupChildDefaults() {
   return {
     health_check_url: "https://www.gstatic.com/generate_204",
@@ -3111,6 +3024,10 @@ function fallbackGroupChildDefaults() {
     interrupt_exist_connections: "0",
     hide_dashboard_members: "0",
   };
+}
+
+function defaultFallbackGroupSettings(name = "") {
+  return { name, ...fallbackGroupChildDefaults() };
 }
 
 function fallbackLevelSettingsKeys() {
@@ -6886,7 +6803,7 @@ function attachNfqwsRemoteValidation(option, section_id, textarea) {
       (textarea.__forkopNfqwsRemoteValidationRequestId || 0) + 1;
     textarea.__forkopNfqwsRemoteValidationRequestId = requestId;
 
-    validateNfqwsStrategyRemotely(value).then(() => {
+    nfqwsStrategyValidator.validate(value).then(() => {
       if (textarea.__forkopNfqwsRemoteValidationRequestId !== requestId) {
         return;
       }
@@ -6934,7 +6851,7 @@ function attachNfqws2RemoteValidation(option, section_id, textarea) {
       (textarea.__forkopNfqws2RemoteValidationRequestId || 0) + 1;
     textarea.__forkopNfqws2RemoteValidationRequestId = requestId;
 
-    validateNfqws2StrategyRemotely(value).then(() => {
+    nfqws2StrategyValidator.validate(value).then(() => {
       if (textarea.__forkopNfqws2RemoteValidationRequestId !== requestId) {
         return;
       }
@@ -7342,103 +7259,89 @@ function normalizeNfqwsStrategyValue(value) {
     : normalized;
 }
 
-function getCachedNfqwsRemoteValidation(value) {
-  const normalized = normalizeNfqwsStrategyValue(value);
-  return normalized.length
-    ? nfqwsRemoteValidationCache.get(normalized) || null
-    : null;
-}
+// The three DPI providers share one validation transport: normalize the
+// strategy, ask the backend parser about it once, and remember the verdict.
+function createStrategyValidator(provider, normalize, describeTransportError) {
+  const cacheKey = (value) => `${provider} ${normalize(value)}`;
 
-function cacheNfqwsRemoteValidation(value, result) {
-  const normalized = normalizeNfqwsStrategyValue(value);
-  if (!normalized.length) {
-    return result;
-  }
-
-  const cached = {
-    valid: result && result.valid === true,
-    message: result && result.message ? `${result.message}` : "",
-    needle: result && result.needle ? `${result.needle}` : "",
-    needles:
-      result && Array.isArray(result.needles)
-        ? result.needles.filter(Boolean).map((item) => `${item}`)
-        : result && result.needle
-          ? [`${result.needle}`]
-          : [],
-  };
-
-  nfqwsRemoteValidationCache.set(normalized, cached);
-  return cached;
-}
-
-function buildNfqwsRemoteValidationFallback(error) {
-  const message =
-    error && error.message
-      ? `${error.message}`
-      : _("Unable to validate the NFQWS strategy through the backend parser.");
-
-  return {
-    valid: false,
-    message: _("Backend validation failed: %s").format(message),
-    needle: "",
-    needles: [],
-  };
-}
-
-function validateNfqwsStrategyRemotely(value) {
-  const normalized = normalizeNfqwsStrategyValue(value);
-
-  if (!normalized.length) {
-    return Promise.resolve({
-      valid: true,
-      message: "",
-      needle: "",
-      needles: [],
-    });
-  }
-
-  if (nfqwsRemoteValidationCache.has(normalized)) {
-    return Promise.resolve(nfqwsRemoteValidationCache.get(normalized));
-  }
-
-  if (nfqwsRemoteValidationInflight.has(normalized)) {
-    return nfqwsRemoteValidationInflight.get(normalized);
-  }
-
-  const validationTask = fs
-    .exec(NFQWS_VALIDATION_COMMAND, [
-      "validate_provider_strategy_json",
-      "zapret",
-      normalized,
-    ])
-    .then((result) => {
-      const payload = JSON.parse(
-        (result && result.stdout ? result.stdout : "{}").trim() || "{}",
-      );
-      return cacheNfqwsRemoteValidation(normalized, {
-        valid: payload.valid === true,
-        message: payload.message || "",
-        needle: payload.needle || "",
-        needles: Array.isArray(payload.needles)
-          ? payload.needles.filter(Boolean)
-          : payload.needle
-            ? [payload.needle]
+  const store = (value, result) => {
+    const cached = {
+      valid: result && result.valid === true,
+      message: result && result.message ? `${result.message}` : "",
+      needle: result && result.needle ? `${result.needle}` : "",
+      needles:
+        result && Array.isArray(result.needles)
+          ? result.needles.filter(Boolean).map((item) => `${item}`)
+          : result && result.needle
+            ? [`${result.needle}`]
             : [],
-      });
-    })
-    .catch((error) =>
-      cacheNfqwsRemoteValidation(
-        normalized,
-        buildNfqwsRemoteValidationFallback(error),
-      ),
-    )
-    .finally(() => {
-      nfqwsRemoteValidationInflight.delete(normalized);
-    });
+    };
 
-  nfqwsRemoteValidationInflight.set(normalized, validationTask);
-  return validationTask;
+    strategyValidationCache.set(cacheKey(value), cached);
+    return cached;
+  };
+
+  const cached = (value) => strategyValidationCache.get(cacheKey(value)) || null;
+
+  const validate = (value) => {
+    const key = cacheKey(value);
+
+    if (strategyValidationCache.has(key)) {
+      return Promise.resolve(strategyValidationCache.get(key));
+    }
+    if (strategyValidationInflight.has(key)) {
+      return strategyValidationInflight.get(key);
+    }
+
+    const task = fs
+      .exec(NFQWS_VALIDATION_COMMAND, [
+        "validate_provider_strategy_json",
+        provider,
+        normalize(value),
+      ])
+      .then((result) => {
+        const payload = JSON.parse(
+          (result && result.stdout ? result.stdout : "{}").trim() || "{}",
+        );
+        return store(value, {
+          valid: payload.valid === true,
+          message: payload.message || "",
+          needle: payload.needle || "",
+          needles: Array.isArray(payload.needles)
+            ? payload.needles.filter(Boolean)
+            : payload.needle
+              ? [payload.needle]
+              : [],
+        });
+      })
+      .catch((error) =>
+        store(value, {
+          valid: false,
+          message: _("Backend validation failed: %s").format(
+            error && error.message
+              ? `${error.message}`
+              : describeTransportError(),
+          ),
+          needle: "",
+          needles: [],
+        }),
+      )
+      .finally(() => {
+        strategyValidationInflight.delete(key);
+      });
+
+    strategyValidationInflight.set(key, task);
+    return task;
+  };
+
+  return { cached, validate };
 }
+
+const nfqwsStrategyValidator = createStrategyValidator(
+  "zapret",
+  normalizeNfqwsStrategyValue,
+  () => _("Unable to validate the NFQWS strategy through the backend parser."),
+);
 
 function getNfqwsForbiddenTokenInfo(token, index) {
   const configFileMessage = _(
@@ -7756,135 +7659,55 @@ function addNfqwsRemoteValidationAnnotations(
   );
 }
 
-function analyzeNfqwsStrategy(value) {
-  const localAnalysis = buildNfqwsLocalAnalysis(value);
-  if (!localAnalysis.valid) {
-    return localAnalysis;
-  }
+// The backend reports the offending option as a needle matched against the
+// tokens of the strategy, so the analyzer has to split the text the same way
+// the router's parser did - ciadpi quoting included.
+function createStrategyAnalyzer(buildLocalAnalysis, validator, tokenize) {
+  return function (value) {
+    const localAnalysis = buildLocalAnalysis(value);
+    if (!localAnalysis.valid) {
+      return localAnalysis;
+    }
 
-  const remoteValidation = getCachedNfqwsRemoteValidation(value);
-  if (!remoteValidation || remoteValidation.valid) {
-    return localAnalysis;
-  }
+    const remoteValidation = validator.cached(value);
+    if (!remoteValidation || remoteValidation.valid) {
+      return localAnalysis;
+    }
 
-  const text = value ? `${value}` : "";
-  const tokens = parseNfqwsRuntimeTokens(text);
-  const annotationMap = new Map();
+    const annotationMap = new Map();
+    localAnalysis.annotations.forEach((annotation) =>
+      addAnnotationIssue(annotationMap, annotation, annotation.message),
+    );
+    addNfqwsRemoteValidationAnnotations(
+      annotationMap,
+      tokenize(value ? `${value}` : ""),
+      remoteValidation,
+    );
 
-  localAnalysis.annotations.forEach((annotation) =>
-    addAnnotationIssue(annotationMap, annotation, annotation.message),
-  );
-  addNfqwsRemoteValidationAnnotations(annotationMap, tokens, remoteValidation);
-
-  return {
-    valid: false,
-    message: [getValidationHeaderText(), remoteValidation.message].join("\n"),
-    annotations: finalizeAnnotations(annotationMap),
+    return {
+      valid: false,
+      message: [getValidationHeaderText(), remoteValidation.message].join("\n"),
+      annotations: finalizeAnnotations(annotationMap),
+    };
   };
 }
+
+const analyzeNfqwsStrategy = createStrategyAnalyzer(
+  buildNfqwsLocalAnalysis,
+  nfqwsStrategyValidator,
+  parseNfqwsRuntimeTokens,
+);
 
 function normalizeNfqws2StrategyValue(value) {
   const normalized = normalizeNfqwsStrategyWhitespace(value);
   return normalized.length ? normalized : ZAPRET2_DEFAULT_NFQWS2_OPT;
 }
 
-function getCachedNfqws2RemoteValidation(value) {
-  const normalized = normalizeNfqws2StrategyValue(value);
-  return normalized.length
-    ? nfqws2RemoteValidationCache.get(normalized) || null
-    : null;
-}
-
-function cacheNfqws2RemoteValidation(value, result) {
-  const normalized = normalizeNfqws2StrategyValue(value);
-  if (!normalized.length) {
-    return result;
-  }
-
-  const cached = {
-    valid: result && result.valid === true,
-    message: result && result.message ? `${result.message}` : "",
-    needle: result && result.needle ? `${result.needle}` : "",
-    needles:
-      result && Array.isArray(result.needles)
-        ? result.needles.filter(Boolean).map((item) => `${item}`)
-        : result && result.needle
-          ? [`${result.needle}`]
-          : [],
-  };
-
-  nfqws2RemoteValidationCache.set(normalized, cached);
-  return cached;
-}
-
-function buildNfqws2RemoteValidationFallback(error) {
-  const message =
-    error && error.message
-      ? `${error.message}`
-      : _("Unable to validate the NFQWS2 strategy through the backend parser.");
-
-  return {
-    valid: false,
-    message: _("Backend validation failed: %s").format(message),
-    needle: "",
-    needles: [],
-  };
-}
-
-function validateNfqws2StrategyRemotely(value) {
-  const normalized = normalizeNfqws2StrategyValue(value);
-
-  if (!normalized.length) {
-    return Promise.resolve({
-      valid: true,
-      message: "",
-      needle: "",
-      needles: [],
-    });
-  }
-
-  if (nfqws2RemoteValidationCache.has(normalized)) {
-    return Promise.resolve(nfqws2RemoteValidationCache.get(normalized));
-  }
-
-  if (nfqws2RemoteValidationInflight.has(normalized)) {
-    return nfqws2RemoteValidationInflight.get(normalized);
-  }
-
-  const validationTask = fs
-    .exec(NFQWS_VALIDATION_COMMAND, [
-      "validate_provider_strategy_json",
-      "zapret2",
-      normalized,
-    ])
-    .then((result) => {
-      const payload = JSON.parse(
-        (result && result.stdout ? result.stdout : "{}").trim() || "{}",
-      );
-      return cacheNfqws2RemoteValidation(normalized, {
-        valid: payload.valid === true,
-        message: payload.message || "",
-        needle: payload.needle || "",
-        needles: Array.isArray(payload.needles)
-          ? payload.needles.filter(Boolean)
-          : payload.needle
-            ? [payload.needle]
-            : [],
-      });
-    })
-    .catch((error) =>
-      cacheNfqws2RemoteValidation(
-        normalized,
-        buildNfqws2RemoteValidationFallback(error),
-      ),
-    )
-    .finally(() => {
-      nfqws2RemoteValidationInflight.delete(normalized);
-    });
-
-  nfqws2RemoteValidationInflight.set(normalized, validationTask);
-  return validationTask;
-}
+const nfqws2StrategyValidator = createStrategyValidator(
+  "zapret2",
+  normalizeNfqws2StrategyValue,
+  () => _("Unable to validate the NFQWS2 strategy through the backend parser."),
+);
 
 function getNfqws2ForbiddenTokenInfo(token, index, nextToken) {
   const configFileMessage = _(
@@ -8165,32 +7988,11 @@ function buildNfqws2LocalAnalysis(value) {
   };
 }
 
-function analyzeNfqws2Strategy(value) {
-  const localAnalysis = buildNfqws2LocalAnalysis(value);
-  if (!localAnalysis.valid) {
-    return localAnalysis;
-  }
-
-  const remoteValidation = getCachedNfqws2RemoteValidation(value);
-  if (!remoteValidation || remoteValidation.valid) {
-    return localAnalysis;
-  }
-
-  const text = value ? `${value}` : "";
-  const tokens = parseNfqwsRuntimeTokens(text);
-  const annotationMap = new Map();
-
-  localAnalysis.annotations.forEach((annotation) =>
-    addAnnotationIssue(annotationMap, annotation, annotation.message),
-  );
-  addNfqwsRemoteValidationAnnotations(annotationMap, tokens, remoteValidation);
-
-  return {
-    valid: false,
-    message: [getValidationHeaderText(), remoteValidation.message].join("\n"),
-    annotations: finalizeAnnotations(annotationMap),
-  };
-}
+const analyzeNfqws2Strategy = createStrategyAnalyzer(
+  buildNfqws2LocalAnalysis,
+  nfqws2StrategyValidator,
+  parseNfqwsRuntimeTokens,
+);
 
 function normalizeByedpiStrategyWhitespace(value) {
   return value ? `${value}`.replace(/\s+/g, " ").trim() : "";
@@ -8201,103 +8003,11 @@ function normalizeByedpiStrategyValue(value) {
   return normalized.length ? normalized : BYEDPI_DEFAULT_CMD_OPTS;
 }
 
-function getCachedByedpiRemoteValidation(value) {
-  const normalized = normalizeByedpiStrategyValue(value);
-  return normalized.length
-    ? byedpiRemoteValidationCache.get(normalized) || null
-    : null;
-}
-
-function cacheByedpiRemoteValidation(value, result) {
-  const normalized = normalizeByedpiStrategyValue(value);
-  if (!normalized.length) {
-    return result;
-  }
-
-  const cached = {
-    valid: result && result.valid === true,
-    message: result && result.message ? `${result.message}` : "",
-    needle: result && result.needle ? `${result.needle}` : "",
-    needles:
-      result && Array.isArray(result.needles)
-        ? result.needles.filter(Boolean).map((item) => `${item}`)
-        : result && result.needle
-          ? [`${result.needle}`]
-          : [],
-  };
-
-  byedpiRemoteValidationCache.set(normalized, cached);
-  return cached;
-}
-
-function buildByedpiRemoteValidationFallback(error) {
-  const message =
-    error && error.message
-      ? `${error.message}`
-      : _("Unable to validate the ByeDPI strategy through the backend parser.");
-
-  return {
-    valid: false,
-    message: _("Backend validation failed: %s").format(message),
-    needle: "",
-    needles: [],
-  };
-}
-
-function validateByedpiStrategyRemotely(value) {
-  const normalized = normalizeByedpiStrategyValue(value);
-
-  if (!normalized.length) {
-    return Promise.resolve({
-      valid: true,
-      message: "",
-      needle: "",
-      needles: [],
-    });
-  }
-
-  if (byedpiRemoteValidationCache.has(normalized)) {
-    return Promise.resolve(byedpiRemoteValidationCache.get(normalized));
-  }
-
-  if (byedpiRemoteValidationInflight.has(normalized)) {
-    return byedpiRemoteValidationInflight.get(normalized);
-  }
-
-  const validationTask = fs
-    .exec(NFQWS_VALIDATION_COMMAND, [
-      "validate_provider_strategy_json",
-      "byedpi",
-      normalized,
-    ])
-    .then((result) => {
-      const payload = JSON.parse(
-        (result && result.stdout ? result.stdout : "{}").trim() || "{}",
-      );
-      return cacheByedpiRemoteValidation(normalized, {
-        valid: payload.valid === true,
-        message: payload.message || "",
-        needle: payload.needle || "",
-        needles: Array.isArray(payload.needles)
-          ? payload.needles.filter(Boolean)
-          : payload.needle
-            ? [payload.needle]
-            : [],
-      });
-    })
-    .catch((error) =>
-      cacheByedpiRemoteValidation(
-        normalized,
-        buildByedpiRemoteValidationFallback(error),
-      ),
-    )
-    .finally(() => {
-      byedpiRemoteValidationInflight.delete(normalized);
-    });
-
-  byedpiRemoteValidationInflight.set(normalized, validationTask);
-  return validationTask;
-}
+const byedpiStrategyValidator = createStrategyValidator(
+  "byedpi",
+  normalizeByedpiStrategyValue,
+  () => _("Unable to validate the ByeDPI strategy through the backend parser."),
+);
 
 function getByedpiShortOptionName(token) {
   return token.length > 2 ? token.slice(0, 2) : token;
@@ -8573,32 +8283,11 @@ function buildByedpiLocalAnalysis(value) {
   };
 }
 
-function analyzeByedpiStrategy(value) {
-  const localAnalysis = buildByedpiLocalAnalysis(value);
-  if (!localAnalysis.valid) {
-    return localAnalysis;
-  }
-
-  const remoteValidation = getCachedByedpiRemoteValidation(value);
-  if (!remoteValidation || remoteValidation.valid) {
-    return localAnalysis;
-  }
-
-  const text = value ? `${value}` : "";
-  const tokens = parseNfqwsRuntimeTokens(text);
-  const annotationMap = new Map();
-
-  localAnalysis.annotations.forEach((annotation) =>
-    addAnnotationIssue(annotationMap, annotation, annotation.message),
-  );
-  addNfqwsRemoteValidationAnnotations(annotationMap, tokens, remoteValidation);
-
-  return {
-    valid: false,
-    message: [getValidationHeaderText(), remoteValidation.message].join("\n"),
-    annotations: finalizeAnnotations(annotationMap),
-  };
-}
+const analyzeByedpiStrategy = createStrategyAnalyzer(
+  buildByedpiLocalAnalysis,
+  byedpiStrategyValidator,
+  (text) => parseByedpiStrategyTokens(text).tokens,
+);
 
 function configureTextareaOption(option, analyzer, remoteValidationAttacher) {
   const originalRenderWidget = option.renderWidget;
@@ -9178,7 +8867,7 @@ function createSectionContent(section) {
         ? ZAPRET_DEFAULT_NFQWS_OPT
         : normalized;
 
-    return validateNfqwsStrategyRemotely(nextValue).then((result) => {
+    return nfqwsStrategyValidator.validate(nextValue).then((result) => {
       if (!result || result.valid !== true) {
         throw new TypeError(
           result && result.message
@@ -9219,7 +8908,7 @@ function createSectionContent(section) {
   o.write = function (section_id, value) {
     const normalized = normalizeNfqws2StrategyValue(value);
 
-    return validateNfqws2StrategyRemotely(normalized).then((result) => {
+    return nfqws2StrategyValidator.validate(normalized).then((result) => {
       if (!result || result.valid !== true) {
         throw new TypeError(
           result && result.message
@@ -9262,7 +8951,7 @@ function createSectionContent(section) {
   o.write = function (section_id, value) {
     const normalized = normalizeByedpiStrategyValue(value);
 
-    return validateByedpiStrategyRemotely(normalized).then((result) => {
+    return byedpiStrategyValidator.validate(normalized).then((result) => {
       if (!result || result.valid !== true) {
         throw new TypeError(
           result && result.message

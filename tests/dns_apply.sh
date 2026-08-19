@@ -192,7 +192,7 @@ EOF_STATE
 
 : > "$DNSMASQ_LOG"
 : > "$LOG"
-ucode -L "$UCODE_LIB" "$APPLY" configure force
+ucode -L "$UCODE_LIB" "$APPLY" restore
 assert_value 'dhcp.@dnsmasq[0].server' '1.1.1.1 8.8.8.8'
 assert_value 'dhcp.@dnsmasq[0].noresolv' '0'
 assert_value 'dhcp.@dnsmasq[0].cachesize' '150'
@@ -215,7 +215,7 @@ EOF_STATE
 
 : > "$DNSMASQ_LOG"
 : > "$LOG"
-ucode -L "$UCODE_LIB" "$APPLY" configure force
+ucode -L "$UCODE_LIB" "$APPLY" restore
 assert_value 'dhcp.@dnsmasq[0].server' '1.1.1.1 8.8.8.8'
 assert_value 'dhcp.@dnsmasq[0].noresolv' '0'
 assert_value 'dhcp.@dnsmasq[0].cachesize' '150'
@@ -229,7 +229,7 @@ assert_dnsmasq_restarted
 
 : > "$DNSMASQ_LOG"
 : > "$LOG"
-ucode -L "$UCODE_LIB" "$APPLY" restore force
+ucode -L "$UCODE_LIB" "$APPLY" restore
 assert_value 'dhcp.@dnsmasq[0].server' '1.1.1.1 8.8.8.8'
 assert_value 'dhcp.@dnsmasq[0].noresolv' '0'
 assert_value 'dhcp.@dnsmasq[0].cachesize' '150'

@@ -455,7 +455,9 @@ cat >"$WORK_DIR/sing-box-signature.json" <<'JSON'
     "dns_rewrite_ttl": "120",
     "output_network_interface": "wan",
     "disable_quic": "on",
+    "bittorrent_direct": "1",
     "unified_delay": "yes",
+    "static_hosts_text": "10.0.0.9 pinned.example",
     "list_update_enabled": "1",
     "update_interval": "2h",
     "cache_path": "/tmp/cache.db",
@@ -596,8 +598,12 @@ parallel
 wan
 [settings.disable_quic]
 1
+[settings.bittorrent_direct]
+1
 [settings.unified_delay]
 1
+[settings.static_hosts_text]
+10.0.0.9 pinned.example
 [settings.update_interval]
 2h
 [settings.cache_path]

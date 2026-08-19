@@ -1,6 +1,7 @@
 #!/usr/bin/env ucode
 
 let fs = require("fs");
+let connections = require("config.connections");
 let uci_core = require("core.uci");
 let common = require("core.common");
 
@@ -246,43 +247,12 @@ function configure_service() {
     }
 }
 
-function download_via_proxy_option_for_purpose(purpose) {
-    purpose = as_string(purpose || "lists");
-    if (purpose == "lists")
-        return "download_lists_via_proxy";
-    if (purpose == "components")
-        return "download_components_via_proxy";
-    return "";
-}
-
-function download_via_proxy_section_option_for_purpose(purpose) {
-    purpose = as_string(purpose || "lists");
-    if (purpose == "lists")
-        return "download_lists_via_proxy_section";
-    if (purpose == "components")
-        return "download_components_via_proxy_section";
-    return "";
-}
-
-function download_via_proxy_section(settings, purpose) {
-    let enabled_option = download_via_proxy_option_for_purpose(purpose);
-    if (enabled_option == "" || !bool_option(settings, enabled_option, false))
-        return "";
-
-    let section_option = download_via_proxy_section_option_for_purpose(purpose);
-    let configured = section_option != "" ? option(settings, section_option, "") : "";
-    if (configured != "")
-        return configured;
-
-    return option(settings, "download_lists_via_proxy_section", "");
-}
-
 function service_proxy_port_for_purpose(purpose) {
     return int(SB_SERVICE_MIXED_INBOUND_PORT) + (as_string(purpose || "lists") == "components" ? 1 : 0);
 }
 
 function service_proxy_address(settings, purpose) {
-    return download_via_proxy_section(settings, purpose) != "" ?
+    return connections.download_via_proxy_section(settings, purpose) != "" ?
         SB_SERVICE_MIXED_INBOUND_ADDRESS + ":" + service_proxy_port_for_purpose(purpose) : "";
 }
 
@@ -545,8 +515,6 @@ else if (mode == "device-ipv4-address") {
         exit(1);
     print(address, "\n");
 }
-else if (mode == "ip-addr-first-inet4")
-    print(ip_addr_first_inet4(fs.readfile("/dev/stdin")), "\n");
 else if (mode == "version")
     print(sing_box_version(), "\n");
 else if (mode == "generate-warp-profile")

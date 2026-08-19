@@ -1,36 +1,16 @@
 #!/usr/bin/env ucode
 
+let strategy = require("providers.strategy");
+
 function as_string(value) {
     return value == null ? "" : "" + value;
-}
-
-function write_json(value) {
-    print(sprintf("%J", value), "\n");
-}
-
-function normalize_strategy_whitespace(value) {
-    value = replace(as_string(value), /[\t\r\n]/g, " ");
-    value = replace(value, / +/g, " ");
-    value = replace(value, /^ /, "");
-    return replace(value, / $/, "");
-}
-
-function strategy_or_default(value, default_value) {
-    value = as_string(value);
-    if (value == "")
-        value = as_string(default_value);
-    return normalize_strategy_whitespace(value);
-}
-
-function print_strategy_or_default(value, default_value) {
-    print(strategy_or_default(value, default_value), "\n");
 }
 
 // ciadpi options can take a value that contains spaces, for example the inline
 // host list of -H:"a.example b.example". Quotes are syntax: they group one
 // argument and are removed before the argument reaches ciadpi.
 function strategy_argv(value) {
-    value = normalize_strategy_whitespace(value);
+    value = strategy.normalize_whitespace(value);
     let tokens = [];
     let current = "";
     let started = false;
@@ -106,25 +86,6 @@ let short_flag_options = [
     "-N", "-U", "-F", "-S", "-Y"
 ];
 
-function validation_failure(message, needles) {
-    needles = type(needles) == "array" ? needles : [];
-    return {
-        valid: false,
-        message: as_string(message),
-        needle: length(needles) > 0 ? as_string(needles[0]) : "",
-        needles
-    };
-}
-
-function validation_success() {
-    return {
-        valid: true,
-        message: "",
-        needle: "",
-        needles: []
-    };
-}
-
 function token_looks_like_option(token) {
     token = as_string(token);
     return match(token, /^--.+/) != null || match(token, /^-[A-Za-z].*/) != null;
@@ -144,33 +105,33 @@ function controlled_option_failure(token, next_token) {
         if ((token == "--ip" || token == "-i" || token == "--port" || token == "-p") &&
             as_string(next_token) != "" && substr(as_string(next_token), 0, 1) != "-")
             display += " " + as_string(next_token);
-        return validation_failure(
+        return strategy.failure(
             "ByeDPI listen address and port are assigned by Forkop and must not be set in the strategy: " + display,
             [ base ]
         );
     }
 
     if (token == "--transparent" || token == "-E" || match(token, /^-E.+/) != null)
-        return validation_failure(
+        return strategy.failure(
             "Transparent proxy mode is incompatible with action=byedpi because Forkop connects to ciadpi through SOCKS.",
             [ base ]
         );
 
     if (token == "--daemon" || token == "-D" || match(token, /^-D.+/) != null)
-        return validation_failure(
+        return strategy.failure(
             "Forkop manages the ciadpi process lifecycle itself, so daemon mode is not allowed here.",
             [ base ]
         );
 
     if (token == "--pidfile" || index(token, "--pidfile=") == 0 || token == "-w" || match(token, /^-w.+/) != null)
-        return validation_failure(
+        return strategy.failure(
             "Forkop manages ciadpi pid files itself, so pidfile options are not allowed here.",
             [ base ]
         );
 
     if (token == "--help" || token == "-h" || match(token, /^-h.+/) != null ||
         token == "--version" || token == "-v" || match(token, /^-v.+/) != null)
-        return validation_failure(
+        return strategy.failure(
             "This field must start a working ciadpi strategy; help/version options exit immediately and are not allowed here.",
             [ base ]
         );
@@ -191,50 +152,50 @@ function validate_token(tokens, index_value) {
         let value = substr(token, equals + 1);
 
         if (contains(long_value_options, base))
-            return value == "" ? validation_failure("ByeDPI option requires a value: " + base, [ base ]) : null;
+            return value == "" ? strategy.failure("ByeDPI option requires a value: " + base, [ base ]) : null;
         if (contains(long_flag_options, base))
-            return validation_failure("ByeDPI option does not accept a value: " + base, [ base ]);
-        return validation_failure("Unknown ByeDPI option: " + base, [ base ]);
+            return strategy.failure("ByeDPI option does not accept a value: " + base, [ base ]);
+        return strategy.failure("Unknown ByeDPI option: " + base, [ base ]);
     }
 
     if (index(token, "--") == 0) {
         if (contains(long_value_options, token)) {
             if (next_token == "" || token_looks_like_option(next_token))
-                return validation_failure("ByeDPI option requires a value: " + token, [ token ]);
+                return strategy.failure("ByeDPI option requires a value: " + token, [ token ]);
             return { consume_next: true };
         }
         if (contains(long_flag_options, token))
             return null;
-        return validation_failure("Unknown ByeDPI option: " + token, [ token ]);
+        return strategy.failure("Unknown ByeDPI option: " + token, [ token ]);
     }
 
     if (substr(token, 0, 1) == "-") {
         if (token == "-")
-            return validation_failure("Unexpected ByeDPI strategy argument: " + token, [ token ]);
+            return strategy.failure("Unexpected ByeDPI strategy argument: " + token, [ token ]);
 
         let short = short_option_name(token);
         let value = substr(token, length(short));
         if (contains(short_value_options, short)) {
             if (token == short) {
                 if (next_token == "" || token_looks_like_option(next_token))
-                    return validation_failure("ByeDPI option requires a value: " + short, [ short ]);
+                    return strategy.failure("ByeDPI option requires a value: " + short, [ short ]);
                 return { consume_next: true };
             }
             if (value == "")
-                return validation_failure("ByeDPI option requires a value: " + short, [ short ]);
+                return strategy.failure("ByeDPI option requires a value: " + short, [ short ]);
             return null;
         }
 
         if (contains(short_flag_options, short)) {
             if (token != short)
-                return validation_failure("ByeDPI option does not accept a compact value: " + short, [ short ]);
+                return strategy.failure("ByeDPI option does not accept a compact value: " + short, [ short ]);
             return null;
         }
 
-        return validation_failure("Unknown ByeDPI option: " + short, [ short ]);
+        return strategy.failure("Unknown ByeDPI option: " + short, [ short ]);
     }
 
-    return validation_failure("Unexpected ByeDPI strategy argument: " + token, [ token ]);
+    return strategy.failure("Unexpected ByeDPI strategy argument: " + token, [ token ]);
 }
 
 function validate_byedpi_strategy(raw_opt) {
@@ -242,13 +203,13 @@ function validate_byedpi_strategy(raw_opt) {
     let tokens = parsed.tokens;
 
     if (parsed.unterminated_quote != "")
-        return validation_failure(
+        return strategy.failure(
             "ByeDPI strategy has an unterminated " + parsed.unterminated_quote + " quote.",
             []
         );
 
     if (length(tokens) == 0)
-        return validation_failure("ByeDPI strategy cannot be empty.", []);
+        return strategy.failure("ByeDPI strategy cannot be empty.", []);
 
     for (let i = 0; i < length(tokens); i++) {
         let result = validate_token(tokens, i);
@@ -261,11 +222,11 @@ function validate_byedpi_strategy(raw_opt) {
         return result;
     }
 
-    return validation_success();
+    return strategy.success();
 }
 
 function write_validation_json(result) {
-    write_json(result);
+    strategy.write_json(result);
 }
 
 function validate_exit(raw_opt) {
@@ -279,9 +240,9 @@ function validate_exit(raw_opt) {
 
 function module_exports() {
     return {
-        normalize_strategy_whitespace,
+        normalize_strategy_whitespace: strategy.normalize_whitespace,
         strategy_argv,
-        strategy_or_default,
+        strategy_or_default: strategy.or_default,
         validate_byedpi_strategy
     };
 }
@@ -296,7 +257,7 @@ if (mode == "validate-json")
 else if (mode == "validate")
     validate_exit(ARGV[1]);
 else if (mode == "strategy-or-default")
-    print_strategy_or_default(ARGV[1], ARGV[2]);
+    strategy.print_or_default(ARGV[1], ARGV[2]);
 else {
     warn("Usage: providers/byedpi/validator.uc <validate|validate-json|strategy-or-default> ...\n");
     exit(1);

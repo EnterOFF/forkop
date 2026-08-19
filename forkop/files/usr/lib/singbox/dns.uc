@@ -200,10 +200,6 @@ function uri_from_legacy_options(dns_type, value) {
     return scheme == "udp" ? authority : scheme + "://" + authority + path;
 }
 
-function bootstrap_server(tag_name, value) {
-    return server_from_uri(tag_name, value, "", true);
-}
-
 function add_server_group(result, values, canonical_tag, strategy, create_server) {
     if (length(values) == 1) {
         let server = create_server(canonical_tag, values[0]);
@@ -278,12 +274,9 @@ function default_domain_resolver(settings) {
 
 return {
     add_uri_server_group,
-    bootstrap_server,
     config,
     default_domain_resolver,
-    detour_tag,
     parse_server_uri,
-    server_from_uri,
     static_hosts,
     uri_from_legacy_options,
     server_list

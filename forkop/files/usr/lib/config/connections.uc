@@ -135,25 +135,6 @@ function add_item_section(index, type_name, section) {
     push(index[type_name].list, section);
 }
 
-function item_index_from_cursor(cursor, config_name) {
-    let index = empty_item_sections();
-    if (cursor == null)
-        return index;
-
-    config_name = as_string(config_name || CONFIG_NAME);
-    for (let type_name in ITEM_TYPES) {
-        try {
-            cursor.foreach(config_name, type_name, function(section) {
-                add_item_section(index, type_name, section);
-            });
-        }
-        catch (e) {
-        }
-    }
-
-    return index;
-}
-
 function fixture_section_list(data, type_name) {
     data = object_or_empty(data);
     let value = data[type_name];
@@ -184,10 +165,6 @@ function item_index_from_uci() {
 
 function set_item_sections(index) {
     item_sections = type(index) == "object" ? index : empty_item_sections();
-}
-
-function set_item_sections_from_cursor(cursor, config_name) {
-    set_item_sections(item_index_from_cursor(cursor, config_name));
 }
 
 function set_item_sections_from_data(data) {
@@ -421,7 +398,7 @@ function outbound_jsons(section) {
     return result;
 }
 
-function tunnel_sort(left, right) {
+function child_order_sort(left, right) {
     let left_order = int(option(left, "order", "0"), 10);
     let right_order = int(option(right, "order", "0"), 10);
     if (left_order != right_order)
@@ -434,7 +411,7 @@ function tunnel_sort(left, right) {
 
 function tunnel_items(section) {
     let result = child_items(section, "tunnel");
-    sort(result, tunnel_sort);
+    sort(result, child_order_sort);
     return result;
 }
 
@@ -452,20 +429,9 @@ function tunnel_child(section, value) {
     return owned_child_section(section, "tunnel", value);
 }
 
-function tunnel_peer_sort(left, right) {
-    let left_order = int(option(left, "order", "0"), 10);
-    let right_order = int(option(right, "order", "0"), 10);
-    if (left_order != right_order)
-        return left_order < right_order ? -1 : 1;
-
-    let left_name = section_name(left);
-    let right_name = section_name(right);
-    return left_name == right_name ? 0 : (left_name < right_name ? -1 : 1);
-}
-
 function tunnel_peer_items(tunnel_id) {
     let result = child_items_by_owner("tunnel_peer", "tunnel", tunnel_id);
-    sort(result, tunnel_peer_sort);
+    sort(result, child_order_sort);
     return result;
 }
 
@@ -623,20 +589,9 @@ function fallback_level_child(group_id, value) {
     return option(child, "group", "") == as_string(group_id) ? child : null;
 }
 
-function fallback_level_sort(left, right) {
-    let left_order = int(option(left, "order", "0"), 10);
-    let right_order = int(option(right, "order", "0"), 10);
-    if (left_order != right_order)
-        return left_order < right_order ? -1 : 1;
-
-    let left_name = section_name(left);
-    let right_name = section_name(right);
-    return left_name == right_name ? 0 : (left_name < right_name ? -1 : 1);
-}
-
 function fallback_level_items(group_id) {
     let result = child_items_by_owner("fallback_level", "group", group_id);
-    sort(result, fallback_level_sort);
+    sort(result, child_order_sort);
     return result;
 }
 
@@ -683,6 +638,49 @@ function rule_condition_csv(section, key, kind) {
         combined_domain_condition_text(section),
         option(section, "domain_suffix", "")
     );
+}
+
+// Which section a download is routed through. "components" falls back to the
+// lists section so one choice can cover both, which is what the settings form
+// offers.
+function download_via_proxy_flag_option(purpose) {
+    purpose = as_string(purpose || "lists");
+    if (purpose == "lists")
+        return "download_lists_via_proxy";
+    if (purpose == "components")
+        return "download_components_via_proxy";
+    return "";
+}
+
+function download_via_proxy_enabled(settings, purpose) {
+    let flag = download_via_proxy_flag_option(purpose);
+    return flag != "" && bool_option(settings, flag, false);
+}
+
+function download_via_proxy_section(settings, purpose) {
+    if (!download_via_proxy_enabled(settings, purpose))
+        return "";
+
+    purpose = as_string(purpose || "lists");
+    if (purpose == "components") {
+        let configured = option(settings, "download_components_via_proxy_section", "");
+        if (configured != "")
+            return configured;
+    }
+
+    return option(settings, "download_lists_via_proxy_section", "");
+}
+
+function source_signature_value(section) {
+    let devices = device_matchers(section, "source_ip_cidr");
+    let value = join(",", devices.ips);
+    if (devices.system)
+        value += (value == "" ? "" : ",") + SYSTEM_DEVICE_VALUE;
+    return value;
+}
+
+function rule_ports_csv(section) {
+    return rule_config.rule_ports_csv_value(option(section, "ports", ""), option(section, "ports_text", ""));
 }
 
 function has_dns_matchers(section) {
@@ -1138,20 +1136,17 @@ function subscription_download_target_port(sections, target, base_port) {
 
 return {
     SYSTEM_DEVICE_VALUE,
+    rule_condition_csv,
+    rule_ports_csv,
+    source_signature_value,
+    download_via_proxy_enabled,
+    download_via_proxy_section,
     option,
     bool_option,
     list_value,
     device_matchers,
-    whitespace_list_value,
-    set_item_sections,
-    set_item_sections_from_cursor,
     set_item_sections_from_data,
-    settings_map,
-    item_settings,
-    item_option,
-    item_bool,
     is_connections_action,
-    normalize_action,
     action,
     connection_urls,
     subscription_urls,
@@ -1161,7 +1156,6 @@ return {
     tunnels,
     tunnel_items,
     tunnel_child,
-    tunnel_peer_items,
     tunnel_endpoint,
     tunnels_signature,
     urltests,

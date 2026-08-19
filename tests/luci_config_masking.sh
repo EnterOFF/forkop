@@ -187,4 +187,57 @@ printf '%s\n' "$masked" | grep -Fq "option amnezia_jc '4'" ||
 printf '%s\n' "$masked" | grep -Fq "option mtu '1280'" ||
   fail "masked Forkop config must keep the tunnel MTU readable"
 
+# Anything the editor renders as a password ends up in show_config, which users
+# paste into the support chat, so every one of them has to be masked there.
+# The WARP fields are named differently in the tunnel dialog than in UCI, so the
+# name they are stored under is what must be covered.
+node - "$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop" "$STATUS_UC" <<'NODE'
+const fs = require('fs');
+const path = require('path');
+
+const viewDir = process.argv[2];
+const status = fs.readFileSync(process.argv[3], 'utf8');
+const block = status.slice(
+  status.indexOf('function forkop_config_masked_line'),
+  status.indexOf('\n    return line;'),
+);
+const masked = new Set(
+  [...block.matchAll(/"(?:option|list) ([a-z0-9_]+)/g)].map((m) => m[1]),
+);
+
+// dialog field -> the UCI option it is stored as
+const storedAs = {
+  warp_auth_token: 'warp_profile_auth_token',
+  warp_private_key: 'warp_profile_private_key',
+  warp_license_key: 'warp_profile_license_key',
+};
+
+const optionPattern =
+  /\.option\(\s*(?:form|widgets)\.[A-Za-z]+\s*,\s*\n?\s*["']([a-z0-9_]+)["']/g;
+
+const unmasked = [];
+let found = 0;
+
+for (const file of fs.readdirSync(viewDir).filter((n) => n.endsWith('.js') && n !== 'main.js')) {
+  const source = fs.readFileSync(path.join(viewDir, file), 'utf8');
+  for (const match of source.matchAll(/\.password\s*=\s*true/g)) {
+    const names = [...source.slice(0, match.index).matchAll(optionPattern)].map((m) => m[1]);
+    if (!names.length) continue;
+    const field = names[names.length - 1];
+    found += 1;
+    const stored = storedAs[field] || field;
+    if (!masked.has(stored)) unmasked.push(`${field} (stored as ${stored})`);
+  }
+}
+
+if (!found) {
+  console.error('FAIL: no password fields found, the scan is broken');
+  process.exit(1);
+}
+if (unmasked.length) {
+  console.error(`FAIL: show_config would expose: ${unmasked.join(', ')}`);
+  process.exit(1);
+}
+NODE
+
 printf 'config masking checks passed\n'

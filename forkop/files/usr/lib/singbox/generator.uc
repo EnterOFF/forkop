@@ -30,6 +30,7 @@ let option = common.option;
 let list_option = common.list_option;
 let bool_option = common.bool_option;
 let int_option = common.int_option;
+let duration_to_seconds = common.duration_to_seconds;
 const CONFIG_NAME = "forkop";
 // The sing-box FakeIP transport answers address queries only and fails the
 // query with `only IP queries are supported by fakeip` for anything else, so
@@ -153,50 +154,14 @@ function child_outbound_tag(section, display_name) {
     return runtime_constants.child_tag(connections.section_display_name(section), display_name);
 }
 
-function download_via_proxy_section_option_for_purpose(purpose) {
-    purpose = as_string(purpose || "lists");
-    if (purpose == "lists")
-        return "download_lists_via_proxy_section";
-    if (purpose == "components")
-        return "download_components_via_proxy_section";
-    return "";
-}
-
-function download_via_proxy_option_for_purpose(purpose) {
-    purpose = as_string(purpose || "lists");
-    if (purpose == "lists")
-        return "download_lists_via_proxy";
-    if (purpose == "components")
-        return "download_components_via_proxy";
-    return "";
-}
-
-function download_via_proxy_section(settings, purpose) {
-    let enabled_option = download_via_proxy_option_for_purpose(purpose);
-    if (enabled_option == "" || !bool_option(settings, enabled_option, false))
-        return "";
-
-    let section_option = download_via_proxy_section_option_for_purpose(purpose);
-    let configured = section_option != "" ? option(settings, section_option, "") : "";
-    if (configured != "")
-        return configured;
-
-    return option(settings, "download_lists_via_proxy_section", "");
-}
-
-function download_via_proxy_enabled(settings, purpose) {
-    let enabled_option = download_via_proxy_option_for_purpose(purpose);
-    return enabled_option != "" && bool_option(settings, enabled_option, false);
-}
-
 function download_via_proxy_any_enabled(settings, sections) {
-    return download_via_proxy_enabled(settings, "lists") ||
-        download_via_proxy_enabled(settings, "components") ||
+    return connections.download_via_proxy_enabled(settings, "lists") ||
+        connections.download_via_proxy_enabled(settings, "components") ||
         length(connections.subscription_download_targets(sections || [])) > 0;
 }
 
 function download_detour_tag(settings, purpose) {
-    let section_name = download_via_proxy_section(settings, purpose);
+    let section_name = connections.download_via_proxy_section(settings, purpose);
     return section_name == "" ? "" : outbound_tag(section_name);
 }
 
@@ -267,7 +232,7 @@ function clash_api_config(settings, service_address) {
         controller = "127.0.0.1";
 
     let result = {
-        external_controller: controller + ":9090"
+        external_controller: controller + ":" + runtime_constants.CLASH_API_CONTROLLER_PORT
     };
     if (bool_option(settings, "enable_yacd", false)) {
         result.external_ui = "ui";
@@ -395,8 +360,6 @@ function base_config(settings, service_address, runtime_context) {
             strategy: option(settings, "dns_strategy", "prefer_ipv4"),
             independent_cache: true
         },
-        ntp: {},
-        certificate: {},
         endpoints: [],
         inbounds,
         providers: [],
@@ -793,31 +756,6 @@ function add_manual_link_outbounds(config, section, taken, selector_tags, urltes
     }
 }
 
-function duration_to_seconds(value) {
-    value = as_string(value);
-    if (value == "")
-        return null;
-    if (match(value, /^[0-9]+$/) != null)
-        return int(value, 10);
-
-    let suffix = substr(value, length(value) - 1);
-    let number = substr(value, 0, length(value) - 1);
-    if (match(number, /^[0-9]+$/) == null)
-        return null;
-
-    let multiplier = null;
-    if (suffix == "s")
-        multiplier = 1;
-    else if (suffix == "m")
-        multiplier = 60;
-    else if (suffix == "h")
-        multiplier = 3600;
-    else if (suffix == "d")
-        multiplier = 86400;
-
-    return multiplier == null ? null : int(number, 10) * multiplier;
-}
-
 function urltest_check_interval(section, urltest_id) {
     let interval = connections.urltest_check_interval(section, urltest_id);
     return interval != "" ? interval : "3m";
@@ -1112,16 +1050,6 @@ function append_unique_tags(target, tags) {
         push(target, tag_name);
     }
     return target;
-}
-
-function group_member_lists(descriptor) {
-    if (descriptor.kind == "urltest")
-        return [ descriptor.outbound.outbounds ];
-
-    let result = [];
-    for (let level in array_or_empty(descriptor.outbound.groups))
-        push(result, level.outbounds);
-    return result;
 }
 
 function group_has_members(descriptor) {
@@ -1439,9 +1367,9 @@ function add_service_mixed_proxy(config, settings, sections) {
     add_subscription_download_service_mixed_proxies(config, sections);
     add_service_check_mixed_proxy(config, sections);
 
-    if (download_via_proxy_enabled(settings, "lists") && download_detour_tag(settings, "lists") == "")
+    if (connections.download_via_proxy_enabled(settings, "lists") && download_detour_tag(settings, "lists") == "")
         runtime_generate_unsupported("download lists via proxy section is not set");
-    if (download_via_proxy_enabled(settings, "components") && download_detour_tag(settings, "components") == "")
+    if (connections.download_via_proxy_enabled(settings, "components") && download_detour_tag(settings, "components") == "")
         runtime_generate_unsupported("download components via proxy section is not set");
 }
 
@@ -2108,26 +2036,16 @@ function add_combined_route_for_section(config, section) {
     let domain_regex = domains.domain_regex;
     let ip_cidr = legacy_condition_values(section, "ip_cidr");
     let rule_set_tags = [];
-    let dns_rule_set_tags = [];
     let section_name = section[".name"];
 
     add_fully_routed_ips_rules(config, section);
 
-    for (let community in connections.community_lists(section)) {
-        let ensured = ensure_community_ruleset(config, section_name, as_string(community));
-        push(rule_set_tags, ensured.tag);
-        push(dns_rule_set_tags, ensured.tag);
-    }
-    for (let reference in connections.rule_sets(section)) {
-        let tag_name = ensure_custom_ruleset(config, as_string(reference));
-        push(rule_set_tags, tag_name);
-        push(dns_rule_set_tags, tag_name);
-    }
-    for (let reference in connections.rule_sets_with_subnets(section)) {
-        let tag_name = ensure_custom_ruleset(config, as_string(reference));
-        push(rule_set_tags, tag_name);
-        push(dns_rule_set_tags, tag_name);
-    }
+    for (let community in connections.community_lists(section))
+        push(rule_set_tags, ensure_community_ruleset(config, section_name, as_string(community)).tag);
+    for (let reference in connections.rule_sets(section))
+        push(rule_set_tags, ensure_custom_ruleset(config, as_string(reference)));
+    for (let reference in connections.rule_sets_with_subnets(section))
+        push(rule_set_tags, ensure_custom_ruleset(config, as_string(reference)));
 
     let target = runtime_route.target(section, outbound_tag(section_name));
     if (target.unsupported)
@@ -2192,9 +2110,9 @@ function add_combined_route_for_section(config, section) {
         add_domain_array(dns_rule, "domain_regex", domain_regex);
         add_section_dns_matcher_rule(config, section, dns_rule, rewrite_ttl);
     }
-    if (length(dns_rule_set_tags) > 0) {
+    if (length(rule_set_tags) > 0) {
         add_section_dns_matcher_rule(config, section, {
-            rule_set: single_or_array(dns_rule_set_tags)
+            rule_set: single_or_array(rule_set_tags)
         }, rewrite_ttl);
     }
 }
@@ -2432,96 +2350,8 @@ function generate_config_fixture(fixture_path, output_path, service_address, mwa
     generate_config(output_path, service_address, mwan3_active, deferred_sections);
 }
 
-function stdin_length() {
-    let value = read_stdin_json();
-    if (type(value) == "array" || type(value) == "object")
-        print(length(value), "\n");
-    else
-        print("0\n");
-}
-
 function stdin_contains(needle) {
     return index(read_stdin(), as_string(needle)) >= 0;
-}
-
-function stdin_regex_matches(pattern) {
-    pattern = as_string(pattern);
-    if (pattern == "")
-        return false;
-
-    try {
-        return match(read_stdin(), regexp(pattern)) != null;
-    }
-    catch (e) {
-        return false;
-    }
-}
-
-function ip_addr_first_inet4() {
-    for (let line in split(read_stdin(), "\n")) {
-        let fields = split(trim(as_string(line)), /[ \t]+/);
-        if (length(fields) < 2 || fields[0] != "inet")
-            continue;
-
-        let slash = index(fields[1], "/");
-        print(slash >= 0 ? substr(fields[1], 0, slash) : fields[1], "\n");
-        return;
-    }
-}
-
-function stdin_first_dns_a_address() {
-    for (let line in split(read_stdin(), "\n")) {
-        line = as_string(line);
-        if (match(line, /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/) != null) {
-            print(line, "\n");
-            return;
-        }
-    }
-}
-
-function stdin_first_dns_aaaa_address() {
-    for (let line in split(read_stdin(), "\n")) {
-        line = as_string(line);
-        if (match(line, /^[0-9A-Fa-f:]+$/) != null) {
-            print(line, "\n");
-            return;
-        }
-    }
-}
-
-function stdin_first_nslookup_address() {
-    for (let line in split(read_stdin(), "\n")) {
-        line = as_string(line);
-        if (match(line, /^Address[ \t]*[0-9]*:[ \t]*[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/) == null &&
-            match(line, /^Address[ \t]*[0-9]*:[ \t]*[0-9A-Fa-f:]+$/) == null)
-            continue;
-
-        let fields = split(trim(line), /[ \t]+/);
-        if (length(fields) > 0)
-            print(fields[length(fields) - 1], "\n");
-        return;
-    }
-}
-
-function stdin_first_field() {
-    let data = read_stdin();
-    let newline = index(data, "\n");
-    let line = newline >= 0 ? substr(data, 0, newline) : data;
-    let fields = split(trim(as_string(line)), /[ \t\r\n]+/);
-
-    if (length(fields) > 0 && fields[0] != "")
-        print(fields[0], "\n");
-}
-
-function array_append_string(value) {
-    let result = array_or_empty(read_stdin_json());
-    push(result, as_string(value));
-    write_json(result);
-}
-
-function object_nonempty_stdin() {
-    let value = read_stdin_json();
-    return (type(value) == "array" || type(value) == "object") && length(value) > 0;
 }
 
 let mode = ARGV[0] || "";
@@ -2530,28 +2360,8 @@ if (mode == "generate-config")
     generate_config(ARGV[1], ARGV[2], ARGV[3], ARGV[4] || "");
 else if (mode == "generate-config-fixture")
     generate_config_fixture(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5] || "");
-else if (mode == "stdin-length")
-    stdin_length();
 else if (mode == "stdin-contains")
     exit(stdin_contains(ARGV[1]) ? 0 : 1);
-else if (mode == "stdin-regex-matches")
-    exit(stdin_regex_matches(ARGV[1]) ? 0 : 1);
-else if (mode == "csv-to-json-array")
-    csv_to_json_array(ARGV[1]);
-else if (mode == "ip-addr-first-inet4")
-    ip_addr_first_inet4();
-else if (mode == "stdin-first-dns-a-address")
-    stdin_first_dns_a_address();
-else if (mode == "stdin-first-dns-aaaa-address")
-    stdin_first_dns_aaaa_address();
-else if (mode == "stdin-first-nslookup-address")
-    stdin_first_nslookup_address();
-else if (mode == "stdin-first-field")
-    stdin_first_field();
-else if (mode == "array-append-string")
-    array_append_string(ARGV[1]);
-else if (mode == "object-nonempty")
-    exit(object_nonempty_stdin() ? 0 : 1);
 else {
     warn("Usage: singbox/generator.uc <operation> ...\n");
     exit(1);

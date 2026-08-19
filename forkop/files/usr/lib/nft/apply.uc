@@ -62,16 +62,6 @@ function uci_settings() {
     return uci_section("settings");
 }
 
-function write_compact_string_array(values) {
-    print("[");
-    for (let i = 0; i < length(values); i++) {
-        if (i > 0)
-            print(",");
-        print(sprintf("%J", as_string(values[i])));
-    }
-    print("]\n");
-}
-
 function write_text_file(path, text) {
     let result = fs.writefile(path, as_string(text));
     if (result == null)
@@ -131,83 +121,12 @@ function command_output_from_args(args) {
     return as_string(data);
 }
 
-function command_output_quiet_from_args(args) {
-    let pipe = fs.popen(command_from_args(args) + " 2>/dev/null", "r");
-    if (!pipe)
-        return "";
-
-    let data = pipe.read("all");
-    let status = pipe.close();
-    if (status != 0 || data == null)
-        return "";
-
-    return as_string(data);
-}
-
 function log_debug(message) {
     run_args([ "logger", "-t", "forkop", "[debug] " + as_string(message) ]);
 }
 
 function log_fatal(message) {
     run_args([ "logger", "-t", "forkop", "[fatal] " + as_string(message) ]);
-}
-
-function strip_list_comment(line) {
-    line = replace(as_string(line), /[[:space:]]*\/\/.*$/, "");
-    return replace(line, /[[:space:]]*#.*$/, "");
-}
-
-function print_csv(values) {
-    for (let i = 0; i < length(values); i++) {
-        if (i > 0)
-            print(",");
-        print(as_string(values[i]));
-    }
-    if (length(values) > 0)
-        print("\n");
-}
-
-function text_list_values(value, separator_mode) {
-    let result = [];
-    separator_mode = as_string(separator_mode);
-
-    for (let line in split(as_string(value), "\n")) {
-        line = strip_list_comment(line);
-        line = separator_mode == "comma-space"
-            ? replace(line, /[ ,]/g, "\n")
-            : replace(line, /,/g, "\n");
-
-        for (let item in split(line, "\n")) {
-            item = trim(replace(item, /\r/g, ""));
-            if (item != "")
-                push(result, item);
-        }
-    }
-
-    return result;
-}
-
-function csv_to_json_array(value) {
-    value = as_string(value);
-    if (value == "") {
-        print("[]\n");
-        return;
-    }
-
-    write_compact_string_array(split(value, ","));
-}
-
-function csv_list_contains(value, needle) {
-    needle = as_string(needle);
-    if (needle == "")
-        return false;
-
-    for (let item in split(as_string(value), ",")) {
-        if (item == needle)
-            return true;
-    }
-
-    return false;
 }
 
 function cache_key_is_safe(value) {
@@ -242,44 +161,6 @@ function nft_ip_or_cidr(value) {
     return core_ip.nft_ip_or_cidr(value);
 }
 
-function normalize_domain_subnet_value(value, kind) {
-    kind = as_string(kind);
-    if (kind == "domains")
-        return domain_config.suffix_to_ascii(value);
-    if (kind == "subnets")
-        return core_ip.valid_ip_or_cidr(value) ? value : null;
-
-    exit(1);
-}
-
-function filter_domain_subnet_values(values, kind) {
-    let result = [];
-    kind = as_string(kind);
-
-    if (kind != "domains" && kind != "subnets")
-        exit(1);
-
-    for (let value in values) {
-        let normalized = normalize_domain_subnet_value(value, kind);
-        if (normalized != null)
-            push(result, normalized);
-    }
-
-    return result;
-}
-
-function combined_domain_text_csv(value, requested_kind) {
-    let result = rule_config.combined_domain_text_csv_value(value, requested_kind);
-    if (result != "")
-        print(result, "\n");
-}
-
-function combined_domain_csv(value, requested_kind) {
-    let result = rule_config.combined_domain_csv_value(value, requested_kind);
-    if (result != "")
-        print(result, "\n");
-}
-
 function list_value_csv(value) {
     value = as_string(value);
     if (value != "")
@@ -307,10 +188,6 @@ function legacy_condition_csv(kind, text_mode, conditions_text_mode, text_value,
         print(value, "\n");
 }
 
-function domain_subnet_text_csv(value, kind) {
-    print_csv(filter_domain_subnet_values(text_list_values(value, "comma-space"), kind));
-}
-
 function normalize_port_number_value(value) {
     return rule_config.normalize_port_number_value(value);
 }
@@ -319,25 +196,12 @@ function normalize_port_condition_value(value) {
     return rule_config.normalize_port_condition_value(value);
 }
 
-function normalize_port_condition_for_nft(value) {
-    let normalized = normalize_port_condition_value(value);
-    if (normalized == null)
-        exit(1);
-    print(normalized, "\n");
-}
-
 function normalize_port_range_value(value) {
     return rule_config.normalize_port_range_value(value);
 }
 
 function rule_ports_csv_value(list_values, text_value) {
     return rule_config.rule_ports_csv_value(list_values, text_value);
-}
-
-function rule_ports_csv(list_values, text_value) {
-    let value = rule_ports_csv_value(list_values, text_value);
-    if (value != "")
-        print(value, "\n");
 }
 
 function nft_create_table(name) {
@@ -438,39 +302,12 @@ function default_arg(value, fallback) {
     return value == "" ? fallback : value;
 }
 
-function combined_domain_condition_text(section) {
-    if (type(object_or_empty(section)["domain"]) != "array") {
-        let value = option(section, "domain", "");
-        if (value != "")
-            return value;
-    }
-
-    return option(section, "domain_suffix_text", "");
-}
-
-function section_rule_condition_csv(section, key, kind) {
-    return rule_condition_csv_value(
-        key,
-        kind,
-        option(section, key + "_text_mode", "0"),
-        option(section, "conditions_text_mode", "0"),
-        option(section, key + "_text", ""),
-        option(section, key, ""),
-        combined_domain_condition_text(section),
-        option(section, "domain_suffix", "")
-    );
-}
-
-function section_rule_ports_csv(section) {
-    return rule_ports_csv_value(option(section, "ports", ""), option(section, "ports_text", ""));
-}
-
 function section_has_destination_matchers(section) {
-    return section_rule_condition_csv(section, "domain", "domains") != "" ||
-        section_rule_condition_csv(section, "domain_suffix", "domains") != "" ||
-        section_rule_condition_csv(section, "domain_keyword", "generic") != "" ||
-        section_rule_condition_csv(section, "domain_regex", "generic") != "" ||
-        section_rule_condition_csv(section, "ip_cidr", "subnets") != "" ||
+    return connections.rule_condition_csv(section, "domain", "domains") != "" ||
+        connections.rule_condition_csv(section, "domain_suffix", "domains") != "" ||
+        connections.rule_condition_csv(section, "domain_keyword", "generic") != "" ||
+        connections.rule_condition_csv(section, "domain_regex", "generic") != "" ||
+        connections.rule_condition_csv(section, "ip_cidr", "subnets") != "" ||
         length(connections.community_lists(section)) > 0 ||
         length(connections.rule_sets(section)) > 0 ||
         length(connections.rule_sets_with_subnets(section)) > 0;
@@ -517,14 +354,6 @@ function section_source_ip_values(section) {
     return join(",", connections.device_matchers(section, "source_ip_cidr").ips);
 }
 
-function section_source_signature_value(section) {
-    let devices = connections.device_matchers(section, "source_ip_cidr");
-    let value = join(",", devices.ips);
-    if (devices.system)
-        value += (value == "" ? "" : ",") + connections.SYSTEM_DEVICE_VALUE;
-    return value;
-}
-
 function section_has_source_ip_matchers(section) {
     return section_source_ip_values(section) != "";
 }
@@ -539,21 +368,21 @@ function section_has_subnet_update_sources(section) {
 }
 
 function section_has_nft_ip_matchers(section) {
-    return section_rule_condition_csv(section, "ip_cidr", "subnets") != "" ||
+    return connections.rule_condition_csv(section, "ip_cidr", "subnets") != "" ||
         section_has_subnet_update_sources(section);
 }
 
 function section_has_nft_port_only_matchers(section) {
-    return section_rule_ports_csv(section) != "" && !section_has_destination_matchers(section);
+    return connections.rule_ports_csv(section) != "" && !section_has_destination_matchers(section);
 }
 
 function section_priority_needs_plain_ip_rules(section) {
-    return section_has_nft_ip_matchers(section) && section_rule_ports_csv(section) == "";
+    return section_has_nft_ip_matchers(section) && connections.rule_ports_csv(section) == "";
 }
 
 function section_priority_needs_ip_port_rules(section) {
     return section_has_nft_ip_matchers(section) &&
-        (section_rule_ports_csv(section) != "" || length(connections.rule_sets_with_subnets(section)) > 0);
+        (connections.rule_ports_csv(section) != "" || length(connections.rule_sets_with_subnets(section)) > 0);
 }
 
 function section_needs_priority_sets(section) {
@@ -710,38 +539,38 @@ function nft_add_section_priority_rules(table, section, interface_set, localv4_s
     if (!nft_add_fully_routed_priority_rules(table, section, interface_set, localv4_set, localv6_set, mark, fakeip_range, fakeip6_range))
         return false;
 
-    let needs_plain_ip_rules = section_priority_needs_plain_ip_rules(section);
-    let needs_ip_port_rules = section_priority_needs_ip_port_rules(section);
-    let has_port_only_matchers = section_has_nft_port_only_matchers(section);
-    let match_ip4 = [ "ip", "daddr", "@" + as_string(sets.subnets) ];
-    let match_ip6 = [ "ip6", "daddr", "@" + as_string(sets.subnets6) ];
-    let match_ip_port4_tcp = [ "ip", "daddr", ".", "tcp", "dport", "@" + as_string(sets.ip_ports) ];
-    let match_ip_port4_udp = [ "ip", "daddr", ".", "udp", "dport", "@" + as_string(sets.ip_ports) ];
-    let match_ip_port6_tcp = [ "ip6", "daddr", ".", "tcp", "dport", "@" + as_string(sets.ip6_ports) ];
-    let match_ip_port6_udp = [ "ip6", "daddr", ".", "udp", "dport", "@" + as_string(sets.ip6_ports) ];
-    let match_port4_tcp = [ "tcp", "dport", "@" + as_string(sets.ports) ];
-    let match_port4_udp = [ "udp", "dport", "@" + as_string(sets.ports) ];
-    let match_port6_tcp = [ "tcp", "dport", "@" + as_string(sets.ports) ];
-    let match_port6_udp = [ "udp", "dport", "@" + as_string(sets.ports) ];
+    // Every rule below differs only in the chain it lands in and the matchers
+    // it carries; the rest of the context is the same for all of them.
+    let add_rules = function(match4, match6) {
+        for (let chain in [ "priority_rules", "priority_output_rules" ])
+            if (!nft_add_priority_rule_pair(table, chain, section, interface_set, localv4_set,
+                localv6_set, fakeip_range, fakeip6_range, match4, match6, mark))
+                return false;
+        return true;
+    };
 
-    if (needs_plain_ip_rules &&
-        (!nft_add_priority_rule_pair(table, "priority_rules", section, interface_set, localv4_set, localv6_set, fakeip_range, fakeip6_range, match_ip4, match_ip6, mark) ||
-            !nft_add_priority_rule_pair(table, "priority_output_rules", section, interface_set, localv4_set, localv6_set, fakeip_range, fakeip6_range, match_ip4, match_ip6, mark)))
+    let subnet4 = [ "ip", "daddr", "@" + as_string(sets.subnets) ];
+    let subnet6 = [ "ip6", "daddr", "@" + as_string(sets.subnets6) ];
+    if (section_priority_needs_plain_ip_rules(section) && !add_rules(subnet4, subnet6))
         return false;
 
-    if (needs_ip_port_rules &&
-        (!nft_add_priority_rule_pair(table, "priority_rules", section, interface_set, localv4_set, localv6_set, fakeip_range, fakeip6_range, match_ip_port4_tcp, match_ip_port6_tcp, mark) ||
-            !nft_add_priority_rule_pair(table, "priority_rules", section, interface_set, localv4_set, localv6_set, fakeip_range, fakeip6_range, match_ip_port4_udp, match_ip_port6_udp, mark) ||
-            !nft_add_priority_rule_pair(table, "priority_output_rules", section, interface_set, localv4_set, localv6_set, fakeip_range, fakeip6_range, match_ip_port4_tcp, match_ip_port6_tcp, mark) ||
-            !nft_add_priority_rule_pair(table, "priority_output_rules", section, interface_set, localv4_set, localv6_set, fakeip_range, fakeip6_range, match_ip_port4_udp, match_ip_port6_udp, mark)))
-        return false;
+    if (section_priority_needs_ip_port_rules(section)) {
+        for (let protocol in [ "tcp", "udp" ])
+            if (!add_rules(
+                [ "ip", "daddr", ".", protocol, "dport", "@" + as_string(sets.ip_ports) ],
+                [ "ip6", "daddr", ".", protocol, "dport", "@" + as_string(sets.ip6_ports) ]))
+                return false;
+    }
 
-    if (has_port_only_matchers &&
-        (!nft_add_priority_rule_pair(table, "priority_rules", section, interface_set, localv4_set, localv6_set, fakeip_range, fakeip6_range, match_port4_tcp, match_port6_tcp, mark) ||
-            !nft_add_priority_rule_pair(table, "priority_rules", section, interface_set, localv4_set, localv6_set, fakeip_range, fakeip6_range, match_port4_udp, match_port6_udp, mark) ||
-            !nft_add_priority_rule_pair(table, "priority_output_rules", section, interface_set, localv4_set, localv6_set, fakeip_range, fakeip6_range, match_port4_tcp, match_port6_tcp, mark) ||
-            !nft_add_priority_rule_pair(table, "priority_output_rules", section, interface_set, localv4_set, localv6_set, fakeip_range, fakeip6_range, match_port4_udp, match_port6_udp, mark)))
-        return false;
+    // A port-only matcher is address family agnostic, so both sides of the pair
+    // reference the same port set.
+    if (section_has_nft_port_only_matchers(section)) {
+        for (let protocol in [ "tcp", "udp" ]) {
+            let ports = [ protocol, "dport", "@" + as_string(sets.ports) ];
+            if (!add_rules(ports, ports))
+                return false;
+        }
+    }
 
     return true;
 }
@@ -1213,15 +1042,15 @@ function nft_rule_signature_body(body, section) {
     let action = option(section, "action", "");
     body = signature_add_value(body, "rule." + section_name + ".action", action);
     if (action == "dns") {
-        body = signature_add_value(body, "rule." + section_name + ".source_ip_cidr", section_source_signature_value(section));
+        body = signature_add_value(body, "rule." + section_name + ".source_ip_cidr", connections.source_signature_value(section));
         body = signature_add_value(body, "rule." + section_name + ".source_aware_dns", connections.has_dns_matchers(section) ? "1" : "0");
         body = signature_add_value(body, "rule." + section_name + ".fully_routed_ips", option(section, "fully_routed_ips", ""));
         return body;
     }
-    body = signature_add_value(body, "rule." + section_name + ".ip_cidr", section_rule_condition_csv(section, "ip_cidr", "subnets"));
-    body = signature_add_value(body, "rule." + section_name + ".source_ip_cidr", section_source_signature_value(section));
+    body = signature_add_value(body, "rule." + section_name + ".ip_cidr", connections.rule_condition_csv(section, "ip_cidr", "subnets"));
+    body = signature_add_value(body, "rule." + section_name + ".source_ip_cidr", connections.source_signature_value(section));
     body = signature_add_value(body, "rule." + section_name + ".source_aware_dns", connections.has_dns_matchers(section) ? "1" : "0");
-    body = signature_add_value(body, "rule." + section_name + ".ports", section_rule_ports_csv(section));
+    body = signature_add_value(body, "rule." + section_name + ".ports", connections.rule_ports_csv(section));
     body = signature_add_value(body, "rule." + section_name + ".fully_routed_ips", option(section, "fully_routed_ips", ""));
     body = signature_add_value(body, "rule." + section_name + ".community_subnet_lists", filter_community_subnet_lists_value(connections.community_lists_value(section)));
     body = signature_add_value(body, "rule." + section_name + ".rule_set_with_subnets", connections.rule_sets_with_subnets_value(section));
@@ -1266,14 +1095,6 @@ function fixture_section_list(data, type_name) {
 
     let plural = object_or_empty(data)[type_name + "s"];
     return type(plural) == "array" ? plural : [];
-}
-
-function section_by_name(sections, section_name) {
-    section_name = as_string(section_name);
-    for (let section in sections)
-        if (as_string(section[".name"]) == section_name)
-            return section;
-    return null;
 }
 
 function nft_create_provider_output_rules_from_uci(table, action, provider_bin, route_mark_base, queue_base, desync_mark, desync_mark_postnat) {
@@ -1396,8 +1217,8 @@ function nft_populate_runtime_set_for_section(section, deferred_sections, table,
     if (section_action(section) == "dns")
         return true;
 
-    let ports = section_rule_ports_csv(section);
-    let ip_values = section_rule_condition_csv(section, "ip_cidr", "subnets");
+    let ports = connections.rule_ports_csv(section);
+    let ip_values = connections.rule_condition_csv(section, "ip_cidr", "subnets");
     let sets = section_priority_sets(section);
 
     if (section_needs_priority_sets(section) && !nft_add_section_source_matchers(section, table, 5000))
@@ -1452,36 +1273,20 @@ function nft_populate_runtime_sets_fixture(path, populate_enabled, deferred_sect
 
 let mode = ARGV[0] || "";
 
-if (mode == "csv-to-json-array")
-    csv_to_json_array(ARGV[1]);
-else if (mode == "cache-path")
+if (mode == "cache-path")
     cache_path(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6]);
 else if (mode == "list-value-to-csv")
     list_value_csv(ARGV[1]);
-else if (mode == "csv-list-contains")
-    exit(csv_list_contains(ARGV[1], ARGV[2]) ? 0 : 1);
-else if (mode == "domain-subnet-text-csv")
-    domain_subnet_text_csv(ARGV[1], ARGV[2]);
-else if (mode == "combined-domain-text-csv")
-    combined_domain_text_csv(ARGV[1], ARGV[2]);
-else if (mode == "combined-domain-csv")
-    combined_domain_csv(ARGV[1], ARGV[2]);
 else if (mode == "rule-condition-csv")
     rule_condition_csv(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8]);
 else if (mode == "legacy-condition-csv")
     legacy_condition_csv(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5]);
-else if (mode == "normalize-port-condition-for-nft")
-    normalize_port_condition_for_nft(ARGV[1]);
-else if (mode == "rule-ports-csv")
-    rule_ports_csv(ARGV[1], ARGV[2]);
 else if (mode == "nft-create-runtime-base")
     exit(nft_create_runtime_base(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8], ARGV[9], ARGV[10], ARGV[11], ARGV[12], ARGV[13], ARGV[14], ARGV[15], ARGV[16], ARGV[17]) ? 0 : 1);
 else if (mode == "nft-create-runtime-base-from-uci")
     exit(nft_create_runtime_base_from_uci(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8], ARGV[9], ARGV[10], ARGV[11], ARGV[12], ARGV[13], ARGV[14], ARGV[15]) ? 0 : 1);
 else if (mode == "nft-create-runtime-output-rules")
     exit(nft_create_runtime_output_rules(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8], ARGV[9], ARGV[10], ARGV[11]) ? 0 : 1);
-else if (mode == "nft-create-provider-output-rules-from-uci")
-    exit(nft_create_provider_output_rules_from_uci(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7]) ? 0 : 1);
 else if (mode == "nft-create-provider-output-rules-fixture")
     exit(nft_create_provider_output_rules_from_sections(fixture_section_list(object_or_empty(common_read_json_file(ARGV[1])), "section"), ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8]) ? 0 : 1);
 else if (mode == "nft-add-section-priority-rules-fixture")
@@ -1502,14 +1307,10 @@ else if (mode == "nft-table-present-fixture")
     exit(nft_table_present(ARGV[1]) ? 0 : 1);
 else if (mode == "ensure-tproxy-route-rule")
     exit(ensure_tproxy_route_rule(ARGV[1], ARGV[2], ARGV[3]) ? 0 : 1);
-else if (mode == "tproxy-route-present")
-    exit(tproxy_route_present(ARGV[1]) ? 0 : 1);
 else if (mode == "tproxy-route4-present")
     exit(tproxy_route4_present(ARGV[1]) ? 0 : 1);
 else if (mode == "tproxy-route6-present")
     exit(tproxy_route6_present(ARGV[1]) ? 0 : 1);
-else if (mode == "tproxy-marking-rule-present")
-    exit(tproxy_marking_rule_present(ARGV[1], ARGV[2]) ? 0 : 1);
 else if (mode == "tproxy-marking-rule4-present")
     exit(tproxy_marking_rule4_present(ARGV[1], ARGV[2]) ? 0 : 1);
 else if (mode == "tproxy-marking-rule6-present")

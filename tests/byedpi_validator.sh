@@ -33,38 +33,38 @@ if (actual !== expected) {
 NODE
 }
 
-valid_json="$(ucode -- "$VALIDATOR" validate-json '--disorder 3 --fake-sni example.org -N')"
+valid_json="$(ucode -L "$FORKOP_LIB" -- "$VALIDATOR" validate-json '--disorder 3 --fake-sni example.org -N')"
 assert_json_field "$valid_json" valid true
 
-configured="$(ucode -- "$VALIDATOR" strategy-or-default "$(printf -- '--disorder\t3\n--fake-sni example.org')" '--default 1')"
+configured="$(ucode -L "$FORKOP_LIB" -- "$VALIDATOR" strategy-or-default "$(printf -- '--disorder\t3\n--fake-sni example.org')" '--default 1')"
 [ "$configured" = "--disorder 3 --fake-sni example.org" ] ||
   fail "configured strategy should be normalized, got '$configured'"
 
-defaulted="$(ucode -- "$VALIDATOR" strategy-or-default "" "$(printf -- '--default\t1')")"
+defaulted="$(ucode -L "$FORKOP_LIB" -- "$VALIDATOR" strategy-or-default "" "$(printf -- '--default\t1')")"
 [ "$defaulted" = "--default 1" ] ||
   fail "empty strategy should use normalized default, got '$defaulted'"
 
-invalid_json="$(ucode -- "$VALIDATOR" validate-json '--port 1080 --disorder 3')"
+invalid_json="$(ucode -L "$FORKOP_LIB" -- "$VALIDATOR" validate-json '--port 1080 --disorder 3')"
 assert_json_field "$invalid_json" valid false
 assert_json_field "$invalid_json" needle --port
 
 validator_output="$WORK_DIR/byedpi-validator.out"
-if ucode -- "$VALIDATOR" validate '--transparent' >"$validator_output" 2>/dev/null; then
+if ucode -L "$FORKOP_LIB" -- "$VALIDATOR" validate '--transparent' >"$validator_output" 2>/dev/null; then
   fail "controlled transparent mode should be rejected"
 fi
 grep -q 'Transparent proxy mode is incompatible' "$validator_output" ||
   fail "reject message should explain transparent mode"
 
-if ucode -- "$VALIDATOR" validate '--disorder --fake example.org' >/dev/null 2>&1; then
+if ucode -L "$FORKOP_LIB" -- "$VALIDATOR" validate '--disorder --fake example.org' >/dev/null 2>&1; then
   fail "missing value should be rejected"
 fi
 
 # ciadpi takes inline lists as one argument, for example -H:"a.example
 # b.example", so quotes group the value instead of splitting it into argv.
-quoted_json="$(ucode -- "$VALIDATOR" validate-json '-H:"one.example two.example" --disorder 3')"
+quoted_json="$(ucode -L "$FORKOP_LIB" -- "$VALIDATOR" validate-json '-H:"one.example two.example" --disorder 3')"
 assert_json_field "$quoted_json" valid true
 
-if ucode -- "$VALIDATOR" validate '-H:"one.example two.example --disorder 3' >"$WORK_DIR/byedpi-quote.out" 2>/dev/null; then
+if ucode -L "$FORKOP_LIB" -- "$VALIDATOR" validate '-H:"one.example two.example --disorder 3' >"$WORK_DIR/byedpi-quote.out" 2>/dev/null; then
   fail "unterminated quote should be rejected"
 fi
 grep -q 'unterminated' "$WORK_DIR/byedpi-quote.out" ||

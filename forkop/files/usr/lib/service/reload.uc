@@ -38,7 +38,6 @@ function emit_reload_plan(previous, current, context) {
         zapret_restart: false,
         zapret2_restart: false,
         byedpi_restart: false,
-        dnsmasq_configure: false,
         dnsmasq_restore: false,
         cron_refresh: false
     };
@@ -70,12 +69,8 @@ function emit_reload_plan(previous, current, context) {
     if (changed.byedpi_runtime)
         needs.byedpi_restart = true;
 
-    if (changed.dnsmasq) {
-        if (!current.dont_touch_dhcp)
-            needs.dnsmasq_configure = true;
-        else if (context.dnsmasq_managed_state)
-            needs.dnsmasq_restore = true;
-    }
+    if (changed.dnsmasq && context.dnsmasq_managed_state)
+        needs.dnsmasq_restore = true;
 
     if (changed.cron)
         needs.cron_refresh = true;
@@ -91,7 +86,6 @@ function emit_reload_plan(previous, current, context) {
         !needs.zapret_restart &&
         !needs.zapret2_restart &&
         !needs.byedpi_restart &&
-        !needs.dnsmasq_configure &&
         !needs.dnsmasq_restore)
         needs.sing_box_reload = true;
 
@@ -101,7 +95,6 @@ function emit_reload_plan(previous, current, context) {
         needs.zapret_restart ||
         needs.zapret2_restart ||
         needs.byedpi_restart ||
-        needs.dnsmasq_configure ||
         needs.dnsmasq_restore ||
         needs.cron_refresh;
 
@@ -121,7 +114,6 @@ function emit_reload_plan(previous, current, context) {
     emit_bool("needs_zapret_restart", needs.zapret_restart);
     emit_bool("needs_zapret2_restart", needs.zapret2_restart);
     emit_bool("needs_byedpi_restart", needs.byedpi_restart);
-    emit_bool("needs_dnsmasq_configure", needs.dnsmasq_configure);
     emit_bool("needs_dnsmasq_restore", needs.dnsmasq_restore);
     emit_bool("needs_cron_refresh", needs.cron_refresh);
     emit_bool("has_work", has_work);

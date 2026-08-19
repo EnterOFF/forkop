@@ -118,6 +118,5 @@ function resolve_rule_for_section(section, route_rule) {
 return {
     config,
     target,
-    has_resolve_matchers,
     resolve_rule_for_section
 };

@@ -135,19 +135,18 @@ assert_plan_value "$plan" needs_zapret_restart 1
 assert_plan_value "$plan" needs_nft_rebuild 1
 assert_plan_value "$plan" needs_sing_box_reload 1
 
+# dnsmasq only needs work when Forkop settings are still present in it
 args=("${base_args[@]}")
 args[11]=dns2
-plan="$(run_case dnsmasq_configure "${args[@]}")"
+plan="$(run_case dnsmasq_unmanaged "${args[@]}")"
 assert_plan_value "$plan" changed_dnsmasq 1
-assert_plan_value "$plan" needs_dnsmasq_configure 1
 assert_plan_value "$plan" needs_dnsmasq_restore 0
 
 args=("${base_args[@]}")
 args[11]=dns2
-args[20]=1
 args[22]=1
-plan="$(run_case dnsmasq_restore "${args[@]}")"
-assert_plan_value "$plan" needs_dnsmasq_configure 0
+plan="$(run_case dnsmasq_managed "${args[@]}")"
+assert_plan_value "$plan" changed_dnsmasq 1
 assert_plan_value "$plan" needs_dnsmasq_restore 1
 
 args=("${base_args[@]}")

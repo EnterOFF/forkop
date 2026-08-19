@@ -1,33 +1,13 @@
 #!/usr/bin/env ucode
 
+let strategy = require("providers.strategy");
+
 function as_string(value) {
     return value == null ? "" : "" + value;
 }
 
-function write_json(value) {
-    print(sprintf("%J", value), "\n");
-}
-
-function normalize_strategy_whitespace(value) {
-    value = replace(as_string(value), /[\t\r\n]/g, " ");
-    value = replace(value, / +/g, " ");
-    value = replace(value, /^ /, "");
-    return replace(value, / $/, "");
-}
-
-function strategy_or_default(value, default_value) {
-    value = as_string(value);
-    if (value == "")
-        value = as_string(default_value);
-    return normalize_strategy_whitespace(value);
-}
-
-function print_strategy_or_default(value, default_value) {
-    print(strategy_or_default(value, default_value), "\n");
-}
-
 function words(value) {
-    value = normalize_strategy_whitespace(value);
+    value = strategy.normalize_whitespace(value);
     return value == "" ? [] : split(value, " ");
 }
 
@@ -47,25 +27,6 @@ function starts_with(value, prefix) {
 function split_option_token(token) {
     let equals = index(token, "=");
     return equals >= 0 ? substr(token, 0, equals) : token;
-}
-
-function validation_failure(message, needles) {
-    needles = type(needles) == "array" ? needles : [];
-    return {
-        valid: false,
-        message: as_string(message),
-        needle: length(needles) > 0 ? as_string(needles[0]) : "",
-        needles
-    };
-}
-
-function validation_success() {
-    return {
-        valid: true,
-        message: "",
-        needle: "",
-        needles: []
-    };
 }
 
 let nfqws_optional = [
@@ -218,12 +179,12 @@ function label(kind) {
 function validate_strategy(kind, raw_opt, legacy_default) {
     kind = as_string(kind);
     if (kind != "nfqws" && kind != "nfqws2")
-        return validation_failure("NFQUEUE validator accepts only nfqws or nfqws2 strategies.", [ kind ]);
+        return strategy.failure("NFQUEUE validator accepts only nfqws or nfqws2 strategies.", [ kind ]);
 
-    raw_opt = normalize_strategy_whitespace(raw_opt);
+    raw_opt = strategy.normalize_whitespace(raw_opt);
 
     if (kind == "nfqws" && raw_opt == as_string(legacy_default))
-        return validation_success();
+        return strategy.success();
 
     let tokens = words(raw_opt);
     let token_count = 0;
@@ -234,7 +195,7 @@ function validate_strategy(kind, raw_opt, legacy_default) {
         let base_token = split_option_token(token);
 
         if (token_count == 0 && token_has_external_config_prefix(token))
-            return validation_failure(
+            return strategy.failure(
                 "Unsupported " + label(kind) + " token '" + token + "': External " + (kind == "nfqws2" ? "nfqws2" : "nfqws") + " config files bypass Forkop validation and queue management.",
                 [ token ]
             );
@@ -245,19 +206,19 @@ function validate_strategy(kind, raw_opt, legacy_default) {
             let mode = option_mode(kind, base_token);
             if (base_token == token && mode == "required" && next_is_separate_value(next_token)) {
                 display += " " + next_token;
-                return validation_failure("Unsupported " + label(kind) + " token '" + display + "': " + reason, [ base_token, next_token ]);
+                return strategy.failure("Unsupported " + label(kind) + " token '" + display + "': " + reason, [ base_token, next_token ]);
             }
-            return validation_failure("Unsupported " + label(kind) + " token '" + display + "': " + reason, [ base_token ]);
+            return strategy.failure("Unsupported " + label(kind) + " token '" + display + "': " + reason, [ base_token ]);
         }
 
         if (starts_with(token, "--")) {
             let mode = option_mode(kind, base_token);
             if (mode == "unknown")
-                return validation_failure("Unknown " + label(kind) + " flag '" + token + "'.", [ base_token ]);
+                return strategy.failure("Unknown " + label(kind) + " flag '" + token + "'.", [ base_token ]);
 
             if (mode == "none") {
                 if (base_token != token)
-                    return validation_failure(label(kind) + " flag '" + base_token + "' does not accept a value.", [ base_token ]);
+                    return strategy.failure(label(kind) + " flag '" + base_token + "' does not accept a value.", [ base_token ]);
                 i++;
                 token_count++;
                 continue;
@@ -265,7 +226,7 @@ function validate_strategy(kind, raw_opt, legacy_default) {
 
             if (mode == "optional") {
                 if (base_token == token && next_is_separate_value(next_token))
-                    return validation_failure(
+                    return strategy.failure(
                         "Optional value for '" + base_token + "' must be attached as '" + base_token + "=value'. Separate tokens are ignored by " + kind + " here.",
                         [ base_token, next_token ]
                     );
@@ -281,20 +242,20 @@ function validate_strategy(kind, raw_opt, legacy_default) {
             }
 
             if (!next_is_separate_value(next_token))
-                return validation_failure(label(kind) + " option '" + base_token + "' requires a value.", [ base_token ]);
+                return strategy.failure(label(kind) + " option '" + base_token + "' requires a value.", [ base_token ]);
 
             i += 2;
             token_count += 2;
             continue;
         }
 
-        return validation_failure(
+        return strategy.failure(
             "Unexpected standalone " + label(kind) + " token '" + token + "'. Use explicit flags such as --name or --name=value.",
             [ token ]
         );
     }
 
-    return validation_success();
+    return strategy.success();
 }
 
 function validate_exit(kind, raw_opt, legacy_default) {
@@ -308,7 +269,7 @@ function validate_exit(kind, raw_opt, legacy_default) {
 
 function validate_json(kind, raw_opt, legacy_default) {
     let result = validate_strategy(kind, raw_opt, legacy_default);
-    write_json(result);
+    strategy.write_json(result);
     exit(result.valid ? 0 : 1);
 }
 
@@ -319,7 +280,7 @@ function expected_label(expected_kind) {
 function validate_expected_strategy(expected_kind, kind, raw_opt, legacy_default) {
     expected_kind = as_string(expected_kind);
     if (as_string(kind) != expected_kind)
-        return validation_failure(expected_label(expected_kind) + " validator accepts only " + expected_kind + " strategies.", [ as_string(kind) ]);
+        return strategy.failure(expected_label(expected_kind) + " validator accepts only " + expected_kind + " strategies.", [ as_string(kind) ]);
     return validate_strategy(expected_kind, raw_opt, legacy_default);
 }
 
@@ -334,7 +295,7 @@ function validate_expected_exit(expected_kind, kind, raw_opt, legacy_default) {
 
 function validate_expected_json(expected_kind, kind, raw_opt, legacy_default) {
     let result = validate_expected_strategy(expected_kind, kind, raw_opt, legacy_default);
-    write_json(result);
+    strategy.write_json(result);
     exit(result.valid ? 0 : 1);
 }
 
@@ -348,7 +309,7 @@ function run_expected(expected_kind, usage_path, argv) {
     else if (mode == "validate-json")
         validate_expected_json(expected_kind, argv[1], argv[2], argv[3]);
     else if (mode == "strategy-or-default")
-        print_strategy_or_default(argv[1], argv[2]);
+        strategy.print_or_default(argv[1], argv[2]);
     else {
         warn("Usage: " + usage_path + "\n");
         exit(1);
@@ -357,8 +318,8 @@ function run_expected(expected_kind, usage_path, argv) {
 
 function module_exports() {
     return {
-        normalize_strategy_whitespace,
-        strategy_or_default,
+        normalize_strategy_whitespace: strategy.normalize_whitespace,
+        strategy_or_default: strategy.or_default,
         validate_strategy,
         validate_expected_strategy,
         run_expected
@@ -375,7 +336,7 @@ if (mode == "validate")
 else if (mode == "validate-json")
     validate_json(ARGV[1], ARGV[2], ARGV[3]);
 else if (mode == "strategy-or-default")
-    print_strategy_or_default(ARGV[1], ARGV[2]);
+    strategy.print_or_default(ARGV[1], ARGV[2]);
 else {
     warn("Usage: providers/nfqueue/validator.uc <validate|validate-json|strategy-or-default> <nfqws|nfqws2> <strategy> [legacy-default]\n");
     exit(1);

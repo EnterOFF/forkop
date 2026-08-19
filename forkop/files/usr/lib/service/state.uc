@@ -20,6 +20,7 @@ else if (HEALTH_MODE == "forkop-stably-running")
     exit(health.forkop_stably_running(ARGV[1], ARGV[2], ARGV[3], ARGV[4]) ? 0 : 1);
 
 let fs = require("fs");
+let core_common = require("core.common");
 let uci_core = require("core.uci");
 let rule_config = require("config.rule");
 let connections = require("config.connections");
@@ -51,25 +52,6 @@ let forkop_stably_running = health.forkop_stably_running;
 
 function as_string(value) {
     return value == null ? "" : "" + value;
-}
-
-function read_stdin() {
-    let input = fs.open("/dev/stdin", "r");
-    if (!input)
-        return "";
-    let data = input.read("all");
-    input.close();
-    return data == null ? "" : data;
-}
-
-function read_stdin_json() {
-    let data = read_stdin();
-    try {
-        return json(data);
-    }
-    catch (e) {
-        return null;
-    }
 }
 
 function read_json_file(path) {
@@ -148,15 +130,6 @@ function object_or_empty(value) {
     return type(value) == "object" ? value : {};
 }
 
-function file_first_line(path) {
-    let data = fs.readfile(path);
-    if (data == null)
-        exit(1);
-
-    let newline = index(data, "\n");
-    print(newline >= 0 ? substr(data, 0, newline) : data, "\n");
-}
-
 function read_state_value(path, needle) {
     let data = fs.readfile(path);
     if (data == null)
@@ -171,22 +144,6 @@ function read_state_value(path, needle) {
             return;
         }
     }
-}
-
-function state_has_key(path, needle) {
-    let data = fs.readfile(path);
-    if (data == null)
-        return false;
-
-    needle = as_string(needle);
-    for (let line in split(data, "\n")) {
-        let equals = index(line, "=");
-        let key = equals >= 0 ? substr(line, 0, equals) : line;
-        if (key == needle)
-            return true;
-    }
-
-    return false;
 }
 
 const RELOAD_STATE_FIELDS = [
@@ -432,41 +389,6 @@ function clear_reload_state(path, snapshot_path) {
     cleanup_reload_state_snapshots(path);
 }
 
-function remove_file(path) {
-    unlink_file(path);
-}
-
-function reload_state_values_from_args(offset) {
-    let values = {};
-    offset = int(offset || 0);
-
-    for (let i = 0; i < length(RELOAD_STATE_FIELDS); i++)
-        values[RELOAD_STATE_FIELDS[i]] = ARGV[i + offset];
-
-    return values;
-}
-
-function response_success() {
-    let value = read_stdin_json();
-    return type(value) == "object" && value.success === true;
-}
-
-function stdin_first_field() {
-    let data = read_stdin();
-    let newline = index(data, "\n");
-    let line = newline >= 0 ? substr(data, 0, newline) : data;
-    let fields = split(trim(as_string(line)), /[ \t\r\n]+/);
-
-    if (length(fields) > 0 && fields[0] != "")
-        print(fields[0], "\n");
-}
-
-function sing_box_service_pid() {
-    let pid = sing_box_service_pid_from_value(read_stdin_json());
-    if (pid > 0)
-        print(pid, "\n");
-}
-
 function arg_bool(value) {
     value = lc(as_string(value));
     return value == "1" || value == "true" || value == "yes" || value == "on";
@@ -603,51 +525,6 @@ function list_has_remote_references(value) {
     return false;
 }
 
-function duration_to_seconds_value(value) {
-    let rest = as_string(value);
-    if (rest == "")
-        return null;
-
-    let total = 0.0;
-    let multipliers = {
-        ns: 0.000000001,
-        us: 0.000001,
-        ms: 0.001,
-        s: 1,
-        m: 60,
-        h: 3600,
-        d: 86400
-    };
-
-    while (rest != "") {
-        let matched = match(rest, /^([0-9]+(\.[0-9]+)?)(ns|us|ms|s|m|h|d)/);
-        if (!matched)
-            return null;
-
-        let token = as_string(matched[0]);
-        let amount = matched[1] * 1;
-        let unit = matched[3];
-        total += amount * multipliers[unit];
-        rest = substr(rest, length(token));
-    }
-
-    return total <= 0 ? null : int(total + 0.5);
-}
-
-function download_via_proxy_option_for_purpose(purpose) {
-    purpose = as_string(purpose || "lists");
-    if (purpose == "lists")
-        return "download_lists_via_proxy";
-    if (purpose == "components")
-        return "download_components_via_proxy";
-    return "";
-}
-
-function download_via_proxy_enabled(settings, purpose) {
-    let enabled_option = download_via_proxy_option_for_purpose(purpose);
-    return enabled_option != "" && bool_option(settings, enabled_option, false);
-}
-
 function signature_add_value(body, key, value) {
     return body + "[" + as_string(key) + "]\n" + as_string(value) + "\n";
 }
@@ -729,41 +606,6 @@ function settings_component_update_check_interval(settings) {
     return value != "" ? value : "1d";
 }
 
-function section_rule_ports_csv(section) {
-    return rule_config.rule_ports_csv_value(option(section, "ports", ""), option(section, "ports_text", ""));
-}
-
-function combined_domain_condition_text(section) {
-    if (type(object_or_empty(section)["domain"]) != "array") {
-        let value = option(section, "domain", "");
-        if (value != "")
-            return value;
-    }
-
-    return option(section, "domain_suffix_text", "");
-}
-
-function section_rule_condition_csv(section, key, kind) {
-    return rule_config.rule_condition_csv_value(
-        key,
-        kind,
-        option(section, key + "_text_mode", "0"),
-        option(section, "conditions_text_mode", "0"),
-        option(section, key + "_text", ""),
-        option(section, key, ""),
-        combined_domain_condition_text(section),
-        option(section, "domain_suffix", "")
-    );
-}
-
-function section_source_signature_value(section) {
-    let devices = connections.device_matchers(section, "source_ip_cidr");
-    let value = join(",", devices.ips);
-    if (devices.system)
-        value += (value == "" ? "" : ",") + connections.SYSTEM_DEVICE_VALUE;
-    return value;
-}
-
 function nft_runtime_signature_body(settings, sections) {
     let body = "";
 
@@ -779,15 +621,15 @@ function nft_runtime_signature_body(settings, sections) {
         let action = option(section, "action", "");
         body = signature_add_value(body, "rule." + name + ".action", action);
         if (action == "dns") {
-            body = signature_add_value(body, "rule." + name + ".source_ip_cidr", section_source_signature_value(section));
+            body = signature_add_value(body, "rule." + name + ".source_ip_cidr", connections.source_signature_value(section));
             body = signature_add_value(body, "rule." + name + ".source_aware_dns", connections.has_dns_matchers(section) ? "1" : "0");
             body = signature_add_value(body, "rule." + name + ".fully_routed_ips", option(section, "fully_routed_ips", ""));
             continue;
         }
-        body = signature_add_value(body, "rule." + name + ".ip_cidr", section_rule_condition_csv(section, "ip_cidr", "subnets"));
-        body = signature_add_value(body, "rule." + name + ".source_ip_cidr", section_source_signature_value(section));
+        body = signature_add_value(body, "rule." + name + ".ip_cidr", connections.rule_condition_csv(section, "ip_cidr", "subnets"));
+        body = signature_add_value(body, "rule." + name + ".source_ip_cidr", connections.source_signature_value(section));
         body = signature_add_value(body, "rule." + name + ".source_aware_dns", connections.has_dns_matchers(section) ? "1" : "0");
-        body = signature_add_value(body, "rule." + name + ".ports", section_rule_ports_csv(section));
+        body = signature_add_value(body, "rule." + name + ".ports", connections.rule_ports_csv(section));
         body = signature_add_value(body, "rule." + name + ".fully_routed_ips", option(section, "fully_routed_ips", ""));
         body = signature_add_value(body, "rule." + name + ".community_subnet_lists", rule_config.filter_community_subnet_lists_value(connections.community_lists_value(section)));
         body = signature_add_value(body, "rule." + name + ".rule_set_with_subnets", connections.rule_sets_with_subnets_value(section));
@@ -807,7 +649,7 @@ function section_subscription_update_interval(section) {
         let value = connections.subscription_update_interval(section, entry);
         if (value == "")
             value = "1h";
-        let seconds = duration_to_seconds_value(value);
+        let seconds = core_common.duration_to_seconds(value);
         if (result == "" || (seconds != null && (result_seconds == 0 || seconds < result_seconds))) {
             result = value;
             result_seconds = seconds == null ? 0 : seconds;
@@ -932,7 +774,7 @@ function section_urltest_check_interval(section) {
         let value = connections.urltest_check_interval(section, urltest_id);
         if (value == "")
             value = "3m";
-        let seconds = duration_to_seconds_value(value);
+        let seconds = core_common.duration_to_seconds(value);
         if (result == "" || (seconds != null && (result_seconds == 0 || seconds < result_seconds))) {
             result = value;
             result_seconds = seconds == null ? 0 : seconds;
@@ -1066,15 +908,15 @@ function append_sing_box_rule_signature_body(body, section, sections) {
             body = signature_add_value(body, prefix + ".dns_detour_section", option(section, "dns_detour_section", ""));
     }
 
-    body = signature_add_value(body, prefix + ".domain", section_rule_condition_csv(section, "domain", "domains"));
-    body = signature_add_value(body, prefix + ".domain_suffix", section_rule_condition_csv(section, "domain_suffix", "domains"));
-    body = signature_add_value(body, prefix + ".domain_keyword", section_rule_condition_csv(section, "domain_keyword", "generic"));
-    body = signature_add_value(body, prefix + ".domain_regex", section_rule_condition_csv(section, "domain_regex", "generic"));
+    body = signature_add_value(body, prefix + ".domain", connections.rule_condition_csv(section, "domain", "domains"));
+    body = signature_add_value(body, prefix + ".domain_suffix", connections.rule_condition_csv(section, "domain_suffix", "domains"));
+    body = signature_add_value(body, prefix + ".domain_keyword", connections.rule_condition_csv(section, "domain_keyword", "generic"));
+    body = signature_add_value(body, prefix + ".domain_regex", connections.rule_condition_csv(section, "domain_regex", "generic"));
     if (action != "dns")
-        body = signature_add_value(body, prefix + ".ip_cidr", section_rule_condition_csv(section, "ip_cidr", "subnets"));
-    body = signature_add_value(body, prefix + ".source_ip_cidr", section_source_signature_value(section));
+        body = signature_add_value(body, prefix + ".ip_cidr", connections.rule_condition_csv(section, "ip_cidr", "subnets"));
+    body = signature_add_value(body, prefix + ".source_ip_cidr", connections.source_signature_value(section));
     if (action != "dns")
-        body = signature_add_value(body, prefix + ".ports", section_rule_ports_csv(section));
+        body = signature_add_value(body, prefix + ".ports", connections.rule_ports_csv(section));
     body = signature_add_value(body, prefix + ".fully_routed_ips", option(section, "fully_routed_ips", ""));
     body = signature_add_value(body, prefix + ".community_lists", connections.community_lists_value(section));
     body = signature_add_value(body, prefix + ".rule_set", connections.rule_sets_value(section));
@@ -1189,7 +1031,9 @@ function sing_box_signature_body(settings, sections, servers, mwan3_active) {
     body = signature_add_value(body, "settings.dns_rewrite_ttl", option(settings, "dns_rewrite_ttl", "60"));
     body = signature_add_value(body, "settings.output_network_interface", option(settings, "output_network_interface", ""));
     body = signature_add_value(body, "settings.disable_quic", bool_option_value(settings, "disable_quic", false));
+    body = signature_add_value(body, "settings.bittorrent_direct", bool_option_value(settings, "bittorrent_direct", false));
     body = signature_add_value(body, "settings.unified_delay", bool_option_value(settings, "unified_delay", false));
+    body = signature_add_value(body, "settings.static_hosts_text", option(settings, "static_hosts_text", ""));
     if (sing_box_signature_has_remote_ruleset_sources(sections))
         body = signature_add_value(body, "settings.update_interval", settings_update_interval(settings));
     body = signature_add_value(body, "settings.cache_path", option(settings, "cache_path", "/tmp/sing-box/cache.db"));
@@ -1207,9 +1051,9 @@ function sing_box_signature_body(settings, sections, servers, mwan3_active) {
 
     body = signature_add_value(body, "settings.download_lists_via_proxy", bool_option_value(settings, "download_lists_via_proxy", false));
     body = signature_add_value(body, "settings.download_components_via_proxy", bool_option_value(settings, "download_components_via_proxy", false));
-    if (download_via_proxy_enabled(settings, "lists"))
+    if (connections.download_via_proxy_enabled(settings, "lists"))
         body = signature_add_value(body, "settings.download_lists_via_proxy_section", option(settings, "download_lists_via_proxy_section", ""));
-    if (download_via_proxy_enabled(settings, "components"))
+    if (connections.download_via_proxy_enabled(settings, "components"))
         body = signature_add_value(body, "settings.download_components_via_proxy_section", option(settings, "download_components_via_proxy_section", ""));
 
     for (let section in sections)
@@ -1254,8 +1098,8 @@ function append_zapret_runtime_signature_body(body, section, signature_prefix, o
     let user_domain_list_type = option(section, "user_domain_list_type", "disabled");
 
     body = signature_add_value(body, signature_prefix + "." + name + "." + opt_key, normalized_opt);
-    body = signature_add_value(body, signature_prefix + "." + name + ".domain", section_rule_condition_csv(section, "domain", "domains"));
-    body = signature_add_value(body, signature_prefix + "." + name + ".domain_suffix", section_rule_condition_csv(section, "domain_suffix", "domains"));
+    body = signature_add_value(body, signature_prefix + "." + name + ".domain", connections.rule_condition_csv(section, "domain", "domains"));
+    body = signature_add_value(body, signature_prefix + "." + name + ".domain_suffix", connections.rule_condition_csv(section, "domain_suffix", "domains"));
     body = signature_add_value(body, signature_prefix + "." + name + ".community_lists", connections.community_lists_value(section));
     body = signature_add_value(body, signature_prefix + "." + name + ".rule_set", connections.rule_sets_value(section));
     body = signature_add_value(body, signature_prefix + "." + name + ".rule_set_with_subnets", connections.rule_sets_with_subnets_value(section));
@@ -1502,12 +1346,8 @@ function fixture_reload_state_values(data, format) {
 
 let mode = ARGV[0];
 
-if (mode == "file-first-line")
-    file_first_line(ARGV[1]);
-else if (mode == "get")
+if (mode == "get")
     read_state_value(ARGV[1], ARGV[2]);
-else if (mode == "has-key")
-    exit(state_has_key(ARGV[1], ARGV[2]) ? 0 : 1);
 else if (mode == "time-sync-needed")
     exit(time_sync_needed(ARGV[1]) ? 0 : 1);
 else if (mode == "sync-time-if-needed")
@@ -1532,28 +1372,18 @@ else if (mode == "reload-sing-box-runtime")
     reload_sing_box_runtime(ARGV[1], ARGV[2], ARGV[3]);
 else if (mode == "clear-reload-state")
     clear_reload_state(ARGV[1], ARGV[2]);
-else if (mode == "remove-file")
-    remove_file(ARGV[1]);
 else if (mode == "capture-reload-state")
     capture_reload_state(ARGV[1], ARGV[2] || "1");
 else if (mode == "write-current-reload-state-clean")
     write_current_reload_state_clean(ARGV[1], ARGV[2] || "1", ARGV[3]);
 else if (mode == "write-captured-reload-state")
     write_captured_reload_state(ARGV[1], ARGV[2], ARGV[3] || "1", ARGV[4], ARGV[5], ARGV[6]);
-else if (mode == "write-reload-state")
-    write_reload_state(ARGV[1], reload_state_values_from_args(2));
 else if (mode == "write-current-reload-state")
     write_reload_state(ARGV[1], current_reload_state_values(ARGV[2] || "1"));
 else if (mode == "reload-state-text-fixture") {
     let data = fixture_data(ARGV[1]);
     print(reload_state_text(fixture_reload_state_values(data, ARGV[2] || "1")));
 }
-else if (mode == "response-success")
-    exit(response_success() ? 0 : 1);
-else if (mode == "stdin-first-field")
-    stdin_first_field();
-else if (mode == "sing-box-service-pid")
-    sing_box_service_pid();
 else if (mode == "process-age-seconds-fixture") {
     let age = process_age_seconds_from_ticks(ARGV[1], ARGV[2]);
     if (age == null)
@@ -1663,10 +1493,6 @@ else if (mode == "cron-signature")
 else if (mode == "cron-signature-fixture") {
     let data = fixture_data(ARGV[1]);
     exit(print_signature_hash(cron_signature_body(fixture_settings(data))) ? 0 : 1);
-}
-else if (mode == "cron-signature-body-fixture") {
-    let data = fixture_data(ARGV[1]);
-    print(cron_signature_body(fixture_settings(data)));
 }
 else {
     warn("Usage: service/state.uc <operation> ...\n");

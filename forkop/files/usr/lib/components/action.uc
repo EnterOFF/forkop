@@ -405,7 +405,7 @@ function compare_versions(lhs, rhs) {
             return 0;
     }
 
-    return module_success([ LIB_DIR + "/core/helpers.uc", "version-at-least", lhs, rhs ]) ? 1 : -1;
+    return module_success([ LIB_DIR + "/core/version.uc", "version-at-least", lhs, rhs ]) ? 1 : -1;
 }
 
 function status_from_compare(compare_result) {

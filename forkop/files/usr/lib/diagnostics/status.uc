@@ -59,15 +59,6 @@ function parse_json_object(value) {
     return type(value) == "object" ? value : {};
 }
 
-function parse_json_or_null(value) {
-    try {
-        return json(as_string(value));
-    }
-    catch (e) {
-        return null;
-    }
-}
-
 function number_value(value) {
     value = as_string(value);
     return value == "" ? 0 : int(value);
@@ -102,23 +93,8 @@ function stdin_first_line() {
     print(newline >= 0 ? substr(input, 0, newline + 1) : input);
 }
 
-function stdin_first_ipv4_line() {
-    for (let line in split(read_stdin(), "\n")) {
-        line = as_string(line);
-        if (match(line, /^[0-9]+\./) != null) {
-            print(line, "\n");
-            return;
-        }
-    }
-}
-
 function stdin_contains(needle) {
     exit(index(read_stdin(), as_string(needle)) >= 0 ? 0 : 1);
-}
-
-function strip_leading_v(value) {
-    value = as_string(value);
-    print(substr(value, 0, 1) == "v" ? substr(value, 1) : value, "\n");
 }
 
 function uci_show_value(line) {
@@ -541,10 +517,6 @@ function firewall_rules_allow_port_proto(rules, port, proto) {
     return false;
 }
 
-function firewall_port_open_for_proto(port, proto) {
-    return firewall_rules_allow_port_proto(firewall_rules_from_uci_show(read_stdin()), port, proto);
-}
-
 function firewall_required_protocols_open(port, required_proto) {
     let rules = firewall_rules_from_uci_show(read_stdin());
 
@@ -568,16 +540,6 @@ function server_required_inbound_proto(protocol, transport) {
         print("udp\n");
     else
         print("tcp\n");
-}
-
-function server_runtime_type_for_protocol(protocol) {
-    protocol = as_string(protocol);
-    if (protocol == "json_inbound")
-        print("\n");
-    else if (protocol == "mtproto")
-        print("mtproxy\n");
-    else
-        print(protocol, "\n");
 }
 
 function arg_bool(value) {
@@ -633,12 +595,6 @@ function str_endswith(value, suffix) {
     value = as_string(value);
     suffix = as_string(suffix);
     return length(value) >= length(suffix) && substr(value, length(value) - length(suffix)) == suffix;
-}
-
-function str_remove_suffix(value, suffix) {
-    value = as_string(value);
-    suffix = as_string(suffix);
-    return str_endswith(value, suffix) ? substr(value, 0, length(value) - length(suffix)) : value;
 }
 
 function contains(values, needle) {
@@ -760,10 +716,6 @@ function netstat_server_port_listening_in_data(data, listen, port, proto) {
     return false;
 }
 
-function netstat_server_port_listening(listen, port, proto) {
-    return netstat_server_port_listening_in_data(read_stdin(), listen, port, proto);
-}
-
 function server_required_ports_listening(listen, port, required_proto) {
     let data = read_stdin();
 
@@ -786,29 +738,6 @@ function sorted_unique_strings(values) {
         return a < b ? -1 : (a > b ? 1 : 0);
     });
     return result;
-}
-
-function sorted_unique_lines(values) {
-    let result = [];
-    for (let value in values) {
-        value = as_string(value);
-        if (!contains(result, value))
-            push(result, value);
-    }
-
-    sort(result, function(a, b) {
-        return a < b ? -1 : (a > b ? 1 : 0);
-    });
-    return result;
-}
-
-function stdin_sorted_unique_space_list() {
-    let lines = split(read_stdin(), "\n");
-
-    if (length(lines) > 0 && lines[length(lines) - 1] == "")
-        lines = slice(lines, 0, length(lines) - 1);
-
-    print(replace(join(" ", sorted_unique_lines(lines)), /[ \t\r\n]+$/, ""), "\n");
 }
 
 function public_host_flags(public_host, public_host_ips, wan_ip, wan_public) {
@@ -870,10 +799,6 @@ function netstat_server_port_conflict_owner_list(data, listen, port, proto) {
     }
 
     return sorted_unique_strings(owners);
-}
-
-function netstat_server_port_conflict_owners(listen, port, proto) {
-    print(join(" ", netstat_server_port_conflict_owner_list(read_stdin(), listen, port, proto)), "\n");
 }
 
 function server_required_port_conflict_owners(listen, port, required_proto) {
@@ -1092,23 +1017,6 @@ function write_inbound_item_json(args) {
     });
 }
 
-function write_inbounds_config_json(enabled_count) {
-    write_json({
-        enabled_count: number_value(enabled_count)
-    });
-}
-
-function write_inbounds_check_json(enabled_count, config_path, wan_ip, wan_public, items_json) {
-    let items = parse_json_or_null(items_json);
-    write_json({
-        enabled_count: number_value(enabled_count),
-        config_path: as_string(config_path),
-        wan_ip: as_string(wan_ip),
-        wan_public: number_value(wan_public),
-        items: items != null ? items : null
-    });
-}
-
 function service_status_label(running, enabled) {
     running = arg_number(running);
     enabled = arg_number(enabled);
@@ -1131,14 +1039,6 @@ function write_service_status_json(running, enabled, status_or_dns_configured, d
     });
 }
 
-function stdin_service_status_running() {
-    let value = read_stdin_json();
-    if (type(value) != "object")
-        exit(1);
-
-    exit(number_value(value.running) == 1 ? 0 : 1);
-}
-
 function service_list_instance_running(name) {
     let value = object_or_empty(read_stdin_json());
     let service = object_or_empty(value[as_string(name)]);
@@ -1151,53 +1051,6 @@ function service_list_instance_running(name) {
     }
 
     exit(1);
-}
-
-function write_dns_check_json(dns_server, dns_status, dns_on_router, bootstrap_dns_server, bootstrap_dns_status, dhcp_config_status, dont_touch_dhcp) {
-    write_json({
-        dns_server: as_string(dns_server),
-        dns_status: arg_number(dns_status),
-        dns_on_router: arg_number(dns_on_router),
-        bootstrap_dns_server: as_string(bootstrap_dns_server),
-        bootstrap_dns_status: arg_number(bootstrap_dns_status),
-        dhcp_config_status: arg_number(dhcp_config_status),
-        dont_touch_dhcp: arg_number(dont_touch_dhcp)
-    });
-}
-
-function write_nft_check_json(table_exist, rules_mangle_exist, rules_mangle_counters, rules_mangle_output_exist, rules_mangle_output_counters, rules_proxy_exist, rules_proxy_counters, rules_other_mark_exist) {
-    write_json({
-        table_exist: arg_number(table_exist),
-        rules_mangle_exist: arg_number(rules_mangle_exist),
-        rules_mangle_counters: arg_number(rules_mangle_counters),
-        rules_mangle_output_exist: arg_number(rules_mangle_output_exist),
-        rules_mangle_output_counters: arg_number(rules_mangle_output_counters),
-        rules_proxy_exist: arg_number(rules_proxy_exist),
-        rules_proxy_counters: arg_number(rules_proxy_counters),
-        rules_other_mark_exist: arg_number(rules_other_mark_exist)
-    });
-}
-
-function write_sing_box_check_json(sing_box_installed, sing_box_version_ok, sing_box_service_exist, sing_box_autostart_disabled, sing_box_process_running, sing_box_ports_listening) {
-    write_json({
-        sing_box_installed: arg_number(sing_box_installed),
-        sing_box_version_ok: arg_number(sing_box_version_ok),
-        sing_box_service_exist: arg_number(sing_box_service_exist),
-        sing_box_autostart_disabled: arg_number(sing_box_autostart_disabled),
-        sing_box_process_running: arg_number(sing_box_process_running),
-        sing_box_ports_listening: arg_number(sing_box_ports_listening)
-    });
-}
-
-function write_fakeip_check_json(fakeip_status, fakeip_address) {
-    write_json({
-        fakeip: arg_bool(fakeip_status),
-        IP: as_string(fakeip_address)
-    });
-}
-
-function fakeip_address_status(address) {
-    print(match(as_string(address), /^198\.(18|19)\./) != null ? "true\n" : "false\n");
 }
 
 function repeat_char(char, count) {
@@ -1382,111 +1235,6 @@ function nft_ruleset_other_mark_lines(table_name) {
     }
 }
 
-function file_first_line(path, fallback) {
-    let data = fs.readfile(path);
-    let result = "";
-
-    if (data != null) {
-        let lines = split(as_string(data), "\n");
-        if (length(lines) > 0)
-            result = str_remove_suffix(as_string(lines[0]), "\r");
-    }
-
-    if (result == "")
-        result = as_string(fallback);
-
-    print_line(result);
-}
-
-function js_var_string_value(path, var_name) {
-    let data = fs.readfile(path);
-    var_name = as_string(var_name);
-
-    if (data == null || var_name == "")
-        return;
-
-    for (let line in split(as_string(data), "\n")) {
-        let matched = match(line, /^[ \t]*var[ \t]+([^ \t=]+)[ \t]*=[ \t]*"([^"]*)"/);
-        if (matched != null && matched[1] == var_name) {
-            print_line(matched[2]);
-            return;
-        }
-    }
-}
-
-function key_value_file_value(path, key) {
-    let data = fs.readfile(path);
-    key = as_string(key);
-
-    if (data == null || key == "")
-        return;
-
-    let prefix = key + "=";
-    for (let line in split(as_string(data), "\n")) {
-        line = str_remove_suffix(as_string(line), "\r");
-        if (!str_startswith(line, prefix))
-            continue;
-
-        let value = substr(line, length(prefix));
-        if (length(value) >= 2) {
-            let quote = substr(value, 0, 1);
-            if ((quote == "\"" || quote == "'") && str_endswith(value, quote))
-                value = substr(value, 1, length(value) - 2);
-        }
-        print_line(value);
-        return;
-    }
-}
-
-function system_info_cache_valid(path, forkop_version, luci_app_version, ttl, now) {
-    let cache = read_json_file(path);
-    if (type(cache) != "object")
-        return false;
-
-    now = arg_number(now);
-    ttl = arg_number(ttl);
-    let cached_at = arg_number(cache.generated_at || 0);
-
-    if (now > 0 && cached_at > 0 && ttl > 0 && now - cached_at >= ttl)
-        return false;
-
-    return cache.forkop_version == forkop_version && cache.luci_app_version == luci_app_version;
-}
-
-function system_info_json() {
-    write_json({
-        forkop_version: as_string(ARGV[1]),
-        forkop_latest_version: as_string(ARGV[2]),
-        luci_app_version: as_string(ARGV[3]),
-        sing_box_version: as_string(ARGV[4]),
-        sing_box_compressed: arg_number(ARGV[5]),
-        zapret_version: as_string(ARGV[6]),
-        zapret_installed: arg_number(ARGV[7]),
-        zapret2_version: as_string(ARGV[8]),
-        zapret2_installed: arg_number(ARGV[9]),
-        byedpi_version: as_string(ARGV[10]),
-        byedpi_installed: arg_number(ARGV[11]),
-        openwrt_version: as_string(ARGV[12]),
-        device_model: as_string(ARGV[13]),
-        generated_at: arg_number(ARGV[14])
-    });
-}
-
-function nfqws_strategy_validation(valid, message, needle, needles) {
-    let result = [];
-    for (let item in split(as_string(needles), "\n")) {
-        if (item != "")
-            push(result, item);
-    }
-
-    write_json({
-        valid: arg_bool(valid),
-        message: as_string(message),
-        needle: as_string(needle),
-        needles: result
-    });
-}
-
 let masked_sing_box_keys = {
     auth_key: true,
     control_url: true,
@@ -1628,16 +1376,10 @@ else if (mode == "stdin-first-line-last-field")
     stdin_first_line_last_field();
 else if (mode == "stdin-first-line")
     stdin_first_line();
-else if (mode == "stdin-sorted-unique-space-list")
-    stdin_sorted_unique_space_list();
 else if (mode == "public-host-flags")
     public_host_flags(ARGV[1], ARGV[2], ARGV[3], ARGV[4]);
-else if (mode == "stdin-first-ipv4-line")
-    stdin_first_ipv4_line();
 else if (mode == "stdin-contains")
     stdin_contains(ARGV[1]);
-else if (mode == "strip-leading-v")
-    strip_leading_v(ARGV[1]);
 else if (mode == "network-endpoint-host-warnings")
     network_endpoint_host_warnings(ARGV[1]);
 else if (mode == "network-wireguard-route-allowed-peers")
@@ -1648,52 +1390,22 @@ else if (mode == "forkop-config-masked")
     forkop_config_masked(ARGV[1]);
 else if (mode == "dhcp-dnsmasq-config")
     dhcp_dnsmasq_config(ARGV[1]);
-else if (mode == "firewall-port-token-contains")
-    exit(firewall_port_token_contains(ARGV[1], ARGV[2]) ? 0 : 1);
-else if (mode == "firewall-port-spec-contains")
-    exit(firewall_port_spec_contains(ARGV[1], ARGV[2]) ? 0 : 1);
-else if (mode == "firewall-proto-spec-contains")
-    exit(firewall_proto_spec_contains(ARGV[1], ARGV[2]) ? 0 : 1);
-else if (mode == "firewall-port-open")
-    exit(firewall_port_open_for_proto(ARGV[1], ARGV[2]) ? 0 : 1);
 else if (mode == "firewall-required-protocols-open")
     exit(firewall_required_protocols_open(ARGV[1], ARGV[2]) ? 0 : 1);
 else if (mode == "server-required-inbound-proto")
     server_required_inbound_proto(ARGV[1], ARGV[2]);
-else if (mode == "server-runtime-type-for-protocol")
-    server_runtime_type_for_protocol(ARGV[1]);
 else if (mode == "server-listen-requires-firewall")
     exit(server_listen_requires_firewall(ARGV[1], ARGV[2], ARGV[3]) ? 0 : 1);
-else if (mode == "server-port-listening")
-    exit(netstat_server_port_listening(ARGV[1], ARGV[2], ARGV[3]) ? 0 : 1);
 else if (mode == "server-required-ports-listening")
     exit(server_required_ports_listening(ARGV[1], ARGV[2], ARGV[3]) ? 0 : 1);
-else if (mode == "server-port-conflict-owners")
-    netstat_server_port_conflict_owners(ARGV[1], ARGV[2], ARGV[3]);
 else if (mode == "server-required-port-conflict-owners")
     server_required_port_conflict_owners(ARGV[1], ARGV[2], ARGV[3]);
 else if (mode == "inbound-item-json")
     write_inbound_item_json(slice(ARGV, 1));
-else if (mode == "inbounds-config-json")
-    write_inbounds_config_json(ARGV[1]);
-else if (mode == "inbounds-check-json")
-    write_inbounds_check_json(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5]);
 else if (mode == "service-status-json")
     write_service_status_json(ARGV[1], ARGV[2], ARGV[3], ARGV[4]);
-else if (mode == "service-status-running")
-    stdin_service_status_running();
 else if (mode == "service-list-instance-running")
     service_list_instance_running(ARGV[1]);
-else if (mode == "dns-check-json")
-    write_dns_check_json(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7]);
-else if (mode == "nft-check-json")
-    write_nft_check_json(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8]);
-else if (mode == "sing-box-check-json")
-    write_sing_box_check_json(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6]);
-else if (mode == "fakeip-check-json")
-    write_fakeip_check_json(ARGV[1], ARGV[2]);
-else if (mode == "fakeip-address-status")
-    fakeip_address_status(ARGV[1]);
 else if (mode == "mask-dns-server")
     mask_dns_server(ARGV[1]);
 else if (mode == "global-inbounds-check")
@@ -1714,18 +1426,6 @@ else if (mode == "nft-ruleset-other-mark-lines")
     nft_ruleset_other_mark_lines(ARGV[1]);
 else if (mode == "nft-chain-counter-status")
     nft_chain_counter_status();
-else if (mode == "file-first-line")
-    file_first_line(ARGV[1], ARGV[2]);
-else if (mode == "js-var-string-value")
-    js_var_string_value(ARGV[1], ARGV[2]);
-else if (mode == "key-value-file-value")
-    key_value_file_value(ARGV[1], ARGV[2]);
-else if (mode == "system-info-cache-valid")
-    exit(system_info_cache_valid(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5]) ? 0 : 1);
-else if (mode == "system-info-json")
-    system_info_json();
-else if (mode == "nfqws-strategy-validation")
-    nfqws_strategy_validation(ARGV[1], ARGV[2], ARGV[3], ARGV[4]);
 else if (mode == "mask-sing-box-config")
     mask_sing_box_config(ARGV[1]);
 else if (mode == "proxy-response-is-retryable-error")

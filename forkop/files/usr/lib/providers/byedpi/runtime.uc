@@ -1,6 +1,7 @@
 #!/usr/bin/env ucode
 
 let fs = require("fs");
+let provider_process = require("providers.process");
 let uci_core = require("core.uci");
 let runtime_constants = require("singbox.constants");
 let validator_module = null;
@@ -189,58 +190,18 @@ function standalone_service_running() {
     return fs.stat(BYEDPI_SERVICE_INIT) != null && command_success_from_args([ BYEDPI_SERVICE_INIT, "status" ]);
 }
 
-function runtime_pid_running(pid) {
-    pid = as_string(pid);
-    return match(pid, /^[0-9]+$/) != null && command_success_from_args([ "kill", "-0", pid ]);
-}
-
-function file_first_line(path) {
-    let data = fs.readfile(as_string(path));
-    if (data == null)
-        return "";
-    let newline = index(data, "\n");
-    return trim(newline >= 0 ? substr(data, 0, newline) : data);
-}
-
-function kill_pidfile_process(path, signal) {
-    let pid = file_first_line(path);
-    if (pid == "")
-        return;
-    if (signal == "9") {
-        if (runtime_pid_running(pid))
-            command_success_from_args([ "kill", "-9", pid ]);
-    }
-    else {
-        command_success_from_args([ "kill", pid ]);
-    }
-}
-
-function pidfiles_in_dir(path) {
-    if (fs.stat(path) == null)
-        return [];
-
-    let output = command_output_from_args([ "find", path, "-maxdepth", "1", "-type", "f", "-name", "*.pid" ]);
-    let result = [];
-    for (let line in split(output, "\n")) {
-        line = trim(as_string(line));
-        if (line != "")
-            push(result, line);
-    }
-    return result;
-}
-
 function stop_runtime() {
-    for (let pidfile in pidfiles_in_dir(BYEDPI_PID_DIR))
-        kill_pidfile_process(pidfile, "");
-    for (let pidfile in pidfiles_in_dir(BYEDPI_CHILD_PID_DIR))
-        kill_pidfile_process(pidfile, "");
+    for (let pidfile in provider_process.pidfiles_in_dir(BYEDPI_PID_DIR))
+        provider_process.kill_pidfile_process(pidfile, "");
+    for (let pidfile in provider_process.pidfiles_in_dir(BYEDPI_CHILD_PID_DIR))
+        provider_process.kill_pidfile_process(pidfile, "");
 
     command_success_from_args([ "sleep", "1" ]);
 
-    for (let pidfile in pidfiles_in_dir(BYEDPI_PID_DIR))
-        kill_pidfile_process(pidfile, "9");
-    for (let pidfile in pidfiles_in_dir(BYEDPI_CHILD_PID_DIR))
-        kill_pidfile_process(pidfile, "9");
+    for (let pidfile in provider_process.pidfiles_in_dir(BYEDPI_PID_DIR))
+        provider_process.kill_pidfile_process(pidfile, "9");
+    for (let pidfile in provider_process.pidfiles_in_dir(BYEDPI_CHILD_PID_DIR))
+        provider_process.kill_pidfile_process(pidfile, "9");
 
     command_success_from_args([ "rm", "-rf", BYEDPI_PID_DIR, BYEDPI_CHILD_PID_DIR, BYEDPI_LOG_DIR ]);
 }
@@ -300,13 +261,13 @@ function start_rule(section, index_value) {
     }
 
     command_success_from_args([ "sleep", "1" ]);
-    if (!runtime_pid_running(pid)) {
+    if (!provider_process.pid_running(pid)) {
         log_message("ciadpi failed to start for rule '" + name + "'. Check " + logfile + ". Aborted.", "error");
         exit(1);
     }
 
-    let child_pid = file_first_line(child_pidfile);
-    if (child_pid == "" || !runtime_pid_running(child_pid))
+    let child_pid = provider_process.file_first_line(child_pidfile);
+    if (child_pid == "" || !provider_process.pid_running(child_pid))
         log_message("ciadpi supervisor started for rule '" + name + "', but ciadpi is not running yet. Check " + logfile + ".", "warn");
 }
 
@@ -340,18 +301,6 @@ function start_runtime() {
         start_rule(section, index_value);
         index_value++;
     }
-}
-
-function live_pid_count(path) {
-    let count = 0;
-    for (let pidfile in pidfiles_in_dir(path)) {
-        let pid = file_first_line(pidfile);
-        if (runtime_pid_running(pid))
-            count++;
-        else
-            fs.unlink(pidfile);
-    }
-    return count;
 }
 
 function restart_count() {
@@ -390,16 +339,6 @@ function read_json_file(path) {
     }
 }
 
-function value_contains(value, needle) {
-    if (type(value) == "array") {
-        for (let item in value)
-            if (as_string(item) == needle)
-                return true;
-        return false;
-    }
-    return as_string(value) == needle;
-}
-
 function has_socks_outbound(config, tag, address, port) {
     for (let outbound in array_or_empty(config && config.outbounds)) {
         if (type(outbound) == "object" &&
@@ -407,17 +346,6 @@ function has_socks_outbound(config, tag, address, port) {
             outbound.tag == tag &&
             outbound.server == address &&
             int(outbound.server_port || 0) == int(port))
-            return true;
-    }
-    return false;
-}
-
-function has_route_rule(config, inbound, outbound) {
-    for (let rule in array_or_empty(config && config.route && config.route.rules)) {
-        if (type(rule) == "object" &&
-            rule.action == "route" &&
-            value_contains(rule.inbound, inbound) &&
-            value_contains(rule.outbound, outbound))
             return true;
     }
     return false;
@@ -436,7 +364,7 @@ function runtime_config_status(sections) {
         let port = rule_port(index_value);
         if (!has_socks_outbound(config, outbound, BYEDPI_LISTEN_ADDRESS, port))
             outbounds_configured = false;
-        if (!has_route_rule(config, SB_TPROXY_INBOUND_TAG, outbound))
+        if (!provider_process.has_route_rule(config, SB_TPROXY_INBOUND_TAG, outbound))
             routes_configured = false;
         index_value++;
     }
@@ -458,8 +386,8 @@ function status_json() {
         version = "unknown";
 
     let expected = length(sections);
-    let running = live_pid_count(BYEDPI_CHILD_PID_DIR);
-    let supervisors = live_pid_count(BYEDPI_PID_DIR);
+    let running = provider_process.live_pid_count(BYEDPI_CHILD_PID_DIR);
+    let supervisors = provider_process.live_pid_count(BYEDPI_PID_DIR);
     let restarts = restart_count();
     let standalone_enabled = standalone_service_enabled();
     let standalone_running = standalone_service_running();
@@ -539,7 +467,7 @@ else if (mode == "status")
     status_json();
 else if (mode == "check")
     check_json();
-else if (mode == "installed" || mode == "provider-available")
+else if (mode == "installed")
     exit(provider_available() ? 0 : 1);
 else if (mode == "package-installed")
     exit(package_installed() ? 0 : 1);

@@ -186,39 +186,12 @@ function path(value) {
     return value;
 }
 
-function query_params(value) {
-    let result = {};
-    value = as_string(value);
-    let question = index(value, "?");
-    if (question < 0)
-        return result;
-
-    let query = substr(value, question + 1);
-    let hash = index(query, "#");
-    if (hash >= 0)
-        query = substr(query, 0, hash);
-
-    for (let pair in split(query, "&")) {
-        if (pair == "")
-            continue;
-        let equals = index(pair, "=");
-        let key = decode(equals >= 0 ? substr(pair, 0, equals) : pair);
-        let value = equals >= 0 ? decode(substr(pair, equals + 1)) : "";
-        if (key != "")
-            result[key] = value;
-    }
-    return result;
-}
-
 return {
-    decode,
     encode,
     scheme,
     fragment,
-    strip_fragment,
     host,
     port,
     userinfo,
-    path,
-    query_params
+    path
 };

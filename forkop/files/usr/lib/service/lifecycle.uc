@@ -513,11 +513,6 @@ function mark_runtime_stopped_clean() {
     return status;
 }
 
-function setting_bool(name, fallback) {
-    let value = config_get(CONFIG_NAME + ".settings." + as_string(name), fallback ? "1" : "0");
-    return bool_text(value);
-}
-
 function dns_apply_status(args) {
     return module_status(DNS_APPLY_UC, args);
 }
@@ -526,18 +521,8 @@ function dns_apply_success(args) {
     return dns_apply_status(args) == 0;
 }
 
-function dnsmasq_configure(force) {
-    let args = [ "configure" ];
-    if (force)
-        push(args, "force");
-    return dns_apply_status(args);
-}
-
-function dnsmasq_restore(force) {
-    let args = [ "restore" ];
-    if (force)
-        push(args, "force");
-    return dns_apply_status(args);
+function dnsmasq_restore() {
+    return dns_apply_status([ "restore" ]);
 }
 
 function dnsmasq_restore_fail_safe() {
@@ -738,13 +723,8 @@ function start_impl() {
     if (status != 0)
         return status;
 
-    if (!setting_bool("dont_touch_dhcp", false)) {
-        status = dnsmasq_configure(false);
-        if (status != 0)
-            return status;
-    }
-    else if (dnsmasq_has_forkop_managed_state()) {
-        status = dnsmasq_restore(true);
+    if (dnsmasq_has_forkop_managed_state()) {
+        status = dnsmasq_restore();
         if (status != 0)
             return status;
     }
@@ -928,13 +908,8 @@ function stop_impl() {
         log_message("Failed to mark the planned sing-box stop", "warn");
     module_success(SINGBOX_WATCH_UC, [ "stop-worker" ]);
 
-    if (!setting_bool("dont_touch_dhcp", false)) {
-        let dns_status = dnsmasq_restore(false);
-        if (dns_status != 0)
-            status = dns_status;
-    }
-    else if (dnsmasq_has_forkop_managed_state()) {
-        let dns_status = dnsmasq_restore(true);
+    if (dnsmasq_has_forkop_managed_state()) {
+        let dns_status = dnsmasq_restore();
         if (dns_status != 0)
             status = dns_status;
     }
@@ -1026,7 +1001,6 @@ function parse_reload_plan(output) {
         needs_zapret_restart: 0,
         needs_zapret2_restart: 0,
         needs_byedpi_restart: 0,
-        needs_dnsmasq_configure: 0,
         needs_dnsmasq_restore: 0,
         needs_cron_refresh: 0,
         has_work: 0
@@ -1060,7 +1034,7 @@ function reload_actions_summary(plan) {
     actions = append_reload_action(actions, plan.needs_zapret_restart, "Zapret");
     actions = append_reload_action(actions, plan.needs_zapret2_restart, "Zapret2");
     actions = append_reload_action(actions, plan.needs_byedpi_restart, "ByeDPI");
-    actions = append_reload_action(actions, plan.needs_dnsmasq_configure || plan.needs_dnsmasq_restore, "dnsmasq");
+    actions = append_reload_action(actions, plan.needs_dnsmasq_restore, "dnsmasq");
     actions = append_reload_action(actions, plan.needs_cron_refresh, "scheduled jobs");
     return actions;
 }
@@ -1221,13 +1195,7 @@ function reload_impl(reason) {
     if (plan.needs_byedpi_restart == 1)
         module_success(BYEDPI_UC, [ "start-runtime" ]);
 
-    if (plan.needs_dnsmasq_configure == 1) {
-        status = dnsmasq_configure(true);
-        if (status != 0)
-            return abort_reload(status, true);
-        module_success(STATE_UC, [ "capture-reload-state", RELOAD_STATE_SNAPSHOT_FILE, as_string(RELOAD_STATE_FORMAT) ]);
-    }
-    else if (plan.needs_dnsmasq_restore == 1) {
+    if (plan.needs_dnsmasq_restore == 1) {
         status = dnsmasq_restore(true);
         if (status != 0)
             return abort_reload(status, true);

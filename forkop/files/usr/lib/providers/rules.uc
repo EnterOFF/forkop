@@ -154,10 +154,6 @@ else if (mode == "count-uci")
     action_rule_count(ARGV[1], "uci");
 else if (mode == "index")
     action_rule_index(ARGV[1], ARGV[2]);
-else if (mode == "index-uci")
-    action_rule_index(ARGV[1], ARGV[2], "uci");
-else if (mode == "has-enabled-uci")
-    exit(action_rule_count_from_rows(uci_rule_rows(), ARGV[1]) > 0 ? 0 : 1);
 else if (mode == "mark-value")
     mark_value(ARGV[1], ARGV[2]);
 else if (mode == "mark-hex")

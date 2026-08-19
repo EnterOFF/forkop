@@ -248,7 +248,7 @@ function renderSubscriptionUpdateAction(
   );
 }
 
-export function getOutboundLatencyClass(latency: number) {
+function getOutboundLatencyClass(latency: number) {
   if (!latency) {
     return 'fkp_dashboard-page__outbound-grid__item__latency--empty';
   }

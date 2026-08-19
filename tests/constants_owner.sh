@@ -62,4 +62,17 @@ grep -Fq "export const FAKEIP_CHECK_DOMAIN = 'fakeip.podkop.fyi';" "$FRONTEND_CO
 grep -Fq "export const IP_CHECK_DOMAIN = 'ip.podkop.fyi';" "$FRONTEND_CONSTANTS" ||
   fail "LuCI diagnostics must use the deployed public IP endpoint"
 
+# The generator writes external_controller and the diagnostics dial it, from
+# two different constant tables, so they have to name the same port.
+generator_port="$(ucode -L "$FORKOP_LIB" -e '
+  let c = require("singbox.constants");
+  print(c.CLASH_API_CONTROLLER_PORT, "
+");
+')"
+[ "$generator_port" = "$(ucode -L "$FORKOP_LIB" "$CONSTANTS_UC" get SB_CLASH_API_CONTROLLER_PORT)" ] ||
+  fail "sing-box and diagnostics disagree on the Clash API controller port"
+if grep -Fq '":9090"' "$FORKOP_LIB/singbox/generator.uc"; then
+  fail "the generator must take the Clash API port from singbox/constants.uc"
+fi
+
 printf 'constants ownership checks passed\n'

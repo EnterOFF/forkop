@@ -142,7 +142,6 @@ return {
     valid_ipv4,
     valid_ipv4_cidr,
     valid_ipv6,
-    valid_ipv6_cidr,
     valid_ip,
     valid_ip_cidr,
     valid_ip_or_cidr,

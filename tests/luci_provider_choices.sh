@@ -14,7 +14,7 @@ const helpers = source.match(
 );
 assert(helpers, 'native provider choice helpers not found');
 const choiceLoader = source.match(
-  /function loadOutboundNameChoices\([\s\S]*?\nfunction subscriptionProviderIndex\(/,
+  /function loadOutboundNameChoices\([\s\S]*?\nfunction normalizeDynamicListItems\(/,
 );
 assert(choiceLoader, 'outbound choice loader not found');
 const draftNames = source.match(
@@ -81,7 +81,7 @@ function readOutboundChoiceState() {
   });
 }
 function refreshDashboardFilterChoiceWidgets() {}
-eval(choiceLoader[0].slice(0, -'\nfunction subscriptionProviderIndex('.length));
+eval(choiceLoader[0].slice(0, -'\nfunction normalizeDynamicListItems('.length));
 
 function normalizeDynamicListItems(value) {
   return (Array.isArray(value) ? value : [value])
@@ -228,7 +228,7 @@ assert.deepStrictEqual(nativeProviderOutboundNames([providerTag], payload), [
   assert.strictEqual(calls.length, callsBeforeEmptyLookup);
 
   response = Promise.resolve({ stdout: transport(payload) });
-  assert.deepStrictEqual(await loadOutboundNameChoices('main'), [
+  assert.deepStrictEqual(await loadSectionOutboundNameChoices('main'), [
     'Main DE',
     'Main US',
   ]);
@@ -259,11 +259,11 @@ assert.deepStrictEqual(nativeProviderOutboundNames([providerTag], payload), [
   outboundNameChoicesCache.clear();
   outboundNameChoicesEmptyAt.clear();
   response = Promise.resolve({ stdout: transport({ providers: {} }) });
-  assert.deepStrictEqual(await loadOutboundNameChoices('main'), []);
+  assert.deepStrictEqual(await loadSectionOutboundNameChoices('main'), []);
   outboundNameChoicesEmptyAt.set('main', Date.now() - OUTBOUND_NAME_CHOICES_EMPTY_TTL_MS - 1);
   response = Promise.resolve({ stdout: transport(payload) });
   assert.deepStrictEqual(
-    await loadOutboundNameChoices('main'),
+    await loadSectionOutboundNameChoices('main'),
     ['Main DE', 'Main US'],
     'an expired empty result must be looked up again',
   );
@@ -272,7 +272,7 @@ assert.deepStrictEqual(nativeProviderOutboundNames([providerTag], payload), [
     'provider tags must be derived from the displayed section name and subscription tag');
   assert.match(
     source,
-    /loadNativeProviderOutboundNames\(\[state\.providerTags\[providerIndex\]\]\)/,
+    /\[state\.providerTags\[providerIndex\]\]/,
     'subscription settings must load only their own native provider',
   );
   assert.match(

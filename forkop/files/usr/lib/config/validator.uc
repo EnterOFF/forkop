@@ -7,55 +7,30 @@ let zapret_validator_module = null;
 let zapret2_validator_module = null;
 let byedpi_validator_module = null;
 let constants_module = null;
+let core_common = require("core.common");
 let core_url = require("core.url");
 let core_ip = require("core.ip");
 let rule_config = require("config.rule");
+let core_version = require("core.version");
 let connections = require("config.connections");
 let singbox_constants = require("singbox.constants");
 let runtime_dns = require("singbox.dns");
 let subscription_headers_module = require("singbox.subscription_headers");
+
+let as_string = core_common.as_string;
+let read_stdin = core_common.read_stdin;
+let read_json_file = core_common.read_json_file;
+let object_or_empty = core_common.object_or_empty;
+let array_or_empty = core_common.array_or_empty;
+let option = core_common.option;
+let list_option = core_common.list_option;
+let bool_option = core_common.bool_option;
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
 const SING_BOX_FORKOP_VERSION_FILE = getenv("SING_BOX_FORKOP_VERSION_FILE") || "/usr/share/sing-box-forkop/version";
 const DEFAULT_LATENCY_TEST_URL = "https://www.gstatic.com/generate_204";
 const TAILSCALE_FWMARK_MASK = 0x00ff0000;
-
-function as_string(value) {
-    return value == null ? "" : "" + value;
-}
-
-function read_stdin() {
-    let input = fs.open("/dev/stdin", "r");
-    if (!input)
-        return "";
-    let data = input.read("all");
-    input.close();
-    return data == null ? "" : data;
-}
-
-function read_stdin_json() {
-    let data = read_stdin();
-    try {
-        return json(data);
-    }
-    catch (e) {
-        return null;
-    }
-}
-
-function read_json_file(path) {
-    let data = fs.readfile(as_string(path));
-    if (data == null)
-        return null;
-
-    try {
-        return json(data);
-    }
-    catch (e) {
-        return null;
-    }
-}
 
 function string_starts_with(value, prefix) {
     value = as_string(value);
@@ -90,50 +65,11 @@ function list_has_value(values, needle) {
     return false;
 }
 
-function object_or_empty(value) {
-    return type(value) == "object" ? value : {};
-}
-
-function array_or_empty(value) {
-    return type(value) == "array" ? value : [];
-}
-
 function contains(values, needle) {
     for (let value in array_or_empty(values))
         if (value == needle)
             return true;
     return false;
-}
-
-function option(section, key, fallback) {
-    if (fallback == null)
-        fallback = "";
-
-    let value = object_or_empty(section)[key];
-    if (value == null)
-        return fallback;
-    if (type(value) == "array")
-        return join(" ", value);
-    return as_string(value);
-}
-
-function list_option(section, key) {
-    let value = object_or_empty(section)[key];
-    if (value == null)
-        return [];
-    if (type(value) == "array")
-        return value;
-
-    value = trim(as_string(value));
-    return value == "" ? [] : split(value, " ");
-}
-
-function bool_option(section, key, fallback) {
-    if (fallback == null)
-        fallback = false;
-
-    let value = option(section, key, fallback ? "1" : "0");
-    return value == "1" || value == "true" || value == "yes" || value == "on";
 }
 
 function file_executable(path) {
@@ -228,91 +164,8 @@ function first_line_field_from_text(data, field_index) {
     return field_index > 0 && field_index <= length(fields) ? as_string(fields[field_index - 1]) : "";
 }
 
-function digit_char(value) {
-    return match(as_string(value), /^[0-9]$/) != null;
-}
-
-function strip_leading_zeroes(value) {
-    value = as_string(value);
-    let i = 0;
-    while (i < length(value) - 1 && substr(value, i, 1) == "0")
-        i++;
-    return substr(value, i);
-}
-
-function version_compare(lhs, rhs) {
-    lhs = as_string(lhs);
-    rhs = as_string(rhs);
-
-    let li = 0, ri = 0;
-    while (li < length(lhs) || ri < length(rhs)) {
-        if (li >= length(lhs))
-            return substr(rhs, ri, 1) == "~" ? 1 : -1;
-        if (ri >= length(rhs))
-            return substr(lhs, li, 1) == "~" ? -1 : 1;
-
-        let lc = substr(lhs, li, 1);
-        let rc = substr(rhs, ri, 1);
-        if (lc == rc) {
-            li++;
-            ri++;
-            continue;
-        }
-
-        if (lc == "~" || rc == "~")
-            return lc == "~" ? -1 : 1;
-
-        if (digit_char(lc) && digit_char(rc)) {
-            let ls = li, rs = ri;
-            while (li < length(lhs) && digit_char(substr(lhs, li, 1)))
-                li++;
-            while (ri < length(rhs) && digit_char(substr(rhs, ri, 1)))
-                ri++;
-
-            let lnum = strip_leading_zeroes(substr(lhs, ls, li - ls));
-            let rnum = strip_leading_zeroes(substr(rhs, rs, ri - rs));
-            if (length(lnum) != length(rnum))
-                return length(lnum) < length(rnum) ? -1 : 1;
-            if (lnum != rnum)
-                return lnum < rnum ? -1 : 1;
-            continue;
-        }
-
-        return lc < rc ? -1 : 1;
-    }
-
-    return 0;
-}
-
-function version_at_least(current, required) {
-    return version_compare(current, required) >= 0;
-}
-
 function constant_value(constants, name) {
     return as_string(object_or_empty(constants)[name]);
-}
-
-function uci_show_list_value(value) {
-    return trim(replace(as_string(value), /['"]/g, ""));
-}
-
-function stdin_first_line_field(field_index) {
-    let data = read_stdin();
-    let newline = index(data, "\n");
-    let line = newline >= 0 ? substr(data, 0, newline) : data;
-    let fields = split(trim(as_string(line)), /[ \t\r\n]+/);
-
-    field_index = int(field_index || 0);
-    if (field_index > 0 && field_index <= length(fields))
-        print(fields[field_index - 1], "\n");
-}
-
-function enum_valid(value, start_index) {
-    value = as_string(value);
-    for (let i = start_index; i < length(ARGV); i++)
-        if (value == as_string(ARGV[i]))
-            return true;
-    return false;
 }
 
 function regex_valid(pattern) {
@@ -373,29 +226,13 @@ function ruleset_reference_valid(reference, community_services) {
         absolute_reference(reference);
 }
 
-function valid_outbound() {
-    let value = read_stdin_json();
-    return type(value) == "object" && type(value.type) == "string";
-}
-
-function valid_inbound() {
-    let value = read_stdin_json();
-    return type(value) == "object" && type(value.type) == "string";
-}
-
 function bool_flag(value) {
     value = as_string(value);
     return value == "1" || value == "true";
 }
 
-function outbound_detour_source_action(action) {
-    action = as_string(action);
-    return connections.is_connections_action(action);
-}
-
-function outbound_detour_target_action(action) {
-    action = as_string(action);
-    return connections.is_connections_action(action);
+function outbound_detour_action(action) {
+    return connections.is_connections_action(as_string(action));
 }
 
 function outbound_detour_rows() {
@@ -446,7 +283,7 @@ function outbound_detour_chain_reaches_source(by_section, source_section, curren
         seen[current_section] = true;
 
         let row = by_section[current_section];
-        if (type(row) != "object" || !row.enabled || !outbound_detour_source_action(row.action))
+        if (type(row) != "object" || !row.enabled || !outbound_detour_action(row.action))
             return false;
 
         if (!row.detour_enabled)
@@ -456,11 +293,6 @@ function outbound_detour_chain_reaches_source(by_section, source_section, curren
     }
 
     return false;
-}
-
-function fail_outbound_detour(message) {
-    print(message, "\n");
-    exit(1);
 }
 
 function fail_validation(message) {
@@ -475,32 +307,32 @@ function validate_outbound_detours_rows(rows) {
         if (!row.enabled || !row.detour_enabled)
             continue;
 
-        if (!outbound_detour_source_action(row.action))
-            fail_outbound_detour("Outbound cascade is supported only for Connection rules, but rule '" +
+        if (!outbound_detour_action(row.action))
+            fail_validation("Outbound cascade is supported only for Connection rules, but rule '" +
                 row.section + "' uses action '" + row.action + "'. Aborted.");
 
         if (row.detour_section == "")
-            fail_outbound_detour("Outbound cascade is enabled for rule '" + row.section +
+            fail_validation("Outbound cascade is enabled for rule '" + row.section +
                 "', but no intermediate rule is selected. Aborted.");
 
         if (row.detour_section == row.section)
-            fail_outbound_detour("Outbound cascade for rule '" + row.section + "' cannot point to itself. Aborted.");
+            fail_validation("Outbound cascade for rule '" + row.section + "' cannot point to itself. Aborted.");
 
         let target = parsed.by_section[row.detour_section];
         if (type(target) != "object")
-            fail_outbound_detour("Outbound cascade for rule '" + row.section + "' references missing rule '" +
+            fail_validation("Outbound cascade for rule '" + row.section + "' references missing rule '" +
                 row.detour_section + "'. Select an enabled Connection rule or disable cascade connection. Aborted.");
 
         if (!target.enabled)
-            fail_outbound_detour("Outbound cascade for rule '" + row.section + "' references disabled rule '" +
+            fail_validation("Outbound cascade for rule '" + row.section + "' references disabled rule '" +
                 row.detour_section + "'. Select an enabled Connection rule or disable cascade connection. Aborted.");
 
-        if (!outbound_detour_target_action(target.action))
-            fail_outbound_detour("Outbound cascade for rule '" + row.section + "' references rule '" +
+        if (!outbound_detour_action(target.action))
+            fail_validation("Outbound cascade for rule '" + row.section + "' references rule '" +
                 row.detour_section + "', but it is not a Connection rule. Select an enabled Connection rule or disable cascade connection. Aborted.");
 
         if (outbound_detour_chain_reaches_source(parsed.by_section, row.section, row.detour_section))
-            fail_outbound_detour("Outbound cascade for rule '" + row.section + "' creates a cycle through '" +
+            fail_validation("Outbound cascade for rule '" + row.section + "' creates a cycle through '" +
                 row.detour_section + "'. Aborted.");
 
     }
@@ -591,51 +423,6 @@ function dhcp_has_https_dns_proxy_options(path) {
     return index(data, "doh_backup_noresolv") >= 0 ||
         index(data, "doh_backup_server") >= 0 ||
         index(data, "doh_server") >= 0;
-}
-
-function dhcp_has_https_dns_proxy_options_exit(path) {
-    let result = dhcp_has_https_dns_proxy_options(path);
-    exit(result == null ? 2 : (result ? 0 : 1));
-}
-
-function mwan3_has_enabled_interface_text(data) {
-    let prefix = "mwan3.";
-    let sections = {};
-    let enabled = {};
-
-    for (let line in split(as_string(data), "\n")) {
-        let equals = index(as_string(line), "=");
-        if (equals < 0)
-            continue;
-
-        let key = substr(line, 0, equals);
-        let value = uci_show_list_value(substr(line, equals + 1));
-        if (!string_starts_with(key, prefix))
-            continue;
-
-        let rest = substr(key, length(prefix));
-        if (index(rest, ".") < 0) {
-            if (value == "interface")
-                sections[key] = true;
-            continue;
-        }
-
-        let option_dot = rindex(key, ".");
-        let section = substr(key, 0, option_dot);
-        let option = substr(key, option_dot + 1);
-        if (option == "enabled")
-            enabled[section] = value;
-    }
-
-    for (let section, _ in sections)
-        if (enabled[section] == "1")
-            return true;
-
-    return false;
-}
-
-function mwan3_has_enabled_interface() {
-    return mwan3_has_enabled_interface_text(read_stdin());
 }
 
 function mwan3_has_enabled_interface_from_sections() {
@@ -819,42 +606,11 @@ function server_routing_section_action_supported(action) {
     return contains([ "connection", "proxy", "outbound", "vpn", "zapret", "zapret2", "byedpi" ], as_string(action));
 }
 
-function duration_to_seconds_value(value) {
-    let rest = as_string(value);
-    if (rest == "")
-        return null;
-
-    let total = 0.0;
-    let multipliers = {
-        ns: 0.000000001,
-        us: 0.000001,
-        ms: 0.001,
-        s: 1,
-        m: 60,
-        h: 3600,
-        d: 86400
-    };
-
-    while (rest != "") {
-        let matched = match(rest, /^([0-9]+(\.[0-9]+)?)(ns|us|ms|s|m|h|d)/);
-        if (!matched)
-            return null;
-
-        let token = as_string(matched[0]);
-        let amount = matched[1] * 1;
-        let unit = matched[3];
-        total += amount * multipliers[unit];
-        rest = substr(rest, length(token));
-    }
-
-    return total <= 0 ? null : int(total + 0.5);
-}
-
 function validate_duration_option(value, label) {
     if (as_string(value) == "")
         return;
 
-    if (duration_to_seconds_value(value) != null)
+    if (core_common.duration_to_seconds(value) != null)
         return;
 
     fail_validation("Invalid duration value for " + label + ": " + value + ". Use sing-box duration format like 1d, 12h or 30m. Aborted.");
@@ -935,34 +691,10 @@ function validate_dns_settings(settings, sections, context) {
         fail_validation("DNS through a section references rule '" + target_name + "' with unsupported action '" + target.action + "'. Select an enabled Connection, VPN, Zapret, Zapret2, or ByeDPI section. Aborted.");
 }
 
-function normalize_port_number_value(value) {
-    value = trim(as_string(value));
-    if (value == "" || match(value, /^[0-9]+$/) == null)
-        return null;
-
-    let number = int(value);
-    return number >= 1 && number <= 65535 ? number : null;
-}
-
-function normalize_port_condition_value(value) {
-    value = trim(as_string(value));
-    if (value == "")
-        return null;
-
-    let dash = index(value, "-");
-    if (dash < 0)
-        return normalize_port_number_value(value);
-
-    let start = normalize_port_number_value(substr(value, 0, dash));
-    let end = normalize_port_number_value(substr(value, dash + 1));
-    if (start == null || end == null || start > end)
-        return null;
-
-    return start == end ? start : sprintf("%d-%d", start, end);
-}
-
+// config/rule.uc turns these into the CSV the ruleset and the generated config
+// are built from, so what it can normalize is exactly what may be accepted.
 function validate_port_condition_value(value, section) {
-    if (normalize_port_condition_value(value) != null)
+    if (rule_config.normalize_port_condition_value(value) != null)
         return;
 
     fail_validation("Invalid port condition '" + value + "' in rule '" + section + "'. Use a single port or range like 80 or 1000-2000. Aborted.");
@@ -1122,7 +854,7 @@ function validate_fallback_group(section, group_id) {
     if (!expected_status_valid(expected_status))
         fail_validation("Fallback group '" + group_id + "' in rule '" + name + "' has an invalid expected_status value. Use *, status codes, or ranges such as 204/200-299. Aborted.");
     validate_required_duration_option(idle_timeout, option_prefix + "idle_timeout");
-    if (duration_to_seconds_value(health_check_interval) > duration_to_seconds_value(idle_timeout))
+    if (core_common.duration_to_seconds(health_check_interval) > core_common.duration_to_seconds(idle_timeout))
         fail_validation("Fallback group '" + group_id + "' in rule '" + name + "' has a health check interval longer than its idle timeout. Increase the idle timeout or shorten the health check interval. Aborted.");
 
     let levels = connections.fallback_levels(group_id);
@@ -1490,6 +1222,10 @@ function validate_subscription_override(section, entry) {
     if (connect_timeout != "")
         validate_required_duration_option(connect_timeout, "rule." + name + ".override_connect_timeout");
 
+    let multiplex_protocol = trim(as_string(settings.multiplex_protocol));
+    if (multiplex_protocol != "" && !contains([ "smux", "yamux", "h2mux" ], multiplex_protocol))
+        fail_validation("Invalid multiplexing protocol '" + multiplex_protocol + "' in " + context + ". Aborted.");
+
     let max_streams = trim(as_string(settings.multiplex_max_streams));
     if (max_streams != "" && match(max_streams, /^[0-9]+$/) == null)
         fail_validation("Multiplex stream limit in " + context + " must be a number. Aborted.");
@@ -1713,7 +1449,7 @@ function validate_rule(section, sections, context) {
             let effective_idle_timeout = idle_timeout != ""
                 ? idle_timeout
                 : as_string(singbox_constants.URLTEST_DEFAULT_IDLE_TIMEOUT || "30m");
-            if (duration_to_seconds_value(check_interval) > duration_to_seconds_value(effective_idle_timeout))
+            if (core_common.duration_to_seconds(check_interval) > core_common.duration_to_seconds(effective_idle_timeout))
                 fail_validation("URLTest '" + urltest_id + "' in rule '" + name + "' has a check interval longer than its idle timeout. Increase the idle timeout or shorten the check interval. Aborted.");
 
             let filter_mode = connections.urltest_filter_mode(section, urltest_id);
@@ -1768,42 +1504,6 @@ function validate_rule(section, sections, context) {
     validate_common_rule_references(section, context);
     if (connections.is_connections_action(action) && !connections.has_connection_sources(section))
         log_message("Connection rule '" + name + "' has no configured outbounds.", "error");
-}
-
-function download_via_proxy_option_for_purpose(purpose) {
-    purpose = as_string(purpose || "lists");
-    if (purpose == "lists")
-        return "download_lists_via_proxy";
-    if (purpose == "components")
-        return "download_components_via_proxy";
-    return "";
-}
-
-function download_via_proxy_section_option_for_purpose(purpose) {
-    purpose = as_string(purpose || "lists");
-    if (purpose == "lists")
-        return "download_lists_via_proxy_section";
-    if (purpose == "components")
-        return "download_components_via_proxy_section";
-    return "";
-}
-
-function download_via_proxy_section(settings, purpose) {
-    let enabled_option = download_via_proxy_option_for_purpose(purpose);
-    if (enabled_option == "" || !bool_option(settings, enabled_option, false))
-        return "";
-
-    let section_option = download_via_proxy_section_option_for_purpose(purpose);
-    let configured = section_option != "" ? option(settings, section_option, "") : "";
-    if (configured != "")
-        return configured;
-
-    return option(settings, "download_lists_via_proxy_section", "");
-}
-
-function download_via_proxy_enabled(settings, purpose) {
-    let enabled_option = download_via_proxy_option_for_purpose(purpose);
-    return enabled_option != "" && bool_option(settings, enabled_option, false);
 }
 
 function basic_rows_from_sections(sections) {
@@ -1971,18 +1671,18 @@ function validate_runtime_config(context) {
     validate_native_rule_set_update_settings(settings);
     validate_http_url_option(option(settings, "latency_test_url", DEFAULT_LATENCY_TEST_URL) || DEFAULT_LATENCY_TEST_URL, "settings.latency_test_url");
 
-    if (download_via_proxy_enabled(settings, "lists")) {
+    if (connections.download_via_proxy_enabled(settings, "lists")) {
         validate_download_section_rows(
-            download_via_proxy_section(settings, "lists"),
+            connections.download_via_proxy_section(settings, "lists"),
             context.byedpi_installed,
             context.zapret_installed,
             context.zapret2_installed,
             basic_rows_from_sections(sections)
         );
     }
-    if (download_via_proxy_enabled(settings, "components")) {
+    if (connections.download_via_proxy_enabled(settings, "components")) {
         validate_download_section_rows(
-            download_via_proxy_section(settings, "components"),
+            connections.download_via_proxy_section(settings, "components"),
             context.byedpi_installed,
             context.zapret_installed,
             context.zapret2_installed,
@@ -2157,7 +1857,7 @@ function check_runtime_requirements() {
         fail_requirement("Binary 'sing-box' is not available. Reinstall sing-box-forkop. Aborted.", "error");
     if (sing_box_version == "")
         fail_requirement("Failed to read sing-box-forkop version. Reinstall sing-box-forkop. Aborted.", "error");
-    else if (!version_at_least(sing_box_version, ctx.sing_box_required_version)) {
+    else if (!core_version.version_at_least(sing_box_version, ctx.sing_box_required_version)) {
         fail_requirement("Package 'sing-box-forkop' version (" + sing_box_version + ") is lower than the required minimum (" + ctx.sing_box_required_version + "). Update it from Forkop Components. Aborted.", "error");
     }
 
@@ -2166,7 +1866,7 @@ function check_runtime_requirements() {
 
     if (coreutils_base64_version == "")
         fail_requirement("Package 'coreutils-base64' is not installed. Aborted.", "error");
-    else if (!version_at_least(coreutils_base64_version, ctx.coreutils_base64_required_version))
+    else if (!core_version.version_at_least(coreutils_base64_version, ctx.coreutils_base64_required_version))
         log_message("Package 'coreutils-base64' version (" + coreutils_base64_version + ") is lower than the required minimum (" + ctx.coreutils_base64_required_version + "). This may cause issues when decoding base64 streams with missing padding, as automatic padding support is not available in older versions.", "warn");
 
     if (dhcp_has_https_dns_proxy_options("/etc/config/dhcp") === true)
@@ -2225,32 +1925,14 @@ function context_from_json(value, defaults) {
 
 let mode = ARGV[0] || "";
 
-if (mode == "stdin-first-line-field")
-    stdin_first_line_field(ARGV[1]);
-else if (mode == "enum-valid")
-    exit(enum_valid(ARGV[1], 2) ? 0 : 1);
-else if (mode == "regex-valid")
-    exit(regex_valid(ARGV[1]) ? 0 : 1);
-else if (mode == "combined-domain-valid")
-    exit(combined_domain_valid(ARGV[1]) ? 0 : 1);
-else if (mode == "combined-domain-text-valid")
-    exit(combined_domain_text_valid(ARGV[1]) ? 0 : 1);
-else if (mode == "community-service-valid")
+if (mode == "community-service-valid")
     exit(community_service_valid(ARGV[1], ARGV[2]) ? 0 : 1);
 else if (mode == "ruleset-reference-valid")
     exit(ruleset_reference_valid(ARGV[1], ARGV[2]) ? 0 : 1);
-else if (mode == "valid-outbound")
-    exit(valid_outbound() ? 0 : 1);
-else if (mode == "valid-inbound")
-    exit(valid_inbound() ? 0 : 1);
 else if (mode == "validate-outbound-detours")
     validate_outbound_detours();
 else if (mode == "validate-download-section")
     validate_download_section(ARGV[1], ARGV[2], ARGV[3], ARGV[4]);
-else if (mode == "dhcp-has-https-dns-proxy-options")
-    dhcp_has_https_dns_proxy_options_exit(ARGV[1]);
-else if (mode == "mwan3-has-enabled-interface")
-    exit(mwan3_has_enabled_interface() ? 0 : 1);
 else if (mode == "mwan3-is-active")
     exit(mwan3_is_active() ? 0 : 1);
 else if (mode == "check-requirements")

@@ -76,7 +76,7 @@ require_pattern '[ "release-runtime-dir-lock", START_LOCK_DIR, pid ]' \
 awk '
   /function restart_runtime_for_reload_locked\(\)/ { in_restart = 1 }
   in_restart && /status = start_impl\(\);/ { saw_start_impl = 1 }
-  in_restart && /dnsmasq_configure\(true\)/ { duplicated_dns = 1 }
+  in_restart && /dnsmasq_restore\(\)/ { duplicated_dns = 1 }
   in_restart && /write-current-reload-state-clean/ { duplicated_state = 1 }
   in_restart && /^}/ { done = 1; exit }
   END { exit done && saw_start_impl && !duplicated_dns && !duplicated_state ? 0 : 1 }

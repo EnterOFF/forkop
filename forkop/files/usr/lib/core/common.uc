@@ -81,16 +81,45 @@ function strip_internal_fields(value) {
     return value;
 }
 
+// Go duration syntax, which is what sing-box accepts for every interval and
+// timeout Forkop passes through: a sequence of amount+unit pairs such as
+// "3m", "1h30m" or "1.5s". Returns whole seconds, or null when the text is not
+// a duration at all.
+function duration_to_seconds(value) {
+    let rest = as_string(value);
+    if (rest == "")
+        return null;
+
+    let total = 0.0;
+    let multipliers = {
+        ns: 0.000000001,
+        us: 0.000001,
+        ms: 0.001,
+        s: 1,
+        m: 60,
+        h: 3600,
+        d: 86400
+    };
+
+    while (rest != "") {
+        let matched = match(rest, /^([0-9]+(\.[0-9]+)?)(ns|us|ms|s|m|h|d)/);
+        if (!matched)
+            return null;
+
+        let token = as_string(matched[0]);
+        total += (matched[1] * 1) * multipliers[matched[3]];
+        rest = substr(rest, length(token));
+    }
+
+    return total <= 0 ? null : int(total + 0.5);
+}
+
 function array_or_empty(value) {
     return type(value) == "array" ? value : [];
 }
 
 function object_or_empty(value) {
     return type(value) == "object" ? value : {};
-}
-
-function object_key_count(value) {
-    return type(value) == "object" ? length(keys(value)) : 0;
 }
 
 function option(section, key, fallback) {
@@ -134,13 +163,12 @@ return {
     read_stdin,
     read_stdin_json,
     write_json,
-    write_compact_string_array,
     csv_to_json_array,
     write_json_file,
     strip_internal_fields,
+    duration_to_seconds,
     array_or_empty,
     object_or_empty,
-    object_key_count,
     option,
     list_option,
     bool_option,

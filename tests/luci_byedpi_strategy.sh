@@ -42,7 +42,7 @@ assert.strictEqual(
 );
 
 const analysis = source.match(
-  /function buildByedpiLocalAnalysis\([\s\S]*?\nfunction analyzeByedpiStrategy\(/,
+  /function buildByedpiLocalAnalysis\([\s\S]*?\nconst analyzeByedpiStrategy /,
 );
 assert(analysis, 'ByeDPI local analysis not found');
 assert.match(
@@ -54,6 +54,19 @@ assert.match(
   analysis[0],
   /unterminated %s quote/,
   'ByeDPI analysis must explain an unterminated quote',
+);
+
+// The backend matches its needle against quote-stripped argv, so the analyzer
+// that renders a backend rejection has to tokenize the same way the local one
+// does - not on plain whitespace.
+const wiring = source.match(
+  /const analyzeByedpiStrategy = createStrategyAnalyzer\([\s\S]*?\);/,
+);
+assert(wiring, 'ByeDPI analyzer wiring not found');
+assert.match(
+  wiring[0],
+  /parseByedpiStrategyTokens\(text\)\.tokens/,
+  'ByeDPI backend annotations must use the quote-aware tokenizer',
 );
 NODE
 

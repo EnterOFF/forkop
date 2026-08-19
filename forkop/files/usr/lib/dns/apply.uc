@@ -88,10 +88,6 @@ function dnsmasq_default_has_forkop_dns() {
     return list_has(dnsmasq_default_servers(), SB_DNS_INBOUND_ADDRESS);
 }
 
-function dnsmasq_has_forkop_dns() {
-    return dnsmasq_default_has_forkop_dns() || dnsmasq_legacy_instance_exists();
-}
-
 function dnsmasq_has_forkop_managed_state() {
     return dnsmasq_default_has_forkop_dns() ||
         uci_get("dhcp.@dnsmasq[0].forkop_server") != "" ||
@@ -104,10 +100,6 @@ function dnsmasq_has_forkop_managed_state() {
 
 function dnsmasq_management_disabled() {
     return truthy(uci_get(CONFIG_NAME + ".settings.dont_touch_dhcp"));
-}
-
-function dnsmasq_default_config_is_complete() {
-    return !dnsmasq_has_forkop_managed_state();
 }
 
 function dnsmasq_legacy_interfaces() {
@@ -132,18 +124,15 @@ function restore_dnsmasq_rebind_protection(managed_global_dns) {
     uci_delete("dhcp.@dnsmasq[0].forkop_rebind_protection");
 }
 
-function restore_dnsmasq_config_option(key, backup_key, default_value) {
+function restore_dnsmasq_config_option(key, backup_key) {
     let value = uci_get("dhcp.@dnsmasq[0]." + backup_key);
-    if (value != "") {
-        uci_set("dhcp.@dnsmasq[0]." + key, value);
-        uci_delete("dhcp.@dnsmasq[0]." + backup_key);
-    }
-    else if (as_string(default_value) != "") {
-        uci_set("dhcp.@dnsmasq[0]." + key, default_value);
-    }
-    else {
+    if (value == "") {
         uci_delete("dhcp.@dnsmasq[0]." + key);
+        return;
     }
+
+    uci_set("dhcp.@dnsmasq[0]." + key, value);
+    uci_delete("dhcp.@dnsmasq[0]." + backup_key);
 }
 
 function dnsmasq_cleanup_legacy_instance() {
@@ -178,7 +167,6 @@ function dnsmasq_restore_default_instance() {
     if (backup_servers != "") {
         for (let value in words(backup_servers))
             uci_add_list("dhcp.@dnsmasq[0].server", value);
-        uci_delete("dhcp.@dnsmasq[0].forkop_server");
     }
     else {
         for (let value in words(server_list)) {
@@ -188,44 +176,27 @@ function dnsmasq_restore_default_instance() {
     }
     uci_delete("dhcp.@dnsmasq[0].forkop_server");
 
-    let noresolv = uci_get("dhcp.@dnsmasq[0].forkop_noresolv");
-    if (noresolv != "")
-        restore_dnsmasq_config_option("noresolv", "forkop_noresolv", "");
+    if (uci_get("dhcp.@dnsmasq[0].forkop_noresolv") != "")
+        restore_dnsmasq_config_option("noresolv", "forkop_noresolv");
     else if (managed_global_dns)
         uci_set("dhcp.@dnsmasq[0].noresolv", "0");
 
-    let cachesize = uci_get("dhcp.@dnsmasq[0].forkop_cachesize");
-    if (cachesize != "")
-        restore_dnsmasq_config_option("cachesize", "forkop_cachesize", "");
+    if (uci_get("dhcp.@dnsmasq[0].forkop_cachesize") != "")
+        restore_dnsmasq_config_option("cachesize", "forkop_cachesize");
     else if (managed_global_dns)
         uci_set("dhcp.@dnsmasq[0].cachesize", "150");
 
     restore_dnsmasq_rebind_protection(managed_global_dns);
 }
 
-function dnsmasq_configure(force) {
+// Forkop captures DNS through interface-scoped nftables rules, so dnsmasq is
+// never configured for it any more - only cleaned up when an older revision, or
+// a crash, left its settings behind.
+function dnsmasq_restore(quiet) {
     if (!uci_available())
         return true;
 
-    if (dnsmasq_default_config_is_complete()) {
-        if (as_string(force) != "force" && uci_get(CONFIG_NAME + ".settings.shutdown_correctly") == "0")
-            log("Previous Forkop shutdown was unclean; dnsmasq already uses ordinary DNS settings", "info");
-        return true;
-    }
-
-    log("Restoring ordinary dnsmasq DNS for interface-scoped Forkop capture", "info");
-    dnsmasq_cleanup_legacy_instance();
-    dnsmasq_restore_default_instance();
-    uci_commit("dhcp");
-
-    return restart_dnsmasq();
-}
-
-function dnsmasq_restore(force, quiet) {
-    if (!uci_available())
-        return true;
-
-    if (dnsmasq_default_config_is_complete()) {
+    if (!dnsmasq_has_forkop_managed_state()) {
         if (!quiet)
             log("dnsmasq already uses non-Forkop DNS settings; restore is not required", "info");
         return true;
@@ -233,8 +204,6 @@ function dnsmasq_restore(force, quiet) {
 
     if (!quiet)
         log("Restoring DNS settings in dnsmasq", "info");
-    if (as_string(force) != "force" && uci_get(CONFIG_NAME + ".settings.shutdown_correctly") == "1")
-        log("Forkop DNS settings are still present after a clean shutdown; restoring DNS settings in dnsmasq", "info");
 
     dnsmasq_cleanup_legacy_instance();
     dnsmasq_restore_default_instance();
@@ -259,7 +228,7 @@ function failsafe_restore() {
         log("Rolling back Forkop DNS changes in dnsmasq", "warn");
     }
 
-    let status = dnsmasq_restore("force", true);
+    let status = dnsmasq_restore(true);
     if (status)
         log("DNS rollback completed after the failed Forkop runtime", "info");
     else
@@ -269,18 +238,12 @@ function failsafe_restore() {
 
 let mode = ARGV[0] || "";
 
-if (mode == "configure")
-    exit(dnsmasq_configure(ARGV[1]) ? 0 : 1);
-else if (mode == "restore")
-    exit(dnsmasq_restore(ARGV[1]) ? 0 : 1);
+if (mode == "restore")
+    exit(dnsmasq_restore(false) ? 0 : 1);
 else if (mode == "failsafe-restore")
     exit(failsafe_restore() ? 0 : 1);
-else if (mode == "has-forkop-dns")
-    exit(dnsmasq_has_forkop_dns() ? 0 : 1);
 else if (mode == "has-managed-state")
     exit(dnsmasq_has_forkop_managed_state() ? 0 : 1);
-else if (mode == "default-config-complete")
-    exit(dnsmasq_default_config_is_complete() ? 0 : 1);
 
-warn("Usage: dns/apply.uc <configure|restore|failsafe-restore|has-forkop-dns|has-managed-state|default-config-complete>\n");
+warn("Usage: dns/apply.uc <restore|failsafe-restore|has-managed-state>\n");
 exit(1);

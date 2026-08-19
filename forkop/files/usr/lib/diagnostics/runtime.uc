@@ -3,6 +3,8 @@
 let fs = require("fs");
 let constants = require("core.constants");
 let core_ip = require("core.ip");
+let core_url = require("core.url");
+let core_version = require("core.version");
 let uci_core = require("core.uci");
 let runtime_dns = require("singbox.dns");
 let netstat = require("core.netstat");
@@ -23,6 +25,7 @@ const CHECK_PROXY_IP_DOMAIN = getenv("CHECK_PROXY_IP_DOMAIN") || constants.CHECK
 // The public endpoint reports the address that reached it under /check; both
 // the proxy check and the nftables counter probe use that same path.
 const CHECK_PROXY_IP_PATH = "/check";
+const CHECK_PROXY_URL = "https://" + CHECK_PROXY_IP_DOMAIN + CHECK_PROXY_IP_PATH;
 const FAKEIP_TEST_DOMAIN = getenv("FAKEIP_TEST_DOMAIN") || constants.FAKEIP_TEST_DOMAIN || "fakeip.podkop.fyi";
 const RT_TABLE_NAME = getenv("RT_TABLE_NAME") || constants.RT_TABLE_NAME || "forkop";
 const NFT_TABLE_NAME = getenv("NFT_TABLE_NAME") || constants.NFT_TABLE_NAME || "ForkopTable";
@@ -40,7 +43,6 @@ const CLASH_HTTP_MAX_TIME = getenv("FORKOP_CLASH_HTTP_MAX_TIME") || "60";
 const SING_BOX_FORKOP_VERSION_FILE = getenv("SING_BOX_FORKOP_VERSION_FILE") || "/usr/share/sing-box-forkop/version";
 
 const STATUS_UC = LIB_DIR + "/diagnostics/status.uc";
-const HELPERS_UC = LIB_DIR + "/core/helpers.uc";
 const PACKAGES_UC = LIB_DIR + "/core/packages.uc";
 const DNS_APPLY_UC = LIB_DIR + "/dns/apply.uc";
 const SERVICE_STATE_UC = LIB_DIR + "/service/state.uc";
@@ -509,17 +511,6 @@ function get_wan_ip_addresses() {
     return join(" ", result);
 }
 
-function helper_output(mode, args) {
-    let full = [ mode ];
-    for (let arg in args)
-        push(full, arg);
-    return replace(module_output(HELPERS_UC, full), /[\r\n]+$/g, "");
-}
-
-function server_inbound_tag(section) {
-    return helper_output("server-inbound-tag", [ section ]);
-}
-
 function server_required_inbound_proto(protocol, transport) {
     protocol = as_string(protocol);
     transport = lc(as_string(transport));
@@ -644,7 +635,7 @@ function check_inbounds() {
         let listen_port = option(section, "listen_port", "");
         let public_host = option(section, "public_host", "");
         let routing_mode = option(section, "routing_mode", "rules");
-        let inbound_tag = server_inbound_tag(label);
+        let inbound_tag = label;
         let expected_type = server_runtime_type_for_protocol(protocol);
         let inbound_transport = protocol == "naive"
             ? option(section, "naive_network", "tcp")
@@ -799,7 +790,7 @@ function check_proxy_through_running_core() {
         "--silent",
         "--show-error",
         "--proxy", proxy,
-        "https://" + CHECK_PROXY_IP_DOMAIN + CHECK_PROXY_IP_PATH
+        CHECK_PROXY_URL
     ]);
     let masked_response = replace(status_output([ "proxy-response-ip-mask" ], response), /[\r\n]+$/g, "");
     if (masked_response == "") {
@@ -863,7 +854,7 @@ function check_proxy_locked() {
             cleanup_check_proxy_dir(check_proxy_dir);
             return check_proxy_through_running_core();
         }
-        let args = [ "sing-box", "tools", "fetch", "ifconfig.me", "-c", check_proxy_config, "-D", check_proxy_dir, "--disable-color" ];
+        let args = [ "sing-box", "tools", "fetch", CHECK_PROXY_URL, "-c", check_proxy_config, "-D", check_proxy_dir, "--disable-color" ];
         if (outbound_tag != "") {
             push(args, "-o");
             push(args, outbound_tag);
@@ -1076,11 +1067,6 @@ function get_system_info() {
     return 0;
 }
 
-function neutralize_zapret_defaults() {
-    log_message("Standalone zapret is not neutralized automatically; Forkop uses /opt/zapret/nfq/nfqws as an external provider and manages only its own NFQUEUE range.", "info");
-    return 0;
-}
-
 function sing_box_process_is_running() {
     return sing_box_process_running_for_check();
 }
@@ -1101,7 +1087,7 @@ function write_service_status(running, enabled, dns_configured) {
 }
 
 function dnsmasq_ready_for_interface_dns() {
-    return module_success(DNS_APPLY_UC, [ "default-config-complete" ]);
+    return !module_success(DNS_APPLY_UC, [ "has-managed-state" ]);
 }
 
 function get_sing_box_status() {
@@ -1173,10 +1159,6 @@ function validate_provider_strategy_json(provider, raw_opt) {
     if (result.output != "")
         print(result.output);
     return 0;
-}
-
-function url_host(value) {
-    return helper_output("url-get-host", [ value ]);
 }
 
 function dns_check_resolve_host(host, resolver, timeout_seconds) {
@@ -1269,7 +1251,7 @@ function check_dns_available() {
     if (dns_check_router_resolver_available(domain))
         dns_on_router = 1;
 
-    let dns_server_host = url_host(dns_servers[0]);
+    let dns_server_host = core_url.host(dns_servers[0]);
     if (dns_server_host == "")
         dns_server_host = dns_servers[0];
     let bootstrap_check_domain = domain;
@@ -1287,7 +1269,7 @@ function check_dns_available() {
     if (!bootstrap_dns_status && encrypted_bootstrap && dns_status)
         bootstrap_dns_status = 1;
 
-    if (!module_success(DNS_APPLY_UC, [ "default-config-complete" ]))
+    if (module_success(DNS_APPLY_UC, [ "has-managed-state" ]))
         dhcp_config_status = 0;
 
     let display_dns_servers = [];
@@ -1320,7 +1302,7 @@ function nft_table_has_other_mark_rules(family, table_name) {
 
 function check_nft_rules() {
     command_status("sh -c " + shell_quote(
-        "curl -m 3 -s " + shell_quote("https://" + CHECK_PROXY_IP_DOMAIN + CHECK_PROXY_IP_PATH) + " >/dev/null 2>&1 & pid1=$!; " +
+        "curl -m 3 -s " + shell_quote(CHECK_PROXY_URL) + " >/dev/null 2>&1 & pid1=$!; " +
         "curl -m 3 -s " + shell_quote("https://" + FAKEIP_TEST_DOMAIN + "/check") + " >/dev/null 2>&1 & pid2=$!; " +
         "wait $pid1 2>/dev/null; wait $pid2 2>/dev/null; sleep 1"
     ));
@@ -1413,7 +1395,7 @@ function check_sing_box() {
     if (sing_box_package() != "" && command_exists("sing-box")) {
         sing_box_installed = 1;
         let version = strip_leading_v(replace(module_output(SINGBOX_RUNTIME_UC, [ "version" ]), /[\r\n]+$/g, ""));
-        if (version != "" && module_success(HELPERS_UC, [ "version-at-least", version, "1.12.4" ]))
+        if (version != "" && core_version.version_at_least(version, "1.12.4"))
             sing_box_version_ok = 1;
     }
 

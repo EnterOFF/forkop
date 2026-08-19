@@ -212,6 +212,22 @@ JSON
 allowed="$(ucode -L "$FORKOP_LIB" "$VALIDATOR" validate-runtime-fixture "$WORK_DIR/allowed-nested.json" '{}' 2>&1 || true)"
 [ -z "$allowed" ] || fail "an uncontrolled patch field was rejected: $allowed"
 
+# Every other override field is validated, so a hand-edited protocol must be too.
+cat >"$WORK_DIR/bad-multiplex.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings", "dns_server": [ "1.1.1.1" ], "bootstrap_dns_server": [ "1.1.1.1" ], "service_listen_address": "127.0.0.1" },
+  "section": [ { ".name": "proxy", ".type": "section", "enabled": "1", "action": "connection" } ],
+  "subscription_url": [
+    {
+      ".name": "source", ".type": "subscription_url", "section": "proxy",
+      "url": "https://example.com/subscription", "tag": "sub1",
+      "override_multiplex": "1", "override_multiplex_protocol": "mux"
+    }
+  ]
+}
+JSON
+assert_rejects "unsupported multiplexing protocol" "$WORK_DIR/bad-multiplex.json" "Invalid multiplexing protocol 'mux'"
+
 # The LuCI editor repeats the reserved list, so drift would let the dialog
 # accept what the backend refuses.
 node - "$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js" \
