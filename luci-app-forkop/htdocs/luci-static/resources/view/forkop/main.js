@@ -3454,10 +3454,12 @@ function getUrlTestConfigs(section) {
       ),
       tolerance: itemSettingNumber(settings, "urltest_tolerance", 50),
       idleTimeout: itemSettingString(settings, "idle_timeout", "30m"),
+      // Keep the defaults in sync with urltest_* in config/connections.uc:
+      // that is what the generated sing-box configuration actually carries.
       interruptExistConnections: itemSettingBoolean(
         settings,
         "interrupt_exist_connections",
-        true
+        false
       )
     };
   });

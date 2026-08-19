@@ -368,6 +368,9 @@ describe('getDashboardSections', () => {
         interval: '45s',
         tolerance: 25,
         expectedStatus: '204/200-299',
+        // Not set in this fixture, so the dashboard has to report the same
+        // default the generated sing-box configuration carries.
+        interruptExistConnections: false,
       },
     });
     expect(result.data[0].latencyTestCode).toBe('Office');
