@@ -43,6 +43,7 @@ const LEGACY_SUBSCRIPTION_UPDATE_CRON_MARKER = "# forkop-subscription-update";
 const CONFIG_VERSION_OPTION = "config_version";
 const APPLIED_MIGRATIONS_OPTION = "applied_migrations";
 const CHILD_ITEM_TYPES = [
+    "server_client",
     "subscription_url",
     "section_interface",
     "urltest",
@@ -283,6 +284,15 @@ function add_list_unique(ctx, section, key, value) {
     record_operation(ctx, { op: "add_list", section: section_name(section), option: key, values: current });
 }
 
+function child_sections_by_owner(ctx, type_name, owner_option, owner_value) {
+    let result = [];
+    owner_value = as_string(owner_value);
+    for (let child in ctx.model[type_name] || [])
+        if (option(child, owner_option, "") == owner_value)
+            push(result, child);
+    return result;
+}
+
 function create_child_section(ctx, type_name) {
     ctx.child_index = int(ctx.child_index || 0) + 1;
     let item_id = "__" + type_name + "_" + ctx.child_index;
@@ -300,6 +310,12 @@ function create_child_section(ctx, type_name) {
 function create_child_for_section(ctx, parent, type_name) {
     let child = create_child_section(ctx, type_name);
     set_option(ctx, child, "section", section_name(parent));
+    return child;
+}
+
+function create_child_for_owner(ctx, parent, type_name, owner_option) {
+    let child = create_child_section(ctx, type_name);
+    set_option(ctx, child, owner_option, section_name(parent));
     return child;
 }
 
@@ -2095,6 +2111,121 @@ function migrate_group_interrupt_defaults(ctx) {
                 delete_option(ctx, child, "interrupt_exist_connections");
 }
 
+const SERVER_CLIENT_PROTOCOL_FIELDS = {
+    vless: [ [ "uuid", "server_uuid" ], [ "flow", "vless_flow" ] ],
+    vmess: [ [ "uuid", "server_uuid" ] ],
+    trojan: [ [ "password", "server_password" ] ],
+    shadowsocks: [ [ "password", "server_password" ] ],
+    hysteria2: [ [ "password", "server_password" ] ],
+    tuic: [ [ "uuid", "server_uuid" ], [ "password", "server_password" ] ],
+    anytls: [ [ "password", "server_password" ] ],
+    mixed: [ [ "password", "server_password" ] ],
+    naive: [ [ "password", "server_password" ] ],
+    ssh: [ [ "password", "server_password" ] ],
+    mieru: [ [ "password", "server_password" ] ],
+    mtproto: [ [ "secret", "mtproto_secret" ] ]
+};
+const LOGIN_NAME_SERVER_PROTOCOLS = { mixed: true, naive: true, ssh: true, mieru: true };
+
+function login_safe_value(value, fallback) {
+    value = lc(as_string(value));
+    let result = "";
+    for (let i = 0; i < length(value); i++) {
+        let chr = substr(value, i, 1);
+        result += match(chr, /^[a-z0-9._-]$/) != null ? chr : "-";
+    }
+    result = replace(result, /^-+/, "");
+    result = replace(result, /-+$/, "");
+    return result == "" ? as_string(fallback) : result;
+}
+
+// The SOCKS inbound only ever served SOCKS5 without TLS. The mixed inbound answers
+// both SOCKS5 and HTTP on the same port with the same accounts and can carry TLS, so
+// the released socks servers become mixed servers and keep working unchanged.
+function migrate_socks_servers_to_mixed(ctx) {
+    for (let server in ctx.model.servers || []) {
+        if (option(server, "protocol", "") != "socks")
+            continue;
+
+        set_option(ctx, server, "protocol", "mixed");
+        let auth = option(server, "socks_auth_enabled", "");
+        set_option(ctx, server, "mixed_auth_enabled", auth == "" ? "1" : auth);
+        delete_option(ctx, server, "socks_auth_enabled");
+    }
+
+    // The option was only ever written for socks servers, but a stale value on any
+    // other server would otherwise stay behind forever.
+    for (let server in ctx.model.servers || [])
+        delete_option(ctx, server, "socks_auth_enabled");
+}
+
+// Credentials a released server carried inline. They live on client sections now, so
+// the server options are removed. sing-box has no MD5 authenticated VMess either, so
+// the alterId option is dropped instead of migrated.
+function delete_server_credentials(ctx, server) {
+    delete_option(ctx, server, "server_uuid");
+    delete_option(ctx, server, "server_username");
+    delete_option(ctx, server, "server_password");
+    delete_option(ctx, server, "mtproto_secret");
+    delete_option(ctx, server, "vless_flow");
+    delete_option(ctx, server, "vmess_alter_id");
+}
+
+// Released servers held one account inline. Every protocol sing-box serves takes a
+// user list, so the inline credentials move into a client section and the server
+// stops carrying credentials of its own.
+function migrate_server_clients(ctx) {
+    for (let server in ctx.model.servers || []) {
+        let protocol = option(server, "protocol", "vless");
+        let fields = SERVER_CLIENT_PROTOCOL_FIELDS[protocol];
+        if (fields == null) {
+            delete_server_credentials(ctx, server);
+            continue;
+        }
+
+        let existing = child_sections_by_owner(ctx, "server_client", "server", section_name(server));
+        if (length(existing) == 0) {
+            let name = trim(option(server, "server_username", ""));
+            if (name == "")
+                name = trim(option(server, "label", "")) || section_name(server);
+            if (LOGIN_NAME_SERVER_PROTOCOLS[protocol])
+                name = login_safe_value(name, "client");
+
+            let client = create_child_for_owner(ctx, server, "server_client", "server");
+            set_option(ctx, client, "enabled", "1");
+            set_option(ctx, client, "name", name);
+            for (let field in fields) {
+                let value = option(server, field[1], "");
+                if (field[0] == "flow" && (value == "" || value == "none"))
+                    continue;
+                if (value != "")
+                    set_option(ctx, client, field[0], value);
+            }
+        }
+
+        delete_server_credentials(ctx, server);
+    }
+}
+
+// Shadowsocks servers released with a legacy AEAD method keep it: changing the method
+// would invalidate every distributed link. Only the new pre-shared key field is added
+// where the stored method needs one.
+function migrate_shadowsocks_server_keys(ctx) {
+    for (let server in ctx.model.servers || []) {
+        if (option(server, "protocol", "") != "shadowsocks")
+            continue;
+        set_option_if_missing(ctx, server, "shadowsocks_method", "aes-128-gcm");
+    }
+}
+
+// Tailscale servers always advertised themselves as an exit node, so the new switch
+// starts enabled for them.
+function migrate_tailscale_exit_node(ctx) {
+    for (let server in ctx.model.servers || [])
+        if (option(server, "protocol", "") == "tailscale")
+            set_option_if_missing(ctx, server, "tailscale_advertise_exit_node", "1");
+}
+
 const MIGRATIONS = [
     { id: "interface_sections", run: migrate_interface_sections },
     { id: "enable_component_checks", run: migrate_enable_component_checks },
@@ -2121,7 +2252,11 @@ const MIGRATIONS = [
     { id: "readable_runtime_tags", run: migrate_readable_runtime_tags },
     { id: "urltest_expected_status", run: migrate_urltest_expected_status },
     { id: "group_interrupt_defaults", run: migrate_group_interrupt_defaults },
-    { id: "subscription_user_agent_header", run: migrate_subscription_user_agent_header }
+    { id: "subscription_user_agent_header", run: migrate_subscription_user_agent_header },
+    { id: "mixed_server_inbounds", run: migrate_socks_servers_to_mixed },
+    { id: "server_client_sections", run: migrate_server_clients },
+    { id: "shadowsocks_server_keys", run: migrate_shadowsocks_server_keys },
+    { id: "tailscale_exit_node_switch", run: migrate_tailscale_exit_node }
 ];
 
 function apply_migrations(ctx) {

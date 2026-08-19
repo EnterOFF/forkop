@@ -163,8 +163,21 @@ cat >"$WORK_DIR/valid.json" <<'JSON'
       ".name": "srv",
       ".type": "server",
       "enabled": "1",
+      "protocol": "vless",
+      "listen_port": "18443",
+      "public_host": "203.0.113.9",
       "routing_mode": "section",
       "routing_section": "proxy"
+    }
+  ],
+  "server_client": [
+    {
+      ".name": "srv_phone",
+      ".type": "server_client",
+      "server": "srv",
+      "enabled": "1",
+      "name": "phone",
+      "uuid": "11111111-1111-4111-8111-111111111111"
     }
   ]
 }
@@ -671,7 +684,10 @@ cat >"$WORK_DIR/bad-server-routing-bypass.json" <<'JSON'
     { ".name": "bypass", ".type": "section", "enabled": "1", "action": "bypass" }
   ],
   "server": [
-    { ".name": "srv", ".type": "server", "enabled": "1", "routing_mode": "section", "routing_section": "bypass" }
+    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "vless", "listen_port": "18443", "public_host": "203.0.113.9", "routing_mode": "section", "routing_section": "bypass" }
+  ],
+  "server_client": [
+    { ".name": "srv_phone", ".type": "server_client", "server": "srv", "enabled": "1", "name": "phone", "uuid": "11111111-1111-4111-8111-111111111111" }
   ]
 }
 JSON
@@ -684,11 +700,109 @@ cat >"$WORK_DIR/bad-server-routing-block.json" <<'JSON'
     { ".name": "block", ".type": "section", "enabled": "1", "action": "block" }
   ],
   "server": [
-    { ".name": "srv", ".type": "server", "enabled": "1", "routing_mode": "section", "routing_section": "block" }
+    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "vless", "listen_port": "18443", "public_host": "203.0.113.9", "routing_mode": "section", "routing_section": "block" }
+  ],
+  "server_client": [
+    { ".name": "srv_phone", ".type": "server_client", "server": "srv", "enabled": "1", "name": "phone", "uuid": "11111111-1111-4111-8111-111111111111" }
   ]
 }
 JSON
 assert_rejects "bad server routing block" "$WORK_DIR/bad-server-routing-block.json" "unsupported action 'block'"
+
+cat >"$WORK_DIR/bad-server-without-clients.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "section": [
+    { ".name": "proxy", ".type": "section", "enabled": "1", "action": "connection" }
+  ],
+  "server": [
+    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "vless", "listen_port": "18443", "public_host": "203.0.113.9" }
+  ]
+}
+JSON
+assert_rejects "server without clients" "$WORK_DIR/bad-server-without-clients.json" "has no enabled clients"
+
+cat >"$WORK_DIR/bad-server-client-uuid.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "section": [
+    { ".name": "proxy", ".type": "section", "enabled": "1", "action": "connection" }
+  ],
+  "server": [
+    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "vless", "listen_port": "18443", "public_host": "203.0.113.9" }
+  ],
+  "server_client": [
+    { ".name": "srv_phone", ".type": "server_client", "server": "srv", "enabled": "1", "name": "phone", "uuid": "not-a-uuid" }
+  ]
+}
+JSON
+assert_rejects "server client with a broken UUID" "$WORK_DIR/bad-server-client-uuid.json" "has an invalid UUID"
+
+cat >"$WORK_DIR/bad-server-client-login-name.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "section": [
+    { ".name": "proxy", ".type": "section", "enabled": "1", "action": "connection" }
+  ],
+  "server": [
+    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "mixed", "listen_port": "18080", "public_host": "203.0.113.9" }
+  ],
+  "server_client": [
+    { ".name": "srv_phone", ".type": "server_client", "server": "srv", "enabled": "1", "name": "alice smith", "password": "secret" }
+  ]
+}
+JSON
+assert_rejects "account name with a space" "$WORK_DIR/bad-server-client-login-name.json" "must contain only letters"
+
+cat >"$WORK_DIR/bad-shadowsocks-2022-key.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "section": [
+    { ".name": "proxy", ".type": "section", "enabled": "1", "action": "connection" }
+  ],
+  "server": [
+    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "shadowsocks", "shadowsocks_method": "2022-blake3-aes-128-gcm", "shadowsocks_psk": "c2VydmVyLXByZXNoYXJlZC1rZXk=", "listen_port": "18448", "public_host": "203.0.113.9" }
+  ],
+  "server_client": [
+    { ".name": "srv_phone", ".type": "server_client", "server": "srv", "enabled": "1", "name": "phone", "password": "plain-password" }
+  ]
+}
+JSON
+assert_rejects "Shadowsocks 2022 client key of the wrong length" "$WORK_DIR/bad-shadowsocks-2022-key.json" "base64 pre-shared key of 16 bytes"
+
+cat >"$WORK_DIR/bad-server-port-conflict.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "section": [
+    { ".name": "proxy", ".type": "section", "enabled": "1", "action": "connection" }
+  ],
+  "server": [
+    { ".name": "first", ".type": "server", "enabled": "1", "protocol": "vless", "listen_port": "18443", "public_host": "203.0.113.9" },
+    { ".name": "second", ".type": "server", "enabled": "1", "protocol": "trojan", "listen_port": "18443", "public_host": "203.0.113.9", "security": "tls", "tls_certificate_path": "/etc/forkop/server-certs/second.crt", "tls_key_path": "/etc/forkop/server-certs/second.key" }
+  ],
+  "server_client": [
+    { ".name": "first_phone", ".type": "server_client", "server": "first", "enabled": "1", "name": "phone", "uuid": "11111111-1111-4111-8111-111111111111" },
+    { ".name": "second_phone", ".type": "server_client", "server": "second", "enabled": "1", "name": "phone", "password": "secret" }
+  ]
+}
+JSON
+assert_rejects "two servers on one port" "$WORK_DIR/bad-server-port-conflict.json" "which is already used by server 'first'"
+
+cat >"$WORK_DIR/bad-server-reserved-port.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "section": [
+    { ".name": "proxy", ".type": "section", "enabled": "1", "action": "connection" }
+  ],
+  "server": [
+    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "vless", "listen_port": "1602", "public_host": "203.0.113.9" }
+  ],
+  "server_client": [
+    { ".name": "srv_phone", ".type": "server_client", "server": "srv", "enabled": "1", "name": "phone", "uuid": "11111111-1111-4111-8111-111111111111" }
+  ]
+}
+JSON
+assert_rejects "server on a Forkop port" "$WORK_DIR/bad-server-reserved-port.json" "already used by a Forkop inbound"
 
 cat >"$WORK_DIR/bad-detour.json" <<'JSON'
 {

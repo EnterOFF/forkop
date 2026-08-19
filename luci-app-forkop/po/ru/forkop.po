@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-19 09:13+0300\n"
-"PO-Revision-Date: 2026-08-19 09:13+0300\n"
+"POT-Creation-Date: 2026-08-19 20:02+0300\n"
+"PO-Revision-Date: 2026-08-19 20:02+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -19,6 +19,9 @@ msgstr ""
 
 msgid "-- Select --"
 msgstr "-- Выберите --"
+
+msgid "%d configured"
+msgstr "настроено: %d"
 
 msgid "%s already has its own setting above"
 msgstr "%s уже настраивается отдельным параметром выше"
@@ -47,11 +50,23 @@ msgstr "✔ Работает"
 msgid "✘ Stopped"
 msgstr "✘ Остановлен"
 
+msgid "A complete sing-box inbound object. Forkop sets the tag from the server name, so leave the tag out."
+msgstr "Полный объект inbound для sing-box. Forkop сам задаёт tag по имени сервера, поэтому tag указывать не нужно."
+
 msgid "A JSON object merged into every server of this subscription. Parameters a server does not support are skipped. Matching parameters are overwritten. Parameters that have their own setting above cannot be set here."
 msgstr "JSON-объект, добавляемый к каждому серверу этой подписки. Параметры, которые сервер не поддерживает, пропускаются. Совпадающие параметры перезаписываются. Параметры, у которых есть отдельная настройка выше, задавать здесь нельзя."
 
+msgid "A real HTTPS site the router forwards unrecognised connections to. It has to be reachable from the router."
+msgstr "Реальный HTTPS-сайт, куда роутер направляет нераспознанные подключения. Он должен быть доступен с роутера."
+
+msgid "A sing-box inbound object written by hand, for inbound types this form does not cover. Forkop still applies the routing mode below."
+msgstr "Объект inbound для sing-box, написанный вручную, для типов, которых нет в этой форме. Режим маршрутизации ниже всё равно применяется."
+
 msgid "Accept external proxy connections and route them with sing-box."
 msgstr "Принимает внешние прокси-подключения и маршрутизирует их через sing-box."
+
+msgid "Accept multiplexing"
+msgstr "Разрешить мультиплексирование"
 
 msgid "Accept routes"
 msgstr "Принимать маршруты"
@@ -95,11 +110,17 @@ msgstr "Добавьте хотя бы один DNS-сервер"
 msgid "Add at least one domain"
 msgstr "Добавьте хотя бы один домен"
 
+msgid "Add at least one enabled client to this server"
+msgstr "Добавьте серверу хотя бы одного включённого клиента"
+
 msgid "Add at least one server group"
 msgstr "Добавьте хотя бы одну группу серверов"
 
 msgid "Add at least one WireGuard peer"
 msgstr "Добавьте хотя бы одного пира WireGuard"
+
+msgid "Add client"
+msgstr "Добавить клиента"
 
 msgid "Add header"
 msgstr "Добавить заголовок"
@@ -134,6 +155,9 @@ msgstr "Дополнительные параметры"
 msgid "Address"
 msgstr "Адрес"
 
+msgid "Address clients connect to. It only goes into the client links; the server still listens on the address above."
+msgstr "Адрес, к которому подключаются клиенты. Он попадает только в клиентские ссылки, сервер слушает адрес выше."
+
 msgid "Address of the coordination server. Change it if you use a custom server."
 msgstr "Адрес сервера координации. Измените его, если используете собственный сервер"
 
@@ -142,6 +166,9 @@ msgstr "Добавляет маскировку трафика по механи
 
 msgid "Advanced settings"
 msgstr "Дополнительные настройки"
+
+msgid "Advertise as exit node"
+msgstr "Объявлять exit node"
 
 msgid "Advertise routes"
 msgstr "Анонсировать маршруты"
@@ -173,11 +200,11 @@ msgstr "Обеспечивает доступ к YACD из WAN. Убедитес
 msgid "ALPN"
 msgstr "ALPN"
 
-msgid "Alter ID"
-msgstr "Alter ID"
-
 msgid "AmneziaWG ranges must be between 0 and 4294967295 with the start no greater than the end"
 msgstr "Диапазоны AmneziaWG должны быть от 0 до 4294967295, а начало не может быть больше конца"
+
+msgid "An even number of hex digits, up to 16. Several IDs can be served at once; clients get the first one."
+msgstr "Чётное число hex-символов, не больше 16. Сервер принимает несколько ID, клиентам выдаётся первый."
 
 msgid "Any"
 msgstr "Любой"
@@ -196,6 +223,9 @@ msgstr "Auth Key из панели управления Tailscale"
 
 msgid "Auth timeout"
 msgstr "Таймаут авторизации"
+
+msgid "Authorized keys"
+msgstr "Разрешённые ключи"
 
 msgid "Auto refresh"
 msgstr "Автообновление"
@@ -221,6 +251,9 @@ msgstr "Доступные действия"
 msgid "Backend validation failed: %s"
 msgstr "Backend-проверка завершилась ошибкой: %s"
 
+msgid "Bandwidth the server offers each client. Leave both limits empty to let BBR decide."
+msgstr "Полоса, которую сервер предлагает каждому клиенту. Оставьте оба предела пустыми, чтобы её выбирал BBR."
+
 msgid "Blacklist"
 msgstr "Черный список"
 
@@ -244,6 +277,12 @@ msgstr "Браузер не использует FakeIP"
 
 msgid "Browser is using FakeIP correctly"
 msgstr "Браузер использует FakeIP"
+
+msgid "Brutal download (Mbps)"
+msgstr "Brutal: скачивание (Мбит/с)"
+
+msgid "Brutal upload (Mbps)"
+msgstr "Brutal: отдача (Мбит/с)"
 
 msgid "Built-in rule sets"
 msgstr "Встроенные наборы правил"
@@ -341,6 +380,9 @@ msgstr "Проверки пройдены"
 msgid "Checks passed with manual DHCP"
 msgstr "Проверки пройдены с ручным DHCP"
 
+msgid "Chromium network stack over HTTP/2 or HTTP/3. Needs a certificate and the naiveproxy client."
+msgstr "Сетевой стек Chromium поверх HTTP/2 или HTTP/3. Нужен сертификат и клиент naiveproxy."
+
 msgid "CIDR must be between 0 and 32 for IPv4 or 0 and 128 for IPv6"
 msgstr "CIDR должен быть от 0 до 32 для IPv4 или от 0 до 128 для IPv6"
 
@@ -350,17 +392,38 @@ msgstr "Запрос к Clash API был отправлен, но истекло
 msgid "Click a server to pin its priority. Click it again to unpin."
 msgstr "Нажмите на сервер, чтобы закрепить его приоритет. Повторное нажатие чтобы открепить."
 
+msgid "Client"
+msgstr "Клиент"
+
 msgid "Client fingerprint"
 msgstr "Отпечаток клиента"
 
 msgid "Client link"
 msgstr "Ссылка клиента"
 
-msgid "Client link is not available yet"
-msgstr "Ссылка клиента пока недоступна"
-
 msgid "Client link QR code"
 msgstr "QR-код клиентской ссылки"
+
+msgid "Client name"
+msgstr "Имя клиента"
+
+msgid "Client name is required"
+msgstr "Укажите имя клиента"
+
+msgid "Client name must not exceed %d characters"
+msgstr "Имя клиента не должно быть длиннее %d символов"
+
+msgid "Client names must be unique within a server"
+msgstr "Имена клиентов внутри сервера должны быть уникальными"
+
+msgid "Client pre-shared key"
+msgstr "Ключ клиента"
+
+msgid "Clients"
+msgstr "Клиенты"
+
+msgid "Clients need this key. Forkop puts it into the client links."
+msgstr "Этот ключ нужен клиентам. Forkop подставляет его в клиентские ссылки."
 
 msgid "Close"
 msgstr "Закрыть"
@@ -373,6 +436,9 @@ msgstr "Закрыть подключение"
 
 msgid "Closed"
 msgstr "Закрытые"
+
+msgid "Compact and fast, without TLS. The 2022 methods add replay protection and are the better choice for a new server."
+msgstr "Компактный и быстрый, без TLS. Методы 2022 защищают от повторов и лучше подходят для нового сервера."
 
 msgid "Component update available"
 msgstr "Доступно обновление компонента"
@@ -410,11 +476,17 @@ msgstr "Настройте User-Agent в настройках элемента"
 msgid "Congestion control"
 msgstr "Управление перегрузкой"
 
+msgid "Congestion control with a fixed target rate. It needs the tcp-brutal kernel module on both sides."
+msgstr "Управление перегрузкой с фиксированной целевой скоростью. Нужен модуль ядра tcp-brutal на обеих сторонах."
+
 msgid "Connect through"
 msgstr "Подключаться через"
 
 msgid "Connect to the coordination server through a section"
 msgstr "Подключаться к серверу координации через секцию"
+
+msgid "Connect to this server"
+msgstr "Подключение к серверу"
 
 msgid "Connection limit"
 msgstr "Лимит соединений"
@@ -442,6 +514,9 @@ msgstr "Скопировано"
 
 msgid "Copy"
 msgstr "Копировать"
+
+msgid "Copy all links"
+msgstr "Скопировать все ссылки"
 
 msgid "Copy proxy link"
 msgstr "Скопировать ссылку прокси"
@@ -602,6 +677,9 @@ msgstr "Скачивать компоненты через"
 msgid "Download components through a section"
 msgstr "Скачивать компоненты через секцию"
 
+msgid "Download limit (Mbps)"
+msgstr "Предел скачивания (Мбит/с)"
+
 msgid "Download lists through"
 msgstr "Скачивать списки через"
 
@@ -635,6 +713,12 @@ msgstr "Такой тег JSON outbound уже используется"
 msgid "Duplicate value"
 msgstr "Дублирующееся значение"
 
+msgid "Each client is a separate account with its own credentials and its own link."
+msgstr "Каждый клиент — отдельная учётная запись со своими данными и своей ссылкой."
+
+msgid "Each client is a separate account. Its name is the login the client sends."
+msgstr "Каждый клиент — отдельная учётная запись. Его имя и есть логин, который отправляет клиент."
+
 msgid "Edit"
 msgstr "Редактировать"
 
@@ -643,9 +727,6 @@ msgstr "Изменить"
 
 msgid "Enable"
 msgstr "Включить"
-
-msgid "Enable authentication"
-msgstr "Включить авторизацию"
 
 msgid "Enable autostart"
 msgstr "Включить автостарт"
@@ -676,9 +757,6 @@ msgstr "Включено"
 
 msgid "Enter a complete sing-box endpoint object."
 msgstr "Введите полный объект endpoint sing-box."
-
-msgid "Enter a complete sing-box inbound object"
-msgstr "Введите полный объект inbound sing-box"
 
 msgid "Enter a complete sing-box outbound object"
 msgstr "Введите полный объект outbound sing-box"
@@ -848,11 +926,20 @@ msgstr "Исправьте подсвеченные поля и сохранит
 msgid "Fixed addresses for domains, expects the hosts file format."
 msgstr "Постоянные адреса для доменов, ожидает формат файла hosts."
 
+msgid "Flow"
+msgstr "Flow"
+
 msgid "Forced device routing"
 msgstr "Принудительная маршрутизация устройств"
 
+msgid "Forkop DNS"
+msgstr "DNS Forkop"
+
 msgid "Forkop Error"
 msgstr "Ошибка Forkop"
+
+msgid "Forkop generates a self-signed certificate at the default path. Point this at a real certificate to let clients verify it."
+msgstr "По пути по умолчанию Forkop создаёт самоподписанный сертификат. Укажите настоящий сертификат, чтобы клиенты могли его проверить."
 
 msgid "Forkop manages ciadpi pid files itself, so pidfile options are not allowed here."
 msgstr "Forkop сам управляет pid-файлами ciadpi, поэтому параметры pidfile здесь запрещены."
@@ -872,11 +959,17 @@ msgstr "Служба Forkop остановлена. Запустите серв�
 msgid "Forkop service is stopped. Start the service to display the dashboard."
 msgstr "Служба Forkop остановлена. Запустите сервис для отображения дашборда."
 
+msgid "Forkop service proxy"
+msgstr "служебный прокси Forkop"
+
 msgid "Forkop Settings"
 msgstr "Настройки Forkop"
 
 msgid "Forkop system logs"
 msgstr "Системные логи Forkop"
+
+msgid "Forkop transparent proxy"
+msgstr "прозрачный прокси Forkop"
 
 msgid "Forkop will not modify your DHCP configuration"
 msgstr "Forkop не будет изменять вашу конфигурацию DHCP"
@@ -922,6 +1015,15 @@ msgstr "Proxy protocol для фронтинга"
 
 msgid "Fuzzing is not supported here because Forkop needs deterministic runtime validation."
 msgstr "Fuzzing здесь не поддерживается, потому что Forkop нужна предсказуемая runtime-валидация."
+
+msgid "Generate a new key pair"
+msgstr "Сгенерировать новую пару ключей"
+
+msgid "Generate a new value"
+msgstr "Сгенерировать новое значение"
+
+msgid "Generate new credentials"
+msgstr "Сгенерировать новые данные доступа"
 
 msgid "Generate profile"
 msgstr "Сгенерировать профиль"
@@ -974,6 +1076,9 @@ msgstr "Скрывать значения"
 msgid "Host"
 msgstr "Хост"
 
+msgid "How far a client clock may drift before the handshake is refused."
+msgstr "Насколько могут расходиться часы клиента, прежде чем рукопожатие будет отклонено."
+
 msgid "How long to wait for a connection to a server before trying the next one"
 msgstr "Сколько ждать подключение к серверу, прежде чем попробовать следующий"
 
@@ -986,17 +1091,29 @@ msgstr "Сколько соединений передаётся через од
 msgid "How often every server of the group is checked, not only the selected one. Checks pause while the group is unused."
 msgstr "Как часто проверяются все серверы группы, а не только выбранный. Пока группа не используется, проверки приостанавливаются."
 
+msgid "How the protocol is carried. Clients have to use the same transport."
+msgstr "Как передаётся протокол. Клиенты должны использовать тот же транспорт."
+
 msgid "HTTP error"
 msgstr "Ошибка HTTP"
 
 msgid "HTTP hosts"
 msgstr "HTTP-хосты"
 
+msgid "HTTP link"
+msgstr "HTTP-ссылка"
+
 msgid "HTTP status codes that count as a successful health check. Use * for any response, or values and ranges such as 204/200-299."
 msgstr "HTTP-коды, при которых проверка доступности считается успешной. Укажите * для любого ответа либо коды и диапазоны, например 204/200-299."
 
+msgid "HTTP/2 runs over TCP, HTTP/3 over UDP."
+msgstr "HTTP/2 работает по TCP, HTTP/3 — по UDP."
+
 msgid "Idle timeout"
 msgstr "Таймаут простоя"
+
+msgid "Ignore client bandwidth"
+msgstr "Игнорировать полосу клиента"
 
 msgid "Import"
 msgstr "Импортировать"
@@ -1028,8 +1145,8 @@ msgstr "Включить серверы"
 msgid "Includes connection setup and TLS handshake time. The measurement takes longer but provides a more accurate result."
 msgstr "Учитывает время на установку соединения и TLS-рукопожатие. Измерение занимает больше времени, но показывает более точный результат."
 
-msgid "Information"
-msgstr "Информация"
+msgid "Indistinguishable from ordinary HTTPS while the certificate is real. Needs a domain and a certificate."
+msgstr "Неотличим от обычного HTTPS, пока сертификат настоящий. Нужен домен и сертификат."
 
 msgid "Install"
 msgstr "Установить"
@@ -1133,6 +1250,9 @@ msgstr "Только IPv6"
 msgid "Issues detected"
 msgstr "Обнаружены проблемы"
 
+msgid "Joins the router to your Tailscale network as an exit node. Needs no public address and no port forwarding."
+msgstr "Подключает роутер к вашей сети Tailscale как exit node. Публичный адрес и переадресация портов не нужны."
+
 msgid "JSON endpoint"
 msgstr "JSON endpoint"
 
@@ -1141,6 +1261,9 @@ msgstr "JSON endpoint должен содержать непустой tag"
 
 msgid "JSON endpoint must contain a non-empty type"
 msgstr "JSON endpoint должен содержать непустое поле type"
+
+msgid "JSON inbound"
+msgstr "JSON inbound"
 
 msgid "JSON outbound"
 msgstr "JSON outbound"
@@ -1166,6 +1289,9 @@ msgstr "Тип JSON outbound должен быть в нижнем регист�
 msgid "Keepalive timeout"
 msgstr "Таймаут keepalive"
 
+msgid "Keeps the Telegram data centre list up to date by itself."
+msgstr "Сам обновляет список дата-центров Telegram."
+
 msgid "Key path"
 msgstr "Путь к ключу"
 
@@ -1181,8 +1307,14 @@ msgstr "Установлена последняя версия"
 msgid "Latest version:"
 msgstr "Последняя версия:"
 
+msgid "Lets clients carry several streams over one connection. Clients that do not use it are unaffected."
+msgstr "Позволяет клиентам передавать несколько потоков в одном соединении. На клиентов без мультиплексирования не влияет."
+
 msgid "Level"
 msgstr "Уровень"
+
+msgid "Link %d"
+msgstr "Ссылка %d"
 
 msgid "List Update Frequency"
 msgstr "Частота обновления списков"
@@ -1196,8 +1328,8 @@ msgstr "Порт прослушивания"
 msgid "Listening port"
 msgstr "Слушающий порт"
 
-msgid "Loading client link..."
-msgstr "Загрузка клиентской ссылки..."
+msgid "Loading client links..."
+msgstr "Загрузка клиентских ссылок..."
 
 msgid "Loading connections"
 msgstr "Загрузка подключений"
@@ -1211,8 +1343,14 @@ msgstr "Загрузка..."
 msgid "Log Level"
 msgstr "Уровень логов"
 
+msgid "Login"
+msgstr "Логин"
+
 msgid "Logs"
 msgstr "Логи"
+
+msgid "LuCI web interface"
+msgstr "веб-интерфейс LuCI"
 
 msgid "Main DNS"
 msgstr "Основной DNS"
@@ -1232,6 +1370,9 @@ msgstr "Максимум попыток рукопожатия"
 msgid "Maximum packet size for this tunnel. Leave empty to use the default value."
 msgstr "Максимальный размер пакета для этого туннеля. Оставьте пустым для значения по умолчанию."
 
+msgid "Maximum simultaneous connections. Empty means the sing-box default."
+msgstr "Максимум одновременных подключений. Пусто — значение sing-box по умолчанию."
+
 msgid "Memory Usage"
 msgstr "Использование памяти"
 
@@ -1249,6 +1390,9 @@ msgstr "Порт смешанного прокси"
 
 msgid "Mixed Proxy Username"
 msgstr "Логин смешанного прокси"
+
+msgid "Modern V2Ray protocol. With Reality it needs no domain and no certificate, and a probe sees traffic to the fake site instead."
+msgstr "Современный протокол V2Ray. С Reality не нужны домен и сертификат, а проверяющий видит трафик к подставному сайту."
 
 msgid "Monitored Interfaces"
 msgstr "Наблюдаемые интерфейсы"
@@ -1268,6 +1412,9 @@ msgstr "Протокол мультиплексирования"
 msgid "Must be a number in the range of 0 - 10000"
 msgstr "Должно быть числом в диапазоне 0 - 10000"
 
+msgid "Name"
+msgstr "Имя"
+
 msgid "Name displayed on the dashboard"
 msgstr "Имя, которое отображается в дашборде"
 
@@ -1282,6 +1429,9 @@ msgstr "Название в списке групп серверов Fallback"
 
 msgid "Name shown in the Tailscale admin console."
 msgstr "Имя, которое будет отображаться в панели Tailscale."
+
+msgid "Name shown in the Tailscale admin console. Renaming the server keeps it, because a new hostname registers a new machine."
+msgstr "Имя в панели управления Tailscale. При переименовании сервера оно сохраняется, потому что новый hostname регистрирует новую машину."
 
 msgid "Name suffix"
 msgstr "Суффикс имени"
@@ -1388,11 +1538,20 @@ msgstr "Не отвечает"
 msgid "Not running"
 msgstr "Не запущено"
 
+msgid "Obfuscated protocol without TLS that hides packet lengths and timing. Needs the Mieru client."
+msgstr "Обфусцированный протокол без TLS, скрывающий длины пакетов и тайминги. Нужен клиент Mieru."
+
 msgid "Obfuscation"
 msgstr "Обфускация"
 
 msgid "Obfuscation password"
 msgstr "Пароль обфускации"
+
+msgid "Offer this router as an exit node so other devices can send all their traffic through it."
+msgstr "Предлагать роутер как exit node, чтобы другие устройства могли направлять через него весь трафик."
+
+msgid "Older V2Ray protocol kept for clients that cannot do VLESS. Prefer VLESS when the client supports it."
+msgstr "Старый протокол V2Ray для клиентов без поддержки VLESS. Если клиент умеет VLESS, выбирайте его."
 
 msgid "One rule per line as pattern => replacement, applied in order. The pattern is a regular expression; use $1 in the replacement to keep a captured group. Example: ^HK-(.*)$ => Hong Kong $1"
 msgstr "По одному правилу в строке в виде шаблон => замена, применяются по порядку. Шаблон — регулярное выражение; используйте $1 в замене, чтобы сохранить найденную группу. Пример: ^HK-(.*)$ => Гонконг $1"
@@ -1499,6 +1658,9 @@ msgstr "Ожидает запуска"
 msgid "Persistent keepalive"
 msgstr "Постоянный keepalive"
 
+msgid "Port %s is already used by %s"
+msgstr "Порт %s уже занят: %s"
+
 msgid "Port cannot be empty"
 msgstr "Порт не может быть пустым"
 
@@ -1541,6 +1703,9 @@ msgstr "Приватный ключ локального интерфейса Wi
 msgid "Protocol"
 msgstr "Протокол"
 
+msgid "Protocols offered during the TLS handshake. Leave empty for defaults."
+msgstr "Протоколы, предлагаемые при TLS-рукопожатии. Оставьте пустым для значений по умолчанию."
+
 msgid "Proxy link is unavailable"
 msgstr "Ссылка прокси недоступна"
 
@@ -1555,6 +1720,12 @@ msgstr "QR-код слишком большой"
 
 msgid "Query servers one at a time until the first successful response, or query all servers simultaneously for maximum speed."
 msgstr "Опрашивать серверы по очереди до первого успешного ответа или отправлять запросы всем одновременно для максимальной скорости."
+
+msgid "QUIC based and built for lossy links. UDP has to reach the router, and a certificate is required."
+msgstr "На основе QUIC, рассчитан на каналы с потерями. UDP должен доходить до роутера, нужен сертификат."
+
+msgid "QUIC based with native UDP relay. UDP has to reach the router, and a certificate is required."
+msgstr "На основе QUIC со встроенной передачей UDP. UDP должен доходить до роутера, нужен сертификат."
 
 msgid "QUIC congestion control"
 msgstr "Управление перегрузкой QUIC"
@@ -1577,11 +1748,23 @@ msgstr "Публичный ключ Reality"
 msgid "Reality short ID"
 msgstr "Reality short ID"
 
-msgid "Reality short ID must contain 1-8 hex digits"
-msgstr "Reality short ID должен содержать 1-8 hex-символов"
+msgid "Reality short ID must not exceed 16 hex digits"
+msgstr "Reality short ID не должен быть длиннее 16 hex-символов"
+
+msgid "Reality short ID must use an even number of hex digits"
+msgstr "В Reality short ID должно быть чётное число hex-символов"
+
+msgid "Reality short IDs must be unique"
+msgstr "Значения Reality short ID должны быть уникальными"
 
 msgid "Refill"
 msgstr "Сброс"
+
+msgid "Refuses multiplexed clients that do not pad their streams."
+msgstr "Отклоняет мультиплексированных клиентов без выравнивания потоков."
+
+msgid "Refuses the rates a client asks for and uses BBR instead."
+msgstr "Отклоняет запрошенные клиентом скорости и использует BBR."
 
 msgid "Register a Cloudflare WARP device and fill the profile fields."
 msgstr "Зарегистрировать устройство Cloudflare WARP и заполнить поля профиля."
@@ -1598,6 +1781,12 @@ msgstr "Таймаут обновления ключа"
 msgid "Remove"
 msgstr "Удалить"
 
+msgid "Remove client"
+msgstr "Удалить клиента"
+
+msgid "Remove the tag field: Forkop sets the tag from the server name"
+msgstr "Уберите поле tag: Forkop задаёт его по имени сервера"
+
 msgid "Rename servers"
 msgstr "Переименование серверов"
 
@@ -1607,8 +1796,14 @@ msgstr "Заменяет домен, который серверы этой по
 msgid "Require a username and password for the local mixed proxy"
 msgstr "Требовать логин и пароль для локального смешанного прокси"
 
+msgid "Require authentication"
+msgstr "Требовать аутентификацию"
+
 msgid "Require Mieru user hint"
 msgstr "Требовать указание пользователя Mieru"
+
+msgid "Require multiplex padding"
+msgstr "Требовать выравнивание мультиплекса"
 
 msgid "Required. List of remote nodes to connect."
 msgstr "Обязательно. Список удаленных узлов для подключения."
@@ -1654,6 +1849,9 @@ msgstr "Маршрутизировать основные DNS-запросы ч�
 
 msgid "Route the resolver's DNS requests through a section instead of this network interface."
 msgstr "Маршрутизировать DNS-запросы резолвера через секцию, а не через этот сетевой интерфейс."
+
+msgid "router SSH"
+msgstr "SSH роутера"
 
 msgid "Routing mode"
 msgstr "Режим маршрутизации"
@@ -1703,6 +1901,9 @@ msgstr "Запустить диагностику"
 msgid "Save"
 msgstr "Сохранить"
 
+msgid "Saves one round trip and allows replay attacks in exchange."
+msgstr "Экономит один круговой обмен и взамен допускает атаки повторного воспроизведения."
+
 msgid "Search"
 msgstr "Поиск"
 
@@ -1714,6 +1915,9 @@ msgstr "Секретный ключ для аутентификации удал
 
 msgid "Section"
 msgstr "Секция"
+
+msgid "section %s"
+msgstr "секция %s"
 
 msgid "Section name"
 msgstr "Имя секции"
@@ -1787,6 +1991,9 @@ msgstr "Последовательно"
 msgid "Server"
 msgstr "Сервер"
 
+msgid "server %s"
+msgstr "сервер %s"
+
 msgid "Server address"
 msgstr "Адрес сервера"
 
@@ -1811,9 +2018,6 @@ msgstr "Настройки группы серверов"
 msgid "Server groups"
 msgstr "Группы серверов"
 
-msgid "Server information"
-msgstr "Информация о сервере"
-
 msgid "Server name"
 msgstr "Имя сервера"
 
@@ -1834,6 +2038,9 @@ msgstr "Серверный outbound должен содержать числов
 
 msgid "Server port"
 msgstr "Порт сервера"
+
+msgid "Server pre-shared key"
+msgstr "Ключ сервера"
 
 msgid "server_port must be a number from 1 to 65535"
 msgstr "server_port должен быть числом от 1 до 65535"
@@ -1871,6 +2078,9 @@ msgstr "Информация о сервисах"
 msgid "Settings"
 msgstr "Настройки"
 
+msgid "Shared by every client of a 2022 server, in addition to its own key."
+msgstr "Общий для всех клиентов сервера 2022, дополняет собственный ключ клиента."
+
 msgid "Show forkop config"
 msgstr "Показать forkop конфигурацию"
 
@@ -1888,6 +2098,9 @@ msgstr "Отображать тег подписки"
 
 msgid "Sing-box autostart disabled"
 msgstr "Автостарт sing-box отключен"
+
+msgid "sing-box Clash API"
+msgstr "Clash API sing-box"
 
 msgid "Sing-box FakeIP DNS does not work"
 msgstr "FakeIP DNS sing-box не работает"
@@ -1910,6 +2123,15 @@ msgstr "Сервис sing-box существует"
 msgid "Sing-box version is compatible (newer than 1.12.4)"
 msgstr "Версия Sing-box совместима (новее 1.12.4)"
 
+msgid "SOCKS5 / HTTP"
+msgstr "SOCKS5 / HTTP"
+
+msgid "SOCKS5 and HTTP proxy on one port, without encryption. Meant for the local network; do not expose it to the internet."
+msgstr "Прокси SOCKS5 и HTTP на одном порту, без шифрования. Рассчитан на локальную сеть, не открывайте его в интернет."
+
+msgid "SOCKS5 link"
+msgstr "SOCKS5-ссылка"
+
 msgid "Sort by latency"
 msgstr "Сортировать по задержке"
 
@@ -1931,11 +2153,17 @@ msgstr "Укажите локальные подсети, чтобы дать к
 msgid "Specify several servers for automatic failover on failure. To select a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; UDP is used by default."
 msgstr "Укажите несколько серверов для автоматического переключения при сбоях. Для выбора протокола используйте udp://, tcp://, tls://, https://, quic:// или h3://; по умолчанию UDP."
 
+msgid "Speeds up handshakes on a busy server, but only clients that send the hint can connect."
+msgstr "Ускоряет рукопожатия на нагруженном сервере, но подключиться смогут только клиенты, отправляющие подсказку."
+
 msgid "Split large UDP packets, which helps on links with a small MTU."
 msgstr "Разбивать большие UDP-пакеты. Помогает на каналах с малым MTU."
 
 msgid "SSH host key path"
 msgstr "Путь к ключу хоста SSH"
+
+msgid "SSH tunnel served by sing-box itself, usable from any SSH client. Independent from the router's own SSH access."
+msgstr "SSH-туннель, который поднимает сам sing-box; подходит любой SSH-клиент. Не связан с доступом к SSH роутера."
 
 msgid "Standalone ByeDPI autostart is enabled"
 msgstr "Автозапуск отдельной службы ByeDPI включен"
@@ -2039,17 +2267,35 @@ msgstr "Tailscale endpoint"
 msgid "Tailscale hostname"
 msgstr "Hostname Tailscale"
 
+msgid "Tailscale hostname must not exceed 63 characters"
+msgstr "Hostname Tailscale не должен быть длиннее 63 символов"
+
 msgid "TCP and UDP"
 msgstr "TCP и UDP"
+
+msgid "TCP Brutal"
+msgstr "TCP Brutal"
 
 msgid "TCP Fast Open"
 msgstr "TCP Fast Open"
 
+msgid "Telegram proxy. Only Telegram traffic passes through it, and the link opens directly in the app."
+msgstr "Прокси для Telegram. Через него идёт только трафик Telegram, а ссылка открывается прямо в приложении."
+
 msgid "Test latency"
 msgstr "Тестирование задержки"
 
+msgid "The 2022 methods add replay protection and use base64 keys; the older AEAD methods accept any password."
+msgstr "Методы 2022 защищают от повторов и используют ключи в base64; старые методы AEAD принимают любой пароль."
+
 msgid "The desync fwmark is managed by Forkop for loop prevention and must not be overridden here."
 msgstr "Desync fwmark управляется Forkop для защиты от циклов и не должен переопределяться здесь."
+
+msgid "The host name the proxy pretends to serve. It is part of the secret."
+msgstr "Имя хоста, за который выдаёт себя прокси. Оно входит в секрет."
+
+msgid "The name the certificate is issued for, and the name clients send."
+msgstr "Имя, на которое выпущен сертификат, и имя, которое отправляют клиенты."
 
 msgid "The NFQUEUE number is assigned by Forkop for each rule and must not be overridden here."
 msgstr "Номер NFQUEUE назначается Forkop для каждого правила и не должен переопределяться здесь."
@@ -2057,8 +2303,17 @@ msgstr "Номер NFQUEUE назначается Forkop для каждого �
 msgid "The pasted link is not supported. Try JSON outbound."
 msgstr "Вставленная ссылка не поддерживается. Попробуй JSON outbound."
 
+msgid "The public address is a private or reserved address, so these links only work from inside the local network."
+msgstr "Публичный адрес приватный или зарезервированный, поэтому эти ссылки работают только внутри локальной сети."
+
 msgid "The rule applies to the domain and all its subdomains. Use full:, keyword:, or regex: prefixes for exact match, keyword match, or regular expression."
 msgstr "Правило применяется к домену и всем его поддоменам. Для полного совпадения, совпадению по слову или регулярному выражению используйте префиксы full:, keyword: или regex:."
+
+msgid "The server uses a self-signed certificate, so the links disable certificate verification. Point the certificate path at a real certificate to remove that."
+msgstr "Сервер использует самоподписанный сертификат, поэтому ссылки отключают его проверку. Укажите в пути настоящий сертификат, чтобы это убрать."
+
+msgid "The TLS fingerprint clients are told to imitate."
+msgstr "Отпечаток TLS, который предлагается имитировать клиентам."
 
 msgid "There are rules using ByeDPI"
 msgstr "Есть правила, использующие ByeDPI"
@@ -2090,11 +2345,23 @@ msgstr "Это поле должно запускать рабочую стра�
 msgid "This flag does not accept a value."
 msgstr "Этот флаг не принимает значение."
 
+msgid "This method needs a base64 key of %d bytes"
+msgstr "Этому методу нужен ключ в base64 длиной %d байт"
+
 msgid "This option requires a value."
 msgstr "Этой опции требуется значение."
 
+msgid "This protocol has no share link"
+msgstr "У этого протокола нет ссылки для клиента"
+
+msgid "This protocol sends the name as the account name: use letters, digits, dots, underscores or hyphens"
+msgstr "Этот протокол передаёт имя как имя учётной записи: используйте латинские буквы, цифры, точки, подчёркивания или дефисы"
+
 msgid "This section name is reserved by Forkop"
 msgstr "Это название секции зарезервировано Forkop"
+
+msgid "This server has no enabled clients, so nobody can connect."
+msgstr "У сервера нет включённых клиентов, поэтому подключиться никто не сможет."
 
 msgid "This server name is reserved by Forkop"
 msgstr "Это название сервера зарезервировано Forkop"
@@ -2110,6 +2377,9 @@ msgstr "Время в секундах для кэширования DNS зап�
 
 msgid "Time skew tolerance"
 msgstr "Допуск расхождения времени"
+
+msgid "TLS with adaptive padding that hides the packet size pattern. Needs a certificate."
+msgstr "TLS с адаптивным выравниванием, скрывающим характерные размеры пакетов. Нужен сертификат."
 
 msgid "Tolerance"
 msgstr "Допуск"
@@ -2249,6 +2519,9 @@ msgstr "Автоматически обновлять эту подписку"
 msgid "Uplink"
 msgstr "Исходящий"
 
+msgid "Upload limit (Mbps)"
+msgstr "Предел отдачи (Мбит/с)"
+
 msgid "Uploaded"
 msgstr "Отдано"
 
@@ -2282,6 +2555,9 @@ msgstr "Настройки URLTest"
 msgid "Use *, status codes, or ranges such as 204/200-299"
 msgstr "Укажите *, HTTP-коды или диапазоны, например 204/200-299"
 
+msgid "Use 0.0.0.0 for every IPv4 address, or :: for every address."
+msgstr "Укажите 0.0.0.0 для всех адресов IPv4 или :: для всех адресов."
+
 msgid "Use 32 hex characters"
 msgstr "Укажите 32 hex-символа"
 
@@ -2296,6 +2572,9 @@ msgstr "Используйте неотрицательное целое чис�
 
 msgid "Use a non-zero secret"
 msgstr "Укажите ненулевой секрет"
+
+msgid "Use a positive integer"
+msgstr "Используйте целое положительное число"
 
 msgid "Use a valid UUID"
 msgstr "Укажите корректный UUID"
@@ -2312,17 +2591,20 @@ msgstr "Укажите IP-адрес с префиксом CIDR"
 msgid "Use an IP listen address"
 msgstr "Используйте IP-адрес для прослушивания"
 
+msgid "Use an OpenSSH public key line, for example ssh-ed25519 AAAA..."
+msgstr "Укажите строку публичного ключа OpenSSH, например ssh-ed25519 AAAA..."
+
 msgid "Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, Tailscale, JSON outbounds, or JSON endpoints."
 msgstr "Используйте другую секцию как промежуточный узел для подключения к серверам этой секции. Не применяется к сетевым интерфейсам, Tailscale, JSON outbound и JSON endpoint."
-
-msgid "Use CIDR prefixes like 192.168.1.0/24 or 2001:db8::/32"
-msgstr "Используйте CIDR-префиксы, например 192.168.1.0/24 или 2001:db8::/32"
 
 msgid "Use CIDR prefixes or IP addresses like 192.168.1.0/24, 192.168.1.10, or 2001:db8::1"
 msgstr "Используйте CIDR-префиксы или IP-адреса, например 192.168.1.0/24, 192.168.1.10 или 2001:db8::1"
 
 msgid "Use letters, digits, dots, underscores, or hyphens"
 msgstr "Используйте буквы, цифры, точки, подчёркивания или дефисы"
+
+msgid "Use lowercase letters, digits and hyphens: Tailscale rewrites anything else"
+msgstr "Используйте строчные латинские буквы, цифры и дефисы: всё остальное Tailscale перепишет"
 
 msgid "Use several network paths for one connection when the server allows it."
 msgstr "Использовать несколько сетевых путей для одного соединения, если сервер это позволяет."
@@ -2360,9 +2642,6 @@ msgstr "Значение не может быть пустым"
 msgid "Value must not contain control characters"
 msgstr "Значение не должно содержать управляющие символы"
 
-msgid "VLESS flow"
-msgstr "VLESS flow"
-
 msgid "WAN"
 msgstr "WAN"
 
@@ -2386,6 +2665,12 @@ msgstr "Идентификатор профиля WARP"
 
 msgid "What Forkop should do when this section's conditions match"
 msgstr "Что Forkop должен делать при совпадении условий этой секции"
+
+msgid "What happens to the traffic clients send: the same rules the router uses, straight out through the WAN, or one chosen section."
+msgstr "Что происходит с трафиком клиентов: те же правила, что у роутера, прямой выход через WAN или одна выбранная секция."
+
+msgid "Where unrecognised connections are forwarded, usually 443."
+msgstr "Куда направляются нераспознанные подключения, обычно 443."
 
 msgid "Whitelist"
 msgstr "Белый список"
@@ -2422,6 +2707,12 @@ msgstr "Настройки пира WireGuard"
 
 msgid "WireGuard, AmneziaWG, Cloudflare WARP, Tailscale, and JSON endpoint tunnels"
 msgstr "Туннели WireGuard, AmneziaWG, Cloudflare WARP, Tailscale и JSON endpoint"
+
+msgid "Without authentication anyone who reaches the port can use the proxy."
+msgstr "Без аутентификации прокси доступен любому, кто дотянется до порта."
+
+msgid "Wraps the QUIC packets so they no longer look like QUIC."
+msgstr "Оборачивает пакеты QUIC так, что они перестают выглядеть как QUIC."
 
 msgid "XHTTP mode"
 msgstr "Режим XHTTP"

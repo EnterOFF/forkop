@@ -425,6 +425,12 @@ function dhcp_has_https_dns_proxy_options(path) {
         index(data, "doh_server") >= 0;
 }
 
+function uci_core() {
+    if (uci_core_module == null)
+        uci_core_module = require("core.uci");
+    return uci_core_module;
+}
+
 function mwan3_has_enabled_interface_from_sections() {
     let uci = uci_core();
     for (let section in uci.section_objects("mwan3", "interface"))
@@ -494,12 +500,6 @@ function runtime_constants() {
     if (constants_module == null)
         constants_module = require("core.constants");
     return constants_module;
-}
-
-function uci_core() {
-    if (uci_core_module == null)
-        uci_core_module = require("core.uci");
-    return uci_core_module;
 }
 
 function fixture_section_list(type_name) {
@@ -1568,6 +1568,145 @@ function basic_rows_by_section(rows) {
     return result;
 }
 
+const SERVER_CLIENT_FIELDS = {
+    vless: [ "uuid" ],
+    vmess: [ "uuid" ],
+    trojan: [ "password" ],
+    shadowsocks: [ "password" ],
+    hysteria2: [ "password" ],
+    tuic: [ "uuid", "password" ],
+    anytls: [ "password" ],
+    mixed: [ "password" ],
+    naive: [ "password" ],
+    ssh: [ "password" ],
+    mieru: [ "password" ],
+    mtproto: [ "secret" ],
+    tailscale: [],
+    json_inbound: []
+};
+const SHADOWSOCKS_2022_KEY_BYTES = {
+    "2022-blake3-aes-128-gcm": 16,
+    "2022-blake3-aes-256-gcm": 32,
+    "2022-blake3-chacha20-poly1305": 32
+};
+const LOGIN_NAME_PROTOCOLS = { mixed: true, naive: true, ssh: true, mieru: true };
+
+function base64_decoded_length(value) {
+    value = as_string(value);
+    if (value == "" || length(value) % 4 != 0 || match(value, /^[A-Za-z0-9+/]+={0,2}$/) == null)
+        return -1;
+
+    let padding = 0;
+    for (let i = length(value) - 1; i >= 0 && substr(value, i, 1) == "="; i--)
+        padding++;
+    return (length(value) / 4) * 3 - padding;
+}
+
+// The clients of one server: a name every client can carry, credentials the protocol
+// can use, and at least one enabled account so the inbound accepts somebody.
+function validate_server_clients(server, protocol, name) {
+    let fields = SERVER_CLIENT_FIELDS[protocol];
+    if (fields == null || length(fields) == 0)
+        return;
+
+    let clients = connections.server_clients(server);
+    if (length(clients) == 0)
+        fail_validation("Server '" + name + "' has no enabled clients. Add at least one client. Aborted.");
+
+    let auth_required = protocol != "mixed" || bool_option(server, "mixed_auth_enabled", true);
+    let key_bytes = protocol == "shadowsocks"
+        ? SHADOWSOCKS_2022_KEY_BYTES[option(server, "shadowsocks_method", "")]
+        : null;
+    let seen = {};
+
+    for (let client in clients) {
+        let client_name = trim(option(client, "name", ""));
+        if (client_name == "")
+            fail_validation("Server '" + name + "' has a client without a name. Aborted.");
+        if (seen[lc(client_name)])
+            fail_validation("Server '" + name + "' has more than one client named '" + client_name + "'. Aborted.");
+        seen[lc(client_name)] = true;
+        if (LOGIN_NAME_PROTOCOLS[protocol] && match(client_name, /^[A-Za-z0-9._-]+$/) == null)
+            fail_validation("Server '" + name + "' client '" + client_name + "' is used as an account name and must contain only letters, digits, dots, underscores or hyphens. Aborted.");
+
+        for (let field in fields) {
+            let value = option(client, field, "");
+            if (field == "password" && !auth_required)
+                continue;
+            if (value == "")
+                fail_validation("Server '" + name + "' client '" + client_name + "' has no " + field + ". Aborted.");
+            if (field == "uuid" && match(value, /^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$/) == null)
+                fail_validation("Server '" + name + "' client '" + client_name + "' has an invalid UUID. Aborted.");
+            if (field == "secret" && match(lc(value), /^[0-9a-f]{32}$/) == null)
+                fail_validation("Server '" + name + "' client '" + client_name + "' needs a 32 hex character secret. Aborted.");
+            if (field == "password" && key_bytes != null && base64_decoded_length(value) != key_bytes)
+                fail_validation("Server '" + name + "' client '" + client_name + "' needs a base64 pre-shared key of " + key_bytes + " bytes for method '" + option(server, "shadowsocks_method", "") + "'. Aborted.");
+        }
+    }
+
+    if (key_bytes != null && base64_decoded_length(option(server, "shadowsocks_psk", "")) != key_bytes)
+        fail_validation("Server '" + name + "' needs a base64 server pre-shared key of " + key_bytes + " bytes for method '" + option(server, "shadowsocks_method", "") + "'. Aborted.");
+}
+
+// sing-box binds every inbound itself, so two listeners on one port stop the whole
+// service. Reporting the pair here keeps a bad apply from taking the router offline.
+function validate_server_listen_ports() {
+    let owners = {};
+
+    for (let port in [
+        as_string(singbox_constants.TPROXY_INBOUND_PORT),
+        as_string(singbox_constants.SOURCE_DNS_INBOUND_PORT),
+        as_string(singbox_constants.SYSTEM_TPROXY_INBOUND_PORT),
+        as_string(singbox_constants.SYSTEM_DNS_INBOUND_PORT),
+        as_string(singbox_constants.DNS_INBOUND_PORT),
+        as_string(singbox_constants.SERVICE_MIXED_INBOUND_PORT),
+        as_string(singbox_constants.CLASH_API_CONTROLLER_PORT)
+    ])
+        owners[port] = "a Forkop inbound";
+
+    for (let server in sections_by_type("server")) {
+        server = object_or_empty(server);
+        let protocol = option(server, "protocol", "vless");
+        if (!server_enabled(server) || protocol == "tailscale" || protocol == "json_inbound")
+            continue;
+
+        let name = section_name(server);
+        let port = option(server, "listen_port", "");
+        if (port == "" || match(port, /^[0-9]+$/) == null || int(port, 10) < 1 || int(port, 10) > 65535)
+            fail_validation("Server '" + name + "' has an invalid listen port '" + port + "'. Aborted.");
+        if (owners[port] != null)
+            fail_validation("Server '" + name + "' listens on port " + port + ", which is already used by " + owners[port] + ". Aborted.");
+        owners[port] = "server '" + name + "'";
+    }
+
+    for (let section in sections_by_type("section")) {
+        section = object_or_empty(section);
+        if (!bool_option(section, "enabled", true) || !bool_option(section, "mixed_proxy_enabled", false))
+            continue;
+
+        let port = option(section, "mixed_proxy_port", "");
+        if (port == "" || owners[port] == null)
+            continue;
+        fail_validation("Section '" + section_name(section) + "' serves its mixed proxy on port " + port + ", which is already used by " + owners[port] + ". Aborted.");
+    }
+}
+
+function validate_server_clients_and_ports(sections) {
+    validate_server_listen_ports();
+
+    for (let server in sections_by_type("server")) {
+        server = object_or_empty(server);
+        if (!server_enabled(server))
+            continue;
+
+        let protocol = option(server, "protocol", "vless");
+        if (SERVER_CLIENT_FIELDS[protocol] == null)
+            fail_validation("Server '" + section_name(server) + "' uses unsupported protocol '" + protocol + "'. Aborted.");
+
+        validate_server_clients(server, protocol, section_name(server));
+    }
+}
+
 function validate_server_routing_sections(sections) {
     let by_section = basic_rows_by_section(basic_rows_from_sections(sections));
 
@@ -1694,6 +1833,7 @@ function validate_runtime_config(context) {
     validate_subscription_download_sections(sections, context);
     validate_json_inbound_values();
     validate_server_routing_sections(sections);
+    validate_server_clients_and_ports(sections);
 
     for (let section in sections) {
         validate_subscription_tags(section);

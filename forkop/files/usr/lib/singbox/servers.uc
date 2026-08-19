@@ -11,6 +11,17 @@ let bool_option = common.bool_option;
 let int_option = common.int_option;
 let array_or_empty = common.array_or_empty;
 
+// Methods that derive their keys from base64 pre-shared keys instead of a password.
+const SHADOWSOCKS_2022_METHODS = {
+    "2022-blake3-aes-128-gcm": true,
+    "2022-blake3-aes-256-gcm": true,
+    "2022-blake3-chacha20-poly1305": true
+};
+
+function shadowsocks_2022_method(method) {
+    return !!SHADOWSOCKS_2022_METHODS[as_string(method)];
+}
+
 function safe_filename(value) {
     value = as_string(value);
     let result = "";
@@ -29,76 +40,68 @@ function string_to_hex(value) {
     return result;
 }
 
-function mtproto_secret(section) {
-    let secret = option(section, "mtproto_secret", "");
+function mtproto_client_secret(section, client) {
+    let secret = lc(option(client, "secret", ""));
     let faketls = option(section, "mtproto_faketls", "google.com");
-    if (substr(lc(secret), 0, 2) == "ee")
+    if (substr(secret, 0, 2) == "ee")
         return secret;
     return "ee" + secret + string_to_hex(faketls);
 }
 
-function users(section, protocol) {
-    let named_user = protocol == "socks" || protocol == "naive" || protocol == "ssh" || protocol == "mieru";
-    let name = option(section, named_user ? "server_username" : "label", section[".name"]);
+function shadowsocks_client_password(section, client) {
+    let password = option(client, "password", "");
+    let psk = option(section, "shadowsocks_psk", "");
+    // A 2022 server holds one pre-shared key and every client adds its own, so the
+    // multi user service takes the two joined the way the ciphers expect them.
+    if (psk != "" && shadowsocks_2022_method(option(section, "shadowsocks_method", "")))
+        return psk + ":" + password;
+    return password;
+}
+
+function client_user(section, protocol, client) {
+    let name = option(client, "name", client[".name"]);
     if (name == "")
-        name = section[".name"];
+        name = client[".name"];
 
     if (protocol == "vless") {
-        let user = { uuid: option(section, "server_uuid", "") };
-        if (name != "")
-            user.name = name;
-        let flow = option(section, "vless_flow", "");
+        let user = { name, uuid: option(client, "uuid", "") };
+        let flow = option(client, "flow", "");
         if (flow != "" && flow != "none")
             user.flow = flow;
-        return [ user ];
+        return user;
     }
-    if (protocol == "vmess") {
-        let user = {
-            uuid: option(section, "server_uuid", ""),
-            alterId: int_option(section, "vmess_alter_id", "0")
-        };
-        if (name != "")
-            user.name = name;
-        return [ user ];
+    if (protocol == "vmess")
+        return { name, uuid: option(client, "uuid", ""), alterId: 0 };
+    if (protocol == "trojan" || protocol == "hysteria2" || protocol == "anytls" ||
+        protocol == "mieru" || protocol == "shadowsocks")
+        return { name, password: protocol == "shadowsocks" ? shadowsocks_client_password(section, client) : option(client, "password", "") };
+    if (protocol == "mixed" || protocol == "naive")
+        return { username: name, password: option(client, "password", "") };
+    if (protocol == "ssh") {
+        let user = { name };
+        let password = option(client, "password", "");
+        if (password != "")
+            user.password = password;
+        let authorized_keys = list_option(client, "authorized_keys");
+        if (length(authorized_keys) > 0)
+            user.authorized_keys = authorized_keys;
+        return user;
     }
-    if (protocol == "trojan" || protocol == "hysteria2") {
-        let user = { password: option(section, "server_password", "") };
-        if (name != "")
-            user.name = name;
-        return [ user ];
+    if (protocol == "tuic")
+        return { name, uuid: option(client, "uuid", ""), password: option(client, "password", "") };
+    if (protocol == "mtproto")
+        return { name, secret: mtproto_client_secret(section, client) };
+    return null;
+}
+
+function users(section, protocol) {
+    let result = [];
+    for (let client in connections.server_clients(section)) {
+        let user = client_user(section, protocol, client);
+        if (user != null)
+            push(result, user);
     }
-    if (protocol == "socks") {
-        return [{
-            username: name != "" ? name : "user",
-            password: option(section, "server_password", "")
-        }];
-    }
-    if (protocol == "mtproto") {
-        let user = { secret: mtproto_secret(section) };
-        if (name != "")
-            user.name = name;
-        return [ user ];
-    }
-    if (protocol == "naive") {
-        return [{
-            username: name,
-            password: option(section, "server_password", "")
-        }];
-    }
-    if (protocol == "ssh" || protocol == "mieru" || protocol == "anytls") {
-        return [{
-            name,
-            password: option(section, "server_password", "")
-        }];
-    }
-    if (protocol == "tuic") {
-        return [{
-            name,
-            uuid: option(section, "server_uuid", ""),
-            password: option(section, "server_password", "")
-        }];
-    }
-    return [];
+    return result;
 }
 
 function effective_security(section, protocol) {
@@ -113,7 +116,7 @@ function effective_security(section, protocol) {
             security = "none";
     }
 
-    if (protocol == "shadowsocks" || protocol == "socks" || protocol == "ssh" || protocol == "mieru" || protocol == "mtproto" ||
+    if (protocol == "shadowsocks" || protocol == "mixed" || protocol == "ssh" || protocol == "mieru" || protocol == "mtproto" ||
         protocol == "tailscale" || protocol == "json_inbound")
         return "none";
     if (protocol == "hysteria2" || protocol == "naive" || protocol == "anytls" || protocol == "tuic")
@@ -211,6 +214,31 @@ function apply_transport(inbound, section, protocol) {
     inbound.transport = transport;
 }
 
+// Multiplexing is accepted, never required: a client that does not use it keeps
+// working, and TCP Brutal only takes effect when both sides load the module.
+function apply_multiplex(inbound, section, protocol) {
+    if (protocol != "vless" && protocol != "vmess" && protocol != "trojan" && protocol != "shadowsocks")
+        return;
+    if (!bool_option(section, "multiplex_enabled", false))
+        return;
+
+    let multiplex = { enabled: true };
+    if (bool_option(section, "multiplex_padding", false))
+        multiplex.padding = true;
+    if (bool_option(section, "multiplex_brutal_enabled", false)) {
+        let brutal = { enabled: true };
+        let up_mbps = option(section, "multiplex_brutal_up_mbps", "");
+        let down_mbps = option(section, "multiplex_brutal_down_mbps", "");
+        if (up_mbps != "")
+            brutal.up_mbps = int(up_mbps, 10);
+        if (down_mbps != "")
+            brutal.down_mbps = int(down_mbps, 10);
+        multiplex.brutal = brutal;
+    }
+
+    inbound.multiplex = multiplex;
+}
+
 function add_standard_inbound(config, section, protocol, tag_name) {
     let inbound = {
         type: protocol,
@@ -220,11 +248,16 @@ function add_standard_inbound(config, section, protocol, tag_name) {
     };
 
     if (protocol == "shadowsocks") {
-        inbound.method = option(section, "shadowsocks_method", "aes-128-gcm");
-        inbound.password = option(section, "server_password", "");
+        let method = option(section, "shadowsocks_method", "aes-128-gcm");
+        inbound.method = method;
+        // A 2022 server needs its own pre-shared key next to the per client keys; the
+        // older AEAD methods derive every key from the client password alone.
+        if (shadowsocks_2022_method(method))
+            inbound.password = option(section, "shadowsocks_psk", "");
+        inbound.users = users(section, protocol);
     }
-    else if (protocol == "socks") {
-        if (bool_option(section, "socks_auth_enabled", true)) {
+    else if (protocol == "mixed") {
+        if (bool_option(section, "mixed_auth_enabled", true)) {
             let server_users = users(section, protocol);
             if (length(server_users) > 0)
                 inbound.users = server_users;
@@ -232,6 +265,8 @@ function add_standard_inbound(config, section, protocol, tag_name) {
     }
     else if (protocol == "hysteria2") {
         inbound.users = users(section, protocol);
+        if (bool_option(section, "hysteria2_ignore_client_bandwidth", false))
+            inbound.ignore_client_bandwidth = true;
         let up_mbps = option(section, "hysteria2_up_mbps", "");
         let down_mbps = option(section, "hysteria2_down_mbps", "");
         if (up_mbps != "")
@@ -300,6 +335,7 @@ function add_standard_inbound(config, section, protocol, tag_name) {
 
     apply_tls(inbound, section, protocol);
     apply_transport(inbound, section, protocol);
+    apply_multiplex(inbound, section, protocol);
     push(config.inbounds, inbound);
 }
 
@@ -325,9 +361,10 @@ function add_tailscale_endpoint(config, section, tag_name) {
         state_directory: "/etc/forkop/tailscale/" + safe_filename(section_name),
         auth_key: option(section, "tailscale_auth_key", ""),
         control_url: option(section, "tailscale_control_url", "https://controlplane.tailscale.com"),
-        hostname: option(section, "tailscale_hostname", "forkop-" + safe_filename(section_name)),
-        advertise_exit_node: true
+        hostname: option(section, "tailscale_hostname", "forkop-" + safe_filename(section_name))
     };
+    if (bool_option(section, "tailscale_advertise_exit_node", true))
+        endpoint.advertise_exit_node = true;
     if (bool_option(section, "tailscale_detour_enabled", false)) {
         let detour_section = option(section, "tailscale_detour_section", "");
         if (detour_section != "")

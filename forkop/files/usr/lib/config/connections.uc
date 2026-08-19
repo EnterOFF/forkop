@@ -13,6 +13,7 @@ const DEFAULT_DOMAIN_RESOLVER_DNS_SERVER = "8.8.8.8";
 const ITEM_TYPES = [
     "section",
     "server",
+    "server_client",
     "subscription_url",
     "section_interface",
     "urltest",
@@ -222,6 +223,21 @@ function child_items_by_owner(type_name, owner_key, owner_value) {
         if (option(child, owner_key, "") == owner_value)
             push(result, child);
     return result;
+}
+
+// The accounts a server accepts, in configuration order. sing-box takes a user list
+// on every protocol Forkop serves, so the generator, the validator and the reload
+// signature all read the clients through this one accessor.
+function server_clients(server) {
+    let result = [];
+    for (let client in child_items_by_owner("server_client", "server", section_name(server)))
+        if (bool_option(client, "enabled", true))
+            push(result, client);
+    return result;
+}
+
+function server_client_sections(server) {
+    return child_items_by_owner("server_client", "server", section_name(server));
 }
 
 function child_item_by_value(parent, type_name, value_key, value) {
@@ -1225,5 +1241,7 @@ return {
     subscription_download_target_port,
     section_display_name,
     section_exists,
-    server_display_name
+    server_display_name,
+    server_clients,
+    server_client_sections
 };

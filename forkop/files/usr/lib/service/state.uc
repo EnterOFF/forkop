@@ -290,6 +290,19 @@ function runtime_dir_lock_held(lock_dir) {
     return lock_age >= 0 && lock_age < RUNTIME_DIR_LOCK_OWNER_GRACE;
 }
 
+function release_runtime_dir_lock(lock_dir, owner_pid) {
+    lock_dir = as_string(lock_dir);
+    owner_pid = as_string(owner_pid);
+    if (lock_dir == "" || owner_pid == "")
+        return;
+
+    if (first_line_value(lock_dir + "/pid") != owner_pid)
+        return;
+
+    command_success_from_args([ "rm", "-f", lock_dir + "/pid" ]);
+    command_success_from_args([ "rmdir", lock_dir ]);
+}
+
 function acquire_runtime_dir_lock(lock_dir, owner_pid) {
     lock_dir = as_string(lock_dir);
     owner_pid = as_string(owner_pid);
@@ -334,19 +347,6 @@ function acquire_runtime_dir_lock_wait(lock_dir, owner_pid, timeout) {
     }
 
     return true;
-}
-
-function release_runtime_dir_lock(lock_dir, owner_pid) {
-    lock_dir = as_string(lock_dir);
-    owner_pid = as_string(owner_pid);
-    if (lock_dir == "" || owner_pid == "")
-        return;
-
-    if (first_line_value(lock_dir + "/pid") != owner_pid)
-        return;
-
-    command_success_from_args([ "rm", "-f", lock_dir + "/pid" ]);
-    command_success_from_args([ "rmdir", lock_dir ]);
 }
 
 function write_reload_state(path, values) {
@@ -938,8 +938,8 @@ function append_sing_box_server_signature_body(body, server) {
     if (enabled != "1")
         return body;
 
-    if (option(server, "protocol", "vless") == "socks")
-        body = signature_add_value(body, prefix + ".socks_auth_enabled", bool_option_value(server, "socks_auth_enabled", true));
+    if (option(server, "protocol", "vless") == "mixed")
+        body = signature_add_value(body, prefix + ".mixed_auth_enabled", bool_option_value(server, "mixed_auth_enabled", true));
 
     let fields = [
         [ "label", name ],
@@ -968,16 +968,19 @@ function append_sing_box_server_signature_body(body, server) {
         [ "transport_hosts", "" ],
         [ "transport_xhttp_mode", "" ],
         [ "client_fingerprint", "" ],
-        [ "server_uuid", "" ],
-        [ "server_username", "" ],
-        [ "server_password", "" ],
         [ "vless_flow", "" ],
-        [ "vmess_alter_id", "" ],
         [ "shadowsocks_method", "" ],
+        [ "shadowsocks_psk", "" ],
+        [ "multiplex_enabled", "" ],
+        [ "multiplex_padding", "" ],
+        [ "multiplex_brutal_enabled", "" ],
+        [ "multiplex_brutal_up_mbps", "" ],
+        [ "multiplex_brutal_down_mbps", "" ],
         [ "hysteria2_up_mbps", "" ],
         [ "hysteria2_down_mbps", "" ],
         [ "hysteria2_obfs_type", "" ],
         [ "hysteria2_obfs_password", "" ],
+        [ "hysteria2_ignore_client_bandwidth", "" ],
         [ "naive_network", "tcp" ],
         [ "naive_quic_congestion_control", "bbr" ],
         [ "ssh_host_key_path", "" ],
@@ -987,7 +990,6 @@ function append_sing_box_server_signature_body(body, server) {
         [ "tuic_auth_timeout", "3s" ],
         [ "tuic_heartbeat", "10s" ],
         [ "tuic_zero_rtt_handshake", "0" ],
-        [ "mtproto_secret", "" ],
         [ "mtproto_faketls", "" ],
         [ "mtproto_concurrency", "" ],
         [ "mtproto_domain_fronting_port", "" ],
@@ -1000,6 +1002,8 @@ function append_sing_box_server_signature_body(body, server) {
         [ "mtproto_idle_timeout", "" ],
         [ "mtproto_handshake_timeout", "" ],
         [ "tailscale_auth_key", "" ],
+        [ "tailscale_detour_enabled", "" ],
+        [ "tailscale_detour_section", "" ],
         [ "tailscale_control_url", "" ],
         [ "tailscale_hostname", "" ],
         [ "tailscale_accept_routes", "" ],
@@ -1009,6 +1013,17 @@ function append_sing_box_server_signature_body(body, server) {
 
     for (let field in fields)
         body = signature_add_value(body, prefix + "." + field[0], option(server, field[0], field[1]));
+
+    // Clients decide who the inbound accepts, so a changed, added or removed client
+    // has to move the signature the same way a server option does.
+    for (let client in connections.server_client_sections(server)) {
+        let client_prefix = prefix + ".client." + section_name(client);
+        body = signature_add_value(body, client_prefix + ".enabled", bool_option_value(client, "enabled", true));
+        for (let field in [ "name", "uuid", "password", "secret", "flow" ])
+            body = signature_add_value(body, client_prefix + "." + field, option(client, field, ""));
+        for (let value in list_option(client, "authorized_keys"))
+            body = signature_add_value(body, client_prefix + ".authorized_keys", value);
+    }
 
     return body;
 }

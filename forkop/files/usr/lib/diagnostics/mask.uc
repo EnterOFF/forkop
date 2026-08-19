@@ -100,6 +100,12 @@ function forkop_config_line(line) {
     line = mask_after_token(line, "option server_username");
     line = mask_after_token(line, "option server_password");
     line = mask_after_token(line, "option mtproto_secret");
+    line = mask_after_token(line, "option shadowsocks_psk");
+    // Credentials of a server client section.
+    line = mask_after_token(line, "option uuid");
+    line = mask_after_token(line, "option password");
+    line = mask_after_token(line, "option secret");
+    line = mask_after_token_space(line, "list authorized_keys");
     line = mask_after_token_space(line, "option mtproto_faketls");
     line = mask_after_token_space(line, "option mtproto_domain_fronting_ip");
     line = mask_after_token_space(line, "option tls_server_name");

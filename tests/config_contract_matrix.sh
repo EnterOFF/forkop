@@ -119,12 +119,15 @@ function assertCurrentKeepsStableValues(name, required = [], retired = []) {
 }
 
 assertCurrentKeepsStableValues("action", ["connection", "bypass", "block", "zapret", "zapret2", "byedpi", "dns"], ["direct", "proxy", "vpn", "outbound"]);
-assertCurrentKeepsStableValues("protocol", ["tailscale", "vless", "vmess", "trojan", "shadowsocks", "hysteria2", "socks", "mtproto", "naive", "ssh", "mieru", "anytls", "tuic", "json_inbound"]);
+// The SOCKS inbound became the mixed inbound, which answers SOCKS5 and HTTP on one
+// port with the same accounts; migration rewrites the stored protocol.
+assertCurrentKeepsStableValues("protocol", ["tailscale", "vless", "vmess", "trojan", "shadowsocks", "hysteria2", "mixed", "mtproto", "naive", "ssh", "mieru", "anytls", "tuic", "json_inbound"], ["socks"]);
 assertCurrentKeepsStableValues("security", ["reality", "tls", "none"]);
 assertCurrentKeepsStableValues("transport", ["tcp", "ws", "grpc", "http", "httpupgrade", "xhttp"]);
 assertCurrentKeepsStableValues("routing_mode", ["rules", "direct", "section"]);
 assertCurrentKeepsStableValues("shadowsocks_method", ["aes-128-gcm", "aes-256-gcm", "chacha20-ietf-poly1305"]);
-assertCurrentKeepsStableValues("vless_flow", ["none", "xtls-rprx-vision"]);
+// VLESS flow is a per-client value now, so it is checked with the client editor in
+// tests/luci_server_protocols.sh instead of as a server option.
 assertCurrentKeepsStableValues("transport_xhttp_mode", ["auto", "packet-up", "stream-up", "stream-one"]);
 NODE
 

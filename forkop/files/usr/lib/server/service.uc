@@ -450,6 +450,16 @@ function server_detect_default_public_host() {
     return valid_dotted_ipv4(lan_ip) ? lan_ip : "";
 }
 
+function safe_filename_string(value) {
+    value = as_string(value);
+    let result = [];
+    for (let i = 0; i < length(value); i++) {
+        let chr = substr(value, i, 1);
+        push(result, regex_matches(chr, "^[A-Za-z0-9_.-]$") ? chr : "_");
+    }
+    return join("", result);
+}
+
 function server_prepare_tls_defaults(section, protocol, security) {
     if (security != "tls")
         return;
@@ -486,16 +496,6 @@ function server_prepare_tls_defaults(section, protocol, security) {
         if (!server_generate_tls_keypair_files(tls_server_name, certificate_path, key_path))
             fatal("Failed to generate TLS certificate for server '" + section + "'. Aborted.");
     }
-}
-
-function safe_filename_string(value) {
-    value = as_string(value);
-    let result = [];
-    for (let i = 0; i < length(value); i++) {
-        let chr = substr(value, i, 1);
-        push(result, regex_matches(chr, "^[A-Za-z0-9_.-]$") ? chr : "_");
-    }
-    return join("", result);
 }
 
 function server_prepare_ssh_host_key(section) {
@@ -537,12 +537,121 @@ function server_prepare_ssh_host_key(section) {
     }
 }
 
+const SERVER_PROTOCOLS = {
+    vless: [ "uuid" ],
+    vmess: [ "uuid" ],
+    trojan: [ "password" ],
+    shadowsocks: [ "password" ],
+    hysteria2: [ "password" ],
+    tuic: [ "uuid", "password" ],
+    anytls: [ "password" ],
+    mixed: [ "password" ],
+    naive: [ "password" ],
+    ssh: [ "password" ],
+    mieru: [ "password" ],
+    mtproto: [ "secret" ],
+    tailscale: [],
+    json_inbound: []
+};
+const SHADOWSOCKS_2022_KEY_BYTES = {
+    "2022-blake3-aes-128-gcm": 16,
+    "2022-blake3-aes-256-gcm": 32,
+    "2022-blake3-chacha20-poly1305": 32
+};
+const LOGIN_NAME_PROTOCOLS = { mixed: true, naive: true, ssh: true, mieru: true };
+
+function shadowsocks_key_bytes(method) {
+    let value = SHADOWSOCKS_2022_KEY_BYTES[as_string(method)];
+    return value == null ? 0 : value;
+}
+
+function server_client_sections(section) {
+    let result = [];
+    for (let client in uci_sections("server_client"))
+        if (uci_get(config_path(client, "server")) == as_string(section))
+            push(result, client);
+    return result;
+}
+
+function login_safe_name(value, fallback) {
+    value = lc(as_string(value));
+    let result = "";
+    for (let i = 0; i < length(value); i++) {
+        let chr = substr(value, i, 1);
+        result += regex_matches(chr, "^[a-z0-9._-]$") ? chr : "-";
+    }
+    result = replace(result, /^-+/, "");
+    result = replace(result, /-+$/, "");
+    return result == "" ? as_string(fallback) : result;
+}
+
+function server_generate_credential(section, protocol, field) {
+    if (field == "uuid")
+        return server_generate_uuid();
+    if (field == "secret")
+        return server_generate_mtproto_secret();
+    if (field == "password") {
+        if (protocol == "shadowsocks") {
+            let key_bytes = shadowsocks_key_bytes(config_get(section, "shadowsocks_method", ""));
+            if (key_bytes > 0)
+                return random_base64_bytes(key_bytes);
+        }
+        return server_generate_password();
+    }
+    return "";
+}
+
+// A server without accounts accepts nobody, so a configuration written straight
+// through uci gets one generated client instead of an inbound with no users.
+function prepare_server_clients(section, protocol) {
+    let fields = SERVER_PROTOCOLS[protocol];
+    if (fields == null || length(fields) == 0)
+        return;
+
+    let clients = server_client_sections(section);
+    if (length(clients) == 0) {
+        let created = uci.add(CONFIG_NAME, "server_client");
+        if (created == "")
+            fatal("Failed to create the default client for server '" + section + "'. Aborted.");
+        SERVER_DEFAULTS_CHANGED = true;
+        uci_set(config_path(created, "server"), as_string(section));
+        uci_set(config_path(created, "enabled"), "1");
+        push(clients, created);
+    }
+
+    for (let client in clients) {
+        let name = trim(config_get(client, "name", ""));
+        if (LOGIN_NAME_PROTOCOLS[protocol]) {
+            // The LuCI form transliterates a display name into an account name. A
+            // configuration written straight through uci has no such name, so the
+            // section name is used: it is always inside the safe character set.
+            name = login_safe_name(name, login_safe_name(config_get(section, "label", section), safe_filename_string(section)));
+        }
+        else if (name == "")
+            name = config_get(section, "label", section);
+        server_set_option(client, "name", name);
+
+        if (protocol == "mtproto") {
+            // A secret pasted in its full ee<hex><host> form carries the FakeTLS host,
+            // so it is split back into the stored secret and the server option.
+            let raw_secret = config_get(client, "secret", "");
+            let base_secret = mtproto_base_secret_value(raw_secret);
+            let faketls = mtproto_faketls_value(raw_secret);
+            if (base_secret != "" && base_secret != raw_secret)
+                server_set_option(client, "secret", base_secret);
+            if (faketls != "")
+                server_set_option(section, "mtproto_faketls", faketls);
+        }
+
+        for (let field in fields)
+            if (uci_get(config_path(client, field)) == "")
+                server_set_option(client, field, server_generate_credential(section, protocol, field));
+    }
+}
+
 function prepare_server_defaults(section) {
     let protocol = config_get(section, "protocol", "vless");
-    if (!(protocol == "shadowsocks" || protocol == "socks" || protocol == "vmess" || protocol == "vless" ||
-        protocol == "trojan" || protocol == "hysteria2" || protocol == "mtproto" || protocol == "tailscale" ||
-        protocol == "json_inbound" || protocol == "naive" || protocol == "ssh" || protocol == "mieru" ||
-        protocol == "anytls" || protocol == "tuic"))
+    if (SERVER_PROTOCOLS[protocol] == null)
         fatal("Server '" + section + "' has unsupported protocol '" + protocol + "'. Aborted.");
 
     server_default_set_option(section, "protocol", protocol);
@@ -555,86 +664,42 @@ function prepare_server_defaults(section) {
         return;
     }
 
-    server_default_set_option(section, "listen", "0.0.0.0");
-    server_default_set_option(section, "listen_port", "443");
-    server_default_set_option(section, "public_host", server_detect_default_public_host());
-
     let security = server_effective_security_value(section, protocol);
     server_set_option(section, "security", security);
 
-    if (protocol == "vless" || protocol == "vmess" || protocol == "tuic") {
-        if (uci_get(config_path(section, "server_uuid")) == "") {
-            let uuid = server_generate_uuid();
-            server_default_set_option(section, "server_uuid", uuid);
-        }
-    }
-    if (protocol == "shadowsocks" || protocol == "socks" || protocol == "trojan" || protocol == "hysteria2" ||
-        protocol == "naive" || protocol == "ssh" || protocol == "mieru" || protocol == "anytls" || protocol == "tuic") {
-        if (uci_get(config_path(section, "server_password")) == "") {
-            let password = server_generate_password();
-            server_default_set_option(section, "server_password", password);
-        }
-    }
-
-    if (protocol == "mtproto") {
-        let mtproto_secret = uci_get(config_path(section, "mtproto_secret"));
-        let mtproto_faketls = "";
-        let mtproto_base_secret = "";
-        if (mtproto_secret != "") {
-            mtproto_faketls = mtproto_faketls_value(mtproto_secret);
-            mtproto_base_secret = mtproto_base_secret_value(mtproto_secret);
-        }
-        if (mtproto_base_secret == "")
-            mtproto_base_secret = server_generate_mtproto_secret();
-        if (mtproto_secret != mtproto_base_secret)
-            server_set_option(section, "mtproto_secret", mtproto_base_secret);
-        server_default_set_option(section, "mtproto_faketls", mtproto_faketls != "" ? mtproto_faketls : "google.com");
-        server_default_set_option(section, "mtproto_domain_fronting_port", "443");
-        server_default_set_option(section, "mtproto_prefer_ip", "prefer-ipv4");
-        server_default_set_option(section, "mtproto_tolerate_time_skewness", "3s");
-        server_default_set_option(section, "mtproto_idle_timeout", "5m");
-        server_default_set_option(section, "mtproto_handshake_timeout", "10s");
-    }
-
-    if (protocol == "socks" || protocol == "naive" || protocol == "ssh" || protocol == "mieru") {
-        if (protocol == "socks")
-            server_default_set_option(section, "socks_auth_enabled", "1");
-        if (uci_get(config_path(section, "server_username")) == "")
-            server_default_set_option(section, "server_username", config_get(section, "label", section));
-    }
-    if (protocol == "vless")
-        server_default_set_option(section, "vless_flow", "none");
-    if (protocol == "vmess")
-        server_default_set_option(section, "vmess_alter_id", "0");
-    if (protocol == "shadowsocks")
-        server_default_set_option(section, "shadowsocks_method", "aes-128-gcm");
-    if (protocol == "naive") {
-        server_default_set_option(section, "naive_network", "tcp");
-        server_default_set_option(section, "naive_quic_congestion_control", "bbr");
-    }
-    if (protocol == "ssh")
-        server_prepare_ssh_host_key(section);
-    if (protocol == "mieru")
-        server_default_set_option(section, "mieru_transport", "TCP");
-    if (protocol == "tuic") {
-        server_default_set_option(section, "tuic_congestion_control", "cubic");
-        server_default_set_option(section, "tuic_auth_timeout", "3s");
-        server_default_set_option(section, "tuic_heartbeat", "10s");
-    }
     if (protocol == "tailscale") {
         let safe_name = safe_filename_string(section);
         server_default_set_option(section, "tailscale_control_url", "https://controlplane.tailscale.com");
         server_default_set_option(section, "tailscale_hostname", "forkop-" + safe_name);
+        return;
     }
 
+    server_default_set_option(section, "listen", "0.0.0.0");
+    server_default_set_option(section, "listen_port", "443");
+    server_default_set_option(section, "public_host", server_detect_default_public_host());
+
+    if (protocol == "shadowsocks") {
+        let method = config_get(section, "shadowsocks_method", "");
+        if (method == "") {
+            method = "2022-blake3-aes-128-gcm";
+            server_default_set_option(section, "shadowsocks_method", method);
+        }
+        let key_bytes = shadowsocks_key_bytes(method);
+        if (key_bytes > 0 && uci_get(config_path(section, "shadowsocks_psk")) == "")
+            server_set_option(section, "shadowsocks_psk", random_base64_bytes(key_bytes));
+    }
+
+    if (protocol == "mtproto")
+        server_default_set_option(section, "mtproto_faketls", "google.com");
+
+    if (protocol == "ssh")
+        server_prepare_ssh_host_key(section);
+
+    prepare_server_clients(section, protocol);
+
     if (security == "reality") {
-        server_default_set_option(section, "tls_server_name", "www.microsoft.com");
-        server_default_set_option(section, "client_fingerprint", "chrome");
-        server_default_set_option(section, "reality_handshake_server", "www.microsoft.com");
-        server_default_set_option(section, "reality_handshake_server_port", "443");
         if (uci_get(config_path(section, "reality_short_id")) == "")
             server_default_set_option(section, "reality_short_id", server_generate_short_id());
-        server_default_set_option(section, "reality_max_time_difference", "1m");
 
         let reality_private_key = uci_get(config_path(section, "reality_private_key"));
         let reality_public_key = uci_get(config_path(section, "reality_public_key"));
@@ -651,10 +716,28 @@ function prepare_server_defaults(section) {
     server_prepare_tls_defaults(section, protocol, security);
 }
 
+// A client whose server is gone would keep its credentials in the configuration and
+// show up in diagnostics forever, so it is removed with the server it belonged to.
+function remove_orphaned_server_clients() {
+    let servers = {};
+    for (let section in uci_sections("server"))
+        servers[as_string(section)] = true;
+
+    for (let client in uci_sections("server_client")) {
+        let owner = uci_get(config_path(client, "server"));
+        if (owner != "" && servers[owner])
+            continue;
+        log("Removing client '" + client + "' of a server that no longer exists", "info");
+        if (uci.delete(CONFIG_NAME + "." + as_string(client)))
+            SERVER_DEFAULTS_CHANGED = true;
+    }
+}
+
 function prepare_all_server_defaults() {
     SERVER_DEFAULTS_CHANGED = false;
     for (let section in uci_sections("server"))
         prepare_server_defaults(section);
+    remove_orphaned_server_clients();
     if (SERVER_DEFAULTS_CHANGED)
         uci_commit(CONFIG_NAME);
 }

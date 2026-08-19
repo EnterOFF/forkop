@@ -62,7 +62,7 @@ grep -Fq '{ id: "single_subscription_user_agent", run: migrate_single_subscripti
   fail "single subscription User-Agent migration must have a stable named marker"
 grep -Fq '{ id: "subscription_headers", run: migrate_subscription_headers }' "$MIGRATION" ||
   fail "subscription header migration must have a stable named marker"
-grep -Fq '{ id: "subscription_user_agent_header", run: migrate_subscription_user_agent_header }' "$MIGRATION" ||
+grep -Fq '{ id: "subscription_user_agent_header", run: migrate_subscription_user_agent_header },' "$MIGRATION" ||
   fail "subscription User-Agent header migration must have a stable named marker"
 grep -Fq '{ id: "interface_display_names", run: migrate_interface_display_names }' "$MIGRATION" ||
   fail "interface display name migration must have a stable named marker"
@@ -106,7 +106,7 @@ grep -Fq "list applied_migrations 'single_subscription_user_agent'" "$ROOT_DIR/f
   fail "new-install config must mark the single subscription User-Agent migration as already applied"
 grep -Fq "list applied_migrations 'subscription_headers'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
   fail "new-install config must mark the subscription header migration as already applied"
-grep -Fq "list applied_migrations 'subscription_user_agent_header'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
+grep -Fq "list applied_migrations 'tailscale_exit_node_switch'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
   fail "new-install config must mark the subscription User-Agent header migration as already applied"
 grep -Fq "list applied_migrations 'interface_display_names'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
   fail "new-install config must mark the interface display name migration as already applied"
@@ -319,7 +319,7 @@ assert(JSON.stringify(config.settings.bootstrap_dns_server) === JSON.stringify([
 assert(config.settings.unified_delay === '0', 'Unified Delay default missing');
 assert(config.settings.config_version === '1.0.5', 'legacy config should be marked at the current schema version');
 assert(config.settings.component_update_check_enabled === '1', 'component update checks should be enabled during migration');
-assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header']), 'legacy config should record named migrations');
+assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'server_client_sections', 'shadowsocks_server_keys', 'tailscale_exit_node_switch']), 'legacy config should record named migrations');
 
 function assert(condition, message) {
   if (!condition) {
@@ -573,20 +573,44 @@ assert(servers.tuic.tuic_auth_timeout === '3s', 'TUIC auth timeout default missi
 assert(servers.tuic.tuic_heartbeat === '20s', 'explicit TUIC heartbeat must survive migration');
 assert(servers.tuic.tuic_zero_rtt_handshake === '0', 'TUIC zero-RTT default missing');
 assert(!Object.prototype.hasOwnProperty.call(servers.ssh, 'ssh_host_key_path'), 'optional empty SSH host key path must stay absent');
-assert(servers['legacy-vless'].server_uuid === '11111111-1111-4111-8111-111111111111', 'legacy VLESS UUID must migrate');
-assert(servers['legacy-vless'].vless_flow === 'xtls-rprx-vision', 'legacy VLESS flow must migrate');
-assert(servers['legacy-vmess'].server_uuid === '22222222-2222-4222-8222-222222222222', 'legacy VMess UUID must migrate');
-assert(servers['legacy-vmess'].vmess_alter_id === '7', 'legacy VMess alter ID must migrate');
-assert(servers['legacy-shadowsocks'].server_password === 'ss-password', 'legacy Shadowsocks password must migrate');
-assert(servers['legacy-socks'].server_username === 'alice', 'legacy SOCKS username must migrate');
-assert(servers['legacy-socks'].server_password === 'socks-password', 'legacy SOCKS password must migrate');
-assert(servers['legacy-trojan'].server_password === 'trojan-password', 'legacy Trojan password must migrate');
-assert(servers['legacy-hysteria2'].server_password === 'hy2-password', 'legacy Hysteria2 password must migrate');
-assert(servers['legacy-mtproto'].mtproto_secret === 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'legacy MTProto secret must migrate');
+// Inline server credentials became client sections, so the released values are
+// looked up on the client that owns the server instead of on the server itself.
+const clientsByServer = {};
+for (const client of config.server_client || []) {
+  clientsByServer[client.server] = clientsByServer[client.server] || [];
+  clientsByServer[client.server].push(client);
+}
+const onlyClient = name => {
+  const list = clientsByServer[name] || [];
+  assert(list.length === 1, `server ${name} should own exactly one migrated client`);
+  return list[0];
+};
+
+assert(onlyClient('legacy-vless').uuid === '11111111-1111-4111-8111-111111111111', 'legacy VLESS UUID must migrate');
+assert(onlyClient('legacy-vless').flow === 'xtls-rprx-vision', 'legacy VLESS flow must migrate');
+assert(onlyClient('legacy-vmess').uuid === '22222222-2222-4222-8222-222222222222', 'legacy VMess UUID must migrate');
+assert(onlyClient('legacy-shadowsocks').password === 'ss-password', 'legacy Shadowsocks password must migrate');
+assert(servers['legacy-socks'].protocol === 'mixed', 'legacy SOCKS server must become a mixed inbound');
+assert(servers['legacy-socks'].mixed_auth_enabled === '1', 'legacy SOCKS authentication state must migrate');
+assert(onlyClient('legacy-socks').name === 'alice', 'legacy SOCKS username must become the client name');
+assert(onlyClient('legacy-socks').password === 'socks-password', 'legacy SOCKS password must migrate');
+assert(onlyClient('legacy-trojan').password === 'trojan-password', 'legacy Trojan password must migrate');
+assert(onlyClient('legacy-hysteria2').password === 'hy2-password', 'legacy Hysteria2 password must migrate');
+assert(onlyClient('legacy-mtproto').secret === 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'legacy MTProto secret must migrate');
 assert(servers['legacy-mtproto'].mtproto_faketls === 'google.com', 'legacy MTProto FakeTLS domain must migrate');
+assert(servers['legacy-shadowsocks'].shadowsocks_method === 'aes-128-gcm', 'a released Shadowsocks server must keep its method');
 absent(servers['legacy-mtproto'], 'mtproto_padding', 'legacy-mtproto');
-for (const name of Object.keys(servers))
+for (const name of Object.keys(servers)) {
   absent(servers[name], 'server_users', name);
+  absent(servers[name], 'server_uuid', name);
+  absent(servers[name], 'server_username', name);
+  absent(servers[name], 'server_password', name);
+  absent(servers[name], 'mtproto_secret', name);
+  absent(servers[name], 'vmess_alter_id', name);
+  absent(servers[name], 'socks_auth_enabled', name);
+}
+for (const client of config.server_client || [])
+  assert(client.enabled === '1' && `${client.name || ''}` !== '', 'every migrated client needs a name and an enabled flag');
 
 assert(out.removed_caches.includes('/tmp/sing-box/subscriptions/legacy-sub.json'), 'subscription runtime cache removal');
 for (const path of [
@@ -644,7 +668,7 @@ function assert(condition, message) {
 assert(out.changed === true, '1.0.1 config should require migration');
 assert(out.config.settings.config_version === '1.0.5', 'config schema version should advance to 1.0.5');
 assert(out.config.settings.component_update_check_enabled === '1', 'updates from 1.0.1 and below should enable component update checks');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header']), 'named migrations should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'server_client_sections', 'shadowsocks_server_keys', 'tailscale_exit_node_switch']), 'named migrations should be recorded');
 assert(!Object.prototype.hasOwnProperty.call(section, 'interfaces'), 'parent interface list should be removed');
 assert(JSON.stringify(interfaces.map(item => item.name)) === JSON.stringify(['awg0', 'tun0']), 'interfaces should keep their order');
 for (const item of interfaces) {
@@ -845,7 +869,7 @@ function assert(condition, message) {
 
 assert(out.config.settings.component_update_check_enabled === '0', '1.0.2 config must preserve an explicitly disabled component check');
 assert(out.config.settings.config_version === '1.0.5', '1.0.2 config should advance through the HTTP URL migration schema');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header']), 'newer configs should mark skipped migrations');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'server_client_sections', 'shadowsocks_server_keys', 'tailscale_exit_node_switch']), 'newer configs should mark skipped migrations');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.4-http.json" <<'JSON'
@@ -898,7 +922,7 @@ assert(JSON.stringify(section.selector_proxy_links) === JSON.stringify([
 ]), 'connection URLs must stay owned by sing-box parser outbounds');
 assert(jsonOutbounds.length === 1 && jsonOutbounds[0].type === 'direct' && jsonOutbounds[0].tag === 'http',
   'the retired HTTP conversion must leave existing JSON outbounds unchanged');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header']), 'HTTP URL migration should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'server_client_sections', 'shadowsocks_server_keys', 'tailscale_exit_node_switch']), 'HTTP URL migration should be recorded');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.5-http.json" <<'JSON'
@@ -1143,7 +1167,7 @@ assert(JSON.stringify(config.fallback_level.map(item => item.name)) === JSON.str
 assert(out.removed_caches.includes('/var/run/forkop/section-cache') &&
   out.removed_caches.includes('/var/run/forkop/runtime-manifest.json'),
   'readable tag migration must remove both legacy runtime graph files');
-assert(config.settings.applied_migrations.at(-1) === 'subscription_user_agent_header',
+assert(config.settings.applied_migrations.at(-1) === 'tailscale_exit_node_switch',
   'readable runtime tag migration must be recorded');
 NODE
 
@@ -1256,7 +1280,7 @@ if (!out.changed || config.section[0].sort_by_latency !== undefined ||
 }
 if (config.urltest[0].name !== 'Fast' || config.fallback_group[0].name !== 'Fallback' ||
     !config.settings.applied_migrations.includes('remove_dashboard_sort_options') ||
-    config.settings.applied_migrations.at(-1) !== 'subscription_user_agent_header') {
+    config.settings.applied_migrations.at(-1) !== 'tailscale_exit_node_switch') {
   console.error('dashboard sort migration changed unrelated settings or missed its marker');
   process.exit(1);
 }
@@ -1350,7 +1374,7 @@ assert(sections.doh.dns_type === undefined &&
   'DNS action should preserve the old DoH path as a list');
 assert(JSON.stringify(sections.udp.dns_server) === JSON.stringify(['8.8.8.8']),
   'DNS action should migrate explicit UDP without a redundant scheme');
-assert(config.settings.applied_migrations.at(-1) === 'subscription_user_agent_header',
+assert(config.settings.applied_migrations.at(-1) === 'tailscale_exit_node_switch',
   'DNS URI migration marker should be recorded');
 
 fs.writeFileSync(process.argv[3], JSON.stringify(config));
@@ -1515,7 +1539,7 @@ grep -Fxq 'forkop.settings.config_version=1.0.5' "$WORK_DIR/runtime-version.stat
   fail "runtime version migration must advance config_version"
 grep -Fxq 'forkop.settings.component_update_check_enabled=1' "$WORK_DIR/runtime-version.state" ||
   fail "runtime version migration must enable component update checks"
-grep -Fq 'forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter native_fallbacks dns_fallback_modes native_rule_sets universal_rule_sets leaf_subscription_providers extended_server_defaults fallback_uci_tags reset_fallback_defaults remove_proxy_parameter_filters server_filter_model server_filter_modes single_subscription_user_agent subscription_headers interface_display_names remove_section_cache remove_dashboard_sort_options dns_server_uris interface_domain_resolver_uris readable_runtime_tags urltest_expected_status group_interrupt_defaults subscription_user_agent_header' "$WORK_DIR/runtime-version.state" ||
+grep -Fq 'forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter native_fallbacks dns_fallback_modes native_rule_sets universal_rule_sets leaf_subscription_providers extended_server_defaults fallback_uci_tags reset_fallback_defaults remove_proxy_parameter_filters server_filter_model server_filter_modes single_subscription_user_agent subscription_headers interface_display_names remove_section_cache remove_dashboard_sort_options dns_server_uris interface_domain_resolver_uris readable_runtime_tags urltest_expected_status group_interrupt_defaults subscription_user_agent_header mixed_server_inbounds server_client_sections shadowsocks_server_keys tailscale_exit_node_switch' "$WORK_DIR/runtime-version.state" ||
   fail "runtime migration must record stable migration names"
 grep -Fxq 'forkop.main.selector_proxy_links=http://proxy.example:8080' "$WORK_DIR/runtime-version.state" ||
   fail "runtime migration must preserve connection URLs for sing-box parser outbounds"
@@ -1727,12 +1751,17 @@ grep -Fxq 'forkop.tuic.tuic_auth_timeout=3s' "$WORK_DIR/cache-cleanup.state" ||
   fail "server migration must add the TUIC auth timeout default"
 grep -Fxq 'forkop.tuic.tuic_heartbeat=20s' "$WORK_DIR/cache-cleanup.state" ||
   fail "server migration must preserve an explicit TUIC heartbeat"
-grep -Fxq 'forkop.legacy_vless.server_uuid=33333333-3333-4333-8333-333333333333' "$WORK_DIR/cache-cleanup.state" ||
+# The legacy inline user ends up on the client section the migration creates for the
+# server, and the server itself stops carrying credentials.
+legacy_vless_client="$(awk -F= '$1 ~ /^forkop.[A-Za-z0-9_]+.server$/ && $2 == "legacy_vless" { split($1, parts, "."); print parts[2] }' "$WORK_DIR/cache-cleanup.state")"
+[ -n "$legacy_vless_client" ] ||
+  fail "server migration must create a client section for the legacy VLESS server"
+grep -Fxq "forkop.$legacy_vless_client.uuid=33333333-3333-4333-8333-333333333333" "$WORK_DIR/cache-cleanup.state" ||
   fail "server migration must preserve the first legacy VLESS user"
-grep -Fxq 'forkop.legacy_vless.vless_flow=xtls-rprx-vision' "$WORK_DIR/cache-cleanup.state" ||
+grep -Fxq "forkop.$legacy_vless_client.flow=xtls-rprx-vision" "$WORK_DIR/cache-cleanup.state" ||
   fail "server migration must preserve the legacy VLESS flow"
-if grep -Fq 'forkop.legacy_vless.server_users=' "$WORK_DIR/cache-cleanup.state"; then
-  fail "server migration must remove the legacy server_users option"
+if grep -Eq 'forkop.legacy_vless.(server_users|server_uuid|vless_flow)=' "$WORK_DIR/cache-cleanup.state"; then
+  fail "server migration must remove the legacy inline user options"
 fi
 
 : >"$WORK_DIR/uci-commit.log"

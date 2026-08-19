@@ -82,22 +82,29 @@ grep -Fq 'BACKEND_DEPENDS_APK="' "$ROOT_DIR/build.sh" &&
 cat >"$STATE" <<'EOF_STATE'
 forkop.vless=server
 forkop.vless.protocol=vless
-forkop.vless.server_uuid=22222222-2222-4222-8222-222222222222
-forkop.vless.vless_flow=xtls-rprx-vision
-forkop.socks=server
-forkop.socks.protocol=socks
-forkop.socks.label=desk
-forkop.socks_open=server
-forkop.socks_open.protocol=socks
-forkop.socks_open.label=guest
-forkop.socks_open.socks_auth_enabled=0
+forkop.cff0001=server_client
+forkop.cff0001.server=vless
+forkop.cff0001.uuid=22222222-2222-4222-8222-222222222222
+forkop.cff0001.flow=xtls-rprx-vision
+forkop.mixed=server
+forkop.mixed.protocol=mixed
+forkop.mixed.label=Рабочий стол
+forkop.mixed_open=server
+forkop.mixed_open.protocol=mixed
+forkop.mixed_open.label=guest
+forkop.mixed_open.mixed_auth_enabled=0
+forkop.shadowsocks=server
+forkop.shadowsocks.protocol=shadowsocks
+forkop.shadowsocks.shadowsocks_method=2022-blake3-aes-256-gcm
 forkop.tailscale=server
 forkop.tailscale.protocol=tailscale
 forkop.json=server
 forkop.json.protocol=json_inbound
 forkop.mtproto=server
 forkop.mtproto.protocol=mtproto
-forkop.mtproto.mtproto_secret=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+forkop.cff0002=server_client
+forkop.cff0002.server=mtproto
+forkop.cff0002.secret=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 forkop.naive=server
 forkop.naive.protocol=naive
 forkop.naive.enabled=0
@@ -165,64 +172,98 @@ assert_value() {
   [ "$actual" = "$expected" ] || fail "$path: expected '$expected', got '$actual'"
 }
 
+# Clients are their own sections, so the generated accounts are looked up by owner.
+client_of() {
+  awk -F= -v owner="$1" '
+    $1 ~ /^forkop.[A-Za-z0-9_]+.server$/ && substr($0, length($1) + 2) == owner {
+      split($1, parts, ".")
+      print parts[2]
+      found = 1
+    }
+    END { exit found ? 0 : 1 }
+  ' "$STATE"
+}
+
+assert_client() {
+  local owner="$1" option="$2" expected="$3" client actual
+  client="$(client_of "$owner")" || fail "server $owner has no client section"
+  actual="$(uci_get "forkop.$client.$option" 2>/dev/null || true)"
+  [ "$actual" = "$expected" ] || fail "client of $owner: $option expected '$expected', got '$actual'"
+}
+
+client_value() {
+  local owner="$1" option="$2" client
+  client="$(client_of "$owner")" || fail "server $owner has no client section"
+  uci_get "forkop.$client.$option" 2>/dev/null || true
+}
+
+
 assert_value forkop.vless.security reality
 assert_value forkop.vless.listen 0.0.0.0
 assert_value forkop.vless.listen_port 443
-assert_value forkop.vless.server_uuid 22222222-2222-4222-8222-222222222222
-assert_value forkop.vless.vless_flow xtls-rprx-vision
+assert_client vless uuid 22222222-2222-4222-8222-222222222222
+assert_client vless flow xtls-rprx-vision
 short_id="$(uci_get forkop.vless.reality_short_id 2>/dev/null || true)"
 [[ "$short_id" =~ ^[0-9a-f]{8}$ ]] || fail "reality short id has invalid format: $short_id"
 assert_value forkop.vless.reality_private_key private-key
 assert_value forkop.vless.reality_public_key public-key
-assert_value forkop.socks.security none
-assert_value forkop.socks.socks_auth_enabled 1
-assert_value forkop.socks.server_username desk
-for password_path in \
-  forkop.socks.server_password \
-  forkop.socks_open.server_password \
-  forkop.naive.server_password \
-  forkop.ssh.server_password \
-  forkop.mieru.server_password \
-  forkop.anytls.server_password \
-  forkop.tuic.server_password; do
-  password="$(uci_get "$password_path" 2>/dev/null || true)"
-  [ -n "$password" ] || fail "$password_path must be generated"
+assert_value forkop.mixed.security none
+
+# A login protocol turns the client name into an account name. A name outside the safe
+# character set falls back to the section name instead of reaching a client unchanged.
+assert_client mixed name mixed
+assert_client mixed_open name guest
+assert_client naive name naive
+assert_client ssh name ssh
+assert_client mieru name mieru
+for owner in mixed mixed_open naive ssh mieru anytls tuic shadowsocks; do
+  password="$(client_value "$owner" password)"
+  [ -n "$password" ] || fail "client of $owner must have a generated password"
 done
-assert_value forkop.socks_open.socks_auth_enabled 0
-assert_value forkop.socks_open.server_username guest
+assert_value forkop.mixed_open.mixed_auth_enabled 0
+
+# A 2022 method needs base64 keys of the exact cipher length on both sides.
+ss_psk="$(uci_get forkop.shadowsocks.shadowsocks_psk 2>/dev/null || true)"
+[ "${#ss_psk}" -eq 44 ] || fail "shadowsocks server pre-shared key has invalid length: $ss_psk"
+ss_client_psk="$(client_value shadowsocks password)"
+[ "${#ss_client_psk}" -eq 44 ] || fail "shadowsocks client pre-shared key has invalid length: $ss_client_psk"
+for removed_path in forkop.mixed.server_password forkop.mixed.server_username forkop.vless.server_uuid forkop.mtproto.mtproto_secret; do
+  [ -z "$(uci_get "$removed_path" 2>/dev/null || true)" ] ||
+    fail "$removed_path must not be written: credentials belong to client sections"
+done
 assert_value forkop.tailscale.security none
 assert_value forkop.tailscale.tailscale_control_url https://controlplane.tailscale.com
 assert_value forkop.tailscale.tailscale_hostname forkop-tailscale
 [ -z "$(uci_get forkop.tailscale.tailscale_advertise_exit_node 2>/dev/null || true)" ] ||
   fail "Tailscale exit-node advertising must not be stored as a user setting"
 assert_value forkop.json.security none
-assert_value forkop.mtproto.mtproto_secret aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+assert_client mtproto secret aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+assert_value forkop.mtproto.mtproto_faketls google.com
 assert_value forkop.naive.security tls
-assert_value forkop.naive.server_username naive
-assert_value forkop.naive.naive_network tcp
 assert_value forkop.ssh.security none
-assert_value forkop.ssh.server_username ssh
 assert_value forkop.ssh.ssh_host_key_path "$WORK_DIR/ssh/host_key $WORK_DIR/ssh/host_key_secondary"
 assert_value forkop.ssh_disabled.ssh_host_key_path /etc/forkop/server-ssh/ssh_disabled.key
 [ -s "$WORK_DIR/ssh/host_key" ] || fail 'persistent SSH host key was not generated'
 [ -s "$WORK_DIR/ssh/host_key_secondary" ] || fail 'secondary persistent SSH host key was not generated'
 [ "$(wc -l <"$FORKOP_SSH_KEYGEN_LOG")" -eq 4 ] || fail 'SSH host key generation did not convert every configured key exactly once'
 assert_value forkop.mieru.security none
-assert_value forkop.mieru.server_username mieru
-assert_value forkop.mieru.mieru_transport TCP
+
+# Protocol defaults live in the LuCI form and in the generator fallbacks, so the
+# backend does not store a third copy of them.
+for form_default_path in forkop.naive.naive_network forkop.mieru.mieru_transport forkop.tuic.tuic_congestion_control forkop.tuic.tuic_auth_timeout forkop.tuic.tuic_heartbeat forkop.vless.tls_server_name; do
+  [ -z "$(uci_get "$form_default_path" 2>/dev/null || true)" ] ||
+    fail "$form_default_path must not be written by the backend"
+done
 assert_value forkop.anytls.security tls
 assert_value forkop.tuic.security tls
-tuic_uuid="$(uci_get forkop.tuic.server_uuid 2>/dev/null || true)"
+tuic_uuid="$(client_value tuic uuid)"
 [[ "$tuic_uuid" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] || fail "TUIC UUID has invalid format: $tuic_uuid"
-assert_value forkop.tuic.tuic_congestion_control cubic
-assert_value forkop.tuic.tuic_auth_timeout 3s
-assert_value forkop.tuic.tuic_heartbeat 10s
 grep -Fxq 'commit forkop' "$LOG" || fail 'expected config commit'
 
 : >"$LOG"
 : >"$FORKOP_SSH_KEYGEN_LOG"
 ucode -L "$UCODE_LIB" "$SERVER_RUNTIME" prepare-all-defaults
-[ ! -s "$LOG" ] || fail 'unchanged MTProto defaults must not rewrite or commit configuration on every reload'
+[ ! -s "$LOG" ] || fail 'unchanged server defaults must not rewrite or commit configuration on every reload'
 [ ! -s "$FORKOP_SSH_KEYGEN_LOG" ] || fail 'persistent SSH host key must not be regenerated on reload'
 
 printf 'server runtime checks passed\n'

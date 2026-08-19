@@ -3,13 +3,22 @@
 "require baseclass";
 "require dom";
 "require fs";
-"require rpc";
 "require uci";
 "require ui";
 "require view.forkop.main as main";
-"require view.forkop.server_qr as qr";
+"require view.forkop.server_util as util";
+"require view.forkop.server_spec as spec";
+"require view.forkop.server_validate as validate";
+"require view.forkop.server_clients as clients";
+"require view.forkop.server_link as link";
+
+// The Servers tab: the LuCI form for one sing-box inbound per section. Protocol
+// knowledge lives in server_spec, value checks in server_validate, accounts in
+// server_clients and share links in server_link, so this file only wires them into
+// form options and the grid.
 
 const UCI_PACKAGE = main.FORKOP_UCI_PACKAGE;
+const STYLE_ID = "forkop-server-styles";
 const ROUTING_SECTION_ACTIONS = [
   "connection",
   "proxy",
@@ -19,1788 +28,51 @@ const ROUTING_SECTION_ACTIONS = [
   "zapret",
   "zapret2",
 ];
-const RESERVED_RUNTIME_TAGS = new Set([
-  "dns-server",
-  "fakeip-server",
-  "bootstrap-dns-server",
-  "dnsmasq-server",
-  "fakeip-dns-rule-tag",
-  "fakeip-ruleset-dns-rule-tag",
-  "service-fakeip-dns-rule-tag",
-  "tproxy-in",
-  "tproxy6-in",
-  "dns-in",
-  "source-dns-in",
-  "system-in",
-  "system6-in",
-  "system-dns-in",
-  "service-mixed-in",
-  "direct-out",
-]);
-const callNetworkInterfaceDump = rpc.declare({
-  object: "network.interface",
-  method: "dump",
-  expect: { interface: [] },
-});
-let defaultPublicHostPromise = null;
-let defaultPublicHostCache = null;
-
-function asList(value) {
-  if (!value) {
-    return [];
-  }
-
-  return Array.isArray(value) ? value.filter(Boolean) : [`${value}`];
-}
-
-const SERVER_STYLE_ID = "forkop-server-styles";
-const DEFAULT_SERVER_PROTOCOL = "tailscale";
-const STREAM_PROTOCOLS = ["vless", "vmess", "trojan"];
-const PORT_PROTOCOLS = [
-  "shadowsocks",
-  "socks",
-  "vmess",
-  "vless",
-  "trojan",
-  "hysteria2",
-  "mtproto",
-  "naive",
-  "ssh",
-  "mieru",
-  "anytls",
-  "tuic",
-];
-const PASSWORD_PROTOCOLS = [
-  "shadowsocks",
-  "socks",
-  "trojan",
-  "hysteria2",
-  "naive",
-  "ssh",
-  "mieru",
-  "anytls",
-  "tuic",
-];
-const JSON_INBOUND_TYPES = new Set([
-  "tun",
-  "redirect",
-  "tproxy",
-  "direct",
-  "socks",
-  "http",
-  "mixed",
-  "shadowsocks",
-  "vmess",
-  "trojan",
-  "naive",
-  "shadowtls",
-  "vless",
-  "anytls",
-  "mieru",
-  "ssh",
-  "bond",
-  "failover",
-  "trusttunnel",
-  "hysteria",
-  "tuic",
-  "hysteria2",
-  "mtproto",
-  "sudoku",
-  "snell",
-  "call",
-]);
-const USERNAME_PROTOCOLS = ["socks", "naive", "ssh", "mieru"];
-
-const PROTOCOL_LABELS = {
-  vless: "VLESS",
-  shadowsocks: "Shadowsocks",
-  socks: "SOCKS",
-  vmess: "VMess",
-  trojan: "Trojan",
-  hysteria2: "Hysteria2",
-  mtproto: "MTProto",
-  naive: "NaiveProxy",
-  ssh: "SSH",
-  mieru: "Mieru",
-  anytls: "AnyTLS",
-  tuic: "TUIC",
-  tailscale: "Tailscale",
-  json_inbound: "JSON Inbound",
-};
-
-const SECURITY_BY_PROTOCOL = {
-  vless: ["reality", "tls", "none"],
-  vmess: ["tls", "none"],
-  trojan: ["tls", "none"],
-  hysteria2: ["tls"],
-  naive: ["tls"],
-  ssh: ["none"],
-  mieru: ["none"],
-  anytls: ["tls"],
-  tuic: ["tls"],
-  shadowsocks: ["none"],
-  socks: ["none"],
-  mtproto: ["none"],
-  tailscale: ["none"],
-  json_inbound: ["none"],
-};
-
-function getSecurityLabel(security) {
-  if (security === "reality") {
-    return "Reality";
-  }
-  if (security === "tls") {
-    return "TLS";
-  }
-  return _("None");
-}
+const TAILSCALE_DETOUR_ACTIONS = ["connection", "proxy", "outbound", "vpn"];
 
 function injectServerStyles() {
-  if (document.getElementById(SERVER_STYLE_ID)) {
+  if (document.getElementById(STYLE_ID)) {
     return;
   }
 
   document.head.appendChild(
     E(
       "style",
-      { id: SERVER_STYLE_ID },
+      { id: STYLE_ID },
       `
 .fkp-server-icon-button{box-sizing:border-box;vertical-align:middle}
-.fkp-server-icon-button__glyph{display:inline-block;line-height:1;transform:scale(1.55);transform-origin:center}
-.fkp-server-icon-button--done{outline:2px solid var(--success-color,#37a969);outline-offset:1px}
+.fkp-server-icon-button__glyph{display:inline-flex;align-items:center}
 .fkp-server-validation-summary{margin:0 0 12px}
 #cbi-${UCI_PACKAGE}-server > h3:nth-child(1){display:none}
 #cbi-${UCI_PACKAGE}-server > .cbi-section-remove{margin-bottom:-32px}
 #cbi-${UCI_PACKAGE}-server .cbi-section-actions > div{display:inline-flex;align-items:center;gap:4px}
 #cbi-${UCI_PACKAGE}-server .cbi-section-actions{text-align:right}
 
-.fkp-server-info-modal{display:flex;flex-direction:column;gap:14px;width:560px;max-width:100%;box-sizing:border-box}
-.fkp-server-info-modal__container{display:flex;gap:24px;align-items:flex-start;width:100%;box-sizing:border-box}
-.fkp-server-info-modal__qr-col{display:flex;flex-direction:column;align-items:center;gap:12px;flex-shrink:0;width:180px}
-.fkp-server-info-modal__qr-image{width:180px;height:180px;display:block;image-rendering:pixelated}
-.fkp-server-info-modal__details-col{display:flex;flex-direction:column;gap:16px;flex-grow:1;min-width:0;box-sizing:border-box}
-.fkp-server-info-modal__details-grid{display:flex;flex-direction:column;gap:10px;background:rgba(128,128,128,0.08);padding:14px;border:1px solid rgba(128,128,128,0.15);box-sizing:border-box}
-.fkp-server-info-modal__detail-item{display:flex;justify-content:space-between;align-items:center;gap:16px}
-.fkp-server-info-modal__detail-label{font-size:11px;opacity:0.65;text-transform:uppercase;letter-spacing:0.05em;font-weight:700}
-.fkp-server-info-modal__detail-value{font-size:13px;font-weight:500}
-.fkp-server-info-modal__detail-value--title{font-weight:600}
-.fkp-server-info-modal__detail-value--mono{font-family:monospace;font-size:12px;background:rgba(128,128,128,0.12);padding:2px 6px;border-radius:4px;word-break:break-all}
-.fkp-server-info-modal__badge{display:inline-flex;align-items:center;padding:2px 8px;font-size:11px;font-weight:600;border-radius:4px;border:1px solid var(--border-color,rgba(128,128,128,0.25));background:rgba(128,128,128,0.08);line-height:1.2}
-.fkp-server-info-modal__link-section{display:flex;flex-direction:column;gap:8px;box-sizing:border-box}
-.fkp-server-info-modal__link{width:100% !important;max-width:100% !important;font-family:monospace;font-size:11px;padding:8px 10px;resize:none;min-height:54px;box-sizing:border-box;margin:0 !important;line-height:1.4;word-break:break-all;float:none !important;position:static !important;border-radius:0 !important;background-color:transparent !important}
-.fkp-server-info-modal__copy-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;align-self:flex-start;padding:3px 10px !important;font-size:11px !important;height:auto !important;min-height:24px !important;float:none !important;position:static !important;margin:0 !important}
+.fkp-protocol-summary{margin-top:6px}
 
-@media (max-width:640px){
-.fkp-server-info-modal{width:100%}
-.fkp-server-info-modal__container{flex-direction:column;align-items:center;gap:20px}
-.fkp-server-info-modal__qr-col{width:100%;max-width:180px}
-.fkp-server-info-modal__details-col{width:100%}
-}
+.fkp-clients{display:flex;flex-direction:column;gap:8px;min-width:0}
+.fkp-clients__item{display:flex;flex-direction:column;gap:6px;padding:8px 10px;border:1px solid var(--border-color,rgba(128,128,128,0.25));background:rgba(128,128,128,0.05);box-sizing:border-box}
+.fkp-clients__item--disabled{opacity:0.6}
+.fkp-clients__line{display:flex;flex-wrap:wrap;align-items:flex-end;gap:6px}
+.fkp-clients__field{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 180px}
+.fkp-clients__field--name{flex:1 1 140px}
+.fkp-clients__field > label{font-size:11px;opacity:0.65;text-transform:uppercase;letter-spacing:0.05em;font-weight:700}
+.fkp-clients__field input,.fkp-clients__field select,.fkp-clients__field textarea{width:100% !important;max-width:100% !important;box-sizing:border-box;margin:0 !important;float:none !important}
+.fkp-clients__field > div{display:flex;gap:4px;align-items:center;min-width:0}
+.fkp-clients__field > div > input{min-width:0}
+.fkp-clients__actions{display:flex;gap:4px;align-items:center;padding-bottom:2px}
+.fkp-clients__actions .btn{display:inline-flex;align-items:center;justify-content:center;padding:4px 8px !important;height:auto !important;min-height:26px !important;float:none !important;margin:0 !important}
+.fkp-clients__toggle{display:flex;align-items:center;gap:6px;font-size:12px;padding-bottom:4px}
+.fkp-clients__error{color:var(--danger-color,#c9302c);font-size:11px}
+.fkp-clients__add{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;float:none !important;margin:0 !important}
+.fkp-clients__hint{font-size:11px;opacity:0.7}
 `,
     ),
   );
 }
 
-function getFirstListValue(sectionId, option) {
-  return asList(uci.get(UCI_PACKAGE, sectionId, option))[0] || "";
-}
-
 function getProtocol(sectionId) {
-  return uci.get(UCI_PACKAGE, sectionId, "protocol") || DEFAULT_SERVER_PROTOCOL;
-}
-
-function getProtocolLabel(protocol) {
-  return PROTOCOL_LABELS[protocol] || protocol || "";
-}
-
-function getTailscaleDetourTargetSections(currentSectionId) {
-  return (uci.sections(UCI_PACKAGE, "section") || []).filter(
-    (section) =>
-      section[".name"] &&
-      section[".name"] !== currentSectionId &&
-      section.enabled !== "0" &&
-      ["connection", "proxy", "outbound", "vpn"].includes(section.action || ""),
-  );
-}
-
-function populateTailscaleDetourValues(option, currentSectionId) {
-  resetOptionValues(option);
-  getTailscaleDetourTargetSections(currentSectionId).forEach((section) => {
-    option.value(section[".name"], section.label || section[".name"]);
-  });
-}
-
-function resetOptionValues(option) {
-  option.keylist = [];
-  option.vallist = [];
-}
-
-function addOptionValue(option, value, label) {
-  if (option.keylist && option.keylist.indexOf(value) >= 0) {
-    return;
-  }
-
-  option.value(value, label);
-}
-
-function populateProtocolValues(option) {
-  resetOptionValues(option);
-  Object.entries(PROTOCOL_LABELS).forEach(([value, label]) => {
-    addOptionValue(option, value, label);
-  });
-}
-
-function populateTransportValues(option) {
-  resetOptionValues(option);
-
-  addOptionValue(option, "tcp", "TCP");
-  addOptionValue(option, "ws", "WebSocket");
-  addOptionValue(option, "grpc", "gRPC");
-  addOptionValue(option, "http", "HTTP");
-  addOptionValue(option, "httpupgrade", "HTTPUpgrade");
-  addOptionValue(option, "xhttp", "XHTTP");
-}
-
-function getServerName(sectionId) {
-  return uci.get(UCI_PACKAGE, sectionId, "label") || sectionId;
-}
-
-function getServerUsername(sectionId) {
-  return (
-    uci.get(UCI_PACKAGE, sectionId, "server_username") ||
-    getServerName(sectionId) ||
-    sectionId
-  );
-}
-
-function isSocksAuthenticationEnabled(sectionId) {
-  const value = `${
-    uci.get(UCI_PACKAGE, sectionId, "socks_auth_enabled") ?? "1"
-  }`.toLowerCase();
-
-  return !["0", "false", "no", "off"].includes(value);
-}
-
-function getDefaultSecurity(protocol) {
-  if (protocol === "vless") {
-    return "reality";
-  }
-  if (
-    protocol === "trojan" ||
-    protocol === "hysteria2" ||
-    protocol === "naive" ||
-    protocol === "anytls" ||
-    protocol === "tuic"
-  ) {
-    return "tls";
-  }
-  return "none";
-}
-
-function normalizeVlessFlow(flow) {
-  return flow === "xtls-rprx-vision" ? flow : "";
-}
-
-function getEffectiveSecurity(sectionId) {
-  const protocol = getProtocol(sectionId);
-  const security = uci.get(UCI_PACKAGE, sectionId, "security");
-
-  if (
-    protocol === "shadowsocks" ||
-    protocol === "socks" ||
-    protocol === "ssh" ||
-    protocol === "mieru" ||
-    protocol === "mtproto" ||
-    protocol === "tailscale" ||
-    protocol === "json_inbound"
-  ) {
-    return "none";
-  }
-  if (
-    protocol === "hysteria2" ||
-    protocol === "naive" ||
-    protocol === "anytls" ||
-    protocol === "tuic"
-  ) {
-    return "tls";
-  }
-  if (security === "reality" && protocol !== "vless") {
-    return getDefaultSecurity(protocol);
-  }
-
-  return security || getDefaultSecurity(protocol);
-}
-
-function normalizeHost(host) {
-  return `${host || ""}`.trim().replace(/^\[|\]$/g, "");
-}
-
-function getBrowserHost() {
-  return normalizeHost(window.location.hostname || "");
-}
-
-function isIpv4(value) {
-  return /^(25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])(\.(25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])){3}$/.test(
-    value,
-  );
-}
-
-function isIpv6(value) {
-  const normalized = normalizeHost(value);
-  if (!normalized.includes(":")) {
-    return false;
-  }
-
-  try {
-    new URL(`http://[${normalized}]/`);
-    return true;
-  } catch (_e) {
-    return false;
-  }
-}
-
-function formatHostForUri(host) {
-  const normalized = normalizeHost(host);
-  return isIpv6(normalized) ? `[${normalized}]` : normalized;
-}
-
-function isHostname(value) {
-  const hostname = normalizeHost(value);
-  if (hostname.length < 1 || hostname.length > 253 || hostname.endsWith(".")) {
-    return false;
-  }
-
-  return hostname
-    .split(".")
-    .every((part) =>
-      /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(part),
-    );
-}
-
-function isHost(value) {
-  const host = normalizeHost(value);
-  return isIpv4(host) || isIpv6(host) || isHostname(host);
-}
-
-function isPrivateOrReservedIpv4(value) {
-  if (!isIpv4(value)) {
-    return true;
-  }
-
-  const octets = value.split(".").map((part) => parseInt(part, 10));
-  const [a, b] = octets;
-
-  return (
-    a === 0 ||
-    a === 10 ||
-    a === 127 ||
-    a >= 224 ||
-    (a === 100 && b >= 64 && b <= 127) ||
-    (a === 169 && b === 254) ||
-    (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 168) ||
-    (a === 192 && b === 0) ||
-    (a === 192 && b === 2) ||
-    (a === 198 && (b === 18 || b === 19 || b === 51)) ||
-    (a === 203 && b === 0)
-  );
-}
-
-function isPrivateOrReservedIp(value) {
-  const normalized = normalizeHost(value).toLowerCase();
-  if (isIpv4(normalized)) {
-    return isPrivateOrReservedIpv4(normalized);
-  }
-  if (!isIpv6(normalized)) {
-    return true;
-  }
-
-  return (
-    normalized === "::" ||
-    normalized === "::1" ||
-    normalized.startsWith("fe80") ||
-    normalized.startsWith("fc") ||
-    normalized.startsWith("fd") ||
-    normalized.startsWith("ff") ||
-    normalized.startsWith("2001:db8")
-  );
-}
-
-function getInterfaceIpAddresses(networkInterface) {
-  const ipv4Values =
-    networkInterface &&
-    typeof networkInterface === "object" &&
-    Array.isArray(networkInterface["ipv4-address"])
-      ? networkInterface["ipv4-address"]
-      : [];
-  const ipv6Values =
-    networkInterface &&
-    typeof networkInterface === "object" &&
-    Array.isArray(networkInterface["ipv6-address"])
-      ? networkInterface["ipv6-address"]
-      : [];
-
-  return [...ipv4Values, ...ipv6Values]
-    .map((address) =>
-      normalizeHost(
-        address && typeof address === "object" ? address.address : address,
-      ),
-    )
-    .filter((address) => isIpv4(address) || isIpv6(address));
-}
-
-function chooseDefaultPublicHost(networkInterfaces) {
-  const interfaces = Array.isArray(networkInterfaces) ? networkInterfaces : [];
-  const upInterfaces = interfaces.filter(
-    (networkInterface) => networkInterface && networkInterface.up !== false,
-  );
-  const publicIp = upInterfaces
-    .flatMap(getInterfaceIpAddresses)
-    .find((ip) => !isPrivateOrReservedIp(ip));
-
-  if (publicIp) {
-    return publicIp;
-  }
-
-  const lanInterface =
-    upInterfaces.find((networkInterface) => {
-      const name = `${networkInterface.interface || ""}`;
-      const device = `${networkInterface.device || networkInterface.l3_device || ""}`;
-      return name === "lan" || device === "br-lan";
-    }) || {};
-  const lanIp = getInterfaceIpAddresses(lanInterface).find(
-    (ip) => ip !== "::1" && !ip.startsWith("127."),
-  );
-
-  if (lanIp) {
-    return lanIp;
-  }
-
-  return (
-    upInterfaces
-      .flatMap(getInterfaceIpAddresses)
-      .find((ip) => ip !== "::1" && !ip.startsWith("127.")) || getBrowserHost()
-  );
-}
-
-function loadDefaultPublicHost() {
-  if (defaultPublicHostCache != null) {
-    return Promise.resolve(defaultPublicHostCache);
-  }
-
-  if (defaultPublicHostPromise) {
-    return defaultPublicHostPromise;
-  }
-
-  defaultPublicHostPromise = callNetworkInterfaceDump()
-    .then((networkInterfaces) => {
-      defaultPublicHostCache = chooseDefaultPublicHost(networkInterfaces);
-      return defaultPublicHostCache;
-    })
-    .catch(() => getBrowserHost())
-    .finally(() => {
-      defaultPublicHostPromise = null;
-    });
-
-  return defaultPublicHostPromise;
-}
-
-function preloadServerModalData() {
-  return loadDefaultPublicHost().catch(() => null);
-}
-
-function applyDefaultPublicHost(sectionId, host) {
-  const normalizedHost = normalizeHost(host);
-  const currentHost = normalizeHost(
-    uci.get(UCI_PACKAGE, sectionId, "public_host"),
-  );
-  const browserHost = getBrowserHost();
-
-  if (
-    normalizedHost &&
-    (!currentHost || currentHost === browserHost || currentHost === "127.0.0.1")
-  ) {
-    uci.set(UCI_PACKAGE, sectionId, "public_host", normalizedHost);
-  }
-}
-
-function randomBytes(length) {
-  const bytes = new Uint8Array(length);
-
-  if (window.crypto && window.crypto.getRandomValues) {
-    window.crypto.getRandomValues(bytes);
-  } else {
-    for (let i = 0; i < length; i += 1) {
-      bytes[i] = Math.floor(Math.random() * 256);
-    }
-  }
-
-  return bytes;
-}
-
-function randomHex(byteLength) {
-  return Array.from(randomBytes(byteLength))
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-function stringToHex(value) {
-  return Array.from(unescape(encodeURIComponent(`${value || ""}`)))
-    .map((char) => char.charCodeAt(0).toString(16).padStart(2, "0"))
-    .join("");
-}
-
-function hexToString(value) {
-  const hex = `${value || ""}`;
-  if (!/^(?:[0-9a-fA-F]{2})+$/.test(hex)) {
-    return "";
-  }
-
-  const bytes = hex.match(/../g).map((byte) => parseInt(byte, 16));
-  try {
-    return decodeURIComponent(
-      escape(bytes.map((byte) => String.fromCharCode(byte)).join("")),
-    );
-  } catch (_error) {
-    return "";
-  }
-}
-
-function generateUuid() {
-  if (window.crypto && window.crypto.randomUUID) {
-    return window.crypto.randomUUID();
-  }
-
-  const bytes = randomBytes(16);
-  bytes[6] = (bytes[6] & 0x0f) | 0x40;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const hex = Array.from(bytes)
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
-
-function base64Encode(value) {
-  return btoa(unescape(encodeURIComponent(value)));
-}
-
-function base64UrlEncode(value) {
-  return base64Encode(value)
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
-}
-
-function generatePassword() {
-  return base64UrlEncode(
-    Array.from(randomBytes(18))
-      .map((byte) => String.fromCharCode(byte))
-      .join(""),
-  );
-}
-
-function generateMtprotoSecret() {
-  const secret = randomHex(16);
-  return secret === "00000000000000000000000000000000"
-    ? "11111111111111111111111111111111"
-    : secret;
-}
-
-function randomPort() {
-  const bytes = randomBytes(2);
-  const value = (bytes[0] << 8) | bytes[1];
-  return `${20000 + (value % 30000)}`;
-}
-
-function serverSafeName(sectionId) {
-  return `${sectionId || "server"}`.replace(/[^A-Za-z0-9_.-]/g, "_");
-}
-
-function defaultTlsCertificatePath(sectionId) {
-  return `/etc/forkop/server-certs/${serverSafeName(sectionId)}.crt`;
-}
-
-function defaultTlsKeyPath(sectionId) {
-  return `/etc/forkop/server-certs/${serverSafeName(sectionId)}.key`;
-}
-
-function defaultTailscaleHostname(sectionId) {
-  return `forkop-${serverSafeName(sectionId)}`;
-}
-
-function setDefault(sectionId, key, value) {
-  const current = uci.get(UCI_PACKAGE, sectionId, key);
-  if (current == null || current === "") {
-    uci.set(UCI_PACKAGE, sectionId, key, value);
-  }
-}
-
-function setValue(sectionId, key, value) {
-  uci.set(UCI_PACKAGE, sectionId, key, value);
-}
-
-function cloneUciState(value) {
-  return value == null ? null : JSON.parse(JSON.stringify(value));
-}
-
-function isEmptyObject(value) {
-  return value && Object.keys(value).length === 0;
-}
-
-function setUciSectionState(bucketName, sectionId, value) {
-  const state = uci.state;
-
-  if (!state) {
-    return;
-  }
-
-  state[bucketName] ??= {};
-  const bucket = state[bucketName];
-
-  if (value == null) {
-    delete bucket[UCI_PACKAGE]?.[sectionId];
-    if (isEmptyObject(bucket[UCI_PACKAGE])) {
-      delete bucket[UCI_PACKAGE];
-    }
-    return;
-  }
-
-  bucket[UCI_PACKAGE] ??= {};
-  bucket[UCI_PACKAGE][sectionId] = cloneUciState(value);
-}
-
-function captureServerEditState(sectionId) {
-  const state = uci.state;
-
-  if (!state || state.creates?.[UCI_PACKAGE]?.[sectionId]) {
-    return null;
-  }
-
-  return {
-    sectionId,
-    changes: cloneUciState(state.changes?.[UCI_PACKAGE]?.[sectionId]),
-    deletes: cloneUciState(state.deletes?.[UCI_PACKAGE]?.[sectionId]),
-  };
-}
-
-function restoreServerEditState(snapshot) {
-  if (!snapshot) {
-    return;
-  }
-
-  setUciSectionState("changes", snapshot.sectionId, snapshot.changes);
-  setUciSectionState("deletes", snapshot.sectionId, snapshot.deletes);
-}
-
-function ensureProtocolDefaults(sectionId, protocol, forceProtocolDefaults) {
-  setValue(sectionId, "protocol", protocol);
-  setDefault(sectionId, "enabled", "1");
-  setDefault(sectionId, "label", sectionId);
-  setDefault(sectionId, "routing_mode", "rules");
-
-  if (protocol === "json_inbound") {
-    setValue(sectionId, "security", getDefaultSecurity(protocol));
-    return;
-  }
-
-  setDefault(sectionId, "listen", "0.0.0.0");
-  setDefault(sectionId, "listen_port", randomPort());
-  setDefault(sectionId, "public_host", getBrowserHost());
-  setDefault(
-    sectionId,
-    "tls_certificate_path",
-    defaultTlsCertificatePath(sectionId),
-  );
-  setDefault(sectionId, "tls_key_path", defaultTlsKeyPath(sectionId));
-
-  if (forceProtocolDefaults) {
-    setValue(sectionId, "security", getDefaultSecurity(protocol));
-    setValue(sectionId, "transport", "tcp");
-  } else {
-    setDefault(sectionId, "security", getDefaultSecurity(protocol));
-    setDefault(sectionId, "transport", "tcp");
-  }
-
-  if (protocol === "vless" || protocol === "vmess" || protocol === "tuic") {
-    setDefault(sectionId, "server_uuid", generateUuid());
-  }
-
-  if (PASSWORD_PROTOCOLS.includes(protocol)) {
-    setDefault(sectionId, "server_password", generatePassword());
-  }
-
-  if (USERNAME_PROTOCOLS.includes(protocol)) {
-    if (protocol === "socks") {
-      setDefault(sectionId, "socks_auth_enabled", "1");
-    }
-    setDefault(sectionId, "server_username", getServerName(sectionId));
-  }
-
-  if (protocol === "vless") {
-    setDefault(sectionId, "vless_flow", "none");
-    setDefault(sectionId, "tls_server_name", "www.microsoft.com");
-    setDefault(sectionId, "client_fingerprint", "chrome");
-    setDefault(sectionId, "reality_handshake_server", "www.microsoft.com");
-    setDefault(sectionId, "reality_handshake_server_port", "443");
-    setDefault(sectionId, "reality_short_id", randomHex(4));
-    setDefault(sectionId, "reality_max_time_difference", "1m");
-  }
-
-  if (protocol === "vmess") {
-    setDefault(sectionId, "vmess_alter_id", "0");
-  }
-
-  if (protocol === "shadowsocks") {
-    setDefault(sectionId, "shadowsocks_method", "aes-128-gcm");
-  }
-
-  if (protocol === "tailscale") {
-    setDefault(
-      sectionId,
-      "tailscale_control_url",
-      "https://controlplane.tailscale.com",
-    );
-    setDefault(
-      sectionId,
-      "tailscale_hostname",
-      defaultTailscaleHostname(sectionId),
-    );
-  }
-
-  if (protocol === "hysteria2") {
-    setDefault(sectionId, "hysteria2_obfs_password", generatePassword());
-  }
-
-  if (protocol === "naive") {
-    setDefault(sectionId, "naive_network", "tcp");
-    setDefault(sectionId, "naive_quic_congestion_control", "bbr");
-  }
-
-  if (protocol === "mieru") {
-    setDefault(sectionId, "mieru_transport", "TCP");
-  }
-
-  if (protocol === "tuic") {
-    setDefault(sectionId, "tuic_congestion_control", "cubic");
-    setDefault(sectionId, "tuic_auth_timeout", "3s");
-    setDefault(sectionId, "tuic_heartbeat", "10s");
-  }
-
-  if (protocol === "mtproto") {
-    setDefault(sectionId, "mtproto_secret", generateMtprotoSecret());
-    setDefault(sectionId, "mtproto_faketls", "google.com");
-    setDefault(sectionId, "mtproto_domain_fronting_port", "443");
-    setDefault(sectionId, "mtproto_prefer_ip", "prefer-ipv4");
-    setDefault(sectionId, "mtproto_tolerate_time_skewness", "3s");
-    setDefault(sectionId, "mtproto_idle_timeout", "5m");
-    setDefault(sectionId, "mtproto_handshake_timeout", "10s");
-  }
-}
-
-function normalizeMtprotoBaseSecret(value) {
-  const secret = `${value || ""}`.trim().toLowerCase();
-
-  if (/^[0-9a-f]{32}$/.test(secret)) {
-    return secret;
-  }
-  if (/^ee[0-9a-f]{32}(?:[0-9a-f]{2})+$/.test(secret)) {
-    return secret.slice(2, 34);
-  }
-
-  return "";
-}
-
-function getMtprotoFaketlsFromSecret(value) {
-  const secret = `${value || ""}`.trim().toLowerCase();
-
-  if (!/^ee[0-9a-f]{32}(?:[0-9a-f]{2})+$/.test(secret)) {
-    return "";
-  }
-
-  return hexToString(secret.slice(34));
-}
-
-function getMtprotoFaketls(sectionId) {
-  return (
-    uci.get(UCI_PACKAGE, sectionId, "mtproto_faketls") ||
-    getMtprotoFaketlsFromSecret(
-      uci.get(UCI_PACKAGE, sectionId, "mtproto_secret"),
-    ) ||
-    "google.com"
-  );
-}
-
-function buildMtprotoFullSecret(baseSecret, faketls) {
-  return `ee${baseSecret}${stringToHex(faketls || "google.com")}`;
-}
-
-function getServerIdentity(sectionId) {
-  const name = getServerName(sectionId);
-  const uuid = uci.get(UCI_PACKAGE, sectionId, "server_uuid") || "";
-  const password = uci.get(UCI_PACKAGE, sectionId, "server_password") || "";
-  const mtprotoSecret =
-    normalizeMtprotoBaseSecret(
-      uci.get(UCI_PACKAGE, sectionId, "mtproto_secret"),
-    ) || "";
-
-  return {
-    name,
-    username: getServerUsername(sectionId),
-    uuid,
-    password,
-    mtprotoSecret,
-    mtprotoFaketls: getMtprotoFaketls(sectionId),
-    flow: normalizeVlessFlow(
-      uci.get(UCI_PACKAGE, sectionId, "vless_flow") || "",
-    ),
-  };
-}
-
-function encodeQuery(params) {
-  return Object.entries(params)
-    .filter(([, value]) => value != null && value !== "")
-    .map(
-      ([key, value]) =>
-        `${encodeURIComponent(key)}=${encodeURIComponent(`${value}`)}`,
-    )
-    .join("&");
-}
-
-function getPublicHost(sectionId) {
-  return (
-    uci.get(UCI_PACKAGE, sectionId, "public_host") ||
-    window.location.hostname ||
-    ""
-  );
-}
-
-function getTransportParams(sectionId, params) {
-  const transport = uci.get(UCI_PACKAGE, sectionId, "transport") || "tcp";
-  params.type = transport === "raw" ? "tcp" : transport;
-
-  if (transport === "ws" || transport === "httpupgrade") {
-    params.path = uci.get(UCI_PACKAGE, sectionId, "transport_path") || "";
-    params.host = uci.get(UCI_PACKAGE, sectionId, "transport_host") || "";
-  } else if (transport === "xhttp") {
-    params.path = uci.get(UCI_PACKAGE, sectionId, "transport_path") || "/";
-    params.host = uci.get(UCI_PACKAGE, sectionId, "transport_host") || "";
-    params.mode =
-      uci.get(UCI_PACKAGE, sectionId, "transport_xhttp_mode") || "auto";
-  } else if (transport === "grpc") {
-    params.serviceName =
-      uci.get(UCI_PACKAGE, sectionId, "transport_service_name") || "";
-  } else if (transport === "http") {
-    params.path = uci.get(UCI_PACKAGE, sectionId, "transport_path") || "";
-    params.host = asList(
-      uci.get(UCI_PACKAGE, sectionId, "transport_hosts"),
-    ).join(",");
-  }
-
-  return transport;
-}
-
-function buildVlessTrojanLink(sectionId, identity) {
-  const protocol = getProtocol(sectionId);
-  const host = getPublicHost(sectionId);
-  const uriHost = formatHostForUri(host);
-  const port = uci.get(UCI_PACKAGE, sectionId, "listen_port") || "";
-  const security = getEffectiveSecurity(sectionId);
-  const tlsServerName =
-    uci.get(UCI_PACKAGE, sectionId, "tls_server_name") ||
-    uci.get(UCI_PACKAGE, sectionId, "reality_handshake_server") ||
-    "";
-  const params = { security };
-  const credential = protocol === "vless" ? identity.uuid : identity.password;
-
-  getTransportParams(sectionId, params);
-
-  if (protocol === "vless") {
-    params.encryption = "none";
-  }
-
-  if (security === "tls" || security === "reality") {
-    params.sni = tlsServerName;
-    params.alpn = asList(uci.get(UCI_PACKAGE, sectionId, "tls_alpn")).join(",");
-  }
-
-  if (security === "reality") {
-    params.pbk = uci.get(UCI_PACKAGE, sectionId, "reality_public_key") || "";
-    params.sid = getFirstListValue(sectionId, "reality_short_id");
-    params.fp =
-      uci.get(UCI_PACKAGE, sectionId, "client_fingerprint") || "chrome";
-  }
-
-  if (protocol === "vless" && identity.flow) {
-    params.flow = identity.flow;
-  }
-
-  const query = encodeQuery(params);
-  return `${protocol}://${encodeURIComponent(credential)}@${uriHost}:${port}${query ? `?${query}` : ""}#${encodeURIComponent(identity.name || sectionId)}`;
-}
-
-function buildVmessLink(sectionId, identity) {
-  const host = getPublicHost(sectionId);
-  const port = uci.get(UCI_PACKAGE, sectionId, "listen_port") || "";
-  const security = getEffectiveSecurity(sectionId);
-  const transportParams = {};
-  const transport = getTransportParams(sectionId, transportParams);
-  if (
-    security === "reality" &&
-    (!uci.get(UCI_PACKAGE, sectionId, "reality_public_key") ||
-      !getFirstListValue(sectionId, "reality_short_id"))
-  ) {
-    return "";
-  }
-
-  const payload = {
-    v: "2",
-    ps: identity.name || sectionId,
-    add: host,
-    port,
-    id: identity.uuid,
-    aid: uci.get(UCI_PACKAGE, sectionId, "vmess_alter_id") || "0",
-    scy: "auto",
-    net: transport === "tcp" ? "tcp" : transport,
-    type: "none",
-    host: transportParams.host || "",
-    path: transportParams.path || transportParams.serviceName || "",
-    tls: security === "tls" ? "tls" : "",
-    sni: uci.get(UCI_PACKAGE, sectionId, "tls_server_name") || "",
-    alpn: asList(uci.get(UCI_PACKAGE, sectionId, "tls_alpn")).join(","),
-  };
-
-  return `vmess://${base64Encode(JSON.stringify(payload))}`;
-}
-
-function buildShadowsocksLink(sectionId, identity) {
-  const method =
-    uci.get(UCI_PACKAGE, sectionId, "shadowsocks_method") || "aes-128-gcm";
-  const host = getPublicHost(sectionId);
-  const uriHost = formatHostForUri(host);
-  const port = uci.get(UCI_PACKAGE, sectionId, "listen_port") || "";
-  const userInfo = base64UrlEncode(`${method}:${identity.password}`);
-
-  return `ss://${userInfo}@${uriHost}:${port}#${encodeURIComponent(identity.name || sectionId)}`;
-}
-
-function buildSocksLink(sectionId, identity) {
-  const host = getPublicHost(sectionId);
-  const uriHost = formatHostForUri(host);
-  const port = uci.get(UCI_PACKAGE, sectionId, "listen_port") || "";
-  const username = identity.username || identity.name || sectionId;
-  const userInfo = isSocksAuthenticationEnabled(sectionId)
-    ? `${encodeURIComponent(username)}:${encodeURIComponent(identity.password)}@`
-    : "";
-
-  return `socks5://${userInfo}${uriHost}:${port}#${encodeURIComponent(identity.name || sectionId)}`;
-}
-
-function normalizeSha256(value) {
-  const normalized = `${value || ""}`.trim().replace(/:/g, "").toLowerCase();
-  return /^[0-9a-f]{64}$/.test(normalized) ? normalized : "";
-}
-
-function shouldUseGeneratedTlsCertificatePin(sectionId) {
-  const certificatePath =
-    uci.get(UCI_PACKAGE, sectionId, "tls_certificate_path") ||
-    defaultTlsCertificatePath(sectionId);
-
-  return `${certificatePath}` === defaultTlsCertificatePath(sectionId);
-}
-
-function loadGeneratedTlsCertificatePin(sectionId) {
-  if (!shouldUseGeneratedTlsCertificatePin(sectionId)) {
-    return Promise.resolve("");
-  }
-
-  return fs
-    .exec("/usr/bin/forkop", ["get_tls_certificate_sha256", sectionId])
-    .then((response) => {
-      if ((response.code ?? 0) !== 0 || !response.stdout) {
-        throw new Error(response.stderr || response.stdout || "");
-      }
-
-      const data = JSON.parse(response.stdout);
-      if (!data.success) {
-        throw new Error(data.message || "");
-      }
-
-      return normalizeSha256(data.sha256);
-    })
-    .catch((error) => {
-      console.warn(
-        error?.message || "Failed to read generated TLS certificate pin",
-        error,
-      );
-      return "";
-    });
-}
-
-function buildHysteria2Link(sectionId, identity, options = {}) {
-  const host = getPublicHost(sectionId);
-  const uriHost = formatHostForUri(host);
-  const port = uci.get(UCI_PACKAGE, sectionId, "listen_port") || "";
-  const certificatePin = normalizeSha256(options.tlsCertificateSha256);
-  const obfsType = uci.get(UCI_PACKAGE, sectionId, "hysteria2_obfs_type") || "";
-  const params = {
-    sni: uci.get(UCI_PACKAGE, sectionId, "tls_server_name") || "",
-    insecure: certificatePin ? "1" : "",
-    pinSHA256: certificatePin,
-  };
-
-  if (obfsType === "salamander") {
-    params.obfs = obfsType;
-    params["obfs-password"] =
-      uci.get(UCI_PACKAGE, sectionId, "hysteria2_obfs_password") || "";
-  }
-
-  const query = encodeQuery(params);
-
-  return `hysteria2://${encodeURIComponent(identity.password)}@${uriHost}:${port}${query ? `?${query}` : ""}#${encodeURIComponent(identity.name || sectionId)}`;
-}
-
-function buildMtprotoLink(sectionId, identity) {
-  const host = getPublicHost(sectionId);
-  const port = uci.get(UCI_PACKAGE, sectionId, "listen_port") || "";
-  const secret = buildMtprotoFullSecret(
-    identity.mtprotoSecret,
-    identity.mtprotoFaketls,
-  );
-  const query = encodeQuery({
-    server: host,
-    port,
-    secret,
-  });
-
-  return `https://t.me/proxy?${query}`;
-}
-
-function buildClientLink(sectionId, options = {}) {
-  const protocol = getProtocol(sectionId);
-  const identity = getServerIdentity(sectionId);
-
-  if (protocol === "tailscale" || protocol === "json_inbound") {
-    return "";
-  }
-
-  if (
-    ((protocol === "vless" || protocol === "vmess") && !identity.uuid) ||
-    (PASSWORD_PROTOCOLS.includes(protocol) && !identity.password) ||
-    (protocol === "mtproto" && !identity.mtprotoSecret)
-  ) {
-    return "";
-  }
-
-  if (
-    protocol === "vless" &&
-    getEffectiveSecurity(sectionId) === "reality" &&
-    (!uci.get(UCI_PACKAGE, sectionId, "reality_public_key") ||
-      !getFirstListValue(sectionId, "reality_short_id"))
-  ) {
-    return "";
-  }
-
-  switch (protocol) {
-    case "shadowsocks":
-      return buildShadowsocksLink(sectionId, identity);
-    case "socks":
-      return buildSocksLink(sectionId, identity);
-    case "vmess":
-      return buildVmessLink(sectionId, identity);
-    case "trojan":
-      return buildVlessTrojanLink(sectionId, identity);
-    case "hysteria2":
-      return buildHysteria2Link(sectionId, identity, options);
-    case "mtproto":
-      return buildMtprotoLink(sectionId, identity);
-    case "naive":
-    case "ssh":
-    case "mieru":
-    case "anytls":
-    case "tuic":
-      return "";
-    case "vless":
-    default:
-      return buildVlessTrojanLink(sectionId, identity);
-  }
-}
-
-function buildClientLinkContext(sectionId) {
-  const certificatePinExpected =
-    getProtocol(sectionId) === "hysteria2" &&
-    shouldUseGeneratedTlsCertificatePin(sectionId);
-
-  if (!certificatePinExpected) {
-    return Promise.resolve({
-      link: buildClientLink(sectionId),
-      certificatePinExpected,
-      tlsCertificateSha256: "",
-    });
-  }
-
-  return loadGeneratedTlsCertificatePin(sectionId).then(
-    (tlsCertificateSha256) => ({
-      link: buildClientLink(sectionId, { tlsCertificateSha256 }),
-      certificatePinExpected,
-      tlsCertificateSha256,
-    }),
-  );
-}
-
-function svgEl(tag, attrs = {}, children = []) {
-  const element = document.createElementNS("http://www.w3.org/2000/svg", tag);
-  Object.entries(attrs).forEach(([key, value]) => {
-    if (value != null) {
-      element.setAttribute(key, `${value}`);
-    }
-  });
-  (Array.isArray(children) ? children : [children])
-    .filter(Boolean)
-    .forEach((child) => element.appendChild(child));
-  return element;
-}
-
-function iconSvg(name) {
-  const attrs = {
-    viewBox: "0 0 24 24",
-    width: "16",
-    height: "16",
-    fill: "none",
-    stroke: "currentColor",
-    "stroke-width": "2",
-    "stroke-linecap": "round",
-    "stroke-linejoin": "round",
-    "aria-hidden": "true",
-    focusable: "false",
-  };
-
-  if (name === "copy") {
-    return svgEl("svg", attrs, [
-      svgEl("rect", {
-        x: "9",
-        y: "9",
-        width: "13",
-        height: "13",
-        rx: "2",
-        ry: "2",
-      }),
-      svgEl("path", {
-        d: "M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1",
-      }),
-    ]);
-  }
-
-  if (name === "check") {
-    return svgEl("svg", attrs, [
-      svgEl("polyline", { points: "20 6 9 17 4 12" }),
-    ]);
-  }
-
-  if (name === "info") {
-    return svgEl("svg", attrs, [
-      svgEl("circle", { cx: "12", cy: "12", r: "10" }),
-      svgEl("path", { d: "M12 16v-4" }),
-      svgEl("path", { d: "M12 8h.01" }),
-    ]);
-  }
-
-  return svgEl("svg", attrs, [
-    svgEl("rect", { x: "3", y: "3", width: "5", height: "5" }),
-    svgEl("rect", { x: "16", y: "3", width: "5", height: "5" }),
-    svgEl("rect", { x: "3", y: "16", width: "5", height: "5" }),
-    svgEl("path", {
-      d: "M16 16h1v1h-1zM20 16h1v1h-1zM16 20h1v1h-1zM20 20h1v1h-1zM18 18h1v1h-1z",
-    }),
-  ]);
-}
-
-function copyText(text) {
-  const textarea = document.createElement("textarea");
-  textarea.value = text;
-  textarea.style.position = "fixed";
-  textarea.style.top = "0";
-  textarea.style.left = "0";
-  textarea.style.opacity = "0";
-  document.body.appendChild(textarea);
-  textarea.select();
-
-  try {
-    document.execCommand("copy");
-    main.showToast(_("Copied"), "success");
-  } catch (error) {
-    main.showToast(_("Failed to copy!"), "error");
-    console.warn("Failed to copy server client link", error);
-  }
-
-  document.body.removeChild(textarea);
-}
-
-function renderInfoClientLink(sectionId, linkContext = {}) {
-  const link = linkContext.link || buildClientLink(sectionId);
-
-  if (!link) {
-    return E("em", {}, _("Client link is not available yet"));
-  }
-
-  const qrImage = qr.qrSvgDataUri(link);
-  const protocol = getProtocol(sectionId);
-  const security = getEffectiveSecurity(sectionId);
-  const host = getPublicHost(sectionId);
-  const port = uci.get(UCI_PACKAGE, sectionId, "listen_port") || "";
-  const name = getServerName(sectionId);
-
-  const securitySuffix =
-    security && security !== "none" ? ` + ${getSecurityLabel(security)}` : "";
-  const protocolText = `${getProtocolLabel(protocol)}${securitySuffix}`;
-  const certificatePinWarning =
-    protocol === "hysteria2" &&
-    linkContext.certificatePinExpected &&
-    !linkContext.tlsCertificateSha256
-      ? E(
-          "div",
-          { class: "alert-message warning" },
-          _(
-            "Certificate pin is unavailable. Apply or restart the server to generate the default certificate, then open this dialog again.",
-          ),
-        )
-      : "";
-
-  return E("div", { class: "fkp-server-info-modal__container" }, [
-    // Left column: QR code
-    E("div", { class: "fkp-server-info-modal__qr-col" }, [
-      qrImage
-        ? E("img", {
-            class: "fkp-server-info-modal__qr-image",
-            src: qrImage,
-            alt: _("Client link QR code"),
-          })
-        : E("em", {}, _("QR code is too large")),
-    ]),
-
-    // Right column: Details and Copy Box
-    E("div", { class: "fkp-server-info-modal__details-col" }, [
-      E("div", { class: "fkp-server-info-modal__details-grid" }, [
-        E("div", { class: "fkp-server-info-modal__detail-item" }, [
-          E(
-            "span",
-            { class: "fkp-server-info-modal__detail-label" },
-            _("Server name"),
-          ),
-          E(
-            "span",
-            {
-              class:
-                "fkp-server-info-modal__detail-value fkp-server-info-modal__detail-value--title",
-            },
-            name,
-          ),
-        ]),
-        E("div", { class: "fkp-server-info-modal__detail-item" }, [
-          E(
-            "span",
-            { class: "fkp-server-info-modal__detail-label" },
-            _("Type"),
-          ),
-          E(
-            "span",
-            {
-              class:
-                "fkp-server-info-modal__detail-value fkp-server-info-modal__badge",
-            },
-            protocolText,
-          ),
-        ]),
-        E("div", { class: "fkp-server-info-modal__detail-item" }, [
-          E(
-            "span",
-            { class: "fkp-server-info-modal__detail-label" },
-            _("Address"),
-          ),
-          E(
-            "span",
-            {
-              class:
-                "fkp-server-info-modal__detail-value fkp-server-info-modal__detail-value--mono",
-            },
-            `${host}:${port}`,
-          ),
-        ]),
-      ]),
-
-      E("div", { class: "fkp-server-info-modal__link-section" }, [
-        E(
-          "span",
-          { class: "fkp-server-info-modal__detail-label" },
-          _("Client link"),
-        ),
-        certificatePinWarning,
-        E(
-          "textarea",
-          {
-            class: "cbi-input-textarea fkp-server-info-modal__link",
-            readonly: "readonly",
-            rows: 3,
-            click: (ev) => ev.currentTarget.select(),
-          },
-          link,
-        ),
-        E(
-          "button",
-          {
-            class:
-              "btn cbi-button cbi-button-neutral fkp-server-info-modal__copy-btn",
-            type: "button",
-            click: (ev) => {
-              ev.preventDefault();
-              copyText(link);
-            },
-          },
-          [iconSvg("copy"), " ", E("span", {}, _("Copy"))],
-        ),
-      ]),
-    ]),
-  ]);
-}
-
-function showServerInfoModal(sectionId) {
-  const modalContent = E("div", { class: "fkp-server-info-modal" }, [
-    E("em", {}, _("Loading client link...")),
-  ]);
-
-  ui.showModal(
-    _("Server information"),
-    [
-      modalContent,
-      E("div", { class: "button-row" }, [
-        E(
-          "button",
-          {
-            class: "btn cbi-button cbi-button-neutral",
-            type: "button",
-            click: () => ui.hideModal(),
-          },
-          _("Close"),
-        ),
-      ]),
-    ],
-    "cbi-modal",
-  );
-
-  buildClientLinkContext(sectionId)
-    .then((linkContext) => {
-      modalContent.innerHTML = "";
-      modalContent.appendChild(renderInfoClientLink(sectionId, linkContext));
-    })
-    .catch((error) => {
-      console.warn(error?.message || "Failed to build client link", error);
-      modalContent.innerHTML = "";
-      modalContent.appendChild(renderInfoClientLink(sectionId));
-    });
-}
-
-function getServerEditButtonText() {
-  const label = _("Edit rule action");
-
-  return label === "Edit rule action" ? "Edit" : label;
-}
-
-function renderServerRowActions(sectionRef, sectionId) {
-  const editLabel = getServerEditButtonText();
-  const deleteLabel = _("Delete");
-  const infoLabel = _("Information");
-  const tdEl = E(
-    "td",
-    { class: "td cbi-section-table-cell nowrap cbi-section-actions" },
-    E("div"),
-  );
-  const actionsEl = tdEl.lastElementChild;
-  const actionButtons = [];
-
-  if (!["tailscale", "json_inbound"].includes(getProtocol(sectionId))) {
-    actionButtons.push(
-      E(
-        "button",
-        {
-          title: infoLabel,
-          "aria-label": infoLabel,
-          class: "cbi-button center fkp-server-icon-button",
-          style: "display:inline-block;",
-          click: (ev) => {
-            ev.preventDefault();
-            ev.stopPropagation();
-            showServerInfoModal(sectionId);
-          },
-        },
-        E("span", { class: "fkp-server-icon-button__glyph" }, "\u24D8"),
-      ),
-    );
-  }
-
-  dom.append(actionsEl, [
-    ...actionButtons,
-    E(
-      "button",
-      {
-        title: editLabel,
-        class: "btn cbi-button cbi-button-edit",
-        click: ui.createHandlerFn(
-          sectionRef,
-          "renderMoreOptionsModal",
-          sectionId,
-        ),
-      },
-      editLabel,
-    ),
-  ]);
-
-  if (sectionRef.addremove) {
-    dom.append(
-      actionsEl,
-      E(
-        "button",
-        {
-          title: deleteLabel,
-          class: "btn cbi-button cbi-button-remove",
-          click: ui.createHandlerFn(sectionRef, "handleRemove", sectionId),
-          disabled: sectionRef.map.readonly || null,
-        },
-        deleteLabel,
-      ),
-    );
-  }
-
-  return tdEl;
-}
-
-function validatePort(_sectionId, value) {
-  const port = parseInt(value, 10);
-  if (!/^[0-9]+$/.test(value) || port < 1 || port > 65535) {
-    return _("Port must be between 1 and 65535");
-  }
-  return true;
-}
-
-function isEmptyValue(value) {
-  return (
-    value == null ||
-    value === "" ||
-    (Array.isArray(value) &&
-      value.filter((item) => item != null && item !== "").length === 0)
-  );
-}
-
-function validateRequired(_sectionId, value) {
-  return isEmptyValue(value) ? _("This field is required") : true;
-}
-
-function validateRequiredText(_sectionId, value) {
-  if (isEmptyValue(value)) {
-    return _("This field is required");
-  }
-
-  return /[\u0000-\u001F\u007F]/.test(`${value}`)
-    ? _("Value must not contain control characters")
-    : true;
-}
-
-function validateUuid(_sectionId, value) {
-  return /^[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$/.test(
-    `${value || ""}`,
-  )
-    ? true
-    : _("Use a valid UUID");
-}
-
-function isRoutingSectionAction(action) {
-  return ROUTING_SECTION_ACTIONS.indexOf(`${action || ""}`) !== -1;
-}
-
-function loadRoutingSectionChoices(option) {
-  const sections = option.map?.data?.state?.values?.[UCI_PACKAGE] ?? {};
-
-  option.keylist = [];
-  option.vallist = [];
-
-  for (const sectionName in sections) {
-    const section = sections[sectionName];
-
-    if (
-      section[".type"] === "section" &&
-      section.enabled !== "0" &&
-      isRoutingSectionAction(section.action)
-    ) {
-      option.keylist.push(sectionName);
-      option.vallist.push(section.label || sectionName);
-    }
-  }
-
-  return Promise.resolve();
-}
-
-function loadServerTableOptions(sectionRef) {
-  const sectionIds = sectionRef.cfgsections();
-  const tasks = [];
-
-  for (let i = 0; i < sectionIds.length; i += 1) {
-    const sectionId = sectionIds[i];
-
-    for (let j = 0; j < sectionRef.children.length; j += 1) {
-      const option = sectionRef.children[j];
-
-      if (option.disable || option.modalonly) {
-        continue;
-      }
-
-      tasks.push(
-        Promise.resolve(option.load.call(option, sectionId)).then((value) => {
-          option.cfgvalue(sectionId, value);
-        }),
-      );
-    }
-  }
-
-  return Promise.all(tasks);
-}
-
-function validateHost(_sectionId, value) {
-  return isHost(value) ? true : _("Use a domain name or IP address");
-}
-
-function validateOptionalHost(_sectionId, value) {
-  return isEmptyValue(value) || isHost(value)
-    ? true
-    : _("Use a domain name or IP address");
-}
-
-function validateListenAddress(_sectionId, value) {
-  const address = normalizeHost(value);
-  return address === "0.0.0.0" ||
-    address === "::" ||
-    isIpv4(address) ||
-    isIpv6(address)
-    ? true
-    : _("Use an IP listen address");
-}
-
-function validateOptionalIp(_sectionId, value) {
-  const address = normalizeHost(value);
-  return isEmptyValue(value) || isIpv4(address) || isIpv6(address)
-    ? true
-    : _("Use an IP address");
-}
-
-function validateFilePath(_sectionId, value) {
-  const path = `${value || ""}`;
-
-  if (isEmptyValue(path)) {
-    return _("This field is required");
-  }
-
-  const validation = main.validatePath(path);
-  return validation.valid && path !== "/" && !path.endsWith("/")
-    ? true
-    : _("Specify a file path");
-}
-
-function validateOptionalFilePath(sectionId, value) {
-  return isEmptyValue(value) ? true : validateFilePath(sectionId, value);
-}
-
-function validateTlsCertificatePath(sectionId, value) {
-  const result = validateFilePath(sectionId, value);
-  if (result !== true) {
-    return result;
-  }
-
-  return `${value}` ===
-    `${uci.get(UCI_PACKAGE, sectionId, "tls_key_path") || ""}`
-    ? _("Specify different files")
-    : true;
-}
-
-function validateTlsKeyPath(sectionId, value) {
-  const result = validateFilePath(sectionId, value);
-  if (result !== true) {
-    return result;
-  }
-
-  return `${value}` ===
-    `${uci.get(UCI_PACKAGE, sectionId, "tls_certificate_path") || ""}`
-    ? _("Specify different files")
-    : true;
-}
-
-function validateHttpUrl(_sectionId, value) {
-  try {
-    const url = new URL(`${value || ""}`);
-    return (url.protocol === "http:" || url.protocol === "https:") &&
-      isHost(url.hostname)
-      ? true
-      : _("Use an HTTP or HTTPS URL");
-  } catch (_err) {
-    return _("Use an HTTP or HTTPS URL");
-  }
-}
-
-function validateInboundJson(_sectionId, value) {
-  if (isEmptyValue(value)) {
-    return _("Inbound JSON cannot be empty");
-  }
-
-  try {
-    const parsed = JSON.parse(`${value}`);
-    if (
-      !parsed ||
-      typeof parsed !== "object" ||
-      Array.isArray(parsed) ||
-      typeof parsed.type !== "string" ||
-      !parsed.type
-    ) {
-      return _("Inbound JSON must be an object with a type field");
-    }
-    return parsed.type === parsed.type.trim() &&
-      JSON_INBOUND_TYPES.has(parsed.type.trim())
-      ? true
-      : _("Unsupported JSON inbound type");
-  } catch (_err) {
-    return _("Invalid JSON format");
-  }
-}
-
-function validateDurationValue(value) {
-  return /^([0-9]+(ns|us|ms|s|m|h))+$/.test(`${value || ""}`);
-}
-
-function validateRequiredDuration(_sectionId, value) {
-  return validateDurationValue(value)
-    ? true
-    : _("Use a duration like 30s, 5m, or 1h30m");
-}
-
-function validateOptionalNonNegativeInteger(_sectionId, value) {
-  return isEmptyValue(value) || /^[0-9]+$/.test(`${value}`)
-    ? true
-    : _("Use a non-negative integer");
-}
-
-function validateTransportPath(_sectionId, value) {
-  return isEmptyValue(value) || `${value}`.startsWith("/")
-    ? true
-    : _("Transport path must start with /");
-}
-
-function validateOptionalHostList(_sectionId, value) {
-  const values = Array.isArray(value) ? value : [value];
-  const invalid = values
-    .filter((item) => item != null && item !== "")
-    .some((item) => !isHost(item));
-
-  return invalid ? _("Use a domain name or IP address") : true;
-}
-
-function validateGrpcServiceName(_sectionId, value) {
-  return isEmptyValue(value) || /^[A-Za-z0-9_.-]+$/.test(`${value}`)
-    ? true
-    : _("Use letters, digits, dots, underscores, or hyphens");
-}
-
-function isIpv6Literal(value) {
-  return isIpv6(value);
-}
-
-function normalizeCidrOrIp(value) {
-  const normalized = `${value || ""}`.trim();
-  if (!normalized.includes("/") && isIpv4(normalized)) {
-    return `${normalized}/32`;
-  }
-  if (!normalized.includes("/") && isIpv6Literal(normalized)) {
-    return `${normalized}/128`;
-  }
-  return normalized;
-}
-
-function validateOptionalCidr(value) {
-  if (isEmptyValue(value)) {
-    return true;
-  }
-
-  const values = Array.isArray(value) ? value : [value];
-  const invalid = values
-    .filter((item) => item != null && item !== "")
-    .some((item) => {
-      const [address, prefix, extra] = `${item}`.split("/");
-      if (extra != null || prefix == null || !/^[0-9]+$/.test(prefix)) {
-        return true;
-      }
-      const prefixNumber = parseInt(prefix, 10);
-      if (isIpv4(address)) {
-        return prefixNumber < 0 || prefixNumber > 32;
-      }
-      if (isIpv6Literal(address)) {
-        return prefixNumber < 0 || prefixNumber > 128;
-      }
-      return true;
-    });
-
-  return invalid
-    ? _("Use CIDR prefixes like 192.168.1.0/24 or 2001:db8::/32")
-    : true;
-}
-
-function validateOptionalCidrOrIp(value) {
-  if (isEmptyValue(value)) {
-    return true;
-  }
-  const values = Array.isArray(value) ? value : [value];
-  const invalid = values
-    .filter((item) => item != null && item !== "")
-    .some((item) => validateOptionalCidr(normalizeCidrOrIp(item)) !== true);
-
-  return invalid
-    ? _(
-        "Use CIDR prefixes or IP addresses like 192.168.1.0/24, 192.168.1.10, or 2001:db8::1",
-      )
-    : true;
-}
-
-function validateShortId(_sectionId, value) {
-  if (isEmptyValue(value)) {
-    return _("This field is required");
-  }
-
-  const values = Array.isArray(value) ? value : [value];
-  const invalid = values
-    .filter((item) => item != null && item !== "")
-    .some((item) => !/^[0-9a-fA-F]{1,8}$/.test(`${item}`));
-
-  if (invalid) {
-    return _("Reality short ID must contain 1-8 hex digits");
-  }
-  return true;
-}
-
-function validateMtprotoSecret(_sectionId, value) {
-  const secret = normalizeMtprotoBaseSecret(value);
-
-  if (!secret) {
-    return _("Use 32 hex characters");
-  }
-  if (secret === "00000000000000000000000000000000") {
-    return _("Use a non-zero secret");
-  }
-
-  return true;
-}
-
-function validateSecurity(sectionId, value) {
-  const protocol = getProtocol(sectionId);
-  const selectedSecurity = value || getDefaultSecurity(protocol);
-  const supportedSecurity = SECURITY_BY_PROTOCOL[protocol] || ["none"];
-
-  return supportedSecurity.includes(selectedSecurity)
-    ? true
-    : _("Unsupported security mode for this protocol");
+  return spec.getProtocol(sectionId);
 }
 
 function getWidget(sectionId, option) {
@@ -1845,30 +117,99 @@ function setWidgetValue(sectionId, option, value) {
   widget.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
+function isRoutingSectionAction(action) {
+  return ROUTING_SECTION_ACTIONS.indexOf(`${action || ""}`) !== -1;
+}
+
+function loadRoutingSectionChoices(option) {
+  const sections = option.map?.data?.state?.values?.[UCI_PACKAGE] ?? {};
+
+  option.keylist = [];
+  option.vallist = [];
+
+  for (const sectionName in sections) {
+    const section = sections[sectionName];
+
+    if (
+      section[".type"] === "section" &&
+      section.enabled !== "0" &&
+      isRoutingSectionAction(section.action)
+    ) {
+      option.keylist.push(sectionName);
+      option.vallist.push(section.label || sectionName);
+    }
+  }
+
+  return Promise.resolve();
+}
+
+function getTailscaleDetourTargetSections(currentSectionId) {
+  return (uci.sections(UCI_PACKAGE, "section") || []).filter(
+    (section) =>
+      section[".name"] &&
+      section[".name"] !== currentSectionId &&
+      section.enabled !== "0" &&
+      TAILSCALE_DETOUR_ACTIONS.includes(section.action || ""),
+  );
+}
+
+function populateTailscaleDetourValues(option, currentSectionId) {
+  option.keylist = [];
+  option.vallist = [];
+  getTailscaleDetourTargetSections(currentSectionId).forEach((section) => {
+    option.value(section[".name"], section.label || section[".name"]);
+  });
+}
+
+function loadServerTableOptions(sectionRef) {
+  const sectionIds = sectionRef.cfgsections();
+  const tasks = [];
+
+  for (let i = 0; i < sectionIds.length; i += 1) {
+    const sectionId = sectionIds[i];
+
+    for (let j = 0; j < sectionRef.children.length; j += 1) {
+      const option = sectionRef.children[j];
+
+      if (option.disable || option.modalonly) {
+        continue;
+      }
+
+      tasks.push(
+        Promise.resolve(option.load.call(option, sectionId)).then((value) => {
+          option.cfgvalue(sectionId, value);
+        }),
+      );
+    }
+  }
+
+  return Promise.all(tasks);
+}
+
 function renderSecurityChoices(select, protocol, selectedSecurity) {
   select.replaceChildren(
-    ...(SECURITY_BY_PROTOCOL[protocol] || ["none"]).map((security) =>
+    ...spec.securitiesFor(protocol).map((security) =>
       E(
         "option",
         {
           value: security,
           selected: security === selectedSecurity ? "" : null,
         },
-        getSecurityLabel(security),
+        spec.securityLabel(security),
       ),
     ),
   );
 }
 
+// The security list depends on the protocol, and LuCI cannot express that with
+// depends(), so the choices are rebuilt whenever the protocol changes.
 function syncSecurityChoices(sectionId) {
   const protocol = getProtocol(sectionId);
   const select = getSelectWidget(sectionId, "security");
-  const selectedSecurity =
-    uci.get(UCI_PACKAGE, sectionId, "security") || getDefaultSecurity(protocol);
-  const nextSecurity =
-    validateSecurity(sectionId, selectedSecurity) === true
-      ? selectedSecurity
-      : getDefaultSecurity(protocol);
+  const stored = uci.get(UCI_PACKAGE, sectionId, "security");
+  const nextSecurity = spec.securitiesFor(protocol).includes(stored)
+    ? stored
+    : spec.defaultSecurity(protocol);
 
   if (select) {
     renderSecurityChoices(select, protocol, nextSecurity);
@@ -1879,7 +220,7 @@ function syncSecurityChoices(sectionId) {
     }
   }
 
-  if (selectedSecurity !== nextSecurity) {
+  if (stored !== nextSecurity) {
     uci.set(UCI_PACKAGE, sectionId, "security", nextSecurity);
   }
 
@@ -1929,10 +270,14 @@ function showServerValidationMessage(error) {
   const buttonRow = modal.querySelector(".button-row");
   modal.insertBefore(summary, buttonRow || modal.firstChild);
 
-  const invalidInput = modal.querySelector(".cbi-input-invalid");
-  if (invalidInput) {
-    invalidInput.scrollIntoView({ block: "center", behavior: "smooth" });
-    invalidInput.focus({ preventScroll: true });
+  const invalidNode = modal.querySelector(
+    ".cbi-input-invalid, .fkp-clients__error:not(:empty)",
+  );
+  if (invalidNode) {
+    invalidNode.scrollIntoView({ block: "center", behavior: "smooth" });
+    if (typeof invalidNode.focus === "function") {
+      invalidNode.focus({ preventScroll: true });
+    }
   }
 }
 
@@ -1976,44 +321,16 @@ function generateRealityKeypairIfMissing(sectionId) {
 function shouldGenerateRealityKeypair(sectionId) {
   return (
     getProtocol(sectionId) === "vless" &&
-    getEffectiveSecurity(sectionId) === "reality"
+    spec.getEffectiveSecurity(sectionId) === "reality"
   );
 }
 
 function prepareServerModal(sectionId) {
+  clients.syncClients(sectionId);
+
   return shouldGenerateRealityKeypair(sectionId)
     ? generateRealityKeypairIfMissing(sectionId)
     : Promise.resolve();
-}
-
-function addStreamDepends(option) {
-  STREAM_PROTOCOLS.forEach((protocol) => option.depends("protocol", protocol));
-}
-
-function addPortProtocolDepends(option) {
-  PORT_PROTOCOLS.forEach((protocol) => option.depends("protocol", protocol));
-}
-
-function addTlsDepends(option) {
-  option.depends({ protocol: "vless", security: "tls" });
-  option.depends({ protocol: "vmess", security: "tls" });
-  option.depends({ protocol: "trojan", security: "tls" });
-  option.depends("protocol", "hysteria2");
-  option.depends("protocol", "naive");
-  option.depends("protocol", "anytls");
-  option.depends("protocol", "tuic");
-}
-
-function addRealityDepends(option) {
-  option.depends({ protocol: "vless", security: "reality" });
-}
-
-function addTailscaleDepends(option) {
-  option.depends("protocol", "tailscale");
-}
-
-function addMtprotoDepends(option) {
-  option.depends("protocol", "mtproto");
 }
 
 function configureServerTextareaOption(option) {
@@ -2047,6 +364,518 @@ function configureServerTextareaOption(option) {
   };
 }
 
+// Adds a button that replaces a generated value with a fresh one. Rotating a secret
+// in place is otherwise impossible without emptying the field first.
+function addRegenerateButton(option, generate) {
+  const originalRenderWidget = option.renderWidget;
+
+  option.renderWidget = function (sectionId, optionIndex, cfgvalue) {
+    const node = originalRenderWidget.call(
+      this,
+      sectionId,
+      optionIndex,
+      cfgvalue,
+    );
+    const label = _("Generate a new value");
+
+    dom.append(
+      node,
+      E(
+        "button",
+        {
+          class: "btn cbi-button cbi-button-neutral",
+          type: "button",
+          title: label,
+          "aria-label": label,
+          click: (ev) => {
+            ev.preventDefault();
+            setWidgetValue(sectionId, option.option, generate(sectionId));
+          },
+        },
+        util.iconSvg("dice"),
+      ),
+    );
+
+    return node;
+  };
+}
+
+function addProtocolSummary(option) {
+  const originalRenderWidget = option.renderWidget;
+
+  option.renderWidget = function (sectionId, optionIndex, cfgvalue) {
+    const node = originalRenderWidget.call(
+      this,
+      sectionId,
+      optionIndex,
+      cfgvalue,
+    );
+    const summary = E(
+      "div",
+      { class: "cbi-value-description fkp-protocol-summary" },
+      spec.protocolSummary(getProtocol(sectionId)),
+    );
+    const select = node?.querySelector?.("select") || node;
+
+    if (select && typeof select.addEventListener === "function") {
+      select.addEventListener("change", () => {
+        summary.textContent = spec.protocolSummary(select.value);
+      });
+    }
+
+    dom.append(node, summary);
+
+    return node;
+  };
+}
+
+function renderClientCredentialInput(sectionId, client, field, onChange) {
+  if (field === "flow") {
+    const select = E(
+      "select",
+      { class: "cbi-input-select" },
+      [
+        ["", _("None")],
+        ["xtls-rprx-vision", "xtls-rprx-vision"],
+      ].map(([value, text]) =>
+        E(
+          "option",
+          { value, selected: client.flow === value ? "" : null },
+          text,
+        ),
+      ),
+    );
+    select.addEventListener("change", () => onChange(select.value));
+    return { node: select, getValue: () => select.value };
+  }
+
+  if (field === "authorized_keys") {
+    const textarea = E(
+      "textarea",
+      {
+        class: "cbi-input-textarea",
+        rows: 2,
+        spellcheck: "false",
+        placeholder: "ssh-ed25519 AAAA...",
+      },
+      client.authorized_keys.join("\n"),
+    );
+    const read = () =>
+      textarea.value
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+    textarea.addEventListener("change", () => onChange(read()));
+    return { node: textarea, getValue: read };
+  }
+
+  const widget = new ui.Textfield(client[field] || "", {
+    password: field === "password" || field === "secret",
+  });
+  const node = widget.render();
+  node.addEventListener("widget-change", () => onChange(widget.getValue()));
+
+  return { node, getValue: () => widget.getValue() };
+}
+
+function credentialFieldLabel(sectionId, field) {
+  if (field === "uuid") {
+    return _("UUID");
+  }
+  if (field === "password") {
+    return getProtocol(sectionId) === "shadowsocks" &&
+      spec.isShadowsocks2022(spec.getShadowsocksMethod(sectionId))
+      ? _("Client pre-shared key")
+      : _("Password");
+  }
+  if (field === "secret") {
+    return _("Secret");
+  }
+  if (field === "flow") {
+    return _("Flow");
+  }
+  return _("Authorized keys");
+}
+
+function renderClientItem(sectionId, client, state) {
+  const protocol = getProtocol(sectionId);
+  const fields = spec
+    .credentialFields(protocol)
+    .filter(
+      (field) =>
+        field !== "password" || spec.isAuthenticationEnabled(sectionId),
+    );
+  const item = E("div", { class: "fkp-clients__item" });
+  const error = E("div", { class: "fkp-clients__error" });
+  const readers = {};
+
+  const refreshDisabled = () =>
+    item.classList.toggle("fkp-clients__item--disabled", !client.enabled);
+
+  const enabledInput = E("input", {
+    type: "checkbox",
+    checked: client.enabled ? "" : null,
+  });
+  enabledInput.addEventListener("change", () => {
+    client.enabled = enabledInput.checked;
+    uci.set(
+      UCI_PACKAGE,
+      client.id,
+      "enabled",
+      enabledInput.checked ? "1" : "0",
+    );
+    refreshDisabled();
+  });
+
+  const nameInput = E("input", {
+    type: "text",
+    class: "cbi-input-text",
+    value: client.name,
+    placeholder: spec.usesLoginName(protocol) ? _("Login") : _("Name"),
+  });
+  nameInput.addEventListener("change", () => {
+    client.name = nameInput.value.trim();
+    clients.setClientOption(client.id, "name", client.name);
+    state.validate();
+  });
+  readers.name = () => nameInput.value.trim();
+
+  const fieldNodes = fields.map((field) => {
+    const control = renderClientCredentialInput(
+      sectionId,
+      client,
+      field,
+      (value) => {
+        client[field] = value;
+        clients.setClientOption(client.id, field, value);
+        state.validate();
+      },
+    );
+    readers[field] = control.getValue;
+
+    return E(
+      "div",
+      { class: `fkp-clients__field fkp-clients__field--${field}` },
+      [E("label", {}, credentialFieldLabel(sectionId, field)), control.node],
+    );
+  });
+
+  const actions = [];
+  const generated = fields.filter((field) =>
+    ["uuid", "password", "secret"].includes(field),
+  );
+  if (generated.length) {
+    const label = _("Generate new credentials");
+    actions.push(
+      E(
+        "button",
+        {
+          class: "btn cbi-button cbi-button-neutral",
+          type: "button",
+          title: label,
+          "aria-label": label,
+          click: (ev) => {
+            ev.preventDefault();
+            generated.forEach((field) => {
+              client[field] = spec.generateCredential(
+                sectionId,
+                protocol,
+                field,
+              );
+              clients.setClientOption(client.id, field, client[field]);
+            });
+            state.rerender();
+          },
+        },
+        util.iconSvg("dice"),
+      ),
+    );
+  }
+
+  const removeLabel = _("Remove client");
+  actions.push(
+    E(
+      "button",
+      {
+        class: "btn cbi-button cbi-button-remove",
+        type: "button",
+        title: removeLabel,
+        "aria-label": removeLabel,
+        click: (ev) => {
+          ev.preventDefault();
+          clients.removeClient(client.id);
+          state.rerender();
+        },
+      },
+      util.iconSvg("trash"),
+    ),
+  );
+
+  dom.append(item, [
+    E("div", { class: "fkp-clients__line" }, [
+      E("label", { class: "fkp-clients__toggle" }, [
+        enabledInput,
+        E("span", {}, _("Enabled")),
+      ]),
+      E("div", { class: "fkp-clients__field fkp-clients__field--name" }, [
+        E(
+          "label",
+          {},
+          spec.usesLoginName(protocol) ? _("Login") : _("Client name"),
+        ),
+        nameInput,
+      ]),
+      ...fieldNodes,
+      E("div", { class: "fkp-clients__actions" }, actions),
+    ]),
+    error,
+  ]);
+
+  refreshDisabled();
+
+  return { node: item, error, client, readers };
+}
+
+// Validates the visible rows and reports every problem inline. The option's parse()
+// reuses the result so an invalid client blocks the save.
+function validateClientItems(sectionId, items) {
+  let firstError = "";
+
+  items.forEach((item) => {
+    const messages = [];
+    const nameResult = clients.validateClientName(
+      sectionId,
+      item.client.id,
+      item.readers.name(),
+    );
+    if (nameResult !== true) {
+      messages.push(nameResult);
+    }
+
+    Object.keys(item.readers)
+      .filter((field) => field !== "name")
+      .forEach((field) => {
+        const result = clients.validateClientField(
+          sectionId,
+          field,
+          item.readers[field](),
+        );
+        if (result !== true) {
+          messages.push(result);
+        }
+      });
+
+    item.error.textContent = messages.join("; ");
+    if (!firstError && messages.length) {
+      firstError = `${item.client.name || item.client.id}: ${messages[0]}`;
+    }
+  });
+
+  return firstError;
+}
+
+function renderClientsEditor(sectionId, option) {
+  const container = E("div", { class: "fkp-clients" });
+  const state = {};
+  let items = [];
+
+  state.validate = () => {
+    option.clientError = validateClientItems(sectionId, items);
+    return option.clientError;
+  };
+
+  state.rerender = () => {
+    clients.syncClients(sectionId);
+    items = clients
+      .listClients(sectionId)
+      .map((client) => renderClientItem(sectionId, client, state));
+
+    const addLabel = _("Add client");
+    container.replaceChildren(
+      ...items.map((item) => item.node),
+      E(
+        "button",
+        {
+          class: "btn cbi-button cbi-button-add fkp-clients__add",
+          type: "button",
+          click: (ev) => {
+            ev.preventDefault();
+            clients.addClient(sectionId);
+            state.rerender();
+          },
+        },
+        [util.iconSvg("plus"), " ", E("span", {}, addLabel)],
+      ),
+      E(
+        "div",
+        { class: "fkp-clients__hint" },
+        spec.usesLoginName(getProtocol(sectionId))
+          ? _(
+              "Each client is a separate account. Its name is the login the client sends.",
+            )
+          : _(
+              "Each client is a separate account with its own credentials and its own link.",
+            ),
+      ),
+    );
+
+    state.validate();
+  };
+
+  state.rerender();
+
+  return container;
+}
+
+function getServerEditButtonText() {
+  const label = _("Edit rule action");
+
+  return label === "Edit rule action" ? "Edit" : label;
+}
+
+function renderServerRowActions(sectionRef, sectionId) {
+  const editLabel = getServerEditButtonText();
+  const deleteLabel = _("Delete");
+  const infoLabel = _("Connect to this server");
+  const tdEl = E(
+    "td",
+    { class: "td cbi-section-table-cell nowrap cbi-section-actions" },
+    E("div"),
+  );
+  const actionsEl = tdEl.lastElementChild;
+  const actionButtons = [];
+
+  if (spec.usesClients(getProtocol(sectionId))) {
+    actionButtons.push(
+      E(
+        "button",
+        {
+          title: infoLabel,
+          "aria-label": infoLabel,
+          class: "cbi-button center fkp-server-icon-button",
+          style: "display:inline-block;",
+          click: (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            link.showServerInfoModal(
+              sectionId,
+              clients.enabledClients(sectionId),
+            );
+          },
+        },
+        E(
+          "span",
+          { class: "fkp-server-icon-button__glyph" },
+          util.iconSvg("qr"),
+        ),
+      ),
+    );
+  }
+
+  dom.append(actionsEl, [
+    ...actionButtons,
+    E(
+      "button",
+      {
+        title: editLabel,
+        class: "btn cbi-button cbi-button-edit",
+        click: ui.createHandlerFn(
+          sectionRef,
+          "renderMoreOptionsModal",
+          sectionId,
+        ),
+      },
+      editLabel,
+    ),
+  ]);
+
+  if (sectionRef.addremove) {
+    dom.append(
+      actionsEl,
+      E(
+        "button",
+        {
+          title: deleteLabel,
+          class: "btn cbi-button cbi-button-remove",
+          click: ui.createHandlerFn(sectionRef, "handleRemove", sectionId),
+          disabled: sectionRef.map.readonly || null,
+        },
+        deleteLabel,
+      ),
+    );
+  }
+
+  return tdEl;
+}
+
+function cloneUciState(value) {
+  return value == null ? null : JSON.parse(JSON.stringify(value));
+}
+
+function isEmptyObject(value) {
+  return value && Object.keys(value).length === 0;
+}
+
+function setUciSectionState(bucketName, sectionId, value) {
+  const state = uci.state;
+
+  if (!state) {
+    return;
+  }
+
+  state[bucketName] ??= {};
+  const bucket = state[bucketName];
+
+  if (value == null) {
+    delete bucket[UCI_PACKAGE]?.[sectionId];
+    if (isEmptyObject(bucket[UCI_PACKAGE])) {
+      delete bucket[UCI_PACKAGE];
+    }
+    return;
+  }
+
+  bucket[UCI_PACKAGE] ??= {};
+  bucket[UCI_PACKAGE][sectionId] = cloneUciState(value);
+}
+
+function captureServerEditState(sectionId) {
+  const state = uci.state;
+  const clientState = clients.captureEditState(sectionId);
+
+  if (!state || state.creates?.[UCI_PACKAGE]?.[sectionId]) {
+    return { sectionId, clients: clientState };
+  }
+
+  return {
+    sectionId,
+    changes: cloneUciState(state.changes?.[UCI_PACKAGE]?.[sectionId]),
+    deletes: cloneUciState(state.deletes?.[UCI_PACKAGE]?.[sectionId]),
+    restoreSection: true,
+    clients: clientState,
+  };
+}
+
+function restoreServerEditState(snapshot) {
+  if (!snapshot) {
+    return;
+  }
+
+  clients.restoreEditState(snapshot.clients);
+
+  if (!snapshot.restoreSection) {
+    return;
+  }
+
+  setUciSectionState("changes", snapshot.sectionId, snapshot.changes);
+  setUciSectionState("deletes", snapshot.sectionId, snapshot.deletes);
+}
+
+function removeServerClients(sectionId) {
+  clients
+    .clientSections(sectionId)
+    .forEach((section) => clients.removeClient(section[".name"]));
+}
+
 function configureServerSection(sectionRef) {
   sectionRef.sortable = false;
   sectionRef.nodescriptions = true;
@@ -2075,13 +904,22 @@ function configureServerSection(sectionRef) {
     const prevMap = mapNode ? dom.findClassInstance(mapNode) : this.map;
 
     prevMap.addedSection = sectionId;
-    ensureProtocolDefaults(sectionId, DEFAULT_SERVER_PROTOCOL, true);
+    spec.applyProtocolDefaults(sectionId, spec.DEFAULT_PROTOCOL, true);
 
-    loadDefaultPublicHost()
-      .then((host) => applyDefaultPublicHost(sectionId, host))
+    validate
+      .loadDefaultPublicHost()
+      .then((host) => validate.applyDefaultPublicHost(sectionId, host))
       .catch(() => null);
 
     return this.renderMoreOptionsModal(sectionId);
+  };
+
+  // Removing a server has to take its clients with it, otherwise they stay behind
+  // as sections pointing at a server that no longer exists.
+  sectionRef.handleRemove = function (sectionId, ev) {
+    removeServerClients(sectionId);
+
+    return form.GridSection.prototype.handleRemove.call(this, sectionId, ev);
   };
 
   sectionRef.handleModalCancel = function (modalMap, ev, isSaving) {
@@ -2123,9 +961,7 @@ function configureServerSection(sectionRef) {
   };
 }
 
-function createServerContent(section) {
-  injectServerStyles();
-
+function addIdentityOptions(section) {
   let o = section.option(form.Flag, "enabled", _("Enable"));
   o.default = "1";
   o.rmempty = false;
@@ -2133,25 +969,54 @@ function createServerContent(section) {
   o.width = "6rem";
 
   o = section.option(form.DummyValue, "_protocol_display", _("Protocol"));
-  o.rawhtml = true;
   o.modalonly = false;
   o.cfgvalue = function (sectionId) {
-    return getProtocolLabel(getProtocol(sectionId));
+    return spec.protocolLabel(getProtocol(sectionId));
   };
   o.textvalue = function (sectionId) {
-    return getProtocolLabel(getProtocol(sectionId));
+    return spec.protocolLabel(getProtocol(sectionId));
   };
-  o.width = "7rem";
+  o.width = "9rem";
+
+  o = section.option(form.DummyValue, "_endpoint_display", _("Address"));
+  o.modalonly = false;
+  o.textvalue = function (sectionId) {
+    if (!spec.hasListener(getProtocol(sectionId))) {
+      return "—";
+    }
+    const host = uci.get(UCI_PACKAGE, sectionId, "public_host") || "";
+    const port = uci.get(UCI_PACKAGE, sectionId, "listen_port") || "";
+    return host && port ? `${host}:${port}` : "—";
+  };
+  o.cfgvalue = o.textvalue;
+  o.width = "12rem";
+
+  o = section.option(form.DummyValue, "_clients_display", _("Clients"));
+  o.modalonly = false;
+  o.textvalue = function (sectionId) {
+    if (!spec.usesClients(getProtocol(sectionId))) {
+      return "—";
+    }
+    const all = clients.listClients(sectionId);
+    const enabled = all.filter((client) => client.enabled).length;
+    return all.length === enabled ? `${enabled}` : `${enabled} / ${all.length}`;
+  };
+  o.cfgvalue = o.textvalue;
+  o.width = "6rem";
 
   o = section.option(form.Value, "label", _("Server name"));
   o.modalonly = true;
   o.rmempty = false;
   o.validate = function (sectionId, value) {
-    const required = validateRequiredText(sectionId, value);
-    if (required !== true) return required;
+    const required = validate.validateRequiredText(sectionId, value);
+    if (required !== true) {
+      return required;
+    }
     const normalized = `${value}`.trim();
-    if (normalized.includes("/")) return _("Server name must not contain /");
-    if (RESERVED_RUNTIME_TAGS.has(normalized)) {
+    if (normalized.includes("/")) {
+      return _("Server name must not contain /");
+    }
+    if (spec.RESERVED_RUNTIME_TAGS.has(normalized)) {
       return _("This server name is reserved by Forkop");
     }
     return [
@@ -2165,91 +1030,164 @@ function createServerContent(section) {
       ? _("Server name must be unique")
       : true;
   };
-  o.onchange = function (_ev, sectionId, value) {
-    const previousLabel = getServerName(sectionId);
-    const currentUsername =
-      uci.get(UCI_PACKAGE, sectionId, "server_username") || "";
-
-    uci.set(UCI_PACKAGE, sectionId, "label", value);
-
-    if (
-      USERNAME_PROTOCOLS.includes(getProtocol(sectionId)) &&
-      (!currentUsername ||
-        currentUsername === previousLabel ||
-        currentUsername === sectionId)
-    ) {
-      const nextUsername = value || sectionId;
-      uci.set(UCI_PACKAGE, sectionId, "server_username", nextUsername);
-      setWidgetValue(sectionId, "server_username", nextUsername);
-    }
-  };
 
   o = section.option(form.ListValue, "protocol", _("Protocol"));
-  populateProtocolValues(o);
-  o.default = DEFAULT_SERVER_PROTOCOL;
+  spec
+    .protocolIds()
+    .forEach((protocol) => o.value(protocol, spec.protocolLabel(protocol)));
+  o.default = spec.DEFAULT_PROTOCOL;
   o.rmempty = false;
   o.modalonly = true;
-  o.validate = validateRequired;
+  o.validate = validate.validateRequired;
   o.onchange = function (_ev, sectionId, value) {
-    ensureProtocolDefaults(sectionId, value, true);
+    spec.applyProtocolDefaults(sectionId, value, true);
+    clients.syncClients(sectionId);
     syncSecurityChoices(sectionId);
-    if (value === "vless" && getEffectiveSecurity(sectionId) === "reality") {
+    if (
+      value === "vless" &&
+      spec.getEffectiveSecurity(sectionId) === "reality"
+    ) {
       generateRealityKeypairIfMissing(sectionId);
     }
   };
+  addProtocolSummary(o);
+}
 
-  o = section.option(form.Value, "listen", _("Listen address"));
-  o.default = "0.0.0.0";
-  o.rmempty = false;
-  o.modalonly = true;
-  o.validate = validateListenAddress;
-  addPortProtocolDepends(o);
+function addTailscaleOptions(section) {
+  const dependsOnTailscale = (option) =>
+    option.depends("protocol", "tailscale");
 
-  o = section.option(form.Value, "listen_port", _("Listen port"));
-  o.default = "443";
-  o.rmempty = false;
-  o.modalonly = true;
-  o.validate = validatePort;
-  addPortProtocolDepends(o);
-
-  o = section.option(form.Value, "public_host", _("Public host"));
+  let o = section.option(
+    form.Value,
+    "tailscale_auth_key",
+    _("Tailscale auth key"),
+    _("Auth Key from the Tailscale admin console"),
+  );
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validateHost;
-  addPortProtocolDepends(o);
+  o.password = true;
+  o.validate = validate.validateRequired;
+  dependsOnTailscale(o);
+
+  o = section.option(
+    form.Value,
+    "tailscale_control_url",
+    _("Tailscale control URL"),
+    _(
+      "Address of the coordination server. Change it if you use a custom server.",
+    ),
+  );
+  o.default = "https://controlplane.tailscale.com";
+  o.modalonly = true;
+  o.rmempty = false;
+  o.validate = validate.validateHttpUrl;
+  dependsOnTailscale(o);
+
+  o = section.option(
+    form.Flag,
+    "tailscale_detour_enabled",
+    _("Control plane through section"),
+    _("Connect to the coordination server through a section"),
+  );
+  o.default = "0";
+  o.modalonly = true;
+  o.rmempty = false;
+  dependsOnTailscale(o);
+
+  o = section.option(
+    form.ListValue,
+    "tailscale_detour_section",
+    _("Control plane through"),
+  );
+  o.modalonly = true;
+  o.rmempty = false;
+  o.depends({ protocol: "tailscale", tailscale_detour_enabled: "1" });
   o.load = function (sectionId) {
-    return loadDefaultPublicHost().then((host) => {
-      applyDefaultPublicHost(sectionId, host);
-      return uci.get(UCI_PACKAGE, sectionId, "public_host") || host || "";
-    });
+    populateTailscaleDetourValues(this, sectionId);
+    return uci.get(UCI_PACKAGE, sectionId, "tailscale_detour_section") || "";
   };
-
-  o = section.option(form.ListValue, "routing_mode", _("Routing mode"));
-  o.value("rules", _("Rules"));
-  o.value("direct", _("Direct"));
-  o.value("section", _("Selected section"));
-  o.default = "rules";
-  o.rmempty = false;
-  o.modalonly = true;
-  o.validate = validateRequired;
-
-  o = section.option(form.ListValue, "routing_section", _("Routing section"));
-  o.depends("routing_mode", "section");
-  o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validateRequired;
-  o.cfgvalue = function (sectionId) {
-    return uci.get(UCI_PACKAGE, sectionId, "routing_section");
-  };
-  o.load = function () {
-    return loadRoutingSectionChoices(this);
+  o.validate = function (sectionId, value) {
+    if (!value) {
+      return _("Select a section");
+    }
+    if (value === sectionId) {
+      return _("Current section cannot be used as its own transit section");
+    }
+    return getTailscaleDetourTargetSections(sectionId).some(
+      (target) => target[".name"] === value,
+    )
+      ? true
+      : _("Select a section");
   };
 
   o = section.option(
+    form.Value,
+    "tailscale_hostname",
+    _("Tailscale hostname"),
+    _(
+      "Name shown in the Tailscale admin console. Renaming the server keeps it, because a new hostname registers a new machine.",
+    ),
+  );
+  o.modalonly = true;
+  o.rmempty = false;
+  o.validate = validate.validateTailscaleHostname;
+  o.load = function (sectionId) {
+    const current = uci.get(UCI_PACKAGE, sectionId, "tailscale_hostname");
+    if (current) {
+      return current;
+    }
+    const value = spec.defaultTailscaleHostname(sectionId);
+    uci.set(UCI_PACKAGE, sectionId, "tailscale_hostname", value);
+    return value;
+  };
+  dependsOnTailscale(o);
+
+  o = section.option(
+    form.Flag,
+    "tailscale_advertise_exit_node",
+    _("Advertise as exit node"),
+    _(
+      "Offer this router as an exit node so other devices can send all their traffic through it.",
+    ),
+  );
+  o.default = "1";
+  o.modalonly = true;
+  o.rmempty = false;
+  dependsOnTailscale(o);
+
+  o = section.option(
+    form.DynamicList,
+    "tailscale_advertise_routes",
+    _("Advertise routes"),
+    _(
+      "Specify local subnets to give other devices in your Tailscale network access to them.",
+    ),
+  );
+  o.modalonly = true;
+  o.rmempty = true;
+  o.validate = (_sectionId, value) => validate.validateOptionalCidrOrIp(value);
+  dependsOnTailscale(o);
+
+  o = section.option(
+    form.Flag,
+    "tailscale_accept_routes",
+    _("Accept routes"),
+    _("Accept subnets advertised by other devices in your Tailscale network."),
+  );
+  o.default = "0";
+  o.modalonly = true;
+  o.rmempty = true;
+  dependsOnTailscale(o);
+}
+
+function addJsonInboundOptions(section) {
+  const o = section.option(
     form.TextValue,
     "inbound_json",
     _("Inbound JSON"),
-    _("Enter a complete sing-box inbound object"),
+    _(
+      "A complete sing-box inbound object. Forkop sets the tag from the server name, so leave the tag out.",
+    ),
   );
   o.depends("protocol", "json_inbound");
   o.rows = 10;
@@ -2257,24 +1195,207 @@ function createServerContent(section) {
   o.textarea = true;
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validateInboundJson;
+  o.validate = validate.validateInboundJson;
   configureServerTextareaOption(o);
+}
 
-  o = section.option(form.ListValue, "security", _("Security"));
+function addListenerOptions(section) {
+  const dependsOnListener = (option) =>
+    spec
+      .protocolsWithListener()
+      .forEach((protocol) => option.depends("protocol", protocol));
+
+  let o = section.option(
+    form.Value,
+    "listen",
+    _("Listen address"),
+    _("Use 0.0.0.0 for every IPv4 address, or :: for every address."),
+  );
+  o.default = "0.0.0.0";
+  o.rmempty = false;
+  o.modalonly = true;
+  o.validate = validate.validateListenAddress;
+  dependsOnListener(o);
+
+  o = section.option(form.Value, "listen_port", _("Listen port"));
+  o.rmempty = false;
+  o.modalonly = true;
+  o.validate = validate.validateListenPort;
+  dependsOnListener(o);
+  addRegenerateButton(o, () => util.randomPort());
+
+  o = section.option(
+    form.Value,
+    "public_host",
+    _("Public host"),
+    _(
+      "Address clients connect to. It only goes into the client links; the server still listens on the address above.",
+    ),
+  );
+  o.modalonly = true;
+  o.rmempty = false;
+  o.validate = validate.validateHost;
+  dependsOnListener(o);
+  o.load = function (sectionId) {
+    return validate.loadDefaultPublicHost().then((host) => {
+      validate.applyDefaultPublicHost(sectionId, host);
+      return uci.get(UCI_PACKAGE, sectionId, "public_host") || host || "";
+    });
+  };
+}
+
+function addShadowsocksOptions(section) {
+  let o = section.option(
+    form.ListValue,
+    "shadowsocks_method",
+    _("Method"),
+    _(
+      "The 2022 methods add replay protection and use base64 keys; the older AEAD methods accept any password.",
+    ),
+  );
+  spec.shadowsocksMethods().forEach((method) => o.value(method, method));
+  o.rmempty = false;
+  o.modalonly = true;
+  o.validate = validate.validateRequired;
+  o.depends("protocol", "shadowsocks");
+  o.onchange = function (_ev, sectionId, value) {
+    const keyBytes = spec.shadowsocksKeyBytes(value);
+    if (keyBytes > 0) {
+      setWidgetValue(
+        sectionId,
+        "shadowsocks_psk",
+        util.generatePresharedKey(keyBytes),
+      );
+    } else {
+      uci.unset(UCI_PACKAGE, sectionId, "shadowsocks_psk");
+    }
+    // Client keys are method specific, so they are reissued with the method.
+    clients.listClients(sectionId).forEach((client) => {
+      clients.setClientOption(
+        client.id,
+        "password",
+        spec.generateCredential(sectionId, "shadowsocks", "password"),
+      );
+    });
+  };
+
+  o = section.option(
+    form.Value,
+    "shadowsocks_psk",
+    _("Server pre-shared key"),
+    _("Shared by every client of a 2022 server, in addition to its own key."),
+  );
+  o.modalonly = true;
+  o.rmempty = false;
+  o.password = true;
+  o.validate = validate.validateShadowsocksPassword;
+  spec
+    .shadowsocksMethods()
+    .filter((method) => spec.isShadowsocks2022(method))
+    .forEach((method) =>
+      o.depends({ protocol: "shadowsocks", shadowsocks_method: method }),
+    );
+  addRegenerateButton(o, (sectionId) =>
+    util.generatePresharedKey(
+      spec.shadowsocksKeyBytes(spec.getShadowsocksMethod(sectionId)) || 32,
+    ),
+  );
+}
+
+function addClientOptions(section) {
+  let o = section.option(
+    form.Flag,
+    "mixed_auth_enabled",
+    _("Require authentication"),
+    _("Without authentication anyone who reaches the port can use the proxy."),
+  );
+  o.default = "1";
+  o.rmempty = false;
+  o.modalonly = true;
+  o.depends("protocol", "mixed");
+
+  o = section.option(form.DummyValue, "_clients", _("Clients"));
+  o.modalonly = true;
+  spec.protocolIds().forEach((protocol) => {
+    if (spec.usesClients(protocol)) {
+      o.depends("protocol", protocol);
+    }
+  });
+  o.cfgvalue = function () {
+    return "";
+  };
+  o.renderWidget = function (sectionId) {
+    return renderClientsEditor(sectionId, this);
+  };
+  o.parse = function (sectionId) {
+    if (!spec.usesClients(getProtocol(sectionId))) {
+      return Promise.resolve();
+    }
+
+    if (!clients.enabledClients(sectionId).length) {
+      return Promise.reject(
+        new Error(_("Add at least one enabled client to this server")),
+      );
+    }
+
+    return this.clientError
+      ? Promise.reject(new Error(this.clientError))
+      : Promise.resolve();
+  };
+}
+
+function addRoutingOptions(section) {
+  let o = section.option(
+    form.ListValue,
+    "routing_mode",
+    _("Routing mode"),
+    _(
+      "What happens to the traffic clients send: the same rules the router uses, straight out through the WAN, or one chosen section.",
+    ),
+  );
+  o.value("rules", _("Rules"));
+  o.value("direct", _("Direct"));
+  o.value("section", _("Selected section"));
+  o.default = "rules";
+  o.rmempty = false;
+  o.modalonly = true;
+  o.validate = validate.validateRequired;
+
+  o = section.option(form.ListValue, "routing_section", _("Routing section"));
+  o.depends("routing_mode", "section");
+  o.modalonly = true;
+  o.rmempty = false;
+  o.validate = validate.validateRequired;
+  o.cfgvalue = function (sectionId) {
+    return uci.get(UCI_PACKAGE, sectionId, "routing_section");
+  };
+  o.load = function () {
+    return loadRoutingSectionChoices(this);
+  };
+}
+
+function addSecurityOptions(section) {
+  const streamProtocols = ["vless", "vmess", "trojan"];
+  const tlsProtocols = ["hysteria2", "naive", "anytls", "tuic"];
+  const addTlsDepends = (option) => {
+    streamProtocols.forEach((protocol) =>
+      option.depends({ protocol, security: "tls" }),
+    );
+    tlsProtocols.forEach((protocol) => option.depends("protocol", protocol));
+  };
+  const addRealityDepends = (option) =>
+    option.depends({ protocol: "vless", security: "reality" });
+
+  let o = section.option(form.ListValue, "security", _("Security"));
   o.value("reality", "Reality");
   o.value("tls", "TLS");
   o.value("none", _("None"));
-  o.default = "reality";
   o.rmempty = false;
   o.modalonly = true;
-  addStreamDepends(o);
-  o.depends("protocol", "hysteria2");
-  o.depends("protocol", "naive");
-  o.depends("protocol", "ssh");
-  o.depends("protocol", "mieru");
-  o.depends("protocol", "anytls");
-  o.depends("protocol", "tuic");
-  o.validate = validateSecurity;
+  [...streamProtocols, ...tlsProtocols].forEach((protocol) =>
+    o.depends("protocol", protocol),
+  );
+  o.validate = validate.validateSecurity;
   o.onchange = function (_ev, sectionId, value) {
     if (value === "reality") {
       generateRealityKeypairIfMissing(sectionId);
@@ -2294,12 +1415,17 @@ function createServerContent(section) {
     };
   }
 
-  o = section.option(form.Value, "tls_server_name", _("Server name / SNI"));
+  o = section.option(
+    form.Value,
+    "tls_server_name",
+    _("Server name / SNI"),
+    _("The name the certificate is issued for, and the name clients send."),
+  );
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validateHost;
+  o.validate = validate.validateHost;
   o.load = function (sectionId) {
-    const current = normalizeHost(
+    const current = util.normalizeHost(
       uci.get(UCI_PACKAGE, sectionId, "tls_server_name"),
     );
     if (current) {
@@ -2313,7 +1439,12 @@ function createServerContent(section) {
   addTlsDepends(o);
   addRealityDepends(o);
 
-  o = section.option(form.MultiValue, "tls_alpn", _("ALPN"));
+  o = section.option(
+    form.MultiValue,
+    "tls_alpn",
+    _("ALPN"),
+    _("Protocols offered during the TLS handshake. Leave empty for defaults."),
+  );
   o.value("h3", "h3");
   o.value("h2", "h2");
   o.value("http/1.1", "http/1.1");
@@ -2323,16 +1454,23 @@ function createServerContent(section) {
   addTlsDepends(o);
   addRealityDepends(o);
 
-  o = section.option(form.Value, "tls_certificate_path", _("Certificate path"));
+  o = section.option(
+    form.Value,
+    "tls_certificate_path",
+    _("Certificate path"),
+    _(
+      "Forkop generates a self-signed certificate at the default path. Point this at a real certificate to let clients verify it.",
+    ),
+  );
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validateTlsCertificatePath;
+  o.validate = validate.validateTlsCertificatePath;
   o.load = function (sectionId) {
     const current = uci.get(UCI_PACKAGE, sectionId, "tls_certificate_path");
     if (current) {
       return current;
     }
-    const value = defaultTlsCertificatePath(sectionId);
+    const value = spec.defaultTlsCertificatePath(sectionId);
     uci.set(UCI_PACKAGE, sectionId, "tls_certificate_path", value);
     return value;
   };
@@ -2341,13 +1479,13 @@ function createServerContent(section) {
   o = section.option(form.Value, "tls_key_path", _("Key path"));
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validateTlsKeyPath;
+  o.validate = validate.validateTlsKeyPath;
   o.load = function (sectionId) {
     const current = uci.get(UCI_PACKAGE, sectionId, "tls_key_path");
     if (current) {
       return current;
     }
-    const value = defaultTlsKeyPath(sectionId);
+    const value = spec.defaultTlsKeyPath(sectionId);
     uci.set(UCI_PACKAGE, sectionId, "tls_key_path", value);
     return value;
   };
@@ -2357,11 +1495,14 @@ function createServerContent(section) {
     form.Value,
     "reality_handshake_server",
     _("Reality fake site"),
+    _(
+      "A real HTTPS site the router forwards unrecognised connections to. It has to be reachable from the router.",
+    ),
   );
   o.default = "www.microsoft.com";
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validateHost;
+  o.validate = validate.validateHost;
   addRealityDepends(o);
 
   o = section.option(
@@ -2372,7 +1513,7 @@ function createServerContent(section) {
   o.default = "443";
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validatePort;
+  o.validate = validate.validatePort;
   addRealityDepends(o);
 
   o = section.option(
@@ -2382,28 +1523,74 @@ function createServerContent(section) {
   );
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validateRequired;
+  o.password = true;
+  o.validate = validate.validateRequired;
   addRealityDepends(o);
 
-  o = section.option(form.Value, "reality_public_key", _("Reality public key"));
+  o = section.option(
+    form.Value,
+    "reality_public_key",
+    _("Reality public key"),
+    _("Clients need this key. Forkop puts it into the client links."),
+  );
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validateRequired;
+  o.validate = validate.validateRequired;
   addRealityDepends(o);
+  {
+    const originalRenderWidget = o.renderWidget;
+    o.renderWidget = function (sectionId, optionIndex, cfgvalue) {
+      const node = originalRenderWidget.call(
+        this,
+        sectionId,
+        optionIndex,
+        cfgvalue,
+      );
+      const label = _("Generate a new key pair");
 
-  o = section.option(form.Value, "reality_short_id", _("Reality short ID"));
+      dom.append(
+        node,
+        E(
+          "button",
+          {
+            class: "btn cbi-button cbi-button-neutral",
+            type: "button",
+            title: label,
+            "aria-label": label,
+            click: (ev) => {
+              ev.preventDefault();
+              generateRealityKeypair(sectionId);
+            },
+          },
+          util.iconSvg("dice"),
+        ),
+      );
+
+      return node;
+    };
+  }
+
+  o = section.option(
+    form.DynamicList,
+    "reality_short_id",
+    _("Reality short ID"),
+    _(
+      "An even number of hex digits, up to 16. Several IDs can be served at once; clients get the first one.",
+    ),
+  );
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validateShortId;
+  o.validate = validate.validateShortId;
   o.load = function (sectionId) {
-    const current = getFirstListValue(sectionId, "reality_short_id");
-    if (current) {
-      uci.set(UCI_PACKAGE, sectionId, "reality_short_id", current);
+    const current = util.asList(
+      uci.get(UCI_PACKAGE, sectionId, "reality_short_id"),
+    );
+    if (current.length) {
       return current;
     }
-    const value = randomHex(4);
-    uci.set(UCI_PACKAGE, sectionId, "reality_short_id", value);
-    return value;
+    const value = util.randomHex(4);
+    uci.set(UCI_PACKAGE, sectionId, "reality_short_id", [value]);
+    return [value];
   };
   addRealityDepends(o);
 
@@ -2411,62 +1598,60 @@ function createServerContent(section) {
     form.Value,
     "reality_max_time_difference",
     _("Reality max time difference"),
+    _("How far a client clock may drift before the handshake is refused."),
   );
   o.default = "1m";
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validateRequiredDuration;
+  o.validate = validate.validateRequiredDuration;
   addRealityDepends(o);
 
   o = section.option(
     form.ListValue,
     "client_fingerprint",
     _("Client fingerprint"),
+    _("The TLS fingerprint clients are told to imitate."),
   );
-  ["chrome", "firefox", "edge", "safari", "ios", "android", "random"].forEach(
-    (value) => o.value(value, value),
-  );
+  spec.clientFingerprints().forEach((value) => o.value(value, value));
   o.default = "chrome";
   o.rmempty = false;
   o.modalonly = true;
-  o.validate = validateRequired;
+  o.validate = validate.validateRequired;
   addRealityDepends(o);
+}
 
-  o = section.option(form.ListValue, "transport", _("Transport"));
-  populateTransportValues(o);
+function addTransportOptions(section) {
+  const streamProtocols = spec.protocolsWith("transport");
+  const dependsOnTransport = (option, transport) =>
+    streamProtocols.forEach((protocol) =>
+      option.depends({ protocol, transport }),
+    );
+
+  let o = section.option(
+    form.ListValue,
+    "transport",
+    _("Transport"),
+    _("How the protocol is carried. Clients have to use the same transport."),
+  );
+  spec.transportChoices().forEach(([value, label]) => o.value(value, label));
   o.default = "tcp";
   o.rmempty = false;
   o.modalonly = true;
-  addStreamDepends(o);
+  streamProtocols.forEach((protocol) => o.depends("protocol", protocol));
 
   o = section.option(form.Value, "transport_path", _("Transport path"));
   o.modalonly = true;
-  o.validate = validateTransportPath;
-  o.depends({ protocol: "vless", transport: "ws" });
-  o.depends({ protocol: "vmess", transport: "ws" });
-  o.depends({ protocol: "trojan", transport: "ws" });
-  o.depends({ protocol: "vless", transport: "http" });
-  o.depends({ protocol: "vmess", transport: "http" });
-  o.depends({ protocol: "trojan", transport: "http" });
-  o.depends({ protocol: "vless", transport: "httpupgrade" });
-  o.depends({ protocol: "vmess", transport: "httpupgrade" });
-  o.depends({ protocol: "trojan", transport: "httpupgrade" });
-  o.depends({ protocol: "vless", transport: "xhttp" });
-  o.depends({ protocol: "vmess", transport: "xhttp" });
-  o.depends({ protocol: "trojan", transport: "xhttp" });
+  o.validate = validate.validateTransportPath;
+  ["ws", "http", "httpupgrade", "xhttp"].forEach((transport) =>
+    dependsOnTransport(o, transport),
+  );
 
   o = section.option(form.Value, "transport_host", _("Transport host"));
   o.modalonly = true;
-  o.validate = validateOptionalHost;
-  o.depends({ protocol: "vless", transport: "ws" });
-  o.depends({ protocol: "vmess", transport: "ws" });
-  o.depends({ protocol: "trojan", transport: "ws" });
-  o.depends({ protocol: "vless", transport: "httpupgrade" });
-  o.depends({ protocol: "vmess", transport: "httpupgrade" });
-  o.depends({ protocol: "trojan", transport: "httpupgrade" });
-  o.depends({ protocol: "vless", transport: "xhttp" });
-  o.depends({ protocol: "vmess", transport: "xhttp" });
-  o.depends({ protocol: "trojan", transport: "xhttp" });
+  o.validate = validate.validateOptionalHost;
+  ["ws", "httpupgrade", "xhttp"].forEach((transport) =>
+    dependsOnTransport(o, transport),
+  );
 
   o = section.option(form.ListValue, "transport_xhttp_mode", _("XHTTP mode"));
   o.value("auto", "auto");
@@ -2476,101 +1661,160 @@ function createServerContent(section) {
   o.default = "auto";
   o.rmempty = false;
   o.modalonly = true;
-  o.depends({ protocol: "vless", transport: "xhttp" });
-  o.depends({ protocol: "vmess", transport: "xhttp" });
-  o.depends({ protocol: "trojan", transport: "xhttp" });
+  dependsOnTransport(o, "xhttp");
 
   o = section.option(form.DynamicList, "transport_hosts", _("HTTP hosts"));
   o.modalonly = true;
-  o.validate = validateOptionalHostList;
-  o.depends({ protocol: "vless", transport: "http" });
-  o.depends({ protocol: "vmess", transport: "http" });
-  o.depends({ protocol: "trojan", transport: "http" });
+  o.validate = validate.validateOptionalHostList;
+  dependsOnTransport(o, "http");
 
   o = section.option(form.Value, "transport_service_name", _("gRPC service"));
   o.modalonly = true;
-  o.validate = validateGrpcServiceName;
-  o.depends({ protocol: "vless", transport: "grpc" });
-  o.depends({ protocol: "vmess", transport: "grpc" });
-  o.depends({ protocol: "trojan", transport: "grpc" });
+  o.validate = validate.validateGrpcServiceName;
+  dependsOnTransport(o, "grpc");
+}
 
-  o = section.option(form.ListValue, "shadowsocks_method", _("Method"));
-  o.value("aes-128-gcm", "aes-128-gcm");
-  o.value("aes-256-gcm", "aes-256-gcm");
-  o.value("chacha20-ietf-poly1305", "chacha20-ietf-poly1305");
-  o.default = "aes-128-gcm";
-  o.rmempty = false;
+function addMultiplexOptions(section) {
+  const multiplexProtocols = spec.protocolsWith("multiplex");
+
+  let o = section.option(
+    form.Flag,
+    "multiplex_enabled",
+    _("Accept multiplexing"),
+    _(
+      "Lets clients carry several streams over one connection. Clients that do not use it are unaffected.",
+    ),
+  );
+  o.default = "0";
+  o.rmempty = true;
   o.modalonly = true;
-  o.validate = validateRequired;
-  o.depends("protocol", "shadowsocks");
+  multiplexProtocols.forEach((protocol) => o.depends("protocol", protocol));
 
   o = section.option(
     form.Flag,
-    "socks_auth_enabled",
-    _("Enable authentication"),
+    "multiplex_padding",
+    _("Require multiplex padding"),
+    _("Refuses multiplexed clients that do not pad their streams."),
   );
-  o.default = "1";
-  o.rmempty = false;
+  o.default = "0";
+  o.rmempty = true;
   o.modalonly = true;
-  o.depends("protocol", "socks");
+  multiplexProtocols.forEach((protocol) =>
+    o.depends({ protocol, multiplex_enabled: "1" }),
+  );
 
-  o = section.option(form.Value, "server_username", _("Username"));
+  o = section.option(
+    form.Flag,
+    "multiplex_brutal_enabled",
+    _("TCP Brutal"),
+    _(
+      "Congestion control with a fixed target rate. It needs the tcp-brutal kernel module on both sides.",
+    ),
+  );
+  o.default = "0";
+  o.rmempty = true;
+  o.modalonly = true;
+  multiplexProtocols.forEach((protocol) =>
+    o.depends({ protocol, multiplex_enabled: "1" }),
+  );
+
+  ["up", "down"].forEach((direction) => {
+    const option = section.option(
+      form.Value,
+      `multiplex_brutal_${direction}_mbps`,
+      direction === "up"
+        ? _("Brutal upload (Mbps)")
+        : _("Brutal download (Mbps)"),
+    );
+    option.modalonly = true;
+    option.rmempty = true;
+    option.validate = validate.validateOptionalPositiveInteger;
+    multiplexProtocols.forEach((protocol) =>
+      option.depends({
+        protocol,
+        multiplex_enabled: "1",
+        multiplex_brutal_enabled: "1",
+      }),
+    );
+  });
+}
+
+function addHysteria2Options(section) {
+  let o = section.option(
+    form.ListValue,
+    "hysteria2_obfs_type",
+    _("Obfuscation"),
+    _("Wraps the QUIC packets so they no longer look like QUIC."),
+  );
+  o.value("", _("None"));
+  o.value("salamander", "salamander");
+  o.default = "";
+  o.modalonly = true;
+  o.depends("protocol", "hysteria2");
+
+  o = section.option(
+    form.Value,
+    "hysteria2_obfs_password",
+    _("Obfuscation password"),
+  );
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validateRequiredText;
+  o.password = true;
+  o.validate = validate.validateRequired;
   o.load = function (sectionId) {
-    const current = uci.get(UCI_PACKAGE, sectionId, "server_username");
+    const current = uci.get(UCI_PACKAGE, sectionId, "hysteria2_obfs_password");
     if (current) {
       return current;
     }
-
-    const value = getServerName(sectionId);
-    uci.set(UCI_PACKAGE, sectionId, "server_username", value);
+    const value = util.generatePassword();
+    uci.set(UCI_PACKAGE, sectionId, "hysteria2_obfs_password", value);
     return value;
   };
-  o.depends({ protocol: "socks", socks_auth_enabled: "1" });
-  ["naive", "ssh", "mieru"].forEach((protocol) =>
-    o.depends("protocol", protocol),
-  );
+  o.depends({ protocol: "hysteria2", hysteria2_obfs_type: "salamander" });
+  addRegenerateButton(o, () => util.generatePassword());
 
-  o = section.option(form.Value, "server_password", _("Password"));
+  o = section.option(
+    form.Value,
+    "hysteria2_up_mbps",
+    _("Upload limit (Mbps)"),
+    _(
+      "Bandwidth the server offers each client. Leave both limits empty to let BBR decide.",
+    ),
+  );
   o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validateRequiredText;
-  o.load = function (sectionId) {
-    const current = uci.get(UCI_PACKAGE, sectionId, "server_password");
-    if (current) {
-      return current;
-    }
+  o.rmempty = true;
+  o.validate = validate.validateOptionalPositiveInteger;
+  o.depends("protocol", "hysteria2");
 
-    const value = generatePassword();
-    uci.set(UCI_PACKAGE, sectionId, "server_password", value);
-    return value;
-  };
-  o.depends({ protocol: "socks", socks_auth_enabled: "1" });
-  PASSWORD_PROTOCOLS.filter((protocol) => protocol !== "socks").forEach(
-    (protocol) => o.depends("protocol", protocol),
+  o = section.option(
+    form.Value,
+    "hysteria2_down_mbps",
+    _("Download limit (Mbps)"),
   );
-
-  o = section.option(form.Value, "server_uuid", _("UUID"));
   o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validateUuid;
-  o.load = function (sectionId) {
-    const current = uci.get(UCI_PACKAGE, sectionId, "server_uuid");
-    if (current) {
-      return current;
-    }
+  o.rmempty = true;
+  o.validate = validate.validateOptionalPositiveInteger;
+  o.depends("protocol", "hysteria2");
 
-    const value = generateUuid();
-    uci.set(UCI_PACKAGE, sectionId, "server_uuid", value);
-    return value;
-  };
-  ["vless", "vmess", "tuic"].forEach((protocol) =>
-    o.depends("protocol", protocol),
+  o = section.option(
+    form.Flag,
+    "hysteria2_ignore_client_bandwidth",
+    _("Ignore client bandwidth"),
+    _("Refuses the rates a client asks for and uses BBR instead."),
   );
+  o.default = "0";
+  o.modalonly = true;
+  o.rmempty = true;
+  o.depends("protocol", "hysteria2");
+}
 
-  o = section.option(form.ListValue, "naive_network", _("Network"));
+function addProtocolOptions(section) {
+  let o = section.option(
+    form.ListValue,
+    "naive_network",
+    _("Network"),
+    _("HTTP/2 runs over TCP, HTTP/3 over UDP."),
+  );
   o.value("tcp", "TCP (HTTP/2)");
   o.value("udp", "UDP (HTTP/3)");
   o.value("tcp_udp", _("TCP and UDP"));
@@ -2603,7 +1847,7 @@ function createServerContent(section) {
   );
   o.modalonly = true;
   o.rmempty = true;
-  o.validate = validateOptionalFilePath;
+  o.validate = validate.validateOptionalFilePath;
   o.depends("protocol", "ssh");
 
   o = section.option(form.ListValue, "mieru_transport", _("Transport"));
@@ -2618,6 +1862,9 @@ function createServerContent(section) {
     form.Flag,
     "mieru_user_hint_mandatory",
     _("Require Mieru user hint"),
+    _(
+      "Speeds up handshakes on a busy server, but only clients that send the hint can connect.",
+    ),
   );
   o.default = "0";
   o.rmempty = true;
@@ -2641,145 +1888,65 @@ function createServerContent(section) {
   o.default = "3s";
   o.rmempty = false;
   o.modalonly = true;
-  o.validate = validateRequiredDuration;
+  o.validate = validate.validateRequiredDuration;
   o.depends("protocol", "tuic");
 
   o = section.option(form.Value, "tuic_heartbeat", _("Heartbeat"));
   o.default = "10s";
   o.rmempty = false;
   o.modalonly = true;
-  o.validate = validateRequiredDuration;
+  o.validate = validate.validateRequiredDuration;
   o.depends("protocol", "tuic");
 
   o = section.option(
     form.Flag,
     "tuic_zero_rtt_handshake",
     _("Enable insecure 0-RTT handshake"),
+    _("Saves one round trip and allows replay attacks in exchange."),
   );
   o.default = "0";
   o.rmempty = true;
   o.modalonly = true;
   o.depends("protocol", "tuic");
+}
 
-  o = section.option(form.Value, "vmess_alter_id", _("Alter ID"));
-  o.default = "0";
-  o.rmempty = false;
-  o.modalonly = true;
-  o.depends("protocol", "vmess");
-  o.validate = function (_sectionId, value) {
-    if (value == null || value === "") {
-      return _("This field is required");
-    }
-    return /^[0-9]+$/.test(value) ? true : _("Use a non-negative integer");
-  };
+function addMtprotoOptions(section) {
+  const dependsOnMtproto = (option) => option.depends("protocol", "mtproto");
 
-  o = section.option(form.ListValue, "vless_flow", _("VLESS flow"));
-  o.value("none", _("None"));
-  o.value("xtls-rprx-vision", "xtls-rprx-vision");
-  o.default = "none";
-  o.rmempty = false;
-  o.modalonly = true;
-  o.validate = validateRequired;
-  o.depends("protocol", "vless");
-
-  o = section.option(form.ListValue, "hysteria2_obfs_type", _("Obfuscation"));
-  o.value("", _("None"));
-  o.value("salamander", "salamander");
-  o.default = "";
-  o.modalonly = true;
-  o.depends("protocol", "hysteria2");
-  o.onchange = function (_ev, sectionId, value) {
-    if (value === "salamander") {
-      setDefault(sectionId, "hysteria2_obfs_password", generatePassword());
-      const widget = getControlWidget(sectionId, "hysteria2_obfs_password");
-      if (widget && !widget.value) {
-        setWidgetValue(
-          sectionId,
-          "hysteria2_obfs_password",
-          uci.get(UCI_PACKAGE, sectionId, "hysteria2_obfs_password"),
-        );
-      }
-    }
-  };
-
-  o = section.option(
+  let o = section.option(
     form.Value,
-    "hysteria2_obfs_password",
-    _("Obfuscation password"),
+    "mtproto_faketls",
+    _("FakeTLS host"),
+    _("The host name the proxy pretends to serve. It is part of the secret."),
   );
-  o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validateRequired;
-  o.load = function (sectionId) {
-    const current = uci.get(UCI_PACKAGE, sectionId, "hysteria2_obfs_password");
-    if (current) {
-      return current;
-    }
-    const value = generatePassword();
-    uci.set(UCI_PACKAGE, sectionId, "hysteria2_obfs_password", value);
-    return value;
-  };
-  o.depends({ protocol: "hysteria2", hysteria2_obfs_type: "salamander" });
-
-  o = section.option(form.Value, "mtproto_secret", _("Secret"));
-  o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validateMtprotoSecret;
-  o.load = function (sectionId) {
-    const current = uci.get(UCI_PACKAGE, sectionId, "mtproto_secret");
-    const baseSecret = normalizeMtprotoBaseSecret(current);
-    const faketls = getMtprotoFaketlsFromSecret(current);
-    if (baseSecret) {
-      uci.set(UCI_PACKAGE, sectionId, "mtproto_secret", baseSecret);
-      if (faketls && !uci.get(UCI_PACKAGE, sectionId, "mtproto_faketls")) {
-        uci.set(UCI_PACKAGE, sectionId, "mtproto_faketls", faketls);
-      }
-      return baseSecret;
-    }
-    if (current) {
-      return current;
-    }
-    const value = generateMtprotoSecret();
-    uci.set(UCI_PACKAGE, sectionId, "mtproto_secret", value);
-    return value;
-  };
-  addMtprotoDepends(o);
-
-  o = section.option(form.Value, "mtproto_faketls", _("FakeTLS host"));
   o.default = "google.com";
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validateHost;
-  o.load = function (sectionId) {
-    const current = uci.get(UCI_PACKAGE, sectionId, "mtproto_faketls");
-    if (current) {
-      return current;
-    }
-    const faketls =
-      getMtprotoFaketlsFromSecret(
-        uci.get(UCI_PACKAGE, sectionId, "mtproto_secret"),
-      ) || "google.com";
-    uci.set(UCI_PACKAGE, sectionId, "mtproto_faketls", faketls);
-    return faketls;
-  };
-  addMtprotoDepends(o);
+  o.validate = validate.validateHost;
+  dependsOnMtproto(o);
 
-  o = section.option(form.Value, "mtproto_concurrency", _("Concurrency"));
+  o = section.option(
+    form.Value,
+    "mtproto_concurrency",
+    _("Concurrency"),
+    _("Maximum simultaneous connections. Empty means the sing-box default."),
+  );
   o.modalonly = true;
   o.rmempty = true;
-  o.validate = validateOptionalNonNegativeInteger;
-  addMtprotoDepends(o);
+  o.validate = validate.validateOptionalNonNegativeInteger;
+  dependsOnMtproto(o);
 
   o = section.option(
     form.Value,
     "mtproto_domain_fronting_port",
     _("Fronting port"),
+    _("Where unrecognised connections are forwarded, usually 443."),
   );
   o.default = "443";
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validatePort;
-  addMtprotoDepends(o);
+  o.validate = validate.validatePort;
+  dependsOnMtproto(o);
 
   o = section.option(
     form.Value,
@@ -2788,8 +1955,8 @@ function createServerContent(section) {
   );
   o.modalonly = true;
   o.rmempty = true;
-  o.validate = validateOptionalIp;
-  addMtprotoDepends(o);
+  o.validate = validate.validateOptionalIp;
+  dependsOnMtproto(o);
 
   o = section.option(
     form.Flag,
@@ -2799,7 +1966,7 @@ function createServerContent(section) {
   o.default = "0";
   o.modalonly = true;
   o.rmempty = true;
-  addMtprotoDepends(o);
+  dependsOnMtproto(o);
 
   o = section.option(form.ListValue, "mtproto_prefer_ip", _("Preferred IP"));
   o.value("prefer-ipv4", "prefer-ipv4");
@@ -2809,14 +1976,19 @@ function createServerContent(section) {
   o.default = "prefer-ipv4";
   o.rmempty = false;
   o.modalonly = true;
-  o.validate = validateRequired;
-  addMtprotoDepends(o);
+  o.validate = validate.validateRequired;
+  dependsOnMtproto(o);
 
-  o = section.option(form.Flag, "mtproto_auto_update", _("Auto update"));
+  o = section.option(
+    form.Flag,
+    "mtproto_auto_update",
+    _("Auto update"),
+    _("Keeps the Telegram data centre list up to date by itself."),
+  );
   o.default = "0";
   o.modalonly = true;
   o.rmempty = true;
-  addMtprotoDepends(o);
+  dependsOnMtproto(o);
 
   o = section.option(
     form.Flag,
@@ -2826,7 +1998,7 @@ function createServerContent(section) {
   o.default = "0";
   o.modalonly = true;
   o.rmempty = true;
-  addMtprotoDepends(o);
+  dependsOnMtproto(o);
 
   o = section.option(
     form.Value,
@@ -2836,15 +2008,15 @@ function createServerContent(section) {
   o.default = "3s";
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validateRequiredDuration;
-  addMtprotoDepends(o);
+  o.validate = validate.validateRequiredDuration;
+  dependsOnMtproto(o);
 
   o = section.option(form.Value, "mtproto_idle_timeout", _("Idle timeout"));
   o.default = "5m";
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validateRequiredDuration;
-  addMtprotoDepends(o);
+  o.validate = validate.validateRequiredDuration;
+  dependsOnMtproto(o);
 
   o = section.option(
     form.Value,
@@ -2854,118 +2026,30 @@ function createServerContent(section) {
   o.default = "10s";
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validateRequiredDuration;
-  addMtprotoDepends(o);
+  o.validate = validate.validateRequiredDuration;
+  dependsOnMtproto(o);
+}
 
-  o = section.option(
-    form.Value,
-    "tailscale_auth_key",
-    _("Tailscale auth key"),
-    _("Auth Key from the Tailscale admin console"),
-  );
-  o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validateRequired;
-  addTailscaleDepends(o);
+function createServerContent(section) {
+  injectServerStyles();
 
-  o = section.option(
-    form.Value,
-    "tailscale_control_url",
-    _("Tailscale control URL"),
-    _(
-      "Address of the coordination server. Change it if you use a custom server.",
-    ),
-  );
-  o.default = "https://controlplane.tailscale.com";
-  o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validateHttpUrl;
-  addTailscaleDepends(o);
-
-  o = section.option(
-    form.Flag,
-    "tailscale_detour_enabled",
-    _("Control plane through section"),
-    _("Connect to the coordination server through a section"),
-  );
-  o.default = "0";
-  o.modalonly = true;
-  o.rmempty = false;
-  addTailscaleDepends(o);
-
-  o = section.option(
-    form.ListValue,
-    "tailscale_detour_section",
-    _("Control plane through"),
-  );
-  o.modalonly = true;
-  o.rmempty = false;
-  o.depends({ protocol: "tailscale", tailscale_detour_enabled: "1" });
-  o.load = function (sectionId) {
-    populateTailscaleDetourValues(this, sectionId);
-    return uci.get(UCI_PACKAGE, sectionId, "tailscale_detour_section") || "";
-  };
-  o.validate = function (sectionId, value) {
-    if (!value) {
-      return _("Select a section");
-    }
-    if (value === sectionId) {
-      return _("Current section cannot be used as its own transit section");
-    }
-    return getTailscaleDetourTargetSections(sectionId).some(
-      (target) => target[".name"] === value,
-    )
-      ? true
-      : _("Select a section");
-  };
-
-  o = section.option(
-    form.Value,
-    "tailscale_hostname",
-    _("Tailscale hostname"),
-    _("Name shown in the Tailscale admin console."),
-  );
-  o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validateRequiredText;
-  o.load = function (sectionId) {
-    const current = uci.get(UCI_PACKAGE, sectionId, "tailscale_hostname");
-    if (current) {
-      return current;
-    }
-    const value = defaultTailscaleHostname(sectionId);
-    uci.set(UCI_PACKAGE, sectionId, "tailscale_hostname", value);
-    return value;
-  };
-  addTailscaleDepends(o);
-
-  o = section.option(
-    form.DynamicList,
-    "tailscale_advertise_routes",
-    _("Advertise routes"),
-    _(
-      "Specify local subnets to give other devices in your Tailscale network access to them.",
-    ),
-  );
-  o.modalonly = true;
-  o.rmempty = true;
-  o.validate = (_sectionId, value) => validateOptionalCidrOrIp(value);
-  addTailscaleDepends(o);
-
-  o = section.option(
-    form.Flag,
-    "tailscale_accept_routes",
-    _("Accept routes"),
-    _("Accept subnets advertised by other devices in your Tailscale network."),
-  );
-  o.default = "0";
-  o.modalonly = true;
-  o.rmempty = true;
-  addTailscaleDepends(o);
+  addIdentityOptions(section);
+  addTailscaleOptions(section);
+  addJsonInboundOptions(section);
+  addListenerOptions(section);
+  addShadowsocksOptions(section);
+  addClientOptions(section);
+  addRoutingOptions(section);
+  addSecurityOptions(section);
+  addTransportOptions(section);
+  addMultiplexOptions(section);
+  addHysteria2Options(section);
+  addProtocolOptions(section);
+  addMtprotoOptions(section);
 }
 
 return baseclass.extend({
   configureServerSection,
   createServerContent,
-  preloadServerModalData,
+  preloadServerModalData: validate.preloadServerModalData,
 });

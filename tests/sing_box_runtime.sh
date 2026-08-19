@@ -414,11 +414,9 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       ".name": "edge",
       ".type": "server",
       "enabled": "1",
-      "protocol": "socks",
+      "protocol": "mixed",
       "listen": "0.0.0.0",
       "listen_port": "18080",
-      "server_username": "tester",
-      "server_password": "secret",
       "routing_mode": "direct"
     },
     {
@@ -437,12 +435,10 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       ".name": "open",
       ".type": "server",
       "enabled": "1",
-      "protocol": "socks",
+      "protocol": "mixed",
       "listen": "0.0.0.0",
       "listen_port": "18081",
-      "socks_auth_enabled": "0",
-      "server_username": "ignored",
-      "server_password": "ignored",
+      "mixed_auth_enabled": "0",
       "routing_mode": "direct"
     },
     {
@@ -452,7 +448,6 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       "protocol": "mtproto",
       "listen": "0.0.0.0",
       "listen_port": "18442",
-      "mtproto_secret": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "mtproto_faketls": "google.com",
       "mtproto_domain_fronting_ip": "203.0.113.7",
       "routing_mode": "direct"
@@ -464,8 +459,6 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       "protocol": "naive",
       "listen": "0.0.0.0",
       "listen_port": "18443",
-      "server_username": "naive-user",
-      "server_password": "naive-password",
       "security": "tls",
       "tls_certificate_path": "/etc/forkop/server-certs/naive.crt",
       "tls_key_path": "/etc/forkop/server-certs/naive.key",
@@ -480,8 +473,6 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       "protocol": "ssh",
       "listen": "0.0.0.0",
       "listen_port": "18222",
-      "server_username": "ssh-user",
-      "server_password": "ssh-password",
       "ssh_host_key_path": [ "/etc/forkop/ssh/host_key" ],
       "routing_mode": "direct"
     },
@@ -492,8 +483,6 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       "protocol": "mieru",
       "listen": "0.0.0.0",
       "listen_port": "18444",
-      "server_username": "mieru-user",
-      "server_password": "mieru-password",
       "mieru_transport": "UDP",
       "mieru_user_hint_mandatory": "1",
       "routing_mode": "direct"
@@ -506,7 +495,6 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       "listen": "0.0.0.0",
       "listen_port": "18445",
       "label": "AnyTLS user",
-      "server_password": "anytls-password",
       "security": "tls",
       "tls_certificate_path": "/etc/forkop/server-certs/anytls.crt",
       "tls_key_path": "/etc/forkop/server-certs/anytls.key",
@@ -520,8 +508,6 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       "listen": "0.0.0.0",
       "listen_port": "18446",
       "label": "TUIC user",
-      "server_uuid": "33333333-3333-4333-8333-333333333333",
-      "server_password": "tuic-password",
       "security": "tls",
       "tls_certificate_path": "/etc/forkop/server-certs/tuic.crt",
       "tls_key_path": "/etc/forkop/server-certs/tuic.key",
@@ -530,6 +516,138 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       "tuic_heartbeat": "12s",
       "tuic_zero_rtt_handshake": "1",
       "routing_mode": "direct"
+    },
+    {
+      ".name": "vlessmux",
+      ".type": "server",
+      "enabled": "1",
+      "protocol": "vless",
+      "listen": "0.0.0.0",
+      "listen_port": "18447",
+      "label": "VLESS mux",
+      "security": "reality",
+      "reality_private_key": "reality-private",
+      "reality_public_key": "reality-public",
+      "reality_short_id": [ "abcd" ],
+      "multiplex_enabled": "1",
+      "multiplex_padding": "1",
+      "multiplex_brutal_enabled": "1",
+      "multiplex_brutal_up_mbps": "100",
+      "multiplex_brutal_down_mbps": "200",
+      "routing_mode": "direct"
+    },
+    {
+      ".name": "ss2022",
+      ".type": "server",
+      "enabled": "1",
+      "protocol": "shadowsocks",
+      "listen": "0.0.0.0",
+      "listen_port": "18448",
+      "label": "Shadowsocks 2022",
+      "shadowsocks_method": "2022-blake3-aes-128-gcm",
+      "shadowsocks_psk": "c2VydmVyLXByZXNoYXJlZC1rZXk=",
+      "routing_mode": "direct"
+    }
+  ],
+  "server_client": [
+    {
+      ".name": "edge_tester",
+      ".type": "server_client",
+      "server": "edge",
+      "enabled": "1",
+      "name": "tester",
+      "password": "secret"
+    },
+    {
+      ".name": "open_ignored",
+      ".type": "server_client",
+      "server": "open",
+      "enabled": "1",
+      "name": "ignored",
+      "password": "ignored"
+    },
+    {
+      ".name": "mtproxy_phone",
+      ".type": "server_client",
+      "server": "mtproxy",
+      "enabled": "1",
+      "name": "phone",
+      "secret": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      ".name": "naive_user",
+      ".type": "server_client",
+      "server": "naive",
+      "enabled": "1",
+      "name": "naive-user",
+      "password": "naive-password"
+    },
+    {
+      ".name": "ssh_user",
+      ".type": "server_client",
+      "server": "ssh",
+      "enabled": "1",
+      "name": "ssh-user",
+      "password": "ssh-password",
+      "authorized_keys": [ "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 user@host" ]
+    },
+    {
+      ".name": "mieru_user",
+      ".type": "server_client",
+      "server": "mieru",
+      "enabled": "1",
+      "name": "mieru-user",
+      "password": "mieru-password"
+    },
+    {
+      ".name": "anytls_user",
+      ".type": "server_client",
+      "server": "anytls",
+      "enabled": "1",
+      "name": "anytls-client",
+      "password": "anytls-password"
+    },
+    {
+      ".name": "tuic_user",
+      ".type": "server_client",
+      "server": "tuic",
+      "enabled": "1",
+      "name": "tuic-client",
+      "uuid": "33333333-3333-4333-8333-333333333333",
+      "password": "tuic-password"
+    },
+    {
+      ".name": "vlessmux_phone",
+      ".type": "server_client",
+      "server": "vlessmux",
+      "enabled": "1",
+      "name": "phone",
+      "uuid": "44444444-4444-4444-8444-444444444444",
+      "flow": "xtls-rprx-vision"
+    },
+    {
+      ".name": "vlessmux_laptop",
+      ".type": "server_client",
+      "server": "vlessmux",
+      "enabled": "1",
+      "name": "laptop",
+      "uuid": "55555555-5555-4555-8555-555555555555"
+    },
+    {
+      ".name": "vlessmux_retired",
+      ".type": "server_client",
+      "server": "vlessmux",
+      "enabled": "0",
+      "name": "retired",
+      "uuid": "66666666-6666-4666-8666-666666666666"
+    },
+    {
+      ".name": "ss2022_phone",
+      ".type": "server_client",
+      "server": "ss2022",
+      "enabled": "1",
+      "name": "phone",
+      "password": "Y2xpZW50LXByZXNoYXJlZC1rZXk="
     }
   ]
 }
@@ -1191,23 +1309,24 @@ assert(dns_server(defaults, r => r.tag == "dnsmasq-server") != null, "interface 
 assert(dns_rule(defaults, r => r.server == "dnsmasq-server" && contains(r.inbound, "source-dns-in") && r.source_ip_cidr == null) != null, "unmatched interface DNS returns through dnsmasq");
 
 let server = cfg("server");
-let socks = inbound(server, "edge");
-assert(socks && socks.type == "socks" && socks.listen_port == 18080, "server socks inbound");
-assert(socks.users && socks.users[0].username == "tester", "legacy server socks auth defaults to enabled");
+let mixed = inbound(server, "edge");
+assert(mixed && mixed.type == "mixed" && mixed.listen_port == 18080, "server mixed inbound answers SOCKS5 and HTTP on one port");
+assert(mixed.users && mixed.users[0].username == "tester" && mixed.users[0].password == "secret", "mixed server authentication defaults to enabled");
 let tailscale_server = null;
 for (let endpoint in server.endpoints || [])
     if (endpoint && endpoint.tag == "tailnet")
         tailscale_server = endpoint;
 assert(tailscale_server && tailscale_server.type == "tailscale", "Tailscale server endpoint");
 assert(tailscale_server.detour == "proxy", "Tailscale server control-plane detour");
-assert(tailscale_server.advertise_exit_node === true, "Tailscale server always advertises an exit node");
+assert(tailscale_server.advertise_exit_node == null, "Tailscale exit-node advertising follows the server setting");
 assert(server.route.auto_detect_interface === false, "direct Tailscale server does not pin advertised LAN routes to the default WAN");
 assert(route_rule(server, r => r.action == "sniff" && r.inbound == "tailnet") == null, "Tailscale endpoint is not sniffed");
-let open_socks = inbound(server, "open");
-assert(open_socks && open_socks.type == "socks" && open_socks.listen_port == 18081, "server open socks inbound");
-assert(open_socks.users == null, "disabled server socks auth omits users");
+let open_mixed = inbound(server, "open");
+assert(open_mixed && open_mixed.type == "mixed" && open_mixed.listen_port == 18081, "server open mixed inbound");
+assert(open_mixed.users == null, "disabled mixed authentication omits users");
 let mtproxy = inbound(server, "mtproxy");
 assert(mtproxy && mtproxy.type == "mtproxy" && mtproxy.listen_port == 18442, "MTProxy inbound");
+assert(mtproxy.users[0].secret == "ee" + "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" + "676f6f676c652e636f6d", "MTProxy secret carries the FakeTLS host");
 assert(mtproxy.domain_fronting_host == "203.0.113.7", "MTProxy fronting host uses the native schema key");
 assert(mtproxy.domain_fronting_ip == null, "legacy MTProxy fronting IP key is not emitted");
 let naive = inbound(server, "naive");
@@ -1216,6 +1335,7 @@ assert(naive.users[0].username == "naive-user" && naive.quic_congestion_control 
 assert(naive.tls && naive.tls.enabled === true, "Naive inbound TLS");
 let ssh = inbound(server, "ssh");
 assert(ssh && ssh.type == "ssh" && ssh.users[0].name == "ssh-user", "SSH inbound credentials");
+assert(ssh.users[0].authorized_keys[0] == "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 user@host", "SSH clients can authenticate with a public key");
 assert(ssh.host_key_path[0] == "/etc/forkop/ssh/host_key", "SSH inbound host key path");
 let mieru = inbound(server, "mieru");
 assert(mieru && mieru.type == "mieru" && mieru.transport == "UDP", "Mieru inbound transport");
@@ -1227,6 +1347,24 @@ let tuic = inbound(server, "TUIC user");
 assert(tuic && tuic.type == "tuic" && tuic.users[0].uuid == "33333333-3333-4333-8333-333333333333", "TUIC inbound identity");
 assert(tuic.congestion_control == "bbr" && tuic.auth_timeout == "4s" && tuic.heartbeat == "12s" && tuic.zero_rtt_handshake === true, "TUIC inbound options");
 assert(tuic.tls && tuic.tls.enabled === true, "TUIC inbound TLS");
+
+// Every protocol sing-box serves takes a user list, so one server can carry several
+// accounts and a disabled account has to stay out of the generated inbound.
+let vless_mux = inbound(server, "VLESS mux");
+assert(vless_mux && length(vless_mux.users) == 2, "a server accepts every enabled client");
+assert(vless_mux.users[0].name == "phone" && vless_mux.users[0].uuid == "44444444-4444-4444-8444-444444444444", "the first client keeps its own identity");
+assert(vless_mux.users[0].flow == "xtls-rprx-vision" && vless_mux.users[1].flow == null, "VLESS flow is a per-client setting");
+assert(vless_mux.users[1].name == "laptop", "the second client keeps its own identity");
+assert(vless_mux.multiplex && vless_mux.multiplex.enabled === true && vless_mux.multiplex.padding === true, "multiplexing is generated when it is accepted");
+assert(vless_mux.multiplex.brutal && vless_mux.multiplex.brutal.up_mbps == 100 && vless_mux.multiplex.brutal.down_mbps == 200, "TCP Brutal rates are generated");
+assert(vless_mux.tls.reality && vless_mux.tls.reality.enabled === true, "Reality is generated for the multiplexed VLESS server");
+
+// A 2022 server holds its own pre-shared key next to the per client keys.
+let ss2022 = inbound(server, "Shadowsocks 2022");
+assert(ss2022 && ss2022.method == "2022-blake3-aes-128-gcm", "Shadowsocks 2022 method");
+assert(ss2022.password == "c2VydmVyLXByZXNoYXJlZC1rZXk=", "the server pre-shared key stays on the inbound");
+assert(ss2022.users[0].password == "c2VydmVyLXByZXNoYXJlZC1rZXk=:Y2xpZW50LXByZXNoYXJlZC1rZXk=", "a 2022 client key is joined with the server key");
+
 assert(route_rule(server, r => r.inbound == "edge" && r.outbound == "direct-out") != null, "server direct route");
 
 let matchers = cfg("matchers");

@@ -575,6 +575,25 @@ cat >"$WORK_DIR/sing-box-signature.json" <<'JSON'
       "transport_path": "/ws",
       "tailscale_accept_routes": "1"
     }
+  ],
+  "server_client": [
+    {
+      ".name": "srv1_phone",
+      ".type": "server_client",
+      "server": "srv1",
+      "enabled": "1",
+      "name": "phone",
+      "uuid": "11111111-1111-4111-8111-111111111111",
+      "flow": "xtls-rprx-vision"
+    },
+    {
+      ".name": "srv1_laptop",
+      ".type": "server_client",
+      "server": "srv1",
+      "enabled": "0",
+      "name": "laptop",
+      "uuid": "22222222-2222-4222-8222-222222222222"
+    }
   ]
 }
 JSON
@@ -940,17 +959,21 @@ ws
 
 [server.srv1.client_fingerprint]
 
-[server.srv1.server_uuid]
-
-[server.srv1.server_username]
-
-[server.srv1.server_password]
-
 [server.srv1.vless_flow]
 
-[server.srv1.vmess_alter_id]
-
 [server.srv1.shadowsocks_method]
+
+[server.srv1.shadowsocks_psk]
+
+[server.srv1.multiplex_enabled]
+
+[server.srv1.multiplex_padding]
+
+[server.srv1.multiplex_brutal_enabled]
+
+[server.srv1.multiplex_brutal_up_mbps]
+
+[server.srv1.multiplex_brutal_down_mbps]
 
 [server.srv1.hysteria2_up_mbps]
 
@@ -959,6 +982,8 @@ ws
 [server.srv1.hysteria2_obfs_type]
 
 [server.srv1.hysteria2_obfs_password]
+
+[server.srv1.hysteria2_ignore_client_bandwidth]
 
 [server.srv1.naive_network]
 tcp
@@ -978,8 +1003,6 @@ cubic
 10s
 [server.srv1.tuic_zero_rtt_handshake]
 0
-[server.srv1.mtproto_secret]
-
 [server.srv1.mtproto_faketls]
 
 [server.srv1.mtproto_concurrency]
@@ -1004,6 +1027,10 @@ cubic
 
 [server.srv1.tailscale_auth_key]
 
+[server.srv1.tailscale_detour_enabled]
+
+[server.srv1.tailscale_detour_section]
+
 [server.srv1.tailscale_control_url]
 
 [server.srv1.tailscale_hostname]
@@ -1013,6 +1040,30 @@ cubic
 [server.srv1.tailscale_advertise_routes]
 
 [server.srv1.tailscale_advertise_exit_node]
+
+[server.srv1.client.srv1_phone.enabled]
+1
+[server.srv1.client.srv1_phone.name]
+phone
+[server.srv1.client.srv1_phone.uuid]
+11111111-1111-4111-8111-111111111111
+[server.srv1.client.srv1_phone.password]
+
+[server.srv1.client.srv1_phone.secret]
+
+[server.srv1.client.srv1_phone.flow]
+xtls-rprx-vision
+[server.srv1.client.srv1_laptop.enabled]
+0
+[server.srv1.client.srv1_laptop.name]
+laptop
+[server.srv1.client.srv1_laptop.uuid]
+22222222-2222-4222-8222-222222222222
+[server.srv1.client.srv1_laptop.password]
+
+[server.srv1.client.srv1_laptop.secret]
+
+[server.srv1.client.srv1_laptop.flow]
 
 EOF_SING_BOX_SIG
 
