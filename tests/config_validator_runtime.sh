@@ -164,6 +164,7 @@ cat >"$WORK_DIR/valid.json" <<'JSON'
       ".type": "server",
       "enabled": "1",
       "protocol": "vless",
+      "security": "none",
       "listen_port": "18443",
       "public_host": "203.0.113.9",
       "routing_mode": "section",
@@ -677,6 +678,58 @@ cat >"$WORK_DIR/bad-urltest-idle-timeout.json" <<'JSON'
 JSON
 assert_rejects "URLTest interval longer than idle timeout" "$WORK_DIR/bad-urltest-idle-timeout.json" "check interval longer than its idle timeout"
 
+cat >"$WORK_DIR/bad-server-reality-sni.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "server": [
+    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "vless", "security": "reality", "listen_port": "18443", "public_host": "203.0.113.9", "reality_handshake_server": "www.apple.com", "reality_private_key": "QFHBoM6IJlBnPCUKLTBLKLKB1kNU9WPMBRnMOaHYQE0", "reality_public_key": "Zq5EJlBnPCUKLTBLKLKB1kNU9WPMBRnMOaHYQE0QFHA", "reality_short_id": "0a1b2c3d" }
+  ],
+  "server_client": [
+    { ".name": "srv_phone", ".type": "server_client", "server": "srv", "enabled": "1", "name": "phone", "uuid": "11111111-1111-4111-8111-111111111111" }
+  ]
+}
+JSON
+assert_rejects "reality server without an SNI" "$WORK_DIR/bad-server-reality-sni.json" "needs an SNI"
+
+cat >"$WORK_DIR/bad-server-reality-keys.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "server": [
+    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "vless", "security": "reality", "listen_port": "18443", "public_host": "203.0.113.9", "tls_server_name": "www.apple.com", "reality_handshake_server": "www.apple.com", "reality_short_id": "0a1b2c3d" }
+  ],
+  "server_client": [
+    { ".name": "srv_phone", ".type": "server_client", "server": "srv", "enabled": "1", "name": "phone", "uuid": "11111111-1111-4111-8111-111111111111" }
+  ]
+}
+JSON
+assert_rejects "reality server without a key pair" "$WORK_DIR/bad-server-reality-keys.json" "Generate a Reality key pair"
+
+cat >"$WORK_DIR/bad-server-reality-short-id.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "server": [
+    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "vless", "security": "reality", "listen_port": "18443", "public_host": "203.0.113.9", "tls_server_name": "www.apple.com", "reality_handshake_server": "www.apple.com", "reality_private_key": "QFHBoM6IJlBnPCUKLTBLKLKB1kNU9WPMBRnMOaHYQE0", "reality_public_key": "Zq5EJlBnPCUKLTBLKLKB1kNU9WPMBRnMOaHYQE0QFHA", "reality_short_id": "abc" }
+  ],
+  "server_client": [
+    { ".name": "srv_phone", ".type": "server_client", "server": "srv", "enabled": "1", "name": "phone", "uuid": "11111111-1111-4111-8111-111111111111" }
+  ]
+}
+JSON
+assert_rejects "reality short ID with an odd digit count" "$WORK_DIR/bad-server-reality-short-id.json" "even number of hex digits"
+
+cat >"$WORK_DIR/bad-server-hysteria2-obfs.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "server": [
+    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "hysteria2", "listen_port": "18444", "public_host": "203.0.113.9", "tls_certificate_path": "/etc/forkop/server-certs/srv.crt", "tls_key_path": "/etc/forkop/server-certs/srv.key", "hysteria2_obfs_type": "salamander" }
+  ],
+  "server_client": [
+    { ".name": "srv_phone", ".type": "server_client", "server": "srv", "enabled": "1", "name": "phone", "password": "secret" }
+  ]
+}
+JSON
+assert_rejects "hysteria2 obfuscation without a password" "$WORK_DIR/bad-server-hysteria2-obfs.json" "obfuscation password"
+
 cat >"$WORK_DIR/bad-server-routing-bypass.json" <<'JSON'
 {
   "settings": { ".name": "settings", ".type": "settings" },
@@ -684,7 +737,7 @@ cat >"$WORK_DIR/bad-server-routing-bypass.json" <<'JSON'
     { ".name": "bypass", ".type": "section", "enabled": "1", "action": "bypass" }
   ],
   "server": [
-    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "vless", "listen_port": "18443", "public_host": "203.0.113.9", "routing_mode": "section", "routing_section": "bypass" }
+    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "vless", "security": "none", "listen_port": "18443", "public_host": "203.0.113.9", "routing_mode": "section", "routing_section": "bypass" }
   ],
   "server_client": [
     { ".name": "srv_phone", ".type": "server_client", "server": "srv", "enabled": "1", "name": "phone", "uuid": "11111111-1111-4111-8111-111111111111" }
@@ -700,7 +753,7 @@ cat >"$WORK_DIR/bad-server-routing-block.json" <<'JSON'
     { ".name": "block", ".type": "section", "enabled": "1", "action": "block" }
   ],
   "server": [
-    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "vless", "listen_port": "18443", "public_host": "203.0.113.9", "routing_mode": "section", "routing_section": "block" }
+    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "vless", "security": "none", "listen_port": "18443", "public_host": "203.0.113.9", "routing_mode": "section", "routing_section": "block" }
   ],
   "server_client": [
     { ".name": "srv_phone", ".type": "server_client", "server": "srv", "enabled": "1", "name": "phone", "uuid": "11111111-1111-4111-8111-111111111111" }
@@ -716,7 +769,7 @@ cat >"$WORK_DIR/bad-server-without-clients.json" <<'JSON'
     { ".name": "proxy", ".type": "section", "enabled": "1", "action": "connection" }
   ],
   "server": [
-    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "vless", "listen_port": "18443", "public_host": "203.0.113.9" }
+    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "vless", "security": "none", "listen_port": "18443", "public_host": "203.0.113.9" }
   ]
 }
 JSON
@@ -729,7 +782,7 @@ cat >"$WORK_DIR/bad-server-client-uuid.json" <<'JSON'
     { ".name": "proxy", ".type": "section", "enabled": "1", "action": "connection" }
   ],
   "server": [
-    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "vless", "listen_port": "18443", "public_host": "203.0.113.9" }
+    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "vless", "security": "none", "listen_port": "18443", "public_host": "203.0.113.9" }
   ],
   "server_client": [
     { ".name": "srv_phone", ".type": "server_client", "server": "srv", "enabled": "1", "name": "phone", "uuid": "not-a-uuid" }
@@ -777,7 +830,7 @@ cat >"$WORK_DIR/bad-server-port-conflict.json" <<'JSON'
     { ".name": "proxy", ".type": "section", "enabled": "1", "action": "connection" }
   ],
   "server": [
-    { ".name": "first", ".type": "server", "enabled": "1", "protocol": "vless", "listen_port": "18443", "public_host": "203.0.113.9" },
+    { ".name": "first", ".type": "server", "enabled": "1", "protocol": "vless", "security": "none", "listen_port": "18443", "public_host": "203.0.113.9" },
     { ".name": "second", ".type": "server", "enabled": "1", "protocol": "trojan", "listen_port": "18443", "public_host": "203.0.113.9", "security": "tls", "tls_certificate_path": "/etc/forkop/server-certs/second.crt", "tls_key_path": "/etc/forkop/server-certs/second.key" }
   ],
   "server_client": [
@@ -795,7 +848,7 @@ cat >"$WORK_DIR/bad-server-reserved-port.json" <<'JSON'
     { ".name": "proxy", ".type": "section", "enabled": "1", "action": "connection" }
   ],
   "server": [
-    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "vless", "listen_port": "1602", "public_host": "203.0.113.9" }
+    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "vless", "security": "none", "listen_port": "1602", "public_host": "203.0.113.9" }
   ],
   "server_client": [
     { ".name": "srv_phone", ".type": "server_client", "server": "srv", "enabled": "1", "name": "phone", "uuid": "11111111-1111-4111-8111-111111111111" }

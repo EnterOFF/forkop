@@ -4,52 +4,67 @@ set -eo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VIEW_DIR="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop"
 SERVER_JS="$VIEW_DIR/server.js"
+SECTION_JS="$VIEW_DIR/section.js"
 FORKOP_JS="$VIEW_DIR/forkop.js"
 FE_SRC="$ROOT_DIR/fe-app-forkop/src"
 
-node - "$SERVER_JS" "$FORKOP_JS" "$VIEW_DIR" <<'NODE'
+node - "$SERVER_JS" "$FORKOP_JS" "$SECTION_JS" "$VIEW_DIR" <<'NODE'
 const fs = require("fs");
 const path = require("path");
 const assert = require("assert");
 const source = fs.readFileSync(process.argv[2], "utf8");
 const entrySource = fs.readFileSync(process.argv[3], "utf8");
-const viewDir = process.argv[4];
-const read = (name) => fs.readFileSync(path.join(viewDir, name), "utf8");
-const specSource = read("server_spec.js");
-const clientsSource = read("server_clients.js");
-const linkSource = read("server_link.js");
-const validateSource = read("server_validate.js");
-const serverModules = source + specSource + clientsSource + linkSource + validateSource;
+const sectionSource = fs.readFileSync(process.argv[4], "utf8");
+const viewDir = process.argv[5];
+
+function fail(message) {
+  console.error(`FAIL: ${message}`);
+  process.exit(1);
+}
 
 function requireSource(needle) {
   if (!source.includes(needle)) {
-    console.error(`FAIL: missing server UI contract: ${needle}`);
-    process.exit(1);
+    fail(`missing server UI contract: ${needle}`);
   }
 }
 
-function requireModules(needle) {
-  if (!serverModules.includes(needle)) {
-    console.error(`FAIL: missing server contract: ${needle}`);
-    process.exit(1);
+// The whole tab lives in one file. Splitting it again spreads the protocol table,
+// the value checks and the share links over modules nobody reads together.
+for (const name of fs.readdirSync(viewDir)) {
+  if (/^server_.*\.js$/.test(name)) {
+    fail(`the Servers tab must stay in server.js, found ${name}`);
   }
 }
 
-// Every protocol the form offers has to be described in the spec table, and every
-// protocol with its own options has to reach them through depends().
-for (const protocol of ["naive", "ssh", "mieru", "anytls", "tuic", "mixed", "shadowsocks", "mtproto", "tailscale", "vless", "vmess", "trojan", "hysteria2", "json_inbound"]) {
-  requireModules(`id: "${protocol}"`);
+// Every protocol the form offers is described in the table, and every protocol with
+// its own options reaches them through depends().
+for (const protocol of [
+  "naive", "ssh", "mieru", "anytls", "tuic", "mixed", "shadowsocks",
+  "mtproto", "tailscale", "vless", "vmess", "trojan", "hysteria2",
+  "json_inbound",
+]) {
+  requireSource(`id: "${protocol}"`);
 }
-for (const protocol of ["naive", "ssh", "mieru", "tuic", "mixed", "shadowsocks", "mtproto", "tailscale", "hysteria2", "json_inbound"]) {
+for (const protocol of [
+  "naive", "ssh", "mieru", "tuic", "mixed", "shadowsocks", "mtproto",
+  "tailscale", "hysteria2", "json_inbound",
+]) {
   requireSource(`depends("protocol", "${protocol}")`);
 }
 
 for (const option of [
   "naive_network",
+  "naive_quic_congestion_control",
   "ssh_host_key_path",
   "mieru_transport",
+  "mieru_user_hint_mandatory",
   "tuic_congestion_control",
   "tuic_zero_rtt_handshake",
+  "hysteria2_masquerade",
+  "tailscale_advertise_tags",
+  "tailscale_ephemeral",
+  "tcp_fast_open",
+  "multiplex_brutal_up_mbps",
 ]) {
   requireSource(`"${option}"`);
 }
@@ -61,40 +76,30 @@ for (const [protocol, securities] of [
   ["tuic", '["tls"]'],
   ["hysteria2", '["tls"]'],
   ["vless", '["reality", "tls", "none"]'],
+  ["vmess", '["tls", "none"]'],
   ["mixed", '["none"]'],
   ["shadowsocks", '["none"]'],
 ]) {
-  const block = specSource.slice(specSource.indexOf(`id: "${protocol}"`));
+  const block = source.slice(source.indexOf(`id: "${protocol}"`));
   const securityLine = block.slice(0, block.indexOf("credentials:"));
   if (!securityLine.includes(`securities: ${securities}`)) {
-    console.error(`FAIL: ${protocol} must offer exactly ${securities}`);
-    process.exit(1);
+    fail(`${protocol} must offer exactly ${securities}`);
   }
-}
-
-requireSource('option.depends("protocol", "tailscale")');
-for (const needle of [
-  '"tailscale_detour_enabled"',
-  '"tailscale_detour_section"',
-  '_("Control plane through section")',
-  'Auth Key from the Tailscale admin console',
-  'Name shown in the Tailscale admin console.',
-  'Accept subnets advertised by other devices in your Tailscale network.',
-  'Specify local subnets to give other devices in your Tailscale network access to them.',
-]) {
-  requireSource(needle);
 }
 
 // Tailscale needs neither a public address nor a forwarded port, so it stays the
 // first choice, and the raw JSON inbound stays the last.
-const protocolOrder = [...specSource.matchAll(/^\s*id: \"([A-Za-z0-9_]+)\"/gm)].map((match) => match[1]);
+const protocolOrder = [...source.matchAll(/^\s*id: "([A-Za-z0-9_]+)"/gm)].map(
+  (match) => match[1],
+);
 if (protocolOrder[0] !== "tailscale" || protocolOrder.at(-1) !== "json_inbound") {
-  console.error(`FAIL: unexpected protocol order: ${protocolOrder.join(", ")}`);
-  process.exit(1);
+  fail(`unexpected protocol order: ${protocolOrder.join(", ")}`);
 }
 if (protocolOrder.includes("socks")) {
-  console.error('FAIL: the SOCKS inbound was replaced by the mixed inbound');
-  process.exit(1);
+  fail("the SOCKS inbound was replaced by the mixed inbound");
+}
+if (source.includes('label: _("SOCKS5 / HTTP")')) {
+  fail("the mixed inbound is called Mixed");
 }
 
 for (const legacy of [
@@ -109,41 +114,57 @@ for (const legacy of [
   "mtproto_padding",
 ]) {
   if (source.includes(legacy) || entrySource.includes(legacy)) {
-    console.error(`FAIL: legacy sing-box capability branch remains: ${legacy}`);
-    process.exit(1);
+    fail(`legacy sing-box capability branch remains: ${legacy}`);
   }
 }
 
 for (const needle of [
-  'const JSON_INBOUND_TYPES = new Set([',
-  '!JSON_INBOUND_TYPES.has(type)',
-  '_("Unsupported JSON inbound type")',
+  "const JSON_INBOUND_TYPES = new Set([",
+  "!JSON_INBOUND_TYPES.has(type)",
   // Forkop overwrites the tag with the server name, so a pasted tag is refused
   // instead of being dropped without a word.
-  'Remove the tag field',
+  "Remove the tag field",
 ]) {
-  requireModules(needle);
+  requireSource(needle);
 }
 
-// Every protocol that carries accounts must reach them through client sections, and
-// the credentials must live there instead of on the server.
+// Accounts are child sections edited with the same widget the Sections tab uses for
+// interfaces, URLTests and tunnels, so both tabs behave the same way.
 for (const needle of [
   'const CLIENT_TYPE = "server_client"',
-  'uci.set(UCI_PACKAGE, clientId, "server", sectionId)',
-  'function syncClients(sectionId)',
-  'xtls-rprx-vision',
+  'const CLIENT_OWNER_OPTION = "server"',
+  "sectionui.ButtonAddSettingsDynamicList",
+  "sectionui.showChildItemSettingsModal",
+  "o.childType = CLIENT_TYPE",
+  "o.ownerOption = CLIENT_OWNER_OPTION",
+  "xtls-rprx-vision",
 ]) {
-  requireModules(needle);
+  requireSource(needle);
 }
-for (const removed of ['"server_uuid"', '"server_password"', '"server_username"', '"socks_auth_enabled"', '"vmess_alter_id"']) {
-  if (serverModules.includes(removed)) {
-    console.error(`FAIL: credentials belong to client sections now: ${removed}`);
-    process.exit(1);
+for (const shared of [
+  "ButtonAddSettingsDynamicList,",
+  "showChildItemSettingsModal,",
+  "childPendingSettingsStore,",
+]) {
+  if (!sectionSource.includes(shared)) {
+    fail(`the Sections tab must export the shared child item helper: ${shared}`);
+  }
+}
+for (const removed of [
+  '"server_uuid"',
+  '"server_password"',
+  '"server_username"',
+  '"socks_auth_enabled"',
+  '"vmess_alter_id"',
+]) {
+  if (source.includes(removed)) {
+    fail(`credentials belong to client sections now: ${removed}`);
   }
 }
 
-// Secrets must use the LuCI password widget, which hides the value and offers the
-// reveal control the rest of the app already uses.
+// A numbered client name, so a client never inherits the server name.
+requireSource('usesLoginName(protocol) ? "client-%d" : "Client #%d"');
+
 const optionBlocks = source
   .split("section.option(")
   .slice(1)
@@ -155,77 +176,160 @@ const optionBlocks = source
 function optionBlock(name) {
   const block = optionBlocks.find((entry) => entry.name === name);
   if (!block) {
-    console.error(`FAIL: option is absent from the server form: ${name}`);
-    process.exit(1);
+    fail(`option is absent from the server form: ${name}`);
   }
   return block.body;
 }
 
-for (const secret of ["tailscale_auth_key", "reality_private_key", "hysteria2_obfs_password", "shadowsocks_psk"]) {
+// Secrets use the LuCI password widget, which hides the value and offers the reveal
+// control the rest of the app already uses.
+for (const secret of [
+  "tailscale_auth_key",
+  "reality_private_key",
+  "hysteria2_obfs_password",
+  "shadowsocks_psk",
+]) {
   if (!optionBlock(secret).includes("o.password = true")) {
-    console.error(`FAIL: ${secret} must be rendered as a password field`);
-    process.exit(1);
+    fail(`${secret} must be rendered as a password field`);
+  }
+}
+
+// Nothing is generated until the user asks for it, so every value that used to be
+// invented now has a button and no default.
+for (const generated of [
+  "listen_port",
+  "shadowsocks_psk",
+  "hysteria2_obfs_password",
+  "reality_short_id",
+  "reality_handshake_server",
+  "tls_server_name",
+  "mtproto_faketls",
+]) {
+  const body = optionBlock(generated);
+  if (!body.includes("addGenerateButton(") && !body.includes("addRealityKeypairButton(")) {
+    fail(`${generated} must offer a generate button`);
+  }
+  if (/o\.default = "/.test(body)) {
+    fail(`${generated} must start empty instead of carrying a default`);
+  }
+}
+if (!optionBlock("reality_private_key").includes("addRealityKeypairButton(")) {
+  fail("the Reality key pair must be generated by its own button");
+}
+if (!source.includes("const CAMOUFLAGE_SITES = [")) {
+  fail("the SNI and Reality pickers need a list of camouflage sites");
+}
+// A camouflage host is a suggestion the picker offers, never a stored default.
+const camouflageBlock = source.slice(
+  source.indexOf("const CAMOUFLAGE_SITES = ["),
+  source.indexOf("];", source.indexOf("const CAMOUFLAGE_SITES = [")),
+);
+const camouflageHosts = [...camouflageBlock.matchAll(/"([^"]+)"/g)].map(
+  (match) => match[1],
+);
+if (camouflageHosts.length < 5) {
+  fail("the camouflage list is too short to be a choice");
+}
+for (const host of camouflageHosts) {
+  if (source.split(host).length - 1 > 1) {
+    fail(`${host} is used outside the camouflage list`);
+  }
+  if (source.includes(`o.default = "${host}"`)) {
+    fail(`${host} must not be a stored default`);
+  }
+}
+
+// Opening the dialog must not touch the configuration, so a load handler only reads.
+for (const match of source.matchAll(/o\.load = (function[\s\S]*?\n  \};|\([\s\S]*?\);)/g)) {
+  if (match[1].includes("uci.set(")) {
+    fail("a load handler must not write to the configuration");
   }
 }
 
 // A short ID is decoded as hex bytes, so an odd digit count stops the service.
 for (const needle of [
-  'Reality short ID must use an even number of hex digits',
-  'Reality short ID must not exceed 16 hex digits',
-  'function validateListenPort',
-  'Port %s is already used by %s',
+  "Use an even number of hex digits, for example 0a1b2c3d",
+  "A short ID holds at most 16 hex digits",
+  "function validateListenPort",
+  "Port %s is already used by %s",
 ]) {
-  requireModules(needle);
+  requireSource(needle);
 }
 
-for (const needle of [
-  'sectionRef.map.data.createSID(configName)',
-  'sectionRef.map.data.set(configName, sectionId, "label", label)',
-  'sectionRef.addLabeledSection = function ()',
-  'this.addLabeledSection()',
-  'click: ui.createHandlerFn(sectionRef, "handleAdd")',
-  'return this.renderMoreOptionsModal(sectionId)',
-]) {
-  if (!entrySource.includes(needle)) {
-    console.error(`FAIL: labeled section creation contract is missing: ${needle}`);
-    process.exit(1);
+// The table stays down to the switch and the protocol; the rest belongs in the dialog.
+for (const removedColumn of ["_endpoint_display", "_clients_display"]) {
+  if (source.includes(removedColumn)) {
+    fail(`the server table must not show the ${removedColumn} column`);
   }
 }
 
-if (entrySource.includes('cbi-section-create-name')) {
-  console.error('FAIL: section tables must not require a name before adding');
-  process.exit(1);
+// The details dialog names the server, shows one block per client and offers no
+// bulk copy button.
+requireSource('_("Server details: %s").format(getServerName(sectionId))');
+for (const removed of ["Copy all links", "fkp-server-info__tab", "Connect to this server"]) {
+  if (source.includes(removed)) {
+    fail(`the details dialog must not keep: ${removed}`);
+  }
+}
+if (source.includes("private or reserved")) {
+  fail("the details dialog must not warn about a private public address");
+}
+
+// A failed save is already reported on the offending field, so there is no banner.
+for (const removed of ["showServerValidationMessage", "fkp-server-validation-summary", "Cannot save server"]) {
+  if (source.includes(removed)) {
+    fail(`the save handler must not add a banner: ${removed}`);
+  }
+}
+
+for (const needle of [
+  "sectionRef.map.data.createSID(configName)",
+  'sectionRef.map.data.set(configName, sectionId, "label", label)',
+  "sectionRef.addLabeledSection = function ()",
+  "this.addLabeledSection()",
+  'click: ui.createHandlerFn(sectionRef, "handleAdd")',
+  "return this.renderMoreOptionsModal(sectionId)",
+]) {
+  if (!entrySource.includes(needle)) {
+    fail(`labeled section creation contract is missing: ${needle}`);
+  }
+}
+
+if (entrySource.includes("cbi-section-create-name")) {
+  fail("section tables must not require a name before adding");
 }
 
 const addSectionHelper = entrySource.match(
   /function addLabeledSection\([\s\S]*?\n}\n\nfunction getRuleEditButtonText\(/,
 );
-assert(addSectionHelper, 'labeled section helper not found');
-eval(addSectionHelper[0].slice(0, -'\n\nfunction getRuleEditButtonText('.length));
+assert(addSectionHelper, "labeled section helper not found");
+eval(addSectionHelper[0].slice(0, -"\n\nfunction getRuleEditButtonText(".length));
 
 for (const [sectiontype, expectedLabel] of [
-  ['section', 'Section #3'],
-  ['server', 'Server #3'],
+  ["section", "Section #3"],
+  ["server", "Server #3"],
 ]) {
   let savedLabel = null;
   const sectionRef = {
     sectiontype,
-    cfgsections: () => ['active-1', 'active-2'],
+    cfgsections: () => ["active-1", "active-2"],
     map: {
-      config: 'forkop',
+      config: "forkop",
       data: {
-        createSID: () => 'cfg-new',
-        add: () => 'cfg-new',
-        set: (_config, _sectionId, _option, value) => { savedLabel = value; },
+        createSID: () => "cfg-new",
+        add: () => "cfg-new",
+        set: (_config, _sectionId, _option, value) => {
+          savedLabel = value;
+        },
       },
     },
   };
 
-  assert.strictEqual(addLabeledSection(sectionRef), 'cfg-new');
+  assert.strictEqual(addLabeledSection(sectionRef), "cfg-new");
   assert.strictEqual(savedLabel, expectedLabel);
 }
 
-requireSource('const sectionId = this.addLabeledSection()');
+requireSource("const sectionId = this.addLabeledSection()");
 NODE
 
 if grep -R -n -E 'singBoxVariant|sing_box_(extended|tiny|tailscale)|GET_SERVER_CAPABILITIES|GetServerCapabilities|Install another build|startsWith\(.install_' \

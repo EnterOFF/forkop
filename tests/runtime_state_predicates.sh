@@ -959,7 +959,7 @@ ws
 
 [server.srv1.client_fingerprint]
 
-[server.srv1.vless_flow]
+[server.srv1.tcp_fast_open]
 
 [server.srv1.shadowsocks_method]
 
@@ -984,6 +984,8 @@ ws
 [server.srv1.hysteria2_obfs_password]
 
 [server.srv1.hysteria2_ignore_client_bandwidth]
+
+[server.srv1.hysteria2_masquerade]
 
 [server.srv1.naive_network]
 tcp
@@ -1039,10 +1041,12 @@ cubic
 1
 [server.srv1.tailscale_advertise_routes]
 
+[server.srv1.tailscale_advertise_tags]
+
 [server.srv1.tailscale_advertise_exit_node]
 
-[server.srv1.client.srv1_phone.enabled]
-1
+[server.srv1.tailscale_ephemeral]
+
 [server.srv1.client.srv1_phone.name]
 phone
 [server.srv1.client.srv1_phone.uuid]
@@ -1053,8 +1057,6 @@ phone
 
 [server.srv1.client.srv1_phone.flow]
 xtls-rprx-vision
-[server.srv1.client.srv1_laptop.enabled]
-0
 [server.srv1.client.srv1_laptop.name]
 laptop
 [server.srv1.client.srv1_laptop.uuid]

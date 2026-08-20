@@ -9,7 +9,21 @@ import {
 function load(sections = {}) {
   resetLuciViewCache();
   const uci = createUciStub(sections);
-  return { uci, validate: loadLuciView('server_validate', uci) };
+  return {
+    uci,
+    validate: loadLuciView('server', uci, [
+      'chooseDefaultPublicHost',
+      'validateAuthorizedKeys',
+      'validateInboundJson',
+      'validateListenPort',
+      'validateShadowsocksPassword',
+      'validateShortId',
+      'validateTailscaleHostname',
+      'validateRealityKey',
+      'validateOptionalMasquerade',
+      'validateTailscaleTags',
+    ]),
+  };
 }
 
 describe('Reality short ID validation', () => {
@@ -114,14 +128,14 @@ describe('raw inbound JSON validation', () => {
 
   it('rejects unsupported types, broken JSON and bad ports', () => {
     expect(validate.validateInboundJson('srv', '{"type":"nope"}')).toMatch(
-      /Unsupported/,
+      /no inbound of type/,
     );
     expect(validate.validateInboundJson('srv', '{')).toMatch(/Invalid JSON/);
     expect(validate.validateInboundJson('srv', '[]')).toMatch(/type field/);
     expect(
       validate.validateInboundJson('srv', '{"type":"mixed","listen_port":0}'),
     ).toMatch(/1 and 65535/);
-    expect(validate.validateInboundJson('srv', '')).toMatch(/cannot be empty/);
+    expect(validate.validateInboundJson('srv', '')).toMatch(/required/);
   });
 });
 

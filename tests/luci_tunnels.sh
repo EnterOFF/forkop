@@ -89,7 +89,7 @@ for (const needle of [
   '"tailscale_exit_node"',
   '"tailscale_detour_enabled"',
   '"tailscale_detour_section"',
-  '_("Control plane through section")',
+  '_("Coordination server through a section")',
   'main.getOutboundTagBySection',
   'exit_node_allow_lan_access: true',
   '_("Enter a Tailscale exit node")',
@@ -109,7 +109,7 @@ for (const needle of [
   'Leave empty to use the default value.',
   'Required. List of remote nodes to connect.',
   'Auth Key from the Tailscale admin console',
-  'Name shown in the Tailscale admin console.',
+  'The name this device appears under in the Tailscale console.',
   'Accept subnets advertised by other devices in your Tailscale network.',
 ]) {
   requireSource(section, needle);

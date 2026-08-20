@@ -1,6 +1,7 @@
 // Loads a LuCI view module the way LuCI does: the "require" prologue is resolved
-// against sibling view modules and a small set of stubs, and the trailing
-// baseclass.extend() call returns the module's exports.
+// against stubs, and the trailing baseclass.extend() call returns the module's
+// exports. A view keeps most of its logic private, so the caller may name the
+// internal functions it wants added to those exports.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -77,8 +78,10 @@ function defaultStubs(uci) {
   const element = () => ({
     setAttribute: noop,
     appendChild: noop,
+    addEventListener: noop,
+    replaceChildren: noop,
     querySelector: () => null,
-    style: {},
+    style: { setProperty: noop },
     classList: { add: noop, remove: noop, toggle: noop },
   });
 
@@ -86,7 +89,7 @@ function defaultStubs(uci) {
     uci,
     fs: { exec: () => Promise.resolve({ code: 0, stdout: '{}' }) },
     ui: { showModal: noop, hideModal: noop, Textfield: class {} },
-    dom: { append: noop, findClassInstance: () => null },
+    dom: { append: noop, content: noop, findClassInstance: () => null },
     form: {},
     rpc: { declare: () => () => Promise.resolve([]) },
     baseclass: { extend: (exports) => exports },
@@ -96,6 +99,21 @@ function defaultStubs(uci) {
       validatePath: (value) => ({
         valid: /^\/[A-Za-z0-9_./-]+$/.test(`${value}`),
       }),
+    },
+    // The Servers tab borrows the child item list widget from the Sections tab.
+    // Loading that tab would pull in its whole dependency tree, so the shared
+    // helpers stand in for it.
+    sectionui: {
+      ButtonAddSettingsDynamicList: class {},
+      addDynamicListItem: noop,
+      childItemInputValue: (_sectionId, value) => `${value ?? ''}`,
+      childPendingSettingsStore: () => ({}),
+      cleanupRemovedChildItems: noop,
+      isExistingChildItem: (_sectionId, itemId) =>
+        Boolean(uci.get('forkop', `${itemId}`, '.type')),
+      showChildItemSettingsModal: noop,
+      updateDynamicListItemLabel: noop,
+      validateUniqueDynamicListItemName: () => true,
     },
     window: {
       crypto: webcrypto,
@@ -114,15 +132,36 @@ function defaultStubs(uci) {
   };
 }
 
+// Adds the named internals to the object the module hands to baseclass.extend().
+function exposeInternals(source, names) {
+  if (!names.length) {
+    return source;
+  }
+
+  const marker = 'return baseclass.extend({';
+  const at = source.lastIndexOf(marker);
+  if (at < 0) {
+    throw new Error('module does not end in baseclass.extend({ ... })');
+  }
+
+  const injected = names.map((name) => `  ${name},`).join('\n');
+  return `${source.slice(0, at + marker.length)}\n${injected}${source.slice(
+    at + marker.length,
+  )}`;
+}
+
 const cache = new Map();
 
-export function loadLuciView(name, uci) {
-  const key = `${name}`;
+export function loadLuciView(name, uci, expose = []) {
+  const key = `${name}:${expose.join(',')}`;
   if (cache.has(key)) {
     return cache.get(key);
   }
 
-  const source = fs.readFileSync(path.join(viewDir, `${name}.js`), 'utf8');
+  const source = exposeInternals(
+    fs.readFileSync(path.join(viewDir, `${name}.js`), 'utf8'),
+    expose,
+  );
   const stubs = defaultStubs(uci);
   const args = [];
   const argValues = [];
@@ -140,15 +179,7 @@ export function loadLuciView(name, uci) {
     const [, module, alias] = required;
     const binding = alias || module;
     args.push(binding);
-    // main.js is the generated application bundle; the tests only need the few
-    // helpers the server modules read from it, so the stub stands in for it.
-    const sibling =
-      module.startsWith('view.forkop.') && module !== 'view.forkop.main'
-        ? module.slice('view.forkop.'.length)
-        : '';
-    argValues.push(
-      sibling ? loadLuciView(sibling, uci) : stubs[alias || module],
-    );
+    argValues.push(stubs[binding]);
   }
 
   for (const [binding, value] of Object.entries(stubs)) {

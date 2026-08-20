@@ -23,7 +23,7 @@ function load(server, client = {}) {
   });
   return {
     uci,
-    link: loadLuciView('server_link', uci),
+    link: loadLuciView('server', uci, ['buildClientLinks']),
     client: {
       id: 'cfg1',
       enabled: true,
@@ -57,7 +57,7 @@ describe('VLESS links', () => {
       { uuid: UUID, flow: 'xtls-rprx-vision' },
     );
 
-    const [url] = link.buildClientLinks('srv', client);
+    const [{ link: url }] = link.buildClientLinks('srv', client);
 
     expect(url.startsWith(`vless://${UUID}@203.0.113.9:30000?`)).toBe(true);
     expect(query(url)).toMatchObject({
@@ -96,7 +96,7 @@ describe('VLESS links', () => {
       { uuid: UUID },
     );
 
-    const [url] = link.buildClientLinks('srv', client);
+    const [{ link: url }] = link.buildClientLinks('srv', client);
 
     expect(query(url)).toMatchObject({
       security: 'tls',
@@ -122,7 +122,7 @@ describe('VLESS links', () => {
     );
 
     expect(
-      query(link.buildClientLinks('srv', client)[0]).insecure,
+      query(link.buildClientLinks('srv', client)[0].link).insecure,
     ).toBeUndefined();
   });
 });
@@ -140,7 +140,7 @@ describe('Trojan links', () => {
       { password: 'secret-password' },
     );
 
-    const [url] = link.buildClientLinks('srv', client);
+    const [{ link: url }] = link.buildClientLinks('srv', client);
 
     expect(url.startsWith('trojan://secret-password@203.0.113.9:30000?')).toBe(
       true,
@@ -171,7 +171,7 @@ describe('VMess links', () => {
       { uuid: UUID },
     );
 
-    const [url] = link.buildClientLinks('srv', client);
+    const [{ link: url }] = link.buildClientLinks('srv', client);
     expect(url.startsWith('vmess://')).toBe(true);
 
     const payload = JSON.parse(
@@ -207,7 +207,7 @@ describe('Shadowsocks links', () => {
       { password: clientKey },
     );
 
-    const [url] = link.buildClientLinks('srv', client);
+    const [{ link: url }] = link.buildClientLinks('srv', client);
     const userInfo = url.slice('ss://'.length, url.indexOf('@'));
 
     expect(Buffer.from(userInfo, 'base64url').toString('utf8')).toBe(
@@ -221,7 +221,7 @@ describe('Shadowsocks links', () => {
       { password: 'plain-password' },
     );
 
-    const [url] = link.buildClientLinks('srv', client);
+    const [{ link: url }] = link.buildClientLinks('srv', client);
     const userInfo = url.slice('ss://'.length, url.indexOf('@'));
 
     expect(Buffer.from(userInfo, 'base64url').toString('utf8')).toBe(
@@ -238,8 +238,14 @@ describe('SOCKS5 / HTTP links', () => {
     );
 
     expect(link.buildClientLinks('srv', client)).toEqual([
-      'socks5://alice:p%40ss%20word@203.0.113.9:30000#alice',
-      'http://alice:p%40ss%20word@203.0.113.9:30000#alice',
+      {
+        title: 'SOCKS5',
+        link: 'socks5://alice:p%40ss%20word@203.0.113.9:30000#alice',
+      },
+      {
+        title: 'HTTP',
+        link: 'http://alice:p%40ss%20word@203.0.113.9:30000#alice',
+      },
     ]);
   });
 
@@ -250,8 +256,8 @@ describe('SOCKS5 / HTTP links', () => {
     );
 
     expect(link.buildClientLinks('srv', client)).toEqual([
-      'socks5://203.0.113.9:30000#alice',
-      'http://203.0.113.9:30000#alice',
+      { title: 'SOCKS5', link: 'socks5://203.0.113.9:30000#alice' },
+      { title: 'HTTP', link: 'http://203.0.113.9:30000#alice' },
     ]);
   });
 });
@@ -272,7 +278,7 @@ describe('QUIC protocol links', () => {
     );
     const pin = '0'.repeat(64);
 
-    const [url] = link.buildClientLinks('srv', client, {
+    const [{ link: url }] = link.buildClientLinks('srv', client, {
       tlsCertificateSha256: pin,
     });
 
@@ -303,7 +309,7 @@ describe('QUIC protocol links', () => {
       { uuid: UUID, password: 'secret-password' },
     );
 
-    const [url] = link.buildClientLinks('srv', client);
+    const [{ link: url }] = link.buildClientLinks('srv', client);
 
     expect(
       url.startsWith(`tuic://${UUID}:secret-password@203.0.113.9:30000?`),
@@ -321,7 +327,7 @@ describe('QUIC protocol links', () => {
       { password: 'secret-password' },
     );
 
-    const [url] = link.buildClientLinks('srv', client);
+    const [{ link: url }] = link.buildClientLinks('srv', client);
 
     expect(url.startsWith('anytls://secret-password@203.0.113.9:30000?')).toBe(
       true,
@@ -341,7 +347,7 @@ describe('other protocol links', () => {
       },
       { name: 'alice', password: 'secret-password' },
     );
-    expect(tcp.link.buildClientLinks('srv', tcp.client)[0]).toContain(
+    expect(tcp.link.buildClientLinks('srv', tcp.client)[0].link).toContain(
       'naive+https://alice:secret-password@',
     );
 
@@ -354,7 +360,7 @@ describe('other protocol links', () => {
       },
       { name: 'alice', password: 'secret-password' },
     );
-    expect(quic.link.buildClientLinks('srv', quic.client)[0]).toContain(
+    expect(quic.link.buildClientLinks('srv', quic.client)[0].link).toContain(
       'naive+quic://alice:secret-password@',
     );
   });
@@ -365,7 +371,7 @@ describe('other protocol links', () => {
       { secret: 'a'.repeat(32) },
     );
 
-    const [url] = link.buildClientLinks('srv', client);
+    const [{ link: url }] = link.buildClientLinks('srv', client);
     const params = query(url);
 
     expect(url.startsWith('https://t.me/proxy?')).toBe(true);

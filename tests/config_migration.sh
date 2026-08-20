@@ -609,8 +609,10 @@ for (const name of Object.keys(servers)) {
   absent(servers[name], 'vmess_alter_id', name);
   absent(servers[name], 'socks_auth_enabled', name);
 }
-for (const client of config.server_client || [])
-  assert(client.enabled === '1' && `${client.name || ''}` !== '', 'every migrated client needs a name and an enabled flag');
+for (const client of config.server_client || []) {
+  assert(`${client.name || ''}` !== '', 'every migrated client needs a name');
+  absent(client, 'enabled', client.name);
+}
 
 assert(out.removed_caches.includes('/tmp/sing-box/subscriptions/legacy-sub.json'), 'subscription runtime cache removal');
 for (const path of [

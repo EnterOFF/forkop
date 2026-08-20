@@ -277,6 +277,9 @@ function add_standard_inbound(config, section, protocol, tag_name) {
         let obfs_password = option(section, "hysteria2_obfs_password", "");
         if (obfs_type != "" && obfs_password != "")
             inbound.obfs = { type: obfs_type, password: obfs_password };
+        // sing-box reads a masquerade URL as a string and picks the mode from its
+        // scheme, so the single form field is passed through unchanged.
+        maybe_string(inbound, "masquerade", option(section, "hysteria2_masquerade", ""));
     }
     else if (protocol == "naive") {
         inbound.users = users(section, protocol);
@@ -333,6 +336,9 @@ function add_standard_inbound(config, section, protocol, tag_name) {
         inbound.users = users(section, protocol);
     }
 
+    if (bool_option(section, "tcp_fast_open", false))
+        inbound.tcp_fast_open = true;
+
     apply_tls(inbound, section, protocol);
     apply_transport(inbound, section, protocol);
     apply_multiplex(inbound, section, protocol);
@@ -372,9 +378,14 @@ function add_tailscale_endpoint(config, section, tag_name) {
     }
     if (bool_option(section, "tailscale_accept_routes", false))
         endpoint.accept_routes = true;
+    if (bool_option(section, "tailscale_ephemeral", false))
+        endpoint.ephemeral = true;
     let advertise_routes = list_option(section, "tailscale_advertise_routes");
     if (length(advertise_routes) > 0)
         endpoint.advertise_routes = advertise_routes;
+    let advertise_tags = list_option(section, "tailscale_advertise_tags");
+    if (length(advertise_tags) > 0)
+        endpoint.advertise_tags = advertise_tags;
     push(config.endpoints, endpoint);
 }
 
@@ -482,5 +493,6 @@ function clone_rules_for_inbound(config, source_inbound, target_inbound, skip_do
 return {
     add_server,
     add_sniff_rule,
-    clone_rules_for_inbound
+    clone_rules_for_inbound,
+    effective_security
 };

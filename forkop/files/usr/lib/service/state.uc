@@ -968,7 +968,7 @@ function append_sing_box_server_signature_body(body, server) {
         [ "transport_hosts", "" ],
         [ "transport_xhttp_mode", "" ],
         [ "client_fingerprint", "" ],
-        [ "vless_flow", "" ],
+        [ "tcp_fast_open", "" ],
         [ "shadowsocks_method", "" ],
         [ "shadowsocks_psk", "" ],
         [ "multiplex_enabled", "" ],
@@ -981,6 +981,7 @@ function append_sing_box_server_signature_body(body, server) {
         [ "hysteria2_obfs_type", "" ],
         [ "hysteria2_obfs_password", "" ],
         [ "hysteria2_ignore_client_bandwidth", "" ],
+        [ "hysteria2_masquerade", "" ],
         [ "naive_network", "tcp" ],
         [ "naive_quic_congestion_control", "bbr" ],
         [ "ssh_host_key_path", "" ],
@@ -1008,7 +1009,9 @@ function append_sing_box_server_signature_body(body, server) {
         [ "tailscale_hostname", "" ],
         [ "tailscale_accept_routes", "" ],
         [ "tailscale_advertise_routes", "" ],
-        [ "tailscale_advertise_exit_node", "" ]
+        [ "tailscale_advertise_tags", "" ],
+        [ "tailscale_advertise_exit_node", "" ],
+        [ "tailscale_ephemeral", "" ]
     ];
 
     for (let field in fields)
@@ -1016,9 +1019,8 @@ function append_sing_box_server_signature_body(body, server) {
 
     // Clients decide who the inbound accepts, so a changed, added or removed client
     // has to move the signature the same way a server option does.
-    for (let client in connections.server_client_sections(server)) {
+    for (let client in connections.server_clients(server)) {
         let client_prefix = prefix + ".client." + section_name(client);
-        body = signature_add_value(body, client_prefix + ".enabled", bool_option_value(client, "enabled", true));
         for (let field in [ "name", "uuid", "password", "secret", "flow" ])
             body = signature_add_value(body, client_prefix + "." + field, option(client, field, ""));
         for (let value in list_option(client, "authorized_keys"))

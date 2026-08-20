@@ -15,6 +15,7 @@ let core_version = require("core.version");
 let connections = require("config.connections");
 let singbox_constants = require("singbox.constants");
 let runtime_dns = require("singbox.dns");
+let runtime_servers = require("singbox.servers");
 let subscription_headers_module = require("singbox.subscription_headers");
 
 let as_string = core_common.as_string;
@@ -1691,6 +1692,51 @@ function validate_server_listen_ports() {
     }
 }
 
+// Security material a protocol cannot start without. sing-box reads it straight
+// from the inbound, so an empty value is a start-up failure rather than a default.
+function validate_server_security(server, protocol, name) {
+    let security = runtime_servers.effective_security(server, protocol);
+
+    if (security == "reality") {
+        if (option(server, "tls_server_name", "") == "")
+            fail_validation("Server '" + name + "' uses Reality and needs an SNI. Aborted.");
+        if (option(server, "reality_handshake_server", "") == "")
+            fail_validation("Server '" + name + "' uses Reality and needs a camouflage site. Aborted.");
+        for (let field in [ "reality_private_key", "reality_public_key" ]) {
+            let key = option(server, field, "");
+            if (key == "")
+                fail_validation("Server '" + name + "' has no " + field + ". Generate a Reality key pair. Aborted.");
+            if (match(key, /^[A-Za-z0-9_-]{43}$/) == null)
+                fail_validation("Server '" + name + "' has an invalid " + field + ". Aborted.");
+        }
+        let short_ids = list_option(server, "reality_short_id");
+        if (length(short_ids) == 0)
+            fail_validation("Server '" + name + "' uses Reality and needs a short ID. Aborted.");
+        for (let short_id in short_ids) {
+            short_id = as_string(short_id);
+            if (match(short_id, /^([0-9a-fA-F]{2})+$/) == null)
+                fail_validation("Server '" + name + "' short ID '" + short_id + "' must use an even number of hex digits. Aborted.");
+            if (length(short_id) > 16)
+                fail_validation("Server '" + name + "' short ID '" + short_id + "' is longer than 16 hex digits. Aborted.");
+        }
+    }
+    else if (security == "tls") {
+        let certificate = option(server, "tls_certificate_path", "");
+        let key = option(server, "tls_key_path", "");
+        if (certificate == "" || key == "")
+            fail_validation("Server '" + name + "' uses TLS and needs a certificate and a key. Aborted.");
+        if (certificate == key)
+            fail_validation("Server '" + name + "' uses the same file as its certificate and its key. Aborted.");
+    }
+
+    if (protocol == "hysteria2" && option(server, "hysteria2_obfs_type", "") != "" &&
+        option(server, "hysteria2_obfs_password", "") == "")
+        fail_validation("Server '" + name + "' enables obfuscation and needs an obfuscation password. Aborted.");
+
+    if (protocol == "mtproto" && option(server, "mtproto_faketls", "") == "")
+        fail_validation("Server '" + name + "' needs a FakeTLS domain. Aborted.");
+}
+
 function validate_server_clients_and_ports(sections) {
     validate_server_listen_ports();
 
@@ -1704,6 +1750,7 @@ function validate_server_clients_and_ports(sections) {
             fail_validation("Server '" + section_name(server) + "' uses unsupported protocol '" + protocol + "'. Aborted.");
 
         validate_server_clients(server, protocol, section_name(server));
+        validate_server_security(server, protocol, section_name(server));
     }
 }
 

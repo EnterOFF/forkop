@@ -17,7 +17,29 @@ const CREDENTIALS = new Set([
 function load(sections = {}) {
   resetLuciViewCache();
   const uci = createUciStub(sections);
-  return { uci, spec: loadLuciView('server_spec', uci) };
+  return {
+    uci,
+    spec: loadLuciView('server', uci, [
+      'buildMtprotoFullSecret',
+      'credentialFields',
+      'generateCredential',
+      'getEffectiveSecurity',
+      'getShadowsocksMethod',
+      'isAuthenticationEnabled',
+      'isShadowsocks2022',
+      'normalizeMtprotoBaseSecret',
+      'protocolLabel',
+      'securitiesFor',
+      'usesClients',
+      'usesLoginName',
+      'PROTOCOLS',
+      'CAMOUFLAGE_SITES',
+      'isHost',
+      'randomItem',
+      'randomPort',
+      'slugify',
+    ]),
+  };
 }
 
 describe('server protocol spec', () => {
@@ -29,9 +51,8 @@ describe('server protocol spec', () => {
   });
 
   it('describes every protocol it offers', () => {
-    for (const protocol of spec.protocolIds()) {
+    for (const protocol of spec.PROTOCOLS.map((entry) => entry.id)) {
       expect(spec.protocolLabel(protocol), protocol).toBeTruthy();
-      expect(spec.protocolSummary(protocol), protocol).toBeTruthy();
       expect(spec.securitiesFor(protocol).length, protocol).toBeGreaterThan(0);
       for (const field of spec.credentialFields(protocol)) {
         expect(CREDENTIALS.has(field), `${protocol}.${field}`).toBe(true);
@@ -40,7 +61,7 @@ describe('server protocol spec', () => {
   });
 
   it('keeps Tailscale first and the raw JSON inbound last', () => {
-    const ids = spec.protocolIds();
+    const ids = spec.PROTOCOLS.map((entry) => entry.id);
     expect(ids[0]).toBe('tailscale');
     expect(ids.at(-1)).toBe('json_inbound');
     expect(ids).not.toContain('socks');
@@ -48,7 +69,7 @@ describe('server protocol spec', () => {
   });
 
   it('gives every login protocol a password and an account name', () => {
-    for (const protocol of spec.protocolIds()) {
+    for (const protocol of spec.PROTOCOLS.map((entry) => entry.id)) {
       if (!spec.usesLoginName(protocol)) continue;
       expect(spec.credentialFields(protocol), protocol).toContain('password');
     }
@@ -68,43 +89,26 @@ describe('server protocol spec', () => {
     expect(spec.getEffectiveSecurity('srv')).toBe('tls');
   });
 
-  it('writes the defaults a fresh listener needs exactly once', () => {
-    spec.applyProtocolDefaults('srv', 'vless', true);
+  it('turns a display name into a DNS label the generate button can offer', () => {
+    expect(spec.slugify('Мой сервер', 'srv')).toBe('moi-server');
+    expect(spec.slugify('  ', 'srv')).toBe('srv');
+  });
 
-    expect(uci.get('forkop', 'srv', 'protocol')).toBe('vless');
-    expect(uci.get('forkop', 'srv', 'security')).toBe('reality');
-    expect(uci.get('forkop', 'srv', 'listen')).toBe('0.0.0.0');
-    expect(uci.get('forkop', 'srv', 'transport')).toBe('tcp');
-    expect(uci.get('forkop', 'srv', 'reality_short_id')).toMatch(
-      /^[0-9a-f]{8}$/,
+  it('offers camouflage sites as a choice and never as a default', () => {
+    expect(spec.CAMOUFLAGE_SITES.length).toBeGreaterThanOrEqual(5);
+    for (const site of spec.CAMOUFLAGE_SITES) {
+      expect(spec.isHost(site), site).toBe(true);
+    }
+    expect(spec.CAMOUFLAGE_SITES).toContain(
+      spec.randomItem(spec.CAMOUFLAGE_SITES),
     );
-    // A random high port keeps a new server away from 443, where LuCI often is.
-    const port = Number(uci.get('forkop', 'srv', 'listen_port'));
+  });
+
+  it('picks a listen port outside the range LuCI usually holds', () => {
+    const port = Number(spec.randomPort());
+
     expect(port).toBeGreaterThanOrEqual(20000);
     expect(port).toBeLessThan(50000);
-
-    const previousPort = uci.get('forkop', 'srv', 'listen_port');
-    spec.applyProtocolDefaults('srv', 'vless', false);
-    expect(uci.get('forkop', 'srv', 'listen_port')).toBe(previousPort);
-  });
-
-  it('resets the security mode when the protocol changes', () => {
-    spec.applyProtocolDefaults('srv', 'vless', true);
-    spec.applyProtocolDefaults('srv', 'shadowsocks', true);
-
-    expect(uci.get('forkop', 'srv', 'security')).toBe('none');
-    expect(uci.get('forkop', 'srv', 'shadowsocks_method')).toBe(
-      '2022-blake3-aes-128-gcm',
-    );
-    expect(uci.get('forkop', 'srv', 'shadowsocks_psk')).toMatch(
-      /^[A-Za-z0-9+/]{21}[A-Za-z0-9+/=]{3}$/,
-    );
-  });
-
-  it('derives the Tailscale hostname from the label as a DNS label', () => {
-    uci.set('forkop', 'srv', 'label', 'Мой сервер');
-
-    expect(spec.defaultTailscaleHostname('srv')).toBe('forkop-moi-server');
   });
 
   it('generates credentials the protocol can use', () => {

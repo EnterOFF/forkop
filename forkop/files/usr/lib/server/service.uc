@@ -1,8 +1,6 @@
 #!/usr/bin/env ucode
 
 let fs = require("fs");
-let core_ip = require("core.ip");
-let core_url = require("core.url");
 let uci = require("core.uci");
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
@@ -111,10 +109,6 @@ function regex_matches(value, pattern) {
     }
 }
 
-function valid_dotted_ipv4(value) {
-    return regex_matches(value, "^([0-9]{1,3}\\.){3}[0-9]{1,3}$");
-}
-
 function valid_file_path(value) {
     value = as_string(value);
     return value != "" &&
@@ -133,10 +127,6 @@ function str_remove_suffix(value, suffix) {
     value = as_string(value);
     suffix = as_string(suffix);
     return str_endswith(value, suffix) ? substr(value, 0, length(value) - length(suffix)) : value;
-}
-
-function valid_ipv4(value) {
-    return core_ip.valid_ipv4(value, false, false);
 }
 
 function mtproto_base_secret_value(value) {
@@ -238,40 +228,6 @@ function pem_block(data, begin_marker, end_marker) {
 
 function valid_sha256_hex(value) {
     return regex_matches(value, "^[0-9a-f]{64}$");
-}
-
-function random_hex_bytes(bytes) {
-    bytes = int(bytes || 0);
-    if (bytes <= 0)
-        return "";
-    return replace(output("head -c " + bytes + " /dev/urandom | hexdump -ve '1/1 \"%02x\"' 2>/dev/null"), /[\r\n]+/g, "");
-}
-
-function random_base64_bytes(bytes) {
-    bytes = int(bytes || 0);
-    if (bytes <= 0)
-        return "";
-    return replace(output("head -c " + bytes + " /dev/urandom | base64 2>/dev/null"), /[[:space:]]/g, "");
-}
-
-function server_generate_uuid() {
-    let value = as_string(fs.readfile("/proc/sys/kernel/random/uuid") || "");
-    return trim(value);
-}
-
-function server_generate_password() {
-    return random_base64_bytes(18);
-}
-
-function server_generate_short_id() {
-    return random_hex_bytes(4);
-}
-
-function server_generate_mtproto_secret() {
-    let random_hex = random_hex_bytes(16);
-    if (random_hex == "00000000000000000000000000000000")
-        random_hex = "11111111111111111111111111111111";
-    return random_hex;
 }
 
 function default_security_value(protocol) {
@@ -420,36 +376,6 @@ function get_tls_certificate_sha256_cli(section) {
     tls_fingerprint_response(fingerprint);
 }
 
-function network_status_ipv4_address(data) {
-    try {
-        data = json(as_string(data));
-    }
-    catch (e) {
-        return "";
-    }
-
-    let addresses = data["ipv4-address"];
-    if (type(addresses) != "array")
-        return "";
-
-    for (let item in addresses)
-        if (type(item) == "object" && as_string(item.address) != "")
-            return as_string(item.address);
-
-    return "";
-}
-
-function server_detect_default_public_host() {
-    for (let interface in [ "wan", "wwan" ]) {
-        let ip = network_status_ipv4_address(output("ubus -S call " + shell_quote("network.interface." + interface) + " status 2>/dev/null"));
-        if (core_ip.valid_public_ipv4(ip))
-            return ip;
-    }
-
-    let lan_ip = uci_get("network.lan.ipaddr");
-    return valid_dotted_ipv4(lan_ip) ? lan_ip : "";
-}
-
 function safe_filename_string(value) {
     value = as_string(value);
     let result = [];
@@ -466,10 +392,13 @@ function server_prepare_tls_defaults(section, protocol, security) {
     if (config_get(section, "enabled", "1") == "0")
         return;
 
+    // Only the subject of the generated certificate; nothing is stored, because an
+    // empty SNI is a valid TLS server and the form asks for one when Reality needs it.
     let tls_server_name = config_get(section, "tls_server_name", "");
     if (tls_server_name == "")
-        tls_server_name = "www.microsoft.com";
-    server_default_set_option(section, "tls_server_name", tls_server_name);
+        tls_server_name = config_get(section, "public_host", "");
+    if (tls_server_name == "")
+        tls_server_name = as_string(section);
 
     let certificate_path = config_get(section, "tls_certificate_path", "");
     let key_path = config_get(section, "tls_key_path", "");
@@ -560,11 +489,6 @@ const SHADOWSOCKS_2022_KEY_BYTES = {
 };
 const LOGIN_NAME_PROTOCOLS = { mixed: true, naive: true, ssh: true, mieru: true };
 
-function shadowsocks_key_bytes(method) {
-    let value = SHADOWSOCKS_2022_KEY_BYTES[as_string(method)];
-    return value == null ? 0 : value;
-}
-
 function server_client_sections(section) {
     let result = [];
     for (let client in uci_sections("server_client"))
@@ -585,41 +509,14 @@ function login_safe_name(value, fallback) {
     return result == "" ? as_string(fallback) : result;
 }
 
-function server_generate_credential(section, protocol, field) {
-    if (field == "uuid")
-        return server_generate_uuid();
-    if (field == "secret")
-        return server_generate_mtproto_secret();
-    if (field == "password") {
-        if (protocol == "shadowsocks") {
-            let key_bytes = shadowsocks_key_bytes(config_get(section, "shadowsocks_method", ""));
-            if (key_bytes > 0)
-                return random_base64_bytes(key_bytes);
-        }
-        return server_generate_password();
-    }
-    return "";
-}
-
-// A server without accounts accepts nobody, so a configuration written straight
-// through uci gets one generated client instead of an inbound with no users.
+// Client names and MTProto secrets are normalised, never invented: a client with
+// no credentials is reported by the validator instead of being given one here.
 function prepare_server_clients(section, protocol) {
     let fields = SERVER_PROTOCOLS[protocol];
     if (fields == null || length(fields) == 0)
         return;
 
-    let clients = server_client_sections(section);
-    if (length(clients) == 0) {
-        let created = uci.add(CONFIG_NAME, "server_client");
-        if (created == "")
-            fatal("Failed to create the default client for server '" + section + "'. Aborted.");
-        SERVER_DEFAULTS_CHANGED = true;
-        uci_set(config_path(created, "server"), as_string(section));
-        uci_set(config_path(created, "enabled"), "1");
-        push(clients, created);
-    }
-
-    for (let client in clients) {
+    for (let client in server_client_sections(section)) {
         let name = trim(config_get(client, "name", ""));
         if (LOGIN_NAME_PROTOCOLS[protocol]) {
             // The LuCI form transliterates a display name into an account name. A
@@ -642,10 +539,6 @@ function prepare_server_clients(section, protocol) {
             if (faketls != "")
                 server_set_option(section, "mtproto_faketls", faketls);
         }
-
-        for (let field in fields)
-            if (uci_get(config_path(client, field)) == "")
-                server_set_option(client, field, server_generate_credential(section, protocol, field));
     }
 }
 
@@ -668,51 +561,19 @@ function prepare_server_defaults(section) {
     server_set_option(section, "security", security);
 
     if (protocol == "tailscale") {
-        let safe_name = safe_filename_string(section);
         server_default_set_option(section, "tailscale_control_url", "https://controlplane.tailscale.com");
-        server_default_set_option(section, "tailscale_hostname", "forkop-" + safe_name);
         return;
     }
 
     server_default_set_option(section, "listen", "0.0.0.0");
-    server_default_set_option(section, "listen_port", "443");
-    server_default_set_option(section, "public_host", server_detect_default_public_host());
 
-    if (protocol == "shadowsocks") {
-        let method = config_get(section, "shadowsocks_method", "");
-        if (method == "") {
-            method = "2022-blake3-aes-128-gcm";
-            server_default_set_option(section, "shadowsocks_method", method);
-        }
-        let key_bytes = shadowsocks_key_bytes(method);
-        if (key_bytes > 0 && uci_get(config_path(section, "shadowsocks_psk")) == "")
-            server_set_option(section, "shadowsocks_psk", random_base64_bytes(key_bytes));
-    }
-
-    if (protocol == "mtproto")
-        server_default_set_option(section, "mtproto_faketls", "google.com");
+    if (protocol == "shadowsocks")
+        server_default_set_option(section, "shadowsocks_method", "2022-blake3-aes-128-gcm");
 
     if (protocol == "ssh")
         server_prepare_ssh_host_key(section);
 
     prepare_server_clients(section, protocol);
-
-    if (security == "reality") {
-        if (uci_get(config_path(section, "reality_short_id")) == "")
-            server_default_set_option(section, "reality_short_id", server_generate_short_id());
-
-        let reality_private_key = uci_get(config_path(section, "reality_private_key"));
-        let reality_public_key = uci_get(config_path(section, "reality_public_key"));
-        if (reality_private_key == "" || reality_public_key == "") {
-            log("Generating Reality key pair for server '" + section + "'", "info");
-            let pair = generate_reality_keypair_values();
-            if (pair == null)
-                fatal("Failed to generate Reality key pair for server '" + section + "'. Aborted.");
-            server_set_option(section, "reality_private_key", pair.private_key);
-            server_set_option(section, "reality_public_key", pair.public_key);
-        }
-    }
-
     server_prepare_tls_defaults(section, protocol, security);
 }
 

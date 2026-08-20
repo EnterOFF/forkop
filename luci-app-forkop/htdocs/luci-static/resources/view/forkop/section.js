@@ -5051,19 +5051,18 @@ function showTunnelSettingsModal(
   const tailscaleHostnameOption = itemSection.option(
     form.Value,
     "tailscale_hostname",
-    _("Tailscale hostname"),
-    _("Name shown in the Tailscale admin console."),
+    _("Device name"),
+    _("The name this device appears under in the Tailscale console."),
   );
+  tailscaleHostnameOption.placeholder = "forkop-router";
   tailscaleHostnameOption.rmempty = false;
   tailscaleHostnameOption.depends("tunnel_type", "tailscale");
 
   const tailscaleControlUrlOption = itemSection.option(
     form.Value,
     "tailscale_control_url",
-    _("Tailscale control URL"),
-    _(
-      "Address of the coordination server. Change it if you use a custom server.",
-    ),
+    _("Coordination server"),
+    _("Change only for a self-hosted Headscale."),
   );
   tailscaleControlUrlOption.default = "https://controlplane.tailscale.com";
   tailscaleControlUrlOption.rmempty = false;
@@ -5076,8 +5075,8 @@ function showTunnelSettingsModal(
   const tailscaleDetourEnabledOption = itemSection.option(
     form.Flag,
     "tailscale_detour_enabled",
-    _("Control plane through section"),
-    _("Connect to the coordination server through a section"),
+    _("Coordination server through a section"),
+    _("Reach the coordination server through a section instead of the WAN."),
   );
   tailscaleDetourEnabledOption.default = "0";
   tailscaleDetourEnabledOption.rmempty = false;
@@ -5086,7 +5085,7 @@ function showTunnelSettingsModal(
   const tailscaleDetourSectionOption = itemSection.option(
     form.ListValue,
     "tailscale_detour_section",
-    _("Control plane through"),
+    _("Section"),
   );
   refreshOutboundDetourSectionOptionValues(
     tailscaleDetourSectionOption,
@@ -8423,10 +8422,22 @@ function validateUniqueDynamicListItemName(widget, itemNode, value) {
 }
 
 const EntryPoint = {
+  // The child item list widget and its stacked settings dialog are shared with the
+  // Servers tab, which lists server clients the same way this tab lists interfaces,
+  // URLTests and tunnels.
+  ButtonAddSettingsDynamicList,
+  addDynamicListItem,
+  childItemInputValue,
+  childPendingSettingsStore,
+  cleanupRemovedChildItems,
   configureSectionSection,
   configureTextareaOption,
   createSectionContent,
+  isExistingChildItem,
   setActionProvidersAvailabilityLoader,
+  showChildItemSettingsModal,
+  updateDynamicListItemLabel,
+  validateUniqueDynamicListItemName,
 };
 
 return baseclass.extend(EntryPoint);

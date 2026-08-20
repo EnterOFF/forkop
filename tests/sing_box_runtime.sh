@@ -554,7 +554,6 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       ".name": "edge_tester",
       ".type": "server_client",
       "server": "edge",
-      "enabled": "1",
       "name": "tester",
       "password": "secret"
     },
@@ -562,7 +561,6 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       ".name": "open_ignored",
       ".type": "server_client",
       "server": "open",
-      "enabled": "1",
       "name": "ignored",
       "password": "ignored"
     },
@@ -570,7 +568,6 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       ".name": "mtproxy_phone",
       ".type": "server_client",
       "server": "mtproxy",
-      "enabled": "1",
       "name": "phone",
       "secret": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     },
@@ -578,7 +575,6 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       ".name": "naive_user",
       ".type": "server_client",
       "server": "naive",
-      "enabled": "1",
       "name": "naive-user",
       "password": "naive-password"
     },
@@ -586,7 +582,6 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       ".name": "ssh_user",
       ".type": "server_client",
       "server": "ssh",
-      "enabled": "1",
       "name": "ssh-user",
       "password": "ssh-password",
       "authorized_keys": [ "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 user@host" ]
@@ -595,7 +590,6 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       ".name": "mieru_user",
       ".type": "server_client",
       "server": "mieru",
-      "enabled": "1",
       "name": "mieru-user",
       "password": "mieru-password"
     },
@@ -603,7 +597,6 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       ".name": "anytls_user",
       ".type": "server_client",
       "server": "anytls",
-      "enabled": "1",
       "name": "anytls-client",
       "password": "anytls-password"
     },
@@ -611,7 +604,6 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       ".name": "tuic_user",
       ".type": "server_client",
       "server": "tuic",
-      "enabled": "1",
       "name": "tuic-client",
       "uuid": "33333333-3333-4333-8333-333333333333",
       "password": "tuic-password"
@@ -620,7 +612,6 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       ".name": "vlessmux_phone",
       ".type": "server_client",
       "server": "vlessmux",
-      "enabled": "1",
       "name": "phone",
       "uuid": "44444444-4444-4444-8444-444444444444",
       "flow": "xtls-rprx-vision"
@@ -629,23 +620,13 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       ".name": "vlessmux_laptop",
       ".type": "server_client",
       "server": "vlessmux",
-      "enabled": "1",
       "name": "laptop",
       "uuid": "55555555-5555-4555-8555-555555555555"
-    },
-    {
-      ".name": "vlessmux_retired",
-      ".type": "server_client",
-      "server": "vlessmux",
-      "enabled": "0",
-      "name": "retired",
-      "uuid": "66666666-6666-4666-8666-666666666666"
     },
     {
       ".name": "ss2022_phone",
       ".type": "server_client",
       "server": "ss2022",
-      "enabled": "1",
       "name": "phone",
       "password": "Y2xpZW50LXByZXNoYXJlZC1rZXk="
     }
@@ -1349,9 +1330,9 @@ assert(tuic.congestion_control == "bbr" && tuic.auth_timeout == "4s" && tuic.hea
 assert(tuic.tls && tuic.tls.enabled === true, "TUIC inbound TLS");
 
 // Every protocol sing-box serves takes a user list, so one server can carry several
-// accounts and a disabled account has to stay out of the generated inbound.
+// accounts, each with its own identity.
 let vless_mux = inbound(server, "VLESS mux");
-assert(vless_mux && length(vless_mux.users) == 2, "a server accepts every enabled client");
+assert(vless_mux && length(vless_mux.users) == 2, "a server accepts every client");
 assert(vless_mux.users[0].name == "phone" && vless_mux.users[0].uuid == "44444444-4444-4444-8444-444444444444", "the first client keeps its own identity");
 assert(vless_mux.users[0].flow == "xtls-rprx-vision" && vless_mux.users[1].flow == null, "VLESS flow is a per-client setting");
 assert(vless_mux.users[1].name == "laptop", "the second client keeps its own identity");

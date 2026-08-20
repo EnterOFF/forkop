@@ -9406,6 +9406,10 @@ var FORKOP_MASK_AFTER_TOKEN = [
   "option server_username",
   "option server_password",
   "option mtproto_secret",
+  "option shadowsocks_psk",
+  "option uuid",
+  "option password",
+  "option secret",
   "option hysteria2_obfs_password",
   "option reality_private_key",
   "option reality_public_key",
@@ -9414,6 +9418,7 @@ var FORKOP_MASK_AFTER_TOKEN = [
   "option yacd_secret_key"
 ];
 var FORKOP_MASK_AFTER_TOKEN_SPACE = [
+  "list authorized_keys",
   "option outbound_json",
   "option endpoint_json",
   "option warp_profile_id",

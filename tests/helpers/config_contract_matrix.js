@@ -123,8 +123,8 @@ function extractFunctionSecondStringArgs(data, functionName, callName) {
   return [...body.matchAll(pattern)].map((match) => match[1]);
 }
 
-// The server form reads its choice lists from the protocol table in server_spec.js,
-// so the values are collected from that table instead of from o.value() calls.
+// The server form reads its choice lists from tables and from inline arrays, so the
+// values are collected from those instead of from literal o.value() calls.
 function extractBracketedBlock(data, declaration) {
   const start = data.indexOf(declaration);
   if (start < 0) return "";
@@ -135,6 +135,19 @@ function extractBracketedBlock(data, declaration) {
 function extractSpecValues(specData, declaration, pattern) {
   const block = extractBracketedBlock(specData, declaration);
   return block ? [...block.matchAll(pattern)].map((match) => match[1]) : [];
+}
+
+// [ "a", "b" ].forEach((value) => o.value(value, value)) and the same shape with a
+// destructured pair.
+function extractInlineArrayValues(block) {
+  const result = [];
+  const pattern = /\[([^\]]*)\]\s*\.forEach\(\s*\(?\s*(?:\[[^\]]*\]|[A-Za-z0-9_]+)\s*\)?\s*=>\s*o(?:ption)?\.value\(/g;
+  for (const match of block.matchAll(pattern)) {
+    for (const literal of match[1].matchAll(/["']([^"']+)["']/g)) {
+      result.push(literal[1]);
+    }
+  }
+  return result;
 }
 
 function enrichUiValues(fileData, option, block, values, specData) {
@@ -155,20 +168,28 @@ function enrichUiValues(fileData, option, block, values, specData) {
       addUnique(values, value);
   }
 
-  if (!specData) return;
+  for (const value of extractInlineArrayValues(block)) addUnique(values, value);
 
-  if (option === "protocol" && block.includes("protocolIds()")) {
-    for (const value of extractSpecValues(specData, "const PROTOCOLS = [", /^\s*id:\s*\"([A-Za-z0-9_]+)\"/gm))
+  const tables = specData || fileData;
+  if (!tables) return;
+
+  if (block.includes("PROTOCOLS.forEach") || block.includes("protocolIds()")) {
+    for (const value of extractSpecValues(tables, "const PROTOCOLS = [", /^\s*id:\s*\"([A-Za-z0-9_]+)\"/gm))
       addUnique(values, value);
   }
 
-  if (option === "transport" && block.includes("transportChoices()")) {
-    for (const value of extractSpecValues(specData, "const TRANSPORTS = [", /^\s*\[\"([A-Za-z0-9_-]+)\",/gm))
+  if (block.includes("TRANSPORTS.forEach") || block.includes("transportChoices()")) {
+    for (const value of extractSpecValues(tables, "const TRANSPORTS = [", /^\s*\[\"([A-Za-z0-9_-]+)\",/gm))
       addUnique(values, value);
   }
 
-  if (option === "shadowsocks_method" && block.includes("shadowsocksMethods()")) {
-    for (const value of extractSpecValues(specData, "const SHADOWSOCKS_METHODS = [", /^\s*\{\s*id:\s*\"([^\"]+)\"/gm))
+  if (block.includes("SHADOWSOCKS_METHODS.forEach") || block.includes("shadowsocksMethods()")) {
+    for (const value of extractSpecValues(tables, "const SHADOWSOCKS_METHODS = [", /^\s*\{\s*id:\s*\"([^\"]+)\"/gm))
+      addUnique(values, value);
+  }
+
+  if (block.includes("CLIENT_FINGERPRINTS.forEach") || block.includes("clientFingerprints()")) {
+    for (const value of extractSpecValues(tables, "const CLIENT_FINGERPRINTS = [", /^\s*\"([A-Za-z0-9_-]+)\",?/gm))
       addUnique(values, value);
   }
 }
@@ -186,7 +207,8 @@ function extractUi(repo, fields) {
   const legacyViewDir = path.join(repo, legacyAppDir, "htdocs", "luci-static", "resources", "view", legacyStem);
   const viewDir = fs.existsSync(currentViewDir) ? currentViewDir : legacyViewDir;
   const files = walkFiles(viewDir).filter((file) => file.endsWith(".js"));
-  const specData = readFileIfExists(path.join(viewDir, "server_spec.js"));
+  // Older releases kept the server tables in their own module.
+  const specData = readFileIfExists(path.join(viewDir, "server_spec.js")) || null;
 
   for (const file of files) {
     const data = readFileIfExists(file);

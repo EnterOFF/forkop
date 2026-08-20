@@ -229,14 +229,6 @@ function child_items_by_owner(type_name, owner_key, owner_value) {
 // on every protocol Forkop serves, so the generator, the validator and the reload
 // signature all read the clients through this one accessor.
 function server_clients(server) {
-    let result = [];
-    for (let client in child_items_by_owner("server_client", "server", section_name(server)))
-        if (bool_option(client, "enabled", true))
-            push(result, client);
-    return result;
-}
-
-function server_client_sections(server) {
     return child_items_by_owner("server_client", "server", section_name(server));
 }
 
@@ -1242,6 +1234,5 @@ return {
     section_display_name,
     section_exists,
     server_display_name,
-    server_clients,
-    server_client_sections
+    server_clients
 };

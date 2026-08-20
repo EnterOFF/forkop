@@ -3,22 +3,25 @@
 "require baseclass";
 "require dom";
 "require fs";
+"require rpc";
 "require uci";
 "require ui";
 "require view.forkop.main as main";
-"require view.forkop.server_util as util";
-"require view.forkop.server_spec as spec";
-"require view.forkop.server_validate as validate";
-"require view.forkop.server_clients as clients";
-"require view.forkop.server_link as link";
+"require view.forkop.section as sectionui";
 
-// The Servers tab: the LuCI form for one sing-box inbound per section. Protocol
-// knowledge lives in server_spec, value checks in server_validate, accounts in
-// server_clients and share links in server_link, so this file only wires them into
-// form options and the grid.
+// The Servers tab: one sing-box inbound per UCI section, plus the accounts that may
+// use it. Everything the tab needs lives here - the protocol table the form is built
+// from, the value checks, the share links, the connection dialog and the client list.
+// The client list reuses the shared child item widget from the Sections tab so both
+// tabs edit child sections the same way.
 
 const UCI_PACKAGE = main.FORKOP_UCI_PACKAGE;
 const STYLE_ID = "forkop-server-styles";
+const DEFAULT_PROTOCOL = "tailscale";
+const CLIENT_TYPE = "server_client";
+const CLIENT_OWNER_OPTION = "server";
+const MAX_CLIENT_NAME_LENGTH = 64;
+
 const ROUTING_SECTION_ACTIONS = [
   "connection",
   "proxy",
@@ -30,6 +33,2749 @@ const ROUTING_SECTION_ACTIONS = [
 ];
 const TAILSCALE_DETOUR_ACTIONS = ["connection", "proxy", "outbound", "vpn"];
 
+// Tags sing-box already uses for Forkop's own inbounds, outbounds and DNS servers.
+// A server name becomes an inbound tag verbatim, so these names are refused.
+const RESERVED_RUNTIME_TAGS = new Set([
+  "dns-server",
+  "fakeip-server",
+  "bootstrap-dns-server",
+  "dnsmasq-server",
+  "fakeip-dns-rule-tag",
+  "fakeip-ruleset-dns-rule-tag",
+  "service-fakeip-dns-rule-tag",
+  "tproxy-in",
+  "tproxy6-in",
+  "dns-in",
+  "source-dns-in",
+  "system-in",
+  "system6-in",
+  "system-dns-in",
+  "service-mixed-in",
+  "direct-out",
+]);
+
+// Ports Forkop's own sing-box instance binds. A server that takes one of them stops
+// the whole service instead of only failing itself.
+const RESERVED_PORTS = [
+  ["53", _("Forkop DNS")],
+  ["1602", _("Forkop transparent proxy")],
+  ["1603", _("Forkop transparent proxy")],
+  ["1604", _("Forkop transparent proxy")],
+  ["1605", _("Forkop transparent proxy")],
+  ["4534", _("Forkop service proxy")],
+  ["9090", _("sing-box Clash API")],
+];
+
+// Sites the SNI and Reality pickers draw from: reachable worldwide, TLS 1.3 with
+// X25519 and HTTP/2, and not behind a CDN that rewrites the handshake.
+const CAMOUFLAGE_SITES = [
+  "www.microsoft.com",
+  "www.apple.com",
+  "swdist.apple.com",
+  "www.samsung.com",
+  "www.nvidia.com",
+  "www.amd.com",
+  "www.tesla.com",
+  "dl.google.com",
+  "www.bing.com",
+  "www.wolframalpha.com",
+];
+
+const SHADOWSOCKS_METHODS = [
+  { id: "2022-blake3-aes-128-gcm", keyBytes: 16 },
+  { id: "2022-blake3-aes-256-gcm", keyBytes: 32 },
+  { id: "2022-blake3-chacha20-poly1305", keyBytes: 32 },
+  { id: "aes-128-gcm", keyBytes: 0 },
+  { id: "aes-256-gcm", keyBytes: 0 },
+  { id: "chacha20-ietf-poly1305", keyBytes: 0 },
+];
+
+const TRANSPORTS = [
+  ["tcp", "TCP"],
+  ["ws", "WebSocket"],
+  ["grpc", "gRPC"],
+  ["http", "HTTP"],
+  ["httpupgrade", "HTTPUpgrade"],
+  ["xhttp", "XHTTP"],
+];
+
+const CLIENT_FINGERPRINTS = [
+  "chrome",
+  "firefox",
+  "edge",
+  "safari",
+  "ios",
+  "android",
+  "random",
+];
+
+// Inbound types the raw JSON field accepts, taken from the inbound registry the
+// Forkop core builds.
+const JSON_INBOUND_TYPES = new Set([
+  "tun",
+  "redirect",
+  "tproxy",
+  "direct",
+  "socks",
+  "http",
+  "mixed",
+  "shadowsocks",
+  "vmess",
+  "trojan",
+  "naive",
+  "shadowtls",
+  "vless",
+  "anytls",
+  "mieru",
+  "ssh",
+  "bond",
+  "failover",
+  "trusttunnel",
+  "hysteria",
+  "tuic",
+  "hysteria2",
+  "mtproto",
+  "sudoku",
+  "snell",
+  "call",
+]);
+
+// One entry per protocol the tab can serve.
+//   kind      - inbound: a sing-box inbound built from the form
+//               endpoint: a sing-box endpoint (Tailscale)
+//               json: a raw inbound object written by hand
+//   securities- the security modes the protocol accepts, best first
+//   credentials- the per client fields the protocol needs
+//   login     - the client name is the account name sent on the wire, so it has to
+//               stay inside the ASCII subset clients and URIs can carry
+//   link      - the share link scheme, empty when the protocol has no URI format
+//   tcp       - the listener carries TCP, so TCP Fast Open applies
+const PROTOCOLS = [
+  {
+    id: "tailscale",
+    label: "Tailscale",
+    kind: "endpoint",
+    securities: ["none"],
+    credentials: [],
+  },
+  {
+    id: "vless",
+    label: "VLESS",
+    kind: "inbound",
+    securities: ["reality", "tls", "none"],
+    transport: true,
+    multiplex: true,
+    tcp: true,
+    credentials: ["uuid", "flow"],
+    link: "vless",
+  },
+  {
+    id: "vmess",
+    label: "VMess",
+    kind: "inbound",
+    securities: ["tls", "none"],
+    transport: true,
+    multiplex: true,
+    tcp: true,
+    credentials: ["uuid"],
+    link: "vmess",
+  },
+  {
+    id: "trojan",
+    label: "Trojan",
+    kind: "inbound",
+    securities: ["tls", "none"],
+    transport: true,
+    multiplex: true,
+    tcp: true,
+    credentials: ["password"],
+    link: "trojan",
+  },
+  {
+    id: "shadowsocks",
+    label: "Shadowsocks",
+    kind: "inbound",
+    securities: ["none"],
+    multiplex: true,
+    tcp: true,
+    credentials: ["password"],
+    link: "ss",
+  },
+  {
+    id: "hysteria2",
+    label: "Hysteria2",
+    kind: "inbound",
+    securities: ["tls"],
+    credentials: ["password"],
+    link: "hysteria2",
+  },
+  {
+    id: "tuic",
+    label: "TUIC",
+    kind: "inbound",
+    securities: ["tls"],
+    credentials: ["uuid", "password"],
+    link: "tuic",
+  },
+  {
+    id: "anytls",
+    label: "AnyTLS",
+    kind: "inbound",
+    securities: ["tls"],
+    tcp: true,
+    credentials: ["password"],
+    link: "anytls",
+  },
+  {
+    id: "mixed",
+    label: "Mixed",
+    kind: "inbound",
+    securities: ["none"],
+    tcp: true,
+    login: true,
+    optionalAuth: "mixed_auth_enabled",
+    credentials: ["password"],
+    link: "socks5",
+  },
+  {
+    id: "naive",
+    label: "NaiveProxy",
+    kind: "inbound",
+    securities: ["tls"],
+    tcp: true,
+    login: true,
+    credentials: ["password"],
+    link: "naive",
+  },
+  {
+    id: "ssh",
+    label: "SSH",
+    kind: "inbound",
+    securities: ["none"],
+    tcp: true,
+    login: true,
+    credentials: ["password", "authorized_keys"],
+  },
+  {
+    id: "mieru",
+    label: "Mieru",
+    kind: "inbound",
+    securities: ["none"],
+    tcp: true,
+    login: true,
+    credentials: ["password"],
+  },
+  {
+    id: "mtproto",
+    label: "MTProto",
+    kind: "inbound",
+    securities: ["none"],
+    tcp: true,
+    credentials: ["secret"],
+    link: "mtproto",
+  },
+  {
+    id: "json_inbound",
+    label: _("JSON inbound"),
+    kind: "json",
+    securities: ["none"],
+    credentials: [],
+  },
+];
+
+const PROTOCOL_BY_ID = new Map(PROTOCOLS.map((entry) => [entry.id, entry]));
+
+/* ------------------------------------------------------------------ helpers */
+
+function asList(value) {
+  if (!value) {
+    return [];
+  }
+
+  return Array.isArray(value) ? value.filter(Boolean) : [`${value}`];
+}
+
+function option(sectionId, name) {
+  return uci.get(UCI_PACKAGE, sectionId, name) || "";
+}
+
+function optionList(sectionId, name) {
+  return asList(uci.get(UCI_PACKAGE, sectionId, name));
+}
+
+function protocolSpec(protocol) {
+  return PROTOCOL_BY_ID.get(`${protocol || ""}`) || null;
+}
+
+// While the dialog is open a changed value is not stored yet, so the widget wins.
+// Every field that depends on the protocol, on the cipher or on the authentication
+// switch has to follow the selection immediately instead of after a save.
+function liveOption(sectionId, name) {
+  const node = document.getElementById(
+    `widget.cbid.${UCI_PACKAGE}.${sectionId}.${name}`,
+  );
+  const element = node ? dom.findClassInstance(node) : null;
+
+  if (!element || typeof element.getValue !== "function") {
+    return option(sectionId, name);
+  }
+
+  const value = element.getValue();
+  return value == null ? "" : `${value}`;
+}
+
+function getProtocol(sectionId) {
+  return liveOption(sectionId, "protocol") || DEFAULT_PROTOCOL;
+}
+
+function protocolLabel(protocol) {
+  const spec = protocolSpec(protocol);
+  return spec ? spec.label : `${protocol || ""}`;
+}
+
+function protocolsWhere(predicate) {
+  return PROTOCOLS.filter(predicate).map((entry) => entry.id);
+}
+
+function protocolsWith(flag) {
+  return protocolsWhere((entry) => !!entry[flag]);
+}
+
+function listenerProtocols() {
+  return protocolsWhere((entry) => entry.kind === "inbound");
+}
+
+function hasListener(protocol) {
+  const spec = protocolSpec(protocol);
+  return !!spec && spec.kind === "inbound";
+}
+
+function credentialFields(protocol) {
+  const spec = protocolSpec(protocol);
+  return spec ? (spec.credentials || []).slice() : [];
+}
+
+function usesClients(protocol) {
+  return credentialFields(protocol).length > 0;
+}
+
+function usesLoginName(protocol) {
+  const spec = protocolSpec(protocol);
+  return !!spec && !!spec.login;
+}
+
+function linkScheme(protocol) {
+  const spec = protocolSpec(protocol);
+  return spec && spec.link ? spec.link : "";
+}
+
+function securitiesFor(protocol) {
+  const spec = protocolSpec(protocol);
+  return spec ? spec.securities.slice() : ["none"];
+}
+
+function defaultSecurity(protocol) {
+  return securitiesFor(protocol)[0];
+}
+
+function securityLabel(security) {
+  if (security === "reality") {
+    return "Reality";
+  }
+  if (security === "tls") {
+    return "TLS";
+  }
+  return _("None");
+}
+
+// The security a server actually runs with: a stored mode the protocol no longer
+// offers falls back to its first choice instead of generating a configuration
+// sing-box refuses.
+function getEffectiveSecurity(sectionId) {
+  const allowed = securitiesFor(getProtocol(sectionId));
+  const security = liveOption(sectionId, "security");
+
+  return allowed.includes(security) ? security : allowed[0];
+}
+
+function authFlagOption(protocol) {
+  const spec = protocolSpec(protocol);
+  return spec && spec.optionalAuth ? spec.optionalAuth : "";
+}
+
+function isAuthenticationEnabled(sectionId) {
+  const flag = authFlagOption(getProtocol(sectionId));
+  if (!flag) {
+    return true;
+  }
+
+  const value = liveOption(sectionId, flag);
+  return value === ""
+    ? true
+    : !["0", "false", "no", "off"].includes(value.toLowerCase());
+}
+
+function getServerName(sectionId) {
+  return option(sectionId, "label") || sectionId;
+}
+
+function shadowsocksKeyBytes(method) {
+  const entry = SHADOWSOCKS_METHODS.find((item) => item.id === method);
+  return entry ? entry.keyBytes : 0;
+}
+
+function isShadowsocks2022(method) {
+  return shadowsocksKeyBytes(method) > 0;
+}
+
+function getShadowsocksMethod(sectionId) {
+  return (
+    liveOption(sectionId, "shadowsocks_method") || SHADOWSOCKS_METHODS[0].id
+  );
+}
+
+function serverSafeName(sectionId) {
+  return `${sectionId || "server"}`.replace(/[^A-Za-z0-9_.-]/g, "_");
+}
+
+function defaultTlsCertificatePath(sectionId) {
+  return `/etc/forkop/server-certs/${serverSafeName(sectionId)}.crt`;
+}
+
+function defaultTlsKeyPath(sectionId) {
+  return `/etc/forkop/server-certs/${serverSafeName(sectionId)}.key`;
+}
+
+/* ------------------------------------------------------------ host handling */
+
+function normalizeHost(host) {
+  return `${host || ""}`.trim().replace(/^\[|\]$/g, "");
+}
+
+function isIpv4(value) {
+  return /^(25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])(\.(25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])){3}$/.test(
+    value,
+  );
+}
+
+function isIpv6(value) {
+  const normalized = normalizeHost(value);
+  if (!normalized.includes(":")) {
+    return false;
+  }
+
+  try {
+    new URL(`http://[${normalized}]/`);
+    return true;
+  } catch (_error) {
+    return false;
+  }
+}
+
+function isHostname(value) {
+  const hostname = normalizeHost(value);
+  if (hostname.length < 1 || hostname.length > 253 || hostname.endsWith(".")) {
+    return false;
+  }
+
+  return hostname
+    .split(".")
+    .every((part) =>
+      /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(part),
+    );
+}
+
+function isHost(value) {
+  const host = normalizeHost(value);
+  return isIpv4(host) || isIpv6(host) || isHostname(host);
+}
+
+function formatHostForUri(host) {
+  const normalized = normalizeHost(host);
+  return isIpv6(normalized) ? `[${normalized}]` : normalized;
+}
+
+function getBrowserHost() {
+  return normalizeHost(window.location.hostname || "");
+}
+
+function isPrivateOrReservedIpv4(value) {
+  if (!isIpv4(value)) {
+    return true;
+  }
+
+  const [a, b] = value.split(".").map((part) => parseInt(part, 10));
+
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    a >= 224 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 192 && b === 0) ||
+    (a === 192 && b === 2) ||
+    (a === 198 && (b === 18 || b === 19 || b === 51)) ||
+    (a === 203 && b === 0)
+  );
+}
+
+function isPrivateOrReservedIp(value) {
+  const normalized = normalizeHost(value).toLowerCase();
+  if (isIpv4(normalized)) {
+    return isPrivateOrReservedIpv4(normalized);
+  }
+  if (!isIpv6(normalized)) {
+    return true;
+  }
+
+  return (
+    normalized === "::" ||
+    normalized === "::1" ||
+    normalized.startsWith("fe80") ||
+    normalized.startsWith("fc") ||
+    normalized.startsWith("fd") ||
+    normalized.startsWith("ff") ||
+    normalized.startsWith("2001:db8")
+  );
+}
+
+/* ------------------------------------------------------ value transformation */
+
+// A DNS label built from a display name. Tailscale host names travel through a
+// console that only keeps ASCII, so a name that cannot survive that trip is
+// transliterated instead of being handed over unchanged.
+const CYRILLIC_TRANSLITERATION = {
+  а: "a",
+  б: "b",
+  в: "v",
+  г: "g",
+  д: "d",
+  е: "e",
+  ё: "e",
+  ж: "zh",
+  з: "z",
+  и: "i",
+  й: "i",
+  к: "k",
+  л: "l",
+  м: "m",
+  н: "n",
+  о: "o",
+  п: "p",
+  р: "r",
+  с: "s",
+  т: "t",
+  у: "u",
+  ф: "f",
+  х: "h",
+  ц: "c",
+  ч: "ch",
+  ш: "sh",
+  щ: "sch",
+  ъ: "",
+  ы: "y",
+  ь: "",
+  э: "e",
+  ю: "yu",
+  я: "ya",
+};
+
+function slugify(value, fallback) {
+  const slug = Array.from(`${value || ""}`.toLowerCase())
+    .map((char) =>
+      CYRILLIC_TRANSLITERATION[char] === undefined
+        ? char
+        : CYRILLIC_TRANSLITERATION[char],
+    )
+    .join("")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48)
+    .replace(/-+$/g, "");
+
+  return slug || `${fallback || ""}`;
+}
+
+function randomBytes(length) {
+  const bytes = new Uint8Array(length);
+
+  if (window.crypto && window.crypto.getRandomValues) {
+    window.crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < length; i += 1) {
+      bytes[i] = Math.floor(Math.random() * 256);
+    }
+  }
+
+  return bytes;
+}
+
+function bytesToString(bytes) {
+  return Array.from(bytes)
+    .map((byte) => String.fromCharCode(byte))
+    .join("");
+}
+
+function randomHex(byteLength) {
+  return Array.from(randomBytes(byteLength))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function randomItem(items) {
+  return items[randomBytes(1)[0] % items.length];
+}
+
+function stringToHex(value) {
+  return Array.from(unescape(encodeURIComponent(`${value || ""}`)))
+    .map((char) => char.charCodeAt(0).toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function base64Encode(value) {
+  return btoa(unescape(encodeURIComponent(value)));
+}
+
+function base64UrlEncode(value) {
+  return base64Encode(value)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function generateUuid() {
+  if (window.crypto && window.crypto.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+
+  const bytes = randomBytes(16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20),
+  ].join("-");
+}
+
+function generatePassword() {
+  return base64UrlEncode(bytesToString(randomBytes(18)));
+}
+
+// Shadowsocks 2022 keys are standard base64 of exactly the byte count the cipher
+// takes, so they are generated from the key length instead of a printable password.
+function generatePresharedKey(byteLength) {
+  return btoa(bytesToString(randomBytes(byteLength)));
+}
+
+function generateMtprotoSecret() {
+  const secret = randomHex(16);
+  return secret === "00000000000000000000000000000000"
+    ? "11111111111111111111111111111111"
+    : secret;
+}
+
+function randomPort() {
+  const bytes = randomBytes(2);
+  return `${20000 + (((bytes[0] << 8) | bytes[1]) % 30000)}`;
+}
+
+function normalizeSha256(value) {
+  const normalized = `${value || ""}`.trim().replace(/:/g, "").toLowerCase();
+  return /^[0-9a-f]{64}$/.test(normalized) ? normalized : "";
+}
+
+function encodeQuery(params) {
+  return Object.entries(params)
+    .filter(([, value]) => value != null && value !== "")
+    .map(
+      ([key, value]) =>
+        `${encodeURIComponent(key)}=${encodeURIComponent(`${value}`)}`,
+    )
+    .join("&");
+}
+
+function normalizeMtprotoBaseSecret(value) {
+  const secret = `${value || ""}`.trim().toLowerCase();
+
+  if (/^[0-9a-f]{32}$/.test(secret)) {
+    return secret;
+  }
+  if (/^ee[0-9a-f]{32}(?:[0-9a-f]{2})+$/.test(secret)) {
+    return secret.slice(2, 34);
+  }
+
+  return "";
+}
+
+function buildMtprotoFullSecret(baseSecret, faketls) {
+  return `ee${baseSecret}${stringToHex(faketls || "google.com")}`;
+}
+
+// The credential a client field expects for the current protocol.
+function generateCredential(sectionId, protocol, field) {
+  if (field === "uuid") {
+    return generateUuid();
+  }
+  if (field === "secret") {
+    return generateMtprotoSecret();
+  }
+  if (field === "password") {
+    const keyBytes =
+      protocol === "shadowsocks"
+        ? shadowsocksKeyBytes(getShadowsocksMethod(sectionId))
+        : 0;
+    return keyBytes > 0 ? generatePresharedKey(keyBytes) : generatePassword();
+  }
+  return "";
+}
+
+/* ------------------------------------------------------------- QR encoder */
+
+// Byte mode at error correction level L: one segment, the smallest version that
+// fits the link, and mask selection over the four standard penalty rules.
+const QR_EC_CODEWORDS_PER_BLOCK_LOW = [
+  -1, 7, 10, 15, 20, 26, 18, 20, 24, 30, 18, 20, 24, 26, 30, 22, 24, 28, 30, 28,
+  28, 28, 28, 30, 30, 26, 28, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30,
+  30, 30,
+];
+const QR_NUM_ERROR_CORRECTION_BLOCKS_LOW = [
+  -1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 4, 4, 4, 4, 4, 6, 6, 6, 6, 7, 8, 8, 9, 9, 10,
+  12, 12, 12, 13, 14, 15, 16, 17, 18, 19, 19, 20, 21, 22, 24, 25,
+];
+
+function qrGetBit(value, index) {
+  return ((value >>> index) & 1) !== 0;
+}
+
+function qrAppendBits(buffer, value, length) {
+  for (let i = length - 1; i >= 0; i -= 1) {
+    buffer.push(qrGetBit(value, i));
+  }
+}
+
+function qrRawDataModules(version) {
+  let result = (16 * version + 128) * version + 64;
+
+  if (version >= 2) {
+    const numAlign = Math.floor(version / 7) + 2;
+    result -= (25 * numAlign - 10) * numAlign - 55;
+    if (version >= 7) {
+      result -= 36;
+    }
+  }
+
+  return result;
+}
+
+function qrRawCodewords(version) {
+  return Math.floor(qrRawDataModules(version) / 8);
+}
+
+function qrDataCodewords(version) {
+  return (
+    qrRawCodewords(version) -
+    QR_EC_CODEWORDS_PER_BLOCK_LOW[version] *
+      QR_NUM_ERROR_CORRECTION_BLOCKS_LOW[version]
+  );
+}
+
+function qrEncodeText(text) {
+  return Array.from(new TextEncoder().encode(text));
+}
+
+function qrBuildDataCodewords(bytes, version) {
+  const capacity = qrDataCodewords(version);
+  const bits = [];
+  const countBits = version <= 9 ? 8 : 16;
+
+  qrAppendBits(bits, 4, 4);
+  qrAppendBits(bits, bytes.length, countBits);
+  bytes.forEach((value) => qrAppendBits(bits, value, 8));
+  qrAppendBits(bits, 0, Math.min(4, capacity * 8 - bits.length));
+
+  while (bits.length % 8 !== 0) {
+    bits.push(false);
+  }
+
+  const result = [];
+  for (let i = 0; i < bits.length; i += 8) {
+    let value = 0;
+    for (let j = 0; j < 8; j += 1) {
+      value = (value << 1) | (bits[i + j] ? 1 : 0);
+    }
+    result.push(value);
+  }
+
+  for (let pad = 0xec; result.length < capacity; pad ^= 0xfd) {
+    result.push(pad);
+  }
+
+  return result;
+}
+
+function qrMultiply(x, y) {
+  let z = 0;
+
+  for (let i = 7; i >= 0; i -= 1) {
+    z = (z << 1) ^ ((z >>> 7) * 0x11d);
+    z ^= ((y >>> i) & 1) * x;
+  }
+
+  return z;
+}
+
+function qrReedSolomonDivisor(degree) {
+  const result = Array(degree).fill(0);
+  result[degree - 1] = 1;
+
+  let root = 1;
+  for (let i = 0; i < degree; i += 1) {
+    for (let j = 0; j < degree; j += 1) {
+      result[j] = qrMultiply(result[j], root);
+      if (j + 1 < degree) {
+        result[j] ^= result[j + 1];
+      }
+    }
+    root = qrMultiply(root, 2);
+  }
+
+  return result;
+}
+
+function qrReedSolomonRemainder(data, divisor) {
+  const result = Array(divisor.length).fill(0);
+
+  data.forEach((value) => {
+    const factor = value ^ result.shift();
+    result.push(0);
+    for (let i = 0; i < result.length; i += 1) {
+      result[i] ^= qrMultiply(divisor[i], factor);
+    }
+  });
+
+  return result;
+}
+
+function qrAddErrorCorrection(data, version) {
+  const numBlocks = QR_NUM_ERROR_CORRECTION_BLOCKS_LOW[version];
+  const blockEccLen = QR_EC_CODEWORDS_PER_BLOCK_LOW[version];
+  const rawCodewords = qrRawCodewords(version);
+  const numShortBlocks = numBlocks - (rawCodewords % numBlocks);
+  const shortBlockDataLen = Math.floor(rawCodewords / numBlocks) - blockEccLen;
+  const divisor = qrReedSolomonDivisor(blockEccLen);
+  const blocks = [];
+
+  for (let i = 0, offset = 0; i < numBlocks; i += 1) {
+    const dataLen = shortBlockDataLen + (i < numShortBlocks ? 0 : 1);
+    const blockData = data.slice(offset, offset + dataLen);
+    offset += dataLen;
+    blocks.push({
+      data: blockData,
+      ecc: qrReedSolomonRemainder(blockData, divisor),
+    });
+  }
+
+  const result = [];
+  const maxDataLen = Math.max(...blocks.map((block) => block.data.length));
+
+  for (let i = 0; i < maxDataLen; i += 1) {
+    blocks.forEach((block) => {
+      if (i < block.data.length) {
+        result.push(block.data[i]);
+      }
+    });
+  }
+
+  for (let i = 0; i < blockEccLen; i += 1) {
+    blocks.forEach((block) => result.push(block.ecc[i]));
+  }
+
+  return result;
+}
+
+function qrAlignmentPatternPositions(version) {
+  if (version === 1) {
+    return [];
+  }
+
+  const size = version * 4 + 17;
+  const numAlign = Math.floor(version / 7) + 2;
+  const step =
+    version === 32 ? 26 : Math.ceil((version * 4 + 4) / (numAlign * 2 - 2)) * 2;
+  const result = [6];
+
+  for (let pos = size - 7; result.length < numAlign; pos -= step) {
+    result.splice(1, 0, pos);
+  }
+
+  return result;
+}
+
+function qrMakeMatrix(version, dataCodewords) {
+  const size = version * 4 + 17;
+  const modules = Array.from({ length: size }, () => Array(size).fill(false));
+  const isFunction = Array.from({ length: size }, () =>
+    Array(size).fill(false),
+  );
+
+  function setFunction(x, y, dark) {
+    modules[y][x] = dark;
+    isFunction[y][x] = true;
+  }
+
+  function drawFinder(cx, cy) {
+    for (let dy = -4; dy <= 4; dy += 1) {
+      for (let dx = -4; dx <= 4; dx += 1) {
+        const x = cx + dx;
+        const y = cy + dy;
+        if (x < 0 || x >= size || y < 0 || y >= size) {
+          continue;
+        }
+        const dist = Math.max(Math.abs(dx), Math.abs(dy));
+        setFunction(x, y, dist !== 2 && dist !== 4);
+      }
+    }
+  }
+
+  function drawAlignment(cx, cy) {
+    for (let dy = -2; dy <= 2; dy += 1) {
+      for (let dx = -2; dx <= 2; dx += 1) {
+        setFunction(
+          cx + dx,
+          cy + dy,
+          Math.max(Math.abs(dx), Math.abs(dy)) !== 1,
+        );
+      }
+    }
+  }
+
+  drawFinder(3, 3);
+  drawFinder(size - 4, 3);
+  drawFinder(3, size - 4);
+
+  for (let i = 8; i < size - 8; i += 1) {
+    setFunction(6, i, i % 2 === 0);
+    setFunction(i, 6, i % 2 === 0);
+  }
+
+  const alignPositions = qrAlignmentPatternPositions(version);
+  alignPositions.forEach((x) => {
+    alignPositions.forEach((y) => {
+      const overlapsFinder =
+        (x === 6 && y === 6) ||
+        (x === 6 && y === size - 7) ||
+        (x === size - 7 && y === 6);
+      if (!overlapsFinder) {
+        drawAlignment(x, y);
+      }
+    });
+  });
+
+  if (version >= 7) {
+    let rem = version;
+    for (let i = 0; i < 12; i += 1) {
+      rem = (rem << 1) ^ ((rem >>> 11) * 0x1f25);
+    }
+    const bits = (version << 12) | rem;
+    for (let i = 0; i < 18; i += 1) {
+      const bit = qrGetBit(bits, i);
+      const a = size - 11 + (i % 3);
+      const b = Math.floor(i / 3);
+      setFunction(a, b, bit);
+      setFunction(b, a, bit);
+    }
+  }
+
+  function drawFormatBits(mask) {
+    const formatData = (1 << 3) | mask;
+    let rem = formatData;
+
+    for (let i = 0; i < 10; i += 1) {
+      rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
+    }
+
+    const formatBits = ((formatData << 10) | rem) ^ 0x5412;
+
+    for (let i = 0; i <= 5; i += 1) {
+      setFunction(8, i, qrGetBit(formatBits, i));
+    }
+    setFunction(8, 7, qrGetBit(formatBits, 6));
+    setFunction(8, 8, qrGetBit(formatBits, 7));
+    setFunction(7, 8, qrGetBit(formatBits, 8));
+    for (let i = 9; i < 15; i += 1) {
+      setFunction(14 - i, 8, qrGetBit(formatBits, i));
+    }
+    for (let i = 0; i < 8; i += 1) {
+      setFunction(size - 1 - i, 8, qrGetBit(formatBits, i));
+    }
+    for (let i = 8; i < 15; i += 1) {
+      setFunction(8, size - 15 + i, qrGetBit(formatBits, i));
+    }
+    setFunction(8, size - 8, true);
+  }
+
+  drawFormatBits(0);
+
+  const codewords = qrAddErrorCorrection(dataCodewords, version);
+  let bitIndex = 0;
+  for (let right = size - 1; right >= 1; right -= 2) {
+    if (right === 6) {
+      right = 5;
+    }
+    for (let vert = 0; vert < size; vert += 1) {
+      for (let j = 0; j < 2; j += 1) {
+        const x = right - j;
+        const upward = ((right + 1) & 2) === 0;
+        const y = upward ? size - 1 - vert : vert;
+        if (!isFunction[y][x] && bitIndex < codewords.length * 8) {
+          modules[y][x] = qrGetBit(
+            codewords[Math.floor(bitIndex / 8)],
+            7 - (bitIndex % 8),
+          );
+          bitIndex += 1;
+        }
+      }
+    }
+  }
+
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      if (!isFunction[y][x] && (x + y) % 2 === 0) {
+        modules[y][x] = !modules[y][x];
+      }
+    }
+  }
+
+  drawFormatBits(0);
+
+  return modules;
+}
+
+function qrSvgDataUri(text) {
+  const bytes = qrEncodeText(text);
+  let version = 1;
+
+  for (; version <= 40; version += 1) {
+    const countBits = version <= 9 ? 8 : 16;
+    if (4 + countBits + bytes.length * 8 <= qrDataCodewords(version) * 8) {
+      break;
+    }
+  }
+
+  if (version > 40) {
+    return "";
+  }
+
+  const matrix = qrMakeMatrix(version, qrBuildDataCodewords(bytes, version));
+  const border = 4;
+  const size = matrix.length;
+  const viewSize = size + border * 2;
+  const path = [];
+
+  matrix.forEach((row, y) => {
+    row.forEach((dark, x) => {
+      if (dark) {
+        path.push(`M${x + border},${y + border}h1v1h-1z`);
+      }
+    });
+  });
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${viewSize} ${viewSize}" shape-rendering="crispEdges"><path fill="#fff" d="M0 0h${viewSize}v${viewSize}H0z"/><path fill="#000" d="${path.join(" ")}"/></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+/* --------------------------------------------------------------- validation */
+
+// Every check follows what sing-box itself accepts, so a form that validates
+// produces a configuration the service can start with. A field is required here
+// only when the core has no default for it.
+
+const callNetworkInterfaceDump = rpc.declare({
+  object: "network.interface",
+  method: "dump",
+  expect: { interface: [] },
+});
+
+let defaultPublicHostPromise = null;
+let defaultPublicHostCache = null;
+let systemPortsPromise = null;
+let systemPortsCache = null;
+
+function isEmptyValue(value) {
+  return (
+    value == null ||
+    value === "" ||
+    (Array.isArray(value) &&
+      value.filter((item) => item != null && item !== "").length === 0)
+  );
+}
+
+function valueList(value) {
+  return (Array.isArray(value) ? value : [value]).filter(
+    (item) => item != null && item !== "",
+  );
+}
+
+function hasControlCharacters(value) {
+  return Array.from(value).some((char) => {
+    const code = char.codePointAt(0);
+    return code < 0x20 || code === 0x7f;
+  });
+}
+
+function validateRequired(_sectionId, value) {
+  return isEmptyValue(value) ? _("This field is required") : true;
+}
+
+function validateRequiredText(_sectionId, value) {
+  if (isEmptyValue(value)) {
+    return _("This field is required");
+  }
+
+  return hasControlCharacters(`${value}`)
+    ? _("Value must not contain control characters")
+    : true;
+}
+
+function validatePort(_sectionId, value) {
+  const port = parseInt(value, 10);
+  return /^[0-9]+$/.test(`${value}`) && port >= 1 && port <= 65535
+    ? true
+    : _("Port must be between 1 and 65535");
+}
+
+function validateUuid(_sectionId, value) {
+  return /^[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$/.test(
+    `${value || ""}`,
+  )
+    ? true
+    : _("Use a valid UUID");
+}
+
+function validateHost(_sectionId, value) {
+  return isHost(value) ? true : _("Use a domain name or IP address");
+}
+
+function validateOptionalHost(_sectionId, value) {
+  return isEmptyValue(value) || isHost(value)
+    ? true
+    : _("Use a domain name or IP address");
+}
+
+function validateListenAddress(_sectionId, value) {
+  const address = normalizeHost(value);
+  return address === "0.0.0.0" ||
+    address === "::" ||
+    isIpv4(address) ||
+    isIpv6(address)
+    ? true
+    : _("Use an IP address, 0.0.0.0 for all IPv4, or :: for all addresses");
+}
+
+function validateOptionalIp(_sectionId, value) {
+  const address = normalizeHost(value);
+  return isEmptyValue(value) || isIpv4(address) || isIpv6(address)
+    ? true
+    : _("Use an IP address");
+}
+
+function validateFilePath(_sectionId, value) {
+  const path = `${value || ""}`;
+
+  if (isEmptyValue(path)) {
+    return _("This field is required");
+  }
+
+  const validation = main.validatePath(path);
+  return validation.valid && path !== "/" && !path.endsWith("/")
+    ? true
+    : _("Specify a file path");
+}
+
+function validateOptionalFilePath(sectionId, value) {
+  return isEmptyValue(value) ? true : validateFilePath(sectionId, value);
+}
+
+function validateTlsCertificatePath(sectionId, value) {
+  const result = validateFilePath(sectionId, value);
+  if (result !== true) {
+    return result;
+  }
+
+  return `${value}` === option(sectionId, "tls_key_path")
+    ? _("The certificate and the key must be different files")
+    : true;
+}
+
+function validateTlsKeyPath(sectionId, value) {
+  const result = validateFilePath(sectionId, value);
+  if (result !== true) {
+    return result;
+  }
+
+  return `${value}` === option(sectionId, "tls_certificate_path")
+    ? _("The certificate and the key must be different files")
+    : true;
+}
+
+function validateHttpUrl(_sectionId, value) {
+  try {
+    const url = new URL(`${value || ""}`);
+    return (url.protocol === "http:" || url.protocol === "https:") &&
+      isHost(url.hostname)
+      ? true
+      : _("Use an HTTP or HTTPS URL");
+  } catch (_error) {
+    return _("Use an HTTP or HTTPS URL");
+  }
+}
+
+// Hysteria2 accepts a masquerade target as a URL: https:// reverse proxies a real
+// site, file:// serves a directory.
+function validateOptionalMasquerade(_sectionId, value) {
+  if (isEmptyValue(value)) {
+    return true;
+  }
+
+  const target = `${value}`.trim();
+  if (target.startsWith("file://")) {
+    return target.length > "file://".length
+      ? true
+      : _("Specify a directory after file://");
+  }
+
+  return validateHttpUrl(null, target) === true
+    ? true
+    : _("Use an https:// URL to proxy a site or file:// to serve a directory");
+}
+
+// Forkop replaces the tag of a raw inbound with the server name, so a tag in the
+// pasted object is silently lost. Refusing it is clearer than dropping it.
+function validateInboundJson(_sectionId, value) {
+  if (isEmptyValue(value)) {
+    return _("This field is required");
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(`${value}`);
+  } catch (_error) {
+    return _("Invalid JSON format");
+  }
+
+  if (
+    !parsed ||
+    typeof parsed !== "object" ||
+    Array.isArray(parsed) ||
+    typeof parsed.type !== "string" ||
+    !parsed.type
+  ) {
+    return _("The object must have a type field");
+  }
+
+  const type = parsed.type.trim();
+  if (parsed.type !== type || !JSON_INBOUND_TYPES.has(type)) {
+    return _("sing-box has no inbound of type %s").format(type);
+  }
+
+  if (parsed.tag != null) {
+    return _("Remove the tag field: Forkop sets the tag from the server name");
+  }
+
+  if (parsed.listen_port != null) {
+    const port = validatePort(null, `${parsed.listen_port}`);
+    if (port !== true) {
+      return port;
+    }
+  }
+
+  return true;
+}
+
+function isDuration(value) {
+  return /^([0-9]+(ns|us|ms|s|m|h))+$/.test(`${value || ""}`);
+}
+
+function validateOptionalDuration(_sectionId, value) {
+  return isEmptyValue(value) || isDuration(value)
+    ? true
+    : _("Use a duration like 30s, 5m, or 1h30m");
+}
+
+function validateOptionalNonNegativeInteger(_sectionId, value) {
+  return isEmptyValue(value) || /^[0-9]+$/.test(`${value}`)
+    ? true
+    : _("Use a non-negative integer");
+}
+
+function validateOptionalPositiveInteger(_sectionId, value) {
+  return isEmptyValue(value) || /^[1-9][0-9]*$/.test(`${value}`)
+    ? true
+    : _("Use a positive integer");
+}
+
+function validateRequiredPositiveInteger(_sectionId, value) {
+  return /^[1-9][0-9]*$/.test(`${value}`) ? true : _("Use a positive integer");
+}
+
+function validateOptionalPort(sectionId, value) {
+  return isEmptyValue(value) ? true : validatePort(sectionId, value);
+}
+
+function validateTransportPath(_sectionId, value) {
+  return isEmptyValue(value) || `${value}`.startsWith("/")
+    ? true
+    : _("The path must start with /");
+}
+
+function validateOptionalHostList(_sectionId, value) {
+  return valueList(value).some((item) => !isHost(item))
+    ? _("Use a domain name or IP address")
+    : true;
+}
+
+function validateGrpcServiceName(_sectionId, value) {
+  return isEmptyValue(value) || /^[A-Za-z0-9_.-]+$/.test(`${value}`)
+    ? true
+    : _("Use letters, digits, dots, underscores, or hyphens");
+}
+
+function normalizeCidrOrIp(value) {
+  const normalized = `${value || ""}`.trim();
+  if (!normalized.includes("/") && isIpv4(normalized)) {
+    return `${normalized}/32`;
+  }
+  if (!normalized.includes("/") && isIpv6(normalized)) {
+    return `${normalized}/128`;
+  }
+  return normalized;
+}
+
+function isValidCidr(item) {
+  const [address, prefix, extra] = `${item}`.split("/");
+  if (extra != null || prefix == null || !/^[0-9]+$/.test(prefix)) {
+    return false;
+  }
+
+  const prefixNumber = parseInt(prefix, 10);
+  if (isIpv4(address)) {
+    return prefixNumber >= 0 && prefixNumber <= 32;
+  }
+  if (isIpv6(address)) {
+    return prefixNumber >= 0 && prefixNumber <= 128;
+  }
+  return false;
+}
+
+function validateOptionalCidrOrIp(_sectionId, value) {
+  if (isEmptyValue(value)) {
+    return true;
+  }
+
+  return valueList(value).some((item) => !isValidCidr(normalizeCidrOrIp(item)))
+    ? _("Use a subnet like 192.168.1.0/24 or an address like 192.168.1.10")
+    : true;
+}
+
+// sing-box decodes every short ID as hex bytes, so an odd digit count is refused at
+// start-up and eight bytes is the hard limit. The form rejects exactly the same
+// values instead of letting the service die on apply.
+function validateShortId(_sectionId, value) {
+  const values = valueList(value);
+
+  if (values.length === 0) {
+    return _("This field is required");
+  }
+
+  if (values.some((item) => !/^(?:[0-9a-fA-F]{2})+$/.test(`${item}`))) {
+    return _("Use an even number of hex digits, for example 0a1b2c3d");
+  }
+
+  if (values.some((item) => `${item}`.length > 16)) {
+    return _("A short ID holds at most 16 hex digits");
+  }
+
+  const seen = new Set();
+  return values.some((item) => {
+    const normalized = `${item}`.toLowerCase();
+    if (seen.has(normalized)) {
+      return true;
+    }
+    seen.add(normalized);
+    return false;
+  })
+    ? _("Short IDs must be unique")
+    : true;
+}
+
+function validateRealityKey(_sectionId, value) {
+  if (isEmptyValue(value)) {
+    return _("Generate a key pair with the button next to the field");
+  }
+
+  return /^[A-Za-z0-9_-]{43}$/.test(`${value}`.trim())
+    ? true
+    : _("A Reality key is 43 base64url characters");
+}
+
+function validateMtprotoSecret(_sectionId, value) {
+  const secret = normalizeMtprotoBaseSecret(value);
+
+  if (!secret) {
+    return _("Use 32 hex characters");
+  }
+
+  return secret === "00000000000000000000000000000000"
+    ? _("Use a non-zero secret")
+    : true;
+}
+
+function validateSecurity(sectionId, value) {
+  const protocol = getProtocol(sectionId);
+  const selected = value || defaultSecurity(protocol);
+
+  return securitiesFor(protocol).includes(selected)
+    ? true
+    : _("This protocol does not support the selected security mode");
+}
+
+// Tailscale reduces the host name to a DNS label, so anything it would rewrite is
+// refused here instead of quietly registering a differently named machine.
+function validateTailscaleHostname(_sectionId, value) {
+  const hostname = `${value || ""}`.trim();
+
+  if (!hostname) {
+    return _("This field is required");
+  }
+  if (hostname.length > 63) {
+    return _("A host name holds at most 63 characters");
+  }
+
+  return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(hostname)
+    ? true
+    : _("Use lowercase letters, digits and hyphens");
+}
+
+function validateTailscaleTags(_sectionId, value) {
+  return valueList(value).some((item) => !/^tag:[a-z0-9-]+$/.test(`${item}`))
+    ? _("A tag looks like tag:server")
+    : true;
+}
+
+function validateShadowsocksPassword(sectionId, value) {
+  const required = validateRequiredText(sectionId, value);
+  if (required !== true) {
+    return required;
+  }
+
+  const keyBytes = shadowsocksKeyBytes(getShadowsocksMethod(sectionId));
+  if (keyBytes === 0) {
+    return true;
+  }
+
+  let decoded = null;
+  try {
+    decoded = atob(`${value}`.trim());
+  } catch (_error) {
+    decoded = null;
+  }
+
+  return decoded != null && decoded.length === keyBytes
+    ? true
+    : _("This method needs a base64 key of %d bytes").format(keyBytes);
+}
+
+function validateAuthorizedKeys(_sectionId, value) {
+  return valueList(value).some(
+    (item) =>
+      !/^(ssh|ecdsa|sk-ssh|sk-ecdsa)[A-Za-z0-9@.-]*\s+[A-Za-z0-9+/=]+(\s.*)?$/.test(
+        `${item}`.trim(),
+      ),
+  )
+    ? _("Use an OpenSSH public key line, for example ssh-ed25519 AAAA...")
+    : true;
+}
+
+// Ports another Forkop server, another Forkop inbound or a router service already
+// listens on. sing-box refuses to start on a taken port, and the runtime check in
+// Diagnostics only reports it after the fact.
+function occupiedPorts(currentSectionId) {
+  const owners = new Map();
+
+  const claim = (port, owner) => {
+    const normalized = `${port || ""}`.trim();
+    if (!/^[0-9]+$/.test(normalized) || owners.has(normalized)) {
+      return;
+    }
+    owners.set(normalized, owner);
+  };
+
+  RESERVED_PORTS.forEach(([port, owner]) => claim(port, owner));
+
+  (uci.sections(UCI_PACKAGE, "server") || []).forEach((server) => {
+    if (server[".name"] === currentSectionId || server.enabled === "0") {
+      return;
+    }
+    if (!hasListener(server.protocol || DEFAULT_PROTOCOL)) {
+      return;
+    }
+    claim(
+      server.listen_port,
+      _("server %s").format(server.label || server[".name"]),
+    );
+  });
+
+  (uci.sections(UCI_PACKAGE, "section") || []).forEach((section) => {
+    if (section.enabled === "0" || section.mixed_proxy_enabled !== "1") {
+      return;
+    }
+    claim(
+      section.mixed_proxy_port,
+      _("section %s").format(section.label || section[".name"]),
+    );
+  });
+
+  (systemPortsCache || []).forEach((entry) => claim(entry.port, entry.owner));
+
+  return owners;
+}
+
+function validateListenPort(sectionId, value) {
+  const result = validatePort(sectionId, value);
+  if (result !== true) {
+    return result;
+  }
+
+  const owner = occupiedPorts(sectionId).get(`${value}`.trim());
+  return owner ? _("Port %s is already used by %s").format(value, owner) : true;
+}
+
+// Ports taken by services outside Forkop's own configuration, read once per page so
+// the port check can name uhttpd or dropbear instead of only failing on apply.
+function loadSystemPorts() {
+  if (systemPortsCache != null) {
+    return Promise.resolve(systemPortsCache);
+  }
+  if (systemPortsPromise) {
+    return systemPortsPromise;
+  }
+
+  systemPortsPromise = Promise.all([
+    uci.load("uhttpd").catch(() => null),
+    uci.load("dropbear").catch(() => null),
+  ])
+    .then(() => {
+      const entries = [];
+      const addListen = (value, owner) => {
+        asList(value).forEach((item) => {
+          const port = `${item}`.trim().split(":").pop();
+          if (/^[0-9]+$/.test(port)) {
+            entries.push({ port, owner });
+          }
+        });
+      };
+
+      (uci.sections("uhttpd") || []).forEach((section) => {
+        addListen(section.listen_http, _("LuCI web interface"));
+        addListen(section.listen_https, _("LuCI web interface"));
+      });
+      (uci.sections("dropbear") || []).forEach((section) => {
+        if (section.enable !== "0") {
+          addListen(section.Port || "22", _("router SSH"));
+        }
+      });
+
+      systemPortsCache = entries;
+      return systemPortsCache;
+    })
+    .catch(() => {
+      systemPortsCache = [];
+      return systemPortsCache;
+    })
+    .finally(() => {
+      systemPortsPromise = null;
+    });
+
+  return systemPortsPromise;
+}
+
+function getInterfaceIpAddresses(networkInterface) {
+  return ["ipv4-address", "ipv6-address"]
+    .map((key) =>
+      networkInterface &&
+      typeof networkInterface === "object" &&
+      Array.isArray(networkInterface[key])
+        ? networkInterface[key]
+        : [],
+    )
+    .flat()
+    .map((address) =>
+      normalizeHost(
+        address && typeof address === "object" ? address.address : address,
+      ),
+    )
+    .filter((address) => isIpv4(address) || isIpv6(address));
+}
+
+// The address clients should dial: a routable address when the router has one, the
+// LAN address otherwise, because that is still the useful answer behind NAT.
+function chooseDefaultPublicHost(networkInterfaces) {
+  const upInterfaces = (
+    Array.isArray(networkInterfaces) ? networkInterfaces : []
+  ).filter(
+    (networkInterface) => networkInterface && networkInterface.up !== false,
+  );
+  const publicIp = upInterfaces
+    .flatMap(getInterfaceIpAddresses)
+    .find((ip) => !isPrivateOrReservedIp(ip));
+
+  if (publicIp) {
+    return publicIp;
+  }
+
+  const lanInterface =
+    upInterfaces.find((networkInterface) => {
+      const name = `${networkInterface.interface || ""}`;
+      const device = `${networkInterface.device || networkInterface.l3_device || ""}`;
+      return name === "lan" || device === "br-lan";
+    }) || {};
+  const lanIp = getInterfaceIpAddresses(lanInterface).find(
+    (ip) => ip !== "::1" && !ip.startsWith("127."),
+  );
+
+  if (lanIp) {
+    return lanIp;
+  }
+
+  return (
+    upInterfaces
+      .flatMap(getInterfaceIpAddresses)
+      .find((ip) => ip !== "::1" && !ip.startsWith("127.")) || getBrowserHost()
+  );
+}
+
+function loadDefaultPublicHost() {
+  if (defaultPublicHostCache != null) {
+    return Promise.resolve(defaultPublicHostCache);
+  }
+  if (defaultPublicHostPromise) {
+    return defaultPublicHostPromise;
+  }
+
+  defaultPublicHostPromise = callNetworkInterfaceDump()
+    .then((networkInterfaces) => {
+      defaultPublicHostCache = chooseDefaultPublicHost(networkInterfaces);
+      return defaultPublicHostCache;
+    })
+    .catch(() => getBrowserHost())
+    .finally(() => {
+      defaultPublicHostPromise = null;
+    });
+
+  return defaultPublicHostPromise;
+}
+
+function preloadServerModalData() {
+  return Promise.all([
+    loadDefaultPublicHost().catch(() => null),
+    loadSystemPorts().catch(() => null),
+  ]);
+}
+
+/* -------------------------------------------------------------- share links */
+
+// The field names and encodings follow the link parser in the Forkop core
+// (parser/link), so a link produced here is a link the core reads back and clients
+// that follow the same conventions understand.
+
+function getPublicHost(sectionId) {
+  return option(sectionId, "public_host") || getBrowserHost();
+}
+
+function getListenPort(sectionId) {
+  return option(sectionId, "listen_port");
+}
+
+function clientLabel(sectionId, client) {
+  return `${client?.name || ""}`.trim() || getServerName(sectionId);
+}
+
+// A server that keeps Forkop's own certificate path serves a self-signed
+// certificate, so its links have to tell the client to accept it.
+function usesGeneratedCertificate(sectionId) {
+  const path = option(sectionId, "tls_certificate_path");
+  return !path || path === defaultTlsCertificatePath(sectionId);
+}
+
+function transportQuery(sectionId, params, grpcKey) {
+  const transport = option(sectionId, "transport") || "tcp";
+  params.type = transport === "raw" ? "tcp" : transport;
+
+  if (transport === "ws" || transport === "httpupgrade") {
+    params.path = option(sectionId, "transport_path");
+    params.host = option(sectionId, "transport_host");
+  } else if (transport === "xhttp") {
+    params.path = option(sectionId, "transport_path") || "/";
+    params.host = option(sectionId, "transport_host");
+    params.mode = option(sectionId, "transport_xhttp_mode") || "auto";
+  } else if (transport === "grpc") {
+    params[grpcKey] = option(sectionId, "transport_service_name");
+  } else if (transport === "http") {
+    params.path = option(sectionId, "transport_path");
+    params.host = optionList(sectionId, "transport_hosts").join(",");
+  }
+
+  return transport;
+}
+
+function tlsQuery(sectionId, params, includeSecurity) {
+  const security = getEffectiveSecurity(sectionId);
+
+  if (security === "none") {
+    if (includeSecurity) {
+      params.security = "none";
+    }
+    return security;
+  }
+
+  if (includeSecurity) {
+    params.security = security;
+  }
+
+  if (security === "reality") {
+    params.sni =
+      option(sectionId, "tls_server_name") ||
+      option(sectionId, "reality_handshake_server");
+    params.pbk = option(sectionId, "reality_public_key");
+    params.sid = optionList(sectionId, "reality_short_id")[0] || "";
+    const fingerprint = option(sectionId, "client_fingerprint");
+    if (fingerprint) {
+      params.fp = fingerprint;
+    }
+  } else {
+    params.sni = option(sectionId, "tls_server_name");
+    if (usesGeneratedCertificate(sectionId)) {
+      params.insecure = "1";
+    }
+  }
+
+  const alpn = optionList(sectionId, "tls_alpn").join(",");
+  if (alpn) {
+    params.alpn = alpn;
+  }
+
+  return security;
+}
+
+function shareUrl(scheme, sectionId, userInfo, params, label) {
+  const host = formatHostForUri(getPublicHost(sectionId));
+  const port = getListenPort(sectionId);
+  const query = encodeQuery(params || {});
+
+  return [
+    scheme,
+    "://",
+    userInfo ? `${userInfo}@` : "",
+    host,
+    ":",
+    port,
+    query ? `?${query}` : "",
+    "#",
+    encodeURIComponent(label),
+  ].join("");
+}
+
+function buildVlessLink(sectionId, client) {
+  const params = {};
+  const security = tlsQuery(sectionId, params, true);
+
+  if (security === "reality" && (!params.pbk || !params.sid)) {
+    return "";
+  }
+
+  transportQuery(sectionId, params, "serviceName");
+  params.encryption = "none";
+  if (client.flow && client.flow !== "none") {
+    params.flow = client.flow;
+  }
+
+  return shareUrl(
+    "vless",
+    sectionId,
+    encodeURIComponent(client.uuid),
+    params,
+    clientLabel(sectionId, client),
+  );
+}
+
+function buildTrojanLink(sectionId, client) {
+  const params = {};
+
+  // The core refuses to represent a plaintext Trojan outbound as a share link,
+  // because no client format carries it.
+  if (tlsQuery(sectionId, params, true) === "none") {
+    return "";
+  }
+
+  transportQuery(sectionId, params, "grpc-service-name");
+
+  return shareUrl(
+    "trojan",
+    sectionId,
+    encodeURIComponent(client.password),
+    params,
+    clientLabel(sectionId, client),
+  );
+}
+
+function buildVmessLink(sectionId, client) {
+  const params = {};
+  const security = tlsQuery(sectionId, params, false);
+  const transportParams = {};
+  const transport = transportQuery(sectionId, transportParams, "serviceName");
+  const payload = {
+    v: "2",
+    ps: clientLabel(sectionId, client),
+    add: getPublicHost(sectionId),
+    port: getListenPort(sectionId),
+    id: client.uuid,
+    aid: "0",
+    scy: "auto",
+    net: transport === "raw" ? "tcp" : transport,
+    type: "none",
+    host: transportParams.host || "",
+    path: transportParams.path || transportParams.serviceName || "",
+    tls: security === "tls" ? "tls" : "",
+    sni: security === "tls" ? params.sni || "" : "",
+    alpn: security === "tls" ? params.alpn || "" : "",
+  };
+
+  if (params.insecure) {
+    payload.insecure = "1";
+  }
+
+  // Unpadded standard base64, the encoding the core generator emits.
+  return `vmess://${base64Encode(JSON.stringify(payload)).replace(/=+$/, "")}`;
+}
+
+function buildShadowsocksLink(sectionId, client) {
+  const method = getShadowsocksMethod(sectionId);
+  // A 2022 server holds one pre-shared key and every client adds its own, so the
+  // client password is the two keys joined the way the ciphers expect them.
+  const password = isShadowsocks2022(method)
+    ? `${option(sectionId, "shadowsocks_psk")}:${client.password}`
+    : client.password;
+
+  return shareUrl(
+    "ss",
+    sectionId,
+    base64UrlEncode(`${method}:${password}`),
+    {},
+    clientLabel(sectionId, client),
+  );
+}
+
+function buildMixedLinks(sectionId, client) {
+  const userInfo = isAuthenticationEnabled(sectionId)
+    ? `${encodeURIComponent(client.name)}:${encodeURIComponent(client.password)}`
+    : "";
+  const label = clientLabel(sectionId, client);
+
+  return [
+    {
+      title: _("SOCKS5"),
+      link: shareUrl("socks5", sectionId, userInfo, {}, label),
+    },
+    {
+      title: _("HTTP"),
+      link: shareUrl("http", sectionId, userInfo, {}, label),
+    },
+  ];
+}
+
+function buildHysteria2Link(sectionId, client, context = {}) {
+  const params = {};
+  tlsQuery(sectionId, params, false);
+
+  const certificatePin = normalizeSha256(context.tlsCertificateSha256);
+  if (certificatePin) {
+    params.pinSHA256 = certificatePin;
+  }
+
+  if (option(sectionId, "hysteria2_obfs_type") === "salamander") {
+    params.obfs = "salamander";
+    params["obfs-password"] = option(sectionId, "hysteria2_obfs_password");
+  }
+
+  const upMbps = option(sectionId, "hysteria2_up_mbps");
+  const downMbps = option(sectionId, "hysteria2_down_mbps");
+  if (upMbps) {
+    params.up = upMbps;
+  }
+  if (downMbps) {
+    params.down = downMbps;
+  }
+
+  return shareUrl(
+    "hysteria2",
+    sectionId,
+    encodeURIComponent(client.password),
+    params,
+    clientLabel(sectionId, client),
+  );
+}
+
+function buildTuicLink(sectionId, client) {
+  const params = {};
+  tlsQuery(sectionId, params, false);
+
+  const congestion = option(sectionId, "tuic_congestion_control");
+  if (congestion && congestion !== "cubic") {
+    params.congestion_control = congestion;
+  }
+  const heartbeat = option(sectionId, "tuic_heartbeat");
+  if (heartbeat) {
+    params.heartbeat_interval = heartbeat;
+  }
+  if (option(sectionId, "tuic_zero_rtt_handshake") === "1") {
+    params.zero_rtt_handshake = "true";
+  }
+
+  return shareUrl(
+    "tuic",
+    sectionId,
+    `${encodeURIComponent(client.uuid)}:${encodeURIComponent(client.password)}`,
+    params,
+    clientLabel(sectionId, client),
+  );
+}
+
+function buildAnytlsLink(sectionId, client) {
+  const params = {};
+  tlsQuery(sectionId, params, false);
+
+  return shareUrl(
+    "anytls",
+    sectionId,
+    encodeURIComponent(client.password),
+    params,
+    clientLabel(sectionId, client),
+  );
+}
+
+function buildNaiveLink(sectionId, client) {
+  const params = {};
+  tlsQuery(sectionId, params, false);
+
+  // naive+quic marks the HTTP/3 listener, naive+https the HTTP/2 one.
+  const scheme =
+    option(sectionId, "naive_network") === "udp" ? "naive+quic" : "naive+https";
+
+  return shareUrl(
+    scheme,
+    sectionId,
+    `${encodeURIComponent(client.name)}:${encodeURIComponent(client.password)}`,
+    params,
+    clientLabel(sectionId, client),
+  );
+}
+
+function buildMtprotoLink(sectionId, client) {
+  const secret = normalizeMtprotoBaseSecret(client.secret);
+  if (!secret) {
+    return "";
+  }
+
+  const query = encodeQuery({
+    server: getPublicHost(sectionId),
+    port: getListenPort(sectionId),
+    secret: buildMtprotoFullSecret(
+      secret,
+      option(sectionId, "mtproto_faketls"),
+    ),
+  });
+
+  return `https://t.me/proxy?${query}`;
+}
+
+function hasRequiredCredentials(sectionId, client) {
+  return credentialFields(getProtocol(sectionId))
+    .filter((field) => field !== "flow" && field !== "authorized_keys")
+    .every((field) => {
+      if (field === "password" && !isAuthenticationEnabled(sectionId)) {
+        return true;
+      }
+      return !!client[field];
+    });
+}
+
+// Every link a client can be handed, as title and link pairs. Most protocols
+// produce one; the Mixed listener produces one per scheme it answers.
+function buildClientLinks(sectionId, client, context = {}) {
+  const protocol = getProtocol(sectionId);
+
+  // Only protocols the table gives a scheme have a share link at all. SSH and Mieru
+  // have no URI format, so the dialog reads out their credentials instead.
+  if (
+    !client ||
+    !linkScheme(protocol) ||
+    !getPublicHost(sectionId) ||
+    !getListenPort(sectionId) ||
+    !hasRequiredCredentials(sectionId, client)
+  ) {
+    return [];
+  }
+
+  const single = (link) => (link ? [{ title: _("Link"), link }] : []);
+
+  switch (protocol) {
+    case "vless":
+      return single(buildVlessLink(sectionId, client));
+    case "vmess":
+      return single(buildVmessLink(sectionId, client));
+    case "trojan":
+      return single(buildTrojanLink(sectionId, client));
+    case "shadowsocks":
+      return single(buildShadowsocksLink(sectionId, client));
+    case "mixed":
+      return buildMixedLinks(sectionId, client);
+    case "hysteria2":
+      return single(buildHysteria2Link(sectionId, client, context));
+    case "tuic":
+      return single(buildTuicLink(sectionId, client));
+    case "anytls":
+      return single(buildAnytlsLink(sectionId, client));
+    case "naive":
+      return single(buildNaiveLink(sectionId, client));
+    case "mtproto":
+      return single(buildMtprotoLink(sectionId, client));
+    default:
+      return [];
+  }
+}
+
+// Credentials to read out for protocols with no share link format, so the dialog is
+// still useful for SSH and Mieru.
+function clientCredentialRows(sectionId, client) {
+  const protocol = getProtocol(sectionId);
+  const rows = [];
+
+  rows.push([
+    _("Address"),
+    `${formatHostForUri(getPublicHost(sectionId))}:${getListenPort(sectionId)}`,
+  ]);
+  if (usesLoginName(protocol)) {
+    rows.push([_("User name"), client.name]);
+  }
+  if (client.password) {
+    rows.push([_("Password"), client.password]);
+  }
+  if (protocol === "mieru") {
+    rows.push([_("Transport"), option(sectionId, "mieru_transport") || "TCP"]);
+  }
+  if (protocol === "ssh" && client.authorized_keys.length) {
+    rows.push([
+      _("Public keys"),
+      _("%d added").format(client.authorized_keys.length),
+    ]);
+  }
+
+  return rows;
+}
+
+function normalizeSha256Response(response) {
+  if ((response.code ?? 0) !== 0 || !response.stdout) {
+    throw new Error(response.stderr || response.stdout || "");
+  }
+
+  const data = JSON.parse(response.stdout);
+  if (!data.success) {
+    throw new Error(data.message || "");
+  }
+
+  return normalizeSha256(data.sha256);
+}
+
+// Hysteria2 clients pin the certificate instead of trusting it, so the fingerprint
+// of Forkop's generated certificate is read from the router.
+function loadLinkContext(sectionId) {
+  const certificatePinExpected =
+    getProtocol(sectionId) === "hysteria2" &&
+    usesGeneratedCertificate(sectionId);
+
+  if (!certificatePinExpected) {
+    return Promise.resolve({
+      certificatePinExpected,
+      tlsCertificateSha256: "",
+    });
+  }
+
+  return fs
+    .exec("/usr/bin/forkop", ["get_tls_certificate_sha256", sectionId])
+    .then(normalizeSha256Response)
+    .catch((error) => {
+      console.warn(
+        error?.message || "Failed to read generated TLS certificate pin",
+        error,
+      );
+      return "";
+    })
+    .then((tlsCertificateSha256) => ({
+      certificatePinExpected,
+      tlsCertificateSha256,
+    }));
+}
+
+/* ---------------------------------------------------------------- icons, DOM */
+
+function svgEl(tag, attrs = {}, children = []) {
+  const element = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  Object.entries(attrs).forEach(([key, value]) => {
+    if (value != null) {
+      element.setAttribute(key, `${value}`);
+    }
+  });
+  (Array.isArray(children) ? children : [children])
+    .filter(Boolean)
+    .forEach((child) => element.appendChild(child));
+  return element;
+}
+
+// Lucide outlines at the size and stroke the rest of Forkop already uses.
+const ICON_PATHS = {
+  generate: [
+    ["path", { d: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" }],
+    ["path", { d: "M3 3v5h5" }],
+  ],
+  copy: [
+    ["rect", { x: "9", y: "9", width: "13", height: "13", rx: "2", ry: "2" }],
+    ["path", { d: "M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" }],
+  ],
+  check: [["path", { d: "M20 6 9 17l-5-5" }]],
+};
+
+function iconSvg(name) {
+  return svgEl(
+    "svg",
+    {
+      viewBox: "0 0 24 24",
+      width: "16",
+      height: "16",
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": "2",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+      "aria-hidden": "true",
+      focusable: "false",
+    },
+    ICON_PATHS[name].map(([tag, attrs]) => svgEl(tag, attrs)),
+  );
+}
+
+function copyText(text) {
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.top = "0";
+  textarea.style.left = "0";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+
+  let copied = false;
+  try {
+    copied = document.execCommand("copy");
+  } catch (error) {
+    console.warn("Failed to copy the client link", error);
+  }
+
+  document.body.removeChild(textarea);
+  return copied;
+}
+
+/* ------------------------------------------------------ server details dialog */
+
+const DETAILS_STYLE_ID = "forkop-server-details-styles";
+
+function injectDetailsStyles() {
+  if (document.getElementById(DETAILS_STYLE_ID)) {
+    return;
+  }
+
+  document.head.appendChild(
+    E(
+      "style",
+      { id: DETAILS_STYLE_ID },
+      [
+        ".fkp-details{display:flex;flex-direction:column;gap:12px;width:600px;max-width:100%;box-sizing:border-box}",
+        ".fkp-details__client{display:flex;gap:16px;align-items:flex-start;padding:12px;box-sizing:border-box;border:1px solid var(--border-color,rgba(128,128,128,0.25));background:rgba(128,128,128,0.04)}",
+        ".fkp-details__qr{flex:0 0 auto;width:132px;height:132px;display:block;image-rendering:pixelated;background:#fff;padding:4px;box-sizing:border-box}",
+        ".fkp-details__main{display:flex;flex-direction:column;gap:10px;flex:1 1 auto;min-width:0}",
+        ".fkp-details__name{font-weight:600}",
+        ".fkp-details__field{display:flex;flex-direction:column;gap:4px;min-width:0}",
+        ".fkp-details__caption{font-size:11px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;opacity:0.6}",
+        ".fkp-details__row{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:6px;align-items:stretch}",
+        ".fkp-details__value{width:100% !important;max-width:100% !important;min-width:0;box-sizing:border-box;margin:0 !important;float:none !important;font-family:monospace;font-size:12px}",
+        ".fkp-details__copy{display:inline-flex;align-items:center;justify-content:center;width:2.5em !important;min-width:0;padding:0 !important;margin:0 !important;float:none !important;line-height:1}",
+        ".fkp-details__facts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;font-size:12px}",
+        ".fkp-details__fact-label{opacity:0.65}",
+        ".fkp-details__fact-value{font-family:monospace;word-break:break-all}",
+        ".fkp-details__empty{opacity:0.7}",
+        "@media (max-width:640px){",
+        ".fkp-details{width:100%}",
+        ".fkp-details__client{flex-direction:column;align-items:center}",
+        ".fkp-details__main{width:100%}",
+        "}",
+      ].join("\n"),
+    ),
+  );
+}
+
+function renderCopyRow(caption, value) {
+  const input = E("input", {
+    type: "text",
+    class: "cbi-input-text fkp-details__value",
+    readonly: "readonly",
+    spellcheck: "false",
+    value,
+  });
+  input.addEventListener("focus", () => input.select());
+
+  const label = _("Copy");
+  const button = E(
+    "button",
+    {
+      class: "btn cbi-button cbi-button-neutral fkp-details__copy",
+      type: "button",
+      title: label,
+      "aria-label": label,
+    },
+    iconSvg("copy"),
+  );
+  button.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    const copied = copyText(value);
+    dom.content(button, iconSvg(copied ? "check" : "copy"));
+    window.setTimeout(() => dom.content(button, iconSvg("copy")), 1200);
+    main.showToast(
+      copied ? _("Copied") : _("Failed to copy!"),
+      copied ? "success" : "error",
+    );
+  });
+
+  return E("div", { class: "fkp-details__field" }, [
+    caption ? E("span", { class: "fkp-details__caption" }, caption) : "",
+    E("div", { class: "fkp-details__row" }, [input, button]),
+  ]);
+}
+
+function renderFacts(rows) {
+  return E(
+    "div",
+    { class: "fkp-details__facts" },
+    rows.flatMap(([label, value]) => [
+      E("span", { class: "fkp-details__fact-label" }, label),
+      E("span", { class: "fkp-details__fact-value" }, value),
+    ]),
+  );
+}
+
+function renderClientDetails(sectionId, client, context) {
+  const links = buildClientLinks(sectionId, client, context);
+  const qrImage = links.length ? qrSvgDataUri(links[0].link) : "";
+  const showCaptions = links.length > 1;
+
+  return E("div", { class: "fkp-details__client" }, [
+    qrImage
+      ? E("img", {
+          class: "fkp-details__qr",
+          src: qrImage,
+          alt: _("QR code"),
+        })
+      : "",
+    E("div", { class: "fkp-details__main" }, [
+      E("div", { class: "fkp-details__name" }, clientLabel(sectionId, client)),
+      ...(links.length
+        ? links.map((entry) =>
+            renderCopyRow(showCaptions ? entry.title : "", entry.link),
+          )
+        : [renderFacts(clientCredentialRows(sectionId, client))]),
+    ]),
+  ]);
+}
+
+function renderDetailsContent(sectionId, clients, context) {
+  const children = [];
+
+  if (
+    getProtocol(sectionId) === "hysteria2" &&
+    context.certificatePinExpected &&
+    !context.tlsCertificateSha256
+  ) {
+    children.push(
+      E(
+        "div",
+        { class: "alert-message warning" },
+        _(
+          "Apply the configuration once so the certificate is created, then reopen this dialog to get a complete link.",
+        ),
+      ),
+    );
+  }
+
+  if (!clients.length) {
+    children.push(
+      E(
+        "div",
+        { class: "fkp-details__empty" },
+        _("This server has no clients."),
+      ),
+    );
+  }
+
+  clients.forEach((client) =>
+    children.push(renderClientDetails(sectionId, client, context)),
+  );
+
+  return E("div", { class: "fkp-details" }, children);
+}
+
+function showServerDetailsModal(sectionId, clients) {
+  injectDetailsStyles();
+
+  const content = E("div", { class: "fkp-details" }, [
+    E("em", {}, _("Loading...")),
+  ]);
+
+  ui.showModal(
+    _("Server details: %s").format(getServerName(sectionId)),
+    [
+      content,
+      E("div", { class: "button-row" }, [
+        E(
+          "button",
+          {
+            class: "btn cbi-button cbi-button-neutral",
+            type: "button",
+            click: () => ui.hideModal(),
+          },
+          _("Close"),
+        ),
+      ]),
+    ],
+    "cbi-modal",
+  );
+
+  return loadLinkContext(sectionId)
+    .catch(() => ({ certificatePinExpected: false, tlsCertificateSha256: "" }))
+    .then((context) =>
+      content.replaceWith(renderDetailsContent(sectionId, clients, context)),
+    );
+}
+
+/* -------------------------------------------------------------------- clients */
+
+// A client is the account a server accepts. sing-box takes a list of users on every
+// protocol served here, so each client is its own UCI section with its own name and
+// credentials. The list is edited with the same child item widget the Sections tab
+// uses for interfaces, URLTests and tunnels.
+
+const CLIENT_KEYS = [
+  "name",
+  "uuid",
+  "password",
+  "secret",
+  "flow",
+  "authorized_keys",
+];
+
+function clientSections(sectionId) {
+  return (uci.sections(UCI_PACKAGE, CLIENT_TYPE) || []).filter(
+    (section) => `${section[CLIENT_OWNER_OPTION] || ""}` === `${sectionId}`,
+  );
+}
+
+function readClient(section) {
+  return {
+    id: section[".name"],
+    name: `${section.name || ""}`,
+    uuid: `${section.uuid || ""}`,
+    password: `${section.password || ""}`,
+    secret: `${section.secret || ""}`,
+    flow: `${section.flow || ""}`,
+    authorized_keys: asList(section.authorized_keys),
+  };
+}
+
+function listClients(sectionId) {
+  return clientSections(sectionId).map(readClient);
+}
+
+// Numbered names that do not follow the server name: a client is a device, not a
+// second label for the server.
+function nextClientName(sectionId, protocol, taken) {
+  const used = new Set(
+    (
+      taken || clientSections(sectionId).map((section) => section.name || "")
+    ).map((name) => `${name}`.trim().toLowerCase()),
+  );
+  const pattern = usesLoginName(protocol) ? "client-%d" : "Client #%d";
+
+  for (let index = 1; index <= 999; index += 1) {
+    const candidate = pattern.format(index);
+    if (!used.has(candidate.toLowerCase())) {
+      return candidate;
+    }
+  }
+
+  return pattern.format(Date.now() % 1000);
+}
+
+function clientNameLabel(protocol) {
+  return usesLoginName(protocol) ? _("User name") : _("Name");
+}
+
+function validateClientName(sectionId, value) {
+  const name = `${value || ""}`.trim();
+
+  if (!name) {
+    return _("This field is required");
+  }
+  if (name.length > MAX_CLIENT_NAME_LENGTH) {
+    return _("A name holds at most %d characters").format(
+      MAX_CLIENT_NAME_LENGTH,
+    );
+  }
+
+  if (usesLoginName(getProtocol(sectionId))) {
+    return /^[A-Za-z0-9._-]+$/.test(name)
+      ? true
+      : _("Use letters, digits, dots, underscores, or hyphens");
+  }
+
+  return hasControlCharacters(name)
+    ? _("Value must not contain control characters")
+    : true;
+}
+
+function validateClientCredential(sectionId, field, value) {
+  if (field === "uuid") {
+    return validateUuid(sectionId, value);
+  }
+  if (field === "secret") {
+    return validateMtprotoSecret(sectionId, value);
+  }
+  if (field === "password") {
+    return getProtocol(sectionId) === "shadowsocks"
+      ? validateShadowsocksPassword(sectionId, value)
+      : validateRequiredText(sectionId, value);
+  }
+  if (field === "authorized_keys") {
+    return validateAuthorizedKeys(sectionId, value);
+  }
+  return true;
+}
+
+// Credential fields the protocol asks a client for. The password disappears when
+// authentication is switched off, because then nobody sends one.
+function visibleClientFields(sectionId) {
+  const protocol = getProtocol(sectionId);
+
+  return credentialFields(protocol).filter(
+    (field) => field !== "password" || isAuthenticationEnabled(sectionId),
+  );
+}
+
+function clientCredentialLabel(sectionId, field) {
+  if (field === "uuid") {
+    return _("UUID");
+  }
+  if (field === "secret") {
+    return _("Secret");
+  }
+  if (field === "flow") {
+    return _("Flow");
+  }
+  if (field === "authorized_keys") {
+    return _("SSH public keys");
+  }
+
+  return getProtocol(sectionId) === "shadowsocks" &&
+    isShadowsocks2022(getShadowsocksMethod(sectionId))
+    ? _("Key")
+    : _("Password");
+}
+
+function clientCredentialDescription(sectionId, field) {
+  if (field === "flow") {
+    return _("Leave empty unless the client is configured for XTLS Vision.");
+  }
+  if (field === "authorized_keys") {
+    return _(
+      "One key per line. A client may sign in with a key instead of the password.",
+    );
+  }
+  if (
+    field === "password" &&
+    getProtocol(sectionId) === "shadowsocks" &&
+    isShadowsocks2022(getShadowsocksMethod(sectionId))
+  ) {
+    return _("Base64 key of %d bytes.").format(
+      shadowsocksKeyBytes(getShadowsocksMethod(sectionId)),
+    );
+  }
+  return "";
+}
+
+function clientSettingsDefaults(sectionId, inputValue, existing, listOption) {
+  const protocol = getProtocol(sectionId);
+  const defaults = {};
+
+  if (existing) {
+    return defaults;
+  }
+
+  // Adding a client is an explicit action, so a fresh client starts with credentials
+  // it can actually connect with; nothing is generated behind the user's back.
+  defaults.name =
+    `${inputValue || ""}`.trim() ||
+    nextClientName(
+      sectionId,
+      protocol,
+      pendingClientNames(sectionId, listOption),
+    );
+  visibleClientFields(sectionId).forEach((field) => {
+    if (field === "flow" || field === "authorized_keys") {
+      return;
+    }
+    defaults[field] = generateCredential(sectionId, protocol, field);
+  });
+
+  return defaults;
+}
+
+function pendingClientNames(sectionId, listOption) {
+  const stored = clientSections(sectionId).map((section) => section.name || "");
+
+  if (!listOption) {
+    return stored;
+  }
+
+  const store = sectionui.childPendingSettingsStore(listOption, sectionId);
+  return stored.concat(
+    Object.keys(store || {}).map((key) => (store[key] || {}).name || key),
+  );
+}
+
+function addClientCredentialOptions(sectionId, itemSection) {
+  const protocol = getProtocol(sectionId);
+
+  visibleClientFields(sectionId).forEach((field) => {
+    if (field === "flow") {
+      const flow = itemSection.option(
+        form.ListValue,
+        "flow",
+        clientCredentialLabel(sectionId, field),
+        clientCredentialDescription(sectionId, field),
+      );
+      flow.value("", _("None"));
+      flow.value("xtls-rprx-vision", "xtls-rprx-vision");
+      flow.rmempty = true;
+      return;
+    }
+
+    if (field === "authorized_keys") {
+      const keys = itemSection.option(
+        form.DynamicList,
+        "authorized_keys",
+        clientCredentialLabel(sectionId, field),
+        clientCredentialDescription(sectionId, field),
+      );
+      keys.rmempty = true;
+      keys.placeholder = "ssh-ed25519 AAAA...";
+      keys.validate = (_id, value) =>
+        validateClientCredential(sectionId, "authorized_keys", value);
+      return;
+    }
+
+    const credential = itemSection.option(
+      form.Value,
+      field,
+      clientCredentialLabel(sectionId, field),
+      clientCredentialDescription(sectionId, field),
+    );
+    credential.rmempty = false;
+    credential.password = field !== "uuid";
+    credential.validate = (_id, value) =>
+      validateClientCredential(sectionId, field, value);
+    addGenerateButton(credential, () =>
+      generateCredential(sectionId, protocol, field),
+    );
+  });
+}
+
+function addClientOptions(sectionId, itemSection, helpers) {
+  const protocol = getProtocol(sectionId);
+
+  const name = itemSection.option(
+    form.Value,
+    "name",
+    clientNameLabel(protocol),
+    usesLoginName(protocol)
+      ? _("The name this client signs in with.")
+      : _("Shown in the client list and in the share link."),
+  );
+  name.rmempty = false;
+  name.placeholder = usesLoginName(protocol) ? "client-1" : "Client #1";
+  name.validate = function (_id, value) {
+    const result = validateClientName(sectionId, value);
+    if (result !== true) {
+      return result;
+    }
+    return typeof helpers.validateName === "function"
+      ? helpers.validateName(value)
+      : true;
+  };
+
+  addClientCredentialOptions(sectionId, itemSection);
+}
+
+function showClientSettingsModal(
+  sectionId,
+  itemValue,
+  listOption,
+  widget,
+  itemNode,
+  context = {},
+) {
+  return sectionui.showChildItemSettingsModal(
+    sectionId,
+    itemValue,
+    listOption,
+    {
+      typeName: CLIENT_TYPE,
+      ownerOption: CLIENT_OWNER_OPTION,
+      valueOption: "name",
+      keys: CLIENT_KEYS,
+      itemNode,
+      defaults: (inputValue, existing) =>
+        clientSettingsDefaults(sectionId, inputValue, existing, listOption),
+      addOptions: (itemSection, helpers) =>
+        addClientOptions(sectionId, itemSection, helpers),
+      validateName: sectionui.validateUniqueDynamicListItemName.bind(
+        null,
+        widget,
+        itemNode,
+      ),
+      title: (name) =>
+        `${name || ""}`.trim() ? _("Client: %s").format(name) : _("New client"),
+      afterSave: (itemId, inputValue, _settings, existing) => {
+        if (existing) {
+          sectionui.updateDynamicListItemLabel(itemNode, inputValue);
+          return;
+        }
+        if (context.adding) {
+          sectionui.addDynamicListItem(widget, inputValue);
+        } else {
+          sectionui.updateDynamicListItemLabel(itemNode, inputValue);
+        }
+      },
+    },
+  );
+}
+
+// Everything that has to hold before a server with clients can be saved. The list
+// widget turns the message into the field error LuCI shows next to the option.
+function validateClientsOnSave(sectionId, values, listOption) {
+  const items = (Array.isArray(values) ? values : [values]).filter(Boolean);
+
+  if (!items.length) {
+    return _("Add at least one client");
+  }
+
+  const store =
+    sectionui.childPendingSettingsStore(listOption, sectionId) || {};
+  const seen = new Set();
+  for (const value of items) {
+    const existing = sectionui.isExistingChildItem(
+      sectionId,
+      value,
+      CLIENT_TYPE,
+      CLIENT_OWNER_OPTION,
+    );
+    const settings = existing
+      ? readClient(uci.get(UCI_PACKAGE, value) || {})
+      : Object.assign({ name: value }, store[value] || {});
+    const name = `${settings.name || value || ""}`.trim();
+
+    const nameResult = validateClientName(sectionId, name);
+    if (nameResult !== true) {
+      return `${name || value}: ${nameResult}`;
+    }
+
+    if (seen.has(name.toLowerCase())) {
+      return _("Client names must be unique");
+    }
+    seen.add(name.toLowerCase());
+
+    for (const field of visibleClientFields(sectionId)) {
+      if (field === "flow" || field === "authorized_keys") {
+        continue;
+      }
+      const result = validateClientCredential(
+        sectionId,
+        field,
+        settings[field] || "",
+      );
+      if (result !== true) {
+        return `${name}: ${result}`;
+      }
+    }
+  }
+
+  return true;
+}
+
+// A client list problem has no input of its own to mark, so the message goes under
+// the field the way LuCI reports an invalid value, and never into a dialog banner.
+// Credentials the protocol no longer uses are dropped when the protocol changes: a
+// stale password would keep showing up in diagnostics and in the config signature.
+function pruneClientCredentials(sectionId) {
+  const keep = new Set(credentialFields(getProtocol(sectionId)));
+
+  clientSections(sectionId).forEach((section) => {
+    CLIENT_KEYS.filter(
+      (key) => key !== "name" && !keep.has(key),
+    ).forEach((key) => {
+      if (section[key] != null) {
+        uci.unset(UCI_PACKAGE, section[".name"], key);
+      }
+    });
+  });
+}
+
+function removeServerClients(sectionId) {
+  sectionui.cleanupRemovedChildItems(
+    sectionId,
+    CLIENT_TYPE,
+    [],
+    CLIENT_OWNER_OPTION,
+  );
+}
+
+/* ------------------------------------------------------------------- widgets */
+
 function injectServerStyles() {
   if (document.getElementById(STYLE_ID)) {
     return;
@@ -39,253 +2785,193 @@ function injectServerStyles() {
     E(
       "style",
       { id: STYLE_ID },
-      `
-.fkp-server-icon-button{box-sizing:border-box;vertical-align:middle}
-.fkp-server-icon-button__glyph{display:inline-flex;align-items:center}
-.fkp-server-validation-summary{margin:0 0 12px}
-#cbi-${UCI_PACKAGE}-server > h3:nth-child(1){display:none}
-#cbi-${UCI_PACKAGE}-server > .cbi-section-remove{margin-bottom:-32px}
-#cbi-${UCI_PACKAGE}-server .cbi-section-actions > div{display:inline-flex;align-items:center;gap:4px}
-#cbi-${UCI_PACKAGE}-server .cbi-section-actions{text-align:right}
-
-.fkp-protocol-summary{margin-top:6px}
-
-.fkp-clients{display:flex;flex-direction:column;gap:8px;min-width:0}
-.fkp-clients__item{display:flex;flex-direction:column;gap:6px;padding:8px 10px;border:1px solid var(--border-color,rgba(128,128,128,0.25));background:rgba(128,128,128,0.05);box-sizing:border-box}
-.fkp-clients__item--disabled{opacity:0.6}
-.fkp-clients__line{display:flex;flex-wrap:wrap;align-items:flex-end;gap:6px}
-.fkp-clients__field{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 180px}
-.fkp-clients__field--name{flex:1 1 140px}
-.fkp-clients__field > label{font-size:11px;opacity:0.65;text-transform:uppercase;letter-spacing:0.05em;font-weight:700}
-.fkp-clients__field input,.fkp-clients__field select,.fkp-clients__field textarea{width:100% !important;max-width:100% !important;box-sizing:border-box;margin:0 !important;float:none !important}
-.fkp-clients__field > div{display:flex;gap:4px;align-items:center;min-width:0}
-.fkp-clients__field > div > input{min-width:0}
-.fkp-clients__actions{display:flex;gap:4px;align-items:center;padding-bottom:2px}
-.fkp-clients__actions .btn{display:inline-flex;align-items:center;justify-content:center;padding:4px 8px !important;height:auto !important;min-height:26px !important;float:none !important;margin:0 !important}
-.fkp-clients__toggle{display:flex;align-items:center;gap:6px;font-size:12px;padding-bottom:4px}
-.fkp-clients__error{color:var(--danger-color,#c9302c);font-size:11px}
-.fkp-clients__add{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;float:none !important;margin:0 !important}
-.fkp-clients__hint{font-size:11px;opacity:0.7}
-`,
+      [
+        // The generate button sits in the same grid the child item list uses, so it
+        // lines up with the input instead of floating next to it.
+        ".fkp-generate-row{--fkp-generate-gap:0.5em;--fkp-generate-size:2.5em;column-gap:var(--fkp-generate-gap);display:inline-grid;grid-template-columns:minmax(0,1fr) auto;max-inline-size:100%}",
+        ".fkp-generate-row > :first-child{grid-column:1;min-inline-size:0}",
+        ".fkp-generate-row > .fkp-generate{align-items:center;align-self:stretch;box-sizing:border-box;display:inline-flex;grid-column:2;inline-size:var(--fkp-generate-size) !important;justify-content:center;line-height:1;margin:0 !important;min-block-size:0;min-inline-size:0;padding:0 !important;float:none !important;user-select:none}",
+        ".fkp-generate-row--rows > .fkp-generate{align-self:start;block-size:var(--fkp-generate-row-size,auto)}",
+        ".fkp-generate-row > .fkp-generate > svg{display:block}",
+        `#cbi-${UCI_PACKAGE}-server > h3:nth-child(1){display:none}`,
+        `#cbi-${UCI_PACKAGE}-server > .cbi-section-remove{margin-bottom:-32px}`,
+        `#cbi-${UCI_PACKAGE}-server .cbi-section-actions > div{display:inline-flex;align-items:center;gap:4px}`,
+        `#cbi-${UCI_PACKAGE}-server .cbi-section-actions{text-align:right}`,
+        ".fkp-server-info{box-sizing:border-box;vertical-align:middle}",
+        ".fkp-server-info__glyph{display:inline-block;line-height:1;transform:scale(1.55);transform-origin:center}",
+      ].join("\n"),
     ),
   );
 }
 
-function getProtocol(sectionId) {
-  return spec.getProtocol(sectionId);
+function widgetElement(node) {
+  const instance = dom.findClassInstance(node);
+  return instance && typeof instance.setValue === "function" ? instance : null;
 }
 
-function getWidget(sectionId, option) {
-  return document.getElementById(
-    `widget.cbid.${UCI_PACKAGE}.${sectionId}.${option}`,
-  );
-}
-
-function getControlWidget(sectionId, option) {
-  const widget = getWidget(sectionId, option);
-
-  if (!widget) {
+function controlOf(node) {
+  if (!node) {
     return null;
   }
-
-  if (/^(INPUT|SELECT|TEXTAREA)$/.test(widget.tagName)) {
-    return widget;
+  if (/^(INPUT|SELECT|TEXTAREA)$/.test(node.tagName)) {
+    return node;
   }
-
-  return typeof widget.querySelector === "function"
-    ? widget.querySelector("input:not([type='hidden']), select, textarea")
+  return typeof node.querySelector === "function"
+    ? node.querySelector("input:not([type='hidden']), select, textarea")
     : null;
 }
 
-function getSelectWidget(sectionId, option) {
-  const widget = getControlWidget(sectionId, option);
+// Fills a field with a freshly generated value. Nothing is generated until the
+// button is pressed, so an untouched field stays empty and the validator asks for it.
+function addGenerateButton(optionRef, generate, title) {
+  const renderWidget = optionRef.renderWidget;
 
-  return widget && widget.tagName === "SELECT" ? widget : null;
+  optionRef.renderWidget = function (sectionId, optionIndex, cfgvalue) {
+    const node = renderWidget.call(this, sectionId, optionIndex, cfgvalue);
+    const label = title || _("Generate");
+    const readonly = this.readonly != null ? this.readonly : this.map.readonly;
+    const button = E(
+      "button",
+      {
+        class: "btn cbi-button cbi-button-neutral fkp-generate",
+        type: "button",
+        title: label,
+        "aria-label": label,
+        disabled: readonly ? "" : null,
+      },
+      iconSvg("generate"),
+    );
+
+    button.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+
+      if (readonly) {
+        return;
+      }
+
+      const element = widgetElement(node);
+      const next = generate(sectionId, element ? element.getValue() : null);
+
+      if (next == null) {
+        return;
+      }
+      if (element) {
+        element.setValue(next);
+        // A field keeps the invalid mark until it is checked again, so a generated
+        // value is validated the same way a typed one is.
+        if (typeof element.triggerValidation === "function") {
+          element.triggerValidation();
+        }
+      }
+      controlOf(node)?.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    // A list grows row by row, so its button keeps the height of one row the way the
+    // child item list does. A single control simply stretches to its own height.
+    const rows = !!node.querySelector?.(".add-item");
+    const row = E(
+      "div",
+      {
+        class: rows
+          ? "fkp-generate-row fkp-generate-row--rows"
+          : "fkp-generate-row",
+      },
+      [node, button],
+    );
+
+    if (rows) {
+      const measure = () => {
+        const height = controlOf(node)?.offsetHeight || 0;
+        if (height > 0) {
+          button.style.setProperty("--fkp-generate-row-size", `${height}px`);
+        }
+      };
+
+      if (typeof ResizeObserver === "function") {
+        new ResizeObserver(measure).observe(node);
+      } else {
+        window.setTimeout(measure, 0);
+      }
+    }
+
+    return row;
+  };
 }
 
-function setWidgetValue(sectionId, option, value) {
-  const widget = getControlWidget(sectionId, option);
+function configureTextareaOption(optionRef) {
+  const renderWidget = optionRef.renderWidget;
 
-  if (!widget) {
-    uci.set(UCI_PACKAGE, sectionId, option, value);
+  optionRef.renderWidget = function (sectionId, optionIndex, cfgvalue) {
+    const node = renderWidget.call(this, sectionId, optionIndex, cfgvalue);
+    const textarea =
+      node && typeof node.querySelector === "function"
+        ? node.querySelector("textarea")
+        : node;
+
+    if (textarea) {
+      [
+        ["spellcheck", "false"],
+        ["autocomplete", "off"],
+        ["autocorrect", "off"],
+        ["autocapitalize", "off"],
+        ["data-gramm", "false"],
+        ["data-gramm_editor", "false"],
+        ["data-enable-grammarly", "false"],
+      ].forEach(([name, value]) => textarea.setAttribute(name, value));
+      textarea.style.resize = "vertical";
+      textarea.style.maxWidth = "100%";
+    }
+
+    return node;
+  };
+}
+
+function getSelectWidget(sectionId, name) {
+  const node = document.getElementById(
+    `widget.cbid.${UCI_PACKAGE}.${sectionId}.${name}`,
+  );
+
+  if (!node) {
+    return null;
+  }
+  if (node.tagName === "SELECT") {
+    return node;
+  }
+
+  return typeof node.querySelector === "function"
+    ? node.querySelector("select")
+    : null;
+}
+
+// The security modes depend on the protocol and LuCI cannot express that with
+// depends(), so the choices are rebuilt whenever the protocol changes.
+// The protocol change handler runs before the new value reaches the form, so the
+// protocol is handed over instead of being read back.
+function syncSecurityChoices(sectionId, protocol) {
+  const allowed = securitiesFor(protocol || getProtocol(sectionId));
+  const select = getSelectWidget(sectionId, "security");
+  const stored = select ? select.value : option(sectionId, "security");
+  const next = allowed.includes(stored) ? stored : allowed[0];
+
+  if (!select) {
+    if (stored !== next) {
+      uci.set(UCI_PACKAGE, sectionId, "security", next);
+    }
     return;
   }
 
-  widget.value = value;
-  uci.set(UCI_PACKAGE, sectionId, option, value);
-  widget.dispatchEvent(new Event("input", { bubbles: true }));
-  widget.dispatchEvent(new Event("change", { bubbles: true }));
-}
-
-function isRoutingSectionAction(action) {
-  return ROUTING_SECTION_ACTIONS.indexOf(`${action || ""}`) !== -1;
-}
-
-function loadRoutingSectionChoices(option) {
-  const sections = option.map?.data?.state?.values?.[UCI_PACKAGE] ?? {};
-
-  option.keylist = [];
-  option.vallist = [];
-
-  for (const sectionName in sections) {
-    const section = sections[sectionName];
-
-    if (
-      section[".type"] === "section" &&
-      section.enabled !== "0" &&
-      isRoutingSectionAction(section.action)
-    ) {
-      option.keylist.push(sectionName);
-      option.vallist.push(section.label || sectionName);
-    }
-  }
-
-  return Promise.resolve();
-}
-
-function getTailscaleDetourTargetSections(currentSectionId) {
-  return (uci.sections(UCI_PACKAGE, "section") || []).filter(
-    (section) =>
-      section[".name"] &&
-      section[".name"] !== currentSectionId &&
-      section.enabled !== "0" &&
-      TAILSCALE_DETOUR_ACTIONS.includes(section.action || ""),
-  );
-}
-
-function populateTailscaleDetourValues(option, currentSectionId) {
-  option.keylist = [];
-  option.vallist = [];
-  getTailscaleDetourTargetSections(currentSectionId).forEach((section) => {
-    option.value(section[".name"], section.label || section[".name"]);
-  });
-}
-
-function loadServerTableOptions(sectionRef) {
-  const sectionIds = sectionRef.cfgsections();
-  const tasks = [];
-
-  for (let i = 0; i < sectionIds.length; i += 1) {
-    const sectionId = sectionIds[i];
-
-    for (let j = 0; j < sectionRef.children.length; j += 1) {
-      const option = sectionRef.children[j];
-
-      if (option.disable || option.modalonly) {
-        continue;
-      }
-
-      tasks.push(
-        Promise.resolve(option.load.call(option, sectionId)).then((value) => {
-          option.cfgvalue(sectionId, value);
-        }),
-      );
-    }
-  }
-
-  return Promise.all(tasks);
-}
-
-function renderSecurityChoices(select, protocol, selectedSecurity) {
   select.replaceChildren(
-    ...spec.securitiesFor(protocol).map((security) =>
+    ...allowed.map((security) =>
       E(
         "option",
-        {
-          value: security,
-          selected: security === selectedSecurity ? "" : null,
-        },
-        spec.securityLabel(security),
+        { value: security, selected: security === next ? "" : null },
+        securityLabel(security),
       ),
     ),
   );
-}
-
-// The security list depends on the protocol, and LuCI cannot express that with
-// depends(), so the choices are rebuilt whenever the protocol changes.
-function syncSecurityChoices(sectionId) {
-  const protocol = getProtocol(sectionId);
-  const select = getSelectWidget(sectionId, "security");
-  const stored = uci.get(UCI_PACKAGE, sectionId, "security");
-  const nextSecurity = spec.securitiesFor(protocol).includes(stored)
-    ? stored
-    : spec.defaultSecurity(protocol);
-
-  if (select) {
-    renderSecurityChoices(select, protocol, nextSecurity);
-    if (
-      Array.from(select.options).some((option) => option.value === nextSecurity)
-    ) {
-      select.value = nextSecurity;
-    }
-  }
-
-  if (stored !== nextSecurity) {
-    uci.set(UCI_PACKAGE, sectionId, "security", nextSecurity);
-  }
-
-  if (select) {
-    select.dispatchEvent(new Event("input", { bubbles: true }));
-    select.dispatchEvent(new Event("change", { bubbles: true }));
-  }
-}
-
-function getModalNode() {
-  return document.querySelector(
-    "body.modal-overlay-active > #modal_overlay > .modal.cbi-modal",
-  );
-}
-
-function clearServerValidationMessage() {
-  const modal = getModalNode();
-
-  if (modal) {
-    modal
-      .querySelectorAll(".fkp-server-validation-summary")
-      .forEach((node) => node.remove());
-  }
-}
-
-function showServerValidationMessage(error) {
-  const modal = getModalNode();
-
-  if (!modal) {
-    return;
-  }
-
-  clearServerValidationMessage();
-
-  const message = error?.message || "";
-  const summary = E(
-    "div",
-    {
-      class: "alert-message warning fkp-server-validation-summary",
-    },
-    [
-      E("strong", {}, _("Cannot save server")),
-      E("div", {}, _("Fix the highlighted fields and save again.")),
-      message ? E("small", {}, message) : "",
-    ],
-  );
-  const buttonRow = modal.querySelector(".button-row");
-  modal.insertBefore(summary, buttonRow || modal.firstChild);
-
-  const invalidNode = modal.querySelector(
-    ".cbi-input-invalid, .fkp-clients__error:not(:empty)",
-  );
-  if (invalidNode) {
-    invalidNode.scrollIntoView({ block: "center", behavior: "smooth" });
-    if (typeof invalidNode.focus === "function") {
-      invalidNode.focus({ preventScroll: true });
-    }
-  }
-}
-
-function hasRealityKeypair(sectionId) {
-  return (
-    !!uci.get(UCI_PACKAGE, sectionId, "reality_private_key") &&
-    !!uci.get(UCI_PACKAGE, sectionId, "reality_public_key")
-  );
+  select.value = next;
+  select.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
 function generateRealityKeypair(sectionId) {
@@ -301,479 +2987,165 @@ function generateRealityKeypair(sectionId) {
         throw new Error(data.message || "");
       }
 
-      setWidgetValue(sectionId, "reality_private_key", data.private_key);
-      setWidgetValue(sectionId, "reality_public_key", data.public_key);
+      return data;
     })
     .catch((error) => {
-      console.warn(
-        error?.message || "Failed to generate Reality key pair",
-        error,
-      );
+      console.warn(error?.message || "Failed to generate a Reality key pair");
+      main.showToast(_("Could not generate a Reality key pair"), "error");
+      return null;
     });
 }
 
-function generateRealityKeypairIfMissing(sectionId) {
-  return hasRealityKeypair(sectionId)
-    ? Promise.resolve()
-    : generateRealityKeypair(sectionId);
-}
+// Both halves of the pair are written together: a public key that does not belong to
+// the private key would produce links no client can use.
+function addRealityKeypairButton(optionRef) {
+  const renderWidget = optionRef.renderWidget;
 
-function shouldGenerateRealityKeypair(sectionId) {
-  return (
-    getProtocol(sectionId) === "vless" &&
-    spec.getEffectiveSecurity(sectionId) === "reality"
-  );
-}
-
-function prepareServerModal(sectionId) {
-  clients.syncClients(sectionId);
-
-  return shouldGenerateRealityKeypair(sectionId)
-    ? generateRealityKeypairIfMissing(sectionId)
-    : Promise.resolve();
-}
-
-function configureServerTextareaOption(option) {
-  const originalRenderWidget = option.renderWidget;
-
-  option.renderWidget = function (sectionId, optionIndex, cfgvalue) {
-    const node = originalRenderWidget.call(
-      this,
-      sectionId,
-      optionIndex,
-      cfgvalue,
-    );
-    const textarea =
-      node && typeof node.querySelector === "function"
-        ? node.querySelector("textarea")
-        : node;
-
-    if (textarea) {
-      textarea.setAttribute("spellcheck", "false");
-      textarea.setAttribute("autocomplete", "off");
-      textarea.setAttribute("autocorrect", "off");
-      textarea.setAttribute("autocapitalize", "off");
-      textarea.setAttribute("data-gramm", "false");
-      textarea.setAttribute("data-gramm_editor", "false");
-      textarea.setAttribute("data-enable-grammarly", "false");
-      textarea.style.resize = "vertical";
-      textarea.style.maxWidth = "100%";
-    }
-
-    return node;
-  };
-}
-
-// Adds a button that replaces a generated value with a fresh one. Rotating a secret
-// in place is otherwise impossible without emptying the field first.
-function addRegenerateButton(option, generate) {
-  const originalRenderWidget = option.renderWidget;
-
-  option.renderWidget = function (sectionId, optionIndex, cfgvalue) {
-    const node = originalRenderWidget.call(
-      this,
-      sectionId,
-      optionIndex,
-      cfgvalue,
-    );
-    const label = _("Generate a new value");
-
-    dom.append(
-      node,
-      E(
-        "button",
-        {
-          class: "btn cbi-button cbi-button-neutral",
-          type: "button",
-          title: label,
-          "aria-label": label,
-          click: (ev) => {
-            ev.preventDefault();
-            setWidgetValue(sectionId, option.option, generate(sectionId));
-          },
-        },
-        util.iconSvg("dice"),
-      ),
-    );
-
-    return node;
-  };
-}
-
-function addProtocolSummary(option) {
-  const originalRenderWidget = option.renderWidget;
-
-  option.renderWidget = function (sectionId, optionIndex, cfgvalue) {
-    const node = originalRenderWidget.call(
-      this,
-      sectionId,
-      optionIndex,
-      cfgvalue,
-    );
-    const summary = E(
-      "div",
-      { class: "cbi-value-description fkp-protocol-summary" },
-      spec.protocolSummary(getProtocol(sectionId)),
-    );
-    const select = node?.querySelector?.("select") || node;
-
-    if (select && typeof select.addEventListener === "function") {
-      select.addEventListener("change", () => {
-        summary.textContent = spec.protocolSummary(select.value);
-      });
-    }
-
-    dom.append(node, summary);
-
-    return node;
-  };
-}
-
-function renderClientCredentialInput(sectionId, client, field, onChange) {
-  if (field === "flow") {
-    const select = E(
-      "select",
-      { class: "cbi-input-select" },
-      [
-        ["", _("None")],
-        ["xtls-rprx-vision", "xtls-rprx-vision"],
-      ].map(([value, text]) =>
-        E(
-          "option",
-          { value, selected: client.flow === value ? "" : null },
-          text,
-        ),
-      ),
-    );
-    select.addEventListener("change", () => onChange(select.value));
-    return { node: select, getValue: () => select.value };
-  }
-
-  if (field === "authorized_keys") {
-    const textarea = E(
-      "textarea",
-      {
-        class: "cbi-input-textarea",
-        rows: 2,
-        spellcheck: "false",
-        placeholder: "ssh-ed25519 AAAA...",
-      },
-      client.authorized_keys.join("\n"),
-    );
-    const read = () =>
-      textarea.value
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean);
-    textarea.addEventListener("change", () => onChange(read()));
-    return { node: textarea, getValue: read };
-  }
-
-  const widget = new ui.Textfield(client[field] || "", {
-    password: field === "password" || field === "secret",
-  });
-  const node = widget.render();
-  node.addEventListener("widget-change", () => onChange(widget.getValue()));
-
-  return { node, getValue: () => widget.getValue() };
-}
-
-function credentialFieldLabel(sectionId, field) {
-  if (field === "uuid") {
-    return _("UUID");
-  }
-  if (field === "password") {
-    return getProtocol(sectionId) === "shadowsocks" &&
-      spec.isShadowsocks2022(spec.getShadowsocksMethod(sectionId))
-      ? _("Client pre-shared key")
-      : _("Password");
-  }
-  if (field === "secret") {
-    return _("Secret");
-  }
-  if (field === "flow") {
-    return _("Flow");
-  }
-  return _("Authorized keys");
-}
-
-function renderClientItem(sectionId, client, state) {
-  const protocol = getProtocol(sectionId);
-  const fields = spec
-    .credentialFields(protocol)
-    .filter(
-      (field) =>
-        field !== "password" || spec.isAuthenticationEnabled(sectionId),
-    );
-  const item = E("div", { class: "fkp-clients__item" });
-  const error = E("div", { class: "fkp-clients__error" });
-  const readers = {};
-
-  const refreshDisabled = () =>
-    item.classList.toggle("fkp-clients__item--disabled", !client.enabled);
-
-  const enabledInput = E("input", {
-    type: "checkbox",
-    checked: client.enabled ? "" : null,
-  });
-  enabledInput.addEventListener("change", () => {
-    client.enabled = enabledInput.checked;
-    uci.set(
-      UCI_PACKAGE,
-      client.id,
-      "enabled",
-      enabledInput.checked ? "1" : "0",
-    );
-    refreshDisabled();
-  });
-
-  const nameInput = E("input", {
-    type: "text",
-    class: "cbi-input-text",
-    value: client.name,
-    placeholder: spec.usesLoginName(protocol) ? _("Login") : _("Name"),
-  });
-  nameInput.addEventListener("change", () => {
-    client.name = nameInput.value.trim();
-    clients.setClientOption(client.id, "name", client.name);
-    state.validate();
-  });
-  readers.name = () => nameInput.value.trim();
-
-  const fieldNodes = fields.map((field) => {
-    const control = renderClientCredentialInput(
-      sectionId,
-      client,
-      field,
-      (value) => {
-        client[field] = value;
-        clients.setClientOption(client.id, field, value);
-        state.validate();
-      },
-    );
-    readers[field] = control.getValue;
-
-    return E(
-      "div",
-      { class: `fkp-clients__field fkp-clients__field--${field}` },
-      [E("label", {}, credentialFieldLabel(sectionId, field)), control.node],
-    );
-  });
-
-  const actions = [];
-  const generated = fields.filter((field) =>
-    ["uuid", "password", "secret"].includes(field),
-  );
-  if (generated.length) {
-    const label = _("Generate new credentials");
-    actions.push(
-      E(
-        "button",
-        {
-          class: "btn cbi-button cbi-button-neutral",
-          type: "button",
-          title: label,
-          "aria-label": label,
-          click: (ev) => {
-            ev.preventDefault();
-            generated.forEach((field) => {
-              client[field] = spec.generateCredential(
-                sectionId,
-                protocol,
-                field,
-              );
-              clients.setClientOption(client.id, field, client[field]);
-            });
-            state.rerender();
-          },
-        },
-        util.iconSvg("dice"),
-      ),
-    );
-  }
-
-  const removeLabel = _("Remove client");
-  actions.push(
-    E(
+  optionRef.renderWidget = function (sectionId, optionIndex, cfgvalue) {
+    const node = renderWidget.call(this, sectionId, optionIndex, cfgvalue);
+    const label = _("Generate a key pair");
+    const readonly = this.readonly != null ? this.readonly : this.map.readonly;
+    const button = E(
       "button",
       {
-        class: "btn cbi-button cbi-button-remove",
+        class: "btn cbi-button cbi-button-neutral fkp-generate",
         type: "button",
-        title: removeLabel,
-        "aria-label": removeLabel,
-        click: (ev) => {
-          ev.preventDefault();
-          clients.removeClient(client.id);
-          state.rerender();
-        },
+        title: label,
+        "aria-label": label,
+        disabled: readonly ? "" : null,
       },
-      util.iconSvg("trash"),
-    ),
-  );
+      iconSvg("generate"),
+    );
 
-  dom.append(item, [
-    E("div", { class: "fkp-clients__line" }, [
-      E("label", { class: "fkp-clients__toggle" }, [
-        enabledInput,
-        E("span", {}, _("Enabled")),
-      ]),
-      E("div", { class: "fkp-clients__field fkp-clients__field--name" }, [
-        E(
-          "label",
-          {},
-          spec.usesLoginName(protocol) ? _("Login") : _("Client name"),
-        ),
-        nameInput,
-      ]),
-      ...fieldNodes,
-      E("div", { class: "fkp-clients__actions" }, actions),
-    ]),
-    error,
-  ]);
+    button.addEventListener("click", (ev) => {
+      ev.preventDefault();
 
-  refreshDisabled();
+      if (readonly) {
+        return;
+      }
 
-  return { node: item, error, client, readers };
+      generateRealityKeypair(sectionId).then((pair) => {
+        if (!pair) {
+          return;
+        }
+        [
+          ["reality_private_key", pair.private_key],
+          ["reality_public_key", pair.public_key],
+        ].forEach(([name, value]) => {
+          const target = document.getElementById(
+            `widget.cbid.${UCI_PACKAGE}.${sectionId}.${name}`,
+          );
+          const control =
+            target &&
+            (target.tagName === "INPUT"
+              ? target
+              : target.querySelector("input"));
+          if (control) {
+            control.value = value;
+            control.dispatchEvent(new Event("change", { bubbles: true }));
+          } else {
+            uci.set(UCI_PACKAGE, sectionId, name, value);
+          }
+        });
+      });
+    });
+
+    return E("div", { class: "fkp-generate-row" }, [node, button]);
+  };
 }
 
-// Validates the visible rows and reports every problem inline. The option's parse()
-// reuses the result so an invalid client blocks the save.
-function validateClientItems(sectionId, items) {
-  let firstError = "";
+/* ---------------------------------------------------------- section behaviour */
 
-  items.forEach((item) => {
-    const messages = [];
-    const nameResult = clients.validateClientName(
-      sectionId,
-      item.client.id,
-      item.readers.name(),
-    );
-    if (nameResult !== true) {
-      messages.push(nameResult);
-    }
+function isRoutingSectionAction(action) {
+  return ROUTING_SECTION_ACTIONS.indexOf(`${action || ""}`) !== -1;
+}
 
-    Object.keys(item.readers)
-      .filter((field) => field !== "name")
-      .forEach((field) => {
-        const result = clients.validateClientField(
-          sectionId,
-          field,
-          item.readers[field](),
-        );
-        if (result !== true) {
-          messages.push(result);
-        }
-      });
+function loadRoutingSectionChoices(optionRef) {
+  const sections = optionRef.map?.data?.state?.values?.[UCI_PACKAGE] ?? {};
 
-    item.error.textContent = messages.join("; ");
-    if (!firstError && messages.length) {
-      firstError = `${item.client.name || item.client.id}: ${messages[0]}`;
+  optionRef.keylist = [];
+  optionRef.vallist = [];
+
+  Object.keys(sections).forEach((name) => {
+    const section = sections[name];
+    if (
+      section[".type"] === "section" &&
+      section.enabled !== "0" &&
+      isRoutingSectionAction(section.action)
+    ) {
+      optionRef.keylist.push(name);
+      optionRef.vallist.push(section.label || name);
     }
   });
 
-  return firstError;
+  return Promise.resolve();
 }
 
-function renderClientsEditor(sectionId, option) {
-  const container = E("div", { class: "fkp-clients" });
-  const state = {};
-  let items = [];
-
-  state.validate = () => {
-    option.clientError = validateClientItems(sectionId, items);
-    return option.clientError;
-  };
-
-  state.rerender = () => {
-    clients.syncClients(sectionId);
-    items = clients
-      .listClients(sectionId)
-      .map((client) => renderClientItem(sectionId, client, state));
-
-    const addLabel = _("Add client");
-    container.replaceChildren(
-      ...items.map((item) => item.node),
-      E(
-        "button",
-        {
-          class: "btn cbi-button cbi-button-add fkp-clients__add",
-          type: "button",
-          click: (ev) => {
-            ev.preventDefault();
-            clients.addClient(sectionId);
-            state.rerender();
-          },
-        },
-        [util.iconSvg("plus"), " ", E("span", {}, addLabel)],
-      ),
-      E(
-        "div",
-        { class: "fkp-clients__hint" },
-        spec.usesLoginName(getProtocol(sectionId))
-          ? _(
-              "Each client is a separate account. Its name is the login the client sends.",
-            )
-          : _(
-              "Each client is a separate account with its own credentials and its own link.",
-            ),
-      ),
-    );
-
-    state.validate();
-  };
-
-  state.rerender();
-
-  return container;
+function tailscaleDetourTargets(currentSectionId) {
+  return (uci.sections(UCI_PACKAGE, "section") || []).filter(
+    (section) =>
+      section[".name"] &&
+      section[".name"] !== currentSectionId &&
+      section.enabled !== "0" &&
+      TAILSCALE_DETOUR_ACTIONS.includes(section.action || ""),
+  );
 }
 
-function getServerEditButtonText() {
-  const label = _("Edit rule action");
+function loadServerTableOptions(sectionRef) {
+  const tasks = [];
 
-  return label === "Edit rule action" ? "Edit" : label;
+  sectionRef.cfgsections().forEach((sectionId) => {
+    sectionRef.children.forEach((child) => {
+      if (child.disable || child.modalonly) {
+        return;
+      }
+      tasks.push(
+        Promise.resolve(child.load.call(child, sectionId)).then((value) =>
+          child.cfgvalue(sectionId, value),
+        ),
+      );
+    });
+  });
+
+  return Promise.all(tasks);
 }
 
 function renderServerRowActions(sectionRef, sectionId) {
-  const editLabel = getServerEditButtonText();
-  const deleteLabel = _("Delete");
-  const infoLabel = _("Connect to this server");
+  const editLabel =
+    _("Edit rule action") === "Edit rule action"
+      ? "Edit"
+      : _("Edit rule action");
+  const detailsLabel = _("Server details");
   const tdEl = E(
     "td",
     { class: "td cbi-section-table-cell nowrap cbi-section-actions" },
     E("div"),
   );
   const actionsEl = tdEl.lastElementChild;
-  const actionButtons = [];
 
-  if (spec.usesClients(getProtocol(sectionId))) {
-    actionButtons.push(
+  if (usesClients(getProtocol(sectionId))) {
+    dom.append(
+      actionsEl,
       E(
         "button",
         {
-          title: infoLabel,
-          "aria-label": infoLabel,
-          class: "cbi-button center fkp-server-icon-button",
+          class: "cbi-button center fkp-server-info",
+          title: detailsLabel,
+          "aria-label": detailsLabel,
           style: "display:inline-block;",
           click: (ev) => {
             ev.preventDefault();
             ev.stopPropagation();
-            link.showServerInfoModal(
-              sectionId,
-              clients.enabledClients(sectionId),
-            );
+            showServerDetailsModal(sectionId, listClients(sectionId));
           },
         },
-        E(
-          "span",
-          { class: "fkp-server-icon-button__glyph" },
-          util.iconSvg("qr"),
-        ),
+        E("span", { class: "fkp-server-info__glyph" }, "ⓘ"),
       ),
     );
   }
 
-  dom.append(actionsEl, [
-    ...actionButtons,
+  dom.append(
+    actionsEl,
     E(
       "button",
       {
@@ -787,7 +3159,7 @@ function renderServerRowActions(sectionRef, sectionId) {
       },
       editLabel,
     ),
-  ]);
+  );
 
   if (sectionRef.addremove) {
     dom.append(
@@ -795,12 +3167,12 @@ function renderServerRowActions(sectionRef, sectionId) {
       E(
         "button",
         {
-          title: deleteLabel,
+          title: _("Delete"),
           class: "btn cbi-button cbi-button-remove",
           click: ui.createHandlerFn(sectionRef, "handleRemove", sectionId),
           disabled: sectionRef.map.readonly || null,
         },
-        deleteLabel,
+        _("Delete"),
       ),
     );
   }
@@ -808,94 +3180,17 @@ function renderServerRowActions(sectionRef, sectionId) {
   return tdEl;
 }
 
-function cloneUciState(value) {
-  return value == null ? null : JSON.parse(JSON.stringify(value));
-}
-
-function isEmptyObject(value) {
-  return value && Object.keys(value).length === 0;
-}
-
-function setUciSectionState(bucketName, sectionId, value) {
-  const state = uci.state;
-
-  if (!state) {
-    return;
-  }
-
-  state[bucketName] ??= {};
-  const bucket = state[bucketName];
-
-  if (value == null) {
-    delete bucket[UCI_PACKAGE]?.[sectionId];
-    if (isEmptyObject(bucket[UCI_PACKAGE])) {
-      delete bucket[UCI_PACKAGE];
-    }
-    return;
-  }
-
-  bucket[UCI_PACKAGE] ??= {};
-  bucket[UCI_PACKAGE][sectionId] = cloneUciState(value);
-}
-
-function captureServerEditState(sectionId) {
-  const state = uci.state;
-  const clientState = clients.captureEditState(sectionId);
-
-  if (!state || state.creates?.[UCI_PACKAGE]?.[sectionId]) {
-    return { sectionId, clients: clientState };
-  }
-
-  return {
-    sectionId,
-    changes: cloneUciState(state.changes?.[UCI_PACKAGE]?.[sectionId]),
-    deletes: cloneUciState(state.deletes?.[UCI_PACKAGE]?.[sectionId]),
-    restoreSection: true,
-    clients: clientState,
-  };
-}
-
-function restoreServerEditState(snapshot) {
-  if (!snapshot) {
-    return;
-  }
-
-  clients.restoreEditState(snapshot.clients);
-
-  if (!snapshot.restoreSection) {
-    return;
-  }
-
-  setUciSectionState("changes", snapshot.sectionId, snapshot.changes);
-  setUciSectionState("deletes", snapshot.sectionId, snapshot.deletes);
-}
-
-function removeServerClients(sectionId) {
-  clients
-    .clientSections(sectionId)
-    .forEach((section) => clients.removeClient(section[".name"]));
-}
-
 function configureServerSection(sectionRef) {
   sectionRef.sortable = false;
   sectionRef.nodescriptions = true;
   sectionRef.load = function () {
-    // The main page table renders only non-modal fields; full server defaults
-    // are loaded by LuCI's cloned modal map when the user opens Add/Edit.
-    return loadServerTableOptions(this);
-  };
-
-  sectionRef.renderMoreOptionsModal = function (sectionId, ev) {
-    this.serverEditSnapshots ??= {};
-    this.serverEditSnapshots[sectionId] = captureServerEditState(sectionId);
-
-    return prepareServerModal(sectionId).then(() =>
-      form.GridSection.prototype.renderMoreOptionsModal.call(
-        this,
-        sectionId,
-        ev,
-      ),
-    );
+    // The table renders only non-modal fields; the cloned Add/Edit modal loads the
+    // rest when the user opens it. The router's own addresses and the ports other
+    // services hold are read once here, so the port check can name the owner.
+    return Promise.all([
+      preloadServerModalData(),
+      loadServerTableOptions(this),
+    ]);
   };
 
   sectionRef.handleAdd = function () {
@@ -904,62 +3199,32 @@ function configureServerSection(sectionRef) {
     const prevMap = mapNode ? dom.findClassInstance(mapNode) : this.map;
 
     prevMap.addedSection = sectionId;
-    spec.applyProtocolDefaults(sectionId, spec.DEFAULT_PROTOCOL, true);
-
-    validate
-      .loadDefaultPublicHost()
-      .then((host) => validate.applyDefaultPublicHost(sectionId, host))
-      .catch(() => null);
+    uci.set(UCI_PACKAGE, sectionId, "enabled", "1");
+    uci.set(UCI_PACKAGE, sectionId, "protocol", DEFAULT_PROTOCOL);
+    uci.set(
+      UCI_PACKAGE,
+      sectionId,
+      "security",
+      defaultSecurity(DEFAULT_PROTOCOL),
+    );
 
     return this.renderMoreOptionsModal(sectionId);
   };
 
-  // Removing a server has to take its clients with it, otherwise they stay behind
-  // as sections pointing at a server that no longer exists.
+  // Removing a server takes its clients with it, otherwise they stay behind as
+  // sections pointing at a server that no longer exists.
   sectionRef.handleRemove = function (sectionId, ev) {
     removeServerClients(sectionId);
 
     return form.GridSection.prototype.handleRemove.call(this, sectionId, ev);
   };
 
-  sectionRef.handleModalCancel = function (modalMap, ev, isSaving) {
-    const sectionId = modalMap?.section;
-    const snapshot = sectionId ? this.serverEditSnapshots?.[sectionId] : null;
-
-    if (sectionId && this.serverEditSnapshots) {
-      delete this.serverEditSnapshots[sectionId];
-    }
-
-    if (!isSaving) {
-      restoreServerEditState(snapshot);
-    }
-
-    return form.GridSection.prototype.handleModalCancel.call(
-      this,
-      modalMap,
-      ev,
-      isSaving,
-    );
-  };
-
-  sectionRef.handleModalSave = function (modalMap, ev) {
-    clearServerValidationMessage();
-
-    const mapNode = this.getActiveModalMap();
-    const activeMap = dom.findClassInstance(mapNode);
-
-    return activeMap
-      .parse()
-      .then(() =>
-        form.GridSection.prototype.handleModalSave.call(this, modalMap, ev),
-      )
-      .catch((error) => showServerValidationMessage(error));
-  };
-
   sectionRef.renderRowActions = function (sectionId) {
     return renderServerRowActions(this, sectionId);
   };
 }
+
+/* ---------------------------------------------------------------------- form */
 
 function addIdentityOptions(section) {
   let o = section.option(form.Flag, "enabled", _("Enable"));
@@ -970,214 +3235,189 @@ function addIdentityOptions(section) {
 
   o = section.option(form.DummyValue, "_protocol_display", _("Protocol"));
   o.modalonly = false;
-  o.cfgvalue = function (sectionId) {
-    return spec.protocolLabel(getProtocol(sectionId));
-  };
-  o.textvalue = function (sectionId) {
-    return spec.protocolLabel(getProtocol(sectionId));
-  };
+  o.textvalue = (sectionId) => protocolLabel(getProtocol(sectionId));
+  o.cfgvalue = o.textvalue;
   o.width = "9rem";
 
-  o = section.option(form.DummyValue, "_endpoint_display", _("Address"));
-  o.modalonly = false;
-  o.textvalue = function (sectionId) {
-    if (!spec.hasListener(getProtocol(sectionId))) {
-      return "—";
-    }
-    const host = uci.get(UCI_PACKAGE, sectionId, "public_host") || "";
-    const port = uci.get(UCI_PACKAGE, sectionId, "listen_port") || "";
-    return host && port ? `${host}:${port}` : "—";
-  };
-  o.cfgvalue = o.textvalue;
-  o.width = "12rem";
-
-  o = section.option(form.DummyValue, "_clients_display", _("Clients"));
-  o.modalonly = false;
-  o.textvalue = function (sectionId) {
-    if (!spec.usesClients(getProtocol(sectionId))) {
-      return "—";
-    }
-    const all = clients.listClients(sectionId);
-    const enabled = all.filter((client) => client.enabled).length;
-    return all.length === enabled ? `${enabled}` : `${enabled} / ${all.length}`;
-  };
-  o.cfgvalue = o.textvalue;
-  o.width = "6rem";
-
-  o = section.option(form.Value, "label", _("Server name"));
+  o = section.option(
+    form.Value,
+    "label",
+    _("Server name"),
+  );
   o.modalonly = true;
   o.rmempty = false;
   o.validate = function (sectionId, value) {
-    const required = validate.validateRequiredText(sectionId, value);
+    const required = validateRequiredText(sectionId, value);
     if (required !== true) {
       return required;
     }
-    const normalized = `${value}`.trim();
-    if (normalized.includes("/")) {
-      return _("Server name must not contain /");
+
+    const name = `${value}`.trim();
+    if (name.includes("/")) {
+      return _("The name must not contain /");
     }
-    if (spec.RESERVED_RUNTIME_TAGS.has(normalized)) {
-      return _("This server name is reserved by Forkop");
+    if (RESERVED_RUNTIME_TAGS.has(name)) {
+      return _("This name is reserved by Forkop");
     }
+
     return [
       ...(uci.sections(UCI_PACKAGE, "server") || []),
       ...(uci.sections(UCI_PACKAGE, "section") || []),
     ].some(
       (item) =>
         item[".name"] !== sectionId &&
-        `${item.label || item[".name"] || ""}`.trim() === normalized,
+        `${item.label || item[".name"] || ""}`.trim() === name,
     )
-      ? _("Server name must be unique")
+      ? _("This name is already taken")
       : true;
   };
 
-  o = section.option(form.ListValue, "protocol", _("Protocol"));
-  spec
-    .protocolIds()
-    .forEach((protocol) => o.value(protocol, spec.protocolLabel(protocol)));
-  o.default = spec.DEFAULT_PROTOCOL;
+  o = section.option(
+    form.ListValue,
+    "protocol",
+    _("Protocol"),
+  );
+  PROTOCOLS.forEach((entry) => o.value(entry.id, entry.label));
+  o.default = DEFAULT_PROTOCOL;
   o.rmempty = false;
   o.modalonly = true;
-  o.validate = validate.validateRequired;
+  o.validate = validateRequired;
   o.onchange = function (_ev, sectionId, value) {
-    spec.applyProtocolDefaults(sectionId, value, true);
-    clients.syncClients(sectionId);
-    syncSecurityChoices(sectionId);
-    if (
-      value === "vless" &&
-      spec.getEffectiveSecurity(sectionId) === "reality"
-    ) {
-      generateRealityKeypairIfMissing(sectionId);
-    }
+    syncSecurityChoices(sectionId, value);
   };
-  addProtocolSummary(o);
 }
 
 function addTailscaleOptions(section) {
-  const dependsOnTailscale = (option) =>
-    option.depends("protocol", "tailscale");
+  const onTailscale = (o) => o.depends("protocol", "tailscale");
 
   let o = section.option(
     form.Value,
     "tailscale_auth_key",
     _("Tailscale auth key"),
-    _("Auth Key from the Tailscale admin console"),
   );
+  o.placeholder = "tskey-auth-...";
   o.modalonly = true;
   o.rmempty = false;
   o.password = true;
-  o.validate = validate.validateRequired;
-  dependsOnTailscale(o);
+  o.validate = validateRequired;
+  onTailscale(o);
+
+  o = section.option(
+    form.Value,
+    "tailscale_hostname",
+    _("Device name"),
+    _("The name this device appears under in the Tailscale console."),
+  );
+  o.placeholder = "forkop-router";
+  o.modalonly = true;
+  o.rmempty = false;
+  o.validate = validateTailscaleHostname;
+  onTailscale(o);
+
+  o = section.option(
+    form.Flag,
+    "tailscale_advertise_exit_node",
+    _("Advertise as exit node"),
+    _("Lets other devices route all their traffic through this router."),
+  );
+  o.default = "1";
+  o.rmempty = false;
+  o.modalonly = true;
+  onTailscale(o);
+
+  o = section.option(
+    form.DynamicList,
+    "tailscale_advertise_routes",
+    _("Advertise routes"),
+    _("Local subnets the rest of the network may reach through this router."),
+  );
+  o.placeholder = "192.168.1.0/24";
+  o.modalonly = true;
+  o.rmempty = true;
+  o.validate = validateOptionalCidrOrIp;
+  onTailscale(o);
+
+  o = section.option(
+    form.Flag,
+    "tailscale_accept_routes",
+    _("Accept routes"),
+    _("Use subnets other devices share."),
+  );
+  o.default = "0";
+  o.rmempty = true;
+  o.modalonly = true;
+  onTailscale(o);
+
+  o = section.option(
+    form.DynamicList,
+    "tailscale_advertise_tags",
+    _("ACL tags"),
+  );
+  o.placeholder = "tag:server";
+  o.modalonly = true;
+  o.rmempty = true;
+  o.validate = validateTailscaleTags;
+  onTailscale(o);
+
+  o = section.option(
+    form.Flag,
+    "tailscale_ephemeral",
+    _("Ephemeral node"),
+    _("Remove the node from the network once it goes offline."),
+  );
+  o.default = "0";
+  o.rmempty = true;
+  o.modalonly = true;
+  onTailscale(o);
 
   o = section.option(
     form.Value,
     "tailscale_control_url",
-    _("Tailscale control URL"),
-    _(
-      "Address of the coordination server. Change it if you use a custom server.",
-    ),
+    _("Coordination server"),
+    _("Change only for a self-hosted Headscale."),
   );
   o.default = "https://controlplane.tailscale.com";
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validate.validateHttpUrl;
-  dependsOnTailscale(o);
+  o.validate = validateHttpUrl;
+  onTailscale(o);
 
   o = section.option(
     form.Flag,
     "tailscale_detour_enabled",
-    _("Control plane through section"),
-    _("Connect to the coordination server through a section"),
+    _("Coordination server through a section"),
+    _("Reach the coordination server through a section instead of the WAN."),
   );
   o.default = "0";
-  o.modalonly = true;
   o.rmempty = false;
-  dependsOnTailscale(o);
+  o.modalonly = true;
+  onTailscale(o);
 
-  o = section.option(
-    form.ListValue,
-    "tailscale_detour_section",
-    _("Control plane through"),
-  );
+  o = section.option(form.ListValue, "tailscale_detour_section", _("Section"));
   o.modalonly = true;
   o.rmempty = false;
   o.depends({ protocol: "tailscale", tailscale_detour_enabled: "1" });
   o.load = function (sectionId) {
-    populateTailscaleDetourValues(this, sectionId);
-    return uci.get(UCI_PACKAGE, sectionId, "tailscale_detour_section") || "";
+    this.keylist = [];
+    this.vallist = [];
+    tailscaleDetourTargets(sectionId).forEach((target) =>
+      this.value(target[".name"], target.label || target[".name"]),
+    );
+    return option(sectionId, "tailscale_detour_section");
   };
   o.validate = function (sectionId, value) {
     if (!value) {
       return _("Select a section");
     }
     if (value === sectionId) {
-      return _("Current section cannot be used as its own transit section");
+      return _("A server cannot use itself");
     }
-    return getTailscaleDetourTargetSections(sectionId).some(
+    return tailscaleDetourTargets(sectionId).some(
       (target) => target[".name"] === value,
     )
       ? true
       : _("Select a section");
   };
-
-  o = section.option(
-    form.Value,
-    "tailscale_hostname",
-    _("Tailscale hostname"),
-    _(
-      "Name shown in the Tailscale admin console. Renaming the server keeps it, because a new hostname registers a new machine.",
-    ),
-  );
-  o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validate.validateTailscaleHostname;
-  o.load = function (sectionId) {
-    const current = uci.get(UCI_PACKAGE, sectionId, "tailscale_hostname");
-    if (current) {
-      return current;
-    }
-    const value = spec.defaultTailscaleHostname(sectionId);
-    uci.set(UCI_PACKAGE, sectionId, "tailscale_hostname", value);
-    return value;
-  };
-  dependsOnTailscale(o);
-
-  o = section.option(
-    form.Flag,
-    "tailscale_advertise_exit_node",
-    _("Advertise as exit node"),
-    _(
-      "Offer this router as an exit node so other devices can send all their traffic through it.",
-    ),
-  );
-  o.default = "1";
-  o.modalonly = true;
-  o.rmempty = false;
-  dependsOnTailscale(o);
-
-  o = section.option(
-    form.DynamicList,
-    "tailscale_advertise_routes",
-    _("Advertise routes"),
-    _(
-      "Specify local subnets to give other devices in your Tailscale network access to them.",
-    ),
-  );
-  o.modalonly = true;
-  o.rmempty = true;
-  o.validate = (_sectionId, value) => validate.validateOptionalCidrOrIp(value);
-  dependsOnTailscale(o);
-
-  o = section.option(
-    form.Flag,
-    "tailscale_accept_routes",
-    _("Accept routes"),
-    _("Accept subnets advertised by other devices in your Tailscale network."),
-  );
-  o.default = "0";
-  o.modalonly = true;
-  o.rmempty = true;
-  dependsOnTailscale(o);
 }
 
 function addJsonInboundOptions(section) {
@@ -1185,9 +3425,7 @@ function addJsonInboundOptions(section) {
     form.TextValue,
     "inbound_json",
     _("Inbound JSON"),
-    _(
-      "A complete sing-box inbound object. Forkop sets the tag from the server name, so leave the tag out.",
-    ),
+    _("A complete sing-box inbound. Forkop fills in the tag."),
   );
   o.depends("protocol", "json_inbound");
   o.rows = 10;
@@ -1195,53 +3433,62 @@ function addJsonInboundOptions(section) {
   o.textarea = true;
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validate.validateInboundJson;
-  configureServerTextareaOption(o);
+  o.validate = validateInboundJson;
+  configureTextareaOption(o);
 }
 
 function addListenerOptions(section) {
-  const dependsOnListener = (option) =>
-    spec
-      .protocolsWithListener()
-      .forEach((protocol) => option.depends("protocol", protocol));
+  const onListener = (o) =>
+    listenerProtocols().forEach((protocol) => o.depends("protocol", protocol));
 
   let o = section.option(
     form.Value,
     "listen",
     _("Listen address"),
-    _("Use 0.0.0.0 for every IPv4 address, or :: for every address."),
   );
   o.default = "0.0.0.0";
   o.rmempty = false;
   o.modalonly = true;
-  o.validate = validate.validateListenAddress;
-  dependsOnListener(o);
+  o.validate = validateListenAddress;
+  onListener(o);
 
-  o = section.option(form.Value, "listen_port", _("Listen port"));
+  o = section.option(
+    form.Value,
+    "listen_port",
+    _("Listen port"),
+  );
+  o.placeholder = "31443";
   o.rmempty = false;
   o.modalonly = true;
-  o.validate = validate.validateListenPort;
-  dependsOnListener(o);
-  addRegenerateButton(o, () => util.randomPort());
+  o.validate = validateListenPort;
+  onListener(o);
+  addGenerateButton(o, () => randomPort(), _("Pick a free port"));
 
   o = section.option(
     form.Value,
     "public_host",
     _("Public host"),
-    _(
-      "Address clients connect to. It only goes into the client links; the server still listens on the address above.",
-    ),
+    _("The address that goes into the client links."),
   );
+  o.placeholder = "203.0.113.9";
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validate.validateHost;
-  dependsOnListener(o);
+  o.validate = validateHost;
+  onListener(o);
   o.load = function (sectionId) {
-    return validate.loadDefaultPublicHost().then((host) => {
-      validate.applyDefaultPublicHost(sectionId, host);
-      return uci.get(UCI_PACKAGE, sectionId, "public_host") || host || "";
-    });
+    const stored = option(sectionId, "public_host");
+    return stored ? stored : loadDefaultPublicHost().then((host) => host || "");
   };
+
+  o = section.option(
+    form.Flag,
+    "tcp_fast_open",
+    _("TCP Fast Open"),
+  );
+  o.default = "0";
+  o.rmempty = true;
+  o.modalonly = true;
+  protocolsWith("tcp").forEach((protocol) => o.depends("protocol", protocol));
 }
 
 function addShadowsocksOptions(section) {
@@ -1249,508 +3496,63 @@ function addShadowsocksOptions(section) {
     form.ListValue,
     "shadowsocks_method",
     _("Method"),
-    _(
-      "The 2022 methods add replay protection and use base64 keys; the older AEAD methods accept any password.",
-    ),
+    _("The 2022 ciphers block replay attacks and take base64 keys."),
   );
-  spec.shadowsocksMethods().forEach((method) => o.value(method, method));
+  SHADOWSOCKS_METHODS.forEach((method) => o.value(method.id, method.id));
+  o.default = SHADOWSOCKS_METHODS[0].id;
   o.rmempty = false;
   o.modalonly = true;
-  o.validate = validate.validateRequired;
+  o.validate = validateRequired;
   o.depends("protocol", "shadowsocks");
-  o.onchange = function (_ev, sectionId, value) {
-    const keyBytes = spec.shadowsocksKeyBytes(value);
-    if (keyBytes > 0) {
-      setWidgetValue(
-        sectionId,
-        "shadowsocks_psk",
-        util.generatePresharedKey(keyBytes),
-      );
-    } else {
-      uci.unset(UCI_PACKAGE, sectionId, "shadowsocks_psk");
-    }
-    // Client keys are method specific, so they are reissued with the method.
-    clients.listClients(sectionId).forEach((client) => {
-      clients.setClientOption(
-        client.id,
-        "password",
-        spec.generateCredential(sectionId, "shadowsocks", "password"),
-      );
-    });
-  };
 
   o = section.option(
     form.Value,
     "shadowsocks_psk",
     _("Server pre-shared key"),
-    _("Shared by every client of a 2022 server, in addition to its own key."),
+    _("Required. Shared by every client, in addition to its own key."),
   );
   o.modalonly = true;
   o.rmempty = false;
   o.password = true;
-  o.validate = validate.validateShadowsocksPassword;
-  spec
-    .shadowsocksMethods()
-    .filter((method) => spec.isShadowsocks2022(method))
-    .forEach((method) =>
-      o.depends({ protocol: "shadowsocks", shadowsocks_method: method }),
-    );
-  addRegenerateButton(o, (sectionId) =>
-    util.generatePresharedKey(
-      spec.shadowsocksKeyBytes(spec.getShadowsocksMethod(sectionId)) || 32,
+  o.validate = validateShadowsocksPassword;
+  SHADOWSOCKS_METHODS.filter((method) => method.keyBytes > 0).forEach(
+    (method) =>
+      o.depends({ protocol: "shadowsocks", shadowsocks_method: method.id }),
+  );
+  addGenerateButton(o, (sectionId) =>
+    generatePresharedKey(
+      shadowsocksKeyBytes(getShadowsocksMethod(sectionId)) || 32,
     ),
   );
 }
 
-function addClientOptions(section) {
-  let o = section.option(
+function addMixedOptions(section) {
+  const o = section.option(
     form.Flag,
     "mixed_auth_enabled",
     _("Require authentication"),
-    _("Without authentication anyone who reaches the port can use the proxy."),
+    _("Without it anyone who reaches the port can use the proxy."),
   );
   o.default = "1";
   o.rmempty = false;
   o.modalonly = true;
   o.depends("protocol", "mixed");
-
-  o = section.option(form.DummyValue, "_clients", _("Clients"));
-  o.modalonly = true;
-  spec.protocolIds().forEach((protocol) => {
-    if (spec.usesClients(protocol)) {
-      o.depends("protocol", protocol);
-    }
-  });
-  o.cfgvalue = function () {
-    return "";
-  };
-  o.renderWidget = function (sectionId) {
-    return renderClientsEditor(sectionId, this);
-  };
-  o.parse = function (sectionId) {
-    if (!spec.usesClients(getProtocol(sectionId))) {
-      return Promise.resolve();
-    }
-
-    if (!clients.enabledClients(sectionId).length) {
-      return Promise.reject(
-        new Error(_("Add at least one enabled client to this server")),
-      );
-    }
-
-    return this.clientError
-      ? Promise.reject(new Error(this.clientError))
-      : Promise.resolve();
-  };
-}
-
-function addRoutingOptions(section) {
-  let o = section.option(
-    form.ListValue,
-    "routing_mode",
-    _("Routing mode"),
-    _(
-      "What happens to the traffic clients send: the same rules the router uses, straight out through the WAN, or one chosen section.",
-    ),
-  );
-  o.value("rules", _("Rules"));
-  o.value("direct", _("Direct"));
-  o.value("section", _("Selected section"));
-  o.default = "rules";
-  o.rmempty = false;
-  o.modalonly = true;
-  o.validate = validate.validateRequired;
-
-  o = section.option(form.ListValue, "routing_section", _("Routing section"));
-  o.depends("routing_mode", "section");
-  o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validate.validateRequired;
-  o.cfgvalue = function (sectionId) {
-    return uci.get(UCI_PACKAGE, sectionId, "routing_section");
-  };
-  o.load = function () {
-    return loadRoutingSectionChoices(this);
-  };
-}
-
-function addSecurityOptions(section) {
-  const streamProtocols = ["vless", "vmess", "trojan"];
-  const tlsProtocols = ["hysteria2", "naive", "anytls", "tuic"];
-  const addTlsDepends = (option) => {
-    streamProtocols.forEach((protocol) =>
-      option.depends({ protocol, security: "tls" }),
-    );
-    tlsProtocols.forEach((protocol) => option.depends("protocol", protocol));
-  };
-  const addRealityDepends = (option) =>
-    option.depends({ protocol: "vless", security: "reality" });
-
-  let o = section.option(form.ListValue, "security", _("Security"));
-  o.value("reality", "Reality");
-  o.value("tls", "TLS");
-  o.value("none", _("None"));
-  o.rmempty = false;
-  o.modalonly = true;
-  [...streamProtocols, ...tlsProtocols].forEach((protocol) =>
-    o.depends("protocol", protocol),
-  );
-  o.validate = validate.validateSecurity;
-  o.onchange = function (_ev, sectionId, value) {
-    if (value === "reality") {
-      generateRealityKeypairIfMissing(sectionId);
-    }
-  };
-  {
-    const originalRenderWidget = o.renderWidget;
-    o.renderWidget = function (sectionId, optionIndex, cfgvalue) {
-      const node = originalRenderWidget.call(
-        this,
-        sectionId,
-        optionIndex,
-        cfgvalue,
-      );
-      window.setTimeout(() => syncSecurityChoices(sectionId), 0);
-      return node;
-    };
-  }
-
-  o = section.option(
-    form.Value,
-    "tls_server_name",
-    _("Server name / SNI"),
-    _("The name the certificate is issued for, and the name clients send."),
-  );
-  o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validate.validateHost;
-  o.load = function (sectionId) {
-    const current = util.normalizeHost(
-      uci.get(UCI_PACKAGE, sectionId, "tls_server_name"),
-    );
-    if (current) {
-      return current;
-    }
-
-    const fallback = "www.microsoft.com";
-    uci.set(UCI_PACKAGE, sectionId, "tls_server_name", fallback);
-    return fallback;
-  };
-  addTlsDepends(o);
-  addRealityDepends(o);
-
-  o = section.option(
-    form.MultiValue,
-    "tls_alpn",
-    _("ALPN"),
-    _("Protocols offered during the TLS handshake. Leave empty for defaults."),
-  );
-  o.value("h3", "h3");
-  o.value("h2", "h2");
-  o.value("http/1.1", "http/1.1");
-  o.create = false;
-  o.rmempty = true;
-  o.modalonly = true;
-  addTlsDepends(o);
-  addRealityDepends(o);
-
-  o = section.option(
-    form.Value,
-    "tls_certificate_path",
-    _("Certificate path"),
-    _(
-      "Forkop generates a self-signed certificate at the default path. Point this at a real certificate to let clients verify it.",
-    ),
-  );
-  o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validate.validateTlsCertificatePath;
-  o.load = function (sectionId) {
-    const current = uci.get(UCI_PACKAGE, sectionId, "tls_certificate_path");
-    if (current) {
-      return current;
-    }
-    const value = spec.defaultTlsCertificatePath(sectionId);
-    uci.set(UCI_PACKAGE, sectionId, "tls_certificate_path", value);
-    return value;
-  };
-  addTlsDepends(o);
-
-  o = section.option(form.Value, "tls_key_path", _("Key path"));
-  o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validate.validateTlsKeyPath;
-  o.load = function (sectionId) {
-    const current = uci.get(UCI_PACKAGE, sectionId, "tls_key_path");
-    if (current) {
-      return current;
-    }
-    const value = spec.defaultTlsKeyPath(sectionId);
-    uci.set(UCI_PACKAGE, sectionId, "tls_key_path", value);
-    return value;
-  };
-  addTlsDepends(o);
-
-  o = section.option(
-    form.Value,
-    "reality_handshake_server",
-    _("Reality fake site"),
-    _(
-      "A real HTTPS site the router forwards unrecognised connections to. It has to be reachable from the router.",
-    ),
-  );
-  o.default = "www.microsoft.com";
-  o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validate.validateHost;
-  addRealityDepends(o);
-
-  o = section.option(
-    form.Value,
-    "reality_handshake_server_port",
-    _("Reality fake site port"),
-  );
-  o.default = "443";
-  o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validate.validatePort;
-  addRealityDepends(o);
-
-  o = section.option(
-    form.Value,
-    "reality_private_key",
-    _("Reality private key"),
-  );
-  o.modalonly = true;
-  o.rmempty = false;
-  o.password = true;
-  o.validate = validate.validateRequired;
-  addRealityDepends(o);
-
-  o = section.option(
-    form.Value,
-    "reality_public_key",
-    _("Reality public key"),
-    _("Clients need this key. Forkop puts it into the client links."),
-  );
-  o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validate.validateRequired;
-  addRealityDepends(o);
-  {
-    const originalRenderWidget = o.renderWidget;
-    o.renderWidget = function (sectionId, optionIndex, cfgvalue) {
-      const node = originalRenderWidget.call(
-        this,
-        sectionId,
-        optionIndex,
-        cfgvalue,
-      );
-      const label = _("Generate a new key pair");
-
-      dom.append(
-        node,
-        E(
-          "button",
-          {
-            class: "btn cbi-button cbi-button-neutral",
-            type: "button",
-            title: label,
-            "aria-label": label,
-            click: (ev) => {
-              ev.preventDefault();
-              generateRealityKeypair(sectionId);
-            },
-          },
-          util.iconSvg("dice"),
-        ),
-      );
-
-      return node;
-    };
-  }
-
-  o = section.option(
-    form.DynamicList,
-    "reality_short_id",
-    _("Reality short ID"),
-    _(
-      "An even number of hex digits, up to 16. Several IDs can be served at once; clients get the first one.",
-    ),
-  );
-  o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validate.validateShortId;
-  o.load = function (sectionId) {
-    const current = util.asList(
-      uci.get(UCI_PACKAGE, sectionId, "reality_short_id"),
-    );
-    if (current.length) {
-      return current;
-    }
-    const value = util.randomHex(4);
-    uci.set(UCI_PACKAGE, sectionId, "reality_short_id", [value]);
-    return [value];
-  };
-  addRealityDepends(o);
-
-  o = section.option(
-    form.Value,
-    "reality_max_time_difference",
-    _("Reality max time difference"),
-    _("How far a client clock may drift before the handshake is refused."),
-  );
-  o.default = "1m";
-  o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validate.validateRequiredDuration;
-  addRealityDepends(o);
-
-  o = section.option(
-    form.ListValue,
-    "client_fingerprint",
-    _("Client fingerprint"),
-    _("The TLS fingerprint clients are told to imitate."),
-  );
-  spec.clientFingerprints().forEach((value) => o.value(value, value));
-  o.default = "chrome";
-  o.rmempty = false;
-  o.modalonly = true;
-  o.validate = validate.validateRequired;
-  addRealityDepends(o);
-}
-
-function addTransportOptions(section) {
-  const streamProtocols = spec.protocolsWith("transport");
-  const dependsOnTransport = (option, transport) =>
-    streamProtocols.forEach((protocol) =>
-      option.depends({ protocol, transport }),
-    );
-
-  let o = section.option(
-    form.ListValue,
-    "transport",
-    _("Transport"),
-    _("How the protocol is carried. Clients have to use the same transport."),
-  );
-  spec.transportChoices().forEach(([value, label]) => o.value(value, label));
-  o.default = "tcp";
-  o.rmempty = false;
-  o.modalonly = true;
-  streamProtocols.forEach((protocol) => o.depends("protocol", protocol));
-
-  o = section.option(form.Value, "transport_path", _("Transport path"));
-  o.modalonly = true;
-  o.validate = validate.validateTransportPath;
-  ["ws", "http", "httpupgrade", "xhttp"].forEach((transport) =>
-    dependsOnTransport(o, transport),
-  );
-
-  o = section.option(form.Value, "transport_host", _("Transport host"));
-  o.modalonly = true;
-  o.validate = validate.validateOptionalHost;
-  ["ws", "httpupgrade", "xhttp"].forEach((transport) =>
-    dependsOnTransport(o, transport),
-  );
-
-  o = section.option(form.ListValue, "transport_xhttp_mode", _("XHTTP mode"));
-  o.value("auto", "auto");
-  o.value("packet-up", "packet-up");
-  o.value("stream-up", "stream-up");
-  o.value("stream-one", "stream-one");
-  o.default = "auto";
-  o.rmempty = false;
-  o.modalonly = true;
-  dependsOnTransport(o, "xhttp");
-
-  o = section.option(form.DynamicList, "transport_hosts", _("HTTP hosts"));
-  o.modalonly = true;
-  o.validate = validate.validateOptionalHostList;
-  dependsOnTransport(o, "http");
-
-  o = section.option(form.Value, "transport_service_name", _("gRPC service"));
-  o.modalonly = true;
-  o.validate = validate.validateGrpcServiceName;
-  dependsOnTransport(o, "grpc");
-}
-
-function addMultiplexOptions(section) {
-  const multiplexProtocols = spec.protocolsWith("multiplex");
-
-  let o = section.option(
-    form.Flag,
-    "multiplex_enabled",
-    _("Accept multiplexing"),
-    _(
-      "Lets clients carry several streams over one connection. Clients that do not use it are unaffected.",
-    ),
-  );
-  o.default = "0";
-  o.rmempty = true;
-  o.modalonly = true;
-  multiplexProtocols.forEach((protocol) => o.depends("protocol", protocol));
-
-  o = section.option(
-    form.Flag,
-    "multiplex_padding",
-    _("Require multiplex padding"),
-    _("Refuses multiplexed clients that do not pad their streams."),
-  );
-  o.default = "0";
-  o.rmempty = true;
-  o.modalonly = true;
-  multiplexProtocols.forEach((protocol) =>
-    o.depends({ protocol, multiplex_enabled: "1" }),
-  );
-
-  o = section.option(
-    form.Flag,
-    "multiplex_brutal_enabled",
-    _("TCP Brutal"),
-    _(
-      "Congestion control with a fixed target rate. It needs the tcp-brutal kernel module on both sides.",
-    ),
-  );
-  o.default = "0";
-  o.rmempty = true;
-  o.modalonly = true;
-  multiplexProtocols.forEach((protocol) =>
-    o.depends({ protocol, multiplex_enabled: "1" }),
-  );
-
-  ["up", "down"].forEach((direction) => {
-    const option = section.option(
-      form.Value,
-      `multiplex_brutal_${direction}_mbps`,
-      direction === "up"
-        ? _("Brutal upload (Mbps)")
-        : _("Brutal download (Mbps)"),
-    );
-    option.modalonly = true;
-    option.rmempty = true;
-    option.validate = validate.validateOptionalPositiveInteger;
-    multiplexProtocols.forEach((protocol) =>
-      option.depends({
-        protocol,
-        multiplex_enabled: "1",
-        multiplex_brutal_enabled: "1",
-      }),
-    );
-  });
 }
 
 function addHysteria2Options(section) {
+  const onHysteria2 = (o) => o.depends("protocol", "hysteria2");
+
   let o = section.option(
     form.ListValue,
     "hysteria2_obfs_type",
     _("Obfuscation"),
-    _("Wraps the QUIC packets so they no longer look like QUIC."),
   );
   o.value("", _("None"));
   o.value("salamander", "salamander");
   o.default = "";
+  o.rmempty = true;
   o.modalonly = true;
-  o.depends("protocol", "hysteria2");
+  onHysteria2(o);
 
   o = section.option(
     form.Value,
@@ -1760,52 +3562,102 @@ function addHysteria2Options(section) {
   o.modalonly = true;
   o.rmempty = false;
   o.password = true;
-  o.validate = validate.validateRequired;
-  o.load = function (sectionId) {
-    const current = uci.get(UCI_PACKAGE, sectionId, "hysteria2_obfs_password");
-    if (current) {
-      return current;
-    }
-    const value = util.generatePassword();
-    uci.set(UCI_PACKAGE, sectionId, "hysteria2_obfs_password", value);
-    return value;
-  };
+  o.validate = validateRequiredText;
   o.depends({ protocol: "hysteria2", hysteria2_obfs_type: "salamander" });
-  addRegenerateButton(o, () => util.generatePassword());
+  addGenerateButton(o, () => generatePassword());
 
   o = section.option(
     form.Value,
     "hysteria2_up_mbps",
-    _("Upload limit (Mbps)"),
-    _(
-      "Bandwidth the server offers each client. Leave both limits empty to let BBR decide.",
-    ),
+    _("Upload, Mbps"),
+    _("Leave both empty to let BBR pick the rate."),
   );
+  o.placeholder = "100";
   o.modalonly = true;
   o.rmempty = true;
-  o.validate = validate.validateOptionalPositiveInteger;
-  o.depends("protocol", "hysteria2");
+  o.validate = validateOptionalPositiveInteger;
+  onHysteria2(o);
 
   o = section.option(
     form.Value,
     "hysteria2_down_mbps",
-    _("Download limit (Mbps)"),
+    _("Download, Mbps"),
   );
+  o.placeholder = "200";
   o.modalonly = true;
   o.rmempty = true;
-  o.validate = validate.validateOptionalPositiveInteger;
-  o.depends("protocol", "hysteria2");
+  o.validate = validateOptionalPositiveInteger;
+  onHysteria2(o);
 
   o = section.option(
     form.Flag,
     "hysteria2_ignore_client_bandwidth",
     _("Ignore client bandwidth"),
-    _("Refuses the rates a client asks for and uses BBR instead."),
   );
   o.default = "0";
+  o.rmempty = true;
+  o.modalonly = true;
+  onHysteria2(o);
+
+  o = section.option(
+    form.Value,
+    "hysteria2_masquerade",
+    _("Masquerade"),
+    _("What a plain browser gets: an https:// site to proxy, or file:// to serve."),
+  );
+  o.placeholder = "https://example.com";
   o.modalonly = true;
   o.rmempty = true;
-  o.depends("protocol", "hysteria2");
+  o.validate = validateOptionalMasquerade;
+  onHysteria2(o);
+}
+
+function addTuicOptions(section) {
+  const onTuic = (o) => o.depends("protocol", "tuic");
+
+  let o = section.option(
+    form.ListValue,
+    "tuic_congestion_control",
+    _("Congestion control"),
+  );
+  ["cubic", "new_reno", "bbr"].forEach((value) => o.value(value, value));
+  o.default = "cubic";
+  o.rmempty = false;
+  o.modalonly = true;
+  onTuic(o);
+
+  o = section.option(
+    form.Value,
+    "tuic_auth_timeout",
+    _("Auth timeout"),
+  );
+  o.placeholder = "3s";
+  o.modalonly = true;
+  o.rmempty = true;
+  o.validate = validateOptionalDuration;
+  onTuic(o);
+
+  o = section.option(
+    form.Value,
+    "tuic_heartbeat",
+    _("Heartbeat"),
+  );
+  o.placeholder = "10s";
+  o.modalonly = true;
+  o.rmempty = true;
+  o.validate = validateOptionalDuration;
+  onTuic(o);
+
+  o = section.option(
+    form.Flag,
+    "tuic_zero_rtt_handshake",
+    _("0-RTT handshake"),
+    _("Allows replay attacks in exchange for one round trip."),
+  );
+  o.default = "0";
+  o.rmempty = true;
+  o.modalonly = true;
+  onTuic(o);
 }
 
 function addProtocolOptions(section) {
@@ -1813,7 +3665,6 @@ function addProtocolOptions(section) {
     form.ListValue,
     "naive_network",
     _("Network"),
-    _("HTTP/2 runs over TCP, HTTP/3 over UDP."),
   );
   o.value("tcp", "TCP (HTTP/2)");
   o.value("udp", "UDP (HTTP/3)");
@@ -1841,16 +3692,19 @@ function addProtocolOptions(section) {
     form.DynamicList,
     "ssh_host_key_path",
     _("SSH host key path"),
-    _(
-      "Optional. Without a path, sing-box creates a temporary host key on start.",
-    ),
+    _("Empty means sing-box creates a temporary key on every start."),
   );
+  o.placeholder = "/etc/forkop/server-ssh/host.key";
   o.modalonly = true;
   o.rmempty = true;
-  o.validate = validate.validateOptionalFilePath;
+  o.validate = validateOptionalFilePath;
   o.depends("protocol", "ssh");
 
-  o = section.option(form.ListValue, "mieru_transport", _("Transport"));
+  o = section.option(
+    form.ListValue,
+    "mieru_transport",
+    _("Transport"),
+  );
   o.value("TCP", "TCP");
   o.value("UDP", "UDP");
   o.default = "TCP";
@@ -1862,101 +3716,51 @@ function addProtocolOptions(section) {
     form.Flag,
     "mieru_user_hint_mandatory",
     _("Require Mieru user hint"),
-    _(
-      "Speeds up handshakes on a busy server, but only clients that send the hint can connect.",
-    ),
   );
   o.default = "0";
   o.rmempty = true;
   o.modalonly = true;
   o.depends("protocol", "mieru");
-
-  o = section.option(
-    form.ListValue,
-    "tuic_congestion_control",
-    _("Congestion control"),
-  );
-  o.value("cubic", "cubic");
-  o.value("new_reno", "new_reno");
-  o.value("bbr", "bbr");
-  o.default = "cubic";
-  o.rmempty = false;
-  o.modalonly = true;
-  o.depends("protocol", "tuic");
-
-  o = section.option(form.Value, "tuic_auth_timeout", _("Auth timeout"));
-  o.default = "3s";
-  o.rmempty = false;
-  o.modalonly = true;
-  o.validate = validate.validateRequiredDuration;
-  o.depends("protocol", "tuic");
-
-  o = section.option(form.Value, "tuic_heartbeat", _("Heartbeat"));
-  o.default = "10s";
-  o.rmempty = false;
-  o.modalonly = true;
-  o.validate = validate.validateRequiredDuration;
-  o.depends("protocol", "tuic");
-
-  o = section.option(
-    form.Flag,
-    "tuic_zero_rtt_handshake",
-    _("Enable insecure 0-RTT handshake"),
-    _("Saves one round trip and allows replay attacks in exchange."),
-  );
-  o.default = "0";
-  o.rmempty = true;
-  o.modalonly = true;
-  o.depends("protocol", "tuic");
 }
 
 function addMtprotoOptions(section) {
-  const dependsOnMtproto = (option) => option.depends("protocol", "mtproto");
+  const onMtproto = (o) => o.depends("protocol", "mtproto");
 
   let o = section.option(
     form.Value,
     "mtproto_faketls",
     _("FakeTLS host"),
-    _("The host name the proxy pretends to serve. It is part of the secret."),
+    _("Required. The host the proxy hides behind, and part of the secret."),
   );
-  o.default = "google.com";
+  o.placeholder = "google.com";
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validate.validateHost;
-  dependsOnMtproto(o);
-
-  o = section.option(
-    form.Value,
-    "mtproto_concurrency",
-    _("Concurrency"),
-    _("Maximum simultaneous connections. Empty means the sing-box default."),
-  );
-  o.modalonly = true;
-  o.rmempty = true;
-  o.validate = validate.validateOptionalNonNegativeInteger;
-  dependsOnMtproto(o);
+  o.validate = validateHost;
+  onMtproto(o);
+  addGenerateButton(o, () => randomItem(CAMOUFLAGE_SITES), _("Pick a domain"));
 
   o = section.option(
     form.Value,
     "mtproto_domain_fronting_port",
     _("Fronting port"),
-    _("Where unrecognised connections are forwarded, usually 443."),
+    _("Where connections that are not Telegram go."),
   );
-  o.default = "443";
+  o.placeholder = "443";
   o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validate.validatePort;
-  dependsOnMtproto(o);
+  o.rmempty = true;
+  o.validate = validateOptionalPort;
+  onMtproto(o);
 
   o = section.option(
     form.Value,
     "mtproto_domain_fronting_ip",
     _("Fronting IP"),
   );
+  o.placeholder = "203.0.113.9";
   o.modalonly = true;
   o.rmempty = true;
-  o.validate = validate.validateOptionalIp;
-  dependsOnMtproto(o);
+  o.validate = validateOptionalIp;
+  onMtproto(o);
 
   o = section.option(
     form.Flag,
@@ -1964,31 +3768,43 @@ function addMtprotoOptions(section) {
     _("Fronting proxy protocol"),
   );
   o.default = "0";
+  o.rmempty = true;
+  o.modalonly = true;
+  onMtproto(o);
+
+  o = section.option(
+    form.Value,
+    "mtproto_concurrency",
+    _("Concurrency"),
+  );
+  o.placeholder = "1024";
   o.modalonly = true;
   o.rmempty = true;
-  dependsOnMtproto(o);
+  o.validate = validateOptionalNonNegativeInteger;
+  onMtproto(o);
 
-  o = section.option(form.ListValue, "mtproto_prefer_ip", _("Preferred IP"));
-  o.value("prefer-ipv4", "prefer-ipv4");
-  o.value("prefer-ipv6", "prefer-ipv6");
-  o.value("only-ipv4", "only-ipv4");
-  o.value("only-ipv6", "only-ipv6");
+  o = section.option(
+    form.ListValue,
+    "mtproto_prefer_ip",
+    _("Preferred IP"),
+  );
+  ["prefer-ipv4", "prefer-ipv6", "only-ipv4", "only-ipv6"].forEach((value) =>
+    o.value(value, value),
+  );
   o.default = "prefer-ipv4";
   o.rmempty = false;
   o.modalonly = true;
-  o.validate = validate.validateRequired;
-  dependsOnMtproto(o);
+  onMtproto(o);
 
   o = section.option(
     form.Flag,
     "mtproto_auto_update",
     _("Auto update"),
-    _("Keeps the Telegram data centre list up to date by itself."),
   );
   o.default = "0";
-  o.modalonly = true;
   o.rmempty = true;
-  dependsOnMtproto(o);
+  o.modalonly = true;
+  onMtproto(o);
 
   o = section.option(
     form.Flag,
@@ -1996,54 +3812,481 @@ function addMtprotoOptions(section) {
     _("Fallback on unknown DC"),
   );
   o.default = "0";
-  o.modalonly = true;
   o.rmempty = true;
-  dependsOnMtproto(o);
+  o.modalonly = true;
+  onMtproto(o);
 
   o = section.option(
     form.Value,
     "mtproto_tolerate_time_skewness",
     _("Time skew tolerance"),
   );
-  o.default = "3s";
+  o.placeholder = "3s";
   o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validate.validateRequiredDuration;
-  dependsOnMtproto(o);
+  o.rmempty = true;
+  o.validate = validateOptionalDuration;
+  onMtproto(o);
 
-  o = section.option(form.Value, "mtproto_idle_timeout", _("Idle timeout"));
-  o.default = "5m";
+  o = section.option(
+    form.Value,
+    "mtproto_idle_timeout",
+    _("Idle timeout"),
+  );
+  o.placeholder = "5m";
   o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validate.validateRequiredDuration;
-  dependsOnMtproto(o);
+  o.rmempty = true;
+  o.validate = validateOptionalDuration;
+  onMtproto(o);
 
   o = section.option(
     form.Value,
     "mtproto_handshake_timeout",
     _("Handshake timeout"),
   );
-  o.default = "10s";
+  o.placeholder = "10s";
+  o.modalonly = true;
+  o.rmempty = true;
+  o.validate = validateOptionalDuration;
+  onMtproto(o);
+}
+
+function addSecurityOptions(section) {
+  const streamProtocols = protocolsWith("transport");
+  const tlsOnlyProtocols = protocolsWhere(
+    (entry) => entry.securities.length === 1 && entry.securities[0] === "tls",
+  );
+  const onTls = (o) => {
+    streamProtocols.forEach((protocol) =>
+      o.depends({ protocol, security: "tls" }),
+    );
+    tlsOnlyProtocols.forEach((protocol) => o.depends("protocol", protocol));
+  };
+  const onReality = (o) =>
+    o.depends({ protocol: "vless", security: "reality" });
+
+  let o = section.option(
+    form.ListValue,
+    "security",
+    _("Security"),
+  );
+  o.value("reality", "Reality");
+  o.value("tls", "TLS");
+  o.value("none", _("None"));
+  o.rmempty = false;
+  o.modalonly = true;
+  [...streamProtocols, ...tlsOnlyProtocols].forEach((protocol) =>
+    o.depends("protocol", protocol),
+  );
+  o.validate = validateSecurity;
+  {
+    const renderWidget = o.renderWidget;
+    o.renderWidget = function (sectionId, optionIndex, cfgvalue) {
+      const node = renderWidget.call(this, sectionId, optionIndex, cfgvalue);
+      window.setTimeout(() => syncSecurityChoices(sectionId), 0);
+      return node;
+    };
+  }
+
+  o = section.option(
+    form.Value,
+    "tls_server_name",
+    _("Server name / SNI"),
+    _("Required for Reality. The domain clients send in the TLS handshake."),
+  );
+  o.placeholder = "example.com";
+  o.modalonly = true;
+  o.rmempty = true;
+  o.validate = function (sectionId, value) {
+    if (isEmptyValue(value)) {
+      return getEffectiveSecurity(sectionId) === "reality"
+        ? _("Reality needs an SNI")
+        : true;
+    }
+    return validateHost(sectionId, value);
+  };
+  onTls(o);
+  onReality(o);
+  addGenerateButton(o, () => randomItem(CAMOUFLAGE_SITES), _("Pick a domain"));
+
+  o = section.option(
+    form.MultiValue,
+    "tls_alpn",
+    _("ALPN"),
+  );
+  ["h3", "h2", "http/1.1"].forEach((value) => o.value(value, value));
+  o.create = false;
+  o.rmempty = true;
+  o.modalonly = true;
+  onTls(o);
+  onReality(o);
+
+  o = section.option(
+    form.Value,
+    "tls_certificate_path",
+    _("Certificate path"),
+    _("Forkop creates a self-signed certificate at the default path."),
+  );
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validate.validateRequiredDuration;
-  dependsOnMtproto(o);
+  o.validate = validateTlsCertificatePath;
+  o.load = (sectionId) =>
+    option(sectionId, "tls_certificate_path") ||
+    defaultTlsCertificatePath(sectionId);
+  onTls(o);
+
+  o = section.option(
+    form.Value,
+    "tls_key_path",
+    _("Key path"),
+  );
+  o.modalonly = true;
+  o.rmempty = false;
+  o.validate = validateTlsKeyPath;
+  o.load = (sectionId) =>
+    option(sectionId, "tls_key_path") || defaultTlsKeyPath(sectionId);
+  onTls(o);
+
+  o = section.option(
+    form.Value,
+    "reality_handshake_server",
+    _("Reality fake site"),
+    _("Required. A real HTTPS site with TLS 1.3 that the router can reach."),
+  );
+  o.placeholder = "example.com";
+  o.modalonly = true;
+  o.rmempty = false;
+  o.validate = validateHost;
+  onReality(o);
+  addGenerateButton(o, () => randomItem(CAMOUFLAGE_SITES), _("Pick a site"));
+
+  o = section.option(
+    form.Value,
+    "reality_handshake_server_port",
+    _("Reality fake site port"),
+  );
+  o.placeholder = "443";
+  o.default = "443";
+  o.modalonly = true;
+  o.rmempty = false;
+  o.validate = validatePort;
+  onReality(o);
+
+  o = section.option(
+    form.Value,
+    "reality_private_key",
+    _("Reality private key"),
+    _("Required. Generate a pair with the button next to the field."),
+  );
+  o.modalonly = true;
+  o.rmempty = false;
+  o.password = true;
+  o.validate = validateRealityKey;
+  onReality(o);
+  addRealityKeypairButton(o);
+
+  o = section.option(
+    form.Value,
+    "reality_public_key",
+    _("Reality public key"),
+    _("Goes into the client links."),
+  );
+  o.modalonly = true;
+  o.rmempty = false;
+  o.validate = validateRealityKey;
+  onReality(o);
+
+  o = section.option(
+    form.DynamicList,
+    "reality_short_id",
+    _("Reality short ID"),
+    _("Required. An even number of hex digits, up to 16."),
+  );
+  o.placeholder = "0a1b2c3d";
+  o.modalonly = true;
+  o.rmempty = false;
+  o.validate = validateShortId;
+  onReality(o);
+  addGenerateButton(o, (_sectionId, current) =>
+    asList(current).concat(randomHex(4)),
+  );
+
+  o = section.option(
+    form.Value,
+    "reality_max_time_difference",
+    _("Reality max time difference"),
+  );
+  o.placeholder = "1m";
+  o.modalonly = true;
+  o.rmempty = true;
+  o.validate = validateOptionalDuration;
+  onReality(o);
+
+  o = section.option(
+    form.ListValue,
+    "client_fingerprint",
+    _("Client fingerprint"),
+    _("A hint Forkop puts into the client links."),
+  );
+  o.value("", _("Not set"));
+  CLIENT_FINGERPRINTS.forEach((value) => o.value(value, value));
+  o.default = "chrome";
+  o.rmempty = true;
+  o.modalonly = true;
+  onReality(o);
+}
+
+function addTransportOptions(section) {
+  const streamProtocols = protocolsWith("transport");
+  const onTransport = (o, transport) =>
+    streamProtocols.forEach((protocol) => o.depends({ protocol, transport }));
+
+  let o = section.option(
+    form.ListValue,
+    "transport",
+    _("Transport"),
+  );
+  TRANSPORTS.forEach(([value, label]) => o.value(value, label));
+  o.default = "tcp";
+  o.rmempty = false;
+  o.modalonly = true;
+  streamProtocols.forEach((protocol) => o.depends("protocol", protocol));
+
+  o = section.option(
+    form.Value,
+    "transport_path",
+    _("Transport path"),
+  );
+  o.placeholder = "/";
+  o.modalonly = true;
+  o.rmempty = true;
+  o.validate = validateTransportPath;
+  ["ws", "http", "httpupgrade", "xhttp"].forEach((transport) =>
+    onTransport(o, transport),
+  );
+
+  o = section.option(
+    form.Value,
+    "transport_host",
+    _("Transport host"),
+  );
+  o.placeholder = "example.com";
+  o.modalonly = true;
+  o.rmempty = true;
+  o.validate = validateOptionalHost;
+  ["ws", "httpupgrade", "xhttp"].forEach((transport) =>
+    onTransport(o, transport),
+  );
+
+  o = section.option(
+    form.DynamicList,
+    "transport_hosts",
+    _("HTTP hosts"),
+  );
+  o.placeholder = "example.com";
+  o.modalonly = true;
+  o.rmempty = true;
+  o.validate = validateOptionalHostList;
+  onTransport(o, "http");
+
+  o = section.option(
+    form.Value,
+    "transport_service_name",
+    _("gRPC service"),
+  );
+  o.placeholder = "grpc";
+  o.modalonly = true;
+  o.rmempty = true;
+  o.validate = validateGrpcServiceName;
+  onTransport(o, "grpc");
+
+  o = section.option(
+    form.ListValue,
+    "transport_xhttp_mode",
+    _("XHTTP mode"),
+  );
+  ["auto", "packet-up", "stream-up", "stream-one"].forEach((value) =>
+    o.value(value, value),
+  );
+  o.default = "auto";
+  o.rmempty = false;
+  o.modalonly = true;
+  onTransport(o, "xhttp");
+}
+
+function addMultiplexOptions(section) {
+  const multiplexProtocols = protocolsWith("multiplex");
+  const onMultiplex = (o, extra) =>
+    multiplexProtocols.forEach((protocol) =>
+      o.depends(Object.assign({ protocol }, extra || {})),
+    );
+
+  let o = section.option(
+    form.Flag,
+    "multiplex_enabled",
+    _("Multiplex"),
+  );
+  o.default = "0";
+  o.rmempty = true;
+  o.modalonly = true;
+  onMultiplex(o);
+
+  o = section.option(
+    form.Flag,
+    "multiplex_padding",
+    _("Padding"),
+  );
+  o.default = "0";
+  o.rmempty = true;
+  o.modalonly = true;
+  onMultiplex(o, { multiplex_enabled: "1" });
+
+  o = section.option(
+    form.Flag,
+    "multiplex_brutal_enabled",
+    _("TCP Brutal"),
+    _("Needs the tcp-brutal kernel module on both sides."),
+  );
+  o.default = "0";
+  o.rmempty = true;
+  o.modalonly = true;
+  onMultiplex(o, { multiplex_enabled: "1" });
+
+  const brutalRate = { multiplex_enabled: "1", multiplex_brutal_enabled: "1" };
+
+  o = section.option(
+    form.Value,
+    "multiplex_brutal_up_mbps",
+    _("Brutal upload, Mbps"),
+  );
+  o.placeholder = "50";
+  o.modalonly = true;
+  o.rmempty = false;
+  o.validate = validateRequiredPositiveInteger;
+  onMultiplex(o, brutalRate);
+
+  o = section.option(
+    form.Value,
+    "multiplex_brutal_down_mbps",
+    _("Brutal download, Mbps"),
+  );
+  o.placeholder = "100";
+  o.modalonly = true;
+  o.rmempty = false;
+  o.validate = validateRequiredPositiveInteger;
+  onMultiplex(o, brutalRate);
+}
+
+function addClientListOption(section) {
+  const o = section.option(
+    sectionui.ButtonAddSettingsDynamicList,
+    "clients",
+    _("Clients"),
+    _("Required. The accounts allowed to connect to this server."),
+  );
+  o.modalonly = true;
+  o.rmempty = false;
+  o.addButtonLabel = _("+ Add client");
+  o.childType = CLIENT_TYPE;
+  o.ownerOption = CLIENT_OWNER_OPTION;
+  o.childValueOption = "name";
+  protocolsWhere((entry) => usesClients(entry.id)).forEach((protocol) =>
+    o.depends("protocol", protocol),
+  );
+  o.renderItemSettingsModal = showClientSettingsModal;
+  o.hasItemSettings = (_sectionId, value) => `${value || ""}`.trim().length > 0;
+  o.inputValueForItem = function (sectionId, value) {
+    const name = sectionui.childItemInputValue(
+      sectionId,
+      value,
+      CLIENT_TYPE,
+      "name",
+      CLIENT_OWNER_OPTION,
+    );
+    const store = sectionui.childPendingSettingsStore(this, sectionId);
+    return store && store[name] && store[name].name ? store[name].name : name;
+  };
+  o.stagedChildSettings = function (sectionId, value) {
+    const name = this.inputValueForItem(sectionId, value);
+    const store = sectionui.childPendingSettingsStore(this, sectionId);
+    return store && store[name] ? Object.assign({}, store[name]) : null;
+  };
+  o.clearStagedChildSettings = function (sectionId) {
+    if (this.pendingChildSettings) {
+      delete this.pendingChildSettings[sectionId];
+    }
+  };
+  // Credentials the protocol stopped using are dropped once the list is written, so
+  // switching protocol never leaves a stale password behind.
+  o.afterMaterializeChildItems = function (sectionId) {
+    pruneClientCredentials(sectionId);
+  };
+  // An empty list is reported by the option's own check, the way the Sections tab
+  // asks for at least one server group; the per client checks run on save.
+  o.validate = function (sectionId, value) {
+    if (`${value || ""}`.trim()) {
+      return true;
+    }
+
+    const current =
+      typeof this.formvalue === "function" ? this.formvalue(sectionId) : [];
+    return (Array.isArray(current) ? current : [current]).filter(Boolean).length
+      ? true
+      : _("Add at least one client");
+  };
+  o.validateItemsOnSave = function (sectionId, values) {
+    return validateClientsOnSave(sectionId, values, this);
+  };
+}
+
+function addRoutingOptions(section) {
+  let o = section.option(
+    form.ListValue,
+    "routing_mode",
+    _("Traffic routing"),
+    _("Where to send the traffic from these clients."),
+  );
+  o.value("rules", _("Rules"));
+  o.value("direct", _("Direct"));
+  o.value("section", _("Section"));
+  o.default = "rules";
+  o.rmempty = false;
+  o.modalonly = true;
+  o.validate = validateRequired;
+
+  o = section.option(
+    form.ListValue,
+    "routing_section",
+    _("Routing section"),
+  );
+  o.depends("routing_mode", "section");
+  o.modalonly = true;
+  o.rmempty = false;
+  o.validate = validateRequired;
+  o.cfgvalue = (sectionId) => option(sectionId, "routing_section");
+  o.load = function () {
+    return loadRoutingSectionChoices(this);
+  };
 }
 
 function createServerContent(section) {
   injectServerStyles();
 
+  // Reading order: what the server is, who may connect, where their traffic goes,
+  // then how it is protected and carried. The cipher and the authentication switch
+  // come before the client list, because they decide what a client needs.
   addIdentityOptions(section);
   addTailscaleOptions(section);
   addJsonInboundOptions(section);
   addListenerOptions(section);
   addShadowsocksOptions(section);
-  addClientOptions(section);
+  addMixedOptions(section);
+  addClientListOption(section);
   addRoutingOptions(section);
   addSecurityOptions(section);
   addTransportOptions(section);
   addMultiplexOptions(section);
   addHysteria2Options(section);
+  addTuicOptions(section);
   addProtocolOptions(section);
   addMtprotoOptions(section);
 }
@@ -2051,5 +4294,4 @@ function createServerContent(section) {
 return baseclass.extend({
   configureServerSection,
   createServerContent,
-  preloadServerModalData: validate.preloadServerModalData,
 });

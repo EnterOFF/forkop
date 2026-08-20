@@ -2192,7 +2192,6 @@ function migrate_server_clients(ctx) {
                 name = login_safe_value(name, "client");
 
             let client = create_child_for_owner(ctx, server, "server_client", "server");
-            set_option(ctx, client, "enabled", "1");
             set_option(ctx, client, "name", name);
             for (let field in fields) {
                 let value = option(server, field[1], "");
