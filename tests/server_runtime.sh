@@ -64,6 +64,13 @@ export FORKOP_UCI_LOG_FILE="$LOG"
 export FORKOP_CONFIG_NAME="forkop"
 export FORKOP_SERVER_RUNTIME_UC="$SERVER_RUNTIME"
 
+# The SSH inbound can hand a client a key pair, so the verb has to be reachable from
+# the CLI the LuCI form calls.
+grep -Fq 'generate-ssh-keypair' "$SERVER_RUNTIME" &&
+  fail "server/service.uc must not generate SSH client key pairs"
+grep -Fq 'generate_ssh_keypair' "$ROOT_DIR/forkop/files/usr/bin/forkop" &&
+  fail "the forkop CLI must not expose an SSH key pair verb"
+
 if grep -E 'uci -q|command -v uci' "$SERVER_RUNTIME" >/dev/null; then
   fail "server/service.uc must use ucode UCI access instead of shelling out to uci"
 fi

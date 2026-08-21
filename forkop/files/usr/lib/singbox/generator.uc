@@ -120,6 +120,14 @@ function section_enabled(section) {
     return bool_option(section, "enabled", true);
 }
 
+// A server carries the switch from the moment its dialog is saved, so one without
+// it was added and never finished. The runtime check and the reload signature both
+// read a missing switch as off, and generating an inbound for it anyway is how an
+// unfinished server reached sing-box without ever being checked.
+function server_enabled(section) {
+    return bool_option(section, "enabled", false);
+}
+
 function runtime_settings() {
     if (runtime_settings_cache == null)
         runtime_settings_cache = object_or_empty(uci_cursor().get_all(CONFIG_NAME, "settings"));
@@ -2231,7 +2239,7 @@ function runtime_sections(sections) {
 function enabled_servers() {
     let result = [];
     uci_cursor().foreach(CONFIG_NAME, "server", function(section) {
-        if (section_enabled(section))
+        if (server_enabled(section))
             push(result, section);
     });
     return result;
@@ -2253,12 +2261,76 @@ function has_direct_tailscale_server(servers) {
     return false;
 }
 
+// The rule a routing mode turns into. "rules" has no single rule of its own: it
+// clones the shared set onto the inbound, so it is handled by the caller.
+function server_route_rule(sections, routing_mode, routing_section_name, label) {
+    if (routing_mode == "direct")
+        return { action: "route", outbound: runtime_constants.DIRECT_OUTBOUND_TAG };
+
+    if (routing_mode != "section")
+        runtime_generate_unsupported("unsupported " + label + " routing_mode " + routing_mode);
+
+    let routing_section = section_by_name(sections, routing_section_name);
+    if (routing_section == null)
+        runtime_generate_unsupported(label + " references missing routing section " + routing_section_name);
+    let action = option(routing_section, "action", "");
+    if (action == "bypass" || action == "block")
+        runtime_generate_unsupported(label + " routing section " + routing_section_name + " cannot use action " + action);
+    let target = runtime_route.target(routing_section, outbound_tag(routing_section[".name"]));
+    if (target.unsupported)
+        runtime_generate_unsupported(target.unsupported);
+
+    let rule = { action: target.action };
+    if (target.outbound)
+        rule.outbound = target.outbound;
+    return rule;
+}
+
+// Accounts that take their own route. sing-box matches a rule on the user name, so
+// one client can go straight out while the rest of the server follows its own mode.
+// An account that follows the shared rules needs no rule of its own when its server
+// already clones them; when it does not, the set is cloned for that account alone.
+function add_server_client_routes(config, server, sections, inbound, server_mode) {
+    for (let client in connections.server_clients(server)) {
+        if (!bool_option(client, "routing_override", false))
+            continue;
+
+        let name = option(client, "name", "");
+        if (name == "")
+            continue;
+
+        let client_mode = option(client, "routing_mode", "direct");
+        if (client_mode == "rules") {
+            if (server_mode != "rules")
+                runtime_servers.clone_rules_for_inbound(
+                    config,
+                    runtime_constants.TPROXY_INBOUND_TAG,
+                    inbound,
+                    runtime_constants.CHECK_PROXY_IP_DOMAIN,
+                    name
+                );
+            continue;
+        }
+
+        let rule = server_route_rule(
+            sections,
+            client_mode,
+            option(client, "routing_section", ""),
+            "server client '" + name + "'"
+        );
+        rule.inbound = inbound;
+        rule.user = name;
+        push(config.route.rules, rule);
+    }
+}
+
 function add_server_routes(config, servers, sections) {
     for (let server in servers) {
         runtime_servers.add_sniff_rule(config, server);
 
         let inbound = runtime_constants.server_inbound_tag(connections.server_display_name(server));
         let routing_mode = option(server, "routing_mode", "rules");
+        add_server_client_routes(config, server, sections, inbound, routing_mode);
         if (routing_mode == "rules") {
             runtime_servers.clone_rules_for_inbound(
                 config,
@@ -2267,34 +2339,15 @@ function add_server_routes(config, servers, sections) {
                 runtime_constants.CHECK_PROXY_IP_DOMAIN
             );
         }
-        else if (routing_mode == "direct") {
-            push(config.route.rules, {
-                action: "route",
-                inbound,
-                outbound: runtime_constants.DIRECT_OUTBOUND_TAG
-            });
-        }
-        else if (routing_mode == "section") {
-            let routing_section_name = option(server, "routing_section", "");
-            let routing_section = section_by_name(sections, routing_section_name);
-            if (routing_section == null)
-                runtime_generate_unsupported("server references missing routing section " + routing_section_name);
-            let action = option(routing_section, "action", "");
-            if (action == "bypass" || action == "block")
-                runtime_generate_unsupported("server routing section " + routing_section_name + " cannot use action " + action);
-            let target = runtime_route.target(routing_section, outbound_tag(routing_section[".name"]));
-            if (target.unsupported)
-                runtime_generate_unsupported(target.unsupported);
-            let rule = {
-                action: target.action,
-                inbound
-            };
-            if (target.outbound)
-                rule.outbound = target.outbound;
-            push(config.route.rules, rule);
-        }
         else {
-            runtime_generate_unsupported("unsupported server routing_mode " + routing_mode);
+            let rule = server_route_rule(
+                sections,
+                routing_mode,
+                option(server, "routing_section", ""),
+                "server"
+            );
+            rule.inbound = inbound;
+            push(config.route.rules, rule);
         }
     }
 }

@@ -37,7 +37,6 @@ function load(sections = {}) {
       'isHost',
       'randomItem',
       'randomPort',
-      'slugify',
     ]),
   };
 }
@@ -60,12 +59,12 @@ describe('server protocol spec', () => {
     }
   });
 
-  it('keeps Tailscale first and the raw JSON inbound last', () => {
+  it('keeps Mixed first and the raw JSON inbound last', () => {
     const ids = spec.PROTOCOLS.map((entry) => entry.id);
-    expect(ids[0]).toBe('tailscale');
+    expect(ids[0]).toBe('mixed');
     expect(ids.at(-1)).toBe('json_inbound');
     expect(ids).not.toContain('socks');
-    expect(ids).toContain('mixed');
+    expect(ids).toContain('tailscale');
   });
 
   it('gives every login protocol a password and an account name', () => {
@@ -87,11 +86,6 @@ describe('server protocol spec', () => {
     uci.set('forkop', 'srv', 'security', 'reality');
 
     expect(spec.getEffectiveSecurity('srv')).toBe('tls');
-  });
-
-  it('turns a display name into a DNS label the generate button can offer', () => {
-    expect(spec.slugify('Мой сервер', 'srv')).toBe('moi-server');
-    expect(spec.slugify('  ', 'srv')).toBe('srv');
   });
 
   it('offers camouflage sites as a choice and never as a default', () => {

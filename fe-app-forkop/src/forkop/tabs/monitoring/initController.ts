@@ -39,6 +39,7 @@ interface ClashConnectionMetadata {
   sourceIP?: string;
   sourcePort?: string | number;
   type?: string;
+  user?: string;
 }
 
 interface ClashConnection {
@@ -376,17 +377,36 @@ function getTargetCellParts(connection: MonitoredConnection): {
   };
 }
 
-function getRoute(connection: MonitoredConnection): string {
+function getRouteTarget(connection: MonitoredConnection): string {
   const chains = Array.isArray(connection.chains) ? connection.chains : [];
   const routeTag = [...chains].reverse().find(getRouteDisplayNameByTag);
   const fallbackRouteTag = getRouteTagFromRule(connection.rule);
-  const route =
+
+  return (
     getRouteDisplayNameByTag(routeTag || '') ||
     getRouteDisplayNameByTag(fallbackRouteTag) ||
     normalizeString(routeTag) ||
-    normalizeString(fallbackRouteTag);
+    normalizeString(fallbackRouteTag)
+  );
+}
 
-  return route || '-';
+// Traffic that entered through a server of the Servers tab is shown as the whole
+// path: the inbound it came from, the account it authenticated as when the server
+// has several, and where it was sent.
+function getRoute(connection: MonitoredConnection): string {
+  const target = getRouteTarget(connection);
+  const server = getServerDisplayNameByInboundTag(
+    getConnectionInboundTag(connection),
+  );
+
+  if (!server) {
+    return target || '-';
+  }
+
+  const client = normalizeString(connection.metadata?.user);
+  const source = client ? `${server} (${client})` : server;
+
+  return target ? `${source} → ${target}` : source;
 }
 
 function getNetwork(connection: MonitoredConnection): string {

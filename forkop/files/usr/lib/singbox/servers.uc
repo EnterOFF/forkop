@@ -40,23 +40,17 @@ function string_to_hex(value) {
     return result;
 }
 
+// The proxy accepts nothing but a FakeTLS secret: the first byte has to be 0xee,
+// the key follows, and the host after it cannot be empty. A bare secret is refused
+// by the core, so the camouflage host is part of what makes a secret at all.
 function mtproto_client_secret(section, client) {
     let secret = lc(option(client, "secret", ""));
-    let faketls = option(section, "mtproto_faketls", "google.com");
+    let faketls = option(section, "mtproto_faketls", "");
     if (substr(secret, 0, 2) == "ee")
         return secret;
     return "ee" + secret + string_to_hex(faketls);
 }
 
-function shadowsocks_client_password(section, client) {
-    let password = option(client, "password", "");
-    let psk = option(section, "shadowsocks_psk", "");
-    // A 2022 server holds one pre-shared key and every client adds its own, so the
-    // multi user service takes the two joined the way the ciphers expect them.
-    if (psk != "" && shadowsocks_2022_method(option(section, "shadowsocks_method", "")))
-        return psk + ":" + password;
-    return password;
-}
 
 function client_user(section, protocol, client) {
     let name = option(client, "name", client[".name"]);
@@ -74,7 +68,10 @@ function client_user(section, protocol, client) {
         return { name, uuid: option(client, "uuid", ""), alterId: 0 };
     if (protocol == "trojan" || protocol == "hysteria2" || protocol == "anytls" ||
         protocol == "mieru" || protocol == "shadowsocks")
-        return { name, password: protocol == "shadowsocks" ? shadowsocks_client_password(section, client) : option(client, "password", "") };
+        // A 2022 inbound holds the server key of its own and every account carries
+        // just its own key here. The two joined belong in the link a client reads,
+        // not in the user list, where sing-box decodes this field on its own.
+        return { name, password: option(client, "password", "") };
     if (protocol == "mixed" || protocol == "naive")
         return { username: name, password: option(client, "password", "") };
     if (protocol == "ssh") {
@@ -144,8 +141,11 @@ function apply_tls(inbound, section, protocol) {
         tls.alpn = alpn;
 
     if (security == "tls") {
-        maybe_string(tls, "certificate_path", option(section, "tls_certificate_path", ""));
-        maybe_string(tls, "key_path", option(section, "tls_key_path", ""));
+        let safe_name = safe_filename(section[".name"]);
+        maybe_string(tls, "certificate_path",
+            option(section, "tls_certificate_path", "/etc/forkop/server-certs/" + safe_name + ".crt"));
+        maybe_string(tls, "key_path",
+            option(section, "tls_key_path", "/etc/forkop/server-certs/" + safe_name + ".key"));
     }
     else if (security == "reality") {
         let reality = {
@@ -225,16 +225,6 @@ function apply_multiplex(inbound, section, protocol) {
     let multiplex = { enabled: true };
     if (bool_option(section, "multiplex_padding", false))
         multiplex.padding = true;
-    if (bool_option(section, "multiplex_brutal_enabled", false)) {
-        let brutal = { enabled: true };
-        let up_mbps = option(section, "multiplex_brutal_up_mbps", "");
-        let down_mbps = option(section, "multiplex_brutal_down_mbps", "");
-        if (up_mbps != "")
-            brutal.up_mbps = int(up_mbps, 10);
-        if (down_mbps != "")
-            brutal.down_mbps = int(down_mbps, 10);
-        multiplex.brutal = brutal;
-    }
 
     inbound.multiplex = multiplex;
 }
@@ -257,7 +247,7 @@ function add_standard_inbound(config, section, protocol, tag_name) {
         inbound.users = users(section, protocol);
     }
     else if (protocol == "mixed") {
-        if (bool_option(section, "mixed_auth_enabled", true)) {
+        if (bool_option(section, "mixed_auth_enabled", false)) {
             let server_users = users(section, protocol);
             if (length(server_users) > 0)
                 inbound.users = server_users;
@@ -369,8 +359,7 @@ function add_tailscale_endpoint(config, section, tag_name) {
         control_url: option(section, "tailscale_control_url", "https://controlplane.tailscale.com"),
         hostname: option(section, "tailscale_hostname", "forkop-" + safe_filename(section_name))
     };
-    if (bool_option(section, "tailscale_advertise_exit_node", true))
-        endpoint.advertise_exit_node = true;
+    endpoint.advertise_exit_node = true;
     if (bool_option(section, "tailscale_detour_enabled", false)) {
         let detour_section = option(section, "tailscale_detour_section", "");
         if (detour_section != "")
@@ -383,9 +372,6 @@ function add_tailscale_endpoint(config, section, tag_name) {
     let advertise_routes = list_option(section, "tailscale_advertise_routes");
     if (length(advertise_routes) > 0)
         endpoint.advertise_routes = advertise_routes;
-    let advertise_tags = list_option(section, "tailscale_advertise_tags");
-    if (length(advertise_tags) > 0)
-        endpoint.advertise_tags = advertise_tags;
     push(config.endpoints, endpoint);
 }
 
@@ -466,7 +452,9 @@ function value_contains(value, item) {
     return value == item;
 }
 
-function clone_rules_for_inbound(config, source_inbound, target_inbound, skip_domain) {
+// A user narrows the clones to one account of the inbound, which is what a client
+// that follows the shared rules needs when its server does not.
+function clone_rules_for_inbound(config, source_inbound, target_inbound, skip_domain, user) {
     let cloned_rules = [];
     for (let rule in array_or_empty(config.route.rules)) {
         if (type(rule) != "object")
@@ -484,6 +472,8 @@ function clone_rules_for_inbound(config, source_inbound, target_inbound, skip_do
         if (type(cloned) != "object")
             continue;
         cloned.inbound = target_inbound;
+        if (user != null && user != "")
+            cloned.user = user;
         push(cloned_rules, cloned);
     }
     for (let cloned_rule in cloned_rules)

@@ -21,7 +21,6 @@ function load(sections = {}) {
       'validateTailscaleHostname',
       'validateRealityKey',
       'validateOptionalMasquerade',
-      'validateTailscaleTags',
     ]),
   };
 }

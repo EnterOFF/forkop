@@ -11075,12 +11075,23 @@ function getTargetCellParts(connection) {
     searchValue: [primary, host, destinationIp].filter(Boolean).join(" ")
   };
 }
-function getRoute(connection) {
+function getRouteTarget(connection) {
   const chains = Array.isArray(connection.chains) ? connection.chains : [];
   const routeTag = [...chains].reverse().find(getRouteDisplayNameByTag);
   const fallbackRouteTag = getRouteTagFromRule(connection.rule);
-  const route = getRouteDisplayNameByTag(routeTag || "") || getRouteDisplayNameByTag(fallbackRouteTag) || normalizeString(routeTag) || normalizeString(fallbackRouteTag);
-  return route || "-";
+  return getRouteDisplayNameByTag(routeTag || "") || getRouteDisplayNameByTag(fallbackRouteTag) || normalizeString(routeTag) || normalizeString(fallbackRouteTag);
+}
+function getRoute(connection) {
+  const target = getRouteTarget(connection);
+  const server = getServerDisplayNameByInboundTag(
+    getConnectionInboundTag(connection)
+  );
+  if (!server) {
+    return target || "-";
+  }
+  const client = normalizeString(connection.metadata?.user);
+  const source = client ? `${server} (${client})` : server;
+  return target ? `${source} \u2192 ${target}` : source;
 }
 function getNetwork(connection) {
   return normalizeString(connection.metadata?.network).toLowerCase() || "-";

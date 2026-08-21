@@ -17,10 +17,13 @@
 
 const UCI_PACKAGE = main.FORKOP_UCI_PACKAGE;
 const STYLE_ID = "forkop-server-styles";
-const DEFAULT_PROTOCOL = "tailscale";
+const DEFAULT_PROTOCOL = "mixed";
 const CLIENT_TYPE = "server_client";
 const CLIENT_OWNER_OPTION = "server";
 const MAX_CLIENT_NAME_LENGTH = 64;
+
+// Servers created in this page load whose dialog has not been saved yet.
+const addedServers = new Set();
 
 const ROUTING_SECTION_ACTIONS = [
   "connection",
@@ -152,6 +155,17 @@ const JSON_INBOUND_TYPES = new Set([
 //   tcp       - the listener carries TCP, so TCP Fast Open applies
 const PROTOCOLS = [
   {
+    id: "mixed",
+    label: "Mixed",
+    kind: "inbound",
+    securities: ["none"],
+    tcp: true,
+    login: true,
+    optionalAuth: "mixed_auth_enabled",
+    credentials: ["password"],
+    link: "socks5",
+  },
+  {
     id: "tailscale",
     label: "Tailscale",
     kind: "endpoint",
@@ -225,17 +239,6 @@ const PROTOCOLS = [
     tcp: true,
     credentials: ["password"],
     link: "anytls",
-  },
-  {
-    id: "mixed",
-    label: "Mixed",
-    kind: "inbound",
-    securities: ["none"],
-    tcp: true,
-    login: true,
-    optionalAuth: "mixed_auth_enabled",
-    credentials: ["password"],
-    link: "socks5",
   },
   {
     id: "naive",
@@ -442,10 +445,6 @@ function defaultTlsCertificatePath(sectionId) {
   return `/etc/forkop/server-certs/${serverSafeName(sectionId)}.crt`;
 }
 
-function defaultTlsKeyPath(sectionId) {
-  return `/etc/forkop/server-certs/${serverSafeName(sectionId)}.key`;
-}
-
 /* ------------------------------------------------------------ host handling */
 
 function normalizeHost(host) {
@@ -543,61 +542,6 @@ function isPrivateOrReservedIp(value) {
 }
 
 /* ------------------------------------------------------ value transformation */
-
-// A DNS label built from a display name. Tailscale host names travel through a
-// console that only keeps ASCII, so a name that cannot survive that trip is
-// transliterated instead of being handed over unchanged.
-const CYRILLIC_TRANSLITERATION = {
-  а: "a",
-  б: "b",
-  в: "v",
-  г: "g",
-  д: "d",
-  е: "e",
-  ё: "e",
-  ж: "zh",
-  з: "z",
-  и: "i",
-  й: "i",
-  к: "k",
-  л: "l",
-  м: "m",
-  н: "n",
-  о: "o",
-  п: "p",
-  р: "r",
-  с: "s",
-  т: "t",
-  у: "u",
-  ф: "f",
-  х: "h",
-  ц: "c",
-  ч: "ch",
-  ш: "sh",
-  щ: "sch",
-  ъ: "",
-  ы: "y",
-  ь: "",
-  э: "e",
-  ю: "yu",
-  я: "ya",
-};
-
-function slugify(value, fallback) {
-  const slug = Array.from(`${value || ""}`.toLowerCase())
-    .map((char) =>
-      CYRILLIC_TRANSLITERATION[char] === undefined
-        ? char
-        : CYRILLIC_TRANSLITERATION[char],
-    )
-    .join("")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48)
-    .replace(/-+$/g, "");
-
-  return slug || `${fallback || ""}`;
-}
 
 function randomBytes(length) {
   const bytes = new Uint8Array(length);
@@ -1077,7 +1021,7 @@ function qrSvgDataUri(text) {
   }
 
   const matrix = qrMakeMatrix(version, qrBuildDataCodewords(bytes, version));
-  const border = 4;
+  const border = 2;
   const size = matrix.length;
   const viewSize = size + border * 2;
   const path = [];
@@ -1206,24 +1150,38 @@ function validateOptionalFilePath(sectionId, value) {
   return isEmptyValue(value) ? true : validateFilePath(sectionId, value);
 }
 
-function validateTlsCertificatePath(sectionId, value) {
+// Both halves are optional: with neither, Forkop issues its own certificate; with
+// one, the other is missing and sing-box would refuse to start.
+function validateOptionalTlsCertificatePath(sectionId, value) {
+  if (isEmptyValue(value)) {
+    return isEmptyValue(liveOption(sectionId, "tls_key_path"))
+      ? true
+      : _("Fill in the certificate path as well");
+  }
+
   const result = validateFilePath(sectionId, value);
   if (result !== true) {
     return result;
   }
 
-  return `${value}` === option(sectionId, "tls_key_path")
+  return `${value}` === liveOption(sectionId, "tls_key_path")
     ? _("The certificate and the key must be different files")
     : true;
 }
 
-function validateTlsKeyPath(sectionId, value) {
+function validateOptionalTlsKeyPath(sectionId, value) {
+  if (isEmptyValue(value)) {
+    return isEmptyValue(liveOption(sectionId, "tls_certificate_path"))
+      ? true
+      : _("Fill in the key path as well");
+  }
+
   const result = validateFilePath(sectionId, value);
   if (result !== true) {
     return result;
   }
 
-  return `${value}` === option(sectionId, "tls_certificate_path")
+  return `${value}` === liveOption(sectionId, "tls_certificate_path")
     ? _("The certificate and the key must be different files")
     : true;
 }
@@ -1322,10 +1280,6 @@ function validateOptionalPositiveInteger(_sectionId, value) {
   return isEmptyValue(value) || /^[1-9][0-9]*$/.test(`${value}`)
     ? true
     : _("Use a positive integer");
-}
-
-function validateRequiredPositiveInteger(_sectionId, value) {
-  return /^[1-9][0-9]*$/.test(`${value}`) ? true : _("Use a positive integer");
 }
 
 function validateOptionalPort(sectionId, value) {
@@ -1464,12 +1418,6 @@ function validateTailscaleHostname(_sectionId, value) {
   return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(hostname)
     ? true
     : _("Use lowercase letters, digits and hyphens");
-}
-
-function validateTailscaleTags(_sectionId, value) {
-  return valueList(value).some((item) => !/^tag:[a-z0-9-]+$/.test(`${item}`))
-    ? _("A tag looks like tag:server")
-    : true;
 }
 
 function validateShadowsocksPassword(sectionId, value) {
@@ -1716,6 +1664,7 @@ function usesGeneratedCertificate(sectionId) {
   const path = option(sectionId, "tls_certificate_path");
   return !path || path === defaultTlsCertificatePath(sectionId);
 }
+
 
 function transportQuery(sectionId, params, grpcKey) {
   const transport = option(sectionId, "transport") || "tcp";
@@ -2218,38 +2167,49 @@ function injectDetailsStyles() {
       "style",
       { id: DETAILS_STYLE_ID },
       [
-        ".fkp-details{display:flex;flex-direction:column;gap:12px;width:600px;max-width:100%;box-sizing:border-box}",
-        ".fkp-details__client{display:flex;gap:16px;align-items:flex-start;padding:12px;box-sizing:border-box;border:1px solid var(--border-color,rgba(128,128,128,0.25));background:rgba(128,128,128,0.04)}",
-        ".fkp-details__qr{flex:0 0 auto;width:132px;height:132px;display:block;image-rendering:pixelated;background:#fff;padding:4px;box-sizing:border-box}",
-        ".fkp-details__main{display:flex;flex-direction:column;gap:10px;flex:1 1 auto;min-width:0}",
-        ".fkp-details__name{font-weight:600}",
-        ".fkp-details__field{display:flex;flex-direction:column;gap:4px;min-width:0}",
+        ".fkp-details{display:flex;flex-direction:column;gap:10px;inline-size:32rem;max-inline-size:100%;box-sizing:border-box}",
+        ".fkp-details__client{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:12px;align-items:start;padding:10px;box-sizing:border-box;border:1px solid var(--border-color,rgba(128,128,128,0.25));background:rgba(128,128,128,0.04)}",
+        ".fkp-details__qr{display:block;inline-size:7rem;block-size:7rem;image-rendering:pixelated;background:#fff}",
+        ".fkp-details__qr--empty{background:rgba(128,128,128,0.08);border:1px dashed var(--border-color,rgba(128,128,128,0.3))}",
+        ".fkp-details__main{display:flex;flex-direction:column;gap:8px;min-inline-size:0}",
+        ".fkp-details__name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+        ".fkp-details__field{display:flex;flex-direction:column;gap:3px;min-inline-size:0}",
         ".fkp-details__caption{font-size:11px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;opacity:0.6}",
-        ".fkp-details__row{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:6px;align-items:stretch}",
-        ".fkp-details__value{width:100% !important;max-width:100% !important;min-width:0;box-sizing:border-box;margin:0 !important;float:none !important;font-family:monospace;font-size:12px}",
-        ".fkp-details__copy{display:inline-flex;align-items:center;justify-content:center;width:2.5em !important;min-width:0;padding:0 !important;margin:0 !important;float:none !important;line-height:1}",
-        ".fkp-details__facts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;font-size:12px}",
-        ".fkp-details__fact-label{opacity:0.65}",
+        ".fkp-details__row{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:6px;align-items:stretch;inline-size:100%}",
+        ".fkp-details__value{inline-size:100% !important;max-inline-size:100% !important;min-inline-size:0;box-sizing:border-box;margin:0 !important;float:none !important;font-family:monospace;font-size:12px}",
+        ".fkp-details__copy{display:inline-flex;align-items:center;justify-content:center;inline-size:2.5em !important;min-inline-size:0;padding:0 !important;margin:0 !important;float:none !important;line-height:1}",
+        ".fkp-details__facts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 10px;font-size:12px;min-inline-size:0}",
+        ".fkp-details__fact-label{opacity:0.65;white-space:nowrap}",
         ".fkp-details__fact-value{font-family:monospace;word-break:break-all}",
         ".fkp-details__empty{opacity:0.7}",
         "@media (max-width:640px){",
-        ".fkp-details{width:100%}",
-        ".fkp-details__client{flex-direction:column;align-items:center}",
-        ".fkp-details__main{width:100%}",
+        ".fkp-details{inline-size:100%}",
+        ".fkp-details__client{grid-template-columns:minmax(0,1fr);justify-items:center}",
+        ".fkp-details__main{inline-size:100%}",
         "}",
       ].join("\n"),
     ),
   );
 }
 
-function renderCopyRow(caption, value) {
-  const input = E("input", {
-    type: "text",
-    class: "cbi-input-text fkp-details__value",
-    readonly: "readonly",
-    spellcheck: "false",
-    value,
-  });
+function renderCopyRow(caption, value, options = {}) {
+  const input = options.rows
+    ? E("textarea", {
+        class: "cbi-input-textarea fkp-details__value",
+        readonly: "readonly",
+        spellcheck: "false",
+        rows: options.rows,
+      })
+    : E("input", {
+        type: "text",
+        class: "cbi-input-text fkp-details__value",
+        readonly: "readonly",
+        spellcheck: "false",
+        value,
+      });
+  if (options.rows) {
+    input.value = value;
+  }
   input.addEventListener("focus", () => input.select());
 
   const label = _("Copy");
@@ -2291,10 +2251,46 @@ function renderFacts(rows) {
   );
 }
 
+// Why a client has no link: either the protocol has no URI format at all, or a
+// credential the link needs is still missing.
+function missingLinkReason(sectionId, client) {
+  if (!linkScheme(getProtocol(sectionId))) {
+    return _("This protocol has no link format. Use the details below.");
+  }
+  if (!hasRequiredCredentials(sectionId, client)) {
+    return _("Fill in the credentials of this client to get a link.");
+  }
+  if (!getPublicHost(sectionId) || !getListenPort(sectionId)) {
+    return _("Set the public host and the port to get a link.");
+  }
+  return _("A link cannot be built from these settings.");
+}
+
 function renderClientDetails(sectionId, client, context) {
   const links = buildClientLinks(sectionId, client, context);
   const qrImage = links.length ? qrSvgDataUri(links[0].link) : "";
-  const showCaptions = links.length > 1;
+  const body = [
+    E("div", { class: "fkp-details__name" }, clientLabel(sectionId, client)),
+  ];
+
+  if (links.length) {
+    links.forEach((entry) =>
+      body.push(
+        renderCopyRow(links.length > 1 ? entry.title : "", entry.link),
+      ),
+    );
+  } else {
+    body.push(
+      E("div", { class: "fkp-details__empty" }, missingLinkReason(sectionId, client)),
+    );
+  }
+
+  // Address and credentials are worth showing whether or not a link exists: a
+  // protocol without a URI format is configured by hand from exactly these.
+  const facts = clientCredentialRows(sectionId, client);
+  if (facts.length && !links.length) {
+    body.push(renderFacts(facts));
+  }
 
   return E("div", { class: "fkp-details__client" }, [
     qrImage
@@ -2303,15 +2299,8 @@ function renderClientDetails(sectionId, client, context) {
           src: qrImage,
           alt: _("QR code"),
         })
-      : "",
-    E("div", { class: "fkp-details__main" }, [
-      E("div", { class: "fkp-details__name" }, clientLabel(sectionId, client)),
-      ...(links.length
-        ? links.map((entry) =>
-            renderCopyRow(showCaptions ? entry.title : "", entry.link),
-          )
-        : [renderFacts(clientCredentialRows(sectionId, client))]),
-    ]),
+      : E("div", { class: "fkp-details__qr fkp-details__qr--empty" }),
+    E("div", { class: "fkp-details__main" }, body),
   ]);
 }
 
@@ -2339,7 +2328,9 @@ function renderDetailsContent(sectionId, clients, context) {
       E(
         "div",
         { class: "fkp-details__empty" },
-        _("This server has no clients."),
+        isAuthenticationEnabled(sectionId)
+          ? _("Add a client to this server to get a link.")
+          : _("This server accepts everybody, so it has no client links."),
       ),
     );
   }
@@ -2398,6 +2389,17 @@ const CLIENT_KEYS = [
   "secret",
   "flow",
   "authorized_keys",
+  "routing_override",
+  "routing_mode",
+  "routing_section",
+];
+
+// The same modes the server has. Rules costs a clone of the shared rule set for
+// that account, but only when the server itself does not already clone it.
+const CLIENT_ROUTING_MODES = [
+  ["rules", _("Rules")],
+  ["direct", _("Direct")],
+  ["section", _("Section")],
 ];
 
 function clientSections(sectionId) {
@@ -2423,14 +2425,15 @@ function listClients(sectionId) {
 }
 
 // Numbered names that do not follow the server name: a client is a device, not a
-// second label for the server.
-function nextClientName(sectionId, protocol, taken) {
+// second label for the server. The lowest free number is taken, so removing an
+// account frees its name again.
+function nextClientName(sectionId, taken) {
   const used = new Set(
-    (
-      taken || clientSections(sectionId).map((section) => section.name || "")
-    ).map((name) => `${name}`.trim().toLowerCase()),
+    (taken || clientSections(sectionId).map((section) => section.name || "")).map(
+      (name) => `${name}`.trim().toLowerCase(),
+    ),
   );
-  const pattern = usesLoginName(protocol) ? "client-%d" : "Client #%d";
+  const pattern = "client-%d";
 
   for (let index = 1; index <= 999; index += 1) {
     const candidate = pattern.format(index);
@@ -2518,14 +2521,6 @@ function clientCredentialLabel(sectionId, field) {
 }
 
 function clientCredentialDescription(sectionId, field) {
-  if (field === "flow") {
-    return _("Leave empty unless the client is configured for XTLS Vision.");
-  }
-  if (field === "authorized_keys") {
-    return _(
-      "One key per line. A client may sign in with a key instead of the password.",
-    );
-  }
   if (
     field === "password" &&
     getProtocol(sectionId) === "shadowsocks" &&
@@ -2550,11 +2545,7 @@ function clientSettingsDefaults(sectionId, inputValue, existing, listOption) {
   // it can actually connect with; nothing is generated behind the user's back.
   defaults.name =
     `${inputValue || ""}`.trim() ||
-    nextClientName(
-      sectionId,
-      protocol,
-      pendingClientNames(sectionId, listOption),
-    );
+    nextClientName(sectionId, listedClientNames(sectionId, listOption));
   visibleClientFields(sectionId).forEach((field) => {
     if (field === "flow" || field === "authorized_keys") {
       return;
@@ -2565,16 +2556,29 @@ function clientSettingsDefaults(sectionId, inputValue, existing, listOption) {
   return defaults;
 }
 
-function pendingClientNames(sectionId, listOption) {
-  const stored = clientSections(sectionId).map((section) => section.name || "");
+// The names the list shows right now, the way the Sections tab numbers a server
+// group. A removal that has not been saved yet gives its name back and a draft
+// that was taken out stops holding one, which reading the stored sections and the
+// staged drafts instead could not tell.
+function listedClientNames(sectionId, listOption) {
+  let current = null;
 
-  if (!listOption) {
-    return stored;
+  if (listOption && typeof listOption.formvalue === "function") {
+    try {
+      current = listOption.formvalue(sectionId);
+    } catch (_error) {
+      // The widget is not mounted; the stored sections are all there is.
+    }
   }
 
-  const store = sectionui.childPendingSettingsStore(listOption, sectionId);
-  return stored.concat(
-    Object.keys(store || {}).map((key) => (store[key] || {}).name || key),
+  if (current == null) {
+    return clientSections(sectionId).map((section) => section.name || "");
+  }
+
+  return valueList(current).map((value) =>
+    typeof listOption.inputValueForItem === "function"
+      ? listOption.inputValueForItem(sectionId, value)
+      : `${value}`,
   );
 }
 
@@ -2632,12 +2636,9 @@ function addClientOptions(sectionId, itemSection, helpers) {
     form.Value,
     "name",
     clientNameLabel(protocol),
-    usesLoginName(protocol)
-      ? _("The name this client signs in with.")
-      : _("Shown in the client list and in the share link."),
   );
   name.rmempty = false;
-  name.placeholder = usesLoginName(protocol) ? "client-1" : "Client #1";
+  name.placeholder = "client-1";
   name.validate = function (_id, value) {
     const result = validateClientName(sectionId, value);
     if (result !== true) {
@@ -2649,6 +2650,45 @@ function addClientOptions(sectionId, itemSection, helpers) {
   };
 
   addClientCredentialOptions(sectionId, itemSection);
+  addClientRoutingOptions(sectionId, itemSection);
+}
+
+// Rules for a client are generated before the rule of its server, so an override
+// wins over the server wide mode without touching it.
+function addClientRoutingOptions(sectionId, itemSection) {
+  if (!hasListener(getProtocol(sectionId))) {
+    return;
+  }
+
+  const override = itemSection.option(
+    form.Flag,
+    "routing_override",
+    _("Override routing"),
+    _("Route this client on its own path instead of the rest of the server."),
+  );
+  override.default = "0";
+  override.rmempty = true;
+
+  const mode = itemSection.option(
+    form.ListValue,
+    "routing_mode",
+    _("Routing mode"),
+  );
+  CLIENT_ROUTING_MODES.forEach(([value, label]) => mode.value(value, label));
+  mode.default = "direct";
+  mode.rmempty = false;
+  mode.depends("routing_override", "1");
+
+  const target = itemSection.option(
+    form.ListValue,
+    "routing_section",
+    _("Routing section"),
+  );
+  routingSectionChoices().forEach(([value, label]) => target.value(value, label));
+  target.rmempty = false;
+  target.depends({ routing_override: "1", routing_mode: "section" });
+  target.validate = (_id, value) =>
+    value ? true : _("Select a section");
 }
 
 function showClientSettingsModal(
@@ -2679,7 +2719,7 @@ function showClientSettingsModal(
         itemNode,
       ),
       title: (name) =>
-        `${name || ""}`.trim() ? _("Client: %s").format(name) : _("New client"),
+        `${name || ""}`.trim() ? _("Client: %s").format(name) : _("Client"),
       afterSave: (itemId, inputValue, _settings, existing) => {
         if (existing) {
           sectionui.updateDynamicListItemLabel(itemNode, inputValue);
@@ -2751,18 +2791,60 @@ function validateClientsOnSave(sectionId, values, listOption) {
 // the field the way LuCI reports an invalid value, and never into a dialog banner.
 // Credentials the protocol no longer uses are dropped when the protocol changes: a
 // stale password would keep showing up in diagnostics and in the config signature.
+const CLIENT_ROUTING_KEYS = [
+  "routing_override",
+  "routing_mode",
+  "routing_section",
+];
+
 function pruneClientCredentials(sectionId) {
   const keep = new Set(credentialFields(getProtocol(sectionId)));
 
   clientSections(sectionId).forEach((section) => {
-    CLIENT_KEYS.filter(
-      (key) => key !== "name" && !keep.has(key),
-    ).forEach((key) => {
+    const stale = CLIENT_KEYS.filter(
+      (key) =>
+        key !== "name" &&
+        !keep.has(key) &&
+        !CLIENT_ROUTING_KEYS.includes(key),
+    );
+    if (section.routing_override !== "1") {
+      stale.push(...CLIENT_ROUTING_KEYS);
+    }
+    if (section.routing_mode !== "section") {
+      stale.push("routing_section");
+    }
+
+    stale.forEach((key) => {
       if (section[key] != null) {
         uci.unset(UCI_PACKAGE, section[".name"], key);
       }
     });
   });
+}
+
+// Emptying the client list goes through the option LuCI owns: the widget holds
+// child section ids, and what load() returned has to be forgotten as well, or the
+// save would compare the two, find them equal and skip the write. Nothing is
+// removed here - the option does that when the dialog is saved, so a dialog that
+// is dismissed leaves the stored clients alone.
+function clearClientList(mapRef, sectionId) {
+  const found = mapRef ? mapRef.lookupOption("clients", sectionId) : null;
+  const listOption = found ? found[0] : null;
+
+  if (!listOption) {
+    return;
+  }
+
+  if (typeof listOption.clearStagedChildSettings === "function") {
+    listOption.clearStagedChildSettings(sectionId);
+  }
+
+  const element = listOption.getUIElement(sectionId);
+  if (element) {
+    element.setValue([]);
+  }
+
+  listOption.cfgvalue(sectionId, []);
 }
 
 function removeServerClients(sectionId) {
@@ -2948,11 +3030,13 @@ function getSelectWidget(sectionId, name) {
 // depends(), so the choices are rebuilt whenever the protocol changes.
 // The protocol change handler runs before the new value reaches the form, so the
 // protocol is handed over instead of being read back.
-function syncSecurityChoices(sectionId, protocol) {
+function syncSecurityChoices(sectionId, protocol, reset) {
   const allowed = securitiesFor(protocol || getProtocol(sectionId));
   const select = getSelectWidget(sectionId, "security");
   const stored = select ? select.value : option(sectionId, "security");
-  const next = allowed.includes(stored) ? stored : allowed[0];
+  // A protocol change starts from that protocol's own best mode. Carrying the
+  // previous value over would leave VLESS on None just because None is allowed.
+  const next = !reset && allowed.includes(stored) ? stored : allowed[0];
 
   if (!select) {
     if (stored !== next) {
@@ -2972,6 +3056,58 @@ function syncSecurityChoices(sectionId, protocol) {
   );
   select.value = next;
   select.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+// A camouflage host is picked once per dialog, so the SNI and the Reality target
+// stay the same domain: Reality forwards the handshake to the site the client
+// asked for, and two different names never match.
+const camouflageChoice = new Map();
+
+function camouflageSite(sectionId, reroll) {
+  if (reroll || !camouflageChoice.has(sectionId)) {
+    camouflageChoice.set(sectionId, randomItem(CAMOUFLAGE_SITES));
+  }
+  return camouflageChoice.get(sectionId);
+}
+
+// Writes the same host into both fields, whichever button was pressed.
+function applyCamouflageSite(sectionId, host) {
+  ["tls_server_name", "reality_handshake_server"].forEach((name) => {
+    const node = document.getElementById(
+      `widget.cbid.${UCI_PACKAGE}.${sectionId}.${name}`,
+    );
+    const element = node ? dom.findClassInstance(node) : null;
+    if (!element || typeof element.setValue !== "function") {
+      return;
+    }
+    element.setValue(host);
+    if (typeof element.triggerValidation === "function") {
+      element.triggerValidation();
+    }
+    controlOf(node)?.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+
+  return host;
+}
+
+// One key pair per dialog: the two fields are loaded separately but have to hold
+// halves of the same pair.
+const pendingKeypairs = new Map();
+
+function realityKeypair(sectionId) {
+  if (getEffectiveSecurity(sectionId) !== "reality") {
+    return Promise.resolve(null);
+  }
+
+  if (!pendingKeypairs.has(sectionId)) {
+    pendingKeypairs.set(
+      sectionId,
+      generateRealityKeypair(sectionId).finally(() =>
+        window.setTimeout(() => pendingKeypairs.delete(sectionId), 0),
+      ),
+    );
+  }
+  return pendingKeypairs.get(sectionId);
 }
 
 function generateRealityKeypair(sectionId) {
@@ -2998,6 +3134,8 @@ function generateRealityKeypair(sectionId) {
 
 // Both halves of the pair are written together: a public key that does not belong to
 // the private key would produce links no client can use.
+// The private half never reaches the configuration, so it is shown once, with the
+// warning that it will not be shown again.
 function addRealityKeypairButton(optionRef) {
   const renderWidget = optionRef.renderWidget;
 
@@ -3060,23 +3198,24 @@ function isRoutingSectionAction(action) {
   return ROUTING_SECTION_ACTIONS.indexOf(`${action || ""}`) !== -1;
 }
 
-function loadRoutingSectionChoices(optionRef) {
-  const sections = optionRef.map?.data?.state?.values?.[UCI_PACKAGE] ?? {};
+// Sections a server may hand its traffic to, as value and label pairs.
+function routingSectionChoices() {
+  return (uci.sections(UCI_PACKAGE, "section") || [])
+    .filter(
+      (section) =>
+        section[".name"] &&
+        section.enabled !== "0" &&
+        isRoutingSectionAction(section.action),
+    )
+    .map((section) => [section[".name"], section.label || section[".name"]]);
+}
 
+function loadRoutingSectionChoices(optionRef) {
   optionRef.keylist = [];
   optionRef.vallist = [];
-
-  Object.keys(sections).forEach((name) => {
-    const section = sections[name];
-    if (
-      section[".type"] === "section" &&
-      section.enabled !== "0" &&
-      isRoutingSectionAction(section.action)
-    ) {
-      optionRef.keylist.push(name);
-      optionRef.vallist.push(section.label || name);
-    }
-  });
+  routingSectionChoices().forEach(([value, label]) =>
+    optionRef.value(value, label),
+  );
 
   return Promise.resolve();
 }
@@ -3199,7 +3338,12 @@ function configureServerSection(sectionRef) {
     const prevMap = mapNode ? dom.findClassInstance(mapNode) : this.map;
 
     prevMap.addedSection = sectionId;
-    uci.set(UCI_PACKAGE, sectionId, "enabled", "1");
+    // The section exists from the moment Add is pressed, and a dialog that is never
+    // finished leaves it behind. Nothing writes the switch until the dialog is
+    // saved, and a server without one counts as disabled, so an unfinished server
+    // is inert: the validator and the generator skip it. The dialog still shows
+    // the switch on, because that is what saving it writes.
+    addedServers.add(sectionId);
     uci.set(UCI_PACKAGE, sectionId, "protocol", DEFAULT_PROTOCOL);
     uci.set(
       UCI_PACKAGE,
@@ -3219,12 +3363,51 @@ function configureServerSection(sectionRef) {
     return form.GridSection.prototype.handleRemove.call(this, sectionId, ev);
   };
 
+  sectionRef.handleModalSave = function (modalMap, ev) {
+    const mapNode = this.getActiveModalMap();
+    const activeMap = dom.findClassInstance(mapNode);
+    const sectionId = modalMap?.section || activeMap.section;
+
+    return activeMap
+      .parse()
+      .then(() => {
+        addedServers.delete(sectionId);
+
+        return form.GridSection.prototype.handleModalSave.call(
+          this,
+          modalMap,
+          ev,
+        );
+      })
+      // A rejected check already marks its own field and the dialog stays open,
+      // but that first pass wrote every field that did pass, the switch among
+      // them. A server that never got through its checks goes back to disabled,
+      // so leaving the page with the dialog open cannot stop the service.
+      .catch(() => {
+        if (addedServers.has(sectionId)) {
+          uci.unset(UCI_PACKAGE, sectionId, "enabled");
+        }
+
+        return null;
+      });
+  };
+
   sectionRef.renderRowActions = function (sectionId) {
     return renderServerRowActions(this, sectionId);
   };
 }
 
 /* ---------------------------------------------------------------------- form */
+
+// A value the dialog fills in by itself. LuCI keeps whatever load() returned as
+// the stored value of an option, so an untouched autofilled field compares equal
+// on save and would never reach the configuration: a fresh server ended up with
+// no port, no public host and no Reality identity, and the service then refused
+// the whole configuration. forcewrite makes the save write it.
+function autofill(option, loader) {
+  option.forcewrite = true;
+  option.load = loader;
+}
 
 function addIdentityOptions(section) {
   let o = section.option(form.Flag, "enabled", _("Enable"));
@@ -3283,7 +3466,10 @@ function addIdentityOptions(section) {
   o.modalonly = true;
   o.validate = validateRequired;
   o.onchange = function (_ev, sectionId, value) {
-    syncSecurityChoices(sectionId, value);
+    syncSecurityChoices(sectionId, value, true);
+    // A client of the previous protocol holds credentials the new one cannot use,
+    // and a half converted account only fails on save. The list starts over.
+    clearClientList(this.map, sectionId);
   };
 }
 
@@ -3293,9 +3479,8 @@ function addTailscaleOptions(section) {
   let o = section.option(
     form.Value,
     "tailscale_auth_key",
-    _("Tailscale auth key"),
+    _("Authorization key"),
   );
-  o.placeholder = "tskey-auth-...";
   o.modalonly = true;
   o.rmempty = false;
   o.password = true;
@@ -3308,22 +3493,11 @@ function addTailscaleOptions(section) {
     _("Device name"),
     _("The name this device appears under in the Tailscale console."),
   );
-  o.placeholder = "forkop-router";
   o.modalonly = true;
   o.rmempty = false;
   o.validate = validateTailscaleHostname;
   onTailscale(o);
 
-  o = section.option(
-    form.Flag,
-    "tailscale_advertise_exit_node",
-    _("Advertise as exit node"),
-    _("Lets other devices route all their traffic through this router."),
-  );
-  o.default = "1";
-  o.rmempty = false;
-  o.modalonly = true;
-  onTailscale(o);
 
   o = section.option(
     form.DynamicList,
@@ -3348,16 +3522,6 @@ function addTailscaleOptions(section) {
   o.modalonly = true;
   onTailscale(o);
 
-  o = section.option(
-    form.DynamicList,
-    "tailscale_advertise_tags",
-    _("ACL tags"),
-  );
-  o.placeholder = "tag:server";
-  o.modalonly = true;
-  o.rmempty = true;
-  o.validate = validateTailscaleTags;
-  onTailscale(o);
 
   o = section.option(
     form.Flag,
@@ -3374,7 +3538,9 @@ function addTailscaleOptions(section) {
     form.Value,
     "tailscale_control_url",
     _("Coordination server"),
-    _("Change only for a self-hosted Headscale."),
+    _(
+      "Address of the coordination server. Change it if you use a custom server.",
+    ),
   );
   o.default = "https://controlplane.tailscale.com";
   o.modalonly = true;
@@ -3393,7 +3559,11 @@ function addTailscaleOptions(section) {
   o.modalonly = true;
   onTailscale(o);
 
-  o = section.option(form.ListValue, "tailscale_detour_section", _("Section"));
+  o = section.option(
+    form.ListValue,
+    "tailscale_detour_section",
+    _("Coordination server through"),
+  );
   o.modalonly = true;
   o.rmempty = false;
   o.depends({ protocol: "tailscale", tailscale_detour_enabled: "1" });
@@ -3461,6 +3631,7 @@ function addListenerOptions(section) {
   o.rmempty = false;
   o.modalonly = true;
   o.validate = validateListenPort;
+  autofill(o, (sectionId) => option(sectionId, "listen_port") || randomPort());
   onListener(o);
   addGenerateButton(o, () => randomPort(), _("Pick a free port"));
 
@@ -3468,27 +3639,18 @@ function addListenerOptions(section) {
     form.Value,
     "public_host",
     _("Public host"),
-    _("The address that goes into the client links."),
+    _("The address used to build the connection links"),
   );
   o.placeholder = "203.0.113.9";
   o.modalonly = true;
   o.rmempty = false;
   o.validate = validateHost;
   onListener(o);
-  o.load = function (sectionId) {
+  autofill(o, function (sectionId) {
     const stored = option(sectionId, "public_host");
     return stored ? stored : loadDefaultPublicHost().then((host) => host || "");
-  };
+  });
 
-  o = section.option(
-    form.Flag,
-    "tcp_fast_open",
-    _("TCP Fast Open"),
-  );
-  o.default = "0";
-  o.rmempty = true;
-  o.modalonly = true;
-  protocolsWith("tcp").forEach((protocol) => o.depends("protocol", protocol));
 }
 
 function addShadowsocksOptions(section) {
@@ -3496,8 +3658,7 @@ function addShadowsocksOptions(section) {
     form.ListValue,
     "shadowsocks_method",
     _("Method"),
-    _("The 2022 ciphers block replay attacks and take base64 keys."),
-  );
+    );
   SHADOWSOCKS_METHODS.forEach((method) => o.value(method.id, method.id));
   o.default = SHADOWSOCKS_METHODS[0].id;
   o.rmempty = false;
@@ -3509,8 +3670,7 @@ function addShadowsocksOptions(section) {
     form.Value,
     "shadowsocks_psk",
     _("Server pre-shared key"),
-    _("Required. Shared by every client, in addition to its own key."),
-  );
+    );
   o.modalonly = true;
   o.rmempty = false;
   o.password = true;
@@ -3518,6 +3678,14 @@ function addShadowsocksOptions(section) {
   SHADOWSOCKS_METHODS.filter((method) => method.keyBytes > 0).forEach(
     (method) =>
       o.depends({ protocol: "shadowsocks", shadowsocks_method: method.id }),
+  );
+  autofill(
+    o,
+    (sectionId) =>
+      option(sectionId, "shadowsocks_psk") ||
+      generatePresharedKey(
+        shadowsocksKeyBytes(getShadowsocksMethod(sectionId)) || 32,
+      ),
   );
   addGenerateButton(o, (sectionId) =>
     generatePresharedKey(
@@ -3530,13 +3698,19 @@ function addMixedOptions(section) {
   const o = section.option(
     form.Flag,
     "mixed_auth_enabled",
-    _("Require authentication"),
-    _("Without it anyone who reaches the port can use the proxy."),
+    _("Authentication"),
   );
-  o.default = "1";
+  o.default = "0";
   o.rmempty = false;
   o.modalonly = true;
   o.depends("protocol", "mixed");
+  // An inbound with no users accepts everybody, so the accounts of a Mixed server
+  // are removed with the switch instead of lingering as credentials nobody sends.
+  o.onchange = function (_ev, sectionId, value) {
+    if (String(value) !== "1") {
+      clearClientList(this.map, sectionId);
+    }
+  };
 }
 
 function addHysteria2Options(section) {
@@ -3563,6 +3737,11 @@ function addHysteria2Options(section) {
   o.rmempty = false;
   o.password = true;
   o.validate = validateRequiredText;
+  autofill(
+    o,
+    (sectionId) =>
+      option(sectionId, "hysteria2_obfs_password") || generatePassword(),
+  );
   o.depends({ protocol: "hysteria2", hysteria2_obfs_type: "salamander" });
   addGenerateButton(o, () => generatePassword());
 
@@ -3570,8 +3749,7 @@ function addHysteria2Options(section) {
     form.Value,
     "hysteria2_up_mbps",
     _("Upload, Mbps"),
-    _("Leave both empty to let BBR pick the rate."),
-  );
+    );
   o.placeholder = "100";
   o.modalonly = true;
   o.rmempty = true;
@@ -3603,8 +3781,7 @@ function addHysteria2Options(section) {
     form.Value,
     "hysteria2_masquerade",
     _("Masquerade"),
-    _("What a plain browser gets: an https:// site to proxy, or file:// to serve."),
-  );
+    );
   o.placeholder = "https://example.com";
   o.modalonly = true;
   o.rmempty = true;
@@ -3652,8 +3829,7 @@ function addTuicOptions(section) {
     form.Flag,
     "tuic_zero_rtt_handshake",
     _("0-RTT handshake"),
-    _("Allows replay attacks in exchange for one round trip."),
-  );
+    );
   o.default = "0";
   o.rmempty = true;
   o.modalonly = true;
@@ -3692,8 +3868,7 @@ function addProtocolOptions(section) {
     form.DynamicList,
     "ssh_host_key_path",
     _("SSH host key path"),
-    _("Empty means sing-box creates a temporary key on every start."),
-  );
+    );
   o.placeholder = "/etc/forkop/server-ssh/host.key";
   o.modalonly = true;
   o.rmempty = true;
@@ -3730,20 +3905,26 @@ function addMtprotoOptions(section) {
     form.Value,
     "mtproto_faketls",
     _("FakeTLS host"),
-    _("Required. The host the proxy hides behind, and part of the secret."),
   );
   o.placeholder = "google.com";
   o.modalonly = true;
   o.rmempty = false;
   o.validate = validateHost;
+  autofill(
+    o,
+    (sectionId) => option(sectionId, "mtproto_faketls") || camouflageSite(sectionId),
+  );
   onMtproto(o);
-  addGenerateButton(o, () => randomItem(CAMOUFLAGE_SITES), _("Pick a domain"));
+  addGenerateButton(
+    o,
+    (sectionId) => camouflageSite(sectionId, true),
+    _("Pick a domain"),
+  );
 
   o = section.option(
     form.Value,
     "mtproto_domain_fronting_port",
     _("Fronting port"),
-    _("Where connections that are not Telegram go."),
   );
   o.placeholder = "443";
   o.modalonly = true;
@@ -3891,8 +4072,7 @@ function addSecurityOptions(section) {
     form.Value,
     "tls_server_name",
     _("Server name / SNI"),
-    _("Required for Reality. The domain clients send in the TLS handshake."),
-  );
+    );
   o.placeholder = "example.com";
   o.modalonly = true;
   o.rmempty = true;
@@ -3904,9 +4084,17 @@ function addSecurityOptions(section) {
     }
     return validateHost(sectionId, value);
   };
+  autofill(
+    o,
+    (sectionId) => option(sectionId, "tls_server_name") || camouflageSite(sectionId),
+  );
   onTls(o);
   onReality(o);
-  addGenerateButton(o, () => randomItem(CAMOUFLAGE_SITES), _("Pick a domain"));
+  addGenerateButton(
+    o,
+    (sectionId) => applyCamouflageSite(sectionId, camouflageSite(sectionId, true)),
+    _("Pick a domain"),
+  );
 
   o = section.option(
     form.MultiValue,
@@ -3924,14 +4112,12 @@ function addSecurityOptions(section) {
     form.Value,
     "tls_certificate_path",
     _("Certificate path"),
-    _("Forkop creates a self-signed certificate at the default path."),
+    _("Optional. Forkop issues a self-signed certificate itself."),
   );
+  o.placeholder = "/etc/ssl/certs/server.crt";
   o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validateTlsCertificatePath;
-  o.load = (sectionId) =>
-    option(sectionId, "tls_certificate_path") ||
-    defaultTlsCertificatePath(sectionId);
+  o.rmempty = true;
+  o.validate = validateOptionalTlsCertificatePath;
   onTls(o);
 
   o = section.option(
@@ -3939,25 +4125,32 @@ function addSecurityOptions(section) {
     "tls_key_path",
     _("Key path"),
   );
+  o.placeholder = "/etc/ssl/private/server.key";
   o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validateTlsKeyPath;
-  o.load = (sectionId) =>
-    option(sectionId, "tls_key_path") || defaultTlsKeyPath(sectionId);
+  o.rmempty = true;
+  o.validate = validateOptionalTlsKeyPath;
   onTls(o);
 
   o = section.option(
     form.Value,
     "reality_handshake_server",
     _("Reality fake site"),
-    _("Required. A real HTTPS site with TLS 1.3 that the router can reach."),
   );
   o.placeholder = "example.com";
   o.modalonly = true;
   o.rmempty = false;
   o.validate = validateHost;
+  autofill(
+    o,
+    (sectionId) =>
+      option(sectionId, "reality_handshake_server") || camouflageSite(sectionId),
+  );
   onReality(o);
-  addGenerateButton(o, () => randomItem(CAMOUFLAGE_SITES), _("Pick a site"));
+  addGenerateButton(
+    o,
+    (sectionId) => applyCamouflageSite(sectionId, camouflageSite(sectionId, true)),
+    _("Pick a site"),
+  );
 
   o = section.option(
     form.Value,
@@ -3981,6 +4174,12 @@ function addSecurityOptions(section) {
   o.rmempty = false;
   o.password = true;
   o.validate = validateRealityKey;
+  autofill(
+    o,
+    (sectionId) =>
+      option(sectionId, "reality_private_key") ||
+      realityKeypair(sectionId).then((pair) => (pair ? pair.private_key : "")),
+  );
   onReality(o);
   addRealityKeypairButton(o);
 
@@ -3988,23 +4187,40 @@ function addSecurityOptions(section) {
     form.Value,
     "reality_public_key",
     _("Reality public key"),
-    _("Goes into the client links."),
+    _("Required. Generate a pair with the button next to the field."),
   );
   o.modalonly = true;
   o.rmempty = false;
   o.validate = validateRealityKey;
+  autofill(
+    o,
+    (sectionId) =>
+      option(sectionId, "reality_public_key") ||
+      realityKeypair(sectionId).then((pair) => (pair ? pair.public_key : "")),
+  );
   onReality(o);
+  addRealityKeypairButton(o);
 
   o = section.option(
     form.DynamicList,
     "reality_short_id",
     _("Reality short ID"),
-    _("Required. An even number of hex digits, up to 16."),
-  );
+    );
   o.placeholder = "0a1b2c3d";
   o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validateShortId;
+  o.rmempty = true;
+  o.validate = function (sectionId, value) {
+    if (isEmptyValue(value)) {
+      const current =
+        typeof this.formvalue === "function" ? this.formvalue(sectionId) : [];
+      return valueList(current).length ? true : _("This field is required");
+    }
+    return validateShortId(sectionId, value);
+  };
+  autofill(o, (sectionId) => {
+    const stored = optionList(sectionId, "reality_short_id");
+    return stored.length ? stored : [randomHex(4)];
+  });
   onReality(o);
   addGenerateButton(o, (_sectionId, current) =>
     asList(current).concat(randomHex(4)),
@@ -4025,8 +4241,7 @@ function addSecurityOptions(section) {
     form.ListValue,
     "client_fingerprint",
     _("Client fingerprint"),
-    _("A hint Forkop puts into the client links."),
-  );
+    );
   o.value("", _("Not set"));
   CLIENT_FINGERPRINTS.forEach((value) => o.value(value, value));
   o.default = "chrome";
@@ -4056,7 +4271,7 @@ function addTransportOptions(section) {
     "transport_path",
     _("Transport path"),
   );
-  o.placeholder = "/";
+  o.placeholder = "/ws";
   o.modalonly = true;
   o.rmempty = true;
   o.validate = validateTransportPath;
@@ -4113,6 +4328,14 @@ function addTransportOptions(section) {
   onTransport(o, "xhttp");
 }
 
+function addTuningOptions(section) {
+  const o = section.option(form.Flag, "tcp_fast_open", _("TCP Fast Open"));
+  o.default = "0";
+  o.rmempty = true;
+  o.modalonly = true;
+  protocolsWith("tcp").forEach((protocol) => o.depends("protocol", protocol));
+}
+
 function addMultiplexOptions(section) {
   const multiplexProtocols = protocolsWith("multiplex");
   const onMultiplex = (o, extra) =>
@@ -4140,40 +4363,6 @@ function addMultiplexOptions(section) {
   o.modalonly = true;
   onMultiplex(o, { multiplex_enabled: "1" });
 
-  o = section.option(
-    form.Flag,
-    "multiplex_brutal_enabled",
-    _("TCP Brutal"),
-    _("Needs the tcp-brutal kernel module on both sides."),
-  );
-  o.default = "0";
-  o.rmempty = true;
-  o.modalonly = true;
-  onMultiplex(o, { multiplex_enabled: "1" });
-
-  const brutalRate = { multiplex_enabled: "1", multiplex_brutal_enabled: "1" };
-
-  o = section.option(
-    form.Value,
-    "multiplex_brutal_up_mbps",
-    _("Brutal upload, Mbps"),
-  );
-  o.placeholder = "50";
-  o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validateRequiredPositiveInteger;
-  onMultiplex(o, brutalRate);
-
-  o = section.option(
-    form.Value,
-    "multiplex_brutal_down_mbps",
-    _("Brutal download, Mbps"),
-  );
-  o.placeholder = "100";
-  o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validateRequiredPositiveInteger;
-  onMultiplex(o, brutalRate);
 }
 
 function addClientListOption(section) {
@@ -4181,7 +4370,7 @@ function addClientListOption(section) {
     sectionui.ButtonAddSettingsDynamicList,
     "clients",
     _("Clients"),
-    _("Required. The accounts allowed to connect to this server."),
+    _("Required"),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -4189,9 +4378,18 @@ function addClientListOption(section) {
   o.childType = CLIENT_TYPE;
   o.ownerOption = CLIENT_OWNER_OPTION;
   o.childValueOption = "name";
+  // A Mixed inbound only has accounts while it asks for them; every other
+  // protocol always does.
   protocolsWhere((entry) => usesClients(entry.id)).forEach((protocol) =>
-    o.depends("protocol", protocol),
+    protocol === "mixed"
+      ? o.depends({ protocol, mixed_auth_enabled: "1" })
+      : o.depends("protocol", protocol),
   );
+  // Without this the list shows the child section id of every stored client: the
+  // widget item carries the id as its value and falls back to it for the label.
+  o.renderListItemLabel = function (sectionId, value) {
+    return this.inputValueForItem(sectionId, value);
+  };
   o.renderItemSettingsModal = showClientSettingsModal;
   o.hasItemSettings = (_sectionId, value) => `${value || ""}`.trim().length > 0;
   o.inputValueForItem = function (sectionId, value) {
@@ -4242,8 +4440,8 @@ function addRoutingOptions(section) {
   let o = section.option(
     form.ListValue,
     "routing_mode",
-    _("Traffic routing"),
-    _("Where to send the traffic from these clients."),
+    _("Routing mode"),
+    _("Where to send the traffic from this server."),
   );
   o.value("rules", _("Rules"));
   o.value("direct", _("Direct"));
@@ -4284,6 +4482,7 @@ function createServerContent(section) {
   addRoutingOptions(section);
   addSecurityOptions(section);
   addTransportOptions(section);
+  addTuningOptions(section);
   addMultiplexOptions(section);
   addHysteria2Options(section);
   addTuicOptions(section);

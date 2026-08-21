@@ -61,10 +61,9 @@ for (const option of [
   "tuic_congestion_control",
   "tuic_zero_rtt_handshake",
   "hysteria2_masquerade",
-  "tailscale_advertise_tags",
   "tailscale_ephemeral",
   "tcp_fast_open",
-  "multiplex_brutal_up_mbps",
+  "routing_override",
 ]) {
   requireSource(`"${option}"`);
 }
@@ -87,12 +86,12 @@ for (const [protocol, securities] of [
   }
 }
 
-// Tailscale needs neither a public address nor a forwarded port, so it stays the
-// first choice, and the raw JSON inbound stays the last.
+// A plain local proxy is what most people set up first, so Mixed leads the list and
+// the raw JSON inbound stays last.
 const protocolOrder = [...source.matchAll(/^\s*id: "([A-Za-z0-9_]+)"/gm)].map(
   (match) => match[1],
 );
-if (protocolOrder[0] !== "tailscale" || protocolOrder.at(-1) !== "json_inbound") {
+if (protocolOrder[0] !== "mixed" || protocolOrder.at(-1) !== "json_inbound") {
   fail(`unexpected protocol order: ${protocolOrder.join(", ")}`);
 }
 if (protocolOrder.includes("socks")) {
@@ -163,7 +162,7 @@ for (const removed of [
 }
 
 // A numbered client name, so a client never inherits the server name.
-requireSource('usesLoginName(protocol) ? "client-%d" : "Client #%d"');
+requireSource('const pattern = "client-%d";');
 
 const optionBlocks = source
   .split("section.option(")
@@ -330,6 +329,68 @@ for (const [sectiontype, expectedLabel] of [
 }
 
 requireSource("const sectionId = this.addLabeledSection()");
+
+// Add creates the section before the dialog is filled in, and nothing writes the
+// enable switch until the dialog is saved: a server without one counts as
+// disabled, so an abandoned one is skipped by the validator and by the generator.
+if (source.includes('uci.set(UCI_PACKAGE, sectionId, "enabled"')) {
+  fail("adding a server must not write the enable switch");
+}
+requireSource("addedServers.add(sectionId);");
+requireSource("addedServers.delete(sectionId);");
+requireSource('uci.unset(UCI_PACKAGE, sectionId, "enabled");');
+
+// LuCI keeps whatever load() returned as the stored value of an option, so a
+// value the dialog generates by itself compares equal on save and is never
+// written: that is how a server ended up with no port, no public host and no
+// Reality identity. Every generated value goes through autofill(), which sets
+// forcewrite so the save writes it.
+requireSource(`function autofill(option, loader) {
+  option.forcewrite = true;
+  option.load = loader;
+}`);
+for (const name of [
+  "listen_port",
+  "public_host",
+  "shadowsocks_psk",
+  "hysteria2_obfs_password",
+  "tls_server_name",
+  "reality_handshake_server",
+  "reality_private_key",
+  "reality_public_key",
+  "reality_short_id",
+  "mtproto_faketls",
+]) {
+  if (!optionBlock(name).includes("autofill(")) {
+    fail(`the generated value of ${name} must be written through autofill()`);
+  }
+}
+
+// Only an option that reads what is already stored may set load() directly.
+{
+  const allowed = new Set(["tailscale_detour_section", "routing_section"]);
+  const marker = "\n  o.load = ";
+  let at = source.indexOf(marker);
+  while (at >= 0) {
+    const opened = source.lastIndexOf("section.option(", at);
+    const name = /"([a-z0-9_]+)"/.exec(source.slice(opened, opened + 200));
+    const found = name ? name[1] : String(at);
+    if (!allowed.has(found)) {
+      fail(`${found} sets load() directly; use autofill() so the value is written`);
+    }
+    at = source.indexOf(marker, at + 1);
+  }
+}
+
+// The client list shows the account names. A widget item carries the child
+// section id as its value, so without a label of its own it shows that id.
+requireSource("o.renderListItemLabel = function (sectionId, value) {");
+
+// Forkop does not generate SSH client keys: sing-box only ever sees the public
+// half, and keeping the private one is not Forkop's business.
+if (/ssh.?keypair|SSH key pair|showSshPrivateKey/i.test(source)) {
+  fail("the Servers tab must not generate SSH client key pairs");
+}
 NODE
 
 if grep -R -n -E 'singBoxVariant|sing_box_(extended|tiny|tailscale)|GET_SERVER_CAPABILITIES|GetServerCapabilities|Install another build|startsWith\(.install_' \

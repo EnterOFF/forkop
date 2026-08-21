@@ -939,7 +939,7 @@ function append_sing_box_server_signature_body(body, server) {
         return body;
 
     if (option(server, "protocol", "vless") == "mixed")
-        body = signature_add_value(body, prefix + ".mixed_auth_enabled", bool_option_value(server, "mixed_auth_enabled", true));
+        body = signature_add_value(body, prefix + ".mixed_auth_enabled", bool_option_value(server, "mixed_auth_enabled", false));
 
     let fields = [
         [ "label", name ],
@@ -973,9 +973,6 @@ function append_sing_box_server_signature_body(body, server) {
         [ "shadowsocks_psk", "" ],
         [ "multiplex_enabled", "" ],
         [ "multiplex_padding", "" ],
-        [ "multiplex_brutal_enabled", "" ],
-        [ "multiplex_brutal_up_mbps", "" ],
-        [ "multiplex_brutal_down_mbps", "" ],
         [ "hysteria2_up_mbps", "" ],
         [ "hysteria2_down_mbps", "" ],
         [ "hysteria2_obfs_type", "" ],
@@ -1009,8 +1006,6 @@ function append_sing_box_server_signature_body(body, server) {
         [ "tailscale_hostname", "" ],
         [ "tailscale_accept_routes", "" ],
         [ "tailscale_advertise_routes", "" ],
-        [ "tailscale_advertise_tags", "" ],
-        [ "tailscale_advertise_exit_node", "" ],
         [ "tailscale_ephemeral", "" ]
     ];
 
@@ -1021,7 +1016,8 @@ function append_sing_box_server_signature_body(body, server) {
     // has to move the signature the same way a server option does.
     for (let client in connections.server_clients(server)) {
         let client_prefix = prefix + ".client." + section_name(client);
-        for (let field in [ "name", "uuid", "password", "secret", "flow" ])
+        for (let field in [ "name", "uuid", "password", "secret", "flow",
+            "routing_override", "routing_mode", "routing_section" ])
             body = signature_add_value(body, client_prefix + "." + field, option(client, field, ""));
         for (let value in list_option(client, "authorized_keys"))
             body = signature_add_value(body, client_prefix + ".authorized_keys", value);

@@ -411,10 +411,19 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
   ],
   "server": [
     {
+      ".name": "unfinished",
+      ".type": "server",
+      "protocol": "shadowsocks",
+      "shadowsocks_method": "2022-blake3-aes-128-gcm",
+      "listen": "0.0.0.0",
+      "routing_mode": "direct"
+    },
+    {
       ".name": "edge",
       ".type": "server",
       "enabled": "1",
       "protocol": "mixed",
+      "mixed_auth_enabled": "1",
       "listen": "0.0.0.0",
       "listen_port": "18080",
       "routing_mode": "direct"
@@ -428,7 +437,6 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       "tailscale_hostname": "forkop-server",
       "tailscale_detour_enabled": "1",
       "tailscale_detour_section": "proxy",
-      "tailscale_advertise_exit_node": "0",
       "routing_mode": "direct"
     },
     {
@@ -436,6 +444,7 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       ".type": "server",
       "enabled": "1",
       "protocol": "mixed",
+      "mixed_auth_enabled": "1",
       "listen": "0.0.0.0",
       "listen_port": "18081",
       "mixed_auth_enabled": "0",
@@ -531,9 +540,6 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       "reality_short_id": [ "abcd" ],
       "multiplex_enabled": "1",
       "multiplex_padding": "1",
-      "multiplex_brutal_enabled": "1",
-      "multiplex_brutal_up_mbps": "100",
-      "multiplex_brutal_down_mbps": "200",
       "routing_mode": "direct"
     },
     {
@@ -556,6 +562,15 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       "server": "edge",
       "name": "tester",
       "password": "secret"
+    },
+    {
+      ".name": "edge_ruled",
+      ".type": "server_client",
+      "server": "edge",
+      "name": "ruled",
+      "password": "ruled-secret",
+      "routing_override": "1",
+      "routing_mode": "rules"
     },
     {
       ".name": "open_ignored",
@@ -621,7 +636,9 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       ".type": "server_client",
       "server": "vlessmux",
       "name": "laptop",
-      "uuid": "55555555-5555-4555-8555-555555555555"
+      "uuid": "55555555-5555-4555-8555-555555555555",
+      "routing_override": "1",
+      "routing_mode": "direct"
     },
     {
       ".name": "ss2022_phone",
@@ -1290,16 +1307,20 @@ assert(dns_server(defaults, r => r.tag == "dnsmasq-server") != null, "interface 
 assert(dns_rule(defaults, r => r.server == "dnsmasq-server" && contains(r.inbound, "source-dns-in") && r.source_ip_cidr == null) != null, "unmatched interface DNS returns through dnsmasq");
 
 let server = cfg("server");
+// A server without the switch is one whose dialog was never saved. The runtime
+// check and the reload signature both read that as off, so generating an inbound
+// for it would hand sing-box a server nothing ever checked.
+assert(inbound(server, "unfinished") == null, "a server without the enable switch is not generated");
 let mixed = inbound(server, "edge");
 assert(mixed && mixed.type == "mixed" && mixed.listen_port == 18080, "server mixed inbound answers SOCKS5 and HTTP on one port");
-assert(mixed.users && mixed.users[0].username == "tester" && mixed.users[0].password == "secret", "mixed server authentication defaults to enabled");
+assert(mixed.users && mixed.users[0].username == "tester" && mixed.users[0].password == "secret", "mixed server authentication produces a user list");
 let tailscale_server = null;
 for (let endpoint in server.endpoints || [])
     if (endpoint && endpoint.tag == "tailnet")
         tailscale_server = endpoint;
 assert(tailscale_server && tailscale_server.type == "tailscale", "Tailscale server endpoint");
 assert(tailscale_server.detour == "proxy", "Tailscale server control-plane detour");
-assert(tailscale_server.advertise_exit_node == null, "Tailscale exit-node advertising follows the server setting");
+assert(tailscale_server.advertise_exit_node === true, "a Tailscale server is always the exit node");
 assert(server.route.auto_detect_interface === false, "direct Tailscale server does not pin advertised LAN routes to the default WAN");
 assert(route_rule(server, r => r.action == "sniff" && r.inbound == "tailnet") == null, "Tailscale endpoint is not sniffed");
 let open_mixed = inbound(server, "open");
@@ -1337,16 +1358,54 @@ assert(vless_mux.users[0].name == "phone" && vless_mux.users[0].uuid == "4444444
 assert(vless_mux.users[0].flow == "xtls-rprx-vision" && vless_mux.users[1].flow == null, "VLESS flow is a per-client setting");
 assert(vless_mux.users[1].name == "laptop", "the second client keeps its own identity");
 assert(vless_mux.multiplex && vless_mux.multiplex.enabled === true && vless_mux.multiplex.padding === true, "multiplexing is generated when it is accepted");
-assert(vless_mux.multiplex.brutal && vless_mux.multiplex.brutal.up_mbps == 100 && vless_mux.multiplex.brutal.down_mbps == 200, "TCP Brutal rates are generated");
+assert(vless_mux.multiplex.brutal == null, "TCP Brutal is not generated: OpenWrt has no tcp-brutal module");
 assert(vless_mux.tls.reality && vless_mux.tls.reality.enabled === true, "Reality is generated for the multiplexed VLESS server");
 
 // A 2022 server holds its own pre-shared key next to the per client keys.
 let ss2022 = inbound(server, "Shadowsocks 2022");
 assert(ss2022 && ss2022.method == "2022-blake3-aes-128-gcm", "Shadowsocks 2022 method");
 assert(ss2022.password == "c2VydmVyLXByZXNoYXJlZC1rZXk=", "the server pre-shared key stays on the inbound");
-assert(ss2022.users[0].password == "c2VydmVyLXByZXNoYXJlZC1rZXk=:Y2xpZW50LXByZXNoYXJlZC1rZXk=", "a 2022 client key is joined with the server key");
+// sing-box decodes this field on its own, so an account carries just its own key.
+// The server key joined with it belongs in the link a client reads, and putting the
+// pair here made the core refuse the whole configuration.
+assert(ss2022.users[0].password == "Y2xpZW50LXByZXNoYXJlZC1rZXk=", "a 2022 account carries its own key alone");
+assert(index(ss2022.users[0].password, ":") < 0, "the server key is not joined into the user list");
 
 assert(route_rule(server, r => r.inbound == "edge" && r.outbound == "direct-out") != null, "server direct route");
+// A client of a direct server may still follow the shared rules: the set is cloned
+// for that account alone, and those clones come before the rule of the server.
+let ruled = route_rule(server, r => r.inbound == "edge" && r.user == "ruled");
+assert(ruled != null, "a client that follows the rules gets the shared set for its own account");
+let ruled_at = -1;
+let direct_at = -1;
+for (let i = 0; i < length(server.route.rules); i++) {
+    let rule = server.route.rules[i];
+    if (type(rule) != "object" || rule.inbound != "edge")
+        continue;
+    if (rule.user == "ruled" && ruled_at < 0)
+        ruled_at = i;
+    if (rule.user == null && rule.outbound == "direct-out" && direct_at < 0)
+        direct_at = i;
+}
+assert(ruled_at >= 0 && direct_at > ruled_at, "the rules of a client come before the rule of its server");
+
+// A client that takes its own route gets a rule matched on the user name, and it has
+// to come before the rule of its server, because the first match wins.
+let client_rule_index = -1;
+let server_rule_index = -1;
+let mux_rules = server.route.rules;
+for (let index = 0; index < length(mux_rules); index++) {
+    let rule = mux_rules[index];
+    if (type(rule) != "object" || rule.inbound != "VLESS mux")
+        continue;
+    if (rule.user == "laptop")
+        client_rule_index = index;
+    else if (rule.user == null)
+        server_rule_index = index;
+}
+assert(client_rule_index >= 0, "a client that overrides the route gets its own rule");
+assert(mux_rules[client_rule_index].outbound == "direct-out", "the client rule uses its own mode");
+assert(server_rule_index < 0 || client_rule_index < server_rule_index, "a client rule comes before the rule of its server");
 
 let matchers = cfg("matchers");
 assert(matchers.dns.strategy == "prefer_ipv6", "configured DNS strategy is generated");

@@ -717,6 +717,21 @@ cat >"$WORK_DIR/bad-server-reality-short-id.json" <<'JSON'
 JSON
 assert_rejects "reality short ID with an odd digit count" "$WORK_DIR/bad-server-reality-short-id.json" "even number of hex digits"
 
+# The proxy takes nothing but a FakeTLS secret, so without a host there is no
+# secret at all and the core refuses the whole configuration.
+cat >"$WORK_DIR/bad-server-mtproto-faketls.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "server": [
+    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "mtproto", "listen_port": "18442", "public_host": "203.0.113.9" }
+  ],
+  "server_client": [
+    { ".name": "srv_phone", ".type": "server_client", "server": "srv", "name": "phone", "secret": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
+  ]
+}
+JSON
+assert_rejects "MTProto server without a FakeTLS host" "$WORK_DIR/bad-server-mtproto-faketls.json" "needs a FakeTLS host"
+
 cat >"$WORK_DIR/bad-server-hysteria2-obfs.json" <<'JSON'
 {
   "settings": { ".name": "settings", ".type": "settings" },
@@ -773,7 +788,7 @@ cat >"$WORK_DIR/bad-server-without-clients.json" <<'JSON'
   ]
 }
 JSON
-assert_rejects "server without clients" "$WORK_DIR/bad-server-without-clients.json" "has no enabled clients"
+assert_rejects "server without clients" "$WORK_DIR/bad-server-without-clients.json" "has no clients"
 
 cat >"$WORK_DIR/bad-server-client-uuid.json" <<'JSON'
 {
@@ -798,7 +813,7 @@ cat >"$WORK_DIR/bad-server-client-login-name.json" <<'JSON'
     { ".name": "proxy", ".type": "section", "enabled": "1", "action": "connection" }
   ],
   "server": [
-    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "mixed", "listen_port": "18080", "public_host": "203.0.113.9" }
+    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "mixed", "mixed_auth_enabled": "1", "listen_port": "18080", "public_host": "203.0.113.9" }
   ],
   "server_client": [
     { ".name": "srv_phone", ".type": "server_client", "server": "srv", "enabled": "1", "name": "alice smith", "password": "secret" }

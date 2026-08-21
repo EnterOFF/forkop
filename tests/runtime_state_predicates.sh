@@ -969,12 +969,6 @@ ws
 
 [server.srv1.multiplex_padding]
 
-[server.srv1.multiplex_brutal_enabled]
-
-[server.srv1.multiplex_brutal_up_mbps]
-
-[server.srv1.multiplex_brutal_down_mbps]
-
 [server.srv1.hysteria2_up_mbps]
 
 [server.srv1.hysteria2_down_mbps]
@@ -1041,10 +1035,6 @@ cubic
 1
 [server.srv1.tailscale_advertise_routes]
 
-[server.srv1.tailscale_advertise_tags]
-
-[server.srv1.tailscale_advertise_exit_node]
-
 [server.srv1.tailscale_ephemeral]
 
 [server.srv1.client.srv1_phone.name]
@@ -1057,6 +1047,12 @@ phone
 
 [server.srv1.client.srv1_phone.flow]
 xtls-rprx-vision
+[server.srv1.client.srv1_phone.routing_override]
+
+[server.srv1.client.srv1_phone.routing_mode]
+
+[server.srv1.client.srv1_phone.routing_section]
+
 [server.srv1.client.srv1_laptop.name]
 laptop
 [server.srv1.client.srv1_laptop.uuid]
@@ -1066,6 +1062,12 @@ laptop
 [server.srv1.client.srv1_laptop.secret]
 
 [server.srv1.client.srv1_laptop.flow]
+
+[server.srv1.client.srv1_laptop.routing_override]
+
+[server.srv1.client.srv1_laptop.routing_mode]
+
+[server.srv1.client.srv1_laptop.routing_section]
 
 EOF_SING_BOX_SIG
 

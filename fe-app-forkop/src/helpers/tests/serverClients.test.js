@@ -19,6 +19,7 @@ function load(sections = {}) {
     clients: loadLuciView('server', uci, [
       'clientSections',
       'listClients',
+      'listedClientNames',
       'nextClientName',
       'pruneClientCredentials',
       'validateClientCredential',
@@ -40,19 +41,57 @@ function client(id, owner, values = {}) {
 }
 
 describe('server client names', () => {
+  // A client is a device, not a second label for the server, and the name travels
+  // through clients and URIs that only keep ASCII.
   it('numbers clients instead of following the server name', () => {
     const { clients } = load({
       srv: { protocol: 'trojan' },
-      ...client('one', 'srv', { name: 'Client #1' }),
+      ...client('one', 'srv', { name: 'client-1' }),
     });
 
-    expect(clients.nextClientName('srv', 'trojan')).toBe('Client #2');
+    expect(clients.nextClientName('srv')).toBe('client-2');
   });
 
-  it('uses an account-safe pattern where the name goes on the wire', () => {
+  it('uses the same pattern where the name goes on the wire', () => {
     const { clients } = load({ srv: { protocol: 'ssh' } });
 
-    expect(clients.nextClientName('srv', 'ssh')).toBe('client-1');
+    expect(clients.nextClientName('srv')).toBe('client-1');
+  });
+
+  // A removal that has not been saved yet gives its number back, so the list does
+  // not skip ahead and cannot offer a name another item already shows.
+  it('takes the lowest number the list leaves free', () => {
+    const { clients } = load({ srv: { protocol: 'trojan' } });
+
+    expect(clients.nextClientName('srv', ['client-1', 'client-3'])).toBe(
+      'client-2',
+    );
+  });
+
+  // The stored sections still hold the client the list no longer shows, so the
+  // names have to come from the widget while the dialog is open.
+  it('reads the names from the list as it stands', () => {
+    const { clients } = load({
+      srv: { protocol: 'trojan' },
+      ...client('one', 'srv', { name: 'client-1' }),
+      ...client('two', 'srv', { name: 'client-2' }),
+    });
+    const listOption = {
+      formvalue: () => ['one'],
+      inputValueForItem: (_sectionId, value) =>
+        value === 'one' ? 'client-1' : value,
+    };
+
+    expect(clients.listedClientNames('srv', listOption)).toEqual([
+      'client-1',
+    ]);
+    expect(
+      clients.nextClientName('srv', clients.listedClientNames('srv', listOption)),
+    ).toBe('client-2');
+    expect(clients.listedClientNames('srv', null)).toEqual([
+      'client-1',
+      'client-2',
+    ]);
   });
 
   it('rejects an empty, over-long or unprintable name', () => {

@@ -39,11 +39,11 @@ const flagBlock = source.slice(
   requiredIndex("function addClientListOption"),
 );
 if (
-  !flagBlock.includes('_("Require authentication")') ||
-  !flagBlock.includes('o.default = "1"') ||
+  !flagBlock.includes('_("Authentication")') ||
+  !flagBlock.includes('o.default = "0"') ||
   !flagBlock.includes('o.depends("protocol", "mixed")')
 ) {
-  fail("mixed authentication must be enabled by default and limited to mixed servers");
+  fail("mixed authentication must be off by default and limited to mixed servers");
 }
 
 // With authentication off the inbound takes no users, so the client dialog hides the

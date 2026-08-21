@@ -402,15 +402,15 @@ function server_prepare_tls_defaults(section, protocol, security) {
 
     let certificate_path = config_get(section, "tls_certificate_path", "");
     let key_path = config_get(section, "tls_key_path", "");
-    if (certificate_path == "" || key_path == "") {
-        let safe_name = safe_filename_string(section);
-        let default_dir = "/etc/forkop/server-certs";
-        if (certificate_path == "")
-            certificate_path = default_dir + "/" + safe_name + ".crt";
-        if (key_path == "")
-            key_path = default_dir + "/" + safe_name + ".key";
-        server_set_option(section, "tls_certificate_path", certificate_path);
-        server_set_option(section, "tls_key_path", key_path);
+    let own_certificate = certificate_path != "" || key_path != "";
+
+    // A configured pair is used as it is: the files belong to the user, and nothing
+    // is generated over them. Without a pair Forkop keeps its own certificate at a
+    // path derived from the section name, and does not store that path.
+    if (!own_certificate) {
+        let default_dir = "/etc/forkop/server-certs/" + safe_filename_string(section);
+        certificate_path = default_dir + ".crt";
+        key_path = default_dir + ".key";
     }
 
     if (!valid_file_path(certificate_path))
@@ -419,6 +419,9 @@ function server_prepare_tls_defaults(section, protocol, security) {
         fatal("Server '" + section + "' has invalid TLS key path. Specify a file path. Aborted.");
     if (certificate_path == key_path)
         fatal("Server '" + section + "' has the same TLS certificate and key path. Specify different files. Aborted.");
+
+    if (own_certificate)
+        return;
 
     if (!run("[ -s " + shell_quote(certificate_path) + " ] && [ -s " + shell_quote(key_path) + " ]")) {
         log("Generating self-signed TLS certificate for server '" + section + "'", "info");

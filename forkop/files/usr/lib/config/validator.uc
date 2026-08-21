@@ -1610,11 +1610,15 @@ function validate_server_clients(server, protocol, name) {
     if (fields == null || length(fields) == 0)
         return;
 
+    let auth_required = protocol != "mixed" || bool_option(server, "mixed_auth_enabled", false);
+
+    if (!auth_required)
+        return;
+
     let clients = connections.server_clients(server);
     if (length(clients) == 0)
-        fail_validation("Server '" + name + "' has no enabled clients. Add at least one client. Aborted.");
+        fail_validation("Server '" + name + "' has no clients. Add at least one client. Aborted.");
 
-    let auth_required = protocol != "mixed" || bool_option(server, "mixed_auth_enabled", true);
     let key_bytes = protocol == "shadowsocks"
         ? SHADOWSOCKS_2022_KEY_BYTES[option(server, "shadowsocks_method", "")]
         : null;
@@ -1643,6 +1647,17 @@ function validate_server_clients(server, protocol, name) {
             if (field == "password" && key_bytes != null && base64_decoded_length(value) != key_bytes)
                 fail_validation("Server '" + name + "' client '" + client_name + "' needs a base64 pre-shared key of " + key_bytes + " bytes for method '" + option(server, "shadowsocks_method", "") + "'. Aborted.");
         }
+
+        // A client that takes its own route needs a mode the generator can turn into a
+        // rule, and a section that is still there.
+        if (!bool_option(client, "routing_override", false))
+            continue;
+
+        let client_mode = option(client, "routing_mode", "");
+        if (client_mode != "rules" && client_mode != "direct" && client_mode != "section")
+            fail_validation("Server '" + name + "' client '" + client_name + "' has an unsupported routing mode '" + client_mode + "'. Aborted.");
+        if (client_mode == "section" && option(client, "routing_section", "") == "")
+            fail_validation("Server '" + name + "' client '" + client_name + "' has no routing section selected. Aborted.");
     }
 
     if (key_bytes != null && base64_decoded_length(option(server, "shadowsocks_psk", "")) != key_bytes)
@@ -1697,6 +1712,11 @@ function validate_server_listen_ports() {
 function validate_server_security(server, protocol, name) {
     let security = runtime_servers.effective_security(server, protocol);
 
+    // A FakeTLS host is what makes an MTProto secret: the proxy refuses a secret
+    // whose first byte is not 0xee and whose host is empty.
+    if (protocol == "mtproto" && option(server, "mtproto_faketls", "") == "")
+        fail_validation("Server '" + name + "' needs a FakeTLS host: MTProto has no secret without one. Aborted.");
+
     if (security == "reality") {
         if (option(server, "tls_server_name", "") == "")
             fail_validation("Server '" + name + "' uses Reality and needs an SNI. Aborted.");
@@ -1723,9 +1743,9 @@ function validate_server_security(server, protocol, name) {
     else if (security == "tls") {
         let certificate = option(server, "tls_certificate_path", "");
         let key = option(server, "tls_key_path", "");
-        if (certificate == "" || key == "")
-            fail_validation("Server '" + name + "' uses TLS and needs a certificate and a key. Aborted.");
-        if (certificate == key)
+        if ((certificate == "") != (key == ""))
+            fail_validation("Server '" + name + "' needs both a certificate path and a key path, or neither. Aborted.");
+        if (certificate != "" && certificate == key)
             fail_validation("Server '" + name + "' uses the same file as its certificate and its key. Aborted.");
     }
 
@@ -1733,8 +1753,7 @@ function validate_server_security(server, protocol, name) {
         option(server, "hysteria2_obfs_password", "") == "")
         fail_validation("Server '" + name + "' enables obfuscation and needs an obfuscation password. Aborted.");
 
-    if (protocol == "mtproto" && option(server, "mtproto_faketls", "") == "")
-        fail_validation("Server '" + name + "' needs a FakeTLS domain. Aborted.");
+
 }
 
 function validate_server_clients_and_ports(sections) {

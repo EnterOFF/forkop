@@ -5041,7 +5041,7 @@ function showTunnelSettingsModal(
   const tailscaleAuthKeyOption = itemSection.option(
     form.Value,
     "tailscale_auth_key",
-    _("Tailscale auth key"),
+    _("Authorization key"),
     _("Auth Key from the Tailscale admin console"),
   );
   tailscaleAuthKeyOption.password = true;
@@ -5054,7 +5054,6 @@ function showTunnelSettingsModal(
     _("Device name"),
     _("The name this device appears under in the Tailscale console."),
   );
-  tailscaleHostnameOption.placeholder = "forkop-router";
   tailscaleHostnameOption.rmempty = false;
   tailscaleHostnameOption.depends("tunnel_type", "tailscale");
 
@@ -5085,7 +5084,7 @@ function showTunnelSettingsModal(
   const tailscaleDetourSectionOption = itemSection.option(
     form.ListValue,
     "tailscale_detour_section",
-    _("Section"),
+    _("Coordination server through"),
   );
   refreshOutboundDetourSectionOptionValues(
     tailscaleDetourSectionOption,
