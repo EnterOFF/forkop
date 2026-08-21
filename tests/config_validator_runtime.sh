@@ -732,6 +732,36 @@ cat >"$WORK_DIR/bad-server-mtproto-faketls.json" <<'JSON'
 JSON
 assert_rejects "MTProto server without a FakeTLS host" "$WORK_DIR/bad-server-mtproto-faketls.json" "needs a FakeTLS host"
 
+# Forkop no longer invents a certificate path: the dialog asks for both and its
+# button fills them in, so a TLS server without them was never configured.
+cat >"$WORK_DIR/bad-server-tls-paths.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "server": [
+    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "hysteria2", "listen_port": "18443", "public_host": "203.0.113.9" }
+  ],
+  "server_client": [
+    { ".name": "srv_phone", ".type": "server_client", "server": "srv", "name": "phone", "password": "secret-password" }
+  ]
+}
+JSON
+assert_rejects "TLS server without a certificate" "$WORK_DIR/bad-server-tls-paths.json" "tls_certificate_path"
+
+# An SSH inbound with no host key gets a fresh one from sing-box on every start, so
+# every client meets a changed fingerprint after every reload.
+cat >"$WORK_DIR/bad-server-ssh-host-key.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "server": [
+    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "ssh", "listen_port": "18422", "public_host": "203.0.113.9" }
+  ],
+  "server_client": [
+    { ".name": "srv_phone", ".type": "server_client", "server": "srv", "name": "phone", "password": "secret-password" }
+  ]
+}
+JSON
+assert_rejects "SSH server without a host key" "$WORK_DIR/bad-server-ssh-host-key.json" "ssh_host_key_path"
+
 cat >"$WORK_DIR/bad-server-hysteria2-obfs.json" <<'JSON'
 {
   "settings": { ".name": "settings", ".type": "settings" },

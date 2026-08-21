@@ -48,10 +48,7 @@ const validUrls = [
   ],
   ['naive HTTPS', 'naive+https://user:password@example.com:443'],
   ['naive QUIC', 'naive+quic://user:password@example.com:443'],
-  [
-    'anytls',
-    'anytls://password@example.com:8443?sni=example.com&insecure=1',
-  ],
+  ['anytls', 'anytls://password@example.com:8443?sni=example.com&insecure=1'],
   [
     'mieru simple',
     'mierus://user:password@example.com?profile=default&port=443&protocol=TCP',

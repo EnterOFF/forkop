@@ -383,14 +383,50 @@ describe('other protocol links', () => {
     );
   });
 
+  // The mieru project has its own URL format and the core parses it, so a client
+  // of a mieru server gets a link like everybody else. The ports live in the query
+  // instead of the authority, and a profile name is required.
+  it('builds a mieru link in the format the core parses', () => {
+    const { link, client } = load(
+      { protocol: 'mieru', mieru_transport: 'UDP' },
+      { name: 'alice', password: 'secret-password' },
+    );
+    const [entry] = link.buildClientLinks('srv', client);
+    const url = new URL(entry.link);
+
+    expect(url.protocol).toBe('mierus:');
+    expect(url.username).toBe('alice');
+    expect(url.password).toBe('secret-password');
+    expect(url.hostname).toBe('203.0.113.9');
+    expect(url.port).toBe('');
+    expect(query(entry.link)).toMatchObject({
+      profile: 'Home',
+      port: '30000',
+      protocol: 'UDP',
+    });
+  });
+
   it('has no link for protocols without a share URI', () => {
-    for (const protocol of ['ssh', 'mieru']) {
-      const { link, client } = load(
-        { protocol },
-        { name: 'alice', password: 'secret-password' },
-      );
-      expect(link.buildClientLinks('srv', client), protocol).toEqual([]);
-    }
+    const { link, client } = load(
+      { protocol: 'ssh' },
+      { name: 'alice', password: 'secret-password' },
+    );
+    expect(link.buildClientLinks('srv', client)).toEqual([]);
+  });
+
+  // A Mixed listener that asks for nothing still has an address, and both of its
+  // schemes carry it without an account.
+  it('builds anonymous links for a listener without authentication', () => {
+    const { link, client } = load({
+      protocol: 'mixed',
+      mixed_auth_enabled: '0',
+    });
+    const links = link.buildClientLinks('srv', { ...client, name: '' });
+
+    expect(links.map((entry) => entry.link.split('#')[0])).toEqual([
+      'socks5://203.0.113.9:30000',
+      'http://203.0.113.9:30000',
+    ]);
   });
 
   it('has no link without a credential, a host or a port', () => {

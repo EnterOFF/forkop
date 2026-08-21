@@ -73,7 +73,7 @@ export function createUciStub(sections = {}) {
   };
 }
 
-function defaultStubs(uci) {
+function defaultStubs(uci, widgets) {
   const noop = () => {};
   const element = () => ({
     setAttribute: noop,
@@ -88,8 +88,27 @@ function defaultStubs(uci) {
   return {
     uci,
     fs: { exec: () => Promise.resolve({ code: 0, stdout: '{}' }) },
-    ui: { showModal: noop, hideModal: noop, Textfield: class {} },
-    dom: { append: noop, content: noop, findClassInstance: () => null },
+    ui: {
+      // classList.add() rejects a token with a space in it, and LuCI spreads the
+      // class arguments straight into it, so a joined class list throws where the
+      // real dialog is opened and the button that opens it silently does nothing.
+      showModal(_title, _children, ...classes) {
+        classes.forEach((name) => {
+          if (/\s/u.test(`${name}`)) {
+            throw new Error(`invalid modal class token: ${name}`);
+          }
+        });
+      },
+      hideModal: noop,
+      Textfield: class {},
+    },
+    dom: {
+      append: noop,
+      content: noop,
+      // LuCI walks up from the node it is given looking for the widget instance, so a
+      // mounted frame carries its own.
+      findClassInstance: (node) => node?.instance || null,
+    },
     form: {},
     rpc: { declare: () => () => Promise.resolve([]) },
     baseclass: { extend: (exports) => exports },
@@ -121,7 +140,10 @@ function defaultStubs(uci) {
       setTimeout: noop,
     },
     document: {
-      getElementById: () => null,
+      // A mounted widget, keyed by the id of the frame it renders. Every LuCI widget
+      // carries that id; only some also name the inner control widget.<cbid>, so
+      // looking for the control finds nothing for a checkbox.
+      getElementById: (id) => widgets[id] || null,
       querySelector: () => null,
       head: { appendChild: noop },
       body: { appendChild: noop, removeChild: noop },
@@ -152,8 +174,8 @@ function exposeInternals(source, names) {
 
 const cache = new Map();
 
-export function loadLuciView(name, uci, expose = []) {
-  const key = `${name}:${expose.join(',')}`;
+export function loadLuciView(name, uci, expose = [], widgets = {}) {
+  const key = `${name}:${expose.join(',')}:${Object.keys(widgets).join(',')}`;
   if (cache.has(key)) {
     return cache.get(key);
   }
@@ -162,7 +184,7 @@ export function loadLuciView(name, uci, expose = []) {
     fs.readFileSync(path.join(viewDir, `${name}.js`), 'utf8'),
     expose,
   );
-  const stubs = defaultStubs(uci);
+  const stubs = defaultStubs(uci, widgets);
   const args = [];
   const argValues = [];
   const body = [];

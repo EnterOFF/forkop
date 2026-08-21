@@ -1712,6 +1712,20 @@ function validate_server_listen_ports() {
 function validate_server_security(server, protocol, name) {
     let security = runtime_servers.effective_security(server, protocol);
 
+    // An SSH inbound with no host key gets a fresh one from sing-box on every start,
+    // so every client meets a changed fingerprint after every reload. The dialog asks
+    // for a path and its button fills it in.
+    if (protocol == "ssh" && length(list_option(server, "ssh_host_key_path")) == 0)
+        fail_validation("Server '" + name + "' has no ssh_host_key_path. Generate a host key or point at your own. Aborted.");
+
+    // TLS needs a certificate, and Forkop no longer invents a path for one: the
+    // dialog asks for both and its button fills them in.
+    if (security == "tls") {
+        for (let field in [ "tls_certificate_path", "tls_key_path" ])
+            if (option(server, field, "") == "")
+                fail_validation("Server '" + name + "' has no " + field + ". Generate a certificate or point at your own. Aborted.");
+    }
+
     // A FakeTLS host is what makes an MTProto secret: the proxy refuses a secret
     // whose first byte is not 0xee and whose host is empty.
     if (protocol == "mtproto" && option(server, "mtproto_faketls", "") == "")

@@ -82,11 +82,12 @@ describe('server client names', () => {
         value === 'one' ? 'client-1' : value,
     };
 
-    expect(clients.listedClientNames('srv', listOption)).toEqual([
-      'client-1',
-    ]);
+    expect(clients.listedClientNames('srv', listOption)).toEqual(['client-1']);
     expect(
-      clients.nextClientName('srv', clients.listedClientNames('srv', listOption)),
+      clients.nextClientName(
+        'srv',
+        clients.listedClientNames('srv', listOption),
+      ),
     ).toBe('client-2');
     expect(clients.listedClientNames('srv', null)).toEqual([
       'client-1',

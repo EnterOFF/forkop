@@ -32,20 +32,22 @@ describe('Reality short ID validation', () => {
     expect(validate.validateShortId('srv', 'ab')).toBe(true);
     expect(validate.validateShortId('srv', '0123abcd')).toBe(true);
     expect(validate.validateShortId('srv', 'a'.repeat(16))).toBe(true);
-    expect(validate.validateShortId('srv', ['ab', 'cdef'])).toBe(true);
   });
 
   // sing-box decodes the value as hex bytes, so an odd digit count makes the
   // service refuse to start instead of only rejecting the client.
   it('rejects an odd number of hex digits', () => {
     expect(validate.validateShortId('srv', 'abc')).toMatch(/even number/);
-    expect(validate.validateShortId('srv', ['ab', 'c'])).toMatch(/even number/);
   });
 
-  it('rejects more than eight bytes, non-hex input and duplicates', () => {
+  // One value only: a share link carries exactly one, so a second could not reach
+  // any client through anything Forkop hands out.
+  it('rejects more than eight bytes, non-hex input and a list', () => {
     expect(validate.validateShortId('srv', 'a'.repeat(18))).toMatch(/16 hex/);
     expect(validate.validateShortId('srv', 'zz')).toMatch(/even number/);
-    expect(validate.validateShortId('srv', ['ab', 'AB'])).toMatch(/unique/);
+    expect(validate.validateShortId('srv', ['ab', 'cdef'])).toMatch(
+      /even number/,
+    );
     expect(validate.validateShortId('srv', '')).toMatch(/required/);
   });
 });

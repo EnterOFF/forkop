@@ -22,6 +22,10 @@ function fail(message) {
   process.exit(1);
 }
 
+function optionBlockFree(needle) {
+  return source.includes(needle);
+}
+
 function requireSource(needle) {
   if (!source.includes(needle)) {
     fail(`missing server UI contract: ${needle}`);
@@ -274,6 +278,116 @@ if (source.includes("private or reserved")) {
   fail("the details dialog must not warn about a private public address");
 }
 
+// The theme widens .modal.cbi-modal to the size of a settings form, and the URLTest
+// and Fallback details are opened without that class, which is what makes them the
+// width they are. This dialog takes the same width by being opened the same way, so
+// it must not ask for cbi-modal and must not carry a width of its own.
+{
+  const opens = source.slice(source.indexOf("function showServerDetailsModal"));
+  if (/cbi-modal/.test(opens.slice(0, opens.indexOf("loadLinkContext")))) {
+    fail("the details dialog must be opened without cbi-modal, like the URLTest details");
+  }
+  // A style rule that sizes the dialog, not any mention of the overlay: the widget
+  // lookup legitimately queries the open modal.
+  if (/"[^"]*\.modal[^"]*max-(?:width|inline-size)[^"]*"/.test(source)) {
+    fail("the details dialog must not size itself: it inherits the plain modal width");
+  }
+}
+// LuCI spreads the class arguments into classList.add(), which rejects a token with
+// a space in it, so a joined class list throws and the button opens nothing.
+if (/`cbi-modal \$\{/.test(source)) {
+  fail("modal classes must be separate arguments, not one joined string");
+}
+// LuCI spreads the class arguments into classList.add(), which rejects a token with
+// a space in it: a joined class list throws there and the button opens nothing.
+if (source.includes("cbi-modal ${")) {
+  fail("modal classes must be separate arguments, not one joined string");
+}
+
+// What the server is, once, above the accounts: it is what a client is pointed at
+// and the first thing looked at when one cannot connect. Anything a link already
+// carries stays out of it.
+requireSource("function serverFactRows(sectionId) {");
+for (const fact of [
+  '_("Protocol")',
+  '_("Address")',
+  '_("Security")',
+  '_("Transport")',
+  '_("Routing mode")',
+]) {
+  if (!optionBlockFree(fact)) {
+    fail(`the server block must state ${fact}`);
+  }
+}
+
+// An account shows its name and its link, and nothing else: the link already holds
+// the credentials, the flow and everything the client needs.
+requireSource("function renderLinkRow(value, qrTitle) {");
+for (const removed of [
+  "clientFactRows",
+  "clientConnectRows",
+  "clientRoutingLabel",
+]) {
+  if (source.includes(removed)) {
+    fail(`an account block must not list ${removed}`);
+  }
+}
+
+// A code says what it belongs to, and the link it carries is written out under it.
+requireSource("function linkTitle(sectionId, client, scheme) {");
+requireSource("fkp-qr__link");
+
+// The summary is the same dl/dt/dd those dialogs build. Half of how their labels
+// read comes from the theme through the tag - dl dt is bold - so a grid of spans
+// carrying the same class rules could never match them.
+requireSource("grid-template-columns:max-content minmax(0,1fr);gap:8px 16px");
+requireSource("--text-color-medium,#666");
+requireSource('E("dt", {}, label)');
+requireSource('E("dd", {}, E("span", {}, value))');
+requireSource(".fkp-details__param{display:contents}");
+for (const removed of [
+  "fkp-details__fact-label",
+  "fkp-details__fact-value",
+]) {
+  if (source.includes(removed)) {
+    fail(`the summary must be a definition list, not ${removed}`);
+  }
+}
+
+// The theme pushes a lone button to the left, and both dialogs close on the right.
+requireSource(".fkp-details-actions{justify-content:flex-end");
+
+// One account is separated from the next by its own name and by space, not by a rule.
+if (/fkp-details__client{[^"]*border/.test(source)) {
+  fail("accounts must not be separated by a border");
+}
+
+// Only a server whose accounts can be handed a link has details to show, which
+// leaves out SSH, Tailscale and a JSON inbound without naming any of them.
+requireSource(
+  "usesClients(getProtocol(sectionId)) && linkScheme(getProtocol(sectionId))",
+);
+
+// The code is shown on request. A link carrying Reality parameters is only
+// scannable at a size that would push the rest of the dialog out of view.
+requireSource("function showQrModal(title, link) {");
+requireSource("function renderQrButton(title, link) {");
+if (/fkp-details__qr/.test(source)) {
+  fail("the details dialog must not render a QR code beside every account");
+}
+
+// A copy control stays a copy control; the toast reports the result.
+if (/iconSvg\(copied \? "check"/.test(source) || source.includes('"check"')) {
+  fail("the copy control must not turn into a tick");
+}
+
+// A listener that asks for nothing still has a link: the address without an
+// account. The dialog shows it instead of saying there is nothing to show.
+requireSource("function anonymousClient() {");
+if (source.includes("This server accepts everybody, so it has no client links.")) {
+  fail("a server without authentication must still offer its links");
+}
+
 // A failed save is already reported on the offending field, so there is no banner.
 for (const removed of ["showServerValidationMessage", "fkp-server-validation-summary", "Cannot save server"]) {
   if (source.includes(removed)) {
@@ -380,6 +494,15 @@ for (const name of [
     }
     at = source.indexOf(marker, at + 1);
   }
+}
+
+// A widget is found by the id of the frame it renders, which every widget carries.
+// Only some of them also name the inner control widget.<cbid>: a checkbox puts that
+// in data-widget-id, so looking for the control found nothing for a flag and every
+// reader silently answered from the stored value instead of the open dialog.
+requireSource("function widgetNode(sectionId, name) {");
+if (source.includes("widget.cbid")) {
+  fail("a widget must be found by its frame id, not by the id of its inner control");
 }
 
 // The client list shows the account names. A widget item carries the child

@@ -267,6 +267,7 @@ const PROTOCOLS = [
     tcp: true,
     login: true,
     credentials: ["password"],
+    link: "mierus",
   },
   {
     id: "mtproto",
@@ -306,6 +307,11 @@ function optionList(sectionId, name) {
   return asList(uci.get(UCI_PACKAGE, sectionId, name));
 }
 
+function hasTransport(protocol) {
+  const spec = protocolSpec(protocol);
+  return !!spec && !!spec.transport;
+}
+
 function protocolSpec(protocol) {
   return PROTOCOL_BY_ID.get(`${protocol || ""}`) || null;
 }
@@ -313,13 +319,34 @@ function protocolSpec(protocol) {
 // While the dialog is open a changed value is not stored yet, so the widget wins.
 // Every field that depends on the protocol, on the cipher or on the authentication
 // switch has to follow the selection immediately instead of after a save.
-function liveOption(sectionId, name) {
-  const node = document.getElementById(
-    `widget.cbid.${UCI_PACKAGE}.${sectionId}.${name}`,
+// The widget of an option, found the way LuCI finds it itself: by the id of the
+// frame it renders, which every widget carries. The inner control is only named
+// widget.<cbid> by some of them - a checkbox puts that in data-widget-id and gives
+// its input a random id - so looking for the control found nothing for a flag and
+// every reader silently fell back to the stored value. The open dialog is searched
+// first, because the table behind it renders the editable columns under the same
+// ids.
+function widgetNode(sectionId, name) {
+  const id = `cbid.${UCI_PACKAGE}.${sectionId}.${name}`;
+  const modal = document.querySelector("#modal_overlay > .modal");
+
+  return (
+    (modal && modal.querySelector(`[id="${id}"]`)) ||
+    document.getElementById(id)
   );
+}
+
+function liveElement(sectionId, name) {
+  const node = widgetNode(sectionId, name);
   const element = node ? dom.findClassInstance(node) : null;
 
-  if (!element || typeof element.getValue !== "function") {
+  return element && typeof element.getValue === "function" ? element : null;
+}
+
+function liveOption(sectionId, name) {
+  const element = liveElement(sectionId, name);
+
+  if (!element) {
     return option(sectionId, name);
   }
 
@@ -329,6 +356,13 @@ function liveOption(sectionId, name) {
 
 function getProtocol(sectionId) {
   return liveOption(sectionId, "protocol") || DEFAULT_PROTOCOL;
+}
+
+// The transport is stored as sing-box spells it, and the dialog shows it the way the
+// selector does: TCP rather than tcp, WebSocket rather than ws.
+function transportLabel(value) {
+  const entry = TRANSPORTS.find(([id]) => id === `${value || ""}`);
+  return entry ? entry[1] : `${value || ""}`;
 }
 
 function protocolLabel(protocol) {
@@ -437,12 +471,13 @@ function getShadowsocksMethod(sectionId) {
   );
 }
 
-function serverSafeName(sectionId) {
-  return `${sectionId || "server"}`.replace(/[^A-Za-z0-9_.-]/g, "_");
-}
+// Forkop generates into its own directory, so a path there is a certificate it
+// issued and a client has to be told to accept it. A path anywhere else is the
+// user's own certificate and is assumed to be trusted.
+const SERVER_CERT_DIR = "/etc/forkop/server-certs/";
 
-function defaultTlsCertificatePath(sectionId) {
-  return `/etc/forkop/server-certs/${serverSafeName(sectionId)}.crt`;
+function isForkopCertificatePath(path) {
+  return `${path || ""}`.startsWith(SERVER_CERT_DIR);
 }
 
 /* ------------------------------------------------------------ host handling */
@@ -1146,17 +1181,11 @@ function validateFilePath(_sectionId, value) {
     : _("Specify a file path");
 }
 
-function validateOptionalFilePath(sectionId, value) {
-  return isEmptyValue(value) ? true : validateFilePath(sectionId, value);
-}
-
-// Both halves are optional: with neither, Forkop issues its own certificate; with
-// one, the other is missing and sing-box would refuse to start.
-function validateOptionalTlsCertificatePath(sectionId, value) {
-  if (isEmptyValue(value)) {
-    return isEmptyValue(liveOption(sectionId, "tls_key_path"))
-      ? true
-      : _("Fill in the certificate path as well");
+// Both halves are required, and they cannot be the same file.
+function validateTlsPathPair(sectionId, value, otherName) {
+  const required = validateRequiredText(sectionId, value);
+  if (required !== true) {
+    return required;
   }
 
   const result = validateFilePath(sectionId, value);
@@ -1164,26 +1193,17 @@ function validateOptionalTlsCertificatePath(sectionId, value) {
     return result;
   }
 
-  return `${value}` === liveOption(sectionId, "tls_key_path")
+  return `${value}` === liveOption(sectionId, otherName)
     ? _("The certificate and the key must be different files")
     : true;
 }
 
-function validateOptionalTlsKeyPath(sectionId, value) {
-  if (isEmptyValue(value)) {
-    return isEmptyValue(liveOption(sectionId, "tls_certificate_path"))
-      ? true
-      : _("Fill in the key path as well");
-  }
+function validateTlsCertificatePath(sectionId, value) {
+  return validateTlsPathPair(sectionId, value, "tls_key_path");
+}
 
-  const result = validateFilePath(sectionId, value);
-  if (result !== true) {
-    return result;
-  }
-
-  return `${value}` === liveOption(sectionId, "tls_certificate_path")
-    ? _("The certificate and the key must be different files")
-    : true;
+function validateTlsKeyPath(sectionId, value) {
+  return validateTlsPathPair(sectionId, value, "tls_certificate_path");
 }
 
 function validateHttpUrl(_sectionId, value) {
@@ -1344,31 +1364,22 @@ function validateOptionalCidrOrIp(_sectionId, value) {
 // sing-box decodes every short ID as hex bytes, so an odd digit count is refused at
 // start-up and eight bytes is the hard limit. The form rejects exactly the same
 // values instead of letting the service die on apply.
-function validateShortId(_sectionId, value) {
-  const values = valueList(value);
-
-  if (values.length === 0) {
-    return _("This field is required");
+// One value. sing-box takes a list so a batch of clients can be revoked on its own,
+// but a share link carries exactly one, so a second value could not reach any client
+// through anything Forkop hands out. The core still gets a list of one.
+function validateShortId(sectionId, value) {
+  const required = validateRequiredText(sectionId, value);
+  if (required !== true) {
+    return required;
   }
 
-  if (values.some((item) => !/^(?:[0-9a-fA-F]{2})+$/.test(`${item}`))) {
+  const id = `${value}`.trim();
+  if (!/^(?:[0-9a-fA-F]{2})+$/.test(id)) {
     return _("Use an even number of hex digits, for example 0a1b2c3d");
   }
 
-  if (values.some((item) => `${item}`.length > 16)) {
-    return _("A short ID holds at most 16 hex digits");
-  }
-
-  const seen = new Set();
-  return values.some((item) => {
-    const normalized = `${item}`.toLowerCase();
-    if (seen.has(normalized)) {
-      return true;
-    }
-    seen.add(normalized);
-    return false;
-  })
-    ? _("Short IDs must be unique")
+  return id.length > 16
+    ? _("A short ID holds at most 16 hex digits")
     : true;
 }
 
@@ -1662,7 +1673,7 @@ function clientLabel(sectionId, client) {
 // certificate, so its links have to tell the client to accept it.
 function usesGeneratedCertificate(sectionId) {
   const path = option(sectionId, "tls_certificate_path");
-  return !path || path === defaultTlsCertificatePath(sectionId);
+  return !path || isForkopCertificatePath(path);
 }
 
 
@@ -1968,6 +1979,27 @@ function hasRequiredCredentials(sectionId, client) {
     });
 }
 
+// The Mieru link is the format of the Mieru project: the port and its transport
+// live in the query rather than in the authority, and a profile name is required,
+// which the server name stands in for.
+function buildMieruLink(sectionId, client) {
+  const label = clientLabel(sectionId, client);
+  const query = encodeQuery({
+    profile: getServerName(sectionId),
+    port: getListenPort(sectionId),
+    protocol: option(sectionId, "mieru_transport") || "TCP",
+  });
+
+  return [
+    "mierus://",
+    `${encodeURIComponent(client.name)}:${encodeURIComponent(client.password)}@`,
+    formatHostForUri(getPublicHost(sectionId)),
+    `?${query}`,
+    "#",
+    encodeURIComponent(label),
+  ].join("");
+}
+
 // Every link a client can be handed, as title and link pairs. Most protocols
 // produce one; the Mixed listener produces one per scheme it answers.
 function buildClientLinks(sectionId, client, context = {}) {
@@ -2006,6 +2038,8 @@ function buildClientLinks(sectionId, client, context = {}) {
       return single(buildAnytlsLink(sectionId, client));
     case "naive":
       return single(buildNaiveLink(sectionId, client));
+    case "mieru":
+      return single(buildMieruLink(sectionId, client));
     case "mtproto":
       return single(buildMtprotoLink(sectionId, client));
     default:
@@ -2015,33 +2049,6 @@ function buildClientLinks(sectionId, client, context = {}) {
 
 // Credentials to read out for protocols with no share link format, so the dialog is
 // still useful for SSH and Mieru.
-function clientCredentialRows(sectionId, client) {
-  const protocol = getProtocol(sectionId);
-  const rows = [];
-
-  rows.push([
-    _("Address"),
-    `${formatHostForUri(getPublicHost(sectionId))}:${getListenPort(sectionId)}`,
-  ]);
-  if (usesLoginName(protocol)) {
-    rows.push([_("User name"), client.name]);
-  }
-  if (client.password) {
-    rows.push([_("Password"), client.password]);
-  }
-  if (protocol === "mieru") {
-    rows.push([_("Transport"), option(sectionId, "mieru_transport") || "TCP"]);
-  }
-  if (protocol === "ssh" && client.authorized_keys.length) {
-    rows.push([
-      _("Public keys"),
-      _("%d added").format(client.authorized_keys.length),
-    ]);
-  }
-
-  return rows;
-}
-
 function normalizeSha256Response(response) {
   if ((response.code ?? 0) !== 0 || !response.stdout) {
     throw new Error(response.stderr || response.stdout || "");
@@ -2110,7 +2117,12 @@ const ICON_PATHS = {
     ["rect", { x: "9", y: "9", width: "13", height: "13", rx: "2", ry: "2" }],
     ["path", { d: "M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" }],
   ],
-  check: [["path", { d: "M20 6 9 17l-5-5" }]],
+  qr: [
+    ["rect", { x: "3", y: "3", width: "7", height: "7", rx: "1" }],
+    ["rect", { x: "14", y: "3", width: "7", height: "7", rx: "1" }],
+    ["rect", { x: "3", y: "14", width: "7", height: "7", rx: "1" }],
+    ["path", { d: "M14 14h3v3h-3zM20 14v3M14 20h3M20 20h1" }],
+  ],
 };
 
 function iconSvg(name) {
@@ -2167,96 +2179,206 @@ function injectDetailsStyles() {
       "style",
       { id: DETAILS_STYLE_ID },
       [
-        ".fkp-details{display:flex;flex-direction:column;gap:10px;inline-size:32rem;max-inline-size:100%;box-sizing:border-box}",
-        ".fkp-details__client{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:12px;align-items:start;padding:10px;box-sizing:border-box;border:1px solid var(--border-color,rgba(128,128,128,0.25));background:rgba(128,128,128,0.04)}",
-        ".fkp-details__qr{display:block;inline-size:7rem;block-size:7rem;image-rendering:pixelated;background:#fff}",
-        ".fkp-details__qr--empty{background:rgba(128,128,128,0.08);border:1px dashed var(--border-color,rgba(128,128,128,0.3))}",
-        ".fkp-details__main{display:flex;flex-direction:column;gap:8px;min-inline-size:0}",
+        // The summary is the same dl/dt/dd the URLTest and Fallback details build, not
+        // a grid of spans dressed to look like one. Half of how those labels read comes
+        // from the theme through the tag - dl dt is bold at line-height 18px - so
+        // copying their class rules onto other elements could never match them.
+        // The width comes from the same place too: all three are opened without
+        // cbi-modal, which is what the theme widens to a settings form.
+        ".fkp-details{box-sizing:border-box;width:min(760px,calc(100vw - 56px));max-width:100%;padding-top:10px}",
+        // The one deviation, and it is deliberate: their first column has a 120px
+        // floor because their labels are long enough to fill it, and mine are short
+        // enough that the floor pushed every value a third of the way across the
+        // dialog. max-content puts the value 16px after the longest label.
+        ".fkp-details__facts{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:8px 16px;margin:0 0 18px}",
+        ".fkp-details__param{display:contents}",
+        ".fkp-details__param dt{color:var(--text-color-medium,#666);line-height:1.35}",
+        ".fkp-details__param dd{display:flex;align-items:center;gap:8px;min-width:0;margin:0}",
+        ".fkp-details__param dd span{min-width:0;overflow-wrap:anywhere}",
+        ".fkp-details__clients{display:grid;gap:14px;min-inline-size:0}",
+        ".fkp-details__client{display:grid;gap:6px;min-width:0}",
         ".fkp-details__name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
-        ".fkp-details__field{display:flex;flex-direction:column;gap:3px;min-inline-size:0}",
-        ".fkp-details__caption{font-size:11px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;opacity:0.6}",
-        ".fkp-details__row{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:6px;align-items:stretch;inline-size:100%}",
+        ".fkp-details__link{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:stretch;min-inline-size:0}",
         ".fkp-details__value{inline-size:100% !important;max-inline-size:100% !important;min-inline-size:0;box-sizing:border-box;margin:0 !important;float:none !important;font-family:monospace;font-size:12px}",
-        ".fkp-details__copy{display:inline-flex;align-items:center;justify-content:center;inline-size:2.5em !important;min-inline-size:0;padding:0 !important;margin:0 !important;float:none !important;line-height:1}",
-        ".fkp-details__facts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 10px;font-size:12px;min-inline-size:0}",
-        ".fkp-details__fact-label{opacity:0.65;white-space:nowrap}",
-        ".fkp-details__fact-value{font-family:monospace;word-break:break-all}",
-        ".fkp-details__empty{opacity:0.7}",
-        "@media (max-width:640px){",
-        ".fkp-details{inline-size:100%}",
-        ".fkp-details__client{grid-template-columns:minmax(0,1fr);justify-items:center}",
-        ".fkp-details__main{inline-size:100%}",
-        "}",
+        ".fkp-details__action{display:inline-flex;align-items:center;justify-content:center;inline-size:2.5em !important;min-inline-size:0;padding:0 !important;margin:0 !important;float:none !important;line-height:1}",
+        ".fkp-details__empty{color:var(--text-color-medium,#666)}",
+        // The theme aligns a modal button row with .modal > .button-row and pushes a
+        // lone button left with .modal > .button-row > button:first-of-type. A bare
+        // class loses to both, so the override extends the same selectors instead.
+        ".modal > .button-row.fkp-details-actions{justify-content:flex-end;gap:0.5em}",
+        ".modal > .button-row.fkp-details-actions > button:first-of-type{margin-right:0}",
+        ".fkp-qr{display:grid;justify-items:center;gap:14px;min-inline-size:0}",
+        ".fkp-qr__code{display:block;inline-size:14rem;block-size:14rem;max-inline-size:100%;image-rendering:pixelated;background:#fff;padding:10px;box-sizing:content-box;border:1px solid var(--border-color-low,rgba(128,128,128,0.2))}",
+        ".fkp-qr__link{inline-size:100%;box-sizing:border-box;padding:8px 10px;background:rgba(128,128,128,0.06);border:1px solid var(--border-color-low,rgba(128,128,128,0.2));font-family:monospace;font-size:11px;line-height:1.5;word-break:break-all;color:var(--text-color-medium,#666)}",
+        '@media (max-width:640px){',
+        ".fkp-details__facts{grid-template-columns:minmax(0,1fr);gap:2px 0}",
+        ".fkp-details__param dd{margin-bottom:6px}",
+        '}',
       ].join("\n"),
     ),
   );
 }
 
-function renderCopyRow(caption, value, options = {}) {
-  const input = options.rows
-    ? E("textarea", {
-        class: "cbi-input-textarea fkp-details__value",
-        readonly: "readonly",
-        spellcheck: "false",
-        rows: options.rows,
-      })
-    : E("input", {
-        type: "text",
-        class: "cbi-input-text fkp-details__value",
-        readonly: "readonly",
-        spellcheck: "false",
-        value,
-      });
-  if (options.rows) {
-    input.value = value;
-  }
-  input.addEventListener("focus", () => input.select());
-
+// A copy control stays a copy control: the toast says what happened, and swapping
+// the icon for a tick is not something the rest of the app does.
+function renderCopyButton(value) {
   const label = _("Copy");
   const button = E(
     "button",
     {
-      class: "btn cbi-button cbi-button-neutral fkp-details__copy",
+      class: "btn cbi-button cbi-button-neutral fkp-details__action",
       type: "button",
       title: label,
       "aria-label": label,
     },
     iconSvg("copy"),
   );
+
   button.addEventListener("click", (ev) => {
     ev.preventDefault();
     const copied = copyText(value);
-    dom.content(button, iconSvg(copied ? "check" : "copy"));
-    window.setTimeout(() => dom.content(button, iconSvg("copy")), 1200);
     main.showToast(
       copied ? _("Copied") : _("Failed to copy!"),
       copied ? "success" : "error",
     );
   });
 
-  return E("div", { class: "fkp-details__field" }, [
-    caption ? E("span", { class: "fkp-details__caption" }, caption) : "",
-    E("div", { class: "fkp-details__row" }, [input, button]),
+  return button;
+}
+
+function renderCloseRow() {
+  return E("div", { class: "button-row fkp-details-actions" }, [
+    E(
+      "button",
+      {
+        class: "btn cbi-button cbi-button-neutral",
+        type: "button",
+        click: () => ui.hideModal(),
+      },
+      _("Close"),
+    ),
+  ]);
+}
+
+// The code is shown when it is asked for, at a size a phone can read, with the link
+// it carries written out underneath so it is clear what is being scanned.
+function showQrModal(title, link) {
+  injectDetailsStyles();
+
+  ui.showModal(`${_("QR code")}: ${title}`, [
+    E("div", { class: "fkp-qr" }, [
+      E("img", {
+        class: "fkp-qr__code",
+        src: qrSvgDataUri(link),
+        alt: _("QR code"),
+      }),
+      E("div", { class: "fkp-qr__link" }, link),
+    ]),
+    renderCloseRow(),
+  ]);
+}
+
+function renderQrButton(title, link) {
+  const label = _("Show a QR code");
+  return E(
+    "button",
+    {
+      class: "btn cbi-button cbi-button-neutral fkp-details__action",
+      type: "button",
+      title: label,
+      "aria-label": label,
+      click: (ev) => {
+        ev.preventDefault();
+        showQrModal(title, link);
+      },
+    },
+    iconSvg("qr"),
+  );
+}
+
+// What a code or a link belongs to. An account is named the way the stacked settings
+// dialogs name a child item; a listener that has no account is named by its scheme,
+// because that is the only thing telling its two links apart.
+function linkTitle(sectionId, client, scheme) {
+  const server = getServerName(sectionId);
+  const name = `${client?.name || ""}`.trim();
+
+  if (!name) {
+    return scheme ? `${server} (${scheme})` : server;
+  }
+
+  const title = `${server} \u00bb ${_("Client")}: ${name}`;
+  return scheme ? `${title} (${scheme})` : title;
+}
+
+function renderLinkRow(value, qrTitle) {
+  const input = E("input", {
+    type: "text",
+    class: "cbi-input-text fkp-details__value",
+    readonly: "readonly",
+    spellcheck: "false",
+    value,
+  });
+  input.addEventListener("focus", () => input.select());
+
+  return E("div", { class: "fkp-details__link" }, [
+    input,
+    renderQrButton(qrTitle, value),
+    renderCopyButton(value),
   ]);
 }
 
 function renderFacts(rows) {
   return E(
-    "div",
+    "dl",
     { class: "fkp-details__facts" },
-    rows.flatMap(([label, value]) => [
-      E("span", { class: "fkp-details__fact-label" }, label),
-      E("span", { class: "fkp-details__fact-value" }, value),
-    ]),
+    rows.map(([label, value]) =>
+      E("div", { class: "fkp-details__param" }, [
+        E("dt", {}, label),
+        E("dd", {}, E("span", {}, value)),
+      ]),
+    ),
   );
 }
 
-// Why a client has no link: either the protocol has no URI format at all, or a
-// credential the link needs is still missing.
-function missingLinkReason(sectionId, client) {
-  if (!linkScheme(getProtocol(sectionId))) {
-    return _("This protocol has no link format. Use the details below.");
+// What a client has to be pointed at, and nothing a link already carries: this is a
+// summary of the server, not a second copy of the link.
+function serverFactRows(sectionId) {
+  const protocol = getProtocol(sectionId);
+  const rows = [[_("Protocol"), protocolLabel(protocol)]];
+  const host = getPublicHost(sectionId);
+  const port = getListenPort(sectionId);
+
+  if (host && port) {
+    rows.push([_("Address"), `${formatHostForUri(host)}:${port}`]);
   }
+
+  const security = getEffectiveSecurity(sectionId);
+  if (security !== "none") {
+    rows.push([_("Security"), security === "reality" ? "Reality" : "TLS"]);
+  }
+
+  // Stated whenever the protocol carries one, TCP included: it is part of what a
+  // client has to match, not a detail worth hiding because it is the common case.
+  if (hasTransport(protocol)) {
+    rows.push([
+      _("Transport"),
+      transportLabel(option(sectionId, "transport") || "tcp"),
+    ]);
+  }
+  if (protocol === "mieru") {
+    rows.push([_("Transport"), option(sectionId, "mieru_transport") || "TCP"]);
+  }
+  if (option(sectionId, "multiplex_enabled") === "1") {
+    rows.push(["Multiplex", _("Enabled")]);
+  }
+
+  return rows;
+}
+
+// Why a client has no link: a credential the link needs, or the address it points
+// at, is still missing.
+function missingLinkReason(sectionId, client) {
   if (!hasRequiredCredentials(sectionId, client)) {
     return _("Fill in the credentials of this client to get a link.");
   }
@@ -2268,44 +2390,53 @@ function missingLinkReason(sectionId, client) {
 
 function renderClientDetails(sectionId, client, context) {
   const links = buildClientLinks(sectionId, client, context);
-  const qrImage = links.length ? qrSvgDataUri(links[0].link) : "";
-  const body = [
-    E("div", { class: "fkp-details__name" }, clientLabel(sectionId, client)),
-  ];
+  const name = `${client?.name || ""}`.trim();
+  const body = [];
+
+  // A listener that asks for nothing has no account to name, and repeating the name
+  // of the server there would say nothing.
+  if (name) {
+    body.push(E("div", { class: "fkp-details__name" }, name));
+  }
 
   if (links.length) {
     links.forEach((entry) =>
       body.push(
-        renderCopyRow(links.length > 1 ? entry.title : "", entry.link),
+        renderLinkRow(
+          entry.link,
+          linkTitle(sectionId, client, links.length > 1 ? entry.title : ""),
+        ),
       ),
     );
   } else {
     body.push(
-      E("div", { class: "fkp-details__empty" }, missingLinkReason(sectionId, client)),
+      E(
+        "div",
+        { class: "fkp-details__empty" },
+        missingLinkReason(sectionId, client),
+      ),
     );
   }
 
-  // Address and credentials are worth showing whether or not a link exists: a
-  // protocol without a URI format is configured by hand from exactly these.
-  const facts = clientCredentialRows(sectionId, client);
-  if (facts.length && !links.length) {
-    body.push(renderFacts(facts));
-  }
+  return E("div", { class: "fkp-details__client" }, body);
+}
 
-  return E("div", { class: "fkp-details__client" }, [
-    qrImage
-      ? E("img", {
-          class: "fkp-details__qr",
-          src: qrImage,
-          alt: _("QR code"),
-        })
-      : E("div", { class: "fkp-details__qr fkp-details__qr--empty" }),
-    E("div", { class: "fkp-details__main" }, body),
-  ]);
+// A Mixed listener without authentication has no accounts, and its link needs
+// none: it is the address and nothing else.
+function anonymousClient() {
+  return {
+    id: "",
+    name: "",
+    uuid: "",
+    password: "",
+    secret: "",
+    flow: "",
+    authorized_keys: [],
+  };
 }
 
 function renderDetailsContent(sectionId, clients, context) {
-  const children = [];
+  const children = [renderFacts(serverFactRows(sectionId))];
 
   if (
     getProtocol(sectionId) === "hysteria2" &&
@@ -2323,21 +2454,33 @@ function renderDetailsContent(sectionId, clients, context) {
     );
   }
 
-  if (!clients.length) {
+  const entries = clients.length
+    ? clients
+    : isAuthenticationEnabled(sectionId)
+      ? []
+      : [anonymousClient()];
+
+  if (!entries.length) {
     children.push(
       E(
         "div",
         { class: "fkp-details__empty" },
-        isAuthenticationEnabled(sectionId)
-          ? _("Add a client to this server to get a link.")
-          : _("This server accepts everybody, so it has no client links."),
+        _("Add a client to this server to get a link."),
+      ),
+    );
+  } else {
+    // No heading over the accounts: each one is announced by its own name, and a
+    // listener without accounts has nothing to announce.
+    children.push(
+      E(
+        "div",
+        { class: "fkp-details__clients" },
+        entries.map((client) =>
+          renderClientDetails(sectionId, client, context),
+        ),
       ),
     );
   }
-
-  clients.forEach((client) =>
-    children.push(renderClientDetails(sectionId, client, context)),
-  );
 
   return E("div", { class: "fkp-details" }, children);
 }
@@ -2345,36 +2488,30 @@ function renderDetailsContent(sectionId, clients, context) {
 function showServerDetailsModal(sectionId, clients) {
   injectDetailsStyles();
 
-  const content = E("div", { class: "fkp-details" }, [
-    E("em", {}, _("Loading...")),
-  ]);
+  // Everything but the certificate fingerprint is already known, so the dialog
+  // opens filled in and only the Hysteria2 note arrives later.
+  const emptyContext = {
+    certificatePinExpected: false,
+    tlsCertificateSha256: "",
+  };
+  let content = renderDetailsContent(sectionId, clients, emptyContext);
 
   ui.showModal(
     _("Server details: %s").format(getServerName(sectionId)),
-    [
-      content,
-      E("div", { class: "button-row" }, [
-        E(
-          "button",
-          {
-            class: "btn cbi-button cbi-button-neutral",
-            type: "button",
-            click: () => ui.hideModal(),
-          },
-          _("Close"),
-        ),
-      ]),
-    ],
-    "cbi-modal",
+    [content, renderCloseRow()],
   );
 
   return loadLinkContext(sectionId)
-    .catch(() => ({ certificatePinExpected: false, tlsCertificateSha256: "" }))
-    .then((context) =>
-      content.replaceWith(renderDetailsContent(sectionId, clients, context)),
-    );
+    .catch(() => emptyContext)
+    .then((context) => {
+      if (!content.parentNode) {
+        return;
+      }
+      const refreshed = renderDetailsContent(sectionId, clients, context);
+      content.replaceWith(refreshed);
+      content = refreshed;
+    });
 }
-
 /* -------------------------------------------------------------------- clients */
 
 // A client is the account a server accepts. sing-box takes a list of users on every
@@ -3010,9 +3147,7 @@ function configureTextareaOption(optionRef) {
 }
 
 function getSelectWidget(sectionId, name) {
-  const node = document.getElementById(
-    `widget.cbid.${UCI_PACKAGE}.${sectionId}.${name}`,
-  );
+  const node = widgetNode(sectionId, name);
 
   if (!node) {
     return null;
@@ -3071,21 +3206,29 @@ function camouflageSite(sectionId, reroll) {
 }
 
 // Writes the same host into both fields, whichever button was pressed.
+// Puts a value into another field of the open dialog. The widget wins over the
+// stored value while the dialog is open, so the value goes there and is checked
+// right away; without a mounted widget the write goes to the configuration.
+function applyFieldValue(sectionId, name, value) {
+  const node = widgetNode(sectionId, name);
+  const element = node ? widgetElement(node) : null;
+
+  if (!element) {
+    uci.set(UCI_PACKAGE, sectionId, name, value);
+    return;
+  }
+
+  element.setValue(value);
+  if (typeof element.triggerValidation === "function") {
+    element.triggerValidation();
+  }
+  controlOf(node)?.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
 function applyCamouflageSite(sectionId, host) {
-  ["tls_server_name", "reality_handshake_server"].forEach((name) => {
-    const node = document.getElementById(
-      `widget.cbid.${UCI_PACKAGE}.${sectionId}.${name}`,
-    );
-    const element = node ? dom.findClassInstance(node) : null;
-    if (!element || typeof element.setValue !== "function") {
-      return;
-    }
-    element.setValue(host);
-    if (typeof element.triggerValidation === "function") {
-      element.triggerValidation();
-    }
-    controlOf(node)?.dispatchEvent(new Event("change", { bubbles: true }));
-  });
+  ["tls_server_name", "reality_handshake_server"].forEach((name) =>
+    applyFieldValue(sectionId, name, host),
+  );
 
   return host;
 }
@@ -3136,6 +3279,123 @@ function generateRealityKeypair(sectionId) {
 // the private key would produce links no client can use.
 // The private half never reaches the configuration, so it is shown once, with the
 // warning that it will not be shown again.
+// The subject a client checks, taken from the dialog as it stands: the SNI when
+// there is one, otherwise the address the links carry, otherwise the name of the
+// server. The section id is never it.
+function certificateSubject(sectionId) {
+  return (
+    liveOption(sectionId, "tls_server_name") ||
+    liveOption(sectionId, "public_host") ||
+    liveOption(sectionId, "label") ||
+    sectionId
+  );
+}
+
+// Named after the section: a display name has to be sanitised to be a file name,
+// and two servers named in Cyrillic would sanitise to the same one.
+function certificateFileName(sectionId) {
+  return sectionId;
+}
+
+// Writing files happens when a button is pressed, not while the service starts, and
+// the path that was written becomes the value of the field instead of a convention
+// only Forkop knows. The certificate and the SSH host key are both issued this way.
+function addIssueButton(optionRef, label, request) {
+  const renderWidget = optionRef.renderWidget;
+
+  optionRef.renderWidget = function (sectionId, optionIndex, cfgvalue) {
+    const node = renderWidget.call(this, sectionId, optionIndex, cfgvalue);
+    const readonly = this.readonly != null ? this.readonly : this.map.readonly;
+    const button = E(
+      "button",
+      {
+        class: "btn cbi-button cbi-button-neutral fkp-generate",
+        type: "button",
+        title: label,
+        "aria-label": label,
+        disabled: readonly ? "" : null,
+      },
+      iconSvg("generate"),
+    );
+
+    button.addEventListener("click", (ev) => {
+      ev.preventDefault();
+
+      if (readonly) {
+        return;
+      }
+
+      button.disabled = true;
+      request(sectionId, node)
+        .catch((error) => {
+          console.warn(error?.message || "Failed to issue the file");
+        })
+        .finally(() => {
+          button.disabled = readonly ? true : false;
+        });
+    });
+
+    return E("div", { class: "fkp-generate-row" }, [node, button]);
+  };
+}
+
+function issueRequest(verb, args, onResult, failure) {
+  return fs.exec("/usr/bin/forkop", [verb, ...args]).then((response) => {
+    if ((response.code ?? 0) !== 0 || !response.stdout) {
+      throw new Error(response.stderr || response.stdout || "");
+    }
+    const data = JSON.parse(response.stdout);
+    if (!data.success) {
+      throw new Error(data.message || "");
+    }
+    onResult(data);
+  });
+}
+
+function addCertificateButton(optionRef) {
+  addIssueButton(optionRef, _("Generate a certificate"), (sectionId) =>
+    issueRequest(
+      "generate_server_certificate",
+      [certificateSubject(sectionId), certificateFileName(sectionId)],
+      (data) => {
+        if (!data.certificate_path || !data.key_path) {
+          throw new Error("");
+        }
+        applyFieldValue(sectionId, "tls_certificate_path", data.certificate_path);
+        applyFieldValue(sectionId, "tls_key_path", data.key_path);
+        main.showToast(_("Certificate generated"), "success");
+      },
+    ).catch((error) => {
+      main.showToast(_("Could not generate a certificate"), "error");
+      throw error;
+    }),
+  );
+}
+
+// One key. An SSH server can hold several so that an old client finds an algorithm
+// it knows, but AddHostKey replaces a key of the same type instead of adding it, and
+// Forkop only issues ed25519 - so a second generated key would silently take the
+// place of the first. Every client that reaches a proxy inbound has known ed25519
+// for a decade; a second algorithm belongs in a JSON inbound.
+function addSshHostKeyButton(optionRef) {
+  addIssueButton(optionRef, _("Generate a host key"), (sectionId) =>
+    issueRequest(
+      "generate_ssh_host_key",
+      [sectionId],
+      (data) => {
+        if (!data.key_path) {
+          throw new Error("");
+        }
+        applyFieldValue(sectionId, "ssh_host_key_path", data.key_path);
+        main.showToast(_("Host key generated"), "success");
+      },
+    ).catch((error) => {
+      main.showToast(_("Could not generate a host key"), "error");
+      throw error;
+    }),
+  );
+}
+
 function addRealityKeypairButton(optionRef) {
   const renderWidget = optionRef.renderWidget;
 
@@ -3169,22 +3429,9 @@ function addRealityKeypairButton(optionRef) {
         [
           ["reality_private_key", pair.private_key],
           ["reality_public_key", pair.public_key],
-        ].forEach(([name, value]) => {
-          const target = document.getElementById(
-            `widget.cbid.${UCI_PACKAGE}.${sectionId}.${name}`,
-          );
-          const control =
-            target &&
-            (target.tagName === "INPUT"
-              ? target
-              : target.querySelector("input"));
-          if (control) {
-            control.value = value;
-            control.dispatchEvent(new Event("change", { bubbles: true }));
-          } else {
-            uci.set(UCI_PACKAGE, sectionId, name, value);
-          }
-        });
+        ].forEach(([name, value]) =>
+          applyFieldValue(sectionId, name, value),
+        );
       });
     });
 
@@ -3262,7 +3509,9 @@ function renderServerRowActions(sectionRef, sectionId) {
   );
   const actionsEl = tdEl.lastElementChild;
 
-  if (usesClients(getProtocol(sectionId))) {
+  // Only a server whose accounts can be handed a link has anything to show: SSH has
+  // no URI format, and Tailscale and a JSON inbound have no accounts at all.
+  if (usesClients(getProtocol(sectionId)) && linkScheme(getProtocol(sectionId))) {
     dom.append(
       actionsEl,
       E(
@@ -3865,15 +4114,20 @@ function addProtocolOptions(section) {
   o.depends({ protocol: "naive", naive_network: "tcp_udp" });
 
   o = section.option(
-    form.DynamicList,
+    form.Value,
     "ssh_host_key_path",
     _("SSH host key path"),
-    );
+    _("Required. The button next to the field issues one."),
+  );
   o.placeholder = "/etc/forkop/server-ssh/host.key";
   o.modalonly = true;
-  o.rmempty = true;
-  o.validate = validateOptionalFilePath;
+  o.rmempty = false;
+  o.validate = function (sectionId, value) {
+    const required = validateRequiredText(sectionId, value);
+    return required === true ? validateFilePath(sectionId, value) : required;
+  };
   o.depends("protocol", "ssh");
+  addSshHostKeyButton(o);
 
   o = section.option(
     form.ListValue,
@@ -4112,12 +4366,13 @@ function addSecurityOptions(section) {
     form.Value,
     "tls_certificate_path",
     _("Certificate path"),
-    _("Optional. Forkop issues a self-signed certificate itself."),
+    _("Required. The button next to the field issues one."),
   );
+  addCertificateButton(o);
   o.placeholder = "/etc/ssl/certs/server.crt";
   o.modalonly = true;
-  o.rmempty = true;
-  o.validate = validateOptionalTlsCertificatePath;
+  o.rmempty = false;
+  o.validate = validateTlsCertificatePath;
   onTls(o);
 
   o = section.option(
@@ -4127,8 +4382,8 @@ function addSecurityOptions(section) {
   );
   o.placeholder = "/etc/ssl/private/server.key";
   o.modalonly = true;
-  o.rmempty = true;
-  o.validate = validateOptionalTlsKeyPath;
+  o.rmempty = false;
+  o.validate = validateTlsKeyPath;
   onTls(o);
 
   o = section.option(
@@ -4202,29 +4457,21 @@ function addSecurityOptions(section) {
   addRealityKeypairButton(o);
 
   o = section.option(
-    form.DynamicList,
+    form.Value,
     "reality_short_id",
     _("Reality short ID"),
-    );
-  o.placeholder = "0a1b2c3d";
-  o.modalonly = true;
-  o.rmempty = true;
-  o.validate = function (sectionId, value) {
-    if (isEmptyValue(value)) {
-      const current =
-        typeof this.formvalue === "function" ? this.formvalue(sectionId) : [];
-      return valueList(current).length ? true : _("This field is required");
-    }
-    return validateShortId(sectionId, value);
-  };
-  autofill(o, (sectionId) => {
-    const stored = optionList(sectionId, "reality_short_id");
-    return stored.length ? stored : [randomHex(4)];
-  });
-  onReality(o);
-  addGenerateButton(o, (_sectionId, current) =>
-    asList(current).concat(randomHex(4)),
   );
+  o.modalonly = true;
+  o.rmempty = false;
+  o.validate = validateShortId;
+  autofill(
+    o,
+    // A configuration written before this was one field keeps its first value.
+    (sectionId) =>
+      optionList(sectionId, "reality_short_id")[0] || randomHex(4),
+  );
+  onReality(o);
+  addGenerateButton(o, () => randomHex(4));
 
   o = section.option(
     form.Value,

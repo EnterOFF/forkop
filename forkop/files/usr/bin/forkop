@@ -89,6 +89,10 @@ function show_help() {
     print("    ui_action_ack           Acknowledge a finished UI action state\n");
     print("    generate_reality_keypair\n");
     print("                            Generate a sing-box Reality key pair in JSON format\n");
+    print("    generate_server_certificate <subject> <name>\n");
+    print("    generate_ssh_host_key <name>\n");
+    print("                            Generate a persistent SSH host key in JSON format\n");
+    print("                            Generate a self-signed TLS key pair in JSON format\n");
     print("    generate_warp_profile   Generate a Cloudflare WARP profile in JSON format\n");
     print("    get_tls_certificate_sha256 [server]\n");
     print("                            Get a server TLS certificate SHA-256 fingerprint in JSON format\n");
@@ -139,6 +143,8 @@ function command_spec(command) {
         service_action_status: [ "service/ui.uc", "service-action-status", 1 ],
         ui_action_ack: [ "service/ui.uc", "action-ack", 2 ],
         generate_reality_keypair: [ "server/service.uc", "generate-reality-keypair", 0 ],
+        generate_server_certificate: [ "server/service.uc", "generate-server-certificate", 2 ],
+        generate_ssh_host_key: [ "server/service.uc", "generate-ssh-host-key", 1 ],
         generate_warp_profile: [ "singbox/runtime.uc", "generate-warp-profile", 0 ],
         get_tls_certificate_sha256: [ "server/service.uc", "tls-certificate-sha256", 1 ],
         component_action: [ "components/action.uc", "component-action", 2 ],

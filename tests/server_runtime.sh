@@ -43,6 +43,11 @@ case "$*" in
   "generate reality-keypair")
     printf 'PrivateKey: private-key\nPublicKey: public-key\n'
     ;;
+  "generate tls-keypair "*)
+    printf '%s\n' "$*" >>"$TLS_KEYPAIR_LOG"
+    printf '%s\n' '-----BEGIN PRIVATE KEY-----' 'key-body' '-----END PRIVATE KEY-----'
+    printf '%s\n' '-----BEGIN CERTIFICATE-----' 'cert-body' '-----END CERTIFICATE-----'
+    ;;
   *)
     printf 'unsupported sing-box command: %s\n' "$*" >&2
     exit 2
@@ -58,6 +63,10 @@ exit 0
 LOGGER
 chmod 0755 "$WORK_DIR/bin/logger"
 
+export FORKOP_SERVER_CERT_DIR="$WORK_DIR/server-certs"
+mkdir -p "$FORKOP_SERVER_CERT_DIR"
+export TLS_KEYPAIR_LOG="$WORK_DIR/tls-keypair.log"
+: >"$TLS_KEYPAIR_LOG"
 export PATH="$WORK_DIR/bin:$PATH"
 export FORKOP_UCI_STATE_FILE="$STATE"
 export FORKOP_UCI_LOG_FILE="$LOG"
@@ -140,8 +149,21 @@ forkop.tuic.protocol=tuic
 forkop.tuic.enabled=0
 forkop.vless_no_client=server
 forkop.vless_no_client.protocol=vless
+forkop.hy2=server
+forkop.hy2.label=Edge hy2
+forkop.hy2.protocol=hysteria2
+forkop.hy2.enabled=1
+forkop.hy2.tls_server_name=naive-sni.example
+forkop.cff0009=server_client
+forkop.cff0009.server=hy2
+forkop.cff0009.password=hy2-secret
 EOF_STATE
 printf 'forkop.ssh.ssh_host_key_path=%s %s\n' "$WORK_DIR/ssh/host_key" "$WORK_DIR/ssh/host_key_secondary" >>"$STATE"
+# The server points at its own pair, because nothing is issued for one that was
+# never told where to keep it, and that path is only known once the work directory
+# is.
+printf 'forkop.hy2.tls_certificate_path=%s/hy2.crt\nforkop.hy2.tls_key_path=%s/hy2.key\n' \
+  "$FORKOP_SERVER_CERT_DIR" "$FORKOP_SERVER_CERT_DIR" >>"$STATE"
 
 cat >"$WORK_DIR/bin/dropbearkey" <<'DROPBEARKEY'
 #!/usr/bin/env bash
@@ -255,6 +277,41 @@ for invented_path in \
   assert_empty "$invented_path"
 done
 
+# The subject is what a client checks, so it is the SNI, or the address the links
+# carry, or the name of the server - never the section id, which means nothing
+# outside the configuration file.
+grep -Fq "generate tls-keypair naive-sni.example" "$TLS_KEYPAIR_LOG" ||
+  fail "the certificate subject must come from the SNI"
+if grep -Eq "generate tls-keypair (naive|anytls|tuic|hy2) " "$TLS_KEYPAIR_LOG"; then
+  fail "the certificate subject must not be the section id"
+fi
+
+# A self signed certificate that is pinned has no reason to expire while its
+# server runs, and a month is what the sing-box default would have given it.
+grep -Fq -- "--months 120" "$TLS_KEYPAIR_LOG" ||
+  fail "the generated certificate must be valid for longer than a month"
+
+# Nothing is issued for a server that was never told where to keep a certificate:
+# the dialog asks for both paths and its button fills them in, and the runtime check
+# names the field when they are missing.
+if [ -n "$(uci_get forkop.naive.tls_certificate_path 2>/dev/null || true)" ]; then
+  fail "a certificate path must not be invented for a server that has none"
+fi
+[ -s "$FORKOP_SERVER_CERT_DIR/hy2.crt" ] ||
+  fail "a stored certificate path must still get its file"
+
+# The file name comes from the section id: a display name has to be sanitised to be
+# a file name, and two names in Cyrillic sanitise to the same one.
+grep -Fq 'SERVER_CERT_DIR + "/" + safe_filename_string(as_string(section))' "$SERVER_RUNTIME" ||
+  fail "the certificate file must be named after the section"
+
+# Forkop replaces what it generated when the stamp it wrote is gone or close, and
+# never touches a pair the user pointed at.
+grep -Fq 'function server_cert_is_managed(certificate_path, key_path)' "$SERVER_RUNTIME" ||
+  fail "server/service.uc must tell its own certificate from the user's"
+grep -Fq 'function server_cert_needs_replacement(certificate_path, key_path)' "$SERVER_RUNTIME" ||
+  fail "server/service.uc must replace a certificate that is about to expire"
+
 # A server without clients keeps none: an inbound with no users is a validation
 # error, not something the backend papers over.
 for owner in vless_no_client shadowsocks anytls tuic; do
@@ -287,7 +344,9 @@ assert_empty forkop.orphan_client.server
 # Files only the backend can create.
 assert_value forkop.tailscale.tailscale_control_url https://controlplane.tailscale.com
 assert_value forkop.ssh.ssh_host_key_path "$WORK_DIR/ssh/host_key $WORK_DIR/ssh/host_key_secondary"
-assert_value forkop.ssh_disabled.ssh_host_key_path /etc/forkop/server-ssh/ssh_disabled.key
+# Nothing is invented for a server that was never told where to keep a host key:
+# the dialog asks for the path and its button fills it in.
+assert_empty forkop.ssh_disabled.ssh_host_key_path
 [ -s "$WORK_DIR/ssh/host_key" ] || fail 'persistent SSH host key was not generated'
 [ -s "$WORK_DIR/ssh/host_key_secondary" ] || fail 'secondary persistent SSH host key was not generated'
 [ "$(wc -l <"$FORKOP_SSH_KEYGEN_LOG")" -eq 4 ] || fail 'SSH host key generation did not convert every configured key exactly once'

@@ -20,9 +20,6 @@ msgstr ""
 msgid "-- Select --"
 msgstr "-- Выберите --"
 
-msgid "%d added"
-msgstr "добавлено: %d"
-
 msgid "%s already has its own setting above"
 msgstr "%s уже настраивается отдельным параметром выше"
 
@@ -50,14 +47,44 @@ msgstr "+ Добавить URLTest"
 msgid "Authorization key"
 msgstr "Ключ авторизации"
 
+msgid "Certificate generated"
+msgstr "Сертификат создан"
+
+msgid "Could not generate a certificate"
+msgstr "Не удалось создать сертификат"
+
+msgid "Could not generate a host key"
+msgstr "Не удалось создать ключ хоста"
+
+msgid "Generate a certificate"
+msgstr "Создать сертификат"
+
+msgid "Generate a host key"
+msgstr "Создать ключ хоста"
+
+msgid "Generate a key pair"
+msgstr "Сгенерировать пару ключей"
+
+msgid "Host key generated"
+msgstr "Ключ хоста создан"
+
 msgid "Override routing"
 msgstr "Переопределить маршрутизацию"
+
+msgid "QR code: %s"
+msgstr "QR-код: %s"
 
 msgid "Required"
 msgstr "Обязательно"
 
+msgid "Required. The button next to the field issues one."
+msgstr "Обязательно. Кнопка рядом с полем создаст его."
+
 msgid "Route this client on its own path instead of the rest of the server."
 msgstr "Использовать для этого клиента отдельный путь маршрутизации вместо серверного."
+
+msgid "Show a QR code"
+msgstr "Показать QR-код"
 
 msgid "The address used to build the connection links"
 msgstr "Адрес для генерации ссылок подключения"
@@ -899,14 +926,8 @@ msgstr "Настройки Fallback"
 msgid "Fastest"
 msgstr "Самый быстрый"
 
-msgid "Fill in the certificate path as well"
-msgstr "Заполните также путь к сертификату"
-
 msgid "Fill in the credentials of this client to get a link."
 msgstr "Заполните учётные данные клиента, чтобы получить ссылку."
-
-msgid "Fill in the key path as well"
-msgstr "Заполните также путь к ключу"
 
 msgid "Firewall WAN port"
 msgstr "Порт в firewall для WAN"
@@ -1550,9 +1571,6 @@ msgstr "Необязательно. Применяет лицензионный 
 msgid "Optional. Exclude servers from the selection above using a regular expression."
 msgstr "Необязательно. Исключить серверы из выборки выше по регулярному выражению."
 
-msgid "Optional. Forkop issues a self-signed certificate itself."
-msgstr "Необязательно. Forkop сам выпустит самоподписанный сертификат."
-
 msgid "Optional. Remove specific servers from the selection above."
 msgstr "Необязательно. Точечно удалить серверы из выборки выше."
 
@@ -1666,9 +1684,6 @@ msgstr "Публичный адрес"
 
 msgid "Public key"
 msgstr "Публичный ключ"
-
-msgid "Public keys"
-msgstr "Публичные ключи"
 
 msgid "QR code"
 msgstr "QR-код"
@@ -2011,9 +2026,6 @@ msgstr "Укажите публичный адрес и порт, чтобы п�
 
 msgid "Settings"
 msgstr "Настройки"
-
-msgid "Short IDs must be unique"
-msgstr "Short ID не должны повторяться"
 
 msgid "Show forkop config"
 msgstr "Показать forkop конфигурацию"

@@ -22,10 +22,6 @@ msgstr ""
 msgid "-- Select --"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:2035
-msgid "%d added"
-msgstr ""
-
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2569
 msgid "%s already has its own setting above"
 msgstr ""
@@ -61,13 +57,43 @@ msgstr ""
 msgid "Authorization key"
 msgstr ""
 
+msgid "Certificate generated"
+msgstr ""
+
+msgid "Could not generate a certificate"
+msgstr ""
+
+msgid "Could not generate a host key"
+msgstr ""
+
+msgid "Generate a certificate"
+msgstr ""
+
+msgid "Generate a host key"
+msgstr ""
+
+msgid "Generate a key pair"
+msgstr ""
+
+msgid "Host key generated"
+msgstr ""
+
 msgid "Override routing"
+msgstr ""
+
+msgid "QR code: %s"
 msgstr ""
 
 msgid "Required"
 msgstr ""
 
+msgid "Required. The button next to the field issues one."
+msgstr ""
+
 msgid "Route this client on its own path instead of the rest of the server."
+msgstr ""
+
+msgid "Show a QR code"
 msgstr ""
 
 msgid "The address used to build the connection links"
@@ -1447,16 +1473,8 @@ msgstr ""
 msgid "Fastest"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:1156
-msgid "Fill in the certificate path as well"
-msgstr ""
-
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:2258
 msgid "Fill in the credentials of this client to get a link."
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:1173
-msgid "Fill in the key path as well"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts:136
@@ -2515,10 +2533,6 @@ msgstr ""
 msgid "Optional. Exclude servers from the selection above using a regular expression."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4174
-msgid "Optional. Forkop issues a self-signed certificate itself."
-msgstr ""
-
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2973
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3252
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3352
@@ -2691,10 +2705,6 @@ msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4820
 msgid "Public key"
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:2034
-msgid "Public keys"
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:2297
@@ -3211,10 +3221,6 @@ msgstr ""
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:1074
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7374
 msgid "Settings"
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:1368
-msgid "Short IDs must be unique"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/initController.ts:721

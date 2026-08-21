@@ -109,6 +109,15 @@ function regex_matches(value, pattern) {
     }
 }
 
+function safe_filename_string(value) {
+    value = as_string(value);
+    let result = [];
+    for (let i = 0; i < length(value); i++) {
+        let chr = substr(value, i, 1);
+        push(result, regex_matches(chr, "^[A-Za-z0-9_.-]$") ? chr : "_");
+    }
+    return join("", result);
+}
 function valid_file_path(value) {
     value = as_string(value);
     return value != "" &&
@@ -291,8 +300,63 @@ function write_tls_keypair_data(data, key_path, certificate_path) {
     return fs.writefile(key_path, key + "\n") && fs.writefile(certificate_path, cert + "\n");
 }
 
+// The directory Forkop keeps its own certificates in. The tests point it somewhere
+// writable; nothing else overrides it.
+const SERVER_CERT_DIR = getenv("FORKOP_SERVER_CERT_DIR") || "/etc/forkop/server-certs";
+
+// What a client sees in the certificate. The display name is the last resort
+// because it is at least the name the server is known by; the section id never is.
+function server_certificate_subject(section) {
+    let subject = trim(config_get(section, "tls_server_name", ""));
+    if (subject == "")
+        subject = trim(config_get(section, "public_host", ""));
+    if (subject == "")
+        subject = trim(config_get(section, "label", ""));
+    return subject == "" ? as_string(section) : subject;
+}
+
+// Named after the section, not after the display name: a name has to be sanitised
+// to be a file name, and every character outside [A-Za-z0-9_.-] becomes an
+// underscore, so two servers named in Cyrillic would share one file.
+function server_certificate_base_path(section) {
+    return SERVER_CERT_DIR + "/" + safe_filename_string(as_string(section));
+}
+// A self signed certificate is pinned by its fingerprint or accepted without a
+// name check, so it has no reason to expire while the server it belongs to runs.
+const SERVER_CERT_MONTHS = 120;
+// Replaced before it expires, so a client is never handed a dead certificate.
+const SERVER_CERT_RENEW_SECONDS = 30 * 24 * 3600;
+
+function server_cert_expiry_path(certificate_path) {
+    return as_string(certificate_path) + ".expires";
+}
+
+// Forkop owns what it put in its own directory and may replace it; a path the user
+// chose is theirs and is never written over.
+function server_cert_is_managed(certificate_path, key_path) {
+    let prefix = SERVER_CERT_DIR + "/";
+    return substr(as_string(certificate_path), 0, length(prefix)) == prefix &&
+        substr(as_string(key_path), 0, length(prefix)) == prefix;
+}
+
+// The expiry is stored next to the certificate instead of being read out of it:
+// the router has no tool that parses a certificate, and a missing stamp means the
+// pair was written by a Forkop that did not know its own expiry, which is reason
+// enough to replace it.
+function server_cert_needs_replacement(certificate_path, key_path) {
+    if (!run("[ -s " + shell_quote(certificate_path) + " ] && [ -s " + shell_quote(key_path) + " ]"))
+        return true;
+
+    let stamp = trim(as_string(fs.readfile(server_cert_expiry_path(certificate_path)) || ""));
+    if (!regex_matches(stamp, "^[0-9]+$"))
+        return true;
+
+    return int(stamp, 10) - time() < SERVER_CERT_RENEW_SECONDS;
+}
+
 function server_generate_tls_keypair_files(server_name, certificate_path, key_path) {
-    let data = output("sing-box generate tls-keypair " + shell_quote(server_name) + " 2>/dev/null");
+    let data = output("sing-box generate tls-keypair " + shell_quote(server_name) +
+        " --months " + SERVER_CERT_MONTHS + " 2>/dev/null");
     if (data == "")
         return false;
 
@@ -305,6 +369,8 @@ function server_generate_tls_keypair_files(server_name, certificate_path, key_pa
         return false;
 
     run("chmod 600 " + shell_quote(key_path) + " >/dev/null 2>&1");
+    fs.writefile(server_cert_expiry_path(certificate_path),
+        "" + (time() + SERVER_CERT_MONTHS * 30 * 24 * 3600) + "\n");
     return true;
 }
 
@@ -348,6 +414,35 @@ function server_tls_certificate_sha256_from_file(certificate_path) {
     return valid_sha256_hex(fingerprint) ? fingerprint : "";
 }
 
+function generate_server_certificate_cli(subject, name) {
+    subject = trim(as_string(subject));
+    name = safe_filename_string(trim(as_string(name)));
+    if (subject == "" || name == "") {
+        error_response("Missing certificate subject or name");
+        exit(1);
+    }
+
+    let base = SERVER_CERT_DIR + "/" + name;
+    let certificate_path = base + ".crt";
+    let key_path = base + ".key";
+    if (!valid_file_path(certificate_path) || !valid_file_path(key_path)) {
+        error_response("Invalid certificate name");
+        exit(1);
+    }
+
+    if (!server_generate_tls_keypair_files(subject, certificate_path, key_path)) {
+        error_response("Failed to generate the TLS certificate");
+        exit(1);
+    }
+
+    write_json({
+        success: true,
+        certificate_path,
+        key_path,
+        sha256: server_tls_certificate_sha256_from_file(certificate_path)
+    });
+}
+
 function get_tls_certificate_sha256_cli(section) {
     if (as_string(section) == "") {
         error_response("Missing server section");
@@ -376,15 +471,6 @@ function get_tls_certificate_sha256_cli(section) {
     tls_fingerprint_response(fingerprint);
 }
 
-function safe_filename_string(value) {
-    value = as_string(value);
-    let result = [];
-    for (let i = 0; i < length(value); i++) {
-        let chr = substr(value, i, 1);
-        push(result, regex_matches(chr, "^[A-Za-z0-9_.-]$") ? chr : "_");
-    }
-    return join("", result);
-}
 
 function server_prepare_tls_defaults(section, protocol, security) {
     if (security != "tls")
@@ -394,24 +480,19 @@ function server_prepare_tls_defaults(section, protocol, security) {
 
     // Only the subject of the generated certificate; nothing is stored, because an
     // empty SNI is a valid TLS server and the form asks for one when Reality needs it.
-    let tls_server_name = config_get(section, "tls_server_name", "");
-    if (tls_server_name == "")
-        tls_server_name = config_get(section, "public_host", "");
-    if (tls_server_name == "")
-        tls_server_name = as_string(section);
+    // The section id is never the subject: it is an internal name, it means nothing
+    // to a client checking the certificate, and it does not belong on the wire.
+    let tls_server_name = server_certificate_subject(section);
 
     let certificate_path = config_get(section, "tls_certificate_path", "");
     let key_path = config_get(section, "tls_key_path", "");
     let own_certificate = certificate_path != "" || key_path != "";
 
-    // A configured pair is used as it is: the files belong to the user, and nothing
-    // is generated over them. Without a pair Forkop keeps its own certificate at a
-    // path derived from the section name, and does not store that path.
-    if (!own_certificate) {
-        let default_dir = "/etc/forkop/server-certs/" + safe_filename_string(section);
-        certificate_path = default_dir + ".crt";
-        key_path = default_dir + ".key";
-    }
+    // The dialog asks for both paths and its button fills them in, so a server that
+    // has neither was never configured and nothing is issued for it - the runtime
+    // check names the field instead.
+    if (!own_certificate)
+        return;
 
     if (!valid_file_path(certificate_path))
         fatal("Server '" + section + "' has invalid TLS certificate path. Specify a file path. Aborted.");
@@ -420,22 +501,54 @@ function server_prepare_tls_defaults(section, protocol, security) {
     if (certificate_path == key_path)
         fatal("Server '" + section + "' has the same TLS certificate and key path. Specify different files. Aborted.");
 
-    if (own_certificate)
+    if (!server_cert_is_managed(certificate_path, key_path))
         return;
 
-    if (!run("[ -s " + shell_quote(certificate_path) + " ] && [ -s " + shell_quote(key_path) + " ]")) {
+    // The file itself is still looked after: refusing to start because a self signed
+    // certificate went missing, or serving one that has expired, would both be worse
+    // than issuing it again at the path the server already points at.
+    if (server_cert_needs_replacement(certificate_path, key_path)) {
         log("Generating self-signed TLS certificate for server '" + section + "'", "info");
         if (!server_generate_tls_keypair_files(tls_server_name, certificate_path, key_path))
             fatal("Failed to generate TLS certificate for server '" + section + "'. Aborted.");
     }
 }
 
+const SERVER_SSH_DIR = getenv("FORKOP_SERVER_SSH_DIR") || "/etc/forkop/server-ssh";
+
+// A host key is what an SSH client pins on its first connection. sing-box makes one
+// up when it is given none, but it makes a new one every start, so every client
+// meets a changed fingerprint after every reload - which is why Forkop keeps one.
+function write_ssh_host_key(key_path) {
+    let key_dir = replace(as_string(key_path), /\/[^\/]*$/, "");
+    if (key_dir == "")
+        key_dir = "/";
+    if (!run("mkdir -p " + shell_quote(key_dir)))
+        return false;
+
+    let temp_dir = output("mktemp -d " + shell_quote(key_dir + "/.forkop-ssh.XXXXXX") + " 2>/dev/null");
+    if (temp_dir == "")
+        return false;
+
+    let dropbear_key = temp_dir + "/dropbear";
+    let openssh_key = temp_dir + "/openssh";
+    let generated =
+        run("dropbearkey -t ed25519 -f " + shell_quote(dropbear_key) + " >/dev/null 2>&1") &&
+        run("dropbearconvert dropbear openssh " + shell_quote(dropbear_key) + " " + shell_quote(openssh_key) + " >/dev/null 2>&1") &&
+        run("chmod 600 " + shell_quote(openssh_key) + " >/dev/null 2>&1") &&
+        run("mv -f " + shell_quote(openssh_key) + " " + shell_quote(key_path));
+
+    fs.unlink(dropbear_key);
+    fs.unlink(openssh_key);
+    run("rmdir " + shell_quote(temp_dir) + " >/dev/null 2>&1");
+    return generated;
+}
+
+// The dialog asks for the path and its button fills it in, so nothing is invented
+// here. The file behind a stored path is still written when it is missing: a key
+// that vanished would be replaced by a new one on every start otherwise.
 function server_prepare_ssh_host_key(section) {
     let key_paths = words(config_get(section, "ssh_host_key_path", ""));
-    if (length(key_paths) == 0) {
-        key_paths = [ "/etc/forkop/server-ssh/" + safe_filename_string(section) + ".key" ];
-        server_set_option(section, "ssh_host_key_path", key_paths[0]);
-    }
 
     for (let key_path in key_paths) {
         if (!valid_file_path(key_path))
@@ -443,30 +556,33 @@ function server_prepare_ssh_host_key(section) {
         if (config_get(section, "enabled", "1") == "0" || run("[ -s " + shell_quote(key_path) + " ]"))
             continue;
 
-        let key_dir = replace(key_path, /\/[^\/]*$/, "");
-        if (key_dir == "")
-            key_dir = "/";
-        if (!run("mkdir -p " + shell_quote(key_dir)))
-            fatal("Failed to create SSH host key directory for server '" + section + "'. Aborted.");
-
-        let temp_dir = output("mktemp -d " + shell_quote(key_dir + "/.forkop-ssh.XXXXXX") + " 2>/dev/null");
-        if (temp_dir == "")
-            fatal("Failed to create temporary SSH host key directory for server '" + section + "'. Aborted.");
-
-        let dropbear_key = temp_dir + "/dropbear";
-        let openssh_key = temp_dir + "/openssh";
-        let generated =
-            run("dropbearkey -t ed25519 -f " + shell_quote(dropbear_key) + " >/dev/null 2>&1") &&
-            run("dropbearconvert dropbear openssh " + shell_quote(dropbear_key) + " " + shell_quote(openssh_key) + " >/dev/null 2>&1") &&
-            run("chmod 600 " + shell_quote(openssh_key) + " >/dev/null 2>&1") &&
-            run("mv -f " + shell_quote(openssh_key) + " " + shell_quote(key_path));
-
-        fs.unlink(dropbear_key);
-        fs.unlink(openssh_key);
-        run("rmdir " + shell_quote(temp_dir) + " >/dev/null 2>&1");
-        if (!generated)
+        if (!write_ssh_host_key(key_path))
             fatal("Failed to generate persistent SSH host key for server '" + section + "'. Aborted.");
     }
+}
+
+function generate_ssh_host_key_cli(name) {
+    name = safe_filename_string(trim(as_string(name)));
+    if (name == "") {
+        error_response("Missing host key name");
+        exit(1);
+    }
+
+    let key_path = SERVER_SSH_DIR + "/" + name + ".key";
+    if (!valid_file_path(key_path)) {
+        error_response("Invalid host key name");
+        exit(1);
+    }
+
+    if (!write_ssh_host_key(key_path)) {
+        error_response("Failed to generate the SSH host key");
+        exit(1);
+    }
+
+    write_json({
+        success: true,
+        key_path
+    });
 }
 
 const SERVER_PROTOCOLS = {
@@ -612,6 +728,10 @@ if (mode == "prepare-all-defaults")
     prepare_all_server_defaults();
 else if (mode == "generate-reality-keypair")
     generate_reality_keypair_cli();
+else if (mode == "generate-server-certificate")
+    generate_server_certificate_cli(ARGV[1], ARGV[2]);
+else if (mode == "generate-ssh-host-key")
+    generate_ssh_host_key_cli(ARGV[1]);
 else if (mode == "tls-certificate-sha256")
     get_tls_certificate_sha256_cli(ARGV[1]);
 else {
