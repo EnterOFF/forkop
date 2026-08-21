@@ -7720,7 +7720,9 @@ function getServerItems(item, wanIp) {
     },
     getPortConflictItem(item),
     {
-      state: item.firewall_required === 0 ? "warning" : item.firewall_open === 1 ? "success" : "error",
+      // A listener that cannot be reached from WAN needs no rule, which is an
+      // answer and not a complaint.
+      state: item.firewall_required === 0 ? "success" : item.firewall_open === 1 ? "success" : "error",
       key: `${prefix} ${_("Firewall WAN port")}`,
       value: item.firewall_required === 0 ? _("Not required for this listen address") : `${item.required_proto}/${Number(item.listen_port || 0)}`
     },

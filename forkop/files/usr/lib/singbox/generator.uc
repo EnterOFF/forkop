@@ -2319,7 +2319,10 @@ function add_server_client_routes(config, server, sections, inbound, server_mode
             "server client '" + name + "'"
         );
         rule.inbound = inbound;
-        rule.user = name;
+        // auth_user, not user: a route rule has no user field, and sing-box drops the
+        // whole rule without a word when it finds one, so the account took the route
+        // of its server instead of its own.
+        rule.auth_user = name;
         push(config.route.rules, rule);
     }
 }

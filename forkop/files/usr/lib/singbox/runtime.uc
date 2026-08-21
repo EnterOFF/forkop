@@ -22,6 +22,7 @@ const NFT_FAKEIP_MARK = getenv("NFT_FAKEIP_MARK") || "0x04000000";
 const SB_SERVICE_MIXED_INBOUND_ADDRESS = getenv("SB_SERVICE_MIXED_INBOUND_ADDRESS") || "127.0.0.1";
 const SB_SERVICE_MIXED_INBOUND_PORT = getenv("SB_SERVICE_MIXED_INBOUND_PORT") || "4534";
 const SING_BOX_BIN = getenv("FORKOP_SING_BOX_BIN") || "/usr/bin/sing-box";
+const TMP_SING_BOX_FOLDER = getenv("TMP_SING_BOX_FOLDER") || "/tmp/sing-box";
 
 function as_string(value) {
     return value == null ? "" : "" + value;
@@ -406,6 +407,15 @@ function init_config(populate_nft, skip_check) {
     let config_path = option(settings, "config_path", "");
     if (config_path == "") {
         log_message("sing-box config path is empty. Aborted.", "fatal");
+        exit(1);
+    }
+
+    // The cache lives under /tmp by default, which a reboot empties, and sing-box
+    // does not create the directory: it refuses to start with "initialize
+    // cache-file: no such file or directory". Nothing else creates it either when
+    // the configuration is unchanged, which is exactly the case after a reboot.
+    if (!ensure_parent_dir(option(settings, "cache_path", TMP_SING_BOX_FOLDER + "/cache.db"))) {
+        log_message("Failed to create the directory of the sing-box cache file. Aborted.", "fatal");
         exit(1);
     }
 

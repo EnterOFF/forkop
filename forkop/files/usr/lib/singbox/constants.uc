@@ -157,8 +157,12 @@ function domain_resolver_tag(section_name) {
     return tag(section_name, "domain-resolver");
 }
 
-function server_inbound_tag(section_name) {
-    return as_string(section_name);
+// The display name verbatim, the way outbound_tag takes a section name: the tab
+// shows it and the Clash API reports it, so anything added here would be a second
+// name for the same listener. The runtime check refuses a name Forkop already uses,
+// which is what a suffix would otherwise be for.
+function server_inbound_tag(display_name) {
+    return as_string(display_name);
 }
 
 function tailscale_dns_server_tag(section_name) {

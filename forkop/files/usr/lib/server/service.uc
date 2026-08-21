@@ -744,19 +744,33 @@ function firewall_include_text() {
         "# every apply. fw4 prepends this file to its own input chain."
     ];
 
+    // nftables takes a double quoted comment; a single quoted one is a syntax error
+    // and fw4 drops the whole include without saying so.
     for (let proto in [ "tcp", "udp" ])
         if (length(ports[proto]) > 0)
             push(lines, "meta l4proto " + proto + " th dport { " + join(", ", ports[proto]) +
-                " } counter accept comment " + shell_quote(FIREWALL_COMMENT));
+                " } counter accept comment \"" + FIREWALL_COMMENT + "\"");
 
     return length(lines) == 2 ? "" : join("\n", lines) + "\n";
+}
+
+// Whether the running input chain already carries the rules of this include. fw4
+// only reads /usr/share/nftables.d while it builds its ruleset, so the file being
+// right says nothing about the firewall that is loaded.
+function firewall_rules_loaded() {
+    let chain = output("nft list chain inet fw4 input 2>/dev/null");
+    return chain != "" && index(chain, FIREWALL_COMMENT) >= 0;
+}
+
+function firewall_loaded() {
+    return run("nft list chain inet fw4 input >/dev/null 2>&1");
 }
 
 function reload_firewall() {
     if (!run("[ -x " + shell_quote(FIREWALL_INIT) + " ]"))
         return;
     // A firewall that is not loaded reads the file the next time it starts.
-    if (!run("nft list chain inet fw4 input >/dev/null 2>&1"))
+    if (!firewall_loaded())
         return;
     if (!run(shell_quote(FIREWALL_INIT) + " reload >/dev/null 2>&1"))
         log("Failed to reload the firewall; server ports stay closed until it is reloaded", "warn");
@@ -765,24 +779,30 @@ function reload_firewall() {
 function sync_server_firewall(clear) {
     let wanted = clear ? "" : firewall_include_text();
     let current = as_string(fs.readfile(FIREWALL_INCLUDE) || "");
+    let changed = current != wanted;
 
-    if (current == wanted)
+    if (changed) {
+        if (wanted == "") {
+            fs.unlink(FIREWALL_INCLUDE);
+        }
+        else {
+            let dir = replace(FIREWALL_INCLUDE, /\/[^\/]*$/, "");
+            if (!run("mkdir -p " + shell_quote(dir))) {
+                log("Failed to create " + dir + " for the server firewall rules", "warn");
+                return;
+            }
+            if (!fs.writefile(FIREWALL_INCLUDE, wanted)) {
+                log("Failed to write " + FIREWALL_INCLUDE, "warn");
+                return;
+            }
+        }
+    }
+
+    // Reloading only on a changed file would leave the ports closed forever after
+    // one failed reload, and would keep them open after a firewall that was
+    // reloaded by something else lost the rules again.
+    if (!changed && (wanted == "") == !firewall_rules_loaded())
         return;
-
-    if (wanted == "") {
-        fs.unlink(FIREWALL_INCLUDE);
-    }
-    else {
-        let dir = replace(FIREWALL_INCLUDE, /\/[^\/]*$/, "");
-        if (!run("mkdir -p " + shell_quote(dir))) {
-            log("Failed to create " + dir + " for the server firewall rules", "warn");
-            return;
-        }
-        if (!fs.writefile(FIREWALL_INCLUDE, wanted)) {
-            log("Failed to write " + FIREWALL_INCLUDE, "warn");
-            return;
-        }
-    }
 
     reload_firewall();
 }

@@ -472,8 +472,10 @@ function clone_rules_for_inbound(config, source_inbound, target_inbound, skip_do
         if (type(cloned) != "object")
             continue;
         cloned.inbound = target_inbound;
+        // auth_user is what a route rule matches an account on; a user field is not
+        // part of a rule and sing-box drops the whole rule that carries one.
         if (user != null && user != "")
-            cloned.user = user;
+            cloned.auth_user = user;
         push(cloned_rules, cloned);
     }
     for (let cloned_rule in cloned_rules)

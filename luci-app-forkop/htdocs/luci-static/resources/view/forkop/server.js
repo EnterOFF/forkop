@@ -2028,8 +2028,9 @@ function buildMieruLink(sectionId, client) {
 function buildClientLinks(sectionId, client, context = {}) {
   const protocol = getProtocol(sectionId);
 
-  // Only protocols the table gives a scheme have a share link at all. SSH and Mieru
-  // have no URI format, so the dialog reads out their credentials instead.
+  // Only protocols the table gives a scheme have a share link at all. SSH is the
+  // one that has none: a client is handed the address, the account and its
+  // password, which the dialog already shows.
   if (
     !client ||
     !linkScheme(protocol) ||
@@ -2070,8 +2071,6 @@ function buildClientLinks(sectionId, client, context = {}) {
   }
 }
 
-// Credentials to read out for protocols with no share link format, so the dialog is
-// still useful for SSH and Mieru.
 function normalizeSha256Response(response) {
   if ((response.code ?? 0) !== 0 || !response.stdout) {
     throw new Error(response.stderr || response.stdout || "");
@@ -3322,12 +3321,6 @@ function certificateSubject(sectionId) {
   );
 }
 
-// Named after the section: a display name has to be sanitised to be a file name,
-// and two servers named in Cyrillic would sanitise to the same one.
-function certificateFileName(sectionId) {
-  return sectionId;
-}
-
 // Writing files happens when a button is pressed, not while the service starts, and
 // the path that was written becomes the value of the field instead of a convention
 // only Forkop knows. The certificate and the SSH host key are both issued this way.
@@ -3387,7 +3380,9 @@ function addCertificateButton(optionRef) {
   addIssueButton(optionRef, _("Generate a certificate"), (sectionId) =>
     issueRequest(
       "generate_server_certificate",
-      [certificateSubject(sectionId), certificateFileName(sectionId)],
+      // The section id, not the display name: a name has to be sanitised to be a
+      // file name, and two servers named in Cyrillic would sanitise to the same one.
+      [certificateSubject(sectionId), sectionId],
       (data) => {
         if (!data.certificate_path || !data.key_path) {
           throw new Error("");
@@ -3541,7 +3536,7 @@ function renderServerRowActions(sectionRef, sectionId) {
   const actionsEl = tdEl.lastElementChild;
 
   // Only a server whose accounts can be handed a link has anything to show: SSH has
-  // no URI format, and Tailscale and a JSON inbound have no accounts at all.
+  // no share link format, and Tailscale and a JSON inbound have no accounts at all.
   if (usesClients(getProtocol(sectionId)) && linkScheme(getProtocol(sectionId))) {
     dom.append(
       actionsEl,

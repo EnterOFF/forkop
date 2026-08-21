@@ -387,6 +387,9 @@ forkop.fw_off.enabled=0
 forkop.fw_tailscale=server
 forkop.fw_tailscale.protocol=tailscale
 forkop.fw_tailscale.listen_port=31006
+forkop.fw_ss=server
+forkop.fw_ss.protocol=shadowsocks
+forkop.fw_ss.listen_port=31007
 EOF_FIREWALL
 
 ucode -L "$UCODE_LIB" "$SERVER_RUNTIME" sync-firewall
@@ -402,6 +405,16 @@ grep -Eq '^meta l4proto tcp th dport \{ [0-9, ]*31003[0-9, ]*\}' "$include" &&
 grep -Fq '31004' "$include" && fail 'a server with the switch off must stay closed'
 grep -Fq '31005' "$include" && fail 'a disabled server must stay closed'
 grep -Fq '31006' "$include" && fail 'a Tailscale endpoint has no listener to open'
+# A Shadowsocks listener takes the default network, which is TCP and UDP, and the
+# UDP half is how a client relays datagrams.
+grep -Eq '^meta l4proto tcp th dport \{ [0-9, ]*31007[0-9, ]*\}' "$include" &&
+  grep -Eq '^meta l4proto udp th dport \{ [0-9, ]*31007[0-9, ]*\}' "$include" ||
+  fail 'a Shadowsocks listener needs both protocols accepted'
+# nftables only takes a double quoted comment; fw4 drops an include with a single
+# quoted one and says nothing about it.
+grep -Fq "comment \"$(printf 'forkop: server ports')\"" "$include" ||
+  fail 'the include must use a double quoted nftables comment'
+grep -Fq "comment '" "$include" && fail 'a single quoted comment is not nftables syntax'
 
 before="$(cat "$include")"
 ucode -L "$UCODE_LIB" "$SERVER_RUNTIME" sync-firewall

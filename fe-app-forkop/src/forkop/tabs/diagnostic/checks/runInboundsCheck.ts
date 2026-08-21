@@ -127,9 +127,11 @@ function getServerItems(
     },
     getPortConflictItem(item),
     {
+      // A listener that cannot be reached from WAN needs no rule, which is an
+      // answer and not a complaint.
       state:
         item.firewall_required === 0
-          ? 'warning'
+          ? 'success'
           : item.firewall_open === 1
             ? 'success'
             : 'error',

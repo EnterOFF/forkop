@@ -56,6 +56,12 @@ if grep -n -E 'require\("uci"\)\.cursor|uci -q|uci", "-q"' "$SINGBOX_GENERATOR_U
 fi
 grep -Fq 'require("core.uci")' "$SINGBOX_GENERATOR_UC" ||
   fail "singbox/generator.uc must import core.uci"
+# The cache file lives under /tmp by default and sing-box does not create its
+# directory: after a reboot it is gone and the core refuses to start with
+# "initialize cache-file: no such file or directory". Nothing else creates it when
+# the generated configuration turns out unchanged, which is the case after a reboot.
+grep -Fq 'ensure_parent_dir(option(settings, "cache_path"' "$SINGBOX_RUNTIME_UC" ||
+  fail "singbox/runtime.uc must create the directory of the sing-box cache file before a start"
 grep -Fq 'FORKOP_RULE_CONDITION_CACHE_DIR' "$LIFECYCLE_UC" ||
   fail "service/lifecycle.uc must pass rule-condition cache dir through module environment"
 if grep -Fq 'FORKOP_SECTION_CACHE_DIR' "$LIFECYCLE_UC"; then
@@ -1375,7 +1381,7 @@ assert(index(ss2022.users[0].password, ":") < 0, "the server key is not joined i
 assert(route_rule(server, r => r.inbound == "edge" && r.outbound == "direct-out") != null, "server direct route");
 // A client of a direct server may still follow the shared rules: the set is cloned
 // for that account alone, and those clones come before the rule of the server.
-let ruled = route_rule(server, r => r.inbound == "edge" && r.user == "ruled");
+let ruled = route_rule(server, r => r.inbound == "edge" && r.auth_user == "ruled");
 assert(ruled != null, "a client that follows the rules gets the shared set for its own account");
 let ruled_at = -1;
 let direct_at = -1;
@@ -1383,14 +1389,15 @@ for (let i = 0; i < length(server.route.rules); i++) {
     let rule = server.route.rules[i];
     if (type(rule) != "object" || rule.inbound != "edge")
         continue;
-    if (rule.user == "ruled" && ruled_at < 0)
+    if (rule.auth_user == "ruled" && ruled_at < 0)
         ruled_at = i;
-    if (rule.user == null && rule.outbound == "direct-out" && direct_at < 0)
+    if (rule.auth_user == null && rule.outbound == "direct-out" && direct_at < 0)
         direct_at = i;
 }
 assert(ruled_at >= 0 && direct_at > ruled_at, "the rules of a client come before the rule of its server");
 
-// A client that takes its own route gets a rule matched on the user name, and it has
+// A client that takes its own route gets a rule matched on auth_user, which is the
+// only account field a route rule has, and it has
 // to come before the rule of its server, because the first match wins.
 let client_rule_index = -1;
 let server_rule_index = -1;
@@ -1399,14 +1406,19 @@ for (let index = 0; index < length(mux_rules); index++) {
     let rule = mux_rules[index];
     if (type(rule) != "object" || rule.inbound != "VLESS mux")
         continue;
-    if (rule.user == "laptop")
+    if (rule.auth_user == "laptop")
         client_rule_index = index;
-    else if (rule.user == null)
+    else if (rule.auth_user == null)
         server_rule_index = index;
 }
 assert(client_rule_index >= 0, "a client that overrides the route gets its own rule");
 assert(mux_rules[client_rule_index].outbound == "direct-out", "the client rule uses its own mode");
 assert(server_rule_index < 0 || client_rule_index < server_rule_index, "a client rule comes before the rule of its server");
+// There is no user field in a route rule. sing-box drops a rule that carries one
+// without saying anything, so the account silently took the route of its server.
+for (let rule in server.route.rules)
+    assert(type(rule) != "object" || rule.user == null,
+        "a route rule names an account with auth_user, never with user");
 
 let matchers = cfg("matchers");
 assert(matchers.dns.strategy == "prefer_ipv6", "configured DNS strategy is generated");

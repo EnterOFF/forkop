@@ -25,7 +25,9 @@ function contains(values, needle) {
 
 // A JSON inbound declares its own listeners, so nothing is required of it.
 // Everything else is TCP unless the protocol is UDP-only or its transport
-// option says otherwise.
+// option says otherwise. Shadowsocks is the one that carries both without being
+// asked: its listener takes the default network, which is TCP and UDP, and the
+// UDP half is how a client relays datagrams.
 function required_proto(protocol, transport) {
     protocol = as_string(protocol);
     transport = lc(as_string(transport));
@@ -33,6 +35,8 @@ function required_proto(protocol, transport) {
         return "";
     if (protocol == "hysteria2" || protocol == "tuic")
         return "udp";
+    if (protocol == "shadowsocks")
+        return "tcp udp";
     if (protocol == "naive" && transport == "tcp_udp")
         return "tcp udp";
     if ((protocol == "naive" || protocol == "mieru") && transport == "udp")
