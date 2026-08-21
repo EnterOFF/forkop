@@ -2476,6 +2476,22 @@ function renderDetailsContent(sectionId, clients, context) {
     );
   }
 
+  // Every other protocol here lets a client accept the certificate without checking
+  // it, and the link says so. A NaiveProxy client checks it the way a browser does
+  // and has no way of being told otherwise, so the self-signed certificate Forkop
+  // issues is refused and the server needs a real one.
+  if (getProtocol(sectionId) === "naive" && usesGeneratedCertificate(sectionId)) {
+    children.push(
+      E(
+        "div",
+        { class: "alert-message warning" },
+        _(
+          "A NaiveProxy client does not accept a self-signed certificate. Point the certificate path at one issued for this address.",
+        ),
+      ),
+    );
+  }
+
   const entries = clients.length
     ? clients
     : isAuthenticationEnabled(sectionId)
@@ -3324,11 +3340,16 @@ function certificateSubject(sectionId) {
 // Writing files happens when a button is pressed, not while the service starts, and
 // the path that was written becomes the value of the field instead of a convention
 // only Forkop knows. The certificate and the SSH host key are both issued this way.
-function addIssueButton(optionRef, label, request) {
+function addIssueButton(optionRef, label, request, withoutButton) {
   const renderWidget = optionRef.renderWidget;
 
   optionRef.renderWidget = function (sectionId, optionIndex, cfgvalue) {
     const node = renderWidget.call(this, sectionId, optionIndex, cfgvalue);
+    // A protocol whose clients refuse what Forkop can issue gets no button: an
+    // issued file would only produce a server nobody can reach.
+    if (typeof withoutButton === "function" && withoutButton(sectionId)) {
+      return node;
+    }
     const readonly = this.readonly != null ? this.readonly : this.map.readonly;
     const button = E(
       "button",
@@ -3376,25 +3397,48 @@ function issueRequest(verb, args, onResult, failure) {
   });
 }
 
+// The certificate Forkop issues is self-signed, and every protocol here but one
+// lets a client accept it without checking: the share link carries insecure=1. A
+// NaiveProxy client verifies it the way a browser does and has no flag to turn that
+// off, so an issued certificate would only build a server nobody can reach. The
+// button is therefore not offered there, and the two path fields say what to put in
+// them instead.
+function needsIssuedCertificate(sectionId) {
+  return getProtocol(sectionId) !== "naive";
+}
+
+function describePerProtocol(optionRef, general, naive) {
+  const renderWidget = optionRef.renderWidget;
+
+  optionRef.renderWidget = function (sectionId, optionIndex, cfgvalue) {
+    this.description = needsIssuedCertificate(sectionId) ? general : naive;
+    return renderWidget.call(this, sectionId, optionIndex, cfgvalue);
+  };
+}
+
 function addCertificateButton(optionRef) {
-  addIssueButton(optionRef, _("Generate a certificate"), (sectionId) =>
-    issueRequest(
-      "generate_server_certificate",
-      // The section id, not the display name: a name has to be sanitised to be a
-      // file name, and two servers named in Cyrillic would sanitise to the same one.
-      [certificateSubject(sectionId), sectionId],
-      (data) => {
-        if (!data.certificate_path || !data.key_path) {
-          throw new Error("");
-        }
-        applyFieldValue(sectionId, "tls_certificate_path", data.certificate_path);
-        applyFieldValue(sectionId, "tls_key_path", data.key_path);
-        main.showToast(_("Certificate generated"), "success");
-      },
-    ).catch((error) => {
-      main.showToast(_("Could not generate a certificate"), "error");
-      throw error;
-    }),
+  addIssueButton(
+    optionRef,
+    _("Generate a certificate"),
+    (sectionId) =>
+      issueRequest(
+        "generate_server_certificate",
+        // The section id, not the display name: a name has to be sanitised to be a
+        // file name, and two servers named in Cyrillic would sanitise to the same one.
+        [certificateSubject(sectionId), sectionId],
+        (data) => {
+          if (!data.certificate_path || !data.key_path) {
+            throw new Error("");
+          }
+          applyFieldValue(sectionId, "tls_certificate_path", data.certificate_path);
+          applyFieldValue(sectionId, "tls_key_path", data.key_path);
+          main.showToast(_("Certificate generated"), "success");
+        },
+      ).catch((error) => {
+        main.showToast(_("Could not generate a certificate"), "error");
+        throw error;
+      }),
+    (sectionId) => !needsIssuedCertificate(sectionId),
   );
 }
 
@@ -4296,6 +4340,13 @@ function addSecurityOptions(section) {
     _("Required. The button next to the field issues one."),
   );
   addCertificateButton(o);
+  describePerProtocol(
+    o,
+    _("Required. The button next to the field issues one."),
+    _(
+      "Required. A certificate issued for this address: a NaiveProxy client refuses a self-signed one.",
+    ),
+  );
   o.placeholder = "/etc/ssl/certs/server.crt";
   o.modalonly = true;
   o.rmempty = false;
@@ -4307,6 +4358,11 @@ function addSecurityOptions(section) {
     "tls_key_path",
     _("Key path"),
     _("Required. The button next to the certificate issues both."),
+  );
+  describePerProtocol(
+    o,
+    _("Required. The button next to the certificate issues both."),
+    _("Required. The private key of that certificate."),
   );
   o.placeholder = "/etc/ssl/private/server.key";
   o.modalonly = true;

@@ -4283,3 +4283,12 @@ msgstr ""
 
 msgid "Required. Where the traffic of this server leaves."
 msgstr ""
+
+msgid "A NaiveProxy client does not accept a self-signed certificate. Point the certificate path at one issued for this address."
+msgstr ""
+
+msgid "Required. A certificate issued for this address: a NaiveProxy client refuses a self-signed one."
+msgstr ""
+
+msgid "Required. The private key of that certificate."
+msgstr ""

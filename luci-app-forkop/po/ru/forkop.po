@@ -2674,3 +2674,12 @@ msgstr "Обязательно. Чётное число hex-символов, н
 
 msgid "Required. Where the traffic of this server leaves."
 msgstr "Обязательно. Куда уходит трафик этого сервера."
+
+msgid "A NaiveProxy client does not accept a self-signed certificate. Point the certificate path at one issued for this address."
+msgstr "Клиент NaiveProxy не примет самоподписанный сертификат. Укажите в пути сертификат, выданный на этот адрес."
+
+msgid "Required. A certificate issued for this address: a NaiveProxy client refuses a self-signed one."
+msgstr "Обязательно. Сертификат, выданный на этот адрес: клиент NaiveProxy не примет самоподписанный."
+
+msgid "Required. The private key of that certificate."
+msgstr "Обязательно. Приватный ключ этого сертификата."
