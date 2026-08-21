@@ -333,11 +333,16 @@ function getSourceCellParts(connection: MonitoredConnection) {
   const serverName = getServerDisplayNameByInboundTag(inboundTag);
 
   if (serverName) {
+    // An inbound with several accounts reports the one that authenticated, and
+    // without it the rows of one server cannot be told apart.
+    const client = normalizeString(connection.metadata?.user);
+    const primary = client ? `${serverName} (${client})` : serverName;
+
     return {
-      primary: serverName,
+      primary,
       ip: '',
-      copyValue: serverName,
-      searchValue: [serverName, ip, inboundTag].filter(Boolean).join(' '),
+      copyValue: primary,
+      searchValue: [primary, ip, inboundTag].filter(Boolean).join(' '),
     };
   }
 
@@ -377,7 +382,7 @@ function getTargetCellParts(connection: MonitoredConnection): {
   };
 }
 
-function getRouteTarget(connection: MonitoredConnection): string {
+function getRoute(connection: MonitoredConnection): string {
   const chains = Array.isArray(connection.chains) ? connection.chains : [];
   const routeTag = [...chains].reverse().find(getRouteDisplayNameByTag);
   const fallbackRouteTag = getRouteTagFromRule(connection.rule);
@@ -386,27 +391,9 @@ function getRouteTarget(connection: MonitoredConnection): string {
     getRouteDisplayNameByTag(routeTag || '') ||
     getRouteDisplayNameByTag(fallbackRouteTag) ||
     normalizeString(routeTag) ||
-    normalizeString(fallbackRouteTag)
+    normalizeString(fallbackRouteTag) ||
+    '-'
   );
-}
-
-// Traffic that entered through a server of the Servers tab is shown as the whole
-// path: the inbound it came from, the account it authenticated as when the server
-// has several, and where it was sent.
-function getRoute(connection: MonitoredConnection): string {
-  const target = getRouteTarget(connection);
-  const server = getServerDisplayNameByInboundTag(
-    getConnectionInboundTag(connection),
-  );
-
-  if (!server) {
-    return target || '-';
-  }
-
-  const client = normalizeString(connection.metadata?.user);
-  const source = client ? `${server} (${client})` : server;
-
-  return target ? `${source} → ${target}` : source;
 }
 
 function getNetwork(connection: MonitoredConnection): string {

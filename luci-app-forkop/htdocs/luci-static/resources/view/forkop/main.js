@@ -368,6 +368,7 @@ function validateOutboundJson(value, usedTags = []) {
 
 // src/validators/validateProxyUrl.ts
 var NATIVE_PROXY_SCHEMES = /* @__PURE__ */ new Set([
+  "anytls",
   "hysteria",
   "hysteria2",
   "hy2",
@@ -11040,11 +11041,13 @@ function getSourceCellParts(connection) {
   }
   const serverName = getServerDisplayNameByInboundTag(inboundTag);
   if (serverName) {
+    const client = normalizeString(connection.metadata?.user);
+    const primary = client ? `${serverName} (${client})` : serverName;
     return {
-      primary: serverName,
+      primary,
       ip: "",
-      copyValue: serverName,
-      searchValue: [serverName, ip, inboundTag].filter(Boolean).join(" ")
+      copyValue: primary,
+      searchValue: [primary, ip, inboundTag].filter(Boolean).join(" ")
     };
   }
   const deviceName = getDeviceName(ip);
@@ -11075,23 +11078,11 @@ function getTargetCellParts(connection) {
     searchValue: [primary, host, destinationIp].filter(Boolean).join(" ")
   };
 }
-function getRouteTarget(connection) {
+function getRoute(connection) {
   const chains = Array.isArray(connection.chains) ? connection.chains : [];
   const routeTag = [...chains].reverse().find(getRouteDisplayNameByTag);
   const fallbackRouteTag = getRouteTagFromRule(connection.rule);
-  return getRouteDisplayNameByTag(routeTag || "") || getRouteDisplayNameByTag(fallbackRouteTag) || normalizeString(routeTag) || normalizeString(fallbackRouteTag);
-}
-function getRoute(connection) {
-  const target = getRouteTarget(connection);
-  const server = getServerDisplayNameByInboundTag(
-    getConnectionInboundTag(connection)
-  );
-  if (!server) {
-    return target || "-";
-  }
-  const client = normalizeString(connection.metadata?.user);
-  const source = client ? `${server} (${client})` : server;
-  return target ? `${source} \u2192 ${target}` : source;
+  return getRouteDisplayNameByTag(routeTag || "") || getRouteDisplayNameByTag(fallbackRouteTag) || normalizeString(routeTag) || normalizeString(fallbackRouteTag) || "-";
 }
 function getNetwork(connection) {
   return normalizeString(connection.metadata?.network).toLowerCase() || "-";
