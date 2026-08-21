@@ -316,11 +316,6 @@ function optionList(sectionId, name) {
   return asList(uci.get(UCI_PACKAGE, sectionId, name));
 }
 
-function hasTransport(protocol) {
-  const spec = protocolSpec(protocol);
-  return !!spec && !!spec.transport;
-}
-
 function protocolSpec(protocol) {
   return PROTOCOL_BY_ID.get(`${protocol || ""}`) || null;
 }
@@ -365,13 +360,6 @@ function liveOption(sectionId, name) {
 
 function getProtocol(sectionId) {
   return liveOption(sectionId, "protocol") || DEFAULT_PROTOCOL;
-}
-
-// The transport is stored as sing-box spells it, and the dialog shows it the way the
-// selector does: TCP rather than tcp, WebSocket rather than ws.
-function transportLabel(value) {
-  const entry = TRANSPORTS.find(([id]) => id === `${value || ""}`);
-  return entry ? entry[1] : `${value || ""}`;
 }
 
 function protocolLabel(protocol) {
@@ -1484,7 +1472,7 @@ function validateAuthorizedKeys(_sectionId, value) {
         `${item}`.trim(),
       ),
   )
-    ? _("Use an OpenSSH public key line, for example ssh-ed25519 AAAA...")
+    ? _("Use an OpenSSH public key line")
     : true;
 }
 
@@ -1736,9 +1724,7 @@ function tlsQuery(sectionId, params, includeSecurity) {
   }
 
   if (security === "reality") {
-    params.sni =
-      option(sectionId, "tls_server_name") ||
-      option(sectionId, "reality_handshake_server");
+    params.sni = option(sectionId, "tls_server_name");
     params.pbk = option(sectionId, "reality_public_key");
     params.sid = optionList(sectionId, "reality_short_id")[0] || "";
     const fingerprint = option(sectionId, "client_fingerprint");
@@ -2092,10 +2078,7 @@ function loadLinkContext(sectionId) {
     usesGeneratedCertificate(sectionId);
 
   if (!certificatePinExpected) {
-    return Promise.resolve({
-      certificatePinExpected,
-      tlsCertificateSha256: "",
-    });
+    return Promise.resolve({ tlsCertificateSha256: "" });
   }
 
   return fs
@@ -2108,10 +2091,7 @@ function loadLinkContext(sectionId) {
       );
       return "";
     })
-    .then((tlsCertificateSha256) => ({
-      certificatePinExpected,
-      tlsCertificateSha256,
-    }));
+    .then((tlsCertificateSha256) => ({ tlsCertificateSha256 }));
 }
 
 /* ---------------------------------------------------------------- icons, DOM */
@@ -2212,11 +2192,6 @@ function injectDetailsStyles() {
         // floor because their labels are long enough to fill it, and mine are short
         // enough that the floor pushed every value a third of the way across the
         // dialog. max-content puts the value 16px after the longest label.
-        ".fkp-details__facts{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:8px 16px;margin:0 0 18px}",
-        ".fkp-details__param{display:contents}",
-        ".fkp-details__param dt{color:var(--text-color-medium,#666);line-height:1.35}",
-        ".fkp-details__param dd{display:flex;align-items:center;gap:8px;min-width:0;margin:0}",
-        ".fkp-details__param dd span{min-width:0;overflow-wrap:anywhere}",
         ".fkp-details__clients{display:grid;gap:14px;min-inline-size:0}",
         ".fkp-details__client{display:grid;gap:6px;min-width:0}",
         ".fkp-details__name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
@@ -2233,8 +2208,6 @@ function injectDetailsStyles() {
         ".fkp-qr__code{display:block;inline-size:14rem;block-size:14rem;max-inline-size:100%;image-rendering:pixelated;background:#fff;padding:10px;box-sizing:content-box;border:1px solid var(--border-color-low,rgba(128,128,128,0.2))}",
         ".fkp-qr__link{inline-size:100%;box-sizing:border-box;padding:8px 10px;background:rgba(128,128,128,0.06);border:1px solid var(--border-color-low,rgba(128,128,128,0.2));font-family:monospace;font-size:11px;line-height:1.5;word-break:break-all;color:var(--text-color-medium,#666)}",
         '@media (max-width:640px){',
-        ".fkp-details__facts{grid-template-columns:minmax(0,1fr);gap:2px 0}",
-        ".fkp-details__param dd{margin-bottom:6px}",
         '}',
       ].join("\n"),
     ),
@@ -2350,54 +2323,6 @@ function renderLinkRow(value, qrTitle) {
   ]);
 }
 
-function renderFacts(rows) {
-  return E(
-    "dl",
-    { class: "fkp-details__facts" },
-    rows.map(([label, value]) =>
-      E("div", { class: "fkp-details__param" }, [
-        E("dt", {}, label),
-        E("dd", {}, E("span", {}, value)),
-      ]),
-    ),
-  );
-}
-
-// What a client has to be pointed at, and nothing a link already carries: this is a
-// summary of the server, not a second copy of the link.
-function serverFactRows(sectionId) {
-  const protocol = getProtocol(sectionId);
-  const rows = [[_("Protocol"), protocolLabel(protocol)]];
-  const host = getPublicHost(sectionId);
-  const port = getListenPort(sectionId);
-
-  if (host && port) {
-    rows.push([_("Address"), `${formatHostForUri(host)}:${port}`]);
-  }
-
-  const security = getEffectiveSecurity(sectionId);
-  if (security !== "none") {
-    rows.push([_("Security"), security === "reality" ? "Reality" : "TLS"]);
-  }
-
-  // Stated whenever the protocol carries one, TCP included: it is part of what a
-  // client has to match, not a detail worth hiding because it is the common case.
-  if (hasTransport(protocol)) {
-    rows.push([
-      _("Transport"),
-      transportLabel(option(sectionId, "transport") || "tcp"),
-    ]);
-  }
-  if (protocol === "mieru") {
-    rows.push([_("Transport"), option(sectionId, "mieru_transport") || "TCP"]);
-  }
-  if (option(sectionId, "multiplex_enabled") === "1") {
-    rows.push(["Multiplex", _("Enabled")]);
-  }
-
-  return rows;
-}
-
 // Why a client has no link: a credential the link needs, or the address it points
 // at, is still missing.
 function missingLinkReason(sectionId, client) {
@@ -2457,40 +2382,11 @@ function anonymousClient() {
   };
 }
 
+// The dialog hands out what a client is given and nothing else: an account, its
+// link, and the buttons to copy or scan it. Everything else it used to state was
+// already in the link.
 function renderDetailsContent(sectionId, clients, context) {
-  const children = [renderFacts(serverFactRows(sectionId))];
-
-  if (
-    getProtocol(sectionId) === "hysteria2" &&
-    context.certificatePinExpected &&
-    !context.tlsCertificateSha256
-  ) {
-    children.push(
-      E(
-        "div",
-        { class: "alert-message warning" },
-        _(
-          "Apply the configuration once so the certificate is created, then reopen this dialog to get a complete link.",
-        ),
-      ),
-    );
-  }
-
-  // Every other protocol here lets a client accept the certificate without checking
-  // it, and the link says so. A NaiveProxy client checks it the way a browser does
-  // and has no way of being told otherwise, so the self-signed certificate Forkop
-  // issues is refused and the server needs a real one.
-  if (getProtocol(sectionId) === "naive" && usesGeneratedCertificate(sectionId)) {
-    children.push(
-      E(
-        "div",
-        { class: "alert-message warning" },
-        _(
-          "A NaiveProxy client does not accept a self-signed certificate. Point the certificate path at one issued for this address.",
-        ),
-      ),
-    );
-  }
+  const children = [];
 
   const entries = clients.length
     ? clients
@@ -2527,12 +2423,10 @@ function showServerDetailsModal(sectionId, clients) {
   injectDetailsStyles();
 
   // Everything but the certificate fingerprint is already known, so the dialog
-  // opens filled in and only the Hysteria2 note arrives later.
-  const emptyContext = {
-    certificatePinExpected: false,
+  // opens filled in and the Hysteria2 links gain their pin a moment later.
+  let content = renderDetailsContent(sectionId, clients, {
     tlsCertificateSha256: "",
-  };
-  let content = renderDetailsContent(sectionId, clients, emptyContext);
+  });
 
   ui.showModal(
     _("Server details: %s").format(getServerName(sectionId)),
@@ -2789,7 +2683,6 @@ function addClientCredentialOptions(sectionId, itemSection) {
         clientCredentialDescription(sectionId, field),
       );
       keys.rmempty = true;
-      keys.placeholder = "ssh-ed25519 AAAA...";
       keys.validate = (_id, value) =>
         validateClientCredential(sectionId, "authorized_keys", value);
       return;
@@ -2857,7 +2750,7 @@ function addClientRoutingOptions(sectionId, itemSection) {
     _("Routing mode"),
   );
   CLIENT_ROUTING_MODES.forEach(([value, label]) => mode.value(value, label));
-  mode.default = "direct";
+  mode.default = "rules";
   mode.rmempty = false;
   mode.depends("routing_override", "1");
 
@@ -3251,7 +3144,6 @@ function camouflageSite(sectionId, reroll) {
   return camouflageChoice.get(sectionId);
 }
 
-// Writes the same host into both fields, whichever button was pressed.
 // Puts a value into another field of the open dialog. The widget wins over the
 // stored value while the dialog is open, so the value goes there and is checked
 // right away; without a mounted widget the write goes to the configuration.
@@ -3272,9 +3164,7 @@ function applyFieldValue(sectionId, name, value) {
 }
 
 function applyCamouflageSite(sectionId, host) {
-  ["tls_server_name", "reality_handshake_server"].forEach((name) =>
-    applyFieldValue(sectionId, name, host),
-  );
+  applyFieldValue(sectionId, "tls_server_name", host);
 
   return host;
 }
@@ -3340,16 +3230,11 @@ function certificateSubject(sectionId) {
 // Writing files happens when a button is pressed, not while the service starts, and
 // the path that was written becomes the value of the field instead of a convention
 // only Forkop knows. The certificate and the SSH host key are both issued this way.
-function addIssueButton(optionRef, label, request, withoutButton) {
+function addIssueButton(optionRef, label, request) {
   const renderWidget = optionRef.renderWidget;
 
   optionRef.renderWidget = function (sectionId, optionIndex, cfgvalue) {
     const node = renderWidget.call(this, sectionId, optionIndex, cfgvalue);
-    // A protocol whose clients refuse what Forkop can issue gets no button: an
-    // issued file would only produce a server nobody can reach.
-    if (typeof withoutButton === "function" && withoutButton(sectionId)) {
-      return node;
-    }
     const readonly = this.readonly != null ? this.readonly : this.map.readonly;
     const button = E(
       "button",
@@ -3397,25 +3282,6 @@ function issueRequest(verb, args, onResult, failure) {
   });
 }
 
-// The certificate Forkop issues is self-signed, and every protocol here but one
-// lets a client accept it without checking: the share link carries insecure=1. A
-// NaiveProxy client verifies it the way a browser does and has no flag to turn that
-// off, so an issued certificate would only build a server nobody can reach. The
-// button is therefore not offered there, and the two path fields say what to put in
-// them instead.
-function needsIssuedCertificate(sectionId) {
-  return getProtocol(sectionId) !== "naive";
-}
-
-function describePerProtocol(optionRef, general, naive) {
-  const renderWidget = optionRef.renderWidget;
-
-  optionRef.renderWidget = function (sectionId, optionIndex, cfgvalue) {
-    this.description = needsIssuedCertificate(sectionId) ? general : naive;
-    return renderWidget.call(this, sectionId, optionIndex, cfgvalue);
-  };
-}
-
 function addCertificateButton(optionRef) {
   addIssueButton(
     optionRef,
@@ -3438,7 +3304,6 @@ function addCertificateButton(optionRef) {
         main.showToast(_("Could not generate a certificate"), "error");
         throw error;
       }),
-    (sectionId) => !needsIssuedCertificate(sectionId),
   );
 }
 
@@ -3745,7 +3610,6 @@ function addIdentityOptions(section) {
     form.Value,
     "label",
     _("Server name"),
-    _("Required. Also the name of the inbound in the sing-box configuration."),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -3959,7 +3823,6 @@ function addListenerOptions(section) {
     form.Value,
     "listen_port",
     _("Listen port"),
-    _("Required. The port this server answers on."),
   );
   o.placeholder = "31443";
   o.rmempty = false;
@@ -3991,8 +3854,8 @@ function addListenerOptions(section) {
   o = section.option(
     form.Flag,
     "open_firewall",
-    _("Open the port in the firewall"),
-    _("Accept connections to this port from the internet."),
+    _("Open the port"),
+    _("Allows incoming connections to this port from the internet"),
   );
   o.default = "1";
   o.rmempty = false;
@@ -4101,8 +3964,7 @@ function addHysteria2Options(section) {
     form.Value,
     "hysteria2_up_mbps",
     _("Upload, Mbps"),
-    );
-  o.placeholder = "100";
+  );
   o.modalonly = true;
   o.rmempty = true;
   o.validate = validateOptionalPositiveInteger;
@@ -4113,7 +3975,6 @@ function addHysteria2Options(section) {
     "hysteria2_down_mbps",
     _("Download, Mbps"),
   );
-  o.placeholder = "200";
   o.modalonly = true;
   o.rmempty = true;
   o.validate = validateOptionalPositiveInteger;
@@ -4195,9 +4056,8 @@ function addProtocolOptions(section) {
     form.Value,
     "ssh_host_key_path",
     _("SSH host key path"),
-    _("Required. The button next to the field issues one."),
+    _("Required. Create a new key with the button."),
   );
-  o.placeholder = "/etc/forkop/server-ssh/host.key";
   o.modalonly = true;
   o.rmempty = false;
   o.validate = function (sectionId, value) {
@@ -4230,7 +4090,7 @@ function addMtprotoOptions(section) {
     form.Value,
     "mtproto_faketls",
     _("FakeTLS host"),
-    _("Required. The domain a client pretends to talk to."),
+    _("The domain a client sends in the TLS handshake."),
   );
   o.placeholder = "google.com";
   o.modalonly = true;
@@ -4289,7 +4149,7 @@ function addSecurityOptions(section) {
     form.Value,
     "tls_server_name",
     _("SNI"),
-    _("The domain a client sends in the TLS handshake. Reality needs one."),
+    _("The domain a client sends in the TLS handshake."),
   );
   o.placeholder = "example.com";
   o.modalonly = true;
@@ -4337,17 +4197,11 @@ function addSecurityOptions(section) {
     form.Value,
     "tls_certificate_path",
     _("Certificate path"),
-    _("Required. The button next to the field issues one."),
-  );
-  addCertificateButton(o);
-  describePerProtocol(
-    o,
-    _("Required. The button next to the field issues one."),
     _(
-      "Required. A certificate issued for this address: a NaiveProxy client refuses a self-signed one.",
+      "Required. A certificate issued for this address. The button next to it issues a self-signed one.",
     ),
   );
-  o.placeholder = "/etc/ssl/certs/server.crt";
+  addCertificateButton(o);
   o.modalonly = true;
   o.rmempty = false;
   o.validate = validateTlsCertificatePath;
@@ -4357,14 +4211,8 @@ function addSecurityOptions(section) {
     form.Value,
     "tls_key_path",
     _("Key path"),
-    _("Required. The button next to the certificate issues both."),
+    _("Required. The private key of the certificate."),
   );
-  describePerProtocol(
-    o,
-    _("Required. The button next to the certificate issues both."),
-    _("Required. The private key of that certificate."),
-  );
-  o.placeholder = "/etc/ssl/private/server.key";
   o.modalonly = true;
   o.rmempty = false;
   o.validate = validateTlsKeyPath;
@@ -4372,43 +4220,9 @@ function addSecurityOptions(section) {
 
   o = section.option(
     form.Value,
-    "reality_handshake_server",
-    _("Reality fake site"),
-    _("Required. The site whose handshake this listener borrows."),
-  );
-  o.placeholder = "example.com";
-  o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validateHost;
-  autofill(
-    o,
-    (sectionId) =>
-      option(sectionId, "reality_handshake_server") || camouflageSite(sectionId),
-  );
-  onReality(o);
-  addGenerateButton(
-    o,
-    (sectionId) => applyCamouflageSite(sectionId, camouflageSite(sectionId, true)),
-    _("Pick a site"),
-  );
-
-  o = section.option(
-    form.Value,
-    "reality_handshake_server_port",
-    _("Reality fake site port"),
-  );
-  o.placeholder = "443";
-  o.default = "443";
-  o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validatePort;
-  onReality(o);
-
-  o = section.option(
-    form.Value,
     "reality_private_key",
     _("Reality private key"),
-    _("Required. Generate a pair with the button next to the field."),
+    _("Required. Generate a pair with the button."),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -4427,7 +4241,7 @@ function addSecurityOptions(section) {
     form.Value,
     "reality_public_key",
     _("Reality public key"),
-    _("Required. Generate a pair with the button next to the field."),
+    _("Filled in together with the private key."),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -4439,13 +4253,11 @@ function addSecurityOptions(section) {
       realityKeypair(sectionId).then((pair) => (pair ? pair.public_key : "")),
   );
   onReality(o);
-  addRealityKeypairButton(o);
 
   o = section.option(
     form.Value,
     "reality_short_id",
     _("Reality short ID"),
-    _("Required. An even number of hex digits, up to 16."),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -4592,7 +4404,7 @@ function addClientListOption(section) {
     sectionui.ButtonAddSettingsDynamicList,
     "clients",
     _("Clients"),
-    _("Required"),
+    _("Required. The clients that may connect"),
   );
   o.modalonly = true;
   o.rmempty = false;

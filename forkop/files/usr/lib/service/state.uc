@@ -957,8 +957,6 @@ function append_sing_box_server_signature_body(body, server) {
         [ "tls_alpn", "" ],
         [ "tls_certificate_path", "" ],
         [ "tls_key_path", "" ],
-        [ "reality_handshake_server", "" ],
-        [ "reality_handshake_server_port", "" ],
         [ "reality_private_key", "" ],
         [ "reality_public_key", "" ],
         [ "reality_short_id", "" ],

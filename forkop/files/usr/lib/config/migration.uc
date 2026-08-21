@@ -2264,6 +2264,20 @@ function remove_expert_server_options(ctx) {
             delete_option(ctx, server, key);
 }
 
+// The released dialog asked for the handshake target next to the SNI and defaulted
+// both to the same site, so the second field only ever added a way to disagree with
+// the first. The SNI is the half already baked into every link a client holds, so it
+// keeps its value and the target is adopted only where no SNI was stored at all.
+function merge_reality_handshake_into_sni(ctx) {
+    for (let server in ctx.model.servers || []) {
+        let handshake = option(server, "reality_handshake_server", "");
+        if (handshake != "" && option(server, "tls_server_name", "") == "")
+            set_option(ctx, server, "tls_server_name", handshake);
+        delete_option(ctx, server, "reality_handshake_server");
+        delete_option(ctx, server, "reality_handshake_server_port");
+    }
+}
+
 // The released dialog defaulted the switch to on and always wrote it, so only a
 // server written straight through uci needs the default filled in.
 function migrate_tailscale_exit_node(ctx) {
@@ -2305,7 +2319,8 @@ const MIGRATIONS = [
     { id: "shadowsocks_server_keys", run: migrate_shadowsocks_server_keys },
     { id: "server_client_sections", run: migrate_server_clients },
     { id: "tailscale_exit_node_switch", run: migrate_tailscale_exit_node },
-    { id: "remove_expert_server_options", run: remove_expert_server_options }
+    { id: "remove_expert_server_options", run: remove_expert_server_options },
+    { id: "reality_handshake_sni", run: merge_reality_handshake_into_sni }
 ];
 
 function apply_migrations(ctx) {

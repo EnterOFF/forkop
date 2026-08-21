@@ -27,13 +27,12 @@ function load(server = {}, clients = {}) {
       'renderDetailsContent',
       'linkTitle',
       'showServerDetailsModal',
-      'serverFactRows',
       'listClients',
     ]),
   };
 }
 
-const CONTEXT = { certificatePinExpected: false, tlsCertificateSha256: '' };
+const CONTEXT = { tlsCertificateSha256: '' };
 
 // The dialog is built before it is shown, so anything that throws here is a button
 // that does nothing at all when it is pressed.
@@ -96,54 +95,6 @@ describe('server details', () => {
     const { details } = load({ protocol: 'vless' });
 
     expect(() => details.showServerDetailsModal('srv', [])).not.toThrow();
-  });
-
-  // The summary is what a client is pointed at. Anything a link already carries -
-  // the Reality identity, the certificate fingerprint - stays out of it.
-  it('states what the server is and nothing the link repeats', () => {
-    const { details } = load({
-      protocol: 'vless',
-      security: 'reality',
-      tls_server_name: 'www.apple.com',
-      reality_public_key: 'public-key',
-      reality_short_id: ['0a1b2c3d'],
-      transport: 'ws',
-      multiplex_enabled: '1',
-      routing_mode: 'direct',
-    });
-    const rows = Object.fromEntries(details.serverFactRows('srv'));
-
-    expect(rows.Protocol).toBe('VLESS');
-    expect(rows.Address).toBe('203.0.113.9:30000');
-    expect(rows.Security).toBe('Reality');
-    expect(rows.Transport).toBe('WebSocket');
-    expect(rows.Multiplex).toBe('Enabled');
-
-    // Everything a link already carries, and everything that is a setting of the
-    // server rather than of the connection, stays out of the summary.
-    for (const absent of [
-      'Reality public key',
-      'Reality short ID',
-      'Certificate SHA-256',
-      'Server name / SNI',
-      'Routing mode',
-    ]) {
-      expect(rows[absent], absent).toBeUndefined();
-    }
-  });
-
-  // A transport is part of what a client has to match, so it is stated even when it
-  // is the common case, and it is spelled the way the selector spells it.
-  it('states the transport of a protocol that has one', () => {
-    const stream = load({ protocol: 'vless' });
-    expect(
-      Object.fromEntries(stream.details.serverFactRows('srv')).Transport,
-    ).toBe('TCP');
-
-    const plain = load({ protocol: 'shadowsocks' });
-    expect(
-      Object.fromEntries(plain.details.serverFactRows('srv')).Transport,
-    ).toBeUndefined();
   });
 
   // A code and a link say what they belong to: the server, the account when there

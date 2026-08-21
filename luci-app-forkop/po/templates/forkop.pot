@@ -81,12 +81,6 @@ msgstr ""
 msgid "Override routing"
 msgstr ""
 
-msgid "Required"
-msgstr ""
-
-msgid "Required. The button next to the field issues one."
-msgstr ""
-
 msgid "Route this client on its own path instead of the rest of the server."
 msgstr ""
 
@@ -272,10 +266,6 @@ msgstr ""
 msgid "Additional parameters"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:2020
-msgid "Address"
-msgstr ""
-
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3634
 msgid "Address of the coordination server. Change it if you use a custom server."
 msgstr ""
@@ -347,10 +337,6 @@ msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8335
 msgid "Apply section rules only to the specified source IP addresses"
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:2316
-msgid "Apply the configuration once so the certificate is created, then reopen this dialog to get a complete link."
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6731
@@ -2583,10 +2569,6 @@ msgstr ""
 msgid "Pick a free port"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4228
-msgid "Pick a site"
-msgstr ""
-
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:1505
 msgid "Port %s is already used by %s"
 msgstr ""
@@ -2671,14 +2653,6 @@ msgstr ""
 msgid "Reach the coordination server through a section instead of the WAN."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4216
-msgid "Reality fake site"
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4234
-msgid "Reality fake site port"
-msgstr ""
-
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4162
 msgid "Reality needs an SNI"
 msgstr ""
@@ -2739,11 +2713,6 @@ msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8110
 msgid "Require a username and password for the local mixed proxy"
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4247
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4263
-msgid "Required. Generate a pair with the button next to the field."
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5220
@@ -3914,10 +3883,6 @@ msgstr ""
 msgid "Use an IP address, 0.0.0.0 for all IPv4, or :: for all addresses"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:1450
-msgid "Use an OpenSSH public key line, for example ssh-ed25519 AAAA..."
-msgstr ""
-
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8005
 msgid "Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, Tailscale, JSON outbounds, or JSON endpoints."
 msgstr ""
@@ -4215,9 +4180,6 @@ msgstr ""
 msgid "Required. Where the traffic of this client leaves."
 msgstr ""
 
-msgid "Required. Also the name of the inbound in the sing-box configuration."
-msgstr ""
-
 msgid "Required. A key from the Tailscale console."
 msgstr ""
 
@@ -4236,19 +4198,10 @@ msgstr ""
 msgid "Required. A complete sing-box inbound. Forkop fills in the tag."
 msgstr ""
 
-msgid "Required. The port this server answers on."
-msgstr ""
-
 msgid "Public address"
 msgstr ""
 
 msgid "Required. The address the connection links point at."
-msgstr ""
-
-msgid "Open the port in the firewall"
-msgstr ""
-
-msgid "Accept connections to this port from the internet."
 msgstr ""
 
 msgid "Server key"
@@ -4263,32 +4216,38 @@ msgstr ""
 msgid "Required. Every client has to send the same value."
 msgstr ""
 
-msgid "Required. The domain a client pretends to talk to."
-msgstr ""
-
 msgid "SNI"
-msgstr ""
-
-msgid "The domain a client sends in the TLS handshake. Reality needs one."
-msgstr ""
-
-msgid "Required. The button next to the certificate issues both."
-msgstr ""
-
-msgid "Required. The site whose handshake this listener borrows."
-msgstr ""
-
-msgid "Required. An even number of hex digits, up to 16."
 msgstr ""
 
 msgid "Required. Where the traffic of this server leaves."
 msgstr ""
 
-msgid "A NaiveProxy client does not accept a self-signed certificate. Point the certificate path at one issued for this address."
+msgid "Use an OpenSSH public key line"
 msgstr ""
 
-msgid "Required. A certificate issued for this address: a NaiveProxy client refuses a self-signed one."
+msgid "Open the port"
 msgstr ""
 
-msgid "Required. The private key of that certificate."
+msgid "Allows incoming connections to this port from the internet"
+msgstr ""
+
+msgid "Required. Create a new key with the button."
+msgstr ""
+
+msgid "The domain a client sends in the TLS handshake."
+msgstr ""
+
+msgid "Required. A certificate issued for this address. The button next to it issues a self-signed one."
+msgstr ""
+
+msgid "Required. The private key of the certificate."
+msgstr ""
+
+msgid "Required. Generate a pair with the button."
+msgstr ""
+
+msgid "Filled in together with the private key."
+msgstr ""
+
+msgid "Required. The clients that may connect"
 msgstr ""

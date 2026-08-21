@@ -169,11 +169,16 @@ function apply_tls(inbound, section, protocol) {
             option(section, "tls_key_path", "/etc/forkop/server-certs/" + safe_name + ".key"));
     }
     else if (security == "reality") {
+        // The SNI is what a client sends and the handshake target is where the
+        // listener goes to borrow a certificate for exactly that name, so the two
+        // are the same site: a target answering for another name hands a prober a
+        // certificate that does not match the name it asked for. One field names
+        // the site and the handshake goes to it on the port a site serves TLS on.
         let reality = {
             enabled: true,
             handshake: {
-                server: option(section, "reality_handshake_server", "www.microsoft.com"),
-                server_port: int_option(section, "reality_handshake_server_port", "443")
+                server: option(section, "tls_server_name", ""),
+                server_port: 443
             },
             private_key: option(section, "reality_private_key", "")
         };

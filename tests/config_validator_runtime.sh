@@ -682,7 +682,7 @@ cat >"$WORK_DIR/bad-server-reality-sni.json" <<'JSON'
 {
   "settings": { ".name": "settings", ".type": "settings" },
   "server": [
-    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "vless", "security": "reality", "listen_port": "18443", "public_host": "203.0.113.9", "reality_handshake_server": "www.apple.com", "reality_private_key": "QFHBoM6IJlBnPCUKLTBLKLKB1kNU9WPMBRnMOaHYQE0", "reality_public_key": "Zq5EJlBnPCUKLTBLKLKB1kNU9WPMBRnMOaHYQE0QFHA", "reality_short_id": "0a1b2c3d" }
+    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "vless", "security": "reality", "listen_port": "18443", "public_host": "203.0.113.9", "reality_private_key": "QFHBoM6IJlBnPCUKLTBLKLKB1kNU9WPMBRnMOaHYQE0", "reality_public_key": "Zq5EJlBnPCUKLTBLKLKB1kNU9WPMBRnMOaHYQE0QFHA", "reality_short_id": "0a1b2c3d" }
   ],
   "server_client": [
     { ".name": "srv_phone", ".type": "server_client", "server": "srv", "enabled": "1", "name": "phone", "uuid": "11111111-1111-4111-8111-111111111111" }
@@ -695,7 +695,7 @@ cat >"$WORK_DIR/bad-server-reality-keys.json" <<'JSON'
 {
   "settings": { ".name": "settings", ".type": "settings" },
   "server": [
-    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "vless", "security": "reality", "listen_port": "18443", "public_host": "203.0.113.9", "tls_server_name": "www.apple.com", "reality_handshake_server": "www.apple.com", "reality_short_id": "0a1b2c3d" }
+    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "vless", "security": "reality", "listen_port": "18443", "public_host": "203.0.113.9", "tls_server_name": "www.apple.com", "reality_short_id": "0a1b2c3d" }
   ],
   "server_client": [
     { ".name": "srv_phone", ".type": "server_client", "server": "srv", "enabled": "1", "name": "phone", "uuid": "11111111-1111-4111-8111-111111111111" }
@@ -708,7 +708,7 @@ cat >"$WORK_DIR/bad-server-reality-short-id.json" <<'JSON'
 {
   "settings": { ".name": "settings", ".type": "settings" },
   "server": [
-    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "vless", "security": "reality", "listen_port": "18443", "public_host": "203.0.113.9", "tls_server_name": "www.apple.com", "reality_handshake_server": "www.apple.com", "reality_private_key": "QFHBoM6IJlBnPCUKLTBLKLKB1kNU9WPMBRnMOaHYQE0", "reality_public_key": "Zq5EJlBnPCUKLTBLKLKB1kNU9WPMBRnMOaHYQE0QFHA", "reality_short_id": "abc" }
+    { ".name": "srv", ".type": "server", "enabled": "1", "protocol": "vless", "security": "reality", "listen_port": "18443", "public_host": "203.0.113.9", "tls_server_name": "www.apple.com", "reality_private_key": "QFHBoM6IJlBnPCUKLTBLKLKB1kNU9WPMBRnMOaHYQE0", "reality_public_key": "Zq5EJlBnPCUKLTBLKLKB1kNU9WPMBRnMOaHYQE0QFHA", "reality_short_id": "abc" }
   ],
   "server_client": [
     { ".name": "srv_phone", ".type": "server_client", "server": "srv", "enabled": "1", "name": "phone", "uuid": "11111111-1111-4111-8111-111111111111" }

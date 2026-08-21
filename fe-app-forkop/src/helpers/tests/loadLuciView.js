@@ -109,7 +109,11 @@ function defaultStubs(uci, widgets) {
       // mounted frame carries its own.
       findClassInstance: (node) => node?.instance || null,
     },
-    form: {},
+    // Enough of cbi/form to let a tab declare its options for real. Every widget
+    // class is its own marker so a test can see which one an option was given, and
+    // the option itself is a plain recorder: the tabs only ever set properties on it
+    // and call value() and depends().
+    form: FORM_CLASSES,
     rpc: { declare: () => () => Promise.resolve([]) },
     baseclass: { extend: (exports) => exports },
     main: {
@@ -152,6 +156,62 @@ function defaultStubs(uci, widgets) {
     },
     E: () => element(),
   };
+}
+
+// The cbi/form widget classes, by name. They carry no behaviour: a tab picks one
+// per option and the choice is what a test wants to see.
+const FORM_CLASSES = Object.fromEntries(
+  [
+    'DummyValue',
+    'DynamicList',
+    'Flag',
+    'GridSection',
+    'ListValue',
+    'MultiValue',
+    'TextValue',
+    'TypedSection',
+    'Value',
+  ].map((name) => [name, { widget: name }]),
+);
+
+// A section that records what a tab declares on it instead of rendering anything.
+// Returned options are plain objects, so a tab setting rmempty, a default or a
+// validate on one is simply read back off the record.
+export function createFormSectionStub() {
+  const options = [];
+
+  const section = {
+    options,
+    option(widget, name, title, description) {
+      const option = {
+        widget: widget && widget.widget ? widget.widget : 'unknown',
+        name,
+        title,
+        description,
+        choices: [],
+        dependencies: [],
+        value(key, label) {
+          this.choices.push([key, label]);
+          return this;
+        },
+        depends(first, second) {
+          this.dependencies.push(
+            typeof first === 'object' && first !== null
+              ? first
+              : { [first]: second },
+          );
+          return this;
+        },
+      };
+      options.push(option);
+      return option;
+    },
+    taboption(_tab, ...args) {
+      return section.option(...args);
+    },
+  };
+
+  return section;
 }
 
 // Adds the named internals to the object the module hands to baseclass.extend().

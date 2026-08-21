@@ -50,7 +50,6 @@ describe('VLESS links', () => {
         security: 'reality',
         reality_public_key: 'public-key',
         reality_short_id: ['abcd1234'],
-        reality_handshake_server: 'www.microsoft.com',
         tls_server_name: 'www.microsoft.com',
         client_fingerprint: 'chrome',
       },

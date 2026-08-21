@@ -931,10 +931,6 @@ example.com
 
 [server.srv1.tls_key_path]
 
-[server.srv1.reality_handshake_server]
-
-[server.srv1.reality_handshake_server_port]
-
 [server.srv1.reality_private_key]
 
 [server.srv1.reality_public_key]

@@ -227,7 +227,6 @@ for (const generated of [
   "shadowsocks_psk",
   "hysteria2_obfs_password",
   "reality_short_id",
-  "reality_handshake_server",
   "tls_server_name",
   "mtproto_faketls",
 ]) {
@@ -327,20 +326,28 @@ if (source.includes("cbi-modal ${")) {
   fail("modal classes must be separate arguments, not one joined string");
 }
 
-// What the server is, once, above the accounts: it is what a client is pointed at
-// and the first thing looked at when one cannot connect. Anything a link already
-// carries stays out of it.
-requireSource("function serverFactRows(sectionId) {");
-for (const fact of [
-  '_("Protocol")',
-  '_("Address")',
-  '_("Security")',
-  '_("Transport")',
-  '_("Routing mode")',
+// The dialog hands out what a client is given and nothing else. Everything the old
+// block restated - the protocol, the address, the security, the transport - is
+// already inside the link the same dialog shows, and the form above states the rest.
+for (const gone of [
+  "serverFactRows",
+  "renderFacts",
+  "fkp-details__facts",
 ]) {
-  if (!optionBlockFree(fact)) {
-    fail(`the server block must state ${fact}`);
+  if (source.includes(gone)) {
+    fail(`the details dialog must not carry ${gone}`);
   }
+}
+
+// Turning the switch on has to leave the account where the server already is, on
+// the shared rules. A different starting mode makes the switch silently reroute the
+// account the moment it is enabled.
+const clientRoutingMode = source.slice(
+  source.indexOf("  const mode = itemSection.option("),
+  source.indexOf("  const target = itemSection.option("),
+);
+if (!clientRoutingMode.includes('mode.default = "rules";')) {
+  fail("an account must start on the rules its server follows");
 }
 
 // An account shows its name and its link, and nothing else: the link already holds
@@ -359,23 +366,6 @@ for (const removed of [
 // A code says what it belongs to, and the link it carries is written out under it.
 requireSource("function linkTitle(sectionId, client, scheme) {");
 requireSource("fkp-qr__link");
-
-// The summary is the same dl/dt/dd those dialogs build. Half of how their labels
-// read comes from the theme through the tag - dl dt is bold - so a grid of spans
-// carrying the same class rules could never match them.
-requireSource("grid-template-columns:max-content minmax(0,1fr);gap:8px 16px");
-requireSource("--text-color-medium,#666");
-requireSource('E("dt", {}, label)');
-requireSource('E("dd", {}, E("span", {}, value))');
-requireSource(".fkp-details__param{display:contents}");
-for (const removed of [
-  "fkp-details__fact-label",
-  "fkp-details__fact-value",
-]) {
-  if (source.includes(removed)) {
-    fail(`the summary must be a definition list, not ${removed}`);
-  }
-}
 
 // The theme pushes a lone button to the left, and both dialogs close on the right.
 requireSource(".fkp-details-actions{justify-content:flex-end");
@@ -492,7 +482,6 @@ for (const name of [
   "shadowsocks_psk",
   "hysteria2_obfs_password",
   "tls_server_name",
-  "reality_handshake_server",
   "reality_private_key",
   "reality_public_key",
   "reality_short_id",

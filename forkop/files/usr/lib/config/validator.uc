@@ -1716,10 +1716,10 @@ function validate_server_security(server, protocol, name) {
         fail_validation("Server '" + name + "' needs a FakeTLS host: MTProto has no secret without one. Aborted.");
 
     if (security == "reality") {
+        // One name for both: the generator borrows the handshake from the site the
+        // SNI names, so this is also the check on the handshake target.
         if (option(server, "tls_server_name", "") == "")
             fail_validation("Server '" + name + "' uses Reality and needs an SNI. Aborted.");
-        if (option(server, "reality_handshake_server", "") == "")
-            fail_validation("Server '" + name + "' uses Reality and needs a camouflage site. Aborted.");
         for (let field in [ "reality_private_key", "reality_public_key" ]) {
             let key = option(server, field, "");
             if (key == "")

@@ -80,50 +80,23 @@ grep -Fq '{ id: "urltest_expected_status", run: migrate_urltest_expected_status 
   fail "URLTest expected status migration must have a stable named marker"
 grep -Fq '{ id: "group_interrupt_defaults", run: migrate_group_interrupt_defaults }' "$MIGRATION" ||
   fail "group interrupt default migration must have a stable named marker"
-grep -Fq "list applied_migrations 'native_rule_sets'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
-  fail "new-install config must mark the native rule-set migration as already applied"
 grep -Fq "option dns_main_fallback_strategy 'parallel'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
   fail "new-install config must default Main DNS fallback to parallel"
 grep -Fq "option dns_bootstrap_fallback_strategy 'parallel'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
   fail "new-install config must default Bootstrap DNS fallback to parallel"
-grep -Fq "list applied_migrations 'dns_fallback_modes'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
-  fail "new-install config must mark the DNS fallback mode migration as already applied"
-grep -Fq "list applied_migrations 'universal_rule_sets'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
-  fail "new-install config must mark the universal rule-set migration as already applied"
-grep -Fq "list applied_migrations 'leaf_subscription_providers'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
-  fail "new-install config must mark the leaf subscription migration as already applied"
-grep -Fq "list applied_migrations 'fallback_uci_tags'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
-  fail "new-install config must mark the Fallback UCI tag migration as already applied"
-grep -Fq "list applied_migrations 'reset_fallback_defaults'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
-  fail "new-install config must mark the Fallback default reset as already applied"
-grep -Fq "list applied_migrations 'remove_proxy_parameter_filters'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
-  fail "new-install config must mark the proxy parameter filter removal as already applied"
-grep -Fq "list applied_migrations 'server_filter_model'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
-  fail "new-install config must mark the server filter migration as already applied"
-grep -Fq "list applied_migrations 'server_filter_modes'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
-  fail "new-install config must mark the server filter mode migration as already applied"
-grep -Fq "list applied_migrations 'single_subscription_user_agent'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
-  fail "new-install config must mark the single subscription User-Agent migration as already applied"
-grep -Fq "list applied_migrations 'subscription_headers'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
-  fail "new-install config must mark the subscription header migration as already applied"
-grep -Fq "list applied_migrations 'tailscale_exit_node_switch'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
-  fail "new-install config must mark the subscription User-Agent header migration as already applied"
-grep -Fq "list applied_migrations 'interface_display_names'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
-  fail "new-install config must mark the interface display name migration as already applied"
-grep -Fq "list applied_migrations 'remove_section_cache'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
-  fail "new-install config must mark the section-cache removal as already applied"
-grep -Fq "list applied_migrations 'remove_dashboard_sort_options'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
-  fail "new-install config must mark the dashboard sort option removal as already applied"
-grep -Fq "list applied_migrations 'dns_server_uris'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
-  fail "new-install config must mark the DNS server URI migration as already applied"
-grep -Fq "list applied_migrations 'interface_domain_resolver_uris'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
-  fail "new-install config must mark the interface domain resolver URI migration as already applied"
-grep -Fq "list applied_migrations 'readable_runtime_tags'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
-  fail "new-install config must mark the readable runtime tag migration as already applied"
-grep -Fq "list applied_migrations 'urltest_expected_status'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
-  fail "shipped config must record the urltest expected status migration"
-grep -Fq "list applied_migrations 'group_interrupt_defaults'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
-  fail "new-install config must mark the group interrupt default migration as already applied"
+# Every migration in the registry is already accounted for on a new install: a fresh
+# config has nothing to migrate, so an id missing from this list makes the very first
+# start rewrite a config that was written by this exact version.
+migration_ids=$(sed -n 's/^    { id: "\([a-z_0-9]*\)".*/\1/p' "$MIGRATION")
+[ -n "$migration_ids" ] || fail "no migration ids were read from the registry"
+unmarked=
+for id in $migration_ids; do
+  grep -Fq "list applied_migrations '$id'" "$ROOT_DIR/forkop/files/etc/config/forkop" ||
+    unmarked="$unmarked $id"
+done
+[ -z "$unmarked" ] ||
+  fail "new-install config does not mark:$unmarked"
+
 grep -Fq 'release_at_most(ctx, "1.0.1")' "$MIGRATION" ||
   fail "release-specific migrations must use the source release only as a condition"
 grep -Fq 'release_at_most(ctx, "1.0.4")' "$MIGRATION" ||
@@ -319,7 +292,7 @@ assert(JSON.stringify(config.settings.bootstrap_dns_server) === JSON.stringify([
 assert(config.settings.unified_delay === '0', 'Unified Delay default missing');
 assert(config.settings.config_version === '1.0.5', 'legacy config should be marked at the current schema version');
 assert(config.settings.component_update_check_enabled === '1', 'component update checks should be enabled during migration');
-assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'tailscale_exit_node_switch', 'remove_expert_server_options']), 'legacy config should record named migrations');
+assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'tailscale_exit_node_switch', 'remove_expert_server_options', 'reality_handshake_sni']), 'legacy config should record named migrations');
 
 function assert(condition, message) {
   if (!condition) {
@@ -670,7 +643,7 @@ function assert(condition, message) {
 assert(out.changed === true, '1.0.1 config should require migration');
 assert(out.config.settings.config_version === '1.0.5', 'config schema version should advance to 1.0.5');
 assert(out.config.settings.component_update_check_enabled === '1', 'updates from 1.0.1 and below should enable component update checks');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'tailscale_exit_node_switch', 'remove_expert_server_options']), 'named migrations should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'tailscale_exit_node_switch', 'remove_expert_server_options', 'reality_handshake_sni']), 'named migrations should be recorded');
 assert(!Object.prototype.hasOwnProperty.call(section, 'interfaces'), 'parent interface list should be removed');
 assert(JSON.stringify(interfaces.map(item => item.name)) === JSON.stringify(['awg0', 'tun0']), 'interfaces should keep their order');
 for (const item of interfaces) {
@@ -871,7 +844,7 @@ function assert(condition, message) {
 
 assert(out.config.settings.component_update_check_enabled === '0', '1.0.2 config must preserve an explicitly disabled component check');
 assert(out.config.settings.config_version === '1.0.5', '1.0.2 config should advance through the HTTP URL migration schema');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'tailscale_exit_node_switch', 'remove_expert_server_options']), 'newer configs should mark skipped migrations');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'tailscale_exit_node_switch', 'remove_expert_server_options', 'reality_handshake_sni']), 'newer configs should mark skipped migrations');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.4-http.json" <<'JSON'
@@ -924,7 +897,7 @@ assert(JSON.stringify(section.selector_proxy_links) === JSON.stringify([
 ]), 'connection URLs must stay owned by sing-box parser outbounds');
 assert(jsonOutbounds.length === 1 && jsonOutbounds[0].type === 'direct' && jsonOutbounds[0].tag === 'http',
   'the retired HTTP conversion must leave existing JSON outbounds unchanged');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'tailscale_exit_node_switch', 'remove_expert_server_options']), 'HTTP URL migration should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'tailscale_exit_node_switch', 'remove_expert_server_options', 'reality_handshake_sni']), 'HTTP URL migration should be recorded');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.5-http.json" <<'JSON'
@@ -1169,7 +1142,7 @@ assert(JSON.stringify(config.fallback_level.map(item => item.name)) === JSON.str
 assert(out.removed_caches.includes('/var/run/forkop/section-cache') &&
   out.removed_caches.includes('/var/run/forkop/runtime-manifest.json'),
   'readable tag migration must remove both legacy runtime graph files');
-assert(config.settings.applied_migrations.at(-1) === 'remove_expert_server_options',
+assert(config.settings.applied_migrations.at(-1) === 'reality_handshake_sni',
   'readable runtime tag migration must be recorded');
 NODE
 
@@ -1282,7 +1255,7 @@ if (!out.changed || config.section[0].sort_by_latency !== undefined ||
 }
 if (config.urltest[0].name !== 'Fast' || config.fallback_group[0].name !== 'Fallback' ||
     !config.settings.applied_migrations.includes('remove_dashboard_sort_options') ||
-    config.settings.applied_migrations.at(-1) !== 'remove_expert_server_options') {
+    config.settings.applied_migrations.at(-1) !== 'reality_handshake_sni') {
   console.error('dashboard sort migration changed unrelated settings or missed its marker');
   process.exit(1);
 }
@@ -1376,7 +1349,7 @@ assert(sections.doh.dns_type === undefined &&
   'DNS action should preserve the old DoH path as a list');
 assert(JSON.stringify(sections.udp.dns_server) === JSON.stringify(['8.8.8.8']),
   'DNS action should migrate explicit UDP without a redundant scheme');
-assert(config.settings.applied_migrations.at(-1) === 'remove_expert_server_options',
+assert(config.settings.applied_migrations.at(-1) === 'reality_handshake_sni',
   'DNS URI migration marker should be recorded');
 
 fs.writeFileSync(process.argv[3], JSON.stringify(config));
@@ -1541,7 +1514,7 @@ grep -Fxq 'forkop.settings.config_version=1.0.5' "$WORK_DIR/runtime-version.stat
   fail "runtime version migration must advance config_version"
 grep -Fxq 'forkop.settings.component_update_check_enabled=1' "$WORK_DIR/runtime-version.state" ||
   fail "runtime version migration must enable component update checks"
-grep -Fq 'forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter native_fallbacks dns_fallback_modes native_rule_sets universal_rule_sets leaf_subscription_providers extended_server_defaults fallback_uci_tags reset_fallback_defaults remove_proxy_parameter_filters server_filter_model server_filter_modes single_subscription_user_agent subscription_headers interface_display_names remove_section_cache remove_dashboard_sort_options dns_server_uris interface_domain_resolver_uris readable_runtime_tags urltest_expected_status group_interrupt_defaults subscription_user_agent_header mixed_server_inbounds shadowsocks_server_keys server_client_sections tailscale_exit_node_switch remove_expert_server_options' "$WORK_DIR/runtime-version.state" ||
+grep -Fq 'forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter native_fallbacks dns_fallback_modes native_rule_sets universal_rule_sets leaf_subscription_providers extended_server_defaults fallback_uci_tags reset_fallback_defaults remove_proxy_parameter_filters server_filter_model server_filter_modes single_subscription_user_agent subscription_headers interface_display_names remove_section_cache remove_dashboard_sort_options dns_server_uris interface_domain_resolver_uris readable_runtime_tags urltest_expected_status group_interrupt_defaults subscription_user_agent_header mixed_server_inbounds shadowsocks_server_keys server_client_sections tailscale_exit_node_switch remove_expert_server_options reality_handshake_sni' "$WORK_DIR/runtime-version.state" ||
   fail "runtime migration must record stable migration names"
 grep -Fxq 'forkop.main.selector_proxy_links=http://proxy.example:8080' "$WORK_DIR/runtime-version.state" ||
   fail "runtime migration must preserve connection URLs for sing-box parser outbounds"
@@ -1829,6 +1802,21 @@ cat >"$WORK_DIR/forkop-1.0.5-servers.json" <<'JSON'
       "mtproto_domain_fronting_proxy_protocol": "0"
     },
     {
+      ".name": "released_reality", ".type": "server", "protocol": "vless",
+      "label": "Reality", "enabled": "1", "listen_port": "31448",
+      "security": "reality", "tls_server_name": "www.microsoft.com",
+      "reality_handshake_server": "www.apple.com",
+      "reality_handshake_server_port": "8443",
+      "server_uuid": "66666666-6666-4666-8666-666666666666"
+    },
+    {
+      ".name": "manual_reality_dest", ".type": "server", "protocol": "vless",
+      "label": "Reality by hand", "enabled": "1", "listen_port": "31449",
+      "security": "reality",
+      "reality_handshake_server": "www.apple.com",
+      "server_uuid": "77777777-7777-4777-8777-777777777777"
+    },
+    {
       ".name": "released_tailscale", ".type": "server", "protocol": "tailscale",
       "label": "Tailscale", "enabled": "1",
       "tailscale_auth_key": "tskey-auth-released",
@@ -1917,6 +1905,18 @@ for (const name of Object.keys(servers)) {
     'mtproto_domain_fronting_port', 'mtproto_domain_fronting_ip',
     'mtproto_domain_fronting_proxy_protocol', 'reality_max_time_difference',
   ]) absent(servers[name], key);
+}
+
+// The released dialog wrote a handshake target next to the SNI. The SNI is the half
+// clients already hold, so it survives and the target is dropped; a server that only
+// ever had a target hands its value over to the SNI instead of losing it.
+assert(servers.released_reality.tls_server_name === 'www.microsoft.com',
+  'a released Reality server must keep the SNI its clients were issued');
+assert(servers.manual_reality_dest.tls_server_name === 'www.apple.com',
+  'a Reality server with no SNI must adopt the handshake target as its SNI');
+for (const name of ['released_reality', 'manual_reality_dest']) {
+  absent(servers[name], 'reality_handshake_server');
+  absent(servers[name], 'reality_handshake_server_port');
 }
 
 assert(JSON.stringify(rerun.config.server) === JSON.stringify(out.config.server) &&

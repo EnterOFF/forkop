@@ -58,22 +58,12 @@ if (
 ) {
   fail("the client dialog must hide the password while authentication is disabled");
 }
-// The certificate Forkop issues is self-signed, and a NaiveProxy client verifies it
-// the way a browser does with no way of being told otherwise. Issuing one there
-// would only build a server nobody can reach, so the button is not offered and the
-// two path fields say what to put in them instead.
-const certificateBlock = source.slice(
-  requiredIndex("function needsIssuedCertificate"),
-  requiredIndex("function addSshHostKeyButton"),
-);
-if (!certificateBlock.includes('getProtocol(sectionId) !== "naive"')) {
-  fail("the certificate button must be withheld from NaiveProxy");
-}
-if (!certificateBlock.includes("(sectionId) => !needsIssuedCertificate(sectionId)")) {
-  fail("addCertificateButton must pass the withheld-button predicate");
-}
-if ((source.match(/describePerProtocol\(/g) || []).length !== 3) {
-  fail("both certificate path fields must describe themselves per protocol");
+// One certificate story for every protocol: the button is always offered and both
+// path fields read the same whatever the listener speaks.
+for (const gone of ["needsIssuedCertificate", "describePerProtocol"]) {
+  if (source.includes(gone)) {
+    fail(`the per-protocol certificate branch must be gone: ${gone}`);
+  }
 }
 
 // XTLS Vision needs the raw TLS stream the listener owns, so the flow disappears

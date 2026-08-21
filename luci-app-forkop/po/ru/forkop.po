@@ -71,12 +71,6 @@ msgstr "Ключ хоста создан"
 msgid "Override routing"
 msgstr "Переопределить маршрутизацию"
 
-msgid "Required"
-msgstr "Обязательно"
-
-msgid "Required. The button next to the field issues one."
-msgstr "Обязательно. Кнопка рядом с полем создаст его."
-
 msgid "Route this client on its own path instead of the rest of the server."
 msgstr "Использовать для этого клиента отдельный путь маршрутизации вместо серверного."
 
@@ -200,9 +194,6 @@ msgstr "Дополнительное заполнение пакета"
 msgid "Additional parameters"
 msgstr "Дополнительные параметры"
 
-msgid "Address"
-msgstr "Адрес"
-
 msgid "Address of the coordination server. Change it if you use a custom server."
 msgstr "Адрес сервера координации. Меняйте, если используете свой."
 
@@ -250,9 +241,6 @@ msgstr "Любой"
 
 msgid "Apply section rules only to the specified source IP addresses"
 msgstr "Применять правила секции только к указанным исходящим IP-адресам"
-
-msgid "Apply the configuration once so the certificate is created, then reopen this dialog to get a complete link."
-msgstr "Примените конфигурацию, чтобы создался сертификат, затем откройте окно снова — ссылка будет полной."
 
 msgid "At least one valid domain must be specified."
 msgstr "Нужно указать хотя бы один корректный домен."
@@ -1595,9 +1583,6 @@ msgstr "Выбрать домен"
 msgid "Pick a free port"
 msgstr "Выбрать свободный порт"
 
-msgid "Pick a site"
-msgstr "Выбрать сайт"
-
 msgid "Port %s is already used by %s"
 msgstr "Порт %s уже занят: %s"
 
@@ -1655,12 +1640,6 @@ msgstr "Опрашивать серверы по очереди до перво�
 msgid "Reach the coordination server through a section instead of the WAN."
 msgstr "Подключаться к серверу координации через секцию, а не напрямую."
 
-msgid "Reality fake site"
-msgstr "Fake-сайт Reality"
-
-msgid "Reality fake site port"
-msgstr "Порт fake-сайта Reality"
-
 msgid "Reality needs an SNI"
 msgstr "Для Reality нужен SNI"
 
@@ -1705,9 +1684,6 @@ msgstr "Заменяет домен, который серверы этой по
 
 msgid "Require a username and password for the local mixed proxy"
 msgstr "Требовать логин и пароль для локального смешанного прокси"
-
-msgid "Required. Generate a pair with the button next to the field."
-msgstr "Обязательно. Сгенерируйте пару кнопкой рядом с полем."
 
 msgid "Required. List of remote nodes to connect."
 msgstr "Обязательно. Список удаленных узлов для подключения."
@@ -2435,9 +2411,6 @@ msgstr "Укажите IP-адрес с префиксом CIDR"
 msgid "Use an IP address, 0.0.0.0 for all IPv4, or :: for all addresses"
 msgstr "Укажите IP-адрес, 0.0.0.0 для всех IPv4 или :: для всех адресов"
 
-msgid "Use an OpenSSH public key line, for example ssh-ed25519 AAAA..."
-msgstr "Укажите строку публичного ключа OpenSSH, например ssh-ed25519 AAAA..."
-
 msgid "Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, Tailscale, JSON outbounds, or JSON endpoints."
 msgstr "Используйте другую секцию как промежуточный узел для подключения к серверам этой секции. Не применяется к сетевым интерфейсам, Tailscale, JSON outbound и JSON endpoint."
 
@@ -2606,9 +2579,6 @@ msgstr "sing-box outbound для Zapret2 не настроен"
 msgid "Required. Where the traffic of this client leaves."
 msgstr "Обязательно. Куда уходит трафик этого клиента."
 
-msgid "Required. Also the name of the inbound in the sing-box configuration."
-msgstr "Обязательно. Это же имя получает inbound в конфигурации sing-box."
-
 msgid "Required. A key from the Tailscale console."
 msgstr "Обязательно. Ключ из консоли Tailscale."
 
@@ -2627,20 +2597,11 @@ msgstr "Обязательно. Секция, через которую идёт
 msgid "Required. A complete sing-box inbound. Forkop fills in the tag."
 msgstr "Обязательно. Целиком inbound sing-box. Тег подставит Forkop."
 
-msgid "Required. The port this server answers on."
-msgstr "Обязательно. Порт, на котором отвечает этот сервер."
-
 msgid "Public address"
 msgstr "Публичный адрес"
 
 msgid "Required. The address the connection links point at."
 msgstr "Обязательно. Адрес, на который указывают ссылки подключения."
-
-msgid "Open the port in the firewall"
-msgstr "Открыть порт в файрволе"
-
-msgid "Accept connections to this port from the internet."
-msgstr "Принимать подключения на этот порт из интернета."
 
 msgid "Server key"
 msgstr "Ключ сервера"
@@ -2654,32 +2615,38 @@ msgstr "Если выключено, прокси доступен всем, к�
 msgid "Required. Every client has to send the same value."
 msgstr "Обязательно. Все клиенты должны передавать то же значение."
 
-msgid "Required. The domain a client pretends to talk to."
-msgstr "Обязательно. Домен, с которым клиент якобы говорит."
-
 msgid "SNI"
 msgstr "SNI"
-
-msgid "The domain a client sends in the TLS handshake. Reality needs one."
-msgstr "Домен, который клиент передаёт в TLS-рукопожатии. Для Reality обязателен."
-
-msgid "Required. The button next to the certificate issues both."
-msgstr "Обязательно. Кнопка рядом с сертификатом выдаёт оба файла."
-
-msgid "Required. The site whose handshake this listener borrows."
-msgstr "Обязательно. Сайт, чьё рукопожатие занимает этот сервер."
-
-msgid "Required. An even number of hex digits, up to 16."
-msgstr "Обязательно. Чётное число hex-символов, не больше 16."
 
 msgid "Required. Where the traffic of this server leaves."
 msgstr "Обязательно. Куда уходит трафик этого сервера."
 
-msgid "A NaiveProxy client does not accept a self-signed certificate. Point the certificate path at one issued for this address."
-msgstr "Клиент NaiveProxy не примет самоподписанный сертификат. Укажите в пути сертификат, выданный на этот адрес."
+msgid "Use an OpenSSH public key line"
+msgstr "Укажите строку публичного ключа OpenSSH"
 
-msgid "Required. A certificate issued for this address: a NaiveProxy client refuses a self-signed one."
-msgstr "Обязательно. Сертификат, выданный на этот адрес: клиент NaiveProxy не примет самоподписанный."
+msgid "Open the port"
+msgstr "Открыть порт"
 
-msgid "Required. The private key of that certificate."
-msgstr "Обязательно. Приватный ключ этого сертификата."
+msgid "Allows incoming connections to this port from the internet"
+msgstr "Разрешает входящие подключения на этот порт из интернета"
+
+msgid "Required. Create a new key with the button."
+msgstr "Обязательно. Создайте новый ключ кнопкой."
+
+msgid "The domain a client sends in the TLS handshake."
+msgstr "Домен, который клиент передаёт в TLS-рукопожатии."
+
+msgid "Required. A certificate issued for this address. The button next to it issues a self-signed one."
+msgstr "Обязательно. Сертификат, выданный на этот адрес. Кнопка рядом выпустит самоподписанный."
+
+msgid "Required. The private key of the certificate."
+msgstr "Обязательно. Приватный ключ сертификата."
+
+msgid "Required. Generate a pair with the button."
+msgstr "Обязательно. Сгенерируйте пару кнопкой."
+
+msgid "Filled in together with the private key."
+msgstr "Заполняется автоматически вместе с приватным ключом."
+
+msgid "Required. The clients that may connect"
+msgstr "Обязательно. Клиенты для подключения"
