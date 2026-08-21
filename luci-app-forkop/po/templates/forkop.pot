@@ -81,9 +81,6 @@ msgstr ""
 msgid "Override routing"
 msgstr ""
 
-msgid "QR code: %s"
-msgstr ""
-
 msgid "Required"
 msgstr ""
 
@@ -94,9 +91,6 @@ msgid "Route this client on its own path instead of the rest of the server."
 msgstr ""
 
 msgid "Show a QR code"
-msgstr ""
-
-msgid "The address used to build the connection links"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1480
@@ -115,10 +109,6 @@ msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3917
 msgid "0-RTT handshake"
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3691
-msgid "A complete sing-box inbound. Forkop fills in the tag."
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:1412
@@ -375,10 +365,6 @@ msgstr ""
 msgid "Auth Key from the Tailscale admin console"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3895
-msgid "Auth timeout"
-msgstr ""
-
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3789
 msgid "Authentication"
 msgstr ""
@@ -388,10 +374,6 @@ msgstr ""
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8640
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:12831
 msgid "Auto refresh"
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4063
-msgid "Auto update"
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:641
@@ -743,10 +725,6 @@ msgstr ""
 #: fe-app-forkop/src/forkop/helpers/singBoxVersion.ts:34
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9267
 msgid "compressed"
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4039
-msgid "Concurrency"
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7375
@@ -1458,10 +1436,6 @@ msgstr ""
 msgid "Fallback details are unavailable"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4073
-msgid "Fallback on unknown DC"
-msgstr ""
-
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4039
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4044
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4045
@@ -1604,18 +1578,6 @@ msgstr ""
 msgid "Forkop-managed nfqws2 runtime is ready"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4018
-msgid "Fronting IP"
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4006
-msgid "Fronting port"
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4029
-msgid "Fronting proxy protocol"
-msgstr ""
-
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:752
 msgid "Fuzzing is not supported here because Forkop needs deterministic runtime validation."
 msgstr ""
@@ -1649,10 +1611,6 @@ msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4379
 msgid "gRPC service"
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4105
-msgid "Handshake timeout"
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2624
@@ -2671,10 +2629,6 @@ msgstr ""
 msgid "Prefer IPv6"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4050
-msgid "Preferred IP"
-msgstr ""
-
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:368
 msgid "Preferred IP address type for domains"
 msgstr ""
@@ -2697,12 +2651,6 @@ msgstr ""
 msgid "Proxy link is unavailable"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts:40
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7647
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3734
-msgid "Public host"
-msgstr ""
-
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4820
 msgid "Public key"
 msgstr ""
@@ -2718,10 +2666,6 @@ msgstr ""
 msgid "Query servers one at a time until the first successful response, or query all servers simultaneously for maximum speed."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3942
-msgid "QUIC congestion control"
-msgstr ""
-
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5079
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3648
 msgid "Reach the coordination server through a section instead of the WAN."
@@ -2733,10 +2677,6 @@ msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4234
 msgid "Reality fake site port"
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4302
-msgid "Reality max time difference"
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4162
@@ -2799,10 +2739,6 @@ msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8110
 msgid "Require a username and password for the local mixed proxy"
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3979
-msgid "Require Mieru user hint"
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4247
@@ -3140,10 +3076,6 @@ msgstr ""
 msgid "Server name"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4154
-msgid "Server name / SNI"
-msgstr ""
-
 #: fe-app-forkop/src/validators/validateOutboundJson.ts:103
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:349
 msgid "Server outbound must contain a non-empty server field"
@@ -3156,10 +3088,6 @@ msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4816
 msgid "Server port"
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3765
-msgid "Server pre-shared key"
 msgstr ""
 
 #: fe-app-forkop/src/validators/validateOutboundJson.ts:116
@@ -3620,16 +3548,8 @@ msgstr ""
 msgid "This protocol does not support the selected security mode"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:2255
-msgid "This protocol has no link format. Use the details below."
-msgstr ""
-
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7415
 msgid "This section name is reserved by Forkop"
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:2330
-msgid "This server accepts everybody, so it has no client links."
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:843
@@ -3646,10 +3566,6 @@ msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:347
 msgid "Time in seconds for DNS record caching (default: 60)"
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4083
-msgid "Time skew tolerance"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:733
@@ -3960,10 +3876,6 @@ msgstr ""
 msgid "Use a duration like 30s, 5m, or 1h30m"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:1273
-msgid "Use a non-negative integer"
-msgstr ""
-
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:1390
 msgid "Use a non-zero secret"
 msgstr ""
@@ -3991,10 +3903,6 @@ msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:1214
 msgid "Use an https:// URL to proxy a site or file:// to serve a directory"
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:1130
-msgid "Use an IP address"
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4547
@@ -4304,8 +4212,74 @@ msgstr ""
 msgid "Zapret2 sing-box outbound is not configured"
 msgstr ""
 
+msgid "Required. Where the traffic of this client leaves."
+msgstr ""
+
+msgid "Required. Also the name of the inbound in the sing-box configuration."
+msgstr ""
+
+msgid "Required. A key from the Tailscale console."
+msgstr ""
+
+msgid "Required. The name this device appears under in the Tailscale console."
+msgstr ""
+
+msgid "Advertise exit node"
+msgstr ""
+
+msgid "Offer this router as an exit node. It still has to be approved in the Tailscale console."
+msgstr ""
+
+msgid "Required. The section that carries the control-plane traffic."
+msgstr ""
+
+msgid "Required. A complete sing-box inbound. Forkop fills in the tag."
+msgstr ""
+
+msgid "Required. The port this server answers on."
+msgstr ""
+
+msgid "Public address"
+msgstr ""
+
+msgid "Required. The address the connection links point at."
+msgstr ""
+
 msgid "Open the port in the firewall"
 msgstr ""
 
 msgid "Accept connections to this port from the internet."
+msgstr ""
+
+msgid "Server key"
+msgstr ""
+
+msgid "Required. The key of the listener; every client key is added to it."
+msgstr ""
+
+msgid "Off means anyone who reaches the port may use the proxy."
+msgstr ""
+
+msgid "Required. Every client has to send the same value."
+msgstr ""
+
+msgid "Required. The domain a client pretends to talk to."
+msgstr ""
+
+msgid "SNI"
+msgstr ""
+
+msgid "The domain a client sends in the TLS handshake. Reality needs one."
+msgstr ""
+
+msgid "Required. The button next to the certificate issues both."
+msgstr ""
+
+msgid "Required. The site whose handshake this listener borrows."
+msgstr ""
+
+msgid "Required. An even number of hex digits, up to 16."
+msgstr ""
+
+msgid "Required. Where the traffic of this server leaves."
 msgstr ""

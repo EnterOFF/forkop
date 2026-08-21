@@ -71,9 +71,6 @@ msgstr "Ключ хоста создан"
 msgid "Override routing"
 msgstr "Переопределить маршрутизацию"
 
-msgid "QR code: %s"
-msgstr "QR-код: %s"
-
 msgid "Required"
 msgstr "Обязательно"
 
@@ -86,9 +83,6 @@ msgstr "Использовать для этого клиента отдельн
 msgid "Show a QR code"
 msgstr "Показать QR-код"
 
-msgid "The address used to build the connection links"
-msgstr "Адрес для генерации ссылок подключения"
-
 msgid "✔ Running"
 msgstr "✔ Работает"
 
@@ -97,9 +91,6 @@ msgstr "✘ Остановлен"
 
 msgid "0-RTT handshake"
 msgstr "Рукопожатие 0-RTT"
-
-msgid "A complete sing-box inbound. Forkop fills in the tag."
-msgstr "Полный объект inbound для sing-box. Тег Forkop подставит сам."
 
 msgid "A host name holds at most 63 characters"
 msgstr "Имя хоста не длиннее 63 символов"
@@ -272,16 +263,10 @@ msgstr "Нужно указать хотя бы один корректный IP
 msgid "Auth Key from the Tailscale admin console"
 msgstr "Auth Key из панели управления Tailscale"
 
-msgid "Auth timeout"
-msgstr "Таймаут авторизации"
-
 msgid "Authentication"
 msgstr "Аутентификация"
 
 msgid "Auto refresh"
-msgstr "Автообновление"
-
-msgid "Auto update"
 msgstr "Автообновление"
 
 msgid "Automatic component update checks"
@@ -469,9 +454,6 @@ msgstr "Компоненты"
 
 msgid "compressed"
 msgstr "compressed"
-
-msgid "Concurrency"
-msgstr "Параллелизм"
 
 msgid "Conditions"
 msgstr "Условия"
@@ -917,9 +899,6 @@ msgstr "Детали Fallback"
 msgid "Fallback details are unavailable"
 msgstr "Детали Fallback недоступны"
 
-msgid "Fallback on unknown DC"
-msgstr "Fallback для неизвестного DC"
-
 msgid "Fallback settings"
 msgstr "Настройки Fallback"
 
@@ -1010,15 +989,6 @@ msgstr "NFQWS2 Forkop не запущен"
 msgid "Forkop-managed nfqws2 runtime is ready"
 msgstr "NFQWS2 Forkop готов"
 
-msgid "Fronting IP"
-msgstr "IP фронтинга"
-
-msgid "Fronting port"
-msgstr "Порт фронтинга"
-
-msgid "Fronting proxy protocol"
-msgstr "Proxy protocol для фронтинга"
-
 msgid "Fuzzing is not supported here because Forkop needs deterministic runtime validation."
 msgstr "Fuzzing здесь не поддерживается, потому что Forkop нужна предсказуемая runtime-валидация."
 
@@ -1042,9 +1012,6 @@ msgstr "Глобальная проверка"
 
 msgid "gRPC service"
 msgstr "gRPC-сервис"
-
-msgid "Handshake timeout"
-msgstr "Таймаут рукопожатия"
 
 msgid "Header name"
 msgstr "Название заголовка"
@@ -1661,9 +1628,6 @@ msgstr "Предпочитать IPv4"
 msgid "Prefer IPv6"
 msgstr "Предпочитать IPv6"
 
-msgid "Preferred IP"
-msgstr "Предпочитаемый IP"
-
 msgid "Preferred IP address type for domains"
 msgstr "Предпочтительный тип IP-адресов для доменов"
 
@@ -1679,9 +1643,6 @@ msgstr "Протокол"
 msgid "Proxy link is unavailable"
 msgstr "Ссылка прокси недоступна"
 
-msgid "Public host"
-msgstr "Публичный адрес"
-
 msgid "Public key"
 msgstr "Публичный ключ"
 
@@ -1691,9 +1652,6 @@ msgstr "QR-код"
 msgid "Query servers one at a time until the first successful response, or query all servers simultaneously for maximum speed."
 msgstr "Опрашивать серверы по очереди до первого успешного ответа или отправлять запросы всем одновременно для максимальной скорости."
 
-msgid "QUIC congestion control"
-msgstr "Управление перегрузкой QUIC"
-
 msgid "Reach the coordination server through a section instead of the WAN."
 msgstr "Подключаться к серверу координации через секцию, а не напрямую."
 
@@ -1702,9 +1660,6 @@ msgstr "Fake-сайт Reality"
 
 msgid "Reality fake site port"
 msgstr "Порт fake-сайта Reality"
-
-msgid "Reality max time difference"
-msgstr "Максимальная разница времени Reality"
 
 msgid "Reality needs an SNI"
 msgstr "Для Reality нужен SNI"
@@ -1750,9 +1705,6 @@ msgstr "Заменяет домен, который серверы этой по
 
 msgid "Require a username and password for the local mixed proxy"
 msgstr "Требовать логин и пароль для локального смешанного прокси"
-
-msgid "Require Mieru user hint"
-msgstr "Требовать указание пользователя Mieru"
 
 msgid "Required. Generate a pair with the button next to the field."
 msgstr "Обязательно. Сгенерируйте пару кнопкой рядом с полем."
@@ -1973,9 +1925,6 @@ msgstr "Группы серверов"
 msgid "Server name"
 msgstr "Имя сервера"
 
-msgid "Server name / SNI"
-msgstr "Имя сервера / SNI"
-
 msgid "Server outbound must contain a non-empty server field"
 msgstr "Серверный outbound должен содержать непустое поле server"
 
@@ -1984,9 +1933,6 @@ msgstr "Серверный outbound должен содержать числов
 
 msgid "Server port"
 msgstr "Порт сервера"
-
-msgid "Server pre-shared key"
-msgstr "Ключ сервера"
 
 msgid "server_port must be a number from 1 to 65535"
 msgstr "server_port должен быть числом от 1 до 65535"
@@ -2276,14 +2222,8 @@ msgstr "Этой опции требуется значение."
 msgid "This protocol does not support the selected security mode"
 msgstr "Этот протокол не поддерживает выбранный режим шифрования"
 
-msgid "This protocol has no link format. Use the details below."
-msgstr "У этого протокола нет формата ссылки — подключайтесь по данным ниже."
-
 msgid "This section name is reserved by Forkop"
 msgstr "Это название секции зарезервировано Forkop"
-
-msgid "This server accepts everybody, so it has no client links."
-msgstr "Сервер пускает всех, поэтому ссылок для клиентов нет."
 
 msgid "Time"
 msgstr "Время"
@@ -2293,9 +2233,6 @@ msgstr "Время в секундах между отправкой пакет�
 
 msgid "Time in seconds for DNS record caching (default: 60)"
 msgstr "Время в секундах для кэширования DNS записей (по умолчанию: 60)"
-
-msgid "Time skew tolerance"
-msgstr "Допуск расхождения времени"
 
 msgid "Tolerance"
 msgstr "Допуск"
@@ -2471,9 +2408,6 @@ msgstr "Используйте доменное имя или IP-адрес"
 msgid "Use a duration like 30s, 5m, or 1h30m"
 msgstr "Укажите длительность в формате 30s, 5m или 1h30m"
 
-msgid "Use a non-negative integer"
-msgstr "Используйте неотрицательное целое число"
-
 msgid "Use a non-zero secret"
 msgstr "Укажите ненулевой секрет"
 
@@ -2494,9 +2428,6 @@ msgstr "Укажите HTTP или HTTPS URL"
 
 msgid "Use an https:// URL to proxy a site or file:// to serve a directory"
 msgstr "Укажите https://-адрес для проксирования сайта или file:// для отдачи каталога"
-
-msgid "Use an IP address"
-msgstr "Используйте IP-адрес"
 
 msgid "Use an IP address with a CIDR prefix"
 msgstr "Укажите IP-адрес с префиксом CIDR"
@@ -2672,8 +2603,74 @@ msgstr "sing-box outbound для Zapret2 настроен"
 msgid "Zapret2 sing-box outbound is not configured"
 msgstr "sing-box outbound для Zapret2 не настроен"
 
+msgid "Required. Where the traffic of this client leaves."
+msgstr "Обязательно. Куда уходит трафик этого клиента."
+
+msgid "Required. Also the name of the inbound in the sing-box configuration."
+msgstr "Обязательно. Это же имя получает inbound в конфигурации sing-box."
+
+msgid "Required. A key from the Tailscale console."
+msgstr "Обязательно. Ключ из консоли Tailscale."
+
+msgid "Required. The name this device appears under in the Tailscale console."
+msgstr "Обязательно. Под этим именем устройство видно в консоли Tailscale."
+
+msgid "Advertise exit node"
+msgstr "Объявить выходным узлом"
+
+msgid "Offer this router as an exit node. It still has to be approved in the Tailscale console."
+msgstr "Предложить роутер как выходной узел. Его всё равно нужно подтвердить в консоли Tailscale."
+
+msgid "Required. The section that carries the control-plane traffic."
+msgstr "Обязательно. Секция, через которую идёт трафик к серверу координации."
+
+msgid "Required. A complete sing-box inbound. Forkop fills in the tag."
+msgstr "Обязательно. Целиком inbound sing-box. Тег подставит Forkop."
+
+msgid "Required. The port this server answers on."
+msgstr "Обязательно. Порт, на котором отвечает этот сервер."
+
+msgid "Public address"
+msgstr "Публичный адрес"
+
+msgid "Required. The address the connection links point at."
+msgstr "Обязательно. Адрес, на который указывают ссылки подключения."
+
 msgid "Open the port in the firewall"
 msgstr "Открыть порт в файрволе"
 
 msgid "Accept connections to this port from the internet."
 msgstr "Принимать подключения на этот порт из интернета."
+
+msgid "Server key"
+msgstr "Ключ сервера"
+
+msgid "Required. The key of the listener; every client key is added to it."
+msgstr "Обязательно. Ключ самого сервера, к которому добавляется ключ каждого клиента."
+
+msgid "Off means anyone who reaches the port may use the proxy."
+msgstr "Если выключено, прокси доступен всем, кто дозвонится до порта."
+
+msgid "Required. Every client has to send the same value."
+msgstr "Обязательно. Все клиенты должны передавать то же значение."
+
+msgid "Required. The domain a client pretends to talk to."
+msgstr "Обязательно. Домен, с которым клиент якобы говорит."
+
+msgid "SNI"
+msgstr "SNI"
+
+msgid "The domain a client sends in the TLS handshake. Reality needs one."
+msgstr "Домен, который клиент передаёт в TLS-рукопожатии. Для Reality обязателен."
+
+msgid "Required. The button next to the certificate issues both."
+msgstr "Обязательно. Кнопка рядом с сертификатом выдаёт оба файла."
+
+msgid "Required. The site whose handshake this listener borrows."
+msgstr "Обязательно. Сайт, чьё рукопожатие занимает этот сервер."
+
+msgid "Required. An even number of hex digits, up to 16."
+msgstr "Обязательно. Чётное число hex-символов, не больше 16."
+
+msgid "Required. Where the traffic of this server leaves."
+msgstr "Обязательно. Куда уходит трафик этого сервера."

@@ -241,31 +241,14 @@ function valid_sha256_hex(value) {
     return regex_matches(value, "^[0-9a-f]{64}$");
 }
 
-function default_security_value(protocol) {
-    protocol = as_string(protocol);
-    if (protocol == "vless")
-        return "reality";
-    if (protocol == "trojan" || protocol == "hysteria2" || protocol == "naive" ||
-        protocol == "anytls" || protocol == "tuic")
-        return "tls";
-    return "none";
-}
-
+// The generator decides what a protocol actually runs with, and the certificate this
+// module issues has to match it, so the rule is read from there instead of being
+// spelled out a second time.
 function server_effective_security_value(section, protocol) {
-    protocol = as_string(protocol);
-    let security = config_get(section, "security", "");
-    if (security == "")
-        security = default_security_value(protocol);
-
-    if (protocol == "shadowsocks" || protocol == "socks" || protocol == "ssh" || protocol == "mieru" ||
-        protocol == "mtproto" || protocol == "tailscale" || protocol == "json_inbound")
-        security = "none";
-    else if (protocol == "hysteria2" || protocol == "naive" || protocol == "anytls" || protocol == "tuic")
-        security = "tls";
-    else if ((protocol == "vmess" || protocol == "trojan") && security == "reality")
-        security = default_security_value(protocol);
-
-    return security;
+    return runtime_servers.effective_security(
+        uci.get_all(CONFIG_NAME, as_string(section)) || {},
+        as_string(protocol)
+    );
 }
 
 function generate_reality_keypair_values() {
@@ -587,28 +570,10 @@ function generate_ssh_host_key_cli(name) {
     });
 }
 
-const SERVER_PROTOCOLS = {
-    vless: [ "uuid" ],
-    vmess: [ "uuid" ],
-    trojan: [ "password" ],
-    shadowsocks: [ "password" ],
-    hysteria2: [ "password" ],
-    tuic: [ "uuid", "password" ],
-    anytls: [ "password" ],
-    mixed: [ "password" ],
-    naive: [ "password" ],
-    ssh: [ "password" ],
-    mieru: [ "password" ],
-    mtproto: [ "secret" ],
-    tailscale: [],
-    json_inbound: []
-};
-const SHADOWSOCKS_2022_KEY_BYTES = {
-    "2022-blake3-aes-128-gcm": 16,
-    "2022-blake3-aes-256-gcm": 32,
-    "2022-blake3-chacha20-poly1305": 32
-};
-const LOGIN_NAME_PROTOCOLS = { mixed: true, naive: true, ssh: true, mieru: true };
+// The generator owns what a protocol asks a client for, so the tables come from
+// there and cannot drift away from the inbound this module prepares for.
+const SERVER_PROTOCOLS = runtime_servers.CLIENT_FIELDS;
+const LOGIN_NAME_PROTOCOLS = runtime_servers.LOGIN_NAME_PROTOCOLS;
 
 function server_client_sections(section) {
     let result = [];
@@ -689,7 +654,7 @@ function prepare_server_defaults(section) {
     server_default_set_option(section, "listen", "0.0.0.0");
 
     if (protocol == "shadowsocks")
-        server_default_set_option(section, "shadowsocks_method", "2022-blake3-aes-128-gcm");
+        server_default_set_option(section, "shadowsocks_method", "2022-blake3-aes-256-gcm");
 
     if (protocol == "ssh")
         server_prepare_ssh_host_key(section);

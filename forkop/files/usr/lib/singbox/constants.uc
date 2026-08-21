@@ -49,7 +49,7 @@ const JSON_INBOUND_TYPES = [
     "tun", "redirect", "tproxy", "direct", "socks", "http", "mixed",
     "shadowsocks", "vmess", "trojan", "naive", "shadowtls", "vless",
     "anytls", "mieru", "ssh", "bond", "failover", "trusttunnel",
-    "hysteria", "tuic", "hysteria2", "mtproto", "sudoku", "snell", "call"
+    "hysteria", "tuic", "hysteria2", "mtproxy", "sudoku", "snell", "call"
 ];
 
 // Outbound types a subscription can produce. sing-box builds provider nodes

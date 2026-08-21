@@ -1473,17 +1473,15 @@ function add_extended_server_defaults(ctx) {
         let protocol = option(server, "protocol", "vless");
         migrate_legacy_server_user(ctx, server, protocol);
         delete_option(ctx, server, "mtproto_padding");
-        if (protocol == "naive") {
+        // Only the options the dialog still asks for. The expert knobs this migration
+        // used to fill in are removed again further down the list, so writing them
+        // here would just be work undone.
+        if (protocol == "naive")
             set_option_if_missing(ctx, server, "naive_network", "tcp");
-            set_option_if_missing(ctx, server, "naive_quic_congestion_control", "bbr");
-        }
-        else if (protocol == "mieru") {
+        else if (protocol == "mieru")
             set_option_if_missing(ctx, server, "mieru_transport", "TCP");
-            set_option_if_missing(ctx, server, "mieru_user_hint_mandatory", "0");
-        }
         else if (protocol == "tuic") {
             set_option_if_missing(ctx, server, "tuic_congestion_control", "cubic");
-            set_option_if_missing(ctx, server, "tuic_auth_timeout", "3s");
             set_option_if_missing(ctx, server, "tuic_heartbeat", "10s");
             set_option_if_missing(ctx, server, "tuic_zero_rtt_handshake", "0");
         }
@@ -2126,6 +2124,13 @@ const SERVER_CLIENT_PROTOCOL_FIELDS = {
     mtproto: [ [ "secret", "mtproto_secret" ] ]
 };
 const LOGIN_NAME_SERVER_PROTOCOLS = { mixed: true, naive: true, ssh: true, mieru: true };
+// Frozen on purpose: a migration describes the schema of a past release and must not
+// follow the generator's table when that table changes again.
+const SHADOWSOCKS_2022_KEY_BYTES = {
+    "2022-blake3-aes-128-gcm": 16,
+    "2022-blake3-aes-256-gcm": 32,
+    "2022-blake3-chacha20-poly1305": 32
+};
 
 function login_safe_value(value, fallback) {
     value = lc(as_string(value));
@@ -2197,6 +2202,15 @@ function migrate_server_clients(ctx) {
                 let value = option(server, field[1], "");
                 if (field[0] == "flow" && (value == "" || value == "none"))
                     continue;
+                // The released dialog stored the bare key next to the FakeTLS host,
+                // but it also accepted a pasted ee<key><host> secret and stored that
+                // as it was. Both end up split the way the client section holds it.
+                if (field[0] == "secret" && match(lc(value), /^ee[0-9a-f]{32}([0-9a-f]{2})+$/) != null) {
+                    let host = decode_hex(substr(lc(value), 34));
+                    if (host != "")
+                        set_option(ctx, server, "mtproto_faketls", host);
+                    value = substr(lc(value), 2, 32);
+                }
                 if (value != "")
                     set_option(ctx, client, field[0], value);
             }
@@ -2207,18 +2221,51 @@ function migrate_server_clients(ctx) {
 }
 
 // Shadowsocks servers released with a legacy AEAD method keep it: changing the method
-// would invalidate every distributed link. Only the new pre-shared key field is added
-// where the stored method needs one.
+// would invalidate every distributed link, so the released default is written out
+// where nothing stored one. A 2022 method was never offered by the released dialog,
+// but a hand written one carried its key in the server password, and that key is the
+// listener key now, so it moves there instead of being thrown away.
 function migrate_shadowsocks_server_keys(ctx) {
     for (let server in ctx.model.servers || []) {
         if (option(server, "protocol", "") != "shadowsocks")
             continue;
         set_option_if_missing(ctx, server, "shadowsocks_method", "aes-128-gcm");
+        if (SHADOWSOCKS_2022_KEY_BYTES[option(server, "shadowsocks_method", "")] == null)
+            continue;
+        let released_password = option(server, "server_password", "");
+        if (released_password != "")
+            set_option_if_missing(ctx, server, "shadowsocks_psk", released_password);
     }
 }
 
-// Tailscale servers always advertised themselves as an exit node, so the new switch
-// starts enabled for them.
+// Options the dialog no longer asks for. Every one of them had a working default in
+// the core, none changed whether a client could connect, and an unread value left in
+// the configuration would only show up in diagnostics forever.
+const REMOVED_SERVER_OPTIONS = [
+    "mtproto_concurrency",
+    "mtproto_domain_fronting_port",
+    "mtproto_domain_fronting_ip",
+    "mtproto_domain_fronting_proxy_protocol",
+    "mtproto_prefer_ip",
+    "mtproto_auto_update",
+    "mtproto_allow_fallback_on_unknown_dc",
+    "mtproto_tolerate_time_skewness",
+    "mtproto_idle_timeout",
+    "mtproto_handshake_timeout",
+    "tuic_auth_timeout",
+    "naive_quic_congestion_control",
+    "mieru_user_hint_mandatory",
+    "reality_max_time_difference"
+];
+
+function remove_expert_server_options(ctx) {
+    for (let server in ctx.model.servers || [])
+        for (let key in REMOVED_SERVER_OPTIONS)
+            delete_option(ctx, server, key);
+}
+
+// The released dialog defaulted the switch to on and always wrote it, so only a
+// server written straight through uci needs the default filled in.
 function migrate_tailscale_exit_node(ctx) {
     for (let server in ctx.model.servers || [])
         if (option(server, "protocol", "") == "tailscale")
@@ -2253,9 +2300,12 @@ const MIGRATIONS = [
     { id: "group_interrupt_defaults", run: migrate_group_interrupt_defaults },
     { id: "subscription_user_agent_header", run: migrate_subscription_user_agent_header },
     { id: "mixed_server_inbounds", run: migrate_socks_servers_to_mixed },
-    { id: "server_client_sections", run: migrate_server_clients },
+    // Before the client sections: the released Shadowsocks key lives in the server
+    // password, and that option is removed once the credentials have moved.
     { id: "shadowsocks_server_keys", run: migrate_shadowsocks_server_keys },
-    { id: "tailscale_exit_node_switch", run: migrate_tailscale_exit_node }
+    { id: "server_client_sections", run: migrate_server_clients },
+    { id: "tailscale_exit_node_switch", run: migrate_tailscale_exit_node },
+    { id: "remove_expert_server_options", run: remove_expert_server_options }
 ];
 
 function apply_migrations(ctx) {

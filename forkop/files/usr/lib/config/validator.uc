@@ -1569,28 +1569,11 @@ function basic_rows_by_section(rows) {
     return result;
 }
 
-const SERVER_CLIENT_FIELDS = {
-    vless: [ "uuid" ],
-    vmess: [ "uuid" ],
-    trojan: [ "password" ],
-    shadowsocks: [ "password" ],
-    hysteria2: [ "password" ],
-    tuic: [ "uuid", "password" ],
-    anytls: [ "password" ],
-    mixed: [ "password" ],
-    naive: [ "password" ],
-    ssh: [ "password" ],
-    mieru: [ "password" ],
-    mtproto: [ "secret" ],
-    tailscale: [],
-    json_inbound: []
-};
-const SHADOWSOCKS_2022_KEY_BYTES = {
-    "2022-blake3-aes-128-gcm": 16,
-    "2022-blake3-aes-256-gcm": 32,
-    "2022-blake3-chacha20-poly1305": 32
-};
-const LOGIN_NAME_PROTOCOLS = { mixed: true, naive: true, ssh: true, mieru: true };
+// The generator owns what a protocol asks a client for; the check reads the same
+// tables instead of keeping a second copy that can drift out of step.
+const SERVER_CLIENT_FIELDS = runtime_servers.CLIENT_FIELDS;
+const SHADOWSOCKS_2022_KEY_BYTES = runtime_servers.SHADOWSOCKS_2022_KEY_BYTES;
+const LOGIN_NAME_PROTOCOLS = runtime_servers.LOGIN_NAME_PROTOCOLS;
 
 function base64_decoded_length(value) {
     value = as_string(value);
@@ -1707,8 +1690,9 @@ function validate_server_listen_ports() {
     }
 }
 
-// Security material a protocol cannot start without. sing-box reads it straight
-// from the inbound, so an empty value is a start-up failure rather than a default.
+// Security material a protocol cannot start without. Forkop never sets the inbound
+// insecure flag, which is the only thing that would let sing-box invent a keypair
+// per handshake, so a missing certificate is a start-up failure and not a default.
 function validate_server_security(server, protocol, name) {
     let security = runtime_servers.effective_security(server, protocol);
 
@@ -1767,7 +1751,16 @@ function validate_server_security(server, protocol, name) {
         option(server, "hysteria2_obfs_password", "") == "")
         fail_validation("Server '" + name + "' enables obfuscation and needs an obfuscation password. Aborted.");
 
-
+    // A multiplexed VLESS client drops the flow before it authenticates, and the
+    // inbound then refuses the account with a flow mismatch, so the pair cannot
+    // connect at all. The dialog hides the field; a hand written config is named here.
+    if (protocol == "vless" && bool_option(server, "multiplex_enabled", false))
+        for (let client in connections.server_clients(server)) {
+            let flow = option(client, "flow", "");
+            if (flow != "" && flow != "none")
+                fail_validation("Server '" + name + "' client '" + option(client, "name", "") +
+                    "' uses flow '" + flow + "' together with multiplex, which no client can connect with. Aborted.");
+        }
 }
 
 function validate_server_clients_and_ports(sections) {

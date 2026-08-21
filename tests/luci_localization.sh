@@ -69,4 +69,82 @@ awk '
   END { exit missing ? 1 : 0 }
 ' "$PO" || fail "Russian catalog must not leave user-facing strings untranslated"
 
+# A catalog entry for a string no source asks for any more is dead weight nobody
+# notices, and a string with no entry falls back to English in the interface. Both
+# directions are compared against every _() call the two front ends make.
+node - "$ROOT_DIR" "$PO" "$POT" <<'NODE'
+const fs = require("node:fs");
+const path = require("node:path");
+
+const [, , root, poPath, potPath] = process.argv;
+
+function unescapePo(value) {
+  return value
+    .replace(/\\n/g, "\n")
+    .replace(/\\t/g, "\t")
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, "\\");
+}
+
+function msgids(text) {
+  const ids = [];
+  const entryRe = new RegExp('^msgid ((?:"(?:\\\\.|[^"\\\\])*"\\s*)+)', "gm");
+  const partRe = new RegExp('"((?:\\\\.|[^"\\\\])*)"', "g");
+  for (const entry of text.matchAll(entryRe)) {
+    const joined = [...entry[1].matchAll(partRe)].map((part) => part[1]).join("");
+    if (joined) ids.push(unescapePo(joined));
+  }
+  return ids;
+}
+
+function walk(dir, out = []) {
+  for (const item of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, item.name);
+    if (item.isDirectory()) walk(full, out);
+    else if (/\.(ts|tsx|js)$/.test(item.name)) out.push(full);
+  }
+  return out;
+}
+
+const viewDir = path.join(
+  root,
+  "luci-app-forkop/htdocs/luci-static/resources/view/forkop",
+);
+// main.js is the generated bundle of the other front end, so it repeats strings
+// the sources already declare.
+const sources = fs
+  .readdirSync(viewDir)
+  .filter((name) => name.endsWith(".js") && name !== "main.js")
+  .map((name) => fs.readFileSync(path.join(viewDir, name), "utf8"));
+const frontend = walk(path.join(root, "fe-app-forkop/src")).map((file) =>
+  fs.readFileSync(file, "utf8"),
+);
+
+const used = new Set();
+const callRe = new RegExp(
+  "_\\(\\s*(?:\"((?:\\\\.|[^\"\\\\])*)\"|'((?:\\\\.|[^'\\\\])*)'|`([^`]*)`)",
+  "g",
+);
+for (const match of [...sources, ...frontend].join("\n").matchAll(callRe)) {
+  used.add(unescapePo(match[1] ?? match[2] ?? match[3]).replace(/\\'/g, "'"));
+}
+
+let failed = false;
+for (const [label, file] of [["ru catalog", poPath], ["template", potPath]]) {
+  const ids = msgids(fs.readFileSync(file, "utf8"));
+  const orphaned = ids.filter((id) => !used.has(id));
+  const absent = [...used].filter((id) => !ids.includes(id));
+  for (const id of orphaned) {
+    console.error(`orphaned in ${label}: ${JSON.stringify(id)}`);
+    failed = true;
+  }
+  for (const id of absent) {
+    console.error(`missing from ${label}: ${JSON.stringify(id)}`);
+    failed = true;
+  }
+}
+process.exit(failed ? 1 : 0);
+NODE
+[ $? -eq 0 ] || fail "translation catalogs must list exactly the strings the sources use"
+
 printf 'LuCI localization checks passed\n'

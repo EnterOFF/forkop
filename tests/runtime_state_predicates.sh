@@ -915,8 +915,6 @@ vless
 0.0.0.0
 [server.srv1.listen_port]
 8443
-[server.srv1.public_host]
-
 [server.srv1.inbound_json]
 
 [server.srv1.routing_mode]
@@ -943,8 +941,6 @@ example.com
 
 [server.srv1.reality_short_id]
 
-[server.srv1.reality_max_time_difference]
-
 [server.srv1.transport]
 ws
 [server.srv1.transport_path]
@@ -956,8 +952,6 @@ ws
 [server.srv1.transport_hosts]
 
 [server.srv1.transport_xhttp_mode]
-
-[server.srv1.client_fingerprint]
 
 [server.srv1.tcp_fast_open]
 
@@ -983,43 +977,17 @@ ws
 
 [server.srv1.naive_network]
 tcp
-[server.srv1.naive_quic_congestion_control]
-bbr
 [server.srv1.ssh_host_key_path]
 
 [server.srv1.mieru_transport]
 TCP
-[server.srv1.mieru_user_hint_mandatory]
-0
 [server.srv1.tuic_congestion_control]
 cubic
-[server.srv1.tuic_auth_timeout]
-3s
 [server.srv1.tuic_heartbeat]
 10s
 [server.srv1.tuic_zero_rtt_handshake]
 0
 [server.srv1.mtproto_faketls]
-
-[server.srv1.mtproto_concurrency]
-
-[server.srv1.mtproto_domain_fronting_port]
-
-[server.srv1.mtproto_domain_fronting_ip]
-
-[server.srv1.mtproto_domain_fronting_proxy_protocol]
-
-[server.srv1.mtproto_prefer_ip]
-
-[server.srv1.mtproto_auto_update]
-
-[server.srv1.mtproto_allow_fallback_on_unknown_dc]
-
-[server.srv1.mtproto_tolerate_time_skewness]
-
-[server.srv1.mtproto_idle_timeout]
-
-[server.srv1.mtproto_handshake_timeout]
 
 [server.srv1.tailscale_auth_key]
 
@@ -1030,6 +998,8 @@ cubic
 [server.srv1.tailscale_control_url]
 
 [server.srv1.tailscale_hostname]
+
+[server.srv1.tailscale_advertise_exit_node]
 
 [server.srv1.tailscale_accept_routes]
 1

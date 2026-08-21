@@ -43,6 +43,7 @@ const RESERVED_RUNTIME_TAGS = new Set([
   "fakeip-server",
   "bootstrap-dns-server",
   "dnsmasq-server",
+  "hosts-server",
   "fakeip-dns-rule-tag",
   "fakeip-ruleset-dns-rule-tag",
   "service-fakeip-dns-rule-tag",
@@ -84,12 +85,15 @@ const CAMOUFLAGE_SITES = [
   "www.wolframalpha.com",
 ];
 
+// The ciphers a Shadowsocks listener offers, best first. The 2022 methods take a
+// base64 key of an exact length; the older AEAD methods derive their key from any
+// password. The default matches what the panels hand out today.
 const SHADOWSOCKS_METHODS = [
-  { id: "2022-blake3-aes-128-gcm", keyBytes: 16 },
   { id: "2022-blake3-aes-256-gcm", keyBytes: 32 },
+  { id: "2022-blake3-aes-128-gcm", keyBytes: 16 },
   { id: "2022-blake3-chacha20-poly1305", keyBytes: 32 },
-  { id: "aes-128-gcm", keyBytes: 0 },
   { id: "aes-256-gcm", keyBytes: 0 },
+  { id: "aes-128-gcm", keyBytes: 0 },
   { id: "chacha20-ietf-poly1305", keyBytes: 0 },
 ];
 
@@ -102,6 +106,10 @@ const TRANSPORTS = [
   ["xhttp", "XHTTP"],
 ];
 
+// Listeners that leave the negotiated protocol to the configuration. The rest pin
+// it themselves, so the field would only be a way to break them.
+const ALPN_PROTOCOLS = ["vless", "vmess", "trojan", "anytls"];
+
 const CLIENT_FINGERPRINTS = [
   "chrome",
   "firefox",
@@ -113,7 +121,8 @@ const CLIENT_FINGERPRINTS = [
 ];
 
 // Inbound types the raw JSON field accepts, taken from the inbound registry the
-// Forkop core builds.
+// Forkop core builds (include/registry.go). These are the names the core knows,
+// not the names this tab uses: the Telegram proxy is registered as mtproxy.
 const JSON_INBOUND_TYPES = new Set([
   "tun",
   "redirect",
@@ -137,7 +146,7 @@ const JSON_INBOUND_TYPES = new Set([
   "hysteria",
   "tuic",
   "hysteria2",
-  "mtproto",
+  "mtproxy",
   "sudoku",
   "snell",
   "call",
@@ -456,6 +465,25 @@ function getServerName(sectionId) {
   return option(sectionId, "label") || sectionId;
 }
 
+// XTLS Vision splices the payload inside the TLS record the listener already owns,
+// so it needs the raw TLS stream: a transport wraps it, and a multiplexed client
+// drops the flow on its own, after which the listener refuses the account with a
+// flow mismatch. Offering it outside those bounds only produces accounts that
+// cannot connect.
+function supportsVisionFlow(sectionId) {
+  if (getProtocol(sectionId) !== "vless") {
+    return false;
+  }
+  if ((liveOption(sectionId, "transport") || "tcp") !== "tcp") {
+    return false;
+  }
+  if (liveOption(sectionId, "multiplex_enabled") === "1") {
+    return false;
+  }
+
+  return getEffectiveSecurity(sectionId) !== "none";
+}
+
 function shadowsocksKeyBytes(method) {
   const entry = SHADOWSOCKS_METHODS.find((item) => item.id === method);
   return entry ? entry.keyBytes : 0;
@@ -614,15 +642,25 @@ function stringToHex(value) {
     .join("");
 }
 
+// Text, so the string is UTF-8 encoded first: btoa() only takes code points below
+// 256 and a label may hold anything.
 function base64Encode(value) {
   return btoa(unescape(encodeURIComponent(value)));
 }
 
 function base64UrlEncode(value) {
-  return base64Encode(value)
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
+  return toBase64Url(base64Encode(value));
+}
+
+// Raw bytes, so they are encoded as they are. Running them through the text path
+// would UTF-8 expand every byte above 0x7f and turn a 18 byte secret into a
+// password of an unpredictable length.
+function base64EncodeBytes(bytes) {
+  return btoa(bytesToString(bytes));
+}
+
+function toBase64Url(value) {
+  return value.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
 function generateUuid() {
@@ -646,14 +684,16 @@ function generateUuid() {
   ].join("-");
 }
 
+// 18 bytes, so the base64url form is exactly 24 characters with no padding, and
+// every character is safe in a URI userinfo field.
 function generatePassword() {
-  return base64UrlEncode(bytesToString(randomBytes(18)));
+  return toBase64Url(base64EncodeBytes(randomBytes(18)));
 }
 
 // Shadowsocks 2022 keys are standard base64 of exactly the byte count the cipher
 // takes, so they are generated from the key length instead of a printable password.
 function generatePresharedKey(byteLength) {
-  return btoa(bytesToString(randomBytes(byteLength)));
+  return base64EncodeBytes(randomBytes(byteLength));
 }
 
 function generateMtprotoSecret() {
@@ -1161,13 +1201,6 @@ function validateListenAddress(_sectionId, value) {
     : _("Use an IP address, 0.0.0.0 for all IPv4, or :: for all addresses");
 }
 
-function validateOptionalIp(_sectionId, value) {
-  const address = normalizeHost(value);
-  return isEmptyValue(value) || isIpv4(address) || isIpv6(address)
-    ? true
-    : _("Use an IP address");
-}
-
 function validateFilePath(_sectionId, value) {
   const path = `${value || ""}`;
 
@@ -1290,20 +1323,10 @@ function validateOptionalDuration(_sectionId, value) {
     : _("Use a duration like 30s, 5m, or 1h30m");
 }
 
-function validateOptionalNonNegativeInteger(_sectionId, value) {
-  return isEmptyValue(value) || /^[0-9]+$/.test(`${value}`)
-    ? true
-    : _("Use a non-negative integer");
-}
-
 function validateOptionalPositiveInteger(_sectionId, value) {
   return isEmptyValue(value) || /^[1-9][0-9]*$/.test(`${value}`)
     ? true
     : _("Use a positive integer");
-}
-
-function validateOptionalPort(sectionId, value) {
-  return isEmptyValue(value) ? true : validatePort(sectionId, value);
 }
 
 function validateTransportPath(_sectionId, value) {
@@ -2628,13 +2651,20 @@ function validateClientCredential(sectionId, field, value) {
 }
 
 // Credential fields the protocol asks a client for. The password disappears when
-// authentication is switched off, because then nobody sends one.
+// authentication is switched off, because then nobody sends one, and the flow
+// disappears where the listener cannot carry it.
 function visibleClientFields(sectionId) {
   const protocol = getProtocol(sectionId);
 
-  return credentialFields(protocol).filter(
-    (field) => field !== "password" || isAuthenticationEnabled(sectionId),
-  );
+  return credentialFields(protocol).filter((field) => {
+    if (field === "password") {
+      return isAuthenticationEnabled(sectionId);
+    }
+    if (field === "flow") {
+      return supportsVisionFlow(sectionId);
+    }
+    return true;
+  });
 }
 
 function clientCredentialLabel(sectionId, field) {
@@ -2820,6 +2850,7 @@ function addClientRoutingOptions(sectionId, itemSection) {
     form.ListValue,
     "routing_section",
     _("Routing section"),
+    _("Required. Where the traffic of this client leaves."),
   );
   routingSectionChoices().forEach(([value, label]) => target.value(value, label));
   target.rmempty = false;
@@ -2935,7 +2966,7 @@ const CLIENT_ROUTING_KEYS = [
 ];
 
 function pruneClientCredentials(sectionId) {
-  const keep = new Set(credentialFields(getProtocol(sectionId)));
+  const keep = new Set(visibleClientFields(sectionId));
 
   clientSections(sectionId).forEach((section) => {
     const stale = CLIENT_KEYS.filter(
@@ -3675,6 +3706,7 @@ function addIdentityOptions(section) {
     form.Value,
     "label",
     _("Server name"),
+    _("Required. Also the name of the inbound in the sing-box configuration."),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -3729,6 +3761,7 @@ function addTailscaleOptions(section) {
     form.Value,
     "tailscale_auth_key",
     _("Authorization key"),
+    _("Required. A key from the Tailscale console."),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -3740,7 +3773,7 @@ function addTailscaleOptions(section) {
     form.Value,
     "tailscale_hostname",
     _("Device name"),
-    _("The name this device appears under in the Tailscale console."),
+    _("Required. The name this device appears under in the Tailscale console."),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -3758,6 +3791,17 @@ function addTailscaleOptions(section) {
   o.modalonly = true;
   o.rmempty = true;
   o.validate = validateOptionalCidrOrIp;
+  onTailscale(o);
+
+  o = section.option(
+    form.Flag,
+    "tailscale_advertise_exit_node",
+    _("Advertise exit node"),
+    _("Offer this router as an exit node. It still has to be approved in the Tailscale console."),
+  );
+  o.default = "1";
+  o.rmempty = false;
+  o.modalonly = true;
   onTailscale(o);
 
   o = section.option(
@@ -3812,6 +3856,7 @@ function addTailscaleOptions(section) {
     form.ListValue,
     "tailscale_detour_section",
     _("Coordination server through"),
+    _("Required. The section that carries the control-plane traffic."),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -3844,7 +3889,7 @@ function addJsonInboundOptions(section) {
     form.TextValue,
     "inbound_json",
     _("Inbound JSON"),
-    _("A complete sing-box inbound. Forkop fills in the tag."),
+    _("Required. A complete sing-box inbound. Forkop fills in the tag."),
   );
   o.depends("protocol", "json_inbound");
   o.rows = 10;
@@ -3875,6 +3920,7 @@ function addListenerOptions(section) {
     form.Value,
     "listen_port",
     _("Listen port"),
+    _("Required. The port this server answers on."),
   );
   o.placeholder = "31443";
   o.rmempty = false;
@@ -3887,8 +3933,8 @@ function addListenerOptions(section) {
   o = section.option(
     form.Value,
     "public_host",
-    _("Public host"),
-    _("The address used to build the connection links"),
+    _("Public address"),
+    _("Required. The address the connection links point at."),
   );
   o.placeholder = "203.0.113.9";
   o.modalonly = true;
@@ -3931,8 +3977,9 @@ function addShadowsocksOptions(section) {
   o = section.option(
     form.Value,
     "shadowsocks_psk",
-    _("Server pre-shared key"),
-    );
+    _("Server key"),
+    _("Required. The key of the listener; every client key is added to it."),
+  );
   o.modalonly = true;
   o.rmempty = false;
   o.password = true;
@@ -3961,8 +4008,11 @@ function addMixedOptions(section) {
     form.Flag,
     "mixed_auth_enabled",
     _("Authentication"),
+    _("Off means anyone who reaches the port may use the proxy."),
   );
-  o.default = "0";
+  // On by default: a listener that asks for nothing is an open proxy, and the port
+  // is opened in the firewall by default too.
+  o.default = "1";
   o.rmempty = false;
   o.modalonly = true;
   o.depends("protocol", "mixed");
@@ -3994,6 +4044,7 @@ function addHysteria2Options(section) {
     form.Value,
     "hysteria2_obfs_password",
     _("Obfuscation password"),
+    _("Required. Every client has to send the same value."),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -4067,17 +4118,6 @@ function addTuicOptions(section) {
 
   o = section.option(
     form.Value,
-    "tuic_auth_timeout",
-    _("Auth timeout"),
-  );
-  o.placeholder = "3s";
-  o.modalonly = true;
-  o.rmempty = true;
-  o.validate = validateOptionalDuration;
-  onTuic(o);
-
-  o = section.option(
-    form.Value,
     "tuic_heartbeat",
     _("Heartbeat"),
   );
@@ -4113,20 +4153,6 @@ function addProtocolOptions(section) {
   o.depends("protocol", "naive");
 
   o = section.option(
-    form.ListValue,
-    "naive_quic_congestion_control",
-    _("QUIC congestion control"),
-  );
-  ["bbr", "bbr_standard", "bbr2", "bbr2_variant", "cubic", "reno"].forEach(
-    (value) => o.value(value, value),
-  );
-  o.default = "bbr";
-  o.rmempty = false;
-  o.modalonly = true;
-  o.depends({ protocol: "naive", naive_network: "udp" });
-  o.depends({ protocol: "naive", naive_network: "tcp_udp" });
-
-  o = section.option(
     form.Value,
     "ssh_host_key_path",
     _("SSH host key path"),
@@ -4153,25 +4179,19 @@ function addProtocolOptions(section) {
   o.rmempty = false;
   o.modalonly = true;
   o.depends("protocol", "mieru");
-
-  o = section.option(
-    form.Flag,
-    "mieru_user_hint_mandatory",
-    _("Require Mieru user hint"),
-  );
-  o.default = "0";
-  o.rmempty = true;
-  o.modalonly = true;
-  o.depends("protocol", "mieru");
 }
 
+// One field. The proxy has no secret without a camouflage host - it is the second
+// half of what the client sends - and everything else mtg takes has a working
+// default: concurrency, the preferred address family, the fronting target and the
+// three timeouts. A deployment that has to change one of them writes a JSON
+// inbound; a router owner never does.
 function addMtprotoOptions(section) {
-  const onMtproto = (o) => o.depends("protocol", "mtproto");
-
-  let o = section.option(
+  const o = section.option(
     form.Value,
     "mtproto_faketls",
     _("FakeTLS host"),
+    _("Required. The domain a client pretends to talk to."),
   );
   o.placeholder = "google.com";
   o.modalonly = true;
@@ -4181,121 +4201,12 @@ function addMtprotoOptions(section) {
     o,
     (sectionId) => option(sectionId, "mtproto_faketls") || camouflageSite(sectionId),
   );
-  onMtproto(o);
+  o.depends("protocol", "mtproto");
   addGenerateButton(
     o,
     (sectionId) => camouflageSite(sectionId, true),
     _("Pick a domain"),
   );
-
-  o = section.option(
-    form.Value,
-    "mtproto_domain_fronting_port",
-    _("Fronting port"),
-  );
-  o.placeholder = "443";
-  o.modalonly = true;
-  o.rmempty = true;
-  o.validate = validateOptionalPort;
-  onMtproto(o);
-
-  o = section.option(
-    form.Value,
-    "mtproto_domain_fronting_ip",
-    _("Fronting IP"),
-  );
-  o.placeholder = "203.0.113.9";
-  o.modalonly = true;
-  o.rmempty = true;
-  o.validate = validateOptionalIp;
-  onMtproto(o);
-
-  o = section.option(
-    form.Flag,
-    "mtproto_domain_fronting_proxy_protocol",
-    _("Fronting proxy protocol"),
-  );
-  o.default = "0";
-  o.rmempty = true;
-  o.modalonly = true;
-  onMtproto(o);
-
-  o = section.option(
-    form.Value,
-    "mtproto_concurrency",
-    _("Concurrency"),
-  );
-  o.placeholder = "1024";
-  o.modalonly = true;
-  o.rmempty = true;
-  o.validate = validateOptionalNonNegativeInteger;
-  onMtproto(o);
-
-  o = section.option(
-    form.ListValue,
-    "mtproto_prefer_ip",
-    _("Preferred IP"),
-  );
-  ["prefer-ipv4", "prefer-ipv6", "only-ipv4", "only-ipv6"].forEach((value) =>
-    o.value(value, value),
-  );
-  o.default = "prefer-ipv4";
-  o.rmempty = false;
-  o.modalonly = true;
-  onMtproto(o);
-
-  o = section.option(
-    form.Flag,
-    "mtproto_auto_update",
-    _("Auto update"),
-  );
-  o.default = "0";
-  o.rmempty = true;
-  o.modalonly = true;
-  onMtproto(o);
-
-  o = section.option(
-    form.Flag,
-    "mtproto_allow_fallback_on_unknown_dc",
-    _("Fallback on unknown DC"),
-  );
-  o.default = "0";
-  o.rmempty = true;
-  o.modalonly = true;
-  onMtproto(o);
-
-  o = section.option(
-    form.Value,
-    "mtproto_tolerate_time_skewness",
-    _("Time skew tolerance"),
-  );
-  o.placeholder = "3s";
-  o.modalonly = true;
-  o.rmempty = true;
-  o.validate = validateOptionalDuration;
-  onMtproto(o);
-
-  o = section.option(
-    form.Value,
-    "mtproto_idle_timeout",
-    _("Idle timeout"),
-  );
-  o.placeholder = "5m";
-  o.modalonly = true;
-  o.rmempty = true;
-  o.validate = validateOptionalDuration;
-  onMtproto(o);
-
-  o = section.option(
-    form.Value,
-    "mtproto_handshake_timeout",
-    _("Handshake timeout"),
-  );
-  o.placeholder = "10s";
-  o.modalonly = true;
-  o.rmempty = true;
-  o.validate = validateOptionalDuration;
-  onMtproto(o);
 }
 
 function addSecurityOptions(section) {
@@ -4338,8 +4249,9 @@ function addSecurityOptions(section) {
   o = section.option(
     form.Value,
     "tls_server_name",
-    _("Server name / SNI"),
-    );
+    _("SNI"),
+    _("The domain a client sends in the TLS handshake. Reality needs one."),
+  );
   o.placeholder = "example.com";
   o.modalonly = true;
   o.rmempty = true;
@@ -4363,6 +4275,9 @@ function addSecurityOptions(section) {
     _("Pick a domain"),
   );
 
+  // Only where the listener leaves the choice open. Hysteria2 negotiates h3 and
+  // NaiveProxy h2 on their own - both replace an empty list and fight a filled one -
+  // and a TUIC client never looks at it.
   o = section.option(
     form.MultiValue,
     "tls_alpn",
@@ -4372,7 +4287,11 @@ function addSecurityOptions(section) {
   o.create = false;
   o.rmempty = true;
   o.modalonly = true;
-  onTls(o);
+  ALPN_PROTOCOLS.forEach((protocol) =>
+    protocolSpec(protocol).securities.includes("none")
+      ? o.depends({ protocol, security: "tls" })
+      : o.depends("protocol", protocol),
+  );
   onReality(o);
 
   o = section.option(
@@ -4392,6 +4311,7 @@ function addSecurityOptions(section) {
     form.Value,
     "tls_key_path",
     _("Key path"),
+    _("Required. The button next to the certificate issues both."),
   );
   o.placeholder = "/etc/ssl/private/server.key";
   o.modalonly = true;
@@ -4403,6 +4323,7 @@ function addSecurityOptions(section) {
     form.Value,
     "reality_handshake_server",
     _("Reality fake site"),
+    _("Required. The site whose handshake this listener borrows."),
   );
   o.placeholder = "example.com";
   o.modalonly = true;
@@ -4473,6 +4394,7 @@ function addSecurityOptions(section) {
     form.Value,
     "reality_short_id",
     _("Reality short ID"),
+    _("Required. An even number of hex digits, up to 16."),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -4485,17 +4407,6 @@ function addSecurityOptions(section) {
   );
   onReality(o);
   addGenerateButton(o, () => randomHex(4));
-
-  o = section.option(
-    form.Value,
-    "reality_max_time_difference",
-    _("Reality max time difference"),
-  );
-  o.placeholder = "1m";
-  o.modalonly = true;
-  o.rmempty = true;
-  o.validate = validateOptionalDuration;
-  onReality(o);
 
   o = section.option(
     form.ListValue,
@@ -4715,6 +4626,7 @@ function addRoutingOptions(section) {
     form.ListValue,
     "routing_section",
     _("Routing section"),
+    _("Required. Where the traffic of this server leaves."),
   );
   o.depends("routing_mode", "section");
   o.modalonly = true;

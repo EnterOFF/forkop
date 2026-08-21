@@ -11,15 +11,36 @@ let bool_option = common.bool_option;
 let int_option = common.int_option;
 let array_or_empty = common.array_or_empty;
 
-// Methods that derive their keys from base64 pre-shared keys instead of a password.
-const SHADOWSOCKS_2022_METHODS = {
-    "2022-blake3-aes-128-gcm": true,
-    "2022-blake3-aes-256-gcm": true,
-    "2022-blake3-chacha20-poly1305": true
+// What every layer of the server side has to agree on: which credential fields a
+// protocol asks a client for, which protocols use the client name as the account
+// name on the wire, and which Shadowsocks methods take a base64 key of an exact
+// length instead of a password. The generator, the runtime validator and the
+// service preparation all read these from here.
+const CLIENT_FIELDS = {
+    vless: [ "uuid" ],
+    vmess: [ "uuid" ],
+    trojan: [ "password" ],
+    shadowsocks: [ "password" ],
+    hysteria2: [ "password" ],
+    tuic: [ "uuid", "password" ],
+    anytls: [ "password" ],
+    mixed: [ "password" ],
+    naive: [ "password" ],
+    ssh: [ "password" ],
+    mieru: [ "password" ],
+    mtproto: [ "secret" ],
+    tailscale: [],
+    json_inbound: []
+};
+const LOGIN_NAME_PROTOCOLS = { mixed: true, naive: true, ssh: true, mieru: true };
+const SHADOWSOCKS_2022_KEY_BYTES = {
+    "2022-blake3-aes-128-gcm": 16,
+    "2022-blake3-aes-256-gcm": 32,
+    "2022-blake3-chacha20-poly1305": 32
 };
 
 function shadowsocks_2022_method(method) {
-    return !!SHADOWSOCKS_2022_METHODS[as_string(method)];
+    return SHADOWSOCKS_2022_KEY_BYTES[as_string(method)] != null;
 }
 
 function safe_filename(value) {
@@ -159,7 +180,6 @@ function apply_tls(inbound, section, protocol) {
         let short_id = list_option(section, "reality_short_id");
         if (length(short_id) > 0)
             reality.short_id = short_id;
-        maybe_string(reality, "max_time_difference", option(section, "reality_max_time_difference", "1m"));
         tls.reality = reality;
     }
 
@@ -199,13 +219,10 @@ function apply_transport(inbound, section, protocol) {
         transport.mode = option(section, "transport_xhttp_mode", "auto");
         transport.path = path != "" ? path : "/";
         maybe_string(transport, "host", host);
-        transport.headers = {};
+        // The only field the core has no default for: x_padding_bytes is a value, not
+        // a pointer, and a zero range is refused with "x_padding_bytes cannot be
+        // disabled". Everything else the mode needs it fills in itself.
         transport.x_padding_bytes = "100-1000";
-        transport.no_sse_header = false;
-        transport.sc_max_each_post_bytes = 1000000;
-        transport.sc_max_buffered_posts = 30;
-        transport.sc_stream_up_server_secs = "20-80";
-        transport.server_max_header_bytes = 8192;
     }
     else {
         return;
@@ -238,7 +255,7 @@ function add_standard_inbound(config, section, protocol, tag_name) {
     };
 
     if (protocol == "shadowsocks") {
-        let method = option(section, "shadowsocks_method", "aes-128-gcm");
+        let method = option(section, "shadowsocks_method", "2022-blake3-aes-256-gcm");
         inbound.method = method;
         // A 2022 server needs its own pre-shared key next to the per client keys; the
         // older AEAD methods derive every key from the client password alone.
@@ -275,8 +292,6 @@ function add_standard_inbound(config, section, protocol, tag_name) {
         inbound.users = users(section, protocol);
         let network = option(section, "naive_network", "tcp");
         inbound.network = network == "tcp_udp" ? [ "tcp", "udp" ] : network;
-        if (network != "tcp")
-            maybe_string(inbound, "quic_congestion_control", option(section, "naive_quic_congestion_control", "bbr"));
     }
     else if (protocol == "ssh") {
         inbound.users = users(section, protocol);
@@ -287,8 +302,6 @@ function add_standard_inbound(config, section, protocol, tag_name) {
     else if (protocol == "mieru") {
         inbound.users = users(section, protocol);
         inbound.transport = option(section, "mieru_transport", "TCP");
-        if (bool_option(section, "mieru_user_hint_mandatory", false))
-            inbound.user_hint_is_mandatory = true;
     }
     else if (protocol == "anytls") {
         inbound.users = users(section, protocol);
@@ -296,31 +309,17 @@ function add_standard_inbound(config, section, protocol, tag_name) {
     else if (protocol == "tuic") {
         inbound.users = users(section, protocol);
         maybe_string(inbound, "congestion_control", option(section, "tuic_congestion_control", "cubic"));
-        maybe_string(inbound, "auth_timeout", option(section, "tuic_auth_timeout", "3s"));
         maybe_string(inbound, "heartbeat", option(section, "tuic_heartbeat", "10s"));
         if (bool_option(section, "tuic_zero_rtt_handshake", false))
             inbound.zero_rtt_handshake = true;
     }
     else if (protocol == "mtproto") {
+        // The proxy is registered as mtproxy in the core; mtproto is the name this
+        // tab uses. Nothing else is written: mtg supplies its own concurrency limit,
+        // fronting port, address family preference and timeouts, and the secret each
+        // client carries already names the domain the handshake fronts.
         inbound.type = "mtproxy";
         inbound.users = users(section, protocol);
-        let concurrency = option(section, "mtproto_concurrency", "");
-        if (concurrency != "")
-            inbound.concurrency = int(concurrency, 10);
-        let fronting_port = option(section, "mtproto_domain_fronting_port", "443");
-        if (fronting_port != "")
-            inbound.domain_fronting_port = int(fronting_port, 10);
-        maybe_string(inbound, "domain_fronting_host", option(section, "mtproto_domain_fronting_ip", ""));
-        if (bool_option(section, "mtproto_domain_fronting_proxy_protocol", false))
-            inbound.domain_fronting_proxy_protocol = true;
-        maybe_string(inbound, "prefer_ip", option(section, "mtproto_prefer_ip", "prefer-ipv4"));
-        if (bool_option(section, "mtproto_auto_update", false))
-            inbound.auto_update = true;
-        if (bool_option(section, "mtproto_allow_fallback_on_unknown_dc", false))
-            inbound.allow_fallback_on_unknown_dc = true;
-        maybe_string(inbound, "tolerate_time_skewness", option(section, "mtproto_tolerate_time_skewness", "3s"));
-        maybe_string(inbound, "idle_timeout", option(section, "mtproto_idle_timeout", "5m"));
-        maybe_string(inbound, "handshake_timeout", option(section, "mtproto_handshake_timeout", "10s"));
     }
     else {
         inbound.users = users(section, protocol);
@@ -359,7 +358,8 @@ function add_tailscale_endpoint(config, section, tag_name) {
         control_url: option(section, "tailscale_control_url", "https://controlplane.tailscale.com"),
         hostname: option(section, "tailscale_hostname", "forkop-" + safe_filename(section_name))
     };
-    endpoint.advertise_exit_node = true;
+    if (bool_option(section, "tailscale_advertise_exit_node", true))
+        endpoint.advertise_exit_node = true;
     if (bool_option(section, "tailscale_detour_enabled", false)) {
         let detour_section = option(section, "tailscale_detour_section", "");
         if (detour_section != "")
@@ -481,6 +481,9 @@ function clone_rules_for_inbound(config, source_inbound, target_inbound, skip_do
 }
 
 return {
+    CLIENT_FIELDS,
+    LOGIN_NAME_PROTOCOLS,
+    SHADOWSOCKS_2022_KEY_BYTES,
     add_server,
     add_sniff_rule,
     clone_rules_for_inbound,

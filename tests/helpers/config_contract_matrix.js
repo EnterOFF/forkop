@@ -272,6 +272,11 @@ function extractBackend(repo, fields) {
   const ucodeStaticOptionKeyArrayRe = /^\s*\[\s*["']([A-Za-z0-9_]+)["']\s*,/gm;
   const migrationRe = new RegExp(`\\b(?:forkop|${legacyStem})_uci_(?:set_option|set_option_if_missing|delete_option|add_list_unique)\\s+["'$A-Za-z0-9_{}.-]+\\s+["']([A-Za-z0-9_]+)["']`, "g");
   const ucodeMigrationRe = /\b(?:set_option|set_option_if_missing|delete_option|add_list_unique)\(\s*[^,\n]+,\s*[^,\n]+,\s*["']([A-Za-z0-9_]+)["']/g;
+  // A migration that drops a whole list of options names them in a constant and
+  // loops, so the option never appears as a literal argument. The constant is the
+  // declaration, so it counts as the migration that retires those fields.
+  const ucodeRemovedOptionListRe = /const REMOVED_[A-Z_]+ = \[([^\]]*)\]/g;
+  const quotedNameRe = /["']([A-Za-z0-9_]+)["']/g;
 
   for (const file of files) {
     const data = readFileIfExists(file);
@@ -292,6 +297,11 @@ function extractBackend(repo, fields) {
     }
     for (const match of backendScanData.matchAll(ucodeMigrationRe)) {
       addUnique(ensure(fields, match[1]).migrations, rel(repo, file));
+    }
+    for (const match of backendScanData.matchAll(ucodeRemovedOptionListRe)) {
+      for (const name of match[1].matchAll(quotedNameRe)) {
+        addUnique(ensure(fields, name[1]).migrations, rel(repo, file));
+      }
     }
   }
 }

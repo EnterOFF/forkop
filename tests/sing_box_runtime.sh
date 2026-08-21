@@ -437,6 +437,7 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       "tailscale_hostname": "forkop-server",
       "tailscale_detour_enabled": "1",
       "tailscale_detour_section": "proxy",
+      "tailscale_advertise_exit_node": "0",
       "routing_mode": "direct"
     },
     {
@@ -458,7 +459,6 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       "listen": "0.0.0.0",
       "listen_port": "18442",
       "mtproto_faketls": "google.com",
-      "mtproto_domain_fronting_ip": "203.0.113.7",
       "routing_mode": "direct"
     },
     {
@@ -472,7 +472,6 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       "tls_certificate_path": "/etc/forkop/server-certs/naive.crt",
       "tls_key_path": "/etc/forkop/server-certs/naive.key",
       "naive_network": "tcp_udp",
-      "naive_quic_congestion_control": "bbr2",
       "routing_mode": "direct"
     },
     {
@@ -493,7 +492,6 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       "listen": "0.0.0.0",
       "listen_port": "18444",
       "mieru_transport": "UDP",
-      "mieru_user_hint_mandatory": "1",
       "routing_mode": "direct"
     },
     {
@@ -521,7 +519,6 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       "tls_certificate_path": "/etc/forkop/server-certs/tuic.crt",
       "tls_key_path": "/etc/forkop/server-certs/tuic.key",
       "tuic_congestion_control": "bbr",
-      "tuic_auth_timeout": "4s",
       "tuic_heartbeat": "12s",
       "tuic_zero_rtt_handshake": "1",
       "routing_mode": "direct"
@@ -1320,7 +1317,7 @@ for (let endpoint in server.endpoints || [])
         tailscale_server = endpoint;
 assert(tailscale_server && tailscale_server.type == "tailscale", "Tailscale server endpoint");
 assert(tailscale_server.detour == "proxy", "Tailscale server control-plane detour");
-assert(tailscale_server.advertise_exit_node === true, "a Tailscale server is always the exit node");
+assert(tailscale_server.advertise_exit_node == null, "a Tailscale server that does not advertise omits the exit node flag");
 assert(server.route.auto_detect_interface === false, "direct Tailscale server does not pin advertised LAN routes to the default WAN");
 assert(route_rule(server, r => r.action == "sniff" && r.inbound == "tailnet") == null, "Tailscale endpoint is not sniffed");
 let open_mixed = inbound(server, "open");
@@ -1329,11 +1326,13 @@ assert(open_mixed.users == null, "disabled mixed authentication omits users");
 let mtproxy = inbound(server, "mtproxy");
 assert(mtproxy && mtproxy.type == "mtproxy" && mtproxy.listen_port == 18442, "MTProxy inbound");
 assert(mtproxy.users[0].secret == "ee" + "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" + "676f6f676c652e636f6d", "MTProxy secret carries the FakeTLS host");
-assert(mtproxy.domain_fronting_host == "203.0.113.7", "MTProxy fronting host uses the native schema key");
+assert(mtproxy.domain_fronting_host == null && mtproxy.concurrency == null && mtproxy.prefer_ip == null && mtproxy.idle_timeout == null,
+    "MTProxy carries nothing mtg already defaults");
 assert(mtproxy.domain_fronting_ip == null, "legacy MTProxy fronting IP key is not emitted");
 let naive = inbound(server, "naive");
 assert(naive && naive.type == "naive" && naive.network[0] == "tcp" && naive.network[1] == "udp", "Naive inbound networks");
-assert(naive.users[0].username == "naive-user" && naive.quic_congestion_control == "bbr2", "Naive inbound credentials and QUIC");
+assert(naive.users[0].username == "naive-user", "Naive inbound credentials");
+assert(naive.quic_congestion_control == null, "Naive keeps the core QUIC congestion default");
 assert(naive.tls && naive.tls.enabled === true, "Naive inbound TLS");
 let ssh = inbound(server, "ssh");
 assert(ssh && ssh.type == "ssh" && ssh.users[0].name == "ssh-user", "SSH inbound credentials");
@@ -1341,13 +1340,15 @@ assert(ssh.users[0].authorized_keys[0] == "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 user
 assert(ssh.host_key_path[0] == "/etc/forkop/ssh/host_key", "SSH inbound host key path");
 let mieru = inbound(server, "mieru");
 assert(mieru && mieru.type == "mieru" && mieru.transport == "UDP", "Mieru inbound transport");
-assert(mieru.users[0].password == "mieru-password" && mieru.user_hint_is_mandatory === true, "Mieru inbound credentials");
+assert(mieru.users[0].password == "mieru-password", "Mieru inbound credentials");
+assert(mieru.user_hint_is_mandatory == null, "Mieru keeps the core user hint default");
 let anytls = inbound(server, "AnyTLS user");
 assert(anytls && anytls.type == "anytls" && anytls.users[0].password == "anytls-password", "AnyTLS inbound credentials");
 assert(anytls.tls && anytls.tls.enabled === true, "AnyTLS inbound TLS");
 let tuic = inbound(server, "TUIC user");
 assert(tuic && tuic.type == "tuic" && tuic.users[0].uuid == "33333333-3333-4333-8333-333333333333", "TUIC inbound identity");
-assert(tuic.congestion_control == "bbr" && tuic.auth_timeout == "4s" && tuic.heartbeat == "12s" && tuic.zero_rtt_handshake === true, "TUIC inbound options");
+assert(tuic.congestion_control == "bbr" && tuic.heartbeat == "12s" && tuic.zero_rtt_handshake === true, "TUIC inbound options");
+assert(tuic.auth_timeout == null, "TUIC keeps the core authentication timeout");
 assert(tuic.tls && tuic.tls.enabled === true, "TUIC inbound TLS");
 
 // Every protocol sing-box serves takes a user list, so one server can carry several

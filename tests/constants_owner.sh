@@ -75,4 +75,25 @@ if grep -Fq '":9090"' "$FORKOP_LIB/singbox/generator.uc"; then
   fail "the generator must take the Clash API port from singbox/constants.uc"
 fi
 
+# A server name becomes an inbound tag verbatim, so the Servers dialog refuses the
+# names Forkop already uses for its own listeners. LuCI cannot read ucode, so the
+# list is a copy; a tag added to the core table and not to that copy would let the
+# dialog accept a name the runtime check then rejects.
+reserved_backend="$(ucode -L "$FORKOP_LIB" -e '
+  let c = require("singbox.constants");
+  let names = [];
+  for (let name in c.RESERVED_TAGS)
+    push(names, name);
+  print(join("\n", sort(names)), "\n");
+')"
+reserved_frontend="$(
+  sed -n '/^const RESERVED_RUNTIME_TAGS = new Set(\[$/,/^\]);$/p' \
+    "$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js" |
+    sed -n 's/^  "\([^"]*\)",$/\1/p' | sort
+)"
+[ -n "$reserved_frontend" ] ||
+  fail "the Servers tab must list the runtime tags it refuses as server names"
+[ "$reserved_backend" = "$reserved_frontend" ] ||
+  fail "$(printf 'the Servers tab reserved tag list differs from singbox/constants.uc\nbackend:\n%s\nfrontend:\n%s' "$reserved_backend" "$reserved_frontend")"
+
 printf 'constants ownership checks passed\n'

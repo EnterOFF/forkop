@@ -319,7 +319,7 @@ assert(JSON.stringify(config.settings.bootstrap_dns_server) === JSON.stringify([
 assert(config.settings.unified_delay === '0', 'Unified Delay default missing');
 assert(config.settings.config_version === '1.0.5', 'legacy config should be marked at the current schema version');
 assert(config.settings.component_update_check_enabled === '1', 'component update checks should be enabled during migration');
-assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'server_client_sections', 'shadowsocks_server_keys', 'tailscale_exit_node_switch']), 'legacy config should record named migrations');
+assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'tailscale_exit_node_switch', 'remove_expert_server_options']), 'legacy config should record named migrations');
 
 function assert(condition, message) {
   if (!condition) {
@@ -565,11 +565,11 @@ for (const key of [
 
 const servers = Object.fromEntries(config.server.map(server => [server['.name'], server]));
 assert(servers.naive.naive_network === 'udp', 'explicit Naive network must survive migration');
-assert(servers.naive.naive_quic_congestion_control === 'bbr', 'Naive congestion default missing');
+assert(!Object.prototype.hasOwnProperty.call(servers.naive, 'naive_quic_congestion_control'), 'the removed Naive congestion option must be gone');
 assert(servers.mieru.mieru_transport === 'TCP', 'Mieru transport default missing');
-assert(servers.mieru.mieru_user_hint_mandatory === '0', 'Mieru user hint default missing');
+assert(!Object.prototype.hasOwnProperty.call(servers.mieru, 'mieru_user_hint_mandatory'), 'the removed Mieru user hint option must be gone');
 assert(servers.tuic.tuic_congestion_control === 'cubic', 'TUIC congestion default missing');
-assert(servers.tuic.tuic_auth_timeout === '3s', 'TUIC auth timeout default missing');
+assert(!Object.prototype.hasOwnProperty.call(servers.tuic, 'tuic_auth_timeout'), 'the removed TUIC auth timeout option must be gone');
 assert(servers.tuic.tuic_heartbeat === '20s', 'explicit TUIC heartbeat must survive migration');
 assert(servers.tuic.tuic_zero_rtt_handshake === '0', 'TUIC zero-RTT default missing');
 assert(!Object.prototype.hasOwnProperty.call(servers.ssh, 'ssh_host_key_path'), 'optional empty SSH host key path must stay absent');
@@ -670,7 +670,7 @@ function assert(condition, message) {
 assert(out.changed === true, '1.0.1 config should require migration');
 assert(out.config.settings.config_version === '1.0.5', 'config schema version should advance to 1.0.5');
 assert(out.config.settings.component_update_check_enabled === '1', 'updates from 1.0.1 and below should enable component update checks');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'server_client_sections', 'shadowsocks_server_keys', 'tailscale_exit_node_switch']), 'named migrations should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'tailscale_exit_node_switch', 'remove_expert_server_options']), 'named migrations should be recorded');
 assert(!Object.prototype.hasOwnProperty.call(section, 'interfaces'), 'parent interface list should be removed');
 assert(JSON.stringify(interfaces.map(item => item.name)) === JSON.stringify(['awg0', 'tun0']), 'interfaces should keep their order');
 for (const item of interfaces) {
@@ -871,7 +871,7 @@ function assert(condition, message) {
 
 assert(out.config.settings.component_update_check_enabled === '0', '1.0.2 config must preserve an explicitly disabled component check');
 assert(out.config.settings.config_version === '1.0.5', '1.0.2 config should advance through the HTTP URL migration schema');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'server_client_sections', 'shadowsocks_server_keys', 'tailscale_exit_node_switch']), 'newer configs should mark skipped migrations');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'tailscale_exit_node_switch', 'remove_expert_server_options']), 'newer configs should mark skipped migrations');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.4-http.json" <<'JSON'
@@ -924,7 +924,7 @@ assert(JSON.stringify(section.selector_proxy_links) === JSON.stringify([
 ]), 'connection URLs must stay owned by sing-box parser outbounds');
 assert(jsonOutbounds.length === 1 && jsonOutbounds[0].type === 'direct' && jsonOutbounds[0].tag === 'http',
   'the retired HTTP conversion must leave existing JSON outbounds unchanged');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'server_client_sections', 'shadowsocks_server_keys', 'tailscale_exit_node_switch']), 'HTTP URL migration should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'tailscale_exit_node_switch', 'remove_expert_server_options']), 'HTTP URL migration should be recorded');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.5-http.json" <<'JSON'
@@ -1169,7 +1169,7 @@ assert(JSON.stringify(config.fallback_level.map(item => item.name)) === JSON.str
 assert(out.removed_caches.includes('/var/run/forkop/section-cache') &&
   out.removed_caches.includes('/var/run/forkop/runtime-manifest.json'),
   'readable tag migration must remove both legacy runtime graph files');
-assert(config.settings.applied_migrations.at(-1) === 'tailscale_exit_node_switch',
+assert(config.settings.applied_migrations.at(-1) === 'remove_expert_server_options',
   'readable runtime tag migration must be recorded');
 NODE
 
@@ -1282,7 +1282,7 @@ if (!out.changed || config.section[0].sort_by_latency !== undefined ||
 }
 if (config.urltest[0].name !== 'Fast' || config.fallback_group[0].name !== 'Fallback' ||
     !config.settings.applied_migrations.includes('remove_dashboard_sort_options') ||
-    config.settings.applied_migrations.at(-1) !== 'tailscale_exit_node_switch') {
+    config.settings.applied_migrations.at(-1) !== 'remove_expert_server_options') {
   console.error('dashboard sort migration changed unrelated settings or missed its marker');
   process.exit(1);
 }
@@ -1376,7 +1376,7 @@ assert(sections.doh.dns_type === undefined &&
   'DNS action should preserve the old DoH path as a list');
 assert(JSON.stringify(sections.udp.dns_server) === JSON.stringify(['8.8.8.8']),
   'DNS action should migrate explicit UDP without a redundant scheme');
-assert(config.settings.applied_migrations.at(-1) === 'tailscale_exit_node_switch',
+assert(config.settings.applied_migrations.at(-1) === 'remove_expert_server_options',
   'DNS URI migration marker should be recorded');
 
 fs.writeFileSync(process.argv[3], JSON.stringify(config));
@@ -1541,7 +1541,7 @@ grep -Fxq 'forkop.settings.config_version=1.0.5' "$WORK_DIR/runtime-version.stat
   fail "runtime version migration must advance config_version"
 grep -Fxq 'forkop.settings.component_update_check_enabled=1' "$WORK_DIR/runtime-version.state" ||
   fail "runtime version migration must enable component update checks"
-grep -Fq 'forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter native_fallbacks dns_fallback_modes native_rule_sets universal_rule_sets leaf_subscription_providers extended_server_defaults fallback_uci_tags reset_fallback_defaults remove_proxy_parameter_filters server_filter_model server_filter_modes single_subscription_user_agent subscription_headers interface_display_names remove_section_cache remove_dashboard_sort_options dns_server_uris interface_domain_resolver_uris readable_runtime_tags urltest_expected_status group_interrupt_defaults subscription_user_agent_header mixed_server_inbounds server_client_sections shadowsocks_server_keys tailscale_exit_node_switch' "$WORK_DIR/runtime-version.state" ||
+grep -Fq 'forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter native_fallbacks dns_fallback_modes native_rule_sets universal_rule_sets leaf_subscription_providers extended_server_defaults fallback_uci_tags reset_fallback_defaults remove_proxy_parameter_filters server_filter_model server_filter_modes single_subscription_user_agent subscription_headers interface_display_names remove_section_cache remove_dashboard_sort_options dns_server_uris interface_domain_resolver_uris readable_runtime_tags urltest_expected_status group_interrupt_defaults subscription_user_agent_header mixed_server_inbounds shadowsocks_server_keys server_client_sections tailscale_exit_node_switch remove_expert_server_options' "$WORK_DIR/runtime-version.state" ||
   fail "runtime migration must record stable migration names"
 grep -Fxq 'forkop.main.selector_proxy_links=http://proxy.example:8080' "$WORK_DIR/runtime-version.state" ||
   fail "runtime migration must preserve connection URLs for sing-box parser outbounds"
@@ -1747,10 +1747,12 @@ if grep -Eq 'forkop\.priority\.(recovery_check_interval|health_url|pick_fastest|
 fi
 grep -Fxq 'forkop.naive.naive_network=tcp' "$WORK_DIR/cache-cleanup.state" ||
   fail "server migration must add the Naive network default"
-grep -Fxq 'forkop.naive.naive_quic_congestion_control=bbr' "$WORK_DIR/cache-cleanup.state" ||
-  fail "server migration must add the Naive congestion default"
-grep -Fxq 'forkop.tuic.tuic_auth_timeout=3s' "$WORK_DIR/cache-cleanup.state" ||
-  fail "server migration must add the TUIC auth timeout default"
+if grep -Fq 'forkop.naive.naive_quic_congestion_control=' "$WORK_DIR/cache-cleanup.state"; then
+  fail "server migration must remove the Naive congestion option"
+fi
+if grep -Fq 'forkop.tuic.tuic_auth_timeout=' "$WORK_DIR/cache-cleanup.state"; then
+  fail "server migration must remove the TUIC auth timeout option"
+fi
 grep -Fxq 'forkop.tuic.tuic_heartbeat=20s' "$WORK_DIR/cache-cleanup.state" ||
   fail "server migration must preserve an explicit TUIC heartbeat"
 # The legacy inline user ends up on the client section the migration creates for the
@@ -1766,6 +1768,164 @@ if grep -Eq 'forkop.legacy_vless.(server_users|server_uuid|vless_flow)=' "$WORK_
   fail "server migration must remove the legacy inline user options"
 fi
 
+
+# The Servers tab shipped in 1.0.5, so the released schema is the migration
+# baseline: one inline account per server, a SOCKS listener instead of a mixed one
+# and a Tailscale exit-node switch. Everything below is the shape that release
+# wrote, not the shape an older beta wrote.
+cat >"$WORK_DIR/forkop-1.0.5-servers.json" <<'JSON'
+{
+  "settings": {
+    ".name": "settings",
+    ".type": "settings",
+    "config_version": "1.0.5",
+    "applied_migrations": [
+      "interface_sections", "enable_component_checks", "http_connection_urls"
+    ]
+  },
+  "section": [{ ".name": "main", ".type": "section", "label": "Main", "action": "connection" }],
+  "server": [
+    {
+      ".name": "released_vless", ".type": "server", "protocol": "vless",
+      "label": "VLESS", "enabled": "1", "listen": "0.0.0.0", "listen_port": "31443",
+      "public_host": "203.0.113.9", "security": "reality",
+      "server_uuid": "44444444-4444-4444-8444-444444444444",
+      "vless_flow": "xtls-rprx-vision",
+      "reality_max_time_difference": "1m"
+    },
+    {
+      ".name": "released_vmess", ".type": "server", "protocol": "vmess",
+      "label": "VMess", "enabled": "1", "listen_port": "31444",
+      "server_uuid": "55555555-5555-4555-8555-555555555555",
+      "vmess_alter_id": "0"
+    },
+    {
+      ".name": "released_socks", ".type": "server", "protocol": "socks",
+      "label": "SOCKS", "enabled": "1", "listen_port": "31080",
+      "socks_auth_enabled": "0",
+      "server_username": "Ivan Petrov", "server_password": "socks-secret"
+    },
+    {
+      ".name": "released_ss", ".type": "server", "protocol": "shadowsocks",
+      "label": "Shadowsocks", "enabled": "1", "listen_port": "31445",
+      "shadowsocks_method": "aes-256-gcm", "server_password": "ss-secret"
+    },
+    {
+      ".name": "manual_ss2022", ".type": "server", "protocol": "shadowsocks",
+      "label": "Shadowsocks 2022", "enabled": "1", "listen_port": "31446",
+      "shadowsocks_method": "2022-blake3-aes-128-gcm",
+      "server_password": "ajXWye37k0IsLRrpEhB3pA=="
+    },
+    {
+      ".name": "released_mtproto", ".type": "server", "protocol": "mtproto",
+      "label": "MTProto", "enabled": "1", "listen_port": "31447",
+      "mtproto_secret": "eeaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa676f6f676c652e636f6d",
+      "mtproto_padding": "1", "mtproto_concurrency": "1024",
+      "mtproto_prefer_ip": "prefer-ipv4", "mtproto_auto_update": "0",
+      "mtproto_allow_fallback_on_unknown_dc": "0",
+      "mtproto_tolerate_time_skewness": "3s", "mtproto_idle_timeout": "5m",
+      "mtproto_handshake_timeout": "10s", "mtproto_domain_fronting_port": "443",
+      "mtproto_domain_fronting_ip": "198.51.100.7",
+      "mtproto_domain_fronting_proxy_protocol": "0"
+    },
+    {
+      ".name": "released_tailscale", ".type": "server", "protocol": "tailscale",
+      "label": "Tailscale", "enabled": "1",
+      "tailscale_auth_key": "tskey-auth-released",
+      "tailscale_hostname": "forkop",
+      "tailscale_advertise_exit_node": "0"
+    }
+  ]
+}
+JSON
+
+FORKOP_LIB="$FORKOP_LIB" ucode -L "$FORKOP_LIB" "$MIGRATION" migrate-fixture \
+  "$WORK_DIR/forkop-1.0.5-servers.json" >"$WORK_DIR/forkop-1.0.5-servers-output.json"
+node -e 'const fs = require("fs");
+fs.writeFileSync(process.argv[2], JSON.stringify(JSON.parse(fs.readFileSync(process.argv[1], "utf8")).config));' \
+  "$WORK_DIR/forkop-1.0.5-servers-output.json" "$WORK_DIR/forkop-1.0.5-servers-once.json"
+FORKOP_LIB="$FORKOP_LIB" ucode -L "$FORKOP_LIB" "$MIGRATION" migrate-fixture \
+  "$WORK_DIR/forkop-1.0.5-servers-once.json" >"$WORK_DIR/forkop-1.0.5-servers-rerun.json"
+
+node - "$WORK_DIR/forkop-1.0.5-servers-output.json" "$WORK_DIR/forkop-1.0.5-servers-rerun.json" <<'NODE'
+const fs = require('fs');
+const out = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const rerun = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
+const assert = (condition, message) => {
+  if (!condition) {
+    console.error(message);
+    process.exit(1);
+  }
+};
+
+const servers = Object.fromEntries(out.config.server.map((item) => [item['.name'], item]));
+const clients = {};
+for (const client of out.config.server_client || []) {
+  clients[client.server] = clients[client.server] || [];
+  clients[client.server].push(client);
+}
+const only = (name) => {
+  assert((clients[name] || []).length === 1, `server ${name} should own one migrated client`);
+  return clients[name][0];
+};
+const absent = (item, key) =>
+  assert(!Object.prototype.hasOwnProperty.call(item, key),
+    `${item['.name']} must not keep ${key}`);
+
+// The inline account of every released protocol becomes the one client section.
+assert(only('released_vless').uuid === '44444444-4444-4444-8444-444444444444',
+  'the released VLESS UUID must reach the client section');
+assert(only('released_vless').flow === 'xtls-rprx-vision',
+  'the released VLESS flow must reach the client section');
+assert(only('released_vmess').uuid === '55555555-5555-4555-8555-555555555555',
+  'the released VMess UUID must reach the client section');
+assert(only('released_ss').password === 'ss-secret',
+  'the released Shadowsocks password must reach the client section');
+assert(only('released_mtproto').secret === 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+  'the released MTProto secret must be split into the bare key');
+assert(servers.released_mtproto.mtproto_faketls === 'google.com',
+  'the FakeTLS host must come out of the released MTProto secret');
+
+// A SOCKS listener becomes a mixed one and keeps its authentication state and login.
+assert(servers.released_socks.protocol === 'mixed', 'a released SOCKS server must become mixed');
+assert(servers.released_socks.mixed_auth_enabled === '0',
+  'a released SOCKS server with authentication off must stay off');
+assert(only('released_socks').name === 'ivan-petrov',
+  'a released SOCKS user name must become a login safe client name');
+assert(only('released_socks').password === 'socks-secret',
+  'the released SOCKS password must reach the client section');
+
+// A hand written 2022 listener keeps its key as the listener key.
+assert(servers.manual_ss2022.shadowsocks_psk === 'ajXWye37k0IsLRrpEhB3pA==',
+  'a 2022 Shadowsocks server key must move to the listener key');
+assert(only('manual_ss2022').password === 'ajXWye37k0IsLRrpEhB3pA==',
+  'the 2022 account keeps the released key so an issued link still works');
+assert(servers.released_ss.shadowsocks_psk === undefined,
+  'a legacy AEAD method needs no listener key');
+
+// The Tailscale switch keeps the value the release stored.
+assert(servers.released_tailscale.tailscale_advertise_exit_node === '0',
+  'a released Tailscale server that did not advertise must keep the switch off');
+
+for (const name of Object.keys(servers)) {
+  for (const key of [
+    'server_uuid', 'server_username', 'server_password', 'mtproto_secret',
+    'vless_flow', 'vmess_alter_id', 'socks_auth_enabled', 'mtproto_padding',
+    'mtproto_concurrency', 'mtproto_prefer_ip', 'mtproto_auto_update',
+    'mtproto_allow_fallback_on_unknown_dc', 'mtproto_tolerate_time_skewness',
+    'mtproto_idle_timeout', 'mtproto_handshake_timeout',
+    'mtproto_domain_fronting_port', 'mtproto_domain_fronting_ip',
+    'mtproto_domain_fronting_proxy_protocol', 'reality_max_time_difference',
+  ]) absent(servers[name], key);
+}
+
+assert(JSON.stringify(rerun.config.server) === JSON.stringify(out.config.server) &&
+  JSON.stringify(rerun.config.server_client) === JSON.stringify(out.config.server_client),
+  'rerunning the released server migration must not change the servers again');
+assert(!rerun.operations.some((item) => item.section === 'released_socks' ||
+  item.section === 'released_mtproto'),
+  'rerunning the released server migration must not touch a migrated server again');
+NODE
 : >"$WORK_DIR/uci-commit.log"
 : >"$WORK_DIR/uci-commit.state"
 FORKOP_UCI_STATE_FILE="$WORK_DIR/uci-commit.state" \

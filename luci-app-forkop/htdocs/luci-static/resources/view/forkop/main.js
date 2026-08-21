@@ -7645,7 +7645,7 @@ function getPortConflictItem(item) {
   };
 }
 function getPublicHostItem(item, wanIp) {
-  const key = `${serverPrefix(item)} ${_("Public host")}`;
+  const key = `${serverPrefix(item)} ${_("Public address")}`;
   if (!item.public_host) {
     return {
       state: "warning",

@@ -40,20 +40,31 @@ const flagBlock = source.slice(
 );
 if (
   !flagBlock.includes('_("Authentication")') ||
-  !flagBlock.includes('o.default = "0"') ||
+  !flagBlock.includes('o.default = "1"') ||
   !flagBlock.includes('o.depends("protocol", "mixed")')
 ) {
-  fail("mixed authentication must be off by default and limited to mixed servers");
+  fail("mixed authentication must be on by default and limited to mixed servers");
 }
 
 // With authentication off the inbound takes no users, so the client dialog hides the
 // password, the checks skip it and the link carries no credentials.
+const visibleFields = source.slice(
+  requiredIndex("function visibleClientFields"),
+  requiredIndex("function clientCredentialLabel"),
+);
 if (
-  !source.includes(
-    '(field) => field !== "password" || isAuthenticationEnabled(sectionId),',
-  )
+  !visibleFields.includes('if (field === "password") {') ||
+  !visibleFields.includes("return isAuthenticationEnabled(sectionId);")
 ) {
   fail("the client dialog must hide the password while authentication is disabled");
+}
+// XTLS Vision needs the raw TLS stream the listener owns, so the flow disappears
+// wherever a transport wraps it or a multiplexed client drops it.
+if (
+  !visibleFields.includes('if (field === "flow") {') ||
+  !visibleFields.includes("return supportsVisionFlow(sectionId);")
+) {
+  fail("the client dialog must hide the flow where Vision cannot be carried");
 }
 if (
   !source.includes('if (field === "password" && !isAuthenticationEnabled(sectionId))')

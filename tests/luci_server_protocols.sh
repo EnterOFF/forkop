@@ -58,18 +58,41 @@ for (const protocol of [
 
 for (const option of [
   "naive_network",
-  "naive_quic_congestion_control",
   "ssh_host_key_path",
   "mieru_transport",
-  "mieru_user_hint_mandatory",
   "tuic_congestion_control",
   "tuic_zero_rtt_handshake",
   "hysteria2_masquerade",
   "tailscale_ephemeral",
+  "tailscale_advertise_exit_node",
   "tcp_fast_open",
+  "open_firewall",
   "routing_override",
 ]) {
   requireSource(`"${option}"`);
+}
+
+// Options with a working core default that never decide whether a client connects.
+// They were removed from the dialog, so nothing may reintroduce them.
+for (const option of [
+  "mtproto_concurrency",
+  "mtproto_prefer_ip",
+  "mtproto_auto_update",
+  "mtproto_allow_fallback_on_unknown_dc",
+  "mtproto_tolerate_time_skewness",
+  "mtproto_idle_timeout",
+  "mtproto_handshake_timeout",
+  "mtproto_domain_fronting_port",
+  "mtproto_domain_fronting_ip",
+  "mtproto_domain_fronting_proxy_protocol",
+  "tuic_auth_timeout",
+  "naive_quic_congestion_control",
+  "mieru_user_hint_mandatory",
+  "reality_max_time_difference",
+]) {
+  if (source.includes(`"${option}"`)) {
+    fail(`the dialog must not ask for ${option}`);
+  }
 }
 
 // A protocol that cannot run without TLS must not offer any other security mode.
