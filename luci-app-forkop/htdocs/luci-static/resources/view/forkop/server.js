@@ -3900,6 +3900,19 @@ function addListenerOptions(section) {
     return stored ? stored : loadDefaultPublicHost().then((host) => host || "");
   });
 
+  // Without this the listener answers only on the LAN: the WAN zone of an OpenWrt
+  // firewall rejects everything it was not told to accept, so a server made to be
+  // dialled from outside would silently never be reached.
+  o = section.option(
+    form.Flag,
+    "open_firewall",
+    _("Open the port in the firewall"),
+    _("Accept connections to this port from the internet."),
+  );
+  o.default = "1";
+  o.rmempty = false;
+  o.modalonly = true;
+  onListener(o);
 }
 
 function addShadowsocksOptions(section) {

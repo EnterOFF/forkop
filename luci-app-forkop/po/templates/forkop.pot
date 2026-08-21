@@ -4303,3 +4303,9 @@ msgstr ""
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8109
 msgid "Zapret2 sing-box outbound is not configured"
 msgstr ""
+
+msgid "Open the port in the firewall"
+msgstr ""
+
+msgid "Accept connections to this port from the internet."
+msgstr ""

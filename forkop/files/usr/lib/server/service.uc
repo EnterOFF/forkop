@@ -2,6 +2,8 @@
 
 let fs = require("fs");
 let uci = require("core.uci");
+let runtime_servers = require("singbox.servers");
+let diagnostics_inbounds = require("diagnostics.inbounds");
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 
@@ -722,10 +724,110 @@ function prepare_all_server_defaults() {
         uci_commit(CONFIG_NAME);
 }
 
+// fw4 rejects everything on the WAN zone it was not told to accept, so a listener
+// that exists to be dialled from outside is unreachable until a rule says otherwise.
+// The rule set is derived from the servers instead of being left to the user: the
+// switch in the dialog is what decides, and it defaults to on.
+const FIREWALL_INCLUDE = getenv("FORKOP_SERVER_FIREWALL_INCLUDE") ||
+    "/usr/share/nftables.d/chain-pre/input/forkop-servers.nft";
+const FIREWALL_INIT = getenv("FORKOP_FIREWALL_INIT") || "/etc/init.d/firewall";
+const FIREWALL_COMMENT = "forkop: server ports";
+
+// Which L4 protocols a protocol needs open. The inbound check already answers this
+// for diagnostics, so the answer is read from there rather than restated.
+function server_required_protocols(section, protocol) {
+    let transport = protocol == "naive"
+        ? config_get(section, "naive_network", "tcp")
+        : protocol == "mieru"
+            ? config_get(section, "mieru_transport", "TCP")
+            : "";
+    return words(diagnostics_inbounds.required_proto(protocol, transport));
+}
+
+function firewall_ports_by_protocol() {
+    let result = { tcp: [], udp: [] };
+    let seen = { tcp: {}, udp: {} };
+
+    for (let section in uci_sections("server")) {
+        let protocol = config_get(section, "protocol", "vless");
+        if (SERVER_PROTOCOLS[protocol] == null || protocol == "tailscale" || protocol == "json_inbound")
+            continue;
+        if (config_get(section, "enabled", "1") == "0")
+            continue;
+        if (config_get(section, "open_firewall", "1") == "0")
+            continue;
+
+        let port = config_get(section, "listen_port", "");
+        if (!regex_matches(port, "^[0-9]+$") || int(port, 10) < 1 || int(port, 10) > 65535)
+            continue;
+
+        for (let proto in server_required_protocols(section, protocol)) {
+            if (result[proto] == null || seen[proto][port])
+                continue;
+            seen[proto][port] = true;
+            push(result[proto], port);
+        }
+    }
+
+    return result;
+}
+
+function firewall_include_text() {
+    let ports = firewall_ports_by_protocol();
+    let lines = [
+        "# Written by Forkop from the Servers tab. Do not edit: it is rewritten on",
+        "# every apply. fw4 prepends this file to its own input chain."
+    ];
+
+    for (let proto in [ "tcp", "udp" ])
+        if (length(ports[proto]) > 0)
+            push(lines, "meta l4proto " + proto + " th dport { " + join(", ", ports[proto]) +
+                " } counter accept comment " + shell_quote(FIREWALL_COMMENT));
+
+    return length(lines) == 2 ? "" : join("\n", lines) + "\n";
+}
+
+function reload_firewall() {
+    if (!run("[ -x " + shell_quote(FIREWALL_INIT) + " ]"))
+        return;
+    // A firewall that is not loaded reads the file the next time it starts.
+    if (!run("nft list chain inet fw4 input >/dev/null 2>&1"))
+        return;
+    if (!run(shell_quote(FIREWALL_INIT) + " reload >/dev/null 2>&1"))
+        log("Failed to reload the firewall; server ports stay closed until it is reloaded", "warn");
+}
+
+function sync_server_firewall(clear) {
+    let wanted = clear ? "" : firewall_include_text();
+    let current = as_string(fs.readfile(FIREWALL_INCLUDE) || "");
+
+    if (current == wanted)
+        return;
+
+    if (wanted == "") {
+        fs.unlink(FIREWALL_INCLUDE);
+    }
+    else {
+        let dir = replace(FIREWALL_INCLUDE, /\/[^\/]*$/, "");
+        if (!run("mkdir -p " + shell_quote(dir))) {
+            log("Failed to create " + dir + " for the server firewall rules", "warn");
+            return;
+        }
+        if (!fs.writefile(FIREWALL_INCLUDE, wanted)) {
+            log("Failed to write " + FIREWALL_INCLUDE, "warn");
+            return;
+        }
+    }
+
+    reload_firewall();
+}
+
 let mode = ARGV[0] || "";
 
 if (mode == "prepare-all-defaults")
     prepare_all_server_defaults();
+else if (mode == "sync-firewall")
+    sync_server_firewall(as_string(ARGV[1]) == "clear");
 else if (mode == "generate-reality-keypair")
     generate_reality_keypair_cli();
 else if (mode == "generate-server-certificate")

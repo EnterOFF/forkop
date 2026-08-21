@@ -2671,3 +2671,9 @@ msgstr "sing-box outbound для Zapret2 настроен"
 
 msgid "Zapret2 sing-box outbound is not configured"
 msgstr "sing-box outbound для Zapret2 не настроен"
+
+msgid "Open the port in the firewall"
+msgstr "Открыть порт в файрволе"
+
+msgid "Accept connections to this port from the internet."
+msgstr "Принимать подключения на этот порт из интернета."

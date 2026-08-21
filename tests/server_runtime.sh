@@ -358,4 +358,56 @@ ucode -L "$UCODE_LIB" "$SERVER_RUNTIME" prepare-all-defaults
 [ ! -s "$LOG" ] || fail 'unchanged server defaults must not rewrite or commit configuration on every reload'
 [ ! -s "$FORKOP_SSH_KEYGEN_LOG" ] || fail 'persistent SSH host key must not be regenerated on reload'
 
+# The WAN zone of an OpenWrt firewall rejects what it was not told to accept, so a
+# server that exists to be dialled from outside needs a rule. The switch in the
+# dialog decides, the include is derived from it, and a listener that carries UDP
+# gets a UDP rule as well.
+export FORKOP_SERVER_FIREWALL_INCLUDE="$WORK_DIR/nftables.d/chain-pre/input/forkop-servers.nft"
+export FORKOP_FIREWALL_INIT="$WORK_DIR/bin/firewall-missing"
+
+cat >>"$STATE" <<'EOF_FIREWALL'
+forkop.fw_tcp=server
+forkop.fw_tcp.protocol=vless
+forkop.fw_tcp.listen_port=31001
+forkop.fw_udp=server
+forkop.fw_udp.protocol=hysteria2
+forkop.fw_udp.listen_port=31002
+forkop.fw_both=server
+forkop.fw_both.protocol=naive
+forkop.fw_both.naive_network=tcp_udp
+forkop.fw_both.listen_port=31003
+forkop.fw_closed=server
+forkop.fw_closed.protocol=vless
+forkop.fw_closed.listen_port=31004
+forkop.fw_closed.open_firewall=0
+forkop.fw_off=server
+forkop.fw_off.protocol=vless
+forkop.fw_off.listen_port=31005
+forkop.fw_off.enabled=0
+forkop.fw_tailscale=server
+forkop.fw_tailscale.protocol=tailscale
+forkop.fw_tailscale.listen_port=31006
+EOF_FIREWALL
+
+ucode -L "$UCODE_LIB" "$SERVER_RUNTIME" sync-firewall
+include="$FORKOP_SERVER_FIREWALL_INCLUDE"
+[ -s "$include" ] || fail 'sync-firewall must write the fw4 input include'
+grep -Eq '^meta l4proto tcp th dport \{ [0-9, ]*31001[0-9, ]*\} counter accept' "$include" ||
+  fail 'a TCP listener must be accepted on its port'
+grep -Eq '^meta l4proto udp th dport \{ [0-9, ]*31002[0-9, ]*\} counter accept' "$include" ||
+  fail 'a UDP listener must be accepted on its port'
+grep -Eq '^meta l4proto tcp th dport \{ [0-9, ]*31003[0-9, ]*\}' "$include" &&
+  grep -Eq '^meta l4proto udp th dport \{ [0-9, ]*31003[0-9, ]*\}' "$include" ||
+  fail 'a listener that carries both protocols needs both rules'
+grep -Fq '31004' "$include" && fail 'a server with the switch off must stay closed'
+grep -Fq '31005' "$include" && fail 'a disabled server must stay closed'
+grep -Fq '31006' "$include" && fail 'a Tailscale endpoint has no listener to open'
+
+before="$(cat "$include")"
+ucode -L "$UCODE_LIB" "$SERVER_RUNTIME" sync-firewall
+[ "$before" = "$(cat "$include")" ] || fail 'an unchanged server set must not rewrite the include'
+
+ucode -L "$UCODE_LIB" "$SERVER_RUNTIME" sync-firewall clear
+[ ! -e "$include" ] || fail 'a stopped runtime must not leave server ports accepted'
+
 printf 'server runtime checks passed\n'

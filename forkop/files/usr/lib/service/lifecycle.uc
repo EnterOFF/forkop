@@ -555,6 +555,10 @@ function validate_start_config() {
         return validation.status;
     }
 
+    // Only once the configuration is known good: the firewall opens the ports of the
+    // servers that asked for it, and a rejected configuration must not open any.
+    module_success(SERVER_UC, [ "sync-firewall" ]);
+
     return 0;
 }
 
@@ -801,6 +805,8 @@ function stop_main() {
 function cleanup_failed_runtime() {
     let status = 0;
 
+    module_success(SERVER_UC, [ "sync-firewall", "clear" ]);
+
     log_message("Cleaning up Forkop runtime after failed start/reload", "info");
 
     let stop_status = stop_main();
@@ -910,6 +916,11 @@ function start() {
 
 function stop_impl() {
     let status = 0;
+
+    // Nothing listens on the server ports once the runtime is down, so the firewall
+    // stops accepting them. A reload keeps them: it takes the runtime down and back
+    // up, and closing the ports in between would cost a second firewall reload.
+    module_success(SERVER_UC, [ "sync-firewall", "clear" ]);
 
     if (!mark_sing_box_planned_stop())
         log_message("Failed to mark the planned sing-box stop", "warn");
