@@ -423,4 +423,91 @@ ucode -L "$UCODE_LIB" "$SERVER_RUNTIME" sync-firewall
 ucode -L "$UCODE_LIB" "$SERVER_RUNTIME" sync-firewall clear
 [ ! -e "$include" ] || fail 'a stopped runtime must not leave server ports accepted'
 
+# Forkop issues certificates and SSH host keys into two directories of its own. A
+# removed server leaves them behind, nothing will ever reference them again, and a
+# private key of a server that no longer exists has no business staying on the
+# overlay. Only those directories, and only a file no server points at.
+export FORKOP_SERVER_SSH_DIR="$WORK_DIR/server-ssh"
+mkdir -p "$FORKOP_SERVER_SSH_DIR" "$WORK_DIR/elsewhere"
+printf 'orphan\n' >"$FORKOP_SERVER_CERT_DIR/gone.crt"
+printf 'orphan\n' >"$FORKOP_SERVER_CERT_DIR/gone.key"
+printf '0\n' >"$FORKOP_SERVER_CERT_DIR/gone.crt.expires"
+printf 'orphan\n' >"$FORKOP_SERVER_SSH_DIR/gone.key"
+# Referenced by a server, even though it sits in Forkop's own directory and was put
+# there by hand: a path the configuration points at is in use.
+printf 'kept\n' >"$FORKOP_SERVER_CERT_DIR/handmade.crt"
+printf 'kept\n' >"$FORKOP_SERVER_CERT_DIR/handmade.key"
+printf 'kept\n' >"$FORKOP_SERVER_SSH_DIR/handmade.key"
+printf 'outside\n' >"$WORK_DIR/elsewhere/private.crt"
+cat >>"$STATE" <<EOF_FILES
+forkop.fw_certs=server
+forkop.fw_certs.protocol=trojan
+forkop.fw_certs.enabled=0
+forkop.fw_certs.listen_port=31008
+forkop.fw_certs.security=tls
+forkop.fw_certs.tls_certificate_path=$FORKOP_SERVER_CERT_DIR/handmade.crt
+forkop.fw_certs.tls_key_path=$FORKOP_SERVER_CERT_DIR/handmade.key
+forkop.fw_ssh=server
+forkop.fw_ssh.protocol=ssh
+forkop.fw_ssh.enabled=0
+forkop.fw_ssh.listen_port=31009
+forkop.fw_ssh.ssh_host_key_path=$FORKOP_SERVER_SSH_DIR/handmade.key
+EOF_FILES
+
+ucode -L "$UCODE_LIB" "$SERVER_RUNTIME" prepare-all-defaults
+
+for gone in "$FORKOP_SERVER_CERT_DIR/gone.crt" "$FORKOP_SERVER_CERT_DIR/gone.key" \
+  "$FORKOP_SERVER_CERT_DIR/gone.crt.expires" "$FORKOP_SERVER_SSH_DIR/gone.key"; do
+  [ ! -e "$gone" ] || fail "a file of a removed server must not stay behind: $gone"
+done
+# A disabled server still owns its files, and the expiry stamp belongs to its
+# certificate.
+for kept in "$FORKOP_SERVER_CERT_DIR/handmade.crt" "$FORKOP_SERVER_CERT_DIR/handmade.key" \
+  "$FORKOP_SERVER_SSH_DIR/handmade.key" "$FORKOP_SERVER_CERT_DIR/hy2.crt" \
+  "$FORKOP_SERVER_CERT_DIR/hy2.crt.expires" "$WORK_DIR/ssh/host_key"; do
+  [ -e "$kept" ] || fail "a file the configuration points at must be kept: $kept"
+done
+# Nothing outside the two directories Forkop issues into is ever looked at, let
+# alone removed: a path the user chose is theirs.
+[ -e "$WORK_DIR/elsewhere/private.crt" ] ||
+  fail 'a file outside the directories Forkop owns must never be touched'
+grep -Fq 'for (let dir in [ SERVER_CERT_DIR, SERVER_SSH_DIR ])' "$SERVER_RUNTIME" ||
+  fail 'server/service.uc must only sweep the two directories it issues into'
+
+# A file named after a server that still exists is that server's, even when no
+# option points at it: a cleared certificate field must not cost the file.
+printf 'named\n' >"$FORKOP_SERVER_CERT_DIR/fw_certs.crt"
+printf 'named\n' >"$FORKOP_SERVER_SSH_DIR/fw_ssh.key"
+ucode -L "$UCODE_LIB" "$SERVER_RUNTIME" prepare-all-defaults
+for kept in "$FORKOP_SERVER_CERT_DIR/fw_certs.crt" "$FORKOP_SERVER_SSH_DIR/fw_ssh.key"; do
+  [ -e "$kept" ] || fail "a file named after an existing server must be kept: $kept"
+done
+
+# An empty server list is indistinguishable from a list that could not be read, and
+# acting on it turns every certificate, host key and account on the router into
+# garbage. It happened once; it must not be possible.
+EMPTY_STATE="$WORK_DIR/empty.state"
+EMPTY_LOG="$WORK_DIR/empty.log"
+EMPTY_CERTS="$WORK_DIR/empty-certs"
+EMPTY_SSH="$WORK_DIR/empty-ssh"
+mkdir -p "$EMPTY_CERTS" "$EMPTY_SSH"
+printf 'orphan\n' >"$EMPTY_CERTS/whatever.crt"
+printf 'orphan\n' >"$EMPTY_SSH/whatever.key"
+cat >"$EMPTY_STATE" <<'EOF_EMPTY'
+forkop.settings=settings
+forkop.stray_client=server_client
+forkop.stray_client.server=vanished
+forkop.stray_client.name=phone
+forkop.stray_client.password=secret
+EOF_EMPTY
+FORKOP_UCI_STATE_FILE="$EMPTY_STATE" FORKOP_UCI_LOG_FILE="$EMPTY_LOG" \
+  FORKOP_SERVER_CERT_DIR="$EMPTY_CERTS" FORKOP_SERVER_SSH_DIR="$EMPTY_SSH" \
+  ucode -L "$UCODE_LIB" "$SERVER_RUNTIME" prepare-all-defaults
+[ -e "$EMPTY_CERTS/whatever.crt" ] ||
+  fail 'a configuration with no servers must not have its certificates removed'
+[ -e "$EMPTY_SSH/whatever.key" ] ||
+  fail 'a configuration with no servers must not have its host keys removed'
+grep -Fq 'forkop.stray_client.password=secret' "$EMPTY_STATE" ||
+  fail 'a configuration with no servers must not have its accounts removed'
+
 printf 'server runtime checks passed\n'

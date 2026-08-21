@@ -665,10 +665,19 @@ function prepare_server_defaults(section) {
 
 // A client whose server is gone would keep its credentials in the configuration and
 // show up in diagnostics forever, so it is removed with the server it belonged to.
+//
+// Never while there are no servers at all: an empty list is indistinguishable from a
+// list that could not be read, and acting on it would take every account of every
+// server with it. The accounts of the last server deleted stay behind instead - the
+// dialog already removes them when it removes the server, so this is only the net
+// under a configuration written by hand.
 function remove_orphaned_server_clients() {
     let servers = {};
     for (let section in uci_sections("server"))
         servers[as_string(section)] = true;
+
+    if (length(keys(servers)) == 0)
+        return;
 
     for (let client in uci_sections("server_client")) {
         let owner = uci_get(config_path(client, "server"));
@@ -680,11 +689,80 @@ function remove_orphaned_server_clients() {
     }
 }
 
+// What the configuration says still belongs to a server: every path any server
+// points at, enabled or not, plus the expiry stamp that belongs next to a
+// certificate, plus the names Forkop generates from a section id. Two signals, and a
+// file has to fail both to count as garbage: a server whose certificate field was
+// cleared still owns the file named after it.
+function server_file_owners() {
+    let referenced = {};
+
+    for (let section in uci_sections("server")) {
+        let base = safe_filename_string(as_string(section));
+        for (let name in [ base + ".crt", base + ".key", base + ".crt.expires" ])
+            referenced[SERVER_CERT_DIR + "/" + name] = true;
+        referenced[SERVER_SSH_DIR + "/" + base + ".key"] = true;
+
+        for (let key in [ "tls_certificate_path", "tls_key_path", "ssh_host_key_path" ]) {
+            for (let path in words(config_get(section, key, ""))) {
+                if (path == "")
+                    continue;
+                referenced[path] = true;
+                referenced[server_cert_expiry_path(path)] = true;
+            }
+        }
+    }
+
+    return referenced;
+}
+
+// Forkop issues certificates, keys and SSH host keys into two directories of its
+// own, named after the section that asked for one. A section that is gone leaves
+// them behind: nothing can reach them, nothing will ever reference them again, and a
+// private key of a server that no longer exists has no business staying on an
+// overlay of a few megabytes.
+//
+// Only those two directories, and only a file that neither a path nor a section name
+// claims. Nothing outside them is ever touched: a path the user chose is theirs.
+//
+// And nothing at all while there are no servers to reconcile against. An empty list
+// is indistinguishable from a list that could not be read, and this happened: a
+// configuration that lost its server sections turned every certificate and every
+// host key on the router into garbage by this rule. The price of the guard is that
+// the files of the last server deleted stay behind, which is bytes against keys.
+function remove_orphaned_server_files() {
+    if (length(uci_sections("server")) == 0)
+        return;
+
+    let referenced = server_file_owners();
+
+    for (let dir in [ SERVER_CERT_DIR, SERVER_SSH_DIR ]) {
+        let names = null;
+        try {
+            names = fs.lsdir(dir);
+        }
+        catch (e) {
+            names = null;
+        }
+        if (type(names) != "array")
+            continue;
+
+        for (let name in names) {
+            let path = dir + "/" + as_string(name);
+            if (referenced[path] || fs.stat(path)?.type != "file")
+                continue;
+            log("Removing '" + path + "' of a server that no longer exists", "info");
+            fs.unlink(path);
+        }
+    }
+}
+
 function prepare_all_server_defaults() {
     SERVER_DEFAULTS_CHANGED = false;
     for (let section in uci_sections("server"))
         prepare_server_defaults(section);
     remove_orphaned_server_clients();
+    remove_orphaned_server_files();
     if (SERVER_DEFAULTS_CHANGED)
         uci_commit(CONFIG_NAME);
 }
