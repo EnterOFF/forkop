@@ -1,6 +1,7 @@
 import { ValidationResult } from './types';
 
 const NATIVE_PROXY_SCHEMES = new Set([
+  'anytls',
   'hysteria',
   'hysteria2',
   'hy2',

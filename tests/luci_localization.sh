@@ -24,7 +24,7 @@ grep -Fq '_("Close")' "$SECTION_JS" ||
 if grep -Fq 'http(s)://, hy2/hysteria2:// links' "$SECTION_JS" "$PO" "$POT"; then
   fail "Connection URL help must not advertise removed HTTP proxy links"
 fi
-grep -Fq 'Supported links: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, naiveproxy, mieru' "$SECTION_JS" ||
+grep -Fq 'Supported links: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, naiveproxy, mieru, anytls' "$SECTION_JS" ||
   fail "Connection URL help must summarize the supported proxy link types"
 if grep -Fq 'Native sing-box links:' "$SECTION_JS"; then
   fail "Connection URL help must start with examples"

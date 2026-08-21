@@ -7675,7 +7675,7 @@ function createSectionContent(section) {
     "selector_proxy_links",
     _("Connection URI"),
     _(
-      "Supported links: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, naiveproxy, mieru",
+      "Supported links: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, naiveproxy, mieru, anytls",
     ),
   );
   o.depends("action", "connection");

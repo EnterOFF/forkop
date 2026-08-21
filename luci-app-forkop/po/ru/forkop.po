@@ -2165,8 +2165,8 @@ msgstr "Тег подписки не должен содержать /"
 msgid "Subscription update interval"
 msgstr "Интервал обновления подписки"
 
-msgid "Supported links: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, naiveproxy, mieru"
-msgstr "Поддерживаются ссылки vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, naiveproxy, mieru"
+msgid "Supported links: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, naiveproxy, mieru, anytls"
+msgstr "Поддерживаются ссылки: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, naiveproxy, mieru, anytls"
 
 msgid "System info"
 msgstr "Системная информация"
