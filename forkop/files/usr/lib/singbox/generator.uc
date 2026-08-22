@@ -2339,11 +2339,14 @@ function generate_config(output_path, service_address, mwan3_active, deferred_se
     runtime_settings_cache = object_or_empty(cursor.get_all(CONFIG_NAME, "settings"));
     let settings = runtime_settings_cache;
 
-    let configured_sections = enabled_sections(deferred_sections);
-    let sections = runtime_sections(configured_sections);
+    // A Connection section without a single source contributes no outbound and no
+    // route, so counting enabled sections let an unfinished one pass the check and
+    // Forkop started on a config that routes nothing while it still hijacks the DNS
+    // of the whole network. Only sections that survive to the runtime graph count.
+    let sections = runtime_sections(enabled_sections(deferred_sections));
     let servers = enabled_servers();
-    if (length(configured_sections) == 0 && length(servers) == 0 && trim(as_string(deferred_sections)) == "")
-        runtime_generate_unsupported("no enabled sections");
+    if (length(sections) == 0 && length(servers) == 0 && trim(as_string(deferred_sections)) == "")
+        runtime_generate_unsupported("no usable sections or servers");
 
     let system_aware_dns = system_aware_dns_enabled(sections);
     let config = base_config(settings, service_address, {

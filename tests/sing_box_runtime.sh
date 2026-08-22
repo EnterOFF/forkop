@@ -159,8 +159,44 @@ fi
 if grep -Fq 'unsupported:' "$WORK_DIR/no-enabled.stderr"; then
   fail "generator failure reason must not include redundant unsupported prefix"
 fi
-grep -Fxq 'no enabled sections' "$WORK_DIR/no-enabled.stderr" ||
+grep -Fxq 'no usable sections or servers' "$WORK_DIR/no-enabled.stderr" ||
   fail "generator failure reason should be concise"
+
+# An unfinished Connection section is the state every first configuration passes
+# through, and it reaches neither an outbound nor a route. Counting enabled
+# sections instead of usable ones let it pass as configured, and Forkop started
+# on a config byte-identical to the one it refuses for an empty section list.
+cat >"$WORK_DIR/unfinished-only-fixture.json" <<'JSON'
+{
+  "settings": {
+    ".name": "settings",
+    ".type": "settings",
+    "config_path": "/tmp/sing-box/config.json",
+    "dns_server": "1.1.1.1",
+    "service_listen_address": "127.0.0.1"
+  },
+  "section": [
+    {
+      ".name": "unfinished",
+      ".type": "section",
+      "enabled": "1",
+      "action": "connection",
+      "domain_suffix": [ "unfinished.example" ]
+    }
+  ],
+  "server": []
+}
+JSON
+
+if ucode -L "$FORKOP_LIB" "$SINGBOX_GENERATOR_UC" generate-config-fixture \
+  "$WORK_DIR/unfinished-only-fixture.json" "$WORK_DIR/unfinished-only.json" "127.0.0.1" "0" \
+  >"$WORK_DIR/unfinished-only.stdout" 2>"$WORK_DIR/unfinished-only.stderr"; then
+  fail "generator should reject a config whose only enabled section has no sources"
+fi
+grep -Fxq 'no usable sections or servers' "$WORK_DIR/unfinished-only.stderr" ||
+  fail "an unfinished Connection section must not pass as a usable section"
+[ ! -e "$WORK_DIR/unfinished-only.json" ] ||
+  fail "generator must not write a config it refused to generate"
 
 cat >"$WORK_DIR/empty-connection-fixture.json" <<'JSON'
 {
@@ -178,6 +214,13 @@ cat >"$WORK_DIR/empty-connection-fixture.json" <<'JSON'
       "enabled": "1",
       "action": "connection",
       "domain_suffix": [ "empty.example" ]
+    },
+    {
+      ".name": "usable",
+      ".type": "section",
+      "enabled": "1",
+      "action": "connection",
+      "subscription_urls": [ "https://example.com/sub.json" ]
     }
   ]
 }
@@ -186,6 +229,8 @@ generate_config "$WORK_DIR/empty-connection-fixture.json" "$WORK_DIR/empty-conne
 if grep -Fq '"empty"' "$WORK_DIR/empty-connection.json"; then
   fail "empty Connection rule must be omitted from sing-box config"
 fi
+grep -Fq 'usable/sub1' "$WORK_DIR/empty-connection.json" ||
+  fail "an empty Connection rule must not suppress the sections around it"
 
 cat >"$WORK_DIR/deferred-section-fixture.json" <<'JSON'
 {
