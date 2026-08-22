@@ -417,10 +417,10 @@ IP_ROUTE_OUTPUT='local default dev lo scope host' \
 if grep -Fq $'\tadd\t' "$IP_LOG"; then
   fail "existing tproxy route/rule should not be added again"
 fi
-assert_contains "$LOGGER_LOG" "[debug] IPv4 TPROXY route already exists" "existing tproxy route log"
-assert_contains "$LOGGER_LOG" "[debug] IPv6 TPROXY route already exists" "existing tproxy route6 log"
-assert_contains "$LOGGER_LOG" "[debug] IPv4 TPROXY marking rule already exists" "existing tproxy marking rule log"
-assert_contains "$LOGGER_LOG" "[debug] IPv6 TPROXY marking rule already exists" "existing tproxy marking rule6 log"
+assert_contains "$LOGGER_LOG" "[debug] IPv4 tproxy route already exists" "existing tproxy route log"
+assert_contains "$LOGGER_LOG" "[debug] IPv6 tproxy route already exists" "existing tproxy route6 log"
+assert_contains "$LOGGER_LOG" "[debug] IPv4 tproxy marking rule already exists" "existing tproxy marking rule log"
+assert_contains "$LOGGER_LOG" "[debug] IPv6 tproxy marking rule already exists" "existing tproxy marking rule6 log"
 IP_ROUTE_OUTPUT='local default dev lo scope host' \
   IP_ROUTE6_OUTPUT='local default dev lo metric 1024 pref medium' \
   IP_RULE_OUTPUT='105: from all fwmark 0x100000/0x100000 lookup forkop' \

@@ -955,7 +955,7 @@ function ensure_tproxy_route_rule(table, mark, rt_tables_path) {
         }
     }
     else {
-        log_debug("IPv4 TPROXY route already exists");
+        log_debug("IPv4 tproxy route already exists");
     }
 
     if (!tproxy_route6_present(table)) {
@@ -966,7 +966,7 @@ function ensure_tproxy_route_rule(table, mark, rt_tables_path) {
         }
     }
     else {
-        log_debug("IPv6 TPROXY route already exists");
+        log_debug("IPv6 tproxy route already exists");
     }
 
     if (!tproxy_marking_rule4_present(table, mark)) {
@@ -977,7 +977,7 @@ function ensure_tproxy_route_rule(table, mark, rt_tables_path) {
         }
     }
     else {
-        log_debug("IPv4 TPROXY marking rule already exists");
+        log_debug("IPv4 tproxy marking rule already exists");
     }
 
     if (!tproxy_marking_rule6_present(table, mark)) {
@@ -988,7 +988,7 @@ function ensure_tproxy_route_rule(table, mark, rt_tables_path) {
         }
     }
     else {
-        log_debug("IPv6 TPROXY marking rule already exists");
+        log_debug("IPv6 tproxy marking rule already exists");
     }
 
     return true;

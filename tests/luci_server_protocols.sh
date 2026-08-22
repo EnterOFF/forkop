@@ -149,11 +149,14 @@ for (const legacy of [
 for (const needle of [
   "const JSON_INBOUND_TYPES = new Set([",
   "!JSON_INBOUND_TYPES.has(type)",
-  // Forkop overwrites the tag with the server name, so a pasted tag is refused
-  // instead of being dropped without a word.
-  "Remove the tag field",
 ]) {
   requireSource(needle);
+}
+
+// Pasting a whole inbound is the point of the field, and a tag comes with it.
+// Forkop overwrites the tag with the server name instead of refusing the paste.
+if (source.includes("Remove the tag field")) {
+  fail("a pasted JSON inbound tag must be overwritten, not refused");
 }
 
 // Accounts are child sections edited with the same widget the Sections tab uses for

@@ -25,14 +25,14 @@ grep -Fq '_("Close")' "$SECTION_JS" ||
 if grep -Fq 'http(s)://, hy2/hysteria2:// links' "$SECTION_JS" "$PO" "$POT"; then
   fail "Connection URL help must not advertise removed HTTP proxy links"
 fi
-grep -Fq 'Supported links: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, naiveproxy, mieru, anytls' "$SECTION_JS" ||
-  fail "Connection URL help must summarize the supported proxy link types"
+grep -Fq 'Supported URIs: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, naiveproxy, mieru, anytls' "$SECTION_JS" ||
+  fail "Connection URI help must summarize the supported proxy URI types"
 if grep -Fq 'Native sing-box links:' "$SECTION_JS"; then
   fail "Connection URL help must start with examples"
 fi
 grep -Fq 'querySelector?.(".placeholder em")' "$FORKOP_JS" ||
   fail "empty sections text must preserve the LuCI table cell"
-grep -Fq 'What Forkop should do when this section'"'"'s conditions match' "$SECTION_JS" ||
+grep -Fq 'What to do when this section'"'"'s conditions match' "$SECTION_JS" ||
   fail "section action help must mention matching conditions"
 if grep -Fq 'Visible name of this section' "$SECTION_JS"; then
   fail "section name must not keep the redundant description"

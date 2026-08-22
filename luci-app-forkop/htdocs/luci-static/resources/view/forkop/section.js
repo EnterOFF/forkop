@@ -33,6 +33,18 @@ const JSON_ENDPOINT_TYPES = new Set([
   "warp",
   "tailscale",
 ]);
+// Shown greyed out in the JSON endpoint editor: the smallest object the
+// validator and sing-box both accept, so the shape is read instead of
+// described. The tag becomes the name the tunnel is listed under.
+const JSON_ENDPOINT_PLACEHOLDER = [
+  "{",
+  '  "type": "wireguard",',
+  '  "tag": "my-endpoint",',
+  '  "address": ["10.0.0.2/32"],',
+  '  "private_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="',
+  "}",
+].join("\n");
+
 // Tags sing-box already uses for Forkop's own inbounds, outbounds and DNS servers.
 // A section display name becomes a tag verbatim, so these names are refused here and
 // by the runtime check, which reads singbox/constants.uc. The Servers tab keeps the
@@ -247,6 +259,7 @@ function dependsOnRuleConditions(option) {
 }
 
 const ANNOTATED_TEXTAREA_STYLE_ID = "fkp-annotated-textarea-styles";
+const SINGLE_FIELD_MODAL_STYLE_ID = "fkp-single-field-modal-styles";
 const CONNECTIONS_DYNLIST_STYLE_ID = "fkp-connections-dynlist-styles";
 const NFQWS_REMOTE_VALIDATION_DEBOUNCE_MS = 500;
 const NFQWS_VALIDATION_COMMAND = "/usr/bin/forkop";
@@ -1722,9 +1735,7 @@ function addUrlTestMemberOption(itemSection, parentSectionForItem, modes) {
     form.DynamicList,
     "include_groups",
     _("Add URLTest"),
-    _(
-      "URLTest groups of this section that become members of this server group, alongside the servers selected below.",
-    ),
+    _("The group joins as the single node it has selected"),
   );
   modes
     .map((mode) => mode.value)
@@ -1917,6 +1928,45 @@ function syncServerFilterFields(sharedFields, sourceMode, itemId) {
   });
 }
 
+// The three server filter blocks - a Fallback server group, a URLTest group and a
+// subscription - ask the same questions. Only the lines that name what the servers
+// end up in differ, so the rest is written once and every block spreads it.
+function sharedServerFilterDescriptions() {
+  return {
+    includeRegexDescription: _(
+      "Servers whose names match the regular expression",
+    ),
+    // Both filter modes offer an Exclude by pattern row, and neither of them
+    // needs to name what the pattern removes the servers from.
+    excludeRegexDescription: _(
+      "Remove servers whose names match the regular expression",
+    ),
+    whitelistExcludeServersDescription: _(
+      "Remove servers from the selection above",
+    ),
+  };
+}
+
+function groupServerFilterDescriptions() {
+  return Object.assign(sharedServerFilterDescriptions(), {
+    includeServersDescription: _("The servers that end up in the group"),
+    blacklistExcludeServersDescription: _(
+      "The servers that do not end up in the group",
+    ),
+    excludeTypesDescription: _(
+      "Servers of these protocols do not end up in the group",
+    ),
+  });
+}
+
+function subscriptionServerFilterDescriptions() {
+  return Object.assign(sharedServerFilterDescriptions(), {
+    includeServersDescription: _("The servers that are imported"),
+    blacklistExcludeServersDescription: _("The servers that are not imported"),
+    excludeTypesDescription: _("Servers of these protocols are not imported"),
+  });
+}
+
 function addServerFilterOptions(
   itemSection,
   parentSectionForItem,
@@ -1972,7 +2022,7 @@ function addServerFilterOptions(
       "_blacklist_exclude_regex",
       "exclude_regex",
       _("Exclude by pattern"),
-      options.blacklistExcludeRegexDescription,
+      options.excludeRegexDescription,
       validateRegex,
       ["exclude"],
     ],
@@ -1996,7 +2046,7 @@ function addServerFilterOptions(
       "_whitelist_exclude_regex",
       "exclude_regex",
       _("Exclude by pattern"),
-      options.whitelistExcludeRegexDescription,
+      options.excludeRegexDescription,
       validateRegex,
       ["include"],
     ],
@@ -2361,12 +2411,30 @@ function subscriptionOverrideKeys() {
 function addOverrideStateOption(itemSection, name, label, description) {
   const option = itemSection.option(form.ListValue, name, label, description);
   option.value("", _("Default"));
-  option.value("1", _("Enabled"));
-  option.value("0", _("Disabled"));
+  // Actions taken on top of what the server already asks for rather than states
+  // of this dialog, so the two choices read as verbs.
+  option.value("1", _("Enable"));
+  option.value("0", _("Disable"));
   option.default = "";
   option.rmempty = true;
   return option;
 }
+
+// Shown greyed out in the JSON field of the server parameters dialog: a scalar
+// and a nested object, so the shape of a merge is read instead of described.
+// Neither key may be one of RESERVED_OVERRIDE_PATCH_PATHS, which the field
+// refuses, so the example uses a protocol option the settings above do not own.
+const OVERRIDE_PATCH_PLACEHOLDER = [
+  "{",
+  '  "packet_encoding": "xudp",',
+  '  "tls": {',
+  '    "utls": {',
+  '      "enabled": true,',
+  '      "fingerprint": "chrome"',
+  '    }',
+  '  }',
+  "}",
+].join("\n");
 
 // Parameters the settings above already own, mirroring
 // RESERVED_OVERRIDE_PATCH_PATHS in the backend.
@@ -2426,7 +2494,7 @@ function showSubscriptionOverrideModal(parentMap, itemId) {
     form.Value,
     "override_prefix",
     _("Name prefix"),
-    _("Added in front of every server name imported from this subscription."),
+    _("Added in front of every server name"),
   );
   o.rmempty = true;
 
@@ -2434,7 +2502,7 @@ function showSubscriptionOverrideModal(parentMap, itemId) {
     form.Value,
     "override_suffix",
     _("Name suffix"),
-    _("Added after every server name imported from this subscription."),
+    _("Added after every server name"),
   );
   o.rmempty = true;
 
@@ -2443,7 +2511,7 @@ function showSubscriptionOverrideModal(parentMap, itemId) {
     "override_rename",
     _("Rename servers"),
     _(
-      "One rule per line as pattern => replacement, applied in order. The pattern is a regular expression; use $1 in the replacement to keep a captured group. Example: ^HK-(.*)$ => Hong Kong $1",
+      "One rule per line: pattern => replacement. The pattern is a regular expression, $1 in the replacement keeps a captured group. Example: ^HK-(.*)$ => Hong Kong $1",
     ),
   );
   o.rmempty = true;
@@ -2467,26 +2535,22 @@ function showSubscriptionOverrideModal(parentMap, itemId) {
     itemSection,
     "override_tcp_fast_open",
     _("TCP Fast Open"),
-    _("Send the first data packet together with the connection request."),
   );
   addOverrideStateOption(
     itemSection,
     "override_tcp_multi_path",
     _("Multipath TCP"),
-    _("Use several network paths for one connection when the server allows it."),
   );
   addOverrideStateOption(
     itemSection,
     "override_udp_fragment",
     _("UDP fragmentation"),
-    _("Split large UDP packets, which helps on links with a small MTU."),
   );
 
   o = itemSection.option(
     form.Value,
     "override_connect_timeout",
     _("Connection timeout"),
-    _("Use sing-box duration format like 5s or 500ms. Leave empty to keep the server value."),
   );
   o.rmempty = true;
   o.validate = function (_sectionId, value) {
@@ -2504,7 +2568,7 @@ function showSubscriptionOverrideModal(parentMap, itemId) {
     form.Value,
     "override_tls_server_name",
     _("Certificate domain (SNI)"),
-    _("Replaces the domain servers of this subscription send during the TLS handshake."),
+    _("Replaces the domain sent during the TLS handshake"),
   );
   o.rmempty = true;
 
@@ -2512,7 +2576,7 @@ function showSubscriptionOverrideModal(parentMap, itemId) {
     itemSection,
     "override_multiplex",
     _("Multiplexing"),
-    _("Carry several connections over one, which is only supported by some protocols."),
+    _("Not supported by every protocol"),
   );
 
   o = itemSection.option(
@@ -2546,12 +2610,14 @@ function showSubscriptionOverrideModal(parentMap, itemId) {
   const patchOption = itemSection.option(
     form.TextValue,
     "override_patch",
-    _("Additional parameters"),
+    "JSON",
     _(
-      "A JSON object merged into every server of this subscription. Parameters a server does not support are skipped. Matching parameters are overwritten. Parameters that have their own setting above cannot be set here.",
+      "A JSON object merged into every server. Parameters a server does not support are skipped, matching parameters are overwritten",
     ),
   );
-  patchOption.rows = 8;
+  patchOption.placeholder = OVERRIDE_PATCH_PLACEHOLDER;
+  // One line more than the placeholder, so the example never scrolls.
+  patchOption.rows = 10;
   patchOption.wrap = "soft";
   patchOption.textarea = true;
   patchOption.rmempty = true;
@@ -2578,7 +2644,7 @@ function showSubscriptionOverrideModal(parentMap, itemId) {
   configureTextareaOption(patchOption);
 
   return renderStackedJsonSettingsModal(
-    _("Advanced settings"),
+    _("Server parameters"),
     map,
     (saved) => {
       subscriptionOverrideKeys().forEach((key) => {
@@ -2661,7 +2727,9 @@ function defaultInterfaceSettings(displayName = "") {
   return {
     display_name: displayName,
     domain_resolver_enabled: "0",
-    domain_resolver_dns_server: ["8.8.8.8"],
+    // No address is filled in: a resolver that silently defaults to a public one
+    // is a DNS choice made for the user.
+    domain_resolver_dns_server: [],
     domain_resolver_dns_fallback_strategy: "parallel",
     domain_resolver_dns_detour_enabled: "0",
   };
@@ -2859,7 +2927,6 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
       form.Flag,
       "subscription_update_enabled",
       _("Subscription auto update"),
-      _("Update this subscription automatically"),
     );
     o.default = "1";
     o.rmempty = false;
@@ -2867,8 +2934,7 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
     o = itemSection.option(
       form.Value,
       "subscription_update_interval",
-      _("Subscription update interval"),
-      _("Use sing-box duration format like 1d, 12h or 30m"),
+      _("Update interval"),
     );
     o.depends("subscription_update_enabled", "1");
     o.placeholder = "1h";
@@ -2881,8 +2947,7 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
     o = itemSection.option(
       form.Flag,
       "download_via_proxy_enabled",
-      _("Download subscription through a section"),
-      _("Download subscriptions via the selected section"),
+      _("Request the subscription through a section"),
     );
     o.default = "0";
     o.rmempty = false;
@@ -2890,7 +2955,7 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
     o = itemSection.option(
       form.ListValue,
       "download_via_proxy_section",
-      _("Download through"),
+      _("Request through"),
     );
     o.depends("download_via_proxy_enabled", "1");
     o.load = function (itemId) {
@@ -2916,7 +2981,7 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
       form.Button,
       "_subscription_headers",
       _("Headers"),
-      _("Configure headers sent with this subscription request."),
+      _("Change the HTTP headers of the request"),
     );
     o.inputtitle = _("Edit");
     o.inputstyle = "edit";
@@ -2928,7 +2993,7 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
       form.Flag,
       "show_dashboard_metadata",
       _("Show metadata"),
-      _("Show subscription metadata for this source on the dashboard"),
+      _("Show the metadata block on the dashboard"),
     );
     o.default = "1";
     o.rmempty = false;
@@ -2937,10 +3002,8 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
   o = itemSection.option(
     form.Flag,
     "show_subscription_name",
-    _("Show subscription tag"),
-    _(
-      "Add the subscription tag to its nodes and to its metadata in the dashboard",
-    ),
+    _("Add tag"),
+    _("Adds the tag to its nodes and metadata on the dashboard"),
   );
   o.default = "0";
   o.rmempty = false;
@@ -2971,8 +3034,8 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
   o = itemSection.option(
     form.Button,
     "_subscription_override",
-    _("Advanced settings"),
-    _("Add or change the parameters of the servers this subscription imports."),
+    _("Server parameters"),
+    _("Change the parameters of the servers this subscription adds"),
   );
   o.inputtitle = _("Edit");
   o.inputstyle = "edit";
@@ -2982,36 +3045,14 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
 
   addServerFilterOptions(itemSection, parentSectionForItem, {
     ownerId: options.ownerId,
-    modeLabel: _("Subscription server filter"),
-    modeDescription: _(
-      "Determines which servers will be imported from this subscription.",
-    ),
+    modeLabel: _("Server filter"),
+    modeDescription: _("Which servers to import"),
     modes: [
       { value: "all", label: _("All servers") },
-      { value: "exclude", label: _("Blacklist") },
-      { value: "include", label: _("Whitelist") },
+      { value: "exclude", label: _("All except selected") },
+      { value: "include", label: _("Only selected") },
     ],
-    excludeTypesDescription: _(
-      "Servers of the selected protocols will not be added from the subscription.",
-    ),
-    includeServersDescription: _(
-      "Only the selected servers will be added from the subscription.",
-    ),
-    includeRegexDescription: _(
-      "Add servers whose names match the regular expression.",
-    ),
-    blacklistExcludeServersDescription: _(
-      "Servers that should not be added from the subscription.",
-    ),
-    blacklistExcludeRegexDescription: _(
-      "Exclude servers from the subscription using a regular expression.",
-    ),
-    whitelistExcludeServersDescription: _(
-      "Optional. Remove specific servers from the selection above.",
-    ),
-    whitelistExcludeRegexDescription: _(
-      "Optional. Exclude servers from the selection above using a regular expression.",
-    ),
+    ...subscriptionServerFilterDescriptions(),
   });
 }
 
@@ -3021,12 +3062,7 @@ function addInterfaceItemOptions(itemSection, options = {}) {
       ? options.parentSectionId
       : parentSectionIdForItem;
 
-  let o = itemSection.option(
-    form.Value,
-    "display_name",
-    _("Display name"),
-    _("Name displayed on the dashboard"),
-  );
+  let o = itemSection.option(form.Value, "display_name", _("Interface name"));
   o.rmempty = false;
   o.validate = function (_itemId, value) {
     return `${value || ""}`.trim() ? true : _("Enter a display name");
@@ -3046,7 +3082,7 @@ function addInterfaceItemOptions(itemSection, options = {}) {
     "domain_resolver_dns_server",
     _("DNS Server"),
     _(
-      "DNS server used by the resolver. Specify several servers for automatic failover on failure. To select a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; UDP is used by default.",
+      "Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://",
     ),
   );
   dnsServerOption.depends("domain_resolver_enabled", "1");
@@ -3072,7 +3108,7 @@ function addInterfaceItemOptions(itemSection, options = {}) {
     "domain_resolver_dns_fallback_strategy",
     _("DNS Query Mode"),
     _(
-      "Query servers one at a time until the first successful response, or query all servers simultaneously for maximum speed.",
+      "Parallel asks every server at once and is faster. Sequential asks them in turn until the first answer",
     ),
   );
   dnsQueryModeOption.value("parallel", _("Parallel"));
@@ -3154,12 +3190,7 @@ function addUrlTestItemOptions(itemSection, options = {}) {
       ? options.parentSectionId
       : parentSectionIdForItem;
 
-  let o = itemSection.option(
-    form.Value,
-    "name",
-    _("Display name"),
-    _("Name displayed on the dashboard"),
-  );
+  let o = itemSection.option(form.Value, "name", _("Group name"));
   o.rmempty = false;
   o.load = function (itemId) {
     return (
@@ -3178,7 +3209,7 @@ function addUrlTestItemOptions(itemSection, options = {}) {
     form.Value,
     "testing_url",
     _("Check URL"),
-    _("URL used to test server latency"),
+    _("Latency measurement for every server"),
   );
   o.default = "https://www.gstatic.com/generate_204";
   o.rmempty = false;
@@ -3192,7 +3223,7 @@ function addUrlTestItemOptions(itemSection, options = {}) {
     "expected_status",
     _("Expected status"),
     _(
-      "HTTP status codes that count as a successful health check. Use * for any response, or values and ranges such as 204/200-299.",
+      "HTTP status codes of a successful check. * is any response, or values and ranges: 204/200-299",
     ),
   );
   o.default = "*";
@@ -3205,7 +3236,7 @@ function addUrlTestItemOptions(itemSection, options = {}) {
     form.Value,
     "check_interval",
     _("Check interval"),
-    _("Use sing-box duration format like 1d, 12h or 30m"),
+    _("How often every server of the group is checked"),
   );
   o.default = "3m";
   o.rmempty = false;
@@ -3216,10 +3247,8 @@ function addUrlTestItemOptions(itemSection, options = {}) {
   o = itemSection.option(
     form.Value,
     "tolerance",
-    _("Tolerance"),
-    _(
-      "Minimum latency difference in milliseconds that triggers switching to a faster server.",
-    ),
+    _("Latency difference"),
+    _("Switching threshold in ms at which to move to a faster server"),
   );
   o.default = "50";
   o.rmempty = false;
@@ -3231,9 +3260,7 @@ function addUrlTestItemOptions(itemSection, options = {}) {
     form.Value,
     "idle_timeout",
     _("Idle timeout"),
-    _(
-      "Stop health checks when the group is not used. Use sing-box duration format like 1d, 12h or 30m.",
-    ),
+    _("How long until health checks stop when the group is unused"),
   );
   o.default = "30m";
   o.rmempty = false;
@@ -3261,36 +3288,14 @@ function addUrlTestItemOptions(itemSection, options = {}) {
 
   addServerFilterOptions(itemSection, parentSectionForItem, {
     groupContext: true,
-    modeLabel: _("URLTest group filter"),
-    modeDescription: _(
-      "Determines which servers will be included in the URLTest group",
-    ),
+    modeLabel: _("Server filter"),
+    modeDescription: _("Which servers end up in the group"),
     modes: [
       { value: "all", label: _("All servers") },
-      { value: "exclude", label: _("Blacklist") },
-      { value: "include", label: _("Whitelist") },
+      { value: "exclude", label: _("All except selected") },
+      { value: "include", label: _("Only selected") },
     ],
-    excludeTypesDescription: _(
-      "Servers of the selected protocols will not be added to the URLTest group.",
-    ),
-    includeServersDescription: _(
-      "Only the selected servers will be added to the URLTest group.",
-    ),
-    includeRegexDescription: _(
-      "Add servers whose names match the regular expression.",
-    ),
-    blacklistExcludeServersDescription: _(
-      "Servers that should not be added to the URLTest group.",
-    ),
-    blacklistExcludeRegexDescription: _(
-      "Exclude servers from the URLTest group using a regular expression.",
-    ),
-    whitelistExcludeServersDescription: _(
-      "Optional. Remove specific servers from the selection above.",
-    ),
-    whitelistExcludeRegexDescription: _(
-      "Optional. Exclude servers from the selection above using a regular expression.",
-    ),
+    ...groupServerFilterDescriptions(),
   });
 }
 
@@ -3340,12 +3345,7 @@ function addFallbackLevelItemOptions(itemSection, options = {}) {
       ? options.parentSectionId
       : parentSectionIdForItem;
 
-  let o = itemSection.option(
-    form.Value,
-    "name",
-    _("Server group name"),
-    _("Name shown in the fallback server group list"),
-  );
+  let o = itemSection.option(form.Value, "name", _("Group name"));
   o.rmempty = false;
   o.validate = function (_itemId, value) {
     if (!`${value || ""}`.trim()) return _("Enter a server group name");
@@ -3355,42 +3355,20 @@ function addFallbackLevelItemOptions(itemSection, options = {}) {
   };
 
   const fallbackLevelModes = [
-    { value: "all", label: _("All remaining servers") },
-    { value: "exclude", label: _("Blacklist") },
-    { value: "include", label: _("Whitelist") },
+    { value: "all", label: _("All remaining") },
+    { value: "exclude", label: _("All except selected") },
+    { value: "include", label: _("Only selected") },
     { value: "direct", label: _("Direct") },
   ];
   addUrlTestMemberOption(itemSection, parentSectionForItem, fallbackLevelModes);
 
   addServerFilterOptions(itemSection, parentSectionForItem, {
-    modeLabel: _("Server group filter"),
-    modeDescription: _(
-      "Determines where traffic will be sent when servers from earlier groups stop responding",
-    ),
+    modeLabel: _("Server filter"),
+    modeDescription: _("Which servers end up in the group"),
     modes: fallbackLevelModes,
     defaultMode: "include",
     groupContext: true,
-    excludeTypesDescription: _(
-      "Servers of the selected protocols will not be added to this server group.",
-    ),
-    includeServersDescription: _(
-      "Only the selected servers will be added to this server group.",
-    ),
-    includeRegexDescription: _(
-      "Add servers whose names match the regular expression.",
-    ),
-    blacklistExcludeServersDescription: _(
-      "Servers that should not be added to this server group.",
-    ),
-    blacklistExcludeRegexDescription: _(
-      "Exclude servers from this server group using a regular expression.",
-    ),
-    whitelistExcludeServersDescription: _(
-      "Optional. Remove specific servers from the selection above.",
-    ),
-    whitelistExcludeRegexDescription: _(
-      "Optional. Exclude servers from the selection above using a regular expression.",
-    ),
+    ...groupServerFilterDescriptions(),
   });
 }
 
@@ -3402,12 +3380,7 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
   const ownerId =
     typeof options.ownerId === "function" ? options.ownerId : () => "";
 
-  let o = itemSection.option(
-    form.Value,
-    "name",
-    _("Display name"),
-    _("Name displayed on the dashboard"),
-  );
+  let o = itemSection.option(form.Value, "name", _("Group name"));
   o.rmempty = false;
   o.validate = function (_itemId, value) {
     return `${value || ""}`.trim()
@@ -3419,7 +3392,7 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
     form.Value,
     "health_check_url",
     _("Check URL"),
-    _("URL used to check whether each server is available"),
+    _("Availability check for every server"),
   );
   o.default = "https://www.gstatic.com/generate_204";
   o.rmempty = false;
@@ -3433,7 +3406,7 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
     "expected_status",
     _("Expected status"),
     _(
-      "HTTP status codes that count as a successful health check. Use * for any response, or values and ranges such as 204/200-299.",
+      "HTTP status codes of a successful check. * is any response, or values and ranges: 204/200-299",
     ),
   );
   o.default = "*";
@@ -3446,9 +3419,7 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
     form.Value,
     "health_check_interval",
     _("Check interval"),
-    _(
-      "How often every server of the group is checked, not only the selected one. Checks pause while the group is unused.",
-    ),
+    _("How often every server of the group is checked"),
   );
   o.default = "5m";
   o.rmempty = false;
@@ -3460,7 +3431,7 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
     form.Value,
     "health_check_timeout",
     _("Check timeout"),
-    _("How long to wait for a server to answer the URLTest check"),
+    _("How long to wait for a server to answer"),
   );
   o.default = "5s";
   o.rmempty = false;
@@ -3472,7 +3443,7 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
     form.Value,
     "attempt_timeout",
     _("Connection timeout"),
-    _("How long to wait for a connection to a server before trying the next one"),
+    _("How long to wait for a connection before moving to the next server"),
   );
   o.default = "5s";
   o.rmempty = false;
@@ -3484,7 +3455,7 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
     form.Value,
     "idle_timeout",
     _("Idle timeout"),
-    _("Stop health checks when the group is not used"),
+    _("How long until health checks stop when the group is unused"),
   );
   o.default = "5m";
   o.rmempty = false;
@@ -3514,7 +3485,7 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
     ButtonAddSettingsDynamicList,
     "fallback_level",
     _("Server groups"),
-    _("Required. Server groups are tried from top to bottom until one succeeds"),
+    _("Required. Checked from top to bottom until the first working server"),
   );
   o.rmempty = false;
   o.modalonly = true;
@@ -3677,7 +3648,43 @@ function clearChildPendingSettings(option, section_id) {
   }
 }
 
-function renderStackedJsonSettingsModal(title, map, onSave) {
+// A dialog that edits one text field: the modal heading already names it, so the
+// row drops its label and gives the whole width to the editor.
+const SINGLE_FIELD_MODAL_CLASS = "fkp-single-field-modal";
+
+function ensureSingleFieldModalStyles() {
+  if (
+    typeof document === "undefined" ||
+    !document.head ||
+    document.getElementById(SINGLE_FIELD_MODAL_STYLE_ID)
+  ) {
+    return;
+  }
+
+  document.head.insertAdjacentHTML(
+    "beforeend",
+    `<style id="${SINGLE_FIELD_MODAL_STYLE_ID}">
+      .${SINGLE_FIELD_MODAL_CLASS} .cbi-value-title {
+        display: none;
+      }
+
+      .${SINGLE_FIELD_MODAL_CLASS} .cbi-value-field {
+        width: 100%;
+        max-width: 100%;
+        flex: 1 1 auto;
+        float: none;
+        padding-left: 0;
+        margin-left: 0;
+      }
+
+      .${SINGLE_FIELD_MODAL_CLASS} .cbi-value {
+        margin-bottom: 0;
+      }
+    </style>`,
+  );
+}
+
+function renderStackedJsonSettingsModal(title, map, onSave, options = {}) {
   const modal = document.querySelector("#modal_overlay > .modal.cbi-modal");
   const activeMap = modal ? modal.querySelector(".cbi-map:not(.hidden)") : null;
   const buttonRow = modal ? modal.querySelector("div.button-row") : null;
@@ -3688,6 +3695,11 @@ function renderStackedJsonSettingsModal(title, map, onSave) {
   }
 
   return map.render().then((nodes) => {
+    if (options.singleField) {
+      ensureSingleFieldModalStyles();
+      nodes.classList.add(SINGLE_FIELD_MODAL_CLASS);
+    }
+
     const titleNode = E("span", title ? ` » ${title}` : "");
     const originalButtonClass = buttonRow.getAttribute("class") || "";
     const originalButtonNodes = Array.from(buttonRow.childNodes);
@@ -3755,7 +3767,7 @@ function renderStackedJsonSettingsModal(title, map, onSave) {
           class: "btn cbi-button cbi-button-positive important",
           click: save,
         },
-        _("Save"),
+        options.saveLabel || _("Save"),
       )),
     );
 
@@ -4878,7 +4890,7 @@ function addWireGuardPeerItemOptions(section) {
     "persistent_keepalive_interval",
     _("Persistent keepalive"),
     _(
-      "Time in seconds between packets sent to keep the tunnel open. Leave empty to use the default value.",
+      "Interval between packets that keep the tunnel open, in seconds. Empty means the default",
     ),
   );
   o.validate = function (_itemId, value) {
@@ -4929,9 +4941,6 @@ function showTunnelImportModal(parentMap, fields) {
     form.TextValue,
     "configuration",
     _("Configuration"),
-    _(
-      "Paste a WireGuard or AmneziaWG configuration or a link in vpn:// format.",
-    ),
   );
   configuration.rows = 12;
   configuration.wrap = "off";
@@ -4977,6 +4986,7 @@ function showTunnelImportModal(parentMap, fields) {
       }
       applyImportedTunnelEndpoint(parentMap, fields, parsed.endpoint);
     },
+    { singleField: true, saveLabel: _("Import") },
   );
 }
 
@@ -5023,12 +5033,7 @@ function showTunnelSettingsModal(
   typeOption.rmempty = false;
   let previousTunnelType = `${data.settings.tunnel_type || "wireguard"}`;
 
-  let o = itemSection.option(
-    form.Value,
-    "name",
-    _("Tunnel name"),
-    _("Name displayed on the dashboard"),
-  );
+  let o = itemSection.option(form.Value, "name", _("Tunnel name"));
   o.rmempty = false;
   o.validate = function (_itemId, value) {
     return `${value || ""}`.trim()
@@ -5043,7 +5048,7 @@ function showTunnelSettingsModal(
     form.Button,
     "_import_config",
     _("Import configuration"),
-    _("Import all available tunnel parameters from a client configuration."),
+    _("Fill the fields from an existing configuration"),
   );
   importButton.inputtitle = _("Import");
   importButton.inputstyle = "apply";
@@ -5054,7 +5059,7 @@ function showTunnelSettingsModal(
     form.Button,
     "_generate_warp_profile",
     _("WARP profile"),
-    _("Automatically register a device and fill the required fields."),
+    _("Registers a device and fills the fields below"),
   );
   warpGenerateButton.inputtitle = _("Generate profile");
   warpGenerateButton.inputstyle = "apply";
@@ -5151,8 +5156,8 @@ function showTunnelSettingsModal(
     form.TextValue,
     "endpoint_json",
     _("JSON endpoint"),
-    _("Enter a complete sing-box endpoint object."),
   );
+  endpointJsonOption.placeholder = JSON_ENDPOINT_PLACEHOLDER;
   endpointJsonOption.rows = 12;
   endpointJsonOption.wrap = "soft";
   endpointJsonOption.textarea = true;
@@ -5196,7 +5201,6 @@ function showTunnelSettingsModal(
     form.Value,
     "private_key",
     _("Private key"),
-    _("Private key of the local WireGuard interface."),
   );
   privateKeyOption.password = true;
   privateKeyOption.rmempty = false;
@@ -5214,21 +5218,17 @@ function showTunnelSettingsModal(
     form.Value,
     "listen_port",
     _("Listen port"),
-    _("Optional local UDP port. Leave empty to use the default value."),
+    _("Local UDP port. Empty means the default"),
   );
   listenPortOption.datatype = "port";
   listenPortOption.rmempty = true;
   listenPortOption.depends("tunnel_type", "wireguard");
   listenPortOption.depends("tunnel_type", "amneziawg");
 
-  const mtuOption = itemSection.option(
-    form.Value,
-    "mtu",
-    "MTU",
-    _(
-      "Maximum packet size for this tunnel. Leave empty to use the default value.",
-    ),
-  );
+  const mtuOption = itemSection.option(form.Value, "mtu", "MTU");
+  // What transport/wireguard in the core falls back to when the endpoint carries
+  // no MTU of its own.
+  mtuOption.placeholder = "1408";
   mtuOption.datatype = "range(1,65535)";
   mtuOption.rmempty = true;
   mtuOption.depends("tunnel_type", "wireguard");
@@ -5238,7 +5238,7 @@ function showTunnelSettingsModal(
     ButtonAddSettingsDynamicList,
     "peer_ids",
     _("Peers"),
-    _("Required. List of remote nodes to connect."),
+    _("Required. Remote nodes to connect to"),
   );
   peersOption.rmempty = false;
   peersOption.depends("tunnel_type", "wireguard");
@@ -5284,7 +5284,7 @@ function showTunnelSettingsModal(
     "warp_keepalive",
     _("Persistent keepalive"),
     _(
-      "Time in seconds between packets sent to keep the tunnel open. Leave empty to use the default value.",
+      "Interval between packets that keep the tunnel open, in seconds. Empty means the default",
     ),
   );
   o.validate = function (_itemId, value) {
@@ -5323,9 +5323,7 @@ function showTunnelSettingsModal(
     form.Value,
     "warp_license_key",
     _("WARP license key"),
-    _(
-      "Optional. Applies a Cloudflare WARP+ license key to the profile account.",
-    ),
+    _("Applies WARP+ to the profile account"),
   );
   warpLicenseKeyOption.password = true;
   warpLicenseKeyOption.rmempty = true;
@@ -5369,7 +5367,7 @@ function showTunnelSettingsModal(
     "warp_junk_enabled",
     _("Traffic obfuscation"),
     _(
-      "Adds traffic masking using the Amnezia mechanism to make it harder to identify.",
+      "Masks traffic with the Amnezia mechanism to make it harder to identify",
     ),
   );
   warpJunkOption.default = "0";
@@ -5477,6 +5475,18 @@ function validateTunnelItemsBeforeSave(section_id, values) {
   return true;
 }
 
+// Shown greyed out in the JSON outbound editor: the smallest object
+// validateOutboundJson accepts for a server type, whose tag becomes the name
+// the outbound is listed and routed under.
+const JSON_OUTBOUND_PLACEHOLDER = [
+  "{",
+  '  "type": "socks",',
+  '  "tag": "my-outbound",',
+  '  "server": "127.0.0.1",',
+  '  "server_port": 1080',
+  "}",
+].join("\n");
+
 function showOutboundJsonSettingsModal(
   _section_id,
   itemValue,
@@ -5499,8 +5509,8 @@ function showOutboundJsonSettingsModal(
     form.TextValue,
     "outbound_json",
     _("JSON outbound"),
-    _("Enter a complete sing-box outbound object"),
   );
+  jsonOption.placeholder = JSON_OUTBOUND_PLACEHOLDER;
   jsonOption.rows = 12;
   jsonOption.wrap = "soft";
   jsonOption.textarea = true;
@@ -5522,7 +5532,7 @@ function showOutboundJsonSettingsModal(
   configureTextareaOption(jsonOption);
 
   return renderStackedJsonSettingsModal(
-    _("JSON outbound settings"),
+    _("JSON outbound"),
     map,
     (settings) => {
       const value = `${settings.outbound_json || ""}`.trim();
@@ -5537,6 +5547,7 @@ function showOutboundJsonSettingsModal(
         widget.dispatchCbiDynlistChange(widget.node, value);
       }
     },
+    { singleField: true },
   );
 }
 
@@ -6694,6 +6705,22 @@ function analyzeTextListValue(value, validateItem, emptyMessage, options = {}) {
   };
 }
 
+// Shown greyed out in the condition editors: one value per line, and for
+// domains every prefix analyzeDomainSuffixText accepts. Both are run through
+// their own analyzers by luciPlaceholders.test.js.
+const DOMAIN_CONDITION_PLACEHOLDER = [
+  "example.com",
+  "full:api.example.com",
+  "keyword:google",
+  String.raw`regex:^ads\..*\.com$`,
+].join("\n");
+
+const IP_CONDITION_PLACEHOLDER = [
+  "1.1.1.1",
+  "192.168.1.0/24",
+  "2606:4700::/32",
+].join("\n");
+
 function analyzeDomainSuffixText(value) {
   const validateDomainCondition = (domain) => {
     const normalized = `${domain || ""}`.trim();
@@ -7252,6 +7279,7 @@ function addTextConditionField(section, config) {
   o.wrap = "soft";
   o.textarea = true;
   o.modalonly = true;
+  o.placeholder = config.placeholder;
   if (config.textAnalyze) {
     o.validate = function (_section_id, value) {
       const analysis = config.textAnalyze(value);
@@ -7392,7 +7420,7 @@ function writeDnsRulesetReferences(section_id, values) {
 function createSectionContent(section) {
   let o;
 
-  section.tab("settings", _("Settings"));
+  section.tab("settings", _("Route"));
   section.tab("conditions", _("Conditions"));
 
   o = section.taboption("settings", form.Flag, "enabled", _("Enable"));
@@ -7452,7 +7480,7 @@ function createSectionContent(section) {
     form.ListValue,
     "action",
     _("Action"),
-    _("What Forkop should do when this section's conditions match"),
+    _("What to do when this section's conditions match"),
   );
   populateActionOptionValues(o);
   o.default = "connection";
@@ -7474,7 +7502,7 @@ function createSectionContent(section) {
     "dns_server",
     _("DNS Server"),
     _(
-      "DNS server used to resolve domains matching the section conditions. Specify several servers for automatic failover on failure. To select a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; UDP is used by default.",
+      "Resolves domains that match the section conditions. Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://",
     ),
   );
   o = dnsServerOption;
@@ -7500,7 +7528,7 @@ function createSectionContent(section) {
     "dns_fallback_strategy",
     _("DNS Query Mode"),
     _(
-      "Query servers one at a time until the first successful response, or query all servers simultaneously for maximum speed.",
+      "Parallel asks every server at once and is faster. Sequential asks them in turn until the first answer",
     ),
   );
   dnsQueryModeOption.value("parallel", _("Parallel"));
@@ -7697,7 +7725,7 @@ function createSectionContent(section) {
     "selector_proxy_links",
     _("Connection URI"),
     _(
-      "Supported links: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, naiveproxy, mieru, anytls",
+      "Supported URIs: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, naiveproxy, mieru, anytls",
     ),
   );
   o.depends("action", "connection");
@@ -7733,7 +7761,7 @@ function createSectionContent(section) {
     SettingsDynamicList,
     "subscription_url",
     _("Subscription"),
-    _("Add a subscription provider link or local path"),
+    _("Subscription URL or local path"),
   );
   o.depends("action", "connection");
   o.rmempty = true;
@@ -7815,13 +7843,12 @@ function createSectionContent(section) {
     InterfaceSettingsDynamicList,
     "interfaces",
     _("Network Interface"),
-    _("Select network interface for VPN connection"),
   );
   o.depends("action", "connection");
   o.rmempty = true;
   o.modalonly = true;
   o.datatype = "netdevname";
-  o.placeholder = _("Select a network interface");
+  o.placeholder = _("Select an interface");
   o.childType = "section_interface";
   o.childValueOption = "name";
   o.createId = () => nextSectionId("section_interface");
@@ -7860,7 +7887,7 @@ function createSectionContent(section) {
     "tunnels",
     _("Tunnel"),
     _(
-      "WireGuard, AmneziaWG, Cloudflare WARP, Tailscale, and JSON endpoint tunnels",
+      "WireGuard, AmneziaWG, Cloudflare WARP, Tailscale and JSON endpoint are available",
     ),
   );
   o.depends("action", "connection");
@@ -7900,7 +7927,7 @@ function createSectionContent(section) {
     ButtonAddSettingsDynamicList,
     "outbound_jsons",
     _("JSON outbound"),
-    _("Custom sing-box outbound objects in JSON format"),
+    _("A custom sing-box outbound object"),
   );
   o.depends("action", "connection");
   o.rmempty = true;
@@ -7927,7 +7954,7 @@ function createSectionContent(section) {
     ButtonAddSettingsDynamicList,
     "urltest",
     _("URLTest"),
-    _("Server group for automatic lowest-latency selection"),
+    _("Selects the node with the lowest latency."),
   );
   o.depends("action", "connection");
   o.rmempty = true;
@@ -7987,7 +8014,7 @@ function createSectionContent(section) {
     ButtonAddSettingsDynamicList,
     "fallback_group",
     _("Fallback"),
-    _("Server group for ordered fallback"),
+    _("Selects the first available node by priority."),
   );
   o.depends("action", "connection");
   o.rmempty = true;
@@ -8090,9 +8117,7 @@ function createSectionContent(section) {
     optionName: "domain",
     legacyTextOptionName: "domain_suffix_text",
     label: _("Domains"),
-    description: _(
-      "The rule applies to the domain and all its subdomains. Use full:, keyword:, or regex: prefixes for exact match, keyword match, or regular expression.",
-    ),
+    placeholder: DOMAIN_CONDITION_PLACEHOLDER,
     textAnalyze: analyzeDomainSuffixText,
     loadText: loadCombinedDomainText,
     afterWrite: function (section_id) {
@@ -8119,7 +8144,7 @@ function createSectionContent(section) {
     optionName: "ip_cidr",
     legacyTextOptionName: "ip_cidr_text",
     label: _("IPs"),
-    description: _("Match destination IPs or subnets"),
+    placeholder: IP_CONDITION_PLACEHOLDER,
     textAnalyze: analyzeIpCidrText,
   });
   dependsOnRoutingAction(ipConditionOption);
@@ -8128,8 +8153,7 @@ function createSectionContent(section) {
     "conditions",
     form.DynamicList,
     "community_lists",
-    _("Built-in rule sets"),
-    _("Select a predefined domain list"),
+    _("Built-in lists"),
   );
   builtInRulesetOption.modalonly = true;
   builtInRulesetOption.placeholder = _("Service list");
@@ -8149,9 +8173,7 @@ function createSectionContent(section) {
     form.DynamicList,
     "_dns_rule_set",
     _("Rule sets"),
-    _(
-      "Add a link or local path. The format is detected automatically.",
-    ),
+    _("A URL or local path. The format is detected automatically."),
   );
   dnsRuleSetOption.depends("action", "dns");
   dnsRuleSetOption.modalonly = true;
@@ -8173,9 +8195,7 @@ function createSectionContent(section) {
     SettingsDynamicList,
     "rule_set",
     _("Rule sets"),
-    _(
-      "Add a link or local path. The format is detected automatically.",
-    ),
+    _("A URL or local path. The format is detected automatically."),
   );
   dependsOnRoutingAction(ruleSetOption);
   ruleSetOption.modalonly = true;
@@ -8201,18 +8221,16 @@ function createSectionContent(section) {
 
   const sourceIpOption = addLocalDeviceSubnetDynamicField(section, {
     key: "source_ip_cidr",
-    label: _("Device filter"),
-    description: _(
-      "Apply section rules only to the specified source IP addresses",
-    ),
+    label: _("Only for devices"),
+    description: _("The section conditions only match these devices"),
   });
   dependsOnRuleConditions(sourceIpOption);
 
   const fullyRoutedOption = addLocalDeviceSubnetDynamicField(section, {
     key: "fully_routed_ips",
-    label: _("Forced device routing"),
+    label: _("Devices"),
     description: _(
-      "All traffic from these source IP addresses will be routed through the section.",
+      "All traffic from these devices is forced through the section",
     ),
   });
   dependsOnRoutingAction(fullyRoutedOption);
@@ -8222,9 +8240,7 @@ function createSectionContent(section) {
   const portsOption = addDynamicConditionField(section, {
     key: "ports",
     label: _("Ports"),
-    description: _(
-      "Match destination ports. Section ports constrain all selected conditions. Domain-port rules embedded in a rule set cannot select FakeIP during DNS resolution.",
-    ),
+    description: _("Match destination ports."),
     dynamicValidate: validatePortCondition,
   });
   dependsOnRoutingAction(portsOption);
@@ -8296,6 +8312,9 @@ const EntryPoint = {
   // Servers tab, which lists server clients the same way this tab lists interfaces,
   // URLTests and tunnels.
   ButtonAddSettingsDynamicList,
+  // The static DNS records dialog in the Settings tab is the other dialog that
+  // gives one text field the whole modal.
+  SINGLE_FIELD_MODAL_CLASS,
   addDynamicListItem,
   childItemInputValue,
   childPendingSettingsStore,
@@ -8303,6 +8322,7 @@ const EntryPoint = {
   configureSectionSection,
   configureTextareaOption,
   createSectionContent,
+  ensureSingleFieldModalStyles,
   isExistingChildItem,
   showChildItemSettingsModal,
   updateDynamicListItemLabel,

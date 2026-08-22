@@ -51,7 +51,7 @@ for (const expected of [
   // The resolver must reuse the shared DNS server standard instead of a scalar field.
   "form.DynamicList,\n    \"domain_resolver_dns_server\"",
   '_("DNS Server")',
-  '"DNS server used by the resolver. Specify several servers for automatic failover on failure. To select a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; UDP is used by default."',
+  '"Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://"',
   '_("Add at least one DNS server")',
   '"domain_resolver_dns_fallback_strategy"',
   '_("DNS Query Mode")',
@@ -78,7 +78,7 @@ for (const expected of [
   '"domain_resolver_dns_fallback_strategy"',
   '"domain_resolver_dns_detour_enabled"',
   '"domain_resolver_dns_detour_section"',
-  'domain_resolver_dns_server: ["8.8.8.8"]',
+  'domain_resolver_dns_server: []',
   'domain_resolver_dns_fallback_strategy: "parallel"',
   'domain_resolver_dns_detour_enabled: "0"',
 ]) {

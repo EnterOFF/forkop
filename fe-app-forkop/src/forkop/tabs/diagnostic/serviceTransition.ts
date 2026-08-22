@@ -46,16 +46,6 @@ export function shouldSkipServicesInfoAutoRefresh({
   return !force && localMutatingActionLoading;
 }
 
-export function shouldResetDiagnosticsChecks({
-  resetChecks,
-  diagnosticsRunLoading,
-}: {
-  resetChecks: boolean;
-  diagnosticsRunLoading: boolean;
-}) {
-  return resetChecks && !diagnosticsRunLoading;
-}
-
 export function shouldDisableDiagnosticRunAction({
   providerInfoLoaded,
   servicesInfoLoading,

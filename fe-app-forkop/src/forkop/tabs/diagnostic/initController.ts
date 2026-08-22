@@ -37,7 +37,6 @@ import { fetchServicesInfo } from '../../fetchers/fetchServicesInfo';
 import { normalizeCompiledVersion } from '../../../helpers/normalizeCompiledVersion';
 import { renderModal } from '../../../partials';
 import { FORKOP_LUCI_APP_VERSION } from '../../../constants';
-import { renderWikiDisclaimer } from './partials/renderWikiDisclaimer';
 import { runSectionsCheck } from './checks/runSectionsCheck';
 import { Forkop } from '../../types';
 import {
@@ -46,7 +45,6 @@ import {
   hasComponentActionLoading,
   hasLocalMutatingServiceActionLoading,
   isServiceTransitionStatus,
-  shouldResetDiagnosticsChecks,
   shouldDisableDiagnosticRunAction,
   shouldSkipServicesInfoAutoRefresh,
   shouldShowRestartAction,
@@ -54,13 +52,8 @@ import {
   shouldShowStopAction,
 } from './serviceTransition';
 import { isActiveLuciTab } from '../../helpers/isActiveLuciTab';
+import { formatOsRelease } from '../../helpers/osRelease';
 import { formatSingBoxVersion } from '../../helpers/singBoxVersion';
-import {
-  clearPersistedDiagnosticRun,
-  PersistedDiagnosticRun,
-  readPersistedDiagnosticRun,
-  savePersistedDiagnosticRun,
-} from './diagnosticRunPersistence';
 import {
   formatMaskedSingBoxConfig,
   maskGlobalCheckText,
@@ -75,7 +68,14 @@ let diagnosticLifecycleRegistered = false;
 let diagnosticControllerInitialized = false;
 let diagnosticMounted = false;
 let diagnosticMountId = 0;
-let diagnosticCompletedWhileHidden = false;
+// The check list has two owners. Idle, it is a placeholder naming the checks the
+// installed providers call for, and every capability read rebuilds it. From the
+// moment a run starts the list is the run's — its progress, and then its result —
+// until the page is left behind or a service action makes the result stale.
+// Everything else has to leave it alone in between: a tab switch puts several
+// capability reads in flight at once, and whichever landed last used to rebuild
+// the list on top of what the run had just written into it.
+let diagnosticsChecksOwnedByRun = false;
 let servicesInfoStateUnsubscribe: (() => void) | null = null;
 let servicesInfoRefreshPromise: Promise<void> | null = null;
 const followedServiceActionJobs = new Set<string>();
@@ -108,17 +108,37 @@ function getDiagnosticsProviderOptions(
   };
 }
 
-function getNotRunningDiagnosticsChecks() {
+function getNotRunningDiagnosticsChecks(
+  systemInfo = store.get().diagnosticsSystemInfo,
+) {
   return getDiagnosticsChecks(
     _('Not running'),
-    getDiagnosticsProviderOptions(),
+    getDiagnosticsProviderOptions(systemInfo),
   );
 }
 
-function resetDiagnosticsChecks() {
+function rebuildIdleDiagnosticsChecks(
+  systemInfo = store.get().diagnosticsSystemInfo,
+) {
+  if (diagnosticsChecksOwnedByRun) {
+    return;
+  }
+
   store.set({
-    diagnosticsChecks: getNotRunningDiagnosticsChecks(),
+    diagnosticsChecks: getNotRunningDiagnosticsChecks(systemInfo),
   });
+}
+
+// Leaving the page and a service action that makes the result stale both end the
+// run's claim on the list. A run still filling it in keeps the claim: emptying the
+// list under a running pass leaves it writing checks into somebody else's list.
+function releaseDiagnosticsChecks() {
+  if (store.get().diagnosticsRunAction.loading) {
+    return;
+  }
+
+  diagnosticsChecksOwnedByRun = false;
+  rebuildIdleDiagnosticsChecks();
 }
 
 function setDiagnosticActionLoading(
@@ -315,7 +335,7 @@ async function followServiceActionState(state: Forkop.ServiceActionState) {
     await refreshDiagnosticServicesInfo({ force: true, allowInactive: true });
     void ForkopShellMethods.uiActionAck('service', jobId);
     followedServiceActionJobs.delete(jobId);
-    resetDiagnosticsChecks();
+    releaseDiagnosticsChecks();
   }
 }
 
@@ -332,22 +352,11 @@ function followServiceActionsFromUiState(uiState?: Forkop.UiState) {
 }
 
 async function fetchSystemInfo() {
-  const systemInfo = await ensureSystemInfo();
-
-  if (store.get().diagnosticsRunAction.loading) {
-    return;
-  }
-
-  store.set({
-    diagnosticsChecks: getDiagnosticsChecks(
-      _('Not running'),
-      getDiagnosticsProviderOptions(systemInfo),
-    ),
-  });
+  rebuildIdleDiagnosticsChecks(await ensureSystemInfo());
 }
 
-// A provider that is not installed has no version to show, and a fresh
-// capability read resets the check list unless a run is already using it.
+// A provider that is not installed has no version to show, and a fresh capability
+// read rebuilds the check list unless a run owns it.
 function applyDiagnosticsProviderInfo(
   nextSystemInfo: StoreType['diagnosticsSystemInfo'],
   resetChecks: boolean,
@@ -368,16 +377,9 @@ function applyDiagnosticsProviderInfo(
     diagnosticsSystemInfo: nextSystemInfo,
   };
 
-  if (
-    shouldResetDiagnosticsChecks({
-      resetChecks,
-      diagnosticsRunLoading: store.get().diagnosticsRunAction.loading,
-    })
-  ) {
-    nextState.diagnosticsChecks = getDiagnosticsChecks(
-      _('Not running'),
-      getDiagnosticsProviderOptions(nextSystemInfo),
-    );
+  if (resetChecks && !diagnosticsChecksOwnedByRun) {
+    nextState.diagnosticsChecks =
+      getNotRunningDiagnosticsChecks(nextSystemInfo);
   }
 
   store.set(nextState);
@@ -583,7 +585,7 @@ async function handleServiceRuntimeAction({
         handledServiceActionJobs.add(jobId);
         void ForkopShellMethods.uiActionAck('service', jobId);
       }
-      resetDiagnosticsChecks();
+      releaseDiagnosticsChecks();
     }
   }
 }
@@ -699,7 +701,7 @@ async function handleShowForkopConfig() {
       const maskedConfigText = maskGlobalCheckText(rawConfigText);
 
       ui.showModal(
-        _('Show forkop config'),
+        _('Forkop configuration'),
         renderModal(rawConfigText, 'show_config', {
           maskText: () => maskedConfigText,
           initialAutoRefresh: false,
@@ -731,7 +733,7 @@ async function handleShowSingBoxConfig() {
       );
 
       ui.showModal(
-        _('Show sing-box config'),
+        _('sing-box configuration'),
         renderModal(rawSingBoxConfigText, 'show_sing_box_config', {
           maskText: () => maskedSingBoxConfigText,
           initialAutoRefresh: false,
@@ -750,30 +752,6 @@ async function handleShowSingBoxConfig() {
   } finally {
     setDiagnosticActionLoading('showSingBoxConfig', false);
   }
-}
-
-function renderWikiDisclaimerWidget() {
-  const diagnosticsChecks = store.get().diagnosticsChecks;
-
-  function getWikiKind() {
-    const allResults = diagnosticsChecks.map((check) => check.state);
-
-    if (allResults.includes('error')) {
-      return 'error';
-    }
-
-    if (allResults.includes('warning')) {
-      return 'warning';
-    }
-
-    return 'default';
-  }
-
-  const container = document.getElementById('fkp_diagnostic-page-wiki');
-
-  return preserveScrollForPage(() => {
-    container!.replaceChildren(renderWikiDisclaimer(getWikiKind()));
-  });
 }
 
 function renderDiagnosticAvailableActionsWidget() {
@@ -933,7 +911,7 @@ function renderDiagnosticSystemInfoWidget() {
   items.push(
     {
       key: 'OS',
-      value: diagnosticsSystemInfo.openwrt_version,
+      value: formatOsRelease(diagnosticsSystemInfo.openwrt_version),
     },
     {
       key: 'Device',
@@ -957,7 +935,6 @@ async function onStoreUpdate(
 ) {
   if (diff.diagnosticsChecks) {
     renderDiagnosticsChecks();
-    renderWikiDisclaimerWidget();
   }
 
   if (diff.diagnosticsRunAction) {
@@ -980,20 +957,6 @@ async function onStoreUpdate(
     renderDiagnosticSystemInfoWidget();
     renderDiagnosticRunActionWidget();
   }
-}
-
-function persistDiagnosticRunProgress({
-  providerOptions,
-  nextRunnerIndex,
-}: {
-  providerOptions: DiagnosticsProviderOptions;
-  nextRunnerIndex: number;
-}) {
-  savePersistedDiagnosticRun({
-    providerOptions,
-    nextRunnerIndex,
-    diagnosticsChecks: store.get().diagnosticsChecks,
-  });
 }
 
 function setDiagnosticCheckLoading(code: DIAGNOSTICS_CHECKS) {
@@ -1040,53 +1003,36 @@ function getDiagnosticRunners(
   ];
 }
 
-async function runChecks({ resume }: { resume?: PersistedDiagnosticRun } = {}) {
-  if (store.get().diagnosticsRunAction.loading && !resume) {
+// One pass, one page session. The run outlives the tab that started it: a LuCI tab
+// switch unmounts the page while the loop below keeps writing checks into the
+// shared store, so coming back just re-renders where it got to. The guard is what
+// keeps that to a single pass — every other entry point, a second click or a
+// remount, has to find the run already in flight and leave it alone.
+async function runChecks() {
+  if (store.get().diagnosticsRunAction.loading) {
     return;
   }
 
-  let providerOptions =
-    resume?.providerOptions ?? getDiagnosticsProviderOptions();
-  let nextRunnerIndex = resume?.nextRunnerIndex ?? 0;
-
+  diagnosticsChecksOwnedByRun = true;
   store.set({
     diagnosticsRunAction: { loading: true },
-    diagnosticsChecks:
-      resume?.diagnosticsChecks ??
-      getLoadingDiagnosticsChecks(providerOptions).diagnosticsChecks,
-  });
-  persistDiagnosticRunProgress({
-    providerOptions,
-    nextRunnerIndex,
+    diagnosticsChecks: getLoadingDiagnosticsChecks(
+      getDiagnosticsProviderOptions(),
+    ).diagnosticsChecks,
   });
 
   try {
-    if (!resume) {
-      await fetchDiagnosticsProviderInfo({ resetChecks: false });
+    await fetchDiagnosticsProviderInfo({ resetChecks: false });
 
-      providerOptions = getDiagnosticsProviderOptions();
-      nextRunnerIndex = 0;
+    const providerOptions = getDiagnosticsProviderOptions();
 
-      store.set({
-        diagnosticsChecks:
-          getLoadingDiagnosticsChecks(providerOptions).diagnosticsChecks,
-      });
-      persistDiagnosticRunProgress({
-        providerOptions,
-        nextRunnerIndex,
-      });
-    }
+    store.set({
+      diagnosticsChecks:
+        getLoadingDiagnosticsChecks(providerOptions).diagnosticsChecks,
+    });
 
-    const runners = getDiagnosticRunners(providerOptions);
-
-    for (let index = nextRunnerIndex; index < runners.length; index += 1) {
-      const runner = runners[index];
-
+    for (const runner of getDiagnosticRunners(providerOptions)) {
       setDiagnosticCheckLoading(runner.code);
-      persistDiagnosticRunProgress({
-        providerOptions,
-        nextRunnerIndex: index,
-      });
 
       try {
         await runner.run();
@@ -1097,20 +1043,11 @@ async function runChecks({ resume }: { resume?: PersistedDiagnosticRun } = {}) {
           e,
         );
       }
-
-      persistDiagnosticRunProgress({
-        providerOptions,
-        nextRunnerIndex: index + 1,
-      });
     }
   } catch (e) {
     logger.error('[DIAGNOSTIC]', 'runChecks - e', e);
   } finally {
-    clearPersistedDiagnosticRun();
     store.set({ diagnosticsRunAction: { loading: false } });
-    if (!diagnosticMounted) {
-      diagnosticCompletedWhileHidden = true;
-    }
   }
 }
 
@@ -1127,29 +1064,21 @@ async function loadInitialDiagnosticData() {
   }
 }
 
-function restorePersistedDiagnosticRun() {
-  const persistedRun = readPersistedDiagnosticRun();
+// Whichever mount is current owns the listeners. Detaching says nothing about the
+// check list: that belongs to the page being left, and to the run that may still
+// be writing into it.
+function detachDiagnosticPage() {
+  diagnosticMounted = false;
+  diagnosticMountId += 1;
+  stopServiceActionStateWatcher();
 
-  if (!persistedRun) {
-    return false;
-  }
-
-  store.set({
-    diagnosticsRunAction: { loading: true },
-    diagnosticsChecks: persistedRun.diagnosticsChecks,
-  });
-  void runChecks({ resume: persistedRun });
-  return true;
+  // Remove old listener
+  store.unsubscribe(onStoreUpdate);
 }
 
 async function onPageMount() {
-  const preserveHiddenResult = diagnosticCompletedWhileHidden;
-
   // Cleanup before mount
-  onPageUnmount({
-    preserveCompletedResult: preserveHiddenResult,
-    preservePersistedRun: true,
-  });
+  detachDiagnosticPage();
 
   diagnosticMounted = true;
   diagnosticMountId += 1;
@@ -1159,26 +1088,13 @@ async function onPageMount() {
   if (!hasRuntimeSnapshot) {
     const uiState = await refreshRuntimeUiState({ force: true });
 
-    if (!diagnosticMounted || mountId !== diagnosticMountId) {
+    if (!isDiagnosticMountActive(mountId)) {
       return;
     }
 
     if (!uiState) {
       void refreshDiagnosticServicesInfo({ force: true });
     }
-  }
-
-  const restoredPersistedRun =
-    !preserveHiddenResult && restorePersistedDiagnosticRun();
-
-  if (preserveHiddenResult) {
-    diagnosticCompletedWhileHidden = false;
-  } else if (
-    !restoredPersistedRun &&
-    !store.get().diagnosticsRunAction.loading
-  ) {
-    store.reset(['diagnosticsRunAction']);
-    resetDiagnosticsChecks();
   }
 
   // Add new listener
@@ -1197,40 +1113,16 @@ async function onPageMount() {
   // Initial system info render
   renderDiagnosticSystemInfoWidget();
 
-  // Initial Wiki disclaimer render
-  renderWikiDisclaimerWidget();
-
   if (hasRuntimeSnapshot) {
     void refreshRuntimeUiState({ force: true });
   }
-  if (!preserveHiddenResult && !restoredPersistedRun) {
-    void loadInitialDiagnosticData();
-  }
+
+  void loadInitialDiagnosticData();
 }
 
-function onPageUnmount({
-  preserveCompletedResult = false,
-  preservePersistedRun = false,
-}: {
-  preserveCompletedResult?: boolean;
-  preservePersistedRun?: boolean;
-} = {}) {
-  diagnosticMounted = false;
-  diagnosticMountId += 1;
-  stopServiceActionStateWatcher();
-  servicesInfoRefreshPromise = null;
-
-  // Remove old listener
-  store.unsubscribe(onStoreUpdate);
-
-  if (!preserveCompletedResult && !store.get().diagnosticsRunAction.loading) {
-    if (!preservePersistedRun) {
-      clearPersistedDiagnosticRun();
-    }
-    store.reset(['diagnosticsRunAction']);
-    resetDiagnosticsChecks();
-    diagnosticCompletedWhileHidden = false;
-  }
+function onPageUnmount() {
+  detachDiagnosticPage();
+  releaseDiagnosticsChecks();
 }
 
 function registerLifecycleListeners() {

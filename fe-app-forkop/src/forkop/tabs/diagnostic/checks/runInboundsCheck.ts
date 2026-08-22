@@ -86,7 +86,7 @@ function getServerItems(
   const items: IDiagnosticsChecksItem[] = [
     {
       state: item.runtime_ok ? 'success' : 'error',
-      key: `${prefix} ${_('Generated inbound')}`,
+      key: `${prefix} ${_('Inbound created')}`,
       value: `${item.tag} [${item.protocol}]`,
     },
   ];

@@ -42,14 +42,14 @@ export function renderAvailableActions({
   showConfig,
   showSingBoxConfig,
 }: IRenderAvailableActionsProps) {
-  return E('div', { class: 'fkp_diagnostic-page__right-bar__actions' }, [
+  return E('div', { class: 'fkp_diagnostic-page__controls__actions' }, [
     E('b', {}, _('Available actions')),
     ...insertIf(restart.visible, [
       renderButton({
         classNames: ['cbi-button-apply'],
         onClick: restart.onClick,
         icon: renderRotateCcwIcon24,
-        text: _('Restart Forkop'),
+        text: _('Restart'),
         loading: restart.loading,
         disabled: restart.disabled,
       }),
@@ -59,7 +59,7 @@ export function renderAvailableActions({
         classNames: ['cbi-button-remove'],
         onClick: stop.onClick,
         icon: renderCircleStopIcon24,
-        text: _('Stop Forkop'),
+        text: _('Stop'),
         loading: stop.loading,
         disabled: stop.disabled,
       }),
@@ -69,7 +69,7 @@ export function renderAvailableActions({
         classNames: ['cbi-button-save'],
         onClick: start.onClick,
         icon: renderCirclePlayIcon24,
-        text: _('Start Forkop'),
+        text: _('Start'),
         loading: start.loading,
         disabled: start.disabled,
       }),
@@ -98,7 +98,7 @@ export function renderAvailableActions({
       renderButton({
         onClick: globalCheck.onClick,
         icon: renderCircleCheckBigIcon24,
-        text: _('Get global check'),
+        text: _('Global check'),
         loading: globalCheck.loading,
         disabled: globalCheck.disabled,
       }),
@@ -107,7 +107,7 @@ export function renderAvailableActions({
       renderButton({
         onClick: updateRuleSets.onClick,
         icon: renderDownloadIcon24,
-        text: _('Update remote lists'),
+        text: _('Update lists'),
         loading: updateRuleSets.loading,
         disabled: updateRuleSets.disabled,
       }),
@@ -116,7 +116,7 @@ export function renderAvailableActions({
       renderButton({
         onClick: showConfig.onClick,
         icon: renderFileTextIcon24,
-        text: _('Show forkop config'),
+        text: _('Forkop configuration'),
         loading: showConfig.loading,
         disabled: showConfig.disabled,
       }),
@@ -125,7 +125,7 @@ export function renderAvailableActions({
       renderButton({
         onClick: showSingBoxConfig.onClick,
         icon: renderCogIcon24,
-        text: _('Show sing-box config'),
+        text: _('sing-box configuration'),
         loading: showSingBoxConfig.loading,
         disabled: showSingBoxConfig.disabled,
       }),

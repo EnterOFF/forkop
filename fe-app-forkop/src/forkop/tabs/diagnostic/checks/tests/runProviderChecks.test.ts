@@ -67,12 +67,12 @@ describe('provider diagnostics checks', () => {
     expect(result.items).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          key: 'Zapret provider binary is available',
+          key: 'Provider binary is available',
           value: '/usr/bin/nfqws',
         }),
         expect.objectContaining({
           state: 'success',
-          key: 'Zapret sing-box outbound is configured',
+          key: 'Outbound is configured',
         }),
       ]),
     );
@@ -105,7 +105,7 @@ describe('provider diagnostics checks', () => {
       expect.arrayContaining([
         expect.objectContaining({
           state: 'error',
-          key: 'Zapret sing-box outbound is not configured',
+          key: 'Outbound is not configured',
         }),
       ]),
     );
@@ -131,12 +131,12 @@ describe('provider diagnostics checks', () => {
     expect(result.items).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          key: 'Zapret2 provider binary is available',
+          key: 'Provider binary is available',
           value: '/usr/bin/nfqws2',
         }),
         expect.objectContaining({
           state: 'success',
-          key: 'Zapret2 sing-box outbound is configured',
+          key: 'Outbound is configured',
         }),
       ]),
     );

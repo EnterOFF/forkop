@@ -107,10 +107,10 @@ describe('raw inbound JSON validation', () => {
     ).toBe(true);
   });
 
-  it('rejects a tag, because Forkop names the inbound after the server', () => {
+  it('accepts a tag, which Forkop overwrites with the server name', () => {
     expect(
       validate.validateInboundJson('srv', '{"type":"mixed","tag":"mine"}'),
-    ).toMatch(/tag/);
+    ).toBe(true);
   });
 
   it('rejects unsupported types, broken JSON and bad ports', () => {

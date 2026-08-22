@@ -12,8 +12,13 @@ export const styles = `
 }
 
 .fkp_diagnostic-page {
+    /* Both tracks stay fractions. The page sits in a shrink-to-fit box, where a
+       lone fr track collapses onto its own content instead of taking the rest of
+       the row: the checks would end up as narrow as the word inside them. Two
+       fractions size each other, which is what this column pair has always done.
+       The controls carry the floor instead, see below. */
     display: grid;
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: 1fr 2fr;
     grid-column-gap: 10px;
     align-items: start;
 }
@@ -24,38 +29,19 @@ export const styles = `
     }
 }
 
-.fkp_diagnostic-page__right-bar {
+.fkp_diagnostic-page__controls {
+    /* What the column is measured against: the available actions, whose labels
+       are fixed text, floored at the width the longest system information row
+       needs on one line. "Sing-box 1.13.18-extended-2.6.5-f100" measures 264px
+       with the card padding around it, so 17rem leaves a few pixels over. */
+    min-width: 17rem;
+
     display: grid;
     grid-template-columns: 1fr;
     grid-row-gap: 10px;
 }
 
-.fkp_diagnostic-page__right-bar__wiki {
-    border: 2px var(--background-color-low, lightgray) solid;
-    border-radius: 4px;
-    padding: 10px;
-
-    display: grid;
-    grid-template-columns: auto;
-    grid-row-gap: 10px;
-}
-
-.fkp_diagnostic-page__right-bar__wiki--warning {
-    border: 2px var(--warn-color-medium, orange) solid;
-}
-.fkp_diagnostic-page__right-bar__wiki--error {
-    border: 2px var(--error-color-medium, red) solid;
-}
-
-.fkp_diagnostic-page__right-bar__wiki__content {
-    display: grid;
-    grid-template-columns: 1fr 5fr;
-    grid-column-gap: 10px;
-}
-
-.fkp_diagnostic-page__right-bar__wiki__texts {}
-
-.fkp_diagnostic-page__right-bar__actions {
+.fkp_diagnostic-page__controls__actions {
     border: 2px var(--background-color-low, lightgray) solid;
     border-radius: 4px;
     padding: 10px;
@@ -66,13 +52,20 @@ export const styles = `
 
 }
 
-.fkp_diagnostic-page__right-bar__actions > .fkp-partial-button {
+.fkp_diagnostic-page__controls__actions > .fkp-partial-button {
     width: 100%;
     min-width: 0;
     margin-left: 0;
 }
 
-.fkp_diagnostic-page__right-bar__system-info {
+/* System information does not get a vote on how wide the column is: its values
+   arrive one at a time, and a column measured against them steps sideways once
+   per row while the page fills in. A definite zero width keeps the block out of
+   that measurement, and the percentage minimum fills the column it is given. */
+.fkp_diagnostic-page__controls__system-info {
+    width: 0;
+    min-width: 100%;
+
     border: 2px var(--background-color-low, lightgray) solid;
     border-radius: 4px;
     padding: 10px;
@@ -82,39 +75,48 @@ export const styles = `
     grid-row-gap: 10px;
 }
 
-.fkp_diagnostic-page__right-bar__system-info__title {
+.fkp_diagnostic-page__controls__system-info__title {
 
 }
 
-.fkp_diagnostic-page__right-bar__system-info__row {
+.fkp_diagnostic-page__controls__system-info__row {
     display: grid;
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto minmax(0, 1fr);
     grid-column-gap: 5px;
 }
 
-.fkp_diagnostic-page__right-bar__system-info__row__tag {
+/* What used to widen the controls column once per value while the page filled in.
+   A version string carries no space to break at, so the column had to grow to fit
+   it; allowed to break anywhere, it wraps inside the column instead and the split
+   stays where it started. */
+.fkp_diagnostic-page__controls__system-info__row > div {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.fkp_diagnostic-page__controls__system-info__row__tag {
     padding: 2px 4px;
     border: 1px transparent solid;
     border-radius: 4px;
     margin-left: 5px;
 }
 
-.fkp_diagnostic-page__right-bar__system-info__row__tag--neutral {
+.fkp_diagnostic-page__controls__system-info__row__tag--neutral {
     border: 1px var(--background-color-high, gray) solid;
     color: var(--text-color-medium, gray);
 }
 
-.fkp_diagnostic-page__right-bar__system-info__row__tag--warning {
+.fkp_diagnostic-page__controls__system-info__row__tag--warning {
     border: 1px var(--warn-color-medium, orange) solid;
     color: var(--warn-color-medium, orange);
 }
 
-.fkp_diagnostic-page__right-bar__system-info__row__tag--success {
+.fkp_diagnostic-page__controls__system-info__row__tag--success {
     border: 1px var(--success-color-medium, green) solid;
     color: var(--success-color-medium, green);
 }
 
-.fkp_diagnostic-page__left-bar {
+.fkp_diagnostic-page__results {
     display: grid;
     grid-template-columns: 1fr;
     grid-row-gap: 10px;

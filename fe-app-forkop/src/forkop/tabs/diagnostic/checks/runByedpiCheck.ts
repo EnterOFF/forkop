@@ -61,15 +61,15 @@ export async function runByedpiCheck() {
           ? 'error'
           : 'warning',
       key: providerAvailable
-        ? _('ByeDPI provider binary is available')
-        : _('ByeDPI provider binary is not available'),
+        ? _('Provider binary is available')
+        : _('Provider binary is not available'),
       value: data.provider_path || '',
     },
     {
       state: packageInstalled ? 'success' : 'warning',
       key: packageInstalled
-        ? _('ByeDPI package is installed')
-        : _('ByeDPI package is not installed'),
+        ? _('Package is installed')
+        : _('Package is not installed'),
       value: '',
     },
     {
@@ -88,13 +88,13 @@ export async function runByedpiCheck() {
             : 'success',
       key: hasByedpiRules
         ? runtimeUnstable
-          ? _('Forkop-managed ciadpi runtime has restarted')
+          ? _('ciadpi runtime has restarted')
           : forkopRuntimeReady
-            ? _('Forkop-managed ciadpi runtime is ready')
-            : _('Forkop-managed ciadpi runtime is not ready')
+            ? _('ciadpi runtime is ready')
+            : _('ciadpi runtime is not ready')
         : unexpectedRuntime
-          ? _('Unexpected Forkop-managed ciadpi runtime is running')
-          : _('Forkop-managed ciadpi runtime is not running'),
+          ? _('Unexpected ciadpi runtime is running')
+          : _('ciadpi runtime is not running'),
       value: hasByedpiRules
         ? runtimeUnstable
           ? `${restartCount}`
@@ -104,8 +104,8 @@ export async function runByedpiCheck() {
     {
       state: !hasByedpiRules || outboundsConfigured ? 'success' : 'error',
       key: outboundsConfigured
-        ? _('ByeDPI sing-box outbound is configured')
-        : _('ByeDPI sing-box outbound is not configured'),
+        ? _('Outbound is configured')
+        : _('Outbound is not configured'),
       value: `${data.listen_address}:${Number(data.port_base || 0)}`,
     },
     {
@@ -117,10 +117,10 @@ export async function runByedpiCheck() {
       key: standaloneServiceRunning
         ? hasByedpiRules
           ? _('Standalone ByeDPI is active together with Forkop ByeDPI rules')
-          : _('Standalone ByeDPI service is active')
+          : _('Standalone service is active')
         : standaloneAutostartRisk
-          ? _('Standalone ByeDPI autostart is enabled')
-          : _('Standalone ByeDPI service is inactive'),
+          ? _('Standalone autostart is enabled')
+          : _('Standalone service is inactive'),
       value: '',
     },
   ];

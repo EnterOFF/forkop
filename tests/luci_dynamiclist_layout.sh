@@ -58,11 +58,14 @@ const addSubscriptionOptions = new Function(
   'form',
   '_',
   'addServerFilterOptions',
+  'subscriptionServerFilterDescriptions',
   `${subscriptionOptionsSource[0].slice(0, -'\n\nfunction addInterfaceItemOptions('.length)}; return addSubscriptionUrlItemOptions;`,
 )(
   { Flag: 'flag', Value: 'value', ListValue: 'list', Button: 'button' },
   (value) => value,
   (section) => section.created.push('server_filter_mode'),
+  // The shared help is asserted against the source below; only names matter here.
+  () => ({}),
 );
 const optionNames = (remote) => {
   const section = {
@@ -328,40 +331,46 @@ grep -Fq 'field.ucioption = storageKey;' <<<"$server_filter_options" ||
   fail "conditional exclusion fields must use LuCI native shared UCI storage"
 grep -Fq 'targetElement.setValue(sourceElement.getValue());' "$SECTION_JS" ||
   fail "switching filter modes must preserve pending exclusion values"
-for description in \
-  'Only the selected servers will be added from the subscription.' \
-  'Servers that should not be added from the subscription.' \
-  'Exclude servers from the subscription using a regular expression.'; do
-  grep -Fq "$description" <<<"$subscription_options" ||
-    fail "subscription filter description is missing: $description"
+# The three filter blocks read the same help out of one place, so the only thing
+# each block chooses is whether its servers end up in a group or are imported.
+grep -Fq '...subscriptionServerFilterDescriptions(),' <<<"$subscription_options" ||
+  fail "the subscription filter must take the shared descriptions"
+for block in "$urltest_options" "$fallback_options"; do
+  grep -Fq '...groupServerFilterDescriptions(),' <<<"$block" ||
+    fail "a group filter must take the shared descriptions"
 done
+if grep -Eq 'includeServersDescription|excludeTypesDescription|ExcludeServersDescription|excludeRegexDescription' \
+  <<<"$subscription_options$urltest_options$fallback_options"; then
+  fail "a filter block must not spell out a description the shared helpers own"
+fi
 for description in \
-  'Only the selected servers will be added to the URLTest group.' \
-  'Servers that should not be added to the URLTest group.' \
-  'Exclude servers from the URLTest group using a regular expression.'; do
-  grep -Fq "$description" <<<"$urltest_options" ||
-    fail "URLTest filter description is missing: $description"
-done
-for description in \
-  'Only the selected servers will be added to this server group.' \
-  'Servers that should not be added to this server group.' \
-  'Exclude servers from this server group using a regular expression.'; do
-  grep -Fq "$description" <<<"$fallback_options" ||
-    fail "Fallback filter description is missing: $description"
-done
-for description in \
-  'Add servers whose names match the regular expression.' \
-  'Optional. Remove specific servers from the selection above.' \
-  'Optional. Exclude servers from the selection above using a regular expression.'; do
+  'The servers that end up in the group' \
+  'The servers that do not end up in the group' \
+  'Servers of these protocols do not end up in the group' \
+  'The servers that are imported' \
+  'The servers that are not imported' \
+  'Servers of these protocols are not imported' \
+  'Servers whose names match the regular expression' \
+  'Remove servers whose names match the regular expression' \
+  'Remove servers from the selection above'; do
   grep -Fq "$description" "$SECTION_JS" ||
-    fail "shared server filter description is missing: $description"
+    fail "server filter description is missing: $description"
+done
+# Naming a mode after the list it keeps means remembering which list is which.
+if grep -Eq '_\("Blacklist"\)|_\("Whitelist"\)' "$SECTION_JS"; then
+  fail "filter modes must say what they select, not which list they are"
+fi
+for label in 'All except selected' 'Only selected' 'All remaining'; do
+  grep -Fq "$label" "$SECTION_JS" ||
+    fail "filter mode label is missing: $label"
 done
 grep -Fq '{ value: "direct", label: _("Direct") }' <<<"$fallback_options" ||
   fail "Fallback direct mode must use the concise Direct label"
-for label in 'Subscription server filter' 'URLTest group filter' 'Server group filter'; do
-  grep -Fq "$label" "$SECTION_JS" ||
-    fail "context-specific filter selector is missing: $label"
-done
+grep -Fq 'Server filter' "$SECTION_JS" ||
+  fail "server filter selector is missing"
+if grep -Fq 'Server group filter' "$SECTION_JS"; then
+  fail "the Fallback group filter must use the same label as the other two"
+fi
 if grep -Fq '"filter_enabled"' "$SECTION_JS"; then
   fail "server filter toggle must stay removed"
 fi
@@ -431,7 +440,7 @@ grep -Fq 'if (currentSignature === choiceSignature)' "$SECTION_JS" ||
 if grep -Fq 'widget.setValue(' <<<"$live_choices"; then
   fail "live choice refresh must not rewrite selected server filters"
 fi
-grep -Fq 'Add a link or local path. The format is detected automatically.' <<<"$create_section" ||
+grep -Fq 'A URL or local path. The format is detected automatically.' <<<"$create_section" ||
   fail "universal rule sets must explain automatic format detection"
 grep -Fq 'ruleSetOption.hasItemSettings = function (section_id)' <<<"$create_section" ||
   fail "routing actions must retain per-item subnet settings"

@@ -1602,34 +1602,6 @@ function renderSearchIcon24() {
   );
 }
 
-// src/icons/renderBookOpenTextIcon24.ts
-function renderBookOpenTextIcon24() {
-  const NS = "http://www.w3.org/2000/svg";
-  return svgEl(
-    "svg",
-    {
-      xmlns: NS,
-      viewBox: "0 0 24 24",
-      fill: "none",
-      stroke: "currentColor",
-      "stroke-width": "2",
-      "stroke-linecap": "round",
-      "stroke-linejoin": "round",
-      class: "lucide lucide-book-open-text-icon lucide-book-open-text"
-    },
-    [
-      svgEl("path", { d: "M12 7v14" }),
-      svgEl("path", { d: "M16 12h2" }),
-      svgEl("path", { d: "M16 8h2" }),
-      svgEl("path", {
-        d: "M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"
-      }),
-      svgEl("path", { d: "M6 12h2" }),
-      svgEl("path", { d: "M6 8h2" })
-    ]
-  );
-}
-
 // src/icons/renderCopyIcon24.ts
 function renderCopyIcon24() {
   return svgEl(
@@ -4175,68 +4147,51 @@ var TabService = class _TabService {
 };
 var TabServiceInstance = TabService.getInstance();
 
-// src/forkop/tabs/diagnostic/helpers/getCheckTitle.ts
-function getCheckTitle(name) {
-  return `${name} ${_("checks")}`;
-}
-
 // src/forkop/tabs/diagnostic/checks/contstants.ts
-var DIAGNOSTICS_CHECKS = /* @__PURE__ */ ((DIAGNOSTICS_CHECKS2) => {
-  DIAGNOSTICS_CHECKS2["DNS"] = "DNS";
-  DIAGNOSTICS_CHECKS2["SINGBOX"] = "SINGBOX";
-  DIAGNOSTICS_CHECKS2["NFT"] = "NFT";
-  DIAGNOSTICS_CHECKS2["ZAPRET"] = "ZAPRET";
-  DIAGNOSTICS_CHECKS2["ZAPRET2"] = "ZAPRET2";
-  DIAGNOSTICS_CHECKS2["BYEDPI"] = "BYEDPI";
-  DIAGNOSTICS_CHECKS2["FAKEIP"] = "FAKEIP";
-  DIAGNOSTICS_CHECKS2["OUTBOUNDS"] = "OUTBOUNDS";
-  DIAGNOSTICS_CHECKS2["INBOUNDS"] = "INBOUNDS";
-  return DIAGNOSTICS_CHECKS2;
-})(DIAGNOSTICS_CHECKS || {});
 var DIAGNOSTICS_CHECKS_MAP = {
   ["DNS" /* DNS */]: {
     order: 1,
-    title: getCheckTitle("DNS"),
+    title: "DNS",
     code: "DNS" /* DNS */
   },
   ["SINGBOX" /* SINGBOX */]: {
     order: 2,
-    title: getCheckTitle("Sing-box"),
+    title: "sing-box",
     code: "SINGBOX" /* SINGBOX */
   },
   ["NFT" /* NFT */]: {
     order: 4,
-    title: getCheckTitle("Nftables"),
+    title: "nftables",
     code: "NFT" /* NFT */
   },
   ["ZAPRET" /* ZAPRET */]: {
     order: 5,
-    title: getCheckTitle("Zapret"),
+    title: "Zapret",
     code: "ZAPRET" /* ZAPRET */
   },
   ["BYEDPI" /* BYEDPI */]: {
     order: 7,
-    title: getCheckTitle("ByeDPI"),
+    title: "ByeDPI",
     code: "BYEDPI" /* BYEDPI */
   },
   ["ZAPRET2" /* ZAPRET2 */]: {
     order: 6,
-    title: getCheckTitle("Zapret2"),
+    title: "Zapret2",
     code: "ZAPRET2" /* ZAPRET2 */
   },
   ["OUTBOUNDS" /* OUTBOUNDS */]: {
     order: 8,
-    title: getCheckTitle("Outbounds"),
+    title: "Outbounds",
     code: "OUTBOUNDS" /* OUTBOUNDS */
   },
   ["FAKEIP" /* FAKEIP */]: {
     order: 9,
-    title: getCheckTitle("FakeIP"),
+    title: "FakeIP",
     code: "FAKEIP" /* FAKEIP */
   },
   ["INBOUNDS" /* INBOUNDS */]: {
     order: 3,
-    title: getCheckTitle("Inbounds"),
+    title: "Inbounds",
     code: "INBOUNDS" /* INBOUNDS */
   }
 };
@@ -7403,17 +7358,16 @@ var DashboardTab = {
 // src/forkop/tabs/diagnostic/renderDiagnostic.ts
 function render2() {
   return E("div", { id: "diagnostic-status", class: "fkp_diagnostic-page" }, [
-    E("div", { class: "fkp_diagnostic-page__left-bar" }, [
+    E("div", { class: "fkp_diagnostic-page__controls" }, [
+      E("div", { id: "fkp_diagnostic-page-actions" }),
+      E("div", { id: "fkp_diagnostic-page-system-info" })
+    ]),
+    E("div", { class: "fkp_diagnostic-page__results" }, [
       E("div", { id: "fkp_diagnostic-page-run-check" }),
       E("div", {
         class: "fkp_diagnostic-page__checks",
         id: "fkp_diagnostic-page-checks"
       })
-    ]),
-    E("div", { class: "fkp_diagnostic-page__right-bar" }, [
-      E("div", { id: "fkp_diagnostic-page-wiki" }),
-      E("div", { id: "fkp_diagnostic-page-actions" }),
-      E("div", { id: "fkp_diagnostic-page-system-info" })
     ])
   ]);
 }
@@ -7566,32 +7520,32 @@ async function runSingBoxCheck() {
     items: [
       {
         state: data.sing_box_installed ? "success" : "error",
-        key: _("Sing-box installed"),
+        key: _("Installed"),
         value: ""
       },
       {
         state: data.sing_box_version_ok ? "success" : "error",
-        key: _("Sing-box version is compatible (newer than 1.12.4)"),
+        key: _("Version is compatible (newer than 1.12.4)"),
         value: ""
       },
       {
         state: data.sing_box_service_exist ? "success" : "error",
-        key: _("Sing-box service exist"),
+        key: _("Service exists"),
         value: ""
       },
       {
         state: data.sing_box_autostart_disabled ? "success" : "error",
-        key: _("Sing-box autostart disabled"),
+        key: _("Autostart disabled"),
         value: ""
       },
       {
         state: data.sing_box_process_running ? "success" : "error",
-        key: _("Sing-box process running"),
+        key: _("Process running"),
         value: ""
       },
       {
         state: data.sing_box_ports_listening ? "success" : "error",
-        key: _("Sing-box listening ports"),
+        key: _("Ports listening"),
         value: ""
       }
     ]
@@ -7664,7 +7618,7 @@ function getServerItems(item, wanIp) {
   const items = [
     {
       state: item.runtime_ok ? "success" : "error",
-      key: `${prefix} ${_("Generated inbound")}`,
+      key: `${prefix} ${_("Inbound created")}`,
       value: `${item.tag} [${item.protocol}]`
     }
   ];
@@ -8031,26 +7985,24 @@ async function runZapretCheck() {
     ForkopShellMethods.getZapretStatus,
     "Zapret checks failed",
     {
-      providerAvailable: _("Zapret provider binary is available"),
-      providerUnavailable: _("Zapret provider binary is not available"),
-      packageInstalled: _("Zapret package is installed"),
-      packageMissing: _("Zapret package is not installed"),
+      providerAvailable: _("Provider binary is available"),
+      providerUnavailable: _("Provider binary is not available"),
+      packageInstalled: _("Package is installed"),
+      packageMissing: _("Package is not installed"),
       rulesPresent: _("There are rules using Zapret"),
       rulesAbsent: _("No rules use Zapret"),
-      runtimeReady: _("Forkop-managed nfqws runtime is ready"),
-      runtimeNotReady: _("Forkop-managed nfqws runtime is not ready"),
-      runtimeUnexpected: _(
-        "Unexpected Forkop-managed nfqws runtime is running"
-      ),
-      runtimeStopped: _("Forkop-managed nfqws runtime is not running"),
-      outboundConfigured: _("Zapret sing-box outbound is configured"),
-      outboundMissing: _("Zapret sing-box outbound is not configured"),
+      runtimeReady: _("nfqws runtime is ready"),
+      runtimeNotReady: _("nfqws runtime is not ready"),
+      runtimeUnexpected: _("Unexpected nfqws runtime is running"),
+      runtimeStopped: _("nfqws runtime is not running"),
+      outboundConfigured: _("Outbound is configured"),
+      outboundMissing: _("Outbound is not configured"),
       standaloneConflict: _(
         "Standalone Zapret is active together with Forkop Zapret rules"
       ),
-      standaloneActive: _("Standalone Zapret service is active"),
-      standaloneAutostart: _("Standalone Zapret autostart is enabled"),
-      standaloneInactive: _("Standalone Zapret service is inactive")
+      standaloneActive: _("Standalone service is active"),
+      standaloneAutostart: _("Standalone autostart is enabled"),
+      standaloneInactive: _("Standalone service is inactive")
     }
   );
 }
@@ -8062,26 +8014,24 @@ async function runZapret2Check() {
     ForkopShellMethods.getZapret2Status,
     "Zapret2 checks failed",
     {
-      providerAvailable: _("Zapret2 provider binary is available"),
-      providerUnavailable: _("Zapret2 provider binary is not available"),
-      packageInstalled: _("Zapret2 package is installed"),
-      packageMissing: _("Zapret2 package is not installed"),
+      providerAvailable: _("Provider binary is available"),
+      providerUnavailable: _("Provider binary is not available"),
+      packageInstalled: _("Package is installed"),
+      packageMissing: _("Package is not installed"),
       rulesPresent: _("There are rules using Zapret2"),
       rulesAbsent: _("No rules use Zapret2"),
-      runtimeReady: _("Forkop-managed nfqws2 runtime is ready"),
-      runtimeNotReady: _("Forkop-managed nfqws2 runtime is not ready"),
-      runtimeUnexpected: _(
-        "Unexpected Forkop-managed nfqws2 runtime is running"
-      ),
-      runtimeStopped: _("Forkop-managed nfqws2 runtime is not running"),
-      outboundConfigured: _("Zapret2 sing-box outbound is configured"),
-      outboundMissing: _("Zapret2 sing-box outbound is not configured"),
+      runtimeReady: _("nfqws2 runtime is ready"),
+      runtimeNotReady: _("nfqws2 runtime is not ready"),
+      runtimeUnexpected: _("Unexpected nfqws2 runtime is running"),
+      runtimeStopped: _("nfqws2 runtime is not running"),
+      outboundConfigured: _("Outbound is configured"),
+      outboundMissing: _("Outbound is not configured"),
       standaloneConflict: _(
         "Standalone Zapret2 is active together with Forkop Zapret2 rules"
       ),
-      standaloneActive: _("Standalone Zapret2 service is active"),
-      standaloneAutostart: _("Standalone Zapret2 autostart is enabled"),
-      standaloneInactive: _("Standalone Zapret2 service is inactive")
+      standaloneActive: _("Standalone service is active"),
+      standaloneAutostart: _("Standalone autostart is enabled"),
+      standaloneInactive: _("Standalone service is inactive")
     }
   );
 }
@@ -8128,12 +8078,12 @@ async function runByedpiCheck() {
   const items = [
     {
       state: providerAvailable ? "success" : hasByedpiRules ? "error" : "warning",
-      key: providerAvailable ? _("ByeDPI provider binary is available") : _("ByeDPI provider binary is not available"),
+      key: providerAvailable ? _("Provider binary is available") : _("Provider binary is not available"),
       value: data.provider_path || ""
     },
     {
       state: packageInstalled ? "success" : "warning",
-      key: packageInstalled ? _("ByeDPI package is installed") : _("ByeDPI package is not installed"),
+      key: packageInstalled ? _("Package is installed") : _("Package is not installed"),
       value: ""
     },
     {
@@ -8143,17 +8093,17 @@ async function runByedpiCheck() {
     },
     {
       state: unexpectedRuntime || !forkopRuntimeReady ? "error" : runtimeUnstable ? "warning" : "success",
-      key: hasByedpiRules ? runtimeUnstable ? _("Forkop-managed ciadpi runtime has restarted") : forkopRuntimeReady ? _("Forkop-managed ciadpi runtime is ready") : _("Forkop-managed ciadpi runtime is not ready") : unexpectedRuntime ? _("Unexpected Forkop-managed ciadpi runtime is running") : _("Forkop-managed ciadpi runtime is not running"),
+      key: hasByedpiRules ? runtimeUnstable ? _("ciadpi runtime has restarted") : forkopRuntimeReady ? _("ciadpi runtime is ready") : _("ciadpi runtime is not ready") : unexpectedRuntime ? _("Unexpected ciadpi runtime is running") : _("ciadpi runtime is not running"),
       value: hasByedpiRules ? runtimeUnstable ? `${restartCount}` : `${runningProcesses}/${expectedProcesses}` : ""
     },
     {
       state: !hasByedpiRules || outboundsConfigured ? "success" : "error",
-      key: outboundsConfigured ? _("ByeDPI sing-box outbound is configured") : _("ByeDPI sing-box outbound is not configured"),
+      key: outboundsConfigured ? _("Outbound is configured") : _("Outbound is not configured"),
       value: `${data.listen_address}:${Number(data.port_base || 0)}`
     },
     {
       state: standaloneConflict ? "error" : standaloneAutostartRisk ? "warning" : "success",
-      key: standaloneServiceRunning ? hasByedpiRules ? _("Standalone ByeDPI is active together with Forkop ByeDPI rules") : _("Standalone ByeDPI service is active") : standaloneAutostartRisk ? _("Standalone ByeDPI autostart is enabled") : _("Standalone ByeDPI service is inactive"),
+      key: standaloneServiceRunning ? hasByedpiRules ? _("Standalone ByeDPI is active together with Forkop ByeDPI rules") : _("Standalone service is active") : standaloneAutostartRisk ? _("Standalone autostart is enabled") : _("Standalone service is inactive"),
       value: ""
     }
   ];
@@ -8667,14 +8617,14 @@ function renderAvailableActions({
   showConfig,
   showSingBoxConfig
 }) {
-  return E("div", { class: "fkp_diagnostic-page__right-bar__actions" }, [
+  return E("div", { class: "fkp_diagnostic-page__controls__actions" }, [
     E("b", {}, _("Available actions")),
     ...insertIf(restart.visible, [
       renderButton({
         classNames: ["cbi-button-apply"],
         onClick: restart.onClick,
         icon: renderRotateCcwIcon24,
-        text: _("Restart Forkop"),
+        text: _("Restart"),
         loading: restart.loading,
         disabled: restart.disabled
       })
@@ -8684,7 +8634,7 @@ function renderAvailableActions({
         classNames: ["cbi-button-remove"],
         onClick: stop.onClick,
         icon: renderCircleStopIcon24,
-        text: _("Stop Forkop"),
+        text: _("Stop"),
         loading: stop.loading,
         disabled: stop.disabled
       })
@@ -8694,7 +8644,7 @@ function renderAvailableActions({
         classNames: ["cbi-button-save"],
         onClick: start.onClick,
         icon: renderCirclePlayIcon24,
-        text: _("Start Forkop"),
+        text: _("Start"),
         loading: start.loading,
         disabled: start.disabled
       })
@@ -8723,7 +8673,7 @@ function renderAvailableActions({
       renderButton({
         onClick: globalCheck.onClick,
         icon: renderCircleCheckBigIcon24,
-        text: _("Get global check"),
+        text: _("Global check"),
         loading: globalCheck.loading,
         disabled: globalCheck.disabled
       })
@@ -8732,7 +8682,7 @@ function renderAvailableActions({
       renderButton({
         onClick: updateRuleSets.onClick,
         icon: renderDownloadIcon24,
-        text: _("Update remote lists"),
+        text: _("Update lists"),
         loading: updateRuleSets.loading,
         disabled: updateRuleSets.disabled
       })
@@ -8741,7 +8691,7 @@ function renderAvailableActions({
       renderButton({
         onClick: showConfig.onClick,
         icon: renderFileTextIcon24,
-        text: _("Show forkop config"),
+        text: _("Forkop configuration"),
         loading: showConfig.loading,
         disabled: showConfig.disabled
       })
@@ -8750,7 +8700,7 @@ function renderAvailableActions({
       renderButton({
         onClick: showSingBoxConfig.onClick,
         icon: renderCogIcon24,
-        text: _("Show sing-box config"),
+        text: _("sing-box configuration"),
         loading: showSingBoxConfig.loading,
         disabled: showSingBoxConfig.disabled
       })
@@ -8933,28 +8883,28 @@ function renderRunAction({
 
 // src/forkop/tabs/diagnostic/partials/renderSystemInfo.ts
 function renderSystemInfo({ items }) {
-  return E("div", { class: "fkp_diagnostic-page__right-bar__system-info" }, [
+  return E("div", { class: "fkp_diagnostic-page__controls__system-info" }, [
     E(
       "b",
-      { class: "fkp_diagnostic-page__right-bar__system-info__title" },
+      { class: "fkp_diagnostic-page__controls__system-info__title" },
       _("System information")
     ),
     ...items.map((item) => {
       const tagClass = [
-        "fkp_diagnostic-page__right-bar__system-info__row__tag",
+        "fkp_diagnostic-page__controls__system-info__row__tag",
         ...insertIf(item.tag?.kind === "neutral", [
-          "fkp_diagnostic-page__right-bar__system-info__row__tag--neutral"
+          "fkp_diagnostic-page__controls__system-info__row__tag--neutral"
         ]),
         ...insertIf(item.tag?.kind === "warning", [
-          "fkp_diagnostic-page__right-bar__system-info__row__tag--warning"
+          "fkp_diagnostic-page__controls__system-info__row__tag--warning"
         ]),
         ...insertIf(item.tag?.kind === "success", [
-          "fkp_diagnostic-page__right-bar__system-info__row__tag--success"
+          "fkp_diagnostic-page__controls__system-info__row__tag--success"
         ])
       ].filter(Boolean).join(" ");
       return E(
         "div",
-        { class: "fkp_diagnostic-page__right-bar__system-info__row" },
+        { class: "fkp_diagnostic-page__controls__system-info__row" },
         [
           E("b", {}, item.key),
           E("div", {}, [
@@ -8973,41 +8923,6 @@ function normalizeCompiledVersion(version) {
     return "dev";
   }
   return version;
-}
-
-// src/forkop/tabs/diagnostic/partials/renderWikiDisclaimer.ts
-function renderWikiDisclaimer(kind) {
-  const iconWrap = E("span", {
-    class: "fkp_diagnostic-page__right-bar__wiki__icon"
-  });
-  iconWrap.appendChild(renderBookOpenTextIcon24());
-  const className = [
-    "fkp_diagnostic-page__right-bar__wiki",
-    ...insertIf(kind === "error", [
-      "fkp_diagnostic-page__right-bar__wiki--error"
-    ]),
-    ...insertIf(kind === "warning", [
-      "fkp_diagnostic-page__right-bar__wiki--warning"
-    ])
-  ].join(" ");
-  return E("div", { class: className }, [
-    E("div", { class: "fkp_diagnostic-page__right-bar__wiki__content" }, [
-      iconWrap,
-      E("div", { class: "fkp_diagnostic-page__right-bar__wiki__texts" }, [
-        E("b", {}, _("Troubleshooting")),
-        E("div", {}, _("Do not panic, everything can be fixed, just..."))
-      ])
-    ]),
-    renderButton({
-      classNames: ["cbi-button-save"],
-      text: _("Open Project Page"),
-      onClick: () => window.open(
-        "https://github.com/ushan0v/forkop#readme",
-        "_blank",
-        "noopener,noreferrer"
-      )
-    })
-  ]);
 }
 
 // src/forkop/tabs/diagnostic/checks/runSectionsCheck.ts
@@ -9159,12 +9074,6 @@ function shouldSkipServicesInfoAutoRefresh({
 }) {
   return !force && localMutatingActionLoading;
 }
-function shouldResetDiagnosticsChecks({
-  resetChecks,
-  diagnosticsRunLoading
-}) {
-  return resetChecks && !diagnosticsRunLoading;
-}
 function shouldDisableDiagnosticRunAction({
   providerInfoLoaded,
   servicesInfoLoading,
@@ -9211,6 +9120,14 @@ function shouldShowStopAction({
   return stopLoading || restartLoading || forkopRunning && !startLoading;
 }
 
+// src/forkop/helpers/osRelease.ts
+var BUILD_ID = /\s+r\d+(?:[-+][0-9a-z]+)*$/i;
+function formatOsRelease(value) {
+  const release = `${value ?? ""}`.trim();
+  const trimmed = release.replace(BUILD_ID, "").trim();
+  return trimmed || release;
+}
+
 // src/forkop/helpers/singBoxVersion.ts
 function isVersionPlaceholder(version) {
   const normalized = version.trim().toLowerCase();
@@ -9225,93 +9142,6 @@ function formatSingBoxVersion(value, showPackageFlavor = true) {
     return version;
   }
   return showPackageFlavor && value.sing_box_compressed ? `${version} (${_("compressed")})` : version;
-}
-
-// src/forkop/tabs/diagnostic/diagnosticRunPersistence.ts
-var DIAGNOSTIC_RUN_STORAGE_KEY = "forkop:diagnostic-run:v1";
-var DIAGNOSTIC_RUN_TTL_MS = 30 * 60 * 1e3;
-var CHECK_STATES = ["loading", "warning", "success", "error", "skipped"];
-var CHECK_ITEM_STATES = ["error", "warning", "success"];
-function getSessionStorage3() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-  try {
-    return window.sessionStorage;
-  } catch {
-    return null;
-  }
-}
-function isRecord2(value) {
-  return Boolean(value) && typeof value === "object";
-}
-function isOptionalBoolean(value) {
-  return value === void 0 || typeof value === "boolean";
-}
-function isDiagnosticsProviderOptions(value) {
-  if (!isRecord2(value)) {
-    return false;
-  }
-  return isOptionalBoolean(value.includeZapret) && isOptionalBoolean(value.includeZapret2) && isOptionalBoolean(value.includeByedpi) && isOptionalBoolean(value.includeInbounds);
-}
-function isDiagnosticCheckItem(value) {
-  return isRecord2(value) && CHECK_ITEM_STATES.includes(String(value.state)) && typeof value.key === "string" && typeof value.value === "string";
-}
-function isDiagnosticCheck(value) {
-  return isRecord2(value) && Number.isFinite(value.order) && Object.values(DIAGNOSTICS_CHECKS).includes(
-    value.code
-  ) && typeof value.title === "string" && typeof value.description === "string" && CHECK_STATES.includes(String(value.state)) && Array.isArray(value.items) && value.items.every(isDiagnosticCheckItem);
-}
-function isPersistedDiagnosticRun(value) {
-  if (!isRecord2(value)) {
-    return false;
-  }
-  return typeof value.nextRunnerIndex === "number" && Number.isInteger(value.nextRunnerIndex) && value.nextRunnerIndex >= 0 && isDiagnosticsProviderOptions(value.providerOptions) && Array.isArray(value.diagnosticsChecks) && value.diagnosticsChecks.every(isDiagnosticCheck) && Number.isFinite(value.updatedAt);
-}
-function isExpired(run, now = Date.now()) {
-  return now - run.updatedAt > DIAGNOSTIC_RUN_TTL_MS;
-}
-function readPersistedDiagnosticRun(storage = getSessionStorage3()) {
-  if (!storage) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(
-      storage.getItem(DIAGNOSTIC_RUN_STORAGE_KEY) || "null"
-    );
-    if (!isPersistedDiagnosticRun(parsed) || isExpired(parsed)) {
-      storage.removeItem(DIAGNOSTIC_RUN_STORAGE_KEY);
-      return null;
-    }
-    return parsed;
-  } catch {
-    storage.removeItem(DIAGNOSTIC_RUN_STORAGE_KEY);
-    return null;
-  }
-}
-function savePersistedDiagnosticRun(run, storage = getSessionStorage3()) {
-  if (!storage) {
-    return;
-  }
-  try {
-    storage.setItem(
-      DIAGNOSTIC_RUN_STORAGE_KEY,
-      JSON.stringify({
-        ...run,
-        updatedAt: Date.now()
-      })
-    );
-  } catch {
-  }
-}
-function clearPersistedDiagnosticRun(storage = getSessionStorage3()) {
-  if (!storage) {
-    return;
-  }
-  try {
-    storage.removeItem(DIAGNOSTIC_RUN_STORAGE_KEY);
-  } catch {
-  }
 }
 
 // src/forkop/tabs/diagnostic/helpers/maskDiagnostics.ts
@@ -9433,7 +9263,7 @@ var FORKOP_MASK_AFTER_TOKEN_SPACE = [
   "option private_key",
   "option url"
 ];
-function isRecord3(value) {
+function isRecord2(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 function isSpaceChar(value) {
@@ -9492,7 +9322,7 @@ function maskSingBoxConfigValue(value) {
   if (Array.isArray(value)) {
     return value.map((item) => maskSingBoxConfigValue(item));
   }
-  if (isRecord3(value)) {
+  if (isRecord2(value)) {
     return Object.fromEntries(
       Object.entries(value).map(([key, item]) => [
         key,
@@ -9543,7 +9373,7 @@ var diagnosticLifecycleRegistered = false;
 var diagnosticControllerInitialized = false;
 var diagnosticMounted = false;
 var diagnosticMountId = 0;
-var diagnosticCompletedWhileHidden = false;
+var diagnosticsChecksOwnedByRun = false;
 var servicesInfoStateUnsubscribe = null;
 var servicesInfoRefreshPromise = null;
 var followedServiceActionJobs = /* @__PURE__ */ new Set();
@@ -9559,16 +9389,26 @@ function getDiagnosticsProviderOptions(systemInfo = store.get().diagnosticsSyste
     includeInbounds: systemInfo.server_inbounds_enabled_count > 0
   };
 }
-function getNotRunningDiagnosticsChecks() {
+function getNotRunningDiagnosticsChecks(systemInfo = store.get().diagnosticsSystemInfo) {
   return getDiagnosticsChecks(
     _("Not running"),
-    getDiagnosticsProviderOptions()
+    getDiagnosticsProviderOptions(systemInfo)
   );
 }
-function resetDiagnosticsChecks() {
+function rebuildIdleDiagnosticsChecks(systemInfo = store.get().diagnosticsSystemInfo) {
+  if (diagnosticsChecksOwnedByRun) {
+    return;
+  }
   store.set({
-    diagnosticsChecks: getNotRunningDiagnosticsChecks()
+    diagnosticsChecks: getNotRunningDiagnosticsChecks(systemInfo)
   });
+}
+function releaseDiagnosticsChecks() {
+  if (store.get().diagnosticsRunAction.loading) {
+    return;
+  }
+  diagnosticsChecksOwnedByRun = false;
+  rebuildIdleDiagnosticsChecks();
 }
 function setDiagnosticActionLoading(action, loading3, local = false) {
   if (local || !loading3) {
@@ -9710,7 +9550,7 @@ async function followServiceActionState(state) {
     await refreshDiagnosticServicesInfo({ force: true, allowInactive: true });
     void ForkopShellMethods.uiActionAck("service", jobId);
     followedServiceActionJobs.delete(jobId);
-    resetDiagnosticsChecks();
+    releaseDiagnosticsChecks();
   }
 }
 function followServiceActionsFromUiState(uiState) {
@@ -9724,16 +9564,7 @@ function followServiceActionsFromUiState(uiState) {
   }
 }
 async function fetchSystemInfo() {
-  const systemInfo = await ensureSystemInfo();
-  if (store.get().diagnosticsRunAction.loading) {
-    return;
-  }
-  store.set({
-    diagnosticsChecks: getDiagnosticsChecks(
-      _("Not running"),
-      getDiagnosticsProviderOptions(systemInfo)
-    )
-  });
+  rebuildIdleDiagnosticsChecks(await ensureSystemInfo());
 }
 function applyDiagnosticsProviderInfo(nextSystemInfo, resetChecks) {
   if (!nextSystemInfo.zapret_installed) {
@@ -9748,14 +9579,8 @@ function applyDiagnosticsProviderInfo(nextSystemInfo, resetChecks) {
   const nextState = {
     diagnosticsSystemInfo: nextSystemInfo
   };
-  if (shouldResetDiagnosticsChecks({
-    resetChecks,
-    diagnosticsRunLoading: store.get().diagnosticsRunAction.loading
-  })) {
-    nextState.diagnosticsChecks = getDiagnosticsChecks(
-      _("Not running"),
-      getDiagnosticsProviderOptions(nextSystemInfo)
-    );
+  if (resetChecks && !diagnosticsChecksOwnedByRun) {
+    nextState.diagnosticsChecks = getNotRunningDiagnosticsChecks(nextSystemInfo);
   }
   store.set(nextState);
 }
@@ -9913,7 +9738,7 @@ async function handleServiceRuntimeAction({
         handledServiceActionJobs.add(jobId);
         void ForkopShellMethods.uiActionAck("service", jobId);
       }
-      resetDiagnosticsChecks();
+      releaseDiagnosticsChecks();
     }
   }
 }
@@ -10009,7 +9834,7 @@ async function handleShowForkopConfig() {
       const rawConfigText = showConfig.data ?? "";
       const maskedConfigText = maskGlobalCheckText(rawConfigText);
       ui.showModal(
-        _("Show forkop config"),
+        _("Forkop configuration"),
         renderModal(rawConfigText, "show_config", {
           maskText: () => maskedConfigText,
           initialAutoRefresh: false,
@@ -10037,7 +9862,7 @@ async function handleShowSingBoxConfig() {
         showSingBoxConfig.data
       );
       ui.showModal(
-        _("Show sing-box config"),
+        _("sing-box configuration"),
         renderModal(rawSingBoxConfigText, "show_sing_box_config", {
           maskText: () => maskedSingBoxConfigText,
           initialAutoRefresh: false,
@@ -10056,23 +9881,6 @@ async function handleShowSingBoxConfig() {
   } finally {
     setDiagnosticActionLoading("showSingBoxConfig", false);
   }
-}
-function renderWikiDisclaimerWidget() {
-  const diagnosticsChecks = store.get().diagnosticsChecks;
-  function getWikiKind() {
-    const allResults = diagnosticsChecks.map((check) => check.state);
-    if (allResults.includes("error")) {
-      return "error";
-    }
-    if (allResults.includes("warning")) {
-      return "warning";
-    }
-    return "default";
-  }
-  const container = document.getElementById("fkp_diagnostic-page-wiki");
-  return preserveScrollForPage(() => {
-    container.replaceChildren(renderWikiDisclaimer(getWikiKind()));
-  });
 }
 function renderDiagnosticAvailableActionsWidget() {
   const diagnosticsActions = store.get().diagnosticsActions;
@@ -10211,7 +10019,7 @@ function renderDiagnosticSystemInfoWidget() {
   items.push(
     {
       key: "OS",
-      value: diagnosticsSystemInfo.openwrt_version
+      value: formatOsRelease(diagnosticsSystemInfo.openwrt_version)
     },
     {
       key: "Device",
@@ -10228,7 +10036,6 @@ function renderDiagnosticSystemInfoWidget() {
 async function onStoreUpdate2(_next, _prev, diff) {
   if (diff.diagnosticsChecks) {
     renderDiagnosticsChecks();
-    renderWikiDisclaimerWidget();
   }
   if (diff.diagnosticsRunAction) {
     renderDiagnosticRunActionWidget();
@@ -10243,16 +10050,6 @@ async function onStoreUpdate2(_next, _prev, diff) {
     renderDiagnosticSystemInfoWidget();
     renderDiagnosticRunActionWidget();
   }
-}
-function persistDiagnosticRunProgress({
-  providerOptions,
-  nextRunnerIndex
-}) {
-  savePersistedDiagnosticRun({
-    providerOptions,
-    nextRunnerIndex,
-    diagnosticsChecks: store.get().diagnosticsChecks
-  });
 }
 function setDiagnosticCheckLoading(code) {
   const meta = DIAGNOSTICS_CHECKS_MAP[code];
@@ -10285,41 +10082,25 @@ function getDiagnosticRunners(providerOptions) {
     { code: "FAKEIP" /* FAKEIP */, run: runFakeIPCheck }
   ];
 }
-async function runChecks({ resume } = {}) {
-  if (store.get().diagnosticsRunAction.loading && !resume) {
+async function runChecks() {
+  if (store.get().diagnosticsRunAction.loading) {
     return;
   }
-  let providerOptions = resume?.providerOptions ?? getDiagnosticsProviderOptions();
-  let nextRunnerIndex = resume?.nextRunnerIndex ?? 0;
+  diagnosticsChecksOwnedByRun = true;
   store.set({
     diagnosticsRunAction: { loading: true },
-    diagnosticsChecks: resume?.diagnosticsChecks ?? getLoadingDiagnosticsChecks(providerOptions).diagnosticsChecks
-  });
-  persistDiagnosticRunProgress({
-    providerOptions,
-    nextRunnerIndex
+    diagnosticsChecks: getLoadingDiagnosticsChecks(
+      getDiagnosticsProviderOptions()
+    ).diagnosticsChecks
   });
   try {
-    if (!resume) {
-      await fetchDiagnosticsProviderInfo({ resetChecks: false });
-      providerOptions = getDiagnosticsProviderOptions();
-      nextRunnerIndex = 0;
-      store.set({
-        diagnosticsChecks: getLoadingDiagnosticsChecks(providerOptions).diagnosticsChecks
-      });
-      persistDiagnosticRunProgress({
-        providerOptions,
-        nextRunnerIndex
-      });
-    }
-    const runners = getDiagnosticRunners(providerOptions);
-    for (let index = nextRunnerIndex; index < runners.length; index += 1) {
-      const runner = runners[index];
+    await fetchDiagnosticsProviderInfo({ resetChecks: false });
+    const providerOptions = getDiagnosticsProviderOptions();
+    store.set({
+      diagnosticsChecks: getLoadingDiagnosticsChecks(providerOptions).diagnosticsChecks
+    });
+    for (const runner of getDiagnosticRunners(providerOptions)) {
       setDiagnosticCheckLoading(runner.code);
-      persistDiagnosticRunProgress({
-        providerOptions,
-        nextRunnerIndex: index
-      });
       try {
         await runner.run();
       } catch (e) {
@@ -10329,19 +10110,11 @@ async function runChecks({ resume } = {}) {
           e
         );
       }
-      persistDiagnosticRunProgress({
-        providerOptions,
-        nextRunnerIndex: index + 1
-      });
     }
   } catch (e) {
     logger.error("[DIAGNOSTIC]", "runChecks - e", e);
   } finally {
-    clearPersistedDiagnosticRun();
     store.set({ diagnosticsRunAction: { loading: false } });
-    if (!diagnosticMounted) {
-      diagnosticCompletedWhileHidden = true;
-    }
   }
 }
 async function loadInitialDiagnosticData() {
@@ -10354,43 +10127,26 @@ async function loadInitialDiagnosticData() {
     await fetchDiagnosticsProviderInfo();
   }
 }
-function restorePersistedDiagnosticRun() {
-  const persistedRun = readPersistedDiagnosticRun();
-  if (!persistedRun) {
-    return false;
-  }
-  store.set({
-    diagnosticsRunAction: { loading: true },
-    diagnosticsChecks: persistedRun.diagnosticsChecks
-  });
-  void runChecks({ resume: persistedRun });
-  return true;
+function detachDiagnosticPage() {
+  diagnosticMounted = false;
+  diagnosticMountId += 1;
+  stopServiceActionStateWatcher();
+  store.unsubscribe(onStoreUpdate2);
 }
 async function onPageMount2() {
-  const preserveHiddenResult = diagnosticCompletedWhileHidden;
-  onPageUnmount2({
-    preserveCompletedResult: preserveHiddenResult,
-    preservePersistedRun: true
-  });
+  detachDiagnosticPage();
   diagnosticMounted = true;
   diagnosticMountId += 1;
   const mountId = diagnosticMountId;
   const hasRuntimeSnapshot = Boolean(getCachedRuntimeUiState());
   if (!hasRuntimeSnapshot) {
     const uiState = await refreshRuntimeUiState({ force: true });
-    if (!diagnosticMounted || mountId !== diagnosticMountId) {
+    if (!isDiagnosticMountActive(mountId)) {
       return;
     }
     if (!uiState) {
       void refreshDiagnosticServicesInfo({ force: true });
     }
-  }
-  const restoredPersistedRun = !preserveHiddenResult && restorePersistedDiagnosticRun();
-  if (preserveHiddenResult) {
-    diagnosticCompletedWhileHidden = false;
-  } else if (!restoredPersistedRun && !store.get().diagnosticsRunAction.loading) {
-    store.reset(["diagnosticsRunAction"]);
-    resetDiagnosticsChecks();
   }
   store.subscribe(onStoreUpdate2);
   startServiceActionStateWatcher();
@@ -10398,31 +10154,14 @@ async function onPageMount2() {
   renderDiagnosticRunActionWidget();
   renderDiagnosticAvailableActionsWidget();
   renderDiagnosticSystemInfoWidget();
-  renderWikiDisclaimerWidget();
   if (hasRuntimeSnapshot) {
     void refreshRuntimeUiState({ force: true });
   }
-  if (!preserveHiddenResult && !restoredPersistedRun) {
-    void loadInitialDiagnosticData();
-  }
+  void loadInitialDiagnosticData();
 }
-function onPageUnmount2({
-  preserveCompletedResult = false,
-  preservePersistedRun = false
-} = {}) {
-  diagnosticMounted = false;
-  diagnosticMountId += 1;
-  stopServiceActionStateWatcher();
-  servicesInfoRefreshPromise = null;
-  store.unsubscribe(onStoreUpdate2);
-  if (!preserveCompletedResult && !store.get().diagnosticsRunAction.loading) {
-    if (!preservePersistedRun) {
-      clearPersistedDiagnosticRun();
-    }
-    store.reset(["diagnosticsRunAction"]);
-    resetDiagnosticsChecks();
-    diagnosticCompletedWhileHidden = false;
-  }
+function onPageUnmount2() {
+  detachDiagnosticPage();
+  releaseDiagnosticsChecks();
 }
 function registerLifecycleListeners2() {
   if (diagnosticLifecycleRegistered) {
@@ -10482,8 +10221,13 @@ var styles4 = `
 }
 
 .fkp_diagnostic-page {
+    /* Both tracks stay fractions. The page sits in a shrink-to-fit box, where a
+       lone fr track collapses onto its own content instead of taking the rest of
+       the row: the checks would end up as narrow as the word inside them. Two
+       fractions size each other, which is what this column pair has always done.
+       The controls carry the floor instead, see below. */
     display: grid;
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: 1fr 2fr;
     grid-column-gap: 10px;
     align-items: start;
 }
@@ -10494,38 +10238,19 @@ var styles4 = `
     }
 }
 
-.fkp_diagnostic-page__right-bar {
+.fkp_diagnostic-page__controls {
+    /* What the column is measured against: the available actions, whose labels
+       are fixed text, floored at the width the longest system information row
+       needs on one line. "Sing-box 1.13.18-extended-2.6.5-f100" measures 264px
+       with the card padding around it, so 17rem leaves a few pixels over. */
+    min-width: 17rem;
+
     display: grid;
     grid-template-columns: 1fr;
     grid-row-gap: 10px;
 }
 
-.fkp_diagnostic-page__right-bar__wiki {
-    border: 2px var(--background-color-low, lightgray) solid;
-    border-radius: 4px;
-    padding: 10px;
-
-    display: grid;
-    grid-template-columns: auto;
-    grid-row-gap: 10px;
-}
-
-.fkp_diagnostic-page__right-bar__wiki--warning {
-    border: 2px var(--warn-color-medium, orange) solid;
-}
-.fkp_diagnostic-page__right-bar__wiki--error {
-    border: 2px var(--error-color-medium, red) solid;
-}
-
-.fkp_diagnostic-page__right-bar__wiki__content {
-    display: grid;
-    grid-template-columns: 1fr 5fr;
-    grid-column-gap: 10px;
-}
-
-.fkp_diagnostic-page__right-bar__wiki__texts {}
-
-.fkp_diagnostic-page__right-bar__actions {
+.fkp_diagnostic-page__controls__actions {
     border: 2px var(--background-color-low, lightgray) solid;
     border-radius: 4px;
     padding: 10px;
@@ -10536,13 +10261,20 @@ var styles4 = `
 
 }
 
-.fkp_diagnostic-page__right-bar__actions > .fkp-partial-button {
+.fkp_diagnostic-page__controls__actions > .fkp-partial-button {
     width: 100%;
     min-width: 0;
     margin-left: 0;
 }
 
-.fkp_diagnostic-page__right-bar__system-info {
+/* System information does not get a vote on how wide the column is: its values
+   arrive one at a time, and a column measured against them steps sideways once
+   per row while the page fills in. A definite zero width keeps the block out of
+   that measurement, and the percentage minimum fills the column it is given. */
+.fkp_diagnostic-page__controls__system-info {
+    width: 0;
+    min-width: 100%;
+
     border: 2px var(--background-color-low, lightgray) solid;
     border-radius: 4px;
     padding: 10px;
@@ -10552,39 +10284,48 @@ var styles4 = `
     grid-row-gap: 10px;
 }
 
-.fkp_diagnostic-page__right-bar__system-info__title {
+.fkp_diagnostic-page__controls__system-info__title {
 
 }
 
-.fkp_diagnostic-page__right-bar__system-info__row {
+.fkp_diagnostic-page__controls__system-info__row {
     display: grid;
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto minmax(0, 1fr);
     grid-column-gap: 5px;
 }
 
-.fkp_diagnostic-page__right-bar__system-info__row__tag {
+/* What used to widen the controls column once per value while the page filled in.
+   A version string carries no space to break at, so the column had to grow to fit
+   it; allowed to break anywhere, it wraps inside the column instead and the split
+   stays where it started. */
+.fkp_diagnostic-page__controls__system-info__row > div {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.fkp_diagnostic-page__controls__system-info__row__tag {
     padding: 2px 4px;
     border: 1px transparent solid;
     border-radius: 4px;
     margin-left: 5px;
 }
 
-.fkp_diagnostic-page__right-bar__system-info__row__tag--neutral {
+.fkp_diagnostic-page__controls__system-info__row__tag--neutral {
     border: 1px var(--background-color-high, gray) solid;
     color: var(--text-color-medium, gray);
 }
 
-.fkp_diagnostic-page__right-bar__system-info__row__tag--warning {
+.fkp_diagnostic-page__controls__system-info__row__tag--warning {
     border: 1px var(--warn-color-medium, orange) solid;
     color: var(--warn-color-medium, orange);
 }
 
-.fkp_diagnostic-page__right-bar__system-info__row__tag--success {
+.fkp_diagnostic-page__controls__system-info__row__tag--success {
     border: 1px var(--success-color-medium, green) solid;
     color: var(--success-color-medium, green);
 }
 
-.fkp_diagnostic-page__left-bar {
+.fkp_diagnostic-page__results {
     display: grid;
     grid-template-columns: 1fr;
     grid-row-gap: 10px;

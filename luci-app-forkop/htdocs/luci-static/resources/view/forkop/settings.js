@@ -130,46 +130,19 @@ function configureDnsFailoverVisibility(option, dnsOption, dnsKey) {
   };
 }
 
-const STATIC_HOSTS_STYLE_ID = "fkp-static-hosts-styles";
-
-// The modal heading already names the field, so the row drops its label and
-// gives the whole width to the editor. Everything else stays a plain LuCI form.
-function ensureStaticHostsStyles() {
-  if (
-    typeof document === "undefined" ||
-    !document.head ||
-    document.getElementById(STATIC_HOSTS_STYLE_ID)
-  ) {
-    return;
-  }
-
-  document.head.insertAdjacentHTML(
-    "beforeend",
-    `<style id="${STATIC_HOSTS_STYLE_ID}">
-      .fkp-static-hosts .cbi-value-title {
-        display: none;
-      }
-
-      .fkp-static-hosts .cbi-value-field {
-        width: 100%;
-        max-width: 100%;
-        flex: 1 1 auto;
-        float: none;
-        padding-left: 0;
-        margin-left: 0;
-      }
-
-      .fkp-static-hosts .cbi-value {
-        margin-bottom: 0;
-      }
-    </style>`,
-  );
-}
+// Shown greyed out in the static records editor: one address per line, with as
+// many names for it as the hosts format allows, in both address families.
+const STATIC_HOSTS_PLACEHOLDER = [
+  "192.168.1.10 nas.local",
+  "10.0.0.5 printer.local printer",
+  "2606:4700::1111 dns.example",
+].join("\n");
 
 function configureStaticHostsTextarea(option) {
   option.rows = 16;
   option.wrap = "soft";
   option.rmempty = true;
+  option.placeholder = STATIC_HOSTS_PLACEHOLDER;
   option.validate = function (_section_id, value) {
     const analysis = main.analyzeStaticHosts(`${value || ""}`);
     return analysis.valid ? true : analysis.message;
@@ -206,10 +179,10 @@ function showStaticHostsModal(textareaNode) {
       })
       .catch(() => {});
 
-  ensureStaticHostsStyles();
+  sectionView.ensureSingleFieldModalStyles();
 
   return map.render().then((nodes) => {
-    nodes.classList.add("fkp-static-hosts");
+    nodes.classList.add(sectionView.SINGLE_FIELD_MODAL_CLASS);
     ui.showModal(
       _("Static DNS records"),
       [
@@ -251,7 +224,7 @@ function createStaticHostsOption(section) {
     form.TextValue,
     "static_hosts_text",
     _("Static DNS records"),
-    _("Fixed addresses for domains, expects the hosts file format."),
+    _("Fixed addresses for domains in the hosts format"),
   );
   configureStaticHostsTextarea(option);
 
@@ -299,7 +272,7 @@ function createSettingsContent(section, capabilities) {
     "dns_server",
     _("DNS Server"),
     _(
-      "Specify several servers for automatic failover on failure. To select a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; UDP is used by default.",
+      "Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://",
     ),
   );
   configureDnsList(dnsOption, "77.88.8.8");
@@ -309,7 +282,7 @@ function createSettingsContent(section, capabilities) {
     "dns_main_fallback_strategy",
     _("Main DNS Query Mode"),
     _(
-      "Query servers one at a time until the first successful response, or query all servers simultaneously for maximum speed.",
+      "Parallel asks every server at once and is faster. Sequential asks them in turn until the first answer",
     ),
   );
   o.value("parallel", _("Parallel"));
@@ -322,7 +295,9 @@ function createSettingsContent(section, capabilities) {
     form.DynamicList,
     "bootstrap_dns_server",
     _("Bootstrap DNS Servers"),
-    _("DNS servers used to resolve main DNS servers and proxies."),
+    _(
+      "Resolve the addresses of the main DNS servers and proxies. Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://",
+    ),
   );
   configureDnsList(bootstrapOption, "77.88.8.8", true);
 
@@ -331,7 +306,7 @@ function createSettingsContent(section, capabilities) {
     "dns_bootstrap_fallback_strategy",
     _("Bootstrap DNS Query Mode"),
     _(
-      "Query servers one at a time until the first successful response, or query all servers simultaneously for maximum speed.",
+      "Parallel asks every server at once and is faster. Sequential asks them in turn until the first answer",
     ),
   );
   o.value("parallel", _("Parallel"));
@@ -344,7 +319,7 @@ function createSettingsContent(section, capabilities) {
     form.Value,
     "dns_rewrite_ttl",
     _("DNS Rewrite TTL"),
-    _("Time in seconds for DNS record caching (default: 60)"),
+    _("How long DNS records are cached, in seconds"),
   );
   o.default = "60";
   o.rmempty = false;
@@ -396,7 +371,7 @@ function createSettingsContent(section, capabilities) {
     widgets.DeviceSelect,
     "source_network_interfaces",
     _("Source Network Interface"),
-    _("Select the network interface from which the traffic will originate"),
+    _("The interface the traffic comes from"),
   );
   o.default = "br-lan";
   o.noaliases = true;
@@ -433,7 +408,7 @@ function createSettingsContent(section, capabilities) {
     form.Flag,
     "enable_output_network_interface",
     _("Enable Output Network Interface"),
-    _("You can select Output Network Interface, by default autodetect"),
+    _("Detected automatically by default"),
   );
   o.default = "0";
   o.rmempty = false;
@@ -552,7 +527,7 @@ function createSettingsContent(section, capabilities) {
     "enable_yacd_wan_access",
     _("Enable YACD WAN Access"),
     _(
-      "Allows access to YACD from the WAN. Make sure to open the appropriate port in your firewall.",
+      "Access to YACD from the internet. The port has to be opened in the firewall",
     ),
   );
   o.depends("enable_yacd", "1");
@@ -574,9 +549,7 @@ function createSettingsContent(section, capabilities) {
     form.Flag,
     "disable_quic",
     _("Disable QUIC"),
-    _(
-      "Disable the QUIC protocol to improve compatibility or fix issues with video streaming",
-    ),
+    _("Disables QUIC for compatibility and to fix video streaming"),
   );
   o.default = "0";
   o.rmempty = false;
@@ -585,7 +558,7 @@ function createSettingsContent(section, capabilities) {
     form.Flag,
     "bittorrent_direct",
     _("Torrents directly"),
-    _("Route BitTorrent traffic handled by sing-box directly."),
+    _("Send BitTorrent traffic past the proxy"),
   );
   o.default = "0";
   o.rmempty = false;
@@ -594,7 +567,7 @@ function createSettingsContent(section, capabilities) {
     form.Flag,
     "list_update_enabled",
     _("Rule set auto update"),
-    _("Automatically update remote rule sets on a schedule"),
+    _("Update remote lists and rule sets on a schedule"),
   );
   o.default = "1";
   o.rmempty = false;
@@ -602,8 +575,7 @@ function createSettingsContent(section, capabilities) {
   o = section.option(
     form.Value,
     "update_interval",
-    _("List Update Frequency"),
-    _("Use sing-box duration format like 1d, 12h or 30m"),
+    _("List update interval"),
   );
   o.depends("list_update_enabled", "1");
   o.placeholder = "1d";
@@ -639,7 +611,7 @@ function createSettingsContent(section, capabilities) {
     form.Flag,
     "component_update_check_enabled",
     _("Automatic component update checks"),
-    _("Automatically check installed components for new versions"),
+    _("Check installed components for new versions"),
   );
   o.default = "0";
   o.rmempty = false;
@@ -648,7 +620,6 @@ function createSettingsContent(section, capabilities) {
     form.Value,
     "component_update_check_interval",
     _("Component update check interval"),
-    _("Use sing-box duration format like 1d, 12h or 30m"),
   );
   o.depends("component_update_check_enabled", "1");
   o.placeholder = "1d";
@@ -684,7 +655,7 @@ function createSettingsContent(section, capabilities) {
     "unified_delay",
     _("Accurate latency measurement"),
     _(
-      "Includes connection setup and TLS handshake time. The measurement takes longer but provides a more accurate result.",
+      "Includes connection setup and the TLS handshake. Slower, but more accurate",
     ),
   );
   o.default = "0";
@@ -694,7 +665,7 @@ function createSettingsContent(section, capabilities) {
     form.Value,
     "latency_test_url",
     _("Latency test URL"),
-    _("Default URL for latency testing."),
+    _("Default URL for general latency testing."),
   );
   latencyTestUrlChoices().forEach((value) => o.value(value));
   o.default =
@@ -708,7 +679,6 @@ function createSettingsContent(section, capabilities) {
     form.Flag,
     "download_lists_via_proxy",
     _("Download lists through a section"),
-    _("Download remote lists and rule sets via the selected section"),
   );
   configureDownloadViaProxyFlag(o, "download_lists_via_proxy_section");
 
@@ -728,7 +698,6 @@ function createSettingsContent(section, capabilities) {
     form.Flag,
     "download_components_via_proxy",
     _("Download components through a section"),
-    _("Download component packages via the selected section"),
   );
   configureDownloadViaProxyFlag(o, "download_components_via_proxy_section");
 
@@ -748,7 +717,7 @@ function createSettingsContent(section, capabilities) {
     form.Flag,
     "dont_touch_dhcp",
     _("Dont Touch My DHCP!"),
-    _("Forkop will not modify your DHCP configuration"),
+    _("Do not modify the DHCP configuration of the router"),
   );
   o.default = "0";
   o.rmempty = false;
@@ -757,9 +726,6 @@ function createSettingsContent(section, capabilities) {
     form.ListValue,
     "config_path",
     _("Config File Path"),
-    _(
-      "Select path for sing-box config file. Change this ONLY if you know what you are doing",
-    ),
   );
   o.value("/etc/sing-box/config.json", "Flash (/etc/sing-box/config.json)");
   o.value("/tmp/sing-box/config.json", "RAM (/tmp/sing-box/config.json)");
@@ -770,9 +736,6 @@ function createSettingsContent(section, capabilities) {
     form.Value,
     "cache_path",
     _("Cache File Path"),
-    _(
-      "Select or enter path for sing-box cache file. Change this ONLY if you know what you are doing",
-    ),
   );
   o.value("/tmp/sing-box/cache.db", "RAM (/tmp/sing-box/cache.db)");
   o.value(
@@ -806,7 +769,6 @@ function createSettingsContent(section, capabilities) {
     form.ListValue,
     "log_level",
     _("Log Level"),
-    _("Select the log level for sing-box"),
   );
   o.value("trace", "Trace");
   o.value("debug", "Debug");
@@ -822,9 +784,7 @@ function createSettingsContent(section, capabilities) {
     form.Flag,
     "exclude_ntp",
     _("Exclude NTP"),
-    _(
-      "Exclude NTP protocol traffic from the tunnel to prevent it from being routed through the proxy or VPN",
-    ),
+    _("Time synchronisation goes directly, past the tunnel"),
   );
   o.default = "0";
   o.rmempty = false;

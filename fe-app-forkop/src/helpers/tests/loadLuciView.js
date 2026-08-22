@@ -8,6 +8,10 @@ import path from 'node:path';
 import { webcrypto } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
+import { validateDomain } from '../../validators/validateDomain';
+import { validateOutboundJson } from '../../validators/validateOutboundJson';
+import { validateSubnet } from '../../validators/validateSubnet';
+
 const viewDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '../../../../luci-app-forkop/htdocs/luci-static/resources/view/forkop',
@@ -73,6 +77,39 @@ export function createUciStub(sections = {}) {
   };
 }
 
+// The views a view requires. They are loaded through the same machinery rather
+// than reimplemented, so a test that reaches one of their helpers exercises the
+// shipped code. Their own prologues name only the stubs built here, so this
+// never recurses back into a view.
+const DEPENDENCY_VIEWS = {
+  annotate: 'annotations',
+  localDevices: 'local_devices',
+  dpi: 'dpi_strategy',
+};
+
+const dependencyCache = new Map();
+
+function loadDependencyView(file, uci) {
+  if (dependencyCache.has(file)) {
+    return dependencyCache.get(file);
+  }
+
+  const noop = () => {};
+  const stubs = {
+    baseclass: { extend: (exports) => exports },
+    rpc: { declare: () => () => Promise.resolve([]) },
+    uci,
+    ui: { showModal: noop, hideModal: noop },
+    form: FORM_CLASSES,
+    main: { FORKOP_UCI_PACKAGE: 'forkop', showToast: noop },
+    E: () => null,
+  };
+
+  const exports = instantiateView(file, [], stubs);
+  dependencyCache.set(file, exports);
+  return exports;
+}
+
 function defaultStubs(uci, widgets) {
   const noop = () => {};
   const element = () => ({
@@ -100,7 +137,7 @@ function defaultStubs(uci, widgets) {
         });
       },
       hideModal: noop,
-      Textfield: class {},
+      ...UI_CLASSES,
     },
     dom: {
       append: noop,
@@ -122,6 +159,11 @@ function defaultStubs(uci, widgets) {
       validatePath: (value) => ({
         valid: /^\/[A-Za-z0-9_./-]+$/.test(`${value}`),
       }),
+      // The validators a view delegates to are the shipped ones, so a test that
+      // reaches one of them sees what the browser would.
+      validateDomain,
+      validateOutboundJson,
+      validateSubnet,
     },
     // The Servers tab borrows the child item list widget from the Sections tab.
     // Loading that tab would pull in its whole dependency tree, so the shared
@@ -164,6 +206,9 @@ function defaultStubs(uci, widgets) {
       crypto: webcrypto,
       location: { hostname: 'router.lan' },
       setTimeout: noop,
+      addEventListener: noop,
+      removeEventListener: noop,
+      dispatchEvent: noop,
     },
     document: {
       // A mounted widget, keyed by the id of the frame it renders. Every LuCI widget
@@ -177,11 +222,34 @@ function defaultStubs(uci, widgets) {
       createElementNS: element,
     },
     E: () => element(),
+    network: { getDevices: () => Promise.resolve([]) },
+    ...Object.fromEntries(
+      Object.entries(DEPENDENCY_VIEWS).map(([binding, file]) => [
+        binding,
+        loadDependencyView(file, uci),
+      ]),
+    ),
   };
 }
 
 // The cbi/form widget classes, by name. They carry no behaviour: a tab picks one
 // per option and the choice is what a test wants to see.
+// A LuCI widget base: a class with its own extend(), which the tabs subclass at
+// module scope. Nothing renders here, so the stub only has to stay extendable.
+function extendableWidget(name) {
+  function Widget() {}
+  Widget.widget = name;
+  Widget.prototype = {};
+  Widget.extend = function extend(members) {
+    function Subclass() {}
+    Subclass.widget = name;
+    Subclass.prototype = Object.assign(Object.create(this.prototype), members);
+    Subclass.extend = extend;
+    return Subclass;
+  };
+  return Widget;
+}
+
 const FORM_CLASSES = Object.fromEntries(
   [
     'DummyValue',
@@ -190,10 +258,21 @@ const FORM_CLASSES = Object.fromEntries(
     'GridSection',
     'ListValue',
     'MultiValue',
+    'NamedSection',
+    'TableSection',
     'TextValue',
     'TypedSection',
     'Value',
-  ].map((name) => [name, { widget: name }]),
+  ].map((name) => [name, extendableWidget(name)]),
+);
+
+// The ui widget bases a view subclasses. Only the names the views reach for are
+// listed; anything else stays absent so a new dependency is visible.
+const UI_CLASSES = Object.fromEntries(
+  ['Dropdown', 'DynamicList', 'Textarea', 'Textfield'].map((name) => [
+    name,
+    extendableWidget(name),
+  ]),
 );
 
 // A section that records what a tab declares on it instead of rendering anything.
@@ -237,36 +316,42 @@ export function createFormSectionStub() {
 }
 
 // Adds the named internals to the object the module hands to baseclass.extend().
+// A view either passes an object literal or the name of one it built above, and
+// both endings are rewritten in place.
 function exposeInternals(source, names) {
   if (!names.length) {
     return source;
   }
 
+  const injected = names.map((name) => `  ${name},`).join('\n');
   const marker = 'return baseclass.extend({';
   const at = source.lastIndexOf(marker);
-  if (at < 0) {
-    throw new Error('module does not end in baseclass.extend({ ... })');
+  if (at >= 0) {
+    return `${source.slice(0, at + marker.length)}\n${injected}${source.slice(
+      at + marker.length,
+    )}`;
   }
 
-  const injected = names.map((name) => `  ${name},`).join('\n');
-  return `${source.slice(0, at + marker.length)}\n${injected}${source.slice(
-    at + marker.length,
-  )}`;
+  const named = source.match(
+    /return baseclass\.extend\(([A-Za-z_$][\w$]*)\);\s*$/,
+  );
+  if (!named) {
+    throw new Error('module does not end in baseclass.extend( ... )');
+  }
+
+  return source.replace(
+    named[0],
+    `return baseclass.extend(Object.assign({}, ${named[1]}, {\n${injected}\n}));\n`,
+  );
 }
 
 const cache = new Map();
 
-export function loadLuciView(name, uci, expose = [], widgets = {}) {
-  const key = `${name}:${expose.join(',')}:${Object.keys(widgets).join(',')}`;
-  if (cache.has(key)) {
-    return cache.get(key);
-  }
-
+function instantiateView(name, expose, stubs) {
   const source = exposeInternals(
     fs.readFileSync(path.join(viewDir, `${name}.js`), 'utf8'),
     expose,
   );
-  const stubs = defaultStubs(uci, widgets);
   const args = [];
   const argValues = [];
   const body = [];
@@ -293,12 +378,21 @@ export function loadLuciView(name, uci, expose = [], widgets = {}) {
     }
   }
 
-  const factory = new Function(...args, body.join('\n'));
-  const exports = factory(...argValues);
+  return new Function(...args, body.join('\n'))(...argValues);
+}
+
+export function loadLuciView(name, uci, expose = [], widgets = {}) {
+  const key = `${name}:${expose.join(',')}:${Object.keys(widgets).join(',')}`;
+  if (cache.has(key)) {
+    return cache.get(key);
+  }
+
+  const exports = instantiateView(name, expose, defaultStubs(uci, widgets));
   cache.set(key, exports);
   return exports;
 }
 
 export function resetLuciViewCache() {
   cache.clear();
+  dependencyCache.clear();
 }

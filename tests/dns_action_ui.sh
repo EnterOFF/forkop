@@ -24,8 +24,8 @@ if grep -Fq '"dns_type"' "$SETTINGS_JS" ||
 fi
 for expected in \
   '_("DNS Server")' \
-  '"Specify several servers for automatic failover on failure. To select a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; UDP is used by default."' \
-  '_("DNS servers used to resolve main DNS servers and proxies.")' \
+  '"Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://"' \
+  '"Resolve the addresses of the main DNS servers and proxies. Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://"' \
   '_("Route main DNS requests through a section.")'; do
   grep -Fq "$expected" "$SETTINGS_JS" || {
     printf 'FAIL: missing DNS URI help: %s\n' "$expected" >&2
@@ -80,14 +80,14 @@ if (serverBlock.includes('placeholder = "1.1.1.1"')) {
 }
 
 for (const expected of [
-  '"DNS server used to resolve domains matching the section conditions. Specify several servers for automatic failover on failure. To select a protocol, use udp://, tcp://, tls://, https://, quic://, or h3://; UDP is used by default."',
+  '"Resolves domains that match the section conditions. Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://"',
   '"dns_fallback_strategy"',
   '_("DNS Query Mode")',
   'action === "dns" && normalizeDynamicListItems(servers).length > 1',
   'node.addEventListener("cbi-dynlist-change"',
   '_("Route DNS requests through a section.")',
   '_("DNS requests through")',
-  '"Add a link or local path. The format is detected automatically."',
+  '"A URL or local path. The format is detected automatically."',
 ]) {
   requiredIndex(expected);
 }

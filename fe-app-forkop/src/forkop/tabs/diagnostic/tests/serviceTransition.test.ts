@@ -6,7 +6,6 @@ import {
   hasLocalMutatingServiceActionLoading,
   isServiceTransitionStatus,
   shouldDisableDiagnosticRunAction,
-  shouldResetDiagnosticsChecks,
   shouldSkipServicesInfoAutoRefresh,
   shouldShowRestartAction,
   shouldShowStartAction,
@@ -51,27 +50,6 @@ describe('diagnostic service transitions', () => {
       shouldSkipServicesInfoAutoRefresh({
         force: false,
         localMutatingActionLoading: false,
-      }),
-    ).toBe(false);
-  });
-
-  it('does not reset diagnostics checks while a run is active', () => {
-    expect(
-      shouldResetDiagnosticsChecks({
-        resetChecks: true,
-        diagnosticsRunLoading: true,
-      }),
-    ).toBe(false);
-    expect(
-      shouldResetDiagnosticsChecks({
-        resetChecks: true,
-        diagnosticsRunLoading: false,
-      }),
-    ).toBe(true);
-    expect(
-      shouldResetDiagnosticsChecks({
-        resetChecks: false,
-        diagnosticsRunLoading: false,
       }),
     ).toBe(false);
   });

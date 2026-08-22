@@ -261,11 +261,7 @@ const EntryPoint = {
       return uiCapabilitiesPromise;
     };
 
-    const forkopMap = new form.Map(
-      UCI_PACKAGE,
-      _("Forkop Settings"),
-      _("Configuration for Forkop service"),
-    );
+    const forkopMap = new form.Map(UCI_PACKAGE, _("Forkop Settings"));
     forkopMap.tabbed = true;
     const originalHandleSaveApply = forkopMap.handleSaveApply;
     forkopMap.handleSaveApply = function (ev, mode) {
@@ -312,7 +308,7 @@ const EntryPoint = {
       form.GridSection,
       "section",
       _("Sections"),
-      _("Drag rows to change order. The rule at the top is checked first."),
+      _("Routing rules are checked from top to bottom"),
     );
     configureGridSection(
       rulesSection,
@@ -338,7 +334,7 @@ const EntryPoint = {
       form.GridSection,
       "server",
       _("Servers"),
-      _("Accept external proxy connections and route them with sing-box."),
+      _("The router itself becomes a proxy server for your devices"),
     );
     configureGridSection(
       serverSection,
@@ -364,7 +360,7 @@ const EntryPoint = {
     const diagnosticSection = forkopMap.section(
       form.TypedSection,
       "diagnostic",
-      _("Diagnostics"),
+      _("Status"),
     );
     diagnosticSection.anonymous = true;
     diagnosticSection.addremove = false;

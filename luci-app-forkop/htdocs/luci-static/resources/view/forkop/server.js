@@ -1313,8 +1313,9 @@ function validateOptionalMasquerade(_sectionId, value) {
     : _("Use an https:// URL to proxy a site or file:// to serve a directory");
 }
 
-// Forkop replaces the tag of a raw inbound with the server name, so a tag in the
-// pasted object is silently lost. Refusing it is clearer than dropping it.
+// Forkop names the inbound after the server, so singbox/servers.uc overwrites
+// whatever tag the pasted object carries. Pasting a whole inbound from somewhere
+// else is the point of this field, and a tag is part of what gets pasted.
 function validateInboundJson(_sectionId, value) {
   if (isEmptyValue(value)) {
     return _("This field is required");
@@ -1340,10 +1341,6 @@ function validateInboundJson(_sectionId, value) {
   const type = parsed.type.trim();
   if (parsed.type !== type || !JSON_INBOUND_TYPES.has(type)) {
     return _("sing-box has no inbound of type %s").format(type);
-  }
-
-  if (parsed.tag != null) {
-    return _("Remove the tag field: Forkop sets the tag from the server name");
   }
 
   if (parsed.listen_port != null) {
@@ -2974,7 +2971,29 @@ function injectServerStyles() {
   );
 }
 
-function configureTextareaOption(optionRef) {
+// The resize handle drags a textarea below the rows it asked for, and the example
+// inside stops fitting. The height those rows actually render at becomes its
+// floor: measured rather than computed from rows, because the padding and border
+// a theme adds are part of that height and no line arithmetic gets them right.
+// A field built for a dialog has no size until that dialog is on the page, which
+// happens several frames later, so the first size it is given is what is taken.
+function pinTextareaHeight(textarea) {
+  if (typeof ResizeObserver !== "function") {
+    return;
+  }
+
+  const observer = new ResizeObserver(() => {
+    const height = textarea.getBoundingClientRect().height;
+    if (height > 0) {
+      observer.disconnect();
+      textarea.style.minHeight = `${height}px`;
+    }
+  });
+
+  observer.observe(textarea);
+}
+
+function configureTextareaOption(optionRef, options = {}) {
   const renderWidget = optionRef.renderWidget;
 
   optionRef.renderWidget = function (sectionId, optionIndex, cfgvalue) {
@@ -2996,6 +3015,9 @@ function configureTextareaOption(optionRef) {
       ].forEach(([name, value]) => textarea.setAttribute(name, value));
       textarea.style.resize = "vertical";
       textarea.style.maxWidth = "100%";
+      if (options.pinHeight) {
+        pinTextareaHeight(textarea);
+      }
     }
 
     return node;
@@ -3719,7 +3741,7 @@ function addTailscaleOptions(section) {
     form.Value,
     "tailscale_auth_key",
     _("Authorization key"),
-    _("Required. A key from the Tailscale console."),
+    _("A key from the Tailscale console."),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -3731,7 +3753,7 @@ function addTailscaleOptions(section) {
     form.Value,
     "tailscale_hostname",
     _("Device name"),
-    _("Required. The name this device appears under in the Tailscale console."),
+    _("The name this device appears under in the Tailscale console."),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -3829,14 +3851,25 @@ function addTailscaleOptions(section) {
   };
 }
 
+// Shown greyed out in the JSON inbound editor: the smallest inbound
+// validateInboundJson accepts. The tag is left out because Forkop writes the
+// server name over it.
+const JSON_INBOUND_PLACEHOLDER = [
+  "{",
+  '  "type": "mixed",',
+  '  "listen": "0.0.0.0",',
+  '  "listen_port": 1080',
+  "}",
+].join("\n");
+
 function addJsonInboundOptions(section) {
   const o = section.option(
     form.TextValue,
     "inbound_json",
-    _("Inbound JSON"),
-    _("Required. A complete sing-box inbound. Forkop fills in the tag."),
+    _("JSON Inbound"),
   );
   o.depends("protocol", "json_inbound");
+  o.placeholder = JSON_INBOUND_PLACEHOLDER;
   o.rows = 10;
   o.wrap = "soft";
   o.textarea = true;
@@ -3845,7 +3878,7 @@ function addJsonInboundOptions(section) {
   o.validate = validateInboundJson;
   // Its own copy, for the same reason the reserved tag list is not imported: a
   // browser can hold an old section.js next to this file.
-  configureTextareaOption(o);
+  configureTextareaOption(o, { pinHeight: true });
 }
 
 function addListenerOptions(section) {
@@ -3880,7 +3913,7 @@ function addListenerOptions(section) {
     form.Value,
     "public_host",
     _("Public address"),
-    _("Required. The address the connection links point at."),
+    _("The address the connection links point at."),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -3952,7 +3985,7 @@ function addMixedOptions(section) {
     form.Flag,
     "mixed_auth_enabled",
     _("Authentication"),
-    _("Off means anyone who reaches the port may use the proxy."),
+    _("Require a login and password to connect to the server"),
   );
   // On by default: a listener that asks for nothing is an open proxy, and the port
   // is opened in the firewall by default too.
@@ -4239,7 +4272,7 @@ function addSecurityOptions(section) {
     form.Value,
     "tls_certificate_path",
     _("Certificate path"),
-    _("Required. A certificate issued for this address."),
+    _("A certificate issued for this address."),
   );
   addCertificateButton(o);
   o.modalonly = true;
@@ -4251,7 +4284,7 @@ function addSecurityOptions(section) {
     form.Value,
     "tls_key_path",
     _("Key path"),
-    _("Required. The private key of the certificate."),
+    _("The private key of the certificate."),
   );
   o.modalonly = true;
   o.rmempty = false;
