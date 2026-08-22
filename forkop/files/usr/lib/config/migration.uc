@@ -2409,6 +2409,17 @@ function migrate_section_mixed_proxies(ctx) {
     }
 }
 
+// The released switch added one `resolve` route rule ahead of the rule of the very
+// section that emitted it, so the real address only ever reached the outbound this
+// section had already chosen. It never moved a connection between sections, and it
+// traded resolution at the proxy exit for resolution at the router, which picks the
+// wrong CDN node and turns a local DNS failure into a dropped connection. ByeDPI
+// still resolves, but the runtime now decides that from the action alone.
+function remove_resolve_real_ip_for_routing(ctx) {
+    for (let section in ctx.model.sections || [])
+        delete_option(ctx, section, "resolve_real_ip_for_routing");
+}
+
 const MIGRATIONS = [
     { id: "interface_sections", run: migrate_interface_sections },
     { id: "enable_component_checks", run: migrate_enable_component_checks },
@@ -2444,7 +2455,8 @@ const MIGRATIONS = [
     { id: "tailscale_exit_node_switch", run: migrate_tailscale_exit_node },
     { id: "remove_expert_server_options", run: remove_expert_server_options },
     { id: "reality_handshake_sni", run: merge_reality_handshake_into_sni },
-    { id: "section_mixed_proxy_servers", run: migrate_section_mixed_proxies }
+    { id: "section_mixed_proxy_servers", run: migrate_section_mixed_proxies },
+    { id: "remove_resolve_real_ip_for_routing", run: remove_resolve_real_ip_for_routing }
 ];
 
 function apply_migrations(ctx) {

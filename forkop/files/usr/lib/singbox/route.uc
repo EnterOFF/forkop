@@ -87,18 +87,16 @@ function has_resolve_matchers(rule) {
         rule.domain_regex != null || rule.rule_set != null;
 }
 
+// ByeDPI is a local SOCKS5 proxy, so it would look an unresolved destination up
+// through dnsmasq, receive the FakeIP answer meant for the client and dial into
+// 198.18.0.0/15. sing-box has to hand it a real address instead.
 function resolve_rule_for_section(section, route_rule) {
-    let action = option(section, "action", "");
-    let should_resolve = action == "byedpi" ||
-        (connections.is_connections_action(action) &&
-            bool_option(section, "resolve_real_ip_for_routing", false));
-
-    if (!should_resolve)
+    if (option(section, "action", "") != "byedpi")
         return null;
 
     if (!has_resolve_matchers(route_rule)) {
         return {
-            warning: "Resolve real IP is enabled for '" + section[".name"] + "', but no domain or rule-set matchers found"
+            warning: "ByeDPI section '" + section[".name"] + "' has no domain or rule-set matchers, so no resolve rule is generated"
         };
     }
 

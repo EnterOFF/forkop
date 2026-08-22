@@ -499,7 +499,6 @@ cat >"$WORK_DIR/sing-box-signature.json" <<'JSON'
       "subscription_update_enabled": "1",
       "outbound_detour_enabled": "1",
       "outbound_detour_section": "out1",
-      "resolve_real_ip_for_routing": "1",
       "domain": [ "legacy.example" ],
       "domain_suffix": [ "full:full.example", "suffix.example" ],
       "domain_keyword": [ "ads" ],
@@ -519,8 +518,7 @@ cat >"$WORK_DIR/sing-box-signature.json" <<'JSON'
       "enabled": "1",
       "action": "outbound",
       "outbound_json": "{\"type\":\"direct\"}",
-      "outbound_detour_enabled": "0",
-      "resolve_real_ip_for_routing": "0"
+      "outbound_detour_enabled": "0"
     },
     {
       ".name": "bye1",
@@ -533,8 +531,7 @@ cat >"$WORK_DIR/sing-box-signature.json" <<'JSON'
       ".type": "section",
       "enabled": "1",
       "action": "vpn",
-      "interface": "wg0",
-      "resolve_real_ip_for_routing": "yes"
+      "interface": "wg0"
     }
   ],
   "section_interface": [
@@ -685,8 +682,6 @@ node-a
 1
 [rule.proxy1.outbound_detour_section]
 out1
-[rule.proxy1.resolve_real_ip_for_routing]
-1
 [rule.proxy1.domain]
 full.example,legacy.example
 [rule.proxy1.domain_suffix]
@@ -755,8 +750,6 @@ disabled
 
 [rule.out1.outbound_detour_enabled]
 0
-[rule.out1.resolve_real_ip_for_routing]
-0
 [rule.out1.domain]
 
 [rule.out1.domain_suffix]
@@ -784,8 +777,6 @@ byedpi
 [rule.bye1.label]
 bye1
 [rule.bye1.byedpi_index]
-1
-[rule.bye1.resolve_real_ip_for_routing]
 1
 [rule.bye1.domain]
 
@@ -855,8 +846,6 @@ disabled
 
 [rule.vpn1.outbound_detour_enabled]
 0
-[rule.vpn1.resolve_real_ip_for_routing]
-1
 [rule.vpn1.domain]
 
 [rule.vpn1.domain_suffix]

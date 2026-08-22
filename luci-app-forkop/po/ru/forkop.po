@@ -1709,12 +1709,6 @@ msgstr "Обязательно. Куда уходит трафик этого к
 msgid "Required. Where the traffic of this server leaves."
 msgstr "Обязательно. Куда уходит трафик этого сервера."
 
-msgid "Resolve domain names before routing so sing-box can use real destination IPs."
-msgstr "Разрешать доменные имена перед маршрутизацией, чтобы sing-box использовал реальные IP-адреса назначения."
-
-msgid "Resolve real IP for routing"
-msgstr "Разрешать реальный IP для маршрутизации"
-
 msgid "Resource selection by hostname inside nfqws is not supported here; sing-box selects resources before NFQUEUE."
 msgstr "Выбор ресурсов по hostname внутри nfqws здесь не поддерживается; ресурсы выбирает sing-box до NFQUEUE."
 

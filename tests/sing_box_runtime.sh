@@ -365,8 +365,15 @@ cat >"$WORK_DIR/disabled-updates-fixture.json" <<'JSON'
       "outbound_jsons": [ "{\"type\":\"direct\"}" ],
       "domain_suffix": [ "example.org" ],
       "rule_set": [ "https://example.com/rules.srs" ],
-      "ports": [ "8443" ],
-      "resolve_real_ip_for_routing": "1"
+      "ports": [ "8443" ]
+    },
+    {
+      ".name": "dpi",
+      ".type": "section",
+      "enabled": "1",
+      "action": "byedpi",
+      "rule_set": [ "https://example.com/rules.srs" ],
+      "ports": [ "8443" ]
     }
   ]
 }
@@ -1309,11 +1316,15 @@ function dns_server(config, predicate) {
 
 let disabled = cfg("disabled");
 assert(first_remote_ruleset(disabled).update_interval == null, "disabled list updates omit the interval");
+// Only ByeDPI resolves now, and it has to keep the port constraint of its section.
 let disabled_resolve = route_rule(disabled, r => r.type == "logical" && r.action == "resolve");
 assert(disabled_resolve != null && length(disabled_resolve.rules || []) == 2 &&
     contains(disabled_resolve.rules[0].rule_set, first_remote_ruleset(disabled).tag) &&
     contains(disabled_resolve.rules[1].port, 8443), "logical resolve rule preserves the section port constraint");
 assert(disabled_resolve.server == null, "section resolve follows dns.rules instead of pinning the main DNS server");
+assert(route_rule(disabled, r => r.action == "resolve" && r.outbound == null &&
+    r.type != "logical" && r.domain_suffix != null) == null,
+    "a connection section no longer resolves before routing");
 let disabled_route = route_rule(disabled, r => r.type == "logical" && r.outbound == "proxy");
 assert(disabled_route != null && length(disabled_route.rules || []) == 2 &&
     contains(disabled_route.rules[0].rule_set, first_remote_ruleset(disabled).tag) &&
@@ -1574,6 +1585,14 @@ assert(outbound(providers, "zap").routing_mark == 0x01000001, "Zapret mark");
 assert(outbound(providers, "zap2").routing_mark == 0x02000001, "Zapret2 mark");
 assert(outbound(providers, "bye").type == "socks" && outbound(providers, "bye").server_port == 1080, "ByeDPI outbound");
 assert(route_rule(providers, r => r.action == "resolve" && contains(r.inbound, "tproxy-in") && r.domain == "ip.podkop.fyi" && r.server == "dns-server") != null, "ByeDPI service check resolves before routing");
+// ByeDPI is the one action that has to resolve: it is a local SOCKS5 proxy, so an
+// unresolved destination would send it to look the name up itself and land on FakeIP.
+let bye_resolve_index = route_rule_index(providers, r => r.action == "resolve" && contains(r.domain_suffix, "bye.example"));
+let bye_route_index = route_rule_index(providers, r => r.outbound == "bye" && contains(r.domain_suffix, "bye.example"));
+assert(bye_resolve_index >= 0 && bye_route_index >= 0 && bye_resolve_index < bye_route_index,
+    "a ByeDPI section resolves its domains before routing them to the local proxy");
+assert(route_rule(providers, r => r.action == "resolve" && contains(r.domain_suffix, "zap.example")) == null,
+    "a Zapret section dials through a direct outbound and needs no resolve");
 
 let vpn = cfg("vpn");
 assert(outbound(vpn, "renamed_awg/tun0").bind_interface == "tun0", "renamed VPN interface outbound");

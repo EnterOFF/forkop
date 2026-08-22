@@ -871,11 +871,9 @@ function append_sing_box_rule_signature_body(body, section, sections) {
         body = signature_add_value(body, prefix + ".urltest_include_regex", option(section, "urltest_include_regex", ""));
         body = signature_add_value(body, prefix + ".subscription_update_interval", section_subscription_update_interval(section));
         body = signature_add_outbound_detour_body(body, section, prefix);
-        body = signature_add_value(body, prefix + ".resolve_real_ip_for_routing", bool_option_value(section, "resolve_real_ip_for_routing", false));
     }
     else if (action == "byedpi") {
         body = signature_add_value(body, prefix + ".byedpi_index", sing_box_signature_enabled_action_index(sections, name, "byedpi"));
-        body = signature_add_value(body, prefix + ".resolve_real_ip_for_routing", "1");
     }
     else if (action == "dns") {
         for (let value in list_option(section, "dns_server"))

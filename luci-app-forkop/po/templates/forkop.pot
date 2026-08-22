@@ -142,8 +142,8 @@ msgstr ""
 msgid "Add a client to this server to get a link."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8178
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8202
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8152
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8176
 msgid "Add a link or local path. The format is detected automatically."
 msgstr ""
 
@@ -270,7 +270,7 @@ msgstr ""
 msgid "All servers"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8240
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8214
 msgid "All traffic from these source IP addresses will be routed through the section."
 msgstr ""
 
@@ -310,7 +310,7 @@ msgstr ""
 msgid "Any"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8231
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8205
 msgid "Apply section rules only to the specified source IP addresses"
 msgstr ""
 
@@ -408,7 +408,7 @@ msgstr ""
 msgid "Browser is using FakeIP correctly"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8157
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8131
 msgid "Built-in rule sets"
 msgstr ""
 
@@ -877,7 +877,7 @@ msgstr ""
 msgid "detour must be a non-empty string"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8230
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8204
 msgid "Device filter"
 msgstr ""
 
@@ -1014,7 +1014,7 @@ msgstr ""
 msgid "Domain Resolver"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8118
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8092
 msgid "Domains"
 msgstr ""
 
@@ -1431,7 +1431,7 @@ msgstr ""
 msgid "Flow"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8239
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8213
 msgid "Forced device routing"
 msgstr ""
 
@@ -1885,7 +1885,7 @@ msgstr ""
 msgid "IP addresses and subnets, including their port constraints, will be extracted and added to nftables"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8147
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8121
 msgid "IPs"
 msgstr ""
 
@@ -2072,11 +2072,11 @@ msgstr ""
 msgid "Masquerade"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8148
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8122
 msgid "Match destination IPs or subnets"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8251
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8225
 msgid "Match destination ports. Section ports constrain all selected conditions. Domain-port rules embedded in a rule set cannot select FakeIP during DNS resolution."
 msgstr ""
 
@@ -2141,7 +2141,7 @@ msgstr ""
 msgid "Name displayed on the dashboard"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8316
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8290
 msgid "Name must be unique"
 msgstr ""
 
@@ -2577,7 +2577,7 @@ msgstr ""
 msgid "Port range start must be less than or equal to end"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8250
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8224
 msgid "Ports"
 msgstr ""
 
@@ -2760,14 +2760,6 @@ msgstr ""
 msgid "Required. Where the traffic of this server leaves."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8093
-msgid "Resolve domain names before routing so sing-box can use real destination IPs."
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8092
-msgid "Resolve real IP for routing"
-msgstr ""
-
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:416
 msgid "Resource selection by hostname inside nfqws is not supported here; sing-box selects resources before NFQUEUE."
 msgstr ""
@@ -2856,8 +2848,8 @@ msgstr ""
 msgid "Rule set settings"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8177
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8201
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8151
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8175
 msgid "Rule sets"
 msgstr ""
 
@@ -2951,7 +2943,7 @@ msgstr ""
 msgid "Select a network interface"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8158
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8132
 msgid "Select a predefined domain list"
 msgstr ""
 
@@ -3142,7 +3134,7 @@ msgstr ""
 msgid "Service action failed"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8161
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8135
 msgid "Service list"
 msgstr ""
 
@@ -3493,7 +3485,7 @@ msgstr ""
 msgid "The path must start with /"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8119
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8093
 msgid "The rule applies to the domain and all its subdomains. Use full:, keyword:, or regex: prefixes for exact match, keyword match, or regular expression."
 msgstr ""
 

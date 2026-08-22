@@ -8085,32 +8085,6 @@ function createSectionContent(section) {
     return true;
   };
 
-  o = section.taboption(
-    "settings",
-    form.Flag,
-    "resolve_real_ip_for_routing",
-    _("Resolve real IP for routing"),
-    _(
-      "Resolve domain names before routing so sing-box can use real destination IPs.",
-    ),
-  );
-  o.default = "0";
-  o.rmempty = false;
-  o.depends("action", "connection");
-  o.modalonly = true;
-  o.cfgvalue = function (section_id) {
-    const value = uci.get(
-      UCI_PACKAGE,
-      section_id,
-      "resolve_real_ip_for_routing",
-    );
-    if (value !== null && value !== undefined && value !== "") {
-      return value;
-    }
-
-    return getRuleResolvedAction(section_id) === "byedpi" ? "1" : "0";
-  };
-
   addTextConditionField(section, {
     key: "domain_suffix",
     optionName: "domain",
