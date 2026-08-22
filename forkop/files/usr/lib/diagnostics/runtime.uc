@@ -464,8 +464,16 @@ function get_wan_ip_addresses() {
 
 // The Servers tab opens its ports through an nftables.d include instead of a uci
 // rule, so a port it opened is invisible to `uci show firewall`. Both are asked.
+// The chain is read once for the whole report: every inbound asks the same question
+// of it, and on this router each nft call costs a noticeable fraction of a second.
+let firewall_input_chain_cache = null;
+
 function firewall_input_chain_data() {
-    return command_output_from_args([ "nft", "list", "chain", "inet", "fw4", "input" ]);
+    if (firewall_input_chain_cache == null)
+        firewall_input_chain_cache = command_output_from_args([
+            "nft", "list", "chain", "inet", "fw4", "input"
+        ]);
+    return firewall_input_chain_cache;
 }
 
 function firewall_required_protocols_open(port, required_proto) {
