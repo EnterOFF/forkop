@@ -1520,8 +1520,12 @@ assert(route_rule(matchers, r => r.outbound == "direct-out" && contains(r.domain
 let bypass_ruleset_route = route_rule(matchers, r => r.type == "logical" && r.mode == "and" && r.outbound == "direct-out");
 assert(bypass_ruleset_route != null && length(bypass_ruleset_route.rules || []) == 2 &&
     contains(bypass_ruleset_route.rules[0].rule_set, bypass_port_ruleset.tag) &&
-    contains(bypass_ruleset_route.rules[0].source_ip_cidr, "10.0.0.4/32") &&
-    contains(bypass_ruleset_route.rules[1].port, 8443), "rule-set bypass applies the section port as an AND condition");
+    contains(bypass_ruleset_route.rules[0].inbound, "tproxy-in") &&
+    bypass_ruleset_route.rules[0].source_ip_cidr == null &&
+    bypass_ruleset_route.rules[0].port == null &&
+    contains(bypass_ruleset_route.rules[1].source_ip_cidr, "10.0.0.4/32") &&
+    contains(bypass_ruleset_route.rules[1].port, 8443),
+    "rule-set bypass applies the section device filter and port as AND conditions");
 assert(route_rule(matchers, r => r.outbound == "proxy" && contains(r.domain_suffix, "xn--80aswg.xn--p1ai")) != null, "IDN suffix converted for route rule");
 assert(route_rule(matchers, r => r.outbound == "proxy" && contains(r.domain, "xn--e1afmkfd.xn--80akhbyknj4f")) != null, "IDN full domain converted for route rule");
 assert(route_rule(matchers, r => r.outbound == "proxy" && contains(r.domain_keyword, "xn--e1afmkfd")) != null, "IDN keyword converted for route rule");

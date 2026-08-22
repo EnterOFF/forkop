@@ -1990,6 +1990,45 @@ function add_fully_routed_ips_rules(config, section) {
     }
 }
 
+// sing-box hands the grouped matches of a rule-set branch back to the rule that
+// includes it, so a branch carrying its own ports or source addresses would satisfy
+// the section's ports or device filter instead of being narrowed by them. Moving
+// those matchers into a separate AND branch keeps the section constraining the rule
+// set rather than the rule set widening the section.
+const RULE_SET_CONSTRAINT_KEYS = [ "port", "port_range", "source_ip_cidr" ];
+
+function constrain_rule_set_by_section(route_rule, target) {
+    if (route_rule.rule_set == null)
+        return route_rule;
+
+    let constraint = {};
+    let constrained = false;
+    for (let key in RULE_SET_CONSTRAINT_KEYS) {
+        if (route_rule[key] == null)
+            continue;
+        constraint[key] = route_rule[key];
+        constrained = true;
+    }
+    if (!constrained)
+        return route_rule;
+
+    let identity_rule = copy_matchers(route_rule);
+    delete identity_rule.action;
+    delete identity_rule.outbound;
+    for (let key in RULE_SET_CONSTRAINT_KEYS)
+        delete identity_rule[key];
+
+    let result = {
+        type: "logical",
+        mode: "and",
+        rules: [ identity_rule, constraint ],
+        action: target.action
+    };
+    if (target.outbound)
+        result.outbound = target.outbound;
+    return result;
+}
+
 function add_combined_route_for_section(config, section) {
     let domains = domain_conditions(section);
     let domain = domains.domain;
@@ -2033,27 +2072,7 @@ function add_combined_route_for_section(config, section) {
         for (let device_matchers in device_matcher_variants(section, "source_ip_cidr", false)) {
             let device_route_rule = copy_matchers(route_rule);
             apply_matchers(device_route_rule, device_matchers);
-            if (device_route_rule.rule_set != null &&
-                (device_route_rule.port != null || device_route_rule.port_range != null)) {
-                let identity_rule = copy_matchers(device_route_rule);
-                let port_rule = {};
-                if (device_route_rule.port != null)
-                    port_rule.port = device_route_rule.port;
-                if (device_route_rule.port_range != null)
-                    port_rule.port_range = device_route_rule.port_range;
-                delete identity_rule.action;
-                delete identity_rule.outbound;
-                delete identity_rule.port;
-                delete identity_rule.port_range;
-                device_route_rule = {
-                    type: "logical",
-                    mode: "and",
-                    rules: [ identity_rule, port_rule ],
-                    action: target.action
-                };
-                if (target.outbound)
-                    device_route_rule.outbound = target.outbound;
-            }
+            device_route_rule = constrain_rule_set_by_section(device_route_rule, target);
             let resolve = runtime_route.resolve_rule_for_section(section, device_route_rule);
             if (type(resolve) == "object" && resolve.warning)
                 warn(resolve.warning, "\n");
