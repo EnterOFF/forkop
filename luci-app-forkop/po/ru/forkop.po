@@ -275,9 +275,6 @@ msgstr "Доступные действия"
 msgid "Backend validation failed: %s"
 msgstr "Backend-проверка завершилась ошибкой: %s"
 
-msgid "Base64 key of %d bytes."
-msgstr "Ключ base64 длиной %d байт."
-
 msgid "Blacklist"
 msgstr "Черный список"
 
@@ -2605,9 +2602,6 @@ msgstr "Обязательно. Адрес, на который указываю
 
 msgid "Server key"
 msgstr "Ключ сервера"
-
-msgid "Required. The key of the listener; every client key is added to it."
-msgstr "Обязательно. Ключ самого сервера, к которому добавляется ключ каждого клиента."
 
 msgid "Off means anyone who reaches the port may use the proxy."
 msgstr "Если выключено, прокси доступен всем, кто дозвонится до порта."

@@ -62,12 +62,12 @@ describe('server client names', () => {
     );
   });
 
-  // A removal that has not been saved yet gives its number back, so the list does
-  // not skip ahead and cannot offer a name another item already shows.
-  it('takes the lowest number the list leaves free', () => {
+  // One past the count of the list as it stands, the way a new section is named.
+  it('numbers one past the list', () => {
     const { clients } = load({ srv: { protocol: 'trojan' } });
 
-    expect(clients.nextClientName(['client-1', 'client-3'])).toBe('client-2');
+    expect(clients.nextClientName([])).toBe('client-1');
+    expect(clients.nextClientName(['client-1', 'client-3'])).toBe('client-3');
   });
 
   // The stored sections still hold the client the list no longer shows, so the

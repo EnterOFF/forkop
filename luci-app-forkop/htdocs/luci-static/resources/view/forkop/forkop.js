@@ -56,6 +56,52 @@ function renderSectionAdd(sectionRef, extra_class) {
   return el;
 }
 
+// A section id stays in the config for good, so it names the type it belongs to.
+// LuCI's createSID() is not that name: its "new" prefix marks a section the browser
+// has not saved yet, and handing it to add() as an explicit name writes that marker
+// to /etc/config/forkop forever. Every section gets an id, including the children
+// nothing points at, because an anonymous one can only be addressed as @type[index]:
+// libuci numbers those by position across the whole file, so the address of a client
+// moves when a client of another server is removed and a stored command then edits
+// the wrong section. The suffix is random rather than the lowest free number, because
+// a number given back after a delete would quietly rebind a stale pointer:
+// dns_detour_section and the other section references are not cleared when their
+// target is removed. Each view that creates a section carries this helper, because a
+// name imported across two views is undefined in a browser that cached one of them
+// before an app upgrade.
+const SECTION_ID_PREFIXES = {
+  fallback_group: "group",
+  fallback_level: "level",
+  section: "section",
+  section_interface: "iface",
+  server: "server",
+  server_client: "client",
+  subscription_url: "sub",
+  tunnel: "tunnel",
+  tunnel_peer: "peer",
+  urltest: "urltest",
+};
+const issuedSectionIds = new Set();
+
+function nextSectionId(typeName) {
+  const prefix = SECTION_ID_PREFIXES[typeName] || typeName;
+
+  for (let i = 0; i < 100; i += 1) {
+    const id = `${prefix}_${Math.floor(Math.random() * 0x1000000)
+      .toString(16)
+      .padStart(6, "0")}`;
+
+    // A staged child reaches uci only when its parent is saved, so an id handed out
+    // earlier in the same dialog is not visible through uci.get() yet.
+    if (!issuedSectionIds.has(id) && !uci.get(UCI_PACKAGE, id)) {
+      issuedSectionIds.add(id);
+      return id;
+    }
+  }
+
+  return `${prefix}_${Date.now().toString(16)}`;
+}
+
 function addLabeledSection(sectionRef) {
   const configName = sectionRef.uciconfig || sectionRef.map.config;
   const prefix = sectionRef.sectiontype === "section" ? "Section" : "Server";
@@ -63,7 +109,7 @@ function addLabeledSection(sectionRef) {
   const sectionId = sectionRef.map.data.add(
     configName,
     sectionRef.sectiontype,
-    sectionRef.map.data.createSID(configName),
+    nextSectionId(sectionRef.sectiontype),
   );
 
   sectionRef.map.data.set(configName, sectionId, "label", label);

@@ -388,9 +388,6 @@ msgid "Backend validation failed: %s"
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:2527
-msgid "Base64 key of %d bytes."
-msgstr ""
-
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2955
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3234
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3323
@@ -4205,9 +4202,6 @@ msgid "Required. The address the connection links point at."
 msgstr ""
 
 msgid "Server key"
-msgstr ""
-
-msgid "Required. The key of the listener; every client key is added to it."
 msgstr ""
 
 msgid "Off means anyone who reaches the port may use the proxy."

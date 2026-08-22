@@ -25,6 +25,52 @@ const MAX_CLIENT_NAME_LENGTH = 64;
 // Servers created in this page load whose dialog has not been saved yet.
 const addedServers = new Set();
 
+// A section id stays in the config for good, so it names the type it belongs to.
+// LuCI's createSID() is not that name: its "new" prefix marks a section the browser
+// has not saved yet, and handing it to add() as an explicit name writes that marker
+// to /etc/config/forkop forever. Every section gets an id, including the children
+// nothing points at, because an anonymous one can only be addressed as @type[index]:
+// libuci numbers those by position across the whole file, so the address of a client
+// moves when a client of another server is removed and a stored command then edits
+// the wrong section. The suffix is random rather than the lowest free number, because
+// a number given back after a delete would quietly rebind a stale pointer:
+// dns_detour_section and the other section references are not cleared when their
+// target is removed. Each view that creates a section carries this helper, because a
+// name imported across two views is undefined in a browser that cached one of them
+// before an app upgrade.
+const SECTION_ID_PREFIXES = {
+  fallback_group: "group",
+  fallback_level: "level",
+  section: "section",
+  section_interface: "iface",
+  server: "server",
+  server_client: "client",
+  subscription_url: "sub",
+  tunnel: "tunnel",
+  tunnel_peer: "peer",
+  urltest: "urltest",
+};
+const issuedSectionIds = new Set();
+
+function nextSectionId(typeName) {
+  const prefix = SECTION_ID_PREFIXES[typeName] || typeName;
+
+  for (let i = 0; i < 100; i += 1) {
+    const id = `${prefix}_${Math.floor(Math.random() * 0x1000000)
+      .toString(16)
+      .padStart(6, "0")}`;
+
+    // A staged child reaches uci only when its parent is saved, so an id handed out
+    // earlier in the same dialog is not visible through uci.get() yet.
+    if (!issuedSectionIds.has(id) && !uci.get(UCI_PACKAGE, id)) {
+      issuedSectionIds.add(id);
+      return id;
+    }
+  }
+
+  return `${prefix}_${Date.now().toString(16)}`;
+}
+
 const ROUTING_SECTION_ACTIONS = [
   "connection",
   "proxy",
@@ -2501,20 +2547,9 @@ function listClients(sectionId) {
 }
 
 // Numbered names that do not follow the server name: a client is a device, not a
-// second label for the server. The lowest free number is taken, so removing an
-// account frees its name again.
+// second label for the server. One past the count, the way a new section is named.
 function nextClientName(taken) {
-  const used = new Set(taken.map((name) => `${name}`.trim().toLowerCase()));
-  const pattern = "client-%d";
-
-  for (let index = 1; index <= 999; index += 1) {
-    const candidate = pattern.format(index);
-    if (!used.has(candidate.toLowerCase())) {
-      return candidate;
-    }
-  }
-
-  return pattern.format(Date.now() % 1000);
+  return "client-%d".format(taken.length + 1);
 }
 
 function clientNameLabel(protocol) {
@@ -2599,19 +2634,6 @@ function clientCredentialLabel(sectionId, field) {
     : _("Password");
 }
 
-function clientCredentialDescription(sectionId, field) {
-  if (
-    field === "password" &&
-    getProtocol(sectionId) === "shadowsocks" &&
-    isShadowsocks2022(getShadowsocksMethod(sectionId))
-  ) {
-    return _("Base64 key of %d bytes.").format(
-      shadowsocksKeyBytes(getShadowsocksMethod(sectionId)),
-    );
-  }
-  return "";
-}
-
 function clientSettingsDefaults(sectionId, inputValue, existing, listOption) {
   const protocol = getProtocol(sectionId);
   const defaults = {};
@@ -2670,7 +2692,6 @@ function addClientCredentialOptions(sectionId, itemSection) {
         form.ListValue,
         "flow",
         clientCredentialLabel(sectionId, field),
-        clientCredentialDescription(sectionId, field),
       );
       flow.value("", _("None"));
       flow.value("xtls-rprx-vision", "xtls-rprx-vision");
@@ -2683,7 +2704,6 @@ function addClientCredentialOptions(sectionId, itemSection) {
         form.DynamicList,
         "authorized_keys",
         clientCredentialLabel(sectionId, field),
-        clientCredentialDescription(sectionId, field),
       );
       keys.rmempty = true;
       keys.validate = (_id, value) =>
@@ -2695,7 +2715,6 @@ function addClientCredentialOptions(sectionId, itemSection) {
       form.Value,
       field,
       clientCredentialLabel(sectionId, field),
-      clientCredentialDescription(sectionId, field),
     );
     credential.rmempty = false;
     credential.password = field !== "uuid";
@@ -3228,11 +3247,6 @@ function addIssueButton(optionRef, label, request, offered) {
 
   optionRef.renderWidget = function (sectionId, optionIndex, cfgvalue) {
     const node = renderWidget.call(this, sectionId, optionIndex, cfgvalue);
-    // A listener whose clients refuse what Forkop can issue gets no button: the file
-    // would only build a server nobody can reach.
-    if (typeof offered === "function" && !offered(sectionId)) {
-      return node;
-    }
     const readonly = this.readonly != null ? this.readonly : this.map.readonly;
     const button = E(
       "button",
@@ -3263,8 +3277,46 @@ function addIssueButton(optionRef, label, request, offered) {
         });
     });
 
-    return E("div", { class: "fkp-generate-row" }, [node, button]);
+    const row = E("div", { class: "fkp-generate-row" }, [node, button]);
+    if (typeof offered === "function") {
+      showIssueButton(row, offered(getProtocol(sectionId)));
+    }
+
+    return row;
   };
+}
+
+// The button is built once, with whatever protocol the dialog held at that moment,
+// and a later protocol change only shows and hides the fields - LuCI does not build
+// them again. So the button is shown and hidden the same way instead of being decided
+// at render time: a server that started as Mixed and became NaiveProxy kept a button
+// an existing NaiveProxy server never had.
+//
+// Inline, because the rule that lays the button out inside the row is a class
+// selector and would win over [hidden]; the column goes with it, or its gap stays
+// behind an input that now fills the row.
+function showIssueButton(row, shown) {
+  const button = row.querySelector(".fkp-generate");
+  if (!button) {
+    return;
+  }
+
+  button.style.display = shown ? "" : "none";
+  row.style.gridTemplateColumns = shown ? "" : "minmax(0,1fr)";
+}
+
+// The certificate Forkop issues is self-signed, and a NaiveProxy client verifies it
+// the way a browser does, so pressing the button there would only build a listener no
+// client reaches. The two path fields stay, for a certificate of your own.
+function offersCertificateButton(protocol) {
+  return protocol !== "naive";
+}
+
+function syncCertificateButton(sectionId, protocol) {
+  const node = widgetNode(sectionId, "tls_certificate_path");
+  if (node && node.parentNode) {
+    showIssueButton(node.parentNode, offersCertificateButton(protocol));
+  }
 }
 
 function issueRequest(verb, args, onResult) {
@@ -3302,10 +3354,7 @@ function addCertificateButton(optionRef) {
         main.showToast(_("Could not generate a certificate"), "error");
         throw error;
       }),
-    // Not on NaiveProxy: its client verifies the certificate the way a browser does,
-    // so a self-signed one issued here is refused and the button would only build a
-    // listener nobody reaches. The field stays, for a certificate of your own.
-    (sectionId) => getProtocol(sectionId) !== "naive",
+    offersCertificateButton,
   );
 }
 
@@ -3653,6 +3702,7 @@ function addIdentityOptions(section) {
   o.validate = validateRequired;
   o.onchange = function (_ev, sectionId, value) {
     syncSecurityChoices(sectionId, value, true);
+    syncCertificateButton(sectionId, value);
     // A client of the previous protocol holds credentials the new one cannot use,
     // and a half converted account only fails on save. The list starts over.
     clearClientList(this.map, sectionId);
@@ -3815,6 +3865,7 @@ function addListenerOptions(section) {
     "listen",
     _("Listen address"),
   );
+  o.placeholder = "0.0.0.0";
   o.default = "0.0.0.0";
   o.rmempty = false;
   o.modalonly = true;
@@ -3826,7 +3877,6 @@ function addListenerOptions(section) {
     "listen_port",
     _("Listen port"),
   );
-  o.placeholder = "31443";
   o.rmempty = false;
   o.modalonly = true;
   o.validate = validateListenPort;
@@ -3840,7 +3890,6 @@ function addListenerOptions(section) {
     _("Public address"),
     _("Required. The address the connection links point at."),
   );
-  o.placeholder = "203.0.113.9";
   o.modalonly = true;
   o.rmempty = false;
   o.validate = validateHost;
@@ -3882,7 +3931,6 @@ function addShadowsocksOptions(section) {
     form.Value,
     "shadowsocks_psk",
     _("Server key"),
-    _("Required. The key of the listener; every client key is added to it."),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -4412,6 +4460,7 @@ function addClientListOption(section) {
   o.childType = CLIENT_TYPE;
   o.ownerOption = CLIENT_OWNER_OPTION;
   o.childValueOption = "name";
+  o.createId = () => nextSectionId(CLIENT_TYPE);
   // A Mixed inbound only has accounts while it asks for them; every other
   // protocol always does.
   protocolsWhere((entry) => usesClients(entry.id)).forEach((protocol) =>

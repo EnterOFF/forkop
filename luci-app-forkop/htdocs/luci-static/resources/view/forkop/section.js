@@ -2801,19 +2801,50 @@ function defaultFallbackLevelSettings() {
   };
 }
 
-function randomFallbackGroupId() {
-  for (let i = 0; i < 100; i += 1) {
-    const value = Math.floor(Math.random() * 0xffffffff)
-      .toString(16)
-      .padStart(8, "0");
-    const id = `pg_${value}`;
+// A section id stays in the config for good, so it names the type it belongs to.
+// LuCI's createSID() is not that name: its "new" prefix marks a section the browser
+// has not saved yet, and handing it to add() as an explicit name writes that marker
+// to /etc/config/forkop forever. Every section gets an id, including the children
+// nothing points at, because an anonymous one can only be addressed as @type[index]:
+// libuci numbers those by position across the whole file, so the address of a client
+// moves when a client of another server is removed and a stored command then edits
+// the wrong section. The suffix is random rather than the lowest free number, because
+// a number given back after a delete would quietly rebind a stale pointer:
+// dns_detour_section and the other section references are not cleared when their
+// target is removed. Each view that creates a section carries this helper, because a
+// name imported across two views is undefined in a browser that cached one of them
+// before an app upgrade.
+const SECTION_ID_PREFIXES = {
+  fallback_group: "group",
+  fallback_level: "level",
+  section: "section",
+  section_interface: "iface",
+  server: "server",
+  server_client: "client",
+  subscription_url: "sub",
+  tunnel: "tunnel",
+  tunnel_peer: "peer",
+  urltest: "urltest",
+};
+const issuedSectionIds = new Set();
 
-    if (!uci.get(UCI_PACKAGE, id)) {
+function nextSectionId(typeName) {
+  const prefix = SECTION_ID_PREFIXES[typeName] || typeName;
+
+  for (let i = 0; i < 100; i += 1) {
+    const id = `${prefix}_${Math.floor(Math.random() * 0x1000000)
+      .toString(16)
+      .padStart(6, "0")}`;
+
+    // A staged child reaches uci only when its parent is saved, so an id handed out
+    // earlier in the same dialog is not visible through uci.get() yet.
+    if (!issuedSectionIds.has(id) && !uci.get(UCI_PACKAGE, id)) {
+      issuedSectionIds.add(id);
       return id;
     }
   }
 
-  return `pg_${Date.now().toString(16)}`;
+  return `${prefix}_${Date.now().toString(16)}`;
 }
 
 function addSubscriptionUrlItemOptions(itemSection, options = {}) {
@@ -3494,6 +3525,7 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
   o.parentSectionId = parentSectionForGroup;
   o.childValueOption = "name";
   o.childDefaults = defaultFallbackLevelSettings();
+  o.createId = () => nextSectionId("fallback_level");
   o.renderItemSettingsModal = showFallbackLevelSettingsModal;
   o.validateItemsOnSave = function (groupId, values) {
     return validateFallbackLevelItemsBeforeSave(groupId, values, this);
@@ -4012,7 +4044,7 @@ function showFallbackGroupSettingsModal(
   context = {},
 ) {
   const groupId = context.adding
-    ? randomFallbackGroupId()
+    ? nextSectionId("fallback_group")
     : `${itemValue || ""}`.trim();
 
   if (!groupId) {
@@ -4236,19 +4268,6 @@ function tunnelStorageSettings(settings) {
       : "";
   });
   return result;
-}
-
-function randomTunnelId() {
-  for (let i = 0; i < 100; i += 1) {
-    const id = `tun_${Math.floor(Math.random() * 0xffffffff)
-      .toString(16)
-      .padStart(8, "0")}`;
-    if (!uci.get(UCI_PACKAGE, id)) {
-      return id;
-    }
-  }
-
-  return `tun_${Date.now().toString(16)}`;
 }
 
 function createTunnelItem(sectionId, tunnelId, settings) {
@@ -4738,7 +4757,7 @@ function applyImportedTunnelEndpoint(map, fields, endpoint) {
   setModalOptionValue(map, fields.mtu, endpoint.mtu || "");
   const peerStore = childPendingSettingsStore(fields.peers, fields.tunnelId);
   const peerIds = (endpoint.peers || []).map((peer) => {
-    const id = randomTunnelPeerId();
+    const id = nextSectionId("tunnel_peer");
     peerStore[id] = {
       address: `${peer.address || ""}`.trim(),
       port: peer.port != null ? `${peer.port}` : "",
@@ -4800,10 +4819,6 @@ function wireGuardPeerDisplayNameFromObject(peer) {
   return address && Number.isInteger(port)
     ? `${address}:${port}`
     : address || _("WireGuard peer");
-}
-
-function randomTunnelPeerId() {
-  return `tp_${Date.now().toString(16)}_${Math.random().toString(16).slice(2, 8)}`;
 }
 
 function addWireGuardPeerItemOptions(section) {
@@ -4880,7 +4895,9 @@ function showWireGuardPeerSettingsModal(
   itemNode,
   context = {},
 ) {
-  const peerId = context.adding ? randomTunnelPeerId() : `${itemValue || ""}`;
+  const peerId = context.adding
+    ? nextSectionId("tunnel_peer")
+    : `${itemValue || ""}`;
   return showChildItemSettingsModal(tunnelId, peerId, option, {
     typeName: "tunnel_peer",
     ownerOption: "tunnel",
@@ -4972,7 +4989,7 @@ function showTunnelSettingsModal(
   context = {},
 ) {
   const tunnelId = context.adding
-    ? randomTunnelId()
+    ? nextSectionId("tunnel")
     : `${itemValue || ""}`.trim();
   if (!tunnelId) {
     return null;
@@ -7723,6 +7740,7 @@ function createSectionContent(section) {
   o.modalonly = true;
   o.childType = "subscription_url";
   o.childValueOption = "url";
+  o.createId = () => nextSectionId("subscription_url");
   o.childDefaults = Object.assign(
     defaultSubscriptionUrlSettings([], "", false),
     {
@@ -7806,6 +7824,7 @@ function createSectionContent(section) {
   o.placeholder = _("Select a network interface");
   o.childType = "section_interface";
   o.childValueOption = "name";
+  o.createId = () => nextSectionId("section_interface");
   o.sharedPendingSettingsKey = "interfaces";
   o.childDefaults = Object.assign(defaultInterfaceSettings(), {
     display_name: (interfaceName) => interfaceName,
@@ -7851,7 +7870,7 @@ function createSectionContent(section) {
   o.childType = "tunnel";
   o.ownerOption = "section";
   o.childValueOption = null;
-  o.createId = () => randomTunnelId();
+  o.createId = () => nextSectionId("tunnel");
   o.renderItemSettingsModal = showTunnelSettingsModal;
   o.renderListItemLabel = function (section_id, value) {
     return tunnelListItemLabel(section_id, value);
@@ -7916,6 +7935,7 @@ function createSectionContent(section) {
   o.addButtonLabel = _("+ Add URLTest");
   o.childType = "urltest";
   o.childValueOption = "name";
+  o.createId = () => nextSectionId("urltest");
   o.childDefaults = urlTestChildDefaults();
   outboundNameSourceOptions.set("urltest", o);
   o.renderItemSettingsModal = showUrlTestSettingsModal;
@@ -7977,7 +7997,7 @@ function createSectionContent(section) {
   o.childValueOption = "name";
   o.childDefaults = fallbackGroupChildDefaults();
   outboundNameSourceOptions.set("fallback_group", o);
-  o.createId = () => randomFallbackGroupId();
+  o.createId = () => nextSectionId("fallback_group");
   o.renderItemSettingsModal = showFallbackGroupSettingsModal;
   o.validateItemsOnSave = validateFallbackGroupItemsBeforeSave;
   o.hasItemSettings = function (section_id, value) {

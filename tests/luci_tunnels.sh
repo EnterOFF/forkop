@@ -184,7 +184,7 @@ if (section.includes('Object.values(amneziaOptions).forEach((option) =>')) {
 }
 
 const storageStart = section.indexOf('function tunnelStorageSettings');
-const storageEnd = section.indexOf('function randomTunnelId', storageStart);
+const storageEnd = section.indexOf('function createTunnelItem', storageStart);
 const tunnelStorage = section.slice(storageStart, storageEnd);
 if (
   tunnelStorage.includes('warp_junk_enabled:') ||

@@ -188,8 +188,9 @@ for (const removed of [
   }
 }
 
-// A numbered client name, so a client never inherits the server name.
-requireSource('const pattern = "client-%d";');
+// A numbered client name, so a client never inherits the server name, one past the
+// count the way a new section is named.
+requireSource('return "client-%d".format(taken.length + 1);');
 
 const optionBlocks = source
   .split("section.option(")
@@ -409,7 +410,7 @@ for (const removed of ["showServerValidationMessage", "fkp-server-validation-sum
 }
 
 for (const needle of [
-  "sectionRef.map.data.createSID(configName)",
+  "nextSectionId(sectionRef.sectiontype)",
   'sectionRef.map.data.set(configName, sectionId, "label", label)',
   "sectionRef.addLabeledSection = function ()",
   "this.addLabeledSection()",
@@ -431,19 +432,26 @@ const addSectionHelper = entrySource.match(
 assert(addSectionHelper, "labeled section helper not found");
 eval(addSectionHelper[0].slice(0, -"\n\nfunction getRuleEditButtonText(".length));
 
+// The id the section is created under says which type it is, and the label stays
+// the free-form name the dialog shows.
+const nextSectionId = (typeName) => `${typeName}_a1b2c3`;
+
 for (const [sectiontype, expectedLabel] of [
   ["section", "Section #3"],
   ["server", "Server #3"],
 ]) {
   let savedLabel = null;
+  let requestedId = null;
   const sectionRef = {
     sectiontype,
     cfgsections: () => ["active-1", "active-2"],
     map: {
       config: "forkop",
       data: {
-        createSID: () => "cfg-new",
-        add: () => "cfg-new",
+        add: (_config, _type, sectionId) => {
+          requestedId = sectionId;
+          return "cfg-new";
+        },
         set: (_config, _sectionId, _option, value) => {
           savedLabel = value;
         },
@@ -452,6 +460,7 @@ for (const [sectiontype, expectedLabel] of [
   };
 
   assert.strictEqual(addLabeledSection(sectionRef), "cfg-new");
+  assert.strictEqual(requestedId, `${sectiontype}_a1b2c3`);
   assert.strictEqual(savedLabel, expectedLabel);
 }
 

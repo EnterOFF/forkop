@@ -67,19 +67,37 @@ if (source.includes("describePerProtocol")) {
 // A NaiveProxy client verifies the certificate the way a browser does, so the
 // self-signed one Forkop issues is refused and the button that issues it is not
 // offered there. The two path fields stay, for a certificate of your own.
+const certificateRule = source.slice(
+  requiredIndex("function offersCertificateButton"),
+  requiredIndex("function syncCertificateButton"),
+);
+if (!certificateRule.includes('protocol !== "naive"')) {
+  fail("NaiveProxy must be the listener the certificate button is withheld from");
+}
 const certificateButton = source.slice(
   requiredIndex("function addCertificateButton"),
   requiredIndex("function addSshHostKeyButton"),
 );
-if (!certificateButton.includes('getProtocol(sectionId) !== "naive"')) {
-  fail("the certificate button must be withheld on a NaiveProxy listener");
+if (!certificateButton.includes("offersCertificateButton")) {
+  fail("the certificate button must follow that rule");
+}
+
+// And it has to follow a protocol change, not only the protocol the dialog was built
+// with: LuCI renders every option once and a later change only shows and hides them,
+// so a server that started as Mixed kept a button an existing NaiveProxy server never
+// had.
+const protocolChange = source.slice(
+  requiredIndex("o.onchange = function (_ev, sectionId, value) {"),
+);
+if (!protocolChange.slice(0, 400).includes("syncCertificateButton(sectionId, value)")) {
+  fail("changing the protocol must show or hide the certificate button");
 }
 const issueButton = source.slice(
   requiredIndex("function addIssueButton"),
   requiredIndex("function issueRequest"),
 );
-if (!issueButton.includes('typeof offered === "function" && !offered(sectionId)')) {
-  fail("addIssueButton must be able to withhold its button");
+if (!issueButton.includes("showIssueButton(row, offered(getProtocol(sectionId)))")) {
+  fail("addIssueButton must set the visibility of its button when it builds the row");
 }
 
 // XTLS Vision needs the raw TLS stream the listener owns, so the flow disappears
