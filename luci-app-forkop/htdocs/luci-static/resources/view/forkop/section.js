@@ -7120,7 +7120,7 @@ function parseStrategyWithRemoteValidation(section_id, config) {
 
 function parseNfqwsStrategyOnSave(section_id) {
   return parseStrategyWithRemoteValidation.call(this, section_id, {
-    remoteValidate: validateNfqwsStrategyRemotely,
+    remoteValidate: nfqwsStrategyValidator.validate,
     invalidMessage: _(
       "Unable to validate the NFQWS strategy through the backend parser.",
     ),
@@ -7129,7 +7129,7 @@ function parseNfqwsStrategyOnSave(section_id) {
 
 function parseNfqws2StrategyOnSave(section_id) {
   return parseStrategyWithRemoteValidation.call(this, section_id, {
-    remoteValidate: validateNfqws2StrategyRemotely,
+    remoteValidate: nfqws2StrategyValidator.validate,
     invalidMessage: _(
       "Unable to validate the NFQWS2 strategy through the backend parser.",
     ),
