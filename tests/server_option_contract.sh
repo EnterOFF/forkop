@@ -167,7 +167,7 @@ cat >"$WORK_DIR/servers.json" <<'JSON'
       ".name": "tailscale_srv", ".type": "server", "enabled": "1", "label": "tailscale",
       "protocol": "tailscale", "tailscale_auth_key": "tskey-auth-contract",
       "tailscale_hostname": "forkop", "tailscale_control_url": "https://controlplane.tailscale.com",
-      "tailscale_advertise_exit_node": "1", "tailscale_accept_routes": "1",
+      "tailscale_accept_routes": "1",
       "tailscale_ephemeral": "1", "tailscale_advertise_routes": [ "192.168.1.0/24" ],
       "routing_mode": "direct"
     }
@@ -295,7 +295,7 @@ const FORM_OPTIONS = [
   "reality_short_id",
   "routing_mode", "routing_override", "routing_section", "security",
   "shadowsocks_method", "shadowsocks_psk", "ssh_host_key_path",
-  "tailscale_accept_routes", "tailscale_advertise_exit_node",
+  "tailscale_accept_routes",
   "tailscale_advertise_routes", "tailscale_auth_key", "tailscale_control_url",
   "tailscale_detour_enabled", "tailscale_detour_section", "tailscale_ephemeral",
   "tailscale_hostname", "tcp_fast_open", "tls_alpn", "tls_certificate_path",

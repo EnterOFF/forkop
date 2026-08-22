@@ -979,8 +979,6 @@ cubic
 
 [server.srv1.tailscale_hostname]
 
-[server.srv1.tailscale_advertise_exit_node]
-
 [server.srv1.tailscale_accept_routes]
 1
 [server.srv1.tailscale_advertise_routes]

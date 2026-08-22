@@ -3752,17 +3752,6 @@ function addTailscaleOptions(section) {
 
   o = section.option(
     form.Flag,
-    "tailscale_advertise_exit_node",
-    _("Advertise exit node"),
-    _("Offer this router as an exit node. It still has to be approved in the Tailscale console."),
-  );
-  o.default = "1";
-  o.rmempty = false;
-  o.modalonly = true;
-  onTailscale(o);
-
-  o = section.option(
-    form.Flag,
     "tailscale_accept_routes",
     _("Accept routes"),
     _("Use subnets other devices share."),

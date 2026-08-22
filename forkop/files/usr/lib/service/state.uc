@@ -808,7 +808,6 @@ function append_sing_box_server_signature_body(body, server) {
         [ "tailscale_detour_section", "" ],
         [ "tailscale_control_url", "" ],
         [ "tailscale_hostname", "" ],
-        [ "tailscale_advertise_exit_node", "" ],
         [ "tailscale_accept_routes", "" ],
         [ "tailscale_advertise_routes", "" ],
         [ "tailscale_ephemeral", "" ]

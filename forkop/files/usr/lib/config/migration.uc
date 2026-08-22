@@ -2255,7 +2255,10 @@ const REMOVED_SERVER_OPTIONS = [
     "tuic_auth_timeout",
     "naive_quic_congestion_control",
     "mieru_user_hint_mandatory",
-    "reality_max_time_difference"
+    "reality_max_time_difference",
+    // The exit node is what a Tailscale server is for, so the switch that could
+    // take it away is gone and the runtime always advertises it.
+    "tailscale_advertise_exit_node"
 ];
 
 function remove_expert_server_options(ctx) {
@@ -2276,14 +2279,6 @@ function merge_reality_handshake_into_sni(ctx) {
         delete_option(ctx, server, "reality_handshake_server");
         delete_option(ctx, server, "reality_handshake_server_port");
     }
-}
-
-// The released dialog defaulted the switch to on and always wrote it, so only a
-// server written straight through uci needs the default filled in.
-function migrate_tailscale_exit_node(ctx) {
-    for (let server in ctx.model.servers || [])
-        if (option(server, "protocol", "") == "tailscale")
-            set_option_if_missing(ctx, server, "tailscale_advertise_exit_node", "1");
 }
 
 // The section settings carried a mixed proxy of their own: one listener on the
@@ -2452,7 +2447,6 @@ const MIGRATIONS = [
     // password, and that option is removed once the credentials have moved.
     { id: "shadowsocks_server_keys", run: migrate_shadowsocks_server_keys },
     { id: "server_client_sections", run: migrate_server_clients },
-    { id: "tailscale_exit_node_switch", run: migrate_tailscale_exit_node },
     { id: "remove_expert_server_options", run: remove_expert_server_options },
     { id: "reality_handshake_sni", run: merge_reality_handshake_into_sni },
     { id: "section_mixed_proxy_servers", run: migrate_section_mixed_proxies },

@@ -361,10 +361,12 @@ function add_tailscale_endpoint(config, section, tag_name) {
         state_directory: "/etc/forkop/tailscale/" + safe_filename(section_name),
         auth_key: option(section, "tailscale_auth_key", ""),
         control_url: option(section, "tailscale_control_url", "https://controlplane.tailscale.com"),
-        hostname: option(section, "tailscale_hostname", "forkop-" + safe_filename(section_name))
+        hostname: option(section, "tailscale_hostname", "forkop-" + safe_filename(section_name)),
+        // A Tailscale server exists to put this router on the tailnet as a way
+        // out, so the switch that took the exit node away only ever produced a
+        // server nothing could route through.
+        advertise_exit_node: true
     };
-    if (bool_option(section, "tailscale_advertise_exit_node", true))
-        endpoint.advertise_exit_node = true;
     if (bool_option(section, "tailscale_detour_enabled", false)) {
         let detour_section = option(section, "tailscale_detour_section", "");
         if (detour_section != "")

@@ -494,7 +494,6 @@ cat >"$WORK_DIR/server-inbound-fixture.json" <<'JSON'
       "tailscale_hostname": "forkop-server",
       "tailscale_detour_enabled": "1",
       "tailscale_detour_section": "proxy",
-      "tailscale_advertise_exit_node": "0",
       "routing_mode": "direct"
     },
     {
@@ -1397,7 +1396,7 @@ for (let endpoint in server.endpoints || [])
         tailscale_server = endpoint;
 assert(tailscale_server && tailscale_server.type == "tailscale", "Tailscale server endpoint");
 assert(tailscale_server.detour == "proxy", "Tailscale server control-plane detour");
-assert(tailscale_server.advertise_exit_node == null, "a Tailscale server that does not advertise omits the exit node flag");
+assert(tailscale_server.advertise_exit_node === true, "a Tailscale server always advertises itself as an exit node");
 assert(server.route.auto_detect_interface === false, "direct Tailscale server does not pin advertised LAN routes to the default WAN");
 assert(route_rule(server, r => r.action == "sniff" && r.inbound == "tailnet") == null, "Tailscale endpoint is not sniffed");
 let open_mixed = inbound(server, "open");

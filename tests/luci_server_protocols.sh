@@ -65,7 +65,6 @@ for (const option of [
   "tuic_zero_rtt_handshake",
   "hysteria2_masquerade",
   "tailscale_ephemeral",
-  "tailscale_advertise_exit_node",
   "tcp_fast_open",
   "open_firewall",
   "routing_override",
@@ -73,8 +72,9 @@ for (const option of [
   requireSource(`"${option}"`);
 }
 
-// Options with a working core default that never decide whether a client connects.
-// They were removed from the dialog, so nothing may reintroduce them.
+// Options the dialog no longer asks for: either a working core default that never
+// decides whether a client connects, or a value Forkop now fixes itself. Nothing
+// may reintroduce them.
 for (const option of [
   "mtproto_concurrency",
   "mtproto_prefer_ip",
@@ -90,6 +90,7 @@ for (const option of [
   "naive_quic_congestion_control",
   "mieru_user_hint_mandatory",
   "reality_max_time_difference",
+  "tailscale_advertise_exit_node",
 ]) {
   if (source.includes(`"${option}"`)) {
     fail(`the dialog must not ask for ${option}`);
