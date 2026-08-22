@@ -712,4 +712,78 @@ assert_eq "$expected_signature" \
 nft_ucode nft-populate-runtime-sets-fixture "$WORK_DIR/populate-fixture.json" 0 "" ForkopTable
 [ ! -s "$NFT_LOG" ] || fail "disabled nft population should not call nft"
 
+# The rebuild entry point takes no arguments: the routing table, the nft table, its
+# sets, the marks, the FakeIP ranges and each provider's binary, mark base and queue
+# base are constants a caller could only have read from the same tables. Every one of
+# them is overridden here, so a name resolved through the wrong key cannot pass - it
+# would leave the default in the rules the fake nft records, which is what the last
+# check refuses.
+cat >"$WORK_DIR/rebuild-uci.state" <<'EOF_UCI'
+forkop.settings=settings
+forkop.settings.source_network_interfaces=br-lan
+forkop.zapret_one=section
+forkop.zapret_one.enabled=1
+forkop.zapret_one.action=zapret
+forkop.zapret2_one=section
+forkop.zapret2_one.enabled=1
+forkop.zapret2_one.action=zapret2
+EOF_UCI
+: > "$WORK_DIR/rebuild-rt_tables"
+: > "$NFT_LOG"
+: > "$IP_LOG"
+FORKOP_UCI_STATE_FILE="$WORK_DIR/rebuild-uci.state" \
+  FORKOP_RT_TABLES="$WORK_DIR/rebuild-rt_tables" \
+  RT_TABLE_NAME=rebuild_route \
+  NFT_TABLE_NAME=RebuildTable \
+  NFT_LOCALV4_SET_NAME=rebuild_localv4 \
+  NFT_LOCALV6_SET_NAME=rebuild_localv6 \
+  NFT_COMMON_SET_NAME=rebuild_subnets \
+  NFT_COMMON6_SET_NAME=rebuild_subnets6 \
+  NFT_PORT_SET_NAME=rebuild_ports \
+  NFT_IP_PORT_SET_NAME=rebuild_ip_ports \
+  NFT_IP_PORT6_SET_NAME=rebuild_ip6_ports \
+  NFT_INTERFACE_SET_NAME=rebuild_interfaces \
+  NFT_FAKEIP_MARK=0x00100000 \
+  NFT_OUTBOUND_MARK=0x00200000 \
+  SB_FAKEIP_INET4_RANGE=192.0.2.0/24 \
+  SB_FAKEIP_INET6_RANGE=fd00:2::/32 \
+  SB_TPROXY_INBOUND_PORT=1699 \
+  SB_TPROXY_INBOUND6_ADDRESS=fd00::1 \
+  ZAPRET_PROVIDER_NFQWS_BIN="$provider_bin" \
+  ZAPRET_ROUTE_MARK_BASE=0x03000000 \
+  ZAPRET_QUEUE_BASE=4100 \
+  ZAPRET_DESYNC_MARK=0x40000000 \
+  ZAPRET_DESYNC_MARK_POSTNAT=0x20000000 \
+  ZAPRET2_PROVIDER_NFQWS2_BIN="$provider_bin" \
+  ZAPRET2_ROUTE_MARK_BASE=0x05000000 \
+  ZAPRET2_QUEUE_BASE=4500 \
+  ZAPRET2_DESYNC_MARK=0x50000000 \
+  ZAPRET2_DESYNC_MARK_POSTNAT=0x60000000 \
+  nft_ucode nft-rebuild-runtime-from-uci ||
+  fail "nft runtime rebuild from UCI failed"
+assert_line_before "$NFT_LOG" \
+  $'nft\tdelete\ttable\tinet\tRebuildTable' \
+  $'nft\tadd\ttable\tinet\tRebuildTable' \
+  "rebuild drops the live table before it builds the new one"
+assert_contains "$NFT_LOG" $'nft\tadd\tset\tinet\tRebuildTable\trebuild_localv4\t{ type ipv4_addr; flags interval; auto-merge; }' "rebuild localv4 set"
+assert_contains "$NFT_LOG" $'nft\tadd\tset\tinet\tRebuildTable\trebuild_localv6\t{ type ipv6_addr; flags interval; auto-merge; }' "rebuild localv6 set"
+assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tRebuildTable\trebuild_interfaces\t{ br-lan }' "rebuild interface element"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tmangle\tiifname\t@rebuild_interfaces\tip\tdaddr\t192.0.2.0/24\tmeta\tl4proto\ttcp\tmeta\tmark\tset\t0x00100000\tcounter' "rebuild FakeIP capture"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tmangle\tiifname\t@rebuild_interfaces\tip6\tdaddr\tfd00:2::/32\tmeta\tl4proto\ttcp\tmeta\tmark\tset\t0x00100000\tcounter' "rebuild FakeIP6 capture"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tproxy\tmeta\tmark\t&\t0x00100000\t==\t0x00100000\tmeta\tl4proto\ttcp\ttproxy\tip6\tto\t[fd00::1]:1699\tcounter' "rebuild TProxy6 target"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tmangle_output\tmeta\tmark\t0x00200000\tcounter\treturn' "rebuild outbound return"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tmangle_output\tip\tdaddr\t@rebuild_subnets\tmeta\tl4proto\ttcp\tmeta\tmark\tset\t0x00100000\tcounter' "rebuild output common rule"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tmangle_output\tmeta\tmark\t&\t0x40000000\t==\t0x40000000\treturn' "rebuild zapret desync return"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tmangle_output\tmeta\tmark\t0x03000001\tmeta\tl4proto\ttcp\tcounter\tqueue\tnum\t4100\tbypass' "rebuild zapret queue rule"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tmangle_output\tmeta\tmark\t&\t0x50000000\t==\t0x50000000\treturn' "rebuild zapret2 desync return"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tmangle_output\tmeta\tmark\t0x05000001\tmeta\tl4proto\ttcp\tcounter\tqueue\tnum\t4500\tbypass' "rebuild zapret2 queue rule"
+assert_contains "$IP_LOG" $'ip\troute\tadd\tlocal\t0.0.0.0/0\tdev\tlo\ttable\trebuild_route' "rebuild TProxy route"
+assert_contains "$IP_LOG" $'ip\t-4\trule\tadd\tfwmark\t0x00100000/0x00100000\ttable\trebuild_route\tpriority\t105' "rebuild TProxy marking rule"
+assert_contains "$WORK_DIR/rebuild-rt_tables" '105 rebuild_route' "rebuild route table registration"
+for leaked in ForkopTable forkop_subnets forkop_ports forkop_ip_ports forkop_interfaces; do
+  if grep -Fq "$leaked" "$NFT_LOG"; then
+    fail "nft runtime rebuild fell back to the default $leaked instead of the name core/constants.uc holds"
+  fi
+done
+
 printf 'NFT apply checks passed\n'

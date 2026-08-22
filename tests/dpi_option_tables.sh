@@ -2,167 +2,269 @@
 set -eo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-NFQUEUE_UC="$ROOT_DIR/forkop/files/usr/lib/providers/nfqueue/validator.uc"
-BYEDPI_UC="$ROOT_DIR/forkop/files/usr/lib/providers/byedpi/validator.uc"
-DPI_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js"
+WORK_DIR="$(mktemp -d)"
 
-# The DPI strategy editor annotates a strategy while it is typed, so it carries
-# its own copy of the nfqws, nfqws2 and ByeDPI option tables. The backend
-# validators own the same tables and have the final word on save. When a table
-# drifts the editor either rejects a strategy the backend accepts - and the
-# local check runs first, so the user cannot save at all - or accepts one the
+cleanup() {
+  rm -rf "$WORK_DIR"
+}
+trap cleanup EXIT
+
+# The DPI strategy editor annotates a strategy while it is typed, so it carries its
+# own copy of what nfqws, nfqws2 and ByeDPI accept, and of the options Forkop refuses
+# because it owns that decision itself. providers/nfqueue/validator.uc and
+# providers/byedpi/validator.uc own the same knowledge and have the final word on
+# save. When a copy drifts the editor either refuses a strategy the backend accepts -
+# and the local check runs first, so the user cannot save at all - or accepts one the
 # backend refuses only after the round trip.
-NFQUEUE_UC="$NFQUEUE_UC" BYEDPI_UC="$BYEDPI_UC" DPI_JS="$DPI_JS" node - <<'NODE'
+#
+# Both are asked the same questions here instead of having their tables compared as
+# text. Every option-shaped string either side spells out is collected, each one is
+# put to both validators in the forms that tell an argument shape apart - bare, with
+# an attached value, with a separate one - and the verdicts have to match. That makes
+# the check indifferent to how the tables are written, to which of them holds a name,
+# and to whether a refusal is a table entry or a special case, while covering both
+# directions of the drift.
+#
+# A refusal also has to stay a refusal for the same reason on both sides: an option
+# Forkop turns down on purpose is explained while it is typed, and an option nobody
+# recognises is not. Neither wording is spelled out here - each side is asked what it
+# says about an option that certainly does not exist, and that answer is what
+# "unrecognised" means for that side.
+ROOT_DIR="$ROOT_DIR" WORK_DIR="$WORK_DIR" node - <<'NODE'
 const fs = require('fs');
+const path = require('path');
+const { execFileSync } = require('child_process');
 
-const nfqueue = fs.readFileSync(process.env.NFQUEUE_UC, 'utf8');
-const byedpi = fs.readFileSync(process.env.BYEDPI_UC, 'utf8');
-const editor = fs.readFileSync(process.env.DPI_JS, 'utf8');
+const root = process.env.ROOT_DIR;
+const workDir = process.env.WORK_DIR;
+const viewDir = path.join(
+  root,
+  'luci-app-forkop/htdocs/luci-static/resources/view/forkop',
+);
+const libDir = path.join(root, 'forkop/files/usr/lib');
+
+const { createLoader } = require(
+  path.join(root, 'tests/helpers/luci_module.js'),
+);
+const { readStringLiterals } = require(
+  path.join(root, 'tests/helpers/source_literal.js'),
+);
+
+const SOURCES = [
+  path.join(libDir, 'providers/nfqueue/validator.uc'),
+  path.join(libDir, 'providers/byedpi/validator.uc'),
+  path.join(viewDir, 'dpi_strategy.js'),
+];
+
+// A long flag, a short one, or one of the hostlist templates zapret expands. The
+// scrape is deliberately greedy: a name that turns out to belong to no engine is
+// one more question both sides answer the same way, while a name left out is a
+// question nobody asks. Splitting on whitespace is what turns the default
+// strategies - whole command lines in one string - into their options as well.
+const OPTION = /^(?:--[a-z][a-z0-9-]*(?:=.*)?|-[A-Za-z][A-Za-z0-9]*|<[A-Z_]+>)$/;
+
+// Two options no engine can have, which is how each side is asked what it says
+// about something it does not recognise.
+const UNKNOWN_LONG = '--forkop-contract-probe';
+const UNKNOWN_SHORT = '-Z';
+
+const universe = new Set();
+for (const file of SOURCES) {
+  for (const literal of readStringLiterals(fs.readFileSync(file, 'utf8'))) {
+    for (const token of literal.split(/\s+/)) {
+      if (!OPTION.test(token)) continue;
+      universe.add(token);
+      const equals = token.indexOf('=');
+      if (equals > 0) universe.add(token.slice(0, equals));
+    }
+  }
+}
 
 const problems = [];
 
-function ucList(source, name, label) {
-  const matched = new RegExp(`let ${name} = \\[(.*?)\\];`, 's').exec(source);
-  if (!matched) {
-    problems.push(`${name} is absent from ${label}`);
-    return null;
-  }
-  return [...matched[1].matchAll(/"([^"]+)"/g)].map((item) => item[1]);
-}
-
-function jsSet(name) {
-  const matched = new RegExp(
-    `const ${name} = new Set\\(\\[(.*?)\\]\\);`,
-    's',
-  ).exec(editor);
-  if (!matched) {
-    problems.push(`${name} is absent from dpi_strategy.js`);
-    return null;
-  }
-  return [...matched[1].matchAll(/"([^"]+)"/g)].map((item) => item[1]);
-}
-
-function compare(label, backendList, frontendList) {
-  if (!backendList || !frontendList) return;
-  const backend = new Set(backendList);
-  const frontend = new Set(frontendList);
-  const missingInEditor = backendList.filter((item) => !frontend.has(item));
-  const missingInBackend = frontendList.filter((item) => !backend.has(item));
-  if (missingInEditor.length) {
+// A broken scrape must not look like agreement, so the questions themselves are
+// checked before the answers are compared.
+for (const anchor of ['--dpi-desync', '--new', '--hostlist', '-s', '--auto']) {
+  if (!universe.has(anchor)) {
     problems.push(
-      `${label}: the editor does not know ${missingInEditor.join(' ')}, ` +
-        'so it refuses a strategy the backend accepts',
-    );
-  }
-  if (missingInBackend.length) {
-    problems.push(
-      `${label}: the editor accepts ${missingInBackend.join(' ')}, ` +
-        'which the backend rejects as an unknown flag',
+      `the option scrape missed ${anchor}, so it is not comparing the tables`,
     );
   }
 }
-
-for (const [ucName, jsName] of [
-  ['nfqws_optional', 'NFQWS_OPTIONAL_ARG_OPTIONS'],
-  ['nfqws_none', 'NFQWS_NO_ARG_OPTIONS'],
-  ['nfqws_required', 'NFQWS_REQUIRED_ARG_OPTIONS'],
-  ['nfqws2_optional', 'NFQWS2_OPTIONAL_ARG_OPTIONS'],
-  ['nfqws2_none', 'NFQWS2_NO_ARG_OPTIONS'],
-  ['nfqws2_required', 'NFQWS2_REQUIRED_ARG_OPTIONS'],
-]) {
-  compare(
-    `${ucName}/${jsName}`,
-    ucList(nfqueue, ucName, 'providers/nfqueue/validator.uc'),
-    jsSet(jsName),
-  );
-}
-
-for (const [ucName, jsName] of [
-  ['long_value_options', 'BYEDPI_LONG_VALUE_OPTIONS'],
-  ['long_flag_options', 'BYEDPI_LONG_FLAG_OPTIONS'],
-  ['short_value_options', 'BYEDPI_SHORT_VALUE_OPTIONS'],
-  ['short_flag_options', 'BYEDPI_SHORT_FLAG_OPTIONS'],
-]) {
-  compare(
-    `${ucName}/${jsName}`,
-    ucList(byedpi, ucName, 'providers/byedpi/validator.uc'),
-    jsSet(jsName),
-  );
-}
-
-// The editor also repeats the options Forkop refuses on purpose, so that it can
-// explain why while the strategy is typed instead of only after a round trip.
-// unsupported_reason() in the backend owns those lists.
-const unsupported = /function unsupported_reason\(kind, token\) \{([\s\S]*?)\n\}/.exec(
-  nfqueue,
-);
-if (!unsupported) {
+if (universe.size < 100) {
   problems.push(
-    'unsupported_reason() is absent from providers/nfqueue/validator.uc',
+    `the option scrape found only ${universe.size} options, which cannot be the tables`,
   );
 }
-
-function backendRejected(otherKind) {
-  if (!unsupported) return null;
-  const rejected = new Set();
-  for (const block of unsupported[1].split('if (')) {
-    if (block.includes(`kind == "${otherKind}" &&`)) continue;
-    for (const item of block.matchAll(/"(--[a-z0-9-]+)"/g)) rejected.add(item[1]);
-  }
-  return [...rejected];
-}
-
-// The refusals are named either inline or through a shared const array, so the
-// arrays the function references are expanded before the names are collected.
-function editorNameList(name, seen) {
-  if (seen.has(name)) return [];
-  seen.add(name);
-
-  const matched = new RegExp(`const ${name} = \\[(.*?)\\n\\];`, 's').exec(editor);
-  if (!matched) return [];
-
-  const names = [...matched[1].matchAll(/"(--[a-z0-9-]+)"/g)].map((item) => item[1]);
-  for (const spread of matched[1].matchAll(/\.\.\.([A-Z][A-Z0-9_]*)/g)) {
-    names.push(...editorNameList(spread[1], seen));
-  }
-  return names;
-}
-
-function editorRejected(fnName) {
-  const start = editor.indexOf(`function ${fnName}(`);
-  if (start < 0) {
-    problems.push(`${fnName}() is absent from dpi_strategy.js`);
-    return null;
-  }
-  const end = editor.indexOf('\n}\n', start);
-  const body = end < 0 ? editor.slice(start) : editor.slice(start, end);
-  const names = [...body.matchAll(/"(--[a-z0-9-]+)"/g)].map((item) => item[1]);
-  const seen = new Set();
-  for (const reference of body.matchAll(/(?:^|[^.\w])([A-Z][A-Z0-9_]*)(?:,|\n)/g)) {
-    names.push(...editorNameList(reference[1], seen));
-  }
-  return [...new Set(names)];
-}
-
-for (const [label, backendList, frontendList] of [
-  [
-    'nfqws refused options',
-    backendRejected('nfqws2'),
-    editorRejected('getNfqwsForbiddenTokenInfo'),
-  ],
-  [
-    'nfqws2 refused options',
-    backendRejected('nfqws'),
-    editorRejected('getNfqws2ForbiddenTokenInfo'),
-  ],
-]) {
-  if (!backendList || !frontendList) continue;
-  const frontend = new Set(frontendList);
-  const missing = backendList.filter((item) => !frontend.has(item));
-  if (missing.length) {
+for (const reserved of [UNKNOWN_LONG, UNKNOWN_SHORT]) {
+  if (universe.has(reserved)) {
     problems.push(
-      `${label}: the editor does not explain ${missing.join(' ')}, ` +
-        'so the refusal only appears after the backend round trip',
+      `${reserved} is now a real option, so it cannot stand for an unknown one`,
+    );
+  }
+}
+
+// Bare, with a value attached, and with a value in the next token. A flag, an
+// option with an optional value and an option that requires one answer these three
+// differently, so the triple names the argument shape without reading a message.
+function probeForms(token) {
+  if (token.includes('=') || !token.startsWith('-')) {
+    return [token];
+  }
+  if (token.startsWith('--')) {
+    return [token, `${token}=1`, `${token} 1`];
+  }
+  return token.length === 2 ? [token, `${token}5`, `${token} 5`] : [token];
+}
+
+const SHAPES = {
+  'yes,yes,no': 'taking an optional attached value',
+  'yes,no,no': 'taking no value',
+  'no,yes,yes': 'requiring a value',
+  'no,no,no': 'refused or unknown',
+};
+
+function shape(verdicts) {
+  const key = verdicts.map((valid) => (valid ? 'yes' : 'no')).join(',');
+  if (SHAPES[key]) return SHAPES[key];
+  if (verdicts.length === 1) return verdicts[0] ? 'accepted' : 'refused';
+  return `an unusual shape (${key})`;
+}
+
+const dpi = createLoader(viewDir)('dpi_strategy');
+const EDITOR = {
+  nfqws: (value) => dpi.buildNfqwsLocalAnalysis(value),
+  nfqws2: (value) => dpi.buildNfqws2LocalAnalysis(value),
+  byedpi: (value) => dpi.buildByedpiLocalAnalysis(value),
+};
+const KINDS = Object.keys(EDITOR);
+
+// Every option is put to every engine. A name that belongs to another one is still
+// a fair question - both sides have to refuse it - and asking it is how an nfqws2
+// option that leaked into the nfqws table gets noticed.
+const questions = [];
+for (const kind of KINDS) {
+  for (const token of [...universe].sort()) {
+    questions.push({ kind, token, forms: probeForms(token) });
+  }
+}
+
+// The unknown-option answers come first so that both sides have a baseline before
+// any real option is classified.
+const probes = [];
+for (const kind of KINDS) {
+  probes.push({ kind, value: UNKNOWN_LONG }, { kind, value: UNKNOWN_SHORT });
+}
+for (const question of questions) {
+  for (const value of question.forms) {
+    probes.push({ kind: question.kind, value });
+  }
+}
+
+const probeFile = path.join(workDir, 'probes.json');
+fs.writeFileSync(probeFile, JSON.stringify(probes));
+const backend = JSON.parse(
+  execFileSync(
+    'ucode',
+    [
+      '-L',
+      libDir,
+      path.join(root, 'tests/helpers/dpi_strategy_probe.uc'),
+      probeFile,
+    ],
+    { encoding: 'utf8' },
+  ),
+);
+
+if (backend.length !== probes.length) {
+  problems.push(
+    `the validators answered ${backend.length} of ${probes.length} probes`,
+  );
+  console.error(`FAIL: ${problems.join('\nFAIL: ')}`);
+  process.exit(1);
+}
+
+// The same message with the option taken out of it, so that "unknown option --x"
+// and "unknown option --y" are one answer.
+function withoutToken(message, value) {
+  return `${message}`
+    .split(value)
+    .join('<option>')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+const unrecognised = { editor: {}, backend: {} };
+let cursor = 0;
+for (const kind of KINDS) {
+  unrecognised.editor[kind] = new Set();
+  unrecognised.backend[kind] = new Set();
+
+  for (const value of [UNKNOWN_LONG, UNKNOWN_SHORT]) {
+    const fromEditor = EDITOR[kind](value);
+    const fromBackend = backend[cursor];
+    cursor += 1;
+
+    if (fromEditor.valid === true || fromBackend.valid === true) {
+      problems.push(
+        `${kind} accepts ${value}, so an unknown option cannot be recognised as one`,
+      );
+      continue;
+    }
+    unrecognised.editor[kind].add(withoutToken(fromEditor.message, value));
+    unrecognised.backend[kind].add(withoutToken(fromBackend.message, value));
+  }
+}
+
+// Accepted, refused as an option nobody knows, or refused with a reason of its own.
+function refusal(result, value, known) {
+  if (result.valid === true) return 'accepted';
+  return known.has(withoutToken(result.message, value))
+    ? 'refused as unknown'
+    : 'refused with a reason';
+}
+
+for (const question of questions) {
+  const editorVerdicts = [];
+  const backendVerdicts = [];
+  const bare = { editor: null, backend: null };
+
+  question.forms.forEach((value, index) => {
+    const fromEditor = EDITOR[question.kind](value);
+    const fromBackend = backend[cursor];
+    cursor += 1;
+
+    editorVerdicts.push(fromEditor.valid === true);
+    backendVerdicts.push(fromBackend.valid === true);
+
+    // Only the bare form, where each side reports exactly one problem: the editor
+    // lists every error it found and the backend stops at the first, so a two token
+    // probe compares two different amounts of text.
+    if (index > 0) return;
+    bare.editor = refusal(
+      fromEditor,
+      value,
+      unrecognised.editor[question.kind],
+    );
+    bare.backend = refusal(
+      fromBackend,
+      value,
+      unrecognised.backend[question.kind],
+    );
+  });
+
+  if (editorVerdicts.join() !== backendVerdicts.join()) {
+    problems.push(
+      `${question.kind} ${question.token}: the editor treats it as ` +
+        `${shape(editorVerdicts)}, the validator as ${shape(backendVerdicts)}`,
+    );
+    continue;
+  }
+
+  if (bare.editor !== bare.backend) {
+    problems.push(
+      `${question.kind} ${question.token}: the editor has it ` +
+        `${bare.editor}, the validator ${bare.backend}`,
     );
   }
 }
@@ -171,6 +273,10 @@ if (problems.length) {
   console.error(`FAIL: ${problems.join('\nFAIL: ')}`);
   process.exit(1);
 }
+
+process.stdout.write(
+  `${universe.size} DPI options agree across the editor and the validators\n`,
+);
 NODE
 
 printf 'DPI option table checks passed\n'

@@ -116,12 +116,6 @@ function addLabeledSection(sectionRef) {
   return sectionId;
 }
 
-function getRuleEditButtonText() {
-  const label = _("Edit rule action");
-
-  return label === "Edit rule action" ? "Edit" : label;
-}
-
 function configureGridSection(sectionRef, type, title, addTitle) {
   sectionRef.anonymous = false;
   sectionRef.addremove = true;
@@ -155,7 +149,7 @@ function configureGridSection(sectionRef, type, title, addTitle) {
       return form.TableSection.prototype.renderRowActions.call(
         this,
         section_id,
-        getRuleEditButtonText(),
+        server.getRuleEditButtonText(),
       );
     };
   }

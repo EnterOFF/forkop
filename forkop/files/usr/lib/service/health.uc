@@ -97,6 +97,14 @@ function process_age_seconds_from_ticks(start_ticks, current_ticks) {
     return current_ticks < start_ticks ? null : int((current_ticks - start_ticks) / 100);
 }
 
+// How long a pid has been alive, in seconds. The clock is the awkward part: the
+// start time in /proc/<pid>/stat counts ticks from boot, and lxcfs virtualizes
+// /proc/uptime inside a container while leaving that field alone, so subtracting
+// one from the other invented an age and declared a healthy sing-box unstable.
+// A freshly spawned child answers instead - its own start time is now, on exactly
+// the scale the target pid was measured on. The spawn is the mechanism and not
+// overhead: service/lifecycle.uc requires this module and lives for the whole
+// reload, so reading /proc/self/stat inline would time the reload, not the moment.
 function process_age_seconds(pid, expected_start_ticks) {
     pid = as_string(pid);
     if (match(pid, /^[0-9]+$/) == null)

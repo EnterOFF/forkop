@@ -8,7 +8,7 @@ SECTION_JS="$VIEW_DIR/section.js"
 FORKOP_JS="$VIEW_DIR/forkop.js"
 FE_SRC="$ROOT_DIR/fe-app-forkop/src"
 
-node - "$SERVER_JS" "$FORKOP_JS" "$SECTION_JS" "$VIEW_DIR" <<'NODE'
+node - "$SERVER_JS" "$FORKOP_JS" "$SECTION_JS" "$VIEW_DIR" "$ROOT_DIR/tests/helpers/source_literal.js" <<'NODE'
 const fs = require("fs");
 const path = require("path");
 const assert = require("assert");
@@ -16,6 +16,7 @@ const source = fs.readFileSync(process.argv[2], "utf8");
 const entrySource = fs.readFileSync(process.argv[3], "utf8");
 const sectionSource = fs.readFileSync(process.argv[4], "utf8");
 const viewDir = process.argv[5];
+const { readFunction } = require(process.argv[6]);
 
 function fail(message) {
   console.error(`FAIL: ${message}`);
@@ -426,11 +427,7 @@ if (entrySource.includes("cbi-section-create-name")) {
   fail("section tables must not require a name before adding");
 }
 
-const addSectionHelper = entrySource.match(
-  /function addLabeledSection\([\s\S]*?\n}\n\nfunction getRuleEditButtonText\(/,
-);
-assert(addSectionHelper, "labeled section helper not found");
-eval(addSectionHelper[0].slice(0, -"\n\nfunction getRuleEditButtonText(".length));
+eval(readFunction(entrySource, "addLabeledSection"));
 
 // The id the section is created under says which type it is, and the label stays
 // the free-form name the dialog shows.

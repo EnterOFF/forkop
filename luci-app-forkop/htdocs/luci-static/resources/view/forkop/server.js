@@ -3472,11 +3472,24 @@ function loadServerTableOptions(sectionRef) {
   return Promise.all(tasks);
 }
 
+// The word on a row action button. LuCI's own catalog owns the "Edit" msgid and
+// translates it as "Редактировать", which is too long for a table cell beside the
+// other actions, and Forkop ships no English catalog - so a msgid is also the
+// English text. Hence a Forkop msgid, which carries the short Russian word, and the
+// English word written out here for when the catalog hands that msgid straight back.
+// Changing the msgid means changing the string it is compared against.
+//
+// The Sections tab shows the same button. Its rows are configured from forkop.js,
+// which already builds this tab through this module, so it takes the label from here
+// instead of keeping a second copy of the comparison.
+function getRuleEditButtonText() {
+  const label = _("Edit rule action");
+
+  return label === "Edit rule action" ? "Edit" : label;
+}
+
 function renderServerRowActions(sectionRef, sectionId) {
-  const editLabel =
-    _("Edit rule action") === "Edit rule action"
-      ? "Edit"
-      : _("Edit rule action");
+  const editLabel = getRuleEditButtonText();
   const detailsLabel = _("Server details");
   const tdEl = E(
     "td",
@@ -4567,4 +4580,5 @@ function createServerContent(section) {
 return baseclass.extend({
   configureServerSection,
   createServerContent,
+  getRuleEditButtonText,
 });

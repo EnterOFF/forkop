@@ -4,6 +4,7 @@ set -eo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SECTION_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js"
 FORKOP_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js"
+SERVER_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js"
 PO="$ROOT_DIR/luci-app-forkop/po/ru/forkop.po"
 POT="$ROOT_DIR/luci-app-forkop/po/templates/forkop.pot"
 
@@ -56,6 +57,31 @@ if awk '
 ' "$PO"; then
   fail "Dismiss must not override LuCI alert closing with Отмена"
 fi
+
+# A row action button has to stay short, and LuCI's own catalog owns "Edit" and
+# translates it as "Редактировать", which Forkop cannot override. So the button asks
+# for a Forkop msgid and falls back to the English word when the catalog returns the
+# msgid unchanged - which only works while the compared string is the msgid, and
+# while the button is the only reader of it.
+edit_label_definition="$(sed -n '/^function getRuleEditButtonText() {$/,/^}$/p' "$SERVER_JS")"
+[ -n "$edit_label_definition" ] ||
+  fail "server.js must own the row action label helper"
+[ "$(printf '%s\n' "$edit_label_definition" | grep -c '"Edit rule action"')" = "2" ] ||
+  fail "the row action label must compare the translation against its own msgid"
+if grep -Fq 'getRuleEditButtonText() {' "$FORKOP_JS"; then
+  fail "the row action label must not be defined a second time in forkop.js"
+fi
+grep -Fq 'server.getRuleEditButtonText()' "$FORKOP_JS" ||
+  fail "the Sections tab must take the row action label from the Servers tab"
+
+awk '
+  $0 == "msgid \"Edit rule action\"" {
+    getline
+    if ($0 == "msgstr \"Изменить\"")
+      found = 1
+  }
+  END { exit found ? 0 : 1 }
+' "$PO" || fail "the row action label must stay the short Изменить"
 
 awk '
   $0 ~ /^msgid "/ && $0 != "msgid \"\"" {

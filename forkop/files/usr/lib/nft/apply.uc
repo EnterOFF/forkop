@@ -2,14 +2,41 @@
 
 let fs = require("fs");
 let common = require("core.common");
+let constants = require("core.constants");
 let core_ip = require("core.ip");
 let uci_core = require("core.uci");
 let rule_config = require("config.rule");
 let connections = require("config.connections");
 let runtime_constants = require("singbox.constants");
 let nft_state = require("nft.state");
+let zapret_provider = require("providers.zapret.common");
+let zapret2_provider = require("providers.zapret2.common");
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const IP_BIN = getenv("FORKOP_IP_BIN") || "/usr/libexec/ip-full";
+// service/package.uc removes the routing table entry this module writes and reads
+// the same override to find the file.
+const RT_TABLES_PATH = getenv("FORKOP_RT_TABLES") || "/etc/iproute2/rt_tables";
+
+// The runtime table, its sets, the marks and the FakeIP ranges are named once in
+// core/constants.uc, which is also where it applies their environment overrides.
+// The rebuild entry point reads them here instead of taking them from a caller
+// that could only have read the same table.
+const RT_TABLE_NAME = constants.RT_TABLE_NAME;
+const NFT_TABLE_NAME = constants.NFT_TABLE_NAME;
+const NFT_LOCALV4_SET_NAME = constants.NFT_LOCALV4_SET_NAME;
+const NFT_LOCALV6_SET_NAME = constants.NFT_LOCALV6_SET_NAME;
+const NFT_COMMON_SET_NAME = constants.NFT_COMMON_SET_NAME;
+const NFT_COMMON6_SET_NAME = constants.NFT_COMMON6_SET_NAME;
+const NFT_PORT_SET_NAME = constants.NFT_PORT_SET_NAME;
+const NFT_IP_PORT_SET_NAME = constants.NFT_IP_PORT_SET_NAME;
+const NFT_IP_PORT6_SET_NAME = constants.NFT_IP_PORT6_SET_NAME;
+const NFT_INTERFACE_SET_NAME = constants.NFT_INTERFACE_SET_NAME;
+const NFT_FAKEIP_MARK = constants.NFT_FAKEIP_MARK;
+const NFT_OUTBOUND_MARK = constants.NFT_OUTBOUND_MARK;
+const SB_FAKEIP_INET4_RANGE = constants.SB_FAKEIP_INET4_RANGE;
+const SB_FAKEIP_INET6_RANGE = constants.SB_FAKEIP_INET6_RANGE;
+const SB_TPROXY_INBOUND_PORT = constants.SB_TPROXY_INBOUND_PORT;
+const SB_TPROXY_INBOUND6_ADDRESS = constants.SB_TPROXY_INBOUND6_ADDRESS;
 
 let common_read_json_file = common.read_json_file;
 let bool_option = common.bool_option;
@@ -913,7 +940,7 @@ function ensure_rt_table_entry(path, table_id, table_name) {
 }
 
 function ensure_tproxy_route_rule(table, mark, rt_tables_path) {
-    rt_tables_path = as_string(rt_tables_path || "/etc/iproute2/rt_tables");
+    rt_tables_path = as_string(rt_tables_path || RT_TABLES_PATH);
 
     if (!ensure_rt_table_entry(rt_tables_path, "105", table)) {
         log_fatal("Failed to update route table registry. Aborted.");
@@ -1068,28 +1095,29 @@ function fixture_section_list(data, type_name) {
     return type(plural) == "array" ? plural : [];
 }
 
-function nft_create_provider_output_rules_from_uci(table, action, provider_bin, route_mark_base, queue_base, desync_mark, desync_mark_postnat) {
-    return nft_create_provider_output_rules_from_sections(
-        uci_sections("section"),
-        table,
-        action,
-        provider_bin,
-        route_mark_base,
-        queue_base,
-        desync_mark,
-        desync_mark_postnat
-    );
+// Zapret and Zapret2 are the same nfqueue runtime with a different binary, and
+// each provider module already owns the binary, the mark base and the queue base
+// its rules are built from.
+function nft_create_nfqueue_provider_output_rules(table, sections) {
+    for (let provider in [ zapret_provider, zapret2_provider ]) {
+        let cfg = object_or_empty(provider.config());
+        if (!nft_create_provider_output_rules_from_sections(sections, table, cfg.action, cfg.provider_bin, cfg.route_mark_base, cfg.queue_base, cfg.desync_mark, cfg.desync_mark_postnat))
+            return false;
+    }
+
+    return true;
 }
 
-function nft_create_full_runtime_from_uci(rt_table, table, localv4_set, common_set, port_set, ip_port_set, interface_set, fakeip_mark, outbound_mark, fakeip_range, tproxy_port, zapret_bin, zapret_route_mark_base, zapret_queue_base, zapret_desync_mark, zapret_desync_mark_postnat, zapret2_bin, zapret2_route_mark_base, zapret2_queue_base, zapret2_desync_mark, zapret2_desync_mark_postnat, localv6_set, common6_set, ip_port6_set, fakeip6_range, tproxy6_address) {
+function nft_create_full_runtime_from_uci() {
     log_debug("Building nftables runtime model");
 
-    return ensure_tproxy_route_rule(rt_table, fakeip_mark) &&
-        nft_create_runtime_base_from_uci(table, localv4_set, common_set, port_set, ip_port_set, interface_set, fakeip_mark, outbound_mark, fakeip_range, tproxy_port, localv6_set, common6_set, ip_port6_set, fakeip6_range, tproxy6_address) &&
-        nft_add_section_priority_rules_from_sections(uci_sections("section"), table, interface_set, localv4_set, localv6_set, fakeip_mark, fakeip_range, fakeip6_range) &&
-        nft_create_provider_output_rules_from_uci(table, "zapret", zapret_bin, zapret_route_mark_base, zapret_queue_base, zapret_desync_mark, zapret_desync_mark_postnat) &&
-        nft_create_provider_output_rules_from_uci(table, "zapret2", zapret2_bin, zapret2_route_mark_base, zapret2_queue_base, zapret2_desync_mark, zapret2_desync_mark_postnat) &&
-        nft_create_runtime_output_rules(table, common_set, port_set, ip_port_set, fakeip_mark, fakeip_range, common6_set, ip_port6_set, fakeip6_range);
+    let sections = uci_sections("section");
+
+    return ensure_tproxy_route_rule(RT_TABLE_NAME, NFT_FAKEIP_MARK) &&
+        nft_create_runtime_base_from_uci(NFT_TABLE_NAME, NFT_LOCALV4_SET_NAME, NFT_COMMON_SET_NAME, NFT_PORT_SET_NAME, NFT_IP_PORT_SET_NAME, NFT_INTERFACE_SET_NAME, NFT_FAKEIP_MARK, NFT_OUTBOUND_MARK, SB_FAKEIP_INET4_RANGE, SB_TPROXY_INBOUND_PORT, NFT_LOCALV6_SET_NAME, NFT_COMMON6_SET_NAME, NFT_IP_PORT6_SET_NAME, SB_FAKEIP_INET6_RANGE, SB_TPROXY_INBOUND6_ADDRESS) &&
+        nft_add_section_priority_rules_from_sections(sections, NFT_TABLE_NAME, NFT_INTERFACE_SET_NAME, NFT_LOCALV4_SET_NAME, NFT_LOCALV6_SET_NAME, NFT_FAKEIP_MARK, SB_FAKEIP_INET4_RANGE, SB_FAKEIP_INET6_RANGE) &&
+        nft_create_nfqueue_provider_output_rules(NFT_TABLE_NAME, sections) &&
+        nft_create_runtime_output_rules(NFT_TABLE_NAME, NFT_COMMON_SET_NAME, NFT_PORT_SET_NAME, NFT_IP_PORT_SET_NAME, NFT_FAKEIP_MARK, SB_FAKEIP_INET4_RANGE, NFT_COMMON6_SET_NAME, NFT_IP_PORT6_SET_NAME, SB_FAKEIP_INET6_RANGE);
 }
 
 function nft_table_present(table) {
@@ -1100,13 +1128,13 @@ function nft_delete_table(table) {
     return run_args([ "nft", "delete", "table", "inet", table ]);
 }
 
-function nft_rebuild_runtime_from_uci(rt_table, table, localv4_set, common_set, port_set, ip_port_set, interface_set, fakeip_mark, outbound_mark, fakeip_range, tproxy_port, zapret_bin, zapret_route_mark_base, zapret_queue_base, zapret_desync_mark, zapret_desync_mark_postnat, zapret2_bin, zapret2_route_mark_base, zapret2_queue_base, zapret2_desync_mark, zapret2_desync_mark_postnat, localv6_set, common6_set, ip_port6_set, fakeip6_range, tproxy6_address) {
+function nft_rebuild_runtime_from_uci() {
     log_debug("Applying nftables runtime rules");
 
-    if (nft_table_present(table) && !nft_delete_table(table))
+    if (nft_table_present(NFT_TABLE_NAME) && !nft_delete_table(NFT_TABLE_NAME))
         return false;
 
-    return nft_create_full_runtime_from_uci(rt_table, table, localv4_set, common_set, port_set, ip_port_set, interface_set, fakeip_mark, outbound_mark, fakeip_range, tproxy_port, zapret_bin, zapret_route_mark_base, zapret_queue_base, zapret_desync_mark, zapret_desync_mark_postnat, zapret2_bin, zapret2_route_mark_base, zapret2_queue_base, zapret2_desync_mark, zapret2_desync_mark_postnat, localv6_set, common6_set, ip_port6_set, fakeip6_range, tproxy6_address);
+    return nft_create_full_runtime_from_uci();
 }
 
 function nft_runtime_signature_from_uci() {
@@ -1262,10 +1290,8 @@ else if (mode == "nft-create-provider-output-rules-fixture")
     exit(nft_create_provider_output_rules_from_sections(fixture_section_list(object_or_empty(common_read_json_file(ARGV[1])), "section"), ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8]) ? 0 : 1);
 else if (mode == "nft-add-section-priority-rules-fixture")
     exit(nft_add_section_priority_rules_from_sections(fixture_section_list(object_or_empty(common_read_json_file(ARGV[1])), "section"), ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8]) ? 0 : 1);
-else if (mode == "nft-create-full-runtime-from-uci")
-    exit(nft_create_full_runtime_from_uci(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8], ARGV[9], ARGV[10], ARGV[11], ARGV[12], ARGV[13], ARGV[14], ARGV[15], ARGV[16], ARGV[17], ARGV[18], ARGV[19], ARGV[20], ARGV[21], ARGV[22], ARGV[23], ARGV[24], ARGV[25], ARGV[26]) ? 0 : 1);
 else if (mode == "nft-rebuild-runtime-from-uci")
-    exit(nft_rebuild_runtime_from_uci(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8], ARGV[9], ARGV[10], ARGV[11], ARGV[12], ARGV[13], ARGV[14], ARGV[15], ARGV[16], ARGV[17], ARGV[18], ARGV[19], ARGV[20], ARGV[21], ARGV[22], ARGV[23], ARGV[24], ARGV[25], ARGV[26]) ? 0 : 1);
+    exit(nft_rebuild_runtime_from_uci() ? 0 : 1);
 else if (mode == "nft-populate-runtime-sets-from-uci")
     exit(nft_populate_runtime_sets_from_uci(ARGV[1], ARGV[2], ARGV[3]) ? 0 : 1);
 else if (mode == "nft-populate-runtime-sets-fixture")

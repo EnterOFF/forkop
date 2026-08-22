@@ -88,9 +88,24 @@ if state_ucode process-age-seconds-fixture 786162159 786161359 >/dev/null 2>&1; 
 fi
 grep -Fq 'require("service.health")' "$STATE_UC" ||
   fail "service/state.uc must reuse the lightweight health predicates"
-if sed -n '/^function process_age_seconds(pid, expected_start_ticks) {$/,/^}$/p' "$HEALTH_UC" | grep -Fq '/proc/uptime'; then
-  fail "process age must not mix process start ticks with virtualized /proc/uptime"
-fi
+# The age is measured against the start time of a spawned child on purpose, and
+# both shortcuts out of that spawn are guarded here because each one looks
+# harmless on its own. /proc/uptime is virtualized inside a container while the
+# start tick in /proc/<pid>/stat is not, and /proc/self/stat read inline now
+# answers for the long-lived lifecycle process instead of the current moment.
+# The body is captured first so that a changed signature fails here rather than
+# leaving an empty haystack that matches nothing.
+process_age_body="$(sed -n '/^function process_age_seconds(pid, expected_start_ticks) {$/,/^}$/p' "$HEALTH_UC")"
+[ -n "$process_age_body" ] ||
+  fail "process_age_seconds must stay a named function in service/health.uc"
+case "$process_age_body" in
+  */proc/uptime*)
+    fail "process age must not mix process start ticks with virtualized /proc/uptime" ;;
+esac
+case "$process_age_body" in
+  *'readfile("/proc/self/stat'*)
+    fail "process age must take the current tick from a spawned child, not from lifecycle itself" ;;
+esac
 
 mkdir -p "$WORK_DIR/stable-start-bin"
 cp "$(command -v sleep)" "$WORK_DIR/stable-start-bin/sing-box"

@@ -162,9 +162,12 @@ grep -Fq 'Reload runtime restart verification failed after Forkop was started; r
 if grep -n -E 'require\("uci"\)\.cursor|uci -q|uci", "-q"|uci_get_cli|uci_exists_cli|mwan3_has_enabled_interface_from_uci_show' "$STATE_UC" >/dev/null 2>&1; then
   fail "service/state.uc must not own direct UCI CLI/cursor access"
 fi
-grep -Fq 'nft-rebuild-runtime-from-uci' "$LIFECYCLE_UC" ||
-  fail "service/lifecycle.uc reload must call nft rebuild through ucode"
-if grep -Fq 'nft-create-full-runtime-from-uci' "$LIFECYCLE_UC"; then
+# The rebuild carries no arguments: nft/apply.uc reads the runtime table, its sets
+# and the marks from core/constants.uc, which is also the only table the caller could
+# have read them from - restating them here is how a name ends up in the wrong slot.
+grep -Fq 'module_status(NFT_UC, [ "nft-rebuild-runtime-from-uci" ])' "$LIFECYCLE_UC" ||
+  fail "service/lifecycle.uc reload must call nft rebuild through ucode without forwarding constants"
+if grep -Fq 'nft-create-full-runtime-from-uci' "$LIFECYCLE_UC" "$NFT_UC"; then
   fail "forkop start/reload must rebuild nft runtime instead of appending to stale state"
 fi
 grep -Fq 'nft-populate-runtime-sets-from-uci' "$LIFECYCLE_UC" ||

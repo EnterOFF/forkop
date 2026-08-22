@@ -76,6 +76,15 @@ fi
 assert_json_field "$invalid_nfqws2" valid false
 assert_json_field "$invalid_nfqws2" needle --intercept
 
+# The digit is not the only way to write it off, and the strategy editor refuses
+# these too - a strategy that reaches UCI without passing through the editor has
+# only this check left.
+for disabled in '--intercept=false' '--intercept=no'; do
+  if ucode -L "$FORKOP_LIB" -- "$ZAPRET2_VALIDATOR" validate-json nfqws2 "$disabled" >/dev/null 2>&1; then
+    fail "nfqws2 intercept disabled as $disabled should be rejected"
+  fi
+done
+
 if ucode -L "$FORKOP_LIB" -- "$VALIDATOR" validate-json nfqws2 '--name forkop --intercept=1' >/dev/null 2>&1; then
   fail "zapret validator must not own nfqws2 validation"
 fi

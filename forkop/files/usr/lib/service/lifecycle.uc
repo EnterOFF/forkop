@@ -46,36 +46,18 @@ const RELOAD_STATE_FORMAT = int(getenv("FORKOP_RELOAD_STATE_FORMAT") || "1");
 const RUNTIME_STABLE_MIN_AGE = int(getenv("FORKOP_RUNTIME_STABLE_MIN_AGE") || "2");
 const SING_BOX_START_STABLE_MIN_AGE = int(getenv("FORKOP_SING_BOX_START_STABLE_MIN_AGE") || "8");
 
+// The runtime table, its sets and the FakeIP mark are the ones this module tears
+// down again on stop. nft/apply.uc reads the rest of that table itself, so the
+// names it needs are not repeated here.
 const RT_TABLE_NAME = constant_value("RT_TABLE_NAME", "forkop");
 const NFT_TABLE_NAME = constant_value("NFT_TABLE_NAME", "ForkopTable");
-const NFT_LOCALV4_SET_NAME = constant_value("NFT_LOCALV4_SET_NAME", "localv4");
-const NFT_LOCALV6_SET_NAME = constant_value("NFT_LOCALV6_SET_NAME", "localv6");
-const NFT_COMMON_SET_NAME = constant_value("NFT_COMMON_SET_NAME", "forkop_subnets");
-const NFT_COMMON6_SET_NAME = constant_value("NFT_COMMON6_SET_NAME", "forkop_subnets6");
-const NFT_PORT_SET_NAME = constant_value("NFT_PORT_SET_NAME", "forkop_ports");
-const NFT_IP_PORT_SET_NAME = constant_value("NFT_IP_PORT_SET_NAME", "forkop_ip_ports");
-const NFT_IP_PORT6_SET_NAME = constant_value("NFT_IP_PORT6_SET_NAME", "forkop_ip6_ports");
-const NFT_INTERFACE_SET_NAME = constant_value("NFT_INTERFACE_SET_NAME", "forkop_interfaces");
 const NFT_FAKEIP_MARK = constant_value("NFT_FAKEIP_MARK", "0x04000000");
-const NFT_OUTBOUND_MARK = constant_value("NFT_OUTBOUND_MARK", "0x08000000");
 
-const SB_FAKEIP_INET4_RANGE = constant_value("SB_FAKEIP_INET4_RANGE", "198.18.0.0/15");
-const SB_FAKEIP_INET6_RANGE = constant_value("SB_FAKEIP_INET6_RANGE", "fc00::/18");
-const SB_TPROXY_INBOUND6_ADDRESS = constant_value("SB_TPROXY_INBOUND6_ADDRESS", "::1");
-const SB_TPROXY_INBOUND_PORT = constant_value("SB_TPROXY_INBOUND_PORT", "1602");
 const SB_SERVICE_MIXED_INBOUND_ADDRESS = constant_value("SB_SERVICE_MIXED_INBOUND_ADDRESS", "127.0.0.1");
 const SB_SERVICE_MIXED_INBOUND_PORT = constant_value("SB_SERVICE_MIXED_INBOUND_PORT", "4534");
 
 const ZAPRET_PROVIDER_NFQWS_BIN = constant_value("ZAPRET_PROVIDER_NFQWS_BIN", "/opt/zapret/nfq/nfqws");
-const ZAPRET_ROUTE_MARK_BASE = constant_value("ZAPRET_ROUTE_MARK_BASE", "0x01000000");
-const ZAPRET_QUEUE_BASE = constant_value("ZAPRET_QUEUE_BASE", "4000");
-const ZAPRET_DESYNC_MARK = constant_value("ZAPRET_DESYNC_MARK", "0x40000000");
-const ZAPRET_DESYNC_MARK_POSTNAT = constant_value("ZAPRET_DESYNC_MARK_POSTNAT", "0x20000000");
 const ZAPRET2_PROVIDER_NFQWS2_BIN = constant_value("ZAPRET2_PROVIDER_NFQWS2_BIN", "/opt/zapret2/nfq2/nfqws2");
-const ZAPRET2_ROUTE_MARK_BASE = constant_value("ZAPRET2_ROUTE_MARK_BASE", "0x02000000");
-const ZAPRET2_QUEUE_BASE = constant_value("ZAPRET2_QUEUE_BASE", "4300");
-const ZAPRET2_DESYNC_MARK = constant_value("ZAPRET2_DESYNC_MARK", "0x40000000");
-const ZAPRET2_DESYNC_MARK_POSTNAT = constant_value("ZAPRET2_DESYNC_MARK_POSTNAT", "0x20000000");
 const BYEDPI_BIN = constant_value("BYEDPI_BIN", "/usr/bin/ciadpi");
 
 const DNS_APPLY_UC = LIB_DIR + "/dns/apply.uc";
@@ -546,35 +528,7 @@ function validate_start_config() {
 }
 
 function nft_rebuild_runtime() {
-    return module_status(NFT_UC, [
-        "nft-rebuild-runtime-from-uci",
-        RT_TABLE_NAME,
-        NFT_TABLE_NAME,
-        NFT_LOCALV4_SET_NAME,
-        NFT_COMMON_SET_NAME,
-        NFT_PORT_SET_NAME,
-        NFT_IP_PORT_SET_NAME,
-        NFT_INTERFACE_SET_NAME,
-        NFT_FAKEIP_MARK,
-        NFT_OUTBOUND_MARK,
-        SB_FAKEIP_INET4_RANGE,
-        SB_TPROXY_INBOUND_PORT,
-        ZAPRET_PROVIDER_NFQWS_BIN,
-        ZAPRET_ROUTE_MARK_BASE,
-        ZAPRET_QUEUE_BASE,
-        ZAPRET_DESYNC_MARK,
-        ZAPRET_DESYNC_MARK_POSTNAT,
-        ZAPRET2_PROVIDER_NFQWS2_BIN,
-        ZAPRET2_ROUTE_MARK_BASE,
-        ZAPRET2_QUEUE_BASE,
-        ZAPRET2_DESYNC_MARK,
-        ZAPRET2_DESYNC_MARK_POSTNAT,
-        NFT_LOCALV6_SET_NAME,
-        NFT_COMMON6_SET_NAME,
-        NFT_IP_PORT6_SET_NAME,
-        SB_FAKEIP_INET6_RANGE,
-        SB_TPROXY_INBOUND6_ADDRESS
-    ]);
+    return module_status(NFT_UC, [ "nft-rebuild-runtime-from-uci" ]);
 }
 
 function nft_populate_runtime_sets() {

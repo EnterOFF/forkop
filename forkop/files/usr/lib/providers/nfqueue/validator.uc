@@ -151,7 +151,11 @@ function unsupported_reason(kind, token) {
     if (kind == "nfqws2" && base == "--fuzz")
         return "nfqws2 fuzz mode disables normal interception and is incompatible with Forkop-managed action=zapret2 rules.";
 
-    if (kind == "nfqws2" && token == "--intercept=0")
+    // Every spelling of off, not just the digit: action=zapret2 sends matched
+    // traffic through NFQUEUE, so a strategy that turns interception off drops it.
+    // The strategy editor already refuses these three while they are typed, and
+    // this is the side that also guards a strategy written straight into UCI.
+    if (kind == "nfqws2" && contains([ "--intercept=0", "--intercept=false", "--intercept=no" ], token))
         return "nfqws2 interception must stay enabled for Forkop-managed action=zapret2 rules.";
 
     if (base == "--daemon")
