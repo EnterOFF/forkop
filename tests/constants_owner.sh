@@ -101,9 +101,10 @@ reserved_ports_frontend="$(
 
 # A section or server display name becomes a runtime tag verbatim, so both dialogs
 # refuse the names Forkop already uses for its own listeners. LuCI cannot read ucode,
-# so the list is a copy - one copy, in section.js, which the Servers tab imports: a
-# tag added to the core table and not to that copy would let a dialog accept a name
-# the runtime check then rejects, and two copies drifted apart once already.
+# so each tab carries the list - its own copy, because a browser caches every view
+# module separately and an upgrade can leave an old one beside a new one, which is
+# what importing a name across two of them cannot survive. Both copies are held
+# against the core table here, which is what keeps them from drifting apart.
 reserved_backend="$(ucode -L "$FORKOP_LIB" -e '
   let c = require("singbox.constants");
   let names = [];
@@ -111,20 +112,17 @@ reserved_backend="$(ucode -L "$FORKOP_LIB" -e '
     push(names, name);
   print(join("\n", sort(names)), "\n");
 ')"
-reserved_frontend="$(
-  sed -n '/^const RESERVED_RUNTIME_TAGS = new Set(\[$/,/^\]);$/p' \
-    "$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js" |
-    sed -n 's/^  "\([^"]*\)",$/\1/p' | sort
-)"
-[ -n "$reserved_frontend" ] ||
-  fail "section.js must list the runtime tags both dialogs refuse as a display name"
-[ "$reserved_backend" = "$reserved_frontend" ] ||
-  fail "$(printf 'the reserved tag list differs from singbox/constants.uc\nbackend:\n%s\nfrontend:\n%s' "$reserved_backend" "$reserved_frontend")"
+for tab in server section; do
+  reserved_frontend="$(
+    sed -n '/^const RESERVED_RUNTIME_TAGS = new Set(\[$/,/^\]);$/p' \
+      "$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/$tab.js" |
+      sed -n 's/^  "\([^"]*\)",$/\1/p' | sort
+  )"
+  [ -n "$reserved_frontend" ] ||
+    fail "$tab.js must list the runtime tags its dialog refuses as a display name"
+  [ "$reserved_backend" = "$reserved_frontend" ] ||
+    fail "$(printf 'the reserved tag list in %s.js differs from singbox/constants.uc\nbackend:\n%s\nfrontend:\n%s' "$tab" "$reserved_backend" "$reserved_frontend")"
+done
 
-# And exactly one copy of it: the Servers tab reads the list off the Sections tab.
-if grep -Fq 'const RESERVED_RUNTIME_TAGS = new Set([' \
-  "$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js"; then
-  fail "the Servers tab must import the reserved tag list, not keep its own copy"
-fi
 
 printf 'constants ownership checks passed\n'

@@ -364,45 +364,25 @@ describe('other protocol links', () => {
     );
   });
 
-  // Every other listener here hands out a link that tells the client to accept the
-  // self signed certificate Forkop issued. A NaiveProxy client cannot be told that:
-  // the naive outbound of the core refuses tls.insecure outright and its link parser
-  // does not even read the parameter, so promising it would be a lie.
-  it('does not tell a naive client to skip the certificate check', () => {
-    const { link, client } = load(
-      {
-        protocol: 'naive',
-        security: 'tls',
-        tls_server_name: 'example.org',
-        tls_certificate_path: '/etc/forkop/server-certs/srv.crt',
-        tls_key_path: '/etc/forkop/server-certs/srv.key',
-      },
-      { name: 'alice', password: 'secret-password' },
-    );
+  // A server that keeps Forkop's own certificate serves a self-signed one, so every
+  // link it hands out tells the client to accept it.
+  it('tells a client to accept the generated certificate', () => {
+    for (const protocol of ['trojan', 'naive']) {
+      const { link, client } = load(
+        {
+          protocol,
+          security: 'tls',
+          tls_server_name: 'example.org',
+          tls_certificate_path: '/etc/forkop/server-certs/srv.crt',
+          tls_key_path: '/etc/forkop/server-certs/srv.key',
+        },
+        { name: 'alice', password: 'secret-password' },
+      );
 
-    const [{ link: url }] = link.buildClientLinks('srv', client);
-
-    expect(query(url).insecure).toBeUndefined();
-    expect(query(url).sni).toBe('example.org');
-  });
-
-  // And the same certificate on any other listener still carries the flag, so the
-  // exception above is the exception and not a dropped feature.
-  it('still tells a trojan client to accept the generated certificate', () => {
-    const { link, client } = load(
-      {
-        protocol: 'trojan',
-        security: 'tls',
-        tls_server_name: 'example.org',
-        tls_certificate_path: '/etc/forkop/server-certs/srv.crt',
-        tls_key_path: '/etc/forkop/server-certs/srv.key',
-      },
-      { password: 'secret-password' },
-    );
-
-    expect(query(link.buildClientLinks('srv', client)[0].link).insecure).toBe(
-      '1',
-    );
+      expect(query(link.buildClientLinks('srv', client)[0].link).insecure).toBe(
+        '1',
+      );
+    }
   });
 
   it('builds a Telegram proxy link that carries the FakeTLS host', () => {

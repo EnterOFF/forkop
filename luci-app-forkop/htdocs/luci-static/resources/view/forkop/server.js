@@ -37,10 +37,32 @@ const ROUTING_SECTION_ACTIONS = [
 const TAILSCALE_DETOUR_ACTIONS = ["connection", "proxy", "outbound", "vpn"];
 
 // Tags sing-box already uses for Forkop's own inbounds, outbounds and DNS servers.
-// A server name becomes an inbound tag verbatim, so these names are refused. The
-// list is the Sections tab's, because the runtime check refuses both kinds of name
-// against one table and two copies of it drifted apart once already.
-const RESERVED_RUNTIME_TAGS = sectionui.RESERVED_RUNTIME_TAGS;
+// A server name becomes an inbound tag verbatim, so these names are refused.
+//
+// The Sections tab keeps the same list rather than this one importing it. A browser
+// caches every view module on its own, so an upgrade can leave an old section.js next
+// to a new server.js, and a name imported across the two would be undefined there -
+// which takes out the validator, and with it the Save button. The contract test holds
+// both copies against singbox/constants.uc instead.
+const RESERVED_RUNTIME_TAGS = new Set([
+  "dns-server",
+  "fakeip-server",
+  "bootstrap-dns-server",
+  "dnsmasq-server",
+  "hosts-server",
+  "fakeip-dns-rule-tag",
+  "fakeip-ruleset-dns-rule-tag",
+  "service-fakeip-dns-rule-tag",
+  "tproxy-in",
+  "tproxy6-in",
+  "dns-in",
+  "source-dns-in",
+  "system-in",
+  "system6-in",
+  "system-dns-in",
+  "service-mixed-in",
+  "direct-out",
+]);
 
 // Ports Forkop's own sing-box instance binds. A server that takes one of them stops
 // the whole service instead of only failing itself.
@@ -1674,15 +1696,6 @@ function usesGeneratedCertificate(sectionId) {
   return !path || isForkopCertificatePath(path);
 }
 
-// NaiveProxy is the one listener whose client cannot be told to skip the check.
-// The naive outbound of the core refuses tls.insecure outright - "insecure is not
-// supported on naive outbound" - and its link parser does not even read the
-// parameter, because cronet verifies the chain the way a browser does. Putting
-// insecure=1 in that link would promise something no client can honour.
-function acceptsInsecureTls(sectionId) {
-  return getProtocol(sectionId) !== "naive";
-}
-
 function transportQuery(sectionId, params, grpcKey) {
   const transport = option(sectionId, "transport") || "tcp";
   params.type = transport === "raw" ? "tcp" : transport;
@@ -1728,7 +1741,7 @@ function tlsQuery(sectionId, params, includeSecurity) {
     }
   } else {
     params.sni = option(sectionId, "tls_server_name");
-    if (usesGeneratedCertificate(sectionId) && acceptsInsecureTls(sectionId)) {
+    if (usesGeneratedCertificate(sectionId)) {
       params.insecure = "1";
     }
   }
@@ -2952,6 +2965,34 @@ function injectServerStyles() {
   );
 }
 
+function configureTextareaOption(optionRef) {
+  const renderWidget = optionRef.renderWidget;
+
+  optionRef.renderWidget = function (sectionId, optionIndex, cfgvalue) {
+    const node = renderWidget.call(this, sectionId, optionIndex, cfgvalue);
+    const textarea =
+      node && typeof node.querySelector === "function"
+        ? node.querySelector("textarea")
+        : node;
+
+    if (textarea) {
+      [
+        ["spellcheck", "false"],
+        ["autocomplete", "off"],
+        ["autocorrect", "off"],
+        ["autocapitalize", "off"],
+        ["data-gramm", "false"],
+        ["data-gramm_editor", "false"],
+        ["data-enable-grammarly", "false"],
+      ].forEach(([name, value]) => textarea.setAttribute(name, value));
+      textarea.style.resize = "vertical";
+      textarea.style.maxWidth = "100%";
+    }
+
+    return node;
+  };
+}
+
 function widgetElement(node) {
   const instance = dom.findClassInstance(node);
   return instance && typeof instance.setValue === "function" ? instance : null;
@@ -3261,10 +3302,10 @@ function addCertificateButton(optionRef) {
         main.showToast(_("Could not generate a certificate"), "error");
         throw error;
       }),
-    // The certificate Forkop issues is self-signed. Every listener here but one hands
-    // out a link that tells the client to accept it; a NaiveProxy client cannot be
-    // told that, so an issued certificate there builds a server no link reaches.
-    acceptsInsecureTls,
+    // Not on NaiveProxy: its client verifies the certificate the way a browser does,
+    // so a self-signed one issued here is refused and the button would only build a
+    // listener nobody reaches. The field stays, for a certificate of your own.
+    (sectionId) => getProtocol(sectionId) !== "naive",
   );
 }
 
@@ -3760,9 +3801,9 @@ function addJsonInboundOptions(section) {
   o.modalonly = true;
   o.rmempty = false;
   o.validate = validateInboundJson;
-  // The same textarea the Sections tab gives its JSON fields, spelling out the
-  // input attributes once instead of twice.
-  sectionui.configureTextareaOption(o);
+  // Its own copy, for the same reason the reserved tag list is not imported: a
+  // browser can hold an old section.js next to this file.
+  configureTextareaOption(o);
 }
 
 function addListenerOptions(section) {

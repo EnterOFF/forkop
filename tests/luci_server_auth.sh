@@ -64,30 +64,15 @@ if (source.includes("describePerProtocol")) {
   fail("the per-protocol certificate description branch must be gone");
 }
 
-// The certificate Forkop issues is self-signed, and every listener but one hands out
-// a link telling the client to accept it. A NaiveProxy client cannot be told that -
-// the naive outbound of the core refuses tls.insecure outright - so no link is given
-// the flag there and no button offers a certificate no client would accept.
-const insecureRule = source.slice(
-  requiredIndex("function acceptsInsecureTls"),
-  requiredIndex("function transportQuery"),
-);
-if (!insecureRule.includes('getProtocol(sectionId) !== "naive"')) {
-  fail("NaiveProxy must be the listener that cannot promise an unchecked certificate");
-}
-if (
-  !source.includes(
-    "usesGeneratedCertificate(sectionId) && acceptsInsecureTls(sectionId)",
-  )
-) {
-  fail("the insecure link flag must follow the listener, not only the certificate");
-}
+// A NaiveProxy client verifies the certificate the way a browser does, so the
+// self-signed one Forkop issues is refused and the button that issues it is not
+// offered there. The two path fields stay, for a certificate of your own.
 const certificateButton = source.slice(
   requiredIndex("function addCertificateButton"),
   requiredIndex("function addSshHostKeyButton"),
 );
-if (!certificateButton.includes("acceptsInsecureTls")) {
-  fail("the certificate button must be withheld where a client would refuse the file");
+if (!certificateButton.includes('getProtocol(sectionId) !== "naive"')) {
+  fail("the certificate button must be withheld on a NaiveProxy listener");
 }
 const issueButton = source.slice(
   requiredIndex("function addIssueButton"),
