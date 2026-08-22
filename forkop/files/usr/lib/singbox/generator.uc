@@ -1232,52 +1232,6 @@ function add_proxy_selector(config, section, selector_tags, urltest_candidate_ta
     push(config.outbounds, selector);
 }
 
-function mixed_proxy_enabled_action(action) {
-    return action == "connection" || action == "proxy" || action == "outbound" || action == "vpn" ||
-        action == "byedpi" || action == "zapret" || action == "zapret2";
-}
-
-function add_mixed_proxy_for_section(config, section, service_address) {
-    if (!bool_option(section, "mixed_proxy_enabled", false))
-        return;
-
-    let action = option(section, "action", "");
-    if (!mixed_proxy_enabled_action(action))
-        runtime_generate_unsupported("mixed proxy inbound is not supported for action " + action);
-
-    let listen_port_value = option(section, "mixed_proxy_port", "");
-    if (match(listen_port_value, /^[0-9]+$/) == null)
-        runtime_generate_unsupported("mixed proxy port is invalid");
-    let listen_port = int(listen_port_value, 10);
-    if (listen_port < 1 || listen_port > 65535)
-        runtime_generate_unsupported("mixed proxy port is invalid");
-
-    let listen = as_string(service_address || "");
-    if (listen == "")
-        runtime_generate_unsupported("mixed proxy listen address is not set");
-
-    let inbound = {
-        type: "mixed",
-        tag: runtime_constants.section_inbound_tag(connections.section_display_name(section), "Mixed"),
-        listen,
-        listen_port
-    };
-
-    if (bool_option(section, "mixed_proxy_auth_enabled", false)) {
-        let username = option(section, "mixed_proxy_username", "");
-        let password = option(section, "mixed_proxy_password", "");
-        if (username == "" || password == "")
-            runtime_generate_unsupported("mixed proxy authentication is enabled but username or password is empty");
-        inbound.users = [{ username, password }];
-    }
-    push(config.inbounds, inbound);
-    push(config.route.rules, {
-        action: "route",
-        inbound: inbound.tag,
-        outbound: outbound_tag(section[".name"])
-    });
-}
-
 function add_service_mixed_proxy_inbound(config, tag_name, listen_port, outbound) {
     push(config.inbounds, {
         type: "mixed",
@@ -2390,8 +2344,6 @@ function generate_config(output_path, service_address, mwan3_active, deferred_se
     add_source_aware_dns_fallback(config, system_aware_dns);
     add_server_routes(config, servers, sections);
     add_service_mixed_proxy(config, settings, sections);
-    for (let section in sections)
-        add_mixed_proxy_for_section(config, section, service_address);
 
     assert_unique_outbound_tags(config);
     strip_internal_fields(config);

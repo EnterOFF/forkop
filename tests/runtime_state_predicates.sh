@@ -499,11 +499,6 @@ cat >"$WORK_DIR/sing-box-signature.json" <<'JSON'
       "subscription_update_enabled": "1",
       "outbound_detour_enabled": "1",
       "outbound_detour_section": "out1",
-      "mixed_proxy_enabled": "1",
-      "mixed_proxy_port": "2080",
-      "mixed_proxy_auth_enabled": "1",
-      "mixed_proxy_username": "user",
-      "mixed_proxy_password": "pass",
       "resolve_real_ip_for_routing": "1",
       "domain": [ "legacy.example" ],
       "domain_suffix": [ "full:full.example", "suffix.example" ],
@@ -525,15 +520,13 @@ cat >"$WORK_DIR/sing-box-signature.json" <<'JSON'
       "action": "outbound",
       "outbound_json": "{\"type\":\"direct\"}",
       "outbound_detour_enabled": "0",
-      "mixed_proxy_enabled": "0",
       "resolve_real_ip_for_routing": "0"
     },
     {
       ".name": "bye1",
       ".type": "section",
       "enabled": "1",
-      "action": "byedpi",
-      "mixed_proxy_enabled": "0"
+      "action": "byedpi"
     },
     {
       ".name": "vpn1",
@@ -541,7 +534,6 @@ cat >"$WORK_DIR/sing-box-signature.json" <<'JSON'
       "enabled": "1",
       "action": "vpn",
       "interface": "wg0",
-      "mixed_proxy_enabled": "0",
       "resolve_real_ip_for_routing": "yes"
     }
   ],
@@ -693,16 +685,6 @@ node-a
 1
 [rule.proxy1.outbound_detour_section]
 out1
-[rule.proxy1.mixed_proxy_enabled]
-1
-[rule.proxy1.mixed_proxy_port]
-2080
-[rule.proxy1.mixed_proxy_auth_enabled]
-1
-[rule.proxy1.mixed_proxy_username]
-user
-[rule.proxy1.mixed_proxy_password]
-pass
 [rule.proxy1.resolve_real_ip_for_routing]
 1
 [rule.proxy1.domain]
@@ -773,8 +755,6 @@ disabled
 
 [rule.out1.outbound_detour_enabled]
 0
-[rule.out1.mixed_proxy_enabled]
-0
 [rule.out1.resolve_real_ip_for_routing]
 0
 [rule.out1.domain]
@@ -805,8 +785,6 @@ byedpi
 bye1
 [rule.bye1.byedpi_index]
 1
-[rule.bye1.mixed_proxy_enabled]
-0
 [rule.bye1.resolve_real_ip_for_routing]
 1
 [rule.bye1.domain]
@@ -876,8 +854,6 @@ disabled
 [rule.vpn1.subscription_update_interval]
 
 [rule.vpn1.outbound_detour_enabled]
-0
-[rule.vpn1.mixed_proxy_enabled]
 0
 [rule.vpn1.resolve_real_ip_for_routing]
 1

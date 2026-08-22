@@ -177,8 +177,7 @@ cat >"$WORK_DIR/empty-connection-fixture.json" <<'JSON'
       ".type": "section",
       "enabled": "1",
       "action": "connection",
-      "domain_suffix": [ "empty.example" ],
-      "mixed_proxy_enabled": "1"
+      "domain_suffix": [ "empty.example" ]
     }
   ]
 }
@@ -703,12 +702,7 @@ cat >"$WORK_DIR/runtime-matchers-fixture.json" <<'JSON'
       "source_ip_cidr": "10.0.0.2/32 #10.0.0.99\n2001:db8::2/128 //2001:db8::99/128\n@system",
       "ports_text": "80 # 443\n8080 // 8443",
       "outbound_detour_enabled": "1",
-      "outbound_detour_section": "detour",
-      "mixed_proxy_enabled": "1",
-      "mixed_proxy_port": "19090",
-      "mixed_proxy_auth_enabled": "1",
-      "mixed_proxy_username": "user",
-      "mixed_proxy_password": "pass"
+      "outbound_detour_section": "detour"
     },
     {
       ".name": "proxy_global",
@@ -724,6 +718,30 @@ cat >"$WORK_DIR/runtime-matchers-fixture.json" <<'JSON'
       "enabled": "1",
       "action": "bypass",
       "domain": [ "source-priority.test" ]
+    }
+  ],
+  "server": [
+    {
+      ".name": "server_proxy_mixed",
+      ".type": "server",
+      "enabled": "1",
+      "label": "proxy - Mixed proxy",
+      "protocol": "mixed",
+      "mixed_auth_enabled": "1",
+      "listen": "0.0.0.0",
+      "listen_port": "19090",
+      "open_firewall": "0",
+      "routing_mode": "section",
+      "routing_section": "proxy"
+    }
+  ],
+  "server_client": [
+    {
+      ".name": "client_proxy_mixed",
+      ".type": "server_client",
+      "server": "server_proxy_mixed",
+      "name": "user",
+      "password": "pass"
     }
   ]
 }
@@ -1429,9 +1447,9 @@ assert(inbound(matchers, "system-in").listen_port == 1604 && inbound(matchers, "
 assert(route_rule(matchers, r => r.action == "reject" && r.ip_version == 6) == null, "IPv6 traffic is not rejected globally");
 assert(outbound(matchers, "direct-out").type == "direct", "direct outbound");
 assert(outbound(matchers, "proxy/Node #1").detour == "detour", "connection parser detour");
-let mixed = inbound(matchers, "proxy/Mixed");
-assert(mixed && mixed.listen_port == 19090 && mixed.users[0].username == "user", "mixed inbound auth");
-assert(route_rule(matchers, r => r.inbound == "proxy/Mixed" && r.outbound == "proxy") != null, "mixed inbound route");
+let mixed = inbound(matchers, "proxy - Mixed proxy");
+assert(mixed && mixed.listen_port == 19090 && mixed.users[0].username == "user", "mixed server auth");
+assert(route_rule(matchers, r => r.inbound == "proxy - Mixed proxy" && r.outbound == "proxy") != null, "mixed server section route");
 let source_dns_in = inbound(matchers, "source-dns-in");
 assert(source_dns_in && source_dns_in.type == "direct" && source_dns_in.listen == "::" && source_dns_in.listen_port == 1603, "source-aware DNS uses one dual-stack inbound");
 assert(route_rule(matchers, r => r.action == "sniff" && contains(r.inbound, "source-dns-in")) != null, "source-aware DNS inbound is sniffed before hijacking");

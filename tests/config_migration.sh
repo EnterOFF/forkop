@@ -292,7 +292,7 @@ assert(JSON.stringify(config.settings.bootstrap_dns_server) === JSON.stringify([
 assert(config.settings.unified_delay === '0', 'Unified Delay default missing');
 assert(config.settings.config_version === '1.0.5', 'legacy config should be marked at the current schema version');
 assert(config.settings.component_update_check_enabled === '1', 'component update checks should be enabled during migration');
-assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'tailscale_exit_node_switch', 'remove_expert_server_options', 'reality_handshake_sni']), 'legacy config should record named migrations');
+assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'tailscale_exit_node_switch', 'remove_expert_server_options', 'reality_handshake_sni', 'section_mixed_proxy_servers']), 'legacy config should record named migrations');
 
 function assert(condition, message) {
   if (!condition) {
@@ -643,7 +643,7 @@ function assert(condition, message) {
 assert(out.changed === true, '1.0.1 config should require migration');
 assert(out.config.settings.config_version === '1.0.5', 'config schema version should advance to 1.0.5');
 assert(out.config.settings.component_update_check_enabled === '1', 'updates from 1.0.1 and below should enable component update checks');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'tailscale_exit_node_switch', 'remove_expert_server_options', 'reality_handshake_sni']), 'named migrations should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'tailscale_exit_node_switch', 'remove_expert_server_options', 'reality_handshake_sni', 'section_mixed_proxy_servers']), 'named migrations should be recorded');
 assert(!Object.prototype.hasOwnProperty.call(section, 'interfaces'), 'parent interface list should be removed');
 assert(JSON.stringify(interfaces.map(item => item.name)) === JSON.stringify(['awg0', 'tun0']), 'interfaces should keep their order');
 for (const item of interfaces) {
@@ -844,7 +844,7 @@ function assert(condition, message) {
 
 assert(out.config.settings.component_update_check_enabled === '0', '1.0.2 config must preserve an explicitly disabled component check');
 assert(out.config.settings.config_version === '1.0.5', '1.0.2 config should advance through the HTTP URL migration schema');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'tailscale_exit_node_switch', 'remove_expert_server_options', 'reality_handshake_sni']), 'newer configs should mark skipped migrations');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'tailscale_exit_node_switch', 'remove_expert_server_options', 'reality_handshake_sni', 'section_mixed_proxy_servers']), 'newer configs should mark skipped migrations');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.4-http.json" <<'JSON'
@@ -897,7 +897,7 @@ assert(JSON.stringify(section.selector_proxy_links) === JSON.stringify([
 ]), 'connection URLs must stay owned by sing-box parser outbounds');
 assert(jsonOutbounds.length === 1 && jsonOutbounds[0].type === 'direct' && jsonOutbounds[0].tag === 'http',
   'the retired HTTP conversion must leave existing JSON outbounds unchanged');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'tailscale_exit_node_switch', 'remove_expert_server_options', 'reality_handshake_sni']), 'HTTP URL migration should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'tailscale_exit_node_switch', 'remove_expert_server_options', 'reality_handshake_sni', 'section_mixed_proxy_servers']), 'HTTP URL migration should be recorded');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.5-http.json" <<'JSON'
@@ -1142,7 +1142,7 @@ assert(JSON.stringify(config.fallback_level.map(item => item.name)) === JSON.str
 assert(out.removed_caches.includes('/var/run/forkop/section-cache') &&
   out.removed_caches.includes('/var/run/forkop/runtime-manifest.json'),
   'readable tag migration must remove both legacy runtime graph files');
-assert(config.settings.applied_migrations.at(-1) === 'reality_handshake_sni',
+assert(config.settings.applied_migrations.at(-1) === 'section_mixed_proxy_servers',
   'readable runtime tag migration must be recorded');
 NODE
 
@@ -1255,7 +1255,7 @@ if (!out.changed || config.section[0].sort_by_latency !== undefined ||
 }
 if (config.urltest[0].name !== 'Fast' || config.fallback_group[0].name !== 'Fallback' ||
     !config.settings.applied_migrations.includes('remove_dashboard_sort_options') ||
-    config.settings.applied_migrations.at(-1) !== 'reality_handshake_sni') {
+    config.settings.applied_migrations.at(-1) !== 'section_mixed_proxy_servers') {
   console.error('dashboard sort migration changed unrelated settings or missed its marker');
   process.exit(1);
 }
@@ -1349,7 +1349,7 @@ assert(sections.doh.dns_type === undefined &&
   'DNS action should preserve the old DoH path as a list');
 assert(JSON.stringify(sections.udp.dns_server) === JSON.stringify(['8.8.8.8']),
   'DNS action should migrate explicit UDP without a redundant scheme');
-assert(config.settings.applied_migrations.at(-1) === 'reality_handshake_sni',
+assert(config.settings.applied_migrations.at(-1) === 'section_mixed_proxy_servers',
   'DNS URI migration marker should be recorded');
 
 fs.writeFileSync(process.argv[3], JSON.stringify(config));
@@ -1514,7 +1514,7 @@ grep -Fxq 'forkop.settings.config_version=1.0.5' "$WORK_DIR/runtime-version.stat
   fail "runtime version migration must advance config_version"
 grep -Fxq 'forkop.settings.component_update_check_enabled=1' "$WORK_DIR/runtime-version.state" ||
   fail "runtime version migration must enable component update checks"
-grep -Fq 'forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter native_fallbacks dns_fallback_modes native_rule_sets universal_rule_sets leaf_subscription_providers extended_server_defaults fallback_uci_tags reset_fallback_defaults remove_proxy_parameter_filters server_filter_model server_filter_modes single_subscription_user_agent subscription_headers interface_display_names remove_section_cache remove_dashboard_sort_options dns_server_uris interface_domain_resolver_uris readable_runtime_tags urltest_expected_status group_interrupt_defaults subscription_user_agent_header mixed_server_inbounds shadowsocks_server_keys server_client_sections tailscale_exit_node_switch remove_expert_server_options reality_handshake_sni' "$WORK_DIR/runtime-version.state" ||
+grep -Fq 'forkop.settings.applied_migrations=interface_sections enable_component_checks http_connection_urls remove_server_country_and_dashboard_filter native_fallbacks dns_fallback_modes native_rule_sets universal_rule_sets leaf_subscription_providers extended_server_defaults fallback_uci_tags reset_fallback_defaults remove_proxy_parameter_filters server_filter_model server_filter_modes single_subscription_user_agent subscription_headers interface_display_names remove_section_cache remove_dashboard_sort_options dns_server_uris interface_domain_resolver_uris readable_runtime_tags urltest_expected_status group_interrupt_defaults subscription_user_agent_header mixed_server_inbounds shadowsocks_server_keys server_client_sections tailscale_exit_node_switch remove_expert_server_options reality_handshake_sni section_mixed_proxy_servers' "$WORK_DIR/runtime-version.state" ||
   fail "runtime migration must record stable migration names"
 grep -Fxq 'forkop.main.selector_proxy_links=http://proxy.example:8080' "$WORK_DIR/runtime-version.state" ||
   fail "runtime migration must preserve connection URLs for sing-box parser outbounds"
@@ -1926,6 +1926,130 @@ assert(!rerun.operations.some((item) => item.section === 'released_socks' ||
   item.section === 'released_mtproto'),
   'rerunning the released server migration must not touch a migrated server again');
 NODE
+cat >"$WORK_DIR/forkop-1.0.5-section-mixed-proxy.json" <<'JSON'
+{
+  "settings": {
+    ".name": "settings",
+    ".type": "settings",
+    "config_version": "1.0.5",
+    "applied_migrations": [
+      "interface_sections", "enable_component_checks", "http_connection_urls"
+    ]
+  },
+  "section": [
+    {
+      ".name": "main", ".type": "section", "label": "Main", "action": "connection",
+      "enabled": "1", "mixed_proxy_enabled": "1", "mixed_proxy_port": "2080",
+      "mixed_proxy_auth_enabled": "1", "mixed_proxy_username": "Ivan Petrov",
+      "mixed_proxy_password": "proxy-secret"
+    },
+    {
+      ".name": "paused", ".type": "section", "label": "Paused", "action": "zapret",
+      "enabled": "0", "mixed_proxy_enabled": "1", "mixed_proxy_port": "2081",
+      "mixed_proxy_auth_enabled": "0"
+    },
+    {
+      ".name": "quiet", ".type": "section", "label": "Quiet", "action": "connection",
+      "enabled": "1", "mixed_proxy_enabled": "0", "mixed_proxy_port": "2082"
+    },
+    {
+      ".name": "blocked", ".type": "section", "label": "Blocked", "action": "block",
+      "enabled": "1", "mixed_proxy_enabled": "1", "mixed_proxy_port": "2083"
+    }
+  ],
+  "server": [
+    {
+      ".name": "existing", ".type": "server", "protocol": "vless",
+      "label": "Main - Mixed proxy", "enabled": "1", "listen_port": "31443",
+      "public_host": "203.0.113.9", "security": "none",
+      "server_uuid": "66666666-6666-4666-8666-666666666666"
+    }
+  ]
+}
+JSON
+
+FORKOP_LIB="$FORKOP_LIB" ucode -L "$FORKOP_LIB" "$MIGRATION" migrate-fixture \
+  "$WORK_DIR/forkop-1.0.5-section-mixed-proxy.json" >"$WORK_DIR/section-mixed-proxy-output.json"
+
+node - "$WORK_DIR/section-mixed-proxy-output.json" "$WORK_DIR/section-mixed-proxy-rerun.json" <<'NODE'
+const fs = require('fs');
+const out = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const config = out.config;
+
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+const byName = (list) => Object.fromEntries((list || []).map((item) => [item['.name'], item]));
+const sections = byName(config.section);
+const servers = byName(config.server);
+const clientsOf = (name) =>
+  (config.server_client || []).filter((client) => client.server === name);
+const serverFor = (label) =>
+  (config.server || []).find((server) => server.label === label);
+
+assert(out.changed, 'the released section mixed proxy must migrate');
+
+// The released options leave every section, including the ones that only stored a
+// port next to a switch that was off.
+for (const name of ['main', 'paused', 'quiet', 'blocked']) {
+  for (const key of [
+    'mixed_proxy_enabled', 'mixed_proxy_port', 'mixed_proxy_auth_enabled',
+    'mixed_proxy_username', 'mixed_proxy_password',
+  ]) {
+    assert(!Object.prototype.hasOwnProperty.call(sections[name], key),
+      `${name} must not keep ${key}`);
+  }
+}
+
+// The listener the section served becomes a Mixed server routed back at it. The
+// firewall stays shut, because the released listener answered on the lan only.
+const main = serverFor('Main - Mixed proxy 2');
+assert(main, 'an enabled section proxy must become a server with a free display name');
+assert(servers.existing.label === 'Main - Mixed proxy',
+  'the server that already held the obvious name must keep it');
+assert(main.protocol === 'mixed' && main.listen === '0.0.0.0' &&
+  main.listen_port === '2080' && main.open_firewall === '0' && main.enabled === '1',
+  'a migrated proxy must listen on the released port with the firewall shut');
+assert(main.routing_mode === 'section' && main.routing_section === 'main',
+  'a migrated proxy must send its traffic to the section that served it');
+assert(main.mixed_auth_enabled === '1', 'released authentication must stay on');
+assert(clientsOf(main['.name']).length === 1 &&
+  clientsOf(main['.name'])[0].name === 'ivan-petrov' &&
+  clientsOf(main['.name'])[0].password === 'proxy-secret',
+  'the released login must become a login safe client with its password');
+
+// A section that was switched off served nothing, and a server may not route to a
+// disabled section, so the server it becomes is switched off too.
+const paused = serverFor('Paused - Mixed proxy');
+assert(paused && paused.enabled === '0' && paused.routing_section === 'paused',
+  'a disabled section must become a disabled server');
+assert(paused.mixed_auth_enabled === '0' && clientsOf(paused['.name']).length === 0,
+  'a proxy that asked for nothing must stay open with no accounts');
+
+// Nothing else grows a listener: the switch was off, or the action never had an
+// outbound the released generator could route the proxy to.
+assert(!serverFor('Quiet - Mixed proxy') && !serverFor('Blocked - Mixed proxy'),
+  'only a section that actually served a proxy becomes a server');
+assert((config.server || []).length === 3, 'no other server may appear');
+
+fs.writeFileSync(process.argv[3], JSON.stringify(config));
+NODE
+
+FORKOP_LIB="$FORKOP_LIB" ucode -L "$FORKOP_LIB" "$MIGRATION" migrate-fixture \
+  "$WORK_DIR/section-mixed-proxy-rerun.json" >"$WORK_DIR/section-mixed-proxy-rerun-output.json"
+
+node - "$WORK_DIR/section-mixed-proxy-output.json" "$WORK_DIR/section-mixed-proxy-rerun-output.json" <<'NODE'
+const fs = require('fs');
+const first = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const second = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
+
+if (second.changed || JSON.stringify(first.config) !== JSON.stringify(second.config)) {
+  console.error('the section mixed proxy migration is not idempotent');
+  process.exit(1);
+}
+NODE
+
 : >"$WORK_DIR/uci-commit.log"
 : >"$WORK_DIR/uci-commit.state"
 FORKOP_UCI_STATE_FILE="$WORK_DIR/uci-commit.state" \

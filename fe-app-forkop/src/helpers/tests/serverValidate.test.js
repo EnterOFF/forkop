@@ -79,20 +79,6 @@ describe('listen port validation', () => {
     }
   });
 
-  it('rejects a port a section already serves its mixed proxy on', () => {
-    const { validate } = load({
-      rule: {
-        '.type': 'section',
-        label: 'Netflix',
-        enabled: '1',
-        mixed_proxy_enabled: '1',
-        mixed_proxy_port: '8080',
-      },
-    });
-
-    expect(validate.validateListenPort('srv', '8080')).toMatch(/Netflix/);
-  });
-
   it('ignores disabled servers and out-of-range ports', () => {
     const { validate } = load({
       off: {

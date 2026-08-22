@@ -1560,16 +1560,6 @@ function occupiedPorts(currentSectionId) {
     );
   });
 
-  (uci.sections(UCI_PACKAGE, "section") || []).forEach((section) => {
-    if (section.enabled === "0" || section.mixed_proxy_enabled !== "1") {
-      return;
-    }
-    claim(
-      section.mixed_proxy_port,
-      _("section %s").format(section.label || section[".name"]),
-    );
-  });
-
   (systemPortsCache || []).forEach((entry) => claim(entry.port, entry.owner));
 
   return owners;

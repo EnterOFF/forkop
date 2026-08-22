@@ -1677,17 +1677,6 @@ function validate_server_listen_ports() {
             fail_validation("Server '" + name + "' listens on port " + port + ", which is already used by " + owners[port] + ". Aborted.");
         owners[port] = "server '" + name + "'";
     }
-
-    for (let section in sections_by_type("section")) {
-        section = object_or_empty(section);
-        if (!bool_option(section, "enabled", true) || !bool_option(section, "mixed_proxy_enabled", false))
-            continue;
-
-        let port = option(section, "mixed_proxy_port", "");
-        if (port == "" || owners[port] == null)
-            continue;
-        fail_validation("Section '" + section_name(section) + "' serves its mixed proxy on port " + port + ", which is already used by " + owners[port] + ". Aborted.");
-    }
 }
 
 // Security material a protocol cannot start without. Forkop never sets the inbound

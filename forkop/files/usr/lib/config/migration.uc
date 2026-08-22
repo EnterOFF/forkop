@@ -2286,6 +2286,129 @@ function migrate_tailscale_exit_node(ctx) {
             set_option_if_missing(ctx, server, "tailscale_advertise_exit_node", "1");
 }
 
+// The section settings carried a mixed proxy of their own: one listener on the
+// service address that handed everything it accepted to that section. The Servers
+// tab owns every inbound Forkop opens now, and a mixed server routed to a section is
+// that listener with a name, a client list and a firewall switch, so each released
+// switch becomes such a server instead of a second way to open a port.
+const MIXED_PROXY_SECTION_ACTIONS = {
+    connection: true,
+    proxy: true,
+    outbound: true,
+    vpn: true,
+    byedpi: true,
+    zapret: true,
+    zapret2: true
+};
+
+const MIXED_PROXY_SECTION_OPTIONS = [
+    "mixed_proxy_enabled",
+    "mixed_proxy_port",
+    "mixed_proxy_auth_enabled",
+    "mixed_proxy_username",
+    "mixed_proxy_password"
+];
+
+function section_label(section) {
+    return trim(option(section, "label", "")) || section_name(section);
+}
+
+function taken_display_names(ctx) {
+    let result = {};
+    for (let section in ctx.model.sections || [])
+        result[section_label(section)] = true;
+    for (let server in ctx.model.servers || [])
+        result[section_label(server)] = true;
+    return result;
+}
+
+function taken_section_names(ctx) {
+    let result = { settings: true };
+    for (let list in [ ctx.model.sections || [], ctx.model.rules || [], ctx.model.servers || [] ])
+        for (let section in list)
+            result[section_name(section)] = true;
+    for (let type_name in CHILD_ITEM_TYPES)
+        for (let section in ctx.model[type_name] || [])
+            result[section_name(section)] = true;
+    return result;
+}
+
+// Both the display name and the uci id have to be free, and a config that already
+// holds the obvious candidate gets the next number instead of a silent collision:
+// two servers of one name fail validation, and two ids write over each other.
+function claim_free_name(taken, name, separator) {
+    let candidate = name;
+    for (let suffix = 2; taken[candidate]; suffix++)
+        candidate = name + separator + suffix;
+    taken[candidate] = true;
+    return candidate;
+}
+
+function create_server_section(ctx, name) {
+    let server = { ".name": name, ".type": "server" };
+    push(ctx.model.servers, server);
+    record_operation(ctx, { op: "create", section: name, type: "server" });
+    return server;
+}
+
+function migrate_section_mixed_proxies(ctx) {
+    let display_names = null;
+    let section_names = null;
+
+    for (let section in ctx.model.sections || []) {
+        let port = option(section, "mixed_proxy_port", "");
+        let port_number = match(port, /^[0-9]+$/) != null ? int(port, 10) : 0;
+        let auth = bool_option(section, "mixed_proxy_auth_enabled", false);
+        let username = option(section, "mixed_proxy_username", "");
+        let password = option(section, "mixed_proxy_password", "");
+        // What the released dialog could produce. Anything else never reached a
+        // listener either: the generator refused to write the whole configuration
+        // over a port it could not use, an action with no outbound to route to, or
+        // authentication with half a login, so there is nothing to carry over.
+        let convert = bool_option(section, "mixed_proxy_enabled", false) &&
+            MIXED_PROXY_SECTION_ACTIONS[option(section, "action", "")] &&
+            port_number >= 1 && port_number <= 65535 &&
+            (!auth || (username != "" && password != ""));
+
+        for (let key in MIXED_PROXY_SECTION_OPTIONS)
+            delete_option(ctx, section, key);
+
+        if (!convert)
+            continue;
+
+        if (display_names == null) {
+            display_names = taken_display_names(ctx);
+            section_names = taken_section_names(ctx);
+        }
+
+        let server = create_server_section(ctx,
+            claim_free_name(section_names, "server_" + section_name(section) + "_mixed", "_"));
+        set_option(ctx, server, "label",
+            claim_free_name(display_names, section_label(section) + " - Mixed proxy", " "));
+        // A disabled section had no listener and a server may not route to one, so
+        // the switch of the section decides the switch of the server.
+        set_option(ctx, server, "enabled", bool_option(section, "enabled", true) ? "1" : "0");
+        set_option(ctx, server, "protocol", "mixed");
+        // The released listener followed the service address, which is read from the
+        // lan interface on every start and is no value to freeze into the config. The
+        // firewall stays shut instead, so the port answers on the lan and nowhere else.
+        set_option(ctx, server, "listen", "0.0.0.0");
+        set_option(ctx, server, "listen_port", port);
+        set_option(ctx, server, "open_firewall", "0");
+        set_option(ctx, server, "routing_mode", "section");
+        set_option(ctx, server, "routing_section", section_name(section));
+        set_option(ctx, server, "mixed_auth_enabled", auth ? "1" : "0");
+
+        if (!auth)
+            continue;
+
+        let client = create_child_for_owner(ctx, server, "server_client", "server");
+        // A Mixed account is a login name, and the released field took any text.
+        set_option(ctx, client, "name", login_safe_value(username, "client"));
+        set_option(ctx, client, "password", password);
+    }
+}
+
 const MIGRATIONS = [
     { id: "interface_sections", run: migrate_interface_sections },
     { id: "enable_component_checks", run: migrate_enable_component_checks },
@@ -2320,7 +2443,8 @@ const MIGRATIONS = [
     { id: "server_client_sections", run: migrate_server_clients },
     { id: "tailscale_exit_node_switch", run: migrate_tailscale_exit_node },
     { id: "remove_expert_server_options", run: remove_expert_server_options },
-    { id: "reality_handshake_sni", run: merge_reality_handshake_into_sni }
+    { id: "reality_handshake_sni", run: merge_reality_handshake_into_sni },
+    { id: "section_mixed_proxy_servers", run: migrate_section_mixed_proxies }
 ];
 
 function apply_migrations(ctx) {

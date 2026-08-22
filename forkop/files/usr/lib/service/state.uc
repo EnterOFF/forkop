@@ -823,23 +823,6 @@ function sing_box_signature_enabled_action_index(sections, target_section, actio
     return 0;
 }
 
-function signature_add_mixed_proxy_body(body, section, prefix) {
-    let mixed_proxy_enabled = bool_option_value(section, "mixed_proxy_enabled", false);
-    body = signature_add_value(body, prefix + ".mixed_proxy_enabled", mixed_proxy_enabled);
-
-    if (mixed_proxy_enabled == "1") {
-        body = signature_add_value(body, prefix + ".mixed_proxy_port", option(section, "mixed_proxy_port", ""));
-        let auth_enabled = bool_option_value(section, "mixed_proxy_auth_enabled", false);
-        body = signature_add_value(body, prefix + ".mixed_proxy_auth_enabled", auth_enabled);
-        if (auth_enabled == "1") {
-            body = signature_add_value(body, prefix + ".mixed_proxy_username", option(section, "mixed_proxy_username", ""));
-            body = signature_add_value(body, prefix + ".mixed_proxy_password", option(section, "mixed_proxy_password", ""));
-        }
-    }
-
-    return body;
-}
-
 function signature_add_outbound_detour_body(body, section, prefix) {
     let outbound_detour_enabled = bool_option_value(section, "outbound_detour_enabled", false);
     body = signature_add_value(body, prefix + ".outbound_detour_enabled", outbound_detour_enabled);
@@ -888,16 +871,11 @@ function append_sing_box_rule_signature_body(body, section, sections) {
         body = signature_add_value(body, prefix + ".urltest_include_regex", option(section, "urltest_include_regex", ""));
         body = signature_add_value(body, prefix + ".subscription_update_interval", section_subscription_update_interval(section));
         body = signature_add_outbound_detour_body(body, section, prefix);
-        body = signature_add_mixed_proxy_body(body, section, prefix);
         body = signature_add_value(body, prefix + ".resolve_real_ip_for_routing", bool_option_value(section, "resolve_real_ip_for_routing", false));
     }
     else if (action == "byedpi") {
         body = signature_add_value(body, prefix + ".byedpi_index", sing_box_signature_enabled_action_index(sections, name, "byedpi"));
-        body = signature_add_mixed_proxy_body(body, section, prefix);
         body = signature_add_value(body, prefix + ".resolve_real_ip_for_routing", "1");
-    }
-    else if (action == "zapret" || action == "zapret2") {
-        body = signature_add_mixed_proxy_body(body, section, prefix);
     }
     else if (action == "dns") {
         for (let value in list_option(section, "dns_server"))

@@ -153,10 +153,6 @@ function child_tag(section_name, display_name) {
     return as_string(section_name) + "/" + as_string(display_name);
 }
 
-function section_inbound_tag(section_name, display_name) {
-    return child_tag(section_name, display_name);
-}
-
 function domain_resolver_tag(section_name) {
     return tag(section_name, "domain-resolver");
 }
@@ -224,7 +220,6 @@ return {
     inbound_tag,
     outbound_tag,
     child_tag,
-    section_inbound_tag,
     domain_resolver_tag,
     server_inbound_tag,
     tailscale_dns_server_tag

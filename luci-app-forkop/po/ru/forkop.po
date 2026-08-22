@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-21 02:58+0300\n"
-"PO-Revision-Date: 2026-08-21 02:58+0300\n"
+"POT-Creation-Date: 2026-08-22 06:24+0300\n"
+"PO-Revision-Date: 2026-08-22 06:24+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -43,39 +43,6 @@ msgstr "+ Добавить туннель"
 
 msgid "+ Add URLTest"
 msgstr "+ Добавить URLTest"
-
-msgid "Authorization key"
-msgstr "Ключ авторизации"
-
-msgid "Certificate generated"
-msgstr "Сертификат создан"
-
-msgid "Could not generate a certificate"
-msgstr "Не удалось создать сертификат"
-
-msgid "Could not generate a host key"
-msgstr "Не удалось создать ключ хоста"
-
-msgid "Generate a certificate"
-msgstr "Создать сертификат"
-
-msgid "Generate a host key"
-msgstr "Создать ключ хоста"
-
-msgid "Generate a key pair"
-msgstr "Сгенерировать пару ключей"
-
-msgid "Host key generated"
-msgstr "Ключ хоста создан"
-
-msgid "Override routing"
-msgstr "Переопределить маршрутизацию"
-
-msgid "Route this client on its own path instead of the rest of the server."
-msgstr "Использовать для этого клиента отдельный путь маршрутизации вместо серверного."
-
-msgid "Show a QR code"
-msgstr "Показать QR-код"
 
 msgid "✔ Running"
 msgstr "✔ Работает"
@@ -203,6 +170,9 @@ msgstr "Добавляет маскировку трафика по механи
 msgid "Advanced settings"
 msgstr "Дополнительные настройки"
 
+msgid "Advertise exit node"
+msgstr "Объявить выходным узлом"
+
 msgid "Advertise routes"
 msgstr "Анонсировать маршруты"
 
@@ -230,6 +200,9 @@ msgstr "Разрешённые IP-адреса"
 msgid "Allows access to YACD from the WAN. Make sure to open the appropriate port in your firewall."
 msgstr "Обеспечивает доступ к YACD из WAN. Убедитесь, что в брандмауэре открыт соответствующий порт."
 
+msgid "Allows incoming connections to this port from the internet"
+msgstr "Разрешает входящие подключения на этот порт из интернета"
+
 msgid "ALPN"
 msgstr "ALPN"
 
@@ -253,6 +226,9 @@ msgstr "Auth Key из панели управления Tailscale"
 
 msgid "Authentication"
 msgstr "Аутентификация"
+
+msgid "Authorization key"
+msgstr "Ключ авторизации"
 
 msgid "Auto refresh"
 msgstr "Автообновление"
@@ -358,6 +334,9 @@ msgstr "Каскадное подключение"
 
 msgid "Certificate domain (SNI)"
 msgstr "Домен сертификата (SNI)"
+
+msgid "Certificate generated"
+msgstr "Сертификат создан"
 
 msgid "Certificate path"
 msgstr "Путь к сертификату"
@@ -499,6 +478,12 @@ msgstr "Скопировать ссылку прокси"
 
 msgid "Could not compare FakeIP and control public IPs"
 msgstr "Не удалось сравнить публичные IP FakeIP и контрольной проверки"
+
+msgid "Could not generate a certificate"
+msgstr "Не удалось создать сертификат"
+
+msgid "Could not generate a host key"
+msgstr "Не удалось создать ключ хоста"
 
 msgid "Could not generate a Reality key pair"
 msgstr "Не удалось сгенерировать пару ключей Reality"
@@ -710,12 +695,6 @@ msgstr "Включить автостарт"
 msgid "Enable built-in DNS resolver for domains handled by this section"
 msgstr "Включить встроенный DNS-резолвер для доменов, обрабатываемых этой секцией"
 
-msgid "Enable Mixed Proxy"
-msgstr "Включить смешанный прокси"
-
-msgid "Enable Mixed Proxy Authentication"
-msgstr "Включить авторизацию смешанного прокси"
-
 msgid "Enable Output Network Interface"
 msgstr "Включить выходной сетевой интерфейс"
 
@@ -833,9 +812,6 @@ msgstr "Ожидаемый статус"
 msgid "Expires"
 msgstr "Истекает"
 
-msgid "Expose this section as a local HTTP+SOCKS proxy"
-msgstr "Открыть эту секцию как локальный HTTP+SOCKS прокси"
-
 msgid "External nfqws config files bypass Forkop queue management and explicit validation."
 msgstr "Внешние конфиги nfqws обходят управление очередями и явную валидацию Forkop."
 
@@ -892,6 +868,9 @@ msgstr "Самый быстрый"
 
 msgid "Fill in the credentials of this client to get a link."
 msgstr "Заполните учётные данные клиента, чтобы получить ссылку."
+
+msgid "Filled in together with the private key."
+msgstr "Заполняется автоматически вместе с приватным ключом."
 
 msgid "Firewall WAN port"
 msgstr "Порт в firewall для WAN"
@@ -980,6 +959,15 @@ msgstr "Fuzzing здесь не поддерживается, потому чт�
 msgid "Generate"
 msgstr "Сгенерировать"
 
+msgid "Generate a certificate"
+msgstr "Создать сертификат"
+
+msgid "Generate a host key"
+msgstr "Создать ключ хоста"
+
+msgid "Generate a key pair"
+msgstr "Сгенерировать пару ключей"
+
 msgid "Generate a key pair with the button next to the field"
 msgstr "Сгенерируйте пару ключей кнопкой рядом с полем"
 
@@ -1030,6 +1018,9 @@ msgstr "Скрывать значения"
 
 msgid "Host"
 msgstr "Хост"
+
+msgid "Host key generated"
+msgstr "Ключ хоста создан"
 
 msgid "How long to wait for a connection to a server before trying the next one"
 msgstr "Сколько ждать подключение к серверу, прежде чем попробовать следующий"
@@ -1144,9 +1135,6 @@ msgstr "Недействительная или неподдерживаемая
 
 msgid "Invalid path format. Path must start with \"/\" and contain valid characters"
 msgstr "Неверный формат пути. Путь должен начинаться с \"/\" и содержать допустимые символы"
-
-msgid "Invalid port number. Must be between 1 and 65535"
-msgstr "Неверный номер порта. Допустимо от 1 до 65535"
 
 msgid "Invalid port or range. Use 80 or 1000-2000"
 msgstr "Неверный порт или диапазон. Используйте 80 или 1000-2000"
@@ -1310,15 +1298,6 @@ msgstr "Метод"
 msgid "Minimum latency difference in milliseconds that triggers switching to a faster server."
 msgstr "Минимальная разница задержки в миллисекундах, при которой произойдет переключение на более быстрый сервер."
 
-msgid "Mixed Proxy Password"
-msgstr "Пароль смешанного прокси"
-
-msgid "Mixed Proxy Port"
-msgstr "Порт смешанного прокси"
-
-msgid "Mixed Proxy Username"
-msgstr "Логин смешанного прокси"
-
 msgid "Monitored Interfaces"
 msgstr "Наблюдаемые интерфейсы"
 
@@ -1469,6 +1448,12 @@ msgstr "Обфускация"
 msgid "Obfuscation password"
 msgstr "Пароль обфускации"
 
+msgid "Off means anyone who reaches the port may use the proxy."
+msgstr "Если выключено, прокси доступен всем, кто дозвонится до порта."
+
+msgid "Offer this router as an exit node. It still has to be approved in the Tailscale console."
+msgstr "Предложить роутер как выходной узел. Его всё равно нужно подтвердить в консоли Tailscale."
+
 msgid "One rule per line as pattern => replacement, applied in order. The pattern is a regular expression; use $1 in the replacement to keep a captured group. Example: ^HK-(.*)$ => Hong Kong $1"
 msgstr "По одному правилу в строке в виде шаблон => замена, применяются по порядку. Шаблон — регулярное выражение; используйте $1 в замене, чтобы сохранить найденную группу. Пример: ^HK-(.*)$ => Гонконг $1"
 
@@ -1495,6 +1480,9 @@ msgstr "Откройте настройки пира и завершите ко�
 
 msgid "Open Project Page"
 msgstr "Открыть страницу проекта"
+
+msgid "Open the port"
+msgstr "Открыть порт"
 
 msgid "Open tunnel settings and complete the configuration"
 msgstr "Откройте настройки туннеля и завершите конфигурацию"
@@ -1532,6 +1520,9 @@ msgstr "outbounds должен быть непустым массивом стр
 msgid "Output Network Interface"
 msgstr "Выходной сетевой интерфейс"
 
+msgid "Override routing"
+msgstr "Переопределить маршрутизацию"
+
 msgid "Padding"
 msgstr "Padding"
 
@@ -1540,9 +1531,6 @@ msgstr "Параллельно"
 
 msgid "Password"
 msgstr "Пароль"
-
-msgid "Password cannot be empty"
-msgstr "Пароль не может быть пустым"
 
 msgid "Paste a configuration or vpn:// link"
 msgstr "Вставьте конфигурацию или ссылку vpn://"
@@ -1583,14 +1571,8 @@ msgstr "Выбрать свободный порт"
 msgid "Port %s is already used by %s"
 msgstr "Порт %s уже занят: %s"
 
-msgid "Port cannot be empty"
-msgstr "Порт не может быть пустым"
-
 msgid "Port conflict"
 msgstr "Конфликт порта"
-
-msgid "Port for the local mixed proxy of this section"
-msgstr "Порт локального смешанного прокси для этой секции"
 
 msgid "Port must be between 1 and 65535"
 msgstr "Порт должен быть от 1 до 65535"
@@ -1624,6 +1606,9 @@ msgstr "Протокол"
 
 msgid "Proxy link is unavailable"
 msgstr "Ссылка прокси недоступна"
+
+msgid "Public address"
+msgstr "Публичный адрес"
 
 msgid "Public key"
 msgstr "Публичный ключ"
@@ -1679,14 +1664,50 @@ msgstr "Переименование серверов"
 msgid "Replaces the domain servers of this subscription send during the TLS handshake."
 msgstr "Заменяет домен, который серверы этой подписки отправляют при TLS-рукопожатии."
 
-msgid "Require a username and password for the local mixed proxy"
-msgstr "Требовать логин и пароль для локального смешанного прокси"
+msgid "Required. A certificate issued for this address."
+msgstr "Обязательно. Сертификат, выданный на этот адрес."
+
+msgid "Required. A complete sing-box inbound. Forkop fills in the tag."
+msgstr "Обязательно. Целиком inbound sing-box. Тег подставит Forkop."
+
+msgid "Required. A key from the Tailscale console."
+msgstr "Обязательно. Ключ из консоли Tailscale."
+
+msgid "Required. Create a new key with the button."
+msgstr "Обязательно. Создайте новый ключ кнопкой."
+
+msgid "Required. Every client has to send the same value."
+msgstr "Обязательно. Все клиенты должны передавать то же значение."
+
+msgid "Required. Generate a pair with the button."
+msgstr "Обязательно. Сгенерируйте пару кнопкой."
 
 msgid "Required. List of remote nodes to connect."
 msgstr "Обязательно. Список удаленных узлов для подключения."
 
 msgid "Required. Server groups are tried from top to bottom until one succeeds"
 msgstr "Обязательно. Группы серверов проверяются сверху вниз до первой рабочей"
+
+msgid "Required. The address the connection links point at."
+msgstr "Обязательно. Адрес, на который указывают ссылки подключения."
+
+msgid "Required. The clients that may connect"
+msgstr "Обязательно. Клиенты для подключения"
+
+msgid "Required. The name this device appears under in the Tailscale console."
+msgstr "Обязательно. Под этим именем устройство видно в консоли Tailscale."
+
+msgid "Required. The private key of the certificate."
+msgstr "Обязательно. Приватный ключ сертификата."
+
+msgid "Required. The section that carries the control-plane traffic."
+msgstr "Обязательно. Секция, через которую идёт трафик к серверу координации."
+
+msgid "Required. Where the traffic of this client leaves."
+msgstr "Обязательно. Куда уходит трафик этого клиента."
+
+msgid "Required. Where the traffic of this server leaves."
+msgstr "Обязательно. Куда уходит трафик этого сервера."
 
 msgid "Resolve domain names before routing so sing-box can use real destination IPs."
 msgstr "Разрешать доменные имена перед маршрутизацией, чтобы sing-box использовал реальные IP-адреса назначения."
@@ -1726,6 +1747,9 @@ msgstr "Маршрутизировать основные DNS-запросы ч�
 
 msgid "Route the resolver's DNS requests through a section instead of this network interface."
 msgstr "Маршрутизировать DNS-запросы резолвера через секцию, а не через этот сетевой интерфейс."
+
+msgid "Route this client on its own path instead of the rest of the server."
+msgstr "Использовать для этого клиента отдельный путь маршрутизации вместо серверного."
 
 msgid "router SSH"
 msgstr "SSH роутера"
@@ -1789,9 +1813,6 @@ msgstr "Секретный ключ для аутентификации удал
 
 msgid "Section"
 msgstr "Секция"
-
-msgid "section %s"
-msgstr "секция %s"
 
 msgid "Section name"
 msgstr "Имя секции"
@@ -1895,6 +1916,9 @@ msgstr "Настройки группы серверов"
 msgid "Server groups"
 msgstr "Группы серверов"
 
+msgid "Server key"
+msgstr "Ключ сервера"
+
 msgid "Server name"
 msgstr "Имя сервера"
 
@@ -1946,6 +1970,9 @@ msgstr "Укажите публичный адрес и порт, чтобы п�
 msgid "Settings"
 msgstr "Настройки"
 
+msgid "Show a QR code"
+msgstr "Показать QR-код"
+
 msgid "Show forkop config"
 msgstr "Показать forkop конфигурацию"
 
@@ -1990,6 +2017,9 @@ msgstr "Сервис sing-box существует"
 
 msgid "Sing-box version is compatible (newer than 1.12.4)"
 msgstr "Версия Sing-box совместима (новее 1.12.4)"
+
+msgid "SNI"
+msgstr "SNI"
 
 msgid "SOCKS5"
 msgstr "SOCKS5"
@@ -2128,6 +2158,9 @@ msgstr "Сертификат и ключ должны быть разными ф
 
 msgid "The desync fwmark is managed by Forkop for loop prevention and must not be overridden here."
 msgstr "Desync fwmark управляется Forkop для защиты от циклов и не должен переопределяться здесь."
+
+msgid "The domain a client sends in the TLS handshake."
+msgstr "Домен, который клиент передаёт в TLS-рукопожатии."
 
 msgid "The name must not contain /"
 msgstr "Имя не должно содержать /"
@@ -2408,6 +2441,9 @@ msgstr "Укажите IP-адрес с префиксом CIDR"
 msgid "Use an IP address, 0.0.0.0 for all IPv4, or :: for all addresses"
 msgstr "Укажите IP-адрес, 0.0.0.0 для всех IPv4 или :: для всех адресов"
 
+msgid "Use an OpenSSH public key line"
+msgstr "Укажите строку публичного ключа OpenSSH"
+
 msgid "Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, Tailscale, JSON outbounds, or JSON endpoints."
 msgstr "Используйте другую секцию как промежуточный узел для подключения к серверам этой секции. Не применяется к сетевым интерфейсам, Tailscale, JSON outbound и JSON endpoint."
 
@@ -2437,9 +2473,6 @@ msgstr "Используется"
 
 msgid "User name"
 msgstr "Имя пользователя"
-
-msgid "Username cannot be empty"
-msgstr "Логин не может быть пустым"
 
 msgid "UUID"
 msgstr "UUID"
@@ -2572,75 +2605,3 @@ msgstr "sing-box outbound для Zapret2 настроен"
 
 msgid "Zapret2 sing-box outbound is not configured"
 msgstr "sing-box outbound для Zapret2 не настроен"
-
-msgid "Required. Where the traffic of this client leaves."
-msgstr "Обязательно. Куда уходит трафик этого клиента."
-
-msgid "Required. A key from the Tailscale console."
-msgstr "Обязательно. Ключ из консоли Tailscale."
-
-msgid "Required. The name this device appears under in the Tailscale console."
-msgstr "Обязательно. Под этим именем устройство видно в консоли Tailscale."
-
-msgid "Advertise exit node"
-msgstr "Объявить выходным узлом"
-
-msgid "Offer this router as an exit node. It still has to be approved in the Tailscale console."
-msgstr "Предложить роутер как выходной узел. Его всё равно нужно подтвердить в консоли Tailscale."
-
-msgid "Required. The section that carries the control-plane traffic."
-msgstr "Обязательно. Секция, через которую идёт трафик к серверу координации."
-
-msgid "Required. A complete sing-box inbound. Forkop fills in the tag."
-msgstr "Обязательно. Целиком inbound sing-box. Тег подставит Forkop."
-
-msgid "Public address"
-msgstr "Публичный адрес"
-
-msgid "Required. The address the connection links point at."
-msgstr "Обязательно. Адрес, на который указывают ссылки подключения."
-
-msgid "Server key"
-msgstr "Ключ сервера"
-
-msgid "Off means anyone who reaches the port may use the proxy."
-msgstr "Если выключено, прокси доступен всем, кто дозвонится до порта."
-
-msgid "Required. Every client has to send the same value."
-msgstr "Обязательно. Все клиенты должны передавать то же значение."
-
-msgid "SNI"
-msgstr "SNI"
-
-msgid "Required. Where the traffic of this server leaves."
-msgstr "Обязательно. Куда уходит трафик этого сервера."
-
-msgid "Use an OpenSSH public key line"
-msgstr "Укажите строку публичного ключа OpenSSH"
-
-msgid "Open the port"
-msgstr "Открыть порт"
-
-msgid "Allows incoming connections to this port from the internet"
-msgstr "Разрешает входящие подключения на этот порт из интернета"
-
-msgid "Required. Create a new key with the button."
-msgstr "Обязательно. Создайте новый ключ кнопкой."
-
-msgid "The domain a client sends in the TLS handshake."
-msgstr "Домен, который клиент передаёт в TLS-рукопожатии."
-
-msgid "Required. A certificate issued for this address."
-msgstr "Обязательно. Сертификат, выданный на этот адрес."
-
-msgid "Required. The private key of the certificate."
-msgstr "Обязательно. Приватный ключ сертификата."
-
-msgid "Required. Generate a pair with the button."
-msgstr "Обязательно. Сгенерируйте пару кнопкой."
-
-msgid "Filled in together with the private key."
-msgstr "Заполняется автоматически вместе с приватным ключом."
-
-msgid "Required. The clients that may connect"
-msgstr "Обязательно. Клиенты для подключения"
