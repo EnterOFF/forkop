@@ -1913,7 +1913,12 @@ function add_dns_action_rules_for_section(config, section) {
                 action: "route",
                 server: server_tag,
                 rewrite_ttl,
-                rule_set: single_or_array(rule_set_tags)
+                rule_set: single_or_array(rule_set_tags),
+                // A DNS query carries no destination address or port, so only the domain
+                // half of a mixed rule set can pick this server. Without the projection a
+                // subnet-only set matches every domain, and an address matcher anywhere in
+                // the set would also confine the rule to A, AAAA and HTTPS queries.
+                rule_set_domain_only: true
             };
             apply_matchers(dns_rule, device_matchers);
             push_dns_matcher_rule(config, dns_rule);

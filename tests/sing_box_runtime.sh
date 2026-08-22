@@ -1476,9 +1476,11 @@ let bypass_fake = dns_rule(matchers, r =>
 assert(bypass_fake != null, "domain and port bypass keeps FakeIP so sing-box can match the destination port");
 let bypass_port_ruleset = ruleset_url(matchers, "https://example.com/bypass-port.srs");
 assert(bypass_port_ruleset != null, "domain and port bypass rule set");
-assert(dns_rule(matchers, r =>
+let bypass_ruleset_dns = dns_rule(matchers, r =>
     r.server == "fakeip-server" && contains(r.rule_set, bypass_port_ruleset.tag) &&
-    contains(r.source_ip_cidr, "10.0.0.4/32")) != null, "rule-set and port bypass keeps FakeIP domain identity");
+    contains(r.source_ip_cidr, "10.0.0.4/32"));
+assert(bypass_ruleset_dns != null, "rule-set and port bypass keeps FakeIP domain identity");
+assert(bypass_ruleset_dns.rule_set_domain_only == null, "section DNS rules keep the stock rule-set semantics");
 assert(dns_rule(matchers, r => r.server == "dns-server" && contains(r.domain_suffix, "example.org") && r.source_ip_cidr == null) == null, "filtered bypass no longer changes DNS for every device");
 assert(dns_rule(matchers, r => r.server == "fakeip-server" && contains(r.domain_suffix, "example.org") && r.source_ip_cidr == null) != null, "lower global proxy still gives FakeIP to other devices");
 let scoped_proxy_dns = dns_rule(matchers, r => r.server == "fakeip-server" && contains(r.domain_suffix, "proxy.example.org"));
@@ -1567,7 +1569,10 @@ let dns_after_proxy_index = dns_rule_index(dns_action, r => contains(r.domain_su
 assert(proxy_first_index >= 0 && dns_after_proxy_index > proxy_first_index, "higher proxy DNS rule wins over lower DNS action");
 let dns_second_forced_index = dns_rule_index(dns_action, r => r.server == "dns_second-dns-server" && r.domain == null && r.domain_suffix == null && contains(r.source_ip_cidr, "192.0.2.3/32"));
 assert(dns_second_forced_index > proxy_first_index, "lower forced DNS action preserves higher proxy priority");
-assert(dns_rule(dns_action, r => contains(r.rule_set, "dns_first-youtube-community-ruleset") && r.server == "dns_first-dns-server" && contains(r.source_ip_cidr, "192.0.2.1/32")) != null, "DNS action device filter covers built-in domain rule sets");
+let dns_first_ruleset_rule = dns_rule(dns_action, r => contains(r.rule_set, "dns_first-youtube-community-ruleset") && r.server == "dns_first-dns-server" && contains(r.source_ip_cidr, "192.0.2.1/32"));
+assert(dns_first_ruleset_rule != null, "DNS action device filter covers built-in domain rule sets");
+assert(dns_first_ruleset_rule.rule_set_domain_only === true, "DNS action reads only the domain half of a rule set");
+assert(dns_first_rule.rule_set_domain_only == null, "inline DNS action domains carry no rule-set projection");
 let dns_custom_ruleset = ruleset_url(dns_action, "https://example.com/domain-only.srs");
 assert(dns_custom_ruleset && dns_rule(dns_action, r => contains(r.rule_set, dns_custom_ruleset.tag) && r.server == "dns_first-dns-server" && contains(r.source_ip_cidr, "192.0.2.1/32")) != null, "DNS action device filter covers custom domain rule sets");
 let dns_text_ruleset = ruleset_path(dns_action, dir + "/dns-action.lst");
