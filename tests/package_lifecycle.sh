@@ -93,7 +93,6 @@ FORKOP_UCI_STATE_FILE="$WORK_DIR/stop-order.state" \
 FORKOP_INIT="$WORK_DIR/forkop-init" \
 FORKOP_STOP_LOG="$WORK_DIR/stop-order.log" \
 FORKOP_BIN="$WORK_DIR/missing-forkop-bin" \
-FORKOP_DNS_APPLY_UC="$WORK_DIR/missing-dns-apply.uc" \
 FORKOP_SING_BOX_INIT="$WORK_DIR/missing-sing-box-init" \
 FORKOP_SING_BOX_BIN="$WORK_DIR/missing-sing-box-bin" \
 FORKOP_SING_BOX_CRONET="$WORK_DIR/missing-cronet" \
@@ -117,7 +116,6 @@ FORKOP_UCI_STATE_FILE="$WORK_DIR/dont-touch-missing.state" \
 FORKOP_INIT="$WORK_DIR/autostart-init" \
 FORKOP_AUTOSTART_LOG="$WORK_DIR/autostart-remove.log" \
 FORKOP_BIN="$WORK_DIR/missing-forkop-bin" \
-FORKOP_DNS_APPLY_UC="$WORK_DIR/missing-dns-apply.uc" \
 FORKOP_RT_TABLES="$WORK_DIR/rt_tables_autostart" \
   ucode -L "$FORKOP_LIB" "$PACKAGE_UC" prerm remove
 [ "$(head -n 1 "$WORK_DIR/autostart-remove.log")" = "disable" ] ||
@@ -131,7 +129,6 @@ FORKOP_UCI_STATE_FILE="$WORK_DIR/dont-touch-missing.state" \
 FORKOP_INIT="$WORK_DIR/autostart-init" \
 FORKOP_AUTOSTART_LOG="$WORK_DIR/autostart-upgrade.log" \
 FORKOP_BIN="$WORK_DIR/missing-forkop-bin" \
-FORKOP_DNS_APPLY_UC="$WORK_DIR/missing-dns-apply.uc" \
 FORKOP_RT_TABLES="$WORK_DIR/rt_tables_autostart_upgrade" \
   ucode -L "$FORKOP_LIB" "$PACKAGE_UC" prerm upgrade
 if grep -Fxq disable "$WORK_DIR/autostart-upgrade.log"; then
@@ -160,7 +157,6 @@ printf '105 forkop\n' >"$WORK_DIR/rt_tables_dont_touch"
 FORKOP_UCI_STATE_FILE="$WORK_DIR/dont-touch.state" \
 FORKOP_RESTORE_LOG="$WORK_DIR/restore-dont-touch.log" \
 FORKOP_BIN="$WORK_DIR/forkop-bin" \
-FORKOP_DNS_APPLY_UC="$WORK_DIR/missing-dns-apply.uc" \
 FORKOP_SING_BOX_INIT="$WORK_DIR/missing-sing-box-init" \
 FORKOP_SING_BOX_BIN="$WORK_DIR/missing-sing-box-bin" \
 FORKOP_SING_BOX_CRONET="$WORK_DIR/missing-cronet" \
@@ -178,7 +174,6 @@ printf '105 forkop\n' >"$WORK_DIR/rt_tables_restore"
 FORKOP_UCI_STATE_FILE="$WORK_DIR/restore.state" \
 FORKOP_RESTORE_LOG="$WORK_DIR/restore.log" \
 FORKOP_BIN="$WORK_DIR/forkop-bin" \
-FORKOP_DNS_APPLY_UC="$WORK_DIR/missing-dns-apply.uc" \
 FORKOP_SING_BOX_INIT="$WORK_DIR/missing-sing-box-init" \
 FORKOP_SING_BOX_BIN="$WORK_DIR/missing-sing-box-bin" \
 FORKOP_SING_BOX_CRONET="$WORK_DIR/missing-cronet" \

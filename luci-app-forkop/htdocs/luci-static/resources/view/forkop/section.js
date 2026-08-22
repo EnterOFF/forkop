@@ -8304,7 +8304,6 @@ const EntryPoint = {
   configureTextareaOption,
   createSectionContent,
   isExistingChildItem,
-  setActionProvidersAvailabilityLoader,
   showChildItemSettingsModal,
   updateDynamicListItemLabel,
   validateUniqueDynamicListItemName,

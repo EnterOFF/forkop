@@ -119,50 +119,12 @@ function emit_reload_plan(previous, current, context) {
     emit_bool("has_work", has_work);
 }
 
-function reload_plan() {
-    let previous = {
-        service_trigger: as_string(ARGV[1]),
-        dnsmasq: as_string(ARGV[2]),
-        sing_box: as_string(ARGV[3]),
-        nft: as_string(ARGV[4]),
-        zapret_queue: as_string(ARGV[5]),
-        zapret_runtime: as_string(ARGV[6]),
-        zapret2_queue: as_string(ARGV[7]),
-        zapret2_runtime: as_string(ARGV[8]),
-        byedpi_runtime: as_string(ARGV[9]),
-        cron: as_string(ARGV[10])
-    };
-
-    let current = {
-        service_trigger: as_string(ARGV[11]),
-        dnsmasq: as_string(ARGV[12]),
-        sing_box: as_string(ARGV[13]),
-        nft: as_string(ARGV[14]),
-        zapret_queue: as_string(ARGV[15]),
-        zapret_runtime: as_string(ARGV[16]),
-        zapret2_queue: as_string(ARGV[17]),
-        zapret2_runtime: as_string(ARGV[18]),
-        byedpi_runtime: as_string(ARGV[19]),
-        cron: as_string(ARGV[20]),
-        dont_touch_dhcp: arg_bool(ARGV[21])
-    };
-
-    let context = {
-        force_runtime_reload: arg_bool(ARGV[22]),
-        dnsmasq_managed_state: arg_bool(ARGV[23]),
-        runtime_cache_needs_rebuild: arg_bool(ARGV[24])
-    };
-
-    emit_reload_plan(previous, current, context);
-}
-
 function read_state_file(path) {
     let data = fs.readfile(path);
     if (data == null)
         return null;
 
     let state = {};
-    let has = {};
 
     for (let line in split(data, "\n")) {
         if (line == "")
@@ -174,10 +136,8 @@ function read_state_file(path) {
             continue;
 
         state[key] = equals >= 0 ? substr(line, equals + 1) : "";
-        has[key] = true;
     }
 
-    state.__has = has;
     return state;
 }
 
@@ -197,8 +157,7 @@ function plan_state_from_file(path) {
         zapret2_queue: as_string(state.zapret2_queue_signature),
         zapret2_runtime: as_string(state.zapret2_runtime_signature),
         byedpi_runtime: as_string(state.byedpi_runtime_signature),
-        cron: as_string(state.cron_signature),
-        dont_touch_dhcp: arg_bool(state.dont_touch_dhcp)
+        cron: as_string(state.cron_signature)
     };
 }
 
@@ -219,12 +178,9 @@ function plan_state_files() {
 
 let mode = ARGV[0] || "";
 
-if (mode == "plan")
-    reload_plan();
-else if (mode == "plan-state-files")
+if (mode == "plan-state-files")
     plan_state_files();
 else {
-    warn("Usage: service/reload.uc plan ...\n");
-    warn("       service/reload.uc plan-state-files <previous-state> <current-state> <force-reload> <dnsmasq-managed-state> <runtime-cache-needs-rebuild>\n");
+    warn("Usage: service/reload.uc plan-state-files <previous-state> <current-state> <force-reload> <dnsmasq-managed-state> <runtime-cache-needs-rebuild>\n");
     exit(1);
 }

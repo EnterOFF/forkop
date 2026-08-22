@@ -124,5 +124,26 @@ for tab in server section; do
     fail "$(printf 'the reserved tag list in %s.js differs from singbox/constants.uc\nbackend:\n%s\nfrontend:\n%s' "$tab" "$reserved_backend" "$reserved_frontend")"
 done
 
+# Three tables name the community rule sets: the validator decides which
+# references it accepts, singbox/rulesets.uc turns each one into a download URL,
+# and the section dialog lists them. A name in only one of them is either
+# refused by the validator, generated without a URL, or invisible in the UI.
+community_validator="$(ucode -L "$FORKOP_LIB" "$CONSTANTS_UC" get COMMUNITY_SERVICES | tr ' ' '\n' | sed '/^$/d' | LC_ALL=C sort)"
+community_generator="$(
+  sed -n '/^const COMMUNITY_SERVICES = {$/,/^};$/p' "$FORKOP_LIB/singbox/rulesets.uc" |
+    sed -n 's/^    \([a-z0-9_]*\): true,\?$/\1/p' | LC_ALL=C sort
+)"
+community_frontend="$(
+  sed -n '/^export const DOMAIN_LIST_OPTIONS = {$/,/^};$/p' "$FRONTEND_CONSTANTS" |
+    sed -n "s/^  \\([a-z0-9_]*\\): '.*',$/\\1/p" | LC_ALL=C sort
+)"
+[ -n "$community_generator" ] ||
+  fail "singbox/rulesets.uc must list the community rule sets it can build a URL for"
+[ -n "$community_frontend" ] ||
+  fail "the section dialog must list the community rule sets it offers"
+[ "$community_validator" = "$community_generator" ] ||
+  fail "$(printf 'the community rule sets in core/constants.uc and singbox/rulesets.uc differ\nvalidator:\n%s\ngenerator:\n%s' "$community_validator" "$community_generator")"
+[ "$community_validator" = "$community_frontend" ] ||
+  fail "$(printf 'the community rule sets in core/constants.uc and fe-app-forkop/src/constants.ts differ\nbackend:\n%s\nfrontend:\n%s' "$community_validator" "$community_frontend")"
 
 printf 'constants ownership checks passed\n'

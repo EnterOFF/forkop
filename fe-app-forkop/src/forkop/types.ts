@@ -503,7 +503,8 @@ export namespace Forkop {
 
   export type ComponentActionStartResult = UiActionStartResult;
 
-  export interface GetZapretStatus {
+  // providers/nfqueue/runtime.uc answers zapret and zapret2 from one payload.
+  export interface GetNfqueueProviderStatus {
     installed: 0 | 1;
     package_installed: 0 | 1;
     provider_available: 0 | 1;
@@ -516,8 +517,6 @@ export namespace Forkop {
     expected_process_count: number;
     running_process_count: number;
     supervisor_process_count: number;
-    restart_count: number;
-    runtime_unstable: 0 | 1;
     standalone_service_enabled: 0 | 1;
     standalone_service_running: 0 | 1;
     standalone_config_present: 0 | 1;
@@ -526,12 +525,17 @@ export namespace Forkop {
     queue_base: number;
     queue_range_end: number;
     queue_overlap: 0 | 1;
-    legacy_runtime_present: 0 | 1;
+    queue_rules_present: 0 | 1;
     ready: 0 | 1;
     conflict: 0 | 1;
     outbounds_configured: 0 | 1;
     routes_configured: 0 | 1;
     status_message: string;
+  }
+
+  // Only zapret can still carry a runtime directory an older revision created.
+  export interface GetZapretStatus extends GetNfqueueProviderStatus {
+    legacy_runtime_present: 0 | 1;
   }
 
   export interface ZapretCheckResult {
@@ -540,33 +544,7 @@ export namespace Forkop {
     zapret_provider_path: string;
   }
 
-  export interface GetZapret2Status {
-    installed: 0 | 1;
-    package_installed: 0 | 1;
-    provider_available: 0 | 1;
-    provider_path: string;
-    files_available: 0 | 1;
-    ipset_available: 0 | 1;
-    version: string;
-    configured: 0 | 1;
-    enabled_rule_count: number;
-    expected_process_count: number;
-    running_process_count: number;
-    supervisor_process_count: number;
-    standalone_service_enabled: 0 | 1;
-    standalone_service_running: 0 | 1;
-    standalone_config_present: 0 | 1;
-    standalone_conflict: 0 | 1;
-    luci_app_installed: 0 | 1;
-    queue_base: number;
-    queue_range_end: number;
-    queue_overlap: 0 | 1;
-    ready: 0 | 1;
-    conflict: 0 | 1;
-    outbounds_configured: 0 | 1;
-    routes_configured: 0 | 1;
-    status_message: string;
-  }
+  export type GetZapret2Status = GetNfqueueProviderStatus;
 
   export interface Zapret2CheckResult {
     zapret2_installed: 0 | 1;

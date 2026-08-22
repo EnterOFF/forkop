@@ -358,11 +358,9 @@ function proxy_response_is_retryable_error(response) {
 }
 
 return {
-    forkop_config_line,
     forkop_config,
     wan_config,
     config_lines,
-    lines_text,
     sing_box_config,
     dns_server,
     proxy_response_ip,

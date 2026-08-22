@@ -15,7 +15,12 @@ import {
   store,
   StoreType,
 } from '../../services';
-import { renderFlagEmojis, renderSections, renderWidget } from './partials';
+import {
+  renderFlagEmojis,
+  renderSections,
+  renderSectionsPlaceholder,
+  renderWidget,
+} from './partials';
 import { fetchServicesInfo } from '../../fetchers/fetchServicesInfo';
 import { getClashApiSecret } from '../../methods/custom/getClashApiSecret';
 import { Forkop } from '../../types';
@@ -1245,25 +1250,9 @@ async function renderSectionsWidget() {
   }
 
   if (sectionsWidget.loading || sectionsWidget.failed) {
-    const renderedWidget = renderSections({
+    const renderedWidget = renderSectionsPlaceholder({
       loading: sectionsWidget.loading,
       failed: sectionsWidget.failed,
-      section: {
-        code: '',
-        sectionName: '',
-        displayName: '',
-        outbounds: [],
-        withTagSelect: false,
-      },
-      onTestLatency: () => {},
-      onTestOutboundLatency: () => {},
-      onChooseOutbound: () => {},
-      onCopyOutbound: () => {},
-      onShowUrlTestInfo: () => {},
-      onShowFallbackInfo: () => {},
-      onUpdateSubscription: () => {},
-      latencyFetching: false,
-      subscriptionUpdating: false,
     });
 
     return preserveScrollForPage(() => {

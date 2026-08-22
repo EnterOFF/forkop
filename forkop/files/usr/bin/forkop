@@ -6,10 +6,8 @@ function as_string(value) {
     return value == null ? "" : "" + value;
 }
 
-const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
 const BIN_PATH = getenv("FORKOP_BIN") || "/usr/bin/forkop";
-const SERVICE_INIT = getenv("FORKOP_SERVICE_INIT") || "/etc/init.d/forkop";
 
 function shell_quote(value) {
     return "'" + replace(as_string(value), /'/g, "'\\''") + "'";
@@ -20,11 +18,6 @@ function command_from_args(args) {
     for (let arg in args)
         push(parts, shell_quote(arg));
     return join(" ", parts);
-}
-
-function normalize_status(status) {
-    status = int(status);
-    return status > 255 ? int(status / 256) : status;
 }
 
 function module_path(path) {
@@ -45,8 +38,7 @@ function restore_dnsmasq_failsafe() {
 function restore_dnsmasq_failsafe_on_loader_failure(command) {
     command = as_string(command);
     if (command == "start" || command == "stop" || command == "restart" ||
-        command == "reload" || command == "uninstall" ||
-        command == "dnsmasq_restore" || command == "restore_dnsmasq")
+        command == "reload" || command == "uninstall" || command == "restore_dnsmasq")
         restore_dnsmasq_failsafe();
 }
 
@@ -90,9 +82,9 @@ function show_help() {
     print("    generate_reality_keypair\n");
     print("                            Generate a sing-box Reality key pair in JSON format\n");
     print("    generate_server_certificate <subject> <name>\n");
+    print("                            Generate a self-signed TLS key pair in JSON format\n");
     print("    generate_ssh_host_key <name>\n");
     print("                            Generate a persistent SSH host key in JSON format\n");
-    print("                            Generate a self-signed TLS key pair in JSON format\n");
     print("    generate_warp_profile   Generate a Cloudflare WARP profile in JSON format\n");
     print("    get_tls_certificate_sha256 [server]\n");
     print("                            Get a server TLS certificate SHA-256 fingerprint in JSON format\n");
@@ -176,7 +168,7 @@ function run_spec(command, spec, user_args) {
     for (let i = 0; i < count; i++)
         push(args, user_args[i] || "");
 
-    return normalize_status(system(command_from_args(args)));
+    return system(command_from_args(args));
 }
 
 function main() {

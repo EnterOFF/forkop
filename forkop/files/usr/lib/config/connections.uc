@@ -585,11 +585,6 @@ function fallback_group_child(section, value) {
     return owned_child_section(section, "fallback_group", value);
 }
 
-function fallback_group_settings(section, value) {
-    let child = fallback_group_child(section, value);
-    return child != null ? child : {};
-}
-
 function fallback_level_child(group_id, value) {
     let child = child_section("fallback_level", value);
     if (type(child) != "object")
@@ -1151,7 +1146,6 @@ return {
     download_via_proxy_section,
     option,
     bool_option,
-    list_value,
     device_matchers,
     set_item_sections_from_data,
     is_connections_action,
@@ -1176,7 +1170,6 @@ return {
     rule_sets_with_subnets_value,
     has_connection_sources,
     subscription_url_settings,
-    interface_settings,
     urltest_settings,
     subscription_update_enabled,
     subscription_update_interval,
@@ -1209,7 +1202,6 @@ return {
     urltest_exclude_regex,
     urltest_exclude_types,
     fallback_groups,
-    fallback_group_settings,
     fallback_levels,
     fallback_group_display_name,
     fallback_group_health_check_url,

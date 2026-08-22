@@ -99,4 +99,4 @@ function outbound_tag(config, domain) {
     return "";
 }
 
-return { prepare_config, outbound_tag, strip_remote_rule_sets };
+return { prepare_config, outbound_tag };

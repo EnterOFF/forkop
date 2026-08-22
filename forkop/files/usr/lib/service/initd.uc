@@ -3,6 +3,7 @@
 let fs = require("fs");
 let constants = require("core.constants");
 let uci_core = require("core.uci");
+let lock = require("service.lock");
 
 function as_string(value) {
     return value == null ? "" : "" + value;
@@ -45,22 +46,13 @@ function command_from_args(args) {
     return join(" ", parts);
 }
 
-function normalize_status(status) {
-    status = int(status);
-    return status > 255 ? int(status / 256) : status;
-}
-
-function command_status(command) {
-    return normalize_status(system(command));
-}
-
 function command_capture(command) {
     let pipe = fs.popen(command, "r");
     if (!pipe)
         return { status: 1, output: "" };
 
     let data = pipe.read("all");
-    let status = normalize_status(pipe.close());
+    let status = pipe.close();
     return { status, output: data == null ? "" : as_string(data) };
 }
 
@@ -74,11 +66,11 @@ function command_output_from_args(args) {
 }
 
 function command_success_from_args(args) {
-    return command_status(command_from_args(args) + " >/dev/null 2>&1") == 0;
+    return system(command_from_args(args) + " >/dev/null 2>&1") == 0;
 }
 
 function command_status_from_args(args) {
-    return command_status(command_from_args(args));
+    return system(command_from_args(args));
 }
 
 function module_args(module_path, args) {
@@ -93,7 +85,7 @@ function module_command(module_path, args) {
 }
 
 function module_status(module_path, args) {
-    return command_status(module_command(module_path, args));
+    return system(module_command(module_path, args));
 }
 
 function module_output(module_path, args) {
@@ -145,17 +137,6 @@ function unlink_file(path) {
     fs.unlink(as_string(path));
 }
 
-function ensure_parent_dir(path) {
-    let dir = replace(as_string(path), /\/[^\/]*$/, "");
-    if (dir == "" || dir == path)
-        return true;
-    return fs.mkdir(dir, 0755) || fs.stat(dir) != null;
-}
-
-function write_text_file(path, text) {
-    return fs.writefile(as_string(path), as_string(text));
-}
-
 function first_line_value(path) {
     let data = fs.readfile(path);
     if (data == null)
@@ -168,115 +149,6 @@ function first_line_value(path) {
 function config_file_hash(path) {
     let fields = split(trim(command_output_from_args([ "md5sum", as_string(path) ])), " ");
     return length(fields) > 0 ? as_string(fields[0]) : "";
-}
-
-function pid_alive(pid) {
-    pid = as_string(pid);
-    return match(pid, /^[0-9]+$/) != null && command_success_from_args([ "kill", "-0", pid ]);
-}
-
-function lock_dir_write_owner(lock_dir, owner_pid) {
-    return write_text_file(as_string(lock_dir) + "/pid", as_string(owner_pid) + "\n");
-}
-
-function release_runtime_dir_lock(lock_dir, owner_pid) {
-    lock_dir = as_string(lock_dir);
-    owner_pid = as_string(owner_pid);
-    if (lock_dir == "" || owner_pid == "")
-        return;
-
-    if (first_line_value(lock_dir + "/pid") != owner_pid)
-        return;
-
-    command_success_from_args([ "rm", "-f", lock_dir + "/pid" ]);
-    command_success_from_args([ "rmdir", lock_dir ]);
-}
-
-function acquire_runtime_dir_lock(lock_dir, owner_pid) {
-    lock_dir = as_string(lock_dir);
-    owner_pid = as_string(owner_pid);
-    if (lock_dir == "" || owner_pid == "")
-        return false;
-
-    if (command_success_from_args([ "mkdir", lock_dir ])) {
-        if (lock_dir_write_owner(lock_dir, owner_pid))
-            return true;
-        release_runtime_dir_lock(lock_dir, owner_pid);
-        return false;
-    }
-
-    let current_owner = first_line_value(lock_dir + "/pid");
-    if (pid_alive(current_owner))
-        return false;
-
-    let lock_stat = fs.stat(lock_dir);
-    if (current_owner == "" && lock_stat != null) {
-        let lock_age = (int(current_epoch(), 10) || 0) - int(lock_stat.mtime || 0);
-        if (lock_age >= 0 && lock_age < 30)
-            return false;
-    }
-
-    command_success_from_args([ "rm", "-f", lock_dir + "/pid" ]);
-    if (!command_success_from_args([ "rmdir", lock_dir ]))
-        return false;
-    if (!command_success_from_args([ "mkdir", lock_dir ]))
-        return false;
-
-    if (lock_dir_write_owner(lock_dir, owner_pid))
-        return true;
-
-    release_runtime_dir_lock(lock_dir, owner_pid);
-    return false;
-}
-
-function mark_pending_reload(path, reason) {
-    path = as_string(path || PENDING_RELOAD_FILE);
-    reason = as_string(reason || "pending");
-
-    if (!ensure_parent_dir(path))
-        return false;
-
-    return write_text_file(path, "reason=" + reason + "\nupdated_at=" + current_epoch() + "\n");
-}
-
-function mark_start_retry(path, reason) {
-    path = as_string(path || START_RETRY_FILE);
-    reason = as_string(reason || "start_failed");
-
-    if (!ensure_parent_dir(path))
-        return false;
-
-    return write_text_file(path, "reason=" + reason + "\nupdated_at=" + current_epoch() + "\n");
-}
-
-function clear_start_retry(path) {
-    path = as_string(path || START_RETRY_FILE);
-    if (file_exists(path))
-        unlink_file(path);
-}
-
-function start_retry_pending(path) {
-    return file_exists(as_string(path || START_RETRY_FILE));
-}
-
-function consume_pending_reload(path) {
-    path = as_string(path || PENDING_RELOAD_FILE);
-    if (!file_exists(path))
-        return false;
-
-    unlink_file(path);
-    return true;
-}
-
-function run_pending_reload_if_requested(path, init_script) {
-    path = as_string(path || PENDING_RELOAD_FILE);
-    init_script = as_string(init_script || SERVICE_INIT);
-
-    if (!consume_pending_reload(path))
-        return;
-
-    command_success_from_args([ "logger", "-t", SERVICE_NAME, "[info] Applying pending Forkop reload" ]);
-    system(shell_quote(init_script) + " reload pending >/dev/null 2>&1 1000>&- &");
 }
 
 function uci_settings() {
@@ -351,7 +223,7 @@ function initd_should_restore_dnsmasq_on_start_from_value(reason, shutdown_corre
     return shutdown_correctly == "0";
 }
 
-function initd_should_ignore_config_change_reload(reason, expected_reason, runtime_running, service_enabled) {
+function initd_should_ignore_config_change_reload(reason, expected_reason, runtime_running) {
     return as_string(reason) == as_string(expected_reason || CONFIG_CHANGE_REASON) &&
         !bool_text(runtime_running);
 }
@@ -366,6 +238,18 @@ function initd_should_sync_service_triggers(reason, expected_reason, sync_file) 
     if (as_string(reason) != as_string(expected_reason || CONFIG_CHANGE_REASON))
         return false;
     return initd_service_trigger_sync_requested(sync_file);
+}
+
+function mark_start_retry(path, reason) {
+    return lock.mark_request(as_string(path || START_RETRY_FILE), as_string(reason || "start_failed"));
+}
+
+function clear_start_retry(path) {
+    lock.consume_request(as_string(path || START_RETRY_FILE));
+}
+
+function start_retry_pending(path) {
+    return file_exists(as_string(path || START_RETRY_FILE));
 }
 
 function restore_dnsmasq_failsafe() {
@@ -438,7 +322,7 @@ function retry_start_on_wan_up_action(runtime_running_value, service_enabled_val
     return "restart";
 }
 
-function retry_start_on_wan_up(owner_pid) {
+function retry_start_on_wan_up() {
     let action = retry_start_on_wan_up_action(
         runtime_is_running() ? "1" : "0",
         service_is_enabled() ? "1" : "0",
@@ -475,7 +359,7 @@ function wan_up_action(runtime_running_value, service_enabled_value, retry_pendi
     return retry_start_on_wan_up_action(runtime_running_value, service_enabled_value, retry_pending_value);
 }
 
-function handle_wan_up(owner_pid) {
+function handle_wan_up() {
     let settings = uci_settings();
     let running = runtime_is_running() ? "1" : "0";
     let action = wan_up_action(
@@ -496,7 +380,7 @@ function handle_wan_up(owner_pid) {
         return 0;
     }
 
-    return retry_start_on_wan_up(owner_pid);
+    return retry_start_on_wan_up();
 }
 
 function active_service_action_value() {
@@ -574,7 +458,7 @@ function stop_service(owner_pid) {
     return stop_finish(job_id, status);
 }
 
-function reload_begin_value(reason, owner_pid, runtime_running_value, service_enabled_value, active_service_action) {
+function reload_begin_value(reason, owner_pid, runtime_running_value, active_service_action) {
     reason = as_string(reason);
 
     if (initd_should_skip_internal_config_reload(
@@ -589,35 +473,24 @@ function reload_begin_value(reason, owner_pid, runtime_running_value, service_en
 
     active_service_action = active_service_action == null ? active_service_action_value() : as_string(active_service_action);
     if (reason == "pending" && active_service_action != "" && !ui_action_tracked()) {
-        mark_pending_reload(PENDING_RELOAD_FILE, reason);
+        lock.mark_request(PENDING_RELOAD_FILE, reason);
         return { action: "skip", job_id: "" };
     }
 
-    if (reason == "pending") {
-        if (!acquire_runtime_dir_lock(RELOAD_LOCK_DIR, owner_pid || owner_pid_value())) {
-            mark_pending_reload(PENDING_RELOAD_FILE, reason || "reload_busy");
+    if (reason == CONFIG_CHANGE_REASON) {
+        let running = runtime_running_value == null ? runtime_is_running() : bool_text(runtime_running_value);
+
+        if (initd_should_queue_config_change_reload(reason, CONFIG_CHANGE_REASON, running, active_service_action)) {
+            lock.mark_request(PENDING_RELOAD_FILE, reason || "reload_queued");
             return { action: "skip", job_id: "" };
         }
 
-        unlink_file(SERVICE_TRIGGER_SYNC_FILE);
-        let job_id = begin_external_service_action("reload", "initd", owner_pid);
-        return { action: "run", job_id };
+        if (initd_should_ignore_config_change_reload(reason, CONFIG_CHANGE_REASON, running))
+            return { action: "skip", job_id: "" };
     }
 
-    let running = runtime_running_value == null ? runtime_is_running() : bool_text(runtime_running_value);
-    let enabled = service_enabled_value == null ? service_is_enabled() : bool_text(service_enabled_value);
-
-    if (initd_should_queue_config_change_reload(reason, CONFIG_CHANGE_REASON, running, active_service_action)) {
-        mark_pending_reload(PENDING_RELOAD_FILE, reason || "reload_queued");
-        return { action: "skip", job_id: "" };
-    }
-
-    if (initd_should_ignore_config_change_reload(reason, CONFIG_CHANGE_REASON, running, enabled)) {
-        return { action: "skip", job_id: "" };
-    }
-
-    if (!acquire_runtime_dir_lock(RELOAD_LOCK_DIR, owner_pid || owner_pid_value())) {
-        mark_pending_reload(PENDING_RELOAD_FILE, reason || "reload_busy");
+    if (!lock.acquire(RELOAD_LOCK_DIR, owner_pid || owner_pid_value())) {
+        lock.mark_request(PENDING_RELOAD_FILE, reason || "reload_busy");
         return { action: "skip", job_id: "" };
     }
 
@@ -626,21 +499,13 @@ function reload_begin_value(reason, owner_pid, runtime_running_value, service_en
     return { action: "run", job_id };
 }
 
-function reload_begin(reason, owner_pid, runtime_running_value, service_enabled_value) {
-    let plan = reload_begin_value(reason, owner_pid, runtime_running_value, service_enabled_value, null);
-    shell_assignment("INITD_RELOAD_ACTION", plan.action);
-    if (plan.action == "run")
-        shell_assignment("INITD_UI_JOB_ID", plan.job_id);
-    return 0;
-}
-
 function reload_finish_value(reason, job_id, status, owner_pid) {
     status = int(status || 0);
     finish_external_service_action("reload", job_id, status);
     let sync = status == 0 && initd_should_sync_service_triggers(reason, CONFIG_CHANGE_REASON, SERVICE_TRIGGER_SYNC_FILE);
-    release_runtime_dir_lock(RELOAD_LOCK_DIR, owner_pid || owner_pid_value());
+    lock.release(RELOAD_LOCK_DIR, owner_pid || owner_pid_value());
     if (active_service_action_value() == "")
-        run_pending_reload_if_requested(PENDING_RELOAD_FILE, SERVICE_INIT);
+        lock.run_pending_reload_if_requested(PENDING_RELOAD_FILE, SERVICE_INIT, SERVICE_NAME);
     return { status, sync };
 }
 
@@ -649,7 +514,7 @@ function reload_service(reason, owner_pid) {
     if (plan.action != "run")
         return 0;
 
-    let status = command_status(command_from_args([ "env", "FORKOP_UI_ACTION_TRACKED=1", BIN_PATH, "reload", reason ]) + " >/dev/null 2>&1");
+    let status = system(command_from_args([ "env", "FORKOP_UI_ACTION_TRACKED=1", BIN_PATH, "reload", reason ]) + " >/dev/null 2>&1");
     let finish = reload_finish_value(reason, plan.job_id, status, owner_pid);
     if (finish.sync)
         print("sync\n");
@@ -657,7 +522,7 @@ function reload_service(reason, owner_pid) {
 }
 
 function reload_release(owner_pid) {
-    release_runtime_dir_lock(RELOAD_LOCK_DIR, owner_pid || owner_pid_value());
+    lock.release(RELOAD_LOCK_DIR, owner_pid || owner_pid_value());
     return 0;
 }
 
@@ -688,9 +553,9 @@ let mode = ARGV[0] || "";
 if (mode == "status-service")
     exit(status_service());
 else if (mode == "retry-start-on-wan-up")
-    exit(retry_start_on_wan_up(ARGV[1]));
+    exit(retry_start_on_wan_up());
 else if (mode == "handle-wan-up")
-    exit(handle_wan_up(ARGV[1]));
+    exit(handle_wan_up());
 else if (mode == "retry-start-on-wan-up-action")
     print(retry_start_on_wan_up_action(ARGV[1], ARGV[2], ARGV[3]), "\n");
 else if (mode == "wan-up-action")
@@ -701,8 +566,6 @@ else if (mode == "clear-start-retry")
     clear_start_retry(ARGV[1]);
 else if (mode == "start-retry-pending")
     exit(start_retry_pending(ARGV[1]) ? 0 : 1);
-else if (mode == "start-plan")
-    start_plan(ARGV[1], ARGV[2], uci_settings(), null);
 else if (mode == "start-service")
     exit(start_service(ARGV[1], ARGV[2]));
 else if (mode == "start-plan-fixture") {
@@ -715,10 +578,8 @@ else if (mode == "start-plan-fixture") {
 }
 else if (mode == "stop-service")
     exit(stop_service(ARGV[1]));
-else if (mode == "reload-begin")
-    exit(reload_begin(ARGV[1], ARGV[2], null, null));
 else if (mode == "reload-begin-fixture") {
-    let plan = reload_begin_value(ARGV[1], ARGV[2] || "0", ARGV[3], ARGV[4], ARGV[5]);
+    let plan = reload_begin_value(ARGV[1], ARGV[2] || "0", ARGV[3], ARGV[4]);
     shell_assignment("INITD_RELOAD_ACTION", plan.action);
     if (plan.action == "run")
         shell_assignment("INITD_UI_JOB_ID", plan.job_id);
@@ -741,7 +602,7 @@ else if (mode == "initd-should-skip-internal-config-reload")
 else if (mode == "initd-should-restore-dnsmasq-on-start-fixture")
     exit(initd_should_restore_dnsmasq_on_start_from_value(ARGV[1], ARGV[2]) ? 0 : 1);
 else if (mode == "initd-should-ignore-config-change-reload")
-    exit(initd_should_ignore_config_change_reload(ARGV[1], ARGV[2], ARGV[3], ARGV[4]) ? 0 : 1);
+    exit(initd_should_ignore_config_change_reload(ARGV[1], ARGV[2], ARGV[3]) ? 0 : 1);
 else if (mode == "initd-should-queue-config-change-reload")
     exit(initd_should_queue_config_change_reload(ARGV[1], ARGV[2], ARGV[3], ARGV[4]) ? 0 : 1);
 else {

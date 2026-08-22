@@ -262,7 +262,6 @@ return {
     dns_check,
     nft_check,
     inbounds_check,
-    inbound_item_lines,
     dnsmasq_config,
     nft_other_mark_lines
 };

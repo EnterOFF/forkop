@@ -114,6 +114,31 @@ function duration_to_seconds(value) {
     return total <= 0 ? null : int(total + 0.5);
 }
 
+// A number written the way an nftables mark or a queue base is: "0x40000000"
+// or a plain decimal. Anything else is not a number here.
+function parse_number(value) {
+    value = lc(trim(as_string(value)));
+    if (value == "")
+        return null;
+
+    if (substr(value, 0, 2) != "0x")
+        return match(value, /^[0-9]+$/) == null ? null : int(value);
+
+    value = substr(value, 2);
+    if (value == "")
+        return null;
+
+    let result = 0;
+    for (let i = 0; i < length(value); i++) {
+        let digit = index("0123456789abcdef", substr(value, i, 1));
+        if (digit < 0)
+            return null;
+        result = result * 16 + digit;
+    }
+
+    return result;
+}
+
 function array_or_empty(value) {
     return type(value) == "array" ? value : [];
 }
@@ -151,10 +176,10 @@ function bool_option(section, key, fallback) {
 }
 
 function int_option(section, key, fallback) {
-    let value = option(section, key, fallback);
-    if (match(value, /[^0-9]/))
-        return int(fallback, 10);
-    return int(value, 10);
+    let value = option(section, key, "");
+    if (match(value, /^[0-9]+$/) == null)
+        value = as_string(fallback);
+    return match(value, /^[0-9]+$/) == null ? 0 : int(value, 10);
 }
 
 return {
@@ -167,6 +192,7 @@ return {
     write_json_file,
     strip_internal_fields,
     duration_to_seconds,
+    parse_number,
     array_or_empty,
     object_or_empty,
     option,

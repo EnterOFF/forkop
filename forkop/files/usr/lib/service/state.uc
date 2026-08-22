@@ -3,14 +3,7 @@
 let health = require("service.health");
 const HEALTH_MODE = ARGV[0] || "";
 
-if (HEALTH_MODE == "sing-box-service-runtime-pid") {
-    let pid = health.sing_box_service_pid_runtime();
-    if (pid <= 0)
-        exit(1);
-    print(pid, "\n");
-    exit(0);
-}
-else if (HEALTH_MODE == "sing-box-service-running")
+if (HEALTH_MODE == "sing-box-service-running")
     exit(health.sing_box_service_running() ? 0 : 1);
 else if (HEALTH_MODE == "sing-box-service-stable")
     exit(health.sing_box_service_stable(ARGV[1]) ? 0 : 1);
@@ -27,6 +20,7 @@ let connections = require("config.connections");
 let zapret_validator = require("providers.zapret.validator");
 let zapret2_validator = require("providers.zapret2.validator");
 let byedpi_validator = require("providers.byedpi.validator");
+let lock = require("service.lock");
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const DEFAULT_PENDING_RELOAD_FILE = getenv("FORKOP_PENDING_RELOAD_FILE") || "/var/run/forkop/reload.pending";
 const DEFAULT_SERVICE_INIT = getenv("FORKOP_SERVICE_INIT") || "/etc/init.d/forkop";
@@ -35,9 +29,6 @@ const ZAPRET_DEFAULT_NFQWS_OPT = getenv("ZAPRET_DEFAULT_NFQWS_OPT") || "";
 const ZAPRET2_DEFAULT_NFQWS2_OPT = getenv("ZAPRET2_DEFAULT_NFQWS2_OPT") || "";
 const BYEDPI_DEFAULT_CMD_OPTS = getenv("BYEDPI_DEFAULT_CMD_OPTS") || "";
 const SING_BOX_START_MAX_WAIT_SECONDS = int(getenv("FORKOP_SING_BOX_START_MAX_WAIT_SECONDS") || "300");
-const RUNTIME_DIR_LOCK_OWNER_GRACE = int(getenv("FORKOP_RUNTIME_DIR_LOCK_OWNER_GRACE") || "30");
-
-let sing_box_service_pid_from_value = health.sing_box_service_pid_from_value;
 let sing_box_service_pid_runtime = health.sing_box_service_pid_runtime;
 let pid_is_sing_box = health.pid_is_sing_box;
 let process_start_ticks = health.process_start_ticks;
@@ -130,22 +121,6 @@ function object_or_empty(value) {
     return type(value) == "object" ? value : {};
 }
 
-function read_state_value(path, needle) {
-    let data = fs.readfile(path);
-    if (data == null)
-        exit(1);
-
-    needle = as_string(needle);
-    for (let line in split(data, "\n")) {
-        let equals = index(line, "=");
-        let key = equals >= 0 ? substr(line, 0, equals) : line;
-        if (key == needle) {
-            print(equals >= 0 ? substr(line, equals + 1) : line, "\n");
-            return;
-        }
-    }
-}
-
 const RELOAD_STATE_FIELDS = [
     "format",
     "service_trigger_signature",
@@ -157,8 +132,7 @@ const RELOAD_STATE_FIELDS = [
     "zapret2_queue_signature",
     "zapret2_runtime_signature",
     "byedpi_runtime_signature",
-    "cron_signature",
-    "dont_touch_dhcp"
+    "cron_signature"
 ];
 
 function reload_state_text(values) {
@@ -190,11 +164,6 @@ function numeric_text(value) {
     return match(as_string(value), /^[0-9]+$/) != null;
 }
 
-function current_epoch() {
-    let value = command_trimmed_output_from_args([ "date", "+%s" ]);
-    return numeric_text(value) ? value : "0";
-}
-
 function current_year() {
     let value = command_trimmed_output_from_args([ "date", "+%Y" ]);
     return numeric_text(value) ? int(value) : null;
@@ -219,134 +188,6 @@ function sync_time_if_needed() {
         "-p", "162.159.200.1",
         "-p", "162.159.200.123"
     ]);
-}
-
-function mark_pending_reload(path, reason) {
-    path = as_string(path || DEFAULT_PENDING_RELOAD_FILE);
-    reason = as_string(reason || "pending");
-
-    if (!ensure_parent_dir(path))
-        exit(1);
-
-    if (!write_text_file(path, "reason=" + reason + "\nupdated_at=" + current_epoch() + "\n"))
-        exit(1);
-}
-
-function consume_pending_reload(path) {
-    path = as_string(path || DEFAULT_PENDING_RELOAD_FILE);
-    if (fs.stat(path) == null)
-        return false;
-
-    unlink_file(path);
-    return true;
-}
-
-function run_pending_reload_if_requested(path, init_script) {
-    path = as_string(path || DEFAULT_PENDING_RELOAD_FILE);
-    init_script = as_string(init_script || DEFAULT_SERVICE_INIT);
-
-    if (!consume_pending_reload(path))
-        return;
-
-    command_success_from_args([ "logger", "-t", "forkop", "[info] Applying pending Forkop reload" ]);
-    system(shell_quote(init_script) + " reload pending >/dev/null 2>&1 1000>&- &");
-}
-
-function first_line_value(path) {
-    let data = fs.readfile(path);
-    if (data == null)
-        return "";
-
-    let newline = index(data, "\n");
-    return newline >= 0 ? substr(data, 0, newline) : data;
-}
-
-function pid_alive(pid) {
-    pid = as_string(pid);
-    return match(pid, /^[0-9]+$/) != null && command_success_from_args([ "kill", "-0", pid ]);
-}
-
-function lock_dir_write_owner(lock_dir, owner_pid) {
-    return write_text_file(as_string(lock_dir) + "/pid", as_string(owner_pid) + "\n");
-}
-
-// True while another process owns the lock. mkdir() and writing the owner pid
-// are separate operations, so a freshly created lock gets time to receive its
-// owner before an empty pid counts as stale; otherwise two simultaneous
-// service actions can both proceed.
-function runtime_dir_lock_held(lock_dir) {
-    lock_dir = as_string(lock_dir);
-    let lock_stat = lock_dir == "" ? null : fs.stat(lock_dir);
-    if (lock_stat == null)
-        return false;
-
-    let current_owner = first_line_value(lock_dir + "/pid");
-    if (pid_alive(current_owner))
-        return true;
-    if (current_owner != "")
-        return false;
-
-    let lock_age = (int(current_epoch(), 10) || 0) - int(lock_stat.mtime || 0);
-    return lock_age >= 0 && lock_age < RUNTIME_DIR_LOCK_OWNER_GRACE;
-}
-
-function release_runtime_dir_lock(lock_dir, owner_pid) {
-    lock_dir = as_string(lock_dir);
-    owner_pid = as_string(owner_pid);
-    if (lock_dir == "" || owner_pid == "")
-        return;
-
-    if (first_line_value(lock_dir + "/pid") != owner_pid)
-        return;
-
-    command_success_from_args([ "rm", "-f", lock_dir + "/pid" ]);
-    command_success_from_args([ "rmdir", lock_dir ]);
-}
-
-function acquire_runtime_dir_lock(lock_dir, owner_pid) {
-    lock_dir = as_string(lock_dir);
-    owner_pid = as_string(owner_pid);
-    if (lock_dir == "" || owner_pid == "")
-        return false;
-    if (!ensure_parent_dir(lock_dir))
-        return false;
-
-    if (command_success_from_args([ "mkdir", lock_dir ])) {
-        if (lock_dir_write_owner(lock_dir, owner_pid))
-            return true;
-        release_runtime_dir_lock(lock_dir, owner_pid);
-        return false;
-    }
-
-    if (runtime_dir_lock_held(lock_dir))
-        return false;
-
-    command_success_from_args([ "rm", "-f", lock_dir + "/pid" ]);
-    if (!command_success_from_args([ "rmdir", lock_dir ]))
-        return false;
-    if (!command_success_from_args([ "mkdir", lock_dir ]))
-        return false;
-
-    if (lock_dir_write_owner(lock_dir, owner_pid))
-        return true;
-
-    release_runtime_dir_lock(lock_dir, owner_pid);
-    return false;
-}
-
-function acquire_runtime_dir_lock_wait(lock_dir, owner_pid, timeout) {
-    let timeout_text = as_string(timeout == null ? "300" : timeout);
-    timeout = numeric_text(timeout_text) ? int(timeout_text, 10) : 300;
-    let start = int(current_epoch(), 10) || 0;
-
-    while (!acquire_runtime_dir_lock(lock_dir, owner_pid)) {
-        let now = int(current_epoch(), 10) || start;
-        if (now - start >= timeout)
-            return false;
-        command_success_from_args([ "sleep", "2" ]);
-    }
-
-    return true;
 }
 
 function write_reload_state(path, values) {
@@ -454,8 +295,6 @@ function wait_forkop_stable_start(rt_table, nft_table, mark, min_age) {
         command_success_from_args([ "sleep", "1" ]);
         waited++;
     }
-
-    return false;
 }
 
 function whitespace_fields(value) {
@@ -803,26 +642,6 @@ function sing_box_signature_has_remote_ruleset_sources(sections) {
     return false;
 }
 
-function sing_box_signature_enabled_action_index(sections, target_section, action) {
-    let result = 0;
-    target_section = as_string(target_section);
-    action = as_string(action);
-
-    for (let section in sections) {
-        section = object_or_empty(section);
-        if (section_name(section) == "" ||
-            !bool_option(section, "enabled", true) ||
-            option(section, "action", "") != action)
-            continue;
-
-        result++;
-        if (section_name(section) == target_section)
-            return result;
-    }
-
-    return 0;
-}
-
 function signature_add_outbound_detour_body(body, section, prefix) {
     let outbound_detour_enabled = bool_option_value(section, "outbound_detour_enabled", false);
     body = signature_add_value(body, prefix + ".outbound_detour_enabled", outbound_detour_enabled);
@@ -831,6 +650,30 @@ function signature_add_outbound_detour_body(body, section, prefix) {
         body = signature_add_value(body, prefix + ".outbound_detour_section", option(section, "outbound_detour_section", ""));
 
     return body;
+}
+
+function section_action_is_enabled(section, action) {
+    return section_name(section) != "" &&
+        bool_option(section, "enabled", true) &&
+        option(section, "action", "") == as_string(action);
+}
+
+function enabled_action_index(sections, target_section, action) {
+    let result = 0;
+    target_section = as_string(target_section);
+    action = as_string(action);
+
+    for (let section in sections) {
+        section = object_or_empty(section);
+        if (!section_action_is_enabled(section, action))
+            continue;
+
+        result++;
+        if (section_name(section) == target_section)
+            return result;
+    }
+
+    return 0;
 }
 
 function append_sing_box_rule_signature_body(body, section, sections) {
@@ -873,7 +716,7 @@ function append_sing_box_rule_signature_body(body, section, sections) {
         body = signature_add_outbound_detour_body(body, section, prefix);
     }
     else if (action == "byedpi") {
-        body = signature_add_value(body, prefix + ".byedpi_index", sing_box_signature_enabled_action_index(sections, name, "byedpi"));
+        body = signature_add_value(body, prefix + ".byedpi_index", enabled_action_index(sections, name, "byedpi"));
     }
     else if (action == "dns") {
         for (let value in list_option(section, "dns_server"))
@@ -1040,12 +883,6 @@ function sing_box_signature_body(settings, sections, servers, mwan3_active) {
     return body;
 }
 
-function section_action_is_enabled(section, action) {
-    return section_name(section) != "" &&
-        bool_option(section, "enabled", true) &&
-        option(section, "action", "") == as_string(action);
-}
-
 function action_queue_signature_body(sections, action, signature_key) {
     let body = "";
 
@@ -1124,24 +961,6 @@ function zapret2_runtime_signature_body(sections) {
     return body;
 }
 
-function enabled_action_index(sections, target_section, action) {
-    let result = 0;
-    target_section = as_string(target_section);
-    action = as_string(action);
-
-    for (let section in sections) {
-        section = object_or_empty(section);
-        if (!section_action_is_enabled(section, action))
-            continue;
-
-        result++;
-        if (section_name(section) == target_section)
-            return result;
-    }
-
-    return 0;
-}
-
 function byedpi_runtime_signature_body(sections) {
     let body = "";
 
@@ -1170,8 +989,7 @@ function reload_state_values_from_sources(format, settings, sections, servers, d
         zapret2_queue_signature: signature_hash(action_queue_signature_body(sections, "zapret2", "zapret2_queue.section")),
         zapret2_runtime_signature: signature_hash(zapret2_runtime_signature_body(sections)),
         byedpi_runtime_signature: signature_hash(byedpi_runtime_signature_body(sections)),
-        cron_signature: signature_hash(cron_signature_body(settings)),
-        dont_touch_dhcp: dont_touch_dhcp_value(settings)
+        cron_signature: signature_hash(cron_signature_body(settings))
     };
 }
 
@@ -1321,26 +1139,24 @@ function fixture_reload_state_values(data, format) {
 
 let mode = ARGV[0];
 
-if (mode == "get")
-    read_state_value(ARGV[1], ARGV[2]);
-else if (mode == "time-sync-needed")
+if (mode == "time-sync-needed")
     exit(time_sync_needed(ARGV[1]) ? 0 : 1);
 else if (mode == "sync-time-if-needed")
     sync_time_if_needed();
 else if (mode == "mark-pending-reload")
-    mark_pending_reload(ARGV[1], ARGV[2]);
+    exit(lock.mark_request(ARGV[1] || DEFAULT_PENDING_RELOAD_FILE, ARGV[2] || "pending") ? 0 : 1);
 else if (mode == "consume-pending-reload")
-    exit(consume_pending_reload(ARGV[1]) ? 0 : 1);
+    exit(lock.consume_request(ARGV[1] || DEFAULT_PENDING_RELOAD_FILE) ? 0 : 1);
 else if (mode == "run-pending-reload-if-requested")
-    run_pending_reload_if_requested(ARGV[1], ARGV[2]);
+    lock.run_pending_reload_if_requested(ARGV[1] || DEFAULT_PENDING_RELOAD_FILE, ARGV[2] || DEFAULT_SERVICE_INIT);
 else if (mode == "runtime-dir-lock-held")
-    exit(runtime_dir_lock_held(ARGV[1]) ? 0 : 1);
+    exit(lock.held(ARGV[1]) ? 0 : 1);
 else if (mode == "acquire-runtime-dir-lock")
-    exit(acquire_runtime_dir_lock(ARGV[1], ARGV[2]) ? 0 : 1);
+    exit(lock.acquire(ARGV[1], ARGV[2]) ? 0 : 1);
 else if (mode == "acquire-runtime-dir-lock-wait")
-    exit(acquire_runtime_dir_lock_wait(ARGV[1], ARGV[2], ARGV[3]) ? 0 : 1);
+    exit(lock.acquire_wait(ARGV[1], ARGV[2], ARGV[3]) ? 0 : 1);
 else if (mode == "release-runtime-dir-lock")
-    release_runtime_dir_lock(ARGV[1], ARGV[2]);
+    lock.release(ARGV[1], ARGV[2]);
 else if (mode == "wait-sing-box-stopped")
     exit(wait_sing_box_stopped(ARGV[1] || "15") ? 0 : 1);
 else if (mode == "reload-sing-box-runtime")
@@ -1353,8 +1169,6 @@ else if (mode == "write-current-reload-state-clean")
     write_current_reload_state_clean(ARGV[1], ARGV[2] || "1", ARGV[3]);
 else if (mode == "write-captured-reload-state")
     write_captured_reload_state(ARGV[1], ARGV[2], ARGV[3] || "1", ARGV[4], ARGV[5], ARGV[6]);
-else if (mode == "write-current-reload-state")
-    write_reload_state(ARGV[1], current_reload_state_values(ARGV[2] || "1"));
 else if (mode == "reload-state-text-fixture") {
     let data = fixture_data(ARGV[1]);
     print(reload_state_text(fixture_reload_state_values(data, ARGV[2] || "1")));

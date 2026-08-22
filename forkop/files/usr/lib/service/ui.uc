@@ -4,13 +4,13 @@ let fs = require("fs");
 let uci_core = require("core.uci");
 let subscription_headers_module = require("singbox.subscription_headers");
 let health = require("service.health");
+let lock = require("service.lock");
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
 const BIN_PATH = getenv("FORKOP_BIN") || "/usr/bin/forkop";
 const SERVICE_INIT = getenv("FORKOP_SERVICE_INIT") || "/etc/init.d/forkop";
 const SERVICE_NAME = getenv("FORKOP_SERVICE_NAME") || "forkop";
-const STATE_UC = LIB_DIR + "/service/state.uc";
 const UI_UC = LIB_DIR + "/service/ui.uc";
 const STATE_DIR = getenv("FORKOP_UI_STATE_DIR") || "/var/run/forkop/ui-state";
 const PENDING_RELOAD_FILE = getenv("FORKOP_PENDING_RELOAD_FILE") || "/var/run/forkop/reload.pending";
@@ -24,6 +24,7 @@ const ACTION_STALE_GRACE_SECONDS = getenv("FORKOP_UI_ACTION_STALE_GRACE_SECONDS"
 const SERVICE_ACTION_TIMEOUT_SECONDS = getenv("FORKOP_UI_SERVICE_ACTION_TIMEOUT_SECONDS") || "120";
 const SERVICE_ACTION_SETTLE_SECONDS = getenv("FORKOP_UI_SERVICE_ACTION_SETTLE_SECONDS") || "2";
 const RUNTIME_STABLE_MIN_AGE = getenv("FORKOP_RUNTIME_STABLE_MIN_AGE") || "2";
+const SERVICE_ACTION_LOCK_OWNER_GRACE = getenv("FORKOP_UI_SERVICE_ACTION_LOCK_OWNER_GRACE") || "5";
 const NFT_TABLE_NAME = getenv("NFT_TABLE_NAME") || "ForkopTable";
 const RT_TABLE_NAME = getenv("RT_TABLE_NAME") || "forkop";
 const NFT_FAKEIP_MARK = getenv("NFT_FAKEIP_MARK") || "0x04000000";
@@ -92,13 +93,8 @@ function command_output(command) {
     return as_string(data);
 }
 
-function command_status(command) {
-    let status = int(system(command));
-    return status > 255 ? int(status / 256) : status;
-}
-
 function command_success(command) {
-    return command_status(command + " >/dev/null 2>&1") == 0;
+    return system(command + " >/dev/null 2>&1") == 0;
 }
 
 function command_success_from_args(args) {
@@ -160,12 +156,16 @@ function remove_file(path) {
     }
 }
 
+function str_remove_suffix(value, suffix) {
+    value = as_string(value);
+    suffix = as_string(suffix);
+    if (length(value) >= length(suffix) && substr(value, length(value) - length(suffix)) == suffix)
+        return substr(value, 0, length(value) - length(suffix));
+    return value;
+}
+
 function remove_state_file(path) {
-    path = as_string(path);
-    let base = path;
-    let suffix = ".json";
-    if (length(base) >= length(suffix) && substr(base, length(base) - length(suffix)) == suffix)
-        base = substr(base, 0, length(base) - length(suffix));
+    let base = str_remove_suffix(as_string(path), ".json");
     remove_file(path);
     remove_file(base + ".out");
     remove_file(base + ".out.json");
@@ -198,14 +198,6 @@ function path_basename(path) {
     return length(parts) > 0 ? as_string(parts[length(parts) - 1]) : "";
 }
 
-function str_remove_suffix(value, suffix) {
-    value = as_string(value);
-    suffix = as_string(suffix);
-    if (length(value) >= length(suffix) && substr(value, length(value) - length(suffix)) == suffix)
-        return substr(value, 0, length(value) - length(suffix));
-    return value;
-}
-
 function job_id_from_path(path) {
     return str_remove_suffix(path_basename(path), ".json");
 }
@@ -231,15 +223,21 @@ function service_action_valid(action) {
     return action == "start" || action == "stop" || action == "restart" || action == "reload";
 }
 
-function service_action_expected_running(action) {
+function service_action_expected_running_value(action) {
     action = as_string(action);
-
     if (action == "start" || action == "restart" || action == "reload")
-        print("1\n");
-    else if (action == "stop")
-        print("0\n");
-    else
+        return 1;
+    if (action == "stop")
+        return 0;
+    return -1;
+}
+
+function service_action_expected_running(action) {
+    let expected = service_action_expected_running_value(action);
+    if (expected < 0)
         exit(1);
+
+    print(expected, "\n");
 }
 
 function action_ack_expired(path, now_value, ttl_value) {
@@ -257,14 +255,23 @@ function action_ack_expired(path, now_value, ttl_value) {
     exit(now - acked_at >= ttl ? 0 : 1);
 }
 
-function job_state_path(dir, job_id) {
-    dir = as_string(dir);
+function valid_job_id(job_id) {
     job_id = as_string(job_id);
+    return job_id != "" && job_id != "." && job_id != ".." && match(job_id, /[^A-Za-z0-9._-]/) == null;
+}
 
-    if (job_id == "" || job_id == "." || job_id == ".." || match(job_id, /[^A-Za-z0-9._-]/) != null)
+function job_state_path_value(dir, job_id) {
+    if (!valid_job_id(job_id))
+        return "";
+    return as_string(dir) + "/" + as_string(job_id) + ".json";
+}
+
+function job_state_path(dir, job_id) {
+    let path = job_state_path_value(dir, job_id);
+    if (path == "")
         exit(1);
 
-    print(dir, "/", job_id, ".json\n");
+    print(path, "\n");
 }
 
 function job_started_at_within_grace(value, now, grace_seconds) {
@@ -300,22 +307,8 @@ function job_refresh_plan(path, now, grace_seconds) {
     print("pid\t", pid, "\t", within_grace ? "0" : "1", "\n");
 }
 
-function active_service_action(dir) {
-    dir = as_string(dir || SERVICE_ACTION_DIR);
-
-    for (let path in fs.glob(as_string(dir) + "/*.json")) {
-        let value = read_json_file(path);
-        if (type(value) == "object" && value.running === true && as_string(value.action) != "") {
-            print(as_string(value.action), "\n");
-            return;
-        }
-    }
-
-    exit(1);
-}
-
-function active_service_action_value() {
-    for (let path in fs.glob(SERVICE_ACTION_DIR + "/*.json")) {
+function active_service_action_value(dir) {
+    for (let path in fs.glob(as_string(dir || SERVICE_ACTION_DIR) + "/*.json")) {
         let value = read_json_file(path);
         if (type(value) == "object" && value.running === true && as_string(value.action) != "")
             return as_string(value.action);
@@ -324,29 +317,17 @@ function active_service_action_value() {
     return "";
 }
 
+function print_active_service_action(dir) {
+    let action = active_service_action_value(dir);
+    if (action == "")
+        exit(1);
+
+    print(action, "\n");
+}
+
 function file_executable(path) {
     let stat = fs.stat(as_string(path));
     return stat != null && stat.mode != null && (int(stat.mode) & 73) != 0;
-}
-
-function first_line(path) {
-    let data = fs.readfile(as_string(path));
-    if (data == null)
-        return "";
-
-    let newline = index(data, "\n");
-    return trim(newline >= 0 ? substr(data, 0, newline) : data);
-}
-
-function valid_job_id(job_id) {
-    job_id = as_string(job_id);
-    return job_id != "" && job_id != "." && job_id != ".." && match(job_id, /[^A-Za-z0-9._-]/) == null;
-}
-
-function job_state_path_value(dir, job_id) {
-    if (!valid_job_id(job_id))
-        return "";
-    return as_string(dir) + "/" + as_string(job_id) + ".json";
 }
 
 function job_id() {
@@ -495,9 +476,9 @@ function refresh_action_dirs() {
         refresh_pid_job_state(path, "Component action worker exited unexpectedly");
 }
 
-function active_service_action_default() {
+function print_active_service_action_after_refresh() {
     refresh_action_dirs();
-    active_service_action(SERVICE_ACTION_DIR);
+    print_active_service_action(SERVICE_ACTION_DIR);
 }
 
 function action_state_from_dir(dir) {
@@ -520,46 +501,6 @@ function action_state_from_dirs() {
         service: action_state_from_dir(SERVICE_ACTION_DIR),
         component: action_state_from_dir(COMPONENT_ACTION_DIR)
     };
-}
-
-function release_dir_lock(lock_dir) {
-    remove_file(as_string(lock_dir) + "/pid");
-    command_success_from_args([ "rmdir", lock_dir ]);
-}
-
-function acquire_dir_lock(lock_dir) {
-    lock_dir = as_string(lock_dir);
-    let owner_pid = current_pid();
-    if (!job_pid_valid(owner_pid))
-        return false;
-
-    if (command_success_from_args([ "mkdir", lock_dir ])) {
-        if (write_file(lock_dir + "/pid", owner_pid + "\n"))
-            return true;
-        release_dir_lock(lock_dir);
-        return false;
-    }
-
-    let current_owner_pid = first_line(lock_dir + "/pid");
-    if (pid_running(current_owner_pid))
-        return false;
-
-    let lock_stat = fs.stat(lock_dir);
-    if (current_owner_pid == "" && lock_stat != null) {
-        let lock_age = now_seconds() - int(lock_stat.mtime || 0);
-        if (lock_age >= 0 && lock_age < 5)
-            return false;
-    }
-
-    remove_file(lock_dir + "/pid");
-    command_success_from_args([ "rmdir", lock_dir ]);
-    if (!command_success_from_args([ "mkdir", lock_dir ]))
-        return false;
-
-    if (write_file(lock_dir + "/pid", owner_pid + "\n"))
-        return true;
-    release_dir_lock(lock_dir);
-    return false;
 }
 
 function service_enabled() {
@@ -658,15 +599,6 @@ function current_ui_state_json() {
     });
 }
 
-function service_action_expected_running_value(action) {
-    action = as_string(action);
-    if (action == "start" || action == "restart" || action == "reload")
-        return 1;
-    if (action == "stop")
-        return 0;
-    return -1;
-}
-
 function service_action_reached_expected_state(action) {
     let expected = service_action_expected_running_value(action);
     if (expected < 0)
@@ -703,24 +635,22 @@ function begin_service_action_if_idle(action, source) {
         return { status: 1, job_id: "" };
 
     ensure_dirs();
-    if (!acquire_dir_lock(SERVICE_ACTION_LOCK_DIR))
+    let owner_pid = current_pid();
+    if (!lock.acquire(SERVICE_ACTION_LOCK_DIR, owner_pid, SERVICE_ACTION_LOCK_OWNER_GRACE))
         return { status: 2, job_id: "" };
 
+    let result = { status: 2, job_id: "" };
     refresh_action_dirs();
-    if (active_service_action_value() != "") {
-        release_dir_lock(SERVICE_ACTION_LOCK_DIR);
-        return { status: 2, job_id: "" };
+    if (active_service_action_value() == "") {
+        let id = job_id();
+        let path = job_state_path_value(SERVICE_ACTION_DIR, id);
+        result = path != "" && write_state_file(path, running_service_action_value(action, source, now_seconds()))
+            ? { status: 0, job_id: id }
+            : { status: 1, job_id: "" };
     }
 
-    let id = job_id();
-    let path = job_state_path_value(SERVICE_ACTION_DIR, id);
-    if (path == "" || !write_state_file(path, running_service_action_value(action, source, now_seconds()))) {
-        release_dir_lock(SERVICE_ACTION_LOCK_DIR);
-        return { status: 1, job_id: "" };
-    }
-
-    release_dir_lock(SERVICE_ACTION_LOCK_DIR);
-    return { status: 0, job_id: id };
+    lock.release(SERVICE_ACTION_LOCK_DIR, owner_pid);
+    return result;
 }
 
 function begin_service_action_mode(action, source) {
@@ -730,15 +660,10 @@ function begin_service_action_mode(action, source) {
     exit(result.status);
 }
 
-function finish_service_action(job_id_value, success, message, exit_code) {
-    let path = job_state_path_value(SERVICE_ACTION_DIR, job_id_value);
-    if (path == "" || fs.stat(path) == null)
-        return false;
-    return write_finished_action_state(path, success, message, exit_code);
-}
-
 function finish_service_action_mode(job_id_value, success, message, exit_code) {
-    exit(finish_service_action(job_id_value, success, message, exit_code) ? 0 : 1);
+    let path = job_state_path_value(SERVICE_ACTION_DIR, job_id_value);
+    exit(path != "" && fs.stat(path) != null &&
+        write_finished_action_state(path, success, message, exit_code) ? 0 : 1);
 }
 
 function launch_worker(args) {
@@ -784,7 +709,7 @@ function start_service_action(action, source, reason) {
     if (path == "")
         return { success: false, job_id: begin.job_id };
 
-    let pid = launch_worker([ "service-action-worker", path, action, begin.job_id, reason || "" ]);
+    let pid = launch_worker([ "service-action-worker", action, begin.job_id, reason || "" ]);
     if (pid == "" || !set_running_job_pid_file(path, pid)) {
         if (pid != "")
             command_success_from_args([ "kill", pid ]);
@@ -800,55 +725,24 @@ function service_action_allows_pending_reload(action) {
     return action == "start" || action == "restart" || action == "reload";
 }
 
-function consume_pending_reload() {
-    return command_success_from_args([
-        "ucode",
-        "-L", LIB_DIR,
-        STATE_UC,
-        "consume-pending-reload",
-        PENDING_RELOAD_FILE
-    ]);
-}
-
-function mark_pending_reload(reason) {
-    return command_success_from_args([
-        "ucode",
-        "-L", LIB_DIR,
-        STATE_UC,
-        "mark-pending-reload",
-        PENDING_RELOAD_FILE,
-        reason
-    ]);
-}
-
-function reload_lock_held() {
-    return command_success_from_args([
-        "ucode",
-        "-L", LIB_DIR,
-        STATE_UC,
-        "runtime-dir-lock-held",
-        RELOAD_LOCK_DIR
-    ]);
-}
-
 function run_pending_reload_after_service_action(action, success) {
-    if (!success || !service_action_allows_pending_reload(action) || fs.stat(STATE_UC) == null)
+    if (!success || !service_action_allows_pending_reload(action))
         return;
 
     // Another reload owns the lock and applies the pending request itself once
     // it finishes. Consuming it here would start a UI reload action that
     // defers immediately, restores the pending marker and returns success,
     // which brings this path straight back and loops until the lock is free.
-    if (reload_lock_held())
+    if (lock.held(RELOAD_LOCK_DIR))
         return;
 
-    if (!consume_pending_reload())
+    if (!lock.consume_request(PENDING_RELOAD_FILE))
         return;
 
     command_success_from_args([ "logger", "-t", SERVICE_NAME, "[info] Applying pending Forkop reload" ]);
     let started = start_service_action("reload", "initd", "pending");
     if (!started.success)
-        mark_pending_reload("pending");
+        lock.mark_request(PENDING_RELOAD_FILE, "pending");
 }
 
 function write_finished_service_action_state(path, action, success, message, exit_code) {
@@ -878,7 +772,7 @@ function finish_service_action_after_command(action, job_id_value, status, spawn
     }
 
     if (spawn_waiter) {
-        let pid = launch_worker([ "service-action-wait-worker", path, as_string(action), as_string(job_id_value) ]);
+        let pid = launch_worker([ "service-action-wait-worker", path, as_string(action) ]);
         if (pid != "")
             set_running_job_pid_file(path, pid);
         return 0;
@@ -900,17 +794,17 @@ function update_service_action_pid_mode(job_id_value, pid) {
     exit(path != "" && set_running_job_pid_file(path, pid) ? 0 : 1);
 }
 
-function service_action_worker(path, action, job_id_value, reason) {
+function service_action_worker(action, job_id_value, reason) {
     let args = [ SERVICE_INIT, action ];
     reason = as_string(reason || "");
     if (reason != "")
         push(args, reason);
     let command = "FORKOP_UI_ACTION_TRACKED=1 " + command_from_args(args) + " >/dev/null 2>&1";
-    let status = command_status(command);
+    let status = system(command);
     finish_service_action_after_command(action, job_id_value, status, false);
 }
 
-function service_action_wait_worker(path, action, job_id_value) {
+function service_action_wait_worker(path, action) {
     if (service_action_wait_for_expected_state(action, SERVICE_ACTION_TIMEOUT_SECONDS, SERVICE_ACTION_SETTLE_SECONDS))
         write_finished_service_action_state(path, action, true, "Service " + as_string(action) + " completed", 0);
     else
@@ -1016,7 +910,7 @@ else if (mode == "job-state-path")
 else if (mode == "job-refresh-plan")
     job_refresh_plan(ARGV[1], ARGV[2], ARGV[3]);
 else if (mode == "active-service-action")
-    ARGV[1] == null ? active_service_action_default() : active_service_action(ARGV[1]);
+    ARGV[1] == null ? print_active_service_action_after_refresh() : print_active_service_action(ARGV[1]);
 else if (mode == "service-action-begin-if-idle")
     begin_service_action_mode(ARGV[1], ARGV[2] || "ui");
 else if (mode == "service-action-update-pid")
@@ -1026,7 +920,7 @@ else if (mode == "service-action-finish")
 else if (mode == "service-action-finish-after-command")
     finish_service_action_after_command_mode(ARGV[1], ARGV[2], ARGV[3]);
 else if (mode == "service-action-wait-worker")
-    service_action_wait_worker(ARGV[1], ARGV[2], ARGV[3]);
+    service_action_wait_worker(ARGV[1], ARGV[2]);
 else if (mode == "service-action-worker")
     service_action_worker(ARGV[1], ARGV[2], ARGV[3]);
 else if (mode == "service-action-async")

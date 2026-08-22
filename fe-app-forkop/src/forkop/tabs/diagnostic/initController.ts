@@ -346,6 +346,43 @@ async function fetchSystemInfo() {
   });
 }
 
+// A provider that is not installed has no version to show, and a fresh
+// capability read resets the check list unless a run is already using it.
+function applyDiagnosticsProviderInfo(
+  nextSystemInfo: StoreType['diagnosticsSystemInfo'],
+  resetChecks: boolean,
+) {
+  if (!nextSystemInfo.zapret_installed) {
+    nextSystemInfo.zapret_version = 'not installed';
+  }
+
+  if (!nextSystemInfo.zapret2_installed) {
+    nextSystemInfo.zapret2_version = 'not installed';
+  }
+
+  if (!nextSystemInfo.byedpi_installed) {
+    nextSystemInfo.byedpi_version = 'not installed';
+  }
+
+  const nextState: Partial<StoreType> = {
+    diagnosticsSystemInfo: nextSystemInfo,
+  };
+
+  if (
+    shouldResetDiagnosticsChecks({
+      resetChecks,
+      diagnosticsRunLoading: store.get().diagnosticsRunAction.loading,
+    })
+  ) {
+    nextState.diagnosticsChecks = getDiagnosticsChecks(
+      _('Not running'),
+      getDiagnosticsProviderOptions(nextSystemInfo),
+    );
+  }
+
+  store.set(nextState);
+}
+
 async function fetchDiagnosticsProviderInfo({
   resetChecks = true,
 }: { resetChecks?: boolean } = {}) {
@@ -370,35 +407,7 @@ async function fetchDiagnosticsProviderInfo({
           uiState.capabilities.server_inbounds_enabled_count,
       };
 
-      if (!nextSystemInfo.zapret_installed) {
-        nextSystemInfo.zapret_version = 'not installed';
-      }
-
-      if (!nextSystemInfo.zapret2_installed) {
-        nextSystemInfo.zapret2_version = 'not installed';
-      }
-
-      if (!nextSystemInfo.byedpi_installed) {
-        nextSystemInfo.byedpi_version = 'not installed';
-      }
-
-      const nextState: Partial<StoreType> = {
-        diagnosticsSystemInfo: nextSystemInfo,
-      };
-
-      if (
-        shouldResetDiagnosticsChecks({
-          resetChecks,
-          diagnosticsRunLoading: store.get().diagnosticsRunAction.loading,
-        })
-      ) {
-        nextState.diagnosticsChecks = getDiagnosticsChecks(
-          _('Not running'),
-          getDiagnosticsProviderOptions(nextSystemInfo),
-        );
-      }
-
-      store.set(nextState);
+      applyDiagnosticsProviderInfo(nextSystemInfo, resetChecks);
       return;
     }
 
@@ -456,35 +465,7 @@ async function fetchDiagnosticsProviderInfo({
       );
     }
 
-    if (!nextSystemInfo.zapret_installed) {
-      nextSystemInfo.zapret_version = 'not installed';
-    }
-
-    if (!nextSystemInfo.zapret2_installed) {
-      nextSystemInfo.zapret2_version = 'not installed';
-    }
-
-    if (!nextSystemInfo.byedpi_installed) {
-      nextSystemInfo.byedpi_version = 'not installed';
-    }
-
-    const nextState: Partial<StoreType> = {
-      diagnosticsSystemInfo: nextSystemInfo,
-    };
-
-    if (
-      shouldResetDiagnosticsChecks({
-        resetChecks,
-        diagnosticsRunLoading: store.get().diagnosticsRunAction.loading,
-      })
-    ) {
-      nextState.diagnosticsChecks = getDiagnosticsChecks(
-        _('Not running'),
-        getDiagnosticsProviderOptions(nextSystemInfo),
-      );
-    }
-
-    store.set(nextState);
+    applyDiagnosticsProviderInfo(nextSystemInfo, resetChecks);
   } catch (error) {
     logger.error('[DIAGNOSTIC]', 'fetchDiagnosticsProviderInfo failed', error);
 

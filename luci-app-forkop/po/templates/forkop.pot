@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-22 06:24+0300\n"
-"PO-Revision-Date: 2026-08-22 06:24+0300\n"
+"POT-Creation-Date: 2026-08-22 08:50+0300\n"
+"PO-Revision-Date: 2026-08-22 08:50+0300\n"
 "Last-Translator: ushan0v <ushanov2204@gmail.com>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "Language: \n"
@@ -100,7 +100,7 @@ msgstr ""
 msgid "A short ID holds at most 16 hex digits"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:438
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:347
 msgid "Accept external proxy connections and route them with sing-box."
 msgstr ""
 
@@ -147,15 +147,15 @@ msgstr ""
 msgid "Add a link or local path. The format is detected automatically."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:418
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:327
 msgid "Add a section"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:425
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:334
 msgid "Add a section to configure routing"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:444
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:353
 msgid "Add a server inbound"
 msgstr ""
 
@@ -412,22 +412,22 @@ msgstr ""
 msgid "Built-in rule sets"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1038
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:866
 msgid "ByeDPI listen address and port are assigned by Forkop and must not be set in the strategy."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1215
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1043
 msgid "ByeDPI option does not accept a compact value: %s"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1144
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:972
 msgid "ByeDPI option does not accept a value: %s"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1136
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1162
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1196
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1205
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:964
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:990
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1024
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1033
 msgid "ByeDPI option requires a value: %s"
 msgstr ""
 
@@ -465,11 +465,11 @@ msgstr ""
 msgid "ByeDPI Strategy"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1241
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1069
 msgid "ByeDPI strategy cannot be empty"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1250
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1078
 msgid "ByeDPI strategy has an unterminated %s quote"
 msgstr ""
 
@@ -484,11 +484,10 @@ msgstr ""
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runByedpiCheck.ts:26
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runDnsCheck.ts:26
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts:174
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runNfqueueProviderCheck.ts:59
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runNftCheck.ts:28
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runSectionsCheck.ts:46
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runSingBoxCheck.ts:25
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:26
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:26
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7512
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7571
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7754
@@ -557,11 +556,10 @@ msgstr ""
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runDnsCheck.ts:14
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runFakeIPCheck.ts:15
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts:162
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runNfqueueProviderCheck.ts:47
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runNftCheck.ts:13
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runSectionsCheck.ts:34
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runSingBoxCheck.ts:13
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:14
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:14
 #: fe-app-forkop/src/forkop/tabs/diagnostic/initController.ts:1030
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7502
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7561
@@ -684,7 +682,7 @@ msgstr ""
 msgid "Component update check interval"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:508
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:417
 msgid "Components"
 msgstr ""
 
@@ -705,7 +703,7 @@ msgstr ""
 msgid "Configuration"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:364
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:273
 msgid "Configuration for Forkop service"
 msgstr ""
 
@@ -825,7 +823,7 @@ msgstr ""
 msgid "Custom sing-box outbound objects in JSON format"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:476
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:385
 msgid "Dashboard"
 msgstr ""
 
@@ -900,7 +898,7 @@ msgstr ""
 msgid "DHCP is managed manually"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:464
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:373
 msgid "Diagnostics"
 msgstr ""
 
@@ -927,7 +925,7 @@ msgstr ""
 msgid "Disabled"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:755
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:625
 msgid "Disabling interception is incompatible with action=zapret2 because Forkop sends matched traffic through NFQUEUE."
 msgstr ""
 
@@ -1083,7 +1081,7 @@ msgstr ""
 msgid "Downloaded"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:412
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:321
 msgid "Drag rows to change order. The rule at the top is checked first."
 msgstr ""
 
@@ -1302,11 +1300,11 @@ msgstr ""
 msgid "Expires"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:413
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:462
 msgid "External nfqws config files bypass Forkop queue management and explicit validation."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:734
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:611
 msgid "External nfqws2 config files bypass Forkop queue management and explicit validation."
 msgstr ""
 
@@ -1445,19 +1443,19 @@ msgstr ""
 msgid "Forkop Error"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1047
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:875
 msgid "Forkop manages ciadpi pid files itself, so pidfile options are not allowed here."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1044
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:872
 msgid "Forkop manages the ciadpi process lifecycle itself, so daemon mode is not allowed here."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:431
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:508
 msgid "Forkop manages the nfqws process lifecycle itself, so daemon mode is not allowed here."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:758
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:678
 msgid "Forkop manages the nfqws2 process lifecycle itself, so daemon mode is not allowed here."
 msgstr ""
 
@@ -1475,7 +1473,7 @@ msgstr ""
 msgid "Forkop service proxy"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:363
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:272
 msgid "Forkop Settings"
 msgstr ""
 
@@ -1515,37 +1513,37 @@ msgstr ""
 msgid "Forkop-managed ciadpi runtime is ready"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:87
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:18
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8016
 msgid "Forkop-managed nfqws runtime is not ready"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:90
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:20
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8016
 msgid "Forkop-managed nfqws runtime is not running"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:86
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:17
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8016
 msgid "Forkop-managed nfqws runtime is ready"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:90
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:18
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8102
 msgid "Forkop-managed nfqws2 runtime is not ready"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:93
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:22
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8102
 msgid "Forkop-managed nfqws2 runtime is not running"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:89
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:17
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8102
 msgid "Forkop-managed nfqws2 runtime is ready"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:752
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:671
 msgid "Fuzzing is not supported here because Forkop needs deterministic runtime validation."
 msgstr ""
 
@@ -2050,7 +2048,7 @@ msgstr ""
 msgid "Log Level"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:497
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:406
 msgid "Logs"
 msgstr ""
 
@@ -2105,7 +2103,7 @@ msgstr ""
 msgid "Monitored Interfaces"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:488
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:397
 msgid "Monitoring"
 msgstr ""
 
@@ -2179,15 +2177,13 @@ msgstr ""
 msgid "New version %s is available for %s"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:100
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:97
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runNfqueueProviderCheck.ts:123
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8021
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8107
 msgid "NFQUEUE range is available"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:99
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:96
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runNfqueueProviderCheck.ts:122
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8021
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8107
 msgid "NFQUEUE range overlaps with another rule"
@@ -2197,7 +2193,7 @@ msgstr ""
 msgid "NFQWS Strategy"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:543
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:822
 msgid "NFQWS strategy cannot be empty"
 msgstr ""
 
@@ -2205,7 +2201,7 @@ msgstr ""
 msgid "NFQWS2 Strategy"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:901
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:836
 msgid "NFQWS2 strategy cannot be empty"
 msgstr ""
 
@@ -2265,12 +2261,12 @@ msgstr ""
 msgid "No rules use ByeDPI"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:79
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:16
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8011
 msgid "No rules use Zapret"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:82
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:16
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8097
 msgid "No rules use Zapret2"
 msgstr ""
@@ -2450,11 +2446,11 @@ msgstr ""
 msgid "Optional local UDP port. Leave empty to use the default value."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:621
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:828
 msgid "Optional values must be attached with '=' here; a separate token would be ignored by nfqws."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:979
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:842
 msgid "Optional values must be attached with '=' here; a separate token would be ignored by nfqws2."
 msgstr ""
 
@@ -2760,19 +2756,19 @@ msgstr ""
 msgid "Required. Where the traffic of this server leaves."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:416
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:480
 msgid "Resource selection by hostname inside nfqws is not supported here; sing-box selects resources before NFQUEUE."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:737
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:643
 msgid "Resource selection by hostname inside nfqws2 is not supported here; sing-box selects resources before NFQUEUE."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:419
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:487
 msgid "Resource selection by IP or CIDR inside nfqws is not supported here; sing-box selects resources before NFQUEUE."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:740
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:650
 msgid "Resource selection by IP or CIDR inside nfqws2 is not supported here; sing-box selects resources before NFQUEUE."
 msgstr ""
 
@@ -2913,7 +2909,7 @@ msgstr ""
 msgid "Secret key for authenticating remote access to YACD when WAN access is enabled."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:417
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:326
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:2514
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4521
 msgid "Section"
@@ -2931,7 +2927,7 @@ msgstr ""
 msgid "Section name must not contain /"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:411
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:320
 msgid "Sections"
 msgstr ""
 
@@ -3021,7 +3017,7 @@ msgstr ""
 msgid "Sequential"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:443
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:352
 msgid "Server"
 msgstr ""
 
@@ -3097,7 +3093,7 @@ msgstr ""
 msgid "server_port must be a number from 1 to 65535"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:437
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:346
 msgid "Servers"
 msgstr ""
 
@@ -3147,7 +3143,7 @@ msgstr ""
 msgid "Set the public host and the port to get a link."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:452
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:361
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:1079
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7395
 msgid "Settings"
@@ -3301,37 +3297,41 @@ msgstr ""
 msgid "Standalone ByeDPI service is inactive"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:111
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:27
+msgid "Standalone Zapret autostart is enabled"
+msgstr ""
+
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:23
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8031
 msgid "Standalone Zapret is active together with Forkop Zapret rules"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:112
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:26
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8031
 msgid "Standalone Zapret service is active"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:113
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:28
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8031
 msgid "Standalone Zapret service is inactive"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:121
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:29
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8117
 msgid "Standalone Zapret2 autostart is enabled"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:118
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:25
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8117
 msgid "Standalone Zapret2 is active together with Forkop Zapret2 rules"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:119
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:28
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8117
 msgid "Standalone Zapret2 service is active"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:122
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:30
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8117
 msgid "Standalone Zapret2 service is inactive"
 msgstr ""
@@ -3449,8 +3449,8 @@ msgstr ""
 msgid "The certificate and the key must be different files"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:428
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:749
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:501
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:664
 msgid "The desync fwmark is managed by Forkop for loop prevention and must not be overridden here."
 msgstr ""
 
@@ -3467,8 +3467,8 @@ msgstr ""
 msgid "The name this device appears under in the Tailscale console."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:425
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:746
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:494
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:657
 msgid "The NFQUEUE number is assigned by Forkop for each rule and must not be overridden here."
 msgstr ""
 
@@ -3494,12 +3494,12 @@ msgstr ""
 msgid "There are rules using ByeDPI"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:78
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:15
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8011
 msgid "There are rules using Zapret"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:81
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:15
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8097
 msgid "There are rules using Zapret2"
 msgstr ""
@@ -3513,28 +3513,27 @@ msgstr ""
 msgid "This field is required"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1050
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:878
 msgid "This field must start a working ciadpi strategy; help/version options exit immediately and are not allowed here."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:434
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:515
 msgid "This field must start a working nfqws strategy; --dry-run exits immediately and is not allowed here."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:437
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:522
 msgid "This field must start a working nfqws strategy; --version exits immediately and is not allowed here."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:761
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:685
 msgid "This field must start a working nfqws2 strategy; --dry-run exits immediately and is not allowed here."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:764
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:692
 msgid "This field must start a working nfqws2 strategy; --version exits immediately and is not allowed here."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:606
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:964
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:766
 msgid "This flag does not accept a value."
 msgstr ""
 
@@ -3550,8 +3549,7 @@ msgstr ""
 msgid "This name is reserved by Forkop"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:637
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:995
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:795
 msgid "This option requires a value."
 msgstr ""
 
@@ -3609,7 +3607,7 @@ msgstr ""
 msgid "Traffic Total"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1041
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:869
 msgid "Transparent proxy mode is incompatible with action=byedpi because Forkop connects to ciadpi through SOCKS."
 msgstr ""
 
@@ -3686,8 +3684,8 @@ msgstr ""
 msgid "Unable to validate the NFQWS2 strategy through the backend parser."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1182
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1231
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1010
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1059
 msgid "Unexpected ByeDPI strategy argument: %s"
 msgstr ""
 
@@ -3696,18 +3694,17 @@ msgstr ""
 msgid "Unexpected Forkop-managed ciadpi runtime is running"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:89
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:19
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8016
 msgid "Unexpected Forkop-managed nfqws runtime is running"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:92
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:19
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8102
 msgid "Unexpected Forkop-managed nfqws2 runtime is running"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:586
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:944
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:746
 msgid "Unexpected standalone token. Use explicit flags such as --name or --name=value."
 msgstr ""
 
@@ -3738,9 +3735,9 @@ msgstr ""
 msgid "unknown"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1151
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1173
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1224
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:979
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1001
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:1052
 msgid "Unknown ByeDPI option: %s"
 msgstr ""
 
@@ -3749,11 +3746,11 @@ msgstr ""
 msgid "Unknown error"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:597
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:826
 msgid "Unknown NFQWS flag."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:955
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:840
 msgid "Unknown NFQWS2 flag."
 msgstr ""
 
@@ -4149,70 +4146,70 @@ msgstr ""
 msgid "You can select Output Network Interface, by default autodetect"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:422
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:473
 msgid "Zapret hostlist templates are not supported here because Forkop does not expand them for per-rule NFQWS strategies."
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:71
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:13
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8006
 msgid "Zapret package is installed"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:72
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:14
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8006
 msgid "Zapret package is not installed"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:60
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:11
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8001
 msgid "Zapret provider binary is available"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:61
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:12
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8001
 msgid "Zapret provider binary is not available"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:103
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:21
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8026
 msgid "Zapret sing-box outbound is configured"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:104
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:22
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8026
 msgid "Zapret sing-box outbound is not configured"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:743
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/dpi_strategy.js:636
 msgid "Zapret2 hostlist templates are not supported here because Forkop does not expand them for per-rule NFQWS2 strategies."
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:74
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:13
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8092
 msgid "Zapret2 package is installed"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:75
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:14
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8092
 msgid "Zapret2 package is not installed"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:63
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:11
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8087
 msgid "Zapret2 provider binary is available"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:64
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:12
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8087
 msgid "Zapret2 provider binary is not available"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:106
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:23
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8112
 msgid "Zapret2 sing-box outbound is configured"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:107
+#: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:24
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8112
 msgid "Zapret2 sing-box outbound is not configured"
 msgstr ""

@@ -1,12 +1,12 @@
 #!/usr/bin/env ucode
 
 let fs = require("fs");
+let common = require("core.common");
 
 const IP_BIN = getenv("FORKOP_IP_BIN") || "/usr/libexec/ip-full";
 
-function as_string(value) {
-    return value == null ? "" : "" + value;
-}
+let as_string = common.as_string;
+let parse_mark_number = common.parse_number;
 
 function shell_quote(value) {
     return "'" + replace(as_string(value), /'/g, "'\\''") + "'";
@@ -27,34 +27,6 @@ function command_output_from_args(args) {
     let data = pipe.read("all");
     let status = pipe.close();
     return status == 0 && data != null ? as_string(data) : "";
-}
-
-function hex_digit_value(value) {
-    let pos = index("0123456789abcdef", lc(as_string(value)));
-    return pos >= 0 ? pos : null;
-}
-
-function parse_mark_number(value) {
-    value = lc(trim(as_string(value)));
-    if (value == "")
-        return null;
-
-    if (substr(value, 0, 2) == "0x") {
-        value = substr(value, 2);
-        if (value == "")
-            return null;
-
-        let result = 0;
-        for (let i = 0; i < length(value); i++) {
-            let digit = hex_digit_value(substr(value, i, 1));
-            if (digit == null)
-                return null;
-            result = result * 16 + digit;
-        }
-        return result;
-    }
-
-    return match(value, /^[0-9]+$/) == null ? null : int(value);
 }
 
 function normalized_fields(line) {
@@ -148,7 +120,6 @@ function tproxy_route_rule_present(table, mark) {
 }
 
 return {
-    parse_mark_number,
     rt_table_has_entry,
     tproxy_route4_present,
     tproxy_route6_present,

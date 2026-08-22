@@ -7,7 +7,7 @@ FORKOP_INIT="$ROOT_DIR/forkop/files/etc/init.d/forkop"
 CLI_UC="$FORKOP_BIN"
 LIFECYCLE_UC="$ROOT_DIR/forkop/files/usr/lib/service/lifecycle.uc"
 INITD_UC="$ROOT_DIR/forkop/files/usr/lib/service/initd.uc"
-STATE_UC="$ROOT_DIR/forkop/files/usr/lib/service/state.uc"
+LOCK_UC="$ROOT_DIR/forkop/files/usr/lib/service/lock.uc"
 UI_UC="$ROOT_DIR/forkop/files/usr/lib/service/ui.uc"
 UPDATES_UC="$ROOT_DIR/forkop/files/usr/lib/components/updates.uc"
 NFQUEUE_RUNTIME_UC="$ROOT_DIR/forkop/files/usr/lib/providers/nfqueue/runtime.uc"
@@ -97,10 +97,8 @@ require_pattern 'return "current reload";' \
   "reload-time queued reload must be distinguishable in logs"
 require_file_pattern "$LIFECYCLE_UC" '>/dev/null 2>&1 1000>&- &' \
   "service/lifecycle.uc background modules must close inherited procd lock fd"
-require_file_pattern "$INITD_UC" 'reload pending >/dev/null 2>&1 1000>&- &' \
-  "service/initd.uc pending reload worker must close inherited procd lock fd"
-require_file_pattern "$STATE_UC" 'reload pending >/dev/null 2>&1 1000>&- &' \
-  "service/state.uc pending reload worker must close inherited procd lock fd"
+require_file_pattern "$LOCK_UC" 'reload pending >/dev/null 2>&1 1000>&- &' \
+  "service/lock.uc pending reload worker must close inherited procd lock fd"
 require_file_pattern "$FORKOP_INIT" 'FORKOP_LAST_START_STATUS="$?"' \
   "init.d start_service must preserve backend start status for rc.common"
 require_file_pattern "$FORKOP_INIT" 'service_started()' \

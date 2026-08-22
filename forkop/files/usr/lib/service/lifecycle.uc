@@ -45,7 +45,6 @@ const COMPONENT_UPDATE_CHECK_CRON_MARKER = getenv("FORKOP_COMPONENT_UPDATE_CHECK
 const RELOAD_STATE_FORMAT = int(getenv("FORKOP_RELOAD_STATE_FORMAT") || "1");
 const RUNTIME_STABLE_MIN_AGE = int(getenv("FORKOP_RUNTIME_STABLE_MIN_AGE") || "2");
 const SING_BOX_START_STABLE_MIN_AGE = int(getenv("FORKOP_SING_BOX_START_STABLE_MIN_AGE") || "8");
-const NFT_POPULATE_ENABLED_DEFAULT = int(getenv("FORKOP_NFT_POPULATE_ENABLED") || "1");
 
 const RT_TABLE_NAME = constant_value("RT_TABLE_NAME", "forkop");
 const NFT_TABLE_NAME = constant_value("NFT_TABLE_NAME", "ForkopTable");
@@ -96,7 +95,6 @@ const ZAPRET2_UC = LIB_DIR + "/providers/zapret2/runtime.uc";
 const BYEDPI_UC = LIB_DIR + "/providers/byedpi/runtime.uc";
 const PACKAGES_UC = LIB_DIR + "/core/packages.uc";
 
-let nft_populate_enabled = NFT_POPULATE_ENABLED_DEFAULT;
 let rule_condition_cache_enabled = 0;
 let startup_config_fingerprint = "";
 
@@ -111,23 +109,13 @@ function command_from_args(args) {
     return join(" ", parts);
 }
 
-function normalize_status(status) {
-    status = int(status);
-    return status > 255 ? int(status / 256) : status;
-}
-
-function command_status(command) {
-    return normalize_status(system(command));
-}
-
 function command_capture(command) {
     let pipe = fs.popen(command, "r");
     if (!pipe)
         return { status: 1, output: "" };
 
     let data = pipe.read("all");
-    let status = normalize_status(pipe.close());
-    return { status, output: data == null ? "" : as_string(data) };
+    return { status: pipe.close(), output: data == null ? "" : as_string(data) };
 }
 
 function command_output(command) {
@@ -153,11 +141,11 @@ function write_json(value) {
 }
 
 function command_success(command) {
-    return command_status(command + " >/dev/null 2>&1") == 0;
+    return system(command + " >/dev/null 2>&1") == 0;
 }
 
 function command_status_from_args(args) {
-    return command_status(command_from_args(args));
+    return system(command_from_args(args));
 }
 
 function command_output_from_args(args) {
@@ -165,7 +153,7 @@ function command_output_from_args(args) {
 }
 
 function command_success_from_args(args) {
-    return command_status(command_from_args(args) + " >/dev/null 2>&1") == 0;
+    return system(command_from_args(args) + " >/dev/null 2>&1") == 0;
 }
 
 function file_executable(path) {
@@ -200,11 +188,6 @@ function owner_pid() {
     let stat = as_string(fs.readfile("/proc/self/stat"));
     let separator = index(stat, " ");
     return separator > 0 ? substr(stat, 0, separator) : "0";
-}
-
-function bool_text(value) {
-    value = lc(as_string(value));
-    return value == "1" || value == "true" || value == "yes" || value == "on";
 }
 
 function object_or_empty(value) {
@@ -307,7 +290,7 @@ function module_capture(module_path, args) {
 }
 
 function module_status(module_path, args) {
-    return command_status(module_command(module_path, args));
+    return system(module_command(module_path, args));
 }
 
 function module_success(module_path, args) {
@@ -450,7 +433,7 @@ function restore_selector_state(snapshot) {
 }
 
 function module_background(module_path, args) {
-    return command_status(module_command(module_path, args) + " >/dev/null 2>&1 1000>&- &") == 0;
+    return system(module_command(module_path, args) + " >/dev/null 2>&1 1000>&- &") == 0;
 }
 
 function config_get(path, fallback) {
@@ -597,27 +580,20 @@ function nft_rebuild_runtime() {
 function nft_populate_runtime_sets() {
     return module_status(NFT_UC, [
         "nft-populate-runtime-sets-from-uci",
-        as_string(nft_populate_enabled),
+        "1",
         "",
-        NFT_TABLE_NAME,
-        NFT_COMMON_SET_NAME,
-        NFT_PORT_SET_NAME,
-        NFT_IP_PORT_SET_NAME,
-        NFT_INTERFACE_SET_NAME,
-        NFT_LOCALV4_SET_NAME,
-        NFT_FAKEIP_MARK,
-        NFT_COMMON6_SET_NAME,
-        NFT_IP_PORT6_SET_NAME,
-        NFT_LOCALV6_SET_NAME
+        NFT_TABLE_NAME
     ]);
 }
 
 function singbox_init_config() {
-    return module_status(SINGBOX_UC, [ "init-config", as_string(nft_populate_enabled), "0" ]);
+    return module_status(SINGBOX_UC, [ "init-config", "1", "0" ]);
 }
 
-function singbox_init_config_for_live_reload() {
-    return module_status(SINGBOX_UC, [ "init-config", as_string(nft_populate_enabled), "1" ]);
+// A live reload only refills the nft runtime sets when the rules were rebuilt;
+// otherwise they still hold what the running configuration put there.
+function singbox_init_config_for_live_reload(populate_nft_sets) {
+    return module_status(SINGBOX_UC, [ "init-config", populate_nft_sets ? "1" : "0", "1" ]);
 }
 
 function clash_controller_preflight(config_path, netstat_data) {
@@ -692,7 +668,7 @@ function start_main() {
 
     module_success(BYEDPI_UC, [ "start-runtime" ]);
 
-    if (!command_success_from_args([ "/etc/init.d/sing-box", "start" ])) {
+    if (!command_success_from_args([ SING_BOX_INIT, "start" ])) {
         log_message("Failed to start sing-box. Aborted.", "fatal");
         return 1;
     }
@@ -1040,7 +1016,7 @@ function parse_reload_plan(output) {
 }
 
 function append_reload_action(actions, enabled, label) {
-    if (!(enabled === true || int(enabled || 0) == 1))
+    if (int(enabled || 0) != 1)
         return actions;
     return actions + (actions != "" ? ", " : "") + label;
 }
@@ -1055,6 +1031,99 @@ function reload_actions_summary(plan) {
     actions = append_reload_action(actions, plan.needs_dnsmasq_restore, "dnsmasq");
     actions = append_reload_action(actions, plan.needs_cron_refresh, "scheduled jobs");
     return actions;
+}
+
+// Carries out the reload the plan asked for. Anything that fails after the
+// runtime was touched takes the runtime down with it, so a non-zero status here
+// is final: the caller propagates it without cleaning up again.
+function apply_reload_plan(plan, force_runtime_reload) {
+    let status;
+
+    let actions = reload_actions_summary(plan);
+    if (actions != "")
+        log_message("Applying reload changes: " + actions, "info");
+
+    if (plan.needs_zapret_restart == 1)
+        module_success(ZAPRET_UC, [ "stop-runtime" ]);
+    if (plan.needs_zapret2_restart == 1)
+        module_success(ZAPRET2_UC, [ "stop-runtime" ]);
+    if (plan.needs_byedpi_restart == 1)
+        module_success(BYEDPI_UC, [ "stop-runtime" ]);
+
+    let restart_ruleset_sync = plan.needs_nft_rebuild == 1;
+    if (restart_ruleset_sync)
+        module_success(RULESET_SYNC_UC, [ "stop-worker" ]);
+
+    if (plan.needs_nft_rebuild == 1) {
+        log_message("Rebuilding nftables rules", "info");
+        status = nft_rebuild_runtime();
+        if (status != 0)
+            return abort_reload(status, true);
+    }
+
+    if (plan.needs_sing_box_reload == 1) {
+        status = module_status(SINGBOX_UC, [ "configure-service" ]);
+        if (status != 0)
+            return abort_reload(status, true);
+        let sing_box_config_path = config_get(CONFIG_NAME + ".settings.config_path", "");
+        let sing_box_config_hash_before = file_md5(sing_box_config_path);
+        status = singbox_init_config_for_live_reload(plan.needs_nft_rebuild == 1);
+        if (status != 0)
+            return abort_reload(status, true);
+        status = module_status(STATE_UC, [
+            "reload-sing-box-runtime",
+            sing_box_config_hash_before,
+            file_md5(sing_box_config_path),
+            as_string(force_runtime_reload)
+        ]);
+        if (status != 0)
+            return abort_reload(status, true);
+        status = module_status(STATE_UC, [
+            "wait-forkop-stable-start",
+            RT_TABLE_NAME,
+            NFT_TABLE_NAME,
+            NFT_FAKEIP_MARK,
+            as_string(SING_BOX_START_STABLE_MIN_AGE)
+        ]);
+        if (status != 0) {
+            log_message("Reload verification failed after sing-box was reloaded; stopping Forkop runtime", "fatal");
+            cleanup_failed_runtime();
+            return status;
+        }
+    }
+    else if (plan.needs_nft_rebuild == 1) {
+        status = nft_populate_runtime_sets();
+        if (status != 0)
+            return abort_reload(status, true);
+    }
+
+    if (restart_ruleset_sync) {
+        status = module_status(RULESET_SYNC_UC, [ "start-worker" ]);
+        if (status != 0)
+            return abort_reload(status, true);
+    }
+
+    if (plan.needs_zapret_restart == 1)
+        module_success(ZAPRET_UC, [ "start-runtime" ]);
+    if (plan.needs_zapret2_restart == 1)
+        module_success(ZAPRET2_UC, [ "start-runtime" ]);
+    if (plan.needs_byedpi_restart == 1)
+        module_success(BYEDPI_UC, [ "start-runtime" ]);
+
+    if (plan.needs_dnsmasq_restore == 1) {
+        status = dnsmasq_restore();
+        if (status != 0)
+            return abort_reload(status, true);
+        module_success(STATE_UC, [ "capture-reload-state", RELOAD_STATE_SNAPSHOT_FILE, as_string(RELOAD_STATE_FORMAT) ]);
+    }
+
+    if (plan.needs_cron_refresh == 1) {
+        status = refresh_cron();
+        if (status != 0)
+            return abort_reload(status, false);
+    }
+
+    return 0;
 }
 
 function reload_impl(reason) {
@@ -1140,91 +1209,9 @@ function reload_impl(reason) {
         return finish_reload_status(status, reload_config_fingerprint);
     }
 
-    let actions = reload_actions_summary(plan);
-    if (actions != "")
-        log_message("Applying reload changes: " + actions, "info");
-
-    if (plan.needs_zapret_restart == 1)
-        module_success(ZAPRET_UC, [ "stop-runtime" ]);
-    if (plan.needs_zapret2_restart == 1)
-        module_success(ZAPRET2_UC, [ "stop-runtime" ]);
-    if (plan.needs_byedpi_restart == 1)
-        module_success(BYEDPI_UC, [ "stop-runtime" ]);
-
-    let restart_ruleset_sync = plan.needs_nft_rebuild == 1;
-    if (restart_ruleset_sync)
-        module_success(RULESET_SYNC_UC, [ "stop-worker" ]);
-
-    if (plan.needs_nft_rebuild == 1) {
-        log_message("Rebuilding nftables rules", "info");
-        status = nft_rebuild_runtime();
-        if (status != 0)
-            return abort_reload(status, true);
-    }
-
-    if (plan.needs_sing_box_reload == 1) {
-        status = module_status(SINGBOX_UC, [ "configure-service" ]);
-        if (status != 0)
-            return abort_reload(status, true);
-        let sing_box_config_path = config_get(CONFIG_NAME + ".settings.config_path", "");
-        let sing_box_config_hash_before = file_md5(sing_box_config_path);
-        nft_populate_enabled = plan.needs_nft_rebuild == 1 ? 1 : 0;
-        status = singbox_init_config_for_live_reload();
-        if (status != 0)
-            return abort_reload(status, true);
-        nft_populate_enabled = NFT_POPULATE_ENABLED_DEFAULT;
-        status = module_status(STATE_UC, [
-            "reload-sing-box-runtime",
-            sing_box_config_hash_before,
-            file_md5(sing_box_config_path),
-            as_string(force_runtime_reload)
-        ]);
-        if (status != 0)
-            return abort_reload(status, true);
-        status = module_status(STATE_UC, [
-            "wait-forkop-stable-start",
-            RT_TABLE_NAME,
-            NFT_TABLE_NAME,
-            NFT_FAKEIP_MARK,
-            as_string(SING_BOX_START_STABLE_MIN_AGE)
-        ]);
-        if (status != 0) {
-            log_message("Reload verification failed after sing-box was reloaded; stopping Forkop runtime", "fatal");
-            cleanup_failed_runtime();
-            return status;
-        }
-    }
-    else if (plan.needs_nft_rebuild == 1 && nft_populate_enabled == 1) {
-        status = nft_populate_runtime_sets();
-        if (status != 0)
-            return abort_reload(status, true);
-    }
-
-    if (restart_ruleset_sync) {
-        status = module_status(RULESET_SYNC_UC, [ "start-worker" ]);
-        if (status != 0)
-            return abort_reload(status, true);
-    }
-
-    if (plan.needs_zapret_restart == 1)
-        module_success(ZAPRET_UC, [ "start-runtime" ]);
-    if (plan.needs_zapret2_restart == 1)
-        module_success(ZAPRET2_UC, [ "start-runtime" ]);
-    if (plan.needs_byedpi_restart == 1)
-        module_success(BYEDPI_UC, [ "start-runtime" ]);
-
-    if (plan.needs_dnsmasq_restore == 1) {
-        status = dnsmasq_restore(true);
-        if (status != 0)
-            return abort_reload(status, true);
-        module_success(STATE_UC, [ "capture-reload-state", RELOAD_STATE_SNAPSHOT_FILE, as_string(RELOAD_STATE_FORMAT) ]);
-    }
-
-    if (plan.needs_cron_refresh == 1) {
-        status = refresh_cron();
-        if (status != 0)
-            return abort_reload(status, false);
-    }
+    status = apply_reload_plan(plan, force_runtime_reload);
+    if (status != 0)
+        return status;
 
     return finish_reload_status(module_status(STATE_UC, [
         "write-captured-reload-state",
@@ -1326,11 +1313,6 @@ function uninstall() {
 
     dnsmasq_restore_fail_safe();
 
-    if (fs.stat("/etc/init.d/forkop") != null) {
-        command_success_from_args([ "/etc/init.d/forkop", "stop" ]);
-        command_success_from_args([ "/etc/init.d/forkop", "disable" ]);
-    }
-
     package_manager_remove_if_installed("luci-i18n-forkop-ru");
     package_manager_remove_if_installed("luci-app-forkop");
 
@@ -1400,7 +1382,7 @@ else if (mode == "selector-restore-pairs-fixture") {
 }
 else if (mode == "clash-controller-preflight-fixture")
     status = clash_controller_preflight(ARGV[1], fs.readfile(ARGV[2]));
-else if (mode == "dnsmasq-restore" || mode == "restore-dnsmasq")
+else if (mode == "dnsmasq-restore")
     status = dnsmasq_restore_fail_safe();
 else if (mode == "uninstall")
     status = uninstall();

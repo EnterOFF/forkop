@@ -264,7 +264,7 @@ assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_interf
 assert_contains "$NFT_LOG" $'nft\tinsert\trule\tinet\tForkopTable\tmangle\tudp\tdport\t123\treturn' "runtime base from UCI ntp exclusion"
 
 : > "$NFT_LOG"
-nft_ucode nft-create-runtime-output-rules ForkopTable localv4 forkop_subnets forkop_ports forkop_ip_ports 0x00100000 198.18.0.0/15
+nft_ucode nft-create-runtime-output-rules ForkopTable forkop_subnets forkop_ports forkop_ip_ports 0x00100000 198.18.0.0/15
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle_output\tip\tdaddr\t@forkop_subnets\tmeta\tl4proto\ttcp\tmeta\tmark\tset\t0x00100000\tcounter' "runtime output common tcp"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle_output\tip6\tdaddr\t@forkop_subnets6\tmeta\tl4proto\ttcp\tmeta\tmark\tset\t0x00100000\tcounter' "runtime output common6 tcp"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle_output\tip\tdaddr\t.\ttcp\tdport\t@forkop_ip_ports\tmeta\tmark\tset\t0x00100000\tcounter' "runtime output ip-port tcp"
@@ -532,7 +532,7 @@ cat >"$WORK_DIR/populate-fixture.json" <<'JSON'
 JSON
 
 : > "$NFT_LOG"
-nft_ucode nft-populate-runtime-sets-fixture "$WORK_DIR/populate-fixture.json" 1 "deferred" ForkopTable forkop_subnets forkop_ports forkop_ip_ports forkop_interfaces localv4 0x00100000
+nft_ucode nft-populate-runtime-sets-fixture "$WORK_DIR/populate-fixture.json" 1 "deferred" ForkopTable
 assert_contains "$NFT_LOG" $'198.51.100.1 . 80,198.51.100.1 . 443-444,203.0.113.0/24 . 80' "populate inline ip-port first chunk"
 assert_contains "$NFT_LOG" $'203.0.113.0/24 . 443-444' "populate inline ip-port second chunk"
 assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_rule_inline_ip_ports\t{ 198.51.100.1 . 80,198.51.100.1 . 443-444,203.0.113.0/24 . 80,203.0.113.0/24 . 443-444 }' "populate inline priority ip-port set"
@@ -709,7 +709,7 @@ assert_eq "$expected_signature" \
   "nft runtime signature defaults"
 
 : > "$NFT_LOG"
-nft_ucode nft-populate-runtime-sets-fixture "$WORK_DIR/populate-fixture.json" 0 "" ForkopTable forkop_subnets forkop_ports forkop_ip_ports forkop_interfaces localv4 0x00100000
+nft_ucode nft-populate-runtime-sets-fixture "$WORK_DIR/populate-fixture.json" 0 "" ForkopTable
 [ ! -s "$NFT_LOG" ] || fail "disabled nft population should not call nft"
 
 printf 'NFT apply checks passed\n'

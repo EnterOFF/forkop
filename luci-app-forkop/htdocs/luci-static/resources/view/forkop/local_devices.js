@@ -208,23 +208,19 @@ function sortLocalDeviceChoiceValues(choices) {
   });
 }
 
-function hasSingleIpValue(values) {
+// True when at least one stored value is something the device list can put a
+// name to, which is the only reason to fetch the host hints.
+function namesALocalDevice(values) {
   return normalizeOptionValues(values).some(
     (value) => value === SYSTEM_DEVICE_VALUE || main.validateIP(value).valid,
   );
-}
-
-function preloadLocalDeviceChoicesForValues(values) {
-  return hasSingleIpValue(values)
-    ? loadLocalDeviceChoices()
-    : Promise.resolve(null);
 }
 
 function createLocalDeviceDynamicListWidget(option, section_id, cfgvalue) {
   const values = normalizeOptionValues(
     cfgvalue != null ? cfgvalue : option.default,
   );
-  const shouldResolveExistingLabels = hasSingleIpValue(values);
+  const shouldResolveExistingLabels = namesALocalDevice(values);
 
   return (
     shouldResolveExistingLabels ? loadLocalDeviceChoices() : Promise.resolve({})
@@ -291,10 +287,8 @@ function createLocalDeviceDynamicListWidget(option, section_id, cfgvalue) {
 const EntryPoint = {
   SYSTEM_DEVICE_VALUE,
   createLocalDeviceDynamicListWidget,
-  hasSingleIpValue,
   loadLocalDeviceChoices,
   normalizeOptionValues,
-  preloadLocalDeviceChoicesForValues,
 };
 
 return baseclass.extend(EntryPoint);

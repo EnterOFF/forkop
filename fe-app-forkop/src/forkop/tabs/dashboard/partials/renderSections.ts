@@ -558,6 +558,33 @@ function renderDefaultState({
   ]);
 }
 
+// The grid is drawn before any section is known and again whenever the load
+// fails, so the empty shape both of those need lives next to the renderer.
+export function renderSectionsPlaceholder(state: {
+  loading: boolean;
+  failed: boolean;
+}) {
+  return renderSections({
+    ...state,
+    section: {
+      code: '',
+      sectionName: '',
+      displayName: '',
+      outbounds: [],
+      withTagSelect: false,
+    },
+    onTestLatency: () => {},
+    onTestOutboundLatency: () => {},
+    onChooseOutbound: () => {},
+    onCopyOutbound: () => {},
+    onShowUrlTestInfo: () => {},
+    onShowFallbackInfo: () => {},
+    onUpdateSubscription: () => {},
+    latencyFetching: false,
+    subscriptionUpdating: false,
+  });
+}
+
 export function renderSections(props: IRenderSectionsProps) {
   if (props.failed) {
     return renderFailedState();

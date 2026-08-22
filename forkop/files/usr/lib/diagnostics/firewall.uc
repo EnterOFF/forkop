@@ -219,11 +219,6 @@ function forkop_accepts_port(chain_data, comment, port, required_proto) {
 }
 
 return {
-    rules_from_uci_show,
-    rules_allow_port_proto,
-    port_spec_contains,
-    proto_spec_contains,
     required_protocols_open,
-    accepted_ports_by_proto,
     forkop_accepts_port
 };

@@ -27,32 +27,7 @@ function hex_digit_value(value) {
     return -1;
 }
 
-function decode(value) {
-    value = as_string(value);
-    let result = "";
-
-    for (let i = 0; i < length(value); i++) {
-        let c = substr(value, i, 1);
-        if (c == "+") {
-            result += " ";
-            continue;
-        }
-        if (c == "%") {
-            let high = i + 1 < length(value) ? hex_digit_value(substr(value, i + 1, 1)) : -1;
-            let low = i + 2 < length(value) ? hex_digit_value(substr(value, i + 2, 1)) : -1;
-            if (high >= 0 && low >= 0) {
-                result += chr(high * 16 + low);
-                i += 2;
-                continue;
-            }
-        }
-        result += c;
-    }
-
-    return result;
-}
-
-function decode_path(value) {
+function percent_decode(value) {
     value = as_string(value);
     let result = "";
 
@@ -98,13 +73,7 @@ function scheme(value) {
 function fragment(value) {
     value = as_string(value);
     let marker = index(value, "#");
-    return marker >= 0 ? decode_path(substr(value, marker + 1)) : "";
-}
-
-function strip_fragment(value) {
-    value = as_string(value);
-    let marker = index(value, "#");
-    return marker >= 0 ? substr(value, 0, marker) : value;
+    return marker >= 0 ? percent_decode(substr(value, marker + 1)) : "";
 }
 
 function strip_anchored_scheme(value) {
@@ -166,14 +135,6 @@ function port(value) {
     return substr(value_authority, colon + 1);
 }
 
-function userinfo(value) {
-    let value_authority = strip_first_scheme_marker(strip_fragment(value));
-    let end = first_index_any(value_authority, ["/", "?", "#"], 0);
-    value_authority = end >= 0 ? substr(value_authority, 0, end) : value_authority;
-    let at = rindex(value_authority, "@");
-    return at >= 0 ? decode(substr(value_authority, 0, at)) : "";
-}
-
 function path(value) {
     value = strip_anchored_scheme(value);
     let slash = index(value, "/");
@@ -192,6 +153,5 @@ return {
     fragment,
     host,
     port,
-    userinfo,
     path
 };

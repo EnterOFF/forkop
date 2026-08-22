@@ -232,7 +232,13 @@ if PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
   state_ucode wait-forkop-stable-start forkop ForkopTable 0x00100000 2 >/dev/null 2>&1; then
   fail "stable-start wait must fail when the tracked sing-box process exits"
 fi
-assert_eq "1" "$(wc -l <"$WORK_DIR/sleep.count" | tr -d ' ')" "stable-start exit detection polls"
+# The killed process stays a zombie until the test shell reaps it, and a zombie
+# still has a /proc entry, so the wait can need one more poll before the exit
+# becomes visible. What matters is that it gives up at once instead of waiting
+# out FORKOP_SING_BOX_START_MAX_WAIT_SECONDS.
+exit_detection_polls="$(wc -l <"$WORK_DIR/sleep.count" | tr -d ' ')"
+[ "$exit_detection_polls" -ge 1 ] && [ "$exit_detection_polls" -le 2 ] ||
+  fail "stable-start exit detection polls: expected 1 or 2, got '$exit_detection_polls'"
 wait "$sing_box_pid" 2>/dev/null || true
 sing_box_pid=""
 
@@ -1312,7 +1318,6 @@ zapret2_queue_signature=$(state_ucode zapret2-queue-signature-fixture "$WORK_DIR
 zapret2_runtime_signature=$(state_ucode zapret2-runtime-signature-fixture "$WORK_DIR/reload-state-signatures.json")
 byedpi_runtime_signature=$(state_ucode byedpi-runtime-signature-fixture "$WORK_DIR/reload-state-signatures.json")
 cron_signature=$(state_ucode cron-signature-fixture "$WORK_DIR/reload-state-signatures.json")
-dont_touch_dhcp=$(state_ucode dont-touch-dhcp-fixture "$WORK_DIR/reload-state-signatures.json")
 EOF_RELOAD_STATE
 
 assert_eq "$(cat "$WORK_DIR/reload-state.expected")" \

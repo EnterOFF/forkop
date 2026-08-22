@@ -128,8 +128,7 @@ function addr_matches(addr, listen, port) {
 function port_listening(data, listen, port, proto) {
     proto = as_string(proto);
 
-    for (let line in split(as_string(data), "
-")) {
+    for (let line in split(as_string(data), "\n")) {
         let parts = fields(line);
         if (length(parts) < 4 || !starts_with(parts[0], proto))
             continue;
@@ -167,8 +166,7 @@ function port_conflict_owners(data, listen, port, proto) {
     let line_number = 0;
     let owner_supported = false;
 
-    for (let line in split(as_string(data), "
-")) {
+    for (let line in split(as_string(data), "\n")) {
         line_number++;
         if (line_number == 2) {
             owner_supported = index(as_string(line), "PID/Program") >= 0;

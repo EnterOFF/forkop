@@ -3,22 +3,12 @@
 let fs = require("fs");
 let connections = require("config.connections");
 let uci_core = require("core.uci");
-let common = require("core.common");
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
 const SING_BOX_FORKOP_VERSION_FILE = getenv("SING_BOX_FORKOP_VERSION_FILE") || "/usr/share/sing-box-forkop/version";
 const PACKAGES_UC = LIB_DIR + "/core/packages.uc";
 const NFT_TABLE_NAME = getenv("NFT_TABLE_NAME") || "ForkopTable";
-const NFT_COMMON_SET_NAME = getenv("NFT_COMMON_SET_NAME") || "forkop_subnets";
-const NFT_COMMON6_SET_NAME = getenv("NFT_COMMON6_SET_NAME") || "forkop_subnets6";
-const NFT_PORT_SET_NAME = getenv("NFT_PORT_SET_NAME") || "forkop_ports";
-const NFT_IP_PORT_SET_NAME = getenv("NFT_IP_PORT_SET_NAME") || "forkop_ip_ports";
-const NFT_IP_PORT6_SET_NAME = getenv("NFT_IP_PORT6_SET_NAME") || "forkop_ip6_ports";
-const NFT_INTERFACE_SET_NAME = getenv("NFT_INTERFACE_SET_NAME") || "forkop_interfaces";
-const NFT_LOCALV4_SET_NAME = getenv("NFT_LOCALV4_SET_NAME") || "localv4";
-const NFT_LOCALV6_SET_NAME = getenv("NFT_LOCALV6_SET_NAME") || "localv6";
-const NFT_FAKEIP_MARK = getenv("NFT_FAKEIP_MARK") || "0x04000000";
 const SB_SERVICE_MIXED_INBOUND_ADDRESS = getenv("SB_SERVICE_MIXED_INBOUND_ADDRESS") || "127.0.0.1";
 const SB_SERVICE_MIXED_INBOUND_PORT = getenv("SB_SERVICE_MIXED_INBOUND_PORT") || "4534";
 const SING_BOX_BIN = getenv("FORKOP_SING_BOX_BIN") || "/usr/bin/sing-box";
@@ -101,11 +91,6 @@ function option(section, key, fallback) {
 function arg_bool(value) {
     value = lc(as_string(value));
     return value == "true" || value == "1" || value == "yes" || value == "on";
-}
-
-function bool_option(section, key, fallback) {
-    let value = object_or_empty(section)[key];
-    return value == null ? !!fallback : arg_bool(value);
 }
 
 function whitespace_items(value) {
@@ -471,16 +456,7 @@ function init_config(populate_nft, skip_check) {
         "nft-populate-runtime-sets-from-uci",
         "1",
         "",
-        NFT_TABLE_NAME,
-        NFT_COMMON_SET_NAME,
-        NFT_PORT_SET_NAME,
-        NFT_IP_PORT_SET_NAME,
-        NFT_INTERFACE_SET_NAME,
-        NFT_LOCALV4_SET_NAME,
-        NFT_FAKEIP_MARK,
-        NFT_COMMON6_SET_NAME,
-        NFT_IP_PORT6_SET_NAME,
-        NFT_LOCALV6_SET_NAME
+        NFT_TABLE_NAME
     ])) {
         log_message("Failed to update nftables runtime sets from the generated sing-box configuration. Aborted.", "fatal");
         remove_files([ temp_config, runtime_log ]);

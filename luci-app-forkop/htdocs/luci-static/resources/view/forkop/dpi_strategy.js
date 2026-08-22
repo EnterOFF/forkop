@@ -288,36 +288,34 @@ const NFQWS2_REQUIRED_ARG_OPTIONS = new Set([
   "--user",
 ]);
 
-function getNfqwsOptionArgumentMode(option) {
-  if (NFQWS_REQUIRED_ARG_OPTIONS.has(option)) {
+function optionArgumentMode(option, required, optional, none) {
+  if (required.has(option)) {
     return "required";
   }
 
-  if (NFQWS_OPTIONAL_ARG_OPTIONS.has(option)) {
+  if (optional.has(option)) {
     return "optional";
   }
 
-  if (NFQWS_NO_ARG_OPTIONS.has(option)) {
-    return "none";
-  }
+  return none.has(option) ? "none" : "unknown";
+}
 
-  return "unknown";
+function getNfqwsOptionArgumentMode(option) {
+  return optionArgumentMode(
+    option,
+    NFQWS_REQUIRED_ARG_OPTIONS,
+    NFQWS_OPTIONAL_ARG_OPTIONS,
+    NFQWS_NO_ARG_OPTIONS,
+  );
 }
 
 function getNfqws2OptionArgumentMode(option) {
-  if (NFQWS2_REQUIRED_ARG_OPTIONS.has(option)) {
-    return "required";
-  }
-
-  if (NFQWS2_OPTIONAL_ARG_OPTIONS.has(option)) {
-    return "optional";
-  }
-
-  if (NFQWS2_NO_ARG_OPTIONS.has(option)) {
-    return "none";
-  }
-
-  return "unknown";
+  return optionArgumentMode(
+    option,
+    NFQWS2_REQUIRED_ARG_OPTIONS,
+    NFQWS2_OPTIONAL_ARG_OPTIONS,
+    NFQWS2_NO_ARG_OPTIONS,
+  );
 }
 
 function normalizeNfqwsStrategyWhitespace(value) {
@@ -409,254 +407,123 @@ function normalizeNfqwsStrategyValue(value) {
     : normalized;
 }
 
-function getNfqwsForbiddenTokenInfo(token, index) {
-  const configFileMessage = _(
-    "External nfqws config files bypass Forkop queue management and explicit validation.",
-  );
-  const hostSelectionMessage = _(
-    "Resource selection by hostname inside nfqws is not supported here; sing-box selects resources before NFQUEUE.",
-  );
-  const ipSelectionMessage = _(
-    "Resource selection by IP or CIDR inside nfqws is not supported here; sing-box selects resources before NFQUEUE.",
-  );
-  const placeholderMessage = _(
-    "Zapret hostlist templates are not supported here because Forkop does not expand them for per-rule NFQWS strategies.",
-  );
-  const queueMessage = _(
-    "The NFQUEUE number is assigned by Forkop for each rule and must not be overridden here.",
-  );
-  const fwmarkMessage = _(
-    "The desync fwmark is managed by Forkop for loop prevention and must not be overridden here.",
-  );
-  const daemonMessage = _(
-    "Forkop manages the nfqws process lifecycle itself, so daemon mode is not allowed here.",
-  );
-  const dryRunMessage = _(
-    "This field must start a working nfqws strategy; --dry-run exits immediately and is not allowed here.",
-  );
-  const versionMessage = _(
-    "This field must start a working nfqws strategy; --version exits immediately and is not allowed here.",
-  );
+// Forkop selects the resources a rule covers before the traffic reaches
+// NFQUEUE, and it assigns the queue and the desync mark itself, so the options
+// that would decide those inside nfqws are refused. nfqws2 knows the same
+// options plus a few of its own.
+const NFQWS_HOSTLIST_SELECTION_OPTIONS = [
+  "--hostlist",
+  "--hostlist-domains",
+  "--hostlist-exclude",
+  "--hostlist-exclude-domains",
+  "--hostlist-auto",
+  "--hostlist-auto-fail-threshold",
+  "--hostlist-auto-fail-time",
+  "--hostlist-auto-retrans-threshold",
+  "--hostlist-auto-debug",
+];
 
-  if (index === 0 && (token.startsWith("@") || token.startsWith("$"))) {
-    return {
-      reason: configFileMessage,
-      captureNextValue: false,
-    };
-  }
+const NFQWS2_HOSTLIST_SELECTION_OPTIONS = [
+  ...NFQWS_HOSTLIST_SELECTION_OPTIONS,
+  "--hostlist-auto-retrans-reset",
+  "--hostlist-auto-retrans-maxseq",
+  "--hostlist-auto-incoming-maxseq",
+  "--hostlist-auto-udp-in",
+  "--hostlist-auto-udp-out",
+];
 
-  if (token === "<HOSTLIST>" || token === "<HOSTLIST_NOAUTO>") {
-    return {
-      reason: placeholderMessage,
-      captureNextValue: false,
-    };
-  }
+const IPSET_SELECTION_OPTIONS = [
+  "--ipset",
+  "--ipset-ip",
+  "--ipset-exclude",
+  "--ipset-exclude-ip",
+];
 
-  if (
-    token === "--hostlist" ||
-    token.startsWith("--hostlist=") ||
-    token === "--hostlist-domains" ||
-    token.startsWith("--hostlist-domains=") ||
-    token === "--hostlist-exclude" ||
-    token.startsWith("--hostlist-exclude=") ||
-    token === "--hostlist-exclude-domains" ||
-    token.startsWith("--hostlist-exclude-domains=") ||
-    token === "--hostlist-auto" ||
-    token.startsWith("--hostlist-auto=") ||
-    token === "--hostlist-auto-fail-threshold" ||
-    token.startsWith("--hostlist-auto-fail-threshold=") ||
-    token === "--hostlist-auto-fail-time" ||
-    token.startsWith("--hostlist-auto-fail-time=") ||
-    token === "--hostlist-auto-retrans-threshold" ||
-    token.startsWith("--hostlist-auto-retrans-threshold=") ||
-    token === "--hostlist-auto-debug" ||
-    token.startsWith("--hostlist-auto-debug=")
-  ) {
-    return {
-      reason: hostSelectionMessage,
-      captureNextValue: !token.includes("="),
-    };
-  }
-
-  if (
-    token === "--ipset" ||
-    token.startsWith("--ipset=") ||
-    token === "--ipset-ip" ||
-    token.startsWith("--ipset-ip=") ||
-    token === "--ipset-exclude" ||
-    token.startsWith("--ipset-exclude=") ||
-    token === "--ipset-exclude-ip" ||
-    token.startsWith("--ipset-exclude-ip=")
-  ) {
-    return {
-      reason: ipSelectionMessage,
-      captureNextValue: !token.includes("="),
-    };
-  }
-
-  if (token === "--qnum" || token.startsWith("--qnum=")) {
-    return {
-      reason: queueMessage,
-      captureNextValue: !token.includes("="),
-    };
-  }
-
-  if (
-    token === "--dpi-desync-fwmark" ||
-    token.startsWith("--dpi-desync-fwmark=")
-  ) {
-    return {
-      reason: fwmarkMessage,
-      captureNextValue: !token.includes("="),
-    };
-  }
-
-  if (token === "--daemon") {
-    return {
-      reason: daemonMessage,
-      captureNextValue: false,
-    };
-  }
-
-  if (token === "--dry-run") {
-    return {
-      reason: dryRunMessage,
-      captureNextValue: false,
-    };
-  }
-
-  if (token === "--version") {
-    return {
-      reason: versionMessage,
-      captureNextValue: false,
-    };
+// `--name` on its own and `--name=value` both name the option; only the bare
+// form takes the value token that follows it, which then carries the same
+// refusal.
+function refusedValueOption(token, names, reason) {
+  for (const name of names) {
+    if (token === name || token.startsWith(`${name}=`)) {
+      return { reason, captureNextValue: !token.includes("=") };
+    }
   }
 
   return null;
 }
 
-function buildNfqwsLocalAnalysis(value) {
-  const text = value ? `${value}` : "";
-  if (!text.trim().length) {
+function refusedFlag(token, names, reason) {
+  return names.includes(token) ? { reason, captureNextValue: false } : null;
+}
+
+function getNfqwsForbiddenTokenInfo(token, index) {
+  if (index === 0 && (token.startsWith("@") || token.startsWith("$"))) {
     return {
-      valid: false,
-      message: _("NFQWS strategy cannot be empty"),
-      annotations: [],
+      reason: _(
+        "External nfqws config files bypass Forkop queue management and explicit validation.",
+      ),
+      captureNextValue: false,
     };
   }
 
-  if (text.trim() === ZAPRET_LEGACY_DEFAULT_NFQWS_OPT) {
-    return { valid: true, message: "", annotations: [] };
-  }
-
-  const tokens = parseNfqwsRuntimeTokens(text);
-  const annotationMap = new Map();
-  const errors = [];
-
-  for (let index = 0; index < tokens.length; ) {
-    const token = tokens[index];
-    const bareToken = token.value.includes("=")
-      ? token.value.slice(0, token.value.indexOf("="))
-      : token.value;
-    const nextToken = tokens[index + 1] || null;
-
-    const forbidden = getNfqwsForbiddenTokenInfo(token.value, index);
-    if (forbidden) {
-      annotate.addAnnotationIssue(annotationMap, token, forbidden.reason);
-
-      let displayToken = token.value;
-
-      if (
-        forbidden.captureNextValue &&
-        nextToken &&
-        !nextToken.value.startsWith("--")
-      ) {
-        annotate.addAnnotationIssue(annotationMap, nextToken, forbidden.reason);
-        displayToken = `${displayToken} ${nextToken.value}`;
-        index += 2;
-      } else {
-        index += 1;
-      }
-
-      errors.push(`${displayToken}: ${forbidden.reason}`);
-      continue;
-    }
-
-    if (!token.value.startsWith("--")) {
-      const reason = _(
-        "Unexpected standalone token. Use explicit flags such as --name or --name=value.",
-      );
-      annotate.addAnnotationIssue(annotationMap, token, reason);
-      errors.push(`${token.value}: ${reason}`);
-      index += 1;
-      continue;
-    }
-
-    const mode = getNfqwsOptionArgumentMode(bareToken);
-    if (mode === "unknown") {
-      const reason = _("Unknown NFQWS flag.");
-      annotate.addAnnotationIssue(annotationMap, token, reason);
-      errors.push(`${token.value}: ${reason}`);
-      index += 1;
-      continue;
-    }
-
-    if (mode === "none") {
-      if (token.value.includes("=")) {
-        const reason = _("This flag does not accept a value.");
-        annotate.addAnnotationIssue(annotationMap, token, reason);
-        errors.push(`${token.value}: ${reason}`);
-      }
-
-      index += 1;
-      continue;
-    }
-
-    if (mode === "optional") {
-      if (
-        nextToken &&
-        !token.value.includes("=") &&
-        !nextToken.value.startsWith("--")
-      ) {
-        const reason = _(
-          "Optional values must be attached with '=' here; a separate token would be ignored by nfqws.",
-        );
-        annotate.addAnnotationIssue(annotationMap, token, reason);
-        annotate.addAnnotationIssue(annotationMap, nextToken, reason);
-        errors.push(`${token.value} ${nextToken.value}: ${reason}`);
-        index += 2;
-      } else {
-        index += 1;
-      }
-
-      continue;
-    }
-
-    if (!token.value.includes("=")) {
-      if (!nextToken || nextToken.value.startsWith("--")) {
-        const reason = _("This option requires a value.");
-        annotate.addAnnotationIssue(annotationMap, token, reason);
-        errors.push(`${token.value}: ${reason}`);
-        index += 1;
-        continue;
-      }
-
-      index += 2;
-      continue;
-    }
-
-    index += 1;
-  }
-
-  if (!errors.length) {
-    return { valid: true, message: "", annotations: [] };
-  }
-
-  return {
-    valid: false,
-    message: [annotate.getValidationHeaderText(), ...errors].join("\n"),
-    annotations: annotate.finalizeAnnotations(annotationMap),
-  };
+  return (
+    refusedFlag(
+      token,
+      ["<HOSTLIST>", "<HOSTLIST_NOAUTO>"],
+      _(
+        "Zapret hostlist templates are not supported here because Forkop does not expand them for per-rule NFQWS strategies.",
+      ),
+    ) ||
+    refusedValueOption(
+      token,
+      NFQWS_HOSTLIST_SELECTION_OPTIONS,
+      _(
+        "Resource selection by hostname inside nfqws is not supported here; sing-box selects resources before NFQUEUE.",
+      ),
+    ) ||
+    refusedValueOption(
+      token,
+      IPSET_SELECTION_OPTIONS,
+      _(
+        "Resource selection by IP or CIDR inside nfqws is not supported here; sing-box selects resources before NFQUEUE.",
+      ),
+    ) ||
+    refusedValueOption(
+      token,
+      ["--qnum"],
+      _(
+        "The NFQUEUE number is assigned by Forkop for each rule and must not be overridden here.",
+      ),
+    ) ||
+    refusedValueOption(
+      token,
+      ["--dpi-desync-fwmark"],
+      _(
+        "The desync fwmark is managed by Forkop for loop prevention and must not be overridden here.",
+      ),
+    ) ||
+    refusedFlag(
+      token,
+      ["--daemon"],
+      _(
+        "Forkop manages the nfqws process lifecycle itself, so daemon mode is not allowed here.",
+      ),
+    ) ||
+    refusedFlag(
+      token,
+      ["--dry-run"],
+      _(
+        "This field must start a working nfqws strategy; --dry-run exits immediately and is not allowed here.",
+      ),
+    ) ||
+    refusedFlag(
+      token,
+      ["--version"],
+      _(
+        "This field must start a working nfqws strategy; --version exits immediately and is not allowed here.",
+      ),
+    )
+  );
 }
 
 function addNfqwsRemoteValidationNeedleAnnotations(
@@ -683,7 +550,11 @@ function addNfqwsRemoteValidationNeedleAnnotations(
       (!needle.startsWith("--") && tokenValue.endsWith(`=${needle}`));
 
     if (optionMatch || valueMatch) {
-      annotate.addAnnotationIssue(annotationMap, token, remoteValidation.message);
+      annotate.addAnnotationIssue(
+        annotationMap,
+        token,
+        remoteValidation.message,
+      );
       matched = true;
     }
   });
@@ -696,7 +567,11 @@ function addNfqwsRemoteValidationNeedleAnnotations(
     tokens
       .filter((token) => token.value && token.value.startsWith(needle))
       .forEach((token) =>
-        annotate.addAnnotationIssue(annotationMap, token, remoteValidation.message),
+        annotate.addAnnotationIssue(
+          annotationMap,
+          token,
+          remoteValidation.message,
+        ),
       );
   }
 }
@@ -731,129 +606,12 @@ function normalizeNfqws2StrategyValue(value) {
 }
 
 function getNfqws2ForbiddenTokenInfo(token, index, nextToken) {
-  const configFileMessage = _(
-    "External nfqws2 config files bypass Forkop queue management and explicit validation.",
-  );
-  const hostSelectionMessage = _(
-    "Resource selection by hostname inside nfqws2 is not supported here; sing-box selects resources before NFQUEUE.",
-  );
-  const ipSelectionMessage = _(
-    "Resource selection by IP or CIDR inside nfqws2 is not supported here; sing-box selects resources before NFQUEUE.",
-  );
-  const placeholderMessage = _(
-    "Zapret2 hostlist templates are not supported here because Forkop does not expand them for per-rule NFQWS2 strategies.",
-  );
-  const queueMessage = _(
-    "The NFQUEUE number is assigned by Forkop for each rule and must not be overridden here.",
-  );
-  const fwmarkMessage = _(
-    "The desync fwmark is managed by Forkop for loop prevention and must not be overridden here.",
-  );
-  const fuzzMessage = _(
-    "Fuzzing is not supported here because Forkop needs deterministic runtime validation.",
-  );
-  const interceptMessage = _(
-    "Disabling interception is incompatible with action=zapret2 because Forkop sends matched traffic through NFQUEUE.",
-  );
-  const daemonMessage = _(
-    "Forkop manages the nfqws2 process lifecycle itself, so daemon mode is not allowed here.",
-  );
-  const dryRunMessage = _(
-    "This field must start a working nfqws2 strategy; --dry-run exits immediately and is not allowed here.",
-  );
-  const versionMessage = _(
-    "This field must start a working nfqws2 strategy; --version exits immediately and is not allowed here.",
-  );
-
   if (index === 0 && (token.startsWith("@") || token.startsWith("$"))) {
     return {
-      reason: configFileMessage,
+      reason: _(
+        "External nfqws2 config files bypass Forkop queue management and explicit validation.",
+      ),
       captureNextValue: false,
-    };
-  }
-
-  if (token === "<HOSTLIST>" || token === "<HOSTLIST_NOAUTO>") {
-    return {
-      reason: placeholderMessage,
-      captureNextValue: false,
-    };
-  }
-
-  if (
-    token === "--hostlist" ||
-    token.startsWith("--hostlist=") ||
-    token === "--hostlist-domains" ||
-    token.startsWith("--hostlist-domains=") ||
-    token === "--hostlist-exclude" ||
-    token.startsWith("--hostlist-exclude=") ||
-    token === "--hostlist-exclude-domains" ||
-    token.startsWith("--hostlist-exclude-domains=") ||
-    token === "--hostlist-auto" ||
-    token.startsWith("--hostlist-auto=") ||
-    token === "--hostlist-auto-fail-threshold" ||
-    token.startsWith("--hostlist-auto-fail-threshold=") ||
-    token === "--hostlist-auto-fail-time" ||
-    token.startsWith("--hostlist-auto-fail-time=") ||
-    token === "--hostlist-auto-retrans-threshold" ||
-    token.startsWith("--hostlist-auto-retrans-threshold=") ||
-    token === "--hostlist-auto-debug" ||
-    token.startsWith("--hostlist-auto-debug=") ||
-    token === "--hostlist-auto-retrans-reset" ||
-    token.startsWith("--hostlist-auto-retrans-reset=") ||
-    token === "--hostlist-auto-retrans-maxseq" ||
-    token.startsWith("--hostlist-auto-retrans-maxseq=") ||
-    token === "--hostlist-auto-incoming-maxseq" ||
-    token.startsWith("--hostlist-auto-incoming-maxseq=") ||
-    token === "--hostlist-auto-udp-in" ||
-    token.startsWith("--hostlist-auto-udp-in=") ||
-    token === "--hostlist-auto-udp-out" ||
-    token.startsWith("--hostlist-auto-udp-out=")
-  ) {
-    return {
-      reason: hostSelectionMessage,
-      captureNextValue: !token.includes("="),
-    };
-  }
-
-  if (
-    token === "--ipset" ||
-    token.startsWith("--ipset=") ||
-    token === "--ipset-ip" ||
-    token.startsWith("--ipset-ip=") ||
-    token === "--ipset-exclude" ||
-    token.startsWith("--ipset-exclude=") ||
-    token === "--ipset-exclude-ip" ||
-    token.startsWith("--ipset-exclude-ip=")
-  ) {
-    return {
-      reason: ipSelectionMessage,
-      captureNextValue: !token.includes("="),
-    };
-  }
-
-  if (token === "--qnum" || token.startsWith("--qnum=")) {
-    return {
-      reason: queueMessage,
-      captureNextValue: !token.includes("="),
-    };
-  }
-
-  if (
-    token === "--fwmark" ||
-    token.startsWith("--fwmark=") ||
-    token === "--dpi-desync-fwmark" ||
-    token.startsWith("--dpi-desync-fwmark=")
-  ) {
-    return {
-      reason: fwmarkMessage,
-      captureNextValue: !token.includes("="),
-    };
-  }
-
-  if (token === "--fuzz" || token.startsWith("--fuzz=")) {
-    return {
-      reason: fuzzMessage,
-      captureNextValue: !token.includes("="),
     };
   }
 
@@ -864,43 +622,91 @@ function getNfqws2ForbiddenTokenInfo(token, index, nextToken) {
     (token === "--intercept" && nextToken && nextToken.value === "0")
   ) {
     return {
-      reason: interceptMessage,
+      reason: _(
+        "Disabling interception is incompatible with action=zapret2 because Forkop sends matched traffic through NFQUEUE.",
+      ),
       captureNextValue: token === "--intercept",
     };
   }
 
-  if (token === "--daemon") {
-    return {
-      reason: daemonMessage,
-      captureNextValue: false,
-    };
-  }
-
-  if (token === "--dry-run") {
-    return {
-      reason: dryRunMessage,
-      captureNextValue: false,
-    };
-  }
-
-  if (token === "--version") {
-    return {
-      reason: versionMessage,
-      captureNextValue: false,
-    };
-  }
-
-  return null;
+  return (
+    refusedFlag(
+      token,
+      ["<HOSTLIST>", "<HOSTLIST_NOAUTO>"],
+      _(
+        "Zapret2 hostlist templates are not supported here because Forkop does not expand them for per-rule NFQWS2 strategies.",
+      ),
+    ) ||
+    refusedValueOption(
+      token,
+      NFQWS2_HOSTLIST_SELECTION_OPTIONS,
+      _(
+        "Resource selection by hostname inside nfqws2 is not supported here; sing-box selects resources before NFQUEUE.",
+      ),
+    ) ||
+    refusedValueOption(
+      token,
+      IPSET_SELECTION_OPTIONS,
+      _(
+        "Resource selection by IP or CIDR inside nfqws2 is not supported here; sing-box selects resources before NFQUEUE.",
+      ),
+    ) ||
+    refusedValueOption(
+      token,
+      ["--qnum"],
+      _(
+        "The NFQUEUE number is assigned by Forkop for each rule and must not be overridden here.",
+      ),
+    ) ||
+    refusedValueOption(
+      token,
+      ["--fwmark", "--dpi-desync-fwmark"],
+      _(
+        "The desync fwmark is managed by Forkop for loop prevention and must not be overridden here.",
+      ),
+    ) ||
+    refusedValueOption(
+      token,
+      ["--fuzz"],
+      _(
+        "Fuzzing is not supported here because Forkop needs deterministic runtime validation.",
+      ),
+    ) ||
+    refusedFlag(
+      token,
+      ["--daemon"],
+      _(
+        "Forkop manages the nfqws2 process lifecycle itself, so daemon mode is not allowed here.",
+      ),
+    ) ||
+    refusedFlag(
+      token,
+      ["--dry-run"],
+      _(
+        "This field must start a working nfqws2 strategy; --dry-run exits immediately and is not allowed here.",
+      ),
+    ) ||
+    refusedFlag(
+      token,
+      ["--version"],
+      _(
+        "This field must start a working nfqws2 strategy; --version exits immediately and is not allowed here.",
+      ),
+    )
+  );
 }
 
-function buildNfqws2LocalAnalysis(value) {
+// One pass over an nfqws-family strategy: refused options first, then the
+// argument shape each remaining flag has to obey. nfqws and nfqws2 differ only
+// in the tables and the wording, which the spec carries.
+function buildNfqwsFamilyLocalAnalysis(value, spec) {
   const text = value ? `${value}` : "";
   if (!text.trim().length) {
-    return {
-      valid: false,
-      message: _("NFQWS2 strategy cannot be empty"),
-      annotations: [],
-    };
+    return { valid: false, message: spec.emptyMessage(), annotations: [] };
+  }
+
+  if (spec.legacyDefault && text.trim() === spec.legacyDefault) {
+    return { valid: true, message: "", annotations: [] };
   }
 
   const tokens = parseNfqwsRuntimeTokens(text);
@@ -914,11 +720,7 @@ function buildNfqws2LocalAnalysis(value) {
       : token.value;
     const nextToken = tokens[index + 1] || null;
 
-    const forbidden = getNfqws2ForbiddenTokenInfo(
-      token.value,
-      index,
-      nextToken,
-    );
+    const forbidden = spec.forbiddenTokenInfo(token.value, index, nextToken);
     if (forbidden) {
       annotate.addAnnotationIssue(annotationMap, token, forbidden.reason);
 
@@ -950,9 +752,9 @@ function buildNfqws2LocalAnalysis(value) {
       continue;
     }
 
-    const mode = getNfqws2OptionArgumentMode(bareToken);
+    const mode = spec.argumentMode(bareToken);
     if (mode === "unknown") {
-      const reason = _("Unknown NFQWS2 flag.");
+      const reason = spec.unknownFlagMessage();
       annotate.addAnnotationIssue(annotationMap, token, reason);
       errors.push(`${token.value}: ${reason}`);
       index += 1;
@@ -976,9 +778,7 @@ function buildNfqws2LocalAnalysis(value) {
         !token.value.includes("=") &&
         !nextToken.value.startsWith("--")
       ) {
-        const reason = _(
-          "Optional values must be attached with '=' here; a separate token would be ignored by nfqws2.",
-        );
+        const reason = spec.detachedOptionalValueMessage();
         annotate.addAnnotationIssue(annotationMap, token, reason);
         annotate.addAnnotationIssue(annotationMap, nextToken, reason);
         errors.push(`${token.value} ${nextToken.value}: ${reason}`);
@@ -1015,6 +815,34 @@ function buildNfqws2LocalAnalysis(value) {
     message: [annotate.getValidationHeaderText(), ...errors].join("\n"),
     annotations: annotate.finalizeAnnotations(annotationMap),
   };
+}
+
+function buildNfqwsLocalAnalysis(value) {
+  return buildNfqwsFamilyLocalAnalysis(value, {
+    emptyMessage: () => _("NFQWS strategy cannot be empty"),
+    legacyDefault: ZAPRET_LEGACY_DEFAULT_NFQWS_OPT,
+    forbiddenTokenInfo: getNfqwsForbiddenTokenInfo,
+    argumentMode: getNfqwsOptionArgumentMode,
+    unknownFlagMessage: () => _("Unknown NFQWS flag."),
+    detachedOptionalValueMessage: () =>
+      _(
+        "Optional values must be attached with '=' here; a separate token would be ignored by nfqws.",
+      ),
+  });
+}
+
+function buildNfqws2LocalAnalysis(value) {
+  return buildNfqwsFamilyLocalAnalysis(value, {
+    emptyMessage: () => _("NFQWS2 strategy cannot be empty"),
+    legacyDefault: "",
+    forbiddenTokenInfo: getNfqws2ForbiddenTokenInfo,
+    argumentMode: getNfqws2OptionArgumentMode,
+    unknownFlagMessage: () => _("Unknown NFQWS2 flag."),
+    detachedOptionalValueMessage: () =>
+      _(
+        "Optional values must be attached with '=' here; a separate token would be ignored by nfqws2.",
+      ),
+  });
 }
 
 function normalizeByedpiStrategyWhitespace(value) {
@@ -1279,7 +1107,11 @@ function buildByedpiLocalAnalysis(value) {
       nextToken &&
       !nextToken.value.startsWith("-")
     ) {
-      annotate.addAnnotationIssue(annotationMap, nextToken, tokenValidation.reason);
+      annotate.addAnnotationIssue(
+        annotationMap,
+        nextToken,
+        tokenValidation.reason,
+      );
       displayToken = `${displayToken} ${nextToken.value}`;
       index += 2;
     } else {
@@ -1305,17 +1137,11 @@ return baseclass.extend({
   ZAPRET_DEFAULT_NFQWS_OPT,
   ZAPRET2_DEFAULT_NFQWS2_OPT,
   BYEDPI_DEFAULT_CMD_OPTS,
-  getNfqwsOptionArgumentMode,
-  getNfqws2OptionArgumentMode,
   parseNfqwsRuntimeTokens,
   parseByedpiStrategyTokens,
   normalizeNfqwsStrategyValue,
   normalizeNfqws2StrategyValue,
   normalizeByedpiStrategyValue,
-  getNfqwsForbiddenTokenInfo,
-  getNfqws2ForbiddenTokenInfo,
-  getByedpiControlledTokenInfo,
-  validateByedpiStrategyToken,
   buildNfqwsLocalAnalysis,
   buildNfqws2LocalAnalysis,
   buildByedpiLocalAnalysis,

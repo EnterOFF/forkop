@@ -43,18 +43,22 @@ function apk_installed(package_name) {
     return command_exists("apk") && command_success([ "apk", "info", "-e", as_string(package_name) ]);
 }
 
-function opkg_installed(package_name) {
+function opkg_version(package_name) {
     package_name = as_string(package_name);
     if (!command_exists("opkg"))
-        return false;
+        return "";
 
     let prefix = package_name + " - ";
     for (let line in split(command_output([ "opkg", "list-installed" ]), "\n")) {
         line = trim(as_string(line));
         if (substr(line, 0, length(prefix)) == prefix)
-            return true;
+            return substr(line, length(prefix));
     }
-    return false;
+    return "";
+}
+
+function opkg_installed(package_name) {
+    return opkg_version(package_name) != "";
 }
 
 function installed(package_name) {
@@ -160,20 +164,6 @@ function apk_available_version(package_name) {
         package_name,
         command_output([ "apk", "query", "--from", "repositories", "--available", "--format", "json", "--fields", "name,version", package_name ])
     );
-}
-
-function opkg_version(package_name) {
-    package_name = as_string(package_name);
-    if (!command_exists("opkg"))
-        return "";
-
-    let prefix = package_name + " - ";
-    for (let line in split(command_output([ "opkg", "list-installed" ]), "\n")) {
-        line = trim(as_string(line));
-        if (substr(line, 0, length(prefix)) == prefix)
-            return substr(line, length(prefix));
-    }
-    return "";
 }
 
 function sing_box_forkop_version(package_name) {

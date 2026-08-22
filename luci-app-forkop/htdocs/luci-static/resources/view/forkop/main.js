@@ -2199,6 +2199,34 @@ function renderDefaultState({
     ])
   ]);
 }
+function renderSectionsPlaceholder(state) {
+  return renderSections({
+    ...state,
+    section: {
+      code: "",
+      sectionName: "",
+      displayName: "",
+      outbounds: [],
+      withTagSelect: false
+    },
+    onTestLatency: () => {
+    },
+    onTestOutboundLatency: () => {
+    },
+    onChooseOutbound: () => {
+    },
+    onCopyOutbound: () => {
+    },
+    onShowUrlTestInfo: () => {
+    },
+    onShowFallbackInfo: () => {
+    },
+    onUpdateSubscription: () => {
+    },
+    latencyFetching: false,
+    subscriptionUpdating: false
+  });
+}
 function renderSections(props) {
   if (props.failed) {
     return renderFailedState();
@@ -2338,33 +2366,7 @@ function render() {
         E(
           "div",
           { id: "dashboard-sections-grid" },
-          renderSections({
-            loading: true,
-            failed: false,
-            section: {
-              code: "",
-              sectionName: "",
-              displayName: "",
-              outbounds: [],
-              withTagSelect: false
-            },
-            onTestLatency: () => {
-            },
-            onTestOutboundLatency: () => {
-            },
-            onChooseOutbound: () => {
-            },
-            onCopyOutbound: () => {
-            },
-            onShowUrlTestInfo: () => {
-            },
-            onShowFallbackInfo: () => {
-            },
-            onUpdateSubscription: () => {
-            },
-            latencyFetching: false,
-            subscriptionUpdating: false
-          })
+          renderSectionsPlaceholder({ loading: true, failed: false })
         )
       ])
     ]
@@ -6310,32 +6312,9 @@ async function renderSectionsWidget() {
     return;
   }
   if (sectionsWidget.loading || sectionsWidget.failed) {
-    const renderedWidget = renderSections({
+    const renderedWidget = renderSectionsPlaceholder({
       loading: sectionsWidget.loading,
-      failed: sectionsWidget.failed,
-      section: {
-        code: "",
-        sectionName: "",
-        displayName: "",
-        outbounds: [],
-        withTagSelect: false
-      },
-      onTestLatency: () => {
-      },
-      onTestOutboundLatency: () => {
-      },
-      onChooseOutbound: () => {
-      },
-      onCopyOutbound: () => {
-      },
-      onShowUrlTestInfo: () => {
-      },
-      onShowFallbackInfo: () => {
-      },
-      onUpdateSubscription: () => {
-      },
-      latencyFetching: false,
-      subscriptionUpdating: false
+      failed: sectionsWidget.failed
     });
     return preserveScrollForPage(() => {
       container.replaceChildren(renderedWidget);
@@ -7959,9 +7938,9 @@ function getCheckItemsMeta(items) {
   };
 }
 
-// src/forkop/tabs/diagnostic/checks/runZapretCheck.ts
-async function runZapretCheck() {
-  const { order, title, code } = DIAGNOSTICS_CHECKS_MAP.ZAPRET;
+// src/forkop/tabs/diagnostic/checks/runNfqueueProviderCheck.ts
+async function runNfqueueProviderCheck(check, loadStatus, failureMessage, labels) {
+  const { order, title, code } = check;
   updateCheckStore({
     order,
     code,
@@ -7970,8 +7949,8 @@ async function runZapretCheck() {
     state: "loading",
     items: []
   });
-  const zapretStatus = await ForkopShellMethods.getZapretStatus();
-  if (!zapretStatus.success) {
+  const status = await loadStatus();
+  if (!status.success) {
     updateCheckStore({
       order,
       code,
@@ -7980,41 +7959,43 @@ async function runZapretCheck() {
       state: "error",
       items: []
     });
-    throw new Error("Zapret checks failed");
+    throw new Error(failureMessage);
   }
-  const data = zapretStatus.data;
+  const data = status.data;
   const providerAvailable = Boolean(data.provider_available ?? data.installed);
   const packageInstalled = Boolean(data.package_installed);
-  const hasZapretRules = Number(data.enabled_rule_count || 0) > 0;
+  const hasRules = Number(data.enabled_rule_count || 0) > 0;
   const queueOverlap = Boolean(data.queue_overlap);
-  const standaloneServiceRunning = Boolean(data.standalone_service_running);
-  const standaloneConflict = hasZapretRules && standaloneServiceRunning;
   const expectedProcesses = Number(data.expected_process_count || 0);
   const runningProcesses = Number(data.running_process_count || 0);
   const supervisorProcesses = Number(data.supervisor_process_count || 0);
-  const forkopRuntimeReady = !hasZapretRules || runningProcesses === expectedProcesses && supervisorProcesses === expectedProcesses;
-  const unexpectedRuntime = !hasZapretRules && (runningProcesses > 0 || supervisorProcesses > 0);
+  const runtimeReady = !hasRules || runningProcesses === expectedProcesses && supervisorProcesses === expectedProcesses;
+  const unexpectedRuntime = !hasRules && (runningProcesses > 0 || supervisorProcesses > 0);
   const outboundsConfigured = Boolean(data.outbounds_configured);
+  const standaloneServiceEnabled = Boolean(data.standalone_service_enabled);
+  const standaloneServiceRunning = Boolean(data.standalone_service_running);
+  const standaloneConflict = hasRules && standaloneServiceRunning;
+  const standaloneAutostartRisk = hasRules && standaloneServiceEnabled && !standaloneServiceRunning;
   const items = [
     {
-      state: providerAvailable ? "success" : hasZapretRules ? "error" : "warning",
-      key: providerAvailable ? _("Zapret provider binary is available") : _("Zapret provider binary is not available"),
+      state: providerAvailable ? "success" : hasRules ? "error" : "warning",
+      key: providerAvailable ? labels.providerAvailable : labels.providerUnavailable,
       value: data.provider_path || ""
     },
     {
-      state: packageInstalled ? "success" : hasZapretRules ? "error" : "warning",
-      key: packageInstalled ? _("Zapret package is installed") : _("Zapret package is not installed"),
+      state: packageInstalled ? "success" : hasRules ? "error" : "warning",
+      key: packageInstalled ? labels.packageInstalled : labels.packageMissing,
       value: ""
     },
     {
-      state: hasZapretRules && !providerAvailable ? "error" : "success",
-      key: hasZapretRules ? _("There are rules using Zapret") : _("No rules use Zapret"),
+      state: hasRules && !providerAvailable ? "error" : "success",
+      key: hasRules ? labels.rulesPresent : labels.rulesAbsent,
       value: ""
     },
     {
-      state: unexpectedRuntime || !forkopRuntimeReady ? "error" : "success",
-      key: hasZapretRules ? forkopRuntimeReady ? _("Forkop-managed nfqws runtime is ready") : _("Forkop-managed nfqws runtime is not ready") : unexpectedRuntime ? _("Unexpected Forkop-managed nfqws runtime is running") : _("Forkop-managed nfqws runtime is not running"),
-      value: hasZapretRules ? `${runningProcesses}/${expectedProcesses}` : ""
+      state: unexpectedRuntime || !runtimeReady ? "error" : "success",
+      key: hasRules ? runtimeReady ? labels.runtimeReady : labels.runtimeNotReady : unexpectedRuntime ? labels.runtimeUnexpected : labels.runtimeStopped,
+      value: hasRules ? `${runningProcesses}/${expectedProcesses}` : ""
     },
     {
       state: queueOverlap ? "error" : "success",
@@ -8022,13 +8003,13 @@ async function runZapretCheck() {
       value: `${Number(data.queue_base || 0)}-${Number(data.queue_range_end || 0)}`
     },
     {
-      state: !hasZapretRules || outboundsConfigured ? "success" : "error",
-      key: outboundsConfigured ? _("Zapret sing-box outbound is configured") : _("Zapret sing-box outbound is not configured"),
+      state: !hasRules || outboundsConfigured ? "success" : "error",
+      key: outboundsConfigured ? labels.outboundConfigured : labels.outboundMissing,
       value: ""
     },
     {
-      state: standaloneConflict ? "warning" : "success",
-      key: standaloneServiceRunning ? hasZapretRules ? _("Standalone Zapret is active together with Forkop Zapret rules") : _("Standalone Zapret service is active") : _("Standalone Zapret service is inactive"),
+      state: standaloneConflict || standaloneAutostartRisk ? "warning" : "success",
+      key: standaloneServiceRunning ? standaloneConflict ? labels.standaloneConflict : labels.standaloneActive : standaloneAutostartRisk ? labels.standaloneAutostart : labels.standaloneInactive,
       value: ""
     }
   ];
@@ -8043,90 +8024,66 @@ async function runZapretCheck() {
   });
 }
 
+// src/forkop/tabs/diagnostic/checks/runZapretCheck.ts
+async function runZapretCheck() {
+  return runNfqueueProviderCheck(
+    DIAGNOSTICS_CHECKS_MAP.ZAPRET,
+    ForkopShellMethods.getZapretStatus,
+    "Zapret checks failed",
+    {
+      providerAvailable: _("Zapret provider binary is available"),
+      providerUnavailable: _("Zapret provider binary is not available"),
+      packageInstalled: _("Zapret package is installed"),
+      packageMissing: _("Zapret package is not installed"),
+      rulesPresent: _("There are rules using Zapret"),
+      rulesAbsent: _("No rules use Zapret"),
+      runtimeReady: _("Forkop-managed nfqws runtime is ready"),
+      runtimeNotReady: _("Forkop-managed nfqws runtime is not ready"),
+      runtimeUnexpected: _(
+        "Unexpected Forkop-managed nfqws runtime is running"
+      ),
+      runtimeStopped: _("Forkop-managed nfqws runtime is not running"),
+      outboundConfigured: _("Zapret sing-box outbound is configured"),
+      outboundMissing: _("Zapret sing-box outbound is not configured"),
+      standaloneConflict: _(
+        "Standalone Zapret is active together with Forkop Zapret rules"
+      ),
+      standaloneActive: _("Standalone Zapret service is active"),
+      standaloneAutostart: _("Standalone Zapret autostart is enabled"),
+      standaloneInactive: _("Standalone Zapret service is inactive")
+    }
+  );
+}
+
 // src/forkop/tabs/diagnostic/checks/runZapret2Check.ts
 async function runZapret2Check() {
-  const { order, title, code } = DIAGNOSTICS_CHECKS_MAP.ZAPRET2;
-  updateCheckStore({
-    order,
-    code,
-    title,
-    description: _("Checking, please wait"),
-    state: "loading",
-    items: []
-  });
-  const zapret2Status = await ForkopShellMethods.getZapret2Status();
-  if (!zapret2Status.success) {
-    updateCheckStore({
-      order,
-      code,
-      title,
-      description: _("Cannot receive checks result"),
-      state: "error",
-      items: []
-    });
-    throw new Error("Zapret2 checks failed");
-  }
-  const data = zapret2Status.data;
-  const providerAvailable = Boolean(data.provider_available ?? data.installed);
-  const packageInstalled = Boolean(data.package_installed);
-  const hasZapret2Rules = Number(data.enabled_rule_count || 0) > 0;
-  const queueOverlap = Boolean(data.queue_overlap);
-  const expectedProcesses = Number(data.expected_process_count || 0);
-  const runningProcesses = Number(data.running_process_count || 0);
-  const supervisorProcesses = Number(data.supervisor_process_count || 0);
-  const forkopRuntimeReady = !hasZapret2Rules || runningProcesses === expectedProcesses && supervisorProcesses === expectedProcesses;
-  const unexpectedRuntime = !hasZapret2Rules && (runningProcesses > 0 || supervisorProcesses > 0);
-  const outboundsConfigured = Boolean(data.outbounds_configured);
-  const standaloneServiceEnabled = Boolean(data.standalone_service_enabled);
-  const standaloneServiceRunning = Boolean(data.standalone_service_running);
-  const standaloneConflict = hasZapret2Rules && standaloneServiceRunning;
-  const standaloneAutostartRisk = hasZapret2Rules && standaloneServiceEnabled && !standaloneServiceRunning;
-  const items = [
+  return runNfqueueProviderCheck(
+    DIAGNOSTICS_CHECKS_MAP.ZAPRET2,
+    ForkopShellMethods.getZapret2Status,
+    "Zapret2 checks failed",
     {
-      state: providerAvailable ? "success" : hasZapret2Rules ? "error" : "warning",
-      key: providerAvailable ? _("Zapret2 provider binary is available") : _("Zapret2 provider binary is not available"),
-      value: data.provider_path || ""
-    },
-    {
-      state: packageInstalled ? "success" : hasZapret2Rules ? "error" : "warning",
-      key: packageInstalled ? _("Zapret2 package is installed") : _("Zapret2 package is not installed"),
-      value: ""
-    },
-    {
-      state: hasZapret2Rules && !providerAvailable ? "error" : "success",
-      key: hasZapret2Rules ? _("There are rules using Zapret2") : _("No rules use Zapret2"),
-      value: ""
-    },
-    {
-      state: unexpectedRuntime || !forkopRuntimeReady ? "error" : "success",
-      key: hasZapret2Rules ? forkopRuntimeReady ? _("Forkop-managed nfqws2 runtime is ready") : _("Forkop-managed nfqws2 runtime is not ready") : unexpectedRuntime ? _("Unexpected Forkop-managed nfqws2 runtime is running") : _("Forkop-managed nfqws2 runtime is not running"),
-      value: hasZapret2Rules ? `${runningProcesses}/${expectedProcesses}` : ""
-    },
-    {
-      state: queueOverlap ? "error" : "success",
-      key: queueOverlap ? _("NFQUEUE range overlaps with another rule") : _("NFQUEUE range is available"),
-      value: `${Number(data.queue_base || 0)}-${Number(data.queue_range_end || 0)}`
-    },
-    {
-      state: !hasZapret2Rules || outboundsConfigured ? "success" : "error",
-      key: outboundsConfigured ? _("Zapret2 sing-box outbound is configured") : _("Zapret2 sing-box outbound is not configured"),
-      value: ""
-    },
-    {
-      state: standaloneConflict ? "error" : standaloneAutostartRisk ? "warning" : "success",
-      key: standaloneServiceRunning ? hasZapret2Rules ? _("Standalone Zapret2 is active together with Forkop Zapret2 rules") : _("Standalone Zapret2 service is active") : standaloneAutostartRisk ? _("Standalone Zapret2 autostart is enabled") : _("Standalone Zapret2 service is inactive"),
-      value: ""
+      providerAvailable: _("Zapret2 provider binary is available"),
+      providerUnavailable: _("Zapret2 provider binary is not available"),
+      packageInstalled: _("Zapret2 package is installed"),
+      packageMissing: _("Zapret2 package is not installed"),
+      rulesPresent: _("There are rules using Zapret2"),
+      rulesAbsent: _("No rules use Zapret2"),
+      runtimeReady: _("Forkop-managed nfqws2 runtime is ready"),
+      runtimeNotReady: _("Forkop-managed nfqws2 runtime is not ready"),
+      runtimeUnexpected: _(
+        "Unexpected Forkop-managed nfqws2 runtime is running"
+      ),
+      runtimeStopped: _("Forkop-managed nfqws2 runtime is not running"),
+      outboundConfigured: _("Zapret2 sing-box outbound is configured"),
+      outboundMissing: _("Zapret2 sing-box outbound is not configured"),
+      standaloneConflict: _(
+        "Standalone Zapret2 is active together with Forkop Zapret2 rules"
+      ),
+      standaloneActive: _("Standalone Zapret2 service is active"),
+      standaloneAutostart: _("Standalone Zapret2 autostart is enabled"),
+      standaloneInactive: _("Standalone Zapret2 service is inactive")
     }
-  ];
-  const { state, description } = getCheckItemsMeta(items);
-  updateCheckStore({
-    order,
-    code,
-    title,
-    description,
-    state,
-    items
-  });
+  );
 }
 
 // src/forkop/tabs/diagnostic/checks/runByedpiCheck.ts
@@ -9778,6 +9735,30 @@ async function fetchSystemInfo() {
     )
   });
 }
+function applyDiagnosticsProviderInfo(nextSystemInfo, resetChecks) {
+  if (!nextSystemInfo.zapret_installed) {
+    nextSystemInfo.zapret_version = "not installed";
+  }
+  if (!nextSystemInfo.zapret2_installed) {
+    nextSystemInfo.zapret2_version = "not installed";
+  }
+  if (!nextSystemInfo.byedpi_installed) {
+    nextSystemInfo.byedpi_version = "not installed";
+  }
+  const nextState = {
+    diagnosticsSystemInfo: nextSystemInfo
+  };
+  if (shouldResetDiagnosticsChecks({
+    resetChecks,
+    diagnosticsRunLoading: store.get().diagnosticsRunAction.loading
+  })) {
+    nextState.diagnosticsChecks = getDiagnosticsChecks(
+      _("Not running"),
+      getDiagnosticsProviderOptions(nextSystemInfo)
+    );
+  }
+  store.set(nextState);
+}
 async function fetchDiagnosticsProviderInfo({
   resetChecks = true
 } = {}) {
@@ -9797,28 +9778,7 @@ async function fetchDiagnosticsProviderInfo({
         byedpi_installed: uiState.capabilities.byedpi_installed,
         server_inbounds_enabled_count: uiState.capabilities.server_inbounds_enabled_count
       };
-      if (!nextSystemInfo2.zapret_installed) {
-        nextSystemInfo2.zapret_version = "not installed";
-      }
-      if (!nextSystemInfo2.zapret2_installed) {
-        nextSystemInfo2.zapret2_version = "not installed";
-      }
-      if (!nextSystemInfo2.byedpi_installed) {
-        nextSystemInfo2.byedpi_version = "not installed";
-      }
-      const nextState2 = {
-        diagnosticsSystemInfo: nextSystemInfo2
-      };
-      if (shouldResetDiagnosticsChecks({
-        resetChecks,
-        diagnosticsRunLoading: store.get().diagnosticsRunAction.loading
-      })) {
-        nextState2.diagnosticsChecks = getDiagnosticsChecks(
-          _("Not running"),
-          getDiagnosticsProviderOptions(nextSystemInfo2)
-        );
-      }
-      store.set(nextState2);
+      applyDiagnosticsProviderInfo(nextSystemInfo2, resetChecks);
       return;
     }
     const [zapretRuntime, zapret2Runtime, byedpiRuntime, inboundsConfig] = await Promise.all([
@@ -9859,28 +9819,7 @@ async function fetchDiagnosticsProviderInfo({
         inboundsConfig
       );
     }
-    if (!nextSystemInfo.zapret_installed) {
-      nextSystemInfo.zapret_version = "not installed";
-    }
-    if (!nextSystemInfo.zapret2_installed) {
-      nextSystemInfo.zapret2_version = "not installed";
-    }
-    if (!nextSystemInfo.byedpi_installed) {
-      nextSystemInfo.byedpi_version = "not installed";
-    }
-    const nextState = {
-      diagnosticsSystemInfo: nextSystemInfo
-    };
-    if (shouldResetDiagnosticsChecks({
-      resetChecks,
-      diagnosticsRunLoading: store.get().diagnosticsRunAction.loading
-    })) {
-      nextState.diagnosticsChecks = getDiagnosticsChecks(
-        _("Not running"),
-        getDiagnosticsProviderOptions(nextSystemInfo)
-      );
-    }
-    store.set(nextState);
+    applyDiagnosticsProviderInfo(nextSystemInfo, resetChecks);
   } catch (error) {
     logger.error("[DIAGNOSTIC]", "fetchDiagnosticsProviderInfo failed", error);
     if (requestId === latestProviderInfoRequestId) {

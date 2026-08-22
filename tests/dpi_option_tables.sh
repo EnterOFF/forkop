@@ -112,6 +112,22 @@ function backendRejected(otherKind) {
   return [...rejected];
 }
 
+// The refusals are named either inline or through a shared const array, so the
+// arrays the function references are expanded before the names are collected.
+function editorNameList(name, seen) {
+  if (seen.has(name)) return [];
+  seen.add(name);
+
+  const matched = new RegExp(`const ${name} = \\[(.*?)\\n\\];`, 's').exec(editor);
+  if (!matched) return [];
+
+  const names = [...matched[1].matchAll(/"(--[a-z0-9-]+)"/g)].map((item) => item[1]);
+  for (const spread of matched[1].matchAll(/\.\.\.([A-Z][A-Z0-9_]*)/g)) {
+    names.push(...editorNameList(spread[1], seen));
+  }
+  return names;
+}
+
 function editorRejected(fnName) {
   const start = editor.indexOf(`function ${fnName}(`);
   if (start < 0) {
@@ -120,11 +136,12 @@ function editorRejected(fnName) {
   }
   const end = editor.indexOf('\n}\n', start);
   const body = end < 0 ? editor.slice(start) : editor.slice(start, end);
-  return [
-    ...new Set(
-      [...body.matchAll(/token === "(--[a-z0-9-]+)"/g)].map((item) => item[1]),
-    ),
-  ];
+  const names = [...body.matchAll(/"(--[a-z0-9-]+)"/g)].map((item) => item[1]);
+  const seen = new Set();
+  for (const reference of body.matchAll(/(?:^|[^.\w])([A-Z][A-Z0-9_]*)(?:,|\n)/g)) {
+    names.push(...editorNameList(reference[1], seen));
+  }
+  return [...new Set(names)];
 }
 
 for (const [label, backendList, frontendList] of [

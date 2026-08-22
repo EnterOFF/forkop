@@ -61,11 +61,11 @@ status_service() {
 }
 
 retry_start_on_wan_up() {
-    initd_ucode retry-start-on-wan-up "$$"
+    initd_ucode retry-start-on-wan-up
 }
 
 handle_wan_up() {
-    initd_ucode handle-wan-up "$$"
+    initd_ucode handle-wan-up
 }
 
 service_triggers() {

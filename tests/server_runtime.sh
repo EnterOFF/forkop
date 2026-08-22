@@ -318,6 +318,10 @@ for name in newaaaa newbbbb; do
     fail "the certificate of $name must be named after the section"
   [ -s "$FORKOP_SERVER_CERT_DIR/$name.key" ] ||
     fail "the private key of $name must be named after the section"
+  # The key carries its mode from the moment it exists, so it is never readable
+  # to anyone else, not even between being created and being written.
+  [ "$(stat -c '%a' "$FORKOP_SERVER_CERT_DIR/$name.key")" = "600" ] ||
+    fail "the private key of $name must not be readable to anyone else"
 done
 [ ! -e "$FORKOP_SERVER_CERT_DIR/______.crt" ] ||
   fail "a display name must not become the file name"

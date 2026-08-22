@@ -196,8 +196,6 @@ return {
     valid_ip,
     valid_ip_cidr,
     valid_ip_or_cidr,
-    valid_public_ipv4,
-    valid_public_ipv6,
     valid_public_ip,
     nft_ip_or_cidr,
     ip_family,

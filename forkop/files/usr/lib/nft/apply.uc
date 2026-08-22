@@ -5,7 +5,6 @@ let common = require("core.common");
 let core_ip = require("core.ip");
 let uci_core = require("core.uci");
 let rule_config = require("config.rule");
-let domain_config = require("config.domain");
 let connections = require("config.connections");
 let runtime_constants = require("singbox.constants");
 let nft_state = require("nft.state");
@@ -13,16 +12,13 @@ const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const IP_BIN = getenv("FORKOP_IP_BIN") || "/usr/libexec/ip-full";
 
 let common_read_json_file = common.read_json_file;
-let list_option = common.list_option;
 let bool_option = common.bool_option;
-let parse_mark_number = nft_state.parse_mark_number;
+let parse_number = common.parse_number;
 let rt_table_has_entry = nft_state.rt_table_has_entry;
 let tproxy_route4_present = nft_state.tproxy_route4_present;
 let tproxy_route6_present = nft_state.tproxy_route6_present;
-let tproxy_route_present = nft_state.tproxy_route_present;
 let tproxy_marking_rule4_present = nft_state.tproxy_marking_rule4_present;
 let tproxy_marking_rule6_present = nft_state.tproxy_marking_rule6_present;
-let tproxy_marking_rule_present = nft_state.tproxy_marking_rule_present;
 let tproxy_route_rule_present = nft_state.tproxy_route_rule_present;
 
 function as_string(value) {
@@ -149,14 +145,6 @@ function cache_path(enabled, cache_dir, namespace, section, key, kind) {
     print(cache_dir, "/", namespace, "_", section, "_", key, "_", kind, "\n");
 }
 
-function valid_ipv4(value) {
-    return core_ip.valid_ipv4(value, false, false);
-}
-
-function valid_ipv4_cidr(value) {
-    return core_ip.valid_ipv4_cidr(value, false);
-}
-
 function nft_ip_or_cidr(value) {
     return core_ip.nft_ip_or_cidr(value);
 }
@@ -188,20 +176,8 @@ function legacy_condition_csv(kind, text_mode, conditions_text_mode, text_value,
         print(value, "\n");
 }
 
-function normalize_port_number_value(value) {
-    return rule_config.normalize_port_number_value(value);
-}
-
 function normalize_port_condition_value(value) {
     return rule_config.normalize_port_condition_value(value);
-}
-
-function normalize_port_range_value(value) {
-    return rule_config.normalize_port_range_value(value);
-}
-
-function rule_ports_csv_value(list_values, text_value) {
-    return rule_config.rule_ports_csv_value(list_values, text_value);
 }
 
 function nft_create_table(name) {
@@ -684,8 +660,7 @@ function nft_create_runtime_base_from_uci(table, localv4_set, common_set, port_s
     );
 }
 
-function nft_create_runtime_output_rules(table, localv4_set, common_set, port_set, ip_port_set, fakeip_mark, fakeip_range, localv6_set, common6_set, ip_port6_set, fakeip6_range) {
-    localv6_set = default_arg(localv6_set, "localv6");
+function nft_create_runtime_output_rules(table, common_set, port_set, ip_port_set, fakeip_mark, fakeip_range, common6_set, ip_port6_set, fakeip6_range) {
     common6_set = default_arg(common6_set, "forkop_subnets6");
     ip_port6_set = default_arg(ip_port6_set, "forkop_ip6_ports");
     fakeip6_range = default_arg(fakeip6_range, "fc00::/18");
@@ -709,7 +684,7 @@ function nft_create_runtime_output_rules(table, localv4_set, common_set, port_se
 }
 
 function nft_provider_mark_hex(route_mark_base, index) {
-    let base = parse_mark_number(route_mark_base);
+    let base = parse_number(route_mark_base);
     index = int(index || 0);
     if (base == null || index < 1)
         return "";
@@ -1004,10 +979,6 @@ function ensure_bridge_netfilter_disabled() {
         run_args([ "sysctl", "-w", "net.bridge.bridge-nf-call-ip6tables=0" ]);
 }
 
-function community_service_has_subnet_list(value) {
-    return rule_config.community_service_has_subnet_list(value);
-}
-
 function filter_community_subnet_lists_value(value) {
     return rule_config.filter_community_subnet_lists_value(value);
 }
@@ -1118,7 +1089,7 @@ function nft_create_full_runtime_from_uci(rt_table, table, localv4_set, common_s
         nft_add_section_priority_rules_from_sections(uci_sections("section"), table, interface_set, localv4_set, localv6_set, fakeip_mark, fakeip_range, fakeip6_range) &&
         nft_create_provider_output_rules_from_uci(table, "zapret", zapret_bin, zapret_route_mark_base, zapret_queue_base, zapret_desync_mark, zapret_desync_mark_postnat) &&
         nft_create_provider_output_rules_from_uci(table, "zapret2", zapret2_bin, zapret2_route_mark_base, zapret2_queue_base, zapret2_desync_mark, zapret2_desync_mark_postnat) &&
-        nft_create_runtime_output_rules(table, localv4_set, common_set, port_set, ip_port_set, fakeip_mark, fakeip_range, localv6_set, common6_set, ip_port6_set, fakeip6_range);
+        nft_create_runtime_output_rules(table, common_set, port_set, ip_port_set, fakeip_mark, fakeip_range, common6_set, ip_port6_set, fakeip6_range);
 }
 
 function nft_table_present(table) {
@@ -1211,7 +1182,7 @@ function nft_add_system_aware_dns_support(sections, deferred_sections, table) {
         nft_add_system_dns_redirect(table);
 }
 
-function nft_populate_runtime_set_for_section(section, deferred_sections, table, common_set, port_set, ip_port_set, common6_set, ip_port6_set) {
+function nft_populate_runtime_set_for_section(section, deferred_sections, table) {
     if (!bool_option(section, "enabled", true))
         return true;
     if (section_action(section) == "dns")
@@ -1242,7 +1213,7 @@ function nft_populate_runtime_set_for_section(section, deferred_sections, table,
     return true;
 }
 
-function nft_populate_runtime_sets_from_sections(sections, populate_enabled, deferred_section_names, table, common_set, port_set, ip_port_set, interface_set, localv4_set, mark, common6_set, ip_port6_set, localv6_set) {
+function nft_populate_runtime_sets_from_sections(sections, populate_enabled, deferred_section_names, table) {
     if (!arg_bool(populate_enabled))
         return true;
 
@@ -1252,23 +1223,23 @@ function nft_populate_runtime_sets_from_sections(sections, populate_enabled, def
         return false;
 
     for (let section in sections)
-        if (!nft_populate_runtime_set_for_section(section, deferred_sections, table, common_set, port_set, ip_port_set, common6_set, ip_port6_set))
+        if (!nft_populate_runtime_set_for_section(section, deferred_sections, table))
             return false;
 
     return true;
 }
 
-function nft_populate_runtime_sets_from_uci(populate_enabled, deferred_section_names, table, common_set, port_set, ip_port_set, interface_set, localv4_set, mark, common6_set, ip_port6_set, localv6_set) {
+function nft_populate_runtime_sets_from_uci(populate_enabled, deferred_section_names, table) {
     if (!arg_bool(populate_enabled))
         return true;
 
-    return nft_populate_runtime_sets_from_sections(uci_sections("section"), populate_enabled, deferred_section_names, table, common_set, port_set, ip_port_set, interface_set, localv4_set, mark, common6_set, ip_port6_set, localv6_set);
+    return nft_populate_runtime_sets_from_sections(uci_sections("section"), populate_enabled, deferred_section_names, table);
 }
 
-function nft_populate_runtime_sets_fixture(path, populate_enabled, deferred_section_names, table, common_set, port_set, ip_port_set, interface_set, localv4_set, mark, common6_set, ip_port6_set, localv6_set) {
+function nft_populate_runtime_sets_fixture(path, populate_enabled, deferred_section_names, table) {
     let data = object_or_empty(common_read_json_file(path));
     connections.set_item_sections_from_data(data);
-    return nft_populate_runtime_sets_from_sections(fixture_section_list(data, "section"), populate_enabled, deferred_section_names, table, common_set, port_set, ip_port_set, interface_set, localv4_set, mark, common6_set, ip_port6_set, localv6_set);
+    return nft_populate_runtime_sets_from_sections(fixture_section_list(data, "section"), populate_enabled, deferred_section_names, table);
 }
 
 let mode = ARGV[0] || "";
@@ -1286,7 +1257,7 @@ else if (mode == "nft-create-runtime-base")
 else if (mode == "nft-create-runtime-base-from-uci")
     exit(nft_create_runtime_base_from_uci(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8], ARGV[9], ARGV[10], ARGV[11], ARGV[12], ARGV[13], ARGV[14], ARGV[15]) ? 0 : 1);
 else if (mode == "nft-create-runtime-output-rules")
-    exit(nft_create_runtime_output_rules(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8], ARGV[9], ARGV[10], ARGV[11]) ? 0 : 1);
+    exit(nft_create_runtime_output_rules(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8], ARGV[9]) ? 0 : 1);
 else if (mode == "nft-create-provider-output-rules-fixture")
     exit(nft_create_provider_output_rules_from_sections(fixture_section_list(object_or_empty(common_read_json_file(ARGV[1])), "section"), ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8]) ? 0 : 1);
 else if (mode == "nft-add-section-priority-rules-fixture")
@@ -1296,9 +1267,9 @@ else if (mode == "nft-create-full-runtime-from-uci")
 else if (mode == "nft-rebuild-runtime-from-uci")
     exit(nft_rebuild_runtime_from_uci(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8], ARGV[9], ARGV[10], ARGV[11], ARGV[12], ARGV[13], ARGV[14], ARGV[15], ARGV[16], ARGV[17], ARGV[18], ARGV[19], ARGV[20], ARGV[21], ARGV[22], ARGV[23], ARGV[24], ARGV[25], ARGV[26]) ? 0 : 1);
 else if (mode == "nft-populate-runtime-sets-from-uci")
-    exit(nft_populate_runtime_sets_from_uci(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8], ARGV[9], ARGV[10], ARGV[11], ARGV[12]) ? 0 : 1);
+    exit(nft_populate_runtime_sets_from_uci(ARGV[1], ARGV[2], ARGV[3]) ? 0 : 1);
 else if (mode == "nft-populate-runtime-sets-fixture")
-    exit(nft_populate_runtime_sets_fixture(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8], ARGV[9], ARGV[10], ARGV[11], ARGV[12], ARGV[13]) ? 0 : 1);
+    exit(nft_populate_runtime_sets_fixture(ARGV[1], ARGV[2], ARGV[3], ARGV[4]) ? 0 : 1);
 else if (mode == "nft-runtime-signature")
     exit(nft_runtime_signature_from_uci() ? 0 : 1);
 else if (mode == "nft-runtime-signature-fixture")

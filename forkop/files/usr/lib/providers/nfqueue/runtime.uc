@@ -2,6 +2,7 @@
 
 let fs = require("fs");
 let provider_process = require("providers.process");
+let common = require("core.common");
 let constants = require("core.constants");
 let uci_core = require("core.uci");
 let runtime_constants = require("singbox.constants");
@@ -11,9 +12,8 @@ const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
 const SB_TPROXY_INBOUND_TAG = getenv("SB_TPROXY_INBOUND_TAG") || constants.SB_TPROXY_INBOUND_TAG || "tproxy-in";
 const NFT_TABLE_NAME = getenv("NFT_TABLE_NAME") || constants.NFT_TABLE_NAME || "ForkopTable";
 
-function as_string(value) {
-    return value == null ? "" : "" + value;
-}
+let as_string = common.as_string;
+let parse_number = common.parse_number;
 
 function bool_value(value) {
     value = lc(as_string(value));
@@ -151,29 +151,6 @@ function enabled_sections(cfg) {
         if (bool_option(section, "enabled", true) && option(section, "action", "") == cfg.action)
             push(result, section);
     return result;
-}
-
-function hex_digit_value(value) {
-    let pos = index("0123456789abcdef", lc(as_string(value)));
-    return pos >= 0 ? pos : null;
-}
-
-function parse_number(value) {
-    value = lc(trim(as_string(value)));
-    if (value == "")
-        return null;
-    if (substr(value, 0, 2) == "0x") {
-        value = substr(value, 2);
-        let result = 0;
-        for (let i = 0; i < length(value); i++) {
-            let digit = hex_digit_value(substr(value, i, 1));
-            if (digit == null)
-                return null;
-            result = result * 16 + digit;
-        }
-        return result;
-    }
-    return match(value, /^[0-9]+$/) == null ? null : int(value);
 }
 
 function route_mark_value(cfg, index_value) {

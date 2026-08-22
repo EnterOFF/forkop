@@ -53,10 +53,6 @@ function strategy_argv(value) {
     return { tokens, unterminated_quote: "" };
 }
 
-function words(value) {
-    return strategy_argv(value).tokens;
-}
-
 function contains(values, needle) {
     for (let value in values)
         if (value == needle)

@@ -15,16 +15,19 @@ let report = require("diagnostics.report");
 let diag_firewall = require("diagnostics.firewall");
 let singbox_constants = require("singbox.constants");
 let proxy_check = require("diagnostics.check_proxy");
+let runtime_lock = require("service.lock");
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || constants.FORKOP_CONFIG_NAME || "forkop";
 const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
 const FORKOP_VERSION = getenv("FORKOP_VERSION") || constants.FORKOP_VERSION || "";
 const FORKOP_CONFIG = getenv("FORKOP_CONFIG") || constants.FORKOP_CONFIG || "/etc/config/" + CONFIG_NAME;
 const FORKOP_SERVICE_NAME = getenv("FORKOP_SERVICE_NAME") || constants.FORKOP_SERVICE_NAME || "forkop";
-const FORKOP_RELEASE_REPO = getenv("FORKOP_RELEASE_REPO") || constants.FORKOP_RELEASE_REPO || "ushan0v/forkop";
 const FORKOP_LUCI_VIEW_DIR = getenv("FORKOP_LUCI_VIEW_DIR") || constants.FORKOP_LUCI_VIEW_DIR || "/www/luci-static/resources/view/forkop";
 const RUNTIME_STATE_DIR = getenv("FORKOP_RUNTIME_STATE_DIR") || "/var/run/forkop";
 const CHECK_PROXY_LOCK_DIR = getenv("FORKOP_CHECK_PROXY_LOCK_DIR") || RUNTIME_STATE_DIR + "/check-proxy.lock";
+// A proxy check that died leaves its lock behind; the next one may take it over
+// almost at once, because the check runs from a click and is cheap to repeat.
+const CHECK_PROXY_LOCK_OWNER_GRACE = "5";
 const SYSTEM_INFO_CACHE_FILE = getenv("FORKOP_SYSTEM_INFO_CACHE_FILE") || RUNTIME_STATE_DIR + "/system-info.json";
 const SYSTEM_INFO_CACHE_TTL = int(getenv("FORKOP_SYSTEM_INFO_CACHE_TTL") || "3600");
 const TMP_SING_BOX_FOLDER = getenv("TMP_SING_BOX_FOLDER") || constants.TMP_SING_BOX_FOLDER || "/tmp/sing-box";
@@ -88,22 +91,13 @@ function command_from_args(args) {
     return join(" ", parts);
 }
 
-function normalize_status(status) {
-    status = int(status);
-    return status > 255 ? int(status / 256) : status;
-}
-
-function command_status(command) {
-    return normalize_status(system(command));
-}
-
 function command_capture(command) {
     let pipe = fs.popen(command, "r");
     if (!pipe)
         return { status: 1, output: "" };
 
     let data = pipe.read("all");
-    let status = normalize_status(pipe.close());
+    let status = pipe.close();
     return { status, output: data == null ? "" : as_string(data) };
 }
 
@@ -113,7 +107,7 @@ function command_output(command) {
 }
 
 function command_success(command) {
-    return command_status(command + " >/dev/null 2>&1") == 0;
+    return system(command + " >/dev/null 2>&1") == 0;
 }
 
 function command_output_from_args(args) {
@@ -679,61 +673,17 @@ function current_pid() {
     return separator > 0 ? substr(stat, 0, separator) : "";
 }
 
-function pid_running(pid) {
-    pid = as_string(pid);
-    return match(pid, /^[0-9]+$/) != null && command_success_from_args([ "kill", "-0", pid ]);
-}
-
-function first_line(path) {
-    let data = fs.readfile(as_string(path));
-    if (data == null)
-        return "";
-    let newline = index(data, "\n");
-    return trim(newline >= 0 ? substr(data, 0, newline) : data);
-}
-
 function sing_box_process_running_for_check() {
     return command_success_from_args([ "pgrep", "-x", "sing-box" ]) ||
         command_success_from_args([ "pgrep", "-f", "^/usr/bin/sing-box[[:space:]]" ]);
 }
 
 function acquire_check_proxy_lock() {
-    if (!ensure_dir(RUNTIME_STATE_DIR))
-        return false;
-
-    let owner = current_pid();
-    if (owner == "")
-        return false;
-
-    if (command_success_from_args([ "mkdir", CHECK_PROXY_LOCK_DIR ]))
-        return fs.writefile(CHECK_PROXY_LOCK_DIR + "/pid", owner + "\n") != null;
-
-    let current_owner = first_line(CHECK_PROXY_LOCK_DIR + "/pid");
-    if (pid_running(current_owner))
-        return false;
-
-    let lock_stat = fs.stat(CHECK_PROXY_LOCK_DIR);
-    let lock_age = lock_stat == null ? 0 : int(clock()[0]) - int(lock_stat.mtime || 0);
-    if (current_owner == "" && lock_stat != null && lock_age >= 0 && lock_age < 5)
-        return false;
-
-    command_success_from_args([ "rm", "-f", CHECK_PROXY_LOCK_DIR + "/pid" ]);
-    command_success_from_args([ "rmdir", CHECK_PROXY_LOCK_DIR ]);
-    if (!command_success_from_args([ "mkdir", CHECK_PROXY_LOCK_DIR ]))
-        return false;
-    if (fs.writefile(CHECK_PROXY_LOCK_DIR + "/pid", owner + "\n") != null)
-        return true;
-
-    command_success_from_args([ "rmdir", CHECK_PROXY_LOCK_DIR ]);
-    return false;
+    return runtime_lock.acquire(CHECK_PROXY_LOCK_DIR, current_pid(), CHECK_PROXY_LOCK_OWNER_GRACE);
 }
 
 function release_check_proxy_lock() {
-    let owner = current_pid();
-    if (owner == "" || first_line(CHECK_PROXY_LOCK_DIR + "/pid") != owner)
-        return;
-    command_success_from_args([ "rm", "-f", CHECK_PROXY_LOCK_DIR + "/pid" ]);
-    command_success_from_args([ "rmdir", CHECK_PROXY_LOCK_DIR ]);
+    runtime_lock.release(CHECK_PROXY_LOCK_DIR, current_pid());
 }
 
 function check_proxy_through_running_core() {
@@ -1265,7 +1215,7 @@ function nft_table_has_other_mark_rules(family, table_name) {
 }
 
 function nft_rules_value() {
-    command_status("sh -c " + shell_quote(
+    system("sh -c " + shell_quote(
         "curl -m 3 -s " + shell_quote(CHECK_PROXY_URL) + " >/dev/null 2>&1 & pid1=$!; " +
         "curl -m 3 -s " + shell_quote("https://" + FAKEIP_TEST_DOMAIN + "/check") + " >/dev/null 2>&1 & pid2=$!; " +
         "wait $pid1 2>/dev/null; wait $pid2 2>/dev/null; sleep 1"

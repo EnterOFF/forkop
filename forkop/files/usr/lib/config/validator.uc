@@ -26,9 +26,9 @@ let array_or_empty = core_common.array_or_empty;
 let option = core_common.option;
 let list_option = core_common.list_option;
 let bool_option = core_common.bool_option;
+let parse_number = core_common.parse_number;
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
-const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
 const SING_BOX_FORKOP_VERSION_FILE = getenv("SING_BOX_FORKOP_VERSION_FILE") || "/usr/share/sing-box-forkop/version";
 const DEFAULT_LATENCY_TEST_URL = "https://www.gstatic.com/generate_204";
 const TAILSCALE_FWMARK_MASK = 0x00ff0000;
@@ -449,34 +449,6 @@ function mwan3_is_active() {
 
     return command_success_from_args([ "/etc/init.d/mwan3", "status" ]) ||
         command_success_from_args([ "/etc/init.d/mwan3", "enabled" ]);
-}
-
-function hex_digit_value(value) {
-    let pos = index("0123456789abcdef", lc(as_string(value)));
-    return pos >= 0 ? pos : null;
-}
-
-function parse_number(value) {
-    value = lc(trim(as_string(value)));
-    if (value == "")
-        return null;
-
-    if (substr(value, 0, 2) == "0x") {
-        value = substr(value, 2);
-        if (value == "")
-            return null;
-
-        let result = 0;
-        for (let i = 0; i < length(value); i++) {
-            let digit = hex_digit_value(substr(value, i, 1));
-            if (digit == null)
-                return null;
-            result = result * 16 + digit;
-        }
-        return result;
-    }
-
-    return match(value, /^[0-9]+$/) == null ? null : int(value);
 }
 
 function zapret_validator() {
@@ -1845,7 +1817,7 @@ function validate_server_values(server, protocol, security, name) {
     validate_server_files(server, protocol, security, name);
 }
 
-function validate_server_clients_and_ports(sections) {
+function validate_server_clients_and_ports() {
     validate_server_listen_ports();
 
     for (let server in sections_by_type("server")) {
@@ -1990,7 +1962,7 @@ function validate_runtime_config(context) {
     validate_subscription_download_sections(sections, context);
     validate_json_inbound_values();
     validate_server_routing_sections(sections);
-    validate_server_clients_and_ports(sections);
+    validate_server_clients_and_ports();
 
     for (let section in sections) {
         validate_subscription_tags(section);
@@ -2095,7 +2067,7 @@ function cleanup_legacy_zapret_runtime(ctx) {
     safe_rm_rf(base);
 }
 
-function check_provider_requirement(action, display_name, bin_path, dirs, missing_message, prepare_failure_message) {
+function check_provider_requirement(action, bin_path, dirs, missing_message, prepare_failure_message) {
     if (!has_enabled_rule_action(action))
         return;
 
@@ -2113,7 +2085,6 @@ function check_provider_requirements(ctx) {
 
     check_provider_requirement(
         "zapret",
-        "Zapret",
         ctx.zapret_provider_nfqws_bin,
         [ ctx.zapret_state_dir, ctx.zapret_pid_dir, ctx.zapret_child_pid_dir, ctx.zapret_log_dir ],
         "Zapret provider is not available at " + ctx.zapret_provider_nfqws_bin + ". Rules with action 'zapret' will be skipped until the zapret provider is installed.",
@@ -2122,7 +2093,6 @@ function check_provider_requirements(ctx) {
 
     check_provider_requirement(
         "zapret2",
-        "Zapret2",
         ctx.zapret2_provider_nfqws2_bin,
         [ ctx.zapret2_state_dir, ctx.zapret2_pid_dir, ctx.zapret2_child_pid_dir, ctx.zapret2_log_dir ],
         "Zapret2 provider is not available at " + ctx.zapret2_provider_nfqws2_bin + ". Rules with action 'zapret2' will be skipped until the zapret2 provider is installed.",
@@ -2131,7 +2101,6 @@ function check_provider_requirements(ctx) {
 
     check_provider_requirement(
         "byedpi",
-        "ByeDPI",
         ctx.byedpi_bin,
         [ ctx.byedpi_state_dir, ctx.byedpi_pid_dir, ctx.byedpi_child_pid_dir, ctx.byedpi_log_dir ],
         "ByeDPI provider is not available at " + ctx.byedpi_bin + ". Rules with action 'byedpi' will be skipped until the byedpi package is installed.",

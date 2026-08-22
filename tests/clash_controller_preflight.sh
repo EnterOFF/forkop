@@ -60,7 +60,7 @@ grep -Fq '[fatal] Clash API address 192.168.1.1:9090 is already in use by anothe
   fail "lifecycle preflight must explain the occupied Clash API address"
 
 preflight_line="$(grep -nF 'status = clash_controller_preflight();' "$LIFECYCLE_UC" | cut -d: -f1)"
-sing_box_start_line="$(grep -nF 'command_success_from_args([ "/etc/init.d/sing-box", "start" ])' "$LIFECYCLE_UC" | head -n1 | cut -d: -f1)"
+sing_box_start_line="$(grep -nF 'command_success_from_args([ SING_BOX_INIT, "start" ])' "$LIFECYCLE_UC" | head -n1 | cut -d: -f1)"
 [ -n "$preflight_line" ] && [ -n "$sing_box_start_line" ] && [ "$preflight_line" -lt "$sing_box_start_line" ] ||
   fail "cold-start lifecycle must run the Clash API preflight before starting sing-box"
 [ "$(grep -Fc 'status = clash_controller_preflight();' "$LIFECYCLE_UC")" = "1" ] ||

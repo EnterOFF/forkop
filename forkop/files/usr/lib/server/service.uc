@@ -345,10 +345,15 @@ function server_generate_tls_keypair_files(server_name, certificate_path, key_pa
     if (!run("mkdir -p " + shell_quote(key_dir) + " " + shell_quote(cert_dir)))
         return false;
 
+    // The key file gets its mode before it gets its contents: writefile() creates
+    // it under the process umask, which would leave the private key readable to
+    // everyone until a chmod afterwards caught up.
+    if (!run("touch " + shell_quote(key_path) + " && chmod 600 " + shell_quote(key_path)))
+        return false;
+
     if (!write_tls_keypair_data(data, key_path, certificate_path))
         return false;
 
-    run("chmod 600 " + shell_quote(key_path) + " >/dev/null 2>&1");
     fs.writefile(server_cert_expiry_path(certificate_path),
         "" + (time() + SERVER_CERT_MONTHS * 30 * 24 * 3600) + "\n");
     return true;
@@ -452,7 +457,7 @@ function get_tls_certificate_sha256_cli(section) {
 }
 
 
-function server_prepare_tls_defaults(section, protocol, security) {
+function server_prepare_tls_defaults(section, security) {
     if (security != "tls")
         return;
     if (config_get(section, "enabled", "1") == "0")
@@ -662,7 +667,7 @@ function prepare_server_defaults(section) {
         server_prepare_ssh_host_key(section);
 
     prepare_server_clients(section, protocol);
-    server_prepare_tls_defaults(section, protocol, security);
+    server_prepare_tls_defaults(section, security);
 }
 
 // A client whose server is gone would keep its credentials in the configuration and

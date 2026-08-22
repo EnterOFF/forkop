@@ -18,38 +18,6 @@ function run(command) {
     return system(command) == 0;
 }
 
-function uci_available() {
-    return uci.available();
-}
-
-function uci_get(path) {
-    return uci.get(path);
-}
-
-function uci_exists(path) {
-    return uci.exists(path);
-}
-
-function uci_delete(path) {
-    uci.delete(path);
-}
-
-function uci_set(path, value) {
-    uci.set(path, value);
-}
-
-function uci_add_list(path, value) {
-    uci.add_list(path, value);
-}
-
-function uci_del_list(path, value) {
-    return uci.del_list(path, value);
-}
-
-function uci_commit(package_name) {
-    uci.commit(package_name);
-}
-
 function words(value) {
     value = trim(as_string(value));
     return value == "" ? [] : split(value, /[ \t\r\n]+/);
@@ -77,11 +45,11 @@ function restart_dnsmasq() {
 }
 
 function dnsmasq_legacy_instance_exists() {
-    return uci_exists("dhcp.forkop");
+    return uci.exists("dhcp.forkop");
 }
 
 function dnsmasq_default_servers() {
-    return uci_get("dhcp.@dnsmasq[0].server");
+    return uci.get("dhcp.@dnsmasq[0].server");
 }
 
 function dnsmasq_default_has_forkop_dns() {
@@ -90,23 +58,23 @@ function dnsmasq_default_has_forkop_dns() {
 
 function dnsmasq_has_forkop_managed_state() {
     return dnsmasq_default_has_forkop_dns() ||
-        uci_get("dhcp.@dnsmasq[0].forkop_server") != "" ||
-        uci_get("dhcp.@dnsmasq[0].forkop_noresolv") != "" ||
-        uci_get("dhcp.@dnsmasq[0].forkop_cachesize") != "" ||
-        uci_get("dhcp.@dnsmasq[0].forkop_rebind_protection") != "" ||
-        uci_get("dhcp.@dnsmasq[0].forkop_notinterface") != "" ||
+        uci.get("dhcp.@dnsmasq[0].forkop_server") != "" ||
+        uci.get("dhcp.@dnsmasq[0].forkop_noresolv") != "" ||
+        uci.get("dhcp.@dnsmasq[0].forkop_cachesize") != "" ||
+        uci.get("dhcp.@dnsmasq[0].forkop_rebind_protection") != "" ||
+        uci.get("dhcp.@dnsmasq[0].forkop_notinterface") != "" ||
         dnsmasq_legacy_instance_exists();
 }
 
 function dnsmasq_management_disabled() {
-    return truthy(uci_get(CONFIG_NAME + ".settings.dont_touch_dhcp"));
+    return truthy(uci.get(CONFIG_NAME + ".settings.dont_touch_dhcp"));
 }
 
 function dnsmasq_legacy_interfaces() {
     let legacy_dnsmasq_section = "forkop";
-    let legacy_interfaces = uci_get("dhcp." + legacy_dnsmasq_section + ".interface");
+    let legacy_interfaces = uci.get("dhcp." + legacy_dnsmasq_section + ".interface");
     if (legacy_interfaces == "")
-        legacy_interfaces = uci_get(CONFIG_NAME + ".settings.source_network_interfaces");
+        legacy_interfaces = uci.get(CONFIG_NAME + ".settings.source_network_interfaces");
     if (legacy_interfaces == "")
         legacy_interfaces = "br-lan";
 
@@ -114,77 +82,72 @@ function dnsmasq_legacy_interfaces() {
 }
 
 function restore_dnsmasq_rebind_protection(managed_global_dns) {
-    let value = uci_get("dhcp.@dnsmasq[0].forkop_rebind_protection");
+    let value = uci.get("dhcp.@dnsmasq[0].forkop_rebind_protection");
     if (value == "__unset__")
-        uci_delete("dhcp.@dnsmasq[0].rebind_protection");
+        uci.delete("dhcp.@dnsmasq[0].rebind_protection");
     else if (value != "")
-        uci_set("dhcp.@dnsmasq[0].rebind_protection", value);
+        uci.set("dhcp.@dnsmasq[0].rebind_protection", value);
     else if (managed_global_dns)
-        uci_set("dhcp.@dnsmasq[0].rebind_protection", "1");
-    uci_delete("dhcp.@dnsmasq[0].forkop_rebind_protection");
+        uci.set("dhcp.@dnsmasq[0].rebind_protection", "1");
+    uci.delete("dhcp.@dnsmasq[0].forkop_rebind_protection");
 }
 
+// Restores one dnsmasq option from the backup Forkop took before changing it.
 function restore_dnsmasq_config_option(key, backup_key) {
-    let value = uci_get("dhcp.@dnsmasq[0]." + backup_key);
-    if (value == "") {
-        uci_delete("dhcp.@dnsmasq[0]." + key);
-        return;
-    }
-
-    uci_set("dhcp.@dnsmasq[0]." + key, value);
-    uci_delete("dhcp.@dnsmasq[0]." + backup_key);
+    uci.set("dhcp.@dnsmasq[0]." + key, uci.get("dhcp.@dnsmasq[0]." + backup_key));
+    uci.delete("dhcp.@dnsmasq[0]." + backup_key);
 }
 
 function dnsmasq_cleanup_legacy_instance() {
     let legacy_instance_present = dnsmasq_legacy_instance_exists();
     let legacy_interfaces = legacy_instance_present ? dnsmasq_legacy_interfaces() : "";
 
-    uci_delete("dhcp.forkop");
+    uci.delete("dhcp.forkop");
 
-    let backup_notinterfaces = uci_get("dhcp.@dnsmasq[0].forkop_notinterface");
+    let backup_notinterfaces = uci.get("dhcp.@dnsmasq[0].forkop_notinterface");
     if (backup_notinterfaces != "") {
-        uci_delete("dhcp.@dnsmasq[0].notinterface");
+        uci.delete("dhcp.@dnsmasq[0].notinterface");
         for (let value in words(backup_notinterfaces))
-            uci_add_list("dhcp.@dnsmasq[0].notinterface", value);
-        uci_delete("dhcp.@dnsmasq[0].forkop_notinterface");
+            uci.add_list("dhcp.@dnsmasq[0].notinterface", value);
+        uci.delete("dhcp.@dnsmasq[0].forkop_notinterface");
         return;
     }
 
     if (legacy_instance_present) {
         for (let value in words(legacy_interfaces))
-            uci_del_list("dhcp.@dnsmasq[0].notinterface", value);
+            uci.del_list("dhcp.@dnsmasq[0].notinterface", value);
     }
 
-    uci_delete("dhcp.@dnsmasq[0].forkop_notinterface");
+    uci.delete("dhcp.@dnsmasq[0].forkop_notinterface");
 }
 
 function dnsmasq_restore_default_instance() {
     let server_list = dnsmasq_default_servers();
-    let backup_servers = uci_get("dhcp.@dnsmasq[0].forkop_server");
+    let backup_servers = uci.get("dhcp.@dnsmasq[0].forkop_server");
     let managed_global_dns = list_has(server_list, SB_DNS_INBOUND_ADDRESS);
 
-    uci_delete("dhcp.@dnsmasq[0].server");
+    uci.delete("dhcp.@dnsmasq[0].server");
     if (backup_servers != "") {
         for (let value in words(backup_servers))
-            uci_add_list("dhcp.@dnsmasq[0].server", value);
+            uci.add_list("dhcp.@dnsmasq[0].server", value);
     }
     else {
         for (let value in words(server_list)) {
             if (value != SB_DNS_INBOUND_ADDRESS)
-                uci_add_list("dhcp.@dnsmasq[0].server", value);
+                uci.add_list("dhcp.@dnsmasq[0].server", value);
         }
     }
-    uci_delete("dhcp.@dnsmasq[0].forkop_server");
+    uci.delete("dhcp.@dnsmasq[0].forkop_server");
 
-    if (uci_get("dhcp.@dnsmasq[0].forkop_noresolv") != "")
+    if (uci.get("dhcp.@dnsmasq[0].forkop_noresolv") != "")
         restore_dnsmasq_config_option("noresolv", "forkop_noresolv");
     else if (managed_global_dns)
-        uci_set("dhcp.@dnsmasq[0].noresolv", "0");
+        uci.set("dhcp.@dnsmasq[0].noresolv", "0");
 
-    if (uci_get("dhcp.@dnsmasq[0].forkop_cachesize") != "")
+    if (uci.get("dhcp.@dnsmasq[0].forkop_cachesize") != "")
         restore_dnsmasq_config_option("cachesize", "forkop_cachesize");
     else if (managed_global_dns)
-        uci_set("dhcp.@dnsmasq[0].cachesize", "150");
+        uci.set("dhcp.@dnsmasq[0].cachesize", "150");
 
     restore_dnsmasq_rebind_protection(managed_global_dns);
 }
@@ -193,7 +156,7 @@ function dnsmasq_restore_default_instance() {
 // never configured for it any more - only cleaned up when an older revision, or
 // a crash, left its settings behind.
 function dnsmasq_restore(quiet) {
-    if (!uci_available())
+    if (!uci.available())
         return true;
 
     if (!dnsmasq_has_forkop_managed_state()) {
@@ -207,13 +170,13 @@ function dnsmasq_restore(quiet) {
 
     dnsmasq_cleanup_legacy_instance();
     dnsmasq_restore_default_instance();
-    uci_commit("dhcp");
+    uci.commit("dhcp");
 
     return restart_dnsmasq();
 }
 
 function failsafe_restore() {
-    if (!uci_available())
+    if (!uci.available())
         return true;
 
     if (dnsmasq_management_disabled()) {

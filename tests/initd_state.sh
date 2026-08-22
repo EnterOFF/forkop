@@ -69,16 +69,14 @@ fi
 [ ! -e "$sync_file" ] ||
   fail "service trigger sync marker value 0 should be consumed"
 
-initd_ucode initd-should-ignore-config-change-reload on_config_change on_config_change 0 0 >/dev/null ||
+initd_ucode initd-should-ignore-config-change-reload on_config_change on_config_change 0 >/dev/null ||
   fail "disabled stopped service should ignore config-change reload"
-if initd_ucode initd-should-ignore-config-change-reload manual on_config_change 0 0 >/dev/null 2>&1; then
+if initd_ucode initd-should-ignore-config-change-reload manual on_config_change 0 >/dev/null 2>&1; then
   fail "manual reload should not be ignored"
 fi
-if initd_ucode initd-should-ignore-config-change-reload on_config_change on_config_change 1 0 >/dev/null 2>&1; then
+if initd_ucode initd-should-ignore-config-change-reload on_config_change on_config_change 1 >/dev/null 2>&1; then
   fail "running service should not ignore config-change reload"
 fi
-initd_ucode initd-should-ignore-config-change-reload on_config_change on_config_change 0 1 >/dev/null ||
-  fail "stopped service should ignore config-change reload even when autostart is enabled"
 initd_ucode initd-should-queue-config-change-reload on_config_change on_config_change 0 start >/dev/null ||
   fail "config-change reload during service start should be queued"
 if initd_ucode initd-should-queue-config-change-reload on_config_change on_config_change 0 "" >/dev/null 2>&1; then
@@ -90,7 +88,7 @@ fi
 
 pending_file="$WORK_DIR/reload.pending"
 if FORKOP_PENDING_RELOAD_FILE="$pending_file" \
-  initd_ucode reload-begin-fixture on_config_change 123 0 1 start >/dev/null 2>&1; then
+  initd_ucode reload-begin-fixture on_config_change 123 0 start >/dev/null 2>&1; then
   fail "queued config-change reload should not run immediately while service is starting"
 fi
 [ -f "$pending_file" ] ||
@@ -100,7 +98,7 @@ grep -Fq 'reason=on_config_change' "$pending_file" ||
 
 rm -f "$pending_file"
 if FORKOP_PENDING_RELOAD_FILE="$pending_file" \
-  initd_ucode reload-begin-fixture pending 123 1 1 start >/dev/null 2>&1; then
+  initd_ucode reload-begin-fixture pending 123 1 start >/dev/null 2>&1; then
   fail "pending reload should not run while another service action is active"
 fi
 [ -f "$pending_file" ] ||

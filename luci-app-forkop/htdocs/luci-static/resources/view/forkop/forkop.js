@@ -237,89 +237,6 @@ const EntryPoint = {
       return uiCapabilities;
     };
 
-    const applyUiState = function (data) {
-      const result = updateUiCapabilities(data?.capabilities || data || {});
-
-      if (typeof main.applyUiStateToStore === "function" && data?.service) {
-        main.applyUiStateToStore(data);
-      } else if (
-        main.store &&
-        typeof main.store.set === "function" &&
-        data?.service
-      ) {
-        main.store.set({
-          servicesInfoWidget: {
-            loading: false,
-            failed: false,
-            data: {
-              singbox: Number(data.service.sing_box?.running) || 0,
-              forkopRunning: Number(data.service.forkop?.running) || 0,
-              forkopEnabled: Number(data.service.forkop?.enabled) || 0,
-              forkopStatus: data.service.forkop?.status || "",
-            },
-          },
-        });
-      }
-
-      return result;
-    };
-
-    const loadFallbackUiCapabilities = function () {
-      return Promise.allSettled([
-        main.ForkopShellMethods.checkZapretRuntime(),
-        main.ForkopShellMethods.checkZapret2Runtime(),
-        main.ForkopShellMethods.checkByedpiRuntime(),
-        main.ForkopShellMethods.checkInboundsConfig(),
-      ]).then(
-        ([
-          zapretRuntimeResult,
-          zapret2RuntimeResult,
-          byedpiRuntimeResult,
-          inboundsConfigResult,
-        ]) => {
-          const zapretRuntime =
-            zapretRuntimeResult.status === "fulfilled"
-              ? zapretRuntimeResult.value
-              : null;
-          const zapret2Runtime =
-            zapret2RuntimeResult.status === "fulfilled"
-              ? zapret2RuntimeResult.value
-              : null;
-          const byedpiRuntime =
-            byedpiRuntimeResult.status === "fulfilled"
-              ? byedpiRuntimeResult.value
-              : null;
-          const inboundsConfig =
-            inboundsConfigResult.status === "fulfilled"
-              ? inboundsConfigResult.value
-              : null;
-
-          return updateUiCapabilities({
-            zapret_installed:
-              zapretRuntime?.success &&
-              Number(zapretRuntime.data?.zapret_installed) === 1
-                ? 1
-                : 0,
-            zapret2_installed:
-              zapret2Runtime?.success &&
-              Number(zapret2Runtime.data?.zapret2_installed) === 1
-                ? 1
-                : 0,
-            byedpi_installed:
-              byedpiRuntime?.success &&
-              Number(byedpiRuntime.data?.byedpi_installed) === 1
-                ? 1
-                : 0,
-            server_inbounds_enabled_count:
-              inboundsConfig?.success &&
-              typeof inboundsConfig.data?.enabled_count !== "undefined"
-                ? inboundsConfig.data.enabled_count
-                : -1,
-          });
-        },
-      );
-    };
-
     const loadUiCapabilities = function () {
       if (uiCapabilities.loaded) {
         return Promise.resolve(uiCapabilities);
@@ -338,19 +255,10 @@ const EntryPoint = {
           return updateUiCapabilities(response.data);
         })
         .catch((error) => {
+          // Nothing else can answer, so the tabs are told the providers are
+          // absent rather than left waiting for an availability event.
           console.warn("Failed to load Forkop UI capabilities", error);
-          return main.ForkopShellMethods.getUiState()
-            .then((response) => {
-              if (!response?.success) {
-                throw new Error("UI state request failed");
-              }
-
-              return applyUiState(response.data);
-            })
-            .catch((fallbackError) => {
-              console.warn("Failed to load Forkop UI state", fallbackError);
-              return loadFallbackUiCapabilities();
-            });
+          return updateUiCapabilities({});
         })
         .finally(() => {
           uiCapabilitiesPromise = null;
@@ -358,6 +266,7 @@ const EntryPoint = {
 
       return uiCapabilitiesPromise;
     };
+
     const forkopMap = new form.Map(
       UCI_PACKAGE,
       _("Forkop Settings"),

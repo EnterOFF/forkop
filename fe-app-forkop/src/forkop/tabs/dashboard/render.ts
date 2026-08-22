@@ -1,4 +1,4 @@
-import { renderSections, renderWidget } from './partials';
+import { renderSectionsPlaceholder, renderWidget } from './partials';
 
 export function render() {
   return E(
@@ -66,26 +66,7 @@ export function render() {
         E(
           'div',
           { id: 'dashboard-sections-grid' },
-          renderSections({
-            loading: true,
-            failed: false,
-            section: {
-              code: '',
-              sectionName: '',
-              displayName: '',
-              outbounds: [],
-              withTagSelect: false,
-            },
-            onTestLatency: () => {},
-            onTestOutboundLatency: () => {},
-            onChooseOutbound: () => {},
-            onCopyOutbound: () => {},
-            onShowUrlTestInfo: () => {},
-            onShowFallbackInfo: () => {},
-            onUpdateSubscription: () => {},
-            latencyFetching: false,
-            subscriptionUpdating: false,
-          }),
+          renderSectionsPlaceholder({ loading: true, failed: false }),
         ),
       ]),
     ],

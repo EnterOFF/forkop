@@ -16,7 +16,6 @@ const CONFIG_NAME = env("FORKOP_CONFIG_NAME", "forkop");
 const RT_TABLES_PATH = env("FORKOP_RT_TABLES", "/etc/iproute2/rt_tables");
 const BIN_PATH = env("FORKOP_BIN", "/usr/bin/forkop");
 const INIT_PATH = env("FORKOP_INIT", "/etc/init.d/forkop");
-const DNS_APPLY_UC = env("FORKOP_DNS_APPLY_UC", "/usr/lib/forkop/dns/apply.uc");
 const PACKAGE_UPGRADE_STATE = env("FORKOP_PACKAGE_UPGRADE_STATE", "/tmp/forkop-package-was-running");
 const FIREWALL_INIT = env("FORKOP_FIREWALL_INIT", "/etc/init.d/firewall");
 const FIREWALL_INPUT_INCLUDE = env("FORKOP_FIREWALL_INPUT_INCLUDE", "/usr/share/nftables.d/chain-pre/input/forkop.nft");
@@ -34,13 +33,8 @@ function command_from_args(args) {
     return join(" ", parts);
 }
 
-function normalize_status(status) {
-    status = int(status);
-    return status > 255 ? int(status / 256) : status;
-}
-
 function command_success_from_args(args) {
-    return normalize_status(system(command_from_args(args) + " >/dev/null 2>&1")) == 0;
+    return system(command_from_args(args) + " >/dev/null 2>&1") == 0;
 }
 
 function path_exists(path) {
@@ -103,16 +97,8 @@ function remove_rt_tables_entry() {
     return !changed || fs.writefile(RT_TABLES_PATH, join("\n", lines)) != null;
 }
 
-function ascii_lower(value) {
-    let upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    let lower = "abcdefghijklmnopqrstuvwxyz";
-    return replace(as_string(value), /[A-Z]/g, function(ch) {
-        return substr(lower, index(upper, ch), 1);
-    });
-}
-
 function truthy(value) {
-    value = ascii_lower(trim(as_string(value)));
+    value = lc(trim(as_string(value)));
     return value == "1" || value == "true" || value == "yes" || value == "on";
 }
 
@@ -125,8 +111,6 @@ function restore_dnsmasq_if_needed() {
         return;
 
     command_success_from_args([ BIN_PATH, "restore_dnsmasq" ]);
-    if (path_exists(DNS_APPLY_UC))
-        command_success_from_args([ "ucode", DNS_APPLY_UC, "failsafe-restore" ]);
 }
 
 function remember_upgrade_state(action) {
