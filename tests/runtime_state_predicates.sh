@@ -933,8 +933,6 @@ example.com
 
 [server.srv1.reality_private_key]
 
-[server.srv1.reality_public_key]
-
 [server.srv1.reality_short_id]
 
 [server.srv1.transport]

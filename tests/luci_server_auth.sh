@@ -58,12 +58,43 @@ if (
 ) {
   fail("the client dialog must hide the password while authentication is disabled");
 }
-// One certificate story for every protocol: the button is always offered and both
-// path fields read the same whatever the listener speaks.
-for (const gone of ["needsIssuedCertificate", "describePerProtocol"]) {
-  if (source.includes(gone)) {
-    fail(`the per-protocol certificate branch must be gone: ${gone}`);
-  }
+// Both path fields read the same whatever the listener speaks, so nothing rewrites a
+// description per protocol any more.
+if (source.includes("describePerProtocol")) {
+  fail("the per-protocol certificate description branch must be gone");
+}
+
+// The certificate Forkop issues is self-signed, and every listener but one hands out
+// a link telling the client to accept it. A NaiveProxy client cannot be told that -
+// the naive outbound of the core refuses tls.insecure outright - so no link is given
+// the flag there and no button offers a certificate no client would accept.
+const insecureRule = source.slice(
+  requiredIndex("function acceptsInsecureTls"),
+  requiredIndex("function transportQuery"),
+);
+if (!insecureRule.includes('getProtocol(sectionId) !== "naive"')) {
+  fail("NaiveProxy must be the listener that cannot promise an unchecked certificate");
+}
+if (
+  !source.includes(
+    "usesGeneratedCertificate(sectionId) && acceptsInsecureTls(sectionId)",
+  )
+) {
+  fail("the insecure link flag must follow the listener, not only the certificate");
+}
+const certificateButton = source.slice(
+  requiredIndex("function addCertificateButton"),
+  requiredIndex("function addSshHostKeyButton"),
+);
+if (!certificateButton.includes("acceptsInsecureTls")) {
+  fail("the certificate button must be withheld where a client would refuse the file");
+}
+const issueButton = source.slice(
+  requiredIndex("function addIssueButton"),
+  requiredIndex("function issueRequest"),
+);
+if (!issueButton.includes('typeof offered === "function" && !offered(sectionId)')) {
+  fail("addIssueButton must be able to withhold its button");
 }
 
 // XTLS Vision needs the raw TLS stream the listener owns, so the flow disappears

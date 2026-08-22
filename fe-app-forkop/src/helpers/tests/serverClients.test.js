@@ -49,13 +49,17 @@ describe('server client names', () => {
       ...client('one', 'srv', { name: 'client-1' }),
     });
 
-    expect(clients.nextClientName('srv')).toBe('client-2');
+    expect(clients.nextClientName(clients.listedClientNames('srv', null))).toBe(
+      'client-2',
+    );
   });
 
   it('uses the same pattern where the name goes on the wire', () => {
     const { clients } = load({ srv: { protocol: 'ssh' } });
 
-    expect(clients.nextClientName('srv')).toBe('client-1');
+    expect(clients.nextClientName(clients.listedClientNames('srv', null))).toBe(
+      'client-1',
+    );
   });
 
   // A removal that has not been saved yet gives its number back, so the list does
@@ -63,9 +67,7 @@ describe('server client names', () => {
   it('takes the lowest number the list leaves free', () => {
     const { clients } = load({ srv: { protocol: 'trojan' } });
 
-    expect(clients.nextClientName('srv', ['client-1', 'client-3'])).toBe(
-      'client-2',
-    );
+    expect(clients.nextClientName(['client-1', 'client-3'])).toBe('client-2');
   });
 
   // The stored sections still hold the client the list no longer shows, so the
@@ -84,10 +86,7 @@ describe('server client names', () => {
 
     expect(clients.listedClientNames('srv', listOption)).toEqual(['client-1']);
     expect(
-      clients.nextClientName(
-        'srv',
-        clients.listedClientNames('srv', listOption),
-      ),
+      clients.nextClientName(clients.listedClientNames('srv', listOption)),
     ).toBe('client-2');
     expect(clients.listedClientNames('srv', null)).toEqual([
       'client-1',

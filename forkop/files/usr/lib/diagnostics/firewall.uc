@@ -1,7 +1,10 @@
 // Answers one question about the router firewall: would an inbound connection
-// from WAN reach a given port and protocol? The input is `uci show firewall`
-// text rather than live nftables state, because the check reports on the
-// configuration the user can fix, not on the ruleset a reload would rebuild.
+// from WAN reach a given port and protocol? The answer comes from two places.
+// `uci show firewall` is the configuration the user can fix, and it is the only
+// one for a port the user opened. The loaded input chain is the other, because
+// the ports of the Servers tab are written as an nftables.d include that fw4
+// folds into its ruleset - they never appear in uci at all, so reading uci alone
+// reported every server Forkop had just opened as closed.
 
 function as_string(value) {
     return value == null ? "" : "" + value;
@@ -173,10 +176,54 @@ function required_protocols_open(data, port, required_proto) {
     return true;
 }
 
+
+// The ports one of Forkop's own accept rules covers, read out of the input chain
+// the firewall is running. nft prints a single port bare and a set in braces:
+//   tcp dport { 443, 8443 } counter packets 0 bytes 0 accept comment "..."
+//   udp dport 443 counter packets 0 bytes 0 accept comment "..."
+// The loaded chain is asked rather than the include file, because a written file
+// that fw4 refused says the port is open when it is not.
+function accepted_ports_by_proto(chain_data, comment) {
+    let result = { tcp: {}, udp: {} };
+    comment = as_string(comment);
+    if (comment == "")
+        return result;
+
+    for (let line in split(as_string(chain_data), "\n")) {
+        line = trim(line);
+        if (index(line, comment) < 0 || index(line, " accept") < 0)
+            continue;
+
+        let parsed = match(line, /^(tcp|udp) dport (\{[^}]*\}|[0-9]+)/);
+        if (parsed == null)
+            continue;
+
+        for (let port in split(replace(parsed[2], /[{}]/g, ""), ","))
+            if (only_digits(trim(port)))
+                result[parsed[1]][trim(port)] = true;
+    }
+
+    return result;
+}
+
+// Whether Forkop's own rules already accept every protocol the inbound needs. An
+// inbound that needs none is open the same way required_protocols_open reads it.
+function forkop_accepts_port(chain_data, comment, port, required_proto) {
+    let accepted = accepted_ports_by_proto(chain_data, comment);
+
+    for (let proto in whitespace_values(required_proto))
+        if (accepted[proto] == null || !accepted[proto][as_string(port)])
+            return false;
+
+    return true;
+}
+
 return {
     rules_from_uci_show,
     rules_allow_port_proto,
     port_spec_contains,
     proto_spec_contains,
-    required_protocols_open
+    required_protocols_open,
+    accepted_ports_by_proto,
+    forkop_accepts_port
 };

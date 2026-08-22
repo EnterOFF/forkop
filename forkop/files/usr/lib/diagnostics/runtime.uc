@@ -13,6 +13,7 @@ let mask = require("diagnostics.mask");
 let inbounds = require("diagnostics.inbounds");
 let report = require("diagnostics.report");
 let diag_firewall = require("diagnostics.firewall");
+let singbox_constants = require("singbox.constants");
 let proxy_check = require("diagnostics.check_proxy");
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || constants.FORKOP_CONFIG_NAME || "forkop";
@@ -461,8 +462,22 @@ function get_wan_ip_addresses() {
     return join(" ", result);
 }
 
+// The Servers tab opens its ports through an nftables.d include instead of a uci
+// rule, so a port it opened is invisible to `uci show firewall`. Both are asked.
+function firewall_input_chain_data() {
+    return command_output_from_args([ "nft", "list", "chain", "inet", "fw4", "input" ]);
+}
+
 function firewall_required_protocols_open(port, required_proto) {
-    return diag_firewall.required_protocols_open(firewall_show_data(), port, required_proto);
+    if (diag_firewall.required_protocols_open(firewall_show_data(), port, required_proto))
+        return true;
+
+    return diag_firewall.forkop_accepts_port(
+        firewall_input_chain_data(),
+        singbox_constants.SERVER_FIREWALL_COMMENT,
+        port,
+        required_proto
+    );
 }
 
 function server_required_port_conflict_owners(listen, port, required_proto) {

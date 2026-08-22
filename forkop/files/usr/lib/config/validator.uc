@@ -1763,6 +1763,99 @@ function validate_server_security(server, protocol, name) {
         }
 }
 
+// Values with a closed set the core refuses outright. The dialog offers a list for
+// every one of them, so this only catches a configuration written straight through
+// uci - but the core refuses these while it builds the listener, which takes the
+// whole service down instead of only that server. Each entry was checked against
+// `sing-box check` on a listener carrying exactly that value.
+const SERVER_ENUMS = [
+    [ "listen", "transport", [ "", "tcp", "raw", "ws", "grpc", "http", "httpupgrade", "xhttp" ] ],
+    [ "xhttp", "transport_xhttp_mode", [ "", "auto", "packet-up", "stream-up", "stream-one" ] ],
+    [ "shadowsocks", "shadowsocks_method", [ "2022-blake3-aes-128-gcm", "2022-blake3-aes-256-gcm",
+        "2022-blake3-chacha20-poly1305", "aes-128-gcm", "aes-192-gcm", "aes-256-gcm",
+        "chacha20-ietf-poly1305", "xchacha20-ietf-poly1305", "none" ] ],
+    [ "mieru", "mieru_transport", [ "TCP", "UDP" ] ],
+    [ "naive", "naive_network", [ "", "tcp", "udp", "tcp_udp" ] ],
+    [ "tuic", "tuic_congestion_control", [ "", "cubic", "new_reno", "bbr" ] ],
+    [ "hysteria2", "hysteria2_obfs_type", [ "", "salamander" ] ]
+];
+
+function server_enum_applies(scope, protocol, server) {
+    if (scope == "listen")
+        return runtime_servers.CLIENT_FIELDS[protocol] != null &&
+            protocol != "tailscale" && protocol != "json_inbound";
+    if (scope == "xhttp")
+        return option(server, "transport", "") == "xhttp";
+    return scope == protocol;
+}
+
+// The files a listener opens while it starts. Forkop writes the ones in its own
+// directories before this runs, so a path with nothing behind it is a path the user
+// chose and mistyped, and the core dies on it with the service half up.
+function validate_server_files(server, protocol, security, name) {
+    let paths = [];
+    if (security == "tls")
+        for (let field in [ "tls_certificate_path", "tls_key_path" ])
+            push(paths, [ field, option(server, field, "") ]);
+    if (protocol == "ssh")
+        for (let path in list_option(server, "ssh_host_key_path"))
+            push(paths, [ "ssh_host_key_path", as_string(path) ]);
+
+    for (let entry in paths) {
+        if (entry[1] == "")
+            continue;
+        let stat = fs.stat(entry[1]);
+        if (type(stat) != "object" || stat.type != "file" || stat.size == 0)
+            fail_validation("Server '" + name + "' " + entry[0] + " '" + entry[1] +
+                "' does not exist. Point at a file that is there. Aborted.");
+    }
+}
+
+// Everything else the core parses out of a server option and refuses on its own: a
+// listen address that is not an address, a duration it cannot read and a masquerade
+// URL whose scheme it does not know.
+function validate_server_values(server, protocol, security, name) {
+    for (let entry in SERVER_ENUMS) {
+        if (!server_enum_applies(entry[0], protocol, server))
+            continue;
+        let value = option(server, entry[1], "");
+        if (!contains(entry[2], value))
+            fail_validation("Server '" + name + "' has an unsupported " + entry[1] +
+                " '" + value + "'. Aborted.");
+    }
+
+    if (runtime_servers.CLIENT_FIELDS[protocol] != null && protocol != "tailscale" &&
+        protocol != "json_inbound") {
+        let listen = option(server, "listen", "0.0.0.0");
+        if (!core_ip.valid_ip(listen))
+            fail_validation("Server '" + name + "' listens on '" + listen +
+                "', which is not an IP address. Aborted.");
+    }
+
+    if (protocol == "tuic") {
+        let heartbeat = option(server, "tuic_heartbeat", "");
+        if (heartbeat != "")
+            validate_duration_option(heartbeat, "Server '" + name + "' heartbeat");
+    }
+
+    if (protocol == "hysteria2") {
+        // sing-box reads a masquerade as a URL and picks the mode from its scheme, so
+        // anything but those three stops the listener before it binds.
+        let masquerade = option(server, "hysteria2_masquerade", "");
+        if (masquerade != "" && match(masquerade, /^(https?|file):\/\//) == null)
+            fail_validation("Server '" + name + "' masquerade '" + masquerade +
+                "' must start with https://, http:// or file://. Aborted.");
+        for (let field in [ "hysteria2_up_mbps", "hysteria2_down_mbps" ]) {
+            let value = option(server, field, "");
+            if (value != "" && match(value, /^[0-9]+$/) == null)
+                fail_validation("Server '" + name + "' " + field + " '" + value +
+                    "' must be a whole number of megabits. Aborted.");
+        }
+    }
+
+    validate_server_files(server, protocol, security, name);
+}
+
 function validate_server_clients_and_ports(sections) {
     validate_server_listen_ports();
 
@@ -1777,6 +1870,8 @@ function validate_server_clients_and_ports(sections) {
 
         validate_server_clients(server, protocol, section_name(server));
         validate_server_security(server, protocol, section_name(server));
+        validate_server_values(server, protocol,
+            runtime_servers.effective_security(server, protocol), section_name(server));
     }
 }
 

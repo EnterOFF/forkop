@@ -12382,8 +12382,12 @@ var styles5 = `
     border-bottom-color: rgba(127, 127, 127, 0.32);
 }
 
+/*
+ * The layout is fixed, so a heading wider than its share is cut off. The two
+ * traffic shares hold the arrow and the word above them, not just the digits.
+ */
 .fkp_monitoring-page__table th:nth-child(1) {
-    width: 28%;
+    width: 26%;
 }
 
 .fkp_monitoring-page__table th:nth-child(2) {
@@ -12391,7 +12395,7 @@ var styles5 = `
 }
 
 .fkp_monitoring-page__table th:nth-child(3) {
-    width: 16%;
+    width: 13.75%;
 }
 
 .fkp_monitoring-page__table th:nth-child(4) {
@@ -12399,11 +12403,11 @@ var styles5 = `
 }
 
 .fkp_monitoring-page__table th:nth-child(5) {
-    width: 9.5%;
+    width: 12.25%;
 }
 
 .fkp_monitoring-page__table th:nth-child(6) {
-    width: 8.5%;
+    width: 10%;
 }
 
 .fkp_monitoring-page__table th:nth-child(7) {

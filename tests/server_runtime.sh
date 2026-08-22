@@ -116,6 +116,13 @@ forkop.mixed_open.mixed_auth_enabled=0
 forkop.cff0004=server_client
 forkop.cff0004.server=mixed_open
 forkop.cff0004.name=guest
+forkop.mixed_cased=server
+forkop.mixed_cased.protocol=mixed
+forkop.mixed_cased.label=Office
+forkop.cff0005=server_client
+forkop.cff0005.server=mixed_cased
+forkop.cff0005.name=Alice.Phone-2
+forkop.cff0005.password=office-password
 forkop.orphan_client=server_client
 forkop.orphan_client.server=removed_server
 forkop.orphan_client.name=orphan
@@ -300,10 +307,22 @@ fi
 [ -s "$FORKOP_SERVER_CERT_DIR/hy2.crt" ] ||
   fail "a stored certificate path must still get its file"
 
-# The file name comes from the section id: a display name has to be sanitised to be
-# a file name, and two names in Cyrillic sanitise to the same one.
-grep -Fq 'SERVER_CERT_DIR + "/" + safe_filename_string(as_string(section))' "$SERVER_RUNTIME" ||
-  fail "the certificate file must be named after the section"
+# The file name comes from the section id and the subject from the display name: a
+# name has to be sanitised to be a file name, and two servers named in Cyrillic - Дом
+# and Сад - would both want ______.crt and take turns overwriting one certificate.
+: >"$TLS_KEYPAIR_LOG"
+ucode -L "$UCODE_LIB" "$SERVER_RUNTIME" generate-server-certificate 'Дом' 'newaaaa' >/dev/null
+ucode -L "$UCODE_LIB" "$SERVER_RUNTIME" generate-server-certificate 'Сад' 'newbbbb' >/dev/null
+for name in newaaaa newbbbb; do
+  [ -s "$FORKOP_SERVER_CERT_DIR/$name.crt" ] ||
+    fail "the certificate of $name must be named after the section"
+  [ -s "$FORKOP_SERVER_CERT_DIR/$name.key" ] ||
+    fail "the private key of $name must be named after the section"
+done
+[ ! -e "$FORKOP_SERVER_CERT_DIR/______.crt" ] ||
+  fail "a display name must not become the file name"
+grep -Fq 'generate tls-keypair Дом' "$TLS_KEYPAIR_LOG" ||
+  fail "the certificate subject must be the name a client checks"
 
 # Forkop replaces what it generated when the stamp it wrote is gone or close, and
 # never touches a pair the user pointed at.
@@ -330,6 +349,10 @@ done
 # on the wire. A name outside the safe set falls back to the server name.
 assert_client mixed name mixed
 assert_client mixed_open name guest
+# And a name the protocol can carry is left exactly as it was typed. SOCKS, HTTP, SSH
+# and Mieru compare an account name byte for byte, so lowercasing one the dialog
+# accepted renamed the account on every apply and broke the link already handed out.
+assert_client mixed_cased name Alice.Phone-2
 assert_value forkop.mixed_open.mixed_auth_enabled 0
 assert_client mixed password desktop-password
 

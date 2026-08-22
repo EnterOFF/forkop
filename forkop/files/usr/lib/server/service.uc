@@ -3,6 +3,7 @@
 let fs = require("fs");
 let uci = require("core.uci");
 let runtime_servers = require("singbox.servers");
+let runtime_constants = require("singbox.constants");
 let diagnostics_inbounds = require("diagnostics.inbounds");
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
@@ -300,12 +301,6 @@ function server_certificate_subject(section) {
     return subject == "" ? as_string(section) : subject;
 }
 
-// Named after the section, not after the display name: a name has to be sanitised
-// to be a file name, and every character outside [A-Za-z0-9_.-] becomes an
-// underscore, so two servers named in Cyrillic would share one file.
-function server_certificate_base_path(section) {
-    return SERVER_CERT_DIR + "/" + safe_filename_string(as_string(section));
-}
 // A self signed certificate is pinned by its fingerprint or accepted without a
 // name check, so it has no reason to expire while the server it belongs to runs.
 const SERVER_CERT_MONTHS = 120;
@@ -583,12 +578,19 @@ function server_client_sections(section) {
     return result;
 }
 
+// The character set a protocol can put an account name on the wire in. A name that
+// already fits is returned unchanged: SOCKS, HTTP, SSH and Mieru all compare an
+// account name byte for byte, so lowercasing one the dialog accepted would rename
+// the account behind the user's back and invalidate the link they were handed.
 function login_safe_name(value, fallback) {
-    value = lc(as_string(value));
+    value = as_string(value);
+    if (regex_matches(value, "^[A-Za-z0-9._-]+$"))
+        return value;
+
     let result = "";
     for (let i = 0; i < length(value); i++) {
         let chr = substr(value, i, 1);
-        result += regex_matches(chr, "^[a-z0-9._-]$") ? chr : "-";
+        result += regex_matches(chr, "^[A-Za-z0-9._-]$") ? chr : "-";
     }
     result = replace(result, /^-+/, "");
     result = replace(result, /-+$/, "");
@@ -605,9 +607,9 @@ function prepare_server_clients(section, protocol) {
     for (let client in server_client_sections(section)) {
         let name = trim(config_get(client, "name", ""));
         if (LOGIN_NAME_PROTOCOLS[protocol]) {
-            // The LuCI form transliterates a display name into an account name. A
-            // configuration written straight through uci has no such name, so the
-            // section name is used: it is always inside the safe character set.
+            // The dialog already refuses a name these protocols cannot carry, so this
+            // only rewrites one written straight through uci - and leaves a name that
+            // fits exactly as it was typed.
             name = login_safe_name(name, login_safe_name(config_get(section, "label", section), safe_filename_string(section)));
         }
         else if (name == "")
@@ -774,7 +776,8 @@ function prepare_all_server_defaults() {
 const FIREWALL_INCLUDE = getenv("FORKOP_SERVER_FIREWALL_INCLUDE") ||
     "/usr/share/nftables.d/chain-pre/input/forkop-servers.nft";
 const FIREWALL_INIT = getenv("FORKOP_FIREWALL_INIT") || "/etc/init.d/firewall";
-const FIREWALL_COMMENT = "forkop: server ports";
+// The same comment the inbound check looks for in the loaded chain.
+const FIREWALL_COMMENT = runtime_constants.SERVER_FIREWALL_COMMENT;
 
 // Which L4 protocols a protocol needs open. The inbound check already answers this
 // for diagnostics, so the answer is read from there rather than restated.

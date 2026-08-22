@@ -12,6 +12,7 @@ LIFECYCLE_UC="$FORKOP_LIB/service/lifecycle.uc"
 CONSTANTS_UC="$FORKOP_LIB/core/constants.uc"
 SINGBOX_CONSTANTS_UC="$FORKOP_LIB/singbox/constants.uc"
 FRONTEND_CONSTANTS="$ROOT_DIR/fe-app-forkop/src/constants.ts"
+SERVER_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js"
 
 fail() {
   printf 'FAIL: %s\n' "$1" >&2
@@ -75,10 +76,34 @@ if grep -Fq '":9090"' "$FORKOP_LIB/singbox/generator.uc"; then
   fail "the generator must take the Clash API port from singbox/constants.uc"
 fi
 
-# A server name becomes an inbound tag verbatim, so the Servers dialog refuses the
-# names Forkop already uses for its own listeners. LuCI cannot read ucode, so the
-# list is a copy; a tag added to the core table and not to that copy would let the
-# dialog accept a name the runtime check then rejects.
+# The Servers dialog refuses a listen port one of Forkop's own inbounds already
+# binds, so it carries the numbers out of singbox/constants.uc. The runtime check
+# reads them from there; the dialog cannot, so this is the only thing keeping the two
+# lists on the same ports - without it a changed constant leaves the dialog quietly
+# accepting a port that stops the whole service.
+reserved_ports_backend="$(ucode -L "$FORKOP_LIB" -e '
+  let c = require("singbox.constants");
+  let ports = [];
+  for (let name in [ "DNS_INBOUND_PORT", "TPROXY_INBOUND_PORT", "SOURCE_DNS_INBOUND_PORT",
+      "SYSTEM_TPROXY_INBOUND_PORT", "SYSTEM_DNS_INBOUND_PORT", "SERVICE_MIXED_INBOUND_PORT",
+      "CLASH_API_CONTROLLER_PORT" ])
+    push(ports, "" + c[name]);
+  print(join("\n", sort(ports)), "\n");
+')"
+reserved_ports_frontend="$(
+  sed -n '/^const RESERVED_PORTS = \[$/,/^\];$/p' "$SERVER_JS" |
+    sed -n 's/^  \["\([0-9]*\)".*$/\1/p' | sort
+)"
+[ -n "$reserved_ports_frontend" ] ||
+  fail "the Servers tab must list the ports Forkop's own inbounds bind"
+[ "$reserved_ports_backend" = "$reserved_ports_frontend" ] ||
+  fail "$(printf 'the Servers tab reserved port list differs from singbox/constants.uc\nbackend:\n%s\nfrontend:\n%s' "$reserved_ports_backend" "$reserved_ports_frontend")"
+
+# A section or server display name becomes a runtime tag verbatim, so both dialogs
+# refuse the names Forkop already uses for its own listeners. LuCI cannot read ucode,
+# so the list is a copy - one copy, in section.js, which the Servers tab imports: a
+# tag added to the core table and not to that copy would let a dialog accept a name
+# the runtime check then rejects, and two copies drifted apart once already.
 reserved_backend="$(ucode -L "$FORKOP_LIB" -e '
   let c = require("singbox.constants");
   let names = [];
@@ -88,12 +113,18 @@ reserved_backend="$(ucode -L "$FORKOP_LIB" -e '
 ')"
 reserved_frontend="$(
   sed -n '/^const RESERVED_RUNTIME_TAGS = new Set(\[$/,/^\]);$/p' \
-    "$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js" |
+    "$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js" |
     sed -n 's/^  "\([^"]*\)",$/\1/p' | sort
 )"
 [ -n "$reserved_frontend" ] ||
-  fail "the Servers tab must list the runtime tags it refuses as server names"
+  fail "section.js must list the runtime tags both dialogs refuse as a display name"
 [ "$reserved_backend" = "$reserved_frontend" ] ||
-  fail "$(printf 'the Servers tab reserved tag list differs from singbox/constants.uc\nbackend:\n%s\nfrontend:\n%s' "$reserved_backend" "$reserved_frontend")"
+  fail "$(printf 'the reserved tag list differs from singbox/constants.uc\nbackend:\n%s\nfrontend:\n%s' "$reserved_backend" "$reserved_frontend")"
+
+# And exactly one copy of it: the Servers tab reads the list off the Sections tab.
+if grep -Fq 'const RESERVED_RUNTIME_TAGS = new Set([' \
+  "$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js"; then
+  fail "the Servers tab must import the reserved tag list, not keep its own copy"
+fi
 
 printf 'constants ownership checks passed\n'

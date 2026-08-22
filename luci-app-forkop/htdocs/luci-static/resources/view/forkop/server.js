@@ -37,26 +37,10 @@ const ROUTING_SECTION_ACTIONS = [
 const TAILSCALE_DETOUR_ACTIONS = ["connection", "proxy", "outbound", "vpn"];
 
 // Tags sing-box already uses for Forkop's own inbounds, outbounds and DNS servers.
-// A server name becomes an inbound tag verbatim, so these names are refused.
-const RESERVED_RUNTIME_TAGS = new Set([
-  "dns-server",
-  "fakeip-server",
-  "bootstrap-dns-server",
-  "dnsmasq-server",
-  "hosts-server",
-  "fakeip-dns-rule-tag",
-  "fakeip-ruleset-dns-rule-tag",
-  "service-fakeip-dns-rule-tag",
-  "tproxy-in",
-  "tproxy6-in",
-  "dns-in",
-  "source-dns-in",
-  "system-in",
-  "system6-in",
-  "system-dns-in",
-  "service-mixed-in",
-  "direct-out",
-]);
+// A server name becomes an inbound tag verbatim, so these names are refused. The
+// list is the Sections tab's, because the runtime check refuses both kinds of name
+// against one table and two copies of it drifted apart once already.
+const RESERVED_RUNTIME_TAGS = sectionui.RESERVED_RUNTIME_TAGS;
 
 // Ports Forkop's own sing-box instance binds. A server that takes one of them stops
 // the whole service instead of only failing itself.
@@ -748,8 +732,11 @@ function generateCredential(sectionId, protocol, field) {
 
 /* ------------------------------------------------------------- QR encoder */
 
-// Byte mode at error correction level L: one segment, the smallest version that
-// fits the link, and mask selection over the four standard penalty rules.
+// Byte mode at error correction level L: one segment, the smallest version that fits
+// the link, and mask 0 - the checkerboard - written into the format bits so any
+// decoder undoes it. Choosing among the eight masks by penalty score would only make
+// a code marginally easier to read, and a link is base64 and URL text, which the
+// checkerboard already breaks up.
 const QR_EC_CODEWORDS_PER_BLOCK_LOW = [
   -1, 7, 10, 15, 20, 26, 18, 20, 24, 30, 18, 20, 24, 26, 30, 22, 24, 28, 30, 28,
   28, 28, 28, 30, 30, 26, 28, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30,
@@ -1687,6 +1674,14 @@ function usesGeneratedCertificate(sectionId) {
   return !path || isForkopCertificatePath(path);
 }
 
+// NaiveProxy is the one listener whose client cannot be told to skip the check.
+// The naive outbound of the core refuses tls.insecure outright - "insecure is not
+// supported on naive outbound" - and its link parser does not even read the
+// parameter, because cronet verifies the chain the way a browser does. Putting
+// insecure=1 in that link would promise something no client can honour.
+function acceptsInsecureTls(sectionId) {
+  return getProtocol(sectionId) !== "naive";
+}
 
 function transportQuery(sectionId, params, grpcKey) {
   const transport = option(sectionId, "transport") || "tcp";
@@ -1733,7 +1728,7 @@ function tlsQuery(sectionId, params, includeSecurity) {
     }
   } else {
     params.sni = option(sectionId, "tls_server_name");
-    if (usesGeneratedCertificate(sectionId)) {
+    if (usesGeneratedCertificate(sectionId) && acceptsInsecureTls(sectionId)) {
       params.insecure = "1";
     }
   }
@@ -1811,7 +1806,7 @@ function buildVmessLink(sectionId, client) {
   const params = {};
   const security = tlsQuery(sectionId, params, false);
   const transportParams = {};
-  const transport = transportQuery(sectionId, transportParams, "serviceName");
+  transportQuery(sectionId, transportParams, "serviceName");
   const payload = {
     v: "2",
     ps: clientLabel(sectionId, client),
@@ -1820,7 +1815,9 @@ function buildVmessLink(sectionId, client) {
     id: client.uuid,
     aid: "0",
     scy: "auto",
-    net: transport === "raw" ? "tcp" : transport,
+    // The transport as the query already spells it, so the one place that maps a
+    // stored raw onto tcp stays one place.
+    net: transportParams.type,
     type: "none",
     host: transportParams.host || "",
     path: transportParams.path || transportParams.serviceName || "",
@@ -2015,8 +2012,9 @@ function buildClientLinks(sectionId, client, context = {}) {
   const protocol = getProtocol(sectionId);
 
   // Only protocols the table gives a scheme have a share link at all. SSH is the
-  // one that has none: a client is handed the address, the account and its
-  // password, which the dialog already shows.
+  // one that has none, which is why its rows carry no details button either: what a
+  // client of an SSH server needs is the address, the account and its password, and
+  // the form shows all three.
   if (
     !client ||
     !linkScheme(protocol) ||
@@ -2207,8 +2205,6 @@ function injectDetailsStyles() {
         ".fkp-qr{display:grid;justify-items:center;gap:14px;min-inline-size:0}",
         ".fkp-qr__code{display:block;inline-size:14rem;block-size:14rem;max-inline-size:100%;image-rendering:pixelated;background:#fff;padding:10px;box-sizing:content-box;border:1px solid var(--border-color-low,rgba(128,128,128,0.2))}",
         ".fkp-qr__link{inline-size:100%;box-sizing:border-box;padding:8px 10px;background:rgba(128,128,128,0.06);border:1px solid var(--border-color-low,rgba(128,128,128,0.2));font-family:monospace;font-size:11px;line-height:1.5;word-break:break-all;color:var(--text-color-medium,#666)}",
-        '@media (max-width:640px){',
-        '}',
       ].join("\n"),
     ),
   );
@@ -2433,16 +2429,14 @@ function showServerDetailsModal(sectionId, clients) {
     [content, renderCloseRow()],
   );
 
-  return loadLinkContext(sectionId)
-    .catch(() => emptyContext)
-    .then((context) => {
-      if (!content.parentNode) {
-        return;
-      }
-      const refreshed = renderDetailsContent(sectionId, clients, context);
-      content.replaceWith(refreshed);
-      content = refreshed;
-    });
+  return loadLinkContext(sectionId).then((context) => {
+    if (!content.parentNode) {
+      return;
+    }
+    const refreshed = renderDetailsContent(sectionId, clients, context);
+    content.replaceWith(refreshed);
+    content = refreshed;
+  });
 }
 /* -------------------------------------------------------------------- clients */
 
@@ -2496,12 +2490,8 @@ function listClients(sectionId) {
 // Numbered names that do not follow the server name: a client is a device, not a
 // second label for the server. The lowest free number is taken, so removing an
 // account frees its name again.
-function nextClientName(sectionId, taken) {
-  const used = new Set(
-    (taken || clientSections(sectionId).map((section) => section.name || "")).map(
-      (name) => `${name}`.trim().toLowerCase(),
-    ),
-  );
+function nextClientName(taken) {
+  const used = new Set(taken.map((name) => `${name}`.trim().toLowerCase()));
   const pattern = "client-%d";
 
   for (let index = 1; index <= 999; index += 1) {
@@ -2621,7 +2611,7 @@ function clientSettingsDefaults(sectionId, inputValue, existing, listOption) {
   // it can actually connect with; nothing is generated behind the user's back.
   defaults.name =
     `${inputValue || ""}`.trim() ||
-    nextClientName(sectionId, listedClientNames(sectionId, listOption));
+    nextClientName(listedClientNames(sectionId, listOption));
   visibleClientFields(sectionId).forEach((field) => {
     if (field === "flow" || field === "authorized_keys") {
       return;
@@ -3057,34 +3047,6 @@ function addGenerateButton(optionRef, generate, title) {
   };
 }
 
-function configureTextareaOption(optionRef) {
-  const renderWidget = optionRef.renderWidget;
-
-  optionRef.renderWidget = function (sectionId, optionIndex, cfgvalue) {
-    const node = renderWidget.call(this, sectionId, optionIndex, cfgvalue);
-    const textarea =
-      node && typeof node.querySelector === "function"
-        ? node.querySelector("textarea")
-        : node;
-
-    if (textarea) {
-      [
-        ["spellcheck", "false"],
-        ["autocomplete", "off"],
-        ["autocorrect", "off"],
-        ["autocapitalize", "off"],
-        ["data-gramm", "false"],
-        ["data-gramm_editor", "false"],
-        ["data-enable-grammarly", "false"],
-      ].forEach(([name, value]) => textarea.setAttribute(name, value));
-      textarea.style.resize = "vertical";
-      textarea.style.maxWidth = "100%";
-    }
-
-    return node;
-  };
-}
-
 function getSelectWidget(sectionId, name) {
   const node = widgetNode(sectionId, name);
 
@@ -3132,9 +3094,9 @@ function syncSecurityChoices(sectionId, protocol, reset) {
   select.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
-// A camouflage host is picked once per dialog, so the SNI and the Reality target
-// stay the same domain: Reality forwards the handshake to the site the client
-// asked for, and two different names never match.
+// A camouflage host is picked once per dialog, so the SNI a link carries and the
+// FakeTLS host of the same server keep the domain the dialog offered rather than
+// each rolling their own.
 const camouflageChoice = new Map();
 
 function camouflageSite(sectionId, reroll) {
@@ -3161,12 +3123,6 @@ function applyFieldValue(sectionId, name, value) {
     element.triggerValidation();
   }
   controlOf(node)?.dispatchEvent(new Event("change", { bubbles: true }));
-}
-
-function applyCamouflageSite(sectionId, host) {
-  applyFieldValue(sectionId, "tls_server_name", host);
-
-  return host;
 }
 
 // One key pair per dialog: the two fields are loaded separately but have to hold
@@ -3211,10 +3167,6 @@ function generateRealityKeypair(sectionId) {
     });
 }
 
-// Both halves of the pair are written together: a public key that does not belong to
-// the private key would produce links no client can use.
-// The private half never reaches the configuration, so it is shown once, with the
-// warning that it will not be shown again.
 // The subject a client checks, taken from the dialog as it stands: the SNI when
 // there is one, otherwise the address the links carry, otherwise the name of the
 // server. The section id is never it.
@@ -3230,11 +3182,16 @@ function certificateSubject(sectionId) {
 // Writing files happens when a button is pressed, not while the service starts, and
 // the path that was written becomes the value of the field instead of a convention
 // only Forkop knows. The certificate and the SSH host key are both issued this way.
-function addIssueButton(optionRef, label, request) {
+function addIssueButton(optionRef, label, request, offered) {
   const renderWidget = optionRef.renderWidget;
 
   optionRef.renderWidget = function (sectionId, optionIndex, cfgvalue) {
     const node = renderWidget.call(this, sectionId, optionIndex, cfgvalue);
+    // A listener whose clients refuse what Forkop can issue gets no button: the file
+    // would only build a server nobody can reach.
+    if (typeof offered === "function" && !offered(sectionId)) {
+      return node;
+    }
     const readonly = this.readonly != null ? this.readonly : this.map.readonly;
     const button = E(
       "button",
@@ -3269,7 +3226,7 @@ function addIssueButton(optionRef, label, request) {
   };
 }
 
-function issueRequest(verb, args, onResult, failure) {
+function issueRequest(verb, args, onResult) {
   return fs.exec("/usr/bin/forkop", [verb, ...args]).then((response) => {
     if ((response.code ?? 0) !== 0 || !response.stdout) {
       throw new Error(response.stderr || response.stdout || "");
@@ -3304,6 +3261,10 @@ function addCertificateButton(optionRef) {
         main.showToast(_("Could not generate a certificate"), "error");
         throw error;
       }),
+    // The certificate Forkop issues is self-signed. Every listener here but one hands
+    // out a link that tells the client to accept it; a NaiveProxy client cannot be
+    // told that, so an issued certificate there builds a server no link reaches.
+    acceptsInsecureTls,
   );
 }
 
@@ -3683,7 +3644,6 @@ function addTailscaleOptions(section) {
   o.validate = validateTailscaleHostname;
   onTailscale(o);
 
-
   o = section.option(
     form.DynamicList,
     "tailscale_advertise_routes",
@@ -3717,7 +3677,6 @@ function addTailscaleOptions(section) {
   o.rmempty = true;
   o.modalonly = true;
   onTailscale(o);
-
 
   o = section.option(
     form.Flag,
@@ -3801,7 +3760,9 @@ function addJsonInboundOptions(section) {
   o.modalonly = true;
   o.rmempty = false;
   o.validate = validateInboundJson;
-  configureTextareaOption(o);
+  // The same textarea the Sections tab gives its JSON fields, spelling out the
+  // input attributes once instead of twice.
+  sectionui.configureTextareaOption(o);
 }
 
 function addListenerOptions(section) {
@@ -4170,7 +4131,7 @@ function addSecurityOptions(section) {
   onReality(o);
   addGenerateButton(
     o,
-    (sectionId) => applyCamouflageSite(sectionId, camouflageSite(sectionId, true)),
+    (sectionId) => camouflageSite(sectionId, true),
     _("Pick a domain"),
   );
 
@@ -4197,9 +4158,7 @@ function addSecurityOptions(section) {
     form.Value,
     "tls_certificate_path",
     _("Certificate path"),
-    _(
-      "Required. A certificate issued for this address. The button next to it issues a self-signed one.",
-    ),
+    _("Required. A certificate issued for this address."),
   );
   addCertificateButton(o);
   o.modalonly = true;

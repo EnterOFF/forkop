@@ -33,11 +33,15 @@ const JSON_ENDPOINT_TYPES = new Set([
   "warp",
   "tailscale",
 ]);
+// Tags sing-box already uses for Forkop's own inbounds, outbounds and DNS servers.
+// A section or server display name becomes a tag verbatim, so these names are
+// refused here and by the runtime check, which reads singbox/constants.uc.
 const RESERVED_RUNTIME_TAGS = new Set([
   "dns-server",
   "fakeip-server",
   "bootstrap-dns-server",
   "dnsmasq-server",
+  "hosts-server",
   "fakeip-dns-rule-tag",
   "fakeip-ruleset-dns-rule-tag",
   "service-fakeip-dns-rule-tag",
@@ -8423,8 +8427,9 @@ function validateUniqueDynamicListItemName(widget, itemNode, value) {
 const EntryPoint = {
   // The child item list widget and its stacked settings dialog are shared with the
   // Servers tab, which lists server clients the same way this tab lists interfaces,
-  // URLTests and tunnels.
+  // URLTests and tunnels. So is the reserved tag list: both tabs name a runtime tag.
   ButtonAddSettingsDynamicList,
+  RESERVED_RUNTIME_TAGS,
   addDynamicListItem,
   childItemInputValue,
   childPendingSettingsStore,

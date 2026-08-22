@@ -128,10 +128,32 @@ function defaultStubs(uci, widgets) {
     // helpers stand in for it.
     sectionui: {
       ButtonAddSettingsDynamicList: class {},
+      // The reserved tag list is the Sections tab's, so the stub carries the same
+      // names the runtime check refuses.
+      RESERVED_RUNTIME_TAGS: new Set([
+        'dns-server',
+        'fakeip-server',
+        'bootstrap-dns-server',
+        'dnsmasq-server',
+        'hosts-server',
+        'fakeip-dns-rule-tag',
+        'fakeip-ruleset-dns-rule-tag',
+        'service-fakeip-dns-rule-tag',
+        'tproxy-in',
+        'tproxy6-in',
+        'dns-in',
+        'source-dns-in',
+        'system-in',
+        'system6-in',
+        'system-dns-in',
+        'service-mixed-in',
+        'direct-out',
+      ]),
       addDynamicListItem: noop,
       childItemInputValue: (_sectionId, value) => `${value ?? ''}`,
       childPendingSettingsStore: () => ({}),
       cleanupRemovedChildItems: noop,
+      configureTextareaOption: noop,
       isExistingChildItem: (_sectionId, itemId) =>
         Boolean(uci.get('forkop', `${itemId}`, '.type')),
       showChildItemSettingsModal: noop,

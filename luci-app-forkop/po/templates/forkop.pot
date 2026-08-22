@@ -4237,7 +4237,7 @@ msgstr ""
 msgid "The domain a client sends in the TLS handshake."
 msgstr ""
 
-msgid "Required. A certificate issued for this address. The button next to it issues a self-signed one."
+msgid "Required. A certificate issued for this address."
 msgstr ""
 
 msgid "Required. The private key of the certificate."

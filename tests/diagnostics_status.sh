@@ -32,6 +32,13 @@ firewall_open() {  # <port> <protocols>, uci show firewall on stdin
     exit(require('diagnostics.firewall').required_protocols_open(stdin_data, '$1', '$2') ? 0 : 1);"
 }
 
+forkop_accepts() {  # <port> <protocols>, nft list chain inet fw4 input on stdin
+  uc_eval "$READ_STDIN_UC
+    let c = require('singbox.constants');
+    exit(require('diagnostics.firewall').forkop_accepts_port(
+      stdin_data, c.SERVER_FIREWALL_COMMENT, '$1', '$2') ? 0 : 1);"
+}
+
 ports_listening() {  # <listen> <port> <protocols>, netstat on stdin
   uc_eval "$READ_STDIN_UC
     let net = require('core.netstat');
@@ -520,6 +527,38 @@ EOF
 )"
 if printf '%s\n' "$firewall_src_port_rule" | firewall_open 443 "tcp"; then
   fail "firewall rule limited by source port should not satisfy public inbound diagnostic"
+fi
+
+# The Servers tab opens its ports through an nftables.d include, which fw4 folds into
+# its ruleset and `uci show firewall` never mentions. Reading uci alone reported every
+# server Forkop had just opened as closed, so the loaded input chain is asked too.
+loaded_chain="$(cat <<'EOF'
+        type filter hook input priority filter; policy drop;
+        iif "lo" accept comment "!fw4: Accept traffic from loopback"
+        tcp dport { 22387, 24441, 34472 } counter packets 553 bytes 85115 accept comment "forkop: server ports"
+        udp dport { 24441, 38536 } counter packets 0 bytes 0 accept comment "forkop: server ports"
+        tcp dport 51820 counter packets 0 bytes 0 accept comment "other: single port"
+        tcp dport { 9999 } counter packets 0 bytes 0 drop comment "forkop: server ports"
+EOF
+)"
+printf '%s\n' "$loaded_chain" | forkop_accepts 34472 "tcp" ||
+  fail "a port in Forkop's own accept rule must count as open"
+printf '%s\n' "$loaded_chain" | forkop_accepts 24441 "tcp udp" ||
+  fail "a listener that needs both protocols must find both in Forkop's rules"
+if printf '%s\n' "$loaded_chain" | forkop_accepts 38536 "tcp udp"; then
+  fail "a port open for UDP alone must not count as open for TCP"
+fi
+if printf '%s\n' "$loaded_chain" | forkop_accepts 51820 "tcp"; then
+  fail "a rule that is not Forkop's must not count"
+fi
+if printf '%s\n' "$loaded_chain" | forkop_accepts 9999 "tcp"; then
+  fail "a rule that is not an accept must not count"
+fi
+if printf '%s\n' "$loaded_chain" | forkop_accepts 12345 "tcp"; then
+  fail "a port no rule mentions must not count as open"
+fi
+if printf '%s\n' "" | forkop_accepts 34472 "tcp"; then
+  fail "an unreadable chain must not count as open"
 fi
 
 listen_requires_firewall 0.0.0.0 "" ||

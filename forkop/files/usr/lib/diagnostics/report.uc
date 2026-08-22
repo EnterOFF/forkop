@@ -154,7 +154,9 @@ function inbound_item_lines(item, wan_ip) {
                 push(lines, "[FAIL] " + label + ": firewall does not accept " + required_proto + "/" + listen_port + " from WAN");
         }
         else {
-            push(lines, "[WARN] " + label + ": firewall WAN check skipped for listen address " + listen);
+            // A listener that cannot be reached from WAN needs no rule, which is an
+            // answer and not a complaint - the same verdict the Diagnostics tab gives.
+            push(lines, "[OK] " + label + ": no firewall rule needed for listen address " + listen);
         }
     }
     else {

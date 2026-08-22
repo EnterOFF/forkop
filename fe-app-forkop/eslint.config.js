@@ -14,6 +14,7 @@ export default [
         languageOptions: {
             globals: {
                 Buffer: 'readonly',
+                TextDecoder: 'readonly',
                 URL: 'readonly',
             },
         },

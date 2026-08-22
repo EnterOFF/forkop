@@ -2636,8 +2636,8 @@ msgstr "Обязательно. Создайте новый ключ кнопк�
 msgid "The domain a client sends in the TLS handshake."
 msgstr "Домен, который клиент передаёт в TLS-рукопожатии."
 
-msgid "Required. A certificate issued for this address. The button next to it issues a self-signed one."
-msgstr "Обязательно. Сертификат, выданный на этот адрес. Кнопка рядом выпустит самоподписанный."
+msgid "Required. A certificate issued for this address."
+msgstr "Обязательно. Сертификат, выданный на этот адрес."
 
 msgid "Required. The private key of the certificate."
 msgstr "Обязательно. Приватный ключ сертификата."

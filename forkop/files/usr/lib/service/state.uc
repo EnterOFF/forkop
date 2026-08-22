@@ -941,9 +941,10 @@ function append_sing_box_server_signature_body(body, server) {
     if (option(server, "protocol", "vless") == "mixed")
         body = signature_add_value(body, prefix + ".mixed_auth_enabled", bool_option_value(server, "mixed_auth_enabled", false));
 
-    // Every option the generator reads, and only those: a field the configuration
-    // does not carry - the public address and the client fingerprint go into share
-    // links alone - would reload sing-box for a change it cannot see.
+    // Every option the generator reads, and only those: a field that never reaches
+    // the configuration - the public address, the client fingerprint and the Reality
+    // public key go into share links alone - would reload sing-box for a change it
+    // cannot see.
     let fields = [
         [ "label", name ],
         [ "protocol", "vless" ],
@@ -958,7 +959,6 @@ function append_sing_box_server_signature_body(body, server) {
         [ "tls_certificate_path", "" ],
         [ "tls_key_path", "" ],
         [ "reality_private_key", "" ],
-        [ "reality_public_key", "" ],
         [ "reality_short_id", "" ],
         [ "transport", "tcp" ],
         [ "transport_path", "" ],

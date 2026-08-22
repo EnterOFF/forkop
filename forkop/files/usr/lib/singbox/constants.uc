@@ -40,6 +40,10 @@ const URLTEST_DEFAULT_IDLE_TIMEOUT = "30m";
 const CHECK_PROXY_IP_DOMAIN = "ip.podkop.fyi";
 const FAKEIP_TEST_DOMAIN = "fakeip.podkop.fyi";
 const TMP_SING_BOX_FOLDER = "/tmp/sing-box";
+// The comment on the nftables rules the Servers tab writes. The service marks its
+// rules with it and the inbound check looks for it in the loaded chain, because
+// those ports are an nftables.d include and never appear in `uci show firewall`.
+const SERVER_FIREWALL_COMMENT = "forkop: server ports";
 const ZAPRET_ROUTE_MARK_BASE = 0x01000000;
 const ZAPRET2_ROUTE_MARK_BASE = 0x02000000;
 const BYEDPI_LISTEN_ADDRESS = "127.0.0.1";
@@ -204,6 +208,7 @@ return {
     CHECK_PROXY_IP_DOMAIN,
     FAKEIP_TEST_DOMAIN,
     TMP_SING_BOX_FOLDER,
+    SERVER_FIREWALL_COMMENT,
     ZAPRET_ROUTE_MARK_BASE,
     ZAPRET2_ROUTE_MARK_BASE,
     BYEDPI_LISTEN_ADDRESS,
