@@ -29,6 +29,17 @@ function command_output_from_args(args) {
     return status == 0 && data != null ? as_string(data) : "";
 }
 
+function command_success_from_args(args) {
+    return system(command_from_args(args) + " >/dev/null 2>&1") == 0;
+}
+
+// Whether the runtime table is loaded, and nothing else. Asked without -t, nft
+// prints every element of every set first, which on a real rule set is seconds
+// of work and megabytes of output to answer a yes or no.
+function table_present(table) {
+    return command_success_from_args([ "nft", "-t", "list", "table", "inet", as_string(table) ]);
+}
+
 function normalized_fields(line) {
     line = trim(replace(as_string(line), /\r/g, ""));
     line = replace(line, /[[:space:]]+/g, " ");
@@ -120,6 +131,7 @@ function tproxy_route_rule_present(table, mark) {
 }
 
 return {
+    table_present,
     rt_table_has_entry,
     tproxy_route4_present,
     tproxy_route6_present,

@@ -2157,7 +2157,6 @@ function check_provider_requirements(ctx) {
 }
 
 function check_runtime_requirements() {
-    log_message("Checking required packages and runtime settings", "info");
 
     let ctx = context_from_runtime();
     let sing_box_version = trim(as_string(fs.readfile(SING_BOX_FORKOP_VERSION_FILE)));
@@ -2186,9 +2185,9 @@ function check_runtime_requirements() {
     if (dhcp_has_https_dns_proxy_options("/etc/config/dhcp") === true)
         log_message("https-dns-proxy is enabled in DHCP config. Disable it or edit /etc/config/dhcp before starting Forkop.", "error");
 
-    if (has_outbound_section(ctx))
-        log_message("Proxy outbound configuration found", "debug");
-    else
+    // Only the absence is worth a line. Confirming that a proxy outbound exists
+    // said nothing on the path where everything is fine, which is most of them.
+    if (!has_outbound_section(ctx))
         log_message("No proxy outbound sections found. Forkop will use direct and/or provider-only routing.", "warn");
 
     check_provider_requirements(ctx);

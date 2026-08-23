@@ -118,3 +118,52 @@ actual_list="$(conditions "" "full:e.example f.example keyword:beacon")"
   fail "combined domain list must split by kind, got: $actual_list"
 
 printf 'Domain condition checks passed\n'
+
+# The same owner answers the legacy per-kind form and the subnet kind, which is
+# what the nftables builders read a section's addresses through. These used to be
+# driven through a CLI mode of nft/apply.uc, which owned neither.
+condition_csv() {
+  ucode -L "$FORKOP_LIB" -e '
+    let rule = require("config.rule");
+    print(rule.rule_condition_csv_value(ARGV[0], ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7]), "\n");
+  ' -- "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8"
+}
+
+legacy_csv() {
+  ucode -L "$FORKOP_LIB" -e '
+    let rule = require("config.rule");
+    print(rule.legacy_condition_csv_value(ARGV[0], ARGV[1], ARGV[2], ARGV[3], ARGV[4]), "\n");
+  ' -- "$1" "$2" "$3" "$4" "$5"
+}
+
+assert_csv() {
+  local expected="$1" actual="$2" label="$3"
+  [ "$actual" = "$expected" ] || fail "$label: expected '$expected', got '$actual'"
+}
+
+assert_csv "198.51.100.1,203.0.113.0/24" \
+  "$(legacy_csv subnets 1 0 $'198.51.100.1\nbad-value\n203.0.113.0/24' '10.0.0.0/8')" \
+  "legacy text-mode subnets drop what is not an address"
+assert_csv "10.0.0.0/8,192.0.2.1" \
+  "$(legacy_csv subnets 0 0 '198.51.100.1' '10.0.0.0/8 192.0.2.1')" \
+  "legacy list priority"
+assert_csv "one.example,list.example,legacy.example" \
+  "$(condition_csv domain domains 0 0 legacy.example '' 'full:one.example keyword:skip regex:^skip suffix.example' 'full:list.example keyword:list-skip')" \
+  "combined domain plus legacy"
+assert_csv "suffix.example,list.example" \
+  "$(condition_csv domain_suffix domains 0 0 legacy.example legacy-list.example 'full:one.example suffix.example keyword:skip' 'full:list-full.example list.example')" \
+  "combined suffix ignores legacy"
+assert_csv "xn--80aswg.xn--p1ai" \
+  "$(condition_csv domain_suffix domains 0 0 '' '' 'сайт.рф full:пример.испытание keyword:пример regex:^сайт[.]рф$' '')" \
+  "combined IDN suffix is punycoded"
+assert_csv "xn--e1afmkfd.xn--80akhbyknj4f" \
+  "$(condition_csv domain domains 0 0 '' '' 'сайт.рф full:пример.испытание keyword:пример regex:^сайт[.]рф$' '')" \
+  "combined IDN full domain is punycoded"
+assert_csv "xn--e1afmkfd" \
+  "$(condition_csv domain_keyword generic 0 0 '' '' 'сайт.рф full:пример.испытание keyword:пример regex:^сайт[.]рф$' '')" \
+  "combined IDN keyword is punycoded"
+assert_csv "^xn--80aswg[.]xn--p1ai$" \
+  "$(condition_csv domain_regex generic 0 0 '' '' 'сайт.рф full:пример.испытание keyword:пример regex:^сайт[.]рф$' '')" \
+  "combined IDN regex is punycoded"
+
+printf 'Condition CSV owner checks passed\n'

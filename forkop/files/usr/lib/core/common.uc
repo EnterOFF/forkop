@@ -2,8 +2,27 @@
 
 let fs = require("fs");
 
+// A string is returned as it came. Concatenating it with "" produces an equal
+// but distinct string, and on the lists the nftables sets are built from that is
+// one copy of every address in the list for no result.
 function as_string(value) {
+    if (type(value) == "string")
+        return value;
     return value == null ? "" : "" + value;
+}
+
+// Which signal killed a command, or 0 for one that exited on its own. A shell
+// that execs the command reports the signal itself and ucode hands it over
+// negated; one that waits for it reports 128 plus the signal as its own exit
+// code. Both spellings reach the same callers, and a command that was killed
+// never got to say why.
+function signal_from_status(status) {
+    status = int(status || 0);
+    if (status < 0)
+        return 0 - status;
+    if (status > 128 && status < 160)
+        return status - 128;
+    return 0;
 }
 
 function read_json_file(path) {
@@ -184,6 +203,7 @@ function int_option(section, key, fallback) {
 
 return {
     as_string,
+    signal_from_status,
     read_json_file,
     read_stdin,
     read_stdin_json,

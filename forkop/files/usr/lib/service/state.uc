@@ -22,6 +22,7 @@ let zapret2_validator = require("providers.zapret2.validator");
 let byedpi_validator = require("providers.byedpi.validator");
 let lock = require("service.lock");
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
+const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
 const DEFAULT_PENDING_RELOAD_FILE = getenv("FORKOP_PENDING_RELOAD_FILE") || "/var/run/forkop/reload.pending";
 const DEFAULT_SERVICE_INIT = getenv("FORKOP_SERVICE_INIT") || "/etc/init.d/forkop";
 const SING_BOX_INIT = getenv("FORKOP_SING_BOX_INIT") || "/etc/init.d/sing-box";
@@ -260,11 +261,13 @@ function wait_sing_box_stopped(timeout) {
     return !sing_box_process_running() && !sing_box_service_running();
 }
 
+// Silent when there is nothing to reload: the generator has just reported that
+// the configuration is unchanged, and saying it a second time in other words
+// only makes the log look like two things happened.
 function reload_sing_box_runtime(config_hash_before, config_hash_after, force) {
-    if (!sing_box_runtime_reload_needed(config_hash_before, config_hash_after, force)) {
-        command_success_from_args([ "logger", "-t", "forkop", "[info] sing-box reload skipped: configuration is unchanged" ]);
+    if (!sing_box_runtime_reload_needed(config_hash_before, config_hash_after, force))
         return;
-    }
+
 
     command_success_from_args([ "logger", "-t", "forkop", "[info] Reloading sing-box runtime" ]);
     if (!command_success_from_args([ SING_BOX_INIT, "reload" ])) {
@@ -451,36 +454,15 @@ function settings_component_update_check_interval(settings) {
     return value != "" ? value : "1d";
 }
 
-function nft_runtime_signature_body(settings, sections) {
-    let body = "";
+// The nft signature belongs to nft/apply.uc: it hashes the ruleset it would
+// build, so what the table depends on is decided in one place instead of being
+// restated here as a list of fields that once fell out of step with it.
+function nft_runtime_signature(args) {
+    let command = [ "ucode", "-L", LIB_DIR, LIB_DIR + "/nft/apply.uc" ];
+    for (let arg in args)
+        push(command, arg);
 
-    body = signature_add_value(body, "settings.source_network_interfaces", option(settings, "source_network_interfaces", "br-lan"));
-    body = signature_add_value(body, "settings.exclude_ntp", bool_option(settings, "exclude_ntp", false) ? "1" : "0");
-
-    for (let section in sections) {
-        section = object_or_empty(section);
-        let name = section_name(section);
-        if (name == "" || !bool_option(section, "enabled", true))
-            continue;
-
-        let action = option(section, "action", "");
-        body = signature_add_value(body, "rule." + name + ".action", action);
-        if (action == "dns") {
-            body = signature_add_value(body, "rule." + name + ".source_ip_cidr", connections.source_signature_value(section));
-            body = signature_add_value(body, "rule." + name + ".source_aware_dns", connections.has_dns_matchers(section) ? "1" : "0");
-            body = signature_add_value(body, "rule." + name + ".fully_routed_ips", option(section, "fully_routed_ips", ""));
-            continue;
-        }
-        body = signature_add_value(body, "rule." + name + ".ip_cidr", connections.rule_condition_csv(section, "ip_cidr", "subnets"));
-        body = signature_add_value(body, "rule." + name + ".source_ip_cidr", connections.source_signature_value(section));
-        body = signature_add_value(body, "rule." + name + ".source_aware_dns", connections.has_dns_matchers(section) ? "1" : "0");
-        body = signature_add_value(body, "rule." + name + ".ports", connections.rule_ports_csv(section));
-        body = signature_add_value(body, "rule." + name + ".fully_routed_ips", option(section, "fully_routed_ips", ""));
-        body = signature_add_value(body, "rule." + name + ".community_subnet_lists", rule_config.filter_community_subnet_lists_value(connections.community_lists_value(section)));
-        body = signature_add_value(body, "rule." + name + ".rule_set_with_subnets", connections.rule_sets_with_subnets_value(section));
-    }
-
-    return body;
+    return trim(command_output_from_args(command));
 }
 
 function section_subscription_update_interval(section) {
@@ -982,13 +964,13 @@ function byedpi_runtime_signature_body(sections) {
     return body;
 }
 
-function reload_state_values_from_sources(format, settings, sections, servers, dnsmasq, legacy_dnsmasq_present, mwan3_active_value) {
+function reload_state_values_from_sources(format, settings, sections, servers, dnsmasq, legacy_dnsmasq_present, mwan3_active_value, nft_signature) {
     return {
         format: as_string(format),
         service_trigger_signature: signature_hash(service_trigger_signature_body(settings)),
         dnsmasq_signature: signature_hash(dnsmasq_signature_body(settings, dnsmasq, legacy_dnsmasq_present)),
         sing_box_signature: signature_hash(sing_box_signature_body(settings, sections, servers, mwan3_active_value)),
-        nft_signature: signature_hash(nft_runtime_signature_body(settings, sections)),
+        nft_signature: as_string(nft_signature),
         zapret_queue_signature: signature_hash(action_queue_signature_body(sections, "zapret", "zapret_queue.section")),
         zapret_runtime_signature: signature_hash(zapret_runtime_signature_body(sections)),
         zapret2_queue_signature: signature_hash(action_queue_signature_body(sections, "zapret2", "zapret2_queue.section")),
@@ -1090,7 +1072,8 @@ function current_reload_state_values(format) {
         uci_servers(),
         uci_dnsmasq(),
         uci_exists("dhcp.forkop"),
-        mwan3_active()
+        mwan3_active(),
+        nft_runtime_signature([ "nft-runtime-signature" ])
     );
 }
 
@@ -1123,7 +1106,7 @@ function write_captured_reload_state(path, snapshot_path, format, clean, clear_s
         unlink_file(snapshot_path);
 }
 
-function fixture_reload_state_values(data, format) {
+function fixture_reload_state_values(path, data, format) {
     data = object_or_empty(data);
     let settings = fixture_settings(data);
     let sections = fixture_section_list(data);
@@ -1135,7 +1118,8 @@ function fixture_reload_state_values(data, format) {
         fixture_servers(data),
         fixture_dnsmasq(data),
         fixture_legacy_dnsmasq_present(data),
-        fixture_mwan3_active(data)
+        fixture_mwan3_active(data),
+        nft_runtime_signature([ "nft-runtime-signature-fixture", path ])
     );
 }
 
@@ -1173,7 +1157,7 @@ else if (mode == "write-captured-reload-state")
     write_captured_reload_state(ARGV[1], ARGV[2], ARGV[3] || "1", ARGV[4], ARGV[5]);
 else if (mode == "reload-state-text-fixture") {
     let data = fixture_data(ARGV[1]);
-    print(reload_state_text(fixture_reload_state_values(data, ARGV[2] || "1")));
+    print(reload_state_text(fixture_reload_state_values(ARGV[1], data, ARGV[2] || "1")));
 }
 else if (mode == "process-age-seconds-fixture") {
     let age = process_age_seconds_from_ticks(ARGV[1], ARGV[2]);
@@ -1206,12 +1190,6 @@ else if (mode == "sing-box-signature-fixture") {
 else if (mode == "sing-box-signature-body-fixture") {
     let data = fixture_data(ARGV[1]);
     print(sing_box_signature_body(fixture_settings(data), fixture_section_list(data), fixture_servers(data), fixture_mwan3_active(data)));
-}
-else if (mode == "nft-signature")
-    exit(print_signature_hash(nft_runtime_signature_body(uci_settings(), uci_sections("section"))) ? 0 : 1);
-else if (mode == "nft-signature-fixture") {
-    let data = fixture_data(ARGV[1]);
-    exit(print_signature_hash(nft_runtime_signature_body(fixture_settings(data), fixture_section_list(data))) ? 0 : 1);
 }
 else if (mode == "zapret-queue-signature")
     exit(print_signature_hash(action_queue_signature_body(uci_sections("section"), "zapret", "zapret_queue.section")) ? 0 : 1);

@@ -36,6 +36,17 @@ reject_runtime_pattern "Reload signature changes:" \
   "reload logs must not dump internal signature vectors"
 reject_runtime_pattern "Reload plan: sing-box=" \
   "reload logs must not dump boolean plan internals"
+reject_runtime_pattern "Applying reload changes: " \
+  "reload logs must not announce the subsystems of the plan; each step reports itself"
+# Lines that fire when nothing happened are the bulk of what makes the log
+# unreadable: replacing the nftables table used to take seven of them to say one
+# thing, four reporting that something was already in place.
+reject_runtime_pattern 'already exists"' \
+  "logs must report what was done, not that something was already in place"
+# Applying a configuration change usually restarts nothing, and often changes
+# nothing at all, so it must not be reported as the service reloading.
+reject_runtime_pattern 'log_message("Reloading Forkop"' \
+  "applying a configuration change must not be announced as reloading Forkop"
 reject_runtime_pattern "Starting subscription update" \
   "native subscription refresh must not duplicate core update logs"
 reject_runtime_pattern "Subscription providers refreshed without reloading sing-box" \

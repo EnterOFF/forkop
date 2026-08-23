@@ -964,33 +964,15 @@ function parse_reload_plan(output) {
     return result;
 }
 
-function append_reload_action(actions, enabled, label) {
-    if (int(enabled || 0) != 1)
-        return actions;
-    return actions + (actions != "" ? ", " : "") + label;
-}
-
-function reload_actions_summary(plan) {
-    let actions = "";
-    actions = append_reload_action(actions, plan.needs_sing_box_reload, "sing-box");
-    actions = append_reload_action(actions, plan.needs_nft_rebuild, "nftables");
-    actions = append_reload_action(actions, plan.needs_zapret_restart, "Zapret");
-    actions = append_reload_action(actions, plan.needs_zapret2_restart, "Zapret2");
-    actions = append_reload_action(actions, plan.needs_byedpi_restart, "ByeDPI");
-    actions = append_reload_action(actions, plan.needs_dnsmasq_restore, "dnsmasq");
-    actions = append_reload_action(actions, plan.needs_cron_refresh, "scheduled jobs");
-    return actions;
-}
-
 // Carries out the reload the plan asked for. Anything that fails after the
 // runtime was touched takes the runtime down with it, so a non-zero status here
 // is final: the caller propagates it without cleaning up again.
+//
+// Nothing is announced up front. Each step below says what it did when it did
+// it, which is both narrower and truthful; a list of the subsystems about to be
+// touched only named the internal shape of the plan.
 function apply_reload_plan(plan, force_runtime_reload) {
     let status;
-
-    let actions = reload_actions_summary(plan);
-    if (actions != "")
-        log_message("Applying reload changes: " + actions, "info");
 
     if (plan.needs_zapret_restart == 1)
         module_success(ZAPRET_UC, [ "stop-runtime" ]);
@@ -1080,7 +1062,9 @@ function reload_impl(reason) {
     let force_runtime_reload = as_string(reason || "") == "on_config_change" ? 0 : 1;
     let reload_config_fingerprint = external_config_fingerprint();
 
-    log_message("Reloading Forkop", "info");
+    // Not "reloading Forkop": most of the time nothing is restarted, and often
+    // there is nothing to do at all.
+    log_message("Applying configuration", "info");
 
     status = validate_start_config();
     if (status != 0)
@@ -1151,13 +1135,15 @@ function reload_impl(reason) {
             "1"
         ]);
         if (status == 0)
-            log_message("Reload skipped: runtime-relevant configuration is unchanged", "info");
+            log_message("Configuration already applied; nothing to change", "info");
         return finish_reload_status(status, reload_config_fingerprint);
     }
 
     status = apply_reload_plan(plan, force_runtime_reload);
     if (status != 0)
         return status;
+
+    log_message("Configuration applied", "info");
 
     return finish_reload_status(module_status(STATE_UC, [
         "write-captured-reload-state",

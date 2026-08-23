@@ -33,10 +33,6 @@ function command_output_from_args(args) {
     return status == 0 && data != null ? as_string(data) : "";
 }
 
-function command_success_from_args(args) {
-    return system(command_from_args(args) + " >/dev/null 2>&1") == 0;
-}
-
 function sing_box_service_pid_from_value(value) {
     let service = type(value) == "object" ? value["sing-box"] : null;
     let instances = service && type(service.instances) == "object" ? service.instances : {};
@@ -143,12 +139,11 @@ function sing_box_runtime_ports_ready() {
     );
 }
 
-// Only the presence of the table is in question here, and this runs on every
-// reload, in every readiness poll and behind every UI status refresh. Without
-// -t, nft prints every element of every set first: a rule set holding 40k
-// addresses turns a 36 ms check into 5 s.
+// This runs on every reload, in every readiness poll and behind every UI status
+// refresh, which is why nft/state.uc answers it with -t: a rule set holding 40k
+// addresses turns a 36 ms check into 5 s when nft prints them all first.
 function forkop_runtime_network_configured(rt_table, nft_table, mark) {
-    return command_success_from_args([ "nft", "-t", "list", "table", "inet", nft_table ]) &&
+    return nft_state.table_present(nft_table) &&
         nft_state.tproxy_route_rule_present(rt_table, mark);
 }
 

@@ -6,6 +6,7 @@ FORKOP_LIB="$ROOT_DIR/forkop/files/usr/lib"
 NFT_RUNTIME="$ROOT_DIR/forkop/files/usr/lib/nft/apply.uc"
 WORK_DIR="$(mktemp -d)"
 NFT_LOG="$WORK_DIR/nft.log"
+NFT_BATCH_LOG="$WORK_DIR/nft-batch.log"
 LOGGER_LOG="$WORK_DIR/logger.log"
 IP_LOG="$WORK_DIR/ip.log"
 SYSCTL_LOG="$WORK_DIR/sysctl.log"
@@ -72,6 +73,49 @@ mkdir -p "$WORK_DIR/bin"
 cat >"$WORK_DIR/bin/nft" <<'NFT'
 #!/usr/bin/env bash
 set -eo pipefail
+
+# A batched operation hands nft one transaction on stdin instead of running a
+# command per line. The commands are logged in the same tab separated form
+# either way, so the expectations below describe what nft is told and not how
+# many processes it took: a `{ ... }` group is one argument, everything else is
+# separated by spaces.
+log_batch_line() {
+  local line="$1" token="" depth=0 char
+  printf 'nft'
+  while [ -n "$line" ]; do
+    char="${line:0:1}"
+    line="${line:1}"
+    case "$char" in
+    '{') depth=$((depth + 1)); token="$token$char" ;;
+    '}') depth=$((depth - 1)); token="$token$char" ;;
+    ' ')
+      if [ "$depth" -gt 0 ]; then
+        token="$token$char"
+      elif [ -n "$token" ]; then
+        printf '\t%s' "$token"
+        token=""
+      fi
+      ;;
+    *) token="$token$char" ;;
+    esac
+  done
+  [ -z "$token" ] || printf '\t%s' "$token"
+  printf '\n'
+}
+
+if [ "$#" -eq 2 ] && [ "$1" = "-f" ] && [ "$2" = "-" ]; then
+  echo transaction >> "${NFT_BATCH_LOG:?}"
+  while IFS= read -r batch_line; do
+    [ -n "$batch_line" ] || continue
+    log_batch_line "$batch_line" >> "${NFT_LOG:?}"
+  done
+  if [ "${NFT_TRANSACTION_FAIL:-0}" = "1" ]; then
+    printf 'Error: syntax error, unexpected junk\nadd element inet ForkopTable localv4 { junk }\n' >&2
+    exit 1
+  fi
+  exit 0
+fi
+
 {
   printf 'nft'
   for arg in "$@"; do
@@ -175,45 +219,11 @@ chmod 0755 "$WORK_DIR/bin/logger"
 
 export PATH="$WORK_DIR/bin:$PATH"
 export NFT_LOG
+export NFT_BATCH_LOG
 export LOGGER_LOG
 export IP_LOG
 export SYSCTL_LOG
 export FORKOP_IP_BIN="$WORK_DIR/bin/ip"
-
-assert_eq "/tmp/forkop-cache/condition_rule_1_domain_domains" \
-  "$(nft_ucode cache-path 1 /tmp/forkop-cache condition rule_1 domain domains)" \
-  "cache path"
-if nft_ucode cache-path 1 /tmp/forkop-cache condition 'bad-name' domain domains >/dev/null 2>&1; then
-  fail "unsafe cache key should fail"
-fi
-
-assert_eq "198.51.100.1,203.0.113.0/24" \
-  "$(nft_ucode legacy-condition-csv subnets 1 0 $'198.51.100.1\nbad-value\n203.0.113.0/24' '10.0.0.0/8')" \
-  "legacy text-mode subnets"
-assert_eq "10.0.0.0/8,192.0.2.1" \
-  "$(nft_ucode legacy-condition-csv subnets 0 0 '198.51.100.1' '10.0.0.0/8 192.0.2.1')" \
-  "legacy list priority"
-assert_eq "full:example.com,keyword:ads,regex:^foo" \
-  "$(nft_ucode list-value-to-csv 'full:example.com keyword:ads regex:^foo')" \
-  "list value csv"
-assert_eq "one.example,list.example,legacy.example" \
-  "$(nft_ucode rule-condition-csv domain domains 0 0 legacy.example '' 'full:one.example keyword:skip regex:^skip suffix.example' 'full:list.example keyword:list-skip')" \
-  "combined domain plus legacy"
-assert_eq "suffix.example,list.example" \
-  "$(nft_ucode rule-condition-csv domain_suffix domains 0 0 legacy.example legacy-list.example 'full:one.example suffix.example keyword:skip' 'full:list-full.example list.example')" \
-  "combined suffix ignores legacy"
-assert_eq "xn--80aswg.xn--p1ai" \
-  "$(nft_ucode rule-condition-csv domain_suffix domains 0 0 '' '' 'сайт.рф full:пример.испытание keyword:пример regex:^сайт[.]рф$' '')" \
-  "combined IDN suffix is punycoded"
-assert_eq "xn--e1afmkfd.xn--80akhbyknj4f" \
-  "$(nft_ucode rule-condition-csv domain domains 0 0 '' '' 'сайт.рф full:пример.испытание keyword:пример regex:^сайт[.]рф$' '')" \
-  "combined IDN full domain is punycoded"
-assert_eq "xn--e1afmkfd" \
-  "$(nft_ucode rule-condition-csv domain_keyword generic 0 0 '' '' 'сайт.рф full:пример.испытание keyword:пример regex:^сайт[.]рф$' '')" \
-  "combined IDN keyword is punycoded"
-assert_eq "^xn--80aswg[.]xn--p1ai$" \
-  "$(nft_ucode rule-condition-csv domain_regex generic 0 0 '' '' 'сайт.рф full:пример.испытание keyword:пример regex:^сайт[.]рф$' '')" \
-  "combined IDN regex is punycoded"
 
 nft_ucode nft-create-runtime-base ForkopTable localv4 forkop_subnets forkop_ports forkop_ip_ports forkop_interfaces "br-lan tun0" 0x00100000 0x00200000 198.18.0.0/15 1602 1
 assert_contains "$NFT_LOG" $'nft\tadd\ttable\tinet\tForkopTable' "runtime table"
@@ -256,12 +266,50 @@ forkop.settings=settings
 forkop.settings.source_network_interfaces=br-lan tun0
 forkop.settings.exclude_ntp=1
 EOF_UCI
+# A full replace reaches nft as one transaction. Issued command by command it was
+# about a hundred processes, and for as long as they ran the old table had already
+# been deleted and the rules meant to replace it were not there yet.
 : > "$NFT_LOG"
+: > "$NFT_BATCH_LOG"
 FORKOP_UCI_STATE_FILE="$WORK_DIR/runtime-base-uci.state" \
-  nft_ucode nft-create-runtime-base-from-uci ForkopTable localv4 forkop_subnets forkop_ports forkop_ip_ports forkop_interfaces 0x00100000 0x00200000 198.18.0.0/15 1602
-assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_interfaces\t{ br-lan }' "runtime base from UCI br-lan interface"
-assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_interfaces\t{ tun0 }' "runtime base from UCI tun0 interface"
-assert_contains "$NFT_LOG" $'nft\tinsert\trule\tinet\tForkopTable\tmangle\tudp\tdport\t123\treturn' "runtime base from UCI ntp exclusion"
+FORKOP_RT_TABLES="$WORK_DIR/rt_tables" \
+IP_ROUTE_OUTPUT='local default dev lo scope host' \
+IP_ROUTE6_OUTPUT='local default dev lo metric 1024 pref medium' \
+IP_RULE_OUTPUT='105: from all fwmark 0x100000/0x100000 lookup forkop' \
+IP_RULE6_OUTPUT='105: from all fwmark 0x100000/0x100000 lookup forkop' \
+  nft_ucode nft-rebuild-runtime-from-uci ||
+  fail "a rebuild from UCI state should succeed"
+assert_eq "1" "$(grep -c transaction "$NFT_BATCH_LOG")" "a full replace must reach nft as one transaction"
+# The same run proves the base still reads its settings from UCI.
+assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_interfaces\t{ br-lan }' "replace takes br-lan from UCI"
+assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_interfaces\t{ tun0 }' "replace takes tun0 from UCI"
+assert_contains "$NFT_LOG" $'nft\tinsert\trule\tinet\tForkopTable\tmangle\tudp\tdport\t123\treturn' "replace takes the ntp exclusion from UCI"
+# Creating the table before deleting it is what makes the replace unconditional:
+# `delete table` on a table that is not there aborts the whole transaction.
+assert_line_before "$NFT_LOG" $'nft\ttable\tinet\tForkopTable' $'nft\tdelete\ttable\tinet\tForkopTable' \
+  "the replace creates the table before deleting it"
+assert_line_before "$NFT_LOG" $'nft\tdelete\ttable\tinet\tForkopTable' $'nft\tadd\ttable\tinet\tForkopTable' \
+  "the replace adds the table back after deleting it"
+if grep -Fq $'nft\t-t\tlist\ttable\tinet\tForkopTable' "$NFT_LOG"; then
+  fail "the replace must not probe for the table it replaces unconditionally"
+fi
+
+# What nft refused is the only thing that explains a failed rebuild. It used to
+# go to whatever the caller's stderr happened to be, which for a service module
+# is nowhere, so the reload reported a failure with no reason at all.
+: > "$LOGGER_LOG"
+if NFT_TRANSACTION_FAIL=1 \
+  FORKOP_UCI_STATE_FILE="$WORK_DIR/runtime-base-uci.state" \
+  FORKOP_RT_TABLES="$WORK_DIR/rt_tables" \
+  IP_ROUTE_OUTPUT='local default dev lo scope host' \
+  IP_ROUTE6_OUTPUT='local default dev lo metric 1024 pref medium' \
+  IP_RULE_OUTPUT='105: from all fwmark 0x100000/0x100000 lookup forkop' \
+  IP_RULE6_OUTPUT='105: from all fwmark 0x100000/0x100000 lookup forkop' \
+  nft_ucode nft-rebuild-runtime-from-uci 2>/dev/null; then
+  fail "a refused transaction must fail the rebuild"
+fi
+assert_contains "$LOGGER_LOG" "[fatal] nft refused the ruleset: Error: syntax error, unexpected junk" \
+  "a refused transaction must be logged with the reason nft gave"
 
 : > "$NFT_LOG"
 nft_ucode nft-create-runtime-output-rules ForkopTable forkop_subnets forkop_ports forkop_ip_ports 0x00100000 198.18.0.0/15
@@ -273,13 +321,20 @@ assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle_output\tt
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle_output\tip\tdaddr\t198.18.0.0/15\tmeta\tl4proto\tudp\tmeta\tmark\tset\t0x00100000\tcounter' "runtime output fakeip udp"
 
 : > "$NFT_LOG"
-if NFT_LIST_TABLE_FAIL=1 nft_ucode nft-table-present-fixture ForkopTable 2>"$WORK_DIR/nft-table-present.err"; then
-  fail "missing nft table should return false"
-fi
+# nft/state.uc owns the question, because the reload path, the readiness poll and
+# the UI status refresh all ask it. Terse: whether the table exists is the whole
+# question, and printing every element of every set to answer it costs seconds on
+# a real rule set.
+table_present() {
+  ucode -L "$FORKOP_LIB" -e '
+    print(require("nft.state").table_present(ARGV[0]) ? "yes" : "no", "\n");
+  ' -- "$1"
+}
+assert_eq "no" \
+  "$(NFT_LIST_TABLE_FAIL=1 table_present ForkopTable 2>"$WORK_DIR/nft-table-present.err")" \
+  "missing nft table"
 [ ! -s "$WORK_DIR/nft-table-present.err" ] ||
   fail "missing nft table predicate must suppress nft stderr"
-# Terse: whether the table exists is the whole question, and printing every
-# element of every set to answer it costs seconds on a real rule set.
 assert_contains "$NFT_LOG" $'nft\t-t\tlist\ttable\tinet\tForkopTable' "nft table presence check"
 
 cat >"$WORK_DIR/provider-rules.json" <<'JSON'
@@ -353,6 +408,21 @@ cat >"$WORK_DIR/priority-rules.json" <<'JSON'
       "action": "proxy",
       "ip_cidr": [ "192.0.2.0/24" ],
       "source_ip_cidr": [ "192.168.1.50/32" ]
+    },
+    {
+      ".name": "builtin_subnets",
+      ".type": "section",
+      "enabled": "1",
+      "action": "proxy",
+      "community_lists": [ "discord" ]
+    },
+    {
+      ".name": "ip_and_ports",
+      ".type": "section",
+      "enabled": "1",
+      "action": "proxy",
+      "ip_cidr": [ "203.0.113.0/24" ],
+      "ports": [ "8080" ]
     }
   ]
 }
@@ -391,6 +461,49 @@ assert_line_before "$NFT_LOG" \
   $'nft\tadd\trule\tinet\tForkopTable\tpriority_rules\tiifname\t@forkop_interfaces\tip\tsaddr\t@forkop_rule_wide_proxy_fully_sources\tip\tdaddr\t!=\t@localv4\tmeta\tl4proto\ttcp\tmeta\tmark\tset\t0x00100000\tcounter\taccept' \
   "fully routed section order"
 
+# A built-in list can carry addresses constrained to ports, which is what the
+# core exports as scoped groups and what the rule-set sync worker writes into the
+# ip-port sets. The rules that read those sets used to be built only for a custom
+# rule set, so a built-in list's port-constrained addresses were loaded into a set
+# nothing matched.
+assert_contains "$NFT_LOG" $'nft\tadd\tset\tinet\tForkopTable\tforkop_rule_builtin_subnets_ip_ports\t{ type ipv4_addr . inet_service; flags interval; auto-merge; }' "built-in subnet list ip-port set"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tpriority_rules\tiifname\t@forkop_interfaces\tip\tdaddr\t!=\t@localv4\tip\tdaddr\t.\tudp\tdport\t@forkop_rule_builtin_subnets_ip_ports\tmeta\tmark\tset\t0x00100000\tcounter\taccept' "built-in subnet list ip-port rule"
+
+# A port next to an address is a condition on that address: the pair goes into
+# the ip-port set and is matched together. A section that also matched the port
+# on its own would claim every address on it, which is not what it selects.
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tpriority_rules\tiifname\t@forkop_interfaces\tip\tdaddr\t!=\t@localv4\tip\tdaddr\t.\ttcp\tdport\t@forkop_rule_ip_and_ports_ip_ports\tmeta\tmark\tset\t0x00100000\tcounter\taccept' "an address with a port is matched as a pair"
+if grep -Fq $'dport\t@forkop_rule_ip_and_ports_ports' "$NFT_LOG"; then
+  fail "a section that selects addresses must not also match its ports on their own"
+fi
+
+# Which sets a section owns is decided once, in nft/sections.uc, and the rule-set
+# sync worker flushes exactly those. A set no rule reads is a kernel object per
+# section that nothing can ever match, and there were five of them.
+for absent in \
+  forkop_rule_port_bypass_subnets \
+  forkop_rule_port_bypass_sources \
+  forkop_rule_port_bypass_fully_sources \
+  forkop_rule_bypass_first_ports \
+  forkop_rule_bypass_first_sources \
+  forkop_rule_client_filter_fully_sources \
+  forkop_rule_system_filter_sources \
+  forkop_rule_ip_and_ports_ports \
+  forkop_rule_ip_and_ports_subnets \
+  forkop_rule_builtin_subnets_ports; do
+  if grep -Fq $'\tadd\tset\tinet\tForkopTable\t'"$absent"$'\t' "$NFT_LOG"; then
+    fail "no rule reads $absent, so it must not be created"
+  fi
+done
+for present in \
+  forkop_rule_bypass_first_subnets \
+  forkop_rule_bypass_first_fully_sources \
+  forkop_rule_port_bypass_ports \
+  forkop_rule_client_filter_sources \
+  forkop_rule_client_filter_subnets; do
+  assert_contains "$NFT_LOG" $'\tadd\tset\tinet\tForkopTable\t'"$present"$'\t' "$present must be created"
+done
+
 : > "$IP_LOG"
 : > "$LOGGER_LOG"
 rt_tables="$WORK_DIR/rt_tables"
@@ -419,32 +532,44 @@ IP_ROUTE_OUTPUT='local default dev lo scope host' \
 if grep -Fq $'\tadd\t' "$IP_LOG"; then
   fail "existing tproxy route/rule should not be added again"
 fi
-assert_contains "$LOGGER_LOG" "[debug] IPv4 tproxy route already exists" "existing tproxy route log"
-assert_contains "$LOGGER_LOG" "[debug] IPv6 tproxy route already exists" "existing tproxy route6 log"
-assert_contains "$LOGGER_LOG" "[debug] IPv4 tproxy marking rule already exists" "existing tproxy marking rule log"
-assert_contains "$LOGGER_LOG" "[debug] IPv6 tproxy marking rule already exists" "existing tproxy marking rule6 log"
-IP_ROUTE_OUTPUT='local default dev lo scope host' \
-  IP_ROUTE6_OUTPUT='local default dev lo metric 1024 pref medium' \
-  IP_RULE_OUTPUT='105: from all fwmark 0x100000/0x100000 lookup forkop' \
-  IP_RULE6_OUTPUT='105: from all fwmark 0x100000/0x100000 lookup forkop' \
-  nft_ucode tproxy-route-rule-present forkop 0x00100000
-if IP_ROUTE_OUTPUT='local default dev lo scope host' \
-  IP_ROUTE6_OUTPUT='local default dev lo metric 1024 pref medium' \
-  IP_RULE_OUTPUT='105: from all fwmark 0x200000/0x200000 lookup forkop' \
-  IP_RULE6_OUTPUT='105: from all fwmark 0x100000/0x100000 lookup forkop' \
-  nft_ucode tproxy-route-rule-present forkop 0x00100000 >/dev/null 2>&1; then
-  fail "tproxy route/rule presence should require the Forkop fwmark"
-fi
+# The absence of an `ip ... add` above is the check. Reporting four times that
+# nothing needed doing is what made replacing the table take seven log lines to
+# say one thing, so a run that changes nothing says nothing.
+[ ! -s "$LOGGER_LOG" ] ||
+  fail "an already configured tproxy route and rule must not be reported"
+# The routing state predicates are nft/state.uc's, so they are asked of it
+# directly: routing them through a pass-through mode of nft/apply.uc only put a
+# second name on the same answer.
+route_rule_present() {
+  ucode -L "$FORKOP_LIB" -e '
+    print(require("nft.state").tproxy_route_rule_present(ARGV[0], ARGV[1]) ? "yes" : "no", "\n");
+  ' -- "$1" "$2"
+}
+assert_eq "yes" \
+  "$(IP_ROUTE_OUTPUT='local default dev lo scope host' \
+    IP_ROUTE6_OUTPUT='local default dev lo metric 1024 pref medium' \
+    IP_RULE_OUTPUT='105: from all fwmark 0x100000/0x100000 lookup forkop' \
+    IP_RULE6_OUTPUT='105: from all fwmark 0x100000/0x100000 lookup forkop' \
+    route_rule_present forkop 0x00100000)" \
+  "configured tproxy route and rule"
+assert_eq "no" \
+  "$(IP_ROUTE_OUTPUT='local default dev lo scope host' \
+    IP_ROUTE6_OUTPUT='local default dev lo metric 1024 pref medium' \
+    IP_RULE_OUTPUT='105: from all fwmark 0x200000/0x200000 lookup forkop' \
+    IP_RULE6_OUTPUT='105: from all fwmark 0x100000/0x100000 lookup forkop' \
+    route_rule_present forkop 0x00100000)" \
+  "tproxy route/rule presence requires the Forkop fwmark"
 # Another package can register the same table id in /etc/iproute2/rt_tables, so
 # iproute2 may print a foreign name for the Forkop table. The rule list is
 # already scoped to the table, so the Forkop rule must still be recognized.
 : > "$IP_LOG"
-IP_ROUTE_OUTPUT='local default dev lo scope host' \
-  IP_ROUTE6_OUTPUT='local default dev lo metric 1024 pref medium' \
-  IP_RULE_OUTPUT='105: from all fwmark 0x100000/0x100000 lookup podkop' \
-  IP_RULE6_OUTPUT='105: from all fwmark 0x100000/0x100000 lookup podkop' \
-  nft_ucode tproxy-route-rule-present forkop 0x00100000 ||
-  fail "tproxy rule presence must not depend on the printed table name"
+assert_eq "yes" \
+  "$(IP_ROUTE_OUTPUT='local default dev lo scope host' \
+    IP_ROUTE6_OUTPUT='local default dev lo metric 1024 pref medium' \
+    IP_RULE_OUTPUT='105: from all fwmark 0x100000/0x100000 lookup podkop' \
+    IP_RULE6_OUTPUT='105: from all fwmark 0x100000/0x100000 lookup podkop' \
+    route_rule_present forkop 0x00100000)" \
+  "tproxy rule presence must not depend on the printed table name"
 assert_contains "$IP_LOG" $'ip\t-4\trule\tlist\ttable\tforkop' "tproxy marking rule query is table scoped"
 assert_contains "$IP_LOG" $'ip\t-6\trule\tlist\ttable\tforkop' "tproxy marking rule6 query is table scoped"
 
@@ -566,149 +691,76 @@ fi
 if grep -Fq '192.0.2.53' "$NFT_LOG" || grep -Fq 'forkop_rule_dns_only' "$NFT_LOG"; then
   fail "DNS action should only populate the shared source-aware DNS set"
 fi
-cat >"$WORK_DIR/signature-fixture.json" <<'JSON'
-{
-  "settings": {
-    "source_network_interfaces": [ "br-lan", "tun0" ],
-    "exclude_ntp": "1"
-  },
-  "section": [
-    {
-      ".name": "disabled",
-      ".type": "section",
-      "enabled": "0",
-      "action": "proxy",
-      "ip_cidr": [ "192.0.2.10" ],
-      "ports": [ "1234" ],
-      "community_lists": [ "discord" ]
-    },
-    {
-      ".name": "text_rule",
-      ".type": "section",
-      "enabled": "1",
-      "action": "bypass",
-      "ip_cidr_text_mode": "1",
-      "ip_cidr_text": "198.51.100.1\nbad-value\n203.0.113.0/24",
-      "ip_cidr": [ "10.0.0.0/8" ],
-      "ports": [ "443", "bad-value", "443" ],
-      "ports_text": "80, 443-444\n0\n65536",
-      "fully_routed_ips": [ "192.168.1.10/32" ],
-      "community_lists": [ "geoblock", "meta", "telegram", "youtube", "discord" ],
-      "rule_set_with_subnets": [ "/tmp/local.json", "https://example.com/mixed.lst" ]
-    },
-    {
-      ".name": "default_enabled",
-      ".type": "section",
-      "action": "proxy",
-      "ip_cidr": [ "10.0.0.0/8", "192.0.2.1" ],
-      "source_ip_cidr": [ "@system" ],
-      "ports_text": "53 853",
-      "community_lists": [ "youtube", "cloudflare", "roblox" ]
-    }
-  ]
+# The nft signature is a hash of the ruleset the builders would produce, so what
+# it answers is "would the table come out different". These pin that: creating a
+# section that contributes no nft rule used to move the signature and tear the
+# whole table down for nothing.
+nft_signature() {
+  printf '%s' "$1" > "$WORK_DIR/sig.json"
+  nft_ucode nft-runtime-signature-fixture "$WORK_DIR/sig.json"
 }
-JSON
 
-cat >"$WORK_DIR/signature-expected.txt" <<'EOF_EXPECTED'
-[settings.source_network_interfaces]
-br-lan tun0
-[settings.exclude_ntp]
-1
-[rule.text_rule.action]
-bypass
-[rule.text_rule.ip_cidr]
-198.51.100.1,203.0.113.0/24
-[rule.text_rule.source_ip_cidr]
+SIG_SETTINGS='"settings":{"source_network_interfaces":"br-lan"}'
+sig_baseline="$(nft_signature "{$SIG_SETTINGS,\"section\":[]}")"
+[ -n "$sig_baseline" ] || fail "the nft signature must be computable"
+assert_eq "$sig_baseline" "$(nft_signature "{$SIG_SETTINGS,\"section\":[]}")" \
+  "the nft signature is the same for the same configuration"
 
-[rule.text_rule.source_aware_dns]
-1
-[rule.text_rule.ports]
-443,80,443-444
-[rule.text_rule.fully_routed_ips]
-192.168.1.10/32
-[rule.text_rule.community_subnet_lists]
-meta telegram discord
-[rule.text_rule.rule_set_with_subnets]
-/tmp/local.json https://example.com/mixed.lst
-[rule.default_enabled.action]
-proxy
-[rule.default_enabled.ip_cidr]
-10.0.0.0/8,192.0.2.1
-[rule.default_enabled.source_ip_cidr]
-@system
-[rule.default_enabled.source_aware_dns]
-1
-[rule.default_enabled.ports]
-53,853
-[rule.default_enabled.fully_routed_ips]
+assert_unchanged_signature() {
+  local label="$1" config="$2"
+  assert_eq "$sig_baseline" "$(nft_signature "$config")" "$label must not move the nft signature"
+}
 
-[rule.default_enabled.community_subnet_lists]
-cloudflare roblox
-[rule.default_enabled.rule_set_with_subnets]
+assert_changed_signature() {
+  local label="$1" config="$2" actual
+  actual="$(nft_signature "$config")"
+  [ -n "$actual" ] || fail "$label: the nft signature must be computable"
+  [ "$actual" != "$sig_baseline" ] || fail "$label must move the nft signature"
+}
 
-EOF_EXPECTED
-expected_signature="$(md5sum "$WORK_DIR/signature-expected.txt" | awk '{print $1}')"
-assert_eq "$expected_signature" \
-  "$(nft_ucode nft-runtime-signature-fixture "$WORK_DIR/signature-fixture.json")" \
-  "nft runtime signature fixture"
+# Nothing here reaches nft: domains, keywords and rule sets without subnets are
+# matched by sing-box, and a section with no nft matcher at all contributes no
+# rule and no set.
+assert_unchanged_signature "an empty section" \
+  "{$SIG_SETTINGS,\"section\":[{\".name\":\"s\",\"enabled\":\"1\",\"action\":\"proxy\"}]}"
+assert_unchanged_signature "a section carrying only domains" \
+  "{$SIG_SETTINGS,\"section\":[{\".name\":\"s\",\"enabled\":\"1\",\"action\":\"proxy\",\"domain_suffix_text\":\"a.example\nb.example\"}]}"
+assert_unchanged_signature "a renamed section label" \
+  "{$SIG_SETTINGS,\"section\":[{\".name\":\"s\",\"enabled\":\"1\",\"action\":\"proxy\",\"label\":\"Renamed\"}]}"
+assert_unchanged_signature "a disabled section with IP matchers" \
+  "{$SIG_SETTINGS,\"section\":[{\".name\":\"s\",\"enabled\":\"0\",\"action\":\"proxy\",\"ip_cidr\":\"192.0.2.0/24\"}]}"
+assert_unchanged_signature "a domain-only rule set" \
+  "{$SIG_SETTINGS,\"section\":[{\".name\":\"s\",\"enabled\":\"1\",\"action\":\"proxy\",\"rule_set\":\"https://example.com/domains.lst\"}]}"
 
-cat >"$WORK_DIR/signature-uci.state" <<'EOF_UCI'
-forkop.settings=settings
-forkop.settings.source_network_interfaces=br-lan tun0
-forkop.settings.exclude_ntp=1
-forkop.disabled=section
-forkop.disabled.enabled=0
-forkop.disabled.ip_cidr=192.0.2.10
-forkop.enabled=section
-forkop.enabled.enabled=1
-forkop.enabled.action=bypass
-forkop.enabled.ip_cidr=10.0.0.0/8 192.0.2.1
-forkop.enabled.ports=443 bad-value
-forkop.enabled.ports_text=80 443-444 65536
-forkop.enabled.fully_routed_ips=192.168.1.10/32
-forkop.enabled.community_lists=geoblock meta telegram youtube discord
-forkop.enabled.rule_set_with_subnets=/tmp/local.json https://example.com/mixed.lst
-EOF_UCI
-cat >"$WORK_DIR/signature-uci-expected.txt" <<'EOF_EXPECTED'
-[settings.source_network_interfaces]
-br-lan tun0
-[settings.exclude_ntp]
-1
-[rule.enabled.action]
-bypass
-[rule.enabled.ip_cidr]
-10.0.0.0/8,192.0.2.1
-[rule.enabled.source_ip_cidr]
+# These all reach nft, and each one has to be seen.
+assert_changed_signature "an inline IP matcher" \
+  "{$SIG_SETTINGS,\"section\":[{\".name\":\"s\",\"enabled\":\"1\",\"action\":\"proxy\",\"ip_cidr\":\"192.0.2.0/24\"}]}"
+assert_changed_signature "a port matcher" \
+  "{$SIG_SETTINGS,\"section\":[{\".name\":\"s\",\"enabled\":\"1\",\"action\":\"proxy\",\"ports\":\"443\"}]}"
+assert_changed_signature "a rule set importing subnets" \
+  "{$SIG_SETTINGS,\"section\":[{\".name\":\"s\",\"enabled\":\"1\",\"action\":\"proxy\",\"rule_set_with_subnets\":\"https://example.com/subnets.srs\"}]}"
+assert_changed_signature "a community list carrying subnets" \
+  "{$SIG_SETTINGS,\"section\":[{\".name\":\"s\",\"enabled\":\"1\",\"action\":\"proxy\",\"community_lists\":\"telegram\"}]}"
+assert_changed_signature "fully routed devices" \
+  "{$SIG_SETTINGS,\"section\":[{\".name\":\"s\",\"enabled\":\"1\",\"action\":\"bypass\",\"fully_routed_ips\":\"192.168.1.10/32\"}]}"
+assert_changed_signature "the NTP exclusion" \
+  "{\"settings\":{\"source_network_interfaces\":\"br-lan\",\"exclude_ntp\":\"1\"},\"section\":[]}"
+assert_changed_signature "another source interface" \
+  "{\"settings\":{\"source_network_interfaces\":\"br-lan tun0\"},\"section\":[]}"
 
-[rule.enabled.source_aware_dns]
-1
-[rule.enabled.ports]
-443,80,443-444
-[rule.enabled.fully_routed_ips]
-192.168.1.10/32
-[rule.enabled.community_subnet_lists]
-meta telegram discord
-[rule.enabled.rule_set_with_subnets]
-/tmp/local.json https://example.com/mixed.lst
-EOF_EXPECTED
-expected_signature="$(md5sum "$WORK_DIR/signature-uci-expected.txt" | awk '{print $1}')"
-assert_eq "$expected_signature" \
-  "$(FORKOP_UCI_STATE_FILE="$WORK_DIR/signature-uci.state" nft_ucode nft-runtime-signature)" \
-  "nft runtime signature from UCI state"
+# The elements are part of the table too, so their contents have to be seen and
+# not just their presence.
+sig_one_subnet="$(nft_signature "{$SIG_SETTINGS,\"section\":[{\".name\":\"s\",\"enabled\":\"1\",\"action\":\"proxy\",\"ip_cidr\":\"192.0.2.0/24\"}]}")"
+sig_other_subnet="$(nft_signature "{$SIG_SETTINGS,\"section\":[{\".name\":\"s\",\"enabled\":\"1\",\"action\":\"proxy\",\"ip_cidr\":\"198.51.100.0/24\"}]}")"
+[ "$sig_one_subnet" != "$sig_other_subnet" ] ||
+  fail "a different IP list must move the nft signature"
 
-cat >"$WORK_DIR/signature-defaults-fixture.json" <<'JSON'
-{}
-JSON
-cat >"$WORK_DIR/signature-defaults-expected.txt" <<'EOF_EXPECTED'
-[settings.source_network_interfaces]
-br-lan
-[settings.exclude_ntp]
-0
-EOF_EXPECTED
-expected_signature="$(md5sum "$WORK_DIR/signature-defaults-expected.txt" | awk '{print $1}')"
-assert_eq "$expected_signature" \
-  "$(nft_ucode nft-runtime-signature-fixture "$WORK_DIR/signature-defaults-fixture.json")" \
-  "nft runtime signature defaults"
+# Hashing the ruleset must not apply it or report as if it had.
+: > "$NFT_LOG"
+: > "$LOGGER_LOG"
+nft_signature "{$SIG_SETTINGS,\"section\":[{\".name\":\"s\",\"enabled\":\"1\",\"action\":\"proxy\",\"ip_cidr\":\"192.0.2.0/24\"}]}" >/dev/null
+[ ! -s "$NFT_LOG" ] || fail "computing the nft signature must not touch nft"
+[ ! -s "$LOGGER_LOG" ] || fail "computing the nft signature must not log as if it applied anything"
 
 : > "$NFT_LOG"
 nft_ucode nft-populate-runtime-sets-fixture "$WORK_DIR/populate-fixture.json" 0 "" ForkopTable

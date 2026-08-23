@@ -122,13 +122,27 @@ function valid_ip_or_cidr(value) {
     return valid_ip(value) || valid_ip_cidr(value);
 }
 
-function nft_ip_or_cidr(value) {
-    return valid_ipv4(value, true, true) || valid_ipv4_cidr(value, true) || valid_ipv6(value) || valid_ipv6_cidr(value);
-}
-
 function ip_family(value) {
     return valid_ipv4(value, false, false) || valid_ipv4_cidr(value, false) ? 4 :
         (valid_ipv6(value) || valid_ipv6_cidr(value) ? 6 : 0);
+}
+
+// The family nft would accept this literal as, or 0 for one it would reject.
+// Stricter than the family above: a leading zero in an octet is an address nft
+// refuses, so a set element carrying one has to be dropped before it reaches a
+// transaction the rest of the table depends on. Callers that walk long lists ask
+// for the family and the verdict at once, because deciding them separately means
+// validating every address twice.
+function nft_ip_family(value) {
+    if (valid_ipv4(value, true, true) || valid_ipv4_cidr(value, true))
+        return 4;
+    if (valid_ipv6(value) || valid_ipv6_cidr(value))
+        return 6;
+    return 0;
+}
+
+function nft_ip_or_cidr(value) {
+    return nft_ip_family(value) != 0;
 }
 
 // Addresses that are routable on the public Internet: everything the IANA
@@ -198,6 +212,7 @@ return {
     valid_ip_or_cidr,
     valid_public_ip,
     nft_ip_or_cidr,
+    nft_ip_family,
     ip_family,
     format_ipv6_tproxy_target
 };

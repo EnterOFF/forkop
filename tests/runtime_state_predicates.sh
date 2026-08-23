@@ -11,6 +11,9 @@ export ZAPRET_DEFAULT_NFQWS_OPT="--default-zapret"
 export ZAPRET2_DEFAULT_NFQWS2_OPT="--default-zapret2"
 export BYEDPI_DEFAULT_CMD_OPTS="--default-bye"
 export FORKOP_FAKE_INIT_CAPTURE="$WORK_DIR/pending-reload-init.args"
+# service/state.uc asks nft/apply.uc for the nft signature, and the library it
+# reaches for is the one FORKOP_LIB names.
+export FORKOP_LIB
 
 cleanup() {
   if [ -n "${sing_box_pid:-}" ]; then
@@ -1263,10 +1266,15 @@ EOF_CRON_SIG
 assert_eq "$(md5_file "$WORK_DIR/cron-signature.expected")" \
   "$(state_ucode cron-signature-fixture "$WORK_DIR/reload-state-signatures.json")" \
   "component cron signature hash"
+# One owner: the nft signature is a hash of the ruleset nft/apply.uc would build,
+# and the reload state carries that value rather than a second opinion about which
+# fields the table depends on. The two lists used to be kept in step by hand, and
+# both were wrong in the same way.
 nft_signature="$(nft_ucode nft-runtime-signature-fixture "$WORK_DIR/reload-state-signatures.json")"
-assert_eq "$nft_signature" \
-  "$(state_ucode nft-signature-fixture "$WORK_DIR/reload-state-signatures.json")" \
-  "state reload nft signature parity"
+[ -n "$nft_signature" ] || fail "nft/apply.uc must produce a signature for the fixture"
+if grep -q 'nft_runtime_signature_body' "$STATE_UC"; then
+  fail "service/state.uc must not keep its own list of nft-relevant fields"
+fi
 assert_eq "6h" \
   "$(state_ucode settings-update-interval-fixture "$WORK_DIR/reload-state-signatures.json")" \
   "settings update interval"

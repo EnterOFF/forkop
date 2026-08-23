@@ -35,14 +35,28 @@ sync_ucode() {
   ucode -L "$FORKOP_LIB" "$SYNC" "$@"
 }
 
-ucode -L "$FORKOP_LIB" -e 'let sync=require("nft.ruleset_sync"); exit(type(sync.build_plan)=="function" && type(sync.build_batch)=="function" ? 0 : 1);'
+ucode -L "$FORKOP_LIB" -e 'let sync=require("nft.ruleset_sync"); exit(type(sync.build_plan)=="function" && type(sync.render_plan)=="function" && type(sync.apply_runtime_snapshot)=="function" ? 0 : 1);'
 
 mkdir -p "$WORK_DIR/bin"
+# The transaction reaches nft as a file rather than on stdin: everything the
+# worker was holding is released before nft starts allocating, and what nft
+# refused can be read back. Each invocation is appended so a run that hands nft
+# several transactions can be told from one that hands it a single batch.
 cat >"$WORK_DIR/bin/nft" <<'EOF_NFT'
 #!/usr/bin/env bash
 set -eo pipefail
 printf '%s\n' "$*" >>"${NFT_LOG:?}"
-cat >"${NFT_INPUT:?}"
+if [ "$1" = "-f" ] && [ -f "${2:-}" ]; then
+  cat "$2" >>"${NFT_INPUT:?}"
+else
+  cat >>"${NFT_INPUT:?}"
+fi
+# nft holds every element of every set a transaction touches before it commits,
+# so on a router a large enough rule set is killed rather than refused: it never
+# gets to print a reason, and the exit status is the signal.
+if [ "${NFT_OOM_KILL:-0}" = "1" ]; then
+  kill -KILL $$
+fi
 EOF_NFT
 chmod 0755 "$WORK_DIR/bin/nft"
 
@@ -122,16 +136,26 @@ sync_ucode render-fixture "$WORK_DIR/snapshot.json" "$WORK_DIR/fixture.json" mix
     fail "main fixture did not render"
   }
 
-[ "$(wc -l <"$WORK_DIR/render.err")" -eq 1 ] || {
+# One line for what was loaded and one for what the core could not express. The
+# count is the addresses the sets ended up holding, which includes the section's
+# own: they are written by the same transaction and were reported by nobody.
+[ "$(wc -l <"$WORK_DIR/render.err")" -eq 2 ] || {
   cat "$WORK_DIR/render.err" >&2
-  fail "render must produce one concise summary"
+  fail "render must produce one concise summary and the skipped count"
 }
-assert_contains "$WORK_DIR/render.err" "Added 5 IP addresses from rule sets to nft" "sync summary"
+assert_contains "$WORK_DIR/render.err" "Loaded 7 subnets into nft" "sync summary"
+assert_contains "$WORK_DIR/render.err" "Skipped 1 rule-set entries whose conditions nft cannot express" \
+  "an address rule the core refused to export has to be visible"
 assert_not_contains "$WORK_DIR/render.err" "ignored" "sync summary must hide internal filtering details"
 assert_not_contains "$WORK_DIR/render.err" "IP/port" "sync summary must describe generic nft values"
 assert_not_contains "$WORK_DIR/render.err" "mixed" "sync summary must not expose section details"
-for set_name in subnets subnets6 ip_ports ip6_ports; do
+# With ports every address is matched together with one, so this section's
+# addresses live in the ip-port sets and it owns no plain subnet set at all.
+for set_name in ip_ports ip6_ports; do
   assert_contains "$WORK_DIR/render.nft" "flush set inet ForkopTable forkop_rule_mixed_${set_name}" "atomic ${set_name} flush"
+done
+for set_name in subnets subnets6; do
+  assert_not_contains "$WORK_DIR/render.nft" "forkop_rule_mixed_${set_name}" "a section with ports owns no ${set_name} set"
 done
 
 assert_contains "$WORK_DIR/render.nft" "10.0.0.0/8 . 80" "inline IPv4 gets section port"
@@ -151,15 +175,40 @@ rm -f "$NFT_LOG" "$NFT_INPUT"
 PATH="$WORK_DIR/bin:$PATH" NFT_LOG="$NFT_LOG" NFT_INPUT="$NFT_INPUT" \
   sync_ucode apply-fixture "$WORK_DIR/snapshot.json" "$WORK_DIR/fixture.json" mixed \
   >"$WORK_DIR/apply.out" 2>"$WORK_DIR/apply.err"
-[ "$(wc -l <"$NFT_LOG")" -eq 1 ] || fail "sync must invoke nft exactly once"
-[ "$(cat "$NFT_LOG")" = "-f -" ] || fail "sync must send one nft batch on stdin"
+[ "$(wc -l <"$NFT_LOG")" -eq 1 ] || fail "sync must invoke nft exactly once per section"
+case "$(cat "$NFT_LOG")" in
+  '-f /'*) ;;
+  *) fail "sync must hand nft one transaction file" ;;
+esac
 cmp -s "$WORK_DIR/render.nft" "$NFT_INPUT" || fail "applied transaction differs from rendered transaction"
 
+# Only the sets the section's own rules read are touched. A section with no
+# address matcher at all owns none of them, and flushing one nft/apply.uc never
+# created aborts the transaction - which is enough to stop every other section
+# from being loaded too.
 sync_ucode render-fixture "$WORK_DIR/snapshot.json" "$WORK_DIR/fixture.json" empty >"$WORK_DIR/empty.nft"
-[ "$(grep -c '^flush set ' "$WORK_DIR/empty.nft")" -eq 4 ] || fail "empty result must flush all four sets"
+[ "$(grep -c '^flush set ' "$WORK_DIR/empty.nft")" -eq 0 ] ||
+  fail "a section with no address matcher must own no sets"
 if grep -q '^add element ' "$WORK_DIR/empty.nft"; then
   fail "empty result must not add elements"
 fi
+
+# A transaction the router cannot hold is killed, not refused, so there is no
+# message to report and the status is the signal. Saying which happened is the
+# difference between a configuration error and a list this hardware cannot hold.
+rm -f "$NFT_LOG" "$NFT_INPUT"
+NFT_OOM_KILL=1 PATH="$WORK_DIR/bin:$PATH" NFT_LOG="$NFT_LOG" NFT_INPUT="$NFT_INPUT" \
+  sync_ucode apply-fixture "$WORK_DIR/snapshot.json" "$WORK_DIR/fixture.json" mixed \
+  >/dev/null 2>"$WORK_DIR/oom.err" && fail "a killed transaction must fail the sync"
+assert_contains "$WORK_DIR/oom.err" "nft ran out of memory" "a killed transaction must say so"
+assert_contains "$WORK_DIR/oom.err" "section mixed" "a killed transaction must name the section"
+
+printf '%s\n' '{"sections":[{".name":"plain","enabled":"1","action":"proxy","ip_cidr":["192.0.2.0/24"]}]}' \
+  >"$WORK_DIR/plain-fixture.json"
+sync_ucode render-fixture "$WORK_DIR/snapshot.json" "$WORK_DIR/plain-fixture.json" plain >"$WORK_DIR/plain.nft"
+assert_contains "$WORK_DIR/plain.nft" "flush set inet ForkopTable forkop_rule_plain_subnets" "addresses without ports"
+assert_not_contains "$WORK_DIR/plain.nft" "forkop_rule_plain_ip_ports" \
+  "a section without ports and without providers owns no ip-port set"
 
 rm -f "$NFT_LOG" "$NFT_INPUT"
 if PATH="$WORK_DIR/bin:$PATH" NFT_LOG="$NFT_LOG" NFT_INPUT="$NFT_INPUT" \
@@ -168,11 +217,17 @@ if PATH="$WORK_DIR/bin:$PATH" NFT_LOG="$NFT_LOG" NFT_INPUT="$NFT_INPUT" \
 fi
 [ ! -e "$NFT_LOG" ] || fail "missing provider must fail before invoking nft"
 
-if PATH="$WORK_DIR/bin:$PATH" NFT_LOG="$NFT_LOG" NFT_INPUT="$NFT_INPUT" \
-  sync_ucode apply-fixture "$WORK_DIR/snapshot.json" "$WORK_DIR/fixture.json" bad_port >/dev/null 2>&1; then
-  fail "invalid section port must fail"
-fi
-[ ! -e "$NFT_LOG" ] || fail "invalid section port must fail before invoking nft"
+# A port the section cannot use is dropped by the owner every reader of that
+# option goes through, so the rules and the sets agree about the section having
+# none - and the value never reaches a transaction either way. Refusing the whole
+# sync over it stopped every other section from being loaded at all.
+rm -f "$NFT_LOG" "$NFT_INPUT"
+PATH="$WORK_DIR/bin:$PATH" NFT_LOG="$NFT_LOG" NFT_INPUT="$NFT_INPUT" \
+  sync_ucode apply-fixture "$WORK_DIR/snapshot.json" "$WORK_DIR/fixture.json" bad_port \
+  >/dev/null 2>"$WORK_DIR/bad-port.err" ||
+  fail "an unusable section port must not stop the section from loading"
+assert_not_contains "$NFT_INPUT" "delete table" "an unusable section port must not reach nft"
+assert_contains "$NFT_INPUT" "forkop_rule_bad_port_subnets" "a section without usable ports matches addresses alone"
 
 cat >"$WORK_DIR/malformed.json" <<'EOF_MALFORMED'
 {
@@ -301,8 +356,14 @@ rm -f "$NFT_LOG" "$NFT_INPUT"
 PATH="$WORK_DIR/bin:$PATH" NFT_LOG="$NFT_LOG" NFT_INPUT="$NFT_INPUT" \
   sync_ucode apply-all-fixture "$WORK_DIR/batch-snapshot.json" "$WORK_DIR/batch-fixture.json" \
   >"$WORK_DIR/batch.out" 2>"$WORK_DIR/batch.err"
-[ "$(wc -l <"$NFT_LOG")" -eq 1 ] || fail "full sync must invoke nft exactly once"
-[ "$(grep -c '^flush set ' "$NFT_INPUT")" -eq 8 ] || fail "full sync must rebuild both eligible sections together"
+# One transaction per section, not one for the whole configuration. nft holds
+# every element of every set a transaction touches before it commits, so a
+# configuration of ten country-sized sections costs the sum of them in one
+# transaction and the largest of them in ten - and the sections have nothing to
+# keep consistent with each other, because each set is matched by the rules of
+# its own section and by nothing else.
+[ "$(wc -l <"$NFT_LOG")" -eq 2 ] || fail "full sync must hand nft one transaction per section"
+[ "$(grep -c '^flush set ' "$NFT_INPUT")" -eq 4 ] || fail "full sync must rebuild both eligible sections"
 assert_contains "$NFT_INPUT" "forkop_rule_batch_one_ip_ports" "first eligible section"
 assert_contains "$NFT_INPUT" "forkop_rule_batch_two_subnets6" "second eligible section"
 assert_contains "$NFT_INPUT" "198.51.100.0/24 . 80" "subnet community provider"
@@ -311,18 +372,22 @@ assert_contains "$NFT_INPUT" "203.0.113.10 . 80" "text provider scoped port inte
 assert_not_contains "$NFT_INPUT" "dns_skip" "DNS action must not own nft priority sets"
 assert_not_contains "$NFT_INPUT" "disabled_skip" "disabled section must not own nft priority sets"
 assert_not_contains "$NFT_INPUT" "domain_only_skip" "domain-only section must not own nft priority sets"
-[ "$(wc -l <"$WORK_DIR/batch.err")" -eq 1 ] || fail "full sync must emit one concise summary"
-assert_contains "$WORK_DIR/batch.err" "Added 3 IP addresses from rule sets to nft" "batch sync summary"
+assert_contains "$WORK_DIR/batch.err" "Loaded 4 subnets into nft" "batch sync summary for the first section"
+assert_contains "$WORK_DIR/batch.err" "Loaded 1 subnets into nft" "batch sync summary for the second section"
+assert_contains "$WORK_DIR/batch.err" "Skipped 1 rule-set entries whose conditions nft cannot express" \
+  "a built-in list whose addresses the core refused has to be visible"
 assert_not_contains "$WORK_DIR/batch.err" "ignored" "batch summary must hide internal filtering details"
 assert_not_contains "$WORK_DIR/batch.err" "IP/port" "batch summary must describe generic nft values"
-assert_not_contains "$WORK_DIR/batch.err" "section" "batch summary must not expose section counts"
 
+rm -f "$NFT_LOG" "$NFT_INPUT"
 sed 's/"discord", //' "$WORK_DIR/batch-fixture.json" >"$WORK_DIR/batch-without-discord.json"
 PATH="$WORK_DIR/bin:$PATH" NFT_LOG="$NFT_LOG" NFT_INPUT="$NFT_INPUT" \
   sync_ucode apply-all-fixture "$WORK_DIR/batch-snapshot.json" "$WORK_DIR/batch-without-discord.json" \
   >/dev/null 2>"$WORK_DIR/batch-without-discord.err"
-assert_contains "$WORK_DIR/batch-without-discord.err" "Added 2 IP addresses from rule sets to nft" \
-  "removing a subnet rule set must change the logged IP count"
+assert_contains "$WORK_DIR/batch-without-discord.err" "Loaded 3 subnets into nft" \
+  "removing a subnet rule set must change the logged address count"
+assert_not_contains "$WORK_DIR/batch-without-discord.err" "Skipped" \
+  "a list nothing was skipped from must not be reported"
 
 cat >"$WORK_DIR/incomplete-batch-snapshot.json" <<EOF_INCOMPLETE_BATCH
 {
@@ -340,20 +405,25 @@ if PATH="$WORK_DIR/bin:$PATH" NFT_LOG="$NFT_LOG" NFT_INPUT="$NFT_INPUT" \
 fi
 [ ! -e "$NFT_LOG" ] || fail "full sync must validate every section before invoking nft"
 
-cat >"$WORK_DIR/invalid-late-fixture.json" <<'EOF_INVALID_LATE'
+# An address a user typed is dropped, not obeyed and not fatal: nft/apply.uc
+# drops the same value when it builds the rules, and one unusable entry in one
+# section used to stop every section's subnets from being loaded at all.
+cat >"$WORK_DIR/injected-inline-fixture.json" <<'EOF_INJECTED_INLINE'
 {
   "sections": [
     {".name":"valid_first","enabled":"1","action":"proxy","ip_cidr":["192.0.2.1"]},
-    {".name":"invalid_second","enabled":"1","action":"proxy","ip_cidr":["203.0.113.0/24; delete table inet ForkopTable"]}
+    {".name":"injected_second","enabled":"1","action":"proxy","ip_cidr":["203.0.113.0/24; delete table inet ForkopTable","198.51.100.7"]}
   ]
 }
-EOF_INVALID_LATE
+EOF_INJECTED_INLINE
 rm -f "$NFT_LOG" "$NFT_INPUT"
-if PATH="$WORK_DIR/bin:$PATH" NFT_LOG="$NFT_LOG" NFT_INPUT="$NFT_INPUT" \
-  sync_ucode apply-all-fixture "$WORK_DIR/batch-snapshot.json" "$WORK_DIR/invalid-late-fixture.json" >/dev/null 2>&1; then
-  fail "full sync with a malformed later section must fail"
-fi
-[ ! -e "$NFT_LOG" ] || fail "later validation failure must preserve every old set"
+PATH="$WORK_DIR/bin:$PATH" NFT_LOG="$NFT_LOG" NFT_INPUT="$NFT_INPUT" \
+  sync_ucode apply-all-fixture "$WORK_DIR/batch-snapshot.json" "$WORK_DIR/injected-inline-fixture.json" \
+  >/dev/null 2>&1 ||
+  fail "an unusable inline address must not stop the sync"
+assert_not_contains "$NFT_INPUT" "delete table" "an injected inline address must not reach nft"
+assert_contains "$NFT_INPUT" "192.0.2.1" "a valid section must still be loaded"
+assert_contains "$NFT_INPUT" "198.51.100.7" "the valid addresses of the same section must still be loaded"
 
 {
   printf '{"revision":1,"providers":{"large":{"revision":1,"ip_cidr":{"ipv4":['
@@ -463,11 +533,21 @@ sync_ucode sync >"$WORK_DIR/runtime.out" 2>"$WORK_DIR/runtime.err" || {
 [ "$(wc -l <"$NFT_LOG")" -eq 1 ] || fail "native runtime sync must invoke nft once"
 assert_contains "$NFT_INPUT" "198.51.100.0/24 . 80" "native runtime snapshot"
 
-sed 's/198\.51\.100\.0\/24/203.0.113.0\/24/' "$WORK_DIR/runtime-snapshot.json" >"$WORK_DIR/runtime-changed.json"
+# A provider revision is what the core changes when it reloads a rule set, and
+# the event stream this worker follows already only reports revisions. Reading
+# them per section is what lets an event about somebody else's provider cost
+# nothing: no rebuild of a country-sized list, and no transaction.
+sed -e 's/198\.51\.100\.0\/24/203.0.113.0\/24/' -e 's/"revision":4,"ip_cidr"/"revision":5,"ip_cidr"/' \
+  "$WORK_DIR/runtime-snapshot.json" >"$WORK_DIR/runtime-changed.json"
+# The same content under a revision that went backwards, which only a restarted
+# core produces: the keys recorded before it describe a different process.
+sed -e 's/"revision":4,"ip_cidr"/"revision":1,"ip_cidr"/' \
+  "$WORK_DIR/runtime-snapshot.json" >"$WORK_DIR/runtime-restarted.json"
 rm -f "$NFT_LOG" "$NFT_INPUT"
 PATH="$WORK_DIR/bin:$PATH" NFT_LOG="$NFT_LOG" NFT_INPUT="$NFT_INPUT" \
 FORKOP_TEST_INITIAL_SNAPSHOT="$WORK_DIR/runtime-snapshot.json" \
 FORKOP_TEST_CHANGED_SNAPSHOT="$WORK_DIR/runtime-changed.json" \
+FORKOP_TEST_RESTARTED_SNAPSHOT="$WORK_DIR/runtime-restarted.json" \
 ucode -L "$FORKOP_LIB" -e '
 let fs = require("fs");
 let sync = require("nft.ruleset_sync");
@@ -477,17 +557,48 @@ let sections = [{
 }];
 let initial = json(fs.readfile(getenv("FORKOP_TEST_INITIAL_SNAPSHOT")));
 let changed = json(fs.readfile(getenv("FORKOP_TEST_CHANGED_SNAPSHOT")));
+let restarted = json(fs.readfile(getenv("FORKOP_TEST_RESTARTED_SNAPSHOT")));
 exit(sync.apply_runtime_snapshot(initial, sections) &&
   sync.apply_runtime_snapshot(initial, sections) &&
-  sync.apply_runtime_snapshot(changed, sections) ? 0 : 1);
+  sync.apply_runtime_snapshot(changed, sections) &&
+  sync.apply_runtime_snapshot(restarted, sections) ? 0 : 1);
 ' ||
   fail "in-process native runtime sync failed"
-[ "$(wc -l <"$NFT_LOG")" -eq 2 ] ||
-  fail "unchanged native runtime snapshot must not invoke nft again"
+[ "$(wc -l <"$NFT_LOG")" -eq 3 ] ||
+  fail "an unchanged provider revision must not invoke nft again, and a restarted core must"
 assert_contains "$NFT_INPUT" "203.0.113.0/24 . 80" "changed native runtime snapshot"
+assert_contains "$NFT_INPUT" "198.51.100.0/24 . 80" "restarted core reloads what it had loaded before"
 
 grep -Fq 'let restart_ruleset_sync = plan.needs_nft_rebuild == 1;' "$LIFECYCLE" ||
   fail "sing-box-only reloads must keep native rule-set sync state in memory"
+
+# A rule set that is still downloading, or one whose download keeps failing, is a
+# reason to wait. The worker retries every three seconds, and reporting it each
+# time filled the log with one unchanging warning until the download finished.
+cat >"$WORK_DIR/bin/logger" <<'EOF_LOGGER'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"${SYNC_LOG:?}"
+EOF_LOGGER
+chmod 0755 "$WORK_DIR/bin/logger"
+: > "$WORK_DIR/sync.log"
+PATH="$WORK_DIR/bin:$PATH" NFT_LOG="$NFT_LOG" NFT_INPUT="$NFT_INPUT" \
+SYNC_LOG="$WORK_DIR/sync.log" \
+FORKOP_TEST_SNAPSHOT="$WORK_DIR/runtime-snapshot.json" \
+ucode -L "$FORKOP_LIB" -e '
+let fs = require("fs");
+let sync = require("nft.ruleset_sync");
+let sections = [{
+  ".name": "batch", "enabled": "1", "action": "proxy",
+  "rule_set_with_subnets": ["https://example.com/never-loads.txt"]
+}];
+let snapshot = json(fs.readfile(getenv("FORKOP_TEST_SNAPSHOT")));
+for (let i = 0; i < 4; i++)
+  sync.apply_runtime_snapshot(snapshot, sections);
+'
+[ "$(grep -c 'missing rule-set provider' "$WORK_DIR/sync.log")" -eq 1 ] || {
+  cat "$WORK_DIR/sync.log" >&2
+  fail "an unchanged reason to wait must be reported once, not once per retry"
+}
 
 printf 'forkop.empty=section\nforkop.empty.enabled=1\nforkop.empty.action=proxy\n' >"$WORK_DIR/empty.state"
 FORKOP_UCI_STATE_FILE="$WORK_DIR/empty.state" \

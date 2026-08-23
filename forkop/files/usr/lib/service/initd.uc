@@ -377,7 +377,7 @@ function handle_wan_up() {
 
     if (action == "reload") {
         clear_start_retry(START_RETRY_FILE);
-        command_success_from_args([ "logger", "-t", SERVICE_NAME, "[info] Reloading Forkop after monitored WAN came up" ]);
+        command_success_from_args([ "logger", "-t", SERVICE_NAME, "[info] Reapplying configuration after the monitored WAN came up" ]);
         return command_status_from_args([ SERVICE_INIT, "reload", "badwan_interface_up" ]);
     }
 
