@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-23 21:49+0300\n"
-"PO-Revision-Date: 2026-08-23 21:49+0300\n"
+"POT-Creation-Date: 2026-08-23 23:21+0300\n"
+"PO-Revision-Date: 2026-08-23 23:21+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -130,6 +130,9 @@ msgstr "Добавьте хотя бы один DNS-сервер"
 
 msgid "Add at least one domain"
 msgstr "Добавьте хотя бы один домен"
+
+msgid "Add at least one outbound: Connection URI, Subscription, Network Interface, Tunnel or JSON outbound"
+msgstr "Добавьте хотя бы один outbound: URI подключения, Подписка, Сетевой интерфейс, Туннель или JSON outbound"
 
 msgid "Add at least one server group"
 msgstr "Добавьте хотя бы одну группу серверов"
@@ -1726,6 +1729,9 @@ msgstr "Выберите интерфейс"
 
 msgid "Select an intermediate section"
 msgstr "Выберите промежуточную секцию"
+
+msgid "Select at least one server or set a pattern"
+msgstr "Выберите хотя бы один сервер или задайте шаблон"
 
 msgid "Select the network interface to which the traffic will originate"
 msgstr "Выберите сетевой интерфейс, на который будет поступать трафик"

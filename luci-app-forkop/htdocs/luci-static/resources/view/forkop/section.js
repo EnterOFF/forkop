@@ -134,6 +134,46 @@ function getUciSectionLabel(section) {
   return (section && section.label) || getUciSectionName(section);
 }
 
+// The servers a Connection section can reach. A URLTest or a Fallback is not one
+// of them: a group only arranges the servers of its own section, so it draws its
+// members from this same list. A section without any of them contributes no
+// outbound and no route, and the generator leaves it out of the runtime graph
+// entirely - so it is refused before it can be saved.
+const CONNECTION_OUTBOUND_SOURCES = [
+  "selector_proxy_links",
+  "subscription_url",
+  "interfaces",
+  "tunnels",
+  "outbound_jsons",
+];
+
+function modalOptionFormValue(modalMap, section_id, optionName) {
+  const lookup =
+    modalMap && typeof modalMap.lookupOption === "function"
+      ? modalMap.lookupOption(optionName, section_id)
+      : null;
+
+  return lookup ? lookup[0].formvalue(lookup[1]) : null;
+}
+
+function missingConnectionOutboundMessage(modalMap, section_id) {
+  const action = modalOptionFormValue(modalMap, section_id, "action");
+  if (action !== "connection") {
+    return null;
+  }
+
+  return CONNECTION_OUTBOUND_SOURCES.some(
+    (optionName) =>
+      normalizeDynamicListItems(
+        modalOptionFormValue(modalMap, section_id, optionName),
+      ).length > 0,
+  )
+    ? null
+    : _(
+        "Add at least one outbound: Connection URI, Subscription, Network Interface, Tunnel or JSON outbound",
+      );
+}
+
 function isOutboundDetourTargetSection(section, currentSectionId) {
   const sectionName = getUciSectionName(section);
   const action = (section && section.action) || "";
@@ -1997,6 +2037,27 @@ function subscriptionServerFilterDescriptions() {
   });
 }
 
+// "Only selected" keeps the servers the filter names, so a filter that names none
+// keeps none: the generated group carries an include pattern that matches nothing.
+// Without a provider the group is then dropped from the configuration, and with one
+// it stays and is permanently empty, so neither is what the mode was chosen for. A
+// Fallback level also counts the URLTest it includes, which is offered above the
+// filter and is a member like any server.
+function missingFilterSelectionMessage(modeOption, itemId) {
+  if (modeOption.formvalue(itemId) !== "include") {
+    return null;
+  }
+
+  return ["include_outbounds", "include_regex", "include_groups"].some(
+    (optionName) =>
+      normalizeDynamicListItems(
+        modalOptionFormValue(modeOption.map, itemId, optionName),
+      ).length > 0,
+  )
+    ? null
+    : _("Select at least one server or set a pattern");
+}
+
 function addServerFilterOptions(
   itemSection,
   parentSectionForItem,
@@ -2159,6 +2220,16 @@ function addServerFilterOptions(
       }
     },
   );
+
+  const modeOptionParse = modeOption.parse;
+  modeOption.parse = function (itemId) {
+    const message = missingFilterSelectionMessage(this, itemId);
+    if (message) {
+      return Promise.reject(new TypeError(message));
+    }
+
+    return modeOptionParse.apply(this, arguments);
+  };
 
   let activeMode =
     optionMapValue(modeOption, "settings", "server_filter_mode") ||
@@ -3679,9 +3750,17 @@ function renderStackedJsonSettingsModal(title, map, onSave, options = {}) {
           ),
         )
         .then(close)
-        .catch(() => {
+        .catch((error) => {
           if (saveButton) {
             saveButton.disabled = false;
+          }
+          // A refused check marks its own field, but only once the widget has
+          // validated it - a field nothing was ever typed into has nothing to
+          // show, and LuCI saves a dialog silently. So the reason is repeated
+          // here instead of leaving Save looking like it did nothing.
+          const message = `${error?.message || ""}`.trim();
+          if (message) {
+            main.showToast(message, "error");
           }
         });
     };
@@ -8319,6 +8398,23 @@ function configureSectionSection(sectionRef, options = {}) {
     cleanupRemovedChildItems(section_id, "fallback_group", []);
     cleanupRemovedChildItems(section_id, "tunnel", []);
     return handleRemove.apply(this, arguments);
+  };
+
+  // Which outbounds a section needs is a property of the section, not of any one
+  // of its fields, so the check runs here instead of in an option. Before the
+  // dialog writes anything: LuCI parses the options one by one, so a check that
+  // refuses halfway leaves the fields that already passed behind.
+  sectionRef.handleModalSave = function (modalMap, ev) {
+    const message = missingConnectionOutboundMessage(
+      modalMap,
+      modalMap?.section,
+    );
+    if (message) {
+      main.showToast(message, "error");
+      return Promise.resolve();
+    }
+
+    return form.GridSection.prototype.handleModalSave.call(this, modalMap, ev);
   };
 
   sectionRef.load = function () {

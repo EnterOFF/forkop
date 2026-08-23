@@ -19,6 +19,31 @@ function loadSectionTableOptions() {}
 function cleanupRemovedChildItems(...args) {
   cleanupCalls.push(args);
 }
+
+let outboundMessage = null;
+function missingConnectionOutboundMessage(...args) {
+  lookupArgs = args;
+  return outboundMessage;
+}
+let lookupArgs;
+let toasted;
+const main = {
+  showToast(message) {
+    toasted = message;
+  },
+};
+let prototypeSaves = 0;
+const savedResult = {};
+const form = {
+  GridSection: {
+    prototype: {
+      handleModalSave() {
+        prototypeSaves += 1;
+        return savedResult;
+      },
+    },
+  },
+};
 eval(match[0].slice(0, -'\n\nconst EntryPoint'.length));
 
 const event = {};
@@ -54,6 +79,21 @@ assert.match(
   /typeName === "tunnel"[\s\S]*cleanupTunnelPeers\(itemId\)/,
   'tunnel cleanup does not cascade to tunnel_peer',
 );
+
+// A section the runtime graph would drop is refused before the dialog writes
+// anything, and the reason is shown rather than left to a Save that does nothing.
+const modalMap = { section: 'parent' };
+outboundMessage = 'add an outbound';
+sectionRef.handleModalSave(modalMap, event);
+assert.deepStrictEqual(lookupArgs, [modalMap, 'parent']);
+assert.strictEqual(prototypeSaves, 0, 'a refused section was still saved');
+assert.strictEqual(toasted, 'add an outbound', 'a refused section said nothing');
+
+outboundMessage = null;
+toasted = undefined;
+assert.strictEqual(sectionRef.handleModalSave(modalMap, event), savedResult);
+assert.strictEqual(prototypeSaves, 1, 'an accepted section was not saved');
+assert.strictEqual(toasted, undefined, 'an accepted section reported an error');
 
 console.log('LuCI section cascade checks passed');
 NODE
