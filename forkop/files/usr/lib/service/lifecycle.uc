@@ -34,7 +34,6 @@ const RELOAD_STATE_FILE = getenv("FORKOP_RELOAD_STATE_FILE") || RUNTIME_STATE_DI
 const RELOAD_STATE_SNAPSHOT_FILE = getenv("FORKOP_RELOAD_STATE_SNAPSHOT_FILE") || RUNTIME_STATE_DIR + "/reload-state.snapshot." + clock()[0] + "." + clock()[1];
 const PENDING_RELOAD_FILE = getenv("FORKOP_PENDING_RELOAD_FILE") || RUNTIME_STATE_DIR + "/reload.pending";
 const SERVICE_TRIGGER_SYNC_FILE = getenv("FORKOP_SERVICE_TRIGGER_SYNC_FILE") || RUNTIME_STATE_DIR + "/service-triggers.sync";
-const RULE_CONDITION_CACHE_DIR = getenv("FORKOP_RULE_CONDITION_CACHE_DIR") || RUNTIME_STATE_DIR + "/rule-condition-cache";
 const RELOAD_LOCK_DIR = getenv("FORKOP_RELOAD_LOCK_DIR") || "/var/run/forkop.reload.lock";
 const START_LOCK_DIR = getenv("FORKOP_START_LOCK_DIR") || RUNTIME_STATE_DIR + "/start.lock";
 const START_LOCK_TIMEOUT = int(getenv("FORKOP_START_LOCK_TIMEOUT") || "360");
@@ -77,7 +76,6 @@ const ZAPRET2_UC = LIB_DIR + "/providers/zapret2/runtime.uc";
 const BYEDPI_UC = LIB_DIR + "/providers/byedpi/runtime.uc";
 const PACKAGES_UC = LIB_DIR + "/core/packages.uc";
 
-let rule_condition_cache_enabled = 0;
 let startup_config_fingerprint = "";
 
 function shell_quote(value) {
@@ -236,7 +234,6 @@ function lifecycle_env() {
         FORKOP_SERVICE_INIT: SERVICE_INIT,
         FORKOP_RUNTIME_STATE_DIR: RUNTIME_STATE_DIR,
         FORKOP_SYSTEM_INFO_CACHE_FILE: SYSTEM_INFO_CACHE_FILE,
-        FORKOP_RULE_CONDITION_CACHE_DIR: RULE_CONDITION_CACHE_DIR,
         FORKOP_PENDING_RELOAD_FILE: PENDING_RELOAD_FILE,
         FORKOP_RELOAD_LOCK_DIR: RELOAD_LOCK_DIR,
         FORKOP_SING_BOX_PLANNED_STOP_FILE: SING_BOX_PLANNED_STOP_FILE,
@@ -244,8 +241,7 @@ function lifecycle_env() {
         SB_SERVICE_MIXED_INBOUND_PORT: SB_SERVICE_MIXED_INBOUND_PORT,
         ZAPRET_PROVIDER_NFQWS_BIN: ZAPRET_PROVIDER_NFQWS_BIN,
         ZAPRET2_PROVIDER_NFQWS2_BIN: ZAPRET2_PROVIDER_NFQWS2_BIN,
-        BYEDPI_BIN: BYEDPI_BIN,
-        FORKOP_RULE_CONDITION_CACHE_ENABLED: as_string(rule_condition_cache_enabled)
+        BYEDPI_BIN: BYEDPI_BIN
     };
 }
 
@@ -680,8 +676,7 @@ function start_impl() {
     status = module_status(STATE_UC, [
         "write-current-reload-state-clean",
         RELOAD_STATE_FILE,
-        as_string(RELOAD_STATE_FORMAT),
-        RULE_CONDITION_CACHE_DIR
+        as_string(RELOAD_STATE_FORMAT)
     ]);
     if (status != 0)
         return status;
@@ -707,7 +702,7 @@ function stop_main() {
     module_success(ZAPRET2_UC, [ "stop-runtime" ]);
     module_success(BYEDPI_UC, [ "stop-runtime" ]);
 
-    if (command_success_from_args([ "nft", "list", "table", "inet", NFT_TABLE_NAME ]))
+    if (command_success_from_args([ "nft", "-t", "list", "table", "inet", NFT_TABLE_NAME ]))
         command_success_from_args([ "nft", "delete", "table", "inet", NFT_TABLE_NAME ]);
 
     if (module_success(NFT_UC, [ "tproxy-marking-rule4-present", RT_TABLE_NAME, NFT_FAKEIP_MARK ]))
@@ -1084,7 +1079,6 @@ function reload_impl(reason) {
     let status;
     let force_runtime_reload = as_string(reason || "") == "on_config_change" ? 0 : 1;
     let reload_config_fingerprint = external_config_fingerprint();
-    rule_condition_cache_enabled = force_runtime_reload;
 
     log_message("Reloading Forkop", "info");
 
@@ -1115,7 +1109,6 @@ function reload_impl(reason) {
         current_reload_state_file,
         RELOAD_STATE_SNAPSHOT_FILE,
         as_string(RELOAD_STATE_FORMAT),
-        "",
         "0",
         "0"
     ]);
@@ -1154,7 +1147,6 @@ function reload_impl(reason) {
             RELOAD_STATE_FILE,
             RELOAD_STATE_SNAPSHOT_FILE,
             as_string(RELOAD_STATE_FORMAT),
-            RULE_CONDITION_CACHE_DIR,
             "1",
             "1"
         ]);
@@ -1172,7 +1164,6 @@ function reload_impl(reason) {
         RELOAD_STATE_FILE,
         RELOAD_STATE_SNAPSHOT_FILE,
         as_string(RELOAD_STATE_FORMAT),
-        RULE_CONDITION_CACHE_DIR,
         "1",
         "1"
     ]), reload_config_fingerprint);
@@ -1193,9 +1184,12 @@ function reload_tracked(reason) {
     if (as_string(getenv("FORKOP_UI_ACTION_TRACKED") || "0") == "1")
         return reload(reason);
 
-    let job_id = trim(module_output(UI_UC, [ "service-action-begin-if-idle", "reload", "runtime_reload" ]));
-    if (job_id != "")
-        module_success(UI_UC, [ "service-action-update-pid", job_id, owner_pid() ]);
+    let job_id = trim(module_output(UI_UC, [
+        "service-action-begin-if-idle",
+        "reload",
+        "runtime_reload",
+        owner_pid()
+    ]));
 
     let status = reload(reason);
     if (job_id != "")

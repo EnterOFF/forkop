@@ -122,6 +122,9 @@ fi
 SH
 cat >"$WORK_DIR/stable-start-bin/nft" <<'SH'
 #!/usr/bin/env bash
+if [ -n "${FORKOP_TEST_NFT_ARGS_FILE:-}" ]; then
+  printf '%s\n' "$*" >>"$FORKOP_TEST_NFT_ARGS_FILE"
+fi
 exit 0
 SH
 cat >"$WORK_DIR/stable-start-bin/ip-full" <<'SH'
@@ -184,10 +187,19 @@ fi
 if ! PATH="$WORK_DIR/stable-start-bin:$PATH" \
   SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
   SING_BOX_TEST_NETSTAT_FILE="$WORK_DIR/sing-box.netstat" \
+  FORKOP_TEST_NFT_ARGS_FILE="$WORK_DIR/nft.args" \
   state_ucode forkop-running forkop ForkopTable 0x00100000; then
   kill "$sing_box_pid" >/dev/null 2>&1 || true
   wait "$sing_box_pid" 2>/dev/null || true
   fail "stable-start fixture must expose configured Forkop networking"
+fi
+# Whether the table exists is the whole question, and this check runs on every
+# reload, in every readiness poll and behind every UI status refresh. Listing set
+# contents along the way makes it cost seconds once a rule set holds real lists.
+if ! grep -Fq -- '-t list table inet ForkopTable' "$WORK_DIR/nft.args"; then
+  kill "$sing_box_pid" >/dev/null 2>&1 || true
+  wait "$sing_box_pid" 2>/dev/null || true
+  fail "the runtime table check must list the table without its set contents"
 fi
 sed '/127.0.0.42:53/d' "$WORK_DIR/sing-box.netstat" >"$WORK_DIR/sing-box.no-dns.netstat"
 if PATH="$WORK_DIR/stable-start-bin:$PATH" \
@@ -336,16 +348,12 @@ state_ucode release-runtime-dir-lock "$LOCK_DIR" "$$"
 
 SNAPSHOT_FILE="$WORK_DIR/reload-state.snapshot"
 TARGET_RELOAD_STATE="$WORK_DIR/reload-state.target"
-CACHE_DIR="$WORK_DIR/rule-cache"
-mkdir -p "$CACHE_DIR"
 printf 'format=1\nservice_trigger_signature=abc\n' >"$SNAPSHOT_FILE"
-state_ucode write-captured-reload-state "$TARGET_RELOAD_STATE" "$SNAPSHOT_FILE" 1 "$CACHE_DIR" 1 1
+state_ucode write-captured-reload-state "$TARGET_RELOAD_STATE" "$SNAPSHOT_FILE" 1 1 1
 assert_eq "format=1
 service_trigger_signature=abc" "$(cat "$TARGET_RELOAD_STATE")" "captured reload state copy"
 [ ! -e "$SNAPSHOT_FILE" ] ||
   fail "ucode should clear captured reload snapshot after final write"
-[ ! -e "$CACHE_DIR" ] ||
-  fail "ucode should clean rule condition cache after final reload state write"
 
 printf 'format=1\n' >"$SNAPSHOT_FILE"
 printf 'old=1\n' >"$TARGET_RELOAD_STATE"

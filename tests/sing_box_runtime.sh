@@ -62,8 +62,9 @@ grep -Fq 'require("core.uci")' "$SINGBOX_GENERATOR_UC" ||
 # the generated configuration turns out unchanged, which is the case after a reboot.
 grep -Fq 'ensure_parent_dir(option(settings, "cache_path"' "$SINGBOX_RUNTIME_UC" ||
   fail "singbox/runtime.uc must create the directory of the sing-box cache file before a start"
-grep -Fq 'FORKOP_RULE_CONDITION_CACHE_DIR' "$LIFECYCLE_UC" ||
-  fail "service/lifecycle.uc must pass rule-condition cache dir through module environment"
+if grep -Fq 'FORKOP_RULE_CONDITION_CACHE' "$LIFECYCLE_UC"; then
+  fail "service/lifecycle.uc must not transport the retired rule-condition cache"
+fi
 if grep -Fq 'FORKOP_SECTION_CACHE_DIR' "$LIFECYCLE_UC"; then
   fail "service/lifecycle.uc must not transport the retired section-cache path"
 fi

@@ -29,6 +29,8 @@ const ZAPRET_DEFAULT_NFQWS_OPT = getenv("ZAPRET_DEFAULT_NFQWS_OPT") || "";
 const ZAPRET2_DEFAULT_NFQWS2_OPT = getenv("ZAPRET2_DEFAULT_NFQWS2_OPT") || "";
 const BYEDPI_DEFAULT_CMD_OPTS = getenv("BYEDPI_DEFAULT_CMD_OPTS") || "";
 const SING_BOX_START_MAX_WAIT_SECONDS = int(getenv("FORKOP_SING_BOX_START_MAX_WAIT_SECONDS") || "300");
+const SIGNATURE_TEMP_FILE = (getenv("TMPDIR") || "/tmp") +
+    "/forkop-signature." + clock()[0] + "." + clock()[1];
 let sing_box_service_pid_runtime = health.sing_box_service_pid_runtime;
 let pid_is_sing_box = health.pid_is_sing_box;
 let process_start_ticks = health.process_start_ticks;
@@ -73,6 +75,16 @@ function unlink_file(path) {
     }
     catch (e) {
     }
+}
+
+function file_executable(path) {
+    let stat = fs.stat(as_string(path));
+    return stat != null && stat.mode != null && (int(stat.mode) & 73) != 0;
+}
+
+function file_not_empty(path) {
+    let stat = fs.stat(as_string(path));
+    return stat != null && int(stat.size || 0) > 0;
 }
 
 function shell_quote(value) {
@@ -205,13 +217,6 @@ function copy_file(source, target) {
     if (!ensure_parent_dir(target))
         return false;
     return write_text_file(target, data);
-}
-
-function cleanup_rule_condition_cache(path) {
-    path = as_string(path);
-    if (path != "")
-        command_success_from_args([ "rm", "-rf", path ]);
-    system("rm -rf /tmp/forkop-rule-cache.* >/dev/null 2>&1");
 }
 
 function cleanup_reload_state_snapshots(path) {
@@ -368,10 +373,11 @@ function signature_add_value(body, key, value) {
     return body + "[" + as_string(key) + "]\n" + as_string(value) + "\n";
 }
 
+// One reload-state capture hashes ten signature bodies, and asking mktemp for a
+// path each time cost ten processes on top of the ten md5sum calls. The path is
+// unique to this process, so reusing it is enough.
 function signature_hash(body) {
-    let path = trim(command_output_from_args([ "mktemp" ]));
-    if (path == "")
-        return "";
+    let path = SIGNATURE_TEMP_FILE;
 
     if (!write_text_file(path, body)) {
         unlink_file(path);
@@ -1021,9 +1027,9 @@ function mwan3_has_enabled_interface() {
 }
 
 function mwan3_active() {
-    if (!command_success_from_args([ "test", "-x", "/etc/init.d/mwan3" ]))
+    if (!file_executable("/etc/init.d/mwan3"))
         return false;
-    if (!command_success_from_args([ "test", "-s", "/etc/config/mwan3" ]))
+    if (!file_not_empty("/etc/config/mwan3"))
         return false;
     if (!mwan3_has_enabled_interface())
         return false;
@@ -1092,17 +1098,16 @@ function capture_reload_state(path, format) {
     write_reload_state(path, current_reload_state_values(format || "1"));
 }
 
-function write_current_reload_state_clean(path, format, cache_dir) {
+function write_current_reload_state_clean(path, format) {
     write_reload_state(path, current_reload_state_values(format || "1"));
-    cleanup_rule_condition_cache(cache_dir);
     cleanup_reload_state_snapshots(path);
 }
 
-function write_captured_reload_state(path, snapshot_path, format, cache_dir, cleanup_cache, clear_snapshot) {
+function write_captured_reload_state(path, snapshot_path, format, clean, clear_snapshot) {
     snapshot_path = as_string(snapshot_path);
     if (snapshot_path == "") {
-        if (as_string(cleanup_cache) == "1")
-            write_current_reload_state_clean(path, format, cache_dir);
+        if (as_string(clean) == "1")
+            write_current_reload_state_clean(path, format);
         else
             write_reload_state(path, current_reload_state_values(format || "1"));
         return;
@@ -1114,8 +1119,6 @@ function write_captured_reload_state(path, snapshot_path, format, cache_dir, cle
     if (!copy_file(snapshot_path, path))
         exit(1);
 
-    if (as_string(cleanup_cache) == "1")
-        cleanup_rule_condition_cache(cache_dir);
     if (as_string(clear_snapshot) == "1")
         unlink_file(snapshot_path);
 }
@@ -1165,9 +1168,9 @@ else if (mode == "clear-reload-state")
 else if (mode == "capture-reload-state")
     capture_reload_state(ARGV[1], ARGV[2] || "1");
 else if (mode == "write-current-reload-state-clean")
-    write_current_reload_state_clean(ARGV[1], ARGV[2] || "1", ARGV[3]);
+    write_current_reload_state_clean(ARGV[1], ARGV[2] || "1");
 else if (mode == "write-captured-reload-state")
-    write_captured_reload_state(ARGV[1], ARGV[2], ARGV[3] || "1", ARGV[4], ARGV[5], ARGV[6]);
+    write_captured_reload_state(ARGV[1], ARGV[2], ARGV[3] || "1", ARGV[4], ARGV[5]);
 else if (mode == "reload-state-text-fixture") {
     let data = fixture_data(ARGV[1]);
     print(reload_state_text(fixture_reload_state_values(data, ARGV[2] || "1")));

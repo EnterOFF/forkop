@@ -143,8 +143,12 @@ function sing_box_runtime_ports_ready() {
     );
 }
 
+// Only the presence of the table is in question here, and this runs on every
+// reload, in every readiness poll and behind every UI status refresh. Without
+// -t, nft prints every element of every set first: a rule set holding 40k
+// addresses turns a 36 ms check into 5 s.
 function forkop_runtime_network_configured(rt_table, nft_table, mark) {
-    return command_success_from_args([ "nft", "list", "table", "inet", nft_table ]) &&
+    return command_success_from_args([ "nft", "-t", "list", "table", "inet", nft_table ]) &&
         nft_state.tproxy_route_rule_present(rt_table, mark);
 }
 

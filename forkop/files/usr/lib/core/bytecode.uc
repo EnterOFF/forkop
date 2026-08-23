@@ -341,8 +341,13 @@ function build() {
     if (length(files) == 0)
         return SOURCE_DIR;
 
-    if (!ensure_dir(CACHE_DIR) || !acquire_build_lock())
+    if (!ensure_dir(CACHE_DIR))
         return SOURCE_DIR;
+
+    // Another process is already compiling. If it published while we were
+    // looking, use that; otherwise this one run stays on the sources.
+    if (!acquire_build_lock())
+        return library_dir();
 
     let library = compile_library(files);
     let text = library == null ? null : manifest_text(library, files, runtime_dependencies());

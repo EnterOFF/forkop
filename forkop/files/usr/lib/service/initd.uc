@@ -275,11 +275,12 @@ function begin_external_service_action(action, source, owner_pid) {
     if (!file_exists(UI_UC))
         return "";
 
-    let job_id = trim(module_output(UI_UC, [ "service-action-begin-if-idle", action, source || "initd" ]));
-    if (job_id != "")
-        module_status(UI_UC, [ "service-action-update-pid", job_id, owner_pid || owner_pid_value() ]);
-
-    return job_id;
+    return trim(module_output(UI_UC, [
+        "service-action-begin-if-idle",
+        action,
+        source || "initd",
+        owner_pid || owner_pid_value()
+    ]));
 }
 
 function finish_external_service_action(action, job_id, status) {

@@ -95,13 +95,6 @@ function prefixed_domain_kind_value(value) {
     return normalized == null ? null : { kind: "domain_regex", value: normalized };
 }
 
-function prefixed_domain_value(value, requested_kind) {
-    let normalized = prefixed_domain_kind_value(value);
-    requested_kind = as_string(requested_kind);
-
-    return normalized != null && normalized.kind == requested_kind ? normalized.value : null;
-}
-
 function domain_value_for_key(value, key) {
     key = as_string(key);
 
@@ -169,28 +162,59 @@ function legacy_condition_csv_value(kind, text_mode, conditions_text_mode, text_
     return replace(list_value, / /g, ",");
 }
 
-function combined_domain_csv_value(value, requested_kind) {
-    let result = [];
+const COMBINED_DOMAIN_KINDS = [ "domain", "domain_suffix", "domain_keyword", "domain_regex" ];
 
-    for (let item in split(as_string(value), ",")) {
-        let normalized = prefixed_domain_value(item, requested_kind);
-        if (normalized != null)
-            push(result, normalized);
+// Which kind an entry belongs to does not depend on the kind being asked for,
+// so one pass classifies every entry and the four answers are read off the
+// result. Each list keeps the order the per-kind walk produced, so the
+// conditions and the reload-state signatures built from them do not change.
+function combined_domain_kind_csv_values(items) {
+    let values = {};
+    for (let kind in COMBINED_DOMAIN_KINDS)
+        values[kind] = [];
+
+    for (let item in items) {
+        let normalized = prefixed_domain_kind_value(item);
+        if (normalized != null && values[normalized.kind] != null)
+            push(values[normalized.kind], normalized.value);
     }
 
-    return join(",", result);
+    let result = {};
+    for (let kind in COMBINED_DOMAIN_KINDS)
+        result[kind] = join(",", values[kind]);
+
+    return result;
+}
+
+// A section is asked for all four domain kinds in a row, from the same text and
+// the same list, and a signature or a generated rule set asks again later. One
+// entry is enough to collapse those four passes into one; holding more would
+// keep whole domain lists alive for no further gain.
+let combined_list_key = null;
+let combined_list_values = null;
+let combined_text_key = null;
+let combined_text_values = null;
+
+function combined_domain_csv_value(value, requested_kind) {
+    value = as_string(value);
+
+    if (combined_list_key != value) {
+        combined_list_values = combined_domain_kind_csv_values(split(value, ","));
+        combined_list_key = value;
+    }
+
+    return as_string(combined_list_values[as_string(requested_kind)]);
 }
 
 function combined_domain_text_csv_value(value, requested_kind) {
-    let result = [];
+    value = as_string(value);
 
-    for (let item in text_list_values(value, "comma-space")) {
-        let normalized = prefixed_domain_value(item, requested_kind);
-        if (normalized != null)
-            push(result, normalized);
+    if (combined_text_key != value) {
+        combined_text_values = combined_domain_kind_csv_values(text_list_values(value, "comma-space"));
+        combined_text_key = value;
     }
 
-    return join(",", result);
+    return as_string(combined_text_values[as_string(requested_kind)]);
 }
 
 function concat_csv_values(first, second) {

@@ -224,6 +224,14 @@ function label_to_ascii(value) {
     if (value == "")
         return null;
 
+    // Nearly every label is already a valid ASCII label, and establishing that
+    // through the walk below costs an object per byte. Reading the bytes
+    // directly reaches the same answer for exactly the labels that pass
+    // valid_ascii_label unchanged; everything else keeps the original path,
+    // including the punycode fallback it applies to labels that do not.
+    if (length(value) <= 63 && match(value, /^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$/) != null)
+        return ascii_lower(value);
+
     let codepoints = utf8_codepoints(value);
     if (codepoints == null)
         return null;

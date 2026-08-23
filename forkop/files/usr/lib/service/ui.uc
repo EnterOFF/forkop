@@ -335,7 +335,7 @@ function job_id() {
     return sprintf("%d-%d", stamp[0], stamp[1]);
 }
 
-function running_service_action_value(action, source, started_at) {
+function running_service_action_value(action, source, started_at, pid) {
     return {
         success: true,
         running: true,
@@ -343,7 +343,7 @@ function running_service_action_value(action, source, started_at) {
         action: as_string(action),
         source: as_string(source),
         message: "Service action is running",
-        pid: null,
+        pid: job_pid_valid(pid) ? as_string(pid) : null,
         started_at: arg_number(started_at),
         updated_at: null,
         exit_code: null
@@ -628,7 +628,10 @@ function service_action_wait_for_expected_state(action, timeout, settle_seconds)
     }
 }
 
-function begin_service_action_if_idle(action, source) {
+// The owner pid is written with the job rather than by a second process: a
+// reload starts twenty of those already, and a running job without a pid cannot
+// be checked for liveness while the gap lasts.
+function begin_service_action_if_idle(action, source, pid) {
     action = as_string(action);
     source = as_string(source || "ui");
     if (!service_action_valid(action))
@@ -644,7 +647,7 @@ function begin_service_action_if_idle(action, source) {
     if (active_service_action_value() == "") {
         let id = job_id();
         let path = job_state_path_value(SERVICE_ACTION_DIR, id);
-        result = path != "" && write_state_file(path, running_service_action_value(action, source, now_seconds()))
+        result = path != "" && write_state_file(path, running_service_action_value(action, source, now_seconds(), pid))
             ? { status: 0, job_id: id }
             : { status: 1, job_id: "" };
     }
@@ -653,8 +656,8 @@ function begin_service_action_if_idle(action, source) {
     return result;
 }
 
-function begin_service_action_mode(action, source) {
-    let result = begin_service_action_if_idle(action, source || "ui");
+function begin_service_action_mode(action, source, pid) {
+    let result = begin_service_action_if_idle(action, source || "ui", pid);
     if (result.status == 0)
         print(result.job_id, "\n");
     exit(result.status);
@@ -912,7 +915,7 @@ else if (mode == "job-refresh-plan")
 else if (mode == "active-service-action")
     ARGV[1] == null ? print_active_service_action_after_refresh() : print_active_service_action(ARGV[1]);
 else if (mode == "service-action-begin-if-idle")
-    begin_service_action_mode(ARGV[1], ARGV[2] || "ui");
+    begin_service_action_mode(ARGV[1], ARGV[2] || "ui", ARGV[3]);
 else if (mode == "service-action-update-pid")
     update_service_action_pid_mode(ARGV[1], ARGV[2]);
 else if (mode == "service-action-finish")

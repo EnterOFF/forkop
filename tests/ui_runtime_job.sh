@@ -215,6 +215,8 @@ job_id="$(ui_ucode service-action-begin-if-idle reload test)"
 [ -n "$job_id" ] || fail "service-action-begin-if-idle should create a job"
 service_state="$FORKOP_UI_SERVICE_ACTION_DIR/$job_id.json"
 [ -f "$service_state" ] || fail "service action state file should be created"
+grep -Fq '"pid": null' "$service_state" ||
+  fail "a job started without an owner pid should record none"
 assert_eq "reload" \
   "$(ui_ucode active-service-action)" \
   "active-service-action should use the default service action dir"
@@ -225,6 +227,8 @@ fi
 
 ui_ucode service-action-update-pid "$job_id" "$$" >/dev/null ||
   fail "service-action-update-pid should update running job"
+grep -Fq "\"pid\": \"$$\"" "$service_state" ||
+  fail "service-action-update-pid should store the pid it was given"
 
 FORKOP_UI_SERVICE_ACTION_TIMEOUT_SECONDS=1 \
 FORKOP_UI_SERVICE_ACTION_SETTLE_SECONDS=0 \
@@ -253,5 +257,20 @@ NODE
 
 ui_ucode action-ack service "$job_id" >/dev/null ||
   fail "action-ack should acknowledge finished service action"
+
+# The lifecycle passes its own pid when it opens the job, so a reload does not
+# spend a second ucode process on setting it, and a running job is never
+# without the pid its liveness check needs.
+owned_job_id="$(ui_ucode service-action-begin-if-idle reload test 4242)"
+[ -n "$owned_job_id" ] || fail "service-action-begin-if-idle should create a job with a pid"
+grep -Fq '"pid": "4242"' "$FORKOP_UI_SERVICE_ACTION_DIR/$owned_job_id.json" ||
+  fail "service-action-begin-if-idle should record the owner pid it was given"
+ui_ucode service-action-finish "$owned_job_id" true done 0 >/dev/null ||
+  fail "service-action-finish should finish the job opened with a pid"
+
+not_a_pid_job_id="$(ui_ucode service-action-begin-if-idle reload test 'nonsense')"
+[ -n "$not_a_pid_job_id" ] || fail "an unusable pid must not stop the job from opening"
+grep -Fq '"pid": null' "$FORKOP_UI_SERVICE_ACTION_DIR/$not_a_pid_job_id.json" ||
+  fail "an unusable pid must be recorded as none"
 
 printf 'UI runtime job checks passed\n'

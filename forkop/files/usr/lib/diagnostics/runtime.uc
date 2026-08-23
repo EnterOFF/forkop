@@ -1210,7 +1210,7 @@ function nft_chain_counter_status(chain) {
 }
 
 function nft_table_has_other_mark_rules(family, table_name) {
-    let output = command_output_from_args([ "nft", "list", "table", family, table_name ]);
+    let output = command_output_from_args([ "nft", "-t", "list", "table", family, table_name ]);
     return index(output, "meta mark set") >= 0;
 }
 
@@ -1230,7 +1230,7 @@ function nft_rules_value() {
     let rules_proxy_counters = 0;
     let rules_other_mark_exist = 0;
 
-    if (command_success_from_args([ "nft", "list", "table", "inet", NFT_TABLE_NAME ])) {
+    if (command_success_from_args([ "nft", "-t", "list", "table", "inet", NFT_TABLE_NAME ])) {
         table_exist = 1;
         if (command_success_from_args([ "nft", "list", "chain", "inet", NFT_TABLE_NAME, "mangle" ])) {
             let status = nft_chain_counter_status("mangle");
@@ -1612,7 +1612,7 @@ function global_check(arg1, arg2) {
     print_global_lines(report.nft_check(nft_value));
     if (nft_value.rules_other_mark_exist == 1)
         print_global_lines(report.nft_other_mark_lines(
-            command_output_from_args([ "nft", "list", "ruleset" ]), NFT_TABLE_NAME));
+            command_output_from_args([ "nft", "-t", "list", "ruleset" ]), NFT_TABLE_NAME));
 
     print_global(GLOBAL_CHECK_SEPARATOR);
     print_global("📄 Forkop config");

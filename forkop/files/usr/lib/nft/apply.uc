@@ -1121,7 +1121,7 @@ function nft_create_full_runtime_from_uci() {
 }
 
 function nft_table_present(table) {
-    return run_args_quiet([ "nft", "list", "table", "inet", table ]);
+    return run_args_quiet([ "nft", "-t", "list", "table", "inet", table ]);
 }
 
 function nft_delete_table(table) {

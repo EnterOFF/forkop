@@ -85,10 +85,10 @@ if [ "$#" -eq 5 ] && [ "$1" = "list" ] && [ "$2" = "chain" ] &&
   printf '%s\n' "$NFT_MANGLE_CHAIN_OUTPUT"
 fi
 
-if [ "$#" -eq 4 ] && [ "$1" = "list" ] && [ "$2" = "table" ] &&
-  [ "$3" = "inet" ]; then
+if [ "$#" -eq 5 ] && [ "$1" = "-t" ] && [ "$2" = "list" ] && [ "$3" = "table" ] &&
+  [ "$4" = "inet" ]; then
   if [ "${NFT_LIST_TABLE_FAIL:-0}" = "1" ]; then
-    printf 'table %s is missing\n' "$4" >&2
+    printf 'table %s is missing\n' "$5" >&2
     exit 1
   fi
 fi
@@ -278,7 +278,9 @@ if NFT_LIST_TABLE_FAIL=1 nft_ucode nft-table-present-fixture ForkopTable 2>"$WOR
 fi
 [ ! -s "$WORK_DIR/nft-table-present.err" ] ||
   fail "missing nft table predicate must suppress nft stderr"
-assert_contains "$NFT_LOG" $'nft\tlist\ttable\tinet\tForkopTable' "nft table presence check"
+# Terse: whether the table exists is the whole question, and printing every
+# element of every set to answer it costs seconds on a real rule set.
+assert_contains "$NFT_LOG" $'nft\t-t\tlist\ttable\tinet\tForkopTable' "nft table presence check"
 
 cat >"$WORK_DIR/provider-rules.json" <<'JSON'
 {
