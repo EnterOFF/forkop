@@ -189,7 +189,20 @@ function provider_prefix_is_nft_safe(prefix, family) {
         : family == 6 && index(prefix, ":") >= 0 && match(prefix, /[^0-9A-Fa-f:.\/]/) == null;
 }
 
-function push_prefix(plan, prefix, family, ranges) {
+// Where an address ends up is decided by what constrains it. Nothing at all
+// makes it a plain address; ports alone make it a pair, which a rule per
+// transport reads; a transport makes it a triple, whose set says which transport
+// it belongs to. `protocols` empty means the addresses are not limited to one.
+function push_prefix(plan, prefix, family, ranges, protocols) {
+    if (length(protocols) > 0) {
+        let scoped = family == 4 ? plan.proto_ipv4 : plan.proto_ipv6;
+        let texts = length(ranges) > 0 ? map(ranges, port_text) : [ "1-65535" ];
+        for (let protocol in protocols)
+            for (let port in texts)
+                push(scoped, prefix + " . " + protocol + " . " + port);
+        return;
+    }
+
     if (length(ranges) == 0) {
         push(family == 4 ? plan.ipv4 : plan.ipv6, prefix);
         return;
@@ -200,11 +213,11 @@ function push_prefix(plan, prefix, family, ranges) {
         push(scoped, prefix + " . " + port_text(range));
 }
 
-function add_provider_prefix(plan, prefix, family, ranges) {
+function add_provider_prefix(plan, prefix, family, ranges, protocols) {
     if (!provider_prefix_is_nft_safe(as_string(prefix), family))
         return fail(plan, "invalid IP prefix: " + as_string(prefix));
 
-    push_prefix(plan, prefix, family, ranges);
+    push_prefix(plan, prefix, family, ranges, protocols);
     return true;
 }
 
@@ -213,7 +226,7 @@ function add_provider_prefix_array(plan, values, family, ranges, label) {
         return fail(plan, label + " must be an array");
 
     for (let prefix in values)
-        if (!add_provider_prefix(plan, prefix, family, ranges))
+        if (!add_provider_prefix(plan, prefix, family, ranges, []))
             return false;
     return true;
 }
@@ -222,25 +235,43 @@ function add_provider_prefix_array(plan, values, family, ranges, label) {
 // core produced: one that nft cannot match is dropped, exactly as the rules
 // built from the same option drop it, instead of stopping every section's sync.
 function add_inline_prefixes(plan, csv, ranges) {
-    let dropped = 0;
-
     for (let value in split(as_string(csv), ",")) {
         if (value == "")
             continue;
 
         let family = core_ip.nft_ip_family(value);
-        if (family == 0) {
-            dropped++;
+        if (family == 0)
             continue;
-        }
-        push_prefix(plan, value, family, ranges);
+        push_prefix(plan, value, family, ranges, []);
     }
-
-    if (dropped > 0)
-        log_message("Section " + plan.section + ": skipped " + dropped +
-            " address values nft cannot match", "debug");
 }
 
+// The transports a provider group is limited to. Only the two nft can be told to
+// match are accepted: the core exports nothing else, so anything else is a
+// snapshot this reader does not understand rather than a value to guess at.
+function snapshot_protocols(plan, values, label) {
+    if (values == null)
+        return [];
+    if (type(values) != "array") {
+        fail(plan, label + ": networks must be an array");
+        return null;
+    }
+
+    let result = [];
+    for (let value in values) {
+        if (value != "tcp" && value != "udp") {
+            fail(plan, label + ": unsupported network " + as_string(value));
+            return null;
+        }
+        if (!(value in result))
+            push(result, value);
+    }
+    return result;
+}
+
+// A group is constrained by transports, by ports, or by both. Neither would make
+// it a plain address, which the core exports as one, so a group carrying no
+// constraint at all is a snapshot that contradicts itself.
 function add_scoped_groups(plan, groups, family, section_ranges, label) {
     if (type(groups) != "array")
         return fail(plan, label + " must be an array");
@@ -250,31 +281,29 @@ function add_scoped_groups(plan, groups, family, section_ranges, label) {
         if (type(group) != "object" || type(group.prefixes) != "array" || length(group.prefixes) == 0)
             return fail(plan, label + "[" + i + "]: invalid prefixes");
 
+        let protocols = snapshot_protocols(plan, group.networks, label + "[" + i + "]");
+        if (protocols == null)
+            return false;
+
         let ranges = snapshot_port_ranges(plan, group.port_ranges, label + "[" + i + "]");
-        if (ranges == null || length(ranges) == 0)
-            return ranges == null ? false : fail(plan, label + "[" + i + "]: empty port_ranges");
-        if (length(section_ranges) > 0)
-            ranges = intersect_ranges(ranges, section_ranges);
-        if (length(ranges) == 0)
-            continue;
+        if (ranges == null)
+            return false;
+        if (length(ranges) == 0 && length(protocols) == 0)
+            return fail(plan, label + "[" + i + "]: unconstrained group");
+
+        // The section's own ports narrow the group: one limited to a transport
+        // and no particular port is limited to the section's ports on it, and one
+        // the section's ports do not overlap selects nothing.
+        if (length(section_ranges) > 0) {
+            ranges = length(ranges) > 0 ? intersect_ranges(ranges, section_ranges) : section_ranges;
+            if (length(ranges) == 0)
+                continue;
+        }
 
         for (let prefix in group.prefixes)
-            if (!add_provider_prefix(plan, prefix, family, ranges))
+            if (!add_provider_prefix(plan, prefix, family, ranges, protocols))
                 return false;
     }
-    return true;
-}
-
-function validate_skipped(plan, skipped, label) {
-    if (skipped == null)
-        return true;
-    if (type(skipped) != "array")
-        return fail(plan, label + ": skipped must be an array");
-    for (let item in skipped)
-        if (type(item) != "object" || type(item.path) != "string" || item.path == "" ||
-            type(item.reason) != "string" || item.reason == "")
-            return fail(plan, label + ": invalid skipped entry");
-    plan.skipped += length(skipped);
     return true;
 }
 
@@ -287,8 +316,11 @@ function add_provider(plan, provider, tag, section_ranges) {
     if (type(ip_cidr) != "object")
         return fail(plan, label + ": missing ip_cidr snapshot");
 
-    return validate_skipped(plan, ip_cidr.skipped, label) &&
-        add_provider_prefix_array(plan, ip_cidr.ipv4, 4, section_ranges, label + ".ip_cidr.ipv4") &&
+    // The snapshot also lists the rules the core could not express as addresses.
+    // Nothing here reads them: what the sets ended up holding is the one number
+    // worth a line, and a second one saying part of a third-party list is not
+    // expressible fires on every sync and cannot be acted on.
+    return add_provider_prefix_array(plan, ip_cidr.ipv4, 4, section_ranges, label + ".ip_cidr.ipv4") &&
         add_provider_prefix_array(plan, ip_cidr.ipv6, 6, section_ranges, label + ".ip_cidr.ipv6") &&
         add_scoped_groups(plan, ip_cidr.scoped_ipv4, 4, section_ranges, label + ".ip_cidr.scoped_ipv4") &&
         add_scoped_groups(plan, ip_cidr.scoped_ipv6, 6, section_ranges, label + ".ip_cidr.scoped_ipv6");
@@ -364,11 +396,17 @@ function render_plan(handle, plan, table, sets) {
         push(written, [ sets.ip_ports, plan.scoped_ipv4 ]);
         push(written, [ sets.ip6_ports, plan.scoped_ipv6 ]);
     }
+    if (plan.needs_proto_port_sets) {
+        push(written, [ sets.proto_ports, plan.proto_ipv4 ]);
+        push(written, [ sets.proto6_ports, plan.proto_ipv6 ]);
+    }
 
     plan.ipv4 = null;
     plan.ipv6 = null;
     plan.scoped_ipv4 = null;
     plan.scoped_ipv6 = null;
+    plan.proto_ipv4 = null;
+    plan.proto_ipv6 = null;
     plan.addresses = 0;
 
     for (let entry in written) {
@@ -388,12 +426,14 @@ function build_plan(snapshot, section, matchers, tags, table) {
         sets: matchers.sets,
         needs_subnet_sets: matchers.needs_subnet_sets,
         needs_ip_port_sets: matchers.needs_ip_port_sets,
+        needs_proto_port_sets: matchers.needs_proto_port_sets,
         addresses: 0,
-        skipped: 0,
         ipv4: [],
         ipv6: [],
         scoped_ipv4: [],
-        scoped_ipv6: []
+        scoped_ipv6: [],
+        proto_ipv4: [],
+        proto_ipv6: []
     };
 
     if (!safe_identifier(table) || !safe_identifier(section_name)) {
@@ -638,7 +678,6 @@ function apply_runtime_snapshot(snapshot, sections) {
     remember_provider_revisions(snapshot);
 
     let addresses = 0;
-    let skipped = 0;
     let applied = 0;
     let keys_now = {};
 
@@ -661,7 +700,6 @@ function apply_runtime_snapshot(snapshot, sections) {
         }
 
         addresses += plan.addresses;
-        skipped += plan.skipped;
         applied++;
         keys_now[name] = key;
     }
@@ -675,11 +713,6 @@ function apply_runtime_snapshot(snapshot, sections) {
         ? ""
         : " for " + applied + " of " + length(planned.sections) + " sections";
     log_message("Loaded " + addresses + " subnets into nft" + scope, "info");
-    // The core refuses to export an address rule whose other conditions nft
-    // cannot express, and a list built around them contributes nothing at all.
-    // Saying so is the only way the difference is visible.
-    if (skipped > 0)
-        log_message("Skipped " + skipped + " rule-set entries whose conditions nft cannot express", "warn");
     return true;
 }
 
@@ -892,8 +925,6 @@ function run_fixture_plan(snapshot, section, table, apply) {
     abort_on_plan_error(plan);
 
     warn("Loaded ", plan.addresses, " subnets into nft\n");
-    if (plan.skipped > 0)
-        warn("Skipped ", plan.skipped, " rule-set entries whose conditions nft cannot express\n");
     return plan;
 }
 

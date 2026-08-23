@@ -36,11 +36,6 @@ function constants_map() {
     c.NFT_TABLE_NAME = env("NFT_TABLE_NAME", "ForkopTable");
     c.NFT_LOCALV4_SET_NAME = env("NFT_LOCALV4_SET_NAME", "localv4");
     c.NFT_LOCALV6_SET_NAME = env("NFT_LOCALV6_SET_NAME", "localv6");
-    c.NFT_COMMON_SET_NAME = env("NFT_COMMON_SET_NAME", "forkop_subnets");
-    c.NFT_COMMON6_SET_NAME = env("NFT_COMMON6_SET_NAME", "forkop_subnets6");
-    c.NFT_PORT_SET_NAME = env("NFT_PORT_SET_NAME", "forkop_ports");
-    c.NFT_IP_PORT_SET_NAME = env("NFT_IP_PORT_SET_NAME", "forkop_ip_ports");
-    c.NFT_IP_PORT6_SET_NAME = env("NFT_IP_PORT6_SET_NAME", "forkop_ip6_ports");
     c.NFT_INTERFACE_SET_NAME = env("NFT_INTERFACE_SET_NAME", "forkop_interfaces");
     c.NFT_FAKEIP_MARK = env("NFT_FAKEIP_MARK", "0x04000000");
     c.NFT_OUTBOUND_MARK = env("NFT_OUTBOUND_MARK", "0x08000000");

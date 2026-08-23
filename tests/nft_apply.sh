@@ -225,7 +225,7 @@ export IP_LOG
 export SYSCTL_LOG
 export FORKOP_IP_BIN="$WORK_DIR/bin/ip"
 
-nft_ucode nft-create-runtime-base ForkopTable localv4 forkop_subnets forkop_ports forkop_ip_ports forkop_interfaces "br-lan tun0" 0x00100000 0x00200000 198.18.0.0/15 1602 1
+nft_ucode nft-create-runtime-base ForkopTable localv4 forkop_interfaces "br-lan tun0" 0x00100000 0x00200000 198.18.0.0/15 1602 1
 assert_contains "$NFT_LOG" $'nft\tadd\ttable\tinet\tForkopTable' "runtime table"
 assert_contains "$NFT_LOG" $'nft\tadd\tset\tinet\tForkopTable\tlocalv4\t{ type ipv4_addr; flags interval; auto-merge; }' "runtime localv4 set"
 assert_contains "$NFT_LOG" $'nft\tadd\tset\tinet\tForkopTable\tlocalv6\t{ type ipv6_addr; flags interval; auto-merge; }' "runtime localv6 set"
@@ -246,8 +246,14 @@ if grep -Fq 'forkop_dns_sources' "$NFT_LOG"; then
 fi
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle\tiifname\t@forkop_interfaces\tip6\tdaddr\t@localv6\tip6\tdaddr\t!=\tfc00::/18\treturn' "runtime local6 return preserves FakeIP6 capture"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle\tjump\tpriority_rules' "runtime priority jump"
-assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle\tiifname\t@forkop_interfaces\tip\tdaddr\t@forkop_subnets\tmeta\tl4proto\ttcp\tmeta\tmark\tset\t0x00100000\tcounter' "runtime common tcp rule"
-assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle\tiifname\t@forkop_interfaces\tip6\tdaddr\t@forkop_subnets6\tmeta\tl4proto\ttcp\tmeta\tmark\tset\t0x00100000\tcounter' "runtime common6 tcp rule"
+# Only the sets something fills. There used to be a second, table-wide pair of
+# address and port sets here with twenty-two rules reading them, and nothing had
+# put an element in any of them since the sets became per section.
+for absent in forkop_subnets forkop_subnets6 forkop_ports forkop_ip_ports forkop_ip6_ports; do
+  if grep -Fq $'\t'"$absent"$'\t' "$NFT_LOG"; then
+    fail "nothing fills $absent, so no rule may read it"
+  fi
+done
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tproxy\tmeta\tmark\t&\t0x00100000\t==\t0x00100000\tmeta\tl4proto\ttcp\ttproxy\tip\tto\t:1602\tcounter' "runtime proxy tcp rule"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tproxy\tmeta\tmark\t&\t0x00100000\t==\t0x00100000\tmeta\tl4proto\ttcp\ttproxy\tip6\tto\t[::1]:1602\tcounter' "runtime proxy6 tcp rule"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tproxy\tiifname\tlo\tmeta\tmark\t&\t0x00100000\t==\t0x00100000\tmeta\tl4proto\ttcp\ttproxy\tip\tto\t:1604\tcounter\taccept' "runtime System proxy tcp rule"
@@ -312,13 +318,11 @@ assert_contains "$LOGGER_LOG" "[fatal] nft refused the ruleset: Error: syntax er
   "a refused transaction must be logged with the reason nft gave"
 
 : > "$NFT_LOG"
-nft_ucode nft-create-runtime-output-rules ForkopTable forkop_subnets forkop_ports forkop_ip_ports 0x00100000 198.18.0.0/15
-assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle_output\tip\tdaddr\t@forkop_subnets\tmeta\tl4proto\ttcp\tmeta\tmark\tset\t0x00100000\tcounter' "runtime output common tcp"
-assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle_output\tip6\tdaddr\t@forkop_subnets6\tmeta\tl4proto\ttcp\tmeta\tmark\tset\t0x00100000\tcounter' "runtime output common6 tcp"
-assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle_output\tip\tdaddr\t.\ttcp\tdport\t@forkop_ip_ports\tmeta\tmark\tset\t0x00100000\tcounter' "runtime output ip-port tcp"
-assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle_output\tip6\tdaddr\t.\ttcp\tdport\t@forkop_ip6_ports\tmeta\tmark\tset\t0x00100000\tcounter' "runtime output ip6-port tcp"
-assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle_output\ttcp\tdport\t@forkop_ports\tmeta\tmark\tset\t0x00100000\tcounter' "runtime output port tcp"
+nft_ucode nft-create-fakeip-output-rules ForkopTable 0x00100000 198.18.0.0/15 fc00::/18
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle_output\tip\tdaddr\t198.18.0.0/15\tmeta\tl4proto\ttcp\tmeta\tmark\tset\t0x00100000\tcounter' "runtime output fakeip tcp"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle_output\tip\tdaddr\t198.18.0.0/15\tmeta\tl4proto\tudp\tmeta\tmark\tset\t0x00100000\tcounter' "runtime output fakeip udp"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle_output\tip6\tdaddr\tfc00::/18\tmeta\tl4proto\ttcp\tmeta\tmark\tset\t0x00100000\tcounter' "runtime output fakeip6 tcp"
+assert_eq "4" "$(grep -c mangle_output "$NFT_LOG")" "the router's own FakeIP traffic is the whole of it"
 
 : > "$NFT_LOG"
 # nft/state.uc owns the question, because the reload path, the readiness poll and
@@ -469,6 +473,17 @@ assert_line_before "$NFT_LOG" \
 assert_contains "$NFT_LOG" $'nft\tadd\tset\tinet\tForkopTable\tforkop_rule_builtin_subnets_ip_ports\t{ type ipv4_addr . inet_service; flags interval; auto-merge; }' "built-in subnet list ip-port set"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tpriority_rules\tiifname\t@forkop_interfaces\tip\tdaddr\t!=\t@localv4\tip\tdaddr\t.\tudp\tdport\t@forkop_rule_builtin_subnets_ip_ports\tmeta\tmark\tset\t0x00100000\tcounter\taccept' "built-in subnet list ip-port rule"
 
+# A rule set can also limit addresses to one transport. A set of address and port
+# pairs cannot say which, because the pair of rules that reads it matches both,
+# so those addresses carry the transport in the set key and one rule covers them.
+assert_contains "$NFT_LOG" $'nft\tadd\tset\tinet\tForkopTable\tforkop_rule_builtin_subnets_proto_ports\t{ type ipv4_addr . inet_proto . inet_service; flags interval; auto-merge; }' "transport-scoped set"
+assert_contains "$NFT_LOG" $'nft\tadd\tset\tinet\tForkopTable\tforkop_rule_builtin_subnets_proto6_ports\t{ type ipv6_addr . inet_proto . inet_service; flags interval; auto-merge; }' "transport-scoped set6"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tpriority_rules\tiifname\t@forkop_interfaces\tip\tdaddr\t!=\t@localv4\tip\tdaddr\t.\tmeta\tl4proto\t.\tth\tdport\t@forkop_rule_builtin_subnets_proto_ports\tmeta\tmark\tset\t0x00100000\tcounter\taccept' "transport-scoped rule"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tpriority_output_rules\tip6\tdaddr\t!=\t@localv6\tip6\tdaddr\t.\tmeta\tl4proto\t.\tth\tdport\t@forkop_rule_builtin_subnets_proto6_ports\tmeta\tmark\tset\t0x00100000\tcounter\taccept' "transport-scoped output rule6"
+assert_eq "2" \
+  "$(grep -Fc $'th\tdport\t@forkop_rule_builtin_subnets_proto_ports' "$NFT_LOG")" \
+  "one rule per chain covers both transports"
+
 # A port next to an address is a condition on that address: the pair goes into
 # the ip-port set and is matched together. A section that also matched the port
 # on its own would claim every address on it, which is not what it selects.
@@ -490,6 +505,8 @@ for absent in \
   forkop_rule_system_filter_sources \
   forkop_rule_ip_and_ports_ports \
   forkop_rule_ip_and_ports_subnets \
+  forkop_rule_ip_and_ports_proto_ports \
+  forkop_rule_bypass_first_proto_ports \
   forkop_rule_builtin_subnets_ports; do
   if grep -Fq $'\tadd\tset\tinet\tForkopTable\t'"$absent"$'\t' "$NFT_LOG"; then
     fail "no rule reads $absent, so it must not be created"
@@ -791,11 +808,6 @@ FORKOP_UCI_STATE_FILE="$WORK_DIR/rebuild-uci.state" \
   NFT_TABLE_NAME=RebuildTable \
   NFT_LOCALV4_SET_NAME=rebuild_localv4 \
   NFT_LOCALV6_SET_NAME=rebuild_localv6 \
-  NFT_COMMON_SET_NAME=rebuild_subnets \
-  NFT_COMMON6_SET_NAME=rebuild_subnets6 \
-  NFT_PORT_SET_NAME=rebuild_ports \
-  NFT_IP_PORT_SET_NAME=rebuild_ip_ports \
-  NFT_IP_PORT6_SET_NAME=rebuild_ip6_ports \
   NFT_INTERFACE_SET_NAME=rebuild_interfaces \
   NFT_FAKEIP_MARK=0x00100000 \
   NFT_OUTBOUND_MARK=0x00200000 \
@@ -826,7 +838,7 @@ assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tmangle\tiifname
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tmangle\tiifname\t@rebuild_interfaces\tip6\tdaddr\tfd00:2::/32\tmeta\tl4proto\ttcp\tmeta\tmark\tset\t0x00100000\tcounter' "rebuild FakeIP6 capture"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tproxy\tmeta\tmark\t&\t0x00100000\t==\t0x00100000\tmeta\tl4proto\ttcp\ttproxy\tip6\tto\t[fd00::1]:1699\tcounter' "rebuild TProxy6 target"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tmangle_output\tmeta\tmark\t0x00200000\tcounter\treturn' "rebuild outbound return"
-assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tmangle_output\tip\tdaddr\t@rebuild_subnets\tmeta\tl4proto\ttcp\tmeta\tmark\tset\t0x00100000\tcounter' "rebuild output common rule"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tmangle_output\tip\tdaddr\t192.0.2.0/24\tmeta\tl4proto\ttcp\tmeta\tmark\tset\t0x00100000\tcounter' "rebuild output FakeIP rule"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tmangle_output\tmeta\tmark\t&\t0x40000000\t==\t0x40000000\treturn' "rebuild zapret desync return"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tmangle_output\tmeta\tmark\t0x03000001\tmeta\tl4proto\ttcp\tcounter\tqueue\tnum\t4100\tbypass' "rebuild zapret queue rule"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tmangle_output\tmeta\tmark\t&\t0x50000000\t==\t0x50000000\treturn' "rebuild zapret2 desync return"
@@ -834,7 +846,7 @@ assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tmangle_output\t
 assert_contains "$IP_LOG" $'ip\troute\tadd\tlocal\t0.0.0.0/0\tdev\tlo\ttable\trebuild_route' "rebuild TProxy route"
 assert_contains "$IP_LOG" $'ip\t-4\trule\tadd\tfwmark\t0x00100000/0x00100000\ttable\trebuild_route\tpriority\t105' "rebuild TProxy marking rule"
 assert_contains "$WORK_DIR/rebuild-rt_tables" '105 rebuild_route' "rebuild route table registration"
-for leaked in ForkopTable forkop_subnets forkop_ports forkop_ip_ports forkop_interfaces; do
+for leaked in ForkopTable forkop_interfaces 198.18.0.0/15 fc00::/18 :1602; do
   if grep -Fq "$leaked" "$NFT_LOG"; then
     fail "nft runtime rebuild fell back to the default $leaked instead of the name core/constants.uc holds"
   fi

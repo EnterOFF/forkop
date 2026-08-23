@@ -75,6 +75,14 @@ reject_runtime_pattern "IP/port entries" \
   "native rule-set nft sync must log only the total number of nft values"
 reject_runtime_pattern "rule(s) that cannot be represented" \
   "native rule-set nft sync must not expose ignored-rule details"
+# What the sets ended up holding is the one number worth a line. A second line
+# saying part of a third-party list is not expressible as addresses fires on
+# every sync and cannot be acted on, and a line per chunk of elements written
+# says the same thing again in pieces.
+reject_runtime_pattern "rule-set entries whose conditions" \
+  "native rule-set nft sync must not report what a list could not contribute"
+reject_runtime_pattern "elements to nft set" \
+  "filling a set must not be reported chunk by chunk"
 
 reject_runtime_regex 'log_message\("singbox/runtime\.uc: ' \
   "runtime logs must not expose singbox/runtime.uc as a user-facing prefix"

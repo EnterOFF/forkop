@@ -1067,8 +1067,8 @@ msgstr "Недопустимый интервал keepalive WireGuard"
 msgid "IP address or device name in Tailscale through which traffic is forwarded"
 msgstr "IP-адрес или имя устройства в Tailscale, через которое будет перенаправляться трафик"
 
-msgid "IP addresses and subnets, including their port constraints, will be extracted and added to nftables"
-msgstr "IP-адреса и подсети, включая заданные для них ограничения по портам, будут извлечены и добавлены в nftables"
+msgid "By default only the domain conditions of a rule set are applied. This option adds its IP addresses and subnets to nftables. Large lists can load the router heavily. Enable it only if you know the set holds the subnets you need"
+msgstr "По умолчанию из набора правил применяются только доменные условия. Опция добавляет IP-адреса и подсети в nftables. Крупные списки могут сильно нагружать роутер. Включайте, только если знаете, что набор содержит необходимые подсети"
 
 msgid "IPs"
 msgstr "IP-адреса"

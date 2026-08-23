@@ -136,16 +136,17 @@ sync_ucode render-fixture "$WORK_DIR/snapshot.json" "$WORK_DIR/fixture.json" mix
     fail "main fixture did not render"
   }
 
-# One line for what was loaded and one for what the core could not express. The
-# count is the addresses the sets ended up holding, which includes the section's
-# own: they are written by the same transaction and were reported by nobody.
-[ "$(wc -l <"$WORK_DIR/render.err")" -eq 2 ] || {
+# One line, for what the sets ended up holding. That count includes the section's
+# own addresses, because they are written by the same transaction and were
+# reported by nobody. Nothing else is said: the snapshot also lists the rules the
+# core could not express as addresses, and a line about part of a third-party
+# list not being expressible fires on every sync and cannot be acted on.
+[ "$(wc -l <"$WORK_DIR/render.err")" -eq 1 ] || {
   cat "$WORK_DIR/render.err" >&2
-  fail "render must produce one concise summary and the skipped count"
+  fail "render must produce one concise summary and nothing else"
 }
 assert_contains "$WORK_DIR/render.err" "Loaded 7 subnets into nft" "sync summary"
-assert_contains "$WORK_DIR/render.err" "Skipped 1 rule-set entries whose conditions nft cannot express" \
-  "an address rule the core refused to export has to be visible"
+assert_not_contains "$WORK_DIR/render.err" "Skipped" "the summary is the whole report"
 assert_not_contains "$WORK_DIR/render.err" "ignored" "sync summary must hide internal filtering details"
 assert_not_contains "$WORK_DIR/render.err" "IP/port" "sync summary must describe generic nft values"
 assert_not_contains "$WORK_DIR/render.err" "mixed" "sync summary must not expose section details"
@@ -363,7 +364,11 @@ PATH="$WORK_DIR/bin:$PATH" NFT_LOG="$NFT_LOG" NFT_INPUT="$NFT_INPUT" \
 # keep consistent with each other, because each set is matched by the rules of
 # its own section and by nothing else.
 [ "$(wc -l <"$NFT_LOG")" -eq 2 ] || fail "full sync must hand nft one transaction per section"
-[ "$(grep -c '^flush set ' "$NFT_INPUT")" -eq 4 ] || fail "full sync must rebuild both eligible sections"
+# Four sets for the section fed by rule sets - the addresses may arrive limited
+# to ports, to a transport, or to neither, and which of those a provider carries
+# is not known until it has been downloaded - and two for the one carrying only
+# its own addresses.
+[ "$(grep -c '^flush set ' "$NFT_INPUT")" -eq 6 ] || fail "full sync must rebuild both eligible sections"
 assert_contains "$NFT_INPUT" "forkop_rule_batch_one_ip_ports" "first eligible section"
 assert_contains "$NFT_INPUT" "forkop_rule_batch_two_subnets6" "second eligible section"
 assert_contains "$NFT_INPUT" "198.51.100.0/24 . 80" "subnet community provider"
@@ -374,8 +379,7 @@ assert_not_contains "$NFT_INPUT" "disabled_skip" "disabled section must not own 
 assert_not_contains "$NFT_INPUT" "domain_only_skip" "domain-only section must not own nft priority sets"
 assert_contains "$WORK_DIR/batch.err" "Loaded 4 subnets into nft" "batch sync summary for the first section"
 assert_contains "$WORK_DIR/batch.err" "Loaded 1 subnets into nft" "batch sync summary for the second section"
-assert_contains "$WORK_DIR/batch.err" "Skipped 1 rule-set entries whose conditions nft cannot express" \
-  "a built-in list whose addresses the core refused has to be visible"
+assert_not_contains "$WORK_DIR/batch.err" "Skipped" "the summary is the whole report"
 assert_not_contains "$WORK_DIR/batch.err" "ignored" "batch summary must hide internal filtering details"
 assert_not_contains "$WORK_DIR/batch.err" "IP/port" "batch summary must describe generic nft values"
 
@@ -386,8 +390,67 @@ PATH="$WORK_DIR/bin:$PATH" NFT_LOG="$NFT_LOG" NFT_INPUT="$NFT_INPUT" \
   >/dev/null 2>"$WORK_DIR/batch-without-discord.err"
 assert_contains "$WORK_DIR/batch-without-discord.err" "Loaded 3 subnets into nft" \
   "removing a subnet rule set must change the logged address count"
-assert_not_contains "$WORK_DIR/batch-without-discord.err" "Skipped" \
-  "a list nothing was skipped from must not be reported"
+
+# A rule set can limit addresses to one transport, which a set of address and
+# port pairs cannot express: the pair of rules that reads it matches both. Those
+# addresses go into a set whose key carries the transport, and a group limited to
+# a transport but to no particular port covers every port on it.
+cat >"$WORK_DIR/transport-snapshot.json" <<EOF_TRANSPORT
+{
+  "revision": 3,
+  "providers": {
+    "$subnet_tag": {
+      "revision": 1,
+      "ip_cidr": {
+        "ipv4": ["8.8.8.0/24"], "ipv6": [],
+        "scoped_ipv4": [
+          {"prefixes":["104.16.0.0/12"],"networks":["udp"],"port_ranges":[{"start":50000,"end":65535}]},
+          {"prefixes":["1.2.3.0/24"],"networks":["tcp"],"port_ranges":[]},
+          {"prefixes":["5.5.5.0/24"],"networks":[],"port_ranges":[{"start":443,"end":443}]}
+        ],
+        "scoped_ipv6": [{"prefixes":["2001:db8:5::/48"],"networks":["udp"],"port_ranges":[]}]
+      }
+    }
+  }
+}
+EOF_TRANSPORT
+printf '%s\n' '{"sections":[{".name":"transport","enabled":"1","action":"proxy","rule_set_with_subnets":["https://example.com/with-subnets.srs"]}]}' \
+  >"$WORK_DIR/transport-fixture.json"
+sync_ucode render-fixture "$WORK_DIR/transport-snapshot.json" "$WORK_DIR/transport-fixture.json" transport \
+  >"$WORK_DIR/transport.nft" 2>/dev/null
+assert_contains "$WORK_DIR/transport.nft" "forkop_rule_transport_proto_ports { 1.2.3.0/24 . tcp . 1-65535, 104.16.0.0/12 . udp . 50000-65535 }" \
+  "a transport-limited group carries the transport in the element"
+assert_contains "$WORK_DIR/transport.nft" "forkop_rule_transport_proto6_ports { 2001:db8:5::/48 . udp . 1-65535 }" \
+  "a transport with no port covers every port on it"
+assert_contains "$WORK_DIR/transport.nft" "forkop_rule_transport_ip_ports { 5.5.5.0/24 . 443 }" \
+  "a group with ports and no transport stays a pair"
+assert_contains "$WORK_DIR/transport.nft" "forkop_rule_transport_subnets { 8.8.8.0/24 }" \
+  "an unconstrained address stays plain"
+
+# The section's own ports narrow a transport-limited group the same way they
+# narrow a port-limited one.
+printf '%s\n' '{"sections":[{".name":"transport","enabled":"1","action":"proxy","ports":["443"],"rule_set_with_subnets":["https://example.com/with-subnets.srs"]}]}' \
+  >"$WORK_DIR/transport-ports-fixture.json"
+sync_ucode render-fixture "$WORK_DIR/transport-snapshot.json" "$WORK_DIR/transport-ports-fixture.json" transport \
+  >"$WORK_DIR/transport-ports.nft" 2>/dev/null
+assert_contains "$WORK_DIR/transport-ports.nft" "1.2.3.0/24 . tcp . 443" \
+  "the section's ports narrow a transport-limited group"
+assert_not_contains "$WORK_DIR/transport-ports.nft" "104.16.0.0/12" \
+  "a group the section's ports do not overlap selects nothing"
+
+# Both of these describe a snapshot this reader cannot act on rather than a value
+# to guess at, so they stop the section instead of being dropped.
+printf '%s\n' '{"revision":1,"providers":{"bad":{"revision":1,"ip_cidr":{"ipv4":[],"ipv6":[],"scoped_ipv4":[{"prefixes":["1.1.1.0/24"],"networks":["icmp"],"port_ranges":[]}],"scoped_ipv6":[]}}}}' \
+  >"$WORK_DIR/bad-network.json"
+if sync_ucode render-fixture "$WORK_DIR/bad-network.json" "$WORK_DIR/bad-fixture.json" safe >/dev/null 2>&1; then
+  fail "a transport nft cannot match must stop the section"
+fi
+printf '%s\n' '{"revision":1,"providers":{"bad":{"revision":1,"ip_cidr":{"ipv4":[],"ipv6":[],"scoped_ipv4":[{"prefixes":["1.1.1.0/24"],"networks":[],"port_ranges":[]}],"scoped_ipv6":[]}}}}' \
+  >"$WORK_DIR/unconstrained-group.json"
+if sync_ucode render-fixture "$WORK_DIR/unconstrained-group.json" "$WORK_DIR/bad-fixture.json" safe >/dev/null 2>&1; then
+  fail "a scoped group constrained by nothing must stop the section"
+fi
+
 
 cat >"$WORK_DIR/incomplete-batch-snapshot.json" <<EOF_INCOMPLETE_BATCH
 {

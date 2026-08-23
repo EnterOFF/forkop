@@ -31,11 +31,6 @@ const RT_TABLE_NAME = constants.RT_TABLE_NAME;
 const NFT_TABLE_NAME = constants.NFT_TABLE_NAME;
 const NFT_LOCALV4_SET_NAME = constants.NFT_LOCALV4_SET_NAME;
 const NFT_LOCALV6_SET_NAME = constants.NFT_LOCALV6_SET_NAME;
-const NFT_COMMON_SET_NAME = constants.NFT_COMMON_SET_NAME;
-const NFT_COMMON6_SET_NAME = constants.NFT_COMMON6_SET_NAME;
-const NFT_PORT_SET_NAME = constants.NFT_PORT_SET_NAME;
-const NFT_IP_PORT_SET_NAME = constants.NFT_IP_PORT_SET_NAME;
-const NFT_IP_PORT6_SET_NAME = constants.NFT_IP_PORT6_SET_NAME;
 const NFT_INTERFACE_SET_NAME = constants.NFT_INTERFACE_SET_NAME;
 const NFT_FAKEIP_MARK = constants.NFT_FAKEIP_MARK;
 const NFT_OUTBOUND_MARK = constants.NFT_OUTBOUND_MARK;
@@ -281,6 +276,18 @@ function nft_create_ipv6_port_set(table, name) {
     return nft_create_set(table, name, "{ type ipv6_addr . inet_service; flags interval; auto-merge; }");
 }
 
+// The transport joins the key so one rule can match what a rule set actually
+// says. Read through a pair of rules, one per transport, a set of address and
+// port pairs cannot tell them apart, and an address a rule set limited to UDP
+// would have been matched on TCP as well.
+function nft_create_ipv4_proto_port_set(table, name) {
+    return nft_create_set(table, name, "{ type ipv4_addr . inet_proto . inet_service; flags interval; auto-merge; }");
+}
+
+function nft_create_ipv6_proto_port_set(table, name) {
+    return nft_create_set(table, name, "{ type ipv6_addr . inet_proto . inet_service; flags interval; auto-merge; }");
+}
+
 function nft_create_ifname_set(table, name) {
     return nft_create_set(table, name, "{ type ifname; flags interval; }");
 }
@@ -362,6 +369,9 @@ function nft_create_priority_sets(table, matchers) {
         return false;
     if (matchers.needs_ip_port_sets &&
         (!nft_create_ipv4_port_set(table, sets.ip_ports) || !nft_create_ipv6_port_set(table, sets.ip6_ports)))
+        return false;
+    if (matchers.needs_proto_port_sets &&
+        (!nft_create_ipv4_proto_port_set(table, sets.proto_ports) || !nft_create_ipv6_proto_port_set(table, sets.proto6_ports)))
         return false;
     if (matchers.needs_port_set && !nft_create_inet_service_set(table, sets.ports))
         return false;
@@ -531,6 +541,14 @@ function nft_add_section_priority_rules(table, context, matchers) {
                 return false;
     }
 
+    // The transport is part of the key, so one rule covers both of them and the
+    // set decides which addresses either one reaches.
+    if (matchers.needs_proto_port_sets &&
+        !add_rules(
+            [ "ip", "daddr", ".", "meta", "l4proto", ".", "th", "dport", "@" + as_string(sets.proto_ports) ],
+            [ "ip6", "daddr", ".", "meta", "l4proto", ".", "th", "dport", "@" + as_string(sets.proto6_ports) ]))
+        return false;
+
     // A port-only matcher is address family agnostic, so both sides of the pair
     // reference the same port set.
     if (matchers.needs_port_set) {
@@ -571,10 +589,8 @@ function nft_add_section_priority_rules_from_sections(sections, table, interface
     return true;
 }
 
-function nft_create_runtime_base(table, localv4_set, common_set, port_set, ip_port_set, interface_set, source_interfaces, fakeip_mark, outbound_mark, fakeip_range, tproxy_port, exclude_ntp, localv6_set, common6_set, ip_port6_set, fakeip6_range, tproxy6_address) {
+function nft_create_runtime_base(table, localv4_set, interface_set, source_interfaces, fakeip_mark, outbound_mark, fakeip_range, tproxy_port, exclude_ntp, localv6_set, fakeip6_range, tproxy6_address) {
     localv6_set = default_arg(localv6_set, "localv6");
-    common6_set = default_arg(common6_set, "forkop_subnets6");
-    ip_port6_set = default_arg(ip_port6_set, "forkop_ip6_ports");
     fakeip6_range = default_arg(fakeip6_range, "fc00::/18");
     tproxy6_address = default_arg(tproxy6_address, "::1");
 
@@ -583,11 +599,6 @@ function nft_create_runtime_base(table, localv4_set, common_set, port_set, ip_po
         !nft_add_set_elements(table, localv4_set, join(",", LOCALV4_RANGES)) ||
         !nft_create_ipv6_set(table, localv6_set) ||
         !nft_add_set_elements(table, localv6_set, join(",", LOCALV6_RANGES)) ||
-        !nft_create_ipv4_set(table, common_set) ||
-        !nft_create_ipv6_set(table, common6_set) ||
-        !nft_create_inet_service_set(table, port_set) ||
-        !nft_create_ipv4_port_set(table, ip_port_set) ||
-        !nft_create_ipv6_port_set(table, ip_port6_set) ||
         !nft_create_ifname_set(table, interface_set))
         return false;
 
@@ -608,18 +619,6 @@ function nft_create_runtime_base(table, localv4_set, common_set, port_set, ip_po
         !nft_add_rule(table, "mangle", [ "iifname", "@" + as_string(interface_set), "ip", "daddr", "@" + as_string(localv4_set), "return" ]) ||
         !nft_add_rule(table, "mangle", [ "iifname", "@" + as_string(interface_set), "ip6", "daddr", "@" + as_string(localv6_set), "ip6", "daddr", "!=", fakeip6_range, "return" ]) ||
         !nft_add_rule(table, "mangle", [ "jump", "priority_rules" ]) ||
-        !nft_add_rule(table, "mangle", [ "iifname", "@" + as_string(interface_set), "ip", "daddr", "@" + as_string(common_set), "meta", "l4proto", "tcp", "meta", "mark", "set", fakeip_mark, "counter" ]) ||
-        !nft_add_rule(table, "mangle", [ "iifname", "@" + as_string(interface_set), "ip", "daddr", "@" + as_string(common_set), "meta", "l4proto", "udp", "meta", "mark", "set", fakeip_mark, "counter" ]) ||
-        !nft_add_rule(table, "mangle", [ "iifname", "@" + as_string(interface_set), "ip6", "daddr", "@" + as_string(common6_set), "meta", "l4proto", "tcp", "meta", "mark", "set", fakeip_mark, "counter" ]) ||
-        !nft_add_rule(table, "mangle", [ "iifname", "@" + as_string(interface_set), "ip6", "daddr", "@" + as_string(common6_set), "meta", "l4proto", "udp", "meta", "mark", "set", fakeip_mark, "counter" ]) ||
-        !nft_add_rule(table, "mangle", [ "iifname", "@" + as_string(interface_set), "ip", "daddr", ".", "tcp", "dport", "@" + as_string(ip_port_set), "meta", "mark", "set", fakeip_mark, "counter" ]) ||
-        !nft_add_rule(table, "mangle", [ "iifname", "@" + as_string(interface_set), "ip", "daddr", ".", "udp", "dport", "@" + as_string(ip_port_set), "meta", "mark", "set", fakeip_mark, "counter" ]) ||
-        !nft_add_rule(table, "mangle", [ "iifname", "@" + as_string(interface_set), "ip6", "daddr", ".", "tcp", "dport", "@" + as_string(ip_port6_set), "meta", "mark", "set", fakeip_mark, "counter" ]) ||
-        !nft_add_rule(table, "mangle", [ "iifname", "@" + as_string(interface_set), "ip6", "daddr", ".", "udp", "dport", "@" + as_string(ip_port6_set), "meta", "mark", "set", fakeip_mark, "counter" ]) ||
-        !nft_add_rule(table, "mangle", [ "iifname", "@" + as_string(interface_set), "ip", "daddr", "!=", "@" + as_string(localv4_set), "tcp", "dport", "@" + as_string(port_set), "meta", "mark", "set", fakeip_mark, "counter" ]) ||
-        !nft_add_rule(table, "mangle", [ "iifname", "@" + as_string(interface_set), "ip", "daddr", "!=", "@" + as_string(localv4_set), "udp", "dport", "@" + as_string(port_set), "meta", "mark", "set", fakeip_mark, "counter" ]) ||
-        !nft_add_rule(table, "mangle", [ "iifname", "@" + as_string(interface_set), "ip6", "daddr", "!=", "@" + as_string(localv6_set), "tcp", "dport", "@" + as_string(port_set), "meta", "mark", "set", fakeip_mark, "counter" ]) ||
-        !nft_add_rule(table, "mangle", [ "iifname", "@" + as_string(interface_set), "ip6", "daddr", "!=", "@" + as_string(localv6_set), "udp", "dport", "@" + as_string(port_set), "meta", "mark", "set", fakeip_mark, "counter" ]) ||
         !nft_add_rule(table, "mangle", [ "iifname", "@" + as_string(interface_set), "ip", "daddr", fakeip_range, "meta", "l4proto", "tcp", "meta", "mark", "set", fakeip_mark, "counter" ]) ||
         !nft_add_rule(table, "mangle", [ "iifname", "@" + as_string(interface_set), "ip", "daddr", fakeip_range, "meta", "l4proto", "udp", "meta", "mark", "set", fakeip_mark, "counter" ]) ||
         !nft_add_rule(table, "mangle", [ "iifname", "@" + as_string(interface_set), "ip6", "daddr", fakeip6_range, "meta", "l4proto", "tcp", "meta", "mark", "set", fakeip_mark, "counter" ]) ||
@@ -644,22 +643,14 @@ function nft_create_runtime_base(table, localv4_set, common_set, port_set, ip_po
     return true;
 }
 
-function nft_create_runtime_output_rules(table, common_set, port_set, ip_port_set, fakeip_mark, fakeip_range, common6_set, ip_port6_set, fakeip6_range) {
-    common6_set = default_arg(common6_set, "forkop_subnets6");
-    ip_port6_set = default_arg(ip_port6_set, "forkop_ip6_ports");
+// The router's own traffic to a FakeIP address, which the resolver handed out
+// and only sing-box can turn back into a destination. Added after the nfqueue
+// providers have had their say, so a packet one of them owns has already
+// returned.
+function nft_create_fakeip_output_rules(table, fakeip_mark, fakeip_range, fakeip6_range) {
     fakeip6_range = default_arg(fakeip6_range, "fc00::/18");
 
     return (
-        nft_add_rule(table, "mangle_output", [ "ip", "daddr", "@" + as_string(common_set), "meta", "l4proto", "tcp", "meta", "mark", "set", fakeip_mark, "counter" ]) &&
-        nft_add_rule(table, "mangle_output", [ "ip", "daddr", "@" + as_string(common_set), "meta", "l4proto", "udp", "meta", "mark", "set", fakeip_mark, "counter" ]) &&
-        nft_add_rule(table, "mangle_output", [ "ip6", "daddr", "@" + as_string(common6_set), "meta", "l4proto", "tcp", "meta", "mark", "set", fakeip_mark, "counter" ]) &&
-        nft_add_rule(table, "mangle_output", [ "ip6", "daddr", "@" + as_string(common6_set), "meta", "l4proto", "udp", "meta", "mark", "set", fakeip_mark, "counter" ]) &&
-        nft_add_rule(table, "mangle_output", [ "ip", "daddr", ".", "tcp", "dport", "@" + as_string(ip_port_set), "meta", "mark", "set", fakeip_mark, "counter" ]) &&
-        nft_add_rule(table, "mangle_output", [ "ip", "daddr", ".", "udp", "dport", "@" + as_string(ip_port_set), "meta", "mark", "set", fakeip_mark, "counter" ]) &&
-        nft_add_rule(table, "mangle_output", [ "ip6", "daddr", ".", "tcp", "dport", "@" + as_string(ip_port6_set), "meta", "mark", "set", fakeip_mark, "counter" ]) &&
-        nft_add_rule(table, "mangle_output", [ "ip6", "daddr", ".", "udp", "dport", "@" + as_string(ip_port6_set), "meta", "mark", "set", fakeip_mark, "counter" ]) &&
-        nft_add_rule(table, "mangle_output", [ "tcp", "dport", "@" + as_string(port_set), "meta", "mark", "set", fakeip_mark, "counter" ]) &&
-        nft_add_rule(table, "mangle_output", [ "udp", "dport", "@" + as_string(port_set), "meta", "mark", "set", fakeip_mark, "counter" ]) &&
         nft_add_rule(table, "mangle_output", [ "ip", "daddr", fakeip_range, "meta", "l4proto", "tcp", "meta", "mark", "set", fakeip_mark, "counter" ]) &&
         nft_add_rule(table, "mangle_output", [ "ip", "daddr", fakeip_range, "meta", "l4proto", "udp", "meta", "mark", "set", fakeip_mark, "counter" ]) &&
         nft_add_rule(table, "mangle_output", [ "ip6", "daddr", fakeip6_range, "meta", "l4proto", "tcp", "meta", "mark", "set", fakeip_mark, "counter" ]) &&
@@ -709,18 +700,14 @@ function nft_create_provider_output_rules_from_sections(sections, table, action,
     return true;
 }
 
-// A batch of set elements small enough for one `add element` command. The
-// element count travels with the text because the debug line reports it.
+// A batch of set elements small enough for one `add element` command.
 function nft_new_chunks() {
-    return { lines: [], count: 0 };
+    return [];
 }
 
 function nft_write_chunk(chunks, chunk) {
-    if (length(chunk) == 0)
-        return;
-
-    push(chunks.lines, { count: length(chunk), elements: join(",", chunk) });
-    chunks.count += length(chunk);
+    if (length(chunk) > 0)
+        push(chunks, join(",", chunk));
 }
 
 function nft_push_chunk_value(chunks, chunk, value, chunk_size) {
@@ -798,11 +785,9 @@ function nft_log_invalid_elements(invalid) {
 }
 
 function nft_add_chunks_to_set(table, set_name, chunks) {
-    for (let item in chunks.lines) {
-        log_debug("Adding " + item.count + " elements to nft set " + set_name);
-        if (!nft_add_set_elements(table, set_name, item.elements))
+    for (let elements in chunks)
+        if (!nft_add_set_elements(table, set_name, elements))
             return false;
-    }
 
     return true;
 }
@@ -821,14 +806,16 @@ function nft_add_csv_to_family_sets(csv, ports_csv, table, ipv4_set, ipv6_set, c
     return nft_add_values_to_family_sets(nft_csv_values(csv), ports_csv, table, ipv4_set, ipv6_set, chunk_size_text);
 }
 
-function nft_add_inline_ip_cidr_matchers(csv, ports_csv, table, common_set, ip_port_set, chunk_size_text, common6_set, ip_port6_set) {
+// Without ports every address is matched on its own; with them each address is
+// matched together with each port, which is a different pair of sets.
+function nft_add_inline_ip_cidr_matchers(csv, ports_csv, table, sets, chunk_size_text) {
     if (as_string(csv) == "")
         return true;
 
     if (as_string(ports_csv) != "")
-        return nft_add_csv_to_family_sets(csv, ports_csv, table, ip_port_set, default_arg(ip_port6_set, "forkop_ip6_ports"), chunk_size_text);
+        return nft_add_csv_to_family_sets(csv, ports_csv, table, sets.ip_ports, sets.ip6_ports, chunk_size_text);
 
-    return nft_add_csv_to_family_sets(csv, "", table, common_set, default_arg(common6_set, "forkop_subnets6"), chunk_size_text);
+    return nft_add_csv_to_family_sets(csv, "", table, sets.subnets, sets.subnets6, chunk_size_text);
 }
 
 function ensure_rt_table_entry(path, table_id, table_name) {
@@ -1042,8 +1029,7 @@ function nft_populate_runtime_set_for_section(section, matchers, deferred_sectio
     if (!nft_add_section_fully_routed_sources(matchers, table, 5000))
         return false;
 
-    if (!nft_add_inline_ip_cidr_matchers(matchers.subnets, matchers.ports, table,
-        matchers.sets.subnets, matchers.sets.ip_ports, 5000, matchers.sets.subnets6, matchers.sets.ip6_ports))
+    if (!nft_add_inline_ip_cidr_matchers(matchers.subnets, matchers.ports, table, matchers.sets, 5000))
         return false;
 
     if (matchers.needs_port_set && !nft_add_set_elements(table, matchers.sets.ports, matchers.ports))
@@ -1099,16 +1085,14 @@ function nft_populate_runtime_sets_fixture(path, populate_enabled, deferred_sect
 // the two cannot disagree about what the table depends on.
 function nft_runtime_model(settings, sections, populate) {
     return nft_create_runtime_base(
-        NFT_TABLE_NAME, NFT_LOCALV4_SET_NAME, NFT_COMMON_SET_NAME, NFT_PORT_SET_NAME,
-        NFT_IP_PORT_SET_NAME, NFT_INTERFACE_SET_NAME,
+        NFT_TABLE_NAME, NFT_LOCALV4_SET_NAME, NFT_INTERFACE_SET_NAME,
         option(settings, "source_network_interfaces", "br-lan"),
         NFT_FAKEIP_MARK, NFT_OUTBOUND_MARK, SB_FAKEIP_INET4_RANGE, SB_TPROXY_INBOUND_PORT,
         option(settings, "exclude_ntp", "0"),
-        NFT_LOCALV6_SET_NAME, NFT_COMMON6_SET_NAME, NFT_IP_PORT6_SET_NAME,
-        SB_FAKEIP_INET6_RANGE, SB_TPROXY_INBOUND6_ADDRESS) &&
+        NFT_LOCALV6_SET_NAME, SB_FAKEIP_INET6_RANGE, SB_TPROXY_INBOUND6_ADDRESS) &&
         nft_add_section_priority_rules_from_sections(sections, NFT_TABLE_NAME, NFT_INTERFACE_SET_NAME, NFT_LOCALV4_SET_NAME, NFT_LOCALV6_SET_NAME, NFT_FAKEIP_MARK, SB_FAKEIP_INET4_RANGE, SB_FAKEIP_INET6_RANGE) &&
         nft_create_nfqueue_provider_output_rules(NFT_TABLE_NAME, sections) &&
-        nft_create_runtime_output_rules(NFT_TABLE_NAME, NFT_COMMON_SET_NAME, NFT_PORT_SET_NAME, NFT_IP_PORT_SET_NAME, NFT_FAKEIP_MARK, SB_FAKEIP_INET4_RANGE, NFT_COMMON6_SET_NAME, NFT_IP_PORT6_SET_NAME, SB_FAKEIP_INET6_RANGE) &&
+        nft_create_fakeip_output_rules(NFT_TABLE_NAME, NFT_FAKEIP_MARK, SB_FAKEIP_INET4_RANGE, SB_FAKEIP_INET6_RANGE) &&
         (!populate || nft_populate_runtime_sets_from_sections(sections, "1", "", NFT_TABLE_NAME));
 }
 
@@ -1166,9 +1150,9 @@ function nft_runtime_signature_from_fixture(path) {
 let mode = ARGV[0] || "";
 
 if (mode == "nft-create-runtime-base")
-    exit(nft_create_runtime_base(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8], ARGV[9], ARGV[10], ARGV[11], ARGV[12], ARGV[13], ARGV[14], ARGV[15], ARGV[16], ARGV[17]) ? 0 : 1);
-else if (mode == "nft-create-runtime-output-rules")
-    exit(nft_create_runtime_output_rules(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8], ARGV[9]) ? 0 : 1);
+    exit(nft_create_runtime_base(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8], ARGV[9], ARGV[10], ARGV[11], ARGV[12]) ? 0 : 1);
+else if (mode == "nft-create-fakeip-output-rules")
+    exit(nft_create_fakeip_output_rules(ARGV[1], ARGV[2], ARGV[3], ARGV[4]) ? 0 : 1);
 else if (mode == "nft-create-provider-output-rules-fixture")
     exit(nft_create_provider_output_rules_from_sections(fixture_section_list(object_or_empty(common_read_json_file(ARGV[1])), "section"), ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8]) ? 0 : 1);
 else if (mode == "nft-add-section-priority-rules-fixture")

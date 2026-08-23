@@ -5715,7 +5715,9 @@ function showRuleSetSettingsModal(section_id, itemValue, option, widget) {
     form.Flag,
     "include_subnets",
     _("Include IP addresses and subnets"),
-    _("IP addresses and subnets, including their port constraints, will be extracted and added to nftables"),
+    _(
+      "By default only the domain conditions of a rule set are applied. This option adds its IP addresses and subnets to nftables. Large lists can load the router heavily. Enable it only if you know the set holds the subnets you need",
+    ),
   );
   includeSubnets.default = "0";
   includeSubnets.rmempty = false;

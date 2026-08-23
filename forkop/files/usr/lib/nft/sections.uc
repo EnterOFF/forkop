@@ -37,6 +37,8 @@ const SET_SUFFIXES = {
     ports: "_ports",
     ip_ports: "_ip_ports",
     ip6_ports: "_ip6_ports",
+    proto_ports: "_proto_ports",
+    proto6_ports: "_proto6_ports",
     sources: "_sources",
     sources6: "_sources6",
     fully_sources: "_fully_sources",
@@ -139,6 +141,11 @@ function matchers(section, tags) {
         // constraints of its own either way.
         needs_subnet_sets: ip_matchers && ports == "",
         needs_ip_port_sets: ip_matchers && (ports != "" || length(tags) > 0),
+        // A provider can also limit addresses to one transport, which the pair
+        // above cannot say: one set is read by a rule per transport, so an
+        // address in it is matched on both. Those addresses carry the transport
+        // in the set key instead, and only a provider produces them.
+        needs_proto_port_sets: length(tags) > 0,
         needs_port_set: port_only,
         needs_source_sets: length(sources.ips) > 0,
         needs_fully_source_sets: length(fully.ips) > 0
