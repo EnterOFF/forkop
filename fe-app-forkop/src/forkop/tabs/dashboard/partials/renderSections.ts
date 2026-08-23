@@ -293,14 +293,16 @@ function renderDefaultState({
   function renderOutbound(outbound: Forkop.Outbound) {
     const canCopyLink =
       Boolean(outbound.canCopyLink) || isCopyableProxyLink(outbound.link);
+    const groupInfo = outbound.urlTestInfo || outbound.fallbackInfo;
+    // A group with no members cannot dial, so there is nothing to measure and
+    // nothing to select: the Clash API reports it, empty, until one appears.
+    const hasGroupMembers = !groupInfo || groupInfo.outbounds.length > 0;
     const canChooseOutbound =
       section.withTagSelect &&
       outbound.runtimeAvailable !== false &&
+      hasGroupMembers &&
       !outbound.selected;
-    const groupInfo = outbound.urlTestInfo || outbound.fallbackInfo;
-    const showLatency =
-      !groupInfo ||
-      (outbound.runtimeAvailable !== false && groupInfo.outbounds.length > 0);
+    const showLatency = hasGroupMembers;
     const latencyType: 'group' | 'proxy' = groupInfo ? 'group' : 'proxy';
     const latencyTarget = outbound.code;
     const outboundLatencyFetching = latencyFetchingTargets.has(latencyTarget);

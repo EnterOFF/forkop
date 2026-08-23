@@ -294,7 +294,9 @@ describe('getDashboardSections', () => {
 
   it('hydrates readable URLTest and Fallback groups from UCI and Clash API', async () => {
     mocks.getConfigSections.mockResolvedValue([
-      section(),
+      // A group arranges the servers of its own section, so a section that has
+      // groups always has a source for them as well.
+      section({ subscription_urls: ['https://office.example/sub'] }),
       child('urltest', 'fast', {
         name: 'Fast',
         testing_url: 'https://fast.example/204',
@@ -401,6 +403,42 @@ describe('getDashboardSections', () => {
         pinned: true,
       }),
     ]);
+  });
+
+  // A group whose filter matched nothing never reaches the generated configuration,
+  // and one the section still carries after a failed reload is not running either.
+  // The dashboard shows what the Clash API reports and nothing besides.
+  it('leaves out a configured group the runtime does not carry', async () => {
+    mocks.getConfigSections.mockResolvedValue([
+      section({
+        selector_proxy_links: ['vless://node@example.com:443#Node A'],
+      }),
+      child('urltest', 'ghost', { name: 'Ghost' }),
+      child('fallback_group', 'ghostGroup', { name: 'Ghost group' }),
+      child('fallback_level', 'primary', {
+        section: undefined,
+        group: 'ghostGroup',
+        name: 'Primary',
+        order: '0',
+      }),
+    ]);
+    setClashProxies({
+      Office: proxy('Selector', {
+        name: 'Office',
+        now: 'Office/Node A',
+        all: ['Office/Node A'],
+      }),
+      'Office/Node A': proxy('VLESS'),
+    });
+
+    const result = await getDashboardSections();
+
+    expect(result.data[0].outbounds).toHaveLength(1);
+    expect(result.data[0].outbounds[0]).toMatchObject({
+      code: 'Office/Node A',
+      urlTestInfo: undefined,
+      fallbackInfo: undefined,
+    });
   });
 
   it('uses readable child tags for interface outbounds', async () => {

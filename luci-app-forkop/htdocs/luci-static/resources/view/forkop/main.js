@@ -2090,9 +2090,10 @@ function renderDefaultState({
   }
   function renderOutbound(outbound) {
     const canCopyLink = Boolean(outbound.canCopyLink) || isCopyableProxyLink(outbound.link);
-    const canChooseOutbound = section.withTagSelect && outbound.runtimeAvailable !== false && !outbound.selected;
     const groupInfo = outbound.urlTestInfo || outbound.fallbackInfo;
-    const showLatency = !groupInfo || outbound.runtimeAvailable !== false && groupInfo.outbounds.length > 0;
+    const hasGroupMembers = !groupInfo || groupInfo.outbounds.length > 0;
+    const canChooseOutbound = section.withTagSelect && outbound.runtimeAvailable !== false && hasGroupMembers && !outbound.selected;
+    const showLatency = hasGroupMembers;
     const latencyType = groupInfo ? "group" : "proxy";
     const latencyTarget = outbound.code;
     const outboundLatencyFetching = latencyFetchingTargets.has(latencyTarget);
@@ -3408,7 +3409,7 @@ function isUrlTestEnabled(section) {
   return getUrlTestIds(section).length > 0;
 }
 function shouldUseProxyGroup(section) {
-  return getManualProxyLinks(section).length > 0 || hasSubscriptionSources(section) || getConnectionInterfaces(section).length > 0 || getConnectionTunnels(section).length > 0 || getJsonOutbounds(section).length > 0 || isUrlTestEnabled(section) || hasConfiguredFallbackList(section);
+  return getManualProxyLinks(section).length > 0 || hasSubscriptionSources(section) || getConnectionInterfaces(section).length > 0 || getConnectionTunnels(section).length > 0 || getJsonOutbounds(section).length > 0;
 }
 function getSectionProxyConfigType(section) {
   if (hasSubscriptionSources(section)) {
@@ -3725,7 +3726,7 @@ function buildFallbackInfo({
   const pinnedCode = entry?.value.fixed || "";
   const configuredLevels = config.levels;
   const runtimeGroups = Array.isArray(entry?.value.groups) ? entry.value.groups : [];
-  const levels = (runtimeGroups.length ? runtimeGroups.map((runtimeGroup, index) => {
+  const levels = runtimeGroups.map((runtimeGroup, index) => {
     const metadata = configuredLevels[index];
     return {
       id: metadata?.id || `level-${index + 1}`,
@@ -3733,15 +3734,7 @@ function buildFallbackInfo({
       order: typeof metadata?.order === "number" && Number.isFinite(metadata.order) ? metadata.order : index,
       outbounds: uniqueCodes(runtimeGroup.outbounds || [])
     };
-  }) : configuredLevels.map((level, index) => {
-    const id = `${level.id || `level-${index + 1}`}`;
-    return {
-      id,
-      displayName: level.displayName || `${index + 1}`,
-      order: typeof level.order === "number" && Number.isFinite(level.order) ? level.order : index,
-      outbounds: uniqueCodes(level.outbounds || [])
-    };
-  })).sort(
+  }).sort(
     (left, right) => left.order === right.order ? left.id.localeCompare(right.id) : left.order - right.order
   );
   const outbounds = levels.flatMap((level, levelIndex) => {
@@ -3807,7 +3800,7 @@ function buildProxyGroupOutbounds(section, proxies, subscriptionTags) {
     return configs.map((config) => {
       const code = candidates.find(
         (candidate) => remaining.has(candidate) && (candidate === config.code || candidate.startsWith(`${config.code} #`))
-      ) || candidates.find((candidate) => remaining.has(candidate));
+      );
       if (code) remaining.delete(code);
       return code ? { ...config, code } : config;
     });
@@ -3848,34 +3841,24 @@ function buildProxyGroupOutbounds(section, proxies, subscriptionTags) {
     if (!config.hideDashboardMembers) {
       return;
     }
-    const levels = entry?.value.groups?.length ? entry.value.groups : config.levels;
-    levels.forEach((level) => hideMembers(level.outbounds || []));
+    (entry?.value.groups || []).forEach(
+      (level) => hideMembers(level.outbounds || [])
+    );
   });
-  const builtInUrltestCode = urlTestCodes[0] || "";
-  const selectorFallbackCodes = uniqueCodes([
-    ...urlTestCodes,
-    ...fallbackGroupCodes,
-    ...urlTestEntries.flatMap(({ entry }) => entry?.value.all || [])
-  ]);
-  const groupCodes = uniqueCodes([
-    ...selectorCodes.length ? selectorCodes : selectorFallbackCodes,
-    ...urlTestCodes,
-    ...fallbackGroupCodes
-  ]);
   const groupOutboundCodes = /* @__PURE__ */ new Set([...urlTestCodes, ...fallbackGroupCodes]);
-  const outbounds = uniqueCodes(groupCodes).filter(
+  const outbounds = uniqueCodes(selectorCodes).filter(
     (code) => groupOutboundCodes.has(code) || !hiddenMemberCodes.has(code)
   ).flatMap((code) => {
     const item = proxyByCode.get(code);
     const urlTestConfig = urlTestConfigByCode.get(code);
     const fallbackConfig = fallbackConfigByCode.get(code);
-    if (!item && !urlTestConfig && !fallbackConfig) {
+    if (!item) {
       return [];
     }
     const link = manualLinkByCode.get(code) || "";
     const canCopyLink = isCopyableProxyLink(link) || canExportProviderProxyLink(
       code,
-      item?.value?.type || "",
+      item.value?.type || "",
       exportableProviderTags
     );
     const presentation = getOutboundPresentation(
@@ -3913,18 +3896,16 @@ function buildProxyGroupOutbounds(section, proxies, subscriptionTags) {
     const selectedGroupMember = groupInfo?.outbounds.find(
       (member) => member.selected
     );
-    const hasLiveGroupMember = !groupInfo || groupInfo.outbounds.length > 0;
     return [
       {
         code,
         displayName,
         subscriptionTag: fallbackConfig || urlTestConfig ? void 0 : presentation.subscriptionTag,
-        latency: selectedGroupMember?.latency || item?.value.history?.[0]?.delay || 0,
+        latency: selectedGroupMember?.latency || item.value.history?.[0]?.delay || 0,
         type: fallbackConfig ? "Fallback" : getOutboundDisplayType(item) || "URLTest",
         selected: selector?.value?.now === code,
         link,
         canCopyLink,
-        runtimeAvailable: item && hasLiveGroupMember ? void 0 : false,
         urlTestInfo,
         fallbackInfo
       }
@@ -3932,7 +3913,7 @@ function buildProxyGroupOutbounds(section, proxies, subscriptionTags) {
   });
   return {
     selector,
-    latencyTestCode: selector?.code || builtInUrltestCode,
+    latencyTestCode: selector?.code,
     outbounds
   };
 }

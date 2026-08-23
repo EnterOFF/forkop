@@ -616,15 +616,16 @@ function isUrlTestEnabled(section: Forkop.ConfigSection) {
   return getUrlTestIds(section).length > 0;
 }
 
+// The same sources the generator counts before it gives a section a selector and
+// its own place in the runtime graph. A URLTest or a Fallback is not one of them:
+// a group draws its members from this list, so it cannot stand in for it.
 function shouldUseProxyGroup(section: Forkop.ConfigSection) {
   return (
     getManualProxyLinks(section).length > 0 ||
     hasSubscriptionSources(section) ||
     getConnectionInterfaces(section).length > 0 ||
     getConnectionTunnels(section).length > 0 ||
-    getJsonOutbounds(section).length > 0 ||
-    isUrlTestEnabled(section) ||
-    hasConfiguredFallbackList(section)
+    getJsonOutbounds(section).length > 0
   );
 }
 
@@ -1070,39 +1071,27 @@ function buildFallbackInfo({
   const runtimeGroups = Array.isArray(entry?.value.groups)
     ? entry.value.groups
     : [];
-  const levels = (
-    runtimeGroups.length
-      ? runtimeGroups.map((runtimeGroup, index): FallbackLevelConfig => {
-          const metadata = configuredLevels[index];
-          return {
-            id: metadata?.id || `level-${index + 1}`,
-            displayName: metadata?.displayName || `${index + 1}`,
-            order:
-              typeof metadata?.order === 'number' &&
-              Number.isFinite(metadata.order)
-                ? metadata.order
-                : index,
-            outbounds: uniqueCodes(runtimeGroup.outbounds || []),
-          };
-        })
-      : configuredLevels.map((level, index) => {
-          const id = `${level.id || `level-${index + 1}`}`;
-
-          return {
-            id,
-            displayName: level.displayName || `${index + 1}`,
-            order:
-              typeof level.order === 'number' && Number.isFinite(level.order)
-                ? level.order
-                : index,
-            outbounds: uniqueCodes(level.outbounds || []),
-          };
-        })
-  ).sort((left, right) =>
-    left.order === right.order
-      ? left.id.localeCompare(right.id)
-      : left.order - right.order,
-  );
+  // The Clash API reports the members of every level but not their names, and
+  // both sides order the levels the same way, so the name of each one comes
+  // from the configuration entry in the same position.
+  const levels = runtimeGroups
+    .map((runtimeGroup, index): FallbackLevelConfig => {
+      const metadata = configuredLevels[index];
+      return {
+        id: metadata?.id || `level-${index + 1}`,
+        displayName: metadata?.displayName || `${index + 1}`,
+        order:
+          typeof metadata?.order === 'number' && Number.isFinite(metadata.order)
+            ? metadata.order
+            : index,
+        outbounds: uniqueCodes(runtimeGroup.outbounds || []),
+      };
+    })
+    .sort((left, right) =>
+      left.order === right.order
+        ? left.id.localeCompare(right.id)
+        : left.order - right.order,
+    );
   const outbounds = levels.flatMap((level, levelIndex) => {
     const members = uniqueCodes(level.outbounds || []).map((childCode) => {
       const childEntry = proxyByCode.get(childCode);
@@ -1170,6 +1159,10 @@ function buildProxyGroupOutbounds(
   const selectorTag = getOutboundTagBySection(sectionDisplayName);
   const selector = proxyByCode.get(selectorTag);
   const selectorCodes = selector?.value?.all ?? [];
+  // The runtime tag of a group is its name, and a second group of the same name
+  // gets a " #2" suffix from the generator. A configured group the runtime does
+  // not carry keeps its own code and is dropped below: only what the Clash API
+  // reports is on the dashboard.
   const bindRuntimeCodes = <T extends { code: string }>(
     configs: T[],
     type: string,
@@ -1179,13 +1172,12 @@ function buildProxyGroupOutbounds(
     );
     const remaining = new Set(candidates);
     return configs.map((config) => {
-      const code =
-        candidates.find(
-          (candidate) =>
-            remaining.has(candidate) &&
-            (candidate === config.code ||
-              candidate.startsWith(`${config.code} #`)),
-        ) || candidates.find((candidate) => remaining.has(candidate));
+      const code = candidates.find(
+        (candidate) =>
+          remaining.has(candidate) &&
+          (candidate === config.code ||
+            candidate.startsWith(`${config.code} #`)),
+      );
       if (code) remaining.delete(code);
       return code ? { ...config, code } : config;
     });
@@ -1228,25 +1220,13 @@ function buildProxyGroupOutbounds(
       return;
     }
 
-    const levels = entry?.value.groups?.length
-      ? entry.value.groups
-      : config.levels;
-    levels.forEach((level) => hideMembers(level.outbounds || []));
+    (entry?.value.groups || []).forEach((level) =>
+      hideMembers(level.outbounds || []),
+    );
   });
-  const builtInUrltestCode = urlTestCodes[0] || '';
-  const selectorFallbackCodes = uniqueCodes([
-    ...urlTestCodes,
-    ...fallbackGroupCodes,
-    ...urlTestEntries.flatMap(({ entry }) => entry?.value.all || []),
-  ]);
-  const groupCodes = uniqueCodes([
-    ...(selectorCodes.length ? selectorCodes : selectorFallbackCodes),
-    ...urlTestCodes,
-    ...fallbackGroupCodes,
-  ]);
   const groupOutboundCodes = new Set([...urlTestCodes, ...fallbackGroupCodes]);
 
-  const outbounds = uniqueCodes(groupCodes)
+  const outbounds = uniqueCodes(selectorCodes)
     .filter(
       (code) => groupOutboundCodes.has(code) || !hiddenMemberCodes.has(code),
     )
@@ -1255,7 +1235,7 @@ function buildProxyGroupOutbounds(
       const urlTestConfig = urlTestConfigByCode.get(code);
       const fallbackConfig = fallbackConfigByCode.get(code);
 
-      if (!item && !urlTestConfig && !fallbackConfig) {
+      if (!item) {
         return [];
       }
 
@@ -1264,7 +1244,7 @@ function buildProxyGroupOutbounds(
         isCopyableProxyLink(link) ||
         canExportProviderProxyLink(
           code,
-          item?.value?.type || '',
+          item.value?.type || '',
           exportableProviderTags,
         );
       const presentation = getOutboundPresentation(
@@ -1313,7 +1293,6 @@ function buildProxyGroupOutbounds(
       const selectedGroupMember = groupInfo?.outbounds.find(
         (member) => member.selected,
       );
-      const hasLiveGroupMember = !groupInfo || groupInfo.outbounds.length > 0;
 
       return [
         {
@@ -1324,16 +1303,13 @@ function buildProxyGroupOutbounds(
               ? undefined
               : presentation.subscriptionTag,
           latency:
-            selectedGroupMember?.latency ||
-            item?.value.history?.[0]?.delay ||
-            0,
+            selectedGroupMember?.latency || item.value.history?.[0]?.delay || 0,
           type: fallbackConfig
             ? 'Fallback'
             : getOutboundDisplayType(item) || 'URLTest',
           selected: selector?.value?.now === code,
           link,
           canCopyLink,
-          runtimeAvailable: item && hasLiveGroupMember ? undefined : false,
           urlTestInfo,
           fallbackInfo,
         },
@@ -1342,7 +1318,7 @@ function buildProxyGroupOutbounds(
 
   return {
     selector,
-    latencyTestCode: selector?.code || builtInUrltestCode,
+    latencyTestCode: selector?.code,
     outbounds,
   };
 }

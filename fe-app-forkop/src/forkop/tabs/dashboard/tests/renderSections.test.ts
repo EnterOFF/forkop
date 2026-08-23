@@ -623,6 +623,8 @@ describe('renderSections latency actions', () => {
     expect(sectionButton?.attrs.disabled).toBeUndefined();
   }, 15000);
 
+  // The group is on the dashboard because the Clash API reports it; it has no
+  // members because its filter or its provider left it without any.
   it('does not render latency or selection actions for an empty group', async () => {
     installElementFactory();
     const { renderSections } = await import('../partials/renderSections');
@@ -642,7 +644,6 @@ describe('renderSections latency actions', () => {
             latency: 0,
             type: 'URLTest',
             selected: false,
-            runtimeAvailable: false,
             urlTestInfo: {
               code: 'main/Empty',
               displayName: 'Empty',

@@ -101,6 +101,9 @@ export namespace Forkop {
     canCopyLink?: boolean;
     country?: string;
     subscriptionTag?: string;
+    // Only a section that stands for a single outbound sets this: its card exists
+    // because the section does, so it says whether the runtime carries the
+    // outbound behind it. Every other card comes from the Clash API to begin with.
     runtimeAvailable?: boolean;
     urlTestInfo?: UrlTestInfo;
     fallbackInfo?: FallbackInfo;
