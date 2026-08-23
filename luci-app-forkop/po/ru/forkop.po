@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-23 14:09+0300\n"
-"PO-Revision-Date: 2026-08-23 14:09+0300\n"
+"POT-Creation-Date: 2026-08-23 17:20+0300\n"
+"PO-Revision-Date: 2026-08-23 17:20+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -53,8 +53,8 @@ msgstr "✘ Остановлен"
 msgid "0-RTT handshake"
 msgstr "Рукопожатие 0-RTT"
 
-msgid "A certificate issued for this address."
-msgstr "Сертификат, выданный на этот адрес."
+msgid "A certificate issued for this address"
+msgstr "Сертификат, выданный на этот адрес"
 
 msgid "A custom sing-box outbound object"
 msgstr "Пользовательский объект sing-box outbound"
@@ -65,8 +65,8 @@ msgstr "Имя хоста не длиннее 63 символов"
 msgid "A JSON object merged into every server. Parameters a server does not support are skipped, matching parameters are overwritten"
 msgstr "JSON-объект, добавляемый к каждому серверу. Неподдерживаемые параметры пропускаются, совпадающие перезаписываются"
 
-msgid "A key from the Tailscale console."
-msgstr "Ключ из консоли Tailscale."
+msgid "A key from the Tailscale console"
+msgstr "Ключ из консоли Tailscale"
 
 msgid "A link cannot be built from these settings."
 msgstr "Из этих настроек ссылку собрать нельзя."
@@ -83,14 +83,14 @@ msgstr "Сервер не может использовать сам себя"
 msgid "A short ID holds at most 16 hex digits"
 msgstr "Short ID — не больше 16 hex-символов"
 
-msgid "A URL or local path. The format is detected automatically."
-msgstr "URL или локальный путь. Формат определяется автоматически."
+msgid "A URL or local path. The format is detected automatically"
+msgstr "URL или локальный путь. Формат определяется автоматически"
 
 msgid "Accept routes"
 msgstr "Принимать маршруты"
 
-msgid "Accept subnets advertised by other devices in your Tailscale network."
-msgstr "Принимать подсети, которые раздают другие устройства в вашей сети Tailscale."
+msgid "Accept subnets advertised by other devices in your Tailscale network"
+msgstr "Принимать подсети, которые раздают другие устройства в вашей сети Tailscale"
 
 msgid "Access to YACD from the internet. The port has to be opened in the firewall"
 msgstr "Доступ к YACD из интернета. Порт нужно открыть в файрволе"
@@ -158,8 +158,8 @@ msgstr "Найдены дополнительные правила маркир�
 msgid "Additional packet padding"
 msgstr "Дополнительное заполнение пакета"
 
-msgid "Address of the coordination server. Change it if you use a custom server."
-msgstr "Адрес сервера координации. Меняйте, если используете свой."
+msgid "Address of the coordination server. Change it if you use a custom server"
+msgstr "Адрес сервера координации. Меняйте, если используете свой"
 
 msgid "Adds the tag to its nodes and metadata on the dashboard"
 msgstr "Добавляет тег к узлам и метаданным в дашборде"
@@ -206,6 +206,9 @@ msgstr "Параметр RandomTrailers AmneziaWG не поддерживает�
 msgid "AmneziaWG ranges must be between 0 and 4294967295 with the start no greater than the end"
 msgstr "Диапазоны AmneziaWG должны быть от 0 до 4294967295, а начало не может быть больше конца"
 
+msgid "An extra key shared with this peer"
+msgstr "Дополнительный ключ, общий с этим пиром"
+
 msgid "Any"
 msgstr "Любой"
 
@@ -220,6 +223,9 @@ msgstr "Нужно указать хотя бы один корректный IP
 
 msgid "Auth Key from the Tailscale admin console"
 msgstr "Auth Key из панели управления Tailscale"
+
+msgid "Auth token"
+msgstr "Токен авторизации"
 
 msgid "Authentication"
 msgstr "Аутентификация"
@@ -311,8 +317,8 @@ msgstr "Сертификат создан"
 msgid "Certificate path"
 msgstr "Путь к сертификату"
 
-msgid "Change only for a self-hosted Headscale."
-msgstr "Меняйте только для своего Headscale."
+msgid "Change only for a self-hosted Headscale"
+msgstr "Меняйте только для своего Headscale"
 
 msgid "Change the HTTP headers of the request"
 msgstr "Изменить HTTP-заголовки запроса"
@@ -494,8 +500,8 @@ msgstr "Таймаут отклонения данных"
 msgid "Default"
 msgstr "По умолчанию"
 
-msgid "Default URL for general latency testing."
-msgstr "URL по умолчанию для общего тестирования задержки."
+msgid "Default URL for general latency testing"
+msgstr "URL по умолчанию для общего тестирования задержки"
 
 msgid "Delay in milliseconds before reloading Forkop after interface UP"
 msgstr "Задержка в миллисекундах перед перезапуском Forkop после поднятия интерфейса"
@@ -794,8 +800,8 @@ msgstr "Заполните учётные данные клиента, чтоб�
 msgid "Fill the fields from an existing configuration"
 msgstr "Заполнить поля из готовой конфигурации"
 
-msgid "Filled in together with the private key."
-msgstr "Заполняется автоматически вместе с приватным ключом."
+msgid "Filled in together with the private key"
+msgstr "Заполняется автоматически вместе с приватным ключом"
 
 msgid "Firewall WAN port"
 msgstr "Порт в файрволе"
@@ -899,7 +905,7 @@ msgstr "Интервал поддержания соединения"
 msgid "Hide group servers"
 msgstr "Скрыть серверы группы"
 
-msgid "Hide servers included in this group from the dashboard."
+msgid "Hide servers included in this group from the dashboard"
 msgstr "Скрывать серверы попавшие в эту группу из дашборда"
 
 msgid "Hide values"
@@ -923,8 +929,8 @@ msgstr "Сколько ждать ответа от сервера"
 msgid "How long until health checks stop when the group is unused"
 msgstr "Через сколько остановить проверки, если группа не используется"
 
-msgid "How many connections one multiplexed connection carries. Leave empty for no limit."
-msgstr "Сколько соединений передаётся через одно мультиплексированное. Оставьте пустым, чтобы не ограничивать."
+msgid "How many connections one multiplexed connection carries. Leave empty for no limit"
+msgstr "Сколько соединений передаётся через одно мультиплексированное. Оставьте пустым, чтобы не ограничивать"
 
 msgid "How often every server of the group is checked"
 msgstr "Как часто проверяются все серверы группы"
@@ -977,8 +983,8 @@ msgstr "Установлен"
 msgid "Installed version is newer than release"
 msgstr "Установлена версия новее релиза"
 
-msgid "Interface IPv4 or IPv6 addresses in CIDR format."
-msgstr "IPv4- или IPv6-адреса интерфейса в формате CIDR."
+msgid "Interface IPv4 or IPv6 addresses in CIDR format"
+msgstr "IPv4- или IPv6-адреса интерфейса в формате CIDR"
 
 msgid "Interface Monitoring"
 msgstr "Мониторинг интерфейса"
@@ -1058,8 +1064,8 @@ msgstr "Недопустимый MTU WireGuard"
 msgid "Invalid WireGuard persistent keepalive"
 msgstr "Недопустимый интервал keepalive WireGuard"
 
-msgid "IP address or device name in Tailscale through which traffic is forwarded."
-msgstr "IP-адрес или имя устройства в Tailscale, через которое будет перенаправляться трафик."
+msgid "IP address or device name in Tailscale through which traffic is forwarded"
+msgstr "IP-адрес или имя устройства в Tailscale, через которое будет перенаправляться трафик"
 
 msgid "IP addresses and subnets, including their port constraints, will be extracted and added to nftables"
 msgstr "IP-адреса и подсети, включая заданные для них ограничения по портам, будут извлечены и добавлены в nftables"
@@ -1139,6 +1145,9 @@ msgstr "Последняя версия:"
 msgid "Level"
 msgstr "Уровень"
 
+msgid "License key"
+msgstr "Лицензионный ключ"
+
 msgid "Link"
 msgstr "Ссылка"
 
@@ -1163,8 +1172,8 @@ msgstr "Загрузка логов"
 msgid "Loading..."
 msgstr "Загрузка..."
 
-msgid "Local subnets the rest of the network may reach through this router."
-msgstr "Локальные подсети, доступные остальной сети через этот роутер."
+msgid "Local subnets the rest of the network may reach through this router"
+msgstr "Локальные подсети, доступные остальной сети через этот роутер"
 
 msgid "Local UDP port. Empty means the default"
 msgstr "Локальный UDP-порт. Пусто — по умолчанию"
@@ -1190,8 +1199,8 @@ msgstr "Маскирует трафик механизмом Amnezia, чтобы
 msgid "Masquerade"
 msgstr "Маскировка"
 
-msgid "Match destination ports."
-msgstr "Совпадение по портам назначения."
+msgid "Match destination ports"
+msgstr "Совпадение по портам назначения"
 
 msgid "Maximum handshake attempts"
 msgstr "Максимум попыток рукопожатия"
@@ -1370,8 +1379,8 @@ msgstr "Пароль обфускации"
 msgid "One rule per line: pattern => replacement. The pattern is a regular expression, $1 in the replacement keeps a captured group. Example: ^HK-(.*)$ => Hong Kong $1"
 msgstr "По одному правилу в строке: шаблон => замена. Шаблон — регулярное выражение, $1 в замене сохраняет найденную группу. Пример: ^HK-(.*)$ => Гонконг $1"
 
-msgid "Only affects servers that already use TLS."
-msgstr "Влияет только на серверы, которые уже используют TLS."
+msgid "Only affects servers that already use TLS"
+msgstr "Влияет только на серверы, которые уже используют TLS"
 
 msgid "Only for devices"
 msgstr "Только для устройств"
@@ -1399,9 +1408,6 @@ msgstr "Время ожидания истекло"
 
 msgid "Option \"%s\" contains an invalid input value."
 msgstr "Параметр \"%s\" содержит некорректное значение."
-
-msgid "Optional additional WireGuard key shared with this peer."
-msgstr "Необязательный дополнительный ключ WireGuard, общий с этим пиром."
 
 msgid "Optional values must be attached with '=' here; a separate token would be ignored by nfqws."
 msgstr "Необязательное значение здесь нужно передавать только через '='; отдельный токен nfqws проигнорирует."
@@ -1460,6 +1466,9 @@ msgstr "Путь должен заканчиваться на cache.db"
 msgid "Pause updates"
 msgstr "Приостановить обновление"
 
+msgid "Peer hostname or IP address"
+msgstr "Имя хоста или IP-адрес пира"
+
 msgid "Peers"
 msgstr "Пиры"
 
@@ -1511,6 +1520,9 @@ msgstr "Приватный ключ"
 msgid "Process running"
 msgstr "Процесс запущен"
 
+msgid "Profile ID"
+msgstr "Идентификатор профиля"
+
 msgid "Protocol"
 msgstr "Протокол"
 
@@ -1532,8 +1544,8 @@ msgstr "Публичный ключ"
 msgid "QR code"
 msgstr "QR-код"
 
-msgid "Reach the coordination server through a section instead of the WAN."
-msgstr "Подключаться к серверу координации через секцию, а не напрямую."
+msgid "Reach the coordination server through a section instead of the WAN"
+msgstr "Подключаться к серверу координации через секцию, а не напрямую"
 
 msgid "Reality needs an SNI"
 msgstr "Для Reality нужен SNI"
@@ -1574,8 +1586,8 @@ msgstr "Убрать серверы из выборки выше"
 msgid "Remove servers whose names match the regular expression"
 msgstr "Убрать серверы, чьи имена совпадают с регулярным выражением"
 
-msgid "Remove the node from the network once it goes offline."
-msgstr "Удалять узел из сети после отключения."
+msgid "Remove the node from the network once it goes offline"
+msgstr "Удалять узел из сети после отключения"
 
 msgid "Rename servers"
 msgstr "Переименование серверов"
@@ -1595,14 +1607,14 @@ msgstr "Требовать логин и пароль для подключен�
 msgid "Required. Checked from top to bottom until the first working server"
 msgstr "Обязательно. Проверяются сверху вниз до первого рабочего сервера"
 
-msgid "Required. Create a new key with the button."
-msgstr "Обязательно. Создайте новый ключ кнопкой."
+msgid "Required. Create a new key with the button"
+msgstr "Обязательно. Создайте новый ключ кнопкой"
 
-msgid "Required. Every client has to send the same value."
-msgstr "Обязательно. Все клиенты должны передавать то же значение."
+msgid "Required. Every client has to send the same value"
+msgstr "Обязательно. Все клиенты должны передавать то же значение"
 
-msgid "Required. Generate a pair with the button."
-msgstr "Обязательно. Сгенерируйте пару кнопкой."
+msgid "Required. Generate a pair with the button"
+msgstr "Обязательно. Сгенерируйте пару кнопкой"
 
 msgid "Required. Remote nodes to connect to"
 msgstr "Обязательно. Удалённые узлы для подключения"
@@ -1610,14 +1622,14 @@ msgstr "Обязательно. Удалённые узлы для подклю�
 msgid "Required. The clients that may connect"
 msgstr "Обязательно. Клиенты для подключения"
 
-msgid "Required. The section that carries the control-plane traffic."
-msgstr "Обязательно. Секция, через которую идёт трафик к серверу координации."
+msgid "Required. The section that carries the control-plane traffic"
+msgstr "Обязательно. Секция, через которую идёт трафик к серверу координации"
 
-msgid "Required. Where the traffic of this client leaves."
-msgstr "Обязательно. Куда уходит трафик этого клиента."
+msgid "Required. Where the traffic of this client leaves"
+msgstr "Обязательно. Куда уходит трафик этого клиента"
 
-msgid "Required. Where the traffic of this server leaves."
-msgstr "Обязательно. Куда уходит трафик этого сервера."
+msgid "Required. Where the traffic of this server leaves"
+msgstr "Обязательно. Куда уходит трафик этого сервера"
 
 msgid "Resolve the addresses of the main DNS servers and proxies. Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://"
 msgstr "Резолвят адреса основных DNS-серверов и прокси. Несколько серверов дают автоматическое переключение при сбоях. Протокол задаётся префиксом: udp://, tcp://, tls://, https://, quic://, h3://"
@@ -1646,17 +1658,17 @@ msgstr "Продолжить обновление"
 msgid "Route"
 msgstr "Маршрут"
 
-msgid "Route DNS requests through a section."
-msgstr "Маршрутизировать DNS-запросы через секцию."
+msgid "Route DNS requests through a section"
+msgstr "Маршрутизировать DNS-запросы через секцию"
 
-msgid "Route main DNS requests through a section."
-msgstr "Маршрутизировать основные DNS-запросы через секцию."
+msgid "Route main DNS requests through a section"
+msgstr "Маршрутизировать основные DNS-запросы через секцию"
 
-msgid "Route the resolver's DNS requests through a section instead of this network interface."
-msgstr "Маршрутизировать DNS-запросы резолвера через секцию, а не через этот сетевой интерфейс."
+msgid "Route the resolver's DNS requests through a section instead of this network interface"
+msgstr "Маршрутизировать DNS-запросы резолвера через секцию, а не через этот сетевой интерфейс"
 
-msgid "Route this client on its own path instead of the rest of the server."
-msgstr "Использовать для этого клиента отдельный путь маршрутизации вместо серверного."
+msgid "Route this client on its own path instead of the rest of the server"
+msgstr "Использовать для этого клиента отдельный путь маршрутизации вместо серверного"
 
 msgid "router SSH"
 msgstr "SSH роутера"
@@ -1718,8 +1730,8 @@ msgstr "Поиск"
 msgid "Secret"
 msgstr "Секрет"
 
-msgid "Secret key for authenticating remote access to YACD when WAN access is enabled."
-msgstr "Секретный ключ для аутентификации удаленного доступа к YACD при включенном доступе через WAN."
+msgid "Secret key for authenticating remote access to YACD when WAN access is enabled"
+msgstr "Секретный ключ для аутентификации удаленного доступа к YACD при включенном доступе через WAN"
 
 msgid "Section"
 msgstr "Секция"
@@ -1755,7 +1767,7 @@ msgid "Select an intermediate section"
 msgstr "Выберите промежуточную секцию"
 
 msgid "Select the network interface to which the traffic will originate"
-msgstr "Выберите сетевой интерфейс, на который будет поступать трафик."
+msgstr "Выберите сетевой интерфейс, на который будет поступать трафик"
 
 msgid "Select the WAN interfaces to be monitored"
 msgstr "Выберите WAN интерфейсы для мониторинга"
@@ -1766,11 +1778,11 @@ msgstr "Выбран"
 msgid "Selector and URLTest outbounds must contain a non-empty outbounds array"
 msgstr "Selector и URLTest outbound должны содержать непустой массив outbounds"
 
-msgid "Selects the first available node by priority."
-msgstr "Выбирает первый доступный узел по приоритету."
+msgid "Selects the first available node by priority"
+msgstr "Выбирает первый доступный узел по приоритету"
 
-msgid "Selects the node with the lowest latency."
-msgstr "Выбирает узел с наименьшей задержкой."
+msgid "Selects the node with the lowest latency"
+msgstr "Выбирает узел с наименьшей задержкой"
 
 msgid "Send BitTorrent traffic past the proxy"
 msgstr "Пропускать торрент-трафик мимо прокси"
@@ -1994,8 +2006,8 @@ msgstr "TCP Fast Open"
 msgid "Test latency"
 msgstr "Тестирование задержки"
 
-msgid "The address the connection links point at."
-msgstr "Адрес, на который указывают ссылки подключения."
+msgid "The address the connection links point at"
+msgstr "Адрес, на который указывают ссылки подключения"
 
 msgid "The certificate and the key must be different files"
 msgstr "Сертификат и ключ должны быть разными файлами"
@@ -2003,8 +2015,8 @@ msgstr "Сертификат и ключ должны быть разными ф
 msgid "The desync fwmark is managed by Forkop for loop prevention and must not be overridden here."
 msgstr "Desync fwmark управляется Forkop для защиты от циклов и не должен переопределяться здесь."
 
-msgid "The domain a client sends in the TLS handshake."
-msgstr "Домен, который клиент передаёт в TLS-рукопожатии."
+msgid "The domain a client sends in the TLS handshake"
+msgstr "Домен, который клиент передаёт в TLS-рукопожатии"
 
 msgid "The group joins as the single node it has selected"
 msgstr "Группа участвует как один выбранный узел"
@@ -2015,8 +2027,8 @@ msgstr "Интерфейс, с которого исходит трафик"
 msgid "The name must not contain /"
 msgstr "Имя не должно содержать /"
 
-msgid "The name this device appears under in the Tailscale console."
-msgstr "Под этим именем устройство видно в консоли Tailscale."
+msgid "The name this device appears under in the Tailscale console"
+msgstr "Под этим именем устройство видно в консоли Tailscale"
 
 msgid "The NFQUEUE number is assigned by Forkop for each rule and must not be overridden here."
 msgstr "Номер NFQUEUE назначается Forkop для каждого правила и не должен переопределяться здесь."
@@ -2030,8 +2042,8 @@ msgstr "Вставленная ссылка не поддерживается. �
 msgid "The path must start with /"
 msgstr "Путь должен начинаться с /"
 
-msgid "The private key of the certificate."
-msgstr "Приватный ключ сертификата."
+msgid "The private key of the certificate"
+msgstr "Приватный ключ сертификата"
 
 msgid "The router itself becomes a proxy server for your devices"
 msgstr "Роутер сам становится прокси-сервером для ваших устройств"
@@ -2050,6 +2062,9 @@ msgstr "Серверы, которые не войдут в группу"
 
 msgid "The servers that end up in the group"
 msgstr "Серверы, которые войдут в группу"
+
+msgid "The subnets that go through this peer"
+msgstr "Подсети, которые пойдут через этого пира"
 
 msgid "There are rules using ByeDPI"
 msgstr "Есть правила, использующие ByeDPI"
@@ -2116,9 +2131,6 @@ msgstr "Трафик"
 
 msgid "Traffic obfuscation"
 msgstr "Обфускация трафика"
-
-msgid "Traffic prefixes routed through this peer."
-msgstr "Префиксы трафика, направляемые через этого пира."
 
 msgid "Traffic Total"
 msgstr "Всего трафика"
@@ -2297,8 +2309,8 @@ msgstr "Укажите IP-адрес, 0.0.0.0 для всех IPv4 или :: д�
 msgid "Use an OpenSSH public key line"
 msgstr "Укажите строку публичного ключа OpenSSH"
 
-msgid "Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, Tailscale, JSON outbounds, or JSON endpoints."
-msgstr "Использовать другую секцию как промежуточный узел для подключения к серверам этой секции. Не применяется к сетевым интерфейсам, Tailscale, JSON outbound и JSON endpoint."
+msgid "Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, Tailscale, JSON outbounds, or JSON endpoints"
+msgstr "Использовать другую секцию как промежуточный узел для подключения к серверам этой секции. Не применяется к сетевым интерфейсам, Tailscale, JSON outbound и JSON endpoint"
 
 msgid "Use letters, digits, dots, underscores, or hyphens"
 msgstr "Используйте буквы, цифры, точки, подчёркивания или дефисы"
@@ -2309,8 +2321,8 @@ msgstr "Используйте строчные буквы, цифры и деф
 msgid "Use sing-box duration format like 1d, 12h or 30m"
 msgstr "Используйте формат длительности sing-box, например 1d, 12h или 30m"
 
-msgid "Use subnets other devices share."
-msgstr "Использовать подсети, анонсированные другими устройствами."
+msgid "Use subnets other devices share"
+msgstr "Использовать подсети, анонсированные другими устройствами"
 
 msgid "Use the pattern => replacement form"
 msgstr "Используйте форму шаблон => замена"
@@ -2345,26 +2357,14 @@ msgstr "WAN"
 msgid "WAN public IP"
 msgstr "Публичный WAN IP"
 
-msgid "WARP auth token"
-msgstr "Токен авторизации WARP"
-
-msgid "WARP license key"
-msgstr "Лицензионный ключ WARP"
-
-msgid "WARP private key"
-msgstr "Приватный ключ WARP"
-
 msgid "WARP profile"
 msgstr "Профиль WARP"
-
-msgid "WARP profile ID"
-msgstr "Идентификатор профиля WARP"
 
 msgid "What to do when this section's conditions match"
 msgstr "Что делать при совпадении условий этой секции"
 
-msgid "Where to send the traffic from this server."
-msgstr "Куда направлять трафик этого сервера."
+msgid "Where to send the traffic from this server"
+msgstr "Куда направлять трафик этого сервера"
 
 msgid "Which servers end up in the group"
 msgstr "Какие серверы попадут в группу"
@@ -2395,9 +2395,6 @@ msgstr "Пир WireGuard содержит неподдерживаемые по�
 
 msgid "WireGuard peer fields must use native sing-box JSON types"
 msgstr "Поля пира WireGuard должны использовать нативные типы JSON sing-box"
-
-msgid "WireGuard peer hostname or IP address."
-msgstr "Имя хоста или IP-адрес пира WireGuard."
 
 msgid "WireGuard peer settings"
 msgstr "Настройки пира WireGuard"

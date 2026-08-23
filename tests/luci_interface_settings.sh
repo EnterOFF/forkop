@@ -58,7 +58,7 @@ for (const expected of [
   'node.addEventListener("cbi-dynlist-change"',
   '"domain_resolver_dns_detour_enabled"',
   '_("DNS through section")',
-  '"Route the resolver\'s DNS requests through a section instead of this network interface."',
+  '"Route the resolver\'s DNS requests through a section instead of this network interface"',
   '"domain_resolver_dns_detour_section"',
   '_("DNS requests through")',
   "refreshDnsDetourSectionOptionValues(this, parentSectionForItem(itemId))",

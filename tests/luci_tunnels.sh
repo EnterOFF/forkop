@@ -72,7 +72,7 @@ for (const needle of [
   'setModalOptionValue(map, warpAuthTokenOption, profile.auth_token)',
   'setModalOptionValue(map, warpPrivateKeyOption, profile.private_key)',
   'profile.license_key = `${settings.warp_license_key}`.trim()',
-  '_("WARP license key")',
+  '_("License key")',
   'Applies WARP+ to the profile account',
   'warpLicenseKeyOption.password = true',
   'warpLicenseKeyOption.rmempty = true',
@@ -117,8 +117,8 @@ for (const needle of [
   'endpointJsonOption.placeholder = JSON_ENDPOINT_PLACEHOLDER',
   'Required. Remote nodes to connect to',
   'Auth Key from the Tailscale admin console',
-  'The name this device appears under in the Tailscale console.',
-  'Accept subnets advertised by other devices in your Tailscale network.',
+  'The name this device appears under in the Tailscale console',
+  'Accept subnets advertised by other devices in your Tailscale network',
 ]) {
   requireSource(section, needle);
 }

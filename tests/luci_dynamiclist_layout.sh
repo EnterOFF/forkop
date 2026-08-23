@@ -440,7 +440,7 @@ grep -Fq 'if (currentSignature === choiceSignature)' "$SECTION_JS" ||
 if grep -Fq 'widget.setValue(' <<<"$live_choices"; then
   fail "live choice refresh must not rewrite selected server filters"
 fi
-grep -Fq 'A URL or local path. The format is detected automatically.' <<<"$create_section" ||
+grep -Fq 'A URL or local path. The format is detected automatically' <<<"$create_section" ||
   fail "universal rule sets must explain automatic format detection"
 grep -Fq 'ruleSetOption.hasItemSettings = function (section_id)' <<<"$create_section" ||
   fail "routing actions must retain per-item subnet settings"

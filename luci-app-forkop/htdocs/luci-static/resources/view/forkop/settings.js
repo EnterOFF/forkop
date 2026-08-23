@@ -353,7 +353,7 @@ function createSettingsContent(section, capabilities) {
     form.Flag,
     "dns_detour_enabled",
     _("DNS through section"),
-    _("Route main DNS requests through a section."),
+    _("Route main DNS requests through a section"),
   );
   configureDownloadViaProxyFlag(o, "dns_detour_section");
 
@@ -539,7 +539,7 @@ function createSettingsContent(section, capabilities) {
     "yacd_secret_key",
     _("YACD Secret Key"),
     _(
-      "Secret key for authenticating remote access to YACD when WAN access is enabled.",
+      "Secret key for authenticating remote access to YACD when WAN access is enabled",
     ),
   );
   o.depends("enable_yacd_wan_access", "1");
@@ -665,7 +665,7 @@ function createSettingsContent(section, capabilities) {
     form.Value,
     "latency_test_url",
     _("Latency test URL"),
-    _("Default URL for general latency testing."),
+    _("Default URL for general latency testing"),
   );
   latencyTestUrlChoices().forEach((value) => o.value(value));
   o.default =

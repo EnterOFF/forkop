@@ -2591,7 +2591,7 @@ function showSubscriptionOverrideModal(parentMap, itemId) {
     itemSection,
     "override_tls_insecure",
     _("Allow untrusted certificates"),
-    _("Only affects servers that already use TLS."),
+    _("Only affects servers that already use TLS"),
   );
 
   o = itemSection.option(
@@ -2625,7 +2625,7 @@ function showSubscriptionOverrideModal(parentMap, itemId) {
     form.Value,
     "override_multiplex_max_streams",
     _("Connection limit"),
-    _("How many connections one multiplexed connection carries. Leave empty for no limit."),
+    _("How many connections one multiplexed connection carries. Leave empty for no limit"),
   );
   o.depends("override_multiplex", "1");
   o.rmempty = true;
@@ -3182,7 +3182,7 @@ function addInterfaceItemOptions(itemSection, options = {}) {
     "domain_resolver_dns_detour_enabled",
     _("DNS through section"),
     _(
-      "Route the resolver's DNS requests through a section instead of this network interface.",
+      "Route the resolver's DNS requests through a section instead of this network interface",
     ),
   );
   o.depends("domain_resolver_enabled", "1");
@@ -3311,7 +3311,7 @@ function addUrlTestItemOptions(itemSection, options = {}) {
     form.Flag,
     "hide_dashboard_members",
     _("Hide group servers"),
-    _("Hide servers included in this group from the dashboard."),
+    _("Hide servers included in this group from the dashboard"),
   );
   o.default = "0";
   o.rmempty = false;
@@ -3506,7 +3506,7 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
     form.Flag,
     "hide_dashboard_members",
     _("Hide group servers"),
-    _("Hide servers included in this group from the dashboard."),
+    _("Hide servers included in this group from the dashboard"),
   );
   o.default = "0";
   o.rmempty = false;
@@ -4920,7 +4920,7 @@ function addWireGuardPeerItemOptions(section) {
     form.Value,
     "address",
     _("Server address"),
-    _("WireGuard peer hostname or IP address."),
+    _("Peer hostname or IP address"),
   );
   o.rmempty = false;
   o.validate = function (_itemId, value) {
@@ -4945,7 +4945,7 @@ function addWireGuardPeerItemOptions(section) {
     form.Value,
     "pre_shared_key",
     _("Pre-shared key"),
-    _("Optional additional WireGuard key shared with this peer."),
+    _("An extra key shared with this peer"),
   );
   o.password = true;
   o.rmempty = true;
@@ -4960,7 +4960,7 @@ function addWireGuardPeerItemOptions(section) {
     form.DynamicList,
     "allowed_ips",
     _("Allowed IPs"),
-    _("Traffic prefixes routed through this peer."),
+    _("The subnets that go through this peer"),
   );
   o.rmempty = false;
   o.validate = function (_itemId, value) {
@@ -5164,7 +5164,7 @@ function showTunnelSettingsModal(
     form.Value,
     "tailscale_hostname",
     _("Device name"),
-    _("The name this device appears under in the Tailscale console."),
+    _("The name this device appears under in the Tailscale console"),
   );
   tailscaleHostnameOption.rmempty = false;
   tailscaleHostnameOption.depends("tunnel_type", "tailscale");
@@ -5173,7 +5173,7 @@ function showTunnelSettingsModal(
     form.Value,
     "tailscale_control_url",
     _("Coordination server"),
-    _("Change only for a self-hosted Headscale."),
+    _("Change only for a self-hosted Headscale"),
   );
   tailscaleControlUrlOption.default = "https://controlplane.tailscale.com";
   tailscaleControlUrlOption.rmempty = false;
@@ -5187,7 +5187,7 @@ function showTunnelSettingsModal(
     form.Flag,
     "tailscale_detour_enabled",
     _("Coordination server through a section"),
-    _("Reach the coordination server through a section instead of the WAN."),
+    _("Reach the coordination server through a section instead of the WAN"),
   );
   tailscaleDetourEnabledOption.default = "0";
   tailscaleDetourEnabledOption.rmempty = false;
@@ -5220,7 +5220,7 @@ function showTunnelSettingsModal(
     form.Flag,
     "tailscale_accept_routes",
     _("Accept routes"),
-    _("Accept subnets advertised by other devices in your Tailscale network."),
+    _("Accept subnets advertised by other devices in your Tailscale network"),
   );
   tailscaleAcceptRoutesOption.default = "1";
   tailscaleAcceptRoutesOption.rmempty = false;
@@ -5231,7 +5231,7 @@ function showTunnelSettingsModal(
     "tailscale_exit_node",
     _("Exit node"),
     _(
-      "IP address or device name in Tailscale through which traffic is forwarded.",
+      "IP address or device name in Tailscale through which traffic is forwarded",
     ),
   );
   tailscaleExitNodeOption.rmempty = false;
@@ -5273,7 +5273,7 @@ function showTunnelSettingsModal(
     form.DynamicList,
     "address",
     _("Tunnel addresses"),
-    _("Interface IPv4 or IPv6 addresses in CIDR format."),
+    _("Interface IPv4 or IPv6 addresses in CIDR format"),
   );
   addressOption.rmempty = false;
   addressOption.depends("tunnel_type", "wireguard");
@@ -5382,7 +5382,7 @@ function showTunnelSettingsModal(
   const warpProfileIdOption = itemSection.option(
     form.Value,
     "warp_profile_id",
-    _("WARP profile ID"),
+    _("Profile ID"),
   );
   warpProfileIdOption.rmempty = false;
   warpProfileIdOption.depends("tunnel_type", "warp");
@@ -5390,7 +5390,7 @@ function showTunnelSettingsModal(
   const warpAuthTokenOption = itemSection.option(
     form.Value,
     "warp_auth_token",
-    _("WARP auth token"),
+    _("Auth token"),
   );
   warpAuthTokenOption.password = true;
   warpAuthTokenOption.rmempty = false;
@@ -5399,7 +5399,7 @@ function showTunnelSettingsModal(
   const warpPrivateKeyOption = itemSection.option(
     form.Value,
     "warp_private_key",
-    _("WARP private key"),
+    _("Private key"),
   );
   warpPrivateKeyOption.password = true;
   warpPrivateKeyOption.rmempty = false;
@@ -5408,7 +5408,7 @@ function showTunnelSettingsModal(
   const warpLicenseKeyOption = itemSection.option(
     form.Value,
     "warp_license_key",
-    _("WARP license key"),
+    _("License key"),
     _("Applies WARP+ to the profile account"),
   );
   warpLicenseKeyOption.password = true;
@@ -7696,7 +7696,7 @@ function createSectionContent(section) {
     form.Flag,
     "dns_detour_enabled",
     _("DNS through section"),
-    _("Route DNS requests through a section."),
+    _("Route DNS requests through a section"),
   );
   o.depends("action", "dns");
   o.default = "0";
@@ -8083,7 +8083,7 @@ function createSectionContent(section) {
     ButtonAddSettingsDynamicList,
     "urltest",
     _("URLTest"),
-    _("Selects the node with the lowest latency."),
+    _("Selects the node with the lowest latency"),
   );
   o.depends("action", "connection");
   o.rmempty = true;
@@ -8143,7 +8143,7 @@ function createSectionContent(section) {
     ButtonAddSettingsDynamicList,
     "fallback_group",
     _("Fallback"),
-    _("Selects the first available node by priority."),
+    _("Selects the first available node by priority"),
   );
   o.depends("action", "connection");
   o.rmempty = true;
@@ -8183,7 +8183,7 @@ function createSectionContent(section) {
     "outbound_detour_enabled",
     _("Cascade connection"),
     _(
-      "Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, Tailscale, JSON outbounds, or JSON endpoints.",
+      "Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, Tailscale, JSON outbounds, or JSON endpoints",
     ),
   );
   o.default = "0";
@@ -8302,7 +8302,7 @@ function createSectionContent(section) {
     form.DynamicList,
     "_dns_rule_set",
     _("Rule sets"),
-    _("A URL or local path. The format is detected automatically."),
+    _("A URL or local path. The format is detected automatically"),
   );
   dnsRuleSetOption.depends("action", "dns");
   dnsRuleSetOption.modalonly = true;
@@ -8324,7 +8324,7 @@ function createSectionContent(section) {
     SettingsDynamicList,
     "rule_set",
     _("Rule sets"),
-    _("A URL or local path. The format is detected automatically."),
+    _("A URL or local path. The format is detected automatically"),
   );
   dependsOnRoutingAction(ruleSetOption);
   ruleSetOption.modalonly = true;
@@ -8369,7 +8369,7 @@ function createSectionContent(section) {
   const portsOption = addDynamicConditionField(section, {
     key: "ports",
     label: _("Ports"),
-    description: _("Match destination ports."),
+    description: _("Match destination ports"),
     dynamicValidate: validatePortCondition,
   });
   dependsOnRoutingAction(portsOption);

@@ -2748,7 +2748,7 @@ function addClientRoutingOptions(sectionId, itemSection) {
     form.Flag,
     "routing_override",
     _("Override routing"),
-    _("Route this client on its own path instead of the rest of the server."),
+    _("Route this client on its own path instead of the rest of the server"),
   );
   override.default = "0";
   override.rmempty = true;
@@ -2767,7 +2767,7 @@ function addClientRoutingOptions(sectionId, itemSection) {
     form.ListValue,
     "routing_section",
     _("Routing section"),
-    _("Required. Where the traffic of this client leaves."),
+    _("Required. Where the traffic of this client leaves"),
   );
   routingSectionChoices().forEach(([value, label]) => target.value(value, label));
   target.rmempty = false;
@@ -3741,7 +3741,7 @@ function addTailscaleOptions(section) {
     form.Value,
     "tailscale_auth_key",
     _("Authorization key"),
-    _("A key from the Tailscale console."),
+    _("A key from the Tailscale console"),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -3753,7 +3753,7 @@ function addTailscaleOptions(section) {
     form.Value,
     "tailscale_hostname",
     _("Device name"),
-    _("The name this device appears under in the Tailscale console."),
+    _("The name this device appears under in the Tailscale console"),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -3764,7 +3764,7 @@ function addTailscaleOptions(section) {
     form.DynamicList,
     "tailscale_advertise_routes",
     _("Advertise routes"),
-    _("Local subnets the rest of the network may reach through this router."),
+    _("Local subnets the rest of the network may reach through this router"),
   );
   o.placeholder = "192.168.1.0/24";
   o.modalonly = true;
@@ -3776,7 +3776,7 @@ function addTailscaleOptions(section) {
     form.Flag,
     "tailscale_accept_routes",
     _("Accept routes"),
-    _("Use subnets other devices share."),
+    _("Use subnets other devices share"),
   );
   o.default = "0";
   o.rmempty = true;
@@ -3787,7 +3787,7 @@ function addTailscaleOptions(section) {
     form.Flag,
     "tailscale_ephemeral",
     _("Ephemeral node"),
-    _("Remove the node from the network once it goes offline."),
+    _("Remove the node from the network once it goes offline"),
   );
   o.default = "0";
   o.rmempty = true;
@@ -3799,7 +3799,7 @@ function addTailscaleOptions(section) {
     "tailscale_control_url",
     _("Coordination server"),
     _(
-      "Address of the coordination server. Change it if you use a custom server.",
+      "Address of the coordination server. Change it if you use a custom server",
     ),
   );
   o.default = "https://controlplane.tailscale.com";
@@ -3812,7 +3812,7 @@ function addTailscaleOptions(section) {
     form.Flag,
     "tailscale_detour_enabled",
     _("Coordination server through a section"),
-    _("Reach the coordination server through a section instead of the WAN."),
+    _("Reach the coordination server through a section instead of the WAN"),
   );
   o.default = "0";
   o.rmempty = false;
@@ -3823,7 +3823,7 @@ function addTailscaleOptions(section) {
     form.ListValue,
     "tailscale_detour_section",
     _("Coordination server through"),
-    _("Required. The section that carries the control-plane traffic."),
+    _("Required. The section that carries the control-plane traffic"),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -3913,7 +3913,7 @@ function addListenerOptions(section) {
     form.Value,
     "public_host",
     _("Public address"),
-    _("The address the connection links point at."),
+    _("The address the connection links point at"),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -4021,7 +4021,7 @@ function addHysteria2Options(section) {
     form.Value,
     "hysteria2_obfs_password",
     _("Obfuscation password"),
-    _("Required. Every client has to send the same value."),
+    _("Required. Every client has to send the same value"),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -4131,7 +4131,7 @@ function addProtocolOptions(section) {
     form.Value,
     "ssh_host_key_path",
     _("SSH host key path"),
-    _("Required. Create a new key with the button."),
+    _("Required. Create a new key with the button"),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -4165,7 +4165,7 @@ function addMtprotoOptions(section) {
     form.Value,
     "mtproto_faketls",
     _("FakeTLS host"),
-    _("The domain a client sends in the TLS handshake."),
+    _("The domain a client sends in the TLS handshake"),
   );
   o.placeholder = "google.com";
   o.modalonly = true;
@@ -4224,7 +4224,7 @@ function addSecurityOptions(section) {
     form.Value,
     "tls_server_name",
     _("SNI"),
-    _("The domain a client sends in the TLS handshake."),
+    _("The domain a client sends in the TLS handshake"),
   );
   o.placeholder = "example.com";
   o.modalonly = true;
@@ -4272,7 +4272,7 @@ function addSecurityOptions(section) {
     form.Value,
     "tls_certificate_path",
     _("Certificate path"),
-    _("A certificate issued for this address."),
+    _("A certificate issued for this address"),
   );
   addCertificateButton(o);
   o.modalonly = true;
@@ -4284,7 +4284,7 @@ function addSecurityOptions(section) {
     form.Value,
     "tls_key_path",
     _("Key path"),
-    _("The private key of the certificate."),
+    _("The private key of the certificate"),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -4295,7 +4295,7 @@ function addSecurityOptions(section) {
     form.Value,
     "reality_private_key",
     _("Reality private key"),
-    _("Required. Generate a pair with the button."),
+    _("Required. Generate a pair with the button"),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -4314,7 +4314,7 @@ function addSecurityOptions(section) {
     form.Value,
     "reality_public_key",
     _("Reality public key"),
-    _("Filled in together with the private key."),
+    _("Filled in together with the private key"),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -4549,7 +4549,7 @@ function addRoutingOptions(section) {
     form.ListValue,
     "routing_mode",
     _("Routing mode"),
-    _("Where to send the traffic from this server."),
+    _("Where to send the traffic from this server"),
   );
   o.value("rules", _("Rules"));
   o.value("direct", _("Direct"));
@@ -4563,7 +4563,7 @@ function addRoutingOptions(section) {
     form.ListValue,
     "routing_section",
     _("Routing section"),
-    _("Required. Where the traffic of this server leaves."),
+    _("Required. Where the traffic of this server leaves"),
   );
   o.depends("routing_mode", "section");
   o.modalonly = true;
