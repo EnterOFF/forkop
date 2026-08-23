@@ -2414,16 +2414,6 @@ function render() {
       class: "fkp_dashboard-page"
     },
     [
-      E(
-        "div",
-        {
-          class: "fkp_dashboard-page__service-stopped",
-          role: "status"
-        },
-        _(
-          "Forkop service is stopped. Start the service to display the dashboard."
-        )
-      ),
       E("div", { class: "fkp_dashboard-page__content" }, [
         // Widgets section
         E("div", { class: "fkp_dashboard-page__widgets-section" }, [
@@ -5097,12 +5087,15 @@ function coreService(options = {}) {
 }
 
 // src/forkop/services/socket.service.ts
+var RECONNECT_DELAY_MS = 1e3;
+var RECONNECT_DELAY_MAX_MS = 3e4;
 var SocketManager = class _SocketManager {
   constructor() {
     this.sockets = /* @__PURE__ */ new Map();
     this.listeners = /* @__PURE__ */ new Map();
     this.connected = /* @__PURE__ */ new Map();
     this.errorListeners = /* @__PURE__ */ new Map();
+    this.failedAttempts = /* @__PURE__ */ new Map();
   }
   static getInstance() {
     if (!_SocketManager.instance) {
@@ -5128,6 +5121,7 @@ var SocketManager = class _SocketManager {
     this.listeners.clear();
     this.errorListeners.clear();
     this.connected.clear();
+    this.failedAttempts.clear();
     logger.info("[SOCKET]", "All connections and state have been reset.");
   }
   connect(url) {
@@ -5150,6 +5144,7 @@ var SocketManager = class _SocketManager {
     if (!this.errorListeners.has(url)) this.errorListeners.set(url, /* @__PURE__ */ new Set());
     ws.addEventListener("open", () => {
       this.connected.set(url, true);
+      this.failedAttempts.delete(url);
       logger.info("[SOCKET]", "Connected to", url);
     });
     ws.addEventListener("message", (event) => {
@@ -5170,11 +5165,19 @@ var SocketManager = class _SocketManager {
       this.connected.set(url, false);
       logger.warn("[SOCKET]", `Disconnected: ${url}`);
       this.triggerError(url, "Connection closed");
-      setTimeout(() => {
-        if (!this.sockets.has(url) && (this.listeners.get(url)?.size || 0) > 0) {
-          this.connect(url);
-        }
-      }, 1e3);
+      const attempts = (this.failedAttempts.get(url) || 0) + 1;
+      this.failedAttempts.set(url, attempts);
+      setTimeout(
+        () => {
+          if (!this.sockets.has(url) && (this.listeners.get(url)?.size || 0) > 0) {
+            this.connect(url);
+          }
+        },
+        Math.min(
+          RECONNECT_DELAY_MS * 2 ** (attempts - 1),
+          RECONNECT_DELAY_MAX_MS
+        )
+      );
     });
     ws.addEventListener("error", (err) => {
       logger.error("[SOCKET]", `Socket error for ${url}:`, err);
@@ -5221,6 +5224,7 @@ var SocketManager = class _SocketManager {
     this.listeners.delete(url);
     this.errorListeners.delete(url);
     this.connected.delete(url);
+    this.failedAttempts.delete(url);
   }
   disconnectAll() {
     for (const url of this.sockets.keys()) {
@@ -5407,21 +5411,6 @@ function isActiveLuciTab(tabId) {
   );
 }
 
-// src/forkop/helpers/serviceAvailability.ts
-function getServiceAvailability({
-  loading: loading3,
-  failed: failed2,
-  running
-}) {
-  if (loading3) {
-    return "loading";
-  }
-  if (failed2) {
-    return "unavailable";
-  }
-  return running ? "running" : "stopped";
-}
-
 // src/forkop/tabs/dashboard/resolveOutboundProxyLink.ts
 async function resolveOutboundProxyLink(outbound, fetchProxyLink) {
   const configuredLink = outbound.link?.trim() || "";
@@ -5462,9 +5451,6 @@ if (typeof window !== "undefined") {
   });
 }
 async function fetchDashboardSectionsOnce(mountId) {
-  if (getDashboardServiceAvailability() === "stopped") {
-    return false;
-  }
   const prev = store.get().sectionsWidget;
   const hasRenderedData = prev.data.length > 0;
   store.set({
@@ -5476,7 +5462,7 @@ async function fetchDashboardSectionsOnce(mountId) {
   });
   try {
     const { data, success } = await CustomForkopMethods.getDashboardSections();
-    if (!dashboardMounted || mountId !== dashboardMountId || getDashboardServiceAvailability() === "stopped") {
+    if (!dashboardMounted || mountId !== dashboardMountId) {
       return false;
     }
     if (!success) {
@@ -5494,7 +5480,7 @@ async function fetchDashboardSectionsOnce(mountId) {
     return true;
   } catch (error) {
     logger.error("[DASHBOARD]", "fetchDashboardSections: failed", error);
-    if (!dashboardMounted || mountId !== dashboardMountId || getDashboardServiceAvailability() === "stopped") {
+    if (!dashboardMounted || mountId !== dashboardMountId) {
       return false;
     }
     const current = store.get().sectionsWidget;
@@ -5565,13 +5551,13 @@ function handleSortByLatency(sectionName, enabled) {
 async function connectToClashSockets(dataUpdatesId) {
   const mountId = dashboardMountId;
   const clashApiSecret = await getClashApiSecret2();
-  if (!dashboardMounted || mountId !== dashboardMountId || dataUpdatesId !== dashboardDataUpdatesId || getDashboardServiceAvailability() === "stopped") {
+  if (!dashboardMounted || mountId !== dashboardMountId || dataUpdatesId !== dashboardDataUpdatesId) {
     return;
   }
   socket.subscribe(
     `${getClashWsUrl()}/traffic?token=${clashApiSecret}`,
     (msg) => {
-      if (dataUpdatesId !== dashboardDataUpdatesId || getDashboardServiceAvailability() === "stopped") {
+      if (dataUpdatesId !== dashboardDataUpdatesId) {
         return;
       }
       const parsedMsg = JSON.parse(msg);
@@ -5584,7 +5570,7 @@ async function connectToClashSockets(dataUpdatesId) {
       });
     },
     (_err) => {
-      if (dataUpdatesId !== dashboardDataUpdatesId || getDashboardServiceAvailability() === "stopped") {
+      if (dataUpdatesId !== dashboardDataUpdatesId) {
         return;
       }
       logger.error(
@@ -5604,7 +5590,7 @@ async function connectToClashSockets(dataUpdatesId) {
   socket.subscribe(
     `${getClashWsUrl()}/connections?token=${clashApiSecret}`,
     (msg) => {
-      if (dataUpdatesId !== dashboardDataUpdatesId || getDashboardServiceAvailability() === "stopped") {
+      if (dataUpdatesId !== dashboardDataUpdatesId) {
         return;
       }
       const parsedMsg = JSON.parse(msg);
@@ -5628,7 +5614,7 @@ async function connectToClashSockets(dataUpdatesId) {
       });
     },
     (_err) => {
-      if (dataUpdatesId !== dashboardDataUpdatesId || getDashboardServiceAvailability() === "stopped") {
+      if (dataUpdatesId !== dashboardDataUpdatesId) {
         return;
       }
       logger.error(
@@ -5654,14 +5640,6 @@ async function connectToClashSockets(dataUpdatesId) {
     }
   );
 }
-function getDashboardServiceAvailability() {
-  const service = store.get().servicesInfoWidget;
-  return getServiceAvailability({
-    loading: service.loading,
-    failed: service.failed,
-    running: service.data.forkopRunning
-  });
-}
 function stopDashboardDataUpdates() {
   dashboardDataUpdatesStarted = false;
   dashboardDataUpdatesId += 1;
@@ -5673,7 +5651,7 @@ function stopDashboardDataUpdates() {
   socket.resetAll();
 }
 function startDashboardDataUpdates() {
-  if (dashboardDataUpdatesStarted || !dashboardMounted || getDashboardServiceAvailability() === "stopped") {
+  if (dashboardDataUpdatesStarted || !dashboardMounted) {
     return;
   }
   dashboardDataUpdatesStarted = true;
@@ -5683,17 +5661,6 @@ function startDashboardDataUpdates() {
   sectionsRefreshTimer = setInterval(() => {
     void fetchDashboardSections();
   }, SECTIONS_REFRESH_INTERVAL_MS);
-}
-function syncDashboardServiceAvailability() {
-  const availability = getDashboardServiceAvailability();
-  const stopped = availability === "stopped";
-  const container = document.getElementById("dashboard-status");
-  container?.classList.toggle("fkp_dashboard-page--service-stopped", stopped);
-  if (stopped || availability === "loading") {
-    stopDashboardDataUpdates();
-    return;
-  }
-  startDashboardDataUpdates();
 }
 async function handleChooseOutbound(sectionName, selector, tag) {
   const sectionsWidget = store.get().sectionsWidget;
@@ -6594,7 +6561,6 @@ async function onStoreUpdate(next, prev, diff) {
     renderSystemInfoWidget();
   }
   if (diff.servicesInfoWidget) {
-    syncDashboardServiceAvailability();
     renderServicesInfoWidget();
   }
 }
@@ -6604,24 +6570,23 @@ async function onPageMount() {
   dashboardMountId += 1;
   const mountId = dashboardMountId;
   const hasRuntimeSnapshot = Boolean(getCachedRuntimeUiState());
-  if (!hasRuntimeSnapshot) {
-    const uiState = await refreshRuntimeUiState({ force: true });
-    if (!dashboardMounted || mountId !== dashboardMountId) {
-      return;
-    }
-    if (!uiState) {
-      void fetchServicesInfo();
-    }
-  }
   store.subscribe(onStoreUpdate);
   void renderSectionsWidget();
   void renderBandwidthWidget();
   void renderTrafficTotalWidget();
   void renderSystemInfoWidget();
   void renderServicesInfoWidget();
-  syncDashboardServiceAvailability();
+  startDashboardDataUpdates();
   if (hasRuntimeSnapshot) {
     void refreshRuntimeUiState({ force: true });
+    return;
+  }
+  const uiState = await refreshRuntimeUiState({ force: true });
+  if (!dashboardMounted || mountId !== dashboardMountId) {
+    return;
+  }
+  if (!uiState) {
+    void fetchServicesInfo();
   }
 }
 function onPageUnmount() {
@@ -6723,42 +6688,6 @@ var styles = `
     width: 100%;
     --dashboard-grid-columns: 4;
     --dashboard-grid-min-width: 180px;
-}
-
-.fkp_dashboard-page__service-stopped {
-    display: none;
-    width: 100%;
-    min-height: 180px;
-    margin-top: 10px;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-    box-sizing: border-box;
-    border: 1px dashed var(--border-color-high, #555);
-    border-radius: 6px;
-    color: var(--text-color-medium, #888);
-    background: transparent;
-    font-family: inherit;
-    font-size: inherit;
-    font-weight: inherit;
-    line-height: inherit;
-    font-style: normal;
-    text-align: center;
-}
-
-.fkp_dashboard-page--service-stopped {
-    display: grid;
-    grid-template-columns: repeat(var(--dashboard-grid-columns), minmax(var(--dashboard-grid-min-width), 1fr));
-    gap: 10px;
-}
-
-.fkp_dashboard-page--service-stopped .fkp_dashboard-page__service-stopped {
-    display: flex;
-    grid-column: 1 / -1;
-}
-
-.fkp_dashboard-page--service-stopped .fkp_dashboard-page__content {
-    display: none;
 }
 
 @media (max-width: 900px) {
@@ -10638,6 +10567,7 @@ function normalizeConnectionsPayload(value) {
 }
 var RENDER_INTERVAL_MS = 500;
 var CONNECTIONS_RPC_POLL_INTERVAL_MS = 1500;
+var CONNECTIONS_RPC_POLL_BACKOFF_MAX_MS = 3e4;
 var CLOSED_CONNECTION_LIMIT = 300;
 var ALL_FILTER_VALUE = "all";
 var SYSTEM_DEVICE_VALUE = "@system";
@@ -10647,7 +10577,6 @@ var monitoringMounted = false;
 var monitoringMountId = 0;
 var monitoringLifecycleRegistered = false;
 var monitoringControllerInitialized = false;
-var serviceStateUnsubscribe = null;
 var renderTimer = null;
 var connectionsPollTimer = null;
 var connectionsSocketUrl = "";
@@ -10668,7 +10597,7 @@ var failed = false;
 var closingAll = false;
 var monitoringPaused = false;
 var monitoringPausedAt = null;
-var serviceAvailability = "loading";
+var consecutivePollFailures = 0;
 var activeConnections = /* @__PURE__ */ new Map();
 var closedConnections = /* @__PURE__ */ new Map();
 var closingConnectionIds = /* @__PURE__ */ new Set();
@@ -11084,7 +11013,6 @@ function renderControls() {
         countFilteredConnections(activeConnections)
       )
     );
-    activeButton.disabled = serviceAvailability === "stopped";
   }
   if (closedButton) {
     closedButton.replaceChildren(
@@ -11093,13 +11021,12 @@ function renderControls() {
         countFilteredConnections(closedConnections)
       )
     );
-    closedButton.disabled = serviceAvailability === "stopped";
   }
   setButtonActive(activeButton, activeTab === "active");
   setButtonActive(closedButton, activeTab === "closed");
   if (closeAllButton) {
     closeAllButton.replaceChildren(renderXIcon24());
-    closeAllButton.disabled = serviceAvailability === "stopped" || activeConnections.size === 0 || closingAll;
+    closeAllButton.disabled = activeConnections.size === 0 || closingAll;
   }
   if (pauseToggleButton) {
     const title = monitoringPaused ? _("Resume updates") : _("Pause updates");
@@ -11108,7 +11035,6 @@ function renderControls() {
     );
     pauseToggleButton.title = title;
     pauseToggleButton.setAttribute("aria-label", title);
-    pauseToggleButton.disabled = serviceAvailability === "stopped";
     pauseToggleButton.classList.toggle(
       "fkp_monitoring-page__icon-button--active",
       monitoringPaused
@@ -11121,18 +11047,6 @@ function renderControls() {
     searchIcon.replaceChildren(renderSearchIcon24());
   }
   renderDeviceFilterOptions();
-  const select = document.getElementById(
-    "monitoring-device-filter"
-  );
-  const searchInput = document.getElementById(
-    "monitoring-search"
-  );
-  if (select) {
-    select.disabled = serviceAvailability === "stopped";
-  }
-  if (searchInput) {
-    searchInput.disabled = serviceAvailability === "stopped";
-  }
 }
 function renderValue(value, className = "") {
   const text = value || "-";
@@ -11294,16 +11208,6 @@ function renderConnections(options = {}) {
   const previousScrollLeft = container.querySelector(
     ".fkp_monitoring-page__table-wrap"
   )?.scrollLeft ?? 0;
-  if (serviceAvailability === "stopped") {
-    container.replaceChildren(
-      renderConnectionsTable([], {
-        text: _(
-          "Forkop service is stopped. Start the service to display connections."
-        )
-      })
-    );
-    return;
-  }
   if (loading) {
     container.replaceChildren(
       renderConnectionsTable([], {
@@ -11630,56 +11534,72 @@ async function loadRouteDisplayNames() {
     renderConnections();
   }
 }
+function reportPollFailure() {
+  consecutivePollFailures += 1;
+  failed = true;
+  loading = false;
+  renderConnections();
+}
 async function pollConnectionsSnapshot() {
-  if (pollingConnections || !monitoringMounted || monitoringPaused || serviceAvailability !== "running") {
+  if (pollingConnections || !monitoringMounted || monitoringPaused) {
     return;
   }
   const mountId = monitoringMountId;
   pollingConnections = true;
   try {
     const response = await CustomForkopMethods.getClashApiConnections();
-    if (!monitoringMounted || mountId !== monitoringMountId || serviceAvailability !== "running") {
+    if (!monitoringMounted || mountId !== monitoringMountId) {
       return;
     }
     if (!response.success) {
-      failed = true;
-      loading = false;
-      renderConnections();
+      reportPollFailure();
       return;
     }
+    consecutivePollFailures = 0;
     applyConnectionsPayload(normalizeConnectionsPayload(response.data));
   } catch (error) {
-    if (!monitoringMounted || mountId !== monitoringMountId || serviceAvailability !== "running") {
+    if (!monitoringMounted || mountId !== monitoringMountId) {
       return;
     }
     logger.error("[MONITORING]", "connections polling failed", error);
-    failed = true;
-    loading = false;
-    renderConnections();
+    reportPollFailure();
   } finally {
     pollingConnections = false;
   }
 }
+function connectionsPollDelay() {
+  return Math.min(
+    CONNECTIONS_RPC_POLL_INTERVAL_MS * 2 ** consecutivePollFailures,
+    CONNECTIONS_RPC_POLL_BACKOFF_MAX_MS
+  );
+}
+function scheduleConnectionsPoll(delay) {
+  connectionsPollTimer = setTimeout(() => {
+    connectionsPollTimer = null;
+    void pollConnectionsSnapshot().finally(() => {
+      if (monitoringMounted) {
+        scheduleConnectionsPoll(connectionsPollDelay());
+      }
+    });
+  }, delay);
+}
 function startConnectionsPolling() {
-  if (connectionsPollTimer) {
+  if (connectionsPollTimer || pollingConnections) {
     return;
   }
-  void pollConnectionsSnapshot();
-  connectionsPollTimer = setInterval(() => {
-    void pollConnectionsSnapshot();
-  }, CONNECTIONS_RPC_POLL_INTERVAL_MS);
+  scheduleConnectionsPoll(0);
 }
 async function connectToConnectionsSocket(updatesId) {
   const mountId = monitoringMountId;
   const clashApiSecret = await getClashApiSecret2();
-  if (!monitoringMounted || mountId !== monitoringMountId || updatesId !== connectionsUpdatesId || serviceAvailability !== "running") {
+  if (!monitoringMounted || mountId !== monitoringMountId || updatesId !== connectionsUpdatesId) {
     return;
   }
   connectionsSocketUrl = `${getClashWsUrl()}/connections?token=${clashApiSecret}`;
   socket.subscribe(
     connectionsSocketUrl,
     (msg) => {
-      if (updatesId !== connectionsUpdatesId || serviceAvailability !== "running") {
+      if (updatesId !== connectionsUpdatesId) {
         return;
       }
       try {
@@ -11689,7 +11609,7 @@ async function connectToConnectionsSocket(updatesId) {
       }
     },
     (_err) => {
-      if (!monitoringMounted || mountId !== monitoringMountId || updatesId !== connectionsUpdatesId || serviceAvailability !== "running") {
+      if (!monitoringMounted || mountId !== monitoringMountId || updatesId !== connectionsUpdatesId) {
         return;
       }
       const failedSocketUrl = connectionsSocketUrl;
@@ -11705,9 +11625,6 @@ async function connectToConnectionsSocket(updatesId) {
   );
 }
 function startConnectionsUpdates() {
-  if (serviceAvailability !== "running") {
-    return;
-  }
   if (canUseDirectClashApi()) {
     const updatesId = ++connectionsUpdatesId;
     void connectToConnectionsSocket(updatesId);
@@ -11718,54 +11635,13 @@ function startConnectionsUpdates() {
 function stopConnectionsUpdates() {
   connectionsUpdatesId += 1;
   if (connectionsPollTimer) {
-    clearInterval(connectionsPollTimer);
+    clearTimeout(connectionsPollTimer);
     connectionsPollTimer = null;
   }
   if (connectionsSocketUrl) {
     socket.disconnect(connectionsSocketUrl);
     connectionsSocketUrl = "";
   }
-}
-function setServiceAvailability(next) {
-  if (serviceAvailability === next) {
-    return;
-  }
-  serviceAvailability = next;
-  if (next === "running") {
-    loading = true;
-    failed = false;
-    startConnectionsUpdates();
-  } else {
-    stopConnectionsUpdates();
-    pendingConnectionsPayload = null;
-    if (next === "stopped") {
-      loading = false;
-      failed = false;
-      activeConnections.clear();
-      closedConnections.clear();
-      closingConnectionIds.clear();
-    } else if (next === "unavailable") {
-      loading = false;
-      failed = true;
-    }
-  }
-  renderControls();
-  renderConnections();
-}
-function watchServiceState() {
-  serviceStateUnsubscribe?.();
-  serviceStateUnsubscribe = subscribeRuntimeUiState((uiState) => {
-    if (!monitoringMounted) {
-      return;
-    }
-    setServiceAvailability(
-      getServiceAvailability({
-        loading: false,
-        failed: false,
-        running: uiState.service.forkop.running
-      })
-    );
-  });
 }
 function resetMonitoringState() {
   activeTab = "active";
@@ -11777,7 +11653,7 @@ function resetMonitoringState() {
   closingAll = false;
   monitoringPaused = false;
   monitoringPausedAt = null;
-  serviceAvailability = "loading";
+  consecutivePollFailures = 0;
   pendingConnectionsPayload = null;
   activeConnections.clear();
   closedConnections.clear();
@@ -11789,29 +11665,17 @@ function resetMonitoringState() {
     searchInput.value = "";
   }
 }
-async function onPageMount3() {
+function onPageMount3() {
   onPageUnmount3();
   monitoringMounted = true;
   monitoringMountId += 1;
-  const mountId = monitoringMountId;
   resetMonitoringState();
   bindControls();
   renderControls();
   renderConnections();
-  watchServiceState();
+  startConnectionsUpdates();
   void loadLocalDevices();
   void loadRouteDisplayNames();
-  if (getCachedRuntimeUiState()) {
-    void refreshRuntimeUiState({ force: true });
-  } else {
-    const uiState = await refreshRuntimeUiState({ force: true });
-    if (!monitoringMounted || mountId !== monitoringMountId) {
-      return;
-    }
-    if (!uiState && serviceAvailability === "loading") {
-      setServiceAvailability("unavailable");
-    }
-  }
   document.addEventListener("selectionchange", flushRenderAfterSelection);
   document.addEventListener("copy", handleMonitoringValueCopy);
   renderTimer = setInterval(() => {
@@ -11829,8 +11693,6 @@ function onPageUnmount3() {
     renderTimer = null;
   }
   stopConnectionsUpdates();
-  serviceStateUnsubscribe?.();
-  serviceStateUnsubscribe = null;
   document.removeEventListener("selectionchange", flushRenderAfterSelection);
   document.removeEventListener("copy", handleMonitoringValueCopy);
 }

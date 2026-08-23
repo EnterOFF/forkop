@@ -78,6 +78,25 @@ for (const expected of [
     throw new Error(`monitoring tab counters must follow the active filters: ${expected}`);
   }
 }
+
+// The tab asks the Clash API and shows what it answers. Nothing here reads the
+// service state: a stopped core is an unanswered request like any other.
+for (const forbidden of ['serviceAvailability', 'runtimeUiState']) {
+  if (monitoring.includes(forbidden)) {
+    throw new Error(`monitoring must not gate its own data on the service state: ${forbidden}`);
+  }
+}
+
+// A stopped core answers nothing for as long as the tab stays open.
+for (const expected of [
+  'CONNECTIONS_RPC_POLL_BACKOFF_MAX_MS',
+  'consecutivePollFailures',
+  'scheduleConnectionsPoll(connectionsPollDelay())',
+]) {
+  if (!monitoring.includes(expected)) {
+    throw new Error(`a failing connections poll must back off: ${expected}`);
+  }
+}
 NODE
 
 printf 'monitoring recovery UI checks passed\n'

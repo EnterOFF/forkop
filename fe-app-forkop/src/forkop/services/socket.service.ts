@@ -4,12 +4,19 @@ import { logger } from './logger.service';
 type Listener = (data: any) => void;
 type ErrorListener = (error: Event | string) => void;
 
+// A refused connection comes back immediately, and the Clash API is unreachable for
+// as long as the core is down, so retrying at a fixed second would go on forever at
+// full speed. The delay grows per failed attempt and resets once one connects.
+const RECONNECT_DELAY_MS = 1000;
+const RECONNECT_DELAY_MAX_MS = 30000;
+
 class SocketManager {
   private static instance: SocketManager;
   private sockets = new Map<string, WebSocket>();
   private listeners = new Map<string, Set<Listener>>();
   private connected = new Map<string, boolean>();
   private errorListeners = new Map<string, Set<ErrorListener>>();
+  private failedAttempts = new Map<string, number>();
 
   private constructor() {}
 
@@ -42,6 +49,7 @@ class SocketManager {
     this.listeners.clear();
     this.errorListeners.clear();
     this.connected.clear();
+    this.failedAttempts.clear();
     logger.info('[SOCKET]', 'All connections and state have been reset.');
   }
 
@@ -69,6 +77,7 @@ class SocketManager {
 
     ws.addEventListener('open', () => {
       this.connected.set(url, true);
+      this.failedAttempts.delete(url);
       logger.info('[SOCKET]', 'Connected to', url);
     });
 
@@ -92,14 +101,22 @@ class SocketManager {
       this.connected.set(url, false);
       logger.warn('[SOCKET]', `Disconnected: ${url}`);
       this.triggerError(url, 'Connection closed');
-      setTimeout(() => {
-        if (
-          !this.sockets.has(url) &&
-          (this.listeners.get(url)?.size || 0) > 0
-        ) {
-          this.connect(url);
-        }
-      }, 1000);
+      const attempts = (this.failedAttempts.get(url) || 0) + 1;
+      this.failedAttempts.set(url, attempts);
+      setTimeout(
+        () => {
+          if (
+            !this.sockets.has(url) &&
+            (this.listeners.get(url)?.size || 0) > 0
+          ) {
+            this.connect(url);
+          }
+        },
+        Math.min(
+          RECONNECT_DELAY_MS * 2 ** (attempts - 1),
+          RECONNECT_DELAY_MAX_MS,
+        ),
+      );
     });
 
     ws.addEventListener('error', (err) => {
@@ -153,6 +170,7 @@ class SocketManager {
     this.listeners.delete(url);
     this.errorListeners.delete(url);
     this.connected.delete(url);
+    this.failedAttempts.delete(url);
   }
 
   disconnectAll(): void {

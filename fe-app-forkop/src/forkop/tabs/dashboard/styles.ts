@@ -44,42 +44,6 @@ export const styles = `
     --dashboard-grid-min-width: 180px;
 }
 
-.fkp_dashboard-page__service-stopped {
-    display: none;
-    width: 100%;
-    min-height: 180px;
-    margin-top: 10px;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-    box-sizing: border-box;
-    border: 1px dashed var(--border-color-high, #555);
-    border-radius: 6px;
-    color: var(--text-color-medium, #888);
-    background: transparent;
-    font-family: inherit;
-    font-size: inherit;
-    font-weight: inherit;
-    line-height: inherit;
-    font-style: normal;
-    text-align: center;
-}
-
-.fkp_dashboard-page--service-stopped {
-    display: grid;
-    grid-template-columns: repeat(var(--dashboard-grid-columns), minmax(var(--dashboard-grid-min-width), 1fr));
-    gap: 10px;
-}
-
-.fkp_dashboard-page--service-stopped .fkp_dashboard-page__service-stopped {
-    display: flex;
-    grid-column: 1 / -1;
-}
-
-.fkp_dashboard-page--service-stopped .fkp_dashboard-page__content {
-    display: none;
-}
-
 @media (max-width: 900px) {
     .fkp_dashboard-page {
         --dashboard-grid-columns: 2;

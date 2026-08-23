@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-23 23:21+0300\n"
-"PO-Revision-Date: 2026-08-23 23:21+0300\n"
+"POT-Creation-Date: 2026-08-23 23:39+0300\n"
+"PO-Revision-Date: 2026-08-23 23:39+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -820,12 +820,6 @@ msgstr "Forkop сам управляет жизненным циклом nfqws, 
 
 msgid "Forkop manages the nfqws2 process lifecycle itself, so daemon mode is not allowed here."
 msgstr "Forkop сам управляет жизненным циклом nfqws2, поэтому режим daemon здесь запрещён."
-
-msgid "Forkop service is stopped. Start the service to display connections."
-msgstr "Служба Forkop остановлена. Запустите сервис для отображения подключений."
-
-msgid "Forkop service is stopped. Start the service to display the dashboard."
-msgstr "Служба Forkop остановлена. Запустите сервис для отображения дашборда."
 
 msgid "Forkop service proxy"
 msgstr "служебный прокси Forkop"

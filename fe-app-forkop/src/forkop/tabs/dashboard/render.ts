@@ -8,16 +8,6 @@ export function render() {
       class: 'fkp_dashboard-page',
     },
     [
-      E(
-        'div',
-        {
-          class: 'fkp_dashboard-page__service-stopped',
-          role: 'status',
-        },
-        _(
-          'Forkop service is stopped. Start the service to display the dashboard.',
-        ),
-      ),
       E('div', { class: 'fkp_dashboard-page__content' }, [
         // Widgets section
         E('div', { class: 'fkp_dashboard-page__widgets-section' }, [

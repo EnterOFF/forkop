@@ -12,15 +12,6 @@ import { getOutboundTagBySection } from '../../runtimeTags';
 import { getClashApiSecret } from '../../methods/custom/getClashApiSecret';
 import { logger, socket, store, StoreType } from '../../services';
 import { Forkop } from '../../types';
-import {
-  getCachedRuntimeUiState,
-  refreshRuntimeUiState,
-  subscribeRuntimeUiState,
-} from '../../services/runtimeUiState.service';
-import {
-  getServiceAvailability,
-  type ServiceAvailability,
-} from '../../helpers/serviceAvailability';
 
 type MonitoringTabId = 'active' | 'closed';
 
@@ -73,6 +64,7 @@ function normalizeConnectionsPayload(value: unknown): ClashConnectionsPayload {
 
 const RENDER_INTERVAL_MS = 500;
 const CONNECTIONS_RPC_POLL_INTERVAL_MS = 1500;
+const CONNECTIONS_RPC_POLL_BACKOFF_MAX_MS = 30000;
 const CLOSED_CONNECTION_LIMIT = 300;
 const ALL_FILTER_VALUE = 'all';
 const SYSTEM_DEVICE_VALUE = '@system';
@@ -83,9 +75,8 @@ let monitoringMounted = false;
 let monitoringMountId = 0;
 let monitoringLifecycleRegistered = false;
 let monitoringControllerInitialized = false;
-let serviceStateUnsubscribe: (() => void) | null = null;
 let renderTimer: ReturnType<typeof setInterval> | null = null;
-let connectionsPollTimer: ReturnType<typeof setInterval> | null = null;
+let connectionsPollTimer: ReturnType<typeof setTimeout> | null = null;
 let connectionsSocketUrl = '';
 let connectionsUpdatesId = 0;
 let renderSkippedForSelection = false;
@@ -105,7 +96,7 @@ let failed = false;
 let closingAll = false;
 let monitoringPaused = false;
 let monitoringPausedAt: number | null = null;
-let serviceAvailability: ServiceAvailability = 'loading';
+let consecutivePollFailures = 0;
 
 const activeConnections = new Map<string, MonitoredConnection>();
 const closedConnections = new Map<string, MonitoredConnection>();
@@ -662,7 +653,6 @@ function renderControls() {
         countFilteredConnections(activeConnections),
       ),
     );
-    activeButton.disabled = serviceAvailability === 'stopped';
   }
 
   if (closedButton) {
@@ -672,7 +662,6 @@ function renderControls() {
         countFilteredConnections(closedConnections),
       ),
     );
-    closedButton.disabled = serviceAvailability === 'stopped';
   }
 
   setButtonActive(activeButton, activeTab === 'active');
@@ -680,10 +669,7 @@ function renderControls() {
 
   if (closeAllButton) {
     closeAllButton.replaceChildren(renderXIcon24());
-    closeAllButton.disabled =
-      serviceAvailability === 'stopped' ||
-      activeConnections.size === 0 ||
-      closingAll;
+    closeAllButton.disabled = activeConnections.size === 0 || closingAll;
   }
 
   if (pauseToggleButton) {
@@ -693,7 +679,6 @@ function renderControls() {
     );
     pauseToggleButton.title = title;
     pauseToggleButton.setAttribute('aria-label', title);
-    pauseToggleButton.disabled = serviceAvailability === 'stopped';
     pauseToggleButton.classList.toggle(
       'fkp_monitoring-page__icon-button--active',
       monitoringPaused,
@@ -708,21 +693,6 @@ function renderControls() {
   }
 
   renderDeviceFilterOptions();
-
-  const select = document.getElementById(
-    'monitoring-device-filter',
-  ) as HTMLSelectElement | null;
-  const searchInput = document.getElementById(
-    'monitoring-search',
-  ) as HTMLInputElement | null;
-
-  if (select) {
-    select.disabled = serviceAvailability === 'stopped';
-  }
-
-  if (searchInput) {
-    searchInput.disabled = serviceAvailability === 'stopped';
-  }
 }
 
 function renderValue(value: string, className = '') {
@@ -930,17 +900,6 @@ function renderConnections(options: { force?: boolean } = {}) {
         '.fkp_monitoring-page__table-wrap',
       ) as HTMLElement | null
     )?.scrollLeft ?? 0;
-
-  if (serviceAvailability === 'stopped') {
-    container.replaceChildren(
-      renderConnectionsTable([], {
-        text: _(
-          'Forkop service is stopped. Start the service to display connections.',
-        ),
-      }),
-    );
-    return;
-  }
 
   if (loading) {
     container.replaceChildren(
@@ -1368,13 +1327,15 @@ async function loadRouteDisplayNames() {
   }
 }
 
+function reportPollFailure() {
+  consecutivePollFailures += 1;
+  failed = true;
+  loading = false;
+  renderConnections();
+}
+
 async function pollConnectionsSnapshot() {
-  if (
-    pollingConnections ||
-    !monitoringMounted ||
-    monitoringPaused ||
-    serviceAvailability !== 'running'
-  ) {
+  if (pollingConnections || !monitoringMounted || monitoringPaused) {
     return;
   }
 
@@ -1384,49 +1345,56 @@ async function pollConnectionsSnapshot() {
   try {
     const response = await CustomForkopMethods.getClashApiConnections();
 
-    if (
-      !monitoringMounted ||
-      mountId !== monitoringMountId ||
-      serviceAvailability !== 'running'
-    ) {
+    if (!monitoringMounted || mountId !== monitoringMountId) {
       return;
     }
 
     if (!response.success) {
-      failed = true;
-      loading = false;
-      renderConnections();
+      reportPollFailure();
       return;
     }
 
+    consecutivePollFailures = 0;
     applyConnectionsPayload(normalizeConnectionsPayload(response.data));
   } catch (error) {
-    if (
-      !monitoringMounted ||
-      mountId !== monitoringMountId ||
-      serviceAvailability !== 'running'
-    ) {
+    if (!monitoringMounted || mountId !== monitoringMountId) {
       return;
     }
 
     logger.error('[MONITORING]', 'connections polling failed', error);
-    failed = true;
-    loading = false;
-    renderConnections();
+    reportPollFailure();
   } finally {
     pollingConnections = false;
   }
 }
 
+// A stopped core answers nothing for as long as the tab stays open, so the poll
+// slows down while it keeps failing instead of asking every second and a half
+// forever. The first answer puts it back to the live interval.
+function connectionsPollDelay() {
+  return Math.min(
+    CONNECTIONS_RPC_POLL_INTERVAL_MS * 2 ** consecutivePollFailures,
+    CONNECTIONS_RPC_POLL_BACKOFF_MAX_MS,
+  );
+}
+
+function scheduleConnectionsPoll(delay: number) {
+  connectionsPollTimer = setTimeout(() => {
+    connectionsPollTimer = null;
+    void pollConnectionsSnapshot().finally(() => {
+      if (monitoringMounted) {
+        scheduleConnectionsPoll(connectionsPollDelay());
+      }
+    });
+  }, delay);
+}
+
 function startConnectionsPolling() {
-  if (connectionsPollTimer) {
+  if (connectionsPollTimer || pollingConnections) {
     return;
   }
 
-  void pollConnectionsSnapshot();
-  connectionsPollTimer = setInterval(() => {
-    void pollConnectionsSnapshot();
-  }, CONNECTIONS_RPC_POLL_INTERVAL_MS);
+  scheduleConnectionsPoll(0);
 }
 
 async function connectToConnectionsSocket(updatesId: number) {
@@ -1436,8 +1404,7 @@ async function connectToConnectionsSocket(updatesId: number) {
   if (
     !monitoringMounted ||
     mountId !== monitoringMountId ||
-    updatesId !== connectionsUpdatesId ||
-    serviceAvailability !== 'running'
+    updatesId !== connectionsUpdatesId
   ) {
     return;
   }
@@ -1447,10 +1414,7 @@ async function connectToConnectionsSocket(updatesId: number) {
   socket.subscribe(
     connectionsSocketUrl,
     (msg) => {
-      if (
-        updatesId !== connectionsUpdatesId ||
-        serviceAvailability !== 'running'
-      ) {
+      if (updatesId !== connectionsUpdatesId) {
         return;
       }
 
@@ -1464,8 +1428,7 @@ async function connectToConnectionsSocket(updatesId: number) {
       if (
         !monitoringMounted ||
         mountId !== monitoringMountId ||
-        updatesId !== connectionsUpdatesId ||
-        serviceAvailability !== 'running'
+        updatesId !== connectionsUpdatesId
       ) {
         return;
       }
@@ -1484,10 +1447,6 @@ async function connectToConnectionsSocket(updatesId: number) {
 }
 
 function startConnectionsUpdates() {
-  if (serviceAvailability !== 'running') {
-    return;
-  }
-
   if (canUseDirectClashApi()) {
     const updatesId = ++connectionsUpdatesId;
     void connectToConnectionsSocket(updatesId);
@@ -1501,7 +1460,7 @@ function stopConnectionsUpdates() {
   connectionsUpdatesId += 1;
 
   if (connectionsPollTimer) {
-    clearInterval(connectionsPollTimer);
+    clearTimeout(connectionsPollTimer);
     connectionsPollTimer = null;
   }
 
@@ -1509,54 +1468,6 @@ function stopConnectionsUpdates() {
     socket.disconnect(connectionsSocketUrl);
     connectionsSocketUrl = '';
   }
-}
-
-function setServiceAvailability(next: ServiceAvailability) {
-  if (serviceAvailability === next) {
-    return;
-  }
-
-  serviceAvailability = next;
-
-  if (next === 'running') {
-    loading = true;
-    failed = false;
-    startConnectionsUpdates();
-  } else {
-    stopConnectionsUpdates();
-    pendingConnectionsPayload = null;
-
-    if (next === 'stopped') {
-      loading = false;
-      failed = false;
-      activeConnections.clear();
-      closedConnections.clear();
-      closingConnectionIds.clear();
-    } else if (next === 'unavailable') {
-      loading = false;
-      failed = true;
-    }
-  }
-
-  renderControls();
-  renderConnections();
-}
-
-function watchServiceState() {
-  serviceStateUnsubscribe?.();
-  serviceStateUnsubscribe = subscribeRuntimeUiState((uiState) => {
-    if (!monitoringMounted) {
-      return;
-    }
-
-    setServiceAvailability(
-      getServiceAvailability({
-        loading: false,
-        failed: false,
-        running: uiState.service.forkop.running,
-      }),
-    );
-  });
 }
 
 function resetMonitoringState() {
@@ -1569,7 +1480,7 @@ function resetMonitoringState() {
   closingAll = false;
   monitoringPaused = false;
   monitoringPausedAt = null;
-  serviceAvailability = 'loading';
+  consecutivePollFailures = 0;
   pendingConnectionsPayload = null;
   activeConnections.clear();
   closedConnections.clear();
@@ -1583,35 +1494,23 @@ function resetMonitoringState() {
   }
 }
 
-async function onPageMount() {
+// The connections come from the Clash API, so the tab asks it directly instead of
+// asking first whether the core is running: an answer is the only thing that says
+// there is something to show.
+function onPageMount() {
   onPageUnmount();
 
   monitoringMounted = true;
   monitoringMountId += 1;
-  const mountId = monitoringMountId;
 
   resetMonitoringState();
   bindControls();
   renderControls();
   renderConnections();
-  watchServiceState();
+  startConnectionsUpdates();
 
   void loadLocalDevices();
   void loadRouteDisplayNames();
-
-  if (getCachedRuntimeUiState()) {
-    void refreshRuntimeUiState({ force: true });
-  } else {
-    const uiState = await refreshRuntimeUiState({ force: true });
-
-    if (!monitoringMounted || mountId !== monitoringMountId) {
-      return;
-    }
-
-    if (!uiState && serviceAvailability === 'loading') {
-      setServiceAvailability('unavailable');
-    }
-  }
 
   document.addEventListener('selectionchange', flushRenderAfterSelection);
   document.addEventListener('copy', handleMonitoringValueCopy);
@@ -1635,8 +1534,6 @@ function onPageUnmount() {
   }
 
   stopConnectionsUpdates();
-  serviceStateUnsubscribe?.();
-  serviceStateUnsubscribe = null;
 
   document.removeEventListener('selectionchange', flushRenderAfterSelection);
   document.removeEventListener('copy', handleMonitoringValueCopy);

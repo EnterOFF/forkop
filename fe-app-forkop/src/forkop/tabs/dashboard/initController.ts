@@ -29,7 +29,6 @@ import {
   refreshRuntimeUiState,
 } from '../../services/runtimeUiState.service';
 import { isActiveLuciTab } from '../../helpers/isActiveLuciTab';
-import { getServiceAvailability } from '../../helpers/serviceAvailability';
 import { resolveOutboundProxyLink } from './resolveOutboundProxyLink';
 
 const SECTIONS_REFRESH_INTERVAL_MS = 10000;
@@ -71,10 +70,6 @@ if (typeof window !== 'undefined') {
 // Fetchers
 
 async function fetchDashboardSectionsOnce(mountId: number) {
-  if (getDashboardServiceAvailability() === 'stopped') {
-    return false;
-  }
-
   const prev = store.get().sectionsWidget;
   const hasRenderedData = prev.data.length > 0;
 
@@ -89,11 +84,7 @@ async function fetchDashboardSectionsOnce(mountId: number) {
   try {
     const { data, success } = await CustomForkopMethods.getDashboardSections();
 
-    if (
-      !dashboardMounted ||
-      mountId !== dashboardMountId ||
-      getDashboardServiceAvailability() === 'stopped'
-    ) {
+    if (!dashboardMounted || mountId !== dashboardMountId) {
       return false;
     }
 
@@ -116,11 +107,7 @@ async function fetchDashboardSectionsOnce(mountId: number) {
   } catch (error) {
     logger.error('[DASHBOARD]', 'fetchDashboardSections: failed', error);
 
-    if (
-      !dashboardMounted ||
-      mountId !== dashboardMountId ||
-      getDashboardServiceAvailability() === 'stopped'
-    ) {
+    if (!dashboardMounted || mountId !== dashboardMountId) {
       return false;
     }
 
@@ -220,8 +207,7 @@ async function connectToClashSockets(dataUpdatesId: number) {
   if (
     !dashboardMounted ||
     mountId !== dashboardMountId ||
-    dataUpdatesId !== dashboardDataUpdatesId ||
-    getDashboardServiceAvailability() === 'stopped'
+    dataUpdatesId !== dashboardDataUpdatesId
   ) {
     return;
   }
@@ -229,10 +215,7 @@ async function connectToClashSockets(dataUpdatesId: number) {
   socket.subscribe(
     `${getClashWsUrl()}/traffic?token=${clashApiSecret}`,
     (msg) => {
-      if (
-        dataUpdatesId !== dashboardDataUpdatesId ||
-        getDashboardServiceAvailability() === 'stopped'
-      ) {
+      if (dataUpdatesId !== dashboardDataUpdatesId) {
         return;
       }
 
@@ -247,10 +230,7 @@ async function connectToClashSockets(dataUpdatesId: number) {
       });
     },
     (_err) => {
-      if (
-        dataUpdatesId !== dashboardDataUpdatesId ||
-        getDashboardServiceAvailability() === 'stopped'
-      ) {
+      if (dataUpdatesId !== dashboardDataUpdatesId) {
         return;
       }
 
@@ -272,10 +252,7 @@ async function connectToClashSockets(dataUpdatesId: number) {
   socket.subscribe(
     `${getClashWsUrl()}/connections?token=${clashApiSecret}`,
     (msg) => {
-      if (
-        dataUpdatesId !== dashboardDataUpdatesId ||
-        getDashboardServiceAvailability() === 'stopped'
-      ) {
+      if (dataUpdatesId !== dashboardDataUpdatesId) {
         return;
       }
 
@@ -301,10 +278,7 @@ async function connectToClashSockets(dataUpdatesId: number) {
       });
     },
     (_err) => {
-      if (
-        dataUpdatesId !== dashboardDataUpdatesId ||
-        getDashboardServiceAvailability() === 'stopped'
-      ) {
+      if (dataUpdatesId !== dashboardDataUpdatesId) {
         return;
       }
 
@@ -332,16 +306,6 @@ async function connectToClashSockets(dataUpdatesId: number) {
   );
 }
 
-function getDashboardServiceAvailability() {
-  const service = store.get().servicesInfoWidget;
-
-  return getServiceAvailability({
-    loading: service.loading,
-    failed: service.failed,
-    running: service.data.forkopRunning,
-  });
-}
-
 function stopDashboardDataUpdates() {
   dashboardDataUpdatesStarted = false;
   dashboardDataUpdatesId += 1;
@@ -355,12 +319,11 @@ function stopDashboardDataUpdates() {
   socket.resetAll();
 }
 
+// The widgets and the sections come from the Clash API, so the tab asks it
+// directly rather than asking first whether the core is running: what answers is
+// what there is to show.
 function startDashboardDataUpdates() {
-  if (
-    dashboardDataUpdatesStarted ||
-    !dashboardMounted ||
-    getDashboardServiceAvailability() === 'stopped'
-  ) {
+  if (dashboardDataUpdatesStarted || !dashboardMounted) {
     return;
   }
 
@@ -371,21 +334,6 @@ function startDashboardDataUpdates() {
   sectionsRefreshTimer = setInterval(() => {
     void fetchDashboardSections();
   }, SECTIONS_REFRESH_INTERVAL_MS);
-}
-
-function syncDashboardServiceAvailability() {
-  const availability = getDashboardServiceAvailability();
-  const stopped = availability === 'stopped';
-  const container = document.getElementById('dashboard-status');
-
-  container?.classList.toggle('fkp_dashboard-page--service-stopped', stopped);
-
-  if (stopped || availability === 'loading') {
-    stopDashboardDataUpdates();
-    return;
-  }
-
-  startDashboardDataUpdates();
 }
 
 // Handlers
@@ -1513,7 +1461,6 @@ async function onStoreUpdate(
   }
 
   if (diff.servicesInfoWidget) {
-    syncDashboardServiceAvailability();
     renderServicesInfoWidget();
   }
 }
@@ -1527,18 +1474,6 @@ async function onPageMount() {
   const mountId = dashboardMountId;
   const hasRuntimeSnapshot = Boolean(getCachedRuntimeUiState());
 
-  if (!hasRuntimeSnapshot) {
-    const uiState = await refreshRuntimeUiState({ force: true });
-
-    if (!dashboardMounted || mountId !== dashboardMountId) {
-      return;
-    }
-
-    if (!uiState) {
-      void fetchServicesInfo();
-    }
-  }
-
   // Add new listener
   store.subscribe(onStoreUpdate);
   void renderSectionsWidget();
@@ -1546,10 +1481,23 @@ async function onPageMount() {
   void renderTrafficTotalWidget();
   void renderSystemInfoWidget();
   void renderServicesInfoWidget();
-  syncDashboardServiceAvailability();
+  startDashboardDataUpdates();
 
+  // The service widget is the only part of the page that reads the service state,
+  // so it is fetched after the Clash API is already being asked.
   if (hasRuntimeSnapshot) {
     void refreshRuntimeUiState({ force: true });
+    return;
+  }
+
+  const uiState = await refreshRuntimeUiState({ force: true });
+
+  if (!dashboardMounted || mountId !== dashboardMountId) {
+    return;
+  }
+
+  if (!uiState) {
+    void fetchServicesInfo();
   }
 }
 

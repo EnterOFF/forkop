@@ -60,4 +60,35 @@ describe('socket service', () => {
 
     expect(FakeWebSocket.instances).toHaveLength(2);
   });
+
+  // A dashboard left open on a stopped core would otherwise retry once a second
+  // for as long as it stays open.
+  it('waits longer after every failed reconnect', async () => {
+    vi.useFakeTimers();
+
+    socket.subscribe('ws://router.test', vi.fn());
+    FakeWebSocket.instances[0].emit('close');
+    await vi.advanceTimersByTimeAsync(1000);
+    FakeWebSocket.instances[1].emit('close');
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(FakeWebSocket.instances).toHaveLength(2);
+
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(FakeWebSocket.instances).toHaveLength(3);
+  });
+
+  it('starts over from the short delay once a socket connects', async () => {
+    vi.useFakeTimers();
+
+    socket.subscribe('ws://router.test', vi.fn());
+    FakeWebSocket.instances[0].emit('close');
+    await vi.advanceTimersByTimeAsync(1000);
+    FakeWebSocket.instances[1].emit('open');
+    FakeWebSocket.instances[1].emit('close');
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(FakeWebSocket.instances).toHaveLength(3);
+  });
 });
