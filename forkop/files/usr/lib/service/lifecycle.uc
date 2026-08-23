@@ -1060,7 +1060,6 @@ function apply_reload_plan(plan, force_runtime_reload) {
 function reload_impl(reason) {
     let status;
     let force_runtime_reload = as_string(reason || "") == "on_config_change" ? 0 : 1;
-    let reload_config_fingerprint = external_config_fingerprint();
 
     // Not "reloading Forkop": most of the time nothing is restarted, and often
     // there is nothing to do at all.
@@ -1069,6 +1068,14 @@ function reload_impl(reason) {
     status = validate_start_config();
     if (status != 0)
         return status;
+
+    // After the step that fills in what the configuration left out, the way the
+    // start path does it. Validation writes the defaults a new server or a new
+    // section needs, so a fingerprint taken before it is a fingerprint of a
+    // configuration this reload itself then changed - and the check at the end
+    // would read its own writing as somebody else's and queue a second reload
+    // that has nothing left to do.
+    let reload_config_fingerprint = external_config_fingerprint();
 
     if (!module_success(STATE_UC, [ "forkop-running", RT_TABLE_NAME, NFT_TABLE_NAME, NFT_FAKEIP_MARK ])) {
         log_message("Runtime state is incomplete; restarting Forkop runtime", "info");

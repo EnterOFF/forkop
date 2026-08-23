@@ -52,6 +52,34 @@ grep -Fq '#!/usr/bin/ucode' "$FORKOP_BIN" ||
   fail "forkop entrypoint must be a direct ucode executable"
 grep -Fq 'service/lifecycle.uc' "$CLI_UC" ||
   fail "service/cli.uc must dispatch lifecycle orchestration through service/lifecycle.uc"
+# Validation fills in the defaults a new server or section left out and commits
+# them, so a fingerprint taken before it describes a configuration the reload
+# itself then changed: the check at the end read its own writing as somebody
+# else's and queued a second reload with nothing left to do. Both paths take it
+# after validation.
+node - "$LIFECYCLE_UC" <<'NODE'
+const fs = require('fs');
+const source = fs.readFileSync(process.argv[2], 'utf8');
+
+for (const [path, fingerprint] of [
+  ['start_main', 'startup_config_fingerprint = external_config_fingerprint()'],
+  ['reload_impl', 'reload_config_fingerprint = external_config_fingerprint()'],
+]) {
+  const body = source.slice(source.indexOf(`function ${path}(`));
+  const validate = body.indexOf('validate_start_config()');
+  const snapshot = body.indexOf(fingerprint);
+
+  if (validate < 0 || snapshot < 0) {
+    console.error(`FAIL: ${path} must validate the configuration and fingerprint it`);
+    process.exit(1);
+  }
+  if (snapshot < validate) {
+    console.error(`FAIL: ${path} must fingerprint the configuration after validation fills its defaults`);
+    process.exit(1);
+  }
+}
+NODE
+
 grep -Fq 'refresh-cron-from-uci' "$LIFECYCLE_UC" ||
   fail "service/lifecycle.uc start/reload must call the ucode cron refresh operation"
 grep -Fq 'remove-cron-jobs' "$LIFECYCLE_UC" ||
