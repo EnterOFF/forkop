@@ -156,22 +156,18 @@ function modalOptionFormValue(modalMap, section_id, optionName) {
   return lookup ? lookup[0].formvalue(lookup[1]) : null;
 }
 
-function missingConnectionOutboundMessage(modalMap, section_id) {
+function missingConnectionOutbound(modalMap, section_id) {
   const action = modalOptionFormValue(modalMap, section_id, "action");
   if (action !== "connection") {
-    return null;
+    return false;
   }
 
-  return CONNECTION_OUTBOUND_SOURCES.some(
+  return !CONNECTION_OUTBOUND_SOURCES.some(
     (optionName) =>
       normalizeDynamicListItems(
         modalOptionFormValue(modalMap, section_id, optionName),
       ).length > 0,
-  )
-    ? null
-    : _(
-        "Add at least one outbound: Connection URI, Subscription, Network Interface, Tunnel or JSON outbound",
-      );
+  );
 }
 
 function isOutboundDetourTargetSection(section, currentSectionId) {
@@ -3750,17 +3746,9 @@ function renderStackedJsonSettingsModal(title, map, onSave, options = {}) {
           ),
         )
         .then(close)
-        .catch((error) => {
+        .catch(() => {
           if (saveButton) {
             saveButton.disabled = false;
-          }
-          // A refused check marks its own field, but only once the widget has
-          // validated it - a field nothing was ever typed into has nothing to
-          // show, and LuCI saves a dialog silently. So the reason is repeated
-          // here instead of leaving Save looking like it did nothing.
-          const message = `${error?.message || ""}`.trim();
-          if (message) {
-            main.showToast(message, "error");
           }
         });
     };
@@ -8405,12 +8393,7 @@ function configureSectionSection(sectionRef, options = {}) {
   // dialog writes anything: LuCI parses the options one by one, so a check that
   // refuses halfway leaves the fields that already passed behind.
   sectionRef.handleModalSave = function (modalMap, ev) {
-    const message = missingConnectionOutboundMessage(
-      modalMap,
-      modalMap?.section,
-    );
-    if (message) {
-      main.showToast(message, "error");
+    if (missingConnectionOutbound(modalMap, modalMap?.section)) {
       return Promise.resolve();
     }
 

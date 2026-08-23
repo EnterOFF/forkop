@@ -20,18 +20,12 @@ function cleanupRemovedChildItems(...args) {
   cleanupCalls.push(args);
 }
 
-let outboundMessage = null;
-function missingConnectionOutboundMessage(...args) {
+let outboundMissing = false;
+function missingConnectionOutbound(...args) {
   lookupArgs = args;
-  return outboundMessage;
+  return outboundMissing;
 }
 let lookupArgs;
-let toasted;
-const main = {
-  showToast(message) {
-    toasted = message;
-  },
-};
 let prototypeSaves = 0;
 const savedResult = {};
 const form = {
@@ -81,19 +75,16 @@ assert.match(
 );
 
 // A section the runtime graph would drop is refused before the dialog writes
-// anything, and the reason is shown rather than left to a Save that does nothing.
+// anything: Save does nothing at all rather than leaving half of it behind.
 const modalMap = { section: 'parent' };
-outboundMessage = 'add an outbound';
+outboundMissing = true;
 sectionRef.handleModalSave(modalMap, event);
 assert.deepStrictEqual(lookupArgs, [modalMap, 'parent']);
 assert.strictEqual(prototypeSaves, 0, 'a refused section was still saved');
-assert.strictEqual(toasted, 'add an outbound', 'a refused section said nothing');
 
-outboundMessage = null;
-toasted = undefined;
+outboundMissing = false;
 assert.strictEqual(sectionRef.handleModalSave(modalMap, event), savedResult);
 assert.strictEqual(prototypeSaves, 1, 'an accepted section was not saved');
-assert.strictEqual(toasted, undefined, 'an accepted section reported an error');
 
 console.log('LuCI section cascade checks passed');
 NODE

@@ -11,18 +11,19 @@ fail() {
 
 modal_source="$(sed -n '/^function renderStackedJsonSettingsModal(/,/^function showChildItemSettingsModal(/p' "$SECTION_JS")"
 
-grep -Fq '.catch((error) => {' <<<"$modal_source" ||
+grep -Fq '.catch(() => {' <<<"$modal_source" ||
   fail "stacked settings Save must keep the modal open after validation fails"
 grep -Fq 'saveButton.disabled = false;' <<<"$modal_source" ||
   fail "stacked settings Save must be retryable after validation fails"
-# LuCI saves a dialog silently, and a field nothing was typed into never
-# validated, so a refused Save has to say why on its own.
-grep -Fq 'main.showToast(message, "error");' <<<"$modal_source" ||
-  fail "stacked settings Save must report the reason it refused"
 grep -Fq 'Promise.resolve(' <<<"$modal_source" ||
   fail "stacked settings Save must support asynchronous import handlers"
+# A refused check marks its own field; the dialog itself adds nothing on top of
+# that, neither a summary of its own nor a message repeated somewhere else.
 if grep -Fq 'fkp-stacked-settings-validation-summary' <<<"$modal_source"; then
-  fail "nested settings must name the reason instead of a generic warning"
+  fail "nested settings must rely on field validation instead of a global warning"
+fi
+if grep -Fq 'showToast' <<<"$modal_source"; then
+  fail "nested settings must rely on field validation instead of a toast"
 fi
 
 printf 'LuCI stacked settings validation checks passed\n'

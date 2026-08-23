@@ -13,7 +13,7 @@ import {
 function load() {
   resetLuciViewCache();
   return loadLuciView('section', createUciStub(), [
-    'missingConnectionOutboundMessage',
+    'missingConnectionOutbound',
     'missingFilterSelectionMessage',
   ]);
 }
@@ -39,56 +39,50 @@ const OUTBOUND_SOURCES = {
 
 describe('connection section outbounds', () => {
   it('refuses a section that names no outbound at all', () => {
-    const { missingConnectionOutboundMessage } = load();
+    const { missingConnectionOutbound } = load();
     const map = modalMap({ action: 'connection' });
 
-    expect(missingConnectionOutboundMessage(map, map.section)).toMatch(
-      /at least one outbound/,
-    );
+    expect(missingConnectionOutbound(map, map.section)).toBe(true);
   });
 
   it('accepts a section that names any single source', () => {
-    const { missingConnectionOutboundMessage } = load();
+    const { missingConnectionOutbound } = load();
 
     for (const [option, value] of Object.entries(OUTBOUND_SOURCES)) {
       const map = modalMap({ action: 'connection', [option]: value });
-      expect(missingConnectionOutboundMessage(map, map.section)).toBeNull();
+      expect(missingConnectionOutbound(map, map.section)).toBe(false);
     }
   });
 
   // A group takes its members from the sources of its own section, so it can
   // never stand in for one: the generator drops such a section entirely.
   it('does not count a URLTest or a Fallback as a source', () => {
-    const { missingConnectionOutboundMessage } = load();
+    const { missingConnectionOutbound } = load();
     const map = modalMap({
       action: 'connection',
       urltest: ['urltest_a1b2c3'],
       fallback_group: ['group_a1b2c3'],
     });
 
-    expect(missingConnectionOutboundMessage(map, map.section)).toMatch(
-      /at least one outbound/,
-    );
+    expect(missingConnectionOutbound(map, map.section)).toBe(true);
   });
 
   it('treats a list of blank items as no source', () => {
-    const { missingConnectionOutboundMessage } = load();
+    const { missingConnectionOutbound } = load();
     const map = modalMap({
       action: 'connection',
       selector_proxy_links: ['', ' '],
     });
 
-    expect(missingConnectionOutboundMessage(map, map.section)).toMatch(
-      /at least one outbound/,
-    );
+    expect(missingConnectionOutbound(map, map.section)).toBe(true);
   });
 
   it('leaves every other action alone', () => {
-    const { missingConnectionOutboundMessage } = load();
+    const { missingConnectionOutbound } = load();
 
     for (const action of ['dns', 'block', 'bypass', 'zapret', 'byedpi']) {
       const map = modalMap({ action });
-      expect(missingConnectionOutboundMessage(map, map.section)).toBeNull();
+      expect(missingConnectionOutbound(map, map.section)).toBe(false);
     }
   });
 });
