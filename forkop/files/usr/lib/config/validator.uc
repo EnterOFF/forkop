@@ -32,6 +32,8 @@ const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const SING_BOX_FORKOP_VERSION_FILE = getenv("SING_BOX_FORKOP_VERSION_FILE") || "/usr/share/sing-box-forkop/version";
 const DEFAULT_LATENCY_TEST_URL = "https://www.gstatic.com/generate_204";
 const TAILSCALE_FWMARK_MASK = 0x00ff0000;
+const AMNEZIA_SIGNATURE_KEYS = [ "i1", "i2", "i3", "i4", "i5" ];
+const AMNEZIA_SIGNATURE_TAGS = [ "b", "c", "t", "r", "rc", "rd", "d", "ds", "dz" ];
 
 function string_starts_with(value, prefix) {
     value = as_string(value);
@@ -1006,6 +1008,39 @@ function valid_amnezia_range(value) {
     return length(parts) == 1 || int(parts[0]) <= int(parts[1]);
 }
 
+function valid_amnezia_uint(value, maximum) {
+    value = trim(as_string(value));
+    return value != "" && match(value, /^[0-9]+$/) != null && int(value) <= maximum;
+}
+
+// AmneziaWG I1-I5 hold a Custom Protocol Signature: a chain of <tag value>
+// packets such as <b 0xdeadbeef><r 4>. The core refuses an unknown tag and
+// sends nothing at all for a signature without any tag, so neither reaches it.
+function valid_amnezia_signature(value) {
+    let rest = trim(as_string(value));
+    let tags = 0;
+
+    while (true) {
+        let start = index(rest, "<");
+        if (start < 0)
+            break;
+
+        rest = substr(rest, start + 1);
+        let end = index(rest, ">");
+        if (end < 0)
+            return false;
+
+        let parts = split(trim(substr(rest, 0, end)), /[ \t]+/);
+        if (!contains(AMNEZIA_SIGNATURE_TAGS, parts[0]))
+            return false;
+
+        tags++;
+        rest = substr(rest, end + 1);
+    }
+
+    return tags > 0;
+}
+
 function validate_tunnel_amnezia(endpoint, name) {
     let amnezia = endpoint.amnezia;
     if (type(amnezia) != "object")
@@ -1014,6 +1049,19 @@ function validate_tunnel_amnezia(endpoint, name) {
     for (let key in [ "h1", "h2", "h3", "h4", "content_padding_addition", "rekey_after_time", "rekey_timeout", "reject_after_time", "keepalive_timeout", "max_handshake_attempts" ])
         if (amnezia[key] != null && !valid_amnezia_range(amnezia[key]))
             fail_validation("Connection rule '" + name + "' contains an invalid AmneziaWG " + key + " range. Use values from 0 to 4294967295 with the start no greater than the end. Aborted.");
+
+    for (let key in [ "jc", "jmin", "jmax" ])
+        if (amnezia[key] != null && !valid_amnezia_uint(amnezia[key], 4294967295))
+            fail_validation("Connection rule '" + name + "' contains an invalid AmneziaWG " + key + " value. Use whole numbers from 0 to 4294967295. Aborted.");
+
+    for (let key in [ "s1", "s2", "s3", "s4" ])
+        if (amnezia[key] != null && !valid_amnezia_uint(amnezia[key], 65535))
+            fail_validation("Connection rule '" + name + "' contains an invalid AmneziaWG " + key + " value. Use whole numbers from 0 to 65535. Aborted.");
+
+    for (let key in AMNEZIA_SIGNATURE_KEYS)
+        if (amnezia[key] != null && trim(as_string(amnezia[key])) != "" &&
+            !valid_amnezia_signature(amnezia[key]))
+            fail_validation("Connection rule '" + name + "' contains an invalid AmneziaWG " + key + " signature. Use Custom Protocol Signature tags such as <b 0xdeadbeef><r 4>. Aborted.");
 
     if (amnezia.header_protection_key != null &&
         trim(as_string(amnezia.header_protection_key)) != "" &&

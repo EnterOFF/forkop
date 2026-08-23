@@ -8,6 +8,10 @@ const PRIVATE_KEY = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
 const PUBLIC_KEY = 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=';
 const SECOND_PUBLIC_KEY = 'AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=';
 const PRESHARED_KEY = 'AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM=';
+// Standard base64 keys carry `/` and `+`, which a URL parser and a form-body
+// query parser respectively destroy.
+const SLASH_KEY = '//////////////////////////////////////////8=';
+const PLUS_KEY = '+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/s=';
 
 function base64Url(data: Uint8Array): string {
   let binary = '';
@@ -323,6 +327,218 @@ AllowedIPs = 0.0.0.0/0`;
           }),
         )
       ).valid,
+    ).toBe(false);
+  });
+
+  it('imports an Amnezia profile pasted as plain JSON', async () => {
+    const result = await parseWireGuardInput(
+      JSON.stringify({
+        defaultContainer: 'amnezia-awg',
+        containers: [
+          {
+            container: 'amnezia-awg',
+            awg: {
+              last_config: JSON.stringify({
+                mtu: 1280,
+                config: `[Interface]
+Address = 10.8.1.2/32
+PrivateKey = ${PRIVATE_KEY}
+Jc = 4
+[Peer]
+PublicKey = ${PUBLIC_KEY}
+Endpoint = vpn.example.com:443
+AllowedIPs = 0.0.0.0/0`,
+              }),
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(result).toMatchObject({
+      valid: true,
+      endpoint: { mtu: 1280, amnezia: { jc: 4 } },
+    });
+  });
+
+  it('imports a wireguard:// share link and routes everything by default', () => {
+    const result = parseWireGuardConfig(
+      `wireguard://${encodeURIComponent(PRIVATE_KEY)}@3x.example.com:25397` +
+        `?publickey=${encodeURIComponent(PUBLIC_KEY)}` +
+        `&address=10.0.0.2%2F32&mtu=1420#-1`,
+    );
+
+    expect(result).toEqual({
+      valid: true,
+      endpoint: {
+        type: 'wireguard',
+        address: ['10.0.0.2/32'],
+        private_key: PRIVATE_KEY,
+        mtu: 1420,
+        peers: [
+          {
+            address: '3x.example.com',
+            port: 25397,
+            public_key: PUBLIC_KEY,
+            allowed_ips: ['0.0.0.0/0', '::/0'],
+          },
+        ],
+      },
+    });
+  });
+
+  it('accepts the link aliases, spellings and AmneziaWG parameters', () => {
+    const result = parseWireGuardConfig(
+      `awg://${PLUS_KEY}@[2001:db8::1]:443?peer_public_key=${encodeURIComponent(
+        PUBLIC_KEY,
+      )}&ip=10.0.0.2&allowed_ips=0.0.0.0%2F0&psk=${encodeURIComponent(
+        PRESHARED_KEY,
+      )}&keepalive=25-35&listen_port=51821&jc=4&s1=64&h1=100-200` +
+        `&i1=%3Cb%200x01%3E&max_handshake_attempts=15-20&dns=1.1.1.1`,
+    );
+
+    expect(result).toEqual({
+      valid: true,
+      endpoint: {
+        type: 'wireguard',
+        address: ['10.0.0.2/32'],
+        private_key: PLUS_KEY,
+        listen_port: 51821,
+        peers: [
+          {
+            address: '2001:db8::1',
+            port: 443,
+            public_key: PUBLIC_KEY,
+            pre_shared_key: PRESHARED_KEY,
+            allowed_ips: ['0.0.0.0/0'],
+            persistent_keepalive_interval: '25-35',
+          },
+        ],
+        amnezia: {
+          jc: 4,
+          s1: 64,
+          h1: '100-200',
+          i1: '<b 0x01>',
+          max_handshake_attempts: '15-20',
+        },
+      },
+    });
+  });
+
+  it('keeps a private key that is not percent-encoded in the link', () => {
+    for (const scheme of ['wg', 'amneziawg']) {
+      const result = parseWireGuardConfig(
+        `${scheme}://${SLASH_KEY}@vpn.example.com:51820/?publickey=${PUBLIC_KEY}&address=10.0.0.2/32`,
+      );
+      expect(result).toMatchObject({
+        valid: true,
+        endpoint: {
+          private_key: SLASH_KEY,
+          peers: [{ public_key: PUBLIC_KEY }],
+        },
+      });
+    }
+  });
+
+  it('rejects links the core cannot honour', () => {
+    const link = (query: string) =>
+      parseWireGuardConfig(
+        `wireguard://${encodeURIComponent(
+          PRIVATE_KEY,
+        )}@vpn.example.com:51820?publickey=${encodeURIComponent(
+          PUBLIC_KEY,
+        )}&address=10.0.0.2%2F32&${query}`,
+      );
+
+    expect(link('reserved=0,0,0').valid).toBe(true);
+    expect(link('reserved=113,45,67').valid).toBe(false);
+    expect(link('randomtrailers=on').valid).toBe(false);
+    expect(link('randomtrailers=off').valid).toBe(true);
+    expect(parseWireGuardConfig('vless://not-a-tunnel').valid).toBe(false);
+  });
+
+  it('rejects AmneziaWG values the core would refuse at runtime', () => {
+    const config = (fields: string) => `[Interface]
+PrivateKey = ${PRIVATE_KEY}
+Address = 10.0.0.2/32
+${fields}
+[Peer]
+PublicKey = ${PUBLIC_KEY}
+Endpoint = vpn.example.com:51820
+AllowedIPs = 0.0.0.0/0`;
+
+    expect(parseWireGuardConfig(config('S1 = 65536')).valid).toBe(false);
+    expect(parseWireGuardConfig(config('S1 = 65535')).valid).toBe(true);
+    expect(parseWireGuardConfig(config('Jc = 4294967296')).valid).toBe(false);
+    expect(parseWireGuardConfig(config('I1 = deadbeef')).valid).toBe(false);
+    expect(parseWireGuardConfig(config('I1 = <zz 1>')).valid).toBe(false);
+    expect(parseWireGuardConfig(config('I1 = <b 0x01')).valid).toBe(false);
+    expect(parseWireGuardConfig(config(`HeaderProtectionKey = ff`)).valid).toBe(
+      false,
+    );
+  });
+
+  it('imports a current AmneziaWG server profile with empty AWG 3 fields', () => {
+    const result = parseWireGuardConfig(`[Interface]
+Address = 10.8.1.2/32
+DNS = 1.1.1.1, 1.0.0.1
+PrivateKey = ${PRIVATE_KEY}
+Jc = 4
+Jmin = 40
+Jmax = 70
+S1 = 0
+S2 = 0
+S3 = 0
+S4 = 0
+H1 = 1
+H2 = 2
+H3 = 3
+H4 = 4
+I1 = <r 2><b 0x8580>
+I2 =
+I3 =
+I4 =
+I5 =
+HeaderProtectionKey =
+ContentPaddingAddition =
+RekeyAfterTime =
+RekeyTimeout =
+RejectAfterTime =
+KeepaliveTimeout =
+MaxHandshakeAttempts =
+RandomTrailers =
+DisableCookies = on
+
+[Peer]
+PublicKey = ${PUBLIC_KEY}
+PresharedKey = ${PRESHARED_KEY}
+AllowedIPs = 0.0.0.0/0, ::/0
+Endpoint = vpn.example.com:41185
+PersistentKeepalive = 25-35
+AdvancedSecurity = on`);
+
+    expect(result).toMatchObject({
+      valid: true,
+      endpoint: {
+        amnezia: { jc: 4, s4: 0, h4: 4, i1: '<r 2><b 0x8580>' },
+        peers: [{ persistent_keepalive_interval: '25-35' }],
+      },
+    });
+    if (!result.valid) return;
+    expect(result.endpoint.amnezia?.header_protection_key).toBeUndefined();
+  });
+
+  it('rejects a configuration that needs AmneziaWG random trailers', () => {
+    expect(
+      parseWireGuardConfig(`[Interface]
+PrivateKey = ${PRIVATE_KEY}
+Address = 10.0.0.2/32
+Jc = 4
+RandomTrailers = on
+[Peer]
+PublicKey = ${PUBLIC_KEY}
+Endpoint = vpn.example.com:51820
+AllowedIPs = 0.0.0.0/0`).valid,
     ).toBe(false);
   });
 });

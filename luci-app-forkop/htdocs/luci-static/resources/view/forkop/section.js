@@ -857,15 +857,14 @@ function outboundJsonListItemLabel(value) {
   );
 }
 
+// Junk counts and sizes reach the core as uint32, packet paddings as uint16.
+const AMNEZIA_COUNT_FIELDS = ["jc", "jmin", "jmax"];
+const AMNEZIA_PADDING_FIELDS = ["s1", "s2", "s3", "s4"];
 const AMNEZIA_INTEGER_FIELDS = [
-  "jc",
-  "jmin",
-  "jmax",
-  "s1",
-  "s2",
-  "s3",
-  "s4",
+  ...AMNEZIA_COUNT_FIELDS,
+  ...AMNEZIA_PADDING_FIELDS,
 ];
+const AMNEZIA_SIGNATURE_FIELDS = ["i1", "i2", "i3", "i4", "i5"];
 const AMNEZIA_RANGE_FIELDS = [
   "h1",
   "h2",
@@ -4956,9 +4955,12 @@ function showTunnelImportModal(parentMap, fields) {
     importError = "";
     failedInput = "";
     if (!input) {
-      return _("Paste a configuration or vpn:// link");
+      return _("Paste a configuration, a wireguard:// link or a vpn:// link");
     }
-    if (input.startsWith("vpn://")) {
+    // A vpn:// link and an Amnezia profile carry a compressed or nested
+    // payload that only the import step decodes; a configuration file and a
+    // share link are checked while the user types.
+    if (/^vpn:\/\//iu.test(input) || input.startsWith("{")) {
       return true;
     }
     const parsed = main.parseWireGuardConfig(input);
@@ -5380,8 +5382,11 @@ function showTunnelSettingsModal(
       `amnezia_${key}`,
       amneziaFieldLabel(key),
     );
-    if (AMNEZIA_INTEGER_FIELDS.includes(key)) {
-      option.datatype = "uinteger";
+    if (AMNEZIA_COUNT_FIELDS.includes(key)) {
+      option.datatype = "and(uinteger,range(0,4294967295))";
+    }
+    if (AMNEZIA_PADDING_FIELDS.includes(key)) {
+      option.datatype = "and(uinteger,range(0,65535))";
     }
     if (AMNEZIA_RANGE_FIELDS.includes(key)) {
       option.validate = function (_itemId, value) {
@@ -5401,6 +5406,16 @@ function showTunnelSettingsModal(
           ? true
           : _(
               "WireGuard keys must be standard base64-encoded 32-byte values",
+            );
+      };
+    }
+    if (AMNEZIA_SIGNATURE_FIELDS.includes(key)) {
+      option.validate = function (_itemId, value) {
+        const normalized = `${value || ""}`.trim();
+        return !normalized || main.validateAmneziaSignature(normalized)
+          ? true
+          : _(
+              "AmneziaWG I1-I5 must be Custom Protocol Signature tags such as <b 0xdeadbeef><r 4>",
             );
       };
     }

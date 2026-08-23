@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-23 01:41+0300\n"
-"PO-Revision-Date: 2026-08-23 01:41+0300\n"
+"POT-Creation-Date: 2026-08-23 03:30+0300\n"
+"PO-Revision-Date: 2026-08-23 03:30+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -196,6 +196,12 @@ msgstr "Разрешает входящие подключения на этот
 
 msgid "ALPN"
 msgstr "ALPN"
+
+msgid "AmneziaWG I1-I5 must be Custom Protocol Signature tags such as <b 0xdeadbeef><r 4>"
+msgstr "Поля I1-I5 AmneziaWG должны содержать теги Custom Protocol Signature, например <b 0xdeadbeef><r 4>"
+
+msgid "AmneziaWG RandomTrailers is not supported: a tunnel cannot complete a handshake with a server that uses it"
+msgstr "Параметр RandomTrailers AmneziaWG не поддерживается: туннель не сможет завершить рукопожатие с сервером, который его использует"
 
 msgid "AmneziaWG ranges must be between 0 and 4294967295 with the start no greater than the end"
 msgstr "Диапазоны AmneziaWG должны быть от 0 до 4294967295, а начало не может быть больше конца"
@@ -388,6 +394,9 @@ msgstr "Закрыть подключение"
 
 msgid "Closed"
 msgstr "Закрытые"
+
+msgid "Cloudflare WARP reserved bytes are not supported here. Add a Cloudflare WARP tunnel instead"
+msgstr "Байты reserved Cloudflare WARP здесь не поддерживаются. Добавьте туннель Cloudflare WARP"
 
 msgid "Component update available"
 msgstr "Доступно обновление компонента"
@@ -1433,8 +1442,8 @@ msgstr "Параллельно — запрос всем сразу, быстр�
 msgid "Password"
 msgstr "Пароль"
 
-msgid "Paste a configuration or vpn:// link"
-msgstr "Вставьте конфигурацию или ссылку vpn://"
+msgid "Paste a configuration, a wireguard:// link or a vpn:// link"
+msgstr "Вставьте конфигурацию, ссылку wireguard:// или ссылку vpn://"
 
 msgid "Path cannot be empty"
 msgstr "Путь не может быть пустым"

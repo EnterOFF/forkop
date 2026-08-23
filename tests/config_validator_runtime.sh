@@ -1029,4 +1029,59 @@ fi
 printf '%s\n' "$output" | grep -Fq "ByeDPI listen address and port are assigned" ||
   fail "executable byedpi provider: unexpected message '$output'"
 
+amnezia_tunnel_fixture() {
+  local path="$1"
+  local field="$2"
+  local value="$3"
+
+  cat >"$path" <<JSON
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "section": [
+    { ".name": "tunnels", ".type": "section", "enabled": "1", "action": "connection" }
+  ],
+  "tunnel": [
+    {
+      ".name": "tun_amnezia", ".type": "tunnel", "section": "tunnels", "order": "0",
+      "kind": "amneziawg", "name": "Amnezia", "address": [ "10.0.0.2/32" ],
+      "private_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      "$field": "$value"
+    }
+  ],
+  "tunnel_peer": [
+    {
+      ".name": "peer_amnezia", ".type": "tunnel_peer", "tunnel": "tun_amnezia", "order": "0",
+      "address": "vpn.example.com", "port": "51820",
+      "public_key": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=",
+      "allowed_ips": [ "0.0.0.0/0" ]
+    }
+  ]
+}
+JSON
+}
+
+amnezia_tunnel_fixture "$WORK_DIR/amnezia-padding-limit.json" "amnezia_s1" "65535"
+validate_fixture "$WORK_DIR/amnezia-padding-limit.json" >/dev/null ||
+  fail "AmneziaWG padding at the uint16 limit should be accepted"
+
+amnezia_tunnel_fixture "$WORK_DIR/amnezia-padding-overflow.json" "amnezia_s1" "65536"
+assert_rejects "AmneziaWG padding above uint16" "$WORK_DIR/amnezia-padding-overflow.json" \
+  "invalid AmneziaWG s1 value"
+
+amnezia_tunnel_fixture "$WORK_DIR/amnezia-count-overflow.json" "amnezia_jc" "4294967296"
+assert_rejects "AmneziaWG junk count above uint32" "$WORK_DIR/amnezia-count-overflow.json" \
+  "invalid AmneziaWG jc value"
+
+amnezia_tunnel_fixture "$WORK_DIR/amnezia-signature.json" "amnezia_i1" "<r 2><b 0x8580>"
+validate_fixture "$WORK_DIR/amnezia-signature.json" >/dev/null ||
+  fail "AmneziaWG Custom Protocol Signature should be accepted"
+
+amnezia_tunnel_fixture "$WORK_DIR/amnezia-signature-hex.json" "amnezia_i1" "deadbeef"
+assert_rejects "AmneziaWG signature without tags" "$WORK_DIR/amnezia-signature-hex.json" \
+  "invalid AmneziaWG i1 signature"
+
+amnezia_tunnel_fixture "$WORK_DIR/amnezia-signature-tag.json" "amnezia_i1" "<zz 1>"
+assert_rejects "AmneziaWG signature with an unknown tag" "$WORK_DIR/amnezia-signature-tag.json" \
+  "invalid AmneziaWG i1 signature"
+
 printf 'config validator runtime checks passed\n'

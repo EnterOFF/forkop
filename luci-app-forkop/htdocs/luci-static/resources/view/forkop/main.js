@@ -457,6 +457,64 @@ function analyzeStaticHosts(text) {
 // src/helpers/parseWireGuardConfig.ts
 var MAX_AMNEZIA_CONFIG_SIZE = 1024 * 1024;
 var DEFAULT_WIREGUARD_PORT = 51820;
+var LINK_SCHEMES = ["wireguard", "wg", "awg", "amneziawg"];
+var LINK_ALLOWED_IPS = "0.0.0.0/0, ::/0";
+var FIELD_ALIASES = {
+  privatekey: ["secretkey"],
+  address: ["addresses", "ip"],
+  publickey: ["peerpublickey", "pubkey"],
+  presharedkey: ["psk"],
+  allowedips: ["allowedip"],
+  persistentkeepalive: ["persistentkeepaliveinterval", "keepalive"]
+};
+var CANONICAL_FIELDS = Object.fromEntries(
+  Object.entries(FIELD_ALIASES).flatMap(
+    ([canonical, aliases]) => aliases.map((alias) => [alias, canonical])
+  )
+);
+var PEER_FIELDS = [
+  "publickey",
+  "presharedkey",
+  "allowedips",
+  "persistentkeepalive",
+  "endpoint",
+  "reserved"
+];
+var AMNEZIA_COUNT_FIELDS = ["jc", "jmin", "jmax"];
+var AMNEZIA_PADDING_FIELDS = ["s1", "s2", "s3", "s4"];
+var AMNEZIA_RANGE_FIELDS = [
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "contentpaddingaddition",
+  "rekeyaftertime",
+  "rekeytimeout",
+  "rejectaftertime",
+  "keepalivetimeout",
+  "maxhandshakeattempts"
+];
+var AMNEZIA_SIGNATURE_FIELDS = ["i1", "i2", "i3", "i4", "i5"];
+var AMNEZIA_SIGNATURE_TAGS = [
+  "b",
+  "c",
+  "t",
+  "r",
+  "rc",
+  "rd",
+  "d",
+  "ds",
+  "dz"
+];
+var AMNEZIA_ENDPOINT_KEYS = {
+  headerprotectionkey: "header_protection_key",
+  contentpaddingaddition: "content_padding_addition",
+  rekeyaftertime: "rekey_after_time",
+  rekeytimeout: "rekey_timeout",
+  rejectaftertime: "reject_after_time",
+  keepalivetimeout: "keepalive_timeout",
+  maxhandshakeattempts: "max_handshake_attempts"
+};
 function splitValues(values) {
   return (values || []).flatMap((value) => value.split(",")).map((value) => value.trim()).filter(Boolean);
 }
@@ -470,8 +528,17 @@ function normalizePrefixes(values) {
   }
   return result;
 }
-function firstValue(section, key) {
-  return section.values[key]?.[0]?.trim() || "";
+function canonicalField(key) {
+  const compact = key.trim().toLowerCase().replace(/[-_\s]/gu, "");
+  return CANONICAL_FIELDS[compact] || compact;
+}
+function addValue(values, key, value) {
+  const field = canonicalField(key);
+  if (!field) return;
+  (values[field] || (values[field] = [])).push(value);
+}
+function firstValue(values, key) {
+  return values[key]?.[0]?.trim() || "";
 }
 function parseUnsigned(value, maximum) {
   if (!/^\d+$/u.test(value)) return void 0;
@@ -495,6 +562,21 @@ function validateWireGuardKey(value) {
   } catch {
     return false;
   }
+}
+function validateAmneziaSignature(value) {
+  let rest = value.trim();
+  let tags = 0;
+  while (rest.length > 0) {
+    const start = rest.indexOf("<");
+    if (start < 0) break;
+    const end = rest.indexOf(">", start);
+    if (end < 0) return false;
+    const [tag] = rest.slice(start + 1, end).trim().split(/\s+/u);
+    if (!AMNEZIA_SIGNATURE_TAGS.includes(tag)) return false;
+    tags += 1;
+    rest = rest.slice(end + 1);
+  }
+  return tags > 0;
 }
 function parsePeerEndpoint(value) {
   const normalized = value.trim();
@@ -524,7 +606,6 @@ function parsePeerEndpoint(value) {
   return address && !address.startsWith(":") ? { address, port } : null;
 }
 function readSections(input) {
-  var _a;
   const sections = [];
   let current = null;
   for (const rawLine of input.replace(/^\uFEFF/u, "").split(/\r?\n/u)) {
@@ -538,76 +619,148 @@ function readSections(input) {
     }
     const separator = line.indexOf("=");
     if (!current || separator < 1) return null;
-    const key = line.slice(0, separator).trim().toLowerCase();
-    const value = line.slice(separator + 1).trim();
+    const key = line.slice(0, separator).trim();
     if (!key) return null;
-    ((_a = current.values)[key] || (_a[key] = [])).push(value);
+    addValue(current.values, key, line.slice(separator + 1).trim());
   }
   return sections;
 }
-function parseAmnezia(section) {
-  const result = {};
-  const integers = ["jc", "jmin", "jmax", "s1", "s2", "s3", "s4"];
-  const ranges = [
-    "h1",
-    "h2",
-    "h3",
-    "h4",
-    "content_padding_addition",
-    "rekey_after_time",
-    "rekey_timeout",
-    "reject_after_time",
-    "keepalive_timeout",
-    "max_handshake_attempts"
-  ];
-  const strings = ["i1", "i2", "i3", "i4", "i5", "header_protection_key"];
-  const aliases = {
-    header_protection_key: ["header_protection_key", "headerprotectionkey"],
-    content_padding_addition: [
-      "content_padding_addition",
-      "contentpaddingaddition"
-    ],
-    rekey_after_time: ["rekey_after_time", "rekeyaftertime"],
-    rekey_timeout: ["rekey_timeout", "rekeytimeout"],
-    reject_after_time: ["reject_after_time", "rejectaftertime"],
-    keepalive_timeout: ["keepalive_timeout", "keepalivetimeout"],
-    max_handshake_attempts: ["max_handshake_attempts", "maxhandshakeattempts"]
-  };
-  const valueFor = (key) => (aliases[key] || [key]).map((alias) => firstValue(section, alias)).find(Boolean) || "";
-  for (const key of integers) {
-    const value = valueFor(key);
-    if (!value) continue;
-    const parsed = parseUnsigned(value, Number.MAX_SAFE_INTEGER);
-    if (parsed === void 0) return void 0;
-    result[key] = parsed;
-  }
-  for (const key of ranges) {
-    const value = valueFor(key);
-    if (!value) continue;
-    const parsed = parseRange(value, 4294967295);
-    if (parsed === void 0) return void 0;
-    result[key] = parsed;
-  }
-  for (const key of strings) {
-    const value = valueFor(key);
-    if (value) result[key] = value;
-  }
-  return Object.keys(result).length > 0 ? result : void 0;
-}
-function parseWireGuardConfig(input) {
+function readConfigFile(input) {
   const sections = readSections(input);
-  if (!sections)
-    return { valid: false, message: _("Invalid WireGuard configuration") };
+  if (!sections) return { message: _("Invalid WireGuard configuration") };
   const iface = sections.find((section) => section.name === "interface");
-  const peerSections = sections.filter((section) => section.name === "peer");
-  if (!iface || peerSections.length === 0)
+  const peers = sections.filter((section) => section.name === "peer");
+  if (!iface || peers.length === 0)
     return {
-      valid: false,
       message: _(
         "WireGuard configuration must contain Interface and Peer sections"
       )
     };
-  const addressValues = splitValues(iface.values.address);
+  return {
+    iface: iface.values,
+    peers: peers.map((section) => section.values)
+  };
+}
+function decodeLinkComponent(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+function readShareLink(input) {
+  const link = /^([A-Za-z][A-Za-z0-9+.-]*):\/\/(.*)$/su.exec(input);
+  if (!link || !LINK_SCHEMES.includes(link[1].toLowerCase())) return null;
+  let rest = link[2];
+  const fragment = rest.indexOf("#");
+  if (fragment >= 0) rest = rest.slice(0, fragment);
+  const search = rest.indexOf("?");
+  const query = search >= 0 ? rest.slice(search + 1) : "";
+  let authority = search >= 0 ? rest.slice(0, search) : rest;
+  const userinfo = authority.lastIndexOf("@");
+  const iface = {};
+  const peer = {};
+  if (userinfo >= 0) {
+    addValue(
+      iface,
+      "privatekey",
+      decodeLinkComponent(authority.slice(0, userinfo))
+    );
+    authority = authority.slice(userinfo + 1);
+  }
+  const path = authority.indexOf("/");
+  if (path >= 0) authority = authority.slice(0, path);
+  if (authority) addValue(peer, "endpoint", decodeLinkComponent(authority));
+  for (const pair of query.split("&")) {
+    if (!pair) continue;
+    const separator = pair.indexOf("=");
+    const key = canonicalField(
+      decodeLinkComponent(separator < 0 ? pair : pair.slice(0, separator))
+    );
+    const value = separator < 0 ? "" : decodeLinkComponent(pair.slice(separator + 1)).trim();
+    if (!key || !value) continue;
+    addValue(PEER_FIELDS.includes(key) ? peer : iface, key, value);
+  }
+  if (!peer.allowedips) addValue(peer, "allowedips", LINK_ALLOWED_IPS);
+  return { iface, peers: [peer] };
+}
+function isDisabled(value) {
+  return ["", "0", "off", "false", "no"].includes(value.trim().toLowerCase());
+}
+function rejectUnsupportedFields(source) {
+  for (const values of [source.iface, ...source.peers]) {
+    if (!isDisabled(firstValue(values, "randomtrailers")))
+      return _(
+        "AmneziaWG RandomTrailers is not supported: a tunnel cannot complete a handshake with a server that uses it"
+      );
+    const reserved = splitValues(values.reserved);
+    if (reserved.some((byte) => parseUnsigned(byte, 255) !== 0))
+      return _(
+        "Cloudflare WARP reserved bytes are not supported here. Add a Cloudflare WARP tunnel instead"
+      );
+  }
+  return "";
+}
+function parseAmnezia(iface) {
+  const amnezia = {};
+  const invalid2 = {
+    valid: false,
+    message: _("Invalid AmneziaWG parameters")
+  };
+  for (const key of AMNEZIA_COUNT_FIELDS) {
+    const value = firstValue(iface, key);
+    if (!value) continue;
+    const parsed = parseUnsigned(value, 4294967295);
+    if (parsed === void 0) return invalid2;
+    amnezia[key] = parsed;
+  }
+  for (const key of AMNEZIA_PADDING_FIELDS) {
+    const value = firstValue(iface, key);
+    if (!value) continue;
+    const parsed = parseUnsigned(value, 65535);
+    if (parsed === void 0) return invalid2;
+    amnezia[key] = parsed;
+  }
+  for (const key of AMNEZIA_RANGE_FIELDS) {
+    const value = firstValue(iface, key);
+    if (!value) continue;
+    const parsed = parseRange(value, 4294967295);
+    if (parsed === void 0) return invalid2;
+    amnezia[AMNEZIA_ENDPOINT_KEYS[key] || key] = parsed;
+  }
+  for (const key of AMNEZIA_SIGNATURE_FIELDS) {
+    const value = firstValue(iface, key);
+    if (!value) continue;
+    if (!validateAmneziaSignature(value))
+      return {
+        valid: false,
+        message: _(
+          "AmneziaWG I1-I5 must be Custom Protocol Signature tags such as <b 0xdeadbeef><r 4>"
+        )
+      };
+    amnezia[key] = value;
+  }
+  const headerProtectionKey = firstValue(iface, "headerprotectionkey");
+  if (headerProtectionKey) {
+    if (!validateWireGuardKey(headerProtectionKey))
+      return {
+        valid: false,
+        message: _(
+          "WireGuard keys must be standard base64-encoded 32-byte values"
+        )
+      };
+    amnezia.header_protection_key = headerProtectionKey;
+  }
+  return {
+    valid: true,
+    amnezia: Object.keys(amnezia).length > 0 ? amnezia : void 0
+  };
+}
+function buildEndpoint(source) {
+  const unsupported = rejectUnsupportedFields(source);
+  if (unsupported) return { valid: false, message: unsupported };
+  const { iface } = source;
+  const addressValues = splitValues(iface.address);
   const address = normalizePrefixes(addressValues);
   const privateKey = firstValue(iface, "privatekey");
   if (addressValues.length === 0 || !privateKey)
@@ -630,9 +783,9 @@ function parseWireGuardConfig(input) {
       )
     };
   const peers = [];
-  for (const section of peerSections) {
-    const publicKey = firstValue(section, "publickey");
-    const remote = parsePeerEndpoint(firstValue(section, "endpoint"));
+  for (const values of source.peers) {
+    const publicKey = firstValue(values, "publickey");
+    const remote = parsePeerEndpoint(firstValue(values, "endpoint"));
     if (!publicKey || !remote)
       return {
         valid: false,
@@ -651,7 +804,7 @@ function parseWireGuardConfig(input) {
       public_key: publicKey,
       allowed_ips: []
     };
-    const preSharedKey = firstValue(section, "presharedkey");
+    const preSharedKey = firstValue(values, "presharedkey");
     if (preSharedKey && !validateWireGuardKey(preSharedKey))
       return {
         valid: false,
@@ -659,14 +812,13 @@ function parseWireGuardConfig(input) {
           "WireGuard keys must be standard base64-encoded 32-byte values"
         )
       };
-    const allowedIpValues = splitValues(section.values.allowedips);
-    const allowedIps = normalizePrefixes(allowedIpValues);
+    const allowedIps = normalizePrefixes(splitValues(values.allowedips));
     if (!allowedIps || allowedIps.length === 0)
       return {
         valid: false,
         message: allowedIps ? _("Every WireGuard peer needs at least one AllowedIPs subnet") : _("WireGuard addresses and AllowedIPs must use valid CIDR subnets")
       };
-    const keepaliveValue = firstValue(section, "persistentkeepalive");
+    const keepaliveValue = firstValue(values, "persistentkeepalive");
     if (preSharedKey) peer.pre_shared_key = preSharedKey;
     peer.allowed_ips = allowedIps;
     if (keepaliveValue) {
@@ -701,42 +853,16 @@ function parseWireGuardConfig(input) {
     endpoint.mtu = mtu;
   }
   const amnezia = parseAmnezia(iface);
-  const hasAmneziaInput = [
-    "jc",
-    "jmin",
-    "jmax",
-    "s1",
-    "s2",
-    "s3",
-    "s4",
-    "h1",
-    "h2",
-    "h3",
-    "h4",
-    "i1",
-    "i2",
-    "i3",
-    "i4",
-    "i5",
-    "header_protection_key",
-    "content_padding_addition",
-    "rekey_after_time",
-    "rekey_timeout",
-    "reject_after_time",
-    "keepalive_timeout",
-    "max_handshake_attempts",
-    "headerprotectionkey",
-    "contentpaddingaddition",
-    "rekeyaftertime",
-    "rekeytimeout",
-    "rejectaftertime",
-    "keepalivetimeout",
-    "maxhandshakeattempts"
-  ].some((key) => Boolean(firstValue(iface, key)));
-  if (hasAmneziaInput && !amnezia)
-    return { valid: false, message: _("Invalid AmneziaWG parameters") };
-  if (amnezia) endpoint.amnezia = amnezia;
+  if (!amnezia.valid) return { valid: false, message: amnezia.message };
+  if (amnezia.amnezia) endpoint.amnezia = amnezia.amnezia;
   return { valid: true, endpoint };
+}
+function parseWireGuardConfig(input) {
+  const value = `${input || ""}`.trim();
+  const link = readShareLink(value);
+  if (link) return buildEndpoint(link);
+  const source = readConfigFile(value);
+  return "message" in source ? { valid: false, message: source.message } : buildEndpoint(source);
 }
 function isRecord(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -803,22 +929,28 @@ function extractAmneziaWireGuardConfig(value) {
     mtu: typeof lastConfig.mtu === "string" || typeof lastConfig.mtu === "number" ? lastConfig.mtu : void 0
   };
 }
+function importAmneziaProfile(profile) {
+  const imported = extractAmneziaWireGuardConfig(profile);
+  const result = parseWireGuardConfig(imported.config);
+  if (result.valid && result.endpoint.mtu === void 0 && imported.mtu) {
+    const mtu = parseUnsigned(`${imported.mtu}`, 65535);
+    if (mtu && mtu > 0) result.endpoint.mtu = mtu;
+  }
+  return result;
+}
 async function parseWireGuardInput(input) {
   const value = input.trim();
-  if (!value.startsWith("vpn://")) return parseWireGuardConfig(value);
+  const isAmneziaLink = value.slice(0, 6).toLowerCase() === "vpn://";
+  if (!isAmneziaLink && !value.startsWith("{"))
+    return parseWireGuardConfig(value);
   try {
+    if (!isAmneziaLink) return importAmneziaProfile(JSON.parse(value));
     const packed = decodeBase64Url(value.slice("vpn://".length));
     const decoded = await uncompressQtData(packed);
     const text = new TextDecoder("utf-8", { fatal: true }).decode(decoded);
     if (/^\s*\[Interface\](?:\r?\n|$)/u.test(text))
       return parseWireGuardConfig(text);
-    const imported = extractAmneziaWireGuardConfig(JSON.parse(text));
-    const result = parseWireGuardConfig(imported.config);
-    if (result.valid && result.endpoint.mtu === void 0 && imported.mtu) {
-      const mtu = parseUnsigned(`${imported.mtu}`, 65535);
-      if (mtu && mtu > 0) result.endpoint.mtu = mtu;
-    }
-    return result;
+    return importAmneziaProfile(JSON.parse(text));
   } catch {
     return {
       valid: false,
@@ -14094,6 +14226,7 @@ return baseclass.extend({
   parseWireGuardInput,
   showToast,
   store,
+  validateAmneziaSignature,
   validateDNS,
   validateDomain,
   validateIP,

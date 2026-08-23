@@ -19,6 +19,7 @@ export { analyzeStaticHosts } from './validators/validateStaticHosts';
 export {
   parseWireGuardConfig,
   parseWireGuardInput,
+  validateAmneziaSignature,
   validateWireGuardKey,
 } from './helpers/parseWireGuardConfig';
 export { parseValueList } from './helpers/parseValueList';
