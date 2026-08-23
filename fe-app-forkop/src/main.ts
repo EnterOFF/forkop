@@ -37,6 +37,7 @@ export { DiagnosticTab } from './forkop/tabs/diagnostic';
 export { MonitoringTab } from './forkop/tabs/monitoring';
 export { LogsTab } from './forkop/tabs/logs';
 export { UpdatesTab } from './forkop/tabs/updates';
+export { mountTab } from './forkop/tabs/mountTab';
 export {
   DEFAULT_LATENCY_TEST_URL,
   DOMAIN_LIST_OPTIONS,

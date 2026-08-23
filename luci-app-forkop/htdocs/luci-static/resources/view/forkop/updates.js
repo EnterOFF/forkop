@@ -9,10 +9,8 @@
 function createUpdatesContent(section) {
   const o = section.option(form.DummyValue, "_mount_node");
   o.rawhtml = true;
-  o.cfgvalue = () => {
-    main.UpdatesTab.initController();
-    return main.UpdatesTab.render();
-  };
+  o.cfgvalue = () =>
+    main.mountTab("updates", main.UpdatesTab.render, main.UpdatesTab.initController);
 }
 
 const EntryPoint = {

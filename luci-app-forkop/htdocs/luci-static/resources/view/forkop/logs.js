@@ -6,10 +6,8 @@
 function createLogsContent(section) {
   const o = section.option(form.DummyValue, "_mount_node");
   o.rawhtml = true;
-  o.cfgvalue = () => {
-    main.LogsTab.initController();
-    return main.LogsTab.render();
-  };
+  o.cfgvalue = () =>
+    main.mountTab("logs", main.LogsTab.render, main.LogsTab.initController);
 }
 
 const EntryPoint = {

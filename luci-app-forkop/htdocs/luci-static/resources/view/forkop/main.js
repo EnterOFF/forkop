@@ -14201,6 +14201,22 @@ function injectGlobalStyles() {
     `
   );
 }
+
+// src/forkop/tabs/mountTab.ts
+var mountNodes = /* @__PURE__ */ new Map();
+function mountTab(key, render6, initController6) {
+  let node = mountNodes.get(key);
+  if (!node) {
+    node = render6();
+    mountNodes.set(key, node);
+  }
+  try {
+    void initController6();
+  } catch (error) {
+    console.error(`[TABS] Failed to start the ${key} controller`, error);
+  }
+  return node;
+}
 return baseclass.extend({
   DEFAULT_LATENCY_TEST_URL,
   DOMAIN_LIST_OPTIONS,
@@ -14221,6 +14237,7 @@ return baseclass.extend({
   getOutboundTagBySection,
   getProxyUrlName,
   injectGlobalStyles,
+  mountTab,
   parseValueList,
   parseWireGuardConfig,
   parseWireGuardInput,

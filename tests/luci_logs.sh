@@ -34,8 +34,15 @@ for (const needle of [
   }
 }
 
-if (!bridge.includes('main.LogsTab.initController()') || !bridge.includes('main.LogsTab.render()')) {
-  console.error('FAIL: Logs LuCI bridge must mount the frontend tab');
+// Through the shared mount, so the node the controller bound to is the one the
+// form puts back when it rebuilds itself. Answering with a freshly rendered tree
+// left the pane showing its placeholder from the first edit until a page reload.
+if (!bridge.includes('main.mountTab("logs", main.LogsTab.render, main.LogsTab.initController)')) {
+  console.error('FAIL: Logs LuCI bridge must mount the frontend tab through the shared mount');
+  process.exit(1);
+}
+if (bridge.includes('main.LogsTab.render()')) {
+  console.error('FAIL: Logs LuCI bridge must not render a new tree on every form rebuild');
   process.exit(1);
 }
 NODE

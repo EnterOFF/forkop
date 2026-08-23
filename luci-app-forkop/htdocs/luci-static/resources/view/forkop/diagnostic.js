@@ -9,10 +9,8 @@
 function createDiagnosticContent(section) {
   const o = section.option(form.DummyValue, "_mount_node");
   o.rawhtml = true;
-  o.cfgvalue = () => {
-    main.DiagnosticTab.initController();
-    return main.DiagnosticTab.render();
-  };
+  o.cfgvalue = () =>
+    main.mountTab("diagnostic", main.DiagnosticTab.render, main.DiagnosticTab.initController);
 }
 
 const EntryPoint = {

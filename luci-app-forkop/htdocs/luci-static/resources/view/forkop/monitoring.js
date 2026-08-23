@@ -7,12 +7,12 @@
 function createMonitoringContent(section) {
   const o = section.option(form.DummyValue, "_mount_node");
   o.rawhtml = true;
-  o.cfgvalue = () => {
-    main.MonitoringTab.initController({
-      loadLocalDeviceChoices: localDevices.loadLocalDeviceChoices,
-    });
-    return main.MonitoringTab.render();
-  };
+  o.cfgvalue = () =>
+    main.mountTab("monitoring", main.MonitoringTab.render, () =>
+      main.MonitoringTab.initController({
+        loadLocalDeviceChoices: localDevices.loadLocalDeviceChoices,
+      }),
+    );
 }
 
 const EntryPoint = {
