@@ -24,6 +24,11 @@ function validateLatencyTestUrl(value) {
   return validation.valid ? true : validation.message;
 }
 
+function validateSingBoxPath(value, fileName) {
+  const validation = main.validateSingBoxFilePath(`${value || ""}`, fileName);
+  return validation.valid ? true : validation.message;
+}
+
 function isDownloadSectionAction(action, capabilities) {
   switch (action) {
     case "connection":
@@ -723,7 +728,7 @@ function createSettingsContent(section, capabilities) {
   o.rmempty = false;
 
   o = section.option(
-    form.ListValue,
+    form.Value,
     "config_path",
     _("Config File Path"),
   );
@@ -731,6 +736,9 @@ function createSettingsContent(section, capabilities) {
   o.value("/tmp/sing-box/config.json", "RAM (/tmp/sing-box/config.json)");
   o.default = "/etc/sing-box/config.json";
   o.rmempty = false;
+  o.validate = function (_section_id, value) {
+    return validateSingBoxPath(value, "config.json");
+  };
 
   o = section.option(
     form.Value,
@@ -744,25 +752,8 @@ function createSettingsContent(section, capabilities) {
   );
   o.default = "/tmp/sing-box/cache.db";
   o.rmempty = false;
-  o.validate = function (section_id, value) {
-    if (!value) {
-      return _("Cache file path cannot be empty");
-    }
-
-    if (!value.startsWith("/")) {
-      return _("Path must be absolute (start with /)");
-    }
-
-    if (!value.endsWith("cache.db")) {
-      return _("Path must end with cache.db");
-    }
-
-    const parts = value.split("/").filter(Boolean);
-    if (parts.length < 2) {
-      return _("Path must contain at least one directory (like /tmp/cache.db)");
-    }
-
-    return true;
+  o.validate = function (_section_id, value) {
+    return validateSingBoxPath(value, "cache.db");
   };
 
   o = section.option(

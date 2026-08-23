@@ -11,6 +11,7 @@ export { validateDomain } from './validators/validateDomain';
 export { validateDNS } from './validators/validateDns';
 export { validateUrl } from './validators/validateUrl';
 export { validatePath } from './validators/validatePath';
+export { validateSingBoxFilePath } from './validators/validateSingBoxFilePath';
 export { validateSubnet } from './validators/validateSubnet';
 export { bulkValidate } from './validators/bulkValidate';
 export { validateOutboundJson } from './validators/validateOutboundJson';

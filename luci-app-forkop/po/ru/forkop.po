@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-24 01:38+0300\n"
-"PO-Revision-Date: 2026-08-24 01:38+0300\n"
+"POT-Creation-Date: 2026-08-24 01:48+0300\n"
+"PO-Revision-Date: 2026-08-24 01:48+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -298,9 +298,6 @@ msgstr "В стратегии ByeDPI не закрыта кавычка %s"
 
 msgid "Cache File Path"
 msgstr "Путь к файлу кэша"
-
-msgid "Cache file path cannot be empty"
-msgstr "Путь к файлу кэша не может быть пустым"
 
 msgid "Cannot receive checks result"
 msgstr "Не удалось получить результаты проверки"
@@ -1412,14 +1409,11 @@ msgstr "Вставьте конфигурацию, ссылку wireguard:// и�
 msgid "Path cannot be empty"
 msgstr "Путь не может быть пустым"
 
-msgid "Path must be absolute (start with /)"
-msgstr "Путь должен быть абсолютным (начинаться с /)"
+msgid "Path must contain at least one directory (like /tmp/%s)"
+msgstr "Путь должен содержать хотя бы одну директорию (например /tmp/%s)"
 
-msgid "Path must contain at least one directory (like /tmp/cache.db)"
-msgstr "Путь должен содержать хотя бы одну директорию (например /tmp/cache.db)"
-
-msgid "Path must end with cache.db"
-msgstr "Путь должен заканчиваться на cache.db"
+msgid "Path must end with %s"
+msgstr "Путь должен заканчиваться на %s"
 
 msgid "Pause updates"
 msgstr "Приостановить обновление"

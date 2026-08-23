@@ -235,6 +235,29 @@ function validatePath(value) {
   };
 }
 
+// src/validators/validateSingBoxFilePath.ts
+function validateSingBoxFilePath(value, fileName) {
+  const path = validatePath(value);
+  if (!path.valid) {
+    return path;
+  }
+  if (!value.endsWith(fileName)) {
+    return {
+      valid: false,
+      message: _("Path must end with %s").replace("%s", fileName)
+    };
+  }
+  if (value.split("/").filter(Boolean).length < 2) {
+    return {
+      valid: false,
+      message: _(
+        "Path must contain at least one directory (like /tmp/%s)"
+      ).replace("%s", fileName)
+    };
+  }
+  return { valid: true, message: _("Valid") };
+}
+
 // src/validators/validateSubnet.ts
 function validateSubnet(value) {
   const [ip, cidr, extra] = value.split("/");
@@ -14094,6 +14117,7 @@ return baseclass.extend({
   validateOutboundJson,
   validatePath,
   validateProxyUrl,
+  validateSingBoxFilePath,
   validateSubnet,
   validateUrl,
   validateWireGuardKey
