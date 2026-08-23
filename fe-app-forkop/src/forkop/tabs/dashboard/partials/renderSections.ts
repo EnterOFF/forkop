@@ -147,9 +147,11 @@ function renderSubscriptionMetadata(
 
   return E('div', { class: 'fkp_dashboard-page__subscription-meta' }, [
     E('div', { class: 'fkp_dashboard-page__subscription-meta__main' }, [
-      E('div', { class: 'fkp_dashboard-page__subscription-meta__heading' }, [
-        ...(metadata.subscriptionTag
-          ? [
+      metadata.subscriptionTag
+        ? E(
+            'div',
+            { class: 'fkp_dashboard-page__subscription-meta__heading' },
+            [
               E(
                 'span',
                 {
@@ -158,10 +160,9 @@ function renderSubscriptionMetadata(
                 },
                 metadata.subscriptionTag,
               ),
-            ]
-          : []),
-        _('Subscription info:'),
-      ]),
+            ],
+          )
+        : '',
       title
         ? E(
             'div',

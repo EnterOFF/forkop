@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-23 17:20+0300\n"
-"PO-Revision-Date: 2026-08-23 17:20+0300\n"
+"POT-Creation-Date: 2026-08-23 21:49+0300\n"
+"PO-Revision-Date: 2026-08-23 21:49+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -271,6 +271,9 @@ msgstr "Браузер использует FakeIP"
 
 msgid "Built-in lists"
 msgstr "Встроенные списки"
+
+msgid "By default only the domain conditions of a rule set are applied. This option adds its IP addresses and subnets to nftables. Large lists can load the router heavily. Enable it only if you know the set holds the subnets you need"
+msgstr "По умолчанию из набора правил применяются только доменные условия. Опция добавляет IP-адреса и подсети в nftables. Крупные списки могут сильно нагружать роутер. Включайте, только если знаете, что набор содержит необходимые подсети"
 
 msgid "ByeDPI listen address and port are assigned by Forkop and must not be set in the strategy."
 msgstr "Адрес и порт прослушивания ByeDPI назначаются Forkop и не должны задаваться в стратегии."
@@ -1045,9 +1048,6 @@ msgstr "Недопустимый интервал keepalive WireGuard"
 
 msgid "IP address or device name in Tailscale through which traffic is forwarded"
 msgstr "IP-адрес или имя устройства в Tailscale, через которое будет перенаправляться трафик"
-
-msgid "By default only the domain conditions of a rule set are applied. This option adds its IP addresses and subnets to nftables. Large lists can load the router heavily. Enable it only if you know the set holds the subnets you need"
-msgstr "По умолчанию из набора правил применяются только доменные условия. Опция добавляет IP-адреса и подсети в nftables. Крупные списки могут сильно нагружать роутер. Включайте, только если знаете, что набор содержит необходимые подсети"
 
 msgid "IPs"
 msgstr "IP-адреса"
@@ -1918,9 +1918,6 @@ msgstr "Подписка"
 
 msgid "Subscription auto update"
 msgstr "Автообновление подписки"
-
-msgid "Subscription info:"
-msgstr "Информация о подписке:"
 
 msgid "Subscription must be an HTTP(S) URL or an absolute local path"
 msgstr "Подписка должна быть HTTP(S)-ссылкой или абсолютным локальным путём"
