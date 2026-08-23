@@ -1,6 +1,7 @@
 #!/usr/bin/env ucode
 
 let fs = require("fs");
+let bytecode = require("core.bytecode");
 let constants = require("core.constants");
 let uci_core = require("core.uci");
 let lock = require("service.lock");
@@ -15,7 +16,10 @@ function constant_value(name, fallback) {
 }
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || constant_value("FORKOP_CONFIG_NAME", "forkop");
-const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
+// Resolved once for the whole procd path: every module and command started
+// below receives it, so the reload a config change triggers loads precompiled
+// modules instead of parsing them again in each of its processes.
+const LIB_DIR = getenv("FORKOP_LIB") || bytecode.refresh();
 const BIN_PATH = getenv("FORKOP_BIN") || constant_value("FORKOP_BIN", "/usr/bin/forkop");
 const SERVICE_INIT = getenv("FORKOP_SERVICE_INIT") || constant_value("FORKOP_SERVICE_INIT", "/etc/init.d/forkop");
 const SERVICE_NAME = getenv("FORKOP_SERVICE_NAME") || constant_value("FORKOP_SERVICE_NAME", "forkop");
@@ -81,7 +85,8 @@ function module_args(module_path, args) {
 }
 
 function module_command(module_path, args) {
-    return command_from_args(module_args(module_path, args));
+    return "FORKOP_LIB=" + shell_quote(LIB_DIR) + " " +
+        command_from_args(module_args(module_path, args));
 }
 
 function module_status(module_path, args) {
@@ -514,7 +519,8 @@ function reload_service(reason, owner_pid) {
     if (plan.action != "run")
         return 0;
 
-    let status = system(command_from_args([ "env", "FORKOP_UI_ACTION_TRACKED=1", BIN_PATH, "reload", reason ]) + " >/dev/null 2>&1");
+    let status = system(command_from_args([ "env", "FORKOP_LIB=" + LIB_DIR,
+        "FORKOP_UI_ACTION_TRACKED=1", BIN_PATH, "reload", reason ]) + " >/dev/null 2>&1");
     let finish = reload_finish_value(reason, plan.job_id, status, owner_pid);
     if (finish.sync)
         print("sync\n");
