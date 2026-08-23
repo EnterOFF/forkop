@@ -102,6 +102,38 @@ component_updates_out="$(FORKOP_LIB="$fake_lib" ucode "$FORKOP_BIN" component_up
 [ "$component_updates_out" = $'updates\tcomponent-updates-if-due\t\t' ] ||
   fail "component_updates_if_due must dispatch through components/updates.uc"
 
+# A lifecycle command that failed has to reach its caller as a failure: the LuCI
+# backend, the init script and anybody at a shell all branch on the exit code.
+cat >"$fake_lib/service/lifecycle.uc" <<'UCODE'
+#!/usr/bin/env ucode
+exit(3);
+UCODE
+set +e
+FORKOP_LIB="$fake_lib" ucode "$FORKOP_BIN" reload >/dev/null 2>&1
+status="$?"
+set -e
+[ "$status" = "3" ] ||
+  fail "forkop reload must return the lifecycle exit code, got $status"
+
+# And the reason has to travel with it. It used to go to the system log alone,
+# so a failed command printed nothing at all and left the caller to go looking.
+lifecycle_error="$(ucode -L "$FORKOP_LIB" "$FORKOP_LIB/service/lifecycle.uc" \
+  log-message-fixture error 'Runtime config validation failed. Aborted.' 2>&1 >/dev/null)"
+[ "$lifecycle_error" = "Runtime config validation failed. Aborted." ] ||
+  fail "a lifecycle error must reach stderr, got '$lifecycle_error'"
+
+# On stderr and nowhere else: the init script reads the stdout of a reload to
+# learn whether the service triggers need syncing.
+lifecycle_stdout="$(ucode -L "$FORKOP_LIB" "$FORKOP_LIB/service/lifecycle.uc" \
+  log-message-fixture error 'refused' 2>/dev/null)"
+[ -z "$lifecycle_stdout" ] ||
+  fail "a lifecycle error must not reach stdout, got '$lifecycle_stdout'"
+
+lifecycle_info="$(ucode -L "$FORKOP_LIB" "$FORKOP_LIB/service/lifecycle.uc" \
+  log-message-fixture info 'Applying configuration' 2>&1 >/dev/null)"
+[ -z "$lifecycle_info" ] ||
+  fail "only a lifecycle error belongs on stderr, got '$lifecycle_info'"
+
 rm -f "$fake_lib/service/lifecycle.uc"
 set +e
 FORKOP_TEST_DNS_RESTORE_MARKER="$WORK_DIR/dns-restore.marker" FORKOP_LIB="$fake_lib" \

@@ -223,7 +223,14 @@ function sing_box_planned_stop() {
 
 function log_message(message, level) {
     level = as_string(level || "info");
-    command_success_from_args([ "logger", "-t", SERVICE_NAME, "[" + level + "] " + as_string(message) ]);
+    message = as_string(message);
+    command_success_from_args([ "logger", "-t", SERVICE_NAME, "[" + level + "] " + message ]);
+    // A lifecycle command is asked for by somebody, and the reason it failed is
+    // the one thing that caller needs. procd discards the output of the commands
+    // it runs itself, so this only ever reaches a person - who until now got an
+    // exit code and had to go look the reason up in the system log.
+    if (level == "error")
+        warn(message, "\n");
 }
 
 function lifecycle_env() {
@@ -1301,6 +1308,10 @@ else if (mode == "sing-box-planned-stop-guard-fixture") {
 }
 else if (mode == "sing-box-stop-service-fixture")
     status = stop_sing_box_service();
+else if (mode == "log-message-fixture") {
+    log_message(ARGV[2], ARGV[1]);
+    status = 0;
+}
 else if (mode == "start")
     status = start();
 else if (mode == "stop")
