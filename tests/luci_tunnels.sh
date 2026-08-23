@@ -58,8 +58,9 @@ for (const needle of [
   '"wireguard_junk_enabled"',
   'wireguardJunkOption.depends("tunnel_type", "wireguard");',
   'setModalOptionValue(map, wireguardJunkOption, "1");',
-  'main.generateAmneziaParameters()',
-  'amneziaGenerateButton.depends("tunnel_type", "amneziawg");',
+  'const ONE_SIDED_AMNEZIA_DEFAULTS = {',
+  'function fillOneSidedAmneziaDefaults(map, amneziaOptions) {',
+  'fillOneSidedAmneziaDefaults(map, amneziaOptions);',
   'let previousTunnelType = `${data.settings.tunnel_type || "wireguard"}`;',
   'if (previousTunnelType === "amneziawg") {',
   'setModalOptionValue(map, warpJunkOption, "1");',
@@ -247,6 +248,32 @@ if (
   !warpEndpoint.includes('oneSidedAmneziaEnabled(kind, settings)')
 ) {
   console.error('FAIL: WARP must apply Amnezia parameters only when traffic obfuscation is enabled');
+  process.exit(1);
+}
+
+const defaultsStart = section.indexOf('const ONE_SIDED_AMNEZIA_DEFAULTS = {');
+const defaults = section.slice(defaultsStart, section.indexOf('};', defaultsStart));
+for (const key of [
+  'jc', 'jmin', 'jmax', 'i1',
+  'content_padding_addition',
+  'rekey_after_time', 'rekey_timeout', 'reject_after_time',
+  'keepalive_timeout', 'max_handshake_attempts',
+]) {
+  if (!defaults.includes(`${key}:`)) {
+    console.error(`FAIL: obfuscation default is missing: ${key}`);
+    process.exit(1);
+  }
+}
+for (const key of ['s1', 's2', 's3', 's4', 'h1', 'h2', 'h3', 'h4', 'header_protection_key']) {
+  if (defaults.includes(`${key}:`)) {
+    console.error(`FAIL: a parameter the peer has to match must not be filled in: ${key}`);
+    process.exit(1);
+  }
+}
+const fillStart = section.indexOf('function fillOneSidedAmneziaDefaults');
+const fill = section.slice(fillStart, section.indexOf('function tunnelStorageSettings', fillStart));
+if (!fill.includes('if (!current) {')) {
+  console.error('FAIL: filling the defaults must not overwrite an existing value');
   process.exit(1);
 }
 

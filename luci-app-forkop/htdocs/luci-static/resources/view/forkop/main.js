@@ -959,31 +959,6 @@ async function parseWireGuardInput(input) {
   }
 }
 
-// src/helpers/generateAmneziaParameters.ts
-var AMNEZIA_SIGNATURE = "<r 2><b 0x858000010001000000000669636c6f756403636f6d0000010001c00c000100010000105a00044d583737>";
-var JUNK_PACKET_COUNT = { from: 4, to: 6 };
-function randomBetween(from, to) {
-  return from + Math.floor(Math.random() * (to - from + 1));
-}
-function generateAmneziaParameters() {
-  return {
-    jc: `${randomBetween(JUNK_PACKET_COUNT.from, JUNK_PACKET_COUNT.to)}`,
-    jmin: "10",
-    jmax: "50",
-    i1: AMNEZIA_SIGNATURE,
-    i2: "",
-    i3: "",
-    i4: "",
-    i5: "",
-    content_padding_addition: "10-100",
-    rekey_after_time: "100-120",
-    rekey_timeout: "3-7",
-    reject_after_time: "150-180",
-    keepalive_timeout: "5-15",
-    max_handshake_attempts: "15-20"
-  };
-}
-
 // src/helpers/parseValueList.ts
 function parseValueList(value) {
   return value.split(/\n/).map((line) => line.split("//")[0].split("#")[0]).join(" ").split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
@@ -14242,7 +14217,6 @@ return baseclass.extend({
   applyUiStateToStore,
   bulkValidate,
   coreService,
-  generateAmneziaParameters,
   getClashUIUrl,
   getOutboundTagBySection,
   getProxyUrlName,

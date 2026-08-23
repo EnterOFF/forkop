@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-23 06:40+0300\n"
-"PO-Revision-Date: 2026-08-23 06:40+0300\n"
+"POT-Creation-Date: 2026-08-23 14:09+0300\n"
+"PO-Revision-Date: 2026-08-23 14:09+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -797,9 +797,6 @@ msgstr "Заполнить поля из готовой конфигурации
 msgid "Filled in together with the private key."
 msgstr "Заполняется автоматически вместе с приватным ключом."
 
-msgid "Fills the parameters a peer does not have to know about with the values the Amnezia client uses. The magic headers, packet paddings and header protection key are left alone, because they have to match the server"
-msgstr "Заполняет параметры, о которых пиру знать не нужно, значениями клиента Amnezia. Магические заголовки, размеры набивки пакетов и ключ защиты заголовка остаются как есть, потому что они должны совпадать с сервером"
-
 msgid "Firewall WAN port"
 msgstr "Порт в файрволе"
 
@@ -1366,9 +1363,6 @@ msgstr "Поддерживается не всеми протоколами"
 
 msgid "Obfuscation"
 msgstr "Обфускация"
-
-msgid "Obfuscation parameters"
-msgstr "Параметры обфускации"
 
 msgid "Obfuscation password"
 msgstr "Пароль обфускации"

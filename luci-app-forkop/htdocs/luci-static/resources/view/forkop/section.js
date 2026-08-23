@@ -930,6 +930,33 @@ const ONE_SIDED_AMNEZIA_FIELDS = [
   "keepalive_timeout",
   "max_handshake_attempts",
 ];
+// What the Amnezia client writes for a fresh AmneziaWG 3.1 server, kept to the
+// parameters a peer never has to know about: the junk counts and sizes come from
+// its installer, the timings and the signature packet from its constants. Jc is
+// fixed at 5, the middle of the 4 to 6 the installer draws from -- the junk is
+// random content of a random size in every handshake, so rolling the count over
+// three values changed nothing anyone could observe.
+//
+// I1 is Amnezia's own packet: a byte-correct DNS answer for icloud.com whose
+// first two bytes stay random. A signature packet has to look like a protocol,
+// which a random payload does not, so it is used verbatim rather than generated.
+//
+// They arrive with the obfuscation toggle, which exists only where there is
+// nothing to transcribe. An AmneziaWG dialog is the other case: every field
+// there is copied from the server's configuration, junk and signature packets
+// included, and a filled-in transcription target is how a field gets skipped.
+const ONE_SIDED_AMNEZIA_DEFAULTS = {
+  jc: "5",
+  jmin: "10",
+  jmax: "50",
+  i1: "<r 2><b 0x858000010001000000000669636c6f756403636f6d0000010001c00c000100010000105a00044d583737>",
+  content_padding_addition: "10-100",
+  rekey_after_time: "100-120",
+  rekey_timeout: "3-7",
+  reject_after_time: "150-180",
+  keepalive_timeout: "5-15",
+  max_handshake_attempts: "15-20",
+};
 const WIREGUARD_PEER_FIELDS = new Set([
   "address",
   "port",
@@ -4255,6 +4282,27 @@ function oneSidedAmneziaEnabled(kind, settings) {
   );
 }
 
+// Asking for obfuscation fills the fields that are still empty, so an imported
+// configuration and anything typed by hand are never overwritten. The stored
+// value is read as well as the widget: a field that the toggle keeps hidden has
+// no widget to ask yet, and formvalue answers null for it.
+function fillOneSidedAmneziaDefaults(map, amneziaOptions) {
+  Object.keys(ONE_SIDED_AMNEZIA_DEFAULTS).forEach((key) => {
+    const option = amneziaOptions[key];
+    if (!option) {
+      return;
+    }
+    const current = `${
+      option.formvalue("settings") ??
+      map.data.get(map.config, "settings", option.option) ??
+      ""
+    }`.trim();
+    if (!current) {
+      setModalOptionValue(map, option, ONE_SIDED_AMNEZIA_DEFAULTS[key]);
+    }
+  });
+}
+
 function tunnelStorageSettings(settings) {
   const kind = `${settings.tunnel_type || "wireguard"}`;
   const storedAmneziaFields =
@@ -5411,6 +5459,11 @@ function showTunnelSettingsModal(
   warpJunkOption.default = "0";
   warpJunkOption.rmempty = false;
   warpJunkOption.depends("tunnel_type", "warp");
+  warpJunkOption.onchange = function (_event, _sectionId, value) {
+    if (value === "1") {
+      fillOneSidedAmneziaDefaults(map, amneziaOptions);
+    }
+  };
 
   const wireguardJunkOption = itemSection.option(
     form.Flag,
@@ -5423,26 +5476,11 @@ function showTunnelSettingsModal(
   wireguardJunkOption.default = "0";
   wireguardJunkOption.rmempty = false;
   wireguardJunkOption.depends("tunnel_type", "wireguard");
-
-  const amneziaGenerateButton = itemSection.option(
-    form.Button,
-    "_generate_amnezia_parameters",
-    _("Obfuscation parameters"),
-    _(
-      "Fills the parameters a peer does not have to know about with the values the Amnezia client uses. The magic headers, packet paddings and header protection key are left alone, because they have to match the server",
-    ),
-  );
-  amneziaGenerateButton.inputtitle = _("Generate");
-  amneziaGenerateButton.inputstyle = "apply";
-  amneziaGenerateButton.depends("tunnel_type", "amneziawg");
-  amneziaGenerateButton.depends({
-    tunnel_type: "wireguard",
-    wireguard_junk_enabled: "1",
-  });
-  amneziaGenerateButton.depends({
-    tunnel_type: "warp",
-    warp_junk_enabled: "1",
-  });
+  wireguardJunkOption.onchange = function (_event, _sectionId, value) {
+    if (value === "1") {
+      fillOneSidedAmneziaDefaults(map, amneziaOptions);
+    }
+  };
 
   AMNEZIA_FIELDS.forEach((key) => {
     const option = itemSection.option(
@@ -5493,16 +5531,6 @@ function showTunnelSettingsModal(
     }
     amneziaOptions[key] = option;
   });
-
-  amneziaGenerateButton.onclick = function () {
-    const generated = main.generateAmneziaParameters();
-    Object.keys(generated).forEach((key) => {
-      if (amneziaOptions[key]) {
-        setModalOptionValue(map, amneziaOptions[key], generated[key]);
-      }
-    });
-    map.checkDepends();
-  };
 
   typeOption.onchange = function (_event, _sectionId, value) {
     if (previousTunnelType === "amneziawg") {
