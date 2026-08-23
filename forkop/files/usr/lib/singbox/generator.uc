@@ -565,15 +565,6 @@ function outbound_detour_tag_for_section(section) {
     return detour_section == "" ? "" : outbound_tag(detour_section);
 }
 
-function override_flag(value) {
-    value = trim(as_string(value));
-    if (value == "1")
-        return true;
-    if (value == "0")
-        return false;
-    return null;
-}
-
 function override_rename_rules(values) {
     let result = [];
     for (let value in array_or_empty(values)) {
@@ -602,23 +593,6 @@ function override_patch_object(raw) {
     return parsed;
 }
 
-function override_multiplex_patch(settings) {
-    let enabled = override_flag(settings.multiplex);
-    if (enabled == null)
-        return null;
-    if (!enabled)
-        return { enabled: false };
-
-    let multiplex = { enabled: true };
-    let protocol = trim(as_string(settings.multiplex_protocol));
-    if (protocol != "")
-        multiplex.protocol = protocol;
-    let max_streams = trim(as_string(settings.multiplex_max_streams));
-    if (max_streams != "")
-        multiplex.max_streams = int(max_streams, 10);
-    return multiplex;
-}
-
 function subscription_override_options(section, source) {
     let settings = connections.subscription_override(section, source);
     let result = {};
@@ -637,36 +611,7 @@ function subscription_override_options(section, source) {
     if (detour != "")
         result.detour = detour;
 
-    for (let entry in [
-        [ "tcp_fast_open", settings.tcp_fast_open ],
-        [ "tcp_multi_path", settings.tcp_multi_path ],
-        [ "udp_fragment", settings.udp_fragment ]
-    ]) {
-        let value = override_flag(entry[1]);
-        if (value != null)
-            result[entry[0]] = value;
-    }
-
-    let connect_timeout = trim(as_string(settings.connect_timeout));
-    if (connect_timeout != "")
-        result.connect_timeout = connect_timeout;
-
-    let tls = {};
-    let insecure = override_flag(settings.tls_insecure);
-    if (insecure != null)
-        tls.insecure = insecure;
-    let server_name = trim(as_string(settings.tls_server_name));
-    if (server_name != "")
-        tls.server_name = server_name;
-    if (length(keys(tls)) > 0)
-        result.tls = tls;
-
-    let patch = {};
-    let multiplex = override_multiplex_patch(settings);
-    if (multiplex != null)
-        patch.multiplex = multiplex;
-    for (let key, value in override_patch_object(settings.patch))
-        patch[key] = value;
+    let patch = override_patch_object(settings.patch);
     if (length(keys(patch)) > 0)
         result.patch = patch;
 

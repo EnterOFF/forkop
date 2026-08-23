@@ -100,15 +100,11 @@ const LINK_SCHEME_OUTBOUND_TYPES = {
     "socks5": "socks"
 };
 
-// Parameters the subscription settings already own. Repeating one of them in
-// the free-form patch would silently fight a control the user cannot see from
-// there, so they are refused instead of resolved by precedence.
-const RESERVED_OVERRIDE_PATCH_PATHS = [
-    "type", "tag", "detour",
-    "tcp_fast_open", "tcp_multi_path", "udp_fragment", "connect_timeout",
-    "tls.insecure", "tls.server_name",
-    "multiplex.enabled", "multiplex.protocol", "multiplex.max_streams"
-];
+// The section fills in the detour of every server it imports from its cascade
+// connection. Repeating it in the free-form patch would silently fight a
+// control the subscription cannot see, so it is refused instead of resolved by
+// precedence.
+const RESERVED_OVERRIDE_PATCH_PATHS = [ "detour" ];
 
 const RESERVED_TAGS = {
     [DNS_SERVER_TAG]: true,

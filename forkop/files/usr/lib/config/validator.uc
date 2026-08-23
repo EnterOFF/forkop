@@ -1237,19 +1237,14 @@ function validate_subscription_override(section, entry) {
                 " must be written as 'pattern => replacement'. Aborted.");
         if (!regex_valid(rule.pattern))
             fail_validation("Invalid rename pattern '" + rule.pattern + "' in " + context + ". Aborted.");
+        // A group reference reaches as far as the letters, digits and
+        // underscores behind it, so '$1x' asks for a group named '1x' and
+        // leaves the name empty. '${1}' ends the number instead, and '$$' is
+        // a literal dollar sign that never starts a reference.
+        if (match(replace(rule.target, "$$", ""), /[$][0-9]+[A-Za-z_]/) != null)
+            fail_validation("Rename replacement '" + rule.target + "' in " + context +
+                " must write '${1}' where a letter follows the group number. Aborted.");
     }
-
-    let connect_timeout = trim(as_string(settings.connect_timeout));
-    if (connect_timeout != "")
-        validate_required_duration_option(connect_timeout, "rule." + name + ".override_connect_timeout");
-
-    let multiplex_protocol = trim(as_string(settings.multiplex_protocol));
-    if (multiplex_protocol != "" && !contains([ "smux", "yamux", "h2mux" ], multiplex_protocol))
-        fail_validation("Invalid multiplexing protocol '" + multiplex_protocol + "' in " + context + ". Aborted.");
-
-    let max_streams = trim(as_string(settings.multiplex_max_streams));
-    if (max_streams != "" && match(max_streams, /^[0-9]+$/) == null)
-        fail_validation("Multiplex stream limit in " + context + " must be a number. Aborted.");
 
     let patch = trim(as_string(settings.patch));
     if (patch == "")

@@ -878,15 +878,6 @@ function subscription_override(section, value) {
         prefix: option(settings, "override_prefix", ""),
         suffix: option(settings, "override_suffix", ""),
         rename: list_value(settings, "override_rename"),
-        tcp_fast_open: option(settings, "override_tcp_fast_open", ""),
-        tcp_multi_path: option(settings, "override_tcp_multi_path", ""),
-        udp_fragment: option(settings, "override_udp_fragment", ""),
-        connect_timeout: option(settings, "override_connect_timeout", ""),
-        tls_insecure: option(settings, "override_tls_insecure", ""),
-        tls_server_name: option(settings, "override_tls_server_name", ""),
-        multiplex: option(settings, "override_multiplex", ""),
-        multiplex_protocol: option(settings, "override_multiplex_protocol", ""),
-        multiplex_max_streams: option(settings, "override_multiplex_max_streams", ""),
         patch: option(settings, "override_patch", "")
     };
 }

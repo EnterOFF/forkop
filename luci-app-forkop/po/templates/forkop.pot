@@ -22,8 +22,8 @@ msgstr ""
 msgid "-- Select --"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2670
-msgid "%s already has its own setting above"
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2574
+msgid "%s is set by the cascade connection of the section"
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4484
@@ -265,10 +265,6 @@ msgstr ""
 msgid "All traffic from these devices is forced through the section"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2593
-msgid "Allow untrusted certificates"
-msgstr ""
-
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6877
 msgid "Allowed domain prefixes are full:, keyword:, and regex:"
 msgstr ""
@@ -467,10 +463,6 @@ msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8184
 msgid "Cascade connection"
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2600
-msgid "Certificate domain (SNI)"
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3363
@@ -708,10 +700,6 @@ msgstr ""
 msgid "Connect through"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2627
-msgid "Connection limit"
-msgstr ""
-
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1095
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6269
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2583
@@ -817,11 +805,6 @@ msgstr ""
 msgid "Data rejection timeout"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2443
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2618
-msgid "Default"
-msgstr ""
-
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:668
 msgid "Default URL for general latency testing"
 msgstr ""
@@ -875,10 +858,6 @@ msgstr ""
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:2510
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4555
 msgid "Direct"
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2447
-msgid "Disable"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/partials/renderAvailableActions.ts:82
@@ -1072,10 +1051,6 @@ msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2351
 msgid "Enter a header name"
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2637
-msgid "Enter a number"
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5296
@@ -1509,10 +1484,6 @@ msgstr ""
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3293
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3488
 msgid "How long until health checks stop when the group is unused"
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2628
-msgid "How many connections one multiplexed connection carries. Leave empty for no limit"
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3269
@@ -1987,20 +1958,8 @@ msgstr ""
 msgid "Monitoring"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2572
-msgid "Multipath TCP"
-msgstr ""
-
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4456
 msgid "Multiplex"
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2608
-msgid "Multiplexing"
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2615
-msgid "Multiplexing protocol"
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2180
@@ -2251,10 +2210,6 @@ msgstr ""
 msgid "Not set"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2609
-msgid "Not supported by every protocol"
-msgstr ""
-
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4011
 msgid "Obfuscation"
 msgstr ""
@@ -2263,12 +2218,8 @@ msgstr ""
 msgid "Obfuscation password"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2543
-msgid "One rule per line: pattern => replacement. The pattern is a regular expression, $1 in the replacement keeps a captured group. Example: ^HK-(.*)$ => Hong Kong $1"
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2594
-msgid "Only affects servers that already use TLS"
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2519
+msgid "One rule per line: pattern => replacement, applied in order. The pattern is a regular expression, $1 in the replacement keeps a captured group and ${1} keeps it in front of a letter. Example: ^HK-(.*)$ => Hong Kong $1"
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8353
@@ -2619,10 +2570,6 @@ msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2542
 msgid "Rename servers"
-msgstr ""
-
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2601
-msgid "Replaces the domain sent during the TLS handshake"
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2980
@@ -3524,10 +3471,6 @@ msgstr ""
 msgid "Type"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2577
-msgid "UDP fragmentation"
-msgstr ""
-
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7161
 msgid "Unable to validate the ByeDPI strategy through the backend parser."
 msgstr ""
@@ -3952,6 +3895,10 @@ msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8018
 msgid "WireGuard, AmneziaWG, Cloudflare WARP, Tailscale and JSON endpoint are available"
+msgstr ""
+
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2478
+msgid "Write ${1} instead of $1 when a letter follows the group number"
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4427

@@ -20,8 +20,8 @@ msgstr ""
 msgid "-- Select --"
 msgstr "-- Выберите --"
 
-msgid "%s already has its own setting above"
-msgstr "%s уже настраивается отдельным параметром выше"
+msgid "%s is set by the cascade connection of the section"
+msgstr "%s задаётся каскадным подключением секции"
 
 msgid "+ Add client"
 msgstr "+ Добавить клиента"
@@ -182,9 +182,6 @@ msgstr "Все серверы"
 msgid "All traffic from these devices is forced through the section"
 msgstr "Весь трафик этих устройств принудительно пойдёт через секцию"
 
-msgid "Allow untrusted certificates"
-msgstr "Разрешить недоверенные сертификаты"
-
 msgid "Allowed domain prefixes are full:, keyword:, and regex:"
 msgstr "Разрешённые префиксы доменов: full:, keyword: и regex:"
 
@@ -307,9 +304,6 @@ msgstr "Не удалось получить результаты проверк
 
 msgid "Cascade connection"
 msgstr "Каскадное подключение"
-
-msgid "Certificate domain (SNI)"
-msgstr "Домен сертификата (SNI)"
 
 msgid "Certificate generated"
 msgstr "Сертификат создан"
@@ -434,9 +428,6 @@ msgstr "Управление перегрузкой"
 msgid "Connect through"
 msgstr "Подключаться через"
 
-msgid "Connection limit"
-msgstr "Лимит соединений"
-
 msgid "Connection timeout"
 msgstr "Таймаут подключения"
 
@@ -497,9 +488,6 @@ msgstr "Дашборд сейчас недоступен"
 msgid "Data rejection timeout"
 msgstr "Таймаут отклонения данных"
 
-msgid "Default"
-msgstr "По умолчанию"
-
 msgid "Default URL for general latency testing"
 msgstr "URL по умолчанию для общего тестирования задержки"
 
@@ -535,9 +523,6 @@ msgstr "DHCP управляется вручную"
 
 msgid "Direct"
 msgstr "Напрямую"
-
-msgid "Disable"
-msgstr "Отключить"
 
 msgid "Disable autostart"
 msgstr "Отключить автостарт"
@@ -658,9 +643,6 @@ msgstr "Введите отображаемое имя"
 
 msgid "Enter a header name"
 msgstr "Введите название заголовка"
-
-msgid "Enter a number"
-msgstr "Введите число"
 
 msgid "Enter a private key"
 msgstr "Введите приватный ключ"
@@ -928,9 +910,6 @@ msgstr "Сколько ждать ответа от сервера"
 
 msgid "How long until health checks stop when the group is unused"
 msgstr "Через сколько остановить проверки, если группа не используется"
-
-msgid "How many connections one multiplexed connection carries. Leave empty for no limit"
-msgstr "Сколько соединений передаётся через одно мультиплексированное. Оставьте пустым, чтобы не ограничивать"
 
 msgid "How often every server of the group is checked"
 msgstr "Как часто проверяются все серверы группы"
@@ -1217,17 +1196,8 @@ msgstr "Наблюдаемые интерфейсы"
 msgid "Monitoring"
 msgstr "Мониторинг"
 
-msgid "Multipath TCP"
-msgstr "Multipath TCP"
-
 msgid "Multiplex"
 msgstr "Multiplex"
-
-msgid "Multiplexing"
-msgstr "Мультиплексирование"
-
-msgid "Multiplexing protocol"
-msgstr "Протокол мультиплексирования"
 
 msgid "Must be a number in the range of 0 - 10000"
 msgstr "Должно быть числом в диапазоне 0 - 10000"
@@ -1367,20 +1337,14 @@ msgstr "Не запущено"
 msgid "Not set"
 msgstr "Не задан"
 
-msgid "Not supported by every protocol"
-msgstr "Поддерживается не всеми протоколами"
-
 msgid "Obfuscation"
 msgstr "Обфускация"
 
 msgid "Obfuscation password"
 msgstr "Пароль обфускации"
 
-msgid "One rule per line: pattern => replacement. The pattern is a regular expression, $1 in the replacement keeps a captured group. Example: ^HK-(.*)$ => Hong Kong $1"
-msgstr "По одному правилу в строке: шаблон => замена. Шаблон — регулярное выражение, $1 в замене сохраняет найденную группу. Пример: ^HK-(.*)$ => Гонконг $1"
-
-msgid "Only affects servers that already use TLS"
-msgstr "Влияет только на серверы, которые уже используют TLS"
+msgid "One rule per line: pattern => replacement, applied in order. The pattern is a regular expression, $1 in the replacement keeps a captured group and ${1} keeps it in front of a letter. Example: ^HK-(.*)$ => Hong Kong $1"
+msgstr "По одному правилу в строке: шаблон => замена, применяются по порядку. Шаблон — регулярное выражение, $1 в замене сохраняет найденную группу, а ${1} сохраняет её перед буквой. Пример: ^HK-(.*)$ => Гонконг $1"
 
 msgid "Only for devices"
 msgstr "Только для устройств"
@@ -1591,9 +1555,6 @@ msgstr "Удалять узел из сети после отключения"
 
 msgid "Rename servers"
 msgstr "Переименование серверов"
-
-msgid "Replaces the domain sent during the TLS handshake"
-msgstr "Заменяет домен при TLS-рукопожатии"
 
 msgid "Request the subscription through a section"
 msgstr "Запрашивать подписку через секцию"
@@ -2171,9 +2132,6 @@ msgstr "Тип туннеля"
 msgid "Type"
 msgstr "Тип"
 
-msgid "UDP fragmentation"
-msgstr "Фрагментация UDP"
-
 msgid "Unable to validate the ByeDPI strategy through the backend parser."
 msgstr "Не удалось проверить стратегию ByeDPI через backend-парсер."
 
@@ -2401,6 +2359,9 @@ msgstr "Настройки пира WireGuard"
 
 msgid "WireGuard, AmneziaWG, Cloudflare WARP, Tailscale and JSON endpoint are available"
 msgstr "Доступны WireGuard, AmneziaWG, Cloudflare WARP, Tailscale и JSON endpoint"
+
+msgid "Write ${1} instead of $1 when a letter follows the group number"
+msgstr "Используйте ${1} вместо $1, если после номера группы идёт буква"
 
 msgid "XHTTP mode"
 msgstr "Режим XHTTP"

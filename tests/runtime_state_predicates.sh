@@ -673,7 +673,7 @@ proxy1
 [rule.proxy1.connection_urls]
 [ "vless://one", "vless://two" ]
 [rule.proxy1.subscription_urls]
-[ { "url": "https://example.com/sub.txt", "subscription_update_enabled": "1", "subscription_update_interval": "1h", "download_via_proxy_section": "", "header": [ ], "show_dashboard_metadata": "1", "show_subscription_name": "1", "tag": "Example", "server_filter_mode": "all", "include_outbounds": [ ], "include_regex": "", "exclude_outbounds": [ ], "exclude_regex": "", "exclude_types": [ ], "override": { "prefix": "", "suffix": "", "rename": [ ], "tcp_fast_open": "", "tcp_multi_path": "", "udp_fragment": "", "connect_timeout": "", "tls_insecure": "", "tls_server_name": "", "multiplex": "", "multiplex_protocol": "", "multiplex_max_streams": "", "patch": "" } } ]
+[ { "url": "https://example.com/sub.txt", "subscription_update_enabled": "1", "subscription_update_interval": "1h", "download_via_proxy_section": "", "header": [ ], "show_dashboard_metadata": "1", "show_subscription_name": "1", "tag": "Example", "server_filter_mode": "all", "include_outbounds": [ ], "include_regex": "", "exclude_outbounds": [ ], "exclude_regex": "", "exclude_types": [ ], "override": { "prefix": "", "suffix": "", "rename": [ ], "patch": "" } } ]
 [rule.proxy1.interfaces]
 [ ]
 [rule.proxy1.outbound_jsons]

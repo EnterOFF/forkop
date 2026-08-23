@@ -2425,35 +2425,12 @@ function subscriptionOverrideKeys() {
     "override_prefix",
     "override_suffix",
     "override_rename",
-    "override_tcp_fast_open",
-    "override_tcp_multi_path",
-    "override_udp_fragment",
-    "override_connect_timeout",
-    "override_tls_insecure",
-    "override_tls_server_name",
-    "override_multiplex",
-    "override_multiplex_protocol",
-    "override_multiplex_max_streams",
     "override_patch",
   ];
 }
 
-function addOverrideStateOption(itemSection, name, label, description) {
-  const option = itemSection.option(form.ListValue, name, label, description);
-  option.value("", _("Default"));
-  // Actions taken on top of what the server already asks for rather than states
-  // of this dialog, so the two choices read as verbs.
-  option.value("1", _("Enable"));
-  option.value("0", _("Disable"));
-  option.default = "";
-  option.rmempty = true;
-  return option;
-}
-
 // Shown greyed out in the JSON field of the server parameters dialog: a scalar
 // and a nested object, so the shape of a merge is read instead of described.
-// Neither key may be one of RESERVED_OVERRIDE_PATCH_PATHS, which the field
-// refuses, so the example uses a protocol option the settings above do not own.
 const OVERRIDE_PATCH_PLACEHOLDER = [
   "{",
   '  "packet_encoding": "xudp",',
@@ -2466,23 +2443,10 @@ const OVERRIDE_PATCH_PLACEHOLDER = [
   "}",
 ].join("\n");
 
-// Parameters the settings above already own, mirroring
+// Parameters the section owns rather than the subscription, mirroring
 // RESERVED_OVERRIDE_PATCH_PATHS in the backend.
 function reservedOverridePatchPaths() {
-  return [
-    "type",
-    "tag",
-    "detour",
-    "tcp_fast_open",
-    "tcp_multi_path",
-    "udp_fragment",
-    "connect_timeout",
-    "tls.insecure",
-    "tls.server_name",
-    "multiplex.enabled",
-    "multiplex.protocol",
-    "multiplex.max_streams",
-  ];
+  return ["detour"];
 }
 
 function reservedOverridePatchPath(document) {
@@ -2498,10 +2462,21 @@ function reservedOverridePatchPath(document) {
   });
 }
 
+// A rename rule carries spaces, so a value that arrives as a single string is
+// one rule: splitting it the way a word list is split would shatter it.
 function subscriptionRenameLines(value) {
-  return normalizeOptionValues(value)
-    .map((line) => `${line || ""}`.trim())
-    .filter(Boolean);
+  const lines = Array.isArray(value) ? value : value ? [value] : [];
+  return lines.map((line) => `${line ?? ""}`.trim()).filter(Boolean);
+}
+
+// Go reads a group reference as far as the letters, digits and underscores
+// behind it go, so $1x asks for a group named "1x" and leaves nothing in its
+// place. ${1} ends the number instead. $$ is a literal dollar sign and never
+// starts a reference.
+function validateRenameReplacement(replacement) {
+  return /\$[0-9]+[A-Za-z_]/.test(`${replacement}`.replace(/\$\$/g, ""))
+    ? _("Write ${1} instead of $1 when a letter follows the group number")
+    : true;
 }
 
 function showSubscriptionOverrideModal(parentMap, itemId) {
@@ -2541,7 +2516,7 @@ function showSubscriptionOverrideModal(parentMap, itemId) {
     "override_rename",
     _("Rename servers"),
     _(
-      "One rule per line: pattern => replacement. The pattern is a regular expression, $1 in the replacement keeps a captured group. Example: ^HK-(.*)$ => Hong Kong $1",
+      "One rule per line: pattern => replacement, applied in order. The pattern is a regular expression, $1 in the replacement keeps a captured group and ${1} keeps it in front of a letter. Example: ^HK-(.*)$ => Hong Kong $1",
     ),
   );
   o.rmempty = true;
@@ -2550,6 +2525,7 @@ function showSubscriptionOverrideModal(parentMap, itemId) {
     if (!normalized) {
       return true;
     }
+    // The first separator wins, so a replacement may contain one itself.
     const separator = normalized.indexOf("=>");
     if (separator < 0) {
       return _("Use the pattern => replacement form");
@@ -2558,83 +2534,11 @@ function showSubscriptionOverrideModal(parentMap, itemId) {
     if (!pattern) {
       return _("Enter a regular expression before =>");
     }
-    return validateRegex(null, pattern);
-  };
-
-  addOverrideStateOption(
-    itemSection,
-    "override_tcp_fast_open",
-    _("TCP Fast Open"),
-  );
-  addOverrideStateOption(
-    itemSection,
-    "override_tcp_multi_path",
-    _("Multipath TCP"),
-  );
-  addOverrideStateOption(
-    itemSection,
-    "override_udp_fragment",
-    _("UDP fragmentation"),
-  );
-
-  o = itemSection.option(
-    form.Value,
-    "override_connect_timeout",
-    _("Connection timeout"),
-  );
-  o.rmempty = true;
-  o.validate = function (_sectionId, value) {
-    return validateOptionalSingBoxDuration(value);
-  };
-
-  addOverrideStateOption(
-    itemSection,
-    "override_tls_insecure",
-    _("Allow untrusted certificates"),
-    _("Only affects servers that already use TLS"),
-  );
-
-  o = itemSection.option(
-    form.Value,
-    "override_tls_server_name",
-    _("Certificate domain (SNI)"),
-    _("Replaces the domain sent during the TLS handshake"),
-  );
-  o.rmempty = true;
-
-  addOverrideStateOption(
-    itemSection,
-    "override_multiplex",
-    _("Multiplexing"),
-    _("Not supported by every protocol"),
-  );
-
-  o = itemSection.option(
-    form.ListValue,
-    "override_multiplex_protocol",
-    _("Multiplexing protocol"),
-  );
-  o.depends("override_multiplex", "1");
-  o.value("", _("Default"));
-  o.value("smux", "smux");
-  o.value("yamux", "yamux");
-  o.value("h2mux", "h2mux");
-  o.rmempty = true;
-
-  o = itemSection.option(
-    form.Value,
-    "override_multiplex_max_streams",
-    _("Connection limit"),
-    _("How many connections one multiplexed connection carries. Leave empty for no limit"),
-  );
-  o.depends("override_multiplex", "1");
-  o.rmempty = true;
-  o.validate = function (_sectionId, value) {
-    const normalized = `${value || ""}`.trim();
-    if (!normalized) {
-      return true;
+    const patternError = validateRegex(null, pattern);
+    if (patternError !== true) {
+      return patternError;
     }
-    return /^[0-9]+$/.test(normalized) ? true : _("Enter a number");
+    return validateRenameReplacement(normalized.slice(separator + 2).trim());
   };
 
   const patchOption = itemSection.option(
@@ -2667,7 +2571,9 @@ function showSubscriptionOverrideModal(parentMap, itemId) {
     }
     const reserved = reservedOverridePatchPath(parsed);
     if (reserved) {
-      return _("%s already has its own setting above").format(reserved);
+      return _("%s is set by the cascade connection of the section").format(
+        reserved,
+      );
     }
     return true;
   };

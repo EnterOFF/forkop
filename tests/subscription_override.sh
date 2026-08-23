@@ -27,6 +27,12 @@ assert_rejects() {
   esac
 }
 
+assert_accepts() {
+  local label="$1" fixture="$2" output
+  output="$(ucode -L "$FORKOP_LIB" "$VALIDATOR" validate-runtime-fixture "$fixture" '{}' 2>&1 || true)"
+  [ -z "$output" ] || fail "$label was rejected: $output"
+}
+
 cat >"$WORK_DIR/fixture.json" <<'JSON'
 {
   "settings": {
@@ -58,16 +64,7 @@ cat >"$WORK_DIR/fixture.json" <<'JSON'
         "^HK-(.*)$ => Hong Kong $1",
         "-([0-9]+)$ => #$1"
       ],
-      "override_tcp_fast_open": "1",
-      "override_tcp_multi_path": "0",
-      "override_udp_fragment": "",
-      "override_connect_timeout": "5s",
-      "override_tls_insecure": "1",
-      "override_tls_server_name": "example.org",
-      "override_multiplex": "1",
-      "override_multiplex_protocol": "h2mux",
-      "override_multiplex_max_streams": "8",
-      "override_patch": "{\"packet_encoding\":\"xudp\"}"
+      "override_patch": "{\"packet_encoding\":\"xudp\",\"tls\":{\"insecure\":true},\"multiplex\":{\"enabled\":true,\"protocol\":\"h2mux\"}}"
     }
   ]
 }
@@ -98,23 +95,17 @@ if (length(override.rename || []) != 2 || override.rename[0].pattern != "^HK-(.*
     die("rename rules were not generated");
 if (override.detour != "hop")
     die("section cascade did not reach the override detour");
-if (override.tcp_fast_open != true || override.tcp_multi_path != false)
-    die("connection flags were not generated");
-if (override.udp_fragment != null)
-    die("an unchanged flag must stay out of the config");
-if (override.connect_timeout != "5s")
-    die("connection timeout was not generated");
-if (type(override.tls) != "object" || override.tls.insecure != true ||
-    override.tls.server_name != "example.org")
-    die("TLS override was not generated");
-if (type(override.patch) != "object" || type(override.patch.multiplex) != "object" ||
-    override.patch.multiplex.enabled != true || override.patch.multiplex.protocol != "h2mux" ||
-    override.patch.multiplex.max_streams != 8)
-    die("multiplex override did not reach the patch");
-if (override.patch.packet_encoding != "xudp")
-    die("additional parameters were not merged into the patch");
-if (provider.outbound_detour != null || provider.remove_emojis != null)
-    die("removed provider options leaked into the config");
+if (type(override.patch) != "object" || override.patch.packet_encoding != "xudp")
+    die("additional parameters were not generated");
+// The dialog owns four settings now, so everything else a user asks for reaches
+// the core through the patch instead of a named override field.
+if (type(override.patch.tls) != "object" || override.patch.tls.insecure != true ||
+    type(override.patch.multiplex) != "object" || override.patch.multiplex.protocol != "h2mux")
+    die("nested additional parameters were not generated");
+for (let key in [ "tcp_fast_open", "tcp_multi_path", "udp_fragment", "connect_timeout",
+                  "tls", "outbound_detour", "remove_emojis" ])
+    if (override[key] != null || provider[key] != null)
+        die("removed provider option " + key + " leaked into the config");
 ' "$WORK_DIR/config.json" || fail "subscription override generation"
 
 cat >"$WORK_DIR/bad-rename.json" <<'JSON'
@@ -132,7 +123,7 @@ cat >"$WORK_DIR/bad-rename.json" <<'JSON'
 JSON
 assert_rejects "invalid rename pattern" "$WORK_DIR/bad-rename.json" "Invalid rename pattern"
 
-cat >"$WORK_DIR/bad-patch.json" <<'JSON'
+cat >"$WORK_DIR/formless-rename.json" <<'JSON'
 {
   "settings": { ".name": "settings", ".type": "settings", "dns_server": [ "1.1.1.1" ], "bootstrap_dns_server": [ "1.1.1.1" ], "service_listen_address": "127.0.0.1" },
   "section": [ { ".name": "proxy", ".type": "section", "enabled": "1", "action": "connection" } ],
@@ -140,12 +131,54 @@ cat >"$WORK_DIR/bad-patch.json" <<'JSON'
     {
       ".name": "source", ".type": "subscription_url", "section": "proxy",
       "url": "https://example.com/subscription", "tag": "sub1",
-      "override_patch": "{\"tag\":\"renamed\"}"
+      "override_rename": [ "^HK-(.*)$" ]
     }
   ]
 }
 JSON
-assert_rejects "patch overriding the tag" "$WORK_DIR/bad-patch.json" "must not set 'tag'"
+assert_rejects "rename rule without a replacement" "$WORK_DIR/formless-rename.json" \
+  "must be written as 'pattern => replacement'"
+
+# A group reference swallows the letters behind it, so '$1x' asks for a group
+# named '1x' and the core replaces the whole name with nothing.
+cat >"$WORK_DIR/greedy-group.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings", "dns_server": [ "1.1.1.1" ], "bootstrap_dns_server": [ "1.1.1.1" ], "service_listen_address": "127.0.0.1" },
+  "section": [ { ".name": "proxy", ".type": "section", "enabled": "1", "action": "connection" } ],
+  "subscription_url": [
+    {
+      ".name": "source", ".type": "subscription_url", "section": "proxy",
+      "url": "https://example.com/subscription", "tag": "sub1",
+      "override_rename": [ "^HK-(.*)$ => $1mbps" ]
+    }
+  ]
+}
+JSON
+assert_rejects "group reference followed by a letter" "$WORK_DIR/greedy-group.json" \
+  "must write '\${1}' where a letter follows the group number"
+
+# The braced form, a digit-only reference and an escaped dollar sign are all
+# unambiguous, so none of them may be refused.
+cat >"$WORK_DIR/good-groups.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings", "dns_server": [ "1.1.1.1" ], "bootstrap_dns_server": [ "1.1.1.1" ], "service_listen_address": "127.0.0.1" },
+  "section": [ { ".name": "proxy", ".type": "section", "enabled": "1", "action": "connection" } ],
+  "subscription_url": [
+    {
+      ".name": "source", ".type": "subscription_url", "section": "proxy",
+      "url": "https://example.com/subscription", "tag": "sub1",
+      "override_rename": [
+        "^HK-(.*)$ => ${1}mbps",
+        "^US-(.*)$ => $12",
+        "^JP-(.*)$ => $$1x",
+        "^SG-(.*)$ => $1-fast",
+        "^DE-(.*)$ => "
+      ]
+    }
+  ]
+}
+JSON
+assert_accepts "unambiguous rename replacements" "$WORK_DIR/good-groups.json"
 
 cat >"$WORK_DIR/broken-patch.json" <<'JSON'
 {
@@ -162,8 +195,23 @@ cat >"$WORK_DIR/broken-patch.json" <<'JSON'
 JSON
 assert_rejects "invalid patch JSON" "$WORK_DIR/broken-patch.json" "not valid JSON"
 
-# A parameter with its own control is refused instead of resolved by
-# precedence, so the free-form patch never fights a setting silently.
+cat >"$WORK_DIR/array-patch.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings", "dns_server": [ "1.1.1.1" ], "bootstrap_dns_server": [ "1.1.1.1" ], "service_listen_address": "127.0.0.1" },
+  "section": [ { ".name": "proxy", ".type": "section", "enabled": "1", "action": "connection" } ],
+  "subscription_url": [
+    {
+      ".name": "source", ".type": "subscription_url", "section": "proxy",
+      "url": "https://example.com/subscription", "tag": "sub1",
+      "override_patch": "[1,2]"
+    }
+  ]
+}
+JSON
+assert_rejects "patch that is not an object" "$WORK_DIR/array-patch.json" "must be a JSON object"
+
+# The section fills the detour of every server it imports from its cascade
+# connection, so the patch is refused instead of quietly winning against it.
 cat >"$WORK_DIR/reserved-detour.json" <<'JSON'
 {
   "settings": { ".name": "settings", ".type": "settings", "dns_server": [ "1.1.1.1" ], "bootstrap_dns_server": [ "1.1.1.1" ], "service_listen_address": "127.0.0.1" },
@@ -179,7 +227,9 @@ cat >"$WORK_DIR/reserved-detour.json" <<'JSON'
 JSON
 assert_rejects "patch setting the cascade detour" "$WORK_DIR/reserved-detour.json" "must not set 'detour'"
 
-cat >"$WORK_DIR/reserved-nested.json" <<'JSON'
+# Everything the dialog no longer asks for stays reachable through the patch,
+# including the fields that used to have a control of their own.
+cat >"$WORK_DIR/allowed-patch.json" <<'JSON'
 {
   "settings": { ".name": "settings", ".type": "settings", "dns_server": [ "1.1.1.1" ], "bootstrap_dns_server": [ "1.1.1.1" ], "service_listen_address": "127.0.0.1" },
   "section": [ { ".name": "proxy", ".type": "section", "enabled": "1", "action": "connection" } ],
@@ -187,46 +237,12 @@ cat >"$WORK_DIR/reserved-nested.json" <<'JSON'
     {
       ".name": "source", ".type": "subscription_url", "section": "proxy",
       "url": "https://example.com/subscription", "tag": "sub1",
-      "override_patch": "{\"tls\":{\"insecure\":true,\"alpn\":[\"h2\"]}}"
+      "override_patch": "{\"tcp_fast_open\":true,\"connect_timeout\":\"5s\",\"tls\":{\"insecure\":true,\"server_name\":\"example.org\",\"alpn\":[\"h2\"]},\"multiplex\":{\"enabled\":true,\"protocol\":\"h2mux\",\"max_streams\":8}}"
     }
   ]
 }
 JSON
-assert_rejects "patch setting a controlled TLS field" "$WORK_DIR/reserved-nested.json" "must not set 'tls.insecure'"
-
-# A neighbouring field of the same object has no control of its own and stays
-# reachable through the patch.
-cat >"$WORK_DIR/allowed-nested.json" <<'JSON'
-{
-  "settings": { ".name": "settings", ".type": "settings", "dns_server": [ "1.1.1.1" ], "bootstrap_dns_server": [ "1.1.1.1" ], "service_listen_address": "127.0.0.1" },
-  "section": [ { ".name": "proxy", ".type": "section", "enabled": "1", "action": "connection" } ],
-  "subscription_url": [
-    {
-      ".name": "source", ".type": "subscription_url", "section": "proxy",
-      "url": "https://example.com/subscription", "tag": "sub1",
-      "override_patch": "{\"tls\":{\"alpn\":[\"h2\"]},\"multiplex\":{\"padding\":true}}"
-    }
-  ]
-}
-JSON
-allowed="$(ucode -L "$FORKOP_LIB" "$VALIDATOR" validate-runtime-fixture "$WORK_DIR/allowed-nested.json" '{}' 2>&1 || true)"
-[ -z "$allowed" ] || fail "an uncontrolled patch field was rejected: $allowed"
-
-# Every other override field is validated, so a hand-edited protocol must be too.
-cat >"$WORK_DIR/bad-multiplex.json" <<'JSON'
-{
-  "settings": { ".name": "settings", ".type": "settings", "dns_server": [ "1.1.1.1" ], "bootstrap_dns_server": [ "1.1.1.1" ], "service_listen_address": "127.0.0.1" },
-  "section": [ { ".name": "proxy", ".type": "section", "enabled": "1", "action": "connection" } ],
-  "subscription_url": [
-    {
-      ".name": "source", ".type": "subscription_url", "section": "proxy",
-      "url": "https://example.com/subscription", "tag": "sub1",
-      "override_multiplex": "1", "override_multiplex_protocol": "mux"
-    }
-  ]
-}
-JSON
-assert_rejects "unsupported multiplexing protocol" "$WORK_DIR/bad-multiplex.json" "Invalid multiplexing protocol 'mux'"
+assert_accepts "patch reaching a field with no control of its own" "$WORK_DIR/allowed-patch.json"
 
 # The LuCI editor repeats the reserved list, so drift would let the dialog
 # accept what the backend refuses.
@@ -241,6 +257,34 @@ const paths = [...body.matchAll(/"([a-z_.]+)"/g)].map((match) => match[1]);
 const expected = process.argv[3].split(' ');
 if (JSON.stringify(paths) !== JSON.stringify(expected)) {
   console.error(`reserved patch paths drifted: ${paths} vs ${expected}`);
+  process.exit(1);
+}
+NODE
+
+# The dialog stores exactly the four settings it shows, so a control removed
+# from it cannot leave a write behind that nothing reads any more.
+node - "$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js" <<'NODE'
+const fs = require('fs');
+const source = fs.readFileSync(process.argv[2], 'utf8');
+const start = source.indexOf('function subscriptionOverrideKeys()');
+if (start < 0) throw new Error('subscriptionOverrideKeys is missing');
+const body = source.slice(start, source.indexOf('\n}', start));
+const keys = [...body.matchAll(/"(override_[a-z_]+)"/g)].map((match) => match[1]);
+const expected = [
+  'override_prefix',
+  'override_suffix',
+  'override_rename',
+  'override_patch',
+];
+if (JSON.stringify(keys) !== JSON.stringify(expected)) {
+  console.error(`stored override settings drifted: ${keys} vs ${expected}`);
+  process.exit(1);
+}
+const stray = [...source.matchAll(/"(override_[a-z_]+)"/g)]
+  .map((match) => match[1])
+  .filter((key) => !expected.includes(key));
+if (stray.length) {
+  console.error(`the dialog still references removed settings: ${[...new Set(stray)]}`);
   process.exit(1);
 }
 NODE
