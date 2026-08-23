@@ -160,7 +160,7 @@ cat >"$WORK_DIR/amnezia.json" <<'JSON'
     },
     {
       ".name": "junk", ".type": "tunnel", "section": "proxy", "kind": "json",
-      "endpoint_json": "{\"type\":\"wireguard\",\"tag\":\"Amnezia WG\",\"amnezia\":{\"jc\":4}}"
+      "endpoint_json": "{\"type\":\"amneziawg\",\"tag\":\"Amnezia WG\",\"amnezia\":{\"jc\":4,\"s1\":64}}"
     },
     {
       ".name": "warp", ".type": "tunnel", "section": "proxy", "kind": "json",
@@ -195,7 +195,7 @@ for (let outbound in config.outbounds || [])
 
 let no_amnezia = by_tag["proxy/No amnezia"];
 if (index(no_amnezia.outbounds || [], "proxy/Amnezia WG") >= 0)
-    die("excluding AmneziaWG kept the WireGuard endpoint that carries an amnezia block");
+    die("excluding AmneziaWG kept the AmneziaWG endpoint");
 if (index(no_amnezia.outbounds || [], "proxy/Plain WG") < 0)
     die("excluding AmneziaWG dropped a plain WireGuard endpoint");
 if (index(no_amnezia.outbounds || [], "proxy/WARP junk") < 0)

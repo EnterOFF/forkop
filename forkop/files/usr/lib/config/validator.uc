@@ -1094,7 +1094,7 @@ function validate_tunnel_values(section) {
         let endpoint_type = lc(trim(as_string(endpoint.type || "")));
         let wrapper_kind = lc(trim(as_string(connections.option(tunnel, "kind", "wireguard"))));
         if (endpoint_type == "" ||
-            (endpoint_type != "wireguard" && endpoint_type != "warp" && endpoint_type != "tailscale" && wrapper_kind != "json"))
+            (endpoint_type != "wireguard" && endpoint_type != "amneziawg" && endpoint_type != "warp" && endpoint_type != "tailscale" && wrapper_kind != "json"))
             fail_validation("Connection rule '" + name + "' contains an invalid tunnel endpoint. Aborted.");
         if (wrapper_kind != "json" && trim(as_string(connections.option(tunnel, "name", ""))) == "")
             fail_validation("Connection rule '" + name + "' contains a tunnel without a name. Aborted.");

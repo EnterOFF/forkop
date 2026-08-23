@@ -22,6 +22,7 @@ export {
   validateAmneziaSignature,
   validateWireGuardKey,
 } from './helpers/parseWireGuardConfig';
+export { generateAmneziaParameters } from './helpers/generateAmneziaParameters';
 export { parseValueList } from './helpers/parseValueList';
 export { getProxyUrlName } from './helpers/getProxyUrlName';
 export { injectGlobalStyles } from './helpers/injectGlobalStyles';

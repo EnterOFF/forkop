@@ -30,6 +30,7 @@ const JSON_ENDPOINT_TYPES = new Set([
   "vpn-server",
   "vpn-client",
   "wireguard",
+  "amneziawg",
   "warp",
   "tailscale",
 ]);
@@ -910,7 +911,10 @@ const AMNEZIA_FIELDS = [
   "keepalive_timeout",
   "max_handshake_attempts",
 ];
-const WARP_JUNK_FIELDS = [
+// Obfuscation a peer never has to know about, so it is what an endpoint whose
+// peer may be a plain WireGuard implementation accepts: the WARP endpoint, whose
+// peer is Cloudflare, and a wireguard tunnel to an ordinary server.
+const ONE_SIDED_AMNEZIA_FIELDS = [
   "jc",
   "jmin",
   "jmax",
@@ -4162,19 +4166,22 @@ function tunnelInitialSettings(value, sectionId) {
       ? "json"
       : tunnel.kind === "warp" || endpointType === "warp"
         ? "warp"
-        : tunnel.kind === "amneziawg" || endpoint.amnezia
+        : tunnel.kind === "amneziawg" || endpointType === "amneziawg"
           ? "amneziawg"
           : tunnel.kind === "tailscale" || endpointType === "tailscale"
             ? "tailscale"
             : "wireguard";
-  const warpJunkEnabled =
-    kind === "warp" &&
-    WARP_JUNK_FIELDS.some((key) => tunnel[`amnezia_${key}`] != null);
+  const junkEnabled = (forKind) =>
+    kind === forKind &&
+    ONE_SIDED_AMNEZIA_FIELDS.some((key) => tunnel[`amnezia_${key}`] != null);
+  const warpJunkEnabled = junkEnabled("warp");
+  const wireguardJunkEnabled = junkEnabled("wireguard");
   const tailscaleDetour = `${tunnel.tailscale_detour_section || ""}`.trim();
   const settings = {
     name: kind === "json" ? `${endpoint.tag || ""}` : `${tunnel.name || ""}`,
     tunnel_type: kind,
     warp_junk_enabled: warpJunkEnabled ? "1" : "0",
+    wireguard_junk_enabled: wireguardJunkEnabled ? "1" : "0",
     address: normalizeOptionValues(tunnel.address),
     private_key: `${tunnel.private_key || ""}`,
     listen_port: tunnel.listen_port ? `${tunnel.listen_port}` : "",
@@ -4223,6 +4230,7 @@ function tunnelSettingsKeys() {
     "warp_profile_private_key",
     "warp_profile_license_key",
     "warp_junk_enabled",
+    "wireguard_junk_enabled",
     "tailscale_auth_key",
     "tailscale_hostname",
     "tailscale_control_url",
@@ -4236,13 +4244,24 @@ function tunnelSettingsKeys() {
   ];
 }
 
+// Both endpoints that take the one-sided class gate it behind their own
+// obfuscation flag, so the fields stay out of a dialog that does not use them.
+function oneSidedAmneziaEnabled(kind, settings) {
+  if (kind === "warp") {
+    return `${settings.warp_junk_enabled || ""}` === "1";
+  }
+  return (
+    kind === "wireguard" && `${settings.wireguard_junk_enabled || ""}` === "1"
+  );
+}
+
 function tunnelStorageSettings(settings) {
   const kind = `${settings.tunnel_type || "wireguard"}`;
   const storedAmneziaFields =
     kind === "amneziawg"
       ? AMNEZIA_FIELDS
-      : kind === "warp" && `${settings.warp_junk_enabled || ""}` === "1"
-        ? WARP_JUNK_FIELDS
+      : oneSidedAmneziaEnabled(kind, settings)
+        ? ONE_SIDED_AMNEZIA_FIELDS
         : [];
   const result = {
     kind,
@@ -4411,8 +4430,8 @@ function tunnelEndpointFromSettings(settings, tunnelId, peerOption) {
       profile.recreate = true;
       endpoint.profile = profile;
     }
-    if (`${settings.warp_junk_enabled || ""}` === "1") {
-      const amnezia = tunnelAmneziaSettings(settings, WARP_JUNK_FIELDS);
+    if (oneSidedAmneziaEnabled(kind, settings)) {
+      const amnezia = tunnelAmneziaSettings(settings, ONE_SIDED_AMNEZIA_FIELDS);
       if (Object.keys(amnezia).length > 0) {
         endpoint.amnezia = amnezia;
       }
@@ -4427,7 +4446,7 @@ function tunnelEndpointFromSettings(settings, tunnelId, peerOption) {
     return null;
 
   const endpoint = {
-    type: "wireguard",
+    type: kind,
     address: normalizeOptionValues(settings.address),
     private_key: `${settings.private_key || ""}`.trim(),
     peers,
@@ -4441,6 +4460,11 @@ function tunnelEndpointFromSettings(settings, tunnelId, peerOption) {
 
   if (kind === "amneziawg") {
     endpoint.amnezia = tunnelAmneziaSettings(settings);
+  } else if (oneSidedAmneziaEnabled(kind, settings)) {
+    const amnezia = tunnelAmneziaSettings(settings, ONE_SIDED_AMNEZIA_FIELDS);
+    if (Object.keys(amnezia).length > 0) {
+      endpoint.amnezia = amnezia;
+    }
   }
 
   return endpoint;
@@ -4688,13 +4712,14 @@ function validateTunnelSettings(settings, tunnelId, peerOption) {
   }
   if (
     `${settings.tunnel_type || ""}` === "amneziawg" ||
-    (`${settings.tunnel_type || ""}` === "warp" &&
-      `${settings.warp_junk_enabled || ""}` === "1")
+    oneSidedAmneziaEnabled(`${settings.tunnel_type || ""}`, settings)
   ) {
     const rangeFields =
-      kind === "warp"
-        ? AMNEZIA_RANGE_FIELDS.filter((key) => WARP_JUNK_FIELDS.includes(key))
-        : AMNEZIA_RANGE_FIELDS;
+      kind === "amneziawg"
+        ? AMNEZIA_RANGE_FIELDS
+        : AMNEZIA_RANGE_FIELDS.filter((key) =>
+            ONE_SIDED_AMNEZIA_FIELDS.includes(key),
+          );
     for (const key of rangeFields) {
       const rangeValidation = validateAmneziaRange(settings[`amnezia_${key}`]);
       if (rangeValidation !== true) {
@@ -4757,11 +4782,21 @@ function validateTunnelSettings(settings, tunnelId, peerOption) {
 }
 
 function applyImportedTunnelEndpoint(map, fields, endpoint) {
-  setModalOptionValue(
-    map,
-    fields.type,
-    endpoint.amnezia ? "amneziawg" : "wireguard",
+  // A configuration that sets a parameter both ends must agree on describes an
+  // AmneziaWG peer. One that sets only the one-sided ones is a WireGuard tunnel
+  // with obfuscation, which any server accepts.
+  const amneziaKeys = Object.keys(endpoint.amnezia || {});
+  const twoSided = amneziaKeys.some(
+    (key) => !ONE_SIDED_AMNEZIA_FIELDS.includes(key),
   );
+  setModalOptionValue(map, fields.type, twoSided ? "amneziawg" : "wireguard");
+  if (fields.wireguardJunk) {
+    setModalOptionValue(
+      map,
+      fields.wireguardJunk,
+      !twoSided && amneziaKeys.length > 0 ? "1" : "0",
+    );
+  }
   setModalOptionValue(map, fields.address, endpoint.address || []);
   setModalOptionValue(map, fields.privateKey, endpoint.private_key || "");
   setModalOptionValue(map, fields.listenPort, endpoint.listen_port || "");
@@ -5277,6 +5312,7 @@ function showTunnelSettingsModal(
       mtu: mtuOption,
       peers: peersOption,
       tunnelId,
+      wireguardJunk: wireguardJunkOption,
       amnezia: amneziaOptions,
     });
   };
@@ -5376,6 +5412,38 @@ function showTunnelSettingsModal(
   warpJunkOption.rmempty = false;
   warpJunkOption.depends("tunnel_type", "warp");
 
+  const wireguardJunkOption = itemSection.option(
+    form.Flag,
+    "wireguard_junk_enabled",
+    _("Traffic obfuscation"),
+    _(
+      "Masks traffic with the Amnezia mechanism to make it harder to identify",
+    ),
+  );
+  wireguardJunkOption.default = "0";
+  wireguardJunkOption.rmempty = false;
+  wireguardJunkOption.depends("tunnel_type", "wireguard");
+
+  const amneziaGenerateButton = itemSection.option(
+    form.Button,
+    "_generate_amnezia_parameters",
+    _("Obfuscation parameters"),
+    _(
+      "Fills the parameters a peer does not have to know about with the values the Amnezia client uses. The magic headers, packet paddings and header protection key are left alone, because they have to match the server",
+    ),
+  );
+  amneziaGenerateButton.inputtitle = _("Generate");
+  amneziaGenerateButton.inputstyle = "apply";
+  amneziaGenerateButton.depends("tunnel_type", "amneziawg");
+  amneziaGenerateButton.depends({
+    tunnel_type: "wireguard",
+    wireguard_junk_enabled: "1",
+  });
+  amneziaGenerateButton.depends({
+    tunnel_type: "warp",
+    warp_junk_enabled: "1",
+  });
+
   AMNEZIA_FIELDS.forEach((key) => {
     const option = itemSection.option(
       form.Value,
@@ -5396,8 +5464,12 @@ function showTunnelSettingsModal(
     option.rmempty = true;
     option.retain = true;
     option.depends("tunnel_type", "amneziawg");
-    if (WARP_JUNK_FIELDS.includes(key)) {
+    if (ONE_SIDED_AMNEZIA_FIELDS.includes(key)) {
       option.depends({ tunnel_type: "warp", warp_junk_enabled: "1" });
+      option.depends({
+        tunnel_type: "wireguard",
+        wireguard_junk_enabled: "1",
+      });
     }
     if (key === "header_protection_key") {
       option.validate = function (_itemId, value) {
@@ -5422,9 +5494,23 @@ function showTunnelSettingsModal(
     amneziaOptions[key] = option;
   });
 
+  amneziaGenerateButton.onclick = function () {
+    const generated = main.generateAmneziaParameters();
+    Object.keys(generated).forEach((key) => {
+      if (amneziaOptions[key]) {
+        setModalOptionValue(map, amneziaOptions[key], generated[key]);
+      }
+    });
+    map.checkDepends();
+  };
+
   typeOption.onchange = function (_event, _sectionId, value) {
-    if (value === "warp" && previousTunnelType === "amneziawg") {
-      setModalOptionValue(map, warpJunkOption, "1");
+    if (previousTunnelType === "amneziawg") {
+      if (value === "warp") {
+        setModalOptionValue(map, warpJunkOption, "1");
+      } else if (value === "wireguard") {
+        setModalOptionValue(map, wireguardJunkOption, "1");
+      }
     }
     previousTunnelType = value;
     map.checkDepends();

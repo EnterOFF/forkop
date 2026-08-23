@@ -48,7 +48,7 @@ const ZAPRET_ROUTE_MARK_BASE = 0x01000000;
 const ZAPRET2_ROUTE_MARK_BASE = 0x02000000;
 const BYEDPI_LISTEN_ADDRESS = "127.0.0.1";
 const BYEDPI_PORT_BASE = 1080;
-const JSON_ENDPOINT_TYPES = [ "vpn-server", "vpn-client", "wireguard", "warp", "tailscale" ];
+const JSON_ENDPOINT_TYPES = [ "vpn-server", "vpn-client", "wireguard", "amneziawg", "warp", "tailscale" ];
 const JSON_INBOUND_TYPES = [
     "tun", "redirect", "tproxy", "direct", "socks", "http", "mixed",
     "shadowsocks", "vmess", "trojan", "naive", "shadowtls", "vless",
@@ -68,9 +68,7 @@ const FILTERABLE_PROVIDER_TYPES = [
 ];
 
 // A group also holds the servers a section configures itself, which is the
-// only way a tunnel or a network interface becomes a member. sing-box has no
-// AmneziaWG protocol, so Forkop resolves it from the WireGuard endpoint that
-// carries an amnezia block.
+// only way a tunnel or a network interface becomes a member.
 const FILTERABLE_GROUP_TYPES = [
     ...FILTERABLE_PROVIDER_TYPES,
     "wireguard", "amneziawg", "warp", "tailscale", "direct"

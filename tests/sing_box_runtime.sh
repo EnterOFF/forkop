@@ -305,6 +305,18 @@ cat >"$WORK_DIR/tunnel-fixture.json" <<'JSON'
       "private_key": "private", "amnezia_jc": "5", "amnezia_h1": "100"
     },
     {
+      ".name": "tun_bare", ".type": "tunnel", "section": "tunnels", "order": "5",
+      "kind": "wireguard", "name": "Bare", "address": ["10.0.0.4/32"],
+      "private_key": "private"
+    },
+    {
+      ".name": "tun_plain", ".type": "tunnel", "section": "tunnels", "order": "4",
+      "kind": "wireguard", "name": "Plain", "address": ["10.0.0.3/32"],
+      "private_key": "private", "amnezia_jc": "3", "amnezia_i1": "<r 2>",
+      "amnezia_s1": "64", "amnezia_h1": "100-200",
+      "amnezia_header_protection_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    },
+    {
       ".name": "tun_tailnet", ".type": "tunnel", "section": "tunnels", "order": "2",
       "kind": "tailscale", "name": "Tailnet", "tailscale_auth_key": "tskey-auth-test",
       "tailscale_hostname": "forkop-router", "tailscale_exit_node": "100.64.0.1",
@@ -320,6 +332,16 @@ cat >"$WORK_DIR/tunnel-fixture.json" <<'JSON'
       ".name": "peer_amnezia", ".type": "tunnel_peer", "tunnel": "tun_amnezia", "order": "0",
       "address": "vpn.example.com", "port": "51820", "public_key": "public",
       "allowed_ips": ["0.0.0.0/0"]
+    },
+    {
+      ".name": "peer_plain", ".type": "tunnel_peer", "tunnel": "tun_plain", "order": "0",
+      "address": "wg.example.com", "port": "51820", "public_key": "public",
+      "allowed_ips": ["0.0.0.0/0"]
+    },
+    {
+      ".name": "peer_bare", ".type": "tunnel_peer", "tunnel": "tun_bare", "order": "0",
+      "address": "wg.example.com", "port": "51820", "public_key": "public",
+      "allowed_ips": ["0.0.0.0/0"]
     }
   ]
 }
@@ -331,6 +353,7 @@ const config = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 const warp = config.endpoints.find((endpoint) => endpoint.tag === 'tunnels/Cloudflare WARP');
 const amnezia = config.endpoints.find((endpoint) => endpoint.tag === 'tunnels/Amnezia');
 const tailscale = config.endpoints.find((endpoint) => endpoint.tag === 'tunnels/Tailnet');
+const plain = config.endpoints.find((endpoint) => endpoint.tag === 'tunnels/Plain');
 const custom = config.endpoints.find((endpoint) => endpoint.tag === 'tunnels/custom-endpoint');
 const selector = config.outbounds.find((outbound) => outbound.tag === 'tunnels');
 if (
@@ -347,11 +370,25 @@ if (
   throw new Error('native WARP endpoint contains incorrect Amnezia obfuscation fields');
 if (
   !amnezia ||
-  amnezia.type !== 'wireguard' ||
+  amnezia.type !== 'amneziawg' ||
   amnezia.amnezia?.jc !== 5 ||
   amnezia.amnezia?.h1 !== 100
 )
   throw new Error('native AmneziaWG endpoint missing');
+if (
+  !plain ||
+  plain.type !== 'wireguard' ||
+  plain.amnezia?.jc !== 3 ||
+  plain.amnezia?.i1 !== '<r 2>' ||
+  plain.amnezia?.s1 != null ||
+  plain.amnezia?.h1 != null ||
+  plain.amnezia?.header_protection_key != null
+)
+  throw new Error('a WireGuard endpoint must carry only one-sided Amnezia fields');
+for (const endpoint of config.endpoints) {
+  if (endpoint.amnezia && Object.keys(endpoint.amnezia).length === 0)
+    throw new Error(`an empty Amnezia block was written for ${endpoint.tag}`);
+}
 if (
   tailscale?.type !== 'tailscale' ||
   tailscale.state_directory !== '/etc/forkop/tailscale/tunnels-tun_tailnet' ||

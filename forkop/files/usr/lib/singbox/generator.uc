@@ -836,10 +836,7 @@ function link_scheme(link) {
 }
 
 // sing-box resolves a manual link at runtime, so a generated "parser" outbound
-// has to be matched by the protocol of the link it carries. AmneziaWG is a
-// Forkop tunnel type rather than a sing-box protocol, so it is recognized by
-// the amnezia block of its WireGuard endpoint; WARP carries one too, which is
-// why the check is bound to the endpoint type.
+// has to be matched by the protocol of the link it carries.
 function outbound_effective_type(outbound) {
     outbound = object_or_empty(outbound);
     let type_name = lc(as_string(outbound.type || ""));
@@ -847,8 +844,6 @@ function outbound_effective_type(outbound) {
         return as_string(
             runtime_constants.LINK_SCHEME_OUTBOUND_TYPES[link_scheme(outbound.link)] || ""
         );
-    if (type_name == "wireguard" && type(outbound.amnezia) == "object")
-        return "amneziawg";
     return type_name;
 }
 
@@ -1410,7 +1405,7 @@ function add_connection_tunnels(config, section, taken, selector_tags, urltest_c
         let endpoint_type = lc(as_string(endpoint.type || ""));
         let wrapper_kind = lc(as_string(connections.option(tunnel, "kind", "wireguard")));
         if (endpoint_type == "" ||
-            (endpoint_type != "wireguard" && endpoint_type != "warp" && endpoint_type != "tailscale" && wrapper_kind != "json"))
+            (endpoint_type != "wireguard" && endpoint_type != "amneziawg" && endpoint_type != "warp" && endpoint_type != "tailscale" && wrapper_kind != "json"))
             runtime_generate_unsupported("tunnel " + (i + 1) + " has an unsupported endpoint type");
 
         let display_name = trim(as_string(endpoint.tag || ""));
@@ -1422,7 +1417,7 @@ function add_connection_tunnels(config, section, taken, selector_tags, urltest_c
         taken[tag_name] = true;
         endpoint.tag = tag_name;
 
-        if (wrapper_kind != "json" && (endpoint_type == "wireguard" || endpoint_type == "warp")) {
+        if (wrapper_kind != "json" && (endpoint_type == "wireguard" || endpoint_type == "amneziawg" || endpoint_type == "warp")) {
             let detour = outbound_detour_tag_for_section(section);
             if (detour != "" && as_string(endpoint.detour || "") == "")
                 endpoint.detour = detour;

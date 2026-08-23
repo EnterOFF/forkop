@@ -25,7 +25,11 @@ const ITEM_TYPES = [
 const AMNEZIA_INTEGER_KEYS = [ "jc", "jmin", "jmax", "s1", "s2", "s3", "s4" ];
 const AMNEZIA_RANGE_KEYS = [ "h1", "h2", "h3", "h4", "content_padding_addition", "rekey_after_time", "rekey_timeout", "reject_after_time", "keepalive_timeout", "max_handshake_attempts" ];
 const AMNEZIA_KEYS = [ "jc", "jmin", "jmax", "s1", "s2", "s3", "s4", "h1", "h2", "h3", "h4", "content_padding_addition", "rekey_after_time", "rekey_timeout", "reject_after_time", "keepalive_timeout", "max_handshake_attempts", "i1", "i2", "i3", "i4", "i5", "header_protection_key" ];
-const WARP_AMNEZIA_KEYS = [ "jc", "jmin", "jmax", "i1", "i2", "i3", "i4", "i5", "content_padding_addition", "rekey_after_time", "rekey_timeout", "reject_after_time", "keepalive_timeout", "max_handshake_attempts" ];
+// Obfuscation a peer never has to know about: junk and signature packets are
+// dropped by any peer as unknown UDP, the content padding is trimmed away with
+// the rest of the plaintext, and the timings are local. It is all the wireguard
+// and warp endpoints accept, because their peer may be a plain implementation.
+const ONE_SIDED_AMNEZIA_KEYS = [ "jc", "jmin", "jmax", "i1", "i2", "i3", "i4", "i5", "content_padding_addition", "rekey_after_time", "rekey_timeout", "reject_after_time", "keepalive_timeout", "max_handshake_attempts" ];
 
 let item_sections = null;
 
@@ -457,9 +461,7 @@ function tunnel_endpoint(tunnel) {
         }
     }
 
-    let endpoint = {
-        type: kind == "amneziawg" ? "wireguard" : kind
-    };
+    let endpoint = { type: kind };
 
     if (kind == "tailscale") {
         endpoint.auth_key = trim(as_string(option(tunnel, "tailscale_auth_key", "")));
@@ -488,7 +490,7 @@ function tunnel_endpoint(tunnel) {
             endpoint.profile = profile;
         }
         let amnezia = {};
-        for (let key in WARP_AMNEZIA_KEYS) {
+        for (let key in ONE_SIDED_AMNEZIA_KEYS) {
             let value = trim(as_string(option(tunnel, "amnezia_" + key, "")));
             if (value != "")
                 amnezia[key] = list_contains(AMNEZIA_INTEGER_KEYS, key) ||
@@ -525,9 +527,11 @@ function tunnel_endpoint(tunnel) {
         push(endpoint.peers, item);
     }
 
-    if (kind == "amneziawg") {
+    // An amneziawg peer speaks AmneziaWG, so it takes the whole parameter set; a
+    // wireguard peer only takes what one side can add on its own.
+    if (kind == "amneziawg" || kind == "wireguard") {
         let amnezia = {};
-        for (let key in AMNEZIA_KEYS) {
+        for (let key in kind == "amneziawg" ? AMNEZIA_KEYS : ONE_SIDED_AMNEZIA_KEYS) {
             let value = trim(as_string(option(tunnel, "amnezia_" + key, "")));
             if (value != "") {
                 if (list_contains(AMNEZIA_INTEGER_KEYS, key) ||
@@ -537,7 +541,8 @@ function tunnel_endpoint(tunnel) {
                     amnezia[key] = value;
             }
         }
-        endpoint.amnezia = amnezia;
+        if (length(keys(amnezia)) > 0)
+            endpoint.amnezia = amnezia;
     }
 
     return endpoint;
