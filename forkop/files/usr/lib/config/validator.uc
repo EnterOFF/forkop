@@ -1270,7 +1270,7 @@ function validate_subscription_override(section, entry) {
         }
         if (node != null)
             fail_validation("Additional parameters in " + context + " must not set '" + path +
-                "': it already has its own setting. Aborted.");
+                "': the cascade connection of the section fills it in. Aborted.");
     }
 }
 
