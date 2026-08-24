@@ -388,7 +388,156 @@ async function checkServerSecuritySurvives() {
   }
 }
 
+// Everything above starts from a configuration a test wrote by hand, so it only
+// ever asks the question of the options that configuration happens to fill. This
+// asks it of every option a form shows: the values come from the form itself -
+// fill every field, save, then open and save again and expect nothing.
+//
+// Only the field that picks the state - the action of a section, the protocol of
+// a server - is held back, so each state is reached once. Everything else is
+// filled and LuCI decides which of them are shown; a field it hides writes
+// nothing in either pass, so the two passes see the same form.
+function probeFormValue(option) {
+  const cls = option.__name__ || '';
+  const choices = (option.keylist || []).filter((key) => `${key ?? ''}` !== '');
+  const other = choices.filter((key) => `${key}` !== `${option.default}`);
+  const pick = other.length ? `${other[0]}` : choices.length ? `${choices[0]}` : '';
+  if (cls === 'CBI.FlagValue') return `${option.default}` === '1' ? '0' : '1';
+  if (cls === 'CBI.DynamicList' || cls === 'CBI.MultiValue') {
+    return [pick || 'probe-value'];
+  }
+  if (pick) return pick;
+  if (/port/.test(`${option.datatype ?? ''}`) || /_port$/.test(option.option)) return '18080';
+  if (/range|uinteger/.test(`${option.datatype ?? ''}`)) return '1280';
+  return 'probe-value';
+}
+
+async function parseEveryOption(section, sid) {
+  for (const option of section.children) {
+    await Promise.resolve()
+      .then(() => option.parse(sid))
+      .catch(() => {});
+  }
+}
+
+async function checkEveryShownOptionRoundTrips(label, build, states, selector) {
+  for (const state of states) {
+    const { harness, section, sid } = build(state);
+    section.cfgsections = () => [sid];
+    await section.load();
+
+    // Fill in every field, the way a user filling the whole dialog would.
+    const filled = [];
+    for (const option of section.children) {
+      if (option.option === selector || option.option === 'enabled') continue;
+      if (['CBI.DummyValue', 'CBI.ButtonValue'].includes(option.__name__)) continue;
+      const value = probeFormValue(option);
+      option.formvalue = () => value;
+      filled.push(option.option);
+    }
+    await parseEveryOption(section, sid);
+    section.children.forEach((option) => delete option.formvalue);
+
+    // Now the configuration is one this form produced. Opening it and saving it
+    // again must write nothing at all.
+    await section.load();
+    harness.operations.length = 0;
+    await parseEveryOption(section, sid);
+    if (harness.operations.length) {
+      fail(
+        `${label} ${state}: saving a configuration this form wrote, without a change, ` +
+          `rewrote it: ${harness.operations.join(', ')}`,
+      );
+    }
+    if (filled.length < 3) {
+      fail(`${label} ${state}: only ${filled.length} fields were filled, so this checks nothing`);
+    }
+  }
+}
+
+async function checkFilledFormsRoundTrip() {
+  const providers = {
+    loaded: true,
+    zapretInstalled: true,
+    zapret2Installed: true,
+    byedpiInstalled: true,
+  };
+
+  const buildSection = (action) => {
+    const harness = createHarness(root);
+    const view = harness.load('section');
+    harness.uci.add('forkop', 'section', 'probe');
+    Object.assign(harness.store.get('probe'), { action, enabled: '1', label: 'Probe' });
+    const map = new harness.form.Map('forkop');
+    const grid = map.section(harness.form.GridSection, 'section');
+    view.configureSectionSection(grid, {
+      loadActionProvidersAvailability: () => Promise.resolve(providers),
+    });
+    // The table's load() skips the modal-only options; the dialog loads them all.
+    delete grid.load;
+    view.createSectionContent(grid);
+    return { harness, section: grid, sid: 'probe' };
+  };
+
+  const buildServer = (protocol) => {
+    const harness = createHarness(root);
+    const view = harness.load('server');
+    harness.uci.add('forkop', 'server', 'probe');
+    Object.assign(harness.store.get('probe'), { protocol, enabled: '1', label: 'Probe' });
+    harness.uci.add('forkop', 'server_client', 'client_probe');
+    Object.assign(harness.store.get('client_probe'), {
+      server: 'probe',
+      name: 'client-1',
+      password: 'secret',
+      uuid: '3d0f9c1a-9c1a-4d0f-8c1a-9c1a3d0f9c1a',
+      secret: 'ee00112233445566778899aabbccddeeff6578616d706c652e636f6d',
+    });
+    const map = new harness.form.Map('forkop');
+    const grid = map.section(harness.form.GridSection, 'server');
+    view.createServerContent(grid);
+    return { harness, section: grid, sid: 'probe' };
+  };
+
+  const buildSettings = () => {
+    const harness = createHarness(root);
+    const view = harness.load('settings');
+    harness.uci.add('forkop', 'settings', 'settings');
+    harness.uci.add('forkop', 'section', 'live');
+    Object.assign(harness.store.get('live'), {
+      action: 'connection',
+      enabled: '1',
+      label: 'Live',
+      selector_proxy_links: ['vless://a@example:1#n'],
+    });
+    const map = new harness.form.Map('forkop');
+    const settings = map.section(harness.form.NamedSection, 'settings');
+    view.createSettingsContent(settings, providers);
+    return { harness, section: settings, sid: 'settings' };
+  };
+
+  // Every action and every protocol the dropdowns offer, so the fields of each
+  // one are filled and asked the question. The action list is only complete once
+  // the form has loaded: which DPI actions it offers depends on an answer that
+  // arrives with load().
+  const choicesOf = async (build, seed, name) => {
+    const { section, sid } = build(seed);
+    section.cfgsections = () => [sid];
+    await section.load();
+    return (section.children.find((option) => option.option === name)?.keylist || []).slice();
+  };
+  const actions = await choicesOf(buildSection, 'connection', 'action');
+  const protocols = await choicesOf(buildServer, 'mixed', 'protocol');
+  if (actions.length < 7 || protocols.length < 10) {
+    fail(`the action or protocol list came up short: ${actions.length} and ${protocols.length}`);
+  }
+
+  await checkEveryShownOptionRoundTrips('a section', buildSection, actions, 'action');
+  await checkEveryShownOptionRoundTrips('a server', buildServer, protocols, 'protocol');
+  await checkEveryShownOptionRoundTrips('the Settings page', buildSettings, [''], null);
+}
+
 (async () => {
+  await checkFilledFormsRoundTrip();
   await checkChildDialogs();
   await checkRuleSetsSurviveEveryAction();
   await checkTunnelRoundTrip();

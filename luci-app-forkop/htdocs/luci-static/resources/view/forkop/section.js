@@ -271,6 +271,32 @@ function refreshDnsDetourSectionOptionValues(option, sectionId) {
     });
 }
 
+// A dropdown hands back one of its own entries and nothing else. A stored section
+// name it has no entry for - the section was deleted, switched off, or belongs to
+// a DPI provider that is not installed - is therefore replaced on save by whichever
+// entry happens to come first, and traffic quietly leaves through a section the
+// user never chose. Keeping the stored name in the list leaves the value where it
+// is; the configuration check already refuses to build a config that points at a
+// section it cannot use, and says which one.
+function keepUnavailableSectionChoice(option, storedValue) {
+  const value = `${storedValue || ""}`.trim();
+
+  if (!value || (option.keylist || []).includes(value)) {
+    return;
+  }
+
+  const target = (uci.sections(UCI_PACKAGE, "section") || []).find(
+    (section) => getUciSectionName(section) === value,
+  );
+
+  option.value(
+    value,
+    _("%s (section is unavailable)").format(
+      target ? getUciSectionLabel(target) : value,
+    ),
+  );
+}
+
 function dependsOnRoutingAction(option) {
   ROUTING_ACTIONS.forEach((action) => option.depends("action", action));
   return option;
@@ -1487,12 +1513,23 @@ const SettingsDynamicList = form.DynamicList.extend({
 
   remove(section_id) {
     if (this.childType) {
-      cleanupRemovedChildItems(
-        this.childOwner(section_id),
-        this.childType,
-        [],
-        this.ownerOption,
-      );
+      // LuCI removes an option the dialog hides, and for a child item list that
+      // would mean deleting the sections behind it. Only a list the user could
+      // see says anything about its items: a list the dialog hid - because the
+      // section is no longer a Connection, because the protocol has no accounts,
+      // because authentication was switched off - was cleared by nobody. What it
+      // holds cannot be typed again: an account password every device is
+      // configured with, a tunnel private key, a subscription URL. The runtime
+      // reads none of them in that state, and they are all there again when the
+      // field that hid them goes back.
+      if (this.isActive(section_id)) {
+        cleanupRemovedChildItems(
+          this.childOwner(section_id),
+          this.childType,
+          [],
+          this.ownerOption,
+        );
+      }
       uci.unset(UCI_PACKAGE, section_id, this.option);
       return;
     }
@@ -2967,7 +3004,10 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
     o.load = function (itemId) {
       const sectionId = parentSectionForItem(itemId);
       refreshOptionChoices(this, subscriptionDownloadTargetChoices(sectionId));
-      return optionMapValue(this, itemId, "download_via_proxy_section") || "";
+      const value =
+        optionMapValue(this, itemId, "download_via_proxy_section") || "";
+      keepUnavailableSectionChoice(this, value);
+      return value;
     };
     o.validate = function (itemId, value) {
       const sectionId = parentSectionForItem(itemId);
@@ -3183,7 +3223,13 @@ function addInterfaceItemOptions(itemSection, options = {}) {
   o.rmempty = false;
   o.load = function (itemId) {
     refreshDnsDetourSectionOptionValues(this, parentSectionForItem(itemId));
-    return optionMapValue(this, itemId, "domain_resolver_dns_detour_section");
+    const value = optionMapValue(
+      this,
+      itemId,
+      "domain_resolver_dns_detour_section",
+    );
+    keepUnavailableSectionChoice(this, value);
+    return value;
   };
   o.validate = function (itemId, value) {
     if (
@@ -5199,6 +5245,10 @@ function showTunnelSettingsModal(
     tailscaleDetourSectionOption,
     section_id,
   );
+  keepUnavailableSectionChoice(
+    tailscaleDetourSectionOption,
+    data.settings.tailscale_detour_section,
+  );
   tailscaleDetourSectionOption.rmempty = false;
   tailscaleDetourSectionOption.depends({
     tunnel_type: "tailscale",
@@ -5902,7 +5952,14 @@ function getRuleActionDisplayMarkup(section_id) {
   return getRuleActionDisplayValue(section_id);
 }
 
-function populateActionOptionValues(option) {
+// currentAction is what the section is stored as. A DPI action is offered only
+// while its provider is installed, and the provider can be gone - uninstalled, or
+// an availability answer that never arrived. The section keeps working either way:
+// the configuration check leaves a rule whose provider is absent alone. But a
+// dropdown hands back one of its own entries and nothing else, so without its own
+// action in the list the section would come back from a save as a Connection with
+// no servers - which is a configuration that will not build at all.
+function populateActionOptionValues(option, currentAction) {
   delete option.keylist;
   delete option.vallist;
 
@@ -5918,6 +5975,11 @@ function populateActionOptionValues(option) {
   }
   if (isByedpiInstalledForUi()) {
     option.value("byedpi", getActionOptionLabel("byedpi"));
+  }
+
+  const stored = `${currentAction || ""}`.trim();
+  if (stored && !option.keylist.includes(stored)) {
+    option.value(stored, getActionOptionLabel(stored));
   }
 }
 
@@ -7627,8 +7689,9 @@ function createSectionContent(section) {
   };
   o.load = function (section_id) {
     return ensureActionProvidersAvailabilityLoaded().then(() => {
-      populateActionOptionValues(this);
-      return this.cfgvalue(section_id);
+      const value = this.cfgvalue(section_id);
+      populateActionOptionValues(this, value);
+      return value;
     });
   };
 
@@ -7721,7 +7784,9 @@ function createSectionContent(section) {
   o.modalonly = true;
   o.load = function (section_id) {
     refreshDnsDetourSectionOptionValues(this, section_id);
-    return uci.get(UCI_PACKAGE, section_id, "dns_detour_section") || "";
+    const value = uci.get(UCI_PACKAGE, section_id, "dns_detour_section") || "";
+    keepUnavailableSectionChoice(this, value);
+    return value;
   };
   o.validate = function (_section_id, value) {
     return value ? true : _("Select a section");
@@ -7867,6 +7932,13 @@ function createSectionContent(section) {
   o.depends("action", "connection");
   o.rmempty = true;
   o.modalonly = true;
+  // The other four sources a Connection section can have are child sections that
+  // a hidden list leaves alone; these links live in the section itself, and they
+  // are pasted server URIs nobody can type again. An action the user picked in
+  // the same dialog is not a reason to throw them away - the runtime reads none
+  // of them unless the action is Connection, and they are all still there when
+  // the action goes back.
+  o.retain = true;
   o.validate = function (_section_id, value) {
     if (!value || value.length === 0) {
       return true;
@@ -7914,8 +7986,6 @@ function createSectionContent(section) {
         isRemoteSubscriptionSource(value) ? "1h" : null,
       download_via_proxy_enabled: (value) =>
         isRemoteSubscriptionSource(value) ? "0" : null,
-      user_agent: (value) =>
-        isRemoteSubscriptionSource(value) ? "sing-box" : null,
       header: (value) =>
         isRemoteSubscriptionSource(value)
           ? defaultSubscriptionHeaderLines.slice()
@@ -7965,7 +8035,6 @@ function createSectionContent(section) {
   o.renderListItemLabel = function (section_id, itemId) {
     return childItemInputValue(section_id, itemId, "subscription_url", "url");
   };
-  o.validate = validateSubscriptionUrlEntry;
   o.validate = function (section_id, value) {
     return validateSubscriptionUrlEntry(
       section_id,
@@ -8067,6 +8136,9 @@ function createSectionContent(section) {
   o.depends("action", "connection");
   o.rmempty = true;
   o.modalonly = true;
+  // Kept for the same reason as the connection URIs above: hand-written outbound
+  // objects the section holds itself, which an action change must not discard.
+  o.retain = true;
   o.addButtonLabel = _("+ Add JSON outbound");
   o.renderItemSettingsModal = showOutboundJsonSettingsModal;
   o.renderListItemLabel = function (_section_id, value) {
@@ -8197,16 +8269,16 @@ function createSectionContent(section) {
   o.depends("action", "connection");
   o.modalonly = true;
   o.write = function (section_id, value) {
-    if (value === "1") {
-      const currentValue =
-        uci.get(UCI_PACKAGE, section_id, "outbound_detour_section") || "";
-      const targetSections = getOutboundDetourTargetSections(section_id);
-      const currentIsValid = targetSections.some(
-        (targetSection) => getUciSectionName(targetSection) === currentValue,
-      );
-      const selectedValue = currentIsValid
-        ? currentValue
-        : getDefaultOutboundDetourSection(section_id);
+    // Turning the cascade on needs a section to cascade through, so one is filled
+    // in when none is stored. Only then: a section that is stored but not in the
+    // list right now - its target was deleted or switched off - is still what the
+    // user chose, and replacing it here would send this section's traffic
+    // somewhere else without saying so.
+    if (
+      value === "1" &&
+      !(uci.get(UCI_PACKAGE, section_id, "outbound_detour_section") || "")
+    ) {
+      const selectedValue = getDefaultOutboundDetourSection(section_id);
 
       if (selectedValue) {
         uci.set(
@@ -8233,9 +8305,10 @@ function createSectionContent(section) {
   o.modalonly = true;
   o.load = function (section_id) {
     refreshOutboundDetourSectionOptionValues(this, section_id);
-    return Promise.resolve(
-      uci.get(UCI_PACKAGE, section_id, "outbound_detour_section") || "",
-    );
+    const value =
+      uci.get(UCI_PACKAGE, section_id, "outbound_detour_section") || "";
+    keepUnavailableSectionChoice(this, value);
+    return Promise.resolve(value);
   };
   o.validate = function (section_id, value) {
     if (!value) {
@@ -8476,6 +8549,9 @@ const EntryPoint = {
   createSectionContent,
   ensureSingleFieldModalStyles,
   isExistingChildItem,
+  // The Servers and Settings tabs have section dropdowns of their own, and a
+  // stored name none of them offers has to survive there for the same reason.
+  keepUnavailableSectionChoice,
   showChildItemSettingsModal,
   updateDynamicListItemLabel,
   validateUniqueDynamicListItemName,

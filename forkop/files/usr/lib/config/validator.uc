@@ -2068,11 +2068,16 @@ function has_outbound_section(ctx) {
         if (action == "zapret2" && ctx.zapret2_installed)
             return true;
 
-        if (length(connections.connection_urls(section)) > 0 ||
-            length(connections.subscription_urls(section)) > 0 ||
-            length(connections.outbound_jsons(section)) > 0 ||
-            length(connections.tunnels(section)) > 0 ||
-            length(connections.interfaces(section)) > 0)
+        // Only a Connection section builds outbounds from these. A section that
+        // used to be one keeps what it had - the dialog does not throw away a
+        // subscription or a tunnel key because an action changed - and counting
+        // that would report a proxy outbound where the runtime has none.
+        if (connections.is_connections_action(action) &&
+            (length(connections.connection_urls(section)) > 0 ||
+             length(connections.subscription_urls(section)) > 0 ||
+             length(connections.outbound_jsons(section)) > 0 ||
+             length(connections.tunnels(section)) > 0 ||
+             length(connections.interfaces(section)) > 0))
             return true;
     }
 
@@ -2248,6 +2253,13 @@ else if (mode == "validate-runtime")
 else if (mode == "validate-runtime-fixture") {
     use_fixture_cursor(ARGV[1]);
     validate_runtime_config(context_from_json(ARGV[2], context_from_runtime()));
+}
+// The requirements check around it needs an installed sing-box to get as far as
+// this line, so the question of which sections count as an outbound is asked on
+// its own.
+else if (mode == "outbound-section-present-fixture") {
+    use_fixture_cursor(ARGV[1]);
+    exit(has_outbound_section(context_from_json(ARGV[2], context_from_runtime())) ? 0 : 1);
 }
 else {
     warn("Usage: config/validator.uc <operation> ...\n");

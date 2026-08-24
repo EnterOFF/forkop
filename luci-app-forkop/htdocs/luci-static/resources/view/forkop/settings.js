@@ -126,7 +126,9 @@ function configureDownloadSectionOption(option, sectionOption, capabilities) {
   };
   option.load = function (section_id) {
     refreshDownloadSectionChoices(this, capabilities);
-    return this.cfgvalue(section_id);
+    const value = this.cfgvalue(section_id);
+    sectionView.keepUnavailableSectionChoice(this, value);
+    return value;
   };
   option.write = function (section_id, value) {
     const normalized = value ? `${value}`.trim() : "";

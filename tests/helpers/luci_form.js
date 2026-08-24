@@ -30,20 +30,47 @@ const path = require('path');
 
 /* --------------------------------------------------------- class machinery */
 
-// LuCI's baseclass: Class.extend(props) subclasses, this.super('__init__', args)
-// walks up the chain.
+// LuCI's baseclass: Class.extend(props) subclasses, this.super(method, args)
+// walks up the chain. __init__ lives on the constructor here rather than on the
+// prototype, so it keeps its own walk; every other method is looked up the way
+// LuCI's Class.super does - start above the prototype whose frame is running,
+// and keep a per-method stack so a super inside a super goes one further up.
 function makeClass(name, init, parent) {
   function Ctor(...args) {
     const chain = [];
     for (let c = Ctor; c; c = c.__parent__) chain.unshift(c.__init__);
     let level = chain.length - 1;
+    const superStacks = {};
     this.super = (method, superArgs) => {
-      if (method !== '__init__') return undefined;
-      level -= 1;
-      const fn = chain[level];
-      const out = fn ? fn.apply(this, superArgs || []) : undefined;
-      level += 1;
-      return out;
+      if (method === '__init__') {
+        level -= 1;
+        const fn = chain[level];
+        const out = fn ? fn.apply(this, superArgs || []) : undefined;
+        level += 1;
+        return out;
+      }
+      const stack = (superStacks[method] ??= []);
+      let proto = Object.getPrototypeOf(
+        stack.length ? stack[0] : Object.getPrototypeOf(this),
+      );
+      while (proto != null && !Object.prototype.hasOwnProperty.call(proto, method)) {
+        proto = Object.getPrototypeOf(proto);
+      }
+      if (proto == null) return null;
+      const member = proto[method];
+      if (superArgs === undefined) return member;
+      if (typeof member !== 'function') {
+        throw new ReferenceError(`${method} is not a function in base class`);
+      }
+      stack.unshift(proto);
+      try {
+        return member.apply(
+          this,
+          Array.isArray(superArgs) ? superArgs : [superArgs],
+        );
+      } finally {
+        stack.shift();
+      }
     };
     const last = chain[chain.length - 1];
     if (last) last.apply(this, args);
@@ -294,7 +321,23 @@ function buildForm(uciData) {
   });
 
   const Value = AbstractValue.extend({ __name__: 'CBI.Value' });
-  const ListValue = Value.extend({ __name__: 'CBI.ListValue' });
+  // A <select> can only hand back one of its own options. LuCI marks an option
+  // selected only when it matches the stored value, so a stored value that is not
+  // among the choices leaves nothing selected and the browser falls back to the
+  // first option - which is then what the save writes. It matters wherever the
+  // choices are decided at load time: by which providers are installed, or by
+  // which other sections exist.
+  const ListValue = Value.extend({
+    __name__: 'CBI.ListValue',
+    formvalue(sid) {
+      const value = this.widgetValue(sid);
+      const keys = (this.keylist || []).map((key) => `${key ?? ''}`);
+      if (!keys.length) return value == null ? null : value;
+      if (keys.includes(`${value ?? ''}`)) return `${value ?? ''}`;
+      // An empty choice, or an optional option, puts "-- please choose --" first.
+      return this.optional || keys.includes('') ? '' : keys[0];
+    },
+  });
   const DynamicList = Value.extend({
     __name__: 'CBI.DynamicList',
     formvalue(sid) {
@@ -577,13 +620,26 @@ function createHarness(root, packageName = 'forkop') {
       const sid = name || `cfg${(anonymous += 1)}`;
       if (store.has(sid)) return null;
       store.set(sid, { '.name': sid, '.type': type });
+      // Recorded like any other write: a save that adds a child item the user did
+      // not ask for is the same kind of defect as one that deletes an option.
+      operations.push(`add ${type} ${sid}`);
       return sid;
     },
     remove(pkg, sid) {
+      // And a save that takes a whole section away is the worst of them: the
+      // passwords of a server's accounts, the peers of a tunnel, the levels of a
+      // fallback group all live in sections of their own.
+      if (store.has(sid)) operations.push(`remove ${store.get(sid)['.type']} ${sid}`);
       store.delete(sid);
     },
     get_first() {
       return null;
+    },
+    // Everything is already in the store, so loading a package is a no-op that
+    // still has to be awaitable: a view that preloads one before building its
+    // dialog would otherwise fail on the missing method.
+    load() {
+      return Promise.resolve();
     },
   };
   const uciData = {
@@ -591,6 +647,15 @@ function createHarness(root, packageName = 'forkop') {
     set: (...args) => uci.set(...args),
     unset: (...args) => uci.unset(...args),
     sections: (...args) => uci.sections(...args),
+    // LuCI's uci module keeps the loaded package under state.values, and a view
+    // may read it straight from there rather than through sections(): the
+    // Settings page builds its section dropdowns that way. Without it those
+    // dropdowns come up empty in a test and every value looks like it survives.
+    get state() {
+      const values = {};
+      for (const [sid, section] of store) values[sid] = section;
+      return { values: { [packageName]: values } };
+    },
   };
 
   const form = buildForm(uciData);
@@ -644,6 +709,11 @@ function createHarness(root, packageName = 'forkop') {
       // tell them apart rewrites both options. They come from the frontend
       // source rather than a copy, which would answer a question of its own.
       DOMAIN_LIST_OPTIONS: readDomainListOptions(root),
+      // The runtime tag of a section is its display name, and a dialog that
+      // resolves a stored section reference through it gets an empty answer from
+      // the catch-all stub - which reads as "no section selected" and makes the
+      // dialog refuse every save.
+      getOutboundTagBySection: (name) => `${name ?? ''}`,
       store: {},
       ForkopShellMethods: new Proxy({}, { get: () => () => Promise.resolve({}) }),
       parseValueList: (value) =>
@@ -672,7 +742,25 @@ function createHarness(root, packageName = 'forkop') {
     form,
     ui: { DynamicList: makeClass('ui.DynamicList', function () {}), addNotification() {} },
     uci,
-    fs: { read: () => Promise.resolve(''), exec: () => Promise.resolve({}) },
+    // The Reality identity of a server is generated by a command on the router;
+    // answering it here keeps a test that builds one from filling the log with the
+    // dialog's own failure notice.
+    fs: {
+      read: () => Promise.resolve(''),
+      exec: (command, args) =>
+        Promise.resolve(
+          `${args?.[0] ?? ''}` === 'generate_reality_keypair'
+            ? {
+                code: 0,
+                stdout: JSON.stringify({
+                  success: true,
+                  private_key: 'wIWKZmAoiFsYIPFCwG8FRPHKn0P6PLh0hbBjPfKgpU0',
+                  public_key: 'SSw7I859PPdN4DQ7fxV9fobXM61Ms3mqZRlIY1aJvHQ',
+                }),
+              }
+            : {},
+        ),
+    },
     network: { getDevices: () => Promise.resolve([]) },
     main,
     dpi,
@@ -712,6 +800,12 @@ function createHarness(root, packageName = 'forkop') {
 
   // Opens a child item's settings dialog and hands back its map plus the Save
   // the dialog installed, so a test can press it the way the user does.
+  //
+  // save() answers whether the dialog closed. A dialog refuses a save by throwing
+  // out of its own onSave - a peer list that is empty, a name another item holds -
+  // and the stacked dialog swallows that to keep the modal open, so a refused save
+  // is indistinguishable from a clean one by what it wrote: both wrote nothing. A
+  // check that only counts writes passes on every dialog it never managed to save.
   async function openDialog(option, ownerId, itemValue, context = {}) {
     const buttons = [];
     const originalAppend = buttonRow.append.bind(buttonRow);
@@ -734,9 +828,15 @@ function createHarness(root, packageName = 'forkop') {
     }
     const saveButton = buttons[buttons.length - 1];
     if (!saveButton) throw new Error(`dialog for ${option.option} did not open`);
+    // Each open dialog hangs its own title next to the heading and takes it away
+    // again when it closes, so the count says whether this one is still up.
+    const openTitles = heading.childNodes.length;
     return {
       map: dialogMaps[first],
-      save: () => saveButton.attrs.click(),
+      save: async () => {
+        await saveButton.attrs.click();
+        return { saved: heading.childNodes.length < openTitles };
+      },
     };
   }
 

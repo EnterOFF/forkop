@@ -3455,11 +3455,15 @@ function routingSectionChoices() {
     .map((section) => [section[".name"], section.label || section[".name"]]);
 }
 
-function loadRoutingSectionChoices(optionRef) {
+function loadRoutingSectionChoices(optionRef, sectionId) {
   optionRef.keylist = [];
   optionRef.vallist = [];
   routingSectionChoices().forEach(([value, label]) =>
     optionRef.value(value, label),
+  );
+  sectionui.keepUnavailableSectionChoice(
+    optionRef,
+    option(sectionId, "routing_section"),
   );
 
   return Promise.resolve();
@@ -3834,7 +3838,9 @@ function addTailscaleOptions(section) {
     tailscaleDetourTargets(sectionId).forEach((target) =>
       this.value(target[".name"], target.label || target[".name"]),
     );
-    return option(sectionId, "tailscale_detour_section");
+    const value = option(sectionId, "tailscale_detour_section");
+    sectionui.keepUnavailableSectionChoice(this, value);
+    return value;
   };
   o.validate = function (sectionId, value) {
     if (!value) {
@@ -4575,8 +4581,8 @@ function addRoutingOptions(section) {
   o.rmempty = false;
   o.validate = validateRequired;
   o.cfgvalue = (sectionId) => option(sectionId, "routing_section");
-  o.load = function () {
-    return loadRoutingSectionChoices(this);
+  o.load = function (sectionId) {
+    return loadRoutingSectionChoices(this, sectionId);
   };
 }
 

@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-24 23:29+0300\n"
-"PO-Revision-Date: 2026-08-24 23:29+0300\n"
+"POT-Creation-Date: 2026-08-25 02:40+0300\n"
+"PO-Revision-Date: 2026-08-25 02:40+0300\n"
 "Last-Translator: ushan0v <ushanov2204@gmail.com>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "Language: \n"
@@ -16,63 +16,67 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:1811
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2176
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2206
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:1848
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2213
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2243
 msgid "-- Select --"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2641
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:294
+msgid "%s (section is unavailable)"
+msgstr ""
+
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2682
 msgid "%s is set by the cascade connection of the section"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4484
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4495
 msgid "+ Add client"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8126
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8229
 msgid "+ Add fallback"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8039
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8142
 msgid "+ Add JSON outbound"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5304
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5378
 msgid "+ Add peer"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3495
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3550
 msgid "+ Add servers"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8000
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8100
 msgid "+ Add tunnel"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8066
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8169
 msgid "+ Add URLTest"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/helpers/serviceStatusDisplay.ts:35
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5661
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5762
 msgid "✔ Running"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/helpers/serviceStatusDisplay.ts:36
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5661
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5762
 msgid "✘ Stopped"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4108
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4114
 msgid "0-RTT handshake"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4275
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4286
 msgid "A certificate issued for this address"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8034
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8134
 msgid "A custom sing-box outbound object"
 msgstr ""
 
@@ -80,11 +84,11 @@ msgstr ""
 msgid "A host name holds at most 63 characters"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2615
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2656
 msgid "A JSON object merged into every server. Parameters a server does not support are skipped, matching parameters are overwritten"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3744
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3748
 msgid "A key from the Tailscale console"
 msgstr ""
 
@@ -100,7 +104,7 @@ msgstr ""
 msgid "A Reality key is 43 base64url characters"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3844
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3850
 msgid "A server cannot use itself"
 msgstr ""
 
@@ -108,42 +112,42 @@ msgstr ""
 msgid "A short ID holds at most 16 hex digits"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8280
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8302
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8384
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8411
 msgid "A URL or local path. The format is detected automatically"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5195
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3778
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5269
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3782
 msgid "Accept routes"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5196
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5270
 msgid "Accept subnets advertised by other devices in your Tailscale network"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:628
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:630
 msgid "Access to YACD from the internet. The port has to be opened in the firewall"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:761
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:763
 msgid "Accurate latency measurement"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7540
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7586
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7634
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7680
 msgid "Action"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:666
 #: fe-app-forkop/src/forkop/tabs/monitoring/render.ts:20
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:10725
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11257
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:10728
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11260
 msgid "Active"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1684
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6974
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7075
 msgid "Active Connections"
 msgstr ""
 
@@ -168,13 +172,13 @@ msgid "Add a server inbound"
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:2829
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4540
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4551
 msgid "Add at least one client"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3103
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7623
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:176
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3152
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7718
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:178
 msgid "Add at least one DNS server"
 msgstr ""
 
@@ -183,103 +187,103 @@ msgstr ""
 msgid "Add at least one domain"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3322
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3513
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3377
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3568
 msgid "Add at least one server group"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4616
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4786
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5321
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4686
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4856
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5395
 msgid "Add at least one WireGuard peer"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2686
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2727
 msgid "Add header"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3008
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3051
 msgid "Add tag"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:1803
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:1840
 msgid "Add URLTest"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2577
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2618
 msgid "Added after every server name"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2569
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2610
 msgid "Added in front of every server name"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runNftCheck.ts:106
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8318
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8419
 msgid "Additional marking rules found"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4676
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4746
 msgid "Additional packet padding"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3801
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3805
 msgid "Address of the coordination server. Change it if you use a custom server"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3009
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3052
 msgid "Adds the tag to its nodes and metadata on the dashboard"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3766
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3770
 msgid "Advertise routes"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:624
 #: fe-app-forkop/src/forkop/tabs/monitoring/render.ts:39
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:10744
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11221
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:10747
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11224
 msgid "All devices"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3055
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3298
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3362
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3102
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3353
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3417
 msgid "All except selected"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3361
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3416
 msgid "All remaining"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3054
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3297
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3101
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3352
 msgid "All servers"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8336
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8445
 msgid "All traffic from these devices is forced through the section"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6852
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6946
 msgid "Allowed domain prefixes are full:, keyword:, and regex:"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4935
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5005
 msgid "Allowed IPs"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3934
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3940
 msgid "Allows incoming connections to this port from the internet"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4258
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4269
 msgid "ALPN"
 msgstr ""
 
 #: fe-app-forkop/src/helpers/parseWireGuardConfig.ts:462
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:761
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5500
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5574
 msgid "AmneziaWG I1-I5 must be Custom Protocol Signature tags such as <b 0xdeadbeef><r 4>"
 msgstr ""
 
@@ -288,93 +292,93 @@ msgstr ""
 msgid "AmneziaWG RandomTrailers is not supported: a tunnel cannot complete a handshake with a server that uses it"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4654
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4666
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4724
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4736
 msgid "AmneziaWG ranges must be between 0 and 4294967295 with the start no greater than the end"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4921
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4991
 msgid "An extra key shared with this peer"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:934
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1290
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6349
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6643
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6450
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6744
 msgid "Any"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5385
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5459
 msgid "Applies WARP+ to the profile account"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/helpers/serviceStatusDisplay.ts:14
 #: fe-app-forkop/src/forkop/tabs/diagnostic/partials/renderAvailableActions.ts:34
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5652
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9127
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5753
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9130
 msgid "Applying..."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6883
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6977
 msgid "At least one valid domain must be specified."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6965
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7059
 msgid "At least one valid IP or subnet must be specified."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5130
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5200
 msgid "Auth Key from the Tailscale admin console"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5366
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5440
 msgid "Auth token"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3987
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3993
 msgid "Authentication"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5129
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3743
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5199
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3747
 msgid "Authorization key"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/logs/render.ts:35
 #: fe-app-forkop/src/partials/modal/renderModal.ts:286
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9064
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:12758
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9067
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:12761
 msgid "Auto refresh"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:712
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:714
 msgid "Automatic component update checks"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runSingBoxCheck.ts:77
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8052
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8153
 msgid "Autostart disabled"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3398
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3453
 msgid "Availability check for every server"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/partials/renderAvailableActions.ts:59
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9140
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9143
 msgid "Available actions"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7056
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7150
 msgid "Backend validation failed: %s"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runDnsCheck.ts:46
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7971
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8072
 msgid "Bootstrap DNS"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:365
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:367
 msgid "Bootstrap DNS Query Mode"
 msgstr ""
 
@@ -383,32 +387,32 @@ msgstr ""
 msgid "Bootstrap DNS server must use an IP address"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:355
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:357
 msgid "Bootstrap DNS Servers"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runFakeIPCheck.ts:51
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runFakeIPCheck.ts:79
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8356
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8375
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8457
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8476
 msgid "Browser FakeIP check could not be completed"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runFakeIPCheck.ts:82
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8375
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8476
 msgid "Browser is not using FakeIP"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runFakeIPCheck.ts:81
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8375
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8476
 msgid "Browser is using FakeIP correctly"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8260
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8364
 msgid "Built-in lists"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5691
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5765
 msgid "By default only the domain conditions of a rule set are applied. This option adds its IP addresses and subnets to nftables. Large lists can load the router heavily. Enable it only if you know the set holds the subnets you need"
 msgstr ""
 
@@ -431,7 +435,7 @@ msgstr ""
 msgid "ByeDPI option requires a value: %s"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7792
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7889
 msgid "ByeDPI Strategy"
 msgstr ""
 
@@ -443,7 +447,7 @@ msgstr ""
 msgid "ByeDPI strategy has an unterminated %s quote"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:837
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:839
 msgid "Cache File Path"
 msgstr ""
 
@@ -454,17 +458,17 @@ msgstr ""
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runNftCheck.ts:28
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runSectionsCheck.ts:46
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runSingBoxCheck.ts:25
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7954
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8018
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8201
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8264
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8426
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8570
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9466
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8055
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8119
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8302
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8365
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8527
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8671
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9469
 msgid "Cannot receive checks result"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8159
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8262
 msgid "Cascade connection"
 msgstr ""
 
@@ -472,52 +476,52 @@ msgstr ""
 msgid "Certificate generated"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4274
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4285
 msgid "Certificate path"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5149
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5219
 msgid "Change only for a self-hosted Headscale"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2987
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3030
 msgid "Change the HTTP headers of the request"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3041
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3088
 msgid "Change the parameters of the servers this subscription adds"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:713
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:715
 msgid "Check installed components for new versions"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:936
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1292
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6351
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6645
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3241
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3424
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6452
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6746
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3296
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3479
 msgid "Check interval"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1293
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6646
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3436
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6747
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3491
 msgid "Check timeout"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/updates/initController.ts:704
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13583
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13586
 msgid "Check update"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:931
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1285
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6346
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6638
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3214
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3397
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6447
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6739
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3269
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3452
 msgid "Check URL"
 msgstr ""
 
@@ -530,51 +534,51 @@ msgstr ""
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runSectionsCheck.ts:34
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runSingBoxCheck.ts:13
 #: fe-app-forkop/src/forkop/tabs/diagnostic/initController.ts:683
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7944
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8008
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8191
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8252
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8335
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8416
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8560
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9456
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:10352
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8045
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8109
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8292
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8353
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8436
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8517
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8661
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9459
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:10355
 msgid "Checking, please wait"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/getCheckItemsMeta.ts:10
 #: fe-app-forkop/src/forkop/tabs/diagnostic/helpers/getMeta.ts:26
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7926
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8394
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8027
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8495
 msgid "Checks failed"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/getCheckItemsMeta.ts:23
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runFakeIPCheck.ts:43
 #: fe-app-forkop/src/forkop/tabs/diagnostic/helpers/getMeta.ts:13
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7915
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8351
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8405
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8016
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8452
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8506
 msgid "Checks passed"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runByedpiCheck.ts:91
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8610
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8711
 msgid "ciadpi runtime has restarted"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runByedpiCheck.ts:94
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8610
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8711
 msgid "ciadpi runtime is not ready"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runByedpiCheck.ts:97
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8610
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8711
 msgid "ciadpi runtime is not running"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runByedpiCheck.ts:93
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8610
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8711
 msgid "ciadpi runtime is ready"
 msgstr ""
 
@@ -589,7 +593,7 @@ msgid "Clash API request timed out after it was sent"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1326
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6678
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6779
 msgid "Click a server to pin its priority. Click it again to unpin."
 msgstr ""
 
@@ -598,7 +602,7 @@ msgstr ""
 msgid "Client"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4350
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4361
 msgid "Client fingerprint"
 msgstr ""
 
@@ -610,7 +614,7 @@ msgstr ""
 msgid "Client: %s"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4479
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4490
 msgid "Clients"
 msgstr ""
 
@@ -619,35 +623,35 @@ msgstr ""
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:824
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:874
 #: fe-app-forkop/src/partials/modal/renderModal.ts:263
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6451
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6705
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9043
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11388
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11425
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3764
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6552
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6806
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9046
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11391
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11428
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3819
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:2295
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:256
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:258
 msgid "Close"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/monitoring/render.ts:58
 #: fe-app-forkop/src/forkop/tabs/monitoring/render.ts:59
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:10763
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:10764
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:10766
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:10767
 msgid "Close all connections"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:782
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:783
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11350
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11351
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11353
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11354
 msgid "Close connection"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:675
 #: fe-app-forkop/src/forkop/tabs/monitoring/render.ts:29
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:10734
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11265
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:10737
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11268
 msgid "Closed"
 msgstr ""
 
@@ -656,12 +660,12 @@ msgstr ""
 msgid "Cloudflare WARP reserved bytes are not supported here. Add a Cloudflare WARP tunnel instead"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/services/core.service.ts:41
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5305
+#: fe-app-forkop/src/forkop/services/core.service.ts:54
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5403
 msgid "Component update available"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:721
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:723
 msgid "Component update check interval"
 msgstr ""
 
@@ -670,66 +674,66 @@ msgid "Components"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/helpers/singBoxVersion.ts:34
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9665
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9668
 msgid "compressed"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7528
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7622
 msgid "Conditions"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:824
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:826
 msgid "Config File Path"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4998
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5068
 msgid "Configuration"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6312
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6406
 msgid "Configure User-Agent in the item settings"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4086
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4092
 msgid "Congestion control"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8197
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8300
 msgid "Connect through"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1294
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6647
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3448
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6748
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3503
 msgid "Connection timeout"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7830
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7927
 msgid "Connection URI"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:931
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11468
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11471
 msgid "Connections are unavailable"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runSectionsCheck.ts:144
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9536
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9539
 msgid "Connectivity probe failed"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5148
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3800
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5218
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3804
 msgid "Coordination server"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5172
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3825
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5242
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3829
 msgid "Coordination server through"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5162
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3814
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5232
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3818
 msgid "Coordination server through a section"
 msgstr ""
 
@@ -741,8 +745,8 @@ msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/logs/render.ts:39
 #: fe-app-forkop/src/partials/modal/renderModal.ts:258
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9036
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:12762
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9039
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:12765
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:2262
 msgid "Copy"
 msgstr ""
@@ -753,13 +757,13 @@ msgstr ""
 #: fe-app-forkop/src/forkop/tabs/dashboard/partials/renderSections.ts:436
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:2281
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:2282
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6424
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6618
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6525
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6719
 msgid "Copy proxy link"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runFakeIPCheck.ts:89
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8381
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8482
 msgid "Could not compare FakeIP and control public IPs"
 msgstr ""
 
@@ -775,12 +779,12 @@ msgstr ""
 msgid "Could not generate a Reality key pair"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5188
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8214
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5262
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8318
 msgid "Current section cannot be used as its own transit section"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2978
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3021
 msgid "Current section cannot download its own subscription"
 msgstr ""
 
@@ -798,28 +802,28 @@ msgstr ""
 msgid "Dashboard currently unavailable"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4682
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4752
 msgid "Data rejection timeout"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:773
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:775
 msgid "Default URL for general latency testing"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:603
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:605
 msgid "Delay in milliseconds before reloading Forkop after interface UP"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:610
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:612
 msgid "Delay value cannot be empty"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3569
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3574
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3573
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3578
 msgid "Delete"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:510
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:512
 msgid "Detected automatically by default"
 msgstr ""
 
@@ -828,36 +832,36 @@ msgstr ""
 msgid "detour must be a non-empty string"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5139
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3755
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5209
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3759
 msgid "Device name"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7333
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:447
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7427
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:449
 msgid "Device or IP"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8335
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8444
 msgid "Devices"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3364
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3419
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:2510
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4555
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4566
 msgid "Direct"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/partials/renderAvailableActions.ts:95
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9176
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9179
 msgid "Disable autostart"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:650
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:652
 msgid "Disable QUIC"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:651
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:653
 msgid "Disables QUIC for compatibility and to fix video streaming"
 msgstr ""
 
@@ -866,37 +870,37 @@ msgid "Disabling interception is incompatible with action=zapret2 because Forkop
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runDnsCheck.ts:66
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7991
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8092
 msgid "DNS capture active"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runDnsCheck.ts:56
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7981
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8082
 msgid "DNS on router"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:431
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:433
 msgid "DNS outside the rules"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3112
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7633
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3161
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7728
 msgid "DNS Query Mode"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3168
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7685
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:421
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3217
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7780
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:423
 msgid "DNS requests through"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:379
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:381
 msgid "DNS Rewrite TTL"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3086
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7607
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:331
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3133
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7702
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:333
 msgid "DNS Server"
 msgstr ""
 
@@ -915,72 +919,72 @@ msgstr ""
 msgid "DNS server URI must not contain whitespace, credentials, query parameters, or fragments"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:400
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:402
 msgid "DNS Strategy"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3156
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7673
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:413
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3205
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7768
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:415
 msgid "DNS through section"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts:54
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8107
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8208
 msgid "Does not resolve"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3077
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3124
 msgid "Domain Resolver"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8223
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8327
 msgid "Domains"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1610
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1648
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6914
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6945
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7015
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7046
 msgid "Downlink"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/logs/render.ts:40
 #: fe-app-forkop/src/partials/modal/renderModal.ts:253
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9031
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:12763
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9034
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:12766
 msgid "Download"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:812
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:814
 msgid "Download components through"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:805
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:807
 msgid "Download components through a section"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:793
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:795
 msgid "Download lists through"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:786
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:788
 msgid "Download lists through a section"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4051
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4057
 msgid "Download, Mbps"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:817
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:871
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11381
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11422
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11384
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11425
 msgid "Downloaded"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3278
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3473
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3333
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3528
 msgid "Drop every active connection when the selected server changes"
 msgstr ""
 
@@ -993,118 +997,118 @@ msgstr ""
 msgid "Duplicate value"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2989
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3043
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:319
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3032
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3090
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:321
 msgid "Edit"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3508
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3512
 msgid "Edit rule action"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7530
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3673
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7624
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3677
 msgid "Enable"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/partials/renderAvailableActions.ts:105
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9186
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9189
 msgid "Enable autostart"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3078
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3125
 msgid "Enable built-in DNS resolver for domains handled by this section"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:509
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:511
 msgid "Enable Output Network Interface"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:618
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:620
 msgid "Enable YACD"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:627
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:629
 msgid "Enable YACD WAN Access"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3071
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3208
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3391
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4134
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4150
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3118
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3263
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3446
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4189
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4205
 msgid "Enter a display name"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2418
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2459
 msgid "Enter a header name"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5269
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5343
 msgid "Enter a private key"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4911
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4981
 msgid "Enter a public key"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2602
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2643
 msgid "Enter a regular expression before =>"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7565
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7659
 msgid "Enter a section name"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4900
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4970
 msgid "Enter a server address"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3335
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3354
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3390
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3409
 msgid "Enter a server group name"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3019
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3066
 msgid "Enter a subscription tag"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4720
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4790
 msgid "Enter a Tailscale auth key"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4722
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4792
 msgid "Enter a Tailscale exit node"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4721
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4791
 msgid "Enter a Tailscale hostname"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4696
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5099
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4766
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5169
 msgid "Enter a tunnel name"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4701
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4771
 msgid "Enter a valid JSON endpoint object"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2634
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2637
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2675
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2678
 msgid "Enter a valid JSON object"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4724
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4794
 msgid "Enter a valid Tailscale control URL"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4800
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4870
 msgid "Enter at least one AmneziaWG parameter"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3789
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3793
 msgid "Ephemeral node"
 msgstr ""
 
@@ -1115,47 +1119,47 @@ msgstr ""
 
 #: fe-app-forkop/src/helpers/parseWireGuardConfig.ts:552
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:843
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4584
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4654
 msgid "Every WireGuard peer needs at least one AllowedIPs subnet"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4550
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4620
 msgid "Every WireGuard peer needs string address/public key and a numeric port"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2111
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2135
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2148
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2172
 msgid "Exclude by pattern"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:442
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:444
 msgid "Exclude devices from routing"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:868
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:870
 msgid "Exclude NTP"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2095
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2119
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2132
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2156
 msgid "Exclude servers"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2103
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2127
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2140
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2164
 msgid "Exclude types"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5205
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5279
 msgid "Exit node"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:933
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1289
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6348
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6642
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3227
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3410
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6449
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6743
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3282
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3465
 msgid "Expected status"
 msgstr ""
 
@@ -1173,21 +1177,21 @@ msgid "External nfqws2 config files bypass Forkop queue management and explicit 
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/initController.ts:176
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9955
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9958
 msgid "Failed to apply the configuration"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:1199
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:1214
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11655
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11669
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11658
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11672
 msgid "Failed to close connection"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:1233
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:1246
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11684
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11696
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11687
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11699
 msgid "Failed to close connections"
 msgstr ""
 
@@ -1205,10 +1209,10 @@ msgstr ""
 #: fe-app-forkop/src/forkop/tabs/updates/initController.ts:683
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:2834
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:2837
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13401
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13401
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13450
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13567
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13404
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13404
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13453
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13570
 msgid "Failed to execute"
 msgstr ""
 
@@ -1218,62 +1222,62 @@ msgid "Failed to load default subscription headers"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/logs/initController.ts:81
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:12848
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:12851
 msgid "Failed to load logs"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1173
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6548
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6649
 msgid "Failed to pin the server"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/initController.ts:175
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9954
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9957
 msgid "Failed to restart the service"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/initController.ts:173
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9952
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9955
 msgid "Failed to start the service"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/initController.ts:174
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9953
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9956
 msgid "Failed to stop the service"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1455
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6782
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6883
 msgid "Failed to update lists"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1486
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6806
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6907
 msgid "Failed to update subscriptions"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runFakeIPCheck.ts:91
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8381
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8482
 msgid "FakeIP and control checks use different public IPs"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runFakeIPCheck.ts:92
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8381
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8482
 msgid "FakeIP and control checks use the same public IP"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runFakeIPCheck.ts:46
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8353
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8454
 msgid "FakeIP works; public IP comparison is inconclusive"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4167
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4173
 msgid "FakeTLS host"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/partials/renderSections.ts:489
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:2328
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8120
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8223
 msgid "Fallback"
 msgstr ""
 
@@ -1282,18 +1286,18 @@ msgstr ""
 #: fe-app-forkop/src/forkop/tabs/dashboard/partials/renderSections.ts:474
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:2313
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:2314
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6746
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6847
 msgid "Fallback details"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1272
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6630
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6731
 msgid "Fallback details are unavailable"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4091
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4096
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4097
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4146
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4151
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4152
 msgid "Fallback settings"
 msgstr ""
 
@@ -1306,20 +1310,20 @@ msgstr ""
 msgid "Fill in the credentials of this client to get a link."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5109
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5179
 msgid "Fill the fields from an existing configuration"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4317
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4328
 msgid "Filled in together with the private key"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts:138
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8173
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8274
 msgid "Firewall WAN port"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:285
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:287
 msgid "Fixed addresses for domains in the hosts format"
 msgstr ""
 
@@ -1329,23 +1333,23 @@ msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/initController.ts:471
 #: fe-app-forkop/src/forkop/tabs/diagnostic/partials/renderAvailableActions.ts:123
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9204
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:10170
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9207
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:10173
 msgid "Forkop configuration"
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:116
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:435
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:437
 msgid "Forkop DNS"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/services/core.service.ts:50
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5313
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5394
+#: fe-app-forkop/src/forkop/services/core.service.ts:63
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5411
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5468
 msgid "Forkop Error"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:443
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:445
 msgid "Forkop ignores these devices entirely: their traffic is not routed and their DNS is not captured"
 msgstr ""
 
@@ -1374,7 +1378,7 @@ msgid "Forkop Settings"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/logs/render.ts:50
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:12773
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:12776
 msgid "Forkop system logs"
 msgstr ""
 
@@ -1409,76 +1413,76 @@ msgstr ""
 msgid "Generate a key pair with the button next to the field"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5122
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5192
 msgid "Generate profile"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/initController.ts:443
 #: fe-app-forkop/src/forkop/tabs/diagnostic/partials/renderAvailableActions.ts:114
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9195
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:10146
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9198
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:10149
 msgid "Global check"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3196
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3351
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3386
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3251
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3406
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3441
 msgid "Group name"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4416
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4427
 msgid "gRPC service"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2698
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2739
 msgid "Header name"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2422
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2463
 msgid "Header name contains invalid characters"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4674
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4744
 msgid "Header protection key"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2703
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2744
 msgid "Header value"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2427
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2468
 msgid "Header value must stay on one line"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2678
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2708
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2986
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2719
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2749
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3029
 msgid "Headers"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4097
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4103
 msgid "Heartbeat"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3286
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3481
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3341
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3536
 msgid "Hide group servers"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3287
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3482
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3342
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3537
 msgid "Hide servers included in this group from the dashboard"
 msgstr ""
 
 #: fe-app-forkop/src/partials/modal/renderModal.ts:310
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9083
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9086
 msgid "Hide values"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:807
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:867
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11371
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11418
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11374
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11421
 msgid "Host"
 msgstr ""
 
@@ -1486,25 +1490,25 @@ msgstr ""
 msgid "Host key generated"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:380
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:382
 msgid "How long DNS records are cached, in seconds"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3449
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3504
 msgid "How long to wait for a connection before moving to the next server"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3437
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3492
 msgid "How long to wait for a server to answer"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3266
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3461
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3321
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3516
 msgid "How long until health checks stop when the group is unused"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3242
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3425
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3297
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3480
 msgid "How often every server of the group is checked"
 msgstr ""
 
@@ -1517,107 +1521,107 @@ msgstr ""
 msgid "HTTP error"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4405
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4416
 msgid "HTTP hosts"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3228
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3411
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3283
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3466
 msgid "HTTP status codes of a successful check. * is any response, or values and ranges: 204/200-299"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:938
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1295
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6353
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6648
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3265
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3460
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6454
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6749
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3320
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3515
 msgid "Idle timeout"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4061
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4067
 msgid "Ignore client bandwidth"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5047
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5111
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5117
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5181
 msgid "Import"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5030
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5108
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5100
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5178
 msgid "Import configuration"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts:89
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8135
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8236
 msgid "Inbound created"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2087
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2124
 msgid "Include by pattern"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5690
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5764
 msgid "Include IP addresses and subnets"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2079
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2116
 msgid "Include servers"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:762
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:764
 msgid "Includes connection setup and the TLS handshake. Slower, but more accurate"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/updates/initController.ts:718
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13592
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13595
 msgid "Install"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runSingBoxCheck.ts:62
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8037
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8138
 msgid "Installed"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/updates/initController.ts:285
 #: fe-app-forkop/src/forkop/tabs/updates/initController.ts:931
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13265
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13761
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13268
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13764
 msgid "Installed version is newer than release"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5249
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5323
 msgid "Interface IPv4 or IPv6 addresses in CIDR format"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:570
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:572
 msgid "Interface Monitoring"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:602
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:604
 msgid "Interface Monitoring Delay"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:571
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:573
 msgid "Interface monitoring for Bad WAN"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3068
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3115
 msgid "Interface name"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:940
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1297
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6355
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6650
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3277
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3472
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6456
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6751
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3332
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3527
 msgid "Interrupt connections"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4947
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5345
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5017
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5419
 msgid "Interval between packets that keep the tunnel open, in seconds. Empty means the default"
 msgstr ""
 
@@ -1626,7 +1630,7 @@ msgstr ""
 msgid "Invalid AmneziaWG parameters"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7813
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7910
 msgid "Invalid ByeDPI strategy"
 msgstr ""
 
@@ -1658,7 +1662,7 @@ msgstr ""
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:81
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:85
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:470
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6832
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6926
 msgid "Invalid domain address"
 msgstr ""
 
@@ -1680,7 +1684,7 @@ msgstr ""
 msgid "Invalid JSON format"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7770
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7867
 msgid "Invalid NFQWS2 strategy"
 msgstr ""
 
@@ -1694,11 +1698,11 @@ msgstr ""
 msgid "Invalid path format. Path must start with \"/\" and contain valid characters"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6981
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7075
 msgid "Invalid port or range. Use 80 or 1000-2000"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6254
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6348
 msgid "Invalid regular expression"
 msgstr ""
 
@@ -1713,8 +1717,8 @@ msgstr ""
 
 #: fe-app-forkop/src/helpers/parseWireGuardConfig.ts:306
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:654
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5025
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5039
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5095
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5109
 msgid "Invalid WireGuard configuration"
 msgstr ""
 
@@ -1733,40 +1737,40 @@ msgstr ""
 msgid "Invalid WireGuard persistent keepalive"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5206
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5280
 msgid "IP address or device name in Tailscale through which traffic is forwarded"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8250
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8354
 msgid "IPs"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:404
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:406
 msgid "IPv4 only"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:406
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:408
 msgid "IPv6 only"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/getCheckItemsMeta.ts:17
 #: fe-app-forkop/src/forkop/tabs/diagnostic/helpers/getMeta.ts:20
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7921
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8400
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8022
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8501
 msgid "Issues detected"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5216
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5290
 msgid "JSON endpoint"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4715
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5241
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4785
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5315
 msgid "JSON endpoint must contain a non-empty tag"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4706
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5231
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4776
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5305
 msgid "JSON endpoint must contain a non-empty type"
 msgstr ""
 
@@ -1774,15 +1778,15 @@ msgstr ""
 msgid "JSON inbound"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3869
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3875
 msgid "JSON Inbound"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:893
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5613
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5637
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5852
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8033
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:919
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5687
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5711
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5926
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8133
 msgid "JSON outbound"
 msgstr ""
 
@@ -1811,7 +1815,7 @@ msgstr ""
 msgid "JSON outbound type must be lowercase without surrounding whitespace"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4684
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4754
 msgid "Keepalive timeout"
 msgstr ""
 
@@ -1819,44 +1823,44 @@ msgstr ""
 msgid "Key"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4286
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4297
 msgid "Key path"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6264
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6358
 msgid "Keyword must not contain spaces or commas"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3253
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3308
 msgid "Latency difference"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3215
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3270
 msgid "Latency measurement for every server"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:772
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:774
 msgid "Latency test URL"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/updates/initController.ts:288
 #: fe-app-forkop/src/forkop/tabs/updates/initController.ts:929
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13267
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13759
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13270
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13762
 msgid "Latest version is installed"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/updates/initController.ts:931
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13761
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13764
 msgid "Latest version:"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1119
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6504
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6605
 msgid "Level"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5384
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5458
 msgid "License key"
 msgstr ""
 
@@ -1864,38 +1868,38 @@ msgstr ""
 msgid "Link"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:677
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:679
 msgid "List update interval"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3891
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3897
 msgid "Listen address"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5278
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3903
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5352
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3909
 msgid "Listen port"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts:125
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8165
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8266
 msgid "Listening port"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1452
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6779
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6880
 msgid "Lists updated"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:921
 #: fe-app-forkop/src/forkop/tabs/monitoring/render.ts:88
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:10792
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11459
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:10795
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11462
 msgid "Loading connections"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/logs/render.ts:53
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:12776
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:12779
 msgid "Loading logs"
 msgstr ""
 
@@ -1904,28 +1908,28 @@ msgstr ""
 #: fe-app-forkop/src/forkop/tabs/updates/initController.ts:841
 #: fe-app-forkop/src/forkop/tabs/updates/initController.ts:854
 #: fe-app-forkop/src/forkop/tabs/updates/initController.ts:867
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13673
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13682
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13691
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13700
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13709
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13676
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13685
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13694
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13703
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13712
 msgid "Loading..."
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runDnsCheck.ts:61
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7986
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8087
 msgid "Local resolver"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3767
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3771
 msgid "Local subnets the rest of the network may reach through this router"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5279
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5353
 msgid "Local UDP port. Empty means the default"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:853
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:855
 msgid "Log Level"
 msgstr ""
 
@@ -1939,41 +1943,41 @@ msgid "LuCI web interface"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runDnsCheck.ts:51
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7976
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8077
 msgid "Main DNS"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:341
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:343
 msgid "Main DNS Query Mode"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5428
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5445
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5502
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5519
 msgid "Masks traffic with the Amnezia mechanism to make it harder to identify"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4071
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4077
 msgid "Masquerade"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8347
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8456
 msgid "Match destination ports"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4686
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4756
 msgid "Maximum handshake attempts"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1688
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6978
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7079
 msgid "Memory Usage"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3946
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3952
 msgid "Method"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:579
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:581
 msgid "Monitored Interfaces"
 msgstr ""
 
@@ -1981,12 +1985,12 @@ msgstr ""
 msgid "Monitoring"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4456
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4467
 msgid "Multiplex"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2247
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2262
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2284
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2299
 msgid "Must be a number in the range of 0 - 10000"
 msgstr ""
 
@@ -1994,66 +1998,66 @@ msgstr ""
 msgid "Name"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8422
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8531
 msgid "Name must be unique"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2568
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2609
 msgid "Name prefix"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2576
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2617
 msgid "Name suffix"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4120
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4126
 msgid "Network"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2781
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2821
 msgid "Network interface"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:1926
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7949
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:1963
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8049
 msgid "Network Interface"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3924
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3979
 msgid "Network interface settings"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/services/core.service.ts:36
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5303
+#: fe-app-forkop/src/forkop/services/core.service.ts:49
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5401
 msgid "New version %s is available for %s"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runNfqueueProviderCheck.ts:125
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8470
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8571
 msgid "NFQUEUE range is available"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runNfqueueProviderCheck.ts:124
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8470
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8571
 msgid "NFQUEUE range overlaps with another rule"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:18
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8509
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8610
 msgid "nfqws runtime is not ready"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:20
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8511
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8612
 msgid "nfqws runtime is not running"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:17
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8508
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8609
 msgid "nfqws runtime is ready"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7702
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7799
 msgid "NFQWS Strategy"
 msgstr ""
 
@@ -2062,21 +2066,21 @@ msgid "NFQWS strategy cannot be empty"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:18
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8538
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8639
 msgid "nfqws2 runtime is not ready"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:20
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8540
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8641
 msgid "nfqws2 runtime is not running"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:17
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8537
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8638
 msgid "nfqws2 runtime is ready"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7749
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7846
 msgid "NFQWS2 Strategy"
 msgstr ""
 
@@ -2088,103 +2092,103 @@ msgstr ""
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:775
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:863
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1074
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6223
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6226
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6294
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6469
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6324
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6327
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6395
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6570
 msgid "No"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:945
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11478
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11481
 msgid "No active connections"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:946
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11478
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11481
 msgid "No closed connections"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts:32
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8091
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8192
 msgid "No conflict detected"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts:189
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8213
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8314
 msgid "No enabled server inbounds configured"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/logs/initController.ts:30
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:12807
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:12810
 msgid "No logs available"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/logs/initController.ts:30
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:12807
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:12810
 msgid "No logs match the current filters"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runNftCheck.ts:105
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8318
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8419
 msgid "No other marking rules found"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts:99
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8144
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8245
 msgid "No public firewall port required"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runByedpiCheck.ts:79
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8605
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8706
 msgid "No rules use ByeDPI"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:16
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8507
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8608
 msgid "No rules use Zapret"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:16
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8536
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8637
 msgid "No rules use Zapret2"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1034
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1339
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6436
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6689
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6537
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6790
 msgid "Node list is empty"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:964
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1321
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6378
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6673
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6479
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6774
 msgid "Nodes"
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:474
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:2683
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4013
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4207
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4019
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4213
 msgid "None"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts:46
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8100
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8201
 msgid "Not configured"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts:70
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts:201
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8121
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8223
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8222
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8324
 msgid "Not detected"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/partials/renderCheckSection.ts:189
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9373
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9376
 msgid "Not implement yet"
 msgstr ""
 
@@ -2193,21 +2197,21 @@ msgstr ""
 #: fe-app-forkop/src/forkop/tabs/updates/initController.ts:844
 #: fe-app-forkop/src/forkop/tabs/updates/initController.ts:857
 #: fe-app-forkop/src/forkop/tabs/updates/initController.ts:870
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9655
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9660
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13691
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13700
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13709
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9658
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9663
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13694
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13703
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13712
 msgid "Not installed"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts:62
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8114
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8215
 msgid "Not public"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts:141
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8174
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8275
 msgid "Not required for this listen address"
 msgstr ""
 
@@ -2215,68 +2219,68 @@ msgstr ""
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runSectionsCheck.ts:116
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runSectionsCheck.ts:122
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runSectionsCheck.ts:150
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9494
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9513
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9518
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9541
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9497
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9516
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9521
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9544
 msgid "Not responding"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/diagnostic.store.ts:122
 #: fe-app-forkop/src/forkop/tabs/diagnostic/initController.ts:101
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:4562
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9907
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9910
 msgid "Not running"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4352
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4363
 msgid "Not set"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4011
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4017
 msgid "Obfuscation"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4023
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4029
 msgid "Obfuscation password"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2585
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2626
 msgid "One rule per line: pattern => replacement, applied in order. The pattern is a regular expression, $1 in the replacement keeps a captured group and ${1} keeps it in front of a letter. Example: ^HK-(.*)$ => Hong Kong $1"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8328
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8437
 msgid "Only for devices"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3056
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3299
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3363
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3103
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3354
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3418
 msgid "Only selected"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/updates/initController.ts:922
 #: fe-app-forkop/src/forkop/tabs/updates/initController.ts:944
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13752
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13773
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13755
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13776
 msgid "Open"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4146
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4201
 msgid "Open Fallback settings and enter a display name"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4610
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4702
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4680
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4772
 msgid "Open peer settings and complete the configuration"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3933
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3939
 msgid "Open the port"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5568
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8015
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5642
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8115
 msgid "Open tunnel settings and complete the configuration"
 msgstr ""
 
@@ -2285,8 +2289,8 @@ msgstr ""
 msgid "Operation timed out"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:1437
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7208
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:1463
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7302
 msgid "Option \"%s\" contains an invalid input value."
 msgstr ""
 
@@ -2301,18 +2305,18 @@ msgstr ""
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runByedpiCheck.ts:107
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:21
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:21
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8512
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8541
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8615
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8613
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8642
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8716
 msgid "Outbound is configured"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runByedpiCheck.ts:108
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:22
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:22
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8513
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8542
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8615
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8614
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8643
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8716
 msgid "Outbound is not configured"
 msgstr ""
 
@@ -2321,7 +2325,7 @@ msgstr ""
 msgid "outbounds must be a non-empty array of strings"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:518
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:520
 msgid "Output Network Interface"
 msgstr ""
 
@@ -2332,36 +2336,36 @@ msgstr ""
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runByedpiCheck.ts:71
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:13
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:13
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8504
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8533
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8600
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8605
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8634
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8701
 msgid "Package is installed"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runByedpiCheck.ts:72
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:14
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:14
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8505
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8534
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8600
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8606
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8635
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8701
 msgid "Package is not installed"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4466
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4477
 msgid "Padding"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3117
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7638
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:346
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:370
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3166
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7733
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:348
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:372
 msgid "Parallel"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3113
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7634
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:342
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:366
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3162
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7729
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:344
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:368
 msgid "Parallel asks every server at once and is faster. Sequential asks them in turn until the first answer"
 msgstr ""
 
@@ -2369,7 +2373,7 @@ msgstr ""
 msgid "Password"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5014
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5084
 msgid "Paste a configuration, a wireguard:// link or a vpn:// link"
 msgstr ""
 
@@ -2391,17 +2395,17 @@ msgstr ""
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:690
 #: fe-app-forkop/src/forkop/tabs/monitoring/render.ts:70
 #: fe-app-forkop/src/forkop/tabs/monitoring/render.ts:71
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:10775
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:10776
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11277
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:10778
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:10779
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11280
 msgid "Pause updates"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4896
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4966
 msgid "Peer hostname or IP address"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5298
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5372
 msgid "Peers"
 msgstr ""
 
@@ -2410,17 +2414,17 @@ msgstr ""
 msgid "Pending"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4946
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5344
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5016
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5418
 msgid "Persistent keepalive"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4182
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4249
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4188
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4260
 msgid "Pick a domain"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3910
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3916
 msgid "Pick a free port"
 msgstr ""
 
@@ -2429,93 +2433,93 @@ msgid "Port %s is already used by %s"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts:19
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8080
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8181
 msgid "Port conflict"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6988
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7082
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:1216
 msgid "Port must be between 1 and 65535"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6992
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7086
 msgid "Port range start must be less than or equal to end"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8346
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8455
 msgid "Ports"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runSingBoxCheck.ts:87
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8062
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8163
 msgid "Ports listening"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4920
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4990
 msgid "Pre-shared key"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:403
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:405
 msgid "Prefer IPv4"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:405
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:407
 msgid "Prefer IPv6"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:401
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:403
 msgid "Preferred IP address type for domains"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5261
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5375
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5335
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5449
 msgid "Private key"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runSingBoxCheck.ts:82
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8057
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8158
 msgid "Process running"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5358
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5432
 msgid "Profile ID"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3679
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3721
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3683
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3725
 msgid "Protocol"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runByedpiCheck.ts:64
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:11
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:11
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8502
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8531
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8595
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8603
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8632
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8696
 msgid "Provider binary is available"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runByedpiCheck.ts:65
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:12
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:12
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8503
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8532
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8595
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8604
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8633
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8696
 msgid "Provider binary is not available"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:766
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6219
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6320
 msgid "Proxy link is unavailable"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts:40
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8095
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3915
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8196
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3921
 msgid "Public address"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4907
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4977
 msgid "Public key"
 msgstr ""
 
@@ -2524,24 +2528,24 @@ msgstr ""
 msgid "QR code"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5163
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3815
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5233
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3819
 msgid "Reach the coordination server through a section instead of the WAN"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4235
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4246
 msgid "Reality needs an SNI"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4297
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4308
 msgid "Reality private key"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4316
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4327
 msgid "Reality public key"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4333
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4344
 msgid "Reality short ID"
 msgstr ""
 
@@ -2550,84 +2554,84 @@ msgstr ""
 msgid "Refill"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4767
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4837
 msgid "Register a Cloudflare WARP device and fill the profile fields."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5120
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5190
 msgid "Registers a device and fills the fields below"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6874
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6968
 msgid "Regular expression must not contain spaces or commas"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4678
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4748
 msgid "Rekey interval"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4680
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4750
 msgid "Rekey timeout"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/updates/initController.ts:763
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13622
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13625
 msgid "Remove"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2010
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2047
 msgid "Remove servers from the selection above"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2007
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2044
 msgid "Remove servers whose names match the regular expression"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3790
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3794
 msgid "Remove the node from the network once it goes offline"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2584
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2625
 msgid "Rename servers"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2953
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2993
 msgid "Request the subscription through a section"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2961
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3001
 msgid "Request through"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3988
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3994
 msgid "Require a login and password to connect to the server"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3491
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3546
 msgid "Required. Checked from top to bottom until the first working server"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4134
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4140
 msgid "Required. Create a new key with the button"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4024
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4030
 msgid "Required. Every client has to send the same value"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4298
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4309
 msgid "Required. Generate a pair with the button"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5299
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5373
 msgid "Required. Remote nodes to connect to"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4480
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4491
 msgid "Required. The clients that may connect"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3826
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3830
 msgid "Required. The section that carries the control-plane traffic"
 msgstr ""
 
@@ -2635,15 +2639,15 @@ msgstr ""
 msgid "Required. Where the traffic of this client leaves"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4566
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4577
 msgid "Required. Where the traffic of this server leaves"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:356
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:358
 msgid "Resolve the addresses of the main DNS servers and proxies. Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7608
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7703
 msgid "Resolves domains that match the section conditions. Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://"
 msgstr ""
 
@@ -2664,39 +2668,39 @@ msgid "Resource selection by IP or CIDR inside nfqws2 is not supported here; sin
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/partials/renderAvailableActions.ts:31
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9125
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9128
 msgid "Restart"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/helpers/serviceStatusDisplay.ts:13
 #: fe-app-forkop/src/forkop/tabs/diagnostic/partials/renderAvailableActions.ts:34
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5651
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9127
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5752
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9130
 msgid "Restarting..."
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:690
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11277
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11280
 msgid "Resume updates"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:811
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:869
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11375
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11420
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7527
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11378
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11423
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7621
 msgid "Route"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7674
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7769
 msgid "Route DNS requests through a section"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:414
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:416
 msgid "Route main DNS requests through a section"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3157
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3206
 msgid "Route the resolver's DNS requests through a section instead of this network interface"
 msgstr ""
 
@@ -2704,7 +2708,7 @@ msgstr ""
 msgid "Route this client on its own path instead of the rest of the server"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:434
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:436
 msgid "Router DNS"
 msgstr ""
 
@@ -2713,16 +2717,16 @@ msgid "router SSH"
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:2759
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4551
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4562
 msgid "Routing mode"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts:103
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts:114
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts:146
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8148
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8157
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8178
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8249
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8258
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8279
 msgid "Routing rules"
 msgstr ""
 
@@ -2731,76 +2735,76 @@ msgid "Routing rules are checked from top to bottom"
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:2769
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4565
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4576
 msgid "Routing section"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:668
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:670
 msgid "Rule set auto update"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7451
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7545
 msgid "Rule set must be an HTTP(S) URL or an absolute local path"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5699
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5773
 msgid "Rule set settings"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8279
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8301
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8383
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8410
 msgid "Rule sets"
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:2509
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4554
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4565
 msgid "Rules"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runNftCheck.ts:79
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8293
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8394
 msgid "Rules mangle counters"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runNftCheck.ts:74
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8288
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8389
 msgid "Rules mangle exist"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runNftCheck.ts:89
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8303
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8404
 msgid "Rules mangle output counters"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runNftCheck.ts:84
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8298
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8399
 msgid "Rules mangle output exist"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runNftCheck.ts:99
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8313
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8414
 msgid "Rules proxy counters"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runNftCheck.ts:94
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8308
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8409
 msgid "Rules proxy exist"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/partials/renderRunAction.ts:17
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9384
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9387
 msgid "Run Diagnostic"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3773
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:266
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3828
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:268
 msgid "Save"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/logs/render.ts:24
 #: fe-app-forkop/src/forkop/tabs/monitoring/render.ts:47
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:10752
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:12747
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:10755
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:12750
 msgid "Search"
 msgstr ""
 
@@ -2808,25 +2812,25 @@ msgstr ""
 msgid "Secret"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:640
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:642
 msgid "Secret key for authenticating remote access to YACD when WAN access is enabled"
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:276
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:2511
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4556
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4567
 msgid "Section"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7556
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7650
 msgid "Section name"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7578
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7672
 msgid "Section name must be unique"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7566
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7660
 msgid "Section name must not contain /"
 msgstr ""
 
@@ -2834,53 +2838,53 @@ msgstr ""
 msgid "Sections"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4203
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4209
 msgid "Security"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3186
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4730
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5185
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7695
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3241
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4800
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5259
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7792
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:2776
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3841
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3850
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:144
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3847
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3856
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:146
 msgid "Select a section"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2975
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3018
 msgid "Select a section for downloading this subscription"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8198
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8301
 msgid "Select a transit section"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7955
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8055
 msgid "Select an interface"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8211
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8315
 msgid "Select an intermediate section"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2054
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2091
 msgid "Select at least one server or set a pattern"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:519
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:521
 msgid "Select the network interface to which the traffic will originate"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:580
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:582
 msgid "Select the WAN interfaces to be monitored"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:928
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1281
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6343
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6634
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6444
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6735
 msgid "Selected"
 msgstr ""
 
@@ -2889,22 +2893,22 @@ msgstr ""
 msgid "Selector and URLTest outbounds must contain a non-empty outbounds array"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8121
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8224
 msgid "Selects the first available node by priority"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8061
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8164
 msgid "Selects the node with the lowest latency"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:660
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:662
 msgid "Send BitTorrent traffic past the proxy"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3118
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7639
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:347
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:371
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3167
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7734
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:349
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:373
 msgid "Sequential"
 msgstr ""
 
@@ -2916,11 +2920,11 @@ msgstr ""
 msgid "server %s"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4895
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4965
 msgid "Server address"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3515
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3519
 msgid "Server details"
 msgstr ""
 
@@ -2928,30 +2932,30 @@ msgstr ""
 msgid "Server details: %s"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3051
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3294
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3369
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3098
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3349
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3424
 msgid "Server filter"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3338
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3393
 msgid "Server group names must be unique"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4019
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4020
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4074
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4075
 msgid "Server group settings"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3490
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3545
 msgid "Server groups"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3958
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3964
 msgid "Server key"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3688
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3692
 msgid "Server name"
 msgstr ""
 
@@ -2965,12 +2969,12 @@ msgstr ""
 msgid "Server outbound must contain a numeric server_port from 1 to 65535"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2650
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3040
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2691
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3087
 msgid "Server parameters"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4903
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4973
 msgid "Server port"
 msgstr ""
 
@@ -2983,36 +2987,36 @@ msgstr ""
 msgid "Servers"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2032
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2069
 msgid "Servers of these protocols are not imported"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2022
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2059
 msgid "Servers of these protocols do not end up in the group"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2002
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2039
 msgid "Servers whose names match the regular expression"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/methods/shell/index.ts:345
 #: fe-app-forkop/src/forkop/tabs/diagnostic/initController.ts:196
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:2971
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9968
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9971
 msgid "Service action failed"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runSingBoxCheck.ts:72
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8047
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8148
 msgid "Service exists"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8263
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8367
 msgid "Service list"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1731
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7012
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7113
 msgid "Services info"
 msgstr ""
 
@@ -3021,12 +3025,12 @@ msgid "Set the public host and the port to get a link."
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js:311
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:1158
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:1184
 msgid "Settings"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3087
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:332
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3134
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:334
 msgid "Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://"
 msgstr ""
 
@@ -3034,11 +3038,11 @@ msgstr ""
 msgid "Show a QR code"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2998
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3041
 msgid "Show metadata"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2999
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3042
 msgid "Show the metadata block on the dashboard"
 msgstr ""
 
@@ -3048,18 +3052,18 @@ msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/initController.ts:503
 #: fe-app-forkop/src/forkop/tabs/diagnostic/partials/renderAvailableActions.ts:132
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9213
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:10198
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9216
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:10201
 msgid "sing-box configuration"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runFakeIPCheck.ts:69
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8370
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8471
 msgid "Sing-box FakeIP DNS does not work"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runFakeIPCheck.ts:68
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8370
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8471
 msgid "Sing-box FakeIP DNS works"
 msgstr ""
 
@@ -3067,7 +3071,7 @@ msgstr ""
 msgid "sing-box has no inbound of type %s"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4226
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4237
 msgid "SNI"
 msgstr ""
 
@@ -3084,12 +3088,12 @@ msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:823
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:873
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11387
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11424
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11390
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11427
 msgid "Source"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:472
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:474
 msgid "Source Network Interface"
 msgstr ""
 
@@ -3101,7 +3105,7 @@ msgstr ""
 msgid "Specify a file path"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4133
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4139
 msgid "SSH host key path"
 msgstr ""
 
@@ -3112,60 +3116,60 @@ msgstr ""
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runByedpiCheck.ts:122
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:27
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:27
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8518
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8547
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8620
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8619
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8648
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8721
 msgid "Standalone autostart is enabled"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runByedpiCheck.ts:119
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8620
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8721
 msgid "Standalone ByeDPI is active together with Forkop ByeDPI rules"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runByedpiCheck.ts:120
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:26
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:26
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8517
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8546
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8620
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8618
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8647
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8721
 msgid "Standalone service is active"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runByedpiCheck.ts:123
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:28
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:28
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8519
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8548
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8620
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8649
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8721
 msgid "Standalone service is inactive"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:23
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8514
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8615
 msgid "Standalone Zapret is active together with Forkop Zapret rules"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:23
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8543
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8644
 msgid "Standalone Zapret2 is active together with Forkop Zapret2 rules"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/partials/renderAvailableActions.ts:85
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9166
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9169
 msgid "Start"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/helpers/serviceStatusDisplay.ts:11
 #: fe-app-forkop/src/forkop/tabs/diagnostic/partials/renderAvailableActions.ts:85
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5649
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9166
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5750
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9169
 msgid "Starting..."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:220
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:245
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:284
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:222
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:247
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:286
 msgid "Static DNS records"
 msgstr ""
 
@@ -3174,87 +3178,87 @@ msgid "Status"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/partials/renderAvailableActions.ts:75
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9156
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9159
 msgid "Stop"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/helpers/serviceStatusDisplay.ts:12
 #: fe-app-forkop/src/forkop/tabs/diagnostic/partials/renderAvailableActions.ts:75
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5650
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9156
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5751
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9159
 msgid "Stopping..."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7867
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7971
 msgid "Subscription"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2932
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2972
 msgid "Subscription auto update"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6339
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6433
 msgid "Subscription must be an HTTP(S) URL or an absolute local path"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3908
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3963
 msgid "Subscription settings"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3033
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3080
 msgid "Subscription tag must be unique within the section"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3021
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3068
 msgid "Subscription tag must not contain /"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7868
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7972
 msgid "Subscription URL or local path"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1483
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6803
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6904
 msgid "Subscriptions updated"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7831
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7928
 msgid "Supported URIs: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, naiveproxy, mieru, anytls"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3254
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3309
 msgid "Switching threshold in ms at which to move to a faster server"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1681
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6971
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7072
 msgid "System info"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/partials/renderSystemInfo.ts:21
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9400
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9403
 msgid "System information"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runNftCheck.ts:69
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8283
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8384
 msgid "Table exist"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3014
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3057
 msgid "Tag"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts:98
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8143
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8244
 msgid "Tailscale endpoint"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4124
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4130
 msgid "TCP and UDP"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4439
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4450
 msgid "TCP Fast Open"
 msgstr ""
 
@@ -3269,7 +3273,7 @@ msgstr ""
 msgid "Test latency"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3916
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3922
 msgid "The address the connection links point at"
 msgstr ""
 
@@ -3277,7 +3281,7 @@ msgstr ""
 msgid "The certificate and the key must be different files"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:750
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:752
 msgid "The check is scheduled by cron: use whole minutes up to 59m, whole hours up to 23h, or exactly 1d"
 msgstr ""
 
@@ -3286,25 +3290,25 @@ msgstr ""
 msgid "The desync fwmark is managed by Forkop for loop prevention and must not be overridden here."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4168
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4227
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4174
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4238
 msgid "The domain a client sends in the TLS handshake"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:1804
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:1841
 msgid "The group joins as the single node it has selected"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:473
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:475
 msgid "The interface the traffic comes from"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3700
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3704
 msgid "The name must not contain /"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5140
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3756
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5210
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3760
 msgid "The name this device appears under in the Tailscale console"
 msgstr ""
 
@@ -3326,7 +3330,7 @@ msgstr ""
 msgid "The path must start with /"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4287
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4298
 msgid "The private key of the certificate"
 msgstr ""
 
@@ -3334,42 +3338,42 @@ msgstr ""
 msgid "The router itself becomes a proxy server for your devices"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8329
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8438
 msgid "The section conditions only match these devices"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2030
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2067
 msgid "The servers that are imported"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2031
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2068
 msgid "The servers that are not imported"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2019
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2056
 msgid "The servers that do not end up in the group"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2018
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2055
 msgid "The servers that end up in the group"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4936
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5006
 msgid "The subnets that go through this peer"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runByedpiCheck.ts:78
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8605
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8706
 msgid "There are rules using ByeDPI"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:15
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8506
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8607
 msgid "There are rules using Zapret"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:15
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8535
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8636
 msgid "There are rules using Zapret2"
 msgstr ""
 
@@ -3410,11 +3414,11 @@ msgstr ""
 msgid "This method needs a base64 key of %d bytes"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3714
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3718
 msgid "This name is already taken"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3703
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3707
 msgid "This name is reserved by Forkop"
 msgstr ""
 
@@ -3426,44 +3430,44 @@ msgstr ""
 msgid "This protocol does not support the selected security mode"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7568
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7662
 msgid "This section name is reserved by Forkop"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:814
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:870
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11378
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11421
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11381
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11424
 msgid "Time"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:869
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:871
 msgid "Time synchronisation goes directly, past the tunnel"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:937
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6352
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6453
 msgid "Tolerance"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:659
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:661
 msgid "Torrents directly"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1607
 #: fe-app-forkop/src/forkop/tabs/dashboard/partials/renderSections.ts:136
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:2053
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6911
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7012
 msgid "Traffic"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5427
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5444
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5501
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5518
 msgid "Traffic obfuscation"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1641
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6938
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7039
 msgid "Traffic Total"
 msgstr ""
 
@@ -3471,67 +3475,67 @@ msgstr ""
 msgid "Transparent proxy mode is incompatible with action=byedpi because Forkop connects to ciadpi through SOCKS."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4148
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4368
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4154
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4379
 msgid "Transport"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4392
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4403
 msgid "Transport host"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4379
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4390
 msgid "Transport path"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:391
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:393
 msgid "TTL must be a positive number"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:386
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:388
 msgid "TTL value cannot be empty"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5574
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7992
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5648
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8092
 msgid "Tunnel"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5248
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5322
 msgid "Tunnel addresses"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5094
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5164
 msgid "Tunnel name"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5521
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5595
 msgid "Tunnel settings"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5083
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5153
 msgid "Tunnel type"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:808
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:868
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11372
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11419
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11375
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11422
 msgid "Type"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7136
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7230
 msgid "Unable to validate the ByeDPI strategy through the backend parser."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7079
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7272
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7729
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7173
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7366
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7826
 msgid "Unable to validate the NFQWS strategy through the backend parser."
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7124
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7281
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7218
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7375
 msgid "Unable to validate the NFQWS2 strategy through the backend parser."
 msgstr ""
 
@@ -3541,17 +3545,17 @@ msgid "Unexpected ByeDPI strategy argument: %s"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runByedpiCheck.ts:96
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8610
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8711
 msgid "Unexpected ciadpi runtime is running"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapretCheck.ts:19
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8510
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8611
 msgid "Unexpected nfqws runtime is running"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runZapret2Check.ts:19
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8539
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8640
 msgid "Unexpected nfqws2 runtime is running"
 msgstr ""
 
@@ -3571,18 +3575,18 @@ msgstr ""
 #: fe-app-forkop/src/forkop/services/systemInfo.service.ts:22
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts:25
 #: fe-app-forkop/src/forkop/tabs/updates/initController.ts:323
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8085
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8640
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8641
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8642
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8643
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8645
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8647
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8649
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8652
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8653
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9655
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13294
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5293
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5294
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5295
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5296
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5298
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5300
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5302
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5305
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:5306
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8186
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:9658
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13297
 msgid "unknown"
 msgstr ""
 
@@ -3615,27 +3619,27 @@ msgstr ""
 msgid "Unsupported DNS server protocol. Use udp://, tcp://, tls://, https://, quic://, or h3://"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4712
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5237
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4782
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5311
 msgid "Unsupported JSON endpoint type"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/updates/initController.ts:718
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13592
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13595
 msgid "Update"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2940
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2980
 msgid "Update interval"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/updates/initController.ts:281
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13262
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13265
 msgid "Update is available"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/updates/initController.ts:908
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13740
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13743
 msgid "Update is available:"
 msgstr ""
 
@@ -3648,7 +3652,7 @@ msgstr ""
 msgid "Update lists"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:669
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:671
 msgid "Update remote lists and rule sets on a schedule"
 msgstr ""
 
@@ -3663,19 +3667,19 @@ msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1609
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:1644
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6913
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6941
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7014
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:7042
 msgid "Uplink"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4041
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4047
 msgid "Upload, Mbps"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:820
 #: fe-app-forkop/src/forkop/tabs/monitoring/initController.ts:872
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11384
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11423
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11387
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11426
 msgid "Uploaded"
 msgstr ""
 
@@ -3684,7 +3688,7 @@ msgstr ""
 msgid "URL must use one of the following protocols:"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8060
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8163
 msgid "URLTest"
 msgstr ""
 
@@ -3693,22 +3697,22 @@ msgstr ""
 #: fe-app-forkop/src/forkop/tabs/dashboard/partials/renderSections.ts:455
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:2297
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:2298
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6461
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6562
 msgid "URLTest details"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:919
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6339
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6440
 msgid "URLTest details are unavailable"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3960
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3961
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4015
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4016
 msgid "URLTest settings"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2278
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2292
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2315
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2329
 msgid "Use *, status codes, or ranges such as 204/200-299"
 msgstr ""
 
@@ -3755,8 +3759,8 @@ msgstr ""
 msgid "Use an https:// URL to proxy a site or file:// to serve a directory"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4627
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4631
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4697
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4701
 msgid "Use an IP address with a CIDR prefix"
 msgstr ""
 
@@ -3768,7 +3772,7 @@ msgstr ""
 msgid "Use an OpenSSH public key line"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8160
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8263
 msgid "Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, Tailscale, JSON outbounds, or JSON endpoints"
 msgstr ""
 
@@ -3781,25 +3785,25 @@ msgstr ""
 msgid "Use lowercase letters, digits and hyphens"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6285
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6292
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6299
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:699
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:706
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:746
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6379
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6386
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6393
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:701
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:708
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:748
 msgid "Use sing-box duration format like 1d, 12h or 30m"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3779
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:3783
 msgid "Use subnets other devices share"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2598
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2639
 msgid "Use the pattern => replacement form"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts:25
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8085
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8186
 msgid "Used by"
 msgstr ""
 
@@ -3835,8 +3839,8 @@ msgstr ""
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:390
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:421
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:475
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6867
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6880
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6961
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6974
 msgid "Valid"
 msgstr ""
 
@@ -3844,7 +3848,7 @@ msgstr ""
 msgid "Validation errors:"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6857
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:6951
 msgid "Value cannot be empty"
 msgstr ""
 
@@ -3854,48 +3858,48 @@ msgid "Value must not contain control characters"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runSingBoxCheck.ts:67
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8042
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8143
 msgid "Version is compatible (newer than 1.12.4)"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts:70
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8121
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8222
 msgid "WAN"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts:200
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8222
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:8323
 msgid "WAN public IP"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5119
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5189
 msgid "WARP profile"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7587
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7681
 msgid "What to do when this section's conditions match"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4552
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4563
 msgid "Where to send the traffic from this server"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3295
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3370
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3350
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3425
 msgid "Which servers end up in the group"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3052
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:3099
 msgid "Which servers to import"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:432
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:434
 msgid "Who resolves domains no rule matched"
 msgstr ""
 
 #: fe-app-forkop/src/helpers/parseWireGuardConfig.ts:499
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:793
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4774
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4844
 msgid "WireGuard address and private key are required"
 msgstr ""
 
@@ -3919,57 +3923,57 @@ msgstr ""
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:798
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:821
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:835
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4556
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4575
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4757
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4777
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4914
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4929
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5272
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5490
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4626
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4645
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4827
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4847
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4984
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4999
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5346
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5564
 msgid "WireGuard keys must be standard base64-encoded 32-byte values"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4882
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4888
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4952
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4958
 msgid "WireGuard peer"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4589
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4659
 msgid "WireGuard peer allowed_ips must contain valid CIDR subnets"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4560
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4630
 msgid "WireGuard peer contains unsupported fields"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4567
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4601
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4637
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4671
 msgid "WireGuard peer fields must use native sing-box JSON types"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:4974
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:5044
 msgid "WireGuard peer settings"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:7993
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:8093
 msgid "WireGuard, AmneziaWG, Cloudflare WARP, Tailscale and JSON endpoint are available"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2545
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js:2586
 msgid "Write ${1} instead of $1 when a letter follows the group number"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4427
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:4438
 msgid "XHTTP mode"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:639
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:641
 msgid "YACD Secret Key"
 msgstr ""
 
 #: fe-app-forkop/src/forkop/tabs/dashboard/initController.ts:771
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6223
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:6324
 msgid "Yes"
 msgstr ""
 
