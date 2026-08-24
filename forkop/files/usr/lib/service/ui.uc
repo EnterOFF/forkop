@@ -521,13 +521,6 @@ function forkop_running() {
     );
 }
 
-// Whether client DNS is captured into the running service: the nft redirect is
-// created and torn down together with the runtime table, so while Forkop runs
-// the capture is on unless the user disabled it.
-function dns_configured(running) {
-    return running && uci_core.get(CONFIG_NAME + ".settings.disable_dns_capture") != "1";
-}
-
 function server_inbounds_enabled_count() {
     let count = 0;
     for (let section in uci_core.section_objects(CONFIG_NAME, "server")) {
@@ -597,8 +590,7 @@ function current_ui_state() {
                 enabled: forkop_is_enabled,
                 status: forkop_status,
                 busy: service_busy_value(),
-                busy_seconds: active_service_action_seconds(),
-                dns_configured: dns_configured(forkop_is_running) ? 1 : 0
+                busy_seconds: active_service_action_seconds()
             },
             sing_box: {
                 running: sing_box_is_running,

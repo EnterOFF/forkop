@@ -733,41 +733,26 @@ JSON
 nft_ucode nft-populate-runtime-sets-fixture "$WORK_DIR/system-proxy-fixture.json" 1 "" ForkopTable
 assert_contains "$NFT_LOG" $'nft\tadd\tchain\tinet\tForkopTable\tsystem_dns_redirect\t{ type nat hook output priority -151; policy accept; }' "a fully routed System proxy captures the router DNS"
 
-# With the capture disabled the same configuration leaves the router DNS alone.
-cat >"$WORK_DIR/system-proxy-no-capture-fixture.json" <<'JSON'
-{
-  "settings": { ".name": "settings", ".type": "settings", "disable_dns_capture": "1" },
-  "section": [
-    {
-      ".name": "vpn",
-      ".type": "section",
-      "enabled": "1",
-      "action": "proxy",
-      "fully_routed_ips": [ "@system" ]
-    }
-  ]
-}
-JSON
+# Excluded devices are ignored by every capture path: the client DNS redirect
+# and the mangle marking both return their traffic before touching it.
 : > "$NFT_LOG"
-nft_ucode nft-populate-runtime-sets-fixture "$WORK_DIR/system-proxy-no-capture-fixture.json" 1 "" ForkopTable
-if grep -Fq 'system_dns_redirect' "$NFT_LOG"; then
-  fail "disabled DNS capture must not create the system redirect chain"
-fi
+nft_ucode nft-create-runtime-base ForkopTable localv4 forkop_interfaces "br-lan" 0x00100000 0x00200000 198.18.0.0/15 1602 0 localv6 fc00::/18 ::1 "192.168.1.50 2001:db8::5/128"
+assert_contains "$NFT_LOG" $'nft\tadd\tset\tinet\tForkopTable\tforkop_excluded\t{ type ipv4_addr; flags interval; auto-merge; }' "excluded device set"
+assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_excluded\t{ 192.168.1.50 }' "excluded device address"
+assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_excluded6\t{ 2001:db8::5/128 }' "excluded IPv6 device address"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tdns_redirect\tip\tsaddr\t@forkop_excluded\tcounter\treturn' "excluded devices keep their own DNS"
+assert_line_before "$NFT_LOG" $'dns_redirect\tip\tsaddr\t@forkop_excluded\tcounter\treturn' $'dns_redirect\tiifname\t@forkop_interfaces\ttcp\tdport\t53' "the DNS exclusion comes before the redirect"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle\tip\tsaddr\t@forkop_excluded\tcounter\treturn' "excluded devices leave the traffic capture"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle\tip6\tsaddr\t@forkop_excluded6\tcounter\treturn' "excluded IPv6 devices leave the traffic capture"
+assert_line_before "$NFT_LOG" $'mangle\tip\tsaddr\t@forkop_excluded\tcounter\treturn' $'mangle\tjump\tpriority_rules' "the exclusion comes before any section rule can match"
 
-# The client capture obeys the same switch and the exclusion list.
+# Without the list neither the sets nor the return rules exist.
 : > "$NFT_LOG"
-nft_ucode nft-create-runtime-base ForkopTable localv4 forkop_interfaces "br-lan" 0x00100000 0x00200000 198.18.0.0/15 1602 0 localv6 fc00::/18 ::1 0 ""
-if grep -Fq 'dns_redirect' "$NFT_LOG"; then
-  fail "disabled DNS capture must not create the client redirect chain"
+nft_ucode nft-create-runtime-base ForkopTable localv4 forkop_interfaces "br-lan" 0x00100000 0x00200000 198.18.0.0/15 1602 0 localv6 fc00::/18 ::1 ""
+if grep -Fq 'forkop_excluded' "$NFT_LOG"; then
+  fail "an empty exclusion list must not create sets or rules"
 fi
-
-: > "$NFT_LOG"
-nft_ucode nft-create-runtime-base ForkopTable localv4 forkop_interfaces "br-lan" 0x00100000 0x00200000 198.18.0.0/15 1602 0 localv6 fc00::/18 ::1 1 "192.168.1.50 2001:db8::5/128"
-assert_contains "$NFT_LOG" $'nft\tadd\tset\tinet\tForkopTable\tforkop_dns_exclude\t{ type ipv4_addr; flags interval; auto-merge; }' "DNS exclusion set"
-assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_dns_exclude\t{ 192.168.1.50 }' "excluded device address"
-assert_contains "$NFT_LOG" $'nft\tadd\telement\tinet\tForkopTable\tforkop_dns_exclude6\t{ 2001:db8::5/128 }' "excluded IPv6 device address"
-assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tdns_redirect\tip\tsaddr\t@forkop_dns_exclude\tcounter\treturn' "excluded devices leave the capture"
-assert_line_before "$NFT_LOG" $'dns_redirect\tip\tsaddr\t@forkop_dns_exclude\tcounter\treturn' $'dns_redirect\tiifname\t@forkop_interfaces\ttcp\tdport\t53' "exclusions come before the redirect"
+assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tdns_redirect\tiifname\t@forkop_interfaces\tudp\tdport\t53\tcounter\tredirect\tto\t:1603' "the client DNS capture is unconditional"
 
 # The nft signature is a hash of the ruleset the builders would produce, so what
 # it answers is "would the table come out different". These pin that: creating a

@@ -205,7 +205,6 @@ describe('ForkopShellMethods.componentAction', () => {
                 running: 0,
                 enabled: 1,
                 status: 'stopped but enabled',
-                dns_configured: 0,
               },
               sing_box: {
                 running: 0,

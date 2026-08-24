@@ -32,8 +32,7 @@ export async function runDnsCheck() {
   }
 
   const data = dnsChecks.data;
-  const { state, description, captureItemState, captureItemKey } =
-    getDnsCheckPresentation(data);
+  const { state, description } = getDnsCheckPresentation(data);
 
   updateCheckStore({
     order,
@@ -63,8 +62,8 @@ export async function runDnsCheck() {
         value: data.local_dns_server,
       },
       {
-        state: captureItemState,
-        key: captureItemKey,
+        state: data.dns_capture_status ? 'success' : 'error',
+        key: _('DNS capture active'),
         value: '',
       },
     ],

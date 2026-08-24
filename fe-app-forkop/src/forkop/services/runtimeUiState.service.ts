@@ -65,7 +65,6 @@ function stateSignature(uiState: Forkop.UiState) {
     forkop.running,
     forkop.enabled,
     forkop.busy || '',
-    forkop.dns_configured,
     uiState.service.sing_box.running,
     [...uiState.actions.service, ...uiState.actions.component].filter(
       (action) => action.running,

@@ -5064,7 +5064,6 @@ function stateSignature(uiState) {
     forkop.running,
     forkop.enabled,
     forkop.busy || "",
-    forkop.dns_configured,
     uiState.service.sing_box.running,
     [...uiState.actions.service, ...uiState.actions.component].filter(
       (action) => action.running
@@ -7929,21 +7928,9 @@ function getMeta({ allGood, atLeastOneGood }) {
 
 // src/forkop/tabs/diagnostic/checks/getDnsCheckPresentation.ts
 function getDnsCheckPresentation(data) {
-  const captureDisabled = Boolean(data.dns_capture_disabled);
-  const captureOk = captureDisabled || Boolean(data.dns_capture_status);
-  const allGood = Boolean(data.dns_on_router) && Boolean(data.local_dns_status) && captureOk && Boolean(data.bootstrap_dns_status) && Boolean(data.dns_status);
-  const atLeastOneGood = Boolean(data.dns_on_router) || Boolean(data.local_dns_status) || captureOk || Boolean(data.bootstrap_dns_status) || Boolean(data.dns_status);
-  const meta = getMeta({ atLeastOneGood, allGood });
-  const state = captureDisabled && meta.state === "success" ? "warning" : meta.state;
-  const description = captureDisabled && meta.state === "success" ? _("Checks passed with DNS capture disabled") : meta.description;
-  const captureItemState = captureDisabled ? "warning" : data.dns_capture_status ? "success" : "error";
-  const captureItemKey = captureDisabled ? _("DNS capture is disabled") : _("DNS capture active");
-  return {
-    state,
-    description,
-    captureItemState,
-    captureItemKey
-  };
+  const allGood = Boolean(data.dns_on_router) && Boolean(data.local_dns_status) && Boolean(data.dns_capture_status) && Boolean(data.bootstrap_dns_status) && Boolean(data.dns_status);
+  const atLeastOneGood = Boolean(data.dns_on_router) || Boolean(data.local_dns_status) || Boolean(data.dns_capture_status) || Boolean(data.bootstrap_dns_status) || Boolean(data.dns_status);
+  return getMeta({ atLeastOneGood, allGood });
 }
 
 // src/forkop/tabs/diagnostic/checks/runDnsCheck.ts
@@ -7970,7 +7957,7 @@ async function runDnsCheck() {
     throw new Error("DNS checks failed");
   }
   const data = dnsChecks.data;
-  const { state, description, captureItemState, captureItemKey } = getDnsCheckPresentation(data);
+  const { state, description } = getDnsCheckPresentation(data);
   updateCheckStore({
     order,
     code,
@@ -7999,8 +7986,8 @@ async function runDnsCheck() {
         value: data.local_dns_server
       },
       {
-        state: captureItemState,
-        key: captureItemKey,
+        state: data.dns_capture_status ? "success" : "error",
+        key: _("DNS capture active"),
         value: ""
       }
     ]
@@ -14349,7 +14336,6 @@ return baseclass.extend({
   MonitoringTab,
   UpdatesTab,
   analyzeStaticHosts,
-  applyUiStateToStore,
   bulkValidate,
   coreService,
   getClashUIUrl,

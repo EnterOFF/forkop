@@ -29,7 +29,6 @@ function createUiState(
         running,
         enabled: 1,
         status,
-        dns_configured: running,
       },
       sing_box: {
         running,

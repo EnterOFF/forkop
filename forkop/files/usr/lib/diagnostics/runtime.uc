@@ -940,20 +940,12 @@ function sing_box_process_is_running() {
     return sing_box_process_running_for_check();
 }
 
-function write_service_status(running, enabled, dns_configured) {
+function write_service_status(running, enabled) {
     write_json({
         running,
         enabled,
-        status: health.service_status_text(running, enabled),
-        dns_configured
+        status: health.service_status_text(running, enabled)
     });
-}
-
-// Whether client DNS is captured into the running service: the nft redirect is
-// created and torn down together with the runtime table, so while the service
-// runs the capture is on unless the user disabled it.
-function dns_capture_configured() {
-    return !bool_option(settings(), "disable_dns_capture", false);
 }
 
 function get_sing_box_status() {
@@ -962,8 +954,7 @@ function get_sing_box_status() {
         RUNTIME_STABLE_MIN_AGE
     ]) ? 1 : 0;
     let enabled = file_executable("/etc/rc.d/S99sing-box") ? 1 : 0;
-    let dns_configured = running && dns_capture_configured() ? 1 : 0;
-    write_service_status(running, enabled, dns_configured);
+    write_service_status(running, enabled);
     return 0;
 }
 
@@ -972,8 +963,7 @@ function get_status() {
         "forkop-stably-running", RT_TABLE_NAME, NFT_TABLE_NAME, NFT_FAKEIP_MARK, RUNTIME_STABLE_MIN_AGE
     ]) ? 1 : 0;
     let enabled = file_executable("/etc/rc.d/S99" + FORKOP_SERVICE_NAME) ? 1 : 0;
-    let dns_configured = running && dns_capture_configured() ? 1 : 0;
-    write_service_status(running, enabled, dns_configured);
+    write_service_status(running, enabled);
     return 0;
 }
 
@@ -1092,13 +1082,11 @@ function dns_check_router_resolver_available(domain) {
 }
 
 // Where sing-box hands unmatched client queries back to; must match what
-// singbox/generator.uc dials, or the check proves the wrong resolver.
+// singbox/generator.uc dials, or the check proves the wrong resolver. A
+// dnsmasq moved off this port with nothing put in its place is exactly what
+// this check is here to report: the router itself resolves through it too.
 function local_resolver_target() {
-    let value = trim(as_string(uci_core.get("dhcp.@dnsmasq[0].port")));
-    if (match(value, /^[0-9]+$/) == null)
-        return { address: "127.0.0.1", port: 53 };
-    let port = int(value, 10);
-    return { address: "127.0.0.1", port: port >= 1 && port <= 65535 ? port : 53 };
+    return { address: "127.0.0.1", port: 53 };
 }
 
 // The local resolver answers "localhost" from its own hosts data, so an answer
@@ -1124,7 +1112,6 @@ function dns_available_value() {
     let cfg = settings();
     let dns_servers = runtime_dns.server_list(cfg, "dns_server", "77.88.8.8");
     let bootstrap_dns_servers = runtime_dns.server_list(cfg, "bootstrap_dns_server", "77.88.8.8");
-    let dns_capture_disabled = bool_option(cfg, "disable_dns_capture", false) ? 1 : 0;
     let domain = "example.com";
     let timeout_seconds = 2;
     let dns_status = 0;
@@ -1165,7 +1152,7 @@ function dns_available_value() {
 
     let local_dns = local_resolver_target();
     let local_dns_status = local_resolver_answers(local_dns, timeout_seconds) ? 1 : 0;
-    let dns_capture_status = !dns_capture_disabled && dns_capture_chain_active() ? 1 : 0;
+    let dns_capture_status = dns_capture_chain_active() ? 1 : 0;
 
     let display_dns_servers = [];
     for (let dns_server in dns_servers)
@@ -1178,8 +1165,7 @@ function dns_available_value() {
         bootstrap_dns_status,
         local_dns_server: local_dns.address + ":" + as_string(local_dns.port),
         local_dns_status,
-        dns_capture_status,
-        dns_capture_disabled
+        dns_capture_status
     };
 }
 

@@ -33,7 +33,6 @@ export { getOutboundTagBySection } from './forkop/runtimeTags';
 export { ForkopShellMethods } from './forkop/methods/shell';
 export { coreService } from './forkop/services/core.service';
 export { store } from './forkop/services/store.service';
-export { applyUiStateToStore } from './forkop/services/uiState.service';
 export { DashboardTab } from './forkop/tabs/dashboard';
 export { DiagnosticTab } from './forkop/tabs/diagnostic';
 export { MonitoringTab } from './forkop/tabs/monitoring';

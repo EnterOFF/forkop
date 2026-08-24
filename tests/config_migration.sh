@@ -359,7 +359,8 @@ assert(config.settings.download_components_via_proxy === '1', 'download_componen
 assert(config.settings.download_lists_via_proxy_section === 'legacy-urltest', 'download section should be preserved for lists/components');
 assert(config.settings.download_components_via_proxy_section === 'legacy-urltest', 'component download section should be migrated from the legacy common selector');
 absent(config.settings, 'download_subscriptions_via_proxy', 'settings');
-absent(config.settings, 'routing_excluded_ips', 'settings');
+assert(JSON.stringify(config.settings.routing_excluded_ips) === JSON.stringify(['192.0.2.0/24']),
+  'podkop routing exclusions carry the same intent and must survive');
 
 const legacyUrl = sections['legacy-url'];
 assert(legacyUrl['.type'] === 'section', 'legacy rule should become section');
@@ -1486,9 +1487,8 @@ grep -Eq '^forkop\.cfg[0-9a-f]+\.name=' "$WORK_DIR/runtime-migrate.state" ||
 if grep -Fq 'forkop.legacy.urltest_enabled=' "$WORK_DIR/runtime-migrate.state"; then
   fail "runtime migration must delete migrated urltest_enabled through core.uci"
 fi
-if grep -Fq 'forkop.settings.routing_excluded_ips=' "$WORK_DIR/runtime-migrate.state"; then
-  fail "runtime migration must delete removed routing_excluded_ips through core.uci"
-fi
+grep -Fq 'forkop.settings.routing_excluded_ips=192.0.2.0/24' "$WORK_DIR/runtime-migrate.state" ||
+  fail "runtime migration must keep podkop routing exclusions"
 if grep -Fq 'forkop.legacy.proxy_string=' "$WORK_DIR/runtime-migrate.state"; then
   fail "runtime migration must delete legacy proxy_string through core.uci"
 fi
@@ -2182,7 +2182,7 @@ function assert(condition, message) {
   }
 }
 
-assert(settings.disable_dns_capture === '1', 'dont_touch_dhcp intent must survive as disable_dns_capture');
+assert(!Object.prototype.hasOwnProperty.call(settings, 'disable_dns_capture'), 'no capture switch exists to migrate into');
 assert(!Object.prototype.hasOwnProperty.call(settings, 'dont_touch_dhcp'), 'released dont_touch_dhcp must be removed');
 assert(!Object.prototype.hasOwnProperty.call(settings, 'shutdown_correctly'), 'released shutdown_correctly must be removed');
 assert(settings.applied_migrations.includes('dns_capture_settings'), 'settings migration must be recorded');
@@ -2296,6 +2296,8 @@ assert(JSON.stringify(backups.set_lists.server) === JSON.stringify(['1.1.1.1', '
 assert(backups.set.noresolv === '0' && backups.set.cachesize === '150', 'options without a recorded value return to OpenWrt defaults');
 assert(backups.delete_options.includes('rebind_protection'), 'a rebind protection recorded as absent must be removed');
 assert(backups.delete_options.includes('forkop_server') && backups.delete_options.includes('forkop_rebind_protection'), 'the backup options themselves must go');
+assert(backups.summary.includes("server='1.1.1.1 tls://8.8.8.8'") && backups.summary.includes("noresolv='0'") &&
+  backups.summary.includes('removed rebind_protection'), 'the log summary must name every value the restore put back');
 
 assert(bare.changed === true, 'a takeover without backups must still be cleaned');
 assert(JSON.stringify(bare.set_lists.server) === JSON.stringify(['192.168.10.1']), 'only the sing-box resolver entry leaves the server list');
@@ -2346,7 +2348,7 @@ grep -Fq 'dhcp.cfg01.noresolv=0' "$WORK_DIR/restore-runtime.state" ||
 grep -Eq 'dhcp\.cfg01\.(forkop_server|forkop_rebind_protection|rebind_protection)=' "$WORK_DIR/restore-runtime.state" &&
   fail "the takeover leftovers must leave /etc/config/dhcp"
 grep -Fq 'forkop.settings.disable_dns_capture' "$WORK_DIR/restore-runtime.state" &&
-  fail "a disabled dont_touch_dhcp must not become a capture switch"
+  fail "no capture switch may appear in the migrated configuration"
 grep -Fq 'shutdown_correctly' "$WORK_DIR/restore-runtime.state" &&
   fail "shutdown_correctly must leave the runtime configuration"
 grep -Fxq 'commit dhcp' "$WORK_DIR/restore-runtime.log" ||

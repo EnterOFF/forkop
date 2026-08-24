@@ -449,17 +449,13 @@ assert_eq "$(md5_file "$WORK_DIR/service-trigger.expected")" \
   "$(state_ucode service-trigger-signature-fixture "$WORK_DIR/service-dns-state.json")" \
   "service trigger signature hash"
 
-# The local resolver location is part of the generated sing-box config, so the
-# sing-box signature must move when dnsmasq is moved to another port or domain.
+# The DHCP domain stays on the local resolver in the generated config, so the
+# sing-box signature must move when it is renamed.
 sing_box_body="$(state_ucode sing-box-signature-body-fixture "$WORK_DIR/service-dns-state.json")"
 for expected_field in \
-  '[dhcp.@dnsmasq[0].port]
-5353' \
   '[dhcp.@dnsmasq[0].domain]
 home' \
-  '[settings.disable_dns_capture]' \
-  '[settings.unmatched_dns_mode]' \
-  '[settings.dns_capture_exclude_ips]'; do
+  '[settings.unmatched_dns_mode]'; do
   case "$sing_box_body" in
     *"$expected_field"* ) ;;
     *) fail "sing-box signature must carry $expected_field" ;;
@@ -653,14 +649,8 @@ JSON
 cat >"$WORK_DIR/sing-box-signature.expected" <<'EOF_SING_BOX_SIG'
 [settings.dns_strategy]
 prefer_ipv6
-[settings.disable_dns_capture]
-0
 [settings.unmatched_dns_mode]
 router
-[settings.dns_capture_exclude_ips]
-
-[dhcp.@dnsmasq[0].port]
-
 [dhcp.@dnsmasq[0].domain]
 
 [settings.dns_server]

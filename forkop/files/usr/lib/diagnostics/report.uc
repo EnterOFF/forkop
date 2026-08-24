@@ -92,10 +92,7 @@ function dns_check(value) {
         dump_dhcp_config = true;
     }
 
-    if (is_set(value.dns_capture_disabled))
-        push(lines, "⚠️ DNS capture is disabled; client domain rules are not applied");
-    else
-        push(lines, is_set(value.dns_capture_status) ? "✅ DNS capture active" : "❌ DNS capture rules are not loaded");
+    push(lines, is_set(value.dns_capture_status) ? "✅ DNS capture active" : "❌ DNS capture rules are not loaded");
 
     return { lines, dump_dhcp_config };
 }

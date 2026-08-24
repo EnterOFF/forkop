@@ -21,7 +21,6 @@ function createUiState(
         enabled: 1,
         status: 'stopped but enabled',
         busy: 'start',
-        dns_configured: 0,
         ...forkop,
       },
       sing_box: {

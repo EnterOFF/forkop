@@ -390,8 +390,7 @@ function settled_running(observed_running, process_alive, prev_running, down_sin
 // The instantaneous state says what is true this instant; what this process
 // publishes is what has settled. While the grace holds a flip back, the
 // running-derived fields are kept coherent with it: the status text follows the
-// held value and the fresh enabled bit, and dns_configured keeps what the last
-// running payload said, because it only means anything for a running service.
+// held value and the fresh enabled bit.
 function apply_settled_running(payload) {
     let forkop = payload.service.forkop;
     let previous = state.payload;
@@ -412,7 +411,6 @@ function apply_settled_running(payload) {
 
     forkop.running = 1;
     forkop.status = health.service_status_text(1, forkop.enabled);
-    forkop.dns_configured = previous.service.forkop.dns_configured;
     // The premise of holding the value is that the process exists, so the
     // sing-box row must not contradict it while a respawned process is still
     // younger than its own stability age.

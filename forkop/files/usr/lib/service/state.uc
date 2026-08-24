@@ -122,10 +122,6 @@ function uci_get(path) {
     return uci_core.get(path);
 }
 
-function uci_exists(path) {
-    return uci_core.exists(path);
-}
-
 function object_or_empty(value) {
     return type(value) == "object" ? value : {};
 }
@@ -831,12 +827,9 @@ function sing_box_signature_body(settings, sections, servers, mwan3_active, loca
     let body = "";
 
     body = signature_add_value(body, "settings.dns_strategy", option(settings, "dns_strategy", "prefer_ipv4"));
-    body = signature_add_value(body, "settings.disable_dns_capture", bool_option_value(settings, "disable_dns_capture", false));
     body = signature_add_value(body, "settings.unmatched_dns_mode", option(settings, "unmatched_dns_mode", "router"));
-    body = signature_add_value(body, "settings.dns_capture_exclude_ips", option(settings, "dns_capture_exclude_ips", ""));
-    // The generated config dials the local resolver where dnsmasq actually
-    // listens, so moving or renaming it has to count as a config change.
-    body = signature_add_value(body, "dhcp.@dnsmasq[0].port", option(local_dns, "port", ""));
+    // The generated config keeps the DHCP domain on the local resolver, so
+    // renaming it has to count as a configuration change.
     body = signature_add_value(body, "dhcp.@dnsmasq[0].domain", option(local_dns, "domain", ""));
     for (let value in list_option(settings, "dns_server", "77.88.8.8"))
         body = signature_add_value(body, "settings.dns_server", value);
@@ -1062,7 +1055,6 @@ function uci_settings() {
 
 function uci_dnsmasq() {
     return {
-        port: uci_get("dhcp.@dnsmasq[0].port"),
         domain: uci_get("dhcp.@dnsmasq[0].domain")
     };
 }

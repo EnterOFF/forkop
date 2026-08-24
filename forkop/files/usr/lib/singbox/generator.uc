@@ -14,11 +14,6 @@ let rule_config = require("config.rule");
 let connections = require("config.connections");
 let uci = null;
 let fixture_uci_data = null;
-
-// Whether client and router DNS is captured into sing-box at all. Set from the
-// settings once per generation; device-scoped DNS rules and the capture
-// inbounds only exist while it is on.
-let runtime_dns_capture = true;
 let runtime_settings_cache = null;
 
 let as_string = common.as_string;
@@ -142,25 +137,9 @@ function dhcp_dnsmasq_section() {
     return object_or_empty(uci_core.get_all("dhcp", "@dnsmasq[0]"));
 }
 
-// Where unmatched client queries are handed back to. dnsmasq owns 127.0.0.1:53
-// unless it was moved off the port; an AdGuard Home install keeps dnsmasq on
-// another port or disables it, and whatever replaced it takes 127.0.0.1:53 by
-// the same convention the system resolver relies on.
-function local_resolver_port() {
-    let value = trim(as_string(option(dhcp_dnsmasq_section(), "port", "")));
-    if (match(value, /^[0-9]+$/) == null)
-        return 53;
-    let port = int(value, 10);
-    return port >= 1 && port <= 65535 ? port : 53;
-}
-
 function local_resolver_domain() {
     let value = trim(as_string(option(dhcp_dnsmasq_section(), "domain", "")));
     return value == "" ? "lan" : value;
-}
-
-function dns_capture_enabled(settings) {
-    return !bool_option(settings, "disable_dns_capture", false);
 }
 
 // The server that answers a client query no section rule claimed: the local
@@ -325,12 +304,6 @@ function device_matcher_variants(section, key, dns) {
     let devices = connections.device_matchers(section, key);
     if (!devices.selected)
         return [ dns ? {} : { inbound: tproxy_inbound_matcher() } ];
-
-    // A device-scoped DNS rule matches on the capture inbound the device's
-    // queries arrive through. Without the capture those inbounds do not exist
-    // and the rule could never match, so it is not emitted at all.
-    if (dns && !runtime_dns_capture)
-        return [];
 
     let result = [];
     if (length(devices.ips) > 0)
@@ -1756,12 +1729,16 @@ function system_aware_dns_enabled(sections) {
     return false;
 }
 
+// Unmatched client queries go back to whoever owns loopback port 53, which is
+// what the router itself resolves through: usually dnsmasq, or AdGuard Home
+// with dnsmasq moved behind it. Following dnsmasq to its own port instead
+// would walk around such a front resolver and drop its filtering.
 function add_source_aware_dns_support(config) {
     push(config.dns.servers, {
         type: "udp",
         tag: runtime_constants.DNSMASQ_DNS_SERVER_TAG,
         server: "127.0.0.1",
-        server_port: local_resolver_port()
+        server_port: 53
     });
 }
 
@@ -2364,16 +2341,14 @@ function generate_config(output_path, service_address, mwan3_active, deferred_se
     if (length(sections) == 0 && length(servers) == 0 && trim(as_string(deferred_sections)) == "")
         runtime_generate_unsupported("no usable sections or servers");
 
-    runtime_dns_capture = dns_capture_enabled(settings);
-    let system_aware_dns = runtime_dns_capture && system_aware_dns_enabled(sections);
+    let system_aware_dns = system_aware_dns_enabled(sections);
     let config = base_config(settings, service_address, {
         mwan3_active: cli_bool(mwan3_active),
-        source_aware_dns: runtime_dns_capture,
+        source_aware_dns: true,
         system_aware_dns,
         direct_server_route: has_direct_tailscale_server(servers)
     });
-    if (runtime_dns_capture)
-        add_source_aware_dns_support(config);
+    add_source_aware_dns_support(config);
     let static_hosts = static_hosts_config();
     add_static_hosts_support(config, static_hosts);
     let taken = reserved_runtime_tag_set(config.outbounds);
@@ -2386,8 +2361,7 @@ function generate_config(output_path, service_address, mwan3_active, deferred_se
     for (let section in sections)
         add_route_for_section(config, section);
     add_static_hosts_dns_rule(config, static_hosts);
-    if (runtime_dns_capture)
-        add_source_aware_dns_fallback(config, system_aware_dns);
+    add_source_aware_dns_fallback(config, system_aware_dns);
     add_server_routes(config, servers, sections);
     add_service_mixed_proxy(config, settings, sections);
 

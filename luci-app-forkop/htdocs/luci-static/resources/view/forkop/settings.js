@@ -4,6 +4,7 @@
 "require ui";
 "require baseclass";
 "require tools.widgets as widgets";
+"require view.forkop.local_devices as localDevices";
 "require view.forkop.main as main";
 "require view.forkop.section as sectionView";
 
@@ -428,23 +429,24 @@ function createSettingsContent(section, capabilities) {
     form.ListValue,
     "unmatched_dns_mode",
     _("DNS outside the rules"),
-    _(
-      "Who resolves domains no rule matched. The router resolver keeps local names, ad blocking and the provider DNS; Forkop DNS resolves everything itself and leaves only local names on the router",
-    ),
+    _("Who resolves domains no rule matched"),
   );
-  o.value("router", _("Router resolver"));
+  o.value("router", _("Router DNS"));
   o.value("forkop", _("Forkop DNS"));
   o.default = "router";
   o.rmempty = false;
 
-  const dnsExcludeOption = section.option(
+  const excludedDevicesOption = section.option(
     form.DynamicList,
-    "dns_capture_exclude_ips",
-    _("Do not capture DNS from"),
-    _("These devices keep the DNS servers they have configured themselves"),
+    "routing_excluded_ips",
+    _("Exclude devices from routing"),
+    _(
+      "Forkop ignores these devices entirely: their traffic is not routed and their DNS is not captured",
+    ),
   );
-  dnsExcludeOption.placeholder = _("Device or IP");
-  dnsExcludeOption.validate = function (_section_id, value) {
+  excludedDevicesOption.placeholder = _("Device or IP");
+  excludedDevicesOption.excludeSystemDevice = true;
+  excludedDevicesOption.validate = function (_section_id, value) {
     if (!value || value.length === 0) {
       return true;
     }
@@ -452,17 +454,17 @@ function createSettingsContent(section, capabilities) {
     const validation = main.validateSubnet(value);
     return validation.valid ? true : validation.message;
   };
-
-  o = section.option(
-    form.Flag,
-    "disable_dns_capture",
-    _("Do not capture DNS"),
-    _(
-      "Leave client DNS untouched. Domain rules stop working for clients: without the capture their requests never reach Forkop",
-    ),
-  );
-  o.default = "0";
-  o.rmempty = false;
+  excludedDevicesOption.renderWidget = function (
+    section_id,
+    _option_index,
+    cfgvalue,
+  ) {
+    return localDevices.createLocalDeviceDynamicListWidget(
+      this,
+      section_id,
+      cfgvalue,
+    );
+  };
 
   o = section.option(
     widgets.DeviceSelect,

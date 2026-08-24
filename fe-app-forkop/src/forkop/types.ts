@@ -333,7 +333,6 @@ export namespace Forkop {
     local_dns_server: string;
     local_dns_status: 0 | 1;
     dns_capture_status: 0 | 1;
-    dns_capture_disabled: 0 | 1;
   }
 
   export interface NftRulesCheckResult {
@@ -414,7 +413,6 @@ export namespace Forkop {
     // How long the running operation has been going, in seconds; 0 when none
     // is. Elapsed rather than a timestamp so no clock comparison is needed.
     busy_seconds?: number;
-    dns_configured?: number;
   }
 
   export interface GetSingBoxStatus {

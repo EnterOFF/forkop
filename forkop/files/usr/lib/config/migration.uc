@@ -2416,13 +2416,12 @@ function remove_resolve_real_ip_for_routing(ctx) {
 }
 
 // The released dnsmasq takeover is gone: client DNS is captured by nftables and
-// the dnsmasq configuration is never written again. The released flag that
-// guarded the takeover keeps its intent as the capture switch, and the flag the
-// service flipped on every start and stop leaves with the mechanism it served.
+// the dnsmasq configuration is never written again. The flag that guarded the
+// takeover and the flag the service flipped on every start and stop both leave
+// with the mechanism they served; a device the user wants left alone is the
+// routing_excluded_ips list now.
 function migrate_dns_capture_settings(ctx) {
     let settings = ctx.model.settings;
-    if (bool_option(settings, "dont_touch_dhcp", false))
-        set_option(ctx, settings, "disable_dns_capture", "1");
     delete_option(ctx, settings, "dont_touch_dhcp");
     delete_option(ctx, settings, "shutdown_correctly");
 }
@@ -2508,7 +2507,8 @@ function migrate_podkop_model(model, constants) {
     let ctx = migration_context(model);
     constants = object_or_empty(constants);
 
-    delete_option(ctx, model.settings, "routing_excluded_ips");
+    // podkop's routing_excluded_ips carried the same intent the option carries
+    // here - these devices are not Forkop's to route - so the list survives.
     migrate_dns_server_lists(ctx);
     migrate_list_update_enabled(ctx);
 
@@ -2794,6 +2794,21 @@ function dnsmasq_restore_plan(dnsmasq, legacy_present, legacy_interfaces) {
     return plan;
 }
 
+// What the restore actually did, option by option: the values it put back are
+// the one thing a user debugging a changed dnsmasq needs from the log.
+function dnsmasq_restore_summary(plan) {
+    let parts = [];
+    for (let key, values in plan.set_lists)
+        push(parts, key + "='" + join(" ", values) + "'");
+    for (let key, value in plan.set)
+        push(parts, key + "='" + as_string(value) + "'");
+    if (length(plan.delete_options) > 0)
+        push(parts, "removed " + join(", ", plan.delete_options));
+    if (plan.delete_legacy_instance)
+        push(parts, "removed the dhcp.forkop instance");
+    return join("; ", parts);
+}
+
 function restore_dnsmasq_runtime(settings) {
     if (!uci_core.load("dhcp"))
         return true;
@@ -2831,7 +2846,7 @@ function restore_dnsmasq_runtime(settings) {
         return false;
 
     run("logger -t " + shell_quote("forkop") +
-        " " + shell_quote("[info] Restored the dnsmasq configuration a previous Forkop release had taken over"));
+        " " + shell_quote("[info] Restored the dnsmasq configuration a previous Forkop release had taken over: " + dnsmasq_restore_summary(plan)));
     run("[ -x " + shell_quote(DNSMASQ_INIT) + " ] && " + shell_quote(DNSMASQ_INIT) + " restart");
     return true;
 }
@@ -2880,11 +2895,13 @@ function migrate_fixture(path, source) {
 
 function restore_dnsmasq_fixture(path) {
     let data = object_or_empty(read_json_file(path));
-    write_json(dnsmasq_restore_plan(
+    let plan = dnsmasq_restore_plan(
         object_or_empty(data.dnsmasq),
         data.legacy_present === true || data.legacy_present == "1",
         data.legacy_interfaces
-    ));
+    );
+    plan.summary = dnsmasq_restore_summary(plan);
+    write_json(plan);
 }
 
 function main(argv) {
