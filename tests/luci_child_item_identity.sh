@@ -71,7 +71,11 @@ eval(
   extract(
     'function normalizeDynamicListItems(',
     'function nextDynamicListName(',
-  ) + extract('function childOwnerOption(', 'function parentSectionIdForItem('),
+  ) +
+    extract('function childOwnerOption(', 'function parentSectionIdForItem(') +
+    // applyChildItemSettings() asks it before writing, so that a value already
+    // stored is left alone.
+    extract('function settingValueEquals(', 'function readChildSettings('),
 );
 
 const LEVEL_OPTIONS = {

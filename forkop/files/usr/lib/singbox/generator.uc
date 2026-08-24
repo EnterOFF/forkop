@@ -639,8 +639,8 @@ function subscription_override_options(section, source) {
     return result;
 }
 
-function add_subscription_provider(config, section, source_index, source) {
-    let tag_name = child_outbound_tag(section, connections.subscription_tag(section, source, source_index));
+function add_subscription_provider(config, section, subscription_tag, source) {
+    let tag_name = child_outbound_tag(section, subscription_tag);
     let source_type = connections.subscription_source_type(source);
     if (source_type == "")
         runtime_generate_unsupported("subscription source is not supported by sing-box config generation");
@@ -669,8 +669,9 @@ function add_subscription_provider(config, section, source_index, source) {
 function add_subscription_providers(config, section) {
     let result = [];
     let sources = connections.subscription_urls(section);
+    let tags = connections.subscription_tags(section);
     for (let i = 0; i < length(sources); i++)
-        push(result, add_subscription_provider(config, section, i + 1, sources[i]));
+        push(result, add_subscription_provider(config, section, tags[i], sources[i]));
     return result;
 }
 

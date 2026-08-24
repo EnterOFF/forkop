@@ -854,13 +854,51 @@ function subscription_show_name(section, value) {
     return item_bool(section, "subscription_url_settings", value, "show_subscription_name", false);
 }
 
-function subscription_tag(section, value, source_index) {
+function stored_subscription_tag(section, value) {
     let child = child_item_by_value(section, "subscription_url", "url", value);
     let tag_name = child != null
         ? child_option(child, "tag", "")
         : item_option(section, "subscription_url_settings", value, "tag", "");
-    tag_name = trim(as_string(tag_name));
-    return tag_name != "" ? tag_name : "sub" + int(source_index || 1);
+    return trim(as_string(tag_name));
+}
+
+// Every subscription in a section needs a name of its own, because the provider
+// it becomes is addressed by it. A stored tag wins; a subscription without one is
+// named after its position, and moves on to the next free number only when a
+// stored tag already holds that name - numbering by position alone would hand out
+// a name that is taken and the configuration would be refused for the duplicate.
+function subscription_tags(section) {
+    let sources = subscription_urls(section);
+    let stored = [];
+    let taken = {};
+    for (let index = 0; index < length(sources); index++) {
+        stored[index] = stored_subscription_tag(section, sources[index]);
+        if (stored[index] != "")
+            taken[stored[index]] = true;
+    }
+
+    let result = [];
+    for (let index = 0; index < length(sources); index++) {
+        if (stored[index] != "") {
+            push(result, stored[index]);
+            continue;
+        }
+        let number = index + 1;
+        while (taken["sub" + number])
+            number++;
+        taken["sub" + number] = true;
+        push(result, "sub" + number);
+    }
+    return result;
+}
+
+function subscription_tag(section, value) {
+    let sources = subscription_urls(section);
+    let tags = subscription_tags(section);
+    for (let index = 0; index < length(sources); index++)
+        if (sources[index] == value)
+            return tags[index];
+    return stored_subscription_tag(section, value);
 }
 
 function subscription_exclude_types(section, value) {
@@ -1190,6 +1228,7 @@ return {
     subscription_override,
     parse_rename_rule,
     subscription_tag,
+    subscription_tags,
     subscription_download_section,
     interface_display_name,
     interface_domain_resolver_enabled,

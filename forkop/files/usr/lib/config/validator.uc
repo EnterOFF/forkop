@@ -556,9 +556,7 @@ function validate_runtime_display_names(sections, kind, seen) {
 
 function validate_subscription_tags(section) {
     let seen = {};
-    let sources = connections.subscription_urls(section);
-    for (let source_index = 0; source_index < length(sources); source_index++) {
-        let tag_name = connections.subscription_tag(section, sources[source_index], source_index + 1);
+    for (let tag_name in connections.subscription_tags(section)) {
         if (trim(tag_name) == "")
             fail_validation("Subscription in rule '" + section_name(section) + "' has an empty tag. Aborted.");
         if (index(tag_name, "/") >= 0)

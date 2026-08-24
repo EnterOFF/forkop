@@ -342,6 +342,53 @@ JS
     fail "validator message for $fixture does not contain: $expected"
 }
 
+# A subscription that stores no tag is named after its position, and one that
+# stores a name another subscription's position would take pushes it to the next
+# free number instead of producing the duplicate the whole configuration is
+# refused for.
+cat >"$WORK_DIR/untagged-subscriptions.json" <<'JSON'
+{
+  "settings": {
+    ".name": "settings", ".type": "settings",
+    "dns_server": [ "77.88.8.8" ], "bootstrap_dns_server": [ "77.88.8.8" ]
+  },
+  "section": [
+    { ".name": "proxy", ".type": "section", "label": "Main", "enabled": "1", "action": "connection" }
+  ],
+  "subscription_url": [
+    { ".name": "one", ".type": "subscription_url", "section": "proxy", "url": "https://one.example/sub" },
+    { ".name": "two", ".type": "subscription_url", "section": "proxy", "url": "https://two.example/sub" }
+  ]
+}
+JSON
+sed 's|"url": "https://two.example/sub"|"url": "https://two.example/sub", "tag": "sub1"|' \
+  "$WORK_DIR/untagged-subscriptions.json" >"$WORK_DIR/subscription-tag-takes-a-position.json"
+
+assert_subscription_tags() {
+  local fixture="$1"
+  local expected="$2"
+  local validation
+  validation="$(FORKOP_LIB="$FORKOP_LIB" ucode -L "$FORKOP_LIB" "$VALIDATOR_UC" \
+    validate-runtime-fixture "$fixture" '{}' 2>&1 || true)"
+  [ -z "$validation" ] || fail "$(basename "$fixture") was rejected: $validation"
+
+  FORKOP_LIB="$FORKOP_LIB" ucode -L "$FORKOP_LIB" "$GENERATOR_UC" generate-config-fixture \
+    "$fixture" "$fixture.config" 127.0.0.1 0
+  ucode -e '
+let config = json(require("fs").readfile(ARGV[0]));
+let actual = [];
+for (let provider in config.providers || [])
+    push(actual, provider.tag);
+if (sprintf("%J", actual) != ARGV[1]) {
+    warn("subscription providers became " + sprintf("%J", actual) + ", not " + ARGV[1] + "\n");
+    exit(1);
+}
+' "$fixture.config" "$expected" || fail "$(basename "$fixture") named its providers wrong"
+}
+
+assert_subscription_tags "$WORK_DIR/untagged-subscriptions.json" '[ "Main/sub1", "Main/sub2" ]'
+assert_subscription_tags "$WORK_DIR/subscription-tag-takes-a-position.json" '[ "Main/sub2", "Main/sub1" ]'
+
 validate_rejects "$WORK_DIR/duplicate-json-tags.json" "duplicate JSON outbound tag 'same'"
 validate_rejects "$WORK_DIR/tagless-json.json" "JSON outbound without a non-empty tag"
 validate_rejects "$WORK_DIR/duplicate-section-names.json" "Duplicate section display name 'Office'"

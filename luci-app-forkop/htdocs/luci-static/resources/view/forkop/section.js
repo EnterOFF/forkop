@@ -2336,6 +2336,11 @@ function cleanupRemoteSubscriptionUrlSettings(itemId) {
   );
 }
 
+// A value here is only sound for an option the dialog either shows or keeps: a
+// hidden field without retain is removed from the section when the dialog is
+// saved, so seeding one would make the stored item something its own dialog
+// never writes, and opening it and pressing Save without a change would delete
+// the value again.
 function defaultSubscriptionUrlSettings(
   headers = [],
   tag = "sub1",
@@ -2351,7 +2356,6 @@ function defaultSubscriptionUrlSettings(
       subscription_update_enabled: "1",
       subscription_update_interval: "1h",
       download_via_proxy_enabled: "0",
-      download_via_proxy_section: "",
       header: Array.isArray(headers) ? headers.slice() : [],
       show_dashboard_metadata: "1",
     });
@@ -2726,15 +2730,14 @@ function interfaceSettingsKeys() {
   ];
 }
 
+// Everything the resolver dialog hides behind the Domain Resolver flag is left
+// out: those options carry their default in the form and mean the same by their
+// absence in the configuration, and seeding one would only be deleted again the
+// first time the dialog is saved.
 function defaultInterfaceSettings(displayName = "") {
   return {
     display_name: displayName,
     domain_resolver_enabled: "0",
-    // No address is filled in: a resolver that silently defaults to a public one
-    // is a DNS choice made for the user.
-    domain_resolver_dns_server: [],
-    domain_resolver_dns_fallback_strategy: "parallel",
-    domain_resolver_dns_detour_enabled: "0",
   };
 }
 
@@ -3014,6 +3017,10 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
   o = itemSection.option(form.Value, "tag", _("Tag"));
   o.depends("show_subscription_name", "1");
   o.rmempty = false;
+  // The tag names the subscription's provider whether or not it is added to the
+  // node names, so it is in effect even while this field is hidden and must
+  // survive a save that does not show it.
+  o.retain = true;
   o.validate = function (_itemId, value) {
     const normalized = `${value || ""}`.trim();
     if (!normalized) return _("Enter a subscription tag");
@@ -3088,6 +3095,8 @@ function addInterfaceItemOptions(itemSection, options = {}) {
       "Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://",
     ),
   );
+  // No address is proposed: a resolver that silently defaults to a public server
+  // is a DNS choice made for the user.
   dnsServerOption.depends("domain_resolver_enabled", "1");
   dnsServerOption.rmempty = false;
   dnsServerOption.validate = function (itemId, value) {
@@ -4299,7 +4308,11 @@ function tunnelStorageSettings(settings) {
     tailscale_auth_key: `${settings.tailscale_auth_key || ""}`.trim(),
     tailscale_hostname: `${settings.tailscale_hostname || ""}`.trim(),
     tailscale_control_url: `${settings.tailscale_control_url || ""}`.trim(),
-    tailscale_accept_routes: `${settings.tailscale_accept_routes || "1"}`,
+    // Every other field of a kind the tunnel is not collapses to nothing here;
+    // this one has a default, so it needs the same gate or a WireGuard tunnel
+    // ends up storing a Tailscale option it never showed.
+    tailscale_accept_routes:
+      kind === "tailscale" ? `${settings.tailscale_accept_routes || "1"}` : "",
     tailscale_exit_node: `${settings.tailscale_exit_node || ""}`.trim(),
     tailscale_detour_section:
       `${settings.tailscale_detour_enabled || ""}` === "1"
@@ -4325,9 +4338,20 @@ function createTunnelItem(sectionId, tunnelId, settings) {
   const itemId = isExistingChildItem(sectionId, tunnelId, "tunnel", "section")
     ? tunnelId
     : uci.add(UCI_PACKAGE, "tunnel", tunnelId) || tunnelId;
-  uci.set(UCI_PACKAGE, itemId, "section", sectionId);
-  tunnelSettingsKeys().forEach((key) => uci.unset(UCI_PACKAGE, itemId, key));
-  applyChildItemSettings(itemId, settings);
+  if (uci.get(UCI_PACKAGE, itemId, "section") !== sectionId) {
+    uci.set(UCI_PACKAGE, itemId, "section", sectionId);
+  }
+  // The dialog owns every key of a tunnel, so the ones it did not fill are
+  // cleared - a tunnel that is no longer WireGuard must not keep WireGuard
+  // fields. Naming them all rather than unsetting them first leaves the values
+  // that did not change alone, so a save that changed nothing writes nothing.
+  const target = {};
+  tunnelSettingsKeys().forEach((key) => {
+    target[key] = Object.prototype.hasOwnProperty.call(settings, key)
+      ? settings[key]
+      : "";
+  });
+  applyChildItemSettings(itemId, target);
   return itemId;
 }
 
@@ -6114,6 +6138,14 @@ function applyChildItemSettings(itemId, settings) {
       return;
     }
 
+    // Writing a value the section already holds still counts as a change in
+    // LuCI, so a dialog that rewrites its whole item - the tunnel one does, to
+    // drop the fields of the kind it no longer is - would report every option
+    // of that item as changed by a save that changed nothing.
+    if (settingValueEquals(uci.get(UCI_PACKAGE, itemId, key), value)) {
+      return;
+    }
+
     if (value === undefined || value === null || value === "") {
       uci.unset(UCI_PACKAGE, itemId, key);
     } else if (Array.isArray(value)) {
@@ -7882,7 +7914,6 @@ function createSectionContent(section) {
         isRemoteSubscriptionSource(value) ? "1h" : null,
       download_via_proxy_enabled: (value) =>
         isRemoteSubscriptionSource(value) ? "0" : null,
-      download_via_proxy_section: () => null,
       user_agent: (value) =>
         isRemoteSubscriptionSource(value) ? "sing-box" : null,
       header: (value) =>
@@ -8281,6 +8312,11 @@ function createSectionContent(section) {
   );
   dnsRuleSetOption.depends("action", "dns");
   dnsRuleSetOption.modalonly = true;
+  // Both rule set fields read and write the same list, and this one is shown only
+  // for a DNS rule. Without retain LuCI would call its remove() on every other
+  // action - and that remove clears the list, the subnet flags and the per-rule
+  // set settings of a section this field is not even shown for.
+  dnsRuleSetOption.retain = true;
   dnsRuleSetOption.load = function (section_id) {
     return getCustomRulesetReferences(section_id);
   };

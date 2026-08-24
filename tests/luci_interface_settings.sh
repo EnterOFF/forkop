@@ -73,17 +73,28 @@ const keysBlock = source.slice(
   requiredIndex("function interfaceSettingsKeys()"),
   requiredIndex("function urlTestSettingsKeys()"),
 );
+// The dialog reads and diffs all four resolver options ...
 for (const expected of [
   '"domain_resolver_dns_server"',
   '"domain_resolver_dns_fallback_strategy"',
   '"domain_resolver_dns_detour_enabled"',
   '"domain_resolver_dns_detour_section"',
-  'domain_resolver_dns_server: []',
-  'domain_resolver_dns_fallback_strategy: "parallel"',
-  'domain_resolver_dns_detour_enabled: "0"',
 ]) {
   if (!keysBlock.includes(expected)) {
     fail(`interface settings storage is missing: ${expected}`);
+  }
+}
+// ... and stores a default for none of them: each one is hidden until the
+// resolver is enabled, and a hidden option is dropped when the dialog is saved.
+// luci_settings_dialog_roundtrip.sh holds the rule for every dialog.
+for (const seeded of [
+  'domain_resolver_dns_server:',
+  'domain_resolver_dns_fallback_strategy:',
+  'domain_resolver_dns_detour_enabled:',
+  'domain_resolver_dns_detour_section:',
+]) {
+  if (keysBlock.includes(seeded)) {
+    fail(`a new interface must not be created with ${seeded} it cannot yet show`);
   }
 }
 
