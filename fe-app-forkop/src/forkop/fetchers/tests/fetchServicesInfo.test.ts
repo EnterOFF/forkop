@@ -23,7 +23,8 @@ describe('fetchServicesInfo', () => {
         forkop: {
           running: 1,
           enabled: 1,
-          status: 'restarting',
+          status: 'running & enabled',
+          busy: 'restart',
           dns_configured: 1,
         },
         sing_box: {
@@ -63,8 +64,12 @@ describe('fetchServicesInfo', () => {
 
     const state = store.get();
 
-    expect(state.servicesInfoWidget.data.forkopStatus).toBe('restarting');
-    expect(state.diagnosticsActions.restart.loading).toBe(true);
+    // A restart is reported as an operation on a service whose own state the
+    // runtime still answers truthfully, not by overwriting that state.
+    expect(state.servicesInfoWidget.data.forkopStatus).toBe(
+      'running & enabled',
+    );
+    expect(state.servicesInfoWidget.data.forkopBusy).toBe('restart');
   });
 
   it('keeps the previous service state when the fallback status fetch fails', async () => {
@@ -77,6 +82,8 @@ describe('fetchServicesInfo', () => {
           forkopRunning: 1,
           forkopEnabled: 1,
           forkopStatus: 'running & enabled',
+          forkopBusy: null,
+          forkopBusySeconds: 0,
         },
       },
     });
@@ -112,6 +119,8 @@ describe('fetchServicesInfo', () => {
       forkopRunning: 1,
       forkopEnabled: 1,
       forkopStatus: 'running & enabled',
+      forkopBusy: null,
+      forkopBusySeconds: 0,
     });
   });
 });

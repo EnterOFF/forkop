@@ -1,6 +1,7 @@
 #!/usr/bin/env ucode
 
 let uci = require("core.uci");
+let dns_state = require("dns.state");
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const SB_DNS_INBOUND_ADDRESS = getenv("SB_DNS_INBOUND_ADDRESS") || "127.0.0.42";
@@ -28,13 +29,6 @@ function truthy(value) {
     return value == "1" || value == "true" || value == "yes" || value == "on";
 }
 
-function list_has(values, needle) {
-    for (let value in words(values))
-        if (value == needle)
-            return true;
-    return false;
-}
-
 function log(message, level) {
     level = as_string(level || "info");
     run("logger -t " + shell_quote("forkop") + " " + shell_quote("[" + level + "] " + as_string(message)));
@@ -44,27 +38,10 @@ function restart_dnsmasq() {
     return run("[ -x " + shell_quote(DNSMASQ_INIT) + " ] && " + shell_quote(DNSMASQ_INIT) + " restart");
 }
 
-function dnsmasq_legacy_instance_exists() {
-    return uci.exists("dhcp.forkop");
-}
-
-function dnsmasq_default_servers() {
-    return uci.get("dhcp.@dnsmasq[0].server");
-}
-
-function dnsmasq_default_has_forkop_dns() {
-    return list_has(dnsmasq_default_servers(), SB_DNS_INBOUND_ADDRESS);
-}
-
-function dnsmasq_has_forkop_managed_state() {
-    return dnsmasq_default_has_forkop_dns() ||
-        uci.get("dhcp.@dnsmasq[0].forkop_server") != "" ||
-        uci.get("dhcp.@dnsmasq[0].forkop_noresolv") != "" ||
-        uci.get("dhcp.@dnsmasq[0].forkop_cachesize") != "" ||
-        uci.get("dhcp.@dnsmasq[0].forkop_rebind_protection") != "" ||
-        uci.get("dhcp.@dnsmasq[0].forkop_notinterface") != "" ||
-        dnsmasq_legacy_instance_exists();
-}
+let list_has = dns_state.list_has;
+let dnsmasq_legacy_instance_exists = dns_state.dnsmasq_legacy_instance_exists;
+let dnsmasq_default_servers = dns_state.dnsmasq_default_servers;
+let dnsmasq_has_forkop_managed_state = dns_state.dnsmasq_has_forkop_managed_state;
 
 function dnsmasq_management_disabled() {
     return truthy(uci.get(CONFIG_NAME + ".settings.dont_touch_dhcp"));

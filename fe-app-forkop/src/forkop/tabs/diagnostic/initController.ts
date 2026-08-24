@@ -20,6 +20,7 @@ import {
   logger,
   getCachedRuntimeUiState,
   refreshRuntimeUiState,
+  refreshRuntimeUiStateNow,
   setLocalServiceAction,
   store,
   StoreType,
@@ -32,7 +33,7 @@ import {
   renderRunAction,
   renderSystemInfo,
 } from './partials';
-import { CustomForkopMethods, ForkopShellMethods } from '../../methods';
+import { ForkopShellMethods } from '../../methods';
 import { fetchServicesInfo } from '../../fetchers/fetchServicesInfo';
 import { normalizeCompiledVersion } from '../../../helpers/normalizeCompiledVersion';
 import { renderModal } from '../../../partials';
@@ -40,17 +41,14 @@ import { FORKOP_LUCI_APP_VERSION } from '../../../constants';
 import { runSectionsCheck } from './checks/runSectionsCheck';
 import { Forkop } from '../../types';
 import {
-  getAvailableActionsDisabledState,
-  getServiceTransition,
-  hasComponentActionLoading,
+  getAutostartControlsPresentation,
+  getServiceControlsPresentation,
+  getServiceOperation,
   hasLocalMutatingServiceActionLoading,
-  isServiceTransitionStatus,
   shouldDisableDiagnosticRunAction,
   shouldSkipServicesInfoAutoRefresh,
-  shouldShowRestartAction,
-  shouldShowStartAction,
-  shouldShowStopAction,
 } from './serviceTransition';
+import type { ServiceOperation } from './serviceTransition';
 import { isActiveLuciTab } from '../../helpers/isActiveLuciTab';
 import { formatOsRelease } from '../../helpers/osRelease';
 import { formatSingBoxVersion } from '../../helpers/singBoxVersion';
@@ -170,11 +168,19 @@ function isLocalMutatingServiceActionLoading() {
   return hasLocalMutatingServiceActionLoading(actions);
 }
 
-function isMutatingServiceActionLoading() {
-  return (
-    isLocalMutatingServiceActionLoading() ||
-    isServiceTransitionStatus(store.get().servicesInfoWidget.data.forkopStatus)
-  );
+function getLocalPendingServiceOperation(
+  actions: StoreType['diagnosticsActions'],
+): ServiceOperation | null {
+  if (actions.restart.loading) {
+    return 'restart';
+  }
+  if (actions.start.loading) {
+    return 'start';
+  }
+  if (actions.stop.loading) {
+    return 'stop';
+  }
+  return null;
 }
 
 function getForkopStatusText(running: boolean, enabled: boolean) {
@@ -507,18 +513,11 @@ function renderDiagnosticRunActionWidget() {
   const { loading } = store.get().diagnosticsRunAction;
   const providerInfoLoaded =
     store.get().diagnosticsSystemInfo.providerInfoLoaded;
-  const servicesInfoWidget = store.get().servicesInfoWidget;
-  const forkopRunning = Boolean(servicesInfoWidget.data.forkopRunning);
   const container = document.getElementById('fkp_diagnostic-page-run-check');
 
   const renderedAction = renderRunAction({
     loading,
-    disabled: shouldDisableDiagnosticRunAction({
-      providerInfoLoaded,
-      servicesInfoLoading: servicesInfoWidget.loading,
-      forkopRunning,
-      mutatingServiceActionLoading: isMutatingServiceActionLoading(),
-    }),
+    disabled: shouldDisableDiagnosticRunAction({ providerInfoLoaded }),
     click: () => runChecks(),
   });
 
@@ -537,6 +536,7 @@ async function handleServiceRuntimeAction({
   optimisticRunning?: boolean;
 }) {
   setDiagnosticActionLoading(action, true, true);
+  void refreshRuntimeUiStateNow();
   let jobId = '';
   let ownsJobFollow = false;
   let delegatedToWatcher = false;
@@ -553,6 +553,8 @@ async function handleServiceRuntimeAction({
     }
 
     jobId = startResponse.data.job_id;
+    // The action exists on the runtime from here, so the feed can report it.
+    void refreshRuntimeUiStateNow();
     if (followedServiceActionJobs.has(jobId)) {
       delegatedToWatcher = true;
       return;
@@ -581,6 +583,7 @@ async function handleServiceRuntimeAction({
 
       setDiagnosticActionLoading(action, false);
       await refreshDiagnosticServicesInfo({ force: true, allowInactive: true });
+      void refreshRuntimeUiStateNow();
       if (jobId) {
         handledServiceActionJobs.add(jobId);
         void ForkopShellMethods.uiActionAck('service', jobId);
@@ -625,6 +628,7 @@ async function handleEnable() {
       allowInactive: true,
     });
     setDiagnosticActionLoading('enable', false);
+    void refreshRuntimeUiStateNow();
   }
 }
 
@@ -641,6 +645,7 @@ async function handleDisable() {
       allowInactive: true,
     });
     setDiagnosticActionLoading('disable', false);
+    void refreshRuntimeUiStateNow();
   }
 }
 
@@ -669,24 +674,6 @@ async function handleShowGlobalCheck() {
     logger.error('[DIAGNOSTIC]', 'handleShowGlobalCheck - e', e);
   } finally {
     setDiagnosticActionLoading('globalCheck', false);
-  }
-}
-
-async function handleUpdateRuleSets() {
-  setDiagnosticActionLoading('updateRuleSets', true);
-
-  try {
-    const response = await CustomForkopMethods.updateClashApiRuleProviders();
-
-    if (!response.success) {
-      throw new Error(response.error);
-    }
-  } catch (e) {
-    // sing-box logs which rule-set failed and why, so the page stays quiet here
-    // like every other action in this block.
-    logger.error('[DIAGNOSTIC]', 'handleUpdateRuleSets - e', e);
-  } finally {
-    setDiagnosticActionLoading('updateRuleSets', false);
   }
 }
 
@@ -756,108 +743,54 @@ async function handleShowSingBoxConfig() {
 
 function renderDiagnosticAvailableActionsWidget() {
   const diagnosticsActions = store.get().diagnosticsActions;
-  const updatesActions = store.get().updatesActions;
   const servicesInfoWidget = store.get().servicesInfoWidget;
   logger.debug('[DIAGNOSTIC]', 'renderDiagnosticAvailableActionsWidget');
 
   const forkopEnabled = Boolean(servicesInfoWidget.data.forkopEnabled);
   const forkopRunning = Boolean(servicesInfoWidget.data.forkopRunning);
-  const serviceTransition = getServiceTransition(
-    servicesInfoWidget.data.forkopStatus,
-  );
-  const restartLoading =
-    diagnosticsActions.restart.loading || serviceTransition.restarting;
-  const startLoading =
-    diagnosticsActions.start.loading || serviceTransition.starting;
-  const stopLoading =
-    diagnosticsActions.stop.loading || serviceTransition.stopping;
-  const atLeastOneMutatingActionLoading =
-    restartLoading ||
-    startLoading ||
-    stopLoading ||
-    diagnosticsActions.enable.loading ||
-    diagnosticsActions.disable.loading;
-  const componentActionLoading = hasComponentActionLoading(updatesActions);
-  const { serviceControlsDisabled, utilityActionsDisabled } =
-    getAvailableActionsDisabledState({
-      servicesInfoLoading: servicesInfoWidget.loading,
-      mutatingServiceActionLoading: atLeastOneMutatingActionLoading,
-      componentActionLoading,
-    });
-  const startVisible = shouldShowStartAction({
-    forkopRunning,
-    restartLoading,
-    startLoading,
-    stopLoading,
+  const operation = getServiceOperation({
+    busy: servicesInfoWidget.data.forkopBusy,
+    localPending: getLocalPendingServiceOperation(diagnosticsActions),
   });
-  const stopVisible = shouldShowStopAction({
-    forkopRunning,
-    restartLoading,
-    startLoading,
-    stopLoading,
+  const controls = getServiceControlsPresentation({
+    running: forkopRunning,
+    operation,
+    operationSeconds: servicesInfoWidget.data.forkopBusySeconds,
+  });
+  const autostart = getAutostartControlsPresentation({
+    enabled: forkopEnabled,
+    enableLoading: diagnosticsActions.enable.loading,
+    disableLoading: diagnosticsActions.disable.loading,
   });
 
   const container = document.getElementById('fkp_diagnostic-page-actions');
 
   const renderedActions = renderAvailableActions({
-    restart: {
-      loading: restartLoading,
-      visible: shouldShowRestartAction({
-        forkopRunning,
-        restartLoading,
-        startLoading,
-        stopLoading,
-      }),
-      onClick: handleRestart,
-      disabled: serviceControlsDisabled,
-    },
-    start: {
-      loading: startLoading,
-      visible: startVisible,
-      onClick: handleStart,
-      disabled: serviceControlsDisabled,
-    },
-    stop: {
-      loading: stopLoading,
-      visible: stopVisible,
-      onClick: handleStop,
-      disabled: serviceControlsDisabled,
-    },
-    enable: {
-      loading: diagnosticsActions.enable.loading,
-      visible: !forkopEnabled,
-      onClick: handleEnable,
-      disabled: serviceControlsDisabled,
-    },
-    disable: {
-      loading: diagnosticsActions.disable.loading,
-      visible: forkopEnabled,
-      onClick: handleDisable,
-      disabled: serviceControlsDisabled,
-    },
+    restart: { ...controls.restart, onClick: handleRestart },
+    start: { ...controls.start, onClick: handleStart },
+    stop: { ...controls.stop, onClick: handleStop },
+    enable: { ...autostart.enable, onClick: handleEnable },
+    disable: { ...autostart.disable, onClick: handleDisable },
+    // Read-only actions are never gated by service state or by another action:
+    // they answer questions, and the questions matter most when something is
+    // wrong. Each one still blocks its own double submit while it runs.
     globalCheck: {
       loading: diagnosticsActions.globalCheck.loading,
       visible: true,
       onClick: handleShowGlobalCheck,
-      disabled: utilityActionsDisabled,
-    },
-    updateRuleSets: {
-      loading: diagnosticsActions.updateRuleSets.loading,
-      visible: true,
-      onClick: handleUpdateRuleSets,
-      disabled: utilityActionsDisabled || !forkopRunning,
+      disabled: diagnosticsActions.globalCheck.loading,
     },
     showConfig: {
       loading: diagnosticsActions.showConfig.loading,
       visible: true,
       onClick: handleShowForkopConfig,
-      disabled: utilityActionsDisabled,
+      disabled: diagnosticsActions.showConfig.loading,
     },
     showSingBoxConfig: {
       loading: diagnosticsActions.showSingBoxConfig.loading,
       visible: true,
       onClick: handleShowSingBoxConfig,
-      disabled: utilityActionsDisabled,
+      disabled: diagnosticsActions.showSingBoxConfig.loading,
     },
   });
 

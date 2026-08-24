@@ -41,6 +41,13 @@ UCODE
 
 printf 'payload\n' >"$SOURCE_DIR/core/payload.txt"
 
+# Validation is normally reused for a few seconds, which is what keeps a reload's
+# twenty processes from each stat'ing the whole library. Everything below asserts
+# what full validation guarantees, so it runs with that window off; the window
+# itself is exercised in its own section at the end.
+FORKOP_BYTECODE_VALIDATION_TTL=0
+export FORKOP_BYTECODE_VALIDATION_TTL
+
 resolve() {
   FORKOP_SOURCE_LIB="$SOURCE_DIR" FORKOP_BYTECODE_CACHE_DIR="$CACHE_DIR" \
     ${1:+FORKOP_BYTECODE_CACHE="$1"} \
@@ -55,6 +62,30 @@ resolve_only() {
     ucode -L "$FORKOP_LIB" -e '
       let bytecode = require("core.bytecode");
       print(bytecode.library_dir(), "\n");
+    '
+}
+
+resolve_with_ttl() {
+  FORKOP_SOURCE_LIB="$SOURCE_DIR" FORKOP_BYTECODE_CACHE_DIR="$CACHE_DIR"     FORKOP_BYTECODE_VALIDATION_TTL="$1"     ucode -L "$FORKOP_LIB" -e '
+      let bytecode = require("core.bytecode");
+      print(bytecode.refresh(), "
+");
+    '
+}
+
+resolve_only_with_ttl() {
+  FORKOP_SOURCE_LIB="$SOURCE_DIR" FORKOP_BYTECODE_CACHE_DIR="$CACHE_DIR" \
+    FORKOP_BYTECODE_VALIDATION_TTL="$1" \
+    ucode -L "$FORKOP_LIB" -e '
+      let bytecode = require("core.bytecode");
+      print(bytecode.library_dir(), "\n");
+    '
+}
+
+invalidate_stamp() {
+  FORKOP_SOURCE_LIB="$SOURCE_DIR" FORKOP_BYTECODE_CACHE_DIR="$CACHE_DIR" \
+    ucode -L "$FORKOP_LIB" -e '
+      require("core.bytecode").invalidate_validation_stamp();
     '
 }
 
@@ -167,6 +198,30 @@ broken="$(
 is_bytecode "$broken/core/broken.uc" &&
   fail "a module that fails to compile must be copied as source, not as bytecode"
 
+# A module added next to unchanged siblings must invalidate the cache. Checking
+# only the recorded files could not see it, and the new module was then absent
+# from the cache directory, so every command reaching for it failed outright.
+added_before="$(resolve)"
+[ "$added_before" != "$SOURCE_DIR" ] ||
+  fail "cache must be healthy before the added-module check"
+cat >"$SOURCE_DIR/core/added.uc" <<'UCODE'
+#!/usr/bin/env ucode
+return { marker: "added-v1" };
+UCODE
+added_after="$(resolve)"
+[ "$added_after" != "$added_before" ] ||
+  fail "adding a module must rebuild the cache instead of reusing the old one"
+[ -f "$added_after/core/added.uc" ] ||
+  fail "a module added after the cache was built must reach the cache"
+
+# Removing one must invalidate it just the same.
+rm -f "$SOURCE_DIR/core/added.uc"
+removed_after="$(resolve)"
+[ "$removed_after" != "$added_after" ] ||
+  fail "removing a module must rebuild the cache instead of reusing the old one"
+[ ! -f "$removed_after/core/added.uc" ] ||
+  fail "a removed module must not survive in the rebuilt cache"
+
 # The entrypoint keeps honouring an explicit FORKOP_LIB, which is what tests and
 # manual overrides rely on and what every child process is handed.
 mkdir -p "$WORK_DIR/fake/diagnostics"
@@ -187,5 +242,45 @@ if grep -Eq '^[[:space:]]*FORKOP_LIB="\$FORKOP_LIB"[[:space:]]*\\?$' "$INITD"; t
 fi
 grep -Fq 'bytecode.refresh()' "$ROOT_DIR/forkop/files/usr/lib/service/initd.uc" ||
   fail "service/initd.uc must resolve the library cache for the procd path"
+
+# The reuse window, and the two things that must remain true about it: it does
+# reuse a proven manifest without re-stat'ing, and it is bounded, so a module
+# replaced during development is caught a few seconds later rather than never.
+ttl_built="$(resolve_with_ttl 30)"
+[ "$ttl_built" != "$SOURCE_DIR" ] ||
+  fail "cache must be healthy before the validation window checks"
+
+# Proven once by the build itself, so the next resolve inside the window reuses
+# it even though the sources have moved on.
+sleep 1
+cat >"$SOURCE_DIR/config/domain.uc" <<'UCODE'
+#!/usr/bin/env ucode
+return { marker: "domain-v3" };
+UCODE
+
+reused="$(resolve_only_with_ttl 30)"
+[ "$reused" = "$ttl_built" ] ||
+  fail "a manifest proven inside the window must be reused, got '$reused'"
+
+# The same question with the window expired has to reach the sources again.
+expired="$(resolve_only_with_ttl 1)"
+[ "$expired" = "$SOURCE_DIR" ] ||
+  fail "an expired window must revalidate and reject the stale cache, got '$expired'"
+
+# And an install drops the stamp outright rather than waiting the window out.
+rebuilt_for_stamp="$(resolve_with_ttl 30)"
+[ "$rebuilt_for_stamp" != "$SOURCE_DIR" ] ||
+  fail "cache must rebuild before the stamp invalidation check"
+sleep 1
+cat >"$SOURCE_DIR/config/domain.uc" <<'UCODE'
+#!/usr/bin/env ucode
+return { marker: "domain-v4" };
+UCODE
+[ "$(resolve_only_with_ttl 30)" = "$rebuilt_for_stamp" ] ||
+  fail "the window must still be open before invalidating the stamp"
+invalidate_stamp
+after_invalidate="$(resolve_only_with_ttl 30)"
+[ "$after_invalidate" = "$SOURCE_DIR" ] ||
+  fail "invalidating the stamp must force full validation, got '$after_invalidate'"
 
 printf 'Bytecode cache checks passed\n'

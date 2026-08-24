@@ -62,6 +62,10 @@ export async function fetchServicesInfo() {
         forkopStatus: forkop.success
           ? forkop.data.status
           : previousData.forkopStatus,
+        // get_status reports what the service is, never what is being done to
+        // it; the ui-state feed owns `busy` and corrects this on its next poll.
+        forkopBusy: previousData.forkopBusy,
+        forkopBusySeconds: previousData.forkopBusySeconds,
       },
     },
   });

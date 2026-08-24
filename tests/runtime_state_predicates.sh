@@ -128,10 +128,25 @@ cat >"$WORK_DIR/stable-start-bin/nft" <<'SH'
 if [ -n "${FORKOP_TEST_NFT_ARGS_FILE:-}" ]; then
   printf '%s\n' "$*" >>"$FORKOP_TEST_NFT_ARGS_FILE"
 fi
+if [ "$1" = "list" ] && [ "$2" = "tables" ]; then
+  printf '%s\n' 'table inet fw4'
+  [ -n "${FORKOP_TEST_NFT_TABLE_MISSING:-}" ] || printf '%s\n' 'table inet ForkopTable'
+fi
 exit 0
 SH
 cat >"$WORK_DIR/stable-start-bin/ip-full" <<'SH'
 #!/usr/bin/env bash
+# The runtime check asks for both lists of one family in a single batch, so the
+# fake answers both and lets the caller tell them apart by shape.
+if [ "$2" = "-batch" ]; then
+  cat >/dev/null
+  case "$1" in
+    -6) printf '%s\n' 'local default dev lo metric 1024 pref medium' ;;
+    *) printf '%s\n' 'local default dev lo scope host' ;;
+  esac
+  printf '%s\n' '105:\tfrom all fwmark 0x100000/0x100000 lookup forkop'
+  exit 0
+fi
 case "$1" in
   route) printf '%s\n' 'local default dev lo scope host' ;;
   -6)
@@ -144,44 +159,49 @@ case "$1" in
   -4) printf '%s\n' '105: from all fwmark 0x100000/0x100000 lookup forkop' ;;
 esac
 SH
-cat >"$WORK_DIR/stable-start-bin/netstat" <<'SH'
-#!/usr/bin/env bash
-if [ -n "${SING_BOX_TEST_NETSTAT_READY_AFTER:-}" ]; then
-  count_file="${SING_BOX_TEST_NETSTAT_COUNT_FILE:?}"
-  count=0
-  [ ! -s "$count_file" ] || count="$(cat "$count_file")"
-  count=$((count + 1))
-  printf '%s\n' "$count" >"$count_file"
-  [ "$count" -ge "$SING_BOX_TEST_NETSTAT_READY_AFTER" ] || exit 0
-fi
-cat "${SING_BOX_TEST_NETSTAT_FILE:?}"
-SH
-chmod 0755 "$WORK_DIR/stable-start-bin/ubus" "$WORK_DIR/stable-start-bin/nft" "$WORK_DIR/stable-start-bin/ip-full" "$WORK_DIR/stable-start-bin/netstat"
+chmod 0755 "$WORK_DIR/stable-start-bin/ubus" "$WORK_DIR/stable-start-bin/nft" "$WORK_DIR/stable-start-bin/ip-full"
 export FORKOP_IP_BIN="$WORK_DIR/stable-start-bin/ip-full"
 mkdir -p "$WORK_DIR/fast-wait-bin"
 cat >"$WORK_DIR/fast-wait-bin/sleep" <<'SH'
 #!/usr/bin/env bash
+# Readiness is read from a /proc fixture rather than run as a command, so the
+# wait loop's own sleep is what counts the polls and what flips the fixture to
+# ready. The loop sleeps once per failed poll, so becoming ready on poll N takes
+# N-1 sleeps.
+if [ -n "${SING_BOX_TEST_POLL_COUNT_FILE:-}" ]; then
+  count=0
+  [ ! -s "$SING_BOX_TEST_POLL_COUNT_FILE" ] || count="$(cat "$SING_BOX_TEST_POLL_COUNT_FILE")"
+  count=$((count + 1))
+  printf '%s\n' "$count" >"$SING_BOX_TEST_POLL_COUNT_FILE"
+  if [ -n "${SING_BOX_TEST_READY_AFTER_SLEEPS:-}" ] &&
+     [ "$count" -ge "$SING_BOX_TEST_READY_AFTER_SLEEPS" ]; then
+    cp "${SING_BOX_TEST_READY_PROC_TCP:?}" "${FORKOP_PROC_NET_TCP:?}"
+  fi
+fi
 if [ -n "${SING_BOX_TEST_KILL_PID_FILE:-}" ]; then
   printf 'sleep\n' >>"${SING_BOX_TEST_SLEEP_COUNT_FILE:?}"
   kill "$(cat "$SING_BOX_TEST_KILL_PID_FILE")" >/dev/null 2>&1 || true
 fi
 SH
 chmod 0755 "$WORK_DIR/fast-wait-bin/sleep"
-cat >"$WORK_DIR/sing-box.netstat" <<'EOF_NETSTAT'
-tcp        0      0 127.0.0.42:53           0.0.0.0:*               LISTEN
-tcp        0      0 0.0.0.0:1602            0.0.0.0:*               LISTEN
-tcp        0      0 ::1:1602                :::*                    LISTEN
-udp        0      0 127.0.0.42:53           0.0.0.0:*
-udp        0      0 0.0.0.0:1602            0.0.0.0:*
-udp        0      0 ::1:1602                :::*
-EOF_NETSTAT
+cat >"$WORK_DIR/proc-net-tcp.ready" <<'EOF_PROC'
+  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
+   0: 2A00007F:0035 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 4643 1 fcf08d00 100 0 0 10 5
+   1: 00000000:0642 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 989469 2 b4a02044 100 0 0 10 4096
+EOF_PROC
+sed '/2A00007F:0035/d' "$WORK_DIR/proc-net-tcp.ready" >"$WORK_DIR/proc-net-tcp.no-dns"
+cat >"$WORK_DIR/proc-net-tcp6.ready" <<'EOF_PROC6'
+  sl  local_address                         remote_address                        st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
+   0: 00000000000000000000000001000000:0642 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 989472 2 0f713155 100 0 0 10 4096
+EOF_PROC6
+export FORKOP_PROC_NET_TCP6="$WORK_DIR/proc-net-tcp6.ready"
 
 "$WORK_DIR/stable-start-bin/sing-box" 30 &
 sing_box_pid=$!
 printf '%s\n' "$sing_box_pid" >"$WORK_DIR/sing-box.pid"
 if ! PATH="$WORK_DIR/stable-start-bin:$PATH" \
   SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
-  SING_BOX_TEST_NETSTAT_FILE="$WORK_DIR/sing-box.netstat" \
+  FORKOP_PROC_NET_TCP="$WORK_DIR/proc-net-tcp.ready" \
   state_ucode sing-box-service-running; then
   kill "$sing_box_pid" >/dev/null 2>&1 || true
   wait "$sing_box_pid" 2>/dev/null || true
@@ -189,7 +209,7 @@ if ! PATH="$WORK_DIR/stable-start-bin:$PATH" \
 fi
 if ! PATH="$WORK_DIR/stable-start-bin:$PATH" \
   SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
-  SING_BOX_TEST_NETSTAT_FILE="$WORK_DIR/sing-box.netstat" \
+  FORKOP_PROC_NET_TCP="$WORK_DIR/proc-net-tcp.ready" \
   FORKOP_TEST_NFT_ARGS_FILE="$WORK_DIR/nft.args" \
   state_ucode forkop-running forkop ForkopTable 0x00100000; then
   kill "$sing_box_pid" >/dev/null 2>&1 || true
@@ -197,17 +217,18 @@ if ! PATH="$WORK_DIR/stable-start-bin:$PATH" \
   fail "stable-start fixture must expose configured Forkop networking"
 fi
 # Whether the table exists is the whole question, and this check runs on every
-# reload, in every readiness poll and behind every UI status refresh. Listing set
-# contents along the way makes it cost seconds once a rule set holds real lists.
-if ! grep -Fq -- '-t list table inet ForkopTable' "$WORK_DIR/nft.args"; then
+# reload, in every readiness poll and behind every UI status refresh. Naming the
+# table makes nft walk and filter the whole rule set to prove something the table
+# index already knows, and listing set contents along the way makes it cost
+# seconds once a rule set holds real lists.
+if ! grep -Fq -- 'list tables inet' "$WORK_DIR/nft.args"; then
   kill "$sing_box_pid" >/dev/null 2>&1 || true
   wait "$sing_box_pid" 2>/dev/null || true
-  fail "the runtime table check must list the table without its set contents"
+  fail "the runtime table check must read the table index, not a named table"
 fi
-sed '/127.0.0.42:53/d' "$WORK_DIR/sing-box.netstat" >"$WORK_DIR/sing-box.no-dns.netstat"
 if PATH="$WORK_DIR/stable-start-bin:$PATH" \
   SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
-  SING_BOX_TEST_NETSTAT_FILE="$WORK_DIR/sing-box.no-dns.netstat" \
+  FORKOP_PROC_NET_TCP="$WORK_DIR/proc-net-tcp.no-dns" \
   state_ucode forkop-running forkop ForkopTable 0x00100000 >/dev/null 2>&1; then
   kill "$sing_box_pid" >/dev/null 2>&1 || true
   wait "$sing_box_pid" 2>/dev/null || true
@@ -215,7 +236,7 @@ if PATH="$WORK_DIR/stable-start-bin:$PATH" \
 fi
 if ! PATH="$WORK_DIR/stable-start-bin:$PATH" \
   SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
-  SING_BOX_TEST_NETSTAT_FILE="$WORK_DIR/sing-box.netstat" \
+  FORKOP_PROC_NET_TCP="$WORK_DIR/proc-net-tcp.ready" \
   state_ucode wait-forkop-stable-start forkop ForkopTable 0x00100000 2; then
   kill "$sing_box_pid" >/dev/null 2>&1 || true
   wait "$sing_box_pid" 2>/dev/null || true
@@ -223,31 +244,35 @@ if ! PATH="$WORK_DIR/stable-start-bin:$PATH" \
 fi
 
 sleep 2
+cp "$WORK_DIR/proc-net-tcp.no-dns" "$WORK_DIR/hot-reload-proc-net-tcp"
 if ! PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
   FORKOP_SING_BOX_START_MAX_WAIT_SECONDS=1 \
   SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
-  SING_BOX_TEST_NETSTAT_FILE="$WORK_DIR/sing-box.netstat" \
-  SING_BOX_TEST_NETSTAT_READY_AFTER=2 \
-  SING_BOX_TEST_NETSTAT_COUNT_FILE="$WORK_DIR/hot-reload-netstat.count" \
+  FORKOP_PROC_NET_TCP="$WORK_DIR/hot-reload-proc-net-tcp" \
+  SING_BOX_TEST_READY_PROC_TCP="$WORK_DIR/proc-net-tcp.ready" \
+  SING_BOX_TEST_READY_AFTER_SLEEPS=1 \
+  SING_BOX_TEST_POLL_COUNT_FILE="$WORK_DIR/hot-reload-poll.count" \
   state_ucode wait-forkop-stable-start forkop ForkopTable 0x00100000 2; then
   fail "stable-start wait must retry readiness for a long-lived SIGHUP process"
 fi
-assert_eq "2" "$(cat "$WORK_DIR/hot-reload-netstat.count")" "SIGHUP readiness polls"
+assert_eq "1" "$(cat "$WORK_DIR/hot-reload-poll.count")" "SIGHUP readiness polls"
 
+cp "$WORK_DIR/proc-net-tcp.no-dns" "$WORK_DIR/slow-proc-net-tcp"
 if ! PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
   SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
-  SING_BOX_TEST_NETSTAT_FILE="$WORK_DIR/sing-box.netstat" \
-  SING_BOX_TEST_NETSTAT_READY_AFTER=12 \
-  SING_BOX_TEST_NETSTAT_COUNT_FILE="$WORK_DIR/netstat.count" \
+  FORKOP_PROC_NET_TCP="$WORK_DIR/slow-proc-net-tcp" \
+  SING_BOX_TEST_READY_PROC_TCP="$WORK_DIR/proc-net-tcp.ready" \
+  SING_BOX_TEST_READY_AFTER_SLEEPS=11 \
+  SING_BOX_TEST_POLL_COUNT_FILE="$WORK_DIR/slow-poll.count" \
   state_ucode wait-forkop-stable-start forkop ForkopTable 0x00100000 2; then
   fail "stable-start wait must continue while the original sing-box process is alive"
 fi
-assert_eq "12" "$(cat "$WORK_DIR/netstat.count")" "slow stable-start readiness polls"
+assert_eq "11" "$(cat "$WORK_DIR/slow-poll.count")" "slow stable-start readiness polls"
 
 if PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
   FORKOP_SING_BOX_START_MAX_WAIT_SECONDS=1 \
   SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
-  SING_BOX_TEST_NETSTAT_FILE="$WORK_DIR/sing-box.no-dns.netstat" \
+  FORKOP_PROC_NET_TCP="$WORK_DIR/proc-net-tcp.no-dns" \
   state_ucode wait-forkop-stable-start forkop ForkopTable 0x00100000 2 >/dev/null 2>&1; then
   fail "stable-start wait must stop waiting for a permanently unready live process"
 fi
@@ -256,7 +281,7 @@ kill -0 "$sing_box_pid" >/dev/null 2>&1 ||
 
 if PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
   SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
-  SING_BOX_TEST_NETSTAT_FILE="$WORK_DIR/sing-box.no-dns.netstat" \
+  FORKOP_PROC_NET_TCP="$WORK_DIR/proc-net-tcp.no-dns" \
   SING_BOX_TEST_KILL_PID_FILE="$WORK_DIR/sing-box.pid" \
   SING_BOX_TEST_SLEEP_COUNT_FILE="$WORK_DIR/sleep.count" \
   state_ucode wait-forkop-stable-start forkop ForkopTable 0x00100000 2 >/dev/null 2>&1; then

@@ -451,6 +451,24 @@ function stop_finish(job_id, status) {
     return status;
 }
 
+// rc.common turns a restart into a stop followed by a start, and each of those
+// opens its own tracked action, so anything watching the service saw "stopping",
+// then an idle gap, then "starting" - three states for one operation the user
+// asked for once. Wrapping both in a single restart action reports it as what it
+// is; the nested start and stop begin no action of their own because
+// service-action-begin-if-idle refuses while this one is running.
+function restart_service(owner_pid) {
+    let job_id = begin_external_service_action("restart", "initd", owner_pid);
+
+    let status = command_status_from_args([ SERVICE_INIT, "stop" ]);
+    let start_status = command_status_from_args([ SERVICE_INIT, "start" ]);
+    if (start_status != 0)
+        status = start_status;
+
+    finish_external_service_action("restart", job_id, status);
+    return status;
+}
+
 function stop_service(owner_pid) {
     clear_start_retry(START_RETRY_FILE);
     let job_id = begin_external_service_action("stop", "initd", owner_pid);
@@ -585,6 +603,8 @@ else if (mode == "start-plan-fixture") {
 }
 else if (mode == "stop-service")
     exit(stop_service(ARGV[1]));
+else if (mode == "restart-service")
+    exit(restart_service(ARGV[1]));
 else if (mode == "reload-begin-fixture") {
     let plan = reload_begin_value(ARGV[1], ARGV[2] || "0", ARGV[3], ARGV[4]);
     shell_assignment("INITD_RELOAD_ACTION", plan.action);

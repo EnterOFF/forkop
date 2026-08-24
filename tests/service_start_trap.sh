@@ -133,13 +133,17 @@ awk '
   END { exit ok ? 0 : 1 }
 ' "$LIFECYCLE_UC" ||
   fail "sing-box crash exhaustion must use the complete failed-runtime cleanup"
-require_pattern "tproxy-marking-rule4-present" \
+# These four used to be spawned as pass-through modes of nft/apply.uc, which
+# does not dispatch them any more: every probe failed, stop read that as "not
+# present", and the rules and routing table it had added stayed in the kernel.
+# They are nft/state.uc's predicates, so stop asks that module in process.
+require_pattern "nft_state.tproxy_marking_rule4_present" \
   "service stop must use direct ucode IPv4 tproxy marking rule check"
-require_pattern "tproxy-marking-rule6-present" \
+require_pattern "nft_state.tproxy_marking_rule6_present" \
   "service stop must use direct ucode IPv6 tproxy marking rule check"
-require_pattern "tproxy-route4-present" \
+require_pattern "nft_state.tproxy_route4_present" \
   "service stop must use direct ucode IPv4 tproxy route check"
-require_pattern "tproxy-route6-present" \
+require_pattern "nft_state.tproxy_route6_present" \
   "service stop must use direct ucode IPv6 tproxy route check"
 require_pattern 'const IP_BIN = getenv("FORKOP_IP_BIN") || "/usr/libexec/ip-full";' \
   "service stop must resolve the iproute2 binary that created the Forkop table"

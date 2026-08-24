@@ -81,8 +81,13 @@ if sed -n '/^function cleanup_dir(/,/^}/p' "$UI_UC" | grep -Fq '"find"'; then
 fi
 grep -Fq 'run_pending_reload_after_service_action(action, success)' "$UI_UC" ||
   fail "UI service actions must run pending reload after the current action finishes"
-grep -Fq 'service_action_wait_for_expected_state(action, SERVICE_ACTION_TIMEOUT_SECONDS, SERVICE_ACTION_SETTLE_SECONDS)' "$UI_UC" ||
-  fail "UI service action worker must keep action state until the expected service state is stable"
+grep -Fq 'let status = system(command);' "$UI_UC" ||
+  fail "UI service action worker must run the init.d command and take its status"
+grep -Fq 'finish_service_action_after_command(action, job_id_value, status);' "$UI_UC" ||
+  fail "UI service action worker must finish from the command status, not from a second probe"
+if grep -Fq 'service_action_wait_for_expected_state' "$UI_UC"; then
+  fail "action completion must not be re-derived by polling after the command already waited"
+fi
 grep -Fq 'let args = [ SERVICE_INIT, action ];' "$UI_UC" ||
   fail "UI service action worker must use init.d so procd triggers stay registered"
 grep -Fq 'start_service_action("reload", "initd", "pending")' "$UI_UC" ||
@@ -118,18 +123,6 @@ ui_ucode service-action-valid restart >/dev/null ||
   fail "restart service action should be valid"
 if ui_ucode service-action-valid invalid >/dev/null 2>&1; then
   fail "invalid service action should be rejected"
-fi
-assert_eq "1" \
-  "$(ui_ucode service-action-expected-running start)" \
-  "start expects running service"
-assert_eq "1" \
-  "$(ui_ucode service-action-expected-running reload)" \
-  "reload expects running service"
-assert_eq "0" \
-  "$(ui_ucode service-action-expected-running stop)" \
-  "stop expects stopped service"
-if ui_ucode service-action-expected-running invalid >/dev/null 2>&1; then
-  fail "invalid service action expected state should be rejected"
 fi
 assert_eq "running & enabled" \
   "$(ui_ucode service-status-text 1 1)" \
@@ -230,18 +223,31 @@ ui_ucode service-action-update-pid "$job_id" "$$" >/dev/null ||
 grep -Fq "\"pid\": \"$$\"" "$service_state" ||
   fail "service-action-update-pid should store the pid it was given"
 
-FORKOP_UI_SERVICE_ACTION_TIMEOUT_SECONDS=1 \
-FORKOP_UI_SERVICE_ACTION_SETTLE_SECONDS=0 \
+# Finishing is immediate and needs no second process: the command that just
+# returned is what waited for the service to get there.
 FORKOP_SERVICE_INIT=/bin/true \
 FORKOP_BIN=/bin/true \
 FORKOP_LIB="$FORKOP_FILES/usr/lib" \
   ui_ucode service-action-finish-after-command reload "$job_id" 0 >/dev/null ||
-  fail "service-action-finish-after-command should spawn waiter without ucode declaration-order failure"
+  fail "service-action-finish-after-command should finish the action"
 
-sleep 2
 if grep -q '"running"[[:space:]]*:[[:space:]]*true' "$service_state"; then
-  fail "service-action-finish-after-command waiter should finish the running service action"
+  fail "service-action-finish-after-command should finish the running service action at once"
 fi
+grep -q '"success"[[:space:]]*:[[:space:]]*true' "$service_state" ||
+  fail "a command that exited zero must finish the action as a success"
+
+# And a non-zero exit is reported as the failure it is.
+failed_job="$(ui_ucode service-action-begin-if-idle restart uitest "$$")"
+[ -n "$failed_job" ] || fail "a second action should begin once the first has finished"
+failed_state="$FORKOP_UI_SERVICE_ACTION_DIR/$failed_job.json"
+FORKOP_SERVICE_INIT=/bin/false \
+FORKOP_BIN=/bin/false \
+FORKOP_LIB="$FORKOP_FILES/usr/lib" \
+  ui_ucode service-action-finish-after-command restart "$failed_job" 1 >/dev/null ||
+  fail "service-action-finish-after-command should record a failed action"
+grep -q '"success"[[:space:]]*:[[:space:]]*false' "$failed_state" ||
+  fail "a command that exited non-zero must finish the action as a failure"
 
 ui_ucode service-action-finish "$job_id" true done 0 >/dev/null ||
   fail "service-action-finish should finish running job"

@@ -83,6 +83,10 @@ export const styles = `
     color: var(--error-color-medium, red);
 }
 
+.fkp_dashboard-page__widgets-section__item__row--progress .fkp_dashboard-page__widgets-section__item__row__value {
+    color: var(--warning-color-medium, #b8860b);
+}
+
 .fkp_dashboard-page__widgets-section__item__row__key {}
 
 .fkp_dashboard-page__widgets-section__item__row__value {}
@@ -142,7 +146,8 @@ export const styles = `
     background: color-mix(in srgb, currentColor 14%, transparent) !important;
 }
 
-.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__subscription-update {
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__subscription-update,
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__rule-set-update {
     min-width: 130px;
     min-height: 28px;
     display: inline-flex;
@@ -151,14 +156,16 @@ export const styles = `
     gap: 6px;
 }
 
-.fkp_dashboard-page__outbound-section__subscription-update svg {
+.fkp_dashboard-page__outbound-section__subscription-update svg,
+.fkp_dashboard-page__outbound-section__rule-set-update svg {
     width: 15px;
     height: 15px;
     display: block;
     flex: 0 0 auto;
 }
 
-.fkp_dashboard-page__outbound-section__subscription-update[disabled] {
+.fkp_dashboard-page__outbound-section__subscription-update[disabled],
+.fkp_dashboard-page__outbound-section__rule-set-update[disabled] {
     cursor: not-allowed;
     opacity: 0.65;
 }

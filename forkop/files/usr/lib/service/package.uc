@@ -2,6 +2,7 @@
 
 let fs = require("fs");
 let uci_core = require("core.uci");
+let bytecode = require("core.bytecode");
 
 function as_string(value) {
     return value == null ? "" : "" + value;
@@ -138,6 +139,7 @@ function prerm_cleanup(action) {
         command_success_from_args([ INIT_PATH, "stop" ]);
         restore_dnsmasq_if_needed();
     }
+    bytecode.invalidate_validation_stamp();
     return remove_rt_tables_entry();
 }
 
@@ -156,6 +158,7 @@ function postinst_restore() {
 // so it goes in before a service that was running is brought back up. Its
 // failure is reported but does not fail the installation.
 function postinst() {
+    bytecode.invalidate_validation_stamp();
     reload_firewall_input_include();
     return postinst_restore();
 }

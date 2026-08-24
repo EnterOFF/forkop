@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-24 03:16+0300\n"
-"PO-Revision-Date: 2026-08-24 03:16+0300\n"
+"POT-Creation-Date: 2026-08-24 05:56+0300\n"
+"PO-Revision-Date: 2026-08-24 05:56+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -211,6 +211,9 @@ msgstr "Любой"
 
 msgid "Applies WARP+ to the profile account"
 msgstr "Применяет WARP+ к аккаунту профиля"
+
+msgid "Applying..."
+msgstr "Применение..."
 
 msgid "At least one valid domain must be specified."
 msgstr "Нужно указать хотя бы один корректный домен."
@@ -749,6 +752,12 @@ msgstr "Не удалось загрузить логи"
 msgid "Failed to pin the server"
 msgstr "Не удалось закрепить сервер"
 
+msgid "Failed to update lists"
+msgstr "Ошибка обновления списков"
+
+msgid "Failed to update subscriptions"
+msgstr "Ошибка обновления подписок"
+
 msgid "FakeIP and control checks use different public IPs"
 msgstr "FakeIP и контрольная проверка используют разные публичные IP"
 
@@ -1132,6 +1141,9 @@ msgstr "Порт"
 
 msgid "Listening port"
 msgstr "Порт прослушивания"
+
+msgid "Lists updated"
+msgstr "Списки успешно обновлены"
 
 msgid "Loading connections"
 msgstr "Загрузка подключений"
@@ -1601,6 +1613,9 @@ msgstr "Выбор ресурсов по IP или CIDR внутри nfqws2 зд
 msgid "Restart"
 msgstr "Перезапустить"
 
+msgid "Restarting..."
+msgstr "Перезапуск..."
+
 msgid "Resume updates"
 msgstr "Продолжить обновление"
 
@@ -1895,6 +1910,9 @@ msgstr "Отдельная служба Zapret2 активна вместе с �
 msgid "Start"
 msgstr "Запустить"
 
+msgid "Starting..."
+msgstr "Запуск..."
+
 msgid "Static DNS records"
 msgstr "Статичные DNS записи"
 
@@ -1903,6 +1921,9 @@ msgstr "Статус"
 
 msgid "Stop"
 msgstr "Остановить"
+
+msgid "Stopping..."
+msgstr "Остановка..."
 
 msgid "Subscription"
 msgstr "Подписка"
@@ -1924,6 +1945,9 @@ msgstr "Тег подписки не должен содержать /"
 
 msgid "Subscription URL or local path"
 msgstr "URL подписки или локальный путь"
+
+msgid "Subscriptions updated"
+msgstr "Подписки успешно обновлены"
 
 msgid "Supported URIs: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, naiveproxy, mieru, anytls"
 msgstr "Поддерживаются URI: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, naiveproxy, mieru, anytls"

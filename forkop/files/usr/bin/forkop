@@ -99,6 +99,7 @@ function show_help() {
     print("    get_subscription_default_headers\n");
     print("                            Get default subscription request headers in JSON format\n");
     print("    get_ui_state            Get lightweight UI service/action state in JSON format\n");
+    print("    get_section_rule_sets   Map each section to its rule-set tags in JSON format\n");
     print("    service_action_async    Start a service action in the background\n");
     print("    service_action_status   Get background service action status\n");
     print("    ui_action_ack           Acknowledge a finished UI action state\n");
@@ -155,6 +156,7 @@ function command_spec(command) {
         get_ui_capabilities: [ "service/ui.uc", "get-ui-capabilities", 0 ],
         get_subscription_default_headers: [ "service/ui.uc", "get-subscription-default-headers", 0 ],
         get_ui_state: [ "service/ui.uc", "get-ui-state", 0 ],
+        get_section_rule_sets: [ "singbox/section_rulesets.uc", "get-section-rule-sets", 0 ],
         service_action_async: [ "service/ui.uc", "service-action-async", 1 ],
         service_action_status: [ "service/ui.uc", "service-action-status", 1 ],
         ui_action_ack: [ "service/ui.uc", "action-ack", 2 ],

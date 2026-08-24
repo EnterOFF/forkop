@@ -190,8 +190,199 @@ function port_conflict_owners(data, listen, port, proto) {
     return sorted_unique(owners);
 }
 
+
+// /proc/net/tcp{,6} answers the readiness question without spawning netstat,
+// which walks and formats every socket on the box to report three of them. The
+// kernel prints the local address as little-endian hex words, so a configured
+// address is compared by converting it the same way rather than by formatting
+// the kernel's copy back into text. TCP_LISTEN is 0x0A; the old text match
+// accepted any socket state, so an outgoing connection to the port used to read
+// as a listener.
+//
+// Everything below avoids regular expressions and sprintf on purpose. This runs
+// behind every status poll, and on a MIPS router a single regex match costs
+// about 0.2 ms - enough that the obvious implementation spent more time parsing
+// three lines than the netstat process it replaced.
+const PROC_TCP_LISTEN = "0A";
+const HEX_DIGITS = "0123456789ABCDEF";
+const DECIMAL_DIGITS = "0123456789";
+
+function hex_byte(value) {
+    value = int(value) & 255;
+    return substr(HEX_DIGITS, value / 16, 1) + substr(HEX_DIGITS, value % 16, 1);
+}
+
+// A 4-byte group as the kernel prints it: host byte order, little-endian on
+// every target OpenWrt builds for here.
+function proc_hex_word(bytes, offset) {
+    return hex_byte(bytes[offset + 3]) + hex_byte(bytes[offset + 2]) +
+        hex_byte(bytes[offset + 1]) + hex_byte(bytes[offset]);
+}
+
+function digits_value(text, alphabet, limit) {
+    text = as_string(text);
+    let size = length(text);
+    if (size < 1 || size > limit)
+        return -1;
+
+    let base = length(alphabet);
+    let value = 0;
+    for (let i = 0; i < size; i++) {
+        let digit = index(alphabet, uc(substr(text, i, 1)));
+        if (digit < 0)
+            return -1;
+        value = value * base + digit;
+    }
+    return value;
+}
+
+function ipv4_bytes(address) {
+    let parts = split(as_string(address), ".");
+    if (length(parts) != 4)
+        return null;
+
+    let bytes = [];
+    for (let part in parts) {
+        let value = digits_value(part, DECIMAL_DIGITS, 3);
+        if (value < 0 || value > 255)
+            return null;
+        push(bytes, value);
+    }
+    return bytes;
+}
+
+function ipv6_group_bytes(group) {
+    let value = digits_value(group, HEX_DIGITS, 4);
+    if (value < 0)
+        return null;
+    return [ (value / 256) & 255, value & 255 ];
+}
+
+// Expands the one allowed "::" run so a configured "::1" compares against the
+// fully written out form the kernel prints.
+function ipv6_bytes(address) {
+    address = as_string(address);
+    if (address == "")
+        return null;
+
+    let halves = split(address, "::");
+    if (length(halves) > 2)
+        return null;
+
+    let head = halves[0] == "" ? [] : split(halves[0], ":");
+    let tail = length(halves) < 2 || halves[1] == "" ? [] : split(halves[1], ":");
+    if (length(halves) < 2 && length(head) != 8)
+        return null;
+
+    let head_bytes = [];
+    for (let group in head) {
+        let bytes = ipv6_group_bytes(group);
+        if (bytes == null)
+            return null;
+        push(head_bytes, ...bytes);
+    }
+
+    let tail_bytes = [];
+    for (let group in tail) {
+        let bytes = ipv6_group_bytes(group);
+        if (bytes == null)
+            return null;
+        push(tail_bytes, ...bytes);
+    }
+
+    let filled = length(head_bytes) + length(tail_bytes);
+    if (filled > 16)
+        return null;
+
+    let result = [ ...head_bytes ];
+    for (let i = filled; i < 16; i++)
+        push(result, 0);
+    push(result, ...tail_bytes);
+    return result;
+}
+
+// The handful of addresses asked about never change within a process, and the
+// conversion is the expensive half, so each answer is kept.
+let proc_address_hex_cache = {};
+
+function proc_address_hex(address) {
+    address = as_string(address);
+    let cached = proc_address_hex_cache[address];
+    if (cached != null)
+        return cached;
+
+    let bytes = index(address, ":") >= 0 ? ipv6_bytes(address) : ipv4_bytes(address);
+    let hex = "";
+    if (bytes != null)
+        for (let offset = 0; offset < length(bytes); offset += 4)
+            hex += proc_hex_word(bytes, offset);
+
+    proc_address_hex_cache[address] = hex;
+    return hex;
+}
+
+function proc_port_hex(port) {
+    let value = digits_value(port, DECIMAL_DIGITS, 5);
+    if (value < 0 || value > 65535)
+        return "";
+    return hex_byte(value / 256) + hex_byte(value % 256);
+}
+
+// tcp4_seq_show and tcp6_seq_show print a fixed layout - "%4d: %08X:%04X
+// %08X:%04X %02X ..." - with single spaces between the sl, local, remote and
+// state columns. That makes a listening socket on a given endpoint an exact
+// substring: the ": " anchor proves the match is the local column and not the
+// remote one, an all-zero remote and state 0A prove it is listening rather than
+// a connection to the same address. One index() over a few kilobytes replaces
+// splitting every line into every column, which measured 5 ms on a real router.
+const PROC_ZERO_WORDS = "00000000000000000000000000000000";
+
+function proc_zero_remote(width) {
+    return substr(PROC_ZERO_WORDS, 0, width) + ":0000";
+}
+
+function proc_listener_token(address, port) {
+    let hex = proc_address_hex(address);
+    let port_hex = proc_port_hex(port);
+    if (hex == "" || port_hex == "")
+        return "";
+
+    return ": " + hex + ":" + port_hex + " " + proc_zero_remote(length(hex)) +
+        " " + PROC_TCP_LISTEN;
+}
+
+// True when one of `addresses` - the family wildcard included, because a
+// wildcard listener serves every address of its family - listens on `port`.
+function proc_tcp_listening(data, addresses, port) {
+    data = uc(as_string(data));
+
+    for (let address in addresses) {
+        let token = proc_listener_token(address, port);
+        if (token != "" && index(data, token) >= 0)
+            return true;
+    }
+
+    return false;
+}
+
+// The same three listeners the netstat text check looked for, read from /proc.
+function sing_box_standard_ports_listening_proc(tcp, tcp6, dns_address, tproxy_port, tproxy6_address) {
+    dns_address = dns_address == null || dns_address == "" ? "127.0.0.42" : as_string(dns_address);
+    tproxy_port = tproxy_port == null || tproxy_port == "" ? "1602" : as_string(tproxy_port);
+    tproxy6_address = tproxy6_address == null || tproxy6_address == "" ? "::1" : as_string(tproxy6_address);
+
+    tcp = uc(as_string(tcp));
+
+    return proc_tcp_listening(tcp, [ dns_address, "0.0.0.0" ], "53") &&
+        proc_tcp_listening(tcp, [ "0.0.0.0", "127.0.0.1" ], tproxy_port) &&
+        proc_tcp_listening(tcp6, [ tproxy6_address, "::" ], tproxy_port);
+}
+
 return {
     sing_box_standard_ports_listening,
+    sing_box_standard_ports_listening_proc,
+    proc_address_hex,
+    proc_tcp_listening,
     tcp_endpoint_in_use,
     port_listening,
     port_conflict_owners,

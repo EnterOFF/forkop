@@ -51,9 +51,12 @@ function write_owner(lock_dir, owner_pid) {
     return fs.writefile(as_string(lock_dir) + "/pid", as_string(owner_pid) + "\n") != null;
 }
 
+// /proc/<pid> exists exactly while the pid does, which is the same question
+// `kill -0` answers - without a shell and a second binary per check. The status
+// feed asks it once per tracked job on every poll.
 function pid_alive(pid) {
     pid = as_string(pid);
-    return match(pid, /^[0-9]+$/) != null && command_success([ "kill", "-0", pid ]);
+    return match(pid, /^[0-9]+$/) != null && fs.stat("/proc/" + pid) != null;
 }
 
 function ensure_parent_dir(path) {

@@ -161,6 +161,8 @@ export interface StoreType {
       forkopRunning: number;
       forkopEnabled: number;
       forkopStatus: string;
+      forkopBusy: Forkop.ServiceBusy | null;
+      forkopBusySeconds: number;
     };
   };
   sectionsWidget: {
@@ -168,6 +170,7 @@ export interface StoreType {
     failed: boolean;
     data: Forkop.OutboundGroup[];
     subscriptionUpdatingSections: Record<string, boolean>;
+    ruleSetUpdatingSections: Record<string, boolean>;
   };
   diagnosticsRunAction: {
     loading: boolean;
@@ -180,7 +183,6 @@ export interface StoreType {
     enable: { loading: boolean };
     disable: { loading: boolean };
     globalCheck: { loading: boolean };
-    updateRuleSets: { loading: boolean };
     showConfig: { loading: boolean };
     showSingBoxConfig: { loading: boolean };
   };
@@ -256,12 +258,15 @@ const initialStore: StoreType = {
       forkopRunning: 0,
       forkopEnabled: 0,
       forkopStatus: '',
+      forkopBusy: null,
+      forkopBusySeconds: 0,
     },
   },
   sectionsWidget: {
     loading: true,
     failed: false,
     subscriptionUpdatingSections: {},
+    ruleSetUpdatingSections: {},
     data: [],
   },
   ...initialDiagnosticStore,

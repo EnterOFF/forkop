@@ -5,6 +5,7 @@ let constants = require("core.constants");
 let core_netstat = require("core.netstat");
 let core_url = require("core.url");
 let uci_core = require("core.uci");
+let nft_state = require("nft.state");
 
 function as_string(value) {
     return value == null ? "" : "" + value;
@@ -712,14 +713,14 @@ function stop_main() {
     if (command_success_from_args([ "nft", "-t", "list", "table", "inet", NFT_TABLE_NAME ]))
         command_success_from_args([ "nft", "delete", "table", "inet", NFT_TABLE_NAME ]);
 
-    if (module_success(NFT_UC, [ "tproxy-marking-rule4-present", RT_TABLE_NAME, NFT_FAKEIP_MARK ]))
+    if (nft_state.tproxy_marking_rule4_present(RT_TABLE_NAME, NFT_FAKEIP_MARK))
         command_success_from_args([ IP_BIN, "-4", "rule", "del", "fwmark", NFT_FAKEIP_MARK + "/" + NFT_FAKEIP_MARK, "table", RT_TABLE_NAME, "priority", "105" ]);
-    if (module_success(NFT_UC, [ "tproxy-marking-rule6-present", RT_TABLE_NAME, NFT_FAKEIP_MARK ]))
+    if (nft_state.tproxy_marking_rule6_present(RT_TABLE_NAME, NFT_FAKEIP_MARK))
         command_success_from_args([ IP_BIN, "-6", "rule", "del", "fwmark", NFT_FAKEIP_MARK + "/" + NFT_FAKEIP_MARK, "table", RT_TABLE_NAME, "priority", "105" ]);
 
-    if (module_success(NFT_UC, [ "tproxy-route4-present", RT_TABLE_NAME ]))
+    if (nft_state.tproxy_route4_present(RT_TABLE_NAME))
         command_success_from_args([ IP_BIN, "route", "flush", "table", RT_TABLE_NAME ]);
-    if (module_success(NFT_UC, [ "tproxy-route6-present", RT_TABLE_NAME ]))
+    if (nft_state.tproxy_route6_present(RT_TABLE_NAME))
         command_success_from_args([ IP_BIN, "-6", "route", "flush", "table", RT_TABLE_NAME ]);
 
     let sing_box_status = stop_sing_box_service();

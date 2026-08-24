@@ -28,10 +28,12 @@ interface IRenderSectionsProps {
   onShowUrlTestInfo: (outbound: Forkop.Outbound) => void;
   onShowFallbackInfo: (outbound: Forkop.Outbound) => void;
   onUpdateSubscription: (section: Forkop.OutboundGroup) => void;
+  onUpdateRuleSets: (section: Forkop.OutboundGroup) => void;
   onSortByLatencyChange?: (sectionName: string, enabled: boolean) => void;
   latencyFetching: boolean;
   latencyFetchingTargets?: Set<string>;
   subscriptionUpdating: boolean;
+  ruleSetUpdating: boolean;
   sortByLatency?: boolean;
 }
 
@@ -249,6 +251,38 @@ function renderSubscriptionUpdateAction(
   );
 }
 
+function renderRuleSetUpdateAction(
+  section: Forkop.OutboundGroup,
+  ruleSetUpdating: boolean,
+  onUpdateRuleSets: (section: Forkop.OutboundGroup) => void,
+) {
+  if (!section.ruleSetProviderTags?.length) {
+    return undefined;
+  }
+
+  return E(
+    'button',
+    {
+      type: 'button',
+      class: 'btn fkp_dashboard-page__outbound-section__rule-set-update',
+      'aria-label': _('Update lists'),
+      disabled: ruleSetUpdating ? true : undefined,
+      click: (event: MouseEvent) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (ruleSetUpdating) {
+          return;
+        }
+
+        onUpdateRuleSets(section);
+      },
+    },
+    ruleSetUpdating
+      ? [renderLoaderCircleIcon24(), _('Update lists')]
+      : _('Update lists'),
+  );
+}
+
 function getOutboundLatencyClass(latency: number) {
   if (!latency) {
     return 'fkp_dashboard-page__outbound-grid__item__latency--empty';
@@ -274,10 +308,12 @@ function renderDefaultState({
   onTestLatency,
   onTestOutboundLatency,
   onUpdateSubscription,
+  onUpdateRuleSets,
   onSortByLatencyChange,
   latencyFetching,
   latencyFetchingTargets = new Set(),
   subscriptionUpdating,
+  ruleSetUpdating,
   sortByLatency,
 }: IRenderSectionsProps) {
   function testLatency() {
@@ -468,6 +504,11 @@ function renderDefaultState({
     subscriptionUpdating,
     onUpdateSubscription,
   );
+  const ruleSetUpdateAction = renderRuleSetUpdateAction(
+    section,
+    ruleSetUpdating,
+    onUpdateRuleSets,
+  );
   const outbounds = sortByLatency
     ? [...section.outbounds].sort(
         (left, right) => getLatencySortValue(left) - getLatencySortValue(right),
@@ -518,6 +559,7 @@ function renderDefaultState({
         [
           ...(latencySortAction ? [latencySortAction] : []),
           ...(subscriptionUpdateAction ? [subscriptionUpdateAction] : []),
+          ...(ruleSetUpdateAction ? [ruleSetUpdateAction] : []),
           E(
             'button',
             {
@@ -583,8 +625,10 @@ export function renderSectionsPlaceholder(state: {
     onShowUrlTestInfo: () => {},
     onShowFallbackInfo: () => {},
     onUpdateSubscription: () => {},
+    onUpdateRuleSets: () => {},
     latencyFetching: false,
     subscriptionUpdating: false,
+    ruleSetUpdating: false,
   });
 }
 

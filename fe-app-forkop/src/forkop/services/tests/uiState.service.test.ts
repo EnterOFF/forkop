@@ -12,14 +12,17 @@ import {
 function createUiState(
   actions: Partial<Forkop.UiState['actions']> = {},
   capabilities: Partial<Forkop.UiState['capabilities']> = {},
+  forkop: Partial<Forkop.GetStatus> = {},
 ): Forkop.UiState {
   return {
     service: {
       forkop: {
         running: 0,
         enabled: 1,
-        status: 'starting',
+        status: 'stopped but enabled',
+        busy: 'start',
         dns_configured: 0,
+        ...forkop,
       },
       sing_box: {
         running: 0,
@@ -84,7 +87,8 @@ describe('applyUiStateToStore', () => {
       data: {
         forkopEnabled: 1,
         forkopRunning: 0,
-        forkopStatus: 'starting',
+        forkopStatus: 'stopped but enabled',
+        forkopBusy: 'start',
       },
     });
     expect(state.diagnosticsSystemInfo).toMatchObject({
@@ -94,7 +98,7 @@ describe('applyUiStateToStore', () => {
       byedpi_installed: 1,
       server_inbounds_enabled_count: 0,
     });
-    expect(state.diagnosticsActions.start.loading).toBe(true);
+    expect(state.diagnosticsActions.start.loading).toBe(false);
     expect(state.sectionsWidget.subscriptionUpdatingSections).toEqual({});
     expect(state.updatesActions.zapretInstall.loading).toBe(true);
   });
@@ -147,22 +151,41 @@ describe('applyUiStateToStore', () => {
     expect(store.get().diagnosticsActions.restart.loading).toBe(false);
   });
 
-  it('maps a running reload action to the restart control', () => {
+  // Applying settings is not a restart: the service keeps running through it,
+  // and the status has to keep saying so while `busy` carries the operation.
+  it('reports an apply without claiming the service went down', () => {
     applyUiStateToStore(
-      createUiState({
-        service: [
-          {
-            success: true,
-            running: true,
-            kind: 'service',
-            action: 'reload',
-            job_id: 'service-reload',
-          },
-        ],
-      }),
+      createUiState(
+        {},
+        {},
+        {
+          running: 1,
+          status: 'running & enabled',
+          busy: 'apply',
+        },
+      ),
     );
 
-    expect(store.get().diagnosticsActions.restart.loading).toBe(true);
+    const state = store.get();
+
+    expect(state.servicesInfoWidget.data).toMatchObject({
+      forkopRunning: 1,
+      forkopStatus: 'running & enabled',
+      forkopBusy: 'apply',
+    });
+    expect(state.diagnosticsActions.restart.loading).toBe(false);
+  });
+
+  it('carries no operation when the runtime reports none', () => {
+    applyUiStateToStore(
+      createUiState(
+        {},
+        {},
+        { running: 1, status: 'running & enabled', busy: null },
+      ),
+    );
+
+    expect(store.get().servicesInfoWidget.data.forkopBusy).toBeNull();
   });
 
   it('keeps current sing-box package info while an update is running', () => {

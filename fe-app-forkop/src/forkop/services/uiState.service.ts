@@ -58,6 +58,8 @@ function applyServiceState(uiState: Forkop.UiState) {
         forkopRunning: uiState.service.forkop.running,
         forkopEnabled: uiState.service.forkop.enabled,
         forkopStatus: uiState.service.forkop.status,
+        forkopBusy: uiState.service.forkop.busy || null,
+        forkopBusySeconds: uiState.service.forkop.busy_seconds || 0,
       },
     },
     diagnosticsSystemInfo: nextSystemInfo,
@@ -79,20 +81,6 @@ function applyActionState(actions: UiActionMap = {}) {
     const key = getComponentActionKey(state.component, state.action);
     if (key) {
       updatesActions[key] = { loading: true };
-    }
-  }
-
-  for (const state of actions.service || []) {
-    if (!isRunningAction(state)) {
-      continue;
-    }
-
-    if (state.action === 'start') {
-      diagnosticsActions.start = { loading: true };
-    } else if (state.action === 'stop') {
-      diagnosticsActions.stop = { loading: true };
-    } else if (state.action === 'restart' || state.action === 'reload') {
-      diagnosticsActions.restart = { loading: true };
     }
   }
 

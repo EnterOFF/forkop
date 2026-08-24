@@ -112,8 +112,10 @@ describe('renderSections latency actions', () => {
       onShowUrlTestInfo: vi.fn(),
       onShowFallbackInfo: vi.fn(),
       onUpdateSubscription: vi.fn(),
+      onUpdateRuleSets: vi.fn(),
       latencyFetching: false,
       subscriptionUpdating: false,
+      ruleSetUpdating: false,
     }) as unknown as FakeNode;
     const button = findNode(
       root,
@@ -176,10 +178,12 @@ describe('renderSections latency actions', () => {
         onShowUrlTestInfo: vi.fn(),
         onShowFallbackInfo: vi.fn(),
         onUpdateSubscription: vi.fn(),
+        onUpdateRuleSets: vi.fn(),
         onSortByLatencyChange,
         sortByLatency,
         latencyFetching: false,
         subscriptionUpdating: false,
+        ruleSetUpdating: false,
       }) as unknown as FakeNode;
     const findSortButton = (root: FakeNode) =>
       findNode(
@@ -248,8 +252,10 @@ describe('renderSections latency actions', () => {
       onShowUrlTestInfo: vi.fn(),
       onShowFallbackInfo: vi.fn(),
       onUpdateSubscription: vi.fn(),
+      onUpdateRuleSets: vi.fn(),
       latencyFetching: false,
       subscriptionUpdating: false,
+      ruleSetUpdating: false,
     }) as unknown as FakeNode;
 
     expect(findSortButton(singleCardRoot)).toBeUndefined();
@@ -286,8 +292,10 @@ describe('renderSections latency actions', () => {
       onShowUrlTestInfo: vi.fn(),
       onShowFallbackInfo: vi.fn(),
       onUpdateSubscription: vi.fn(),
+      onUpdateRuleSets: vi.fn(),
       latencyFetching: false,
       subscriptionUpdating: false,
+      ruleSetUpdating: false,
     }) as unknown as FakeNode;
     const card = findNode(root, (node) =>
       String(node.attrs.class || '')
@@ -360,8 +368,10 @@ describe('renderSections latency actions', () => {
       onShowUrlTestInfo: vi.fn(),
       onShowFallbackInfo: vi.fn(),
       onUpdateSubscription: vi.fn(),
+      onUpdateRuleSets: vi.fn(),
       latencyFetching: false,
       subscriptionUpdating: false,
+      ruleSetUpdating: false,
     }) as unknown as FakeNode;
     const button = findNode(
       root,
@@ -439,8 +449,10 @@ describe('renderSections latency actions', () => {
       onShowUrlTestInfo: vi.fn(),
       onShowFallbackInfo: vi.fn(),
       onUpdateSubscription: vi.fn(),
+      onUpdateRuleSets: vi.fn(),
       latencyFetching: false,
       subscriptionUpdating: false,
+      ruleSetUpdating: false,
     }) as unknown as FakeNode;
     const buttons = findNodes(root, (node) => node.type === 'button');
     const fallbackButton = buttons.find((button) =>
@@ -505,8 +517,10 @@ describe('renderSections latency actions', () => {
       onShowUrlTestInfo: vi.fn(),
       onShowFallbackInfo: vi.fn(),
       onUpdateSubscription: vi.fn(),
+      onUpdateRuleSets: vi.fn(),
       latencyFetching: true,
       subscriptionUpdating: false,
+      ruleSetUpdating: false,
     };
     const root = renderSections(props) as unknown as FakeNode;
     const buttons = findNodes(
@@ -594,9 +608,11 @@ describe('renderSections latency actions', () => {
       onShowUrlTestInfo: vi.fn(),
       onShowFallbackInfo: vi.fn(),
       onUpdateSubscription: vi.fn(),
+      onUpdateRuleSets: vi.fn(),
       latencyFetching: false,
       latencyFetchingTargets: new Set(['main/URLTest']),
       subscriptionUpdating: false,
+      ruleSetUpdating: false,
     }) as unknown as FakeNode;
     const buttons = findNodes(
       root,
@@ -659,8 +675,10 @@ describe('renderSections latency actions', () => {
       onShowUrlTestInfo: vi.fn(),
       onShowFallbackInfo: vi.fn(),
       onUpdateSubscription: vi.fn(),
+      onUpdateRuleSets: vi.fn(),
       latencyFetching: false,
       subscriptionUpdating: false,
+      ruleSetUpdating: false,
     }) as unknown as FakeNode;
     const latency = findNode(
       root,
@@ -714,8 +732,10 @@ describe('renderSections subscription metadata', () => {
       onShowUrlTestInfo: vi.fn(),
       onShowFallbackInfo: vi.fn(),
       onUpdateSubscription: vi.fn(),
+      onUpdateRuleSets: vi.fn(),
       latencyFetching: false,
       subscriptionUpdating: false,
+      ruleSetUpdating: false,
     }) as unknown as FakeNode;
     const links = findNodes(
       root,
@@ -760,8 +780,10 @@ describe('renderSections subscription metadata', () => {
       onShowUrlTestInfo: vi.fn(),
       onShowFallbackInfo: vi.fn(),
       onUpdateSubscription: vi.fn(),
+      onUpdateRuleSets: vi.fn(),
       latencyFetching: false,
       subscriptionUpdating: false,
+      ruleSetUpdating: false,
     }) as unknown as FakeNode;
     const heading = findNodes(
       root,
@@ -800,8 +822,10 @@ describe('renderSections subscription metadata', () => {
       onShowUrlTestInfo: vi.fn(),
       onShowFallbackInfo: vi.fn(),
       onUpdateSubscription: vi.fn(),
+      onUpdateRuleSets: vi.fn(),
       latencyFetching: false,
       subscriptionUpdating: false,
+      ruleSetUpdating: false,
     }) as unknown as FakeNode;
     const heading = findNode(
       root,
@@ -818,5 +842,162 @@ describe('renderSections subscription metadata', () => {
 
     expect(heading).toBeUndefined();
     expect(title?.children[0]).toBe('Subscription');
+  });
+});
+
+describe('renderSections rule-set action', () => {
+  async function renderWith(
+    ruleSetProviderTags: string[] | undefined,
+    overrides: Partial<{
+      ruleSetUpdating: boolean;
+      onUpdateRuleSets: (section: Forkop.OutboundGroup) => void;
+    }> = {},
+  ) {
+    installElementFactory();
+    const { renderSections } = await import('../partials/renderSections');
+
+    const section = {
+      code: 'proxy',
+      sectionName: 'proxy',
+      displayName: 'Proxy',
+      withTagSelect: true,
+      ruleSetProviderTags,
+      outbounds: [
+        {
+          code: 'proxy/Node',
+          displayName: 'Node',
+          latency: 0,
+          type: 'VLESS',
+          selected: true,
+        },
+      ],
+    } as Forkop.OutboundGroup;
+
+    const root = renderSections({
+      loading: false,
+      failed: false,
+      section,
+      onTestLatency: vi.fn(),
+      onTestOutboundLatency: vi.fn(),
+      onChooseOutbound: vi.fn(),
+      onCopyOutbound: vi.fn(),
+      onShowUrlTestInfo: vi.fn(),
+      onShowFallbackInfo: vi.fn(),
+      onUpdateSubscription: vi.fn(),
+      onUpdateRuleSets: overrides.onUpdateRuleSets || vi.fn(),
+      latencyFetching: false,
+      subscriptionUpdating: false,
+      ruleSetUpdating: overrides.ruleSetUpdating || false,
+    }) as unknown as FakeNode;
+
+    return findNode(
+      root,
+      (node) =>
+        node.type === 'button' &&
+        String(node.attrs.class || '').includes(
+          'fkp_dashboard-page__outbound-section__rule-set-update',
+        ),
+    );
+  }
+
+  it('is offered only when the section actually references a list', async () => {
+    expect(
+      await renderWith(['proxy-telegram-community-ruleset']),
+    ).toBeDefined();
+    expect(await renderWith([])).toBeUndefined();
+    expect(await renderWith(undefined)).toBeUndefined();
+  });
+
+  it('refreshes this section and nothing else', async () => {
+    const onUpdateRuleSets = vi.fn();
+    const button = await renderWith(['proxy-telegram-community-ruleset'], {
+      onUpdateRuleSets,
+    });
+    const event = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+    } as unknown as MouseEvent;
+
+    (button?.attrs.click as (event: MouseEvent) => void)(event);
+
+    expect(onUpdateRuleSets).toHaveBeenCalledOnce();
+    expect(onUpdateRuleSets.mock.calls[0][0]).toMatchObject({
+      sectionName: 'proxy',
+      ruleSetProviderTags: ['proxy-telegram-community-ruleset'],
+    });
+    expect(event.stopPropagation).toHaveBeenCalledOnce();
+  });
+
+  it('blocks its own double submit while running', async () => {
+    const onUpdateRuleSets = vi.fn();
+    const button = await renderWith(['proxy-telegram-community-ruleset'], {
+      ruleSetUpdating: true,
+      onUpdateRuleSets,
+    });
+
+    expect(button?.attrs.disabled).toBe(true);
+    (button?.attrs.click as (event: MouseEvent) => void)({
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+    } as unknown as MouseEvent);
+    expect(onUpdateRuleSets).not.toHaveBeenCalled();
+  });
+
+  it('sits to the left of the latency test in the action row', async () => {
+    installElementFactory();
+    const { renderSections } = await import('../partials/renderSections');
+
+    const section = {
+      code: 'proxy',
+      sectionName: 'proxy',
+      displayName: 'Proxy',
+      withTagSelect: true,
+      ruleSetProviderTags: ['proxy-telegram-community-ruleset'],
+      outbounds: [
+        {
+          code: 'proxy/Node',
+          displayName: 'Node',
+          latency: 0,
+          type: 'VLESS',
+          selected: true,
+        },
+      ],
+    } as Forkop.OutboundGroup;
+
+    const root = renderSections({
+      loading: false,
+      failed: false,
+      section,
+      onTestLatency: vi.fn(),
+      onTestOutboundLatency: vi.fn(),
+      onChooseOutbound: vi.fn(),
+      onCopyOutbound: vi.fn(),
+      onShowUrlTestInfo: vi.fn(),
+      onShowFallbackInfo: vi.fn(),
+      onUpdateSubscription: vi.fn(),
+      onUpdateRuleSets: vi.fn(),
+      latencyFetching: false,
+      subscriptionUpdating: false,
+      ruleSetUpdating: false,
+    }) as unknown as FakeNode;
+
+    const row = findNode(root, (node) =>
+      String(node.attrs.class || '').includes(
+        'fkp_dashboard-page__outbound-section__title-section__actions',
+      ),
+    );
+    const classes = (row?.children || [])
+      .filter((child): child is FakeNode => typeof child !== 'string')
+      .map((child) => String(child.attrs.class || ''));
+    const ruleSetIndex = classes.findIndex((name) =>
+      name.includes('outbound-section__rule-set-update'),
+    );
+    const latencyIndex = classes.findIndex((name) =>
+      name.includes('dashboard-sections-grid-item-test-latency'),
+    );
+
+    expect(ruleSetIndex).toBeGreaterThanOrEqual(0);
+    expect(latencyIndex).toBeGreaterThanOrEqual(0);
+    expect(ruleSetIndex).toBeLessThan(latencyIndex);
   });
 });

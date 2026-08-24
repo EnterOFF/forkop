@@ -32,6 +32,7 @@ import {
 } from '../../services/runtimeUiState.service';
 import { isActiveLuciTab } from '../../helpers/isActiveLuciTab';
 import { pollDelayForDuration } from '../../helpers/pollDelay';
+import { getServiceStatusDisplay } from '../../helpers/serviceStatusDisplay';
 import { resolveOutboundProxyLink } from './resolveOutboundProxyLink';
 
 const SECTIONS_REFRESH_INTERVAL_MS = 10000;
@@ -1412,6 +1413,55 @@ function handleShowFallbackInfo(outbound: Forkop.Outbound) {
   );
 }
 
+function setRuleSetUpdating(sectionName: string, updating: boolean) {
+  const sectionsWidget = store.get().sectionsWidget;
+  const ruleSetUpdatingSections = {
+    ...sectionsWidget.ruleSetUpdatingSections,
+  };
+
+  if (updating) {
+    ruleSetUpdatingSections[sectionName] = true;
+  } else {
+    delete ruleSetUpdatingSections[sectionName];
+  }
+
+  store.set({
+    sectionsWidget: {
+      ...sectionsWidget,
+      ruleSetUpdatingSections,
+    },
+  });
+}
+
+// Both refresh endpoints answer 204 on success and 503 naming what failed, so
+// the outcome is reportable rather than guessed at. Anything less than every
+// target succeeding is reported as a failure: a partially refreshed set of
+// lists is not what the button promised.
+async function handleUpdateRuleSets(section: Forkop.OutboundGroup) {
+  if (store.get().sectionsWidget.ruleSetUpdatingSections[section.sectionName]) {
+    return;
+  }
+
+  setRuleSetUpdating(section.sectionName, true);
+
+  try {
+    const response = await CustomForkopMethods.updateClashApiRuleProviders(
+      section.ruleSetProviderTags || [],
+    );
+
+    if (!response.success) {
+      throw new Error(response.error);
+    }
+
+    showToast(_('Lists updated'), 'success');
+  } catch (error) {
+    logger.error('[DASHBOARD]', 'handleUpdateRuleSets: failed', error);
+    showToast(_('Failed to update lists'), 'error');
+  } finally {
+    setRuleSetUpdating(section.sectionName, false);
+  }
+}
+
 async function handleUpdateSubscription(section: Forkop.OutboundGroup) {
   if (
     store.get().sectionsWidget.subscriptionUpdatingSections[section.sectionName]
@@ -1433,8 +1483,11 @@ async function handleUpdateSubscription(section: Forkop.OutboundGroup) {
       void fetchDashboardSections({ force: true });
       void fetchServicesInfo();
     }
+
+    showToast(_('Subscriptions updated'), 'success');
   } catch (error) {
     logger.error('[DASHBOARD]', 'handleUpdateSubscription: failed', error);
+    showToast(_('Failed to update subscriptions'), 'error');
   } finally {
     setSubscriptionUpdating(section.sectionName, false);
   }
@@ -1482,6 +1535,12 @@ async function renderSectionsWidget() {
       subscriptionUpdating: Boolean(
         sectionsWidget.subscriptionUpdatingSections[section.sectionName],
       ),
+      ruleSetUpdating: Boolean(
+        sectionsWidget.ruleSetUpdatingSections[section.sectionName],
+      ),
+      onUpdateRuleSets: (target: Forkop.OutboundGroup) => {
+        void handleUpdateRuleSets(target);
+      },
       sortByLatency: latencySortedSections.has(section.sectionName),
       onSortByLatencyChange: handleSortByLatency,
       onTestLatency: (tag) => {
@@ -1660,6 +1719,16 @@ async function renderServicesInfoWidget() {
     return container.replaceChildren(renderedWidget);
   }
 
+  const forkopDisplay = getServiceStatusDisplay({
+    running: Boolean(servicesInfoWidget.data.forkopRunning),
+    busy: servicesInfoWidget.data.forkopBusy,
+  });
+  // sing-box has no operation of its own to report; it is cycled by Forkop's.
+  const singBoxDisplay = getServiceStatusDisplay({
+    running: Boolean(servicesInfoWidget.data.singbox),
+    busy: servicesInfoWidget.data.forkopBusy,
+  });
+
   const renderedWidget = renderWidget({
     loading: servicesInfoWidget.loading,
     failed: servicesInfoWidget.failed,
@@ -1667,24 +1736,16 @@ async function renderServicesInfoWidget() {
     items: [
       {
         key: 'Forkop',
-        value: servicesInfoWidget.data.forkopRunning
-          ? _('✔ Running')
-          : _('✘ Stopped'),
+        value: forkopDisplay.label,
         attributes: {
-          class: servicesInfoWidget.data.forkopRunning
-            ? 'fkp_dashboard-page__widgets-section__item__row--success'
-            : 'fkp_dashboard-page__widgets-section__item__row--error',
+          class: `fkp_dashboard-page__widgets-section__item__row--${forkopDisplay.tone}`,
         },
       },
       {
         key: 'Sing-box',
-        value: servicesInfoWidget.data.singbox
-          ? _('✔ Running')
-          : _('✘ Stopped'),
+        value: singBoxDisplay.label,
         attributes: {
-          class: servicesInfoWidget.data.singbox
-            ? 'fkp_dashboard-page__widgets-section__item__row--success'
-            : 'fkp_dashboard-page__widgets-section__item__row--error',
+          class: `fkp_dashboard-page__widgets-section__item__row--${singBoxDisplay.tone}`,
         },
       },
     ],

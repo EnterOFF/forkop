@@ -38,11 +38,22 @@ function ucode_binary() {
 const SOURCE_DIR = getenv("FORKOP_SOURCE_LIB") || "/usr/lib/forkop";
 const CACHE_DIR = getenv("FORKOP_BYTECODE_CACHE_DIR") || "/var/run/forkop/bytecode";
 const UCODE_BIN = ucode_binary();
-const MANIFEST_VERSION = "1";
+const MANIFEST_VERSION = "2";
 // Loaded through the freshly built cache to prove the interpreter accepts what
 // it just produced. A leaf module with no imports and no side effects.
 const SELF_CHECK_MODULE = "config.domain";
 const BUILD_LOCK_MAX_AGE = 120;
+// Revalidating the manifest means one stat per installed module, and it is the
+// single largest fixed cost of a Forkop command: about 45 ms of the 85 ms that
+// `forkop <anything>` spends before it starts working, paid again by each of the
+// twenty-odd processes one reload starts. Within a short window the answer
+// cannot have changed for any reason that matters - an upgrade clears the stamp
+// from postinst - so it is taken once and reused.
+//
+// The window is deliberately short. A module copied over an installed one during
+// development is the case full validation exists to catch, and it still is
+// caught, just up to this many seconds later.
+const VALIDATION_TTL_SECONDS = int(getenv("FORKOP_BYTECODE_VALIDATION_TTL") || "3");
 
 function enabled() {
     return as_string(getenv("FORKOP_BYTECODE_CACHE") || "1") != "0";
@@ -89,6 +100,15 @@ function file_signature(path) {
     return as_string(stat.size) + " " + as_string(stat.mtime);
 }
 
+// Only the mtime: a directory's reported size is filesystem specific, while
+// its mtime moves exactly when an entry is added or removed.
+function directory_signature(path) {
+    let stat = fs.stat(as_string(path));
+    if (stat == null || stat.type != "directory")
+        return null;
+    return as_string(stat.mtime);
+}
+
 function is_directory(path) {
     let stat = fs.stat(as_string(path));
     return stat != null && stat.type == "directory";
@@ -126,7 +146,7 @@ function is_module_file(relative_path) {
     return length(relative_path) > 3 && substr(relative_path, length(relative_path) - 3) == ".uc";
 }
 
-function collect_files(dir, prefix, result) {
+function collect_files(dir, prefix, result, directories) {
     let names = fs.lsdir(dir);
     if (type(names) != "array")
         return result;
@@ -140,8 +160,10 @@ function collect_files(dir, prefix, result) {
         let stat = fs.stat(path);
         if (stat == null)
             continue;
-        if (stat.type == "directory")
-            collect_files(path, relative_path, result);
+        if (stat.type == "directory") {
+            push(directories, relative_path);
+            collect_files(path, relative_path, result, directories);
+        }
         else if (stat.type == "file")
             push(result, relative_path);
     }
@@ -149,8 +171,21 @@ function collect_files(dir, prefix, result) {
     return result;
 }
 
+// Validating the recorded files proves none of them changed, but says nothing
+// about a file that appeared beside them - and a module added by an upgrade
+// whose siblings kept their size and mtime would then be missing from the
+// cache, so every command reaching for it fails outright. A directory mtime
+// moves when an entry is added or removed, so recording the dozen directories
+// closes that gap for the cost of a few more stat calls.
+function source_directories() {
+    let directories = [ "" ];
+    collect_files(SOURCE_DIR, "", [], directories);
+    sort(directories);
+    return directories;
+}
+
 function source_files() {
-    let result = collect_files(SOURCE_DIR, "", []);
+    let result = collect_files(SOURCE_DIR, "", [], []);
     sort(result);
     return result;
 }
@@ -167,6 +202,14 @@ function manifest_text(library, files, dependencies) {
             text += "dep=" + path + "\t" + signature + "\n";
     }
 
+    for (let relative_path in source_directories()) {
+        let path = relative_path == "" ? SOURCE_DIR : SOURCE_DIR + "/" + relative_path;
+        let signature = directory_signature(path);
+        if (signature == null)
+            return null;
+        text += "dir=" + relative_path + "\t" + signature + "\n";
+    }
+
     for (let relative_path in files) {
         let signature = file_signature(SOURCE_DIR + "/" + relative_path);
         if (signature == null)
@@ -178,7 +221,7 @@ function manifest_text(library, files, dependencies) {
 }
 
 function parse_manifest(text) {
-    let result = { version: "", lib: "", src: "", bin: "", deps: [], files: [] };
+    let result = { version: "", lib: "", src: "", bin: "", deps: [], files: [], dirs: [] };
 
     for (let line in split(as_string(text), "\n")) {
         let separator = index(line, "=");
@@ -196,12 +239,17 @@ function parse_manifest(text) {
             result.src = value;
         else if (key == "bin")
             result.bin = value;
-        else if (key == "dep" || key == "file") {
+        else if (key == "dep" || key == "file" || key == "dir") {
             let tab = index(value, "\t");
-            if (tab <= 0)
+            if (tab < 0)
                 continue;
-            push(key == "dep" ? result.deps : result.files,
-                [ substr(value, 0, tab), substr(value, tab + 1) ]);
+            let entry = [ substr(value, 0, tab), substr(value, tab + 1) ];
+            if (key == "dep")
+                push(result.deps, entry);
+            else if (key == "file")
+                push(result.files, entry);
+            else
+                push(result.dirs, entry);
         }
     }
 
@@ -222,10 +270,66 @@ function manifest_matches(manifest) {
         if (file_signature(entry[0]) != entry[1])
             return false;
 
+    for (let entry in manifest.dirs) {
+        let path = entry[0] == "" ? SOURCE_DIR : SOURCE_DIR + "/" + entry[0];
+        if (directory_signature(path) != entry[1])
+            return false;
+    }
+
     for (let entry in manifest.files)
         if (file_signature(SOURCE_DIR + "/" + entry[0]) != entry[1])
             return false;
 
+    return true;
+}
+
+function validation_stamp_path() {
+    return CACHE_DIR + "/validated";
+}
+
+function now_seconds() {
+    return int(clock()[0]);
+}
+
+// The stamp records when the manifest was last proven and which library it was
+// proven for. Naming the library is what lets a fresh stamp answer on its own:
+// reading and parsing the manifest to learn the same path costs 20 ms of the
+// 45 ms this exists to avoid, so the fast path must not touch it at all.
+function validation_stamp_library() {
+    if (VALIDATION_TTL_SECONDS <= 0)
+        return "";
+
+    let text = fs.readfile(validation_stamp_path());
+    if (text == null)
+        return "";
+
+    let parts = split(trim(as_string(text)), " ");
+    if (length(parts) < 2 || parts[1] == "")
+        return "";
+    if (match(parts[0], /^[0-9]+$/) == null)
+        return "";
+
+    let age = now_seconds() - int(parts[0]);
+    if (age < 0 || age >= VALIDATION_TTL_SECONDS)
+        return "";
+
+    return is_directory(parts[1]) ? parts[1] : "";
+}
+
+function write_validation_stamp(library) {
+    if (VALIDATION_TTL_SECONDS <= 0)
+        return;
+    fs.writefile(validation_stamp_path(), now_seconds() + " " + as_string(library) + "\n");
+}
+
+// Dropped when the installed library changes under us, so the next command
+// revalidates in full rather than trusting a window that spans the change.
+function invalidate_validation_stamp() {
+    try {
+        fs.unlink(validation_stamp_path());
+    }
+    catch (e) {
+    }
     return true;
 }
 
@@ -235,12 +339,20 @@ function library_dir() {
     if (!enabled())
         return SOURCE_DIR;
 
+    let stamped = validation_stamp_library();
+    if (stamped != "")
+        return stamped;
+
     let text = fs.readfile(manifest_path());
     if (text == null)
         return SOURCE_DIR;
 
     let manifest = parse_manifest(text);
-    return manifest_matches(manifest) ? manifest.lib : SOURCE_DIR;
+    if (!manifest_matches(manifest))
+        return SOURCE_DIR;
+
+    write_validation_stamp(manifest.lib);
+    return manifest.lib;
 }
 
 function compile_file(source, target) {
@@ -359,6 +471,7 @@ function build() {
     }
 
     release_build_lock();
+    write_validation_stamp(library);
     return library;
 }
 
@@ -369,6 +482,7 @@ function refresh() {
 
 return {
     enabled,
+    invalidate_validation_stamp,
     source_dir,
     library_dir,
     manifest_path,

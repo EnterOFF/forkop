@@ -2076,6 +2076,29 @@ function renderSubscriptionUpdateAction(section, subscriptionUpdating, onUpdateS
     subscriptionUpdating ? [renderLoaderCircleIcon24(), _("Update subscriptions")] : _("Update subscriptions")
   );
 }
+function renderRuleSetUpdateAction(section, ruleSetUpdating, onUpdateRuleSets) {
+  if (!section.ruleSetProviderTags?.length) {
+    return void 0;
+  }
+  return E(
+    "button",
+    {
+      type: "button",
+      class: "btn fkp_dashboard-page__outbound-section__rule-set-update",
+      "aria-label": _("Update lists"),
+      disabled: ruleSetUpdating ? true : void 0,
+      click: (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (ruleSetUpdating) {
+          return;
+        }
+        onUpdateRuleSets(section);
+      }
+    },
+    ruleSetUpdating ? [renderLoaderCircleIcon24(), _("Update lists")] : _("Update lists")
+  );
+}
 function getOutboundLatencyClass(latency) {
   if (!latency) {
     return "fkp_dashboard-page__outbound-grid__item__latency--empty";
@@ -2097,10 +2120,12 @@ function renderDefaultState({
   onTestLatency,
   onTestOutboundLatency,
   onUpdateSubscription,
+  onUpdateRuleSets,
   onSortByLatencyChange,
   latencyFetching,
   latencyFetchingTargets = /* @__PURE__ */ new Set(),
   subscriptionUpdating,
+  ruleSetUpdating,
   sortByLatency
 }) {
   function testLatency() {
@@ -2248,6 +2273,11 @@ function renderDefaultState({
     subscriptionUpdating,
     onUpdateSubscription
   );
+  const ruleSetUpdateAction = renderRuleSetUpdateAction(
+    section,
+    ruleSetUpdating,
+    onUpdateRuleSets
+  );
   const outbounds = sortByLatency ? [...section.outbounds].sort(
     (left, right) => getLatencySortValue(left) - getLatencySortValue(right)
   ) : section.outbounds;
@@ -2288,6 +2318,7 @@ function renderDefaultState({
         [
           ...latencySortAction ? [latencySortAction] : [],
           ...subscriptionUpdateAction ? [subscriptionUpdateAction] : [],
+          ...ruleSetUpdateAction ? [ruleSetUpdateAction] : [],
           E(
             "button",
             {
@@ -2352,8 +2383,11 @@ function renderSectionsPlaceholder(state) {
     },
     onUpdateSubscription: () => {
     },
+    onUpdateRuleSets: () => {
+    },
     latencyFetching: false,
-    subscriptionUpdating: false
+    subscriptionUpdating: false,
+    ruleSetUpdating: false
   });
 }
 function renderSections(props) {
@@ -2604,6 +2638,7 @@ var Forkop;
     AvailableMethods2["GET_SYSTEM_INFO"] = "get_system_info";
     AvailableMethods2["GET_UI_CAPABILITIES"] = "get_ui_capabilities";
     AvailableMethods2["GET_UI_STATE"] = "get_ui_state";
+    AvailableMethods2["GET_SECTION_RULE_SETS"] = "get_section_rule_sets";
     AvailableMethods2["SERVICE_ACTION_ASYNC"] = "service_action_async";
     AvailableMethods2["SERVICE_ACTION_STATUS"] = "service_action_status";
     AvailableMethods2["UI_ACTION_ACK"] = "ui_action_ack";
@@ -2845,6 +2880,12 @@ var ForkopShellMethods = {
   ),
   getUiCapabilities: async () => callBaseMethod(
     Forkop.AvailableMethods.GET_UI_CAPABILITIES
+  ),
+  // Which rule-set tags belong to which section. Named by the runtime, because
+  // a built-in list is named per section and a custom reference by a hash of
+  // itself - neither is reconstructible here.
+  getSectionRuleSets: async () => callBaseMethod(
+    Forkop.AvailableMethods.GET_SECTION_RULE_SETS
   ),
   getUiState: async () => callBaseMethod(
     Forkop.AvailableMethods.GET_UI_STATE,
@@ -3265,12 +3306,23 @@ async function updateClashApiProxyProviders(providerTags) {
   };
 }
 var CLASH_API_RULE_SET_UPDATE_TIMEOUT_MS = 6e4;
-function updateClashApiRuleProviders() {
-  return requestClashApi(
-    "/providers/rules",
-    { method: "PUT" },
-    CLASH_API_RULE_SET_UPDATE_TIMEOUT_MS
+async function updateClashApiRuleProviders(providerTags) {
+  if (!providerTags.length) {
+    return { success: true, data: void 0 };
+  }
+  const responses = await Promise.all(
+    providerTags.map(
+      (tag) => requestClashApi(
+        `/providers/rules/${encodeURIComponent(tag)}`,
+        { method: "PUT" },
+        CLASH_API_RULE_SET_UPDATE_TIMEOUT_MS
+      )
+    )
   );
+  return responses.find((response) => !response.success) || {
+    success: true,
+    data: void 0
+  };
 }
 function getClashApiProxies() {
   return requestClashApi(
@@ -4085,13 +4137,15 @@ async function getDashboardSections() {
   const configSections = hydrateConfigSections(await getConfigSections());
   clashApiConfigSections = configSections;
   const hasSubscriptions = configSections.some(hasSubscriptionSources);
-  const [clashProxies, clashProviders] = await Promise.all([
+  const [clashProxies, clashProviders, sectionRuleSets] = await Promise.all([
     getClashApiProxies(),
     hasSubscriptions ? getClashApiProxyProviders() : Promise.resolve({
       success: true,
       data: { providers: {} }
-    })
+    }),
+    ForkopShellMethods.getSectionRuleSets()
   ]);
+  const ruleSetTags = sectionRuleSets.success ? sectionRuleSets.data : {};
   if (!clashProxies.success || !clashProxies.data?.proxies) {
     return {
       success: false,
@@ -4140,6 +4194,7 @@ async function getDashboardSections() {
         subscriptionProviderTags: subscriptionTags.map(
           (item) => item.runtimeTag
         ),
+        ruleSetProviderTags: ruleSetTags[sectionName] || [],
         subscriptionMetadata,
         outbounds
       };
@@ -4468,9 +4523,6 @@ var initialDiagnosticStore = {
     globalCheck: {
       loading: false
     },
-    updateRuleSets: {
-      loading: false
-    },
     showConfig: {
       loading: false
     },
@@ -4619,13 +4671,16 @@ var initialStore = {
       singbox: 0,
       forkopRunning: 0,
       forkopEnabled: 0,
-      forkopStatus: ""
+      forkopStatus: "",
+      forkopBusy: null,
+      forkopBusySeconds: 0
     }
   },
   sectionsWidget: {
     loading: true,
     failed: false,
     subscriptionUpdatingSections: {},
+    ruleSetUpdatingSections: {},
     data: []
   },
   ...initialDiagnosticStore
@@ -4826,26 +4881,6 @@ var LogNotificationDeduper = class {
   }
 };
 
-// src/forkop/helpers/getComponentActionKey.ts
-var componentActionKeyMap = {
-  "forkop:check_update": "forkopCheck",
-  "forkop:install": "forkopInstall",
-  "sing_box:check_update": "singBoxCheck",
-  "sing_box:install": "singBoxInstall",
-  "zapret:check_update": "zapretCheck",
-  "zapret:install": "zapretInstall",
-  "zapret:remove": "zapretRemove",
-  "zapret2:check_update": "zapret2Check",
-  "zapret2:install": "zapret2Install",
-  "zapret2:remove": "zapret2Remove",
-  "byedpi:check_update": "byedpiCheck",
-  "byedpi:install": "byedpiInstall",
-  "byedpi:remove": "byedpiRemove"
-};
-function getComponentActionKey(component, action) {
-  return componentActionKeyMap[`${component}:${action}`];
-}
-
 // src/forkop/services/localActionOverlay.service.ts
 var componentActions = /* @__PURE__ */ new Set();
 var subscriptionSections = /* @__PURE__ */ new Set();
@@ -4876,6 +4911,26 @@ function getLocalActionOverlay() {
     subscriptionSections: new Set(subscriptionSections),
     serviceActions: new Set(serviceActions)
   };
+}
+
+// src/forkop/helpers/getComponentActionKey.ts
+var componentActionKeyMap = {
+  "forkop:check_update": "forkopCheck",
+  "forkop:install": "forkopInstall",
+  "sing_box:check_update": "singBoxCheck",
+  "sing_box:install": "singBoxInstall",
+  "zapret:check_update": "zapretCheck",
+  "zapret:install": "zapretInstall",
+  "zapret:remove": "zapretRemove",
+  "zapret2:check_update": "zapret2Check",
+  "zapret2:install": "zapret2Install",
+  "zapret2:remove": "zapret2Remove",
+  "byedpi:check_update": "byedpiCheck",
+  "byedpi:install": "byedpiInstall",
+  "byedpi:remove": "byedpiRemove"
+};
+function getComponentActionKey(component, action) {
+  return componentActionKeyMap[`${component}:${action}`];
 }
 
 // src/forkop/services/uiState.service.ts
@@ -4925,7 +4980,9 @@ function applyServiceState(uiState) {
         singbox: uiState.service.sing_box.running,
         forkopRunning: uiState.service.forkop.running,
         forkopEnabled: uiState.service.forkop.enabled,
-        forkopStatus: uiState.service.forkop.status
+        forkopStatus: uiState.service.forkop.status,
+        forkopBusy: uiState.service.forkop.busy || null,
+        forkopBusySeconds: uiState.service.forkop.busy_seconds || 0
       }
     },
     diagnosticsSystemInfo: nextSystemInfo
@@ -4944,18 +5001,6 @@ function applyActionState(actions = {}) {
     const key = getComponentActionKey(state.component, state.action);
     if (key) {
       updatesActions[key] = { loading: true };
-    }
-  }
-  for (const state of actions.service || []) {
-    if (!isRunningAction(state)) {
-      continue;
-    }
-    if (state.action === "start") {
-      diagnosticsActions.start = { loading: true };
-    } else if (state.action === "stop") {
-      diagnosticsActions.stop = { loading: true };
-    } else if (state.action === "restart" || state.action === "reload") {
-      diagnosticsActions.restart = { loading: true };
     }
   }
   for (const section of localOverlay.subscriptionSections) {
@@ -4992,17 +5037,38 @@ var runtimeStateResumeRefreshRegistered = false;
 var runtimeStatePollTimer = null;
 var runtimeStatePollingStarted = false;
 var runtimeStateHasRunningAction = false;
+var lastRuntimeUiStateSignature = "";
 var runtimeUiStateListeners = /* @__PURE__ */ new Set();
 function isDocumentVisible() {
   return typeof document === "undefined" || !document.visibilityState || document.visibilityState === "visible";
 }
 function hasRunningAction(uiState) {
-  return [...uiState.actions.service, ...uiState.actions.component].some(
+  return Boolean(uiState.service.forkop.busy) || [...uiState.actions.service, ...uiState.actions.component].some(
     (action) => action.running
   );
 }
+function stateSignature(uiState) {
+  const forkop = uiState.service.forkop;
+  return [
+    forkop.running,
+    forkop.enabled,
+    forkop.busy || "",
+    forkop.dns_configured,
+    uiState.service.sing_box.running,
+    [...uiState.actions.service, ...uiState.actions.component].filter(
+      (action) => action.running
+    ).length
+  ].join("|");
+}
+function hasLocalPendingAction() {
+  const overlay = getLocalActionOverlay();
+  return overlay.serviceActions.size > 0 || overlay.componentActions.size > 0 || overlay.subscriptionSections.size > 0;
+}
+function isRuntimeStateActive() {
+  return runtimeStateHasRunningAction || hasLocalPendingAction();
+}
 function getNextPollDelay() {
-  return runtimeStateHasRunningAction ? RUNTIME_UI_STATE_ACTIVE_POLL_INTERVAL_MS : RUNTIME_UI_STATE_IDLE_POLL_INTERVAL_MS;
+  return isRuntimeStateActive() ? RUNTIME_UI_STATE_ACTIVE_POLL_INTERVAL_MS : RUNTIME_UI_STATE_IDLE_POLL_INTERVAL_MS;
 }
 function scheduleRuntimeUiStatePoll(delay = getNextPollDelay()) {
   if (!runtimeStatePollingStarted || runtimeStatePollTimer || typeof window === "undefined") {
@@ -5044,7 +5110,10 @@ async function refreshRuntimeUiState({
     }
     applyUiStateToStore(response.data);
     lastRuntimeUiState = response.data;
-    runtimeStateHasRunningAction = hasRunningAction(response.data);
+    const signature = stateSignature(response.data);
+    const changed = signature !== lastRuntimeUiStateSignature;
+    lastRuntimeUiStateSignature = signature;
+    runtimeStateHasRunningAction = hasRunningAction(response.data) || changed;
     notifyRuntimeUiStateListeners(response.data);
     return response.data;
   }).catch((error) => {
@@ -5057,6 +5126,19 @@ async function refreshRuntimeUiState({
   });
   runtimeUiStateRefreshPromise = promise;
   return runtimeUiStateRefreshPromise;
+}
+function refreshRuntimeUiStateNow() {
+  if (runtimeStatePollTimer !== null && typeof window !== "undefined") {
+    window.clearTimeout(runtimeStatePollTimer);
+    runtimeStatePollTimer = null;
+  }
+  const refreshed = refreshRuntimeUiState({ force: true });
+  if (runtimeStatePollingStarted) {
+    void refreshed.finally(() => {
+      scheduleRuntimeUiStatePoll();
+    });
+  }
+  return refreshed;
 }
 function subscribeRuntimeUiState(listener) {
   runtimeUiStateListeners.add(listener);
@@ -5486,7 +5568,11 @@ async function fetchServicesInfo() {
         singbox: singbox.success ? singbox.data.running : previousData.singbox,
         forkopRunning: forkop.success ? forkop.data.running : previousData.forkopRunning,
         forkopEnabled: forkop.success ? forkop.data.enabled : previousData.forkopEnabled,
-        forkopStatus: forkop.success ? forkop.data.status : previousData.forkopStatus
+        forkopStatus: forkop.success ? forkop.data.status : previousData.forkopStatus,
+        // get_status reports what the service is, never what is being done to
+        // it; the ui-state feed owns `busy` and corrects this on its next poll.
+        forkopBusy: previousData.forkopBusy,
+        forkopBusySeconds: previousData.forkopBusySeconds
       }
     }
   });
@@ -5515,6 +5601,23 @@ function pollDelayForDuration(baseIntervalMs, durationMs, maxIntervalMs) {
     Math.max(baseIntervalMs, Math.round(durationMs * POLL_DUTY_FACTOR)),
     maxIntervalMs
   );
+}
+
+// src/forkop/helpers/serviceStatusDisplay.ts
+var BUSY_LABELS = {
+  start: () => _("Starting..."),
+  stop: () => _("Stopping..."),
+  restart: () => _("Restarting..."),
+  apply: () => _("Applying...")
+};
+function getServiceStatusDisplay({
+  running,
+  busy
+}) {
+  if (busy) {
+    return { label: `\u27F3 ${BUSY_LABELS[busy]()}`, tone: "progress" };
+  }
+  return running ? { label: _("\u2714 Running"), tone: "success" } : { label: _("\u2718 Stopped"), tone: "error" };
 }
 
 // src/forkop/tabs/dashboard/resolveOutboundProxyLink.ts
@@ -6603,6 +6706,43 @@ function handleShowFallbackInfo(outbound) {
     container
   );
 }
+function setRuleSetUpdating(sectionName, updating) {
+  const sectionsWidget = store.get().sectionsWidget;
+  const ruleSetUpdatingSections = {
+    ...sectionsWidget.ruleSetUpdatingSections
+  };
+  if (updating) {
+    ruleSetUpdatingSections[sectionName] = true;
+  } else {
+    delete ruleSetUpdatingSections[sectionName];
+  }
+  store.set({
+    sectionsWidget: {
+      ...sectionsWidget,
+      ruleSetUpdatingSections
+    }
+  });
+}
+async function handleUpdateRuleSets(section) {
+  if (store.get().sectionsWidget.ruleSetUpdatingSections[section.sectionName]) {
+    return;
+  }
+  setRuleSetUpdating(section.sectionName, true);
+  try {
+    const response = await CustomForkopMethods.updateClashApiRuleProviders(
+      section.ruleSetProviderTags || []
+    );
+    if (!response.success) {
+      throw new Error(response.error);
+    }
+    showToast(_("Lists updated"), "success");
+  } catch (error) {
+    logger.error("[DASHBOARD]", "handleUpdateRuleSets: failed", error);
+    showToast(_("Failed to update lists"), "error");
+  } finally {
+    setRuleSetUpdating(section.sectionName, false);
+  }
+}
 async function handleUpdateSubscription(section) {
   if (store.get().sectionsWidget.subscriptionUpdatingSections[section.sectionName]) {
     return;
@@ -6619,8 +6759,10 @@ async function handleUpdateSubscription(section) {
       void fetchDashboardSections({ force: true });
       void fetchServicesInfo();
     }
+    showToast(_("Subscriptions updated"), "success");
   } catch (error) {
     logger.error("[DASHBOARD]", "handleUpdateSubscription: failed", error);
+    showToast(_("Failed to update subscriptions"), "error");
   } finally {
     setSubscriptionUpdating(section.sectionName, false);
   }
@@ -6659,6 +6801,12 @@ async function renderSectionsWidget() {
       subscriptionUpdating: Boolean(
         sectionsWidget.subscriptionUpdatingSections[section.sectionName]
       ),
+      ruleSetUpdating: Boolean(
+        sectionsWidget.ruleSetUpdatingSections[section.sectionName]
+      ),
+      onUpdateRuleSets: (target) => {
+        void handleUpdateRuleSets(target);
+      },
       sortByLatency: latencySortedSections.has(section.sectionName),
       onSortByLatencyChange: handleSortByLatency,
       onTestLatency: (tag) => {
@@ -6809,6 +6957,14 @@ async function renderServicesInfoWidget() {
     });
     return container.replaceChildren(renderedWidget2);
   }
+  const forkopDisplay = getServiceStatusDisplay({
+    running: Boolean(servicesInfoWidget.data.forkopRunning),
+    busy: servicesInfoWidget.data.forkopBusy
+  });
+  const singBoxDisplay = getServiceStatusDisplay({
+    running: Boolean(servicesInfoWidget.data.singbox),
+    busy: servicesInfoWidget.data.forkopBusy
+  });
   const renderedWidget = renderWidget({
     loading: servicesInfoWidget.loading,
     failed: servicesInfoWidget.failed,
@@ -6816,16 +6972,16 @@ async function renderServicesInfoWidget() {
     items: [
       {
         key: "Forkop",
-        value: servicesInfoWidget.data.forkopRunning ? _("\u2714 Running") : _("\u2718 Stopped"),
+        value: forkopDisplay.label,
         attributes: {
-          class: servicesInfoWidget.data.forkopRunning ? "fkp_dashboard-page__widgets-section__item__row--success" : "fkp_dashboard-page__widgets-section__item__row--error"
+          class: `fkp_dashboard-page__widgets-section__item__row--${forkopDisplay.tone}`
         }
       },
       {
         key: "Sing-box",
-        value: servicesInfoWidget.data.singbox ? _("\u2714 Running") : _("\u2718 Stopped"),
+        value: singBoxDisplay.label,
         attributes: {
-          class: servicesInfoWidget.data.singbox ? "fkp_dashboard-page__widgets-section__item__row--success" : "fkp_dashboard-page__widgets-section__item__row--error"
+          class: `fkp_dashboard-page__widgets-section__item__row--${singBoxDisplay.tone}`
         }
       }
     ]
@@ -7015,6 +7171,10 @@ var styles = `
     color: var(--error-color-medium, red);
 }
 
+.fkp_dashboard-page__widgets-section__item__row--progress .fkp_dashboard-page__widgets-section__item__row__value {
+    color: var(--warning-color-medium, #b8860b);
+}
+
 .fkp_dashboard-page__widgets-section__item__row__key {}
 
 .fkp_dashboard-page__widgets-section__item__row__value {}
@@ -7074,7 +7234,8 @@ var styles = `
     background: color-mix(in srgb, currentColor 14%, transparent) !important;
 }
 
-.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__subscription-update {
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__subscription-update,
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__rule-set-update {
     min-width: 130px;
     min-height: 28px;
     display: inline-flex;
@@ -7083,14 +7244,16 @@ var styles = `
     gap: 6px;
 }
 
-.fkp_dashboard-page__outbound-section__subscription-update svg {
+.fkp_dashboard-page__outbound-section__subscription-update svg,
+.fkp_dashboard-page__outbound-section__rule-set-update svg {
     width: 15px;
     height: 15px;
     display: block;
     flex: 0 0 auto;
 }
 
-.fkp_dashboard-page__outbound-section__subscription-update[disabled] {
+.fkp_dashboard-page__outbound-section__subscription-update[disabled],
+.fkp_dashboard-page__outbound-section__rule-set-update[disabled] {
     cursor: not-allowed;
     opacity: 0.65;
 }
@@ -8935,6 +9098,12 @@ ${styles3}
 `;
 
 // src/forkop/tabs/diagnostic/partials/renderAvailableActions.ts
+function restartActionText(restart) {
+  if (!restart.loading) {
+    return _("Restart");
+  }
+  return restart.mode === "apply" ? _("Applying...") : _("Restarting...");
+}
 function renderAvailableActions({
   restart,
   start,
@@ -8942,7 +9111,6 @@ function renderAvailableActions({
   enable,
   disable,
   globalCheck,
-  updateRuleSets,
   showConfig,
   showSingBoxConfig
 }) {
@@ -8953,7 +9121,7 @@ function renderAvailableActions({
         classNames: ["cbi-button-apply"],
         onClick: restart.onClick,
         icon: renderRotateCcwIcon24,
-        text: _("Restart"),
+        text: restartActionText(restart),
         loading: restart.loading,
         disabled: restart.disabled
       })
@@ -8963,7 +9131,7 @@ function renderAvailableActions({
         classNames: ["cbi-button-remove"],
         onClick: stop.onClick,
         icon: renderCircleStopIcon24,
-        text: _("Stop"),
+        text: stop.loading ? _("Stopping...") : _("Stop"),
         loading: stop.loading,
         disabled: stop.disabled
       })
@@ -8973,7 +9141,7 @@ function renderAvailableActions({
         classNames: ["cbi-button-save"],
         onClick: start.onClick,
         icon: renderCirclePlayIcon24,
-        text: _("Start"),
+        text: start.loading ? _("Starting...") : _("Start"),
         loading: start.loading,
         disabled: start.disabled
       })
@@ -9005,15 +9173,6 @@ function renderAvailableActions({
         text: _("Global check"),
         loading: globalCheck.loading,
         disabled: globalCheck.disabled
-      })
-    ]),
-    ...insertIf(updateRuleSets.visible, [
-      renderButton({
-        onClick: updateRuleSets.onClick,
-        icon: renderDownloadIcon24,
-        text: _("Update lists"),
-        loading: updateRuleSets.loading,
-        disabled: updateRuleSets.disabled
       })
     ]),
     ...insertIf(showConfig.visible, [
@@ -9384,14 +9543,57 @@ async function runSectionsCheck() {
 }
 
 // src/forkop/tabs/diagnostic/serviceTransition.ts
-function isServiceTransitionStatus(status) {
-  return ["starting", "stopping", "restarting", "reloading"].includes(status);
+function getServiceOperation({
+  busy,
+  localPending
+}) {
+  return busy || localPending || null;
 }
-function getServiceTransition(status) {
+var STUCK_OPERATION_SECONDS = 90;
+function getServiceControlsPresentation({
+  running,
+  operation,
+  operationSeconds = 0
+}) {
+  const applying = operation === "apply";
+  const restarting = operation === "restart" || applying;
+  const idle = operation === null;
+  const stuck = !idle && operationSeconds >= STUCK_OPERATION_SECONDS;
   return {
-    starting: status === "starting",
-    stopping: status === "stopping",
-    restarting: status === "restarting" || status === "reloading"
+    restart: {
+      mode: applying ? "apply" : "restart",
+      visible: restarting || running && idle,
+      loading: restarting,
+      disabled: restarting
+    },
+    start: {
+      visible: operation === "start" || !running && idle,
+      loading: operation === "start",
+      disabled: operation === "start"
+    },
+    stop: {
+      visible: operation === "stop" || idle && running || stuck,
+      loading: operation === "stop",
+      disabled: operation === "stop"
+    }
+  };
+}
+function getAutostartControlsPresentation({
+  enabled,
+  enableLoading,
+  disableLoading
+}) {
+  return {
+    enable: {
+      visible: !enabled,
+      loading: enableLoading,
+      disabled: enableLoading
+    },
+    disable: {
+      visible: enabled,
+      loading: disableLoading,
+      disabled: disableLoading
+    }
   };
 }
 function hasLocalMutatingServiceActionLoading(actions) {
@@ -9404,49 +9606,9 @@ function shouldSkipServicesInfoAutoRefresh({
   return !force && localMutatingActionLoading;
 }
 function shouldDisableDiagnosticRunAction({
-  providerInfoLoaded,
-  servicesInfoLoading,
-  forkopRunning,
-  mutatingServiceActionLoading
+  providerInfoLoaded
 }) {
-  return !providerInfoLoaded || servicesInfoLoading || !forkopRunning || mutatingServiceActionLoading;
-}
-function hasComponentActionLoading(actions) {
-  return Object.values(actions).some((action) => action.loading);
-}
-function getAvailableActionsDisabledState({
-  servicesInfoLoading,
-  mutatingServiceActionLoading,
-  componentActionLoading
-}) {
-  return {
-    serviceControlsDisabled: servicesInfoLoading || mutatingServiceActionLoading || componentActionLoading,
-    utilityActionsDisabled: mutatingServiceActionLoading || componentActionLoading
-  };
-}
-function shouldShowRestartAction({
-  forkopRunning,
-  restartLoading,
-  startLoading,
-  stopLoading
-}) {
-  return restartLoading || forkopRunning && !startLoading && !stopLoading;
-}
-function shouldShowStartAction({
-  forkopRunning,
-  restartLoading,
-  startLoading,
-  stopLoading
-}) {
-  return startLoading || !restartLoading && !forkopRunning && !stopLoading;
-}
-function shouldShowStopAction({
-  forkopRunning,
-  restartLoading,
-  startLoading,
-  stopLoading
-}) {
-  return stopLoading || restartLoading || forkopRunning && !startLoading;
+  return !providerInfoLoaded;
 }
 
 // src/forkop/helpers/osRelease.ts
@@ -9758,8 +9920,17 @@ function isLocalMutatingServiceActionLoading() {
   const actions = store.get().diagnosticsActions;
   return hasLocalMutatingServiceActionLoading(actions);
 }
-function isMutatingServiceActionLoading() {
-  return isLocalMutatingServiceActionLoading() || isServiceTransitionStatus(store.get().servicesInfoWidget.data.forkopStatus);
+function getLocalPendingServiceOperation(actions) {
+  if (actions.restart.loading) {
+    return "restart";
+  }
+  if (actions.start.loading) {
+    return "start";
+  }
+  if (actions.stop.loading) {
+    return "stop";
+  }
+  return null;
 }
 function getForkopStatusText(running, enabled) {
   if (running) {
@@ -10005,17 +10176,10 @@ function renderDiagnosticRunActionWidget() {
   logger.debug("[DIAGNOSTIC]", "renderDiagnosticRunActionWidget");
   const { loading: loading3 } = store.get().diagnosticsRunAction;
   const providerInfoLoaded = store.get().diagnosticsSystemInfo.providerInfoLoaded;
-  const servicesInfoWidget = store.get().servicesInfoWidget;
-  const forkopRunning = Boolean(servicesInfoWidget.data.forkopRunning);
   const container = document.getElementById("fkp_diagnostic-page-run-check");
   const renderedAction = renderRunAction({
     loading: loading3,
-    disabled: shouldDisableDiagnosticRunAction({
-      providerInfoLoaded,
-      servicesInfoLoading: servicesInfoWidget.loading,
-      forkopRunning,
-      mutatingServiceActionLoading: isMutatingServiceActionLoading()
-    }),
+    disabled: shouldDisableDiagnosticRunAction({ providerInfoLoaded }),
     click: () => runChecks()
   });
   return preserveScrollForPage(() => {
@@ -10028,6 +10192,7 @@ async function handleServiceRuntimeAction({
   optimisticRunning
 }) {
   setDiagnosticActionLoading(action, true, true);
+  void refreshRuntimeUiStateNow();
   let jobId = "";
   let ownsJobFollow = false;
   let delegatedToWatcher = false;
@@ -10040,6 +10205,7 @@ async function handleServiceRuntimeAction({
       throw new Error(startResponse.error);
     }
     jobId = startResponse.data.job_id;
+    void refreshRuntimeUiStateNow();
     if (followedServiceActionJobs.has(jobId)) {
       delegatedToWatcher = true;
       return;
@@ -10063,6 +10229,7 @@ async function handleServiceRuntimeAction({
       }
       setDiagnosticActionLoading(action, false);
       await refreshDiagnosticServicesInfo({ force: true, allowInactive: true });
+      void refreshRuntimeUiStateNow();
       if (jobId) {
         handledServiceActionJobs.add(jobId);
         void ForkopShellMethods.uiActionAck("service", jobId);
@@ -10102,6 +10269,7 @@ async function handleEnable() {
       allowInactive: true
     });
     setDiagnosticActionLoading("enable", false);
+    void refreshRuntimeUiStateNow();
   }
 }
 async function handleDisable() {
@@ -10116,6 +10284,7 @@ async function handleDisable() {
       allowInactive: true
     });
     setDiagnosticActionLoading("disable", false);
+    void refreshRuntimeUiStateNow();
   }
 }
 async function handleShowGlobalCheck() {
@@ -10140,19 +10309,6 @@ async function handleShowGlobalCheck() {
     logger.error("[DIAGNOSTIC]", "handleShowGlobalCheck - e", e);
   } finally {
     setDiagnosticActionLoading("globalCheck", false);
-  }
-}
-async function handleUpdateRuleSets() {
-  setDiagnosticActionLoading("updateRuleSets", true);
-  try {
-    const response = await CustomForkopMethods.updateClashApiRuleProviders();
-    if (!response.success) {
-      throw new Error(response.error);
-    }
-  } catch (e) {
-    logger.error("[DIAGNOSTIC]", "handleUpdateRuleSets - e", e);
-  } finally {
-    setDiagnosticActionLoading("updateRuleSets", false);
   }
 }
 async function handleShowForkopConfig() {
@@ -10213,96 +10369,51 @@ async function handleShowSingBoxConfig() {
 }
 function renderDiagnosticAvailableActionsWidget() {
   const diagnosticsActions = store.get().diagnosticsActions;
-  const updatesActions = store.get().updatesActions;
   const servicesInfoWidget = store.get().servicesInfoWidget;
   logger.debug("[DIAGNOSTIC]", "renderDiagnosticAvailableActionsWidget");
   const forkopEnabled = Boolean(servicesInfoWidget.data.forkopEnabled);
   const forkopRunning = Boolean(servicesInfoWidget.data.forkopRunning);
-  const serviceTransition = getServiceTransition(
-    servicesInfoWidget.data.forkopStatus
-  );
-  const restartLoading = diagnosticsActions.restart.loading || serviceTransition.restarting;
-  const startLoading = diagnosticsActions.start.loading || serviceTransition.starting;
-  const stopLoading = diagnosticsActions.stop.loading || serviceTransition.stopping;
-  const atLeastOneMutatingActionLoading = restartLoading || startLoading || stopLoading || diagnosticsActions.enable.loading || diagnosticsActions.disable.loading;
-  const componentActionLoading = hasComponentActionLoading(updatesActions);
-  const { serviceControlsDisabled, utilityActionsDisabled } = getAvailableActionsDisabledState({
-    servicesInfoLoading: servicesInfoWidget.loading,
-    mutatingServiceActionLoading: atLeastOneMutatingActionLoading,
-    componentActionLoading
+  const operation = getServiceOperation({
+    busy: servicesInfoWidget.data.forkopBusy,
+    localPending: getLocalPendingServiceOperation(diagnosticsActions)
   });
-  const startVisible = shouldShowStartAction({
-    forkopRunning,
-    restartLoading,
-    startLoading,
-    stopLoading
+  const controls = getServiceControlsPresentation({
+    running: forkopRunning,
+    operation,
+    operationSeconds: servicesInfoWidget.data.forkopBusySeconds
   });
-  const stopVisible = shouldShowStopAction({
-    forkopRunning,
-    restartLoading,
-    startLoading,
-    stopLoading
+  const autostart = getAutostartControlsPresentation({
+    enabled: forkopEnabled,
+    enableLoading: diagnosticsActions.enable.loading,
+    disableLoading: diagnosticsActions.disable.loading
   });
   const container = document.getElementById("fkp_diagnostic-page-actions");
   const renderedActions = renderAvailableActions({
-    restart: {
-      loading: restartLoading,
-      visible: shouldShowRestartAction({
-        forkopRunning,
-        restartLoading,
-        startLoading,
-        stopLoading
-      }),
-      onClick: handleRestart,
-      disabled: serviceControlsDisabled
-    },
-    start: {
-      loading: startLoading,
-      visible: startVisible,
-      onClick: handleStart,
-      disabled: serviceControlsDisabled
-    },
-    stop: {
-      loading: stopLoading,
-      visible: stopVisible,
-      onClick: handleStop,
-      disabled: serviceControlsDisabled
-    },
-    enable: {
-      loading: diagnosticsActions.enable.loading,
-      visible: !forkopEnabled,
-      onClick: handleEnable,
-      disabled: serviceControlsDisabled
-    },
-    disable: {
-      loading: diagnosticsActions.disable.loading,
-      visible: forkopEnabled,
-      onClick: handleDisable,
-      disabled: serviceControlsDisabled
-    },
+    restart: { ...controls.restart, onClick: handleRestart },
+    start: { ...controls.start, onClick: handleStart },
+    stop: { ...controls.stop, onClick: handleStop },
+    enable: { ...autostart.enable, onClick: handleEnable },
+    disable: { ...autostart.disable, onClick: handleDisable },
+    // Read-only actions are never gated by service state or by another action:
+    // they answer questions, and the questions matter most when something is
+    // wrong. Each one still blocks its own double submit while it runs.
     globalCheck: {
       loading: diagnosticsActions.globalCheck.loading,
       visible: true,
       onClick: handleShowGlobalCheck,
-      disabled: utilityActionsDisabled
-    },
-    updateRuleSets: {
-      loading: diagnosticsActions.updateRuleSets.loading,
-      visible: true,
-      onClick: handleUpdateRuleSets,
-      disabled: utilityActionsDisabled || !forkopRunning
+      disabled: diagnosticsActions.globalCheck.loading
     },
     showConfig: {
       loading: diagnosticsActions.showConfig.loading,
       visible: true,
       onClick: handleShowForkopConfig,
-      disabled: utilityActionsDisabled
+      disabled: diagnosticsActions.showConfig.loading
     },
     showSingBoxConfig: {
       loading: diagnosticsActions.showSingBoxConfig.loading,
       visible: true,
       onClick: handleShowSingBoxConfig,
-      disabled: utilityActionsDisabled
+      disabled: diagnosticsActions.showSingBoxConfig.loading
     }
   });
   return preserveScrollForPage(() => {
@@ -13207,7 +13318,7 @@ function isAnyActionLoading() {
 }
 function isServiceRuntimeActionLoading() {
   const state = store.get();
-  return hasLocalMutatingServiceActionLoading(state.diagnosticsActions) || isServiceTransitionStatus(state.servicesInfoWidget.data.forkopStatus);
+  return hasLocalMutatingServiceActionLoading(state.diagnosticsActions) || state.servicesInfoWidget.data.forkopBusy !== null;
 }
 function isSystemInfoLoading() {
   const systemInfo = store.get().diagnosticsSystemInfo;

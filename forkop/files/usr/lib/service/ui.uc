@@ -5,6 +5,7 @@ let uci_core = require("core.uci");
 let subscription_headers_module = require("singbox.subscription_headers");
 let health = require("service.health");
 let lock = require("service.lock");
+let dns_state = require("dns.state");
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
@@ -21,8 +22,6 @@ const COMPONENT_ACTION_DIR = getenv("FORKOP_UI_COMPONENT_ACTION_DIR") || getenv(
 const ACTION_FINISHED_TTL_MINUTES = getenv("FORKOP_UI_ACTION_FINISHED_TTL_MINUTES") || "60";
 const ACTION_ACKED_TTL_SECONDS = getenv("FORKOP_UI_ACTION_ACKED_TTL_SECONDS") || "15";
 const ACTION_STALE_GRACE_SECONDS = getenv("FORKOP_UI_ACTION_STALE_GRACE_SECONDS") || "15";
-const SERVICE_ACTION_TIMEOUT_SECONDS = getenv("FORKOP_UI_SERVICE_ACTION_TIMEOUT_SECONDS") || "120";
-const SERVICE_ACTION_SETTLE_SECONDS = getenv("FORKOP_UI_SERVICE_ACTION_SETTLE_SECONDS") || "2";
 const RUNTIME_STABLE_MIN_AGE = getenv("FORKOP_RUNTIME_STABLE_MIN_AGE") || "2";
 const SERVICE_ACTION_LOCK_OWNER_GRACE = getenv("FORKOP_UI_SERVICE_ACTION_LOCK_OWNER_GRACE") || "5";
 const NFT_TABLE_NAME = getenv("NFT_TABLE_NAME") || "ForkopTable";
@@ -99,13 +98,6 @@ function command_success(command) {
 
 function command_success_from_args(args) {
     return command_success(command_from_args(args));
-}
-
-function module_success(module_path, args) {
-    let command_args = [ "ucode", "-L", LIB_DIR, module_path ];
-    for (let arg in args)
-        push(command_args, arg);
-    return command_success_from_args(command_args);
 }
 
 function now_seconds() {
@@ -223,23 +215,6 @@ function service_action_valid(action) {
     return action == "start" || action == "stop" || action == "restart" || action == "reload";
 }
 
-function service_action_expected_running_value(action) {
-    action = as_string(action);
-    if (action == "start" || action == "restart" || action == "reload")
-        return 1;
-    if (action == "stop")
-        return 0;
-    return -1;
-}
-
-function service_action_expected_running(action) {
-    let expected = service_action_expected_running_value(action);
-    if (expected < 0)
-        exit(1);
-
-    print(expected, "\n");
-}
-
 function action_ack_expired(path, now_value, ttl_value) {
     let value = read_json_file(path);
     if (type(value) != "object")
@@ -315,6 +290,27 @@ function active_service_action_value(dir) {
     }
 
     return "";
+}
+
+// How long the running action has been going, so the page can tell an operation
+// taking its usual time from one that is not coming back. Elapsed rather than a
+// start timestamp: the page would have to subtract that from its own clock, and
+// a router without an RTC does not agree with the browser about the time.
+function active_service_action_seconds(dir) {
+    for (let path in fs.glob(as_string(dir || SERVICE_ACTION_DIR) + "/*.json")) {
+        let value = read_json_file(path);
+        if (type(value) != "object" || value.running !== true || as_string(value.action) == "")
+            continue;
+
+        let started_at = unsigned_number(value.started_at) || 0;
+        if (started_at <= 0)
+            return 0;
+
+        let elapsed = now_seconds() - started_at;
+        return elapsed > 0 ? elapsed : 0;
+    }
+
+    return 0;
 }
 
 function print_active_service_action(dir) {
@@ -401,9 +397,11 @@ function write_stale_action_state(path, message) {
     return write_state_file(path, stale_action_state_value(path, message, now_seconds()));
 }
 
+// Checked for every tracked job on every status poll, so it reads /proc rather
+// than paying for a shell and a `kill` per job to learn the same thing.
 function pid_running(pid) {
     pid = as_string(pid);
-    return job_pid_valid(pid) && command_success_from_args([ "kill", "-0", pid ]);
+    return job_pid_valid(pid) && fs.stat("/proc/" + pid) != null;
 }
 
 function current_pid() {
@@ -524,8 +522,10 @@ function forkop_running() {
     );
 }
 
+// Asked behind every status poll. Spawning dns/apply.uc for it cost more than
+// the rest of the state computation together, so the predicate is required in.
 function dns_configured(running) {
-    return running && !module_success(LIB_DIR + "/dns/apply.uc", [ "has-managed-state" ]);
+    return running && !dns_state.dnsmasq_has_forkop_managed_state();
 }
 
 function server_inbounds_enabled_count() {
@@ -559,6 +559,23 @@ function subscription_default_headers_json() {
     write_json(subscription_headers_module.default_header_lines());
 }
 
+// `status` answers what the service is, `busy` answers what is being done to it.
+// They are orthogonal: a reload leaves the service running the whole time, so
+// overwriting the status with the action - as this used to - reported an outage
+// that was not happening and threw away running/enabled while it did.
+//
+// `reload` is the init.d verb; "apply" is what it is to a user, and the two
+// names stay separate so the UI never has to know the verb.
+function service_busy_value(action) {
+    action = as_string(action == null ? active_service_action_value() : action);
+
+    if (action == "start" || action == "stop" || action == "restart")
+        return action;
+    if (action == "reload")
+        return "apply";
+    return null;
+}
+
 function current_ui_state_json() {
     refresh_action_dirs();
 
@@ -569,16 +586,6 @@ function current_ui_state_json() {
     let sing_box_is_enabled = sing_box_enabled() ? 1 : 0;
     let forkop_status = health.service_status_text(forkop_is_running, forkop_is_enabled);
     let sing_box_status = health.service_status_text(sing_box_is_running, sing_box_is_enabled);
-    let active_action = active_service_action_value();
-
-    if (active_action == "start")
-        forkop_status = "starting";
-    else if (active_action == "stop")
-        forkop_status = "stopping";
-    else if (active_action == "restart")
-        forkop_status = "restarting";
-    else if (active_action == "reload")
-        forkop_status = "reloading";
 
     write_json({
         service: {
@@ -586,6 +593,8 @@ function current_ui_state_json() {
                 running: forkop_is_running,
                 enabled: forkop_is_enabled,
                 status: forkop_status,
+                busy: service_busy_value(),
+                busy_seconds: active_service_action_seconds(),
                 dns_configured: dns_configured(forkop_is_running) ? 1 : 0
             },
             sing_box: {
@@ -597,35 +606,6 @@ function current_ui_state_json() {
         capabilities,
         actions: action_state_from_dirs()
     });
-}
-
-function service_action_reached_expected_state(action) {
-    let expected = service_action_expected_running_value(action);
-    if (expected < 0)
-        return false;
-    return expected == 1 ? forkop_running() : !forkop_running();
-}
-
-function service_action_wait_for_expected_state(action, timeout, settle_seconds) {
-    timeout = arg_number(timeout || SERVICE_ACTION_TIMEOUT_SECONDS);
-    settle_seconds = arg_number(settle_seconds || SERVICE_ACTION_SETTLE_SECONDS);
-    let deadline = now_seconds() + timeout;
-    let stable_seconds = 0;
-
-    while (true) {
-        if (service_action_reached_expected_state(action)) {
-            stable_seconds++;
-            if (stable_seconds >= settle_seconds)
-                return true;
-        }
-        else {
-            stable_seconds = 0;
-        }
-
-        if (now_seconds() >= deadline)
-            return false;
-        system("sleep 1");
-    }
 }
 
 // The owner pid is written with the job rather than by a second process: a
@@ -755,7 +735,18 @@ function write_finished_service_action_state(path, action, success, message, exi
     return written;
 }
 
-function finish_service_action_after_command(action, job_id_value, status, spawn_waiter) {
+// The init.d command is the thing that waited. A start holds the lifecycle lock
+// until wait-forkop-stable-start has confirmed a stable runtime, a stop until
+// sing-box is gone, and a reload never takes the service down at all - so by the
+// time the command returns, the expected state has already been established and
+// its exit status is the answer.
+//
+// This used to be re-derived afterwards by polling forkop_running() once a
+// second until it held for two consecutive checks. That could only ever confirm
+// what was already true, so it added a guaranteed two seconds of "busy" to every
+// action, on top of a second process computing the same predicate the page was
+// polling for anyway.
+function finish_service_action_after_command(action, job_id_value, status) {
     status = arg_number(status);
     if (as_string(job_id_value) == "")
         return 0;
@@ -764,32 +755,12 @@ function finish_service_action_after_command(action, job_id_value, status, spawn
     if (path == "" || fs.stat(path) == null)
         return 0;
 
-    if (status != 0) {
+    if (status != 0)
         write_finished_service_action_state(path, action, false, "Service " + as_string(action) + " failed", status);
-        return 0;
-    }
-
-    if (!service_enabled() && !forkop_running()) {
-        write_finished_service_action_state(path, action, true, "Service " + as_string(action) + " completed", 0);
-        return 0;
-    }
-
-    if (spawn_waiter) {
-        let pid = launch_worker([ "service-action-wait-worker", path, as_string(action) ]);
-        if (pid != "")
-            set_running_job_pid_file(path, pid);
-        return 0;
-    }
-
-    if (service_action_wait_for_expected_state(action, SERVICE_ACTION_TIMEOUT_SECONDS, SERVICE_ACTION_SETTLE_SECONDS))
-        write_finished_service_action_state(path, action, true, "Service " + as_string(action) + " completed", 0);
     else
-        write_finished_service_action_state(path, action, false, "Service " + as_string(action) + " did not reach expected state", 1);
-    return 0;
-}
+        write_finished_service_action_state(path, action, true, "Service " + as_string(action) + " completed", 0);
 
-function finish_service_action_after_command_mode(action, job_id_value, status) {
-    finish_service_action_after_command(action, job_id_value, status, true);
+    return 0;
 }
 
 function update_service_action_pid_mode(job_id_value, pid) {
@@ -804,14 +775,7 @@ function service_action_worker(action, job_id_value, reason) {
         push(args, reason);
     let command = "FORKOP_UI_ACTION_TRACKED=1 " + command_from_args(args) + " >/dev/null 2>&1";
     let status = system(command);
-    finish_service_action_after_command(action, job_id_value, status, false);
-}
-
-function service_action_wait_worker(path, action) {
-    if (service_action_wait_for_expected_state(action, SERVICE_ACTION_TIMEOUT_SECONDS, SERVICE_ACTION_SETTLE_SECONDS))
-        write_finished_service_action_state(path, action, true, "Service " + as_string(action) + " completed", 0);
-    else
-        write_finished_service_action_state(path, action, false, "Service " + as_string(action) + " did not reach expected state", 1);
+    finish_service_action_after_command(action, job_id_value, status);
 }
 
 function service_action_async(action) {
@@ -902,8 +866,6 @@ else if (mode == "service-status-text")
     print_service_status_text(ARGV[1], ARGV[2]);
 else if (mode == "service-action-valid")
     exit(service_action_valid(ARGV[1]) ? 0 : 1);
-else if (mode == "service-action-expected-running")
-    service_action_expected_running(ARGV[1]);
 else if (mode == "stale-action-state")
     write_json(stale_action_state_value(ARGV[1], ARGV[2], ARGV[3]));
 else if (mode == "action-ack-expired")
@@ -921,9 +883,7 @@ else if (mode == "service-action-update-pid")
 else if (mode == "service-action-finish")
     finish_service_action_mode(ARGV[1], ARGV[2], ARGV[3], ARGV[4]);
 else if (mode == "service-action-finish-after-command")
-    finish_service_action_after_command_mode(ARGV[1], ARGV[2], ARGV[3]);
-else if (mode == "service-action-wait-worker")
-    service_action_wait_worker(ARGV[1], ARGV[2]);
+    finish_service_action_after_command(ARGV[1], ARGV[2], ARGV[3]);
 else if (mode == "service-action-worker")
     service_action_worker(ARGV[1], ARGV[2], ARGV[3]);
 else if (mode == "service-action-async")

@@ -313,6 +313,13 @@ export const ForkopShellMethods = {
     callBaseMethod<Forkop.GetUiCapabilities>(
       Forkop.AvailableMethods.GET_UI_CAPABILITIES,
     ),
+  // Which rule-set tags belong to which section. Named by the runtime, because
+  // a built-in list is named per section and a custom reference by a hash of
+  // itself - neither is reconstructible here.
+  getSectionRuleSets: async () =>
+    callBaseMethod<Record<string, string[]>>(
+      Forkop.AvailableMethods.GET_SECTION_RULE_SETS,
+    ),
   getUiState: async () =>
     callBaseMethod<Forkop.UiState>(
       Forkop.AvailableMethods.GET_UI_STATE,

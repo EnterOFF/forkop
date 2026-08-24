@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   clashHttp: vi.fn(),
   clashSummary: vi.fn(),
   canUseDirectClashApi: vi.fn(),
+  getSectionRuleSets: vi.fn(),
 }));
 
 vi.mock('../getConfigSections', () => ({
@@ -15,6 +16,7 @@ vi.mock('../../shell', () => ({
   ForkopShellMethods: {
     clashHttp: mocks.clashHttp,
     clashSummary: mocks.clashSummary,
+    getSectionRuleSets: mocks.getSectionRuleSets,
   },
 }));
 
@@ -162,6 +164,8 @@ describe('getDashboardSections', () => {
     mocks.getConfigSections.mockResolvedValue([]);
     mocks.clashHttp.mockReset();
     mocks.clashSummary.mockReset();
+    mocks.getSectionRuleSets.mockReset();
+    mocks.getSectionRuleSets.mockResolvedValue({ success: true, data: {} });
     clashProxies = {};
     clashProviders = {};
     useClashHttpRuntime();
@@ -676,7 +680,9 @@ describe('getDashboardSections', () => {
       }),
     );
 
-    await expect(updateClashApiRuleProviders()).resolves.toEqual({
+    await expect(
+      updateClashApiRuleProviders(['proxy-geosite-community-ruleset']),
+    ).resolves.toEqual({
       success: false,
       error: 'update 1 of 3 rule-sets failed: geosite: timeout',
     });

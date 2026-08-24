@@ -416,15 +416,34 @@ export async function updateClashApiProxyProviders(providerTags: string[]) {
   );
 }
 
-// Refreshing every rule-set downloads one file per remote rule-set, so it needs
-// the same ceiling the router-side transport allows rather than the mutation one.
+// Refreshing a rule-set downloads a file, so it needs the ceiling the
+// router-side transport allows rather than the mutation one.
 const CLASH_API_RULE_SET_UPDATE_TIMEOUT_MS = 60000;
 
-export function updateClashApiRuleProviders() {
-  return requestClashApi<undefined>(
-    '/providers/rules',
-    { method: 'PUT' },
-    CLASH_API_RULE_SET_UPDATE_TIMEOUT_MS,
+// One request per rule-set rather than the bulk endpoint: a section owns a few
+// named rule-sets, and refreshing the rest of the router's lists is not what
+// the button offers. A tag shared by two sections is one rule-set in the
+// runtime, so refreshing it from either section refreshes it once.
+export async function updateClashApiRuleProviders(providerTags: string[]) {
+  if (!providerTags.length) {
+    return { success: true as const, data: undefined };
+  }
+
+  const responses = await Promise.all(
+    providerTags.map((tag) =>
+      requestClashApi<undefined>(
+        `/providers/rules/${encodeURIComponent(tag)}`,
+        { method: 'PUT' },
+        CLASH_API_RULE_SET_UPDATE_TIMEOUT_MS,
+      ),
+    ),
+  );
+
+  return (
+    responses.find((response) => !response.success) || {
+      success: true as const,
+      data: undefined,
+    }
   );
 }
 
@@ -1563,7 +1582,7 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
   const configSections = hydrateConfigSections(await getConfigSections());
   clashApiConfigSections = configSections;
   const hasSubscriptions = configSections.some(hasSubscriptionSources);
-  const [clashProxies, clashProviders] = await Promise.all([
+  const [clashProxies, clashProviders, sectionRuleSets] = await Promise.all([
     getClashApiProxies(),
     hasSubscriptions
       ? getClashApiProxyProviders()
@@ -1571,7 +1590,9 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
           success: true as const,
           data: { providers: {} },
         }),
+    ForkopShellMethods.getSectionRuleSets(),
   ]);
+  const ruleSetTags = sectionRuleSets.success ? sectionRuleSets.data : {};
 
   if (!clashProxies.success || !clashProxies.data?.proxies) {
     return {
@@ -1628,6 +1649,7 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
         subscriptionProviderTags: subscriptionTags.map(
           (item) => item.runtimeTag,
         ),
+        ruleSetProviderTags: ruleSetTags[sectionName] || [],
         subscriptionMetadata,
         outbounds,
       };

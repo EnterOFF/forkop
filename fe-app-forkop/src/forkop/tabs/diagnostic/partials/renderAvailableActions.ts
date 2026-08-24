@@ -4,7 +4,6 @@ import {
   renderCirclePlayIcon24,
   renderCircleStopIcon24,
   renderCogIcon24,
-  renderDownloadIcon24,
   renderFileTextIcon24,
   renderPauseIcon24,
   renderPlayIcon24,
@@ -19,14 +18,29 @@ interface ActionProps {
   onClick: () => void;
 }
 
+// While an operation runs, its own button is the progress indicator, so it says
+// what is happening. An apply is not a restart: the service keeps running
+// through it, and calling it "restarting" reported an outage that never
+// happened.
+interface RestartActionProps extends ActionProps {
+  mode: 'restart' | 'apply';
+}
+
+function restartActionText(restart: RestartActionProps) {
+  if (!restart.loading) {
+    return _('Restart');
+  }
+
+  return restart.mode === 'apply' ? _('Applying...') : _('Restarting...');
+}
+
 interface IRenderAvailableActionsProps {
-  restart: ActionProps;
+  restart: RestartActionProps;
   start: ActionProps;
   stop: ActionProps;
   enable: ActionProps;
   disable: ActionProps;
   globalCheck: ActionProps;
-  updateRuleSets: ActionProps;
   showConfig: ActionProps;
   showSingBoxConfig: ActionProps;
 }
@@ -38,7 +52,6 @@ export function renderAvailableActions({
   enable,
   disable,
   globalCheck,
-  updateRuleSets,
   showConfig,
   showSingBoxConfig,
 }: IRenderAvailableActionsProps) {
@@ -49,7 +62,7 @@ export function renderAvailableActions({
         classNames: ['cbi-button-apply'],
         onClick: restart.onClick,
         icon: renderRotateCcwIcon24,
-        text: _('Restart'),
+        text: restartActionText(restart),
         loading: restart.loading,
         disabled: restart.disabled,
       }),
@@ -59,7 +72,7 @@ export function renderAvailableActions({
         classNames: ['cbi-button-remove'],
         onClick: stop.onClick,
         icon: renderCircleStopIcon24,
-        text: _('Stop'),
+        text: stop.loading ? _('Stopping...') : _('Stop'),
         loading: stop.loading,
         disabled: stop.disabled,
       }),
@@ -69,7 +82,7 @@ export function renderAvailableActions({
         classNames: ['cbi-button-save'],
         onClick: start.onClick,
         icon: renderCirclePlayIcon24,
-        text: _('Start'),
+        text: start.loading ? _('Starting...') : _('Start'),
         loading: start.loading,
         disabled: start.disabled,
       }),
@@ -101,15 +114,6 @@ export function renderAvailableActions({
         text: _('Global check'),
         loading: globalCheck.loading,
         disabled: globalCheck.disabled,
-      }),
-    ]),
-    ...insertIf(updateRuleSets.visible, [
-      renderButton({
-        onClick: updateRuleSets.onClick,
-        icon: renderDownloadIcon24,
-        text: _('Update lists'),
-        loading: updateRuleSets.loading,
-        disabled: updateRuleSets.disabled,
       }),
     ]),
     ...insertIf(showConfig.visible, [

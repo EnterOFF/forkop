@@ -46,6 +46,13 @@ stop_service() {
     initd_ucode stop-service "$$"
 }
 
+# A restart is one operation to whoever asked for it. Left to rc.common it is a
+# stop and then a start, each tracked separately, so the status feed reported
+# three states for it. service/initd.uc wraps both in one tracked restart.
+restart() {
+    initd_ucode restart-service "$$"
+}
+
 reload_service() {
     local reason="$1"
     local result status

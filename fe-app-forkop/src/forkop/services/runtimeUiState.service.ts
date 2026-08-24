@@ -1,4 +1,5 @@
 import { ForkopShellMethods } from '../methods';
+import { getLocalActionOverlay } from './localActionOverlay.service';
 import { Forkop } from '../types';
 import { logger } from './logger.service';
 import { applyUiStateToStore } from './uiState.service';
@@ -16,6 +17,7 @@ let runtimeStateResumeRefreshRegistered = false;
 let runtimeStatePollTimer: ReturnType<typeof setTimeout> | null = null;
 let runtimeStatePollingStarted = false;
 let runtimeStateHasRunningAction = false;
+let lastRuntimeUiStateSignature = '';
 const runtimeUiStateListeners = new Set<RuntimeUiStateListener>();
 
 function isDocumentVisible() {
@@ -27,13 +29,49 @@ function isDocumentVisible() {
 }
 
 function hasRunningAction(uiState: Forkop.UiState) {
-  return [...uiState.actions.service, ...uiState.actions.component].some(
-    (action) => action.running,
+  return (
+    Boolean(uiState.service.forkop.busy) ||
+    [...uiState.actions.service, ...uiState.actions.component].some(
+      (action) => action.running,
+    )
   );
 }
 
+// What the page actually renders. A poll that returns something different is a
+// transition in progress, and transitions arrive in bursts, so the next one is
+// scheduled at the active interval even once the action itself has finished.
+function stateSignature(uiState: Forkop.UiState) {
+  const forkop = uiState.service.forkop;
+  return [
+    forkop.running,
+    forkop.enabled,
+    forkop.busy || '',
+    forkop.dns_configured,
+    uiState.service.sing_box.running,
+    [...uiState.actions.service, ...uiState.actions.component].filter(
+      (action) => action.running,
+    ).length,
+  ].join('|');
+}
+
+// A click is known here before the runtime has a job to report it, and waiting
+// for the next idle poll to notice was most of the lag between pressing a button
+// and the page reacting.
+function hasLocalPendingAction() {
+  const overlay = getLocalActionOverlay();
+  return (
+    overlay.serviceActions.size > 0 ||
+    overlay.componentActions.size > 0 ||
+    overlay.subscriptionSections.size > 0
+  );
+}
+
+function isRuntimeStateActive() {
+  return runtimeStateHasRunningAction || hasLocalPendingAction();
+}
+
 function getNextPollDelay() {
-  return runtimeStateHasRunningAction
+  return isRuntimeStateActive()
     ? RUNTIME_UI_STATE_ACTIVE_POLL_INTERVAL_MS
     : RUNTIME_UI_STATE_IDLE_POLL_INTERVAL_MS;
 }
@@ -96,7 +134,12 @@ export async function refreshRuntimeUiState({
 
       applyUiStateToStore(response.data);
       lastRuntimeUiState = response.data;
-      runtimeStateHasRunningAction = hasRunningAction(response.data);
+
+      const signature = stateSignature(response.data);
+      const changed = signature !== lastRuntimeUiStateSignature;
+      lastRuntimeUiStateSignature = signature;
+
+      runtimeStateHasRunningAction = hasRunningAction(response.data) || changed;
       notifyRuntimeUiStateListeners(response.data);
       return response.data;
     })
@@ -112,6 +155,24 @@ export async function refreshRuntimeUiState({
 
   runtimeUiStateRefreshPromise = promise;
   return runtimeUiStateRefreshPromise;
+}
+
+// Called when the page starts or finishes an action of its own: the pacing it
+// was waiting on no longer matches what is happening, so the pending wait is
+// dropped and the state is read again straight away.
+export function refreshRuntimeUiStateNow() {
+  if (runtimeStatePollTimer !== null && typeof window !== 'undefined') {
+    window.clearTimeout(runtimeStatePollTimer);
+    runtimeStatePollTimer = null;
+  }
+
+  const refreshed = refreshRuntimeUiState({ force: true });
+  if (runtimeStatePollingStarted) {
+    void refreshed.finally(() => {
+      scheduleRuntimeUiStatePoll();
+    });
+  }
+  return refreshed;
 }
 
 export function subscribeRuntimeUiState(listener: RuntimeUiStateListener) {

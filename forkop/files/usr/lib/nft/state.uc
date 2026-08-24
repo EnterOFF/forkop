@@ -19,6 +19,16 @@ function command_from_args(args) {
     return join(" ", parts);
 }
 
+function command_output(command) {
+    let pipe = fs.popen(as_string(command), "r");
+    if (!pipe)
+        return "";
+
+    let data = pipe.read("all");
+    pipe.close();
+    return data == null ? "" : as_string(data);
+}
+
 function command_output_from_args(args) {
     let pipe = fs.popen(command_from_args(args) + " 2>/dev/null", "r");
     if (!pipe)
@@ -130,8 +140,91 @@ function tproxy_route_rule_present(table, mark) {
     return tproxy_route_present(table) && tproxy_marking_rule_present(table, mark);
 }
 
+
+// The status feed asks the same question behind every poll, and answering it
+// piecewise costs five `popen` round trips - five shells plus five binaries -
+// to read four short lists. One shell collects all of them instead. `nft list
+// tables inet` replaces `nft -t list table`: naming the table made nft walk and
+// filter the whole rule set to prove something the table index already knows,
+// and it measured four times slower on a real router.
+//
+// The route and rule output for a family arrive concatenated, without a
+// separator, because the two predicates below match disjoint shapes: a route
+// line never carries `fwmark`, and a rule line never carries `local default dev
+// lo`. Feeding both the same text is therefore unambiguous and saves marking up
+// the stream.
+const IP_BATCH_COMMANDS = "route list table %s
+rule list table %s
+";
+
+function batch_pipeline(family, table) {
+    return "printf %s " + shell_quote(sprintf(IP_BATCH_COMMANDS, table, table)) +
+        " | " + shell_quote(IP_BIN) + " " + family + " -batch - 2>/dev/null";
+}
+
+function list_tables_text(family) {
+    return "nft list tables " + shell_quote(as_string(family)) + " 2>/dev/null";
+}
+
+const SNAPSHOT_SEPARATOR = "@@forkop-runtime-snapshot@@";
+
+function runtime_snapshot_command(rt_table) {
+    return list_tables_text("inet") +
+        "; echo " + shell_quote(SNAPSHOT_SEPARATOR) +
+        "; " + batch_pipeline("-4", rt_table) +
+        "; echo " + shell_quote(SNAPSHOT_SEPARATOR) +
+        "; " + batch_pipeline("-6", rt_table);
+}
+
+function split_snapshot(output) {
+    let parts = split(as_string(output), SNAPSHOT_SEPARATOR);
+    return {
+        tables: length(parts) > 0 ? parts[0] : "",
+        inet4: length(parts) > 1 ? parts[1] : "",
+        inet6: length(parts) > 2 ? parts[2] : ""
+    };
+}
+
+// `nft list tables <family>` prints one `table <family> <name>` line per table.
+function table_present_text(output, family, table) {
+    family = as_string(family);
+    table = as_string(table);
+
+    for (let line in split(as_string(output), "
+")) {
+        let fields = normalized_fields(line);
+        if (length(fields) >= 3 && fields[0] == "table" && fields[1] == family && fields[2] == table)
+            return true;
+    }
+    return false;
+}
+
+function runtime_network_configured_snapshot(snapshot, nft_table, mark) {
+    snapshot = type(snapshot) == "object" ? snapshot : {};
+
+    return table_present_text(snapshot.tables, "inet", nft_table) &&
+        has_local_default_route_text(snapshot.inet4, 4) &&
+        has_local_default_route_text(snapshot.inet6, 6) &&
+        has_tproxy_marking_rule_text(snapshot.inet4, mark) &&
+        has_tproxy_marking_rule_text(snapshot.inet6, mark);
+}
+
+// The whole `forkop_runtime_network_configured` predicate in one shell.
+function runtime_network_configured(nft_table, rt_table, mark) {
+    return runtime_network_configured_snapshot(
+        split_snapshot(command_output(runtime_snapshot_command(rt_table))),
+        nft_table,
+        mark
+    );
+}
+
 return {
     table_present,
+    table_present_text,
+    split_snapshot,
+    runtime_snapshot_command,
+    runtime_network_configured_snapshot,
+    runtime_network_configured,
     rt_table_has_entry,
     tproxy_route4_present,
     tproxy_route6_present,

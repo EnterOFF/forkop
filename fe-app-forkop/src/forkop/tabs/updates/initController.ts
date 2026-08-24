@@ -15,10 +15,7 @@ import { isTransientRpcError } from '../../helpers/isTransientRpcError';
 import { isActiveLuciTab } from '../../helpers/isActiveLuciTab';
 import { shouldShowLoadingForRestoredAction } from '../../helpers/restoredActionLoading';
 import { formatSingBoxVersion } from '../../helpers/singBoxVersion';
-import {
-  hasLocalMutatingServiceActionLoading,
-  isServiceTransitionStatus,
-} from '../diagnostic/serviceTransition';
+import { hasLocalMutatingServiceActionLoading } from '../diagnostic/serviceTransition';
 import { shouldApplyCompletedComponentActionResult } from './componentActionCompletion';
 import {
   shouldPreserveCompletedCheckResultOnNextMount,
@@ -144,7 +141,7 @@ function isServiceRuntimeActionLoading() {
 
   return (
     hasLocalMutatingServiceActionLoading(state.diagnosticsActions) ||
-    isServiceTransitionStatus(state.servicesInfoWidget.data.forkopStatus)
+    state.servicesInfoWidget.data.forkopBusy !== null
   );
 }
 

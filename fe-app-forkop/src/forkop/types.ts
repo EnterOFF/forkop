@@ -84,6 +84,7 @@ export namespace Forkop {
     GET_SYSTEM_INFO = 'get_system_info',
     GET_UI_CAPABILITIES = 'get_ui_capabilities',
     GET_UI_STATE = 'get_ui_state',
+    GET_SECTION_RULE_SETS = 'get_section_rule_sets',
     SERVICE_ACTION_ASYNC = 'service_action_async',
     SERVICE_ACTION_STATUS = 'service_action_status',
     UI_ACTION_ACK = 'ui_action_ack',
@@ -169,6 +170,7 @@ export namespace Forkop {
     proxyConfigType?: ProxyConfigType;
     subscriptionSourceCount?: number;
     subscriptionProviderTags?: string[];
+    ruleSetProviderTags?: string[];
     subscriptionMetadata?: SubscriptionMetadata[];
     outbounds: Outbound[];
   }
@@ -400,10 +402,19 @@ export namespace Forkop {
     IP: string;
   }
 
+  // `status` says what the service is, `busy` says what is being done to it.
+  // They are independent: applying settings leaves the service running, so the
+  // two never collapse into one string.
+  export type ServiceBusy = 'start' | 'stop' | 'restart' | 'apply';
+
   export interface GetStatus {
     running: number;
     enabled: number;
     status: string;
+    busy?: ServiceBusy | null;
+    // How long the running operation has been going, in seconds; 0 when none
+    // is. Elapsed rather than a timestamp so no clock comparison is needed.
+    busy_seconds?: number;
     dns_configured?: number;
   }
 

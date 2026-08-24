@@ -7,6 +7,10 @@ let nft_state = require("nft.state");
 const SB_DNS_INBOUND_ADDRESS = getenv("SB_DNS_INBOUND_ADDRESS") || "127.0.0.42";
 const SB_TPROXY_INBOUND_PORT = getenv("SB_TPROXY_INBOUND_PORT") || "1602";
 const SB_TPROXY_INBOUND6_ADDRESS = getenv("SB_TPROXY_INBOUND6_ADDRESS") || "::1";
+// Overridable for the same reason FORKOP_IP_BIN is: the readiness tests drive
+// these predicates against fixtures instead of the live kernel.
+const PROC_NET_TCP = getenv("FORKOP_PROC_NET_TCP") || "/proc/net/tcp";
+const PROC_NET_TCP6 = getenv("FORKOP_PROC_NET_TCP6") || "/proc/net/tcp6";
 
 function as_string(value) {
     return value == null ? "" : "" + value;
@@ -42,10 +46,47 @@ function sing_box_service_pid_from_value(value) {
     return 0;
 }
 
-function sing_box_service_pid_runtime() {
+// The status feed asks procd for the same instance behind every poll. The ubus
+// binding answers in-process, where shelling out to `ubus call` paid for a
+// shell, a second binary and a JSON reparse to reach the same object. The
+// connection is opened once and reused: within one short-lived status process
+// that is a single round trip instead of one per question.
+let ubus_connection = null;
+let ubus_connection_tried = false;
+
+function ubus_connect() {
+    if (ubus_connection_tried)
+        return ubus_connection;
+
+    ubus_connection_tried = true;
+    try {
+        ubus_connection = require("ubus").connect();
+    }
+    catch (e) {
+        ubus_connection = null;
+    }
+    return ubus_connection;
+}
+
+function sing_box_service_pid_from_cli() {
     let data = command_output_from_args([ "ubus", "call", "service", "list", "{\"name\":\"sing-box\"}" ]);
     try {
         return sing_box_service_pid_from_value(json(data));
+    }
+    catch (e) {
+        return 0;
+    }
+}
+
+function sing_box_service_pid_runtime() {
+    let connection = ubus_connect();
+    if (connection == null)
+        return sing_box_service_pid_from_cli();
+
+    try {
+        return sing_box_service_pid_from_value(
+            connection.call("service", "list", { name: "sing-box" })
+        );
     }
     catch (e) {
         return 0;
@@ -130,9 +171,12 @@ function sing_box_service_stable(min_age) {
     return age != null && age >= min_age;
 }
 
+// Read straight from /proc instead of spawning netstat, which enumerates and
+// formats every socket on the box to report three of them.
 function sing_box_runtime_ports_ready() {
-    return netstat.sing_box_standard_ports_listening(
-        command_output_from_args([ "netstat", "-ln" ]),
+    return netstat.sing_box_standard_ports_listening_proc(
+        fs.readfile(PROC_NET_TCP),
+        fs.readfile(PROC_NET_TCP6),
         SB_DNS_INBOUND_ADDRESS,
         SB_TPROXY_INBOUND_PORT,
         SB_TPROXY_INBOUND6_ADDRESS
@@ -140,11 +184,12 @@ function sing_box_runtime_ports_ready() {
 }
 
 // This runs on every reload, in every readiness poll and behind every UI status
-// refresh, which is why nft/state.uc answers it with -t: a rule set holding 40k
-// addresses turns a 36 ms check into 5 s when nft prints them all first.
+// refresh, so nft/state.uc collects the table index and both families of routes
+// and rules in one shell rather than five, and asks nft for the table index
+// instead of a named table: naming it made nft walk the whole rule set, which on
+// a set holding 40k addresses is seconds of work to answer a yes or no.
 function forkop_runtime_network_configured(rt_table, nft_table, mark) {
-    return nft_state.table_present(nft_table) &&
-        nft_state.tproxy_route_rule_present(rt_table, mark);
+    return nft_state.runtime_network_configured(nft_table, rt_table, mark);
 }
 
 function forkop_running(rt_table, nft_table, mark) {
