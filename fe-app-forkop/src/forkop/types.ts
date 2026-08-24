@@ -73,6 +73,7 @@ export namespace Forkop {
     GET_SING_BOX_STATUS = 'get_sing_box_status',
     GET_PROVIDER_STATUS = 'get_provider_status',
     CLASH_HTTP = 'clash_http',
+    CLASH_SUMMARY = 'clash_summary',
     ENABLE = 'enable',
     DISABLE = 'disable',
     GLOBAL_CHECK = 'global_check',
@@ -599,5 +600,12 @@ export namespace Forkop {
   export interface ClashHttpResponse {
     status: number;
     body: string;
+  }
+
+  export interface ClashConnectionsSummary {
+    downloadTotal: number;
+    uploadTotal: number;
+    memory: number;
+    connections: number;
   }
 }

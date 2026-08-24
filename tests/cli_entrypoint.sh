@@ -35,11 +35,17 @@ grep -Fq 'function show_help()' "$FORKOP_BIN" ||
   fail "forkop ucode entrypoint must own help text"
 
 fake_lib="$WORK_DIR/lib"
-mkdir -p "$fake_lib/service" "$fake_lib/diagnostics" "$fake_lib/components" "$fake_lib/dns"
+mkdir -p "$fake_lib/service" "$fake_lib/diagnostics" "$fake_lib/components" "$fake_lib/dns" \
+  "$fake_lib/singbox"
 
 cat >"$fake_lib/diagnostics/runtime.uc" <<'UCODE'
 #!/usr/bin/env ucode
 print("diagnostics\t", ARGV[0], "\t", ARGV[1] || "", "\t", ARGV[2] || "", "\t", ARGV[3] || "", "\n");
+UCODE
+
+cat >"$fake_lib/singbox/clash_http.uc" <<'UCODE'
+#!/usr/bin/env ucode
+print("singbox_clash_http\t", ARGV[0], "\t", ARGV[1] || "", "\t", ARGV[2] || "", "\t", ARGV[3] || "", "\n");
 UCODE
 
 cat >"$fake_lib/components/updates.uc" <<'UCODE'
@@ -65,8 +71,12 @@ show_version_out="$(FORKOP_LIB="$fake_lib" ucode "$FORKOP_BIN" show_version)"
   fail "show_version must dispatch through diagnostics/runtime.uc"
 
 clash_http_out="$(FORKOP_LIB="$fake_lib" ucode "$FORKOP_BIN" clash_http PUT /proxies/main-out '{"name":"main-1-out"}')"
-[ "$clash_http_out" = $'diagnostics\tclash-http\tPUT\t/proxies/main-out\t{"name":"main-1-out"}' ] ||
-  fail "clash_http must dispatch through diagnostics/runtime.uc with method, path and body"
+[ "$clash_http_out" = $'singbox_clash_http\trequest\tPUT\t/proxies/main-out\t{"name":"main-1-out"}' ] ||
+  fail "clash_http must dispatch through singbox/clash_http.uc with method, path and body"
+
+clash_summary_out="$(FORKOP_LIB="$fake_lib" ucode "$FORKOP_BIN" clash_summary)"
+[ "$clash_summary_out" = $'singbox_clash_http\tsummary\t\t\t' ] ||
+  fail "clash_summary must dispatch through singbox/clash_http.uc without arguments"
 
 provider_runtime_out="$(FORKOP_LIB="$fake_lib" ucode "$FORKOP_BIN" check_provider_runtime zapret2)"
 [ "$provider_runtime_out" = $'diagnostics\tcheck-provider-runtime\tzapret2\t\t' ] ||

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   getConfigSections: vi.fn(),
   clashHttp: vi.fn(),
+  clashSummary: vi.fn(),
   canUseDirectClashApi: vi.fn(),
 }));
 
@@ -13,6 +14,7 @@ vi.mock('../getConfigSections', () => ({
 vi.mock('../../shell', () => ({
   ForkopShellMethods: {
     clashHttp: mocks.clashHttp,
+    clashSummary: mocks.clashSummary,
   },
 }));
 
@@ -27,8 +29,10 @@ vi.mock('../../../../helpers', () => ({
 import {
   closeAllClashApiConnections,
   getClashApiConnections,
+  getClashApiConnectionsSummary,
   getDashboardSections,
   getClashApiProxyLink,
+  resetClashApiTransport,
   setClashApiGroupProxy,
   updateClashApiProxyProviders,
   updateClashApiRuleProviders,
@@ -122,14 +126,53 @@ function setClashProviders(providers: Record<string, unknown>) {
   useClashHttpRuntime();
 }
 
+async function primeClashApi() {
+  mocks.getConfigSections.mockResolvedValue([section()]);
+  setClashProxies({
+    Office: proxy('Selector', { all: ['Office/Node'] }),
+    'Office/Node': proxy('VLESS'),
+  });
+  await getDashboardSections();
+  mocks.clashHttp.mockClear();
+  mocks.clashHttp.mockResolvedValue(clashHttpJson(200, { connections: [] }));
+}
+
+// The transport keeps what it learned about the controller in module state, and
+// a suspension it entered is only ever lifted by a probe reaching the
+// controller. Each case starts from a transport that has just been reached,
+// rather than from whatever the previous one left behind.
+async function useReachableClashApi() {
+  mocks.canUseDirectClashApi.mockReturnValue(true);
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({ status: 200, text: async () => '{}' }),
+  );
+  resetClashApiTransport();
+
+  await vi.waitFor(async () => {
+    mocks.clashHttp.mockClear();
+    await getClashApiConnections();
+    expect(mocks.clashHttp).not.toHaveBeenCalled();
+  });
+}
+
 describe('getDashboardSections', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mocks.getConfigSections.mockReset();
+    mocks.getConfigSections.mockResolvedValue([]);
     mocks.clashHttp.mockReset();
+    mocks.clashSummary.mockReset();
     clashProxies = {};
     clashProviders = {};
     useClashHttpRuntime();
     mocks.canUseDirectClashApi.mockReset();
+
+    await useReachableClashApi();
+
+    mocks.getConfigSections.mockReset();
+    mocks.getConfigSections.mockResolvedValue([]);
+    mocks.clashHttp.mockReset();
+    useClashHttpRuntime();
     mocks.canUseDirectClashApi.mockReturnValue(false);
     vi.stubGlobal('window', undefined);
     vi.stubGlobal('fetch', undefined);
@@ -685,5 +728,210 @@ describe('getDashboardSections', () => {
       data: { connections: [] },
     });
     expect(mocks.clashHttp).toHaveBeenCalledWith('GET', '/connections', '');
+  });
+
+  it('stops asking the controller directly once a direct request fails', async () => {
+    await primeClashApi();
+
+    mocks.canUseDirectClashApi.mockReturnValue(true);
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValue(new TypeError('Failed to fetch'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await getClashApiConnections();
+    await getClashApiConnections();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(mocks.clashHttp).toHaveBeenCalledTimes(2);
+  });
+
+  // A dropped port answers nothing at all, so every request pays its whole
+  // timeout before the CLI transport gets its turn. One is enough to learn that.
+  it('stops asking the controller directly once a direct request runs out of time', async () => {
+    await primeClashApi();
+
+    mocks.canUseDirectClashApi.mockReturnValue(true);
+    const fetchMock = neverAnsweringFetch();
+    vi.stubGlobal('fetch', fetchMock);
+    vi.useFakeTimers();
+
+    const pending = getClashApiConnections();
+    await vi.advanceTimersByTimeAsync(6000);
+    await pending;
+    await getClashApiConnections();
+    vi.useRealTimers();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(mocks.clashHttp).toHaveBeenCalledTimes(2);
+  });
+
+  // Discovering that the controller is still unreachable is the probe's cost to
+  // pay, never the page's: a request that has already given up on the direct
+  // path must not wait for another attempt at it.
+  it('probes beside the request instead of making it wait', async () => {
+    await primeClashApi();
+
+    mocks.canUseDirectClashApi.mockReturnValue(true);
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValue(new TypeError('Failed to fetch'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await getClashApiConnections();
+    resetClashApiTransport();
+    await expect(getClashApiConnections()).resolves.toEqual({
+      success: true,
+      data: { connections: [] },
+    });
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      'http://router.example:9090/version',
+      expect.anything(),
+    );
+    expect(mocks.clashHttp).toHaveBeenLastCalledWith('GET', '/connections', '');
+  });
+
+  it('returns to the direct path once a probe reaches the controller', async () => {
+    await primeClashApi();
+
+    mocks.canUseDirectClashApi.mockReturnValue(true);
+    const answer = {
+      status: 200,
+      text: async () => JSON.stringify({ connections: [] }),
+    };
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValue(answer);
+    vi.stubGlobal('fetch', fetchMock);
+
+    await getClashApiConnections();
+    resetClashApiTransport();
+    await getClashApiConnections();
+
+    // The probe answers beside the request that started it, so the direct path
+    // comes back on one of the requests after that one, not on it.
+    await vi.waitFor(async () => {
+      mocks.clashHttp.mockClear();
+      await expect(getClashApiConnections()).resolves.toEqual({
+        success: true,
+        data: { connections: [] },
+      });
+      expect(mocks.clashHttp).not.toHaveBeenCalled();
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://router.example:9090/version',
+      expect.anything(),
+    );
+  });
+
+  // A controller that answers 401 is a controller the browser can reach, which
+  // is the only thing the probe is asking about.
+  it('treats an unauthorised probe answer as a reachable controller', async () => {
+    await primeClashApi();
+
+    mocks.canUseDirectClashApi.mockReturnValue(true);
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce({ status: 401, text: async () => 'Unauthorized' })
+      .mockResolvedValue({
+        status: 200,
+        text: async () => JSON.stringify({ connections: [] }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await getClashApiConnections();
+    resetClashApiTransport();
+    await getClashApiConnections();
+
+    await vi.waitFor(async () => {
+      mocks.clashHttp.mockClear();
+      await getClashApiConnections();
+      expect(mocks.clashHttp).not.toHaveBeenCalled();
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'http://router.example:9090/version',
+      expect.anything(),
+    );
+  });
+
+  // A browser that reaches the controller reads the four numbers out of the
+  // whole snapshot: nothing crosses ubus, so nothing has to be narrowed first.
+  it('summarises the snapshot the browser fetched itself', async () => {
+    await primeClashApi();
+
+    mocks.canUseDirectClashApi.mockReturnValue(true);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            downloadTotal: 10,
+            uploadTotal: 20,
+            memory: 30,
+            connections: [{ id: 'a' }, { id: 'b' }],
+          }),
+      }),
+    );
+
+    await expect(getClashApiConnectionsSummary()).resolves.toEqual({
+      success: true,
+      data: {
+        downloadTotal: 10,
+        uploadTotal: 20,
+        memory: 30,
+        connections: 2,
+      },
+    });
+    expect(mocks.clashSummary).not.toHaveBeenCalled();
+  });
+
+  // Through the CLI transport the snapshot would cross ubus, which refuses a
+  // reply past about 256KB, so the router is asked for the numbers instead.
+  it('asks the router to narrow the snapshot it cannot fetch itself', async () => {
+    await primeClashApi();
+
+    mocks.canUseDirectClashApi.mockReturnValue(false);
+    mocks.clashSummary.mockResolvedValue(
+      clashHttpJson(200, {
+        downloadTotal: 10,
+        uploadTotal: 20,
+        memory: 30,
+        connections: 2,
+      }),
+    );
+
+    await expect(getClashApiConnectionsSummary()).resolves.toEqual({
+      success: true,
+      data: {
+        downloadTotal: 10,
+        uploadTotal: 20,
+        memory: 30,
+        connections: 2,
+      },
+    });
+    expect(mocks.clashHttp).not.toHaveBeenCalled();
+  });
+
+  it('surfaces a narrowed summary failure instead of an empty widget', async () => {
+    await primeClashApi();
+
+    mocks.canUseDirectClashApi.mockReturnValue(false);
+    mocks.clashSummary.mockResolvedValue({
+      success: false,
+      error: 'Failed to execute',
+    });
+
+    await expect(getClashApiConnectionsSummary()).resolves.toEqual({
+      success: false,
+      error: 'Failed to execute',
+    });
   });
 });

@@ -1,4 +1,6 @@
 import { canUseDirectClashApi, getClashWsUrl, onMount } from '../../../helpers';
+import { resetClashApiTransport } from '../../methods/custom/getDashboardSections';
+import { pollDelayForDuration } from '../../helpers/pollDelay';
 import { prettyBytes } from '../../../helpers/prettyBytes';
 import { showToast } from '../../../helpers/showToast';
 import {
@@ -65,6 +67,15 @@ function normalizeConnectionsPayload(value: unknown): ClashConnectionsPayload {
 const RENDER_INTERVAL_MS = 500;
 const CONNECTIONS_RPC_POLL_INTERVAL_MS = 1500;
 const CONNECTIONS_RPC_POLL_BACKOFF_MAX_MS = 30000;
+// The floor the poll may be spaced out to when each answer is expensive. A table
+// that refreshes this slowly is a poor live view, but it is the honest one for a
+// router that cannot answer faster.
+const CONNECTIONS_POLL_DUTY_MAX_MS = 15000;
+// A socket to a port that silently drops packets neither connects nor fails for
+// as long as the browser's own connect timeout runs, and the tab would sit on
+// "Loading connections" for all of it. Nothing arriving in this long means the
+// poll should cover the wait, whatever the socket ends up doing.
+const CONNECTIONS_SOCKET_GRACE_MS = 2000;
 const CLOSED_CONNECTION_LIMIT = 300;
 const ALL_FILTER_VALUE = 'all';
 const SYSTEM_DEVICE_VALUE = '@system';
@@ -79,6 +90,9 @@ let renderTimer: ReturnType<typeof setInterval> | null = null;
 let connectionsPollTimer: ReturnType<typeof setTimeout> | null = null;
 let connectionsSocketUrl = '';
 let connectionsUpdatesId = 0;
+let connectionsPollActive = false;
+let connectionsSocketGraceTimer: ReturnType<typeof setTimeout> | null = null;
+let lastConnectionsPollDurationMs = 0;
 let renderSkippedForSelection = false;
 let pendingConnectionsPayload: ClashConnectionsPayload | null = null;
 let pollingConnections = false;
@@ -1340,12 +1354,19 @@ async function pollConnectionsSnapshot() {
   }
 
   const mountId = monitoringMountId;
+  const startedAt = Date.now();
   pollingConnections = true;
 
   try {
     const response = await CustomForkopMethods.getClashApiConnections();
 
-    if (!monitoringMounted || mountId !== monitoringMountId) {
+    lastConnectionsPollDurationMs = Date.now() - startedAt;
+
+    if (
+      !monitoringMounted ||
+      mountId !== monitoringMountId ||
+      !connectionsPollActive
+    ) {
       return;
     }
 
@@ -1357,7 +1378,11 @@ async function pollConnectionsSnapshot() {
     consecutivePollFailures = 0;
     applyConnectionsPayload(normalizeConnectionsPayload(response.data));
   } catch (error) {
-    if (!monitoringMounted || mountId !== monitoringMountId) {
+    if (
+      !monitoringMounted ||
+      mountId !== monitoringMountId ||
+      !connectionsPollActive
+    ) {
       return;
     }
 
@@ -1370,11 +1395,19 @@ async function pollConnectionsSnapshot() {
 
 // A stopped core answers nothing for as long as the tab stays open, so the poll
 // slows down while it keeps failing instead of asking every second and a half
-// forever. The first answer puts it back to the live interval.
+// forever. The first answer puts it back to the interval its own cost allows.
 function connectionsPollDelay() {
-  return Math.min(
-    CONNECTIONS_RPC_POLL_INTERVAL_MS * 2 ** consecutivePollFailures,
-    CONNECTIONS_RPC_POLL_BACKOFF_MAX_MS,
+  if (consecutivePollFailures > 0) {
+    return Math.min(
+      CONNECTIONS_RPC_POLL_INTERVAL_MS * 2 ** consecutivePollFailures,
+      CONNECTIONS_RPC_POLL_BACKOFF_MAX_MS,
+    );
+  }
+
+  return pollDelayForDuration(
+    CONNECTIONS_RPC_POLL_INTERVAL_MS,
+    lastConnectionsPollDurationMs,
+    CONNECTIONS_POLL_DUTY_MAX_MS,
   );
 }
 
@@ -1382,7 +1415,7 @@ function scheduleConnectionsPoll(delay: number) {
   connectionsPollTimer = setTimeout(() => {
     connectionsPollTimer = null;
     void pollConnectionsSnapshot().finally(() => {
-      if (monitoringMounted) {
+      if (monitoringMounted && connectionsPollActive) {
         scheduleConnectionsPoll(connectionsPollDelay());
       }
     });
@@ -1390,11 +1423,27 @@ function scheduleConnectionsPoll(delay: number) {
 }
 
 function startConnectionsPolling() {
-  if (connectionsPollTimer || pollingConnections) {
+  if (connectionsPollActive) {
     return;
   }
 
+  connectionsPollActive = true;
   scheduleConnectionsPoll(0);
+}
+
+function stopConnectionsPolling() {
+  connectionsPollActive = false;
+  consecutivePollFailures = 0;
+
+  if (connectionsSocketGraceTimer) {
+    clearTimeout(connectionsSocketGraceTimer);
+    connectionsSocketGraceTimer = null;
+  }
+
+  if (connectionsPollTimer) {
+    clearTimeout(connectionsPollTimer);
+    connectionsPollTimer = null;
+  }
 }
 
 async function connectToConnectionsSocket(updatesId: number) {
@@ -1418,6 +1467,9 @@ async function connectToConnectionsSocket(updatesId: number) {
         return;
       }
 
+      // The socket is delivering again, so the poll that covered for it stops.
+      stopConnectionsPolling();
+
       try {
         applyConnectionsPayload(JSON.parse(msg) as ClashConnectionsPayload);
       } catch (error) {
@@ -1433,15 +1485,13 @@ async function connectToConnectionsSocket(updatesId: number) {
         return;
       }
 
-      const failedSocketUrl = connectionsSocketUrl;
-      connectionsSocketUrl = '';
-      if (failedSocketUrl) {
-        socket.disconnect(failedSocketUrl);
-      }
-      failed = false;
-      loading = true;
+      // The socket manager retries on its own with a growing delay, so the
+      // poll only covers the gap until one of those attempts connects. Dropping
+      // the subscription here would pin the tab to the slow transport for as
+      // long as it stays open, and a core that restarts closes this socket
+      // every time. What the table already shows stays on screen: a reconnect
+      // is not a reason to empty it.
       startConnectionsPolling();
-      renderConnections();
     },
   );
 }
@@ -1450,6 +1500,10 @@ function startConnectionsUpdates() {
   if (canUseDirectClashApi()) {
     const updatesId = ++connectionsUpdatesId;
     void connectToConnectionsSocket(updatesId);
+    connectionsSocketGraceTimer = setTimeout(() => {
+      connectionsSocketGraceTimer = null;
+      startConnectionsPolling();
+    }, CONNECTIONS_SOCKET_GRACE_MS);
     return;
   }
 
@@ -1458,11 +1512,7 @@ function startConnectionsUpdates() {
 
 function stopConnectionsUpdates() {
   connectionsUpdatesId += 1;
-
-  if (connectionsPollTimer) {
-    clearTimeout(connectionsPollTimer);
-    connectionsPollTimer = null;
-  }
+  stopConnectionsPolling();
 
   if (connectionsSocketUrl) {
     socket.disconnect(connectionsSocketUrl);
@@ -1481,6 +1531,7 @@ function resetMonitoringState() {
   monitoringPaused = false;
   monitoringPausedAt = null;
   consecutivePollFailures = 0;
+  lastConnectionsPollDurationMs = 0;
   pendingConnectionsPayload = null;
   activeConnections.clear();
   closedConnections.clear();
@@ -1503,6 +1554,7 @@ function onPageMount() {
   monitoringMounted = true;
   monitoringMountId += 1;
 
+  resetClashApiTransport();
   resetMonitoringState();
   bindControls();
   renderControls();

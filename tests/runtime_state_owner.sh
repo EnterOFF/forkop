@@ -88,8 +88,19 @@ grep -Fq 'RULESET_SYNC_UC, [ "start-worker" ]' "$LIFECYCLE_UC" ||
   fail "service/lifecycle.uc must start native rule-set nft synchronization"
 grep -Fq 'RULESET_SYNC_UC, [ "stop-worker" ]' "$LIFECYCLE_UC" ||
   fail "service/lifecycle.uc must stop native rule-set nft synchronization"
-grep -Fq 'clash_http: [ "diagnostics/runtime.uc", "clash-http", 3 ]' "$CLI_UC" ||
+# One transparent transport, plus the one narrowing command that exists because
+# rpcd cannot carry a full connections snapshot. Neither is a per-endpoint CLI
+# command, which is what the check below still refuses.
+grep -Fq 'clash_http: [ "singbox/clash_http.uc", "request", 3 ]' "$CLI_UC" ||
   fail "service/cli.uc must expose exactly one allowlisted Clash API transport command"
+grep -Fq 'clash_summary: [ "singbox/clash_http.uc", "summary", 0 ]' "$CLI_UC" ||
+  fail "service/cli.uc must expose the narrowed connections summary from the same module"
+# The transport is what a page on the fallback drives every couple of seconds, so
+# it must not be reached through a module that loads the diagnostics graph first.
+CLASH_HTTP_UC="$ROOT_DIR/forkop/files/usr/lib/singbox/clash_http.uc"
+if grep -Eq 'require\("(diagnostics|service|config|nft|dns|components|providers|server)\.' "$CLASH_HTTP_UC"; then
+  fail "the Clash API transport must not require a module outside core"
+fi
 if grep -Eq 'subscription_update:|clash_api:' "$CLI_UC"; then
   fail "service/cli.uc must not keep CLI commands that only duplicate Clash API endpoints"
 fi

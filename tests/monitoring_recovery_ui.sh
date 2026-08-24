@@ -17,12 +17,17 @@ const styles = fs.readFileSync(process.argv[5], 'utf8');
 const errorStart = monitoring.indexOf('(_err) => {');
 const errorEnd = monitoring.indexOf('function startConnectionsUpdates()', errorStart);
 const errorHandler = monitoring.slice(errorStart, errorEnd);
-if (
-  errorStart < 0 ||
-  !errorHandler.includes('socket.disconnect(failedSocketUrl)') ||
-  !errorHandler.includes('startConnectionsPolling()')
-) {
+if (errorStart < 0 || !errorHandler.includes('startConnectionsPolling()')) {
   throw new Error('direct Clash WebSocket errors must fall back to RPC polling');
+}
+// The socket manager retries on its own, so the poll covers the gap instead of
+// replacing the live updates: a core that restarts must not pin an open tab to
+// the slow transport for the rest of its life.
+if (errorHandler.includes('socket.disconnect')) {
+  throw new Error('a failed Clash WebSocket must keep its subscription so it can reconnect');
+}
+if (!monitoring.includes('stopConnectionsPolling();\n\n      try {')) {
+  throw new Error('a Clash WebSocket message must stop the poll that covered for it');
 }
 
 for (const source of [fakeIp, ip]) {
@@ -95,6 +100,31 @@ for (const expected of [
 ]) {
   if (!monitoring.includes(expected)) {
     throw new Error(`a failing connections poll must back off: ${expected}`);
+  }
+}
+
+// A socket to a port that drops packets neither connects nor fails for as long
+// as the browser's own connect timeout runs, and the table would show nothing
+// at all for that whole time.
+for (const expected of [
+  'CONNECTIONS_SOCKET_GRACE_MS',
+  'connectionsSocketGraceTimer = setTimeout',
+]) {
+  if (!monitoring.includes(expected)) {
+    throw new Error(`a socket that never connects must not hold up the table: ${expected}`);
+  }
+}
+
+// What the poll costs the router decides how often it may run again: a request
+// carried by the CLI transport, or a connection list that has grown large, is
+// not something to ask for every second and a half.
+for (const expected of [
+  "import { pollDelayForDuration } from '../../helpers/pollDelay'",
+  'pollDelayForDuration(',
+  'lastConnectionsPollDurationMs',
+]) {
+  if (!monitoring.includes(expected)) {
+    throw new Error(`the connections poll must pace itself by what it costs: ${expected}`);
   }
 }
 NODE

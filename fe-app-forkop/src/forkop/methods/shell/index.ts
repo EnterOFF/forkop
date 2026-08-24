@@ -13,6 +13,11 @@ const COMPONENT_ACTION_SELF_UPDATE_SETTLE_MS = 30000;
 const COMPONENT_ACTION_TRANSIENT_RPC_GRACE_MS = 30000;
 const COMPONENT_ACTION_STATE_DIR = '/var/run/forkop/component-actions';
 const GET_UI_STATE_RPC_TIMEOUT_MS = 3000;
+// The router-side Clash transport lets curl run for a minute, and LuCI aborts
+// every RPC after twenty seconds unless something raises that ceiling. Asking
+// for no timeout at all left the default in place, so a rule-set refresh the
+// router was still running came back as a failure at twenty seconds.
+const CLASH_HTTP_TRANSPORT_TIMEOUT_MS = 65000;
 // Diagnostic checks inspect the whole runtime: nftables chains, sing-box, DNS
 // probes. On slow routers a single check takes far longer than an ordinary RPC,
 // and cutting it short reports a healthy runtime as unreachable.
@@ -264,7 +269,14 @@ export const ForkopShellMethods = {
       Forkop.AvailableMethods.CLASH_HTTP,
       [method, path, body],
       '/usr/bin/forkop',
-      { timeout: null },
+      { timeout: CLASH_HTTP_TRANSPORT_TIMEOUT_MS },
+    ),
+  clashSummary: async () =>
+    callBaseMethod<Forkop.ClashHttpResponse>(
+      Forkop.AvailableMethods.CLASH_SUMMARY,
+      [],
+      '/usr/bin/forkop',
+      { timeout: CLASH_HTTP_TRANSPORT_TIMEOUT_MS },
     ),
   enable: async () =>
     callBaseMethod<unknown>(

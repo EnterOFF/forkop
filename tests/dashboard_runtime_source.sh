@@ -67,6 +67,29 @@ if (!controller.includes('startDashboardDataUpdates();')) {
   problems.push('the dashboard must start its updates when the tab is mounted');
 }
 
+// An HTTPS page cannot open a plaintext WebSocket, and a controller the browser
+// does not reach answers no differently. The widgets those sockets feed are
+// polled out of the connections snapshot instead of staying unavailable.
+for (const expected of [
+  'if (canUseDirectClashApi()) {',
+  'void connectToClashSockets(dataUpdatesId);',
+  'startWidgetsPolling(dataUpdatesId);',
+  'WIDGETS_POLL_BACKOFF_MAX_MS',
+  // A socket that neither connects nor fails must not leave the widgets empty
+  // for as long as the browser's own connect timeout runs.
+  'widgetsSocketGraceTimer = setTimeout',
+  // And what the poll costs the router decides how often it may run again.
+  'pollDelayForDuration(',
+  // The section refresh is the third loop on this tab and backs off like the
+  // other two: a stopped core must not be asked every ten seconds forever.
+  'SECTIONS_REFRESH_BACKOFF_MAX_MS',
+  'scheduleSectionsRefresh(dataUpdatesId, sectionsRefreshDelay())',
+]) {
+  if (!controller.includes(expected)) {
+    problems.push(`the Clash API widgets must survive a browser that cannot open the sockets: ${expected}`);
+  }
+}
+
 if (problems.length) {
   throw new Error(problems.join('\n'));
 }

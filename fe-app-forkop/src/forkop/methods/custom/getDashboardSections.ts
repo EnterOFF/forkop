@@ -74,6 +74,13 @@ type ChildType =
   | 'tunnel'
   | 'tunnel_peer';
 
+type ClashConnectionsSnapshot = {
+  downloadTotal?: number;
+  uploadTotal?: number;
+  memory?: number;
+  connections?: unknown[];
+};
+
 type DirectClashApiOutcome =
   | { kind: 'response'; status: number; body: string }
   | { kind: 'timeout' }
@@ -82,12 +89,22 @@ type DirectClashApiOutcome =
 const CLASH_API_FETCH_TIMEOUT_MS = 5000;
 const DEFAULT_LATENCY_TEST_URL = 'https://www.gstatic.com/generate_204';
 const CLASH_API_MUTATION_TIMEOUT_MS = 15000;
+// A browser that cannot reach the controller pays for every doomed attempt: a
+// refused port costs a round trip, a dropped one costs the whole timeout. One
+// attempt proves the path is not there, and the rest go straight to the CLI
+// transport until a probe says otherwise.
+//
+// Nothing the page is waiting for ever pays for that discovery. The probe runs
+// beside the request that decided to skip the direct path, so a controller that
+// stays unreachable never costs the page a timeout again, and one that comes
+// back is noticed within the probe interval rather than at the next reload.
+const DIRECT_CLASH_API_PROBE_INTERVAL_MS = 30000;
+const DIRECT_CLASH_API_PROBE_TIMEOUT_MS = 2000;
 let clashApiConfigSections: Forkop.ConfigSection[] = [];
 let clashApiConfigSectionsPromise: Promise<Forkop.ConfigSection[]> | undefined;
-// Latched once the browser proves it cannot reach the controller at all, so the
-// remaining requests of the current refresh cycle skip a doomed direct attempt.
-// Every dashboard reload clears it and probes the direct path again.
-let directClashApiUnreachable = false;
+let directClashApiSuspended = false;
+let directClashApiProbeAt = 0;
+let directClashApiProbe: Promise<void> | undefined;
 const EXPORTABLE_PROVIDER_PROXY_TYPES = new Set([
   'http',
   'hysteria',
@@ -112,12 +129,24 @@ function getClashApiSecret(configSections: Forkop.ConfigSection[]) {
   return getSettingsSection(configSections)?.yacd_secret_key || '';
 }
 
+function canReachClashApiFromBrowser() {
+  return canUseDirectClashApi() && typeof fetch === 'function';
+}
+
 function canFetchClashApiDirectly() {
-  return (
-    !directClashApiUnreachable &&
-    canUseDirectClashApi() &&
-    typeof fetch === 'function'
-  );
+  return !directClashApiSuspended && canReachClashApiFromBrowser();
+}
+
+function suspendDirectClashApi() {
+  directClashApiSuspended = true;
+  directClashApiProbeAt = Date.now() + DIRECT_CLASH_API_PROBE_INTERVAL_MS;
+}
+
+// Opening a tab is the moment a user is most likely to have just started the
+// core, so the next request probes instead of waiting out the interval. It
+// costs nothing to be wrong: no request waits for the probe.
+export function resetClashApiTransport() {
+  directClashApiProbeAt = 0;
 }
 
 function clashApiError(status: number, body: string) {
@@ -237,6 +266,36 @@ async function fetchClashApiThroughCli<T>(
   );
 }
 
+// Any answer at all proves the controller is reachable, including the one it
+// gives a request without the right secret: what is being asked is whether the
+// browser can open the connection, not whether it is allowed through.
+function probeDirectClashApi() {
+  if (directClashApiProbe || Date.now() < directClashApiProbeAt) {
+    return;
+  }
+
+  directClashApiProbeAt = Date.now() + DIRECT_CLASH_API_PROBE_INTERVAL_MS;
+  directClashApiProbe = ensureClashApiConfigSections()
+    .then((configSections) =>
+      fetchClashApiDirectly(
+        configSections,
+        '/version',
+        undefined,
+        DIRECT_CLASH_API_PROBE_TIMEOUT_MS,
+      ),
+    )
+    .then((outcome) => {
+      if (outcome.kind === 'response') {
+        directClashApiSuspended = false;
+        directClashApiProbeAt = 0;
+      }
+    })
+    .catch(() => undefined)
+    .finally(() => {
+      directClashApiProbe = undefined;
+    });
+}
+
 async function requestClashApi<T>(
   path: string,
   init?: RequestInit,
@@ -254,8 +313,16 @@ async function requestClashApi<T>(
     );
 
     if (outcome.kind === 'response') {
+      directClashApiSuspended = false;
+      directClashApiProbeAt = 0;
       return parseClashApiPayload<T>(outcome.status, outcome.body);
     }
+
+    // A controller that never answered and one that answered too late are the
+    // same failure to a caller: both spent their whole budget before the CLI
+    // transport got its turn, and repeating that for every request is what the
+    // suspension is for.
+    suspendDirectClashApi();
 
     if (outcome.kind === 'timeout' && method !== 'GET' && method !== 'HEAD') {
       return {
@@ -263,10 +330,8 @@ async function requestClashApi<T>(
         error: _('Clash API request timed out after it was sent'),
       };
     }
-
-    if (outcome.kind === 'unreachable') {
-      directClashApiUnreachable = true;
-    }
+  } else if (canReachClashApiFromBrowser()) {
+    probeDirectClashApi();
   }
 
   return fetchClashApiThroughCli<T>(method, path, body);
@@ -384,6 +449,49 @@ export function getClashApiConnections() {
     '/connections',
     undefined,
     CLASH_API_FETCH_TIMEOUT_MS,
+  );
+}
+
+function summarizeConnections(
+  snapshot: ClashConnectionsSnapshot | undefined,
+): Forkop.ClashConnectionsSummary {
+  return {
+    downloadTotal: snapshot?.downloadTotal || 0,
+    uploadTotal: snapshot?.uploadTotal || 0,
+    memory: snapshot?.memory || 0,
+    connections: snapshot?.connections?.length || 0,
+  };
+}
+
+// The Dashboard widgets want four numbers out of a snapshot that carries every
+// open connection. A browser that reaches the controller can read them out of
+// the whole thing for the cost of one local request; one that cannot would drag
+// that snapshot across ubus first, where rpcd refuses a reply past about 256KB,
+// so the router is asked for the four numbers instead.
+export async function getClashApiConnectionsSummary(): Promise<
+  Forkop.MethodResponse<Forkop.ClashConnectionsSummary>
+> {
+  if (canFetchClashApiDirectly()) {
+    const response = await requestClashApi<ClashConnectionsSnapshot>(
+      '/connections',
+      undefined,
+      CLASH_API_FETCH_TIMEOUT_MS,
+    );
+
+    return response.success
+      ? { success: true, data: summarizeConnections(response.data) }
+      : response;
+  }
+
+  const response = await ForkopShellMethods.clashSummary();
+
+  if (!response.success) {
+    return response;
+  }
+
+  return parseClashApiPayload<Forkop.ClashConnectionsSummary>(
+    response.data?.status ?? 0,
+    response.data?.body || '',
   );
 }
 
@@ -1454,7 +1562,6 @@ function getSubscriptionMetadata(
 export async function getDashboardSections(): Promise<IGetDashboardSectionsResponse> {
   const configSections = hydrateConfigSections(await getConfigSections());
   clashApiConfigSections = configSections;
-  directClashApiUnreachable = false;
   const hasSubscriptions = configSections.some(hasSubscriptionSources);
   const [clashProxies, clashProviders] = await Promise.all([
     getClashApiProxies(),

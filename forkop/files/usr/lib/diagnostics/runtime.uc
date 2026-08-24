@@ -45,11 +45,9 @@ const SB_TPROXY_INBOUND6_ADDRESS = getenv("SB_TPROXY_INBOUND6_ADDRESS") || const
 const SB_TPROXY_INBOUND_PORT = getenv("SB_TPROXY_INBOUND_PORT") || constants.SB_TPROXY_INBOUND_PORT || "1602";
 const SB_SERVICE_MIXED_INBOUND_ADDRESS = getenv("SB_SERVICE_MIXED_INBOUND_ADDRESS") || constants.SB_SERVICE_MIXED_INBOUND_ADDRESS || "127.0.0.1";
 const SB_SERVICE_MIXED_INBOUND_PORT = getenv("SB_SERVICE_MIXED_INBOUND_PORT") || constants.SB_SERVICE_MIXED_INBOUND_PORT || "4534";
-const SB_CLASH_API_CONTROLLER_PORT = getenv("SB_CLASH_API_CONTROLLER_PORT") || constants.SB_CLASH_API_CONTROLLER_PORT || "9090";
 const CLOUDFLARE_OCTETS = getenv("CLOUDFLARE_OCTETS") || constants.CLOUDFLARE_OCTETS || "8.47 162.159 188.114";
 const ZAPRET_LEGACY_DEFAULT_NFQWS_OPT = getenv("ZAPRET_LEGACY_DEFAULT_NFQWS_OPT") || constants.ZAPRET_LEGACY_DEFAULT_NFQWS_OPT || "";
 const RUNTIME_STABLE_MIN_AGE = getenv("FORKOP_RUNTIME_STABLE_MIN_AGE") || "2";
-const CLASH_HTTP_MAX_TIME = getenv("FORKOP_CLASH_HTTP_MAX_TIME") || "60";
 const SING_BOX_FORKOP_VERSION_FILE = getenv("SING_BOX_FORKOP_VERSION_FILE") || "/usr/share/sing-box-forkop/version";
 
 const GLOBAL_CHECK_SEPARATOR = "━━━━━━━━━━━━━━━━━━━━━━━━━━━";
@@ -1378,150 +1376,6 @@ function check_fakeip() {
     return 0;
 }
 
-function clash_api_url() {
-    let address = replace(module_output(SINGBOX_RUNTIME_UC, [ "service-listen-address" ]), /[\r\n]+$/g, "");
-    if (address == "")
-        address = "127.0.0.1";
-    return "http://" + address + ":" + SB_CLASH_API_CONTROLLER_PORT;
-}
-
-function clash_auth_args() {
-    let cfg = settings();
-    let secret = option(cfg, "yacd_secret_key", "");
-    if (secret == "")
-        return [];
-    return [ "--header", "Authorization: Bearer " + secret ];
-}
-
-const CLASH_HTTP_STATUS_MARKER = "__FORKOP_CLASH_STATUS__";
-
-function clash_http_safe_segment(value) {
-    value = as_string(value);
-    return value != "" && value != "." && value != ".." &&
-        match(value, /^[^\/?#]+$/) != null;
-}
-
-function clash_http_path_segments(path, prefix) {
-    path = as_string(path);
-    prefix = as_string(prefix);
-    if (substr(path, 0, length(prefix)) != prefix)
-        return null;
-
-    let rest = substr(path, length(prefix));
-    let segments = rest == "" ? [] : split(rest, "/");
-    for (let segment in segments)
-        if (!clash_http_safe_segment(segment))
-            return null;
-    return segments;
-}
-
-// Only the endpoints the dashboard and monitoring pages actually drive are
-// reachable through this transport, so a compromised page cannot turn it into
-// an arbitrary HTTP client for the sing-box control plane.
-function clash_http_allowed(method, path, body) {
-    method = uc(as_string(method));
-    path = as_string(path);
-    body = as_string(body);
-
-    if (path == "" || length(path) > 4096 ||
-        index(path, "\r") >= 0 || index(path, "\n") >= 0 || index(path, " ") >= 0)
-        return false;
-
-    if (method == "GET") {
-        if (body != "")
-            return false;
-        if (path == "/proxies" || path == "/providers/proxies" || path == "/connections")
-            return true;
-
-        let query = index(path, "?");
-        if (query < 0) {
-            let link = clash_http_path_segments(path, "/proxies/");
-            return length(link) == 2 && link[1] == "link";
-        }
-
-        let delay = clash_http_path_segments(substr(path, 0, query), "/");
-        if (length(delay) != 3 || delay[2] != "delay" ||
-            (delay[0] != "proxies" && delay[0] != "group"))
-            return false;
-        return match(substr(path, query), /^\?url=[^&]+&timeout=[0-9]+$/) != null;
-    }
-
-    if (method == "DELETE") {
-        if (body != "")
-            return false;
-        if (path == "/connections")
-            return true;
-        return length(clash_http_path_segments(path, "/connections/")) == 1;
-    }
-
-    if (method == "PUT") {
-        if (path == "/providers/rules")
-            return body == "";
-        if (length(clash_http_path_segments(path, "/providers/proxies/")) == 1)
-            return body == "";
-        if (length(clash_http_path_segments(path, "/proxies/")) != 1)
-            return false;
-        let payload = parse_json_or_null(body);
-        return type(payload) == "object" && length(keys(payload)) == 1 &&
-            type(payload.name) == "string" && payload.name != "";
-    }
-
-    return false;
-}
-
-// Transparent Clash API transport for browsers that cannot reach the
-// controller directly (HTTPS pages, a firewalled controller port, CORS).
-// The original status and body are returned untouched so the caller sees the
-// same result it would have seen from a direct request.
-function clash_http(method, path, body) {
-    method = uc(as_string(method));
-    path = as_string(path);
-    body = as_string(body);
-
-    if (!clash_http_allowed(method, path, body)) {
-        warn("Clash API request is not allowlisted: " + method + " " + path + "\n");
-        return 1;
-    }
-
-    let args = [
-        "curl", "-sS", "--path-as-is",
-        "--connect-timeout", "3", "--max-time", as_string(CLASH_HTTP_MAX_TIME),
-        "-X", method
-    ];
-    for (let item in clash_auth_args())
-        push(args, item);
-    if (body != "") {
-        push(args, "--header");
-        push(args, "Content-Type: application/json");
-        push(args, "--data-raw");
-        push(args, body);
-    }
-    push(args, "-w");
-    push(args, CLASH_HTTP_STATUS_MARKER + "%{http_code}");
-    push(args, clash_api_url() + path);
-
-    let result = command_capture(command_from_args(args));
-    // The status marker is appended after the body, so the last field is the
-    // HTTP status and everything before it is the untouched response body.
-    let parts = split(result.output, CLASH_HTTP_STATUS_MARKER);
-    if (result.status != 0 || length(parts) < 2) {
-        warn("Clash API request failed: " + method + " " + path + "\n");
-        return result.status != 0 ? result.status : 1;
-    }
-
-    let status = int(parts[length(parts) - 1], 10) || 0;
-    if (status < 100 || status > 599) {
-        warn("Clash API returned no HTTP status: " + method + " " + path + "\n");
-        return 1;
-    }
-
-    write_json({
-        status: status,
-        body: join(CLASH_HTTP_STATUS_MARKER, slice(parts, 0, length(parts) - 1))
-    });
-    return 0;
-}
-
 function print_global(message) {
     print(as_string(message), "\n");
 }
@@ -1691,8 +1545,6 @@ else if (mode == "check-fakeip")
     exit(check_fakeip());
 else if (mode == "check-provider-runtime")
     exit(check_provider_runtime(ARGV[1]));
-else if (mode == "clash-http")
-    exit(clash_http(ARGV[1], ARGV[2], ARGV[3]));
 else if (mode == "show-config")
     exit(show_config(ARGV[1] || "masked"));
 else if (mode == "show-version")

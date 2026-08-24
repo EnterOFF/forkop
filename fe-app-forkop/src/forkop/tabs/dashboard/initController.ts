@@ -1,4 +1,5 @@
 import {
+  canUseDirectClashApi,
   getClashWsUrl,
   onMount,
   preserveScrollForPage,
@@ -23,22 +24,54 @@ import {
 } from './partials';
 import { fetchServicesInfo } from '../../fetchers/fetchServicesInfo';
 import { getClashApiSecret } from '../../methods/custom/getClashApiSecret';
+import { resetClashApiTransport } from '../../methods/custom/getDashboardSections';
 import { Forkop } from '../../types';
 import {
   getCachedRuntimeUiState,
   refreshRuntimeUiState,
 } from '../../services/runtimeUiState.service';
 import { isActiveLuciTab } from '../../helpers/isActiveLuciTab';
+import { pollDelayForDuration } from '../../helpers/pollDelay';
 import { resolveOutboundProxyLink } from './resolveOutboundProxyLink';
 
 const SECTIONS_REFRESH_INTERVAL_MS = 10000;
-let sectionsRefreshTimer: ReturnType<typeof setInterval> | null = null;
+// A core that is down answers nothing for as long as the tab stays open, and a
+// controller that hangs rather than refuses costs the connect timeout of every
+// attempt. The refresh backs off while it keeps failing, like the widgets and
+// the connections table already do.
+const SECTIONS_REFRESH_BACKOFF_MAX_MS = 60000;
+const SECTIONS_REFRESH_DUTY_MAX_MS = 30000;
+// The three Clash API widgets are pushed by websockets whenever the browser can
+// open them. When it cannot - an HTTPS page, a controller the browser does not
+// reach - the same numbers are polled out of the /connections snapshot the CLI
+// transport can fetch. That snapshot is the whole connection list, so it is
+// asked for less often than the live socket would have sent it.
+const WIDGETS_POLL_INTERVAL_MS = 5000;
+const WIDGETS_POLL_BACKOFF_MAX_MS = 30000;
+// A connection snapshot the widgets read four numbers out of is not worth
+// crowding the router for, so an expensive one spaces the poll out further.
+const WIDGETS_POLL_DUTY_MAX_MS = 20000;
+// A socket to a port that silently drops packets neither connects nor fails for
+// as long as the browser's own connect timeout runs. Nothing arriving in this
+// long means the poll should fill the widgets rather than wait it out.
+const WIDGETS_SOCKET_GRACE_MS = 2000;
+let sectionsRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+let sectionsRefreshFailures = 0;
+let lastSectionsRefreshDurationMs = 0;
 let sectionsRefreshPromise: Promise<boolean> | null = null;
 let sectionsRefreshQueued = false;
 let dashboardMounted = false;
 let dashboardMountId = 0;
 let dashboardDataUpdatesStarted = false;
 let dashboardDataUpdatesId = 0;
+let widgetsPollTimer: ReturnType<typeof setTimeout> | null = null;
+let widgetsPolling = false;
+let widgetsPollFailures = 0;
+let widgetsSocketGraceTimer: ReturnType<typeof setTimeout> | null = null;
+let lastWidgetsPollDurationMs = 0;
+let trafficSocketLive = false;
+let connectionsSocketLive = false;
+let lastPolledTotals: { at: number; up: number; down: number } | null = null;
 let pageUnloading = false;
 const latencyRequests = new Set<string>();
 const latencySortedSections = new Set<string>();
@@ -200,6 +233,185 @@ function handleSortByLatency(sectionName: string, enabled: boolean) {
   void renderSectionsWidget();
 }
 
+function widgetsAreLive() {
+  return trafficSocketLive && connectionsSocketLive;
+}
+
+// The traffic socket reports bytes per second; the snapshot carries only the
+// totals, so the rate is what they gained between two polls. A core that
+// restarted answers with counters that started over, which is a drop and not a
+// rate, and the first poll of a session has nothing to compare against at all.
+function polledBandwidth(uploadTotal: number, downloadTotal: number) {
+  const at = Date.now();
+  const previous = lastPolledTotals;
+
+  lastPolledTotals = { at, up: uploadTotal, down: downloadTotal };
+
+  if (!previous || at <= previous.at) {
+    return null;
+  }
+
+  const seconds = (at - previous.at) / 1000;
+
+  // Whole bytes per second, like the socket sends: prettyBytes prints anything
+  // under a kilobyte verbatim, and a raw quotient would arrive with a tail of
+  // decimals behind it.
+  return {
+    up: Math.round(Math.max(0, uploadTotal - previous.up) / seconds),
+    down: Math.round(Math.max(0, downloadTotal - previous.down) / seconds),
+  };
+}
+
+// A widget whose socket is delivering keeps what the socket said: the poll only
+// answers for the widgets that have nothing else to fill them.
+function applyWidgetsSnapshot(summary: Forkop.ClashConnectionsSummary) {
+  const { uploadTotal, downloadTotal } = summary;
+  const bandwidth = polledBandwidth(uploadTotal, downloadTotal);
+
+  store.set({
+    ...(trafficSocketLive || !bandwidth
+      ? {}
+      : {
+          bandwidthWidget: {
+            loading: false,
+            failed: false,
+            data: bandwidth,
+          },
+        }),
+    ...(connectionsSocketLive
+      ? {}
+      : {
+          trafficTotalWidget: {
+            loading: false,
+            failed: false,
+            data: { downloadTotal, uploadTotal },
+          },
+          systemInfoWidget: {
+            loading: false,
+            failed: false,
+            data: {
+              connections: summary.connections,
+              memory: summary.memory,
+            },
+          },
+        }),
+  });
+}
+
+function reportWidgetsFailure() {
+  widgetsPollFailures += 1;
+  lastPolledTotals = null;
+
+  store.set({
+    ...(trafficSocketLive
+      ? {}
+      : {
+          bandwidthWidget: {
+            loading: false,
+            failed: true,
+            data: { up: 0, down: 0 },
+          },
+        }),
+    ...(connectionsSocketLive
+      ? {}
+      : {
+          trafficTotalWidget: {
+            loading: false,
+            failed: true,
+            data: { downloadTotal: 0, uploadTotal: 0 },
+          },
+          systemInfoWidget: {
+            loading: false,
+            failed: true,
+            data: { connections: 0, memory: 0 },
+          },
+        }),
+  });
+}
+
+async function pollWidgetsSnapshot(dataUpdatesId: number) {
+  const startedAt = Date.now();
+
+  try {
+    const response = await CustomForkopMethods.getClashApiConnectionsSummary();
+
+    lastWidgetsPollDurationMs = Date.now() - startedAt;
+
+    if (!widgetsPolling || dataUpdatesId !== dashboardDataUpdatesId) {
+      return;
+    }
+
+    if (!response.success) {
+      reportWidgetsFailure();
+      return;
+    }
+
+    widgetsPollFailures = 0;
+    applyWidgetsSnapshot(response.data);
+  } catch (error) {
+    logger.error('[DASHBOARD]', 'pollWidgetsSnapshot: failed', error);
+
+    if (widgetsPolling && dataUpdatesId === dashboardDataUpdatesId) {
+      reportWidgetsFailure();
+    }
+  }
+}
+
+// A stopped core answers nothing for as long as the tab stays open, so the poll
+// slows down while it keeps failing instead of asking every few seconds forever.
+function widgetsPollDelay() {
+  if (widgetsPollFailures > 0) {
+    return Math.min(
+      WIDGETS_POLL_INTERVAL_MS * 2 ** widgetsPollFailures,
+      WIDGETS_POLL_BACKOFF_MAX_MS,
+    );
+  }
+
+  return pollDelayForDuration(
+    WIDGETS_POLL_INTERVAL_MS,
+    lastWidgetsPollDurationMs,
+    WIDGETS_POLL_DUTY_MAX_MS,
+  );
+}
+
+function scheduleWidgetsPoll(dataUpdatesId: number, delay: number) {
+  widgetsPollTimer = setTimeout(() => {
+    widgetsPollTimer = null;
+    void pollWidgetsSnapshot(dataUpdatesId).finally(() => {
+      if (widgetsPolling && dataUpdatesId === dashboardDataUpdatesId) {
+        scheduleWidgetsPoll(dataUpdatesId, widgetsPollDelay());
+      }
+    });
+  }, delay);
+}
+
+function startWidgetsPolling(dataUpdatesId: number) {
+  if (widgetsPolling || dataUpdatesId !== dashboardDataUpdatesId) {
+    return;
+  }
+
+  widgetsPolling = true;
+  widgetsPollFailures = 0;
+  scheduleWidgetsPoll(dataUpdatesId, 0);
+}
+
+function stopWidgetsPolling() {
+  widgetsPolling = false;
+  widgetsPollFailures = 0;
+  lastPolledTotals = null;
+  lastWidgetsPollDurationMs = 0;
+
+  if (widgetsSocketGraceTimer) {
+    clearTimeout(widgetsSocketGraceTimer);
+    widgetsSocketGraceTimer = null;
+  }
+
+  if (widgetsPollTimer) {
+    clearTimeout(widgetsPollTimer);
+    widgetsPollTimer = null;
+  }
+}
+
 async function connectToClashSockets(dataUpdatesId: number) {
   const mountId = dashboardMountId;
   const clashApiSecret = await getClashApiSecret();
@@ -221,6 +433,12 @@ async function connectToClashSockets(dataUpdatesId: number) {
 
       const parsedMsg = JSON.parse(msg);
 
+      trafficSocketLive = true;
+
+      if (widgetsAreLive()) {
+        stopWidgetsPolling();
+      }
+
       store.set({
         bandwidthWidget: {
           loading: false,
@@ -239,13 +457,8 @@ async function connectToClashSockets(dataUpdatesId: number) {
         'connectToClashSockets - traffic: failed to connect to',
         getClashWsUrl(),
       );
-      store.set({
-        bandwidthWidget: {
-          loading: false,
-          failed: true,
-          data: { up: 0, down: 0 },
-        },
-      });
+      trafficSocketLive = false;
+      startWidgetsPolling(dataUpdatesId);
     },
   );
 
@@ -257,6 +470,12 @@ async function connectToClashSockets(dataUpdatesId: number) {
       }
 
       const parsedMsg = JSON.parse(msg);
+
+      connectionsSocketLive = true;
+
+      if (widgetsAreLive()) {
+        stopWidgetsPolling();
+      }
 
       store.set({
         trafficTotalWidget: {
@@ -287,23 +506,43 @@ async function connectToClashSockets(dataUpdatesId: number) {
         'connectToClashSockets - connections: failed to connect to',
         getClashWsUrl(),
       );
-      store.set({
-        trafficTotalWidget: {
-          loading: false,
-          failed: true,
-          data: { downloadTotal: 0, uploadTotal: 0 },
-        },
-        systemInfoWidget: {
-          loading: false,
-          failed: true,
-          data: {
-            connections: 0,
-            memory: 0,
-          },
-        },
-      });
+      connectionsSocketLive = false;
+      startWidgetsPolling(dataUpdatesId);
     },
   );
+}
+
+function sectionsRefreshDelay() {
+  if (sectionsRefreshFailures > 0) {
+    return Math.min(
+      SECTIONS_REFRESH_INTERVAL_MS * 2 ** sectionsRefreshFailures,
+      SECTIONS_REFRESH_BACKOFF_MAX_MS,
+    );
+  }
+
+  return pollDelayForDuration(
+    SECTIONS_REFRESH_INTERVAL_MS,
+    lastSectionsRefreshDurationMs,
+    SECTIONS_REFRESH_DUTY_MAX_MS,
+  );
+}
+
+function scheduleSectionsRefresh(dataUpdatesId: number, delay: number) {
+  sectionsRefreshTimer = setTimeout(() => {
+    sectionsRefreshTimer = null;
+    const startedAt = Date.now();
+
+    void fetchDashboardSections()
+      .then((success) => {
+        lastSectionsRefreshDurationMs = Date.now() - startedAt;
+        sectionsRefreshFailures = success ? 0 : sectionsRefreshFailures + 1;
+      })
+      .finally(() => {
+        if (dashboardMounted && dataUpdatesId === dashboardDataUpdatesId) {
+          scheduleSectionsRefresh(dataUpdatesId, sectionsRefreshDelay());
+        }
+      });
+  }, delay);
 }
 
 function stopDashboardDataUpdates() {
@@ -311,17 +550,24 @@ function stopDashboardDataUpdates() {
   dashboardDataUpdatesId += 1;
 
   if (sectionsRefreshTimer) {
-    clearInterval(sectionsRefreshTimer);
+    clearTimeout(sectionsRefreshTimer);
     sectionsRefreshTimer = null;
   }
 
+  sectionsRefreshFailures = 0;
+  lastSectionsRefreshDurationMs = 0;
   sectionsRefreshQueued = false;
+  stopWidgetsPolling();
+  trafficSocketLive = false;
+  connectionsSocketLive = false;
   socket.resetAll();
 }
 
 // The widgets and the sections come from the Clash API, so the tab asks it
 // directly rather than asking first whether the core is running: what answers is
-// what there is to show.
+// what there is to show. A browser that cannot open a plaintext socket at all -
+// an HTTPS page cannot - polls the same numbers out of the connections snapshot
+// instead of leaving three widgets permanently unavailable.
 function startDashboardDataUpdates() {
   if (dashboardDataUpdatesStarted || !dashboardMounted) {
     return;
@@ -330,10 +576,18 @@ function startDashboardDataUpdates() {
   dashboardDataUpdatesStarted = true;
   const dataUpdatesId = ++dashboardDataUpdatesId;
   void fetchDashboardSections({ force: true });
-  void connectToClashSockets(dataUpdatesId);
-  sectionsRefreshTimer = setInterval(() => {
-    void fetchDashboardSections();
-  }, SECTIONS_REFRESH_INTERVAL_MS);
+
+  if (canUseDirectClashApi()) {
+    void connectToClashSockets(dataUpdatesId);
+    widgetsSocketGraceTimer = setTimeout(() => {
+      widgetsSocketGraceTimer = null;
+      startWidgetsPolling(dataUpdatesId);
+    }, WIDGETS_SOCKET_GRACE_MS);
+  } else {
+    startWidgetsPolling(dataUpdatesId);
+  }
+
+  scheduleSectionsRefresh(dataUpdatesId, SECTIONS_REFRESH_INTERVAL_MS);
 }
 
 // Handlers
@@ -1472,6 +1726,7 @@ async function onPageMount() {
   dashboardMounted = true;
   dashboardMountId += 1;
   const mountId = dashboardMountId;
+  resetClashApiTransport();
   const hasRuntimeSnapshot = Boolean(getCachedRuntimeUiState());
 
   // Add new listener
