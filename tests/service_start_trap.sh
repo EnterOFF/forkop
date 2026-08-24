@@ -173,18 +173,18 @@ reject_lifecycle_pattern 'command_status_from_args([ SERVICE_INIT, "enable" ])' 
 reject_lifecycle_pattern 'command_status_from_args([ SERVICE_INIT, "disable" ])' \
   "disabling autostart must not go through the init script and its procd lock"
 
-# A live reload does not restart sing-box, so a wait dated from the process start
-# is already satisfied when it begins: it returned before the rebind that closes
-# and reopens every inbound, and the state read during that window reported a
-# service that had never stopped as stopped.
+# A live reload does not restart sing-box: `/etc/init.d/sing-box reload` only
+# signals the process, and the rebind that follows closes and reopens every
+# inbound. The wait after it is dated from itself and sized by the reload
+# window, so a snapshot of the pre-rebind runtime cannot satisfy it.
 reload_wait_block="$(awk '/"reload-sing-box-runtime",/{c=25} c-->0' "$LIFECYCLE_UC")"
 case "$reload_wait_block" in
-  *'"wait-forkop-stable-reload",'*) ;;
+  *'"wait-forkop-ready",'*) ;;
   *) fail "the sing-box reload must wait for the runtime to settle after its rebind" ;;
 esac
 case "$reload_wait_block" in
-  *'"wait-forkop-stable-start",'*)
-    fail "the sing-box reload must not use the wait dated from the process start" ;;
+  *'RELOAD_READY_WINDOW'*) ;;
+  *) fail "the sing-box reload must use the reload readiness window" ;;
 esac
 
 require_pattern 'singbox_init_config_for_live_reload' \

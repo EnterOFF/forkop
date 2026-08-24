@@ -135,8 +135,8 @@ grep -Fq 'function forkop_running(' "$HEALTH_UC" ||
   fail "service/health.uc must own the lightweight Forkop running predicate"
 grep -Fq 'HEALTH_MODE == "sing-box-service-stable"' "$STATE_UC" ||
   fail "service/state.uc must dispatch stable sing-box checks before heavy imports"
-grep -Fq 'mode == "wait-forkop-stable-start"' "$STATE_UC" ||
-  fail "service/state.uc must own stable-start waiting"
+grep -Fq 'mode == "wait-forkop-ready"' "$STATE_UC" ||
+  fail "service/state.uc must own the lifecycle readiness wait"
 grep -Fq 'getenv("FORKOP_SING_BOX_START_MAX_WAIT_SECONDS") || "300"' "$STATE_UC" ||
   fail "service/state.uc must cap a live but permanently unready sing-box start"
 grep -Fq 'mode == "mark-pending-reload"' "$STATE_UC" ||
@@ -172,32 +172,28 @@ failing_status="$?"
 set -e
 [ "$failing_status" -eq 23 ] ||
   fail "sing-box init failure status must be preserved"
-grep -Fq '"wait-forkop-stable-start"' "$LIFECYCLE_UC" ||
-  fail "service/lifecycle.uc must verify stable runtime after sing-box start/reload"
-grep -Fq 'SING_BOX_START_STABLE_MIN_AGE' "$LIFECYCLE_UC" ||
-  fail "service/lifecycle.uc must use a dedicated sing-box start stability window"
+grep -Fq '"wait-forkop-ready"' "$LIFECYCLE_UC" ||
+  fail "service/lifecycle.uc must verify a ready runtime after sing-box start/reload"
 sing_box_start_line="$(grep -nF 'command_success_from_args([ SING_BOX_INIT, "start" ])' "$LIFECYCLE_UC" | head -n1 | cut -d: -f1)"
-early_stable_line="$(awk -v start="$sing_box_start_line" 'NR > start && /"wait-forkop-stable-start"/ { print NR; exit }' "$LIFECYCLE_UC")"
-start_stable_min_age_line="$(awk -v start="$sing_box_start_line" 'NR > start && /SING_BOX_START_STABLE_MIN_AGE/ { print NR; exit }' "$LIFECYCLE_UC")"
+early_ready_line="$(awk -v start="$sing_box_start_line" 'NR > start && /"wait-forkop-ready"/ { print NR; exit }' "$LIFECYCLE_UC")"
+start_window_line="$(awk -v start="$sing_box_start_line" 'NR > start && /START_READY_WINDOW/ { print NR; exit }' "$LIFECYCLE_UC")"
 [ -n "$sing_box_start_line" ] ||
   fail "service/lifecycle.uc must start sing-box through init.d"
-[ -n "$early_stable_line" ] ||
-  fail "service/lifecycle.uc must verify stable runtime immediately after sing-box start"
-[ -n "$start_stable_min_age_line" ] ||
-  fail "service/lifecycle.uc must use the dedicated sing-box start stability window"
+[ -n "$early_ready_line" ] ||
+  fail "service/lifecycle.uc must verify a ready runtime immediately after sing-box start"
+[ -n "$start_window_line" ] ||
+  fail "service/lifecycle.uc must watch a fresh sing-box through the start window"
 if grep -Fq 'run-deferred-bootstrap' "$LIFECYCLE_UC"; then
   fail "service/lifecycle.uc must leave subscription bootstrap to native providers"
 fi
 sing_box_reload_line="$(grep -nF '"reload-sing-box-runtime"' "$LIFECYCLE_UC" | head -n1 | cut -d: -f1)"
-reload_stable_min_age_line="$(awk -v start="$sing_box_reload_line" 'NR > start && /SING_BOX_START_STABLE_MIN_AGE/ { print NR; exit }' "$LIFECYCLE_UC")"
+reload_window_line="$(awk -v start="$sing_box_reload_line" 'NR > start && /RELOAD_READY_WINDOW/ { print NR; exit }' "$LIFECYCLE_UC")"
 [ -n "$sing_box_reload_line" ] ||
   fail "service/lifecycle.uc must reload sing-box through service/state.uc"
-[ -n "$reload_stable_min_age_line" ] ||
-  fail "service/lifecycle.uc must use the dedicated sing-box start stability window after sing-box reload"
+[ -n "$reload_window_line" ] ||
+  fail "service/lifecycle.uc must verify readiness through the reload window after sing-box reload"
 grep -Fq 'Reload verification failed after sing-box was reloaded; stopping Forkop runtime' "$LIFECYCLE_UC" ||
   fail "service/lifecycle.uc must fail reload when sing-box does not stay stable"
-grep -Fq 'Reload runtime restart verification failed after Forkop was started; stopping Forkop runtime' "$LIFECYCLE_UC" ||
-  fail "service/lifecycle.uc must fail full runtime restart when sing-box does not stay stable"
 if grep -n -E 'require\("uci"\)\.cursor|uci -q|uci", "-q"|uci_get_cli|uci_exists_cli|mwan3_has_enabled_interface_from_uci_show' "$STATE_UC" >/dev/null 2>&1; then
   fail "service/state.uc must not own direct UCI CLI/cursor access"
 fi

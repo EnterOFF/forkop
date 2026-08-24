@@ -234,121 +234,91 @@ if PATH="$WORK_DIR/stable-start-bin:$PATH" \
   wait "$sing_box_pid" 2>/dev/null || true
   fail "runtime state must reject sing-box without the DNS inbound"
 fi
-if ! PATH="$WORK_DIR/stable-start-bin:$PATH" \
-  SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
-  FORKOP_PROC_NET_TCP="$WORK_DIR/proc-net-tcp.ready" \
-  state_ucode wait-forkop-stable-start forkop ForkopTable 0x00100000 2; then
-  kill "$sing_box_pid" >/dev/null 2>&1 || true
-  wait "$sing_box_pid" 2>/dev/null || true
-  fail "stable-start wait must accept a ready stable process"
-fi
-
-sleep 2
-cp "$WORK_DIR/proc-net-tcp.no-dns" "$WORK_DIR/hot-reload-proc-net-tcp"
+# One readiness wait serves both a start and a live reload, dated from the
+# moment it is called. A start's window watches a fresh process for an early
+# crash; a reload leaves the process in place, so its window only has to
+# outlast the gap between the HUP signal and the ports dropping - and the hold
+# means no snapshot taken before the rebind can satisfy it.
+cp "$WORK_DIR/proc-net-tcp.ready" "$WORK_DIR/ready-hold-proc-net-tcp"
 if ! PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
-  FORKOP_SING_BOX_START_MAX_WAIT_SECONDS=1 \
+  FORKOP_SING_BOX_START_MAX_WAIT_SECONDS=30 \
   SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
-  FORKOP_PROC_NET_TCP="$WORK_DIR/hot-reload-proc-net-tcp" \
-  SING_BOX_TEST_READY_PROC_TCP="$WORK_DIR/proc-net-tcp.ready" \
-  SING_BOX_TEST_READY_AFTER_SLEEPS=1 \
-  SING_BOX_TEST_POLL_COUNT_FILE="$WORK_DIR/hot-reload-poll.count" \
-  state_ucode wait-forkop-stable-start forkop ForkopTable 0x00100000 2; then
-  fail "stable-start wait must retry readiness for a long-lived SIGHUP process"
+  FORKOP_PROC_NET_TCP="$WORK_DIR/ready-hold-proc-net-tcp" \
+  SING_BOX_TEST_POLL_COUNT_FILE="$WORK_DIR/ready-hold-poll.count" \
+  state_ucode wait-forkop-ready forkop ForkopTable 0x00100000 2 2; then
+  fail "ready wait must accept a runtime whose readiness holds"
 fi
-assert_eq "1" "$(cat "$WORK_DIR/hot-reload-poll.count")" "SIGHUP readiness polls"
+assert_eq "2" "$(cat "$WORK_DIR/ready-hold-poll.count")" \
+  "ready wait must watch readiness hold rather than accept the first look"
 
-cp "$WORK_DIR/proc-net-tcp.no-dns" "$WORK_DIR/slow-proc-net-tcp"
+# Readiness that only appears once the rebind is over still has to hold
+# afterwards: three polls before it comes back, then the two-second hold.
+cp "$WORK_DIR/proc-net-tcp.no-dns" "$WORK_DIR/late-ready-proc-net-tcp"
 if ! PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
+  FORKOP_SING_BOX_START_MAX_WAIT_SECONDS=30 \
   SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
-  FORKOP_PROC_NET_TCP="$WORK_DIR/slow-proc-net-tcp" \
+  FORKOP_PROC_NET_TCP="$WORK_DIR/late-ready-proc-net-tcp" \
   SING_BOX_TEST_READY_PROC_TCP="$WORK_DIR/proc-net-tcp.ready" \
-  SING_BOX_TEST_READY_AFTER_SLEEPS=11 \
-  SING_BOX_TEST_POLL_COUNT_FILE="$WORK_DIR/slow-poll.count" \
-  state_ucode wait-forkop-stable-start forkop ForkopTable 0x00100000 2; then
-  fail "stable-start wait must continue while the original sing-box process is alive"
+  SING_BOX_TEST_READY_AFTER_SLEEPS=3 \
+  SING_BOX_TEST_POLL_COUNT_FILE="$WORK_DIR/late-ready-poll.count" \
+  state_ucode wait-forkop-ready forkop ForkopTable 0x00100000 2 2; then
+  fail "ready wait must keep polling until the rebind finishes"
 fi
-assert_eq "11" "$(cat "$WORK_DIR/slow-poll.count")" "slow stable-start readiness polls"
+assert_eq "5" "$(cat "$WORK_DIR/late-ready-poll.count")" \
+  "ready wait polls: three for the rebind, two for the hold"
+
+# The window is the other half. A runtime that was ready the whole time still has
+# to sit it out, because ready the whole time is exactly what the pre-rebind
+# runtime looked like.
+cp "$WORK_DIR/proc-net-tcp.ready" "$WORK_DIR/window-proc-net-tcp"
+if ! PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
+  FORKOP_SING_BOX_START_MAX_WAIT_SECONDS=30 \
+  SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
+  FORKOP_PROC_NET_TCP="$WORK_DIR/window-proc-net-tcp" \
+  SING_BOX_TEST_POLL_COUNT_FILE="$WORK_DIR/window-poll.count" \
+  state_ucode wait-forkop-ready forkop ForkopTable 0x00100000 6 2; then
+  fail "ready wait must sit out the stability window it was given"
+fi
+assert_eq "6" "$(cat "$WORK_DIR/window-poll.count")" \
+  "ready wait must sit out the stability window it was given"
 
 if PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
   FORKOP_SING_BOX_START_MAX_WAIT_SECONDS=1 \
   SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
   FORKOP_PROC_NET_TCP="$WORK_DIR/proc-net-tcp.no-dns" \
-  state_ucode wait-forkop-stable-start forkop ForkopTable 0x00100000 2 >/dev/null 2>&1; then
-  fail "stable-start wait must stop waiting for a permanently unready live process"
+  state_ucode wait-forkop-ready forkop ForkopTable 0x00100000 2 2 >/dev/null 2>&1; then
+  fail "ready wait must stop waiting for a permanently unready live process"
 fi
 kill -0 "$sing_box_pid" >/dev/null 2>&1 ||
-  fail "stable-start readiness timeout must not be confused with process exit"
+  fail "ready wait timeout must not be confused with process exit"
 
+# The wait is pinned to the process it started watching: whatever exits or gets
+# respawned mid-wait is not the runtime the caller built, so it fails at once
+# instead of waiting out FORKOP_SING_BOX_START_MAX_WAIT_SECONDS.
 if PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
   SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
   FORKOP_PROC_NET_TCP="$WORK_DIR/proc-net-tcp.no-dns" \
   SING_BOX_TEST_KILL_PID_FILE="$WORK_DIR/sing-box.pid" \
   SING_BOX_TEST_SLEEP_COUNT_FILE="$WORK_DIR/sleep.count" \
-  state_ucode wait-forkop-stable-start forkop ForkopTable 0x00100000 2 >/dev/null 2>&1; then
-  fail "stable-start wait must fail when the tracked sing-box process exits"
+  state_ucode wait-forkop-ready forkop ForkopTable 0x00100000 2 2 >/dev/null 2>&1; then
+  fail "ready wait must fail when the tracked sing-box process exits"
 fi
 # The killed process stays a zombie until the test shell reaps it, and a zombie
 # still has a /proc entry, so the wait can need one more poll before the exit
-# becomes visible. What matters is that it gives up at once instead of waiting
-# out FORKOP_SING_BOX_START_MAX_WAIT_SECONDS.
+# becomes visible.
 exit_detection_polls="$(wc -l <"$WORK_DIR/sleep.count" | tr -d ' ')"
 [ "$exit_detection_polls" -ge 1 ] && [ "$exit_detection_polls" -le 2 ] ||
-  fail "stable-start exit detection polls: expected 1 or 2, got '$exit_detection_polls'"
+  fail "ready wait exit detection polls: expected 1 or 2, got '$exit_detection_polls'"
 wait "$sing_box_pid" 2>/dev/null || true
-sing_box_pid=""
 
-# A live reload leaves sing-box in place, so the process tells the wait nothing:
-# `wait-forkop-stable-start` was already satisfied by the pre-reload runtime and
-# returned before sing-box had rebound anything, which reported the service as
-# stopped for the three seconds the rebind actually took. The reload wait sits
-# out a stability window and asks readiness to hold through the end of it, so an
-# already-ready runtime cannot satisfy it on the first look.
-cp "$WORK_DIR/proc-net-tcp.ready" "$WORK_DIR/reload-ready-proc-net-tcp"
-if ! PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
-  FORKOP_SING_BOX_START_MAX_WAIT_SECONDS=30 \
-  FORKOP_PROC_NET_TCP="$WORK_DIR/reload-ready-proc-net-tcp" \
-  SING_BOX_TEST_POLL_COUNT_FILE="$WORK_DIR/reload-ready-poll.count" \
-  state_ucode wait-forkop-stable-reload forkop ForkopTable 0x00100000 2 2; then
-  fail "reload wait must accept a runtime whose readiness holds"
-fi
-assert_eq "2" "$(cat "$WORK_DIR/reload-ready-poll.count")" \
-  "reload wait must watch readiness hold rather than accept the first look"
-
-# Readiness that only appears once the rebind is over still has to hold
-# afterwards: three polls before it comes back, then the two-second hold.
-cp "$WORK_DIR/proc-net-tcp.no-dns" "$WORK_DIR/reload-late-proc-net-tcp"
-if ! PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
-  FORKOP_SING_BOX_START_MAX_WAIT_SECONDS=30 \
-  FORKOP_PROC_NET_TCP="$WORK_DIR/reload-late-proc-net-tcp" \
-  SING_BOX_TEST_READY_PROC_TCP="$WORK_DIR/proc-net-tcp.ready" \
-  SING_BOX_TEST_READY_AFTER_SLEEPS=3 \
-  SING_BOX_TEST_POLL_COUNT_FILE="$WORK_DIR/reload-late-poll.count" \
-  state_ucode wait-forkop-stable-reload forkop ForkopTable 0x00100000 2 2; then
-  fail "reload wait must keep polling until the rebind finishes"
-fi
-assert_eq "5" "$(cat "$WORK_DIR/reload-late-poll.count")" \
-  "reload wait polls: three for the rebind, two for the hold"
-
-# The window is the other half. A runtime that was ready the whole time still has
-# to sit it out, because ready the whole time is exactly what the pre-rebind
-# runtime looked like.
-cp "$WORK_DIR/proc-net-tcp.ready" "$WORK_DIR/reload-window-proc-net-tcp"
-if ! PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
-  FORKOP_SING_BOX_START_MAX_WAIT_SECONDS=30 \
-  FORKOP_PROC_NET_TCP="$WORK_DIR/reload-window-proc-net-tcp" \
-  SING_BOX_TEST_POLL_COUNT_FILE="$WORK_DIR/reload-window-poll.count" \
-  state_ucode wait-forkop-stable-reload forkop ForkopTable 0x00100000 6 2; then
-  fail "reload wait must accept a runtime that stays ready through the window"
-fi
-assert_eq "6" "$(cat "$WORK_DIR/reload-window-poll.count")" \
-  "reload wait must sit out the stability window it was given"
-
+# With the process already gone there is nothing to pin the wait to.
 if PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
-  FORKOP_SING_BOX_START_MAX_WAIT_SECONDS=1 \
-  FORKOP_PROC_NET_TCP="$WORK_DIR/proc-net-tcp.no-dns" \
-  state_ucode wait-forkop-stable-reload forkop ForkopTable 0x00100000 2 2 >/dev/null 2>&1; then
-  fail "reload wait must give up on a runtime that never comes back"
+  SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
+  FORKOP_PROC_NET_TCP="$WORK_DIR/proc-net-tcp.ready" \
+  state_ucode wait-forkop-ready forkop ForkopTable 0x00100000 2 2 >/dev/null 2>&1; then
+  fail "ready wait must fail at once without a running sing-box process"
 fi
+sing_box_pid=""
 
 PENDING_RELOAD_FILE="$WORK_DIR/reload.pending"
 state_ucode mark-pending-reload "$PENDING_RELOAD_FILE" "reload_busy"

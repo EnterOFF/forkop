@@ -674,8 +674,6 @@ function launch_worker(args) {
         FORKOP_UI_ACTION_FINISHED_TTL_MINUTES: ACTION_FINISHED_TTL_MINUTES,
         FORKOP_UI_ACTION_ACKED_TTL_SECONDS: ACTION_ACKED_TTL_SECONDS,
         FORKOP_UI_ACTION_STALE_GRACE_SECONDS: ACTION_STALE_GRACE_SECONDS,
-        FORKOP_UI_SERVICE_ACTION_TIMEOUT_SECONDS: SERVICE_ACTION_TIMEOUT_SECONDS,
-        FORKOP_UI_SERVICE_ACTION_SETTLE_SECONDS: SERVICE_ACTION_SETTLE_SECONDS,
         FORKOP_PENDING_RELOAD_FILE: PENDING_RELOAD_FILE,
         NFT_TABLE_NAME,
         RT_TABLE_NAME,
@@ -743,7 +741,7 @@ function write_finished_service_action_state(path, action, success, message, exi
 }
 
 // The init.d command is the thing that waited. A start holds the lifecycle lock
-// until wait-forkop-stable-start has confirmed a stable runtime, a stop until
+// until wait-forkop-ready has confirmed a stable runtime, a stop until
 // sing-box is gone, and a reload until the runtime has settled after its
 // rebind - so by the time the command returns, the expected state has already
 // been established and its exit status is the answer.

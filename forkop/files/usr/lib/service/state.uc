@@ -36,7 +36,6 @@ let sing_box_service_pid_runtime = health.sing_box_service_pid_runtime;
 let pid_is_sing_box = health.pid_is_sing_box;
 let process_start_ticks = health.process_start_ticks;
 let process_age_seconds_from_ticks = health.process_age_seconds_from_ticks;
-let process_age_seconds = health.process_age_seconds;
 let sing_box_service_running = health.sing_box_service_running;
 let sing_box_runtime_ports_ready = health.sing_box_runtime_ports_ready;
 let forkop_runtime_network_configured = health.forkop_runtime_network_configured;
@@ -272,57 +271,32 @@ function reload_sing_box_runtime(config_hash_before, config_hash_after, force) {
     }
 }
 
-// A live reload does not restart sing-box, so nothing observable about the
-// process changes when one happens. `wait_forkop_stable_start` dates its wait
-// from the process start, which a live reload leaves alone, so it passed on its
-// very first look - at the pre-reload runtime - and returned before sing-box had
-// touched anything. `/etc/init.d/sing-box reload` only signals the process; the
-// rebind that follows closes and reopens every inbound, measured at three
-// seconds during which the runtime is genuinely not ready. The reload reported
-// "Configuration applied" in the middle of that window, so every reader of the
-// state - the page above all - was told the service was stopped when it had
-// never stopped.
+// The one readiness wait behind every lifecycle action, dated from the moment
+// it is called. A start and a live reload used to have a wait each, with a
+// different clock: the start's was dated from the sing-box process start, which
+// a live reload leaves alone - `/etc/init.d/sing-box reload` only signals the
+// process, and the rebind that follows closes and reopens every inbound - so
+// that wait passed on its first look, at the pre-reload runtime, and the reload
+// reported "Configuration applied" in the middle of the rebind. Dating the wait
+// from itself covers both cases: for a start the process is as old as the wait,
+// and for a reload no snapshot taken before the rebind can hold to the end.
 //
-// There is no restart to date the wait from here, so it is dated from the wait
-// itself: readiness has to hold continuously for `min_hold` seconds, which no
-// snapshot taken before the rebind can satisfy.
-function wait_forkop_stable_reload(rt_table, nft_table, mark, min_age, min_hold) {
-    min_age = int(min_age || 8);
-    min_hold = int(min_hold || 2);
-
-    let waited = 0;
-    let held = 0;
-    while (true) {
-        if (sing_box_runtime_ports_ready() &&
-            forkop_runtime_network_configured(rt_table, nft_table, mark))
-            held++;
-        else
-            held = 0;
-
-        // The start case asks for a process `min_age` old that is ready now. A
-        // live reload leaves no new process to age, so the wait ages itself and
-        // asks that readiness has held on top of that. Observations are a second
-        // apart, so `held` of them span `held - 1` seconds.
-        //
-        // Both halves are needed. Without the age the wait would end as soon as
-        // the runtime looked settled, which is what a pre-rebind snapshot looks
-        // like; without the hold a single blip at the end of the window would
-        // pass. Keeping them separate also means one blip mid-window costs a
-        // second rather than the whole reload, which matters because failing
-        // this wait tears the runtime down.
-        if (waited >= min_age && held > min_hold)
-            return true;
-
-        if (waited >= SING_BOX_START_MAX_WAIT_SECONDS)
-            return false;
-
-        command_success_from_args([ "sleep", "1" ]);
-        waited++;
-    }
-}
-
-function wait_forkop_stable_start(rt_table, nft_table, mark, min_age) {
-    min_age = int(min_age || 2);
+// Success needs both halves. `window` is how long the runtime is observed:
+// without it the wait would end as soon as the runtime looked settled, which is
+// exactly what the pre-rebind runtime looks like (the caller sizes it - a start
+// watches for early crashes, a reload only has to outlast the gap between the
+// signal and the ports dropping, measured at 0.2 s). `hold` is how many
+// consecutive one-second observations have to see readiness: without it a
+// single blip at the end of the window would pass. Keeping them separate also
+// means one blip mid-window costs a second rather than the whole action, which
+// matters because failing this wait tears the runtime down.
+//
+// The sing-box process itself is pinned by its start ticks: a process that
+// exits or is replaced mid-wait fails at once instead of waiting out the
+// ceiling, because whatever procd respawns is not the runtime the caller built.
+function wait_forkop_ready(rt_table, nft_table, mark, window, hold) {
+    window = int(window || 8);
+    hold = int(hold || 2);
 
     let pid = sing_box_service_pid_runtime();
     if (pid <= 0 || !pid_is_sing_box(pid))
@@ -333,13 +307,20 @@ function wait_forkop_stable_start(rt_table, nft_table, mark, min_age) {
         return false;
 
     let waited = 0;
+    let held = 0;
     while (true) {
-        let age = process_age_seconds(pid, start_ticks);
-        if (age == null)
+        if (process_start_ticks(fs.readfile("/proc/" + pid + "/stat")) != start_ticks)
             return false;
 
-        if (age >= min_age && sing_box_runtime_ports_ready() &&
+        if (sing_box_runtime_ports_ready() &&
             forkop_runtime_network_configured(rt_table, nft_table, mark))
+            held++;
+        else
+            held = 0;
+
+        // Observations are a second apart, so `held` of them span `held - 1`
+        // seconds.
+        if (waited >= window && held > hold)
             return true;
 
         if (waited >= SING_BOX_START_MAX_WAIT_SECONDS)
@@ -1190,10 +1171,8 @@ else if (mode == "process-age-seconds-fixture") {
 }
 else if (mode == "sing-box-runtime-reload-needed-fixture")
     exit(sing_box_runtime_reload_needed(ARGV[1], ARGV[2], ARGV[3]) ? 0 : 1);
-else if (mode == "wait-forkop-stable-start")
-    exit(wait_forkop_stable_start(ARGV[1], ARGV[2], ARGV[3], ARGV[4]) ? 0 : 1);
-else if (mode == "wait-forkop-stable-reload")
-    exit(wait_forkop_stable_reload(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5]) ? 0 : 1);
+else if (mode == "wait-forkop-ready")
+    exit(wait_forkop_ready(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5]) ? 0 : 1);
 else if (mode == "service-trigger-signature")
     exit(print_signature_hash(service_trigger_signature_body(uci_settings())) ? 0 : 1);
 else if (mode == "service-trigger-signature-fixture") {

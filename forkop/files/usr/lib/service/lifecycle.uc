@@ -41,8 +41,15 @@ const SING_BOX_PLANNED_STOP_FILE = getenv("FORKOP_SING_BOX_PLANNED_STOP_FILE") |
 
 const COMPONENT_UPDATE_CHECK_CRON_MARKER = getenv("FORKOP_COMPONENT_UPDATE_CHECK_CRON_MARKER") || "# forkop-component-update-check";
 const RELOAD_STATE_FORMAT = int(getenv("FORKOP_RELOAD_STATE_FORMAT") || "2");
-const RUNTIME_STABLE_MIN_AGE = int(getenv("FORKOP_RUNTIME_STABLE_MIN_AGE") || "2");
-const SING_BOX_START_STABLE_MIN_AGE = int(getenv("FORKOP_SING_BOX_START_STABLE_MIN_AGE") || "8");
+// Both lifecycle verifications are the same wait with a different window. A
+// start watches a fresh sing-box long enough to see an early crash; a reload
+// leaves the process in place and only has to outlast the gap between the HUP
+// signal and the ports dropping - measured at 0.2 s on the router, so two
+// seconds is a tenfold margin. The hold is how many consecutive one-second
+// observations must see readiness before either wait believes it.
+const START_READY_WINDOW = int(getenv("FORKOP_START_READY_WINDOW") || "8");
+const RELOAD_READY_WINDOW = int(getenv("FORKOP_RELOAD_READY_WINDOW") || "2");
+const READY_HOLD = int(getenv("FORKOP_READY_HOLD") || "2");
 
 // The runtime table, its sets and the FakeIP mark are the ones this module tears
 // down again on stop. nft/apply.uc reads the rest of that table itself, so the
@@ -562,11 +569,12 @@ function start_main() {
     }
 
     status = module_status(STATE_UC, [
-        "wait-forkop-stable-start",
+        "wait-forkop-ready",
         RT_TABLE_NAME,
         NFT_TABLE_NAME,
         NFT_FAKEIP_MARK,
-        as_string(SING_BOX_START_STABLE_MIN_AGE)
+        as_string(START_READY_WINDOW),
+        as_string(READY_HOLD)
     ]);
     if (status != 0) {
         log_message("sing-box did not reach a stable running state after start. Aborted.", "fatal");
@@ -732,6 +740,9 @@ function start() {
         }
     }
 
+    // start_impl has already verified a ready runtime through wait-forkop-ready;
+    // its status is the verdict, and re-checking here would only re-ask a
+    // question the wait just answered.
     let status = start_impl();
 
     if (status != 0) {
@@ -741,20 +752,6 @@ function start() {
     }
 
     mark_pending_reload_if_config_changed(startup_config_fingerprint, "config_changed_during_start");
-
-    status = module_status(STATE_UC, [
-        "wait-forkop-stable-start",
-        RT_TABLE_NAME,
-        NFT_TABLE_NAME,
-        NFT_FAKEIP_MARK,
-        as_string(RUNTIME_STABLE_MIN_AGE)
-    ]);
-    if (status != 0) {
-        log_message("Startup verification failed after Forkop was started; stopping Forkop runtime", "warn");
-        cleanup_failed_runtime();
-        module_success(STATE_UC, [ "release-runtime-dir-lock", START_LOCK_DIR, owner_pid() ]);
-        return status;
-    }
 
     module_success(STATE_UC, [ "release-runtime-dir-lock", START_LOCK_DIR, owner_pid() ]);
     return 0;
@@ -804,19 +801,6 @@ function restart_runtime_for_reload_locked() {
 
     status = start_impl();
     if (status != 0) {
-        cleanup_failed_runtime();
-        return status;
-    }
-
-    status = module_status(STATE_UC, [
-        "wait-forkop-stable-start",
-        RT_TABLE_NAME,
-        NFT_TABLE_NAME,
-        NFT_FAKEIP_MARK,
-        as_string(RUNTIME_STABLE_MIN_AGE)
-    ]);
-    if (status != 0) {
-        log_message("Reload runtime restart verification failed after Forkop was started; stopping Forkop runtime", "fatal");
         cleanup_failed_runtime();
         return status;
     }
@@ -911,17 +895,16 @@ function apply_reload_plan(plan, force_runtime_reload) {
         ]);
         if (status != 0)
             return abort_reload(status, true);
-        // The same stability window as a start, but not wait-forkop-stable-
-        // start: a live reload leaves the process in place, so a window measured
-        // from the process start is already over when the wait begins and the
-        // wait returned before the rebind it was meant to cover.
+        // The reload window only has to outlast the gap between the HUP signal
+        // and sing-box dropping its ports; from there the hold cannot be
+        // satisfied until the rebind has finished and readiness has come back.
         status = module_status(STATE_UC, [
-            "wait-forkop-stable-reload",
+            "wait-forkop-ready",
             RT_TABLE_NAME,
             NFT_TABLE_NAME,
             NFT_FAKEIP_MARK,
-            as_string(SING_BOX_START_STABLE_MIN_AGE),
-            as_string(RUNTIME_STABLE_MIN_AGE)
+            as_string(RELOAD_READY_WINDOW),
+            as_string(READY_HOLD)
         ]);
         if (status != 0) {
             log_message("Reload verification failed after sing-box was reloaded; stopping Forkop runtime", "fatal");
@@ -1112,22 +1095,9 @@ function restart() {
         return status;
     }
 
-    if (module_success(STATE_UC, [
-        "forkop-stably-running",
-        RT_TABLE_NAME,
-        NFT_TABLE_NAME,
-        NFT_FAKEIP_MARK,
-        as_string(RUNTIME_STABLE_MIN_AGE)
-    ])) {
-        restore_selector_state(selector_state);
-        module_success(STATE_UC, [ "release-runtime-dir-lock", START_LOCK_DIR, pid ]);
-        return 0;
-    }
-
-    log_message("Restart verification failed after Forkop was started; stopping Forkop runtime", "fatal");
-    cleanup_failed_runtime();
+    restore_selector_state(selector_state);
     module_success(STATE_UC, [ "release-runtime-dir-lock", START_LOCK_DIR, pid ]);
-    return 1;
+    return 0;
 }
 
 function package_manager_remove_if_installed(package_name) {
