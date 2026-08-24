@@ -2688,10 +2688,8 @@ var Forkop;
     AvailableMethods2["CHECK_NFT_RULES"] = "check_nft_rules";
     AvailableMethods2["CHECK_PROVIDER_RUNTIME"] = "check_provider_runtime";
     AvailableMethods2["CHECK_INBOUNDS_CONFIG"] = "check_inbounds_config";
-    AvailableMethods2["GET_STATUS"] = "get_status";
     AvailableMethods2["CHECK_SING_BOX"] = "check_sing_box";
     AvailableMethods2["CHECK_INBOUNDS"] = "check_inbounds";
-    AvailableMethods2["GET_SING_BOX_STATUS"] = "get_sing_box_status";
     AvailableMethods2["GET_PROVIDER_STATUS"] = "get_provider_status";
     AvailableMethods2["CLASH_HTTP"] = "clash_http";
     AvailableMethods2["CLASH_SUMMARY"] = "clash_summary";
@@ -2707,7 +2705,6 @@ var Forkop;
     AvailableMethods2["GET_UI_STATE"] = "get_ui_state";
     AvailableMethods2["GET_SECTION_RULE_SETS"] = "get_section_rule_sets";
     AvailableMethods2["SERVICE_ACTION_ASYNC"] = "service_action_async";
-    AvailableMethods2["SERVICE_ACTION_STATUS"] = "service_action_status";
     AvailableMethods2["UI_ACTION_ACK"] = "ui_action_ack";
     AvailableMethods2["COMPONENT_ACTION_ASYNC"] = "component_action_async";
     AvailableMethods2["COMPONENT_ACTION_STATUS"] = "component_action_status";
@@ -2733,8 +2730,6 @@ function isTransientRpcError(message) {
 
 // src/forkop/methods/shell/index.ts
 var UI_ACTION_RPC_TIMEOUT_MS = 15e3;
-var SERVICE_ACTION_TIMEOUT_MS = 2 * 60 * 1e3;
-var SERVICE_ACTION_POLL_INTERVAL_MS = 1e3;
 var COMPONENT_ACTION_RPC_TIMEOUT_MS = 15e3;
 var COMPONENT_ACTION_POLL_INTERVAL_MS = 1500;
 var COMPONENT_ACTION_STATUS_REFRESH_INTERVAL_MS = 15e3;
@@ -2794,9 +2789,6 @@ function parseComponentActionStartResult(response) {
   return parsedResponse;
 }
 function parseUiActionStartResult(response) {
-  return parseJsonObjectOutput(response.stdout);
-}
-function parseServiceActionState(response) {
   return parseJsonObjectOutput(response.stdout);
 }
 function isComponentActionJobId(jobId) {
@@ -2897,15 +2889,11 @@ var ForkopShellMethods = {
   checkInboundsConfig: async () => diagnosticCheck(
     Forkop.AvailableMethods.CHECK_INBOUNDS_CONFIG
   ),
-  getStatus: async () => callBaseMethod(Forkop.AvailableMethods.GET_STATUS),
   checkSingBox: async () => diagnosticCheck(
     Forkop.AvailableMethods.CHECK_SING_BOX
   ),
   checkInbounds: async () => diagnosticCheck(
     Forkop.AvailableMethods.CHECK_INBOUNDS
-  ),
-  getSingBoxStatus: async () => callBaseMethod(
-    Forkop.AvailableMethods.GET_SING_BOX_STATUS
   ),
   getZapretStatus: async () => getProviderStatus("zapret"),
   getZapret2Status: async () => getProviderStatus("zapret2"),
@@ -2986,42 +2974,6 @@ var ForkopShellMethods = {
     return {
       success: true,
       data: parsedResponse
-    };
-  },
-  serviceActionStatus: async (jobId) => {
-    const response = await executeShellCommand({
-      command: "/usr/bin/forkop",
-      args: [Forkop.AvailableMethods.SERVICE_ACTION_STATUS, jobId],
-      timeout: UI_ACTION_RPC_TIMEOUT_MS
-    });
-    const parsedResponse = parseServiceActionState(response);
-    if ((response.code ?? 0) !== 0 || !parsedResponse) {
-      return uiActionFailure(
-        response,
-        parsedResponse,
-        _("Service action failed")
-      );
-    }
-    return {
-      success: true,
-      data: parsedResponse
-    };
-  },
-  waitServiceActionJob: async (jobId, startedAt = Date.now()) => {
-    while (Date.now() - startedAt < SERVICE_ACTION_TIMEOUT_MS) {
-      await sleep(SERVICE_ACTION_POLL_INTERVAL_MS);
-      const response = await ForkopShellMethods.serviceActionStatus(jobId);
-      if (!response.success) {
-        return response;
-      }
-      if (response.data.running) {
-        continue;
-      }
-      return response;
-    }
-    return {
-      success: false,
-      error: _("Operation timed out")
     };
   },
   uiActionAck: async (kind, jobId) => {
@@ -5026,6 +4978,11 @@ function applyServiceState(uiState) {
 }
 function applyActionState(actions = {}) {
   const current = store.get();
+  for (const state of actions.service || []) {
+    if (isRunningAction(state) && state.action !== "reload") {
+      setLocalServiceAction(state.action, false);
+    }
+  }
   const localOverlay = getLocalActionOverlay();
   const subscriptionUpdatingSections = {};
   const updatesActions = getEmptyUpdatesActions();
@@ -5060,6 +5017,16 @@ function applyActionState(actions = {}) {
 function applyUiStateToStore(uiState) {
   applyServiceState(uiState);
   applyActionState(uiState.actions);
+}
+function markUiStateUnavailable() {
+  const servicesInfoWidget = store.get().servicesInfoWidget;
+  store.set({
+    servicesInfoWidget: {
+      ...servicesInfoWidget,
+      loading: false,
+      failed: true
+    }
+  });
 }
 
 // src/forkop/services/runtimeUiState.service.ts
@@ -5167,6 +5134,7 @@ async function readState() {
   }
   const response = await ForkopShellMethods.getUiState();
   if (!response.success) {
+    markUiStateUnavailable();
     return void 0;
   }
   applyState(response.data);
@@ -5650,56 +5618,6 @@ function markUiActionOwned(kind, jobId) {
 }
 function shouldNotifyOwnedUiAction(kind, jobId) {
   return uiActionNotifications.shouldNotify(kind, jobId);
-}
-
-// src/forkop/fetchers/fetchServicesInfo.ts
-var latestServicesInfoRequestId = 0;
-function getSettledMethodResponse(scope, result) {
-  if (result.status === "fulfilled") {
-    return result.value;
-  }
-  logger.error("[SERVICES_INFO]", `${scope} failed`, result.reason);
-  return {
-    success: false,
-    error: result.reason instanceof Error ? result.reason.message : ""
-  };
-}
-async function fetchServicesInfo() {
-  const requestId = ++latestServicesInfoRequestId;
-  const uiState = await refreshRuntimeUiState({ force: true });
-  if (requestId !== latestServicesInfoRequestId) {
-    return;
-  }
-  if (uiState) {
-    return uiState;
-  }
-  const [forkopResult, singboxResult] = await Promise.allSettled([
-    ForkopShellMethods.getStatus(),
-    ForkopShellMethods.getSingBoxStatus()
-  ]);
-  if (requestId !== latestServicesInfoRequestId) {
-    return;
-  }
-  const forkop = getSettledMethodResponse("getStatus", forkopResult);
-  const singbox = getSettledMethodResponse("getSingBoxStatus", singboxResult);
-  const previousData = store.get().servicesInfoWidget.data;
-  store.set({
-    servicesInfoWidget: {
-      loading: false,
-      failed: !forkop.success || !singbox.success,
-      data: {
-        singbox: singbox.success ? singbox.data.running : previousData.singbox,
-        forkopRunning: forkop.success ? forkop.data.running : previousData.forkopRunning,
-        forkopEnabled: forkop.success ? forkop.data.enabled : previousData.forkopEnabled,
-        forkopStatus: forkop.success ? forkop.data.status : previousData.forkopStatus,
-        // get_status reports what the service is, never what is being done to
-        // it; the ui-state feed owns `busy` and corrects this on its next poll.
-        forkopBusy: previousData.forkopBusy,
-        forkopBusySeconds: previousData.forkopBusySeconds
-      }
-    }
-  });
-  return void 0;
 }
 
 // src/forkop/helpers/isActiveLuciTab.ts
@@ -6880,7 +6798,7 @@ async function handleUpdateSubscription(section) {
     }
     if (!pageUnloading) {
       void fetchDashboardSections({ force: true });
-      void fetchServicesInfo();
+      void refreshRuntimeUiState({ force: true });
     }
     showToast(_("Subscriptions updated"), "success");
   } catch (error) {
@@ -7132,9 +7050,7 @@ async function onPageMount() {
   onPageUnmount();
   dashboardMounted = true;
   dashboardMountId += 1;
-  const mountId = dashboardMountId;
   resetClashApiTransport();
-  const hasRuntimeSnapshot = Boolean(getCachedRuntimeUiState());
   store.subscribe(onStoreUpdate);
   void renderSectionsWidget();
   void renderBandwidthWidget();
@@ -7142,17 +7058,7 @@ async function onPageMount() {
   void renderSystemInfoWidget();
   void renderServicesInfoWidget();
   startDashboardDataUpdates();
-  if (hasRuntimeSnapshot) {
-    void refreshRuntimeUiState({ force: true });
-    return;
-  }
-  const uiState = await refreshRuntimeUiState({ force: true });
-  if (!dashboardMounted || mountId !== dashboardMountId) {
-    return;
-  }
-  if (!uiState) {
-    void fetchServicesInfo();
-  }
+  void refreshRuntimeUiState({ force: true });
 }
 function onPageUnmount() {
   dashboardMounted = false;
@@ -9741,12 +9647,6 @@ function getAutostartControlsPresentation({
 function hasLocalMutatingServiceActionLoading(actions) {
   return actions.restart.loading || actions.start.loading || actions.stop.loading || actions.enable.loading || actions.disable.loading;
 }
-function shouldSkipServicesInfoAutoRefresh({
-  force,
-  localMutatingActionLoading
-}) {
-  return !force && localMutatingActionLoading;
-}
 function shouldDisableDiagnosticRunAction({
   providerInfoLoaded
 }) {
@@ -9999,21 +9899,13 @@ function maskGlobalCheckText(text = "") {
 }
 
 // src/forkop/tabs/diagnostic/initController.ts
-var SERVICE_STATUS_REFRESH_INTERVAL_MS = 2e3;
-var SERVICE_ACTION_STATUS_TIMEOUT_MS = 45e3;
 var latestProviderInfoRequestId = 0;
 var diagnosticLifecycleRegistered = false;
 var diagnosticControllerInitialized = false;
 var diagnosticMounted = false;
 var diagnosticMountId = 0;
 var diagnosticsChecksOwnedByRun = false;
-var servicesInfoStateUnsubscribe = null;
-var servicesInfoRefreshPromise = null;
-var followedServiceActionJobs = /* @__PURE__ */ new Set();
 var handledServiceActionJobs = /* @__PURE__ */ new Set();
-function sleep2(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 function getDiagnosticsProviderOptions(systemInfo = store.get().diagnosticsSystemInfo) {
   return {
     includeZapret: Boolean(systemInfo.zapret_installed),
@@ -10043,10 +9935,8 @@ function releaseDiagnosticsChecks() {
   diagnosticsChecksOwnedByRun = false;
   rebuildIdleDiagnosticsChecks();
 }
-function setDiagnosticActionLoading(action, loading3, local = false) {
-  if (local || !loading3) {
-    setLocalServiceAction(action, loading3 && local);
-  }
+function setDiagnosticActionLoading(action, loading3) {
+  setLocalServiceAction(action, loading3);
   const diagnosticsActions = store.get().diagnosticsActions;
   store.set({
     diagnosticsActions: {
@@ -10057,10 +9947,6 @@ function setDiagnosticActionLoading(action, loading3, local = false) {
 }
 function isDiagnosticMountActive(mountId = diagnosticMountId) {
   return diagnosticMounted && diagnosticMountId === mountId;
-}
-function isLocalMutatingServiceActionLoading() {
-  const actions = store.get().diagnosticsActions;
-  return hasLocalMutatingServiceActionLoading(actions);
 }
 function getLocalPendingServiceOperation(actions) {
   if (actions.restart.loading) {
@@ -10074,135 +9960,27 @@ function getLocalPendingServiceOperation(actions) {
   }
   return null;
 }
-function getForkopStatusText(running2, enabled) {
-  if (running2) {
-    return enabled ? "running & enabled" : "running but disabled";
-  }
-  return enabled ? "stopped but enabled" : "stopped & disabled";
-}
-function setDisplayedForkopRunning(running2) {
-  const servicesInfoWidget = store.get().servicesInfoWidget;
-  const enabled = Boolean(servicesInfoWidget.data.forkopEnabled);
-  store.set({
-    servicesInfoWidget: {
-      ...servicesInfoWidget,
-      loading: false,
-      data: {
-        ...servicesInfoWidget.data,
-        forkopRunning: running2 ? 1 : 0,
-        forkopStatus: getForkopStatusText(running2, enabled)
-      }
-    }
-  });
-}
-async function refreshDiagnosticServicesInfo({
-  force = false,
-  mountId = diagnosticMountId,
-  allowInactive = false
-} = {}) {
-  if (!allowInactive && !isDiagnosticMountActive(mountId)) {
-    return;
-  }
-  if (shouldSkipServicesInfoAutoRefresh({
-    force,
-    localMutatingActionLoading: isLocalMutatingServiceActionLoading()
-  })) {
-    return;
-  }
-  if (servicesInfoRefreshPromise) {
-    return servicesInfoRefreshPromise;
-  }
-  const promise = fetchServicesInfo().then((uiState) => {
-    followServiceActionsFromUiState(uiState);
-  }).catch((error) => {
-    logger.error(
-      "[DIAGNOSTIC]",
-      "refreshDiagnosticServicesInfo failed",
-      error
-    );
-  }).finally(() => {
-    if (servicesInfoRefreshPromise === promise) {
-      servicesInfoRefreshPromise = null;
-    }
-  });
-  servicesInfoRefreshPromise = promise;
-  return promise;
-}
-async function waitForForkopRunningState(expectedRunning) {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < SERVICE_ACTION_STATUS_TIMEOUT_MS) {
-    await refreshDiagnosticServicesInfo({ force: true, allowInactive: true });
-    const forkopRunning = Boolean(
-      store.get().servicesInfoWidget.data.forkopRunning
-    );
-    if (forkopRunning === expectedRunning) {
-      return true;
-    }
-    await sleep2(SERVICE_STATUS_REFRESH_INTERVAL_MS);
-  }
-  return false;
-}
-function startServiceActionStateWatcher() {
-  if (servicesInfoStateUnsubscribe) {
-    return;
-  }
-  servicesInfoStateUnsubscribe = subscribeRuntimeUiState((uiState) => {
-    if (diagnosticMounted) {
-      followServiceActionsFromUiState(uiState);
-    }
-  });
-}
-function stopServiceActionStateWatcher() {
-  if (!servicesInfoStateUnsubscribe) {
-    return;
-  }
-  servicesInfoStateUnsubscribe();
-  servicesInfoStateUnsubscribe = null;
-}
-function isVisibleServiceRuntimeAction(action) {
-  return action === "restart" || action === "start" || action === "stop";
-}
-function setServiceActionStateLoading(state, loading3) {
-  if (!isVisibleServiceRuntimeAction(state.action)) {
-    return;
-  }
-  setDiagnosticActionLoading(state.action, loading3);
-}
-async function followServiceActionState(state) {
-  const jobId = state.job_id;
-  if (!jobId || followedServiceActionJobs.has(jobId)) {
-    return;
-  }
-  if (!state.running && handledServiceActionJobs.has(jobId)) {
-    return;
-  }
-  followedServiceActionJobs.add(jobId);
-  if (state.running) {
-    setServiceActionStateLoading(state, true);
-  }
-  try {
-    if (state.running) {
-      await ForkopShellMethods.waitServiceActionJob(jobId);
-    }
-  } catch (error) {
-    logger.error("[DIAGNOSTIC]", "followServiceActionState failed", error);
-  } finally {
-    handledServiceActionJobs.add(jobId);
-    setServiceActionStateLoading(state, false);
-    await refreshDiagnosticServicesInfo({ force: true, allowInactive: true });
-    void ForkopShellMethods.uiActionAck("service", jobId);
-    followedServiceActionJobs.delete(jobId);
-    releaseDiagnosticsChecks();
-  }
-}
-function followServiceActionsFromUiState(uiState) {
-  if (!uiState) {
-    return;
-  }
+var SERVICE_ACTION_FAILURE_LABELS = {
+  start: () => _("Failed to start the service"),
+  stop: () => _("Failed to stop the service"),
+  restart: () => _("Failed to restart the service"),
+  reload: () => _("Failed to apply the configuration")
+};
+function settleFinishedServiceActions(uiState) {
   for (const action of uiState.actions.service || []) {
-    if (action.job_id) {
-      void followServiceActionState(action);
+    if (!action.job_id || action.running) {
+      continue;
     }
+    if (handledServiceActionJobs.has(action.job_id)) {
+      continue;
+    }
+    handledServiceActionJobs.add(action.job_id);
+    if (action.success === false) {
+      const label = SERVICE_ACTION_FAILURE_LABELS[action.action];
+      showToast(label ? label() : _("Service action failed"), "error");
+    }
+    void ForkopShellMethods.uiActionAck("service", action.job_id);
+    releaseDiagnosticsChecks();
   }
 }
 async function fetchSystemInfo() {
@@ -10328,106 +10106,46 @@ function renderDiagnosticRunActionWidget() {
     container.replaceChildren(renderedAction);
   });
 }
-async function handleServiceRuntimeAction({
-  action,
-  expectedRunning,
-  optimisticRunning
-}) {
-  setDiagnosticActionLoading(action, true, true);
-  void refreshRuntimeUiStateNow();
-  let jobId = "";
-  let ownsJobFollow = false;
-  let delegatedToWatcher = false;
-  if (optimisticRunning !== void 0) {
-    setDisplayedForkopRunning(optimisticRunning);
-  }
+async function handleServiceRuntimeAction(action) {
+  setDiagnosticActionLoading(action, true);
   try {
     const startResponse = await ForkopShellMethods.serviceActionStart(action);
     if (!startResponse.success) {
       throw new Error(startResponse.error);
     }
-    jobId = startResponse.data.job_id;
-    void refreshRuntimeUiStateNow();
-    if (followedServiceActionJobs.has(jobId)) {
-      delegatedToWatcher = true;
-      return;
-    }
-    followedServiceActionJobs.add(jobId);
-    ownsJobFollow = true;
-    const result = await ForkopShellMethods.waitServiceActionJob(jobId);
-    if (!result.success) {
-      throw new Error(result.error);
-    }
-    if (result.data.success === false) {
-      throw new Error(result.data.message || _("Service action failed"));
-    }
-    await waitForForkopRunningState(expectedRunning);
   } catch (e) {
     logger.error("[DIAGNOSTIC]", `handleServiceRuntimeAction(${action})`, e);
+    showToast(SERVICE_ACTION_FAILURE_LABELS[action](), "error");
+    setDiagnosticActionLoading(action, false);
   } finally {
-    if (!delegatedToWatcher) {
-      if (ownsJobFollow) {
-        followedServiceActionJobs.delete(jobId);
-      }
-      setDiagnosticActionLoading(action, false);
-      await refreshDiagnosticServicesInfo({ force: true, allowInactive: true });
-      void refreshRuntimeUiStateNow();
-      if (jobId) {
-        handledServiceActionJobs.add(jobId);
-        void ForkopShellMethods.uiActionAck("service", jobId);
-      }
-      releaseDiagnosticsChecks();
-    }
+    void refreshRuntimeUiStateNow();
   }
 }
 async function handleRestart() {
-  await handleServiceRuntimeAction({
-    action: "restart",
-    expectedRunning: true,
-    optimisticRunning: false
-  });
+  await handleServiceRuntimeAction("restart");
 }
 async function handleStart() {
-  await handleServiceRuntimeAction({
-    action: "start",
-    expectedRunning: true
-  });
+  await handleServiceRuntimeAction("start");
 }
 async function handleStop() {
-  await handleServiceRuntimeAction({
-    action: "stop",
-    expectedRunning: false
-  });
+  await handleServiceRuntimeAction("stop");
+}
+async function handleAutostartAction(action, request) {
+  setDiagnosticActionLoading(action, true);
+  try {
+    await request();
+  } catch (e) {
+    logger.error("[DIAGNOSTIC]", `handleAutostartAction(${action})`, e);
+  } finally {
+    setDiagnosticActionLoading(action, false);
+    void refreshRuntimeUiStateNow();
+  }
 }
 async function handleEnable() {
-  setDiagnosticActionLoading("enable", true);
-  try {
-    await ForkopShellMethods.enable();
-  } catch (e) {
-    logger.error("[DIAGNOSTIC]", "handleEnable - e", e);
-  } finally {
-    await refreshDiagnosticServicesInfo({
-      force: true,
-      allowInactive: true
-    });
-    setDiagnosticActionLoading("enable", false);
-    void refreshRuntimeUiStateNow();
-  }
+  await handleAutostartAction("enable", () => ForkopShellMethods.enable());
 }
 async function handleDisable() {
-  setDiagnosticActionLoading("disable", true);
-  try {
-    await ForkopShellMethods.disable();
-  } catch (e) {
-    logger.error("[DIAGNOSTIC]", "handleDisable - e", e);
-  } finally {
-    await refreshDiagnosticServicesInfo({
-      force: true,
-      allowInactive: true
-    });
-    setDiagnosticActionLoading("disable", false);
-    void refreshRuntimeUiStateNow();
-  }
+  await handleAutostartAction("disable", () => ForkopShellMethods.disable());
 }
 async function handleShowGlobalCheck() {
   setDiagnosticActionLoading("globalCheck", true);
@@ -10622,18 +10340,14 @@ async function onStoreUpdate2(_next, _prev, diff) {
   if (diff.diagnosticsChecks) {
     renderDiagnosticsChecks();
   }
-  if (diff.diagnosticsRunAction) {
+  if (diff.diagnosticsRunAction || diff.diagnosticsSystemInfo) {
     renderDiagnosticRunActionWidget();
-  }
-  if (diff.diagnosticsActions || diff.servicesInfoWidget || diff.updatesActions) {
-    renderDiagnosticAvailableActionsWidget();
   }
   if (diff.diagnosticsActions || diff.servicesInfoWidget) {
-    renderDiagnosticRunActionWidget();
+    renderDiagnosticAvailableActionsWidget();
   }
   if (diff.diagnosticsSystemInfo) {
     renderDiagnosticSystemInfoWidget();
-    renderDiagnosticRunActionWidget();
   }
 }
 function setDiagnosticCheckLoading(code) {
@@ -10715,7 +10429,6 @@ async function loadInitialDiagnosticData() {
 function detachDiagnosticPage() {
   diagnosticMounted = false;
   diagnosticMountId += 1;
-  stopServiceActionStateWatcher();
   store.unsubscribe(onStoreUpdate2);
 }
 async function onPageMount2() {
@@ -10725,16 +10438,12 @@ async function onPageMount2() {
   const mountId = diagnosticMountId;
   const hasRuntimeSnapshot = Boolean(getCachedRuntimeUiState());
   if (!hasRuntimeSnapshot) {
-    const uiState = await refreshRuntimeUiState({ force: true });
+    await refreshRuntimeUiState({ force: true });
     if (!isDiagnosticMountActive(mountId)) {
       return;
     }
-    if (!uiState) {
-      void refreshDiagnosticServicesInfo({ force: true });
-    }
   }
   store.subscribe(onStoreUpdate2);
-  startServiceActionStateWatcher();
   renderDiagnosticsChecks();
   renderDiagnosticRunActionWidget();
   renderDiagnosticAvailableActionsWidget();
@@ -10785,6 +10494,7 @@ async function initController2() {
     return;
   }
   diagnosticControllerInitialized = true;
+  subscribeRuntimeUiState(settleFinishedServiceActions);
   onMount("diagnostic-status").then(() => {
     logger.debug("[DIAGNOSTIC]", "initController", "onMount");
     registerLifecycleListeners2();

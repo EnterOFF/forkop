@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   executeShellCommand: vi.fn(),
@@ -12,51 +12,28 @@ import { ForkopShellMethods } from '../index';
 
 describe('ForkopShellMethods.serviceAction', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
     mocks.executeShellCommand.mockReset();
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it('keeps failed finished service state available to low-level waiters', async () => {
-    mocks.executeShellCommand.mockImplementation(({ args }) => {
-      if (args[0] === 'service_action_status') {
-        return Promise.resolve({
-          stdout: JSON.stringify({
-            success: false,
-            running: false,
-            kind: 'service',
-            action: 'restart',
-            message: 'Service restart failed',
-            exit_code: 1,
-          }),
-          stderr: '',
-          code: 0,
-        });
-      }
-
-      return Promise.resolve({
-        stdout: '',
-        stderr: 'Unexpected command',
-        code: 1,
-      });
+  it('returns the started job id', async () => {
+    mocks.executeShellCommand.mockResolvedValue({
+      stdout: JSON.stringify({
+        success: true,
+        job_id: 'job-1',
+        message: 'Service restart started',
+      }),
+      stderr: '',
+      code: 0,
     });
 
-    const responsePromise = ForkopShellMethods.waitServiceActionJob('job-1');
-
-    await vi.advanceTimersByTimeAsync(1000);
-
-    await expect(responsePromise).resolves.toEqual({
+    await expect(
+      ForkopShellMethods.serviceActionStart('restart'),
+    ).resolves.toEqual({
       success: true,
       data: {
-        success: false,
-        running: false,
-        kind: 'service',
-        action: 'restart',
-        message: 'Service restart failed',
-        exit_code: 1,
+        success: true,
+        job_id: 'job-1',
+        message: 'Service restart started',
       },
     });
   });

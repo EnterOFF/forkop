@@ -7,7 +7,6 @@ import {
   hasLocalMutatingServiceActionLoading,
   isServiceBusy,
   shouldDisableDiagnosticRunAction,
-  shouldSkipServicesInfoAutoRefresh,
   STUCK_OPERATION_SECONDS,
 } from '../serviceTransition';
 import type { ServiceOperation } from '../serviceTransition';
@@ -259,21 +258,6 @@ describe('polling and component actions', () => {
     expect(
       hasLocalMutatingServiceActionLoading(actions({ disable: true })),
     ).toBe(true);
-  });
-
-  it('still lets local button actions suppress non-forced polling', () => {
-    expect(
-      shouldSkipServicesInfoAutoRefresh({
-        force: false,
-        localMutatingActionLoading: true,
-      }),
-    ).toBe(true);
-    expect(
-      shouldSkipServicesInfoAutoRefresh({
-        force: true,
-        localMutatingActionLoading: true,
-      }),
-    ).toBe(false);
   });
 
   it('detects running component actions', () => {

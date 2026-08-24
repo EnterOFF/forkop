@@ -3,7 +3,7 @@ import { ForkopShellMethods } from '../methods';
 import { getLocalActionOverlay } from './localActionOverlay.service';
 import { Forkop } from '../types';
 import { logger } from './logger.service';
-import { applyUiStateToStore } from './uiState.service';
+import { applyUiStateToStore, markUiStateUnavailable } from './uiState.service';
 
 const RUNTIME_UI_STATE_REFRESH_MIN_INTERVAL_MS = 500;
 const RUNTIME_UI_STATE_IDLE_POLL_INTERVAL_MS = 10000;
@@ -161,6 +161,9 @@ async function readState(): Promise<Forkop.UiState | undefined> {
 
   const response = await ForkopShellMethods.getUiState();
   if (!response.success) {
+    // The CLI was the last transport left; the page is told the state is
+    // unknown rather than left waiting for an answer that is not coming.
+    markUiStateUnavailable();
     return undefined;
   }
 

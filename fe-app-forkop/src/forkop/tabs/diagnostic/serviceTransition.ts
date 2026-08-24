@@ -164,16 +164,6 @@ export function hasLocalMutatingServiceActionLoading(
   );
 }
 
-export function shouldSkipServicesInfoAutoRefresh({
-  force,
-  localMutatingActionLoading,
-}: {
-  force: boolean;
-  localMutatingActionLoading: boolean;
-}) {
-  return !force && localMutatingActionLoading;
-}
-
 // A read-only probe is most useful exactly when the service is down - "sing-box
 // is not running, the nft table is absent" is the diagnosis, not a reason to
 // refuse. The only gate left is the page not yet knowing what to check.

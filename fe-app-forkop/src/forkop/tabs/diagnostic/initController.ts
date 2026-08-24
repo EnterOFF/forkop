@@ -26,6 +26,7 @@ import {
   StoreType,
   subscribeRuntimeUiState,
 } from '../../services';
+import { showToast } from '../../../helpers/showToast';
 import { ensureSystemInfo } from '../../services/systemInfo.service';
 import {
   renderAvailableActions,
@@ -34,7 +35,6 @@ import {
   renderSystemInfo,
 } from './partials';
 import { ForkopShellMethods } from '../../methods';
-import { fetchServicesInfo } from '../../fetchers/fetchServicesInfo';
 import { normalizeCompiledVersion } from '../../../helpers/normalizeCompiledVersion';
 import { renderModal } from '../../../partials';
 import { FORKOP_LUCI_APP_VERSION } from '../../../constants';
@@ -44,9 +44,7 @@ import {
   getAutostartControlsPresentation,
   getServiceControlsPresentation,
   getServiceOperation,
-  hasLocalMutatingServiceActionLoading,
   shouldDisableDiagnosticRunAction,
-  shouldSkipServicesInfoAutoRefresh,
 } from './serviceTransition';
 import type { ServiceOperation } from './serviceTransition';
 import { isActiveLuciTab } from '../../helpers/isActiveLuciTab';
@@ -57,9 +55,6 @@ import {
   maskGlobalCheckText,
   stringifySingBoxConfig,
 } from './helpers/maskDiagnostics';
-
-const SERVICE_STATUS_REFRESH_INTERVAL_MS = 2000;
-const SERVICE_ACTION_STATUS_TIMEOUT_MS = 45000;
 
 let latestProviderInfoRequestId = 0;
 let diagnosticLifecycleRegistered = false;
@@ -74,9 +69,6 @@ let diagnosticMountId = 0;
 // capability reads in flight at once, and whichever landed last used to rebuild
 // the list on top of what the run had just written into it.
 let diagnosticsChecksOwnedByRun = false;
-let servicesInfoStateUnsubscribe: (() => void) | null = null;
-let servicesInfoRefreshPromise: Promise<void> | null = null;
-const followedServiceActionJobs = new Set<string>();
 const handledServiceActionJobs = new Set<string>();
 
 type ServiceRuntimeAction = 'restart' | 'start' | 'stop';
@@ -84,10 +76,6 @@ type DiagnosticRunner = {
   code: DIAGNOSTICS_CHECKS;
   run: () => Promise<void>;
 };
-
-function sleep(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms));
-}
 
 function getDiagnosticsProviderOptions(
   systemInfo: Pick<
@@ -139,14 +127,15 @@ function releaseDiagnosticsChecks() {
   rebuildIdleDiagnosticsChecks();
 }
 
+// A click is reflected at once through the local overlay, and the runtime feed
+// is the single owner of everything after it: the running operation arrives as
+// `service.forkop.busy`, and the job's completion as its action entry flipping
+// to running=false. Nothing here polls for either.
 function setDiagnosticActionLoading(
   action: keyof StoreType['diagnosticsActions'],
   loading: boolean,
-  local = false,
 ) {
-  if (local || !loading) {
-    setLocalServiceAction(action, loading && local);
-  }
+  setLocalServiceAction(action, loading);
 
   const diagnosticsActions = store.get().diagnosticsActions;
 
@@ -160,12 +149,6 @@ function setDiagnosticActionLoading(
 
 function isDiagnosticMountActive(mountId = diagnosticMountId) {
   return diagnosticMounted && diagnosticMountId === mountId;
-}
-
-function isLocalMutatingServiceActionLoading() {
-  const actions = store.get().diagnosticsActions;
-
-  return hasLocalMutatingServiceActionLoading(actions);
 }
 
 function getLocalPendingServiceOperation(
@@ -183,177 +166,38 @@ function getLocalPendingServiceOperation(
   return null;
 }
 
-function getForkopStatusText(running: boolean, enabled: boolean) {
-  if (running) {
-    return enabled ? 'running & enabled' : 'running but disabled';
-  }
+const SERVICE_ACTION_FAILURE_LABELS: Record<
+  ServiceRuntimeAction | 'reload',
+  () => string
+> = {
+  start: () => _('Failed to start the service'),
+  stop: () => _('Failed to stop the service'),
+  restart: () => _('Failed to restart the service'),
+  reload: () => _('Failed to apply the configuration'),
+};
 
-  return enabled ? 'stopped but enabled' : 'stopped & disabled';
-}
-
-function setDisplayedForkopRunning(running: boolean) {
-  const servicesInfoWidget = store.get().servicesInfoWidget;
-  const enabled = Boolean(servicesInfoWidget.data.forkopEnabled);
-
-  store.set({
-    servicesInfoWidget: {
-      ...servicesInfoWidget,
-      loading: false,
-      data: {
-        ...servicesInfoWidget.data,
-        forkopRunning: running ? 1 : 0,
-        forkopStatus: getForkopStatusText(running, enabled),
-      },
-    },
-  });
-}
-
-async function refreshDiagnosticServicesInfo({
-  force = false,
-  mountId = diagnosticMountId,
-  allowInactive = false,
-}: {
-  force?: boolean;
-  mountId?: number;
-  allowInactive?: boolean;
-} = {}) {
-  if (!allowInactive && !isDiagnosticMountActive(mountId)) {
-    return;
-  }
-
-  if (
-    shouldSkipServicesInfoAutoRefresh({
-      force,
-      localMutatingActionLoading: isLocalMutatingServiceActionLoading(),
-    })
-  ) {
-    return;
-  }
-
-  if (servicesInfoRefreshPromise) {
-    return servicesInfoRefreshPromise;
-  }
-
-  const promise = fetchServicesInfo()
-    .then((uiState) => {
-      followServiceActionsFromUiState(uiState);
-    })
-    .catch((error) => {
-      logger.error(
-        '[DIAGNOSTIC]',
-        'refreshDiagnosticServicesInfo failed',
-        error,
-      );
-    })
-    .finally(() => {
-      if (servicesInfoRefreshPromise === promise) {
-        servicesInfoRefreshPromise = null;
-      }
-    });
-
-  servicesInfoRefreshPromise = promise;
-  return promise;
-}
-
-async function waitForForkopRunningState(expectedRunning: boolean) {
-  const startedAt = Date.now();
-
-  while (Date.now() - startedAt < SERVICE_ACTION_STATUS_TIMEOUT_MS) {
-    await refreshDiagnosticServicesInfo({ force: true, allowInactive: true });
-
-    const forkopRunning = Boolean(
-      store.get().servicesInfoWidget.data.forkopRunning,
-    );
-
-    if (forkopRunning === expectedRunning) {
-      return true;
-    }
-
-    await sleep(SERVICE_STATUS_REFRESH_INTERVAL_MS);
-  }
-
-  return false;
-}
-
-function startServiceActionStateWatcher() {
-  if (servicesInfoStateUnsubscribe) {
-    return;
-  }
-
-  servicesInfoStateUnsubscribe = subscribeRuntimeUiState((uiState) => {
-    if (diagnosticMounted) {
-      followServiceActionsFromUiState(uiState);
-    }
-  });
-}
-
-function stopServiceActionStateWatcher() {
-  if (!servicesInfoStateUnsubscribe) {
-    return;
-  }
-
-  servicesInfoStateUnsubscribe();
-  servicesInfoStateUnsubscribe = null;
-}
-
-function isVisibleServiceRuntimeAction(
-  action: Forkop.ServiceActionState['action'],
-): action is ServiceRuntimeAction {
-  return action === 'restart' || action === 'start' || action === 'stop';
-}
-
-function setServiceActionStateLoading(
-  state: Forkop.ServiceActionState,
-  loading: boolean,
-) {
-  if (!isVisibleServiceRuntimeAction(state.action)) {
-    return;
-  }
-
-  setDiagnosticActionLoading(state.action, loading);
-}
-
-async function followServiceActionState(state: Forkop.ServiceActionState) {
-  const jobId = state.job_id;
-
-  if (!jobId || followedServiceActionJobs.has(jobId)) {
-    return;
-  }
-
-  if (!state.running && handledServiceActionJobs.has(jobId)) {
-    return;
-  }
-
-  followedServiceActionJobs.add(jobId);
-  if (state.running) {
-    setServiceActionStateLoading(state, true);
-  }
-
-  try {
-    if (state.running) {
-      await ForkopShellMethods.waitServiceActionJob(jobId);
-    }
-  } catch (error) {
-    logger.error('[DIAGNOSTIC]', 'followServiceActionState failed', error);
-  } finally {
-    handledServiceActionJobs.add(jobId);
-    setServiceActionStateLoading(state, false);
-    await refreshDiagnosticServicesInfo({ force: true, allowInactive: true });
-    void ForkopShellMethods.uiActionAck('service', jobId);
-    followedServiceActionJobs.delete(jobId);
-    releaseDiagnosticsChecks();
-  }
-}
-
-function followServiceActionsFromUiState(uiState?: Forkop.UiState) {
-  if (!uiState) {
-    return;
-  }
-
+// Runs on every runtime state notification for the life of the page: a finished
+// action is acknowledged and, when it failed, said out loud - wherever it was
+// started, this page or another. Both are once per job; the feed keeps
+// reporting a finished action until the acknowledgement is collected.
+function settleFinishedServiceActions(uiState: Forkop.UiState) {
   for (const action of uiState.actions.service || []) {
-    if (action.job_id) {
-      void followServiceActionState(action);
+    if (!action.job_id || action.running) {
+      continue;
     }
+
+    if (handledServiceActionJobs.has(action.job_id)) {
+      continue;
+    }
+
+    handledServiceActionJobs.add(action.job_id);
+    if (action.success === false) {
+      const label = SERVICE_ACTION_FAILURE_LABELS[action.action];
+      showToast(label ? label() : _('Service action failed'), 'error');
+    }
+
+    void ForkopShellMethods.uiActionAck('service', action.job_id);
+    releaseDiagnosticsChecks();
   }
 }
 
@@ -526,24 +370,13 @@ function renderDiagnosticRunActionWidget() {
   });
 }
 
-async function handleServiceRuntimeAction({
-  action,
-  expectedRunning,
-  optimisticRunning,
-}: {
-  action: ServiceRuntimeAction;
-  expectedRunning: boolean;
-  optimisticRunning?: boolean;
-}) {
-  setDiagnosticActionLoading(action, true, true);
-  void refreshRuntimeUiStateNow();
-  let jobId = '';
-  let ownsJobFollow = false;
-  let delegatedToWatcher = false;
-
-  if (optimisticRunning !== undefined) {
-    setDisplayedForkopRunning(optimisticRunning);
-  }
+// Starting the action is all the click does. The local overlay shows the
+// operation until the runtime reports the job, the runtime feed carries it from
+// there, and completion - success, failure, acknowledgement - is settled by the
+// feed listener. Only a start that never became a job is this handler's to
+// clean up, because in that case the feed has nothing to say.
+async function handleServiceRuntimeAction(action: ServiceRuntimeAction) {
+  setDiagnosticActionLoading(action, true);
 
   try {
     const startResponse = await ForkopShellMethods.serviceActionStart(action);
@@ -551,102 +384,49 @@ async function handleServiceRuntimeAction({
     if (!startResponse.success) {
       throw new Error(startResponse.error);
     }
-
-    jobId = startResponse.data.job_id;
-    // The action exists on the runtime from here, so the feed can report it.
-    void refreshRuntimeUiStateNow();
-    if (followedServiceActionJobs.has(jobId)) {
-      delegatedToWatcher = true;
-      return;
-    }
-
-    followedServiceActionJobs.add(jobId);
-    ownsJobFollow = true;
-    const result = await ForkopShellMethods.waitServiceActionJob(jobId);
-
-    if (!result.success) {
-      throw new Error(result.error);
-    }
-
-    if (result.data.success === false) {
-      throw new Error(result.data.message || _('Service action failed'));
-    }
-
-    await waitForForkopRunningState(expectedRunning);
   } catch (e) {
     logger.error('[DIAGNOSTIC]', `handleServiceRuntimeAction(${action})`, e);
+    showToast(SERVICE_ACTION_FAILURE_LABELS[action](), 'error');
+    setDiagnosticActionLoading(action, false);
   } finally {
-    if (!delegatedToWatcher) {
-      if (ownsJobFollow) {
-        followedServiceActionJobs.delete(jobId);
-      }
-
-      setDiagnosticActionLoading(action, false);
-      await refreshDiagnosticServicesInfo({ force: true, allowInactive: true });
-      void refreshRuntimeUiStateNow();
-      if (jobId) {
-        handledServiceActionJobs.add(jobId);
-        void ForkopShellMethods.uiActionAck('service', jobId);
-      }
-      releaseDiagnosticsChecks();
-    }
+    void refreshRuntimeUiStateNow();
   }
 }
 
 async function handleRestart() {
-  await handleServiceRuntimeAction({
-    action: 'restart',
-    expectedRunning: true,
-    optimisticRunning: false,
-  });
+  await handleServiceRuntimeAction('restart');
 }
 
 async function handleStart() {
-  await handleServiceRuntimeAction({
-    action: 'start',
-    expectedRunning: true,
-  });
+  await handleServiceRuntimeAction('start');
 }
 
 async function handleStop() {
-  await handleServiceRuntimeAction({
-    action: 'stop',
-    expectedRunning: false,
-  });
+  await handleServiceRuntimeAction('stop');
+}
+
+async function handleAutostartAction(
+  action: 'enable' | 'disable',
+  request: () => Promise<unknown>,
+) {
+  setDiagnosticActionLoading(action, true);
+
+  try {
+    await request();
+  } catch (e) {
+    logger.error('[DIAGNOSTIC]', `handleAutostartAction(${action})`, e);
+  } finally {
+    setDiagnosticActionLoading(action, false);
+    void refreshRuntimeUiStateNow();
+  }
 }
 
 async function handleEnable() {
-  setDiagnosticActionLoading('enable', true);
-
-  try {
-    await ForkopShellMethods.enable();
-  } catch (e) {
-    logger.error('[DIAGNOSTIC]', 'handleEnable - e', e);
-  } finally {
-    await refreshDiagnosticServicesInfo({
-      force: true,
-      allowInactive: true,
-    });
-    setDiagnosticActionLoading('enable', false);
-    void refreshRuntimeUiStateNow();
-  }
+  await handleAutostartAction('enable', () => ForkopShellMethods.enable());
 }
 
 async function handleDisable() {
-  setDiagnosticActionLoading('disable', true);
-
-  try {
-    await ForkopShellMethods.disable();
-  } catch (e) {
-    logger.error('[DIAGNOSTIC]', 'handleDisable - e', e);
-  } finally {
-    await refreshDiagnosticServicesInfo({
-      force: true,
-      allowInactive: true,
-    });
-    setDiagnosticActionLoading('disable', false);
-    void refreshRuntimeUiStateNow();
-  }
+  await handleAutostartAction('disable', () => ForkopShellMethods.disable());
 }
 
 async function handleShowGlobalCheck() {
@@ -875,25 +655,16 @@ async function onStoreUpdate(
     renderDiagnosticsChecks();
   }
 
-  if (diff.diagnosticsRunAction) {
+  if (diff.diagnosticsRunAction || diff.diagnosticsSystemInfo) {
     renderDiagnosticRunActionWidget();
-  }
-
-  if (
-    diff.diagnosticsActions ||
-    diff.servicesInfoWidget ||
-    diff.updatesActions
-  ) {
-    renderDiagnosticAvailableActionsWidget();
   }
 
   if (diff.diagnosticsActions || diff.servicesInfoWidget) {
-    renderDiagnosticRunActionWidget();
+    renderDiagnosticAvailableActionsWidget();
   }
 
   if (diff.diagnosticsSystemInfo) {
     renderDiagnosticSystemInfoWidget();
-    renderDiagnosticRunActionWidget();
   }
 }
 
@@ -1008,7 +779,6 @@ async function loadInitialDiagnosticData() {
 function detachDiagnosticPage() {
   diagnosticMounted = false;
   diagnosticMountId += 1;
-  stopServiceActionStateWatcher();
 
   // Remove old listener
   store.unsubscribe(onStoreUpdate);
@@ -1024,20 +794,15 @@ async function onPageMount() {
   const hasRuntimeSnapshot = Boolean(getCachedRuntimeUiState());
 
   if (!hasRuntimeSnapshot) {
-    const uiState = await refreshRuntimeUiState({ force: true });
+    await refreshRuntimeUiState({ force: true });
 
     if (!isDiagnosticMountActive(mountId)) {
       return;
-    }
-
-    if (!uiState) {
-      void refreshDiagnosticServicesInfo({ force: true });
     }
   }
 
   // Add new listener
   store.subscribe(onStoreUpdate);
-  startServiceActionStateWatcher();
 
   // Initial checks render
   renderDiagnosticsChecks();
@@ -1109,6 +874,11 @@ export async function initController(): Promise<void> {
   }
 
   diagnosticControllerInitialized = true;
+
+  // For the life of the page, not the tab: a service action keeps running when
+  // the user wanders off to another tab, and its acknowledgement and failure
+  // report belong to whoever sees the feed next, not to a mount.
+  subscribeRuntimeUiState(settleFinishedServiceActions);
 
   onMount('diagnostic-status').then(() => {
     logger.debug('[DIAGNOSTIC]', 'initController', 'onMount');

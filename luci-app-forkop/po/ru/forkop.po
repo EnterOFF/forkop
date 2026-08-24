@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-24 11:03+0300\n"
-"PO-Revision-Date: 2026-08-24 11:03+0300\n"
+"POT-Creation-Date: 2026-08-24 21:16+0300\n"
+"PO-Revision-Date: 2026-08-24 21:16+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -734,6 +734,9 @@ msgstr "Внешние конфиги nfqws обходят управление 
 msgid "External nfqws2 config files bypass Forkop queue management and explicit validation."
 msgstr "Внешние конфиги nfqws2 обходят управление очередями и явную валидацию Forkop."
 
+msgid "Failed to apply the configuration"
+msgstr "Не удалось применить конфигурацию"
+
 msgid "Failed to close connection"
 msgstr "Не удалось закрыть подключение"
 
@@ -754,6 +757,15 @@ msgstr "Не удалось загрузить логи"
 
 msgid "Failed to pin the server"
 msgstr "Не удалось закрепить сервер"
+
+msgid "Failed to restart the service"
+msgstr "Не удалось перезапустить сервис"
+
+msgid "Failed to start the service"
+msgstr "Не удалось запустить сервис"
+
+msgid "Failed to stop the service"
+msgstr "Не удалось остановить сервис"
 
 msgid "Failed to update lists"
 msgstr "Ошибка обновления списков"

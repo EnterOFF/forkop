@@ -4,8 +4,6 @@ import { callUbus, executeShellCommand } from '../../../helpers';
 import { isTransientRpcError } from '../../helpers/isTransientRpcError';
 
 const UI_ACTION_RPC_TIMEOUT_MS = 15000;
-const SERVICE_ACTION_TIMEOUT_MS = 2 * 60 * 1000;
-const SERVICE_ACTION_POLL_INTERVAL_MS = 1000;
 const COMPONENT_ACTION_RPC_TIMEOUT_MS = 15000;
 const COMPONENT_ACTION_POLL_INTERVAL_MS = 1500;
 const COMPONENT_ACTION_STATUS_REFRESH_INTERVAL_MS = 15000;
@@ -96,12 +94,6 @@ function parseUiActionStartResult(
   response: Awaited<ReturnType<typeof executeShellCommand>>,
 ) {
   return parseJsonObjectOutput<Forkop.UiActionStartResult>(response.stdout);
-}
-
-function parseServiceActionState(
-  response: Awaited<ReturnType<typeof executeShellCommand>>,
-) {
-  return parseJsonObjectOutput<Forkop.ServiceActionState>(response.stdout);
 }
 
 function isComponentActionJobId(jobId: string) {
@@ -247,8 +239,6 @@ export const ForkopShellMethods = {
     diagnosticCheck<Forkop.InboundsConfigCheckResult>(
       Forkop.AvailableMethods.CHECK_INBOUNDS_CONFIG,
     ),
-  getStatus: async () =>
-    callBaseMethod<Forkop.GetStatus>(Forkop.AvailableMethods.GET_STATUS),
   checkSingBox: async () =>
     diagnosticCheck<Forkop.SingBoxCheckResult>(
       Forkop.AvailableMethods.CHECK_SING_BOX,
@@ -256,10 +246,6 @@ export const ForkopShellMethods = {
   checkInbounds: async () =>
     diagnosticCheck<Forkop.InboundsCheckResult>(
       Forkop.AvailableMethods.CHECK_INBOUNDS,
-    ),
-  getSingBoxStatus: async () =>
-    callBaseMethod<Forkop.GetSingBoxStatus>(
-      Forkop.AvailableMethods.GET_SING_BOX_STATUS,
     ),
   getZapretStatus: async () =>
     getProviderStatus<Forkop.GetZapretStatus>('zapret'),
@@ -364,49 +350,6 @@ export const ForkopShellMethods = {
       success: true,
       data: parsedResponse,
     } as Forkop.MethodSuccessResponse<Forkop.UiActionStartResult>;
-  },
-  serviceActionStatus: async (jobId: string) => {
-    const response = await executeShellCommand({
-      command: '/usr/bin/forkop',
-      args: [Forkop.AvailableMethods.SERVICE_ACTION_STATUS, jobId],
-      timeout: UI_ACTION_RPC_TIMEOUT_MS,
-    });
-    const parsedResponse = parseServiceActionState(response);
-
-    if ((response.code ?? 0) !== 0 || !parsedResponse) {
-      return uiActionFailure(
-        response,
-        parsedResponse,
-        _('Service action failed'),
-      );
-    }
-
-    return {
-      success: true,
-      data: parsedResponse,
-    } as Forkop.MethodSuccessResponse<Forkop.ServiceActionState>;
-  },
-  waitServiceActionJob: async (jobId: string, startedAt = Date.now()) => {
-    while (Date.now() - startedAt < SERVICE_ACTION_TIMEOUT_MS) {
-      await sleep(SERVICE_ACTION_POLL_INTERVAL_MS);
-
-      const response = await ForkopShellMethods.serviceActionStatus(jobId);
-
-      if (!response.success) {
-        return response;
-      }
-
-      if (response.data.running) {
-        continue;
-      }
-
-      return response;
-    }
-
-    return {
-      success: false,
-      error: _('Operation timed out'),
-    } as Forkop.MethodFailureResponse;
   },
   uiActionAck: async (kind: 'service' | 'component', jobId: string) => {
     const response = await executeShellCommand({

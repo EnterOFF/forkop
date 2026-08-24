@@ -151,6 +151,38 @@ describe('applyUiStateToStore', () => {
     expect(store.get().diagnosticsActions.restart.loading).toBe(false);
   });
 
+  // The overlay only covers the click-to-report gap: once the runtime reports
+  // the job, `busy` owns the operation and the local flag is handed over, so a
+  // page that misses the completion cannot keep the row loading forever.
+  it('hands a locally started service action over to the runtime report', () => {
+    setLocalServiceAction('restart', true);
+
+    applyUiStateToStore(
+      createUiState(
+        {
+          service: [
+            {
+              success: true,
+              running: true,
+              kind: 'service',
+              action: 'restart',
+              job_id: 'service-1',
+            },
+          ],
+        },
+        {},
+        { running: 1, status: 'running & enabled', busy: 'restart' },
+      ),
+    );
+    // The runtime has the job now; the next application without it must not
+    // resurrect the local flag.
+    applyUiStateToStore(
+      createUiState({}, {}, { running: 1, status: 'running & enabled' }),
+    );
+
+    expect(store.get().diagnosticsActions.restart.loading).toBe(false);
+  });
+
   // Applying settings is not a restart: the service keeps running through it,
   // and the status has to keep saying so while `busy` carries the operation.
   it('reports an apply without claiming the service went down', () => {

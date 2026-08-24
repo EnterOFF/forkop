@@ -22,14 +22,10 @@ import {
   renderSectionsPlaceholder,
   renderWidget,
 } from './partials';
-import { fetchServicesInfo } from '../../fetchers/fetchServicesInfo';
 import { getClashApiSecret } from '../../methods/custom/getClashApiSecret';
 import { resetClashApiTransport } from '../../methods/custom/getDashboardSections';
 import { Forkop } from '../../types';
-import {
-  getCachedRuntimeUiState,
-  refreshRuntimeUiState,
-} from '../../services/runtimeUiState.service';
+import { refreshRuntimeUiState } from '../../services/runtimeUiState.service';
 import { isActiveLuciTab } from '../../helpers/isActiveLuciTab';
 import { pollDelayForDuration } from '../../helpers/pollDelay';
 import { getServiceStatusDisplay } from '../../helpers/serviceStatusDisplay';
@@ -1481,7 +1477,7 @@ async function handleUpdateSubscription(section: Forkop.OutboundGroup) {
     }
     if (!pageUnloading) {
       void fetchDashboardSections({ force: true });
-      void fetchServicesInfo();
+      void refreshRuntimeUiState({ force: true });
     }
 
     showToast(_('Subscriptions updated'), 'success');
@@ -1786,9 +1782,7 @@ async function onPageMount() {
 
   dashboardMounted = true;
   dashboardMountId += 1;
-  const mountId = dashboardMountId;
   resetClashApiTransport();
-  const hasRuntimeSnapshot = Boolean(getCachedRuntimeUiState());
 
   // Add new listener
   store.subscribe(onStoreUpdate);
@@ -1801,20 +1795,7 @@ async function onPageMount() {
 
   // The service widget is the only part of the page that reads the service state,
   // so it is fetched after the Clash API is already being asked.
-  if (hasRuntimeSnapshot) {
-    void refreshRuntimeUiState({ force: true });
-    return;
-  }
-
-  const uiState = await refreshRuntimeUiState({ force: true });
-
-  if (!dashboardMounted || mountId !== dashboardMountId) {
-    return;
-  }
-
-  if (!uiState) {
-    void fetchServicesInfo();
-  }
+  void refreshRuntimeUiState({ force: true });
 }
 
 function onPageUnmount() {
