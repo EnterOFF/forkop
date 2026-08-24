@@ -11,6 +11,7 @@ import {
   registerRuntimeStateResumeRefresh,
   startRuntimeUiStatePolling,
 } from './runtimeUiState.service';
+import { ensureSystemInfo } from './systemInfo.service';
 
 type CoreServiceOptions = {
   waitForLogWatcherStart?: () => Promise<unknown>;
@@ -18,6 +19,18 @@ type CoreServiceOptions = {
 };
 
 const LOG_FEED_START_DELAY_MS = 5000;
+
+// Collecting the component versions takes seconds - opkg is asked about every
+// package and the core binary about itself - and nothing asked for them until
+// the Status or Components tab was opened, so whoever opened one paid the whole
+// wait. Warming them once per page means both tabs open with the numbers
+// already there, and a page that never visits either only spends the work in
+// the background.
+//
+// On a delay rather than at once: it is several subprocesses on a router that
+// may have one slow core, and the first runtime-state poll - the status the user
+// is actually looking at - should not have to queue behind them.
+const SYSTEM_INFO_PREFETCH_DELAY_MS = 2000;
 
 function componentDisplayName(component: string) {
   const names: Record<string, string> = {
@@ -92,6 +105,9 @@ export function coreService(options: CoreServiceOptions = {}) {
 
   if (typeof window !== 'undefined') {
     scheduleStartLogFeed();
+    window.setTimeout(() => {
+      void ensureSystemInfo().catch(() => null);
+    }, SYSTEM_INFO_PREFETCH_DELAY_MS);
   } else {
     void startLogFeed();
   }

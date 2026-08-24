@@ -319,11 +319,17 @@ function assertSubscriptionUserAgent(source, expected, label) {
   absent(source, 'user_agent', label);
 }
 
+// A header the standard does not define must not come back: the default set is
+// exactly User-Agent plus the four Happ/Remnawave device fields.
+function absent2(source, name, label) {
+  assert(headerValue(source, name) === undefined, `${label}: ${name} must not be sent`);
+}
+
 function assertDefaultSubscriptionHeaders(source, label) {
   assert(headerValue(source, 'X-Device-OS') === 'OpenWrt Linux', `${label}: device OS header`);
   assert(Boolean(headerValue(source, 'X-Device-Model')), `${label}: device model header`);
-  assert(headerValue(source, 'Accept-Language') === 'ru-RU,en,*', `${label}: language header`);
-  assert(headerValue(source, 'X-Device-Locale') === 'EN', `${label}: locale header`);
+  absent2(source, 'Accept-Language', label);
+  absent2(source, 'X-Device-Locale', label);
   assert(/^[0-9a-f]{4}(?:-[0-9a-f]{4}){3}$/.test(headerValue(source, 'X-HWID') || ''), `${label}: generated HWID header`);
 }
 

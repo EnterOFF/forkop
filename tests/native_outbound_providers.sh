@@ -97,11 +97,53 @@ ucode -L "$FORKOP_LIB" "$VALIDATOR" validate-runtime-fixture "$WORK_DIR/fixture.
 ucode -L "$FORKOP_LIB" "$FORKOP_LIB/singbox/generator.uc" generate-config-fixture \
   "$WORK_DIR/fixture.json" "$output" 127.0.0.1 0
 
-ucode -L "$FORKOP_LIB" -e '
+release_file="$WORK_DIR/openwrt_release"
+printf "%s\n" "DISTRIB_ID='ImmortalWrt'" "DISTRIB_RELEASE='24.10.5'" > "$release_file"
+OPENWRT_RELEASE_FILE="$release_file" ucode -L "$FORKOP_LIB" -e '
 let subscription_headers = require("singbox.subscription_headers");
 let parsed = subscription_headers.parse_header_lines(subscription_headers.default_header_lines());
-if (!parsed.valid || length(keys(parsed.headers)) != 7 || parsed.headers["User-Agent"][0] != "sing-box" || parsed.headers["X-HWID"][0] == "")
+if (!parsed.valid || length(keys(parsed.headers)) != 5 || parsed.headers["User-Agent"][0] != "sing-box" || parsed.headers["X-HWID"][0] == "")
     die("default subscription headers were not generated\n");
+if (parsed.headers["Accept-Language"] != null || parsed.headers["X-Device-Locale"] != null)
+    die("a header outside the Happ/Remnawave set came back\n");
+'
+
+# With a core installed the User-Agent carries its upstream sing-box version,
+# not the fork suffix a panel cannot parse.
+version_file="$WORK_DIR/sing-box-version"
+printf '%s\n' '1.13.18-extended-2.6.5-f70' > "$version_file"
+SING_BOX_FORKOP_VERSION_FILE="$version_file" ucode -L "$FORKOP_LIB" -e '
+let subscription_headers = require("singbox.subscription_headers");
+let agent = subscription_headers.default_user_agent();
+if (agent != "sing-box/1.13.18")
+    die("User-Agent did not carry the upstream sing-box version: " + agent + "\n");
+'
+
+printf '%s\n' '1.13.18-forkop.4' > "$version_file"
+SING_BOX_FORKOP_VERSION_FILE="$version_file" ucode -L "$FORKOP_LIB" -e '
+let subscription_headers = require("singbox.subscription_headers");
+let agent = subscription_headers.default_user_agent();
+if (agent != "sing-box/1.13.18")
+    die("the forkop version suffix leaked into the User-Agent: " + agent + "\n");
+'
+
+# X-Ver-OS reports the OpenWrt release, not the kernel underneath it.
+OPENWRT_RELEASE_FILE="$release_file" ucode -L "$FORKOP_LIB" -e '
+let subscription_headers = require("singbox.subscription_headers");
+let parsed = subscription_headers.parse_header_lines(subscription_headers.default_header_lines());
+if (!parsed.valid || parsed.headers["X-Ver-OS"][0] != "24.10.5")
+    die("X-Ver-OS did not report the OpenWrt release: " + parsed.headers["X-Ver-OS"][0] + "\n");
+'
+
+# An unknown release sends no X-Ver-OS rather than the kernel version, which
+# answers a different question and would read to a panel as a real answer.
+OPENWRT_RELEASE_FILE="$WORK_DIR/absent-release" ucode -L "$FORKOP_LIB" -e '
+let subscription_headers = require("singbox.subscription_headers");
+let parsed = subscription_headers.parse_header_lines(subscription_headers.default_header_lines());
+if (!parsed.valid || parsed.headers["X-Ver-OS"] != null)
+    die("X-Ver-OS was sent without knowing the release\n");
+if (length(keys(parsed.headers)) != 4)
+    die("dropping X-Ver-OS changed the rest of the set\n");
 '
 
 ucode -e '

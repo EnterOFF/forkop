@@ -1897,7 +1897,7 @@ function migrate_subscription_headers(ctx) {
 function subscription_user_agent_header_lines(item) {
     let configured = trim(as_string(option(item, "user_agent", "")));
     if (configured == "")
-        configured = subscription_headers_module.DEFAULT_USER_AGENT;
+        configured = subscription_headers_module.default_user_agent();
 
     let line = "User-Agent: " + configured;
     let result = [];

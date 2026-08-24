@@ -5285,8 +5285,107 @@ function startRuntimeUiStatePolling() {
   });
 }
 
+// src/forkop/services/systemInfo.service.ts
+var UNKNOWN_SYSTEM_INFO = {
+  loading: false,
+  loaded: false,
+  providerInfoLoaded: false,
+  forkop_version: _("unknown"),
+  forkop_latest_version: _("unknown"),
+  luci_app_version: _("unknown"),
+  sing_box_version: _("unknown"),
+  sing_box_compressed: 0,
+  zapret_version: _("unknown"),
+  zapret_installed: 0,
+  zapret2_version: _("unknown"),
+  zapret2_installed: 0,
+  byedpi_version: _("unknown"),
+  byedpi_installed: 0,
+  server_inbounds_enabled_count: -1,
+  openwrt_version: _("unknown"),
+  device_model: _("unknown")
+};
+var systemInfoPromise = null;
+var latestSystemInfoRequestId = 0;
+function hasLoadedSystemInfo() {
+  const systemInfo = store.get().diagnosticsSystemInfo;
+  return Boolean(systemInfo.loaded) && !systemInfo.loading;
+}
+async function ensureSystemInfo({
+  force = false,
+  silent = false
+} = {}) {
+  if (!force && hasLoadedSystemInfo()) {
+    return store.get().diagnosticsSystemInfo;
+  }
+  if (systemInfoPromise && !force) {
+    return systemInfoPromise;
+  }
+  const requestId = ++latestSystemInfoRequestId;
+  const currentSystemInfo = store.get().diagnosticsSystemInfo;
+  if (!silent) {
+    store.set({
+      diagnosticsSystemInfo: {
+        ...currentSystemInfo,
+        loading: true
+      }
+    });
+  }
+  const promise = (async () => {
+    try {
+      const systemInfo = await ForkopShellMethods.getSystemInfo();
+      if (requestId !== latestSystemInfoRequestId) {
+        return store.get().diagnosticsSystemInfo;
+      }
+      if (systemInfo.success) {
+        const nextSystemInfo = {
+          ...UNKNOWN_SYSTEM_INFO,
+          loading: false,
+          loaded: true,
+          providerInfoLoaded: true,
+          server_inbounds_enabled_count: currentSystemInfo.server_inbounds_enabled_count,
+          ...systemInfo.data
+        };
+        store.set({
+          diagnosticsSystemInfo: nextSystemInfo
+        });
+        return nextSystemInfo;
+      }
+    } catch (error) {
+      logger.error("[SYSTEM_INFO]", "ensureSystemInfo failed", error);
+    }
+    if (requestId === latestSystemInfoRequestId && !silent) {
+      const latestSystemInfo = store.get().diagnosticsSystemInfo;
+      const nextSystemInfo = {
+        ...UNKNOWN_SYSTEM_INFO,
+        loading: false,
+        loaded: false,
+        providerInfoLoaded: latestSystemInfo.providerInfoLoaded,
+        zapret_installed: latestSystemInfo.zapret_installed,
+        zapret2_installed: latestSystemInfo.zapret2_installed,
+        byedpi_installed: latestSystemInfo.byedpi_installed,
+        server_inbounds_enabled_count: latestSystemInfo.server_inbounds_enabled_count
+      };
+      store.set({
+        diagnosticsSystemInfo: nextSystemInfo
+      });
+      return nextSystemInfo;
+    }
+    return store.get().diagnosticsSystemInfo;
+  })();
+  systemInfoPromise = promise;
+  try {
+    return await promise;
+  } finally {
+    if (systemInfoPromise === promise) {
+      systemInfoPromise = null;
+    }
+  }
+}
+
 // src/forkop/services/core.service.ts
 var LOG_FEED_START_DELAY_MS = 5e3;
+var SYSTEM_INFO_PREFETCH_DELAY_MS = 2e3;
 function componentDisplayName(component) {
   const names = {
     forkop: "Forkop",
@@ -5345,6 +5444,9 @@ function coreService(options = {}) {
   }, options.logWatcherStartDelayMs ?? LOG_FEED_START_DELAY_MS);
   if (typeof window !== "undefined") {
     scheduleStartLogFeed();
+    window.setTimeout(() => {
+      void ensureSystemInfo().catch(() => null);
+    }, SYSTEM_INFO_PREFETCH_DELAY_MS);
   } else {
     void startLogFeed();
   }
@@ -8629,104 +8731,6 @@ async function runByedpiCheck() {
     state,
     items
   });
-}
-
-// src/forkop/services/systemInfo.service.ts
-var UNKNOWN_SYSTEM_INFO = {
-  loading: false,
-  loaded: false,
-  providerInfoLoaded: false,
-  forkop_version: _("unknown"),
-  forkop_latest_version: _("unknown"),
-  luci_app_version: _("unknown"),
-  sing_box_version: _("unknown"),
-  sing_box_compressed: 0,
-  zapret_version: _("unknown"),
-  zapret_installed: 0,
-  zapret2_version: _("unknown"),
-  zapret2_installed: 0,
-  byedpi_version: _("unknown"),
-  byedpi_installed: 0,
-  server_inbounds_enabled_count: -1,
-  openwrt_version: _("unknown"),
-  device_model: _("unknown")
-};
-var systemInfoPromise = null;
-var latestSystemInfoRequestId = 0;
-function hasLoadedSystemInfo() {
-  const systemInfo = store.get().diagnosticsSystemInfo;
-  return Boolean(systemInfo.loaded) && !systemInfo.loading;
-}
-async function ensureSystemInfo({
-  force = false,
-  silent = false
-} = {}) {
-  if (!force && hasLoadedSystemInfo()) {
-    return store.get().diagnosticsSystemInfo;
-  }
-  if (systemInfoPromise && !force) {
-    return systemInfoPromise;
-  }
-  const requestId = ++latestSystemInfoRequestId;
-  const currentSystemInfo = store.get().diagnosticsSystemInfo;
-  if (!silent) {
-    store.set({
-      diagnosticsSystemInfo: {
-        ...currentSystemInfo,
-        loading: true
-      }
-    });
-  }
-  const promise = (async () => {
-    try {
-      const systemInfo = await ForkopShellMethods.getSystemInfo();
-      if (requestId !== latestSystemInfoRequestId) {
-        return store.get().diagnosticsSystemInfo;
-      }
-      if (systemInfo.success) {
-        const nextSystemInfo = {
-          ...UNKNOWN_SYSTEM_INFO,
-          loading: false,
-          loaded: true,
-          providerInfoLoaded: true,
-          server_inbounds_enabled_count: currentSystemInfo.server_inbounds_enabled_count,
-          ...systemInfo.data
-        };
-        store.set({
-          diagnosticsSystemInfo: nextSystemInfo
-        });
-        return nextSystemInfo;
-      }
-    } catch (error) {
-      logger.error("[SYSTEM_INFO]", "ensureSystemInfo failed", error);
-    }
-    if (requestId === latestSystemInfoRequestId && !silent) {
-      const latestSystemInfo = store.get().diagnosticsSystemInfo;
-      const nextSystemInfo = {
-        ...UNKNOWN_SYSTEM_INFO,
-        loading: false,
-        loaded: false,
-        providerInfoLoaded: latestSystemInfo.providerInfoLoaded,
-        zapret_installed: latestSystemInfo.zapret_installed,
-        zapret2_installed: latestSystemInfo.zapret2_installed,
-        byedpi_installed: latestSystemInfo.byedpi_installed,
-        server_inbounds_enabled_count: latestSystemInfo.server_inbounds_enabled_count
-      };
-      store.set({
-        diagnosticsSystemInfo: nextSystemInfo
-      });
-      return nextSystemInfo;
-    }
-    return store.get().diagnosticsSystemInfo;
-  })();
-  systemInfoPromise = promise;
-  try {
-    return await promise;
-  } finally {
-    if (systemInfoPromise === promise) {
-      systemInfoPromise = null;
-    }
-  }
 }
 
 // src/partials/button/styles.ts
