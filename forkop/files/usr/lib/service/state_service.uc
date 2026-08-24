@@ -30,6 +30,7 @@
 
 let fs = require("fs");
 let ui = require("service.ui");
+let health = require("service.health");
 
 const PID_FILE = getenv("FORKOP_STATE_SERVICE_PID_FILE") || "/var/run/forkop/state-service.pid";
 const OBJECT_NAME = getenv("FORKOP_STATE_SERVICE_OBJECT") || "forkop";
@@ -52,6 +53,16 @@ const SWEEP_INTERVAL_MS = int(getenv("FORKOP_STATE_SWEEP_INTERVAL_MS") || "20000
 // Long enough that an idle page reparks rarely, short enough to sit inside
 // uhttpd's network timeout and LuCI's own request ceiling.
 const MAX_WAIT_MS = int(getenv("FORKOP_STATE_MAX_WAIT_MS") || "15000");
+// A port rebind is not an outage. sing-box closes and reopens every inbound
+// when it reloads and when procd respawns it - six seconds after a reload
+// signal and about twelve around a crash respawn, measured on the reference
+// router - and through that window the readiness predicate is honestly false
+// while the service the user is looking at never went away. So a running
+// service is not reported stopped on one look: as long as the sing-box process
+// exists, the flip to "stopped" has to persist for this long to be believed.
+// A stop and a crash procd gave up on kill the process, and are reported the
+// moment they are seen.
+const DOWN_GRACE_MS = int(getenv("FORKOP_STATE_DOWN_GRACE_MS") || "15000");
 
 const AUTOSTART_LINK = "/etc/rc.d/S99" + SERVICE_NAME;
 const BIN_PATH = getenv("FORKOP_BIN") || "/usr/bin/forkop";
@@ -128,6 +139,7 @@ let last_watch = "";
 let last_sweep_ms = 0;
 let last_busy_refresh_ms = 0;
 let settle_until_ms = 0;
+let down_since_ms = 0;
 
 function read_log_tail() {
     let pipe = fs.popen("logread -l " + LOG_TAIL_LINES + " -e " +
@@ -360,11 +372,60 @@ function wake_waiters() {
     }
 }
 
+// Whether a freshly observed "not running" is believed yet, given what was
+// published before. Pure so the grace behavior can be tested without a clock:
+// the caller owns `down_since_ms` and passes it back in.
+function settled_running(observed_running, process_alive, prev_running, down_since, now_ms, grace_ms) {
+    if (observed_running)
+        return { running: true, down_since_ms: 0 };
+    if (!process_alive || !prev_running)
+        return { running: false, down_since_ms: 0 };
+    if (int(down_since || 0) == 0)
+        return { running: true, down_since_ms: int(now_ms) };
+    if (int(now_ms) - int(down_since) >= int(grace_ms))
+        return { running: false, down_since_ms: int(down_since) };
+    return { running: true, down_since_ms: int(down_since) };
+}
+
+// The instantaneous state says what is true this instant; what this process
+// publishes is what has settled. While the grace holds a flip back, the
+// running-derived fields are kept coherent with it: the status text follows the
+// held value and the fresh enabled bit, and dns_configured keeps what the last
+// running payload said, because it only means anything for a running service.
+function apply_settled_running(payload) {
+    let forkop = payload.service.forkop;
+    let previous = state.payload;
+    let prev_running = previous != null && previous.service.forkop.running == 1;
+
+    let settled = settled_running(
+        forkop.running == 1,
+        health.sing_box_service_running(),
+        prev_running,
+        down_since_ms,
+        monotonic_ms(),
+        DOWN_GRACE_MS
+    );
+    down_since_ms = settled.down_since_ms;
+
+    if (!settled.running || forkop.running == 1)
+        return;
+
+    forkop.running = 1;
+    forkop.status = health.service_status_text(1, forkop.enabled);
+    forkop.dns_configured = previous.service.forkop.dns_configured;
+    // The premise of holding the value is that the process exists, so the
+    // sing-box row must not contradict it while a respawned process is still
+    // younger than its own stability age.
+    payload.service.sing_box.running = 1;
+    payload.service.sing_box.status = health.service_status_text(1, payload.service.sing_box.enabled);
+}
+
 // The revision moves only when the answer does. A recompute that produces the
 // same payload must not wake a parked request, or an idle page would be handed
 // an identical state every sweep and the parking would buy nothing.
 function recompute() {
     let payload = ui.current_ui_state();
+    apply_settled_running(payload);
     let text = sprintf("%J", payload);
     if (text == state.text)
         return false;
@@ -379,7 +440,10 @@ function tick() {
     let now = monotonic_ms();
     let signature = watch_signature();
     let due_sweep = now - last_sweep_ms >= SWEEP_INTERVAL_MS;
-    let due_close = needs_close_refresh(now, state_is_busy(), settle_until_ms, last_busy_refresh_ms);
+    // A pending down-flip needs the close cadence too: holding the old value
+    // often publishes nothing, so the settle window is not extended, and the
+    // grace has to expire on a look rather than on the next slow sweep.
+    let due_close = needs_close_refresh(now, state_is_busy() || down_since_ms != 0, settle_until_ms, last_busy_refresh_ms);
 
     if (signature == last_watch && !due_sweep && !due_close)
         return;
@@ -591,6 +655,7 @@ if ((sourcepath(1) != null && sourcepath(1) != "") || ARGV[0] == null)
         package_db_signature,
         settle_deadline,
         needs_close_refresh,
+        settled_running,
         new_log_lines,
         log_reply,
         // Seeding the buffer is what lets the delta logic be exercised without a

@@ -343,35 +343,29 @@ assert_eq "no" "$(settle_probe "close 5000 0 10000 4500")" "but still no faster 
 # Once it has settled, the service goes quiet and leaves it to the sweep.
 assert_eq "no" "$(settle_probe "close 20000 0 10000 0")" "a settled runtime falls back to the sweep"
 
-settle_probe() {
+# A port rebind is not an outage: a running service observed down while the
+# sing-box process is still alive stays reported running until the flip has
+# persisted for the grace. A dead process, or a service that was already down,
+# is reported as it is at once.
+settled_probe() {
   FORKOP_LIB="$FORKOP_FILES/usr/lib" \
-  SETTLE_ARGS="$1" \
+  SETTLED_ARGS="$1" \
     ucode -L "$FORKOP_FILES/usr/lib" -e '
       let service = require("service.state_service");
-      let a = split(getenv("SETTLE_ARGS"), " ");
-      if (a[0] == "deadline")
-        print(service.settle_deadline(int(a[1]), a[2] == "1", int(a[3])), "\n");
-      else
-        print(service.needs_close_refresh(int(a[1]), a[2] == "1", int(a[3]), int(a[4])) ? "yes" : "no", "\n");
+      let a = split(getenv("SETTLED_ARGS"), " ");
+      let result = service.settled_running(a[0] == "1", a[1] == "1", a[2] == "1", int(a[3]), int(a[4]), int(a[5]));
+      print(result.running ? "1" : "0", " ", result.down_since_ms, "\n");
     '
 }
 
-# A change restarts the window; no change leaves it where it was.
-assert_eq "10000" "$(settle_probe "deadline 0 1 0")" "a change opens the settle window"
-assert_eq "15000" "$(settle_probe "deadline 5000 1 10000")" "a later change moves the window out"
-assert_eq "10000" "$(settle_probe "deadline 5000 0 10000")" "no change leaves the window alone"
-
-# While an action runs, the close cadence applies regardless of the window.
-assert_eq "yes" "$(settle_probe "close 5000 1 0 0")" "a running action is watched closely"
-assert_eq "no" "$(settle_probe "close 500 1 0 0")" "and no faster than the cadence"
-
-# The regression itself: the action has finished, so busy is false, but the
-# window is still open and the runtime must keep being read.
-assert_eq "yes" "$(settle_probe "close 5000 0 10000 0")" "a settling runtime is watched after the action ends"
-assert_eq "no" "$(settle_probe "close 5000 0 10000 4500")" "but still no faster than the cadence"
-
-# Once it has settled, the service goes quiet and leaves it to the sweep.
-assert_eq "no" "$(settle_probe "close 20000 0 10000 0")" "a settled runtime falls back to the sweep"
+# observed alive prev down_since now grace
+assert_eq "1 0" "$(settled_probe "1 1 1 0 1000 15000")" "an observed running service is served as it is"
+assert_eq "1 0" "$(settled_probe "1 1 0 500 1000 15000")" "coming back up clears the pending flip"
+assert_eq "1 1000" "$(settled_probe "0 1 1 0 1000 15000")" "a fresh down look with a live process opens the grace"
+assert_eq "1 1000" "$(settled_probe "0 1 1 1000 9000 15000")" "the held value is served while the grace lasts"
+assert_eq "0 1000" "$(settled_probe "0 1 1 1000 16000 15000")" "a flip that persists past the grace is believed"
+assert_eq "0 0" "$(settled_probe "0 0 1 0 1000 15000")" "a dead process is reported down at once"
+assert_eq "0 0" "$(settled_probe "0 1 0 0 1000 15000")" "a service that was already down stays down"
 
 log_delta() {
   FORKOP_LIB="$FORKOP_FILES/usr/lib" \
