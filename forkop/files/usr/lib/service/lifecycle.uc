@@ -38,10 +38,9 @@ const RELOAD_LOCK_DIR = getenv("FORKOP_RELOAD_LOCK_DIR") || "/var/run/forkop.rel
 const START_LOCK_DIR = getenv("FORKOP_START_LOCK_DIR") || RUNTIME_STATE_DIR + "/start.lock";
 const START_LOCK_TIMEOUT = int(getenv("FORKOP_START_LOCK_TIMEOUT") || "360");
 const SING_BOX_PLANNED_STOP_FILE = getenv("FORKOP_SING_BOX_PLANNED_STOP_FILE") || RUNTIME_STATE_DIR + "/sing-box-watch.planned-stop";
-const INTERNAL_CONFIG_TRIGGER_GUARD = getenv("FORKOP_INTERNAL_CONFIG_TRIGGER_GUARD") || "/var/run/forkop.internal-config-change";
 
 const COMPONENT_UPDATE_CHECK_CRON_MARKER = getenv("FORKOP_COMPONENT_UPDATE_CHECK_CRON_MARKER") || "# forkop-component-update-check";
-const RELOAD_STATE_FORMAT = int(getenv("FORKOP_RELOAD_STATE_FORMAT") || "1");
+const RELOAD_STATE_FORMAT = int(getenv("FORKOP_RELOAD_STATE_FORMAT") || "2");
 const RUNTIME_STABLE_MIN_AGE = int(getenv("FORKOP_RUNTIME_STABLE_MIN_AGE") || "2");
 const SING_BOX_START_STABLE_MIN_AGE = int(getenv("FORKOP_SING_BOX_START_STABLE_MIN_AGE") || "8");
 
@@ -59,7 +58,6 @@ const ZAPRET_PROVIDER_NFQWS_BIN = constant_value("ZAPRET_PROVIDER_NFQWS_BIN", "/
 const ZAPRET2_PROVIDER_NFQWS2_BIN = constant_value("ZAPRET2_PROVIDER_NFQWS2_BIN", "/opt/zapret2/nfq2/nfqws2");
 const BYEDPI_BIN = constant_value("BYEDPI_BIN", "/usr/bin/ciadpi");
 
-const DNS_APPLY_UC = LIB_DIR + "/dns/apply.uc";
 const VALIDATOR_UC = LIB_DIR + "/config/validator.uc";
 const SERVER_UC = LIB_DIR + "/server/service.uc";
 const NFT_UC = LIB_DIR + "/nft/apply.uc";
@@ -149,15 +147,7 @@ function stop_sing_box_service() {
 
 function external_config_fingerprint() {
     let data = fs.readfile(CONFIG_FILE);
-    if (data == null)
-        return "";
-
-    let lines = [];
-    for (let line in split(as_string(data), "\n"))
-        if (match(as_string(line), /^[ \t]*option[ \t]+shutdown_correctly([ \t]|$)/) == null)
-            push(lines, line);
-
-    return join("\n", lines);
+    return data == null ? "" : as_string(data);
 }
 
 function trim(value) {
@@ -427,10 +417,6 @@ function config_get(path, fallback) {
     return trim(uci_core.get(path));
 }
 
-function config_set(path, value) {
-    return uci_core.set(path, value);
-}
-
 function file_md5(path) {
     path = as_string(path);
     if (path == "" || fs.stat(path) == null)
@@ -441,63 +427,9 @@ function file_md5(path) {
     return length(fields) > 0 ? as_string(fields[0]) : "";
 }
 
-function current_config_hash() {
-    return file_md5(CONFIG_FILE);
-}
-
-function mark_internal_config_guard() {
-    let hash = current_config_hash();
-    if (hash == "") {
-        fs.unlink(INTERNAL_CONFIG_TRIGGER_GUARD);
-        return;
-    }
-
-    let stamp = clock();
-    let tmp_path = INTERNAL_CONFIG_TRIGGER_GUARD + "." + stamp[0] + "." + stamp[1];
-    fs.writefile(tmp_path, as_string(stamp[0]) + "\n" + hash + "\n");
-    if (!fs.rename(tmp_path, INTERNAL_CONFIG_TRIGGER_GUARD))
-        fs.unlink(tmp_path);
-}
-
-function config_commit() {
-    if (!uci_core.commit(CONFIG_NAME))
-        return 1;
-    mark_internal_config_guard();
-    return 0;
-}
-
 function mark_runtime_stopped_clean() {
-    let status = 0;
-    if (!config_set(CONFIG_NAME + ".settings.shutdown_correctly", "1"))
-        status = 1;
-    else {
-        let commit_status = config_commit();
-        if (commit_status != 0)
-            status = commit_status;
-    }
-
     module_success(STATE_UC, [ "clear-reload-state", RELOAD_STATE_FILE, RELOAD_STATE_SNAPSHOT_FILE ]);
-    return status;
-}
-
-function dns_apply_status(args) {
-    return module_status(DNS_APPLY_UC, args);
-}
-
-function dns_apply_success(args) {
-    return dns_apply_status(args) == 0;
-}
-
-function dnsmasq_restore() {
-    return dns_apply_status([ "restore" ]);
-}
-
-function dnsmasq_restore_fail_safe() {
-    return dns_apply_status([ "failsafe-restore" ]);
-}
-
-function dnsmasq_has_forkop_managed_state() {
-    return dns_apply_success([ "has-managed-state" ]);
+    return 0;
 }
 
 function validate_start_config() {
@@ -666,19 +598,6 @@ function start_impl() {
     if (status != 0)
         return status;
 
-    if (dnsmasq_has_forkop_managed_state()) {
-        status = dnsmasq_restore();
-        if (status != 0)
-            return status;
-    }
-
-    if (!config_set(CONFIG_NAME + ".settings.shutdown_correctly", "0"))
-        return 1;
-
-    status = config_commit();
-    if (status != 0)
-        return status;
-
     status = module_status(STATE_UC, [
         "write-current-reload-state-clean",
         RELOAD_STATE_FILE,
@@ -743,10 +662,6 @@ function cleanup_failed_runtime() {
     let stop_status = stop_main();
     if (stop_status != 0)
         status = stop_status;
-
-    let dns_status = dnsmasq_restore_fail_safe();
-    if (dns_status != 0 && status == 0)
-        status = dns_status;
 
     if (status == 0) {
         let mark_status = mark_runtime_stopped_clean();
@@ -835,7 +750,7 @@ function start() {
         as_string(RUNTIME_STABLE_MIN_AGE)
     ]);
     if (status != 0) {
-        log_message("Startup verification failed after Forkop was started; rolling back DNS changes", "warn");
+        log_message("Startup verification failed after Forkop was started; stopping Forkop runtime", "warn");
         cleanup_failed_runtime();
         module_success(STATE_UC, [ "release-runtime-dir-lock", START_LOCK_DIR, owner_pid() ]);
         return status;
@@ -857,28 +772,11 @@ function stop_impl() {
         log_message("Failed to mark the planned sing-box stop", "warn");
     module_success(SINGBOX_WATCH_UC, [ "stop-worker" ]);
 
-    if (dnsmasq_has_forkop_managed_state()) {
-        let dns_status = dnsmasq_restore();
-        if (dns_status != 0)
-            status = dns_status;
-    }
-
     let runtime_status = stop_main();
     if (runtime_status != 0)
         status = runtime_status;
 
-    if (!config_set(CONFIG_NAME + ".settings.shutdown_correctly", "1"))
-        status = 1;
-    else {
-        let commit_status = config_commit();
-        if (commit_status != 0)
-            status = commit_status;
-    }
-
     module_success(STATE_UC, [ "clear-reload-state", RELOAD_STATE_FILE, RELOAD_STATE_SNAPSHOT_FILE ]);
-
-    if (status != 0)
-        dnsmasq_restore_fail_safe();
 
     return status;
 }
@@ -918,7 +816,7 @@ function restart_runtime_for_reload_locked() {
         as_string(RUNTIME_STABLE_MIN_AGE)
     ]);
     if (status != 0) {
-        log_message("Reload runtime restart verification failed after Forkop was started; rolling back DNS changes", "fatal");
+        log_message("Reload runtime restart verification failed after Forkop was started; stopping Forkop runtime", "fatal");
         cleanup_failed_runtime();
         return status;
     }
@@ -936,7 +834,6 @@ function write_service_trigger_sync_state(changed) {
 function parse_reload_plan(output) {
     let result = {
         changed_service_triggers: 0,
-        changed_dnsmasq: 0,
         changed_sing_box: 0,
         changed_nft: 0,
         changed_zapret_queue: 0,
@@ -950,7 +847,6 @@ function parse_reload_plan(output) {
         needs_zapret_restart: 0,
         needs_zapret2_restart: 0,
         needs_byedpi_restart: 0,
-        needs_dnsmasq_restore: 0,
         needs_cron_refresh: 0,
         has_work: 0
     };
@@ -1052,13 +948,6 @@ function apply_reload_plan(plan, force_runtime_reload) {
     if (plan.needs_byedpi_restart == 1)
         module_success(BYEDPI_UC, [ "start-runtime" ]);
 
-    if (plan.needs_dnsmasq_restore == 1) {
-        status = dnsmasq_restore();
-        if (status != 0)
-            return abort_reload(status, true);
-        module_success(STATE_UC, [ "capture-reload-state", RELOAD_STATE_SNAPSHOT_FILE, as_string(RELOAD_STATE_FORMAT) ]);
-    }
-
     if (plan.needs_cron_refresh == 1) {
         status = refresh_cron();
         if (status != 0)
@@ -1119,7 +1008,6 @@ function reload_impl(reason) {
         return abort_reload(status, false);
     }
 
-    let dnsmasq_managed_state = dnsmasq_has_forkop_managed_state() ? 1 : 0;
     let runtime_cache_needs_rebuild = as_string(getenv("FORKOP_RUNTIME_CACHE_INVALIDATED") || "0") == "1" ? 1 : 0;
 
     let plan_result = module_capture(RELOAD_UC, [
@@ -1127,7 +1015,6 @@ function reload_impl(reason) {
         RELOAD_STATE_FILE,
         current_reload_state_file,
         as_string(force_runtime_reload),
-        as_string(dnsmasq_managed_state),
         as_string(runtime_cache_needs_rebuild)
     ]);
     remove_file(current_reload_state_file);
@@ -1263,8 +1150,6 @@ function uninstall() {
         command_success_from_args([ SERVICE_INIT, "disable" ]);
     }
 
-    dnsmasq_restore_fail_safe();
-
     package_manager_remove_if_installed("luci-i18n-forkop-ru");
     package_manager_remove_if_installed("luci-app-forkop");
 
@@ -1358,12 +1243,10 @@ else if (mode == "selector-restore-pairs-fixture") {
 }
 else if (mode == "clash-controller-preflight-fixture")
     status = clash_controller_preflight(ARGV[1], fs.readfile(ARGV[2]));
-else if (mode == "dnsmasq-restore")
-    status = dnsmasq_restore_fail_safe();
 else if (mode == "uninstall")
     status = uninstall();
 else {
-    warn("Usage: service/lifecycle.uc <start|stop|reload|restart|main|sing-box-crash-cleanup|sing-box-planned-stop-guard-fixture|enable|disable|dnsmasq-restore|uninstall> ...\n");
+    warn("Usage: service/lifecycle.uc <start|stop|reload|restart|main|sing-box-crash-cleanup|sing-box-planned-stop-guard-fixture|enable|disable|uninstall> ...\n");
     status = 1;
 }
 

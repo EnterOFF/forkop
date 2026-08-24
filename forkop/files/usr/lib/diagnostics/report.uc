@@ -69,10 +69,10 @@ function fakeip_check(value) {
     return [ "❌ Sing-box FakeIP DNS does NOT work" ];
 }
 
-// Returns the DNS section plus whether the DHCP configuration still has to be
-// dumped after it, which happens when Forkop does not own dnsmasq or when the
-// configuration no longer matches the template Forkop writes.
-function dns_check(value, dont_touch_dhcp) {
+// Returns the DNS section plus whether the dnsmasq configuration still has to
+// be dumped after it, which happens when the local resolver the unmatched
+// client queries return to does not answer.
+function dns_check(value) {
     value = object_or_empty(value);
     let lines = [];
     let bootstrap_dns_server = field(value, "bootstrap_dns_server");
@@ -84,17 +84,18 @@ function dns_check(value, dont_touch_dhcp) {
     push(lines, (is_set(value.dns_status) ? "✅ Main DNS: " : "❌ Main DNS: ") + (field(value, "dns_server") || "unknown"));
     push(lines, is_set(value.dns_on_router) ? "✅ DNS on router" : "❌ DNS on router");
 
-    if (dont_touch_dhcp) {
-        push(lines, "⚠️ dont_touch_dhcp is enabled. 📄 DHCP config:");
-        dump_dhcp_config = true;
-    }
-    else if (!is_set(value.dhcp_config_status)) {
-        push(lines, "❌ DHCP configuration differs from template. 📄 DHCP config:");
-        dump_dhcp_config = true;
+    if (is_set(value.local_dns_status)) {
+        push(lines, "✅ Local resolver: " + (field(value, "local_dns_server") || "unknown"));
     }
     else {
-        push(lines, "✅ /etc/config/dhcp");
+        push(lines, "❌ Local resolver does not answer: " + (field(value, "local_dns_server") || "unknown") + ". 📄 DHCP config:");
+        dump_dhcp_config = true;
     }
+
+    if (is_set(value.dns_capture_disabled))
+        push(lines, "⚠️ DNS capture is disabled; client domain rules are not applied");
+    else
+        push(lines, is_set(value.dns_capture_status) ? "✅ DNS capture active" : "❌ DNS capture rules are not loaded");
 
     return { lines, dump_dhcp_config };
 }

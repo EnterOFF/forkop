@@ -373,6 +373,46 @@ function createSettingsContent(section, capabilities) {
   createStaticHostsOption(section);
 
   o = section.option(
+    form.ListValue,
+    "unmatched_dns_mode",
+    _("DNS outside the rules"),
+    _(
+      "Who resolves domains no rule matched. The router resolver keeps local names, ad blocking and the provider DNS; Forkop DNS resolves everything itself and leaves only local names on the router",
+    ),
+  );
+  o.value("router", _("Router resolver"));
+  o.value("forkop", _("Forkop DNS"));
+  o.default = "router";
+  o.rmempty = false;
+
+  const dnsExcludeOption = section.option(
+    form.DynamicList,
+    "dns_capture_exclude_ips",
+    _("Do not capture DNS from"),
+    _("These devices keep the DNS servers they have configured themselves"),
+  );
+  dnsExcludeOption.placeholder = _("Device or IP");
+  dnsExcludeOption.validate = function (_section_id, value) {
+    if (!value || value.length === 0) {
+      return true;
+    }
+
+    const validation = main.validateSubnet(value);
+    return validation.valid ? true : validation.message;
+  };
+
+  o = section.option(
+    form.Flag,
+    "disable_dns_capture",
+    _("Do not capture DNS"),
+    _(
+      "Leave client DNS untouched. Domain rules stop working for clients: without the capture their requests never reach Forkop",
+    ),
+  );
+  o.default = "0";
+  o.rmempty = false;
+
+  o = section.option(
     widgets.DeviceSelect,
     "source_network_interfaces",
     _("Source Network Interface"),
@@ -717,15 +757,6 @@ function createSettingsContent(section, capabilities) {
     "download_components_via_proxy_section",
     capabilities,
   );
-
-  o = section.option(
-    form.Flag,
-    "dont_touch_dhcp",
-    _("Dont Touch My DHCP!"),
-    _("Do not modify the DHCP configuration of the router"),
-  );
-  o.default = "0";
-  o.rmempty = false;
 
   o = section.option(
     form.Value,

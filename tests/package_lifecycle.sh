@@ -142,45 +142,22 @@ if compgen -G "$WORK_DIR/luci-indexcache*" >/dev/null; then
   fail "luci-postinst must remove LuCI index cache files"
 fi
 
+# prerm never touches dnsmasq: the nft capture dies with the runtime and the
+# one-time migration owns whatever an older release left in /etc/config/dhcp.
 cat >"$WORK_DIR/forkop-bin" <<'SH'
 #!/usr/bin/env bash
-printf '%s\n' "$*" >> "${FORKOP_RESTORE_LOG:?}"
+printf '%s
+' "$*" >> "${FORKOP_RESTORE_LOG:?}"
 SH
 chmod 0755 "$WORK_DIR/forkop-bin"
 
-cat >"$WORK_DIR/dont-touch.state" <<'EOF_UCI'
-forkop.settings=settings
-forkop.settings.dont_touch_dhcp=1
-EOF_UCI
-printf '105 forkop\n' >"$WORK_DIR/rt_tables_dont_touch"
-: >"$WORK_DIR/restore-dont-touch.log"
-FORKOP_UCI_STATE_FILE="$WORK_DIR/dont-touch.state" \
-FORKOP_RESTORE_LOG="$WORK_DIR/restore-dont-touch.log" \
-FORKOP_BIN="$WORK_DIR/forkop-bin" \
-FORKOP_SING_BOX_INIT="$WORK_DIR/missing-sing-box-init" \
-FORKOP_SING_BOX_BIN="$WORK_DIR/missing-sing-box-bin" \
-FORKOP_SING_BOX_CRONET="$WORK_DIR/missing-cronet" \
-FORKOP_RT_TABLES="$WORK_DIR/rt_tables_dont_touch" \
-  ucode -L "$FORKOP_LIB" "$PACKAGE_UC" prerm
-[ ! -s "$WORK_DIR/restore-dont-touch.log" ] ||
-  fail "package prerm must skip dnsmasq restore when dont_touch_dhcp is enabled"
-
-cat >"$WORK_DIR/restore.state" <<'EOF_UCI'
-forkop.settings=settings
-forkop.settings.dont_touch_dhcp=0
-EOF_UCI
-printf '105 forkop\n' >"$WORK_DIR/rt_tables_restore"
+printf '105 forkop
+' >"$WORK_DIR/rt_tables_restore"
 : >"$WORK_DIR/restore.log"
-FORKOP_UCI_STATE_FILE="$WORK_DIR/restore.state" \
-FORKOP_RESTORE_LOG="$WORK_DIR/restore.log" \
-FORKOP_BIN="$WORK_DIR/forkop-bin" \
-FORKOP_SING_BOX_INIT="$WORK_DIR/missing-sing-box-init" \
-FORKOP_SING_BOX_BIN="$WORK_DIR/missing-sing-box-bin" \
-FORKOP_SING_BOX_CRONET="$WORK_DIR/missing-cronet" \
-FORKOP_RT_TABLES="$WORK_DIR/rt_tables_restore" \
-  ucode -L "$FORKOP_LIB" "$PACKAGE_UC" prerm
-grep -Fxq 'restore_dnsmasq' "$WORK_DIR/restore.log" ||
-  fail "package prerm must restore dnsmasq when dont_touch_dhcp is disabled"
+FORKOP_RESTORE_LOG="$WORK_DIR/restore.log" FORKOP_BIN="$WORK_DIR/forkop-bin" FORKOP_SING_BOX_INIT="$WORK_DIR/missing-sing-box-init" FORKOP_SING_BOX_BIN="$WORK_DIR/missing-sing-box-bin" FORKOP_SING_BOX_CRONET="$WORK_DIR/missing-cronet" FORKOP_RT_TABLES="$WORK_DIR/rt_tables_restore"   ucode -L "$FORKOP_LIB" "$PACKAGE_UC" prerm
+if grep -Fq 'restore_dnsmasq' "$WORK_DIR/restore.log"; then
+  fail "package prerm must not call a dnsmasq restore command"
+fi
 
 cat >"$WORK_DIR/upgrade-init" <<'SH'
 #!/usr/bin/env bash

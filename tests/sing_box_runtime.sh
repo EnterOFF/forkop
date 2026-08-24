@@ -1582,7 +1582,9 @@ let source_dns_fallback = dns_rule(matchers, r =>
     r.server == "dnsmasq-server" && r.type == null && r.domain == null &&
     r.domain_suffix == null && r.rule_set == null);
 assert(source_dns_fallback != null && contains(source_dns_fallback.inbound, "source-dns-in") && source_dns_fallback.source_ip_cidr == null, "unmatched selected-interface DNS returns through dnsmasq");
-assert(dns_rule(matchers, r => r.server == "dnsmasq-server" && r.domain == null && contains(r.inbound, "system-dns-in")) != null, "unmatched System DNS returns through dnsmasq");
+assert(dns_rule(matchers, r => r.server == "dnsmasq-server" && contains(r.inbound, "system-dns-in")) == null, "router queries never route to the local resolver: its upstream forwards are captured back here and would loop");
+let system_dns_fallback = dns_rule(matchers, r => r.server == "dns-server" && r.domain == null && r.domain_suffix == null && r.rule_set == null && contains(r.inbound, "system-dns-in"));
+assert(system_dns_fallback != null, "unmatched System DNS resolves through the Forkop DNS");
 let bypass_fake_index = dns_rule_index(matchers, r => r.server == "fakeip-server" && contains(r.domain_suffix, "example.org") && contains(r.source_ip_cidr, "10.0.0.3/32"));
 let proxy_below_bypass_index = dns_rule_index(matchers, r => r.server == "fakeip-server" && contains(r.domain_suffix, "example.org") && r.source_ip_cidr == null);
 assert(bypass_fake_index >= 0 && proxy_below_bypass_index > bypass_fake_index, "source-aware port bypass keeps its section priority over lower proxy DNS");
@@ -1736,7 +1738,7 @@ let fully_bypass_dns = dns_rule(fully, r =>
     length(r.rules || []) == 2 && contains(r.rules[0].source_ip_cidr, "192.168.1.20/32") &&
     r.rules[0].domain == null && r.rules[0].domain_suffix == null && r.rules[0].rule_set == null);
 assert(fully_bypass_dns != null, "fully routed bypass rejects FakeIP for every domain");
-assert(dns_rule(fully, r => r.type == "logical" && r.server == "dnsmasq-server" && length(r.rules || []) == 2 && contains(r.rules[0].inbound, "system-dns-in")) != null, "fully routed System bypass rejects FakeIP for every domain");
+assert(dns_rule(fully, r => r.type == "logical" && r.server == "dns-server" && length(r.rules || []) == 2 && contains(r.rules[0].inbound, "system-dns-in")) != null, "fully routed System bypass rejects FakeIP through the Forkop DNS, never through the resolver it captures");
 assert(dns_rule(fully, r => r.server == "dns-server" && contains(r.source_ip_cidr, "192.168.1.20/32") && contains(r.query_type, "A")) != null, "fully routed bypass falls back to real DNS");
 assert(dns_rule(fully, r => r.type == "logical" && r.server == "dnsmasq-server" && length(r.rules || []) > 0 && contains(r.rules[0].source_ip_cidr, "192.168.1.40/32")) == null, "fully routed proxy keeps normal FakeIP policy");
 let higher_proxy_dns_index = dns_rule_index(fully, r => r.server == "fakeip-server" && contains(r.domain_suffix, "forced-higher.test"));

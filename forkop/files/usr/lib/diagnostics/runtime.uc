@@ -51,7 +51,6 @@ const SING_BOX_FORKOP_VERSION_FILE = getenv("SING_BOX_FORKOP_VERSION_FILE") || "
 const GLOBAL_CHECK_SEPARATOR = "━━━━━━━━━━━━━━━━━━━━━━━━━━━";
 
 const PACKAGES_UC = LIB_DIR + "/core/packages.uc";
-const DNS_APPLY_UC = LIB_DIR + "/dns/apply.uc";
 const SERVICE_STATE_UC = LIB_DIR + "/service/state.uc";
 const PROVIDERS_STATUS_UC = LIB_DIR + "/providers/status.uc";
 const SINGBOX_RUNTIME_UC = LIB_DIR + "/singbox/runtime.uc";
@@ -950,8 +949,11 @@ function write_service_status(running, enabled, dns_configured) {
     });
 }
 
-function dnsmasq_ready_for_interface_dns() {
-    return !module_success(DNS_APPLY_UC, [ "has-managed-state" ]);
+// Whether client DNS is captured into the running service: the nft redirect is
+// created and torn down together with the runtime table, so while the service
+// runs the capture is on unless the user disabled it.
+function dns_capture_configured() {
+    return !bool_option(settings(), "disable_dns_capture", false);
 }
 
 function get_sing_box_status() {
@@ -960,7 +962,7 @@ function get_sing_box_status() {
         RUNTIME_STABLE_MIN_AGE
     ]) ? 1 : 0;
     let enabled = file_executable("/etc/rc.d/S99sing-box") ? 1 : 0;
-    let dns_configured = running && dnsmasq_ready_for_interface_dns() ? 1 : 0;
+    let dns_configured = running && dns_capture_configured() ? 1 : 0;
     write_service_status(running, enabled, dns_configured);
     return 0;
 }
@@ -970,7 +972,7 @@ function get_status() {
         "forkop-stably-running", RT_TABLE_NAME, NFT_TABLE_NAME, NFT_FAKEIP_MARK, RUNTIME_STABLE_MIN_AGE
     ]) ? 1 : 0;
     let enabled = file_executable("/etc/rc.d/S99" + FORKOP_SERVICE_NAME) ? 1 : 0;
-    let dns_configured = running && dnsmasq_ready_for_interface_dns() ? 1 : 0;
+    let dns_configured = running && dns_capture_configured() ? 1 : 0;
     write_service_status(running, enabled, dns_configured);
     return 0;
 }
@@ -1089,18 +1091,46 @@ function dns_check_router_resolver_available(domain) {
     return false;
 }
 
+// Where sing-box hands unmatched client queries back to; must match what
+// singbox/generator.uc dials, or the check proves the wrong resolver.
+function local_resolver_target() {
+    let value = trim(as_string(uci_core.get("dhcp.@dnsmasq[0].port")));
+    if (match(value, /^[0-9]+$/) == null)
+        return { address: "127.0.0.1", port: 53 };
+    let port = int(value, 10);
+    return { address: "127.0.0.1", port: port >= 1 && port <= 65535 ? port : 53 };
+}
+
+// The local resolver answers "localhost" from its own hosts data, so an answer
+// proves the resolver itself, not its upstream connectivity.
+function local_resolver_answers(target, timeout_seconds) {
+    let output = command_output_from_args([
+        "dig", "@" + target.address, "-p", as_string(target.port),
+        "localhost", "A", "+short",
+        "+timeout=" + as_string(timeout_seconds), "+tries=1"
+    ]);
+    for (let line in split(output, "
+"))
+        if (valid_ipv4(trim(as_string(line))))
+            return true;
+    return false;
+}
+
+function dns_capture_chain_active() {
+    return command_success_from_args([ "nft", "list", "chain", "inet", NFT_TABLE_NAME, "dns_redirect" ]);
+}
+
 function dns_available_value() {
     let cfg = settings();
     let dns_servers = runtime_dns.server_list(cfg, "dns_server", "77.88.8.8");
     let bootstrap_dns_servers = runtime_dns.server_list(cfg, "bootstrap_dns_server", "77.88.8.8");
-    let dont_touch_dhcp = bool_option(cfg, "dont_touch_dhcp", false) ? 1 : 0;
+    let dns_capture_disabled = bool_option(cfg, "disable_dns_capture", false) ? 1 : 0;
     let domain = "example.com";
     let timeout_seconds = 2;
     let dns_status = 0;
     let dns_on_router = 0;
     let bootstrap_dns_status = 0;
     let encrypted_bootstrap = false;
-    let dhcp_config_status = 1;
 
     let active_dns_args = [
         "dig", "@" + SB_DNS_INBOUND_ADDRESS, domain, "A", "+short",
@@ -1133,8 +1163,9 @@ function dns_available_value() {
     if (!bootstrap_dns_status && encrypted_bootstrap && dns_status)
         bootstrap_dns_status = 1;
 
-    if (module_success(DNS_APPLY_UC, [ "has-managed-state" ]))
-        dhcp_config_status = 0;
+    let local_dns = local_resolver_target();
+    let local_dns_status = local_resolver_answers(local_dns, timeout_seconds) ? 1 : 0;
+    let dns_capture_status = !dns_capture_disabled && dns_capture_chain_active() ? 1 : 0;
 
     let display_dns_servers = [];
     for (let dns_server in dns_servers)
@@ -1145,8 +1176,10 @@ function dns_available_value() {
         dns_on_router,
         bootstrap_dns_server: join(", ", bootstrap_dns_servers),
         bootstrap_dns_status,
-        dhcp_config_status,
-        dont_touch_dhcp
+        local_dns_server: local_dns.address + ":" + as_string(local_dns.port),
+        local_dns_status,
+        dns_capture_status,
+        dns_capture_disabled
     };
 }
 
@@ -1415,7 +1448,7 @@ function global_check(arg1, arg2) {
     print_global(GLOBAL_CHECK_SEPARATOR);
     print_global("➡️ DNS status");
     let dns_value = dns_available_value();
-    let dns_render = report.dns_check(dns_value, dns_value.dont_touch_dhcp == 1);
+    let dns_render = report.dns_check(dns_value);
     print_global_lines(dns_render.lines);
     if (dns_render.dump_dhcp_config)
         print_global_lines(report.dnsmasq_config(mask.config_lines(fs.readfile("/etc/config/dhcp"))));

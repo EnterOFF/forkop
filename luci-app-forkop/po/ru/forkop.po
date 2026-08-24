@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-24 08:57+0300\n"
-"PO-Revision-Date: 2026-08-24 08:57+0300\n"
+"POT-Creation-Date: 2026-08-24 11:03+0300\n"
+"PO-Revision-Date: 2026-08-24 11:03+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -347,8 +347,8 @@ msgstr "Проверки не выполнены"
 msgid "Checks passed"
 msgstr "Проверки пройдены"
 
-msgid "Checks passed with manual DHCP"
-msgstr "Проверки пройдены с ручным DHCP"
+msgid "Checks passed with DNS capture disabled"
+msgstr "Проверки пройдены с отключённым перехватом DNS"
 
 msgid "ciadpi runtime has restarted"
 msgstr "ciadpi перезапускался"
@@ -518,12 +518,6 @@ msgstr "Устройство или IP"
 msgid "Devices"
 msgstr "Устройства"
 
-msgid "DHCP has DNS server"
-msgstr "DHCP содержит DNS сервер"
-
-msgid "DHCP is managed manually"
-msgstr "DHCP управляется вручную"
-
 msgid "Direct"
 msgstr "Напрямую"
 
@@ -539,8 +533,17 @@ msgstr "Отключает QUIC для совместимости и испра�
 msgid "Disabling interception is incompatible with action=zapret2 because Forkop sends matched traffic through NFQUEUE."
 msgstr "Отключение перехвата несовместимо с action=zapret2, потому что Forkop отправляет совпавший трафик через NFQUEUE."
 
+msgid "DNS capture active"
+msgstr "Перехват DNS активен"
+
+msgid "DNS capture is disabled"
+msgstr "Перехват DNS отключён"
+
 msgid "DNS on router"
 msgstr "DNS на роутере"
+
+msgid "DNS outside the rules"
+msgstr "DNS вне правил"
 
 msgid "DNS Query Mode"
 msgstr "Режим опроса DNS"
@@ -569,8 +572,11 @@ msgstr "Стратегия DNS"
 msgid "DNS through section"
 msgstr "DNS через секцию"
 
-msgid "Do not modify the DHCP configuration of the router"
-msgstr "Не изменять конфигурацию DHCP роутера"
+msgid "Do not capture DNS"
+msgstr "Не перехватывать DNS"
+
+msgid "Do not capture DNS from"
+msgstr "Не перехватывать DNS у"
 
 msgid "Does not resolve"
 msgstr "Не резолвится"
@@ -580,9 +586,6 @@ msgstr "Резолвер доменов"
 
 msgid "Domains"
 msgstr "Домены"
-
-msgid "Dont Touch My DHCP!"
-msgstr "Отключить управление DHCP"
 
 msgid "Downlink"
 msgstr "Входящий"
@@ -1121,6 +1124,9 @@ msgstr "Установлена последняя версия"
 msgid "Latest version:"
 msgstr "Последняя версия:"
 
+msgid "Leave client DNS untouched. Domain rules stop working for clients: without the capture their requests never reach Forkop"
+msgstr "Не трогать DNS клиентов. Правила по доменам перестанут работать для клиентов: без перехвата их запросы не попадают в Forkop"
+
 msgid "Level"
 msgstr "Уровень"
 
@@ -1153,6 +1159,9 @@ msgstr "Загрузка логов"
 
 msgid "Loading..."
 msgstr "Загрузка..."
+
+msgid "Local resolver"
+msgstr "Локальный резолвер"
 
 msgid "Local subnets the rest of the network may reach through this router"
 msgstr "Локальные подсети, доступные остальной сети через этот роутер"
@@ -1634,6 +1643,9 @@ msgstr "Маршрутизировать DNS-запросы резолвера �
 msgid "Route this client on its own path instead of the rest of the server"
 msgstr "Использовать для этого клиента отдельный путь маршрутизации вместо серверного"
 
+msgid "Router resolver"
+msgstr "Резолвер роутера"
+
 msgid "router SSH"
 msgstr "SSH роутера"
 
@@ -2048,6 +2060,9 @@ msgstr "Есть правила использующие Zapret"
 msgid "There are rules using Zapret2"
 msgstr "Есть правила, использующие Zapret2"
 
+msgid "These devices keep the DNS servers they have configured themselves"
+msgstr "Эти устройства продолжают пользоваться DNS-серверами, которые настроены на них самих"
+
 msgid "This field is required"
 msgstr "Заполните это поле"
 
@@ -2341,6 +2356,9 @@ msgstr "Какие серверы попадут в группу"
 
 msgid "Which servers to import"
 msgstr "Какие серверы импортировать"
+
+msgid "Who resolves domains no rule matched. The router resolver keeps local names, ad blocking and the provider DNS; Forkop DNS resolves everything itself and leaves only local names on the router"
+msgstr "Кто резолвит домены, не попавшие ни под одно правило. Резолвер роутера сохраняет локальные имена, блокировку рекламы и DNS провайдера; DNS Forkop резолвит всё сам и оставляет роутеру только локальные имена"
 
 msgid "WireGuard address and private key are required"
 msgstr "Адрес WireGuard и приватный ключ обязательны"

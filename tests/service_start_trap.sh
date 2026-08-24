@@ -125,12 +125,14 @@ require_file_pattern "$SINGBOX_WATCH_UC" 'if (!procd_remove_worker())' \
 awk '
   /function cleanup_failed_runtime\(\)/ { in_cleanup = 1 }
   in_cleanup && /stop_main\(\);/ { saw_stop = 1 }
-  in_cleanup && /dnsmasq_restore_fail_safe\(\);/ && saw_stop { saw_dns = 1 }
-  in_cleanup && /if \(status == 0\)/ && saw_dns { ok = 1; exit }
+  in_cleanup && /if \(status == 0\)/ && saw_stop { ok = 1; exit }
   in_cleanup && /^}/ { exit }
   END { exit ok ? 0 : 1 }
 ' "$LIFECYCLE_UC" ||
-  fail "failed runtime cleanup must stop partial runtime, roll back DNS, and mark clean shutdown"
+  fail "failed runtime cleanup must stop the partial runtime and mark a clean shutdown"
+if grep -Fq 'dnsmasq' "$LIFECYCLE_UC"; then
+  fail "the lifecycle must not know about dnsmasq: the nft capture dies with the runtime table"
+fi
 grep -Fq 'cleanup_failed_runtime();' "$LIFECYCLE_UC" ||
   fail "service failure paths must use failed runtime cleanup"
 awk '

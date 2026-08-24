@@ -35,7 +35,7 @@ grep -Fq 'function show_help()' "$FORKOP_BIN" ||
   fail "forkop ucode entrypoint must own help text"
 
 fake_lib="$WORK_DIR/lib"
-mkdir -p "$fake_lib/service" "$fake_lib/diagnostics" "$fake_lib/components" "$fake_lib/dns" \
+mkdir -p "$fake_lib/service" "$fake_lib/diagnostics" "$fake_lib/components" \
   "$fake_lib/singbox"
 
 cat >"$fake_lib/diagnostics/runtime.uc" <<'UCODE'
@@ -56,14 +56,6 @@ UCODE
 cat >"$fake_lib/components/action.uc" <<'UCODE'
 #!/usr/bin/env ucode
 print("action\t", ARGV[0], "\t", ARGV[1] || "", "\t", ARGV[2] || "", "\n");
-UCODE
-
-cat >"$fake_lib/dns/apply.uc" <<'UCODE'
-#!/usr/bin/env ucode
-let fs = require("fs");
-let marker = getenv("FORKOP_TEST_DNS_RESTORE_MARKER");
-if (marker != null && marker != "")
-    fs.writefile(marker, ARGV[0] || "");
 UCODE
 
 show_version_out="$(FORKOP_LIB="$fake_lib" ucode "$FORKOP_BIN" show_version)"
@@ -146,13 +138,11 @@ lifecycle_info="$(ucode -L "$FORKOP_LIB" "$FORKOP_LIB/service/lifecycle.uc" \
 
 rm -f "$fake_lib/service/lifecycle.uc"
 set +e
-FORKOP_TEST_DNS_RESTORE_MARKER="$WORK_DIR/dns-restore.marker" FORKOP_LIB="$fake_lib" \
+FORKOP_LIB="$fake_lib" \
   ucode "$FORKOP_BIN" start >/dev/null 2>"$WORK_DIR/missing.err"
 status="$?"
 set -e
 [ "$status" -ne 0 ] ||
   fail "missing lifecycle module must fail"
-[ "$(cat "$WORK_DIR/dns-restore.marker")" = "failsafe-restore" ] ||
-  fail "missing lifecycle module must trigger dnsmasq failsafe restore"
 
 printf 'CLI entrypoint checks passed\n'

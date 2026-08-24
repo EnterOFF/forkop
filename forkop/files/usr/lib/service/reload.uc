@@ -21,7 +21,6 @@ function emit_bool(name, value) {
 function emit_reload_plan(previous, current, context) {
     let changed = {
         service_triggers: current.service_trigger != previous.service_trigger,
-        dnsmasq: current.dnsmasq != previous.dnsmasq,
         sing_box: current.sing_box != previous.sing_box,
         nft: current.nft != previous.nft,
         zapret_queue: current.zapret_queue != previous.zapret_queue,
@@ -38,7 +37,6 @@ function emit_reload_plan(previous, current, context) {
         zapret_restart: false,
         zapret2_restart: false,
         byedpi_restart: false,
-        dnsmasq_restore: false,
         cron_refresh: false
     };
 
@@ -69,9 +67,6 @@ function emit_reload_plan(previous, current, context) {
     if (changed.byedpi_runtime)
         needs.byedpi_restart = true;
 
-    if (changed.dnsmasq && context.dnsmasq_managed_state)
-        needs.dnsmasq_restore = true;
-
     if (changed.cron)
         needs.cron_refresh = true;
 
@@ -85,8 +80,7 @@ function emit_reload_plan(previous, current, context) {
         !needs.nft_rebuild &&
         !needs.zapret_restart &&
         !needs.zapret2_restart &&
-        !needs.byedpi_restart &&
-        !needs.dnsmasq_restore)
+        !needs.byedpi_restart)
         needs.sing_box_reload = true;
 
     let has_work =
@@ -95,11 +89,9 @@ function emit_reload_plan(previous, current, context) {
         needs.zapret_restart ||
         needs.zapret2_restart ||
         needs.byedpi_restart ||
-        needs.dnsmasq_restore ||
         needs.cron_refresh;
 
     emit_bool("changed_service_triggers", changed.service_triggers);
-    emit_bool("changed_dnsmasq", changed.dnsmasq);
     emit_bool("changed_sing_box", changed.sing_box);
     emit_bool("changed_nft", changed.nft);
     emit_bool("changed_zapret_queue", changed.zapret_queue);
@@ -114,7 +106,6 @@ function emit_reload_plan(previous, current, context) {
     emit_bool("needs_zapret_restart", needs.zapret_restart);
     emit_bool("needs_zapret2_restart", needs.zapret2_restart);
     emit_bool("needs_byedpi_restart", needs.byedpi_restart);
-    emit_bool("needs_dnsmasq_restore", needs.dnsmasq_restore);
     emit_bool("needs_cron_refresh", needs.cron_refresh);
     emit_bool("has_work", has_work);
 }
@@ -149,7 +140,6 @@ function plan_state_from_file(path) {
     return {
         format: as_string(state.format),
         service_trigger: as_string(state.service_trigger_signature || state.restart_signature),
-        dnsmasq: as_string(state.dnsmasq_signature),
         sing_box: as_string(state.sing_box_signature),
         nft: as_string(state.nft_signature),
         zapret_queue: as_string(state.zapret_queue_signature),
@@ -169,8 +159,7 @@ function plan_state_files() {
 
     let context = {
         force_runtime_reload: arg_bool(ARGV[3]),
-        dnsmasq_managed_state: arg_bool(ARGV[4]),
-        runtime_cache_needs_rebuild: arg_bool(ARGV[5])
+        runtime_cache_needs_rebuild: arg_bool(ARGV[4])
     };
 
     emit_reload_plan(previous, current, context);
@@ -181,6 +170,6 @@ let mode = ARGV[0] || "";
 if (mode == "plan-state-files")
     plan_state_files();
 else {
-    warn("Usage: service/reload.uc plan-state-files <previous-state> <current-state> <force-reload> <dnsmasq-managed-state> <runtime-cache-needs-rebuild>\n");
+    warn("Usage: service/reload.uc plan-state-files <previous-state> <current-state> <force-reload> <runtime-cache-needs-rebuild>\n");
     exit(1);
 }

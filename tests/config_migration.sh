@@ -294,7 +294,7 @@ assert(JSON.stringify(config.settings.bootstrap_dns_server) === JSON.stringify([
 assert(config.settings.unified_delay === '0', 'Unified Delay default missing');
 assert(config.settings.config_version === '1.0.5', 'legacy config should be marked at the current schema version');
 assert(config.settings.component_update_check_enabled === '1', 'component update checks should be enabled during migration');
-assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'remove_expert_server_options', 'reality_handshake_sni', 'section_mixed_proxy_servers', 'remove_resolve_real_ip_for_routing']), 'legacy config should record named migrations');
+assert(JSON.stringify(config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'remove_expert_server_options', 'reality_handshake_sni', 'section_mixed_proxy_servers', 'remove_resolve_real_ip_for_routing', 'dns_capture_settings', 'restore_dnsmasq_takeover']), 'legacy config should record named migrations');
 
 function assert(condition, message) {
   if (!condition) {
@@ -645,7 +645,7 @@ function assert(condition, message) {
 assert(out.changed === true, '1.0.1 config should require migration');
 assert(out.config.settings.config_version === '1.0.5', 'config schema version should advance to 1.0.5');
 assert(out.config.settings.component_update_check_enabled === '1', 'updates from 1.0.1 and below should enable component update checks');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'remove_expert_server_options', 'reality_handshake_sni', 'section_mixed_proxy_servers', 'remove_resolve_real_ip_for_routing']), 'named migrations should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'remove_expert_server_options', 'reality_handshake_sni', 'section_mixed_proxy_servers', 'remove_resolve_real_ip_for_routing', 'dns_capture_settings', 'restore_dnsmasq_takeover']), 'named migrations should be recorded');
 assert(!Object.prototype.hasOwnProperty.call(section, 'interfaces'), 'parent interface list should be removed');
 assert(JSON.stringify(interfaces.map(item => item.name)) === JSON.stringify(['awg0', 'tun0']), 'interfaces should keep their order');
 for (const item of interfaces) {
@@ -846,7 +846,7 @@ function assert(condition, message) {
 
 assert(out.config.settings.component_update_check_enabled === '0', '1.0.2 config must preserve an explicitly disabled component check');
 assert(out.config.settings.config_version === '1.0.5', '1.0.2 config should advance through the HTTP URL migration schema');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'remove_expert_server_options', 'reality_handshake_sni', 'section_mixed_proxy_servers', 'remove_resolve_real_ip_for_routing']), 'newer configs should mark skipped migrations');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'remove_expert_server_options', 'reality_handshake_sni', 'section_mixed_proxy_servers', 'remove_resolve_real_ip_for_routing', 'dns_capture_settings', 'restore_dnsmasq_takeover']), 'newer configs should mark skipped migrations');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.4-http.json" <<'JSON'
@@ -899,7 +899,7 @@ assert(JSON.stringify(section.selector_proxy_links) === JSON.stringify([
 ]), 'connection URLs must stay owned by sing-box parser outbounds');
 assert(jsonOutbounds.length === 1 && jsonOutbounds[0].type === 'direct' && jsonOutbounds[0].tag === 'http',
   'the retired HTTP conversion must leave existing JSON outbounds unchanged');
-assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'remove_expert_server_options', 'reality_handshake_sni', 'section_mixed_proxy_servers', 'remove_resolve_real_ip_for_routing']), 'HTTP URL migration should be recorded');
+assert(JSON.stringify(out.config.settings.applied_migrations) === JSON.stringify(['interface_sections', 'enable_component_checks', 'http_connection_urls', 'remove_server_country_and_dashboard_filter', 'native_fallbacks', 'dns_fallback_modes', 'native_rule_sets', 'universal_rule_sets', 'leaf_subscription_providers', 'extended_server_defaults', 'fallback_uci_tags', 'reset_fallback_defaults', 'remove_proxy_parameter_filters', 'server_filter_model', 'server_filter_modes', 'single_subscription_user_agent', 'subscription_headers', 'interface_display_names', 'remove_section_cache', 'remove_dashboard_sort_options', 'dns_server_uris', 'interface_domain_resolver_uris', 'readable_runtime_tags', 'urltest_expected_status', 'group_interrupt_defaults', 'subscription_user_agent_header', 'mixed_server_inbounds', 'shadowsocks_server_keys', 'server_client_sections', 'remove_expert_server_options', 'reality_handshake_sni', 'section_mixed_proxy_servers', 'remove_resolve_real_ip_for_routing', 'dns_capture_settings', 'restore_dnsmasq_takeover']), 'HTTP URL migration should be recorded');
 NODE
 
 cat >"$WORK_DIR/forkop-1.0.5-http.json" <<'JSON'
@@ -1144,7 +1144,7 @@ assert(JSON.stringify(config.fallback_level.map(item => item.name)) === JSON.str
 assert(out.removed_caches.includes('/var/run/forkop/section-cache') &&
   out.removed_caches.includes('/var/run/forkop/runtime-manifest.json'),
   'readable tag migration must remove both legacy runtime graph files');
-assert(config.settings.applied_migrations.at(-1) === 'remove_resolve_real_ip_for_routing',
+assert(config.settings.applied_migrations.at(-1) === 'restore_dnsmasq_takeover',
   'readable runtime tag migration must be recorded');
 NODE
 
@@ -1257,7 +1257,7 @@ if (!out.changed || config.section[0].sort_by_latency !== undefined ||
 }
 if (config.urltest[0].name !== 'Fast' || config.fallback_group[0].name !== 'Fallback' ||
     !config.settings.applied_migrations.includes('remove_dashboard_sort_options') ||
-    config.settings.applied_migrations.at(-1) !== 'remove_resolve_real_ip_for_routing') {
+    config.settings.applied_migrations.at(-1) !== 'restore_dnsmasq_takeover') {
   console.error('dashboard sort migration changed unrelated settings or missed its marker');
   process.exit(1);
 }
@@ -1351,7 +1351,7 @@ assert(sections.doh.dns_type === undefined &&
   'DNS action should preserve the old DoH path as a list');
 assert(JSON.stringify(sections.udp.dns_server) === JSON.stringify(['8.8.8.8']),
   'DNS action should migrate explicit UDP without a redundant scheme');
-assert(config.settings.applied_migrations.at(-1) === 'remove_resolve_real_ip_for_routing',
+assert(config.settings.applied_migrations.at(-1) === 'restore_dnsmasq_takeover',
   'DNS URI migration marker should be recorded');
 
 fs.writeFileSync(process.argv[3], JSON.stringify(config));
@@ -2152,5 +2152,204 @@ ucode -L "$FORKOP_LIB" "$MIGRATION" commit
 
 grep -Fxq 'commit forkop' "$WORK_DIR/uci-commit.log" ||
   fail "commit mode must commit forkop through core.uci"
+
+# --- DNS capture settings: released 1.0.5 options move or leave ---
+
+cat >"$WORK_DIR/dns-capture-settings.json" <<'JSON'
+{
+  "settings": {
+    ".name": "settings",
+    ".type": "settings",
+    "config_version": "1.0.5",
+    "dont_touch_dhcp": "1",
+    "shutdown_correctly": "0"
+  }
+}
+JSON
+
+FORKOP_LIB="$FORKOP_LIB" ucode -L "$FORKOP_LIB" "$MIGRATION" migrate-fixture \
+  "$WORK_DIR/dns-capture-settings.json" >"$WORK_DIR/dns-capture-settings-output.json"
+
+node - "$WORK_DIR/dns-capture-settings-output.json" "$WORK_DIR/dns-capture-settings-migrated.json" <<'NODE'
+const fs = require('fs');
+const out = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const settings = out.config.settings;
+
+function assert(condition, message) {
+  if (!condition) {
+    console.error(message);
+    process.exit(1);
+  }
+}
+
+assert(settings.disable_dns_capture === '1', 'dont_touch_dhcp intent must survive as disable_dns_capture');
+assert(!Object.prototype.hasOwnProperty.call(settings, 'dont_touch_dhcp'), 'released dont_touch_dhcp must be removed');
+assert(!Object.prototype.hasOwnProperty.call(settings, 'shutdown_correctly'), 'released shutdown_correctly must be removed');
+assert(settings.applied_migrations.includes('dns_capture_settings'), 'settings migration must be recorded');
+assert(settings.applied_migrations.includes('restore_dnsmasq_takeover'), 'dnsmasq restore request must be recorded');
+assert(out.restore_dnsmasq === true, 'first migration run must request the one-time dnsmasq restore');
+fs.writeFileSync(process.argv[3], JSON.stringify(out.config));
+NODE
+
+FORKOP_LIB="$FORKOP_LIB" ucode -L "$FORKOP_LIB" "$MIGRATION" migrate-fixture \
+  "$WORK_DIR/dns-capture-settings-migrated.json" >"$WORK_DIR/dns-capture-settings-rerun.json"
+
+node - "$WORK_DIR/dns-capture-settings-output.json" "$WORK_DIR/dns-capture-settings-rerun.json" <<'NODE'
+const fs = require('fs');
+const first = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const second = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
+
+if (JSON.stringify(first.config) !== JSON.stringify(second.config)) {
+  console.error('the DNS capture settings migration is not idempotent');
+  process.exit(1);
+}
+if (second.restore_dnsmasq !== false) {
+  console.error('a recorded dnsmasq restore must never be requested again');
+  process.exit(1);
+}
+if (second.operations.some((item) => item.option === 'dont_touch_dhcp' || item.option === 'shutdown_correctly')) {
+  console.error('the second run must not touch the released options again');
+  process.exit(1);
+}
+NODE
+
+# --- dnsmasq restore plan: what the one-time cleanup does to /etc/config/dhcp ---
+
+restore_plan() {
+  FORKOP_LIB="$FORKOP_LIB" ucode -L "$FORKOP_LIB" "$MIGRATION" restore-dnsmasq-fixture "$1"
+}
+
+cat >"$WORK_DIR/dnsmasq-takeover-backups.json" <<'JSON'
+{
+  "dnsmasq": {
+    "server": [ "127.0.0.42" ],
+    "noresolv": "1",
+    "cachesize": "0",
+    "rebind_protection": "0",
+    "forkop_server": [ "1.1.1.1", "tls://8.8.8.8" ],
+    "forkop_rebind_protection": "__unset__"
+  }
+}
+JSON
+cat >"$WORK_DIR/dnsmasq-takeover-bare.json" <<'JSON'
+{
+  "dnsmasq": {
+    "server": [ "127.0.0.42", "192.168.10.1" ],
+    "noresolv": "1",
+    "cachesize": "0"
+  }
+}
+JSON
+cat >"$WORK_DIR/dnsmasq-takeover-podkop.json" <<'JSON'
+{
+  "dnsmasq": {
+    "server": [ "127.0.0.42" ],
+    "noresolv": "1",
+    "cachesize": "0",
+    "podkop_server": [ "8.8.8.8" ],
+    "podkop_noresolv": "1",
+    "podkop_cachesize": "4096"
+  }
+}
+JSON
+cat >"$WORK_DIR/dnsmasq-legacy-instance.json" <<'JSON'
+{
+  "dnsmasq": {
+    "server": [ "9.9.9.9" ],
+    "notinterface": [ "br-lan", "wlan0" ]
+  },
+  "legacy_present": true,
+  "legacy_interfaces": "br-lan"
+}
+JSON
+cat >"$WORK_DIR/dnsmasq-clean.json" <<'JSON'
+{
+  "dnsmasq": {
+    "server": [ "192.168.10.1" ],
+    "noresolv": "0",
+    "cachesize": "150"
+  }
+}
+JSON
+
+restore_plan "$WORK_DIR/dnsmasq-takeover-backups.json" >"$WORK_DIR/plan-backups.json"
+restore_plan "$WORK_DIR/dnsmasq-takeover-bare.json" >"$WORK_DIR/plan-bare.json"
+restore_plan "$WORK_DIR/dnsmasq-takeover-podkop.json" >"$WORK_DIR/plan-podkop.json"
+restore_plan "$WORK_DIR/dnsmasq-legacy-instance.json" >"$WORK_DIR/plan-legacy.json"
+restore_plan "$WORK_DIR/dnsmasq-clean.json" >"$WORK_DIR/plan-clean.json"
+
+node - "$WORK_DIR/plan-backups.json" "$WORK_DIR/plan-bare.json" "$WORK_DIR/plan-podkop.json" \
+  "$WORK_DIR/plan-legacy.json" "$WORK_DIR/plan-clean.json" <<'NODE'
+const fs = require('fs');
+const [backups, bare, podkop, legacy, clean] =
+  process.argv.slice(2).map((path) => JSON.parse(fs.readFileSync(path, 'utf8')));
+
+function assert(condition, message) {
+  if (!condition) {
+    console.error(message);
+    process.exit(1);
+  }
+}
+
+assert(backups.changed === true, 'a takeover with backups must be restored');
+assert(JSON.stringify(backups.set_lists.server) === JSON.stringify(['1.1.1.1', 'tls://8.8.8.8']), 'the recorded servers must come back verbatim');
+assert(backups.set.noresolv === '0' && backups.set.cachesize === '150', 'options without a recorded value return to OpenWrt defaults');
+assert(backups.delete_options.includes('rebind_protection'), 'a rebind protection recorded as absent must be removed');
+assert(backups.delete_options.includes('forkop_server') && backups.delete_options.includes('forkop_rebind_protection'), 'the backup options themselves must go');
+
+assert(bare.changed === true, 'a takeover without backups must still be cleaned');
+assert(JSON.stringify(bare.set_lists.server) === JSON.stringify(['192.168.10.1']), 'only the sing-box resolver entry leaves the server list');
+assert(bare.set.noresolv === '0' && bare.set.cachesize === '150', 'the takeover values return to OpenWrt defaults');
+assert(!Object.prototype.hasOwnProperty.call(bare.set, 'rebind_protection') && !bare.delete_options.includes('rebind_protection'), 'an option the takeover has no record of stays untouched');
+
+assert(JSON.stringify(podkop.set_lists.server) === JSON.stringify(['8.8.8.8']), 'podkop backups restore the same way');
+assert(podkop.set.noresolv === '1' && podkop.set.cachesize === '4096', 'podkop recorded values come back verbatim');
+assert(podkop.delete_options.includes('podkop_server'), 'podkop backup options must go');
+
+assert(legacy.changed === true && legacy.delete_legacy_instance === true, 'the legacy dhcp.forkop instance must be dropped');
+assert(JSON.stringify(legacy.set_lists.notinterface) === JSON.stringify(['wlan0']), 'only the interfaces the legacy instance claimed leave notinterface');
+
+assert(clean.changed === false, 'an untouched dnsmasq must not be written at all');
+NODE
+
+# --- runtime path: the one-time restore edits and commits /etc/config/dhcp ---
+
+cat >"$WORK_DIR/restore-runtime.state" <<'EOF_UCI'
+forkop.settings=settings
+forkop.settings.config_version=1.0.5
+forkop.settings.dont_touch_dhcp=0
+forkop.settings.shutdown_correctly=0
+dhcp.cfg01=dnsmasq
+dhcp.cfg01.server=127.0.0.42
+dhcp.cfg01.noresolv=1
+dhcp.cfg01.cachesize=0
+dhcp.cfg01.rebind_protection=0
+dhcp.cfg01.forkop_server=1.1.1.1
+dhcp.cfg01.forkop_rebind_protection=__unset__
+EOF_UCI
+
+: >"$WORK_DIR/restore-runtime.log"
+FORKOP_UCI_STATE_FILE="$WORK_DIR/restore-runtime.state" \
+FORKOP_UCI_LOG_FILE="$WORK_DIR/restore-runtime.log" \
+FORKOP_CONFIG_NAME="forkop" \
+FORKOP_INTERNAL_CONFIG_TRIGGER_GUARD="$WORK_DIR/internal-config-change" \
+DNSMASQ_INIT="$WORK_DIR/missing-dnsmasq-init" \
+ucode -L "$FORKOP_LIB" "$MIGRATION" migrate ||
+  fail "runtime migration with a patched dnsmasq must succeed"
+
+grep -Fq '127.0.0.42' "$WORK_DIR/restore-runtime.state" &&
+  fail "the sing-box resolver must leave /etc/config/dhcp"
+grep -Fq 'dhcp.cfg01.server=1.1.1.1' "$WORK_DIR/restore-runtime.state" ||
+  fail "the recorded dnsmasq servers must be restored"
+grep -Fq 'dhcp.cfg01.noresolv=0' "$WORK_DIR/restore-runtime.state" ||
+  fail "noresolv must return to its default"
+grep -Eq 'dhcp\.cfg01\.(forkop_server|forkop_rebind_protection|rebind_protection)=' "$WORK_DIR/restore-runtime.state" &&
+  fail "the takeover leftovers must leave /etc/config/dhcp"
+grep -Fq 'forkop.settings.disable_dns_capture' "$WORK_DIR/restore-runtime.state" &&
+  fail "a disabled dont_touch_dhcp must not become a capture switch"
+grep -Fq 'shutdown_correctly' "$WORK_DIR/restore-runtime.state" &&
+  fail "shutdown_correctly must leave the runtime configuration"
+grep -Fxq 'commit dhcp' "$WORK_DIR/restore-runtime.log" ||
+  fail "the dhcp restore must commit through core.uci"
 
 printf 'installer config migration checks passed\n'

@@ -104,17 +104,6 @@ function truthy(value) {
     return value == "1" || value == "true" || value == "yes" || value == "on";
 }
 
-function dont_touch_dhcp_enabled() {
-    return truthy(uci_core.get(CONFIG_NAME + ".settings.dont_touch_dhcp"));
-}
-
-function restore_dnsmasq_if_needed() {
-    if (dont_touch_dhcp_enabled())
-        return;
-
-    command_success_from_args([ BIN_PATH, "restore_dnsmasq" ]);
-}
-
 function remember_upgrade_state(action) {
     if (as_string(action) != "upgrade") {
         unlink_if_exists(PACKAGE_UPGRADE_STATE);
@@ -143,7 +132,6 @@ function prerm_cleanup(action) {
             }
         }
         command_success_from_args([ INIT_PATH, "stop" ]);
-        restore_dnsmasq_if_needed();
     }
     bytecode.invalidate_validation_stamp();
     return remove_rt_tables_entry();
@@ -186,7 +174,10 @@ const OBSOLETE_STATE_FILES = [
 ];
 
 const OBSOLETE_STATE_DIRS = [
-    "/var/run/forkop/component-update-checks"
+    "/var/run/forkop/component-update-checks",
+    // The dnsmasq takeover modules lived here; the upgrade removes the files it
+    // owned but leaves their directory behind.
+    "/usr/lib/forkop/dns"
 ];
 
 function remove_obsolete_state_files() {

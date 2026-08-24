@@ -134,7 +134,6 @@ function object_or_empty(value) {
 const RELOAD_STATE_FIELDS = [
     "format",
     "service_trigger_signature",
-    "dnsmasq_signature",
     "sing_box_signature",
     "nft_signature",
     "zapret_queue_signature",
@@ -449,10 +448,6 @@ function print_signature_hash(body) {
     return true;
 }
 
-function dont_touch_dhcp_value(settings) {
-    return bool_option(settings, "dont_touch_dhcp", false) ? "1" : "0";
-}
-
 function service_trigger_signature_body(settings) {
     let enabled = bool_option(settings, "enable_badwan_interface_monitoring", false);
     let body = signature_add_value("", "settings.enable_badwan_interface_monitoring", enabled ? "1" : "0");
@@ -461,21 +456,6 @@ function service_trigger_signature_body(settings) {
         body = signature_add_value(body, "settings.badwan_monitored_interfaces", option(settings, "badwan_monitored_interfaces", ""));
         body = signature_add_value(body, "settings.badwan_reload_delay", option(settings, "badwan_reload_delay", "2000"));
     }
-
-    return body;
-}
-
-function dnsmasq_signature_body(settings, dnsmasq, legacy_dnsmasq_present) {
-    let body = "";
-
-    body = signature_add_value(body, "settings.dont_touch_dhcp", dont_touch_dhcp_value(settings));
-    body = signature_add_value(body, "dhcp.@dnsmasq[0].server", option(dnsmasq, "server", ""));
-    body = signature_add_value(body, "dhcp.@dnsmasq[0].noresolv", option(dnsmasq, "noresolv", ""));
-    body = signature_add_value(body, "dhcp.@dnsmasq[0].cachesize", option(dnsmasq, "cachesize", ""));
-    body = signature_add_value(body, "dhcp.@dnsmasq[0].forkop_server", option(dnsmasq, "forkop_server", ""));
-    body = signature_add_value(body, "dhcp.@dnsmasq[0].forkop_noresolv", option(dnsmasq, "forkop_noresolv", ""));
-    body = signature_add_value(body, "dhcp.@dnsmasq[0].forkop_cachesize", option(dnsmasq, "forkop_cachesize", ""));
-    body = signature_add_value(body, "dhcp.forkop.present", arg_bool(legacy_dnsmasq_present) ? "1" : "0");
 
     return body;
 }
@@ -864,11 +844,19 @@ function append_sing_box_server_signature_body(body, server) {
     return body;
 }
 
-function sing_box_signature_body(settings, sections, servers, mwan3_active) {
+function sing_box_signature_body(settings, sections, servers, mwan3_active, local_dns) {
     settings = object_or_empty(settings);
+    local_dns = object_or_empty(local_dns);
     let body = "";
 
     body = signature_add_value(body, "settings.dns_strategy", option(settings, "dns_strategy", "prefer_ipv4"));
+    body = signature_add_value(body, "settings.disable_dns_capture", bool_option_value(settings, "disable_dns_capture", false));
+    body = signature_add_value(body, "settings.unmatched_dns_mode", option(settings, "unmatched_dns_mode", "router"));
+    body = signature_add_value(body, "settings.dns_capture_exclude_ips", option(settings, "dns_capture_exclude_ips", ""));
+    // The generated config dials the local resolver where dnsmasq actually
+    // listens, so moving or renaming it has to count as a config change.
+    body = signature_add_value(body, "dhcp.@dnsmasq[0].port", option(local_dns, "port", ""));
+    body = signature_add_value(body, "dhcp.@dnsmasq[0].domain", option(local_dns, "domain", ""));
     for (let value in list_option(settings, "dns_server", "77.88.8.8"))
         body = signature_add_value(body, "settings.dns_server", value);
     for (let value in list_option(settings, "bootstrap_dns_server", "77.88.8.8"))
@@ -1010,12 +998,11 @@ function byedpi_runtime_signature_body(sections) {
     return body;
 }
 
-function reload_state_values_from_sources(format, settings, sections, servers, dnsmasq, legacy_dnsmasq_present, mwan3_active_value, nft_signature) {
+function reload_state_values_from_sources(format, settings, sections, servers, dnsmasq, mwan3_active_value, nft_signature) {
     return {
         format: as_string(format),
         service_trigger_signature: signature_hash(service_trigger_signature_body(settings)),
-        dnsmasq_signature: signature_hash(dnsmasq_signature_body(settings, dnsmasq, legacy_dnsmasq_present)),
-        sing_box_signature: signature_hash(sing_box_signature_body(settings, sections, servers, mwan3_active_value)),
+        sing_box_signature: signature_hash(sing_box_signature_body(settings, sections, servers, mwan3_active_value, dnsmasq)),
         nft_signature: as_string(nft_signature),
         zapret_queue_signature: signature_hash(action_queue_signature_body(sections, "zapret", "zapret_queue.section")),
         zapret_runtime_signature: signature_hash(zapret_runtime_signature_body(sections)),
@@ -1084,10 +1071,6 @@ function fixture_dnsmasq(data) {
     return object_or_empty(object_or_empty(data).dhcp_dnsmasq);
 }
 
-function fixture_legacy_dnsmasq_present(data) {
-    return object_or_empty(data).legacy_dnsmasq_present;
-}
-
 function fixture_mwan3_active(data) {
     return arg_bool(object_or_empty(object_or_empty(data).runtime).mwan3_active);
 }
@@ -1098,12 +1081,8 @@ function uci_settings() {
 
 function uci_dnsmasq() {
     return {
-        server: uci_get("dhcp.@dnsmasq[0].server"),
-        noresolv: uci_get("dhcp.@dnsmasq[0].noresolv"),
-        cachesize: uci_get("dhcp.@dnsmasq[0].cachesize"),
-        forkop_server: uci_get("dhcp.@dnsmasq[0].forkop_server"),
-        forkop_noresolv: uci_get("dhcp.@dnsmasq[0].forkop_noresolv"),
-        forkop_cachesize: uci_get("dhcp.@dnsmasq[0].forkop_cachesize")
+        port: uci_get("dhcp.@dnsmasq[0].port"),
+        domain: uci_get("dhcp.@dnsmasq[0].domain")
     };
 }
 
@@ -1117,7 +1096,6 @@ function current_reload_state_values(format) {
         sections,
         uci_servers(),
         uci_dnsmasq(),
-        uci_exists("dhcp.forkop"),
         mwan3_active(),
         nft_runtime_signature([ "nft-runtime-signature" ])
     );
@@ -1163,7 +1141,6 @@ function fixture_reload_state_values(path, data, format) {
         sections,
         fixture_servers(data),
         fixture_dnsmasq(data),
-        fixture_legacy_dnsmasq_present(data),
         fixture_mwan3_active(data),
         nft_runtime_signature([ "nft-runtime-signature-fixture", path ])
     );
@@ -1223,21 +1200,15 @@ else if (mode == "service-trigger-signature-fixture") {
     let data = fixture_data(ARGV[1]);
     exit(print_signature_hash(service_trigger_signature_body(fixture_settings(data))) ? 0 : 1);
 }
-else if (mode == "dnsmasq-signature")
-    exit(print_signature_hash(dnsmasq_signature_body(uci_settings(), uci_dnsmasq(), uci_exists("dhcp.forkop"))) ? 0 : 1);
-else if (mode == "dnsmasq-signature-fixture") {
-    let data = fixture_data(ARGV[1]);
-    exit(print_signature_hash(dnsmasq_signature_body(fixture_settings(data), fixture_dnsmasq(data), fixture_legacy_dnsmasq_present(data))) ? 0 : 1);
-}
 else if (mode == "sing-box-signature")
-    exit(print_signature_hash(sing_box_signature_body(uci_settings(), uci_sections("section"), uci_servers(), mwan3_active())) ? 0 : 1);
+    exit(print_signature_hash(sing_box_signature_body(uci_settings(), uci_sections("section"), uci_servers(), mwan3_active(), uci_dnsmasq())) ? 0 : 1);
 else if (mode == "sing-box-signature-fixture") {
     let data = fixture_data(ARGV[1]);
-    exit(print_signature_hash(sing_box_signature_body(fixture_settings(data), fixture_section_list(data), fixture_servers(data), fixture_mwan3_active(data))) ? 0 : 1);
+    exit(print_signature_hash(sing_box_signature_body(fixture_settings(data), fixture_section_list(data), fixture_servers(data), fixture_mwan3_active(data), fixture_dnsmasq(data))) ? 0 : 1);
 }
 else if (mode == "sing-box-signature-body-fixture") {
     let data = fixture_data(ARGV[1]);
-    print(sing_box_signature_body(fixture_settings(data), fixture_section_list(data), fixture_servers(data), fixture_mwan3_active(data)));
+    print(sing_box_signature_body(fixture_settings(data), fixture_section_list(data), fixture_servers(data), fixture_mwan3_active(data), fixture_dnsmasq(data)));
 }
 else if (mode == "zapret-queue-signature")
     exit(print_signature_hash(action_queue_signature_body(uci_sections("section"), "zapret", "zapret_queue.section")) ? 0 : 1);
@@ -1268,12 +1239,6 @@ else if (mode == "byedpi-runtime-signature")
 else if (mode == "byedpi-runtime-signature-fixture") {
     let data = fixture_data(ARGV[1]);
     exit(print_signature_hash(byedpi_runtime_signature_body(fixture_section_list(data))) ? 0 : 1);
-}
-else if (mode == "dont-touch-dhcp")
-    print(dont_touch_dhcp_value(uci_settings()), "\n");
-else if (mode == "dont-touch-dhcp-fixture") {
-    let data = fixture_data(ARGV[1]);
-    print(dont_touch_dhcp_value(fixture_settings(data)), "\n");
 }
 else if (mode == "settings-update-interval-fixture") {
     let data = fixture_data(ARGV[1]);

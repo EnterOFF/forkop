@@ -8023,20 +8023,20 @@ function getMeta({ allGood, atLeastOneGood }) {
 
 // src/forkop/tabs/diagnostic/checks/getDnsCheckPresentation.ts
 function getDnsCheckPresentation(data) {
-  const dhcpManagedManually = Boolean(data.dont_touch_dhcp);
-  const dhcpCheckOk = dhcpManagedManually || Boolean(data.dhcp_config_status);
-  const allGood = Boolean(data.dns_on_router) && dhcpCheckOk && Boolean(data.bootstrap_dns_status) && Boolean(data.dns_status);
-  const atLeastOneGood = Boolean(data.dns_on_router) || dhcpCheckOk || Boolean(data.bootstrap_dns_status) || Boolean(data.dns_status);
+  const captureDisabled = Boolean(data.dns_capture_disabled);
+  const captureOk = captureDisabled || Boolean(data.dns_capture_status);
+  const allGood = Boolean(data.dns_on_router) && Boolean(data.local_dns_status) && captureOk && Boolean(data.bootstrap_dns_status) && Boolean(data.dns_status);
+  const atLeastOneGood = Boolean(data.dns_on_router) || Boolean(data.local_dns_status) || captureOk || Boolean(data.bootstrap_dns_status) || Boolean(data.dns_status);
   const meta = getMeta({ atLeastOneGood, allGood });
-  const state = dhcpManagedManually && meta.state === "success" ? "warning" : meta.state;
-  const description = dhcpManagedManually && meta.state === "success" ? _("Checks passed with manual DHCP") : meta.description;
-  const dhcpItemState = dhcpManagedManually ? "warning" : data.dhcp_config_status ? "success" : "error";
-  const dhcpItemKey = dhcpManagedManually ? _("DHCP is managed manually") : _("DHCP has DNS server");
+  const state = captureDisabled && meta.state === "success" ? "warning" : meta.state;
+  const description = captureDisabled && meta.state === "success" ? _("Checks passed with DNS capture disabled") : meta.description;
+  const captureItemState = captureDisabled ? "warning" : data.dns_capture_status ? "success" : "error";
+  const captureItemKey = captureDisabled ? _("DNS capture is disabled") : _("DNS capture active");
   return {
     state,
     description,
-    dhcpItemState,
-    dhcpItemKey
+    captureItemState,
+    captureItemKey
   };
 }
 
@@ -8064,7 +8064,7 @@ async function runDnsCheck() {
     throw new Error("DNS checks failed");
   }
   const data = dnsChecks.data;
-  const { state, description, dhcpItemState, dhcpItemKey } = getDnsCheckPresentation(data);
+  const { state, description, captureItemState, captureItemKey } = getDnsCheckPresentation(data);
   updateCheckStore({
     order,
     code,
@@ -8088,8 +8088,13 @@ async function runDnsCheck() {
         value: ""
       },
       {
-        state: dhcpItemState,
-        key: dhcpItemKey,
+        state: data.local_dns_status ? "success" : "error",
+        key: _("Local resolver"),
+        value: data.local_dns_server
+      },
+      {
+        state: captureItemState,
+        key: captureItemKey,
         value: ""
       }
     ]

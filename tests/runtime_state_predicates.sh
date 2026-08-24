@@ -457,18 +457,12 @@ cat >"$WORK_DIR/service-dns-state.json" <<'JSON'
   "settings": {
     "enable_badwan_interface_monitoring": "1",
     "badwan_monitored_interfaces": [ "wan", "wwan" ],
-    "badwan_reload_delay": "3500",
-    "dont_touch_dhcp": "1"
+    "badwan_reload_delay": "3500"
   },
   "dhcp_dnsmasq": {
-    "server": [ "1.1.1.1#53", "8.8.8.8" ],
-    "noresolv": "1",
-    "cachesize": "0",
-    "forkop_server": [ "127.0.0.42#53" ],
-    "forkop_noresolv": "0",
-    "forkop_cachesize": "1500"
-  },
-  "legacy_dnsmasq_present": true
+    "port": "5353",
+    "domain": "home"
+  }
 }
 JSON
 
@@ -481,34 +475,26 @@ wan wwan
 3500
 EOF_SERVICE_TRIGGER
 
-cat >"$WORK_DIR/dnsmasq-signature.expected" <<'EOF_DNSMASQ_SIG'
-[settings.dont_touch_dhcp]
-1
-[dhcp.@dnsmasq[0].server]
-1.1.1.1#53 8.8.8.8
-[dhcp.@dnsmasq[0].noresolv]
-1
-[dhcp.@dnsmasq[0].cachesize]
-0
-[dhcp.@dnsmasq[0].forkop_server]
-127.0.0.42#53
-[dhcp.@dnsmasq[0].forkop_noresolv]
-0
-[dhcp.@dnsmasq[0].forkop_cachesize]
-1500
-[dhcp.forkop.present]
-1
-EOF_DNSMASQ_SIG
-
 assert_eq "$(md5_file "$WORK_DIR/service-trigger.expected")" \
   "$(state_ucode service-trigger-signature-fixture "$WORK_DIR/service-dns-state.json")" \
   "service trigger signature hash"
-assert_eq "$(md5_file "$WORK_DIR/dnsmasq-signature.expected")" \
-  "$(state_ucode dnsmasq-signature-fixture "$WORK_DIR/service-dns-state.json")" \
-  "dnsmasq signature hash"
-assert_eq "1" \
-  "$(state_ucode dont-touch-dhcp-fixture "$WORK_DIR/service-dns-state.json")" \
-  "dont_touch_dhcp value"
+
+# The local resolver location is part of the generated sing-box config, so the
+# sing-box signature must move when dnsmasq is moved to another port or domain.
+sing_box_body="$(state_ucode sing-box-signature-body-fixture "$WORK_DIR/service-dns-state.json")"
+for expected_field in \
+  '[dhcp.@dnsmasq[0].port]
+5353' \
+  '[dhcp.@dnsmasq[0].domain]
+home' \
+  '[settings.disable_dns_capture]' \
+  '[settings.unmatched_dns_mode]' \
+  '[settings.dns_capture_exclude_ips]'; do
+  case "$sing_box_body" in
+    *"$expected_field"* ) ;;
+    *) fail "sing-box signature must carry $expected_field" ;;
+  esac
+done
 
 cat >"$WORK_DIR/service-trigger-disabled.json" <<'JSON'
 {
@@ -528,9 +514,6 @@ EOF_SERVICE_TRIGGER_DISABLED
 assert_eq "$(md5_file "$WORK_DIR/service-trigger-disabled.expected")" \
   "$(state_ucode service-trigger-signature-fixture "$WORK_DIR/service-trigger-disabled.json")" \
   "disabled service trigger signature hash"
-assert_eq "0" \
-  "$(state_ucode dont-touch-dhcp-fixture "$WORK_DIR/service-trigger-disabled.json")" \
-  "default dont_touch_dhcp value"
 
 cat >"$WORK_DIR/service-trigger-default-delay.json" <<'JSON'
 {
@@ -700,6 +683,16 @@ JSON
 cat >"$WORK_DIR/sing-box-signature.expected" <<'EOF_SING_BOX_SIG'
 [settings.dns_strategy]
 prefer_ipv6
+[settings.disable_dns_capture]
+0
+[settings.unmatched_dns_mode]
+router
+[settings.dns_capture_exclude_ips]
+
+[dhcp.@dnsmasq[0].port]
+
+[dhcp.@dnsmasq[0].domain]
+
 [settings.dns_server]
 tcp://9.9.9.9
 [settings.bootstrap_dns_server]
@@ -1414,9 +1407,8 @@ if [ "$(nft_ucode nft-runtime-signature-fixture "$WORK_DIR/dns-action-signature-
 fi
 
 cat >"$WORK_DIR/reload-state.expected" <<EOF_RELOAD_STATE
-format=1
+format=2
 service_trigger_signature=$(state_ucode service-trigger-signature-fixture "$WORK_DIR/reload-state-signatures.json")
-dnsmasq_signature=$(state_ucode dnsmasq-signature-fixture "$WORK_DIR/reload-state-signatures.json")
 sing_box_signature=$(state_ucode sing-box-signature-fixture "$WORK_DIR/reload-state-signatures.json")
 nft_signature=$nft_signature
 zapret_queue_signature=$(state_ucode zapret-queue-signature-fixture "$WORK_DIR/reload-state-signatures.json")
@@ -1428,7 +1420,7 @@ cron_signature=$(state_ucode cron-signature-fixture "$WORK_DIR/reload-state-sign
 EOF_RELOAD_STATE
 
 assert_eq "$(cat "$WORK_DIR/reload-state.expected")" \
-  "$(state_ucode reload-state-text-fixture "$WORK_DIR/reload-state-signatures.json" 1)" \
+  "$(state_ucode reload-state-text-fixture "$WORK_DIR/reload-state-signatures.json" 2)" \
   "reload state aggregate text"
 
 cat >"$WORK_DIR/disabled-update-interval.json" <<'JSON'

@@ -333,8 +333,10 @@ export namespace Forkop {
     dns_on_router: 0 | 1;
     bootstrap_dns_server: string;
     bootstrap_dns_status: 0 | 1;
-    dhcp_config_status: 0 | 1;
-    dont_touch_dhcp: 0 | 1;
+    local_dns_server: string;
+    local_dns_status: 0 | 1;
+    dns_capture_status: 0 | 1;
+    dns_capture_disabled: 0 | 1;
   }
 
   export interface NftRulesCheckResult {

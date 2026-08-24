@@ -14,6 +14,11 @@ let rule_config = require("config.rule");
 let connections = require("config.connections");
 let uci = null;
 let fixture_uci_data = null;
+
+// Whether client and router DNS is captured into sing-box at all. Set from the
+// settings once per generation; device-scoped DNS rules and the capture
+// inbounds only exist while it is on.
+let runtime_dns_capture = true;
 let runtime_settings_cache = null;
 
 let as_string = common.as_string;
@@ -129,6 +134,43 @@ function runtime_settings() {
     if (runtime_settings_cache == null)
         runtime_settings_cache = object_or_empty(uci_cursor().get_all(CONFIG_NAME, "settings"));
     return runtime_settings_cache;
+}
+
+function dhcp_dnsmasq_section() {
+    if (fixture_uci_data != null)
+        return object_or_empty(fixture_uci_data.dhcp_dnsmasq);
+    return object_or_empty(uci_core.get_all("dhcp", "@dnsmasq[0]"));
+}
+
+// Where unmatched client queries are handed back to. dnsmasq owns 127.0.0.1:53
+// unless it was moved off the port; an AdGuard Home install keeps dnsmasq on
+// another port or disables it, and whatever replaced it takes 127.0.0.1:53 by
+// the same convention the system resolver relies on.
+function local_resolver_port() {
+    let value = trim(as_string(option(dhcp_dnsmasq_section(), "port", "")));
+    if (match(value, /^[0-9]+$/) == null)
+        return 53;
+    let port = int(value, 10);
+    return port >= 1 && port <= 65535 ? port : 53;
+}
+
+function local_resolver_domain() {
+    let value = trim(as_string(option(dhcp_dnsmasq_section(), "domain", "")));
+    return value == "" ? "lan" : value;
+}
+
+function dns_capture_enabled(settings) {
+    return !bool_option(settings, "disable_dns_capture", false);
+}
+
+// The server that answers a client query no section rule claimed: the local
+// resolver by default, so DHCP names, hosts records and ad-block lists keep
+// answering, or the Forkop DNS when the user routed everything unmatched
+// through it.
+function unmatched_client_dns_server_tag() {
+    return option(runtime_settings(), "unmatched_dns_mode", "router") == "forkop"
+        ? runtime_constants.DNS_SERVER_TAG
+        : runtime_constants.DNSMASQ_DNS_SERVER_TAG;
 }
 
 function settings_update_interval() {
@@ -283,6 +325,12 @@ function device_matcher_variants(section, key, dns) {
     let devices = connections.device_matchers(section, key);
     if (!devices.selected)
         return [ dns ? {} : { inbound: tproxy_inbound_matcher() } ];
+
+    // A device-scoped DNS rule matches on the capture inbound the device's
+    // queries arrive through. Without the capture those inbounds do not exist
+    // and the rule could never match, so it is not emitted at all.
+    if (dns && !runtime_dns_capture)
+        return [];
 
     let result = [];
     if (length(devices.ips) > 0)
@@ -1648,6 +1696,15 @@ function section_dns_server(section) {
 }
 
 function add_source_aware_bypass_dns_rules(config, matchers, rewrite_ttl) {
+    // Real addresses for a device whose traffic goes around the proxy. The
+    // router's own queries cannot take the local-resolver path: the resolver
+    // forwards upstream through the very capture that brought the query here,
+    // and answering it from the resolver would send the query in a circle.
+    let real_ip_server = type(matchers.inbound) == "array" &&
+        index(matchers.inbound, runtime_constants.SYSTEM_DNS_INBOUND_TAG) >= 0
+        ? runtime_constants.DNS_SERVER_TAG
+        : unmatched_client_dns_server_tag();
+
     push_dns_matcher_rule(config, {
         type: "logical",
         mode: "and",
@@ -1659,7 +1716,7 @@ function add_source_aware_bypass_dns_rules(config, matchers, rewrite_ttl) {
             }
         ],
         action: "route",
-        server: runtime_constants.DNSMASQ_DNS_SERVER_TAG,
+        server: real_ip_server,
         rewrite_ttl
     });
 
@@ -1692,19 +1749,9 @@ function add_section_dns_matcher_rule(config, section, matchers, rewrite_ttl) {
 }
 
 function system_aware_dns_enabled(sections) {
-    for (let section in sections) {
-        let action = option(section, "action", "");
-        if (connections.has_dns_matchers(section)) {
-            let devices = connections.device_matchers(section, "source_ip_cidr");
-            if (devices.system)
-                return true;
-        }
-        if (action == "bypass" || action == "dns") {
-            let fully_routed = connections.device_matchers(section, "fully_routed_ips");
-            if (fully_routed.system)
-                return true;
-        }
-    }
+    for (let section in sections)
+        if (connections.section_needs_system_dns(section))
+            return true;
 
     return false;
 }
@@ -1714,7 +1761,7 @@ function add_source_aware_dns_support(config) {
         type: "udp",
         tag: runtime_constants.DNSMASQ_DNS_SERVER_TAG,
         server: "127.0.0.1",
-        server_port: 53
+        server_port: local_resolver_port()
     });
 }
 
@@ -1756,19 +1803,51 @@ function add_static_hosts_dns_rule(config, hosts) {
     });
 }
 
+// Queries no section rule claimed. Captured client queries return to the local
+// resolver, which keeps DHCP names, hosts records and ad-block filtering
+// answering - or go to the Forkop DNS when the user routed everything unmatched
+// through it, with only the resolver's own zone left on it. The router's
+// unmatched queries always take the Forkop DNS: the resolver forwards upstream
+// through the very capture that brought the query here, and answering the
+// router from the resolver would send the query in a circle.
 function add_source_aware_dns_fallback(config, system_aware_dns) {
-    let matchers = [ { inbound: source_dns_inbound_matcher() } ];
-    if (system_aware_dns)
-        push(matchers, { inbound: system_dns_inbound_matcher() });
-    for (let matcher in matchers) {
-        let rule = {
-            action: "route",
-            server: runtime_constants.DNSMASQ_DNS_SERVER_TAG,
-            rewrite_ttl: int_option(runtime_settings(), "dns_rewrite_ttl", "60")
-        };
-        apply_matchers(rule, matcher);
-        push_dns_matcher_rule(config, rule);
+    let rewrite_ttl = int_option(runtime_settings(), "dns_rewrite_ttl", "60");
+    let client_server = unmatched_client_dns_server_tag();
+
+    if (client_server != runtime_constants.DNSMASQ_DNS_SERVER_TAG) {
+        // Single-label names, the DHCP domain and reverse lookups are what the
+        // local resolver is authoritative for, so they stay with it.
+        let local_zone_matchers = [
+            { domain_regex: "^[^.]+$" },
+            { domain_suffix: "." + local_resolver_domain() },
+            { query_type: [ "PTR" ] }
+        ];
+        for (let matcher in local_zone_matchers) {
+            let rule = {
+                inbound: source_dns_inbound_matcher(),
+                action: "route",
+                server: runtime_constants.DNSMASQ_DNS_SERVER_TAG,
+                rewrite_ttl
+            };
+            apply_matchers(rule, matcher);
+            push_dns_matcher_rule(config, rule);
+        }
     }
+
+    push_dns_matcher_rule(config, {
+        inbound: source_dns_inbound_matcher(),
+        action: "route",
+        server: client_server,
+        rewrite_ttl
+    });
+
+    if (system_aware_dns)
+        push_dns_matcher_rule(config, {
+            inbound: system_dns_inbound_matcher(),
+            action: "route",
+            server: runtime_constants.DNS_SERVER_TAG,
+            rewrite_ttl
+        });
 }
 
 function dns_action_server_tag(section_name) {
@@ -2285,14 +2364,16 @@ function generate_config(output_path, service_address, mwan3_active, deferred_se
     if (length(sections) == 0 && length(servers) == 0 && trim(as_string(deferred_sections)) == "")
         runtime_generate_unsupported("no usable sections or servers");
 
-    let system_aware_dns = system_aware_dns_enabled(sections);
+    runtime_dns_capture = dns_capture_enabled(settings);
+    let system_aware_dns = runtime_dns_capture && system_aware_dns_enabled(sections);
     let config = base_config(settings, service_address, {
         mwan3_active: cli_bool(mwan3_active),
-        source_aware_dns: true,
+        source_aware_dns: runtime_dns_capture,
         system_aware_dns,
         direct_server_route: has_direct_tailscale_server(servers)
     });
-    add_source_aware_dns_support(config);
+    if (runtime_dns_capture)
+        add_source_aware_dns_support(config);
     let static_hosts = static_hosts_config();
     add_static_hosts_support(config, static_hosts);
     let taken = reserved_runtime_tag_set(config.outbounds);
@@ -2305,7 +2386,8 @@ function generate_config(output_path, service_address, mwan3_active, deferred_se
     for (let section in sections)
         add_route_for_section(config, section);
     add_static_hosts_dns_rule(config, static_hosts);
-    add_source_aware_dns_fallback(config, system_aware_dns);
+    if (runtime_dns_capture)
+        add_source_aware_dns_fallback(config, system_aware_dns);
     add_server_routes(config, servers, sections);
     add_service_mixed_proxy(config, settings, sections);
 

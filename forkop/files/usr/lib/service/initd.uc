@@ -32,7 +32,6 @@ const SERVICE_TRIGGER_SYNC_FILE = getenv("FORKOP_SERVICE_TRIGGER_SYNC_FILE") || 
 const INTERNAL_CONFIG_TRIGGER_GUARD = getenv("FORKOP_INTERNAL_CONFIG_TRIGGER_GUARD") || "/var/run/forkop.internal-config-change";
 const CONFIG_CHANGE_REASON = getenv("FORKOP_CONFIG_CHANGE_REASON") || "on_config_change";
 
-const DNS_APPLY_UC = LIB_DIR + "/dns/apply.uc";
 const UI_UC = LIB_DIR + "/service/ui.uc";
 
 function shell_quote(value) {
@@ -218,16 +217,6 @@ function initd_should_skip_internal_config_reload(reason, guard_path, config_pat
     return matches;
 }
 
-function initd_should_restore_dnsmasq_on_start_from_value(reason, shutdown_correctly) {
-    if (as_string(reason) == "triggered")
-        return false;
-
-    shutdown_correctly = as_string(shutdown_correctly);
-    if (shutdown_correctly == "")
-        shutdown_correctly = "1";
-    return shutdown_correctly == "0";
-}
-
 function initd_should_ignore_config_change_reload(reason, expected_reason, runtime_running) {
     return as_string(reason) == as_string(expected_reason || CONFIG_CHANGE_REASON) &&
         !bool_text(runtime_running);
@@ -255,12 +244,6 @@ function clear_start_retry(path) {
 
 function start_retry_pending(path) {
     return file_exists(as_string(path || START_RETRY_FILE));
-}
-
-function restore_dnsmasq_failsafe() {
-    if (!file_exists(DNS_APPLY_UC))
-        return 0;
-    return module_status(DNS_APPLY_UC, [ "failsafe-restore" ]);
 }
 
 function owner_pid_value() {
@@ -405,13 +388,8 @@ function start_plan_value(reason, owner_pid, settings, bin_ok) {
     let job_id = begin_external_service_action("start", "initd", owner_pid);
     bin_ok = bin_ok == null ? file_executable(BIN_PATH) : bool_text(bin_ok);
 
-    if (!bin_ok) {
-        restore_dnsmasq_failsafe();
+    if (!bin_ok)
         finish_external_service_action("start", job_id, 1);
-    }
-    else if (initd_should_restore_dnsmasq_on_start_from_value(reason, option(settings, "shutdown_correctly", "1"))) {
-        restore_dnsmasq_failsafe();
-    }
 
     return {
         job_id,
@@ -445,8 +423,6 @@ function start_service(reason, owner_pid) {
 
 function stop_finish(job_id, status) {
     status = int(status || 0);
-    if (status != 0)
-        restore_dnsmasq_failsafe();
     finish_external_service_action("stop", job_id, status);
     return status;
 }
@@ -473,7 +449,6 @@ function stop_service(owner_pid) {
     clear_start_retry(START_RETRY_FILE);
     let job_id = begin_external_service_action("stop", "initd", owner_pid);
     if (!file_executable(BIN_PATH)) {
-        restore_dnsmasq_failsafe();
         finish_external_service_action("stop", job_id, 1);
         return 1;
     }
@@ -595,11 +570,10 @@ else if (mode == "start-service")
     exit(start_service(ARGV[1], ARGV[2]));
 else if (mode == "start-plan-fixture") {
     let settings = {
-        shutdown_correctly: ARGV[2],
-        enable_badwan_interface_monitoring: ARGV[3],
-        badwan_monitored_interfaces: ARGV[4]
+        enable_badwan_interface_monitoring: ARGV[2],
+        badwan_monitored_interfaces: ARGV[3]
     };
-    start_plan(ARGV[1], ARGV[5] || "0", settings, ARGV[6] == null ? "1" : ARGV[6]);
+    start_plan(ARGV[1], ARGV[4] || "0", settings, ARGV[5] == null ? "1" : ARGV[5]);
 }
 else if (mode == "stop-service")
     exit(stop_service(ARGV[1]));
@@ -626,8 +600,6 @@ else if (mode == "initd-guard-matches-current-config")
     exit(initd_guard_matches_current_config(ARGV[1], ARGV[2], ARGV[3]) ? 0 : 1);
 else if (mode == "initd-should-skip-internal-config-reload")
     exit(initd_should_skip_internal_config_reload(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5]) ? 0 : 1);
-else if (mode == "initd-should-restore-dnsmasq-on-start-fixture")
-    exit(initd_should_restore_dnsmasq_on_start_from_value(ARGV[1], ARGV[2]) ? 0 : 1);
 else if (mode == "initd-should-ignore-config-change-reload")
     exit(initd_should_ignore_config_change_reload(ARGV[1], ARGV[2], ARGV[3]) ? 0 : 1);
 else if (mode == "initd-should-queue-config-change-reload")

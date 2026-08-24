@@ -51,20 +51,6 @@ function file_readable(path) {
     return fs.stat(as_string(path)) != null;
 }
 
-function restore_dnsmasq_failsafe() {
-    let module = module_path("dns/apply.uc");
-    if (!file_readable(module))
-        return;
-    system(module_command([ "ucode", "-L", LIB_DIR, module, "failsafe-restore" ]) + " >/dev/null 2>&1");
-}
-
-function restore_dnsmasq_failsafe_on_loader_failure(command) {
-    command = as_string(command);
-    if (command == "start" || command == "stop" || command == "restart" ||
-        command == "reload" || command == "uninstall" || command == "restore_dnsmasq")
-        restore_dnsmasq_failsafe();
-}
-
 function show_help() {
     print("Usage: ", BIN_PATH, " COMMAND\n\n");
     print("Available commands:\n");
@@ -132,7 +118,6 @@ function command_spec(command) {
         enable: [ "service/lifecycle.uc", "enable", 0 ],
         disable: [ "service/lifecycle.uc", "disable", 0 ],
         uninstall: [ "service/lifecycle.uc", "uninstall", 0 ],
-        restore_dnsmasq: [ "service/lifecycle.uc", "dnsmasq-restore", 0 ],
         main: [ "service/lifecycle.uc", "main", 0 ],
         sing_box_crash_cleanup: [ "service/lifecycle.uc", "sing-box-crash-cleanup", 1 ],
         check_proxy: [ "diagnostics/runtime.uc", "check-proxy", 0 ],
@@ -186,7 +171,6 @@ function run_spec(command, spec, user_args) {
     let module = module_path(spec[0]);
     if (!file_readable(module)) {
         warn("Error: required file '", module, "' is missing or not readable\n");
-        restore_dnsmasq_failsafe_on_loader_failure(command);
         return 1;
     }
 

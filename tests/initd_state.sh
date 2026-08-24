@@ -154,16 +154,7 @@ grep -Fq 'reason=wan_retry_failed' "$failed_start_dir/start.retry" ||
 [ "$(initd_ucode retry-start-on-wan-up-action 0 1 1)" = "restart" ] ||
   fail "WAN retry should restart only after a recorded failed start"
 
-initd_ucode initd-should-restore-dnsmasq-on-start-fixture "" 0 >/dev/null ||
-  fail "unclean shutdown should request dnsmasq restore on start"
-if initd_ucode initd-should-restore-dnsmasq-on-start-fixture triggered 0 >/dev/null 2>&1; then
-  fail "triggered start should not restore dnsmasq"
-fi
-if initd_ucode initd-should-restore-dnsmasq-on-start-fixture "" 1 >/dev/null 2>&1; then
-  fail "clean shutdown should not restore dnsmasq"
-fi
-
-start_plan="$(initd_ucode start-plan-fixture "" 0 1 "wan vpn0" 123 1)"
+start_plan="$(initd_ucode start-plan-fixture "" 1 "wan vpn0" 123 1)"
 case "$start_plan" in
   *"INITD_BIN_OK='1'"* ) ;;
   *) fail "start-plan must expose executable binary state" ;;
@@ -172,7 +163,7 @@ if printf '%s\n' "$start_plan" | grep -Fq 'INITD_BADWAN_NETDEV'; then
   fail "start-plan must not emit the unused Bad WAN netdev plan"
 fi
 
-start_plan_triggered="$(initd_ucode start-plan-fixture triggered 0 1 "wan vpn0" 123 1)"
+start_plan_triggered="$(initd_ucode start-plan-fixture triggered 1 "wan vpn0" 123 1)"
 if printf '%s\n' "$start_plan_triggered" | grep -Fq 'INITD_BADWAN_NETDEV'; then
   fail "triggered start must not emit the unused Bad WAN netdev plan"
 fi

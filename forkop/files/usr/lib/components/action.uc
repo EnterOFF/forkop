@@ -654,9 +654,6 @@ function stop_forkop_before_sing_box_change() {
     if (forkop_was_running && file_exists(SERVICE_INIT))
         run_logged("Stopping Forkop before sing-box package change", command_from_args([ SERVICE_INIT, "stop" ]));
 
-    if (forkop_was_running && file_exists(BIN_PATH))
-        command_success_from_args([ BIN_PATH, "restore_dnsmasq" ]);
-
     prepare_sing_box_service_disabled();
 }
 

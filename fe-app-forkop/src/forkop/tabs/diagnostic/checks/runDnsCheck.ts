@@ -32,7 +32,7 @@ export async function runDnsCheck() {
   }
 
   const data = dnsChecks.data;
-  const { state, description, dhcpItemState, dhcpItemKey } =
+  const { state, description, captureItemState, captureItemKey } =
     getDnsCheckPresentation(data);
 
   updateCheckStore({
@@ -58,8 +58,13 @@ export async function runDnsCheck() {
         value: '',
       },
       {
-        state: dhcpItemState,
-        key: dhcpItemKey,
+        state: data.local_dns_status ? 'success' : 'error',
+        key: _('Local resolver'),
+        value: data.local_dns_server,
+      },
+      {
+        state: captureItemState,
+        key: captureItemKey,
         value: '',
       },
     ],

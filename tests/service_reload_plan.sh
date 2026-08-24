@@ -19,7 +19,7 @@ PREVIOUS="$WORK_DIR/previous.state"
 CURRENT="$WORK_DIR/current.state"
 
 # format, service trigger key, then one value per signature the plan compares.
-BASE_STATE=(1 service_trigger_signature svc dns sb nft zq zr z2q z2r br cron)
+BASE_STATE=(2 service_trigger_signature svc sb nft zq zr z2q z2r br cron)
 
 write_state() {
   local file="$1"
@@ -28,15 +28,14 @@ write_state() {
   {
     printf 'format=%s\n' "$1"
     printf '%s=%s\n' "$2" "$3"
-    printf 'dnsmasq_signature=%s\n' "$4"
-    printf 'sing_box_signature=%s\n' "$5"
-    printf 'nft_signature=%s\n' "$6"
-    printf 'zapret_queue_signature=%s\n' "$7"
-    printf 'zapret_runtime_signature=%s\n' "$8"
-    printf 'zapret2_queue_signature=%s\n' "$9"
-    printf 'zapret2_runtime_signature=%s\n' "${10}"
-    printf 'byedpi_runtime_signature=%s\n' "${11}"
-    printf 'cron_signature=%s\n' "${12}"
+    printf 'sing_box_signature=%s\n' "$4"
+    printf 'nft_signature=%s\n' "$5"
+    printf 'zapret_queue_signature=%s\n' "$6"
+    printf 'zapret_runtime_signature=%s\n' "$7"
+    printf 'zapret2_queue_signature=%s\n' "$8"
+    printf 'zapret2_runtime_signature=%s\n' "$9"
+    printf 'byedpi_runtime_signature=%s\n' "${10}"
+    printf 'cron_signature=%s\n' "${11}"
   } >"$file"
 }
 
@@ -97,63 +96,53 @@ assert_plan_exit() {
 }
 
 setup_case "" ""
-plan="$(run_plan unchanged 0 0 0)"
+plan="$(run_plan unchanged 0 0)"
 assert_plan_value "$plan" has_work 0
 assert_plan_value "$plan" changed_sing_box 0
 
-setup_case 4 sb2
-plan="$(run_plan sing_box_changed 0 0 0)"
+setup_case 3 sb2
+plan="$(run_plan sing_box_changed 0 0)"
 assert_plan_value "$plan" changed_sing_box 1
 assert_plan_value "$plan" needs_sing_box_reload 1
 assert_plan_value "$plan" has_work 1
 
-setup_case 6 zq2
-plan="$(run_plan zapret_queue_changed 0 0 0)"
+setup_case 5 zq2
+plan="$(run_plan zapret_queue_changed 0 0)"
 assert_plan_value "$plan" changed_zapret_queue 1
 assert_plan_value "$plan" needs_zapret_restart 1
 assert_plan_value "$plan" needs_nft_rebuild 1
 assert_plan_value "$plan" needs_sing_box_reload 1
 
-setup_case 5 nft2
-plan="$(run_plan nft_changed 0 0 0)"
+setup_case 4 nft2
+plan="$(run_plan nft_changed 0 0)"
 assert_plan_value "$plan" needs_nft_rebuild 1
 
-# dnsmasq only needs work when Forkop settings are still present in it
-setup_case 3 dns2
-plan="$(run_plan dnsmasq_unmanaged 0 0 0)"
-assert_plan_value "$plan" changed_dnsmasq 1
-assert_plan_value "$plan" needs_dnsmasq_restore 0
-
-plan="$(run_plan dnsmasq_managed 0 1 0)"
-assert_plan_value "$plan" changed_dnsmasq 1
-assert_plan_value "$plan" needs_dnsmasq_restore 1
-
 setup_case "" ""
-plan="$(run_plan cache_rebuild 0 0 1)"
+plan="$(run_plan cache_rebuild 0 1)"
 assert_plan_value "$plan" changed_sing_box 1
 assert_plan_value "$plan" needs_sing_box_reload 1
 
-plan="$(run_plan forced_reload 1 0 0)"
+plan="$(run_plan forced_reload 1 0)"
 assert_plan_value "$plan" changed_sing_box 0
 assert_plan_value "$plan" needs_sing_box_reload 1
 
 # A state file written before the trigger signature was renamed still compares
-setup_case 4 sb2
+setup_case 3 sb2
 legacy=("${BASE_STATE[@]}")
 legacy[1]=restart_signature
 write_state "$PREVIOUS" "${legacy[@]}"
-plan="$(run_plan legacy_restart_signature 0 0 0)"
+plan="$(run_plan legacy_restart_signature 0 0)"
 assert_plan_value "$plan" changed_service_triggers 0
 assert_plan_value "$plan" changed_sing_box 1
 assert_plan_value "$plan" needs_sing_box_reload 1
 
 setup_case "" ""
 older=("${BASE_STATE[@]}")
-older[0]=0
+older[0]=1
 write_state "$PREVIOUS" "${older[@]}"
-assert_plan_exit 2 0 0 0
+assert_plan_exit 2 0 0
 
 rm -f "$PREVIOUS"
-assert_plan_exit 2 0 0 0
+assert_plan_exit 2 0 0
 
 printf 'service reload plan checks passed\n'

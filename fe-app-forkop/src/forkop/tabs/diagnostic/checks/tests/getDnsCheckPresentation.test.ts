@@ -7,31 +7,62 @@ const baseDnsResult = {
   dns_on_router: 1 as const,
   bootstrap_dns_server: '77.88.8.8',
   bootstrap_dns_status: 1 as const,
-  dhcp_config_status: 0 as const,
-  dont_touch_dhcp: 0 as const,
+  local_dns_server: '127.0.0.1:53',
+  local_dns_status: 1 as const,
+  dns_capture_status: 1 as const,
+  dns_capture_disabled: 0 as const,
 };
 
 describe('getDnsCheckPresentation', () => {
-  it('keeps manual DHCP mode as a warning instead of a DNS failure', () => {
-    expect(
-      getDnsCheckPresentation({
-        ...baseDnsResult,
-        dont_touch_dhcp: 1,
-      }),
-    ).toMatchObject({
-      state: 'warning',
-      description: 'Checks passed with manual DHCP',
-      dhcpItemState: 'warning',
-      dhcpItemKey: 'DHCP is managed manually',
+  it('reports success while the capture and the local resolver both answer', () => {
+    expect(getDnsCheckPresentation(baseDnsResult)).toMatchObject({
+      state: 'success',
+      captureItemState: 'success',
+      captureItemKey: 'DNS capture active',
     });
   });
 
-  it('keeps a mismatched managed DHCP config as an error item', () => {
-    expect(getDnsCheckPresentation(baseDnsResult)).toMatchObject({
+  it('keeps disabled DNS capture as a warning instead of a DNS failure', () => {
+    expect(
+      getDnsCheckPresentation({
+        ...baseDnsResult,
+        dns_capture_status: 0,
+        dns_capture_disabled: 1,
+      }),
+    ).toMatchObject({
+      state: 'warning',
+      description: 'Checks passed with DNS capture disabled',
+      captureItemState: 'warning',
+      captureItemKey: 'DNS capture is disabled',
+    });
+  });
+
+  it('reports missing capture rules as an error item', () => {
+    expect(
+      getDnsCheckPresentation({
+        ...baseDnsResult,
+        dns_capture_status: 0,
+      }),
+    ).toMatchObject({
       state: 'warning',
       description: 'Issues detected',
-      dhcpItemState: 'error',
-      dhcpItemKey: 'DHCP has DNS server',
+      captureItemState: 'error',
+      captureItemKey: 'DNS capture active',
+    });
+  });
+
+  it('degrades to an error state when the local resolver is silent too', () => {
+    expect(
+      getDnsCheckPresentation({
+        ...baseDnsResult,
+        dns_status: 0,
+        dns_on_router: 0,
+        bootstrap_dns_status: 0,
+        local_dns_status: 0,
+        dns_capture_status: 0,
+      }),
+    ).toMatchObject({
+      state: 'error',
     });
   });
 });

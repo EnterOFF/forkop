@@ -2415,6 +2415,24 @@ function remove_resolve_real_ip_for_routing(ctx) {
         delete_option(ctx, section, "resolve_real_ip_for_routing");
 }
 
+// The released dnsmasq takeover is gone: client DNS is captured by nftables and
+// the dnsmasq configuration is never written again. The released flag that
+// guarded the takeover keeps its intent as the capture switch, and the flag the
+// service flipped on every start and stop leaves with the mechanism it served.
+function migrate_dns_capture_settings(ctx) {
+    let settings = ctx.model.settings;
+    if (bool_option(settings, "dont_touch_dhcp", false))
+        set_option(ctx, settings, "disable_dns_capture", "1");
+    delete_option(ctx, settings, "dont_touch_dhcp");
+    delete_option(ctx, settings, "shutdown_correctly");
+}
+
+// The model carries no dhcp state, so this only asks the runtime adapter to
+// restore /etc/config/dhcp the one time this registry entry first applies.
+function request_dnsmasq_restore(ctx) {
+    ctx.restore_dnsmasq = true;
+}
+
 const MIGRATIONS = [
     { id: "interface_sections", run: migrate_interface_sections },
     { id: "enable_component_checks", run: migrate_enable_component_checks },
@@ -2450,7 +2468,9 @@ const MIGRATIONS = [
     { id: "remove_expert_server_options", run: remove_expert_server_options },
     { id: "reality_handshake_sni", run: merge_reality_handshake_into_sni },
     { id: "section_mixed_proxy_servers", run: migrate_section_mixed_proxies },
-    { id: "remove_resolve_real_ip_for_routing", run: remove_resolve_real_ip_for_routing }
+    { id: "remove_resolve_real_ip_for_routing", run: remove_resolve_real_ip_for_routing },
+    { id: "dns_capture_settings", run: migrate_dns_capture_settings },
+    { id: "restore_dnsmasq_takeover", run: request_dnsmasq_restore }
 ];
 
 function apply_migrations(ctx) {
@@ -2647,6 +2667,175 @@ function commit_cursor(cursor) {
     return true;
 }
 
+// ---- One-time restore of the dnsmasq takeover a released Forkop wrote ----
+//
+// Up to release 1.0.5 Forkop pointed dhcp.@dnsmasq[0] at the sing-box resolver
+// and kept the original values under its own forkop_* options; podkop, which
+// Forkop installs over, used the same shape under podkop_*. DNS is captured by
+// nftables now and dnsmasq is never written again, so whatever such a release
+// left behind - after a crash, a failed removal or an unclean upgrade - is
+// restored here exactly once, from the backups when they exist.
+
+const SB_DNS_INBOUND_ADDRESS = getenv("SB_DNS_INBOUND_ADDRESS") || "127.0.0.42";
+const DNSMASQ_INIT = getenv("DNSMASQ_INIT") || "/etc/init.d/dnsmasq";
+const DNSMASQ_BACKUP_PREFIXES = [ "forkop_", "podkop_" ];
+
+function value_words(value) {
+    if (type(value) == "array") {
+        let result = [];
+        for (let item in value) {
+            item = trim(as_string(item));
+            if (item != "")
+                push(result, item);
+        }
+        return result;
+    }
+
+    value = trim(as_string(value == null ? "" : value));
+    return value == "" ? [] : split(value, /[ \t\r\n]+/);
+}
+
+function dnsmasq_backup_words(dnsmasq, key) {
+    for (let prefix in DNSMASQ_BACKUP_PREFIXES) {
+        let values = value_words(object_or_empty(dnsmasq)[prefix + key]);
+        if (length(values) > 0)
+            return values;
+    }
+    return [];
+}
+
+function dnsmasq_backup_keys_present(dnsmasq) {
+    for (let prefix in DNSMASQ_BACKUP_PREFIXES)
+        for (let key in [ "server", "noresolv", "cachesize", "rebind_protection", "notinterface" ])
+            if (object_or_empty(dnsmasq)[prefix + key] != null)
+                return true;
+    return false;
+}
+
+function list_without(values, needle) {
+    let result = [];
+    for (let value in values)
+        if (value != needle)
+            push(result, value);
+    return result;
+}
+
+// What has to change in dhcp.@dnsmasq[0] to undo the takeover. Pure: reads the
+// section object and the legacy-instance facts, returns the edits, so a fixture
+// can prove the exact transformation the runtime adapter applies.
+function dnsmasq_restore_plan(dnsmasq, legacy_present, legacy_interfaces) {
+    dnsmasq = object_or_empty(dnsmasq);
+    let servers = value_words(dnsmasq.server);
+    let managed_global_dns = false;
+    for (let server in servers)
+        if (server == SB_DNS_INBOUND_ADDRESS)
+            managed_global_dns = true;
+
+    let plan = {
+        changed: false,
+        set: {},
+        set_lists: {},
+        delete_options: [],
+        delete_legacy_instance: false
+    };
+
+    if (!managed_global_dns && !dnsmasq_backup_keys_present(dnsmasq) && !legacy_present)
+        return plan;
+
+    plan.changed = true;
+
+    let backup_servers = dnsmasq_backup_words(dnsmasq, "server");
+    plan.set_lists.server = length(backup_servers) > 0
+        ? backup_servers
+        : list_without(servers, SB_DNS_INBOUND_ADDRESS);
+
+    let backup_noresolv = join("", dnsmasq_backup_words(dnsmasq, "noresolv"));
+    if (backup_noresolv != "")
+        plan.set.noresolv = backup_noresolv;
+    else if (managed_global_dns)
+        plan.set.noresolv = "0";
+
+    let backup_cachesize = join("", dnsmasq_backup_words(dnsmasq, "cachesize"));
+    if (backup_cachesize != "")
+        plan.set.cachesize = backup_cachesize;
+    else if (managed_global_dns)
+        plan.set.cachesize = "150";
+
+    // The takeover always recorded the previous rebind protection, storing
+    // "__unset__" for an absent option, so the backup key alone decides.
+    let backup_rebind = join("", dnsmasq_backup_words(dnsmasq, "rebind_protection"));
+    if (backup_rebind == "__unset__")
+        push(plan.delete_options, "rebind_protection");
+    else if (backup_rebind != "")
+        plan.set.rebind_protection = backup_rebind;
+    else if (managed_global_dns && object_or_empty(dnsmasq).forkop_rebind_protection != null)
+        plan.set.rebind_protection = "1";
+
+    let backup_notinterface = dnsmasq_backup_words(dnsmasq, "notinterface");
+    if (length(backup_notinterface) > 0)
+        plan.set_lists.notinterface = backup_notinterface;
+    else if (legacy_present) {
+        let interfaces = value_words(legacy_interfaces);
+        if (length(interfaces) == 0)
+            interfaces = [ "br-lan" ];
+        let remaining = value_words(dnsmasq.notinterface);
+        for (let interface in interfaces)
+            remaining = list_without(remaining, interface);
+        plan.set_lists.notinterface = remaining;
+    }
+
+    for (let prefix in DNSMASQ_BACKUP_PREFIXES)
+        for (let key in [ "server", "noresolv", "cachesize", "rebind_protection", "notinterface" ])
+            if (dnsmasq[prefix + key] != null)
+                push(plan.delete_options, prefix + key);
+
+    plan.delete_legacy_instance = legacy_present;
+
+    return plan;
+}
+
+function restore_dnsmasq_runtime(settings) {
+    if (!uci_core.load("dhcp"))
+        return true;
+
+    // The takeover always wrote the first dnsmasq instance; resolving it by
+    // type works against the live cursor and the test fixture alike.
+    let instances = uci_core.section_objects("dhcp", "dnsmasq");
+    let dnsmasq = length(instances) > 0 ? object_or_empty(instances[0]) : {};
+    let dnsmasq_name = as_string(dnsmasq[".name"] == null ? "" : dnsmasq[".name"]);
+
+    let legacy_present = uci_core.exists("dhcp.forkop");
+    let legacy_interfaces = legacy_present ? uci_core.get("dhcp.forkop.interface") : "";
+    if (legacy_present && trim(as_string(legacy_interfaces)) == "")
+        legacy_interfaces = option(object_or_empty(settings), "source_network_interfaces", "");
+
+    let plan = dnsmasq_restore_plan(dnsmasq, legacy_present, legacy_interfaces);
+    if (!plan.changed)
+        return true;
+
+    if (dnsmasq_name != "") {
+        for (let key, values in plan.set_lists) {
+            uci_core.delete("dhcp." + dnsmasq_name + "." + key);
+            for (let value in values)
+                uci_core.add_list("dhcp." + dnsmasq_name + "." + key, value);
+        }
+        for (let key, value in plan.set)
+            uci_core.set("dhcp." + dnsmasq_name + "." + key, value);
+        for (let key in plan.delete_options)
+            uci_core.delete("dhcp." + dnsmasq_name + "." + key);
+    }
+    if (plan.delete_legacy_instance)
+        uci_core.delete("dhcp.forkop");
+
+    if (!uci_core.commit("dhcp"))
+        return false;
+
+    run("logger -t " + shell_quote("forkop") +
+        " " + shell_quote("[info] Restored the dnsmasq configuration a previous Forkop release had taken over"));
+    run("[ -x " + shell_quote(DNSMASQ_INIT) + " ] && " + shell_quote(DNSMASQ_INIT) + " restart");
+    return true;
+}
+
 function migrate_model(model, source) {
     return source == "podkop"
         ? migrate_podkop_model(model, constants_context())
@@ -2665,6 +2854,8 @@ function migrate_runtime(source) {
         remove_cache_path(path);
     if (!remove_cron_markers(ctx.removed_cron_markers))
         return false;
+    if (ctx.restore_dnsmasq === true && !restore_dnsmasq_runtime(ctx.model.settings))
+        return false;
 
     return commit_cursor(cursor);
 }
@@ -2682,8 +2873,18 @@ function migrate_fixture(path, source) {
         config: export_model(ctx.model),
         operations: ctx.operations,
         removed_caches: ctx.removed_caches,
-        removed_cron_markers: ctx.removed_cron_markers
+        removed_cron_markers: ctx.removed_cron_markers,
+        restore_dnsmasq: ctx.restore_dnsmasq === true
     });
+}
+
+function restore_dnsmasq_fixture(path) {
+    let data = object_or_empty(read_json_file(path));
+    write_json(dnsmasq_restore_plan(
+        object_or_empty(data.dnsmasq),
+        data.legacy_present === true || data.legacy_present == "1",
+        data.legacy_interfaces
+    ));
 }
 
 function main(argv) {
@@ -2699,11 +2900,16 @@ function main(argv) {
         migrate_fixture(argv[1], argv[2] || "forkop");
         return 0;
     }
+    if (mode == "restore-dnsmasq-fixture") {
+        restore_dnsmasq_fixture(argv[1]);
+        return 0;
+    }
 
     warn("Usage: config/migration.uc migrate\n");
     warn("       config/migration.uc migrate-podkop\n");
     warn("       config/migration.uc commit\n");
     warn("       config/migration.uc migrate-fixture <fixture.json> [forkop|podkop]\n");
+    warn("       config/migration.uc restore-dnsmasq-fixture <dhcp.json>\n");
     return 1;
 }
 

@@ -5,7 +5,6 @@ let uci_core = require("core.uci");
 let subscription_headers_module = require("singbox.subscription_headers");
 let health = require("service.health");
 let lock = require("service.lock");
-let dns_state = require("dns.state");
 
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
@@ -522,10 +521,11 @@ function forkop_running() {
     );
 }
 
-// Asked behind every status poll. Spawning dns/apply.uc for it cost more than
-// the rest of the state computation together, so the predicate is required in.
+// Whether client DNS is captured into the running service: the nft redirect is
+// created and torn down together with the runtime table, so while Forkop runs
+// the capture is on unless the user disabled it.
 function dns_configured(running) {
-    return running && !dns_state.dnsmasq_has_forkop_managed_state();
+    return running && uci_core.get(CONFIG_NAME + ".settings.disable_dns_capture") != "1";
 }
 
 function server_inbounds_enabled_count() {
