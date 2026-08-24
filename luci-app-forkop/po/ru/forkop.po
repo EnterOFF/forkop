@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-24 21:16+0300\n"
-"PO-Revision-Date: 2026-08-24 21:16+0300\n"
+"POT-Creation-Date: 2026-08-24 22:37+0300\n"
+"PO-Revision-Date: 2026-08-24 22:37+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -2008,6 +2008,9 @@ msgstr "Адрес, на который указывают ссылки подк
 
 msgid "The certificate and the key must be different files"
 msgstr "Сертификат и ключ должны быть разными файлами"
+
+msgid "The check is scheduled by cron: use whole minutes up to 59m, whole hours up to 23h, or exactly 1d"
+msgstr "Проверку запускает cron: укажите целые минуты до 59m, целые часы до 23h или ровно 1d"
 
 msgid "The desync fwmark is managed by Forkop for loop prevention and must not be overridden here."
 msgstr "Desync fwmark управляется Forkop для защиты от циклов и не должен переопределяться здесь."
