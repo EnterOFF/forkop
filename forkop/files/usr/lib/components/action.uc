@@ -11,7 +11,7 @@ const FORKOP_VERSION = getenv("FORKOP_VERSION") || constants.FORKOP_VERSION || "
 const FORKOP_RELEASE_REPO = getenv("FORKOP_RELEASE_REPO") || constants.FORKOP_RELEASE_REPO || "ushan0v/forkop";
 const SING_BOX_FORKOP_RELEASE_REPO = getenv("SING_BOX_FORKOP_RELEASE_REPO") || "ushan0v/sing-box-forkop";
 const RUNTIME_STATE_DIR = getenv("FORKOP_RUNTIME_STATE_DIR") || "/var/run/forkop";
-const SYSTEM_INFO_CACHE_FILE = getenv("FORKOP_SYSTEM_INFO_CACHE_FILE") || RUNTIME_STATE_DIR + "/system-info.json";
+const FORKOP_LATEST_VERSION_FILE = getenv("FORKOP_LATEST_VERSION_FILE") || "/tmp/forkop.latest-version.cache";
 const SING_BOX_FORKOP_VERSION_FILE = getenv("SING_BOX_FORKOP_VERSION_FILE") || "/usr/share/sing-box-forkop/version";
 const COMPONENT_LOCK_DIR = getenv("UPDATES_LOCK_DIR") || RUNTIME_STATE_DIR + "/component-action.lock";
 const TMP_STALE_TTL_MINUTES = getenv("UPDATES_TMP_STALE_TTL_MINUTES") || "30";
@@ -570,7 +570,7 @@ function fetch_forkop_latest_release_metadata() {
 function write_forkop_latest_version_cache(value, timestamp) {
     if (as_string(value) == "")
         return;
-    write_file("/tmp/forkop.latest-version.cache", as_string(value) + "\n" + as_string(timestamp) + "\n");
+    write_file(FORKOP_LATEST_VERSION_FILE, as_string(value) + "\n" + as_string(timestamp) + "\n");
 }
 
 function retry_resolve(description, fn) {
@@ -591,10 +591,11 @@ function ensure_package_tool(tool_name, package_name, component, action) {
     return run_logged("Installing bootstrap package " + as_string(package_name), pkg_install_name_command(package_name));
 }
 
+// System information is worked out on demand now, so there is nothing to drop
+// for it. What upstream last reported still is not, and a component action is
+// exactly when that answer stops being true.
 function clear_version_caches() {
-    remove_file("/tmp/forkop.latest-version.cache");
-    remove_file(SYSTEM_INFO_CACHE_FILE);
-    remove_file("/tmp/forkop/system-info.json");
+    remove_file(FORKOP_LATEST_VERSION_FILE);
 }
 
 function disable_sing_box_service_config() {

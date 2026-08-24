@@ -34,16 +34,29 @@ if grep -n -E 'require\("uci"\)\.cursor|uci -q' "$UPDATES_UC" >/dev/null 2>&1; t
   fail "components/updates.uc must use core.uci instead of owning direct UCI cursor or CLI calls"
 fi
 
-assert_status 0 "never-run update should be due" update-is-due 100 0 60
-assert_status 0 "expired update should be due" update-is-due 100 30 60
-assert_status 1 "fresh update should not be due" update-is-due 100 50 60
-assert_status 1 "future timestamp should not be due" update-is-due 100 130 60
-assert_status 2 "invalid interval should fail" update-is-due 100 0 invalid
-
 assert_eq 180 "$(updates_ucode duration-to-seconds 3m)" "minutes duration"
 assert_eq 5400 "$(updates_ucode duration-to-seconds 1.5h)" "decimal duration"
 assert_status 1 "invalid duration should fail" duration-to-seconds invalid
+
+# Cron is the schedule, so the line it generates has to mean exactly what the
+# interval says. Anything it cannot express exactly is refused - it used to be
+# rounded to the nearest thing cron could say and then corrected by a file
+# recording the last run, which is a schedule kept in two places.
+assert_eq "* * * * *" "$(updates_ucode due-check-cron-schedule 60)" "one-minute cron schedule"
+assert_eq "*/5 * * * *" "$(updates_ucode due-check-cron-schedule 300)" "five-minute cron schedule"
+assert_eq "0 * * * *" "$(updates_ucode due-check-cron-schedule 3600)" "hourly cron schedule"
 assert_eq "0 */2 * * *" "$(updates_ucode due-check-cron-schedule 7200)" "two-hour cron schedule"
+assert_eq "0 0 * * *" "$(updates_ucode due-check-cron-schedule 86400)" "daily cron schedule"
+
+# Two days is the case that used to become a daily line plus a suppressing file.
+assert_eq "" "$(updates_ucode due-check-cron-schedule 172800)" "two days has no exact cron schedule"
+assert_eq "" "$(updates_ucode due-check-cron-schedule 90)" "ninety seconds has no exact cron schedule"
+assert_eq "" "$(updates_ucode due-check-cron-schedule 5400)" "ninety minutes has no exact cron schedule"
+
+# And the file itself is gone.
+if grep -Fq 'COMPONENT_UPDATE_CHECK_STATE_FILE' "$UPDATES_UC"; then
+  fail "the schedule belongs to cron; no file should record the last run"
+fi
 
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT

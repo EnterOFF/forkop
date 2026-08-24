@@ -1,3 +1,4 @@
+import { callUbus } from '../../helpers';
 import { ForkopShellMethods } from '../methods';
 import { getLocalActionOverlay } from './localActionOverlay.service';
 import { Forkop } from '../types';
@@ -7,7 +8,19 @@ import { applyUiStateToStore } from './uiState.service';
 const RUNTIME_UI_STATE_REFRESH_MIN_INTERVAL_MS = 500;
 const RUNTIME_UI_STATE_IDLE_POLL_INTERVAL_MS = 10000;
 const RUNTIME_UI_STATE_ACTIVE_POLL_INTERVAL_MS = 1000;
+
+const STATE_OBJECT = 'forkop';
+const STATE_CALL_TIMEOUT_MS = 5000;
+// Past the ceiling the state service parks a request for, so a reply arriving
+// right at that limit is not raced by the client giving up on it.
+const STATE_WAIT_TIMEOUT_MS = 20000;
+// After a failure that is not "no such object": something is wrong rather than
+// absent, and reissuing immediately would not help.
+const STATE_WAIT_RETRY_MS = 3000;
+
 type RuntimeUiStateListener = (uiState: Forkop.UiState) => void;
+type StateTransport = 'unknown' | 'ubus' | 'cli';
+type UbusState = Forkop.UiState & { revision?: number };
 
 let runtimeUiStateRefreshPromise: Promise<Forkop.UiState | undefined> | null =
   null;
@@ -18,6 +31,10 @@ let runtimeStatePollTimer: ReturnType<typeof setTimeout> | null = null;
 let runtimeStatePollingStarted = false;
 let runtimeStateHasRunningAction = false;
 let lastRuntimeUiStateSignature = '';
+let transport: StateTransport = 'unknown';
+let stateRevision = 0;
+let waitLoopRunning = false;
+let waitLoopStop = false;
 const runtimeUiStateListeners = new Set<RuntimeUiStateListener>();
 
 function isDocumentVisible() {
@@ -37,9 +54,11 @@ function hasRunningAction(uiState: Forkop.UiState) {
   );
 }
 
-// What the page actually renders. A poll that returns something different is a
+// What the page actually renders. A read that returns something different is a
 // transition in progress, and transitions arrive in bursts, so the next one is
 // scheduled at the active interval even once the action itself has finished.
+// Only the polling transport needs this; the state service reports a change the
+// moment it happens.
 function stateSignature(uiState: Forkop.UiState) {
   const forkop = uiState.service.forkop;
   return [
@@ -76,25 +95,6 @@ function getNextPollDelay() {
     : RUNTIME_UI_STATE_IDLE_POLL_INTERVAL_MS;
 }
 
-function scheduleRuntimeUiStatePoll(delay = getNextPollDelay()) {
-  if (
-    !runtimeStatePollingStarted ||
-    runtimeStatePollTimer ||
-    typeof window === 'undefined'
-  ) {
-    return;
-  }
-
-  runtimeStatePollTimer = window.setTimeout(() => {
-    runtimeStatePollTimer = null;
-    void refreshRuntimeUiState()
-      .catch(() => undefined)
-      .finally(() => {
-        scheduleRuntimeUiStatePoll();
-      });
-  }, delay);
-}
-
 function notifyRuntimeUiStateListeners(uiState: Forkop.UiState) {
   for (const listener of runtimeUiStateListeners) {
     try {
@@ -103,6 +103,69 @@ function notifyRuntimeUiStateListeners(uiState: Forkop.UiState) {
       logger.error('[RUNTIME_UI_STATE]', 'listener failed', error);
     }
   }
+}
+
+function applyState(uiState: Forkop.UiState) {
+  applyUiStateToStore(uiState);
+  lastRuntimeUiState = uiState;
+
+  const signature = stateSignature(uiState);
+  const changed = signature !== lastRuntimeUiStateSignature;
+  lastRuntimeUiStateSignature = signature;
+
+  runtimeStateHasRunningAction = hasRunningAction(uiState) || changed;
+  notifyRuntimeUiStateListeners(uiState);
+}
+
+function adoptUbusState(value: UbusState) {
+  if (typeof value.revision === 'number') {
+    stateRevision = value.revision;
+  }
+
+  const uiState: Forkop.UiState = {
+    service: value.service,
+    capabilities: value.capabilities,
+    actions: value.actions,
+  };
+  applyState(uiState);
+  return uiState;
+}
+
+// The state service answers in a few milliseconds because it is already
+// running. The CLI is what answers when it is not installed yet, or not up.
+async function readState(): Promise<Forkop.UiState | undefined> {
+  if (transport !== 'cli') {
+    const response = await callUbus<UbusState>({
+      object: STATE_OBJECT,
+      method: 'state',
+      timeoutMs: STATE_CALL_TIMEOUT_MS,
+    });
+
+    if (response.success) {
+      transport = 'ubus';
+      return adoptUbusState(response.data);
+    }
+
+    // A service that is present but failing is not a reason to abandon it.
+    if (!response.unavailable && transport === 'ubus') {
+      return undefined;
+    }
+
+    transport = 'cli';
+    logger.info(
+      '[RUNTIME_UI_STATE]',
+      'state service unavailable, using the CLI',
+      response.message,
+    );
+  }
+
+  const response = await ForkopShellMethods.getUiState();
+  if (!response.success) {
+    return undefined;
+  }
+
+  applyState(response.data);
+  return response.data;
 }
 
 export async function refreshRuntimeUiState({
@@ -126,23 +189,7 @@ export async function refreshRuntimeUiState({
 
   lastRuntimeUiStateRefreshAt = now;
 
-  const promise = ForkopShellMethods.getUiState()
-    .then((response) => {
-      if (!response.success) {
-        return undefined;
-      }
-
-      applyUiStateToStore(response.data);
-      lastRuntimeUiState = response.data;
-
-      const signature = stateSignature(response.data);
-      const changed = signature !== lastRuntimeUiStateSignature;
-      lastRuntimeUiStateSignature = signature;
-
-      runtimeStateHasRunningAction = hasRunningAction(response.data) || changed;
-      notifyRuntimeUiStateListeners(response.data);
-      return response.data;
-    })
+  const promise = readState()
     .catch((error) => {
       logger.error('[RUNTIME_UI_STATE]', 'refresh failed', error);
       return undefined;
@@ -157,19 +204,108 @@ export async function refreshRuntimeUiState({
   return runtimeUiStateRefreshPromise;
 }
 
-// Called when the page starts or finishes an action of its own: the pacing it
-// was waiting on no longer matches what is happening, so the pending wait is
-// dropped and the state is read again straight away.
-export function refreshRuntimeUiStateNow() {
+function clearPollTimer() {
   if (runtimeStatePollTimer !== null && typeof window !== 'undefined') {
     window.clearTimeout(runtimeStatePollTimer);
     runtimeStatePollTimer = null;
   }
+}
+
+function scheduleRuntimeUiStatePoll(delay = getNextPollDelay()) {
+  if (
+    !runtimeStatePollingStarted ||
+    runtimeStatePollTimer ||
+    waitLoopRunning ||
+    typeof window === 'undefined'
+  ) {
+    return;
+  }
+
+  runtimeStatePollTimer = window.setTimeout(() => {
+    runtimeStatePollTimer = null;
+    void refreshRuntimeUiState()
+      .catch(() => undefined)
+      .finally(() => {
+        startTransportLoop();
+      });
+  }, delay);
+}
+
+// One request parked on the router for as long as nothing changes, answered the
+// moment something does. An idle page costs one open request instead of a
+// refresh every ten seconds, and a change reaches the browser in the time it
+// takes to serialise it rather than on the next tick.
+async function runWaitLoop() {
+  if (waitLoopRunning) {
+    return;
+  }
+
+  waitLoopRunning = true;
+  waitLoopStop = false;
+
+  try {
+    while (!waitLoopStop && isDocumentVisible() && transport === 'ubus') {
+      const response = await callUbus<UbusState>({
+        object: STATE_OBJECT,
+        method: 'state_wait',
+        params: { revision: stateRevision },
+        timeoutMs: STATE_WAIT_TIMEOUT_MS,
+      });
+
+      if (waitLoopStop) {
+        break;
+      }
+
+      if (response.success) {
+        adoptUbusState(response.data);
+        continue;
+      }
+
+      if (response.unavailable) {
+        transport = 'cli';
+        logger.info(
+          '[RUNTIME_UI_STATE]',
+          'state service went away, using the CLI',
+          response.message,
+        );
+        break;
+      }
+
+      logger.error('[RUNTIME_UI_STATE]', 'state wait failed', response.message);
+      await new Promise((resolve) => setTimeout(resolve, STATE_WAIT_RETRY_MS));
+    }
+  } finally {
+    waitLoopRunning = false;
+    if (runtimeStatePollingStarted && transport !== 'ubus') {
+      scheduleRuntimeUiStatePoll();
+    }
+  }
+}
+
+function startTransportLoop() {
+  if (!runtimeStatePollingStarted) {
+    return;
+  }
+
+  if (transport === 'ubus') {
+    clearPollTimer();
+    void runWaitLoop();
+    return;
+  }
+
+  scheduleRuntimeUiStatePoll();
+}
+
+// Called when the page starts or finishes an action of its own: whatever the
+// feed was waiting on no longer matches what is happening, so the state is read
+// again straight away.
+export function refreshRuntimeUiStateNow() {
+  clearPollTimer();
 
   const refreshed = refreshRuntimeUiState({ force: true });
   if (runtimeStatePollingStarted) {
     void refreshed.finally(() => {
-      scheduleRuntimeUiStatePoll();
+      startTransportLoop();
     });
   }
   return refreshed;
@@ -191,6 +327,16 @@ export function subscribeRuntimeUiState(listener: RuntimeUiStateListener) {
   };
 }
 
+// Which transport answered is remembered for the life of the page; tests need
+// to be able to forget it between cases.
+export function resetRuntimeUiStateTransport() {
+  transport = 'unknown';
+  stateRevision = 0;
+  lastRuntimeUiState = undefined;
+  lastRuntimeUiStateSignature = '';
+  lastRuntimeUiStateRefreshAt = 0;
+}
+
 export function getCachedRuntimeUiState() {
   return lastRuntimeUiState;
 }
@@ -202,17 +348,20 @@ export function registerRuntimeStateResumeRefresh() {
 
   runtimeStateResumeRefreshRegistered = true;
 
-  const refreshOnResume = () => {
+  const onVisibilityChange = () => {
     if (!isDocumentVisible()) {
+      // A request parked from a hidden tab holds a connection open for nothing.
+      waitLoopStop = true;
+      clearPollTimer();
       return;
     }
 
-    void refreshRuntimeUiState({ force: true });
+    void refreshRuntimeUiStateNow();
   };
 
-  document.addEventListener('visibilitychange', refreshOnResume);
-  window.addEventListener('pageshow', refreshOnResume);
-  window.addEventListener('focus', refreshOnResume);
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  window.addEventListener('pageshow', onVisibilityChange);
+  window.addEventListener('focus', onVisibilityChange);
 }
 
 export function startRuntimeUiStatePolling() {
@@ -222,6 +371,6 @@ export function startRuntimeUiStatePolling() {
 
   runtimeStatePollingStarted = true;
   void refreshRuntimeUiState({ force: true }).finally(() => {
-    scheduleRuntimeUiStatePoll();
+    startTransportLoop();
   });
 }

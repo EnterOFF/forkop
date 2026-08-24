@@ -752,15 +752,20 @@ function renderDiagnosticAvailableActionsWidget() {
     busy: servicesInfoWidget.data.forkopBusy,
     localPending: getLocalPendingServiceOperation(diagnosticsActions),
   });
+  // The widget starts out loading with an empty snapshot; until the first one
+  // arrives there is nothing to say about the service.
+  const stateKnown = !servicesInfoWidget.loading || servicesInfoWidget.failed;
   const controls = getServiceControlsPresentation({
     running: forkopRunning,
     operation,
     operationSeconds: servicesInfoWidget.data.forkopBusySeconds,
+    known: stateKnown,
   });
   const autostart = getAutostartControlsPresentation({
     enabled: forkopEnabled,
     enableLoading: diagnosticsActions.enable.loading,
     disableLoading: diagnosticsActions.disable.loading,
+    known: stateKnown,
   });
 
   const container = document.getElementById('fkp_diagnostic-page-actions');

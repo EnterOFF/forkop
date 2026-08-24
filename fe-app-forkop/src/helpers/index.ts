@@ -1,6 +1,7 @@
 export * from './parseValueList';
 export * from './injectGlobalStyles';
 export * from './withTimeout';
+export * from './callUbus';
 export * from './executeShellCommand';
 export * from './getProxyUrlName';
 export * from './onMount';

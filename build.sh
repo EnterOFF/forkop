@@ -44,8 +44,12 @@ PROJECT_URL="https://github.com/ushan0v/forkop"
 BACKEND_DEPENDS_IPK="libc, ca-bundle, kmod-inet-diag, kmod-netlink-diag, kmod-tun, curl, ucode, ucode-mod-fs, ucode-mod-ubus, ucode-mod-uloop, ucode-mod-uci, kmod-nft-tproxy, coreutils-base64, bind-dig, nftables, kmod-nft-nat, ip-full, dropbearconvert"
 BACKEND_DEPENDS_APK="bind-dig ca-bundle coreutils-base64 curl dropbearconvert ip-full kmod-inet-diag kmod-netlink-diag kmod-nft-nat kmod-nft-tproxy kmod-tun libc nftables ucode ucode-mod-fs ucode-mod-ubus ucode-mod-uloop ucode-mod-uci !https-dns-proxy !nextdns !luci-app-passwall !luci-app-passwall2"
 BACKEND_CONFLICTS_IPK="https-dns-proxy, nextdns, luci-app-passwall, luci-app-passwall2"
-APP_DEPENDS_IPK="libc, luci-base, forkop"
-APP_DEPENDS_APK="libc luci-base forkop"
+# The app calls the ubus object the backend publishes, so it cannot sit on a
+# backend older than itself. OpenWrt DEPENDS in the feed Makefile cannot express
+# a version, which is why the page still keeps a fallback for the one thing it
+# cannot render without.
+APP_DEPENDS_IPK="libc, luci-base, forkop (>= ${RELEASE_VERSION})"
+APP_DEPENDS_APK="libc luci-base forkop>=${RELEASE_VERSION}"
 
 ensure_host_deps() {
   local missing=()
@@ -171,6 +175,7 @@ build_backend_root() {
   make_dir "$output_root/usr/share/nftables.d/chain-pre/input"
 
   install -m 0755 "$ROOT_DIR/forkop/files/etc/init.d/forkop" "$output_root/etc/init.d/forkop"
+  install -m 0755 "$ROOT_DIR/forkop/files/etc/init.d/forkop-state" "$output_root/etc/init.d/forkop-state"
   install -m 0644 "$ROOT_DIR/forkop/files/etc/config/forkop" "$output_root/etc/config/forkop"
   install -m 0755 "$ROOT_DIR/forkop/files/usr/bin/forkop" "$output_root/usr/bin/forkop"
   cp -a "$ROOT_DIR/forkop/files/usr/lib/." "$output_root/usr/lib/forkop/"
@@ -181,7 +186,7 @@ build_backend_root() {
     "$output_root/usr/lib/forkop/core/constants.uc"
 
   normalize_package_root_modes "$output_root"
-  chmod 0755 "$output_root/etc/init.d/forkop" "$output_root/usr/bin/forkop"
+  chmod 0755 "$output_root/etc/init.d/forkop" "$output_root/etc/init.d/forkop-state" "$output_root/usr/bin/forkop"
 }
 
 build_app_root() {
@@ -321,6 +326,7 @@ EOF
 #!/bin/sh
 [ -s ${IPKG_INSTROOT}/lib/functions.sh ] || exit 0
 . ${IPKG_INSTROOT}/lib/functions.sh
+[ -n "${IPKG_INSTROOT}" ] || /usr/bin/forkop luci_prerm >/dev/null 2>&1 || true
 default_prerm $0 $@
 EOF
 

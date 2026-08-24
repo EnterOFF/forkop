@@ -1,6 +1,6 @@
 import { callBaseMethod } from './callBaseMethod';
 import { Forkop } from '../../types';
-import { executeShellCommand } from '../../../helpers';
+import { callUbus, executeShellCommand } from '../../../helpers';
 import { isTransientRpcError } from '../../helpers/isTransientRpcError';
 
 const UI_ACTION_RPC_TIMEOUT_MS = 15000;
@@ -13,6 +13,9 @@ const COMPONENT_ACTION_SELF_UPDATE_SETTLE_MS = 30000;
 const COMPONENT_ACTION_TRANSIENT_RPC_GRACE_MS = 30000;
 const COMPONENT_ACTION_STATE_DIR = '/var/run/forkop/component-actions';
 const GET_UI_STATE_RPC_TIMEOUT_MS = 3000;
+// The service answers from memory; this ceiling only covers the case where it
+// is still working the first answer out.
+const SYSTEM_INFO_UBUS_TIMEOUT_MS = 5000;
 // The router-side Clash transport lets curl run for a minute, and LuCI aborts
 // every RPC after twenty seconds unless something raises that ceiling. Asking
 // for no timeout at all left the default in place, so a rule-set refresh the
@@ -278,18 +281,11 @@ export const ForkopShellMethods = {
       '/usr/bin/forkop',
       { timeout: CLASH_HTTP_TRANSPORT_TIMEOUT_MS },
     ),
-  enable: async () =>
-    callBaseMethod<unknown>(
-      Forkop.AvailableMethods.ENABLE,
-      [],
-      '/etc/init.d/forkop',
-    ),
-  disable: async () =>
-    callBaseMethod<unknown>(
-      Forkop.AvailableMethods.DISABLE,
-      [],
-      '/etc/init.d/forkop',
-    ),
+  // Through the CLI, not the init script: every init script command blocks on
+  // procd's per-service lock, so toggling autostart waited out whatever action
+  // was running. The CLI writes the rc.d symlink and returns at once.
+  enable: async () => callBaseMethod<unknown>(Forkop.AvailableMethods.ENABLE),
+  disable: async () => callBaseMethod<unknown>(Forkop.AvailableMethods.DISABLE),
   globalCheck: async (masked = true) =>
     diagnosticCheck<unknown>(Forkop.AvailableMethods.GLOBAL_CHECK, [
       masked ? 'masked' : 'raw',
@@ -305,10 +301,27 @@ export const ForkopShellMethods = {
   checkLogs,
   checkSingBoxLogs: async () =>
     callBaseMethod<unknown>(Forkop.AvailableMethods.CHECK_SING_BOX_LOGS),
-  getSystemInfo: async () =>
-    callBaseMethod<Forkop.GetSystemInfo>(
+  // Working the versions out means asking opkg and every provider, about 1.7 s.
+  // The state service holds the answer for as long as the installed packages
+  // have not changed; the CLI is what answers when it is not running.
+  getSystemInfo: async () => {
+    const served = await callUbus<{
+      available?: boolean;
+      system_info?: Forkop.GetSystemInfo;
+    }>({
+      object: 'forkop',
+      method: 'system_info',
+      timeoutMs: SYSTEM_INFO_UBUS_TIMEOUT_MS,
+    });
+
+    if (served.success && served.data.available && served.data.system_info) {
+      return { success: true as const, data: served.data.system_info };
+    }
+
+    return callBaseMethod<Forkop.GetSystemInfo>(
       Forkop.AvailableMethods.GET_SYSTEM_INFO,
-    ),
+    );
+  },
   getUiCapabilities: async () =>
     callBaseMethod<Forkop.GetUiCapabilities>(
       Forkop.AvailableMethods.GET_UI_CAPABILITIES,

@@ -33,6 +33,13 @@ reject_pattern() {
   ! grep -Fq "$pattern" "$FORKOP_BIN" || fail "$label"
 }
 
+reject_lifecycle_pattern() {
+  local pattern="$1"
+  local label="$2"
+
+  ! grep -Fq "$pattern" "$LIFECYCLE_UC" || fail "$label"
+}
+
 require_file_pattern() {
   local file="$1"
   local pattern="$2"
@@ -150,6 +157,34 @@ require_pattern 'const IP_BIN = getenv("FORKOP_IP_BIN") || "/usr/libexec/ip-full
 if grep -n -E '\[ "ip", "-[46]"|\[ "ip", "route"' "$LIFECYCLE_UC" >/dev/null 2>&1; then
   fail "route and rule cleanup must not fall back to BusyBox ip"
 fi
+# Autostart is toggled by writing the rc.d symlink rather than by running the
+# init script, which blocks on procd's per-service lock for as long as any other
+# command on the service is running. That only works while the priority matches
+# what the init script declares.
+initd_start="$(sed -n 's/^START=\([0-9]*\)$/\1/p' "$ROOT_DIR/forkop/files/etc/init.d/forkop")"
+[ -n "$initd_start" ] ||
+  fail "the init script must declare a START priority"
+require_pattern "const AUTOSTART_PRIORITY = \"$initd_start\";" \
+  "the autostart symlink priority must match the init script's START"
+reject_lifecycle_pattern 'command_status_from_args([ SERVICE_INIT, "enable" ])' \
+  "enabling autostart must not go through the init script and its procd lock"
+reject_lifecycle_pattern 'command_status_from_args([ SERVICE_INIT, "disable" ])' \
+  "disabling autostart must not go through the init script and its procd lock"
+
+# A live reload does not restart sing-box, so a wait dated from the process start
+# is already satisfied when it begins: it returned before the rebind that closes
+# and reopens every inbound, and the state read during that window reported a
+# service that had never stopped as stopped.
+reload_wait_block="$(awk '/"reload-sing-box-runtime",/{c=25} c-->0' "$LIFECYCLE_UC")"
+case "$reload_wait_block" in
+  *'"wait-forkop-stable-reload",'*) ;;
+  *) fail "the sing-box reload must wait for the runtime to settle after its rebind" ;;
+esac
+case "$reload_wait_block" in
+  *'"wait-forkop-stable-start",'*)
+    fail "the sing-box reload must not use the wait dated from the process start" ;;
+esac
+
 require_pattern 'singbox_init_config_for_live_reload' \
   "live reloads must skip the memory-heavy parallel sing-box config check"
 require_pattern 'command_success_from_args([ "pgrep", "-x", "sing-box" ]) ||' \

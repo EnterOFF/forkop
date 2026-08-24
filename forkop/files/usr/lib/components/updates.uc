@@ -8,8 +8,7 @@ const BIN_PATH = getenv("FORKOP_BIN") || "/usr/bin/forkop";
 const RUNTIME_STATE_DIR = getenv("FORKOP_RUNTIME_STATE_DIR") || "/var/run/forkop";
 const SERVICE_INIT = getenv("FORKOP_SERVICE_INIT") || "/etc/init.d/forkop";
 const COMPONENT_JOB_DIR = getenv("UPDATES_JOB_DIR") || getenv("FORKOP_UI_COMPONENT_ACTION_DIR") || "/var/run/forkop/component-actions";
-const COMPONENT_UPDATE_CHECK_CACHE_DIR = getenv("FORKOP_COMPONENT_UPDATE_CHECK_CACHE_DIR") || RUNTIME_STATE_DIR + "/component-update-checks";
-const COMPONENT_UPDATE_CHECK_STATE_FILE = getenv("FORKOP_COMPONENT_UPDATE_CHECK_STATE_FILE") || RUNTIME_STATE_DIR + "/component-update-check.timestamp";
+const STATE_SERVICE_OBJECT = getenv("FORKOP_STATE_SERVICE_OBJECT") || "forkop";
 const COMPONENT_UPDATE_CHECK_LOCK_DIR = getenv("FORKOP_COMPONENT_UPDATE_CHECK_LOCK_DIR") || RUNTIME_STATE_DIR + "/component-update-check.lock";
 const COMPONENT_JOB_FINISHED_TTL_MINUTES = getenv("UPDATES_JOB_FINISHED_TTL_MINUTES") || "60";
 const COMPONENT_JOB_ORPHAN_OUTPUT_TTL_MINUTES = getenv("UPDATES_JOB_ORPHAN_OUTPUT_TTL_MINUTES") || "60";
@@ -129,14 +128,6 @@ function remove_file(path) {
     }
 }
 
-function file_first_line_value(path) {
-    let data = fs.readfile(path);
-    if (data == null)
-        return "";
-
-    let newline = index(data, "\n");
-    return newline >= 0 ? substr(data, 0, newline) : data;
-}
 
 function arg_bool(value) {
     value = lc(as_string(value));
@@ -253,27 +244,6 @@ function unsigned_number(value) {
     return int(value);
 }
 
-function update_due_status(now_value, last_run_value, interval_value) {
-    let now = unsigned_number(now_value);
-    let interval = unsigned_number(interval_value);
-
-    if (now == null || interval == null || interval <= 0)
-        return 2;
-
-    let last_run = unsigned_number(last_run_value);
-    if (last_run == null)
-        last_run = 0;
-
-    if (last_run > 0 && now - last_run < interval)
-        return 1;
-
-    return 0;
-}
-
-function update_is_due(now_value, last_run_value, interval_value) {
-    exit(update_due_status(now_value, last_run_value, interval_value));
-}
-
 function duration_to_seconds_value(value) {
     let rest = as_string(value);
     if (rest == "")
@@ -316,28 +286,34 @@ function duration_to_seconds(value) {
     print(seconds, "\n");
 }
 
+// The cron line has to mean exactly what the setting says. It used to be an
+// approximation: an interval cron cannot express - two days, say - became a
+// daily line, and a file recording the last run then suppressed the runs that
+// were not wanted. Keeping state to correct a schedule is the wrong way round.
+// An interval that cannot be expressed exactly is refused, and there is no file.
 function due_check_cron_schedule_text(value) {
     let seconds = arg_number(value);
 
-    if (seconds <= 60)
-        return "* * * * *";
-
-    if (seconds % 86400 == 0)
+    if (seconds == 86400)
         return "0 0 * * *";
 
     if (seconds % 3600 == 0) {
         let hours = seconds / 3600;
-        if (hours >= 1 && hours <= 23)
-            return hours == 1 ? "0 * * * *" : "0 */" + hours + " * * *";
+        if (hours == 1)
+            return "0 * * * *";
+        if (hours >= 2 && hours <= 23)
+            return "0 */" + hours + " * * *";
     }
 
     if (seconds % 60 == 0) {
         let minutes = seconds / 60;
-        if (minutes >= 1 && minutes <= 59)
-            return minutes == 1 ? "* * * * *" : "*/" + minutes + " * * * *";
+        if (minutes == 1)
+            return "* * * * *";
+        if (minutes >= 2 && minutes <= 59)
+            return "*/" + minutes + " * * * *";
     }
 
-    return "* * * * *";
+    return "";
 }
 
 function due_check_cron_schedule(value) {
@@ -393,12 +369,13 @@ function cron_refresh_plan_rows(settings, bin, component_marker) {
     let component_interval = settings_component_update_check_interval(settings);
     if (component_interval != "") {
         let component_seconds = duration_to_seconds_value(component_interval);
-        if (component_seconds == null) {
+        let schedule = component_seconds == null ? "" : due_check_cron_schedule_text(component_seconds);
+        if (schedule == "") {
             push(rows, "component-error\t" + as_string(component_interval));
             status = 1;
         }
         else {
-            push(rows, "component\t" + due_check_cron_schedule_text(component_seconds) + " " + as_string(bin) + " component_updates_if_due " + as_string(component_marker));
+            push(rows, "component\t" + schedule + " " + as_string(bin) + " component_updates_if_due " + as_string(component_marker));
         }
     }
 
@@ -588,11 +565,41 @@ function valid_component_name(component) {
         component == "zapret2" || component == "byedpi";
 }
 
-function component_update_check_cache_path(component) {
-    component = normalize_component_name(component);
-    if (!valid_component_name(component))
-        return "";
-    return COMPONENT_UPDATE_CHECK_CACHE_DIR + "/" + component + ".json";
+// The scheduled check has to leave its answer somewhere the page can read hours
+// later. That used to be a file per component under /var/run. It is held by the
+// state service now, which stamps it with the installed packages and drops it
+// when they change - the case the files got wrong, since an upgrade behind
+// Forkop's back left one claiming an update for a version already installed.
+function state_service_call(method, args) {
+    let command = "ubus call " + shell_quote(STATE_SERVICE_OBJECT) + " " +
+        shell_quote(as_string(method));
+    if (args != null)
+        command += " " + shell_quote(sprintf("%J", args));
+
+    let pipe = fs.popen(command + " 2>/dev/null", "r");
+    if (!pipe)
+        return null;
+
+    let data = pipe.read("all");
+    let status = pipe.close();
+    if (status != 0 || data == null)
+        return null;
+
+    try {
+        return json(data);
+    }
+    catch (e) {
+        return null;
+    }
+}
+
+function stored_update_check_results() {
+    let answer = object_or_empty(state_service_call("update_checks", null));
+    return type(answer.results) == "array" ? answer.results : [];
+}
+
+function clear_component_update_check_cache() {
+    state_service_call("forget_update_checks", null);
 }
 
 function component_update_check_cache_enabled() {
@@ -613,11 +620,10 @@ function cache_component_update_check_result(value, notify_update) {
         return false;
 
     let component = normalize_component_name(value.component);
-    let path = component_update_check_cache_path(component);
-    if (path == "" || !ensure_dir(COMPONENT_UPDATE_CHECK_CACHE_DIR))
-        return false;
-
-    let previous = object_or_empty(read_json_file(path));
+    let previous = {};
+    for (let entry in stored_update_check_results())
+        if (normalize_component_name(object_or_empty(entry).component) == component)
+            previous = object_or_empty(entry);
     let cached = {
         success: true,
         component,
@@ -630,7 +636,10 @@ function cache_component_update_check_result(value, notify_update) {
         status: as_string(value.status),
         updated_at: now_seconds()
     };
-    if (!write_state_file(path, cached))
+    if (!object_or_empty(state_service_call("report_update_check", {
+        component,
+        result: sprintf("%J", cached)
+    })).stored)
         return false;
 
     if (arg_bool(notify_update) && cached.status == "outdated" &&
@@ -646,12 +655,14 @@ function update_component_check_cache_from_action(value) {
     value = object_or_empty(value);
     let component = normalize_component_name(value.component);
     let action = as_string(value.action);
-    let path = component_update_check_cache_path(component);
-    if (path == "")
+    if (!valid_component_name(component))
         return;
 
     if (action == "remove" && value.success === true) {
-        remove_file(path);
+        // Nothing known about a component that is no longer installed. The
+        // service is told to forget the lot; the next check refills what is
+        // still there.
+        clear_component_update_check_cache();
         return;
     }
 
@@ -680,23 +691,16 @@ function update_component_check_cache_from_action(value) {
     }
 }
 
-function clear_component_update_check_cache() {
-    for (let path in fs.glob(COMPONENT_UPDATE_CHECK_CACHE_DIR + "/*.json"))
-        remove_file(path);
-    remove_file(COMPONENT_UPDATE_CHECK_STATE_FILE);
-}
+
 
 function component_update_check_cache() {
     let enabled = component_update_check_cache_enabled();
     let results = [];
 
-    if (enabled) {
-        for (let component in [ "forkop", "sing_box", "zapret", "zapret2", "byedpi" ]) {
-            let value = read_json_file(component_update_check_cache_path(component));
+    if (enabled)
+        for (let value in stored_update_check_results())
             if (component_update_check_result_cacheable(value))
                 push(results, value);
-        }
-    }
 
     write_json({ enabled, results });
 }
@@ -1067,49 +1071,23 @@ function run_automatic_component_update_check(component) {
     return cache_component_update_check_result(value, true);
 }
 
+// Called by the cron line the settings generate, so arriving here means it is
+// due. What used to live here - reading a timestamp, comparing it against the
+// interval, writing it back - existed only because the cron line was an
+// approximation of the interval rather than the interval itself.
+//
+// The lock stays. It answers a different question: whether another check is
+// already running, which a run started by hand can make true at any time.
 function component_updates_if_due() {
-    let interval = settings_component_update_check_interval(uci_settings());
-    if (interval == "")
+    if (settings_component_update_check_interval(uci_settings()) == "")
         exit(0);
-
-    let seconds = duration_to_seconds_value(interval);
-    if (seconds == null) {
-        log_message("Invalid component_update_check_interval value: " + interval, "error");
-        exit(1);
-    }
-
-    let due = update_due_status(
-        now_seconds(),
-        file_first_line_value(COMPONENT_UPDATE_CHECK_STATE_FILE),
-        seconds
-    );
-    if (due == 1)
-        exit(0);
-    if (due != 0)
-        exit(1);
 
     if (!acquire_runtime_lock(COMPONENT_UPDATE_CHECK_LOCK_DIR, false))
         exit(0);
 
-    due = update_due_status(
-        now_seconds(),
-        file_first_line_value(COMPONENT_UPDATE_CHECK_STATE_FILE),
-        seconds
-    );
-    if (due != 0) {
-        release_runtime_lock(COMPONENT_UPDATE_CHECK_LOCK_DIR);
-        exit(due == 1 ? 0 : 1);
-    }
-
-    ensure_dir(COMPONENT_UPDATE_CHECK_CACHE_DIR);
     for (let component in automatic_component_check_names())
         run_automatic_component_update_check(component);
 
-    if (!write_file(COMPONENT_UPDATE_CHECK_STATE_FILE, as_string(now_seconds()) + "\n")) {
-        release_runtime_lock(COMPONENT_UPDATE_CHECK_LOCK_DIR);
-        log_message("Failed to write component update check timestamp", "error");
-        exit(1);
-    }
     release_runtime_lock(COMPONENT_UPDATE_CHECK_LOCK_DIR);
 }
 
@@ -1173,8 +1151,6 @@ let mode = ARGV[0] || "";
 
 if (mode == "json-length")
     json_length(ARGV[1]);
-else if (mode == "update-is-due")
-    update_is_due(ARGV[1], ARGV[2], ARGV[3]);
 else if (mode == "duration-to-seconds")
     duration_to_seconds(ARGV[1]);
 else if (mode == "due-check-cron-schedule")

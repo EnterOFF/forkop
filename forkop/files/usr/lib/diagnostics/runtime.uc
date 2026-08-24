@@ -28,8 +28,6 @@ const CHECK_PROXY_LOCK_DIR = getenv("FORKOP_CHECK_PROXY_LOCK_DIR") || RUNTIME_ST
 // A proxy check that died leaves its lock behind; the next one may take it over
 // almost at once, because the check runs from a click and is cheap to repeat.
 const CHECK_PROXY_LOCK_OWNER_GRACE = "5";
-const SYSTEM_INFO_CACHE_FILE = getenv("FORKOP_SYSTEM_INFO_CACHE_FILE") || RUNTIME_STATE_DIR + "/system-info.json";
-const SYSTEM_INFO_CACHE_TTL = int(getenv("FORKOP_SYSTEM_INFO_CACHE_TTL") || "3600");
 const TMP_SING_BOX_FOLDER = getenv("TMP_SING_BOX_FOLDER") || constants.TMP_SING_BOX_FOLDER || "/tmp/sing-box";
 const CHECK_PROXY_IP_DOMAIN = getenv("CHECK_PROXY_IP_DOMAIN") || constants.CHECK_PROXY_IP_DOMAIN || "ip.podkop.fyi";
 // The public endpoint reports the address that reached it under /check; both
@@ -842,38 +840,8 @@ function get_luci_app_version() {
     return "";
 }
 
-function system_info_cache_is_valid() {
-    let cache = read_json_file(SYSTEM_INFO_CACHE_FILE);
-    if (type(cache) != "object")
-        return false;
-    let now = int(clock()[0]);
-    let generated_at = arg_number(cache.generated_at || 0);
-    if (now > 0 && generated_at > 0 && SYSTEM_INFO_CACHE_TTL > 0 && now - generated_at >= SYSTEM_INFO_CACHE_TTL)
-        return false;
-    let marker = fs.readfile(SING_BOX_FORKOP_VERSION_FILE);
-    if (marker != null) {
-        marker = replace(trim(as_string(marker)), /~/g, "-");
-        if (marker != "" && (!command_exists("sing-box") || as_string(cache.sing_box_version) != marker))
-            return false;
-    }
-    return cache.forkop_version == FORKOP_VERSION && cache.luci_app_version == get_luci_app_version();
-}
-
 function ensure_runtime_dirs() {
     ensure_dir(RUNTIME_STATE_DIR);
-}
-
-function write_system_info_cache(value) {
-    ensure_runtime_dirs();
-    let tmpfile = SYSTEM_INFO_CACHE_FILE + "." + clock()[0] + "." + clock()[1] + ".tmp";
-    if (fs.writefile(tmpfile, as_string(value) + "\n") == null)
-        return false;
-    remove_file(SYSTEM_INFO_CACHE_FILE);
-    if (!fs.rename(tmpfile, SYSTEM_INFO_CACHE_FILE)) {
-        remove_file(tmpfile);
-        return false;
-    }
-    return true;
 }
 
 function package_installed(package_name) {
@@ -957,15 +925,15 @@ function build_system_info() {
     };
 }
 
+// Worked out on demand and not kept anywhere. It used to live in a file with a
+// one hour TTL, and proving that file still applied cost more than most of what
+// it saved: the check re-read the sing-box version marker and scanned the 415 KB
+// LuCI bundle for its version string, measuring 720 ms against the 1.7 s it
+// takes to work the whole thing out. Callers that want it held on to hold on to
+// it themselves - the page loads it once per visit, and the state service keeps
+// it in memory until the installed packages change.
 function get_system_info() {
-    if (system_info_cache_is_valid()) {
-        print(as_string(fs.readfile(SYSTEM_INFO_CACHE_FILE)));
-        return 0;
-    }
-
-    let system_info = sprintf("%J", build_system_info());
-    write_system_info_cache(system_info);
-    print(system_info, "\n");
+    print(sprintf("%J", build_system_info()), "\n");
     return 0;
 }
 

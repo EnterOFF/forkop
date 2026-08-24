@@ -115,13 +115,13 @@ SH
 chmod +x "$system_info_bin/opkg" "$system_info_bin/sing-box"
 printf '%s\n' 'var FORKOP_LUCI_APP_VERSION = "runtime-test";' >"$system_info_luci/main.js"
 printf '%s\n' '1.13.14-extended-2.5.3-f1' >"$WORK_DIR/sing-box-version"
-printf '%s\n' '{"forkop_version":"runtime-test","luci_app_version":"runtime-test","sing_box_version":"not installed","generated_at":9999999999}' >"$WORK_DIR/system-info.json"
+# Nothing is stored between calls any more, so the marker is read directly
+# rather than having to out-argue a cached answer that disagreed with it.
 system_info="$(
   PATH="$system_info_bin:$PATH" \
   FORKOP_VERSION=runtime-test \
   FORKOP_LIB="$FORKOP_LIB" \
   FORKOP_LUCI_VIEW_DIR="$system_info_luci" \
-  FORKOP_SYSTEM_INFO_CACHE_FILE="$WORK_DIR/system-info.json" \
   SING_BOX_FORKOP_VERSION_FILE="$WORK_DIR/sing-box-version" \
     ucode -L "$FORKOP_LIB" "$DIAGNOSTICS_RUNTIME" get-system-info
 )"

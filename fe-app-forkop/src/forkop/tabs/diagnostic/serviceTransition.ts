@@ -73,11 +73,27 @@ export function getServiceControlsPresentation({
   running,
   operation,
   operationSeconds = 0,
+  known = true,
 }: {
   running: boolean;
   operation: ServiceOperation | null;
   operationSeconds?: number;
+  known?: boolean;
 }): ServiceControlsPresentation {
+  // Nothing is offered about a service whose state has not arrived yet. An
+  // empty store reads as running=0 with no operation, which is exactly what a
+  // stopped service reads as - so the row would offer Start for a service that
+  // is running, which is what LuCI reloading the view after Save & Apply makes
+  // happen at the worst possible moment.
+  if (!known) {
+    const hidden = { visible: false, loading: false, disabled: true };
+    return {
+      restart: { ...hidden, mode: 'restart' },
+      start: { ...hidden },
+      stop: { ...hidden },
+    };
+  }
+
   const applying = operation === 'apply';
   const restarting = operation === 'restart' || applying;
   const idle = operation === null;
@@ -109,11 +125,19 @@ export function getAutostartControlsPresentation({
   enabled,
   enableLoading,
   disableLoading,
+  known = true,
 }: {
   enabled: boolean;
   enableLoading: boolean;
   disableLoading: boolean;
+  known?: boolean;
 }) {
+  // Same reason: an empty store reads as "autostart is off".
+  if (!known) {
+    const hidden = { visible: false, loading: false, disabled: true };
+    return { enable: { ...hidden }, disable: { ...hidden } };
+  }
+
   return {
     enable: {
       visible: !enabled,

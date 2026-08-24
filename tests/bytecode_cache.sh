@@ -222,6 +222,25 @@ removed_after="$(resolve)"
 [ ! -f "$removed_after/core/added.uc" ] ||
   fail "a removed module must not survive in the rebuilt cache"
 
+complete="$(resolve)"
+[ "$complete" != "$SOURCE_DIR" ] ||
+  fail "cache must be healthy before the completeness check"
+source_count="$(find "$SOURCE_DIR" -type f | wc -l)"
+cache_count="$(find "$complete" -type f | wc -l)"
+[ "$source_count" = "$cache_count" ] ||
+  fail "the cache must stand in for the whole library: $source_count source files, $cache_count cached"
+for relative in core/probe.uc config/domain.uc service/entry.uc core/payload.txt; do
+  [ ! -f "$SOURCE_DIR/$relative" ] || [ -f "$complete/$relative" ] ||
+    fail "$relative is installed but missing from the cache"
+done
+
+# A manifest may only vouch for a file list the tree actually had while it was
+# read. Recording the directories afterwards would certify a build that raced an
+# install, which is how the incomplete cache above went unnoticed.
+manifest_dirs="$(grep -c '^dir=' "$CACHE_DIR/manifest" || true)"
+[ "$manifest_dirs" -gt 0 ] ||
+  fail "the manifest must record the directories its file list was read against"
+
 # The entrypoint keeps honouring an explicit FORKOP_LIB, which is what tests and
 # manual overrides rely on and what every child process is handed.
 mkdir -p "$WORK_DIR/fake/diagnostics"

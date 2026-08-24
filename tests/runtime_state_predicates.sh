@@ -297,6 +297,59 @@ exit_detection_polls="$(wc -l <"$WORK_DIR/sleep.count" | tr -d ' ')"
 wait "$sing_box_pid" 2>/dev/null || true
 sing_box_pid=""
 
+# A live reload leaves sing-box in place, so the process tells the wait nothing:
+# `wait-forkop-stable-start` was already satisfied by the pre-reload runtime and
+# returned before sing-box had rebound anything, which reported the service as
+# stopped for the three seconds the rebind actually took. The reload wait sits
+# out a stability window and asks readiness to hold through the end of it, so an
+# already-ready runtime cannot satisfy it on the first look.
+cp "$WORK_DIR/proc-net-tcp.ready" "$WORK_DIR/reload-ready-proc-net-tcp"
+if ! PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
+  FORKOP_SING_BOX_START_MAX_WAIT_SECONDS=30 \
+  FORKOP_PROC_NET_TCP="$WORK_DIR/reload-ready-proc-net-tcp" \
+  SING_BOX_TEST_POLL_COUNT_FILE="$WORK_DIR/reload-ready-poll.count" \
+  state_ucode wait-forkop-stable-reload forkop ForkopTable 0x00100000 2 2; then
+  fail "reload wait must accept a runtime whose readiness holds"
+fi
+assert_eq "2" "$(cat "$WORK_DIR/reload-ready-poll.count")" \
+  "reload wait must watch readiness hold rather than accept the first look"
+
+# Readiness that only appears once the rebind is over still has to hold
+# afterwards: three polls before it comes back, then the two-second hold.
+cp "$WORK_DIR/proc-net-tcp.no-dns" "$WORK_DIR/reload-late-proc-net-tcp"
+if ! PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
+  FORKOP_SING_BOX_START_MAX_WAIT_SECONDS=30 \
+  FORKOP_PROC_NET_TCP="$WORK_DIR/reload-late-proc-net-tcp" \
+  SING_BOX_TEST_READY_PROC_TCP="$WORK_DIR/proc-net-tcp.ready" \
+  SING_BOX_TEST_READY_AFTER_SLEEPS=3 \
+  SING_BOX_TEST_POLL_COUNT_FILE="$WORK_DIR/reload-late-poll.count" \
+  state_ucode wait-forkop-stable-reload forkop ForkopTable 0x00100000 2 2; then
+  fail "reload wait must keep polling until the rebind finishes"
+fi
+assert_eq "5" "$(cat "$WORK_DIR/reload-late-poll.count")" \
+  "reload wait polls: three for the rebind, two for the hold"
+
+# The window is the other half. A runtime that was ready the whole time still has
+# to sit it out, because ready the whole time is exactly what the pre-rebind
+# runtime looked like.
+cp "$WORK_DIR/proc-net-tcp.ready" "$WORK_DIR/reload-window-proc-net-tcp"
+if ! PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
+  FORKOP_SING_BOX_START_MAX_WAIT_SECONDS=30 \
+  FORKOP_PROC_NET_TCP="$WORK_DIR/reload-window-proc-net-tcp" \
+  SING_BOX_TEST_POLL_COUNT_FILE="$WORK_DIR/reload-window-poll.count" \
+  state_ucode wait-forkop-stable-reload forkop ForkopTable 0x00100000 6 2; then
+  fail "reload wait must accept a runtime that stays ready through the window"
+fi
+assert_eq "6" "$(cat "$WORK_DIR/reload-window-poll.count")" \
+  "reload wait must sit out the stability window it was given"
+
+if PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
+  FORKOP_SING_BOX_START_MAX_WAIT_SECONDS=1 \
+  FORKOP_PROC_NET_TCP="$WORK_DIR/proc-net-tcp.no-dns" \
+  state_ucode wait-forkop-stable-reload forkop ForkopTable 0x00100000 2 2 >/dev/null 2>&1; then
+  fail "reload wait must give up on a runtime that never comes back"
+fi
+
 PENDING_RELOAD_FILE="$WORK_DIR/reload.pending"
 state_ucode mark-pending-reload "$PENDING_RELOAD_FILE" "reload_busy"
 grep -Fxq "reason=reload_busy" "$PENDING_RELOAD_FILE" ||

@@ -38,11 +38,8 @@ let process_start_ticks = health.process_start_ticks;
 let process_age_seconds_from_ticks = health.process_age_seconds_from_ticks;
 let process_age_seconds = health.process_age_seconds;
 let sing_box_service_running = health.sing_box_service_running;
-let sing_box_service_stable = health.sing_box_service_stable;
 let sing_box_runtime_ports_ready = health.sing_box_runtime_ports_ready;
 let forkop_runtime_network_configured = health.forkop_runtime_network_configured;
-let forkop_running = health.forkop_running;
-let forkop_stably_running = health.forkop_stably_running;
 
 function as_string(value) {
     return value == null ? "" : "" + value;
@@ -273,6 +270,55 @@ function reload_sing_box_runtime(config_hash_before, config_hash_after, force) {
     if (!command_success_from_args([ SING_BOX_INIT, "reload" ])) {
         command_success_from_args([ "logger", "-t", "forkop", "[fatal] Failed to reload sing-box. Aborted." ]);
         exit(1);
+    }
+}
+
+// A live reload does not restart sing-box, so nothing observable about the
+// process changes when one happens. `wait_forkop_stable_start` dates its wait
+// from the process start, which a live reload leaves alone, so it passed on its
+// very first look - at the pre-reload runtime - and returned before sing-box had
+// touched anything. `/etc/init.d/sing-box reload` only signals the process; the
+// rebind that follows closes and reopens every inbound, measured at three
+// seconds during which the runtime is genuinely not ready. The reload reported
+// "Configuration applied" in the middle of that window, so every reader of the
+// state - the page above all - was told the service was stopped when it had
+// never stopped.
+//
+// There is no restart to date the wait from here, so it is dated from the wait
+// itself: readiness has to hold continuously for `min_hold` seconds, which no
+// snapshot taken before the rebind can satisfy.
+function wait_forkop_stable_reload(rt_table, nft_table, mark, min_age, min_hold) {
+    min_age = int(min_age || 8);
+    min_hold = int(min_hold || 2);
+
+    let waited = 0;
+    let held = 0;
+    while (true) {
+        if (sing_box_runtime_ports_ready() &&
+            forkop_runtime_network_configured(rt_table, nft_table, mark))
+            held++;
+        else
+            held = 0;
+
+        // The start case asks for a process `min_age` old that is ready now. A
+        // live reload leaves no new process to age, so the wait ages itself and
+        // asks that readiness has held on top of that. Observations are a second
+        // apart, so `held` of them span `held - 1` seconds.
+        //
+        // Both halves are needed. Without the age the wait would end as soon as
+        // the runtime looked settled, which is what a pre-rebind snapshot looks
+        // like; without the hold a single blip at the end of the window would
+        // pass. Keeping them separate also means one blip mid-window costs a
+        // second rather than the whole reload, which matters because failing
+        // this wait tears the runtime down.
+        if (waited >= min_age && held > min_hold)
+            return true;
+
+        if (waited >= SING_BOX_START_MAX_WAIT_SECONDS)
+            return false;
+
+        command_success_from_args([ "sleep", "1" ]);
+        waited++;
     }
 }
 
@@ -1169,6 +1215,8 @@ else if (mode == "sing-box-runtime-reload-needed-fixture")
     exit(sing_box_runtime_reload_needed(ARGV[1], ARGV[2], ARGV[3]) ? 0 : 1);
 else if (mode == "wait-forkop-stable-start")
     exit(wait_forkop_stable_start(ARGV[1], ARGV[2], ARGV[3], ARGV[4]) ? 0 : 1);
+else if (mode == "wait-forkop-stable-reload")
+    exit(wait_forkop_stable_reload(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5]) ? 0 : 1);
 else if (mode == "service-trigger-signature")
     exit(print_signature_hash(service_trigger_signature_body(uci_settings())) ? 0 : 1);
 else if (mode == "service-trigger-signature-fixture") {

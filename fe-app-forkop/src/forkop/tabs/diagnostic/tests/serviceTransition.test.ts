@@ -163,6 +163,47 @@ describe('service control presentation', () => {
   });
 });
 
+// The store starts empty, which reads as running=0 with no operation - exactly
+// what a stopped service reads as. LuCI reloads the view after Save & Apply, so
+// the row was offering Start for a service that was mid-apply until the first
+// state arrived.
+describe('a state that has not arrived yet', () => {
+  it('offers nothing at all', () => {
+    const state = getServiceControlsPresentation({
+      running: false,
+      operation: null,
+      known: false,
+    });
+
+    expect(state.restart.visible).toBe(false);
+    expect(state.start.visible).toBe(false);
+    expect(state.stop.visible).toBe(false);
+  });
+
+  it('offers no autostart control either', () => {
+    const state = getAutostartControlsPresentation({
+      enabled: false,
+      enableLoading: false,
+      disableLoading: false,
+      known: false,
+    });
+
+    expect(state.enable.visible).toBe(false);
+    expect(state.disable.visible).toBe(false);
+  });
+
+  it('offers the normal row once it has', () => {
+    const state = getServiceControlsPresentation({
+      running: true,
+      operation: null,
+      known: true,
+    });
+
+    expect(state.restart.visible).toBe(true);
+    expect(state.stop.visible).toBe(true);
+  });
+});
+
 describe('autostart controls', () => {
   it('shows exactly one of the two and never gates it on service state', () => {
     const enabled = getAutostartControlsPresentation({

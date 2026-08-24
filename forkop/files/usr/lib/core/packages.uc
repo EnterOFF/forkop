@@ -43,7 +43,61 @@ function apk_installed(package_name) {
     return command_exists("apk") && command_success([ "apk", "info", "-e", as_string(package_name) ]);
 }
 
+const OPKG_STATUS_FILE = getenv("FORKOP_OPKG_STATUS_FILE") || "/usr/lib/opkg/status";
+
+// `opkg list-installed` takes opkg's own lock, and every reader of a version
+// here then competes with any install in progress - which is how a background
+// version read came to make an unrelated `opkg` call fail with "Could not lock
+// /var/lock/opkg.lock". The status file is what that command reads anyway, and
+// reading it takes no lock, so no version lookup can collide with anything.
+//
+// The status of a stanza has to be honoured: the file also carries packages
+// that are known but not installed, and this router has four of them. The test
+// is the last word of the status line, because "not-installed" ends in
+// "installed" and a substring check would call every one of them present.
+function opkg_status_installed(status) {
+    let words = split(trim(as_string(status)), /[ \t]+/);
+    return length(words) > 0 && words[length(words) - 1] == "installed";
+}
+
+function opkg_status_version(text, package_name) {
+    package_name = as_string(package_name);
+
+    let name = "";
+    let version = "";
+    let status = "";
+
+    for (let line in split(as_string(text), "\n")) {
+        line = trim(as_string(line));
+
+        if (line == "") {
+            if (name == package_name && opkg_status_installed(status))
+                return version;
+            name = "";
+            version = "";
+            status = "";
+            continue;
+        }
+
+        if (substr(line, 0, 9) == "Package: ")
+            name = trim(substr(line, 9));
+        else if (substr(line, 0, 9) == "Version: ")
+            version = trim(substr(line, 9));
+        else if (substr(line, 0, 8) == "Status: ")
+            status = trim(substr(line, 8));
+    }
+
+    // A file that does not end with a blank line still has a stanza to answer.
+    return name == package_name && opkg_status_installed(status) ? version : "";
+}
+
 function opkg_version(package_name) {
+    let text = fs.readfile(OPKG_STATUS_FILE);
+    if (text != null)
+        return opkg_status_version(text, package_name);
+
+    // Only for a layout that keeps the status somewhere else. This is the path
+    // that can contend for the lock, and it is not the one anybody takes.
     package_name = as_string(package_name);
     if (!command_exists("opkg"))
         return "";
@@ -207,7 +261,9 @@ else if (mode == "apk-available-version")
     print(apk_available_version(ARGV[1]), "\n");
 else if (mode == "opkg-version")
     print(opkg_version(ARGV[1]), "\n");
+else if (mode == "opkg-status-version")
+    print(opkg_status_version(fs.readfile(ARGV[1]), ARGV[2]), "\n");
 else {
-    warn("Usage: core/packages.uc <installed|apk-installed|opkg-installed|version|apk-version|apk-available-version|opkg-version> <package>\n");
+    warn("Usage: core/packages.uc <installed|apk-installed|opkg-installed|version|apk-version|apk-available-version|opkg-version> <package> | opkg-status-version <file> <package>\n");
     exit(1);
 }

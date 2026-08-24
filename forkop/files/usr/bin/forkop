@@ -175,7 +175,8 @@ function command_spec(command) {
         validate_provider_strategy_json: [ "diagnostics/runtime.uc", "validate-provider-strategy-json", 2 ],
         package_prerm: [ "service/package.uc", "prerm", 1 ],
         package_postinst: [ "service/package.uc", "postinst", 0 ],
-        luci_postinst: [ "service/package.uc", "luci-postinst", 0 ]
+        luci_postinst: [ "service/package.uc", "luci-postinst", 0 ],
+        luci_prerm: [ "service/package.uc", "luci-prerm", 0 ]
     };
 
     return commands[as_string(command)];

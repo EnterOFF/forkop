@@ -1,13 +1,12 @@
 import { TabServiceInstance } from './tab.service';
 import { store } from './store.service';
 import { logger } from './logger.service';
-import { ForkopLogWatcher } from './forkopLogWatcher.service';
+import { startForkopLogFeed } from './forkopLogFeed.service';
 import {
   getForkopLogNotification,
   LogNotificationDeduper,
   ForkopLogNotification,
 } from './logNotificationDeduper.service';
-import { ForkopShellMethods } from '../methods';
 import {
   registerRuntimeStateResumeRefresh,
   startRuntimeUiStatePolling,
@@ -18,8 +17,7 @@ type CoreServiceOptions = {
   logWatcherStartDelayMs?: number;
 };
 
-const LOG_WATCHER_INTERVAL_MS = 10000;
-const LOG_WATCHER_START_DELAY_MS = 5000;
+const LOG_FEED_START_DELAY_MS = 5000;
 
 function componentDisplayName(component: string) {
   const names: Record<string, string> = {
@@ -67,50 +65,35 @@ export function coreService(options: CoreServiceOptions = {}) {
     });
   });
 
-  const watcher = ForkopLogWatcher.getInstance();
   const logNotificationDeduper = new LogNotificationDeduper();
 
-  watcher.init(
-    async () => {
-      const logs = await ForkopShellMethods.checkLogs();
-
-      if (logs.success) {
-        return logs.data as string;
+  const notifyLogLine = (line: string) => {
+    if (logNotificationDeduper.shouldNotify(line)) {
+      const notification = getForkopLogNotification(line);
+      if (notification) {
+        showLogNotification(notification);
       }
+    }
+  };
 
-      return '';
-    },
-    {
-      intervalMs: LOG_WATCHER_INTERVAL_MS,
-      onNewLog: (line) => {
-        if (logNotificationDeduper.shouldNotify(line)) {
-          const notification = getForkopLogNotification(line);
-          if (notification) {
-            showLogNotification(notification);
-          }
-        }
-      },
-    },
-  );
-
-  const startWatcher = async () => {
+  const startLogFeed = async () => {
     if (options.waitForLogWatcherStart) {
       await Promise.resolve()
         .then(() => options.waitForLogWatcherStart?.())
         .catch(() => null);
     }
 
-    watcher.start();
+    await startForkopLogFeed(notifyLogLine);
   };
-  const scheduleStartWatcher = () =>
+  const scheduleStartLogFeed = () =>
     window.setTimeout(() => {
-      void startWatcher();
-    }, options.logWatcherStartDelayMs ?? LOG_WATCHER_START_DELAY_MS);
+      void startLogFeed();
+    }, options.logWatcherStartDelayMs ?? LOG_FEED_START_DELAY_MS);
 
   if (typeof window !== 'undefined') {
-    scheduleStartWatcher();
+    scheduleStartLogFeed();
   } else {
-    void startWatcher();
+    void startLogFeed();
   }
 
   registerRuntimeStateResumeRefresh();

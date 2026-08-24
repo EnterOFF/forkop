@@ -30,7 +30,6 @@ const LUCI_VIEW_DIR = getenv("FORKOP_LUCI_VIEW_DIR") || constant_value("FORKOP_L
 const LUCI_I18N_DOMAIN = getenv("FORKOP_LUCI_I18N_DOMAIN") || constant_value("FORKOP_LUCI_I18N_DOMAIN", "forkop");
 
 const RUNTIME_STATE_DIR = getenv("FORKOP_RUNTIME_STATE_DIR") || "/var/run/forkop";
-const SYSTEM_INFO_CACHE_FILE = getenv("FORKOP_SYSTEM_INFO_CACHE_FILE") || RUNTIME_STATE_DIR + "/system-info.json";
 const RELOAD_STATE_FILE = getenv("FORKOP_RELOAD_STATE_FILE") || RUNTIME_STATE_DIR + "/reload-state";
 const RELOAD_STATE_SNAPSHOT_FILE = getenv("FORKOP_RELOAD_STATE_SNAPSHOT_FILE") || RUNTIME_STATE_DIR + "/reload-state.snapshot." + clock()[0] + "." + clock()[1];
 const PENDING_RELOAD_FILE = getenv("FORKOP_PENDING_RELOAD_FILE") || RUNTIME_STATE_DIR + "/reload.pending";
@@ -241,7 +240,6 @@ function lifecycle_env() {
         FORKOP_BIN: BIN_PATH,
         FORKOP_SERVICE_INIT: SERVICE_INIT,
         FORKOP_RUNTIME_STATE_DIR: RUNTIME_STATE_DIR,
-        FORKOP_SYSTEM_INFO_CACHE_FILE: SYSTEM_INFO_CACHE_FILE,
         FORKOP_PENDING_RELOAD_FILE: PENDING_RELOAD_FILE,
         FORKOP_RELOAD_LOCK_DIR: RELOAD_LOCK_DIR,
         FORKOP_SING_BOX_PLANNED_STOP_FILE: SING_BOX_PLANNED_STOP_FILE,
@@ -1017,12 +1015,17 @@ function apply_reload_plan(plan, force_runtime_reload) {
         ]);
         if (status != 0)
             return abort_reload(status, true);
+        // The same stability window as a start, but not wait-forkop-stable-
+        // start: a live reload leaves the process in place, so a window measured
+        // from the process start is already over when the wait begins and the
+        // wait returned before the rebind it was meant to cover.
         status = module_status(STATE_UC, [
-            "wait-forkop-stable-start",
+            "wait-forkop-stable-reload",
             RT_TABLE_NAME,
             NFT_TABLE_NAME,
             NFT_FAKEIP_MARK,
-            as_string(SING_BOX_START_STABLE_MIN_AGE)
+            as_string(SING_BOX_START_STABLE_MIN_AGE),
+            as_string(RUNTIME_STABLE_MIN_AGE)
         ]);
         if (status != 0) {
             log_message("Reload verification failed after sing-box was reloaded; stopping Forkop runtime", "fatal");
@@ -1283,12 +1286,32 @@ function uninstall() {
     return 0;
 }
 
+// Autostart is the rc.d symlink, and toggling it has nothing to do with the
+// runtime. It used to be toggled through `/etc/init.d/forkop enable`, which
+// blocks for as long as any other command on the same service is running:
+// sourcing /lib/functions/procd.sh takes a per-service flock before it defines
+// anything, so the init script waits whatever a start, stop, restart or reload
+// is doing. Measured at 41 s during a restart, from a button that changes a
+// symlink.
+//
+// The link is written directly instead. Every reader of it in this codebase
+// already looks for exactly this path, and the priority is checked against the
+// init script by tests/service_start_trap.sh so the two cannot drift.
+const AUTOSTART_PRIORITY = "99";
+const AUTOSTART_LINK = "/etc/rc.d/S" + AUTOSTART_PRIORITY + SERVICE_NAME;
+const AUTOSTART_TARGET = "../init.d/" + SERVICE_NAME;
+
 function enable_service() {
-    return command_status_from_args([ SERVICE_INIT, "enable" ]);
+    if (!command_success_from_args([ "mkdir", "-p", "/etc/rc.d" ]))
+        return 1;
+    return command_success_from_args([ "ln", "-sf", AUTOSTART_TARGET, AUTOSTART_LINK ]) ? 0 : 1;
 }
 
 function disable_service() {
-    return command_status_from_args([ SERVICE_INIT, "disable" ]);
+    // The stop link is removed too: the init script declares no STOP, so one
+    // should not exist, but an older install or a hand-made link might.
+    command_success_from_args([ "rm", "-f", "/etc/rc.d/K" + AUTOSTART_PRIORITY + SERVICE_NAME ]);
+    return command_success_from_args([ "rm", "-f", AUTOSTART_LINK ]) ? 0 : 1;
 }
 
 let mode = ARGV[0] || "";

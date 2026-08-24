@@ -576,7 +576,10 @@ function service_busy_value(action) {
     return null;
 }
 
-function current_ui_state_json() {
+// The state payload as an object. The CLI prints it; the state service holds it
+// in memory and hands the same thing to every page, so both have to be built
+// here rather than each assembling its own idea of what the state is.
+function current_ui_state() {
     refresh_action_dirs();
 
     let capabilities = capability_flags();
@@ -587,7 +590,7 @@ function current_ui_state_json() {
     let forkop_status = health.service_status_text(forkop_is_running, forkop_is_enabled);
     let sing_box_status = health.service_status_text(sing_box_is_running, sing_box_is_enabled);
 
-    write_json({
+    return {
         service: {
             forkop: {
                 running: forkop_is_running,
@@ -605,7 +608,11 @@ function current_ui_state_json() {
         },
         capabilities,
         actions: action_state_from_dirs()
-    });
+    };
+}
+
+function current_ui_state_json() {
+    write_json(current_ui_state());
 }
 
 // The owner pid is written with the job rather than by a second process: a
@@ -737,9 +744,9 @@ function write_finished_service_action_state(path, action, success, message, exi
 
 // The init.d command is the thing that waited. A start holds the lifecycle lock
 // until wait-forkop-stable-start has confirmed a stable runtime, a stop until
-// sing-box is gone, and a reload never takes the service down at all - so by the
-// time the command returns, the expected state has already been established and
-// its exit status is the answer.
+// sing-box is gone, and a reload until the runtime has settled after its
+// rebind - so by the time the command returns, the expected state has already
+// been established and its exit status is the answer.
 //
 // This used to be re-derived afterwards by polling forkop_running() once a
 // second until it held for two consecutive checks. That could only ever confirm
@@ -853,6 +860,18 @@ function action_ack(kind, job_id_value) {
 
     action_start_response(true, job_id_value, "UI action acknowledged");
 }
+
+// Required by service/state_service.uc, which serves the same payload from a
+// long-lived process. Same guard the sing-box watcher uses: a caller frame means
+// this file was required rather than run.
+if ((sourcepath(1) != null && sourcepath(1) != "") || ARGV[0] == null)
+    return {
+        current_ui_state,
+        refresh_action_dirs,
+        SERVICE_ACTION_DIR,
+        COMPONENT_ACTION_DIR,
+        RELOAD_LOCK_DIR
+    };
 
 let mode = ARGV[0] || "";
 

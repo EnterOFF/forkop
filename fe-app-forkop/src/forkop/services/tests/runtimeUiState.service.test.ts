@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   executeShellCommand: vi.fn(),
+  callUbus: vi.fn(),
 }));
 
 vi.mock('../../../helpers', () => ({
   executeShellCommand: mocks.executeShellCommand,
+  callUbus: mocks.callUbus,
 }));
 
 import { Forkop } from '../../types';
@@ -13,6 +15,7 @@ import { store } from '../store.service';
 import {
   getCachedRuntimeUiState,
   refreshRuntimeUiState,
+  resetRuntimeUiStateTransport,
   subscribeRuntimeUiState,
 } from '../runtimeUiState.service';
 
@@ -47,10 +50,107 @@ function createUiState(
   };
 }
 
+describe('runtime state transport', () => {
+  beforeEach(() => {
+    store.reset();
+    mocks.executeShellCommand.mockReset();
+    mocks.callUbus.mockReset();
+    resetRuntimeUiStateTransport();
+  });
+
+  // The state service answers in milliseconds because it is already running;
+  // the CLI pays for a process start and the library resolution first.
+  it('prefers the state service and never reaches for the CLI', async () => {
+    const uiState = createUiState('running & enabled', 1);
+    mocks.callUbus.mockResolvedValue({
+      success: true,
+      data: { ...uiState, revision: 7 },
+    });
+
+    await expect(refreshRuntimeUiState({ force: true })).resolves.toEqual(
+      uiState,
+    );
+
+    expect(mocks.callUbus).toHaveBeenCalledWith(
+      expect.objectContaining({ object: 'forkop', method: 'state' }),
+    );
+    expect(mocks.executeShellCommand).not.toHaveBeenCalled();
+  });
+
+  // An install that has not brought the service up yet, or an older one that
+  // does not have it at all, still has to render.
+  it('falls back to the CLI when the state service is not there', async () => {
+    mocks.callUbus.mockResolvedValue({
+      success: false,
+      message: 'Object not found',
+      unavailable: true,
+    });
+    const uiState = createUiState('stopped but enabled', 0);
+    mocks.executeShellCommand.mockResolvedValue({
+      stdout: JSON.stringify(uiState),
+      stderr: '',
+      code: 0,
+    });
+
+    await expect(refreshRuntimeUiState({ force: true })).resolves.toEqual(
+      uiState,
+    );
+    expect(mocks.executeShellCommand).toHaveBeenCalledOnce();
+  });
+
+  // Having decided the service is absent, it must not pay for the discovery
+  // again on every refresh.
+  it('stops asking for a service it has already found missing', async () => {
+    mocks.callUbus.mockResolvedValue({
+      success: false,
+      message: 'Object not found',
+      unavailable: true,
+    });
+    mocks.executeShellCommand.mockResolvedValue({
+      stdout: JSON.stringify(createUiState()),
+      stderr: '',
+      code: 0,
+    });
+
+    await refreshRuntimeUiState({ force: true });
+    await refreshRuntimeUiState({ force: true });
+
+    expect(mocks.callUbus).toHaveBeenCalledOnce();
+    expect(mocks.executeShellCommand).toHaveBeenCalledTimes(2);
+  });
+
+  // A service that is present but failing is a different thing from an absent
+  // one, and switching away from it would hide the problem behind a slow path.
+  it('keeps using the state service when a call fails without being missing', async () => {
+    mocks.callUbus.mockResolvedValueOnce({
+      success: true,
+      data: { ...createUiState(), revision: 1 },
+    });
+    await refreshRuntimeUiState({ force: true });
+
+    mocks.callUbus.mockResolvedValueOnce({
+      success: false,
+      message: 'timeout',
+      unavailable: false,
+    });
+    await expect(
+      refreshRuntimeUiState({ force: true }),
+    ).resolves.toBeUndefined();
+
+    expect(mocks.executeShellCommand).not.toHaveBeenCalled();
+  });
+});
+
 describe('refreshRuntimeUiState', () => {
   beforeEach(() => {
     store.reset();
     mocks.executeShellCommand.mockReset();
+    mocks.callUbus.mockReset();
+    mocks.callUbus.mockResolvedValue({
+      success: false,
+      message: 'Object not found',
+      unavailable: true,
+    });
   });
 
   it('applies current UI state to the shared store', async () => {

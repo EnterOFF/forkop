@@ -32,6 +32,66 @@ mkdir -p \
   "$fake_lib/providers/byedpi" \
   "$job_dir"
 
+fake_bin="$WORK_DIR/bin"
+store_file="$WORK_DIR/update-checks.json"
+mkdir -p "$fake_bin"
+printf '{}\n' >"$store_file"
+
+cat >"$fake_bin/ubus" <<'SH'
+#!/usr/bin/env bash
+# Stands in for the state service: `ubus call forkop <method> [json]`.
+[ "$1" = "call" ] || exit 1
+method="$3"
+payload="$4"
+STORE="${FAKE_UBUS_STORE:?}" METHOD="$method" PAYLOAD="$payload" ucode -e '
+  let fs = require("fs");
+  let path = getenv("STORE");
+  let method = getenv("METHOD");
+  let entries = {};
+  try { entries = json(fs.readfile(path)) || {}; } catch (e) { entries = {}; }
+
+  if (method == "report_update_check") {
+    let args = {};
+    try { args = json(getenv("PAYLOAD")) || {}; } catch (e) { args = {}; }
+    let result = null;
+    try { result = json(args.result); } catch (e) { result = null; }
+    if (result == null) {
+      print("{ \"stored\": false }\n");
+      exit(0);
+    }
+    entries[args.component] = result;
+    fs.writefile(path, sprintf("%J", entries));
+    print("{ \"stored\": true }\n");
+  }
+  else if (method == "update_checks") {
+    let results = [];
+    for (let _, entry in entries)
+      push(results, entry);
+    print(sprintf("%J", { results }), "\n");
+  }
+  else if (method == "forget_update_checks") {
+    fs.writefile(path, "{}");
+    print("{ \"forgotten\": true }\n");
+  }
+  else {
+    exit(1);
+  }
+'
+SH
+chmod 0755 "$fake_bin/ubus"
+export PATH="$fake_bin:$PATH"
+export FAKE_UBUS_STORE="$store_file"
+
+stored_component() {
+  STORE="$store_file" COMPONENT="$1" ucode -e '
+    let fs = require("fs");
+    let entries = {};
+    try { entries = json(fs.readfile(getenv("STORE"))) || {}; } catch (e) { entries = {}; }
+    let entry = entries[getenv("COMPONENT")];
+    print(entry == null ? "" : sprintf("%J", entry), "\n");
+  '
+}
+
 cat >"$fake_lib/core/uci.uc" <<'UCODE'
 function get_all(_config, section) {
     if (section == "settings") {
@@ -90,15 +150,13 @@ updates_ucode() {
   TEST_COMPONENT_UPDATE_CHECK_ENABLED="${TEST_COMPONENT_UPDATE_CHECK_ENABLED:-1}" \
     TEST_COMPONENT_UPDATE_CHECK_INTERVAL="${TEST_COMPONENT_UPDATE_CHECK_INTERVAL:-1d}" \
     FORKOP_LIB="$fake_lib" \
-    FORKOP_COMPONENT_UPDATE_CHECK_CACHE_DIR="$cache_dir" \
-    FORKOP_COMPONENT_UPDATE_CHECK_STATE_FILE="$timestamp_file" \
     UPDATES_JOB_DIR="$job_dir" \
     ucode -L "$fake_lib" -L "$FORKOP_LIB" "$UPDATES_UC" "$@"
 }
 
 updates_ucode component-action-worker "$state_file" "$output_file" zapret check_update
-[ -s "$cache_dir/zapret.json" ] ||
-  fail "manual checks must be cached while automatic checks are enabled"
+[ -n "$(stored_component zapret)" ] ||
+  fail "manual checks must be reported while automatic checks are enabled"
 
 manual_cache="$(updates_ucode component-update-check-cache)"
 node -e '
@@ -107,19 +165,34 @@ if (!value.enabled || value.results.length !== 1 ||
     value.results[0].component !== "zapret" ||
     value.results[0].status !== "outdated" ||
     value.results[0].latest_version !== "1.1.0") process.exit(1);
-' "$manual_cache" || fail "cached manual check response is invalid"
+' "$manual_cache" || fail "the reported manual check reads back wrong"
 
-rm -rf "$cache_dir"
+printf '{}\n' >"$store_file"
 TEST_COMPONENT_UPDATE_CHECK_ENABLED=0 updates_ucode \
   component-action-worker "$state_file" "$output_file" zapret check_update
-[ ! -e "$cache_dir/zapret.json" ] ||
-  fail "manual checks must not be cached while automatic checks are disabled"
+[ -z "$(stored_component zapret)" ] ||
+  fail "manual checks must not be reported while automatic checks are disabled"
 
-rm -f "$state_file" "$timestamp_file"
+rm -f "$state_file"
 updates_ucode component-updates-if-due
-[ -s "$cache_dir/forkop.json" ] ||
-  fail "automatic checks must cache the Forkop result"
-[ -s "$timestamp_file" ] ||
-  fail "automatic checks must record their last run"
+[ -n "$(stored_component forkop)" ] ||
+  fail "automatic checks must report the Forkop result"
+
+# Removing a component leaves nothing known about any of them; the next check
+# refills what is still installed.
+updates_ucode component-action-worker "$state_file" "$output_file" zapret remove
+[ -z "$(stored_component forkop)" ] ||
+  fail "removing a component must forget what was known about them"
+
+# Nothing on disk records any of this. The schedule is the cron line, and the
+# answers live in the state service, which drops them when the installed
+# packages change.
+[ ! -e "$timestamp_file" ] ||
+  fail "automatic checks must not keep a schedule of their own"
+[ ! -d "$cache_dir" ] ||
+  fail "check results must not be written to disk"
+if grep -Fq 'COMPONENT_UPDATE_CHECK_CACHE_DIR' "$UPDATES_UC"; then
+  fail "components/updates.uc must not own a check-result directory"
+fi
 
 printf 'component update check cache checks passed\n'

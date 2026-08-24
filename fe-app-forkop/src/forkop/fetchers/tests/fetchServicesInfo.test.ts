@@ -2,19 +2,30 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   executeShellCommand: vi.fn(),
+  callUbus: vi.fn(),
 }));
 
 vi.mock('../../../helpers', () => ({
   executeShellCommand: mocks.executeShellCommand,
+  callUbus: mocks.callUbus,
 }));
 
 import { store } from '../../services/store.service';
+import { resetRuntimeUiStateTransport } from '../../services/runtimeUiState.service';
 import { fetchServicesInfo } from '../fetchServicesInfo';
 
 describe('fetchServicesInfo', () => {
   beforeEach(() => {
     store.reset();
     mocks.executeShellCommand.mockReset();
+    // These cases are about the CLI path this fetcher is the fallback for.
+    mocks.callUbus.mockReset();
+    mocks.callUbus.mockResolvedValue({
+      success: false,
+      message: 'Object not found',
+      unavailable: true,
+    });
+    resetRuntimeUiStateTransport();
   });
 
   it('returns the fast UI state after applying it to the shared store', async () => {

@@ -38,7 +38,7 @@ function ucode_binary() {
 const SOURCE_DIR = getenv("FORKOP_SOURCE_LIB") || "/usr/lib/forkop";
 const CACHE_DIR = getenv("FORKOP_BYTECODE_CACHE_DIR") || "/var/run/forkop/bytecode";
 const UCODE_BIN = ucode_binary();
-const MANIFEST_VERSION = "2";
+const MANIFEST_VERSION = "3";
 // Loaded through the freshly built cache to prove the interpreter accepts what
 // it just produced. A leaf module with no imports and no side effects.
 const SELF_CHECK_MODULE = "config.domain";
@@ -184,13 +184,45 @@ function source_directories() {
     return directories;
 }
 
+// The directories and their mtimes as one snapshot. A build takes this first,
+// enumerates the files second and checks the snapshot again at the end: an
+// install writing into the tree while the build walks it would otherwise
+// produce a cache missing whatever had not landed yet, and a manifest whose
+// directory signatures were read afterwards would then vouch for it forever.
+function directory_signatures() {
+    let result = [];
+    for (let relative_path in source_directories()) {
+        let path = relative_path == "" ? SOURCE_DIR : SOURCE_DIR + "/" + relative_path;
+        let signature = directory_signature(path);
+        if (signature == null)
+            return null;
+        push(result, [ relative_path, signature ]);
+    }
+    return result;
+}
+
+function directory_signatures_match(snapshot) {
+    if (snapshot == null)
+        return false;
+
+    let current = directory_signatures();
+    if (current == null || length(current) != length(snapshot))
+        return false;
+
+    for (let i = 0; i < length(snapshot); i++)
+        if (current[i][0] != snapshot[i][0] || current[i][1] != snapshot[i][1])
+            return false;
+
+    return true;
+}
+
 function source_files() {
     let result = collect_files(SOURCE_DIR, "", [], []);
     sort(result);
     return result;
 }
 
-function manifest_text(library, files, dependencies) {
+function manifest_text(library, files, dependencies, directories) {
     let text = "version=" + MANIFEST_VERSION + "\n";
     text += "lib=" + as_string(library) + "\n";
     text += "src=" + SOURCE_DIR + "\n";
@@ -202,13 +234,11 @@ function manifest_text(library, files, dependencies) {
             text += "dep=" + path + "\t" + signature + "\n";
     }
 
-    for (let relative_path in source_directories()) {
-        let path = relative_path == "" ? SOURCE_DIR : SOURCE_DIR + "/" + relative_path;
-        let signature = directory_signature(path);
-        if (signature == null)
-            return null;
-        text += "dir=" + relative_path + "\t" + signature + "\n";
-    }
+    // The snapshot the file list is consistent with, not a fresh reading:
+    // recording what the tree looks like after the walk would certify a cache
+    // built from what it looked like before.
+    for (let entry in directories)
+        text += "dir=" + entry[0] + "\t" + entry[1] + "\n";
 
     for (let relative_path in files) {
         let signature = file_signature(SOURCE_DIR + "/" + relative_path);
@@ -449,6 +479,7 @@ function build() {
     if (!enabled())
         return SOURCE_DIR;
 
+    let directories = directory_signatures();
     let files = source_files();
     if (length(files) == 0)
         return SOURCE_DIR;
@@ -462,7 +493,17 @@ function build() {
         return library_dir();
 
     let library = compile_library(files);
-    let text = library == null ? null : manifest_text(library, files, runtime_dependencies());
+
+    // The tree moved while we walked it, so the file list is not what is
+    // installed. Publishing this would cache a library missing whatever landed
+    // late, and nothing afterwards would notice.
+    if (library != null && !directory_signatures_match(directories)) {
+        remove_tree(library);
+        release_build_lock();
+        return SOURCE_DIR;
+    }
+
+    let text = library == null ? null : manifest_text(library, files, runtime_dependencies(), directories);
 
     if (text == null || !publish_manifest(text)) {
         remove_tree(library);

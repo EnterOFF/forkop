@@ -21,6 +21,15 @@ type HtmlAttributes<T extends HtmlTag = 'div'> = Partial<
 >;
 
 declare global {
+  const rpc: {
+    declare: (options: {
+      object: string;
+      method: string;
+      params?: string[];
+      expect?: Record<string, unknown>;
+    }) => (...args: unknown[]) => Promise<unknown>;
+  };
+
   const fs: {
     read(path: string): Promise<string>;
     write(path: string, data: string): Promise<void>;

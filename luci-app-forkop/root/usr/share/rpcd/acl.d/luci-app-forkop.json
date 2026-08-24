@@ -23,6 +23,15 @@
         ]
       },
       "ubus": {
+        "forkop": [
+          "state",
+          "state_wait",
+          "system_info",
+          "logs",
+          "logs_wait",
+          "update_checks",
+          "refresh"
+        ],
         "luci-rpc": [
           "getDHCPLeases",
           "getHostHints"
