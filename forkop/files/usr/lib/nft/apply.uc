@@ -10,8 +10,6 @@ let connections = require("config.connections");
 let runtime_constants = require("singbox.constants");
 let nft_state = require("nft.state");
 let nft_sections = require("nft.sections");
-let zapret_provider = require("providers.zapret.common");
-let zapret2_provider = require("providers.zapret2.common");
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const IP_BIN = getenv("FORKOP_IP_BIN") || "/usr/libexec/ip-full";
 const EXCLUDED_SET = "forkop_excluded";
@@ -45,7 +43,6 @@ let as_string = common.as_string;
 let object_or_empty = common.object_or_empty;
 let common_read_json_file = common.read_json_file;
 let bool_option = common.bool_option;
-let parse_number = common.parse_number;
 let rt_table_has_entry = nft_state.rt_table_has_entry;
 let tproxy_route4_present = nft_state.tproxy_route4_present;
 let tproxy_route6_present = nft_state.tproxy_route6_present;
@@ -88,14 +85,6 @@ function write_text_file(path, text) {
     if (type(result) == "boolean" && !result)
         return false;
     return true;
-}
-
-function file_executable(path) {
-    let stat = fs.stat(as_string(path));
-    if (stat == null || stat.mode == null)
-        return false;
-
-    return (int(stat.mode) & 73) != 0;
 }
 
 function unlink_file(path) {
@@ -592,9 +581,7 @@ function nft_add_section_priority_rules_from_sections(sections, table, interface
 }
 
 // The router's own traffic to a FakeIP address, which the resolver handed out
-// and only sing-box can turn back into a destination. Added after the nfqueue
-// providers have had their say, so a packet one of them owns has already
-// returned.
+// and only sing-box can turn back into a destination.
 function nft_create_fakeip_output_rules(table, fakeip_mark, fakeip_range, fakeip6_range) {
     fakeip6_range = default_arg(fakeip6_range, "fc00::/18");
 
@@ -604,48 +591,6 @@ function nft_create_fakeip_output_rules(table, fakeip_mark, fakeip_range, fakeip
         nft_add_rule(table, "mangle_output", [ "ip6", "daddr", fakeip6_range, "meta", "l4proto", "tcp", "meta", "mark", "set", fakeip_mark, "counter" ]) &&
         nft_add_rule(table, "mangle_output", [ "ip6", "daddr", fakeip6_range, "meta", "l4proto", "udp", "meta", "mark", "set", fakeip_mark, "counter" ])
     );
-}
-
-function nft_provider_mark_hex(route_mark_base, index) {
-    let base = parse_number(route_mark_base);
-    index = int(index || 0);
-    if (base == null || index < 1)
-        return "";
-
-    return sprintf("0x%08x", base + index);
-}
-
-function nft_create_provider_output_rules_from_sections(sections, table, action, provider_bin, route_mark_base, queue_base, desync_mark, desync_mark_postnat) {
-    if (!file_executable(provider_bin))
-        return true;
-
-    let index = 0;
-    let added = false;
-
-    for (let section in sections) {
-        section = object_or_empty(section);
-        if (!bool_option(section, "enabled", true) || option(section, "action", "") != action)
-            continue;
-
-        index++;
-        let mark_hex = nft_provider_mark_hex(route_mark_base, index);
-        let queue_number = int(queue_base || 0) + index - 1;
-        if (mark_hex == "" || queue_number < 0)
-            return false;
-
-        if (!added) {
-            if (!nft_add_rule(table, "mangle_output", [ "meta", "mark", "&", desync_mark, "==", desync_mark, "return" ]) ||
-                !nft_add_rule(table, "mangle_output", [ "meta", "mark", "&", desync_mark_postnat, "==", desync_mark_postnat, "return" ]))
-                return false;
-            added = true;
-        }
-
-        if (!nft_add_rule(table, "mangle_output", [ "meta", "mark", mark_hex, "meta", "l4proto", "tcp", "counter", "queue", "num", queue_number, "bypass" ]) ||
-            !nft_add_rule(table, "mangle_output", [ "meta", "mark", mark_hex, "meta", "l4proto", "udp", "counter", "queue", "num", queue_number, "bypass" ]))
-            return false;
-    }
-
-    return true;
 }
 
 // A batch of set elements small enough for one `add element` command.
@@ -991,19 +936,6 @@ function fixture_section_list(data, type_name) {
     return type(plural) == "array" ? plural : [];
 }
 
-// Zapret and Zapret2 are the same nfqueue runtime with a different binary, and
-// each provider module already owns the binary, the mark base and the queue base
-// its rules are built from.
-function nft_create_nfqueue_provider_output_rules(table, sections) {
-    for (let provider in [ zapret_provider, zapret2_provider ]) {
-        let cfg = object_or_empty(provider.config());
-        if (!nft_create_provider_output_rules_from_sections(sections, table, cfg.action, cfg.provider_bin, cfg.route_mark_base, cfg.queue_base, cfg.desync_mark, cfg.desync_mark_postnat))
-            return false;
-    }
-
-    return true;
-}
-
 function nft_add_section_source_matchers(matchers, table, chunk_size_text) {
     if (!matchers.needs_source_sets)
         return true;
@@ -1127,7 +1059,6 @@ function nft_runtime_model(settings, sections, populate) {
         NFT_LOCALV6_SET_NAME, SB_FAKEIP_INET6_RANGE, SB_TPROXY_INBOUND6_ADDRESS,
         option(settings, "routing_excluded_ips", "")) &&
         nft_add_section_priority_rules_from_sections(sections, NFT_TABLE_NAME, NFT_INTERFACE_SET_NAME, NFT_LOCALV4_SET_NAME, NFT_LOCALV6_SET_NAME, NFT_FAKEIP_MARK, SB_FAKEIP_INET4_RANGE, SB_FAKEIP_INET6_RANGE) &&
-        nft_create_nfqueue_provider_output_rules(NFT_TABLE_NAME, sections) &&
         nft_create_fakeip_output_rules(NFT_TABLE_NAME, NFT_FAKEIP_MARK, SB_FAKEIP_INET4_RANGE, SB_FAKEIP_INET6_RANGE) &&
         (!populate || nft_populate_runtime_sets_from_sections(sections, "1", "", NFT_TABLE_NAME));
 }
@@ -1189,8 +1120,6 @@ if (mode == "nft-create-runtime-base")
     exit(nft_create_runtime_base(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8], ARGV[9], ARGV[10], ARGV[11], ARGV[12], ARGV[13]) ? 0 : 1);
 else if (mode == "nft-create-fakeip-output-rules")
     exit(nft_create_fakeip_output_rules(ARGV[1], ARGV[2], ARGV[3], ARGV[4]) ? 0 : 1);
-else if (mode == "nft-create-provider-output-rules-fixture")
-    exit(nft_create_provider_output_rules_from_sections(fixture_section_list(object_or_empty(common_read_json_file(ARGV[1])), "section"), ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8]) ? 0 : 1);
 else if (mode == "nft-add-section-priority-rules-fixture")
     exit(nft_add_section_priority_rules_from_sections(fixture_section_list(object_or_empty(common_read_json_file(ARGV[1])), "section"), ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8]) ? 0 : 1);
 else if (mode == "nft-rebuild-runtime-from-uci")

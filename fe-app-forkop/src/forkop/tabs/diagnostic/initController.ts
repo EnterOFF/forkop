@@ -4,15 +4,12 @@ import { runSingBoxCheck } from './checks/runSingBoxCheck';
 import { runInboundsCheck } from './checks/runInboundsCheck';
 import { runNftCheck } from './checks/runNftCheck';
 import { runFakeIPCheck } from './checks/runFakeIPCheck';
-import { runZapretCheck } from './checks/runZapretCheck';
-import { runZapret2Check } from './checks/runZapret2Check';
-import { runByedpiCheck } from './checks/runByedpiCheck';
 import {
   DIAGNOSTICS_CHECKS,
   DIAGNOSTICS_CHECKS_MAP,
 } from './checks/contstants';
 import {
-  DiagnosticsProviderOptions,
+  DiagnosticsCheckOptions,
   getDiagnosticsChecks,
   getLoadingDiagnosticsChecks,
 } from './diagnostic.store';
@@ -57,13 +54,13 @@ import {
   stringifySingBoxConfig,
 } from './helpers/maskDiagnostics';
 
-let latestProviderInfoRequestId = 0;
+let latestCapabilitiesRequestId = 0;
 let diagnosticLifecycleRegistered = false;
 let diagnosticControllerInitialized = false;
 let diagnosticMounted = false;
 let diagnosticMountId = 0;
-// The check list has two owners. Idle, it is a placeholder naming the checks the
-// installed providers call for, and every capability read rebuilds it. From the
+// The check list has two owners. Idle, it is a placeholder naming the checks this
+// configuration calls for, and every capability read rebuilds it. From the
 // moment a run starts the list is the run's — its progress, and then its result —
 // until the page is left behind or a service action makes the result stale.
 // Everything else has to leave it alone in between: a tab switch puts several
@@ -78,19 +75,13 @@ type DiagnosticRunner = {
   run: () => Promise<void>;
 };
 
-function getDiagnosticsProviderOptions(
+function getDiagnosticsCheckOptions(
   systemInfo: Pick<
     StoreType['diagnosticsSystemInfo'],
-    | 'zapret_installed'
-    | 'zapret2_installed'
-    | 'byedpi_installed'
-    | 'server_inbounds_enabled_count'
+    'server_inbounds_enabled_count'
   > = store.get().diagnosticsSystemInfo,
-): DiagnosticsProviderOptions {
+): DiagnosticsCheckOptions {
   return {
-    includeZapret: Boolean(systemInfo.zapret_installed),
-    includeZapret2: Boolean(systemInfo.zapret2_installed),
-    includeByedpi: Boolean(systemInfo.byedpi_installed),
     includeInbounds: systemInfo.server_inbounds_enabled_count > 0,
   };
 }
@@ -100,7 +91,7 @@ function getNotRunningDiagnosticsChecks(
 ) {
   return getDiagnosticsChecks(
     _('Not running'),
-    getDiagnosticsProviderOptions(systemInfo),
+    getDiagnosticsCheckOptions(systemInfo),
   );
 }
 
@@ -198,24 +189,11 @@ async function fetchSystemInfo() {
   rebuildIdleDiagnosticsChecks(await ensureSystemInfo());
 }
 
-// A provider that is not installed has no version to show, and a fresh capability
-// read rebuilds the check list unless a run owns it.
-function applyDiagnosticsProviderInfo(
+// A fresh capability read rebuilds the check list unless a run owns it.
+function applyDiagnosticsCapabilities(
   nextSystemInfo: StoreType['diagnosticsSystemInfo'],
   resetChecks: boolean,
 ) {
-  if (!nextSystemInfo.zapret_installed) {
-    nextSystemInfo.zapret_version = 'not installed';
-  }
-
-  if (!nextSystemInfo.zapret2_installed) {
-    nextSystemInfo.zapret2_version = 'not installed';
-  }
-
-  if (!nextSystemInfo.byedpi_installed) {
-    nextSystemInfo.byedpi_version = 'not installed';
-  }
-
   const nextState: Partial<StoreType> = {
     diagnosticsSystemInfo: nextSystemInfo,
   };
@@ -228,15 +206,15 @@ function applyDiagnosticsProviderInfo(
   store.set(nextState);
 }
 
-async function fetchDiagnosticsProviderInfo({
+async function fetchDiagnosticsCapabilities({
   resetChecks = true,
 }: { resetChecks?: boolean } = {}) {
-  const requestId = ++latestProviderInfoRequestId;
+  const requestId = ++latestCapabilitiesRequestId;
 
   try {
     const uiState = await refreshRuntimeUiState({ force: true });
 
-    if (requestId !== latestProviderInfoRequestId) {
+    if (requestId !== latestCapabilitiesRequestId) {
       return;
     }
 
@@ -244,63 +222,29 @@ async function fetchDiagnosticsProviderInfo({
       const currentSystemInfo = store.get().diagnosticsSystemInfo;
       const nextSystemInfo = {
         ...currentSystemInfo,
-        providerInfoLoaded: true,
-        zapret_installed: uiState.capabilities.zapret_installed,
-        zapret2_installed: uiState.capabilities.zapret2_installed,
-        byedpi_installed: uiState.capabilities.byedpi_installed,
+        capabilitiesLoaded: true,
         server_inbounds_enabled_count:
           uiState.capabilities.server_inbounds_enabled_count,
       };
 
-      applyDiagnosticsProviderInfo(nextSystemInfo, resetChecks);
+      applyDiagnosticsCapabilities(nextSystemInfo, resetChecks);
       return;
     }
 
-    const [zapretRuntime, zapret2Runtime, byedpiRuntime, inboundsConfig] =
-      await Promise.all([
-        ForkopShellMethods.checkZapretRuntime(),
-        ForkopShellMethods.checkZapret2Runtime(),
-        ForkopShellMethods.checkByedpiRuntime(),
-        ForkopShellMethods.checkInboundsConfig(),
-      ]);
+    const inboundsConfig = await ForkopShellMethods.checkInboundsConfig();
 
-    if (requestId !== latestProviderInfoRequestId) {
+    if (requestId !== latestCapabilitiesRequestId) {
       return;
     }
 
     const currentSystemInfo = store.get().diagnosticsSystemInfo;
     const nextSystemInfo = {
       ...currentSystemInfo,
-      providerInfoLoaded: true,
-      zapret_installed: zapretRuntime.success
-        ? zapretRuntime.data.zapret_installed
-        : currentSystemInfo.zapret_installed,
-      zapret2_installed: zapret2Runtime.success
-        ? zapret2Runtime.data.zapret2_installed
-        : currentSystemInfo.zapret2_installed,
-      byedpi_installed: byedpiRuntime.success
-        ? byedpiRuntime.data.byedpi_installed
-        : currentSystemInfo.byedpi_installed,
+      capabilitiesLoaded: true,
       server_inbounds_enabled_count: inboundsConfig.success
         ? inboundsConfig.data.enabled_count
         : -1,
     };
-
-    if (!zapretRuntime.success) {
-      logger.error('[DIAGNOSTIC]', 'fetchZapretRuntime failed', zapretRuntime);
-    }
-
-    if (!zapret2Runtime.success) {
-      logger.error(
-        '[DIAGNOSTIC]',
-        'fetchZapret2Runtime failed',
-        zapret2Runtime,
-      );
-    }
-
-    if (!byedpiRuntime.success) {
-      logger.error('[DIAGNOSTIC]', 'fetchByedpiRuntime failed', byedpiRuntime);
-    }
 
     if (!inboundsConfig.success) {
       logger.error(
@@ -310,17 +254,17 @@ async function fetchDiagnosticsProviderInfo({
       );
     }
 
-    applyDiagnosticsProviderInfo(nextSystemInfo, resetChecks);
+    applyDiagnosticsCapabilities(nextSystemInfo, resetChecks);
   } catch (error) {
-    logger.error('[DIAGNOSTIC]', 'fetchDiagnosticsProviderInfo failed', error);
+    logger.error('[DIAGNOSTIC]', 'fetchDiagnosticsCapabilities failed', error);
 
-    if (requestId === latestProviderInfoRequestId) {
+    if (requestId === latestCapabilitiesRequestId) {
       const currentSystemInfo = store.get().diagnosticsSystemInfo;
 
       store.set({
         diagnosticsSystemInfo: {
           ...currentSystemInfo,
-          providerInfoLoaded: true,
+          capabilitiesLoaded: true,
           server_inbounds_enabled_count: -1,
         },
       });
@@ -348,13 +292,13 @@ function renderDiagnosticRunActionWidget() {
   logger.debug('[DIAGNOSTIC]', 'renderDiagnosticRunActionWidget');
 
   const { loading } = store.get().diagnosticsRunAction;
-  const providerInfoLoaded =
-    store.get().diagnosticsSystemInfo.providerInfoLoaded;
+  const capabilitiesLoaded =
+    store.get().diagnosticsSystemInfo.capabilitiesLoaded;
   const container = document.getElementById('fkp_diagnostic-page-run-check');
 
   const renderedAction = renderRunAction({
     loading,
-    disabled: shouldDisableDiagnosticRunAction({ providerInfoLoaded }),
+    disabled: shouldDisableDiagnosticRunAction({ capabilitiesLoaded }),
     click: () => runChecks(),
   });
 
@@ -608,27 +552,6 @@ function renderDiagnosticSystemInfoWidget() {
     },
   ];
 
-  if (diagnosticsSystemInfo.zapret_installed) {
-    items.push({
-      key: 'Zapret',
-      value: diagnosticsSystemInfo.zapret_version,
-    });
-  }
-
-  if (diagnosticsSystemInfo.zapret2_installed) {
-    items.push({
-      key: 'Zapret2',
-      value: diagnosticsSystemInfo.zapret2_version,
-    });
-  }
-
-  if (diagnosticsSystemInfo.byedpi_installed) {
-    items.push({
-      key: 'ByeDPI',
-      value: diagnosticsSystemInfo.byedpi_version,
-    });
-  }
-
   items.push(
     {
       key: 'OS',
@@ -692,24 +615,15 @@ function setDiagnosticCheckLoading(code: DIAGNOSTICS_CHECKS) {
 }
 
 function getDiagnosticRunners(
-  providerOptions: DiagnosticsProviderOptions,
+  checkOptions: DiagnosticsCheckOptions,
 ): DiagnosticRunner[] {
   return [
     { code: DIAGNOSTICS_CHECKS.DNS, run: runDnsCheck },
     { code: DIAGNOSTICS_CHECKS.SINGBOX, run: runSingBoxCheck },
-    ...(providerOptions.includeInbounds
+    ...(checkOptions.includeInbounds
       ? [{ code: DIAGNOSTICS_CHECKS.INBOUNDS, run: runInboundsCheck }]
       : []),
     { code: DIAGNOSTICS_CHECKS.NFT, run: runNftCheck },
-    ...(providerOptions.includeZapret
-      ? [{ code: DIAGNOSTICS_CHECKS.ZAPRET, run: runZapretCheck }]
-      : []),
-    ...(providerOptions.includeZapret2
-      ? [{ code: DIAGNOSTICS_CHECKS.ZAPRET2, run: runZapret2Check }]
-      : []),
-    ...(providerOptions.includeByedpi
-      ? [{ code: DIAGNOSTICS_CHECKS.BYEDPI, run: runByedpiCheck }]
-      : []),
     { code: DIAGNOSTICS_CHECKS.OUTBOUNDS, run: runSectionsCheck },
     { code: DIAGNOSTICS_CHECKS.FAKEIP, run: runFakeIPCheck },
   ];
@@ -728,22 +642,21 @@ async function runChecks() {
   diagnosticsChecksOwnedByRun = true;
   store.set({
     diagnosticsRunAction: { loading: true },
-    diagnosticsChecks: getLoadingDiagnosticsChecks(
-      getDiagnosticsProviderOptions(),
-    ).diagnosticsChecks,
+    diagnosticsChecks: getLoadingDiagnosticsChecks(getDiagnosticsCheckOptions())
+      .diagnosticsChecks,
   });
 
   try {
-    await fetchDiagnosticsProviderInfo({ resetChecks: false });
+    await fetchDiagnosticsCapabilities({ resetChecks: false });
 
-    const providerOptions = getDiagnosticsProviderOptions();
+    const checkOptions = getDiagnosticsCheckOptions();
 
     store.set({
       diagnosticsChecks:
-        getLoadingDiagnosticsChecks(providerOptions).diagnosticsChecks,
+        getLoadingDiagnosticsChecks(checkOptions).diagnosticsChecks,
     });
 
-    for (const runner of getDiagnosticRunners(providerOptions)) {
+    for (const runner of getDiagnosticRunners(checkOptions)) {
       setDiagnosticCheckLoading(runner.code);
 
       try {
@@ -772,7 +685,7 @@ async function loadInitialDiagnosticData() {
     }
 
     await fetchSystemInfo();
-    await fetchDiagnosticsProviderInfo();
+    await fetchDiagnosticsCapabilities();
   }
 }
 

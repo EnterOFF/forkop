@@ -180,6 +180,51 @@ const OBSOLETE_STATE_DIRS = [
     "/usr/lib/forkop/dns"
 ];
 
+// Directories a retired feature left behind. The package manager removes the
+// files it owned and leaves the directory, and these nest, so the flat sweep
+// above cannot empty them: the DPI providers had a module directory per engine
+// under the library and a pid, log and hostlist directory per engine under
+// /var/run, and two library directories predate the modules moving elsewhere.
+function obsolete_state_trees() {
+    let configured = env("FORKOP_OBSOLETE_STATE_TREES", "");
+    if (configured != "")
+        return split(configured, /[ \t\r\n]+/);
+
+    return [
+        "/usr/lib/forkop/providers",
+        "/usr/lib/forkop/routing",
+        "/usr/lib/forkop/subscription",
+        "/var/run/forkop/zapret",
+        "/var/run/forkop/zapret2",
+        "/var/run/forkop/byedpi",
+        "/var/run/forkop/zapret-runtime"
+    ];
+}
+
+function remove_tree(path) {
+    path = as_string(path);
+    let stat = fs.stat(path);
+    if (stat == null)
+        return;
+
+    if (stat.type == "directory") {
+        for (let entry in fs.glob(path + "/*"))
+            remove_tree(entry);
+        try {
+            fs.rmdir(path);
+        }
+        catch (e) {
+        }
+        return;
+    }
+
+    try {
+        fs.unlink(path);
+    }
+    catch (e) {
+    }
+}
+
 function remove_obsolete_state_files() {
     for (let path in OBSOLETE_STATE_FILES)
         unlink_if_exists(path);
@@ -192,6 +237,8 @@ function remove_obsolete_state_files() {
         catch (e) {
         }
     }
+    for (let path in obsolete_state_trees())
+        remove_tree(path);
     return true;
 }
 

@@ -44,10 +44,6 @@ const TMP_SING_BOX_FOLDER = "/tmp/sing-box";
 // rules with it and the inbound check looks for it in the loaded chain, because
 // those ports are an nftables.d include and never appear in `uci show firewall`.
 const SERVER_FIREWALL_COMMENT = "forkop: server ports";
-const ZAPRET_ROUTE_MARK_BASE = 0x01000000;
-const ZAPRET2_ROUTE_MARK_BASE = 0x02000000;
-const BYEDPI_LISTEN_ADDRESS = "127.0.0.1";
-const BYEDPI_PORT_BASE = 1080;
 const JSON_ENDPOINT_TYPES = [ "vpn-server", "vpn-client", "wireguard", "amneziawg", "warp", "tailscale" ];
 const JSON_INBOUND_TYPES = [
     "tun", "redirect", "tproxy", "direct", "socks", "http", "mixed",
@@ -204,10 +200,6 @@ return {
     FAKEIP_TEST_DOMAIN,
     TMP_SING_BOX_FOLDER,
     SERVER_FIREWALL_COMMENT,
-    ZAPRET_ROUTE_MARK_BASE,
-    ZAPRET2_ROUTE_MARK_BASE,
-    BYEDPI_LISTEN_ADDRESS,
-    BYEDPI_PORT_BASE,
     JSON_ENDPOINT_TYPES,
     JSON_INBOUND_TYPES,
     FILTERABLE_PROVIDER_TYPES,

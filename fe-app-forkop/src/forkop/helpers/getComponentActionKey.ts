@@ -8,15 +8,6 @@ const componentActionKeyMap: Record<string, UpdatesActionKey> = {
   'forkop:install': 'forkopInstall',
   'sing_box:check_update': 'singBoxCheck',
   'sing_box:install': 'singBoxInstall',
-  'zapret:check_update': 'zapretCheck',
-  'zapret:install': 'zapretInstall',
-  'zapret:remove': 'zapretRemove',
-  'zapret2:check_update': 'zapret2Check',
-  'zapret2:install': 'zapret2Install',
-  'zapret2:remove': 'zapret2Remove',
-  'byedpi:check_update': 'byedpiCheck',
-  'byedpi:install': 'byedpiInstall',
-  'byedpi:remove': 'byedpiRemove',
 };
 
 export function getComponentActionKey(

@@ -168,11 +168,11 @@ export function hasLocalMutatingServiceActionLoading(
 // is not running, the nft table is absent" is the diagnosis, not a reason to
 // refuse. The only gate left is the page not yet knowing what to check.
 export function shouldDisableDiagnosticRunAction({
-  providerInfoLoaded,
+  capabilitiesLoaded,
 }: {
-  providerInfoLoaded: boolean;
+  capabilitiesLoaded: boolean;
 }) {
-  return !providerInfoLoaded;
+  return !capabilitiesLoaded;
 }
 
 export function hasComponentActionLoading(actions: ComponentActions) {

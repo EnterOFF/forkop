@@ -71,15 +71,7 @@ function nextSectionId(typeName) {
   return `${prefix}_${Date.now().toString(16)}`;
 }
 
-const ROUTING_SECTION_ACTIONS = [
-  "connection",
-  "proxy",
-  "outbound",
-  "vpn",
-  "byedpi",
-  "zapret",
-  "zapret2",
-];
+const ROUTING_SECTION_ACTIONS = ["connection", "proxy", "outbound", "vpn"];
 const TAILSCALE_DETOUR_ACTIONS = ["connection", "proxy", "outbound", "vpn"];
 
 // Tags sing-box already uses for Forkop's own inbounds, outbounds and DNS servers.

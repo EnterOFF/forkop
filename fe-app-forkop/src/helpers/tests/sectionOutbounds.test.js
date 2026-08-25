@@ -80,7 +80,7 @@ describe('connection section outbounds', () => {
   it('leaves every other action alone', () => {
     const { missingConnectionOutbound } = load();
 
-    for (const action of ['dns', 'block', 'bypass', 'zapret', 'byedpi']) {
+    for (const action of ['dns', 'block', 'bypass']) {
       const map = modalMap({ action });
       expect(missingConnectionOutbound(map, map.section)).toBe(false);
     }

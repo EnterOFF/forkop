@@ -6,14 +6,10 @@
 "require ui";
 "require uci";
 "require view.forkop.annotations as annotate";
-"require view.forkop.dpi_strategy as dpi";
 "require view.forkop.local_devices as localDevices";
 "require view.forkop.main as main";
 
 const UCI_PACKAGE = main.FORKOP_UCI_PACKAGE;
-const ACTION_PROVIDERS_AVAILABILITY_EVENT =
-  main.FORKOP_ACTION_PROVIDERS_AVAILABILITY_EVENT ||
-  "forkop:action-providers-availability";
 const RULE_SET_ITEM_SETTINGS_KEY = "rule_set_settings";
 // The Sections and Servers tables are the same grid, and the user moves between
 // them by clicking a tab: a name, a switch, one column naming what the row is,
@@ -31,9 +27,6 @@ const ROUTING_ACTIONS = [
   "vpn",
   "bypass",
   "block",
-  "zapret",
-  "zapret2",
-  "byedpi",
 ];
 const JSON_ENDPOINT_TYPES = new Set([
   "vpn-server",
@@ -254,16 +247,7 @@ function isDnsDetourTargetSection(section, currentSectionId) {
     return false;
   }
 
-  if (["connection", "proxy", "outbound", "vpn"].includes(action)) {
-    return true;
-  }
-  if (action === "zapret") {
-    return isZapretInstalledForUi();
-  }
-  if (action === "zapret2") {
-    return isZapret2InstalledForUi();
-  }
-  return action === "byedpi" && isByedpiInstalledForUi();
+  return ["connection", "proxy", "outbound", "vpn"].includes(action);
 }
 
 function refreshDnsDetourSectionOptionValues(option, sectionId) {
@@ -281,9 +265,8 @@ function refreshDnsDetourSectionOptionValues(option, sectionId) {
 }
 
 // A dropdown hands back one of its own entries and nothing else. A stored section
-// name it has no entry for - the section was deleted, switched off, or belongs to
-// a DPI provider that is not installed - is therefore replaced on save by whichever
-// entry happens to come first, and traffic quietly leaves through a section the
+// name it has no entry for - the section was deleted or switched off - is therefore
+// replaced on save by whichever entry happens to come first, and traffic quietly leaves through a section the
 // user never chose. Keeping the stored name in the list leaves the value where it
 // is; the configuration check already refuses to build a config that points at a
 // section it cannot use, and says which one.
@@ -333,18 +316,6 @@ function dependsOnRuleConditions(option) {
 const ANNOTATED_TEXTAREA_STYLE_ID = "fkp-annotated-textarea-styles";
 const SINGLE_FIELD_MODAL_STYLE_ID = "fkp-single-field-modal-styles";
 const CONNECTIONS_DYNLIST_STYLE_ID = "fkp-connections-dynlist-styles";
-const NFQWS_REMOTE_VALIDATION_DEBOUNCE_MS = 500;
-const NFQWS_VALIDATION_COMMAND = "/usr/bin/forkop";
-const strategyValidationCache = new Map();
-const strategyValidationInflight = new Map();
-const actionProvidersAvailabilityState = {
-  loaded: false,
-  zapretInstalled: false,
-  zapret2Installed: false,
-  byedpiInstalled: false,
-};
-let actionProvidersAvailabilityPromise = null;
-let actionProvidersAvailabilityLoader = null;
 const outboundNameChoicesCache = new Map();
 const outboundNameChoicesInflight = new Map();
 const outboundNameChoicesEmptyAt = new Map();
@@ -355,67 +326,6 @@ const OUTBOUND_NAME_CHOICES_EMPTY_TTL_MS = 5000;
 const outboundNameSourceOptions = new Map();
 const dashboardFilterChoiceRefreshers = new Map();
 const sharedChildPendingSettings = new Map();
-
-function updateActionProvidersAvailabilityState(nextState) {
-  if (!nextState) {
-    return;
-  }
-
-  actionProvidersAvailabilityState.loaded = true;
-
-  if (typeof nextState.zapretInstalled !== "undefined") {
-    actionProvidersAvailabilityState.zapretInstalled = Boolean(
-      nextState.zapretInstalled,
-    );
-  }
-
-  if (typeof nextState.zapret2Installed !== "undefined") {
-    actionProvidersAvailabilityState.zapret2Installed = Boolean(
-      nextState.zapret2Installed,
-    );
-  }
-
-  if (typeof nextState.byedpiInstalled !== "undefined") {
-    actionProvidersAvailabilityState.byedpiInstalled = Boolean(
-      nextState.byedpiInstalled,
-    );
-  }
-
-  actionProvidersAvailabilityPromise = null;
-}
-
-function updateActionProvidersAvailabilityFromSystemInfo(systemInfo) {
-  if (!systemInfo || !systemInfo.providerInfoLoaded) {
-    return;
-  }
-
-  updateActionProvidersAvailabilityState({
-    zapretInstalled: Boolean(systemInfo.zapret_installed),
-    zapret2Installed: Boolean(systemInfo.zapret2_installed),
-    byedpiInstalled: Boolean(systemInfo.byedpi_installed),
-  });
-}
-
-function setActionProvidersAvailabilityLoader(loader) {
-  actionProvidersAvailabilityLoader =
-    typeof loader === "function" ? loader : null;
-}
-
-if (typeof window !== "undefined") {
-  window.addEventListener(ACTION_PROVIDERS_AVAILABILITY_EVENT, (event) => {
-    updateActionProvidersAvailabilityState(event.detail);
-  });
-}
-
-if (main.store && typeof main.store.subscribe === "function") {
-  main.store.subscribe((next, _prev, diff) => {
-    if (!diff || diff.diagnosticsSystemInfo) {
-      updateActionProvidersAvailabilityFromSystemInfo(
-        next.diagnosticsSystemInfo,
-      );
-    }
-  });
-}
 
 function plainObject(value) {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -1902,23 +1812,7 @@ function isDownloadThroughTargetSection(section, currentSectionId) {
     return false;
   }
 
-  if (["connection", "proxy", "outbound", "vpn"].includes(action)) {
-    return true;
-  }
-
-  if (action === "zapret") {
-    return isZapretInstalledForUi();
-  }
-
-  if (action === "zapret2") {
-    return isZapret2InstalledForUi();
-  }
-
-  if (action === "byedpi") {
-    return isByedpiInstalledForUi();
-  }
-
-  return false;
+  return ["connection", "proxy", "outbound", "vpn"].includes(action);
 }
 
 function subscriptionDownloadTargetChoices(section_id) {
@@ -5813,97 +5707,6 @@ function showRuleSetSettingsModal(section_id, itemValue, option, widget) {
   );
 }
 
-function ensureActionProvidersAvailabilityLoaded() {
-  if (actionProvidersAvailabilityState.loaded) {
-    return Promise.resolve(actionProvidersAvailabilityState);
-  }
-
-  if (actionProvidersAvailabilityPromise) {
-    return actionProvidersAvailabilityPromise;
-  }
-
-  if (actionProvidersAvailabilityLoader) {
-    actionProvidersAvailabilityPromise = actionProvidersAvailabilityLoader()
-      .then((capabilities) => {
-        updateActionProvidersAvailabilityState({
-          zapretInstalled: Boolean(capabilities?.zapretInstalled),
-          zapret2Installed: Boolean(capabilities?.zapret2Installed),
-          byedpiInstalled: Boolean(capabilities?.byedpiInstalled),
-        });
-        return actionProvidersAvailabilityState;
-      })
-      .catch(() => {
-        actionProvidersAvailabilityLoader = null;
-        actionProvidersAvailabilityPromise = null;
-        return ensureActionProvidersAvailabilityLoaded();
-      })
-      .finally(() => {
-        actionProvidersAvailabilityPromise = null;
-      });
-
-    return actionProvidersAvailabilityPromise;
-  }
-
-  actionProvidersAvailabilityPromise = Promise.allSettled([
-    main.ForkopShellMethods.checkZapretRuntime(),
-    main.ForkopShellMethods.checkZapret2Runtime(),
-    main.ForkopShellMethods.checkByedpiRuntime(),
-  ])
-    .then(([zapretResult, zapret2Result, byedpiResult]) => {
-      const zapret =
-        zapretResult && zapretResult.status === "fulfilled"
-          ? zapretResult.value
-          : null;
-      const zapret2 =
-        zapret2Result && zapret2Result.status === "fulfilled"
-          ? zapret2Result.value
-          : null;
-      const byedpi =
-        byedpiResult && byedpiResult.status === "fulfilled"
-          ? byedpiResult.value
-          : null;
-
-      actionProvidersAvailabilityState.loaded = true;
-      actionProvidersAvailabilityState.zapretInstalled = Boolean(
-        zapret && zapret.success && zapret.data && zapret.data.zapret_installed,
-      );
-      actionProvidersAvailabilityState.zapret2Installed = Boolean(
-        zapret2 &&
-          zapret2.success &&
-          zapret2.data &&
-          zapret2.data.zapret2_installed,
-      );
-      actionProvidersAvailabilityState.byedpiInstalled = Boolean(
-        byedpi && byedpi.success && byedpi.data && byedpi.data.byedpi_installed,
-      );
-      return actionProvidersAvailabilityState;
-    })
-    .catch(() => {
-      actionProvidersAvailabilityState.loaded = true;
-      actionProvidersAvailabilityState.zapretInstalled = false;
-      actionProvidersAvailabilityState.zapret2Installed = false;
-      actionProvidersAvailabilityState.byedpiInstalled = false;
-      return actionProvidersAvailabilityState;
-    })
-    .finally(() => {
-      actionProvidersAvailabilityPromise = null;
-    });
-
-  return actionProvidersAvailabilityPromise;
-}
-
-function isZapretInstalledForUi() {
-  return actionProvidersAvailabilityState.zapretInstalled;
-}
-
-function isZapret2InstalledForUi() {
-  return actionProvidersAvailabilityState.zapret2Installed;
-}
-
-function isByedpiInstalledForUi() {
-  return actionProvidersAvailabilityState.byedpiInstalled;
-}
-
 function getRuleConfiguredAction(section_id) {
   const action = uci.get(UCI_PACKAGE, section_id, "action");
   return action ? `${action}` : null;
@@ -5925,12 +5728,6 @@ function getActionOptionLabel(action) {
       return "DNS";
     case "vpn":
       return "VPN";
-    case "zapret":
-      return "Zapret";
-    case "zapret2":
-      return "Zapret2";
-    case "byedpi":
-      return "ByeDPI";
     case "outbound":
       return _("JSON outbound");
     case "proxy":
@@ -5940,34 +5737,17 @@ function getActionOptionLabel(action) {
 }
 
 function getRuleActionDisplayValue(section_id) {
-  const action = getRuleResolvedAction(section_id);
-
-  if (action === "zapret") {
-    return "Zapret";
-  }
-
-  if (action === "zapret2") {
-    return "Zapret2";
-  }
-
-  if (action === "byedpi") {
-    return "ByeDPI";
-  }
-
-  return getActionOptionLabel(action);
+  return getActionOptionLabel(getRuleResolvedAction(section_id));
 }
 
 function getRuleActionDisplayMarkup(section_id) {
   return getRuleActionDisplayValue(section_id);
 }
 
-// currentAction is what the section is stored as. A DPI action is offered only
-// while its provider is installed, and the provider can be gone - uninstalled, or
-// an availability answer that never arrived. The section keeps working either way:
-// the configuration check leaves a rule whose provider is absent alone. But a
-// dropdown hands back one of its own entries and nothing else, so without its own
-// action in the list the section would come back from a save as a Connection with
-// no servers - which is a configuration that will not build at all.
+// currentAction is what the section is stored as, and a dropdown hands back one
+// of its own entries and nothing else: without its own action in the list a
+// section carrying a retired action would come back from a save as a Connection
+// with no servers, which is a configuration that will not build at all.
 function populateActionOptionValues(option, currentAction) {
   delete option.keylist;
   delete option.vallist;
@@ -5976,15 +5756,6 @@ function populateActionOptionValues(option, currentAction) {
   option.value("bypass", "Bypass");
   option.value("block", "Block");
   option.value("dns", "DNS");
-  if (isZapretInstalledForUi()) {
-    option.value("zapret", getActionOptionLabel("zapret"));
-  }
-  if (isZapret2InstalledForUi()) {
-    option.value("zapret2", getActionOptionLabel("zapret2"));
-  }
-  if (isByedpiInstalledForUi()) {
-    option.value("byedpi", getActionOptionLabel("byedpi"));
-  }
 
   const stored = `${currentAction || ""}`.trim();
   if (stored && !option.keylist.includes(stored)) {
@@ -6711,116 +6482,6 @@ function attachAnnotatedTextarea(textarea, analyzer) {
   controller.update();
 }
 
-function refreshAnnotatedTextareaValidation(option, section_id, textarea) {
-  if (option && typeof option.triggerValidation === "function") {
-    option.triggerValidation(section_id);
-  }
-
-  if (
-    textarea &&
-    textarea.__forkopAnnotatedTextareaController &&
-    typeof textarea.__forkopAnnotatedTextareaController.update === "function"
-  ) {
-    textarea.__forkopAnnotatedTextareaController.update();
-  }
-}
-
-function attachNfqwsRemoteValidation(option, section_id, textarea) {
-  if (!textarea || textarea.__forkopNfqwsRemoteValidationAttached) {
-    return;
-  }
-
-  textarea.__forkopNfqwsRemoteValidationAttached = true;
-  textarea.__forkopNfqwsRemoteValidationRequestId = 0;
-  textarea.__forkopNfqwsRemoteValidationTimer = null;
-
-  const runValidation = () => {
-    const value = textarea.value;
-    const localAnalysis = dpi.buildNfqwsLocalAnalysis(value);
-    if (!localAnalysis.valid) {
-      refreshAnnotatedTextareaValidation(option, section_id, textarea);
-      return;
-    }
-
-    const requestId =
-      (textarea.__forkopNfqwsRemoteValidationRequestId || 0) + 1;
-    textarea.__forkopNfqwsRemoteValidationRequestId = requestId;
-
-    nfqwsStrategyValidator.validate(value).then(() => {
-      if (textarea.__forkopNfqwsRemoteValidationRequestId !== requestId) {
-        return;
-      }
-
-      refreshAnnotatedTextareaValidation(option, section_id, textarea);
-    });
-  };
-
-  const scheduleValidation = (delay = NFQWS_REMOTE_VALIDATION_DEBOUNCE_MS) => {
-    if (textarea.__forkopNfqwsRemoteValidationTimer) {
-      window.clearTimeout(textarea.__forkopNfqwsRemoteValidationTimer);
-    }
-
-    textarea.__forkopNfqwsRemoteValidationTimer = window.setTimeout(() => {
-      textarea.__forkopNfqwsRemoteValidationTimer = null;
-      runValidation();
-    }, delay);
-  };
-
-  textarea.addEventListener("input", () => scheduleValidation());
-  textarea.addEventListener("change", () => scheduleValidation(0));
-  textarea.addEventListener("blur", () => scheduleValidation(0));
-
-  scheduleValidation(0);
-}
-
-function attachNfqws2RemoteValidation(option, section_id, textarea) {
-  if (!textarea || textarea.__forkopNfqws2RemoteValidationAttached) {
-    return;
-  }
-
-  textarea.__forkopNfqws2RemoteValidationAttached = true;
-  textarea.__forkopNfqws2RemoteValidationRequestId = 0;
-  textarea.__forkopNfqws2RemoteValidationTimer = null;
-
-  const runValidation = () => {
-    const value = textarea.value;
-    const localAnalysis = dpi.buildNfqws2LocalAnalysis(value);
-    if (!localAnalysis.valid) {
-      refreshAnnotatedTextareaValidation(option, section_id, textarea);
-      return;
-    }
-
-    const requestId =
-      (textarea.__forkopNfqws2RemoteValidationRequestId || 0) + 1;
-    textarea.__forkopNfqws2RemoteValidationRequestId = requestId;
-
-    nfqws2StrategyValidator.validate(value).then(() => {
-      if (textarea.__forkopNfqws2RemoteValidationRequestId !== requestId) {
-        return;
-      }
-
-      refreshAnnotatedTextareaValidation(option, section_id, textarea);
-    });
-  };
-
-  const scheduleValidation = (delay = NFQWS_REMOTE_VALIDATION_DEBOUNCE_MS) => {
-    if (textarea.__forkopNfqws2RemoteValidationTimer) {
-      window.clearTimeout(textarea.__forkopNfqws2RemoteValidationTimer);
-    }
-
-    textarea.__forkopNfqws2RemoteValidationTimer = window.setTimeout(() => {
-      textarea.__forkopNfqws2RemoteValidationTimer = null;
-      runValidation();
-    }, delay);
-  };
-
-  textarea.addEventListener("input", () => scheduleValidation());
-  textarea.addEventListener("change", () => scheduleValidation(0));
-  textarea.addEventListener("blur", () => scheduleValidation(0));
-
-  scheduleValidation(0);
-}
-
 function parseCommentAwareListTokens(value) {
   const text = value ? `${value}` : "";
   const tokens = [];
@@ -7098,154 +6759,7 @@ function validatePortCondition(_section_id, value) {
   return true;
 }
 
-// The three DPI providers share one validation transport: normalize the
-// strategy, ask the backend parser about it once, and remember the verdict.
-function createStrategyValidator(provider, normalize, describeTransportError) {
-  const cacheKey = (value) => `${provider} ${normalize(value)}`;
-
-  const store = (value, result) => {
-    const cached = {
-      valid: result && result.valid === true,
-      message: result && result.message ? `${result.message}` : "",
-      needle: result && result.needle ? `${result.needle}` : "",
-      needles:
-        result && Array.isArray(result.needles)
-          ? result.needles.filter(Boolean).map((item) => `${item}`)
-          : result && result.needle
-            ? [`${result.needle}`]
-            : [],
-    };
-
-    strategyValidationCache.set(cacheKey(value), cached);
-    return cached;
-  };
-
-  const cached = (value) => strategyValidationCache.get(cacheKey(value)) || null;
-
-  const validate = (value) => {
-    const key = cacheKey(value);
-
-    if (strategyValidationCache.has(key)) {
-      return Promise.resolve(strategyValidationCache.get(key));
-    }
-    if (strategyValidationInflight.has(key)) {
-      return strategyValidationInflight.get(key);
-    }
-
-    const task = fs
-      .exec(NFQWS_VALIDATION_COMMAND, [
-        "validate_provider_strategy_json",
-        provider,
-        normalize(value),
-      ])
-      .then((result) => {
-        const payload = JSON.parse(
-          (result && result.stdout ? result.stdout : "{}").trim() || "{}",
-        );
-        return store(value, {
-          valid: payload.valid === true,
-          message: payload.message || "",
-          needle: payload.needle || "",
-          needles: Array.isArray(payload.needles)
-            ? payload.needles.filter(Boolean)
-            : payload.needle
-              ? [payload.needle]
-              : [],
-        });
-      })
-      .catch((error) =>
-        store(value, {
-          valid: false,
-          message: _("Backend validation failed: %s").format(
-            error && error.message
-              ? `${error.message}`
-              : describeTransportError(),
-          ),
-          needle: "",
-          needles: [],
-        }),
-      )
-      .finally(() => {
-        strategyValidationInflight.delete(key);
-      });
-
-    strategyValidationInflight.set(key, task);
-    return task;
-  };
-
-  return { cached, validate };
-}
-
-const nfqwsStrategyValidator = createStrategyValidator(
-  "zapret",
-  dpi.normalizeNfqwsStrategyValue,
-  () => _("Unable to validate the NFQWS strategy through the backend parser."),
-);
-
-// The backend reports the offending option as a needle matched against the
-// tokens of the strategy, so the analyzer has to split the text the same way
-// the router's parser did - ciadpi quoting included.
-function createStrategyAnalyzer(buildLocalAnalysis, validator, tokenize) {
-  return function (value) {
-    const localAnalysis = buildLocalAnalysis(value);
-    if (!localAnalysis.valid) {
-      return localAnalysis;
-    }
-
-    const remoteValidation = validator.cached(value);
-    if (!remoteValidation || remoteValidation.valid) {
-      return localAnalysis;
-    }
-
-    const annotationMap = new Map();
-    localAnalysis.annotations.forEach((annotation) =>
-      annotate.addAnnotationIssue(annotationMap, annotation, annotation.message),
-    );
-    dpi.addNfqwsRemoteValidationAnnotations(
-      annotationMap,
-      tokenize(value ? `${value}` : ""),
-      remoteValidation,
-    );
-
-    return {
-      valid: false,
-      message: [annotate.getValidationHeaderText(), remoteValidation.message].join("\n"),
-      annotations: annotate.finalizeAnnotations(annotationMap),
-    };
-  };
-}
-
-const analyzeNfqwsStrategy = createStrategyAnalyzer(
-  dpi.buildNfqwsLocalAnalysis,
-  nfqwsStrategyValidator,
-  dpi.parseNfqwsRuntimeTokens,
-);
-
-const nfqws2StrategyValidator = createStrategyValidator(
-  "zapret2",
-  dpi.normalizeNfqws2StrategyValue,
-  () => _("Unable to validate the NFQWS2 strategy through the backend parser."),
-);
-
-const analyzeNfqws2Strategy = createStrategyAnalyzer(
-  dpi.buildNfqws2LocalAnalysis,
-  nfqws2StrategyValidator,
-  dpi.parseNfqwsRuntimeTokens,
-);
-
-const byedpiStrategyValidator = createStrategyValidator(
-  "byedpi",
-  dpi.normalizeByedpiStrategyValue,
-  () => _("Unable to validate the ByeDPI strategy through the backend parser."),
-);
-
-const analyzeByedpiStrategy = createStrategyAnalyzer(
-  dpi.buildByedpiLocalAnalysis,
-  byedpiStrategyValidator,
-  (text) => dpi.parseByedpiStrategyTokens(text).tokens,
-);
-
-function configureTextareaOption(option, analyzer, remoteValidationAttacher) {
+function configureTextareaOption(option, analyzer) {
   const originalRenderWidget = option.renderWidget;
 
   option.renderWidget = function (section_id, option_index, cfgvalue) {
@@ -7267,9 +6781,6 @@ function configureTextareaOption(option, analyzer, remoteValidationAttacher) {
       });
       if (typeof analyzer === "function") {
         attachAnnotatedTextarea(textarea, analyzer);
-      }
-      if (typeof remoteValidationAttacher === "function") {
-        remoteValidationAttacher(this, section_id, textarea);
       }
     }
 
@@ -7300,91 +6811,6 @@ function getOptionTextarea(option, section_id) {
   return node && typeof node.querySelector === "function"
     ? node.querySelector("textarea")
     : null;
-}
-
-function rejectStrategyValidation(option, section_id, message) {
-  const title = option.stripTags(option.title).trim();
-  const error = message || option.getValidationError(section_id) || "";
-
-  return Promise.reject(
-    new TypeError(
-      `${_('Option "%s" contains an invalid input value.').format(title || option.option)} ${error}`,
-    ),
-  );
-}
-
-function parseStrategyWithRemoteValidation(section_id, config) {
-  const active = this.isActive(section_id);
-
-  if (active) {
-    if (typeof this.triggerValidation === "function") {
-      this.triggerValidation(section_id);
-    }
-
-    if (!this.isValid(section_id)) {
-      return rejectStrategyValidation(
-        this,
-        section_id,
-        this.getValidationError(section_id),
-      );
-    }
-
-    const cval = this.cfgvalue(section_id);
-    const fval = this.formvalue(section_id);
-    const cvalString = cval == null ? "" : `${cval}`;
-    const fvalString = fval == null ? "" : `${fval}`;
-    const shouldWrite = this.forcewrite || cvalString !== fvalString;
-
-    if (!shouldWrite) {
-      return Promise.resolve();
-    }
-
-    return config.remoteValidate(fvalString).then((result) => {
-      const textarea = getOptionTextarea(this, section_id);
-
-      if (textarea) {
-        refreshAnnotatedTextareaValidation(this, section_id, textarea);
-      }
-
-      if (typeof this.triggerValidation === "function") {
-        this.triggerValidation(section_id);
-      }
-
-      if (!result || result.valid !== true) {
-        return rejectStrategyValidation(
-          this,
-          section_id,
-          result && result.message ? result.message : config.invalidMessage,
-        );
-      }
-
-      return Promise.resolve(this.write(section_id, fvalString));
-    });
-  }
-
-  if (!this.retain) {
-    return Promise.resolve(this.remove(section_id));
-  }
-
-  return Promise.resolve();
-}
-
-function parseNfqwsStrategyOnSave(section_id) {
-  return parseStrategyWithRemoteValidation.call(this, section_id, {
-    remoteValidate: nfqwsStrategyValidator.validate,
-    invalidMessage: _(
-      "Unable to validate the NFQWS strategy through the backend parser.",
-    ),
-  });
-}
-
-function parseNfqws2StrategyOnSave(section_id) {
-  return parseStrategyWithRemoteValidation.call(this, section_id, {
-    remoteValidate: nfqws2StrategyValidator.validate,
-    invalidMessage: _(
-      "Unable to validate the NFQWS2 strategy through the backend parser.",
-    ),
-  });
 }
 
 function addDynamicConditionField(section, config) {
@@ -7697,11 +7123,9 @@ function createSectionContent(section) {
     return getRuleConfiguredAction(section_id);
   };
   o.load = function (section_id) {
-    return ensureActionProvidersAvailabilityLoaded().then(() => {
-      const value = this.cfgvalue(section_id);
-      populateActionOptionValues(this, value);
-      return value;
-    });
+    const value = this.cfgvalue(section_id);
+    populateActionOptionValues(this, value);
+    return value;
   };
 
   const dnsServerOption = section.taboption(
@@ -7800,134 +7224,6 @@ function createSectionContent(section) {
   o.validate = function (_section_id, value) {
     return value ? true : _("Select a section");
   };
-
-  o = section.taboption(
-    "settings",
-    form.TextValue,
-    "nfqws_opt",
-    _("NFQWS Strategy"),
-  );
-  o.depends("action", "zapret");
-  o.rows = 6;
-  o.wrap = "soft";
-  o.textarea = true;
-  o.modalonly = true;
-  o.load = function (section_id) {
-    const value = uci.get(UCI_PACKAGE, section_id, "nfqws_opt");
-    if (!value || value === dpi.ZAPRET_LEGACY_DEFAULT_NFQWS_OPT) {
-      return dpi.ZAPRET_DEFAULT_NFQWS_OPT;
-    }
-
-    return value;
-  };
-  o.write = function (section_id, value) {
-    const normalized = dpi.normalizeNfqwsStrategyValue(value);
-    const nextValue =
-      !normalized.length || normalized === dpi.ZAPRET_LEGACY_DEFAULT_NFQWS_OPT
-        ? dpi.ZAPRET_DEFAULT_NFQWS_OPT
-        : normalized;
-
-    return nfqwsStrategyValidator.validate(nextValue).then((result) => {
-      if (!result || result.valid !== true) {
-        throw new TypeError(
-          result && result.message
-            ? result.message
-            : _(
-                "Unable to validate the NFQWS strategy through the backend parser.",
-              ),
-        );
-      }
-
-      uci.set(UCI_PACKAGE, section_id, "nfqws_opt", nextValue);
-    });
-  };
-  o.validate = function (_section_id, value) {
-    const analysis = analyzeNfqwsStrategy(value);
-    return analysis.valid ? true : analysis.message;
-  };
-  o.parse = parseNfqwsStrategyOnSave;
-  configureTextareaOption(o, analyzeNfqwsStrategy, attachNfqwsRemoteValidation);
-
-  o = section.taboption(
-    "settings",
-    form.TextValue,
-    "nfqws2_opt",
-    _("NFQWS2 Strategy"),
-  );
-  o.depends("action", "zapret2");
-  o.rows = 6;
-  o.wrap = "soft";
-  o.textarea = true;
-  o.modalonly = true;
-  o.load = function (section_id) {
-    return (
-      uci.get(UCI_PACKAGE, section_id, "nfqws2_opt") ||
-      dpi.ZAPRET2_DEFAULT_NFQWS2_OPT
-    );
-  };
-  o.write = function (section_id, value) {
-    const normalized = dpi.normalizeNfqws2StrategyValue(value);
-
-    return nfqws2StrategyValidator.validate(normalized).then((result) => {
-      if (!result || result.valid !== true) {
-        throw new TypeError(
-          result && result.message
-            ? result.message
-            : _("Invalid NFQWS2 strategy"),
-        );
-      }
-
-      uci.set(UCI_PACKAGE, section_id, "nfqws2_opt", normalized);
-    });
-  };
-  o.validate = function (_section_id, value) {
-    const analysis = analyzeNfqws2Strategy(value);
-    return analysis.valid ? true : analysis.message;
-  };
-  o.parse = parseNfqws2StrategyOnSave;
-  configureTextareaOption(
-    o,
-    analyzeNfqws2Strategy,
-    attachNfqws2RemoteValidation,
-  );
-
-  o = section.taboption(
-    "settings",
-    form.TextValue,
-    "byedpi_cmd_opts",
-    _("ByeDPI Strategy"),
-  );
-  o.depends("action", "byedpi");
-  o.rows = 6;
-  o.wrap = "soft";
-  o.textarea = true;
-  o.modalonly = true;
-  o.load = function (section_id) {
-    return (
-      uci.get(UCI_PACKAGE, section_id, "byedpi_cmd_opts") ||
-      dpi.BYEDPI_DEFAULT_CMD_OPTS
-    );
-  };
-  o.write = function (section_id, value) {
-    const normalized = dpi.normalizeByedpiStrategyValue(value);
-
-    return byedpiStrategyValidator.validate(normalized).then((result) => {
-      if (!result || result.valid !== true) {
-        throw new TypeError(
-          result && result.message
-            ? result.message
-            : _("Invalid ByeDPI strategy"),
-        );
-      }
-
-      uci.set(UCI_PACKAGE, section_id, "byedpi_cmd_opts", normalized);
-    });
-  };
-  o.validate = function (_section_id, value) {
-    const analysis = analyzeByedpiStrategy(value);
-    return analysis.valid ? true : analysis.message;
-  };
-  configureTextareaOption(o, analyzeByedpiStrategy);
 
   o = section.taboption(
     "settings",
@@ -8493,9 +7789,7 @@ function loadSectionTableOptions(sectionRef) {
   return Promise.all(tasks);
 }
 
-function configureSectionSection(sectionRef, options = {}) {
-  setActionProvidersAvailabilityLoader(options.loadActionProvidersAvailability);
-
+function configureSectionSection(sectionRef) {
   const handleRemove = sectionRef.handleRemove;
   sectionRef.handleRemove = function (section_id) {
     cleanupRemovedChildItems(section_id, "subscription_url", []);

@@ -10,8 +10,6 @@ INITD_UC="$ROOT_DIR/forkop/files/usr/lib/service/initd.uc"
 LOCK_UC="$ROOT_DIR/forkop/files/usr/lib/service/lock.uc"
 UI_UC="$ROOT_DIR/forkop/files/usr/lib/service/ui.uc"
 UPDATES_UC="$ROOT_DIR/forkop/files/usr/lib/components/updates.uc"
-NFQUEUE_RUNTIME_UC="$ROOT_DIR/forkop/files/usr/lib/providers/nfqueue/runtime.uc"
-BYEDPI_RUNTIME_UC="$ROOT_DIR/forkop/files/usr/lib/providers/byedpi/runtime.uc"
 SINGBOX_WATCH_UC="$ROOT_DIR/forkop/files/usr/lib/service/singbox_watch.uc"
 
 fail() {
@@ -114,10 +112,6 @@ require_file_pattern "$UI_UC" '>/dev/null 2>&1 1000>&- & echo $!' \
   "service/ui.uc service action workers must close inherited procd lock fd"
 require_file_pattern "$UPDATES_UC" '>/dev/null 2>&1 1000>&- & echo $!' \
   "components/updates.uc async workers must close inherited procd lock fd"
-require_file_pattern "$NFQUEUE_RUNTIME_UC" '>>" + shell_quote(logfile) + " 2>&1 1000>&- & echo $!' \
-  "nfqueue provider supervisors must close inherited procd lock fd"
-require_file_pattern "$BYEDPI_RUNTIME_UC" '>>" + shell_quote(logfile) + " 2>&1 1000>&- & echo $!' \
-  "byedpi supervisor must close inherited procd lock fd"
 require_file_pattern "$SINGBOX_WATCH_UC" 'respawn: [ "3600", "5", "0" ]' \
   "sing-box crash watcher must be supervised and restarted by procd"
 require_file_pattern "$SINGBOX_WATCH_UC" 'if (!procd_remove_worker())' \

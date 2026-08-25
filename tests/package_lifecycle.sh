@@ -193,4 +193,20 @@ FORKOP_RT_TABLES="$WORK_DIR/rt_tables_upgrade" \
 [ ! -e "$FORKOP_PACKAGE_UPGRADE_STATE" ] ||
   fail "package pre-upgrade must not mark an already stopped service"
 
+# The retired DPI providers had a directory per engine under the library and
+# another under /var/run. The package manager removes the files it owned and
+# leaves the directories, and they nest, so postinst has to walk them.
+retired_tree="$WORK_DIR/retired/providers"
+mkdir -p "$retired_tree/zapret" "$retired_tree/byedpi/pid"
+: >"$retired_tree/rules.uc"
+: >"$retired_tree/zapret/runtime.uc"
+: >"$retired_tree/byedpi/pid/bye1.pid"
+FORKOP_PACKAGE_TEST_MODE=1 \
+FORKOP_INIT="$WORK_DIR/upgrade-init" \
+FORKOP_START_LOG="$WORK_DIR/upgrade-start.log" \
+FORKOP_OBSOLETE_STATE_TREES="$retired_tree" \
+  ucode -L "$FORKOP_LIB" "$PACKAGE_UC" postinst
+[ ! -e "$retired_tree" ] ||
+  fail "package postinst must remove a nested directory a retired feature left behind"
+
 printf 'package lifecycle checks passed\n'

@@ -341,36 +341,6 @@ assert_eq "no" \
   fail "missing nft table predicate must suppress nft stderr"
 assert_contains "$NFT_LOG" $'nft\t-t\tlist\ttable\tinet\tForkopTable' "nft table presence check"
 
-cat >"$WORK_DIR/provider-rules.json" <<'JSON'
-{
-  "section": [
-    { ".name": "direct", "enabled": "1", "action": "bypass" },
-    { ".name": "zapret_one", "enabled": "1", "action": "zapret" },
-    { ".name": "zapret_disabled", "enabled": "0", "action": "zapret" },
-    { ".name": "zapret_two", "enabled": "1", "action": "zapret" },
-    { ".name": "zapret2_one", "enabled": "1", "action": "zapret2" }
-  ]
-}
-JSON
-provider_bin="$WORK_DIR/bin/provider"
-printf '#!/usr/bin/env sh\nexit 0\n' >"$provider_bin"
-chmod 0755 "$provider_bin"
-
-: > "$NFT_LOG"
-nft_ucode nft-create-provider-output-rules-fixture "$WORK_DIR/provider-rules.json" ForkopTable zapret "$provider_bin" 0x01000000 4000 0x40000000 0x20000000
-assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle_output\tmeta\tmark\t&\t0x40000000\t==\t0x40000000\treturn' "zapret desync return"
-assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle_output\tmeta\tmark\t0x01000001\tmeta\tl4proto\ttcp\tcounter\tqueue\tnum\t4000\tbypass' "zapret first tcp queue rule"
-assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tForkopTable\tmangle_output\tmeta\tmark\t0x01000002\tmeta\tl4proto\tudp\tcounter\tqueue\tnum\t4001\tbypass' "zapret second udp queue rule"
-if grep -Fq 'zapret_disabled' "$NFT_LOG"; then
-  fail "disabled provider section should not create nft rule"
-fi
-
-: > "$NFT_LOG"
-nft_ucode nft-create-provider-output-rules-fixture "$WORK_DIR/provider-rules.json" ForkopTable zapret "$WORK_DIR/bin/missing-provider" 0x01000000 4000 0x40000000 0x20000000
-if [ -s "$NFT_LOG" ]; then
-  fail "missing provider binary should skip provider nft output rules"
-fi
-
 cat >"$WORK_DIR/priority-rules.json" <<'JSON'
 {
   "section": [
@@ -830,20 +800,13 @@ nft_ucode nft-populate-runtime-sets-fixture "$WORK_DIR/populate-fixture.json" 0 
 [ ! -s "$NFT_LOG" ] || fail "disabled nft population should not call nft"
 
 # The rebuild entry point takes no arguments: the routing table, the nft table, its
-# sets, the marks, the FakeIP ranges and each provider's binary, mark base and queue
-# base are constants a caller could only have read from the same tables. Every one of
-# them is overridden here, so a name resolved through the wrong key cannot pass - it
-# would leave the default in the rules the fake nft records, which is what the last
-# check refuses.
+# sets, the marks and the FakeIP ranges are constants a caller could only have read
+# from the same tables. Every one of them is overridden here, so a name resolved
+# through the wrong key cannot pass - it would leave the default in the rules the fake
+# nft records, which is what the last check refuses.
 cat >"$WORK_DIR/rebuild-uci.state" <<'EOF_UCI'
 forkop.settings=settings
 forkop.settings.source_network_interfaces=br-lan
-forkop.zapret_one=section
-forkop.zapret_one.enabled=1
-forkop.zapret_one.action=zapret
-forkop.zapret2_one=section
-forkop.zapret2_one.enabled=1
-forkop.zapret2_one.action=zapret2
 EOF_UCI
 : > "$WORK_DIR/rebuild-rt_tables"
 : > "$NFT_LOG"
@@ -861,16 +824,6 @@ FORKOP_UCI_STATE_FILE="$WORK_DIR/rebuild-uci.state" \
   SB_FAKEIP_INET6_RANGE=fd00:2::/32 \
   SB_TPROXY_INBOUND_PORT=1699 \
   SB_TPROXY_INBOUND6_ADDRESS=fd00::1 \
-  ZAPRET_PROVIDER_NFQWS_BIN="$provider_bin" \
-  ZAPRET_ROUTE_MARK_BASE=0x03000000 \
-  ZAPRET_QUEUE_BASE=4100 \
-  ZAPRET_DESYNC_MARK=0x40000000 \
-  ZAPRET_DESYNC_MARK_POSTNAT=0x20000000 \
-  ZAPRET2_PROVIDER_NFQWS2_BIN="$provider_bin" \
-  ZAPRET2_ROUTE_MARK_BASE=0x05000000 \
-  ZAPRET2_QUEUE_BASE=4500 \
-  ZAPRET2_DESYNC_MARK=0x50000000 \
-  ZAPRET2_DESYNC_MARK_POSTNAT=0x60000000 \
   nft_ucode nft-rebuild-runtime-from-uci ||
   fail "nft runtime rebuild from UCI failed"
 assert_line_before "$NFT_LOG" \
@@ -885,10 +838,6 @@ assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tmangle\tiifname
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tproxy\tmeta\tmark\t&\t0x00100000\t==\t0x00100000\tmeta\tl4proto\ttcp\ttproxy\tip6\tto\t[fd00::1]:1699\tcounter' "rebuild TProxy6 target"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tmangle_output\tmeta\tmark\t0x00200000\tcounter\treturn' "rebuild outbound return"
 assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tmangle_output\tip\tdaddr\t192.0.2.0/24\tmeta\tl4proto\ttcp\tmeta\tmark\tset\t0x00100000\tcounter' "rebuild output FakeIP rule"
-assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tmangle_output\tmeta\tmark\t&\t0x40000000\t==\t0x40000000\treturn' "rebuild zapret desync return"
-assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tmangle_output\tmeta\tmark\t0x03000001\tmeta\tl4proto\ttcp\tcounter\tqueue\tnum\t4100\tbypass' "rebuild zapret queue rule"
-assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tmangle_output\tmeta\tmark\t&\t0x50000000\t==\t0x50000000\treturn' "rebuild zapret2 desync return"
-assert_contains "$NFT_LOG" $'nft\tadd\trule\tinet\tRebuildTable\tmangle_output\tmeta\tmark\t0x05000001\tmeta\tl4proto\ttcp\tcounter\tqueue\tnum\t4500\tbypass' "rebuild zapret2 queue rule"
 assert_contains "$IP_LOG" $'ip\troute\tadd\tlocal\t0.0.0.0/0\tdev\tlo\ttable\trebuild_route' "rebuild TProxy route"
 assert_contains "$IP_LOG" $'ip\t-4\trule\tadd\tfwmark\t0x00100000/0x00100000\ttable\trebuild_route\tpriority\t105' "rebuild TProxy marking rule"
 assert_contains "$WORK_DIR/rebuild-rt_tables" '105 rebuild_route' "rebuild route table registration"

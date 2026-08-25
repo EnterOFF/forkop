@@ -118,13 +118,6 @@ cat >"$WORK_DIR/valid.json" <<'JSON'
       "domain_suffix": [ "bypass.example" ]
     },
     {
-      ".name": "zap",
-      ".type": "section",
-      "enabled": "1",
-      "action": "zapret",
-      "rule_set_with_subnets": [ "https://example.com/provider.lst" ]
-    },
-    {
       ".name": "custom_dns",
       ".type": "section",
       "enabled": "1",
@@ -956,78 +949,6 @@ cat >"$WORK_DIR/bad-filter-mode.json" <<'JSON'
 }
 JSON
 assert_rejects "bad filter mode" "$WORK_DIR/bad-filter-mode.json" "Invalid server filter mode 'direct'"
-
-provider_context="$(node -e 'const fs=require("fs"); const c=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); c.byedpi_installed=true; process.stdout.write(JSON.stringify(c));' "$WORK_DIR/context.json")"
-cat >"$WORK_DIR/bad-byedpi.json" <<'JSON'
-{
-  "settings": { ".name": "settings", ".type": "settings", "dns_server": [ "77.88.8.8" ], "bootstrap_dns_server": [ "77.88.8.8" ] },
-  "section": [
-    { ".name": "bye", ".type": "section", "enabled": "1", "action": "byedpi", "byedpi_cmd_opts": "--port 1080 --disorder 3" }
-  ]
-}
-JSON
-if output="$(FORKOP_LIB="$FORKOP_LIB" ucode -L "$FORKOP_LIB" "$VALIDATOR" validate-runtime-fixture "$WORK_DIR/bad-byedpi.json" "$provider_context" 2>/dev/null)"; then
-  fail "bad byedpi should be rejected"
-fi
-printf '%s\n' "$output" | grep -Fq "ByeDPI listen address and port are assigned" ||
-  fail "bad byedpi: unexpected message '$output'"
-
-runtime_lib="$WORK_DIR/runtime-lib"
-mkdir -p "$runtime_lib"
-ln -s "$FORKOP_LIB/core" "$runtime_lib/core"
-ln -s "$FORKOP_LIB/config" "$runtime_lib/config"
-ln -s "$FORKOP_LIB/singbox" "$runtime_lib/singbox"
-ln -s "$FORKOP_LIB/subscription" "$runtime_lib/subscription"
-ln -s "$FORKOP_LIB/providers" "$runtime_lib/providers"
-touch "$WORK_DIR/ciadpi-provider"
-cat >"$WORK_DIR/bad-byedpi-runtime-state.json" <<'JSON'
-{
-  "settings": { ".name": "settings", ".type": "settings", "dns_server": [ "77.88.8.8" ], "bootstrap_dns_server": [ "77.88.8.8" ] },
-  "section": [
-    { ".name": "bye", ".type": "section", "enabled": "1", "action": "byedpi", "byedpi_cmd_opts": "--port 1080 --disorder 3" }
-  ]
-}
-JSON
-
-env \
-  COMMUNITY_SERVICES="discord" \
-  BYEDPI_DEFAULT_CMD_OPTS="" \
-  ZAPRET_DEFAULT_NFQWS_OPT="" \
-  ZAPRET_LEGACY_DEFAULT_NFQWS_OPT="" \
-  ZAPRET2_DEFAULT_NFQWS2_OPT="" \
-  BYEDPI_BIN="$WORK_DIR/ciadpi-provider" \
-  ZAPRET_PROVIDER_NFQWS_BIN="$WORK_DIR/missing-nfqws" \
-  ZAPRET2_PROVIDER_NFQWS2_BIN="$WORK_DIR/missing-nfqws2" \
-  ZAPRET_ROUTE_MARK_BASE="0x01000000" \
-  ZAPRET_QUEUE_RANGE_SIZE="16" \
-  ZAPRET2_ROUTE_MARK_BASE="0x02000000" \
-  ZAPRET2_QUEUE_RANGE_SIZE="16" \
-  NFT_FAKEIP_MARK="0x00000800" \
-  NFT_OUTBOUND_MARK="0x00000400" \
-  FORKOP_LIB="$runtime_lib" \
-  ucode -L "$runtime_lib" "$VALIDATOR" validate-runtime-fixture "$WORK_DIR/bad-byedpi-runtime-state.json" "{}"
-chmod 755 "$WORK_DIR/ciadpi-provider"
-if output="$(env \
-  COMMUNITY_SERVICES="discord" \
-  BYEDPI_DEFAULT_CMD_OPTS="" \
-  ZAPRET_DEFAULT_NFQWS_OPT="" \
-  ZAPRET_LEGACY_DEFAULT_NFQWS_OPT="" \
-  ZAPRET2_DEFAULT_NFQWS2_OPT="" \
-  BYEDPI_BIN="$WORK_DIR/ciadpi-provider" \
-  ZAPRET_PROVIDER_NFQWS_BIN="$WORK_DIR/missing-nfqws" \
-  ZAPRET2_PROVIDER_NFQWS2_BIN="$WORK_DIR/missing-nfqws2" \
-  ZAPRET_ROUTE_MARK_BASE="0x01000000" \
-  ZAPRET_QUEUE_RANGE_SIZE="16" \
-  ZAPRET2_ROUTE_MARK_BASE="0x02000000" \
-  ZAPRET2_QUEUE_RANGE_SIZE="16" \
-  NFT_FAKEIP_MARK="0x00000800" \
-  NFT_OUTBOUND_MARK="0x00000400" \
-  FORKOP_LIB="$runtime_lib" \
-  ucode -L "$runtime_lib" "$VALIDATOR" validate-runtime-fixture "$WORK_DIR/bad-byedpi-runtime-state.json" "{}" 2>/dev/null)"; then
-  fail "executable byedpi provider should enable strategy validation"
-fi
-printf '%s\n' "$output" | grep -Fq "ByeDPI listen address and port are assigned" ||
-  fail "executable byedpi provider: unexpected message '$output'"
 
 amnezia_tunnel_fixture() {
   local path="$1"

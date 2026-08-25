@@ -84,7 +84,6 @@ export function createUciStub(sections = {}) {
 const DEPENDENCY_VIEWS = {
   annotate: 'annotations',
   localDevices: 'local_devices',
-  dpi: 'dpi_strategy',
 };
 
 const dependencyCache = new Map();

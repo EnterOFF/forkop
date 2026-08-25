@@ -39,15 +39,6 @@ describe('diagnostic checks', () => {
     },
   );
 
-  it('keeps provider runtime checks on the diagnostic timeout', async () => {
-    await ForkopShellMethods.checkZapretRuntime();
-
-    const call = mocks.executeShellCommand.mock.calls[0][0];
-
-    expect(call.args).toEqual(['check_provider_runtime', 'zapret']);
-    expect(call.timeout).toBeGreaterThan(20000);
-  });
-
   it('keeps short-lived UI state polling fast', async () => {
     await ForkopShellMethods.getUiState();
 

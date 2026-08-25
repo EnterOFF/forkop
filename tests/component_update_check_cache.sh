@@ -27,9 +27,6 @@ mkdir -p \
   "$fake_lib/config" \
   "$fake_lib/components" \
   "$fake_lib/service" \
-  "$fake_lib/providers/zapret" \
-  "$fake_lib/providers/zapret2" \
-  "$fake_lib/providers/byedpi" \
   "$job_dir"
 
 fake_bin="$WORK_DIR/bin"
@@ -134,13 +131,6 @@ print(sprintf("%J\n", {
 }));
 UCODE
 
-cat >"$fake_lib/providers/zapret/runtime.uc" <<'UCODE'
-#!/usr/bin/env ucode
-exit(1);
-UCODE
-cp "$fake_lib/providers/zapret/runtime.uc" "$fake_lib/providers/zapret2/runtime.uc"
-cp "$fake_lib/providers/zapret/runtime.uc" "$fake_lib/providers/byedpi/runtime.uc"
-
 cat >"$fake_lib/service/state.uc" <<'UCODE'
 #!/usr/bin/env ucode
 exit(0);
@@ -154,35 +144,29 @@ updates_ucode() {
     ucode -L "$fake_lib" -L "$FORKOP_LIB" "$UPDATES_UC" "$@"
 }
 
-updates_ucode component-action-worker "$state_file" "$output_file" zapret check_update
-[ -n "$(stored_component zapret)" ] ||
+updates_ucode component-action-worker "$state_file" "$output_file" sing_box check_update
+[ -n "$(stored_component sing_box)" ] ||
   fail "manual checks must be reported while automatic checks are enabled"
 
 manual_cache="$(updates_ucode component-update-check-cache)"
 node -e '
 const value = JSON.parse(process.argv[1]);
 if (!value.enabled || value.results.length !== 1 ||
-    value.results[0].component !== "zapret" ||
+    value.results[0].component !== "sing_box" ||
     value.results[0].status !== "outdated" ||
     value.results[0].latest_version !== "1.1.0") process.exit(1);
 ' "$manual_cache" || fail "the reported manual check reads back wrong"
 
 printf '{}\n' >"$store_file"
 TEST_COMPONENT_UPDATE_CHECK_ENABLED=0 updates_ucode \
-  component-action-worker "$state_file" "$output_file" zapret check_update
-[ -z "$(stored_component zapret)" ] ||
+  component-action-worker "$state_file" "$output_file" sing_box check_update
+[ -z "$(stored_component sing_box)" ] ||
   fail "manual checks must not be reported while automatic checks are disabled"
 
 rm -f "$state_file"
 updates_ucode component-updates-if-due
 [ -n "$(stored_component forkop)" ] ||
   fail "automatic checks must report the Forkop result"
-
-# Removing a component leaves nothing known about any of them; the next check
-# refills what is still installed.
-updates_ucode component-action-worker "$state_file" "$output_file" zapret remove
-[ -z "$(stored_component forkop)" ] ||
-  fail "removing a component must forget what was known about them"
 
 # Nothing on disk records any of this. The schedule is the cron line, and the
 # answers live in the state service, which drops them when the installed

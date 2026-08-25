@@ -8,7 +8,6 @@ CLI_UC="$FORKOP_BIN"
 HELPERS_SH="$FORKOP_LIB/helpers.sh"
 LIFECYCLE_UC="$FORKOP_LIB/service/lifecycle.uc"
 PACKAGES_UC="$FORKOP_LIB/core/packages.uc"
-RULES_UC="$FORKOP_LIB/providers/rules.uc"
 SINGBOX_RUNTIME_UC="$FORKOP_LIB/singbox/runtime.uc"
 COMPONENT_ACTION_UC="$FORKOP_LIB/components/action.uc"
 DIAGNOSTICS_RUNTIME_UC="$FORKOP_LIB/diagnostics/runtime.uc"
@@ -65,8 +64,6 @@ grep -Fq 'mode == "get-system-info"' "$DIAGNOSTICS_RUNTIME_UC" ||
   fail "diagnostics/runtime.uc must own system info"
 grep -Fq 'core/packages.uc' "$COMPONENT_ACTION_UC" ||
   fail "component action owner must use core/packages.uc directly"
-grep -Fq 'count-uci' "$RULES_UC" ||
-  fail "providers/rules.uc must own UCI rule counting"
 grep -Fq 'mode == "version"' "$SINGBOX_RUNTIME_UC" ||
   fail 'singbox/runtime.uc missing mode == "version"'
 for mode in \
@@ -95,9 +92,5 @@ fi
 if ucode -L "$FORKOP_LIB" "$PACKAGES_UC" installed forkop-definitely-missing >/dev/null 2>&1; then
   fail "missing package must not be reported installed"
 fi
-
-mark_hex="$(ucode -L "$FORKOP_LIB" "$RULES_UC" mark-hex 0x01000000 2)"
-[ "$mark_hex" = "0x01000002" ] ||
-  fail "providers/rules.uc mark math changed"
 
 printf 'helpers ownership checks passed\n'

@@ -19,7 +19,7 @@ PREVIOUS="$WORK_DIR/previous.state"
 CURRENT="$WORK_DIR/current.state"
 
 # format, service trigger key, then one value per signature the plan compares.
-BASE_STATE=(2 service_trigger_signature svc sb nft zq zr z2q z2r br cron)
+BASE_STATE=(3 service_trigger_signature svc sb nft cron)
 
 write_state() {
   local file="$1"
@@ -30,12 +30,7 @@ write_state() {
     printf '%s=%s\n' "$2" "$3"
     printf 'sing_box_signature=%s\n' "$4"
     printf 'nft_signature=%s\n' "$5"
-    printf 'zapret_queue_signature=%s\n' "$6"
-    printf 'zapret_runtime_signature=%s\n' "$7"
-    printf 'zapret2_queue_signature=%s\n' "$8"
-    printf 'zapret2_runtime_signature=%s\n' "$9"
-    printf 'byedpi_runtime_signature=%s\n' "${10}"
-    printf 'cron_signature=%s\n' "${11}"
+    printf 'cron_signature=%s\n' "$6"
   } >"$file"
 }
 
@@ -106,13 +101,6 @@ assert_plan_value "$plan" changed_sing_box 1
 assert_plan_value "$plan" needs_sing_box_reload 1
 assert_plan_value "$plan" has_work 1
 
-setup_case 5 zq2
-plan="$(run_plan zapret_queue_changed 0 0)"
-assert_plan_value "$plan" changed_zapret_queue 1
-assert_plan_value "$plan" needs_zapret_restart 1
-assert_plan_value "$plan" needs_nft_rebuild 1
-assert_plan_value "$plan" needs_sing_box_reload 1
-
 setup_case 4 nft2
 plan="$(run_plan nft_changed 0 0)"
 assert_plan_value "$plan" needs_nft_rebuild 1
@@ -138,7 +126,7 @@ assert_plan_value "$plan" needs_sing_box_reload 1
 
 setup_case "" ""
 older=("${BASE_STATE[@]}")
-older[0]=1
+older[0]=2
 write_state "$PREVIOUS" "${older[@]}"
 assert_plan_exit 2 0 0
 

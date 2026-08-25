@@ -71,11 +71,9 @@ present "$(fixture connection 1)" ||
 ! present "$(fixture connection 0)" ||
   fail "a disabled Connection section must not count as a proxy outbound"
 
-# A DPI section is an outbound of its own, but only while its provider is there.
-present "$(fixture zapret 1)" '{"zapret_installed":"1"}' ||
-  fail "a Zapret section must count as a proxy outbound while zapret is installed"
-
+# A retired action keeps whatever the section stored, and none of it builds an
+# outbound any more.
 ! present "$(fixture zapret 1)" ||
-  fail "a Zapret section must not count as a proxy outbound while zapret is missing"
+  fail "a section with a retired action must not count as a proxy outbound"
 
 printf 'outbound section presence checks passed\n'

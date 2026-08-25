@@ -30,7 +30,7 @@ define Package/forkop
 endef
 
 define Package/forkop/description
-	Rule-based Forkop backend with hybrid sing-box + zapret orchestration
+	Rule-based sing-box orchestration for OpenWrt
 endef
 
 define Build/Configure

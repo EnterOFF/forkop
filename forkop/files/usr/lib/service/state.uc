@@ -17,18 +17,12 @@ let core_common = require("core.common");
 let uci_core = require("core.uci");
 let rule_config = require("config.rule");
 let connections = require("config.connections");
-let zapret_validator = require("providers.zapret.validator");
-let zapret2_validator = require("providers.zapret2.validator");
-let byedpi_validator = require("providers.byedpi.validator");
 let lock = require("service.lock");
 const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
 const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
 const DEFAULT_PENDING_RELOAD_FILE = getenv("FORKOP_PENDING_RELOAD_FILE") || "/var/run/forkop/reload.pending";
 const DEFAULT_SERVICE_INIT = getenv("FORKOP_SERVICE_INIT") || "/etc/init.d/forkop";
 const SING_BOX_INIT = getenv("FORKOP_SING_BOX_INIT") || "/etc/init.d/sing-box";
-const ZAPRET_DEFAULT_NFQWS_OPT = getenv("ZAPRET_DEFAULT_NFQWS_OPT") || "";
-const ZAPRET2_DEFAULT_NFQWS2_OPT = getenv("ZAPRET2_DEFAULT_NFQWS2_OPT") || "";
-const BYEDPI_DEFAULT_CMD_OPTS = getenv("BYEDPI_DEFAULT_CMD_OPTS") || "";
 const SING_BOX_START_MAX_WAIT_SECONDS = int(getenv("FORKOP_SING_BOX_START_MAX_WAIT_SECONDS") || "300");
 const SIGNATURE_TEMP_FILE = (getenv("TMPDIR") || "/tmp") +
     "/forkop-signature." + clock()[0] + "." + clock()[1];
@@ -131,11 +125,6 @@ const RELOAD_STATE_FIELDS = [
     "service_trigger_signature",
     "sing_box_signature",
     "nft_signature",
-    "zapret_queue_signature",
-    "zapret_runtime_signature",
-    "zapret2_queue_signature",
-    "zapret2_runtime_signature",
-    "byedpi_runtime_signature",
     "cron_signature"
 ];
 
@@ -643,31 +632,7 @@ function signature_add_outbound_detour_body(body, section, prefix) {
     return body;
 }
 
-function section_action_is_enabled(section, action) {
-    return section_name(section) != "" &&
-        bool_option(section, "enabled", true) &&
-        option(section, "action", "") == as_string(action);
-}
-
-function enabled_action_index(sections, target_section, action) {
-    let result = 0;
-    target_section = as_string(target_section);
-    action = as_string(action);
-
-    for (let section in sections) {
-        section = object_or_empty(section);
-        if (!section_action_is_enabled(section, action))
-            continue;
-
-        result++;
-        if (section_name(section) == target_section)
-            return result;
-    }
-
-    return 0;
-}
-
-function append_sing_box_rule_signature_body(body, section, sections) {
+function append_sing_box_rule_signature_body(body, section) {
     section = object_or_empty(section);
     let name = section_name(section);
     if (name == "" || !bool_option(section, "enabled", true))
@@ -705,9 +670,6 @@ function append_sing_box_rule_signature_body(body, section, sections) {
         body = signature_add_value(body, prefix + ".urltest_include_regex", option(section, "urltest_include_regex", ""));
         body = signature_add_value(body, prefix + ".subscription_update_interval", section_subscription_update_interval(section));
         body = signature_add_outbound_detour_body(body, section, prefix);
-    }
-    else if (action == "byedpi") {
-        body = signature_add_value(body, prefix + ".byedpi_index", enabled_action_index(sections, name, "byedpi"));
     }
     else if (action == "dns") {
         for (let value in list_option(section, "dns_server"))
@@ -870,104 +832,10 @@ function sing_box_signature_body(settings, sections, servers, mwan3_active, loca
         body = signature_add_value(body, "settings.download_components_via_proxy_section", option(settings, "download_components_via_proxy_section", ""));
 
     for (let section in sections)
-        body = append_sing_box_rule_signature_body(body, object_or_empty(section), sections);
+        body = append_sing_box_rule_signature_body(body, object_or_empty(section));
 
     for (let server in servers)
         body = append_sing_box_server_signature_body(body, object_or_empty(server));
-
-    return body;
-}
-
-function action_queue_signature_body(sections, action, signature_key) {
-    let body = "";
-
-    for (let section in sections) {
-        section = object_or_empty(section);
-        if (section_action_is_enabled(section, action))
-            body = signature_add_value(body, signature_key, section_name(section));
-    }
-
-    return body;
-}
-
-function section_user_domains_for_list_type(section) {
-    let list_type = option(section, "user_domain_list_type", "disabled");
-
-    if (list_type == "dynamic")
-        return option(section, "user_domains", "");
-    if (list_type == "text")
-        return option(section, "user_domains_text", "");
-    return "";
-}
-
-function append_zapret_runtime_signature_body(body, section, signature_prefix, opt_key, normalized_opt) {
-    let name = section_name(section);
-    let user_domain_list_type = option(section, "user_domain_list_type", "disabled");
-
-    body = signature_add_value(body, signature_prefix + "." + name + "." + opt_key, normalized_opt);
-    body = signature_add_value(body, signature_prefix + "." + name + ".domain", connections.rule_condition_csv(section, "domain", "domains"));
-    body = signature_add_value(body, signature_prefix + "." + name + ".domain_suffix", connections.rule_condition_csv(section, "domain_suffix", "domains"));
-    body = signature_add_value(body, signature_prefix + "." + name + ".community_lists", connections.community_lists_value(section));
-    body = signature_add_value(body, signature_prefix + "." + name + ".rule_set", connections.rule_sets_value(section));
-    body = signature_add_value(body, signature_prefix + "." + name + ".rule_set_with_subnets", connections.rule_sets_with_subnets_value(section));
-    body = signature_add_value(body, signature_prefix + "." + name + ".user_domain_list_type", user_domain_list_type);
-    body = signature_add_value(body, signature_prefix + "." + name + ".user_domains", section_user_domains_for_list_type(section));
-
-    return body;
-}
-
-function zapret_runtime_signature_body(sections) {
-    let body = "";
-
-    for (let section in sections) {
-        section = object_or_empty(section);
-        if (!section_action_is_enabled(section, "zapret"))
-            continue;
-
-        body = append_zapret_runtime_signature_body(
-        body,
-        section,
-        "zapret",
-        "nfqws_opt",
-            zapret_validator.strategy_or_default(option(section, "nfqws_opt", ""), ZAPRET_DEFAULT_NFQWS_OPT)
-        );
-    }
-
-    return body;
-}
-
-function zapret2_runtime_signature_body(sections) {
-    let body = "";
-
-    for (let section in sections) {
-        section = object_or_empty(section);
-        if (!section_action_is_enabled(section, "zapret2"))
-            continue;
-
-        body = append_zapret_runtime_signature_body(
-        body,
-        section,
-        "zapret2",
-        "nfqws2_opt",
-            zapret2_validator.strategy_or_default(option(section, "nfqws2_opt", ""), ZAPRET2_DEFAULT_NFQWS2_OPT)
-        );
-    }
-
-    return body;
-}
-
-function byedpi_runtime_signature_body(sections) {
-    let body = "";
-
-    for (let section in sections) {
-        section = object_or_empty(section);
-        if (!section_action_is_enabled(section, "byedpi"))
-            continue;
-
-        let name = section_name(section);
-        body = signature_add_value(body, "byedpi." + name + ".index", enabled_action_index(sections, name, "byedpi"));
-        body = signature_add_value(body, "byedpi." + name + ".byedpi_cmd_opts", byedpi_validator.strategy_or_default(option(section, "byedpi_cmd_opts", ""), BYEDPI_DEFAULT_CMD_OPTS));
-    }
 
     return body;
 }
@@ -978,11 +846,6 @@ function reload_state_values_from_sources(format, settings, sections, servers, d
         service_trigger_signature: signature_hash(service_trigger_signature_body(settings)),
         sing_box_signature: signature_hash(sing_box_signature_body(settings, sections, servers, mwan3_active_value, dnsmasq)),
         nft_signature: as_string(nft_signature),
-        zapret_queue_signature: signature_hash(action_queue_signature_body(sections, "zapret", "zapret_queue.section")),
-        zapret_runtime_signature: signature_hash(zapret_runtime_signature_body(sections)),
-        zapret2_queue_signature: signature_hash(action_queue_signature_body(sections, "zapret2", "zapret2_queue.section")),
-        zapret2_runtime_signature: signature_hash(zapret2_runtime_signature_body(sections)),
-        byedpi_runtime_signature: signature_hash(byedpi_runtime_signature_body(sections)),
         cron_signature: signature_hash(cron_signature_body(settings))
     };
 }
@@ -1180,36 +1043,6 @@ else if (mode == "sing-box-signature-fixture") {
 else if (mode == "sing-box-signature-body-fixture") {
     let data = fixture_data(ARGV[1]);
     print(sing_box_signature_body(fixture_settings(data), fixture_section_list(data), fixture_servers(data), fixture_mwan3_active(data), fixture_dnsmasq(data)));
-}
-else if (mode == "zapret-queue-signature")
-    exit(print_signature_hash(action_queue_signature_body(uci_sections("section"), "zapret", "zapret_queue.section")) ? 0 : 1);
-else if (mode == "zapret-queue-signature-fixture") {
-    let data = fixture_data(ARGV[1]);
-    exit(print_signature_hash(action_queue_signature_body(fixture_section_list(data), "zapret", "zapret_queue.section")) ? 0 : 1);
-}
-else if (mode == "zapret-runtime-signature")
-    exit(print_signature_hash(zapret_runtime_signature_body(uci_sections("section"))) ? 0 : 1);
-else if (mode == "zapret-runtime-signature-fixture") {
-    let data = fixture_data(ARGV[1]);
-    exit(print_signature_hash(zapret_runtime_signature_body(fixture_section_list(data))) ? 0 : 1);
-}
-else if (mode == "zapret2-queue-signature")
-    exit(print_signature_hash(action_queue_signature_body(uci_sections("section"), "zapret2", "zapret2_queue.section")) ? 0 : 1);
-else if (mode == "zapret2-queue-signature-fixture") {
-    let data = fixture_data(ARGV[1]);
-    exit(print_signature_hash(action_queue_signature_body(fixture_section_list(data), "zapret2", "zapret2_queue.section")) ? 0 : 1);
-}
-else if (mode == "zapret2-runtime-signature")
-    exit(print_signature_hash(zapret2_runtime_signature_body(uci_sections("section"))) ? 0 : 1);
-else if (mode == "zapret2-runtime-signature-fixture") {
-    let data = fixture_data(ARGV[1]);
-    exit(print_signature_hash(zapret2_runtime_signature_body(fixture_section_list(data))) ? 0 : 1);
-}
-else if (mode == "byedpi-runtime-signature")
-    exit(print_signature_hash(byedpi_runtime_signature_body(uci_sections("section"))) ? 0 : 1);
-else if (mode == "byedpi-runtime-signature-fixture") {
-    let data = fixture_data(ARGV[1]);
-    exit(print_signature_hash(byedpi_runtime_signature_body(fixture_section_list(data))) ? 0 : 1);
 }
 else if (mode == "settings-update-interval-fixture") {
     let data = fixture_data(ARGV[1]);

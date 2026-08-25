@@ -238,14 +238,14 @@ describe('autostart controls', () => {
 
 describe('diagnostics run action', () => {
   it('runs while the service is stopped, which is when it is most useful', () => {
-    expect(shouldDisableDiagnosticRunAction({ providerInfoLoaded: true })).toBe(
+    expect(shouldDisableDiagnosticRunAction({ capabilitiesLoaded: true })).toBe(
       false,
     );
   });
 
   it('waits only until the page knows what to check', () => {
     expect(
-      shouldDisableDiagnosticRunAction({ providerInfoLoaded: false }),
+      shouldDisableDiagnosticRunAction({ capabilitiesLoaded: false }),
     ).toBe(true);
   });
 });

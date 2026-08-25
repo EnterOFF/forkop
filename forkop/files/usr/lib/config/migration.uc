@@ -6,7 +6,6 @@
 let fs = require("fs");
 let common = require("core.common");
 let uci_core = require("core.uci");
-let constants_module = require("core.constants");
 let singbox_constants_module = require("singbox.constants");
 let runtime_dns = require("singbox.dns");
 let subscription_headers_module = require("singbox.subscription_headers");
@@ -75,10 +74,7 @@ function run(command) {
 }
 
 function constants_context() {
-    let constants = object_or_empty(constants_module);
     return {
-        zapret_legacy_default_nfqws_opt: as_string(constants.ZAPRET_LEGACY_DEFAULT_NFQWS_OPT),
-        zapret_default_nfqws_opt: as_string(constants.ZAPRET_DEFAULT_NFQWS_OPT),
         urltest_default_idle_timeout: as_string(object_or_empty(singbox_constants_module).URLTEST_DEFAULT_IDLE_TIMEOUT || "30m")
     };
 }
@@ -631,27 +627,6 @@ function legacy_rule_connection_kind(section) {
     return "proxy";
 }
 
-function migrate_byedpi_cmd_opts(ctx, section) {
-    let cmd_opts = option(section, "cmd_opts", "");
-    if (cmd_opts == "")
-        return;
-
-    if (option(section, "byedpi_cmd_opts", "") == "")
-        set_option(ctx, section, "byedpi_cmd_opts", cmd_opts);
-    delete_option(ctx, section, "cmd_opts");
-}
-
-function migrate_zapret_nfqws_default(ctx, section, constants) {
-    if (migrated_rule_action(section) != "zapret")
-        return;
-
-    let nfqws_opt = option(section, "nfqws_opt", "");
-    if (nfqws_opt == "" || nfqws_opt != constants.zapret_legacy_default_nfqws_opt)
-        return;
-
-    set_option(ctx, section, "nfqws_opt", constants.zapret_default_nfqws_opt);
-}
-
 function migrate_subscription_url_item_settings(ctx, section) {
     let values = whitespace_list_values(section, "subscription_urls");
     let seen_values = {};
@@ -1021,7 +996,7 @@ function migrate_rule(ctx, section, converted_from_rule, constants) {
             delete_subscription_cache(ctx, section_name(section));
     }
     else if (action == "block" ||
-        action == "bypass" || action == "zapret" || action == "zapret2" || action == "byedpi") {
+        action == "bypass") {
         delete_option(ctx, section, "proxy_config_type");
         delete_option(ctx, section, "proxy_string");
         delete_option(ctx, section, "urltest_proxy_links");
@@ -1034,8 +1009,6 @@ function migrate_rule(ctx, section, converted_from_rule, constants) {
     if (action != "connection")
         delete_legacy_urltest_options(ctx, section);
 
-    migrate_byedpi_cmd_opts(ctx, section);
-    migrate_zapret_nfqws_default(ctx, section, constants);
 }
 
 function migrate_rule_section(ctx, section, constants) {
@@ -2290,10 +2263,7 @@ const MIXED_PROXY_SECTION_ACTIONS = {
     connection: true,
     proxy: true,
     outbound: true,
-    vpn: true,
-    byedpi: true,
-    zapret: true,
-    zapret2: true
+    vpn: true
 };
 
 const MIXED_PROXY_SECTION_OPTIONS = [
@@ -2408,8 +2378,7 @@ function migrate_section_mixed_proxies(ctx) {
 // section that emitted it, so the real address only ever reached the outbound this
 // section had already chosen. It never moved a connection between sections, and it
 // traded resolution at the proxy exit for resolution at the router, which picks the
-// wrong CDN node and turns a local DNS failure into a dropped connection. ByeDPI
-// still resolves, but the runtime now decides that from the action alone.
+// wrong CDN node and turns a local DNS failure into a dropped connection.
 function remove_resolve_real_ip_for_routing(ctx) {
     for (let section in ctx.model.sections || [])
         delete_option(ctx, section, "resolve_real_ip_for_routing");
@@ -2430,6 +2399,112 @@ function migrate_dns_capture_settings(ctx) {
 // restore /etc/config/dhcp the one time this registry entry first applies.
 function request_dnsmasq_restore(ctx) {
     ctx.restore_dnsmasq = true;
+}
+
+// Forkop no longer drives an external DPI engine. Zapret, Zapret2 and ByeDPI
+// were section actions that steered selected traffic into an nfqueue or a local
+// SOCKS proxy Forkop started itself, and none of that exists any more, so a
+// released section carrying one of those actions describes a route with no
+// destination. The section goes, together with the child items it owned and
+// every option elsewhere that named it - leaving the name behind would only
+// make the next configuration validation refuse to start over a section that
+// cannot come back. The strategy options leave every remaining section too,
+// because a section whose action was changed away from a provider in an earlier
+// release still carries them.
+//
+// What the engines left on the router is not touched: /opt/zapret, /opt/zapret2,
+// the ciadpi package and their own init scripts belong to whoever installed
+// them, and Forkop has no claim on them once it stops offering the actions.
+const REMOVED_DPI_ACTIONS = {
+    zapret: true,
+    zapret2: true,
+    byedpi: true
+};
+
+const REMOVED_DPI_SECTION_OPTIONS = [
+    "nfqws_opt",
+    "nfqws2_opt",
+    "byedpi_cmd_opts",
+    "cmd_opts"
+];
+
+// Each entry is an option naming a section, together with the switch that made
+// Forkop read it. Clearing the name without clearing the switch trades a
+// dangling reference for an empty required field, and both stop the service.
+const SECTION_REFERENCE_OPTIONS = [
+    [ "dns_detour_section", "dns_detour_enabled" ],
+    [ "outbound_detour_section", "outbound_detour_enabled" ],
+    [ "download_via_proxy_section", "download_via_proxy_enabled" ],
+    [ "download_lists_via_proxy_section", "download_lists_via_proxy" ],
+    [ "download_components_via_proxy_section", "download_components_via_proxy" ],
+    [ "domain_resolver_dns_detour_section", "domain_resolver_dns_detour_enabled" ],
+    [ "tailscale_detour_section", "" ]
+];
+
+function clear_removed_section_references(ctx, section, removed) {
+    for (let entry in SECTION_REFERENCE_OPTIONS) {
+        let value = option(section, entry[0], "");
+        if (value == "" || !removed[value])
+            continue;
+
+        delete_option(ctx, section, entry[0]);
+        if (entry[1] != "")
+            set_option(ctx, section, entry[1], "0");
+    }
+}
+
+function remove_dpi_provider_sections(ctx) {
+    let removed = {};
+    let kept = [];
+
+    for (let section in ctx.model.sections || []) {
+        let name = section_name(section);
+        if (name != "" && REMOVED_DPI_ACTIONS[option(section, "action", "")]) {
+            removed[name] = true;
+            record_operation(ctx, { op: "delete_section", section: name });
+            continue;
+        }
+        push(kept, section);
+    }
+
+    ctx.model.sections = kept;
+
+    for (let section in kept)
+        for (let key in REMOVED_DPI_SECTION_OPTIONS)
+            delete_option(ctx, section, key);
+
+    // A child item belongs to exactly one owner. Once that owner is gone the
+    // child is unreachable configuration that still validates and still shows up
+    // in the section lists the page builds.
+    for (let type_name in CHILD_ITEM_TYPES) {
+        let kept_children = [];
+
+        for (let child in ctx.model[type_name] || []) {
+            let owner = option(child, "section", "");
+            if (owner != "" && removed[owner]) {
+                record_operation(ctx, { op: "delete_section", section: section_name(child) });
+                continue;
+            }
+            push(kept_children, child);
+        }
+
+        ctx.model[type_name] = kept_children;
+    }
+
+    if (length(keys(removed)) == 0)
+        return;
+
+    clear_removed_section_references(ctx, ctx.model.settings, removed);
+    for (let section in ctx.model.sections || [])
+        clear_removed_section_references(ctx, section, removed);
+    for (let server in ctx.model.servers || []) {
+        clear_removed_section_references(ctx, server, removed);
+        if (removed[option(server, "section", "")])
+            delete_option(ctx, server, "section");
+    }
+    for (let type_name in CHILD_ITEM_TYPES)
+        for (let child in ctx.model[type_name] || [])
+            clear_removed_section_references(ctx, child, removed);
 }
 
 const MIGRATIONS = [
@@ -2469,7 +2544,8 @@ const MIGRATIONS = [
     { id: "section_mixed_proxy_servers", run: migrate_section_mixed_proxies },
     { id: "remove_resolve_real_ip_for_routing", run: remove_resolve_real_ip_for_routing },
     { id: "dns_capture_settings", run: migrate_dns_capture_settings },
-    { id: "restore_dnsmasq_takeover", run: request_dnsmasq_restore }
+    { id: "restore_dnsmasq_takeover", run: request_dnsmasq_restore },
+    { id: "remove_dpi_provider_sections", run: remove_dpi_provider_sections }
 ];
 
 function apply_migrations(ctx) {
@@ -2604,6 +2680,8 @@ function apply_operations(cursor, operations) {
             cursor.set(CONFIG_NAME, section_ref(op.section), op.option, op.values);
         else if (op.op == "set_type")
             cursor.set(CONFIG_NAME, section_ref(op.section), op.type);
+        else if (op.op == "delete_section")
+            cursor.delete(CONFIG_NAME, section_ref(op.section), null);
     }
 }
 
@@ -2628,6 +2706,8 @@ function runtime_cursor() {
             return uci_core.set(package_name + "." + section_name + "." + option_name, value);
         },
         delete: function(package_name, section_name, option_name) {
+            if (option_name == null)
+                return uci_core.delete(package_name + "." + section_name);
             return uci_core.delete(package_name + "." + section_name + "." + option_name);
         },
         commit: function(package_name) {

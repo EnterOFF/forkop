@@ -3,9 +3,6 @@
 let fs = require("fs");
 let uci_core_module = null;
 let fixture_uci_data = null;
-let zapret_validator_module = null;
-let zapret2_validator_module = null;
-let byedpi_validator_module = null;
 let constants_module = null;
 let core_common = require("core.common");
 let core_url = require("core.url");
@@ -122,9 +119,6 @@ function command_output(command) {
     return as_string(data);
 }
 
-function command_output_from_args(args) {
-    return command_output(command_from_args(args));
-}
 
 function command_exists(name) {
     return system("command -v " + shell_quote(name) + " >/dev/null 2>&1") == 0;
@@ -138,24 +132,6 @@ function log_message(message, level) {
 function fail_requirement(message, level) {
     log_message(message, level || "error");
     exit(1);
-}
-
-function mkdir_p(paths) {
-    let args = [ "mkdir", "-p" ];
-
-    for (let path in array_or_empty(paths))
-        if (as_string(path) != "")
-            push(args, path);
-
-    return length(args) <= 2 || run_args(args);
-}
-
-function safe_rm_rf(path) {
-    path = as_string(path);
-    if (path == "" || substr(path, 0, length("/var/run/forkop/")) != "/var/run/forkop/")
-        return true;
-
-    return run_args([ "rm", "-rf", path ]);
 }
 
 function first_line_field_from_text(data, field_index) {
@@ -364,21 +340,11 @@ function basic_rule_rows() {
     return rows;
 }
 
-function download_section_action_available(action, byedpi_installed, zapret_installed, zapret2_installed) {
-    action = as_string(action);
-    if (connections.is_connections_action(action))
-        return true;
-    if (action == "byedpi")
-        return bool_flag(byedpi_installed);
-    if (action == "zapret")
-        return bool_flag(zapret_installed);
-    if (action == "zapret2")
-        return bool_flag(zapret2_installed);
-
-    return false;
+function download_section_action_available(action) {
+    return connections.is_connections_action(as_string(action));
 }
 
-function validate_download_section_rows(target_section, byedpi_installed, zapret_installed, zapret2_installed, rows) {
+function validate_download_section_rows(target_section, rows) {
     target_section = as_string(target_section);
 
     if (target_section == "")
@@ -397,7 +363,7 @@ function validate_download_section_rows(target_section, byedpi_installed, zapret
             continue;
 
         enabled = true;
-        if (download_section_action_available(row.action, byedpi_installed, zapret_installed, zapret2_installed))
+        if (download_section_action_available(row.action))
             outbound = true;
     }
 
@@ -411,11 +377,11 @@ function validate_download_section_rows(target_section, byedpi_installed, zapret
 
     if (!outbound)
         fail_validation("Downloading external resources through a section references rule '" + target_section +
-            "', but it cannot provide an outbound. Select an enabled Connection, Zapret, Zapret2, or ByeDPI rule with its provider installed, or disable the option. Aborted.");
+            "', but it cannot provide an outbound. Select an enabled Connection rule or disable the option. Aborted.");
 }
 
-function validate_download_section(target_section, byedpi_installed, zapret_installed, zapret2_installed) {
-    validate_download_section_rows(target_section, byedpi_installed, zapret_installed, zapret2_installed, basic_rule_rows());
+function validate_download_section(target_section) {
+    validate_download_section_rows(target_section, basic_rule_rows());
 }
 
 function dhcp_has_https_dns_proxy_options(path) {
@@ -451,24 +417,6 @@ function mwan3_is_active() {
 
     return command_success_from_args([ "/etc/init.d/mwan3", "status" ]) ||
         command_success_from_args([ "/etc/init.d/mwan3", "enabled" ]);
-}
-
-function zapret_validator() {
-    if (zapret_validator_module == null)
-        zapret_validator_module = require("providers.zapret.validator");
-    return zapret_validator_module;
-}
-
-function zapret2_validator() {
-    if (zapret2_validator_module == null)
-        zapret2_validator_module = require("providers.zapret2.validator");
-    return zapret2_validator_module;
-}
-
-function byedpi_validator() {
-    if (byedpi_validator_module == null)
-        byedpi_validator_module = require("providers.byedpi.validator");
-    return byedpi_validator_module;
 }
 
 function runtime_constants() {
@@ -572,11 +520,11 @@ function rule_action(section) {
 }
 
 function rule_action_supported(action) {
-    return contains([ "connection", "proxy", "outbound", "vpn", "bypass", "block", "dns", "zapret", "zapret2", "byedpi" ], as_string(action));
+    return contains([ "connection", "proxy", "outbound", "vpn", "bypass", "block", "dns" ], as_string(action));
 }
 
 function server_routing_section_action_supported(action) {
-    return contains([ "connection", "proxy", "outbound", "vpn", "zapret", "zapret2", "byedpi" ], as_string(action));
+    return contains([ "connection", "proxy", "outbound", "vpn" ], as_string(action));
 }
 
 function validate_duration_option(value, label) {
@@ -660,8 +608,8 @@ function validate_dns_settings(settings, sections, context) {
         fail_validation("DNS through a section references missing rule '" + target_name + "'. Aborted.");
     if (!target.enabled)
         fail_validation("DNS through a section references disabled rule '" + target_name + "'. Aborted.");
-    if (!download_section_action_available(target.action, context.byedpi_installed, context.zapret_installed, context.zapret2_installed))
-        fail_validation("DNS through a section references rule '" + target_name + "' with unsupported action '" + target.action + "'. Select an enabled Connection, VPN, Zapret, Zapret2, or ByeDPI section. Aborted.");
+    if (!download_section_action_available(target.action))
+        fail_validation("DNS through a section references rule '" + target_name + "' with unsupported action '" + target.action + "'. Select an enabled Connection section. Aborted.");
 }
 
 // config/rule.uc turns these into the CSV the ruleset and the generated config
@@ -1290,31 +1238,6 @@ function validate_subscription_filter(section, entry) {
     );
 }
 
-function validate_provider_strategy(kind, section, context) {
-    let name = section_name(section);
-
-    if (kind == "zapret") {
-        let raw = zapret_validator().strategy_or_default(option(section, "nfqws_opt", ""), context.zapret_default_nfqws_opt);
-        let result = zapret_validator().validate_strategy("nfqws", raw, context.zapret_legacy_default_nfqws_opt);
-        if (!result.valid)
-            fail_validation("Zapret rule '" + name + "' uses invalid NFQWS strategy: " + result.message + " Aborted.");
-        return;
-    }
-
-    if (kind == "zapret2") {
-        let raw = zapret2_validator().strategy_or_default(option(section, "nfqws2_opt", ""), context.zapret2_default_nfqws2_opt);
-        let result = zapret2_validator().validate_strategy("nfqws2", raw, "");
-        if (!result.valid)
-            fail_validation("Zapret2 rule '" + name + "' uses invalid NFQWS2 strategy: " + result.message + " Aborted.");
-        return;
-    }
-
-    let raw = byedpi_validator().strategy_or_default(option(section, "byedpi_cmd_opts", ""), context.byedpi_default_cmd_opts);
-    let result = byedpi_validator().validate_byedpi_strategy(raw);
-    if (!result.valid)
-        fail_validation("Invalid ByeDPI strategy for rule '" + name + "': " + result.message);
-}
-
 function dns_action_has_domain_matchers(section) {
     for (let key in [ "domain", "domain_suffix", "domain_keyword", "domain_regex" ])
         if (option(section, key, "") != "" || option(section, key + "_text", "") != "" || length(list_option(section, key)) > 0)
@@ -1360,8 +1283,8 @@ function validate_interface_domain_resolvers(section, sections, context) {
             fail_validation(label + " references missing detour section '" + target_name + "'. Aborted.");
         if (!section_enabled(target))
             fail_validation(label + " references disabled detour section '" + target_name + "'. Aborted.");
-        if (!download_section_action_available(rule_action(target), context.byedpi_installed, context.zapret_installed, context.zapret2_installed))
-            fail_validation(label + " references detour section '" + target_name + "' with unsupported action '" + rule_action(target) + "'. Select an enabled Connection, VPN, Zapret, Zapret2, or ByeDPI section. Aborted.");
+        if (!download_section_action_available(rule_action(target)))
+            fail_validation(label + " references detour section '" + target_name + "' with unsupported action '" + rule_action(target) + "'. Select an enabled Connection section. Aborted.");
     }
 }
 
@@ -1401,8 +1324,8 @@ function validate_dns_action(section, sections, context) {
         fail_validation("DNS rule '" + name + "' references missing detour section '" + target_name + "'. Aborted.");
     if (!section_enabled(target))
         fail_validation("DNS rule '" + name + "' references disabled detour section '" + target_name + "'. Aborted.");
-    if (!download_section_action_available(rule_action(target), context.byedpi_installed, context.zapret_installed, context.zapret2_installed))
-        fail_validation("DNS rule '" + name + "' references detour section '" + target_name + "' with unsupported action '" + rule_action(target) + "'. Select an enabled Connection, VPN, Zapret, Zapret2, or ByeDPI section. Aborted.");
+    if (!download_section_action_available(rule_action(target)))
+        fail_validation("DNS rule '" + name + "' references detour section '" + target_name + "' with unsupported action '" + rule_action(target) + "'. Select an enabled Connection section. Aborted.");
 }
 
 function validate_rule(section, sections, context) {
@@ -1422,30 +1345,6 @@ function validate_rule(section, sections, context) {
 
     if (action == "dns")
         validate_dns_action(section, sections, context);
-
-    if (action == "zapret") {
-        if (!context.zapret_installed) {
-            validate_common_rule_references(section, context);
-            return;
-        }
-        validate_provider_strategy("zapret", section, context);
-    }
-
-    if (action == "zapret2") {
-        if (!context.zapret2_installed) {
-            validate_common_rule_references(section, context);
-            return;
-        }
-        validate_provider_strategy("zapret2", section, context);
-    }
-
-    if (action == "byedpi") {
-        if (!context.byedpi_installed) {
-            validate_common_rule_references(section, context);
-            return;
-        }
-        validate_provider_strategy("byedpi", section, context);
-    }
 
     if (connections.is_connections_action(action)) {
         for (let urltest_id in connections.urltests(section)) {
@@ -1565,9 +1464,6 @@ function validate_subscription_download_sections(sections, context) {
 
             validate_download_section_rows(
                 target,
-                context.byedpi_installed,
-                context.zapret_installed,
-                context.zapret2_installed,
                 rows
             );
         }
@@ -1915,7 +1811,7 @@ function validate_server_routing_sections(sections) {
         if (!target.enabled)
             fail_validation("Server '" + name + "' references disabled routing section '" + target_name + "'. Aborted.");
         if (!server_routing_section_action_supported(target.action))
-            fail_validation("Server '" + name + "' references routing section '" + target_name + "' with unsupported action '" + target.action + "'. Select a Connection, proxy, JSON outbound, VPN, Zapret, Zapret2, or ByeDPI section. Aborted.");
+            fail_validation("Server '" + name + "' references routing section '" + target_name + "' with unsupported action '" + target.action + "'. Select a Connection, proxy, JSON outbound, or VPN section. Aborted.");
     }
 }
 
@@ -1939,32 +1835,8 @@ function validate_runtime_mark_ranges_context(context) {
         fail_validation("FakeIP mark overlaps Tailscale fwmark mask 0x00ff0000. Aborted.");
     if ((outbound_mark & TAILSCALE_FWMARK_MASK) != 0)
         fail_validation("Outbound mark overlaps Tailscale fwmark mask 0x00ff0000. Aborted.");
-
-    let ranges = [
-        [ "Zapret", context.zapret_route_mark_base, context.zapret_queue_range_size, fakeip_mark, "FakeIP mark " + context.nft_fakeip_mark ],
-        [ "Zapret", context.zapret_route_mark_base, context.zapret_queue_range_size, outbound_mark, "outbound mark " + context.nft_outbound_mark ],
-        [ "Zapret2", context.zapret2_route_mark_base, context.zapret2_queue_range_size, fakeip_mark, "FakeIP mark " + context.nft_fakeip_mark ],
-        [ "Zapret2", context.zapret2_route_mark_base, context.zapret2_queue_range_size, outbound_mark, "outbound mark " + context.nft_outbound_mark ],
-        [ "Zapret", context.zapret_route_mark_base, context.zapret_queue_range_size, TAILSCALE_FWMARK_MASK, "Tailscale fwmark mask 0x00ff0000" ],
-        [ "Zapret2", context.zapret2_route_mark_base, context.zapret2_queue_range_size, TAILSCALE_FWMARK_MASK, "Tailscale fwmark mask 0x00ff0000" ]
-    ];
-
-    for (let range in ranges) {
-        let label = as_string(range[0]);
-        let base = parse_number(range[1]);
-        let range_size = parse_number(range[2]);
-        let mark_mask = range[3];
-        let mark_mask_label = as_string(range[4]);
-
-        if (base == null || range_size == null || mark_mask == null)
-            fail_validation(label + " route mark range contains invalid numeric constants. Aborted.");
-
-        for (let index_value = 1; index_value <= range_size; index_value++) {
-            let mark_value = base + index_value;
-            if ((mark_value & mark_mask) != 0)
-                fail_validation(label + " route mark range overlaps " + mark_mask_label + ". Aborted.");
-        }
-    }
+    if (fakeip_mark == outbound_mark)
+        fail_validation("FakeIP mark and outbound mark are the same value. Aborted.");
 }
 
 function validate_runtime_config(context) {
@@ -1983,18 +1855,12 @@ function validate_runtime_config(context) {
     if (connections.download_via_proxy_enabled(settings, "lists")) {
         validate_download_section_rows(
             connections.download_via_proxy_section(settings, "lists"),
-            context.byedpi_installed,
-            context.zapret_installed,
-            context.zapret2_installed,
             basic_rows_from_sections(sections)
         );
     }
     if (connections.download_via_proxy_enabled(settings, "components")) {
         validate_download_section_rows(
             connections.download_via_proxy_section(settings, "components"),
-            context.byedpi_installed,
-            context.zapret_installed,
-            context.zapret2_installed,
             basic_rows_from_sections(sections)
         );
     }
@@ -2017,37 +1883,10 @@ function context_from_runtime() {
     return {
         constants,
         community_services: constant_value(constants, "COMMUNITY_SERVICES"),
-        byedpi_default_cmd_opts: constant_value(constants, "BYEDPI_DEFAULT_CMD_OPTS"),
-        zapret_default_nfqws_opt: constant_value(constants, "ZAPRET_DEFAULT_NFQWS_OPT"),
-        zapret_legacy_default_nfqws_opt: constant_value(constants, "ZAPRET_LEGACY_DEFAULT_NFQWS_OPT"),
-        zapret2_default_nfqws2_opt: constant_value(constants, "ZAPRET2_DEFAULT_NFQWS2_OPT"),
-        byedpi_installed: file_executable(constant_value(constants, "BYEDPI_BIN")),
-        zapret_installed: file_executable(constant_value(constants, "ZAPRET_PROVIDER_NFQWS_BIN")),
-        zapret2_installed: file_executable(constant_value(constants, "ZAPRET2_PROVIDER_NFQWS2_BIN")),
-        zapret_provider_nfqws_bin: constant_value(constants, "ZAPRET_PROVIDER_NFQWS_BIN"),
-        zapret2_provider_nfqws2_bin: constant_value(constants, "ZAPRET2_PROVIDER_NFQWS2_BIN"),
-        zapret_route_mark_base: constant_value(constants, "ZAPRET_ROUTE_MARK_BASE"),
-        zapret_queue_range_size: constant_value(constants, "ZAPRET_QUEUE_RANGE_SIZE"),
-        zapret2_route_mark_base: constant_value(constants, "ZAPRET2_ROUTE_MARK_BASE"),
-        zapret2_queue_range_size: constant_value(constants, "ZAPRET2_QUEUE_RANGE_SIZE"),
         nft_fakeip_mark: constant_value(constants, "NFT_FAKEIP_MARK"),
         nft_outbound_mark: constant_value(constants, "NFT_OUTBOUND_MARK"),
         coreutils_base64_required_version: constant_value(constants, "COREUTILS_BASE64_REQUIRED_VERSION"),
-        sing_box_required_version: constant_value(constants, "SB_REQUIRED_VERSION"),
-        zapret_legacy_runtime_base_dir: constant_value(constants, "ZAPRET_LEGACY_RUNTIME_BASE_DIR"),
-        zapret_state_dir: constant_value(constants, "ZAPRET_STATE_DIR"),
-        zapret_pid_dir: constant_value(constants, "ZAPRET_PID_DIR"),
-        zapret_child_pid_dir: constant_value(constants, "ZAPRET_CHILD_PID_DIR"),
-        zapret_log_dir: constant_value(constants, "ZAPRET_LOG_DIR"),
-        zapret2_state_dir: constant_value(constants, "ZAPRET2_STATE_DIR"),
-        zapret2_pid_dir: constant_value(constants, "ZAPRET2_PID_DIR"),
-        zapret2_child_pid_dir: constant_value(constants, "ZAPRET2_CHILD_PID_DIR"),
-        zapret2_log_dir: constant_value(constants, "ZAPRET2_LOG_DIR"),
-        byedpi_bin: constant_value(constants, "BYEDPI_BIN"),
-        byedpi_state_dir: constant_value(constants, "BYEDPI_STATE_DIR"),
-        byedpi_pid_dir: constant_value(constants, "BYEDPI_PID_DIR"),
-        byedpi_child_pid_dir: constant_value(constants, "BYEDPI_CHILD_PID_DIR"),
-        byedpi_log_dir: constant_value(constants, "BYEDPI_LOG_DIR")
+        sing_box_required_version: constant_value(constants, "SB_REQUIRED_VERSION")
     };
 }
 
@@ -2061,12 +1900,6 @@ function has_outbound_section(ctx) {
             continue;
 
         let action = rule_action(section);
-        if (action == "byedpi" && ctx.byedpi_installed)
-            return true;
-        if (action == "zapret" && ctx.zapret_installed)
-            return true;
-        if (action == "zapret2" && ctx.zapret2_installed)
-            return true;
 
         // Only a Connection section builds outbounds from these. A section that
         // used to be one keeps what it had - the dialog does not throw away a
@@ -2082,76 +1915,6 @@ function has_outbound_section(ctx) {
     }
 
     return false;
-}
-
-function has_enabled_rule_action(action) {
-    action = as_string(action);
-
-    for (let section in sections_by_type("section"))
-        if (section_enabled(section) && rule_action(section) == action)
-            return true;
-
-    return false;
-}
-
-function cleanup_legacy_zapret_runtime(ctx) {
-    let base = as_string(ctx.zapret_legacy_runtime_base_dir);
-    if (base == "")
-        return;
-
-    let needle = base + "/nfq/nfqws";
-    for (let line in split(command_output_from_args([ "ps", "w" ]), "\n")) {
-        if (index(as_string(line), needle) < 0)
-            continue;
-
-        let fields = split(trim(as_string(line)), /[ \t]+/);
-        let pid = length(fields) > 0 ? as_string(fields[0]) : "";
-        if (match(pid, /^[0-9]+$/) != null)
-            run_args([ "kill", pid ]);
-    }
-
-    safe_rm_rf(base);
-}
-
-function check_provider_requirement(action, bin_path, dirs, missing_message, prepare_failure_message) {
-    if (!has_enabled_rule_action(action))
-        return;
-
-    if (!file_executable(bin_path)) {
-        log_message(missing_message, "error");
-        return;
-    }
-
-    if (!mkdir_p(dirs))
-        fail_requirement(prepare_failure_message, "error");
-}
-
-function check_provider_requirements(ctx) {
-    cleanup_legacy_zapret_runtime(ctx);
-
-    check_provider_requirement(
-        "zapret",
-        ctx.zapret_provider_nfqws_bin,
-        [ ctx.zapret_state_dir, ctx.zapret_pid_dir, ctx.zapret_child_pid_dir, ctx.zapret_log_dir ],
-        "Zapret provider is not available at " + ctx.zapret_provider_nfqws_bin + ". Rules with action 'zapret' will be skipped until the zapret provider is installed.",
-        "Failed to prepare the Forkop zapret state directory in " + ctx.zapret_state_dir + ". Aborted."
-    );
-
-    check_provider_requirement(
-        "zapret2",
-        ctx.zapret2_provider_nfqws2_bin,
-        [ ctx.zapret2_state_dir, ctx.zapret2_pid_dir, ctx.zapret2_child_pid_dir, ctx.zapret2_log_dir ],
-        "Zapret2 provider is not available at " + ctx.zapret2_provider_nfqws2_bin + ". Rules with action 'zapret2' will be skipped until the zapret2 provider is installed.",
-        "Failed to prepare the Forkop zapret2 state directory in " + ctx.zapret2_state_dir + ". Aborted."
-    );
-
-    check_provider_requirement(
-        "byedpi",
-        ctx.byedpi_bin,
-        [ ctx.byedpi_state_dir, ctx.byedpi_pid_dir, ctx.byedpi_child_pid_dir, ctx.byedpi_log_dir ],
-        "ByeDPI provider is not available at " + ctx.byedpi_bin + ". Rules with action 'byedpi' will be skipped until the byedpi package is installed.",
-        "Failed to prepare the Forkop ByeDPI state directory in " + ctx.byedpi_state_dir + ". Aborted."
-    );
 }
 
 function check_runtime_requirements() {
@@ -2186,9 +1949,8 @@ function check_runtime_requirements() {
     // Only the absence is worth a line. Confirming that a proxy outbound exists
     // said nothing on the path where everything is fine, which is most of them.
     if (!has_outbound_section(ctx))
-        log_message("No proxy outbound sections found. Forkop will use direct and/or provider-only routing.", "warn");
+        log_message("No proxy outbound sections found. Forkop will use direct routing.", "warn");
 
-    check_provider_requirements(ctx);
 }
 
 function context_override_value(overrides, defaults, key) {
@@ -2218,17 +1980,6 @@ function context_from_json(value, defaults) {
 
     return {
         community_services: context_override_value(value, defaults, "community_services"),
-        byedpi_default_cmd_opts: context_override_value(value, defaults, "byedpi_default_cmd_opts"),
-        zapret_default_nfqws_opt: context_override_value(value, defaults, "zapret_default_nfqws_opt"),
-        zapret_legacy_default_nfqws_opt: context_override_value(value, defaults, "zapret_legacy_default_nfqws_opt"),
-        zapret2_default_nfqws2_opt: context_override_value(value, defaults, "zapret2_default_nfqws2_opt"),
-        byedpi_installed: context_override_bool(value, defaults, "byedpi_installed"),
-        zapret_installed: context_override_bool(value, defaults, "zapret_installed"),
-        zapret2_installed: context_override_bool(value, defaults, "zapret2_installed"),
-        zapret_route_mark_base: context_override_value(value, defaults, "zapret_route_mark_base"),
-        zapret_queue_range_size: context_override_value(value, defaults, "zapret_queue_range_size"),
-        zapret2_route_mark_base: context_override_value(value, defaults, "zapret2_route_mark_base"),
-        zapret2_queue_range_size: context_override_value(value, defaults, "zapret2_queue_range_size"),
         nft_fakeip_mark: context_override_value(value, defaults, "nft_fakeip_mark"),
         nft_outbound_mark: context_override_value(value, defaults, "nft_outbound_mark")
     };
@@ -2243,7 +1994,7 @@ else if (mode == "ruleset-reference-valid")
 else if (mode == "validate-outbound-detours")
     validate_outbound_detours();
 else if (mode == "validate-download-section")
-    validate_download_section(ARGV[1], ARGV[2], ARGV[3], ARGV[4]);
+    validate_download_section(ARGV[1]);
 else if (mode == "mwan3-is-active")
     exit(mwan3_is_active() ? 0 : 1);
 else if (mode == "check-requirements")

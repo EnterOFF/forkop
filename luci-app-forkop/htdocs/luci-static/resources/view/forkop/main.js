@@ -1192,7 +1192,6 @@ async function callUbusOnce({
 // src/constants.ts
 var FORKOP_UCI_PACKAGE = "forkop";
 var FORKOP_LUCI_APP_VERSION = "__COMPILED_VERSION_VARIABLE__";
-var FORKOP_ACTION_PROVIDERS_AVAILABILITY_EVENT = "forkop:action-providers-availability";
 var FAKEIP_CHECK_DOMAIN = "fakeip.podkop.fyi";
 var IP_CHECK_DOMAIN = "ip.podkop.fyi";
 var DEFAULT_LATENCY_TEST_URL = "https://www.gstatic.com/generate_204";
@@ -2689,11 +2688,9 @@ var Forkop;
     AvailableMethods2["CHECK_DNS_AVAILABLE"] = "check_dns_available";
     AvailableMethods2["CHECK_FAKEIP"] = "check_fakeip";
     AvailableMethods2["CHECK_NFT_RULES"] = "check_nft_rules";
-    AvailableMethods2["CHECK_PROVIDER_RUNTIME"] = "check_provider_runtime";
     AvailableMethods2["CHECK_INBOUNDS_CONFIG"] = "check_inbounds_config";
     AvailableMethods2["CHECK_SING_BOX"] = "check_sing_box";
     AvailableMethods2["CHECK_INBOUNDS"] = "check_inbounds";
-    AvailableMethods2["GET_PROVIDER_STATUS"] = "get_provider_status";
     AvailableMethods2["CLASH_HTTP"] = "clash_http";
     AvailableMethods2["CLASH_SUMMARY"] = "clash_summary";
     AvailableMethods2["ENABLE"] = "enable";
@@ -2861,20 +2858,10 @@ function createTransientRpcGraceTracker(graceMs) {
     }
   };
 }
-function checkProviderRuntime(provider) {
-  return diagnosticCheck(Forkop.AvailableMethods.CHECK_PROVIDER_RUNTIME, [
-    provider
-  ]);
-}
 function diagnosticCheck(method, args = []) {
   return callBaseMethod(method, args, "/usr/bin/forkop", {
     timeout: DIAGNOSTIC_CHECK_RPC_TIMEOUT_MS
   });
-}
-function getProviderStatus(provider) {
-  return callBaseMethod(Forkop.AvailableMethods.GET_PROVIDER_STATUS, [
-    provider
-  ]);
 }
 var ForkopShellMethods = {
   checkDNSAvailable: async () => diagnosticCheck(
@@ -2886,9 +2873,6 @@ var ForkopShellMethods = {
   checkNftRules: async () => diagnosticCheck(
     Forkop.AvailableMethods.CHECK_NFT_RULES
   ),
-  checkZapretRuntime: async () => checkProviderRuntime("zapret"),
-  checkZapret2Runtime: async () => checkProviderRuntime("zapret2"),
-  checkByedpiRuntime: async () => checkProviderRuntime("byedpi"),
   checkInboundsConfig: async () => diagnosticCheck(
     Forkop.AvailableMethods.CHECK_INBOUNDS_CONFIG
   ),
@@ -2898,9 +2882,6 @@ var ForkopShellMethods = {
   checkInbounds: async () => diagnosticCheck(
     Forkop.AvailableMethods.CHECK_INBOUNDS
   ),
-  getZapretStatus: async () => getProviderStatus("zapret"),
-  getZapret2Status: async () => getProviderStatus("zapret2"),
-  getByedpiStatus: async () => getProviderStatus("byedpi"),
   clashHttp: async (method, path, body = "") => callBaseMethod(
     Forkop.AvailableMethods.CLASH_HTTP,
     [method, path, body],
@@ -2929,7 +2910,7 @@ var ForkopShellMethods = {
   ]),
   checkLogs,
   checkSingBoxLogs: async () => callBaseMethod(Forkop.AvailableMethods.CHECK_SING_BOX_LOGS),
-  // Working the versions out means asking opkg and every provider, about 1.7 s.
+  // Working the versions out means asking opkg and sing-box, about 1.7 s.
   // The state service holds the answer for as long as the installed packages
   // have not changed; the CLI is what answers when it is not running.
   getSystemInfo: async () => {
@@ -4448,28 +4429,13 @@ var DIAGNOSTICS_CHECKS_MAP = {
     title: "nftables",
     code: "NFT" /* NFT */
   },
-  ["ZAPRET" /* ZAPRET */]: {
-    order: 5,
-    title: "Zapret",
-    code: "ZAPRET" /* ZAPRET */
-  },
-  ["BYEDPI" /* BYEDPI */]: {
-    order: 7,
-    title: "ByeDPI",
-    code: "BYEDPI" /* BYEDPI */
-  },
-  ["ZAPRET2" /* ZAPRET2 */]: {
-    order: 6,
-    title: "Zapret2",
-    code: "ZAPRET2" /* ZAPRET2 */
-  },
   ["OUTBOUNDS" /* OUTBOUNDS */]: {
-    order: 8,
+    order: 5,
     title: "Outbounds",
     code: "OUTBOUNDS" /* OUTBOUNDS */
   },
   ["FAKEIP" /* FAKEIP */]: {
-    order: 9,
+    order: 6,
     title: "FakeIP",
     code: "FAKEIP" /* FAKEIP */
   },
@@ -4498,15 +4464,6 @@ function getDiagnosticsChecks(description, options = {}) {
     checks.push("INBOUNDS" /* INBOUNDS */);
   }
   checks.push("NFT" /* NFT */);
-  if (options.includeZapret) {
-    checks.push("ZAPRET" /* ZAPRET */);
-  }
-  if (options.includeZapret2) {
-    checks.push("ZAPRET2" /* ZAPRET2 */);
-  }
-  if (options.includeByedpi) {
-    checks.push("BYEDPI" /* BYEDPI */);
-  }
   checks.push("OUTBOUNDS" /* OUTBOUNDS */, "FAKEIP" /* FAKEIP */);
   return checks.map((code) => createDiagnosticCheck(code, description));
 }
@@ -4519,18 +4476,12 @@ var initialDiagnosticStore = {
   diagnosticsSystemInfo: {
     loading: true,
     loaded: false,
-    providerInfoLoaded: false,
+    capabilitiesLoaded: false,
     forkop_version: "loading",
     forkop_latest_version: "loading",
     luci_app_version: "loading",
     sing_box_version: "loading",
     sing_box_compressed: 0,
-    zapret_version: "loading",
-    zapret_installed: 0,
-    zapret2_version: "loading",
-    zapret2_installed: 0,
-    byedpi_version: "loading",
-    byedpi_installed: 0,
     server_inbounds_enabled_count: -1,
     openwrt_version: "loading",
     device_model: "loading"
@@ -4567,23 +4518,11 @@ var initialDiagnosticStore = {
     forkopCheck: { loading: false },
     forkopInstall: { loading: false },
     singBoxCheck: { loading: false },
-    singBoxInstall: { loading: false },
-    zapretCheck: { loading: false },
-    zapretInstall: { loading: false },
-    zapretRemove: { loading: false },
-    zapret2Check: { loading: false },
-    zapret2Install: { loading: false },
-    zapret2Remove: { loading: false },
-    byedpiCheck: { loading: false },
-    byedpiInstall: { loading: false },
-    byedpiRemove: { loading: false }
+    singBoxInstall: { loading: false }
   },
   updatesChecks: {
     forkop: { status: null, latest_version: "", release_url: "" },
-    sing_box: { status: null, latest_version: "", release_url: "" },
-    zapret: { status: null, latest_version: "", release_url: "" },
-    zapret2: { status: null, latest_version: "", release_url: "" },
-    byedpi: { status: null, latest_version: "", release_url: "" }
+    sing_box: { status: null, latest_version: "", release_url: "" }
   }
 };
 
@@ -4838,7 +4777,7 @@ function getForkopLogNotification(line) {
     return { kind: "error", line };
   }
   const update = line.match(
-    /\[component-update\]\s+(forkop|sing_box|zapret|zapret2|byedpi)\s+(\S+)/i
+    /\[component-update\]\s+(forkop|sing_box)\s+(\S+)/i
   );
   if (!update) {
     return null;
@@ -4909,16 +4848,7 @@ var componentActionKeyMap = {
   "forkop:check_update": "forkopCheck",
   "forkop:install": "forkopInstall",
   "sing_box:check_update": "singBoxCheck",
-  "sing_box:install": "singBoxInstall",
-  "zapret:check_update": "zapretCheck",
-  "zapret:install": "zapretInstall",
-  "zapret:remove": "zapretRemove",
-  "zapret2:check_update": "zapret2Check",
-  "zapret2:install": "zapret2Install",
-  "zapret2:remove": "zapret2Remove",
-  "byedpi:check_update": "byedpiCheck",
-  "byedpi:install": "byedpiInstall",
-  "byedpi:remove": "byedpiRemove"
+  "sing_box:install": "singBoxInstall"
 };
 function getComponentActionKey(component, action) {
   return componentActionKeyMap[`${component}:${action}`];
@@ -4933,16 +4863,7 @@ function getEmptyUpdatesActions() {
     forkopCheck: { loading: false },
     forkopInstall: { loading: false },
     singBoxCheck: { loading: false },
-    singBoxInstall: { loading: false },
-    zapretCheck: { loading: false },
-    zapretInstall: { loading: false },
-    zapretRemove: { loading: false },
-    zapret2Check: { loading: false },
-    zapret2Install: { loading: false },
-    zapret2Remove: { loading: false },
-    byedpiCheck: { loading: false },
-    byedpiInstall: { loading: false },
-    byedpiRemove: { loading: false }
+    singBoxInstall: { loading: false }
   };
 }
 function getEmptyDiagnosticsActions() {
@@ -4957,10 +4878,7 @@ function applyServiceState(uiState) {
   const currentSystemInfo = store.get().diagnosticsSystemInfo;
   const nextSystemInfo = {
     ...currentSystemInfo,
-    providerInfoLoaded: true,
-    zapret_installed: uiState.capabilities.zapret_installed,
-    zapret2_installed: uiState.capabilities.zapret2_installed,
-    byedpi_installed: uiState.capabilities.byedpi_installed,
+    capabilitiesLoaded: true,
     server_inbounds_enabled_count: uiState.capabilities.server_inbounds_enabled_count
   };
   store.set({
@@ -5292,18 +5210,12 @@ function startRuntimeUiStatePolling() {
 var UNKNOWN_SYSTEM_INFO = {
   loading: false,
   loaded: false,
-  providerInfoLoaded: false,
+  capabilitiesLoaded: false,
   forkop_version: _("unknown"),
   forkop_latest_version: _("unknown"),
   luci_app_version: _("unknown"),
   sing_box_version: _("unknown"),
   sing_box_compressed: 0,
-  zapret_version: _("unknown"),
-  zapret_installed: 0,
-  zapret2_version: _("unknown"),
-  zapret2_installed: 0,
-  byedpi_version: _("unknown"),
-  byedpi_installed: 0,
   server_inbounds_enabled_count: -1,
   openwrt_version: _("unknown"),
   device_model: _("unknown")
@@ -5345,7 +5257,7 @@ async function ensureSystemInfo({
           ...UNKNOWN_SYSTEM_INFO,
           loading: false,
           loaded: true,
-          providerInfoLoaded: true,
+          capabilitiesLoaded: true,
           server_inbounds_enabled_count: currentSystemInfo.server_inbounds_enabled_count,
           ...systemInfo.data
         };
@@ -5363,10 +5275,7 @@ async function ensureSystemInfo({
         ...UNKNOWN_SYSTEM_INFO,
         loading: false,
         loaded: false,
-        providerInfoLoaded: latestSystemInfo.providerInfoLoaded,
-        zapret_installed: latestSystemInfo.zapret_installed,
-        zapret2_installed: latestSystemInfo.zapret2_installed,
-        byedpi_installed: latestSystemInfo.byedpi_installed,
+        capabilitiesLoaded: latestSystemInfo.capabilitiesLoaded,
         server_inbounds_enabled_count: latestSystemInfo.server_inbounds_enabled_count
       };
       store.set({
@@ -5392,10 +5301,7 @@ var SYSTEM_INFO_PREFETCH_DELAY_MS = 2e3;
 function componentDisplayName(component) {
   const names = {
     forkop: "Forkop",
-    sing_box: "sing-box",
-    zapret: "Zapret",
-    zapret2: "Zapret2",
-    byedpi: "ByeDPI"
+    sing_box: "sing-box"
   };
   return names[component] || component;
 }
@@ -8499,252 +8405,6 @@ async function runFakeIPCheck() {
   });
 }
 
-// src/forkop/tabs/diagnostic/checks/getCheckItemsMeta.ts
-function getCheckItemsMeta(items) {
-  if (items.some((item) => item.state === "error")) {
-    return {
-      state: "error",
-      description: _("Checks failed")
-    };
-  }
-  if (items.some((item) => item.state === "warning")) {
-    return {
-      state: "warning",
-      description: _("Issues detected")
-    };
-  }
-  return {
-    state: "success",
-    description: _("Checks passed")
-  };
-}
-
-// src/forkop/tabs/diagnostic/checks/runNfqueueProviderCheck.ts
-async function runNfqueueProviderCheck(check, loadStatus, failureMessage, labels) {
-  const { order, title, code } = check;
-  updateCheckStore({
-    order,
-    code,
-    title,
-    description: _("Checking, please wait"),
-    state: "loading",
-    items: []
-  });
-  const status = await loadStatus();
-  if (!status.success) {
-    updateCheckStore({
-      order,
-      code,
-      title,
-      description: _("Cannot receive checks result"),
-      state: "error",
-      items: []
-    });
-    throw new Error(failureMessage);
-  }
-  const data = status.data;
-  const providerAvailable = Boolean(data.provider_available ?? data.installed);
-  const packageInstalled = Boolean(data.package_installed);
-  const hasRules = Number(data.enabled_rule_count || 0) > 0;
-  const queueOverlap = Boolean(data.queue_overlap);
-  const expectedProcesses = Number(data.expected_process_count || 0);
-  const runningProcesses = Number(data.running_process_count || 0);
-  const supervisorProcesses = Number(data.supervisor_process_count || 0);
-  const runtimeReady = !hasRules || runningProcesses === expectedProcesses && supervisorProcesses === expectedProcesses;
-  const unexpectedRuntime = !hasRules && (runningProcesses > 0 || supervisorProcesses > 0);
-  const outboundsConfigured = Boolean(data.outbounds_configured);
-  const standaloneServiceEnabled = Boolean(data.standalone_service_enabled);
-  const standaloneServiceRunning = Boolean(data.standalone_service_running);
-  const standaloneConflict = hasRules && standaloneServiceRunning;
-  const standaloneAutostartRisk = hasRules && standaloneServiceEnabled && !standaloneServiceRunning;
-  const items = [
-    {
-      state: providerAvailable ? "success" : hasRules ? "error" : "warning",
-      key: providerAvailable ? labels.providerAvailable : labels.providerUnavailable,
-      value: data.provider_path || ""
-    },
-    {
-      state: packageInstalled ? "success" : hasRules ? "error" : "warning",
-      key: packageInstalled ? labels.packageInstalled : labels.packageMissing,
-      value: ""
-    },
-    {
-      state: hasRules && !providerAvailable ? "error" : "success",
-      key: hasRules ? labels.rulesPresent : labels.rulesAbsent,
-      value: ""
-    },
-    {
-      state: unexpectedRuntime || !runtimeReady ? "error" : "success",
-      key: hasRules ? runtimeReady ? labels.runtimeReady : labels.runtimeNotReady : unexpectedRuntime ? labels.runtimeUnexpected : labels.runtimeStopped,
-      value: hasRules ? `${runningProcesses}/${expectedProcesses}` : ""
-    },
-    {
-      state: queueOverlap ? "error" : "success",
-      key: queueOverlap ? _("NFQUEUE range overlaps with another rule") : _("NFQUEUE range is available"),
-      value: `${Number(data.queue_base || 0)}-${Number(data.queue_range_end || 0)}`
-    },
-    {
-      state: !hasRules || outboundsConfigured ? "success" : "error",
-      key: outboundsConfigured ? labels.outboundConfigured : labels.outboundMissing,
-      value: ""
-    },
-    {
-      state: standaloneConflict || standaloneAutostartRisk ? "warning" : "success",
-      key: standaloneServiceRunning ? standaloneConflict ? labels.standaloneConflict : labels.standaloneActive : standaloneAutostartRisk ? labels.standaloneAutostart : labels.standaloneInactive,
-      value: ""
-    }
-  ];
-  const { state, description } = getCheckItemsMeta(items);
-  updateCheckStore({
-    order,
-    code,
-    title,
-    description,
-    state,
-    items
-  });
-}
-
-// src/forkop/tabs/diagnostic/checks/runZapretCheck.ts
-async function runZapretCheck() {
-  return runNfqueueProviderCheck(
-    DIAGNOSTICS_CHECKS_MAP.ZAPRET,
-    ForkopShellMethods.getZapretStatus,
-    "Zapret checks failed",
-    {
-      providerAvailable: _("Provider binary is available"),
-      providerUnavailable: _("Provider binary is not available"),
-      packageInstalled: _("Package is installed"),
-      packageMissing: _("Package is not installed"),
-      rulesPresent: _("There are rules using Zapret"),
-      rulesAbsent: _("No rules use Zapret"),
-      runtimeReady: _("nfqws runtime is ready"),
-      runtimeNotReady: _("nfqws runtime is not ready"),
-      runtimeUnexpected: _("Unexpected nfqws runtime is running"),
-      runtimeStopped: _("nfqws runtime is not running"),
-      outboundConfigured: _("Outbound is configured"),
-      outboundMissing: _("Outbound is not configured"),
-      standaloneConflict: _(
-        "Standalone Zapret is active together with Forkop Zapret rules"
-      ),
-      standaloneActive: _("Standalone service is active"),
-      standaloneAutostart: _("Standalone autostart is enabled"),
-      standaloneInactive: _("Standalone service is inactive")
-    }
-  );
-}
-
-// src/forkop/tabs/diagnostic/checks/runZapret2Check.ts
-async function runZapret2Check() {
-  return runNfqueueProviderCheck(
-    DIAGNOSTICS_CHECKS_MAP.ZAPRET2,
-    ForkopShellMethods.getZapret2Status,
-    "Zapret2 checks failed",
-    {
-      providerAvailable: _("Provider binary is available"),
-      providerUnavailable: _("Provider binary is not available"),
-      packageInstalled: _("Package is installed"),
-      packageMissing: _("Package is not installed"),
-      rulesPresent: _("There are rules using Zapret2"),
-      rulesAbsent: _("No rules use Zapret2"),
-      runtimeReady: _("nfqws2 runtime is ready"),
-      runtimeNotReady: _("nfqws2 runtime is not ready"),
-      runtimeUnexpected: _("Unexpected nfqws2 runtime is running"),
-      runtimeStopped: _("nfqws2 runtime is not running"),
-      outboundConfigured: _("Outbound is configured"),
-      outboundMissing: _("Outbound is not configured"),
-      standaloneConflict: _(
-        "Standalone Zapret2 is active together with Forkop Zapret2 rules"
-      ),
-      standaloneActive: _("Standalone service is active"),
-      standaloneAutostart: _("Standalone autostart is enabled"),
-      standaloneInactive: _("Standalone service is inactive")
-    }
-  );
-}
-
-// src/forkop/tabs/diagnostic/checks/runByedpiCheck.ts
-async function runByedpiCheck() {
-  const { order, title, code } = DIAGNOSTICS_CHECKS_MAP.BYEDPI;
-  updateCheckStore({
-    order,
-    code,
-    title,
-    description: _("Checking, please wait"),
-    state: "loading",
-    items: []
-  });
-  const byedpiStatus = await ForkopShellMethods.getByedpiStatus();
-  if (!byedpiStatus.success) {
-    updateCheckStore({
-      order,
-      code,
-      title,
-      description: _("Cannot receive checks result"),
-      state: "error",
-      items: []
-    });
-    throw new Error("ByeDPI checks failed");
-  }
-  const data = byedpiStatus.data;
-  const providerAvailable = Boolean(data.provider_available ?? data.installed);
-  const packageInstalled = Boolean(data.package_installed);
-  const hasByedpiRules = Number(data.enabled_rule_count || 0) > 0;
-  const expectedProcesses = Number(data.expected_process_count || 0);
-  const runningProcesses = Number(data.running_process_count || 0);
-  const supervisorProcesses = Number(data.supervisor_process_count || 0);
-  const restartCount = Number(data.restart_count || 0);
-  const runtimeUnstable = Boolean(data.runtime_unstable);
-  const forkopRuntimeReady = !hasByedpiRules || runningProcesses === expectedProcesses && supervisorProcesses === expectedProcesses;
-  const unexpectedRuntime = !hasByedpiRules && (runningProcesses > 0 || supervisorProcesses > 0);
-  const outboundsConfigured = Boolean(data.outbounds_configured);
-  const standaloneServiceEnabled = Boolean(data.standalone_service_enabled);
-  const standaloneServiceRunning = Boolean(data.standalone_service_running);
-  const standaloneConflict = hasByedpiRules && standaloneServiceRunning;
-  const standaloneAutostartRisk = hasByedpiRules && standaloneServiceEnabled && !standaloneServiceRunning;
-  const items = [
-    {
-      state: providerAvailable ? "success" : hasByedpiRules ? "error" : "warning",
-      key: providerAvailable ? _("Provider binary is available") : _("Provider binary is not available"),
-      value: data.provider_path || ""
-    },
-    {
-      state: packageInstalled ? "success" : "warning",
-      key: packageInstalled ? _("Package is installed") : _("Package is not installed"),
-      value: ""
-    },
-    {
-      state: hasByedpiRules && !providerAvailable ? "error" : "success",
-      key: hasByedpiRules ? _("There are rules using ByeDPI") : _("No rules use ByeDPI"),
-      value: ""
-    },
-    {
-      state: unexpectedRuntime || !forkopRuntimeReady ? "error" : runtimeUnstable ? "warning" : "success",
-      key: hasByedpiRules ? runtimeUnstable ? _("ciadpi runtime has restarted") : forkopRuntimeReady ? _("ciadpi runtime is ready") : _("ciadpi runtime is not ready") : unexpectedRuntime ? _("Unexpected ciadpi runtime is running") : _("ciadpi runtime is not running"),
-      value: hasByedpiRules ? runtimeUnstable ? `${restartCount}` : `${runningProcesses}/${expectedProcesses}` : ""
-    },
-    {
-      state: !hasByedpiRules || outboundsConfigured ? "success" : "error",
-      key: outboundsConfigured ? _("Outbound is configured") : _("Outbound is not configured"),
-      value: `${data.listen_address}:${Number(data.port_base || 0)}`
-    },
-    {
-      state: standaloneConflict ? "error" : standaloneAutostartRisk ? "warning" : "success",
-      key: standaloneServiceRunning ? hasByedpiRules ? _("Standalone ByeDPI is active together with Forkop ByeDPI rules") : _("Standalone service is active") : standaloneAutostartRisk ? _("Standalone autostart is enabled") : _("Standalone service is inactive"),
-      value: ""
-    }
-  ];
-  const { state, description } = getCheckItemsMeta(items);
-  updateCheckStore({
-    order,
-    code,
-    title,
-    description,
-    state,
-    items
-  });
-}
-
 // src/partials/button/styles.ts
 var styles2 = `
 .fkp-partial-button {
@@ -9651,9 +9311,9 @@ function hasLocalMutatingServiceActionLoading(actions) {
   return actions.restart.loading || actions.start.loading || actions.stop.loading || actions.enable.loading || actions.disable.loading;
 }
 function shouldDisableDiagnosticRunAction({
-  providerInfoLoaded
+  capabilitiesLoaded
 }) {
-  return !providerInfoLoaded;
+  return !capabilitiesLoaded;
 }
 var SERVICE_ACTION_FAILURE_LABELS = {
   start: () => _("Failed to start the service"),
@@ -9914,25 +9574,22 @@ function maskGlobalCheckText(text = "") {
 }
 
 // src/forkop/tabs/diagnostic/initController.ts
-var latestProviderInfoRequestId = 0;
+var latestCapabilitiesRequestId = 0;
 var diagnosticLifecycleRegistered = false;
 var diagnosticControllerInitialized = false;
 var diagnosticMounted = false;
 var diagnosticMountId = 0;
 var diagnosticsChecksOwnedByRun = false;
 var handledServiceActionJobs = /* @__PURE__ */ new Set();
-function getDiagnosticsProviderOptions(systemInfo = store.get().diagnosticsSystemInfo) {
+function getDiagnosticsCheckOptions(systemInfo = store.get().diagnosticsSystemInfo) {
   return {
-    includeZapret: Boolean(systemInfo.zapret_installed),
-    includeZapret2: Boolean(systemInfo.zapret2_installed),
-    includeByedpi: Boolean(systemInfo.byedpi_installed),
     includeInbounds: systemInfo.server_inbounds_enabled_count > 0
   };
 }
 function getNotRunningDiagnosticsChecks(systemInfo = store.get().diagnosticsSystemInfo) {
   return getDiagnosticsChecks(
     _("Not running"),
-    getDiagnosticsProviderOptions(systemInfo)
+    getDiagnosticsCheckOptions(systemInfo)
   );
 }
 function rebuildIdleDiagnosticsChecks(systemInfo = store.get().diagnosticsSystemInfo) {
@@ -9997,16 +9654,7 @@ function settleFinishedServiceActions(uiState) {
 async function fetchSystemInfo() {
   rebuildIdleDiagnosticsChecks(await ensureSystemInfo());
 }
-function applyDiagnosticsProviderInfo(nextSystemInfo, resetChecks) {
-  if (!nextSystemInfo.zapret_installed) {
-    nextSystemInfo.zapret_version = "not installed";
-  }
-  if (!nextSystemInfo.zapret2_installed) {
-    nextSystemInfo.zapret2_version = "not installed";
-  }
-  if (!nextSystemInfo.byedpi_installed) {
-    nextSystemInfo.byedpi_version = "not installed";
-  }
+function applyDiagnosticsCapabilities(nextSystemInfo, resetChecks) {
   const nextState = {
     diagnosticsSystemInfo: nextSystemInfo
   };
@@ -10015,59 +9663,35 @@ function applyDiagnosticsProviderInfo(nextSystemInfo, resetChecks) {
   }
   store.set(nextState);
 }
-async function fetchDiagnosticsProviderInfo({
+async function fetchDiagnosticsCapabilities({
   resetChecks = true
 } = {}) {
-  const requestId = ++latestProviderInfoRequestId;
+  const requestId = ++latestCapabilitiesRequestId;
   try {
     const uiState = await refreshRuntimeUiState({ force: true });
-    if (requestId !== latestProviderInfoRequestId) {
+    if (requestId !== latestCapabilitiesRequestId) {
       return;
     }
     if (uiState) {
       const currentSystemInfo2 = store.get().diagnosticsSystemInfo;
       const nextSystemInfo2 = {
         ...currentSystemInfo2,
-        providerInfoLoaded: true,
-        zapret_installed: uiState.capabilities.zapret_installed,
-        zapret2_installed: uiState.capabilities.zapret2_installed,
-        byedpi_installed: uiState.capabilities.byedpi_installed,
+        capabilitiesLoaded: true,
         server_inbounds_enabled_count: uiState.capabilities.server_inbounds_enabled_count
       };
-      applyDiagnosticsProviderInfo(nextSystemInfo2, resetChecks);
+      applyDiagnosticsCapabilities(nextSystemInfo2, resetChecks);
       return;
     }
-    const [zapretRuntime, zapret2Runtime, byedpiRuntime, inboundsConfig] = await Promise.all([
-      ForkopShellMethods.checkZapretRuntime(),
-      ForkopShellMethods.checkZapret2Runtime(),
-      ForkopShellMethods.checkByedpiRuntime(),
-      ForkopShellMethods.checkInboundsConfig()
-    ]);
-    if (requestId !== latestProviderInfoRequestId) {
+    const inboundsConfig = await ForkopShellMethods.checkInboundsConfig();
+    if (requestId !== latestCapabilitiesRequestId) {
       return;
     }
     const currentSystemInfo = store.get().diagnosticsSystemInfo;
     const nextSystemInfo = {
       ...currentSystemInfo,
-      providerInfoLoaded: true,
-      zapret_installed: zapretRuntime.success ? zapretRuntime.data.zapret_installed : currentSystemInfo.zapret_installed,
-      zapret2_installed: zapret2Runtime.success ? zapret2Runtime.data.zapret2_installed : currentSystemInfo.zapret2_installed,
-      byedpi_installed: byedpiRuntime.success ? byedpiRuntime.data.byedpi_installed : currentSystemInfo.byedpi_installed,
+      capabilitiesLoaded: true,
       server_inbounds_enabled_count: inboundsConfig.success ? inboundsConfig.data.enabled_count : -1
     };
-    if (!zapretRuntime.success) {
-      logger.error("[DIAGNOSTIC]", "fetchZapretRuntime failed", zapretRuntime);
-    }
-    if (!zapret2Runtime.success) {
-      logger.error(
-        "[DIAGNOSTIC]",
-        "fetchZapret2Runtime failed",
-        zapret2Runtime
-      );
-    }
-    if (!byedpiRuntime.success) {
-      logger.error("[DIAGNOSTIC]", "fetchByedpiRuntime failed", byedpiRuntime);
-    }
     if (!inboundsConfig.success) {
       logger.error(
         "[DIAGNOSTIC]",
@@ -10075,15 +9699,15 @@ async function fetchDiagnosticsProviderInfo({
         inboundsConfig
       );
     }
-    applyDiagnosticsProviderInfo(nextSystemInfo, resetChecks);
+    applyDiagnosticsCapabilities(nextSystemInfo, resetChecks);
   } catch (error) {
-    logger.error("[DIAGNOSTIC]", "fetchDiagnosticsProviderInfo failed", error);
-    if (requestId === latestProviderInfoRequestId) {
+    logger.error("[DIAGNOSTIC]", "fetchDiagnosticsCapabilities failed", error);
+    if (requestId === latestCapabilitiesRequestId) {
       const currentSystemInfo = store.get().diagnosticsSystemInfo;
       store.set({
         diagnosticsSystemInfo: {
           ...currentSystemInfo,
-          providerInfoLoaded: true,
+          capabilitiesLoaded: true,
           server_inbounds_enabled_count: -1
         }
       });
@@ -10106,11 +9730,11 @@ function renderDiagnosticsChecks() {
 function renderDiagnosticRunActionWidget() {
   logger.debug("[DIAGNOSTIC]", "renderDiagnosticRunActionWidget");
   const { loading: loading3 } = store.get().diagnosticsRunAction;
-  const providerInfoLoaded = store.get().diagnosticsSystemInfo.providerInfoLoaded;
+  const capabilitiesLoaded = store.get().diagnosticsSystemInfo.capabilitiesLoaded;
   const container = document.getElementById("fkp_diagnostic-page-run-check");
   const renderedAction = renderRunAction({
     loading: loading3,
-    disabled: shouldDisableDiagnosticRunAction({ providerInfoLoaded }),
+    disabled: shouldDisableDiagnosticRunAction({ capabilitiesLoaded }),
     click: () => runChecks()
   });
   return preserveScrollForPage(() => {
@@ -10314,24 +9938,6 @@ function renderDiagnosticSystemInfoWidget() {
       value: formatSingBoxVersion(diagnosticsSystemInfo, false)
     }
   ];
-  if (diagnosticsSystemInfo.zapret_installed) {
-    items.push({
-      key: "Zapret",
-      value: diagnosticsSystemInfo.zapret_version
-    });
-  }
-  if (diagnosticsSystemInfo.zapret2_installed) {
-    items.push({
-      key: "Zapret2",
-      value: diagnosticsSystemInfo.zapret2_version
-    });
-  }
-  if (diagnosticsSystemInfo.byedpi_installed) {
-    items.push({
-      key: "ByeDPI",
-      value: diagnosticsSystemInfo.byedpi_version
-    });
-  }
   items.push(
     {
       key: "OS",
@@ -10381,15 +9987,12 @@ function setDiagnosticCheckLoading(code) {
     ]
   });
 }
-function getDiagnosticRunners(providerOptions) {
+function getDiagnosticRunners(checkOptions) {
   return [
     { code: "DNS" /* DNS */, run: runDnsCheck },
     { code: "SINGBOX" /* SINGBOX */, run: runSingBoxCheck },
-    ...providerOptions.includeInbounds ? [{ code: "INBOUNDS" /* INBOUNDS */, run: runInboundsCheck }] : [],
+    ...checkOptions.includeInbounds ? [{ code: "INBOUNDS" /* INBOUNDS */, run: runInboundsCheck }] : [],
     { code: "NFT" /* NFT */, run: runNftCheck },
-    ...providerOptions.includeZapret ? [{ code: "ZAPRET" /* ZAPRET */, run: runZapretCheck }] : [],
-    ...providerOptions.includeZapret2 ? [{ code: "ZAPRET2" /* ZAPRET2 */, run: runZapret2Check }] : [],
-    ...providerOptions.includeByedpi ? [{ code: "BYEDPI" /* BYEDPI */, run: runByedpiCheck }] : [],
     { code: "OUTBOUNDS" /* OUTBOUNDS */, run: runSectionsCheck },
     { code: "FAKEIP" /* FAKEIP */, run: runFakeIPCheck }
   ];
@@ -10401,17 +10004,15 @@ async function runChecks() {
   diagnosticsChecksOwnedByRun = true;
   store.set({
     diagnosticsRunAction: { loading: true },
-    diagnosticsChecks: getLoadingDiagnosticsChecks(
-      getDiagnosticsProviderOptions()
-    ).diagnosticsChecks
+    diagnosticsChecks: getLoadingDiagnosticsChecks(getDiagnosticsCheckOptions()).diagnosticsChecks
   });
   try {
-    await fetchDiagnosticsProviderInfo({ resetChecks: false });
-    const providerOptions = getDiagnosticsProviderOptions();
+    await fetchDiagnosticsCapabilities({ resetChecks: false });
+    const checkOptions = getDiagnosticsCheckOptions();
     store.set({
-      diagnosticsChecks: getLoadingDiagnosticsChecks(providerOptions).diagnosticsChecks
+      diagnosticsChecks: getLoadingDiagnosticsChecks(checkOptions).diagnosticsChecks
     });
-    for (const runner of getDiagnosticRunners(providerOptions)) {
+    for (const runner of getDiagnosticRunners(checkOptions)) {
       setDiagnosticCheckLoading(runner.code);
       try {
         await runner.run();
@@ -10436,7 +10037,7 @@ async function loadInitialDiagnosticData() {
       return;
     }
     await fetchSystemInfo();
-    await fetchDiagnosticsProviderInfo();
+    await fetchDiagnosticsCapabilities();
   }
 }
 function detachDiagnosticPage() {
@@ -13294,20 +12895,6 @@ function getCheckToastMessage(status) {
 async function refreshSystemInfoAfterMutation() {
   await ensureSystemInfo({ force: true, silent: true });
 }
-function notifyActionProvidersAvailabilityChanged(systemInfo) {
-  if (typeof window === "undefined" || typeof CustomEvent === "undefined") {
-    return;
-  }
-  window.dispatchEvent(
-    new CustomEvent(FORKOP_ACTION_PROVIDERS_AVAILABILITY_EVENT, {
-      detail: {
-        zapretInstalled: Boolean(systemInfo.zapret_installed),
-        zapret2Installed: Boolean(systemInfo.zapret2_installed),
-        byedpiInstalled: Boolean(systemInfo.byedpi_installed)
-      }
-    })
-  );
-}
 function reloadPageAfterForkopUpdate() {
   window.setTimeout(() => {
     window.location.reload();
@@ -13323,42 +12910,9 @@ function patchSystemInfoAfterMutation(result) {
   if (result.component === "sing_box") {
     nextSystemInfo.sing_box_version = version;
   }
-  if (result.component === "zapret") {
-    nextSystemInfo.providerInfoLoaded = true;
-    if (result.action === "remove") {
-      nextSystemInfo.zapret_installed = 0;
-      nextSystemInfo.zapret_version = "not installed";
-    } else {
-      nextSystemInfo.zapret_installed = 1;
-      nextSystemInfo.zapret_version = version;
-    }
-  }
-  if (result.component === "zapret2") {
-    nextSystemInfo.providerInfoLoaded = true;
-    if (result.action === "remove") {
-      nextSystemInfo.zapret2_installed = 0;
-      nextSystemInfo.zapret2_version = "not installed";
-    } else {
-      nextSystemInfo.zapret2_installed = 1;
-      nextSystemInfo.zapret2_version = version;
-    }
-  }
-  if (result.component === "byedpi") {
-    nextSystemInfo.providerInfoLoaded = true;
-    if (result.action === "remove") {
-      nextSystemInfo.byedpi_installed = 0;
-      nextSystemInfo.byedpi_version = "not installed";
-    } else {
-      nextSystemInfo.byedpi_installed = 1;
-      nextSystemInfo.byedpi_version = version;
-    }
-  }
   store.set({
     diagnosticsSystemInfo: nextSystemInfo
   });
-  if (result.component === "zapret" || result.component === "zapret2" || result.component === "byedpi") {
-    notifyActionProvidersAvailabilityChanged(nextSystemInfo);
-  }
 }
 async function applyCompletedComponentAction({
   key,
@@ -13630,33 +13184,9 @@ function getInstalledUpdateActions(component, checkKey, installKey, installed = 
   }
   return actions;
 }
-function getOptionalComponentActions({
-  component,
-  installed,
-  checkKey,
-  installKey,
-  removeKey
-}) {
-  if (!installed) {
-    return [getInstallAction(component, installKey, false)];
-  }
-  return [
-    ...getInstalledUpdateActions(component, checkKey, installKey),
-    {
-      key: removeKey,
-      text: _("Remove"),
-      icon: renderXIcon24,
-      component,
-      action: "remove"
-    }
-  ];
-}
 function getComponentCards() {
   const systemInfo = store.get().diagnosticsSystemInfo;
   const systemInfoLoading = isSystemInfoLoading();
-  const zapretInstalled = Boolean(systemInfo.zapret_installed);
-  const zapret2Installed = Boolean(systemInfo.zapret2_installed);
-  const byedpiInstalled = Boolean(systemInfo.byedpi_installed);
   const singBoxInstalled = !isNotInstalled(systemInfo.sing_box_version);
   const forkopActions = getInstalledUpdateActions(
     "forkop",
@@ -13669,27 +13199,6 @@ function getComponentCards() {
     "singBoxInstall",
     singBoxInstalled
   );
-  const zapretActions = getOptionalComponentActions({
-    component: "zapret",
-    installed: zapretInstalled,
-    checkKey: "zapretCheck",
-    installKey: "zapretInstall",
-    removeKey: "zapretRemove"
-  });
-  const zapret2Actions = getOptionalComponentActions({
-    component: "zapret2",
-    installed: zapret2Installed,
-    checkKey: "zapret2Check",
-    installKey: "zapret2Install",
-    removeKey: "zapret2Remove"
-  });
-  const byedpiActions = getOptionalComponentActions({
-    component: "byedpi",
-    installed: byedpiInstalled,
-    checkKey: "byedpiCheck",
-    installKey: "byedpiInstall",
-    removeKey: "byedpiRemove"
-  });
   return [
     {
       component: "forkop",
@@ -13708,33 +13217,6 @@ function getComponentCards() {
       latestVersion: getLatestVersion("sing_box"),
       releaseUrl: getGitHubReleaseUrl("sing_box"),
       actions: singBoxActions
-    },
-    {
-      component: "zapret",
-      column: 1,
-      title: "Zapret",
-      version: systemInfoLoading ? _("Loading...") : zapretInstalled ? systemInfo.zapret_version : _("Not installed"),
-      latestVersion: getLatestVersion("zapret"),
-      releaseUrl: getGitHubReleaseUrl("zapret"),
-      actions: zapretActions
-    },
-    {
-      component: "zapret2",
-      column: 1,
-      title: "Zapret2",
-      version: systemInfoLoading ? _("Loading...") : zapret2Installed ? systemInfo.zapret2_version : _("Not installed"),
-      latestVersion: getLatestVersion("zapret2"),
-      releaseUrl: getGitHubReleaseUrl("zapret2"),
-      actions: zapret2Actions
-    },
-    {
-      component: "byedpi",
-      column: 1,
-      title: "ByeDPI",
-      version: systemInfoLoading ? _("Loading...") : byedpiInstalled ? systemInfo.byedpi_version : _("Not installed"),
-      latestVersion: getLatestVersion("byedpi"),
-      releaseUrl: getGitHubReleaseUrl("byedpi"),
-      actions: byedpiActions
     }
   ];
 }
@@ -13835,17 +13317,8 @@ function renderComponentCard(card) {
     { class: "fkp_updates-page__component__details" },
     detailsChildren
   ) : null;
-  const primaryActions = [];
-  const dangerActions = [];
-  card.actions.forEach((action) => {
-    if (action.action === "remove") {
-      dangerActions.push(action);
-    } else {
-      primaryActions.push(action);
-    }
-  });
   const actionElements = [];
-  const primaryButtons = primaryActions.map((action) => {
+  const primaryButtons = card.actions.map((action) => {
     const loading3 = updatesActions[action.key].loading;
     const isUpdateOrInstall = action.action === "install";
     return renderButton({
@@ -13857,23 +13330,13 @@ function renderComponentCard(card) {
       onClick: () => void handleComponentAction(action)
     });
   });
-  const dangerButtons = dangerActions.map((action) => {
-    const loading3 = updatesActions[action.key].loading;
-    return renderButton({
-      classNames: ["cbi-button-remove"],
-      text: action.text,
-      icon: action.icon,
-      loading: loading3,
-      disabled: systemInfoLoading || serviceRuntimeActionLoading || anyActionLoading && !loading3,
-      onClick: () => void handleComponentAction(action)
-    });
-  });
-  if (primaryButtons.length > 0 || dangerButtons.length > 0) {
+  if (primaryButtons.length > 0) {
     actionElements.push(
-      E("div", { class: "fkp_updates-page__component__actions-main" }, [
-        ...primaryButtons,
-        ...dangerButtons
-      ])
+      E(
+        "div",
+        { class: "fkp_updates-page__component__actions-main" },
+        primaryButtons
+      )
     );
   }
   const actionsContainer = E(
@@ -14354,7 +13817,6 @@ return baseclass.extend({
   DOMAIN_LIST_OPTIONS,
   DashboardTab,
   DiagnosticTab,
-  FORKOP_ACTION_PROVIDERS_AVAILABILITY_EVENT,
   FORKOP_UCI_PACKAGE,
   ForkopShellMethods,
   LATENCY_TEST_URL_OPTIONS,

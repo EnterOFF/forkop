@@ -195,12 +195,6 @@ function createTransientRpcGraceTracker(graceMs: number) {
   };
 }
 
-function checkProviderRuntime<T>(provider: Forkop.DpiProvider) {
-  return diagnosticCheck<T>(Forkop.AvailableMethods.CHECK_PROVIDER_RUNTIME, [
-    provider,
-  ]);
-}
-
 function diagnosticCheck<T>(
   method: Forkop.AvailableMethods,
   args: string[] = [],
@@ -208,12 +202,6 @@ function diagnosticCheck<T>(
   return callBaseMethod<T>(method, args, '/usr/bin/forkop', {
     timeout: DIAGNOSTIC_CHECK_RPC_TIMEOUT_MS,
   });
-}
-
-function getProviderStatus<T>(provider: Forkop.DpiProvider) {
-  return callBaseMethod<T>(Forkop.AvailableMethods.GET_PROVIDER_STATUS, [
-    provider,
-  ]);
 }
 
 export const ForkopShellMethods = {
@@ -229,12 +217,6 @@ export const ForkopShellMethods = {
     diagnosticCheck<Forkop.NftRulesCheckResult>(
       Forkop.AvailableMethods.CHECK_NFT_RULES,
     ),
-  checkZapretRuntime: async () =>
-    checkProviderRuntime<Forkop.ZapretCheckResult>('zapret'),
-  checkZapret2Runtime: async () =>
-    checkProviderRuntime<Forkop.Zapret2CheckResult>('zapret2'),
-  checkByedpiRuntime: async () =>
-    checkProviderRuntime<Forkop.ByedpiCheckResult>('byedpi'),
   checkInboundsConfig: async () =>
     diagnosticCheck<Forkop.InboundsConfigCheckResult>(
       Forkop.AvailableMethods.CHECK_INBOUNDS_CONFIG,
@@ -247,12 +229,6 @@ export const ForkopShellMethods = {
     diagnosticCheck<Forkop.InboundsCheckResult>(
       Forkop.AvailableMethods.CHECK_INBOUNDS,
     ),
-  getZapretStatus: async () =>
-    getProviderStatus<Forkop.GetZapretStatus>('zapret'),
-  getZapret2Status: async () =>
-    getProviderStatus<Forkop.GetZapret2Status>('zapret2'),
-  getByedpiStatus: async () =>
-    getProviderStatus<Forkop.GetByedpiStatus>('byedpi'),
   clashHttp: async (method: string, path: string, body = '') =>
     callBaseMethod<Forkop.ClashHttpResponse>(
       Forkop.AvailableMethods.CLASH_HTTP,
@@ -287,7 +263,7 @@ export const ForkopShellMethods = {
   checkLogs,
   checkSingBoxLogs: async () =>
     callBaseMethod<unknown>(Forkop.AvailableMethods.CHECK_SING_BOX_LOGS),
-  // Working the versions out means asking opkg and every provider, about 1.7 s.
+  // Working the versions out means asking opkg and sing-box, about 1.7 s.
   // The state service holds the answer for as long as the installed packages
   // have not changed; the CLI is what answers when it is not running.
   getSystemInfo: async () => {

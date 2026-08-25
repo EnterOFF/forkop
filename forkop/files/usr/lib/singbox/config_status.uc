@@ -1,5 +1,9 @@
 #!/usr/bin/env ucode
 
+// What the generated sing-box configuration says about one tagged inbound or
+// endpoint. The Servers diagnostics read this to tell a listener that was
+// actually written into the configuration from one that only exists in UCI.
+
 let fs = require("fs");
 
 function as_string(value) {
@@ -30,18 +34,6 @@ function array_or_empty(value) {
 
 function write_json(value) {
     print(sprintf("%J", value), "\n");
-}
-
-function has_route_rule(config_path, inbound, outbound_tag) {
-    let config = read_json_file(config_path);
-    for (let rule in array_or_empty(config && config.route && config.route.rules)) {
-        if (type(rule) == "object" &&
-            rule.action == "route" &&
-            rule.inbound == inbound &&
-            rule.outbound == outbound_tag)
-            return true;
-    }
-    return false;
 }
 
 function value_contains(value, needle) {
@@ -96,15 +88,13 @@ function has_route_rule_for_inbound(config_path, inbound) {
 
 let mode = ARGV[0] || "";
 
-if (mode == "has-route-rule")
-    exit(has_route_rule(ARGV[1], ARGV[2], ARGV[3]) ? 0 : 1);
-else if (mode == "inbound-summary")
+if (mode == "inbound-summary")
     tagged_runtime_summary(ARGV[1], "inbounds", ARGV[2]);
 else if (mode == "endpoint-summary")
     tagged_runtime_summary(ARGV[1], "endpoints", ARGV[2]);
 else if (mode == "has-route-rule-for-inbound")
     exit(has_route_rule_for_inbound(ARGV[1], ARGV[2]) ? 0 : 1);
 else {
-    warn("Usage: providers/status.uc <operation> ...\n");
+    warn("Usage: singbox/config_status.uc <operation> ...\n");
     exit(1);
 }

@@ -49,9 +49,6 @@ const mocks = vi.hoisted(() => {
     uiState: {
       service: {},
       capabilities: {
-        zapret_installed: 0,
-        zapret2_installed: 0,
-        byedpi_installed: 0,
         server_inbounds_enabled_count: 0,
       },
       actions: { service: [], component: [] },

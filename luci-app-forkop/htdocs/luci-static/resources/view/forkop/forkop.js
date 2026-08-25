@@ -160,46 +160,19 @@ const EntryPoint = {
     main.injectGlobalStyles();
     const uiCapabilities = {
       loaded: false,
-      zapretInstalled: false,
-      zapret2Installed: false,
-      byedpiInstalled: false,
       serverInboundsEnabledCount: -1,
     };
     let uiCapabilitiesPromise = null;
 
     const applyUiCapabilities = function () {
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(
-          new CustomEvent(main.FORKOP_ACTION_PROVIDERS_AVAILABILITY_EVENT, {
-            detail: {
-              zapretInstalled: uiCapabilities.zapretInstalled,
-              zapret2Installed: uiCapabilities.zapret2Installed,
-              byedpiInstalled: uiCapabilities.byedpiInstalled,
-            },
-          }),
-        );
-      }
-
       if (main.store && typeof main.store.set === "function") {
         const currentSystemInfo = main.store.get().diagnosticsSystemInfo;
         main.store.set({
           diagnosticsSystemInfo: {
             ...currentSystemInfo,
-            providerInfoLoaded: true,
-            zapret_installed: uiCapabilities.zapretInstalled ? 1 : 0,
-            zapret2_installed: uiCapabilities.zapret2Installed ? 1 : 0,
-            byedpi_installed: uiCapabilities.byedpiInstalled ? 1 : 0,
+            capabilitiesLoaded: true,
             server_inbounds_enabled_count:
               uiCapabilities.serverInboundsEnabledCount,
-            zapret_version: uiCapabilities.zapretInstalled
-              ? currentSystemInfo.zapret_version
-              : "not installed",
-            zapret2_version: uiCapabilities.zapret2Installed
-              ? currentSystemInfo.zapret2_version
-              : "not installed",
-            byedpi_version: uiCapabilities.byedpiInstalled
-              ? currentSystemInfo.byedpi_version
-              : "not installed",
           },
         });
       }
@@ -207,15 +180,6 @@ const EntryPoint = {
 
     const updateUiCapabilities = function (data) {
       uiCapabilities.loaded = true;
-      uiCapabilities.zapretInstalled = Boolean(
-        Number(data?.zapret_installed) === 1,
-      );
-      uiCapabilities.zapret2Installed = Boolean(
-        Number(data?.zapret2_installed) === 1,
-      );
-      uiCapabilities.byedpiInstalled = Boolean(
-        Number(data?.byedpi_installed) === 1,
-      );
       const serverInboundsEnabledCount =
         typeof data?.server_inbounds_enabled_count !== "undefined"
           ? Number(data.server_inbounds_enabled_count)
@@ -249,8 +213,8 @@ const EntryPoint = {
           return updateUiCapabilities(response.data);
         })
         .catch((error) => {
-          // Nothing else can answer, so the tabs are told the providers are
-          // absent rather than left waiting for an availability event.
+          // Nothing else can answer, so the tabs proceed with the defaults
+          // rather than waiting for a capability payload that never arrives.
           console.warn("Failed to load Forkop UI capabilities", error);
           return updateUiCapabilities({});
         })
@@ -285,9 +249,7 @@ const EntryPoint = {
       }
       return node;
     };
-    section.configureSectionSection(rulesSection, {
-      loadActionProvidersAvailability: loadUiCapabilities,
-    });
+    section.configureSectionSection(rulesSection);
     section.createSectionContent(rulesSection);
 
     const serverSection = forkopMap.section(
@@ -315,7 +277,7 @@ const EntryPoint = {
     settingsSection.cfgsections = function () {
       return ["settings"];
     };
-    settings.createSettingsContent(settingsSection, uiCapabilities);
+    settings.createSettingsContent(settingsSection);
 
     const diagnosticSection = forkopMap.section(
       form.TypedSection,

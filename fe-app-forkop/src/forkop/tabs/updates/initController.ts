@@ -1,12 +1,10 @@
 import { onMount, preserveScrollForPage } from '../../../helpers';
-import { FORKOP_ACTION_PROVIDERS_AVAILABILITY_EVENT } from '../../../constants';
 import { normalizeCompiledVersion } from '../../../helpers/normalizeCompiledVersion';
 import { showToast } from '../../../helpers/showToast';
 import {
   renderDownloadIcon24,
   renderRotateCcwIcon24,
   renderSearchIcon24,
-  renderXIcon24,
 } from '../../../icons';
 import { renderButton } from '../../../partials';
 import { getComponentActionKey } from '../../helpers/getComponentActionKey';
@@ -292,24 +290,6 @@ async function refreshSystemInfoAfterMutation() {
   await ensureSystemInfo({ force: true, silent: true });
 }
 
-function notifyActionProvidersAvailabilityChanged(
-  systemInfo: StoreType['diagnosticsSystemInfo'],
-) {
-  if (typeof window === 'undefined' || typeof CustomEvent === 'undefined') {
-    return;
-  }
-
-  window.dispatchEvent(
-    new CustomEvent(FORKOP_ACTION_PROVIDERS_AVAILABILITY_EVENT, {
-      detail: {
-        zapretInstalled: Boolean(systemInfo.zapret_installed),
-        zapret2Installed: Boolean(systemInfo.zapret2_installed),
-        byedpiInstalled: Boolean(systemInfo.byedpi_installed),
-      },
-    }),
-  );
-}
-
 function reloadPageAfterForkopUpdate() {
   window.setTimeout(() => {
     window.location.reload();
@@ -330,53 +310,9 @@ function patchSystemInfoAfterMutation(result: Forkop.ComponentActionResult) {
     nextSystemInfo.sing_box_version = version;
   }
 
-  if (result.component === 'zapret') {
-    nextSystemInfo.providerInfoLoaded = true;
-
-    if (result.action === 'remove') {
-      nextSystemInfo.zapret_installed = 0;
-      nextSystemInfo.zapret_version = 'not installed';
-    } else {
-      nextSystemInfo.zapret_installed = 1;
-      nextSystemInfo.zapret_version = version;
-    }
-  }
-
-  if (result.component === 'zapret2') {
-    nextSystemInfo.providerInfoLoaded = true;
-
-    if (result.action === 'remove') {
-      nextSystemInfo.zapret2_installed = 0;
-      nextSystemInfo.zapret2_version = 'not installed';
-    } else {
-      nextSystemInfo.zapret2_installed = 1;
-      nextSystemInfo.zapret2_version = version;
-    }
-  }
-
-  if (result.component === 'byedpi') {
-    nextSystemInfo.providerInfoLoaded = true;
-
-    if (result.action === 'remove') {
-      nextSystemInfo.byedpi_installed = 0;
-      nextSystemInfo.byedpi_version = 'not installed';
-    } else {
-      nextSystemInfo.byedpi_installed = 1;
-      nextSystemInfo.byedpi_version = version;
-    }
-  }
-
   store.set({
     diagnosticsSystemInfo: nextSystemInfo,
   });
-
-  if (
-    result.component === 'zapret' ||
-    result.component === 'zapret2' ||
-    result.component === 'byedpi'
-  ) {
-    notifyActionProvidersAvailabilityChanged(nextSystemInfo);
-  }
 }
 
 async function applyCompletedComponentAction({
@@ -739,41 +675,9 @@ function getInstalledUpdateActions(
   return actions;
 }
 
-function getOptionalComponentActions({
-  component,
-  installed,
-  checkKey,
-  installKey,
-  removeKey,
-}: {
-  component: 'zapret' | 'zapret2' | 'byedpi';
-  installed: boolean;
-  checkKey: UpdatesActionKey;
-  installKey: UpdatesActionKey;
-  removeKey: UpdatesActionKey;
-}) {
-  if (!installed) {
-    return [getInstallAction(component, installKey, false)];
-  }
-
-  return [
-    ...getInstalledUpdateActions(component, checkKey, installKey),
-    {
-      key: removeKey,
-      text: _('Remove'),
-      icon: renderXIcon24,
-      component,
-      action: 'remove' as const,
-    },
-  ];
-}
-
 function getComponentCards(): ComponentCard[] {
   const systemInfo = store.get().diagnosticsSystemInfo;
   const systemInfoLoading = isSystemInfoLoading();
-  const zapretInstalled = Boolean(systemInfo.zapret_installed);
-  const zapret2Installed = Boolean(systemInfo.zapret2_installed);
-  const byedpiInstalled = Boolean(systemInfo.byedpi_installed);
   const singBoxInstalled = !isNotInstalled(systemInfo.sing_box_version);
 
   const forkopActions = getInstalledUpdateActions(
@@ -787,28 +691,6 @@ function getComponentCards(): ComponentCard[] {
     'singBoxInstall',
     singBoxInstalled,
   );
-
-  const zapretActions = getOptionalComponentActions({
-    component: 'zapret',
-    installed: zapretInstalled,
-    checkKey: 'zapretCheck',
-    installKey: 'zapretInstall',
-    removeKey: 'zapretRemove',
-  });
-  const zapret2Actions = getOptionalComponentActions({
-    component: 'zapret2',
-    installed: zapret2Installed,
-    checkKey: 'zapret2Check',
-    installKey: 'zapret2Install',
-    removeKey: 'zapret2Remove',
-  });
-  const byedpiActions = getOptionalComponentActions({
-    component: 'byedpi',
-    installed: byedpiInstalled,
-    checkKey: 'byedpiCheck',
-    installKey: 'byedpiInstall',
-    removeKey: 'byedpiRemove',
-  });
 
   return [
     {
@@ -832,45 +714,6 @@ function getComponentCards(): ComponentCard[] {
       latestVersion: getLatestVersion('sing_box'),
       releaseUrl: getGitHubReleaseUrl('sing_box'),
       actions: singBoxActions,
-    },
-    {
-      component: 'zapret',
-      column: 1,
-      title: 'Zapret',
-      version: systemInfoLoading
-        ? _('Loading...')
-        : zapretInstalled
-          ? systemInfo.zapret_version
-          : _('Not installed'),
-      latestVersion: getLatestVersion('zapret'),
-      releaseUrl: getGitHubReleaseUrl('zapret'),
-      actions: zapretActions,
-    },
-    {
-      component: 'zapret2',
-      column: 1,
-      title: 'Zapret2',
-      version: systemInfoLoading
-        ? _('Loading...')
-        : zapret2Installed
-          ? systemInfo.zapret2_version
-          : _('Not installed'),
-      latestVersion: getLatestVersion('zapret2'),
-      releaseUrl: getGitHubReleaseUrl('zapret2'),
-      actions: zapret2Actions,
-    },
-    {
-      component: 'byedpi',
-      column: 1,
-      title: 'ByeDPI',
-      version: systemInfoLoading
-        ? _('Loading...')
-        : byedpiInstalled
-          ? systemInfo.byedpi_version
-          : _('Not installed'),
-      latestVersion: getLatestVersion('byedpi'),
-      releaseUrl: getGitHubReleaseUrl('byedpi'),
-      actions: byedpiActions,
     },
   ];
 }
@@ -989,20 +832,9 @@ function renderComponentCard(card: ComponentCard) {
         )
       : null;
 
-  const primaryActions: ComponentActionButton[] = [];
-  const dangerActions: ComponentActionButton[] = [];
-
-  card.actions.forEach((action) => {
-    if (action.action === 'remove') {
-      dangerActions.push(action);
-    } else {
-      primaryActions.push(action);
-    }
-  });
-
   const actionElements: Node[] = [];
 
-  const primaryButtons = primaryActions.map((action) => {
+  const primaryButtons = card.actions.map((action) => {
     const loading = updatesActions[action.key].loading;
     const isUpdateOrInstall = action.action === 'install';
 
@@ -1019,28 +851,13 @@ function renderComponentCard(card: ComponentCard) {
     });
   });
 
-  const dangerButtons = dangerActions.map((action) => {
-    const loading = updatesActions[action.key].loading;
-
-    return renderButton({
-      classNames: ['cbi-button-remove'],
-      text: action.text,
-      icon: action.icon,
-      loading,
-      disabled:
-        systemInfoLoading ||
-        serviceRuntimeActionLoading ||
-        (anyActionLoading && !loading),
-      onClick: () => void handleComponentAction(action),
-    });
-  });
-
-  if (primaryButtons.length > 0 || dangerButtons.length > 0) {
+  if (primaryButtons.length > 0) {
     actionElements.push(
-      E('div', { class: 'fkp_updates-page__component__actions-main' }, [
-        ...primaryButtons,
-        ...dangerButtons,
-      ]),
+      E(
+        'div',
+        { class: 'fkp_updates-page__component__actions-main' },
+        primaryButtons,
+      ),
     );
   }
 

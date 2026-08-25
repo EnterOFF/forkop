@@ -30,9 +30,6 @@ function createUiState(
       },
     },
     capabilities: {
-      zapret_installed: 1,
-      zapret2_installed: 0,
-      byedpi_installed: 1,
       server_inbounds_enabled_count: 0,
       ...capabilities,
     },
@@ -67,7 +64,7 @@ describe('applyUiStateToStore', () => {
             success: true,
             running: true,
             job_id: 'component-1',
-            component: 'zapret',
+            component: 'sing_box',
             action: 'install',
             message: 'Install is running',
             current_version: '',
@@ -91,15 +88,12 @@ describe('applyUiStateToStore', () => {
       },
     });
     expect(state.diagnosticsSystemInfo).toMatchObject({
-      providerInfoLoaded: true,
-      zapret_installed: 1,
-      zapret2_installed: 0,
-      byedpi_installed: 1,
+      capabilitiesLoaded: true,
       server_inbounds_enabled_count: 0,
     });
     expect(state.diagnosticsActions.start.loading).toBe(false);
     expect(state.sectionsWidget.subscriptionUpdatingSections).toEqual({});
-    expect(state.updatesActions.zapretInstall.loading).toBe(true);
+    expect(state.updatesActions.singBoxInstall.loading).toBe(true);
   });
 
   it('clears finished persisted action flags while preserving local enable actions', () => {
@@ -115,7 +109,7 @@ describe('applyUiStateToStore', () => {
       },
       updatesActions: {
         ...store.get().updatesActions,
-        zapretInstall: { loading: true },
+        singBoxInstall: { loading: true },
       },
     });
 
@@ -126,17 +120,17 @@ describe('applyUiStateToStore', () => {
     expect(state.diagnosticsActions.start.loading).toBe(false);
     expect(state.diagnosticsActions.enable.loading).toBe(true);
     expect(state.sectionsWidget.subscriptionUpdatingSections).toEqual({});
-    expect(state.updatesActions.zapretInstall.loading).toBe(false);
+    expect(state.updatesActions.singBoxInstall.loading).toBe(false);
   });
 
   it('keeps locally started actions loading until their owner clears them', () => {
-    setLocalComponentAction('zapretInstall', true);
+    setLocalComponentAction('singBoxInstall', true);
     setLocalSubscriptionAction('proxy', true);
     setLocalServiceAction('restart', true);
 
     applyUiStateToStore(createUiState());
 
-    expect(store.get().updatesActions.zapretInstall.loading).toBe(true);
+    expect(store.get().updatesActions.singBoxInstall.loading).toBe(true);
     expect(store.get().sectionsWidget.subscriptionUpdatingSections).toEqual({
       proxy: true,
     });
@@ -145,7 +139,7 @@ describe('applyUiStateToStore', () => {
     clearLocalActionOverlay();
     applyUiStateToStore(createUiState());
 
-    expect(store.get().updatesActions.zapretInstall.loading).toBe(false);
+    expect(store.get().updatesActions.singBoxInstall.loading).toBe(false);
     expect(store.get().sectionsWidget.subscriptionUpdatingSections).toEqual({});
     expect(store.get().diagnosticsActions.restart.loading).toBe(false);
   });
@@ -223,12 +217,9 @@ describe('applyUiStateToStore', () => {
     store.set({
       diagnosticsSystemInfo: {
         ...store.get().diagnosticsSystemInfo,
-        providerInfoLoaded: true,
+        capabilitiesLoaded: true,
         sing_box_version: '1.13.14-extended-2.5.2-forkop.1',
         sing_box_compressed: 1,
-        zapret_installed: 0,
-        zapret2_installed: 0,
-        byedpi_installed: 1,
         server_inbounds_enabled_count: 0,
       },
     });
@@ -251,21 +242,15 @@ describe('applyUiStateToStore', () => {
           ],
         },
         {
-          zapret_installed: 1,
-          zapret2_installed: 1,
-          byedpi_installed: 0,
           server_inbounds_enabled_count: 2,
         },
       ),
     );
 
     expect(store.get().diagnosticsSystemInfo).toMatchObject({
-      providerInfoLoaded: true,
+      capabilitiesLoaded: true,
       sing_box_version: '1.13.14-extended-2.5.2-forkop.1',
       sing_box_compressed: 1,
-      zapret_installed: 1,
-      zapret2_installed: 1,
-      byedpi_installed: 0,
       server_inbounds_enabled_count: 2,
     });
     expect(store.get().updatesActions.singBoxInstall.loading).toBe(true);

@@ -23,20 +23,12 @@ function emit_reload_plan(previous, current, context) {
         service_triggers: current.service_trigger != previous.service_trigger,
         sing_box: current.sing_box != previous.sing_box,
         nft: current.nft != previous.nft,
-        zapret_queue: current.zapret_queue != previous.zapret_queue,
-        zapret_runtime: current.zapret_runtime != previous.zapret_runtime,
-        zapret2_queue: current.zapret2_queue != previous.zapret2_queue,
-        zapret2_runtime: current.zapret2_runtime != previous.zapret2_runtime,
-        byedpi_runtime: current.byedpi_runtime != previous.byedpi_runtime,
         cron: current.cron != previous.cron
     };
 
     let needs = {
         sing_box_reload: false,
         nft_rebuild: false,
-        zapret_restart: false,
-        zapret2_restart: false,
-        byedpi_restart: false,
         cron_refresh: false
     };
 
@@ -45,27 +37,6 @@ function emit_reload_plan(previous, current, context) {
 
     if (changed.nft)
         needs.nft_rebuild = true;
-
-    if (changed.zapret_queue) {
-        needs.zapret_restart = true;
-        needs.nft_rebuild = true;
-        needs.sing_box_reload = true;
-    }
-
-    if (changed.zapret_runtime)
-        needs.zapret_restart = true;
-
-    if (changed.zapret2_queue) {
-        needs.zapret2_restart = true;
-        needs.nft_rebuild = true;
-        needs.sing_box_reload = true;
-    }
-
-    if (changed.zapret2_runtime)
-        needs.zapret2_restart = true;
-
-    if (changed.byedpi_runtime)
-        needs.byedpi_restart = true;
 
     if (changed.cron)
         needs.cron_refresh = true;
@@ -77,35 +48,21 @@ function emit_reload_plan(previous, current, context) {
 
     if (context.force_runtime_reload &&
         !needs.sing_box_reload &&
-        !needs.nft_rebuild &&
-        !needs.zapret_restart &&
-        !needs.zapret2_restart &&
-        !needs.byedpi_restart)
+        !needs.nft_rebuild)
         needs.sing_box_reload = true;
 
     let has_work =
         needs.sing_box_reload ||
         needs.nft_rebuild ||
-        needs.zapret_restart ||
-        needs.zapret2_restart ||
-        needs.byedpi_restart ||
         needs.cron_refresh;
 
     emit_bool("changed_service_triggers", changed.service_triggers);
     emit_bool("changed_sing_box", changed.sing_box);
     emit_bool("changed_nft", changed.nft);
-    emit_bool("changed_zapret_queue", changed.zapret_queue);
-    emit_bool("changed_zapret_runtime", changed.zapret_runtime);
-    emit_bool("changed_zapret2_queue", changed.zapret2_queue);
-    emit_bool("changed_zapret2_runtime", changed.zapret2_runtime);
-    emit_bool("changed_byedpi_runtime", changed.byedpi_runtime);
     emit_bool("changed_cron", changed.cron);
 
     emit_bool("needs_sing_box_reload", needs.sing_box_reload);
     emit_bool("needs_nft_rebuild", needs.nft_rebuild);
-    emit_bool("needs_zapret_restart", needs.zapret_restart);
-    emit_bool("needs_zapret2_restart", needs.zapret2_restart);
-    emit_bool("needs_byedpi_restart", needs.byedpi_restart);
     emit_bool("needs_cron_refresh", needs.cron_refresh);
     emit_bool("has_work", has_work);
 }
@@ -142,11 +99,6 @@ function plan_state_from_file(path) {
         service_trigger: as_string(state.service_trigger_signature || state.restart_signature),
         sing_box: as_string(state.sing_box_signature),
         nft: as_string(state.nft_signature),
-        zapret_queue: as_string(state.zapret_queue_signature),
-        zapret_runtime: as_string(state.zapret_runtime_signature),
-        zapret2_queue: as_string(state.zapret2_queue_signature),
-        zapret2_runtime: as_string(state.zapret2_runtime_signature),
-        byedpi_runtime: as_string(state.byedpi_runtime_signature),
         cron: as_string(state.cron_signature)
     };
 }

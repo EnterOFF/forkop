@@ -66,8 +66,7 @@ function config(settings, runtime) {
 
 function target(section, outbound_tag_name) {
     let action = option(section, "action", "");
-    if (connections.is_connections_action(action) ||
-        action == "byedpi" || action == "zapret" || action == "zapret2")
+    if (connections.is_connections_action(action))
         return { action: "route", outbound: outbound_tag_name };
     if (action == "bypass")
         return { action: "route", outbound: runtime_constants.DIRECT_OUTBOUND_TAG };
@@ -76,45 +75,7 @@ function target(section, outbound_tag_name) {
     return { unsupported: "unsupported action " + action };
 }
 
-function has_resolve_matchers(rule) {
-    if (rule.type == "logical") {
-        for (let nested_rule in rule.rules || [])
-            if (has_resolve_matchers(nested_rule))
-                return true;
-        return false;
-    }
-    return rule.domain != null || rule.domain_suffix != null || rule.domain_keyword != null ||
-        rule.domain_regex != null || rule.rule_set != null;
-}
-
-// ByeDPI is a local SOCKS5 proxy, so it would look an unresolved destination up
-// through dnsmasq, receive the FakeIP answer meant for the client and dial into
-// 198.18.0.0/15. sing-box has to hand it a real address instead.
-function resolve_rule_for_section(section, route_rule) {
-    if (option(section, "action", "") != "byedpi")
-        return null;
-
-    if (!has_resolve_matchers(route_rule)) {
-        return {
-            warning: "ByeDPI section '" + section[".name"] + "' has no domain or rule-set matchers, so no resolve rule is generated"
-        };
-    }
-
-    let resolve_rule = {};
-    for (let key in [ "type", "mode", "rules", "invert", "inbound", "source_ip_cidr", "domain", "domain_suffix", "domain_keyword", "domain_regex", "rule_set", "port", "port_range" ]) {
-        if (route_rule[key] != null)
-            resolve_rule[key] = route_rule[key];
-    }
-    // Without an explicit server the lookup follows dns.rules, so static records and
-    // per-section DNS servers are honoured. FakeIP servers are skipped by sing-box for
-    // this kind of lookup, and unmatched domains still fall back to the main DNS server.
-    resolve_rule.action = "resolve";
-
-    return { rule: resolve_rule };
-}
-
 return {
     config,
-    target,
-    resolve_rule_for_section
+    target
 };

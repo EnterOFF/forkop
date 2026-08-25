@@ -65,6 +65,12 @@ const retiredMissingCurrent = new Set([
   "log_stderr",
   "remote_domain_lists",
   "remote_subnet_lists",
+  // podkop names the per-section user domain list with these three. Forkop never
+  // routed by them: the only reader was the Zapret runtime signature, which went
+  // with the DPI actions, so nothing in the current schema looks at them.
+  "user_domain_list_type",
+  "user_domains",
+  "user_domains_text",
   "urltest_exclude_countries",
   "urltest_hide_filtered_outbounds",
   "urltest_include_countries",
@@ -75,7 +81,7 @@ if (missing.length) {
   fail(`stable config fields missing in current contract: ${missing.map((field) => field.name).join(", ")}`);
 }
 
-for (const name of ["dns_type", "subscription_urls", "selector_proxy_links", "action", "protocol", "transport", "security", "user_domains", "user_domains_text", "user_domain_list_type", "rule_set", "rule_set_with_subnets", "fully_routed_ips", "server_uuid", "tailscale_auth_key"]) {
+for (const name of ["dns_type", "subscription_urls", "selector_proxy_links", "action", "protocol", "transport", "security", "rule_set", "rule_set_with_subnets", "fully_routed_ips", "server_uuid", "tailscale_auth_key"]) {
   const field = matrix.fields.find((item) => item.name === name);
   if (!field) fail(`expected config field is absent from matrix: ${name}`);
   if (field.status !== "supported" && field.status !== "migrated") {
@@ -83,7 +89,7 @@ for (const name of ["dns_type", "subscription_urls", "selector_proxy_links", "ac
   }
 }
 
-if ((matrix.summary.supported || 0) < 140) {
+if ((matrix.summary.supported || 0) < 135) {
   fail(`unexpectedly small supported config surface: ${matrix.summary.supported || 0}`);
 }
 
@@ -118,7 +124,7 @@ function assertCurrentKeepsStableValues(name, required = [], retired = []) {
   }
 }
 
-assertCurrentKeepsStableValues("action", ["connection", "bypass", "block", "zapret", "zapret2", "byedpi", "dns"], ["direct", "proxy", "vpn", "outbound"]);
+assertCurrentKeepsStableValues("action", ["connection", "bypass", "block", "dns"], ["direct", "proxy", "vpn", "outbound", "zapret", "zapret2", "byedpi"]);
 // The SOCKS inbound became the mixed inbound, which answers SOCKS5 and HTTP on one
 // port with the same accounts; migration rewrites the stored protocol.
 assertCurrentKeepsStableValues("protocol", ["tailscale", "vless", "vmess", "trojan", "shadowsocks", "hysteria2", "mixed", "mtproto", "naive", "ssh", "mieru", "anytls", "tuic", "json_inbound"], ["socks"]);

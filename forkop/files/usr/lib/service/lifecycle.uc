@@ -40,7 +40,7 @@ const START_LOCK_TIMEOUT = int(getenv("FORKOP_START_LOCK_TIMEOUT") || "360");
 const SING_BOX_PLANNED_STOP_FILE = getenv("FORKOP_SING_BOX_PLANNED_STOP_FILE") || RUNTIME_STATE_DIR + "/sing-box-watch.planned-stop";
 
 const COMPONENT_UPDATE_CHECK_CRON_MARKER = getenv("FORKOP_COMPONENT_UPDATE_CHECK_CRON_MARKER") || "# forkop-component-update-check";
-const RELOAD_STATE_FORMAT = int(getenv("FORKOP_RELOAD_STATE_FORMAT") || "2");
+const RELOAD_STATE_FORMAT = int(getenv("FORKOP_RELOAD_STATE_FORMAT") || "3");
 // Both lifecycle verifications are the same wait with a different window. A
 // start watches a fresh sing-box long enough to see an early crash; a reload
 // leaves the process in place and only has to outlast the gap between the HUP
@@ -61,10 +61,6 @@ const NFT_FAKEIP_MARK = constant_value("NFT_FAKEIP_MARK", "0x04000000");
 const SB_SERVICE_MIXED_INBOUND_ADDRESS = constant_value("SB_SERVICE_MIXED_INBOUND_ADDRESS", "127.0.0.1");
 const SB_SERVICE_MIXED_INBOUND_PORT = constant_value("SB_SERVICE_MIXED_INBOUND_PORT", "4534");
 
-const ZAPRET_PROVIDER_NFQWS_BIN = constant_value("ZAPRET_PROVIDER_NFQWS_BIN", "/opt/zapret/nfq/nfqws");
-const ZAPRET2_PROVIDER_NFQWS2_BIN = constant_value("ZAPRET2_PROVIDER_NFQWS2_BIN", "/opt/zapret2/nfq2/nfqws2");
-const BYEDPI_BIN = constant_value("BYEDPI_BIN", "/usr/bin/ciadpi");
-
 const VALIDATOR_UC = LIB_DIR + "/config/validator.uc";
 const SERVER_UC = LIB_DIR + "/server/service.uc";
 const NFT_UC = LIB_DIR + "/nft/apply.uc";
@@ -76,9 +72,6 @@ const STATE_UC = LIB_DIR + "/service/state.uc";
 const RELOAD_UC = LIB_DIR + "/service/reload.uc";
 const UI_UC = LIB_DIR + "/service/ui.uc";
 const DIAGNOSTICS_UC = LIB_DIR + "/diagnostics/runtime.uc";
-const ZAPRET_UC = LIB_DIR + "/providers/zapret/runtime.uc";
-const ZAPRET2_UC = LIB_DIR + "/providers/zapret2/runtime.uc";
-const BYEDPI_UC = LIB_DIR + "/providers/byedpi/runtime.uc";
 const PACKAGES_UC = LIB_DIR + "/core/packages.uc";
 
 let startup_config_fingerprint = "";
@@ -241,10 +234,7 @@ function lifecycle_env() {
         FORKOP_RELOAD_LOCK_DIR: RELOAD_LOCK_DIR,
         FORKOP_SING_BOX_PLANNED_STOP_FILE: SING_BOX_PLANNED_STOP_FILE,
         SB_SERVICE_MIXED_INBOUND_ADDRESS: SB_SERVICE_MIXED_INBOUND_ADDRESS,
-        SB_SERVICE_MIXED_INBOUND_PORT: SB_SERVICE_MIXED_INBOUND_PORT,
-        ZAPRET_PROVIDER_NFQWS_BIN: ZAPRET_PROVIDER_NFQWS_BIN,
-        ZAPRET2_PROVIDER_NFQWS2_BIN: ZAPRET2_PROVIDER_NFQWS2_BIN,
-        BYEDPI_BIN: BYEDPI_BIN
+        SB_SERVICE_MIXED_INBOUND_PORT: SB_SERVICE_MIXED_INBOUND_PORT
     };
 }
 
@@ -561,8 +551,6 @@ function start_main() {
     if (status != 0)
         return status;
 
-    module_success(BYEDPI_UC, [ "start-runtime" ]);
-
     if (!command_success_from_args([ SING_BOX_INIT, "start" ])) {
         log_message("Failed to start sing-box. Aborted.", "fatal");
         return 1;
@@ -584,9 +572,6 @@ function start_main() {
     status = module_status(SINGBOX_WATCH_UC, [ "start-worker" ]);
     if (status != 0)
         return status;
-
-    module_success(ZAPRET_UC, [ "start-runtime" ]);
-    module_success(ZAPRET2_UC, [ "start-runtime" ]);
 
     status = module_status(RULESET_SYNC_UC, [ "start-worker" ]);
     if (status != 0)
@@ -630,10 +615,6 @@ function stop_main() {
     module_success(SINGBOX_WATCH_UC, [ "stop-worker" ]);
     module_success(RULESET_SYNC_UC, [ "stop-worker" ]);
     remove_cron_jobs();
-
-    module_success(ZAPRET_UC, [ "stop-runtime" ]);
-    module_success(ZAPRET2_UC, [ "stop-runtime" ]);
-    module_success(BYEDPI_UC, [ "stop-runtime" ]);
 
     if (command_success_from_args([ "nft", "-t", "list", "table", "inet", NFT_TABLE_NAME ]))
         command_success_from_args([ "nft", "delete", "table", "inet", NFT_TABLE_NAME ]);
@@ -829,17 +810,9 @@ function parse_reload_plan(output) {
         changed_service_triggers: 0,
         changed_sing_box: 0,
         changed_nft: 0,
-        changed_zapret_queue: 0,
-        changed_zapret_runtime: 0,
-        changed_zapret2_queue: 0,
-        changed_zapret2_runtime: 0,
-        changed_byedpi_runtime: 0,
         changed_cron: 0,
         needs_sing_box_reload: 0,
         needs_nft_rebuild: 0,
-        needs_zapret_restart: 0,
-        needs_zapret2_restart: 0,
-        needs_byedpi_restart: 0,
         needs_cron_refresh: 0,
         has_work: 0
     };
@@ -868,13 +841,6 @@ function parse_reload_plan(output) {
 // touched only named the internal shape of the plan.
 function apply_reload_plan(plan, force_runtime_reload) {
     let status;
-
-    if (plan.needs_zapret_restart == 1)
-        module_success(ZAPRET_UC, [ "stop-runtime" ]);
-    if (plan.needs_zapret2_restart == 1)
-        module_success(ZAPRET2_UC, [ "stop-runtime" ]);
-    if (plan.needs_byedpi_restart == 1)
-        module_success(BYEDPI_UC, [ "stop-runtime" ]);
 
     let restart_ruleset_sync = plan.needs_nft_rebuild == 1;
     if (restart_ruleset_sync)
@@ -932,13 +898,6 @@ function apply_reload_plan(plan, force_runtime_reload) {
         if (status != 0)
             return abort_reload(status, true, "Failed to start the rule set sync worker");
     }
-
-    if (plan.needs_zapret_restart == 1)
-        module_success(ZAPRET_UC, [ "start-runtime" ]);
-    if (plan.needs_zapret2_restart == 1)
-        module_success(ZAPRET2_UC, [ "start-runtime" ]);
-    if (plan.needs_byedpi_restart == 1)
-        module_success(BYEDPI_UC, [ "start-runtime" ]);
 
     if (plan.needs_cron_refresh == 1) {
         status = refresh_cron();

@@ -352,11 +352,6 @@ function pkg_list_update_command() {
     return is_apk() ? "apk update </dev/null" : "opkg update </dev/null";
 }
 
-function pkg_install_name_command(package_name) {
-    return is_apk() ? command_from_args([ "apk", "add", package_name ]) + " </dev/null" :
-        command_from_args([ "opkg", "install", package_name ]) + " </dev/null";
-}
-
 function pkg_install_files_command(files) {
     let args = is_apk() ?
         [ "apk", "add", "--allow-untrusted" ] :
@@ -539,13 +534,6 @@ function fetch_github_release_json(owner, repo) {
     return response;
 }
 
-function fetch_github_releases_json(owner, repo, per_page) {
-    let response = http_get("https://api.github.com/repos/" + as_string(owner) + "/" + as_string(repo) + "/releases?per_page=" + as_string(per_page || "30"));
-    if (response == "" || !helper_success_input(response, "github-response-ok", []))
-        return "";
-    return response;
-}
-
 function latest_forkop_release_json() {
     let parts = split(FORKOP_RELEASE_REPO, "/");
     if (length(parts) != 2 || as_string(parts[0]) == "" || as_string(parts[1]) == "")
@@ -571,24 +559,6 @@ function write_forkop_latest_version_cache(value, timestamp) {
     if (as_string(value) == "")
         return;
     write_file(FORKOP_LATEST_VERSION_FILE, as_string(value) + "\n" + as_string(timestamp) + "\n");
-}
-
-function retry_resolve(description, fn) {
-    for (let attempt = 1; attempt <= 3; attempt++) {
-        if (fn())
-            return true;
-        updates_log(as_string(description) + " failed (" + attempt + "/3)", "warn");
-        command_success_from_args([ "sleep", "2" ]);
-    }
-    return false;
-}
-
-function ensure_package_tool(tool_name, package_name, component, action) {
-    if (command_exists(tool_name))
-        return true;
-    if (!run_logged("Updating package lists before installing " + as_string(package_name), pkg_list_update_command()))
-        return false;
-    return run_logged("Installing bootstrap package " + as_string(package_name), pkg_install_name_command(package_name));
 }
 
 // System information is worked out on demand now, so there is nothing to drop
@@ -709,252 +679,8 @@ function resolve_arch_candidates() {
     };
 }
 
-function select_inner_package_path(bundle_file, component, arch, ext) {
-    return trim(helper_output_input(command_output_from_args([ "unzip", "-l", bundle_file ]), "updates-zip-inner-package-path", [ component, arch, ext ]));
-}
-
-function extract_arch_package_version(package_name, package_arch) {
-    return trim(helper_output("updates-arch-package-version", [ package_name, package_arch ]));
-}
-
-function extract_zapret_bundle_version(bundle_name) {
-    return trim(helper_output("updates-zapret-bundle-version", [ bundle_name ]));
-}
-
-function extract_zapret2_bundle_version(bundle_name) {
-    return trim(helper_output("updates-zapret2-bundle-version", [ bundle_name ]));
-}
-
-function normalize_zapret_version(value) {
-    return trim(helper_output("updates-normalize-zapret-version", [ value ]));
-}
-
 function normalize_sing_box_version(value) {
     return trim(helper_output("updates-normalize-sing-box-version", [ value ]));
-}
-
-function resolve_zapret_release(arch) {
-    let release_json = fetch_github_release_json("remittor", "zapret-openwrt");
-    if (release_json == "")
-        return null;
-    let resolved = trim(helper_output_input(release_json, "release-select-arch-suffix-asset", [ "zip", arch.candidates ]));
-    let fields = split(resolved, "\t");
-    if (length(fields) < 4)
-        return null;
-    let version = extract_zapret_bundle_version(fields[1]);
-    if (version == "")
-        version = trim(helper_output("string-remove-suffix", [ fields[1], ".zip" ]));
-    return {
-        arch: fields[0],
-        bundle_name: fields[1],
-        bundle_url: fields[2],
-        release_url: fields[3],
-        version
-    };
-}
-
-function resolve_zapret2_release(arch) {
-    let releases_json = fetch_github_releases_json("remittor", "zapret-openwrt", "30");
-    if (releases_json == "")
-        return null;
-    let resolved = trim(helper_output_input(releases_json, "named-release-select-asset", [ "zapret2 ", "zapret2", "zip", arch.candidates ]));
-    let fields = split(resolved, "\t");
-    if (length(fields) < 4)
-        return null;
-    let version = extract_zapret2_bundle_version(fields[1]);
-    if (version == "")
-        version = trim(helper_output("string-remove-suffix", [ fields[1], ".zip" ]));
-    return {
-        arch: fields[0],
-        bundle_name: fields[1],
-        bundle_url: fields[2],
-        release_url: fields[3],
-        version
-    };
-}
-
-function download_and_extract_zip_package(release, component) {
-    let bundle_file = tmp_dir + "/" + release.bundle_name;
-    if (!download_with_retry(release.bundle_url, bundle_file, release.bundle_name))
-        return null;
-
-    let inner_package_path = is_apk() ?
-        select_inner_package_path(bundle_file, component, "", "apk") :
-        select_inner_package_path(bundle_file, component, release.arch, "ipk");
-    if (inner_package_path == "")
-        return null;
-
-    let package_name = path_basename(inner_package_path);
-    let package_file = tmp_dir + "/" + package_name;
-    if (!command_success(command_from_args([ "unzip", "-p", bundle_file, inner_package_path ]) + " >" + shell_quote(package_file)) ||
-        !file_nonempty(package_file))
-        return null;
-
-    let version = as_string(release.version || "");
-    if (version == "")
-        version = component == "zapret2" ? extract_zapret2_bundle_version(release.bundle_name) : extract_zapret_bundle_version(release.bundle_name);
-    if (version == "")
-        version = extract_arch_package_version(package_name, release.arch);
-
-    return {
-        name: package_name,
-        file: package_file,
-        version
-    };
-}
-
-function resolve_byedpi_release(arch) {
-    let asset_ext = is_apk() ? "apk" : "ipk";
-    let release_series = trim(helper_output("openwrt-release-series", [ "/etc/openwrt_release" ]));
-    let releases_json = fetch_github_releases_json("DPITrickster", "ByeDPI-OpenWrt", "30");
-    if (releases_json == "")
-        return null;
-    let resolved = trim(helper_output_input(releases_json, "byedpi-select-asset", [ release_series, asset_ext, arch.candidates ]));
-    let fields = split(resolved, "\t");
-    if (length(fields) < 4)
-        return null;
-    return {
-        arch: fields[0],
-        package_name: fields[1],
-        package_url: fields[2],
-        release_url: fields[3],
-        version: extract_arch_package_version(fields[1], fields[0])
-    };
-}
-
-function download_byedpi_package(release) {
-    let package_file = tmp_dir + "/" + release.package_name;
-    if (!download_with_retry(release.package_url, package_file, release.package_name) || !file_nonempty(package_file))
-        return null;
-    let version = as_string(release.version || "");
-    if (version == "")
-        version = extract_arch_package_version(release.package_name, release.arch);
-    return {
-        name: release.package_name,
-        file: package_file,
-        version
-    };
-}
-
-function disable_standalone_service(name) {
-    let init = "/etc/init.d/" + as_string(name);
-    if (!file_exists(init))
-        return;
-    run_logged("Stopping standalone " + as_string(name) + " service", command_from_args([ init, "stop" ]));
-    run_logged("Disabling standalone " + as_string(name) + " autostart", command_from_args([ init, "disable" ]));
-}
-
-function provider_installed(runtime_module) {
-    return module_success([ runtime_module, "installed" ]);
-}
-
-function provider_package_version(runtime_module) {
-    return trim(module_output([ runtime_module, "package-version" ]));
-}
-
-function install_zapret_like(component, action, runtime_module, resolve_fn, label) {
-    init_tmp_dir() || action_fail(component, action, "Failed to create temporary directory");
-    let arch = resolve_arch_candidates();
-    if (arch == null)
-        action_fail(component, action, "Failed to detect package architecture");
-    let release = null;
-    retry_resolve("Resolving " + label + " package", function() {
-        release = resolve_fn(arch);
-        return release != null;
-    });
-    if (release == null)
-        action_fail(component, action, "Failed to resolve " + label + " package for this router architecture");
-
-    let installed = provider_installed(runtime_module);
-    let current_version = provider_package_version(runtime_module);
-    if (action == "check_update") {
-        if (!installed)
-            action_fail(component, action, label + " is not installed", current_version, release.version, "", release.release_url || "");
-        check_success_compared(component, current_version, release.version, normalize_zapret_version(current_version), normalize_zapret_version(release.version), release.release_url || "");
-    }
-
-    if (!ensure_package_tool("unzip", "unzip", component, action))
-        action_fail(component, action, "Failed to install unzip");
-    let pkg = download_and_extract_zip_package(release, component);
-    if (pkg == null)
-        action_fail(component, action, "Failed to download " + label + " package", current_version, release.version, "", release.release_url || "");
-
-    if (!run_logged("Installing " + label + " package " + pkg.name, pkg_install_files_command([ pkg.file ])))
-        action_fail(component, action, "Failed to install " + label + " package", current_version, pkg.version, "", release.release_url || "");
-
-    disable_standalone_service(component);
-    restart_forkop_after_successful_change();
-    clear_version_caches();
-    current_version = provider_package_version(runtime_module);
-    if (current_version == "")
-        current_version = "unknown";
-    action_success(component, action, label + " package has been installed", current_version, pkg.version, 1, "latest", release.release_url || "");
-}
-
-function install_zapret(action) {
-    install_zapret_like("zapret", action, LIB_DIR + "/providers/zapret/runtime.uc", resolve_zapret_release, "zapret");
-}
-
-function install_zapret2(action) {
-    install_zapret_like("zapret2", action, LIB_DIR + "/providers/zapret2/runtime.uc", resolve_zapret2_release, "zapret2");
-}
-
-function install_byedpi(action) {
-    init_tmp_dir() || action_fail("byedpi", action, "Failed to create temporary directory");
-    let arch = resolve_arch_candidates();
-    if (arch == null)
-        action_fail("byedpi", action, "Failed to detect package architecture");
-    let release = null;
-    retry_resolve("Resolving ByeDPI package", function() {
-        release = resolve_byedpi_release(arch);
-        return release != null;
-    });
-    if (release == null)
-        action_fail("byedpi", action, "Failed to resolve ByeDPI package for this router architecture");
-
-    let runtime_module = LIB_DIR + "/providers/byedpi/runtime.uc";
-    let installed = provider_installed(runtime_module);
-    let current_version = provider_package_version(runtime_module);
-    if (action == "check_update") {
-        if (!installed)
-            action_fail("byedpi", action, "ByeDPI is not installed", current_version, release.version);
-        check_success("byedpi", current_version, release.version, release.release_url || "");
-    }
-
-    let pkg = download_byedpi_package(release);
-    if (pkg == null)
-        action_fail("byedpi", action, "Failed to download ByeDPI package");
-    if (!run_logged("Installing ByeDPI package " + pkg.name, pkg_install_files_command([ pkg.file ])))
-        action_fail("byedpi", action, "Failed to install ByeDPI package", current_version, pkg.version);
-
-    disable_standalone_service("byedpi");
-    restart_forkop_after_successful_change();
-    clear_version_caches();
-    current_version = provider_package_version(runtime_module);
-    if (current_version == "")
-        current_version = "unknown";
-    action_success("byedpi", action, "ByeDPI package has been installed", current_version, pkg.version, 1, "latest", release.release_url || "");
-}
-
-function remove_optional_component(component, package_name, label, runtime_module) {
-    if (!pkg_is_installed(package_name)) {
-        if (provider_installed(runtime_module))
-            action_fail(component, "remove", label + " exists outside the package manager and was not removed automatically");
-        action_success(component, "remove", label + " is already removed", "", "", 0);
-    }
-
-    let current_version = provider_package_version(runtime_module);
-    let command = is_apk() ?
-        command_from_args([ "apk", "del", package_name ]) + " </dev/null" :
-        command_from_args([ "opkg", "remove", "--force-depends", package_name ]) + " </dev/null";
-    if (!run_logged("Removing " + label + " package", command))
-        action_fail(component, "remove", "Failed to remove " + label + " package", current_version);
-
-    clear_version_caches();
-    if (provider_installed(runtime_module))
-        action_fail(component, "remove", label + " package was removed, but provider files are still present", current_version);
-    restart_forkop_after_successful_change();
-    action_success(component, "remove", label + " package has been removed", current_version, "", 1);
 }
 
 function sing_box_forkop_package_version(package_name) {
@@ -1377,18 +1103,6 @@ function component_action(component, action) {
         install_forkop();
     else if (component == "sing_box" && (action == "check_update" || action == "install"))
         dispatch_sing_box(action);
-    else if (component == "zapret" && (action == "check_update" || action == "install"))
-        install_zapret(action);
-    else if (component == "zapret" && action == "remove")
-        remove_optional_component("zapret", "zapret", "zapret", LIB_DIR + "/providers/zapret/runtime.uc");
-    else if (component == "zapret2" && (action == "check_update" || action == "install"))
-        install_zapret2(action);
-    else if (component == "zapret2" && action == "remove")
-        remove_optional_component("zapret2", "zapret2", "zapret2", LIB_DIR + "/providers/zapret2/runtime.uc");
-    else if (component == "byedpi" && (action == "check_update" || action == "install"))
-        install_byedpi(action);
-    else if (component == "byedpi" && action == "remove")
-        remove_optional_component("byedpi", "byedpi", "ByeDPI", LIB_DIR + "/providers/byedpi/runtime.uc");
     else
         action_fail(component != "" ? component : "unknown", action != "" ? action : "unknown", "Unknown component action");
 }

@@ -19,15 +19,6 @@ function getEmptyUpdatesActions(): StoreType['updatesActions'] {
     forkopInstall: { loading: false },
     singBoxCheck: { loading: false },
     singBoxInstall: { loading: false },
-    zapretCheck: { loading: false },
-    zapretInstall: { loading: false },
-    zapretRemove: { loading: false },
-    zapret2Check: { loading: false },
-    zapret2Install: { loading: false },
-    zapret2Remove: { loading: false },
-    byedpiCheck: { loading: false },
-    byedpiInstall: { loading: false },
-    byedpiRemove: { loading: false },
   };
 }
 
@@ -44,10 +35,7 @@ function applyServiceState(uiState: Forkop.UiState) {
   const currentSystemInfo = store.get().diagnosticsSystemInfo;
   const nextSystemInfo = {
     ...currentSystemInfo,
-    providerInfoLoaded: true,
-    zapret_installed: uiState.capabilities.zapret_installed,
-    zapret2_installed: uiState.capabilities.zapret2_installed,
-    byedpi_installed: uiState.capabilities.byedpi_installed,
+    capabilitiesLoaded: true,
     server_inbounds_enabled_count:
       uiState.capabilities.server_inbounds_enabled_count,
   };

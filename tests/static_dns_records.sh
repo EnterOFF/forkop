@@ -43,7 +43,7 @@ cat >"$WORK_DIR/records.json" <<'JSON'
     "static_hosts_text": "# pinned by hand\n130.255.77.28 ntc.party www.ntc.party\n2a03:4000::1 NTC.party\n\n198.51.100.7 example.com # trailing note\n"
   },
   "section": [
-    { ".name": "dpi", ".type": "section", "enabled": "1", "action": "byedpi", "domain_suffix": ["ntc.party"] },
+    { ".name": "pinned", ".type": "section", "enabled": "1", "action": "bypass", "domain_suffix": ["ntc.party"] },
     { ".name": "direct_rule", ".type": "section", "enabled": "1", "action": "bypass", "domain_suffix": ["example.org"] }
   ]
 }
@@ -56,7 +56,7 @@ cat >"$WORK_DIR/empty.json" <<'JSON'
     "dns_server": ["77.88.8.8"], "bootstrap_dns_server": ["77.88.8.8"]
   },
   "section": [
-    { ".name": "dpi", ".type": "section", "enabled": "1", "action": "byedpi", "domain_suffix": ["ntc.party"] }
+    { ".name": "pinned", ".type": "section", "enabled": "1", "action": "bypass", "domain_suffix": ["ntc.party"] }
   ]
 }
 JSON
@@ -121,7 +121,9 @@ assert(records.dns.rules[hosts_dns_index].query_type == null,
 let hosts_route_index = index_of(records.route.rules, function(rule) {
     return rule.action == "resolve" && rule.server == "hosts-server";
 });
-let section_route_index = index_of(records.route.rules, function(rule) { return rule.outbound == "dpi"; });
+let section_route_index = index_of(records.route.rules, function(rule) {
+    return rule.action == "route" && sprintf("%J", rule.domain_suffix) == sprintf("%J", ["ntc.party"]);
+});
 assert(hosts_route_index >= 0, "static records must pin the address sing-box dials");
 assert(hosts_route_index < section_route_index, "static records must resolve before a section routes the connection");
 

@@ -65,11 +65,9 @@ export namespace Forkop {
     CHECK_DNS_AVAILABLE = 'check_dns_available',
     CHECK_FAKEIP = 'check_fakeip',
     CHECK_NFT_RULES = 'check_nft_rules',
-    CHECK_PROVIDER_RUNTIME = 'check_provider_runtime',
     CHECK_INBOUNDS_CONFIG = 'check_inbounds_config',
     CHECK_SING_BOX = 'check_sing_box',
     CHECK_INBOUNDS = 'check_inbounds',
-    GET_PROVIDER_STATUS = 'get_provider_status',
     CLASH_HTTP = 'clash_http',
     CLASH_SUMMARY = 'clash_summary',
     ENABLE = 'enable',
@@ -203,10 +201,7 @@ export namespace Forkop {
     | 'outbound'
     | 'vpn'
     | 'bypass'
-    | 'block'
-    | 'zapret'
-    | 'zapret2'
-    | 'byedpi';
+    | 'block';
   type ProxyConfigType =
     | 'urltest'
     | 'selector'
@@ -240,10 +235,6 @@ export namespace Forkop {
     ports?: string[];
     update_interval?: string;
     proxy_string?: string;
-    nfqws_opt?: string;
-    nfqws2_opt?: string;
-    byedpi_cmd_opts?: string;
-    cmd_opts?: string;
     selector_proxy_links?: string[];
     subscription_urls?: string[];
     interfaces?: string[];
@@ -427,21 +418,12 @@ export namespace Forkop {
     luci_app_version: string;
     sing_box_version: string;
     sing_box_compressed: 0 | 1;
-    zapret_version: string;
-    zapret_installed: 0 | 1;
-    zapret2_version: string;
-    zapret2_installed: 0 | 1;
-    byedpi_version: string;
-    byedpi_installed: 0 | 1;
     openwrt_version: string;
     device_model: string;
     generated_at?: number;
   }
 
   export interface GetUiCapabilities {
-    zapret_installed: 0 | 1;
-    zapret2_installed: 0 | 1;
-    byedpi_installed: 0 | 1;
     server_inbounds_enabled_count: number;
   }
 
@@ -483,11 +465,9 @@ export namespace Forkop {
     };
   }
 
-  export type DpiProvider = 'zapret' | 'zapret2' | 'byedpi';
+  export type ComponentName = 'forkop' | 'sing_box';
 
-  export type ComponentName = 'forkop' | 'sing_box' | DpiProvider;
-
-  export type ComponentAction = 'check_update' | 'install' | 'remove';
+  export type ComponentAction = 'check_update' | 'install';
 
   export interface ComponentActionResult {
     success: boolean;
@@ -514,85 +494,6 @@ export namespace Forkop {
   }
 
   export type ComponentActionStartResult = UiActionStartResult;
-
-  // providers/nfqueue/runtime.uc answers zapret and zapret2 from one payload.
-  export interface GetNfqueueProviderStatus {
-    installed: 0 | 1;
-    package_installed: 0 | 1;
-    provider_available: 0 | 1;
-    provider_path: string;
-    files_available: 0 | 1;
-    ipset_available: 0 | 1;
-    version: string;
-    configured: 0 | 1;
-    enabled_rule_count: number;
-    expected_process_count: number;
-    running_process_count: number;
-    supervisor_process_count: number;
-    standalone_service_enabled: 0 | 1;
-    standalone_service_running: 0 | 1;
-    standalone_config_present: 0 | 1;
-    standalone_conflict: 0 | 1;
-    luci_app_installed: 0 | 1;
-    queue_base: number;
-    queue_range_end: number;
-    queue_overlap: 0 | 1;
-    queue_rules_present: 0 | 1;
-    ready: 0 | 1;
-    conflict: 0 | 1;
-    outbounds_configured: 0 | 1;
-    routes_configured: 0 | 1;
-    status_message: string;
-  }
-
-  // Only zapret can still carry a runtime directory an older revision created.
-  export interface GetZapretStatus extends GetNfqueueProviderStatus {
-    legacy_runtime_present: 0 | 1;
-  }
-
-  export interface ZapretCheckResult {
-    zapret_installed: 0 | 1;
-    zapret_package_installed: 0 | 1;
-    zapret_provider_path: string;
-  }
-
-  export type GetZapret2Status = GetNfqueueProviderStatus;
-
-  export interface Zapret2CheckResult {
-    zapret2_installed: 0 | 1;
-    zapret2_package_installed: 0 | 1;
-    zapret2_provider_path: string;
-  }
-
-  export interface GetByedpiStatus {
-    installed: 0 | 1;
-    package_installed: 0 | 1;
-    provider_available: 0 | 1;
-    provider_path: string;
-    version: string;
-    configured: 0 | 1;
-    enabled_rule_count: number;
-    expected_process_count: number;
-    running_process_count: number;
-    supervisor_process_count: number;
-    restart_count: number;
-    runtime_unstable: 0 | 1;
-    standalone_service_enabled: 0 | 1;
-    standalone_service_running: 0 | 1;
-    listen_address: string;
-    port_base: number;
-    outbounds_configured: 0 | 1;
-    routes_configured: 0 | 1;
-    ready: 0 | 1;
-    conflict: 0 | 1;
-    status_message: string;
-  }
-
-  export interface ByedpiCheckResult {
-    byedpi_installed: 0 | 1;
-    byedpi_package_installed: 0 | 1;
-    byedpi_provider_path: string;
-  }
 
   export interface GetClashApiProxyLatency {
     delay: number;

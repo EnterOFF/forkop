@@ -85,10 +85,6 @@ function array_or_empty(value) {
     return type(value) == "array" ? value : [];
 }
 
-function str_contains(haystack, needle) {
-    return index(as_string(haystack), as_string(needle)) >= 0;
-}
-
 function str_startswith(value, prefix) {
     value = as_string(value);
     prefix = as_string(prefix);
@@ -99,21 +95,6 @@ function str_endswith(value, suffix) {
     value = as_string(value);
     suffix = as_string(suffix);
     return length(value) >= length(suffix) && substr(value, length(value) - length(suffix)) == suffix;
-}
-
-function str_remove_suffix(value, suffix) {
-    value = as_string(value);
-    suffix = as_string(suffix);
-    return str_endswith(value, suffix) ? substr(value, 0, length(value) - length(suffix)) : value;
-}
-
-function string_remove_suffix(value, suffix) {
-    print(str_remove_suffix(value, suffix), "\n");
-}
-
-function path_basename(value) {
-    let parts = split(as_string(value), "/");
-    return length(parts) > 0 ? as_string(parts[length(parts) - 1]) : "";
 }
 
 function arg_bool(value) {
@@ -234,79 +215,6 @@ function openwrt_release_value(path, key) {
     }
 }
 
-function openwrt_release_series(path) {
-    let data = fs.readfile(path);
-    if (data == null)
-        return;
-
-    let prefix = "DISTRIB_RELEASE='";
-    for (let line in split(as_string(data), "\n")) {
-        if (!str_startswith(line, prefix))
-            continue;
-
-        let value = substr(line, length(prefix));
-        let quote = rindex(value, "'");
-        if (quote >= 0)
-            value = substr(value, 0, quote);
-
-        let matched = match(value, /^([0-9]+\.[0-9]+)/);
-        if (matched != null)
-            print(matched[1], "\n");
-        return;
-    }
-}
-
-function updates_arch_package_version(package_name, package_arch) {
-    let version = str_remove_suffix(str_remove_suffix(package_name, ".ipk"), ".apk");
-    let prefixes = ["zapret2_", "zapret2-", "zapret_", "zapret-", "byedpi_", "byedpi-"];
-
-    for (let prefix in prefixes) {
-        if (str_startswith(version, prefix)) {
-            version = substr(version, length(prefix));
-            break;
-        }
-    }
-
-    package_arch = as_string(package_arch);
-    if (package_arch != "") {
-        version = str_remove_suffix(version, "_" + package_arch);
-        version = str_remove_suffix(version, "-" + package_arch);
-    }
-
-    print(version, "\n");
-}
-
-function updates_bundle_version(bundle_name, prefixes) {
-    let name = path_basename(bundle_name);
-
-    for (let prefix in prefixes) {
-        if (!str_startswith(name, prefix))
-            continue;
-
-        let rest = substr(name, length(prefix));
-        let separator = index(rest, "_");
-        if (separator <= 0)
-            continue;
-
-        let version = substr(rest, 0, separator);
-        if (str_startswith(version, "v"))
-            version = substr(version, 1);
-
-        print(version, "\n");
-        return;
-    }
-
-    print("\n");
-}
-
-function updates_zapret_bundle_version(bundle_name) {
-    updates_bundle_version(bundle_name, ["zapret_v", "zapret_"]);
-}
-
-function updates_zapret2_bundle_version(bundle_name) {
-    updates_bundle_version(bundle_name, ["zapret2_v", "zapret2_", "zapret_v", "zapret_"]);
-}
-
 function first_version_token(value) {
     value = as_string(value);
     for (let i = 0; i < length(value); i++) {
@@ -324,11 +232,6 @@ function strip_plus_metadata(value) {
     return plus >= 0 ? substr(value, 0, plus) : value;
 }
 
-function strip_revision_suffix(value) {
-    let matched = match(as_string(value), /^(.*)-r[0-9]+$/);
-    return matched ? matched[1] : as_string(value);
-}
-
 function updates_normalize_sing_box_version(value) {
     value = as_string(value);
     if (str_startswith(value, "v"))
@@ -336,16 +239,6 @@ function updates_normalize_sing_box_version(value) {
 
     value = replace(value, /~/g, "-");
     print(first_version_token(strip_plus_metadata(value)), "\n");
-}
-
-function updates_normalize_zapret_version(value) {
-    value = as_string(value);
-    if (str_startswith(value, "v"))
-        value = substr(value, 1);
-
-    value = strip_revision_suffix(value);
-    value = strip_plus_metadata(value);
-    print(first_version_token(value), "\n");
 }
 
 function forkop_normalized_release_version(value) {
@@ -385,44 +278,6 @@ function forkop_release_version_compare(lhs, rhs) {
 
     print("0\n");
     return true;
-}
-
-function fourth_whitespace_field(line) {
-    let fields = split(trim(as_string(line)), /[ \t]+/);
-    return length(fields) >= 4 ? as_string(fields[3]) : "";
-}
-
-function updates_zip_inner_package_path(component, arch, ext) {
-    component = as_string(component);
-    arch = as_string(arch);
-    ext = as_string(ext);
-
-    let fallback = "";
-    for (let line in split(read_stdin(), "\n")) {
-        let path = fourth_whitespace_field(line);
-        if (path == "")
-            continue;
-
-        if (ext == "apk") {
-            if (str_startswith(path, "apk/" + component + "-") && str_endswith(path, ".apk")) {
-                print(path, "\n");
-                return;
-            }
-            continue;
-        }
-
-        if (ext == "ipk" && str_startswith(path, component + "_") && str_endswith(path, ".ipk")) {
-            if (arch != "" && str_endswith(path, "_" + arch + ".ipk")) {
-                print(path, "\n");
-                return;
-            }
-            if (fallback == "")
-                fallback = path;
-        }
-    }
-
-    if (fallback != "")
-        print(fallback, "\n");
 }
 
 function updates_opkg_arch_list() {
@@ -606,117 +461,6 @@ function sing_box_forkop_package_asset_url(package_name, distrib_arch, asset_ext
     exit(1);
 }
 
-function byedpi_asset_matches(name, arch, ext) {
-    return (str_startswith(name, "byedpi_") || str_startswith(name, "byedpi-")) &&
-        str_endswith(name, "." + ext) &&
-        (str_contains(name, "_" + arch + "." + ext) || str_contains(name, "-" + arch + "." + ext));
-}
-
-function release_asset_matches_arch(name, prefix, arch, ext) {
-    return (str_startswith(name, prefix + "_") || str_startswith(name, prefix + "-")) &&
-        str_endswith(name, "." + ext) &&
-        (str_contains(name, "_" + arch + "." + ext) || str_contains(name, "-" + arch + "." + ext));
-}
-
-function named_release_select_asset(release_prefix, asset_prefix, asset_ext, arch_candidates) {
-    let releases = array_or_empty(read_stdin_json());
-
-    for (let release in releases) {
-        if (type(release) != "object")
-            continue;
-        if (release.draft === true)
-            continue;
-
-        let release_name = as_string(release.name || "");
-        if (!str_startswith(release_name, release_prefix))
-            continue;
-
-        for (let arch in split(as_string(arch_candidates), " ")) {
-            if (arch == "")
-                continue;
-
-            for (let asset in array_or_empty(release.assets)) {
-                if (type(asset) != "object")
-                    continue;
-
-                let name = as_string(asset.name || "");
-                let url = as_string(asset.browser_download_url || "");
-                if (url != "" && release_asset_matches_arch(name, asset_prefix, arch, asset_ext)) {
-                    print(arch, "\t", name, "\t", url, "\t",
-                        as_string(release.html_url || ""), "\t", as_string(release.tag_name || ""), "\n");
-                    return;
-                }
-            }
-        }
-    }
-}
-
-function release_select_arch_suffix_asset(asset_ext, arch_candidates) {
-    let release = object_or_empty(read_stdin_json());
-
-    for (let arch in split(as_string(arch_candidates), " ")) {
-        if (arch == "")
-            continue;
-
-        let suffix = "_" + arch + "." + as_string(asset_ext);
-        for (let asset in array_or_empty(release.assets)) {
-            if (type(asset) != "object")
-                continue;
-
-            let name = as_string(asset.name || "");
-            let url = as_string(asset.browser_download_url || "");
-            if (url != "" && str_endswith(name, suffix)) {
-                print(arch, "\t", name, "\t", url, "\t",
-                    as_string(release.html_url || ""), "\t", as_string(release.tag_name || ""), "\n");
-                return;
-            }
-        }
-    }
-}
-
-function select_byedpi_asset_from_release(release, asset_ext, arch_candidates) {
-    for (let arch in split(as_string(arch_candidates), " ")) {
-        if (arch == "")
-            continue;
-        for (let asset in array_or_empty(release.assets)) {
-            if (type(asset) != "object")
-                continue;
-            let name = as_string(asset.name || "");
-            let url = as_string(asset.browser_download_url || "");
-            if (url != "" && byedpi_asset_matches(name, arch, asset_ext)) {
-                print(arch, "\t", name, "\t", url, "\t", as_string(release.html_url || ""), "\n");
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
-function byedpi_select_asset(series, asset_ext, arch_candidates) {
-    let releases = array_or_empty(read_stdin_json());
-
-    for (let pass = 0; pass < 2; pass++) {
-        if (pass == 0 && as_string(series) == "")
-            continue;
-
-        for (let release in releases) {
-            if (type(release) != "object")
-                continue;
-            if (release.draft === true || release.prerelease === true)
-                continue;
-            if (pass == 0) {
-                let tag = as_string(release.tag_name || "");
-                let name = as_string(release.name || "");
-                if (!str_contains(tag, series) && !str_contains(name, series))
-                    continue;
-            }
-            if (select_byedpi_asset_from_release(release, asset_ext, arch_candidates))
-                return;
-        }
-    }
-}
-
 function updates_status_from_compare(compare_result) {
     compare_result = as_string(compare_result);
 
@@ -818,8 +562,6 @@ else if (mode == "json-file-field")
     json_file_field(ARGV[1], ARGV[2], ARGV[3]);
 else if (mode == "object-get-default")
     object_get_default(ARGV[1], ARGV[2]);
-else if (mode == "string-remove-suffix")
-    string_remove_suffix(ARGV[1], ARGV[2]);
 else if (mode == "github-response-ok")
     exit(github_response_ok() ? 0 : 1);
 else if (mode == "release-asset-name")
@@ -832,26 +574,14 @@ else if (mode == "release-metadata-tsv")
     release_metadata_tsv();
 else if (mode == "openwrt-release-value")
     openwrt_release_value(ARGV[1], ARGV[2]);
-else if (mode == "openwrt-release-series")
-    openwrt_release_series(ARGV[1]);
 else if (mode == "stdin-first-line-last-field")
     stdin_first_line_last_field();
-else if (mode == "updates-arch-package-version")
-    updates_arch_package_version(ARGV[1], ARGV[2]);
-else if (mode == "updates-zapret-bundle-version")
-    updates_zapret_bundle_version(ARGV[1]);
-else if (mode == "updates-zapret2-bundle-version")
-    updates_zapret2_bundle_version(ARGV[1]);
 else if (mode == "updates-normalize-sing-box-version")
     updates_normalize_sing_box_version(ARGV[1]);
-else if (mode == "updates-normalize-zapret-version")
-    updates_normalize_zapret_version(ARGV[1]);
 else if (mode == "forkop-release-version-valid")
     exit(forkop_release_version_valid(ARGV[1]) ? 0 : 1);
 else if (mode == "forkop-release-version-compare")
     exit(forkop_release_version_compare(ARGV[1], ARGV[2]) ? 0 : 1);
-else if (mode == "updates-zip-inner-package-path")
-    updates_zip_inner_package_path(ARGV[1], ARGV[2], ARGV[3]);
 else if (mode == "updates-opkg-arch-list")
     updates_opkg_arch_list();
 else if (mode == "updates-arch-candidates")
@@ -862,12 +592,6 @@ else if (mode == "file-whitespace-list")
     file_whitespace_list(ARGV[1]);
 else if (mode == "sing-box-forkop-package-asset-url")
     sing_box_forkop_package_asset_url(ARGV[1], ARGV[2], ARGV[3]);
-else if (mode == "named-release-select-asset")
-    named_release_select_asset(ARGV[1], ARGV[2], ARGV[3], ARGV[4]);
-else if (mode == "release-select-arch-suffix-asset")
-    release_select_arch_suffix_asset(ARGV[1], ARGV[2]);
-else if (mode == "byedpi-select-asset")
-    byedpi_select_asset(ARGV[1], ARGV[2], ARGV[3]);
 else if (mode == "updates-status-from-compare")
     updates_status_from_compare(ARGV[1]);
 else if (mode == "updates-check-result-row")

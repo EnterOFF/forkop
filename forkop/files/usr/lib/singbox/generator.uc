@@ -1246,9 +1246,7 @@ function add_subscription_download_service_mixed_proxies(config, sections) {
 
 function first_outbound_section(sections) {
     for (let section in sections) {
-        let action = option(section, "action", "");
-        if (connections.is_connections_action(action) ||
-            action == "byedpi" || action == "zapret" || action == "zapret2")
+        if (connections.is_connections_action(option(section, "action", "")))
             return section;
     }
     return null;
@@ -1514,52 +1512,6 @@ function add_connections_outbound(config, section, taken) {
     add_proxy_selector(config, section, selector_tags, urltest_candidate_tags, provider_refs, taken);
 }
 
-function enabled_action_index(sections, target_section, action_name) {
-    let index = 0;
-    for (let section in sections) {
-        if (option(section, "action", "") != action_name)
-            continue;
-        index++;
-        if (section[".name"] == target_section[".name"])
-            return index;
-    }
-    return 0;
-}
-
-function add_zapret_outbound(config, section, sections) {
-    let index = enabled_action_index(sections, section, "zapret");
-    if (index <= 0)
-        runtime_generate_unsupported("unable to resolve Zapret index for " + section[".name"]);
-    push(config.outbounds, {
-        type: "direct",
-        tag: outbound_tag(section[".name"]),
-        routing_mark: runtime_constants.ZAPRET_ROUTE_MARK_BASE + index
-    });
-}
-
-function add_zapret2_outbound(config, section, sections) {
-    let index = enabled_action_index(sections, section, "zapret2");
-    if (index <= 0)
-        runtime_generate_unsupported("unable to resolve Zapret2 index for " + section[".name"]);
-    push(config.outbounds, {
-        type: "direct",
-        tag: outbound_tag(section[".name"]),
-        routing_mark: runtime_constants.ZAPRET2_ROUTE_MARK_BASE + index
-    });
-}
-
-function add_byedpi_outbound(config, section, sections) {
-    let index = enabled_action_index(sections, section, "byedpi");
-    if (index <= 0)
-        runtime_generate_unsupported("unable to resolve ByeDPI index for " + section[".name"]);
-    push(config.outbounds, {
-        type: "socks",
-        tag: outbound_tag(section[".name"]),
-        server: runtime_constants.BYEDPI_LISTEN_ADDRESS,
-        server_port: runtime_constants.BYEDPI_PORT_BASE + index - 1,
-        version: "5"
-    });
-}
 
 function ensure_community_ruleset(config, section_name, community) {
     if (!runtime_rulesets.is_community(community))
@@ -1750,9 +1702,9 @@ function static_hosts_config() {
     return hosts;
 }
 
-// Static records answer before sing-box dials the destination itself, so ByeDPI,
-// Zapret and direct sections reach domains that the configured DNS servers cannot
-// resolve. Section DNS rules keep their FakeIP answers for client queries.
+// Static records answer before sing-box dials the destination itself, so direct
+// sections reach domains that the configured DNS servers cannot resolve. Section
+// DNS rules keep their FakeIP answers for client queries.
 function add_static_hosts_support(config, hosts) {
     if (length(hosts.domains) == 0)
         return;
@@ -2072,11 +2024,6 @@ function add_combined_route_for_section(config, section) {
             let device_route_rule = copy_matchers(route_rule);
             apply_matchers(device_route_rule, device_matchers);
             device_route_rule = constrain_rule_set_by_section(device_route_rule, target);
-            let resolve = runtime_route.resolve_rule_for_section(section, device_route_rule);
-            if (type(resolve) == "object" && resolve.warning)
-                warn(resolve.warning, "\n");
-            else if (type(resolve) == "object" && resolve.rule)
-                push(config.route.rules, resolve.rule);
             push(config.route.rules, device_route_rule);
         }
     }
@@ -2108,7 +2055,7 @@ function unsupported_matcher_key(section) {
     return "";
 }
 
-function add_outbound_for_section(config, section, taken, sections) {
+function add_outbound_for_section(config, section, taken) {
     let action = option(section, "action", "");
     let section_name = section[".name"];
     if (!valid_section_name(section_name))
@@ -2119,12 +2066,6 @@ function add_outbound_for_section(config, section, taken, sections) {
 
     if (connections.is_connections_action(action))
         add_connections_outbound(config, section, taken);
-    else if (action == "zapret")
-        add_zapret_outbound(config, section, sections);
-    else if (action == "zapret2")
-        add_zapret2_outbound(config, section, sections);
-    else if (action == "byedpi")
-        add_byedpi_outbound(config, section, sections);
     else if (action == "bypass") {
         /* route-only action */
     }
@@ -2141,11 +2082,8 @@ function add_outbound_for_section(config, section, taken, sections) {
 
 function reserve_section_outbound_tags(sections, taken) {
     for (let section in sections) {
-        let action = option(section, "action", "");
-        if (connections.is_connections_action(action) ||
-            action == "byedpi" || action == "zapret" || action == "zapret2")
+        if (connections.is_connections_action(option(section, "action", "")))
             taken[outbound_tag(section[".name"])] = true;
-
     }
 }
 
@@ -2159,13 +2097,6 @@ function add_route_for_section(config, section) {
 function add_service_route_rules(config, sections) {
     let first = first_outbound_section(sections);
     if (first != null) {
-        if (option(first, "action", "") == "byedpi")
-            push(config.route.rules, {
-                action: "resolve",
-                inbound: tproxy_inbound_matcher(),
-                domain: runtime_constants.CHECK_PROXY_IP_DOMAIN,
-                server: runtime_constants.DNS_SERVER_TAG
-            });
         push(config.route.rules, {
             action: "route",
             inbound: tproxy_inbound_matcher(),
@@ -2357,7 +2288,7 @@ function generate_config(output_path, service_address, mwan3_active, deferred_se
     for (let server in servers)
         runtime_servers.add_server(config, server);
     for (let section in sections)
-        add_outbound_for_section(config, section, taken, sections);
+        add_outbound_for_section(config, section, taken);
     add_service_route_rules(config, sections);
     for (let section in sections)
         add_route_for_section(config, section);

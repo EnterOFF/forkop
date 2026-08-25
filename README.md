@@ -41,7 +41,6 @@ sh <(wget -O - https://forkop.sourceforge.io/install.sh)
 * Статичные DNS-записи в формате hosts.
 * Поддержка IPv6.
 * Действие Bypass с полным обходом sing-box.
-* Интеграция Zapret, Zapret2 и ByeDPI как отдельных действий секции.
 * Служба полностью переписана на ucode.
 * Другие исправления и улучшения.
 

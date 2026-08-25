@@ -177,12 +177,7 @@ async function checkShippedSettings() {
   const settings = harness.load('settings');
   const map = new harness.form.Map('forkop');
   const section = map.section(harness.form.NamedSection, 'settings');
-  settings.createSettingsContent(section, {
-    loaded: true,
-    zapretInstalled: true,
-    zapret2Installed: true,
-    byedpiInstalled: true,
-  });
+  settings.createSettingsContent(section);
   await section.load();
   harness.operations.length = 0;
   await section.parse();
@@ -456,13 +451,6 @@ async function checkEveryShownOptionRoundTrips(label, build, states, selector) {
 }
 
 async function checkFilledFormsRoundTrip() {
-  const providers = {
-    loaded: true,
-    zapretInstalled: true,
-    zapret2Installed: true,
-    byedpiInstalled: true,
-  };
-
   const buildSection = (action) => {
     const harness = createHarness(root);
     const view = harness.load('section');
@@ -470,9 +458,7 @@ async function checkFilledFormsRoundTrip() {
     Object.assign(harness.store.get('probe'), { action, enabled: '1', label: 'Probe' });
     const map = new harness.form.Map('forkop');
     const grid = map.section(harness.form.GridSection, 'section');
-    view.configureSectionSection(grid, {
-      loadActionProvidersAvailability: () => Promise.resolve(providers),
-    });
+    view.configureSectionSection(grid);
     // The table's load() skips the modal-only options; the dialog loads them all.
     delete grid.load;
     view.createSectionContent(grid);
@@ -511,14 +497,12 @@ async function checkFilledFormsRoundTrip() {
     });
     const map = new harness.form.Map('forkop');
     const settings = map.section(harness.form.NamedSection, 'settings');
-    view.createSettingsContent(settings, providers);
+    view.createSettingsContent(settings);
     return { harness, section: settings, sid: 'settings' };
   };
 
   // Every action and every protocol the dropdowns offer, so the fields of each
-  // one are filled and asked the question. The action list is only complete once
-  // the form has loaded: which DPI actions it offers depends on an answer that
-  // arrives with load().
+  // one are filled and asked the question.
   const choicesOf = async (build, seed, name) => {
     const { section, sid } = build(seed);
     section.cfgsections = () => [sid];
@@ -527,7 +511,7 @@ async function checkFilledFormsRoundTrip() {
   };
   const actions = await choicesOf(buildSection, 'connection', 'action');
   const protocols = await choicesOf(buildServer, 'mixed', 'protocol');
-  if (actions.length < 7 || protocols.length < 10) {
+  if (actions.length < 4 || protocols.length < 10) {
     fail(`the action or protocol list came up short: ${actions.length} and ${protocols.length}`);
   }
 

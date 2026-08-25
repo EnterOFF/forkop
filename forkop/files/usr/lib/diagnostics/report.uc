@@ -32,22 +32,13 @@ function flag_line(value, key, ok_message, fail_message) {
 
 function system_info(value) {
     value = object_or_empty(value);
-    let lines = [
+    return [
         "🕳️ Forkop:   " + (field(value, "forkop_version") || "unknown"),
         "🕳️ LuCI App:      " + (field(value, "luci_app_version") || "unknown"),
-        "📦 Sing-box:      " + (field(value, "sing_box_version") || "unknown")
+        "📦 Sing-box:      " + (field(value, "sing_box_version") || "unknown"),
+        "🛜 OpenWrt:       " + (field(value, "openwrt_version") || "unknown"),
+        "🛜 Device:        " + (field(value, "device_model") || "unknown")
     ];
-
-    if (is_set(value.zapret_installed))
-        push(lines, "🧵 Zapret:        " + (field(value, "zapret_version") || "unknown"));
-    if (is_set(value.zapret2_installed))
-        push(lines, "🧵 Zapret2:       " + (field(value, "zapret2_version") || "unknown"));
-    if (is_set(value.byedpi_installed))
-        push(lines, "🧵 ByeDPI:        " + (field(value, "byedpi_version") || "unknown"));
-
-    push(lines, "🛜 OpenWrt:       " + (field(value, "openwrt_version") || "unknown"));
-    push(lines, "🛜 Device:        " + (field(value, "device_model") || "unknown"));
-    return lines;
 }
 
 function sing_box_check(value) {

@@ -61,8 +61,6 @@ config_name="$(ucode -L "$FORKOP_LIB" "$CONSTANTS_UC" get FORKOP_CONFIG_NAME)"
 eval "$(ucode -L "$FORKOP_LIB" "$CONSTANTS_UC" shell-env)"
 [ "$FORKOP_CONFIG" = "/etc/config/forkop" ] ||
   fail "core/constants.uc shell-env did not derive FORKOP_CONFIG"
-[ "$BYEDPI_PID_DIR" = "/var/run/forkop/byedpi/pid" ] ||
-  fail "core/constants.uc shell-env did not derive BYEDPI_PID_DIR"
 
 [ "$(ucode -L "$FORKOP_LIB" "$CONSTANTS_UC" get FAKEIP_TEST_DOMAIN)" = "fakeip.podkop.fyi" ] ||
   fail "FakeIP diagnostics must use the deployed public endpoint"
@@ -97,8 +95,6 @@ fi
 # The expectation is every port the table publishes rather than a list of constant
 # names repeated here, because such a list is a third copy: a new inbound would be
 # missing from it and from the dialog at the same time and this check would pass.
-# ByeDPI stays outside the pattern on purpose - its listeners are handed out from a
-# base port at runtime, so the dialog learns them from the ports it finds in use.
 reserved_ports_backend="$(ucode -L "$FORKOP_LIB" -e '
   let c = require("singbox.constants");
   let ports = {};

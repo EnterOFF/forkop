@@ -70,16 +70,12 @@ function show_help() {
     print("    check_logs              Show Forkop logs from system journal\n");
     print("    check_sing_box_logs     Show sing-box logs\n");
     print("    check_fakeip            Test sing-box FakeIP DNS\n");
-    print("    check_provider_runtime <zapret|zapret2|byedpi>\n");
-    print("                            Check an external DPI provider runtime state\n");
     print("    clash_http              Allowlisted Clash API transport fallback\n");
     print("    show_config             Display current Forkop configuration\n");
     print("    show_version            Show Forkop version\n");
     print("    show_sing_box_config    Show sing-box configuration\n");
     print("    get_status              Get Forkop service status\n");
     print("    get_sing_box_status     Get sing-box service status\n");
-    print("    get_provider_status <zapret|zapret2|byedpi>\n");
-    print("                            Get a DPI provider and its Forkop-managed worker status\n");
     print("    get_system_info         Get system information in JSON format\n");
     print("    get_ui_capabilities     Get lightweight UI capabilities in JSON format\n");
     print("    get_subscription_default_headers\n");
@@ -98,15 +94,13 @@ function show_help() {
     print("    generate_warp_profile   Generate a Cloudflare WARP profile in JSON format\n");
     print("    get_tls_certificate_sha256 [server]\n");
     print("                            Get a server TLS certificate SHA-256 fingerprint in JSON format\n");
-    print("    component_action        Manage Forkop, sing-box, zapret, zapret2, and ByeDPI components\n");
+    print("    component_action        Manage the Forkop and sing-box components\n");
     print("    component_action_async  Start a component action in the background\n");
     print("    component_action_status Get background component action status\n");
     print("    component_updates_if_due Check installed components for updates when due\n");
     print("    component_update_check_cache Get cached component update check results\n");
     print("    check_dns_available     Check DNS server availability\n");
     print("    global_check            Run global system check\n");
-    print("    validate_provider_strategy_json <zapret|zapret2|byedpi> <strategy>\n");
-    print("                            Validate a DPI provider strategy and print JSON result\n");
 }
 
 function command_spec(command) {
@@ -128,7 +122,6 @@ function command_spec(command) {
         check_logs: [ "diagnostics/logs.uc", "forkop", 0 ],
         check_sing_box_logs: [ "diagnostics/logs.uc", "sing-box", 0 ],
         check_fakeip: [ "diagnostics/runtime.uc", "check-fakeip", 0 ],
-        check_provider_runtime: [ "diagnostics/runtime.uc", "check-provider-runtime", 1 ],
         clash_http: [ "singbox/clash_http.uc", "request", 3 ],
         clash_summary: [ "singbox/clash_http.uc", "summary", 0 ],
         show_config: [ "diagnostics/runtime.uc", "show-config", 1 ],
@@ -136,7 +129,6 @@ function command_spec(command) {
         show_sing_box_config: [ "diagnostics/runtime.uc", "show-sing-box-config", 1 ],
         get_status: [ "diagnostics/runtime.uc", "get-status", 0 ],
         get_sing_box_status: [ "diagnostics/runtime.uc", "get-sing-box-status", 0 ],
-        get_provider_status: [ "diagnostics/runtime.uc", "get-provider-status", 1 ],
         get_system_info: [ "diagnostics/runtime.uc", "get-system-info", 0 ],
         get_ui_capabilities: [ "service/ui.uc", "get-ui-capabilities", 0 ],
         get_subscription_default_headers: [ "service/ui.uc", "get-subscription-default-headers", 0 ],
@@ -157,7 +149,6 @@ function command_spec(command) {
         component_update_check_cache: [ "components/updates.uc", "component-update-check-cache", 0 ],
         check_dns_available: [ "diagnostics/runtime.uc", "check-dns-available", 0 ],
         global_check: [ "diagnostics/runtime.uc", "global-check", 2 ],
-        validate_provider_strategy_json: [ "diagnostics/runtime.uc", "validate-provider-strategy-json", 2 ],
         package_prerm: [ "service/package.uc", "prerm", 1 ],
         package_postinst: [ "service/package.uc", "postinst", 0 ],
         luci_postinst: [ "service/package.uc", "luci-postinst", 0 ],

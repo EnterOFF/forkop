@@ -82,25 +82,19 @@ function validateSingBoxPath(value, fileName) {
   return validation.valid ? true : validation.message;
 }
 
-function isDownloadSectionAction(action, capabilities) {
+function isDownloadSectionAction(action) {
   switch (action) {
     case "connection":
     case "proxy":
     case "outbound":
     case "vpn":
       return true;
-    case "zapret":
-      return !capabilities?.loaded || Boolean(capabilities.zapretInstalled);
-    case "zapret2":
-      return !capabilities?.loaded || Boolean(capabilities.zapret2Installed);
-    case "byedpi":
-      return !capabilities?.loaded || Boolean(capabilities.byedpiInstalled);
     default:
       return false;
   }
 }
 
-function refreshDownloadSectionChoices(option, capabilities) {
+function refreshDownloadSectionChoices(option) {
   const sections = option.map?.data?.state?.values?.[UCI_PACKAGE] ?? {};
 
   option.keylist = [];
@@ -111,21 +105,21 @@ function refreshDownloadSectionChoices(option, capabilities) {
     if (
       sec[".type"] === "section" &&
       sec.enabled !== "0" &&
-      isDownloadSectionAction(sec.action, capabilities)
+      isDownloadSectionAction(sec.action)
     ) {
       option.value(secName, sec.label || secName);
     }
   }
 }
 
-function configureDownloadSectionOption(option, sectionOption, capabilities) {
+function configureDownloadSectionOption(option, sectionOption) {
   option.default = "";
   option.rmempty = false;
   option.cfgvalue = function (section_id) {
     return uci.get(UCI_PACKAGE, section_id, sectionOption) || "";
   };
   option.load = function (section_id) {
-    refreshDownloadSectionChoices(this, capabilities);
+    refreshDownloadSectionChoices(this);
     const value = this.cfgvalue(section_id);
     sectionView.keepUnavailableSectionChoice(this, value);
     return value;
@@ -326,7 +320,7 @@ function createStaticHostsOption(section) {
   return option;
 }
 
-function createSettingsContent(section, capabilities) {
+function createSettingsContent(section) {
   const dnsOption = section.option(
     form.DynamicList,
     "dns_server",
@@ -423,7 +417,7 @@ function createSettingsContent(section, capabilities) {
     _("DNS requests through"),
   );
   o.depends("dns_detour_enabled", "1");
-  configureDownloadSectionOption(o, "dns_detour_section", capabilities);
+  configureDownloadSectionOption(o, "dns_detour_section");
 
   createStaticHostsOption(section);
 
@@ -793,11 +787,7 @@ function createSettingsContent(section, capabilities) {
     _("Download lists through"),
   );
   o.depends("download_lists_via_proxy", "1");
-  configureDownloadSectionOption(
-    o,
-    "download_lists_via_proxy_section",
-    capabilities,
-  );
+  configureDownloadSectionOption(o, "download_lists_via_proxy_section");
 
   o = section.option(
     form.Flag,
@@ -812,11 +802,7 @@ function createSettingsContent(section, capabilities) {
     _("Download components through"),
   );
   o.depends("download_components_via_proxy", "1");
-  configureDownloadSectionOption(
-    o,
-    "download_components_via_proxy_section",
-    capabilities,
-  );
+  configureDownloadSectionOption(o, "download_components_via_proxy_section");
 
   o = section.option(
     form.Value,

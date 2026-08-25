@@ -449,14 +449,6 @@ cat >"$WORK_DIR/disabled-updates-fixture.json" <<'JSON'
       "domain_suffix": [ "example.org" ],
       "rule_set": [ "https://example.com/rules.srs" ],
       "ports": [ "8443" ]
-    },
-    {
-      ".name": "dpi",
-      ".type": "section",
-      "enabled": "1",
-      "action": "byedpi",
-      "rule_set": [ "https://example.com/rules.srs" ],
-      "ports": [ "8443" ]
     }
   ]
 }
@@ -943,24 +935,6 @@ cat >"$WORK_DIR/manual-http-fixture.json" <<'JSON'
 }
 JSON
 
-cat >"$WORK_DIR/provider-actions-fixture.json" <<'JSON'
-{
-  "settings": {
-    ".name": "settings",
-    ".type": "settings",
-    "config_path": "/tmp/sing-box/config.json",
-    "dns_server": "1.1.1.1",
-    "service_listen_address": "127.0.0.1"
-  },
-  "section": [
-    { ".name": "bye", ".type": "section", "enabled": "1", "action": "byedpi", "domain_suffix": [ "bye.example" ] },
-    { ".name": "zap_disabled", ".type": "section", "enabled": "0", "action": "zapret", "domain_suffix": [ "disabled.example" ] },
-    { ".name": "zap", ".type": "section", "enabled": "1", "action": "zapret", "domain_suffix": [ "zap.example" ] },
-    { ".name": "zap2", ".type": "section", "enabled": "1", "action": "zapret2", "domain_suffix": [ "zap2.example" ] }
-  ]
-}
-JSON
-
 cat >"$WORK_DIR/manual-transport-fixture.json" <<'JSON'
 {
   "settings": {
@@ -1247,7 +1221,6 @@ generate_config "$WORK_DIR/urltest-filter-fixture.json" "$WORK_DIR/urltest.json"
 generate_config "$WORK_DIR/manual-http-fixture.json" "$WORK_DIR/manual-http.json"
 grep -Fq '"type": "parser"' "$WORK_DIR/manual-http.json" ||
   fail "manual connection URLs must be passed to parser outbounds"
-generate_config "$WORK_DIR/provider-actions-fixture.json" "$WORK_DIR/providers.json"
 generate_config "$WORK_DIR/manual-transport-fixture.json" "$WORK_DIR/manual.json"
 grep -Fq 'vless://11111111-1111-4111-8111-111111111111@127.0.0.1:443?security=tls&amp;type=ws' "$WORK_DIR/manual.json" ||
   grep -Fq 'vless://11111111-1111-4111-8111-111111111111@127.0.0.1:443?security=tls&type=ws' "$WORK_DIR/manual.json" ||
@@ -1398,15 +1371,8 @@ function dns_server(config, predicate) {
 
 let disabled = cfg("disabled");
 assert(first_remote_ruleset(disabled).update_interval == null, "disabled list updates omit the interval");
-// Only ByeDPI resolves now, and it has to keep the port constraint of its section.
-let disabled_resolve = route_rule(disabled, r => r.type == "logical" && r.action == "resolve");
-assert(disabled_resolve != null && length(disabled_resolve.rules || []) == 2 &&
-    contains(disabled_resolve.rules[0].rule_set, first_remote_ruleset(disabled).tag) &&
-    contains(disabled_resolve.rules[1].port, 8443), "logical resolve rule preserves the section port constraint");
-assert(disabled_resolve.server == null, "section resolve follows dns.rules instead of pinning the main DNS server");
-assert(route_rule(disabled, r => r.action == "resolve" && r.outbound == null &&
-    r.type != "logical" && r.domain_suffix != null) == null,
-    "a connection section no longer resolves before routing");
+assert(route_rule(disabled, r => r.action == "resolve") == null,
+    "no section resolves a destination before routing it any more");
 let disabled_route = route_rule(disabled, r => r.type == "logical" && r.outbound == "proxy");
 assert(disabled_route != null && length(disabled_route.rules || []) == 2 &&
     contains(disabled_route.rules[0].rule_set, first_remote_ruleset(disabled).tag) &&
@@ -1674,20 +1640,6 @@ let urltest_out = outbound(urltest, "proxy/Fastest");
 assert(urltest_out && length(urltest_out.outbounds) == 1 && urltest_out.outbounds[0] == "proxy/Keep", "URLTest include filter");
 assert(outbound(urltest, "proxy/Keep").type == "http", "HTTP JSON outbound remains supported");
 assert(outbound(urltest, "proxy").default == "proxy/Fastest", "selector defaults to URLTest");
-
-let providers = cfg("providers");
-assert(outbound(providers, "zap").routing_mark == 0x01000001, "Zapret mark");
-assert(outbound(providers, "zap2").routing_mark == 0x02000001, "Zapret2 mark");
-assert(outbound(providers, "bye").type == "socks" && outbound(providers, "bye").server_port == 1080, "ByeDPI outbound");
-assert(route_rule(providers, r => r.action == "resolve" && contains(r.inbound, "tproxy-in") && r.domain == "ip.podkop.fyi" && r.server == "dns-server") != null, "ByeDPI service check resolves before routing");
-// ByeDPI is the one action that has to resolve: it is a local SOCKS5 proxy, so an
-// unresolved destination would send it to look the name up itself and land on FakeIP.
-let bye_resolve_index = route_rule_index(providers, r => r.action == "resolve" && contains(r.domain_suffix, "bye.example"));
-let bye_route_index = route_rule_index(providers, r => r.outbound == "bye" && contains(r.domain_suffix, "bye.example"));
-assert(bye_resolve_index >= 0 && bye_route_index >= 0 && bye_resolve_index < bye_route_index,
-    "a ByeDPI section resolves its domains before routing them to the local proxy");
-assert(route_rule(providers, r => r.action == "resolve" && contains(r.domain_suffix, "zap.example")) == null,
-    "a Zapret section dials through a direct outbound and needs no resolve");
 
 let vpn = cfg("vpn");
 assert(outbound(vpn, "renamed_awg/tun0").bind_interface == "tun0", "renamed VPN interface outbound");

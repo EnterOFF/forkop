@@ -70,23 +70,9 @@ clash_summary_out="$(FORKOP_LIB="$fake_lib" ucode "$FORKOP_BIN" clash_summary)"
 [ "$clash_summary_out" = $'singbox_clash_http\tsummary\t\t\t' ] ||
   fail "clash_summary must dispatch through singbox/clash_http.uc without arguments"
 
-provider_runtime_out="$(FORKOP_LIB="$fake_lib" ucode "$FORKOP_BIN" check_provider_runtime zapret2)"
-[ "$provider_runtime_out" = $'diagnostics\tcheck-provider-runtime\tzapret2\t\t' ] ||
-  fail "check_provider_runtime must forward the DPI provider name"
-
-provider_status_out="$(FORKOP_LIB="$fake_lib" ucode "$FORKOP_BIN" get_provider_status byedpi)"
-[ "$provider_status_out" = $'diagnostics\tget-provider-status\tbyedpi\t\t' ] ||
-  fail "get_provider_status must forward the DPI provider name"
-
-# The strategy is passed without a leading dash on purpose: the ucode build
-# used by this harness keeps parsing options past the script path, while the
-# OpenWrt build stops there.
-provider_validate_out="$(FORKOP_LIB="$fake_lib" ucode "$FORKOP_BIN" validate_provider_strategy_json zapret 'dpi-desync=fake')"
-[ "$provider_validate_out" = $'diagnostics\tvalidate-provider-strategy-json\tzapret\tdpi-desync=fake\t' ] ||
-  fail "validate_provider_strategy_json must forward the provider and the strategy"
-
 for removed in check_nft show_sing_box_version neutralize_zapret_defaults dnsmasq_restore \
-  check_zapret_runtime get_byedpi_status validate_nfqws_strategy_json subscription_update clash_api; do
+  check_provider_runtime get_provider_status validate_provider_strategy_json \
+  subscription_update clash_api; do
   if FORKOP_LIB="$fake_lib" ucode "$FORKOP_BIN" "$removed" 2>/dev/null | grep -Fq $'diagnostics\t'; then
     fail "removed command $removed must not dispatch to a module"
   fi

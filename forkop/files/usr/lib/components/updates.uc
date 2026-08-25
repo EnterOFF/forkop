@@ -561,8 +561,7 @@ function normalize_component_name(component) {
 
 function valid_component_name(component) {
     component = normalize_component_name(component);
-    return component == "forkop" || component == "sing_box" || component == "zapret" ||
-        component == "zapret2" || component == "byedpi";
+    return component == "forkop" || component == "sing_box";
 }
 
 // The scheduled check has to leave its answer somewhere the page can read hours
@@ -657,14 +656,6 @@ function update_component_check_cache_from_action(value) {
     let action = as_string(value.action);
     if (!valid_component_name(component))
         return;
-
-    if (action == "remove" && value.success === true) {
-        // Nothing known about a component that is no longer installed. The
-        // service is told to forget the lot; the next check refills what is
-        // still there.
-        clear_component_update_check_cache();
-        return;
-    }
 
     if (!component_update_check_cache_enabled())
         return;
@@ -1037,12 +1028,6 @@ function automatic_component_check_names() {
 
     if (fs.stat("/usr/bin/sing-box") != null)
         push(result, "sing_box");
-    if (module_success([ LIB_DIR + "/providers/zapret/runtime.uc", "installed" ]))
-        push(result, "zapret");
-    if (module_success([ LIB_DIR + "/providers/zapret2/runtime.uc", "installed" ]))
-        push(result, "zapret2");
-    if (module_success([ LIB_DIR + "/providers/byedpi/runtime.uc", "installed" ]))
-        push(result, "byedpi");
 
     return result;
 }

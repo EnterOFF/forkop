@@ -48,12 +48,12 @@ describe('LogNotificationDeduper', () => {
     ).toBe(false);
     expect(
       getForkopLogNotification(
-        'forkop: [info] [component-update] zapret2 v1.2.3',
+        'forkop: [info] [component-update] sing_box v1.2.3',
       ),
     ).toEqual({
       kind: 'component-update',
-      line: 'forkop: [info] [component-update] zapret2 v1.2.3',
-      component: 'zapret2',
+      line: 'forkop: [info] [component-update] sing_box v1.2.3',
+      component: 'sing_box',
       version: 'v1.2.3',
     });
     expect(getForkopLogNotification('forkop: [info] ok')).toBeNull();

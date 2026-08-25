@@ -44,7 +44,6 @@ const SB_TPROXY_INBOUND_PORT = getenv("SB_TPROXY_INBOUND_PORT") || constants.SB_
 const SB_SERVICE_MIXED_INBOUND_ADDRESS = getenv("SB_SERVICE_MIXED_INBOUND_ADDRESS") || constants.SB_SERVICE_MIXED_INBOUND_ADDRESS || "127.0.0.1";
 const SB_SERVICE_MIXED_INBOUND_PORT = getenv("SB_SERVICE_MIXED_INBOUND_PORT") || constants.SB_SERVICE_MIXED_INBOUND_PORT || "4534";
 const CLOUDFLARE_OCTETS = getenv("CLOUDFLARE_OCTETS") || constants.CLOUDFLARE_OCTETS || "8.47 162.159 188.114";
-const ZAPRET_LEGACY_DEFAULT_NFQWS_OPT = getenv("ZAPRET_LEGACY_DEFAULT_NFQWS_OPT") || constants.ZAPRET_LEGACY_DEFAULT_NFQWS_OPT || "";
 const RUNTIME_STABLE_MIN_AGE = getenv("FORKOP_RUNTIME_STABLE_MIN_AGE") || "2";
 const SING_BOX_FORKOP_VERSION_FILE = getenv("SING_BOX_FORKOP_VERSION_FILE") || "/usr/share/sing-box-forkop/version";
 
@@ -52,14 +51,8 @@ const GLOBAL_CHECK_SEPARATOR = "━━━━━━━━━━━━━━━━
 
 const PACKAGES_UC = LIB_DIR + "/core/packages.uc";
 const SERVICE_STATE_UC = LIB_DIR + "/service/state.uc";
-const PROVIDERS_STATUS_UC = LIB_DIR + "/providers/status.uc";
+const CONFIG_STATUS_UC = LIB_DIR + "/singbox/config_status.uc";
 const SINGBOX_RUNTIME_UC = LIB_DIR + "/singbox/runtime.uc";
-const ZAPRET_RUNTIME_UC = LIB_DIR + "/providers/zapret/runtime.uc";
-const ZAPRET2_RUNTIME_UC = LIB_DIR + "/providers/zapret2/runtime.uc";
-const BYEDPI_RUNTIME_UC = LIB_DIR + "/providers/byedpi/runtime.uc";
-const ZAPRET_VALIDATOR_UC = LIB_DIR + "/providers/zapret/validator.uc";
-const ZAPRET2_VALIDATOR_UC = LIB_DIR + "/providers/zapret2/validator.uc";
-const BYEDPI_VALIDATOR_UC = LIB_DIR + "/providers/byedpi/validator.uc";
 
 function as_string(value) {
     return value == null ? "" : "" + value;
@@ -135,13 +128,6 @@ function module_output(module_path, args) {
 
 function module_success(module_path, args) {
     return command_success(command_from_args(module_args(module_path, args)));
-}
-
-function module_passthrough(module_path, args) {
-    let result = module_capture(module_path, args);
-    if (result.output != "")
-        print(result.output);
-    return result.status;
 }
 
 function write_json(value) {
@@ -577,8 +563,8 @@ function inbounds_value() {
                 : "";
         let required_proto = inbounds.required_proto(protocol, inbound_transport);
         let runtime_json = protocol == "tailscale"
-            ? module_output(PROVIDERS_STATUS_UC, [ "endpoint-summary", sing_box_config_path, inbound_tag ])
-            : module_output(PROVIDERS_STATUS_UC, [ "inbound-summary", sing_box_config_path, inbound_tag ]);
+            ? module_output(CONFIG_STATUS_UC, [ "endpoint-summary", sing_box_config_path, inbound_tag ])
+            : module_output(CONFIG_STATUS_UC, [ "inbound-summary", sing_box_config_path, inbound_tag ]);
 
         let listening = -1;
         let firewall_required = 0;
@@ -596,7 +582,7 @@ function inbounds_value() {
             }
         }
 
-        let routes_configured = module_success(PROVIDERS_STATUS_UC, [
+        let routes_configured = module_success(CONFIG_STATUS_UC, [
             "has-route-rule-for-inbound", sing_box_config_path, inbound_tag
         ]) ? 1 : 0;
 
@@ -859,15 +845,6 @@ function sing_box_package() {
     return "";
 }
 
-function provider_installed(runtime_uc) {
-    return module_success(runtime_uc, [ "installed" ]);
-}
-
-function provider_version(runtime_uc) {
-    let value = replace(module_output(runtime_uc, [ "package-version" ]), /[\r\n]+$/g, "");
-    return value != "" ? value : "unknown";
-}
-
 function openwrt_release() {
     let data = fs.readfile("/etc/os-release");
     if (data == null)
@@ -898,12 +875,6 @@ function build_system_info() {
     if (sing_box_version == "")
         sing_box_version = sing_box_package_name == "" ? "not installed" : "unknown";
 
-    let zapret_installed = provider_installed(ZAPRET_RUNTIME_UC) ? 1 : 0;
-    let zapret_version = zapret_installed ? provider_version(ZAPRET_RUNTIME_UC) : "not installed";
-    let zapret2_installed = provider_installed(ZAPRET2_RUNTIME_UC) ? 1 : 0;
-    let zapret2_version = zapret2_installed ? provider_version(ZAPRET2_RUNTIME_UC) : "not installed";
-    let byedpi_installed = provider_installed(BYEDPI_RUNTIME_UC) ? 1 : 0;
-    let byedpi_version = byedpi_installed ? provider_version(BYEDPI_RUNTIME_UC) : "not installed";
     let device_model = first_line_value("/tmp/sysinfo/model", "unknown");
 
     return {
@@ -912,12 +883,6 @@ function build_system_info() {
         luci_app_version,
         sing_box_version,
         sing_box_compressed: sing_box_package_name == "sing-box-forkop-compressed" ? 1 : 0,
-        zapret_version,
-        zapret_installed,
-        zapret2_version,
-        zapret2_installed,
-        byedpi_version,
-        byedpi_installed,
         openwrt_version: openwrt_release(),
         device_model,
         generated_at: int(clock()[0])
@@ -964,56 +929,6 @@ function get_status() {
     ]) ? 1 : 0;
     let enabled = file_executable("/etc/rc.d/S99" + FORKOP_SERVICE_NAME) ? 1 : 0;
     write_service_status(running, enabled);
-    return 0;
-}
-
-// The three external DPI providers differ only in which module owns them, so
-// the CLI exposes one command per operation and resolves the owner here.
-function provider_runtime_module(provider) {
-    let modules = {
-        zapret: ZAPRET_RUNTIME_UC,
-        zapret2: ZAPRET2_RUNTIME_UC,
-        byedpi: BYEDPI_RUNTIME_UC
-    };
-    return modules[lc(as_string(provider))];
-}
-
-function provider_validator_args(provider, raw_opt) {
-    raw_opt = as_string(raw_opt);
-    let args = {
-        zapret: [ ZAPRET_VALIDATOR_UC, "validate-json", "nfqws", raw_opt, ZAPRET_LEGACY_DEFAULT_NFQWS_OPT ],
-        zapret2: [ ZAPRET2_VALIDATOR_UC, "validate-json", "nfqws2", raw_opt ],
-        byedpi: [ BYEDPI_VALIDATOR_UC, "validate-json", raw_opt ]
-    };
-    return args[lc(as_string(provider))];
-}
-
-function unknown_provider(provider) {
-    warn("Unknown DPI provider: " + as_string(provider) + "\n");
-    return 1;
-}
-
-function check_provider_runtime(provider) {
-    let module = provider_runtime_module(provider);
-    if (module == null)
-        return unknown_provider(provider);
-    return module_passthrough(module, [ "check" ]);
-}
-
-function get_provider_status(provider) {
-    let module = provider_runtime_module(provider);
-    if (module == null)
-        return unknown_provider(provider);
-    return module_passthrough(module, [ "status" ]);
-}
-
-function validate_provider_strategy_json(provider, raw_opt) {
-    let args = provider_validator_args(provider, raw_opt);
-    if (args == null)
-        return unknown_provider(provider);
-    let result = module_capture(args[0], slice(args, 1));
-    if (result.output != "")
-        print(result.output);
     return 0;
 }
 
@@ -1483,24 +1398,6 @@ function global_check(arg1, arg2) {
         }
     }
 
-    if (file_executable("/etc/init.d/zapret") && command_success_from_args([ "/etc/init.d/zapret", "status" ])) {
-        print_global(GLOBAL_CHECK_SEPARATOR);
-        print_global("⚠️ Standalone zapret service is active. Forkop uses separate queues, but packet-level policy overlap is possible.");
-    }
-    else if (file_executable("/etc/init.d/zapret") && command_success_from_args([ "/etc/init.d/zapret", "enabled" ])) {
-        print_global(GLOBAL_CHECK_SEPARATOR);
-        print_global("⚠️ Standalone zapret autostart is enabled. Forkop will not modify /etc/config/zapret.");
-    }
-
-    if (file_executable("/etc/init.d/zapret2") && command_success_from_args([ "/etc/init.d/zapret2", "status" ])) {
-        print_global(GLOBAL_CHECK_SEPARATOR);
-        print_global("⚠️ Standalone zapret2 service is active. Forkop uses separate queues, but packet-level policy overlap is possible.");
-    }
-    else if (file_executable("/etc/init.d/zapret2") && command_success_from_args([ "/etc/init.d/zapret2", "enabled" ])) {
-        print_global(GLOBAL_CHECK_SEPARATOR);
-        print_global("⚠️ Standalone zapret2 autostart is enabled. Forkop will not modify /etc/config/zapret2.");
-    }
-
     print_global(GLOBAL_CHECK_SEPARATOR);
     print_global("🥸 FakeIP status");
     print_global_lines(report.fakeip_check(fakeip_value()));
@@ -1530,8 +1427,6 @@ else if (mode == "check-inbounds")
     exit(check_inbounds());
 else if (mode == "check-fakeip")
     exit(check_fakeip());
-else if (mode == "check-provider-runtime")
-    exit(check_provider_runtime(ARGV[1]));
 else if (mode == "show-config")
     exit(show_config(ARGV[1] || "masked"));
 else if (mode == "show-version")
@@ -1542,16 +1437,12 @@ else if (mode == "get-status")
     exit(get_status());
 else if (mode == "get-sing-box-status")
     exit(get_sing_box_status());
-else if (mode == "get-provider-status")
-    exit(get_provider_status(ARGV[1]));
 else if (mode == "get-system-info")
     exit(get_system_info());
 else if (mode == "check-dns-available")
     exit(check_dns_available());
 else if (mode == "global-check")
     exit(global_check(ARGV[1] || "", ARGV[2] || ""));
-else if (mode == "validate-provider-strategy-json")
-    exit(validate_provider_strategy_json(ARGV[1], ARGV[2] || ""));
 else {
     warn("Usage: diagnostics/runtime.uc <operation> ...\n");
     exit(1);

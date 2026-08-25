@@ -25,10 +25,7 @@ const CAPTURE_ACTIONS = {
     proxy: true,
     outbound: true,
     vpn: true,
-    block: true,
-    zapret: true,
-    zapret2: true,
-    byedpi: true
+    block: true
 };
 
 const SET_SUFFIXES = {

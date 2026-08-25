@@ -189,18 +189,12 @@ export interface StoreType {
   diagnosticsSystemInfo: {
     loading: boolean;
     loaded: boolean;
-    providerInfoLoaded: boolean;
+    capabilitiesLoaded: boolean;
     forkop_version: string;
     forkop_latest_version: string;
     luci_app_version: string;
     sing_box_version: string;
     sing_box_compressed: number;
-    zapret_version: string;
-    zapret_installed: number;
-    zapret2_version: string;
-    zapret2_installed: number;
-    byedpi_version: string;
-    byedpi_installed: number;
     server_inbounds_enabled_count: number;
     openwrt_version: string;
     device_model: string;
@@ -210,15 +204,6 @@ export interface StoreType {
     forkopInstall: { loading: boolean };
     singBoxCheck: { loading: boolean };
     singBoxInstall: { loading: boolean };
-    zapretCheck: { loading: boolean };
-    zapretInstall: { loading: boolean };
-    zapretRemove: { loading: boolean };
-    zapret2Check: { loading: boolean };
-    zapret2Install: { loading: boolean };
-    zapret2Remove: { loading: boolean };
-    byedpiCheck: { loading: boolean };
-    byedpiInstall: { loading: boolean };
-    byedpiRemove: { loading: boolean };
   };
   updatesChecks: Record<
     Forkop.ComponentName,
