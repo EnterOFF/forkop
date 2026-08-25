@@ -221,6 +221,15 @@ export const styles = `
     white-space: nowrap;
 }
 
+/* The tag carries its own right margin because it is normally printed in front
+   of a node name, inside the same line of text. Here it is a flex item of its
+   own and the row's gap already separates it, so the two used to add up into a
+   visible hole between the tag and whatever the block leads with. */
+.fkp_dashboard-page__subscription-meta__heading
+    .fkp_dashboard-page__outbound-grid__item__subscription-tag {
+    margin-right: 0;
+}
+
 .fkp_dashboard-page__subscription-meta__title {
     flex: 0 1 auto;
     width: max-content;

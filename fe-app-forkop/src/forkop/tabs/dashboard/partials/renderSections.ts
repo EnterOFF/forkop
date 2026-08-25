@@ -117,7 +117,7 @@ function renderMetadataAction(label: string, url?: string) {
 function renderSubscriptionMetadata(
   metadata: Forkop.SubscriptionMetadata | undefined,
 ) {
-  if (!metadata || Object.keys(metadata).length <= 1) {
+  if (!metadata) {
     return undefined;
   }
 
@@ -146,6 +146,15 @@ function renderSubscriptionMetadata(
     renderMetadataAction('Support', metadata.supportUrl),
     renderMetadataAction('More details', metadata.announceUrl),
   ].filter(Boolean) as HTMLElement[];
+
+  // The tag is not something the block says: every node below already carries
+  // it in front of its name. So a block with nothing else in it is a bordered
+  // box repeating the list under it, and is left out entirely - which is what a
+  // panel that publishes no metadata, and a subscription with the metadata
+  // switched off, both come to.
+  if (!title && !rows.length && !actions.length && !metadata.announce) {
+    return undefined;
+  }
 
   return E('div', { class: 'fkp_dashboard-page__subscription-meta' }, [
     E('div', { class: 'fkp_dashboard-page__subscription-meta__main' }, [

@@ -843,6 +843,95 @@ describe('renderSections subscription metadata', () => {
     expect(heading).toBeUndefined();
     expect(title?.children[0]).toBe('Subscription');
   });
+
+  // The assembled entry always carries which source it came from, so counting
+  // its keys says nothing about whether there is anything to show. What decides
+  // is content, and a tag is not content: it is already in front of every node
+  // name below.
+  it('leaves out a block that would hold nothing but the tag', async () => {
+    installElementFactory();
+    const { renderSections } = await import('../partials/renderSections');
+    const root = renderSections({
+      loading: false,
+      failed: false,
+      section: {
+        code: 'proxy-out',
+        sectionName: 'main',
+        displayName: 'Main',
+        withTagSelect: true,
+        outbounds: [],
+        subscriptionMetadata: [
+          { subscriptionTag: 'Premium', sourceIndex: 1, sourceSection: 'main' },
+        ],
+      },
+      onTestLatency: vi.fn(),
+      onTestOutboundLatency: vi.fn(),
+      onChooseOutbound: vi.fn(),
+      onCopyOutbound: vi.fn(),
+      onShowUrlTestInfo: vi.fn(),
+      onShowFallbackInfo: vi.fn(),
+      onUpdateSubscription: vi.fn(),
+      onUpdateRuleSets: vi.fn(),
+      latencyFetching: false,
+      subscriptionUpdating: false,
+      ruleSetUpdating: false,
+    }) as unknown as FakeNode;
+
+    expect(
+      findNode(
+        root,
+        (node) =>
+          String(node.attrs.class || '') ===
+          'fkp_dashboard-page__subscription-meta',
+      ),
+    ).toBeUndefined();
+  });
+
+  // Traffic, an expiry, a support link or an announcement each make the block
+  // worth its border, tag or no tag.
+  it('keeps a block that has something of its own to say', async () => {
+    installElementFactory();
+    const { renderSections } = await import('../partials/renderSections');
+    const root = renderSections({
+      loading: false,
+      failed: false,
+      section: {
+        code: 'proxy-out',
+        sectionName: 'main',
+        displayName: 'Main',
+        withTagSelect: true,
+        outbounds: [],
+        subscriptionMetadata: [
+          {
+            subscriptionTag: 'Premium',
+            sourceIndex: 1,
+            sourceSection: 'main',
+            supportUrl: 'https://subscription.example/support',
+          },
+        ],
+      },
+      onTestLatency: vi.fn(),
+      onTestOutboundLatency: vi.fn(),
+      onChooseOutbound: vi.fn(),
+      onCopyOutbound: vi.fn(),
+      onShowUrlTestInfo: vi.fn(),
+      onShowFallbackInfo: vi.fn(),
+      onUpdateSubscription: vi.fn(),
+      onUpdateRuleSets: vi.fn(),
+      latencyFetching: false,
+      subscriptionUpdating: false,
+      ruleSetUpdating: false,
+    }) as unknown as FakeNode;
+
+    expect(
+      findNode(
+        root,
+        (node) =>
+          String(node.attrs.class || '') ===
+          'fkp_dashboard-page__subscription-meta',
+      ),
+    ).toBeTruthy();
+  });
 });
 
 describe('renderSections rule-set action', () => {

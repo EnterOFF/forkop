@@ -2039,7 +2039,7 @@ function renderMetadataAction(label, url) {
   );
 }
 function renderSubscriptionMetadata(metadata) {
-  if (!metadata || Object.keys(metadata).length <= 1) {
+  if (!metadata) {
     return void 0;
   }
   const title = metadata.title || metadata.fileName;
@@ -2061,6 +2061,9 @@ function renderSubscriptionMetadata(metadata) {
     renderMetadataAction("Support", metadata.supportUrl),
     renderMetadataAction("More details", metadata.announceUrl)
   ].filter(Boolean);
+  if (!title && !rows.length && !actions.length && !metadata.announce) {
+    return void 0;
+  }
   return E("div", { class: "fkp_dashboard-page__subscription-meta" }, [
     E("div", { class: "fkp_dashboard-page__subscription-meta__main" }, [
       metadata.subscriptionTag ? E(
@@ -7437,6 +7440,15 @@ var styles = `
     font-weight: 700;
     line-height: 1.25;
     white-space: nowrap;
+}
+
+/* The tag carries its own right margin because it is normally printed in front
+   of a node name, inside the same line of text. Here it is a flex item of its
+   own and the row's gap already separates it, so the two used to add up into a
+   visible hole between the tag and whatever the block leads with. */
+.fkp_dashboard-page__subscription-meta__heading
+    .fkp_dashboard-page__outbound-grid__item__subscription-tag {
+    margin-right: 0;
 }
 
 .fkp_dashboard-page__subscription-meta__title {
