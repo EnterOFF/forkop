@@ -1334,7 +1334,6 @@ msgid "Forkop configuration"
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:116
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:437
 msgid "Forkop DNS"
 msgstr ""
 
@@ -2703,8 +2702,8 @@ msgstr ""
 msgid "Route this client on its own path instead of the rest of the server"
 msgstr ""
 
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:436
-msgid "Router DNS"
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js:437
+msgid "Router"
 msgstr ""
 
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js:1606

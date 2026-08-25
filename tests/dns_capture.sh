@@ -3,7 +3,7 @@ set -eo pipefail
 
 # The DNS capture contract of the generated sing-box config: which inbounds
 # exist, which server answers queries nothing matched, and what changes when
-# dnsmasq is reconfigured or the user routes unmatched DNS through Forkop.
+# dnsmasq is reconfigured or the user sends unmatched DNS back to the router.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FORKOP_LIB="$ROOT_DIR/forkop/files/usr/lib"
@@ -40,8 +40,21 @@ cat >"$WORK_DIR/moved-resolver.json" <<'JSON'
 {
   "settings": {
     ".name": "settings", ".type": "settings",
+    "dns_server": ["77.88.8.8"], "bootstrap_dns_server": ["77.88.8.8"]
+  },
+  "dhcp_dnsmasq": { "port": "5353", "domain": "home" },
+  "section": [
+    { ".name": "direct", ".type": "section", "enabled": "1", "action": "bypass", "domain_suffix": ["example.org"] }
+  ]
+}
+JSON
+
+cat >"$WORK_DIR/resolver-mode.json" <<'JSON'
+{
+  "settings": {
+    ".name": "settings", ".type": "settings",
     "dns_server": ["77.88.8.8"], "bootstrap_dns_server": ["77.88.8.8"],
-    "unmatched_dns_mode": "forkop"
+    "unmatched_dns_mode": "router"
   },
   "dhcp_dnsmasq": { "port": "5353", "domain": "home" },
   "section": [
@@ -65,6 +78,7 @@ JSON
 
 generate "$WORK_DIR/system-proxy.json" "$WORK_DIR/system-proxy-config.json"
 generate "$WORK_DIR/moved-resolver.json" "$WORK_DIR/moved-resolver-config.json"
+generate "$WORK_DIR/resolver-mode.json" "$WORK_DIR/resolver-mode-config.json"
 generate "$WORK_DIR/disabled-resolver.json" "$WORK_DIR/disabled-resolver-config.json"
 
 ucode -e '
@@ -89,12 +103,13 @@ assert(dns_rule(system, r => r.server == "dnsmasq-server" && contains(r.inbound,
 
 // The fallback goes to whoever owns loopback 53 - the resolver the router
 // itself uses - and not to the port dnsmasq was moved to, which would walk
-// around a front resolver like AdGuard Home and drop its filtering. In the
-// forkop unmatched mode only the local zone stays with it.
+// around a front resolver like AdGuard Home and drop its filtering. By default
+// Forkop answers everything no rule claimed, and only the zone the local
+// resolver is authoritative for is left with it.
 let moved = json(fs.readfile(ARGV[1]));
 let local_server = find_tag(moved.dns.servers, "dnsmasq-server");
 assert(local_server != null && local_server.server == "127.0.0.1" && local_server.server_port == 53, "the fallback always dials the resolver that owns loopback 53");
-assert(dns_rule(moved, r => r.server == "dns-server" && contains(r.inbound, "source-dns-in") && r.domain_regex == null && r.domain_suffix == null && r.query_type == null) != null, "forkop mode resolves unmatched client DNS itself");
+assert(dns_rule(moved, r => r.server == "dns-server" && contains(r.inbound, "source-dns-in") && r.domain_regex == null && r.domain_suffix == null && r.query_type == null) != null, "unmatched client DNS is resolved by Forkop itself");
 assert(dns_rule(moved, r => r.server == "dnsmasq-server" && contains(r.inbound, "source-dns-in") && r.domain_regex == "^[^.]+$") != null, "single-label names stay on the local resolver");
 assert(dns_rule(moved, r => r.server == "dnsmasq-server" && contains(r.inbound, "source-dns-in") && r.domain_suffix == ".home") != null, "the DHCP domain stays on the local resolver");
 assert(dns_rule(moved, r => r.server == "dnsmasq-server" && contains(r.inbound, "source-dns-in") && contains(r.query_type, "PTR")) != null, "reverse lookups stay on the local resolver");
@@ -106,11 +121,19 @@ for (let rule in moved.dns.rules) {
         assert(!forkop_fallback_seen, "the local zone must be answered before the forkop fallback");
 }
 
+// Sending unmatched queries back to the router hands the local resolver
+// everything again: one rule for the whole client inbound, and no zone rules
+// carved out of it, because there is nothing left to carve them out of.
+let resolver_mode = json(fs.readfile(ARGV[2]));
+assert(dns_rule(resolver_mode, r => r.server == "dnsmasq-server" && contains(r.inbound, "source-dns-in") && r.domain_regex == null && r.domain_suffix == null && r.query_type == null) != null, "router mode returns unmatched client DNS to the local resolver");
+assert(dns_rule(resolver_mode, r => r.server == "dns-server" && contains(r.inbound, "source-dns-in") && r.domain == null && r.domain_suffix == null && r.rule_set == null) == null, "router mode leaves no unmatched client queries on the Forkop DNS");
+assert(dns_rule(resolver_mode, r => r.server == "dnsmasq-server" && r.domain_regex == "^[^.]+$") == null, "router mode has no local zone to carve out");
+
 // A dnsmasq with its DNS switched off leaves whoever took the port over.
-let disabled_resolver = json(fs.readfile(ARGV[2]));
+let disabled_resolver = json(fs.readfile(ARGV[3]));
 assert(find_tag(disabled_resolver.dns.servers, "dnsmasq-server").server_port == 53, "a disabled dnsmasq port changes nothing about the fallback");
 
 ' "$WORK_DIR/system-proxy-config.json" "$WORK_DIR/moved-resolver-config.json" \
-  "$WORK_DIR/disabled-resolver-config.json"
+  "$WORK_DIR/resolver-mode-config.json" "$WORK_DIR/disabled-resolver-config.json"
 
 printf 'DNS capture config checks passed\n'

@@ -827,7 +827,7 @@ function sing_box_signature_body(settings, sections, servers, mwan3_active, loca
     let body = "";
 
     body = signature_add_value(body, "settings.dns_strategy", option(settings, "dns_strategy", "prefer_ipv4"));
-    body = signature_add_value(body, "settings.unmatched_dns_mode", option(settings, "unmatched_dns_mode", "router"));
+    body = signature_add_value(body, "settings.unmatched_dns_mode", option(settings, "unmatched_dns_mode", "forkop"));
     // The generated config keeps the DHCP domain on the local resolver, so
     // renaming it has to count as a configuration change.
     body = signature_add_value(body, "dhcp.@dnsmasq[0].domain", option(local_dns, "domain", ""));

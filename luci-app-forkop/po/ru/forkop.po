@@ -1646,8 +1646,8 @@ msgstr "Маршрутизировать DNS-запросы резолвера �
 msgid "Route this client on its own path instead of the rest of the server"
 msgstr "Использовать для этого клиента отдельный путь маршрутизации вместо серверного"
 
-msgid "Router DNS"
-msgstr "DNS роутера"
+msgid "Router"
+msgstr "Роутер"
 
 msgid "router SSH"
 msgstr "SSH роутера"

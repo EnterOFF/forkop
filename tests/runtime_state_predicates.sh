@@ -650,7 +650,7 @@ cat >"$WORK_DIR/sing-box-signature.expected" <<'EOF_SING_BOX_SIG'
 [settings.dns_strategy]
 prefer_ipv6
 [settings.unmatched_dns_mode]
-router
+forkop
 [dhcp.@dnsmasq[0].domain]
 
 [settings.dns_server]

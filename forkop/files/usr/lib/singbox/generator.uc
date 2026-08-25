@@ -142,14 +142,14 @@ function local_resolver_domain() {
     return value == "" ? "lan" : value;
 }
 
-// The server that answers a client query no section rule claimed: the local
-// resolver by default, so DHCP names, hosts records and ad-block lists keep
-// answering, or the Forkop DNS when the user routed everything unmatched
-// through it.
+// The server that answers a client query no section rule claimed: the Forkop
+// DNS by default, or the local resolver when the user sent unmatched queries
+// back to it, so that DHCP names, hosts records and ad-block lists keep
+// answering.
 function unmatched_client_dns_server_tag() {
-    return option(runtime_settings(), "unmatched_dns_mode", "router") == "forkop"
-        ? runtime_constants.DNS_SERVER_TAG
-        : runtime_constants.DNSMASQ_DNS_SERVER_TAG;
+    return option(runtime_settings(), "unmatched_dns_mode", "forkop") == "router"
+        ? runtime_constants.DNSMASQ_DNS_SERVER_TAG
+        : runtime_constants.DNS_SERVER_TAG;
 }
 
 function settings_update_interval() {
@@ -1781,10 +1781,10 @@ function add_static_hosts_dns_rule(config, hosts) {
     });
 }
 
-// Queries no section rule claimed. Captured client queries return to the local
-// resolver, which keeps DHCP names, hosts records and ad-block filtering
-// answering - or go to the Forkop DNS when the user routed everything unmatched
-// through it, with only the resolver's own zone left on it. The router's
+// Queries no section rule claimed. Captured client queries take the Forkop DNS,
+// with only the resolver's own zone left on the resolver - or return to the
+// local resolver entirely when the user sent them back to it, which keeps DHCP
+// names, hosts records and ad-block filtering answering everything. The router's
 // unmatched queries always take the Forkop DNS: the resolver forwards upstream
 // through the very capture that brought the query here, and answering the
 // router from the resolver would send the query in a circle.

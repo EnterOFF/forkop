@@ -433,9 +433,9 @@ function createSettingsContent(section, capabilities) {
     _("DNS outside the rules"),
     _("Who resolves domains no rule matched"),
   );
-  o.value("router", _("Router DNS"));
-  o.value("forkop", _("Forkop DNS"));
-  o.default = "router";
+  o.value("forkop", "Forkop");
+  o.value("router", _("Router"));
+  o.default = "forkop";
   o.rmempty = false;
 
   const excludedDevicesOption = section.option(
