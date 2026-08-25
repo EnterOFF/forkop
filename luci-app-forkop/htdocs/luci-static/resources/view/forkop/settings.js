@@ -761,9 +761,7 @@ function createSettingsContent(section, capabilities) {
     form.Flag,
     "unified_delay",
     _("Accurate latency measurement"),
-    _(
-      "Includes connection setup and the TLS handshake. Slower, but more accurate",
-    ),
+    _("Includes connection setup and the TLS handshake"),
   );
   o.default = "0";
   o.rmempty = false;
