@@ -704,10 +704,16 @@ function cleanup_crashed_sing_box(exit_code) {
     return status;
 }
 
-function abort_reload(status, runtime_changed) {
+// The reason is what the page shows: an apply that failed is reported to the user
+// out of the log, so every way out of a reload has to say which step gave up. The
+// step that failed may have logged more of its own first; this line is the one
+// that is always there.
+function abort_reload(status, runtime_changed, reason) {
     status = int(status || 0);
     if (status == 0)
         status = 1;
+
+    log_message(as_string(reason) + ". Aborted.", "error");
 
     if (runtime_changed)
         cleanup_failed_runtime();
@@ -796,8 +802,11 @@ function restart_runtime_for_reload_locked() {
     log_message("Reload requires a full Forkop runtime restart", "info");
 
     status = stop_main();
-    if (status != 0)
+    if (status != 0) {
+        // start_impl says why it gave up; this one is otherwise silent.
+        log_message("Failed to stop the Forkop runtime before restarting it. Aborted.", "error");
         return status;
+    }
 
     status = start_impl();
     if (status != 0) {
@@ -875,18 +884,18 @@ function apply_reload_plan(plan, force_runtime_reload) {
         log_message("Rebuilding nftables rules", "info");
         status = nft_rebuild_runtime();
         if (status != 0)
-            return abort_reload(status, true);
+            return abort_reload(status, true, "Failed to rebuild the nftables rules");
     }
 
     if (plan.needs_sing_box_reload == 1) {
         status = module_status(SINGBOX_UC, [ "configure-service" ]);
         if (status != 0)
-            return abort_reload(status, true);
+            return abort_reload(status, true, "Failed to configure the sing-box service");
         let sing_box_config_path = config_get(CONFIG_NAME + ".settings.config_path", "");
         let sing_box_config_hash_before = file_md5(sing_box_config_path);
         status = singbox_init_config_for_live_reload(plan.needs_nft_rebuild == 1);
         if (status != 0)
-            return abort_reload(status, true);
+            return abort_reload(status, true, "Failed to write the sing-box configuration");
         status = module_status(STATE_UC, [
             "reload-sing-box-runtime",
             sing_box_config_hash_before,
@@ -894,7 +903,7 @@ function apply_reload_plan(plan, force_runtime_reload) {
             as_string(force_runtime_reload)
         ]);
         if (status != 0)
-            return abort_reload(status, true);
+            return abort_reload(status, true, "Failed to reload sing-box");
         // The reload window only has to outlast the gap between the HUP signal
         // and sing-box dropping its ports; from there the hold cannot be
         // satisfied until the rebind has finished and readiness has come back.
@@ -915,13 +924,13 @@ function apply_reload_plan(plan, force_runtime_reload) {
     else if (plan.needs_nft_rebuild == 1) {
         status = nft_populate_runtime_sets();
         if (status != 0)
-            return abort_reload(status, true);
+            return abort_reload(status, true, "Failed to fill the nftables runtime sets");
     }
 
     if (restart_ruleset_sync) {
         status = module_status(RULESET_SYNC_UC, [ "start-worker" ]);
         if (status != 0)
-            return abort_reload(status, true);
+            return abort_reload(status, true, "Failed to start the rule set sync worker");
     }
 
     if (plan.needs_zapret_restart == 1)
@@ -934,7 +943,7 @@ function apply_reload_plan(plan, force_runtime_reload) {
     if (plan.needs_cron_refresh == 1) {
         status = refresh_cron();
         if (status != 0)
-            return abort_reload(status, false);
+            return abort_reload(status, false, "Failed to refresh the Forkop cron jobs");
     }
 
     return 0;
@@ -972,11 +981,11 @@ function reload_impl(reason) {
         as_string(RELOAD_STATE_FORMAT)
     ]);
     if (status != 0)
-        return status;
+        return abort_reload(status, false, "Failed to read the state of the running configuration");
 
     let current_reload_state_file = trim(command_output_from_args([ "mktemp" ]));
     if (current_reload_state_file == "")
-        return abort_reload(1, false);
+        return abort_reload(1, false, "Failed to create a temporary file for the runtime state");
 
     status = module_status(STATE_UC, [
         "write-captured-reload-state",
@@ -988,7 +997,7 @@ function reload_impl(reason) {
     ]);
     if (status != 0) {
         remove_file(current_reload_state_file);
-        return abort_reload(status, false);
+        return abort_reload(status, false, "Failed to write out the state of the running configuration");
     }
 
     let runtime_cache_needs_rebuild = as_string(getenv("FORKOP_RUNTIME_CACHE_INVALIDATED") || "0") == "1" ? 1 : 0;
@@ -1007,7 +1016,7 @@ function reload_impl(reason) {
             log_message("Reload state is unavailable; restarting Forkop runtime", "info");
             return finish_reload_status(restart_runtime_for_reload_locked(), reload_config_fingerprint);
         }
-        return abort_reload(plan_result.status, false);
+        return abort_reload(plan_result.status, false, "Failed to work out what the configuration change requires");
     }
 
     let plan = parse_reload_plan(plan_result.output);
@@ -1022,8 +1031,9 @@ function reload_impl(reason) {
             "1",
             "1"
         ]);
-        if (status == 0)
-            log_message("Configuration already applied; nothing to change", "info");
+        if (status != 0)
+            return abort_reload(status, false, "Failed to record the applied configuration");
+        log_message("Configuration already applied; nothing to change", "info");
         return finish_reload_status(status, reload_config_fingerprint);
     }
 
@@ -1031,16 +1041,20 @@ function reload_impl(reason) {
     if (status != 0)
         return status;
 
-    log_message("Configuration applied", "info");
-
-    return finish_reload_status(module_status(STATE_UC, [
+    status = module_status(STATE_UC, [
         "write-captured-reload-state",
         RELOAD_STATE_FILE,
         RELOAD_STATE_SNAPSHOT_FILE,
         as_string(RELOAD_STATE_FORMAT),
         "1",
         "1"
-    ]), reload_config_fingerprint);
+    ]);
+    if (status != 0)
+        return abort_reload(status, false, "Failed to record the applied configuration");
+
+    log_message("Configuration applied", "info");
+
+    return finish_reload_status(status, reload_config_fingerprint);
 }
 
 function reload(reason) {

@@ -44,6 +44,7 @@ import {
   getAutostartControlsPresentation,
   getServiceControlsPresentation,
   getServiceOperation,
+  serviceActionFailureMessage,
   shouldDisableDiagnosticRunAction,
 } from './serviceTransition';
 import type { ServiceOperation } from './serviceTransition';
@@ -166,16 +167,6 @@ function getLocalPendingServiceOperation(
   return null;
 }
 
-const SERVICE_ACTION_FAILURE_LABELS: Record<
-  ServiceRuntimeAction | 'reload',
-  () => string
-> = {
-  start: () => _('Failed to start the service'),
-  stop: () => _('Failed to stop the service'),
-  restart: () => _('Failed to restart the service'),
-  reload: () => _('Failed to apply the configuration'),
-};
-
 // Runs on every runtime state notification for the life of the page: a finished
 // action is acknowledged and, when it failed, said out loud - wherever it was
 // started, this page or another. Both are once per job; the feed keeps
@@ -192,8 +183,10 @@ function settleFinishedServiceActions(uiState: Forkop.UiState) {
 
     handledServiceActionJobs.add(action.job_id);
     if (action.success === false) {
-      const label = SERVICE_ACTION_FAILURE_LABELS[action.action];
-      showToast(label ? label() : _('Service action failed'), 'error');
+      const message = serviceActionFailureMessage(action.action);
+      if (message) {
+        showToast(message, 'error');
+      }
     }
 
     void ForkopShellMethods.uiActionAck('service', action.job_id);
@@ -386,7 +379,12 @@ async function handleServiceRuntimeAction(action: ServiceRuntimeAction) {
     }
   } catch (e) {
     logger.error('[DIAGNOSTIC]', `handleServiceRuntimeAction(${action})`, e);
-    showToast(SERVICE_ACTION_FAILURE_LABELS[action](), 'error');
+    // start, stop and restart always have a message; the request never carries
+    // the one action that has none.
+    showToast(
+      serviceActionFailureMessage(action) || _('Service action failed'),
+      'error',
+    );
     setDiagnosticActionLoading(action, false);
   } finally {
     void refreshRuntimeUiStateNow();

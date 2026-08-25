@@ -178,3 +178,28 @@ export function shouldDisableDiagnosticRunAction({
 export function hasComponentActionLoading(actions: ComponentActions) {
   return Object.values(actions).some((action) => action.loading);
 }
+
+// What a finished service action says when it failed, or nothing when the page
+// has to stay quiet about it.
+//
+// Applying a configuration is the one action the user did not ask this page for:
+// it is what a Save & Apply anywhere in LuCI runs, and it always fails for a
+// reason - the option the configuration check refused, the step of the apply
+// that gave up. Every one of those reasons is written to the log as an error,
+// and an error in the log is already raised as an ordinary error alert with the
+// reason in it. A toast beside it could only repeat that something went wrong,
+// which the alert has said already, and said better.
+const SERVICE_ACTION_FAILURE_LABELS: Record<string, () => string> = {
+  start: () => _('Failed to start the service'),
+  stop: () => _('Failed to stop the service'),
+  restart: () => _('Failed to restart the service'),
+};
+
+export function serviceActionFailureMessage(action: string): string | null {
+  if (action === 'reload') {
+    return null;
+  }
+
+  const label = SERVICE_ACTION_FAILURE_LABELS[action];
+  return label ? label() : _('Service action failed');
+}

@@ -9643,6 +9643,18 @@ function shouldDisableDiagnosticRunAction({
 }) {
   return !providerInfoLoaded;
 }
+var SERVICE_ACTION_FAILURE_LABELS = {
+  start: () => _("Failed to start the service"),
+  stop: () => _("Failed to stop the service"),
+  restart: () => _("Failed to restart the service")
+};
+function serviceActionFailureMessage(action) {
+  if (action === "reload") {
+    return null;
+  }
+  const label = SERVICE_ACTION_FAILURE_LABELS[action];
+  return label ? label() : _("Service action failed");
+}
 
 // src/forkop/helpers/osRelease.ts
 var BUILD_ID = /\s+r\d+(?:[-+][0-9a-z]+)*$/i;
@@ -9951,12 +9963,6 @@ function getLocalPendingServiceOperation(actions) {
   }
   return null;
 }
-var SERVICE_ACTION_FAILURE_LABELS = {
-  start: () => _("Failed to start the service"),
-  stop: () => _("Failed to stop the service"),
-  restart: () => _("Failed to restart the service"),
-  reload: () => _("Failed to apply the configuration")
-};
 function settleFinishedServiceActions(uiState) {
   for (const action of uiState.actions.service || []) {
     if (!action.job_id || action.running) {
@@ -9967,8 +9973,10 @@ function settleFinishedServiceActions(uiState) {
     }
     handledServiceActionJobs.add(action.job_id);
     if (action.success === false) {
-      const label = SERVICE_ACTION_FAILURE_LABELS[action.action];
-      showToast(label ? label() : _("Service action failed"), "error");
+      const message = serviceActionFailureMessage(action.action);
+      if (message) {
+        showToast(message, "error");
+      }
     }
     void ForkopShellMethods.uiActionAck("service", action.job_id);
     releaseDiagnosticsChecks();
@@ -10106,7 +10114,10 @@ async function handleServiceRuntimeAction(action) {
     }
   } catch (e) {
     logger.error("[DIAGNOSTIC]", `handleServiceRuntimeAction(${action})`, e);
-    showToast(SERVICE_ACTION_FAILURE_LABELS[action](), "error");
+    showToast(
+      serviceActionFailureMessage(action) || _("Service action failed"),
+      "error"
+    );
     setDiagnosticActionLoading(action, false);
   } finally {
     void refreshRuntimeUiStateNow();

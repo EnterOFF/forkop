@@ -89,4 +89,11 @@ reject_runtime_pattern "elements to nft set" \
 reject_runtime_regex 'log_message\("singbox/runtime\.uc: ' \
   "runtime logs must not expose singbox/runtime.uc as a user-facing prefix"
 
+# An apply that failed is reported to the user out of the log and nowhere else,
+# so every way out of a reload has to say which step gave up. abort_reload takes
+# that reason as its third argument; a call without one is a silent failure the
+# page can say nothing about.
+reject_runtime_regex 'abort_reload\([^,)]+, *[^,)]+\)' \
+  "every abort_reload must name the step that failed, so the page can report it"
+
 printf 'log hygiene checks passed\n'

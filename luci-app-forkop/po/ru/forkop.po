@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-25 02:40+0300\n"
-"PO-Revision-Date: 2026-08-25 02:40+0300\n"
+"POT-Creation-Date: 2026-08-25 03:53+0300\n"
+"PO-Revision-Date: 2026-08-25 03:53+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -727,9 +727,6 @@ msgstr "Внешние конфиги nfqws обходят управление 
 
 msgid "External nfqws2 config files bypass Forkop queue management and explicit validation."
 msgstr "Внешние конфиги nfqws2 обходят управление очередями и явную валидацию Forkop."
-
-msgid "Failed to apply the configuration"
-msgstr "Не удалось применить конфигурацию"
 
 msgid "Failed to close connection"
 msgstr "Не удалось закрыть подключение"

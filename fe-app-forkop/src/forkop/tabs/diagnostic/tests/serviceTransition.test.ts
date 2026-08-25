@@ -6,6 +6,7 @@ import {
   hasComponentActionLoading,
   hasLocalMutatingServiceActionLoading,
   isServiceBusy,
+  serviceActionFailureMessage,
   shouldDisableDiagnosticRunAction,
   STUCK_OPERATION_SECONDS,
 } from '../serviceTransition';
@@ -268,5 +269,24 @@ describe('polling and component actions', () => {
         b: { loading: true },
       }),
     ).toBe(true);
+  });
+
+  // Applying a configuration says why it failed in the log, and the page already
+  // raises an ordinary error alert for a logged error. A toast on top of that
+  // could only say that something went wrong, without the reason.
+  it('leaves a failed apply to the error alert and names every other failure', () => {
+    expect(serviceActionFailureMessage('reload')).toBeNull();
+    expect(serviceActionFailureMessage('start')).toBe(
+      'Failed to start the service',
+    );
+    expect(serviceActionFailureMessage('stop')).toBe(
+      'Failed to stop the service',
+    );
+    expect(serviceActionFailureMessage('restart')).toBe(
+      'Failed to restart the service',
+    );
+    expect(serviceActionFailureMessage('something-else')).toBe(
+      'Service action failed',
+    );
   });
 });

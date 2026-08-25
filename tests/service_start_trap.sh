@@ -89,12 +89,12 @@ awk '
   END { exit done && saw_start_impl && !duplicated_dns && !duplicated_state ? 0 : 1 }
 ' "$LIFECYCLE_UC" ||
   fail "reload fallback restart must reuse the complete start_impl path without duplicating finalization"
-require_pattern 'function abort_reload(status, runtime_changed)' \
+require_pattern 'function abort_reload(status, runtime_changed, reason)' \
   "reload failures must share one cleanup decision owner"
-require_pattern 'return abort_reload(status, true);' \
+require_pattern 'return abort_reload(status, true, ' \
   "reload failures after runtime mutation must clean the partial runtime"
 cleanup_function_line="$(grep -nF 'function cleanup_failed_runtime()' "$LIFECYCLE_UC" | head -n1 | cut -d: -f1)"
-abort_function_line="$(grep -nF 'function abort_reload(status, runtime_changed)' "$LIFECYCLE_UC" | head -n1 | cut -d: -f1)"
+abort_function_line="$(grep -nF 'function abort_reload(status, runtime_changed, reason)' "$LIFECYCLE_UC" | head -n1 | cut -d: -f1)"
 [ -n "$cleanup_function_line" ] && [ -n "$abort_function_line" ] &&
   [ "$cleanup_function_line" -lt "$abort_function_line" ] ||
   fail "cleanup_failed_runtime must be declared before abort_reload for ucode runtime calls"
