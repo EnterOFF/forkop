@@ -132,11 +132,19 @@ function adoptUbusState(value: UbusState) {
 
 // The state service answers in a few milliseconds because it is already
 // running. The CLI is what answers when it is not installed yet, or not up.
-async function readState(): Promise<Forkop.UiState | undefined> {
+//
+// `state` hands back what the service published last. It recomputes when its
+// watch notices a change, which is twice a second at best, so a page that has
+// just changed something itself would be answered with the state from before
+// its own action - an autostart symlink it removed a moment ago is still there.
+// `refresh` is the same answer computed on the spot, and costs the recompute.
+async function readState(
+  recompute: boolean,
+): Promise<Forkop.UiState | undefined> {
   if (transport !== 'cli') {
     const response = await callUbus<UbusState>({
       object: STATE_OBJECT,
-      method: 'state',
+      method: recompute ? 'refresh' : 'state',
       timeoutMs: STATE_CALL_TIMEOUT_MS,
     });
 
@@ -170,6 +178,9 @@ async function readState(): Promise<Forkop.UiState | undefined> {
   return response.data;
 }
 
+// `force` is the caller saying it has a reason to read now: it skips the
+// throttle that keeps ordinary polls apart, and it asks the state service for a
+// fresh computation rather than for whatever it published last.
 export async function refreshRuntimeUiState({
   force = false,
 }: { force?: boolean } = {}): Promise<Forkop.UiState | undefined> {
@@ -191,7 +202,7 @@ export async function refreshRuntimeUiState({
 
   lastRuntimeUiStateRefreshAt = now;
 
-  const promise = readState()
+  const promise = readState(force)
     .catch((error) => {
       logger.error('[RUNTIME_UI_STATE]', 'refresh failed', error);
       return undefined;

@@ -403,6 +403,11 @@ async function handleStop() {
   await handleServiceRuntimeAction('stop');
 }
 
+// Autostart has no job and no local overlay standing in for it: which of the
+// two buttons is shown follows `service.forkop.enabled` and nothing else. So
+// the button is held until the new value has actually arrived - releasing it
+// first put the old button back, idle, for as long as the read took, and the
+// click read as having done nothing. The refresh settles either way.
 async function handleAutostartAction(
   action: 'enable' | 'disable',
   request: () => Promise<unknown>,
@@ -413,10 +418,10 @@ async function handleAutostartAction(
     await request();
   } catch (e) {
     logger.error('[DIAGNOSTIC]', `handleAutostartAction(${action})`, e);
-  } finally {
-    setDiagnosticActionLoading(action, false);
-    void refreshRuntimeUiStateNow();
   }
+
+  await refreshRuntimeUiStateNow();
+  setDiagnosticActionLoading(action, false);
 }
 
 async function handleEnable() {

@@ -5113,11 +5113,11 @@ function adoptUbusState(value) {
   applyState(uiState);
   return uiState;
 }
-async function readState() {
+async function readState(recompute) {
   if (transport !== "cli") {
     const response2 = await callUbus({
       object: STATE_OBJECT,
-      method: "state",
+      method: recompute ? "refresh" : "state",
       timeoutMs: STATE_CALL_TIMEOUT_MS
     });
     if (response2.success) {
@@ -5156,7 +5156,7 @@ async function refreshRuntimeUiState({
     return void 0;
   }
   lastRuntimeUiStateRefreshAt = now;
-  const promise = readState().catch((error) => {
+  const promise = readState(force).catch((error) => {
     logger.error("[RUNTIME_UI_STATE]", "refresh failed", error);
     return void 0;
   }).finally(() => {
@@ -10150,10 +10150,9 @@ async function handleAutostartAction(action, request) {
     await request();
   } catch (e) {
     logger.error("[DIAGNOSTIC]", `handleAutostartAction(${action})`, e);
-  } finally {
-    setDiagnosticActionLoading(action, false);
-    void refreshRuntimeUiStateNow();
   }
+  await refreshRuntimeUiStateNow();
+  setDiagnosticActionLoading(action, false);
 }
 async function handleEnable() {
   await handleAutostartAction("enable", () => ForkopShellMethods.enable());

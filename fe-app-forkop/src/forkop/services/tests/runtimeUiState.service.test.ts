@@ -71,9 +71,28 @@ describe('runtime state transport', () => {
     );
 
     expect(mocks.callUbus).toHaveBeenCalledWith(
-      expect.objectContaining({ object: 'forkop', method: 'state' }),
+      expect.objectContaining({ object: 'forkop', method: 'refresh' }),
     );
     expect(mocks.executeShellCommand).not.toHaveBeenCalled();
+  });
+
+  // The service recomputes when its watch notices a change, so what it last
+  // published is older than the action the page just performed. A forced read
+  // is the page saying it changed something, and it pays for the recompute; an
+  // ordinary poll has nothing to announce and takes the published answer.
+  it('asks for a recomputed state only when the read is forced', async () => {
+    mocks.callUbus.mockResolvedValue({
+      success: true,
+      data: { ...createUiState(), revision: 3 },
+    });
+
+    await refreshRuntimeUiState();
+    await refreshRuntimeUiState({ force: true });
+
+    const methods = mocks.callUbus.mock.calls.map(
+      (call) => (call[0] as { method: string }).method,
+    );
+    expect(methods).toEqual(['state', 'refresh']);
   });
 
   // An install that has not brought the service up yet, or an older one that
