@@ -75,7 +75,10 @@ const FILTERABLE_GROUP_TYPES = [
 ];
 
 // sing-box resolves a manual link at runtime, so the generated "parser"
-// outbound has to be matched by the protocol its link carries.
+// outbound has to be matched by the protocol its link carries. The schemes are
+// the ones ParseSubscriptionLink accepts in the core; a scheme missing here
+// leaves the node with no protocol, and a group filtering by protocol then
+// keeps a server it was told to exclude.
 const LINK_SCHEME_OUTBOUND_TYPES = {
     "ss": "shadowsocks",
     "vmess": "vmess",
@@ -83,6 +86,7 @@ const LINK_SCHEME_OUTBOUND_TYPES = {
     "trojan": "trojan",
     "tuic": "tuic",
     "anytls": "anytls",
+    "hy": "hysteria",
     "hysteria": "hysteria",
     "hy2": "hysteria2",
     "hysteria2": "hysteria2",
@@ -97,7 +101,8 @@ const LINK_SCHEME_OUTBOUND_TYPES = {
     "socks": "socks",
     "socks4": "socks",
     "socks4a": "socks",
-    "socks5": "socks"
+    "socks5": "socks",
+    "socks5h": "socks"
 };
 
 // The section fills in the detour of every server it imports from its cascade

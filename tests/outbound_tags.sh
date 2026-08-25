@@ -160,6 +160,48 @@ if (sprintf("%J", actual) != sprintf("%J", expected)) {
 }
 ' "$WORK_DIR/link-names-runtime.json" || fail "Forkop link names must match sing-box parser semantics"
 
+# A manual link carries its protocol in its scheme, and a group filtering by
+# protocol has to see it. A scheme the map does not know left the node with no
+# protocol at all, so it survived a filter that was told to exclude it.
+cat >"$WORK_DIR/link-types.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "section": [
+    {
+      ".name": "links", ".type": "section", "label": "Links", "enabled": "1", "action": "connection",
+      "selector_proxy_links": [
+        "hy://example.com:443?auth=secret#Hysteria",
+        "socks5h://user:pass@example.com:1080#SOCKS",
+        "vless://00000000-0000-4000-8000-000000000001@example.com:443#VLESS"
+      ]
+    }
+  ],
+  "urltest": [
+    {
+      ".name": "ut_types", ".type": "urltest", "section": "links", "name": "Filtered",
+      "server_filter_mode": "exclude", "exclude_types": [ "hysteria", "socks" ]
+    }
+  ]
+}
+JSON
+ucode -L "$FORKOP_LIB" "$GENERATOR_UC" generate-config-fixture   "$WORK_DIR/link-types.json" "$WORK_DIR/link-types-runtime.json" "127.0.0.1" "0"
+ucode -e '
+let config = json(require("fs").readfile(ARGV[0]));
+let urltest = null;
+for (let outbound in config.outbounds || [])
+    if (outbound.type == "urltest")
+        urltest = outbound;
+if (urltest == null)
+    die("the filtered group was not generated
+");
+let expected = [ "Links/VLESS" ];
+if (sprintf("%J", urltest.outbounds || []) != sprintf("%J", expected)) {
+    warn("filtered group members differ: " + sprintf("%J", urltest.outbounds) + "
+");
+    exit(1);
+}
+' "$WORK_DIR/link-types-runtime.json" || fail "a manual link must be filtered by the protocol of its scheme"
+
 ucode -e '
 let fs = require("fs");
 let config = json(fs.readfile(ARGV[0]));
