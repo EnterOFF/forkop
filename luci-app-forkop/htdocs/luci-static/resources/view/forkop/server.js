@@ -3674,17 +3674,22 @@ function autofill(option, loader) {
 }
 
 function addIdentityOptions(section) {
+  // Both declared columns come from the Sections tab, which is the same grid
+  // one tab over: a name, a switch, one column naming what the row is, and the
+  // row actions. A width of its own here moved every column on the page when
+  // the user switched tabs, because whatever these two do not take goes to the
+  // name column beside them.
   let o = section.option(form.Flag, "enabled", _("Enable"));
   o.default = "1";
   o.rmempty = false;
   o.editable = true;
-  o.width = "6rem";
+  o.width = sectionui.GRID_SWITCH_COLUMN_WIDTH;
 
   o = section.option(form.DummyValue, "_protocol_display", _("Protocol"));
   o.modalonly = false;
   o.textvalue = (sectionId) => protocolLabel(getProtocol(sectionId));
   o.cfgvalue = o.textvalue;
-  o.width = "9rem";
+  o.width = sectionui.GRID_KIND_COLUMN_WIDTH;
 
   o = section.option(
     form.Value,

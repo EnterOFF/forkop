@@ -15,6 +15,15 @@ const ACTION_PROVIDERS_AVAILABILITY_EVENT =
   main.FORKOP_ACTION_PROVIDERS_AVAILABILITY_EVENT ||
   "forkop:action-providers-availability";
 const RULE_SET_ITEM_SETTINGS_KEY = "rule_set_settings";
+// The Sections and Servers tables are the same grid, and the user moves between
+// them by clicking a tab: a name, a switch, one column naming what the row is,
+// and the row actions. Only these two columns are declared - the actions column
+// is sized by its buttons and the name column takes whatever is left - so these
+// two values are what decides whether the columns line up across the tabs, and
+// they lived apart until each table had drifted to a width of its own. The kind
+// column holds the widest of either side's values, which is Shadowsocks.
+const GRID_SWITCH_COLUMN_WIDTH = "6rem";
+const GRID_KIND_COLUMN_WIDTH = "8rem";
 const ROUTING_ACTIONS = [
   "connection",
   "proxy",
@@ -7625,7 +7634,7 @@ function createSectionContent(section) {
   o.default = "1";
   o.rmempty = false;
   o.editable = true;
-  o.width = "6rem";
+  o.width = GRID_SWITCH_COLUMN_WIDTH;
 
   o = section.taboption(
     "settings",
@@ -7641,7 +7650,7 @@ function createSectionContent(section) {
   o.textvalue = function (section_id) {
     return getRuleActionDisplayValue(section_id);
   };
-  o.width = "7rem";
+  o.width = GRID_KIND_COLUMN_WIDTH;
 
   o = section.taboption(
     "settings",
@@ -8533,6 +8542,10 @@ function validateUniqueDynamicListItemName(widget, itemNode, value) {
 }
 
 const EntryPoint = {
+  // The two grid columns the Servers tab has to match, so that switching tabs
+  // does not move every column on the page.
+  GRID_KIND_COLUMN_WIDTH,
+  GRID_SWITCH_COLUMN_WIDTH,
   // The child item list widget and its stacked settings dialog are shared with the
   // Servers tab, which lists server clients the same way this tab lists interfaces,
   // URLTests and tunnels.
