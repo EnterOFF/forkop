@@ -8,12 +8,15 @@ fail() {
   exit 1
 }
 
+# grep, not ripgrep: the checks below used to run through rg, which is not
+# installed in the shell the test suite runs in. A missing command exits
+# non-zero, which reads exactly like "the pattern was not found", so every rule
+# in this file passed without looking at anything.
 reject_runtime_pattern() {
   local pattern="$1"
   local label="$2"
 
-  if rg -n --fixed-strings "$pattern" "$ROOT_DIR/forkop/files" >/dev/null 2>&1; then
-    rg -n --fixed-strings "$pattern" "$ROOT_DIR/forkop/files" >&2
+  if grep -rnF -- "$pattern" "$ROOT_DIR/forkop/files" >&2; then
     fail "$label"
   fi
 }
@@ -22,8 +25,7 @@ reject_runtime_regex() {
   local pattern="$1"
   local label="$2"
 
-  if rg -n "$pattern" "$ROOT_DIR/forkop/files" >/dev/null 2>&1; then
-    rg -n "$pattern" "$ROOT_DIR/forkop/files" >&2
+  if grep -rnE -- "$pattern" "$ROOT_DIR/forkop/files" >&2; then
     fail "$label"
   fi
 }
