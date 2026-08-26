@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  createUciStub,
-  loadLuciView,
-  resetLuciViewCache,
-} from './loadLuciView';
+import { qrSvgDataUri } from '../../forkop/tabs/servers/qr';
 
 // The tab carries its own QR encoder - byte mode, error correction L, mask 0 - and
 // nothing outside a phone camera ever read its output back. This decodes the matrix
@@ -13,8 +9,7 @@ import {
 // The data has to come back exactly, or the code in the dialog is unscannable.
 
 function load() {
-  resetLuciViewCache();
-  return loadLuciView('server', createUciStub({}), ['qrSvgDataUri']);
+  return { qrSvgDataUri };
 }
 
 // The rectangles of the generated SVG, back into a matrix. The encoder draws one

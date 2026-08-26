@@ -2,7 +2,7 @@
 set -eo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SECTION_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js"
+SECTION_JS="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections)"
 
 fail() {
   printf 'FAIL: %s\n' "$1" >&2
@@ -19,16 +19,16 @@ grep -Fq 'o.renderItemSettingsModal = showInterfaceSettingsModal;' "$SECTION_JS"
   fail "network interfaces must keep their settings modal handler"
 grep -Fq 'defaults: (inputValue) => defaultInterfaceSettings(inputValue),' "$SECTION_JS" ||
   fail "new interface settings must default the display name to the interface name"
-grep -Fq '"display_name",' "$SECTION_JS" ||
+grep -Fq "'display_name'," "$SECTION_JS" ||
   fail "network interface settings must expose a display name"
 
-grep -Fq 'o.datatype = "netdevname";' "$SECTION_JS" ||
+grep -Fq "o.datatype = 'netdevname';" "$SECTION_JS" ||
   fail "custom network interfaces must use LuCI network device name validation"
 if grep -Fq 'Select an existing network interface' "$SECTION_JS"; then
   fail "custom network interfaces must not be restricted to discovered devices"
 fi
 
-node - "$SECTION_JS" <<'NODE'
+node - "$SECTION_JS" "$ROOT_DIR" <<'NODE'
 const fs = require("fs");
 const source = fs.readFileSync(process.argv[2], "utf8");
 
@@ -43,42 +43,42 @@ function requiredIndex(needle, from = 0) {
   return index;
 }
 
-const optionsStart = requiredIndex("function addInterfaceItemOptions(itemSection, options = {}) {");
-const optionsEnd = requiredIndex("function addUrlTestItemOptions(", optionsStart);
-const block = source.slice(optionsStart, optionsEnd);
+// The tab is a directory of modules, so the block is the function itself
+// rather than everything up to whatever now follows it.
+const { readFunction } = require(`${process.argv[3]}/tests/helpers/source_literal.js`);
+const block = readFunction(source, "addInterfaceItemOptions");
 
 for (const expected of [
   // The resolver must reuse the shared DNS server standard instead of a scalar field.
-  "form.DynamicList,\n    \"domain_resolver_dns_server\"",
-  '_("DNS Server")',
-  '"Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://"',
-  '_("Add at least one DNS server")',
-  '"domain_resolver_dns_fallback_strategy"',
-  '_("DNS Query Mode")',
-  'node.addEventListener("cbi-dynlist-change"',
-  '"domain_resolver_dns_detour_enabled"',
-  '_("DNS through section")',
+  "form.DynamicList,\n    'domain_resolver_dns_server'",
+  "_('DNS Server')",
+  "'Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://'",
+  "_('Add at least one DNS server')",
+  "'domain_resolver_dns_fallback_strategy'",
+  "_('DNS Query Mode')",
+  "node.addEventListener('cbi-dynlist-change'",
+  "'domain_resolver_dns_detour_enabled'",
+  "_('DNS through section')",
   '"Route the resolver\'s DNS requests through a section instead of this network interface"',
-  '"domain_resolver_dns_detour_section"',
-  '_("DNS requests through")',
+  "'domain_resolver_dns_detour_section'",
+  "_('DNS requests through')",
   "refreshDnsDetourSectionOptionValues(this, parentSectionForItem(itemId))",
-  '_("Select a section")',
+  "_('Select a section')",
 ]) {
   if (!block.includes(expected)) {
     fail(`interface resolver is missing the shared DNS contract: ${expected}`);
   }
 }
 
-const keysBlock = source.slice(
-  requiredIndex("function interfaceSettingsKeys()"),
-  requiredIndex("function urlTestSettingsKeys()"),
-);
+const keysBlock =
+  readFunction(source, "interfaceSettingsKeys") +
+  readFunction(source, "defaultInterfaceSettings");
 // The dialog reads and diffs all four resolver options ...
 for (const expected of [
-  '"domain_resolver_dns_server"',
-  '"domain_resolver_dns_fallback_strategy"',
-  '"domain_resolver_dns_detour_enabled"',
-  '"domain_resolver_dns_detour_section"',
+  "'domain_resolver_dns_server'",
+  "'domain_resolver_dns_fallback_strategy'",
+  "'domain_resolver_dns_detour_enabled'",
+  "'domain_resolver_dns_detour_section'",
 ]) {
   if (!keysBlock.includes(expected)) {
     fail(`interface settings storage is missing: ${expected}`);
@@ -98,18 +98,20 @@ for (const seeded of [
   }
 }
 
-function extractFunction(name, nextName) {
-  const start = source.indexOf(`function ${name}(`);
-  const end = source.indexOf(`function ${nextName}(`, start);
-  if (start < 0 || end < 0) fail(`missing function source: ${name}`);
-  return source.slice(start, end);
-}
 
-eval(extractFunction("normalizeDynamicListItems", "uniqueDynamicListItems"));
+
+eval(readFunction(source, "normalizeDynamicListItems"));
 
 // The query mode must appear as soon as a second server is typed, without a save.
-const visibilityStart = requiredIndex("dnsQueryModeOption.checkDepends = function", optionsStart);
-const visibilityEnd = requiredIndex("  o = itemSection.option(", visibilityStart);
+// Inside the interface options: the marker that used to close the region is
+// no longer the next thing in the file, only the next thing in the function.
+const visibilityStart = block.indexOf(
+  "dnsQueryModeOption.checkDepends = function",
+);
+const visibilityEnd = block.indexOf("  o = itemSection.option(", visibilityStart);
+if (visibilityStart < 0 || visibilityEnd < 0) {
+  fail("interface resolver query mode visibility not found");
+}
 const listeners = {};
 const node = {
   addEventListener: (name, listener) => {
@@ -135,7 +137,7 @@ const modalMap = {
 };
 const dnsQueryModeOption = { map: modalMap };
 dnsServerOption.map = modalMap;
-eval(source.slice(visibilityStart, visibilityEnd));
+eval(block.slice(visibilityStart, visibilityEnd));
 dnsServerOption.renderWidget("settings", 0, currentServers);
 if (typeof listeners["cbi-dynlist-change"] !== "function") {
   fail("interface resolver servers must listen to the native DynamicList change event");

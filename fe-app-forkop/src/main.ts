@@ -1,47 +1,30 @@
 'use strict';
 'require baseclass';
+'require dom';
+'require form';
 'require fs';
+'require network';
 'require rpc';
+'require tools.widgets as widgets';
 'require uci';
 'require ui';
 
 import './helpers/structuredClonePolyfill';
 
-export { validateIP } from './validators/validateIp';
-export { validateDomain } from './validators/validateDomain';
-export { validateDNS } from './validators/validateDns';
-export { validateUrl } from './validators/validateUrl';
-export { validatePath } from './validators/validatePath';
-export { validateSingBoxFilePath } from './validators/validateSingBoxFilePath';
-export { validateSubnet } from './validators/validateSubnet';
-export { bulkValidate } from './validators/bulkValidate';
-export { validateOutboundJson } from './validators/validateOutboundJson';
-export { validateProxyUrl } from './validators/validateProxyUrl';
-export { analyzeStaticHosts } from './validators/validateStaticHosts';
+// The page. view/forkop/forkop.js hands this to view.extend() and does nothing
+// else.
+export { ForkopView } from './forkop/entry';
+
+// What each tab declares of the page. ForkopView is built out of exactly these,
+// and the checks that drive the shipped bundle build one tab at a time through
+// them rather than rendering the whole page.
 export {
-  parseWireGuardConfig,
-  parseWireGuardInput,
-  validateAmneziaSignature,
-  validateWireGuardKey,
-} from './helpers/parseWireGuardConfig';
-export { parseValueList } from './helpers/parseValueList';
-export { getProxyUrlName } from './helpers/getProxyUrlName';
-export { injectGlobalStyles } from './helpers/injectGlobalStyles';
-export { showToast } from './helpers/showToast';
-export { getClashUIUrl } from './helpers/getClashApiUrl';
-export { getOutboundTagBySection } from './forkop/runtimeTags';
-export { ForkopShellMethods } from './forkop/methods/shell';
-export { coreService } from './forkop/services/core.service';
-export { store } from './forkop/services/store.service';
-export { DashboardTab } from './forkop/tabs/dashboard';
-export { DiagnosticTab } from './forkop/tabs/diagnostic';
-export { MonitoringTab } from './forkop/tabs/monitoring';
-export { LogsTab } from './forkop/tabs/logs';
-export { UpdatesTab } from './forkop/tabs/updates';
-export { mountTab } from './forkop/tabs/mountTab';
+  configureSectionSection,
+  createSectionContent,
+} from './forkop/tabs/sections';
 export {
-  DEFAULT_LATENCY_TEST_URL,
-  DOMAIN_LIST_OPTIONS,
-  LATENCY_TEST_URL_OPTIONS,
-  FORKOP_UCI_PACKAGE,
-} from './constants';
+  configureServerSection,
+  createServerContent,
+  getRuleEditButtonText,
+} from './forkop/tabs/servers';
+export { createSettingsContent } from './forkop/tabs/settings';

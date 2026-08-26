@@ -125,15 +125,21 @@ function extractFunctionSecondStringArgs(data, functionName, callName) {
 
 // The server form reads its choice lists from tables and from inline arrays, so the
 // values are collected from those instead of from literal o.value() calls.
-function extractBracketedBlock(data, declaration) {
-  const start = data.indexOf(declaration);
-  if (start < 0) return "";
-  const end = data.indexOf("\n];", start);
-  return end < 0 ? "" : data.slice(start, end);
+//
+// A tab that lives in the bundle has its top level rewritten to var, so a table
+// is looked for under either keyword.
+function extractBracketedBlock(data, name) {
+  for (const declaration of [`const ${name} = [`, `var ${name} = [`]) {
+    const start = data.indexOf(declaration);
+    if (start < 0) continue;
+    const end = data.indexOf("\n];", start);
+    if (end >= 0) return data.slice(start, end);
+  }
+  return "";
 }
 
-function extractSpecValues(specData, declaration, pattern) {
-  const block = extractBracketedBlock(specData, declaration);
+function extractSpecValues(specData, name, pattern) {
+  const block = extractBracketedBlock(specData, name);
   return block ? [...block.matchAll(pattern)].map((match) => match[1]) : [];
 }
 
@@ -151,8 +157,11 @@ function extractInlineArrayValues(block) {
 }
 
 function enrichUiValues(fileData, option, block, values, specData) {
+  // callName is a regex: a tab that lives in the bundle now has its locals
+  // renamed when two modules name one the same, so option.value() reads as
+  // option2.value() in the generated file and the pattern allows the suffix.
   if (option === "action" && block.includes("populateActionOptionValues(")) {
-    for (const value of extractFunctionFirstStringArgs(fileData, "populateActionOptionValues", "option.value"))
+    for (const value of extractFunctionFirstStringArgs(fileData, "populateActionOptionValues", "option\\d*\\.value"))
       addUnique(values, value);
   }
 
@@ -174,22 +183,22 @@ function enrichUiValues(fileData, option, block, values, specData) {
   if (!tables) return;
 
   if (block.includes("PROTOCOLS.forEach") || block.includes("protocolIds()")) {
-    for (const value of extractSpecValues(tables, "const PROTOCOLS = [", /^\s*id:\s*\"([A-Za-z0-9_]+)\"/gm))
+    for (const value of extractSpecValues(tables, "PROTOCOLS", /^\s*id:\s*\"([A-Za-z0-9_]+)\"/gm))
       addUnique(values, value);
   }
 
   if (block.includes("TRANSPORTS.forEach") || block.includes("transportChoices()")) {
-    for (const value of extractSpecValues(tables, "const TRANSPORTS = [", /^\s*\[\"([A-Za-z0-9_-]+)\",/gm))
+    for (const value of extractSpecValues(tables, "TRANSPORTS", /^\s*\[\"([A-Za-z0-9_-]+)\",/gm))
       addUnique(values, value);
   }
 
   if (block.includes("SHADOWSOCKS_METHODS.forEach") || block.includes("shadowsocksMethods()")) {
-    for (const value of extractSpecValues(tables, "const SHADOWSOCKS_METHODS = [", /^\s*\{\s*id:\s*\"([^\"]+)\"/gm))
+    for (const value of extractSpecValues(tables, "SHADOWSOCKS_METHODS", /^\s*\{\s*id:\s*\"([^\"]+)\"/gm))
       addUnique(values, value);
   }
 
   if (block.includes("CLIENT_FINGERPRINTS.forEach") || block.includes("clientFingerprints()")) {
-    for (const value of extractSpecValues(tables, "const CLIENT_FINGERPRINTS = [", /^\s*\"([A-Za-z0-9_-]+)\",?/gm))
+    for (const value of extractSpecValues(tables, "CLIENT_FINGERPRINTS", /^\s*\"([A-Za-z0-9_-]+)\",?/gm))
       addUnique(values, value);
   }
 }

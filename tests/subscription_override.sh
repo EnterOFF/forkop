@@ -246,14 +246,14 @@ assert_accepts "patch reaching a field with no control of its own" "$WORK_DIR/al
 
 # The LuCI editor repeats the reserved list, so drift would let the dialog
 # accept what the backend refuses.
-node - "$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js" \
+node - "$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections)" \
   "$(ucode -L "$FORKOP_LIB" -e 'let c = require("singbox.constants"); print(join(" ", c.RESERVED_OVERRIDE_PATCH_PATHS));')" <<'NODE'
 const fs = require('fs');
 const source = fs.readFileSync(process.argv[2], 'utf8');
 const start = source.indexOf('function reservedOverridePatchPaths()');
 if (start < 0) throw new Error('reservedOverridePatchPaths is missing');
 const body = source.slice(start, source.indexOf('\n}', start));
-const paths = [...body.matchAll(/"([a-z_.]+)"/g)].map((match) => match[1]);
+const paths = [...body.matchAll(/'([a-z_.]+)'/g)].map((match) => match[1]);
 const expected = process.argv[3].split(' ');
 if (JSON.stringify(paths) !== JSON.stringify(expected)) {
   console.error(`reserved patch paths drifted: ${paths} vs ${expected}`);
@@ -263,13 +263,13 @@ NODE
 
 # The dialog stores exactly the four settings it shows, so a control removed
 # from it cannot leave a write behind that nothing reads any more.
-node - "$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js" <<'NODE'
+node - "$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections)" <<'NODE'
 const fs = require('fs');
 const source = fs.readFileSync(process.argv[2], 'utf8');
 const start = source.indexOf('function subscriptionOverrideKeys()');
 if (start < 0) throw new Error('subscriptionOverrideKeys is missing');
 const body = source.slice(start, source.indexOf('\n}', start));
-const keys = [...body.matchAll(/"(override_[a-z_]+)"/g)].map((match) => match[1]);
+const keys = [...body.matchAll(/'(override_[a-z_]+)'/g)].map((match) => match[1]);
 const expected = [
   'override_prefix',
   'override_suffix',

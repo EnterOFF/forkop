@@ -7,6 +7,8 @@ on:
       - 'forkop/Makefile'
       - 'build.sh'
       - 'tests/**'
+      - 'fe-app-forkop/**'
+      - 'luci-app-forkop/**'
       - '.github/workflows/build.yml'
       - '.github/workflows/backend-ci.yml'
   push:
@@ -17,6 +19,8 @@ on:
       - 'forkop/Makefile'
       - 'build.sh'
       - 'tests/**'
+      - 'fe-app-forkop/**'
+      - 'luci-app-forkop/**'
       - '.github/workflows/build.yml'
       - '.github/workflows/backend-ci.yml'
 
@@ -46,6 +50,20 @@ jobs:
           sudo ldconfig
           command -v ucode
           ucode -e 'print("ucode ready\n")'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5.0.0
+        with:
+          node-version: '22'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      # Several checks read the frontend sources with their types erased, which
+      # takes the parser and the formatter the frontend itself is built with.
+      - name: Install frontend dependencies
+        working-directory: fe-app-forkop
+        run: yarn install --frozen-lockfile
 
       - name: Check ucode syntax
         shell: bash

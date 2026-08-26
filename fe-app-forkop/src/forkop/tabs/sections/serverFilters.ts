@@ -1,0 +1,332 @@
+import { refreshOptionChoices } from '../../cbi/choices';
+import { normalizeDynamicListItems } from '../../cbi/listValues';
+import { normalizeOptionValues } from '../../cbi/localDevices';
+import { modalOptionFormValue } from '../../cbi/modal';
+import {
+  configureLiveDynamicListChoices,
+  currentOutboundNameChoices,
+  currentSubscriptionOutboundNameChoices,
+  loadSectionOutboundNameChoices,
+  loadSubscriptionOutboundNameChoices,
+} from './outboundNames';
+import { groupTypeChoices, providerTypeChoices } from './providers';
+import { optionMapValue } from './subscriptions/model';
+import { validateRegex } from './validators';
+
+// How one server filter is set up. The same three fields - a mode, a list of
+// servers and a pattern - appear on a subscription, a URLTest and a fallback
+// group, and only the wording and where the choices come from differ.
+interface ServerFilterOptions {
+  modes?: Array<{ value: string; label: string }>;
+  modeLabel?: string;
+  modeDescription?: string;
+  defaultMode?: string;
+  // The choices are the kinds of group rather than the kinds of provider.
+  groupContext?: boolean;
+  // The subscription an outbound name belongs to, for a filter inside one.
+  ownerId?: () => string;
+  normalizeOutboundChoice?: (
+    option: CBIOption,
+    itemId: string,
+    name: string,
+  ) => string;
+  excludeTypesDescription?: string;
+  excludeRegexDescription?: string;
+  includeRegexDescription?: string;
+  includeServersDescription?: string;
+  blacklistExcludeServersDescription?: string;
+  whitelistExcludeServersDescription?: string;
+}
+
+// The fields two modes share, so switching mode keeps what was already typed.
+type SharedFilterFields = Record<string, Record<string, CBIOption>>;
+
+// One filter field: the name the form knows it by, the uci option it is stored
+// under, its wording, what checks it, and the modes it is shown in.
+type FilterFieldSpec = [
+  key: string,
+  storageKey: string,
+  label: string,
+  description: string | undefined,
+  validator: OptionValidator | null,
+  visibleModes: string[],
+];
+
+function syncServerFilterFields(
+  sharedFields: SharedFilterFields,
+  sourceMode: string,
+  itemId: string,
+) {
+  const sourceFields = sharedFields[sourceMode];
+  if (!sourceFields) {
+    return;
+  }
+
+  Object.entries(sourceFields).forEach(([storageKey, sourceField]) => {
+    const sourceElement = sourceField.getUIElement(itemId);
+    if (!sourceElement || typeof sourceElement.getValue !== 'function') {
+      return;
+    }
+    Object.values(sharedFields).forEach((fields) => {
+      const targetElement = fields[storageKey]?.getUIElement(itemId);
+      if (targetElement && typeof targetElement.setValue === 'function') {
+        targetElement.setValue(sourceElement.getValue());
+      }
+    });
+  });
+}
+
+// The three server filter blocks - a Fallback server group, a URLTest group and a
+// subscription - ask the same questions. Only the lines that name what the servers
+// end up in differ, so the rest is written once and every block spreads it.
+function sharedServerFilterDescriptions() {
+  return {
+    includeRegexDescription: _(
+      'Servers whose names match the regular expression',
+    ),
+    // Both filter modes offer an Exclude by pattern row, and neither of them
+    // needs to name what the pattern removes the servers from.
+    excludeRegexDescription: _(
+      'Remove servers whose names match the regular expression',
+    ),
+    whitelistExcludeServersDescription: _(
+      'Remove servers from the selection above',
+    ),
+  };
+}
+
+export function groupServerFilterDescriptions() {
+  return Object.assign(sharedServerFilterDescriptions(), {
+    includeServersDescription: _('The servers that end up in the group'),
+    blacklistExcludeServersDescription: _(
+      'The servers that do not end up in the group',
+    ),
+    excludeTypesDescription: _(
+      'Servers of these protocols do not end up in the group',
+    ),
+  });
+}
+
+export function subscriptionServerFilterDescriptions() {
+  return Object.assign(sharedServerFilterDescriptions(), {
+    includeServersDescription: _('The servers that are imported'),
+    blacklistExcludeServersDescription: _('The servers that are not imported'),
+    excludeTypesDescription: _('Servers of these protocols are not imported'),
+  });
+}
+
+// "Only selected" keeps the servers the filter names, so a filter that names none
+// keeps none: the generated group carries an include pattern that matches nothing.
+// Without a provider the group is then dropped from the configuration, and with one
+// it stays and is permanently empty, so neither is what the mode was chosen for. A
+// Fallback level also counts the URLTest it includes, which is offered above the
+// filter and is a member like any server.
+export function missingFilterSelectionMessage(
+  modeOption: CBIOption,
+  itemId: string,
+) {
+  if (modeOption.formvalue(itemId) !== 'include') {
+    return null;
+  }
+
+  return ['include_outbounds', 'include_regex', 'include_groups'].some(
+    (optionName: string) =>
+      normalizeDynamicListItems(
+        modalOptionFormValue(modeOption.map, itemId, optionName),
+      ).length > 0,
+  )
+    ? null
+    : _('Select at least one server or set a pattern');
+}
+
+export function addServerFilterOptions(
+  itemSection: CBISection,
+  parentSectionForItem: (itemId: string) => string,
+  options: ServerFilterOptions = {},
+) {
+  const modes = Array.isArray(options.modes) ? options.modes : [];
+  const o = itemSection.option(
+    form.ListValue,
+    'server_filter_mode',
+    options.modeLabel,
+    options.modeDescription,
+  );
+  modes.forEach((mode) => o.value(mode.value, mode.label));
+  o.default = options.defaultMode || 'all';
+  o.rmempty = false;
+
+  const modeOption = o;
+  const sharedFields: SharedFilterFields = {};
+  (
+    [
+      [
+        'include_outbounds',
+        'include_outbounds',
+        _('Include servers'),
+        options.includeServersDescription,
+        null,
+        ['include'],
+      ],
+      [
+        'include_regex',
+        'include_regex',
+        _('Include by pattern'),
+        options.includeRegexDescription,
+        validateRegex,
+        ['include'],
+      ],
+      [
+        '_blacklist_exclude_outbounds',
+        'exclude_outbounds',
+        _('Exclude servers'),
+        options.blacklistExcludeServersDescription,
+        null,
+        ['exclude'],
+      ],
+      [
+        '_blacklist_exclude_types',
+        'exclude_types',
+        _('Exclude types'),
+        options.excludeTypesDescription,
+        null,
+        ['exclude'],
+      ],
+      [
+        '_blacklist_exclude_regex',
+        'exclude_regex',
+        _('Exclude by pattern'),
+        options.excludeRegexDescription,
+        validateRegex,
+        ['exclude'],
+      ],
+      [
+        '_whitelist_exclude_outbounds',
+        'exclude_outbounds',
+        _('Exclude servers'),
+        options.whitelistExcludeServersDescription,
+        null,
+        ['include'],
+      ],
+      [
+        '_whitelist_exclude_types',
+        'exclude_types',
+        _('Exclude types'),
+        options.excludeTypesDescription,
+        null,
+        ['include'],
+      ],
+      [
+        '_whitelist_exclude_regex',
+        'exclude_regex',
+        _('Exclude by pattern'),
+        options.excludeRegexDescription,
+        validateRegex,
+        ['include'],
+      ],
+    ] as FilterFieldSpec[]
+  ).forEach(
+    ([key, storageKey, label, description, validator, visibleModes]) => {
+      const isList =
+        storageKey.endsWith('_outbounds') || storageKey === 'exclude_types';
+      const field = itemSection.option(
+        isList ? form.DynamicList : form.Value,
+        key,
+        label,
+        description,
+      );
+      (visibleModes || []).forEach((mode) =>
+        field.depends('server_filter_mode', mode),
+      );
+      field.rmempty = true;
+      if (key !== storageKey) {
+        field.ucioption = storageKey;
+        field.retain = true;
+        const mode = (visibleModes || [])[0];
+        if (mode) {
+          if (!sharedFields[mode]) {
+            sharedFields[mode] = {};
+          }
+          sharedFields[mode][storageKey] = field;
+        }
+      }
+      if (storageKey === 'exclude_types') {
+        const choices = options.groupContext
+          ? groupTypeChoices()
+          : providerTypeChoices();
+        field.load = function (itemId: string) {
+          const values = normalizeOptionValues(
+            optionMapValue(this, itemId, storageKey),
+          );
+          refreshOptionChoices(this, choices);
+          return values;
+        };
+        field.placeholder = _('-- Select --');
+      }
+      if (storageKey.endsWith('_outbounds')) {
+        const choicesForItem = (option: CBIOption, itemId: string) => {
+          const sectionId = parentSectionForItem(itemId);
+          const normalizeChoice =
+            typeof options.normalizeOutboundChoice === 'function'
+              ? (name: string) =>
+                  options.normalizeOutboundChoice!(option, itemId, name)
+              : null;
+          return typeof options.ownerId === 'function'
+            ? currentSubscriptionOutboundNameChoices(
+                sectionId,
+                options.ownerId!(),
+                normalizeChoice,
+              )
+            : currentOutboundNameChoices(sectionId, normalizeChoice);
+        };
+        field.load = function (itemId: string) {
+          const sectionId = parentSectionForItem(itemId);
+          const values = normalizeOptionValues(
+            optionMapValue(this, itemId, storageKey),
+          );
+          if (typeof options.ownerId === 'function') {
+            loadSubscriptionOutboundNameChoices(sectionId, options.ownerId());
+          } else {
+            loadSectionOutboundNameChoices(sectionId);
+          }
+          refreshOptionChoices(this, choicesForItem(this, itemId));
+          return values;
+        };
+        field.placeholder = _('-- Select --');
+        configureLiveDynamicListChoices(
+          field,
+          (itemId: string) => choicesForItem(field, itemId),
+          parentSectionForItem,
+        );
+      }
+      if (validator) {
+        field.validate = function (_itemId: string, value: string) {
+          // Every validator here ignores the section it is given, and the field
+          // is inside a dialog whose section is not the one being edited.
+          return validator(null as unknown as string, value);
+        };
+      }
+    },
+  );
+
+  const modeOptionParse = modeOption.parse;
+  modeOption.parse = function (itemId: string) {
+    const message = missingFilterSelectionMessage(this, itemId);
+    if (message) {
+      return Promise.reject(new TypeError(message));
+    }
+
+    return modeOptionParse.call(this, itemId);
+  };
+
+  let activeMode: unknown =
+    optionMapValue(modeOption, 'settings', 'server_filter_mode') ||
+    modeOption.default;
+  modeOption.onchange = function (
+    _event: Event,
+    itemId: string,
+    value: unknown,
+  ) {
+    syncServerFilterFields(sharedFields, `${activeMode ?? ''}`, itemId);
+    activeMode = value;
+  };
+}

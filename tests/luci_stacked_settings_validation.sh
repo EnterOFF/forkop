@@ -2,14 +2,14 @@
 set -eo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SECTION_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js"
+SECTION_JS="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections)"
 
 fail() {
   printf 'FAIL: %s\n' "$1" >&2
   exit 1
 }
 
-modal_source="$(sed -n '/^function renderStackedJsonSettingsModal(/,/^function showChildItemSettingsModal(/p' "$SECTION_JS")"
+modal_source="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections --decl renderStackedJsonSettingsModal)"
 
 grep -Fq '.catch(() => {' <<<"$modal_source" ||
   fail "stacked settings Save must keep the modal open after validation fails"

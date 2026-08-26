@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  createUciStub,
-  loadLuciView,
-  resetLuciViewCache,
-} from './loadLuciView';
+import { installLuciStubs } from './luciStubs';
+import { visibleClientFields } from '../../forkop/tabs/servers/clients';
+import { liveOption } from '../../forkop/tabs/servers/formValues';
+import { isAuthenticationEnabled } from '../../forkop/tabs/servers/protocols';
 
 // A widget as LuCI mounts it: the frame carries the cbid and the instance, and the
 // value in it is the one the user just picked, which is not yet in the configuration.
@@ -17,16 +16,11 @@ function widget(sectionId, name, value) {
 }
 
 function load(server, widgets = {}) {
-  resetLuciViewCache();
-  const uci = createUciStub({
-    srv: { '.type': 'server', label: 'Home', enabled: '1', ...server },
-  });
-  return loadLuciView(
-    'server',
-    uci,
-    ['isAuthenticationEnabled', 'visibleClientFields', 'liveOption'],
+  installLuciStubs(
+    { srv: { '.type': 'server', label: 'Home', enabled: '1', ...server } },
     widgets,
   );
+  return { isAuthenticationEnabled, visibleClientFields, liveOption };
 }
 
 // While a dialog is open the widget holds the answer and the configuration holds the

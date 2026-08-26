@@ -3,9 +3,11 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-for file in settings.js section.js; do
-  source="$(sed -n '/^function isSingBoxDuration(/,/^}/p' \
-    "$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/$file")"
+for file in \
+  "$(node "$ROOT_DIR/tests/helpers/tab_source.js" settings --double-quotes)" \
+  "$ROOT_DIR/fe-app-forkop/src/forkop/tabs/sections/validators.ts"; do
+  source="$(sed -n '/function isSingBoxDuration(/,/^}/p' "$file" |
+    sed -e 's/^export //' -e 's/(value: string)/(value)/')"
 
   DURATION_SOURCE="$source" node <<'NODE'
 const validate = Function(`${process.env.DURATION_SOURCE}; return isSingBoxDuration`)();

@@ -12,16 +12,13 @@ import {
 import { CustomForkopMethods } from '../../methods';
 import { getOutboundTagBySection } from '../../runtimeTags';
 import { getClashApiSecret } from '../../methods/custom/getClashApiSecret';
+import { loadLocalDeviceChoices } from '../../cbi/localDevices';
 import { logger, socket, store, StoreType } from '../../services';
 import { Forkop } from '../../types';
 
 type MonitoringTabId = 'active' | 'closed';
 
 type LocalDeviceChoices = Record<string, string>;
-
-interface MonitoringControllerDependencies {
-  loadLocalDeviceChoices?: () => Promise<LocalDeviceChoices>;
-}
 
 interface ClashConnectionMetadata {
   destinationIP?: string;
@@ -81,7 +78,6 @@ const ALL_FILTER_VALUE = 'all';
 const SYSTEM_DEVICE_VALUE = '@system';
 const SYSTEM_INBOUND_TAGS = new Set(['system-in', 'system6-in']);
 
-let dependencies: MonitoringControllerDependencies = {};
 let monitoringMounted = false;
 let monitoringMountId = 0;
 let monitoringLifecycleRegistered = false;
@@ -1319,7 +1315,7 @@ function bindControls() {
 
 async function loadLocalDevices() {
   try {
-    localDeviceChoices = (await dependencies.loadLocalDeviceChoices?.()) || {};
+    localDeviceChoices = (await loadLocalDeviceChoices()) || {};
   } catch (error) {
     logger.warn('[MONITORING]', 'loadLocalDevices: failed', error);
     localDeviceChoices = {};
@@ -1618,14 +1614,7 @@ function registerLifecycleListeners() {
   );
 }
 
-export async function initController(
-  controllerDependencies: MonitoringControllerDependencies = {},
-): Promise<void> {
-  dependencies = {
-    ...dependencies,
-    ...controllerDependencies,
-  };
-
+export async function initController(): Promise<void> {
   if (monitoringControllerInitialized) {
     return;
   }

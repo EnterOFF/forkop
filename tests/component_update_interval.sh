@@ -12,7 +12,7 @@ set -eo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FORKOP_LIB="$ROOT_DIR/forkop/files/usr/lib"
 UPDATES_UC="$FORKOP_LIB/components/updates.uc"
-SETTINGS_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js"
+SETTINGS_JS="$(node "$ROOT_DIR/tests/helpers/tab_source.js" settings --double-quotes)"
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
@@ -38,21 +38,22 @@ backend_accepts() {
 cat >"$WORK_DIR/probe.js" <<'PROBE'
 const fs = require("fs");
 const source = fs.readFileSync(process.argv[2], "utf8");
-const start = source.indexOf("function singBoxDurationSeconds");
-const end = source.indexOf("function latencyTestUrlChoices");
-if (start < 0 || end < 0 || end <= start) {
-  console.error("could not find the interval helpers in settings.js");
-  process.exit(2);
-}
+// The tab is several modules now, so each helper is taken by name rather than
+// by what happens to follow it.
+const { readFunction } = require(process.argv[4]);
+const helpers = ["singBoxDurationSeconds", "isCronExpressibleInterval"]
+  .map((name) => readFunction(source, name))
+  .join("\n");
 // eslint-disable-next-line no-eval
 // A different binding name: the evaluated source declares the function itself.
-const validate = eval(`${source.slice(start, end)}; isCronExpressibleInterval`);
+const validate = eval(`${helpers}; isCronExpressibleInterval`);
 process.stdout.write(validate(process.argv[3]) ? "yes" : "no");
 PROBE
 
 form_accepts() {
   local verdict
-  verdict="$(node "$WORK_DIR/probe.js" "$SETTINGS_JS" "$1")"
+  verdict="$(node "$WORK_DIR/probe.js" "$SETTINGS_JS" "$1" \
+    "$ROOT_DIR/tests/helpers/source_literal.js")"
   [ "$verdict" = "yes" ]
 }
 
@@ -77,7 +78,7 @@ for value in $REFUSED; do
     0m|1w) continue ;;
   esac
   grep -q 'function isSingBoxDuration' "$SETTINGS_JS" ||
-    fail "isSingBoxDuration must stay in settings.js for the subscription interval"
+    fail "the Settings tab must keep isSingBoxDuration for the subscription interval"
 done
 
 # Knowing the rule is half of it: the field has to apply it. Without this the

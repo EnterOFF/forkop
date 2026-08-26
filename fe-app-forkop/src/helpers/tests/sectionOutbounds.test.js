@@ -4,18 +4,13 @@
 
 import { describe, expect, it } from 'vitest';
 
-import {
-  createUciStub,
-  loadLuciView,
-  resetLuciViewCache,
-} from './loadLuciView';
+import { installUciStub } from './luciStubs';
+import { missingConnectionOutbound } from '../../forkop/tabs/sections/references';
+import { missingFilterSelectionMessage } from '../../forkop/tabs/sections/serverFilters';
 
 function load() {
-  resetLuciViewCache();
-  return loadLuciView('section', createUciStub(), [
-    'missingConnectionOutbound',
-    'missingFilterSelectionMessage',
-  ]);
+  installUciStub();
+  return { missingConnectionOutbound, missingFilterSelectionMessage };
 }
 
 function modalMap(values) {

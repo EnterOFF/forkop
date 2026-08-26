@@ -14,7 +14,7 @@ SINGBOX_CONSTANTS_UC="$FORKOP_LIB/singbox/constants.uc"
 RULESETS_UC="$FORKOP_LIB/singbox/rulesets.uc"
 FRONTEND_CONSTANTS="$ROOT_DIR/fe-app-forkop/src/constants.ts"
 VIEW_DIR="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop"
-SERVER_JS="$VIEW_DIR/server.js"
+TABS_DIR="$ROOT_DIR/fe-app-forkop/src/forkop/tabs"
 LITERAL_READER="$ROOT_DIR/tests/helpers/source_literal.js"
 
 fail() {
@@ -107,15 +107,13 @@ reserved_ports_backend="$(ucode -L "$FORKOP_LIB" -e '
 ' | LC_ALL=C sort)"
 [ -n "$reserved_ports_backend" ] ||
   fail "singbox/constants.uc must publish the ports Forkop's own inbounds bind"
-reserved_ports_frontend="$(read_literal "$SERVER_JS" RESERVED_PORTS heads | LC_ALL=C sort)"
+reserved_ports_frontend="$(read_literal "$TABS_DIR/servers/constants.ts" RESERVED_PORTS heads | LC_ALL=C sort)"
 [ "$reserved_ports_backend" = "$reserved_ports_frontend" ] ||
   fail "$(printf 'the Servers tab reserved port list differs from singbox/constants.uc\nbackend:\n%s\nfrontend:\n%s' "$reserved_ports_backend" "$reserved_ports_frontend")"
 
 # A section or server display name becomes a runtime tag verbatim, so both dialogs
-# refuse the names Forkop already uses for its own listeners. LuCI cannot read ucode,
-# so each tab carries the list - its own copy, because a browser caches every view
-# module separately and an upgrade can leave an old one beside a new one, which is
-# what importing a name across two of them cannot survive. Both copies are held
+# refuse the names Forkop already uses for its own listeners. LuCI cannot read
+# ucode, so each tab carries the list, one copy each. Both copies are held
 # against the core table here, which is what keeps them from drifting apart.
 reserved_backend="$(ucode -L "$FORKOP_LIB" -e '
   let c = require("singbox.constants");
@@ -124,10 +122,12 @@ reserved_backend="$(ucode -L "$FORKOP_LIB" -e '
 ' | LC_ALL=C sort)"
 [ -n "$reserved_backend" ] ||
   fail "singbox/constants.uc must publish the tags Forkop uses for its own listeners"
-for tab in server section; do
-  reserved_frontend="$(read_literal "$VIEW_DIR/$tab.js" RESERVED_RUNTIME_TAGS | LC_ALL=C sort)"
+for tab_source in \
+  "$TABS_DIR/servers/constants.ts" \
+  "$TABS_DIR/sections/constants.ts"; do
+  reserved_frontend="$(read_literal "$tab_source" RESERVED_RUNTIME_TAGS | LC_ALL=C sort)"
   [ "$reserved_backend" = "$reserved_frontend" ] ||
-    fail "$(printf 'the reserved tag list in %s.js differs from singbox/constants.uc\nbackend:\n%s\nfrontend:\n%s' "$tab" "$reserved_backend" "$reserved_frontend")"
+    fail "$(printf 'the reserved tag list in %s differs from singbox/constants.uc\nbackend:\n%s\nfrontend:\n%s' "$tab_source" "$reserved_backend" "$reserved_frontend")"
 done
 
 # Three tables name the community rule sets: the validator decides which

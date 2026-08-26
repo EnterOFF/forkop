@@ -5,42 +5,51 @@
 
 import { describe, expect, it } from 'vitest';
 
-import {
-  createUciStub,
-  loadLuciView,
-  resetLuciViewCache,
-} from './loadLuciView';
+import { installLuciStubs, installUciStub } from './luciStubs';
 import { analyzeStaticHosts } from '../../validators/validateStaticHosts';
 import { validateOutboundJson } from '../../validators/validateOutboundJson';
+import {
+  JSON_ENDPOINT_PLACEHOLDER,
+  JSON_ENDPOINT_TYPES,
+} from '../../forkop/tabs/sections/constants';
+import {
+  DOMAIN_CONDITION_PLACEHOLDER,
+  IP_CONDITION_PLACEHOLDER,
+  analyzeDomainSuffixText,
+  analyzeIpCidrText,
+} from '../../forkop/tabs/sections/conditions';
+import { JSON_OUTBOUND_PLACEHOLDER } from '../../forkop/tabs/sections/outboundJson';
+import { JSON_INBOUND_PLACEHOLDER } from '../../forkop/tabs/servers/form/identity';
+import { validateInboundJson } from '../../forkop/tabs/servers/validators';
+import { STATIC_HOSTS_PLACEHOLDER } from '../../forkop/tabs/settings/staticHosts';
+import {
+  OVERRIDE_PATCH_PLACEHOLDER,
+  reservedOverridePatchPath,
+} from '../../forkop/tabs/sections/subscriptions/overrides';
 
 function loadSection() {
-  resetLuciViewCache();
-  return loadLuciView('section', createUciStub(), [
-    'DOMAIN_CONDITION_PLACEHOLDER',
-    'IP_CONDITION_PLACEHOLDER',
-    'JSON_ENDPOINT_PLACEHOLDER',
-    'JSON_ENDPOINT_TYPES',
-    'JSON_OUTBOUND_PLACEHOLDER',
-    'OVERRIDE_PATCH_PLACEHOLDER',
-    'analyzeDomainSuffixText',
-    'analyzeIpCidrText',
-    'reservedOverridePatchPath',
-  ]);
+  installUciStub();
+  return {
+    DOMAIN_CONDITION_PLACEHOLDER,
+    IP_CONDITION_PLACEHOLDER,
+    JSON_ENDPOINT_PLACEHOLDER,
+    JSON_ENDPOINT_TYPES,
+    JSON_OUTBOUND_PLACEHOLDER,
+    OVERRIDE_PATCH_PLACEHOLDER,
+    analyzeDomainSuffixText,
+    analyzeIpCidrText,
+    reservedOverridePatchPath,
+  };
 }
 
 function loadServer() {
-  resetLuciViewCache();
-  return loadLuciView('server', createUciStub(), [
-    'JSON_INBOUND_PLACEHOLDER',
-    'validateInboundJson',
-  ]);
+  installLuciStubs();
+  return { JSON_INBOUND_PLACEHOLDER, validateInboundJson };
 }
 
 function loadSettings() {
-  resetLuciViewCache();
-  return loadLuciView('settings', createUciStub(), [
-    'STATIC_HOSTS_PLACEHOLDER',
-  ]);
+  installLuciStubs();
+  return { STATIC_HOSTS_PLACEHOLDER };
 }
 
 describe('condition placeholders', () => {

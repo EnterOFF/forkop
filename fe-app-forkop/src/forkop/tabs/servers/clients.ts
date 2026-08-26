@@ -1,0 +1,311 @@
+// A client is the account a server accepts. sing-box takes a list of users on every
+// protocol served here, so each client is its own UCI section with its own name and
+// credentials. The list is edited with the same child item widget the Sections tab
+// uses for interfaces, URLTests and tunnels.
+
+import { FORKOP_UCI_PACKAGE } from '../../../constants';
+import {
+  cleanupRemovedChildItems,
+  isExistingChildItem,
+} from '../../cbi/childItems';
+import { childPendingSettingsStore } from '../../cbi/itemSettings';
+import {
+  CLIENT_KEYS,
+  CLIENT_OWNER_OPTION,
+  CLIENT_ROUTING_KEYS,
+  CLIENT_TYPE,
+  MAX_CLIENT_NAME_LENGTH,
+} from './constants';
+import { generateCredential } from './credentials';
+import { asList, hasControlCharacters, valueList } from './formValues';
+import {
+  credentialFields,
+  getProtocol,
+  getShadowsocksMethod,
+  isAuthenticationEnabled,
+  isShadowsocks2022,
+  supportsVisionFlow,
+  usesLoginName,
+} from './protocols';
+import {
+  validateAuthorizedKeys,
+  validateMtprotoSecret,
+  validateRequiredText,
+  validateShadowsocksPassword,
+  validateUuid,
+} from './validators';
+
+export function clientSections(sectionId: string) {
+  return (uci.sections(FORKOP_UCI_PACKAGE, CLIENT_TYPE) || []).filter(
+    (section) => `${section[CLIENT_OWNER_OPTION] || ''}` === `${sectionId}`,
+  );
+}
+
+function readClient(section: Partial<UciSectionObject>): ServerClient {
+  return {
+    id: `${section['.name'] || ''}`,
+    name: `${section.name || ''}`,
+    uuid: `${section.uuid || ''}`,
+    password: `${section.password || ''}`,
+    secret: `${section.secret || ''}`,
+    flow: `${section.flow || ''}`,
+    authorized_keys: asList(section.authorized_keys),
+  };
+}
+
+export function listClients(sectionId: string) {
+  return clientSections(sectionId).map(readClient);
+}
+
+// Numbered names that do not follow the server name: a client is a device, not a
+// second label for the server. One past the count, the way a new section is named.
+export function nextClientName(taken: string[]) {
+  return 'client-%d'.format(taken.length + 1);
+}
+
+export function clientNameLabel(protocol: string) {
+  return usesLoginName(protocol) ? _('User name') : _('Name');
+}
+
+export function validateClientName(sectionId: string, value: unknown) {
+  const name = `${value || ''}`.trim();
+
+  if (!name) {
+    return _('This field is required');
+  }
+  if (name.length > MAX_CLIENT_NAME_LENGTH) {
+    return _('A name holds at most %d characters').format(
+      MAX_CLIENT_NAME_LENGTH,
+    );
+  }
+
+  if (usesLoginName(getProtocol(sectionId))) {
+    return /^[A-Za-z0-9._-]+$/.test(name)
+      ? true
+      : _('Use letters, digits, dots, underscores, or hyphens');
+  }
+
+  return hasControlCharacters(name)
+    ? _('Value must not contain control characters')
+    : true;
+}
+
+export function validateClientCredential(
+  sectionId: string,
+  field: string,
+  value: string,
+) {
+  if (field === 'uuid') {
+    return validateUuid(sectionId, value);
+  }
+  if (field === 'secret') {
+    return validateMtprotoSecret(sectionId, value);
+  }
+  if (field === 'password') {
+    return getProtocol(sectionId) === 'shadowsocks'
+      ? validateShadowsocksPassword(sectionId, value)
+      : validateRequiredText(sectionId, value);
+  }
+  if (field === 'authorized_keys') {
+    return validateAuthorizedKeys(sectionId, value);
+  }
+  return true;
+}
+
+// Credential fields the protocol asks a client for. The password disappears when
+// authentication is switched off, because then nobody sends one, and the flow
+// disappears where the listener cannot carry it.
+export function visibleClientFields(sectionId: string) {
+  const protocol = getProtocol(sectionId);
+
+  return credentialFields(protocol).filter((field: string) => {
+    if (field === 'password') {
+      return isAuthenticationEnabled(sectionId);
+    }
+    if (field === 'flow') {
+      return supportsVisionFlow(sectionId);
+    }
+    return true;
+  });
+}
+
+export function clientCredentialLabel(sectionId: string, field: string) {
+  if (field === 'uuid') {
+    return _('UUID');
+  }
+  if (field === 'secret') {
+    return _('Secret');
+  }
+  if (field === 'flow') {
+    return _('Flow');
+  }
+  if (field === 'authorized_keys') {
+    return _('SSH public keys');
+  }
+
+  return getProtocol(sectionId) === 'shadowsocks' &&
+    isShadowsocks2022(getShadowsocksMethod(sectionId))
+    ? _('Key')
+    : _('Password');
+}
+
+export function clientSettingsDefaults(
+  sectionId: string,
+  inputValue: unknown,
+  existing: boolean,
+  listOption: CBIOption,
+) {
+  const protocol = getProtocol(sectionId);
+  const defaults: ChildSettings = {};
+
+  if (existing) {
+    return defaults;
+  }
+
+  // Adding a client is an explicit action, so a fresh client starts with credentials
+  // it can actually connect with; nothing is generated behind the user's back.
+  defaults.name =
+    `${inputValue || ''}`.trim() ||
+    nextClientName(listedClientNames(sectionId, listOption));
+  visibleClientFields(sectionId).forEach((field: string) => {
+    if (field === 'flow' || field === 'authorized_keys') {
+      return;
+    }
+    defaults[field] = generateCredential(sectionId, protocol, field);
+  });
+
+  return defaults;
+}
+
+// The names the list shows right now, the way the Sections tab numbers a server
+// group. A removal that has not been saved yet gives its name back and a draft
+// that was taken out stops holding one, which reading the stored sections and the
+// staged drafts instead could not tell.
+export function listedClientNames(sectionId: string, listOption: CBIOption) {
+  let current = null;
+
+  if (listOption && typeof listOption.formvalue === 'function') {
+    try {
+      current = listOption.formvalue(sectionId);
+    } catch (_error) {
+      // The widget is not mounted; the stored sections are all there is.
+    }
+  }
+
+  if (current == null) {
+    return clientSections(sectionId).map((section) => `${section.name || ''}`);
+  }
+
+  return valueList(current).map((value: unknown) =>
+    typeof listOption.inputValueForItem === 'function'
+      ? listOption.inputValueForItem(sectionId, value)
+      : `${value}`,
+  );
+}
+
+// Everything that has to hold before a server with clients can be saved. The list
+// widget turns the message into the field error LuCI shows next to the option.
+export function validateClientsOnSave(
+  sectionId: string,
+  values: unknown,
+  listOption: CBIOption,
+) {
+  const items = (Array.isArray(values) ? values : [values]).filter(Boolean);
+
+  if (!items.length) {
+    return _('Add at least one client');
+  }
+
+  const store = childPendingSettingsStore(listOption, sectionId) || {};
+  const seen = new Set<string>();
+  for (const value of items) {
+    const existing = isExistingChildItem(
+      sectionId,
+      value,
+      CLIENT_TYPE,
+      CLIENT_OWNER_OPTION,
+    );
+    const settings: ChildSettings = existing
+      ? readClient(uci.get(FORKOP_UCI_PACKAGE, value) || {})
+      : Object.assign({ name: value }, store[value] || {});
+    const name = `${settings.name || value || ''}`.trim();
+
+    const nameResult = validateClientName(sectionId, name);
+    if (nameResult !== true) {
+      return `${name || value}: ${nameResult}`;
+    }
+
+    if (seen.has(name.toLowerCase())) {
+      return _('Client names must be unique');
+    }
+    seen.add(name.toLowerCase());
+
+    for (const field of visibleClientFields(sectionId)) {
+      if (field === 'flow' || field === 'authorized_keys') {
+        continue;
+      }
+      const result = validateClientCredential(
+        sectionId,
+        field,
+        `${settings[field] || ''}`,
+      );
+      if (result !== true) {
+        return `${name}: ${result}`;
+      }
+    }
+  }
+
+  return true;
+}
+
+export function pruneClientCredentials(sectionId: string) {
+  const keep = new Set(visibleClientFields(sectionId));
+
+  clientSections(sectionId).forEach((section) => {
+    const stale = CLIENT_KEYS.filter(
+      (key: string) =>
+        key !== 'name' && !keep.has(key) && !CLIENT_ROUTING_KEYS.includes(key),
+    );
+    if (section.routing_override !== '1') {
+      stale.push(...CLIENT_ROUTING_KEYS);
+    }
+    if (section.routing_mode !== 'section') {
+      stale.push('routing_section');
+    }
+
+    stale.forEach((key: string) => {
+      if (section[key] != null) {
+        uci.unset(FORKOP_UCI_PACKAGE, section['.name'], key);
+      }
+    });
+  });
+}
+
+// Emptying the client list goes through the option LuCI owns: the widget holds
+// child section ids, and what load() returned has to be forgotten as well, or the
+// save would compare the two, find them equal and skip the write. Nothing is
+// removed here - the option does that when the dialog is saved, so a dialog that
+// is dismissed leaves the stored clients alone.
+export function clearClientList(mapRef: CBIMap, sectionId: string) {
+  const found = mapRef ? mapRef.lookupOption('clients', sectionId) : null;
+  const listOption = found ? found[0] : null;
+
+  if (!listOption) {
+    return;
+  }
+
+  if (typeof listOption.clearStagedChildSettings === 'function') {
+    listOption.clearStagedChildSettings(sectionId);
+  }
+
+  const element = listOption.getUIElement(sectionId);
+  if (element) {
+    element.setValue([]);
+  }
+
+  listOption.cfgvalue(sectionId, []);
+}
+
+export function removeServerClients(sectionId: string) {
+  cleanupRemovedChildItems(sectionId, CLIENT_TYPE, [], CLIENT_OWNER_OPTION);
+}

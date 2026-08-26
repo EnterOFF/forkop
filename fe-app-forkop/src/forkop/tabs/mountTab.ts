@@ -45,3 +45,21 @@ export function mountTab(
 export function resetMountedTabs(): void {
   mountNodes.clear();
 }
+
+/**
+ * The one option a mounted tab declares: a DummyValue whose value is the node
+ * the tab's controller is bound to.
+ *
+ * Every tab that renders itself rather than declaring CBI options is added to
+ * the page this way, so the form has something to lay out and the controller
+ * has somewhere to write.
+ */
+export function mountTabOption(
+  section: CBISection,
+  key: string,
+  tab: { render: () => HTMLElement; initController: () => unknown },
+): void {
+  const o = section.option(form.DummyValue, '_mount_node');
+  o.rawhtml = true;
+  o.cfgvalue = () => mountTab(key, tab.render, tab.initController);
+}

@@ -2,9 +2,9 @@
 set -eo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SECTION_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js"
-SETTINGS_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js"
-LOCAL_DEVICES_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/local_devices.js"
+SECTION_JS="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections)"
+SETTINGS_JS="$(node "$ROOT_DIR/tests/helpers/tab_source.js" settings --double-quotes)"
+LOCAL_DEVICES_TS="$ROOT_DIR/fe-app-forkop/src/forkop/cbi/localDevices.ts"
 ACL_JSON="$ROOT_DIR/luci-app-forkop/root/usr/share/rpcd/acl.d/luci-app-forkop.json"
 
 for expected in \
@@ -38,12 +38,11 @@ if grep -Fq '_("DNS through proxy")' "$SETTINGS_JS"; then
   exit 1
 fi
 
-node - "$SECTION_JS" "$LOCAL_DEVICES_JS" "$ACL_JSON" <<'NODE'
+node - "$SECTION_JS" "$LOCAL_DEVICES_TS" "$ACL_JSON" "$ROOT_DIR" <<'NODE'
 const fs = require("fs");
 const source = fs.readFileSync(process.argv[2], "utf8");
 const localDevicesSource = fs.readFileSync(process.argv[3], "utf8");
 const acl = JSON.parse(fs.readFileSync(process.argv[4], "utf8"));
-
 function fail(message) {
   console.error(`FAIL: ${message}`);
   process.exit(1);
@@ -55,7 +54,7 @@ function requiredIndex(needle, from = 0) {
   return index;
 }
 
-const domains = requiredIndex('key: "domain_suffix"');
+const domains = requiredIndex("key: 'domain_suffix'");
 const ips = requiredIndex('const ipConditionOption = addTextConditionField(section, {', domains);
 const builtIns = requiredIndex('const builtInRulesetOption = section.taboption(', ips);
 if (source.slice(domains, ips).includes("dependsOnRoutingAction")) {
@@ -66,13 +65,13 @@ if (!source.slice(ips, builtIns).includes("dependsOnRoutingAction(ipConditionOpt
 }
 
 const sectionContent = requiredIndex("function createSectionContent(section)");
-const server = requiredIndex('"dns_server"', sectionContent);
+const server = requiredIndex("'dns_server'", sectionContent);
 const serverOption = source.lastIndexOf("section.taboption(", server);
-const serverBlock = source.slice(serverOption, requiredIndex('"dns_detour_enabled"', server));
+const serverBlock = source.slice(serverOption, requiredIndex("'dns_detour_enabled'", server));
 if (serverBlock.includes('"dns_type"') || source.slice(sectionContent, server).includes('"dns_type"')) {
   fail("DNS action must not render a shared protocol selector");
 }
-if (!serverBlock.includes("form.DynamicList") || !serverBlock.includes('_("DNS Server")')) {
+if (!serverBlock.includes("form.DynamicList") || !serverBlock.includes("_('DNS Server')")) {
   fail("DNS action servers must use a DynamicList");
 }
 if (serverBlock.includes('placeholder = "1.1.1.1"')) {
@@ -80,34 +79,34 @@ if (serverBlock.includes('placeholder = "1.1.1.1"')) {
 }
 
 for (const expected of [
-  '"Resolves domains that match the section conditions. Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://"',
-  '"dns_fallback_strategy"',
-  '_("DNS Query Mode")',
-  'action === "dns" && normalizeDynamicListItems(servers).length > 1',
-  'node.addEventListener("cbi-dynlist-change"',
-  '_("Route DNS requests through a section")',
-  '_("DNS requests through")',
-  '"A URL or local path. The format is detected automatically"',
+  "'Resolves domains that match the section conditions. Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://'",
+  "'dns_fallback_strategy'",
+  "_('DNS Query Mode')",
+  "action === 'dns' && normalizeDynamicListItems(servers).length > 1",
+  "node.addEventListener('cbi-dynlist-change'",
+  "_('Route DNS requests through a section')",
+  "_('DNS requests through')",
+  "'A URL or local path. The format is detected automatically'",
 ]) {
   requiredIndex(expected);
 }
 
-for (const expected of ['"require uci"', '.load("dhcp")', 'uci.sections("dhcp", "host")']) {
+for (const expected of [".load('dhcp')", "uci.sections('dhcp', 'host')"]) {
   if (!localDevicesSource.includes(expected)) {
     fail(`static DHCP hosts are missing local-device contract: ${expected}`);
   }
 }
 for (const expected of [
-  'const SYSTEM_DEVICE_VALUE = "@system"',
-  'choices[SYSTEM_DEVICE_VALUE] = "System"',
-  'normalizedName.toLowerCase() === "system"',
-  '"%s (%s)".format(normalizedName, normalizedIp)',
+  "export const SYSTEM_DEVICE_VALUE = '@system'",
+  "choices[SYSTEM_DEVICE_VALUE] = 'System'",
+  "normalizedName.toLowerCase() === 'system'",
+  "'%s (%s)'.format(normalizedName, normalizedIp)",
 ]) {
   if (!localDevicesSource.includes(expected)) {
     fail(`System device choice is missing contract: ${expected}`);
   }
 }
-if (!source.includes('value === localDevices.SYSTEM_DEVICE_VALUE')) {
+if (!source.includes('value === SYSTEM_DEVICE_VALUE')) {
   fail("System device sentinel must pass device-selector validation");
 }
 if (!acl["luci-app-forkop"]?.read?.uci?.includes("dhcp")) {
@@ -119,7 +118,7 @@ const ruleSetOption = requiredIndex("const ruleSetOption = section.taboption(", 
 const nativeRuleSetBlock = source.slice(dnsRuleSetOption, ruleSetOption);
 if (!nativeRuleSetBlock.includes("form.DynamicList") ||
     nativeRuleSetBlock.includes("SettingsDynamicList") ||
-    !nativeRuleSetBlock.includes('dnsRuleSetOption.depends("action", "dns")') ||
+    !nativeRuleSetBlock.includes("dnsRuleSetOption.depends('action', 'dns')") ||
     !nativeRuleSetBlock.includes("writeDnsRulesetReferences")) {
   fail("DNS action rule sets must use the classic DynamicList");
 }
@@ -142,23 +141,23 @@ const portsOption = requiredIndex("const portsOption = addDynamicConditionField(
 if (!source.slice(sourceIpOption, fullyRoutedOption).includes("dependsOnRuleConditions(sourceIpOption)")) {
   fail("device filter visibility must follow section conditions");
 }
-if (!source.slice(fullyRoutedOption, portsOption).includes('fullyRoutedOption.depends("action", "dns")')) {
+if (!source.slice(fullyRoutedOption, portsOption).includes("fullyRoutedOption.depends('action', 'dns')")) {
   fail("DNS action must expose forced device routing");
 }
 if (!source.slice(fullyRoutedOption, portsOption).includes("makeDeviceOptionsExclusive(sourceIpOption, fullyRoutedOption)")) {
   fail("device filter and forced routing must be mutually exclusive");
 }
 
-const conditionDependencies = source.slice(
-  requiredIndex("function dependsOnRuleConditions(option)"),
-  requiredIndex("const ANNOTATED_TEXTAREA_STYLE_ID"),
-);
+// The helper is taken by name: the tab is several modules now, so what comes
+// after it in the concatenation is not part of any contract.
+const { readFunction } = require(`${process.argv[5]}/tests/helpers/source_literal.js`);
+const conditionDependencies = readFunction(source, "dependsOnRuleConditions");
 for (const condition of [
-  '"domain"',
-  '"ip_cidr"',
-  '"community_lists"',
-  '"rule_set"',
-  '"ports"',
+  "'domain'",
+  "'ip_cidr'",
+  "'community_lists'",
+  "'rule_set'",
+  "'ports'",
 ]) {
   if (!conditionDependencies.includes(condition)) {
     fail(`device filter is missing dependency on ${condition}`);
@@ -168,32 +167,35 @@ if (!conditionDependencies.includes("/\\S/")) {
   fail("device filter visibility must ignore empty whitespace");
 }
 for (const expected of [
-  'option.onDeviceWidgetReady(section_id, widget)',
-  'node.addEventListener("cbi-dynlist-change"',
-  "option.onDeviceListChange(section_id, widget.getValue())",
+  'onWidgetReady(section_id, widget)',
+  "node.addEventListener('cbi-dynlist-change'",
+  'onListChange(section_id, widget.getValue())',
 ]) {
   if (!localDevicesSource.includes(expected)) {
     fail(`local device list is missing live event contract: ${expected}`);
   }
 }
-if (!source.includes('node.dispatchEvent(new CustomEvent("widget-change", { bubbles: true }))')) {
+if (!source.includes("node.dispatchEvent(new CustomEvent('widget-change', { bubbles: true }))")) {
   fail("text conditions must refresh device-filter visibility while editing");
 }
 
-function extractFunction(name, nextName, text = source) {
-  const start = text.indexOf(`function ${name}(`);
-  const end = text.indexOf(`function ${nextName}(`, start);
-  if (start < 0 || end < 0) fail(`missing function source: ${name}`);
-  return text.slice(start, end);
-}
 
-if (!source.includes("const normalizeOptionValues = localDevices.normalizeOptionValues;")) {
+
+if (
+  !/import \{[^}]*normalizeOptionValues[^}]*\} from '[^']*cbi\/localDevices'/.test(
+    source,
+  )
+) {
   fail("section must reuse the local-device option normalizer");
 }
-eval(extractFunction("normalizeOptionValues", "normalizeLocalDeviceName", localDevicesSource));
-eval(extractFunction("normalizeDynamicListItems", "uniqueDynamicListItems"));
-eval(extractFunction("stringArraysEqual", "writeListOption"));
-eval(extractFunction("makeDeviceOptionsExclusive", "childOwnerOption"));
+for (const name of [
+  "normalizeOptionValues",
+  "normalizeDynamicListItems",
+  "stringArraysEqual",
+  "makeDeviceOptionsExclusive",
+]) {
+  eval(readFunction(source, name));
+}
 
 // The interface resolver reuses the same option names, so stay inside the rule form.
 const dnsModeVisibilityStart = requiredIndex("dnsQueryModeOption.checkDepends = function", sectionContent);

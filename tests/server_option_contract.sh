@@ -15,7 +15,7 @@ FORKOP_LIB="$ROOT_DIR/forkop/files/usr/lib"
 GENERATOR="$FORKOP_LIB/singbox/generator.uc"
 SCHEMA_HELPER="$ROOT_DIR/tests/helpers/singbox_option_schema.js"
 SCHEMA_SNAPSHOT="$ROOT_DIR/tests/data/singbox_inbound_options.json"
-SERVER_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js"
+SERVER_JS="$(node "$ROOT_DIR/tests/helpers/tab_source.js" servers --double-quotes)"
 CORE_OPTION_DIR="${FORKOP_SING_BOX_OPTION_DIR:-$ROOT_DIR/sandbox/sing-box-forkop/option}"
 WORK_DIR="$(mktemp -d)"
 
@@ -305,7 +305,7 @@ const FORM_OPTIONS = [
   "tuic_zero_rtt_handshake",
 ];
 const declared = new Set(
-  [...serverSource.matchAll(/\.option\(\s*(?:form|sectionui)\.[A-Za-z]+\s*,\s*"([a-z0-9_]+)"/g)]
+  [...serverSource.matchAll(/\.option\(\s*(?:form\.)?[A-Za-z][A-Za-z0-9_]*\s*,\s*"([a-z0-9_]+)"/g)]
     .map((match) => match[1]),
 );
 const missing = FORM_OPTIONS.filter((name) => !declared.has(name));

@@ -2,11 +2,15 @@
 set -eo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SERVER_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js"
+SERVER_JS="$(node "$ROOT_DIR/tests/helpers/tab_source.js" servers --double-quotes)"
 
-node - "$SERVER_JS" <<'NODE'
+node - "$SERVER_JS" "$ROOT_DIR/tests/helpers/source_literal.js" <<'NODE'
 const fs = require("fs");
 const source = fs.readFileSync(process.argv[2], "utf8");
+
+// The tab is several modules now, so a region is taken by the name of the
+// declaration that holds it rather than by what happens to follow it.
+const { readFunction } = require(process.argv[3]);
 
 function fail(message) {
   console.error(`FAIL: ${message}`);
@@ -34,10 +38,7 @@ if ((source.match(/optionalAuth:/g) || []).length !== 1) {
   fail("only the mixed inbound may run without authentication");
 }
 
-const flagBlock = source.slice(
-  requiredIndex('"mixed_auth_enabled",'),
-  requiredIndex("function addClientListOption"),
-);
+const flagBlock = readFunction(source, "addMixedOptions");
 if (
   !flagBlock.includes('_("Authentication")') ||
   !flagBlock.includes('o.default = "1"') ||
@@ -48,10 +49,7 @@ if (
 
 // With authentication off the inbound takes no users, so the client dialog hides the
 // password, the checks skip it and the link carries no credentials.
-const visibleFields = source.slice(
-  requiredIndex("function visibleClientFields"),
-  requiredIndex("function clientCredentialLabel"),
-);
+const visibleFields = readFunction(source, "visibleClientFields");
 if (
   !visibleFields.includes('if (field === "password") {') ||
   !visibleFields.includes("return isAuthenticationEnabled(sectionId);")
@@ -67,17 +65,11 @@ if (source.includes("describePerProtocol")) {
 // A NaiveProxy client verifies the certificate the way a browser does, so the
 // self-signed one Forkop issues is refused and the button that issues it is not
 // offered there. The two path fields stay, for a certificate of your own.
-const certificateRule = source.slice(
-  requiredIndex("function offersCertificateButton"),
-  requiredIndex("function syncCertificateButton"),
-);
+const certificateRule = readFunction(source, "offersCertificateButton");
 if (!certificateRule.includes('protocol !== "naive"')) {
   fail("NaiveProxy must be the listener the certificate button is withheld from");
 }
-const certificateButton = source.slice(
-  requiredIndex("function addCertificateButton"),
-  requiredIndex("function addSshHostKeyButton"),
-);
+const certificateButton = readFunction(source, "addCertificateButton");
 if (!certificateButton.includes("offersCertificateButton")) {
   fail("the certificate button must follow that rule");
 }
@@ -86,16 +78,11 @@ if (!certificateButton.includes("offersCertificateButton")) {
 // with: LuCI renders every option once and a later change only shows and hides them,
 // so a server that started as Mixed kept a button an existing NaiveProxy server never
 // had.
-const protocolChange = source.slice(
-  requiredIndex("o.onchange = function (_ev, sectionId, value) {"),
-);
-if (!protocolChange.slice(0, 400).includes("syncCertificateButton(sectionId, value)")) {
+const protocolChange = readFunction(source, "addIdentityOptions");
+if (!protocolChange.includes("syncCertificateButton(sectionId, value)")) {
   fail("changing the protocol must show or hide the certificate button");
 }
-const issueButton = source.slice(
-  requiredIndex("function addIssueButton"),
-  requiredIndex("function issueRequest"),
-);
+const issueButton = readFunction(source, "addIssueButton");
 if (!issueButton.includes("showIssueButton(row, offered(getProtocol(sectionId)))")) {
   fail("addIssueButton must set the visibility of its button when it builds the row");
 }
@@ -114,10 +101,7 @@ if (
   fail("credential checks must skip the password while authentication is disabled");
 }
 
-const mixedLinks = source.slice(
-  requiredIndex("function buildMixedLinks"),
-  requiredIndex("function buildHysteria2Link"),
-);
+const mixedLinks = readFunction(source, "buildMixedLinks");
 if (!mixedLinks.includes("isAuthenticationEnabled(sectionId)")) {
   fail("mixed share links must omit credentials when authentication is disabled");
 }

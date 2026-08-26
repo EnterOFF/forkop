@@ -1,18 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
+import { createFormSectionStub, installLuciStubs } from './luciStubs';
 import {
-  createFormSectionStub,
-  createUciStub,
-  loadLuciView,
-  resetLuciViewCache,
-} from './loadLuciView';
+  addClientCredentialOptions,
+  addClientOptions,
+  addClientRoutingOptions,
+} from '../../forkop/tabs/servers/clientDialog';
+import { createServerContent } from '../../forkop/tabs/servers/form';
 
 // The whole tab is declared in one pass, so anything that throws here is a form
 // that does not open at all - and anything it declares wrongly is a field that is
 // there but never shown, or shown when it should not be.
 function build(server = {}) {
-  resetLuciViewCache();
-  const uci = createUciStub({
+  const uci = installLuciStubs({
     srv: {
       '.type': 'server',
       label: 'Home',
@@ -22,11 +22,12 @@ function build(server = {}) {
       ...server,
     },
   });
-  const view = loadLuciView('server', uci, [
-    'addClientCredentialOptions',
-    'addClientOptions',
-    'addClientRoutingOptions',
-  ]);
+  const view = {
+    addClientCredentialOptions,
+    addClientOptions,
+    addClientRoutingOptions,
+    createServerContent,
+  };
   const section = createFormSectionStub();
   view.createServerContent(section);
   return { section, view, uci };

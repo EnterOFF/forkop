@@ -3,21 +3,21 @@ set -eo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-node - "$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js" <<'NODE'
+node - "$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections)" "$ROOT_DIR" <<'NODE'
 const fs = require('fs');
 const assert = require('assert');
 
 const source = fs.readFileSync(process.argv[2], 'utf8');
 
-function extract(startMarker, endMarker) {
-  const start = source.indexOf(startMarker);
-  assert(start !== -1, `${startMarker} not found`);
-  const end = source.indexOf(endMarker, start);
-  assert(end !== -1, `${endMarker} not found after ${startMarker}`);
-  return source.slice(start, end);
-}
+// The tab is several modules now, so a helper is taken by name rather than by
+// what happens to follow it.
+const { readFunction } = require(`${process.argv[3]}/tests/helpers/source_literal.js`);
+const extract = (...names) =>
+  names.map((name) => readFunction(source, name)).join('\n');
 
 const UCI_PACKAGE = 'forkop';
+// The extracted helpers name the constant the bundle imports.
+const FORKOP_UCI_PACKAGE = UCI_PACKAGE;
 const store = new Map();
 let anonymous = 0;
 
@@ -69,13 +69,25 @@ function setDynamicListItemValue(item, value) {
 
 eval(
   extract(
-    'function normalizeDynamicListItems(',
-    'function nextDynamicListName(',
-  ) +
-    extract('function childOwnerOption(', 'function parentSectionIdForItem(') +
+    'normalizeDynamicListItems',
+    'childOwnerOption',
+    'childItemOrder',
+    'getChildItemIds',
+    'childItemValue',
+    'childItemInputValue',
+    'isExistingChildItem',
+    'createChildItem',
+    'applyChildItemSettings',
+    'materializeChildItems',
+    'adoptMaterializedChildItems',
+    'cleanupFallbackLevelsForGroup',
+    'cleanupTunnelPeers',
+    'cleanupRemovedChildItems',
+    'parentSectionIdForItem',
     // applyChildItemSettings() asks it before writing, so that a value already
     // stored is left alone.
-    extract('function settingValueEquals(', 'function readChildSettings('),
+    'settingValueEquals',
+  ),
 );
 
 const LEVEL_OPTIONS = {
@@ -211,7 +223,7 @@ for (const modal of [
   'showUrlTestSettingsModal',
   'showFallbackLevelSettingsModal',
 ]) {
-  const body = extract(`function ${modal}(`, '\n}\n');
+  const body = readFunction(source, modal);
   assert.match(
     body,
     /\n\s{4}itemNode,\n/,

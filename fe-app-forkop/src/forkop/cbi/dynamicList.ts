@@ -1,0 +1,553 @@
+import { FORKOP_UCI_PACKAGE } from '../../constants';
+import {
+  adoptMaterializedChildItems,
+  childItemInputValue,
+  cleanupRemovedChildItems,
+  getChildItemIds,
+  isExistingChildItem,
+  materializeChildItems,
+} from './childItems';
+import { cleanupListItemSettings } from './itemSettings';
+import {
+  dynamicListItemCurrentValue,
+  dynamicListItemValues,
+  findDynamicListItemByValue,
+  updateButtonAddDynamicListLayout,
+} from './listItems';
+
+const CONNECTIONS_DYNLIST_STYLE_ID = 'fkp-connections-dynlist-styles';
+
+function ensureConnectionsDynamicListStyles() {
+  if (document.getElementById(CONNECTIONS_DYNLIST_STYLE_ID)) {
+    return;
+  }
+
+  document.head.appendChild(
+    E(
+      'style',
+      { id: CONNECTIONS_DYNLIST_STYLE_ID },
+      `
+.fkp-connections-dynlist {
+  --fkp-dynlist-action-gap: 0.5em;
+  --fkp-dynlist-action-size: 2.5em;
+  column-gap: var(--fkp-dynlist-action-gap);
+  display: inline-grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.fkp-connections-dynlist > .item {
+  grid-column: 1;
+  min-inline-size: 0;
+}
+
+.fkp-connections-dynlist > .fkp-dynlist-settings {
+  align-items: center;
+  align-self: start;
+  block-size: var(--fkp-dynlist-row-size, auto);
+  box-sizing: border-box;
+  display: inline-flex;
+  grid-column: 2;
+  inline-size: var(--fkp-dynlist-action-size) !important;
+  justify-content: center;
+  line-height: 1;
+  margin: 0;
+  margin-block-start: var(--fkp-dynlist-row-offset, 0px);
+  min-block-size: 0;
+  min-inline-size: 0;
+  padding: 0;
+  user-select: none;
+}
+
+.fkp-connections-dynlist > .add-item {
+  grid-column: 1 / -1;
+}
+
+.fkp-connections-dynlist > .add-item > .cbi-dropdown {
+  width: 100%;
+}
+
+.fkp-interface-dynlist-label {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.25em;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.fkp-interface-dynlist-label > img {
+  flex: 0 0 auto;
+  height: 1.35em;
+  width: auto;
+}
+
+.fkp-interface-dynlist-label > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.modal-overlay-active > #modal_overlay > .modal.cbi-modal > .cbi-map.flash {
+  animation: none !important;
+}
+
+`,
+    ),
+  );
+}
+
+const SettingsUIDynamicList = ui.DynamicList.extend({
+  render() {
+    ensureConnectionsDynamicListStyles();
+    this.settingsButtonResizeObserver?.disconnect();
+    this.settingsButtonResizeObserver =
+      typeof ResizeObserver === 'function'
+        ? new ResizeObserver((entries) => {
+            entries.forEach((entry) => {
+              this.syncSettingsButtonSize(entry.target);
+            });
+          })
+        : null;
+
+    const node = ui.DynamicList.prototype.render.call(this);
+    node.classList.add('fkp-connections-dynlist');
+    node.addEventListener('cbi-dynlist-change', () => {
+      this.syncSettingsButtons(node);
+    });
+    node.addEventListener('touchstart', () => this.syncSettingsButtons(node));
+    node.addEventListener('touchmove', () => this.syncSettingsButtons(node));
+    return node;
+  },
+
+  syncSettingsButtonSize(item: Element | null) {
+    const button = item && item.fkpDynamicListSettingsButton;
+    const height = item && item.clientHeight;
+    if (button && (height as number) > 0) {
+      button.style.setProperty('--fkp-dynlist-row-size', `${height}px`);
+      button.style.setProperty(
+        '--fkp-dynlist-row-offset',
+        `${item.clientTop}px`,
+      );
+    }
+  },
+
+  syncSettingsButtons(dl: HTMLElement) {
+    Array.from(dl.children).forEach((item) => {
+      const button = item.fkpDynamicListSettingsButton;
+      if (
+        item.classList.contains('item') &&
+        button &&
+        button.parentNode === dl &&
+        item.nextElementSibling !== button
+      ) {
+        item.after(button);
+      }
+    });
+  },
+
+  addItem(dl: HTMLElement, value: string, text: string, flash?: boolean) {
+    if (
+      flash &&
+      typeof this.options.hasEquivalentValue === 'function' &&
+      this.options.hasEquivalentValue(value, dl)
+    ) {
+      this.dispatchCbiDynlistChange(dl, value);
+      return;
+    }
+
+    const itemText =
+      typeof this.options.itemLabel === 'function'
+        ? this.options.itemLabel(value, text)
+        : text;
+
+    ui.DynamicList.prototype.addItem.call(this, dl, value, itemText, flash);
+
+    const item = findDynamicListItemByValue(dl, value);
+    const hasSettings =
+      typeof this.options.hasSettings === 'function'
+        ? this.options.hasSettings(value)
+        : true;
+
+    if (!item || item.fkpDynamicListSettingsButton || !hasSettings) {
+      return;
+    }
+
+    const settingsButton = E(
+      'button',
+      {
+        type: 'button',
+        class: 'btn cbi-button cbi-button-neutral fkp-dynlist-settings',
+        'aria-label': _('Settings'),
+        disabled: this.options.disabled ? '' : null,
+        click: (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+
+          if (this.options.disabled) {
+            return;
+          }
+
+          if (typeof this.options.settingsHandler === 'function') {
+            this.options.settingsHandler(
+              dynamicListItemCurrentValue(item, value),
+              item,
+              this,
+              {},
+            );
+          }
+        },
+      },
+      '\u2699',
+    );
+    item.fkpDynamicListSettingsButton = settingsButton;
+    item.after(settingsButton);
+    this.settingsButtonResizeObserver?.observe(item);
+    this.syncSettingsButtonSize(item);
+  },
+
+  removeItem(dl: HTMLElement, item: Element) {
+    const settingsButton = item && item.fkpDynamicListSettingsButton;
+    this.settingsButtonResizeObserver?.unobserve(item);
+    if (settingsButton && settingsButton.parentNode === dl) {
+      settingsButton.remove();
+    }
+
+    return ui.DynamicList.prototype.removeItem.call(this, dl, item);
+  },
+
+  handleClick(event: Event) {
+    if ((event.target as Element).closest('.fkp-dynlist-settings')) {
+      return;
+    }
+
+    return ui.DynamicList.prototype.handleClick.call(this, event);
+  },
+
+  handleKeydown(event: KeyboardEvent) {
+    const dl = event.currentTarget as HTMLElement;
+    const item = (event.target as Element).closest('.item');
+    const isBackspace = event.key === 'Backspace' || event.keyCode === 8;
+    const isDelete = event.key === 'Delete' || event.keyCode === 46;
+
+    if (
+      !this.options.disabled &&
+      item &&
+      item.parentNode === dl &&
+      (isBackspace || isDelete)
+    ) {
+      const items = Array.from(dl.children).filter((node) =>
+        node.classList.contains('item'),
+      );
+      const index = items.indexOf(item);
+      const nextItem = items[index + (isBackspace ? -1 : 1)];
+
+      if (nextItem) {
+        (nextItem as HTMLElement).focus();
+      } else if (isDelete) {
+        (dl.querySelector('.add-item > *') as HTMLElement | null)?.focus();
+      }
+
+      this.removeItem(dl, item);
+      event.preventDefault();
+      return;
+    }
+
+    return ui.DynamicList.prototype.handleKeydown.call(this, event);
+  },
+});
+
+const ButtonAddSettingsUIDynamicList = SettingsUIDynamicList.extend({
+  render() {
+    const node = SettingsUIDynamicList.prototype.render.call(this);
+    node.classList.add('fkp-button-add-dynlist');
+
+    const input = node.querySelector('.add-item > input[type="text"]');
+    input?.remove();
+
+    updateButtonAddDynamicListLayout(node, this.options.addButtonLabel);
+
+    node.addEventListener('cbi-dynlist-change', () => {
+      updateButtonAddDynamicListLayout(node, this.options.addButtonLabel);
+    });
+
+    return node;
+  },
+
+  addButtonItem(_dl?: HTMLElement) {
+    if (typeof this.options.settingsHandler === 'function') {
+      this.options.settingsHandler('', null, this, { adding: true });
+    }
+  },
+
+  handleClick(event: Event) {
+    if (
+      !this.options.disabled &&
+      (event.target as Element).closest('.add-item > .fkp-button-add-control')
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.addButtonItem(event.currentTarget as HTMLElement);
+      return;
+    }
+
+    return SettingsUIDynamicList.prototype.handleClick.call(this, event);
+  },
+
+  handleKeydown(event: KeyboardEvent) {
+    if (
+      !this.options.disabled &&
+      (event.target as Element).closest(
+        '.add-item > .fkp-button-add-control',
+      ) &&
+      (event.key === 'Enter' || event.key === ' ')
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.addButtonItem(event.currentTarget as HTMLElement);
+      return;
+    }
+
+    return ui.DynamicList.prototype.handleKeydown.call(this, event);
+  },
+});
+
+export const SettingsDynamicList = form.DynamicList.extend({
+  childOwner(section_id: string) {
+    return typeof this.childOwnerId === 'function'
+      ? `${this.childOwnerId(section_id) || ''}`.trim()
+      : section_id;
+  },
+
+  parentSection(section_id: string) {
+    return typeof this.parentSectionId === 'function'
+      ? `${this.parentSectionId(section_id) || ''}`.trim()
+      : section_id;
+  },
+
+  load(section_id: string) {
+    if (this.childType) {
+      return getChildItemIds(
+        this.childOwner(section_id),
+        this.childType,
+        this.ownerOption,
+      );
+    }
+
+    return form.DynamicList.prototype.load.call(this, section_id);
+  },
+
+  renderWidget(section_id: string, _option_index: string, cfgvalue: unknown) {
+    const value = cfgvalue != null ? cfgvalue : this.default;
+    const choices = this.transformChoices();
+    const WidgetClass = this.buttonAdd
+      ? ButtonAddSettingsUIDynamicList
+      : SettingsUIDynamicList;
+    const widget = new WidgetClass(L.toArray(value), choices, {
+      id: this.cbid(section_id),
+      sort: this.keylist,
+      allowduplicates: this.allowduplicates,
+      optional: this.optional || this.rmempty,
+      datatype: this.datatype,
+      placeholder: this.placeholder,
+      validate: L.bind(this.validate, this, section_id),
+      disabled: this.readonly != null ? this.readonly : this.map.readonly,
+      addButtonLabel:
+        typeof this.addButtonLabel === 'function'
+          ? this.addButtonLabel(section_id)
+          : this.addButtonLabel,
+      settingsHandler: (
+        itemValue: string,
+        _item: Element | null,
+        widget: CBIWidget,
+        context: Record<string, unknown>,
+      ) => {
+        if (typeof this.renderItemSettingsModal === 'function') {
+          const ownerId = this.childOwner(section_id);
+          this.renderItemSettingsModal(
+            ownerId,
+            `${itemValue}`,
+            this,
+            widget,
+            _item,
+            Object.assign({}, context || {}, {
+              parentSectionId: this.parentSection(section_id),
+              ownerId,
+            }),
+          );
+        }
+      },
+      itemLabel: (itemValue: string, text?: string | null) => {
+        if (typeof this.renderListItemLabel === 'function') {
+          return this.renderListItemLabel(
+            this.childOwner(section_id),
+            `${itemValue}`,
+            text,
+          );
+        }
+
+        return text;
+      },
+      hasSettings: (itemValue: string) => {
+        if (typeof this.hasItemSettings === 'function') {
+          return this.hasItemSettings(
+            this.childOwner(section_id),
+            `${itemValue}`,
+          );
+        }
+
+        if (this.childType) {
+          return isExistingChildItem(
+            this.childOwner(section_id),
+            `${itemValue}`,
+            this.childType,
+            this.ownerOption,
+          );
+        }
+
+        return true;
+      },
+      hasEquivalentValue: (itemValue: string, dl: HTMLElement) => {
+        const inputValueForItem = (value: unknown) => {
+          const ownerId = this.childOwner(section_id);
+
+          if (typeof this.inputValueForItem === 'function') {
+            return `${this.inputValueForItem(ownerId, `${value || ''}`) || ''}`.trim();
+          }
+
+          if (this.childType && this.childValueOption) {
+            return childItemInputValue(
+              ownerId,
+              `${value || ''}`,
+              this.childType,
+              this.childValueOption,
+              this.ownerOption,
+            );
+          }
+
+          return `${value || ''}`.trim();
+        };
+        const normalized = inputValueForItem(itemValue);
+
+        return Boolean(
+          normalized &&
+            dynamicListItemValues(dl).some(
+              (existingValue) =>
+                inputValueForItem(existingValue) === normalized,
+            ),
+        );
+      },
+    });
+
+    const node = widget.render();
+    if (typeof this.onListChange === 'function') {
+      node.addEventListener('cbi-dynlist-change', () => {
+        this.onListChange!(section_id);
+      });
+    }
+
+    return node;
+  },
+
+  parse(section_id: string) {
+    if (
+      this.isActive(section_id) &&
+      typeof this.validateItemsOnSave === 'function'
+    ) {
+      const result = this.validateItemsOnSave(
+        this.childType ? this.childOwner(section_id) : section_id,
+        this.formvalue(section_id),
+        this,
+        section_id,
+      );
+      if (result !== true) {
+        const title = this.stripTags(this.title).trim();
+        return Promise.reject(
+          new TypeError(
+            `${_('Option "%s" contains an invalid input value.').format(title || this.option)} ${result}`,
+          ),
+        );
+      }
+    }
+
+    return form.DynamicList.prototype.parse.call(this, section_id);
+  },
+
+  write(section_id: string, value: unknown) {
+    if (this.childType) {
+      const ownerId = this.childOwner(section_id);
+      const { itemIds, resolved } = materializeChildItems(
+        ownerId,
+        {
+          typeName: this.childType,
+          valueOption: this.childValueOption,
+          ownerOption: this.ownerOption,
+          createId: this.createId,
+          defaults: this.childDefaults,
+          stagedSettings:
+            typeof this.stagedChildSettings === 'function'
+              ? (itemValue: unknown, itemId: string, created: boolean) =>
+                  this.stagedChildSettings!(ownerId, itemValue, itemId, created)
+              : null,
+        },
+        value,
+      );
+      adoptMaterializedChildItems(this, section_id, resolved);
+      cleanupRemovedChildItems(
+        ownerId,
+        this.childType,
+        itemIds,
+        this.ownerOption,
+      );
+      if (typeof this.afterMaterializeChildItems === 'function') {
+        this.afterMaterializeChildItems(ownerId, itemIds);
+      }
+      uci.unset(FORKOP_UCI_PACKAGE, section_id, this.option);
+      cleanupListItemSettings(ownerId, this.settingsKey, itemIds);
+      if (typeof this.clearStagedChildSettings === 'function') {
+        this.clearStagedChildSettings(ownerId);
+      }
+      return;
+    }
+
+    const result = form.DynamicList.prototype.write.call(
+      this,
+      section_id,
+      value,
+    );
+    cleanupListItemSettings(section_id, this.settingsKey, value);
+    return result;
+  },
+
+  remove(section_id: string) {
+    if (this.childType) {
+      // LuCI removes an option the dialog hides, and for a child item list that
+      // would mean deleting the sections behind it. Only a list the user could
+      // see says anything about its items: a list the dialog hid - because the
+      // section is no longer a Connection, because the protocol has no accounts,
+      // because authentication was switched off - was cleared by nobody. What it
+      // holds cannot be typed again: an account password every device is
+      // configured with, a tunnel private key, a subscription URL. The runtime
+      // reads none of them in that state, and they are all there again when the
+      // field that hid them goes back.
+      if (this.isActive(section_id)) {
+        cleanupRemovedChildItems(
+          this.childOwner(section_id),
+          this.childType,
+          [],
+          this.ownerOption,
+        );
+      }
+      uci.unset(FORKOP_UCI_PACKAGE, section_id, this.option);
+      return;
+    }
+
+    if (this.settingsKey) {
+      uci.unset(FORKOP_UCI_PACKAGE, section_id, this.settingsKey);
+    }
+
+    return form.DynamicList.prototype.remove.call(this, section_id);
+  },
+});
+
+export const ButtonAddSettingsDynamicList = SettingsDynamicList.extend({
+  buttonAdd: true,
+});

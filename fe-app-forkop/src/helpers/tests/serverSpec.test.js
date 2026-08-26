@@ -1,10 +1,27 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { installLuciStubs } from './luciStubs';
+import { CAMOUFLAGE_SITES } from '../../forkop/tabs/servers/constants';
 import {
-  createUciStub,
-  loadLuciView,
-  resetLuciViewCache,
-} from './loadLuciView';
+  buildMtprotoFullSecret,
+  generateCredential,
+  normalizeMtprotoBaseSecret,
+  randomItem,
+  randomPort,
+} from '../../forkop/tabs/servers/credentials';
+import { isHost } from '../../forkop/tabs/servers/hosts';
+import {
+  PROTOCOLS,
+  credentialFields,
+  getEffectiveSecurity,
+  getShadowsocksMethod,
+  isAuthenticationEnabled,
+  isShadowsocks2022,
+  protocolLabel,
+  securitiesFor,
+  usesClients,
+  usesLoginName,
+} from '../../forkop/tabs/servers/protocols';
 
 const CREDENTIALS = new Set([
   'uuid',
@@ -15,29 +32,27 @@ const CREDENTIALS = new Set([
 ]);
 
 function load(sections = {}) {
-  resetLuciViewCache();
-  const uci = createUciStub(sections);
   return {
-    uci,
-    spec: loadLuciView('server', uci, [
-      'buildMtprotoFullSecret',
-      'credentialFields',
-      'generateCredential',
-      'getEffectiveSecurity',
-      'getShadowsocksMethod',
-      'isAuthenticationEnabled',
-      'isShadowsocks2022',
-      'normalizeMtprotoBaseSecret',
-      'protocolLabel',
-      'securitiesFor',
-      'usesClients',
-      'usesLoginName',
-      'PROTOCOLS',
-      'CAMOUFLAGE_SITES',
-      'isHost',
-      'randomItem',
-      'randomPort',
-    ]),
+    uci: installLuciStubs(sections),
+    spec: {
+      buildMtprotoFullSecret,
+      credentialFields,
+      generateCredential,
+      getEffectiveSecurity,
+      getShadowsocksMethod,
+      isAuthenticationEnabled,
+      isShadowsocks2022,
+      normalizeMtprotoBaseSecret,
+      protocolLabel,
+      securitiesFor,
+      usesClients,
+      usesLoginName,
+      PROTOCOLS,
+      CAMOUFLAGE_SITES,
+      isHost,
+      randomItem,
+      randomPort,
+    },
   };
 }
 

@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'fe-app-forkop/**'
+      - 'luci-app-forkop/**'
       - '.github/workflows/frontend-ci.yml'
 
 jobs:

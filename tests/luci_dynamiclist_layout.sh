@@ -2,7 +2,7 @@
 set -eo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SECTION_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js"
+SECTION_JS="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections)"
 MONITORING_STYLES="$ROOT_DIR/fe-app-forkop/src/forkop/tabs/monitoring/styles.ts"
 
 fail() {
@@ -13,53 +13,57 @@ fail() {
 settings_list_styles="$(sed -n '/^\.fkp-connections-dynlist {$/,/^}$/p' "$SECTION_JS")"
 settings_styles="$(sed -n '/^\.fkp-connections-dynlist > \.fkp-dynlist-settings {$/,/^}$/p' "$SECTION_JS")"
 settings_item_styles="$(sed -n '/^\.fkp-connections-dynlist > \.item {$/,/^}$/p' "$SECTION_JS")"
-settings_widget="$(sed -n '/^const SettingsUIDynamicList =/,/^const ButtonAddSettingsUIDynamicList/p' "$SECTION_JS")"
-button_add_widget="$(sed -n '/^function updateButtonAddDynamicListLayout(/,/^function setDynamicListItemValue(/p' "$SECTION_JS"; sed -n '/^const ButtonAddSettingsUIDynamicList =/,/^const SettingsDynamicList/p' "$SECTION_JS")"
-subscription_keys="$(sed -n '/^function remoteSubscriptionUrlSettingsKeys(/,/^function defaultSubscriptionUrlSettings(/p' "$SECTION_JS")"
-subscription_options="$(sed -n '/^function addSubscriptionUrlItemOptions(/,/^function addInterfaceItemOptions(/p' "$SECTION_JS")"
-subscription_header_editor="$(sed -n '/^function subscriptionHeaderValues(/,/^function interfaceSettingsKeys(/p' "$SECTION_JS")"
-server_filter_options="$(sed -n '/^function addServerFilterOptions(/,/^function urlTestUrlChoices(/p' "$SECTION_JS")"
-urltest_options="$(sed -n '/^function addUrlTestItemOptions(/,/^function fallbackLevelSettingsForValidation(/p' "$SECTION_JS")"
-fallback_options="$(sed -n '/^function addFallbackLevelItemOptions(/,/^function addFallbackGroupItemOptions(/p' "$SECTION_JS")"
-fallback_group_options="$(sed -n '/^function addFallbackGroupItemOptions(/,/^function settingValueEquals(/p' "$SECTION_JS")"
-create_section="$(sed -n '/^function createSectionContent(/,/^function loadSectionTableOptions(/p' "$SECTION_JS")"
-live_choices="$(sed -n '/^function configureLiveDynamicListChoices(/,/^function currentOutboundNameChoices(/p' "$SECTION_JS")"
+settings_widget="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections --decl SettingsUIDynamicList)"
+button_add_widget="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections --decl updateButtonAddDynamicListLayout; node "$ROOT_DIR/tests/helpers/tab_source.js" sections --decl ButtonAddSettingsUIDynamicList)"
+subscription_keys="$(for decl in remoteSubscriptionUrlSettingsKeys subscriptionUrlSettingsKeys cleanupRemoteSubscriptionUrlSettings defaultSubscriptionUrlSettings; do node "$ROOT_DIR/tests/helpers/tab_source.js" sections --decl "$decl"; done)"
+subscription_options="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections --decl addSubscriptionUrlItemOptions)"
+subscription_header_editor="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections --file forkop/tabs/sections/subscriptions/headers.ts)"
+server_filter_options="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections --decl addServerFilterOptions)"
+urltest_options="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections --decl addUrlTestItemOptions)"
+fallback_options="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections --decl addFallbackLevelItemOptions)"
+fallback_group_options="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections --decl addFallbackGroupItemOptions)"
+create_section="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections --decl createSectionContent)"
+live_choices="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections --decl configureLiveDynamicListChoices)"
 close_all_styles="$(sed -n '/^\.fkp_monitoring-page #monitoring-close-all\.btn\.fkp_monitoring-page__icon-button:hover:not(:disabled) {$/,/^}$/p' "$MONITORING_STYLES")"
 
-node - "$SECTION_JS" <<'NODE'
+node - "$SECTION_JS" "$ROOT_DIR" <<'NODE'
 const assert = require('assert');
 const fs = require('fs');
 
 const source = fs.readFileSync(process.argv[2], 'utf8');
-const subscriptionValidationSource = source.match(
-  /function parseSubscriptionUrlEntry\([\s\S]*?\n}\n\nfunction escapeHtml\(/,
-);
-assert(subscriptionValidationSource, 'subscription validation helpers not found');
+// Functions are taken by name rather than by the code that happens to follow
+// them: the tab is a directory of modules now, so what sits next to what is not
+// part of any contract.
+const { readFunction } = require(`${process.argv[3]}/tests/helpers/source_literal.js`);
 const validateSubscription = new Function(
-  'main',
+  'validateUrl',
+  'validatePath',
   '_',
-  `${subscriptionValidationSource[0].slice(0, -'\n\nfunction escapeHtml('.length)}; return validateSubscriptionUrlEntry;`,
+  [
+    readFunction(source, 'parseSubscriptionUrlEntry'),
+    readFunction(source, 'isRemoteSubscriptionSource'),
+    readFunction(source, 'validateSubscriptionUrlEntry'),
+    'return validateSubscriptionUrlEntry;',
+  ].join('\n'),
 )(
-  {
-    validateUrl: (value) => ({ valid: /^https?:\/\/[^/]+/.test(value) }),
-    validatePath: (value) => ({ valid: /^\/[a-zA-Z0-9_\-/.]+$/.test(value) }),
-  },
+  (value) => ({ valid: /^https?:\/\/[^/]+/.test(value) }),
+  (value) => ({ valid: /^\/[a-zA-Z0-9_\-/.]+$/.test(value) }),
   (value) => value,
 );
 assert.strictEqual(validateSubscription('settings', 'https://example.com/sub'), true);
 assert.strictEqual(validateSubscription('settings', '/etc/forkop/subscription.txt'), true);
 assert.match(validateSubscription('settings', 'relative/subscription.txt'), /absolute local path/);
 
-const subscriptionOptionsSource = source.match(
-  /function addSubscriptionUrlItemOptions\([\s\S]*?\n}\n\nfunction addInterfaceItemOptions\(/,
+const subscriptionOptionsSource = readFunction(
+  source,
+  'addSubscriptionUrlItemOptions',
 );
-assert(subscriptionOptionsSource, 'subscription options not found');
 const addSubscriptionOptions = new Function(
   'form',
   '_',
   'addServerFilterOptions',
   'subscriptionServerFilterDescriptions',
-  `${subscriptionOptionsSource[0].slice(0, -'\n\nfunction addInterfaceItemOptions('.length)}; return addSubscriptionUrlItemOptions;`,
+  `${subscriptionOptionsSource}; return addSubscriptionUrlItemOptions;`,
 )(
   { Flag: 'flag', Value: 'value', ListValue: 'list', Button: 'button' },
   (value) => value,
@@ -101,14 +105,12 @@ assert.match(
   'saving existing local subscription settings must remove stale remote options',
 );
 
-const fallbackGroupOptions = source.match(
-  /function addFallbackGroupItemOptions\([\s\S]*?\n}\n\nfunction settingValueEquals\(/,
-);
-assert(fallbackGroupOptions, 'Fallback group options not found');
-const fallbackSource = fallbackGroupOptions[0];
+const fallbackSource = readFunction(source, 'addFallbackGroupItemOptions');
 const fallbackDefault = (name) => {
   const match = fallbackSource.match(
-    new RegExp(`"${name}",[\\s\\S]*?\\);\\n  o\\.default = "([^"]+)";`),
+    new RegExp(
+      `['"]${name}['"],[\\s\\S]*?\\);\\n  o\\.default = ['"]([^'"]+)['"];`,
+    ),
   );
   assert(match, `Fallback default not found: ${name}`);
   return match[1];
@@ -123,17 +125,10 @@ assert.match(
   fallbackSource,
   /urlTestUrlChoices\(\)\.forEach\(\(value\) => o\.value\(value\)\);/,
 );
-const helper = source.match(
-  /function syncServerFilterFields\([\s\S]*?\n}\n\nfunction addServerFilterOptions\(/,
-);
-assert(helper, 'server filter synchronization helper not found');
-eval(helper[0].slice(0, -'\n\nfunction addServerFilterOptions('.length));
+eval(readFunction(source, 'syncServerFilterFields'));
 
-const nameHelpers = source.match(
-  /function normalizeDynamicListItems\([\s\S]*?\n}\n\nfunction uniqueDynamicListItems\(/,
-);
-assert(nameHelpers, 'DynamicList name helper not found');
-eval(nameHelpers[0].slice(0, -'\n\nfunction uniqueDynamicListItems('.length));
+eval(readFunction(source, 'normalizeDynamicListItems'));
+eval(readFunction(source, 'nextDynamicListName'));
 
 const visibleItems = { value: [] };
 const nameOption = { formvalue: () => visibleItems.value };
@@ -212,15 +207,15 @@ delete storedHeaders.header_2;
 assert.strictEqual(nextSubscriptionHeaderRowId(headerSection), 'header_4');
 NODE
 
-grep -Fq 'addButton.className = "cbi-dropdown fkp-button-add-control";' <<<"$button_add_widget" ||
+grep -Fq "addButton.className = 'cbi-dropdown fkp-button-add-control';" <<<"$button_add_widget" ||
   fail "button-only DynamicList actions must use the native LuCI dropdown surface"
-grep -Fq 'E("li", { placeholder: "", selected: "", display: "0" })' <<<"$button_add_widget" ||
+grep -Fq "E('li', { placeholder: '', selected: '', display: '0' })" <<<"$button_add_widget" ||
   fail "button-only DynamicList actions must use the native dropdown label structure"
-grep -Fq 'E("span", { "aria-hidden": "true" }, "\u200b")' <<<"$button_add_widget" ||
+grep -Fq "E('span', { 'aria-hidden': 'true' }, '\u200b')" <<<"$button_add_widget" ||
   fail "button-only DynamicList actions must retain the native dropdown line height"
 grep -Fq 'input?.remove();' <<<"$button_add_widget" ||
   fail "button-only DynamicList actions must not retain the text-input layout"
-grep -Fq 'event.target.closest(".add-item > .fkp-button-add-control")' <<<"$button_add_widget" ||
+grep -Fq "event.target.closest('.add-item > .fkp-button-add-control')" <<<"$button_add_widget" ||
   fail "button-only DynamicList actions must preserve click and keyboard behavior"
 if grep -Fq '.fkp-button-add-dynlist > .add-item' "$SECTION_JS"; then
   fail "button-only DynamicList actions must not carry theme-specific presentation CSS"
@@ -245,7 +240,7 @@ grep -Fq 'min-inline-size: 0;' <<<"$settings_styles" ||
   fail "DynamicList settings buttons must override oversized theme minimum widths"
 grep -Fq 'margin-block-start: var(--fkp-dynlist-row-offset, 0px);' <<<"$settings_styles" ||
   fail "DynamicList settings buttons must align with the value's inner border edge"
-grep -Fq '"btn cbi-button cbi-button-neutral fkp-dynlist-settings"' "$SECTION_JS" ||
+grep -Fq "'btn cbi-button cbi-button-neutral fkp-dynlist-settings'" "$SECTION_JS" ||
   fail "DynamicList settings actions must use a native neutral LuCI button"
 grep -Fq 'item.after(settingsButton);' <<<"$settings_widget" ||
   fail "DynamicList settings actions must be DOM siblings so item hover stays isolated"
@@ -253,9 +248,9 @@ grep -Fq 'settingsButton.remove();' <<<"$settings_widget" ||
   fail "DynamicList settings actions must be removed with their value"
 grep -Fq 'this.syncSettingsButtons(node);' <<<"$settings_widget" ||
   fail "DynamicList settings actions must follow values after drag-and-drop"
-grep -Fq 'node.addEventListener("touchstart", () => this.syncSettingsButtons(node));' <<<"$settings_widget" ||
+grep -Fq "node.addEventListener('touchstart', () => this.syncSettingsButtons(node));" <<<"$settings_widget" ||
   fail "DynamicList settings actions must stay paired when mobile dragging starts"
-grep -Fq 'node.addEventListener("touchmove", () => this.syncSettingsButtons(node));' <<<"$settings_widget" ||
+grep -Fq "node.addEventListener('touchmove', () => this.syncSettingsButtons(node));" <<<"$settings_widget" ||
   fail "DynamicList settings actions must stay paired while mobile dragging moves"
 grep -Fq 'new ResizeObserver((entries) =>' <<<"$settings_widget" ||
   fail "DynamicList settings actions must track responsive value row heights"
@@ -263,7 +258,7 @@ grep -Fq 'const height = item && item.clientHeight;' <<<"$settings_widget" ||
   fail "DynamicList settings actions must measure the value's inner height"
 grep -Fq '`${item.clientTop}px`' <<<"$settings_widget" ||
   fail "DynamicList settings actions must follow the value's actual border offset"
-grep -Fq 'button.style.setProperty("--fkp-dynlist-row-size", `${height}px`);' <<<"$settings_widget" ||
+grep -Fq "button.style.setProperty('--fkp-dynlist-row-size', \`\${height}px\`);" <<<"$settings_widget" ||
   fail "DynamicList settings actions must use the measured value row height"
 if grep -Fq 'title: _("Settings")' <<<"$settings_widget"; then
   fail "DynamicList settings actions must not expose a redundant hover tooltip"
@@ -277,19 +272,19 @@ grep -Fq 'addServerFilterOptions(itemSection, parentSectionForItem, {' <<<"$subs
 grep -Fq 'loadSubscriptionOutboundNameChoices(sectionId, options.ownerId());' "$SECTION_JS" ||
   fail "subscription exact-name filters must load their own provider nodes"
 for key in server_filter_mode include_regex exclude_regex; do
-  grep -Fq "\"$key\"" <<<"$subscription_keys" ||
+  grep -Fq "'$key'" <<<"$subscription_keys" ||
     fail "subscription/provider filter key $key is missing"
 done
-grep -Fq '"header"' <<<"$subscription_keys" ||
+grep -Fq "'header'" <<<"$subscription_keys" ||
   fail "subscription settings must persist request headers"
 if grep -Eq '"auto_hwid"|"hwid"' <<<"$subscription_keys"; then
   fail "subscription settings must not persist legacy HWID controls"
 fi
 grep -Fq 'form.Button' <<<"$subscription_options" ||
   fail "subscription settings must expose the header editor as a native LuCI button"
-grep -Fq '_("Headers")' <<<"$subscription_options" ||
+grep -Fq "_('Headers')" <<<"$subscription_options" ||
   fail "subscription settings header editor button is missing"
-grep -Fq 'o.depends("show_subscription_name", "1");' <<<"$subscription_options" ||
+grep -Fq "o.depends('show_subscription_name', '1');" <<<"$subscription_options" ||
   fail "subscription tag must stay hidden until subscription names are enabled"
 grep -Fq 'form.GridSection' <<<"$subscription_header_editor" ||
   fail "subscription headers must use a native LuCI grid"
@@ -308,7 +303,7 @@ grep -Fq 'form.TableSection.prototype.renderRowActions.call' <<<"$subscription_h
 if grep -Fq 'headers.modaltitle' <<<"$subscription_header_editor"; then
   fail "subscription header grid must not open a nested add modal"
 fi
-grep -Fq 'configureLiveDynamicListChoices(field, (itemId) =>' <<<"$server_filter_options" ||
+grep -Fq '(itemId) => choicesForItem(field, itemId),' <<<"$server_filter_options" ||
   fail "URLTest server filters must stay comboboxes when no choices exist"
 grep -Fq 'addServerFilterOptions(itemSection, parentSectionForItem, {' <<<"$fallback_options" ||
   fail "Fallback server filters must stay comboboxes when no choices exist"
@@ -364,7 +359,7 @@ for label in 'All except selected' 'Only selected' 'All remaining'; do
   grep -Fq "$label" "$SECTION_JS" ||
     fail "filter mode label is missing: $label"
 done
-grep -Fq '{ value: "direct", label: _("Direct") }' <<<"$fallback_options" ||
+grep -Fq "{ value: 'direct', label: _('Direct') }" <<<"$fallback_options" ||
   fail "Fallback direct mode must use the concise Direct label"
 grep -Fq 'Server filter' "$SECTION_JS" ||
   fail "server filter selector is missing"
@@ -383,19 +378,19 @@ fi
 grep -Fq 'Add at least one server group' "$SECTION_JS" ||
   fail "Fallback settings must require at least one server group"
 for option in health_check_url health_check_interval health_check_timeout attempt_timeout expected_status idle_timeout interrupt_exist_connections; do
-  grep -Fq "\"$option\"" <<<"$fallback_group_options" ||
+  grep -Eq "['\"]$option['\"]" <<<"$fallback_group_options" ||
     fail "Fallback settings are missing $option"
 done
 if grep -Fq '"max_failed_times"' <<<"$fallback_group_options"; then
   fail "the failure counter must stay a core constant instead of a setting"
 fi
-grep -Fq 'health_check_interval: "5m"' "$SECTION_JS" ||
+grep -Fq "health_check_interval: '5m'" "$SECTION_JS" ||
   fail "Fallback health interval default must match Mihomo"
-grep -Fq 'health_check_timeout: "5s"' "$SECTION_JS" ||
+grep -Fq "health_check_timeout: '5s'" "$SECTION_JS" ||
   fail "Fallback health timeout default must match Mihomo"
-grep -Fq 'idle_timeout: "5m"' "$SECTION_JS" ||
+grep -Fq "idle_timeout: '5m'" "$SECTION_JS" ||
   fail "Fallback idle timeout must preserve Mihomo lazy behavior"
-grep -Fq 'attempt_timeout: "5s"' "$SECTION_JS" ||
+grep -Fq "attempt_timeout: '5s'" "$SECTION_JS" ||
   fail "Fallback attempt timeout default is missing"
 if grep -Fq 'interrupt_exist_connections: "1"' "$SECTION_JS"; then
   fail "group connection interruption must be disabled by default"
@@ -404,10 +399,10 @@ if grep -Fq 'blacklist_timeout' <<<"$fallback_group_options"; then
   fail "Fallback settings still expose blacklist_timeout"
 fi
 for generated_name in \
-  '"Tunnel"' \
-  '"URLTest"' \
-  '"Fallback"' \
-  '"Group"'; do
+  "'Tunnel'" \
+  "'URLTest'" \
+  "'Fallback'" \
+  "'Group'"; do
   grep -Fq "$generated_name" "$SECTION_JS" ||
     fail "generated DynamicList name is missing: $generated_name"
 done
@@ -433,7 +428,7 @@ if grep -Fq 'form.DynamicList.prototype.renderWidget' <<<"$live_choices"; then
 fi
 grep -Fq 'dashboardFilterChoiceRefreshers.get(refreshSectionId).add(refreshChoices);' <<<"$live_choices" ||
   fail "dashboard selectors must register the rendered modal widget for source changes"
-grep -Fq 'node.addEventListener("mousedown", refreshBeforeOpening, true);' <<<"$live_choices" ||
+grep -Fq "node.addEventListener('mousedown', refreshBeforeOpening, true);" <<<"$live_choices" ||
   fail "dashboard selectors must refresh choices before opening"
 grep -Fq 'if (currentSignature === choiceSignature)' "$SECTION_JS" ||
   fail "dashboard selectors must not rebuild unchanged choices while selecting an item"

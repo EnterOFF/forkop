@@ -1,27 +1,32 @@
 import { describe, expect, it } from 'vitest';
 
+import { installLuciStubs } from './luciStubs';
+import { chooseDefaultPublicHost } from '../../forkop/tabs/servers/network';
 import {
-  createUciStub,
-  loadLuciView,
-  resetLuciViewCache,
-} from './loadLuciView';
+  validateAuthorizedKeys,
+  validateInboundJson,
+  validateListenPort,
+  validateOptionalMasquerade,
+  validateRealityKey,
+  validateShadowsocksPassword,
+  validateShortId,
+  validateTailscaleHostname,
+} from '../../forkop/tabs/servers/validators';
 
 function load(sections = {}) {
-  resetLuciViewCache();
-  const uci = createUciStub(sections);
   return {
-    uci,
-    validate: loadLuciView('server', uci, [
-      'chooseDefaultPublicHost',
-      'validateAuthorizedKeys',
-      'validateInboundJson',
-      'validateListenPort',
-      'validateShadowsocksPassword',
-      'validateShortId',
-      'validateTailscaleHostname',
-      'validateRealityKey',
-      'validateOptionalMasquerade',
-    ]),
+    uci: installLuciStubs(sections),
+    validate: {
+      chooseDefaultPublicHost,
+      validateAuthorizedKeys,
+      validateInboundJson,
+      validateListenPort,
+      validateShadowsocksPassword,
+      validateShortId,
+      validateTailscaleHostname,
+      validateRealityKey,
+      validateOptionalMasquerade,
+    },
   };
 }
 

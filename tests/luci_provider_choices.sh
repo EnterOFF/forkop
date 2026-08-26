@@ -2,33 +2,24 @@
 set -eo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SECTION_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js"
+SECTION_JS="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections)"
 
-node - "$SECTION_JS" <<'NODE'
+node - "$SECTION_JS" "$ROOT_DIR" <<'NODE'
 const assert = require('assert');
 const fsNode = require('fs');
 
 const source = fsNode.readFileSync(process.argv[2], 'utf8');
-const helpers = source.match(
-  /function nativeProviderOutboundNames\([\s\S]*?\nfunction readOutboundChoiceState\(/,
-);
-assert(helpers, 'native provider choice helpers not found');
-const choiceLoader = source.match(
-  /function loadOutboundNameChoices\([\s\S]*?\nfunction normalizeDynamicListItems\(/,
-);
-assert(choiceLoader, 'outbound choice loader not found');
-const draftNames = source.match(
-  /function currentDraftOutboundNames\([\s\S]*?\nfunction refreshDashboardFilterChoiceWidgets\(/,
-);
-assert(draftNames, 'draft outbound name helper not found');
-const pendingStore = source.match(
-  /function childPendingSettingsStore\([\s\S]*?\nfunction pendingChildSettings\(/,
-);
-assert(pendingStore, 'shared pending child settings helper not found');
-const choiceItems = source.match(
-  /function outboundNameChoiceItems\([\s\S]*?\nfunction currentOutboundNameChoices\(/,
-);
-assert(choiceItems, 'outbound choice item helper not found');
+// Functions are taken by name: the tab is several modules now, so what sits
+// next to what is not part of any contract.
+const { readFunction } = require(`${process.argv[3]}/tests/helpers/source_literal.js`);
+const helpers = [
+  readFunction(source, 'nativeProviderOutboundNames'),
+  readFunction(source, 'loadNativeProviderOutboundNames'),
+].join('\n');
+const choiceLoader = readFunction(source, 'loadOutboundNameChoices');
+const draftNames = readFunction(source, 'currentDraftOutboundNames');
+const pendingStore = readFunction(source, 'childPendingSettingsStore');
+const choiceItems = readFunction(source, 'outboundNameChoiceItems');
 
 function plainObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -60,7 +51,7 @@ const fs = {
   },
 };
 
-eval(helpers[0].slice(0, -'\nfunction readOutboundChoiceState('.length));
+eval(helpers);
 
 const outboundNameChoicesCache = new Map();
 const outboundNameChoicesInflight = new Map();
@@ -70,28 +61,29 @@ const emptyTtl = source.match(
 );
 assert(emptyTtl, 'empty outbound choice TTL not found');
 const OUTBOUND_NAME_CHOICES_EMPTY_TTL_MS = Number(emptyTtl[1]);
-const cacheHelpers = source.match(
-  /function cacheOutboundNameChoices\([\s\S]*?\nfunction loadOutboundNameChoices\(/,
-);
-assert(cacheHelpers, 'outbound choice cache helpers not found');
-eval(cacheHelpers[0].slice(0, -'\nfunction loadOutboundNameChoices('.length));
+const cacheHelpers = [
+  readFunction(source, 'cacheOutboundNameChoices'),
+  readFunction(source, 'outboundNameChoicesCached'),
+].join('\n');
+eval(cacheHelpers);
 function readOutboundChoiceState() {
   return Promise.resolve({
     providerTags: [providerTag],
   });
 }
 function refreshDashboardFilterChoiceWidgets() {}
-eval(choiceLoader[0].slice(0, -'\nfunction normalizeDynamicListItems('.length));
+eval(choiceLoader);
+eval(readFunction(source, 'loadSectionOutboundNameChoices'));
 
 function normalizeDynamicListItems(value) {
   return (Array.isArray(value) ? value : [value])
     .map((item) => String(item || '').trim())
     .filter(Boolean);
 }
-eval(choiceItems[0].slice(0, -'\nfunction currentOutboundNameChoices('.length));
+eval(choiceItems);
 
 const sharedChildPendingSettings = new Map();
-eval(pendingStore[0].slice(0, -'\nfunction pendingChildSettings('.length));
+eval(pendingStore);
 const interfaceOption = { sharedPendingSettingsKey: 'interfaces' };
 const modalInterfaceOption = Object.assign({}, interfaceOption);
 childPendingSettingsStore(modalInterfaceOption, 'main').new_interface = {
@@ -111,13 +103,11 @@ function currentSourceOptionValues(_sectionId, optionName) {
   return draftSourceValues[optionName] || [];
 }
 const outboundNameSourceOptions = new Map([['interfaces', interfaceOption]]);
-const UCI_PACKAGE = 'forkop';
-const main = {
-  getProxyUrlName(value) {
-    const fragment = String(value || '').split('#')[1] || '';
-    return decodeURIComponent(fragment);
-  },
-};
+const FORKOP_UCI_PACKAGE = 'forkop';
+function getProxyUrlName(value) {
+  const fragment = String(value || '').split('#')[1] || '';
+  return decodeURIComponent(fragment);
+}
 function childItemInputValue(_sectionId, itemId) {
   return itemId === 'saved_interface' ? 'lan1' : itemId;
 }
@@ -143,10 +133,10 @@ function tunnelChildIds() {
 function tunnelDisplayName() {
   return '';
 }
-eval(draftNames[0].slice(0, -'\nfunction refreshDashboardFilterChoiceWidgets('.length));
+eval(draftNames);
 
 const sourceBinding = source.match(
-  /o\.liveDynamicListNodes = new Map\(\);[\s\S]*?outboundNameSourceOptions\.set\("selector_proxy_links", o\);/,
+  /o\.liveDynamicListNodes = new Map\(\);[\s\S]*?outboundNameSourceOptions\.set\('selector_proxy_links', o\);/,
 );
 assert(sourceBinding, 'connection URL DynamicList binding not found');
 const sourceValues = ['vless://saved.example'];
@@ -186,11 +176,8 @@ assert.deepStrictEqual(
   ['main'],
   'connection URL removal must refresh filter choices before Apply',
 );
-const liveReader = source.match(
-  /function currentLiveDynamicListValues\([\s\S]*?\nfunction currentDraftOutboundNames\(/,
-);
-assert(liveReader, 'live DynamicList reader not found');
-eval(liveReader[0].slice(0, -'\nfunction currentDraftOutboundNames('.length));
+const liveReader = readFunction(source, 'currentLiveDynamicListValues');
+eval(liveReader);
 global.document = {
   getElementById() {
     throw new Error('stale duplicate DynamicList was used');
@@ -281,7 +268,7 @@ assert.deepStrictEqual(nativeProviderOutboundNames([providerTag], payload), [
     'subscription settings must identify their own child provider',
   );
   assert.doesNotMatch(
-    source.match(/function configureLiveDynamicListChoices\([\s\S]*?\nfunction outboundNameChoiceItems\(/)[0],
+    readFunction(source, 'configureLiveDynamicListChoices'),
     /widget\.setValue\(/,
     'live choice refresh must not rewrite selected filter values',
   );

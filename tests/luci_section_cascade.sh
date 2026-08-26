@@ -3,15 +3,15 @@ set -eo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-node - "$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js" <<'NODE'
+node - "$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections)" "$ROOT_DIR" <<'NODE'
 const fs = require('fs');
 const assert = require('assert');
 
 const source = fs.readFileSync(process.argv[2], 'utf8');
-const match = source.match(
-  /function configureSectionSection\(sectionRef\) \{[\s\S]*?\n\}\n\nconst EntryPoint/,
-);
-assert(match, 'configureSectionSection not found');
+// Taken by name: the tab is several modules now, and nothing follows the
+// function in a fixed place any more.
+const { readFunction } = require(`${process.argv[3]}/tests/helpers/source_literal.js`);
+const configureSection = readFunction(source, 'configureSectionSection');
 
 const cleanupCalls = [];
 function loadSectionTableOptions() {}
@@ -37,7 +37,7 @@ const form = {
     },
   },
 };
-eval(match[0].slice(0, -'\n\nconst EntryPoint'.length));
+eval(configureSection);
 
 const event = {};
 const result = {};
@@ -64,12 +64,12 @@ assert.deepStrictEqual(parentArgs, ['parent', event]);
 assert.strictEqual(parentThis, sectionRef);
 assert.match(
   source,
-  /typeName === "fallback_group"[\s\S]*cleanupFallbackLevelsForGroup\(itemId\)/,
+  /typeName === 'fallback_group'[\s\S]*cleanupFallbackLevelsForGroup\(itemId\)/,
   'fallback_group cleanup does not cascade to fallback_level',
 );
 assert.match(
   source,
-  /typeName === "tunnel"[\s\S]*cleanupTunnelPeers\(itemId\)/,
+  /typeName === 'tunnel'[\s\S]*cleanupTunnelPeers\(itemId\)/,
   'tunnel cleanup does not cascade to tunnel_peer',
 );
 

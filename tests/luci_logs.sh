@@ -2,21 +2,21 @@
 set -eo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-FORKOP_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js"
-LOGS_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/logs.js"
+FORKOP_JS="$(node "$ROOT_DIR/tests/helpers/tab_source.js" entry --double-quotes)"
+MOUNT_JS="$ROOT_DIR/fe-app-forkop/src/forkop/tabs/mountTab.ts"
 DIAGNOSTIC_DIR="$ROOT_DIR/fe-app-forkop/src/forkop/tabs/diagnostic"
 LOGS_RENDER="$ROOT_DIR/fe-app-forkop/src/forkop/tabs/logs/render.ts"
 LOGS_CONTROLLER="$ROOT_DIR/fe-app-forkop/src/forkop/tabs/logs/initController.ts"
 LOGS_STYLES="$ROOT_DIR/fe-app-forkop/src/forkop/tabs/logs/styles.ts"
 
-node - "$FORKOP_JS" "$LOGS_JS" <<'NODE'
+node - "$FORKOP_JS" "$MOUNT_JS" <<'NODE'
 const fs = require('fs');
 const entry = fs.readFileSync(process.argv[2], 'utf8');
-const bridge = fs.readFileSync(process.argv[3], 'utf8');
+const mount = fs.readFileSync(process.argv[3], 'utf8');
 
-const monitoring = entry.indexOf('const monitoringSection');
-const logs = entry.indexOf('const logsSection');
-const components = entry.indexOf('const updatesSection');
+const monitoring = entry.indexOf('"monitoring"');
+const logs = entry.indexOf('"logs"');
+const components = entry.indexOf('"updates"');
 
 if (!(monitoring < logs && logs < components)) {
   console.error('FAIL: Logs tab must be between Monitoring and Components');
@@ -24,9 +24,8 @@ if (!(monitoring < logs && logs < components)) {
 }
 
 for (const needle of [
-  '"require view.forkop.logs as logs"',
   '_("Logs")',
-  'logs.createLogsContent(logsSection)',
+  'addMountedTab(forkopMap, "logs", _("Logs"), LogsTab)',
 ]) {
   if (!entry.includes(needle)) {
     console.error(`FAIL: missing Logs tab contract: ${needle}`);
@@ -37,12 +36,12 @@ for (const needle of [
 // Through the shared mount, so the node the controller bound to is the one the
 // form puts back when it rebuilds itself. Answering with a freshly rendered tree
 // left the pane showing its placeholder from the first edit until a page reload.
-if (!bridge.includes('main.mountTab("logs", main.LogsTab.render, main.LogsTab.initController)')) {
-  console.error('FAIL: Logs LuCI bridge must mount the frontend tab through the shared mount');
+if (!mount.includes('mountTab(key, tab.render, tab.initController)')) {
+  console.error('FAIL: a mounted tab must go through the shared mount');
   process.exit(1);
 }
-if (bridge.includes('main.LogsTab.render()')) {
-  console.error('FAIL: Logs LuCI bridge must not render a new tree on every form rebuild');
+if (/=>\s*tab\.render\(\)/.test(mount)) {
+  console.error('FAIL: a mounted tab must not render a new tree on every form rebuild');
   process.exit(1);
 }
 NODE

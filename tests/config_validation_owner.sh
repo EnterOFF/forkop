@@ -9,7 +9,7 @@ CLI_UC="$FORKOP_BIN"
 VALIDATOR="$FORKOP_LIB/config/validator.uc"
 RULE_CONFIG="$FORKOP_LIB/config/rule.uc"
 GENERATOR="$FORKOP_LIB/singbox/generator.uc"
-SECTION_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js"
+SECTION_JS="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections)"
 LIFECYCLE="$FORKOP_LIB/service/lifecycle.uc"
 
 fail() {

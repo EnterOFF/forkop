@@ -1,24 +1,26 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { installLuciStubs } from './luciStubs';
+import { visibleClientFields } from '../../forkop/tabs/servers/clients';
+import { SHADOWSOCKS_METHODS } from '../../forkop/tabs/servers/constants';
 import {
-  createUciStub,
-  loadLuciView,
-  resetLuciViewCache,
-} from './loadLuciView';
+  generateCredential,
+  generatePassword,
+  generatePresharedKey,
+} from '../../forkop/tabs/servers/credentials';
+import { supportsVisionFlow } from '../../forkop/tabs/servers/protocols';
 
 function load(sections = {}) {
-  resetLuciViewCache();
-  const uci = createUciStub(sections);
   return {
-    uci,
-    spec: loadLuciView('server', uci, [
-      'generateCredential',
-      'generatePassword',
-      'generatePresharedKey',
-      'supportsVisionFlow',
-      'visibleClientFields',
-      'SHADOWSOCKS_METHODS',
-    ]),
+    uci: installLuciStubs(sections),
+    spec: {
+      generateCredential,
+      generatePassword,
+      generatePresharedKey,
+      supportsVisionFlow,
+      visibleClientFields,
+      SHADOWSOCKS_METHODS,
+    },
   };
 }
 

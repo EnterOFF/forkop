@@ -551,34 +551,13 @@ function buildForm(uciData) {
 
 /* ----------------------------------------------------------------- harness */
 
-function readDomainListOptions(root) {
-  const source = require('fs').readFileSync(
-    path.join(root, 'fe-app-forkop/src/constants.ts'),
-    'utf8',
-  );
-  const start = source.indexOf('export const DOMAIN_LIST_OPTIONS = {');
-  const end = source.indexOf('};', start);
-  if (start < 0 || end < 0) {
-    throw new Error('DOMAIN_LIST_OPTIONS not found in fe-app-forkop/src/constants.ts');
-  }
-  const options = {};
-  for (const [, key, label] of source
-    .slice(start, end)
-    .matchAll(/^\s*(\w+):\s*'([^']*)',/gm)) {
-    options[key] = label;
-  }
-  if (!Object.keys(options).length) {
-    throw new Error('DOMAIN_LIST_OPTIONS is empty, so rule set values cannot be told apart');
-  }
-  return options;
-}
-
 function createHarness(root, packageName = 'forkop') {
   const viewDir = path.join(
     root,
     'luci-app-forkop/htdocs/luci-static/resources/view/forkop',
   );
   const { createLoader } = require(path.join(root, 'tests/helpers/luci_module.js'));
+  const { loadBundle } = require(path.join(root, 'tests/helpers/bundle.js'));
 
   // Every write the views make, in order, so a test can assert that a save
   // touched nothing.
@@ -675,10 +654,15 @@ function createHarness(root, packageName = 'forkop') {
   const documentStub = {
     querySelector: (selector) =>
       selector === '#modal_overlay > .modal.cbi-modal' ? modal : null,
+    querySelectorAll: () => [],
     getElementById: () => null,
     createElement: (tag) => new FakeNode(tag),
+    createElementNS: (_ns, tag) => new FakeNode(tag),
     head: new FakeNode('head'),
     body: new FakeNode('body'),
+    documentElement: new FakeNode('html'),
+    addEventListener() {},
+    removeEventListener() {},
   };
 
   const L = {
@@ -696,49 +680,11 @@ function createHarness(root, packageName = 'forkop') {
     },
   };
 
-  // Anything a view reaches for that a save cannot depend on: constants keep
-  // their real values, everything else answers harmlessly.
-  const main = new Proxy(
-    {
-      FORKOP_UCI_PACKAGE: packageName,
-      FORKOP_ACTION_PROVIDERS_AVAILABILITY_EVENT: 'forkop:action-providers-availability',
-      DEFAULT_LATENCY_TEST_URL: 'https://www.gstatic.com/generate_204',
-      LATENCY_TEST_URL_OPTIONS: [],
-      // The built-in list names decide which of a section's rule sets are
-      // community lists and which are URLs the user typed, so a save that cannot
-      // tell them apart rewrites both options. They come from the frontend
-      // source rather than a copy, which would answer a question of its own.
-      DOMAIN_LIST_OPTIONS: readDomainListOptions(root),
-      // The runtime tag of a section is its display name, and a dialog that
-      // resolves a stored section reference through it gets an empty answer from
-      // the catch-all stub - which reads as "no section selected" and makes the
-      // dialog refuse every save.
-      getOutboundTagBySection: (name) => `${name ?? ''}`,
-      store: {},
-      ForkopShellMethods: new Proxy({}, { get: () => () => Promise.resolve({}) }),
-      parseValueList: (value) =>
-        Array.isArray(value)
-          ? value
-          : `${value ?? ''}`.split(/[\s,]+/).filter(Boolean),
-    },
-    {
-      get: (target, prop) =>
-        prop in target
-          ? target[prop]
-          : () => (/^validate/.test(prop) ? { valid: true } : ''),
-    },
-  );
-  const dpi = new Proxy(
-    {
-      BYEDPI_DEFAULT_CMD_OPTS: '',
-      ZAPRET2_DEFAULT_NFQWS2_OPT: '',
-      ZAPRET_DEFAULT_NFQWS_OPT: '',
-      ZAPRET_LEGACY_DEFAULT_NFQWS_OPT: '',
-    },
-    { get: (target, prop) => (prop in target ? target[prop] : () => ({})) },
-  );
-
-  const load = createLoader(viewDir, {
+  // What the loader hands every module, main.js included. main.js is loaded
+  // with exactly these, so the constants, validators and helpers a view reads
+  // out of it are the shipped ones and anything it looks up in uci finds the
+  // model this harness is driving rather than a second one.
+  const moduleGlobals = {
     form,
     ui: { DynamicList: makeClass('ui.DynamicList', function () {}), addNotification() {} },
     uci,
@@ -762,14 +708,6 @@ function createHarness(root, packageName = 'forkop') {
         ),
     },
     network: { getDevices: () => Promise.resolve([]) },
-    main,
-    dpi,
-    annotate: new Proxy({}, { get: () => () => '' }),
-    localDevices: {
-      SYSTEM_DEVICE_VALUE: '__system__',
-      createLocalDeviceDynamicListWidget: () => ({}),
-      normalizeOptionValues: (value) => (Array.isArray(value) ? value : []),
-    },
     widgets: { DeviceSelect: form.MultiValue, NetworkSelect: form.MultiValue },
     L,
     E,
@@ -786,7 +724,28 @@ function createHarness(root, packageName = 'forkop') {
     poll: { add() {}, remove() {} },
     dom: { content() {}, append() {} },
     rpc: { declare: () => () => Promise.resolve({}) },
-  });
+  };
+
+  const bundle = loadBundle(root, moduleGlobals);
+
+  // The bundle as a view sees it. Everything real comes straight from it; the
+  // few members listed here are the ones that would otherwise reach out of the
+  // process, and a save must not depend on what they answer. The catch-all
+  // keeps an unlisted name from throwing.
+  const main = new Proxy(
+    Object.assign({}, bundle, {
+      store: {},
+      ForkopShellMethods: new Proxy({}, { get: () => () => Promise.resolve({}) }),
+    }),
+    {
+      get: (target, prop) =>
+        prop in target
+          ? target[prop]
+          : () => (/^validate/.test(prop) ? { valid: true } : ''),
+    },
+  );
+
+  const load = createLoader(viewDir, Object.assign({}, moduleGlobals, { main }));
 
   // Every dialog the views open, so a test can reach a nested one.
   const dialogMaps = [];
@@ -840,7 +799,21 @@ function createHarness(root, packageName = 'forkop') {
     };
   }
 
-  return { load, form, uci, store, operations, openDialog, isEqual };
+  // A tab that has moved into the bundle is still asked for by its old view
+  // name, and answers out of the bundle instead of out of a file.
+  const BUNDLED_VIEWS = new Set(['section', 'server', 'settings']);
+  const loadView = (name) => (BUNDLED_VIEWS.has(name) ? main : load(name));
+
+  return {
+    load: loadView,
+    bundle: main,
+    form,
+    uci,
+    store,
+    operations,
+    openDialog,
+    isEqual,
+  };
 }
 
 module.exports = { createHarness, isEqual, makeClass, FakeNode, E };

@@ -2,16 +2,22 @@
 set -eo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VIEW_DIR="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop"
 
-node - "$VIEW_DIR/forkop.js" "$VIEW_DIR/section.js" "$VIEW_DIR/server.js" <<'NODE'
+node - "$ROOT_DIR/fe-app-forkop/src/forkop/cbi/childItems.ts" \
+  "$(node "$ROOT_DIR/tests/helpers/tab_source.js" entry)" \
+  "$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections)" \
+  "$(node "$ROOT_DIR/tests/helpers/tab_source.js" servers)" \
+  "$ROOT_DIR" <<'NODE'
 const fs = require("fs");
 const assert = require("assert");
 
-const views = [
-  ["forkop.js", fs.readFileSync(process.argv[2], "utf8")],
-  ["section.js", fs.readFileSync(process.argv[3], "utf8")],
-  ["server.js", fs.readFileSync(process.argv[4], "utf8")],
+// The helper lives in the shared CBI layer; the page and the tabs that create
+// sections are read for the checks that ask what they name.
+const helperFile = fs.readFileSync(process.argv[2], "utf8");
+const tabs = [
+  ["the page", fs.readFileSync(process.argv[3], "utf8")],
+  ["the Sections tab", fs.readFileSync(process.argv[4], "utf8")],
+  ["the Servers tab", fs.readFileSync(process.argv[5], "utf8")],
 ];
 
 function fail(message) {
@@ -19,10 +25,22 @@ function fail(message) {
   process.exit(1);
 }
 
-// The helper is duplicated on purpose: a name imported across two LuCI views is
-// undefined in a browser that cached one of them before an app upgrade. What holds
-// the copies together is this check, not the import.
-function helperSource(source, file) {
+// The helper is read with its types erased and its quotes put back, so what is
+// evaluated below is the code it actually carries rather than its annotations.
+const { eraseTypes } = require(`${process.argv[6]}/tests/helpers/tab_source.js`);
+
+function stripTypes(source) {
+  return (
+    eraseTypes(source)
+      .replace(/'/g, '"')
+      .replace(/\n{2,}/g, '\n')
+      // The evaluated copy names the package the way a view does.
+      .replace(/FORKOP_UCI_PACKAGE/g, 'UCI_PACKAGE')
+  );
+}
+
+function helperSource(rawSource, file) {
+  const source = stripTypes(rawSource);
   const start = source.indexOf("const SECTION_ID_PREFIXES = {");
   if (start === -1) {
     fail(`${file} must carry the section id helper`);
@@ -38,16 +56,12 @@ function helperSource(source, file) {
   return source.slice(start, end + "\n}\n".length);
 }
 
-const [[, entrySource]] = views;
-const helper = helperSource(entrySource, "forkop.js");
-for (const [file, source] of views.slice(1)) {
-  if (helperSource(source, file) !== helper) {
-    fail(`the section id helper in ${file} must be the same text as in forkop.js`);
-  }
-}
+const helper = helperSource(helperFile, "cbi/childItems.ts");
 
-// LuCI's placeholder id and the prefixes that outlived the type they named.
-for (const [file, source] of views) {
+// The whole page is one bundle now, so nothing may name a section itself: an id
+// comes from the helper above or it is LuCI's own placeholder, which marks a
+// section the browser has not saved and would be written to the config for good.
+for (const [file, source] of tabs) {
   for (const stale of [".createSID(", "`pg_", "`tun_", "`tp_"]) {
     if (source.includes(stale)) {
       fail(`${file} must not name a section with ${stale}`);
@@ -86,7 +100,7 @@ assert.deepStrictEqual(
 );
 
 const CHILD_TYPE_ALIASES = { CLIENT_TYPE: "server_client" };
-for (const [file, source] of views) {
+for (const [file, source] of tabs) {
   const declared = Array.from(
     source.matchAll(/\bchildType = (?:"([a-z_]+)"|([A-Z_]+));/g),
     (match) => match[1] || CHILD_TYPE_ALIASES[match[2]] || match[2],

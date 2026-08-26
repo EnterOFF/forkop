@@ -2,9 +2,9 @@
 set -eo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SECTION_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js"
-FORKOP_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/forkop.js"
-SERVER_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/server.js"
+SECTION_JS="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections)"
+FORKOP_JS="$(node "$ROOT_DIR/tests/helpers/tab_source.js" entry --double-quotes)"
+SERVER_JS="$(node "$ROOT_DIR/tests/helpers/tab_source.js" servers)"
 PO="$ROOT_DIR/luci-app-forkop/po/ru/forkop.po"
 POT="$ROOT_DIR/luci-app-forkop/po/templates/forkop.pot"
 
@@ -19,7 +19,7 @@ fail() {
 if grep -Fq '_("Dismiss")' "$SECTION_JS"; then
   fail "Forkop modals must use Close instead of the shared LuCI Dismiss key"
 fi
-grep -Fq '_("Close")' "$SECTION_JS" ||
+grep -Fq "_('Close')" "$SECTION_JS" ||
   fail "Forkop section settings modal must expose a Close action"
 
 if grep -Fq 'http(s)://, hy2/hysteria2:// links' "$SECTION_JS" "$PO" "$POT"; then
@@ -63,15 +63,15 @@ fi
 # for a Forkop msgid and falls back to the English word when the catalog returns the
 # msgid unchanged - which only works while the compared string is the msgid, and
 # while the button is the only reader of it.
-edit_label_definition="$(sed -n '/^function getRuleEditButtonText() {$/,/^}$/p' "$SERVER_JS")"
+edit_label_definition="$(node "$ROOT_DIR/tests/helpers/tab_source.js" servers --decl getRuleEditButtonText)"
 [ -n "$edit_label_definition" ] ||
-  fail "server.js must own the row action label helper"
-[ "$(printf '%s\n' "$edit_label_definition" | grep -c '"Edit rule action"')" = "2" ] ||
+  fail "the Servers tab must own the row action label helper"
+[ "$(printf '%s\n' "$edit_label_definition" | grep -cE "['\"]Edit rule action['\"]")" = "2" ] ||
   fail "the row action label must compare the translation against its own msgid"
-if grep -Fq 'getRuleEditButtonText() {' "$FORKOP_JS"; then
-  fail "the row action label must not be defined a second time in forkop.js"
+if grep -Fq 'function getRuleEditButtonText' "$FORKOP_JS"; then
+  fail "the row action label must not be defined a second time for the page"
 fi
-grep -Fq 'server.getRuleEditButtonText()' "$FORKOP_JS" ||
+grep -Fq 'getRuleEditButtonText()' "$FORKOP_JS" ||
   fail "the Sections tab must take the row action label from the Servers tab"
 
 awk '

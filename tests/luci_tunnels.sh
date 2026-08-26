@@ -2,7 +2,7 @@
 set -eo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SECTION_JS="$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js"
+SECTION_JS="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections)"
 MAIN_TS="$ROOT_DIR/fe-app-forkop/src/main.ts"
 CONNECTIONS_UC="$ROOT_DIR/forkop/files/usr/lib/config/connections.uc"
 
@@ -20,59 +20,59 @@ function requireSource(source, needle) {
 }
 
 for (const needle of [
-  '"tunnels"',
-  '_("+ Add tunnel")',
-  'typeOption.value("wireguard", "WireGuard")',
-  'typeOption.value("amneziawg", "AmneziaWG")',
-  'typeOption.value("warp", "Cloudflare WARP")',
-  'typeOption.value("tailscale", "Tailscale")',
-  'typeOption.value("json", "JSON endpoint")',
-  '_("Tunnel settings")',
-  '_("Import configuration")',
-  'importButton.depends("tunnel_type", "wireguard")',
-  'importButton.depends("tunnel_type", "amneziawg")',
-  'main.parseWireGuardInput || main.parseWireGuardConfig',
-  'ButtonAddSettingsDynamicList,\n    "peer_ids"',
-  'typeName: "tunnel_peer"',
-  'o.childType = "tunnel"',
-  '_("+ Add peer")',
+  "'tunnels'",
+  "_('+ Add tunnel')",
+  "typeOption.value('wireguard', 'WireGuard')",
+  "typeOption.value('amneziawg', 'AmneziaWG')",
+  "typeOption.value('warp', 'Cloudflare WARP')",
+  "typeOption.value('tailscale', 'Tailscale')",
+  "typeOption.value('json', 'JSON endpoint')",
+  "_('Tunnel settings')",
+  "_('Import configuration')",
+  "importButton.depends('tunnel_type', 'wireguard')",
+  "importButton.depends('tunnel_type', 'amneziawg')",
+  'parseWireGuardInput || parseWireGuardConfig',
+  "ButtonAddSettingsDynamicList,\n    'peer_ids',",
+  "typeName: 'tunnel_peer'",
+  "o.childType = 'tunnel'",
+  "_('+ Add peer')",
   'showWireGuardPeerSettingsModal',
   'wireGuardPeerFromSettings',
   'endpoint.amnezia = tunnelAmneziaSettings(settings)',
-  'isExistingChildItem(sectionId, tunnelId, "tunnel", "section")',
+  "isExistingChildItem(sectionId, tunnelId, 'tunnel', 'section')",
   'const ONE_SIDED_AMNEZIA_FIELDS = [',
-  '"content_padding_addition"',
-  '_("Header protection key")',
-  '_("Additional packet padding")',
-  '_("Rekey interval")',
-  '_("Rekey timeout")',
-  '_("Data rejection timeout")',
-  '_("Keepalive timeout")',
-  '_("Maximum handshake attempts")',
-  '_("Traffic obfuscation")',
+  "'content_padding_addition'",
+  "_('Header protection key')",
+  "_('Additional packet padding')",
+  "_('Rekey interval')",
+  "_('Rekey timeout')",
+  "_('Data rejection timeout')",
+  "_('Keepalive timeout')",
+  "_('Maximum handshake attempts')",
+  "_('Traffic obfuscation')",
   'Masks traffic with the Amnezia mechanism to make it harder to identify',
-  '"warp_junk_enabled"',
+  "'warp_junk_enabled'",
   'option.retain = true;',
   'if (ONE_SIDED_AMNEZIA_FIELDS.includes(key)) {',
-  'option.depends({ tunnel_type: "warp", warp_junk_enabled: "1" });',
-  '"wireguard_junk_enabled"',
-  'wireguardJunkOption.depends("tunnel_type", "wireguard");',
-  'setModalOptionValue(map, wireguardJunkOption, "1");',
+  "option.depends({ tunnel_type: 'warp', warp_junk_enabled: '1' });",
+  "'wireguard_junk_enabled'",
+  "wireguardJunkOption.depends('tunnel_type', 'wireguard');",
+  "setModalOptionValue(map, wireguardJunkOption, '1');",
   'const ONE_SIDED_AMNEZIA_DEFAULTS = {',
   'function fillOneSidedAmneziaDefaults(map, amneziaOptions) {',
   'fillOneSidedAmneziaDefaults(map, amneziaOptions);',
-  'let previousTunnelType = `${data.settings.tunnel_type || "wireguard"}`;',
-  'if (previousTunnelType === "amneziawg") {',
-  'setModalOptionValue(map, warpJunkOption, "1");',
-  'main.parseWireGuardConfig',
+  "let previousTunnelType = `${data.settings.tunnel_type || 'wireguard'}`;",
+  "if (previousTunnelType === 'amneziawg') {",
+  "setModalOptionValue(map, warpJunkOption, '1');",
+  'parseWireGuardConfig',
   'endpoint.profile = profile',
-  '["generate_warp_profile"]',
-  '_("Generate profile")',
+  "['generate_warp_profile']",
+  "_('Generate profile')",
   'setModalOptionValue(map, warpProfileIdOption, profile.id)',
   'setModalOptionValue(map, warpAuthTokenOption, profile.auth_token)',
   'setModalOptionValue(map, warpPrivateKeyOption, profile.private_key)',
   'profile.license_key = `${settings.warp_license_key}`.trim()',
-  '_("License key")',
+  "_('License key')",
   'Applies WARP+ to the profile account',
   'warpLicenseKeyOption.password = true',
   'warpLicenseKeyOption.rmempty = true',
@@ -82,38 +82,38 @@ for (const needle of [
   'warpProfileIdOption.rmempty = false',
   'warpAuthTokenOption.rmempty = false',
   'warpPrivateKeyOption.rmempty = false',
-  'typeof peer.port !== "number"',
+  "typeof peer.port !== 'number'",
   'const WIREGUARD_PEER_FIELDS = new Set([',
   'function validateWireGuardListInput(value)',
-  'return `${value || ""}`.trim() ? validateWireGuardPrefix(value) : true;',
+  "return `${value || ''}`.trim() ? validateWireGuardPrefix(value) : true;",
   'validateWireGuardPrefix(allowedIp)',
-  '_("WireGuard peer contains unsupported fields")',
-  '_("Forkop Error")',
+  "_('WireGuard peer contains unsupported fields')",
+  "_('Forkop Error')",
   'Failed to generate WARP profile.',
-  '"tailscale_auth_key"',
-  '"tailscale_hostname"',
-  '"tailscale_control_url"',
-  '"tailscale_exit_node"',
-  '"tailscale_detour_enabled"',
-  '"tailscale_detour_section"',
-  '_("Coordination server through a section")',
-  'main.getOutboundTagBySection',
+  "'tailscale_auth_key'",
+  "'tailscale_hostname'",
+  "'tailscale_control_url'",
+  "'tailscale_exit_node'",
+  "'tailscale_detour_enabled'",
+  "'tailscale_detour_section'",
+  "_('Coordination server through a section')",
+  'getOutboundTagBySection',
   'exit_node_allow_lan_access: true',
-  '_("Enter a Tailscale exit node")',
-  '"endpoint_json"',
-  '_("JSON endpoint must contain a non-empty type")',
-  '_("JSON endpoint must contain a non-empty tag")',
+  "_('Enter a Tailscale exit node')",
+  "'endpoint_json'",
+  "_('JSON endpoint must contain a non-empty type')",
+  "_('JSON endpoint must contain a non-empty tag')",
   'const JSON_ENDPOINT_TYPES = new Set([',
   'JSON_ENDPOINT_TYPES.has(endpoint.type.trim())',
-  '_("Unsupported JSON endpoint type")',
+  "_('Unsupported JSON endpoint type')",
   'this.formvalue(_itemId)',
-  '_("Add at least one WireGuard peer")',
+  "_('Add at least one WireGuard peer')",
   'WireGuard, AmneziaWG, Cloudflare WARP, Tailscale and JSON endpoint are available',
-  '_("Tunnel name")',
-  '["wireguard", "amneziawg", "warp", "tailscale"]',
+  "_('Tunnel name')",
+  "['wireguard', 'amneziawg', 'warp', 'tailscale']",
   'Registers a device and fills the fields below',
   '{ singleField: true }',
-  'mtuOption.placeholder = "1408"',
+  "mtuOption.placeholder = '1408'",
   'endpointJsonOption.placeholder = JSON_ENDPOINT_PLACEHOLDER',
   'Required. Remote nodes to connect to',
   'Auth Key from the Tailscale admin console',
@@ -133,7 +133,7 @@ for (const key of [
   'rekey_after_time', 'rekey_timeout', 'reject_after_time',
   'keepalive_timeout', 'max_handshake_attempts',
 ]) {
-  if (!warpFields.includes(`"${key}"`)) {
+  if (!warpFields.includes(`'${key}'`)) {
     console.error(`FAIL: WARP Amnezia field is missing: ${key}`);
     process.exit(1);
   }
@@ -168,7 +168,7 @@ for (const key of [
   'rekey_after_time', 'rekey_timeout', 'reject_after_time',
   'keepalive_timeout', 'max_handshake_attempts',
 ]) {
-  const fieldIndex = amneziaFields.indexOf(`"${key}"`);
+  const fieldIndex = amneziaFields.indexOf(`'${key}'`);
   if (fieldIndex <= previousAmneziaField) {
     console.error(`FAIL: AmneziaWG field order is incorrect at ${key}`);
     process.exit(1);
@@ -222,7 +222,7 @@ const importStart = section.indexOf('function applyImportedTunnelEndpoint');
 const importApply = section.slice(importStart, section.indexOf('function wireGuardPeerSettingsKeys'));
 if (
   !importApply.includes('!ONE_SIDED_AMNEZIA_FIELDS.includes(key)') ||
-  !importApply.includes('twoSided ? "amneziawg" : "wireguard"') ||
+  !importApply.includes("twoSided ? 'amneziawg' : 'wireguard'") ||
   !importApply.includes('fields.wireguardJunk')
 ) {
   console.error('FAIL: import must pick AmneziaWG only for parameters the peer has to match');
@@ -234,13 +234,14 @@ const applySettingsEnd = section.indexOf('function materializeChildItems', apply
 const applySettings = section.slice(applySettingsStart, applySettingsEnd);
 if (
   !applySettings.includes('if (values.length) {') ||
-  (applySettings.match(/uci\.unset\(UCI_PACKAGE, itemId, key\)/g) || []).length !== 2
+  (applySettings.match(/uci\.unset\(FORKOP_UCI_PACKAGE, itemId, key\)/g) || [])
+    .length !== 2
 ) {
   console.error('FAIL: empty child list settings must be removed instead of passed to uci.set');
   process.exit(1);
 }
 
-const warpEndpointStart = section.indexOf('if (kind === "warp")');
+const warpEndpointStart = section.indexOf("if (kind === 'warp')");
 const warpEndpointEnd = section.indexOf('const peers =', warpEndpointStart);
 const warpEndpoint = section.slice(warpEndpointStart, warpEndpointEnd);
 if (
@@ -313,10 +314,10 @@ for (const forbidden of [
 }
 
 const tunnelModalIndex = section.indexOf('function showTunnelSettingsModal');
-const nameIndex = section.indexOf('_("Tunnel name")', tunnelModalIndex);
-const importIndex = section.indexOf('"_import_config"', tunnelModalIndex);
-const generateIndex = section.indexOf('"_generate_warp_profile"', tunnelModalIndex);
-const typeIndex = section.indexOf('_("Tunnel type")', tunnelModalIndex);
+const nameIndex = section.indexOf("_('Tunnel name')", tunnelModalIndex);
+const importIndex = section.indexOf("'_import_config'", tunnelModalIndex);
+const generateIndex = section.indexOf("'_generate_warp_profile'", tunnelModalIndex);
+const typeIndex = section.indexOf("_('Tunnel type')", tunnelModalIndex);
 if (
   tunnelModalIndex < 0 ||
   !(typeIndex < nameIndex && nameIndex < importIndex && nameIndex < generateIndex)
@@ -324,22 +325,21 @@ if (
   console.error('FAIL: tunnel type must be first, followed by name and actions');
   process.exit(1);
 }
-if (!section.includes('["wireguard", "amneziawg", "warp", "tailscale"]')) {
+if (!section.includes("['wireguard', 'amneziawg', 'warp', 'tailscale']")) {
   console.error('FAIL: tunnel name must remain visible for non-JSON tunnel types');
   process.exit(1);
 }
 
-if (!section.includes('if (!`${value || ""}`.trim()) {\n      return true;')) {
+if (!section.includes("if (!`${value || ''}`.trim()) {\n      return true;")) {
   console.error('FAIL: an empty tunnel list must remain valid');
   process.exit(1);
 }
 
 if (
-  !main.includes("parseWireGuardConfig") ||
-  !main.includes("parseWireGuardInput") ||
-  !main.includes("./helpers/parseWireGuardConfig")
+  !section.includes("parseWireGuardConfig") ||
+  !section.includes("parseWireGuardInput")
 ) {
-  console.error('FAIL: main must export the WireGuard and vpn:// import parsers');
+  console.error('FAIL: the tunnel dialog must use the WireGuard and vpn:// import parsers');
   process.exit(1);
 }
 
@@ -355,8 +355,8 @@ if (
   process.exit(1);
 }
 
-const tunnelIndex = section.indexOf('"tunnels"');
-const jsonIndex = section.indexOf('"outbound_jsons"', tunnelIndex);
+const tunnelIndex = section.indexOf("'tunnels'");
+const jsonIndex = section.indexOf("'outbound_jsons'", tunnelIndex);
 if (tunnelIndex < 0 || jsonIndex < 0 || tunnelIndex >= jsonIndex) {
   console.error('FAIL: native tunnel control must appear before JSON outbound');
   process.exit(1);

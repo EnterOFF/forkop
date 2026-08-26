@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
+import { installLuciStubs } from './luciStubs';
+import { listClients } from '../../forkop/tabs/servers/clients';
 import {
-  createUciStub,
-  loadLuciView,
-  resetLuciViewCache,
-} from './loadLuciView';
+  linkTitle,
+  renderDetailsContent,
+  showServerDetailsModal,
+} from '../../forkop/tabs/servers/details';
 
 function load(server = {}, clients = {}) {
-  resetLuciViewCache();
-  const uci = createUciStub({
+  const uci = installLuciStubs({
     srv: {
       '.type': 'server',
       label: 'Home',
@@ -23,12 +24,12 @@ function load(server = {}, clients = {}) {
   });
   return {
     uci,
-    details: loadLuciView('server', uci, [
-      'renderDetailsContent',
-      'linkTitle',
-      'showServerDetailsModal',
-      'listClients',
-    ]),
+    details: {
+      renderDetailsContent,
+      linkTitle,
+      showServerDetailsModal,
+      listClients,
+    },
   };
 }
 

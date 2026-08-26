@@ -1,0 +1,300 @@
+import { validateDNS } from '../../../validators/validateDns';
+import {
+  childItemInputValue,
+  parentSectionIdForItem,
+} from '../../cbi/childItems';
+import { keepUnavailableSectionChoice } from '../../cbi/choices';
+import { SettingsDynamicList } from '../../cbi/dynamicList';
+import { normalizeDynamicListItems } from '../../cbi/listValues';
+import { showChildItemSettingsModal } from '../../cbi/modal';
+import { CONNECTIONS_BLOCKED_INTERFACES } from './constants';
+import { refreshDashboardFilterChoiceWidgets } from './outboundNames';
+import { refreshDnsDetourSectionOptionValues } from './references';
+import { optionMapValue } from './subscriptions/model';
+
+function isConnectionNetworkInterfaceAllowed(
+  deviceName: string,
+  device: NetworkDevice | null,
+) {
+  if (CONNECTIONS_BLOCKED_INTERFACES.includes(deviceName)) {
+    return false;
+  }
+
+  if (!device) {
+    return true;
+  }
+
+  const type = device.getType();
+  const isWireless =
+    type === 'wifi' || type === 'wireless' || type.indexOf('wlan') >= 0;
+
+  return !isWireless;
+}
+
+function renderNetworkInterfaceChoice(device: NetworkDevice) {
+  const name = device.getName();
+  const type = device.getType();
+
+  return E([
+    E('img', {
+      title: device.getI18n(),
+      src: L.resource(
+        'icons/%s%s.svg'.format(type, device.isUp() ? '' : '_disabled'),
+      ),
+    }),
+    E('span', { class: 'hide-open' }, [name]),
+    E('span', { class: 'hide-close' }, [device.getI18n()]),
+  ]);
+}
+
+function renderNetworkInterfaceListItem(
+  device: NetworkDevice | null,
+  fallbackName: string,
+) {
+  const name = device ? device.getName() : fallbackName;
+  const type = device ? device.getType() : 'ethernet';
+  const up = device ? device.isUp() : false;
+
+  return E('span', { class: 'fkp-interface-dynlist-label' }, [
+    E('img', {
+      title: device ? device.getI18n() : _('Network Interface'),
+      src: L.resource('icons/%s%s.svg'.format(type, up ? '' : '_disabled')),
+    }),
+    E('span', {}, [name]),
+  ]);
+}
+
+function refreshNetworkInterfaceOptionValues(option: CBIOption) {
+  option.keylist = [];
+  option.vallist = [];
+  option.interfaceDeviceMap = {};
+
+  (option.devices || []).forEach((device) => {
+    const name = device.getName();
+    const type = device.getType();
+
+    if (
+      name === 'lo' ||
+      type === 'alias' ||
+      !isConnectionNetworkInterfaceAllowed(name, device)
+    ) {
+      return;
+    }
+
+    option.value(name, renderNetworkInterfaceChoice(device));
+    option.interfaceDeviceMap![name] = device;
+  });
+}
+
+export const InterfaceSettingsDynamicList = SettingsDynamicList.extend({
+  load(section_id: string) {
+    return network.getDevices().then(
+      L.bind(function (this: CBIOption, devices: NetworkDevice[]) {
+        this.devices = devices || [];
+        refreshNetworkInterfaceOptionValues(this);
+
+        return this.super('load', section_id);
+      }, this),
+    );
+  },
+
+  renderListItemLabel(
+    section_id: string,
+    value: unknown,
+    text?: string | null,
+  ) {
+    const name = childItemInputValue(
+      section_id,
+      value,
+      'section_interface',
+      'name',
+    );
+
+    return renderNetworkInterfaceListItem(
+      this.interfaceDeviceMap ? this.interfaceDeviceMap[name] : null,
+      name || `${text ?? ''}`,
+    );
+  },
+});
+
+function interfaceSettingsKeys() {
+  return [
+    'display_name',
+    'domain_resolver_enabled',
+    'domain_resolver_dns_server',
+    'domain_resolver_dns_fallback_strategy',
+    'domain_resolver_dns_detour_enabled',
+    'domain_resolver_dns_detour_section',
+  ];
+}
+
+// Everything the resolver dialog hides behind the Domain Resolver flag is left
+// out: those options carry their default in the form and mean the same by their
+// absence in the configuration, and seeding one would only be deleted again the
+// first time the dialog is saved.
+export function defaultInterfaceSettings(displayName: string = '') {
+  return {
+    display_name: displayName,
+    domain_resolver_enabled: '0',
+  };
+}
+
+function addInterfaceItemOptions(
+  itemSection: CBISection,
+  options: Partial<ChildItemDialogContext> = {},
+) {
+  const parentSectionForItem =
+    typeof options.parentSectionId === 'function'
+      ? options.parentSectionId
+      : parentSectionIdForItem;
+
+  let o = itemSection.option(form.Value, 'display_name', _('Interface name'));
+  o.rmempty = false;
+  o.validate = function (_itemId: string, value: unknown) {
+    return `${value || ''}`.trim() ? true : _('Enter a display name');
+  };
+
+  o = itemSection.option(
+    form.Flag,
+    'domain_resolver_enabled',
+    _('Domain Resolver'),
+    _('Enable built-in DNS resolver for domains handled by this section'),
+  );
+  o.default = '0';
+  o.rmempty = false;
+
+  const dnsServerOption = itemSection.option(
+    form.DynamicList,
+    'domain_resolver_dns_server',
+    _('DNS Server'),
+    _(
+      'Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://',
+    ),
+  );
+  // No address is proposed: a resolver that silently defaults to a public server
+  // is a DNS choice made for the user.
+  dnsServerOption.depends('domain_resolver_enabled', '1');
+  dnsServerOption.rmempty = false;
+  dnsServerOption.validate = function (itemId: string, value: unknown) {
+    if (optionMapValue(this, itemId, 'domain_resolver_enabled') !== '1') {
+      return true;
+    }
+    const normalized = `${value || ''}`.trim();
+    if (!normalized) {
+      return L.toArray(this.formvalue(itemId)).some((item) =>
+        `${item || ''}`.trim(),
+      )
+        ? true
+        : _('Add at least one DNS server');
+    }
+    const validation = validateDNS(normalized);
+    return validation.valid ? true : validation.message;
+  };
+
+  const dnsQueryModeOption = itemSection.option(
+    form.ListValue,
+    'domain_resolver_dns_fallback_strategy',
+    _('DNS Query Mode'),
+    _(
+      'Parallel asks every server at once and is faster. Sequential asks them in turn until the first answer',
+    ),
+  );
+  dnsQueryModeOption.value('parallel', _('Parallel'));
+  dnsQueryModeOption.value('sequential', _('Sequential'));
+  dnsQueryModeOption.default = 'parallel';
+  dnsQueryModeOption.rmempty = false;
+  dnsQueryModeOption.retain = true;
+  dnsQueryModeOption.depends({
+    domain_resolver_enabled: '1',
+    domain_resolver_dns_server: '__forkop_multiple_dns__',
+  });
+  dnsQueryModeOption.checkDepends = function (itemId: string) {
+    const enabledOption = this.map.lookupOption(
+      'domain_resolver_enabled',
+      itemId,
+    );
+    const serverOption = this.map.lookupOption(
+      'domain_resolver_dns_server',
+      itemId,
+    );
+    const enabled = enabledOption?.[0].formvalue(enabledOption[1]);
+    const servers = serverOption?.[0].formvalue(serverOption[1]);
+    return enabled === '1' && normalizeDynamicListItems(servers).length > 1;
+  };
+  const originalDnsServerRenderWidget = dnsServerOption.renderWidget;
+  dnsServerOption.renderWidget = function (
+    itemId: string,
+    option_index,
+    cfgvalue: unknown,
+  ) {
+    const node = originalDnsServerRenderWidget.call(
+      this,
+      itemId,
+      option_index,
+      cfgvalue,
+    ) as HTMLElement;
+    node.addEventListener('cbi-dynlist-change', () => {
+      this.map.checkDepends();
+    });
+    return node;
+  };
+
+  o = itemSection.option(
+    form.Flag,
+    'domain_resolver_dns_detour_enabled',
+    _('DNS through section'),
+    _(
+      "Route the resolver's DNS requests through a section instead of this network interface",
+    ),
+  );
+  o.depends('domain_resolver_enabled', '1');
+  o.default = '0';
+  o.rmempty = false;
+
+  o = itemSection.option(
+    form.ListValue,
+    'domain_resolver_dns_detour_section',
+    _('DNS requests through'),
+  );
+  o.depends({
+    domain_resolver_enabled: '1',
+    domain_resolver_dns_detour_enabled: '1',
+  });
+  o.rmempty = false;
+  o.load = function (itemId: string) {
+    refreshDnsDetourSectionOptionValues(this, parentSectionForItem(itemId));
+    const value = optionMapValue(
+      this,
+      itemId,
+      'domain_resolver_dns_detour_section',
+    );
+    keepUnavailableSectionChoice(this, value);
+    return value;
+  };
+  o.validate = function (itemId: string, value: unknown) {
+    if (
+      optionMapValue(this, itemId, 'domain_resolver_enabled') !== '1' ||
+      optionMapValue(this, itemId, 'domain_resolver_dns_detour_enabled') !== '1'
+    ) {
+      return true;
+    }
+    return value ? true : _('Select a section');
+  };
+}
+
+export function showInterfaceSettingsModal(
+  _section_id: string,
+  itemValue: unknown,
+  option: CBIOption,
+) {
+  option.sharedPendingSettingsKey = 'interfaces';
+  return showChildItemSettingsModal(_section_id, itemValue, option, {
+    typeName: 'section_interface',
+    valueOption: 'name',
+    keys: interfaceSettingsKeys(),
+    defaults: (inputValue: string) => defaultInterfaceSettings(inputValue),
+    addOptions: addInterfaceItemOptions,
+    title: () => _('Network interface settings'),
+    afterSave: () => refreshDashboardFilterChoiceWidgets(_section_id),
+  });
+}

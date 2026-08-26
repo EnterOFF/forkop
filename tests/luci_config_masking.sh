@@ -192,12 +192,19 @@ printf '%s\n' "$masked" | grep -Fq "option mtu '1280'" ||
 # paste into the support chat, so every one of them has to be masked there.
 # The WARP fields are named differently in the tunnel dialog than in UCI, so the
 # name they are stored under is what must be covered.
-node - "$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop" "$MASK_UC" <<'NODE'
+node - "$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop" "$MASK_UC" \
+  "$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections)" \
+  "$(node "$ROOT_DIR/tests/helpers/tab_source.js" servers)" <<'NODE'
 const fs = require('fs');
 const path = require('path');
 
 const viewDir = process.argv[2];
 const maskSource = fs.readFileSync(process.argv[3], 'utf8');
+// The tabs that live in the bundle are read as their own sources: main.js is
+// generated, and the dialogs that carry a password field are all in there now.
+const tabSources = process.argv
+  .slice(4)
+  .map((file) => fs.readFileSync(file, 'utf8'));
 const block = maskSource.slice(
   maskSource.indexOf('function forkop_config_line'),
   maskSource.indexOf('\n    return line;'),
@@ -219,8 +226,15 @@ const optionPattern =
 const unmasked = [];
 let found = 0;
 
-for (const file of fs.readdirSync(viewDir).filter((n) => n.endsWith('.js') && n !== 'main.js')) {
-  const source = fs.readFileSync(path.join(viewDir, file), 'utf8');
+const sources = [
+  ...fs
+    .readdirSync(viewDir)
+    .filter((n) => n.endsWith('.js') && n !== 'main.js')
+    .map((n) => fs.readFileSync(path.join(viewDir, n), 'utf8')),
+  ...tabSources,
+];
+
+for (const source of sources) {
   for (const match of source.matchAll(/\.password\s*=\s*true/g)) {
     const names = [...source.slice(0, match.index).matchAll(optionPattern)].map((m) => m[1]);
     if (!names.length) continue;

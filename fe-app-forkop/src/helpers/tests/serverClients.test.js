@@ -1,32 +1,37 @@
 import { describe, expect, it } from 'vitest';
 
+import { installLuciStubs } from './luciStubs';
 import {
-  createUciStub,
-  loadLuciView,
-  resetLuciViewCache,
-} from './loadLuciView';
+  clientSections,
+  listClients,
+  listedClientNames,
+  nextClientName,
+  pruneClientCredentials,
+  validateClientCredential,
+  validateClientName,
+  validateClientsOnSave,
+  visibleClientFields,
+} from '../../forkop/tabs/servers/clients';
 
 const UUID = '11111111-1111-4111-8111-111111111111';
 
 function load(sections = {}) {
-  resetLuciViewCache();
-  const uci = createUciStub({
-    ...sections,
-    srv: { '.type': 'server', label: 'Home', enabled: '1', ...sections.srv },
-  });
   return {
-    uci,
-    clients: loadLuciView('server', uci, [
-      'clientSections',
-      'listClients',
-      'listedClientNames',
-      'nextClientName',
-      'pruneClientCredentials',
-      'validateClientCredential',
-      'validateClientName',
-      'validateClientsOnSave',
-      'visibleClientFields',
-    ]),
+    uci: installLuciStubs({
+      ...sections,
+      srv: { '.type': 'server', label: 'Home', enabled: '1', ...sections.srv },
+    }),
+    clients: {
+      clientSections,
+      listClients,
+      listedClientNames,
+      nextClientName,
+      pruneClientCredentials,
+      validateClientCredential,
+      validateClientName,
+      validateClientsOnSave,
+      visibleClientFields,
+    },
   };
 }
 
@@ -229,7 +234,7 @@ describe('saving the client list', () => {
       ...client('one', 'srv', { name: 'Client #1' }),
     });
 
-    expect(clients.validateClientsOnSave('srv', ['one'])).toMatch(
+    expect(clients.validateClientsOnSave('srv', ['one'], {})).toMatch(
       /Client #1: /,
     );
   });
@@ -241,7 +246,7 @@ describe('saving the client list', () => {
       ...client('two', 'srv', { name: 'Client #1', password: 'b' }),
     });
 
-    expect(clients.validateClientsOnSave('srv', ['one', 'two'])).toMatch(
+    expect(clients.validateClientsOnSave('srv', ['one', 'two'], {})).toMatch(
       /unique/,
     );
   });
@@ -253,6 +258,6 @@ describe('saving the client list', () => {
       ...client('two', 'srv', { name: 'Client #2', password: 'b' }),
     });
 
-    expect(clients.validateClientsOnSave('srv', ['one', 'two'])).toBe(true);
+    expect(clients.validateClientsOnSave('srv', ['one', 'two'], {})).toBe(true);
   });
 });

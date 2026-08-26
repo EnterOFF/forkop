@@ -1,16 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  createUciStub,
-  loadLuciView,
-  resetLuciViewCache,
-} from './loadLuciView';
+import { installLuciStubs } from './luciStubs';
+import { buildClientLinks } from '../../forkop/tabs/servers/links';
 
 const UUID = '11111111-1111-4111-8111-111111111111';
 
 function load(server, client = {}) {
-  resetLuciViewCache();
-  const uci = createUciStub({
+  const uci = installLuciStubs({
     srv: {
       '.type': 'server',
       label: 'Home',
@@ -23,7 +19,7 @@ function load(server, client = {}) {
   });
   return {
     uci,
-    link: loadLuciView('server', uci, ['buildClientLinks']),
+    link: { buildClientLinks },
     client: {
       id: 'cfg1',
       enabled: true,

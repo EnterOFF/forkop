@@ -368,7 +368,7 @@ assert_rejects "protocol sing-box removed" "$WORK_DIR/removed-type.json" "is not
 
 # The LuCI dropdown repeats the backend lists, so drift between them would
 # silently offer a filter that matches nothing.
-node - "$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/section.js" \
+node - "$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections)" \
   "$(ucode -L "$FORKOP_LIB" -e 'let c = require("singbox.constants"); print(join(" ", c.FILTERABLE_PROVIDER_TYPES));')" \
   "$(ucode -L "$FORKOP_LIB" -e 'let c = require("singbox.constants"); print(join(" ", c.FILTERABLE_GROUP_TYPES));')" <<'NODE'
 const fs = require('fs');
@@ -378,7 +378,7 @@ function listValues(functionName) {
   const start = source.indexOf(`function ${functionName}()`);
   if (start < 0) throw new Error(`${functionName} is missing`);
   const body = source.slice(start, source.indexOf('\n}', start));
-  return [...body.matchAll(/\["([a-z0-9-]+)",/g)].map((match) => match[1]);
+  return [...body.matchAll(/\['([a-z0-9-]+)',/g)].map((match) => match[1]);
 }
 
 const provider = listValues('providerTypeChoices');

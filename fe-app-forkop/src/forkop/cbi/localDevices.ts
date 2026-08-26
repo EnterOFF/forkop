@@ -1,31 +1,41 @@
-"use strict";
-"require baseclass";
-"require rpc";
-"require uci";
-"require ui";
-"require view.forkop.main as main";
+// The local device picker: a dynamic list whose dropdown offers the devices the
+// router knows about, by name rather than by address.
+//
+// The choices are expensive - host hints, DHCP leases, the interface dump and
+// the static hosts, four calls - so they are fetched once per page and only when
+// something actually needs them: either a stored value already names a device, or
+// the user opened the dropdown.
+
+import { validateIP } from '../../validators/validateIp';
 
 const callHostHints = rpc.declare({
-  object: "luci-rpc",
-  method: "getHostHints",
-  expect: { "": {} },
+  object: 'luci-rpc',
+  method: 'getHostHints',
+  expect: { '': {} },
 });
 const callDHCPLeases = rpc.declare({
-  object: "luci-rpc",
-  method: "getDHCPLeases",
-  expect: { "": {} },
+  object: 'luci-rpc',
+  method: 'getDHCPLeases',
+  expect: { '': {} },
 });
 const callNetworkInterfaceDump = rpc.declare({
-  object: "network.interface",
-  method: "dump",
+  object: 'network.interface',
+  method: 'dump',
   expect: { interface: [] },
 });
-const SYSTEM_DEVICE_VALUE = "@system";
 
-let localDeviceChoicesCache = null;
-let localDeviceChoicesPromise = null;
+// The router itself, as an entry in the device list.
+export const SYSTEM_DEVICE_VALUE = '@system';
 
-function normalizeOptionValues(value) {
+// Device address to display name.
+type DeviceChoices = Record<string, string>;
+
+let localDeviceChoicesCache: DeviceChoices | null = null;
+let localDeviceChoicesPromise: Promise<DeviceChoices> | null = null;
+
+// A uci list option is a string when it holds one value and an array when it
+// holds several, and the form hands back either; this flattens both to a list.
+export function normalizeOptionValues(value: unknown): string[] {
   if (!value) {
     return [];
   }
@@ -43,65 +53,73 @@ function normalizeOptionValues(value) {
     .filter(Boolean);
 }
 
-function normalizeLocalDeviceName(name) {
-  return `${name || ""}`.trim().replace(/\.lan$/i, "");
+function normalizeLocalDeviceName(name: unknown): string {
+  return `${name || ''}`.trim().replace(/\.lan$/i, '');
 }
 
-function addLocalDeviceChoice(choices, ip, name) {
-  const normalizedIp = `${ip || ""}`.trim();
+function addLocalDeviceChoice(
+  choices: DeviceChoices,
+  ip: unknown,
+  name: unknown,
+): void {
+  const normalizedIp = `${ip || ''}`.trim();
   const normalizedName = normalizeLocalDeviceName(name);
 
   if (!normalizedIp || !normalizedName) {
     return;
   }
 
-  if (!main.validateIP(normalizedIp).valid) {
+  if (!validateIP(normalizedIp).valid) {
     return;
   }
 
   choices[normalizedIp] =
-    normalizedName.toLowerCase() === "system"
-      ? "%s (%s)".format(normalizedName, normalizedIp)
+    normalizedName.toLowerCase() === 'system'
+      ? '%s (%s)'.format(normalizedName, normalizedIp)
       : normalizedName;
 }
 
-function addRouterIp(routerIps, ip) {
-  const normalizedIp = `${ip || ""}`.trim();
+function addRouterIp(routerIps: Record<string, boolean>, ip: unknown): void {
+  const normalizedIp = `${ip || ''}`.trim();
 
-  if (!normalizedIp || !main.validateIP(normalizedIp).valid) {
+  if (!normalizedIp || !validateIP(normalizedIp).valid) {
     return;
   }
 
   routerIps[normalizedIp] = true;
 }
 
-function buildRouterIpMap(networkInterfaces) {
-  const routerIps = {};
+// The router's own addresses, which are offered as System rather than as
+// separate entries.
+function buildRouterIpMap(networkInterfaces: unknown): Record<string, boolean> {
+  const routerIps: Record<string, boolean> = {};
 
   if (!Array.isArray(networkInterfaces)) {
     return routerIps;
   }
 
   networkInterfaces.forEach((networkInterface) => {
-    const ipAddresses = [];
+    const ipAddresses: unknown[] = [];
     const ipv4Addresses =
       networkInterface &&
-      typeof networkInterface === "object" &&
-      Array.isArray(networkInterface["ipv4-address"])
-        ? networkInterface["ipv4-address"]
+      typeof networkInterface === 'object' &&
+      Array.isArray(networkInterface['ipv4-address'])
+        ? networkInterface['ipv4-address']
         : [];
     const ipv6Addresses =
       networkInterface &&
-      typeof networkInterface === "object" &&
-      Array.isArray(networkInterface["ipv6-address"])
-        ? networkInterface["ipv6-address"]
+      typeof networkInterface === 'object' &&
+      Array.isArray(networkInterface['ipv6-address'])
+        ? networkInterface['ipv6-address']
         : [];
 
     ipAddresses.push(...ipv4Addresses, ...ipv6Addresses);
     ipAddresses.forEach((address) => {
       addRouterIp(
         routerIps,
-        address && typeof address === "object" ? address.address : address,
+        address && typeof address === 'object'
+          ? (address as { address?: unknown }).address
+          : address,
       );
     });
   });
@@ -110,17 +128,17 @@ function buildRouterIpMap(networkInterfaces) {
 }
 
 function buildLocalDeviceChoices(
-  hostHints,
-  dhcpLeases,
-  networkInterfaces,
-  staticHosts,
-) {
-  const choices = {};
+  hostHints: unknown,
+  dhcpLeases: unknown,
+  networkInterfaces: unknown,
+  staticHosts: unknown,
+): DeviceChoices {
+  const choices: DeviceChoices = {};
   const routerIps = buildRouterIpMap(networkInterfaces);
 
-  if (hostHints && typeof hostHints === "object") {
+  if (hostHints && typeof hostHints === 'object') {
     Object.values(hostHints).forEach((hint) => {
-      if (!hint || typeof hint !== "object") {
+      if (!hint || typeof hint !== 'object') {
         return;
       }
 
@@ -134,19 +152,24 @@ function buildLocalDeviceChoices(
     });
   }
 
-  if (dhcpLeases && Array.isArray(dhcpLeases.dhcp_leases)) {
-    dhcpLeases.dhcp_leases.forEach((lease) => {
-      if (!lease || typeof lease !== "object") {
+  if (
+    dhcpLeases &&
+    typeof dhcpLeases === 'object' &&
+    Array.isArray((dhcpLeases as { dhcp_leases?: unknown }).dhcp_leases)
+  ) {
+    (dhcpLeases as { dhcp_leases: unknown[] }).dhcp_leases.forEach((lease) => {
+      if (!lease || typeof lease !== 'object') {
         return;
       }
 
-      addLocalDeviceChoice(choices, lease.ipaddr, lease.hostname);
+      const entry = lease as { ipaddr?: unknown; hostname?: unknown };
+      addLocalDeviceChoice(choices, entry.ipaddr, entry.hostname);
     });
   }
 
   if (Array.isArray(staticHosts)) {
     staticHosts.forEach((host) => {
-      if (!host || typeof host !== "object") {
+      if (!host || typeof host !== 'object') {
         return;
       }
 
@@ -159,12 +182,12 @@ function buildLocalDeviceChoices(
   Object.keys(routerIps).forEach((ip) => {
     delete choices[ip];
   });
-  choices[SYSTEM_DEVICE_VALUE] = "System";
+  choices[SYSTEM_DEVICE_VALUE] = 'System';
 
   return choices;
 }
 
-function loadLocalDeviceChoices() {
+export function loadLocalDeviceChoices(): Promise<DeviceChoices> {
   if (localDeviceChoicesCache) {
     return Promise.resolve(localDeviceChoicesCache);
   }
@@ -178,8 +201,8 @@ function loadLocalDeviceChoices() {
     callDHCPLeases().catch(() => ({})),
     callNetworkInterfaceDump().catch(() => []),
     uci
-      .load("dhcp")
-      .then(() => uci.sections("dhcp", "host"))
+      .load('dhcp')
+      .then(() => uci.sections('dhcp', 'host'))
       .catch(() => []),
   ])
     .then(([hostHints, dhcpLeases, networkInterfaces, staticHosts]) => {
@@ -198,7 +221,7 @@ function loadLocalDeviceChoices() {
   return localDeviceChoicesPromise;
 }
 
-function sortLocalDeviceChoiceValues(choices) {
+function sortLocalDeviceChoiceValues(choices: DeviceChoices): string[] {
   return Object.keys(choices).sort((a, b) => {
     if (a === SYSTEM_DEVICE_VALUE || b === SYSTEM_DEVICE_VALUE) {
       return a === SYSTEM_DEVICE_VALUE ? -1 : 1;
@@ -210,15 +233,18 @@ function sortLocalDeviceChoiceValues(choices) {
 
 // True when at least one stored value is something the device list can put a
 // name to, which is the only reason to fetch the host hints.
-function namesALocalDevice(values) {
+function namesALocalDevice(values: unknown): boolean {
   return normalizeOptionValues(values).some(
-    (value) => value === SYSTEM_DEVICE_VALUE || main.validateIP(value).valid,
+    (value) => value === SYSTEM_DEVICE_VALUE || validateIP(value).valid,
   );
 }
 
 // The System entry stands for the router itself; an option whose meaning makes
 // no sense for the router asks for choices without it.
-function widgetChoices(option, choices) {
+function widgetChoices(
+  option: CBIOption,
+  choices: DeviceChoices,
+): DeviceChoices {
   if (option.excludeSystemDevice !== true) {
     return choices;
   }
@@ -227,14 +253,20 @@ function widgetChoices(option, choices) {
   return filtered;
 }
 
-function createLocalDeviceDynamicListWidget(option, section_id, cfgvalue) {
+export function createLocalDeviceDynamicListWidget(
+  option: CBIOption,
+  section_id: string,
+  cfgvalue: unknown,
+): Promise<HTMLElement> {
   const values = normalizeOptionValues(
     cfgvalue != null ? cfgvalue : option.default,
   );
   const shouldResolveExistingLabels = namesALocalDevice(values);
 
   return (
-    shouldResolveExistingLabels ? loadLocalDeviceChoices() : Promise.resolve({})
+    shouldResolveExistingLabels
+      ? loadLocalDeviceChoices()
+      : Promise.resolve({} as DeviceChoices)
   ).then((initialChoices) => {
     const choices = widgetChoices(
       option,
@@ -250,12 +282,14 @@ function createLocalDeviceDynamicListWidget(option, section_id, cfgvalue) {
       disabled: option.readonly != null ? option.readonly : option.map.readonly,
     });
     const node = widget.render();
-    if (typeof option.onDeviceWidgetReady === "function") {
-      option.onDeviceWidgetReady(section_id, widget);
+    const onWidgetReady = option.onDeviceWidgetReady;
+    const onListChange = option.onDeviceListChange;
+    if (typeof onWidgetReady === 'function') {
+      onWidgetReady(section_id, widget);
     }
-    if (typeof option.onDeviceListChange === "function") {
-      node.addEventListener("cbi-dynlist-change", () => {
-        option.onDeviceListChange(section_id, widget.getValue());
+    if (typeof onListChange === 'function') {
+      node.addEventListener('cbi-dynlist-change', () => {
+        onListChange(section_id, widget.getValue());
       });
     }
     let choicesLoaded = Boolean(localDeviceChoicesCache);
@@ -282,28 +316,20 @@ function createLocalDeviceDynamicListWidget(option, section_id, cfgvalue) {
         });
     };
 
-    const maybeLoadChoices = (ev) => {
+    const maybeLoadChoices = (ev: Event) => {
+      const target = ev.target;
       if (
-        ev.target &&
-        typeof ev.target.closest === "function" &&
-        ev.target.closest(".cbi-dropdown")
+        target &&
+        typeof (target as Element).closest === 'function' &&
+        (target as Element).closest('.cbi-dropdown')
       ) {
         loadChoices();
       }
     };
 
-    node.addEventListener("mousedown", maybeLoadChoices, true);
-    node.addEventListener("focusin", maybeLoadChoices, true);
+    node.addEventListener('mousedown', maybeLoadChoices, true);
+    node.addEventListener('focusin', maybeLoadChoices, true);
 
     return node;
   });
 }
-
-const EntryPoint = {
-  SYSTEM_DEVICE_VALUE,
-  createLocalDeviceDynamicListWidget,
-  loadLocalDeviceChoices,
-  normalizeOptionValues,
-};
-
-return baseclass.extend(EntryPoint);

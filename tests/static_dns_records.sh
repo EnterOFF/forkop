@@ -190,11 +190,11 @@ assert_rejects "a domain in the address column" "$WORK_DIR/invalid-address.json"
 assert_rejects "a malformed domain" "$WORK_DIR/invalid-domain.json" "invalid domain 'ntc..party'"
 assert_rejects "a record without a domain" "$WORK_DIR/missing-domain.json" "must contain an address followed by at least one domain"
 
-grep -Fq 'main.analyzeStaticHosts' "$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js" ||
+grep -Fq 'analyzeStaticHosts(' "$(node "$ROOT_DIR/tests/helpers/tab_source.js" settings --double-quotes)" ||
   fail "the settings page must validate static DNS records before saving them"
-grep -Fq 'sectionView.configureTextareaOption' "$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js" ||
+grep -Fq 'configureTextareaOption(' "$(node "$ROOT_DIR/tests/helpers/tab_source.js" settings --double-quotes)" ||
   fail "static DNS records must mark invalid entries while they are typed"
-grep -Fq '_("Edit")' "$ROOT_DIR/luci-app-forkop/htdocs/luci-static/resources/view/forkop/settings.js" ||
+grep -Fq '_("Edit")' "$(node "$ROOT_DIR/tests/helpers/tab_source.js" settings --double-quotes)" ||
   fail "static DNS records must be edited from a dedicated button"
 
 printf 'Static DNS record checks passed\n'
