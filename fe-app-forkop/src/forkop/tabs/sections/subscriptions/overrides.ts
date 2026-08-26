@@ -120,7 +120,7 @@ export function showSubscriptionOverrideModal(
     if (!pattern) {
       return _('Enter a regular expression before =>');
     }
-    const patternError = validateRegex(null as unknown as string, pattern);
+    const patternError = validateRegex(pattern);
     if (patternError !== true) {
       return patternError;
     }

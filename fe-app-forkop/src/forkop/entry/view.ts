@@ -10,7 +10,11 @@ import {
   configureSectionSection,
   createSectionContent,
 } from '../tabs/sections';
-import { configureServerSection, createServerContent } from '../tabs/servers';
+import {
+  configureServerSection,
+  createServerContent,
+  prepareAddedServer,
+} from '../tabs/servers';
 import { createSettingsContent } from '../tabs/settings';
 import { UpdatesTab } from '../tabs/updates';
 import { createUiCapabilitiesLoader } from './capabilities';
@@ -78,6 +82,7 @@ export const ForkopView = {
       'server',
       _('Server'),
       _('Add a server inbound'),
+      prepareAddedServer,
     );
     configureServerSection(serverSection);
     createServerContent(serverSection);

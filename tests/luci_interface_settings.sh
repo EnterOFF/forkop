@@ -53,10 +53,11 @@ for (const expected of [
   "form.DynamicList,\n    'domain_resolver_dns_server'",
   "_('DNS Server')",
   "'Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://'",
-  "_('Add at least one DNS server')",
+  "configureDnsServerList(dnsServerOption, {",
   "'domain_resolver_dns_fallback_strategy'",
   "_('DNS Query Mode')",
-  "node.addEventListener('cbi-dynlist-change'",
+  "configureDnsQueryMode(dnsQueryModeOption, 'domain_resolver_dns_server', {",
+  "alsoDependsOn: { domain_resolver_enabled: '1' },",
   "'domain_resolver_dns_detour_enabled'",
   "_('DNS through section')",
   '"Route the resolver\'s DNS requests through a section instead of this network interface"',
@@ -67,6 +68,15 @@ for (const expected of [
 ]) {
   if (!block.includes(expected)) {
     fail(`interface resolver is missing the shared DNS contract: ${expected}`);
+  }
+}
+
+// The wording belongs to the shared helper the block calls.
+for (const expected of [
+  "_('Add at least one DNS server')",
+]) {
+  if (!source.includes(expected)) {
+    fail(`the shared DNS helper is missing: ${expected}`);
   }
 }
 
@@ -100,30 +110,27 @@ for (const seeded of [
 
 
 
-eval(readFunction(source, "normalizeDynamicListItems"));
-
-// The query mode must appear as soon as a second server is typed, without a save.
-// Inside the interface options: the marker that used to close the region is
-// no longer the next thing in the file, only the next thing in the function.
-const visibilityStart = block.indexOf(
-  "dnsQueryModeOption.checkDepends = function",
-);
-const visibilityEnd = block.indexOf("  o = itemSection.option(", visibilityStart);
-if (visibilityStart < 0 || visibilityEnd < 0) {
-  fail("interface resolver query mode visibility not found");
+// The query mode must appear as soon as a second server is typed, without a save,
+// and disappear when the resolver itself is switched off. Both tabs wire it
+// through the shared helper, so the helper is driven with this dialog's own
+// gating rather than a slice of the function that calls it.
+const _ = (text) => text;
+const MULTIPLE_DNS_SENTINEL = "__forkop_multiple_dns__";
+for (const name of [
+  "normalizeDynamicListItems",
+  "optionListValues",
+  "siblingValues",
+  "configureDnsQueryMode",
+]) {
+  eval(readFunction(source, name));
 }
-const listeners = {};
-const node = {
-  addEventListener: (name, listener) => {
-    listeners[name] = listener;
-  },
-};
+
 let currentServers = ["8.8.8.8"];
 let currentEnabled = "1";
-const enabledOption = { formvalue: () => currentEnabled };
+const enabledOption = { formvalue: () => currentEnabled, cfgvalue: () => null };
 const dnsServerOption = {
-  renderWidget: () => node,
   formvalue: () => currentServers,
+  cfgvalue: () => null,
 };
 const visibility = [];
 const modalMap = {
@@ -135,18 +142,20 @@ const modalMap = {
     visibility.push(dnsQueryModeOption.checkDepends("settings"));
   },
 };
-const dnsQueryModeOption = { map: modalMap };
+const dnsQueryModeOption = {
+  map: modalMap,
+  value: () => {},
+  depends: () => {},
+};
 dnsServerOption.map = modalMap;
-eval(block.slice(visibilityStart, visibilityEnd));
-dnsServerOption.renderWidget("settings", 0, currentServers);
-if (typeof listeners["cbi-dynlist-change"] !== "function") {
-  fail("interface resolver servers must listen to the native DynamicList change event");
-}
-listeners["cbi-dynlist-change"]();
+configureDnsQueryMode(dnsQueryModeOption, "domain_resolver_dns_server", {
+  alsoDependsOn: { domain_resolver_enabled: "1" },
+});
+modalMap.checkDepends();
 currentServers = ["8.8.8.8", "1.1.1.1"];
-listeners["cbi-dynlist-change"]();
+modalMap.checkDepends();
 currentEnabled = "0";
-listeners["cbi-dynlist-change"]();
+modalMap.checkDepends();
 if (JSON.stringify(visibility) !== JSON.stringify([false, true, false])) {
   fail("interface resolver query mode must react immediately to the live server count");
 }

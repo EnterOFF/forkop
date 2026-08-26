@@ -3,7 +3,7 @@
 // list analyzers produce these, so the shape lives in one place.
 
 // A span of the edited text, given as offsets into it.
-export interface AnnotationSpan {
+interface AnnotationSpan {
   start: number;
   end: number;
 }

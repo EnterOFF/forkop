@@ -1,4 +1,7 @@
-export function validateRegex(_section_id: string, value: string) {
+// Neither of these is ever handed to an option's validate(): both are called
+// from inside a text field that holds a list of values, or from a dialog whose
+// section is not the one being edited. So they take the value alone.
+export function validateRegex(value: string) {
   if (!value || !value.length) {
     return true;
   }
@@ -11,7 +14,7 @@ export function validateRegex(_section_id: string, value: string) {
   }
 }
 
-export function validateKeyword(_section_id: string, value: string) {
+export function validateKeyword(value: string) {
   if (!value || !value.length) {
     return true;
   }
@@ -21,36 +24,4 @@ export function validateKeyword(_section_id: string, value: string) {
   }
 
   return true;
-}
-
-function isSingBoxDuration(value: string) {
-  return /^(?=.*[1-9])([0-9]+(?:\.[0-9]+)?(?:ns|us|ms|s|m|h|d))+$/.test(value);
-}
-
-export function validateOptionalSingBoxDuration(value: unknown) {
-  const normalized = value ? `${value}`.trim() : '';
-
-  if (!normalized.length) {
-    return true;
-  }
-
-  if (isSingBoxDuration(normalized)) {
-    return true;
-  }
-
-  return _('Use sing-box duration format like 1d, 12h or 30m');
-}
-
-export function validateRequiredSingBoxDuration(value: unknown) {
-  const normalized = value ? `${value}`.trim() : '';
-
-  if (!normalized.length) {
-    return _('Use sing-box duration format like 1d, 12h or 30m');
-  }
-
-  if (isSingBoxDuration(normalized)) {
-    return true;
-  }
-
-  return _('Use sing-box duration format like 1d, 12h or 30m');
 }

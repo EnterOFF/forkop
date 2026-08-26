@@ -80,8 +80,7 @@ eval(
     'applyChildItemSettings',
     'materializeChildItems',
     'adoptMaterializedChildItems',
-    'cleanupFallbackLevelsForGroup',
-    'cleanupTunnelPeers',
+    'removeChildItemsOf',
     'cleanupRemovedChildItems',
     'parentSectionIdForItem',
     // applyChildItemSettings() asks it before writing, so that a value already

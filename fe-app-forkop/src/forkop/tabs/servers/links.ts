@@ -32,7 +32,7 @@ function clientLabel(sectionId: string, client: ServerClient) {
 function transportQuery(
   sectionId: string,
   params: Record<string, string>,
-  grpcKey?: string,
+  grpcKey: string,
 ) {
   const transport = option(sectionId, 'transport') || 'tcp';
   params.type = transport === 'raw' ? 'tcp' : transport;
@@ -45,10 +45,7 @@ function transportQuery(
     params.host = option(sectionId, 'transport_host');
     params.mode = option(sectionId, 'transport_xhttp_mode') || 'auto';
   } else if (transport === 'grpc') {
-    params[grpcKey ?? 'serviceName'] = option(
-      sectionId,
-      'transport_service_name',
-    );
+    params[grpcKey] = option(sectionId, 'transport_service_name');
   } else if (transport === 'http') {
     params.path = option(sectionId, 'transport_path');
     params.host = optionList(sectionId, 'transport_hosts').join(',');

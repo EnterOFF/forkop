@@ -5,8 +5,7 @@
 // both and answers in one shape, so a caller never has to ask which it got.
 
 import { FORKOP_UCI_PACKAGE } from '../../constants';
-import { normalizeDynamicListItems } from './listValues';
-import { normalizeOptionValues } from './localDevices';
+import { normalizeDynamicListItems, normalizeOptionValues } from './listValues';
 
 // A list as a textarea shows it: one value per line.
 export function valuesToText(values: unknown): string {

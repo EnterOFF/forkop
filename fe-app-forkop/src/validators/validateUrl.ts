@@ -37,3 +37,11 @@ export function validateUrl(
 
   return { valid: false, message: _('Invalid URL format') };
 }
+
+// The same check as a LuCI field asks it: true, or the reason it refuses. Every
+// URL field in the app - a latency test target, a URLTest probe, a Tailscale
+// coordination server - runs exactly this.
+export function validateUrlField(value: unknown) {
+  const validation = validateUrl(`${value || ''}`.trim());
+  return validation.valid ? true : validation.message;
+}

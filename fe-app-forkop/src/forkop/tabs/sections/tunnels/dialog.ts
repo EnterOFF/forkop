@@ -5,7 +5,7 @@ import {
   validateAmneziaSignature,
   validateWireGuardKey,
 } from '../../../../helpers/parseWireGuardConfig';
-import { validateUrl } from '../../../../validators/validateUrl';
+import { validateUrlField } from '../../../../validators/validateUrl';
 import { configureTextareaOption } from '../../../cbi/annotatedTextarea';
 import { getChildItemIds, nextSectionId } from '../../../cbi/childItems';
 import { keepUnavailableSectionChoice } from '../../../cbi/choices';
@@ -332,8 +332,7 @@ export function showTunnelSettingsModal(
     _itemId: string,
     value: unknown,
   ) {
-    const validation = validateUrl(`${value || ''}`.trim());
-    return validation.valid ? true : validation.message;
+    return validateUrlField(value);
   };
 
   const tailscaleDetourEnabledOption = itemSection.option(

@@ -4,10 +4,13 @@ import {
   childItemInputValue,
   cleanupRemovedChildItems,
   getChildItemIds,
-  isExistingChildItem,
   materializeChildItems,
 } from './childItems';
-import { cleanupListItemSettings } from './itemSettings';
+import {
+  childPendingSettingsStore,
+  cleanupListItemSettings,
+  clearChildPendingSettings,
+} from './itemSettings';
 import {
   dynamicListItemCurrentValue,
   dynamicListItemValues,
@@ -311,6 +314,53 @@ const ButtonAddSettingsUIDynamicList = SettingsUIDynamicList.extend({
 });
 
 export const SettingsDynamicList = form.DynamicList.extend({
+  // ------------------------------------------------ what one entry is called
+  //
+  // The text an entry shows and is looked up by. A saved entry is a child
+  // section id and shows what that section stores under childValueOption; a
+  // draft has no section yet and is its own text, which its dialog may have
+  // changed - a rename moves the list value with it, so the name the dialog
+  // holds is where the draft's settings are.
+  //
+  // A list with no childValueOption stores nothing to show: its entry is the
+  // section id itself, and reading a staged name here would make two tunnels
+  // called the same thing look like one entry.
+  inputValueForItem(ownerId: string, value: unknown) {
+    if (!this.childType || !this.childValueOption) {
+      return `${value || ''}`.trim();
+    }
+
+    const inputValue = childItemInputValue(
+      ownerId,
+      value,
+      this.childType,
+      this.childValueOption,
+      this.ownerOption,
+    );
+    const staged = childPendingSettingsStore(this, ownerId)[inputValue];
+    return staged && staged.name ? `${staged.name}` : inputValue;
+  },
+
+  // What an entry's dialog has taken but not written yet, handed to the child
+  // section the moment that section is created.
+  stagedChildSettings(ownerId: string, value: unknown) {
+    const staged = childPendingSettingsStore(this, ownerId)[
+      this.inputValueForItem(ownerId, value)
+    ];
+    return staged ? Object.assign({}, staged) : null;
+  },
+
+  clearStagedChildSettings(ownerId: string) {
+    clearChildPendingSettings(this, ownerId);
+  },
+
+  // Every entry the user has started has something to configure. A list whose
+  // entry has to be well formed first - a subscription is an address before it
+  // is anything - says so for itself.
+  hasItemSettings(ownerId: string, value: unknown) {
+    return this.inputValueForItem(ownerId, value).length > 0;
+  },
+
   childOwner(section_id: string) {
     return typeof this.childOwnerId === 'function'
       ? `${this.childOwnerId(section_id) || ''}`.trim()
@@ -386,45 +436,11 @@ export const SettingsDynamicList = form.DynamicList.extend({
 
         return text;
       },
-      hasSettings: (itemValue: string) => {
-        if (typeof this.hasItemSettings === 'function') {
-          return this.hasItemSettings(
-            this.childOwner(section_id),
-            `${itemValue}`,
-          );
-        }
-
-        if (this.childType) {
-          return isExistingChildItem(
-            this.childOwner(section_id),
-            `${itemValue}`,
-            this.childType,
-            this.ownerOption,
-          );
-        }
-
-        return true;
-      },
+      hasSettings: (itemValue: string) =>
+        this.hasItemSettings!(this.childOwner(section_id), `${itemValue}`),
       hasEquivalentValue: (itemValue: string, dl: HTMLElement) => {
-        const inputValueForItem = (value: unknown) => {
-          const ownerId = this.childOwner(section_id);
-
-          if (typeof this.inputValueForItem === 'function') {
-            return `${this.inputValueForItem(ownerId, `${value || ''}`) || ''}`.trim();
-          }
-
-          if (this.childType && this.childValueOption) {
-            return childItemInputValue(
-              ownerId,
-              `${value || ''}`,
-              this.childType,
-              this.childValueOption,
-              this.ownerOption,
-            );
-          }
-
-          return `${value || ''}`.trim();
-        };
+        const inputValueForItem = (value: unknown) =>
+          `${this.inputValueForItem!(this.childOwner(section_id), `${value || ''}`) || ''}`.trim();
         const normalized = inputValueForItem(itemValue);
 
         return Boolean(
@@ -482,11 +498,8 @@ export const SettingsDynamicList = form.DynamicList.extend({
           ownerOption: this.ownerOption,
           createId: this.createId,
           defaults: this.childDefaults,
-          stagedSettings:
-            typeof this.stagedChildSettings === 'function'
-              ? (itemValue: unknown, itemId: string, created: boolean) =>
-                  this.stagedChildSettings!(ownerId, itemValue, itemId, created)
-              : null,
+          stagedSettings: (itemValue: unknown) =>
+            this.stagedChildSettings!(ownerId, itemValue),
         },
         value,
       );
@@ -496,15 +509,14 @@ export const SettingsDynamicList = form.DynamicList.extend({
         this.childType,
         itemIds,
         this.ownerOption,
+        this.removeNestedChildItems,
       );
       if (typeof this.afterMaterializeChildItems === 'function') {
         this.afterMaterializeChildItems(ownerId, itemIds);
       }
       uci.unset(FORKOP_UCI_PACKAGE, section_id, this.option);
       cleanupListItemSettings(ownerId, this.settingsKey, itemIds);
-      if (typeof this.clearStagedChildSettings === 'function') {
-        this.clearStagedChildSettings(ownerId);
-      }
+      this.clearStagedChildSettings!(ownerId);
       return;
     }
 
@@ -534,6 +546,7 @@ export const SettingsDynamicList = form.DynamicList.extend({
           this.childType,
           [],
           this.ownerOption,
+          this.removeNestedChildItems,
         );
       }
       uci.unset(FORKOP_UCI_PACKAGE, section_id, this.option);

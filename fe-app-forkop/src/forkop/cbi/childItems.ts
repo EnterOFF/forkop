@@ -16,9 +16,7 @@ import { normalizeDynamicListItems } from './listValues';
 // the wrong section. The suffix is random rather than the lowest free number, because
 // a number given back after a delete would quietly rebind a stale pointer:
 // dns_detour_section and the other section references are not cleared when their
-// target is removed. Each view that creates a section carries this helper, because a
-// name imported across two views is undefined in a browser that cached one of them
-// before an app upgrade.
+// target is removed.
 const SECTION_ID_PREFIXES: Record<string, string> = {
   fallback_group: 'group',
   fallback_level: 'level',
@@ -259,7 +257,7 @@ export function materializeChildItems(
       itemId = createdItem.value;
       const stagedSettings =
         createdItem.created && typeof options.stagedSettings === 'function'
-          ? options.stagedSettings(value, itemId, createdItem.created)
+          ? options.stagedSettings(value)
           : null;
 
       if (stagedSettings) {
@@ -312,18 +310,19 @@ export function adoptMaterializedChildItems(
   });
 }
 
-function cleanupFallbackLevelsForGroup(groupId: string) {
-  getChildItemIds(groupId, 'fallback_level', 'group').forEach(
-    (levelId: string) => {
-      uci.remove(FORKOP_UCI_PACKAGE, levelId);
-    },
-  );
-}
-
-function cleanupTunnelPeers(tunnelId: string) {
-  getChildItemIds(tunnelId, 'tunnel_peer', 'tunnel').forEach(
-    (peerId: string) => {
-      uci.remove(FORKOP_UCI_PACKAGE, peerId);
+// Every child section of one item, gone. A child item that has a list of its
+// own - a fallback group has its levels, a tunnel has its peers - hands this to
+// the cleanup below, because a section nothing points at is unreachable: it
+// would sit in the config for good and libuci would renumber the anonymous
+// sections around it.
+export function removeChildItemsOf(
+  parentId: string,
+  childType: string,
+  ownerOption: string,
+) {
+  getChildItemIds(parentId, childType, ownerOption).forEach(
+    (itemId: string) => {
+      uci.remove(FORKOP_UCI_PACKAGE, itemId);
     },
   );
 }
@@ -333,21 +332,46 @@ export function cleanupRemovedChildItems(
   typeName: string | undefined,
   keepValues: unknown,
   ownerOption?: string,
+  // What one item of this type owns, when it owns anything. Only the tab that
+  // declares the list knows that, so it is given rather than looked up here.
+  removeNested?: (itemId: string) => void,
 ) {
   const keep = new Set(normalizeDynamicListItems(keepValues));
 
   getChildItemIds(section_id, typeName, ownerOption).forEach(
     (itemId: string) => {
       if (!keep.has(itemId)) {
-        if (typeName === 'fallback_group') {
-          cleanupFallbackLevelsForGroup(itemId);
-        } else if (typeName === 'tunnel') {
-          cleanupTunnelPeers(itemId);
-        }
+        removeNested?.(itemId);
         uci.remove(FORKOP_UCI_PACKAGE, itemId);
       }
     },
   );
+}
+
+// The name field of a child item dialog: a display name is required, and the
+// list the item belongs to may refuse a particular one - a name another item
+// already holds. The check is built rather than written out, because the list
+// hands its own refusal in when the dialog opens.
+export function childItemNameCheck(dialog: {
+  validateName?: ChildItemNameValidator;
+}) {
+  return function (_itemId: string, value: unknown) {
+    return `${value || ''}`.trim()
+      ? (dialog.validateName?.(value) ?? true)
+      : _('Enter a display name');
+  };
+}
+
+// A child item list whose order matters - fallback levels are tried in order,
+// tunnels are dialled in order - stores each item's position, because the uci
+// list the widget writes is ordered but the sections behind it are not.
+export function orderChildItemsByPosition(
+  _ownerId: string,
+  itemIds: string[],
+): void {
+  itemIds.forEach((itemId: string, index: number) => {
+    uci.set(FORKOP_UCI_PACKAGE, itemId, 'order', `${index}`);
+  });
 }
 
 export function parentSectionIdForItem(itemId: string): string {

@@ -1,22 +1,20 @@
 import { callUbus } from '../../helpers';
+import { isDocumentVisible } from '../../helpers/isDocumentVisible';
 import { ForkopShellMethods } from '../methods';
 import { getLocalActionOverlay } from './localActionOverlay.service';
 import { Forkop } from '../types';
 import { logger } from './logger.service';
+import {
+  FORKOP_CALL_TIMEOUT_MS,
+  FORKOP_SERVICE_OBJECT,
+  FORKOP_WAIT_RETRY_MS,
+  FORKOP_WAIT_TIMEOUT_MS,
+} from './forkopWaitTransport';
 import { applyUiStateToStore, markUiStateUnavailable } from './uiState.service';
 
 const RUNTIME_UI_STATE_REFRESH_MIN_INTERVAL_MS = 500;
 const RUNTIME_UI_STATE_IDLE_POLL_INTERVAL_MS = 10000;
 const RUNTIME_UI_STATE_ACTIVE_POLL_INTERVAL_MS = 1000;
-
-const STATE_OBJECT = 'forkop';
-const STATE_CALL_TIMEOUT_MS = 5000;
-// Past the ceiling the state service parks a request for, so a reply arriving
-// right at that limit is not raced by the client giving up on it.
-const STATE_WAIT_TIMEOUT_MS = 20000;
-// After a failure that is not "no such object": something is wrong rather than
-// absent, and reissuing immediately would not help.
-const STATE_WAIT_RETRY_MS = 3000;
 
 type RuntimeUiStateListener = (uiState: Forkop.UiState) => void;
 type StateTransport = 'unknown' | 'ubus' | 'cli';
@@ -36,14 +34,6 @@ let stateRevision = 0;
 let waitLoopRunning = false;
 let waitLoopStop = false;
 const runtimeUiStateListeners = new Set<RuntimeUiStateListener>();
-
-function isDocumentVisible() {
-  return (
-    typeof document === 'undefined' ||
-    !document.visibilityState ||
-    document.visibilityState === 'visible'
-  );
-}
 
 function hasRunningAction(uiState: Forkop.UiState) {
   return (
@@ -143,9 +133,9 @@ async function readState(
 ): Promise<Forkop.UiState | undefined> {
   if (transport !== 'cli') {
     const response = await callUbus<UbusState>({
-      object: STATE_OBJECT,
+      object: FORKOP_SERVICE_OBJECT,
       method: recompute ? 'refresh' : 'state',
-      timeoutMs: STATE_CALL_TIMEOUT_MS,
+      timeoutMs: FORKOP_CALL_TIMEOUT_MS,
     });
 
     if (response.success) {
@@ -259,10 +249,10 @@ async function runWaitLoop() {
   try {
     while (!waitLoopStop && isDocumentVisible() && transport === 'ubus') {
       const response = await callUbus<UbusState>({
-        object: STATE_OBJECT,
+        object: FORKOP_SERVICE_OBJECT,
         method: 'state_wait',
         params: { revision: stateRevision },
-        timeoutMs: STATE_WAIT_TIMEOUT_MS,
+        timeoutMs: FORKOP_WAIT_TIMEOUT_MS,
       });
 
       if (waitLoopStop) {
@@ -285,7 +275,7 @@ async function runWaitLoop() {
       }
 
       logger.error('[RUNTIME_UI_STATE]', 'state wait failed', response.message);
-      await new Promise((resolve) => setTimeout(resolve, STATE_WAIT_RETRY_MS));
+      await new Promise((resolve) => setTimeout(resolve, FORKOP_WAIT_RETRY_MS));
     }
   } finally {
     waitLoopRunning = false;

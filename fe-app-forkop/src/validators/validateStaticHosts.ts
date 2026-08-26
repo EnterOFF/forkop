@@ -2,13 +2,13 @@ import { ValidationResult } from './types';
 import { asciiHostname, validAsciiDomain } from './validateDomain';
 import { isIPv4, isIPv6 } from './validateIp';
 
-export interface TextAnnotation {
+interface TextAnnotation {
   start: number;
   end: number;
   message: string;
 }
 
-export interface StaticHostsAnalysis extends ValidationResult {
+interface StaticHostsAnalysis extends ValidationResult {
   annotations: TextAnnotation[];
 }
 

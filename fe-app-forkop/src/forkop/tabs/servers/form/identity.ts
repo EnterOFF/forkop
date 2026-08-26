@@ -1,15 +1,18 @@
-import { FORKOP_UCI_PACKAGE } from '../../../../constants';
+import {
+  FORKOP_UCI_PACKAGE,
+  RESERVED_RUNTIME_TAGS,
+} from '../../../../constants';
+import { configureTextareaOption } from '../../../cbi/annotatedTextarea';
 import { keepUnavailableSectionChoice } from '../../../cbi/choices';
 import {
   GRID_KIND_COLUMN_WIDTH,
   GRID_SWITCH_COLUMN_WIDTH,
-} from '../../../cbi/constants';
+} from '../../../cbi/grid';
 import { clearClientList } from '../clients';
-import { DEFAULT_PROTOCOL, RESERVED_RUNTIME_TAGS } from '../constants';
+import { DEFAULT_PROTOCOL } from '../constants';
 import {
   addGenerateButton,
   autofill,
-  configureTextareaOption,
   syncCertificateButton,
   syncSecurityChoices,
 } from '../controls';
@@ -237,9 +240,7 @@ export function addJsonInboundOptions(section: CBISection) {
   o.modalonly = true;
   o.rmempty = false;
   o.validate = validateInboundJson;
-  // Its own copy, for the same reason the reserved tag list is not imported: a
-  // browser can hold an old section.js next to this file.
-  configureTextareaOption(o, { pinHeight: true });
+  configureTextareaOption(o);
 }
 
 export function addListenerOptions(section: CBISection) {

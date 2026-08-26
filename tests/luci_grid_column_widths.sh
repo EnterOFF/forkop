@@ -10,7 +10,7 @@ set -eo pipefail
 # shared constants for that reason, and this holds them shared.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-GRID_TS="$ROOT_DIR/fe-app-forkop/src/forkop/cbi/constants.ts"
+GRID_TS="$ROOT_DIR/fe-app-forkop/src/forkop/cbi/grid.ts"
 SECTION_TS="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections)"
 SERVER_TS="$(node "$ROOT_DIR/tests/helpers/tab_source.js" servers)"
 

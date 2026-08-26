@@ -6,10 +6,10 @@ import {
   analyzeTextListValue,
   configureTextareaOption,
 } from '../../cbi/annotatedTextarea';
+import { normalizeOptionValues } from '../../cbi/listValues';
 import {
   SYSTEM_DEVICE_VALUE,
   createLocalDeviceDynamicListWidget,
-  normalizeOptionValues,
 } from '../../cbi/localDevices';
 import {
   getConfigListValues,
@@ -139,7 +139,7 @@ export function analyzeDomainSuffixText(value: unknown) {
       }
 
       if (prefix === 'keyword') {
-        const validation = validateKeyword(null as unknown as string, body);
+        const validation = validateKeyword(body);
         return validation === true
           ? { valid: true, message: _('Valid') }
           : { valid: false, message: validation };
@@ -152,7 +152,7 @@ export function analyzeDomainSuffixText(value: unknown) {
         };
       }
 
-      const validation = validateRegex(null as unknown as string, body);
+      const validation = validateRegex(body);
       return validation === true
         ? { valid: true, message: _('Valid') }
         : { valid: false, message: validation };
@@ -189,10 +189,11 @@ function domainTextValuesWithPrefix(
   );
 }
 
-function uniqueDomainTextValues(values: string[]) {
-  const seen = new Set<string>();
-
-  return values.filter((value: unknown) => {
+// Keeps the first spelling of a value and drops any later one that differs only
+// in case: a domain list is case insensitive, so two spellings are one entry.
+// The set is passed in so a caller can seed it with what the field already holds.
+function firstSpellingOf(seen: Set<string>) {
+  return (value: unknown) => {
     const key = `${value}`.toLowerCase();
     if (!key || seen.has(key)) {
       return false;
@@ -200,7 +201,11 @@ function uniqueDomainTextValues(values: string[]) {
 
     seen.add(key);
     return true;
-  });
+  };
+}
+
+function uniqueDomainTextValues(values: string[]) {
+  return values.filter(firstSpellingOf(new Set<string>()));
 }
 
 function appendUniqueDomainTextValues(textValue: unknown, values: string[]) {
@@ -210,15 +215,9 @@ function appendUniqueDomainTextValues(textValue: unknown, values: string[]) {
       `${value}`.toLowerCase(),
     ),
   );
-  const additions = uniqueDomainTextValues(values).filter((value: unknown) => {
-    const key = `${value}`.toLowerCase();
-    if (!key || seen.has(key)) {
-      return false;
-    }
-
-    seen.add(key);
-    return true;
-  });
+  const additions = uniqueDomainTextValues(values).filter(
+    firstSpellingOf(seen),
+  );
 
   if (!additions.length) {
     return originalText;
@@ -295,10 +294,30 @@ interface ConditionFieldConfig {
   // still read from there for a configuration written before the rename.
   legacyTextOptionName?: string;
   dynamicValidate?: OptionValidator;
-  textValidate?: OptionValidator;
   textAnalyze?: TextAnalyzer;
   loadText?: (sectionId: string) => string;
   afterWrite?: (sectionId: string) => void;
+}
+
+// A condition list is stored as a uci list. An older layout wrote it into a
+// single text option instead, so that one is read when the list is empty and
+// unset on every save, which is what finally clears it.
+function configureConditionListStorage(o: CBIOption, key: string) {
+  o.load = function (section_id: string) {
+    const values = getConfigListValues(section_id, key);
+    if (values.length) {
+      return values;
+    }
+
+    const legacyText = uci.get(FORKOP_UCI_PACKAGE, section_id, `${key}_text`);
+    return legacyText ? parseValueList(`${legacyText}`) : [];
+  };
+
+  o.write = function (section_id: string, value: unknown) {
+    writeListOption(section_id, key, value);
+    uci.unset(FORKOP_UCI_PACKAGE, section_id, `${key}_text`);
+    uci.unset(FORKOP_UCI_PACKAGE, section_id, `${key}_text_mode`);
+  };
 }
 
 export function addDynamicConditionField(
@@ -321,25 +340,7 @@ export function addDynamicConditionField(
     o.validate = config.dynamicValidate;
   }
 
-  o.load = function (section_id: string) {
-    const values = getConfigListValues(section_id, config.key);
-    if (values.length) {
-      return values;
-    }
-
-    const legacyText = uci.get(
-      FORKOP_UCI_PACKAGE,
-      section_id,
-      `${config.key}_text`,
-    );
-    return legacyText ? parseValueList(`${legacyText}`) : [];
-  };
-
-  o.write = function (section_id: string, value: unknown) {
-    writeListOption(section_id, config.key, value);
-    uci.unset(FORKOP_UCI_PACKAGE, section_id, `${config.key}_text`);
-    uci.unset(FORKOP_UCI_PACKAGE, section_id, `${config.key}_text_mode`);
-  };
+  configureConditionListStorage(o, config.key);
 
   return o;
 }
@@ -369,24 +370,7 @@ export function addLocalDeviceSubnetDynamicField(
     const validation = validateSubnet(value);
     return validation.valid ? true : validation.message;
   };
-  o.load = function (section_id: string) {
-    const values = getConfigListValues(section_id, config.key);
-    if (values.length) {
-      return values;
-    }
-
-    const legacyText = uci.get(
-      FORKOP_UCI_PACKAGE,
-      section_id,
-      `${config.key}_text`,
-    );
-    return legacyText ? parseValueList(`${legacyText}`) : [];
-  };
-  o.write = function (section_id: string, value: unknown) {
-    writeListOption(section_id, config.key, value);
-    uci.unset(FORKOP_UCI_PACKAGE, section_id, `${config.key}_text`);
-    uci.unset(FORKOP_UCI_PACKAGE, section_id, `${config.key}_text_mode`);
-  };
+  configureConditionListStorage(o, config.key);
   o.renderWidget = function (
     section_id: string,
     _option_index,
@@ -424,8 +408,6 @@ export function addTextConditionField(
       const analysis = analyze(value);
       return analysis.valid ? true : `${analysis.message}`;
     };
-  } else if (config.textValidate) {
-    o.validate = config.textValidate;
   }
   configureTextareaOption(o, config.textAnalyze);
 

@@ -14,10 +14,16 @@ const { readFunction } = require(`${process.argv[3]}/tests/helpers/source_litera
 const configureSection = readFunction(source, 'configureSectionSection');
 
 const cleanupCalls = [];
-function loadSectionTableOptions() {}
+function loadVisibleTableOptions() {}
+// A list whose items own children hands the cleanup what removing one takes
+// with it, so the call is recorded by the name of that function.
 function cleanupRemovedChildItems(...args) {
-  cleanupCalls.push(args);
+  cleanupCalls.push(
+    args.map((arg) => (typeof arg === 'function' ? arg.name : arg)),
+  );
 }
+function removeFallbackLevels() {}
+function removeTunnelPeers() {}
 
 let outboundMissing = false;
 function missingConnectionOutbound(...args) {
@@ -57,20 +63,33 @@ assert.deepStrictEqual(cleanupCalls, [
   ['parent', 'subscription_url', []],
   ['parent', 'section_interface', []],
   ['parent', 'urltest', []],
-  ['parent', 'fallback_group', []],
-  ['parent', 'tunnel', []],
+  ['parent', 'fallback_group', [], undefined, 'removeFallbackLevels'],
+  ['parent', 'tunnel', [], undefined, 'removeTunnelPeers'],
 ]);
 assert.deepStrictEqual(parentArgs, ['parent', event]);
 assert.strictEqual(parentThis, sectionRef);
+// The shared cleanup knows nothing about these two types: the list that owns
+// children says what removing one of its items takes with it, where the list is
+// declared.
 assert.match(
   source,
-  /typeName === 'fallback_group'[\s\S]*cleanupFallbackLevelsForGroup\(itemId\)/,
-  'fallback_group cleanup does not cascade to fallback_level',
+  /o\.childType = 'tunnel';[\s\S]{0,200}o\.removeNestedChildItems = removeTunnelPeers;/,
+  'the tunnel list does not say that removing a tunnel takes its peers',
 );
 assert.match(
   source,
-  /typeName === 'tunnel'[\s\S]*cleanupTunnelPeers\(itemId\)/,
-  'tunnel cleanup does not cascade to tunnel_peer',
+  /o\.childType = 'fallback_group';[\s\S]{0,200}o\.removeNestedChildItems = removeFallbackLevels;/,
+  'the fallback list does not say that removing a group takes its levels',
+);
+assert.match(
+  source,
+  /function removeFallbackLevels\(groupId\) \{\s*removeChildItemsOf\(groupId, 'fallback_level', 'group'\);/,
+  'removing a fallback group must remove its levels',
+);
+assert.match(
+  source,
+  /function removeTunnelPeers\(tunnelId\) \{\s*removeChildItemsOf\(tunnelId, 'tunnel_peer', 'tunnel'\);/,
+  'removing a tunnel must remove its peers',
 );
 
 // A section the runtime graph would drop is refused before the dialog writes

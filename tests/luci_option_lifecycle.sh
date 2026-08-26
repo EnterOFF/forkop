@@ -31,7 +31,7 @@ function addSections(harness, list) {
 }
 
 function sectionGrid(harness, providers = ALL_PROVIDERS) {
-  const view = harness.load('section');
+  const view = harness.bundle;
   const map = new harness.form.Map('forkop');
   const grid = map.section(harness.form.GridSection, 'section');
   view.configureSectionSection(grid, {
@@ -45,7 +45,7 @@ function sectionGrid(harness, providers = ALL_PROVIDERS) {
 }
 
 function serverGrid(harness) {
-  const view = harness.load('server');
+  const view = harness.bundle;
   const map = new harness.form.Map('forkop');
   const grid = map.section(harness.form.GridSection, 'server');
   view.createServerContent(grid);
@@ -333,7 +333,7 @@ async function checkRemovingAnOwnerTakesItsChildren() {
     const harness = createHarness(root);
     addSections(harness, [MIXED_SERVER, SERVER_ACCOUNT]);
     const grid = serverGrid(harness);
-    const view = harness.load('server');
+    const view = harness.bundle;
     view.configureServerSection(grid);
     grid.cfgsections = () => ['srv'];
     grid.map.data.remove = () => {};
@@ -351,7 +351,7 @@ async function checkRemovingAnOwnerTakesItsChildren() {
     addSections(harness, connectionChildren());
     const grid = sectionGrid(harness);
     grid.handleRemove = () => Promise.resolve();
-    const view = harness.load('section');
+    const view = harness.bundle;
     view.configureSectionSection(grid, {
       loadActionProvidersAvailability: () => Promise.resolve(ALL_PROVIDERS),
     });
@@ -484,7 +484,7 @@ async function checkSectionReferencesSurvive() {
 
     {
       const harness = createHarness(root);
-      const view = harness.load('settings');
+      const view = harness.bundle;
       addSections(harness, [
         ['settings', 'settings', {
           dns_server: ['tls://1.1.1.1'],

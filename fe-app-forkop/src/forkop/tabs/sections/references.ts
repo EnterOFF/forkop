@@ -1,4 +1,4 @@
-import { FORKOP_UCI_PACKAGE } from '../../../constants';
+import { DETOUR_TARGET_ACTIONS, FORKOP_UCI_PACKAGE } from '../../../constants';
 import { normalizeDynamicListItems } from '../../cbi/listValues';
 import { modalOptionFormValue } from '../../cbi/modal';
 import { getUciSectionLabel, getUciSectionName } from '../../cbi/uci';
@@ -22,7 +22,10 @@ export function missingConnectionOutbound(
   );
 }
 
-function isOutboundDetourTargetSection(
+// A section another section may hand its traffic to: it exists, it is not the
+// one asking, it is enabled, and its action is one that carries traffic. The
+// same question for a DNS detour, an outbound detour and a download picker.
+function isDetourTargetSection(
   section: UciSectionObject,
   currentSectionId: string,
 ) {
@@ -30,16 +33,16 @@ function isOutboundDetourTargetSection(
   const action = ((section && section.action) as string) || '';
 
   return (
-    sectionName &&
+    !!sectionName &&
     sectionName !== currentSectionId &&
     section.enabled !== '0' &&
-    ['connection', 'proxy', 'outbound', 'vpn'].includes(action)
+    DETOUR_TARGET_ACTIONS.includes(action)
   );
 }
 
 function getOutboundDetourTargetSections(currentSectionId: string) {
   return (uci.sections(FORKOP_UCI_PACKAGE, 'section') || []).filter((section) =>
-    isOutboundDetourTargetSection(section, currentSectionId),
+    isDetourTargetSection(section, currentSectionId),
   );
 }
 
@@ -94,24 +97,6 @@ export function tailscaleDetourTag(sectionId: string) {
     : sectionId;
 }
 
-function isDnsDetourTargetSection(
-  section: UciSectionObject,
-  currentSectionId: string,
-) {
-  const sectionName = getUciSectionName(section);
-  const action = ((section && section.action) as string) || '';
-
-  if (
-    !sectionName ||
-    sectionName === currentSectionId ||
-    section.enabled === '0'
-  ) {
-    return false;
-  }
-
-  return ['connection', 'proxy', 'outbound', 'vpn'].includes(action);
-}
-
 export function refreshDnsDetourSectionOptionValues(
   option: CBIOption,
   sectionId: string,
@@ -120,7 +105,7 @@ export function refreshDnsDetourSectionOptionValues(
   option.vallist = [];
 
   (uci.sections(FORKOP_UCI_PACKAGE, 'section') || [])
-    .filter((section) => isDnsDetourTargetSection(section, sectionId))
+    .filter((section) => isDetourTargetSection(section, sectionId))
     .forEach((targetSection) => {
       option.value(
         getUciSectionName(targetSection),
@@ -157,27 +142,9 @@ export function safeRuntimeSectionName(section_id: string) {
   return /^[A-Za-z0-9_-]+$/.test(`${section_id || ''}`);
 }
 
-function isDownloadThroughTargetSection(
-  section: UciSectionObject,
-  currentSectionId: string,
-) {
-  const sectionName = getUciSectionName(section);
-  const action = ((section && section.action) as string) || '';
-
-  if (
-    !sectionName ||
-    sectionName === currentSectionId ||
-    section.enabled === '0'
-  ) {
-    return false;
-  }
-
-  return ['connection', 'proxy', 'outbound', 'vpn'].includes(action);
-}
-
 export function subscriptionDownloadTargetChoices(section_id: string) {
   return (uci.sections(FORKOP_UCI_PACKAGE, 'section') || [])
-    .filter((section) => isDownloadThroughTargetSection(section, section_id))
+    .filter((section) => isDetourTargetSection(section, section_id))
     .map((section) => ({
       value: getUciSectionName(section),
       label: getUciSectionLabel(section),

@@ -7,8 +7,10 @@ import {
 } from '../../cbi/childItems';
 import { refreshOptionChoices } from '../../cbi/choices';
 import { childPendingSettingsStore } from '../../cbi/itemSettings';
-import { normalizeDynamicListItems } from '../../cbi/listValues';
-import { normalizeOptionValues } from '../../cbi/localDevices';
+import {
+  normalizeDynamicListItems,
+  normalizeOptionValues,
+} from '../../cbi/listValues';
 import { getConfigListValues, plainObject } from '../../cbi/uci';
 import {
   outboundJsonDisplayTag,
@@ -144,7 +146,7 @@ function outboundNameChoicesCached(key: string) {
 function loadOutboundNameChoices(
   section_id: string,
   key: string,
-  providerIndex: number,
+  providerIndex: number | null,
 ) {
   if (outboundNameChoicesCached(key)) {
     return Promise.resolve(outboundNameChoicesCache.get(key));
@@ -193,11 +195,7 @@ function subscriptionProviderIndex(section_id: string, itemId: string) {
 }
 
 export function loadSectionOutboundNameChoices(section_id: string) {
-  return loadOutboundNameChoices(
-    section_id,
-    section_id,
-    null as unknown as number,
-  );
+  return loadOutboundNameChoices(section_id, section_id, null);
 }
 
 export function loadSubscriptionOutboundNameChoices(

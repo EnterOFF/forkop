@@ -3,7 +3,7 @@ import { validateSubnet } from '../../../../validators/validateSubnet';
 import { validateUrl } from '../../../../validators/validateUrl';
 import { isExistingChildItem } from '../../../cbi/childItems';
 import { normalizeDynamicListItems } from '../../../cbi/listValues';
-import { normalizeOptionValues } from '../../../cbi/localDevices';
+import { normalizeOptionValues } from '../../../cbi/listValues';
 import { JSON_ENDPOINT_TYPES } from '../constants';
 import {
   AMNEZIA_RANGE_FIELDS,

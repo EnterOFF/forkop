@@ -30,30 +30,6 @@ export const JSON_ENDPOINT_PLACEHOLDER = [
   '}',
 ].join('\n');
 
-// Tags sing-box already uses for Forkop's own inbounds, outbounds and DNS servers.
-// A section display name becomes a tag verbatim, so these names are refused here and
-// by the runtime check, which reads singbox/constants.uc. The Servers tab keeps the
-// same list of its own; the contract test holds both against that table.
-export const RESERVED_RUNTIME_TAGS = new Set([
-  'dns-server',
-  'fakeip-server',
-  'bootstrap-dns-server',
-  'dnsmasq-server',
-  'hosts-server',
-  'fakeip-dns-rule-tag',
-  'fakeip-ruleset-dns-rule-tag',
-  'service-fakeip-dns-rule-tag',
-  'tproxy-in',
-  'tproxy6-in',
-  'dns-in',
-  'source-dns-in',
-  'system-in',
-  'system6-in',
-  'system-dns-in',
-  'service-mixed-in',
-  'direct-out',
-]);
-
 export const CONNECTIONS_BLOCKED_INTERFACES = [
   'br-lan',
   'eth0',

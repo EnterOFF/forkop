@@ -51,6 +51,20 @@ export function dynamicListItemValues(dl: HTMLElement): string[] {
     .filter((value): value is string => value != null);
 }
 
+// The label a child item list shows for one entry: the name the item was given
+// rather than the id the widget stores under it.
+export function renderChildItemLabel(
+  option: CBIOption,
+  sectionId: string,
+  itemId: string,
+) {
+  return E(
+    'span',
+    { class: 'fkp-dynlist-label' },
+    option.inputValueForItem!(sectionId, itemId),
+  );
+}
+
 export function updateDynamicListItemLabel(
   item: Element | null,
   label: string,

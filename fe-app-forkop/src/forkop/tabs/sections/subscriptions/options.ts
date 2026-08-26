@@ -15,7 +15,7 @@ import {
 import {
   validateOptionalSingBoxDuration,
   validateRequiredSingBoxDuration,
-} from '../validators';
+} from '../../../../validators/validateSingBoxDuration';
 import { showSubscriptionHeadersModal } from './headers';
 import {
   cleanupRemoteSubscriptionUrlSettings,

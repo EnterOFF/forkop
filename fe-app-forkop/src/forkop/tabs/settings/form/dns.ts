@@ -1,4 +1,7 @@
-import { configureDnsFailoverVisibility, configureDnsList } from '../dns';
+import {
+  configureDnsQueryMode,
+  configureDnsServerList,
+} from '../../../cbi/dnsServers';
 import {
   configureDownloadSectionOption,
   configureDownloadViaProxyFlag,
@@ -16,7 +19,8 @@ export function addDnsOptions(section: CBISection) {
       'Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://',
     ),
   );
-  configureDnsList(dnsOption, '77.88.8.8');
+  dnsOption.default = ['77.88.8.8'];
+  configureDnsServerList(dnsOption);
 
   let o = section.option(
     form.ListValue,
@@ -26,11 +30,7 @@ export function addDnsOptions(section: CBISection) {
       'Parallel asks every server at once and is faster. Sequential asks them in turn until the first answer',
     ),
   );
-  o.value('parallel', _('Parallel'));
-  o.value('sequential', _('Sequential'));
-  o.default = 'parallel';
-  o.rmempty = false;
-  configureDnsFailoverVisibility(o, dnsOption, 'dns_server');
+  configureDnsQueryMode(o, 'dns_server');
 
   const bootstrapOption = section.option(
     form.DynamicList,
@@ -40,7 +40,8 @@ export function addDnsOptions(section: CBISection) {
       'Resolve the addresses of the main DNS servers and proxies. Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://',
     ),
   );
-  configureDnsList(bootstrapOption, '77.88.8.8', true);
+  bootstrapOption.default = ['77.88.8.8'];
+  configureDnsServerList(bootstrapOption, { ipOnly: true });
 
   o = section.option(
     form.ListValue,
@@ -50,11 +51,7 @@ export function addDnsOptions(section: CBISection) {
       'Parallel asks every server at once and is faster. Sequential asks them in turn until the first answer',
     ),
   );
-  o.value('parallel', _('Parallel'));
-  o.value('sequential', _('Sequential'));
-  o.default = 'parallel';
-  o.rmempty = false;
-  configureDnsFailoverVisibility(o, bootstrapOption, 'bootstrap_dns_server');
+  configureDnsQueryMode(o, 'bootstrap_dns_server');
 
   o = section.option(
     form.Value,

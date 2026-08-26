@@ -62,17 +62,18 @@ fi
 # translates it as "Редактировать", which Forkop cannot override. So the button asks
 # for a Forkop msgid and falls back to the English word when the catalog returns the
 # msgid unchanged - which only works while the compared string is the msgid, and
-# while the button is the only reader of it.
+# while the button is the only reader of it. Both grids show the button, so the
+# helper belongs to the shared CBI layer rather than to either tab.
 edit_label_definition="$(node "$ROOT_DIR/tests/helpers/tab_source.js" servers --decl getRuleEditButtonText)"
 [ -n "$edit_label_definition" ] ||
-  fail "the Servers tab must own the row action label helper"
+  fail "the shared CBI layer must own the row action label helper"
 [ "$(printf '%s\n' "$edit_label_definition" | grep -cE "['\"]Edit rule action['\"]")" = "2" ] ||
   fail "the row action label must compare the translation against its own msgid"
 if grep -Fq 'function getRuleEditButtonText' "$FORKOP_JS"; then
   fail "the row action label must not be defined a second time for the page"
 fi
 grep -Fq 'getRuleEditButtonText()' "$FORKOP_JS" ||
-  fail "the Sections tab must take the row action label from the Servers tab"
+  fail "the Sections grid must take the row action label from the shared helper"
 
 awk '
   $0 == "msgid \"Edit rule action\"" {

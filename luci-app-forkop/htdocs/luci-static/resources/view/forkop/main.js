@@ -20,6 +20,26 @@ var FORKOP_UCI_PACKAGE = "forkop";
 var FORKOP_LUCI_APP_VERSION = "__COMPILED_VERSION_VARIABLE__";
 var FAKEIP_CHECK_DOMAIN = "fakeip.podkop.fyi";
 var IP_CHECK_DOMAIN = "ip.podkop.fyi";
+var RESERVED_RUNTIME_TAGS = /* @__PURE__ */ new Set([
+  "dns-server",
+  "fakeip-server",
+  "bootstrap-dns-server",
+  "dnsmasq-server",
+  "hosts-server",
+  "fakeip-dns-rule-tag",
+  "fakeip-ruleset-dns-rule-tag",
+  "service-fakeip-dns-rule-tag",
+  "tproxy-in",
+  "tproxy6-in",
+  "dns-in",
+  "source-dns-in",
+  "system-in",
+  "system6-in",
+  "system-dns-in",
+  "service-mixed-in",
+  "direct-out"
+]);
+var DETOUR_TARGET_ACTIONS = ["connection", "proxy", "outbound", "vpn"];
 var DEFAULT_LATENCY_TEST_URL = "https://www.gstatic.com/generate_204";
 var LATENCY_TEST_URL_OPTIONS = [
   DEFAULT_LATENCY_TEST_URL,
@@ -65,6 +85,20 @@ function renderFlagEmojis(value) {
   return value.split(FLAG_EMOJI_PATTERN).filter(Boolean).map(
     (part) => EXACT_FLAG_EMOJI_PATTERN.test(part) ? E("span", { class: "fkp_dashboard-page__flag-emoji" }, part) : part
   );
+}
+
+// src/forkop/tabs/dashboard/latencyClassName.ts
+function latencyClassName(latency) {
+  if (!latency) {
+    return "fkp_dashboard-page__outbound-grid__item__latency--empty";
+  }
+  if (latency < 800) {
+    return "fkp_dashboard-page__outbound-grid__item__latency--green";
+  }
+  if (latency < 1500) {
+    return "fkp_dashboard-page__outbound-grid__item__latency--yellow";
+  }
+  return "fkp_dashboard-page__outbound-grid__item__latency--red";
 }
 
 // src/helpers/parseValueList.ts
@@ -1200,18 +1234,6 @@ function renderRuleSetUpdateAction(section, ruleSetUpdating, onUpdateRuleSets) {
     ruleSetUpdating ? [renderLoaderCircleIcon24(), _("Update lists")] : _("Update lists")
   );
 }
-function getOutboundLatencyClass(latency) {
-  if (!latency) {
-    return "fkp_dashboard-page__outbound-grid__item__latency--empty";
-  }
-  if (latency < 800) {
-    return "fkp_dashboard-page__outbound-grid__item__latency--green";
-  }
-  if (latency < 1500) {
-    return "fkp_dashboard-page__outbound-grid__item__latency--yellow";
-  }
-  return "fkp_dashboard-page__outbound-grid__item__latency--red";
-}
 function renderDefaultState({
   section,
   onChooseOutbound,
@@ -1253,7 +1275,7 @@ function renderDefaultState({
       canChooseOutbound ? "fkp_dashboard-page__outbound-grid__item--selectable" : "",
       section.withTagSelect && !canChooseOutbound ? "fkp_dashboard-page__outbound-grid__item--disabled" : ""
     ].filter(Boolean).join(" ");
-    const latencyClass = getOutboundLatencyClass(outbound.latency);
+    const latencyClass = latencyClassName(outbound.latency);
     const latencyValue = outbound.latency ? `${outbound.latency}ms` : "N/A";
     const latency = showLatency ? E(
       "button",
@@ -3690,17 +3712,20 @@ var initialStore = {
 };
 var store = new StoreService(initialStore);
 
-// src/forkop/services/forkopLogFeed.service.ts
-var LOG_OBJECT = "forkop";
-var LOG_CALL_TIMEOUT_MS = 5e3;
-var LOG_WAIT_TIMEOUT_MS = 2e4;
-var LOG_RETRY_MS = 3e3;
-var running = false;
-var stopRequested = false;
-var cursor = 0;
+// src/helpers/isDocumentVisible.ts
 function isDocumentVisible() {
   return typeof document === "undefined" || !document.visibilityState || document.visibilityState === "visible";
 }
+
+// src/forkop/services/forkopWaitTransport.ts
+var FORKOP_SERVICE_OBJECT = "forkop";
+var FORKOP_CALL_TIMEOUT_MS = 5e3;
+var FORKOP_WAIT_TIMEOUT_MS = 2e4;
+var FORKOP_WAIT_RETRY_MS = 3e3;
+
+// src/forkop/services/forkopLogFeed.service.ts
+var running = false;
+var cursor = 0;
 function adopt(reply) {
   if (typeof reply.cursor === "number") {
     cursor = reply.cursor;
@@ -3712,32 +3737,30 @@ async function startForkopLogFeed(onNewLog) {
     return true;
   }
   const first = await callUbus({
-    object: LOG_OBJECT,
+    object: FORKOP_SERVICE_OBJECT,
     method: "logs",
-    timeoutMs: LOG_CALL_TIMEOUT_MS
+    timeoutMs: FORKOP_CALL_TIMEOUT_MS
   });
   if (!first.success) {
     return false;
   }
   adopt(first.data);
   running = true;
-  stopRequested = false;
   void (async () => {
     try {
-      while (!stopRequested) {
+      for (; ; ) {
         if (!isDocumentVisible()) {
-          await new Promise((resolve) => setTimeout(resolve, LOG_RETRY_MS));
+          await new Promise(
+            (resolve) => setTimeout(resolve, FORKOP_WAIT_RETRY_MS)
+          );
           continue;
         }
         const response = await callUbus({
-          object: LOG_OBJECT,
+          object: FORKOP_SERVICE_OBJECT,
           method: "logs_wait",
           params: { cursor },
-          timeoutMs: LOG_WAIT_TIMEOUT_MS
+          timeoutMs: FORKOP_WAIT_TIMEOUT_MS
         });
-        if (stopRequested) {
-          break;
-        }
         if (response.success) {
           for (const line of adopt(response.data)) {
             try {
@@ -3753,7 +3776,9 @@ async function startForkopLogFeed(onNewLog) {
           break;
         }
         logger.error("[LOG_FEED]", "log wait failed", response.message);
-        await new Promise((resolve) => setTimeout(resolve, LOG_RETRY_MS));
+        await new Promise(
+          (resolve) => setTimeout(resolve, FORKOP_WAIT_RETRY_MS)
+        );
       }
     } finally {
       running = false;
@@ -3762,10 +3787,7 @@ async function startForkopLogFeed(onNewLog) {
   return true;
 }
 
-// src/forkop/services/logNotificationDeduper.service.ts
-var LOG_NOTIFICATION_STORAGE_KEY = "forkop:shown-log-error-notifications:v1";
-var MAX_STORED_LOG_NOTIFICATIONS = 500;
-var FORKOP_LOG_SOURCE_PATTERN = /\bforkop(?:\[\d+\])?:/i;
+// src/forkop/services/sessionStorage.service.ts
 function getSessionStorage() {
   if (typeof window === "undefined") {
     return null;
@@ -3776,6 +3798,11 @@ function getSessionStorage() {
     return null;
   }
 }
+
+// src/forkop/services/logNotificationDeduper.service.ts
+var LOG_NOTIFICATION_STORAGE_KEY = "forkop:shown-log-error-notifications:v1";
+var MAX_STORED_LOG_NOTIFICATIONS = 500;
+var FORKOP_LOG_SOURCE_PATTERN = /\bforkop(?:\[\d+\])?:/i;
 function readStoredKeys(storage) {
   if (!storage) {
     return [];
@@ -3987,10 +4014,6 @@ function markUiStateUnavailable() {
 var RUNTIME_UI_STATE_REFRESH_MIN_INTERVAL_MS = 500;
 var RUNTIME_UI_STATE_IDLE_POLL_INTERVAL_MS = 1e4;
 var RUNTIME_UI_STATE_ACTIVE_POLL_INTERVAL_MS = 1e3;
-var STATE_OBJECT = "forkop";
-var STATE_CALL_TIMEOUT_MS = 5e3;
-var STATE_WAIT_TIMEOUT_MS = 2e4;
-var STATE_WAIT_RETRY_MS = 3e3;
 var runtimeUiStateRefreshPromise = null;
 var lastRuntimeUiStateRefreshAt = 0;
 var lastRuntimeUiState;
@@ -4004,9 +4027,6 @@ var stateRevision = 0;
 var waitLoopRunning = false;
 var waitLoopStop = false;
 var runtimeUiStateListeners = /* @__PURE__ */ new Set();
-function isDocumentVisible2() {
-  return typeof document === "undefined" || !document.visibilityState || document.visibilityState === "visible";
-}
 function hasRunningAction(uiState) {
   return Boolean(uiState.service.forkop.busy) || [...uiState.actions.service, ...uiState.actions.component].some(
     (action) => action.running
@@ -4067,9 +4087,9 @@ function adoptUbusState(value) {
 async function readState(recompute) {
   if (transport !== "cli") {
     const response2 = await callUbus({
-      object: STATE_OBJECT,
+      object: FORKOP_SERVICE_OBJECT,
       method: recompute ? "refresh" : "state",
-      timeoutMs: STATE_CALL_TIMEOUT_MS
+      timeoutMs: FORKOP_CALL_TIMEOUT_MS
     });
     if (response2.success) {
       transport = "ubus";
@@ -4096,7 +4116,7 @@ async function readState(recompute) {
 async function refreshRuntimeUiState({
   force = false
 } = {}) {
-  if (!isDocumentVisible2()) {
+  if (!isDocumentVisible()) {
     return void 0;
   }
   if (runtimeUiStateRefreshPromise) {
@@ -4142,12 +4162,12 @@ async function runWaitLoop() {
   waitLoopRunning = true;
   waitLoopStop = false;
   try {
-    while (!waitLoopStop && isDocumentVisible2() && transport === "ubus") {
+    while (!waitLoopStop && isDocumentVisible() && transport === "ubus") {
       const response = await callUbus({
-        object: STATE_OBJECT,
+        object: FORKOP_SERVICE_OBJECT,
         method: "state_wait",
         params: { revision: stateRevision },
-        timeoutMs: STATE_WAIT_TIMEOUT_MS
+        timeoutMs: FORKOP_WAIT_TIMEOUT_MS
       });
       if (waitLoopStop) {
         break;
@@ -4166,7 +4186,7 @@ async function runWaitLoop() {
         break;
       }
       logger.error("[RUNTIME_UI_STATE]", "state wait failed", response.message);
-      await new Promise((resolve) => setTimeout(resolve, STATE_WAIT_RETRY_MS));
+      await new Promise((resolve) => setTimeout(resolve, FORKOP_WAIT_RETRY_MS));
     }
   } finally {
     waitLoopRunning = false;
@@ -4218,7 +4238,7 @@ function registerRuntimeStateResumeRefresh() {
   }
   runtimeStateResumeRefreshRegistered = true;
   const onVisibilityChange = () => {
-    if (!isDocumentVisible2()) {
+    if (!isDocumentVisible()) {
       waitLoopStop = true;
       clearPollTimer();
       return;
@@ -4559,16 +4579,6 @@ var socket = SocketManager.getInstance();
 // src/forkop/services/uiActionNotification.service.ts
 var UI_ACTION_NOTIFICATION_STORAGE_KEY = "forkop:owned-ui-action-notifications:v1";
 var MAX_STORED_UI_ACTION_NOTIFICATIONS = 100;
-function getSessionStorage2() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-  try {
-    return window.sessionStorage;
-  } catch {
-    return null;
-  }
-}
 function getNotificationKey(kind, jobId) {
   return `${kind}:${jobId}`;
 }
@@ -4607,7 +4617,7 @@ function writeStoredNotifications(storage, notifications) {
   }
 }
 var UiActionNotificationTracker = class {
-  constructor(storage = getSessionStorage2()) {
+  constructor(storage = getSessionStorage()) {
     this.notifications = /* @__PURE__ */ new Map();
     this.storage = storage;
     for (const notification of readStoredNotifications(storage)) {
@@ -5268,18 +5278,6 @@ function formatUrlTestModalValue(value) {
   const text = `${value ?? ""}`.trim();
   return text || _("No");
 }
-function getUrlTestLatencyClass(latency) {
-  if (!latency) {
-    return "fkp_dashboard-page__outbound-grid__item__latency--empty";
-  }
-  if (latency < 800) {
-    return "fkp_dashboard-page__outbound-grid__item__latency--green";
-  }
-  if (latency < 1500) {
-    return "fkp_dashboard-page__outbound-grid__item__latency--yellow";
-  }
-  return "fkp_dashboard-page__outbound-grid__item__latency--red";
-}
 function formatUrlTestLatency(latency) {
   return latency ? `${latency}ms` : "N/A";
 }
@@ -5356,7 +5354,7 @@ function renderUrlTestSelectedValue(info) {
       ...selectedMember ? [
         E(
           "span",
-          { class: getUrlTestLatencyClass(selectedMember.latency) },
+          { class: latencyClassName(selectedMember.latency) },
           formatUrlTestLatency(selectedMember.latency)
         )
       ] : []
@@ -5459,7 +5457,7 @@ function renderUrlTestInfoModal(outbound) {
                 [
                   E(
                     "span",
-                    { class: getUrlTestLatencyClass(member.latency) },
+                    { class: latencyClassName(member.latency) },
                     formatUrlTestLatency(member.latency)
                   )
                 ]
@@ -5536,7 +5534,7 @@ function renderFallbackSelectedValue(info) {
       ...selectedMember ? [
         E(
           "span",
-          { class: getUrlTestLatencyClass(selectedMember.latency) },
+          { class: latencyClassName(selectedMember.latency) },
           formatUrlTestLatency(selectedMember.latency)
         )
       ] : []
@@ -5654,7 +5652,7 @@ function renderFallbackMemberRow(info, member) {
       E("div", { class: "fkp_dashboard-page__urltest-details__row-meta" }, [
         E(
           "span",
-          { class: getUrlTestLatencyClass(member.latency) },
+          { class: latencyClassName(member.latency) },
           formatUrlTestLatency(member.latency)
         )
       ]),
@@ -9480,6 +9478,51 @@ function validateIP(ip) {
   return { valid: false, message: _("Invalid IP address") };
 }
 
+// src/forkop/cbi/listValues.ts
+function normalizeDynamicListItems(value) {
+  if (!value) {
+    return [];
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => `${item || ""}`.trim()).filter((item) => item.length);
+  }
+  const normalized = `${value}`.trim();
+  return normalized.length ? [normalized] : [];
+}
+function normalizeOptionValues(value) {
+  if (!value) {
+    return [];
+  }
+  if (Array.isArray(value)) {
+    return value.filter(Boolean).map((item) => `${item}`.trim()).filter(Boolean);
+  }
+  return `${value}`.split(/\s+/).map((item) => item.trim()).filter(Boolean);
+}
+function nextDynamicListName(option2, formSectionId, savedItems, prefix) {
+  let current = null;
+  if (option2 && typeof option2.formvalue === "function") {
+    try {
+      current = option2.formvalue(formSectionId);
+    } catch (_error) {
+    }
+  }
+  const items = normalizeDynamicListItems(
+    current == null ? savedItems : current
+  );
+  return `${prefix} #${items.length + 1}`;
+}
+function uniqueDynamicListItems(value) {
+  const seen = /* @__PURE__ */ new Set();
+  const result = [];
+  normalizeDynamicListItems(value).forEach((item) => {
+    if (!seen.has(item)) {
+      seen.add(item);
+      result.push(item);
+    }
+  });
+  return result;
+}
+
 // src/forkop/cbi/localDevices.ts
 var callHostHints = rpc.declare({
   object: "luci-rpc",
@@ -9499,15 +9542,6 @@ var callNetworkInterfaceDump = rpc.declare({
 var SYSTEM_DEVICE_VALUE = "@system";
 var localDeviceChoicesCache = null;
 var localDeviceChoicesPromise = null;
-function normalizeOptionValues(value) {
-  if (!value) {
-    return [];
-  }
-  if (Array.isArray(value)) {
-    return value.filter(Boolean).map((item) => `${item}`.trim()).filter(Boolean);
-  }
-  return `${value}`.split(/\s+/).map((item) => item.trim()).filter(Boolean);
-}
 function normalizeLocalDeviceName(name) {
   return `${name || ""}`.trim().replace(/\.lan$/i, "");
 }
@@ -11302,19 +11336,6 @@ var styles5 = `
     color: var(--text-color-high);
 }
 
-.fkp_monitoring-page__cell-main {
-    color: var(--text-color-high);
-    font-weight: 600;
-    line-height: 1.25;
-}
-
-.fkp_monitoring-page__cell-secondary {
-    margin-top: 2px;
-    color: var(--text-color-medium);
-    font-size: 12px;
-    line-height: 1.25;
-}
-
 .fkp_monitoring-page__route {
     display: inline-block;
     width: auto;
@@ -13087,6 +13108,641 @@ function mountTabOption(section, key, tab) {
   o.cfgvalue = () => mountTab(key, tab.render, tab.initController);
 }
 
+// src/forkop/cbi/listItems.ts
+function itemValueInput(item) {
+  const hidden = item ? item.querySelector('input[type="hidden"]') : null;
+  return hidden && hidden.parentNode === item ? hidden : null;
+}
+function findDynamicListItemByValue(dl, value) {
+  const stringValue = `${value}`;
+  const items = dl.querySelectorAll(".item");
+  for (let i = 0; i < items.length; i += 1) {
+    const hidden = itemValueInput(items[i]);
+    if (hidden && hidden.value === stringValue) {
+      return items[i];
+    }
+  }
+  return null;
+}
+function dynamicListItemCurrentValue(item, fallback) {
+  const hidden = itemValueInput(item);
+  return hidden ? hidden.value : fallback;
+}
+function dynamicListItemValues(dl) {
+  return Array.from(dl.querySelectorAll(".item")).map((item) => {
+    const hidden = itemValueInput(item);
+    return hidden ? hidden.value : null;
+  }).filter((value) => value != null);
+}
+function renderChildItemLabel(option2, sectionId, itemId) {
+  return E(
+    "span",
+    { class: "fkp-dynlist-label" },
+    option2.inputValueForItem(sectionId, itemId)
+  );
+}
+function updateDynamicListItemLabel(item, label) {
+  const labelNode = item ? item.querySelector(".fkp-dynlist-label") : null;
+  if (labelNode) {
+    labelNode.textContent = `${label || ""}`;
+  }
+}
+function addDynamicListItem(widget, value, text) {
+  if (!widget || !widget.node) {
+    return null;
+  }
+  const normalized = `${value || ""}`.trim();
+  if (!normalized) {
+    return null;
+  }
+  const options = widget.options || {};
+  if (typeof options.hasEquivalentValue === "function" && options.hasEquivalentValue(normalized, widget.node)) {
+    widget.dispatchCbiDynlistChange(widget.node, normalized);
+    return null;
+  }
+  widget.addItem(widget.node, normalized, text || null, false);
+  widget.dispatchCbiDynlistChange(widget.node, normalized);
+  updateButtonAddDynamicListLayout(widget.node, options.addButtonLabel);
+  return findDynamicListItemByValue(widget.node, normalized);
+}
+function updateButtonAddDynamicListLayout(dl, label) {
+  const addButton = dl ? dl.querySelector(".add-item > .fkp-button-add-control") || dl.querySelector(".add-item > .cbi-button-add") : null;
+  if (!addButton) {
+    return;
+  }
+  if (!addButton.classList.contains("fkp-button-add-control")) {
+    addButton.className = "cbi-dropdown fkp-button-add-control";
+    addButton.replaceChildren(
+      E(
+        "ul",
+        { tabindex: "-1" },
+        E("li", { placeholder: "", selected: "", display: "0" })
+      ),
+      E("span", { "aria-hidden": "true" }, "\u200B")
+    );
+  }
+  const buttonLabel = label || "+";
+  addButton.querySelector("li").textContent = buttonLabel;
+  addButton.setAttribute("role", "button");
+  addButton.setAttribute("tabindex", "0");
+  addButton.setAttribute("aria-label", buttonLabel);
+  addButton.setAttribute(
+    "aria-disabled",
+    dl.hasAttribute("disabled") ? "true" : "false"
+  );
+}
+function setDynamicListItemValue(item, value) {
+  const hidden = itemValueInput(item);
+  if (hidden) {
+    hidden.value = `${value || ""}`;
+  }
+}
+function validateUniqueDynamicListItemName(widget, itemNode, value) {
+  const currentLabel = itemNode?.querySelector(".fkp-dynlist-label");
+  return Array.from(
+    widget?.node?.querySelectorAll(".fkp-dynlist-label") || []
+  ).some(
+    (label) => label !== currentLabel && `${label.textContent || ""}`.trim() === `${value || ""}`.trim()
+  ) ? _("Name must be unique") : true;
+}
+
+// src/validators/validateOutboundJson.ts
+var SERVER_OUTBOUND_TYPES = /* @__PURE__ */ new Set([
+  "vless",
+  "vmess",
+  "trojan",
+  "shadowsocks",
+  "socks",
+  "http",
+  "hysteria2",
+  "hysteria"
+]);
+function invalid(message) {
+  return { valid: false, message };
+}
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+function nonEmptyString(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+function validateServerPort(value) {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 65535;
+}
+function validateOutbounds(value) {
+  return Array.isArray(value) && value.length > 0 && value.every((item) => nonEmptyString(item));
+}
+function validateOutboundJson(value, usedTags = []) {
+  const normalized = `${value || ""}`.trim();
+  if (!normalized.length) {
+    return invalid(_("JSON outbound cannot be empty"));
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(normalized);
+  } catch {
+    return { valid: false, message: _("Invalid JSON format") };
+  }
+  if (!isPlainObject(parsed)) {
+    return invalid(_("JSON outbound must be a JSON object"));
+  }
+  if (!nonEmptyString(parsed.type)) {
+    return invalid(_("JSON outbound must contain a non-empty type field"));
+  }
+  if (parsed.type !== parsed.type.trim() || parsed.type !== parsed.type.toLowerCase()) {
+    return invalid(
+      _("JSON outbound type must be lowercase without surrounding whitespace")
+    );
+  }
+  if (!nonEmptyString(parsed.tag)) {
+    return invalid(_("JSON outbound must contain a non-empty tag field"));
+  }
+  const tag = parsed.tag.trim();
+  if (usedTags.some((usedTag) => `${usedTag || ""}`.trim() === tag)) {
+    return invalid(_("Duplicate JSON outbound tag"));
+  }
+  const type = parsed.type;
+  if ((type === "selector" || type === "urltest") && !validateOutbounds(parsed.outbounds)) {
+    return invalid(
+      _(
+        "Selector and URLTest outbounds must contain a non-empty outbounds array"
+      )
+    );
+  }
+  if (SERVER_OUTBOUND_TYPES.has(type)) {
+    if (!nonEmptyString(parsed.server)) {
+      return invalid(
+        _("Server outbound must contain a non-empty server field")
+      );
+    }
+    if (!validateServerPort(parsed.server_port)) {
+      return invalid(
+        _("Server outbound must contain a numeric server_port from 1 to 65535")
+      );
+    }
+  } else if (parsed.server_port !== void 0 && !validateServerPort(parsed.server_port)) {
+    return invalid(_("server_port must be a number from 1 to 65535"));
+  }
+  if (parsed.outbounds !== void 0 && !validateOutbounds(parsed.outbounds)) {
+    return invalid(_("outbounds must be a non-empty array of strings"));
+  }
+  if (parsed.detour !== void 0 && !nonEmptyString(parsed.detour)) {
+    return invalid(_("detour must be a non-empty string"));
+  }
+  return { valid: true, message: _("Valid") };
+}
+
+// src/validators/validateProxyUrl.ts
+var NATIVE_PROXY_SCHEMES = /* @__PURE__ */ new Set([
+  "anytls",
+  "hysteria",
+  "hysteria2",
+  "hy2",
+  "http",
+  "http2",
+  "http3",
+  "https",
+  "mieru",
+  "mierus",
+  "naive+https",
+  "naive+quic",
+  "socks",
+  "socks4",
+  "socks4a",
+  "socks5",
+  "ss",
+  "trojan",
+  "tuic",
+  "vless",
+  "vmess"
+]);
+function validateProxyUrl(url) {
+  const trimmedUrl = url.trim();
+  const match = /^([a-z0-9+]+):\/\/(\S+)$/u.exec(trimmedUrl);
+  if (match && NATIVE_PROXY_SCHEMES.has(match[1]))
+    return { valid: true, message: _("Valid") };
+  return {
+    valid: false,
+    message: _("The pasted link is not supported. Try JSON outbound.")
+  };
+}
+
+// src/forkop/cbi/itemSettings.ts
+var sharedChildPendingSettings = /* @__PURE__ */ new Map();
+function readItemSettingsMap(section_id, settingsKey) {
+  const raw = uci.get(FORKOP_UCI_PACKAGE, section_id, settingsKey);
+  if (!raw) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(`${raw}`);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch (_error) {
+    return {};
+  }
+}
+function compactItemSettings(values) {
+  const result = {};
+  Object.entries(values || {}).forEach(([key, value]) => {
+    if (value === void 0 || value === null || value === "") {
+      return;
+    }
+    if (Array.isArray(value)) {
+      const items = value.map((item) => `${item || ""}`.trim()).filter((item) => item.length);
+      if (items.length) {
+        result[key] = items;
+      }
+      return;
+    }
+    result[key] = `${value}`;
+  });
+  return result;
+}
+function writeItemSettingsMap(section_id, settingsKey, map) {
+  const result = {};
+  Object.entries(map || {}).forEach(([item, settings]) => {
+    const compact = compactItemSettings(settings);
+    if (item && Object.keys(compact).length) {
+      result[item] = compact;
+    }
+  });
+  if (Object.keys(result).length) {
+    uci.set(
+      FORKOP_UCI_PACKAGE,
+      section_id,
+      settingsKey,
+      JSON.stringify(result)
+    );
+  } else {
+    uci.unset(FORKOP_UCI_PACKAGE, section_id, settingsKey);
+  }
+}
+function cleanupListItemSettings(section_id, settingsKey, values) {
+  if (!settingsKey) {
+    return;
+  }
+  const keep = new Set(normalizeDynamicListItems(values));
+  const map = readItemSettingsMap(section_id, settingsKey);
+  let changed = false;
+  Object.keys(map).forEach((item) => {
+    if (!keep.has(item)) {
+      delete map[item];
+      changed = true;
+    }
+  });
+  if (changed) {
+    writeItemSettingsMap(section_id, settingsKey, map);
+  }
+}
+function itemSettingsFlag(settings, key, defaultValue) {
+  const value = settings ? settings[key] : null;
+  if (value === void 0 || value === null || value === "") {
+    return Boolean(defaultValue);
+  }
+  return value === true || `${value}` === "1";
+}
+function settingValueEquals(left, right) {
+  const normalize = (value) => {
+    if (Array.isArray(value)) {
+      return JSON.stringify(value.map((item) => `${item || ""}`));
+    }
+    return value === void 0 || value === null ? "" : `${value}`;
+  };
+  return normalize(left) === normalize(right);
+}
+function readChildSettings(itemId, keys, defaults) {
+  const result = Object.assign({}, defaults || {});
+  keys.forEach((key) => {
+    const value = uci.get(FORKOP_UCI_PACKAGE, itemId, key);
+    if (value !== null && value !== void 0) {
+      result[key] = Array.isArray(value) ? value.slice() : value;
+    }
+  });
+  return result;
+}
+function changedSettings(base, next, keys) {
+  const result = {};
+  keys.forEach((key) => {
+    if (!settingValueEquals(base ? base[key] : null, next ? next[key] : null)) {
+      result[key] = next ? next[key] : null;
+    }
+  });
+  return result;
+}
+function hasChangedSettings(settings) {
+  return Object.keys(settings || {}).length > 0;
+}
+function childPendingSettingsStore(option2, section_id) {
+  if (option2.sharedPendingSettingsKey) {
+    const key = `${option2.sharedPendingSettingsKey}:${section_id}`;
+    if (!sharedChildPendingSettings.has(key)) {
+      sharedChildPendingSettings.set(key, {});
+    }
+    return sharedChildPendingSettings.get(key);
+  }
+  if (!option2.pendingChildSettings) {
+    option2.pendingChildSettings = {};
+  }
+  if (!option2.pendingChildSettings[section_id]) {
+    option2.pendingChildSettings[section_id] = {};
+  }
+  return option2.pendingChildSettings[section_id];
+}
+function pendingChildSettings(option2, section_id, value, defaults) {
+  const itemValue = `${value || ""}`.trim();
+  const store2 = childPendingSettingsStore(option2, section_id);
+  if (!store2[itemValue]) {
+    store2[itemValue] = Object.assign({}, defaults || {});
+  }
+  return store2[itemValue];
+}
+function clearChildPendingSettings(option2, section_id) {
+  if (option2.sharedPendingSettingsKey) {
+    sharedChildPendingSettings.delete(
+      `${option2.sharedPendingSettingsKey}:${section_id}`
+    );
+    return;
+  }
+  if (option2.pendingChildSettings) {
+    delete option2.pendingChildSettings[section_id];
+  }
+}
+
+// src/forkop/cbi/childItems.ts
+var SECTION_ID_PREFIXES = {
+  fallback_group: "group",
+  fallback_level: "level",
+  section: "section",
+  section_interface: "iface",
+  server: "server",
+  server_client: "client",
+  subscription_url: "sub",
+  tunnel: "tunnel",
+  tunnel_peer: "peer",
+  urltest: "urltest"
+};
+var issuedSectionIds = /* @__PURE__ */ new Set();
+function nextSectionId(typeName) {
+  const prefix = SECTION_ID_PREFIXES[typeName] || typeName;
+  for (let i = 0; i < 100; i += 1) {
+    const id = `${prefix}_${Math.floor(Math.random() * 16777216).toString(16).padStart(6, "0")}`;
+    if (!issuedSectionIds.has(id) && !uci.get(FORKOP_UCI_PACKAGE, id)) {
+      issuedSectionIds.add(id);
+      return id;
+    }
+  }
+  return `${prefix}_${Date.now().toString(16)}`;
+}
+function childOwnerOption(ownerOption) {
+  return ownerOption || "section";
+}
+function childItemOrder(item) {
+  const value = item ? item.order : null;
+  const parsed = Number.parseInt(value == null ? "0" : `${value}`, 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+function getChildItemIds(section_id, typeName, ownerOption) {
+  const ownerKey = childOwnerOption(ownerOption);
+  const items = uci.sections(FORKOP_UCI_PACKAGE, typeName).filter((item) => item[ownerKey] === section_id);
+  if (["fallback_level", "tunnel", "tunnel_peer"].includes(typeName)) {
+    items.sort((a, b) => {
+      const orderDiff = childItemOrder(a) - childItemOrder(b);
+      if (orderDiff !== 0) {
+        return orderDiff;
+      }
+      return `${a[".name"] || ""}`.localeCompare(`${b[".name"] || ""}`);
+    });
+  }
+  return items.map((item) => item[".name"]).filter(Boolean);
+}
+function childItemValue(itemId, valueOption, fallback) {
+  if (!valueOption) {
+    return itemId;
+  }
+  const value = uci.get(FORKOP_UCI_PACKAGE, itemId, valueOption);
+  return value == null || value === "" ? fallback || itemId : `${value}`;
+}
+function childItemInputValue(section_id, value, typeName, valueOption, ownerOption) {
+  const itemId = `${value || ""}`;
+  if (isExistingChildItem(section_id, itemId, typeName, ownerOption)) {
+    return childItemValue(itemId, valueOption, itemId);
+  }
+  return itemId;
+}
+function isExistingChildItem(section_id, itemId, typeName, ownerOption) {
+  const ownerKey = childOwnerOption(ownerOption);
+  return Boolean(
+    itemId && uci.get(FORKOP_UCI_PACKAGE, itemId, ".type") === typeName && uci.get(FORKOP_UCI_PACKAGE, itemId, ownerKey) === section_id
+  );
+}
+function createChildItem(section_id, options, inputValue) {
+  const rawValue = `${inputValue || ""}`.trim();
+  if (isExistingChildItem(
+    section_id,
+    rawValue,
+    options.typeName,
+    options.ownerOption
+  )) {
+    return {
+      value: rawValue,
+      text: options.valueOption ? childItemValue(rawValue, options.valueOption, rawValue) : rawValue,
+      created: false
+    };
+  }
+  const requestedId = typeof options.createId === "function" ? `${options.createId(rawValue, section_id) || ""}`.trim() : "";
+  const itemId = requestedId && uci.add(FORKOP_UCI_PACKAGE, options.typeName, requestedId) || requestedId || uci.add(FORKOP_UCI_PACKAGE, options.typeName);
+  uci.set(
+    FORKOP_UCI_PACKAGE,
+    itemId,
+    childOwnerOption(options.ownerOption),
+    section_id
+  );
+  if (options.valueOption) {
+    uci.set(FORKOP_UCI_PACKAGE, itemId, options.valueOption, rawValue);
+  }
+  if (options.defaults && typeof options.defaults === "object") {
+    Object.entries(options.defaults).forEach(([key, value]) => {
+      value = typeof value === "function" ? value(rawValue, section_id, itemId) : value;
+      if (value !== void 0 && value !== null && value !== "") {
+        uci.set(
+          FORKOP_UCI_PACKAGE,
+          itemId,
+          key,
+          Array.isArray(value) ? value.map((item) => `${item || ""}`).filter(Boolean) : `${value}`
+        );
+      }
+    });
+  }
+  return {
+    value: itemId,
+    text: options.valueOption ? rawValue : itemId,
+    created: true
+  };
+}
+function applyChildItemSettings(itemId, settings) {
+  Object.entries(settings || {}).forEach(([key, value]) => {
+    if (!key || key.charAt(0) === ".") {
+      return;
+    }
+    if (settingValueEquals(uci.get(FORKOP_UCI_PACKAGE, itemId, key), value)) {
+      return;
+    }
+    if (value === void 0 || value === null || value === "") {
+      uci.unset(FORKOP_UCI_PACKAGE, itemId, key);
+    } else if (Array.isArray(value)) {
+      const values = value.map((item) => `${item || ""}`.trim()).filter((item) => item.length);
+      if (values.length) {
+        uci.set(FORKOP_UCI_PACKAGE, itemId, key, values);
+      } else {
+        uci.unset(FORKOP_UCI_PACKAGE, itemId, key);
+      }
+    } else {
+      uci.set(FORKOP_UCI_PACKAGE, itemId, key, `${value}`);
+    }
+  });
+}
+function materializeChildItems(section_id, options, inputValue) {
+  const itemIds = [];
+  const seen = /* @__PURE__ */ new Set();
+  const resolved = /* @__PURE__ */ new Map();
+  normalizeDynamicListItems(inputValue).forEach((value) => {
+    let itemId = resolved.get(value);
+    if (itemId == null) {
+      const createdItem = createChildItem(section_id, options, value);
+      itemId = createdItem.value;
+      const stagedSettings = createdItem.created && typeof options.stagedSettings === "function" ? options.stagedSettings(value) : null;
+      if (stagedSettings) {
+        applyChildItemSettings(itemId, stagedSettings);
+      }
+      if (itemId) {
+        resolved.set(value, itemId);
+      }
+    }
+    if (itemId && !seen.has(itemId)) {
+      seen.add(itemId);
+      itemIds.push(itemId);
+    }
+  });
+  return { itemIds, resolved };
+}
+function adoptMaterializedChildItems(option2, section_id, resolved) {
+  let widget = null;
+  try {
+    widget = option2.getUIElement(section_id);
+  } catch (_error) {
+  }
+  if (!widget || !widget.node) {
+    return;
+  }
+  resolved.forEach((itemId, value) => {
+    if (itemId === value) {
+      return;
+    }
+    const item = findDynamicListItemByValue(widget.node, value);
+    if (item) {
+      setDynamicListItemValue(item, itemId);
+    }
+  });
+}
+function removeChildItemsOf(parentId, childType, ownerOption) {
+  getChildItemIds(parentId, childType, ownerOption).forEach(
+    (itemId) => {
+      uci.remove(FORKOP_UCI_PACKAGE, itemId);
+    }
+  );
+}
+function cleanupRemovedChildItems(section_id, typeName, keepValues, ownerOption, removeNested) {
+  const keep = new Set(normalizeDynamicListItems(keepValues));
+  getChildItemIds(section_id, typeName, ownerOption).forEach(
+    (itemId) => {
+      if (!keep.has(itemId)) {
+        removeNested?.(itemId);
+        uci.remove(FORKOP_UCI_PACKAGE, itemId);
+      }
+    }
+  );
+}
+function childItemNameCheck(dialog) {
+  return function(_itemId, value) {
+    return `${value || ""}`.trim() ? dialog.validateName?.(value) ?? true : _("Enter a display name");
+  };
+}
+function orderChildItemsByPosition(_ownerId, itemIds) {
+  itemIds.forEach((itemId, index) => {
+    uci.set(FORKOP_UCI_PACKAGE, itemId, "order", `${index}`);
+  });
+}
+function parentSectionIdForItem(itemId) {
+  return uci.get(FORKOP_UCI_PACKAGE, itemId, "section") || "";
+}
+
+// src/forkop/cbi/uci.ts
+function valuesToText(values) {
+  if (!values) {
+    return "";
+  }
+  if (Array.isArray(values)) {
+    return values.filter(Boolean).join("\n");
+  }
+  return values ? `${values}` : "";
+}
+function getUciSectionName(section) {
+  return section && section[".name"] ? section[".name"] : "";
+}
+function getUciSectionLabel(section) {
+  return section && section.label || getUciSectionName(section);
+}
+function plainObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+function getConfigListValues(section_id, key) {
+  return normalizeOptionValues(uci.get(FORKOP_UCI_PACKAGE, section_id, key));
+}
+function stringArraysEqual(left, right) {
+  const first = normalizeDynamicListItems(left);
+  const second = normalizeDynamicListItems(right);
+  return first.length === second.length && first.every((value, index) => value === second[index]);
+}
+function writeListOption(section_id, key, values) {
+  const normalized = normalizeOptionValues(values);
+  if (stringArraysEqual(getConfigListValues(section_id, key), normalized)) {
+    return;
+  }
+  if (normalized.length) {
+    uci.set(FORKOP_UCI_PACKAGE, section_id, key, normalized);
+  } else {
+    uci.unset(FORKOP_UCI_PACKAGE, section_id, key);
+  }
+}
+
+// src/forkop/cbi/choices.ts
+function keepUnavailableSectionChoice(option2, storedValue) {
+  const value = `${storedValue || ""}`.trim();
+  if (!value || (option2.keylist || []).includes(value)) {
+    return;
+  }
+  const target = (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).find(
+    (section) => getUciSectionName(section) === value
+  );
+  option2.value(
+    value,
+    _("%s (section is unavailable)").format(
+      target ? getUciSectionLabel(target) : value
+    )
+  );
+}
+function refreshOptionChoices(option2, choices) {
+  delete option2.keylist;
+  delete option2.vallist;
+  (choices || []).forEach((choice) => {
+    if (typeof choice === "object") {
+      option2.value(choice.value, choice.label);
+    } else {
+      option2.value(choice);
+    }
+  });
+}
+
 // src/validators/validateDomain.ts
 function asciiHostname(hostname) {
   if (!hostname || /[\s@:/]/.test(hostname) || hostname.startsWith(".") || hostname.endsWith(".")) {
@@ -13243,674 +13899,79 @@ function validateDNS(value, ipOnly = false) {
   };
 }
 
-// src/validators/validateOutboundJson.ts
-var SERVER_OUTBOUND_TYPES = /* @__PURE__ */ new Set([
-  "vless",
-  "vmess",
-  "trojan",
-  "shadowsocks",
-  "socks",
-  "http",
-  "hysteria2",
-  "hysteria"
-]);
-function invalid(message) {
-  return { valid: false, message };
+// src/forkop/cbi/dnsServers.ts
+var MULTIPLE_DNS_SENTINEL = "__forkop_multiple_dns__";
+function optionListValues(option2, section_id) {
+  const formValue = option2.formvalue(section_id);
+  return normalizeDynamicListItems(
+    formValue != null ? formValue : option2.cfgvalue(section_id)
+  );
 }
-function isPlainObject(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+function siblingValues(map, name, section_id) {
+  const lookup = map.lookupOption(name, section_id);
+  return lookup ? optionListValues(lookup[0], lookup[1]) : [];
 }
-function nonEmptyString(value) {
-  return typeof value === "string" && value.trim().length > 0;
-}
-function validateServerPort(value) {
-  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 65535;
-}
-function validateOutbounds(value) {
-  return Array.isArray(value) && value.length > 0 && value.every((item) => nonEmptyString(item));
-}
-function validateOutboundJson(value, usedTags = []) {
-  const normalized = `${value || ""}`.trim();
-  if (!normalized.length) {
-    return invalid(_("JSON outbound cannot be empty"));
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(normalized);
-  } catch {
-    return { valid: false, message: _("Invalid JSON format") };
-  }
-  if (!isPlainObject(parsed)) {
-    return invalid(_("JSON outbound must be a JSON object"));
-  }
-  if (!nonEmptyString(parsed.type)) {
-    return invalid(_("JSON outbound must contain a non-empty type field"));
-  }
-  if (parsed.type !== parsed.type.trim() || parsed.type !== parsed.type.toLowerCase()) {
-    return invalid(
-      _("JSON outbound type must be lowercase without surrounding whitespace")
-    );
-  }
-  if (!nonEmptyString(parsed.tag)) {
-    return invalid(_("JSON outbound must contain a non-empty tag field"));
-  }
-  const tag = parsed.tag.trim();
-  if (usedTags.some((usedTag) => `${usedTag || ""}`.trim() === tag)) {
-    return invalid(_("Duplicate JSON outbound tag"));
-  }
-  const type = parsed.type;
-  if ((type === "selector" || type === "urltest") && !validateOutbounds(parsed.outbounds)) {
-    return invalid(
-      _(
-        "Selector and URLTest outbounds must contain a non-empty outbounds array"
-      )
-    );
-  }
-  if (SERVER_OUTBOUND_TYPES.has(type)) {
-    if (!nonEmptyString(parsed.server)) {
-      return invalid(
-        _("Server outbound must contain a non-empty server field")
-      );
+function configureDnsServerList(option2, options = {}) {
+  option2.rmempty = false;
+  option2.validate = function(section_id, value) {
+    if (options.appliesTo && !options.appliesTo(this, section_id)) {
+      return true;
     }
-    if (!validateServerPort(parsed.server_port)) {
-      return invalid(
-        _("Server outbound must contain a numeric server_port from 1 to 65535")
-      );
+    const normalized = `${value || ""}`.trim();
+    if (!normalized) {
+      return optionListValues(this, section_id).length ? true : _("Add at least one DNS server");
     }
-  } else if (parsed.server_port !== void 0 && !validateServerPort(parsed.server_port)) {
-    return invalid(_("server_port must be a number from 1 to 65535"));
-  }
-  if (parsed.outbounds !== void 0 && !validateOutbounds(parsed.outbounds)) {
-    return invalid(_("outbounds must be a non-empty array of strings"));
-  }
-  if (parsed.detour !== void 0 && !nonEmptyString(parsed.detour)) {
-    return invalid(_("detour must be a non-empty string"));
-  }
-  return { valid: true, message: _("Valid") };
+    const validation = validateDNS(normalized, options.ipOnly);
+    return validation.valid ? true : validation.message;
+  };
 }
-
-// src/validators/validateProxyUrl.ts
-var NATIVE_PROXY_SCHEMES = /* @__PURE__ */ new Set([
-  "anytls",
-  "hysteria",
-  "hysteria2",
-  "hy2",
-  "http",
-  "http2",
-  "http3",
-  "https",
-  "mieru",
-  "mierus",
-  "naive+https",
-  "naive+quic",
-  "socks",
-  "socks4",
-  "socks4a",
-  "socks5",
-  "ss",
-  "trojan",
-  "tuic",
-  "vless",
-  "vmess"
-]);
-function validateProxyUrl(url) {
-  const trimmedUrl = url.trim();
-  const match = /^([a-z0-9+]+):\/\/(\S+)$/u.exec(trimmedUrl);
-  if (match && NATIVE_PROXY_SCHEMES.has(match[1]))
-    return { valid: true, message: _("Valid") };
-  return {
-    valid: false,
-    message: _("The pasted link is not supported. Try JSON outbound.")
+function configureDnsQueryMode(modeOption, dnsServerOptionName, options = {}) {
+  modeOption.value("parallel", _("Parallel"));
+  modeOption.value("sequential", _("Sequential"));
+  modeOption.default = "parallel";
+  modeOption.rmempty = false;
+  modeOption.retain = true;
+  modeOption.depends(
+    Object.assign({}, options.alsoDependsOn, {
+      [dnsServerOptionName]: MULTIPLE_DNS_SENTINEL
+    })
+  );
+  modeOption.checkDepends = function(section_id) {
+    const satisfied = Object.entries(options.alsoDependsOn || {}).every(
+      ([name, expected]) => {
+        const lookup = this.map.lookupOption(name, section_id);
+        return lookup ? lookup[0].formvalue(lookup[1]) === expected : false;
+      }
+    );
+    return satisfied && siblingValues(this.map, dnsServerOptionName, section_id).length > 1;
   };
 }
 
-// src/forkop/cbi/listValues.ts
-function normalizeDynamicListItems(value) {
-  if (!value) {
-    return [];
-  }
-  if (Array.isArray(value)) {
-    return value.map((item) => `${item || ""}`.trim()).filter((item) => item.length);
-  }
-  const normalized = `${value}`.trim();
-  return normalized.length ? [normalized] : [];
-}
-function nextDynamicListName(option2, formSectionId, savedItems, prefix) {
-  let current = null;
-  if (option2 && typeof option2.formvalue === "function") {
-    try {
-      current = option2.formvalue(formSectionId);
-    } catch (_error) {
-    }
-  }
-  const items = normalizeDynamicListItems(
-    current == null ? savedItems : current
-  );
-  return `${prefix} #${items.length + 1}`;
-}
-function uniqueDynamicListItems(value) {
-  const seen = /* @__PURE__ */ new Set();
-  const result = [];
-  normalizeDynamicListItems(value).forEach((item) => {
-    if (!seen.has(item)) {
-      seen.add(item);
-      result.push(item);
-    }
-  });
-  return result;
-}
-
-// src/forkop/cbi/itemSettings.ts
-var sharedChildPendingSettings = /* @__PURE__ */ new Map();
-function readItemSettingsMap(section_id, settingsKey) {
-  const raw = uci.get(FORKOP_UCI_PACKAGE, section_id, settingsKey);
-  if (!raw) {
-    return {};
-  }
-  try {
-    const parsed = JSON.parse(`${raw}`);
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
-  } catch (_error) {
-    return {};
-  }
-}
-function compactItemSettings(values) {
-  const result = {};
-  Object.entries(values || {}).forEach(([key, value]) => {
-    if (value === void 0 || value === null || value === "") {
-      return;
-    }
-    if (Array.isArray(value)) {
-      const items = value.map((item) => `${item || ""}`.trim()).filter((item) => item.length);
-      if (items.length) {
-        result[key] = items;
-      }
-      return;
-    }
-    result[key] = `${value}`;
-  });
-  return result;
-}
-function writeItemSettingsMap(section_id, settingsKey, map) {
-  const result = {};
-  Object.entries(map || {}).forEach(([item, settings]) => {
-    const compact = compactItemSettings(settings);
-    if (item && Object.keys(compact).length) {
-      result[item] = compact;
-    }
-  });
-  if (Object.keys(result).length) {
-    uci.set(
-      FORKOP_UCI_PACKAGE,
-      section_id,
-      settingsKey,
-      JSON.stringify(result)
-    );
-  } else {
-    uci.unset(FORKOP_UCI_PACKAGE, section_id, settingsKey);
-  }
-}
-function cleanupListItemSettings(section_id, settingsKey, values) {
-  if (!settingsKey) {
-    return;
-  }
-  const keep = new Set(normalizeDynamicListItems(values));
-  const map = readItemSettingsMap(section_id, settingsKey);
-  let changed = false;
-  Object.keys(map).forEach((item) => {
-    if (!keep.has(item)) {
-      delete map[item];
-      changed = true;
-    }
-  });
-  if (changed) {
-    writeItemSettingsMap(section_id, settingsKey, map);
-  }
-}
-function itemSettingsFlag(settings, key, defaultValue) {
-  const value = settings ? settings[key] : null;
-  if (value === void 0 || value === null || value === "") {
-    return Boolean(defaultValue);
-  }
-  return value === true || `${value}` === "1";
-}
-function settingValueEquals(left, right) {
-  const normalize = (value) => {
-    if (Array.isArray(value)) {
-      return JSON.stringify(value.map((item) => `${item || ""}`));
-    }
-    return value === void 0 || value === null ? "" : `${value}`;
-  };
-  return normalize(left) === normalize(right);
-}
-function readChildSettings(itemId, keys, defaults) {
-  const result = Object.assign({}, defaults || {});
-  keys.forEach((key) => {
-    const value = uci.get(FORKOP_UCI_PACKAGE, itemId, key);
-    if (value !== null && value !== void 0) {
-      result[key] = Array.isArray(value) ? value.slice() : value;
-    }
-  });
-  return result;
-}
-function changedSettings(base, next, keys) {
-  const result = {};
-  keys.forEach((key) => {
-    if (!settingValueEquals(base ? base[key] : null, next ? next[key] : null)) {
-      result[key] = next ? next[key] : null;
-    }
-  });
-  return result;
-}
-function hasChangedSettings(settings) {
-  return Object.keys(settings || {}).length > 0;
-}
-function childPendingSettingsStore(option2, section_id) {
-  if (option2.sharedPendingSettingsKey) {
-    const key = `${option2.sharedPendingSettingsKey}:${section_id}`;
-    if (!sharedChildPendingSettings.has(key)) {
-      sharedChildPendingSettings.set(key, {});
-    }
-    return sharedChildPendingSettings.get(key);
-  }
-  if (!option2.pendingChildSettings) {
-    option2.pendingChildSettings = {};
-  }
-  if (!option2.pendingChildSettings[section_id]) {
-    option2.pendingChildSettings[section_id] = {};
-  }
-  return option2.pendingChildSettings[section_id];
-}
-function pendingChildSettings(option2, section_id, value, defaults) {
-  const itemValue = `${value || ""}`.trim();
-  const store2 = childPendingSettingsStore(option2, section_id);
-  if (!store2[itemValue]) {
-    store2[itemValue] = Object.assign({}, defaults || {});
-  }
-  return store2[itemValue];
-}
-function clearChildPendingSettings(option2, section_id) {
-  if (option2.sharedPendingSettingsKey) {
-    sharedChildPendingSettings.delete(
-      `${option2.sharedPendingSettingsKey}:${section_id}`
-    );
-    return;
-  }
-  if (option2.pendingChildSettings) {
-    delete option2.pendingChildSettings[section_id];
-  }
-}
-
-// src/forkop/cbi/listItems.ts
-function itemValueInput(item) {
-  const hidden = item ? item.querySelector('input[type="hidden"]') : null;
-  return hidden && hidden.parentNode === item ? hidden : null;
-}
-function findDynamicListItemByValue(dl, value) {
-  const stringValue = `${value}`;
-  const items = dl.querySelectorAll(".item");
-  for (let i = 0; i < items.length; i += 1) {
-    const hidden = itemValueInput(items[i]);
-    if (hidden && hidden.value === stringValue) {
-      return items[i];
-    }
-  }
-  return null;
-}
-function dynamicListItemCurrentValue(item, fallback) {
-  const hidden = itemValueInput(item);
-  return hidden ? hidden.value : fallback;
-}
-function dynamicListItemValues(dl) {
-  return Array.from(dl.querySelectorAll(".item")).map((item) => {
-    const hidden = itemValueInput(item);
-    return hidden ? hidden.value : null;
-  }).filter((value) => value != null);
-}
-function updateDynamicListItemLabel(item, label) {
-  const labelNode = item ? item.querySelector(".fkp-dynlist-label") : null;
-  if (labelNode) {
-    labelNode.textContent = `${label || ""}`;
-  }
-}
-function addDynamicListItem(widget, value, text) {
-  if (!widget || !widget.node) {
-    return null;
-  }
-  const normalized = `${value || ""}`.trim();
-  if (!normalized) {
-    return null;
-  }
-  const options = widget.options || {};
-  if (typeof options.hasEquivalentValue === "function" && options.hasEquivalentValue(normalized, widget.node)) {
-    widget.dispatchCbiDynlistChange(widget.node, normalized);
-    return null;
-  }
-  widget.addItem(widget.node, normalized, text || null, false);
-  widget.dispatchCbiDynlistChange(widget.node, normalized);
-  updateButtonAddDynamicListLayout(widget.node, options.addButtonLabel);
-  return findDynamicListItemByValue(widget.node, normalized);
-}
-function updateButtonAddDynamicListLayout(dl, label) {
-  const addButton = dl ? dl.querySelector(".add-item > .fkp-button-add-control") || dl.querySelector(".add-item > .cbi-button-add") : null;
-  if (!addButton) {
-    return;
-  }
-  if (!addButton.classList.contains("fkp-button-add-control")) {
-    addButton.className = "cbi-dropdown fkp-button-add-control";
-    addButton.replaceChildren(
-      E(
-        "ul",
-        { tabindex: "-1" },
-        E("li", { placeholder: "", selected: "", display: "0" })
-      ),
-      E("span", { "aria-hidden": "true" }, "\u200B")
-    );
-  }
-  const buttonLabel = label || "+";
-  addButton.querySelector("li").textContent = buttonLabel;
-  addButton.setAttribute("role", "button");
-  addButton.setAttribute("tabindex", "0");
-  addButton.setAttribute("aria-label", buttonLabel);
-  addButton.setAttribute(
-    "aria-disabled",
-    dl.hasAttribute("disabled") ? "true" : "false"
-  );
-}
-function setDynamicListItemValue(item, value) {
-  const hidden = itemValueInput(item);
-  if (hidden) {
-    hidden.value = `${value || ""}`;
-  }
-}
-function validateUniqueDynamicListItemName(widget, itemNode, value) {
-  const currentLabel = itemNode?.querySelector(".fkp-dynlist-label");
-  return Array.from(
-    widget?.node?.querySelectorAll(".fkp-dynlist-label") || []
-  ).some(
-    (label) => label !== currentLabel && `${label.textContent || ""}`.trim() === `${value || ""}`.trim()
-  ) ? _("Name must be unique") : true;
-}
-
-// src/forkop/cbi/childItems.ts
-var SECTION_ID_PREFIXES = {
-  fallback_group: "group",
-  fallback_level: "level",
-  section: "section",
-  section_interface: "iface",
-  server: "server",
-  server_client: "client",
-  subscription_url: "sub",
-  tunnel: "tunnel",
-  tunnel_peer: "peer",
-  urltest: "urltest"
-};
-var issuedSectionIds = /* @__PURE__ */ new Set();
-function nextSectionId(typeName) {
-  const prefix = SECTION_ID_PREFIXES[typeName] || typeName;
-  for (let i = 0; i < 100; i += 1) {
-    const id = `${prefix}_${Math.floor(Math.random() * 16777216).toString(16).padStart(6, "0")}`;
-    if (!issuedSectionIds.has(id) && !uci.get(FORKOP_UCI_PACKAGE, id)) {
-      issuedSectionIds.add(id);
-      return id;
-    }
-  }
-  return `${prefix}_${Date.now().toString(16)}`;
-}
-function childOwnerOption(ownerOption) {
-  return ownerOption || "section";
-}
-function childItemOrder(item) {
-  const value = item ? item.order : null;
-  const parsed = Number.parseInt(value == null ? "0" : `${value}`, 10);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-function getChildItemIds(section_id, typeName, ownerOption) {
-  const ownerKey = childOwnerOption(ownerOption);
-  const items = uci.sections(FORKOP_UCI_PACKAGE, typeName).filter((item) => item[ownerKey] === section_id);
-  if (["fallback_level", "tunnel", "tunnel_peer"].includes(typeName)) {
-    items.sort((a, b) => {
-      const orderDiff = childItemOrder(a) - childItemOrder(b);
-      if (orderDiff !== 0) {
-        return orderDiff;
-      }
-      return `${a[".name"] || ""}`.localeCompare(`${b[".name"] || ""}`);
-    });
-  }
-  return items.map((item) => item[".name"]).filter(Boolean);
-}
-function childItemValue(itemId, valueOption, fallback) {
-  if (!valueOption) {
-    return itemId;
-  }
-  const value = uci.get(FORKOP_UCI_PACKAGE, itemId, valueOption);
-  return value == null || value === "" ? fallback || itemId : `${value}`;
-}
-function childItemInputValue(section_id, value, typeName, valueOption, ownerOption) {
-  const itemId = `${value || ""}`;
-  if (isExistingChildItem(section_id, itemId, typeName, ownerOption)) {
-    return childItemValue(itemId, valueOption, itemId);
-  }
-  return itemId;
-}
-function isExistingChildItem(section_id, itemId, typeName, ownerOption) {
-  const ownerKey = childOwnerOption(ownerOption);
-  return Boolean(
-    itemId && uci.get(FORKOP_UCI_PACKAGE, itemId, ".type") === typeName && uci.get(FORKOP_UCI_PACKAGE, itemId, ownerKey) === section_id
-  );
-}
-function createChildItem(section_id, options, inputValue) {
-  const rawValue = `${inputValue || ""}`.trim();
-  if (isExistingChildItem(
-    section_id,
-    rawValue,
-    options.typeName,
-    options.ownerOption
-  )) {
-    return {
-      value: rawValue,
-      text: options.valueOption ? childItemValue(rawValue, options.valueOption, rawValue) : rawValue,
-      created: false
-    };
-  }
-  const requestedId = typeof options.createId === "function" ? `${options.createId(rawValue, section_id) || ""}`.trim() : "";
-  const itemId = requestedId && uci.add(FORKOP_UCI_PACKAGE, options.typeName, requestedId) || requestedId || uci.add(FORKOP_UCI_PACKAGE, options.typeName);
-  uci.set(
-    FORKOP_UCI_PACKAGE,
-    itemId,
-    childOwnerOption(options.ownerOption),
-    section_id
-  );
-  if (options.valueOption) {
-    uci.set(FORKOP_UCI_PACKAGE, itemId, options.valueOption, rawValue);
-  }
-  if (options.defaults && typeof options.defaults === "object") {
-    Object.entries(options.defaults).forEach(([key, value]) => {
-      value = typeof value === "function" ? value(rawValue, section_id, itemId) : value;
-      if (value !== void 0 && value !== null && value !== "") {
-        uci.set(
-          FORKOP_UCI_PACKAGE,
-          itemId,
-          key,
-          Array.isArray(value) ? value.map((item) => `${item || ""}`).filter(Boolean) : `${value}`
-        );
-      }
-    });
-  }
-  return {
-    value: itemId,
-    text: options.valueOption ? rawValue : itemId,
-    created: true
-  };
-}
-function applyChildItemSettings(itemId, settings) {
-  Object.entries(settings || {}).forEach(([key, value]) => {
-    if (!key || key.charAt(0) === ".") {
-      return;
-    }
-    if (settingValueEquals(uci.get(FORKOP_UCI_PACKAGE, itemId, key), value)) {
-      return;
-    }
-    if (value === void 0 || value === null || value === "") {
-      uci.unset(FORKOP_UCI_PACKAGE, itemId, key);
-    } else if (Array.isArray(value)) {
-      const values = value.map((item) => `${item || ""}`.trim()).filter((item) => item.length);
-      if (values.length) {
-        uci.set(FORKOP_UCI_PACKAGE, itemId, key, values);
-      } else {
-        uci.unset(FORKOP_UCI_PACKAGE, itemId, key);
-      }
-    } else {
-      uci.set(FORKOP_UCI_PACKAGE, itemId, key, `${value}`);
-    }
-  });
-}
-function materializeChildItems(section_id, options, inputValue) {
-  const itemIds = [];
-  const seen = /* @__PURE__ */ new Set();
-  const resolved = /* @__PURE__ */ new Map();
-  normalizeDynamicListItems(inputValue).forEach((value) => {
-    let itemId = resolved.get(value);
-    if (itemId == null) {
-      const createdItem = createChildItem(section_id, options, value);
-      itemId = createdItem.value;
-      const stagedSettings = createdItem.created && typeof options.stagedSettings === "function" ? options.stagedSettings(value, itemId, createdItem.created) : null;
-      if (stagedSettings) {
-        applyChildItemSettings(itemId, stagedSettings);
-      }
-      if (itemId) {
-        resolved.set(value, itemId);
-      }
-    }
-    if (itemId && !seen.has(itemId)) {
-      seen.add(itemId);
-      itemIds.push(itemId);
-    }
-  });
-  return { itemIds, resolved };
-}
-function adoptMaterializedChildItems(option2, section_id, resolved) {
-  let widget = null;
-  try {
-    widget = option2.getUIElement(section_id);
-  } catch (_error) {
-  }
-  if (!widget || !widget.node) {
-    return;
-  }
-  resolved.forEach((itemId, value) => {
-    if (itemId === value) {
-      return;
-    }
-    const item = findDynamicListItemByValue(widget.node, value);
-    if (item) {
-      setDynamicListItemValue(item, itemId);
-    }
-  });
-}
-function cleanupFallbackLevelsForGroup(groupId) {
-  getChildItemIds(groupId, "fallback_level", "group").forEach(
-    (levelId) => {
-      uci.remove(FORKOP_UCI_PACKAGE, levelId);
-    }
-  );
-}
-function cleanupTunnelPeers(tunnelId) {
-  getChildItemIds(tunnelId, "tunnel_peer", "tunnel").forEach(
-    (peerId) => {
-      uci.remove(FORKOP_UCI_PACKAGE, peerId);
-    }
-  );
-}
-function cleanupRemovedChildItems(section_id, typeName, keepValues, ownerOption) {
-  const keep = new Set(normalizeDynamicListItems(keepValues));
-  getChildItemIds(section_id, typeName, ownerOption).forEach(
-    (itemId) => {
-      if (!keep.has(itemId)) {
-        if (typeName === "fallback_group") {
-          cleanupFallbackLevelsForGroup(itemId);
-        } else if (typeName === "tunnel") {
-          cleanupTunnelPeers(itemId);
-        }
-        uci.remove(FORKOP_UCI_PACKAGE, itemId);
-      }
-    }
-  );
-}
-function parentSectionIdForItem(itemId) {
-  return uci.get(FORKOP_UCI_PACKAGE, itemId, "section") || "";
-}
-
-// src/forkop/cbi/uci.ts
-function valuesToText(values) {
-  if (!values) {
-    return "";
-  }
-  if (Array.isArray(values)) {
-    return values.filter(Boolean).join("\n");
-  }
-  return values ? `${values}` : "";
-}
-function getUciSectionName(section) {
-  return section && section[".name"] ? section[".name"] : "";
-}
-function getUciSectionLabel(section) {
-  return section && section.label || getUciSectionName(section);
-}
-function plainObject(value) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
-}
-function getConfigListValues(section_id, key) {
-  return normalizeOptionValues(uci.get(FORKOP_UCI_PACKAGE, section_id, key));
-}
-function stringArraysEqual(left, right) {
-  const first = normalizeDynamicListItems(left);
-  const second = normalizeDynamicListItems(right);
-  return first.length === second.length && first.every((value, index) => value === second[index]);
-}
-function writeListOption(section_id, key, values) {
-  const normalized = normalizeOptionValues(values);
-  if (stringArraysEqual(getConfigListValues(section_id, key), normalized)) {
-    return;
-  }
-  if (normalized.length) {
-    uci.set(FORKOP_UCI_PACKAGE, section_id, key, normalized);
-  } else {
-    uci.unset(FORKOP_UCI_PACKAGE, section_id, key);
-  }
-}
-
-// src/forkop/cbi/choices.ts
-function keepUnavailableSectionChoice(option2, storedValue) {
-  const value = `${storedValue || ""}`.trim();
-  if (!value || (option2.keylist || []).includes(value)) {
-    return;
-  }
-  const target = (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).find(
-    (section) => getUciSectionName(section) === value
-  );
-  option2.value(
-    value,
-    _("%s (section is unavailable)").format(
-      target ? getUciSectionLabel(target) : value
-    )
-  );
-}
-function refreshOptionChoices(option2, choices) {
-  delete option2.keylist;
-  delete option2.vallist;
-  (choices || []).forEach((choice) => {
-    if (typeof choice === "object") {
-      option2.value(choice.value, choice.label);
-    } else {
-      option2.value(choice);
-    }
-  });
-}
-
-// src/forkop/cbi/constants.ts
+// src/forkop/cbi/grid.ts
 var GRID_SWITCH_COLUMN_WIDTH = "6rem";
 var GRID_KIND_COLUMN_WIDTH = "8rem";
+function getRuleEditButtonText() {
+  const label = _("Edit rule action");
+  return label === "Edit rule action" ? "Edit" : label;
+}
+function loadVisibleTableOptions(sectionRef) {
+  const tasks = [];
+  sectionRef.cfgsections().forEach((sectionId) => {
+    sectionRef.children.forEach((option2) => {
+      if (option2.disable || option2.modalonly) {
+        return;
+      }
+      tasks.push(
+        Promise.resolve(option2.load.call(option2, sectionId)).then(
+          (value) => {
+            option2.cfgvalue(sectionId, value);
+          }
+        )
+      );
+    });
+  });
+  return Promise.all(tasks);
+}
 
 // src/forkop/cbi/dynamicList.ts
 var CONNECTIONS_DYNLIST_STYLE_ID = "fkp-connections-dynlist-styles";
@@ -14145,6 +14206,46 @@ var ButtonAddSettingsUIDynamicList = SettingsUIDynamicList.extend({
   }
 });
 var SettingsDynamicList = form.DynamicList.extend({
+  // ------------------------------------------------ what one entry is called
+  //
+  // The text an entry shows and is looked up by. A saved entry is a child
+  // section id and shows what that section stores under childValueOption; a
+  // draft has no section yet and is its own text, which its dialog may have
+  // changed - a rename moves the list value with it, so the name the dialog
+  // holds is where the draft's settings are.
+  //
+  // A list with no childValueOption stores nothing to show: its entry is the
+  // section id itself, and reading a staged name here would make two tunnels
+  // called the same thing look like one entry.
+  inputValueForItem(ownerId, value) {
+    if (!this.childType || !this.childValueOption) {
+      return `${value || ""}`.trim();
+    }
+    const inputValue = childItemInputValue(
+      ownerId,
+      value,
+      this.childType,
+      this.childValueOption,
+      this.ownerOption
+    );
+    const staged = childPendingSettingsStore(this, ownerId)[inputValue];
+    return staged && staged.name ? `${staged.name}` : inputValue;
+  },
+  // What an entry's dialog has taken but not written yet, handed to the child
+  // section the moment that section is created.
+  stagedChildSettings(ownerId, value) {
+    const staged = childPendingSettingsStore(this, ownerId)[this.inputValueForItem(ownerId, value)];
+    return staged ? Object.assign({}, staged) : null;
+  },
+  clearStagedChildSettings(ownerId) {
+    clearChildPendingSettings(this, ownerId);
+  },
+  // Every entry the user has started has something to configure. A list whose
+  // entry has to be well formed first - a subscription is an address before it
+  // is anything - says so for itself.
+  hasItemSettings(ownerId, value) {
+    return this.inputValueForItem(ownerId, value).length > 0;
+  },
   childOwner(section_id) {
     return typeof this.childOwnerId === "function" ? `${this.childOwnerId(section_id) || ""}`.trim() : section_id;
   },
@@ -14201,40 +14302,9 @@ var SettingsDynamicList = form.DynamicList.extend({
         }
         return text;
       },
-      hasSettings: (itemValue) => {
-        if (typeof this.hasItemSettings === "function") {
-          return this.hasItemSettings(
-            this.childOwner(section_id),
-            `${itemValue}`
-          );
-        }
-        if (this.childType) {
-          return isExistingChildItem(
-            this.childOwner(section_id),
-            `${itemValue}`,
-            this.childType,
-            this.ownerOption
-          );
-        }
-        return true;
-      },
+      hasSettings: (itemValue) => this.hasItemSettings(this.childOwner(section_id), `${itemValue}`),
       hasEquivalentValue: (itemValue, dl) => {
-        const inputValueForItem = (value2) => {
-          const ownerId = this.childOwner(section_id);
-          if (typeof this.inputValueForItem === "function") {
-            return `${this.inputValueForItem(ownerId, `${value2 || ""}`) || ""}`.trim();
-          }
-          if (this.childType && this.childValueOption) {
-            return childItemInputValue(
-              ownerId,
-              `${value2 || ""}`,
-              this.childType,
-              this.childValueOption,
-              this.ownerOption
-            );
-          }
-          return `${value2 || ""}`.trim();
-        };
+        const inputValueForItem = (value2) => `${this.inputValueForItem(this.childOwner(section_id), `${value2 || ""}`) || ""}`.trim();
         const normalized = inputValueForItem(itemValue);
         return Boolean(
           normalized && dynamicListItemValues(dl).some(
@@ -14281,7 +14351,7 @@ var SettingsDynamicList = form.DynamicList.extend({
           ownerOption: this.ownerOption,
           createId: this.createId,
           defaults: this.childDefaults,
-          stagedSettings: typeof this.stagedChildSettings === "function" ? (itemValue, itemId, created) => this.stagedChildSettings(ownerId, itemValue, itemId, created) : null
+          stagedSettings: (itemValue) => this.stagedChildSettings(ownerId, itemValue)
         },
         value
       );
@@ -14290,16 +14360,15 @@ var SettingsDynamicList = form.DynamicList.extend({
         ownerId,
         this.childType,
         itemIds,
-        this.ownerOption
+        this.ownerOption,
+        this.removeNestedChildItems
       );
       if (typeof this.afterMaterializeChildItems === "function") {
         this.afterMaterializeChildItems(ownerId, itemIds);
       }
       uci.unset(FORKOP_UCI_PACKAGE, section_id, this.option);
       cleanupListItemSettings(ownerId, this.settingsKey, itemIds);
-      if (typeof this.clearStagedChildSettings === "function") {
-        this.clearStagedChildSettings(ownerId);
-      }
+      this.clearStagedChildSettings(ownerId);
       return;
     }
     const result = form.DynamicList.prototype.write.call(
@@ -14317,7 +14386,8 @@ var SettingsDynamicList = form.DynamicList.extend({
           this.childOwner(section_id),
           this.childType,
           [],
-          this.ownerOption
+          this.ownerOption,
+          this.removeNestedChildItems
         );
       }
       uci.unset(FORKOP_UCI_PACKAGE, section_id, this.option);
@@ -14749,7 +14819,7 @@ function configureTextareaOption(option2, analyzer) {
 }
 
 // src/forkop/tabs/sections/validators.ts
-function validateRegex(_section_id, value) {
+function validateRegex(value) {
   if (!value || !value.length) {
     return true;
   }
@@ -14760,7 +14830,7 @@ function validateRegex(_section_id, value) {
     return _("Invalid regular expression");
   }
 }
-function validateKeyword(_section_id, value) {
+function validateKeyword(value) {
   if (!value || !value.length) {
     return true;
   }
@@ -14768,29 +14838,6 @@ function validateKeyword(_section_id, value) {
     return _("Keyword must not contain spaces or commas");
   }
   return true;
-}
-function isSingBoxDuration(value) {
-  return /^(?=.*[1-9])([0-9]+(?:\.[0-9]+)?(?:ns|us|ms|s|m|h|d))+$/.test(value);
-}
-function validateOptionalSingBoxDuration(value) {
-  const normalized = value ? `${value}`.trim() : "";
-  if (!normalized.length) {
-    return true;
-  }
-  if (isSingBoxDuration(normalized)) {
-    return true;
-  }
-  return _("Use sing-box duration format like 1d, 12h or 30m");
-}
-function validateRequiredSingBoxDuration(value) {
-  const normalized = value ? `${value}`.trim() : "";
-  if (!normalized.length) {
-    return _("Use sing-box duration format like 1d, 12h or 30m");
-  }
-  if (isSingBoxDuration(normalized)) {
-    return true;
-  }
-  return _("Use sing-box duration format like 1d, 12h or 30m");
 }
 
 // src/forkop/tabs/sections/conditions.ts
@@ -14876,7 +14923,7 @@ function analyzeDomainSuffixText(value) {
         return validateDomainCondition(body);
       }
       if (prefix === "keyword") {
-        const validation2 = validateKeyword(null, body);
+        const validation2 = validateKeyword(body);
         return validation2 === true ? { valid: true, message: _("Valid") } : { valid: false, message: validation2 };
       }
       if (/[,\s]/.test(body)) {
@@ -14885,7 +14932,7 @@ function analyzeDomainSuffixText(value) {
           message: _("Regular expression must not contain spaces or commas")
         };
       }
-      const validation = validateRegex(null, body);
+      const validation = validateRegex(body);
       return validation === true ? { valid: true, message: _("Valid") } : { valid: false, message: validation };
     },
     _("At least one valid domain must be specified."),
@@ -14908,16 +14955,18 @@ function domainTextValuesWithPrefix(section_id, key, prefix) {
     (value) => prefix ? `${prefix}:${value}` : value
   );
 }
-function uniqueDomainTextValues(values) {
-  const seen = /* @__PURE__ */ new Set();
-  return values.filter((value) => {
+function firstSpellingOf(seen) {
+  return (value) => {
     const key = `${value}`.toLowerCase();
     if (!key || seen.has(key)) {
       return false;
     }
     seen.add(key);
     return true;
-  });
+  };
+}
+function uniqueDomainTextValues(values) {
+  return values.filter(firstSpellingOf(/* @__PURE__ */ new Set()));
 }
 function appendUniqueDomainTextValues(textValue, values) {
   const originalText = typeof textValue === "string" ? textValue : "";
@@ -14926,14 +14975,9 @@ function appendUniqueDomainTextValues(textValue, values) {
       (value) => `${value}`.toLowerCase()
     )
   );
-  const additions = uniqueDomainTextValues(values).filter((value) => {
-    const key = `${value}`.toLowerCase();
-    if (!key || seen.has(key)) {
-      return false;
-    }
-    seen.add(key);
-    return true;
-  });
+  const additions = uniqueDomainTextValues(values).filter(
+    firstSpellingOf(seen)
+  );
   if (!additions.length) {
     return originalText;
   }
@@ -14982,6 +15026,21 @@ function validatePortCondition(_section_id, value) {
   }
   return true;
 }
+function configureConditionListStorage(o, key) {
+  o.load = function(section_id) {
+    const values = getConfigListValues(section_id, key);
+    if (values.length) {
+      return values;
+    }
+    const legacyText = uci.get(FORKOP_UCI_PACKAGE, section_id, `${key}_text`);
+    return legacyText ? parseValueList(`${legacyText}`) : [];
+  };
+  o.write = function(section_id, value) {
+    writeListOption(section_id, key, value);
+    uci.unset(FORKOP_UCI_PACKAGE, section_id, `${key}_text`);
+    uci.unset(FORKOP_UCI_PACKAGE, section_id, `${key}_text_mode`);
+  };
+}
 function addDynamicConditionField(section, config) {
   const o = section.taboption(
     "conditions",
@@ -14997,23 +15056,7 @@ function addDynamicConditionField(section, config) {
   if (config.dynamicValidate) {
     o.validate = config.dynamicValidate;
   }
-  o.load = function(section_id) {
-    const values = getConfigListValues(section_id, config.key);
-    if (values.length) {
-      return values;
-    }
-    const legacyText = uci.get(
-      FORKOP_UCI_PACKAGE,
-      section_id,
-      `${config.key}_text`
-    );
-    return legacyText ? parseValueList(`${legacyText}`) : [];
-  };
-  o.write = function(section_id, value) {
-    writeListOption(section_id, config.key, value);
-    uci.unset(FORKOP_UCI_PACKAGE, section_id, `${config.key}_text`);
-    uci.unset(FORKOP_UCI_PACKAGE, section_id, `${config.key}_text_mode`);
-  };
+  configureConditionListStorage(o, config.key);
   return o;
 }
 function addLocalDeviceSubnetDynamicField(section, config) {
@@ -15036,23 +15079,7 @@ function addLocalDeviceSubnetDynamicField(section, config) {
     const validation = validateSubnet(value);
     return validation.valid ? true : validation.message;
   };
-  o.load = function(section_id) {
-    const values = getConfigListValues(section_id, config.key);
-    if (values.length) {
-      return values;
-    }
-    const legacyText = uci.get(
-      FORKOP_UCI_PACKAGE,
-      section_id,
-      `${config.key}_text`
-    );
-    return legacyText ? parseValueList(`${legacyText}`) : [];
-  };
-  o.write = function(section_id, value) {
-    writeListOption(section_id, config.key, value);
-    uci.unset(FORKOP_UCI_PACKAGE, section_id, `${config.key}_text`);
-    uci.unset(FORKOP_UCI_PACKAGE, section_id, `${config.key}_text_mode`);
-  };
+  configureConditionListStorage(o, config.key);
   o.renderWidget = function(section_id, _option_index, cfgvalue) {
     return createLocalDeviceDynamicListWidget(this, section_id, cfgvalue);
   };
@@ -15079,8 +15106,6 @@ function addTextConditionField(section, config) {
       const analysis = analyze(value);
       return analysis.valid ? true : `${analysis.message}`;
     };
-  } else if (config.textValidate) {
-    o.validate = config.textValidate;
   }
   configureTextareaOption(o, config.textAnalyze);
   o.load = function(section_id) {
@@ -15140,25 +15165,6 @@ var JSON_ENDPOINT_PLACEHOLDER = [
   '  "private_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="',
   "}"
 ].join("\n");
-var RESERVED_RUNTIME_TAGS = /* @__PURE__ */ new Set([
-  "dns-server",
-  "fakeip-server",
-  "bootstrap-dns-server",
-  "dnsmasq-server",
-  "hosts-server",
-  "fakeip-dns-rule-tag",
-  "fakeip-ruleset-dns-rule-tag",
-  "service-fakeip-dns-rule-tag",
-  "tproxy-in",
-  "tproxy6-in",
-  "dns-in",
-  "source-dns-in",
-  "system-in",
-  "system6-in",
-  "system-dns-in",
-  "service-mixed-in",
-  "direct-out"
-]);
 var CONNECTIONS_BLOCKED_INTERFACES = [
   "br-lan",
   "eth0",
@@ -15176,6 +15182,33 @@ var CONNECTION_OUTBOUND_SOURCES = [
   "tunnels",
   "outbound_jsons"
 ];
+
+// src/validators/validateUrl.ts
+function validateUrl(url, protocols = ["http:", "https:"]) {
+  if (!url.length) {
+    return { valid: false, message: _("Invalid URL format") };
+  }
+  const hasValidProtocol = protocols.some((p) => url.indexOf(p + "//") === 0);
+  if (!hasValidProtocol)
+    return {
+      valid: false,
+      message: _("URL must use one of the following protocols:") + " " + protocols.join(", ")
+    };
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.startsWith("[") ? parsed.hostname.slice(1, -1) : parsed.hostname;
+    if ((isValidHost(host) || host === "localhost") && (!parsed.port || isValidPort(parsed.port))) {
+      return { valid: true, message: _("Valid") };
+    }
+  } catch (_e) {
+    return { valid: false, message: _("Invalid URL format") };
+  }
+  return { valid: false, message: _("Invalid URL format") };
+}
+function validateUrlField(value) {
+  const validation = validateUrl(`${value || ""}`.trim());
+  return validation.valid ? true : validation.message;
+}
 
 // src/forkop/cbi/modal.ts
 function modalOptionFormValue(modalMap, section_id, optionName) {
@@ -15478,14 +15511,14 @@ function missingConnectionOutbound(modalMap, section_id) {
     ).length > 0
   );
 }
-function isOutboundDetourTargetSection(section, currentSectionId) {
+function isDetourTargetSection(section, currentSectionId) {
   const sectionName = getUciSectionName(section);
   const action = section && section.action || "";
-  return sectionName && sectionName !== currentSectionId && section.enabled !== "0" && ["connection", "proxy", "outbound", "vpn"].includes(action);
+  return !!sectionName && sectionName !== currentSectionId && section.enabled !== "0" && DETOUR_TARGET_ACTIONS.includes(action);
 }
 function getOutboundDetourTargetSections(currentSectionId) {
   return (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).filter(
-    (section) => isOutboundDetourTargetSection(section, currentSectionId)
+    (section) => isDetourTargetSection(section, currentSectionId)
   );
 }
 function getDefaultOutboundDetourSection(currentSectionId) {
@@ -15522,18 +15555,10 @@ function tailscaleDetourTag(sectionId) {
   );
   return target ? getOutboundTagBySection(getUciSectionLabel(target)) : sectionId;
 }
-function isDnsDetourTargetSection(section, currentSectionId) {
-  const sectionName = getUciSectionName(section);
-  const action = section && section.action || "";
-  if (!sectionName || sectionName === currentSectionId || section.enabled === "0") {
-    return false;
-  }
-  return ["connection", "proxy", "outbound", "vpn"].includes(action);
-}
 function refreshDnsDetourSectionOptionValues(option2, sectionId) {
   option2.keylist = [];
   option2.vallist = [];
-  (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).filter((section) => isDnsDetourTargetSection(section, sectionId)).forEach((targetSection) => {
+  (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).filter((section) => isDetourTargetSection(section, sectionId)).forEach((targetSection) => {
     option2.value(
       getUciSectionName(targetSection),
       getUciSectionLabel(targetSection)
@@ -15565,16 +15590,8 @@ function dependsOnRuleConditions(option2) {
 function safeRuntimeSectionName(section_id) {
   return /^[A-Za-z0-9_-]+$/.test(`${section_id || ""}`);
 }
-function isDownloadThroughTargetSection(section, currentSectionId) {
-  const sectionName = getUciSectionName(section);
-  const action = section && section.action || "";
-  if (!sectionName || sectionName === currentSectionId || section.enabled === "0") {
-    return false;
-  }
-  return ["connection", "proxy", "outbound", "vpn"].includes(action);
-}
 function subscriptionDownloadTargetChoices(section_id) {
-  return (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).filter((section) => isDownloadThroughTargetSection(section, section_id)).map((section) => ({
+  return (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).filter((section) => isDetourTargetSection(section, section_id)).map((section) => ({
     value: getUciSectionName(section),
     label: getUciSectionLabel(section)
   }));
@@ -15601,29 +15618,6 @@ function validatePath(value) {
       'Invalid path format. Path must start with "/" and contain valid characters'
     )
   };
-}
-
-// src/validators/validateUrl.ts
-function validateUrl(url, protocols = ["http:", "https:"]) {
-  if (!url.length) {
-    return { valid: false, message: _("Invalid URL format") };
-  }
-  const hasValidProtocol = protocols.some((p) => url.indexOf(p + "//") === 0);
-  if (!hasValidProtocol)
-    return {
-      valid: false,
-      message: _("URL must use one of the following protocols:") + " " + protocols.join(", ")
-    };
-  try {
-    const parsed = new URL(url);
-    const host = parsed.hostname.startsWith("[") ? parsed.hostname.slice(1, -1) : parsed.hostname;
-    if ((isValidHost(host) || host === "localhost") && (!parsed.port || isValidPort(parsed.port))) {
-      return { valid: true, message: _("Valid") };
-    }
-  } catch (_e) {
-    return { valid: false, message: _("Invalid URL format") };
-  }
-  return { valid: false, message: _("Invalid URL format") };
 }
 
 // src/forkop/tabs/sections/subscriptions/overrides.ts
@@ -15715,7 +15709,7 @@ function showSubscriptionOverrideModal(parentMap, itemId) {
     if (!pattern) {
       return _("Enter a regular expression before =>");
     }
-    const patternError = validateRegex(null, pattern);
+    const patternError = validateRegex(pattern);
     if (patternError !== true) {
       return patternError;
     }
@@ -15903,10 +15897,6 @@ function validateSubscriptionUrlEntry(_section_id, value) {
 // src/forkop/tabs/sections/tunnels/model.ts
 var AMNEZIA_COUNT_FIELDS = ["jc", "jmin", "jmax"];
 var AMNEZIA_PADDING_FIELDS = ["s1", "s2", "s3", "s4"];
-var AMNEZIA_INTEGER_FIELDS = [
-  ...AMNEZIA_COUNT_FIELDS,
-  ...AMNEZIA_PADDING_FIELDS
-];
 var AMNEZIA_SIGNATURE_FIELDS = ["i1", "i2", "i3", "i4", "i5"];
 var AMNEZIA_RANGE_FIELDS = [
   "h1",
@@ -15921,11 +15911,7 @@ var AMNEZIA_RANGE_FIELDS = [
   "max_handshake_attempts"
 ];
 var AMNEZIA_STRING_FIELDS = [
-  "i1",
-  "i2",
-  "i3",
-  "i4",
-  "i5",
+  ...AMNEZIA_SIGNATURE_FIELDS,
   "header_protection_key"
 ];
 var AMNEZIA_FIELDS = [
@@ -15981,14 +15967,20 @@ var ONE_SIDED_AMNEZIA_DEFAULTS = {
   keepalive_timeout: "5-15",
   max_handshake_attempts: "15-20"
 };
-var WIREGUARD_PEER_FIELDS = /* @__PURE__ */ new Set([
-  "address",
-  "port",
-  "public_key",
-  "pre_shared_key",
-  "allowed_ips",
-  "persistent_keepalive_interval"
-]);
+function defaultWireGuardPeerSettings() {
+  return {
+    address: "",
+    port: "",
+    public_key: "",
+    pre_shared_key: "",
+    allowed_ips: [],
+    persistent_keepalive_interval: ""
+  };
+}
+function wireGuardPeerSettingsKeys() {
+  return Object.keys(defaultWireGuardPeerSettings());
+}
+var WIREGUARD_PEER_FIELDS = new Set(wireGuardPeerSettingsKeys());
 function tunnelChild(sectionId, tunnelId) {
   return (uci.sections(FORKOP_UCI_PACKAGE, "tunnel") || []).find(
     (item) => item[".name"] === `${tunnelId || ""}` && item.section === `${sectionId || ""}`
@@ -16002,6 +15994,9 @@ function tunnelPeerIds(tunnelId) {
 }
 function tunnelKindLabel(kind, endpointType) {
   return kind === "amneziawg" ? "AmneziaWG" : kind === "warp" ? "WARP" : kind === "tailscale" ? "Tailscale" : kind === "json" ? endpointType || "JSON endpoint" : "WireGuard";
+}
+function removeTunnelPeers(tunnelId) {
+  removeChildItemsOf(tunnelId, "tunnel_peer", "tunnel");
 }
 function tunnelDisplayName(sectionId, tunnelId) {
   const child = tunnelChild(sectionId, tunnelId);
@@ -16062,11 +16057,7 @@ function tunnelInitialSettings(value, sectionId) {
     ),
     endpoint_json: kind === "json" ? `${tunnel.endpoint_json || ""}` : ""
   };
-  [
-    ...AMNEZIA_INTEGER_FIELDS,
-    ...AMNEZIA_RANGE_FIELDS,
-    ...AMNEZIA_STRING_FIELDS
-  ].forEach((key) => {
+  AMNEZIA_FIELDS.forEach((key) => {
     settings[`amnezia_${key}`] = tunnel[`amnezia_${key}`] != null ? `${tunnel[`amnezia_${key}`]}` : "";
   });
   return settings;
@@ -16093,9 +16084,7 @@ function tunnelSettingsKeys() {
     "tailscale_exit_node",
     "tailscale_detour_section",
     "endpoint_json",
-    ...AMNEZIA_INTEGER_FIELDS.map((key) => `amnezia_${key}`),
-    ...AMNEZIA_RANGE_FIELDS.map((key) => `amnezia_${key}`),
-    ...AMNEZIA_STRING_FIELDS.map((key) => `amnezia_${key}`)
+    ...AMNEZIA_FIELDS.map((key) => `amnezia_${key}`)
   ];
 }
 function oneSidedAmneziaEnabled(kind, settings) {
@@ -16146,11 +16135,7 @@ function tunnelStorageSettings(settings) {
     tailscale_detour_section: `${settings.tailscale_detour_enabled || ""}` === "1" ? `${settings.tailscale_detour_section || ""}`.trim() : "",
     endpoint_json: kind === "json" ? `${settings.endpoint_json || ""}`.trim() : ""
   };
-  [
-    ...AMNEZIA_INTEGER_FIELDS,
-    ...AMNEZIA_RANGE_FIELDS,
-    ...AMNEZIA_STRING_FIELDS
-  ].forEach((key) => {
+  AMNEZIA_FIELDS.forEach((key) => {
     result[`amnezia_${key}`] = storedAmneziaFields.includes(key) ? `${settings[`amnezia_${key}`] || ""}`.trim() : "";
   });
   return result;
@@ -16183,7 +16168,7 @@ function materializeTunnelPeers(tunnelId, values, option2) {
     uci.set(FORKOP_UCI_PACKAGE, itemId, "order", `${index}`);
   });
   cleanupRemovedChildItems(tunnelId, "tunnel_peer", itemIds, "tunnel");
-  delete option2.pendingChildSettings[tunnelId];
+  clearChildPendingSettings(option2, tunnelId);
   return itemIds;
 }
 function tunnelPeerFromChild(peerId) {
@@ -16367,11 +16352,7 @@ function applyImportedTunnelEndpoint(map, fields, endpoint) {
     }
   );
   setModalOptionValue(map, fields.peers, peerIds);
-  [
-    ...AMNEZIA_INTEGER_FIELDS,
-    ...AMNEZIA_RANGE_FIELDS,
-    ...AMNEZIA_STRING_FIELDS
-  ].forEach((key) => {
+  AMNEZIA_FIELDS.forEach((key) => {
     setModalOptionValue(
       map,
       fields.amnezia[key],
@@ -16379,26 +16360,6 @@ function applyImportedTunnelEndpoint(map, fields, endpoint) {
     );
   });
   map.checkDepends();
-}
-function wireGuardPeerSettingsKeys() {
-  return [
-    "address",
-    "port",
-    "public_key",
-    "pre_shared_key",
-    "allowed_ips",
-    "persistent_keepalive_interval"
-  ];
-}
-function defaultWireGuardPeerSettings() {
-  return {
-    address: "",
-    port: "",
-    public_key: "",
-    pre_shared_key: "",
-    allowed_ips: [],
-    persistent_keepalive_interval: ""
-  };
 }
 function wireGuardPeerDisplayNameFromObject(peer) {
   if (!peer) {
@@ -16523,11 +16484,7 @@ function subscriptionProviderIndex(section_id, itemId) {
   );
 }
 function loadSectionOutboundNameChoices(section_id) {
-  return loadOutboundNameChoices(
-    section_id,
-    section_id,
-    null
-  );
+  return loadOutboundNameChoices(section_id, section_id, null);
 }
 function loadSubscriptionOutboundNameChoices(section_id, itemId) {
   return loadOutboundNameChoices(
@@ -17044,7 +17001,7 @@ function addServerFilterOptions(itemSection, parentSectionForItem, options = {})
       }
       if (validator) {
         field.validate = function(_itemId, value) {
-          return validator(null, value);
+          return validator(value);
         };
       }
     }
@@ -17064,25 +17021,24 @@ function addServerFilterOptions(itemSection, parentSectionForItem, options = {})
   };
 }
 
-// src/forkop/tabs/sections/urltest.ts
-function urlTestUrlChoices() {
-  return Array.isArray(LATENCY_TEST_URL_OPTIONS) ? LATENCY_TEST_URL_OPTIONS : [DEFAULT_LATENCY_TEST_URL || "https://www.gstatic.com/generate_204"];
+// src/validators/validateSingBoxDuration.ts
+var SING_BOX_DURATION_MESSAGE = () => _("Use sing-box duration format like 1d, 12h or 30m");
+function isSingBoxDuration(value) {
+  return /^(?=.*[1-9])([0-9]+(?:\.[0-9]+)?(?:ns|us|ms|s|m|h|d))+$/.test(value);
 }
-function validateUrlTestTolerance(value) {
-  if (!value || `${value}`.length === 0) {
-    return _("Must be a number in the range of 0 - 10000");
-  }
-  const normalized = `${value}`;
-  const parsed = parseFloat(normalized);
-  if (/^[0-9]+$/.test(normalized) && !isNaN(parsed) && isFinite(parsed) && parsed >= 0 && parsed <= 1e4) {
+function validateOptionalSingBoxDuration(value) {
+  const normalized = value ? `${value}`.trim() : "";
+  if (!normalized.length) {
     return true;
   }
-  return _("Must be a number in the range of 0 - 10000");
+  return isSingBoxDuration(normalized) ? true : SING_BOX_DURATION_MESSAGE();
 }
-function validateUrlTestUrl(value) {
-  const validation = validateUrl(`${value || ""}`.trim());
-  return validation.valid ? true : validation.message;
+function validateRequiredSingBoxDuration(value) {
+  const normalized = value ? `${value}`.trim() : "";
+  return normalized.length && isSingBoxDuration(normalized) ? true : SING_BOX_DURATION_MESSAGE();
 }
+
+// src/forkop/tabs/sections/healthCheck.ts
 function validateExpectedStatus(value) {
   const normalized = `${value || ""}`.trim();
   if (!normalized || normalized === "*") {
@@ -17106,62 +17062,8 @@ function validateExpectedStatus(value) {
   }
   return true;
 }
-function urlTestSettingsKeys() {
-  return [
-    "name",
-    "check_interval",
-    "tolerance",
-    "testing_url",
-    "expected_status",
-    "idle_timeout",
-    "interrupt_exist_connections",
-    "hide_dashboard_members",
-    "server_filter_mode",
-    "include_outbounds",
-    "include_regex",
-    "exclude_outbounds",
-    "exclude_types",
-    "exclude_regex"
-  ];
-}
-function urlTestChildDefaults() {
-  return {
-    check_interval: "3m",
-    tolerance: "50",
-    testing_url: "https://www.gstatic.com/generate_204",
-    expected_status: "*",
-    idle_timeout: "30m",
-    interrupt_exist_connections: "0",
-    hide_dashboard_members: "0",
-    server_filter_mode: "all"
-  };
-}
-function defaultUrlTestSettings(name) {
-  return { name: `${name || ""}`, ...urlTestChildDefaults() };
-}
-function addUrlTestItemOptions(itemSection, options = {}) {
-  const parentSectionForItem = typeof options.parentSectionId === "function" ? options.parentSectionId : parentSectionIdForItem;
-  let o = itemSection.option(form.Value, "name", _("Group name"));
-  o.rmempty = false;
-  o.load = function(itemId) {
-    return optionMapValue(this, itemId, "name") || optionMapValue(this, itemId, "display_name") || "";
-  };
-  o.validate = function(_itemId, value) {
-    return `${value || ""}`.trim() ? options.validateName?.(value) ?? true : _("Enter a display name");
-  };
-  o = itemSection.option(
-    form.Value,
-    "testing_url",
-    _("Check URL"),
-    _("Latency measurement for every server")
-  );
-  o.default = "https://www.gstatic.com/generate_204";
-  o.rmempty = false;
-  urlTestUrlChoices().forEach((value) => o.value(value));
-  o.validate = function(_itemId, value) {
-    return validateUrlTestUrl(value);
-  };
-  o = itemSection.option(
+function addExpectedStatusOption(itemSection) {
+  const o = itemSection.option(
     form.Value,
     "expected_status",
     _("Expected status"),
@@ -17174,35 +17076,15 @@ function addUrlTestItemOptions(itemSection, options = {}) {
   o.validate = function(_itemId, value) {
     return validateExpectedStatus(value);
   };
-  o = itemSection.option(
-    form.Value,
-    "check_interval",
-    _("Check interval"),
-    _("How often every server of the group is checked")
-  );
-  o.default = "3m";
-  o.rmempty = false;
-  o.validate = function(_itemId, value) {
-    return validateRequiredSingBoxDuration(value);
-  };
-  o = itemSection.option(
-    form.Value,
-    "tolerance",
-    _("Latency difference"),
-    _("Switching threshold in ms at which to move to a faster server")
-  );
-  o.default = "50";
-  o.rmempty = false;
-  o.validate = function(_itemId, value) {
-    return validateUrlTestTolerance(value);
-  };
-  o = itemSection.option(
+}
+function addGroupHealthCheckTailOptions(itemSection, idleTimeoutDefault) {
+  let o = itemSection.option(
     form.Value,
     "idle_timeout",
     _("Idle timeout"),
     _("How long until health checks stop when the group is unused")
   );
-  o.default = "30m";
+  o.default = idleTimeoutDefault;
   o.rmempty = false;
   o.validate = function(_itemId, value) {
     return validateRequiredSingBoxDuration(value);
@@ -17223,72 +17105,6 @@ function addUrlTestItemOptions(itemSection, options = {}) {
   );
   o.default = "0";
   o.rmempty = false;
-  addServerFilterOptions(itemSection, parentSectionForItem, {
-    groupContext: true,
-    modeLabel: _("Server filter"),
-    modeDescription: _("Which servers end up in the group"),
-    modes: [
-      { value: "all", label: _("All servers") },
-      { value: "exclude", label: _("All except selected") },
-      { value: "include", label: _("Only selected") }
-    ],
-    ...groupServerFilterDescriptions()
-  });
-}
-function showUrlTestSettingsModal(_section_id, itemValue, option2, widget, itemNode, context = {}) {
-  const defaultName = context.adding ? nextDynamicListName(
-    option2,
-    _section_id,
-    getChildItemIds(_section_id, "urltest"),
-    "URLTest"
-  ) : "";
-  return showChildItemSettingsModal(_section_id, itemValue, option2, {
-    typeName: "urltest",
-    valueOption: "name",
-    keys: urlTestSettingsKeys(),
-    itemNode,
-    defaults: () => defaultUrlTestSettings(defaultName),
-    addOptions: addUrlTestItemOptions,
-    validateName: validateUniqueDynamicListItemName.bind(
-      null,
-      widget,
-      itemNode
-    ),
-    title: (name) => {
-      const normalized = `${name || ""}`.trim();
-      return !normalized || /^urltest-[a-z0-9]+-\d+$/.test(normalized) ? _("URLTest settings") : `${_("URLTest settings")}: ${normalized}`;
-    },
-    afterSave: (itemId, inputValue, settings, existing) => {
-      const displayName = `${settings.name || inputValue || ""}`.trim();
-      if (existing) {
-        uci.unset(FORKOP_UCI_PACKAGE, itemId, "id");
-        uci.unset(FORKOP_UCI_PACKAGE, itemId, "display_name");
-        updateDynamicListItemLabel(itemNode, displayName);
-        return;
-      }
-      if (context.adding) {
-        addDynamicListItem(widget, displayName, displayName);
-      } else {
-        updateDynamicListItemLabel(itemNode, displayName);
-      }
-    }
-  });
-}
-function validateUrlTestItemsBeforeSave(section_id, values, option2) {
-  const store2 = childPendingSettingsStore(option2, section_id);
-  for (const value of normalizeDynamicListItems(values)) {
-    const itemId = `${value || ""}`;
-    let name = "";
-    if (isExistingChildItem(section_id, itemId, "urltest")) {
-      name = `${uci.get(FORKOP_UCI_PACKAGE, itemId, "name") || uci.get(FORKOP_UCI_PACKAGE, itemId, "display_name") || ""}`;
-    } else if (store2[itemId]) {
-      name = `${store2[itemId].name || ""}`;
-    }
-    if (!`${name || ""}`.trim()) {
-      return _("Enter a display name");
-    }
-  }
-  return true;
 }
 
 // src/forkop/tabs/sections/fallback.ts
@@ -17304,6 +17120,9 @@ function fallbackGroupSettingsKeys() {
     "interrupt_exist_connections",
     "hide_dashboard_members"
   ];
+}
+function removeFallbackLevels(groupId) {
+  removeChildItemsOf(groupId, "fallback_level", "group");
 }
 function fallbackGroupChildDefaults() {
   return {
@@ -17402,9 +17221,7 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
   const ownerId = typeof options.ownerId === "function" ? options.ownerId : () => "";
   let o = itemSection.option(form.Value, "name", _("Group name"));
   o.rmempty = false;
-  o.validate = function(_itemId, value) {
-    return `${value || ""}`.trim() ? options.validateName?.(value) ?? true : _("Enter a display name");
-  };
+  o.validate = childItemNameCheck(options);
   o = itemSection.option(
     form.Value,
     "health_check_url",
@@ -17413,23 +17230,11 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
   );
   o.default = "https://www.gstatic.com/generate_204";
   o.rmempty = false;
-  urlTestUrlChoices().forEach((value) => o.value(value));
+  LATENCY_TEST_URL_OPTIONS.forEach((value) => o.value(value));
   o.validate = function(_itemId, value) {
-    return validateUrlTestUrl(value);
+    return validateUrlField(value);
   };
-  o = itemSection.option(
-    form.Value,
-    "expected_status",
-    _("Expected status"),
-    _(
-      "HTTP status codes of a successful check. * is any response, or values and ranges: 204/200-299"
-    )
-  );
-  o.default = "*";
-  o.rmempty = false;
-  o.validate = function(_itemId, value) {
-    return validateExpectedStatus(value);
-  };
+  addExpectedStatusOption(itemSection);
   o = itemSection.option(
     form.Value,
     "health_check_interval",
@@ -17463,33 +17268,7 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
   o.validate = function(_itemId, value) {
     return validateRequiredSingBoxDuration(value);
   };
-  o = itemSection.option(
-    form.Value,
-    "idle_timeout",
-    _("Idle timeout"),
-    _("How long until health checks stop when the group is unused")
-  );
-  o.default = "5m";
-  o.rmempty = false;
-  o.validate = function(_itemId, value) {
-    return validateRequiredSingBoxDuration(value);
-  };
-  o = itemSection.option(
-    form.Flag,
-    "interrupt_exist_connections",
-    _("Interrupt connections"),
-    _("Drop every active connection when the selected server changes")
-  );
-  o.default = "0";
-  o.rmempty = false;
-  o = itemSection.option(
-    form.Flag,
-    "hide_dashboard_members",
-    _("Hide group servers"),
-    _("Hide servers included in this group from the dashboard")
-  );
-  o.default = "0";
-  o.rmempty = false;
+  addGroupHealthCheckTailOptions(itemSection, "5m");
   o = itemSection.option(
     ButtonAddSettingsDynamicList,
     "fallback_level",
@@ -17517,51 +17296,9 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
     }
     return true;
   };
-  o.hasItemSettings = function(groupId, value) {
-    const normalized = `${value || ""}`.trim();
-    if (isExistingChildItem(groupId, normalized, "fallback_level", "group")) {
-      return true;
-    }
-    return normalized.length > 0;
-  };
-  o.inputValueForItem = function(groupId, value) {
-    const inputValue = childItemInputValue(
-      groupId,
-      value,
-      "fallback_level",
-      "name",
-      "group"
-    );
-    const store2 = childPendingSettingsStore(this, groupId);
-    return store2[inputValue] && store2[inputValue].name ? `${store2[inputValue].name}` : inputValue;
-  };
-  o.stagedChildSettings = function(groupId, value) {
-    const id = childItemInputValue(
-      groupId,
-      value,
-      "fallback_level",
-      "name",
-      "group"
-    );
-    const store2 = childPendingSettingsStore(this, groupId);
-    return store2[id] ? Object.assign({}, store2[id]) : null;
-  };
-  o.clearStagedChildSettings = function(groupId) {
-    if (this.pendingChildSettings) {
-      delete this.pendingChildSettings[groupId];
-    }
-  };
-  o.afterMaterializeChildItems = function(_groupId, itemIds) {
-    itemIds.forEach((itemId, index) => {
-      uci.set(FORKOP_UCI_PACKAGE, itemId, "order", `${index}`);
-    });
-  };
+  o.afterMaterializeChildItems = orderChildItemsByPosition;
   o.renderListItemLabel = function(groupId, itemId) {
-    return E(
-      "span",
-      { class: "fkp-dynlist-label" },
-      this.inputValueForItem(groupId, itemId)
-    );
+    return renderChildItemLabel(this, groupId, itemId);
   };
 }
 function showFallbackLevelSettingsModal(groupId, itemValue, option2, widget, itemNode, context = {}) {
@@ -17790,20 +17527,9 @@ function addInterfaceItemOptions(itemSection, options = {}) {
     )
   );
   dnsServerOption.depends("domain_resolver_enabled", "1");
-  dnsServerOption.rmempty = false;
-  dnsServerOption.validate = function(itemId, value) {
-    if (optionMapValue(this, itemId, "domain_resolver_enabled") !== "1") {
-      return true;
-    }
-    const normalized = `${value || ""}`.trim();
-    if (!normalized) {
-      return L.toArray(this.formvalue(itemId)).some(
-        (item) => `${item || ""}`.trim()
-      ) ? true : _("Add at least one DNS server");
-    }
-    const validation = validateDNS(normalized);
-    return validation.valid ? true : validation.message;
-  };
+  configureDnsServerList(dnsServerOption, {
+    appliesTo: (option2, itemId) => optionMapValue(option2, itemId, "domain_resolver_enabled") === "1"
+  });
   const dnsQueryModeOption = itemSection.option(
     form.ListValue,
     "domain_resolver_dns_fallback_strategy",
@@ -17812,41 +17538,9 @@ function addInterfaceItemOptions(itemSection, options = {}) {
       "Parallel asks every server at once and is faster. Sequential asks them in turn until the first answer"
     )
   );
-  dnsQueryModeOption.value("parallel", _("Parallel"));
-  dnsQueryModeOption.value("sequential", _("Sequential"));
-  dnsQueryModeOption.default = "parallel";
-  dnsQueryModeOption.rmempty = false;
-  dnsQueryModeOption.retain = true;
-  dnsQueryModeOption.depends({
-    domain_resolver_enabled: "1",
-    domain_resolver_dns_server: "__forkop_multiple_dns__"
+  configureDnsQueryMode(dnsQueryModeOption, "domain_resolver_dns_server", {
+    alsoDependsOn: { domain_resolver_enabled: "1" }
   });
-  dnsQueryModeOption.checkDepends = function(itemId) {
-    const enabledOption = this.map.lookupOption(
-      "domain_resolver_enabled",
-      itemId
-    );
-    const serverOption = this.map.lookupOption(
-      "domain_resolver_dns_server",
-      itemId
-    );
-    const enabled = enabledOption?.[0].formvalue(enabledOption[1]);
-    const servers = serverOption?.[0].formvalue(serverOption[1]);
-    return enabled === "1" && normalizeDynamicListItems(servers).length > 1;
-  };
-  const originalDnsServerRenderWidget = dnsServerOption.renderWidget;
-  dnsServerOption.renderWidget = function(itemId, option_index, cfgvalue) {
-    const node = originalDnsServerRenderWidget.call(
-      this,
-      itemId,
-      option_index,
-      cfgvalue
-    );
-    node.addEventListener("cbi-dynlist-change", () => {
-      this.map.checkDepends();
-    });
-    return node;
-  };
   o = itemSection.option(
     form.Flag,
     "domain_resolver_dns_detour_enabled",
@@ -19253,8 +18947,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   tailscaleControlUrlOption.rmempty = false;
   tailscaleControlUrlOption.depends("tunnel_type", "tailscale");
   tailscaleControlUrlOption.validate = function(_itemId, value) {
-    const validation = validateUrl(`${value || ""}`.trim());
-    return validation.valid ? true : validation.message;
+    return validateUrlField(value);
   };
   const tailscaleDetourEnabledOption = itemSection.option(
     form.Flag,
@@ -19602,6 +19295,163 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   );
 }
 
+// src/forkop/tabs/sections/urltest.ts
+function validateUrlTestTolerance(value) {
+  if (!value || `${value}`.length === 0) {
+    return _("Must be a number in the range of 0 - 10000");
+  }
+  const normalized = `${value}`;
+  const parsed = parseFloat(normalized);
+  if (/^[0-9]+$/.test(normalized) && !isNaN(parsed) && isFinite(parsed) && parsed >= 0 && parsed <= 1e4) {
+    return true;
+  }
+  return _("Must be a number in the range of 0 - 10000");
+}
+function urlTestSettingsKeys() {
+  return [
+    "name",
+    "check_interval",
+    "tolerance",
+    "testing_url",
+    "expected_status",
+    "idle_timeout",
+    "interrupt_exist_connections",
+    "hide_dashboard_members",
+    "server_filter_mode",
+    "include_outbounds",
+    "include_regex",
+    "exclude_outbounds",
+    "exclude_types",
+    "exclude_regex"
+  ];
+}
+function urlTestChildDefaults() {
+  return {
+    check_interval: "3m",
+    tolerance: "50",
+    testing_url: "https://www.gstatic.com/generate_204",
+    expected_status: "*",
+    idle_timeout: "30m",
+    interrupt_exist_connections: "0",
+    hide_dashboard_members: "0",
+    server_filter_mode: "all"
+  };
+}
+function defaultUrlTestSettings(name) {
+  return { name: `${name || ""}`, ...urlTestChildDefaults() };
+}
+function addUrlTestItemOptions(itemSection, options = {}) {
+  const parentSectionForItem = typeof options.parentSectionId === "function" ? options.parentSectionId : parentSectionIdForItem;
+  let o = itemSection.option(form.Value, "name", _("Group name"));
+  o.rmempty = false;
+  o.load = function(itemId) {
+    return optionMapValue(this, itemId, "name") || optionMapValue(this, itemId, "display_name") || "";
+  };
+  o.validate = childItemNameCheck(options);
+  o = itemSection.option(
+    form.Value,
+    "testing_url",
+    _("Check URL"),
+    _("Latency measurement for every server")
+  );
+  o.default = "https://www.gstatic.com/generate_204";
+  o.rmempty = false;
+  LATENCY_TEST_URL_OPTIONS.forEach((value) => o.value(value));
+  o.validate = function(_itemId, value) {
+    return validateUrlField(value);
+  };
+  addExpectedStatusOption(itemSection);
+  o = itemSection.option(
+    form.Value,
+    "check_interval",
+    _("Check interval"),
+    _("How often every server of the group is checked")
+  );
+  o.default = "3m";
+  o.rmempty = false;
+  o.validate = function(_itemId, value) {
+    return validateRequiredSingBoxDuration(value);
+  };
+  o = itemSection.option(
+    form.Value,
+    "tolerance",
+    _("Latency difference"),
+    _("Switching threshold in ms at which to move to a faster server")
+  );
+  o.default = "50";
+  o.rmempty = false;
+  o.validate = function(_itemId, value) {
+    return validateUrlTestTolerance(value);
+  };
+  addGroupHealthCheckTailOptions(itemSection, "30m");
+  addServerFilterOptions(itemSection, parentSectionForItem, {
+    groupContext: true,
+    modeLabel: _("Server filter"),
+    modeDescription: _("Which servers end up in the group"),
+    modes: [
+      { value: "all", label: _("All servers") },
+      { value: "exclude", label: _("All except selected") },
+      { value: "include", label: _("Only selected") }
+    ],
+    ...groupServerFilterDescriptions()
+  });
+}
+function showUrlTestSettingsModal(_section_id, itemValue, option2, widget, itemNode, context = {}) {
+  const defaultName = context.adding ? nextDynamicListName(
+    option2,
+    _section_id,
+    getChildItemIds(_section_id, "urltest"),
+    "URLTest"
+  ) : "";
+  return showChildItemSettingsModal(_section_id, itemValue, option2, {
+    typeName: "urltest",
+    valueOption: "name",
+    keys: urlTestSettingsKeys(),
+    itemNode,
+    defaults: () => defaultUrlTestSettings(defaultName),
+    addOptions: addUrlTestItemOptions,
+    validateName: validateUniqueDynamicListItemName.bind(
+      null,
+      widget,
+      itemNode
+    ),
+    title: (name) => {
+      const normalized = `${name || ""}`.trim();
+      return !normalized || /^urltest-[a-z0-9]+-\d+$/.test(normalized) ? _("URLTest settings") : `${_("URLTest settings")}: ${normalized}`;
+    },
+    afterSave: (itemId, inputValue, settings, existing) => {
+      const displayName = `${settings.name || inputValue || ""}`.trim();
+      if (existing) {
+        uci.unset(FORKOP_UCI_PACKAGE, itemId, "id");
+        uci.unset(FORKOP_UCI_PACKAGE, itemId, "display_name");
+        updateDynamicListItemLabel(itemNode, displayName);
+        return;
+      }
+      if (context.adding) {
+        addDynamicListItem(widget, displayName, displayName);
+      } else {
+        updateDynamicListItemLabel(itemNode, displayName);
+      }
+    }
+  });
+}
+function validateUrlTestItemsBeforeSave(section_id, values, option2) {
+  const store2 = childPendingSettingsStore(option2, section_id);
+  for (const value of normalizeDynamicListItems(values)) {
+    const itemId = `${value || ""}`;
+    let name = "";
+    if (isExistingChildItem(section_id, itemId, "urltest")) {
+      name = `${uci.get(FORKOP_UCI_PACKAGE, itemId, "name") || uci.get(FORKOP_UCI_PACKAGE, itemId, "display_name") || ""}`;
+    } else if (store2[itemId]) {
+      name = `${store2[itemId].name || ""}`;
+    }
+    if (!`${name || ""}`.trim()) {
+      return _("Enter a display name");
+    }
+  }
+  return true;
+}
+
 // src/forkop/tabs/sections/form.ts
 function createSectionContent(section) {
   let o;
@@ -19675,20 +19525,9 @@ function createSectionContent(section) {
       "Resolves domains that match the section conditions. Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://"
     )
   );
-  o = dnsServerOption;
-  o.depends("action", "dns");
-  o.rmempty = false;
-  o.modalonly = true;
-  o.validate = function(section_id, value) {
-    const normalized = `${value || ""}`.trim();
-    if (!normalized) {
-      return L.toArray(this.formvalue(section_id)).some(
-        (item) => `${item || ""}`.trim()
-      ) ? true : _("Add at least one DNS server");
-    }
-    const validation = validateDNS(normalized);
-    return validation.valid ? true : validation.message;
-  };
+  dnsServerOption.depends("action", "dns");
+  dnsServerOption.modalonly = true;
+  configureDnsServerList(dnsServerOption);
   const dnsQueryModeOption = section.taboption(
     "settings",
     form.ListValue,
@@ -19698,36 +19537,10 @@ function createSectionContent(section) {
       "Parallel asks every server at once and is faster. Sequential asks them in turn until the first answer"
     )
   );
-  dnsQueryModeOption.value("parallel", _("Parallel"));
-  dnsQueryModeOption.value("sequential", _("Sequential"));
-  dnsQueryModeOption.default = "parallel";
-  dnsQueryModeOption.rmempty = false;
   dnsQueryModeOption.modalonly = true;
-  dnsQueryModeOption.retain = true;
-  dnsQueryModeOption.depends({
-    action: "dns",
-    dns_server: "__forkop_multiple_dns__"
+  configureDnsQueryMode(dnsQueryModeOption, "dns_server", {
+    alsoDependsOn: { action: "dns" }
   });
-  dnsQueryModeOption.checkDepends = function(section_id) {
-    const actionOption = this.map.lookupOption("action", section_id);
-    const dnsServerOption2 = this.map.lookupOption("dns_server", section_id);
-    const action = actionOption?.[0].formvalue(actionOption[1]);
-    const servers = dnsServerOption2?.[0].formvalue(dnsServerOption2[1]);
-    return action === "dns" && normalizeDynamicListItems(servers).length > 1;
-  };
-  const originalDnsServerRenderWidget = dnsServerOption.renderWidget;
-  dnsServerOption.renderWidget = function(section_id, option_index, cfgvalue) {
-    const node = originalDnsServerRenderWidget.call(
-      this,
-      section_id,
-      option_index,
-      cfgvalue
-    );
-    node.addEventListener("cbi-dynlist-change", () => {
-      this.map.checkDepends();
-    });
-    return node;
-  };
   o = section.taboption(
     "settings",
     form.Flag,
@@ -19825,21 +19638,6 @@ function createSectionContent(section) {
     }
     return this.validate(section_id, normalized) === true;
   };
-  o.stagedChildSettings = function(section_id, value) {
-    const inputValue = childItemInputValue(
-      section_id,
-      value,
-      "subscription_url",
-      "url"
-    );
-    const store2 = childPendingSettingsStore(this, section_id);
-    return store2[inputValue] ? Object.assign({}, store2[inputValue]) : null;
-  };
-  o.clearStagedChildSettings = function(section_id) {
-    if (this.pendingChildSettings) {
-      delete this.pendingChildSettings[section_id];
-    }
-  };
   o.afterMaterializeChildItems = function(_section_id, itemIds) {
     itemIds.forEach((itemId) => {
       const source = childItemInputValue(
@@ -19888,19 +19686,6 @@ function createSectionContent(section) {
     }
     return this.validate(section_id, normalized) === true;
   };
-  o.stagedChildSettings = function(section_id, value) {
-    const inputValue = childItemInputValue(
-      section_id,
-      value,
-      "section_interface",
-      "name"
-    );
-    const store2 = childPendingSettingsStore(this, section_id);
-    return store2[inputValue] ? Object.assign({}, store2[inputValue]) : null;
-  };
-  o.clearStagedChildSettings = function(section_id) {
-    clearChildPendingSettings(this, section_id);
-  };
   o.onListChange = refreshDashboardFilterChoiceWidgets;
   outboundNameSourceOptions.set("interfaces", o);
   o = section.taboption(
@@ -19918,6 +19703,7 @@ function createSectionContent(section) {
   o.addButtonLabel = _("+ Add tunnel");
   o.childType = "tunnel";
   o.ownerOption = "section";
+  o.removeNestedChildItems = removeTunnelPeers;
   o.childValueOption = void 0;
   o.createId = () => nextSectionId("tunnel");
   o.renderItemSettingsModal = showTunnelSettingsModal;
@@ -19937,11 +19723,7 @@ function createSectionContent(section) {
     );
   };
   o.onListChange = refreshDashboardFilterChoiceWidgets;
-  o.afterMaterializeChildItems = function(_section_id, itemIds) {
-    itemIds.forEach((itemId, index) => {
-      uci.set(FORKOP_UCI_PACKAGE, itemId, "order", `${index}`);
-    });
-  };
+  o.afterMaterializeChildItems = orderChildItemsByPosition;
   outboundNameSourceOptions.set("tunnels", o);
   o = section.taboption(
     "settings",
@@ -19989,39 +19771,8 @@ function createSectionContent(section) {
   o.validateItemsOnSave = function(section_id, values) {
     return validateUrlTestItemsBeforeSave(section_id, values, this);
   };
-  o.hasItemSettings = function(section_id, value) {
-    const normalized = `${value || ""}`.trim();
-    if (isExistingChildItem(section_id, normalized, "urltest")) {
-      return true;
-    }
-    return normalized.length > 0;
-  };
-  o.inputValueForItem = function(section_id, value) {
-    const inputValue = childItemInputValue(
-      section_id,
-      value,
-      "urltest",
-      "name"
-    );
-    const store2 = childPendingSettingsStore(this, section_id);
-    return store2[inputValue] && store2[inputValue].name ? `${store2[inputValue].name}` : inputValue;
-  };
-  o.stagedChildSettings = function(section_id, value) {
-    const id = childItemInputValue(section_id, value, "urltest", "name");
-    const store2 = childPendingSettingsStore(this, section_id);
-    return store2[id] ? Object.assign({}, store2[id]) : null;
-  };
-  o.clearStagedChildSettings = function(section_id) {
-    if (this.pendingChildSettings) {
-      delete this.pendingChildSettings[section_id];
-    }
-  };
   o.renderListItemLabel = function(section_id, itemId) {
-    return E(
-      "span",
-      { class: "fkp-dynlist-label" },
-      this.inputValueForItem(section_id, itemId)
-    );
+    return renderChildItemLabel(this, section_id, itemId);
   };
   o.onListChange = refreshDashboardFilterChoiceWidgets;
   o = section.taboption(
@@ -20036,28 +19787,15 @@ function createSectionContent(section) {
   o.modalonly = true;
   o.addButtonLabel = _("+ Add fallback");
   o.childType = "fallback_group";
+  o.removeNestedChildItems = removeFallbackLevels;
   o.childValueOption = "name";
   o.childDefaults = fallbackGroupChildDefaults();
   outboundNameSourceOptions.set("fallback_group", o);
   o.createId = () => nextSectionId("fallback_group");
   o.renderItemSettingsModal = showFallbackGroupSettingsModal;
   o.validateItemsOnSave = validateFallbackGroupItemsBeforeSave;
-  o.hasItemSettings = function(section_id, value) {
-    const normalized = `${value || ""}`.trim();
-    if (isExistingChildItem(section_id, normalized, "fallback_group")) {
-      return true;
-    }
-    return normalized.length > 0;
-  };
-  o.inputValueForItem = function(section_id, value) {
-    return childItemInputValue(section_id, value, "fallback_group", "name");
-  };
   o.renderListItemLabel = function(section_id, itemId) {
-    return E(
-      "span",
-      { class: "fkp-dynlist-label" },
-      this.inputValueForItem(section_id, itemId)
-    );
+    return renderChildItemLabel(this, section_id, itemId);
   };
   o.onListChange = refreshDashboardFilterChoiceWidgets;
   o = section.taboption(
@@ -20241,35 +19979,26 @@ function createSectionContent(section) {
 }
 
 // src/forkop/tabs/sections/table.ts
-function loadSectionTableOptions(sectionRef) {
-  const sectionIds = sectionRef.cfgsections();
-  const tasks = [];
-  for (let i = 0; i < sectionIds.length; i += 1) {
-    const sectionId = sectionIds[i];
-    for (let j = 0; j < sectionRef.children.length; j += 1) {
-      const option2 = sectionRef.children[j];
-      if (option2.disable || option2.modalonly) {
-        continue;
-      }
-      tasks.push(
-        Promise.resolve(option2.load.call(option2, sectionId)).then(
-          (value) => {
-            option2.cfgvalue(sectionId, value);
-          }
-        )
-      );
-    }
-  }
-  return Promise.all(tasks);
-}
 function configureSectionSection(sectionRef) {
   const handleRemove = sectionRef.handleRemove;
   sectionRef.handleRemove = function(section_id, event) {
     cleanupRemovedChildItems(section_id, "subscription_url", []);
     cleanupRemovedChildItems(section_id, "section_interface", []);
     cleanupRemovedChildItems(section_id, "urltest", []);
-    cleanupRemovedChildItems(section_id, "fallback_group", []);
-    cleanupRemovedChildItems(section_id, "tunnel", []);
+    cleanupRemovedChildItems(
+      section_id,
+      "fallback_group",
+      [],
+      void 0,
+      removeFallbackLevels
+    );
+    cleanupRemovedChildItems(
+      section_id,
+      "tunnel",
+      [],
+      void 0,
+      removeTunnelPeers
+    );
     return handleRemove.call(this, section_id, event);
   };
   sectionRef.handleModalSave = function(modalMap, ev) {
@@ -20282,7 +20011,7 @@ function configureSectionSection(sectionRef) {
   sectionRef.load = function() {
     return Promise.all([
       loadDefaultSubscriptionHeaders(),
-      loadSectionTableOptions(this)
+      loadVisibleTableOptions(this)
     ]);
   };
 }
@@ -20294,37 +20023,6 @@ var CLIENT_TYPE = "server_client";
 var CLIENT_OWNER_OPTION = "server";
 var MAX_CLIENT_NAME_LENGTH = 64;
 var addedServers = /* @__PURE__ */ new Set();
-var ROUTING_SECTION_ACTIONS = [
-  "connection",
-  "proxy",
-  "outbound",
-  "vpn"
-];
-var TAILSCALE_DETOUR_ACTIONS = [
-  "connection",
-  "proxy",
-  "outbound",
-  "vpn"
-];
-var RESERVED_RUNTIME_TAGS2 = /* @__PURE__ */ new Set([
-  "dns-server",
-  "fakeip-server",
-  "bootstrap-dns-server",
-  "dnsmasq-server",
-  "hosts-server",
-  "fakeip-dns-rule-tag",
-  "fakeip-ruleset-dns-rule-tag",
-  "service-fakeip-dns-rule-tag",
-  "tproxy-in",
-  "tproxy6-in",
-  "dns-in",
-  "source-dns-in",
-  "system-in",
-  "system6-in",
-  "system-dns-in",
-  "service-mixed-in",
-  "direct-out"
-]);
 var RESERVED_PORTS = [
   ["53", _("Forkop DNS")],
   ["1602", _("Forkop transparent proxy")],
@@ -21043,10 +20741,7 @@ function transportQuery(sectionId, params, grpcKey) {
     params.host = option(sectionId, "transport_host");
     params.mode = option(sectionId, "transport_xhttp_mode") || "auto";
   } else if (transport2 === "grpc") {
-    params[grpcKey ?? "serviceName"] = option(
-      sectionId,
-      "transport_service_name"
-    );
+    params[grpcKey] = option(sectionId, "transport_service_name");
   } else if (transport2 === "http") {
     params.path = option(sectionId, "transport_path");
     params.host = optionList(sectionId, "transport_hosts").join(",");
@@ -22030,48 +21725,6 @@ function injectServerStyles() {
     )
   );
 }
-function pinTextareaHeight(textarea) {
-  if (typeof ResizeObserver !== "function") {
-    return;
-  }
-  const observer = new ResizeObserver(() => {
-    const height = textarea.getBoundingClientRect().height;
-    if (height > 0) {
-      observer.disconnect();
-      textarea.style.minHeight = `${height}px`;
-    }
-  });
-  observer.observe(textarea);
-}
-function configureTextareaOption2(optionRef, options = {}) {
-  const renderWidget2 = optionRef.renderWidget;
-  optionRef.renderWidget = function(sectionId, optionIndex, cfgvalue) {
-    const node = renderWidget2.call(
-      this,
-      sectionId,
-      optionIndex,
-      cfgvalue
-    );
-    const textarea = node && typeof node.querySelector === "function" ? node.querySelector("textarea") : node;
-    if (textarea) {
-      [
-        ["spellcheck", "false"],
-        ["autocomplete", "off"],
-        ["autocorrect", "off"],
-        ["autocapitalize", "off"],
-        ["data-gramm", "false"],
-        ["data-gramm_editor", "false"],
-        ["data-enable-grammarly", "false"]
-      ].forEach(([name, value]) => textarea.setAttribute(name, value));
-      textarea.style.resize = "vertical";
-      textarea.style.maxWidth = "100%";
-      if (options.pinHeight) {
-        pinTextareaHeight(textarea);
-      }
-    }
-    return node;
-  };
-}
 function widgetElement(node) {
   const instance = dom.findClassInstance(node);
   return instance && typeof instance.setValue === "function" ? instance : null;
@@ -22087,6 +21740,19 @@ function controlOf(node) {
     "input:not([type='hidden']), select, textarea"
   ) : null;
 }
+function renderGenerateButton(label, readonly) {
+  return E(
+    "button",
+    {
+      class: "btn cbi-button cbi-button-neutral fkp-generate",
+      type: "button",
+      title: label,
+      "aria-label": label,
+      disabled: readonly ? "" : null
+    },
+    iconSvg("generate")
+  );
+}
 function addGenerateButton(optionRef, generate, title) {
   const renderWidget2 = optionRef.renderWidget;
   optionRef.renderWidget = function(sectionId, optionIndex, cfgvalue) {
@@ -22098,17 +21764,7 @@ function addGenerateButton(optionRef, generate, title) {
     );
     const label = title || _("Generate");
     const readonly = this.readonly != null ? this.readonly : this.map.readonly;
-    const button = E(
-      "button",
-      {
-        class: "btn cbi-button cbi-button-neutral fkp-generate",
-        type: "button",
-        title: label,
-        "aria-label": label,
-        disabled: readonly ? "" : null
-      },
-      iconSvg("generate")
-    );
+    const button = renderGenerateButton(label, readonly);
     button.addEventListener("click", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
@@ -22249,17 +21905,7 @@ function addIssueButton(optionRef, label, request, offered) {
       cfgvalue
     );
     const readonly = this.readonly != null ? this.readonly : this.map.readonly;
-    const button = E(
-      "button",
-      {
-        class: "btn cbi-button cbi-button-neutral fkp-generate",
-        type: "button",
-        title: label,
-        "aria-label": label,
-        disabled: readonly ? "" : null
-      },
-      iconSvg("generate")
-    );
+    const button = renderGenerateButton(label, readonly);
     button.addEventListener("click", (ev) => {
       ev.preventDefault();
       if (readonly) {
@@ -22353,44 +21999,19 @@ function addSshHostKeyButton(optionRef) {
   );
 }
 function addRealityKeypairButton(optionRef) {
-  const renderWidget2 = optionRef.renderWidget;
-  optionRef.renderWidget = function(sectionId, optionIndex, cfgvalue) {
-    const node = renderWidget2.call(
-      this,
-      sectionId,
-      optionIndex,
-      cfgvalue
-    );
-    const label = _("Generate a key pair");
-    const readonly = this.readonly != null ? this.readonly : this.map.readonly;
-    const button = E(
-      "button",
-      {
-        class: "btn cbi-button cbi-button-neutral fkp-generate",
-        type: "button",
-        title: label,
-        "aria-label": label,
-        disabled: readonly ? "" : null
-      },
-      iconSvg("generate")
-    );
-    button.addEventListener("click", (ev) => {
-      ev.preventDefault();
-      if (readonly) {
+  addIssueButton(
+    optionRef,
+    _("Generate a key pair"),
+    (sectionId) => generateRealityKeypair(sectionId).then((pair) => {
+      if (!pair) {
         return;
       }
-      generateRealityKeypair(sectionId).then((pair) => {
-        if (!pair) {
-          return;
-        }
-        [
-          ["reality_private_key", pair.private_key],
-          ["reality_public_key", pair.public_key]
-        ].forEach(([name, value]) => applyFieldValue(sectionId, name, value));
-      });
-    });
-    return E("div", { class: "fkp-generate-row" }, [node, button]);
-  };
+      [
+        ["reality_private_key", pair.private_key],
+        ["reality_public_key", pair.public_key]
+      ].forEach(([name, value]) => applyFieldValue(sectionId, name, value));
+    })
+  );
 }
 function autofill(option2, loader) {
   option2.forcewrite = true;
@@ -22783,7 +22404,7 @@ function removeServerClients(sectionId) {
 
 // src/forkop/tabs/servers/routing.ts
 function isRoutingSectionAction(action) {
-  return ROUTING_SECTION_ACTIONS.indexOf(`${action || ""}`) !== -1;
+  return DETOUR_TARGET_ACTIONS.indexOf(`${action || ""}`) !== -1;
 }
 function routingSectionChoices() {
   return (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).filter(
@@ -22804,7 +22425,7 @@ function loadRoutingSectionChoices(optionRef, sectionId) {
 }
 function tailscaleDetourTargets(currentSectionId) {
   return (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).filter(
-    (section) => section[".name"] && section[".name"] !== currentSectionId && section.enabled !== "0" && TAILSCALE_DETOUR_ACTIONS.includes(`${section.action || ""}`)
+    (section) => section[".name"] && section[".name"] !== currentSectionId && section.enabled !== "0" && DETOUR_TARGET_ACTIONS.includes(`${section.action || ""}`)
   );
 }
 function addRoutingOptions(section) {
@@ -22980,28 +22601,6 @@ function addClientListOption(section) {
     return this.inputValueForItem(sectionId, value);
   };
   o.renderItemSettingsModal = showClientSettingsModal;
-  o.hasItemSettings = (_sectionId, value) => `${value || ""}`.trim().length > 0;
-  o.inputValueForItem = function(sectionId, value) {
-    const name = childItemInputValue(
-      sectionId,
-      value,
-      CLIENT_TYPE,
-      "name",
-      CLIENT_OWNER_OPTION
-    );
-    const store2 = childPendingSettingsStore(this, sectionId);
-    return store2 && store2[name] && store2[name].name ? `${store2[name].name}` : name;
-  };
-  o.stagedChildSettings = function(sectionId, value) {
-    const name = this.inputValueForItem(sectionId, value);
-    const store2 = childPendingSettingsStore(this, sectionId);
-    return store2 && store2[name] ? Object.assign({}, store2[name]) : null;
-  };
-  o.clearStagedChildSettings = function(sectionId) {
-    if (this.pendingChildSettings) {
-      delete this.pendingChildSettings[sectionId];
-    }
-  };
   o.afterMaterializeChildItems = function(sectionId) {
     pruneClientCredentials(sectionId);
   };
@@ -23041,7 +22640,7 @@ function addIdentityOptions(section) {
     if (name.includes("/")) {
       return _("The name must not contain /");
     }
-    if (RESERVED_RUNTIME_TAGS2.has(name)) {
+    if (RESERVED_RUNTIME_TAGS.has(name)) {
       return _("This name is reserved by Forkop");
     }
     return [
@@ -23188,7 +22787,7 @@ function addJsonInboundOptions(section) {
   o.modalonly = true;
   o.rmempty = false;
   o.validate = validateInboundJson;
-  configureTextareaOption2(o, { pinHeight: true });
+  configureTextareaOption(o);
 }
 function addListenerOptions(section) {
   const onListener = (o2) => listenerProtocols().forEach(
@@ -23668,26 +23267,6 @@ function createServerContent(section) {
 }
 
 // src/forkop/tabs/servers/table.ts
-function loadServerTableOptions(sectionRef) {
-  const tasks = [];
-  sectionRef.cfgsections().forEach((sectionId) => {
-    sectionRef.children.forEach((child) => {
-      if (child.disable || child.modalonly) {
-        return;
-      }
-      tasks.push(
-        Promise.resolve(child.load.call(child, sectionId)).then(
-          (value) => child.cfgvalue(sectionId, value)
-        )
-      );
-    });
-  });
-  return Promise.all(tasks);
-}
-function getRuleEditButtonText() {
-  const label = _("Edit rule action");
-  return label === "Edit rule action" ? "Edit" : label;
-}
 function renderServerRowActions(sectionRef, sectionId) {
   const editLabel = getRuleEditButtonText();
   const detailsLabel = _("Server details");
@@ -23750,29 +23329,24 @@ function renderServerRowActions(sectionRef, sectionId) {
   }
   return tdEl;
 }
+function prepareAddedServer(sectionId) {
+  addedServers.add(sectionId);
+  uci.set(FORKOP_UCI_PACKAGE, sectionId, "protocol", DEFAULT_PROTOCOL);
+  uci.set(
+    FORKOP_UCI_PACKAGE,
+    sectionId,
+    "security",
+    defaultSecurity(DEFAULT_PROTOCOL)
+  );
+}
 function configureServerSection(sectionRef) {
   sectionRef.sortable = false;
   sectionRef.nodescriptions = true;
   sectionRef.load = function() {
     return Promise.all([
       preloadServerModalData(),
-      loadServerTableOptions(this)
+      loadVisibleTableOptions(this)
     ]);
-  };
-  sectionRef.handleAdd = function() {
-    const sectionId = this.addLabeledSection();
-    const mapNode = this.getPreviousModalMap();
-    const prevMap = mapNode ? dom.findClassInstance(mapNode) : this.map;
-    prevMap.addedSection = sectionId;
-    addedServers.add(sectionId);
-    uci.set(FORKOP_UCI_PACKAGE, sectionId, "protocol", DEFAULT_PROTOCOL);
-    uci.set(
-      FORKOP_UCI_PACKAGE,
-      sectionId,
-      "security",
-      defaultSecurity(DEFAULT_PROTOCOL)
-    );
-    return this.renderMoreOptionsModal(sectionId);
   };
   sectionRef.handleRemove = function(sectionId, ev) {
     removeServerClients(sectionId);
@@ -23798,32 +23372,6 @@ function configureServerSection(sectionRef) {
   };
   sectionRef.renderRowActions = function(sectionId) {
     return renderServerRowActions(this, sectionId);
-  };
-}
-
-// src/forkop/tabs/settings/dns.ts
-function optionListValues(option2, section_id) {
-  const formValue = option2.formvalue(section_id);
-  const value = formValue != null ? formValue : option2.cfgvalue(section_id);
-  return L.toArray(value).map((item) => `${item || ""}`.trim()).filter(Boolean);
-}
-function configureDnsList(option2, defaultValue, ipOnly = false) {
-  option2.default = [defaultValue];
-  option2.rmempty = false;
-  option2.validate = function(_section_id, value) {
-    const normalized = `${value || ""}`.trim();
-    if (!normalized) {
-      return optionListValues(option2, _section_id).length > 0 ? true : _("Add at least one DNS server");
-    }
-    const validation = validateDNS(normalized, ipOnly);
-    return validation.valid ? true : validation.message;
-  };
-}
-function configureDnsFailoverVisibility(option2, dnsOption, dnsKey) {
-  option2.depends(dnsKey, "__forkop_multiple_dns__");
-  option2.retain = true;
-  option2.checkDepends = function(section_id) {
-    return optionListValues(dnsOption, section_id).length > 1;
   };
 }
 
@@ -24066,7 +23614,8 @@ function addDnsOptions(section) {
       "Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://"
     )
   );
-  configureDnsList(dnsOption, "77.88.8.8");
+  dnsOption.default = ["77.88.8.8"];
+  configureDnsServerList(dnsOption);
   let o = section.option(
     form.ListValue,
     "dns_main_fallback_strategy",
@@ -24075,11 +23624,7 @@ function addDnsOptions(section) {
       "Parallel asks every server at once and is faster. Sequential asks them in turn until the first answer"
     )
   );
-  o.value("parallel", _("Parallel"));
-  o.value("sequential", _("Sequential"));
-  o.default = "parallel";
-  o.rmempty = false;
-  configureDnsFailoverVisibility(o, dnsOption, "dns_server");
+  configureDnsQueryMode(o, "dns_server");
   const bootstrapOption = section.option(
     form.DynamicList,
     "bootstrap_dns_server",
@@ -24088,7 +23633,8 @@ function addDnsOptions(section) {
       "Resolve the addresses of the main DNS servers and proxies. Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://"
     )
   );
-  configureDnsList(bootstrapOption, "77.88.8.8", true);
+  bootstrapOption.default = ["77.88.8.8"];
+  configureDnsServerList(bootstrapOption, { ipOnly: true });
   o = section.option(
     form.ListValue,
     "dns_bootstrap_fallback_strategy",
@@ -24097,11 +23643,7 @@ function addDnsOptions(section) {
       "Parallel asks every server at once and is faster. Sequential asks them in turn until the first answer"
     )
   );
-  o.value("parallel", _("Parallel"));
-  o.value("sequential", _("Sequential"));
-  o.default = "parallel";
-  o.rmempty = false;
-  configureDnsFailoverVisibility(o, bootstrapOption, "bootstrap_dns_server");
+  configureDnsQueryMode(o, "bootstrap_dns_server");
   o = section.option(
     form.Value,
     "dns_rewrite_ttl",
@@ -24311,13 +23853,6 @@ function validateSingBoxFilePath(value, fileName) {
 }
 
 // src/forkop/tabs/settings/validators.ts
-function latencyTestUrlChoices() {
-  return Array.isArray(LATENCY_TEST_URL_OPTIONS) ? LATENCY_TEST_URL_OPTIONS : [DEFAULT_LATENCY_TEST_URL || "https://www.gstatic.com/generate_204"];
-}
-function validateLatencyTestUrl(value) {
-  const validation = validateUrl(`${value || ""}`.trim());
-  return validation.valid ? true : validation.message;
-}
 function validateSingBoxPath(value, fileName) {
   const validation = validateSingBoxFilePath(`${value || ""}`, fileName);
   return validation.valid ? true : validation.message;
@@ -24414,9 +23949,6 @@ function addTrafficOptions(section) {
 }
 
 // src/forkop/tabs/settings/durations.ts
-function isSingBoxDuration2(value) {
-  return /^(?=.*[1-9])([0-9]+(?:\.[0-9]+)?(?:ns|us|ms|s|m|h|d))+$/.test(value);
-}
 function singBoxDurationSeconds(value) {
   const multipliers = {
     ns: 1e-9,
@@ -24485,14 +24017,7 @@ function addUpdateOptions(section) {
     }
   };
   o.validate = function(_section_id, value) {
-    const normalized = value ? `${value}`.trim() : "";
-    if (!normalized.length) {
-      return _("Use sing-box duration format like 1d, 12h or 30m");
-    }
-    if (isSingBoxDuration2(normalized)) {
-      return true;
-    }
-    return _("Use sing-box duration format like 1d, 12h or 30m");
+    return validateRequiredSingBoxDuration(value);
   };
   o = section.option(
     form.Flag,
@@ -24529,7 +24054,7 @@ function addUpdateOptions(section) {
   };
   o.validate = function(_section_id, value) {
     const normalized = value ? `${value}`.trim() : "";
-    if (!normalized.length || !isSingBoxDuration2(normalized)) {
+    if (!normalized.length || !isSingBoxDuration(normalized)) {
       return _("Use sing-box duration format like 1d, 12h or 30m");
     }
     if (!isCronExpressibleInterval(normalized)) {
@@ -24553,11 +24078,11 @@ function addUpdateOptions(section) {
     _("Latency test URL"),
     _("Default URL for general latency testing")
   );
-  latencyTestUrlChoices().forEach((value) => o.value(value));
+  LATENCY_TEST_URL_OPTIONS.forEach((value) => o.value(value));
   o.default = DEFAULT_LATENCY_TEST_URL || "https://www.gstatic.com/generate_204";
   o.rmempty = false;
   o.validate = function(_section_id, value) {
-    return validateLatencyTestUrl(value);
+    return validateUrlField(value);
   };
   o = section.option(
     form.Flag,
@@ -24678,7 +24203,7 @@ function addLabeledSection(sectionRef) {
   sectionRef.map.data.set(configName, sectionId, "label", label);
   return sectionId;
 }
-function configureGridSection(sectionRef, type, title, addTitle) {
+function configureGridSection(sectionRef, type, title, addTitle, onSectionAdded) {
   sectionRef.anonymous = false;
   sectionRef.addremove = true;
   sectionRef.sortable = true;
@@ -24694,14 +24219,12 @@ function configureGridSection(sectionRef, type, title, addTitle) {
   sectionRef.renderSectionAdd = function(extraClass) {
     return renderSectionAdd(sectionRef, extraClass);
   };
-  sectionRef.addLabeledSection = function() {
-    return addLabeledSection(this);
-  };
   sectionRef.handleAdd = function() {
-    const sectionId = this.addLabeledSection();
+    const sectionId = addLabeledSection(this);
     const mapNode = this.getPreviousModalMap();
     const prevMap = mapNode ? dom.findClassInstance(mapNode) : this.map;
     prevMap.addedSection = sectionId;
+    onSectionAdded?.(sectionId);
     return this.renderMoreOptionsModal(sectionId);
   };
   if (type === "section") {
@@ -24764,7 +24287,8 @@ var ForkopView = {
       serverSection,
       "server",
       _("Server"),
-      _("Add a server inbound")
+      _("Add a server inbound"),
+      prepareAddedServer
     );
     configureServerSection(serverSection);
     createServerContent(serverSection);
@@ -24799,6 +24323,5 @@ return baseclass.extend({
   configureServerSection,
   createSectionContent,
   createServerContent,
-  createSettingsContent,
-  getRuleEditButtonText
+  createSettingsContent
 });

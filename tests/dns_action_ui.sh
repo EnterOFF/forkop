@@ -82,8 +82,8 @@ for (const expected of [
   "'Resolves domains that match the section conditions. Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://'",
   "'dns_fallback_strategy'",
   "_('DNS Query Mode')",
-  "action === 'dns' && normalizeDynamicListItems(servers).length > 1",
-  "node.addEventListener('cbi-dynlist-change'",
+  "configureDnsQueryMode(dnsQueryModeOption, 'dns_server', {",
+  "alsoDependsOn: { action: 'dns' },",
   "_('Route DNS requests through a section')",
   "_('DNS requests through')",
   "'A URL or local path. The format is detected automatically'",
@@ -182,11 +182,11 @@ if (!source.includes("node.dispatchEvent(new CustomEvent('widget-change', { bubb
 
 
 if (
-  !/import \{[^}]*normalizeOptionValues[^}]*\} from '[^']*cbi\/localDevices'/.test(
+  !/import \{[^}]*normalizeOptionValues[^}]*\} from '[^']*cbi\/listValues'/.test(
     source,
   )
 ) {
-  fail("section must reuse the local-device option normalizer");
+  fail("section must reuse the shared uci list normalizer");
 }
 for (const name of [
   "normalizeOptionValues",
@@ -197,21 +197,37 @@ for (const name of [
   eval(readFunction(source, name));
 }
 
-// The interface resolver reuses the same option names, so stay inside the rule form.
-const dnsModeVisibilityStart = requiredIndex("dnsQueryModeOption.checkDepends = function", sectionContent);
-const dnsModeVisibilityEnd = requiredIndex("  o = section.taboption(", dnsModeVisibilityStart);
-const dnsModeListeners = {};
-const dnsModeNode = {
-  addEventListener: (name, listener) => { dnsModeListeners[name] = listener; },
-};
+// The query mode is wired by the shared DNS helper, so the visibility rule is
+// driven through that helper rather than through a slice of the tab calling it.
+const _ = (text) => text;
+// "more than one server" is not a value depends() can compare against, so the
+// mode depends on a sentinel no DNS server can be and answers the real question
+// in checkDepends.
+const sentinelMatch = /const MULTIPLE_DNS_SENTINEL = '([^']+)'/.exec(source);
+if (!sentinelMatch) {
+  fail("the DNS query mode must depend on a sentinel value");
+}
+const MULTIPLE_DNS_SENTINEL = sentinelMatch[1];
+for (const name of [
+  "optionListValues",
+  "siblingValues",
+  "configureDnsQueryMode",
+]) {
+  eval(readFunction(source, name));
+}
+
+// LuCI re-checks the whole map on widget-change from any option, and a
+// DynamicList raises that on every edit, so the check drives checkDepends
+// directly rather than through a listener of ours.
 let currentDnsServers = ["1.1.1.1"];
 let currentDnsAction = "dns";
 const actionOption = {
   formvalue: () => currentDnsAction,
+  cfgvalue: () => null,
 };
 const dnsServerOption = {
-  renderWidget: () => dnsModeNode,
   formvalue: () => currentDnsServers,
+  cfgvalue: () => null,
 };
 const dnsModeVisibility = [];
 const modalMap = {
@@ -225,18 +241,18 @@ const modalMap = {
 };
 const dnsQueryModeOption = {
   map: modalMap,
+  value: () => {},
+  depends: () => {},
 };
 dnsServerOption.map = modalMap;
-eval(source.slice(dnsModeVisibilityStart, dnsModeVisibilityEnd));
-dnsServerOption.renderWidget("section", 0, currentDnsServers);
-if (typeof dnsModeListeners["cbi-dynlist-change"] !== "function") {
-  fail("DNS server list must listen to the native DynamicList change event");
-}
-dnsModeListeners["cbi-dynlist-change"]();
+configureDnsQueryMode(dnsQueryModeOption, "dns_server", {
+  alsoDependsOn: { action: "dns" },
+});
+modalMap.checkDepends();
 currentDnsServers = ["1.1.1.1", "8.8.8.8"];
-dnsModeListeners["cbi-dynlist-change"]();
+modalMap.checkDepends();
 currentDnsAction = "connection";
-dnsModeListeners["cbi-dynlist-change"]();
+modalMap.checkDepends();
 if (JSON.stringify(dnsModeVisibility) !== JSON.stringify([false, true, false])) {
   fail("DNS query mode must react immediately to the live server count");
 }

@@ -2,6 +2,35 @@ export const FORKOP_UCI_PACKAGE = 'forkop';
 export const FORKOP_LUCI_APP_VERSION = '__COMPILED_VERSION_VARIABLE__';
 export const FAKEIP_CHECK_DOMAIN = 'fakeip.podkop.fyi';
 export const IP_CHECK_DOMAIN = 'ip.podkop.fyi';
+// Tags sing-box already uses for Forkop's own inbounds, outbounds and DNS
+// servers. A section or server display name becomes a tag verbatim, so these
+// names are refused by both dialogs, and by the runtime check, which reads
+// singbox/constants.uc. The contract test holds this against that table.
+export const RESERVED_RUNTIME_TAGS = new Set([
+  'dns-server',
+  'fakeip-server',
+  'bootstrap-dns-server',
+  'dnsmasq-server',
+  'hosts-server',
+  'fakeip-dns-rule-tag',
+  'fakeip-ruleset-dns-rule-tag',
+  'service-fakeip-dns-rule-tag',
+  'tproxy-in',
+  'tproxy6-in',
+  'dns-in',
+  'source-dns-in',
+  'system-in',
+  'system6-in',
+  'system-dns-in',
+  'service-mixed-in',
+  'direct-out',
+]);
+
+// The actions whose section can carry another section's traffic: what a DNS
+// detour, an outbound detour, a download-through picker and a Tailscale
+// coordination detour may be pointed at.
+export const DETOUR_TARGET_ACTIONS = ['connection', 'proxy', 'outbound', 'vpn'];
+
 export const DEFAULT_LATENCY_TEST_URL = 'https://www.gstatic.com/generate_204';
 export const LATENCY_TEST_URL_OPTIONS = [
   DEFAULT_LATENCY_TEST_URL,

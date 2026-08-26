@@ -1,3 +1,4 @@
+import { latencyClassName } from './latencyClassName';
 import {
   canUseDirectClashApi,
   getClashWsUrl,
@@ -775,22 +776,6 @@ function formatUrlTestModalValue(value: unknown) {
   return text || _('No');
 }
 
-function getUrlTestLatencyClass(latency: number) {
-  if (!latency) {
-    return 'fkp_dashboard-page__outbound-grid__item__latency--empty';
-  }
-
-  if (latency < 800) {
-    return 'fkp_dashboard-page__outbound-grid__item__latency--green';
-  }
-
-  if (latency < 1500) {
-    return 'fkp_dashboard-page__outbound-grid__item__latency--yellow';
-  }
-
-  return 'fkp_dashboard-page__outbound-grid__item__latency--red';
-}
-
 function formatUrlTestLatency(latency: number) {
   return latency ? `${latency}ms` : 'N/A';
 }
@@ -886,7 +871,7 @@ function renderUrlTestSelectedValue(info: Forkop.UrlTestInfo) {
         ? [
             E(
               'span',
-              { class: getUrlTestLatencyClass(selectedMember.latency) },
+              { class: latencyClassName(selectedMember.latency) },
               formatUrlTestLatency(selectedMember.latency),
             ),
           ]
@@ -1010,7 +995,7 @@ function renderUrlTestInfoModal(outbound: Forkop.Outbound) {
                     [
                       E(
                         'span',
-                        { class: getUrlTestLatencyClass(member.latency) },
+                        { class: latencyClassName(member.latency) },
                         formatUrlTestLatency(member.latency),
                       ),
                     ],
@@ -1106,7 +1091,7 @@ function renderFallbackSelectedValue(info: Forkop.FallbackInfo) {
         ? [
             E(
               'span',
-              { class: getUrlTestLatencyClass(selectedMember.latency) },
+              { class: latencyClassName(selectedMember.latency) },
               formatUrlTestLatency(selectedMember.latency),
             ),
           ]
@@ -1250,7 +1235,7 @@ function renderFallbackMemberRow(
       E('div', { class: 'fkp_dashboard-page__urltest-details__row-meta' }, [
         E(
           'span',
-          { class: getUrlTestLatencyClass(member.latency) },
+          { class: latencyClassName(member.latency) },
           formatUrlTestLatency(member.latency),
         ),
       ]),

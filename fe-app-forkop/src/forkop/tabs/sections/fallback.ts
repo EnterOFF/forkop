@@ -1,11 +1,17 @@
-import { FORKOP_UCI_PACKAGE } from '../../../constants';
+import { validateUrlField } from '../../../validators/validateUrl';
+import {
+  FORKOP_UCI_PACKAGE,
+  LATENCY_TEST_URL_OPTIONS,
+} from '../../../constants';
 import {
   applyChildItemSettings,
-  childItemInputValue,
+  childItemNameCheck,
   getChildItemIds,
   isExistingChildItem,
   nextSectionId,
+  orderChildItemsByPosition,
   parentSectionIdForItem,
+  removeChildItemsOf,
 } from '../../cbi/childItems';
 import { ButtonAddSettingsDynamicList } from '../../cbi/dynamicList';
 import {
@@ -14,6 +20,7 @@ import {
 } from '../../cbi/itemSettings';
 import {
   addDynamicListItem,
+  renderChildItemLabel,
   updateDynamicListItemLabel,
   validateUniqueDynamicListItemName,
 } from '../../cbi/listItems';
@@ -28,11 +35,10 @@ import {
   groupServerFilterDescriptions,
 } from './serverFilters';
 import {
-  urlTestUrlChoices,
-  validateExpectedStatus,
-  validateUrlTestUrl,
-} from './urltest';
-import { validateRequiredSingBoxDuration } from './validators';
+  addExpectedStatusOption,
+  addGroupHealthCheckTailOptions,
+} from './healthCheck';
+import { validateRequiredSingBoxDuration } from '../../../validators/validateSingBoxDuration';
 
 function fallbackGroupSettingsKeys() {
   return [
@@ -46,6 +52,11 @@ function fallbackGroupSettingsKeys() {
     'interrupt_exist_connections',
     'hide_dashboard_members',
   ];
+}
+
+// A group is nothing without its levels, so removing one takes them along.
+export function removeFallbackLevels(groupId: string) {
+  removeChildItemsOf(groupId, 'fallback_level', 'group');
 }
 
 export function fallbackGroupChildDefaults() {
@@ -184,11 +195,7 @@ function addFallbackGroupItemOptions(
 
   let o = itemSection.option(form.Value, 'name', _('Group name'));
   o.rmempty = false;
-  o.validate = function (_itemId: string, value: unknown) {
-    return `${value || ''}`.trim()
-      ? (options.validateName?.(value) ?? true)
-      : _('Enter a display name');
-  };
+  o.validate = childItemNameCheck(options);
 
   o = itemSection.option(
     form.Value,
@@ -198,24 +205,12 @@ function addFallbackGroupItemOptions(
   );
   o.default = 'https://www.gstatic.com/generate_204';
   o.rmempty = false;
-  urlTestUrlChoices().forEach((value: string) => o.value(value));
+  LATENCY_TEST_URL_OPTIONS.forEach((value: string) => o.value(value));
   o.validate = function (_itemId: string, value: unknown) {
-    return validateUrlTestUrl(value);
+    return validateUrlField(value);
   };
 
-  o = itemSection.option(
-    form.Value,
-    'expected_status',
-    _('Expected status'),
-    _(
-      'HTTP status codes of a successful check. * is any response, or values and ranges: 204/200-299',
-    ),
-  );
-  o.default = '*';
-  o.rmempty = false;
-  o.validate = function (_itemId: string, value: unknown) {
-    return validateExpectedStatus(value);
-  };
+  addExpectedStatusOption(itemSection);
 
   o = itemSection.option(
     form.Value,
@@ -253,35 +248,7 @@ function addFallbackGroupItemOptions(
     return validateRequiredSingBoxDuration(value);
   };
 
-  o = itemSection.option(
-    form.Value,
-    'idle_timeout',
-    _('Idle timeout'),
-    _('How long until health checks stop when the group is unused'),
-  );
-  o.default = '5m';
-  o.rmempty = false;
-  o.validate = function (_itemId: string, value: unknown) {
-    return validateRequiredSingBoxDuration(value);
-  };
-
-  o = itemSection.option(
-    form.Flag,
-    'interrupt_exist_connections',
-    _('Interrupt connections'),
-    _('Drop every active connection when the selected server changes'),
-  );
-  o.default = '0';
-  o.rmempty = false;
-
-  o = itemSection.option(
-    form.Flag,
-    'hide_dashboard_members',
-    _('Hide group servers'),
-    _('Hide servers included in this group from the dashboard'),
-  );
-  o.default = '0';
-  o.rmempty = false;
+  addGroupHealthCheckTailOptions(itemSection, '5m');
 
   o = itemSection.option(
     ButtonAddSettingsDynamicList,
@@ -313,58 +280,9 @@ function addFallbackGroupItemOptions(
     }
     return true;
   };
-  o.hasItemSettings = function (groupId: string, value: unknown) {
-    const normalized = `${value || ''}`.trim();
-
-    if (isExistingChildItem(groupId, normalized, 'fallback_level', 'group')) {
-      return true;
-    }
-
-    return normalized.length > 0;
-  };
-  o.inputValueForItem = function (groupId: string, value: unknown) {
-    const inputValue = childItemInputValue(
-      groupId,
-      value,
-      'fallback_level',
-      'name',
-      'group',
-    );
-    const store = childPendingSettingsStore(this, groupId);
-    return store[inputValue] && store[inputValue].name
-      ? `${store[inputValue].name}`
-      : inputValue;
-  };
-  o.stagedChildSettings = function (groupId: string, value: unknown) {
-    const id = childItemInputValue(
-      groupId,
-      value,
-      'fallback_level',
-      'name',
-      'group',
-    );
-    const store = childPendingSettingsStore(this, groupId);
-    return store[id] ? Object.assign({}, store[id]) : null;
-  };
-  o.clearStagedChildSettings = function (groupId: string) {
-    if (this.pendingChildSettings) {
-      delete this.pendingChildSettings[groupId];
-    }
-  };
-  o.afterMaterializeChildItems = function (
-    _groupId: string,
-    itemIds: string[],
-  ) {
-    itemIds.forEach((itemId: string, index: number) => {
-      uci.set(FORKOP_UCI_PACKAGE, itemId, 'order', `${index}`);
-    });
-  };
+  o.afterMaterializeChildItems = orderChildItemsByPosition;
   o.renderListItemLabel = function (groupId: string, itemId: string) {
-    return E(
-      'span',
-      { class: 'fkp-dynlist-label' },
-      this.inputValueForItem!(groupId, itemId),
-    );
+    return renderChildItemLabel(this, groupId, itemId);
   };
 }
 

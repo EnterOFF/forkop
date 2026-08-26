@@ -1,7 +1,7 @@
 import { validateDomain } from './validateDomain';
 import { isIPv4, isIPv6 } from './validateIp';
 
-export type ParsedHostPort = {
+type ParsedHostPort = {
   host: string;
   port: string;
 };

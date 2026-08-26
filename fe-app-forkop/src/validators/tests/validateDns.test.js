@@ -3,7 +3,7 @@ import { validateDNS } from '../validateDns.js';
 import { invalidIPs, validIPs } from './validateIp.test';
 import { invalidDomains, validDomains } from './validateDomain.test';
 
-export const additionalValidDns = [
+const additionalValidDns = [
   ['Google DNS (port 53)', '8.8.8.8:53'],
   ['Google DNS (port 5353)', '8.8.8.8:5353'],
   ['TCP DNS', 'tcp://8.8.8.8'],

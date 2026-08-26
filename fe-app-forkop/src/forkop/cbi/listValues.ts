@@ -1,3 +1,14 @@
+// The values of a list, from either shape LuCI hands them in.
+//
+// There are two of these because a scalar means two different things. A widget
+// hands back one entry the user typed, and that entry may hold spaces - a
+// display name does; so normalizeDynamicListItems keeps it whole. uci hands back
+// a bare string for a list option that holds a single value, and a value written
+// before the option was a list is space separated inside that one string; so
+// normalizeOptionValues splits it. Reading a widget with the uci one would cut a
+// name in half, and reading uci with the widget one would keep a whole legacy
+// line as a single entry.
+
 export function normalizeDynamicListItems(value: unknown): string[] {
   if (!value) {
     return [];
@@ -11,6 +22,24 @@ export function normalizeDynamicListItems(value: unknown): string[] {
 
   const normalized = `${value}`.trim();
   return normalized.length ? [normalized] : [];
+}
+
+export function normalizeOptionValues(value: unknown): string[] {
+  if (!value) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .filter(Boolean)
+      .map((item) => `${item}`.trim())
+      .filter(Boolean);
+  }
+
+  return `${value}`
+    .split(/\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 export function nextDynamicListName(

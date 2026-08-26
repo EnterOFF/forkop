@@ -1,8 +1,8 @@
 import type { Forkop } from '../types';
 
-export type ServiceStatusTone = 'success' | 'error' | 'progress';
+type ServiceStatusTone = 'success' | 'error' | 'progress';
 
-export interface ServiceStatusDisplay {
+interface ServiceStatusDisplay {
   label: string;
   tone: ServiceStatusTone;
 }

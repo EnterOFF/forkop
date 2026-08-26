@@ -1,7 +1,7 @@
 import { isIPv4, isIPv6 } from '../validators/validateIp';
 import { validateSubnet } from '../validators/validateSubnet';
 
-export type NativeWireGuardEndpoint = {
+type NativeWireGuardEndpoint = {
   type: 'wireguard';
   address: string[];
   private_key: string;
@@ -18,7 +18,7 @@ export type NativeWireGuardEndpoint = {
   amnezia?: Record<string, number | string>;
 };
 
-export type WireGuardConfigResult =
+type WireGuardConfigResult =
   | { valid: true; endpoint: NativeWireGuardEndpoint }
   | { valid: false; message: string };
 

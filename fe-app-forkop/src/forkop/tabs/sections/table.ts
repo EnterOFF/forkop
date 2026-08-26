@@ -1,33 +1,9 @@
 import { cleanupRemovedChildItems } from '../../cbi/childItems';
+import { loadVisibleTableOptions } from '../../cbi/grid';
+import { removeFallbackLevels } from './fallback';
 import { missingConnectionOutbound } from './references';
+import { removeTunnelPeers } from './tunnels/model';
 import { loadDefaultSubscriptionHeaders } from './subscriptions/model';
-
-function loadSectionTableOptions(sectionRef: CBISection) {
-  const sectionIds = sectionRef.cfgsections();
-  const tasks = [];
-
-  for (let i = 0; i < sectionIds.length; i += 1) {
-    const sectionId = sectionIds[i];
-
-    for (let j = 0; j < sectionRef.children.length; j += 1) {
-      const option = sectionRef.children[j];
-
-      if (option.disable || option.modalonly) {
-        continue;
-      }
-
-      tasks.push(
-        Promise.resolve(option.load.call(option, sectionId)).then(
-          (value: unknown) => {
-            option.cfgvalue(sectionId, value);
-          },
-        ),
-      );
-    }
-  }
-
-  return Promise.all(tasks);
-}
 
 export function configureSectionSection(sectionRef: CBISection) {
   const handleRemove = sectionRef.handleRemove;
@@ -35,8 +11,20 @@ export function configureSectionSection(sectionRef: CBISection) {
     cleanupRemovedChildItems(section_id, 'subscription_url', []);
     cleanupRemovedChildItems(section_id, 'section_interface', []);
     cleanupRemovedChildItems(section_id, 'urltest', []);
-    cleanupRemovedChildItems(section_id, 'fallback_group', []);
-    cleanupRemovedChildItems(section_id, 'tunnel', []);
+    cleanupRemovedChildItems(
+      section_id,
+      'fallback_group',
+      [],
+      undefined,
+      removeFallbackLevels,
+    );
+    cleanupRemovedChildItems(
+      section_id,
+      'tunnel',
+      [],
+      undefined,
+      removeTunnelPeers,
+    );
     return handleRemove!.call(this, section_id, event);
   };
 
@@ -56,11 +44,9 @@ export function configureSectionSection(sectionRef: CBISection) {
   };
 
   sectionRef.load = function () {
-    // The table renders only non-modal fields; the cloned Add/Edit modal loads
-    // action/provider details when the user opens it.
     return Promise.all([
       loadDefaultSubscriptionHeaders(),
-      loadSectionTableOptions(this),
+      loadVisibleTableOptions(this),
     ]);
   };
 }

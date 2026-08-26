@@ -1,10 +1,6 @@
-export function isSingBoxDuration(value: string) {
-  return /^(?=.*[1-9])([0-9]+(?:\.[0-9]+)?(?:ns|us|ms|s|m|h|d))+$/.test(value);
-}
-
 // Mirrors duration_to_seconds_value in components/updates.uc. The two are kept
 // in step by tests/component_update_interval.sh.
-export function singBoxDurationSeconds(value: string) {
+function singBoxDurationSeconds(value: string) {
   const multipliers: Record<string, number> = {
     ns: 1e-9,
     us: 1e-6,

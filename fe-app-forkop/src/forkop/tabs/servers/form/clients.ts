@@ -1,6 +1,6 @@
-import { childItemInputValue, nextSectionId } from '../../../cbi/childItems';
+import { nextSectionId } from '../../../cbi/childItems';
 import { ButtonAddSettingsDynamicList } from '../../../cbi/dynamicList';
-import { childPendingSettingsStore } from '../../../cbi/itemSettings';
+
 import { showClientSettingsModal } from '../clientDialog';
 import { pruneClientCredentials, validateClientsOnSave } from '../clients';
 import { CLIENT_OWNER_OPTION, CLIENT_TYPE } from '../constants';
@@ -33,31 +33,6 @@ export function addClientListOption(section: CBISection) {
     return this.inputValueForItem!(sectionId, value);
   };
   o.renderItemSettingsModal = showClientSettingsModal;
-  o.hasItemSettings = (_sectionId: string, value: unknown) =>
-    `${value || ''}`.trim().length > 0;
-  o.inputValueForItem = function (sectionId: string, value: unknown) {
-    const name = childItemInputValue(
-      sectionId,
-      value,
-      CLIENT_TYPE,
-      'name',
-      CLIENT_OWNER_OPTION,
-    );
-    const store = childPendingSettingsStore(this, sectionId);
-    return store && store[name] && store[name].name
-      ? `${store[name].name}`
-      : name;
-  };
-  o.stagedChildSettings = function (sectionId: string, value: unknown) {
-    const name = this.inputValueForItem!(sectionId, value);
-    const store = childPendingSettingsStore(this, sectionId);
-    return store && store[name] ? Object.assign({}, store[name]) : null;
-  };
-  o.clearStagedChildSettings = function (sectionId: string) {
-    if (this.pendingChildSettings) {
-      delete this.pendingChildSettings[sectionId];
-    }
-  };
   // Credentials the protocol stopped using are dropped once the list is written, so
   // switching protocol never leaves a stale password behind.
   o.afterMaterializeChildItems = function (sectionId: string) {

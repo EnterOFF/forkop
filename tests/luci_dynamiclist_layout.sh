@@ -22,6 +22,8 @@ server_filter_options="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections -
 urltest_options="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections --decl addUrlTestItemOptions)"
 fallback_options="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections --decl addFallbackLevelItemOptions)"
 fallback_group_options="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections --decl addFallbackGroupItemOptions)"
+# The rows a URLTest and a Fallback group ask the same way are declared once.
+shared_health_check="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections --decl addExpectedStatusOption)$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections --decl addGroupHealthCheckTailOptions)"
 create_section="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections --decl createSectionContent)"
 live_choices="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections --decl configureLiveDynamicListChoices)"
 close_all_styles="$(sed -n '/^\.fkp_monitoring-page #monitoring-close-all\.btn\.fkp_monitoring-page__icon-button:hover:not(:disabled) {$/,/^}$/p' "$MONITORING_STYLES")"
@@ -106,24 +108,41 @@ assert.match(
 );
 
 const fallbackSource = readFunction(source, 'addFallbackGroupItemOptions');
-const fallbackDefault = (name) => {
-  const match = fallbackSource.match(
+// The value an option is declared with, taken out of the block that declares it.
+const declaredDefault = (block, name) => {
+  const match = block.match(
     new RegExp(
       `['"]${name}['"],[\\s\\S]*?\\);\\n  o\\.default = ['"]([^'"]+)['"];`,
     ),
   );
-  assert(match, `Fallback default not found: ${name}`);
+  assert(match, `default not found: ${name}`);
   return match[1];
 };
+const fallbackDefault = (name) => declaredDefault(fallbackSource, name);
 assert.strictEqual(fallbackDefault('health_check_interval'), '5m');
 assert.strictEqual(fallbackDefault('health_check_timeout'), '5s');
 assert.strictEqual(fallbackDefault('attempt_timeout'), '5s');
-assert.strictEqual(fallbackDefault('expected_status'), '*');
-assert.strictEqual(fallbackDefault('idle_timeout'), '5m');
-assert.strictEqual(fallbackDefault('interrupt_exist_connections'), '0');
+// The rows a Fallback group shares with a URLTest are declared once; the idle
+// timeout is the only one of them this dialog chooses for itself.
 assert.match(
   fallbackSource,
-  /urlTestUrlChoices\(\)\.forEach\(\(value\) => o\.value\(value\)\);/,
+  /addGroupHealthCheckTailOptions\(itemSection, '5m'\)/,
+  'a Fallback group must stop checking after five idle minutes',
+);
+assert.match(
+  fallbackSource,
+  /addExpectedStatusOption\(itemSection\)/,
+  'a Fallback group must ask which replies count as an answer',
+);
+const sharedSource =
+  readFunction(source, 'addExpectedStatusOption') +
+  readFunction(source, 'addGroupHealthCheckTailOptions');
+const sharedDefault = (name) => declaredDefault(sharedSource, name);
+assert.strictEqual(sharedDefault('expected_status'), '*');
+assert.strictEqual(sharedDefault('interrupt_exist_connections'), '0');
+assert.match(
+  fallbackSource,
+  /LATENCY_TEST_URL_OPTIONS\.forEach\(\(value\) => o\.value\(value\)\);/,
 );
 eval(readFunction(source, 'syncServerFilterFields'));
 
@@ -377,9 +396,13 @@ if grep -Eq 'include_countries|exclude_countries|countryChoices' <<<"$server_fil
 fi
 grep -Fq 'Add at least one server group' "$SECTION_JS" ||
   fail "Fallback settings must require at least one server group"
-for option in health_check_url health_check_interval health_check_timeout attempt_timeout expected_status idle_timeout interrupt_exist_connections; do
+for option in health_check_url health_check_interval health_check_timeout attempt_timeout; do
   grep -Eq "['\"]$option['\"]" <<<"$fallback_group_options" ||
     fail "Fallback settings are missing $option"
+done
+for option in expected_status idle_timeout interrupt_exist_connections; do
+  grep -Eq "['\"]$option['\"]" <<<"$shared_health_check" ||
+    fail "the shared health check rows are missing $option"
 done
 if grep -Fq '"max_failed_times"' <<<"$fallback_group_options"; then
   fail "the failure counter must stay a core constant instead of a setting"

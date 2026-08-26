@@ -6,7 +6,7 @@ import type { Forkop } from '../../types';
 // this and from whether the service is running - there is no third source.
 export type ServiceOperation = Forkop.ServiceBusy;
 
-export type ServiceControlMode = 'restart' | 'apply';
+type ServiceControlMode = 'restart' | 'apply';
 
 type LoadingActionState = {
   loading: boolean;
@@ -22,13 +22,13 @@ type DiagnosticServiceActions = {
 
 type ComponentActions = Record<string, LoadingActionState>;
 
-export interface ServiceControlState {
+interface ServiceControlState {
   visible: boolean;
   loading: boolean;
   disabled: boolean;
 }
 
-export interface ServiceControlsPresentation {
+interface ServiceControlsPresentation {
   restart: ServiceControlState & { mode: ServiceControlMode };
   start: ServiceControlState;
   stop: ServiceControlState;

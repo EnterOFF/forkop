@@ -105,8 +105,8 @@ async function checkDialog(harness, ownerId, option, depth) {
 
 async function checkChildDialogs() {
   const harness = createHarness(root);
-  const view = harness.load('section');
-  const serverView = harness.load('server');
+  const view = harness.bundle;
+  const serverView = harness.bundle;
 
   harness.uci.add('forkop', 'section', 'section_probe');
   harness.uci.set('forkop', 'section_probe', 'action', 'connection');
@@ -174,7 +174,7 @@ async function checkShippedSettings() {
   }
   assert(harness.uci.get('forkop', 'settings'), 'the shipped config has no settings section');
 
-  const settings = harness.load('settings');
+  const settings = harness.bundle;
   const map = new harness.form.Map('forkop');
   const section = map.section(harness.form.NamedSection, 'settings');
   settings.createSettingsContent(section);
@@ -194,7 +194,7 @@ async function checkShippedSettings() {
 // hidden and has to survive a save that does not show it.
 async function checkSubscriptionTag() {
   const harness = createHarness(root);
-  const view = harness.load('section');
+  const view = harness.bundle;
   harness.uci.add('forkop', 'section', 'section_probe');
   harness.uci.set('forkop', 'section_probe', 'action', 'connection');
 
@@ -253,7 +253,7 @@ async function checkSubscriptionTag() {
 async function checkRuleSetsSurviveEveryAction() {
   for (const action of ['connection', 'proxy', 'bypass', 'block', 'dns']) {
     const harness = createHarness(root);
-    const view = harness.load('section');
+    const view = harness.bundle;
     harness.uci.add('forkop', 'section', 'section_probe');
     Object.assign(harness.store.get('section_probe'), {
       action,
@@ -295,7 +295,7 @@ async function checkRuleSetsSurviveEveryAction() {
 // the whole tunnel.
 async function checkTunnelRoundTrip() {
   const harness = createHarness(root);
-  const view = harness.load('section');
+  const view = harness.bundle;
   harness.uci.add('forkop', 'section', 'section_probe');
   Object.assign(harness.store.get('section_probe'), {
     action: 'connection',
@@ -343,7 +343,7 @@ async function checkTunnelRoundTrip() {
 // apply, reporting a change nobody made.
 async function checkServerSecuritySurvives() {
   const harness = createHarness(root);
-  const serverView = harness.load('server');
+  const serverView = harness.bundle;
   harness.uci.add('forkop', 'server', 'server_probe');
   Object.assign(harness.store.get('server_probe'), {
     protocol: 'mixed',
@@ -453,7 +453,7 @@ async function checkEveryShownOptionRoundTrips(label, build, states, selector) {
 async function checkFilledFormsRoundTrip() {
   const buildSection = (action) => {
     const harness = createHarness(root);
-    const view = harness.load('section');
+    const view = harness.bundle;
     harness.uci.add('forkop', 'section', 'probe');
     Object.assign(harness.store.get('probe'), { action, enabled: '1', label: 'Probe' });
     const map = new harness.form.Map('forkop');
@@ -467,7 +467,7 @@ async function checkFilledFormsRoundTrip() {
 
   const buildServer = (protocol) => {
     const harness = createHarness(root);
-    const view = harness.load('server');
+    const view = harness.bundle;
     harness.uci.add('forkop', 'server', 'probe');
     Object.assign(harness.store.get('probe'), { protocol, enabled: '1', label: 'Probe' });
     harness.uci.add('forkop', 'server_client', 'client_probe');
@@ -486,7 +486,7 @@ async function checkFilledFormsRoundTrip() {
 
   const buildSettings = () => {
     const harness = createHarness(root);
-    const view = harness.load('settings');
+    const view = harness.bundle;
     harness.uci.add('forkop', 'settings', 'settings');
     harness.uci.add('forkop', 'section', 'live');
     Object.assign(harness.store.get('live'), {

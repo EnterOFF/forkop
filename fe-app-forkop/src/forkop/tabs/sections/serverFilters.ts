@@ -1,6 +1,8 @@
 import { refreshOptionChoices } from '../../cbi/choices';
-import { normalizeDynamicListItems } from '../../cbi/listValues';
-import { normalizeOptionValues } from '../../cbi/localDevices';
+import {
+  normalizeDynamicListItems,
+  normalizeOptionValues,
+} from '../../cbi/listValues';
 import { modalOptionFormValue } from '../../cbi/modal';
 import {
   configureLiveDynamicListChoices,
@@ -48,7 +50,7 @@ type FilterFieldSpec = [
   storageKey: string,
   label: string,
   description: string | undefined,
-  validator: OptionValidator | null,
+  validator: ((value: string) => string | true) | null,
   visibleModes: string[],
 ];
 
@@ -300,9 +302,7 @@ export function addServerFilterOptions(
       }
       if (validator) {
         field.validate = function (_itemId: string, value: string) {
-          // Every validator here ignores the section it is given, and the field
-          // is inside a dialog whose section is not the one being edited.
-          return validator(null as unknown as string, value);
+          return validator(value);
         };
       }
     },

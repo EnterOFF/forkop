@@ -11,48 +11,6 @@ export const MAX_CLIENT_NAME_LENGTH = 64;
 // Servers created in this page load whose dialog has not been saved yet.
 export const addedServers = new Set();
 
-export const ROUTING_SECTION_ACTIONS = [
-  'connection',
-  'proxy',
-  'outbound',
-  'vpn',
-];
-
-export const TAILSCALE_DETOUR_ACTIONS = [
-  'connection',
-  'proxy',
-  'outbound',
-  'vpn',
-];
-
-// Tags sing-box already uses for Forkop's own inbounds, outbounds and DNS servers.
-// A server name becomes an inbound tag verbatim, so these names are refused.
-//
-// The Sections tab keeps the same list rather than this one importing it. A browser
-// caches every view module on its own, so an upgrade can leave an old section.js next
-// to a new server.js, and a name imported across the two would be undefined there -
-// which takes out the validator, and with it the Save button. The contract test holds
-// both copies against singbox/constants.uc instead.
-export const RESERVED_RUNTIME_TAGS = new Set([
-  'dns-server',
-  'fakeip-server',
-  'bootstrap-dns-server',
-  'dnsmasq-server',
-  'hosts-server',
-  'fakeip-dns-rule-tag',
-  'fakeip-ruleset-dns-rule-tag',
-  'service-fakeip-dns-rule-tag',
-  'tproxy-in',
-  'tproxy6-in',
-  'dns-in',
-  'source-dns-in',
-  'system-in',
-  'system6-in',
-  'system-dns-in',
-  'service-mixed-in',
-  'direct-out',
-]);
-
 // Ports Forkop's own sing-box instance binds. A server that takes one of them stops
 // the whole service instead of only failing itself.
 export const RESERVED_PORTS = [

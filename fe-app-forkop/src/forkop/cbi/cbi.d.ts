@@ -85,14 +85,10 @@ declare global {
       | Record<string, unknown>
       | ((inputValue: string, existing: boolean) => Record<string, unknown>);
     // The settings of an entry the user added but has not saved, so a child
-    // created now starts from what the dialog already holds.
-    stagedSettings?:
-      | ((
-          value: unknown,
-          itemId: string,
-          created: boolean,
-        ) => ChildSettings | null)
-      | null;
+    // created now starts from what the dialog already holds. Asked only for a
+    // child that has just been created; an entry that was already a section
+    // carries its settings in that section.
+    stagedSettings?: ((value: unknown) => ChildSettings | null) | null;
   }
 
   interface CBIOption {
@@ -111,6 +107,9 @@ declare global {
     ownerOption?: string;
     // The section a new child belongs to, when it is not the one being edited.
     childOwnerId?: (sectionId: string) => string;
+    // A child item of this list has a list of its own, and removing the item
+    // has to take what it holds with it.
+    removeNestedChildItems?: (itemId: string) => void;
     // The section the list itself belongs to, for a list rendered inside a
     // dialog that is editing a child of another section.
     parentSectionId?: ((sectionId: string) => string) | string;
@@ -145,7 +144,9 @@ declare global {
       itemId: string,
       text?: string | null,
     ) => string | Node;
-    // The text an entry's input holds when the list is reopened.
+    // The text an entry shows and is looked up by: what its child section
+    // stores, or - for an entry the dialog has filled in but not written yet -
+    // the name that dialog is holding.
     inputValueForItem?: (sectionId: string, value: unknown) => string;
     // The caption of the button that adds an entry.
     addButtonLabel?: string | ((sectionId: string) => string);
@@ -169,8 +170,6 @@ declare global {
     stagedChildSettings?: (
       sectionId: string,
       value: unknown,
-      itemId?: string,
-      created?: boolean,
     ) => ChildSettings | null;
     clearStagedChildSettings?: (sectionId: string) => void;
 
@@ -279,11 +278,6 @@ declare global {
   }
 
   interface CBISection {
-    // The grid rows carry a name column, so a new section is created with a
-    // label already in it and the dialog opens on that section - both are
-    // wired up where the grid is configured, in the entry view.
-    addLabeledSection?(): string;
-
     // The header rows of the subscription headers dialog are numbered as they
     // are added, so a removed row never gives its number back.
     nextHeaderRowIndex?: number;

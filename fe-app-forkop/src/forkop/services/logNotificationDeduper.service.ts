@@ -1,3 +1,4 @@
+import { getSessionStorage } from './sessionStorage.service';
 const LOG_NOTIFICATION_STORAGE_KEY = 'forkop:shown-log-error-notifications:v1';
 const MAX_STORED_LOG_NOTIFICATIONS = 500;
 const FORKOP_LOG_SOURCE_PATTERN = /\bforkop(?:\[\d+\])?:/i;
@@ -10,18 +11,6 @@ export type ForkopLogNotification =
       component: string;
       version: string;
     };
-
-function getSessionStorage(): Storage | null {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  try {
-    return window.sessionStorage;
-  } catch {
-    return null;
-  }
-}
 
 function readStoredKeys(storage: Storage | null): string[] {
   if (!storage) {

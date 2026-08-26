@@ -1,3 +1,4 @@
+import { latencyClassName } from '../latencyClassName';
 import {
   renderLoaderCircleIcon24,
   renderCopyIcon24,
@@ -292,22 +293,6 @@ function renderRuleSetUpdateAction(
   );
 }
 
-function getOutboundLatencyClass(latency: number) {
-  if (!latency) {
-    return 'fkp_dashboard-page__outbound-grid__item__latency--empty';
-  }
-
-  if (latency < 800) {
-    return 'fkp_dashboard-page__outbound-grid__item__latency--green';
-  }
-
-  if (latency < 1500) {
-    return 'fkp_dashboard-page__outbound-grid__item__latency--yellow';
-  }
-
-  return 'fkp_dashboard-page__outbound-grid__item__latency--red';
-}
-
 function renderDefaultState({
   section,
   onChooseOutbound,
@@ -369,7 +354,7 @@ function renderDefaultState({
     ]
       .filter(Boolean)
       .join(' ');
-    const latencyClass = getOutboundLatencyClass(outbound.latency);
+    const latencyClass = latencyClassName(outbound.latency);
     const latencyValue = outbound.latency ? `${outbound.latency}ms` : 'N/A';
     const latency = showLatency
       ? E(

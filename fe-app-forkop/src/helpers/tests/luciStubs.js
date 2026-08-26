@@ -7,44 +7,6 @@
 
 import { webcrypto } from 'node:crypto';
 
-import {
-  addAnnotationIssue,
-  finalizeAnnotations,
-  getDuplicateValueText,
-  getValidationHeaderText,
-} from '../../forkop/cbi/annotations';
-import {
-  SYSTEM_DEVICE_VALUE,
-  createLocalDeviceDynamicListWidget,
-  normalizeOptionValues,
-} from '../../forkop/cbi/localDevices';
-import { ButtonAddSettingsDynamicList } from '../../forkop/cbi/dynamicList';
-import {
-  addDynamicListItem,
-  updateDynamicListItemLabel,
-  validateUniqueDynamicListItemName,
-} from '../../forkop/cbi/listItems';
-import {
-  childItemInputValue,
-  cleanupRemovedChildItems,
-  isExistingChildItem,
-} from '../../forkop/cbi/childItems';
-import { childPendingSettingsStore } from '../../forkop/cbi/itemSettings';
-import {
-  SINGLE_FIELD_MODAL_CLASS,
-  ensureSingleFieldModalStyles,
-  showChildItemSettingsModal,
-} from '../../forkop/cbi/modal';
-import { configureTextareaOption } from '../../forkop/cbi/annotatedTextarea';
-import { keepUnavailableSectionChoice } from '../../forkop/cbi/choices';
-import {
-  GRID_KIND_COLUMN_WIDTH,
-  GRID_SWITCH_COLUMN_WIDTH,
-} from '../../forkop/cbi/constants';
-import { validateDomain } from '../../validators/validateDomain';
-import { validateOutboundJson } from '../../validators/validateOutboundJson';
-import { validateSubnet } from '../../validators/validateSubnet';
-
 // Installs a uci model as the global the bundle reads. A module inside the
 // bundle takes uci from LuCI rather than importing it, so a test that drives one
 // puts its model where the module looks.
@@ -74,7 +36,7 @@ export function installLuciStubs(sections = {}, widgets = {}) {
 
 // A UCI model shaped like the one LuCI keeps in the browser: sections keyed by
 // name, each carrying .name and .type, with list options stored as arrays.
-export function createUciStub(sections = {}) {
+function createUciStub(sections = {}) {
   const values = {};
 
   const ensure = (name, type) => {
@@ -174,45 +136,6 @@ function defaultStubs(uci, widgets) {
     // and call value() and depends().
     form: FORM_CLASSES,
     rpc: { declare: () => () => Promise.resolve([]) },
-    baseclass: { extend: (exports) => exports },
-    // What a view still outside the bundle reaches for. The helpers here are the
-    // shipped ones, imported straight from src - a view reaching one of them in a
-    // test sees exactly what the browser would.
-    main: {
-      FORKOP_UCI_PACKAGE: 'forkop',
-      showToast: noop,
-      validatePath: (value) => ({
-        valid: /^\/[A-Za-z0-9_./-]+$/.test(`${value}`),
-      }),
-      validateDomain,
-      validateOutboundJson,
-      validateSubnet,
-      addAnnotationIssue,
-      finalizeAnnotations,
-      getDuplicateValueText,
-      getValidationHeaderText,
-      SYSTEM_DEVICE_VALUE,
-      createLocalDeviceDynamicListWidget,
-      normalizeOptionValues,
-      // The shared CBI layer. The Servers and Settings views reach it through
-      // the bundle now, so these are the shipped implementations rather than
-      // stand-ins for them.
-      GRID_KIND_COLUMN_WIDTH,
-      GRID_SWITCH_COLUMN_WIDTH,
-      SINGLE_FIELD_MODAL_CLASS,
-      ButtonAddSettingsDynamicList,
-      addDynamicListItem,
-      updateDynamicListItemLabel,
-      validateUniqueDynamicListItemName,
-      childItemInputValue,
-      cleanupRemovedChildItems,
-      isExistingChildItem,
-      childPendingSettingsStore,
-      ensureSingleFieldModalStyles,
-      showChildItemSettingsModal,
-      configureTextareaOption,
-      keepUnavailableSectionChoice,
-    },
     window: {
       crypto: webcrypto,
       location: { hostname: 'router.lan' },
@@ -284,12 +207,16 @@ const UI_CLASSES = Object.fromEntries(
 // Returned options are plain objects, so a tab setting rmempty, a default or a
 // validate on one is simply read back off the record.
 export function createFormSectionStub() {
+  const noop = () => {};
   const options = [];
 
   const section = {
     options,
     option(widget, name, title, description) {
-      const option = {
+      // Built on the widget's own prototype, so an option answers with whatever
+      // that widget class provides on top of what the tab sets here - the child
+      // item list gets most of its behaviour that way.
+      const option = Object.assign(Object.create(widget?.prototype ?? null), {
         widget: widget && widget.widget ? widget.widget : 'unknown',
         name,
         title,
@@ -308,10 +235,13 @@ export function createFormSectionStub() {
           );
           return this;
         },
-      };
+      });
       options.push(option);
       return option;
     },
+    // A tab is a heading over a group of options; nothing here renders one, and
+    // the options land in one list either way.
+    tab: noop,
     taboption(_tab, ...args) {
       return section.option(...args);
     },

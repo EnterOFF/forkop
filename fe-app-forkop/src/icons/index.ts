@@ -16,7 +16,6 @@ export * from './renderCogIcon24';
 export * from './renderFileTextIcon24';
 export * from './renderSearchIcon24';
 export * from './renderCopyIcon24';
-export * from './renderLinkIcon24';
 export * from './renderDownloadIcon24';
 export * from './renderInfoIcon24';
 export * from './renderListFilterIcon24';

@@ -37,7 +37,7 @@ const classesNamed = (names: string[]) =>
   Object.fromEntries(names.map((name) => [name, extendableClass(name)]));
 
 globalThis.ui = {
-  ...classesNamed(['Dropdown', 'DynamicList', 'Select', 'Textarea', 'Textfield']),
+  ...classesNamed(['DynamicList']),
   showModal: () => undefined,
   hideModal: () => undefined,
 } as unknown as typeof ui;

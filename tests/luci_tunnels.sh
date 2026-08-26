@@ -6,11 +6,14 @@ SECTION_JS="$(node "$ROOT_DIR/tests/helpers/tab_source.js" sections)"
 MAIN_TS="$ROOT_DIR/fe-app-forkop/src/main.ts"
 CONNECTIONS_UC="$ROOT_DIR/forkop/files/usr/lib/config/connections.uc"
 
-node - "$SECTION_JS" "$MAIN_TS" "$CONNECTIONS_UC" <<'NODE'
+node - "$SECTION_JS" "$MAIN_TS" "$CONNECTIONS_UC" "$ROOT_DIR" <<'NODE'
 const fs = require('fs');
 const section = fs.readFileSync(process.argv[2], 'utf8');
 const main = fs.readFileSync(process.argv[3], 'utf8');
 const connections = fs.readFileSync(process.argv[4], 'utf8');
+const { readFunction, readNameList } = require(
+  `${process.argv[5]}/tests/helpers/source_literal.js`,
+);
 
 function requireSource(source, needle) {
   if (!source.includes(needle)) {
@@ -83,7 +86,7 @@ for (const needle of [
   'warpAuthTokenOption.rmempty = false',
   'warpPrivateKeyOption.rmempty = false',
   "typeof peer.port !== 'number'",
-  'const WIREGUARD_PEER_FIELDS = new Set([',
+  'const WIREGUARD_PEER_FIELDS = new Set(wireGuardPeerSettingsKeys())',
   'function validateWireGuardListInput(value)',
   "return `${value || ''}`.trim() ? validateWireGuardPrefix(value) : true;",
   'validateWireGuardPrefix(allowedIp)',
@@ -123,9 +126,7 @@ for (const needle of [
   requireSource(section, needle);
 }
 
-const warpFieldsStart = section.indexOf('const ONE_SIDED_AMNEZIA_FIELDS = [');
-const warpFieldsEnd = section.indexOf('];', warpFieldsStart);
-const warpFields = section.slice(warpFieldsStart, warpFieldsEnd);
+const warpFields = readNameList(section, 'ONE_SIDED_AMNEZIA_FIELDS');
 for (const key of [
   'jc', 'jmin', 'jmax',
   'i1', 'i2', 'i3', 'i4', 'i5',
@@ -133,7 +134,7 @@ for (const key of [
   'rekey_after_time', 'rekey_timeout', 'reject_after_time',
   'keepalive_timeout', 'max_handshake_attempts',
 ]) {
-  if (!warpFields.includes(`'${key}'`)) {
+  if (!warpFields.includes(key)) {
     console.error(`FAIL: WARP Amnezia field is missing: ${key}`);
     process.exit(1);
   }
@@ -143,7 +144,7 @@ for (const key of [
   'h1', 'h2', 'h3', 'h4',
   'header_protection_key',
 ]) {
-  if (warpFields.includes(`"${key}"`)) {
+  if (warpFields.includes(key)) {
     console.error(`FAIL: incompatible WARP Amnezia field remains: ${key}`);
     process.exit(1);
   }
@@ -154,9 +155,7 @@ if ((section.match(/validateWireGuardListInput\(value\)/g) || []).length !== 3) 
   process.exit(1);
 }
 
-const amneziaFieldsStart = section.indexOf('const AMNEZIA_FIELDS = [');
-const amneziaFieldsEnd = section.indexOf('];', amneziaFieldsStart);
-const amneziaFields = section.slice(amneziaFieldsStart, amneziaFieldsEnd);
+const amneziaFields = readNameList(section, 'AMNEZIA_FIELDS');
 let previousAmneziaField = -1;
 for (const key of [
   'jc', 'jmin', 'jmax',
@@ -168,12 +167,34 @@ for (const key of [
   'rekey_after_time', 'rekey_timeout', 'reject_after_time',
   'keepalive_timeout', 'max_handshake_attempts',
 ]) {
-  const fieldIndex = amneziaFields.indexOf(`'${key}'`);
+  const fieldIndex = amneziaFields.indexOf(key);
   if (fieldIndex <= previousAmneziaField) {
     console.error(`FAIL: AmneziaWG field order is incorrect at ${key}`);
     process.exit(1);
   }
   previousAmneziaField = fieldIndex;
+}
+
+// AMNEZIA_FIELDS is the order the dialog shows; the four lists beside it say how
+// each value is read. A field added to one and not the other is invisible until
+// somebody notices a parameter the dialog never asks for, or asks for twice.
+// AMNEZIA_STRING_FIELDS is the signature fields plus the one key below, so the
+// literal lists are what there is to read.
+const classifiedAmneziaFields = [
+  'AMNEZIA_COUNT_FIELDS',
+  'AMNEZIA_PADDING_FIELDS',
+  'AMNEZIA_RANGE_FIELDS',
+  'AMNEZIA_SIGNATURE_FIELDS',
+]
+  .flatMap((name) => readNameList(section, name))
+  .concat('header_protection_key');
+const orderedAmneziaFields = readNameList(section, 'AMNEZIA_FIELDS');
+if (
+  [...classifiedAmneziaFields].sort().join() !==
+  [...orderedAmneziaFields].sort().join()
+) {
+  console.error('FAIL: every AmneziaWG field must be classified exactly once');
+  process.exit(1);
 }
 
 if (section.includes('_("WireGuard or AmneziaWG configuration")')) {
@@ -191,9 +212,7 @@ if (section.includes('Object.values(amneziaOptions).forEach((option) =>')) {
   process.exit(1);
 }
 
-const storageStart = section.indexOf('function tunnelStorageSettings');
-const storageEnd = section.indexOf('function createTunnelItem', storageStart);
-const tunnelStorage = section.slice(storageStart, storageEnd);
+const tunnelStorage = readFunction(section, 'tunnelStorageSettings');
 if (
   tunnelStorage.includes('warp_junk_enabled:') ||
   tunnelStorage.includes('wireguard_junk_enabled:') ||
@@ -205,11 +224,7 @@ if (
   process.exit(1);
 }
 
-const endpointStart = section.indexOf('function tunnelEndpointFromSettings');
-const endpointBuilder = section.slice(
-  endpointStart,
-  section.indexOf('function tunnelAmneziaSettings'),
-);
+const endpointBuilder = readFunction(section, 'tunnelEndpointFromSettings');
 if (
   !endpointBuilder.includes('type: kind,') ||
   !endpointBuilder.includes('} else if (oneSidedAmneziaEnabled(kind, settings)) {')
@@ -218,8 +233,7 @@ if (
   process.exit(1);
 }
 
-const importStart = section.indexOf('function applyImportedTunnelEndpoint');
-const importApply = section.slice(importStart, section.indexOf('function wireGuardPeerSettingsKeys'));
+const importApply = readFunction(section, 'applyImportedTunnelEndpoint');
 if (
   !importApply.includes('!ONE_SIDED_AMNEZIA_FIELDS.includes(key)') ||
   !importApply.includes("twoSided ? 'amneziawg' : 'wireguard'") ||
@@ -229,9 +243,7 @@ if (
   process.exit(1);
 }
 
-const applySettingsStart = section.indexOf('function applyChildItemSettings');
-const applySettingsEnd = section.indexOf('function materializeChildItems', applySettingsStart);
-const applySettings = section.slice(applySettingsStart, applySettingsEnd);
+const applySettings = readFunction(section, 'applyChildItemSettings');
 if (
   !applySettings.includes('if (values.length) {') ||
   (applySettings.match(/uci\.unset\(FORKOP_UCI_PACKAGE, itemId, key\)/g) || [])
@@ -241,9 +253,10 @@ if (
   process.exit(1);
 }
 
-const warpEndpointStart = section.indexOf("if (kind === 'warp')");
-const warpEndpointEnd = section.indexOf('const peers =', warpEndpointStart);
-const warpEndpoint = section.slice(warpEndpointStart, warpEndpointEnd);
+const warpEndpoint = endpointBuilder.slice(
+  endpointBuilder.indexOf("if (kind === 'warp')"),
+  endpointBuilder.indexOf('const peers ='),
+);
 if (
   !warpEndpoint.includes('const amnezia = tunnelAmneziaSettings(settings, ONE_SIDED_AMNEZIA_FIELDS);') ||
   !warpEndpoint.includes('oneSidedAmneziaEnabled(kind, settings)')
@@ -252,29 +265,38 @@ if (
   process.exit(1);
 }
 
-const defaultsStart = section.indexOf('const ONE_SIDED_AMNEZIA_DEFAULTS = {');
-const defaults = section.slice(defaultsStart, section.indexOf('};', defaultsStart));
+const defaults = readNameList(section, 'ONE_SIDED_AMNEZIA_DEFAULTS');
 for (const key of [
   'jc', 'jmin', 'jmax', 'i1',
   'content_padding_addition',
   'rekey_after_time', 'rekey_timeout', 'reject_after_time',
   'keepalive_timeout', 'max_handshake_attempts',
 ]) {
-  if (!defaults.includes(`${key}:`)) {
+  if (!defaults.includes(key)) {
     console.error(`FAIL: obfuscation default is missing: ${key}`);
     process.exit(1);
   }
 }
 for (const key of ['s1', 's2', 's3', 's4', 'h1', 'h2', 'h3', 'h4', 'header_protection_key']) {
-  if (defaults.includes(`${key}:`)) {
+  if (defaults.includes(key)) {
     console.error(`FAIL: a parameter the peer has to match must not be filled in: ${key}`);
     process.exit(1);
   }
 }
-const fillStart = section.indexOf('function fillOneSidedAmneziaDefaults');
-const fill = section.slice(fillStart, section.indexOf('function tunnelStorageSettings', fillStart));
+const fill = readFunction(section, 'fillOneSidedAmneziaDefaults');
 if (!fill.includes('if (!current) {')) {
   console.error('FAIL: filling the defaults must not overwrite an existing value');
+  process.exit(1);
+}
+// Both obfuscation toggles fill the defaults when they are switched on, and only
+// then: filling on the way off would write parameters the endpoint has stopped
+// carrying, and never filling leaves the toggle doing nothing at all.
+const fillOnEnable =
+  section.match(
+    /if \(value === '1'\) \{\s*fillOneSidedAmneziaDefaults\(/g,
+  ) || [];
+if (fillOnEnable.length !== 2) {
+  console.error('FAIL: asking for traffic obfuscation must fill the one-sided defaults');
   process.exit(1);
 }
 
@@ -313,13 +335,13 @@ for (const forbidden of [
   }
 }
 
-const tunnelModalIndex = section.indexOf('function showTunnelSettingsModal');
-const nameIndex = section.indexOf("_('Tunnel name')", tunnelModalIndex);
-const importIndex = section.indexOf("'_import_config'", tunnelModalIndex);
-const generateIndex = section.indexOf("'_generate_warp_profile'", tunnelModalIndex);
-const typeIndex = section.indexOf("_('Tunnel type')", tunnelModalIndex);
+const tunnelModal = readFunction(section, 'showTunnelSettingsModal');
+const nameIndex = tunnelModal.indexOf("_('Tunnel name')");
+const importIndex = tunnelModal.indexOf("'_import_config'");
+const generateIndex = tunnelModal.indexOf("'_generate_warp_profile'");
+const typeIndex = tunnelModal.indexOf("_('Tunnel type')");
 if (
-  tunnelModalIndex < 0 ||
+  [nameIndex, importIndex, generateIndex, typeIndex].includes(-1) ||
   !(typeIndex < nameIndex && nameIndex < importIndex && nameIndex < generateIndex)
 ) {
   console.error('FAIL: tunnel type must be first, followed by name and actions');
@@ -355,8 +377,9 @@ if (
   process.exit(1);
 }
 
-const tunnelIndex = section.indexOf("'tunnels'");
-const jsonIndex = section.indexOf("'outbound_jsons'", tunnelIndex);
+const sectionForm = readFunction(section, 'createSectionContent');
+const tunnelIndex = sectionForm.indexOf("'tunnels'");
+const jsonIndex = sectionForm.indexOf("'outbound_jsons'");
 if (tunnelIndex < 0 || jsonIndex < 0 || tunnelIndex >= jsonIndex) {
   console.error('FAIL: native tunnel control must appear before JSON outbound');
   process.exit(1);

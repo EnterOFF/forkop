@@ -390,4 +390,20 @@ assert_eq "p|q" "$(log_delta "a|b" "p|q")" "a tail with no overlap is taken whol
 # The same message can repeat; the last occurrence is the anchor.
 assert_eq "z" "$(log_delta "a|b" "b|a|b|z")" "the last occurrence anchors a repeated line"
 
+# The page parks a request on the state service and waits for it to be answered.
+# The daemon releases every waiter at its own ceiling, so the browser has to be
+# willing to wait longer than that: a reply arriving exactly at the ceiling must
+# not be raced by the client giving up on it. The two numbers live on opposite
+# sides of ubus, and drift apart the moment either is tuned alone.
+STATE_SERVICE_UC="$FORKOP_FILES/usr/lib/service/state_service.uc"
+WAIT_TRANSPORT_TS="$ROOT_DIR/fe-app-forkop/src/forkop/services/forkopWaitTransport.ts"
+daemon_ceiling="$(sed -n 's/^const MAX_WAIT_MS = int(getenv("FORKOP_STATE_MAX_WAIT_MS") || "\([0-9]*\)").*$/\1/p' "$STATE_SERVICE_UC")"
+client_ceiling="$(sed -n 's/^export const FORKOP_WAIT_TIMEOUT_MS = \([0-9]*\);$/\1/p' "$WAIT_TRANSPORT_TS")"
+[ -n "$daemon_ceiling" ] ||
+  fail "the state service must declare how long it parks a request"
+[ -n "$client_ceiling" ] ||
+  fail "the page must declare how long it waits for a parked request"
+[ "$client_ceiling" -gt "$daemon_ceiling" ] ||
+  fail "the page waits ${client_ceiling}ms for a request the daemon holds ${daemon_ceiling}ms"
+
 printf 'UI runtime job checks passed\n'

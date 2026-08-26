@@ -1,11 +1,10 @@
-import { FORKOP_UCI_PACKAGE } from '../../../constants';
+import { DETOUR_TARGET_ACTIONS, FORKOP_UCI_PACKAGE } from '../../../constants';
 import { keepUnavailableSectionChoice } from '../../cbi/choices';
-import { ROUTING_SECTION_ACTIONS, TAILSCALE_DETOUR_ACTIONS } from './constants';
 import { option } from './formValues';
 import { validateRequired } from './validators';
 
 function isRoutingSectionAction(action: unknown) {
-  return ROUTING_SECTION_ACTIONS.indexOf(`${action || ''}`) !== -1;
+  return DETOUR_TARGET_ACTIONS.indexOf(`${action || ''}`) !== -1;
 }
 
 // Sections a server may hand its traffic to, as value and label pairs.
@@ -40,7 +39,7 @@ export function tailscaleDetourTargets(currentSectionId: string) {
       section['.name'] &&
       section['.name'] !== currentSectionId &&
       section.enabled !== '0' &&
-      TAILSCALE_DETOUR_ACTIONS.includes(`${section.action || ''}`),
+      DETOUR_TARGET_ACTIONS.includes(`${section.action || ''}`),
   );
 }
 

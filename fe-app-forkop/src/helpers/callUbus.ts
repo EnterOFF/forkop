@@ -1,7 +1,7 @@
 import { alignLuciRpcTimeout } from './alignLuciRpcTimeout';
 import { withTimeout } from './withTimeout';
 
-export type UbusCallResult<T> =
+type UbusCallResult<T> =
   | { success: true; data: T }
   | { success: false; message: string; unavailable: boolean };
 

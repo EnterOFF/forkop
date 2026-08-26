@@ -1,10 +1,10 @@
 import {
-  DEFAULT_LATENCY_TEST_URL,
   FORKOP_UCI_PACKAGE,
   LATENCY_TEST_URL_OPTIONS,
 } from '../../../constants';
-import { validateUrl } from '../../../validators/validateUrl';
+import { validateUrlField } from '../../../validators/validateUrl';
 import {
+  childItemNameCheck,
   getChildItemIds,
   isExistingChildItem,
   parentSectionIdForItem,
@@ -21,17 +21,15 @@ import {
 } from '../../cbi/listValues';
 import { showChildItemSettingsModal } from '../../cbi/modal';
 import {
+  addExpectedStatusOption,
+  addGroupHealthCheckTailOptions,
+} from './healthCheck';
+import {
   addServerFilterOptions,
   groupServerFilterDescriptions,
 } from './serverFilters';
 import { optionMapValue } from './subscriptions/model';
-import { validateRequiredSingBoxDuration } from './validators';
-
-export function urlTestUrlChoices() {
-  return Array.isArray(LATENCY_TEST_URL_OPTIONS)
-    ? LATENCY_TEST_URL_OPTIONS
-    : [DEFAULT_LATENCY_TEST_URL || 'https://www.gstatic.com/generate_204'];
-}
+import { validateRequiredSingBoxDuration } from '../../../validators/validateSingBoxDuration';
 
 function validateUrlTestTolerance(value: unknown) {
   if (!value || `${value}`.length === 0) {
@@ -51,39 +49,6 @@ function validateUrlTestTolerance(value: unknown) {
   }
 
   return _('Must be a number in the range of 0 - 10000');
-}
-
-export function validateUrlTestUrl(value: unknown) {
-  const validation = validateUrl(`${value || ''}`.trim());
-  return validation.valid ? true : validation.message;
-}
-
-export function validateExpectedStatus(value: unknown) {
-  const normalized = `${value || ''}`.trim();
-  if (!normalized || normalized === '*') {
-    return true;
-  }
-
-  const parts = normalized.replaceAll(',', '/').split('/');
-  if (parts.length > 28) {
-    return _('Use *, status codes, or ranges such as 204/200-299');
-  }
-  for (const part of parts) {
-    if (!part.trim()) {
-      continue;
-    }
-    const bounds = part.split('-');
-    if (
-      bounds.length > 2 ||
-      bounds.some((bound) => {
-        const code = bound.trim().replace(/[[\] ]/g, '');
-        return !/^[0-9]+$/.test(code) || Number(code) > 65535;
-      })
-    ) {
-      return _('Use *, status codes, or ranges such as 204/200-299');
-    }
-  }
-  return true;
 }
 
 function urlTestSettingsKeys() {
@@ -140,11 +105,7 @@ function addUrlTestItemOptions(
       ''
     );
   };
-  o.validate = function (_itemId: string, value: unknown) {
-    return `${value || ''}`.trim()
-      ? (options.validateName?.(value) ?? true)
-      : _('Enter a display name');
-  };
+  o.validate = childItemNameCheck(options);
 
   o = itemSection.option(
     form.Value,
@@ -154,24 +115,12 @@ function addUrlTestItemOptions(
   );
   o.default = 'https://www.gstatic.com/generate_204';
   o.rmempty = false;
-  urlTestUrlChoices().forEach((value: string) => o.value(value));
+  LATENCY_TEST_URL_OPTIONS.forEach((value: string) => o.value(value));
   o.validate = function (_itemId: string, value: unknown) {
-    return validateUrlTestUrl(value);
+    return validateUrlField(value);
   };
 
-  o = itemSection.option(
-    form.Value,
-    'expected_status',
-    _('Expected status'),
-    _(
-      'HTTP status codes of a successful check. * is any response, or values and ranges: 204/200-299',
-    ),
-  );
-  o.default = '*';
-  o.rmempty = false;
-  o.validate = function (_itemId: string, value: unknown) {
-    return validateExpectedStatus(value);
-  };
+  addExpectedStatusOption(itemSection);
 
   o = itemSection.option(
     form.Value,
@@ -197,35 +146,7 @@ function addUrlTestItemOptions(
     return validateUrlTestTolerance(value);
   };
 
-  o = itemSection.option(
-    form.Value,
-    'idle_timeout',
-    _('Idle timeout'),
-    _('How long until health checks stop when the group is unused'),
-  );
-  o.default = '30m';
-  o.rmempty = false;
-  o.validate = function (_itemId: string, value: unknown) {
-    return validateRequiredSingBoxDuration(value);
-  };
-
-  o = itemSection.option(
-    form.Flag,
-    'interrupt_exist_connections',
-    _('Interrupt connections'),
-    _('Drop every active connection when the selected server changes'),
-  );
-  o.default = '0';
-  o.rmempty = false;
-
-  o = itemSection.option(
-    form.Flag,
-    'hide_dashboard_members',
-    _('Hide group servers'),
-    _('Hide servers included in this group from the dashboard'),
-  );
-  o.default = '0';
-  o.rmempty = false;
+  addGroupHealthCheckTailOptions(itemSection, '30m');
 
   addServerFilterOptions(itemSection, parentSectionForItem, {
     groupContext: true,

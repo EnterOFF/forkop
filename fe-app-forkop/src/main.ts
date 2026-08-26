@@ -25,6 +25,5 @@ export {
 export {
   configureServerSection,
   createServerContent,
-  getRuleEditButtonText,
 } from './forkop/tabs/servers';
 export { createSettingsContent } from './forkop/tabs/settings';

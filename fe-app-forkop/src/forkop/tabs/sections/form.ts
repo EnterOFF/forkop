@@ -1,26 +1,26 @@
-import { FORKOP_UCI_PACKAGE } from '../../../constants';
-import { validateDNS } from '../../../validators/validateDns';
+import { renderChildItemLabel } from '../../cbi/listItems';
+import { FORKOP_UCI_PACKAGE, RESERVED_RUNTIME_TAGS } from '../../../constants';
 import { validateOutboundJson } from '../../../validators/validateOutboundJson';
 import { validateProxyUrl } from '../../../validators/validateProxyUrl';
 import {
   childItemInputValue,
   isExistingChildItem,
   nextSectionId,
+  orderChildItemsByPosition,
 } from '../../cbi/childItems';
 import { keepUnavailableSectionChoice } from '../../cbi/choices';
 import {
+  configureDnsQueryMode,
+  configureDnsServerList,
+} from '../../cbi/dnsServers';
+import {
   GRID_KIND_COLUMN_WIDTH,
   GRID_SWITCH_COLUMN_WIDTH,
-} from '../../cbi/constants';
+} from '../../cbi/grid';
 import {
   ButtonAddSettingsDynamicList,
   SettingsDynamicList,
 } from '../../cbi/dynamicList';
-import {
-  childPendingSettingsStore,
-  clearChildPendingSettings,
-} from '../../cbi/itemSettings';
-import { normalizeDynamicListItems } from '../../cbi/listValues';
 import {
   getRuleActionDisplayMarkup,
   getRuleActionDisplayValue,
@@ -40,9 +40,10 @@ import {
   makeDeviceOptionsExclusive,
   validatePortCondition,
 } from './conditions';
-import { RESERVED_RUNTIME_TAGS, RULE_SET_ITEM_SETTINGS_KEY } from './constants';
+import { RULE_SET_ITEM_SETTINGS_KEY } from './constants';
 import {
   fallbackGroupChildDefaults,
+  removeFallbackLevels,
   showFallbackGroupSettingsModal,
   validateFallbackGroupItemsBeforeSave,
 } from './fallback';
@@ -87,7 +88,11 @@ import {
 } from './subscriptions/model';
 import { showSubscriptionUrlSettingsModal } from './subscriptions/options';
 import { showTunnelSettingsModal } from './tunnels/dialog';
-import { tunnelInitialSettings, tunnelListItemLabel } from './tunnels/model';
+import {
+  removeTunnelPeers,
+  tunnelInitialSettings,
+  tunnelListItemLabel,
+} from './tunnels/model';
 import {
   validateTunnelItemsBeforeSave,
   validateTunnelSettings,
@@ -180,22 +185,9 @@ export function createSectionContent(section: CBISection) {
       'Resolves domains that match the section conditions. Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://',
     ),
   );
-  o = dnsServerOption;
-  o.depends('action', 'dns');
-  o.rmempty = false;
-  o.modalonly = true;
-  o.validate = function (section_id: string, value: unknown) {
-    const normalized = `${value || ''}`.trim();
-    if (!normalized) {
-      return L.toArray(this.formvalue(section_id)).some((item) =>
-        `${item || ''}`.trim(),
-      )
-        ? true
-        : _('Add at least one DNS server');
-    }
-    const validation = validateDNS(normalized);
-    return validation.valid ? true : validation.message;
-  };
+  dnsServerOption.depends('action', 'dns');
+  dnsServerOption.modalonly = true;
+  configureDnsServerList(dnsServerOption);
 
   const dnsQueryModeOption = section.taboption(
     'settings',
@@ -206,40 +198,10 @@ export function createSectionContent(section: CBISection) {
       'Parallel asks every server at once and is faster. Sequential asks them in turn until the first answer',
     ),
   );
-  dnsQueryModeOption.value('parallel', _('Parallel'));
-  dnsQueryModeOption.value('sequential', _('Sequential'));
-  dnsQueryModeOption.default = 'parallel';
-  dnsQueryModeOption.rmempty = false;
   dnsQueryModeOption.modalonly = true;
-  dnsQueryModeOption.retain = true;
-  dnsQueryModeOption.depends({
-    action: 'dns',
-    dns_server: '__forkop_multiple_dns__',
+  configureDnsQueryMode(dnsQueryModeOption, 'dns_server', {
+    alsoDependsOn: { action: 'dns' },
   });
-  dnsQueryModeOption.checkDepends = function (section_id: string) {
-    const actionOption = this.map.lookupOption('action', section_id);
-    const dnsServerOption = this.map.lookupOption('dns_server', section_id);
-    const action = actionOption?.[0].formvalue(actionOption[1]);
-    const servers = dnsServerOption?.[0].formvalue(dnsServerOption[1]);
-    return action === 'dns' && normalizeDynamicListItems(servers).length > 1;
-  };
-  const originalDnsServerRenderWidget = dnsServerOption.renderWidget;
-  dnsServerOption.renderWidget = function (
-    section_id: string,
-    option_index,
-    cfgvalue: unknown,
-  ) {
-    const node = originalDnsServerRenderWidget.call(
-      this,
-      section_id,
-      option_index,
-      cfgvalue,
-    ) as HTMLElement;
-    node.addEventListener('cbi-dynlist-change', () => {
-      this.map.checkDepends();
-    });
-    return node;
-  };
 
   o = section.taboption(
     'settings',
@@ -362,21 +324,6 @@ export function createSectionContent(section: CBISection) {
 
     return this.validate(section_id, normalized) === true;
   };
-  o.stagedChildSettings = function (section_id: string, value: unknown) {
-    const inputValue = childItemInputValue(
-      section_id,
-      value,
-      'subscription_url',
-      'url',
-    );
-    const store = childPendingSettingsStore(this, section_id);
-    return store[inputValue] ? Object.assign({}, store[inputValue]) : null;
-  };
-  o.clearStagedChildSettings = function (section_id: string) {
-    if (this.pendingChildSettings) {
-      delete this.pendingChildSettings[section_id];
-    }
-  };
   o.afterMaterializeChildItems = function (
     _section_id: string,
     itemIds: string[],
@@ -430,19 +377,6 @@ export function createSectionContent(section: CBISection) {
 
     return this.validate(section_id, normalized) === true;
   };
-  o.stagedChildSettings = function (section_id: string, value: unknown) {
-    const inputValue = childItemInputValue(
-      section_id,
-      value,
-      'section_interface',
-      'name',
-    );
-    const store = childPendingSettingsStore(this, section_id);
-    return store[inputValue] ? Object.assign({}, store[inputValue]) : null;
-  };
-  o.clearStagedChildSettings = function (section_id: string) {
-    clearChildPendingSettings(this, section_id);
-  };
   o.onListChange = refreshDashboardFilterChoiceWidgets;
   outboundNameSourceOptions.set('interfaces', o);
 
@@ -461,6 +395,7 @@ export function createSectionContent(section: CBISection) {
   o.addButtonLabel = _('+ Add tunnel');
   o.childType = 'tunnel';
   o.ownerOption = 'section';
+  o.removeNestedChildItems = removeTunnelPeers;
   o.childValueOption = undefined;
   o.createId = () => nextSectionId('tunnel');
   o.renderItemSettingsModal = showTunnelSettingsModal;
@@ -480,14 +415,7 @@ export function createSectionContent(section: CBISection) {
     );
   };
   o.onListChange = refreshDashboardFilterChoiceWidgets;
-  o.afterMaterializeChildItems = function (
-    _section_id: string,
-    itemIds: string[],
-  ) {
-    itemIds.forEach((itemId: string, index: number) => {
-      uci.set(FORKOP_UCI_PACKAGE, itemId, 'order', `${index}`);
-    });
-  };
+  o.afterMaterializeChildItems = orderChildItemsByPosition;
   outboundNameSourceOptions.set('tunnels', o);
 
   o = section.taboption(
@@ -540,43 +468,8 @@ export function createSectionContent(section: CBISection) {
   o.validateItemsOnSave = function (section_id: string, values: unknown) {
     return validateUrlTestItemsBeforeSave(section_id, values, this);
   };
-  o.hasItemSettings = function (section_id: string, value: unknown) {
-    const normalized = `${value || ''}`.trim();
-
-    if (isExistingChildItem(section_id, normalized, 'urltest')) {
-      return true;
-    }
-
-    return normalized.length > 0;
-  };
-  o.inputValueForItem = function (section_id: string, value: unknown) {
-    const inputValue = childItemInputValue(
-      section_id,
-      value,
-      'urltest',
-      'name',
-    );
-    const store = childPendingSettingsStore(this, section_id);
-    return store[inputValue] && store[inputValue].name
-      ? `${store[inputValue].name}`
-      : inputValue;
-  };
-  o.stagedChildSettings = function (section_id: string, value: unknown) {
-    const id = childItemInputValue(section_id, value, 'urltest', 'name');
-    const store = childPendingSettingsStore(this, section_id);
-    return store[id] ? Object.assign({}, store[id]) : null;
-  };
-  o.clearStagedChildSettings = function (section_id: string) {
-    if (this.pendingChildSettings) {
-      delete this.pendingChildSettings[section_id];
-    }
-  };
   o.renderListItemLabel = function (section_id: string, itemId: string) {
-    return E(
-      'span',
-      { class: 'fkp-dynlist-label' },
-      this.inputValueForItem!(section_id, itemId),
-    );
+    return renderChildItemLabel(this, section_id, itemId);
   };
   o.onListChange = refreshDashboardFilterChoiceWidgets;
 
@@ -592,30 +485,15 @@ export function createSectionContent(section: CBISection) {
   o.modalonly = true;
   o.addButtonLabel = _('+ Add fallback');
   o.childType = 'fallback_group';
+  o.removeNestedChildItems = removeFallbackLevels;
   o.childValueOption = 'name';
   o.childDefaults = fallbackGroupChildDefaults();
   outboundNameSourceOptions.set('fallback_group', o);
   o.createId = () => nextSectionId('fallback_group');
   o.renderItemSettingsModal = showFallbackGroupSettingsModal;
   o.validateItemsOnSave = validateFallbackGroupItemsBeforeSave;
-  o.hasItemSettings = function (section_id: string, value: unknown) {
-    const normalized = `${value || ''}`.trim();
-
-    if (isExistingChildItem(section_id, normalized, 'fallback_group')) {
-      return true;
-    }
-
-    return normalized.length > 0;
-  };
-  o.inputValueForItem = function (section_id: string, value: unknown) {
-    return childItemInputValue(section_id, value, 'fallback_group', 'name');
-  };
   o.renderListItemLabel = function (section_id: string, itemId: string) {
-    return E(
-      'span',
-      { class: 'fkp-dynlist-label' },
-      this.inputValueForItem!(section_id, itemId),
-    );
+    return renderChildItemLabel(this, section_id, itemId);
   };
   o.onListChange = refreshDashboardFilterChoiceWidgets;
 

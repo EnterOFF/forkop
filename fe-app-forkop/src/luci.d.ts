@@ -73,7 +73,6 @@ declare global {
 
   const uci: {
     load(packages: string | string[]): Promise<string[]>;
-    unload(packages: string | string[]): void;
     get(config: string, section: string): UciSectionObject | null;
     get(config: string, section: string, option: string): UciValue;
     get_all(config: string, section: string): UciSectionObject | null;
@@ -454,16 +453,12 @@ declare global {
   interface NetworkDevice {
     getName(): string;
     getType(): string;
-    getTypeName(): string;
     getI18n(): string;
     isUp(): boolean;
-    getIPAddrs(): string[];
-    getIP6Addrs(): string[];
   }
 
   const network: {
     getDevices(): Promise<NetworkDevice[]>;
-    getDevice(name: string): Promise<NetworkDevice | null>;
   };
 
   // -------------------------------------------------- tools.widgets (luci-base)
@@ -488,7 +483,6 @@ declare global {
   const L: {
     env?: {
       rpctimeout?: number;
-      requestpath?: string[];
     };
     // Wraps anything into an array: LuCI stores a one-element uci list as a
     // bare string, so every list read goes through this.

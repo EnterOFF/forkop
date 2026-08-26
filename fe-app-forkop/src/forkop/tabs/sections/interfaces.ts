@@ -1,11 +1,13 @@
-import { validateDNS } from '../../../validators/validateDns';
 import {
   childItemInputValue,
   parentSectionIdForItem,
 } from '../../cbi/childItems';
 import { keepUnavailableSectionChoice } from '../../cbi/choices';
+import {
+  configureDnsQueryMode,
+  configureDnsServerList,
+} from '../../cbi/dnsServers';
 import { SettingsDynamicList } from '../../cbi/dynamicList';
-import { normalizeDynamicListItems } from '../../cbi/listValues';
 import { showChildItemSettingsModal } from '../../cbi/modal';
 import { CONNECTIONS_BLOCKED_INTERFACES } from './constants';
 import { refreshDashboardFilterChoiceWidgets } from './outboundNames';
@@ -174,22 +176,10 @@ function addInterfaceItemOptions(
   // No address is proposed: a resolver that silently defaults to a public server
   // is a DNS choice made for the user.
   dnsServerOption.depends('domain_resolver_enabled', '1');
-  dnsServerOption.rmempty = false;
-  dnsServerOption.validate = function (itemId: string, value: unknown) {
-    if (optionMapValue(this, itemId, 'domain_resolver_enabled') !== '1') {
-      return true;
-    }
-    const normalized = `${value || ''}`.trim();
-    if (!normalized) {
-      return L.toArray(this.formvalue(itemId)).some((item) =>
-        `${item || ''}`.trim(),
-      )
-        ? true
-        : _('Add at least one DNS server');
-    }
-    const validation = validateDNS(normalized);
-    return validation.valid ? true : validation.message;
-  };
+  configureDnsServerList(dnsServerOption, {
+    appliesTo: (option, itemId) =>
+      optionMapValue(option, itemId, 'domain_resolver_enabled') === '1',
+  });
 
   const dnsQueryModeOption = itemSection.option(
     form.ListValue,
@@ -199,45 +189,9 @@ function addInterfaceItemOptions(
       'Parallel asks every server at once and is faster. Sequential asks them in turn until the first answer',
     ),
   );
-  dnsQueryModeOption.value('parallel', _('Parallel'));
-  dnsQueryModeOption.value('sequential', _('Sequential'));
-  dnsQueryModeOption.default = 'parallel';
-  dnsQueryModeOption.rmempty = false;
-  dnsQueryModeOption.retain = true;
-  dnsQueryModeOption.depends({
-    domain_resolver_enabled: '1',
-    domain_resolver_dns_server: '__forkop_multiple_dns__',
+  configureDnsQueryMode(dnsQueryModeOption, 'domain_resolver_dns_server', {
+    alsoDependsOn: { domain_resolver_enabled: '1' },
   });
-  dnsQueryModeOption.checkDepends = function (itemId: string) {
-    const enabledOption = this.map.lookupOption(
-      'domain_resolver_enabled',
-      itemId,
-    );
-    const serverOption = this.map.lookupOption(
-      'domain_resolver_dns_server',
-      itemId,
-    );
-    const enabled = enabledOption?.[0].formvalue(enabledOption[1]);
-    const servers = serverOption?.[0].formvalue(serverOption[1]);
-    return enabled === '1' && normalizeDynamicListItems(servers).length > 1;
-  };
-  const originalDnsServerRenderWidget = dnsServerOption.renderWidget;
-  dnsServerOption.renderWidget = function (
-    itemId: string,
-    option_index,
-    cfgvalue: unknown,
-  ) {
-    const node = originalDnsServerRenderWidget.call(
-      this,
-      itemId,
-      option_index,
-      cfgvalue,
-    ) as HTMLElement;
-    node.addEventListener('cbi-dynlist-change', () => {
-      this.map.checkDepends();
-    });
-    return node;
-  };
 
   o = itemSection.option(
     form.Flag,

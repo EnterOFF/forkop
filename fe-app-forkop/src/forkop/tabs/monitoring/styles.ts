@@ -412,19 +412,6 @@ export const styles = `
     color: var(--text-color-high);
 }
 
-.fkp_monitoring-page__cell-main {
-    color: var(--text-color-high);
-    font-weight: 600;
-    line-height: 1.25;
-}
-
-.fkp_monitoring-page__cell-secondary {
-    margin-top: 2px;
-    color: var(--text-color-medium);
-    font-size: 12px;
-    line-height: 1.25;
-}
-
 .fkp_monitoring-page__route {
     display: inline-block;
     width: auto;

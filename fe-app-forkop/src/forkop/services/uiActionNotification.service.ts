@@ -1,3 +1,4 @@
+import { getSessionStorage } from './sessionStorage.service';
 const UI_ACTION_NOTIFICATION_STORAGE_KEY =
   'forkop:owned-ui-action-notifications:v1';
 const MAX_STORED_UI_ACTION_NOTIFICATIONS = 100;
@@ -9,18 +10,6 @@ interface StoredUiActionNotification {
   jobId: string;
   notified: boolean;
   updatedAt: number;
-}
-
-function getSessionStorage(): Storage | null {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  try {
-    return window.sessionStorage;
-  } catch {
-    return null;
-  }
 }
 
 function getNotificationKey(kind: UiActionNotificationKind, jobId: string) {

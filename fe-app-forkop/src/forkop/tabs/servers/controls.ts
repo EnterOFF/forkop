@@ -39,71 +39,6 @@ export function injectServerStyles() {
   );
 }
 
-// The resize handle drags a textarea below the rows it asked for, and the example
-// inside stops fitting. The height those rows actually render at becomes its
-// floor: measured rather than computed from rows, because the padding and border
-// a theme adds are part of that height and no line arithmetic gets them right.
-// A field built for a dialog has no size until that dialog is on the page, which
-// happens several frames later, so the first size it is given is what is taken.
-function pinTextareaHeight(textarea: HTMLTextAreaElement) {
-  if (typeof ResizeObserver !== 'function') {
-    return;
-  }
-
-  const observer = new ResizeObserver(() => {
-    const height = textarea.getBoundingClientRect().height;
-    if (height > 0) {
-      observer.disconnect();
-      textarea.style.minHeight = `${height}px`;
-    }
-  });
-
-  observer.observe(textarea);
-}
-
-export function configureTextareaOption(
-  optionRef: CBIOption,
-  options: { pinHeight?: boolean } = {},
-) {
-  const renderWidget = optionRef.renderWidget;
-
-  optionRef.renderWidget = function (
-    sectionId: string,
-    optionIndex: string,
-    cfgvalue: unknown,
-  ) {
-    const node = renderWidget.call(
-      this,
-      sectionId,
-      optionIndex,
-      cfgvalue,
-    ) as HTMLElement;
-    const textarea =
-      node && typeof node.querySelector === 'function'
-        ? node.querySelector('textarea')
-        : node;
-
-    if (textarea) {
-      [
-        ['spellcheck', 'false'],
-        ['autocomplete', 'off'],
-        ['autocorrect', 'off'],
-        ['autocapitalize', 'off'],
-        ['data-gramm', 'false'],
-        ['data-gramm_editor', 'false'],
-        ['data-enable-grammarly', 'false'],
-      ].forEach(([name, value]) => textarea.setAttribute(name, value));
-      textarea.style.resize = 'vertical';
-      textarea.style.maxWidth = '100%';
-      if (options.pinHeight) {
-        pinTextareaHeight(textarea as HTMLTextAreaElement);
-      }
-    }
-
-    return node;
-  };
-}
-
 function widgetElement(node: HTMLElement): CBIWidget | null {
   const instance = dom.findClassInstance(node) as CBIWidget | null;
   return instance && typeof instance.setValue === 'function' ? instance : null;
@@ -125,6 +60,22 @@ function controlOf(node: HTMLElement | null): HTMLElement | null {
 
 // Fills a field with a freshly generated value. Nothing is generated until the
 // button is pressed, so an untouched field stays empty and the validator asks for it.
+// The control every generate button is: the same square icon button beside the
+// field, disabled with the rest of a read-only dialog.
+function renderGenerateButton(label: string, readonly: unknown) {
+  return E(
+    'button',
+    {
+      class: 'btn cbi-button cbi-button-neutral fkp-generate',
+      type: 'button',
+      title: label,
+      'aria-label': label,
+      disabled: readonly ? '' : null,
+    },
+    iconSvg('generate'),
+  );
+}
+
 export function addGenerateButton(
   optionRef: CBIOption,
   generate: (sectionId: string, current?: unknown) => string | null | undefined,
@@ -145,17 +96,7 @@ export function addGenerateButton(
     ) as HTMLElement;
     const label = title || _('Generate');
     const readonly = this.readonly != null ? this.readonly : this.map.readonly;
-    const button = E(
-      'button',
-      {
-        class: 'btn cbi-button cbi-button-neutral fkp-generate',
-        type: 'button',
-        title: label,
-        'aria-label': label,
-        disabled: readonly ? '' : null,
-      },
-      iconSvg('generate'),
-    );
+    const button = renderGenerateButton(label, readonly);
 
     button.addEventListener('click', (ev) => {
       ev.preventDefault();
@@ -376,17 +317,7 @@ function addIssueButton(
       cfgvalue,
     ) as HTMLElement;
     const readonly = this.readonly != null ? this.readonly : this.map.readonly;
-    const button = E(
-      'button',
-      {
-        class: 'btn cbi-button cbi-button-neutral fkp-generate',
-        type: 'button',
-        title: label,
-        'aria-label': label,
-        disabled: readonly ? '' : null,
-      },
-      iconSvg('generate'),
-    );
+    const button = renderGenerateButton(label, readonly);
 
     button.addEventListener('click', (ev) => {
       ev.preventDefault();
@@ -514,54 +445,20 @@ export function addSshHostKeyButton(optionRef: CBIOption) {
   );
 }
 
+// Both halves of the pair are written at once, so the button sits on the private
+// key and fills the public one in beside it.
 export function addRealityKeypairButton(optionRef: CBIOption) {
-  const renderWidget = optionRef.renderWidget;
-
-  optionRef.renderWidget = function (
-    sectionId: string,
-    optionIndex: string,
-    cfgvalue: unknown,
-  ) {
-    const node = renderWidget.call(
-      this,
-      sectionId,
-      optionIndex,
-      cfgvalue,
-    ) as HTMLElement;
-    const label = _('Generate a key pair');
-    const readonly = this.readonly != null ? this.readonly : this.map.readonly;
-    const button = E(
-      'button',
-      {
-        class: 'btn cbi-button cbi-button-neutral fkp-generate',
-        type: 'button',
-        title: label,
-        'aria-label': label,
-        disabled: readonly ? '' : null,
-      },
-      iconSvg('generate'),
-    );
-
-    button.addEventListener('click', (ev) => {
-      ev.preventDefault();
-
-      if (readonly) {
+  addIssueButton(optionRef, _('Generate a key pair'), (sectionId: string) =>
+    generateRealityKeypair(sectionId).then((pair) => {
+      if (!pair) {
         return;
       }
-
-      generateRealityKeypair(sectionId).then((pair) => {
-        if (!pair) {
-          return;
-        }
-        [
-          ['reality_private_key', pair.private_key],
-          ['reality_public_key', pair.public_key],
-        ].forEach(([name, value]) => applyFieldValue(sectionId, name, value));
-      });
-    });
-
-    return E('div', { class: 'fkp-generate-row' }, [node, button]);
-  };
+      [
+        ['reality_private_key', pair.private_key],
+        ['reality_public_key', pair.public_key],
+      ].forEach(([name, value]) => applyFieldValue(sectionId, name, value));
+    }),
+  );
 }
 
 // A value the dialog fills in by itself. LuCI keeps whatever load() returned as

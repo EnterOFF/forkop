@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { validateSubnet } from '../validateSubnet';
 
-export const validSubnets = [
+const validSubnets = [
   ['Simple IP', '192.168.1.1'],
   ['With CIDR /24', '192.168.1.1/24'],
   ['CIDR /0', '10.0.0.1/0'],
@@ -15,7 +15,7 @@ export const validSubnets = [
   ['IPv6 host /128', 'fc00::1/128'],
 ];
 
-export const invalidSubnets = [
+const invalidSubnets = [
   ['Empty string', ''],
   ['Bad format letters', 'abc.def.ghi.jkl'],
   ['Octet too large', '300.1.1.1'],

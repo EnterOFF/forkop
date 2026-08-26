@@ -1,6 +1,6 @@
 import { FORKOP_UCI_PACKAGE } from '../../constants';
 import { nextSectionId } from '../cbi/childItems';
-import { getRuleEditButtonText } from '../tabs/servers';
+import { getRuleEditButtonText } from '../cbi/grid';
 
 // LuCI's own Add control asks for a name first. Both grids name a section
 // themselves - the id says what type it is and the label is a free-form name the
@@ -51,6 +51,9 @@ export function configureGridSection(
   type: string,
   title: string,
   addTitle: string,
+  // What the tab wants written into a section the moment Add is pressed, before
+  // its dialog opens - the Servers tab seeds a protocol there.
+  onSectionAdded?: (sectionId: string) => void,
 ) {
   sectionRef.anonymous = false;
   sectionRef.addremove = true;
@@ -67,23 +70,21 @@ export function configureGridSection(
   sectionRef.renderSectionAdd = function (extraClass?: string) {
     return renderSectionAdd(sectionRef, extraClass);
   };
-  sectionRef.addLabeledSection = function () {
-    return addLabeledSection(this);
-  };
   sectionRef.handleAdd = function () {
-    const sectionId = this.addLabeledSection!();
+    const sectionId = addLabeledSection(this);
     const mapNode = this.getPreviousModalMap();
     const prevMap = (
       mapNode ? dom.findClassInstance(mapNode) : this.map
     ) as CBIMap;
 
     prevMap.addedSection = sectionId;
+    onSectionAdded?.(sectionId);
     return this.renderMoreOptionsModal(sectionId);
   };
 
   if (type === 'section') {
-    // The Servers tab owns the word on the row action button, so the two tables
-    // spell it the same way.
+    // The shared grid layer owns the word on the row action button, so the two
+    // tables spell it the same way.
     sectionRef.renderRowActions = function (section_id: string) {
       return form.TableSection.prototype.renderRowActions.call(
         this,

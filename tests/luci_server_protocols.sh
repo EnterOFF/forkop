@@ -425,8 +425,7 @@ for (const removed of ["showServerValidationMessage", "fkp-server-validation-sum
 for (const needle of [
   "nextSectionId(sectionRef.sectiontype)",
   'sectionRef.map.data.set(configName, sectionId, "label", label)',
-  "sectionRef.addLabeledSection = function ()",
-  "this.addLabeledSection()",
+  "addLabeledSection(this)",
   'click: ui.createHandlerFn(sectionRef, "handleAdd")',
   "return this.renderMoreOptionsModal(sectionId)",
 ]) {
@@ -473,7 +472,12 @@ for (const [sectiontype, expectedLabel] of [
   assert.strictEqual(savedLabel, expectedLabel);
 }
 
-requireSource("const sectionId = this.addLabeledSection()");
+// The grid creates the labeled section; the tab is handed it to seed the fields
+// a server dialog opens on.
+requireSource("function prepareAddedServer(sectionId) {");
+if (!entrySource.includes("onSectionAdded?.(sectionId)")) {
+  fail("the grid must hand a freshly added section to its tab");
+}
 
 // Add creates the section before the dialog is filled in, and nothing writes the
 // enable switch until the dialog is saved: a server without one counts as

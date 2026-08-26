@@ -1,13 +1,18 @@
 import {
   DEFAULT_LATENCY_TEST_URL,
   FORKOP_UCI_PACKAGE,
+  LATENCY_TEST_URL_OPTIONS,
 } from '../../../../constants';
-import { isCronExpressibleInterval, isSingBoxDuration } from '../durations';
+import {
+  isSingBoxDuration,
+  validateRequiredSingBoxDuration,
+} from '../../../../validators/validateSingBoxDuration';
+import { isCronExpressibleInterval } from '../durations';
 import {
   configureDownloadSectionOption,
   configureDownloadViaProxyFlag,
 } from '../sectionChoices';
-import { latencyTestUrlChoices, validateLatencyTestUrl } from '../validators';
+import { validateUrlField } from '../../../../validators/validateUrl';
 
 // What Forkop downloads on a schedule - rule sets and component releases -
 // how often it looks, and through what.
@@ -39,17 +44,7 @@ export function addUpdateOptions(section: CBISection) {
     }
   };
   o.validate = function (_section_id: string, value: string) {
-    const normalized = value ? `${value}`.trim() : '';
-
-    if (!normalized.length) {
-      return _('Use sing-box duration format like 1d, 12h or 30m');
-    }
-
-    if (isSingBoxDuration(normalized)) {
-      return true;
-    }
-
-    return _('Use sing-box duration format like 1d, 12h or 30m');
+    return validateRequiredSingBoxDuration(value);
   };
 
   o = section.option(
@@ -119,12 +114,12 @@ export function addUpdateOptions(section: CBISection) {
     _('Latency test URL'),
     _('Default URL for general latency testing'),
   );
-  latencyTestUrlChoices().forEach((value: string) => o.value(value));
+  LATENCY_TEST_URL_OPTIONS.forEach((value: string) => o.value(value));
   o.default =
     DEFAULT_LATENCY_TEST_URL || 'https://www.gstatic.com/generate_204';
   o.rmempty = false;
   o.validate = function (_section_id: string, value: string) {
-    return validateLatencyTestUrl(value);
+    return validateUrlField(value);
   };
 
   o = section.option(

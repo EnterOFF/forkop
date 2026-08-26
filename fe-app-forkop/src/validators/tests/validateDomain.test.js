@@ -33,7 +33,7 @@ export const invalidDomains = [
   ['Too long domain (>253 chars)', Array(40).fill('abcdef').join('.') + '.com'],
 ];
 
-export const dotTLDTests = [
+const dotTLDTests = [
   ['Dot TLD allowed (.net)', '.net', true, true],
   ['Dot TLD allowed (.рф)', '.рф', true, true],
   ['Dot TLD not allowed (.net)', '.net', false, false],

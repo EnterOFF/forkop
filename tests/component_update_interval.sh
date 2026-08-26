@@ -72,14 +72,15 @@ for value in $REFUSED; do
 done
 
 # The generic sing-box duration check stays generic: the subscription update
-# interval is handed to sing-box, never to cron, and must keep accepting these.
-for value in $REFUSED; do
-  case "$value" in
-    0m|1w) continue ;;
-  esac
-  grep -q 'function isSingBoxDuration' "$SETTINGS_JS" ||
-    fail "the Settings tab must keep isSingBoxDuration for the subscription interval"
-done
+# interval is handed to sing-box, never to cron, and must keep accepting the
+# values cron cannot express. So the cron rule is a check of its own beside it,
+# never folded into the shared duration validator every duration field runs.
+DURATION_TS="$ROOT_DIR/fe-app-forkop/src/validators/validateSingBoxDuration.ts"
+grep -q 'function isSingBoxDuration' "$DURATION_TS" ||
+  fail "the shared duration check must stay generic for the subscription interval"
+if grep -q 'isCronExpressibleInterval' "$DURATION_TS"; then
+  fail "the cron rule must not reach the shared duration check"
+fi
 
 # Knowing the rule is half of it: the field has to apply it. Without this the
 # helper could be perfect while the validator never calls it.

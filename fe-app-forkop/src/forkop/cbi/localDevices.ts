@@ -7,6 +7,7 @@
 // the user opened the dropdown.
 
 import { validateIP } from '../../validators/validateIp';
+import { normalizeOptionValues } from './listValues';
 
 const callHostHints = rpc.declare({
   object: 'luci-rpc',
@@ -32,26 +33,6 @@ type DeviceChoices = Record<string, string>;
 
 let localDeviceChoicesCache: DeviceChoices | null = null;
 let localDeviceChoicesPromise: Promise<DeviceChoices> | null = null;
-
-// A uci list option is a string when it holds one value and an array when it
-// holds several, and the form hands back either; this flattens both to a list.
-export function normalizeOptionValues(value: unknown): string[] {
-  if (!value) {
-    return [];
-  }
-
-  if (Array.isArray(value)) {
-    return value
-      .filter(Boolean)
-      .map((item) => `${item}`.trim())
-      .filter(Boolean);
-  }
-
-  return `${value}`
-    .split(/\s+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
 
 function normalizeLocalDeviceName(name: unknown): string {
   return `${name || ''}`.trim().replace(/\.lan$/i, '');

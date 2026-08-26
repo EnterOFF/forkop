@@ -111,10 +111,10 @@ reserved_ports_frontend="$(read_literal "$TABS_DIR/servers/constants.ts" RESERVE
 [ "$reserved_ports_backend" = "$reserved_ports_frontend" ] ||
   fail "$(printf 'the Servers tab reserved port list differs from singbox/constants.uc\nbackend:\n%s\nfrontend:\n%s' "$reserved_ports_backend" "$reserved_ports_frontend")"
 
-# A section or server display name becomes a runtime tag verbatim, so both dialogs
-# refuse the names Forkop already uses for its own listeners. LuCI cannot read
-# ucode, so each tab carries the list, one copy each. Both copies are held
-# against the core table here, which is what keeps them from drifting apart.
+# A section or server display name becomes a runtime tag verbatim, so both
+# dialogs refuse the names Forkop already uses for its own listeners. LuCI cannot
+# read ucode, so the front end carries the list; this is what keeps its copy and
+# the core table from drifting apart.
 reserved_backend="$(ucode -L "$FORKOP_LIB" -e '
   let c = require("singbox.constants");
   for (let name in c.RESERVED_TAGS)
@@ -122,13 +122,15 @@ reserved_backend="$(ucode -L "$FORKOP_LIB" -e '
 ' | LC_ALL=C sort)"
 [ -n "$reserved_backend" ] ||
   fail "singbox/constants.uc must publish the tags Forkop uses for its own listeners"
-for tab_source in \
-  "$TABS_DIR/servers/constants.ts" \
-  "$TABS_DIR/sections/constants.ts"; do
-  reserved_frontend="$(read_literal "$tab_source" RESERVED_RUNTIME_TAGS | LC_ALL=C sort)"
-  [ "$reserved_backend" = "$reserved_frontend" ] ||
-    fail "$(printf 'the reserved tag list in %s differs from singbox/constants.uc\nbackend:\n%s\nfrontend:\n%s' "$tab_source" "$reserved_backend" "$reserved_frontend")"
-done
+reserved_frontend="$(read_literal "$FRONTEND_CONSTANTS" RESERVED_RUNTIME_TAGS | LC_ALL=C sort)"
+[ "$reserved_backend" = "$reserved_frontend" ] ||
+  fail "$(printf 'the reserved tag list in %s differs from singbox/constants.uc\nbackend:\n%s\nfrontend:\n%s' "$FRONTEND_CONSTANTS" "$reserved_backend" "$reserved_frontend")"
+
+# One tab must not go back to keeping a copy of its own: both are modules of one
+# bundle, which the browser loads whole or not at all.
+if grep -rn 'RESERVED_RUNTIME_TAGS = ' "$TABS_DIR" >/dev/null 2>&1; then
+  fail "the reserved tag list belongs in the shared constants, not in a tab"
+fi
 
 # Three tables name the community rule sets: the validator decides which
 # references it accepts, singbox/rulesets.uc turns each one into a download URL,

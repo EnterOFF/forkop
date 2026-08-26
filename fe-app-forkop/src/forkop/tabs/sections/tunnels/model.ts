@@ -5,9 +5,13 @@ import {
   isExistingChildItem,
   materializeChildItems,
   nextSectionId,
+  removeChildItemsOf,
 } from '../../../cbi/childItems';
-import { childPendingSettingsStore } from '../../../cbi/itemSettings';
-import { normalizeOptionValues } from '../../../cbi/localDevices';
+import {
+  childPendingSettingsStore,
+  clearChildPendingSettings,
+} from '../../../cbi/itemSettings';
+import { normalizeOptionValues } from '../../../cbi/listValues';
 import { setModalOptionValue } from '../../../cbi/modal';
 import {
   outboundJsonDisplayTag,
@@ -19,11 +23,6 @@ import { tailscaleDetourSectionValue, tailscaleDetourTag } from '../references';
 export const AMNEZIA_COUNT_FIELDS = ['jc', 'jmin', 'jmax'];
 
 export const AMNEZIA_PADDING_FIELDS = ['s1', 's2', 's3', 's4'];
-
-const AMNEZIA_INTEGER_FIELDS = [
-  ...AMNEZIA_COUNT_FIELDS,
-  ...AMNEZIA_PADDING_FIELDS,
-];
 
 export const AMNEZIA_SIGNATURE_FIELDS = ['i1', 'i2', 'i3', 'i4', 'i5'];
 
@@ -41,14 +40,13 @@ export const AMNEZIA_RANGE_FIELDS = [
 ];
 
 const AMNEZIA_STRING_FIELDS = [
-  'i1',
-  'i2',
-  'i3',
-  'i4',
-  'i5',
+  ...AMNEZIA_SIGNATURE_FIELDS,
   'header_protection_key',
 ];
 
+// Every AmneziaWG field, in the order the dialog shows them. The four lists
+// above are that same set again, split by how each value is read, and
+// tests/luci_tunnels.sh holds the two views in step.
 export const AMNEZIA_FIELDS = [
   'jc',
   'jmin',
@@ -123,14 +121,25 @@ const ONE_SIDED_AMNEZIA_DEFAULTS = {
   max_handshake_attempts: '15-20',
 };
 
-export const WIREGUARD_PEER_FIELDS = new Set([
-  'address',
-  'port',
-  'public_key',
-  'pre_shared_key',
-  'allowed_ips',
-  'persistent_keepalive_interval',
-]);
+// Every field a WireGuard peer has, with what an empty one holds. The dialog
+// reads these keys back, and an imported peer carrying anything else is refused,
+// so all three views of the list are taken from this one.
+export function defaultWireGuardPeerSettings() {
+  return {
+    address: '',
+    port: '',
+    public_key: '',
+    pre_shared_key: '',
+    allowed_ips: [] as string[],
+    persistent_keepalive_interval: '',
+  };
+}
+
+export function wireGuardPeerSettingsKeys() {
+  return Object.keys(defaultWireGuardPeerSettings());
+}
+
+export const WIREGUARD_PEER_FIELDS = new Set(wireGuardPeerSettingsKeys());
 
 function tunnelChild(sectionId: string, tunnelId: string) {
   return (uci.sections(FORKOP_UCI_PACKAGE, 'tunnel') || []).find(
@@ -165,6 +174,12 @@ function tunnelKindLabel(kind: string, endpointType: string) {
         : kind === 'json'
           ? endpointType || 'JSON endpoint'
           : 'WireGuard';
+}
+
+// A peer is addressed only through its tunnel, so removing the tunnel takes
+// its peers with it.
+export function removeTunnelPeers(tunnelId: string) {
+  removeChildItemsOf(tunnelId, 'tunnel_peer', 'tunnel');
 }
 
 export function tunnelDisplayName(sectionId: string, tunnelId: string) {
@@ -249,11 +264,7 @@ export function tunnelInitialSettings(
     endpoint_json: kind === 'json' ? `${tunnel.endpoint_json || ''}` : '',
   };
 
-  [
-    ...AMNEZIA_INTEGER_FIELDS,
-    ...AMNEZIA_RANGE_FIELDS,
-    ...AMNEZIA_STRING_FIELDS,
-  ].forEach((key: string) => {
+  AMNEZIA_FIELDS.forEach((key: string) => {
     settings[`amnezia_${key}`] =
       tunnel[`amnezia_${key}`] != null ? `${tunnel[`amnezia_${key}`]}` : '';
   });
@@ -282,9 +293,7 @@ function tunnelSettingsKeys() {
     'tailscale_exit_node',
     'tailscale_detour_section',
     'endpoint_json',
-    ...AMNEZIA_INTEGER_FIELDS.map((key: string) => `amnezia_${key}`),
-    ...AMNEZIA_RANGE_FIELDS.map((key: string) => `amnezia_${key}`),
-    ...AMNEZIA_STRING_FIELDS.map((key: string) => `amnezia_${key}`),
+    ...AMNEZIA_FIELDS.map((key: string) => `amnezia_${key}`),
   ];
 }
 
@@ -364,11 +373,7 @@ export function tunnelStorageSettings(settings: ChildSettings) {
       kind === 'json' ? `${settings.endpoint_json || ''}`.trim() : '',
   };
 
-  [
-    ...AMNEZIA_INTEGER_FIELDS,
-    ...AMNEZIA_RANGE_FIELDS,
-    ...AMNEZIA_STRING_FIELDS,
-  ].forEach((key: string) => {
+  AMNEZIA_FIELDS.forEach((key: string) => {
     result[`amnezia_${key}`] = storedAmneziaFields.includes(key)
       ? `${settings[`amnezia_${key}`] || ''}`.trim()
       : '';
@@ -421,7 +426,7 @@ export function materializeTunnelPeers(
     uci.set(FORKOP_UCI_PACKAGE, itemId, 'order', `${index}`);
   });
   cleanupRemovedChildItems(tunnelId, 'tunnel_peer', itemIds, 'tunnel');
-  delete option.pendingChildSettings![tunnelId];
+  clearChildPendingSettings(option, tunnelId);
   return itemIds;
 }
 
@@ -659,11 +664,7 @@ export function applyImportedTunnelEndpoint(
     },
   );
   setModalOptionValue(map, fields.peers, peerIds);
-  [
-    ...AMNEZIA_INTEGER_FIELDS,
-    ...AMNEZIA_RANGE_FIELDS,
-    ...AMNEZIA_STRING_FIELDS,
-  ].forEach((key: string) => {
+  AMNEZIA_FIELDS.forEach((key: string) => {
     setModalOptionValue(
       map,
       fields.amnezia[key],
@@ -671,28 +672,6 @@ export function applyImportedTunnelEndpoint(
     );
   });
   map.checkDepends();
-}
-
-export function wireGuardPeerSettingsKeys() {
-  return [
-    'address',
-    'port',
-    'public_key',
-    'pre_shared_key',
-    'allowed_ips',
-    'persistent_keepalive_interval',
-  ];
-}
-
-export function defaultWireGuardPeerSettings() {
-  return {
-    address: '',
-    port: '',
-    public_key: '',
-    pre_shared_key: '',
-    allowed_ips: [],
-    persistent_keepalive_interval: '',
-  };
 }
 
 export function wireGuardPeerDisplayNameFromObject(
