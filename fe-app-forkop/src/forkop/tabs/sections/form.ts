@@ -4,6 +4,7 @@ import { validateOutboundJson } from '../../../validators/validateOutboundJson';
 import { validateProxyUrl } from '../../../validators/validateProxyUrl';
 import {
   childItemInputValue,
+  getChildItemIds,
   isExistingChildItem,
   nextSectionId,
   orderChildItemsByPosition,
@@ -84,6 +85,7 @@ import {
   defaultSubscriptionUrlSettings,
   isRemoteSubscriptionSource,
   nextSubscriptionTag,
+  reserveSubscriptionTags,
   validateSubscriptionUrlEntry,
 } from './subscriptions/model';
 import { showSubscriptionUrlSettingsModal } from './subscriptions/options';
@@ -283,20 +285,23 @@ export function createSectionContent(section: CBISection) {
   };
   outboundNameSourceOptions.set('selector_proxy_links', o);
 
-  o = section.taboption(
+  // Named rather than held in `o`, which every option of this form is assigned to
+  // in turn: the two callbacks below are handed this option and would otherwise
+  // close over the variable and reach whichever option was declared last.
+  const subscriptions = section.taboption(
     'settings',
     SettingsDynamicList,
     'subscription_url',
     _('Subscription'),
     _('Subscription URL or local path'),
   );
-  o.depends('action', 'connection');
-  o.rmempty = true;
-  o.modalonly = true;
-  o.childType = 'subscription_url';
-  o.childValueOption = 'url';
-  o.createId = () => nextSectionId('subscription_url');
-  o.childDefaults = Object.assign(
+  subscriptions.depends('action', 'connection');
+  subscriptions.rmempty = true;
+  subscriptions.modalonly = true;
+  subscriptions.childType = 'subscription_url';
+  subscriptions.childValueOption = 'url';
+  subscriptions.createId = () => nextSectionId('subscription_url');
+  subscriptions.childDefaults = Object.assign(
     defaultSubscriptionUrlSettings([], '', false),
     {
       subscription_update_enabled: (value: unknown) =>
@@ -311,12 +316,24 @@ export function createSectionContent(section: CBISection) {
           : null,
       show_dashboard_metadata: (value: unknown) =>
         isRemoteSubscriptionSource(value) ? '1' : null,
+      // The list names an entry when it is added, so this is the last resort: a
+      // link typed into the add field and left there is materialized by the save
+      // without ever having been an entry.
       tag: (_value: unknown, sectionId: string) =>
-        nextSubscriptionTag(sectionId, o),
+        nextSubscriptionTag(
+          sectionId,
+          subscriptions,
+          getChildItemIds(sectionId, 'subscription_url'),
+        ),
     },
   );
-  o.renderItemSettingsModal = showSubscriptionUrlSettingsModal;
-  o.hasItemSettings = function (section_id: string, value: unknown) {
+  subscriptions.onListChange = (sectionId: string, values: string[]) =>
+    reserveSubscriptionTags(sectionId, subscriptions, values);
+  subscriptions.renderItemSettingsModal = showSubscriptionUrlSettingsModal;
+  subscriptions.hasItemSettings = function (
+    section_id: string,
+    value: unknown,
+  ) {
     const normalized = `${value || ''}`.trim();
     if (isExistingChildItem(section_id, normalized, 'subscription_url')) {
       return true;
@@ -324,7 +341,7 @@ export function createSectionContent(section: CBISection) {
 
     return this.validate(section_id, normalized) === true;
   };
-  o.afterMaterializeChildItems = function (
+  subscriptions.afterMaterializeChildItems = function (
     _section_id: string,
     itemIds: string[],
   ) {
@@ -340,10 +357,13 @@ export function createSectionContent(section: CBISection) {
       }
     });
   };
-  o.renderListItemLabel = function (section_id: string, itemId: string) {
+  subscriptions.renderListItemLabel = function (
+    section_id: string,
+    itemId: string,
+  ) {
     return childItemInputValue(section_id, itemId, 'subscription_url', 'url');
   };
-  o.validate = function (section_id: string, value: string) {
+  subscriptions.validate = function (section_id: string, value: string) {
     return validateSubscriptionUrlEntry(
       section_id,
       childItemInputValue(section_id, value, 'subscription_url', 'url'),

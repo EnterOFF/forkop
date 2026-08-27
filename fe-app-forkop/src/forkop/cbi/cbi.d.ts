@@ -159,8 +159,9 @@ declare global {
     ) => true | string;
     // Run once the entries have been turned into real sections.
     afterMaterializeChildItems?: (sectionId: string, itemIds: string[]) => void;
-    // Run whenever the list changes, while the dialog is still open.
-    onListChange?: (sectionId: string) => void;
+    // Run whenever the list changes, while the dialog is still open, with the
+    // entries the list holds after the change.
+    onListChange?: (sectionId: string, values: string[]) => void;
 
     // An entry the user added but has not saved yet exists only here, keyed by
     // the text it shows. Two lists that edit the same children - the section

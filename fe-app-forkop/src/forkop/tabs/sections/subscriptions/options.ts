@@ -122,8 +122,8 @@ export function addSubscriptionUrlItemOptions(
   o = itemSection.option(
     form.Flag,
     'show_subscription_name',
-    _('Add tag'),
-    _('Adds the tag to its nodes and metadata on the dashboard'),
+    _('Show tag'),
+    _('Adds the tag to every node of this subscription on the dashboard'),
   );
   o.default = '0';
   o.rmempty = false;
@@ -146,12 +146,10 @@ export function addSubscriptionUrlItemOptions(
       typeof options.ownerId === 'function' ? options.ownerId() : '';
     const inputValue =
       typeof options.itemValue === 'function' ? options.itemValue() : '';
-    return configuredSubscriptionTags(
-      sectionId,
-      options.listOption!,
+    return configuredSubscriptionTags(sectionId, options.listOption!, [
       ownerId === sectionId ? '' : ownerId,
       inputValue,
-    ).includes(normalized)
+    ]).includes(normalized)
       ? _('Subscription tag must be unique within the section')
       : true;
   };

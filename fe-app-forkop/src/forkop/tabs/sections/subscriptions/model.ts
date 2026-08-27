@@ -1,7 +1,7 @@
 import { FORKOP_UCI_PACKAGE } from '../../../../constants';
 import { validatePath } from '../../../../validators/validatePath';
 import { validateUrl } from '../../../../validators/validateUrl';
-import { getChildItemIds } from '../../../cbi/childItems';
+import { getChildItemIds, isExistingChildItem } from '../../../cbi/childItems';
 import { childPendingSettingsStore } from '../../../cbi/itemSettings';
 import { subscriptionOverrideKeys } from './overrides';
 
@@ -111,37 +111,108 @@ export function defaultSubscriptionUrlSettings(
   return settings;
 }
 
+// The subscriptions a section has, as its dialog currently holds them: the
+// entries of the live list, so one the user added or took out counts before the
+// section is saved. A widget that is not on screen - a headless parse, a list
+// that has not rendered - answers with nothing, and the stored children are then
+// the whole truth.
+export function listedSubscriptionValues(
+  sectionId: string,
+  option: CBIOption,
+): string[] {
+  return (
+    liveListValues(option, sectionId) ||
+    getChildItemIds(sectionId, 'subscription_url')
+  );
+}
+
+function liveListValues(option: CBIOption, sectionId: string) {
+  let values: unknown = null;
+
+  try {
+    values = option && option.formvalue ? option.formvalue(sectionId) : null;
+  } catch (_error) {
+    return null;
+  }
+
+  return Array.isArray(values)
+    ? values.map((value) => `${value || ''}`.trim()).filter(Boolean)
+    : null;
+}
+
+// The tag one entry carries: what its section stores, or - while the entry is
+// still a draft the section has never been saved with - what the list is holding
+// for it.
+function listedSubscriptionTag(
+  sectionId: string,
+  option: CBIOption,
+  value: string,
+) {
+  if (isExistingChildItem(sectionId, value, 'subscription_url')) {
+    return `${uci.get(FORKOP_UCI_PACKAGE, value, 'tag') || ''}`.trim();
+  }
+
+  return `${childPendingSettingsStore(option, sectionId)[value]?.tag || ''}`.trim();
+}
+
+// Every tag the section's subscriptions hold, the ones nothing shows included: a
+// tag is in effect while its own field is hidden, and a subscription whose dialog
+// was never opened carries one from the moment its link was added.
 export function configuredSubscriptionTags(
   sectionId: string,
   option: CBIOption,
-  excludedItemId?: string,
-  excludedInputValue?: string,
+  excluded: string[] = [],
+  values: string[] = listedSubscriptionValues(sectionId, option),
 ) {
-  const result: string[] = [];
-  getChildItemIds(sectionId, 'subscription_url').forEach((itemId: string) => {
-    if (itemId !== excludedItemId) {
-      const value =
-        `${uci.get(FORKOP_UCI_PACKAGE, itemId, 'tag') || ''}`.trim();
-      if (value) result.push(value);
-    }
-  });
-  const store = childPendingSettingsStore(option, sectionId);
-  Object.entries(store).forEach(([inputValue, settings]) => {
-    if (inputValue !== excludedInputValue) {
-      const value = `${settings?.tag || ''}`.trim();
-      if (value) result.push(value);
-    }
-  });
-  return result;
+  return values
+    .filter((value) => !excluded.includes(value))
+    .map((value) => listedSubscriptionTag(sectionId, option, value))
+    .filter(Boolean);
 }
 
-export function nextSubscriptionTag(sectionId: string, option: CBIOption) {
-  const taken = new Set(configuredSubscriptionTags(sectionId, option));
-  for (let number = 1; number < 100000; number += 1) {
+// sub{N}, where N counts the subscriptions the section already names: a new one
+// is numbered after the last instead of filling the gap a removed one left, and
+// moves on while a sibling still holds that number.
+export function nextSubscriptionTag(
+  sectionId: string,
+  option: CBIOption,
+  values: string[] = listedSubscriptionValues(sectionId, option),
+) {
+  const taken = new Set(
+    configuredSubscriptionTags(sectionId, option, [], values),
+  );
+  for (let number = taken.size + 1; number < 100000; number += 1) {
     const value = `sub${number}`;
     if (!taken.has(value)) return value;
   }
   return `sub${Date.now()}`;
+}
+
+// Names every entry of the list that has no name yet, which is how a subscription
+// gets its tag the moment its link is added rather than when someone opens its
+// dialog: the dialog then shows the name it will be saved under, the uniqueness
+// check counts it, and the section's save writes it. A link taken back out of the
+// list gives its name up again, along with everything else its dialog had staged.
+export function reserveSubscriptionTags(
+  sectionId: string,
+  option: CBIOption,
+  values: string[],
+) {
+  const store = childPendingSettingsStore(option, sectionId);
+  const drafts = values.filter(
+    (value) => !isExistingChildItem(sectionId, value, 'subscription_url'),
+  );
+
+  Object.keys(store).forEach((value) => {
+    if (!drafts.includes(value)) delete store[value];
+  });
+
+  drafts.forEach((value) => {
+    if (listedSubscriptionTag(sectionId, option, value)) return;
+    store[value] = Object.assign({}, store[value], {
+      tag: nextSubscriptionTag(sectionId, option, values),
+    });
+  });
 }
 
 function parseSubscriptionUrlEntry(

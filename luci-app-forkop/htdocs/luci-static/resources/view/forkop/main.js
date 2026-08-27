@@ -13611,9 +13611,7 @@ function childPendingSettingsStore(option2, section_id) {
 function pendingChildSettings(option2, section_id, value, defaults) {
   const itemValue = `${value || ""}`.trim();
   const store2 = childPendingSettingsStore(option2, section_id);
-  if (!store2[itemValue]) {
-    store2[itemValue] = Object.assign({}, defaults || {});
-  }
+  store2[itemValue] = Object.assign({}, defaults || {}, store2[itemValue]);
   return store2[itemValue];
 }
 function clearChildPendingSettings(option2, section_id) {
@@ -14476,7 +14474,7 @@ var SettingsDynamicList = form.DynamicList.extend({
     const node = widget.render();
     if (typeof this.onListChange === "function") {
       node.addEventListener("cbi-dynlist-change", () => {
-        this.onListChange(section_id);
+        this.onListChange(section_id, dynamicListItemValues(node));
       });
     }
     return node;
@@ -16004,30 +16002,51 @@ function defaultSubscriptionUrlSettings(headers = [], tag = "sub1", remote = tru
   }
   return settings;
 }
-function configuredSubscriptionTags(sectionId, option2, excludedItemId, excludedInputValue) {
-  const result = [];
-  getChildItemIds(sectionId, "subscription_url").forEach((itemId) => {
-    if (itemId !== excludedItemId) {
-      const value = `${uci.get(FORKOP_UCI_PACKAGE, itemId, "tag") || ""}`.trim();
-      if (value) result.push(value);
-    }
-  });
-  const store2 = childPendingSettingsStore(option2, sectionId);
-  Object.entries(store2).forEach(([inputValue, settings]) => {
-    if (inputValue !== excludedInputValue) {
-      const value = `${settings?.tag || ""}`.trim();
-      if (value) result.push(value);
-    }
-  });
-  return result;
+function listedSubscriptionValues(sectionId, option2) {
+  return liveListValues(option2, sectionId) || getChildItemIds(sectionId, "subscription_url");
 }
-function nextSubscriptionTag(sectionId, option2) {
-  const taken = new Set(configuredSubscriptionTags(sectionId, option2));
-  for (let number = 1; number < 1e5; number += 1) {
+function liveListValues(option2, sectionId) {
+  let values = null;
+  try {
+    values = option2 && option2.formvalue ? option2.formvalue(sectionId) : null;
+  } catch (_error) {
+    return null;
+  }
+  return Array.isArray(values) ? values.map((value) => `${value || ""}`.trim()).filter(Boolean) : null;
+}
+function listedSubscriptionTag(sectionId, option2, value) {
+  if (isExistingChildItem(sectionId, value, "subscription_url")) {
+    return `${uci.get(FORKOP_UCI_PACKAGE, value, "tag") || ""}`.trim();
+  }
+  return `${childPendingSettingsStore(option2, sectionId)[value]?.tag || ""}`.trim();
+}
+function configuredSubscriptionTags(sectionId, option2, excluded = [], values = listedSubscriptionValues(sectionId, option2)) {
+  return values.filter((value) => !excluded.includes(value)).map((value) => listedSubscriptionTag(sectionId, option2, value)).filter(Boolean);
+}
+function nextSubscriptionTag(sectionId, option2, values = listedSubscriptionValues(sectionId, option2)) {
+  const taken = new Set(
+    configuredSubscriptionTags(sectionId, option2, [], values)
+  );
+  for (let number = taken.size + 1; number < 1e5; number += 1) {
     const value = `sub${number}`;
     if (!taken.has(value)) return value;
   }
   return `sub${Date.now()}`;
+}
+function reserveSubscriptionTags(sectionId, option2, values) {
+  const store2 = childPendingSettingsStore(option2, sectionId);
+  const drafts = values.filter(
+    (value) => !isExistingChildItem(sectionId, value, "subscription_url")
+  );
+  Object.keys(store2).forEach((value) => {
+    if (!drafts.includes(value)) delete store2[value];
+  });
+  drafts.forEach((value) => {
+    if (listedSubscriptionTag(sectionId, option2, value)) return;
+    store2[value] = Object.assign({}, store2[value], {
+      tag: nextSubscriptionTag(sectionId, option2, values)
+    });
+  });
 }
 function parseSubscriptionUrlEntry(value) {
   const normalized = value ? `${value}`.trim() : "";
@@ -18094,8 +18113,8 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
   o = itemSection.option(
     form.Flag,
     "show_subscription_name",
-    _("Add tag"),
-    _("Adds the tag to its nodes and metadata on the dashboard")
+    _("Show tag"),
+    _("Adds the tag to every node of this subscription on the dashboard")
   );
   o.default = "0";
   o.rmempty = false;
@@ -18112,12 +18131,10 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
     const sectionId = parentSectionForItem(_itemId);
     const ownerId = typeof options.ownerId === "function" ? options.ownerId() : "";
     const inputValue = typeof options.itemValue === "function" ? options.itemValue() : "";
-    return configuredSubscriptionTags(
-      sectionId,
-      options.listOption,
+    return configuredSubscriptionTags(sectionId, options.listOption, [
       ownerId === sectionId ? "" : ownerId,
       inputValue
-    ).includes(normalized) ? _("Subscription tag must be unique within the section") : true;
+    ]).includes(normalized) ? _("Subscription tag must be unique within the section") : true;
   };
   o = itemSection.option(
     form.Button,
@@ -19770,20 +19787,20 @@ function createSectionContent(section) {
     return node;
   };
   outboundNameSourceOptions.set("selector_proxy_links", o);
-  o = section.taboption(
+  const subscriptions = section.taboption(
     "settings",
     SettingsDynamicList,
     "subscription_url",
     _("Subscription"),
     _("Subscription URL or local path")
   );
-  o.depends("action", "connection");
-  o.rmempty = true;
-  o.modalonly = true;
-  o.childType = "subscription_url";
-  o.childValueOption = "url";
-  o.createId = () => nextSectionId("subscription_url");
-  o.childDefaults = Object.assign(
+  subscriptions.depends("action", "connection");
+  subscriptions.rmempty = true;
+  subscriptions.modalonly = true;
+  subscriptions.childType = "subscription_url";
+  subscriptions.childValueOption = "url";
+  subscriptions.createId = () => nextSectionId("subscription_url");
+  subscriptions.childDefaults = Object.assign(
     defaultSubscriptionUrlSettings([], "", false),
     {
       subscription_update_enabled: (value) => isRemoteSubscriptionSource(value) ? "1" : null,
@@ -19791,18 +19808,26 @@ function createSectionContent(section) {
       download_via_proxy_enabled: (value) => isRemoteSubscriptionSource(value) ? "0" : null,
       header: (value) => isRemoteSubscriptionSource(value) ? defaultSubscriptionHeaderLines.slice() : null,
       show_dashboard_metadata: (value) => isRemoteSubscriptionSource(value) ? "1" : null,
-      tag: (_value, sectionId) => nextSubscriptionTag(sectionId, o)
+      // The list names an entry when it is added, so this is the last resort: a
+      // link typed into the add field and left there is materialized by the save
+      // without ever having been an entry.
+      tag: (_value, sectionId) => nextSubscriptionTag(
+        sectionId,
+        subscriptions,
+        getChildItemIds(sectionId, "subscription_url")
+      )
     }
   );
-  o.renderItemSettingsModal = showSubscriptionUrlSettingsModal;
-  o.hasItemSettings = function(section_id, value) {
+  subscriptions.onListChange = (sectionId, values) => reserveSubscriptionTags(sectionId, subscriptions, values);
+  subscriptions.renderItemSettingsModal = showSubscriptionUrlSettingsModal;
+  subscriptions.hasItemSettings = function(section_id, value) {
     const normalized = `${value || ""}`.trim();
     if (isExistingChildItem(section_id, normalized, "subscription_url")) {
       return true;
     }
     return this.validate(section_id, normalized) === true;
   };
-  o.afterMaterializeChildItems = function(_section_id, itemIds) {
+  subscriptions.afterMaterializeChildItems = function(_section_id, itemIds) {
     itemIds.forEach((itemId) => {
       const source = childItemInputValue(
         _section_id,
@@ -19815,10 +19840,10 @@ function createSectionContent(section) {
       }
     });
   };
-  o.renderListItemLabel = function(section_id, itemId) {
+  subscriptions.renderListItemLabel = function(section_id, itemId) {
     return childItemInputValue(section_id, itemId, "subscription_url", "url");
   };
-  o.validate = function(section_id, value) {
+  subscriptions.validate = function(section_id, value) {
     return validateSubscriptionUrlEntry(
       section_id,
       childItemInputValue(section_id, value, "subscription_url", "url")

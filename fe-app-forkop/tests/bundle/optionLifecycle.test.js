@@ -284,6 +284,103 @@ describe('a list the dialog hides keeps its items', () => {
   });
 });
 
+/* ------------------------------ a subscription is named when it is added */
+
+// A subscription becomes a provider named "<section>/<tag>" in the running
+// configuration, so it needs a tag whether or not the dashboard is asked to show
+// it. Nobody types one: the list names an entry the moment its link is added, and
+// the section's save writes that name out with the rest of the entry.
+describe('a subscription is named when its link is added', () => {
+  const LINKS = ['https://a.example/sub', 'https://b.example/sub'];
+
+  async function saveSection(grid, values) {
+    widgetAnswers(grid, { subscription_url: values });
+    grid.children
+      .find((option) => option.option === 'subscription_url')
+      .onListChange('sec', values);
+    for (const option of grid.children) {
+      await Promise.resolve()
+        .then(() => option.parse('sec'))
+        .catch(() => {});
+    }
+  }
+
+  function storedTags() {
+    return harness.uci
+      .sections('forkop', 'subscription_url')
+      .map((item) => item.tag);
+  }
+
+  it('writes a tag for a link whose dialog was never opened', async () => {
+    addSections([CONNECTION_SECTION]);
+    const grid = sectionGrid();
+    grid.cfgsections = () => ['sec'];
+    await grid.load();
+
+    await saveSection(grid, LINKS);
+
+    expect(storedTags()).toEqual(['sub1', 'sub2']);
+  });
+
+  it('numbers a new link after the subscription the section has', async () => {
+    addSections(connectionChildren());
+    const grid = sectionGrid();
+    grid.cfgsections = () => ['sec'];
+    await grid.load();
+
+    await saveSection(grid, ['sub1', LINKS[0]]);
+
+    expect(storedTags().sort()).toEqual(['sub1', 'sub2']);
+  });
+
+  // sing-box refuses a configuration holding two providers under one name, so the
+  // whole section fails to start. The dialog and the save have to hand out the
+  // same names: whatever the dialog showed for one entry is what the save must
+  // avoid for its siblings.
+  it('does not name two subscriptions the same', async () => {
+    addSections([CONNECTION_SECTION]);
+    const grid = sectionGrid();
+    grid.cfgsections = () => ['sec'];
+    await grid.load();
+    const list = grid.children.find(
+      (option) => option.option === 'subscription_url',
+    );
+    widgetAnswers(grid, { subscription_url: LINKS });
+    list.onListChange('sec', LINKS);
+
+    const dialog = await harness.openDialog(list, 'sec', LINKS[1]);
+    await dialog.save();
+    for (const option of grid.children) {
+      await Promise.resolve()
+        .then(() => option.parse('sec'))
+        .catch(() => {});
+    }
+
+    expect(storedTags().sort()).toEqual(['sub1', 'sub2']);
+  });
+
+  // The dialog has to agree with the save: it shows the name the entry is going
+  // to be stored under, so pressing Save in it cannot rename the subscription.
+  it('shows the same tag in the dialog of a link that has no section yet', async () => {
+    addSections([CONNECTION_SECTION]);
+    const grid = sectionGrid();
+    grid.cfgsections = () => ['sec'];
+    await grid.load();
+    const list = grid.children.find(
+      (option) => option.option === 'subscription_url',
+    );
+    widgetAnswers(grid, { subscription_url: LINKS });
+    list.onListChange('sec', LINKS);
+
+    const dialog = await harness.openDialog(list, 'sec', LINKS[1]);
+    const tag = dialog.map.children[0].children.find(
+      (option) => option.option === 'tag',
+    );
+
+    expect(tag.cfgvalue('settings')).toBe('sub2');
+  });
+});
+
 /* --------------------------------- a list the user can see owns its items */
 
 describe('a list the user can see owns its items', () => {

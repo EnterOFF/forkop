@@ -456,7 +456,7 @@ export const SettingsDynamicList = form.DynamicList.extend({
     const node = widget.render();
     if (typeof this.onListChange === 'function') {
       node.addEventListener('cbi-dynlist-change', () => {
-        this.onListChange!(section_id);
+        this.onListChange!(section_id, dynamicListItemValues(node));
       });
     }
 

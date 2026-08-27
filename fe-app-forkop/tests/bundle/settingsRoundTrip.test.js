@@ -413,6 +413,10 @@ describe('a subscription tag', () => {
       );
       harness.uci.set('forkop', itemId, 'tag', `sub${index + 1}`);
     });
+    // The dialog is only reachable from the rendered list, and the tag rules read
+    // that list rather than the config: an entry the user has taken out is still
+    // stored until the section is saved.
+    list.cfgvalue('section_probe', ['sub_first', 'sub_second']);
   });
 
   it('survives a save that does not show it', async () => {

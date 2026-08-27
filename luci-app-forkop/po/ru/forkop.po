@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-27 10:49+0300\n"
-"PO-Revision-Date: 2026-08-27 10:49+0300\n"
+"POT-Creation-Date: 2026-08-27 12:31+0300\n"
+"PO-Revision-Date: 2026-08-27 12:31+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -143,9 +143,6 @@ msgstr "Добавьте хотя бы одного пира WireGuard"
 msgid "Add header"
 msgstr "Добавить заголовок"
 
-msgid "Add tag"
-msgstr "Добавить тег"
-
 msgid "Add URLTest"
 msgstr "Добавить URLTest"
 
@@ -164,8 +161,8 @@ msgstr "Дополнительное заполнение пакета"
 msgid "Address of the coordination server. Change it if you use a custom server"
 msgstr "Адрес сервера координации. Меняйте, если используете свой"
 
-msgid "Adds the tag to its nodes and metadata on the dashboard"
-msgstr "Добавляет тег к узлам и метаданным в дашборде"
+msgid "Adds the tag to every node of this subscription on the dashboard"
+msgstr "Добавляет тег ко всем узлам этой подписки в дашборде"
 
 msgid "Advertise routes"
 msgstr "Раздавать маршруты"
@@ -1717,6 +1714,9 @@ msgstr "Показать QR-код"
 
 msgid "Show metadata"
 msgstr "Отображать метаданные"
+
+msgid "Show tag"
+msgstr "Отображать тег"
 
 msgid "Show the metadata block on the dashboard"
 msgstr "Отображать блок метаданных в дашборде"

@@ -197,9 +197,10 @@ export function pendingChildSettings(
   const itemValue = `${value || ''}`.trim();
   const store = childPendingSettingsStore(option, section_id);
 
-  if (!store[itemValue]) {
-    store[itemValue] = Object.assign({}, defaults || {});
-  }
+  // What the list has already decided for the entry wins; the defaults fill in
+  // the rest, because a list may stage part of an entry - a subscription is
+  // named the moment its link is added - before any dialog is opened.
+  store[itemValue] = Object.assign({}, defaults || {}, store[itemValue]);
 
   return store[itemValue];
 }
