@@ -167,6 +167,12 @@ if [ -n "${SING_BOX_TEST_POLL_COUNT_FILE:-}" ]; then
      [ "$count" -ge "$SING_BOX_TEST_READY_AFTER_SLEEPS" ]; then
     cp "${SING_BOX_TEST_READY_PROC_TCP:?}" "${FORKOP_PROC_NET_TCP:?}"
   fi
+  # procd answers a start request before it has forked anything, so the pid the
+  # wait looks up appears a moment after the start returns.
+  if [ -n "${SING_BOX_TEST_PID_AFTER_SLEEPS:-}" ] &&
+     [ "$count" -ge "$SING_BOX_TEST_PID_AFTER_SLEEPS" ]; then
+    printf '%s\n' "${SING_BOX_TEST_LATE_PID:?}" >"${SING_BOX_TEST_PID_FILE:?}"
+  fi
 fi
 if [ -n "${SING_BOX_TEST_KILL_PID_FILE:-}" ]; then
   printf 'sleep\n' >>"${SING_BOX_TEST_SLEEP_COUNT_FILE:?}"
@@ -301,13 +307,40 @@ exit_detection_polls="$(wc -l <"$WORK_DIR/sleep.count" | tr -d ' ')"
   fail "ready wait exit detection polls: expected 1 or 2, got '$exit_detection_polls'"
 wait "$sing_box_pid" 2>/dev/null || true
 
-# With the process already gone there is nothing to pin the wait to.
+# A process that never turns up is a failed start, and the window is what says
+# so: without that bound the wait would sit on an empty runtime until the ceiling.
 if PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
+  FORKOP_SING_BOX_START_MAX_WAIT_SECONDS=30 \
   SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
   FORKOP_PROC_NET_TCP="$WORK_DIR/proc-net-tcp.ready" \
+  SING_BOX_TEST_POLL_COUNT_FILE="$WORK_DIR/no-process-poll.count" \
   state_ucode wait-forkop-ready forkop ForkopTable 0x00100000 2 2 >/dev/null 2>&1; then
-  fail "ready wait must fail at once without a running sing-box process"
+  fail "ready wait must fail once its window passes with no sing-box process"
 fi
+assert_eq "2" "$(cat "$WORK_DIR/no-process-poll.count")" \
+  "ready wait must give the process the window it was given to appear"
+
+# `/etc/init.d/sing-box start` answers as soon as procd has taken the request,
+# before it has forked anything. A wait whose first look demanded a process read
+# that gap as a dead runtime and tore down the start it had just made.
+printf 'none\n' >"$WORK_DIR/late-start.pid"
+"$WORK_DIR/stable-start-bin/sing-box" 30 &
+late_sing_box_pid=$!
+cp "$WORK_DIR/proc-net-tcp.ready" "$WORK_DIR/late-process-proc-net-tcp"
+if ! PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
+  FORKOP_SING_BOX_START_MAX_WAIT_SECONDS=30 \
+  SING_BOX_TEST_PID_FILE="$WORK_DIR/late-start.pid" \
+  FORKOP_PROC_NET_TCP="$WORK_DIR/late-process-proc-net-tcp" \
+  SING_BOX_TEST_PID_AFTER_SLEEPS=2 \
+  SING_BOX_TEST_LATE_PID="$late_sing_box_pid" \
+  SING_BOX_TEST_POLL_COUNT_FILE="$WORK_DIR/late-process-poll.count" \
+  state_ucode wait-forkop-ready forkop ForkopTable 0x00100000 4 2; then
+  kill "$late_sing_box_pid" >/dev/null 2>&1 || true
+  wait "$late_sing_box_pid" 2>/dev/null || true
+  fail "ready wait must wait for procd to fork sing-box rather than fail on the gap"
+fi
+kill "$late_sing_box_pid" >/dev/null 2>&1 || true
+wait "$late_sing_box_pid" 2>/dev/null || true
 sing_box_pid=""
 
 PENDING_RELOAD_FILE="$WORK_DIR/reload.pending"

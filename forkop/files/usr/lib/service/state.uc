@@ -276,28 +276,38 @@ function reload_sing_box_runtime(config_hash_before, config_hash_after, force) {
 // means one blip mid-window costs a second rather than the whole action, which
 // matters because failing this wait tears the runtime down.
 //
-// The sing-box process itself is pinned by its start ticks: a process that
-// exits or is replaced mid-wait fails at once instead of waiting out the
-// ceiling, because whatever procd respawns is not the runtime the caller built.
+// The sing-box process itself is pinned by its start ticks, from the first look
+// that finds it: a process that exits or is replaced mid-wait fails at once
+// instead of waiting out the ceiling, because whatever procd respawns is not the
+// runtime the caller built. It is found rather than required up front because
+// `/etc/init.d/sing-box start` answers as soon as procd has taken the request,
+// before it has forked anything - a start whose first look demanded a process
+// read the gap as a dead runtime and tore the start down a second after making
+// it. The window is what decides: no process by the end of it is a failed start.
 function wait_forkop_ready(rt_table, nft_table, mark, window, hold) {
     window = int(window || 8);
     hold = int(hold || 2);
 
-    let pid = sing_box_service_pid_runtime();
-    if (pid <= 0 || !pid_is_sing_box(pid))
-        return false;
-
-    let start_ticks = process_start_ticks(fs.readfile("/proc/" + pid + "/stat"));
-    if (start_ticks == null)
-        return false;
-
+    let pid = 0;
+    let start_ticks = null;
     let waited = 0;
     let held = 0;
     while (true) {
-        if (process_start_ticks(fs.readfile("/proc/" + pid + "/stat")) != start_ticks)
+        if (pid <= 0) {
+            let found = sing_box_service_pid_runtime();
+            if (found > 0 && pid_is_sing_box(found)) {
+                start_ticks = process_start_ticks(fs.readfile("/proc/" + found + "/stat"));
+                if (start_ticks != null)
+                    pid = found;
+            }
+            if (pid <= 0 && waited >= window)
+                return false;
+        }
+        else if (process_start_ticks(fs.readfile("/proc/" + pid + "/stat")) != start_ticks)
             return false;
 
-        if (sing_box_runtime_ports_ready() &&
+        if (pid > 0 &&
+            sing_box_runtime_ports_ready() &&
             forkop_runtime_network_configured(rt_table, nft_table, mark))
             held++;
         else
