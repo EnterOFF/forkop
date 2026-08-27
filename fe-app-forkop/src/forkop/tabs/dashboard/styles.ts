@@ -571,9 +571,14 @@ export const styles = `
     scrollbar-gutter: auto;
 }
 
+/* A node: its name and latency on the left, the row's own action on the right.
+   The action keeps a column of its own so it stays on the row's first line
+   whatever the name does - placed after a full-width latency, auto-placement put
+   it on a third line of its own, and every one of a hundred rows was 86px tall
+   on a narrow window. */
 .fkp_dashboard-page__urltest-details__row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(54px, max-content) 20px;
+    grid-template-columns: minmax(0, 1fr) 20px;
     align-items: center;
     gap: 8px;
     width: 100%;
@@ -624,6 +629,20 @@ export const styles = `
     line-height: 1.35;
 }
 
+/* The name and the latency it belongs to, side by side while both fit and
+   stacked when they stop fitting. Which rows need the break depends on how long
+   each name is, so the row decides for itself rather than every row breaking at
+   one width of the window: the latency keeps its own width beside the name, and
+   below that drops under it. Either way it is flush with the row's right edge,
+   which is where the fixed latency column used to put it. */
+.fkp_dashboard-page__urltest-details__row-body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 8px;
+    min-width: 0;
+}
+
 .fkp_dashboard-page__urltest-details__row-name,
 .fkp_dashboard-page__urltest-details__row-meta {
     display: flex;
@@ -634,7 +653,13 @@ export const styles = `
 }
 
 .fkp_dashboard-page__urltest-details__row-name {
+    flex: 1 1 auto;
     flex-wrap: wrap;
+}
+
+.fkp_dashboard-page__urltest-details__row-meta {
+    flex: 0 0 auto;
+    margin-left: auto;
 }
 
 .fkp_dashboard-page__urltest-details__row-name b {
@@ -740,22 +765,16 @@ export const styles = `
 
 .fkp_dashboard-page__urltest-details__footer {
     display: flex;
-    justify-content: flex-end;
+    justify-content: flex-start;
     margin-top: 14px;
 }
 
+/* The parameter list is two columns of label and value, and there is no window
+   narrow enough for both that is also wide enough to read them. The node rows
+   need nothing here: each one wraps against its own content. */
 @media (max-width: 560px) {
     .fkp_dashboard-page__urltest-details__params {
         grid-template-columns: 1fr;
-    }
-
-    .fkp_dashboard-page__urltest-details__row {
-        grid-template-columns: minmax(0, 1fr) 20px;
-    }
-
-    .fkp_dashboard-page__urltest-details__row-meta {
-        grid-column: 1 / -1;
-        justify-content: flex-start;
     }
 }
 

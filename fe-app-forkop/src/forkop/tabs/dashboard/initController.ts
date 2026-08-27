@@ -997,37 +997,51 @@ function renderUrlTestInfoModal(outbound: Forkop.Outbound) {
                     .join(' '),
                 },
                 [
+                  // The name and its latency share one cell so they can wrap
+                  // against each other: a name with no room left for the
+                  // latency drops it onto the next line instead of taking the
+                  // copy action down with it.
                   E(
                     'div',
                     {
-                      class: 'fkp_dashboard-page__urltest-details__row-name',
-                    },
-                    [
-                      E('b', {}, renderDetailsMemberName(member)),
-                      ...(member.type
-                        ? [
-                            E(
-                              'span',
-                              {
-                                class:
-                                  'fkp_dashboard-page__urltest-details__row-type',
-                              },
-                              member.type,
-                            ),
-                          ]
-                        : []),
-                    ],
-                  ),
-                  E(
-                    'div',
-                    {
-                      class: 'fkp_dashboard-page__urltest-details__row-meta',
+                      class: 'fkp_dashboard-page__urltest-details__row-body',
                     },
                     [
                       E(
-                        'span',
-                        { class: latencyClassName(member.latency) },
-                        formatUrlTestLatency(member.latency),
+                        'div',
+                        {
+                          class:
+                            'fkp_dashboard-page__urltest-details__row-name',
+                        },
+                        [
+                          E('b', {}, renderDetailsMemberName(member)),
+                          ...(member.type
+                            ? [
+                                E(
+                                  'span',
+                                  {
+                                    class:
+                                      'fkp_dashboard-page__urltest-details__row-type',
+                                  },
+                                  member.type,
+                                ),
+                              ]
+                            : []),
+                        ],
+                      ),
+                      E(
+                        'div',
+                        {
+                          class:
+                            'fkp_dashboard-page__urltest-details__row-meta',
+                        },
+                        [
+                          E(
+                            'span',
+                            { class: latencyClassName(member.latency) },
+                            formatUrlTestLatency(member.latency),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -1235,40 +1249,44 @@ function renderFallbackMemberRow(
       },
     },
     [
-      E('div', { class: 'fkp_dashboard-page__urltest-details__row-name' }, [
-        E(
-          'b',
-          { class: 'fkp_dashboard-page__urltest-details__fallback-name' },
-          renderFallbackMemberName(member),
-        ),
-        ...(member.type
-          ? [
-              E(
-                'span',
-                { class: 'fkp_dashboard-page__urltest-details__row-type' },
-                member.type,
-              ),
-            ]
-          : []),
-        ...(member.pinned
-          ? [
-              E(
-                'span',
-                {
-                  class: 'fkp_dashboard-page__urltest-details__row-pin',
-                  'aria-hidden': 'true',
-                },
-                renderPinIcon24(),
-              ),
-            ]
-          : []),
-      ]),
-      E('div', { class: 'fkp_dashboard-page__urltest-details__row-meta' }, [
-        E(
-          'span',
-          { class: latencyClassName(member.latency) },
-          formatUrlTestLatency(member.latency),
-        ),
+      // Same cell for the name and its latency as a URLTest row, and for the
+      // same reason: the pair wraps against itself and the pin action stays put.
+      E('div', { class: 'fkp_dashboard-page__urltest-details__row-body' }, [
+        E('div', { class: 'fkp_dashboard-page__urltest-details__row-name' }, [
+          E(
+            'b',
+            { class: 'fkp_dashboard-page__urltest-details__fallback-name' },
+            renderFallbackMemberName(member),
+          ),
+          ...(member.type
+            ? [
+                E(
+                  'span',
+                  { class: 'fkp_dashboard-page__urltest-details__row-type' },
+                  member.type,
+                ),
+              ]
+            : []),
+          ...(member.pinned
+            ? [
+                E(
+                  'span',
+                  {
+                    class: 'fkp_dashboard-page__urltest-details__row-pin',
+                    'aria-hidden': 'true',
+                  },
+                  renderPinIcon24(),
+                ),
+              ]
+            : []),
+        ]),
+        E('div', { class: 'fkp_dashboard-page__urltest-details__row-meta' }, [
+          E(
+            'span',
+            { class: latencyClassName(member.latency) },
+            formatUrlTestLatency(member.latency),
+          ),
+        ]),
       ]),
       member.canCopyLink
         ? renderUrlTestCopyButton(_('Copy proxy link'), (event) => {

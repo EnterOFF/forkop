@@ -120,8 +120,11 @@ describe('the catalogs', () => {
 // LuCI's own catalog owns "Dismiss" and closes its alerts with it; overriding
 // that key changes what every LuCI alert on the router says.
 describe('a Forkop modal', () => {
-  it('closes with its own Close action', async () => {
-    expect(await tabSource('sections')).toContain("_('Close')");
+  // A dialog stacked on another one leaves with its own Back action, which is
+  // what the button does there: the nested map comes out and the parent's own
+  // buttons go back. Either way the key is ours.
+  it('leaves a stacked dialog with its own Back action', async () => {
+    expect(await tabSource('sections')).toContain("_('Back')");
   });
 
   it('does not use the shared LuCI Dismiss key', async () => {
@@ -130,6 +133,10 @@ describe('a Forkop modal', () => {
 
   it('translates Close as Закрыть', () => {
     expect(translationOf(po, 'Close')).toBe('Закрыть');
+  });
+
+  it('translates Back as Назад', () => {
+    expect(translationOf(po, 'Back')).toBe('Назад');
   });
 
   it('does not translate Dismiss as Отмена', () => {

@@ -5490,34 +5490,46 @@ function renderUrlTestInfoModal(outbound) {
               ].filter(Boolean).join(" ")
             },
             [
+              // The name and its latency share one cell so they can wrap
+              // against each other: a name with no room left for the
+              // latency drops it onto the next line instead of taking the
+              // copy action down with it.
               E(
                 "div",
                 {
-                  class: "fkp_dashboard-page__urltest-details__row-name"
-                },
-                [
-                  E("b", {}, renderDetailsMemberName(member)),
-                  ...member.type ? [
-                    E(
-                      "span",
-                      {
-                        class: "fkp_dashboard-page__urltest-details__row-type"
-                      },
-                      member.type
-                    )
-                  ] : []
-                ]
-              ),
-              E(
-                "div",
-                {
-                  class: "fkp_dashboard-page__urltest-details__row-meta"
+                  class: "fkp_dashboard-page__urltest-details__row-body"
                 },
                 [
                   E(
-                    "span",
-                    { class: latencyClassName(member.latency) },
-                    formatUrlTestLatency(member.latency)
+                    "div",
+                    {
+                      class: "fkp_dashboard-page__urltest-details__row-name"
+                    },
+                    [
+                      E("b", {}, renderDetailsMemberName(member)),
+                      ...member.type ? [
+                        E(
+                          "span",
+                          {
+                            class: "fkp_dashboard-page__urltest-details__row-type"
+                          },
+                          member.type
+                        )
+                      ] : []
+                    ]
+                  ),
+                  E(
+                    "div",
+                    {
+                      class: "fkp_dashboard-page__urltest-details__row-meta"
+                    },
+                    [
+                      E(
+                        "span",
+                        { class: latencyClassName(member.latency) },
+                        formatUrlTestLatency(member.latency)
+                      )
+                    ]
                   )
                 ]
               ),
@@ -5684,36 +5696,40 @@ function renderFallbackMemberRow(info, member) {
       }
     },
     [
-      E("div", { class: "fkp_dashboard-page__urltest-details__row-name" }, [
-        E(
-          "b",
-          { class: "fkp_dashboard-page__urltest-details__fallback-name" },
-          renderFallbackMemberName(member)
-        ),
-        ...member.type ? [
+      // Same cell for the name and its latency as a URLTest row, and for the
+      // same reason: the pair wraps against itself and the pin action stays put.
+      E("div", { class: "fkp_dashboard-page__urltest-details__row-body" }, [
+        E("div", { class: "fkp_dashboard-page__urltest-details__row-name" }, [
+          E(
+            "b",
+            { class: "fkp_dashboard-page__urltest-details__fallback-name" },
+            renderFallbackMemberName(member)
+          ),
+          ...member.type ? [
+            E(
+              "span",
+              { class: "fkp_dashboard-page__urltest-details__row-type" },
+              member.type
+            )
+          ] : [],
+          ...member.pinned ? [
+            E(
+              "span",
+              {
+                class: "fkp_dashboard-page__urltest-details__row-pin",
+                "aria-hidden": "true"
+              },
+              renderPinIcon24()
+            )
+          ] : []
+        ]),
+        E("div", { class: "fkp_dashboard-page__urltest-details__row-meta" }, [
           E(
             "span",
-            { class: "fkp_dashboard-page__urltest-details__row-type" },
-            member.type
+            { class: latencyClassName(member.latency) },
+            formatUrlTestLatency(member.latency)
           )
-        ] : [],
-        ...member.pinned ? [
-          E(
-            "span",
-            {
-              class: "fkp_dashboard-page__urltest-details__row-pin",
-              "aria-hidden": "true"
-            },
-            renderPinIcon24()
-          )
-        ] : []
-      ]),
-      E("div", { class: "fkp_dashboard-page__urltest-details__row-meta" }, [
-        E(
-          "span",
-          { class: latencyClassName(member.latency) },
-          formatUrlTestLatency(member.latency)
-        )
+        ])
       ]),
       member.canCopyLink ? renderUrlTestCopyButton(_("Copy proxy link"), (event) => {
         event.preventDefault();
@@ -6790,9 +6806,14 @@ var styles = `
     scrollbar-gutter: auto;
 }
 
+/* A node: its name and latency on the left, the row's own action on the right.
+   The action keeps a column of its own so it stays on the row's first line
+   whatever the name does - placed after a full-width latency, auto-placement put
+   it on a third line of its own, and every one of a hundred rows was 86px tall
+   on a narrow window. */
 .fkp_dashboard-page__urltest-details__row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(54px, max-content) 20px;
+    grid-template-columns: minmax(0, 1fr) 20px;
     align-items: center;
     gap: 8px;
     width: 100%;
@@ -6843,6 +6864,20 @@ var styles = `
     line-height: 1.35;
 }
 
+/* The name and the latency it belongs to, side by side while both fit and
+   stacked when they stop fitting. Which rows need the break depends on how long
+   each name is, so the row decides for itself rather than every row breaking at
+   one width of the window: the latency keeps its own width beside the name, and
+   below that drops under it. Either way it is flush with the row's right edge,
+   which is where the fixed latency column used to put it. */
+.fkp_dashboard-page__urltest-details__row-body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 8px;
+    min-width: 0;
+}
+
 .fkp_dashboard-page__urltest-details__row-name,
 .fkp_dashboard-page__urltest-details__row-meta {
     display: flex;
@@ -6853,7 +6888,13 @@ var styles = `
 }
 
 .fkp_dashboard-page__urltest-details__row-name {
+    flex: 1 1 auto;
     flex-wrap: wrap;
+}
+
+.fkp_dashboard-page__urltest-details__row-meta {
+    flex: 0 0 auto;
+    margin-left: auto;
 }
 
 .fkp_dashboard-page__urltest-details__row-name b {
@@ -6959,22 +7000,16 @@ var styles = `
 
 .fkp_dashboard-page__urltest-details__footer {
     display: flex;
-    justify-content: flex-end;
+    justify-content: flex-start;
     margin-top: 14px;
 }
 
+/* The parameter list is two columns of label and value, and there is no window
+   narrow enough for both that is also wide enough to read them. The node rows
+   need nothing here: each one wraps against its own content. */
 @media (max-width: 560px) {
     .fkp_dashboard-page__urltest-details__params {
         grid-template-columns: 1fr;
-    }
-
-    .fkp_dashboard-page__urltest-details__row {
-        grid-template-columns: minmax(0, 1fr) 20px;
-    }
-
-    .fkp_dashboard-page__urltest-details__row-meta {
-        grid-column: 1 / -1;
-        justify-content: flex-start;
     }
 }
 
@@ -15433,13 +15468,17 @@ function renderStackedJsonSettingsModal(title, map, onSave, options = {}) {
     };
     buttonRow.textContent = "";
     buttonRow.append(
+      // This dialog is stacked on another one, and leaving it puts that one back
+      // rather than closing anything: `close` above takes the nested map out and
+      // restores the parent's own buttons. "Close" said the opposite of what the
+      // button does.
       E(
         "button",
         {
           class: "btn cbi-button",
           click: close
         },
-        _("Close")
+        _("Back")
       ),
       " ",
       saveButton = E(
@@ -21631,10 +21670,13 @@ function injectDetailsStyles() {
         ".fkp-details__value{inline-size:100% !important;max-inline-size:100% !important;min-inline-size:0;box-sizing:border-box;margin:0 !important;float:none !important;font-family:monospace;font-size:12px}",
         ".fkp-details__action{display:inline-flex;align-items:center;justify-content:center;inline-size:2.5em !important;min-inline-size:0;padding:0 !important;margin:0 !important;float:none !important;line-height:1}",
         ".fkp-details__empty{color:var(--text-color-medium,#666)}",
-        // The theme aligns a modal button row with .modal > .button-row and pushes a
-        // lone button left with .modal > .button-row > button:first-of-type. A bare
-        // class loses to both, so the override extends the same selectors instead.
-        ".modal > .button-row.fkp-details-actions{justify-content:flex-end;gap:0.5em}",
+        // The theme lays a modal button row out as space-between and gives the first
+        // button a margin-right of auto, so where a lone button lands is the theme's
+        // choice rather than this dialog's. These two rules make it the dialog's: at
+        // the left of the row, the same place as in the URLTest and Fallback details.
+        // A bare class loses to both of the theme's selectors, so the override
+        // extends the same ones.
+        ".modal > .button-row.fkp-details-actions{justify-content:flex-start;gap:0.5em}",
         ".modal > .button-row.fkp-details-actions > button:first-of-type{margin-right:0}",
         ".fkp-qr{display:grid;justify-items:center;gap:14px;min-inline-size:0}",
         ".fkp-qr__code{display:block;inline-size:14rem;block-size:14rem;max-inline-size:100%;image-rendering:pixelated;background:#fff;padding:10px;box-sizing:content-box;border:1px solid var(--border-color-low,rgba(128,128,128,0.2))}",

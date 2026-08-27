@@ -152,13 +152,17 @@ export function renderStackedJsonSettingsModal(
 
     buttonRow.textContent = '';
     buttonRow.append(
+      // This dialog is stacked on another one, and leaving it puts that one back
+      // rather than closing anything: `close` above takes the nested map out and
+      // restores the parent's own buttons. "Close" said the opposite of what the
+      // button does.
       E(
         'button',
         {
           class: 'btn cbi-button',
           click: close,
         },
-        _('Close'),
+        _('Back'),
       ),
       ' ',
       (saveButton = E(

@@ -115,10 +115,13 @@ function injectDetailsStyles() {
         '.fkp-details__value{inline-size:100% !important;max-inline-size:100% !important;min-inline-size:0;box-sizing:border-box;margin:0 !important;float:none !important;font-family:monospace;font-size:12px}',
         '.fkp-details__action{display:inline-flex;align-items:center;justify-content:center;inline-size:2.5em !important;min-inline-size:0;padding:0 !important;margin:0 !important;float:none !important;line-height:1}',
         '.fkp-details__empty{color:var(--text-color-medium,#666)}',
-        // The theme aligns a modal button row with .modal > .button-row and pushes a
-        // lone button left with .modal > .button-row > button:first-of-type. A bare
-        // class loses to both, so the override extends the same selectors instead.
-        '.modal > .button-row.fkp-details-actions{justify-content:flex-end;gap:0.5em}',
+        // The theme lays a modal button row out as space-between and gives the first
+        // button a margin-right of auto, so where a lone button lands is the theme's
+        // choice rather than this dialog's. These two rules make it the dialog's: at
+        // the left of the row, the same place as in the URLTest and Fallback details.
+        // A bare class loses to both of the theme's selectors, so the override
+        // extends the same ones.
+        '.modal > .button-row.fkp-details-actions{justify-content:flex-start;gap:0.5em}',
         '.modal > .button-row.fkp-details-actions > button:first-of-type{margin-right:0}',
         '.fkp-qr{display:grid;justify-items:center;gap:14px;min-inline-size:0}',
         '.fkp-qr__code{display:block;inline-size:14rem;block-size:14rem;max-inline-size:100%;image-rendering:pixelated;background:#fff;padding:10px;box-sizing:content-box;border:1px solid var(--border-color-low,rgba(128,128,128,0.2))}',

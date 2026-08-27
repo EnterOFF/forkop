@@ -496,8 +496,11 @@ describe('the details dialog', () => {
     expect(says('cbi-modal ${')).toBe(false);
   });
 
-  it('closes on the right, where the theme puts a lone button', () => {
-    expect(says('.fkp-details-actions{justify-content:flex-end')).toBe(true);
+  // The theme puts a lone modal button on the right. This dialog and the QR code
+  // it opens put theirs on the left instead, with the Dashboard's two details
+  // dialogs, so that the way out of a dialog is in the same place in all four.
+  it('closes on the left', () => {
+    expect(says('.fkp-details-actions{justify-content:flex-start')).toBe(true);
   });
 
   // One account is separated from the next by its own name and by space.
