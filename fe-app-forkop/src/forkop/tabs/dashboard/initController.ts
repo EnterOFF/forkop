@@ -743,12 +743,15 @@ function applyLatencyResult(
   });
 }
 
+// Sweeping a group and testing one node are different questions with different
+// budgets, and only the second one is the section's to answer: a group sweep is
+// allowed the same ceiling everywhere, while a single node is asked for with the
+// section's own timeout - five seconds, or ten for a VPN interface.
 async function handleTestLatency(
   latencyType: 'group' | 'proxy',
-  sectionName: string,
+  section: Forkop.OutboundGroup,
   tag: string,
   requestKey: string,
-  timeout?: string,
 ) {
   if (latencyRequests.has(requestKey)) {
     return;
@@ -760,18 +763,15 @@ async function handleTestLatency(
   try {
     const response =
       latencyType === 'group'
-        ? await CustomForkopMethods.getClashApiGroupLatency(
-            tag,
-            timeout || '10000',
-          )
+        ? await CustomForkopMethods.getClashApiGroupLatency(tag)
         : await CustomForkopMethods.getClashApiProxyLatency(
             tag,
-            timeout || '5000',
+            section.latencyTestTimeout,
           );
     if (!response.success) throw new Error(response.error);
 
     applyLatencyResult(
-      sectionName,
+      section.sectionName,
       latencyType === 'group'
         ? (response.data as Record<string, number>)
         : { [tag]: response.data.delay },
@@ -1563,19 +1563,17 @@ async function renderSectionsWidget() {
       onTestLatency: (tag) => {
         void handleTestLatency(
           section.withTagSelect ? 'group' : 'proxy',
-          section.sectionName,
+          section,
           tag,
           sectionLatencyRequestKey(section.sectionName),
-          section.latencyTestTimeout,
         );
       },
       onTestOutboundLatency: (latencyType, tag) => {
         void handleTestLatency(
           latencyType,
-          section.sectionName,
+          section,
           tag,
           outboundLatencyRequestKey(section.sectionName, tag),
-          section.latencyTestTimeout,
         );
       },
       onChooseOutbound: (sectionName, selector, tag) => {

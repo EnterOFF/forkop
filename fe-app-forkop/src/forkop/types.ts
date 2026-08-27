@@ -161,6 +161,8 @@ export namespace Forkop {
     displayName: string;
     action?: ConfigSection['action'];
     latencyTestCode?: string;
+    // Budget for testing this section's own outbound, one node at a time. A
+    // group sweep does not use it: that has one ceiling for every section.
     latencyTestTimeout?: string;
     proxyConfigType?: ProxyConfigType;
     subscriptionSourceCount?: number;

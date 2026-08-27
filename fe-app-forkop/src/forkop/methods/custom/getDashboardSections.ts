@@ -88,19 +88,20 @@ type DirectClashApiOutcome =
 const CLASH_API_FETCH_TIMEOUT_MS = 5000;
 const DEFAULT_LATENCY_TEST_URL = 'https://www.gstatic.com/generate_204';
 const CLASH_API_MUTATION_TIMEOUT_MS = 15000;
-// The timeout of a group test is the budget for the whole sweep, and the router
-// answers as soon as the last member is done - a section whose nodes all answer
-// is over in a couple of seconds whatever its size. The budget only has to cover
-// the expensive case: a member that is reachable but never answers costs its own
-// five second ceiling, and the router tests ten members at a time, so a section
-// needs about half a second per member before one press can cover all of it.
-//
-// The ceiling is what a page may hold the user for. A section too large for it
-// is covered by pressing again instead, since the router sweeps the members it
-// tested least recently first.
-const GROUP_LATENCY_TIMEOUT_PER_MEMBER_MS = 500;
-const GROUP_LATENCY_TIMEOUT_MIN_MS = 10000;
-const GROUP_LATENCY_TIMEOUT_MAX_MS = 40000;
+// How long a group test may hold the page. It is a ceiling and not a wait: the
+// router answers as soon as the last member is done, so a section whose nodes
+// answer is over in a couple of seconds whatever its size, and this only bounds
+// the case where a section is too large or too dead to finish. One too large
+// even for this is covered by pressing again, since the router sweeps the
+// members it tested least recently first.
+const GROUP_LATENCY_TIMEOUT_MS = '40000';
+// A sweep can answer later than its own budget: a test already dialing when the
+// budget runs out is only given up on when its own five seconds are over, and
+// not every dial notices a cancelled deadline before then. Measured on a section
+// of 133 members, a three second budget answered in 8.6 s. The browser therefore
+// waits a whole extra test on top of the budget before it gives up on the
+// answer, or it would abandon a sweep the router was about to report.
+const GROUP_LATENCY_SWEEP_OVERSHOOT_MS = 5000;
 // A browser that cannot reach the controller pays for every doomed attempt: a
 // refused port costs a round trip, a dropped one costs the whole timeout. One
 // attempt proves the path is not there, and the rest go straight to the CLI
@@ -359,19 +360,6 @@ async function requestClashApi<T>(
   return fetchClashApiThroughCli<T>(method, path, body);
 }
 
-export function groupLatencyTestTimeout(memberCount: number) {
-  const budget = Math.round(
-    Math.max(memberCount, 0) * GROUP_LATENCY_TIMEOUT_PER_MEMBER_MS,
-  );
-
-  return String(
-    Math.min(
-      Math.max(budget, GROUP_LATENCY_TIMEOUT_MIN_MS),
-      GROUP_LATENCY_TIMEOUT_MAX_MS,
-    ),
-  );
-}
-
 function getLatencyTestUrl() {
   return (
     getSettingsSection(clashApiConfigSections)?.latency_test_url ||
@@ -379,9 +367,10 @@ function getLatencyTestUrl() {
   );
 }
 
-function latencyRequestTimeout(timeout: string) {
+function latencyRequestTimeout(timeout: string, overshoot = 0) {
   return (
     (Number.parseInt(timeout, 10) || CLASH_API_FETCH_TIMEOUT_MS) +
+    overshoot +
     CLASH_API_FETCH_TIMEOUT_MS
   );
 }
@@ -400,7 +389,10 @@ export function getClashApiProxyLatency(tag: string, timeout = '5000') {
   );
 }
 
-export function getClashApiGroupLatency(tag: string, timeout = '10000') {
+export function getClashApiGroupLatency(
+  tag: string,
+  timeout = GROUP_LATENCY_TIMEOUT_MS,
+) {
   const params = new URLSearchParams({
     url: getLatencyTestUrl(),
     timeout,
@@ -409,7 +401,7 @@ export function getClashApiGroupLatency(tag: string, timeout = '10000') {
   return requestClashApi<Forkop.GetClashApiGroupLatency>(
     `/group/${encodeURIComponent(tag)}/delay?${params}`,
     undefined,
-    latencyRequestTimeout(timeout),
+    latencyRequestTimeout(timeout, GROUP_LATENCY_SWEEP_OVERSHOOT_MS),
     { keepsRunningAfterTimeout: true },
   );
 }
@@ -1680,9 +1672,6 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
         displayName,
         action: sectionAction,
         latencyTestCode,
-        latencyTestTimeout: groupLatencyTestTimeout(
-          selector?.value?.all?.length ?? outbounds.length,
-        ),
         proxyConfigType,
         subscriptionSourceCount,
         subscriptionProviderTags: subscriptionTags.map(

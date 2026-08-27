@@ -2196,9 +2196,8 @@ var ForkopShellMethods = {
 var CLASH_API_FETCH_TIMEOUT_MS = 5e3;
 var DEFAULT_LATENCY_TEST_URL2 = "https://www.gstatic.com/generate_204";
 var CLASH_API_MUTATION_TIMEOUT_MS = 15e3;
-var GROUP_LATENCY_TIMEOUT_PER_MEMBER_MS = 500;
-var GROUP_LATENCY_TIMEOUT_MIN_MS = 1e4;
-var GROUP_LATENCY_TIMEOUT_MAX_MS = 4e4;
+var GROUP_LATENCY_TIMEOUT_MS = "40000";
+var GROUP_LATENCY_SWEEP_OVERSHOOT_MS = 5e3;
 var DIRECT_CLASH_API_PROBE_INTERVAL_MS = 3e4;
 var DIRECT_CLASH_API_PROBE_TIMEOUT_MS = 2e3;
 var clashApiConfigSections = [];
@@ -2365,22 +2364,11 @@ async function requestClashApi(path, init, timeout, options) {
   }
   return fetchClashApiThroughCli(method, path, body);
 }
-function groupLatencyTestTimeout(memberCount) {
-  const budget = Math.round(
-    Math.max(memberCount, 0) * GROUP_LATENCY_TIMEOUT_PER_MEMBER_MS
-  );
-  return String(
-    Math.min(
-      Math.max(budget, GROUP_LATENCY_TIMEOUT_MIN_MS),
-      GROUP_LATENCY_TIMEOUT_MAX_MS
-    )
-  );
-}
 function getLatencyTestUrl() {
   return getSettingsSection(clashApiConfigSections)?.latency_test_url || DEFAULT_LATENCY_TEST_URL2;
 }
-function latencyRequestTimeout(timeout) {
-  return (Number.parseInt(timeout, 10) || CLASH_API_FETCH_TIMEOUT_MS) + CLASH_API_FETCH_TIMEOUT_MS;
+function latencyRequestTimeout(timeout, overshoot = 0) {
+  return (Number.parseInt(timeout, 10) || CLASH_API_FETCH_TIMEOUT_MS) + overshoot + CLASH_API_FETCH_TIMEOUT_MS;
 }
 function getClashApiProxyLatency(tag, timeout = "5000") {
   const params = new URLSearchParams({
@@ -2394,7 +2382,7 @@ function getClashApiProxyLatency(tag, timeout = "5000") {
     { keepsRunningAfterTimeout: true }
   );
 }
-function getClashApiGroupLatency(tag, timeout = "10000") {
+function getClashApiGroupLatency(tag, timeout = GROUP_LATENCY_TIMEOUT_MS) {
   const params = new URLSearchParams({
     url: getLatencyTestUrl(),
     timeout
@@ -2402,7 +2390,7 @@ function getClashApiGroupLatency(tag, timeout = "10000") {
   return requestClashApi(
     `/group/${encodeURIComponent(tag)}/delay?${params}`,
     void 0,
-    latencyRequestTimeout(timeout),
+    latencyRequestTimeout(timeout, GROUP_LATENCY_SWEEP_OVERSHOOT_MS),
     { keepsRunningAfterTimeout: true }
   );
 }
@@ -3322,9 +3310,6 @@ async function getDashboardSections() {
         displayName,
         action: sectionAction,
         latencyTestCode,
-        latencyTestTimeout: groupLatencyTestTimeout(
-          selector?.value?.all?.length ?? outbounds.length
-        ),
         proxyConfigType,
         subscriptionSourceCount,
         subscriptionProviderTags: subscriptionTags.map(
@@ -5309,7 +5294,7 @@ function applyLatencyResult(sectionName, latencies) {
     }
   });
 }
-async function handleTestLatency(latencyType, sectionName, tag, requestKey, timeout) {
+async function handleTestLatency(latencyType, section, tag, requestKey) {
   if (latencyRequests.has(requestKey)) {
     return;
   }
@@ -5317,16 +5302,13 @@ async function handleTestLatency(latencyType, sectionName, tag, requestKey, time
   void renderSectionsWidget();
   restartSectionsRefresh();
   try {
-    const response = latencyType === "group" ? await CustomForkopMethods.getClashApiGroupLatency(
+    const response = latencyType === "group" ? await CustomForkopMethods.getClashApiGroupLatency(tag) : await CustomForkopMethods.getClashApiProxyLatency(
       tag,
-      timeout || "10000"
-    ) : await CustomForkopMethods.getClashApiProxyLatency(
-      tag,
-      timeout || "5000"
+      section.latencyTestTimeout
     );
     if (!response.success) throw new Error(response.error);
     applyLatencyResult(
-      sectionName,
+      section.sectionName,
       latencyType === "group" ? response.data : { [tag]: response.data.delay }
     );
   } catch (error) {
@@ -5975,19 +5957,17 @@ async function renderSectionsWidget() {
       onTestLatency: (tag) => {
         void handleTestLatency(
           section.withTagSelect ? "group" : "proxy",
-          section.sectionName,
+          section,
           tag,
-          sectionLatencyRequestKey(section.sectionName),
-          section.latencyTestTimeout
+          sectionLatencyRequestKey(section.sectionName)
         );
       },
       onTestOutboundLatency: (latencyType, tag) => {
         void handleTestLatency(
           latencyType,
-          section.sectionName,
+          section,
           tag,
-          outboundLatencyRequestKey(section.sectionName, tag),
-          section.latencyTestTimeout
+          outboundLatencyRequestKey(section.sectionName, tag)
         );
       },
       onChooseOutbound: (sectionName, selector, tag) => {

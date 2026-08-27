@@ -35,7 +35,6 @@ import {
   getDashboardSections,
   getClashApiGroupLatency,
   getClashApiProxyLink,
-  groupLatencyTestTimeout,
   resetClashApiTransport,
   setClashApiGroupProxy,
   updateClashApiProxyProviders,
@@ -947,7 +946,10 @@ describe('getDashboardSections', () => {
     expect(mocks.clashHttp).not.toHaveBeenCalled();
   });
 
-  it('gives a section a test budget its whole group fits in', async () => {
+  // A sweep budget must never reach a single node test: the router parses that
+  // timeout as a sixteen bit number and refuses anything larger outright, so a
+  // section that carried one number for both broke its own per node test.
+  it('leaves a proxy section without a single node test budget of its own', async () => {
     const links = Array.from(
       { length: 30 },
       (_, index) => `vless://node@example.com:443#Node${index}`,
@@ -968,7 +970,7 @@ describe('getDashboardSections', () => {
     const { data } = await getDashboardSections();
 
     expect(data[0].outbounds).toHaveLength(members.length);
-    expect(data[0].latencyTestTimeout).toBe('15000');
+    expect(data[0].latencyTestTimeout).toBeUndefined();
   });
 
   it('surfaces a narrowed summary failure instead of an empty widget', async () => {
@@ -984,17 +986,5 @@ describe('getDashboardSections', () => {
       success: false,
       error: 'Failed to execute',
     });
-  });
-});
-
-// The budget of a group test has to cover the members that never answer: each
-// costs its own five second ceiling and the router tests ten at a time, so a
-// section needs about half a second per member to be swept in one press.
-describe('groupLatencyTestTimeout', () => {
-  it('scales with the size of the group between a floor and a ceiling', () => {
-    expect(groupLatencyTestTimeout(0)).toBe('10000');
-    expect(groupLatencyTestTimeout(4)).toBe('10000');
-    expect(groupLatencyTestTimeout(55)).toBe('27500');
-    expect(groupLatencyTestTimeout(500)).toBe('40000');
   });
 });
