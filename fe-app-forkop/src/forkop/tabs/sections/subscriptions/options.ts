@@ -29,7 +29,7 @@ import {
 } from './model';
 import { showSubscriptionOverrideModal } from './overrides';
 
-function addSubscriptionUrlItemOptions(
+export function addSubscriptionUrlItemOptions(
   itemSection: CBISection,
   options: Partial<ChildItemDialogContext> = {},
 ) {

@@ -1,7 +1,6 @@
-// tests/setup/global-mocks.ts
-globalThis._ = (key: string) => key;
-
-// LuCI hands the bundle its dependencies through the "require" prologue, so
+// What LuCI hands the bundle, for a test that imports a module directly.
+//
+// LuCI passes the bundle its dependencies through the "require" prologue, so
 // inside the bundle they are globals rather than imports. A module that calls
 // one of them while it is being evaluated - rpc.declare() at module scope is the
 // usual case - needs it to exist before the first import runs.
@@ -9,9 +8,17 @@ globalThis._ = (key: string) => key;
 // Only what a module needs at evaluation time belongs here. Anything a test
 // actually exercises it stubs itself, so a new dependency on LuCI stays visible
 // instead of quietly resolving against a default that does nothing.
-globalThis.rpc = {
+//
+// The LuCI globals are declared as `const` in src/luci.d.ts, which is what the
+// view code needs and what makes them unassignable by name; they are installed
+// through the object instead.
+const globals = globalThis as unknown as Record<string, unknown>;
+
+globals._ = (key: string) => key;
+
+globals.rpc = {
   declare: () => () => Promise.resolve([]),
-} as unknown as typeof rpc;
+};
 
 // A LuCI class base: something with its own extend(), which the CBI widgets
 // subclass while their module is being evaluated. Nothing renders here - a test
@@ -36,13 +43,13 @@ function extendableClass(name: string) {
 const classesNamed = (names: string[]) =>
   Object.fromEntries(names.map((name) => [name, extendableClass(name)]));
 
-globalThis.ui = {
+globals.ui = {
   ...classesNamed(['DynamicList']),
   showModal: () => undefined,
   hideModal: () => undefined,
-} as unknown as typeof ui;
+};
 
-globalThis.form = classesNamed([
+globals.form = classesNamed([
   'Button',
   'DummyValue',
   'DynamicList',
@@ -57,10 +64,10 @@ globalThis.form = classesNamed([
   'TextValue',
   'TypedSection',
   'Value',
-]) as unknown as typeof form;
+]);
 
-// LuCI installs String.prototype.format in luci.js, and the view modules use it for
-// messages with placeholders. The tests need the same substitution.
+// LuCI installs String.prototype.format in luci.js, and the view modules use it
+// for messages with placeholders. The tests need the same substitution.
 if (typeof (String.prototype as { format?: unknown }).format !== 'function') {
   Object.defineProperty(String.prototype, 'format', {
     value: function format(this: string, ...args: unknown[]): string {

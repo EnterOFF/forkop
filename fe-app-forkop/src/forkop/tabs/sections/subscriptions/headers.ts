@@ -18,7 +18,7 @@ function parseSubscriptionHeader(value: unknown) {
       };
 }
 
-function subscriptionHeaderRows(value: unknown) {
+export function subscriptionHeaderRows(value: unknown) {
   return subscriptionHeaderValues(value).map((line, index: number) => ({
     '.name': `header_${index}`,
     '.type': 'header',
@@ -42,7 +42,7 @@ function validateSubscriptionHeaderValue(_sectionId: string, value: unknown) {
     : true;
 }
 
-function subscriptionHeaderLines(map: CBIMap) {
+export function subscriptionHeaderLines(map: CBIMap) {
   return map.data.sections(map.config, 'header').map((row) => {
     const name = `${row.name || ''}`.trim();
     const value = `${row.value || ''}`.trim();
@@ -50,7 +50,7 @@ function subscriptionHeaderLines(map: CBIMap) {
   });
 }
 
-function syncSubscriptionHeaderRows(section: CBISection) {
+export function syncSubscriptionHeaderRows(section: CBISection) {
   const configName = section.uciconfig ?? section.map.config;
 
   section.cfgsections().forEach((sectionId: string) => {
@@ -73,7 +73,7 @@ function refreshSubscriptionHeaderRows(section: CBISection) {
   return section.map.load().then(() => section.map.reset());
 }
 
-function nextSubscriptionHeaderRowId(section: CBISection) {
+export function nextSubscriptionHeaderRowId(section: CBISection) {
   const configName = section.uciconfig ?? section.map.config;
   let sectionId: string;
 

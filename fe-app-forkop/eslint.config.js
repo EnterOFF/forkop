@@ -10,12 +10,20 @@ export default [
         ignores: ['node_modules', 'watch-upload.js'],
     },
     {
-        files: ['src/**/*.test.js'],
+        // The tests run in node rather than in a LuCI page, so they reach the
+        // platform the views never see.
+        files: ['src/**/*.test.js', 'tests/**/*.js'],
         languageOptions: {
             globals: {
                 Buffer: 'readonly',
                 TextDecoder: 'readonly',
                 URL: 'readonly',
+                console: 'readonly',
+                process: 'readonly',
+                setTimeout: 'readonly',
+                clearTimeout: 'readonly',
+                setInterval: 'readonly',
+                clearInterval: 'readonly',
             },
         },
     },

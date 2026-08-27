@@ -54,7 +54,7 @@ type FilterFieldSpec = [
   visibleModes: string[],
 ];
 
-function syncServerFilterFields(
+export function syncServerFilterFields(
   sharedFields: SharedFilterFields,
   sourceMode: string,
   itemId: string,

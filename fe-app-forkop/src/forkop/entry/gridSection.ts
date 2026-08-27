@@ -30,7 +30,7 @@ function renderSectionAdd(sectionRef: CBISection, extraClass?: string) {
 
 // A new row: the section is created under an id naming its type, and given a
 // label the user can change, because the id is not shown anywhere.
-function addLabeledSection(sectionRef: CBISection) {
+export function addLabeledSection(sectionRef: CBISection) {
   const configName = sectionRef.uciconfig || sectionRef.map.config;
   const prefix = sectionRef.sectiontype === 'section' ? 'Section' : 'Server';
   const label = `${prefix} #${sectionRef.cfgsections().length + 1}`;

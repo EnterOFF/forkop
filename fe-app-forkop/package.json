@@ -4,9 +4,9 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "format": "prettier --write src",
-    "lint": "eslint src --ext .ts,.tsx",
-    "lint:fix": "eslint src --ext .ts,.tsx --fix",
+    "format": "prettier --write src tests",
+    "lint": "eslint src tests",
+    "lint:fix": "eslint src tests --fix",
     "build": "tsc --noEmit && tsup src/main.ts",
     "dev": "tsup src/main.ts --watch",
     "test": "vitest",

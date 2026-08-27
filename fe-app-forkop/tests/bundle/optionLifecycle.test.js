@@ -1,0 +1,696 @@
+// What a dialog writes, and what it takes away, driven through the shipped
+// bundle's own option set.
+//
+// Everything a child item holds is something the user cannot type again: an
+// account password every device is configured with, a tunnel private key, a
+// subscription URL. So the rule has two halves - a list the dialog hides was
+// not cleared by anybody and its items must stay; a list the user can see still
+// owns its items - and both are exercised here as a save, not as a grep.
+import { beforeEach, describe, expect, it } from 'vitest';
+
+import { createHarness } from '../lib/luciForm.js';
+
+const WG_KEY = 'zz5/p+jwYqPFlg9mWcOP5ad8xXa4XfOOlrzouVD6E1w=';
+const WG_PUB = 'AKR8dq2b9o7/cO8d5mAzxvuxRhhw4DXi1pfUC3IPGWo=';
+const ALL_PROVIDERS = {
+  zapretInstalled: true,
+  zapret2Installed: true,
+  byedpiInstalled: true,
+};
+const NO_PROVIDERS = {
+  zapretInstalled: false,
+  zapret2Installed: false,
+  byedpiInstalled: false,
+};
+
+let harness;
+
+beforeEach(() => {
+  harness = createHarness();
+});
+
+function addSections(list) {
+  list.forEach(([type, sid, values]) => {
+    harness.uci.add('forkop', type, sid);
+    Object.assign(harness.store.get(sid), values);
+  });
+  harness.operations.length = 0;
+}
+
+function sectionGrid(providers = ALL_PROVIDERS) {
+  const view = harness.bundle;
+  const map = new harness.form.Map('forkop');
+  const grid = map.section(harness.form.GridSection, 'section');
+  view.configureSectionSection(grid, {
+    loadActionProvidersAvailability: () => Promise.resolve(providers),
+  });
+  // configureSectionSection installs the table's load(), which skips the
+  // modal-only options; the dialog under test loads all of them.
+  delete grid.load;
+  view.createSectionContent(grid);
+  return grid;
+}
+
+function serverGrid() {
+  const view = harness.bundle;
+  const map = new harness.form.Map('forkop');
+  const grid = map.section(harness.form.GridSection, 'server');
+  view.createServerContent(grid);
+  return grid;
+}
+
+// Saving a LuCI modal parses one option at a time, so a rejection halfway leaves
+// what the earlier options wrote. Rejections are swallowed for that reason: what
+// matters is what reached the configuration, not that the save was refused.
+async function parseEveryOption(grid, sid) {
+  grid.cfgsections = () => [sid];
+  await grid.load();
+  for (const option of grid.children) {
+    await Promise.resolve()
+      .then(() => option.parse(sid))
+      .catch(() => {});
+  }
+}
+
+function widgetAnswers(grid, values) {
+  Object.entries(values).forEach(([name, value]) => {
+    grid.children.find((option) => option.option === name).formvalue = () =>
+      value;
+  });
+}
+
+function itemsOfType(type) {
+  return harness.uci
+    .sections('forkop', type)
+    .map((item) => item['.name'])
+    .sort();
+}
+
+/* ------------------------------------------------------------------ fixtures */
+
+const CONNECTION_SECTION = [
+  'section',
+  'sec',
+  {
+    action: 'connection',
+    enabled: '1',
+    label: 'proxy',
+    domain: 'example.com',
+    outbound_detour_enabled: '0',
+    selector_proxy_links: ['vless://a@example:1?type=tcp#node'],
+    outbound_jsons: [
+      '{"type":"socks","tag":"local","server":"127.0.0.1","server_port":1080}',
+    ],
+  },
+];
+
+function connectionChildren() {
+  return [
+    CONNECTION_SECTION,
+    [
+      'subscription_url',
+      'sub1',
+      {
+        section: 'sec',
+        url: 'https://example.com/sub',
+        tag: 'sub1',
+        show_subscription_name: '0',
+        server_filter_mode: 'all',
+        subscription_update_enabled: '1',
+        subscription_update_interval: '1h',
+        download_via_proxy_enabled: '0',
+        show_dashboard_metadata: '1',
+      },
+    ],
+    [
+      'section_interface',
+      'iface1',
+      {
+        section: 'sec',
+        name: 'wan',
+        display_name: 'WAN',
+        domain_resolver_enabled: '0',
+      },
+    ],
+    [
+      'tunnel',
+      'tun1',
+      {
+        section: 'sec',
+        kind: 'wireguard',
+        name: 'wg',
+        order: '0',
+        private_key: WG_KEY,
+        address: ['10.8.1.9/32'],
+      },
+    ],
+    [
+      'tunnel_peer',
+      'peer1',
+      {
+        tunnel: 'tun1',
+        order: '0',
+        address: 'peer.example',
+        port: '47132',
+        public_key: WG_PUB,
+        allowed_ips: ['0.0.0.0/0'],
+      },
+    ],
+    [
+      'urltest',
+      'ut1',
+      {
+        section: 'sec',
+        name: 'URLTest #1',
+        check_interval: '3m',
+        tolerance: '50',
+        testing_url: 'https://www.gstatic.com/generate_204',
+        expected_status: '*',
+        idle_timeout: '30m',
+        interrupt_exist_connections: '0',
+        hide_dashboard_members: '0',
+        server_filter_mode: 'all',
+      },
+    ],
+    [
+      'fallback_group',
+      'grp1',
+      {
+        section: 'sec',
+        name: 'Fallback #1',
+        health_check_url: 'https://www.gstatic.com/generate_204',
+        health_check_interval: '5m',
+        health_check_timeout: '5s',
+        attempt_timeout: '5s',
+        expected_status: '*',
+        idle_timeout: '5m',
+        interrupt_exist_connections: '0',
+        hide_dashboard_members: '0',
+      },
+    ],
+    [
+      'fallback_level',
+      'lvl1',
+      {
+        group: 'grp1',
+        name: 'Group #1',
+        order: '0',
+        server_filter_mode: 'direct',
+      },
+    ],
+  ];
+}
+
+const CHILD_TYPES = [
+  'subscription_url',
+  'section_interface',
+  'tunnel',
+  'tunnel_peer',
+  'urltest',
+  'fallback_group',
+  'fallback_level',
+];
+const EVERY_CHILD = ['grp1', 'iface1', 'lvl1', 'peer1', 'sub1', 'tun1', 'ut1'];
+
+function survivingChildren() {
+  return CHILD_TYPES.flatMap((type) => itemsOfType(type)).sort();
+}
+
+const MIXED_SERVER_VALUES = {
+  protocol: 'mixed',
+  enabled: '1',
+  label: 'Server #1',
+  listen: '0.0.0.0',
+  listen_port: '1080',
+  public_host: '192.168.1.1',
+  open_firewall: '1',
+  mixed_auth_enabled: '1',
+  routing_mode: 'rules',
+  security: 'none',
+};
+const MIXED_SERVER = ['server', 'srv', MIXED_SERVER_VALUES];
+const SERVER_ACCOUNT = [
+  'server_client',
+  'cl1',
+  { server: 'srv', name: 'client-1', password: 'Ux-2LP-vrTXCc1wxJt5QUUvK' },
+];
+
+/* ----------------------------------------------- a list nobody could see */
+
+describe('a list the dialog hides keeps its items', () => {
+  // The dropdown holds the new action while the stored one is still the old:
+  // the action option reads uci in cfgvalue(), so the widget is what decides.
+  it.each(['bypass', 'block', 'dns', 'zapret'])(
+    'changing a Connection section to %s keeps everything under it',
+    async (action) => {
+      addSections(connectionChildren());
+      const grid = sectionGrid();
+      grid.cfgsections = () => ['sec'];
+      await grid.load();
+      widgetAnswers(grid, { action });
+      for (const option of grid.children) {
+        await Promise.resolve()
+          .then(() => option.parse('sec'))
+          .catch(() => {});
+      }
+
+      expect(survivingChildren()).toEqual(EVERY_CHILD);
+      // The two sources a section holds itself, next to the four it holds as
+      // child sections: pasted server URIs and hand-written outbound objects.
+      expect(
+        harness.uci.get('forkop', 'sec', 'selector_proxy_links'),
+      ).toBeTruthy();
+      expect(harness.uci.get('forkop', 'sec', 'outbound_jsons')).toBeTruthy();
+    },
+  );
+
+  it.each([
+    ['switching the protocol to tailscale', { protocol: 'tailscale' }],
+    ['switching the protocol to json_inbound', { protocol: 'json_inbound' }],
+    ['turning the authentication switch off', { mixed_auth_enabled: '0' }],
+  ])('%s keeps the accounts of the server', async (_label, seed) => {
+    addSections([MIXED_SERVER, SERVER_ACCOUNT]);
+    const grid = serverGrid();
+    grid.cfgsections = () => ['srv'];
+    await grid.load();
+    widgetAnswers(grid, seed);
+    for (const option of grid.children) {
+      await Promise.resolve()
+        .then(() => option.parse('srv'))
+        .catch(() => {});
+    }
+
+    expect(itemsOfType('server_client')).not.toEqual([]);
+  });
+});
+
+/* --------------------------------- a list the user can see owns its items */
+
+describe('a list the user can see owns its items', () => {
+  it('clearing the tunnel list removes the tunnel and its peer, and nothing else', async () => {
+    addSections(connectionChildren());
+    const grid = sectionGrid();
+    grid.cfgsections = () => ['sec'];
+    await grid.load();
+    widgetAnswers(grid, { tunnels: [] });
+    for (const option of grid.children) {
+      await Promise.resolve()
+        .then(() => option.parse('sec'))
+        .catch(() => {});
+    }
+
+    expect(itemsOfType('tunnel')).toEqual([]);
+    expect(itemsOfType('tunnel_peer')).toEqual([]);
+    expect(itemsOfType('subscription_url')).not.toEqual([]);
+  });
+
+  it('removing one tunnel from the list removes exactly that one', async () => {
+    addSections(connectionChildren());
+    harness.uci.add('forkop', 'tunnel', 'tun2');
+    Object.assign(harness.store.get('tun2'), {
+      section: 'sec',
+      kind: 'wireguard',
+      name: 'wg2',
+      order: '1',
+      private_key: WG_KEY,
+      address: ['10.8.1.10/32'],
+    });
+    const grid = sectionGrid();
+    grid.cfgsections = () => ['sec'];
+    await grid.load();
+    widgetAnswers(grid, { tunnels: ['tun1'] });
+    for (const option of grid.children) {
+      await Promise.resolve()
+        .then(() => option.parse('sec'))
+        .catch(() => {});
+    }
+
+    expect(itemsOfType('tunnel')).toEqual(['tun1']);
+  });
+});
+
+/* ------------------------------- removing an owner takes its children */
+
+describe('removing an owner takes its children', () => {
+  it('deleting a server takes its accounts', async () => {
+    addSections([MIXED_SERVER, SERVER_ACCOUNT]);
+    const grid = serverGrid();
+    harness.bundle.configureServerSection(grid);
+    grid.cfgsections = () => ['srv'];
+    grid.map.data.remove = () => {};
+    await grid.load();
+    await Promise.resolve()
+      .then(() => grid.handleRemove('srv'))
+      .catch(() => {});
+
+    expect(itemsOfType('server_client')).toEqual([]);
+  });
+
+  it('deleting a section takes everything under it', async () => {
+    addSections(connectionChildren());
+    const grid = sectionGrid();
+    grid.handleRemove = () => Promise.resolve();
+    harness.bundle.configureSectionSection(grid, {
+      loadActionProvidersAvailability: () => Promise.resolve(ALL_PROVIDERS),
+    });
+    await grid.handleRemove('sec');
+
+    expect(survivingChildren()).toEqual([]);
+  });
+});
+
+/* -------------------------------------- a value the dropdown cannot show */
+
+// A <select> hands back one of its own entries and nothing else, so a stored
+// name the list has no entry for is replaced by whichever entry comes first.
+// Every option below names another section, and every one of them can outlive
+// its target: the target can be deleted, switched off, or belong to a DPI
+// provider that is not installed.
+const LIVE_SECTION = [
+  'section',
+  'live',
+  {
+    action: 'connection',
+    enabled: '1',
+    label: 'Live',
+    selector_proxy_links: ['vless://y@example:1#n'],
+  },
+];
+const target = (enabled) => [
+  'section',
+  'target',
+  {
+    action: 'connection',
+    enabled,
+    label: 'Target',
+    selector_proxy_links: ['vless://x@example:1#n'],
+  },
+];
+
+describe.each([
+  ['its target was deleted', []],
+  ['its target is switched off', [target('0')]],
+])('a reference survives while %s', (_label, extra) => {
+  it('on a DNS section', async () => {
+    addSections([
+      [
+        'section',
+        'sec',
+        {
+          action: 'dns',
+          enabled: '1',
+          label: 'DNS section',
+          dns_server: ['tls://1.1.1.1'],
+          domain: 'example.com',
+          dns_detour_enabled: '1',
+          dns_detour_section: 'target',
+        },
+      ],
+      LIVE_SECTION,
+      ...extra,
+    ]);
+    await parseEveryOption(sectionGrid(), 'sec');
+
+    expect(harness.uci.get('forkop', 'sec', 'dns_detour_section')).toBe(
+      'target',
+    );
+  });
+
+  it('on a Connection section detour', async () => {
+    addSections([
+      [
+        'section',
+        'sec',
+        {
+          action: 'connection',
+          enabled: '1',
+          label: 'Section',
+          selector_proxy_links: ['vless://z@example:1#n'],
+          outbound_detour_enabled: '1',
+          outbound_detour_section: 'target',
+        },
+      ],
+      LIVE_SECTION,
+      ...extra,
+    ]);
+    await parseEveryOption(sectionGrid(), 'sec');
+
+    expect(harness.uci.get('forkop', 'sec', 'outbound_detour_section')).toBe(
+      'target',
+    );
+  });
+
+  it('on a server routing section', async () => {
+    addSections([
+      [
+        'server',
+        'srv',
+        {
+          ...MIXED_SERVER_VALUES,
+          routing_mode: 'section',
+          routing_section: 'target',
+        },
+      ],
+      SERVER_ACCOUNT,
+      LIVE_SECTION,
+      ...extra,
+    ]);
+    await parseEveryOption(serverGrid(), 'srv');
+
+    expect(harness.uci.get('forkop', 'srv', 'routing_section')).toBe('target');
+  });
+
+  it('on a server tailscale detour', async () => {
+    addSections([
+      [
+        'server',
+        'srv',
+        {
+          protocol: 'tailscale',
+          enabled: '1',
+          label: 'Server #1',
+          routing_mode: 'rules',
+          security: 'none',
+          tailscale_auth_key: 'tskey',
+          tailscale_hostname: 'router',
+          tailscale_control_url: 'https://controlplane.tailscale.com',
+          tailscale_detour_enabled: '1',
+          tailscale_detour_section: 'target',
+        },
+      ],
+      LIVE_SECTION,
+      ...extra,
+    ]);
+    await parseEveryOption(serverGrid(), 'srv');
+
+    expect(harness.uci.get('forkop', 'srv', 'tailscale_detour_section')).toBe(
+      'target',
+    );
+  });
+
+  it('on every reference the Settings page holds', async () => {
+    addSections([
+      [
+        'settings',
+        'settings',
+        {
+          dns_server: ['tls://1.1.1.1'],
+          bootstrap_dns_server: ['1.1.1.1'],
+          dns_detour_enabled: '1',
+          dns_detour_section: 'target',
+          download_lists_via_proxy: '1',
+          download_lists_via_proxy_section: 'target',
+          download_components_via_proxy: '1',
+          download_components_via_proxy_section: 'target',
+        },
+      ],
+      LIVE_SECTION,
+      ...extra,
+    ]);
+    const map = new harness.form.Map('forkop');
+    const settingsSection = map.section(harness.form.NamedSection, 'settings');
+    harness.bundle.createSettingsContent(settingsSection, {
+      loaded: true,
+      ...ALL_PROVIDERS,
+    });
+    await parseEveryOption(settingsSection, 'settings');
+
+    for (const name of [
+      'dns_detour_section',
+      'download_lists_via_proxy_section',
+      'download_components_via_proxy_section',
+    ]) {
+      expect(harness.uci.get('forkop', 'settings', name), name).toBe('target');
+    }
+  });
+
+  it.each([
+    [
+      'subscription_url',
+      'subscription_url',
+      {
+        url: 'https://example.com/sub',
+        tag: 'sub1',
+        show_subscription_name: '0',
+        server_filter_mode: 'all',
+        subscription_update_enabled: '1',
+        subscription_update_interval: '1h',
+        download_via_proxy_enabled: '1',
+        download_via_proxy_section: 'target',
+        show_dashboard_metadata: '1',
+      },
+      'download_via_proxy_section',
+    ],
+    [
+      'section_interface',
+      'interfaces',
+      {
+        name: 'wan',
+        display_name: 'WAN',
+        domain_resolver_enabled: '1',
+        domain_resolver_dns_server: ['tls://1.1.1.1'],
+        domain_resolver_dns_detour_enabled: '1',
+        domain_resolver_dns_detour_section: 'target',
+      },
+      'domain_resolver_dns_detour_section',
+    ],
+    [
+      'tunnel',
+      'tunnels',
+      {
+        kind: 'tailscale',
+        name: 'ts',
+        order: '0',
+        tailscale_auth_key: 'tskey',
+        tailscale_hostname: 'router',
+        tailscale_exit_node: 'exit-node',
+        tailscale_control_url: 'https://controlplane.tailscale.com',
+        tailscale_detour_enabled: '1',
+        tailscale_detour_section: 'target',
+      },
+      'tailscale_detour_section',
+    ],
+  ])('in the %s dialog', async (type, listName, seed, key) => {
+    addSections([
+      [
+        'section',
+        'owner',
+        {
+          action: 'connection',
+          enabled: '1',
+          label: 'Owner',
+          selector_proxy_links: ['vless://o@example:1#n'],
+        },
+      ],
+      [type, 'item', { section: 'owner', ...seed }],
+      LIVE_SECTION,
+      ...extra,
+    ]);
+    const grid = sectionGrid();
+    const list = grid.children.find((option) => option.option === listName);
+    const dialog = await harness.openDialog(list, 'owner', 'item');
+    const result = await dialog.save().catch(() => ({ saved: false }));
+
+    expect(result.saved, `the ${type} dialog refused to save`).toBe(true);
+    expect(harness.uci.get('forkop', 'item', key)).toBe('target');
+  });
+});
+
+// A DNS detour may point at a DPI section, and the list of DPI sections shrinks
+// when the provider is gone.
+it('a DNS detour survives a target whose provider is not installed', async () => {
+  addSections([
+    [
+      'section',
+      'sec',
+      {
+        action: 'dns',
+        enabled: '1',
+        label: 'DNS section',
+        dns_server: ['tls://1.1.1.1'],
+        domain: 'example.com',
+        dns_detour_enabled: '1',
+        dns_detour_section: 'target',
+      },
+    ],
+    LIVE_SECTION,
+    [
+      'section',
+      'target',
+      {
+        action: 'zapret',
+        enabled: '1',
+        label: 'Target',
+        nfqws_opt: '--dpi-desync=fake',
+        domain: 'example.com',
+      },
+    ],
+  ]);
+  await parseEveryOption(sectionGrid(NO_PROVIDERS), 'sec');
+
+  expect(harness.uci.get('forkop', 'sec', 'dns_detour_section')).toBe('target');
+});
+
+// The provider a DPI section needs can be missing - uninstalled, or an answer
+// that did not arrive - and the action list is built from what is installed. The
+// section still works: the configuration check leaves a rule whose provider is
+// absent alone. Its action must survive a save that never showed the choice.
+describe.each([
+  ['zapret', 'nfqws_opt', '--dpi-desync=fake'],
+  ['zapret2', 'nfqws2_opt', '--dpi-desync=fake'],
+  ['byedpi', 'byedpi_cmd_opts', '-Kt,h'],
+])(
+  'a %s section whose provider is not installed',
+  (action, field, strategy) => {
+    beforeEach(async () => {
+      addSections([
+        [
+          'section',
+          'sec',
+          {
+            action,
+            enabled: '1',
+            label: 'DPI section',
+            domain: 'example.com',
+            [field]: strategy,
+          },
+        ],
+      ]);
+      await parseEveryOption(sectionGrid(NO_PROVIDERS), 'sec');
+    });
+
+    it('keeps its action', () => {
+      expect(harness.uci.get('forkop', 'sec', 'action')).toBe(action);
+    });
+
+    it('keeps its strategy', () => {
+      expect(harness.uci.get('forkop', 'sec', field)).toBeTruthy();
+    });
+  },
+);
+
+/* ---------------------------------------- what a creation default writes */
+
+// A default written when an item is added has to be an option something reads.
+// user_agent was moved into the ordinary headers and a migration deletes it, so
+// writing it again gives every new subscription a dead option that nothing will
+// ever clear.
+it('adding a subscription writes no option nothing reads', async () => {
+  addSections([CONNECTION_SECTION]);
+  const grid = sectionGrid();
+  grid.cfgsections = () => ['sec'];
+  await grid.load();
+  const list = grid.children.find(
+    (option) => option.option === 'subscription_url',
+  );
+  list.formvalue = () => ['https://example.com/new'];
+  await Promise.resolve()
+    .then(() => list.parse('sec'))
+    .catch(() => {});
+
+  const added = harness.uci
+    .sections('forkop', 'subscription_url')
+    .find((item) => item.url === 'https://example.com/new');
+  expect(added, 'no subscription section was created').toBeTruthy();
+  expect(added.user_agent).toBeUndefined();
+});

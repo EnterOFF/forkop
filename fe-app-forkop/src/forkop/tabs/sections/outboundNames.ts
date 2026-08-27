@@ -38,7 +38,7 @@ const dashboardFilterChoiceRefreshers = new Map<
   Set<() => boolean | void>
 >();
 
-function nativeProviderOutboundNames(
+export function nativeProviderOutboundNames(
   providerTags: unknown,
   value: unknown,
 ): string[] {
@@ -74,7 +74,7 @@ function nativeProviderOutboundNames(
   return result;
 }
 
-function loadNativeProviderOutboundNames(providerTags: unknown) {
+export function loadNativeProviderOutboundNames(providerTags: unknown) {
   if (!Array.isArray(providerTags) || !providerTags.length) {
     return Promise.resolve([]);
   }
@@ -290,7 +290,7 @@ export function configureLiveDynamicListChoices(
   };
 }
 
-function outboundNameChoiceItems(
+export function outboundNameChoiceItems(
   names: string[],
   normalizeChoice: ((name: string) => string) | null,
 ) {
@@ -369,7 +369,10 @@ function currentSourceOptionValues(section_id: string, optionName: string) {
   return getConfigListValues(section_id, optionName);
 }
 
-function currentLiveDynamicListValues(section_id: string, optionName: string) {
+export function currentLiveDynamicListValues(
+  section_id: string,
+  optionName: string,
+) {
   if (typeof document === 'undefined') {
     return null;
   }
@@ -414,7 +417,7 @@ function currentLiveDynamicListValues(section_id: string, optionName: string) {
   return values;
 }
 
-function currentDraftOutboundNames(section_id: string) {
+export function currentDraftOutboundNames(section_id: string) {
   const names: string[] = [];
 
   currentSourceOptionValues(section_id, 'selector_proxy_links').forEach(
