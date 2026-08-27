@@ -24268,7 +24268,7 @@ function addUpdateOptions(section) {
     form.Value,
     "latency_test_url",
     _("Latency test URL"),
-    _("Default URL for general latency testing")
+    _("URL for the shared latency test of section nodes")
   );
   LATENCY_TEST_URL_OPTIONS.forEach((value) => o.value(value));
   o.default = DEFAULT_LATENCY_TEST_URL || "https://www.gstatic.com/generate_204";

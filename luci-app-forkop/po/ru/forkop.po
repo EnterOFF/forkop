@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-27 12:31+0300\n"
-"PO-Revision-Date: 2026-08-27 12:31+0300\n"
+"POT-Creation-Date: 2026-08-27 12:32+0300\n"
+"PO-Revision-Date: 2026-08-27 12:32+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -457,9 +457,6 @@ msgstr "Дашборд сейчас недоступен"
 
 msgid "Data rejection timeout"
 msgstr "Таймаут отклонения данных"
-
-msgid "Default URL for general latency testing"
-msgstr "URL по умолчанию для общего тестирования задержки"
 
 msgid "Delay in milliseconds before reloading Forkop after interface UP"
 msgstr "Задержка в миллисекундах перед перезапуском Forkop после поднятия интерфейса"
@@ -2008,6 +2005,9 @@ msgstr "Отдача, Мбит/с"
 
 msgid "Uploaded"
 msgstr "Отдано"
+
+msgid "URL for the shared latency test of section nodes"
+msgstr "URL для общего тестирования задержки узлов секции"
 
 msgid "URL must use one of the following protocols:"
 msgstr "URL должен использовать один из следующих протоколов:"
