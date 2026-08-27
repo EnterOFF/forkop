@@ -33,6 +33,14 @@ import { getServiceStatusDisplay } from '../../helpers/serviceStatusDisplay';
 import { resolveOutboundProxyLink } from './resolveOutboundProxyLink';
 
 const SECTIONS_REFRESH_INTERVAL_MS = 10000;
+// A latency test fills the router's own delay records in one at a time, and the
+// section refresh is how the page sees them: it is what turns a test of fifty
+// nodes from a button that sits still for half a minute into a list filling up
+// while it runs. The refresh keeps up with those writes for as long as a test is
+// running and returns to its ordinary pace afterwards. The duty ceiling below
+// still applies, so a transport that makes a refresh expensive spaces it out
+// instead of keeping the router busy on the page's behalf.
+const SECTIONS_LATENCY_REFRESH_INTERVAL_MS = 2000;
 // A core that is down answers nothing for as long as the tab stays open, and a
 // controller that hangs rather than refuses costs the connect timeout of every
 // attempt. The refresh backs off while it keeps failing, like the widgets and
@@ -73,6 +81,7 @@ let lastPolledTotals: { at: number; up: number; down: number } | null = null;
 let pageUnloading = false;
 const latencyRequests = new Set<string>();
 const latencySortedSections = new Set<string>();
+const collapsedSections = new Set<string>();
 const selectorRequests = new Set<string>();
 const fallbackPinRequests = new Set<string>();
 let activeFallbackModal: {
@@ -226,6 +235,16 @@ function handleSortByLatency(sectionName: string, enabled: boolean) {
     latencySortedSections.add(sectionName);
   } else {
     latencySortedSections.delete(sectionName);
+  }
+
+  void renderSectionsWidget();
+}
+
+function handleCollapsedChange(sectionName: string, collapsed: boolean) {
+  if (collapsed) {
+    collapsedSections.add(sectionName);
+  } else {
+    collapsedSections.delete(sectionName);
   }
 
   void renderSectionsWidget();
@@ -519,10 +538,29 @@ function sectionsRefreshDelay() {
   }
 
   return pollDelayForDuration(
-    SECTIONS_REFRESH_INTERVAL_MS,
+    latencyRequests.size > 0
+      ? SECTIONS_LATENCY_REFRESH_INTERVAL_MS
+      : SECTIONS_REFRESH_INTERVAL_MS,
     lastSectionsRefreshDurationMs,
     SECTIONS_REFRESH_DUTY_MAX_MS,
   );
+}
+
+// A test that starts right after a refresh would otherwise show nothing until
+// the ordinary interval comes round again. A refresh already on its way needs no
+// help: the chain asks for its next delay when it finishes, and by then the test
+// is running.
+function restartSectionsRefresh() {
+  if (!dashboardDataUpdatesStarted || sectionsRefreshPromise) {
+    return;
+  }
+
+  if (sectionsRefreshTimer) {
+    clearTimeout(sectionsRefreshTimer);
+    sectionsRefreshTimer = null;
+  }
+
+  scheduleSectionsRefresh(dashboardDataUpdatesId, sectionsRefreshDelay());
 }
 
 function scheduleSectionsRefresh(dataUpdatesId: number, delay: number) {
@@ -646,11 +684,15 @@ async function handleChooseOutbound(
   }
 }
 
+// The router's own delay records are what the dashboard reads, and a refresh is
+// on its way the moment a test finishes. This only carries the answer of the
+// test that just returned into the page a little sooner, and it leaves every
+// member the test did not report alone: a member the sweep never reached still
+// has the delay measured for it earlier, and one that failed loses it with the
+// next refresh, when the router has already forgotten it.
 function applyLatencyResult(
   sectionName: string,
-  tag: string,
   latencies: Record<string, number>,
-  group: boolean,
 ) {
   const sectionsWidget = store.get().sectionsWidget;
   store.set({
@@ -664,14 +706,12 @@ function applyLatencyResult(
         return {
           ...section,
           outbounds: section.outbounds.map((outbound) => {
-            const testedGroup = group && outbound.code === tag;
             const updateMembers = <T extends Forkop.UrlTestMember>(
               members: T[],
             ) =>
               members.map((member) => ({
                 ...member,
-                latency:
-                  latencies[member.code] ?? (testedGroup ? 0 : member.latency),
+                latency: latencies[member.code] ?? member.latency,
               }));
             const urlTestInfo = outbound.urlTestInfo
               ? {
@@ -692,9 +732,7 @@ function applyLatencyResult(
             return {
               ...outbound,
               latency:
-                latencies[outbound.code] ??
-                selectedLatency ??
-                (outbound.code === tag ? 0 : outbound.latency),
+                latencies[outbound.code] ?? selectedLatency ?? outbound.latency,
               urlTestInfo,
               fallbackInfo,
             };
@@ -718,6 +756,7 @@ async function handleTestLatency(
 
   latencyRequests.add(requestKey);
   void renderSectionsWidget();
+  restartSectionsRefresh();
   try {
     const response =
       latencyType === 'group'
@@ -731,26 +770,18 @@ async function handleTestLatency(
           );
     if (!response.success) throw new Error(response.error);
 
-    if (latencyType === 'group') {
-      applyLatencyResult(
-        sectionName,
-        tag,
-        response.data as Record<string, number>,
-        true,
-      );
-    } else {
-      applyLatencyResult(
-        sectionName,
-        tag,
-        { [tag]: response.data.delay },
-        false,
-      );
-    }
+    applyLatencyResult(
+      sectionName,
+      latencyType === 'group'
+        ? (response.data as Record<string, number>)
+        : { [tag]: response.data.delay },
+    );
   } catch (error) {
     logger.error('[DASHBOARD]', 'handleTestLatency: failed', error);
   } finally {
     latencyRequests.delete(requestKey);
     void renderSectionsWidget();
+    void fetchDashboardSections({ force: true });
   }
 }
 
@@ -1496,11 +1527,16 @@ async function renderSectionsWidget() {
     });
   }
 
+  // A lone section has nothing to be folded out of the way of.
+  const collapsible = sectionsWidget.data.length > 1;
   const renderedWidgets = sectionsWidget.data.map((section) =>
     renderSections({
       loading: sectionsWidget.loading,
       failed: sectionsWidget.failed,
       section,
+      collapsible,
+      collapsed: collapsedSections.has(section.sectionName),
+      onCollapsedChange: handleCollapsedChange,
       latencyFetching: latencyRequests.has(
         sectionLatencyRequestKey(section.sectionName),
       ),

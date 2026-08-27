@@ -10,7 +10,6 @@ import {
   renderXIcon24,
 } from '../../../icons';
 import { CustomForkopMethods } from '../../methods';
-import { getOutboundTagBySection } from '../../runtimeTags';
 import { getClashApiSecret } from '../../methods/custom/getClashApiSecret';
 import { loadLocalDeviceChoices } from '../../cbi/localDevices';
 import { logger, socket, store, StoreType } from '../../services';
@@ -162,7 +161,7 @@ function buildRouteDisplayNames(sections: Forkop.ConfigSection[]) {
       }
 
       routeSectionItems.push({ sectionName: displayName, displayName });
-      map[getOutboundTagBySection(displayName)] = displayName;
+      map[displayName] = displayName;
     });
 
   sections

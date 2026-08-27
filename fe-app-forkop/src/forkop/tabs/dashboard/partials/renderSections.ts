@@ -1,5 +1,6 @@
 import { latencyClassName } from '../latencyClassName';
 import {
+  renderChevronUpIcon24,
   renderLoaderCircleIcon24,
   renderCopyIcon24,
   renderInfoIcon24,
@@ -31,11 +32,16 @@ interface IRenderSectionsProps {
   onUpdateSubscription: (section: Forkop.OutboundGroup) => void;
   onUpdateRuleSets: (section: Forkop.OutboundGroup) => void;
   onSortByLatencyChange?: (sectionName: string, enabled: boolean) => void;
+  onCollapsedChange?: (sectionName: string, collapsed: boolean) => void;
   latencyFetching: boolean;
   latencyFetchingTargets?: Set<string>;
   subscriptionUpdating: boolean;
   ruleSetUpdating: boolean;
   sortByLatency?: boolean;
+  // Folding away the one section a page shows leaves nothing to look at, so the
+  // control appears only once there is another section to scroll past.
+  collapsible?: boolean;
+  collapsed?: boolean;
 }
 
 function renderFailedState() {
@@ -304,11 +310,14 @@ function renderDefaultState({
   onUpdateSubscription,
   onUpdateRuleSets,
   onSortByLatencyChange,
+  onCollapsedChange,
   latencyFetching,
   latencyFetchingTargets = new Set(),
   subscriptionUpdating,
   ruleSetUpdating,
   sortByLatency,
+  collapsible,
+  collapsed,
 }: IRenderSectionsProps) {
   function testLatency() {
     if (section.withTagSelect) {
@@ -534,6 +543,32 @@ function renderDefaultState({
           renderListFilterIcon24(),
         )
       : undefined;
+  const collapseLabel = collapsed ? _('Expand section') : _('Collapse section');
+  const collapseAction = collapsible
+    ? E(
+        'button',
+        {
+          type: 'button',
+          class: [
+            'btn fkp_dashboard-page__outbound-section__collapse',
+            collapsed
+              ? 'fkp_dashboard-page__outbound-section__collapse--collapsed'
+              : '',
+          ]
+            .filter(Boolean)
+            .join(' '),
+          title: collapseLabel,
+          'aria-label': collapseLabel,
+          'aria-expanded': collapsed ? 'false' : 'true',
+          click: (event: MouseEvent) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onCollapsedChange?.(section.sectionName, !collapsed);
+          },
+        },
+        renderChevronUpIcon24(),
+      )
+    : undefined;
 
   return E('div', { class: 'fkp_dashboard-page__outbound-section' }, [
     // Title with test latency
@@ -551,6 +586,7 @@ function renderDefaultState({
           class: 'fkp_dashboard-page__outbound-section__title-section__actions',
         },
         [
+          ...(collapseAction ? [collapseAction] : []),
           ...(latencySortAction ? [latencySortAction] : []),
           ...(subscriptionUpdateAction ? [subscriptionUpdateAction] : []),
           ...(ruleSetUpdateAction ? [ruleSetUpdateAction] : []),
@@ -590,10 +626,17 @@ function renderDefaultState({
         ],
       ),
     ]),
-    E('div', { class: 'fkp_dashboard-page__outbound-grid' }, [
-      ...metadataNodes,
-      ...outbounds.map((outbound) => renderOutbound(outbound)),
-    ]),
+    // Everything below the title is what folds away: the subscription blocks
+    // and every card. What stays is the title row, so the section is still
+    // there to unfold and its actions still work on it.
+    ...(collapsed
+      ? []
+      : [
+          E('div', { class: 'fkp_dashboard-page__outbound-grid' }, [
+            ...metadataNodes,
+            ...outbounds.map((outbound) => renderOutbound(outbound)),
+          ]),
+        ]),
   ]);
 }
 

@@ -31,6 +31,7 @@ type HtmlAttributes<T extends HtmlTag = 'div'> = Partial<
     'aria-busy'?: string;
     'aria-hidden'?: string;
     'aria-disabled'?: string;
+    'aria-expanded'?: string;
     'aria-label'?: string;
     'aria-pressed'?: string;
     'data-latency-code'?: string;

@@ -20,3 +20,4 @@ export * from './renderDownloadIcon24';
 export * from './renderInfoIcon24';
 export * from './renderListFilterIcon24';
 export * from './renderPinIcon24';
+export * from './renderChevronUpIcon24';

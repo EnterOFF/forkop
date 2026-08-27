@@ -101,6 +101,55 @@ function latencyClassName(latency) {
   return "fkp_dashboard-page__outbound-grid__item__latency--red";
 }
 
+// src/helpers/spinPhase.ts
+var SPIN_PERIOD_MS = 1e3;
+function spinPhaseDelayMs(now) {
+  return -(now % SPIN_PERIOD_MS);
+}
+function spinPhaseStyle() {
+  const timelineTime = document.timeline?.currentTime;
+  const now = typeof timelineTime === "number" ? timelineTime : performance.now();
+  return `animation-delay: ${spinPhaseDelayMs(now)}ms`;
+}
+
+// src/helpers/svgEl.ts
+function svgEl(tag, attrs = {}, children = []) {
+  const NS = "http://www.w3.org/2000/svg";
+  const el = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v != null) el.setAttribute(k, String(v));
+  }
+  (Array.isArray(children) ? children : [children]).filter(Boolean).forEach((ch) => el.appendChild(ch));
+  return el;
+}
+
+// src/icons/renderLoaderCircleIcon24.ts
+function renderLoaderCircleIcon24() {
+  const NS = "http://www.w3.org/2000/svg";
+  return svgEl(
+    "svg",
+    {
+      xmlns: NS,
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": "2",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+      class: "lucide lucide-loader-circle rotate",
+      // The turn is the .rotate keyframes; this is where in the turn this
+      // particular spinner starts, so that one built to replace another picks up
+      // where it left off.
+      style: spinPhaseStyle()
+    },
+    [
+      svgEl("path", {
+        d: "M21 12a9 9 0 1 1-6.219-8.56"
+      })
+    ]
+  );
+}
+
 // src/helpers/parseValueList.ts
 function parseValueList(value) {
   return value.split(/\n/).map((line) => line.split("//")[0].split("#")[0]).join(" ").split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
@@ -381,17 +430,6 @@ function preserveScrollForPage(renderFn) {
   });
 }
 
-// src/helpers/svgEl.ts
-function svgEl(tag, attrs = {}, children = []) {
-  const NS = "http://www.w3.org/2000/svg";
-  const el = document.createElementNS(NS, tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (v != null) el.setAttribute(k, String(v));
-  }
-  (Array.isArray(children) ? children : [children]).filter(Boolean).forEach((ch) => el.appendChild(ch));
-  return el;
-}
-
 // src/helpers/insertIf.ts
 function insertIf(condition, elements) {
   return condition ? elements : [];
@@ -401,38 +439,6 @@ function insertIf(condition, elements) {
 var COPYABLE_PROXY_URI_RE = /^(anytls|http2|http3|https?|naive\+https|naive\+quic|mieru|mierus|vless|vmess|trojan|ss|hysteria|hysteria2|hy2|tuic|socks|socks4|socks4a|socks5):\/\//i;
 function isCopyableProxyLink(link) {
   return COPYABLE_PROXY_URI_RE.test((link || "").trim());
-}
-
-// src/icons/renderLoaderCircleIcon24.ts
-function renderLoaderCircleIcon24() {
-  const NS = "http://www.w3.org/2000/svg";
-  return svgEl(
-    "svg",
-    {
-      xmlns: NS,
-      viewBox: "0 0 24 24",
-      fill: "none",
-      stroke: "currentColor",
-      "stroke-width": "2",
-      "stroke-linecap": "round",
-      "stroke-linejoin": "round",
-      class: "lucide lucide-loader-circle rotate"
-    },
-    [
-      svgEl("path", {
-        d: "M21 12a9 9 0 1 1-6.219-8.56"
-      }),
-      svgEl("animateTransform", {
-        attributeName: "transform",
-        attributeType: "XML",
-        type: "rotate",
-        from: "0 12 12",
-        to: "360 12 12",
-        dur: "1s",
-        repeatCount: "indefinite"
-      })
-    ]
-  );
 }
 
 // src/icons/renderCircleAlertIcon24.ts
@@ -1030,6 +1036,26 @@ function renderPinIcon24() {
   );
 }
 
+// src/icons/renderChevronUpIcon24.ts
+function renderChevronUpIcon24() {
+  return svgEl(
+    "svg",
+    {
+      xmlns: "http://www.w3.org/2000/svg",
+      width: "24",
+      height: "24",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": "2",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+      class: "lucide lucide-chevron-up-icon lucide-chevron-up"
+    },
+    [svgEl("path", { d: "m18 15-6-6-6 6" })]
+  );
+}
+
 // src/helpers/prettyBytes.ts
 function prettyBytes(n) {
   const UNITS = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
@@ -1245,11 +1271,14 @@ function renderDefaultState({
   onUpdateSubscription,
   onUpdateRuleSets,
   onSortByLatencyChange,
+  onCollapsedChange,
   latencyFetching,
   latencyFetchingTargets = /* @__PURE__ */ new Set(),
   subscriptionUpdating,
   ruleSetUpdating,
-  sortByLatency
+  sortByLatency,
+  collapsible,
+  collapsed
 }) {
   function testLatency() {
     if (section.withTagSelect) {
@@ -1423,6 +1452,26 @@ function renderDefaultState({
     },
     renderListFilterIcon24()
   ) : void 0;
+  const collapseLabel = collapsed ? _("Expand section") : _("Collapse section");
+  const collapseAction = collapsible ? E(
+    "button",
+    {
+      type: "button",
+      class: [
+        "btn fkp_dashboard-page__outbound-section__collapse",
+        collapsed ? "fkp_dashboard-page__outbound-section__collapse--collapsed" : ""
+      ].filter(Boolean).join(" "),
+      title: collapseLabel,
+      "aria-label": collapseLabel,
+      "aria-expanded": collapsed ? "false" : "true",
+      click: (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onCollapsedChange?.(section.sectionName, !collapsed);
+      }
+    },
+    renderChevronUpIcon24()
+  ) : void 0;
   return E("div", { class: "fkp_dashboard-page__outbound-section" }, [
     // Title with test latency
     E("div", { class: "fkp_dashboard-page__outbound-section__title-section" }, [
@@ -1439,6 +1488,7 @@ function renderDefaultState({
           class: "fkp_dashboard-page__outbound-section__title-section__actions"
         },
         [
+          ...collapseAction ? [collapseAction] : [],
           ...latencySortAction ? [latencySortAction] : [],
           ...subscriptionUpdateAction ? [subscriptionUpdateAction] : [],
           ...ruleSetUpdateAction ? [ruleSetUpdateAction] : [],
@@ -1476,10 +1526,15 @@ function renderDefaultState({
         ]
       )
     ]),
-    E("div", { class: "fkp_dashboard-page__outbound-grid" }, [
-      ...metadataNodes,
-      ...outbounds.map((outbound) => renderOutbound(outbound))
-    ])
+    // Everything below the title is what folds away: the subscription blocks
+    // and every card. What stays is the title row, so the section is still
+    // there to unfold and its actions still work on it.
+    ...collapsed ? [] : [
+      E("div", { class: "fkp_dashboard-page__outbound-grid" }, [
+        ...metadataNodes,
+        ...outbounds.map((outbound) => renderOutbound(outbound))
+      ])
+    ]
   ]);
 }
 function renderSectionsPlaceholder(state) {
@@ -1688,11 +1743,6 @@ function copyToClipboard(text) {
 async function getConfigSections() {
   await uci.load(FORKOP_UCI_PACKAGE);
   return uci.sections(FORKOP_UCI_PACKAGE);
-}
-
-// src/forkop/runtimeTags.ts
-function getOutboundTagBySection(sectionName) {
-  return sectionName;
 }
 
 // src/forkop/methods/shell/callBaseMethod.ts
@@ -2146,6 +2196,9 @@ var ForkopShellMethods = {
 var CLASH_API_FETCH_TIMEOUT_MS = 5e3;
 var DEFAULT_LATENCY_TEST_URL2 = "https://www.gstatic.com/generate_204";
 var CLASH_API_MUTATION_TIMEOUT_MS = 15e3;
+var GROUP_LATENCY_TIMEOUT_PER_MEMBER_MS = 500;
+var GROUP_LATENCY_TIMEOUT_MIN_MS = 1e4;
+var GROUP_LATENCY_TIMEOUT_MAX_MS = 4e4;
 var DIRECT_CLASH_API_PROBE_INTERVAL_MS = 3e4;
 var DIRECT_CLASH_API_PROBE_TIMEOUT_MS = 2e3;
 var clashApiConfigSections = [];
@@ -2284,7 +2337,7 @@ function probeDirectClashApi() {
     directClashApiProbe = void 0;
   });
 }
-async function requestClashApi(path, init, timeout) {
+async function requestClashApi(path, init, timeout, options) {
   const method = (init?.method || "GET").toUpperCase();
   const body = typeof init?.body === "string" ? init.body : "";
   if (canFetchClashApiDirectly()) {
@@ -2300,7 +2353,8 @@ async function requestClashApi(path, init, timeout) {
       return parseClashApiPayload(outcome.status, outcome.body);
     }
     suspendDirectClashApi();
-    if (outcome.kind === "timeout" && method !== "GET" && method !== "HEAD") {
+    const keepsRunning = options?.keepsRunningAfterTimeout || method !== "GET" && method !== "HEAD";
+    if (outcome.kind === "timeout" && keepsRunning) {
       return {
         success: false,
         error: _("Clash API request timed out after it was sent")
@@ -2310,6 +2364,17 @@ async function requestClashApi(path, init, timeout) {
     probeDirectClashApi();
   }
   return fetchClashApiThroughCli(method, path, body);
+}
+function groupLatencyTestTimeout(memberCount) {
+  const budget = Math.round(
+    Math.max(memberCount, 0) * GROUP_LATENCY_TIMEOUT_PER_MEMBER_MS
+  );
+  return String(
+    Math.min(
+      Math.max(budget, GROUP_LATENCY_TIMEOUT_MIN_MS),
+      GROUP_LATENCY_TIMEOUT_MAX_MS
+    )
+  );
 }
 function getLatencyTestUrl() {
   return getSettingsSection(clashApiConfigSections)?.latency_test_url || DEFAULT_LATENCY_TEST_URL2;
@@ -2325,7 +2390,8 @@ function getClashApiProxyLatency(tag, timeout = "5000") {
   return requestClashApi(
     `/proxies/${encodeURIComponent(tag)}/delay?${params}`,
     void 0,
-    latencyRequestTimeout(timeout)
+    latencyRequestTimeout(timeout),
+    { keepsRunningAfterTimeout: true }
   );
 }
 function getClashApiGroupLatency(tag, timeout = "10000") {
@@ -2336,7 +2402,8 @@ function getClashApiGroupLatency(tag, timeout = "10000") {
   return requestClashApi(
     `/group/${encodeURIComponent(tag)}/delay?${params}`,
     void 0,
-    latencyRequestTimeout(timeout)
+    latencyRequestTimeout(timeout),
+    { keepsRunningAfterTimeout: true }
   );
 }
 function setClashApiGroupProxy(group, proxy) {
@@ -2992,8 +3059,7 @@ function buildProxyGroupOutbounds(section, proxies, subscriptionTags) {
     (item) => item.runtimeTag
   );
   const proxyByCode = getProxyEntryByCode(proxies);
-  const selectorTag = getOutboundTagBySection(sectionDisplayName);
-  const selector = proxyByCode.get(selectorTag);
+  const selector = proxyByCode.get(sectionDisplayName);
   const selectorCodes = selector?.value?.all ?? [];
   const bindRuntimeCodes = (configs, type) => {
     const candidates = selectorCodes.filter(
@@ -3256,6 +3322,9 @@ async function getDashboardSections() {
         displayName,
         action: sectionAction,
         latencyTestCode,
+        latencyTestTimeout: groupLatencyTestTimeout(
+          selector?.value?.all?.length ?? outbounds.length
+        ),
         proxyConfigType,
         subscriptionSourceCount,
         subscriptionProviderTags: subscriptionTags.map(
@@ -3267,8 +3336,7 @@ async function getDashboardSections() {
       };
     }
     if (sectionAction === "vpn") {
-      const outboundTag = getOutboundTagBySection(displayName);
-      const outbound = proxies.find((proxy) => proxy.code === outboundTag);
+      const outbound = proxies.find((proxy) => proxy.code === displayName);
       return {
         withTagSelect: false,
         code: outbound?.code || displayName,
@@ -3290,8 +3358,7 @@ async function getDashboardSections() {
       };
     }
     if (sectionAction === "outbound") {
-      const outboundTag = getOutboundTagBySection(displayName);
-      const outbound = proxies.find((proxy) => proxy.code === outboundTag);
+      const outbound = proxies.find((proxy) => proxy.code === displayName);
       return {
         withTagSelect: false,
         code: outbound?.code || displayName,
@@ -4726,6 +4793,7 @@ async function resolveOutboundProxyLink(outbound, fetchProxyLink) {
 
 // src/forkop/tabs/dashboard/initController.ts
 var SECTIONS_REFRESH_INTERVAL_MS = 1e4;
+var SECTIONS_LATENCY_REFRESH_INTERVAL_MS = 2e3;
 var SECTIONS_REFRESH_BACKOFF_MAX_MS = 6e4;
 var SECTIONS_REFRESH_DUTY_MAX_MS = 3e4;
 var WIDGETS_POLL_INTERVAL_MS = 5e3;
@@ -4752,6 +4820,7 @@ var lastPolledTotals = null;
 var pageUnloading = false;
 var latencyRequests = /* @__PURE__ */ new Set();
 var latencySortedSections = /* @__PURE__ */ new Set();
+var collapsedSections = /* @__PURE__ */ new Set();
 var selectorRequests = /* @__PURE__ */ new Set();
 var fallbackPinRequests = /* @__PURE__ */ new Set();
 var activeFallbackModal = null;
@@ -4864,6 +4933,14 @@ function handleSortByLatency(sectionName, enabled) {
     latencySortedSections.add(sectionName);
   } else {
     latencySortedSections.delete(sectionName);
+  }
+  void renderSectionsWidget();
+}
+function handleCollapsedChange(sectionName, collapsed) {
+  if (collapsed) {
+    collapsedSections.add(sectionName);
+  } else {
+    collapsedSections.delete(sectionName);
   }
   void renderSectionsWidget();
 }
@@ -5092,10 +5169,20 @@ function sectionsRefreshDelay() {
     );
   }
   return pollDelayForDuration(
-    SECTIONS_REFRESH_INTERVAL_MS,
+    latencyRequests.size > 0 ? SECTIONS_LATENCY_REFRESH_INTERVAL_MS : SECTIONS_REFRESH_INTERVAL_MS,
     lastSectionsRefreshDurationMs,
     SECTIONS_REFRESH_DUTY_MAX_MS
   );
+}
+function restartSectionsRefresh() {
+  if (!dashboardDataUpdatesStarted || sectionsRefreshPromise) {
+    return;
+  }
+  if (sectionsRefreshTimer) {
+    clearTimeout(sectionsRefreshTimer);
+    sectionsRefreshTimer = null;
+  }
+  scheduleSectionsRefresh(dashboardDataUpdatesId, sectionsRefreshDelay());
 }
 function scheduleSectionsRefresh(dataUpdatesId, delay) {
   sectionsRefreshTimer = setTimeout(() => {
@@ -5185,7 +5272,7 @@ async function handleChooseOutbound(sectionName, selector, tag) {
     selectorRequests.delete(selector);
   }
 }
-function applyLatencyResult(sectionName, tag, latencies, group) {
+function applyLatencyResult(sectionName, latencies) {
   const sectionsWidget = store.get().sectionsWidget;
   store.set({
     sectionsWidget: {
@@ -5197,10 +5284,9 @@ function applyLatencyResult(sectionName, tag, latencies, group) {
         return {
           ...section,
           outbounds: section.outbounds.map((outbound) => {
-            const testedGroup = group && outbound.code === tag;
             const updateMembers = (members) => members.map((member) => ({
               ...member,
-              latency: latencies[member.code] ?? (testedGroup ? 0 : member.latency)
+              latency: latencies[member.code] ?? member.latency
             }));
             const urlTestInfo = outbound.urlTestInfo ? {
               ...outbound.urlTestInfo,
@@ -5213,7 +5299,7 @@ function applyLatencyResult(sectionName, tag, latencies, group) {
             const selectedLatency = (urlTestInfo?.outbounds || fallbackInfo?.outbounds)?.find((member) => member.selected)?.latency;
             return {
               ...outbound,
-              latency: latencies[outbound.code] ?? selectedLatency ?? (outbound.code === tag ? 0 : outbound.latency),
+              latency: latencies[outbound.code] ?? selectedLatency ?? outbound.latency,
               urlTestInfo,
               fallbackInfo
             };
@@ -5229,6 +5315,7 @@ async function handleTestLatency(latencyType, sectionName, tag, requestKey, time
   }
   latencyRequests.add(requestKey);
   void renderSectionsWidget();
+  restartSectionsRefresh();
   try {
     const response = latencyType === "group" ? await CustomForkopMethods.getClashApiGroupLatency(
       tag,
@@ -5238,26 +5325,16 @@ async function handleTestLatency(latencyType, sectionName, tag, requestKey, time
       timeout || "5000"
     );
     if (!response.success) throw new Error(response.error);
-    if (latencyType === "group") {
-      applyLatencyResult(
-        sectionName,
-        tag,
-        response.data,
-        true
-      );
-    } else {
-      applyLatencyResult(
-        sectionName,
-        tag,
-        { [tag]: response.data.delay },
-        false
-      );
-    }
+    applyLatencyResult(
+      sectionName,
+      latencyType === "group" ? response.data : { [tag]: response.data.delay }
+    );
   } catch (error) {
     logger.error("[DASHBOARD]", "handleTestLatency: failed", error);
   } finally {
     latencyRequests.delete(requestKey);
     void renderSectionsWidget();
+    void fetchDashboardSections({ force: true });
   }
 }
 async function handleCopyOutbound(outbound) {
@@ -5865,11 +5942,15 @@ async function renderSectionsWidget() {
       container.replaceChildren(renderedWidget);
     });
   }
+  const collapsible = sectionsWidget.data.length > 1;
   const renderedWidgets = sectionsWidget.data.map(
     (section) => renderSections({
       loading: sectionsWidget.loading,
       failed: sectionsWidget.failed,
       section,
+      collapsible,
+      collapsed: collapsedSections.has(section.sectionName),
+      onCollapsedChange: handleCollapsedChange,
       latencyFetching: latencyRequests.has(
         sectionLatencyRequestKey(section.sectionName)
       ),
@@ -6169,12 +6250,7 @@ var styles = `
     unicode-range: U+1F1E6-1F1FF, U+1F3F4, U+E0062-E0063, U+E0065, U+E0067, U+E006C, U+E006E, U+E0073-E0074, U+E0077, U+E007F;
 }
 
-#cbi-${FORKOP_UCI_PACKAGE}-dashboard-_mount_node > .cbi-value-title {
-    display: none;
-}
-
 #cbi-${FORKOP_UCI_PACKAGE}-dashboard-_mount_node,
-#cbi-${FORKOP_UCI_PACKAGE}-dashboard-_mount_node > .cbi-value-field,
 .fkp_dashboard-page {
     box-sizing: border-box;
     width: 100% !important;
@@ -6182,14 +6258,11 @@ var styles = `
     max-width: 100% !important;
 }
 
+/* What makes the page fill the column: a DummyValue's value reaches the theme
+   inside an <output>, and the theme lays a .cbi-value out as a flex row, where
+   the page would be as wide as its own content. */
 #cbi-${FORKOP_UCI_PACKAGE}-dashboard-_mount_node {
     display: block !important;
-}
-
-#cbi-${FORKOP_UCI_PACKAGE}-dashboard-_mount_node > .cbi-value-field {
-    display: block !important;
-    float: none !important;
-    margin-left: 0 !important;
 }
 
 #cbi-${FORKOP_UCI_PACKAGE}-dashboard > h3 {
@@ -6282,6 +6355,7 @@ var styles = `
     max-width: 100%;
 }
 
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__collapse,
 .fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__sort-by-latency {
     width: 28px;
     height: 28px;
@@ -6294,6 +6368,7 @@ var styles = `
     flex: 0 0 auto;
 }
 
+.fkp_dashboard-page__outbound-section__collapse svg,
 .fkp_dashboard-page__outbound-section__sort-by-latency svg {
     width: 15px;
     height: 15px;
@@ -6302,6 +6377,12 @@ var styles = `
 
 .fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__sort-by-latency--active {
     background: color-mix(in srgb, currentColor 14%, transparent) !important;
+}
+
+/* The chevron points the way the click moves the section: up while the cards
+   are showing, down once they are folded away. */
+.fkp_dashboard-page__outbound-section__collapse--collapsed svg {
+    transform: rotate(180deg);
 }
 
 .fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__subscription-update,
@@ -7950,7 +8031,21 @@ function renderCheckSummary(items) {
       {
         class: `fkp_diagnostic_alert__summary__item fkp_diagnostic_alert__summary__item--${item.state}`
       },
-      [getIcon(), E("b", {}, item.key), E("div", {}, item.value)]
+      [
+        getIcon(),
+        E("div", { class: "fkp_diagnostic_alert__summary__item__body" }, [
+          E(
+            "b",
+            { class: "fkp_diagnostic_alert__summary__item__key" },
+            item.key
+          ),
+          E(
+            "div",
+            { class: "fkp_diagnostic_alert__summary__item__value" },
+            item.value
+          )
+        ])
+      ]
     );
   });
   return E("div", { class: "fkp_diagnostic_alert__summary" }, renderedItems);
@@ -8185,8 +8280,7 @@ async function runSectionsCheck() {
         const isSubscription = section.proxyConfigType === "subscription";
         if (selectedOutbound2?.code) {
           const latencyProxy2 = await CustomForkopMethods.getClashApiProxyLatency(
-            selectedOutbound2.code,
-            section.latencyTestTimeout
+            selectedOutbound2.code
           );
           const proxySuccess = latencyProxy2.success && !latencyProxy2.data.message;
           if (proxySuccess) {
@@ -9152,10 +9246,6 @@ async function initController2() {
 // src/forkop/tabs/diagnostic/styles.ts
 var styles4 = `
 
-#cbi-${FORKOP_UCI_PACKAGE}-diagnostic-_mount_node > div {
-    width: 100%;
-}
-
 #cbi-${FORKOP_UCI_PACKAGE}-diagnostic > h3 {
     display: none;
 }
@@ -9165,17 +9255,16 @@ var styles4 = `
        lone fr track collapses onto its own content instead of taking the rest of
        the row: the checks would end up as narrow as the word inside them. Two
        fractions size each other, which is what this column pair has always done.
-       The controls carry the floor instead, see below. */
+       The controls carry the floor instead, see below.
+
+       The checks take a zero minimum so the page's width stays theirs to read
+       rather than theirs to set: an fr track is otherwise at least as wide as
+       the longest unbreakable thing in it, and a summary value with nothing to
+       break at would widen the track, the page, and the split with it. */
     display: grid;
-    grid-template-columns: 1fr 2fr;
+    grid-template-columns: 1fr minmax(0, 2fr);
     grid-column-gap: 10px;
     align-items: start;
-}
-
-@media (max-width: 800px) {
-    .fkp_diagnostic-page {
-        grid-template-columns: 1fr;
-    }
 }
 
 .fkp_diagnostic-page__controls {
@@ -9283,12 +9372,43 @@ var styles4 = `
     grid-row-gap: 10px;
 }
 
+/* Where the pair stops being worth keeping. The controls hold their 17rem
+   whatever the window does, so a narrower page comes out of the checks beside
+   them: 473px at a 780px window, 348px at 640px, and under about 19rem they are
+   better off with the whole width than with a column of their own. The stack
+   used to arrive at 800px, where the checks were still 493px wide.
+
+   Stacked, the page also has to take the width it is given instead of sizing
+   itself. Its box is a flex item - the value of a DummyValue reaches the theme
+   inside an <output>, and the theme lays a .cbi-value out as a flex row - so
+   left alone it settles on its own content: 444px of checks hugging the left
+   edge of a 774px column, which is the whole of what this looked like before.
+   A block mount node and a full-width page is what the Dashboard tab does for
+   the same reason. */
+@media (max-width: 620px) {
+    #cbi-${FORKOP_UCI_PACKAGE}-diagnostic-_mount_node {
+        display: block;
+    }
+
+    .fkp_diagnostic-page {
+        width: 100%;
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* The floor exists so a column can be measured against it, and there is no
+       column left to measure: the page is as wide as it is given. On a 320px
+       screen the floor is wider than that. */
+    .fkp_diagnostic-page__controls {
+        min-width: 0;
+    }
+}
+
 .fkp_diagnostic_alert {
     border: 2px var(--background-color-low, lightgray) solid;
     border-radius: 4px;
 
     display: grid;
-    grid-template-columns: 24px 1fr;
+    grid-template-columns: 24px minmax(0, 1fr);
     grid-column-gap: 10px;
     align-items: center;
     padding: 10px;
@@ -9331,8 +9451,38 @@ var styles4 = `
 
 .fkp_diagnostic_alert__summary__item {
     display: grid;
-    grid-template-columns: 16px auto 1fr;
+    grid-template-columns: 16px minmax(0, 1fr);
     grid-column-gap: 10px;
+}
+
+/* A key and the value it labels, side by side while both fit and stacked when
+   they stop fitting. The key used to have a column of its own, sized to the
+   whole of it, and the value took what was left: "Server #1: \u041F\u0443\u0431\u043B\u0438\u0447\u043D\u044B\u0439 \u0430\u0434\u0440\u0435\u0441"
+   measures 183px, so against the 209px row of a 640px window it left 26px for
+   the address - three characters to a line, three lines tall.
+
+   Whether a row needs the break depends on how long its own key is, so each row
+   decides for itself instead of every row breaking at one width of the window:
+   the value keeps 8rem beside its key, and below that drops under it with the
+   full width of the row. */
+.fkp_diagnostic_alert__summary__item__body {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 10px;
+}
+
+/* Neither cell may be wider than what it was given. A key or a value with
+   nothing to break at - an address list, a version, a server name - would
+   otherwise be the width of the row it sits in. */
+.fkp_diagnostic_alert__summary__item__key {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.fkp_diagnostic_alert__summary__item__value {
+    flex: 1 1 8rem;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .fkp_diagnostic_alert__summary__item--error {
@@ -9815,7 +9965,7 @@ function buildRouteDisplayNames(sections) {
       return;
     }
     routeSectionItems.push({ sectionName: displayName, displayName });
-    map[getOutboundTagBySection(displayName)] = displayName;
+    map[displayName] = displayName;
   });
   sections.filter((section) => section[".type"] === "server").filter((section) => section.enabled !== "0").forEach((section) => {
     const sectionName = section[".name"];
@@ -10926,22 +11076,24 @@ async function initController3() {
 
 // src/forkop/tabs/monitoring/styles.ts
 var styles5 = `
+/* The page takes the width of the content column, which it cannot do on its own.
+   The tab is one DummyValue, and LuCI hands its value to the theme inside an
+   <output>; the theme lays a .cbi-value out as a flex row, so that <output> is a
+   flex item and the page inside it is as wide as its own content. It came out
+   651px wide in a 940px column while the connections were still loading, and
+   288px wide at any window of 520px or less, where the tab's own narrow-screen
+   rules stack the controls and the table has become cards, so nothing inside
+   asks for width any more. Where it did fill the column it was the table's
+   min-width doing it rather than the layout.
+
+   The rules that used to stand here addressed .cbi-value-title, .cbi-value-field
+   and a child div. A DummyValue has none of those children, so all three matched
+   nothing; a block mount node is what the page needs, and its own width: 100%
+   resolves against it. */
 #cbi-${FORKOP_UCI_PACKAGE}-monitoring-_mount_node {
+    display: block;
     margin: 16px 0 22px;
     padding: 0;
-}
-
-#cbi-${FORKOP_UCI_PACKAGE}-monitoring-_mount_node > .cbi-value-title {
-    display: none;
-}
-
-#cbi-${FORKOP_UCI_PACKAGE}-monitoring-_mount_node > .cbi-value-field {
-    margin-left: 0;
-    width: 100%;
-}
-
-#cbi-${FORKOP_UCI_PACKAGE}-monitoring-_mount_node > div {
-    width: 100%;
 }
 
 #cbi-${FORKOP_UCI_PACKAGE}-monitoring > h3 {
@@ -11811,8 +11963,6 @@ var styles6 = `
 #cbi-${FORKOP_UCI_PACKAGE}-logs > .cbi-section-node,
 #cbi-${FORKOP_UCI_PACKAGE}-logs .cbi-value,
 #cbi-${FORKOP_UCI_PACKAGE}-logs-_mount_node,
-#cbi-${FORKOP_UCI_PACKAGE}-logs-_mount_node > .cbi-value-field,
-#cbi-${FORKOP_UCI_PACKAGE}-logs-_mount_node > div,
 .fkp_logs-page {
     box-sizing: border-box;
     width: 100% !important;
@@ -11820,20 +11970,13 @@ var styles6 = `
     max-width: 100% !important;
 }
 
+/* What makes the page fill the column: a DummyValue's value reaches the theme
+   inside an <output>, and the theme lays a .cbi-value out as a flex row, where
+   the page would be as wide as its own content. */
 #cbi-${FORKOP_UCI_PACKAGE}-logs-_mount_node {
     display: block !important;
     margin: 16px 0 22px;
     padding: 0;
-}
-
-#cbi-${FORKOP_UCI_PACKAGE}-logs-_mount_node > .cbi-value-title {
-    display: none;
-}
-
-#cbi-${FORKOP_UCI_PACKAGE}-logs-_mount_node > .cbi-value-field {
-    display: block !important;
-    float: none !important;
-    margin-left: 0 !important;
 }
 
 #cbi-${FORKOP_UCI_PACKAGE}-logs > h3 {
@@ -12990,9 +13133,11 @@ ${PartialStyles}
     justify-content: center;
 }
 
-/* Rotate class helper */
+/* Rotate class helper. Each spinner is handed an animation-delay that places it
+   in this turn - see helpers/spinPhase.ts - so the period has to stay the one
+   that delay is a fraction of. */
 .rotate {
-    animation: spin 1s linear infinite;
+    animation: spin ${SPIN_PERIOD_MS}ms linear infinite;
 }
 
 @keyframes spin {
@@ -15541,7 +15686,7 @@ function tailscaleDetourSectionValue(detour, currentSectionId) {
     return "";
   }
   const target = getOutboundDetourTargetSections(currentSectionId).find(
-    (section) => getOutboundTagBySection(getUciSectionLabel(section)) === wanted
+    (section) => getUciSectionLabel(section) === wanted
   );
   return target ? getUciSectionName(target) : wanted;
 }
@@ -15553,7 +15698,7 @@ function tailscaleDetourTag(sectionId) {
   const target = (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).find(
     (section) => getUciSectionName(section) === sectionId
   );
-  return target ? getOutboundTagBySection(getUciSectionLabel(target)) : sectionId;
+  return target ? getUciSectionLabel(target) : sectionId;
 }
 function refreshDnsDetourSectionOptionValues(option2, sectionId) {
   option2.keylist = [];

@@ -118,10 +118,9 @@ describe('runSectionsCheck', () => {
 
     await expect(runSectionsCheck()).resolves.toBeUndefined();
 
-    expect(mocks.getClashApiProxyLatency).toHaveBeenCalledWith(
-      'main-1-out',
-      '7000',
-    );
+    // The section timeout is the budget for sweeping its whole group, so a
+    // single node is asked for with the ordinary single test budget.
+    expect(mocks.getClashApiProxyLatency).toHaveBeenCalledWith('main-1-out');
     expect(mocks.getClashApiGroupLatency).not.toHaveBeenCalled();
     expect(mocks.updateCheckStore).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -182,7 +181,6 @@ describe('runSectionsCheck', () => {
 
     expect(mocks.getClashApiProxyLatency).toHaveBeenCalledWith(
       'main-urltest-out',
-      undefined,
     );
     expect(mocks.getClashApiGroupLatency).not.toHaveBeenCalled();
     expect(mocks.updateCheckStore).toHaveBeenLastCalledWith(

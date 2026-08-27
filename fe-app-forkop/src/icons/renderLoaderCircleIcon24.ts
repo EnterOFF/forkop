@@ -1,4 +1,5 @@
-import { svgEl } from '../helpers';
+import { spinPhaseStyle } from '../helpers/spinPhase';
+import { svgEl } from '../helpers/svgEl';
 
 export function renderLoaderCircleIcon24() {
   const NS = 'http://www.w3.org/2000/svg';
@@ -13,19 +14,14 @@ export function renderLoaderCircleIcon24() {
       'stroke-linecap': 'round',
       'stroke-linejoin': 'round',
       class: 'lucide lucide-loader-circle rotate',
+      // The turn is the .rotate keyframes; this is where in the turn this
+      // particular spinner starts, so that one built to replace another picks up
+      // where it left off.
+      style: spinPhaseStyle(),
     },
     [
       svgEl('path', {
         d: 'M21 12a9 9 0 1 1-6.219-8.56',
-      }),
-      svgEl('animateTransform', {
-        attributeName: 'transform',
-        attributeType: 'XML',
-        type: 'rotate',
-        from: '0 12 12',
-        to: '360 12 12',
-        dur: '1s',
-        repeatCount: 'indefinite',
       }),
     ],
   );

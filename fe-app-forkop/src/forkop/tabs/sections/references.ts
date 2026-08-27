@@ -2,7 +2,6 @@ import { DETOUR_TARGET_ACTIONS, FORKOP_UCI_PACKAGE } from '../../../constants';
 import { normalizeDynamicListItems } from '../../cbi/listValues';
 import { modalOptionFormValue } from '../../cbi/modal';
 import { getUciSectionLabel, getUciSectionName } from '../../cbi/uci';
-import { getOutboundTagBySection } from '../../runtimeTags';
 import { CONNECTION_OUTBOUND_SOURCES, ROUTING_ACTIONS } from './constants';
 
 export function missingConnectionOutbound(
@@ -77,8 +76,7 @@ export function tailscaleDetourSectionValue(
   }
 
   const target = getOutboundDetourTargetSections(currentSectionId).find(
-    (section) =>
-      getOutboundTagBySection(getUciSectionLabel(section)) === wanted,
+    (section) => getUciSectionLabel(section) === wanted,
   );
   return target ? getUciSectionName(target) : wanted;
 }
@@ -92,9 +90,7 @@ export function tailscaleDetourTag(sectionId: string) {
   const target = (uci.sections(FORKOP_UCI_PACKAGE, 'section') || []).find(
     (section) => getUciSectionName(section) === sectionId,
   );
-  return target
-    ? getOutboundTagBySection(getUciSectionLabel(target))
-    : sectionId;
+  return target ? getUciSectionLabel(target) : sectionId;
 }
 
 export function refreshDnsDetourSectionOptionValues(

@@ -6,8 +6,6 @@ export const styles = `
 #cbi-${FORKOP_CBI_PREFIX}-logs > .cbi-section-node,
 #cbi-${FORKOP_CBI_PREFIX}-logs .cbi-value,
 #cbi-${FORKOP_CBI_PREFIX}-logs-_mount_node,
-#cbi-${FORKOP_CBI_PREFIX}-logs-_mount_node > .cbi-value-field,
-#cbi-${FORKOP_CBI_PREFIX}-logs-_mount_node > div,
 .fkp_logs-page {
     box-sizing: border-box;
     width: 100% !important;
@@ -15,20 +13,13 @@ export const styles = `
     max-width: 100% !important;
 }
 
+/* What makes the page fill the column: a DummyValue's value reaches the theme
+   inside an <output>, and the theme lays a .cbi-value out as a flex row, where
+   the page would be as wide as its own content. */
 #cbi-${FORKOP_CBI_PREFIX}-logs-_mount_node {
     display: block !important;
     margin: 16px 0 22px;
     padding: 0;
-}
-
-#cbi-${FORKOP_CBI_PREFIX}-logs-_mount_node > .cbi-value-title {
-    display: none;
-}
-
-#cbi-${FORKOP_CBI_PREFIX}-logs-_mount_node > .cbi-value-field {
-    display: block !important;
-    float: none !important;
-    margin-left: 0 !important;
 }
 
 #cbi-${FORKOP_CBI_PREFIX}-logs > h3 {

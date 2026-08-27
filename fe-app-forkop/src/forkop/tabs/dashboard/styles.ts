@@ -11,12 +11,7 @@ export const styles = `
     unicode-range: U+1F1E6-1F1FF, U+1F3F4, U+E0062-E0063, U+E0065, U+E0067, U+E006C, U+E006E, U+E0073-E0074, U+E0077, U+E007F;
 }
 
-#cbi-${FORKOP_CBI_PREFIX}-dashboard-_mount_node > .cbi-value-title {
-    display: none;
-}
-
 #cbi-${FORKOP_CBI_PREFIX}-dashboard-_mount_node,
-#cbi-${FORKOP_CBI_PREFIX}-dashboard-_mount_node > .cbi-value-field,
 .fkp_dashboard-page {
     box-sizing: border-box;
     width: 100% !important;
@@ -24,14 +19,11 @@ export const styles = `
     max-width: 100% !important;
 }
 
+/* What makes the page fill the column: a DummyValue's value reaches the theme
+   inside an <output>, and the theme lays a .cbi-value out as a flex row, where
+   the page would be as wide as its own content. */
 #cbi-${FORKOP_CBI_PREFIX}-dashboard-_mount_node {
     display: block !important;
-}
-
-#cbi-${FORKOP_CBI_PREFIX}-dashboard-_mount_node > .cbi-value-field {
-    display: block !important;
-    float: none !important;
-    margin-left: 0 !important;
 }
 
 #cbi-${FORKOP_CBI_PREFIX}-dashboard > h3 {
@@ -124,6 +116,7 @@ export const styles = `
     max-width: 100%;
 }
 
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__collapse,
 .fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__sort-by-latency {
     width: 28px;
     height: 28px;
@@ -136,6 +129,7 @@ export const styles = `
     flex: 0 0 auto;
 }
 
+.fkp_dashboard-page__outbound-section__collapse svg,
 .fkp_dashboard-page__outbound-section__sort-by-latency svg {
     width: 15px;
     height: 15px;
@@ -144,6 +138,12 @@ export const styles = `
 
 .fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__sort-by-latency--active {
     background: color-mix(in srgb, currentColor 14%, transparent) !important;
+}
+
+/* The chevron points the way the click moves the section: up while the cards
+   are showing, down once they are folded away. */
+.fkp_dashboard-page__outbound-section__collapse--collapsed svg {
+    transform: rotate(180deg);
 }
 
 .fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__subscription-update,

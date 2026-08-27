@@ -6,7 +6,6 @@ import {
   getProxyUrlName,
   isCopyableProxyLink,
 } from '../../../helpers';
-import { getOutboundTagBySection } from '../../runtimeTags';
 import { ForkopShellMethods } from '../shell';
 
 interface IGetDashboardSectionsResponse {
@@ -89,6 +88,19 @@ type DirectClashApiOutcome =
 const CLASH_API_FETCH_TIMEOUT_MS = 5000;
 const DEFAULT_LATENCY_TEST_URL = 'https://www.gstatic.com/generate_204';
 const CLASH_API_MUTATION_TIMEOUT_MS = 15000;
+// The timeout of a group test is the budget for the whole sweep, and the router
+// answers as soon as the last member is done - a section whose nodes all answer
+// is over in a couple of seconds whatever its size. The budget only has to cover
+// the expensive case: a member that is reachable but never answers costs its own
+// five second ceiling, and the router tests ten members at a time, so a section
+// needs about half a second per member before one press can cover all of it.
+//
+// The ceiling is what a page may hold the user for. A section too large for it
+// is covered by pressing again instead, since the router sweeps the members it
+// tested least recently first.
+const GROUP_LATENCY_TIMEOUT_PER_MEMBER_MS = 500;
+const GROUP_LATENCY_TIMEOUT_MIN_MS = 10000;
+const GROUP_LATENCY_TIMEOUT_MAX_MS = 40000;
 // A browser that cannot reach the controller pays for every doomed attempt: a
 // refused port costs a round trip, a dropped one costs the whole timeout. One
 // attempt proves the path is not there, and the rest go straight to the CLI
@@ -300,6 +312,12 @@ async function requestClashApi<T>(
   path: string,
   init?: RequestInit,
   timeout?: number,
+  // A request the router goes on working on after the browser has stopped
+  // waiting must not be sent again. Anything that is not a plain read is such a
+  // request, and so is a latency test: the sweep it started outlives the
+  // connection that asked for it, and a second one would compete with the first
+  // for the same ten test slots and spoil both sets of measurements.
+  options?: { keepsRunningAfterTimeout?: boolean },
 ): Promise<Forkop.MethodResponse<T>> {
   const method = (init?.method || 'GET').toUpperCase();
   const body = typeof init?.body === 'string' ? init.body : '';
@@ -324,7 +342,11 @@ async function requestClashApi<T>(
     // suspension is for.
     suspendDirectClashApi();
 
-    if (outcome.kind === 'timeout' && method !== 'GET' && method !== 'HEAD') {
+    const keepsRunning =
+      options?.keepsRunningAfterTimeout ||
+      (method !== 'GET' && method !== 'HEAD');
+
+    if (outcome.kind === 'timeout' && keepsRunning) {
       return {
         success: false,
         error: _('Clash API request timed out after it was sent'),
@@ -335,6 +357,19 @@ async function requestClashApi<T>(
   }
 
   return fetchClashApiThroughCli<T>(method, path, body);
+}
+
+export function groupLatencyTestTimeout(memberCount: number) {
+  const budget = Math.round(
+    Math.max(memberCount, 0) * GROUP_LATENCY_TIMEOUT_PER_MEMBER_MS,
+  );
+
+  return String(
+    Math.min(
+      Math.max(budget, GROUP_LATENCY_TIMEOUT_MIN_MS),
+      GROUP_LATENCY_TIMEOUT_MAX_MS,
+    ),
+  );
 }
 
 function getLatencyTestUrl() {
@@ -361,6 +396,7 @@ export function getClashApiProxyLatency(tag: string, timeout = '5000') {
     `/proxies/${encodeURIComponent(tag)}/delay?${params}`,
     undefined,
     latencyRequestTimeout(timeout),
+    { keepsRunningAfterTimeout: true },
   );
 }
 
@@ -374,6 +410,7 @@ export function getClashApiGroupLatency(tag: string, timeout = '10000') {
     `/group/${encodeURIComponent(tag)}/delay?${params}`,
     undefined,
     latencyRequestTimeout(timeout),
+    { keepsRunningAfterTimeout: true },
   );
 }
 
@@ -1283,8 +1320,7 @@ function buildProxyGroupOutbounds(
     (item) => item.runtimeTag,
   );
   const proxyByCode = getProxyEntryByCode(proxies);
-  const selectorTag = getOutboundTagBySection(sectionDisplayName);
-  const selector = proxyByCode.get(selectorTag);
+  const selector = proxyByCode.get(sectionDisplayName);
   const selectorCodes = selector?.value?.all ?? [];
   // The runtime tag of a group is its name, and a second group of the same name
   // gets a " #2" suffix from the generator. A configured group the runtime does
@@ -1644,6 +1680,9 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
         displayName,
         action: sectionAction,
         latencyTestCode,
+        latencyTestTimeout: groupLatencyTestTimeout(
+          selector?.value?.all?.length ?? outbounds.length,
+        ),
         proxyConfigType,
         subscriptionSourceCount,
         subscriptionProviderTags: subscriptionTags.map(
@@ -1656,8 +1695,7 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
     }
 
     if (sectionAction === 'vpn') {
-      const outboundTag = getOutboundTagBySection(displayName);
-      const outbound = proxies.find((proxy) => proxy.code === outboundTag);
+      const outbound = proxies.find((proxy) => proxy.code === displayName);
 
       return {
         withTagSelect: false,
@@ -1681,8 +1719,7 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
     }
 
     if (sectionAction === 'outbound') {
-      const outboundTag = getOutboundTagBySection(displayName);
-      const outbound = proxies.find((proxy) => proxy.code === outboundTag);
+      const outbound = proxies.find((proxy) => proxy.code === displayName);
 
       return {
         withTagSelect: false,

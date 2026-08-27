@@ -38,12 +38,29 @@ function renderCheckSummary(items: IRenderCheckSectionProps['items']) {
       return iconWrap;
     }
 
+    // The key and its value share one cell beside the icon, so they can wrap
+    // against each other: a key too long to leave the value room drops it onto
+    // the next line instead of squeezing it into what is left.
     return E(
       'div',
       {
         class: `fkp_diagnostic_alert__summary__item fkp_diagnostic_alert__summary__item--${item.state}`,
       },
-      [getIcon(), E('b', {}, item.key), E('div', {}, item.value)],
+      [
+        getIcon(),
+        E('div', { class: 'fkp_diagnostic_alert__summary__item__body' }, [
+          E(
+            'b',
+            { class: 'fkp_diagnostic_alert__summary__item__key' },
+            item.key,
+          ),
+          E(
+            'div',
+            { class: 'fkp_diagnostic_alert__summary__item__value' },
+            item.value,
+          ),
+        ]),
+      ],
     );
   });
 

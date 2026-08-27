@@ -69,10 +69,11 @@ export async function runSectionsCheck() {
         const isSubscription = section.proxyConfigType === 'subscription';
 
         if (selectedOutbound?.code) {
+          // The section's timeout is the budget for sweeping its whole group;
+          // one node gets the ordinary single test budget instead.
           const latencyProxy =
             await CustomForkopMethods.getClashApiProxyLatency(
               selectedOutbound.code,
-              section.latencyTestTimeout,
             );
           const proxySuccess =
             latencyProxy.success && !latencyProxy.data.message;

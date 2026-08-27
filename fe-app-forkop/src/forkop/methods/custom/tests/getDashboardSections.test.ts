@@ -33,7 +33,9 @@ import {
   getClashApiConnections,
   getClashApiConnectionsSummary,
   getDashboardSections,
+  getClashApiGroupLatency,
   getClashApiProxyLink,
+  groupLatencyTestTimeout,
   resetClashApiTransport,
   setClashApiGroupProxy,
   updateClashApiProxyProviders,
@@ -736,6 +738,25 @@ describe('getDashboardSections', () => {
     expect(mocks.clashHttp).toHaveBeenCalledWith('GET', '/connections', '');
   });
 
+  // The sweep a latency test starts keeps running on the router after the
+  // browser stops waiting for it, so asking again through the CLI transport
+  // would leave two sweeps competing for the same ten test slots.
+  it('does not repeat a latency test that ran out of time', async () => {
+    await primeClashApi();
+
+    mocks.canUseDirectClashApi.mockReturnValue(true);
+    vi.stubGlobal('fetch', neverAnsweringFetch());
+    vi.useFakeTimers();
+
+    const pending = getClashApiGroupLatency('Office', '10000');
+    await vi.advanceTimersByTimeAsync(60000);
+    const result = await pending;
+    vi.useRealTimers();
+
+    expect(result.success).toBe(false);
+    expect(mocks.clashHttp).not.toHaveBeenCalled();
+  });
+
   it('stops asking the controller directly once a direct request fails', async () => {
     await primeClashApi();
 
@@ -926,6 +947,30 @@ describe('getDashboardSections', () => {
     expect(mocks.clashHttp).not.toHaveBeenCalled();
   });
 
+  it('gives a section a test budget its whole group fits in', async () => {
+    const links = Array.from(
+      { length: 30 },
+      (_, index) => `vless://node@example.com:443#Node${index}`,
+    );
+    const members = links.map((_, index) => `Office/Node${index}`);
+    mocks.getConfigSections.mockResolvedValue([
+      section({ selector_proxy_links: links }),
+    ]);
+    setClashProxies({
+      Office: proxy('Selector', {
+        name: 'Office',
+        all: members,
+        now: members[0],
+      }),
+      ...Object.fromEntries(members.map((tag) => [tag, proxy('VLESS')])),
+    });
+
+    const { data } = await getDashboardSections();
+
+    expect(data[0].outbounds).toHaveLength(members.length);
+    expect(data[0].latencyTestTimeout).toBe('15000');
+  });
+
   it('surfaces a narrowed summary failure instead of an empty widget', async () => {
     await primeClashApi();
 
@@ -939,5 +984,17 @@ describe('getDashboardSections', () => {
       success: false,
       error: 'Failed to execute',
     });
+  });
+});
+
+// The budget of a group test has to cover the members that never answer: each
+// costs its own five second ceiling and the router tests ten at a time, so a
+// section needs about half a second per member to be swept in one press.
+describe('groupLatencyTestTimeout', () => {
+  it('scales with the size of the group between a floor and a ceiling', () => {
+    expect(groupLatencyTestTimeout(0)).toBe('10000');
+    expect(groupLatencyTestTimeout(4)).toBe('10000');
+    expect(groupLatencyTestTimeout(55)).toBe('27500');
+    expect(groupLatencyTestTimeout(500)).toBe('40000');
   });
 });

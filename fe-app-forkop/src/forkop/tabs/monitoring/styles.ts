@@ -2,22 +2,24 @@
 import { FORKOP_UCI_PACKAGE as FORKOP_CBI_PREFIX } from '../../../constants';
 
 export const styles = `
+/* The page takes the width of the content column, which it cannot do on its own.
+   The tab is one DummyValue, and LuCI hands its value to the theme inside an
+   <output>; the theme lays a .cbi-value out as a flex row, so that <output> is a
+   flex item and the page inside it is as wide as its own content. It came out
+   651px wide in a 940px column while the connections were still loading, and
+   288px wide at any window of 520px or less, where the tab's own narrow-screen
+   rules stack the controls and the table has become cards, so nothing inside
+   asks for width any more. Where it did fill the column it was the table's
+   min-width doing it rather than the layout.
+
+   The rules that used to stand here addressed .cbi-value-title, .cbi-value-field
+   and a child div. A DummyValue has none of those children, so all three matched
+   nothing; a block mount node is what the page needs, and its own width: 100%
+   resolves against it. */
 #cbi-${FORKOP_CBI_PREFIX}-monitoring-_mount_node {
+    display: block;
     margin: 16px 0 22px;
     padding: 0;
-}
-
-#cbi-${FORKOP_CBI_PREFIX}-monitoring-_mount_node > .cbi-value-title {
-    display: none;
-}
-
-#cbi-${FORKOP_CBI_PREFIX}-monitoring-_mount_node > .cbi-value-field {
-    margin-left: 0;
-    width: 100%;
-}
-
-#cbi-${FORKOP_CBI_PREFIX}-monitoring-_mount_node > div {
-    width: 100%;
 }
 
 #cbi-${FORKOP_CBI_PREFIX}-monitoring > h3 {

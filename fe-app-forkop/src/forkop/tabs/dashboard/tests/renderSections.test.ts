@@ -1090,3 +1090,167 @@ describe('renderSections rule-set action', () => {
     expect(ruleSetIndex).toBeLessThan(latencyIndex);
   });
 });
+
+describe('renderSections collapse action', () => {
+  const section = {
+    code: 'proxy-out',
+    sectionName: 'main',
+    displayName: 'Main',
+    withTagSelect: true,
+    outbounds: [
+      {
+        code: 'main/Node',
+        displayName: 'Node',
+        latency: 42,
+        type: 'VLESS',
+        selected: true,
+      },
+      {
+        code: 'main/Other',
+        displayName: 'Other',
+        latency: 84,
+        type: 'VLESS',
+        selected: false,
+      },
+    ],
+    subscriptionMetadata: [
+      {
+        title: 'Subscription',
+        traffic: { used: 1024, total: 2048, isUnlimited: false },
+      },
+    ],
+  } as Forkop.OutboundGroup;
+
+  async function render(
+    props: {
+      collapsible?: boolean;
+      collapsed?: boolean;
+      onCollapsedChange?: (sectionName: string, collapsed: boolean) => void;
+    } = {},
+  ) {
+    installElementFactory();
+    const { renderSections } = await import('../partials/renderSections');
+    return renderSections({
+      loading: false,
+      failed: false,
+      section,
+      onTestLatency: vi.fn(),
+      onTestOutboundLatency: vi.fn(),
+      onChooseOutbound: vi.fn(),
+      onCopyOutbound: vi.fn(),
+      onShowUrlTestInfo: vi.fn(),
+      onShowFallbackInfo: vi.fn(),
+      onUpdateSubscription: vi.fn(),
+      onUpdateRuleSets: vi.fn(),
+      latencyFetching: false,
+      subscriptionUpdating: false,
+      ruleSetUpdating: false,
+      ...props,
+    }) as unknown as FakeNode;
+  }
+
+  const findCollapseButton = (root: FakeNode) =>
+    findNode(
+      root,
+      (node) =>
+        node.type === 'button' &&
+        String(node.attrs.class || '')
+          .split(' ')
+          .includes('fkp_dashboard-page__outbound-section__collapse'),
+    );
+
+  const actionClasses = (root: FakeNode) =>
+    (
+      findNode(root, (node) =>
+        String(node.attrs.class || '').includes(
+          'fkp_dashboard-page__outbound-section__title-section__actions',
+        ),
+      )?.children || []
+    )
+      .filter((child): child is FakeNode => typeof child !== 'string')
+      .map((child) => String(child.attrs.class || ''));
+
+  it('stays out of a dashboard showing a single section', async () => {
+    expect(findCollapseButton(await render())).toBeUndefined();
+    expect(
+      findCollapseButton(await render({ collapsible: false })),
+    ).toBeUndefined();
+  });
+
+  it('opens the action row when another section shares the page', async () => {
+    const root = await render({ collapsible: true });
+    const button = findCollapseButton(root);
+
+    expect(button).toBeDefined();
+    expect(button?.attrs.title).toBe('Collapse section');
+    expect(button?.attrs['aria-label']).toBe('Collapse section');
+    expect(button?.attrs['aria-expanded']).toBe('true');
+    expect(actionClasses(root)[0]).toContain(
+      'fkp_dashboard-page__outbound-section__collapse',
+    );
+  });
+
+  it('reports the state the click asks for', async () => {
+    const onCollapsedChange = vi.fn();
+    const event = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+    } as unknown as MouseEvent;
+    const expanded = await render({ collapsible: true, onCollapsedChange });
+
+    (findCollapseButton(expanded)?.attrs.click as (event: MouseEvent) => void)(
+      event,
+    );
+    expect(onCollapsedChange).toHaveBeenCalledWith('main', true);
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(event.stopPropagation).toHaveBeenCalledOnce();
+
+    const collapsed = await render({
+      collapsible: true,
+      collapsed: true,
+      onCollapsedChange,
+    });
+    const collapsedButton = findCollapseButton(collapsed);
+
+    expect(collapsedButton?.attrs.title).toBe('Expand section');
+    expect(collapsedButton?.attrs['aria-expanded']).toBe('false');
+    expect(String(collapsedButton?.attrs.class)).toContain(
+      'fkp_dashboard-page__outbound-section__collapse--collapsed',
+    );
+    (collapsedButton?.attrs.click as (event: MouseEvent) => void)(event);
+    expect(onCollapsedChange).toHaveBeenLastCalledWith('main', false);
+  });
+
+  it('folds away every card and subscription block, keeping the title row', async () => {
+    const expanded = await render({ collapsible: true });
+    const collapsed = await render({ collapsible: true, collapsed: true });
+    const count = (root: FakeNode, className: string) =>
+      findNodes(root, (node) =>
+        String(node.attrs.class || '')
+          .split(' ')
+          .includes(className),
+      ).length;
+
+    expect(count(expanded, 'fkp_dashboard-page__outbound-grid')).toBe(1);
+    expect(count(expanded, 'fkp_dashboard-page__outbound-grid__item')).toBe(2);
+    expect(count(expanded, 'fkp_dashboard-page__subscription-meta')).toBe(1);
+
+    expect(count(collapsed, 'fkp_dashboard-page__outbound-grid')).toBe(0);
+    expect(count(collapsed, 'fkp_dashboard-page__outbound-grid__item')).toBe(0);
+    expect(count(collapsed, 'fkp_dashboard-page__subscription-meta')).toBe(0);
+    expect(
+      findNode(collapsed, (node) =>
+        String(node.attrs.class || '').includes(
+          'fkp_dashboard-page__outbound-section__title-section__title',
+        ),
+      )?.children[0],
+    ).toBe('Main');
+    expect(
+      findNode(collapsed, (node) =>
+        String(node.attrs.class || '').includes(
+          'dashboard-sections-grid-item-test-latency',
+        ),
+      ),
+    ).toBeDefined();
+  });
+});

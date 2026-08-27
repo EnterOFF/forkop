@@ -6,6 +6,7 @@ import { LogsTab } from './forkop/tabs/logs';
 import { UpdatesTab } from './forkop/tabs/updates';
 import { PartialStyles } from './partials';
 import { FORKOP_UCI_PACKAGE as FORKOP_CBI_PREFIX } from './constants';
+import { SPIN_PERIOD_MS } from './helpers/spinPhase';
 
 export const GlobalStyles = `
 ${DashboardTab.styles}
@@ -86,9 +87,11 @@ ${PartialStyles}
     justify-content: center;
 }
 
-/* Rotate class helper */
+/* Rotate class helper. Each spinner is handed an animation-delay that places it
+   in this turn - see helpers/spinPhase.ts - so the period has to stay the one
+   that delay is a fraction of. */
 .rotate {
-    animation: spin 1s linear infinite;
+    animation: spin ${SPIN_PERIOD_MS}ms linear infinite;
 }
 
 @keyframes spin {

@@ -426,7 +426,7 @@ describe('a Tailscale tunnel', () => {
       "'tailscale_detour_enabled'",
       "'tailscale_detour_section'",
       "_('Coordination server through a section')",
-      'getOutboundTagBySection',
+      'tailscaleDetourTag',
     ]);
   });
 });

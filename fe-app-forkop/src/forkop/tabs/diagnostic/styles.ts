@@ -3,10 +3,6 @@ import { FORKOP_UCI_PACKAGE as FORKOP_CBI_PREFIX } from '../../../constants';
 
 export const styles = `
 
-#cbi-${FORKOP_CBI_PREFIX}-diagnostic-_mount_node > div {
-    width: 100%;
-}
-
 #cbi-${FORKOP_CBI_PREFIX}-diagnostic > h3 {
     display: none;
 }
@@ -16,17 +12,16 @@ export const styles = `
        lone fr track collapses onto its own content instead of taking the rest of
        the row: the checks would end up as narrow as the word inside them. Two
        fractions size each other, which is what this column pair has always done.
-       The controls carry the floor instead, see below. */
+       The controls carry the floor instead, see below.
+
+       The checks take a zero minimum so the page's width stays theirs to read
+       rather than theirs to set: an fr track is otherwise at least as wide as
+       the longest unbreakable thing in it, and a summary value with nothing to
+       break at would widen the track, the page, and the split with it. */
     display: grid;
-    grid-template-columns: 1fr 2fr;
+    grid-template-columns: 1fr minmax(0, 2fr);
     grid-column-gap: 10px;
     align-items: start;
-}
-
-@media (max-width: 800px) {
-    .fkp_diagnostic-page {
-        grid-template-columns: 1fr;
-    }
 }
 
 .fkp_diagnostic-page__controls {
@@ -134,12 +129,43 @@ export const styles = `
     grid-row-gap: 10px;
 }
 
+/* Where the pair stops being worth keeping. The controls hold their 17rem
+   whatever the window does, so a narrower page comes out of the checks beside
+   them: 473px at a 780px window, 348px at 640px, and under about 19rem they are
+   better off with the whole width than with a column of their own. The stack
+   used to arrive at 800px, where the checks were still 493px wide.
+
+   Stacked, the page also has to take the width it is given instead of sizing
+   itself. Its box is a flex item - the value of a DummyValue reaches the theme
+   inside an <output>, and the theme lays a .cbi-value out as a flex row - so
+   left alone it settles on its own content: 444px of checks hugging the left
+   edge of a 774px column, which is the whole of what this looked like before.
+   A block mount node and a full-width page is what the Dashboard tab does for
+   the same reason. */
+@media (max-width: 620px) {
+    #cbi-${FORKOP_CBI_PREFIX}-diagnostic-_mount_node {
+        display: block;
+    }
+
+    .fkp_diagnostic-page {
+        width: 100%;
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* The floor exists so a column can be measured against it, and there is no
+       column left to measure: the page is as wide as it is given. On a 320px
+       screen the floor is wider than that. */
+    .fkp_diagnostic-page__controls {
+        min-width: 0;
+    }
+}
+
 .fkp_diagnostic_alert {
     border: 2px var(--background-color-low, lightgray) solid;
     border-radius: 4px;
 
     display: grid;
-    grid-template-columns: 24px 1fr;
+    grid-template-columns: 24px minmax(0, 1fr);
     grid-column-gap: 10px;
     align-items: center;
     padding: 10px;
@@ -182,8 +208,38 @@ export const styles = `
 
 .fkp_diagnostic_alert__summary__item {
     display: grid;
-    grid-template-columns: 16px auto 1fr;
+    grid-template-columns: 16px minmax(0, 1fr);
     grid-column-gap: 10px;
+}
+
+/* A key and the value it labels, side by side while both fit and stacked when
+   they stop fitting. The key used to have a column of its own, sized to the
+   whole of it, and the value took what was left: "Server #1: Публичный адрес"
+   measures 183px, so against the 209px row of a 640px window it left 26px for
+   the address - three characters to a line, three lines tall.
+
+   Whether a row needs the break depends on how long its own key is, so each row
+   decides for itself instead of every row breaking at one width of the window:
+   the value keeps 8rem beside its key, and below that drops under it with the
+   full width of the row. */
+.fkp_diagnostic_alert__summary__item__body {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 10px;
+}
+
+/* Neither cell may be wider than what it was given. A key or a value with
+   nothing to break at - an address list, a version, a server name - would
+   otherwise be the width of the row it sits in. */
+.fkp_diagnostic_alert__summary__item__key {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.fkp_diagnostic_alert__summary__item__value {
+    flex: 1 1 8rem;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .fkp_diagnostic_alert__summary__item--error {

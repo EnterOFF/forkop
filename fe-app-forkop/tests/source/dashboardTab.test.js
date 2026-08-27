@@ -85,3 +85,13 @@ describe('the tab', () => {
     expect(controller).toContain(expected);
   });
 });
+
+// Which sections may be folded is a property of the page, not of one section:
+// the control earns its place only once there is another section behind the one
+// being folded away.
+describe('the collapse control', () => {
+  it('is offered only when the page shows more than one section', () => {
+    expect(controller).toContain('sectionsWidget.data.length > 1');
+    expect(controller).toContain('collapsed: collapsedSections.has(');
+  });
+});
