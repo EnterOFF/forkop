@@ -471,8 +471,8 @@ function nft_populate_runtime_sets() {
     ]);
 }
 
-function singbox_init_config() {
-    return module_status(SINGBOX_UC, [ "init-config", "1", "0" ]);
+function singbox_init_config(populate_nft_sets) {
+    return module_status(SINGBOX_UC, [ "init-config", populate_nft_sets ? "1" : "0", "0" ]);
 }
 
 // A live reload only refills the nft runtime sets when the rules were rebuilt;
@@ -531,15 +531,11 @@ function start_main() {
 
     module_success(STATE_UC, [ "sync-time-if-needed" ]);
 
-    status = nft_rebuild_runtime();
-    if (status != 0)
-        return status;
-
     status = module_status(SINGBOX_UC, [ "configure-service" ]);
     if (status != 0)
         return status;
 
-    status = singbox_init_config();
+    status = singbox_init_config(false);
     if (status != 0)
         return status;
 
@@ -557,15 +553,33 @@ function start_main() {
     }
 
     status = module_status(STATE_UC, [
-        "wait-forkop-ready",
-        RT_TABLE_NAME,
-        NFT_TABLE_NAME,
-        NFT_FAKEIP_MARK,
+        "wait-sing-box-ready",
         as_string(START_READY_WINDOW),
         as_string(READY_HOLD)
     ]);
     if (status != 0) {
         log_message("sing-box did not reach a stable running state after start. Aborted.", "fatal");
+        return status;
+    }
+
+    status = nft_rebuild_runtime();
+    if (status != 0)
+        return status;
+
+    status = nft_populate_runtime_sets();
+    if (status != 0)
+        return status;
+
+    status = module_status(STATE_UC, [
+        "wait-forkop-ready",
+        RT_TABLE_NAME,
+        NFT_TABLE_NAME,
+        NFT_FAKEIP_MARK,
+        "0",
+        "0"
+    ]);
+    if (status != 0) {
+        log_message("Forkop runtime was not ready after nftables activation. Aborted.", "fatal");
         return status;
     }
 
@@ -608,26 +622,57 @@ function start_impl() {
     return 0;
 }
 
-function stop_main() {
+function cleanup_network_runtime() {
+    let status = 0;
+
+    if (nft_state.table_present(NFT_TABLE_NAME) &&
+        (!command_success_from_args([ "nft", "delete", "table", "inet", NFT_TABLE_NAME ]) ||
+            nft_state.table_present(NFT_TABLE_NAME))) {
+        log_message("Failed to remove the Forkop nftables table", "error");
+        status = 1;
+    }
+
+    if (nft_state.tproxy_marking_rule4_present(RT_TABLE_NAME, NFT_FAKEIP_MARK) &&
+        (!command_success_from_args([ IP_BIN, "-4", "rule", "del", "fwmark", NFT_FAKEIP_MARK + "/" + NFT_FAKEIP_MARK, "table", RT_TABLE_NAME, "priority", "105" ]) ||
+            nft_state.tproxy_marking_rule4_present(RT_TABLE_NAME, NFT_FAKEIP_MARK))) {
+        log_message("Failed to remove the Forkop IPv4 routing rule", "error");
+        status = 1;
+    }
+    if (nft_state.tproxy_marking_rule6_present(RT_TABLE_NAME, NFT_FAKEIP_MARK) &&
+        (!command_success_from_args([ IP_BIN, "-6", "rule", "del", "fwmark", NFT_FAKEIP_MARK + "/" + NFT_FAKEIP_MARK, "table", RT_TABLE_NAME, "priority", "105" ]) ||
+            nft_state.tproxy_marking_rule6_present(RT_TABLE_NAME, NFT_FAKEIP_MARK))) {
+        log_message("Failed to remove the Forkop IPv6 routing rule", "error");
+        status = 1;
+    }
+
+    if (nft_state.tproxy_route4_present(RT_TABLE_NAME) &&
+        (!command_success_from_args([ IP_BIN, "route", "flush", "table", RT_TABLE_NAME ]) ||
+            nft_state.tproxy_route4_present(RT_TABLE_NAME))) {
+        log_message("Failed to flush the Forkop IPv4 routing table", "error");
+        status = 1;
+    }
+    if (nft_state.tproxy_route6_present(RT_TABLE_NAME) &&
+        (!command_success_from_args([ IP_BIN, "-6", "route", "flush", "table", RT_TABLE_NAME ]) ||
+            nft_state.tproxy_route6_present(RT_TABLE_NAME))) {
+        log_message("Failed to flush the Forkop IPv6 routing table", "error");
+        status = 1;
+    }
+
+    return status;
+}
+
+function stop_main(preserve_singbox_watcher) {
     let status = 0;
 
     log_message("Stopping Forkop", "info");
-    module_success(SINGBOX_WATCH_UC, [ "stop-worker" ]);
+    if (!preserve_singbox_watcher)
+        module_success(SINGBOX_WATCH_UC, [ "stop-worker" ]);
     module_success(RULESET_SYNC_UC, [ "stop-worker" ]);
     remove_cron_jobs();
 
-    if (command_success_from_args([ "nft", "-t", "list", "table", "inet", NFT_TABLE_NAME ]))
-        command_success_from_args([ "nft", "delete", "table", "inet", NFT_TABLE_NAME ]);
-
-    if (nft_state.tproxy_marking_rule4_present(RT_TABLE_NAME, NFT_FAKEIP_MARK))
-        command_success_from_args([ IP_BIN, "-4", "rule", "del", "fwmark", NFT_FAKEIP_MARK + "/" + NFT_FAKEIP_MARK, "table", RT_TABLE_NAME, "priority", "105" ]);
-    if (nft_state.tproxy_marking_rule6_present(RT_TABLE_NAME, NFT_FAKEIP_MARK))
-        command_success_from_args([ IP_BIN, "-6", "rule", "del", "fwmark", NFT_FAKEIP_MARK + "/" + NFT_FAKEIP_MARK, "table", RT_TABLE_NAME, "priority", "105" ]);
-
-    if (nft_state.tproxy_route4_present(RT_TABLE_NAME))
-        command_success_from_args([ IP_BIN, "route", "flush", "table", RT_TABLE_NAME ]);
-    if (nft_state.tproxy_route6_present(RT_TABLE_NAME))
-        command_success_from_args([ IP_BIN, "-6", "route", "flush", "table", RT_TABLE_NAME ]);
+    let network_status = cleanup_network_runtime();
+    if (network_status != 0)
+        status = network_status;
 
     let sing_box_status = stop_sing_box_service();
     if (sing_box_status != 0)
@@ -641,14 +686,14 @@ function stop_main() {
     return status;
 }
 
-function cleanup_failed_runtime() {
+function cleanup_failed_runtime(preserve_singbox_watcher) {
     let status = 0;
 
     module_success(SERVER_UC, [ "sync-firewall", "clear" ]);
 
     log_message("Cleaning up Forkop runtime after failed start/reload", "info");
 
-    let stop_status = stop_main();
+    let stop_status = stop_main(preserve_singbox_watcher);
     if (stop_status != 0)
         status = stop_status;
 
@@ -680,7 +725,9 @@ function cleanup_crashed_sing_box(exit_code) {
         return 0;
     }
     log_message("sing-box stopped after repeated crashes" + suffix, "fatal");
-    let status = cleanup_failed_runtime();
+    let status = cleanup_failed_runtime(true);
+    if (status == 0 && !module_success(SINGBOX_WATCH_UC, [ "stop-worker" ]))
+        status = 1;
     module_success(STATE_UC, [ "release-runtime-dir-lock", START_LOCK_DIR, pid ]);
     return status;
 }
@@ -1158,6 +1205,8 @@ else if (mode == "sing-box-planned-stop-guard-fixture") {
     else if (action == "check")
         status = sing_box_planned_stop() ? 0 : 1;
 }
+else if (mode == "network-cleanup-fixture")
+    status = cleanup_network_runtime();
 else if (mode == "sing-box-stop-service-fixture")
     status = stop_sing_box_service();
 else if (mode == "log-message-fixture") {

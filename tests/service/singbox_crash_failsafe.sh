@@ -35,9 +35,13 @@ fi
 [ "$(ucode -L "$FORKOP_LIB" "$WATCH" event-key-fixture "$WORK_DIR/sing-box-fail.json")" != \
   "$(ucode -L "$FORKOP_LIB" "$WATCH" event-key-fixture "$WORK_DIR/sing-box-fail-next.json")" ] ||
   fail "separate sing-box crash loops must not be deduplicated"
-if grep -Fq 'uloop.end()' "$WATCH"; then
-  fail "sing-box crash watcher must remain subscribed after handling a failure"
+if grep -Fq '1000>&- &' "$WATCH"; then
+  fail "sing-box crash cleanup must not be an unsupervised background process"
 fi
+grep -Fq 'uloop.end();' "$WATCH" ||
+  fail "failed sing-box crash cleanup must restart its procd-supervised watcher"
+grep -Fq 'pending_exit_code != null && !cleanup_runtime(pending_exit_code)' "$WATCH" ||
+  fail "a respawned watcher must reconcile a crash cleanup missed by its previous process"
 grep -Fq 'event_key == last_event_key' "$WATCH" ||
   fail "duplicate sing-box failure notifications must be deduplicated"
 grep -Fq 'connection.subscriber(function(notification)' "$WATCH" ||
@@ -50,6 +54,65 @@ fi
 grep -Fq 'log_message("sing-box stopped after repeated crashes" + suffix, "fatal")' \
   "$FORKOP_LIB/service/lifecycle.uc" ||
   fail "repeated sing-box crashes must be reported as a concise fatal error"
+
+cat >"$WORK_DIR/cleanup-bin" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"${FORKOP_TEST_CLEANUP_LOG:?}"
+[ -z "${FORKOP_TEST_CLEANUP_FAIL:-}" ]
+SH
+chmod 0755 "$WORK_DIR/cleanup-bin"
+: >"$WORK_DIR/cleanup.log"
+if FORKOP_BIN="$WORK_DIR/cleanup-bin" \
+  FORKOP_TEST_CLEANUP_LOG="$WORK_DIR/cleanup.log" \
+  FORKOP_TEST_CLEANUP_FAIL=1 \
+  ucode -L "$FORKOP_LIB" "$WATCH" cleanup-runtime-fixture 137; then
+  fail "watcher cleanup command failure must be observable"
+fi
+FORKOP_BIN="$WORK_DIR/cleanup-bin" \
+FORKOP_TEST_CLEANUP_LOG="$WORK_DIR/cleanup.log" \
+  ucode -L "$FORKOP_LIB" "$WATCH" cleanup-runtime-fixture 137 ||
+  fail "watcher cleanup command success must be observable"
+grep -Fxq 'sing_box_crash_cleanup 137' "$WORK_DIR/cleanup.log" ||
+  fail "watcher must invoke the complete Forkop crash cleanup"
+
+mkdir -p "$WORK_DIR/network-bin"
+cat >"$WORK_DIR/network-bin/nft" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"${FORKOP_TEST_NFT_LOG:?}"
+case "$*" in
+  "-t list table inet CrashTable") [ -e "${FORKOP_TEST_NFT_TABLE_STATE:?}" ] ;;
+  "delete table inet CrashTable")
+    [ -z "${FORKOP_TEST_NFT_DELETE_FAIL:-}" ] || exit 1
+    rm -f "${FORKOP_TEST_NFT_TABLE_STATE:?}"
+    ;;
+  *) exit 1 ;;
+esac
+SH
+cat >"$WORK_DIR/network-bin/ip-full" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+chmod 0755 "$WORK_DIR/network-bin/nft" "$WORK_DIR/network-bin/ip-full"
+: >"$WORK_DIR/nft.log"
+network_cleanup() {
+  PATH="$WORK_DIR/network-bin:$PATH" \
+  FORKOP_IP_BIN="$WORK_DIR/network-bin/ip-full" \
+  FORKOP_TEST_NFT_LOG="$WORK_DIR/nft.log" \
+  FORKOP_TEST_NFT_TABLE_STATE="$WORK_DIR/nft-table" \
+  NFT_TABLE_NAME=CrashTable \
+  RT_TABLE_NAME=crash_route \
+  NFT_FAKEIP_MARK=0x00100000 \
+    ucode -L "$FORKOP_LIB" "$LIFECYCLE" network-cleanup-fixture
+}
+touch "$WORK_DIR/nft-table"
+if FORKOP_TEST_NFT_DELETE_FAIL=1 network_cleanup >/dev/null 2>&1; then
+  fail "runtime cleanup must fail when the DNS redirect table cannot be deleted"
+fi
+[ -e "$WORK_DIR/nft-table" ] ||
+  fail "the failed nft delete fixture must leave the runtime table present"
+network_cleanup || fail "runtime cleanup must succeed when the nft table is deleted"
+[ ! -e "$WORK_DIR/nft-table" ] ||
+  fail "successful runtime cleanup must remove the DNS redirect table"
 
 printf 'ucode\0-L\0%s\0%s\0monitor\0' "$FORKOP_LIB" "$WATCH" >"$WORK_DIR/worker.cmdline"
 FORKOP_LIB="$FORKOP_LIB" FORKOP_SING_BOX_WATCH_UC="$WATCH" \
@@ -102,7 +165,7 @@ case "$payload" in
   *) fail "sing-box watcher must be registered as a respawning procd service" ;;
 esac
 case "$payload" in
-  *'"env": {'*'"FORKOP_SING_BOX_WATCH_UC"'*) ;;
+  *'"env": {'*'"FORKOP_SING_BOX_WATCH_UC"'*'"FORKOP_SING_BOX_PENDING_CLEANUP_FILE"'*) ;;
   *) fail "procd watcher must retain the lifecycle paths it needs after respawn" ;;
 esac
 

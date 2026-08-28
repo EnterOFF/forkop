@@ -9,6 +9,7 @@ const SCRIPT_PATH = getenv("FORKOP_SING_BOX_WATCH_UC") || LIB_DIR + "/service/si
 const UBUS_BIN = getenv("FORKOP_UBUS_BIN") || "ubus";
 const PROCD_SERVICE_NAME = getenv("FORKOP_SING_BOX_WATCH_SERVICE_NAME") || "forkop-singbox-watch";
 const PLANNED_STOP_FILE = getenv("FORKOP_SING_BOX_PLANNED_STOP_FILE") || "/var/run/forkop/sing-box-watch.planned-stop";
+const PENDING_CLEANUP_FILE = getenv("FORKOP_SING_BOX_PENDING_CLEANUP_FILE") || "/var/run/forkop/sing-box-watch.cleanup";
 
 function as_string(value) {
     return value == null ? "" : "" + value;
@@ -102,6 +103,22 @@ function cleanup_event_key(event) {
     ]);
 }
 
+function cleanup_runtime(exit_code) {
+    return command_success([ BIN_PATH, "sing_box_crash_cleanup", as_string(exit_code) ]);
+}
+
+function pending_cleanup_exit_code() {
+    if (fs.stat(PENDING_CLEANUP_FILE) == null)
+        return null;
+    return trim(as_string(fs.readfile(PENDING_CLEANUP_FILE) || ""));
+}
+
+function mark_pending_cleanup(exit_code) {
+    command_success([ "mkdir", "-p", parent_dir(PENDING_CLEANUP_FILE) ]);
+    let written = fs.writefile(PENDING_CLEANUP_FILE, as_string(exit_code) + "\n");
+    return written != null && written !== false;
+}
+
 function clear_pid_file(pid) {
     if (trim(as_string(fs.readfile(PID_FILE) || "")) == as_string(pid))
         fs.unlink(PID_FILE);
@@ -116,7 +133,8 @@ function procd_service_payload() {
             FORKOP_BIN: BIN_PATH,
             FORKOP_SING_BOX_WATCH_PID_FILE: PID_FILE,
             FORKOP_SING_BOX_WATCH_UC: SCRIPT_PATH,
-            FORKOP_SING_BOX_PLANNED_STOP_FILE: PLANNED_STOP_FILE
+            FORKOP_SING_BOX_PLANNED_STOP_FILE: PLANNED_STOP_FILE,
+            FORKOP_SING_BOX_PENDING_CLEANUP_FILE: PENDING_CLEANUP_FILE
         },
         respawn: [ "3600", "5", "0" ],
         stderr: true
@@ -158,6 +176,7 @@ function monitor() {
     command_success([ "mkdir", "-p", parent_dir(PID_FILE) ]);
     uloop.init();
     let connection = ubus.connect();
+    let status = 0;
     if (connection == null) {
         clear_pid_file(pid);
         return 1;
@@ -177,10 +196,10 @@ function monitor() {
         last_event_key = event_key;
 
         let exit_code = as_string(object_or_empty(event.data).exit_code);
-        system(
-            command_from_args([ BIN_PATH, "sing_box_crash_cleanup", exit_code ]) +
-            " >/dev/null 2>&1 1000>&- &"
-        );
+        if (!mark_pending_cleanup(exit_code) || !cleanup_runtime(exit_code)) {
+            status = 1;
+            uloop.end();
+        }
     }, function(id) {});
     if (subscriber == null || !subscriber.subscribe("service")) {
         clear_pid_file(pid);
@@ -189,9 +208,15 @@ function monitor() {
     if (!fs.writefile(PID_FILE, pid + "\n"))
         return 1;
 
+    let pending_exit_code = pending_cleanup_exit_code();
+    if (pending_exit_code != null && !cleanup_runtime(pending_exit_code)) {
+        clear_pid_file(pid);
+        return 1;
+    }
+
     uloop.run();
     clear_pid_file(pid);
-    return 0;
+    return status;
 }
 
 function stop_worker() {
@@ -211,6 +236,7 @@ function stop_worker() {
             command_success([ "kill", "-KILL", pid ]);
     }
     fs.unlink(PID_FILE);
+    fs.unlink(PENDING_CLEANUP_FILE);
     return 0;
 }
 
@@ -240,6 +266,8 @@ if (mode == "failure-event-fixture") {
     }
     exit(should_cleanup(event) ? 0 : 1);
 }
+else if (mode == "cleanup-runtime-fixture")
+    exit(cleanup_runtime(ARGV[1]) ? 0 : 1);
 else if (mode == "start-worker")
     exit(start_worker());
 else if (mode == "stop-worker")
@@ -260,6 +288,6 @@ else if (mode == "worker-cmdline-fixture")
 else if (mode == "procd-service-payload-fixture")
     print(sprintf("%J", procd_service_payload()), "\n");
 else {
-    warn("Usage: service/singbox_watch.uc <start-worker|stop-worker|monitor|failure-event-fixture|event-key-fixture|worker-cmdline-fixture|procd-service-payload-fixture> ...\n");
+    warn("Usage: service/singbox_watch.uc <start-worker|stop-worker|monitor|failure-event-fixture|cleanup-runtime-fixture|event-key-fixture|worker-cmdline-fixture|procd-service-payload-fixture> ...\n");
     exit(1);
 }

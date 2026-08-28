@@ -157,6 +157,11 @@ start_window_line="$(awk -v start="$sing_box_start_line" 'NR > start && /START_R
   fail "service/lifecycle.uc must verify a ready runtime immediately after sing-box start"
 [ -n "$start_window_line" ] ||
   fail "service/lifecycle.uc must watch a fresh sing-box through the start window"
+start_main_body="$(sed -n '/^function start_main() {$/,/^}$/p' "$LIFECYCLE_UC")"
+case "$start_main_body" in
+  *'singbox_init_config(false);'*'SING_BOX_INIT, "start"'*'"wait-sing-box-ready"'*'nft_rebuild_runtime();'*'nft_populate_runtime_sets();'*'"wait-forkop-ready"'*) ;;
+  *) fail "startup must prove sing-box ready before nftables starts capturing client traffic" ;;
+esac
 if grep -Fq 'run-deferred-bootstrap' "$LIFECYCLE_UC"; then
   fail "service/lifecycle.uc must leave subscription bootstrap to native providers"
 fi

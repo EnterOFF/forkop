@@ -80,7 +80,7 @@ require_pattern 'function abort_reload(status, runtime_changed, reason)' \
   "reload failures must share one cleanup decision owner"
 require_pattern 'return abort_reload(status, true, ' \
   "reload failures after runtime mutation must clean the partial runtime"
-cleanup_function_line="$(grep -nF 'function cleanup_failed_runtime()' "$LIFECYCLE_UC" | head -n1 | cut -d: -f1)"
+cleanup_function_line="$(grep -nF 'function cleanup_failed_runtime(' "$LIFECYCLE_UC" | head -n1 | cut -d: -f1)"
 abort_function_line="$(grep -nF 'function abort_reload(status, runtime_changed, reason)' "$LIFECYCLE_UC" | head -n1 | cut -d: -f1)"
 [ -n "$cleanup_function_line" ] && [ -n "$abort_function_line" ] &&
   [ "$cleanup_function_line" -lt "$abort_function_line" ] ||
@@ -106,8 +106,8 @@ require_file_pattern "$SINGBOX_WATCH_UC" 'respawn: [ "3600", "5", "0" ]' \
 require_file_pattern "$SINGBOX_WATCH_UC" 'if (!procd_remove_worker())' \
   "sing-box crash watcher shutdown must verify that its procd service was unregistered"
 awk '
-  /function cleanup_failed_runtime\(\)/ { in_cleanup = 1 }
-  in_cleanup && /stop_main\(\);/ { saw_stop = 1 }
+  /function cleanup_failed_runtime\(/ { in_cleanup = 1 }
+  in_cleanup && /stop_main\(/ { saw_stop = 1 }
   in_cleanup && /if \(status == 0\)/ && saw_stop { ok = 1; exit }
   in_cleanup && /^}/ { exit }
   END { exit ok ? 0 : 1 }
@@ -120,7 +120,7 @@ grep -Fq 'cleanup_failed_runtime();' "$LIFECYCLE_UC" ||
   fail "service failure paths must use failed runtime cleanup"
 awk '
   /function cleanup_crashed_sing_box\(/ { in_cleanup = 1 }
-  in_cleanup && /cleanup_failed_runtime\(\)/ { ok = 1; exit }
+  in_cleanup && /cleanup_failed_runtime\(true\)/ { ok = 1; exit }
   in_cleanup && /^}/ { exit }
   END { exit ok ? 0 : 1 }
 ' "$LIFECYCLE_UC" ||

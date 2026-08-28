@@ -256,7 +256,7 @@ function reload_sing_box_runtime(config_hash_before, config_hash_after, force) {
     }
 }
 
-// The one readiness wait behind every lifecycle action, dated from the moment
+// The one readiness loop behind every lifecycle action, dated from the moment
 // it is called. A start and a live reload used to have a wait each, with a
 // different clock: the start's was dated from the sing-box process start, which
 // a live reload leaves alone - `/etc/init.d/sing-box reload` only signals the
@@ -284,9 +284,9 @@ function reload_sing_box_runtime(config_hash_before, config_hash_after, force) {
 // before it has forked anything - a start whose first look demanded a process
 // read the gap as a dead runtime and tore the start down a second after making
 // it. The window is what decides: no process by the end of it is a failed start.
-function wait_forkop_ready(rt_table, nft_table, mark, window, hold) {
-    window = int(window || 8);
-    hold = int(hold || 2);
+function wait_runtime_ready(rt_table, nft_table, mark, window, hold, require_network) {
+    window = window == null || as_string(window) == "" ? 8 : int(window);
+    hold = hold == null || as_string(hold) == "" ? 2 : int(hold);
 
     let pid = 0;
     let start_ticks = null;
@@ -306,9 +306,8 @@ function wait_forkop_ready(rt_table, nft_table, mark, window, hold) {
         else if (process_start_ticks(fs.readfile("/proc/" + pid + "/stat")) != start_ticks)
             return false;
 
-        if (pid > 0 &&
-            sing_box_runtime_ports_ready() &&
-            forkop_runtime_network_configured(rt_table, nft_table, mark))
+        if (pid > 0 && sing_box_runtime_ports_ready() &&
+            (!require_network || forkop_runtime_network_configured(rt_table, nft_table, mark)))
             held++;
         else
             held = 0;
@@ -324,6 +323,14 @@ function wait_forkop_ready(rt_table, nft_table, mark, window, hold) {
         command_success_from_args([ "sleep", "1" ]);
         waited++;
     }
+}
+
+function wait_sing_box_ready(window, hold) {
+    return wait_runtime_ready("", "", "", window, hold, false);
+}
+
+function wait_forkop_ready(rt_table, nft_table, mark, window, hold) {
+    return wait_runtime_ready(rt_table, nft_table, mark, window, hold, true);
 }
 
 function whitespace_fields(value) {
@@ -1036,6 +1043,8 @@ else if (mode == "process-age-seconds-fixture") {
 }
 else if (mode == "sing-box-runtime-reload-needed-fixture")
     exit(sing_box_runtime_reload_needed(ARGV[1], ARGV[2], ARGV[3]) ? 0 : 1);
+else if (mode == "wait-sing-box-ready")
+    exit(wait_sing_box_ready(ARGV[1], ARGV[2]) ? 0 : 1);
 else if (mode == "wait-forkop-ready")
     exit(wait_forkop_ready(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5]) ? 0 : 1);
 else if (mode == "service-trigger-signature")

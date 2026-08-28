@@ -212,6 +212,17 @@ if ! PATH="$WORK_DIR/stable-start-bin:$PATH" \
   wait "$sing_box_pid" 2>/dev/null || true
   fail "stable-start fixture must expose configured Forkop networking"
 fi
+rm -f "$WORK_DIR/sing-box-ready-nft.args"
+if ! PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
+  SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
+  FORKOP_PROC_NET_TCP="$WORK_DIR/proc-net-tcp.ready" \
+  FORKOP_TEST_NFT_TABLE_MISSING=1 \
+  FORKOP_TEST_NFT_ARGS_FILE="$WORK_DIR/sing-box-ready-nft.args" \
+  state_ucode wait-sing-box-ready 2 2; then
+  fail "sing-box readiness must be provable before nftables traffic capture is enabled"
+fi
+[ ! -e "$WORK_DIR/sing-box-ready-nft.args" ] ||
+  fail "sing-box-only readiness must not require the Forkop nftables table"
 # Whether the table exists is the whole question, and this check runs on every
 # reload, in every readiness poll and behind every UI status refresh. Naming the
 # table makes nft walk and filter the whole rule set to prove something the table
