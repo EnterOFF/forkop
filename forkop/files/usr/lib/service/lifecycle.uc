@@ -3,7 +3,6 @@
 let fs = require("fs");
 let constants = require("core.constants");
 let core_netstat = require("core.netstat");
-let core_url = require("core.url");
 let uci_core = require("core.uci");
 let nft_state = require("nft.state");
 
@@ -114,10 +113,6 @@ function read_json_file(path) {
     }
 }
 
-function write_json(value) {
-    print(sprintf("%J", value), "\n");
-}
-
 function command_success(command) {
     return system(command + " >/dev/null 2>&1") == 0;
 }
@@ -158,26 +153,6 @@ function owner_pid() {
     let stat = as_string(fs.readfile("/proc/self/stat"));
     let separator = index(stat, " ");
     return separator > 0 ? substr(stat, 0, separator) : "0";
-}
-
-function object_or_empty(value) {
-    return type(value) == "object" ? value : {};
-}
-
-function array_or_empty(value) {
-    return type(value) == "array" ? value : [];
-}
-
-function string_array_contains(values, needle) {
-    needle = as_string(needle);
-    if (needle == "")
-        return false;
-
-    for (let item in array_or_empty(values))
-        if (as_string(item) == needle)
-            return true;
-
-    return false;
 }
 
 function write_file(path, value) {
@@ -308,99 +283,6 @@ function finish_reload_status(status, initial_fingerprint) {
 function module_output(module_path, args) {
     let result = module_capture(module_path, args);
     return result.status == 0 ? result.output : "";
-}
-
-function selector_state_from_proxies_payload(payload) {
-    let result = {};
-    let proxies = object_or_empty(object_or_empty(payload).proxies);
-
-    for (let tag, proxy in proxies) {
-        proxy = object_or_empty(proxy);
-        let proxy_type = lc(as_string(proxy.type || ""));
-        let selected = as_string(proxy.now || "");
-
-        if (proxy_type == "selector" && string_array_contains(proxy.all, selected))
-            result[as_string(tag)] = selected;
-    }
-
-    return result;
-}
-
-function selector_restore_pairs(snapshot, payload) {
-    let result = [];
-    snapshot = object_or_empty(snapshot);
-    let proxies = object_or_empty(object_or_empty(payload).proxies);
-
-    for (let group, selected in snapshot) {
-        group = as_string(group);
-        selected = as_string(selected);
-
-        if (group == "" || selected == "")
-            continue;
-
-        let proxy = object_or_empty(proxies[group]);
-        if (lc(as_string(proxy.type || "")) != "selector")
-            continue;
-        if (!string_array_contains(proxy.all, selected))
-            continue;
-        if (as_string(proxy.now || "") == selected)
-            continue;
-
-        push(result, { group, proxy: selected });
-    }
-
-    return result;
-}
-
-function clash_http(method, path, body) {
-    let result = module_capture(DIAGNOSTICS_UC, [
-        "clash-http",
-        as_string(method),
-        as_string(path),
-        as_string(body || "")
-    ]);
-    if (result.status != 0)
-        return null;
-
-    try {
-        return json(result.output);
-    }
-    catch (e) {
-        return null;
-    }
-}
-
-function clash_http_json(method, path, body) {
-    let response = clash_http(method, path, body);
-    if (type(response) != "object")
-        return null;
-
-    let status = int(response.status || 0);
-    if (status < 200 || status >= 300)
-        return null;
-
-    try {
-        return json(as_string(response.body));
-    }
-    catch (e) {
-        return null;
-    }
-}
-
-function clash_api_proxies() {
-    return clash_http_json("GET", "/proxies", "");
-}
-
-function capture_selector_state() {
-    return selector_state_from_proxies_payload(clash_api_proxies());
-}
-
-function restore_selector_state(snapshot) {
-    let pairs = selector_restore_pairs(snapshot, clash_api_proxies());
-
-    for (let pair in pairs)
-        clash_http("PUT", "/proxies/" + core_url.encode(pair.group),
-            sprintf("%J", { name: pair.proxy }));
 }
 
 function module_background(module_path, args) {
@@ -825,7 +707,6 @@ function stop() {
 
 function restart_runtime_for_reload_locked() {
     let status;
-    let selector_state = capture_selector_state();
 
     log_message("Reload requires a full Forkop runtime restart", "info");
 
@@ -842,7 +723,6 @@ function restart_runtime_for_reload_locked() {
         return status;
     }
 
-    restore_selector_state(selector_state);
     remove_file(RELOAD_STATE_SNAPSHOT_FILE);
     return 0;
 }
@@ -1101,7 +981,6 @@ function restart() {
         return 1;
     }
 
-    let selector_state = capture_selector_state();
     let status = stop_impl();
     if (status != 0) {
         module_success(STATE_UC, [ "release-runtime-dir-lock", START_LOCK_DIR, pid ]);
@@ -1115,7 +994,6 @@ function restart() {
         return status;
     }
 
-    restore_selector_state(selector_state);
     module_success(STATE_UC, [ "release-runtime-dir-lock", START_LOCK_DIR, pid ]);
     return 0;
 }
@@ -1225,14 +1103,6 @@ else if (mode == "enable")
     status = enable_service();
 else if (mode == "disable")
     status = disable_service();
-else if (mode == "selector-state-from-proxies-fixture") {
-    write_json(selector_state_from_proxies_payload(read_json_file(ARGV[1])));
-    status = 0;
-}
-else if (mode == "selector-restore-pairs-fixture") {
-    write_json(selector_restore_pairs(read_json_file(ARGV[1]), read_json_file(ARGV[2])));
-    status = 0;
-}
 else if (mode == "clash-controller-preflight-fixture")
     status = clash_controller_preflight(ARGV[1], fs.readfile(ARGV[2]));
 else if (mode == "uninstall")

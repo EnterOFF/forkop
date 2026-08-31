@@ -383,6 +383,8 @@ if (
   !selector.outbounds.includes(custom.tag)
 )
   throw new Error('tunnels are not selectable connection outbounds');
+if (config.experimental?.cache_file?.enabled !== true || config.experimental.cache_file.path !== '/tmp/sing-box/cache.db')
+  throw new Error('sing-box state cache is not enabled at the configured path');
 if (config.experimental?.cache_file?.store_warp_config !== true)
   throw new Error('WARP profile cache is not enabled');
 NODE
