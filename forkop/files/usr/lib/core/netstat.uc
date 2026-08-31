@@ -341,23 +341,23 @@ function proc_zero_remote(width) {
     return substr(PROC_ZERO_WORDS, 0, width) + ":0000";
 }
 
-function proc_listener_token(address, port) {
+function proc_listener_token(address, port, state) {
     let hex = proc_address_hex(address);
     let port_hex = proc_port_hex(port);
     if (hex == "" || port_hex == "")
         return "";
 
     return ": " + hex + ":" + port_hex + " " + proc_zero_remote(length(hex)) +
-        " " + PROC_TCP_LISTEN;
+        " " + (state || PROC_TCP_LISTEN);
 }
 
 // True when one of `addresses` - the family wildcard included, because a
 // wildcard listener serves every address of its family - listens on `port`.
-function proc_tcp_listening(data, addresses, port) {
+function proc_socket_listening(data, addresses, port, state) {
     data = uc(as_string(data));
 
     for (let address in addresses) {
-        let token = proc_listener_token(address, port);
+        let token = proc_listener_token(address, port, state);
         if (token != "" && index(data, token) >= 0)
             return true;
     }
@@ -373,16 +373,16 @@ function sing_box_standard_ports_listening_proc(tcp, tcp6, dns_address, tproxy_p
 
     tcp = uc(as_string(tcp));
 
-    return proc_tcp_listening(tcp, [ dns_address, "0.0.0.0" ], "53") &&
-        proc_tcp_listening(tcp, [ "0.0.0.0", "127.0.0.1" ], tproxy_port) &&
-        proc_tcp_listening(tcp6, [ tproxy6_address, "::" ], tproxy_port);
+    return proc_socket_listening(tcp, [ dns_address, "0.0.0.0" ], "53") &&
+        proc_socket_listening(tcp, [ "0.0.0.0", "127.0.0.1" ], tproxy_port) &&
+        proc_socket_listening(tcp6, [ tproxy6_address, "::" ], tproxy_port);
 }
 
 return {
     sing_box_standard_ports_listening,
     sing_box_standard_ports_listening_proc,
     proc_address_hex,
-    proc_tcp_listening,
+    proc_socket_listening,
     tcp_endpoint_in_use,
     port_listening,
     port_conflict_owners,

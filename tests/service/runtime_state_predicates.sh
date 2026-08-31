@@ -189,8 +189,20 @@ sed '/2A00007F:0035/d' "$WORK_DIR/proc-net-tcp.ready" >"$WORK_DIR/proc-net-tcp.n
 cat >"$WORK_DIR/proc-net-tcp6.ready" <<'EOF_PROC6'
   sl  local_address                         remote_address                        st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
    0: 00000000000000000000000001000000:0642 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 989472 2 0f713155 100 0 0 10 4096
+   1: 00000000000000000000000000000000:0643 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 989473 2 0f713155 100 0 0 10 4096
 EOF_PROC6
 export FORKOP_PROC_NET_TCP6="$WORK_DIR/proc-net-tcp6.ready"
+sed -n '/:0643 /s/ 0A / 07 /p' "$FORKOP_PROC_NET_TCP6" >"$WORK_DIR/proc-net-udp6.ready"
+export FORKOP_PROC_NET_UDP6="$WORK_DIR/proc-net-udp6.ready"
+sed '/:0643 /d' "$FORKOP_PROC_NET_TCP6" >"$WORK_DIR/proc-net-tcp6.no-source-dns"
+for missing in tcp udp; do
+  if FORKOP_PROC_NET_TCP="$WORK_DIR/proc-net-tcp.ready" \
+    FORKOP_PROC_NET_TCP6="$([ "$missing" = tcp ] && printf '%s' "$WORK_DIR/proc-net-tcp6.no-source-dns" || printf '%s' "$FORKOP_PROC_NET_TCP6")" \
+    FORKOP_PROC_NET_UDP6="$([ "$missing" = udp ] && printf /dev/null || printf '%s' "$FORKOP_PROC_NET_UDP6")" \
+    ucode -L "$FORKOP_LIB" -e 'exit(require("service.health").sing_box_runtime_ports_ready() ? 0 : 1);'; then
+    fail "readiness must reject missing $missing DNS capture listener on :1603"
+  fi
+done
 
 "$WORK_DIR/stable-start-bin/sing-box" 30 &
 sing_box_pid=$!
