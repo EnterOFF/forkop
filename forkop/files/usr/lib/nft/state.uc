@@ -162,14 +162,15 @@ function batch_pipeline(family, table) {
         " | " + shell_quote(IP_BIN) + " " + family + " -batch - 2>/dev/null";
 }
 
-function list_tables_text(family) {
-    return "nft list tables " + shell_quote(as_string(family)) + " 2>/dev/null";
+function list_tables_command(family, table) {
+    return "nft -j list tables " + shell_quote(as_string(family)) + " 2>/dev/null || " +
+        command_from_args([ "nft", "-t", "list", "table", family, table ]) + " 2>/dev/null";
 }
 
 const SNAPSHOT_SEPARATOR = "@@forkop-runtime-snapshot@@";
 
-function runtime_snapshot_command(rt_table) {
-    return list_tables_text("inet") +
+function runtime_snapshot_command(rt_table, nft_table) {
+    return list_tables_command("inet", nft_table) +
         "; echo " + shell_quote(SNAPSHOT_SEPARATOR) +
         "; " + batch_pipeline("-4", rt_table) +
         "; echo " + shell_quote(SNAPSHOT_SEPARATOR) +
@@ -185,16 +186,19 @@ function split_snapshot(output) {
     };
 }
 
-// `nft list tables <family>` prints one `table <family> <name>` line per table.
-function table_present_text(output, family, table) {
-    family = as_string(family);
-    table = as_string(table);
+function table_active_output(output, family, table) {
+    let header = normalized_fields(split(trim(as_string(output)), "\n")[0]);
+    if (length(header) == 4 && header[0] == "table" && header[1] == family && header[2] == table && header[3] == "{")
+        return match(output, /\n[ \t]*flags[ \t]+[^\n]*\bdormant\b/) == null;
 
-    for (let line in split(as_string(output), "
-")) {
-        let fields = normalized_fields(line);
-        if (length(fields) >= 3 && fields[0] == "table" && fields[1] == family && fields[2] == table)
-            return true;
+    try {
+        for (let entry in json(output)?.nftables || []) {
+            let item = entry.table;
+            if (item?.family == family && item.name == table)
+                return index(item.flags || [], "dormant") < 0;
+        }
+    }
+    catch (e) {
     }
     return false;
 }
@@ -202,7 +206,7 @@ function table_present_text(output, family, table) {
 function runtime_network_configured_snapshot(snapshot, nft_table, mark) {
     snapshot = type(snapshot) == "object" ? snapshot : {};
 
-    return table_present_text(snapshot.tables, "inet", nft_table) &&
+    return table_active_output(snapshot.tables, "inet", nft_table) &&
         has_local_default_route_text(snapshot.inet4, 4) &&
         has_local_default_route_text(snapshot.inet6, 6) &&
         has_tproxy_marking_rule_text(snapshot.inet4, mark) &&
@@ -212,7 +216,7 @@ function runtime_network_configured_snapshot(snapshot, nft_table, mark) {
 // The whole `forkop_runtime_network_configured` predicate in one shell.
 function runtime_network_configured(nft_table, rt_table, mark) {
     return runtime_network_configured_snapshot(
-        split_snapshot(command_output(runtime_snapshot_command(rt_table))),
+        split_snapshot(command_output(runtime_snapshot_command(rt_table, nft_table))),
         nft_table,
         mark
     );
@@ -220,7 +224,7 @@ function runtime_network_configured(nft_table, rt_table, mark) {
 
 return {
     table_present,
-    table_present_text,
+    table_active_output,
     split_snapshot,
     runtime_snapshot_command,
     runtime_network_configured_snapshot,

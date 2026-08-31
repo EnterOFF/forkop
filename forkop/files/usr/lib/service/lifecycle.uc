@@ -789,6 +789,8 @@ function apply_reload_plan(plan, force_runtime_reload) {
         status = singbox_init_config_for_live_reload(plan.needs_nft_rebuild == 1);
         if (status != 0)
             return abort_reload(status, true, "Failed to write the sing-box configuration");
+        if (!command_success_from_args([ "nft", "add", "table", "inet", NFT_TABLE_NAME, "{ flags dormant; }" ]))
+            return abort_reload(1, true, "Failed to pause the nftables traffic capture before reloading sing-box");
         status = module_status(STATE_UC, [
             "reload-sing-box-runtime",
             sing_box_config_hash_before,
@@ -801,10 +803,7 @@ function apply_reload_plan(plan, force_runtime_reload) {
         // and sing-box dropping its ports; from there the hold cannot be
         // satisfied until the rebind has finished and readiness has come back.
         status = module_status(STATE_UC, [
-            "wait-forkop-ready",
-            RT_TABLE_NAME,
-            NFT_TABLE_NAME,
-            NFT_FAKEIP_MARK,
+            "wait-sing-box-ready",
             as_string(RELOAD_READY_WINDOW),
             as_string(READY_HOLD)
         ]);
@@ -813,6 +812,13 @@ function apply_reload_plan(plan, force_runtime_reload) {
             cleanup_failed_runtime();
             return status;
         }
+        if (!command_success_from_args([ "nft", "add", "table", "inet", NFT_TABLE_NAME ]))
+            return abort_reload(1, true, "Failed to resume the nftables traffic capture after reloading sing-box");
+        status = module_status(STATE_UC, [
+            "wait-forkop-ready", RT_TABLE_NAME, NFT_TABLE_NAME, NFT_FAKEIP_MARK, "0", "0"
+        ]);
+        if (status != 0)
+            return abort_reload(status, true, "Forkop runtime was not ready after nftables activation");
     }
     else if (plan.needs_nft_rebuild == 1) {
         status = nft_populate_runtime_sets();

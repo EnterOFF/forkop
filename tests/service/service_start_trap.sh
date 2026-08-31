@@ -162,7 +162,7 @@ reject_lifecycle_pattern 'command_status_from_args([ SERVICE_INIT, "disable" ])'
 # window, so a snapshot of the pre-rebind runtime cannot satisfy it.
 reload_wait_block="$(awk '/"reload-sing-box-runtime",/{c=25} c-->0' "$LIFECYCLE_UC")"
 case "$reload_wait_block" in
-  *'"wait-forkop-ready",'*) ;;
+  *'"wait-sing-box-ready",'*) ;;
   *) fail "the sing-box reload must wait for the runtime to settle after its rebind" ;;
 esac
 case "$reload_wait_block" in

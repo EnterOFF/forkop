@@ -118,9 +118,15 @@ cat >"$WORK_DIR/stable-start-bin/nft" <<'SH'
 if [ -n "${FORKOP_TEST_NFT_ARGS_FILE:-}" ]; then
   printf '%s\n' "$*" >>"$FORKOP_TEST_NFT_ARGS_FILE"
 fi
-if [ "$1" = "list" ] && [ "$2" = "tables" ]; then
-  printf '%s\n' 'table inet fw4'
-  [ -n "${FORKOP_TEST_NFT_TABLE_MISSING:-}" ] || printf '%s\n' 'table inet ForkopTable'
+if [ "$*" = '-j list tables inet' ]; then
+  [ -z "${FORKOP_TEST_NFT_NO_JSON:-}" ] || exit 1
+  printf '{"nftables":[{"table":{"family":"inet","name":"fw4"}}'
+  [ -n "${FORKOP_TEST_NFT_TABLE_MISSING:-}" ] || printf ',{"table":{"family":"inet","name":"ForkopTable"}}'
+  printf ']}\n'
+fi
+if [ "$*" = '-t list table inet ForkopTable' ]; then
+  [ -z "${FORKOP_TEST_NFT_TABLE_MISSING:-}" ] || exit 1
+  printf 'table inet ForkopTable {\n}\n'
 fi
 exit 0
 SH
@@ -235,7 +241,12 @@ if ! PATH="$WORK_DIR/fast-wait-bin:$WORK_DIR/stable-start-bin:$PATH" \
 fi
 [ ! -e "$WORK_DIR/sing-box-ready-nft.args" ] ||
   fail "sing-box-only readiness must not require the Forkop nftables table"
-# Whether the table exists is the whole question, and this check runs on every
+PATH="$WORK_DIR/stable-start-bin:$PATH" \
+  FORKOP_TEST_NFT_NO_JSON=1 SING_BOX_TEST_PID_FILE="$WORK_DIR/sing-box.pid" \
+  FORKOP_PROC_NET_TCP="$WORK_DIR/proc-net-tcp.ready" \
+  state_ucode forkop-running forkop ForkopTable 0x00100000 ||
+  fail "runtime state must support nftables builds without JSON output"
+# Whether the table is active is the question, and this check runs on every
 # reload, in every readiness poll and behind every UI status refresh. Naming the
 # table makes nft walk and filter the whole rule set to prove something the table
 # index already knows, and listing set contents along the way makes it cost
