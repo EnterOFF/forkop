@@ -103,6 +103,16 @@ function cleanup_event_key(event) {
     ]);
 }
 
+function failed_service_exit_code(services) {
+    let service = object_or_empty(object_or_empty(services)["sing-box"]);
+    for (let _, instance in object_or_empty(service.instances)) {
+        instance = object_or_empty(instance);
+        if (instance.running === false && instance.respawn == null && instance.exit_code != null)
+            return as_string(instance.exit_code);
+    }
+    return null;
+}
+
 function cleanup_runtime(exit_code) {
     return command_success([ BIN_PATH, "sing_box_crash_cleanup", as_string(exit_code) ]);
 }
@@ -209,7 +219,10 @@ function monitor() {
         return 1;
 
     let pending_exit_code = pending_cleanup_exit_code();
-    if (pending_exit_code != null && !cleanup_runtime(pending_exit_code)) {
+    if (pending_exit_code == null)
+        pending_exit_code = failed_service_exit_code(connection.call("service", "list", { name: "sing-box" }));
+    if (pending_exit_code != null &&
+        (!mark_pending_cleanup(pending_exit_code) || !cleanup_runtime(pending_exit_code))) {
         clear_pid_file(pid);
         return 1;
     }

@@ -40,7 +40,7 @@ if grep -Fq '1000>&- &' "$WATCH"; then
 fi
 grep -Fq 'uloop.end();' "$WATCH" ||
   fail "failed sing-box crash cleanup must restart its procd-supervised watcher"
-grep -Fq 'pending_exit_code != null && !cleanup_runtime(pending_exit_code)' "$WATCH" ||
+grep -Fq '!cleanup_runtime(pending_exit_code)' "$WATCH" ||
   fail "a respawned watcher must reconcile a crash cleanup missed by its previous process"
 grep -Fq 'event_key == last_event_key' "$WATCH" ||
   fail "duplicate sing-box failure notifications must be deduplicated"
@@ -74,6 +74,51 @@ FORKOP_TEST_CLEANUP_LOG="$WORK_DIR/cleanup.log" \
   fail "watcher cleanup command success must be observable"
 grep -Fxq 'sing_box_crash_cleanup 137' "$WORK_DIR/cleanup.log" ||
   fail "watcher must invoke the complete Forkop crash cleanup"
+
+mkdir -p "$WORK_DIR/watch-lib"
+cat >"$WORK_DIR/watch-lib/ubus.uc" <<'EOF_UBUS'
+let fs = require("fs");
+let subscribed = false;
+return { connect: function() {
+  return {
+    subscriber: function(callback, removed) {
+      return { subscribe: function(name) { subscribed = name == "service"; return subscribed; } };
+    },
+    call: function(object, method, args) {
+      assert(subscribed && object == "service" && method == "list" && args.name == "sing-box");
+      return json(fs.readfile(getenv("FORKOP_TEST_SERVICE_STATE")));
+    }
+  };
+} };
+EOF_UBUS
+cat >"$WORK_DIR/watch-lib/uloop.uc" <<'EOF_ULOOP'
+return { init: function() {}, run: function() {}, end: function() {} };
+EOF_ULOOP
+for state in running respawning exhausted absent; do
+  case "$state" in
+    running) instance='{"running":true,"pid":123,"respawn":{"retry":5}}' ;;
+    respawning) instance='{"running":false,"exit_code":137,"respawn":{"retry":5}}' ;;
+    exhausted) instance='{"running":false,"exit_code":137}' ;;
+    absent) instance='' ;;
+  esac
+  printf '{"sing-box":{"instances":{%s}}}\n' "${instance:+\"instance1\":$instance}" >"$WORK_DIR/service.json"
+  : >"$WORK_DIR/cleanup.log"
+  FORKOP_BIN="$WORK_DIR/cleanup-bin" \
+  FORKOP_TEST_CLEANUP_LOG="$WORK_DIR/cleanup.log" \
+  FORKOP_TEST_SERVICE_STATE="$WORK_DIR/service.json" \
+  FORKOP_SING_BOX_WATCH_PID_FILE="$WORK_DIR/monitor.pid" \
+  FORKOP_SING_BOX_PENDING_CLEANUP_FILE="$WORK_DIR/monitor.cleanup" \
+    ucode -L "$FORKOP_LIB" -L "$WORK_DIR/watch-lib" "$WATCH" monitor ||
+    fail "watcher startup must accept $state service state"
+  if [ "$state" = exhausted ]; then
+    grep -Fxq 'sing_box_crash_cleanup 137' "$WORK_DIR/cleanup.log" ||
+      fail "a respawned watcher must clean a crash whose notification was lost"
+  else
+    [ ! -s "$WORK_DIR/cleanup.log" ] ||
+      fail "watcher startup must preserve a $state service"
+  fi
+  rm -f "$WORK_DIR/monitor.cleanup"
+done
 
 mkdir -p "$WORK_DIR/network-bin"
 cat >"$WORK_DIR/network-bin/nft" <<'SH'
