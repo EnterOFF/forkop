@@ -524,6 +524,7 @@ function write_ssh_host_key(key_path) {
         run("mv -f " + shell_quote(openssh_key) + " " + shell_quote(key_path));
 
     fs.unlink(dropbear_key);
+    fs.unlink(dropbear_key + ".pub");
     fs.unlink(openssh_key);
     run("rmdir " + shell_quote(temp_dir) + " >/dev/null 2>&1");
     return generated;

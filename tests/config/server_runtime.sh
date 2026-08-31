@@ -181,6 +181,7 @@ while [ "$#" -gt 0 ]; do
 done
 [ -n "$output" ]
 printf 'dropbear-key\n' >"$output"
+printf 'ssh-ed25519 public-key\n' >"$output.pub"
 printf 'dropbearkey\n' >>"$FORKOP_SSH_KEYGEN_LOG"
 DROPBEARKEY
 chmod 0755 "$WORK_DIR/bin/dropbearkey"
@@ -370,6 +371,7 @@ assert_empty forkop.ssh_disabled.ssh_host_key_path
 [ -s "$WORK_DIR/ssh/host_key" ] || fail 'persistent SSH host key was not generated'
 [ -s "$WORK_DIR/ssh/host_key_secondary" ] || fail 'secondary persistent SSH host key was not generated'
 [ "$(wc -l <"$FORKOP_SSH_KEYGEN_LOG")" -eq 4 ] || fail 'SSH host key generation did not convert every configured key exactly once'
+[ -z "$(find "$WORK_DIR/ssh" -name '.forkop-ssh.*' -print)" ] || fail 'SSH host key generation left temporary files behind'
 grep -Fxq 'commit forkop' "$LOG" || fail 'expected config commit'
 
 : >"$LOG"
