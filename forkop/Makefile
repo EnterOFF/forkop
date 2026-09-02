@@ -67,6 +67,8 @@ define Package/forkop/install
 
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_CONF) ./files/etc/config/forkop $(1)/etc/config/forkop
+	$(INSTALL_DIR) $(1)/usr/share/forkop
+	$(INSTALL_DATA) ./files/etc/config/forkop $(1)/usr/share/forkop/default-config
 
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(INSTALL_BIN) ./files/usr/bin/forkop $(1)/usr/bin/forkop

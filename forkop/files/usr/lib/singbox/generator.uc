@@ -396,7 +396,7 @@ function base_config(settings, service_address, runtime_context) {
         services: [],
         experimental: {
             unified_delay: {
-                enabled: bool_option(settings, "unified_delay", false)
+                enabled: bool_option(settings, "unified_delay", true)
             },
             cache_file: {
                 enabled: true,

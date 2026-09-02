@@ -441,7 +441,6 @@ cat >"$WORK_DIR/default-updates-fixture.json" <<'JSON'
     ".name": "settings",
     ".type": "settings",
     "config_path": "/tmp/sing-box/config.json",
-    "unified_delay": "1",
     "dns_server": "1.1.1.1",
     "service_listen_address": "127.0.0.1"
   },

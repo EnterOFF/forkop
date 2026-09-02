@@ -277,28 +277,31 @@ function extractBackend(repo, fields) {
   if (fs.existsSync(installer)) files.push(installer);
 
   const shellOptionRe = /\bconfig_(?:get|get_bool|list_foreach)\s+\S+\s+(?:"[^"]+"|'[^']+'|\$[A-Za-z_][A-Za-z0-9_]*|\$\{[^}]+\})\s+["']([A-Za-z0-9_]+)["']/g;
-  const ucodeOptionRe = /\b(?:option|list_option|bool_option|int_option)\(\s*[^,\n]+,\s*["']([A-Za-z0-9_]+)["']/g;
+  const ucodeOptionRe = /\b(?:option|list_option|bool_option|int_option|list_value|whitespace_list_value|child_option|child_list|child_bool)\(\s*[^,\n]+,\s*["']([A-Za-z0-9_]+)["']/g;
   const ucodeStaticOptionKeyArrayRe = /^\s*\[\s*["']([A-Za-z0-9_]+)["']\s*,/gm;
   const migrationRe = new RegExp(`\\b(?:forkop|${legacyStem})_uci_(?:set_option|set_option_if_missing|delete_option|add_list_unique)\\s+["'$A-Za-z0-9_{}.-]+\\s+["']([A-Za-z0-9_]+)["']`, "g");
-  const ucodeMigrationRe = /\b(?:set_option|set_option_if_missing|delete_option|add_list_unique)\(\s*[^,\n]+,\s*[^,\n]+,\s*["']([A-Za-z0-9_]+)["']/g;
+  const ucodeMigrationRe = /\b(?:set_option|set_option_if_missing|delete_option|add_list_unique)\(\s*[^,\n]+,\s*[^,\n]+,\s*["']([A-Za-z0-9_]+)["'](?!\s*\+)/g;
   // A migration that drops a whole list of options names them in a constant and
   // loops, so the option never appears as a literal argument. The constant is the
   // declaration, so it counts as the migration that retires those fields.
-  const ucodeRemovedOptionListRe = /const REMOVED_[A-Z_]+ = \[([^\]]*)\]/g;
+  const ucodeRemovedOptionListRe = /const (?:REMOVED|OBSOLETE)_[A-Z_]+ = \[([^\]]*)\]/g;
   const quotedNameRe = /["']([A-Za-z0-9_]+)["']/g;
 
   for (const file of files) {
     const data = readFileIfExists(file);
     const backendScanData = data.replace(/\\"/g, '"');
-    for (const match of backendScanData.matchAll(shellOptionRe)) {
-      addUnique(ensure(fields, match[1]).backend, rel(repo, file));
-    }
-    for (const match of backendScanData.matchAll(ucodeOptionRe)) {
-      addUnique(ensure(fields, match[1]).backend, rel(repo, file));
-    }
-    if (backendScanData.includes("option(server, field[0]")) {
-      for (const match of backendScanData.matchAll(ucodeStaticOptionKeyArrayRe)) {
+    const migrationFile = /(?:^|\/)config\/(?:migration\.uc|migrations\/[^/]+\.uc)$/.test(rel(repo, file));
+    if (!migrationFile) {
+      for (const match of backendScanData.matchAll(shellOptionRe)) {
         addUnique(ensure(fields, match[1]).backend, rel(repo, file));
+      }
+      for (const match of backendScanData.matchAll(ucodeOptionRe)) {
+        addUnique(ensure(fields, match[1]).backend, rel(repo, file));
+      }
+      if (backendScanData.includes("option(server, field[0]")) {
+        for (const match of backendScanData.matchAll(ucodeStaticOptionKeyArrayRe)) {
+          addUnique(ensure(fields, match[1]).backend, rel(repo, file));
+        }
       }
     }
     for (const match of backendScanData.matchAll(migrationRe)) {
@@ -323,8 +326,8 @@ function extractRepo(repo) {
   return fields;
 }
 
-function publicPresence(field) {
-  return field && (field.ui.length || field.backend.length || field.defaults.length || field.examples.length || field.migrations.length);
+function configuredPresence(field) {
+  return field && (field.ui.length || field.backend.length || field.defaults.length || field.examples.length);
 }
 
 function compactField(field) {
@@ -339,9 +342,9 @@ function compactField(field) {
 }
 
 function classify(stable, current) {
-  if (publicPresence(stable) && publicPresence(current)) return "supported";
-  if (publicPresence(stable) && current && current.migrations.length) return "migrated";
-  if (publicPresence(stable)) return "missing_current";
+  if (configuredPresence(stable) && configuredPresence(current)) return "supported";
+  if (configuredPresence(stable) && current && current.migrations.length) return "migrated";
+  if (configuredPresence(stable)) return "missing_current";
   return "added_current";
 }
 

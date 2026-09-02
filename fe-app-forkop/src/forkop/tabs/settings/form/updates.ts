@@ -105,7 +105,7 @@ export function addUpdateOptions(section: CBISection) {
     _('Accurate latency measurement'),
     _('Includes connection setup and the TLS handshake'),
   );
-  o.default = '0';
+  o.default = '1';
   o.rmempty = false;
 
   o = section.option(

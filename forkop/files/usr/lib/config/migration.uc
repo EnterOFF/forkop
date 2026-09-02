@@ -1,11 +1,12 @@
 #!/usr/bin/env ucode
 
-// Keep migrations in this file. A migration is identified by a stable name;
-// release checks are optional conditions inside the migration itself.
+// Forkop configuration migrations follow released config_version edges. The
+// legacy applied_migrations list is discarded and never controls execution.
 
 let fs = require("fs");
 let common = require("core.common");
 let uci_core = require("core.uci");
+let core_url = require("core.url");
 let singbox_constants_module = require("singbox.constants");
 let runtime_dns = require("singbox.dns");
 let subscription_headers_module = require("singbox.subscription_headers");
@@ -41,6 +42,10 @@ const LEGACY_LIST_UPDATE_CRON_MARKER = "# forkop-list-update";
 const LEGACY_SUBSCRIPTION_UPDATE_CRON_MARKER = "# forkop-subscription-update";
 const CONFIG_VERSION_OPTION = "config_version";
 const APPLIED_MIGRATIONS_OPTION = "applied_migrations";
+const MIN_CONFIG_VERSION = "1.0.2";
+const LATEST_SOURCE_VERSION = "1.0.5";
+const DEFAULT_CONFIG_PATH = getenv("FORKOP_DEFAULT_CONFIG_PATH") || "/usr/share/forkop/default-config";
+const RUNTIME_CONFIG_PATH = getenv("FORKOP_CONFIG_PATH") || "/etc/config/" + CONFIG_NAME;
 const CHILD_ITEM_TYPES = [
     "server_client",
     "subscription_url",
@@ -49,38 +54,56 @@ const CHILD_ITEM_TYPES = [
     "fallback_group",
     "fallback_level",
     "priority_group",
-    "priority_level"
+    "priority_level",
+    "tunnel",
+    "tunnel_peer"
 ];
 
 function shell_quote(value) {
     return "'" + replace(as_string(value), /'/g, "'\\''") + "'";
 }
 
-function command_output(command) {
+function command_result(command) {
     let pipe = fs.popen(command, "r");
     if (!pipe)
-        return "";
+        return { ok: false, status: -1, output: "" };
 
     let data = pipe.read("all");
     let status = pipe.close();
-    if (status != 0 || data == null)
-        return "";
+    return {
+        ok: status == 0,
+        status,
+        output: replace(as_string(data), /[\r\n]+$/g, "")
+    };
+}
 
-    return replace(as_string(data), /[\r\n]+$/g, "");
+function command_output(command) {
+    let result = command_result(command);
+    return result.ok ? result.output : "";
 }
 
 function run(command) {
     return system(command) == 0;
 }
 
-function constants_context() {
-    return {
-        urltest_default_idle_timeout: as_string(object_or_empty(singbox_constants_module).URLTEST_DEFAULT_IDLE_TIMEOUT || "30m")
-    };
+function report_migration_error(message) {
+    let text = "Forkop configuration migration failed: " + as_string(message);
+    warn("[error] " + text + "\n");
+    run("logger -t " + shell_quote("forkop") + " " + shell_quote("[error] " + text));
 }
 
 function section_name(section) {
     return option(section, ".name", "");
+}
+
+function target_config_version() {
+    let data = as_string(fs.readfile(DEFAULT_CONFIG_PATH) || "");
+    for (let line in split(data, "\n")) {
+        let matched = match(line, /^\s*option\s+config_version\s+['\"]([^'\"]+)['\"]\s*$/);
+        if (matched)
+            return trim(matched[1]);
+    }
+    return "";
 }
 
 function clone_section(section) {
@@ -105,7 +128,6 @@ function model_from_fixture(path) {
     let data = object_or_empty(read_json_file(path));
     let model = {
         settings: clone_section(object_or_empty(data.settings)),
-        rules: [],
         sections: [],
         servers: []
     };
@@ -117,8 +139,6 @@ function model_from_fixture(path) {
     if (model.settings[".type"] == null)
         model.settings[".type"] = "settings";
 
-    for (let section in fixture_section_list(data, "rule"))
-        push(model.rules, clone_section(section));
     for (let section in fixture_section_list(data, "section"))
         push(model.sections, clone_section(section));
     for (let section in fixture_section_list(data, "server"))
@@ -133,16 +153,12 @@ function model_from_fixture(path) {
 function model_from_uci(cursor) {
     let model = {
         settings: clone_section(object_or_empty(cursor.get_all(CONFIG_NAME, "settings"))),
-        rules: [],
         sections: [],
         servers: []
     };
     for (let type_name in CHILD_ITEM_TYPES)
         model[type_name] = [];
 
-    cursor.foreach(CONFIG_NAME, "rule", function(section) {
-        push(model.rules, clone_section(section));
-    });
     cursor.foreach(CONFIG_NAME, "section", function(section) {
         push(model.sections, clone_section(section));
     });
@@ -163,8 +179,6 @@ function export_model(model) {
         settings: model.settings,
         section: model.sections
     };
-    if (length(model.rules) > 0)
-        result.rule = model.rules;
     if (length(model.servers) > 0)
         result.server = model.servers;
     for (let type_name in CHILD_ITEM_TYPES)
@@ -179,9 +193,18 @@ function migration_context(model) {
         operations: [],
         removed_caches: [],
         removed_cron_markers: [],
+        warnings: [],
         added_lists: {},
-        changed: false
+        changed: false,
+        error: null,
+        reset: false
     };
+}
+
+function migration_error(ctx, message) {
+    if (ctx.error == null)
+        ctx.error = as_string(message);
+    return ctx;
 }
 
 function record_operation(ctx, op) {
@@ -241,11 +264,6 @@ function set_list_option(ctx, section, key, values) {
     record_operation(ctx, { op: "set_list", section: section_name(section), option: key, values: normalized });
 }
 
-function set_list_option_if_not_empty(ctx, section, key, values) {
-    if (length(values || []) > 0)
-        set_list_option(ctx, section, key, values);
-}
-
 function delete_option(ctx, section, key) {
     if (!option_exists(section, key))
         return;
@@ -303,15 +321,17 @@ function create_child_section(ctx, type_name) {
     return section;
 }
 
-function create_child_for_section(ctx, parent, type_name) {
-    let child = create_child_section(ctx, type_name);
-    set_option(ctx, child, "section", section_name(parent));
-    return child;
-}
-
 function create_child_for_owner(ctx, parent, type_name, owner_option) {
     let child = create_child_section(ctx, type_name);
-    set_option(ctx, child, owner_option, section_name(parent));
+    let value = section_name(parent);
+    child[owner_option] = value;
+    record_operation(ctx, {
+        op: "set",
+        section: section_name(child),
+        option: owner_option,
+        value,
+        section_reference: true
+    });
     return child;
 }
 
@@ -325,47 +345,6 @@ function option_list_values(section, key) {
     return value == "" ? [] : [ value ];
 }
 
-function whitespace_list_values(section, key) {
-    let value = object_or_empty(section)[key];
-    if (type(value) == "array")
-        return value;
-    return list_option(section, key);
-}
-
-function subscription_url_entry_profile(value) {
-    let entry = trim(as_string(value));
-    let result = {
-        raw: entry,
-        value: entry,
-        user_agent: "",
-        changed: false
-    };
-    let delimiter = " | ";
-    let delimiter_index = rindex(entry, delimiter);
-
-    if (delimiter_index < 0)
-        return result;
-
-    let url = trim(substr(entry, 0, delimiter_index));
-    let user_agent = trim(substr(entry, delimiter_index + length(delimiter)));
-    if (url == "" || user_agent == "")
-        return result;
-
-    result.value = url;
-    result.user_agent = user_agent;
-    result.changed = true;
-    return result;
-}
-
-function normalize_connections_list(ctx, section, old_key, new_key) {
-    let old_values = option_list_values(section, old_key);
-
-    for (let value in old_values)
-        add_list_unique(ctx, section, new_key, value);
-
-    if (length(old_values) > 0)
-        delete_option(ctx, section, old_key);
-}
 
 function set_section_type(ctx, section, type_name) {
     if (option(section, ".type", "") == type_name)
@@ -375,667 +354,6 @@ function set_section_type(ctx, section, type_name) {
     record_operation(ctx, { op: "set_type", section: section_name(section), type: type_name });
 }
 
-function duration_to_seconds_value(value) {
-    let rest = as_string(value);
-    if (rest == "")
-        return null;
-
-    let total = 0.0;
-    let multipliers = {
-        ns: 0.000000001,
-        us: 0.000001,
-        ms: 0.001,
-        s: 1,
-        m: 60,
-        h: 3600,
-        d: 86400
-    };
-
-    while (rest != "") {
-        let matched = match(rest, /^([0-9]+(\.[0-9]+)?)(ns|us|ms|s|m|h|d)/);
-        if (!matched)
-            return null;
-
-        let token = as_string(matched[0]);
-        let amount = matched[1] * 1;
-        let unit = matched[3];
-        total += amount * multipliers[unit];
-        rest = substr(rest, length(token));
-    }
-
-    return total <= 0 ? null : int(total + 0.5);
-}
-
-function legacy_urltest_idle_timeout(section, constants) {
-    let interval = option(section, "urltest_check_interval", "3m") || "3m";
-    let interval_seconds = duration_to_seconds_value(interval);
-    let default_idle_seconds = duration_to_seconds_value(object_or_empty(constants).urltest_default_idle_timeout || "30m");
-    return interval_seconds != null && default_idle_seconds != null && interval_seconds > default_idle_seconds
-        ? interval
-        : "";
-}
-
-const LEGACY_URLTEST_OPTIONS = [
-    "urltest_enabled",
-    "urltest_check_interval",
-    "urltest_tolerance",
-    "urltest_testing_url",
-    "urltest_filter_mode",
-    "urltest_hide_filtered_outbounds",
-    "detect_server_country",
-    "urltest_include_countries",
-    "urltest_include_outbounds",
-    "urltest_include_regex",
-    "urltest_exclude_countries",
-    "urltest_exclude_outbounds",
-    "urltest_exclude_regex"
-];
-
-function delete_legacy_urltest_options(ctx, section) {
-    for (let key in LEGACY_URLTEST_OPTIONS)
-        delete_option(ctx, section, key);
-}
-
-function migrate_urltest_filter_mode(ctx, section) {
-    if (option_exists(section, "urltest_filter_mode"))
-        return;
-
-    if (option_exists(section, "urltest_exclude_countries") ||
-        option_exists(section, "urltest_include_countries") ||
-        option_exists(section, "urltest_exclude_outbounds") ||
-        option_exists(section, "urltest_exclude_regex")) {
-        set_option(ctx, section, "urltest_filter_mode", "exclude");
-    }
-}
-
-function trim_lines(value) {
-    let result = [];
-    for (let line in split(as_string(value), "\n")) {
-        line = trim(replace(as_string(line), /\r/g, ""));
-        if (line != "")
-            push(result, line);
-    }
-    return result;
-}
-
-function migrate_urltest_link(ctx, section, link) {
-    add_list_unique(ctx, section, "selector_proxy_links", link);
-}
-
-function migrate_proxy_string(ctx, section) {
-    let proxy_string = option(section, "proxy_string", "");
-    if (proxy_string == "")
-        return;
-
-    let migrated = false;
-    for (let link in trim_lines(proxy_string)) {
-        if (substr(link, 0, 2) == "//")
-            continue;
-        add_list_unique(ctx, section, "selector_proxy_links", link);
-        migrated = true;
-    }
-
-    if (migrated)
-        delete_option(ctx, section, "proxy_string");
-}
-
-function cache_section_safe(section) {
-    section = as_string(section);
-    return section != "" && index(section, "/") < 0 && index(section, "..") < 0;
-}
-
-function subscription_cache_paths(section) {
-    return [
-        TMP_SUBSCRIPTION_FOLDER + "/" + section + ".json",
-        TMP_SUBSCRIPTION_FOLDER + "/" + section + ".url",
-        TMP_SUBSCRIPTION_FOLDER + "/" + section + ".user_agent",
-        FORKOP_SUBSCRIPTION_METADATA_DIR + "/" + section + ".json",
-        FORKOP_SUBSCRIPTION_LINKS_DIR + "/" + section + ".json",
-        FORKOP_OUTBOUND_METADATA_DIR + "/" + section + ".json",
-        TMP_SUBSCRIPTION_FOLDER + "/" + section + "-subscription-*.json",
-        TMP_SUBSCRIPTION_FOLDER + "/" + section + "-subscription-*.url",
-        TMP_SUBSCRIPTION_FOLDER + "/" + section + "-subscription-*.user_agent"
-    ];
-}
-
-function delete_subscription_cache(ctx, section) {
-    section = as_string(section);
-    if (!cache_section_safe(section))
-        return;
-
-    for (let path in subscription_cache_paths(section))
-        push(ctx.removed_caches, path);
-}
-
-function migrate_subscription_url(ctx, section) {
-    let subscription_url = option(section, "subscription_url", "");
-    if (subscription_url == "")
-        return;
-
-    let subscription_user_agent = option(section, "subscription_user_agent", "");
-    let entry = subscription_user_agent != ""
-        ? subscription_url + " | " + subscription_user_agent
-        : subscription_url;
-    add_list_unique(ctx, section, "subscription_urls", entry);
-    delete_option(ctx, section, "subscription_url");
-    delete_option(ctx, section, "subscription_user_agent");
-    delete_subscription_cache(ctx, section_name(section));
-}
-
-function migrate_interval_flags(ctx, section, proxy_config_type) {
-    if (proxy_config_type == "urltest" || proxy_config_type == "subscription") {
-        if (option(section, "urltest_check_interval_disabled", "") == "1")
-            set_option(ctx, section, "urltest_enabled", "0");
-        else
-            set_option_if_missing(ctx, section, "urltest_enabled", "1");
-    }
-    else if (proxy_config_type == "url" || proxy_config_type == "selector") {
-        set_option_if_missing(ctx, section, "urltest_enabled", "0");
-    }
-
-    if (proxy_config_type == "subscription") {
-        if (option(section, "subscription_update_interval_disabled", "") == "1")
-            set_option(ctx, section, "subscription_update_enabled", "0");
-        else
-            set_option_if_missing(ctx, section, "subscription_update_enabled", "1");
-    }
-
-    delete_option(ctx, section, "urltest_check_interval_disabled");
-    delete_option(ctx, section, "subscription_update_interval_disabled");
-}
-
-function migrate_proxy_rule(ctx, section, proxy_config_type) {
-    if (proxy_config_type == "url")
-        migrate_proxy_string(ctx, section);
-    else if (proxy_config_type == "urltest") {
-        for (let link in list_option(section, "urltest_proxy_links"))
-            migrate_urltest_link(ctx, section, link);
-        delete_option(ctx, section, "urltest_proxy_links");
-    }
-    else if (proxy_config_type == "subscription") {
-        migrate_subscription_url(ctx, section);
-        delete_subscription_cache(ctx, section_name(section));
-    }
-
-    migrate_interval_flags(ctx, section, proxy_config_type);
-    delete_option(ctx, section, "proxy_config_type");
-}
-
-// Podkop Plus -> Forkop source migration.
-function migrated_rule_action(section) {
-    let action = option(section, "action", "");
-    let proxy_config_type = option(section, "proxy_config_type", "");
-    let connection_type = option(section, "connection_type", "");
-    let iface = option(section, "interface", "");
-    let outbound_json = option(section, "outbound_json", "");
-    let selector_proxy_links = option(section, "selector_proxy_links", "");
-    let subscription_urls = option(section, "subscription_urls", "");
-
-    if (action == "proxy" || action == "vpn" || action == "outbound")
-        return "connection";
-
-    if (action == "direct")
-        return "bypass";
-
-    if (action != "")
-        return action;
-
-    if (connection_type == "proxy")
-        return "connection";
-    if (connection_type == "vpn")
-        return "connection";
-    if (connection_type == "block")
-        return "block";
-    if (connection_type == "exclusion")
-        return "bypass";
-
-    if (proxy_config_type == "interface")
-        return "connection";
-    if (proxy_config_type == "outbound")
-        return "connection";
-    if (proxy_config_type == "url" || proxy_config_type == "selector" ||
-        proxy_config_type == "urltest" || proxy_config_type == "subscription")
-        return "connection";
-
-    if (outbound_json != "")
-        return "connection";
-    if (iface != "")
-        return "connection";
-    if (selector_proxy_links != "" || subscription_urls != "")
-        return "connection";
-
-    return "";
-}
-
-function legacy_rule_connection_kind(section) {
-    let action = option(section, "action", "");
-    let proxy_config_type = option(section, "proxy_config_type", "");
-    let connection_type = option(section, "connection_type", "");
-
-    if (action == "vpn" || connection_type == "vpn" || proxy_config_type == "interface")
-        return "interface";
-    if (action == "outbound" || proxy_config_type == "outbound")
-        return "outbound";
-    if (action == "proxy" || connection_type == "proxy" ||
-        proxy_config_type == "url" || proxy_config_type == "selector" ||
-        proxy_config_type == "urltest" || proxy_config_type == "subscription")
-        return "proxy";
-    if (option(section, "interface", "") != "")
-        return "interface";
-    if (option(section, "outbound_json", "") != "")
-        return "outbound";
-    return "proxy";
-}
-
-function migrate_subscription_url_item_settings(ctx, section) {
-    let values = whitespace_list_values(section, "subscription_urls");
-    let seen_values = {};
-    let update_enabled = bool_option(section, "subscription_update_enabled", true);
-    let update_interval = option(section, "subscription_update_interval", "");
-    if (update_interval == "")
-        update_interval = "1h";
-    let index = 1;
-
-    for (let value in values) {
-        let profile = subscription_url_entry_profile(value);
-        if (profile.value == "")
-            continue;
-        if (seen_values[profile.value])
-            continue;
-        seen_values[profile.value] = true;
-
-        let child = create_child_for_section(ctx, section, "subscription_url");
-        set_option(ctx, child, "url", profile.value);
-        set_option(ctx, child, "subscription_update_enabled", update_enabled ? "1" : "0");
-        set_option(ctx, child, "subscription_update_interval", update_enabled ? update_interval : "");
-        set_option(ctx, child, "user_agent", profile.user_agent != "" ? profile.user_agent : "sing-box");
-        set_option(ctx, child, "auto_hwid", "1");
-        set_option(ctx, child, "show_dashboard_metadata", "1");
-        set_option(ctx, child, "show_subscription_name", "0");
-        index++;
-    }
-
-    delete_option(ctx, section, "subscription_urls");
-    delete_option(ctx, section, "subscription_url_settings");
-}
-
-function migrate_urltest_item_settings(ctx, section, constants) {
-    let legacy_enabled = bool_option(section, "urltest_enabled", false);
-
-    if (legacy_enabled) {
-        let child = create_child_for_section(ctx, section, "urltest");
-        set_option(ctx, child, "name", "Fastest");
-        set_option(ctx, child, "check_interval", option(section, "urltest_check_interval", "3m") || "3m");
-        set_option(ctx, child, "tolerance", option(section, "urltest_tolerance", "50") || "50");
-        set_option(ctx, child, "testing_url", option(section, "urltest_testing_url", "https://www.gstatic.com/generate_204") || "https://www.gstatic.com/generate_204");
-        set_option(ctx, child, "filter_mode", option(section, "urltest_filter_mode", "disabled") || "disabled");
-
-        let idle_timeout = legacy_urltest_idle_timeout(section, constants);
-        if (idle_timeout != "")
-            set_option(ctx, child, "idle_timeout", idle_timeout);
-
-        set_list_option_if_not_empty(ctx, child, "include_countries", option_list_values(section, "urltest_include_countries"));
-        set_list_option_if_not_empty(ctx, child, "include_outbounds", option_list_values(section, "urltest_include_outbounds"));
-        set_list_option_if_not_empty(ctx, child, "include_regex", option_list_values(section, "urltest_include_regex"));
-        set_list_option_if_not_empty(ctx, child, "exclude_countries", option_list_values(section, "urltest_exclude_countries"));
-        set_list_option_if_not_empty(ctx, child, "exclude_outbounds", option_list_values(section, "urltest_exclude_outbounds"));
-        set_list_option_if_not_empty(ctx, child, "exclude_regex", option_list_values(section, "urltest_exclude_regex"));
-    }
-
-    delete_legacy_urltest_options(ctx, section);
-    delete_option(ctx, section, "urltest_settings");
-}
-
-function migrate_interface_item_settings(ctx, section) {
-    let owner = section_name(section);
-    let resolver_enabled = bool_option(section, "domain_resolver_enabled", false) ? "1" : "0";
-    let dns_type = option(section, "domain_resolver_dns_type", "udp") || "udp";
-    let dns_server = option(section, "domain_resolver_dns_server", "8.8.8.8") || "8.8.8.8";
-    let seen_values = {};
-
-    for (let child in ctx.model.section_interface || []) {
-        if (option(child, "section", "") != owner)
-            continue;
-
-        let value = option(child, "name", "");
-        if (value == "" || seen_values[value])
-            continue;
-
-        seen_values[value] = true;
-        set_option_if_missing(ctx, child, "domain_resolver_enabled", resolver_enabled);
-        set_option_if_missing(ctx, child, "domain_resolver_dns_type", dns_type);
-        set_option_if_missing(ctx, child, "domain_resolver_dns_server", dns_server);
-    }
-
-    let values = option_list_values(section, "interfaces");
-    let legacy_interface = option(section, "interface", "");
-    if (legacy_interface != "")
-        push(values, legacy_interface);
-
-    for (let value in values) {
-        value = as_string(value);
-        if (value == "" || seen_values[value])
-            continue;
-
-        seen_values[value] = true;
-        let child = create_child_for_section(ctx, section, "section_interface");
-        set_option(ctx, child, "name", value);
-        set_option(ctx, child, "domain_resolver_enabled", resolver_enabled);
-        set_option(ctx, child, "domain_resolver_dns_type", dns_type);
-        set_option(ctx, child, "domain_resolver_dns_server", dns_server);
-    }
-
-    delete_option(ctx, section, "interface");
-    delete_option(ctx, section, "interfaces");
-    delete_option(ctx, section, "interface_settings");
-    delete_option(ctx, section, "domain_resolver_enabled");
-    delete_option(ctx, section, "domain_resolver_dns_type");
-    delete_option(ctx, section, "domain_resolver_dns_server");
-}
-
-function migrate_legacy_outbound_json_detour(ctx, section, legacy_connection_kind) {
-    if (legacy_connection_kind != "outbound" ||
-        !bool_option(section, "outbound_detour_enabled", false))
-        return;
-
-    let detour_section = option(section, "outbound_detour_section", "");
-    let outbound_json = option(section, "outbound_json", "");
-    if (detour_section == "" || outbound_json == "")
-        return;
-
-    let outbound;
-    try {
-        outbound = json(outbound_json);
-    }
-    catch (e) {
-        return;
-    }
-    if (type(outbound) != "object")
-        return;
-
-    if (as_string(outbound.detour || "") == "")
-        outbound.detour = singbox_constants_module.outbound_tag(detour_section);
-    set_option(ctx, section, "outbound_json", sprintf("%J", outbound));
-    delete_option(ctx, section, "outbound_detour_enabled");
-    delete_option(ctx, section, "outbound_detour_section");
-}
-
-function migrate_outbound_json_list(ctx, section, legacy_connection_kind) {
-    migrate_legacy_outbound_json_detour(ctx, section, legacy_connection_kind);
-
-    let outbound_json = option(section, "outbound_json", "");
-    if (outbound_json != "") {
-        let outbound;
-        try {
-            outbound = json(outbound_json);
-        }
-        catch (e) {
-            outbound = null;
-        }
-
-        if (type(outbound) == "object" && trim(as_string(outbound.tag || "")) == "") {
-            let existing = option_list_values(section, "outbound_jsons");
-            let taken = {};
-            for (let value in existing) {
-                try {
-                    let item = json(value);
-                    let tag_name = type(item) == "object" ? trim(as_string(item.tag || "")) : "";
-                    if (tag_name != "")
-                        taken[tag_name] = true;
-                }
-                catch (e) {
-                }
-            }
-
-            let base = singbox_constants_module.outbound_tag(
-                section_name(section) + "-json-" + (length(existing) + 1)
-            );
-            let tag_name = base;
-            for (let suffix = 1; taken[tag_name]; suffix++)
-                tag_name = base + "-" + suffix;
-            outbound.tag = tag_name;
-            set_option(ctx, section, "outbound_json", sprintf("%J", outbound));
-        }
-    }
-
-    normalize_connections_list(ctx, section, "outbound_json", "outbound_jsons");
-}
-
-function migrate_connection_section(ctx, section, constants, legacy_connection_kind) {
-    migrate_subscription_url_item_settings(ctx, section);
-    migrate_urltest_item_settings(ctx, section, constants);
-    migrate_interface_item_settings(ctx, section);
-    migrate_outbound_json_list(ctx, section, legacy_connection_kind);
-
-    delete_option(ctx, section, "subscription_update_enabled");
-    delete_option(ctx, section, "subscription_update_interval");
-    delete_option(ctx, section, "enable_udp_over_tcp");
-}
-
-function strip_list_comment(line) {
-    line = replace(as_string(line), /[[:space:]]*\/\/.*$/, "");
-    return replace(line, /[[:space:]]*#.*$/, "");
-}
-
-function text_list_values(value, separator_mode) {
-    let result = [];
-    separator_mode = as_string(separator_mode);
-
-    for (let line in split(as_string(value), "\n")) {
-        line = strip_list_comment(line);
-        line = separator_mode == "comma-space"
-            ? replace(line, /[ ,]/g, "\n")
-            : replace(line, /,/g, "\n");
-
-        for (let item in split(line, "\n")) {
-            item = trim(replace(item, /\r/g, ""));
-            if (item != "")
-                push(result, item);
-        }
-    }
-
-    return result;
-}
-
-function filter_domain_values(values) {
-    let result = [];
-    for (let value in values) {
-        let normalized = domain_config.suffix_to_ascii(value);
-        if (normalized != null)
-            push(result, normalized);
-    }
-    return result;
-}
-
-function generic_values_from_text(value) {
-    return text_list_values(value, "comma");
-}
-
-function legacy_condition_values(kind, text_mode, conditions_text_mode, text_value, list_value) {
-    if (int(text_mode || 0) == 1 || int(conditions_text_mode || 0) == 1)
-        return kind == "domains"
-            ? filter_domain_values(text_list_values(text_value, "comma-space"))
-            : generic_values_from_text(text_value);
-
-    let result = [];
-    for (let item in list_option({ value: list_value }, "value"))
-        push(result, item);
-    if (length(result) > 0)
-        return result;
-
-    if (as_string(text_value) != "")
-        return kind == "domains"
-            ? filter_domain_values(text_list_values(text_value, "comma-space"))
-            : generic_values_from_text(text_value);
-
-    return [];
-}
-
-function add_unique_value(result, seen, value) {
-    value = as_string(value);
-    if (value == "" || seen[value])
-        return;
-
-    seen[value] = true;
-    push(result, value);
-}
-
-function has_domain_condition_prefix(value) {
-    let colon = index(value, ":");
-    if (colon <= 0)
-        return false;
-
-    let prefix = domain_config.ascii_lower(substr(value, 0, colon));
-    return prefix == "full" || prefix == "keyword" || prefix == "regex";
-}
-
-function add_values_with_prefix(result, seen, values, prefix) {
-    for (let value in values) {
-        value = trim(as_string(value));
-        add_unique_value(result, seen, has_domain_condition_prefix(value) ? value : prefix + value);
-    }
-}
-
-function legacy_values_for_option(section, option_name, kind) {
-    return legacy_condition_values(
-        kind,
-        option(section, option_name + "_text_mode", "0"),
-        option(section, "conditions_text_mode", "0"),
-        option(section, option_name + "_text", ""),
-        section[option_name]
-    );
-}
-
-function raw_text_condition_values(section, option_name) {
-    return text_list_values(option(section, option_name, ""), "comma-space");
-}
-
-function add_domain_values_with_prefix(result, seen, section, option_name, prefix, kind) {
-    let values = legacy_condition_values(
-        kind,
-        option(section, option_name + "_text_mode", "0"),
-        option(section, "conditions_text_mode", "0"),
-        option(section, option_name + "_text", ""),
-        section[option_name]
-    );
-
-    add_values_with_prefix(result, seen, values, prefix);
-}
-
-function migrate_combined_domain_conditions(ctx, section) {
-    let values = [];
-    let seen = {};
-
-    for (let value in list_option(section, "domain_suffix"))
-        add_unique_value(values, seen, value);
-    for (let value in raw_text_condition_values(section, "domain_suffix_text"))
-        add_unique_value(values, seen, value);
-
-    add_domain_values_with_prefix(values, seen, section, "domain", "full:", "domains");
-    add_domain_values_with_prefix(values, seen, section, "domain_keyword", "keyword:", "generic");
-    add_domain_values_with_prefix(values, seen, section, "domain_regex", "regex:", "generic");
-
-    if (length(values) > 0)
-        set_option(ctx, section, "domain", join("\n", values));
-    else
-        delete_option(ctx, section, "domain");
-
-    delete_option(ctx, section, "domain_suffix");
-    delete_option(ctx, section, "domain_suffix_text");
-    delete_option(ctx, section, "domain_suffix_text_mode");
-    delete_option(ctx, section, "domain_keyword");
-    delete_option(ctx, section, "domain_regex");
-    delete_option(ctx, section, "domain_text");
-    delete_option(ctx, section, "domain_keyword_text");
-    delete_option(ctx, section, "domain_regex_text");
-    delete_option(ctx, section, "domain_text_mode");
-    delete_option(ctx, section, "domain_keyword_text_mode");
-    delete_option(ctx, section, "domain_regex_text_mode");
-}
-
-function migrate_text_condition(ctx, section, option_name, kind) {
-    let values = legacy_values_for_option(section, option_name, kind);
-    if (length(values) > 0)
-        set_option(ctx, section, option_name, join("\n", values));
-    else if (option_exists(section, option_name) && type(section[option_name]) == "array")
-        delete_option(ctx, section, option_name);
-
-    delete_option(ctx, section, option_name + "_text");
-    delete_option(ctx, section, option_name + "_text_mode");
-}
-
-function migrate_rule(ctx, section, converted_from_rule, constants) {
-    let action = migrated_rule_action(section);
-    let legacy_connection_kind = legacy_rule_connection_kind(section);
-    let proxy_config_type = option(section, "proxy_config_type", "");
-    let subscription_urls = option(section, "subscription_urls", "");
-
-    if (action != "")
-        set_option(ctx, section, "action", action);
-
-    delete_option(ctx, section, "connection_type");
-    delete_option(ctx, section, "subscription_group_by_countries");
-    delete_option(ctx, section, "group_by_countries");
-    delete_option(ctx, section, "subscription_detect_server_countries");
-
-    if (action == "connection") {
-        migrate_urltest_filter_mode(ctx, section);
-        if (legacy_connection_kind == "proxy")
-            migrate_proxy_rule(ctx, section, proxy_config_type);
-        else {
-            delete_option(ctx, section, "proxy_config_type");
-            delete_option(ctx, section, "proxy_string");
-            delete_option(ctx, section, "urltest_proxy_links");
-            delete_option(ctx, section, "subscription_url");
-            delete_option(ctx, section, "subscription_user_agent");
-            delete_option(ctx, section, "urltest_check_interval_disabled");
-            delete_option(ctx, section, "subscription_update_interval_disabled");
-        }
-        migrate_connection_section(ctx, section, constants, legacy_connection_kind);
-        if (converted_from_rule && subscription_urls != "")
-            delete_subscription_cache(ctx, section_name(section));
-    }
-    else if (action == "block" ||
-        action == "bypass") {
-        delete_option(ctx, section, "proxy_config_type");
-        delete_option(ctx, section, "proxy_string");
-        delete_option(ctx, section, "urltest_proxy_links");
-        delete_option(ctx, section, "subscription_url");
-        delete_option(ctx, section, "subscription_user_agent");
-        delete_option(ctx, section, "urltest_check_interval_disabled");
-        delete_option(ctx, section, "subscription_update_interval_disabled");
-    }
-
-    if (action != "connection")
-        delete_legacy_urltest_options(ctx, section);
-
-}
-
-function migrate_rule_section(ctx, section, constants) {
-    set_section_type(ctx, section, "section");
-    migrate_rule(ctx, section, true, constants);
-    migrate_combined_domain_conditions(ctx, section);
-    migrate_text_condition(ctx, section, "ip_cidr", "subnets");
-}
-
-function migrate_list_update_enabled(ctx) {
-    let settings = ctx.model.settings;
-    if (option_exists(settings, "list_update_enabled")) {
-        if (bool_option(settings, "list_update_enabled", true) &&
-            option(settings, "update_interval", "") == "") {
-            set_option(ctx, settings, "update_interval", "1d");
-        }
-        return;
-    }
-
-    if (option(settings, "update_interval", "") != "") {
-        set_option(ctx, settings, "list_update_enabled", "1");
-    }
-    else {
-        set_option(ctx, settings, "list_update_enabled", "0");
-        set_option(ctx, settings, "update_interval", "1d");
-    }
-}
 
 function normalize_existing_list_option(ctx, section, key) {
     let current = object_or_empty(section)[key];
@@ -1048,78 +366,11 @@ function normalize_existing_list_option(ctx, section, key) {
     record_operation(ctx, { op: "set_list", section: section_name(section), option: key, values });
 }
 
-function migrate_dns_server_lists(ctx) {
-    normalize_existing_list_option(ctx, ctx.model.settings, "dns_server");
-    normalize_existing_list_option(ctx, ctx.model.settings, "bootstrap_dns_server");
-}
-
-function migrate_download_via_proxy_flags(ctx) {
-    let settings = ctx.model.settings;
-    let legacy_section = option(settings, "download_lists_via_proxy_section", "");
-    let lists_enabled = bool_option(settings, "download_lists_via_proxy", false);
-    let components_enabled = option_exists(settings, "download_components_via_proxy")
-        ? bool_option(settings, "download_components_via_proxy", false)
-        : lists_enabled;
-
-    set_option(ctx, settings, "download_lists_via_proxy", lists_enabled ? "1" : "0");
-    if (!lists_enabled)
-        delete_option(ctx, settings, "download_lists_via_proxy_section");
-
-    set_option(ctx, settings, "download_components_via_proxy", components_enabled ? "1" : "0");
-    if (components_enabled) {
-        if (option(settings, "download_components_via_proxy_section", "") == "" && legacy_section != "")
-            set_option(ctx, settings, "download_components_via_proxy_section", legacy_section);
-    }
-    else {
-        delete_option(ctx, settings, "download_components_via_proxy_section");
-    }
-}
-
-function migrate_subscription_download_via_proxy_settings(ctx) {
-    let settings_section = ctx.model.settings;
-    let enabled = bool_option(settings_section, "download_subscriptions_via_proxy", false);
-    let target_section = option(settings_section, "download_lists_via_proxy_section", "");
-
-    if (enabled && target_section != "") {
-        for (let child in ctx.model.subscription_url || []) {
-            let name = option(child, "section", "");
-            if (name == "" || name == target_section)
-                continue;
-            set_option(ctx, child, "download_via_proxy_enabled", "1");
-            set_option(ctx, child, "download_via_proxy_section", target_section);
-        }
-    }
-
-    delete_option(ctx, settings_section, "download_subscriptions_via_proxy");
-}
-
-function migrate_rule_set_settings(ctx, section) {
-    let normalize_list = function(key) {
-        let seen = {};
-        let result = [];
-        for (let reference in option_list_values(section, key)) {
-            reference = as_string(reference);
-            if (reference == "" || seen[reference])
-                continue;
-            seen[reference] = true;
-            push(result, reference);
-        }
-        if (length(result) > 0)
-            set_list_option(ctx, section, key, result);
-        else
-            delete_option(ctx, section, key);
-    };
-
-    normalize_list("community_lists");
-    normalize_list("rule_set");
-    normalize_list("rule_set_with_subnets");
-    delete_option(ctx, section, "rule_set_settings");
-}
 
 function version_parts(value) {
     let matched = match(as_string(value), /^([0-9]+)\.([0-9]+)\.([0-9]+)$/);
     if (!matched)
-        return [ 0, 0, 0 ];
+        return null;
     return [ int(matched[1]), int(matched[2]), int(matched[3]) ];
 }
 
@@ -1135,37 +386,163 @@ function compare_versions(left, right) {
     return 0;
 }
 
-function release_at_most(ctx, version) {
-    return compare_versions(ctx.source_release, version) <= 0;
+// Released 1.0.2 -> 1.0.5.
+
+function hex_digit_value(value) {
+    value = ord(lc(as_string(value)));
+    if (value >= 48 && value <= 57)
+        return value - 48;
+    if (value >= 97 && value <= 102)
+        return value - 87;
+    return -1;
 }
 
-function migrate_interface_sections(ctx) {
-    if (!release_at_most(ctx, "1.0.1"))
-        return;
-
-    for (let section in ctx.model.sections)
-        migrate_interface_item_settings(ctx, section);
+function percent_decode(value) {
+    value = as_string(value);
+    let result = "";
+    for (let i = 0; i < length(value); i++) {
+        let c = substr(value, i, 1);
+        if (c == "+") {
+            result += " ";
+            continue;
+        }
+        if (c == "%") {
+            let high = i + 1 < length(value) ? hex_digit_value(substr(value, i + 1, 1)) : -1;
+            let low = i + 2 < length(value) ? hex_digit_value(substr(value, i + 2, 1)) : -1;
+            if (high >= 0 && low >= 0) {
+                result += chr(high * 16 + low);
+                i += 2;
+                continue;
+            }
+        }
+        result += c;
+    }
+    return result;
 }
+
+function strip_fragment(value) {
+    value = as_string(value);
+    let marker = index(value, "#");
+    return marker >= 0 ? substr(value, 0, marker) : value;
+}
+
+function userinfo(value) {
+    value = as_string(value);
+    let scheme = index(value, "://");
+    if (scheme >= 0)
+        value = substr(value, scheme + 3);
+    let end = index(value, "/");
+    value = end >= 0 ? substr(value, 0, end) : value;
+    let at = rindex(value, "@");
+    return at >= 0 ? percent_decode(substr(value, 0, at)) : "";
+}
+
+function migration_port(value) {
+    value = as_string(value);
+    if (match(value, /^[0-9]+$/) == null)
+        return null;
+
+    value = int(value);
+    return value >= 1 && value <= 65535 ? value : null;
+}
+
+function unique_migration_tag(base, taken) {
+    base = trim(as_string(base));
+    if (base == "")
+        base = "http";
+    if (!taken[base])
+        return base;
+
+    for (let suffix = 1; suffix < 100000; suffix++) {
+        let candidate = base + "-" + suffix;
+        if (!taken[candidate])
+            return candidate;
+    }
+    return base + "-overflow";
+}
+
+function migrated_http_outbound(link, tag_name) {
+    link = strip_fragment(percent_decode(link));
+    let scheme = core_url.scheme(link);
+    if (scheme != "http" && scheme != "https")
+        return null;
+
+    let host = core_url.host(link);
+    let port = migration_port(core_url.port(link));
+    let path = core_url.path(link);
+    if (host == "" || port == null || (path != "" && path != "/") || index(link, "?") >= 0)
+        return null;
+
+    let outbound = {
+        type: "http",
+        tag: tag_name,
+        server: host,
+        server_port: port
+    };
+    let credentials = userinfo(link);
+    if (credentials != "") {
+        let colon = index(credentials, ":");
+        outbound.username = colon >= 0 ? substr(credentials, 0, colon) : credentials;
+        if (colon >= 0)
+            outbound.password = substr(credentials, colon + 1);
+    }
+    if (scheme == "https")
+        outbound.tls = { enabled: true };
+    return outbound;
+}
+
+function migrate_to_1_0_5(ctx) {
+    for (let section in ctx.model.sections) {
+        let existing_jsons = option_list_values(section, "outbound_jsons");
+        let taken = {};
+        for (let value in existing_jsons) {
+            try {
+                let outbound = json(value);
+                let tag_name = type(outbound) == "object" ? trim(as_string(outbound.tag || "")) : "";
+                if (tag_name != "")
+                    taken[tag_name] = true;
+            }
+            catch (e) {
+            }
+        }
+
+        let remaining_links = [];
+        let migrated_jsons = [];
+        for (let link in option_list_values(section, "selector_proxy_links")) {
+            let tag_name = unique_migration_tag(core_url.fragment(link), taken);
+            let outbound = migrated_http_outbound(link, tag_name);
+            if (outbound == null) {
+                push(remaining_links, link);
+                continue;
+            }
+
+            taken[tag_name] = true;
+            push(migrated_jsons, sprintf("%J", outbound));
+        }
+
+        if (length(migrated_jsons) == 0)
+            continue;
+
+        if (length(remaining_links) > 0)
+            set_list_option(ctx, section, "selector_proxy_links", remaining_links);
+        else
+            delete_option(ctx, section, "selector_proxy_links");
+
+        for (let value in existing_jsons)
+            push(migrated_jsons, value);
+        set_list_option(ctx, section, "outbound_jsons", migrated_jsons);
+    }
+}
+
+
+// Released 1.0.5 -> current schema.
 
 function migrate_interface_display_names(ctx) {
-    if (!release_at_most(ctx, "1.0.5"))
-        return;
-
     for (let child in ctx.model.section_interface || []) {
         let name = trim(option(child, "name", ""));
         if (name != "")
             set_option_if_missing(ctx, child, "display_name", name);
     }
-}
-
-function migrate_enable_component_checks(ctx) {
-    if (!release_at_most(ctx, "1.0.1"))
-        return;
-
-    set_option(ctx, ctx.model.settings, "component_update_check_enabled", "1");
-}
-
-function migrate_http_connection_urls(_ctx) {
 }
 
 const OBSOLETE_SERVER_FILTER_OPTIONS = [
@@ -1207,7 +584,6 @@ const OBSOLETE_PRIORITY_GROUP_OPTIONS = [
     "active_check_interval",
     "check_timeout",
     "recovery_check_interval",
-    "blacklist_timeout",
     "pick_fastest",
     "switch_to_faster_same_priority",
     "fastest_check_interval",
@@ -1240,13 +616,6 @@ function use_native_fallbacks(ctx) {
         FORKOP_RUNTIME_STATE_DIR + "/priority.pid"
     ])
         push(ctx.removed_caches, path);
-}
-
-function migrate_dns_fallback_modes(ctx) {
-    let settings = ctx.model.settings;
-    set_option_if_missing(ctx, settings, "dns_main_fallback_strategy", "parallel");
-    set_option_if_missing(ctx, settings, "dns_bootstrap_fallback_strategy", "parallel");
-    delete_option(ctx, settings, "dns_fallback_strategy");
 }
 
 function use_native_rule_sets(ctx) {
@@ -1319,37 +688,6 @@ const OBSOLETE_SUBSCRIPTION_GROUP_OPTIONS = [
     "hide_detour_outbounds"
 ];
 
-function remove_subscription_group_settings_map(ctx, section) {
-    let raw = option(section, "subscription_url_settings", "");
-    if (raw == "")
-        return false;
-
-    let settings;
-    try {
-        settings = json(raw);
-    }
-    catch (e) {
-        return false;
-    }
-    if (type(settings) != "object")
-        return false;
-
-    let changed = false;
-    for (let _, item in settings) {
-        if (type(item) != "object")
-            continue;
-        for (let key in OBSOLETE_SUBSCRIPTION_GROUP_OPTIONS) {
-            if (!option_exists(item, key))
-                continue;
-            delete item[key];
-            changed = true;
-        }
-    }
-    if (changed)
-        set_option(ctx, section, "subscription_url_settings", sprintf("%J", settings));
-    return changed;
-}
-
 function use_leaf_subscription_providers(ctx) {
     for (let child in ctx.model.subscription_url || []) {
         for (let key in OBSOLETE_SUBSCRIPTION_GROUP_OPTIONS)
@@ -1358,8 +696,9 @@ function use_leaf_subscription_providers(ctx) {
     for (let section in ctx.model.sections || []) {
         for (let key in OBSOLETE_SUBSCRIPTION_GROUP_OPTIONS)
             delete_option(ctx, section, key);
-        remove_subscription_group_settings_map(ctx, section);
     }
+    for (let child in ctx.model.urltest || [])
+        delete_option(ctx, child, "hide_added_outbounds");
 }
 
 function remove_section_cache(ctx) {
@@ -1369,15 +708,6 @@ function remove_section_cache(ctx) {
 function set_option_if_blank(ctx, section, key, value) {
     if (option(section, key, "") == "")
         set_option(ctx, section, key, value);
-}
-
-function hex_digit_value(value) {
-    value = ord(lc(as_string(value)));
-    if (value >= 48 && value <= 57)
-        return value - 48;
-    if (value >= 97 && value <= 102)
-        return value - 87;
-    return -1;
 }
 
 function decode_hex(value) {
@@ -1412,6 +742,8 @@ function migrate_legacy_server_user(ctx, server, protocol) {
     }
 
     if (credential != "") {
+        if (name != "")
+            set_option_if_blank(ctx, server, "server_username", name);
         if (protocol == "vless" || protocol == "vmess") {
             set_option_if_blank(ctx, server, "server_uuid", credential);
             if (protocol == "vless" && extra != "")
@@ -1421,8 +753,6 @@ function migrate_legacy_server_user(ctx, server, protocol) {
         }
         else if (protocol == "shadowsocks" || protocol == "socks" || protocol == "trojan" || protocol == "hysteria2") {
             set_option_if_blank(ctx, server, "server_password", credential);
-            if (protocol == "socks" && name != "")
-                set_option_if_blank(ctx, server, "server_username", name);
         }
         else if (protocol == "mtproto") {
             let secret = lc(credential);
@@ -1440,25 +770,13 @@ function migrate_legacy_server_user(ctx, server, protocol) {
     delete_option(ctx, server, "server_users");
 }
 
-function add_extended_server_defaults(ctx) {
-    set_option_if_missing(ctx, ctx.model.settings, "unified_delay", "0");
-    for (let server in ctx.model.servers || []) {
-        let protocol = option(server, "protocol", "vless");
-        migrate_legacy_server_user(ctx, server, protocol);
-        delete_option(ctx, server, "mtproto_padding");
-        // Only the options the dialog still asks for. The expert knobs this migration
-        // used to fill in are removed again further down the list, so writing them
-        // here would just be work undone.
-        if (protocol == "naive")
-            set_option_if_missing(ctx, server, "naive_network", "tcp");
-        else if (protocol == "mieru")
-            set_option_if_missing(ctx, server, "mieru_transport", "TCP");
-        else if (protocol == "tuic") {
-            set_option_if_missing(ctx, server, "tuic_congestion_control", "cubic");
-            set_option_if_missing(ctx, server, "tuic_heartbeat", "10s");
-            set_option_if_missing(ctx, server, "tuic_zero_rtt_handshake", "0");
-        }
-    }
+function add_current_defaults(ctx) {
+    set_option_if_missing(ctx, ctx.model.settings, "unified_delay", "1");
+}
+
+function migrate_released_server_users(ctx) {
+    for (let server in ctx.model.servers || [])
+        migrate_legacy_server_user(ctx, server, option(server, "protocol", "vless"));
 }
 
 function migrate_fallback_uci_tags(ctx) {
@@ -1502,45 +820,6 @@ const OBSOLETE_PROXY_PARAMETER_FILTER_OPTIONS = [
     "exclude_securities"
 ];
 
-function remove_proxy_parameter_fields(value) {
-    let changed = false;
-    if (type(value) == "array") {
-        for (let item in value)
-            if (remove_proxy_parameter_fields(item))
-                changed = true;
-        return changed;
-    }
-    if (type(value) != "object")
-        return false;
-
-    for (let key in OBSOLETE_PROXY_PARAMETER_FILTER_OPTIONS) {
-        if (!option_exists(value, key))
-            continue;
-        delete value[key];
-        changed = true;
-    }
-    for (let key, item in value)
-        if (remove_proxy_parameter_fields(item))
-            changed = true;
-    return changed;
-}
-
-function clean_proxy_parameter_settings_map(ctx, section, key) {
-    let raw = option(section, key, "");
-    if (raw == "")
-        return;
-
-    let settings;
-    try {
-        settings = json(raw);
-    }
-    catch (e) {
-        return;
-    }
-    if (remove_proxy_parameter_fields(settings))
-        set_option(ctx, section, key, sprintf("%J", settings));
-}
-
 function remove_proxy_parameter_filters(ctx) {
     for (let type_name in [ "subscription_url", "urltest", "fallback_level", "priority_level" ])
         for (let child in ctx.model[type_name] || [])
@@ -1552,15 +831,6 @@ function remove_proxy_parameter_filters(ctx) {
             delete_option(ctx, section, key);
             delete_option(ctx, section, "urltest_" + key);
         }
-        for (let map_key in [
-            "subscription_url_settings",
-            "urltest_settings",
-            "priority_group_settings",
-            "priority_level_settings",
-            "fallback_group_settings",
-            "fallback_level_settings"
-        ])
-            clean_proxy_parameter_settings_map(ctx, section, map_key);
     }
 }
 
@@ -1653,16 +923,6 @@ function migrated_filter_values(section, kind) {
     if (mode != "all" && mode != "exclude" && mode != "include" && mode != "direct") {
         if (fallback && bool_option(section, "direct", false))
             mode = "direct";
-        else if (option_exists(section, "filter_enabled")) {
-            if (!bool_option(section, "filter_enabled", false))
-                mode = "all";
-            else if (length(include_outbounds) > 0 || include_regex != "")
-                mode = "include";
-            else if (length(exclude_outbounds) > 0 || exclude_regex != "")
-                mode = "exclude";
-            else
-                mode = "all";
-        }
         else if (legacy_mode == "include" || legacy_mode == "mixed")
             mode = "include";
         else if (legacy_mode == "exclude")
@@ -1683,7 +943,6 @@ function migrated_filter_values(section, kind) {
 }
 
 const LEGACY_SERVER_FILTER_OPTIONS = [
-    "filter_enabled",
     "filter_mode",
     "direct",
     "include_countries",
@@ -1696,7 +955,6 @@ const LEGACY_SERVER_FILTER_OPTIONS = [
 function has_server_filter_fields(section) {
     for (let key in [
         "server_filter_mode",
-        "filter_enabled",
         "filter_mode",
         "include_countries",
         "include_outbounds",
@@ -1734,50 +992,6 @@ function apply_migrated_filter_values(ctx, section, values) {
         delete_option(ctx, section, key);
 }
 
-function apply_migrated_filter_object(section, values) {
-    section.server_filter_mode = values.server_filter_mode;
-    for (let key in [ "include_outbounds", "exclude_outbounds" ]) {
-        if (length(values[key]) > 0)
-            section[key] = values[key];
-        else
-            delete section[key];
-    }
-    for (let key in [ "include_regex", "exclude_regex" ]) {
-        if (values[key] != "")
-            section[key] = values[key];
-        else
-            delete section[key];
-    }
-    for (let key in LEGACY_SERVER_FILTER_OPTIONS)
-        delete section[key];
-}
-
-function migrate_filter_settings_map(ctx, section, key, kind) {
-    let raw = option(section, key, "");
-    if (raw == "")
-        return;
-
-    let settings;
-    try {
-        settings = json(raw);
-    }
-    catch (e) {
-        return;
-    }
-    if (type(settings) != "object")
-        return;
-
-    let before = sprintf("%J", settings);
-    for (let _, item in settings) {
-        if (type(item) != "object" || !has_server_filter_fields(item))
-            continue;
-        let values = migrated_filter_values(item, kind);
-        apply_migrated_filter_object(item, values);
-    }
-    if (sprintf("%J", settings) != before)
-        set_option(ctx, section, key, sprintf("%J", settings));
-}
-
 function migrate_server_filter_model(ctx) {
     for (let child in ctx.model.subscription_url || [])
         if (has_server_filter_fields(child))
@@ -1789,17 +1003,6 @@ function migrate_server_filter_model(ctx) {
         for (let child in ctx.model[type_name] || [])
             if (has_server_filter_fields(child))
                 apply_migrated_filter_values(ctx, child, migrated_filter_values(child, "fallback"));
-
-    for (let section in ctx.model.sections || []) {
-        migrate_filter_settings_map(ctx, section, "subscription_url_settings", "subscription");
-        migrate_filter_settings_map(ctx, section, "urltest_settings", "urltest");
-        migrate_filter_settings_map(ctx, section, "fallback_level_settings", "fallback");
-        migrate_filter_settings_map(ctx, section, "priority_level_settings", "fallback");
-    }
-}
-
-function migrate_server_filter_modes(ctx) {
-    migrate_server_filter_model(ctx);
 }
 
 function single_subscription_user_agent(item) {
@@ -1813,40 +1016,6 @@ function migrate_single_subscription_user_agent(ctx) {
     for (let child in ctx.model.subscription_url || []) {
         set_option(ctx, child, "user_agent", single_subscription_user_agent(child));
         delete_option(ctx, child, "auto_user_agent");
-    }
-
-    for (let section in ctx.model.sections || []) {
-        let raw = option(section, "subscription_url_settings", "");
-        if (raw == "")
-            continue;
-
-        let settings;
-        try {
-            settings = json(raw);
-        }
-        catch (e) {
-            continue;
-        }
-        if (type(settings) != "object")
-            continue;
-
-        let changed = false;
-        for (let _, item in settings) {
-            if (type(item) != "object")
-                continue;
-
-            let user_agent = single_subscription_user_agent(item);
-            if (as_string(item.user_agent) != user_agent || !option_exists(item, "user_agent")) {
-                item.user_agent = user_agent;
-                changed = true;
-            }
-            if (option_exists(item, "auto_user_agent")) {
-                delete item.auto_user_agent;
-                changed = true;
-            }
-        }
-        if (changed)
-            set_option(ctx, section, "subscription_url_settings", sprintf("%J", settings));
     }
 }
 
@@ -1900,34 +1069,6 @@ function migrate_subscription_user_agent_header(ctx) {
         set_list_option(ctx, child, "header", subscription_user_agent_header_lines(child));
         delete_option(ctx, child, "user_agent");
     }
-
-    for (let section in ctx.model.sections || []) {
-        let raw = option(section, "subscription_url_settings", "");
-        if (raw == "")
-            continue;
-
-        let settings;
-        try {
-            settings = json(raw);
-        }
-        catch (e) {
-            continue;
-        }
-        if (type(settings) != "object")
-            continue;
-
-        let changed = false;
-        for (let _, item in settings) {
-            if (type(item) != "object" || !option_exists(item, "user_agent"))
-                continue;
-
-            item.header = subscription_user_agent_header_lines(item);
-            delete item.user_agent;
-            changed = true;
-        }
-        if (changed)
-            set_option(ctx, section, "subscription_url_settings", sprintf("%J", settings));
-    }
 }
 
 function remove_dashboard_sort_options(ctx) {
@@ -1967,9 +1108,6 @@ function migrate_dns_server_uris(ctx) {
 }
 
 function migrate_interface_domain_resolver_uris(ctx) {
-    if (!release_at_most(ctx, "1.0.5"))
-        return;
-
     for (let child in ctx.model.section_interface || []) {
         if (option_exists(child, "domain_resolver_dns_type")) {
             let dns_type = option(child, "domain_resolver_dns_type", "udp") || "udp";
@@ -2088,15 +1226,10 @@ const SERVER_CLIENT_PROTOCOL_FIELDS = {
     trojan: [ [ "password", "server_password" ] ],
     shadowsocks: [ [ "password", "server_password" ] ],
     hysteria2: [ [ "password", "server_password" ] ],
-    tuic: [ [ "uuid", "server_uuid" ], [ "password", "server_password" ] ],
-    anytls: [ [ "password", "server_password" ] ],
     mixed: [ [ "password", "server_password" ] ],
-    naive: [ [ "password", "server_password" ] ],
-    ssh: [ [ "password", "server_password" ] ],
-    mieru: [ [ "password", "server_password" ] ],
     mtproto: [ [ "secret", "mtproto_secret" ] ]
 };
-const LOGIN_NAME_SERVER_PROTOCOLS = { mixed: true, naive: true, ssh: true, mieru: true };
+const LOGIN_NAME_SERVER_PROTOCOLS = { mixed: true };
 // Frozen on purpose: a migration describes the schema of a past release and must not
 // follow the generator's table when that table changes again.
 const SHADOWSOCKS_2022_KEY_BYTES = {
@@ -2215,6 +1348,7 @@ function migrate_shadowsocks_server_keys(ctx) {
 // the core, none changed whether a client could connect, and an unread value left in
 // the configuration would only show up in diagnostics forever.
 const REMOVED_SERVER_OPTIONS = [
+    "mtproto_padding",
     "mtproto_concurrency",
     "mtproto_domain_fronting_port",
     "mtproto_domain_fronting_ip",
@@ -2225,9 +1359,6 @@ const REMOVED_SERVER_OPTIONS = [
     "mtproto_tolerate_time_skewness",
     "mtproto_idle_timeout",
     "mtproto_handshake_timeout",
-    "tuic_auth_timeout",
-    "naive_quic_congestion_control",
-    "mieru_user_hint_mandatory",
     "reality_max_time_difference",
     // The exit node is what a Tailscale server is for, so the switch that could
     // take it away is gone and the runtime always advertises it.
@@ -2289,7 +1420,7 @@ function taken_display_names(ctx) {
 
 function taken_section_names(ctx) {
     let result = { settings: true };
-    for (let list in [ ctx.model.sections || [], ctx.model.rules || [], ctx.model.servers || [] ])
+    for (let list in [ ctx.model.sections || [], ctx.model.servers || [] ])
         for (let section in list)
             result[section_name(section)] = true;
     for (let type_name in CHILD_ITEM_TYPES)
@@ -2424,8 +1555,7 @@ const REMOVED_DPI_ACTIONS = {
 const REMOVED_DPI_SECTION_OPTIONS = [
     "nfqws_opt",
     "nfqws2_opt",
-    "byedpi_cmd_opts",
-    "cmd_opts"
+    "byedpi_cmd_opts"
 ];
 
 // Each entry is an option naming a section, together with the switch that made
@@ -2507,114 +1637,104 @@ function remove_dpi_provider_sections(ctx) {
             clear_removed_section_references(ctx, child, removed);
 }
 
-const MIGRATIONS = [
-    { id: "interface_sections", run: migrate_interface_sections },
-    { id: "enable_component_checks", run: migrate_enable_component_checks },
-    { id: "http_connection_urls", run: migrate_http_connection_urls },
-    { id: "remove_server_country_and_dashboard_filter", run: remove_server_country_and_dashboard_filter },
-    { id: "native_fallbacks", run: use_native_fallbacks },
-    { id: "dns_fallback_modes", run: migrate_dns_fallback_modes },
-    { id: "native_rule_sets", run: use_native_rule_sets },
-    { id: "universal_rule_sets", run: use_universal_rule_sets },
-    { id: "leaf_subscription_providers", run: use_leaf_subscription_providers },
-    { id: "extended_server_defaults", run: add_extended_server_defaults },
-    { id: "fallback_uci_tags", run: migrate_fallback_uci_tags },
-    { id: "reset_fallback_defaults", run: reset_fallback_defaults },
-    { id: "remove_proxy_parameter_filters", run: remove_proxy_parameter_filters },
-    { id: "server_filter_model", run: migrate_server_filter_model },
-    { id: "server_filter_modes", run: migrate_server_filter_modes },
-    { id: "single_subscription_user_agent", run: migrate_single_subscription_user_agent },
-    { id: "subscription_headers", run: migrate_subscription_headers },
-    { id: "interface_display_names", run: migrate_interface_display_names },
-    { id: "remove_section_cache", run: remove_section_cache },
-    { id: "remove_dashboard_sort_options", run: remove_dashboard_sort_options },
-    { id: "dns_server_uris", run: migrate_dns_server_uris },
-    { id: "interface_domain_resolver_uris", run: migrate_interface_domain_resolver_uris },
-    { id: "readable_runtime_tags", run: migrate_readable_runtime_tags },
-    { id: "urltest_expected_status", run: migrate_urltest_expected_status },
-    { id: "group_interrupt_defaults", run: migrate_group_interrupt_defaults },
-    { id: "subscription_user_agent_header", run: migrate_subscription_user_agent_header },
-    { id: "mixed_server_inbounds", run: migrate_socks_servers_to_mixed },
+const CURRENT_TRANSFORMS = [
+    remove_server_country_and_dashboard_filter,
+    use_native_fallbacks,
+    use_native_rule_sets,
+    use_universal_rule_sets,
+    use_leaf_subscription_providers,
+    add_current_defaults,
+    migrate_released_server_users,
+    migrate_fallback_uci_tags,
+    reset_fallback_defaults,
+    remove_proxy_parameter_filters,
+    migrate_server_filter_model,
+    migrate_single_subscription_user_agent,
+    migrate_subscription_headers,
+    migrate_interface_display_names,
+    remove_section_cache,
+    remove_dashboard_sort_options,
+    migrate_dns_server_uris,
+    migrate_interface_domain_resolver_uris,
+    migrate_readable_runtime_tags,
+    migrate_urltest_expected_status,
+    migrate_group_interrupt_defaults,
+    migrate_subscription_user_agent_header,
+    migrate_socks_servers_to_mixed,
     // Before the client sections: the released Shadowsocks key lives in the server
     // password, and that option is removed once the credentials have moved.
-    { id: "shadowsocks_server_keys", run: migrate_shadowsocks_server_keys },
-    { id: "server_client_sections", run: migrate_server_clients },
-    { id: "remove_expert_server_options", run: remove_expert_server_options },
-    { id: "reality_handshake_sni", run: merge_reality_handshake_into_sni },
-    { id: "section_mixed_proxy_servers", run: migrate_section_mixed_proxies },
-    { id: "remove_resolve_real_ip_for_routing", run: remove_resolve_real_ip_for_routing },
-    { id: "dns_capture_settings", run: migrate_dns_capture_settings },
-    { id: "restore_dnsmasq_takeover", run: request_dnsmasq_restore },
-    { id: "remove_dpi_provider_sections", run: remove_dpi_provider_sections }
+    migrate_shadowsocks_server_keys,
+    migrate_server_clients,
+    remove_expert_server_options,
+    merge_reality_handshake_into_sni,
+    migrate_section_mixed_proxies,
+    remove_resolve_real_ip_for_routing,
+    migrate_dns_capture_settings,
+    request_dnsmasq_restore,
+    remove_dpi_provider_sections
 ];
 
-function apply_migrations(ctx) {
-    ctx.source_release = option(ctx.model.settings, CONFIG_VERSION_OPTION, "");
-
-    let applied = [];
-    let seen = {};
-    let added = false;
-    for (let id in list_option(ctx.model.settings, APPLIED_MIGRATIONS_OPTION)) {
-        id = as_string(id);
-        if (id == "" || seen[id])
-            continue;
-        seen[id] = true;
-        push(applied, id);
+function migrate_to_current(ctx) {
+    for (let transform in CURRENT_TRANSFORMS) {
+        transform(ctx);
+        if (ctx.error != null)
+            return;
     }
-
-    for (let migration in MIGRATIONS) {
-        if (seen[migration.id])
-            continue;
-
-        migration.run(ctx);
-        seen[migration.id] = true;
-        push(applied, migration.id);
-        added = true;
-    }
-
-    if (added)
-        set_list_option(ctx, ctx.model.settings, APPLIED_MIGRATIONS_OPTION, applied);
-
-    if (release_at_most(ctx, "1.0.4"))
-        set_option(ctx, ctx.model.settings, CONFIG_VERSION_OPTION, "1.0.5");
 }
 
-function migrate_podkop_model(model, constants) {
-    let ctx = migration_context(model);
-    constants = object_or_empty(constants);
-
-    // podkop's routing_excluded_ips carried the same intent the option carries
-    // here - these devices are not Forkop's to route - so the list survives.
-    migrate_dns_server_lists(ctx);
-    migrate_list_update_enabled(ctx);
-
-    let converted_sections = [];
-    for (let section in model.rules) {
-        migrate_rule_section(ctx, section, constants);
-        push(converted_sections, section);
+function migrate_released_schema(ctx, source_release) {
+    if (source_release == "1.0.2") {
+        migrate_to_1_0_5(ctx);
+        if (ctx.error != null)
+            return;
     }
-    model.rules = [];
+    migrate_to_current(ctx);
+}
 
-    for (let section in model.sections) {
-        migrate_rule(ctx, section, false, constants);
-        migrate_combined_domain_conditions(ctx, section);
-        migrate_text_condition(ctx, section, "ip_cidr", "subnets");
-        migrate_rule_set_settings(ctx, section);
-    }
-    for (let section in converted_sections) {
-        migrate_rule_set_settings(ctx, section);
-        push(model.sections, section);
-    }
-    migrate_subscription_download_via_proxy_settings(ctx);
-    migrate_download_via_proxy_flags(ctx);
-    apply_migrations(ctx);
-
+function request_reset(ctx, source_release) {
+    ctx.source_release = source_release;
+    ctx.reset = true;
+    ctx.changed = true;
+    ctx.restore_dnsmasq = true;
     return ctx;
+}
+
+function migrate_podkop_model(model, _constants) {
+    return request_reset(migration_context(model), "legacy-podkop");
 }
 
 function migrate_forkop_model(model) {
     let ctx = migration_context(model);
-    apply_migrations(ctx);
+    let target_release = target_config_version();
+    if (target_release == "")
+        return migration_error(ctx, "canonical default " + DEFAULT_CONFIG_PATH + " has no config_version option");
+    if (target_release != "NEXT" &&
+        (version_parts(target_release) == null || compare_versions(target_release, LATEST_SOURCE_VERSION) <= 0))
+        return migration_error(ctx, "canonical target config_version must be NEXT or a release newer than " + LATEST_SOURCE_VERSION + ": '" + target_release + "'");
+    let source_release = trim(option(model.settings, CONFIG_VERSION_OPTION, ""));
+    ctx.source_release = source_release;
+
+    if (source_release == "")
+        return request_reset(ctx, "missing");
+    if (source_release == target_release) {
+        delete_option(ctx, model.settings, APPLIED_MIGRATIONS_OPTION);
+        return ctx;
+    }
+    if (version_parts(source_release) == null)
+        return migration_error(ctx, "section 'settings', option 'config_version' has invalid value '" + source_release + "'");
+    if (compare_versions(source_release, MIN_CONFIG_VERSION) < 0)
+        return request_reset(ctx, source_release);
+    if (compare_versions(source_release, LATEST_SOURCE_VERSION) > 0)
+        return migration_error(ctx, "section 'settings', option 'config_version' is newer than the newest migratable schema " + LATEST_SOURCE_VERSION + ": '" + source_release + "'");
+    if (source_release != "1.0.2" && source_release != "1.0.5")
+        return migration_error(ctx, "section 'settings', option 'config_version' names an unknown released schema '" +
+            source_release + "'; supported source schemas are 1.0.2 and 1.0.5");
+
+    migrate_released_schema(ctx, source_release);
+    if (ctx.error != null)
+        return ctx;
+    delete_option(ctx, model.settings, APPLIED_MIGRATIONS_OPTION);
+    set_option(ctx, model.settings, CONFIG_VERSION_OPTION, target_release);
     return ctx;
 }
 
@@ -2622,9 +1742,8 @@ function migrate_forkop_model(model) {
 function remove_cache_path(path) {
     path = as_string(path);
     if (index(path, "*") >= 0)
-        run("rm -f " + path);
-    else
-        run("rm -rf " + shell_quote(path));
+        return run("rm -f " + path);
+    return run("rm -rf " + shell_quote(path));
 }
 
 function remove_cron_markers(markers) {
@@ -2664,25 +1783,42 @@ function apply_operations(cursor, operations) {
     };
 
     for (let op in operations) {
+        let ok = true;
         if (op.op == "create") {
-            if (op.anonymous && type(cursor.add) == "function")
-                created[as_string(op.section)] = cursor.add(CONFIG_NAME, op.type);
+            if (op.anonymous && type(cursor.add) == "function") {
+                let created_name = as_string(cursor.add(CONFIG_NAME, op.type));
+                if (created_name == "")
+                    ok = false;
+                else
+                    created[as_string(op.section)] = created_name;
+            }
             else
-                cursor.set(CONFIG_NAME, op.section, op.type);
+                ok = cursor.set(CONFIG_NAME, op.section, op.type) !== false;
         }
         else if (op.op == "set")
-            cursor.set(CONFIG_NAME, section_ref(op.section), op.option, op.value);
+            ok = cursor.set(CONFIG_NAME, section_ref(op.section), op.option,
+                op.section_reference ? section_ref(op.value) : op.value) !== false;
         else if (op.op == "delete")
-            cursor.delete(CONFIG_NAME, section_ref(op.section), op.option);
+            ok = cursor.delete(CONFIG_NAME, section_ref(op.section), op.option) !== false;
         else if (op.op == "add_list")
-            cursor.set(CONFIG_NAME, section_ref(op.section), op.option, op.values);
+            ok = cursor.set(CONFIG_NAME, section_ref(op.section), op.option, op.values) !== false;
         else if (op.op == "set_list")
-            cursor.set(CONFIG_NAME, section_ref(op.section), op.option, op.values);
+            ok = cursor.set(CONFIG_NAME, section_ref(op.section), op.option, op.values) !== false;
         else if (op.op == "set_type")
-            cursor.set(CONFIG_NAME, section_ref(op.section), op.type);
+            ok = cursor.set(CONFIG_NAME, section_ref(op.section), op.type) !== false;
         else if (op.op == "delete_section")
-            cursor.delete(CONFIG_NAME, section_ref(op.section), null);
+            ok = cursor.delete(CONFIG_NAME, section_ref(op.section), null) !== false;
+        else
+            return { ok: false, error: "unknown migration operation '" + as_string(op.op) + "'" };
+
+        if (!ok) {
+            let location = "section '" + section_ref(op.section) + "'";
+            if (op.option != null)
+                location += ", option '" + as_string(op.option) + "'";
+            return { ok: false, error: "could not apply UCI " + as_string(op.op) + " to " + location };
+        }
     }
+    return { ok: true };
 }
 
 function runtime_cursor() {
@@ -2933,26 +2069,155 @@ function restore_dnsmasq_runtime(settings) {
 
 function migrate_model(model, source) {
     return source == "podkop"
-        ? migrate_podkop_model(model, constants_context())
+        ? migrate_podkop_model(model)
         : migrate_forkop_model(model);
 }
 
+const RELEASED_SECTION_TYPES = [
+    "settings", "section", "server", "subscription_url", "section_interface",
+    "urltest", "priority_group", "priority_level"
+];
+
+const CURRENT_SECTION_TYPES = [
+    "settings", "section", "server", "server_client", "subscription_url",
+    "section_interface", "urltest", "fallback_group", "fallback_level",
+    "tunnel", "tunnel_peer"
+];
+
+function section_type_allowed(type_name, allowed) {
+    for (let candidate in allowed)
+        if (type_name == candidate)
+            return true;
+    return false;
+}
+
+function runtime_config_preflight() {
+    // core.uci's file-backed test adapter has no system uci binary by design.
+    if (getenv("FORKOP_UCI_STATE_FILE") != null && getenv("FORKOP_RUN_UCI_PREFLIGHT") != "1")
+        return { error: null, sections: [] };
+
+    let result = command_result("uci -q show " + shell_quote(CONFIG_NAME) + " 2>&1");
+    if (!result.ok)
+        return {
+            error: "cannot parse " + RUNTIME_CONFIG_PATH + (result.output == "" ? "" : ": " + result.output),
+            sections: []
+        };
+
+    let sections = [];
+    for (let line in split(result.output, "\n")) {
+        let matched = match(line, /^[^.]+\.([^.=]+)=([^=]+)$/);
+        if (!matched)
+            continue;
+        let type_name = replace(trim(matched[2]), /^['\"]|['\"]$/g, "");
+        push(sections, { name: matched[1], type: type_name });
+    }
+    return { error: null, sections };
+}
+
+function invalid_section_error(sections, allowed) {
+    for (let section in sections || [])
+        if (!section_type_allowed(section.type, allowed))
+            return "UCI section '" + section.name + "' has unsupported type '" +
+                section.type + "' in " + RUNTIME_CONFIG_PATH;
+    return null;
+}
+
+function backup_suffix(value) {
+    value = replace(as_string(value), /[^A-Za-z0-9._-]/g, "-");
+    return value == "" ? "unknown" : value;
+}
+
+function backup_runtime_config(source_release) {
+    if (fs.stat(RUNTIME_CONFIG_PATH) == null)
+        return true;
+    let backup_path = RUNTIME_CONFIG_PATH + ".migration-backup." + backup_suffix(source_release);
+    if (fs.stat(backup_path) != null)
+        return true;
+    if (!run("cp -p " + shell_quote(RUNTIME_CONFIG_PATH) + " " + shell_quote(backup_path)))
+        return false;
+    run("logger -t " + shell_quote("forkop") + " " +
+        shell_quote("[info] Saved the pre-migration configuration to " + backup_path));
+    return true;
+}
+
+function install_default_runtime_config() {
+    if (fs.stat(DEFAULT_CONFIG_PATH) == null) {
+        report_migration_error("canonical default configuration is missing: " + DEFAULT_CONFIG_PATH);
+        return false;
+    }
+    let temporary = RUNTIME_CONFIG_PATH + ".migration-new";
+    if (!run("cp -p " + shell_quote(DEFAULT_CONFIG_PATH) + " " + shell_quote(temporary) +
+        " && chmod 0600 " + shell_quote(temporary) + " && mv -f " + shell_quote(temporary) + " " + shell_quote(RUNTIME_CONFIG_PATH))) {
+        report_migration_error("could not atomically replace " + RUNTIME_CONFIG_PATH + " with the canonical defaults");
+        return false;
+    }
+    return true;
+}
+
 function migrate_runtime(source) {
+    let preflight = runtime_config_preflight();
+    if (preflight.error != null) {
+        report_migration_error(preflight.error);
+        return false;
+    }
     let cursor = runtime_cursor();
-    cursor.load(CONFIG_NAME);
+    if (cursor.load(CONFIG_NAME) === false) {
+        report_migration_error("core.uci could not load " + RUNTIME_CONFIG_PATH);
+        return false;
+    }
     let ctx = migrate_model(model_from_uci(cursor), source);
+    if (ctx.error != null) {
+        report_migration_error(ctx.error);
+        return false;
+    }
+    let allowed_types = ctx.source_release == target_config_version()
+        ? CURRENT_SECTION_TYPES
+        : RELEASED_SECTION_TYPES;
+    let section_error = ctx.reset ? null : invalid_section_error(preflight.sections, allowed_types);
+    if (section_error != null) {
+        report_migration_error(section_error);
+        return false;
+    }
     if (!ctx.changed)
         return true;
 
-    apply_operations(cursor, ctx.operations);
-    for (let path in ctx.removed_caches)
-        remove_cache_path(path);
-    if (!remove_cron_markers(ctx.removed_cron_markers))
+    if (!backup_runtime_config(ctx.source_release)) {
+        report_migration_error("could not create a backup of " + RUNTIME_CONFIG_PATH);
         return false;
-    if (ctx.restore_dnsmasq === true && !restore_dnsmasq_runtime(ctx.model.settings))
-        return false;
+    }
 
-    return commit_cursor(cursor);
+    for (let path in ctx.removed_caches) {
+        if (!remove_cache_path(path)) {
+            report_migration_error("could not remove obsolete runtime state " + path);
+            return false;
+        }
+    }
+    if (!remove_cron_markers(ctx.removed_cron_markers)) {
+        report_migration_error("could not remove obsolete Forkop entries from crontab");
+        return false;
+    }
+    if (ctx.restore_dnsmasq === true && !restore_dnsmasq_runtime(ctx.model.settings)) {
+        report_migration_error("could not restore the dnsmasq configuration owned by the previous Forkop release");
+        return false;
+    }
+
+    for (let warning in ctx.warnings || []) {
+        warn("[warning] " + warning + "\n");
+        run("logger -t " + shell_quote("forkop") + " " + shell_quote("[warning] " + warning));
+    }
+    if (ctx.reset)
+        return install_default_runtime_config();
+
+    let applied = apply_operations(cursor, ctx.operations);
+    if (!applied.ok) {
+        report_migration_error(applied.error);
+        return false;
+    }
+    if (!commit_cursor(cursor)) {
+        report_migration_error("could not commit migrated UCI package '" + CONFIG_NAME + "'");
+        return false;
+    }
+    return true;
 }
 
 function commit_runtime() {
@@ -2963,14 +2228,22 @@ function commit_runtime() {
 
 function migrate_fixture(path, source) {
     let ctx = migrate_model(model_from_fixture(path), source);
+    if (ctx.error != null) {
+        report_migration_error(ctx.error);
+        return false;
+    }
     write_json({
         changed: ctx.changed,
-        config: export_model(ctx.model),
+        reset: ctx.reset,
+        target_version: target_config_version(),
+        config: ctx.reset ? null : export_model(ctx.model),
         operations: ctx.operations,
         removed_caches: ctx.removed_caches,
         removed_cron_markers: ctx.removed_cron_markers,
+        warnings: ctx.warnings,
         restore_dnsmasq: ctx.restore_dnsmasq === true
     });
+    return true;
 }
 
 function restore_dnsmasq_fixture(path) {
@@ -2994,8 +2267,7 @@ function main(argv) {
     if (mode == "commit")
         return commit_runtime() ? 0 : 1;
     if (mode == "migrate-fixture") {
-        migrate_fixture(argv[1], argv[2] || "forkop");
-        return 0;
+        return migrate_fixture(argv[1], argv[2] || "forkop") ? 0 : 1;
     }
     if (mode == "restore-dnsmasq-fixture") {
         restore_dnsmasq_fixture(argv[1]);

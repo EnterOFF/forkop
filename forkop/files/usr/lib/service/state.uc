@@ -824,7 +824,7 @@ function sing_box_signature_body(settings, sections, servers, mwan3_active, loca
     body = signature_add_value(body, "settings.output_network_interface", option(settings, "output_network_interface", ""));
     body = signature_add_value(body, "settings.disable_quic", bool_option_value(settings, "disable_quic", false));
     body = signature_add_value(body, "settings.bittorrent_direct", bool_option_value(settings, "bittorrent_direct", false));
-    body = signature_add_value(body, "settings.unified_delay", bool_option_value(settings, "unified_delay", false));
+    body = signature_add_value(body, "settings.unified_delay", bool_option_value(settings, "unified_delay", true));
     body = signature_add_value(body, "settings.static_hosts_text", option(settings, "static_hosts_text", ""));
     if (sing_box_signature_has_remote_ruleset_sources(sections))
         body = signature_add_value(body, "settings.update_interval", settings_update_interval(settings));
