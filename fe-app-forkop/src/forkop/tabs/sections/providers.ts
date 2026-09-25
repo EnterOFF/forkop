@@ -18,7 +18,6 @@ export function providerTypeChoices() {
     ['sudoku', 'Sudoku'],
     ['trusttunnel', 'TrustTunnel'],
     ['masque', 'MASQUE'],
-    ['openvpn', 'OpenVPN'],
     ['ssh', 'SSH'],
     ['tor', 'Tor'],
     ['socks', 'SOCKS'],
@@ -27,9 +26,7 @@ export function providerTypeChoices() {
 }
 
 // A group also holds the servers a section configures itself, which is the only
-// way a tunnel or a network interface becomes a member. sing-box has no
-// AmneziaWG protocol, so Forkop resolves it from the WireGuard endpoint that
-// carries an amnezia block.
+// way a tunnel or a network interface becomes a member.
 export function groupTypeChoices() {
   return [
     ...providerTypeChoices(),
@@ -38,6 +35,8 @@ export function groupTypeChoices() {
       ['amneziawg', 'AmneziaWG'],
       ['warp', 'WARP'],
       ['tailscale', 'Tailscale'],
+      ['openvpn-client', 'OpenVPN'],
+      ['openconnect', 'OpenConnect'],
       ['direct', _('Network interface')],
     ].map(([value, label]) => ({ value, label })),
   ];

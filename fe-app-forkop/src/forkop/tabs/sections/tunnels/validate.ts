@@ -201,6 +201,21 @@ export function validateTunnelSettings(
     return _('Enter a tunnel name');
   }
   const endpoint = tunnelEndpointFromSettings(settings, tunnelId, peerOption);
+  if (kind === 'openvpn-client') {
+    if (!endpoint)
+      return _(
+        'Invalid OpenVPN options or duplicate fields in additional JSON',
+      );
+    if (!endpoint.server && !endpoint.servers?.length)
+      return _('Enter a server address');
+    if (
+      endpoint.mode === 'static_key' &&
+      ((!endpoint.static_key && !endpoint.static_key_path) ||
+        !endpoint.address?.length)
+    )
+      return _('Static OpenVPN requires a key and tunnel addresses');
+    return true;
+  }
   if (!endpoint) {
     return kind === 'json'
       ? _('Enter a valid JSON endpoint object')
@@ -261,8 +276,27 @@ export function validateTunnelSettings(
     ) {
       return _('WireGuard keys must be standard base64-encoded 32-byte values');
     }
+    if (
+      kind === 'amneziawg' &&
+      headerProtectionKey &&
+      !/^A{43}=$/.test(headerProtectionKey) &&
+      ['s1', 's2', 's3', 's4'].some(
+        (key) => Number(settings[`amnezia_${key}`] || 0) < 12,
+      )
+    ) {
+      return _(
+        'Header protection requires S1, S2, S3 and S4 of at least 12 bytes',
+      );
+    }
   }
   if (endpoint.type === 'warp') {
+    if (
+      endpoint.port != null &&
+      (!Number.isInteger(endpoint.port) ||
+        endpoint.port < 1 ||
+        endpoint.port > 65535)
+    )
+      return _('Enter a valid server port');
     const profileValues = [
       endpoint.profile?.id,
       endpoint.profile?.auth_token,

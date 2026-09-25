@@ -97,7 +97,7 @@ describe('the tunnel list', () => {
 
   it('keeps the name visible for every kind that has one', () => {
     expect(section).toContain(
-      "['wireguard', 'amneziawg', 'warp', 'tailscale']",
+      "['wireguard', 'amneziawg', 'warp', 'tailscale', 'openvpn-client']",
     );
   });
 });

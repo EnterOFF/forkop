@@ -1637,6 +1637,137 @@ function remove_dpi_provider_sections(ctx) {
             clear_removed_section_references(ctx, child, removed);
 }
 
+function migrate_openvpn_json(ctx, outbound, label) {
+    let endpoint = json(sprintf("%J", outbound));
+    // The old system interface installed allowed_ips as OS routes; native
+    // OpenVPN routes are preferences inside sing-box, so that cannot be renamed.
+    if (endpoint.system || (endpoint.reconnect_delay != null && endpoint.reconnect_delay != "")) {
+        migration_error(ctx, label + ": OpenVPN system routes and reconnect_delay require manual conversion to native openvpn-client options");
+        return null;
+    }
+    endpoint.type = "openvpn-client";
+    let proto = lc(as_string(endpoint.proto || "udp"));
+    if (index([ "udp", "udp4", "tcp", "tcp-client", "tcp4", "tcp4-client" ], proto) < 0) {
+        migration_error(ctx, label + ": unsupported legacy OpenVPN proto");
+        return null;
+    }
+    endpoint.network = index([ "tcp", "tcp-client", "tcp4", "tcp4-client" ], proto) >= 0 ? "tcp" : "udp";
+    endpoint.auth = as_string(endpoint.auth || "SHA1");
+    if (endpoint.cipher) endpoint.data_ciphers_fallback = endpoint.cipher;
+    delete endpoint.cipher;
+    delete endpoint.proto;
+    delete endpoint.allowed_ips;
+    delete endpoint.reconnect_delay;
+
+    let old_tls = object_or_empty(endpoint.tls);
+    if (old_tls.kernel_tx || old_tls.kernel_rx || old_tls.cipher_suites != null || old_tls.verify_x509_name_mode == "name-suffix") {
+        migration_error(ctx, label + ": OpenVPN tls.kernel_tx, tls.kernel_rx, tls.cipher_suites or tls.verify_x509_name_mode need native equivalents");
+        return null;
+    }
+    let tls = {};
+    let tls_fields = {
+        ca: "certificate", ca_path: "certificate_path",
+        certificate: "client_certificate", certificate_path: "client_certificate_path",
+        key: "client_key", key_path: "client_key_path", verify_x509_name: "server_name"
+    };
+    for (let key in keys(old_tls)) {
+        if (tls_fields[key] != null) tls[tls_fields[key]] = old_tls[key];
+        else if (index([ "kernel_tx", "kernel_rx", "verify_x509_name_mode" ], key) < 0) {
+            migration_error(ctx, label + ": unsupported legacy OpenVPN TLS field '" + key + "'");
+            return null;
+        }
+    }
+    if (tls.server_name != null)
+        tls.server_name_type = old_tls.verify_x509_name_mode == "name-prefix" ? "name-prefix" : "name";
+    let auth_key = endpoint.tls_auth || endpoint.tls_auth_path;
+    let crypt_key = endpoint.tls_crypt || endpoint.tls_crypt_path;
+    if (auth_key || crypt_key) {
+        let wrap = { type: auth_key ? "tls_auth" : endpoint.tls_crypt_v2 ? "tls_crypt_v2" : "tls_crypt" };
+        let prefix = auth_key ? "tls_auth" : "tls_crypt";
+        if (endpoint[prefix]) wrap.key = endpoint[prefix];
+        else wrap.key_path = endpoint[prefix + "_path"];
+        if (auth_key) {
+            let direction = int(endpoint.key_direction || 0);
+            if (direction != 0 && direction != 1) {
+                migration_error(ctx, label + ": invalid legacy OpenVPN key_direction");
+                return null;
+            }
+            wrap.direction = direction == 1 ? "client" : "server";
+        }
+        tls.control_wrap = wrap;
+    }
+    for (let key in [ "tls_auth", "tls_auth_path", "tls_crypt", "tls_crypt_path", "tls_crypt_v2", "key_direction" ])
+        delete endpoint[key];
+    endpoint.tls = tls;
+    return endpoint;
+}
+
+// Public 1.0.5 accepted arbitrary outbound_jsons. Its contemporaneous extended
+// release already supplied OpenVPN and Snell with these legacy option shapes.
+// This runs only on the released-schema edge; NEXT -> NEXT remains a no-op.
+function migrate_native_protocol_json(ctx) {
+    for (let section in ctx.model.sections) {
+        let remaining = [];
+        let changed = false;
+        let ordinal = 0;
+        let values = option_list_values(section, "outbound_jsons");
+        let singular = length(values) == 0 && option(section, "outbound_json", "") != "";
+        if (singular) values = [ option(section, "outbound_json", "") ];
+        for (let value in values) {
+            ordinal++;
+            let outbound = null;
+            try { outbound = json(value); } catch (e) {}
+            if (type(outbound) != "object") {
+                push(remaining, value);
+                continue;
+            }
+            let label = "section '" + section_name(section) + "', " + (singular ? "outbound_json" : "outbound_jsons item " + ordinal);
+            if (outbound.type == "openvpn") {
+                let endpoint = migrate_openvpn_json(ctx, outbound, label);
+                if (endpoint == null) return;
+                let child = create_child_for_owner(ctx, section, "tunnel", "section");
+                set_option(ctx, child, "kind", "openvpn-client");
+                set_option(ctx, child, "name", as_string(endpoint.tag || "JSON outbound #" + ordinal));
+                set_option(ctx, child, "order", as_string(ordinal));
+                set_option(ctx, child, "endpoint_json", sprintf("%J", endpoint));
+                changed = true;
+                continue;
+            }
+            if (outbound.type == "snell") {
+                if (outbound.version != 4 && outbound.version != 5 && outbound.version != 6) {
+                    migration_error(ctx, label + ": Snell 1-3 is no longer supported; upgrade the server to Snell 4 or 6 before updating this configuration");
+                    return;
+                }
+                if (outbound.version == 5) { outbound.version = 4; changed = true; }
+                if (type(outbound.obfs) == "object") {
+                    if (outbound.version != 4 || outbound.obfs_mode != null || outbound.obfs_host != null) {
+                        migration_error(ctx, label + ": conflicting Snell obfuscation fields");
+                        return;
+                    }
+                    if (outbound.obfs.mode != null) outbound.obfs_mode = outbound.obfs.mode;
+                    if (outbound.obfs.host != null) outbound.obfs_host = outbound.obfs.host;
+                    delete outbound.obfs;
+                    changed = true;
+                }
+                value = sprintf("%J", outbound);
+            }
+            push(remaining, value);
+        }
+        if (changed) {
+            if (singular && length(remaining) > 0)
+                set_option(ctx, section, "outbound_json", remaining[0]);
+            else {
+                set_list_option(ctx, section, "outbound_jsons", remaining);
+                if (length(remaining) == 0) {
+                    delete_option(ctx, section, "outbound_json");
+                    if (option(section, "action", "") == "outbound")
+                        set_option(ctx, section, "action", "connection");
+                }
+            }
+        }
+    }
+}
+
 const CURRENT_TRANSFORMS = [
     remove_server_country_and_dashboard_filter,
     use_native_fallbacks,
@@ -1671,7 +1802,8 @@ const CURRENT_TRANSFORMS = [
     remove_resolve_real_ip_for_routing,
     migrate_dns_capture_settings,
     request_dnsmasq_restore,
-    remove_dpi_provider_sections
+    remove_dpi_provider_sections,
+    migrate_native_protocol_json
 ];
 
 function migrate_to_current(ctx) {

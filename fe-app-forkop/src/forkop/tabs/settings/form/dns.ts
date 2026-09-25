@@ -7,6 +7,7 @@ import {
   configureDownloadViaProxyFlag,
 } from '../sectionChoices';
 import { createStaticHostsOption } from '../staticHosts';
+import { validateRequiredSingBoxDuration } from '../../../../validators/validateSingBoxDuration';
 
 // What resolves a domain: the servers, how they are asked, how long an answer
 // is kept, and who answers for a domain no rule matched.
@@ -104,6 +105,37 @@ export function addDnsOptions(section: CBISection) {
   configureDownloadSectionOption(o, 'dns_detour_section');
 
   createStaticHostsOption(section);
+
+  o = section.option(
+    form.Value,
+    'dns_timeout',
+    _('DNS timeout'),
+    _('Maximum time to wait for a DNS response'),
+  );
+  o.default = '10s';
+  o.rmempty = false;
+  o.validate = (_sectionId: string, value: unknown) =>
+    validateRequiredSingBoxDuration(value);
+
+  o = section.option(
+    form.Flag,
+    'dns_optimistic',
+    _('Optimistic DNS cache'),
+    _('Serve expired DNS answers while refreshing them in the background'),
+  );
+  o.default = '0';
+  o.rmempty = false;
+
+  o = section.option(
+    form.Value,
+    'dns_optimistic_timeout',
+    _('Maximum age of expired DNS answers'),
+  );
+  o.default = '3d';
+  o.rmempty = false;
+  o.depends('dns_optimistic', '1');
+  o.validate = (_sectionId: string, value: unknown) =>
+    validateRequiredSingBoxDuration(value);
 
   o = section.option(
     form.ListValue,

@@ -139,6 +139,7 @@ function forkop_config_line(line) {
     line = mask_option_path(line, "option dns_server '");
     line = mask_option_path(line, "list dns_server '");
     line = mask_after_token(line, "option yacd_secret_key");
+    line = mask_after_token(line, "option native_api_secret");
 
     return line;
 }
@@ -243,6 +244,25 @@ const SING_BOX_MASKED_KEYS = {
     secret: true,
     password: true,
     private_key: true,
+    psk: true,
+    userkey: true,
+    static_key: true,
+    key: true,
+    client_key: true,
+    certificate: true,
+    client_certificate: true,
+    peer_fingerprint: true,
+    cookie: true,
+    token: true,
+    address: true,
+    port: true,
+    allowed_ips: true,
+    pre_shared_key: true,
+    reserved: true,
+    id: true,
+    auth_token: true,
+    license_key: true,
+    link: true,
     public_key: true,
     short_id: true,
     fingerprint: true,

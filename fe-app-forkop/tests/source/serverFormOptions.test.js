@@ -21,6 +21,7 @@ const FORM_OPTIONS = [
   'enabled',
   'flow',
   'hysteria2_down_mbps',
+  'hysteria2_bbr_profile',
   'hysteria2_ignore_client_bandwidth',
   'hysteria2_masquerade',
   'hysteria2_obfs_password',

@@ -36,11 +36,13 @@
           "key_id": true,
           "mac_key": true
         },
+        "profile": true,
         "provider": true
       },
       "alpn": true,
       "certificate": true,
       "certificate_path": true,
+      "certificate_provider": true,
       "cipher_suites": true,
       "client_authentication": true,
       "client_certificate": true,
@@ -55,6 +57,7 @@
         "pq_signature_schemes_enabled": true
       },
       "enabled": true,
+      "handshake_timeout": true,
       "insecure": true,
       "kernel_rx": true,
       "kernel_tx": true,
@@ -73,9 +76,11 @@
           "domain_resolver": {
             "client_subnet": true,
             "disable_cache": true,
+            "disable_optimistic_cache": true,
             "rewrite_ttl": true,
             "server": true,
-            "strategy": true
+            "strategy": true,
+            "timeout": true
           },
           "domain_strategy": true,
           "fallback_delay": true,
@@ -111,30 +116,62 @@
     }
   },
   "hysteria2": {
+    "bbr_profile": true,
     "bind_interface": true,
     "brutal_debug": true,
+    "connection_receive_window": true,
     "detour": true,
+    "disable_path_mtu_discovery": true,
     "disable_tcp_keep_alive": true,
     "domain_strategy": true,
     "down_mbps": true,
+    "idle_timeout": true,
     "ignore_client_bandwidth": true,
+    "initial_packet_size": true,
+    "keep_alive_period": true,
     "listen": true,
     "listen_port": true,
     "masquerade": {
       "type": true
     },
+    "max_concurrent_streams": true,
     "netns": true,
     "obfs": {
+      "max_packet_size": true,
+      "min_packet_size": true,
       "password": true,
       "type": true
     },
     "proxy_protocol": true,
     "proxy_protocol_accept_no_header": true,
+    "realm": {
+      "http_client": true,
+      "ip_version": true,
+      "port_mapping": {
+        "enabled": true,
+        "lifetime": true,
+        "timeout": true
+      },
+      "realm_id": true,
+      "server_url": true,
+      "stun_domain_resolver": {
+        "client_subnet": true,
+        "disable_cache": true,
+        "disable_optimistic_cache": true,
+        "rewrite_ttl": true,
+        "server": true,
+        "strategy": true,
+        "timeout": true
+      },
+      "stun_servers": true,
+      "token": true
+    },
     "reuse_addr": true,
     "routing_mark": true,
     "sniff": true,
     "sniff_override_destination": true,
     "sniff_timeout": true,
+    "stream_receive_window": true,
     "tcp_fast_open": true,
     "tcp_keep_alive": true,
     "tcp_keep_alive_interval": true,
@@ -156,11 +193,13 @@
           "key_id": true,
           "mac_key": true
         },
+        "profile": true,
         "provider": true
       },
       "alpn": true,
       "certificate": true,
       "certificate_path": true,
+      "certificate_provider": true,
       "cipher_suites": true,
       "client_authentication": true,
       "client_certificate": true,
@@ -175,6 +214,7 @@
         "pq_signature_schemes_enabled": true
       },
       "enabled": true,
+      "handshake_timeout": true,
       "insecure": true,
       "kernel_rx": true,
       "kernel_tx": true,
@@ -193,9 +233,11 @@
           "domain_resolver": {
             "client_subnet": true,
             "disable_cache": true,
+            "disable_optimistic_cache": true,
             "rewrite_ttl": true,
             "server": true,
-            "strategy": true
+            "strategy": true,
+            "timeout": true
           },
           "domain_strategy": true,
           "fallback_delay": true,
@@ -239,6 +281,7 @@
     "listen": true,
     "listen_port": true,
     "listen_ports": true,
+    "mtu": true,
     "netns": true,
     "proxy_protocol": true,
     "proxy_protocol_accept_no_header": true,
@@ -269,9 +312,11 @@
     "domain_resolver": {
       "client_subnet": true,
       "disable_cache": true,
+      "disable_optimistic_cache": true,
       "rewrite_ttl": true,
       "server": true,
-      "strategy": true
+      "strategy": true,
+      "timeout": true
     },
     "domain_strategy": true,
     "listen": true,
@@ -306,11 +351,13 @@
           "key_id": true,
           "mac_key": true
         },
+        "profile": true,
         "provider": true
       },
       "alpn": true,
       "certificate": true,
       "certificate_path": true,
+      "certificate_provider": true,
       "cipher_suites": true,
       "client_authentication": true,
       "client_certificate": true,
@@ -325,6 +372,7 @@
         "pq_signature_schemes_enabled": true
       },
       "enabled": true,
+      "handshake_timeout": true,
       "insecure": true,
       "kernel_rx": true,
       "kernel_tx": true,
@@ -343,9 +391,11 @@
           "domain_resolver": {
             "client_subnet": true,
             "disable_cache": true,
+            "disable_optimistic_cache": true,
             "rewrite_ttl": true,
             "server": true,
-            "strategy": true
+            "strategy": true,
+            "timeout": true
           },
           "domain_strategy": true,
           "fallback_delay": true,
@@ -458,11 +508,13 @@
           "key_id": true,
           "mac_key": true
         },
+        "profile": true,
         "provider": true
       },
       "alpn": true,
       "certificate": true,
       "certificate_path": true,
+      "certificate_provider": true,
       "cipher_suites": true,
       "client_authentication": true,
       "client_certificate": true,
@@ -477,6 +529,7 @@
         "pq_signature_schemes_enabled": true
       },
       "enabled": true,
+      "handshake_timeout": true,
       "insecure": true,
       "kernel_rx": true,
       "kernel_tx": true,
@@ -495,9 +548,11 @@
           "domain_resolver": {
             "client_subnet": true,
             "disable_cache": true,
+            "disable_optimistic_cache": true,
             "rewrite_ttl": true,
             "server": true,
-            "strategy": true
+            "strategy": true,
+            "timeout": true
           },
           "domain_strategy": true,
           "fallback_delay": true,
@@ -582,9 +637,11 @@
     "domain_resolver": {
       "client_subnet": true,
       "disable_cache": true,
+      "disable_optimistic_cache": true,
       "rewrite_ttl": true,
       "server": true,
-      "strategy": true
+      "strategy": true,
+      "timeout": true
     },
     "domain_strategy": true,
     "listen": true,
@@ -626,9 +683,11 @@
       "domain_resolver": {
         "client_subnet": true,
         "disable_cache": true,
+        "disable_optimistic_cache": true,
         "rewrite_ttl": true,
         "server": true,
-        "strategy": true
+        "strategy": true,
+        "timeout": true
       },
       "domain_strategy": true,
       "fallback_delay": true,
@@ -699,9 +758,11 @@
     "domain_resolver": {
       "client_subnet": true,
       "disable_cache": true,
+      "disable_optimistic_cache": true,
       "rewrite_ttl": true,
       "server": true,
-      "strategy": true
+      "strategy": true,
+      "timeout": true
     },
     "domain_strategy": true,
     "ephemeral": true,
@@ -712,6 +773,7 @@
     "hostname": true,
     "inet4_bind_address": true,
     "inet6_bind_address": true,
+    "listen_port": true,
     "netns": true,
     "network_strategy": true,
     "network_type": true,
@@ -720,10 +782,17 @@
     "relay_server_static_endpoints": true,
     "reuse_addr": true,
     "routing_mark": true,
+    "ssh_server": {
+      "disable_forwarding": true,
+      "disable_pty": true,
+      "disable_sftp": true,
+      "enabled": true
+    },
     "state_directory": true,
     "system_interface": true,
     "system_interface_mtu": true,
     "system_interface_name": true,
+    "taildrop_directory": true,
     "tcp_fast_open": true,
     "tcp_keep_alive": true,
     "tcp_keep_alive_interval": true,
@@ -784,11 +853,13 @@
           "key_id": true,
           "mac_key": true
         },
+        "profile": true,
         "provider": true
       },
       "alpn": true,
       "certificate": true,
       "certificate_path": true,
+      "certificate_provider": true,
       "cipher_suites": true,
       "client_authentication": true,
       "client_certificate": true,
@@ -803,6 +874,7 @@
         "pq_signature_schemes_enabled": true
       },
       "enabled": true,
+      "handshake_timeout": true,
       "insecure": true,
       "kernel_rx": true,
       "kernel_tx": true,
@@ -821,9 +893,11 @@
           "domain_resolver": {
             "client_subnet": true,
             "disable_cache": true,
+            "disable_optimistic_cache": true,
             "rewrite_ttl": true,
             "server": true,
-            "strategy": true
+            "strategy": true,
+            "timeout": true
           },
           "domain_strategy": true,
           "fallback_delay": true,
@@ -900,8 +974,10 @@
             "query_server_name": true
           },
           "enabled": true,
+          "engine": true,
           "fragment": true,
           "fragment_fallback_delay": true,
+          "handshake_timeout": true,
           "insecure": true,
           "kernel_rx": true,
           "kernel_tx": true,
@@ -910,10 +986,13 @@
           "reality": {
             "enabled": true,
             "public_key": true,
-            "short_id": true
+            "short_id": true,
+            "support_x25519mlkem768": true
           },
           "record_fragment": true,
           "server_name": true,
+          "spoof": true,
+          "spoof_method": true,
           "utls": {
             "enabled": true,
             "fingerprint": true
@@ -1003,12 +1082,18 @@
     "auth_timeout": true,
     "bind_interface": true,
     "congestion_control": true,
+    "connection_receive_window": true,
     "detour": true,
+    "disable_path_mtu_discovery": true,
     "disable_tcp_keep_alive": true,
     "domain_strategy": true,
     "heartbeat": true,
+    "idle_timeout": true,
+    "initial_packet_size": true,
+    "keep_alive_period": true,
     "listen": true,
     "listen_port": true,
+    "max_concurrent_streams": true,
     "netns": true,
     "proxy_protocol": true,
     "proxy_protocol_accept_no_header": true,
@@ -1017,6 +1102,7 @@
     "sniff": true,
     "sniff_override_destination": true,
     "sniff_timeout": true,
+    "stream_receive_window": true,
     "tcp_fast_open": true,
     "tcp_keep_alive": true,
     "tcp_keep_alive_interval": true,
@@ -1038,11 +1124,13 @@
           "key_id": true,
           "mac_key": true
         },
+        "profile": true,
         "provider": true
       },
       "alpn": true,
       "certificate": true,
       "certificate_path": true,
+      "certificate_provider": true,
       "cipher_suites": true,
       "client_authentication": true,
       "client_certificate": true,
@@ -1057,6 +1145,7 @@
         "pq_signature_schemes_enabled": true
       },
       "enabled": true,
+      "handshake_timeout": true,
       "insecure": true,
       "kernel_rx": true,
       "kernel_tx": true,
@@ -1075,9 +1164,11 @@
           "domain_resolver": {
             "client_subnet": true,
             "disable_cache": true,
+            "disable_optimistic_cache": true,
             "rewrite_ttl": true,
             "server": true,
-            "strategy": true
+            "strategy": true,
+            "timeout": true
           },
           "domain_strategy": true,
           "fallback_delay": true,
@@ -1160,11 +1251,13 @@
           "key_id": true,
           "mac_key": true
         },
+        "profile": true,
         "provider": true
       },
       "alpn": true,
       "certificate": true,
       "certificate_path": true,
+      "certificate_provider": true,
       "cipher_suites": true,
       "client_authentication": true,
       "client_certificate": true,
@@ -1179,6 +1272,7 @@
         "pq_signature_schemes_enabled": true
       },
       "enabled": true,
+      "handshake_timeout": true,
       "insecure": true,
       "kernel_rx": true,
       "kernel_tx": true,
@@ -1197,9 +1291,11 @@
           "domain_resolver": {
             "client_subnet": true,
             "disable_cache": true,
+            "disable_optimistic_cache": true,
             "rewrite_ttl": true,
             "server": true,
-            "strategy": true
+            "strategy": true,
+            "timeout": true
           },
           "domain_strategy": true,
           "fallback_delay": true,
@@ -1276,8 +1372,10 @@
             "query_server_name": true
           },
           "enabled": true,
+          "engine": true,
           "fragment": true,
           "fragment_fallback_delay": true,
+          "handshake_timeout": true,
           "insecure": true,
           "kernel_rx": true,
           "kernel_tx": true,
@@ -1286,10 +1384,13 @@
           "reality": {
             "enabled": true,
             "public_key": true,
-            "short_id": true
+            "short_id": true,
+            "support_x25519mlkem768": true
           },
           "record_fragment": true,
           "server_name": true,
+          "spoof": true,
+          "spoof_method": true,
           "utls": {
             "enabled": true,
             "fingerprint": true
@@ -1421,11 +1522,13 @@
           "key_id": true,
           "mac_key": true
         },
+        "profile": true,
         "provider": true
       },
       "alpn": true,
       "certificate": true,
       "certificate_path": true,
+      "certificate_provider": true,
       "cipher_suites": true,
       "client_authentication": true,
       "client_certificate": true,
@@ -1440,6 +1543,7 @@
         "pq_signature_schemes_enabled": true
       },
       "enabled": true,
+      "handshake_timeout": true,
       "insecure": true,
       "kernel_rx": true,
       "kernel_tx": true,
@@ -1458,9 +1562,11 @@
           "domain_resolver": {
             "client_subnet": true,
             "disable_cache": true,
+            "disable_optimistic_cache": true,
             "rewrite_ttl": true,
             "server": true,
-            "strategy": true
+            "strategy": true,
+            "timeout": true
           },
           "domain_strategy": true,
           "fallback_delay": true,
@@ -1537,8 +1643,10 @@
             "query_server_name": true
           },
           "enabled": true,
+          "engine": true,
           "fragment": true,
           "fragment_fallback_delay": true,
+          "handshake_timeout": true,
           "insecure": true,
           "kernel_rx": true,
           "kernel_tx": true,
@@ -1547,10 +1655,13 @@
           "reality": {
             "enabled": true,
             "public_key": true,
-            "short_id": true
+            "short_id": true,
+            "support_x25519mlkem768": true
           },
           "record_fragment": true,
           "server_name": true,
+          "spoof": true,
+          "spoof_method": true,
           "utls": {
             "enabled": true,
             "fingerprint": true

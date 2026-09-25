@@ -62,7 +62,7 @@ function parseField(line) {
   const trimmed = line.trim();
   if (trimmed === "" || trimmed.startsWith("//")) return null;
 
-  const tagMatch = /`json:"([^"]*)"`/.exec(trimmed);
+  const tagMatch = /`[^`]*\bjson:"([^"]*)"/.exec(trimmed);
   const withoutTag = trimmed.replace(/`[^`]*`\s*$/, "").trim();
 
   if (tagMatch) {
@@ -155,6 +155,9 @@ function buildSchema(optionDir) {
       throw new Error(`missing inbound option struct: ${structName}`);
     }
     const expanded = expand(structs, structName);
+    if (type === "hysteria2") {
+      Object.assign(expanded.obfs, expand(structs, "Hysteria2ObfsGecko"));
+    }
     if (expanded.transport === true || typeof expanded.transport === "object") {
       const transport = { type: true };
       for (const name of TRANSPORT_STRUCTS) {

@@ -212,8 +212,7 @@ function ensure_custom_ruleset(config, reference) {
                 url: runtime_rulesets.community_url(reference)
             };
             let detour = download_detour_tag(runtime_settings(), "lists");
-            if (detour != "")
-                rule_set.download_detour = detour;
+            rule_set.http_client = { detour: detour || runtime_constants.DIRECT_OUTBOUND_TAG };
             push(config.route.rule_set, apply_remote_ruleset_update_interval(rule_set));
         }
         return tag_name;
@@ -239,8 +238,7 @@ function ensure_custom_ruleset(config, reference) {
             url: reference
         };
         let detour = download_detour_tag(runtime_settings(), "lists");
-        if (detour != "")
-            rule_set.download_detour = detour;
+        rule_set.http_client = { detour: detour || runtime_constants.DIRECT_OUTBOUND_TAG };
         push(config.route.rule_set, apply_remote_ruleset_update_interval(rule_set));
     }
     else {
@@ -384,7 +382,11 @@ function base_config(settings, service_address, runtime_context) {
             rules: dns_rules,
             final: runtime_constants.DNS_SERVER_TAG,
             strategy: option(settings, "dns_strategy", "prefer_ipv4"),
-            independent_cache: true
+            timeout: option(settings, "dns_timeout", "10s"),
+            optimistic: bool_option(settings, "dns_optimistic", false) ? {
+                enabled: true,
+                timeout: option(settings, "dns_optimistic_timeout", "3d")
+            } : false
         },
         endpoints: [],
         inbounds,
@@ -393,7 +395,14 @@ function base_config(settings, service_address, runtime_context) {
             { type: "direct", tag: runtime_constants.DIRECT_OUTBOUND_TAG }
         ],
         route: runtime_route.config(settings, runtime_context),
-        services: [],
+        services: bool_option(settings, "enable_native_api", false) ? [{
+            type: "api", tag: "forkop-api", listen: service_address || "127.0.0.1",
+            listen_port: 9091, secret: option(settings, "native_api_secret", ""),
+            dashboard: { enabled: true, path: "/tmp/sing-box/dashboard",
+                http_client: { detour: connections.download_via_proxy_enabled(settings, "components")
+                    ? outbound_tag(connections.download_via_proxy_section(settings, "components"))
+                    : runtime_constants.DIRECT_OUTBOUND_TAG } }
+        }] : [],
         experimental: {
             unified_delay: {
                 enabled: bool_option(settings, "unified_delay", true)
@@ -402,6 +411,7 @@ function base_config(settings, service_address, runtime_context) {
                 enabled: true,
                 path: cache_path,
                 store_fakeip: true,
+                store_subscriptions: true,
                 store_warp_config: true
             },
             clash_api: clash_api_config(settings, service_address)
@@ -1370,7 +1380,7 @@ function add_connection_tunnels(config, section, taken, selector_tags, urltest_c
         let endpoint_type = lc(as_string(endpoint.type || ""));
         let wrapper_kind = lc(as_string(connections.option(tunnel, "kind", "wireguard")));
         if (endpoint_type == "" ||
-            (endpoint_type != "wireguard" && endpoint_type != "amneziawg" && endpoint_type != "warp" && endpoint_type != "tailscale" && wrapper_kind != "json"))
+            (endpoint_type != "wireguard" && endpoint_type != "amneziawg" && endpoint_type != "warp" && endpoint_type != "tailscale" && endpoint_type != "openvpn-client" && wrapper_kind != "json"))
             runtime_generate_unsupported("tunnel " + (i + 1) + " has an unsupported endpoint type");
 
         let display_name = trim(as_string(endpoint.tag || ""));
@@ -1382,7 +1392,7 @@ function add_connection_tunnels(config, section, taken, selector_tags, urltest_c
         taken[tag_name] = true;
         endpoint.tag = tag_name;
 
-        if (wrapper_kind != "json" && (endpoint_type == "wireguard" || endpoint_type == "amneziawg" || endpoint_type == "warp")) {
+        if (wrapper_kind != "json" && (endpoint_type == "wireguard" || endpoint_type == "amneziawg" || endpoint_type == "warp" || endpoint_type == "openvpn-client")) {
             let detour = outbound_detour_tag_for_section(section);
             if (detour != "" && as_string(endpoint.detour || "") == "")
                 endpoint.detour = detour;
@@ -1526,8 +1536,7 @@ function ensure_community_ruleset(config, section_name, community) {
             url: runtime_rulesets.community_url(community)
         };
         let detour = download_detour_tag(runtime_settings(), "lists");
-        if (detour != "")
-            rule_set.download_detour = detour;
+        rule_set.http_client = { detour: detour || runtime_constants.DIRECT_OUTBOUND_TAG };
         push(config.route.rule_set, apply_remote_ruleset_update_interval(rule_set));
     }
     return {

@@ -764,6 +764,9 @@ function append_sing_box_server_signature_body(body, server) {
         [ "hysteria2_down_mbps", "" ],
         [ "hysteria2_obfs_type", "" ],
         [ "hysteria2_obfs_password", "" ],
+        [ "hysteria2_gecko_min_packet_size", "" ],
+        [ "hysteria2_gecko_max_packet_size", "" ],
+        [ "hysteria2_bbr_profile", "" ],
         [ "hysteria2_ignore_client_bandwidth", "" ],
         [ "hysteria2_masquerade", "" ],
         [ "naive_network", "tcp" ],
@@ -821,6 +824,10 @@ function sing_box_signature_body(settings, sections, servers, mwan3_active, loca
     if (dns_detour_enabled == "1")
         body = signature_add_value(body, "settings.dns_detour_section", option(settings, "dns_detour_section", ""));
     body = signature_add_value(body, "settings.dns_rewrite_ttl", option(settings, "dns_rewrite_ttl", "60"));
+    body = signature_add_value(body, "settings.dns_timeout", option(settings, "dns_timeout", "10s"));
+    body = signature_add_value(body, "settings.dns_optimistic", bool_option_value(settings, "dns_optimistic", false));
+    if (bool_option(settings, "dns_optimistic", false))
+        body = signature_add_value(body, "settings.dns_optimistic_timeout", option(settings, "dns_optimistic_timeout", "3d"));
     body = signature_add_value(body, "settings.output_network_interface", option(settings, "output_network_interface", ""));
     body = signature_add_value(body, "settings.disable_quic", bool_option_value(settings, "disable_quic", false));
     body = signature_add_value(body, "settings.bittorrent_direct", bool_option_value(settings, "bittorrent_direct", false));
@@ -835,6 +842,10 @@ function sing_box_signature_body(settings, sections, servers, mwan3_active, loca
     body = signature_add_value(body, "runtime.mwan3_active", bool_value(mwan3_active));
 
     let enable_yacd = bool_option_value(settings, "enable_yacd", false);
+    let enable_native_api = bool_option_value(settings, "enable_native_api", false);
+    body = signature_add_value(body, "settings.enable_native_api", enable_native_api);
+    if (enable_native_api == "1")
+        body = signature_add_value(body, "settings.native_api_secret", option(settings, "native_api_secret", ""));
     body = signature_add_value(body, "settings.enable_yacd", enable_yacd);
     if (enable_yacd == "1") {
         body = signature_add_value(body, "settings.enable_yacd_wan_access", bool_option_value(settings, "enable_yacd_wan_access", false));

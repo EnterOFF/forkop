@@ -555,6 +555,9 @@ function dns_setting_values(settings, key) {
 }
 
 function validate_dns_settings(settings, sections, context) {
+    validate_required_duration_option(option(settings, "dns_timeout", "10s"), "settings.dns_timeout");
+    if (bool_option(settings, "dns_optimistic", false))
+        validate_required_duration_option(option(settings, "dns_optimistic_timeout", "3d"), "settings.dns_optimistic_timeout");
     let dns_strategy = option(settings, "dns_strategy", "prefer_ipv4");
     if (!contains([ "prefer_ipv4", "ipv4_only", "prefer_ipv6", "ipv6_only" ], dns_strategy))
         fail_validation("Unsupported DNS strategy '" + dns_strategy + "'. Use prefer_ipv4, ipv4_only, prefer_ipv6, or ipv6_only. Aborted.");
@@ -1013,6 +1016,13 @@ function validate_tunnel_amnezia(endpoint, name) {
         trim(as_string(amnezia.header_protection_key)) != "" &&
         !valid_wireguard_key(amnezia.header_protection_key))
         fail_validation("Connection rule '" + name + "' contains an invalid AmneziaWG header protection key. Use a standard base64-encoded 32-byte value. Aborted.");
+
+    // The all-zero key disables header protection in wireguard-go.
+    let protection_key = trim(as_string(amnezia.header_protection_key));
+    if (protection_key != "" && match(protection_key, /^A{43}=$/) == null)
+        for (let key in [ "s1", "s2", "s3", "s4" ])
+            if (int(amnezia[key] || 0) < 12)
+                fail_validation("Connection rule '" + name + "' requires AmneziaWG " + key + " of at least 12 bytes when header protection is enabled. Aborted.");
 }
 
 function validate_tailscale_tunnel_detour(source_name, detour) {
@@ -1040,7 +1050,7 @@ function validate_tunnel_values(section) {
         let endpoint_type = lc(trim(as_string(endpoint.type || "")));
         let wrapper_kind = lc(trim(as_string(connections.option(tunnel, "kind", "wireguard"))));
         if (endpoint_type == "" ||
-            (endpoint_type != "wireguard" && endpoint_type != "amneziawg" && endpoint_type != "warp" && endpoint_type != "tailscale" && wrapper_kind != "json"))
+            (endpoint_type != "wireguard" && endpoint_type != "amneziawg" && endpoint_type != "warp" && endpoint_type != "tailscale" && endpoint_type != "openvpn-client" && wrapper_kind != "json"))
             fail_validation("Connection rule '" + name + "' contains an invalid tunnel endpoint. Aborted.");
         if (wrapper_kind != "json" && trim(as_string(connections.option(tunnel, "name", ""))) == "")
             fail_validation("Connection rule '" + name + "' contains a tunnel without a name. Aborted.");
@@ -1052,6 +1062,16 @@ function validate_tunnel_values(section) {
                 fail_validation("Connection rule '" + name + "' contains unsupported JSON endpoint type '" + json_endpoint_type + "'. Aborted.");
             if (trim(as_string(endpoint.tag || "")) == "")
                 fail_validation("Connection rule '" + name + "' contains a JSON endpoint without a tag. Aborted.");
+            continue;
+        }
+
+        if (wrapper_kind == "openvpn-client") {
+            if (endpoint_type != "openvpn-client" || (trim(as_string(endpoint.server || "")) == "" && length(array_or_empty(endpoint.servers)) == 0))
+                fail_validation("Connection rule '" + name + "' contains an incomplete OpenVPN endpoint. Aborted.");
+            if (endpoint.server_port != null && (type(endpoint.server_port) != "int" || endpoint.server_port < 1 || endpoint.server_port > 65535))
+                fail_validation("Connection rule '" + name + "' contains an invalid OpenVPN server port. Aborted.");
+            if (endpoint.mode == "static_key" && ((!endpoint.static_key && !endpoint.static_key_path) || length(array_or_empty(endpoint.address)) == 0))
+                fail_validation("Connection rule '" + name + "': static OpenVPN requires a key and tunnel addresses. Aborted.");
             continue;
         }
 
@@ -1073,6 +1093,8 @@ function validate_tunnel_values(section) {
             fail_validation("Connection rule '" + name + "' contains an invalid WARP persistent keepalive interval. Use values from 0 to 4294967295 with the start no greater than the end. Aborted.");
 
         if (endpoint_type == "warp") {
+            if (endpoint.port != null && (endpoint.port < 1 || endpoint.port > 65535))
+                fail_validation("Connection rule '" + name + "' contains an invalid WARP server port. Aborted.");
             let profile = object_or_empty(endpoint.profile);
             let profile_values = 0;
             for (let key in [ "id", "auth_token", "private_key" ])
@@ -1572,6 +1594,9 @@ function validate_server_listen_ports() {
     ])
         owners[port] = "a Forkop inbound";
 
+    if (bool_option(settings_section(), "enable_native_api", false))
+        owners["9091"] = "the sing-box API";
+
     for (let server in sections_by_type("server")) {
         server = object_or_empty(server);
         let protocol = option(server, "protocol", "vless");
@@ -1675,7 +1700,8 @@ const SERVER_ENUMS = [
     [ "mieru", "mieru_transport", [ "TCP", "UDP" ] ],
     [ "naive", "naive_network", [ "", "tcp", "udp", "tcp_udp" ] ],
     [ "tuic", "tuic_congestion_control", [ "", "cubic", "new_reno", "bbr" ] ],
-    [ "hysteria2", "hysteria2_obfs_type", [ "", "salamander" ] ]
+    [ "hysteria2", "hysteria2_obfs_type", [ "", "salamander", "gecko" ] ],
+    [ "hysteria2", "hysteria2_bbr_profile", [ "", "standard", "conservative", "aggressive" ] ]
 ];
 
 function server_enum_applies(scope, protocol, server) {
@@ -1737,6 +1763,15 @@ function validate_server_values(server, protocol, security, name) {
     }
 
     if (protocol == "hysteria2") {
+        if (option(server, "hysteria2_obfs_type", "") == "gecko") {
+            let minimum = option(server, "hysteria2_gecko_min_packet_size", "");
+            let maximum = option(server, "hysteria2_gecko_max_packet_size", "");
+            for (let value in [ minimum, maximum ])
+                if (value != "" && (match(value, /^[0-9]+$/) == null || int(value) < 1 || int(value) > 65535))
+                    fail_validation("Server '" + name + "' has an invalid Gecko packet size. Aborted.");
+            if (minimum != "" && maximum != "" && int(minimum) > int(maximum))
+                fail_validation("Server '" + name + "' Gecko minimum packet size exceeds the maximum. Aborted.");
+        }
         // sing-box reads a masquerade as a URL and picks the mode from its scheme, so
         // anything but those three stops the listener before it binds.
         let masquerade = option(server, "hysteria2_masquerade", "");
@@ -1850,6 +1885,8 @@ function validate_runtime_config(context) {
     validate_runtime_mark_ranges_context(context);
     validate_dns_settings(settings, sections, context);
     validate_native_rule_set_update_settings(settings);
+    if (bool_option(settings, "enable_native_api", false) && option(settings, "native_api_secret", "") == "")
+        fail_validation("settings.native_api_secret is required when the sing-box API is enabled. Aborted.");
     validate_http_url_option(option(settings, "latency_test_url", DEFAULT_LATENCY_TEST_URL) || DEFAULT_LATENCY_TEST_URL, "settings.latency_test_url");
 
     if (connections.download_via_proxy_enabled(settings, "lists")) {

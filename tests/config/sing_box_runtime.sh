@@ -1658,10 +1658,10 @@ assert(inbound(download, "service-mixed-in") != null, "service mixed inbound");
 assert(route_rule(download, r => r.inbound == "service-mixed-in" && r.outbound == "proxy") != null, "service mixed route");
 assert(inbound(download, "service-components-in") != null, "components service mixed inbound");
 assert(route_rule(download, r => r.inbound == "service-components-in" && r.outbound == "components_proxy") != null, "components service mixed route");
-assert(ruleset(download, "proxy-discord-community-ruleset").download_detour == "proxy", "download_detour on community ruleset");
-assert(ruleset_url(download, "https://example.com/rules.srs").download_detour == "proxy", "download_detour on custom remote ruleset");
+assert(ruleset(download, "proxy-discord-community-ruleset").http_client.detour == "proxy", "HTTP client detour on community ruleset");
+assert(ruleset_url(download, "https://example.com/rules.srs").http_client.detour == "proxy", "HTTP client detour on custom remote ruleset");
 let download_text_ruleset = ruleset_url(download, "https://example.com/mixed.txt");
-assert(download_text_ruleset && download_text_ruleset.format == "auto" && download_text_ruleset.update_interval == "1d" && download_text_ruleset.download_detour == "proxy", "remote universal rule set owns updates and detour");
+assert(download_text_ruleset && download_text_ruleset.format == "auto" && download_text_ruleset.update_interval == "1d" && download_text_ruleset.http_client.detour == "proxy", "remote universal rule set owns updates and detour");
 
 let fully = cfg("fully-routed");
 assert(route_rule(fully, r => r.outbound == "direct-out" && contains(r.inbound, "tproxy-in") && contains(r.inbound, "tproxy6-in") && contains(r.source_ip_cidr, "192.168.1.20/32") && contains(r.source_ip_cidr, "192.168.1.30/32") && contains(r.source_ip_cidr, "2001:db8::20/128")) != null, "fully routed bypass IP route");

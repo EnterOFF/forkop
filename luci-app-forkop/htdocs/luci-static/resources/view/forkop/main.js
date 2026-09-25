@@ -8508,6 +8508,16 @@ var SING_BOX_MASKED_KEYS = /* @__PURE__ */ new Set([
   "secret",
   "password",
   "private_key",
+  "psk",
+  "userkey",
+  "static_key",
+  "key",
+  "client_key",
+  "certificate",
+  "client_certificate",
+  "peer_fingerprint",
+  "cookie",
+  "token",
   "public_key",
   "short_id",
   "fingerprint",
@@ -8553,7 +8563,8 @@ var FORKOP_MASK_AFTER_TOKEN = [
   "option reality_public_key",
   "option reality_short_id",
   "list reality_short_id",
-  "option yacd_secret_key"
+  "option yacd_secret_key",
+  "option native_api_secret"
 ];
 var FORKOP_MASK_AFTER_TOKEN_SPACE = [
   "list authorized_keys",
@@ -15308,6 +15319,9 @@ var ROUTING_ACTIONS = [
   "block"
 ];
 var JSON_ENDPOINT_TYPES = /* @__PURE__ */ new Set([
+  "openvpn-client",
+  "openvpn-server",
+  "openconnect",
   "vpn-server",
   "vpn-client",
   "wireguard",
@@ -16077,6 +16091,159 @@ function validateSubscriptionUrlEntry(_section_id, value) {
   return validation.valid ? true : _("Subscription must be an HTTP(S) URL or an absolute local path");
 }
 
+// src/forkop/tabs/sections/tunnels/openvpn.ts
+var OPENVPN_FIELDS = [
+  { path: "server", label: () => _("Server address") },
+  { path: "server_port", label: () => _("Server port"), number: true },
+  {
+    path: "network",
+    label: () => _("Transport"),
+    choices: ["udp", "udp4", "udp6", "tcp", "tcp4", "tcp6"]
+  },
+  {
+    path: "mode",
+    label: () => _("OpenVPN mode"),
+    choices: ["tls", "static_key"]
+  },
+  { path: "username", label: () => _("Username") },
+  { path: "password", label: () => _("Password"), secret: true },
+  { path: "tls.server_name", label: () => _("Server certificate name") },
+  { path: "tls.certificate", label: () => _("CA certificate"), pem: true },
+  {
+    path: "tls.client_certificate",
+    label: () => _("Client certificate"),
+    pem: true
+  },
+  { path: "tls.client_key", label: () => _("Client private key"), pem: true },
+  {
+    path: "tls.peer_fingerprint",
+    label: () => _("Server certificate fingerprints"),
+    list: true
+  },
+  {
+    path: "tls.control_wrap.type",
+    label: () => _("Control channel protection"),
+    choices: ["tls_auth", "tls_crypt", "tls_crypt_v2"]
+  },
+  {
+    path: "tls.control_wrap.key",
+    label: () => _("Control channel key"),
+    pem: true
+  },
+  {
+    path: "tls.control_wrap.direction",
+    label: () => _("Control channel key direction"),
+    choices: ["client", "server"]
+  },
+  { path: "data_ciphers", label: () => _("Data ciphers"), list: true },
+  { path: "data_ciphers_fallback", label: () => _("Fallback data cipher") },
+  { path: "cipher", label: () => _("Cipher") },
+  { path: "auth", label: () => _("Packet authentication algorithm") },
+  { path: "mtu", label: () => _("MTU"), number: true },
+  { path: "address", label: () => _("Tunnel addresses"), list: true },
+  { path: "peer_address", label: () => _("Peer tunnel address") },
+  { path: "static_key", label: () => _("Static key"), pem: true },
+  {
+    path: "key_direction",
+    label: () => _("Static key direction"),
+    choices: ["client", "server"]
+  }
+];
+function openVPNFieldKey(path) {
+  return `openvpn_${path.replaceAll(".", "_")}`;
+}
+function openVPNParent(object, path, create = false) {
+  const parts = path.split(".");
+  const key = parts.pop();
+  let parent = object;
+  for (const part of parts) {
+    if (parent[part] == null && create) parent[part] = {};
+    const next = parent[part];
+    if (!next || typeof next !== "object" || Array.isArray(next)) return null;
+    parent = next;
+  }
+  return { parent, key };
+}
+function pruneOpenVPNObjects(endpoint) {
+  const tls = endpoint.tls;
+  if (tls && typeof tls === "object") {
+    if (tls.control_wrap && !Object.keys(tls.control_wrap).length)
+      delete tls.control_wrap;
+    if (!Object.keys(tls).length) delete endpoint.tls;
+  }
+}
+function openVPNInitialSettings(endpoint) {
+  const extra = JSON.parse(JSON.stringify(endpoint));
+  delete extra.type;
+  delete extra.tag;
+  const settings = {};
+  for (const field of OPENVPN_FIELDS) {
+    const slot = openVPNParent(extra, field.path);
+    const value = slot?.parent[slot.key];
+    settings[openVPNFieldKey(field.path)] = field.list ? value == null ? [] : Array.isArray(value) ? value : [value] : Array.isArray(value) ? value.join("\n") : value == null ? "" : `${value}`;
+    if (slot) delete slot.parent[slot.key];
+  }
+  pruneOpenVPNObjects(extra);
+  settings.openvpn_extra = Object.keys(extra).length ? JSON.stringify(extra, null, 2) : "";
+  return settings;
+}
+function openVPNEndpoint(settings) {
+  const extra = `${settings.openvpn_extra || ""}`.trim();
+  const endpoint = extra ? parseOutboundJsonObject(extra) : {};
+  if (!endpoint || "type" in endpoint || "tag" in endpoint) return null;
+  for (const field of OPENVPN_FIELDS) {
+    const existing = openVPNParent(endpoint, field.path);
+    if (existing && existing.key in existing.parent) return null;
+    const input = settings[openVPNFieldKey(field.path)];
+    const text = field.secret || field.path === "username" ? `${input ?? ""}` : `${input ?? ""}`.trim();
+    if (!text) continue;
+    const slot = openVPNParent(endpoint, field.path, true);
+    if (!slot) return null;
+    if (field.choices && !field.choices.includes(text)) return null;
+    if (field.number && (!/^\d+$/u.test(text) || Number(text) < 1 || Number(text) > 65535))
+      return null;
+    slot.parent[slot.key] = field.list ? (Array.isArray(input) ? input : [input]).map((value) => `${value}`.trim()).filter(Boolean) : field.number ? Number(text) : field.pem ? text.split(/\r?\n/u) : text;
+  }
+  pruneOpenVPNObjects(endpoint);
+  return { ...endpoint, type: "openvpn-client" };
+}
+function addOpenVPNOptions(section) {
+  for (const field of OPENVPN_FIELDS) {
+    const o = section.option(
+      field.choices ? form.ListValue : field.pem ? form.TextValue : field.list ? form.DynamicList : form.Value,
+      openVPNFieldKey(field.path),
+      field.label()
+    );
+    o.depends("tunnel_type", "openvpn-client");
+    o.rmempty = true;
+    if (field.choices) {
+      o.value("", _("Default"));
+      field.choices.forEach((value) => o.value(value, value));
+    }
+    if (field.number) o.datatype = "range(1,65535)";
+    if (field.secret) o.password = true;
+    if (field.pem) {
+      o.rows = 5;
+      o.textarea = true;
+      configureTextareaOption(o);
+    }
+  }
+  const extra = section.option(
+    form.TextValue,
+    "openvpn_extra",
+    _("Additional OpenVPN options"),
+    _(
+      "Native JSON options for routes, reconnect timers and other advanced settings. Fields shown above must be edited in the form."
+    )
+  );
+  extra.depends("tunnel_type", "openvpn-client");
+  extra.rows = 5;
+  extra.textarea = true;
+  extra.rmempty = true;
+  extra.validate = (_id, value) => !`${value || ""}`.trim() || parseOutboundJsonObject(value) ? true : _("Enter a valid JSON object");
+  configureTextareaOption(extra);
+}
+
 // src/forkop/tabs/sections/tunnels/model.ts
 var AMNEZIA_COUNT_FIELDS = ["jc", "jmin", "jmax"];
 var AMNEZIA_PADDING_FIELDS = ["s1", "s2", "s3", "s4"];
@@ -16176,6 +16343,7 @@ function tunnelPeerIds(tunnelId) {
   }).map((item) => item[".name"]).filter(Boolean);
 }
 function tunnelKindLabel(kind, endpointType) {
+  if (kind === "openvpn-client") return "OpenVPN";
   return kind === "amneziawg" ? "AmneziaWG" : kind === "warp" ? "WARP" : kind === "tailscale" ? "Tailscale" : kind === "json" ? endpointType || "JSON endpoint" : "WireGuard";
 }
 function removeTunnelPeers(tunnelId) {
@@ -16204,9 +16372,9 @@ function tunnelListItemLabel(sectionId, tunnelId) {
 }
 function tunnelInitialSettings(value, sectionId) {
   const tunnel = tunnelChild(sectionId, `${value || ""}`) || {};
-  const endpoint = `${tunnel.kind || ""}` === "json" ? parseOutboundJsonObject(tunnel.endpoint_json) || {} : {};
+  const endpoint = ["json", "openvpn-client"].includes(`${tunnel.kind || ""}`) ? parseOutboundJsonObject(tunnel.endpoint_json) || {} : {};
   const endpointType = `${endpoint.type || ""}`.toLowerCase();
-  const kind = tunnel.kind === "json" ? "json" : tunnel.kind === "warp" || endpointType === "warp" ? "warp" : tunnel.kind === "amneziawg" || endpointType === "amneziawg" ? "amneziawg" : tunnel.kind === "tailscale" || endpointType === "tailscale" ? "tailscale" : "wireguard";
+  const kind = tunnel.kind === "openvpn-client" ? "openvpn-client" : tunnel.kind === "json" ? "json" : tunnel.kind === "warp" || endpointType === "warp" ? "warp" : tunnel.kind === "amneziawg" || endpointType === "amneziawg" ? "amneziawg" : tunnel.kind === "tailscale" || endpointType === "tailscale" ? "tailscale" : "wireguard";
   const junkEnabled = (forKind) => kind === forKind && ONE_SIDED_AMNEZIA_FIELDS.some(
     (key) => tunnel[`amnezia_${key}`] != null
   );
@@ -16214,6 +16382,7 @@ function tunnelInitialSettings(value, sectionId) {
   const wireguardJunkEnabled = junkEnabled("wireguard");
   const tailscaleDetour = `${tunnel.tailscale_detour_section || ""}`.trim();
   const settings = {
+    ...kind === "openvpn-client" ? openVPNInitialSettings(endpoint) : {},
     name: kind === "json" ? `${endpoint.tag || ""}` : `${tunnel.name || ""}`,
     tunnel_type: kind,
     warp_junk_enabled: warpJunkEnabled ? "1" : "0",
@@ -16224,6 +16393,8 @@ function tunnelInitialSettings(value, sectionId) {
     mtu: tunnel.mtu ? `${tunnel.mtu}` : "",
     peer_ids: tunnelPeerIds(`${value || ""}`),
     warp_keepalive: tunnel.warp_keepalive ? `${tunnel.warp_keepalive}` : "",
+    warp_address: `${tunnel.warp_address || ""}`,
+    warp_port: `${tunnel.warp_port || ""}`,
     warp_profile_id: `${tunnel.warp_profile_id || ""}`,
     warp_auth_token: `${tunnel.warp_profile_auth_token || ""}`,
     warp_private_key: `${tunnel.warp_profile_private_key || ""}`,
@@ -16254,6 +16425,8 @@ function tunnelSettingsKeys() {
     "listen_port",
     "mtu",
     "warp_keepalive",
+    "warp_address",
+    "warp_port",
     "warp_profile_id",
     "warp_profile_auth_token",
     "warp_profile_private_key",
@@ -16303,6 +16476,8 @@ function tunnelStorageSettings(settings) {
     listen_port: `${settings.listen_port || ""}`.trim(),
     mtu: `${settings.mtu || ""}`.trim(),
     warp_keepalive: `${settings.warp_keepalive || ""}`.trim(),
+    warp_address: `${settings.warp_address || ""}`.trim(),
+    warp_port: `${settings.warp_port || ""}`.trim(),
     warp_profile_id: `${settings.warp_profile_id || ""}`.trim(),
     warp_profile_auth_token: `${settings.warp_auth_token || ""}`.trim(),
     warp_profile_private_key: `${settings.warp_private_key || ""}`.trim(),
@@ -16316,7 +16491,7 @@ function tunnelStorageSettings(settings) {
     tailscale_accept_routes: kind === "tailscale" ? `${settings.tailscale_accept_routes || "1"}` : "",
     tailscale_exit_node: `${settings.tailscale_exit_node || ""}`.trim(),
     tailscale_detour_section: `${settings.tailscale_detour_enabled || ""}` === "1" ? `${settings.tailscale_detour_section || ""}`.trim() : "",
-    endpoint_json: kind === "json" ? `${settings.endpoint_json || ""}`.trim() : ""
+    endpoint_json: kind === "openvpn-client" ? JSON.stringify(openVPNEndpoint(settings)) : kind === "json" ? `${settings.endpoint_json || ""}`.trim() : ""
   };
   AMNEZIA_FIELDS.forEach((key) => {
     result[`amnezia_${key}`] = storedAmneziaFields.includes(key) ? `${settings[`amnezia_${key}`] || ""}`.trim() : "";
@@ -16387,6 +16562,7 @@ function tunnelPeerForValue(tunnelId, value, option2) {
 }
 function tunnelEndpointFromSettings(settings, tunnelId, peerOption) {
   const kind = `${settings.tunnel_type || ""}`;
+  if (kind === "openvpn-client") return openVPNEndpoint(settings);
   if (kind === "json") {
     return parseOutboundJsonObject(settings.endpoint_json);
   }
@@ -16412,6 +16588,10 @@ function tunnelEndpointFromSettings(settings, tunnelId, peerOption) {
   }
   if (kind === "warp") {
     const endpoint2 = { type: "warp" };
+    if (`${settings.warp_address || ""}`.trim())
+      endpoint2.address = `${settings.warp_address}`.trim();
+    if (`${settings.warp_port || ""}`.trim())
+      endpoint2.port = Number(settings.warp_port);
     if (`${settings.warp_keepalive || ""}`.trim()) {
       const value = `${settings.warp_keepalive}`.trim();
       endpoint2.persistent_keepalive_interval = value.includes("-") ? value : Number(value);
@@ -16957,7 +17137,6 @@ function providerTypeChoices() {
     ["sudoku", "Sudoku"],
     ["trusttunnel", "TrustTunnel"],
     ["masque", "MASQUE"],
-    ["openvpn", "OpenVPN"],
     ["ssh", "SSH"],
     ["tor", "Tor"],
     ["socks", "SOCKS"],
@@ -16972,6 +17151,8 @@ function groupTypeChoices() {
       ["amneziawg", "AmneziaWG"],
       ["warp", "WARP"],
       ["tailscale", "Tailscale"],
+      ["openvpn-client", "OpenVPN"],
+      ["openconnect", "OpenConnect"],
       ["direct", _("Network interface")]
     ].map(([value, label]) => ({ value, label }))
   ];
@@ -18811,6 +18992,17 @@ function validateTunnelSettings(settings, tunnelId, peerOption) {
     return _("Enter a tunnel name");
   }
   const endpoint = tunnelEndpointFromSettings(settings, tunnelId, peerOption);
+  if (kind === "openvpn-client") {
+    if (!endpoint)
+      return _(
+        "Invalid OpenVPN options or duplicate fields in additional JSON"
+      );
+    if (!endpoint.server && !endpoint.servers?.length)
+      return _("Enter a server address");
+    if (endpoint.mode === "static_key" && (!endpoint.static_key && !endpoint.static_key_path || !endpoint.address?.length))
+      return _("Static OpenVPN requires a key and tunnel addresses");
+    return true;
+  }
   if (!endpoint) {
     return kind === "json" ? _("Enter a valid JSON endpoint object") : _("Open peer settings and complete the configuration");
   }
@@ -18852,8 +19044,17 @@ function validateTunnelSettings(settings, tunnelId, peerOption) {
     if (kind === "amneziawg" && headerProtectionKey && !validateWireGuardKey(headerProtectionKey)) {
       return _("WireGuard keys must be standard base64-encoded 32-byte values");
     }
+    if (kind === "amneziawg" && headerProtectionKey && !/^A{43}=$/.test(headerProtectionKey) && ["s1", "s2", "s3", "s4"].some(
+      (key) => Number(settings[`amnezia_${key}`] || 0) < 12
+    )) {
+      return _(
+        "Header protection requires S1, S2, S3 and S4 of at least 12 bytes"
+      );
+    }
   }
   if (endpoint.type === "warp") {
+    if (endpoint.port != null && (!Number.isInteger(endpoint.port) || endpoint.port < 1 || endpoint.port > 65535))
+      return _("Enter a valid server port");
     const profileValues = [
       endpoint.profile?.id,
       endpoint.profile?.auth_token,
@@ -19070,6 +19271,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   typeOption.value("amneziawg", "AmneziaWG");
   typeOption.value("warp", "Cloudflare WARP");
   typeOption.value("tailscale", "Tailscale");
+  typeOption.value("openvpn-client", "OpenVPN");
   typeOption.value("json", "JSON endpoint");
   typeOption.default = "wireguard";
   typeOption.rmempty = false;
@@ -19079,7 +19281,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   o.validate = function(_itemId, value) {
     return `${value || ""}`.trim() ? validateUniqueDynamicListItemName(widget, itemNode, value) : _("Enter a tunnel name");
   };
-  ["wireguard", "amneziawg", "warp", "tailscale"].forEach(
+  ["wireguard", "amneziawg", "warp", "tailscale", "openvpn-client"].forEach(
     (kind) => o.depends("tunnel_type", kind)
   );
   const importButton = itemSection.option(
@@ -19204,6 +19406,20 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     return typeof endpoint.tag === "string" && endpoint.tag.trim() ? true : _("JSON endpoint must contain a non-empty tag");
   };
   configureTextareaOption(endpointJsonOption);
+  addOpenVPNOptions(itemSection);
+  o = itemSection.option(
+    form.Value,
+    "warp_address",
+    _("WARP server address"),
+    _("Override the WARP peer IP address or hostname")
+  );
+  o.depends("tunnel_type", "warp");
+  o.rmempty = true;
+  o.datatype = "host";
+  o = itemSection.option(form.Value, "warp_port", _("WARP server port"));
+  o.depends("tunnel_type", "warp");
+  o.rmempty = true;
+  o.datatype = "port";
   const addressOption = itemSection.option(
     form.DynamicList,
     "address",
@@ -20285,7 +20501,8 @@ var JSON_INBOUND_TYPES = /* @__PURE__ */ new Set([
   "mtproxy",
   "sudoku",
   "snell",
-  "call"
+  "call",
+  "cloudflared"
 ]);
 var SERVER_CERT_DIR = "/etc/forkop/server-certs/";
 var CLIENT_KEYS = [
@@ -21077,8 +21294,8 @@ function buildHysteria2Link(sectionId, client, context = {}) {
   if (certificatePin) {
     params.pinSHA256 = certificatePin;
   }
-  if (option(sectionId, "hysteria2_obfs_type") === "salamander") {
-    params.obfs = "salamander";
+  if (["salamander", "gecko"].includes(option(sectionId, "hysteria2_obfs_type"))) {
+    params.obfs = option(sectionId, "hysteria2_obfs_type");
     params["obfs-password"] = option(sectionId, "hysteria2_obfs_password");
   }
   const upMbps = option(sectionId, "hysteria2_up_mbps");
@@ -23084,6 +23301,7 @@ function addHysteria2Options(section) {
   );
   o.value("", _("None"));
   o.value("salamander", "salamander");
+  o.value("gecko", "gecko");
   o.default = "";
   o.rmempty = true;
   o.modalonly = true;
@@ -23103,7 +23321,26 @@ function addHysteria2Options(section) {
     (sectionId) => option(sectionId, "hysteria2_obfs_password") || generatePassword()
   );
   o.depends({ protocol: "hysteria2", hysteria2_obfs_type: "salamander" });
+  o.depends({ protocol: "hysteria2", hysteria2_obfs_type: "gecko" });
   addGenerateButton(o, () => generatePassword());
+  for (const [field, label] of [
+    ["min_packet_size", _("Minimum obfuscated packet size")],
+    ["max_packet_size", _("Maximum obfuscated packet size")]
+  ]) {
+    o = section.option(form.Value, `hysteria2_gecko_${field}`, label);
+    o.datatype = "range(1,65535)";
+    o.rmempty = true;
+    o.modalonly = true;
+    o.depends({ protocol: "hysteria2", hysteria2_obfs_type: "gecko" });
+  }
+  o = section.option(form.ListValue, "hysteria2_bbr_profile", _("BBR profile"));
+  o.value("", _("Default"));
+  ["standard", "conservative", "aggressive"].forEach(
+    (value) => o.value(value, value)
+  );
+  o.rmempty = true;
+  o.modalonly = true;
+  onHysteria2(o);
   o = section.option(form.Value, "hysteria2_up_mbps", _("Upload, Mbps"));
   o.modalonly = true;
   o.rmempty = true;
@@ -23882,6 +24119,32 @@ function addDnsOptions(section) {
   configureDownloadSectionOption(o, "dns_detour_section");
   createStaticHostsOption(section);
   o = section.option(
+    form.Value,
+    "dns_timeout",
+    _("DNS timeout"),
+    _("Maximum time to wait for a DNS response")
+  );
+  o.default = "10s";
+  o.rmempty = false;
+  o.validate = (_sectionId, value) => validateRequiredSingBoxDuration(value);
+  o = section.option(
+    form.Flag,
+    "dns_optimistic",
+    _("Optimistic DNS cache"),
+    _("Serve expired DNS answers while refreshing them in the background")
+  );
+  o.default = "0";
+  o.rmempty = false;
+  o = section.option(
+    form.Value,
+    "dns_optimistic_timeout",
+    _("Maximum age of expired DNS answers")
+  );
+  o.default = "3d";
+  o.rmempty = false;
+  o.depends("dns_optimistic", "1");
+  o.validate = (_sectionId, value) => validateRequiredSingBoxDuration(value);
+  o = section.option(
     form.ListValue,
     "unmatched_dns_mode",
     _("DNS outside the rules"),
@@ -24122,6 +24385,20 @@ function addTrafficOptions(section) {
   );
   o.depends("enable_yacd_wan_access", "1");
   o.rmempty = false;
+  const nativeDashboardUrl = `http://${window.location.hostname}:9091/dashboard/`;
+  o = section.option(
+    form.Flag,
+    "enable_native_api",
+    _("sing-box Dashboard and API"),
+    `${_("Manage connections and interactive VPN authentication. The dashboard is downloaded to RAM when enabled.")} <a href="${nativeDashboardUrl}" target="_blank" rel="noopener noreferrer">${_("Open dashboard")}</a>`
+  );
+  o.default = "0";
+  o.rmempty = false;
+  o = section.option(form.Value, "native_api_secret", _("API secret"));
+  o.password = true;
+  o.depends("enable_native_api", "1");
+  o.rmempty = false;
+  o.validate = (_sectionId, value) => value ? true : _("Enter an API secret");
   o = section.option(
     form.Flag,
     "disable_quic",

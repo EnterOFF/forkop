@@ -14,6 +14,16 @@ const SING_BOX_MASKED_KEYS = new Set([
   'secret',
   'password',
   'private_key',
+  'psk',
+  'userkey',
+  'static_key',
+  'key',
+  'client_key',
+  'certificate',
+  'client_certificate',
+  'peer_fingerprint',
+  'cookie',
+  'token',
   'public_key',
   'short_id',
   'fingerprint',
@@ -61,6 +71,7 @@ const FORKOP_MASK_AFTER_TOKEN = [
   'option reality_short_id',
   'list reality_short_id',
   'option yacd_secret_key',
+  'option native_api_secret',
 ];
 
 // Keep in sync with forkop_config_line() in diagnostics/mask.uc.

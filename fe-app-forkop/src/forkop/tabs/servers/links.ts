@@ -242,8 +242,10 @@ function buildHysteria2Link(
     params.pinSHA256 = certificatePin;
   }
 
-  if (option(sectionId, 'hysteria2_obfs_type') === 'salamander') {
-    params.obfs = 'salamander';
+  if (
+    ['salamander', 'gecko'].includes(option(sectionId, 'hysteria2_obfs_type'))
+  ) {
+    params.obfs = option(sectionId, 'hysteria2_obfs_type');
     params['obfs-password'] = option(sectionId, 'hysteria2_obfs_password');
   }
 

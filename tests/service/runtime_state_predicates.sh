@@ -722,6 +722,10 @@ parallel
 0
 [settings.dns_rewrite_ttl]
 120
+[settings.dns_timeout]
+10s
+[settings.dns_optimistic]
+0
 [settings.output_network_interface]
 wan
 [settings.disable_quic]
@@ -744,6 +748,8 @@ debug
 127.0.0.1
 [runtime.mwan3_active]
 1
+[settings.enable_native_api]
+0
 [settings.enable_yacd]
 1
 [settings.enable_yacd_wan_access]
@@ -1047,6 +1053,12 @@ ws
 [server.srv1.hysteria2_obfs_type]
 
 [server.srv1.hysteria2_obfs_password]
+
+[server.srv1.hysteria2_gecko_min_packet_size]
+
+[server.srv1.hysteria2_gecko_max_packet_size]
+
+[server.srv1.hysteria2_bbr_profile]
 
 [server.srv1.hysteria2_ignore_client_bandwidth]
 

@@ -289,6 +289,13 @@ function add_standard_inbound(config, section, protocol, tag_name) {
         let obfs_password = option(section, "hysteria2_obfs_password", "");
         if (obfs_type != "" && obfs_password != "")
             inbound.obfs = { type: obfs_type, password: obfs_password };
+        if (obfs_type == "gecko" && inbound.obfs) {
+            let minimum = option(section, "hysteria2_gecko_min_packet_size", "");
+            let maximum = option(section, "hysteria2_gecko_max_packet_size", "");
+            if (minimum != "") inbound.obfs.min_packet_size = int(minimum, 10);
+            if (maximum != "") inbound.obfs.max_packet_size = int(maximum, 10);
+        }
+        maybe_string(inbound, "bbr_profile", option(section, "hysteria2_bbr_profile", ""));
         // sing-box reads a masquerade URL as a string and picks the mode from its
         // scheme, so the single form field is passed through unchanged.
         maybe_string(inbound, "masquerade", option(section, "hysteria2_masquerade", ""));

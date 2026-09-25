@@ -6,6 +6,29 @@ import {
 } from '../helpers/maskDiagnostics';
 
 describe('diagnostic masking', () => {
+  it('hides native VPN credentials and certificate material', () => {
+    for (const key of [
+      'psk',
+      'userkey',
+      'static_key',
+      'key',
+      'client_key',
+      'certificate',
+      'client_certificate',
+      'peer_fingerprint',
+      'cookie',
+      'token',
+    ]) {
+      expect(
+        maskSingBoxConfigValue({
+          endpoints: [{ tls: { [key]: ['sensitive'] } }],
+        }),
+      ).toEqual({ endpoints: [{ tls: { [key]: 'MASKED' } }] });
+    }
+    expect(
+      maskGlobalCheckText("option native_api_secret 'sensitive'"),
+    ).not.toContain('sensitive');
+  });
   it('masks sensitive sing-box keys without mutating the original config', () => {
     const config = {
       outbounds: [

@@ -44,12 +44,12 @@ const TMP_SING_BOX_FOLDER = "/tmp/sing-box";
 // rules with it and the inbound check looks for it in the loaded chain, because
 // those ports are an nftables.d include and never appear in `uci show firewall`.
 const SERVER_FIREWALL_COMMENT = "forkop: server ports";
-const JSON_ENDPOINT_TYPES = [ "vpn-server", "vpn-client", "wireguard", "amneziawg", "warp", "tailscale" ];
+const JSON_ENDPOINT_TYPES = [ "vpn-server", "vpn-client", "wireguard", "amneziawg", "warp", "tailscale", "openvpn-client", "openvpn-server", "openconnect" ];
 const JSON_INBOUND_TYPES = [
     "tun", "redirect", "tproxy", "direct", "socks", "http", "mixed",
     "shadowsocks", "vmess", "trojan", "naive", "shadowtls", "vless",
     "anytls", "mieru", "ssh", "bond", "failover", "trusttunnel",
-    "hysteria", "tuic", "hysteria2", "mtproxy", "sudoku", "snell", "call"
+    "hysteria", "tuic", "hysteria2", "mtproxy", "sudoku", "snell", "call", "cloudflared"
 ];
 
 // Outbound types a subscription can produce. sing-box builds provider nodes
@@ -59,7 +59,7 @@ const FILTERABLE_PROVIDER_TYPES = [
     "vless", "vmess", "trojan", "shadowsocks",
     "hysteria2", "hysteria", "tuic", "anytls",
     "naive", "mieru", "snell", "shadowtls",
-    "sudoku", "trusttunnel", "masque", "openvpn",
+    "sudoku", "trusttunnel", "masque",
     "ssh", "tor", "socks", "http"
 ];
 
@@ -67,7 +67,7 @@ const FILTERABLE_PROVIDER_TYPES = [
 // only way a tunnel or a network interface becomes a member.
 const FILTERABLE_GROUP_TYPES = [
     ...FILTERABLE_PROVIDER_TYPES,
-    "wireguard", "amneziawg", "warp", "tailscale", "direct"
+    "wireguard", "amneziawg", "warp", "tailscale", "openvpn-client", "openconnect", "direct"
 ];
 
 // sing-box resolves a manual link at runtime, so the generated "parser"

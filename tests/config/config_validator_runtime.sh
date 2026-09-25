@@ -993,4 +993,28 @@ amnezia_tunnel_fixture "$WORK_DIR/amnezia-signature-tag.json" "amnezia_i1" "<zz 
 assert_rejects "AmneziaWG signature with an unknown tag" "$WORK_DIR/amnezia-signature-tag.json" \
   "invalid AmneziaWG i1 signature"
 
+amnezia_tunnel_fixture "$WORK_DIR/amnezia-protection.json" "amnezia_header_protection_key" "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="
+assert_rejects "AmneziaWG protected header without padding" "$WORK_DIR/amnezia-protection.json" \
+  "requires AmneziaWG s1 of at least 12 bytes"
+node - "$WORK_DIR/amnezia-protection.json" <<'NODE'
+const fs = require('fs'), path = process.argv[2];
+const fixture = JSON.parse(fs.readFileSync(path));
+for (const key of ['s1', 's2', 's3', 's4']) fixture.tunnel[0][`amnezia_${key}`] = '12';
+fs.writeFileSync(path, JSON.stringify(fixture));
+for (const key of ['s1', 's2', 's3', 's4']) {
+  const copy = structuredClone(fixture);
+  copy.tunnel[0][`amnezia_${key}`] = '11';
+  fs.writeFileSync(`${path}.${key}`, JSON.stringify(copy));
+}
+NODE
+validate_fixture "$WORK_DIR/amnezia-protection.json" >/dev/null ||
+  fail "AmneziaWG header protection accepts all paddings at the 12-byte boundary"
+for key in s1 s2 s3 s4; do
+  assert_rejects "AmneziaWG protected header with short $key" "$WORK_DIR/amnezia-protection.json.$key" \
+    "requires AmneziaWG $key of at least 12 bytes"
+done
+amnezia_tunnel_fixture "$WORK_DIR/amnezia-zero-protection.json" "amnezia_header_protection_key" "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+validate_fixture "$WORK_DIR/amnezia-zero-protection.json" >/dev/null ||
+  fail "The all-zero key disables AmneziaWG header protection"
+
 printf 'config validator runtime checks passed\n'

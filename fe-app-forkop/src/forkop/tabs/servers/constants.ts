@@ -103,6 +103,7 @@ export const JSON_INBOUND_TYPES = new Set([
   'sudoku',
   'snell',
   'call',
+  'cloudflared',
 ]);
 
 // Forkop generates into its own directory, so a path there is a certificate it

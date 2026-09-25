@@ -27,6 +27,7 @@ import {
 } from '../../../cbi/modal';
 import { JSON_ENDPOINT_PLACEHOLDER, JSON_ENDPOINT_TYPES } from '../constants';
 import { parseOutboundJsonObject } from '../outboundJson';
+import { addOpenVPNOptions } from './openvpn';
 import { refreshOutboundDetourSectionOptionValues } from '../references';
 import {
   AMNEZIA_COUNT_FIELDS,
@@ -263,6 +264,7 @@ export function showTunnelSettingsModal(
   typeOption.value('amneziawg', 'AmneziaWG');
   typeOption.value('warp', 'Cloudflare WARP');
   typeOption.value('tailscale', 'Tailscale');
+  typeOption.value('openvpn-client', 'OpenVPN');
   typeOption.value('json', 'JSON endpoint');
   typeOption.default = 'wireguard';
   typeOption.rmempty = false;
@@ -275,8 +277,8 @@ export function showTunnelSettingsModal(
       ? validateUniqueDynamicListItemName(widget, itemNode, value)
       : _('Enter a tunnel name');
   };
-  ['wireguard', 'amneziawg', 'warp', 'tailscale'].forEach((kind: string) =>
-    o.depends('tunnel_type', kind),
+  ['wireguard', 'amneziawg', 'warp', 'tailscale', 'openvpn-client'].forEach(
+    (kind: string) => o.depends('tunnel_type', kind),
   );
 
   const importButton = itemSection.option(
@@ -427,6 +429,22 @@ export function showTunnelSettingsModal(
       : _('JSON endpoint must contain a non-empty tag');
   };
   configureTextareaOption(endpointJsonOption);
+
+  addOpenVPNOptions(itemSection);
+
+  o = itemSection.option(
+    form.Value,
+    'warp_address',
+    _('WARP server address'),
+    _('Override the WARP peer IP address or hostname'),
+  );
+  o.depends('tunnel_type', 'warp');
+  o.rmempty = true;
+  o.datatype = 'host';
+  o = itemSection.option(form.Value, 'warp_port', _('WARP server port'));
+  o.depends('tunnel_type', 'warp');
+  o.rmempty = true;
+  o.datatype = 'port';
 
   const addressOption = itemSection.option(
     form.DynamicList,

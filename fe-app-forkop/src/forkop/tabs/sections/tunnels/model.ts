@@ -18,6 +18,7 @@ import {
   parseOutboundJsonObject,
 } from '../outboundJson';
 import { tailscaleDetourSectionValue, tailscaleDetourTag } from '../references';
+import { openVPNEndpoint, openVPNInitialSettings } from './openvpn';
 
 // Junk counts and sizes reach the core as uint32, packet paddings as uint16.
 export const AMNEZIA_COUNT_FIELDS = ['jc', 'jmin', 'jmax'];
@@ -165,6 +166,7 @@ function tunnelPeerIds(tunnelId: string) {
 }
 
 function tunnelKindLabel(kind: string, endpointType: string) {
+  if (kind === 'openvpn-client') return 'OpenVPN';
   return kind === 'amneziawg'
     ? 'AmneziaWG'
     : kind === 'warp'
@@ -213,21 +215,23 @@ export function tunnelInitialSettings(
   const tunnel = (tunnelChild(sectionId, `${value || ''}`) ||
     {}) as UciSectionObject;
   const endpoint = (
-    `${tunnel.kind || ''}` === 'json'
+    ['json', 'openvpn-client'].includes(`${tunnel.kind || ''}`)
       ? parseOutboundJsonObject(tunnel.endpoint_json) || {}
       : {}
   ) as Record<string, unknown>;
   const endpointType = `${endpoint.type || ''}`.toLowerCase();
   const kind =
-    tunnel.kind === 'json'
-      ? 'json'
-      : tunnel.kind === 'warp' || endpointType === 'warp'
-        ? 'warp'
-        : tunnel.kind === 'amneziawg' || endpointType === 'amneziawg'
-          ? 'amneziawg'
-          : tunnel.kind === 'tailscale' || endpointType === 'tailscale'
-            ? 'tailscale'
-            : 'wireguard';
+    tunnel.kind === 'openvpn-client'
+      ? 'openvpn-client'
+      : tunnel.kind === 'json'
+        ? 'json'
+        : tunnel.kind === 'warp' || endpointType === 'warp'
+          ? 'warp'
+          : tunnel.kind === 'amneziawg' || endpointType === 'amneziawg'
+            ? 'amneziawg'
+            : tunnel.kind === 'tailscale' || endpointType === 'tailscale'
+              ? 'tailscale'
+              : 'wireguard';
   const junkEnabled = (forKind: string) =>
     kind === forKind &&
     ONE_SIDED_AMNEZIA_FIELDS.some(
@@ -237,6 +241,7 @@ export function tunnelInitialSettings(
   const wireguardJunkEnabled = junkEnabled('wireguard');
   const tailscaleDetour = `${tunnel.tailscale_detour_section || ''}`.trim();
   const settings: ChildSettings = {
+    ...(kind === 'openvpn-client' ? openVPNInitialSettings(endpoint) : {}),
     name: kind === 'json' ? `${endpoint.tag || ''}` : `${tunnel.name || ''}`,
     tunnel_type: kind,
     warp_junk_enabled: warpJunkEnabled ? '1' : '0',
@@ -247,6 +252,8 @@ export function tunnelInitialSettings(
     mtu: tunnel.mtu ? `${tunnel.mtu}` : '',
     peer_ids: tunnelPeerIds(`${value || ''}`),
     warp_keepalive: tunnel.warp_keepalive ? `${tunnel.warp_keepalive}` : '',
+    warp_address: `${tunnel.warp_address || ''}`,
+    warp_port: `${tunnel.warp_port || ''}`,
     warp_profile_id: `${tunnel.warp_profile_id || ''}`,
     warp_auth_token: `${tunnel.warp_profile_auth_token || ''}`,
     warp_private_key: `${tunnel.warp_profile_private_key || ''}`,
@@ -280,6 +287,8 @@ function tunnelSettingsKeys() {
     'listen_port',
     'mtu',
     'warp_keepalive',
+    'warp_address',
+    'warp_port',
     'warp_profile_id',
     'warp_profile_auth_token',
     'warp_profile_private_key',
@@ -352,6 +361,8 @@ export function tunnelStorageSettings(settings: ChildSettings) {
     listen_port: `${settings.listen_port || ''}`.trim(),
     mtu: `${settings.mtu || ''}`.trim(),
     warp_keepalive: `${settings.warp_keepalive || ''}`.trim(),
+    warp_address: `${settings.warp_address || ''}`.trim(),
+    warp_port: `${settings.warp_port || ''}`.trim(),
     warp_profile_id: `${settings.warp_profile_id || ''}`.trim(),
     warp_profile_auth_token: `${settings.warp_auth_token || ''}`.trim(),
     warp_profile_private_key: `${settings.warp_private_key || ''}`.trim(),
@@ -370,7 +381,11 @@ export function tunnelStorageSettings(settings: ChildSettings) {
         ? `${settings.tailscale_detour_section || ''}`.trim()
         : '',
     endpoint_json:
-      kind === 'json' ? `${settings.endpoint_json || ''}`.trim() : '',
+      kind === 'openvpn-client'
+        ? JSON.stringify(openVPNEndpoint(settings))
+        : kind === 'json'
+          ? `${settings.endpoint_json || ''}`.trim()
+          : '',
   };
 
   AMNEZIA_FIELDS.forEach((key: string) => {
@@ -477,6 +492,7 @@ export function tunnelEndpointFromSettings(
   peerOption?: CBIOption,
 ) {
   const kind = `${settings.tunnel_type || ''}`;
+  if (kind === 'openvpn-client') return openVPNEndpoint(settings);
   if (kind === 'json') {
     return parseOutboundJsonObject(settings.endpoint_json);
   }
@@ -503,6 +519,10 @@ export function tunnelEndpointFromSettings(
   }
   if (kind === 'warp') {
     const endpoint: Record<string, unknown> = { type: 'warp' };
+    if (`${settings.warp_address || ''}`.trim())
+      endpoint.address = `${settings.warp_address}`.trim();
+    if (`${settings.warp_port || ''}`.trim())
+      endpoint.port = Number(settings.warp_port);
     if (`${settings.warp_keepalive || ''}`.trim()) {
       const value = `${settings.warp_keepalive}`.trim();
       endpoint.persistent_keepalive_interval = value.includes('-')

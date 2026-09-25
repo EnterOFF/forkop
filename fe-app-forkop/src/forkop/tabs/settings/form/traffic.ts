@@ -35,6 +35,23 @@ export function addTrafficOptions(section: CBISection) {
   o.depends('enable_yacd_wan_access', '1');
   o.rmempty = false;
 
+  const nativeDashboardUrl = `http://${window.location.hostname}:9091/dashboard/`;
+  o = section.option(
+    form.Flag,
+    'enable_native_api',
+    _('sing-box Dashboard and API'),
+    `${_('Manage connections and interactive VPN authentication. The dashboard is downloaded to RAM when enabled.')} <a href="${nativeDashboardUrl}" target="_blank" rel="noopener noreferrer">${_('Open dashboard')}</a>`,
+  );
+  o.default = '0';
+  o.rmempty = false;
+
+  o = section.option(form.Value, 'native_api_secret', _('API secret'));
+  o.password = true;
+  o.depends('enable_native_api', '1');
+  o.rmempty = false;
+  o.validate = (_sectionId: string, value: string) =>
+    value ? true : _('Enter an API secret');
+
   o = section.option(
     form.Flag,
     'disable_quic',

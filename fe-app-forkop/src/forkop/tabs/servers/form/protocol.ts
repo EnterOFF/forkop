@@ -85,6 +85,7 @@ export function addHysteria2Options(section: CBISection) {
   );
   o.value('', _('None'));
   o.value('salamander', 'salamander');
+  o.value('gecko', 'gecko');
   o.default = '';
   o.rmempty = true;
   o.modalonly = true;
@@ -106,7 +107,28 @@ export function addHysteria2Options(section: CBISection) {
       option(sectionId, 'hysteria2_obfs_password') || generatePassword(),
   );
   o.depends({ protocol: 'hysteria2', hysteria2_obfs_type: 'salamander' });
+  o.depends({ protocol: 'hysteria2', hysteria2_obfs_type: 'gecko' });
   addGenerateButton(o, () => generatePassword());
+
+  for (const [field, label] of [
+    ['min_packet_size', _('Minimum obfuscated packet size')],
+    ['max_packet_size', _('Maximum obfuscated packet size')],
+  ]) {
+    o = section.option(form.Value, `hysteria2_gecko_${field}`, label);
+    o.datatype = 'range(1,65535)';
+    o.rmempty = true;
+    o.modalonly = true;
+    o.depends({ protocol: 'hysteria2', hysteria2_obfs_type: 'gecko' });
+  }
+
+  o = section.option(form.ListValue, 'hysteria2_bbr_profile', _('BBR profile'));
+  o.value('', _('Default'));
+  ['standard', 'conservative', 'aggressive'].forEach((value) =>
+    o.value(value, value),
+  );
+  o.rmempty = true;
+  o.modalonly = true;
+  onHysteria2(o);
 
   o = section.option(form.Value, 'hysteria2_up_mbps', _('Upload, Mbps'));
   o.modalonly = true;

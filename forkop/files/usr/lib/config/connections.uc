@@ -451,7 +451,7 @@ function tunnel_endpoint(tunnel) {
     tunnel = object_or_empty(tunnel);
     let kind = lc(trim(as_string(option(tunnel, "kind", "wireguard"))));
 
-    if (kind == "json") {
+    if (kind == "json" || kind == "openvpn-client") {
         try {
             let endpoint = json(option(tunnel, "endpoint_json", ""));
             return type(endpoint) == "object" ? endpoint : {};
@@ -476,6 +476,10 @@ function tunnel_endpoint(tunnel) {
     }
 
     if (kind == "warp") {
+        let address = trim(as_string(option(tunnel, "warp_address", "")));
+        let port = trim(as_string(option(tunnel, "warp_port", "")));
+        if (address != "") endpoint.address = address;
+        if (port != "") endpoint.port = int(port, 10);
         let keepalive = trim(as_string(option(tunnel, "warp_keepalive", "")));
         if (keepalive != "")
             endpoint.persistent_keepalive_interval = index(keepalive, "-") >= 0 ? keepalive : int(keepalive, 10);

@@ -251,3 +251,11 @@ if (unmasked.length) {
 NODE
 
 printf 'config masking checks passed\n'
+
+ucode -L "$FORKOP_LIB" -e '
+let mask = require("diagnostics.mask");
+for (let key in [ "psk", "userkey", "static_key", "key", "client_key", "certificate", "client_certificate", "peer_fingerprint", "cookie", "token", "auth_token", "license_key" ]) {
+    let value = { endpoints: [{ tls: { [key]: [ "sensitive" ] } }] };
+    if (mask.sing_box_config(value).endpoints[0].tls[key] != "MASKED") die("unmasked native credential: " + key);
+    if (value.endpoints[0].tls[key][0] != "sensitive") die("mask mutated input");
+}'

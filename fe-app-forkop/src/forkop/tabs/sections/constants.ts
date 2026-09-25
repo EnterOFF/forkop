@@ -10,6 +10,9 @@ export const ROUTING_ACTIONS = [
 ];
 
 export const JSON_ENDPOINT_TYPES = new Set([
+  'openvpn-client',
+  'openvpn-server',
+  'openconnect',
   'vpn-server',
   'vpn-client',
   'wireguard',

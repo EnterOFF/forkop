@@ -43,6 +43,9 @@ base_signature="$(signature "$WORK_DIR/base.json")"
 covered=0
 for change in \
   '"dns_strategy": "prefer_ipv6"' \
+  '"dns_timeout": "4s"' \
+  '"dns_optimistic": "1", "dns_optimistic_timeout": "2h"' \
+  '"enable_native_api": "1", "native_api_secret": "test-secret"' \
   '"dns_rewrite_ttl": "120"' \
   '"disable_quic": "1"' \
   '"bittorrent_direct": "1"' \

@@ -30,7 +30,7 @@ if [[ ! "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 fi
 APK_INTERNAL_VERSION="$RELEASE_VERSION"
 
-BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/.build}"
+BUILD_DIR="${BUILD_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/forkop/build}"
 SDK_CACHE_DIR="${SDK_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/forkop/openwrt-sdk}"
 SDK_DIR="${SDK_DIR:-$SDK_CACHE_DIR/extracted}"
 IPK_SDK_URL="${IPK_SDK_URL:-https://downloads.openwrt.org/releases/24.10.6/targets/x86/64/openwrt-sdk-24.10.6-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst}"
@@ -162,6 +162,10 @@ normalize_package_root_modes() {
 
   find "$package_root" -type d -exec chmod 0755 {} +
   find "$package_root" -type f -exec chmod 0644 {} +
+  if [[ -n "$(find "$package_root" \( -type d ! -perm 0755 -o -type f ! -perm 0644 \) -print -quit)" ]]; then
+    echo "Cannot set package file modes in $package_root; use a native Linux BUILD_DIR" >&2
+    exit 1
+  fi
 }
 
 build_backend_root() {

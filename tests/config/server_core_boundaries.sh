@@ -139,6 +139,9 @@ const cases = [
     [client("h", { password: "p" })]],
 
   // Reality: the short ID is hex bytes and at most eight of them.
+  ["hysteria2 gecko", "accepted", "",
+    server({ protocol: "hysteria2", ...tls, hysteria2_obfs_type: "gecko", hysteria2_obfs_password: "secret", hysteria2_gecko_min_packet_size: "512", hysteria2_gecko_max_packet_size: "1200", hysteria2_bbr_profile: "conservative" }),
+    [client("h", { password: "p" })]],
   ["reality short id odd", "refused", "even number of hex digits",
     server({ protocol: "vless", ...reality, reality_short_id: "abc" }), [client("v", { uuid })]],
   ["reality short id long", "refused", "longer than 16 hex digits",

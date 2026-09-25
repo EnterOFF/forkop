@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-27 12:32+0300\n"
-"PO-Revision-Date: 2026-08-27 12:32+0300\n"
+"POT-Creation-Date: 2026-09-06 16:18+0300\n"
+"PO-Revision-Date: 2026-09-06 16:18+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -155,6 +155,9 @@ msgstr "Добавляется перед именем каждого серве
 msgid "Additional marking rules found"
 msgstr "Найдены дополнительные правила маркировки"
 
+msgid "Additional OpenVPN options"
+msgstr "Дополнительные параметры OpenVPN"
+
 msgid "Additional packet padding"
 msgstr "Дополнительное заполнение пакета"
 
@@ -209,6 +212,9 @@ msgstr "Дополнительный ключ, общий с этим пиром
 msgid "Any"
 msgstr "Любой"
 
+msgid "API secret"
+msgstr "Секрет API"
+
 msgid "Applies WARP+ to the profile account"
 msgstr "Применяет WARP+ к аккаунту профиля"
 
@@ -251,6 +257,9 @@ msgstr "Доступные действия"
 msgid "Back"
 msgstr "Назад"
 
+msgid "BBR profile"
+msgstr "Профиль BBR"
+
 msgid "Bootstrap DNS"
 msgstr "Bootstrap DNS"
 
@@ -277,6 +286,9 @@ msgstr "Встроенные списки"
 
 msgid "By default only the domain conditions of a rule set are applied. This option adds its IP addresses and subnets to nftables. Large lists can load the router heavily. Enable it only if you know the set holds the subnets you need"
 msgstr "По умолчанию из набора правил применяются только доменные условия. Опция добавляет IP-адреса и подсети в nftables. Крупные списки могут сильно нагружать роутер. Включайте, только если знаете, что набор содержит необходимые подсети"
+
+msgid "CA certificate"
+msgstr "Сертификат центра сертификации"
 
 msgid "Cache File Path"
 msgstr "Путь к файлу кэша"
@@ -329,6 +341,9 @@ msgstr "Проверки пройдены"
 msgid "CIDR must be between 0 and 32 for IPv4 or 0 and 128 for IPv6"
 msgstr "CIDR должен быть от 0 до 32 для IPv4 или от 0 до 128 для IPv6"
 
+msgid "Cipher"
+msgstr "Шифр"
+
 msgid "Clash API request timed out after it was sent"
 msgstr "Запрос к Clash API был отправлен, но истекло время ожидания ответа"
 
@@ -338,11 +353,17 @@ msgstr "Нажмите на сервер, чтобы закрепить его �
 msgid "Client"
 msgstr "Клиент"
 
+msgid "Client certificate"
+msgstr "Сертификат клиента"
+
 msgid "Client fingerprint"
 msgstr "Отпечаток клиента"
 
 msgid "Client names must be unique"
 msgstr "Имена клиентов не должны повторяться"
+
+msgid "Client private key"
+msgstr "Закрытый ключ клиента"
 
 msgid "Client: %s"
 msgstr "Клиент: %s"
@@ -410,6 +431,15 @@ msgstr "Подключения недоступны"
 msgid "Connectivity probe failed"
 msgstr "Проверка соединения не прошла"
 
+msgid "Control channel key"
+msgstr "Ключ управляющего канала"
+
+msgid "Control channel key direction"
+msgstr "Направление ключа управляющего канала"
+
+msgid "Control channel protection"
+msgstr "Защита управляющего канала"
+
 msgid "Coordination server"
 msgstr "Сервер координации"
 
@@ -455,8 +485,14 @@ msgstr "Дашборд"
 msgid "Dashboard currently unavailable"
 msgstr "Дашборд сейчас недоступен"
 
+msgid "Data ciphers"
+msgstr "Шифры канала данных"
+
 msgid "Data rejection timeout"
 msgstr "Таймаут отклонения данных"
+
+msgid "Default"
+msgstr "По умолчанию"
 
 msgid "Delay in milliseconds before reloading Forkop after interface UP"
 msgstr "Задержка в миллисекундах перед перезапуском Forkop после поднятия интерфейса"
@@ -529,6 +565,9 @@ msgstr "Стратегия DNS"
 
 msgid "DNS through section"
 msgstr "DNS через секцию"
+
+msgid "DNS timeout"
+msgstr "Тайм-аут DNS"
 
 msgid "Does not resolve"
 msgstr "Не резолвится"
@@ -641,8 +680,14 @@ msgstr "Введите корректный объект JSON endpoint"
 msgid "Enter a valid JSON object"
 msgstr "Введите корректный JSON-объект"
 
+msgid "Enter a valid server port"
+msgstr "Укажите корректный порт сервера"
+
 msgid "Enter a valid Tailscale control URL"
 msgstr "Введите корректный URL control plane Tailscale"
+
+msgid "Enter an API secret"
+msgstr "Введите секрет API"
 
 msgid "Enter at least one AmneziaWG parameter"
 msgstr "Введите хотя бы один параметр AmneziaWG"
@@ -737,6 +782,9 @@ msgstr "FakeTLS-хост"
 msgid "Fallback"
 msgstr "Fallback"
 
+msgid "Fallback data cipher"
+msgstr "Резервный шифр канала данных"
+
 msgid "Fallback details"
 msgstr "Детали Fallback"
 
@@ -826,6 +874,9 @@ msgstr "Название заголовка содержит недопусти�
 
 msgid "Header protection key"
 msgstr "Ключ защиты заголовка"
+
+msgid "Header protection requires S1, S2, S3 and S4 of at least 12 bytes"
+msgstr "Для защиты заголовков значения S1, S2, S3 и S4 должны быть не меньше 12 байт"
 
 msgid "Header value"
 msgstr "Значение заголовка"
@@ -964,6 +1015,9 @@ msgstr "Неверный IP-адрес"
 
 msgid "Invalid JSON format"
 msgstr "Неверный формат JSON"
+
+msgid "Invalid OpenVPN options or duplicate fields in additional JSON"
+msgstr "Некорректные параметры OpenVPN или повторяющиеся поля в дополнительном JSON"
 
 msgid "Invalid or unsupported Amnezia VPN link"
 msgstr "Недействительная или неподдерживаемая ссылка Amnezia VPN"
@@ -1124,6 +1178,9 @@ msgstr "Основной DNS"
 msgid "Main DNS Query Mode"
 msgstr "Режим опроса основного DNS"
 
+msgid "Manage connections and interactive VPN authentication. The dashboard is downloaded to RAM when enabled."
+msgstr "Управление соединениями и интерактивной авторизацией VPN. При включении панель загружается в оперативную память."
+
 msgid "Masks traffic with the Amnezia mechanism to make it harder to identify"
 msgstr "Маскирует трафик механизмом Amnezia, чтобы затруднить распознавание"
 
@@ -1133,8 +1190,17 @@ msgstr "Маскировка"
 msgid "Match destination ports"
 msgstr "Совпадение по портам назначения"
 
+msgid "Maximum age of expired DNS answers"
+msgstr "Максимальный возраст устаревших ответов DNS"
+
 msgid "Maximum handshake attempts"
 msgstr "Максимум попыток рукопожатия"
+
+msgid "Maximum obfuscated packet size"
+msgstr "Максимальный размер пакета обфускации"
+
+msgid "Maximum time to wait for a DNS response"
+msgstr "Максимальное время ожидания ответа DNS"
 
 msgid "Memory Usage"
 msgstr "Использование памяти"
@@ -1142,11 +1208,17 @@ msgstr "Использование памяти"
 msgid "Method"
 msgstr "Метод"
 
+msgid "Minimum obfuscated packet size"
+msgstr "Минимальный размер пакета обфускации"
+
 msgid "Monitored Interfaces"
 msgstr "Наблюдаемые интерфейсы"
 
 msgid "Monitoring"
 msgstr "Мониторинг"
+
+msgid "MTU"
+msgstr "MTU"
 
 msgid "Multiplex"
 msgstr "Multiplex"
@@ -1165,6 +1237,9 @@ msgstr "Префикс имени"
 
 msgid "Name suffix"
 msgstr "Суффикс имени"
+
+msgid "Native JSON options for routes, reconnect timers and other advanced settings. Fields shown above must be edited in the form."
+msgstr "Параметры sing-box в формате JSON: маршруты, таймеры переподключения и другие настройки. Поля, показанные выше, редактируются в форме."
 
 msgid "Network"
 msgstr "Сеть"
@@ -1262,6 +1337,9 @@ msgstr "Только выбранные"
 msgid "Open"
 msgstr "Открыть"
 
+msgid "Open dashboard"
+msgstr "Открыть панель"
+
 msgid "Open Fallback settings and enter a display name"
 msgstr "Откройте настройки Fallback и укажите отображаемое имя"
 
@@ -1274,8 +1352,14 @@ msgstr "Открыть порт"
 msgid "Open tunnel settings and complete the configuration"
 msgstr "Откройте настройки туннеля и завершите конфигурацию"
 
+msgid "OpenVPN mode"
+msgstr "Режим OpenVPN"
+
 msgid "Operation timed out"
 msgstr "Время ожидания истекло"
+
+msgid "Optimistic DNS cache"
+msgstr "Оптимистический кеш DNS"
 
 msgid "Option \"%s\" contains an invalid input value."
 msgstr "Параметр \"%s\" содержит некорректное значение."
@@ -1288,6 +1372,12 @@ msgstr "Выходной сетевой интерфейс"
 
 msgid "Override routing"
 msgstr "Переопределить маршрутизацию"
+
+msgid "Override the WARP peer IP address or hostname"
+msgstr "Заменить IP-адрес или имя сервера WARP"
+
+msgid "Packet authentication algorithm"
+msgstr "Алгоритм аутентификации пакетов"
 
 msgid "Padding"
 msgstr "Padding"
@@ -1318,6 +1408,9 @@ msgstr "Приостановить обновление"
 
 msgid "Peer hostname or IP address"
 msgstr "Имя хоста или IP-адрес пира"
+
+msgid "Peer tunnel address"
+msgstr "Адрес узла на другом конце туннеля"
 
 msgid "Peers"
 msgstr "Пиры"
@@ -1625,6 +1718,9 @@ msgstr "Пропускать торрент-трафик мимо прокси"
 msgid "Sequential"
 msgstr "Последовательно"
 
+msgid "Serve expired DNS answers while refreshing them in the background"
+msgstr "Возвращать устаревшие ответы DNS, обновляя их в фоне"
+
 msgid "Server"
 msgstr "Сервер"
 
@@ -1633,6 +1729,12 @@ msgstr "сервер %s"
 
 msgid "Server address"
 msgstr "Адрес сервера"
+
+msgid "Server certificate fingerprints"
+msgstr "Отпечатки сертификата сервера"
+
+msgid "Server certificate name"
+msgstr "Имя в сертификате сервера"
 
 msgid "Server details"
 msgstr "Детали сервера"
@@ -1724,6 +1826,9 @@ msgstr "Clash API sing-box"
 msgid "sing-box configuration"
 msgstr "Конфигурация sing-box"
 
+msgid "sing-box Dashboard and API"
+msgstr "Панель sing-box и API"
+
 msgid "Sing-box FakeIP DNS does not work"
 msgstr "FakeIP DNS sing-box не работает"
 
@@ -1768,6 +1873,15 @@ msgstr "Запуск..."
 
 msgid "Static DNS records"
 msgstr "Статичные DNS записи"
+
+msgid "Static key"
+msgstr "Статический ключ"
+
+msgid "Static key direction"
+msgstr "Направление статического ключа"
+
+msgid "Static OpenVPN requires a key and tunnel addresses"
+msgstr "Для статического OpenVPN нужны ключ и адреса туннеля"
 
 msgid "Status"
 msgstr "Статус"
@@ -2090,6 +2204,9 @@ msgstr "Используется"
 msgid "User name"
 msgstr "Имя пользователя"
 
+msgid "Username"
+msgstr "Имя пользователя"
+
 msgid "UUID"
 msgstr "UUID"
 
@@ -2116,6 +2233,12 @@ msgstr "Публичный WAN IP"
 
 msgid "WARP profile"
 msgstr "Профиль WARP"
+
+msgid "WARP server address"
+msgstr "Адрес сервера WARP"
+
+msgid "WARP server port"
+msgstr "Порт сервера WARP"
 
 msgid "What to do when this section's conditions match"
 msgstr "Что делать при совпадении условий этой секции"
