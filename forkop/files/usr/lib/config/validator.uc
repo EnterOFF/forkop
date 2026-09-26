@@ -995,6 +995,10 @@ function validate_tunnel_amnezia(endpoint, name) {
     if (type(amnezia) != "object")
         return;
 
+    for (let key in [ "random_trailers", "disable_cookies" ])
+        if (amnezia[key] != null && type(amnezia[key]) != "bool")
+            fail_validation("Connection rule '" + name + "' contains an invalid AmneziaWG " + key + " flag. Aborted.");
+
     for (let key in [ "h1", "h2", "h3", "h4", "content_padding_addition", "rekey_after_time", "rekey_timeout", "reject_after_time", "keepalive_timeout", "max_handshake_attempts" ])
         if (amnezia[key] != null && !valid_amnezia_range(amnezia[key]))
             fail_validation("Connection rule '" + name + "' contains an invalid AmneziaWG " + key + " range. Use values from 0 to 4294967295 with the start no greater than the end. Aborted.");
@@ -1046,6 +1050,14 @@ function validate_tunnel_values(section) {
 
     for (let tunnel_id in connections.tunnels(section)) {
         let tunnel = connections.tunnel_child(section, tunnel_id);
+        let kind = connections.option(tunnel, "kind", "");
+        let amnezia_flags = kind == "amneziawg" ? [ "random_trailers", "disable_cookies" ] :
+            kind == "wireguard" || kind == "warp" ? [ "disable_cookies" ] : [];
+        for (let key in amnezia_flags) {
+            let value = trim(as_string(connections.option(tunnel, "amnezia_" + key, "")));
+            if (value != "" && value != "0" && value != "1")
+                fail_validation("Connection rule '" + name + "' contains an invalid AmneziaWG " + key + " flag. Use 0 or 1. Aborted.");
+        }
         let endpoint = connections.tunnel_endpoint(tunnel);
         let endpoint_type = lc(trim(as_string(endpoint.type || "")));
         let wrapper_kind = lc(trim(as_string(connections.option(tunnel, "kind", "wireguard"))));

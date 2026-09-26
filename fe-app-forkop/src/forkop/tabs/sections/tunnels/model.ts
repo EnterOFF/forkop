@@ -26,6 +26,7 @@ export const AMNEZIA_COUNT_FIELDS = ['jc', 'jmin', 'jmax'];
 export const AMNEZIA_PADDING_FIELDS = ['s1', 's2', 's3', 's4'];
 
 export const AMNEZIA_SIGNATURE_FIELDS = ['i1', 'i2', 'i3', 'i4', 'i5'];
+export const AMNEZIA_BOOLEAN_FIELDS = ['random_trailers', 'disable_cookies'];
 
 export const AMNEZIA_RANGE_FIELDS = [
   'h1',
@@ -45,7 +46,7 @@ const AMNEZIA_STRING_FIELDS = [
   'header_protection_key',
 ];
 
-// Every AmneziaWG field, in the order the dialog shows them. The four lists
+// Every AmneziaWG field, in the order the dialog shows them. The lists
 // above are that same set again, split by how each value is read, and
 // tests/luci_tunnels.sh holds the two views in step.
 export const AMNEZIA_FIELDS = [
@@ -72,6 +73,8 @@ export const AMNEZIA_FIELDS = [
   'reject_after_time',
   'keepalive_timeout',
   'max_handshake_attempts',
+  'random_trailers',
+  'disable_cookies',
 ];
 
 // Obfuscation a peer never has to know about, so it is what an endpoint whose
@@ -92,6 +95,7 @@ export const ONE_SIDED_AMNEZIA_FIELDS = [
   'reject_after_time',
   'keepalive_timeout',
   'max_handshake_attempts',
+  'disable_cookies',
 ];
 
 // What the Amnezia client writes for a fresh AmneziaWG 3.1 server, kept to the
@@ -599,11 +603,13 @@ function tunnelAmneziaSettings(
   fields.forEach((key: string) => {
     const value = `${settings[`amnezia_${key}`] || ''}`.trim();
     if (!value) return;
-    amnezia[key] = AMNEZIA_STRING_FIELDS.includes(key)
-      ? value
-      : AMNEZIA_RANGE_FIELDS.includes(key) && value.includes('-')
+    amnezia[key] = AMNEZIA_BOOLEAN_FIELDS.includes(key)
+      ? value === '1'
+      : AMNEZIA_STRING_FIELDS.includes(key)
         ? value
-        : Number(value);
+        : AMNEZIA_RANGE_FIELDS.includes(key) && value.includes('-')
+          ? value
+          : Number(value);
   });
   return amnezia;
 }
@@ -688,7 +694,13 @@ export function applyImportedTunnelEndpoint(
     setModalOptionValue(
       map,
       fields.amnezia[key],
-      importedAmnezia[key] != null ? `${importedAmnezia[key]}` : '',
+      importedAmnezia[key] != null
+        ? AMNEZIA_BOOLEAN_FIELDS.includes(key)
+          ? importedAmnezia[key]
+            ? '1'
+            : '0'
+          : `${importedAmnezia[key]}`
+        : '',
     );
   });
   map.checkDepends();

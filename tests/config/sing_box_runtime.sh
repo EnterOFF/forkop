@@ -274,14 +274,15 @@ cat >"$WORK_DIR/tunnel-fixture.json" <<'JSON'
       "kind": "warp", "name": "Cloudflare WARP", "amnezia_jc": "7",
       "warp_profile_id": "profile-id", "warp_profile_auth_token": "auth-token",
       "warp_profile_private_key": "private-key", "warp_profile_license_key": "license-key",
-      "amnezia_i1": "<r 1>", "amnezia_content_padding_addition": "8-16",
+      "amnezia_i1": "<r 1>", "amnezia_content_padding_addition": "8-16", "amnezia_disable_cookies": "1",
       "amnezia_s1": "40", "amnezia_h1": "100-200",
       "amnezia_header_protection_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
     },
     {
       ".name": "tun_amnezia", ".type": "tunnel", "section": "tunnels", "order": "1",
       "kind": "amneziawg", "name": "Amnezia", "address": ["10.0.0.2/32"],
-      "private_key": "private", "amnezia_jc": "5", "amnezia_h1": "100"
+      "private_key": "private", "amnezia_jc": "5", "amnezia_h1": "100",
+      "amnezia_random_trailers": "1", "amnezia_disable_cookies": "1"
     },
     {
       ".name": "tun_bare", ".type": "tunnel", "section": "tunnels", "order": "5",
@@ -291,7 +292,7 @@ cat >"$WORK_DIR/tunnel-fixture.json" <<'JSON'
     {
       ".name": "tun_plain", ".type": "tunnel", "section": "tunnels", "order": "4",
       "kind": "wireguard", "name": "Plain", "address": ["10.0.0.3/32"],
-      "private_key": "private", "amnezia_jc": "3", "amnezia_i1": "<r 2>",
+      "private_key": "private", "amnezia_jc": "3", "amnezia_i1": "<r 2>", "amnezia_disable_cookies": "1",
       "amnezia_s1": "64", "amnezia_h1": "100-200",
       "amnezia_header_protection_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
     },
@@ -342,6 +343,8 @@ if (
   warp.amnezia?.jc !== 7 ||
   warp.amnezia?.i1 !== '<r 1>' ||
   warp.amnezia?.content_padding_addition !== '8-16' ||
+  warp.amnezia?.disable_cookies !== true ||
+  warp.amnezia?.random_trailers != null ||
   warp.amnezia?.s1 != null ||
   warp.amnezia?.h1 != null ||
   warp.amnezia?.header_protection_key != null
@@ -351,7 +354,9 @@ if (
   !amnezia ||
   amnezia.type !== 'amneziawg' ||
   amnezia.amnezia?.jc !== 5 ||
-  amnezia.amnezia?.h1 !== 100
+  amnezia.amnezia?.h1 !== 100 ||
+  amnezia.amnezia?.random_trailers !== true ||
+  amnezia.amnezia?.disable_cookies !== true
 )
   throw new Error('native AmneziaWG endpoint missing');
 if (
@@ -359,6 +364,8 @@ if (
   plain.type !== 'wireguard' ||
   plain.amnezia?.jc !== 3 ||
   plain.amnezia?.i1 !== '<r 2>' ||
+  plain.amnezia?.disable_cookies !== true ||
+  plain.amnezia?.random_trailers != null ||
   plain.amnezia?.s1 != null ||
   plain.amnezia?.h1 != null ||
   plain.amnezia?.header_protection_key != null

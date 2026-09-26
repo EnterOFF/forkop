@@ -1017,4 +1017,24 @@ amnezia_tunnel_fixture "$WORK_DIR/amnezia-zero-protection.json" "amnezia_header_
 validate_fixture "$WORK_DIR/amnezia-zero-protection.json" >/dev/null ||
   fail "The all-zero key disables AmneziaWG header protection"
 
+amnezia_tunnel_fixture "$WORK_DIR/amnezia-invalid-flag.json" "amnezia_random_trailers" "maybe"
+assert_rejects "invalid AmneziaWG random trailers flag" "$WORK_DIR/amnezia-invalid-flag.json" \
+  "invalid AmneziaWG random_trailers flag"
+
+for flag in random_trailers disable_cookies; do
+  for value in 0 1; do
+    amnezia_tunnel_fixture "$WORK_DIR/amnezia-$flag-$value.json" "amnezia_$flag" "$value"
+    validate_fixture "$WORK_DIR/amnezia-$flag-$value.json" >/dev/null ||
+      fail "AmneziaWG $flag=$value should be accepted"
+  done
+done
+
+amnezia_tunnel_fixture "$WORK_DIR/amnezia-invalid-cookies.json" "amnezia_disable_cookies" "maybe"
+for kind in wireguard warp; do
+  sed "s/\"kind\": \"amneziawg\"/\"kind\": \"$kind\"/" \
+    "$WORK_DIR/amnezia-invalid-cookies.json" > "$WORK_DIR/$kind-invalid-cookies.json"
+  assert_rejects "invalid $kind DisableCookies flag" "$WORK_DIR/$kind-invalid-cookies.json" \
+    "invalid AmneziaWG disable_cookies flag"
+done
+
 printf 'config validator runtime checks passed\n'

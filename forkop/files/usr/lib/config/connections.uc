@@ -24,12 +24,12 @@ const ITEM_TYPES = [
 ];
 const AMNEZIA_INTEGER_KEYS = [ "jc", "jmin", "jmax", "s1", "s2", "s3", "s4" ];
 const AMNEZIA_RANGE_KEYS = [ "h1", "h2", "h3", "h4", "content_padding_addition", "rekey_after_time", "rekey_timeout", "reject_after_time", "keepalive_timeout", "max_handshake_attempts" ];
-const AMNEZIA_KEYS = [ "jc", "jmin", "jmax", "s1", "s2", "s3", "s4", "h1", "h2", "h3", "h4", "content_padding_addition", "rekey_after_time", "rekey_timeout", "reject_after_time", "keepalive_timeout", "max_handshake_attempts", "i1", "i2", "i3", "i4", "i5", "header_protection_key" ];
+const AMNEZIA_KEYS = [ "jc", "jmin", "jmax", "s1", "s2", "s3", "s4", "h1", "h2", "h3", "h4", "content_padding_addition", "rekey_after_time", "rekey_timeout", "reject_after_time", "keepalive_timeout", "max_handshake_attempts", "i1", "i2", "i3", "i4", "i5", "header_protection_key", "random_trailers", "disable_cookies" ];
 // Obfuscation a peer never has to know about: junk and signature packets are
 // dropped by any peer as unknown UDP, the content padding is trimmed away with
 // the rest of the plaintext, and the timings are local. It is all the wireguard
 // and warp endpoints accept, because their peer may be a plain implementation.
-const ONE_SIDED_AMNEZIA_KEYS = [ "jc", "jmin", "jmax", "i1", "i2", "i3", "i4", "i5", "content_padding_addition", "rekey_after_time", "rekey_timeout", "reject_after_time", "keepalive_timeout", "max_handshake_attempts" ];
+const ONE_SIDED_AMNEZIA_KEYS = [ "jc", "jmin", "jmax", "i1", "i2", "i3", "i4", "i5", "content_padding_addition", "rekey_after_time", "rekey_timeout", "reject_after_time", "keepalive_timeout", "max_handshake_attempts", "disable_cookies" ];
 
 let item_sections = null;
 
@@ -496,9 +496,13 @@ function tunnel_endpoint(tunnel) {
         let amnezia = {};
         for (let key in ONE_SIDED_AMNEZIA_KEYS) {
             let value = trim(as_string(option(tunnel, "amnezia_" + key, "")));
-            if (value != "")
-                amnezia[key] = list_contains(AMNEZIA_INTEGER_KEYS, key) ||
+            if (value != "") {
+                if (key == "disable_cookies")
+                    amnezia[key] = value == "1";
+                else
+                    amnezia[key] = list_contains(AMNEZIA_INTEGER_KEYS, key) ||
                     (list_contains(AMNEZIA_RANGE_KEYS, key) && index(value, "-") < 0) ? int(value, 10) : value;
+            }
         }
         if (length(keys(amnezia)) > 0)
             endpoint.amnezia = amnezia;
@@ -538,6 +542,10 @@ function tunnel_endpoint(tunnel) {
         for (let key in kind == "amneziawg" ? AMNEZIA_KEYS : ONE_SIDED_AMNEZIA_KEYS) {
             let value = trim(as_string(option(tunnel, "amnezia_" + key, "")));
             if (value != "") {
+                if (key == "random_trailers" || key == "disable_cookies") {
+                    amnezia[key] = value == "1";
+                    continue;
+                }
                 if (list_contains(AMNEZIA_INTEGER_KEYS, key) ||
                     (list_contains(AMNEZIA_RANGE_KEYS, key) && index(value, "-") < 0))
                     amnezia[key] = int(value, 10);

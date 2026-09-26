@@ -16248,6 +16248,7 @@ function addOpenVPNOptions(section) {
 var AMNEZIA_COUNT_FIELDS = ["jc", "jmin", "jmax"];
 var AMNEZIA_PADDING_FIELDS = ["s1", "s2", "s3", "s4"];
 var AMNEZIA_SIGNATURE_FIELDS = ["i1", "i2", "i3", "i4", "i5"];
+var AMNEZIA_BOOLEAN_FIELDS = ["random_trailers", "disable_cookies"];
 var AMNEZIA_RANGE_FIELDS = [
   "h1",
   "h2",
@@ -16287,7 +16288,9 @@ var AMNEZIA_FIELDS = [
   "rekey_timeout",
   "reject_after_time",
   "keepalive_timeout",
-  "max_handshake_attempts"
+  "max_handshake_attempts",
+  "random_trailers",
+  "disable_cookies"
 ];
 var ONE_SIDED_AMNEZIA_FIELDS = [
   "jc",
@@ -16303,7 +16306,8 @@ var ONE_SIDED_AMNEZIA_FIELDS = [
   "rekey_timeout",
   "reject_after_time",
   "keepalive_timeout",
-  "max_handshake_attempts"
+  "max_handshake_attempts",
+  "disable_cookies"
 ];
 var ONE_SIDED_AMNEZIA_DEFAULTS = {
   jc: "5",
@@ -16653,7 +16657,7 @@ function tunnelAmneziaSettings(settings, fields = AMNEZIA_FIELDS) {
   fields.forEach((key) => {
     const value = `${settings[`amnezia_${key}`] || ""}`.trim();
     if (!value) return;
-    amnezia[key] = AMNEZIA_STRING_FIELDS.includes(key) ? value : AMNEZIA_RANGE_FIELDS.includes(key) && value.includes("-") ? value : Number(value);
+    amnezia[key] = AMNEZIA_BOOLEAN_FIELDS.includes(key) ? value === "1" : AMNEZIA_STRING_FIELDS.includes(key) ? value : AMNEZIA_RANGE_FIELDS.includes(key) && value.includes("-") ? value : Number(value);
   });
   return amnezia;
 }
@@ -16719,7 +16723,7 @@ function applyImportedTunnelEndpoint(map, fields, endpoint) {
     setModalOptionValue(
       map,
       fields.amnezia[key],
-      importedAmnezia[key] != null ? `${importedAmnezia[key]}` : ""
+      importedAmnezia[key] != null ? AMNEZIA_BOOLEAN_FIELDS.includes(key) ? importedAmnezia[key] ? "1" : "0" : `${importedAmnezia[key]}` : ""
     );
   });
   map.checkDepends();
@@ -18412,6 +18416,7 @@ var AMNEZIA_RANGE_FIELDS2 = [
   "maxhandshakeattempts"
 ];
 var AMNEZIA_SIGNATURE_FIELDS2 = ["i1", "i2", "i3", "i4", "i5"];
+var AMNEZIA_FLAG_FIELDS = ["randomtrailers", "disablecookies"];
 var AMNEZIA_SIGNATURE_TAGS = [
   "b",
   "c",
@@ -18430,7 +18435,9 @@ var AMNEZIA_ENDPOINT_KEYS = {
   rekeytimeout: "rekey_timeout",
   rejectaftertime: "reject_after_time",
   keepalivetimeout: "keepalive_timeout",
-  maxhandshakeattempts: "max_handshake_attempts"
+  maxhandshakeattempts: "max_handshake_attempts",
+  randomtrailers: "random_trailers",
+  disablecookies: "disable_cookies"
 };
 function splitValues(values) {
   return (values || []).flatMap((value) => value.split(",")).map((value) => value.trim()).filter(Boolean);
@@ -18601,15 +18608,8 @@ function readShareLink(input) {
   if (!peer.allowedips) addValue(peer, "allowedips", LINK_ALLOWED_IPS);
   return { iface, peers: [peer] };
 }
-function isDisabled(value) {
-  return ["", "0", "off", "false", "no"].includes(value.trim().toLowerCase());
-}
 function rejectUnsupportedFields(source) {
   for (const values of [source.iface, ...source.peers]) {
-    if (!isDisabled(firstValue(values, "randomtrailers")))
-      return _(
-        "AmneziaWG RandomTrailers is not supported: a tunnel cannot complete a handshake with a server that uses it"
-      );
     const reserved = splitValues(values.reserved);
     if (reserved.some((byte) => parseUnsigned(byte, 255) !== 0))
       return _(
@@ -18656,6 +18656,14 @@ function parseAmnezia(iface) {
         )
       };
     amnezia[key] = value;
+  }
+  for (const key of AMNEZIA_FLAG_FIELDS) {
+    const value = firstValue(iface, key).toLowerCase();
+    if (!value) continue;
+    if (!["on", "off", "true", "false", "1", "0", "yes", "no"].includes(value))
+      return invalid2;
+    if (["on", "true", "1", "yes"].includes(value))
+      amnezia[AMNEZIA_ENDPOINT_KEYS[key]] = true;
   }
   const headerProtectionKey = firstValue(iface, "headerprotectionkey");
   if (headerProtectionKey) {
@@ -18785,7 +18793,7 @@ function isRecord2(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 function decodeBase64Url(value) {
-  const compact = value.replace(/\s+/gu, "");
+  const compact = value.replace(/\\_/gu, "_").replace(/\s+/gu, "");
   if (compact.length === 0 || compact.length > MAX_AMNEZIA_CONFIG_SIZE * 2 || !/^[A-Za-z0-9_-]+={0,2}$/u.test(compact))
     throw new Error("invalid base64url");
   const unpadded = compact.replace(/=+$/u, "");
@@ -18981,6 +18989,10 @@ function amneziaFieldLabel(key) {
       return _("Keepalive timeout");
     case "max_handshake_attempts":
       return _("Maximum handshake attempts");
+    case "random_trailers":
+      return _("Random trailers");
+    case "disable_cookies":
+      return _("Disable cookies");
     default:
       return key.toUpperCase();
   }
@@ -19599,7 +19611,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   };
   AMNEZIA_FIELDS.forEach((key) => {
     const option3 = itemSection.option(
-      form.Value,
+      AMNEZIA_BOOLEAN_FIELDS.includes(key) ? form.Flag : form.Value,
       `amnezia_${key}`,
       amneziaFieldLabel(key)
     );
@@ -19614,6 +19626,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
         return validateAmneziaRange(value);
       };
     }
+    if (AMNEZIA_BOOLEAN_FIELDS.includes(key)) option3.default = "0";
     option3.rmempty = true;
     option3.retain = true;
     option3.depends("tunnel_type", "amneziawg");

@@ -1,11 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 let validate: typeof import('../../src/forkop/tabs/sections/tunnels/validate').validateTunnelSettings;
+let endpointFromSettings: typeof import('../../src/forkop/tabs/sections/tunnels/model').tunnelEndpointFromSettings;
 beforeAll(async () => {
   vi.stubGlobal('_', (text: string) => text);
   vi.stubGlobal('L', { toArray: (value: unknown) => value || [] });
   validate = (await import('../../src/forkop/tabs/sections/tunnels/validate'))
     .validateTunnelSettings;
+  endpointFromSettings = (
+    await import('../../src/forkop/tabs/sections/tunnels/model')
+  ).tunnelEndpointFromSettings;
 });
 afterAll(() => vi.unstubAllGlobals());
 
@@ -41,4 +45,33 @@ describe('AmneziaWG header protection', () => {
       }),
     ).toBe('Add at least one WireGuard peer');
   });
+  it('passes AmneziaWG 3.1 flags as booleans to the core', () => {
+    expect(
+      endpointFromSettings({
+        ...settings,
+        peer_ids: [],
+        amnezia_random_trailers: '1',
+        amnezia_disable_cookies: '0',
+      })?.amnezia,
+    ).toMatchObject({ random_trailers: true, disable_cookies: false });
+  });
 });
+
+it.each(['wireguard', 'warp'])(
+  'passes DisableCookies to %s without random trailers',
+  (kind) => {
+    const endpoint = endpointFromSettings({
+      tunnel_type: kind,
+      name: kind,
+      address: ['10.0.0.2/32'],
+      private_key: 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=',
+      peer_ids: [],
+      wireguard_junk_enabled: '1',
+      warp_junk_enabled: '1',
+      amnezia_disable_cookies: '1',
+      amnezia_random_trailers: '1',
+    });
+    expect(endpoint?.amnezia).toMatchObject({ disable_cookies: true });
+    expect(endpoint?.amnezia).not.toHaveProperty('random_trailers');
+  },
+);

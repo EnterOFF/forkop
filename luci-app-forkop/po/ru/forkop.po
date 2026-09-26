@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-06 16:18+0300\n"
-"PO-Revision-Date: 2026-09-06 16:18+0300\n"
+"POT-Creation-Date: 2026-09-25 20:26+0300\n"
+"PO-Revision-Date: 2026-09-25 20:26+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -199,9 +199,6 @@ msgstr "ALPN"
 
 msgid "AmneziaWG I1-I5 must be Custom Protocol Signature tags such as <b 0xdeadbeef><r 4>"
 msgstr "Поля I1-I5 AmneziaWG должны содержать теги Custom Protocol Signature, например <b 0xdeadbeef><r 4>"
-
-msgid "AmneziaWG RandomTrailers is not supported: a tunnel cannot complete a handshake with a server that uses it"
-msgstr "Параметр RandomTrailers AmneziaWG не поддерживается: туннель не сможет завершить рукопожатие с сервером, который его использует"
 
 msgid "AmneziaWG ranges must be between 0 and 4294967295 with the start no greater than the end"
 msgstr "Диапазоны AmneziaWG должны быть от 0 до 4294967295, а начало не может быть больше конца"
@@ -523,6 +520,9 @@ msgstr "Напрямую"
 
 msgid "Disable autostart"
 msgstr "Отключить автостарт"
+
+msgid "Disable cookies"
+msgstr "Отключить cookie-ответы"
 
 msgid "Disable QUIC"
 msgstr "Отключить QUIC"
@@ -1480,6 +1480,9 @@ msgstr "Публичный ключ"
 
 msgid "QR code"
 msgstr "QR-код"
+
+msgid "Random trailers"
+msgstr "Случайные хвосты пакетов"
 
 msgid "Reach the coordination server through a section instead of the WAN"
 msgstr "Подключаться к серверу координации через секцию, а не напрямую"

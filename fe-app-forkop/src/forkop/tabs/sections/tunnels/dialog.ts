@@ -32,6 +32,7 @@ import { refreshOutboundDetourSectionOptionValues } from '../references';
 import {
   AMNEZIA_COUNT_FIELDS,
   AMNEZIA_FIELDS,
+  AMNEZIA_BOOLEAN_FIELDS,
   AMNEZIA_PADDING_FIELDS,
   AMNEZIA_RANGE_FIELDS,
   AMNEZIA_SIGNATURE_FIELDS,
@@ -671,7 +672,7 @@ export function showTunnelSettingsModal(
 
   AMNEZIA_FIELDS.forEach((key: string) => {
     const option = itemSection.option(
-      form.Value,
+      AMNEZIA_BOOLEAN_FIELDS.includes(key) ? form.Flag : form.Value,
       `amnezia_${key}`,
       amneziaFieldLabel(key),
     );
@@ -686,6 +687,7 @@ export function showTunnelSettingsModal(
         return validateAmneziaRange(value);
       };
     }
+    if (AMNEZIA_BOOLEAN_FIELDS.includes(key)) option.default = '0';
     option.rmempty = true;
     option.retain = true;
     option.depends('tunnel_type', 'amneziawg');

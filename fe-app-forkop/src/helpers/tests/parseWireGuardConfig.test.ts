@@ -302,6 +302,35 @@ PersistentKeepalive = 25`,
     });
   });
 
+  it('imports an AmneziaWG 3.1 profile with random trailers and disabled cookies', async () => {
+    const link = await amneziaLink({
+      defaultContainer: 'amnezia-awg2',
+      containers: [
+        {
+          container: 'amnezia-awg2',
+          awg: {
+            protocol_version: '3.1',
+            last_config: JSON.stringify({
+              config: `[Interface]\nAddress = 10.8.1.2/32\nPrivateKey = ${PRIVATE_KEY}\nS1 = 12\nS2 = 12\nS3 = 12\nS4 = 12\nH1 = 1\nH2 = 2\nH3 = 3\nH4 = 4\nHeaderProtectionKey = ${PUBLIC_KEY}\nRandomTrailers = on\nDisableCookies = on\n[Peer]\nPublicKey = ${PUBLIC_KEY}\nEndpoint = vpn.example.com:443\nAllowedIPs = 0.0.0.0/0`,
+            }),
+          },
+        },
+      ],
+    });
+
+    expect(await parseWireGuardInput(link)).toMatchObject({
+      valid: true,
+      endpoint: { amnezia: { random_trailers: true, disable_cookies: true } },
+    });
+    expect(link).toContain('_');
+    expect(await parseWireGuardInput(link.replace(/_/gu, '\\_'))).toMatchObject(
+      {
+        valid: true,
+        endpoint: { amnezia: { random_trailers: true, disable_cookies: true } },
+      },
+    );
+  });
+
   it('accepts the uncompressed base64url fallback used by Amnezia', async () => {
     const config = `[Interface]
 PrivateKey = ${PRIVATE_KEY}
@@ -452,8 +481,9 @@ AllowedIPs = 0.0.0.0/0`,
 
     expect(link('reserved=0,0,0').valid).toBe(true);
     expect(link('reserved=113,45,67').valid).toBe(false);
-    expect(link('randomtrailers=on').valid).toBe(false);
+    expect(link('randomtrailers=on').valid).toBe(true);
     expect(link('randomtrailers=off').valid).toBe(true);
+    expect(link('randomtrailers=maybe').valid).toBe(false);
     expect(parseWireGuardConfig('vless://not-a-tunnel').valid).toBe(false);
   });
 
@@ -528,7 +558,7 @@ AdvancedSecurity = on`);
     expect(result.endpoint.amnezia?.header_protection_key).toBeUndefined();
   });
 
-  it('rejects a configuration that needs AmneziaWG random trailers', () => {
+  it('accepts a configuration that needs AmneziaWG random trailers', () => {
     expect(
       parseWireGuardConfig(`[Interface]
 PrivateKey = ${PRIVATE_KEY}
@@ -539,6 +569,6 @@ RandomTrailers = on
 PublicKey = ${PUBLIC_KEY}
 Endpoint = vpn.example.com:51820
 AllowedIPs = 0.0.0.0/0`).valid,
-    ).toBe(false);
+    ).toBe(true);
   });
 });

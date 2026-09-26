@@ -185,6 +185,10 @@ export function amneziaFieldLabel(key: string) {
       return _('Keepalive timeout');
     case 'max_handshake_attempts':
       return _('Maximum handshake attempts');
+    case 'random_trailers':
+      return _('Random trailers');
+    case 'disable_cookies':
+      return _('Disable cookies');
     default:
       return key.toUpperCase();
   }

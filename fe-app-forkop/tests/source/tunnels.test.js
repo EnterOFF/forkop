@@ -152,6 +152,8 @@ describe('a WireGuard or AmneziaWG tunnel', () => {
       'reject_after_time',
       'keepalive_timeout',
       'max_handshake_attempts',
+      'random_trailers',
+      'disable_cookies',
     ];
     expect(
       expected.filter((key) => !fields.includes(key)).join(', '),
@@ -171,6 +173,7 @@ describe('a WireGuard or AmneziaWG tunnel', () => {
       'AMNEZIA_PADDING_FIELDS',
       'AMNEZIA_RANGE_FIELDS',
       'AMNEZIA_SIGNATURE_FIELDS',
+      'AMNEZIA_BOOLEAN_FIELDS',
     ]
       .flatMap((name) => readNameList(section, name))
       // AMNEZIA_STRING_FIELDS is the signature fields plus this one key.
@@ -190,6 +193,8 @@ describe('a WireGuard or AmneziaWG tunnel', () => {
       "_('Data rejection timeout')",
       "_('Keepalive timeout')",
       "_('Maximum handshake attempts')",
+      "_('Random trailers')",
+      "_('Disable cookies')",
     ]);
   });
 });
@@ -227,6 +232,7 @@ describe('traffic obfuscation', () => {
     'reject_after_time',
     'keepalive_timeout',
     'max_handshake_attempts',
+    'disable_cookies',
   ])('carries %s, which the peer does not have to match', (key) => {
     expect(oneSided()).toContain(key);
   });
@@ -241,6 +247,7 @@ describe('traffic obfuscation', () => {
     'h3',
     'h4',
     'header_protection_key',
+    'random_trailers',
   ])('does not carry %s, which the peer would have to match', (key) => {
     expect(oneSided()).not.toContain(key);
   });

@@ -15,7 +15,7 @@ type NativeWireGuardEndpoint = {
     allowed_ips: string[];
     persistent_keepalive_interval?: number | string;
   }>;
-  amnezia?: Record<string, number | string>;
+  amnezia?: Record<string, number | string | boolean>;
 };
 
 type WireGuardConfigResult =
@@ -45,7 +45,7 @@ type ImportedWireGuardConfig = {
 };
 
 type AmneziaResult =
-  | { valid: true; amnezia?: Record<string, number | string> }
+  | { valid: true; amnezia?: Record<string, number | string | boolean> }
   | { valid: false; message: string };
 
 const MAX_AMNEZIA_CONFIG_SIZE = 1024 * 1024;
@@ -114,6 +114,7 @@ const AMNEZIA_RANGE_FIELDS = [
 
 /** AmneziaWG special junk packets, described by a Custom Protocol Signature. */
 const AMNEZIA_SIGNATURE_FIELDS = ['i1', 'i2', 'i3', 'i4', 'i5'];
+const AMNEZIA_FLAG_FIELDS = ['randomtrailers', 'disablecookies'];
 
 /** Tags the core accepts inside a Custom Protocol Signature. */
 const AMNEZIA_SIGNATURE_TAGS = [
@@ -137,6 +138,8 @@ const AMNEZIA_ENDPOINT_KEYS: Record<string, string> = {
   rejectaftertime: 'reject_after_time',
   keepalivetimeout: 'keepalive_timeout',
   maxhandshakeattempts: 'max_handshake_attempts',
+  randomtrailers: 'random_trailers',
+  disablecookies: 'disable_cookies',
 };
 
 function splitValues(values: string[] | undefined): string[] {
@@ -381,37 +384,22 @@ function readShareLink(input: string): WireGuardSource | null {
   return { iface, peers: [peer] };
 }
 
-function isDisabled(value: string): boolean {
-  return ['', '0', 'off', 'false', 'no'].includes(value.trim().toLowerCase());
-}
-
 /**
- * Rejects the fields the core recognizes but cannot execute, so the import
- * fails with a reason instead of building a tunnel that cannot connect.
- *
- * - `RandomTrailers` (AmneziaWG 3.1) pads every packet past its expected size.
- *   The core matches a handshake only on the exact size, so it drops every
- *   answer from a server that uses it and the tunnel never comes up.
- * - `reserved` carries the Cloudflare WARP client id that the edge routes on.
- *   No endpoint in the core carries that field at all, so a link that needs it
- *   cannot be honoured. Forkop's own Cloudflare WARP tunnel reaches the
- *   service without those bytes, which is what such a link should become.
+ * Rejects fields the core cannot execute. `reserved` carries the Cloudflare
+ * WARP client id that the edge routes on.
+ * No endpoint in the core carries that field, so a link that needs it cannot
+ * be honoured. Forkop's own Cloudflare WARP tunnel reaches the service without
+ * those bytes, which is what such a link should become.
  *
  * Fields that only weaken obfuscation or mean nothing to a userspace peer are
  * dropped on purpose and stay silent: `DNS`, `Table`, `FwMark`, `SaveConfig`
  * and the `PreUp`/`PostUp`/`PreDown`/`PostDown` hooks are wg-quick host
  * plumbing, `AdvancedSecurity` is a server-side per-peer switch,
- * `DisableCookies` only stops a peer from answering with a cookie reply the
- * core never requires, and `J1`-`J3`/`Itime` are the junk train AmneziaWG 1.5
+ * `J1`-`J3`/`Itime` are the junk train AmneziaWG 1.5
  * dropped as redundant in favour of `I1`-`I5`.
  */
 function rejectUnsupportedFields(source: WireGuardSource): string {
   for (const values of [source.iface, ...source.peers]) {
-    if (!isDisabled(firstValue(values, 'randomtrailers')))
-      return _(
-        'AmneziaWG RandomTrailers is not supported: a tunnel cannot complete a handshake with a server that uses it',
-      );
-
     const reserved = splitValues(values.reserved);
     if (reserved.some((byte) => parseUnsigned(byte, 255) !== 0))
       return _(
@@ -423,7 +411,7 @@ function rejectUnsupportedFields(source: WireGuardSource): string {
 }
 
 function parseAmnezia(iface: FieldValues): AmneziaResult {
-  const amnezia: Record<string, number | string> = {};
+  const amnezia: Record<string, number | string | boolean> = {};
   const invalid: AmneziaResult = {
     valid: false,
     message: _('Invalid AmneziaWG parameters'),
@@ -464,6 +452,15 @@ function parseAmnezia(iface: FieldValues): AmneziaResult {
         ),
       };
     amnezia[key] = value;
+  }
+
+  for (const key of AMNEZIA_FLAG_FIELDS) {
+    const value = firstValue(iface, key).toLowerCase();
+    if (!value) continue;
+    if (!['on', 'off', 'true', 'false', '1', '0', 'yes', 'no'].includes(value))
+      return invalid;
+    if (['on', 'true', '1', 'yes'].includes(value))
+      amnezia[AMNEZIA_ENDPOINT_KEYS[key]] = true;
   }
 
   const headerProtectionKey = firstValue(iface, 'headerprotectionkey');
@@ -616,7 +613,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function decodeBase64Url(value: string): Uint8Array {
-  const compact = value.replace(/\s+/gu, '');
+  const compact = value.replace(/\\_/gu, '_').replace(/\s+/gu, '');
   if (
     compact.length === 0 ||
     compact.length > MAX_AMNEZIA_CONFIG_SIZE * 2 ||
