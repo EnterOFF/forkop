@@ -33,6 +33,9 @@ const INTERNAL_CONFIG_TRIGGER_GUARD = getenv("FORKOP_INTERNAL_CONFIG_TRIGGER_GUA
 const CONFIG_CHANGE_REASON = getenv("FORKOP_CONFIG_CHANGE_REASON") || "on_config_change";
 
 const UI_UC = LIB_DIR + "/service/ui.uc";
+// Run directly: the CLI hands its lifecycle commands to this init script, so
+// going through it from here would come straight back.
+const LIFECYCLE_UC = LIB_DIR + "/service/lifecycle.uc";
 
 function shell_quote(value) {
     return "'" + replace(as_string(value), /'/g, "'\\''") + "'";
@@ -131,10 +134,6 @@ function option(section, key, fallback) {
 
 function file_exists(path) {
     return fs.stat(as_string(path)) != null;
-}
-
-function file_executable(path) {
-    return command_success_from_args([ "test", "-x", as_string(path) ]);
 }
 
 function unlink_file(path) {
@@ -272,6 +271,26 @@ function finish_external_service_action(action, job_id, status) {
     return module_status(UI_UC, [ "service-action-finish-after-command", action, job_id, as_string(status) ]);
 }
 
+// procd holds the service from the init script's start to its stop, and a reload
+// only has something to apply to inside that window. Outside it the lifecycle
+// would bring a runtime up that procd does not know, without the triggers the
+// next Apply needs. Only procd's own answer counts: without one the reload runs.
+function service_registered() {
+    let result = command_capture(command_from_args([ "ubus", "call", "service", "list",
+        sprintf('{"name":%J}', SERVICE_NAME) ]) + " 2>/dev/null");
+    if (result.status != 0)
+        return true;
+
+    let services;
+    try {
+        services = json(result.output);
+    }
+    catch (e) {
+        return true;
+    }
+    return type(services) != "object" || services[SERVICE_NAME] != null;
+}
+
 function runtime_status_object() {
     let data = command_output_from_args([ BIN_PATH, "get_status" ]);
     try {
@@ -383,33 +402,33 @@ function ui_action_tracked() {
     return as_string(getenv("FORKOP_UI_ACTION_TRACKED") || "0") == "1";
 }
 
-function start_plan_value(reason, owner_pid, settings, bin_ok) {
+function start_plan_value(reason, owner_pid, settings, lifecycle_ok) {
     settings = object_or_empty(settings);
     let job_id = begin_external_service_action("start", "initd", owner_pid);
-    bin_ok = bin_ok == null ? file_executable(BIN_PATH) : bool_text(bin_ok);
+    lifecycle_ok = lifecycle_ok == null ? file_exists(LIFECYCLE_UC) : bool_text(lifecycle_ok);
 
-    if (!bin_ok)
+    if (!lifecycle_ok)
         finish_external_service_action("start", job_id, 1);
 
     return {
         job_id,
-        bin_ok
+        lifecycle_ok
     };
 }
 
-function start_plan(reason, owner_pid, settings, bin_ok) {
-    let plan = start_plan_value(reason, owner_pid, settings, bin_ok);
+function start_plan(reason, owner_pid, settings, lifecycle_ok) {
+    let plan = start_plan_value(reason, owner_pid, settings, lifecycle_ok);
     shell_assignment("INITD_UI_JOB_ID", plan.job_id);
-    shell_assignment("INITD_BIN_OK", plan.bin_ok ? "1" : "0");
+    shell_assignment("INITD_LIFECYCLE_OK", plan.lifecycle_ok ? "1" : "0");
 }
 
 function start_service(reason, owner_pid) {
     print("Start Forkop\n");
     let plan = start_plan_value(reason, owner_pid, uci_settings(), null);
-    if (!plan.bin_ok)
+    if (!plan.lifecycle_ok)
         return 1;
 
-    let status = command_status_from_args([ BIN_PATH, "start" ]);
+    let status = module_status(LIFECYCLE_UC, [ "start" ]);
     if (status == 0)
         clear_start_retry(START_RETRY_FILE);
     else {
@@ -448,12 +467,12 @@ function restart_service(owner_pid) {
 function stop_service(owner_pid) {
     clear_start_retry(START_RETRY_FILE);
     let job_id = begin_external_service_action("stop", "initd", owner_pid);
-    if (!file_executable(BIN_PATH)) {
+    if (!file_exists(LIFECYCLE_UC)) {
         finish_external_service_action("stop", job_id, 1);
         return 1;
     }
 
-    let status = command_status_from_args([ BIN_PATH, "stop" ]);
+    let status = module_status(LIFECYCLE_UC, [ "stop" ]);
     return stop_finish(job_id, status);
 }
 
@@ -467,6 +486,12 @@ function reload_begin_value(reason, owner_pid, runtime_running_value, active_ser
         CONFIG_CHANGE_REASON,
         null
     )) {
+        return { action: "skip", job_id: "" };
+    }
+
+    if (!service_registered()) {
+        command_success_from_args([ "logger", "-t", SERVICE_NAME, "[info] Forkop is not started; reload skipped" ]);
+        warn("Forkop is not started; reload skipped\n");
         return { action: "skip", job_id: "" };
     }
 
@@ -513,8 +538,8 @@ function reload_service(reason, owner_pid) {
     if (plan.action != "run")
         return 0;
 
-    let status = system(command_from_args([ "env", "FORKOP_LIB=" + LIB_DIR,
-        "FORKOP_UI_ACTION_TRACKED=1", BIN_PATH, "reload", reason ]) + " >/dev/null 2>&1");
+    let status = system("FORKOP_UI_ACTION_TRACKED=1 " +
+        module_command(LIFECYCLE_UC, [ "reload", reason ]) + " >/dev/null");
     let finish = reload_finish_value(reason, plan.job_id, status, owner_pid);
     if (finish.sync)
         print("sync\n");

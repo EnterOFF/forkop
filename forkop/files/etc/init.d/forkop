@@ -44,6 +44,14 @@ service_started() {
 
 stop_service() {
     initd_ucode stop-service "$$"
+    FORKOP_LAST_STOP_STATUS="$?"
+    return "$FORKOP_LAST_STOP_STATUS"
+}
+
+# rc.common exits a stop with the status of its service_stopped hook, and with 0
+# when there is none, so a stop that failed would otherwise report success.
+service_stopped() {
+    return "${FORKOP_LAST_STOP_STATUS:-0}"
 }
 
 # A restart is one operation to whoever asked for it. Left to rc.common it is a

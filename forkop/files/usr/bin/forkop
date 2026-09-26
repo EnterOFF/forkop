@@ -25,6 +25,7 @@ function resolved_library_dir() {
 
 const LIB_DIR = getenv("FORKOP_LIB") || resolved_library_dir();
 const BIN_PATH = getenv("FORKOP_BIN") || "/usr/bin/forkop";
+const SERVICE_INIT = getenv("FORKOP_SERVICE_INIT") || "/etc/init.d/forkop";
 
 function shell_quote(value) {
     return "'" + replace(as_string(value), /'/g, "'\\''") + "'";
@@ -103,12 +104,24 @@ function show_help() {
     print("    global_check            Run global system check\n");
 }
 
+// Starting, stopping and reloading belong to the init script. Its start is what
+// registers the service with procd, and that registration carries the triggers
+// the Apply button and a WAN coming up rely on: a runtime started around the
+// init script runs without them, and the page says it is running while Apply
+// does nothing.
+function init_command_arguments(command) {
+    let commands = {
+        start: 0,
+        stop: 0,
+        restart: 0,
+        reload: 1
+    };
+
+    return commands[as_string(command)];
+}
+
 function command_spec(command) {
     let commands = {
-        start: [ "service/lifecycle.uc", "start", 0 ],
-        stop: [ "service/lifecycle.uc", "stop", 0 ],
-        reload: [ "service/lifecycle.uc", "reload", 1 ],
-        restart: [ "service/lifecycle.uc", "restart", 0 ],
         enable: [ "service/lifecycle.uc", "enable", 0 ],
         disable: [ "service/lifecycle.uc", "disable", 0 ],
         uninstall: [ "service/lifecycle.uc", "uninstall", 0 ],
@@ -173,17 +186,34 @@ function run_spec(command, spec, user_args) {
     return system(module_command(args));
 }
 
+function run_init_command(command, count, user_args) {
+    if (!file_readable(SERVICE_INIT)) {
+        warn("Error: init script '", SERVICE_INIT, "' is missing or not readable\n");
+        return 1;
+    }
+
+    let args = [ SERVICE_INIT, command ];
+    for (let i = 0; i < count; i++)
+        push(args, user_args[i] || "");
+
+    return system(command_from_args(args));
+}
+
 function main() {
     let command = ARGV[0] || "";
+    let user_args = [];
+    for (let i = 1; i < length(ARGV); i++)
+        push(user_args, ARGV[i]);
+
+    let init_count = init_command_arguments(command);
+    if (init_count != null)
+        return run_init_command(command, init_count, user_args);
+
     let spec = command_spec(command);
     if (spec == null) {
         show_help();
         return 1;
     }
-
-    let user_args = [];
-    for (let i = 1; i < length(ARGV); i++)
-        push(user_args, ARGV[i]);
 
     return run_spec(command, spec, user_args);
 }

@@ -97,6 +97,10 @@ require_file_pattern "$FORKOP_INIT" 'FORKOP_LAST_START_STATUS="$?"' \
   "init.d start_service must preserve backend start status for rc.common"
 require_file_pattern "$FORKOP_INIT" 'service_started()' \
   "init.d must return preserved start status through rc.common service_started hook"
+require_file_pattern "$FORKOP_INIT" 'FORKOP_LAST_STOP_STATUS="$?"' \
+  "init.d stop_service must preserve backend stop status for rc.common"
+require_file_pattern "$FORKOP_INIT" 'service_stopped()' \
+  "init.d must return preserved stop status through rc.common service_stopped hook"
 require_file_pattern "$UI_UC" '>/dev/null 2>&1 1000>&- & echo $!' \
   "service/ui.uc service action workers must close inherited procd lock fd"
 require_file_pattern "$UPDATES_UC" '>/dev/null 2>&1 1000>&- & echo $!' \

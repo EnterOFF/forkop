@@ -69,7 +69,6 @@ const SINGBOX_UC = LIB_DIR + "/singbox/runtime.uc";
 const UPDATES_UC = LIB_DIR + "/components/updates.uc";
 const STATE_UC = LIB_DIR + "/service/state.uc";
 const RELOAD_UC = LIB_DIR + "/service/reload.uc";
-const UI_UC = LIB_DIR + "/service/ui.uc";
 const DIAGNOSTICS_UC = LIB_DIR + "/diagnostics/runtime.uc";
 const PACKAGES_UC = LIB_DIR + "/core/packages.uc";
 
@@ -278,11 +277,6 @@ function finish_reload_status(status, initial_fingerprint) {
     if (status == 0)
         mark_pending_reload_if_config_changed(initial_fingerprint, "config_changed_during_reload");
     return status;
-}
-
-function module_output(module_path, args) {
-    let result = module_capture(module_path, args);
-    return result.status == 0 ? result.output : "";
 }
 
 function module_background(module_path, args) {
@@ -960,50 +954,6 @@ function reload(reason) {
     return status;
 }
 
-function reload_tracked(reason) {
-    if (as_string(getenv("FORKOP_UI_ACTION_TRACKED") || "0") == "1")
-        return reload(reason);
-
-    let job_id = trim(module_output(UI_UC, [
-        "service-action-begin-if-idle",
-        "reload",
-        "runtime_reload",
-        owner_pid()
-    ]));
-
-    let status = reload(reason);
-    if (job_id != "")
-        module_success(UI_UC, [ "service-action-finish-after-command", "reload", job_id, as_string(status) ]);
-
-    return status;
-}
-
-function restart() {
-    log_message("Restarting Forkop", "info");
-
-    let pid = owner_pid();
-    if (!module_success(STATE_UC, [ "acquire-runtime-dir-lock-wait", START_LOCK_DIR, pid, as_string(START_LOCK_TIMEOUT) ])) {
-        log_message("Timed out waiting for another Forkop start or restart to finish", "error");
-        return 1;
-    }
-
-    let status = stop_impl();
-    if (status != 0) {
-        module_success(STATE_UC, [ "release-runtime-dir-lock", START_LOCK_DIR, pid ]);
-        return status;
-    }
-
-    status = start_impl();
-    if (status != 0) {
-        cleanup_failed_runtime();
-        module_success(STATE_UC, [ "release-runtime-dir-lock", START_LOCK_DIR, pid ]);
-        return status;
-    }
-
-    module_success(STATE_UC, [ "release-runtime-dir-lock", START_LOCK_DIR, pid ]);
-    return 0;
-}
-
 function package_manager_remove_if_installed(package_name) {
     package_name = as_string(package_name);
     if (command_success_from_args([ "sh", "-c", "command -v apk" ])) {
@@ -1020,7 +970,7 @@ function uninstall() {
     log_message("Uninstalling Forkop", "info");
 
     if (fs.stat(SERVICE_INIT) != null) {
-        stop();
+        command_success_from_args([ SERVICE_INIT, "stop" ]);
         command_success_from_args([ SERVICE_INIT, "disable" ]);
     }
 
@@ -1102,9 +1052,7 @@ else if (mode == "start")
 else if (mode == "stop")
     status = stop();
 else if (mode == "reload")
-    status = reload_tracked(ARGV[1] || "");
-else if (mode == "restart")
-    status = restart();
+    status = reload(ARGV[1] || "");
 else if (mode == "enable")
     status = enable_service();
 else if (mode == "disable")
@@ -1114,7 +1062,7 @@ else if (mode == "clash-controller-preflight-fixture")
 else if (mode == "uninstall")
     status = uninstall();
 else {
-    warn("Usage: service/lifecycle.uc <start|stop|reload|restart|main|sing-box-crash-cleanup|sing-box-planned-stop-guard-fixture|enable|disable|uninstall> ...\n");
+    warn("Usage: service/lifecycle.uc <start|stop|reload|main|sing-box-crash-cleanup|sing-box-planned-stop-guard-fixture|enable|disable|uninstall> ...\n");
     status = 1;
 }
 

@@ -109,10 +109,97 @@ if initd_ucode start-retry-pending "$start_retry_file" >/dev/null 2>&1; then
   fail "cleared start retry marker should not be pending"
 fi
 
+# The init script runs the lifecycle module itself. Going through the CLI would
+# bring it back here: the CLI hands its lifecycle commands to the init script.
+lifecycle_lib="$WORK_DIR/lifecycle-lib"
+mkdir -p "$lifecycle_lib/service"
+cat >"$lifecycle_lib/service/lifecycle.uc" <<'UCODE'
+#!/usr/bin/env ucode
+let fs = require("fs");
+fs.writefile(getenv("LIFECYCLE_LOG"), join(" ", ARGV) + "\t" + (getenv("FORKOP_UI_ACTION_TRACKED") || "") + "\n");
+warn("lifecycle said why\n");
+exit(int(getenv("LIFECYCLE_STATUS") || "0"));
+UCODE
+# Whether procd holds the service is asked of ubus; this one answers from a file.
+fake_bin="$WORK_DIR/fake-bin"
+mkdir -p "$fake_bin"
+cat >"$fake_bin/ubus" <<'SH'
+#!/bin/sh
+[ "$*" = 'call service list {"name":"forkop"}' ] || exit 1
+cat "$FAKE_UBUS_REPLY"
+SH
+chmod +x "$fake_bin/ubus"
+printf '%s\n' '{ "forkop": { "triggers": [ ] } }' >"$WORK_DIR/ubus-registered.json"
+printf '%s\n' '{ }' >"$WORK_DIR/ubus-unregistered.json"
+lifecycle_env=(
+  PATH="$fake_bin:$PATH"
+  FAKE_UBUS_REPLY="$WORK_DIR/ubus-registered.json"
+  FORKOP_LIB="$lifecycle_lib"
+  FORKOP_BIN=/bin/false
+  FORKOP_RUNTIME_STATE_DIR="$WORK_DIR/lifecycle-state"
+  FORKOP_START_RETRY_FILE="$WORK_DIR/lifecycle-state/start.retry"
+  FORKOP_RELOAD_LOCK_DIR="$WORK_DIR/lifecycle-state/reload.lock"
+  FORKOP_PENDING_RELOAD_FILE="$WORK_DIR/lifecycle-state/reload.pending"
+  LIFECYCLE_LOG="$WORK_DIR/lifecycle.log"
+)
+mkdir -p "$WORK_DIR/lifecycle-state"
+env "${lifecycle_env[@]}" ucode -L "$FORKOP_LIB" "$INITD_UC" start-service "" "$$" >/dev/null 2>&1 ||
+  fail "a start the lifecycle module accepted must succeed"
+[ "$(cat "$WORK_DIR/lifecycle.log")" = $'start\t' ] ||
+  fail "the init script must start through the lifecycle module, got '$(cat "$WORK_DIR/lifecycle.log")'"
+if env "${lifecycle_env[@]}" LIFECYCLE_STATUS=5 \
+  ucode -L "$FORKOP_LIB" "$INITD_UC" stop-service "$$" >/dev/null 2>&1; then
+  fail "a stop the lifecycle module refused must fail"
+fi
+[ "$(cat "$WORK_DIR/lifecycle.log")" = $'stop\t' ] ||
+  fail "the init script must stop through the lifecycle module, got '$(cat "$WORK_DIR/lifecycle.log")'"
+set +e
+reload_stderr="$(env "${lifecycle_env[@]}" LIFECYCLE_STATUS=6 \
+  ucode -L "$FORKOP_LIB" "$INITD_UC" reload-service manual "$$" 2>&1 >/dev/null)"
+status="$?"
+set -e
+[ "$status" = "6" ] ||
+  fail "a reload must return the lifecycle exit code, got $status"
+[ "$(cat "$WORK_DIR/lifecycle.log")" = $'reload manual\t1' ] ||
+  fail "the init script must reload through the lifecycle module as a tracked action, got '$(cat "$WORK_DIR/lifecycle.log")'"
+# The reason a reload failed reaches whoever asked for it. Only stdout is kept
+# from the caller, which reads it to learn whether the triggers need syncing.
+[ "$reload_stderr" = "lifecycle said why" ] ||
+  fail "a reload must pass the lifecycle's reason through on stderr, got '$reload_stderr'"
+[ ! -e "$WORK_DIR/lifecycle-state/reload.lock" ] ||
+  fail "a finished reload must release its lock"
+
+# procd holds the service from the init script's start to its stop. A reload
+# outside that window has no running service to apply anything to, and letting
+# the lifecycle bring the runtime up from there starts one procd does not know:
+# no triggers, so the next Apply changes nothing.
+rm -f "$WORK_DIR/lifecycle.log"
+for reason in manual pending badwan_interface_up; do
+  env "${lifecycle_env[@]}" FAKE_UBUS_REPLY="$WORK_DIR/ubus-unregistered.json" \
+    ucode -L "$FORKOP_LIB" "$INITD_UC" reload-service "$reason" "$$" >/dev/null 2>&1 ||
+    fail "a $reason reload of a service procd does not hold must not fail"
+  [ ! -e "$WORK_DIR/lifecycle.log" ] ||
+    fail "a $reason reload of a service procd does not hold must not run the lifecycle"
+done
+[ ! -e "$WORK_DIR/lifecycle-state/reload.pending" ] ||
+  fail "a reload of a service procd does not hold must not queue itself for later"
+[ ! -e "$WORK_DIR/lifecycle-state/reload.lock" ] ||
+  fail "a skipped reload must not take the reload lock"
+
+# Only procd's own answer decides that. Without one the reload runs as it always
+# did, rather than an Apply being dropped because ubus could not be asked.
+env "${lifecycle_env[@]}" FAKE_UBUS_REPLY="$WORK_DIR/missing-reply.json" \
+  ucode -L "$FORKOP_LIB" "$INITD_UC" reload-service manual "$$" >/dev/null 2>&1 ||
+  fail "a reload procd gave no answer about must still run"
+[ "$(cat "$WORK_DIR/lifecycle.log")" = $'reload manual\t1' ] ||
+  fail "a reload procd gave no answer about must run the lifecycle"
+
 failed_start_dir="$WORK_DIR/failed-start"
 mkdir -p "$failed_start_dir"
 failed_start_env=(
-  FORKOP_BIN=/bin/false
+  FORKOP_LIB="$lifecycle_lib"
+  LIFECYCLE_LOG="$WORK_DIR/failed-lifecycle.log"
+  LIFECYCLE_STATUS=1
   FORKOP_SERVICE_INIT=/bin/true
   FORKOP_RUNTIME_STATE_DIR="$failed_start_dir"
   FORKOP_START_RETRY_FILE="$failed_start_dir/start.retry"
@@ -144,8 +231,8 @@ grep -Fq 'reason=wan_retry_failed' "$failed_start_dir/start.retry" ||
 
 start_plan="$(initd_ucode start-plan-fixture "" 1 "wan vpn0" 123 1)"
 case "$start_plan" in
-  *"INITD_BIN_OK='1'"* ) ;;
-  *) fail "start-plan must expose executable binary state" ;;
+  *"INITD_LIFECYCLE_OK='1'"* ) ;;
+  *) fail "start-plan must expose whether the lifecycle module is there" ;;
 esac
 if printf '%s\n' "$start_plan" | grep -Fq 'INITD_BADWAN_NETDEV'; then
   fail "start-plan must not emit the unused Bad WAN netdev plan"

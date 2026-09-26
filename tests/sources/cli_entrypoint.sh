@@ -8,7 +8,7 @@ set -eo pipefail
 grep -Fq '#!/usr/bin/ucode' "$FORKOP_BIN" ||
   fail "forkop entrypoint must be a direct ucode executable"
 # Where the lifecycle is orchestrated. The CLI names the module rather than
-# doing it, which is what keeps one implementation of start, stop and reload.
+# doing it, so there is one implementation of every lifecycle operation.
 grep -Fq 'service/lifecycle.uc' "$FORKOP_BIN" ||
   fail "the CLI must dispatch the service lifecycle through service/lifecycle.uc"
 if grep -Fq '#!/bin/sh' "$FORKOP_BIN" ||
@@ -81,18 +81,46 @@ component_updates_out="$(FORKOP_LIB="$fake_lib" ucode "$FORKOP_BIN" component_up
 [ "$component_updates_out" = $'updates\tcomponent-updates-if-due\t\t' ] ||
   fail "component_updates_if_due must dispatch through components/updates.uc"
 
-# A lifecycle command that failed has to reach its caller as a failure: the LuCI
-# backend, the init script and anybody at a shell all branch on the exit code.
+# The lifecycle verbs belong to the init script. Only its start registers the
+# service with procd, and that registration carries the triggers the Apply button
+# and a WAN coming up depend on; a runtime started around it runs without them.
 cat >"$fake_lib/service/lifecycle.uc" <<'UCODE'
 #!/usr/bin/env ucode
-exit(3);
+exit(4);
 UCODE
+fake_init="$WORK_DIR/fake-init"
+cat >"$fake_init" <<'SH'
+#!/bin/sh
+printf '%s\n' "$*" >>"$FAKE_INIT_LOG"
+exit 3
+SH
+chmod +x "$fake_init"
+init_log="$WORK_DIR/init.log"
+: >"$init_log"
+for command in start stop restart "reload manual"; do
+  set +e
+  # shellcheck disable=SC2086
+  FAKE_INIT_LOG="$init_log" FORKOP_SERVICE_INIT="$fake_init" FORKOP_LIB="$fake_lib" \
+    ucode "$FORKOP_BIN" $command >/dev/null 2>&1
+  status="$?"
+  set -e
+  # A lifecycle command that failed has to reach its caller as a failure: the
+  # LuCI backend and anybody at a shell branch on the exit code.
+  [ "$status" = "3" ] ||
+    fail "forkop $command must return the init script's exit code, got $status"
+done
+[ "$(cat "$init_log")" = $'start\nstop\nrestart\nreload manual' ] ||
+  fail "forkop lifecycle commands must run the init script with their verb, got '$(cat "$init_log")'"
+
 set +e
-FORKOP_LIB="$fake_lib" ucode "$FORKOP_BIN" reload >/dev/null 2>&1
+FORKOP_SERVICE_INIT="$WORK_DIR/missing-init" FORKOP_LIB="$fake_lib" \
+  ucode "$FORKOP_BIN" start >/dev/null 2>"$WORK_DIR/missing-init.err"
 status="$?"
 set -e
-[ "$status" = "3" ] ||
-  fail "forkop reload must return the lifecycle exit code, got $status"
+[ "$status" -ne 0 ] ||
+  fail "a lifecycle command without the init script must fail"
+grep -Fq "missing-init" "$WORK_DIR/missing-init.err" ||
+  fail "a lifecycle command without the init script must name it"
 
 # And the reason has to travel with it. It used to go to the system log alone,
 # so a failed command printed nothing at all and left the caller to go looking.
@@ -113,13 +141,12 @@ lifecycle_info="$(ucode -L "$FORKOP_LIB" "$FORKOP_LIB/service/lifecycle.uc" \
 [ -z "$lifecycle_info" ] ||
   fail "only a lifecycle error belongs on stderr, got '$lifecycle_info'"
 
-rm -f "$fake_lib/service/lifecycle.uc"
 set +e
 FORKOP_LIB="$fake_lib" \
-  ucode "$FORKOP_BIN" start >/dev/null 2>"$WORK_DIR/missing.err"
+  ucode "$FORKOP_BIN" get_ui_state >/dev/null 2>"$WORK_DIR/missing.err"
 status="$?"
 set -e
 [ "$status" -ne 0 ] ||
-  fail "missing lifecycle module must fail"
+  fail "missing command module must fail"
 
 printf 'CLI entrypoint checks passed\n'
