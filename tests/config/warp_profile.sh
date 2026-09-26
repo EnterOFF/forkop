@@ -161,9 +161,9 @@ warp_generator="$(sed -n "${warp_generator_start},/^    endpoint.address/p" "$CO
 
 grep -Fq 'const ONE_SIDED_AMNEZIA_KEYS = [' "$CONNECTIONS_UC" ||
   fail "config/connections.uc must declare the Amnezia parameters a WARP peer accepts"
-printf '%s\n' "$warp_generator" | grep -Fq 'for (let key in ONE_SIDED_AMNEZIA_KEYS)' ||
+printf '%s\n' "$warp_generator" | grep -Fq 'tunnel_amnezia(tunnel, ONE_SIDED_AMNEZIA_KEYS)' ||
   fail "WARP generation must use the compatible Amnezia field whitelist"
-if printf '%s\n' "$warp_generator" | grep -Fq 'for (let key in AMNEZIA_KEYS)'; then
+if printf '%s\n' "$warp_generator" | grep -Fq 'tunnel_amnezia(tunnel, AMNEZIA_KEYS)'; then
   fail "WARP generation must not send the parameters its peer would have to match"
 fi
 

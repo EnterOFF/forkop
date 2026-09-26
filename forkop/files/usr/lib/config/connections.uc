@@ -447,6 +447,23 @@ function tunnel_peer_items(tunnel_id) {
     return result;
 }
 
+function tunnel_amnezia(tunnel, names) {
+    let amnezia = {};
+    for (let key in names) {
+        let value = trim(as_string(option(tunnel, "amnezia_" + key, "")));
+        if (value == "")
+            continue;
+        if (key == "random_trailers" || key == "disable_cookies")
+            amnezia[key] = value == "1";
+        else if (list_contains(AMNEZIA_INTEGER_KEYS, key) ||
+            (list_contains(AMNEZIA_RANGE_KEYS, key) && index(value, "-") < 0))
+            amnezia[key] = int(value, 10);
+        else
+            amnezia[key] = value;
+    }
+    return length(keys(amnezia)) > 0 ? amnezia : null;
+}
+
 function tunnel_endpoint(tunnel) {
     tunnel = object_or_empty(tunnel);
     let kind = lc(trim(as_string(option(tunnel, "kind", "wireguard"))));
@@ -493,18 +510,8 @@ function tunnel_endpoint(tunnel) {
             profile.recreate = true;
             endpoint.profile = profile;
         }
-        let amnezia = {};
-        for (let key in ONE_SIDED_AMNEZIA_KEYS) {
-            let value = trim(as_string(option(tunnel, "amnezia_" + key, "")));
-            if (value != "") {
-                if (key == "disable_cookies")
-                    amnezia[key] = value == "1";
-                else
-                    amnezia[key] = list_contains(AMNEZIA_INTEGER_KEYS, key) ||
-                    (list_contains(AMNEZIA_RANGE_KEYS, key) && index(value, "-") < 0) ? int(value, 10) : value;
-            }
-        }
-        if (length(keys(amnezia)) > 0)
+        let amnezia = tunnel_amnezia(tunnel, ONE_SIDED_AMNEZIA_KEYS);
+        if (amnezia)
             endpoint.amnezia = amnezia;
         return endpoint;
     }
@@ -538,22 +545,8 @@ function tunnel_endpoint(tunnel) {
     // An amneziawg peer speaks AmneziaWG, so it takes the whole parameter set; a
     // wireguard peer only takes what one side can add on its own.
     if (kind == "amneziawg" || kind == "wireguard") {
-        let amnezia = {};
-        for (let key in kind == "amneziawg" ? AMNEZIA_KEYS : ONE_SIDED_AMNEZIA_KEYS) {
-            let value = trim(as_string(option(tunnel, "amnezia_" + key, "")));
-            if (value != "") {
-                if (key == "random_trailers" || key == "disable_cookies") {
-                    amnezia[key] = value == "1";
-                    continue;
-                }
-                if (list_contains(AMNEZIA_INTEGER_KEYS, key) ||
-                    (list_contains(AMNEZIA_RANGE_KEYS, key) && index(value, "-") < 0))
-                    amnezia[key] = int(value, 10);
-                else
-                    amnezia[key] = value;
-            }
-        }
-        if (length(keys(amnezia)) > 0)
+        let amnezia = tunnel_amnezia(tunnel, kind == "amneziawg" ? AMNEZIA_KEYS : ONE_SIDED_AMNEZIA_KEYS);
+        if (amnezia)
             endpoint.amnezia = amnezia;
     }
 
