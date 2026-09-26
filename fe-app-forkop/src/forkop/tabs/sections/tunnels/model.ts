@@ -1,4 +1,7 @@
-import { FORKOP_UCI_PACKAGE } from '../../../../constants';
+import {
+  FORKOP_UCI_PACKAGE,
+  TAILSCALE_CONTROL_URL,
+} from '../../../../constants';
 import {
   applyChildItemSettings,
   cleanupRemovedChildItems,
@@ -264,7 +267,7 @@ export function tunnelInitialSettings(
     warp_license_key: `${tunnel.warp_profile_license_key || ''}`,
     tailscale_auth_key: `${tunnel.tailscale_auth_key || ''}`,
     tailscale_hostname: `${tunnel.tailscale_hostname || ''}`,
-    tailscale_control_url: `${tunnel.tailscale_control_url || 'https://controlplane.tailscale.com'}`,
+    tailscale_control_url: `${tunnel.tailscale_control_url || TAILSCALE_CONTROL_URL}`,
     tailscale_accept_routes: tunnel.tailscale_accept_routes === '0' ? '0' : '1',
     tailscale_exit_node: `${tunnel.tailscale_exit_node || ''}`,
     tailscale_detour_enabled: tailscaleDetour ? '1' : '0',
@@ -506,11 +509,14 @@ export function tunnelEndpointFromSettings(
       auth_key: `${settings.tailscale_auth_key || ''}`.trim(),
       hostname: `${settings.tailscale_hostname || ''}`.trim(),
       control_url:
-        `${settings.tailscale_control_url || 'https://controlplane.tailscale.com'}`.trim(),
+        `${settings.tailscale_control_url || TAILSCALE_CONTROL_URL}`.trim(),
       accept_routes: `${settings.tailscale_accept_routes || ''}` === '1',
-      exit_node: `${settings.tailscale_exit_node || ''}`.trim(),
-      exit_node_allow_lan_access: true,
     };
+    const exitNode = `${settings.tailscale_exit_node || ''}`.trim();
+    if (exitNode) {
+      endpoint.exit_node = exitNode;
+      endpoint.exit_node_allow_lan_access = true;
+    }
     if (`${settings.tailscale_detour_enabled || ''}` === '1') {
       const detour = tailscaleDetourTag(
         `${settings.tailscale_detour_section || ''}`,

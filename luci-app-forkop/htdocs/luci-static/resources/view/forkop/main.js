@@ -40,6 +40,7 @@ var RESERVED_RUNTIME_TAGS = /* @__PURE__ */ new Set([
   "direct-out"
 ]);
 var DETOUR_TARGET_ACTIONS = ["connection", "proxy", "outbound", "vpn"];
+var TAILSCALE_CONTROL_URL = "https://controlplane.tailscale.com";
 var DEFAULT_LATENCY_TEST_URL = "https://www.gstatic.com/generate_204";
 var LATENCY_TEST_URL_OPTIONS = [
   DEFAULT_LATENCY_TEST_URL,
@@ -16406,7 +16407,7 @@ function tunnelInitialSettings(value, sectionId) {
     warp_license_key: `${tunnel.warp_profile_license_key || ""}`,
     tailscale_auth_key: `${tunnel.tailscale_auth_key || ""}`,
     tailscale_hostname: `${tunnel.tailscale_hostname || ""}`,
-    tailscale_control_url: `${tunnel.tailscale_control_url || "https://controlplane.tailscale.com"}`,
+    tailscale_control_url: `${tunnel.tailscale_control_url || TAILSCALE_CONTROL_URL}`,
     tailscale_accept_routes: tunnel.tailscale_accept_routes === "0" ? "0" : "1",
     tailscale_exit_node: `${tunnel.tailscale_exit_node || ""}`,
     tailscale_detour_enabled: tailscaleDetour ? "1" : "0",
@@ -16576,11 +16577,14 @@ function tunnelEndpointFromSettings(settings, tunnelId, peerOption) {
       type: "tailscale",
       auth_key: `${settings.tailscale_auth_key || ""}`.trim(),
       hostname: `${settings.tailscale_hostname || ""}`.trim(),
-      control_url: `${settings.tailscale_control_url || "https://controlplane.tailscale.com"}`.trim(),
-      accept_routes: `${settings.tailscale_accept_routes || ""}` === "1",
-      exit_node: `${settings.tailscale_exit_node || ""}`.trim(),
-      exit_node_allow_lan_access: true
+      control_url: `${settings.tailscale_control_url || TAILSCALE_CONTROL_URL}`.trim(),
+      accept_routes: `${settings.tailscale_accept_routes || ""}` === "1"
     };
+    const exitNode = `${settings.tailscale_exit_node || ""}`.trim();
+    if (exitNode) {
+      endpoint2.exit_node = exitNode;
+      endpoint2.exit_node_allow_lan_access = true;
+    }
     if (`${settings.tailscale_detour_enabled || ""}` === "1") {
       const detour = tailscaleDetourTag(
         `${settings.tailscale_detour_section || ""}`
@@ -18885,6 +18889,18 @@ async function parseWireGuardInput(input) {
   }
 }
 
+// src/validators/validateTailscaleHostname.ts
+function validateTailscaleHostname(value) {
+  const hostname = `${value || ""}`.trim();
+  if (!hostname) {
+    return _("This field is required");
+  }
+  if (hostname.length > 63) {
+    return _("A host name holds at most 63 characters");
+  }
+  return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(hostname) ? true : _("Use lowercase letters, digits and hyphens");
+}
+
 // src/forkop/tabs/sections/tunnels/validate.ts
 function validateWireGuardPeer(peer) {
   if (!peer || typeof peer !== "object" || Array.isArray(peer) || typeof peer.address !== "string" || !peer.address.trim() || typeof peer.public_key !== "string" || !peer.public_key.trim() || typeof peer.port !== "number" || !Number.isInteger(peer.port) || peer.port < 1 || peer.port > 65535) {
@@ -19034,7 +19050,8 @@ function validateTunnelSettings(settings, tunnelId, peerOption) {
   if (endpoint.type === "tailscale") {
     if (!endpoint.auth_key) return _("Enter a Tailscale auth key");
     if (!endpoint.hostname) return _("Enter a Tailscale hostname");
-    if (!endpoint.exit_node) return _("Enter a Tailscale exit node");
+    const hostname = validateTailscaleHostname(endpoint.hostname);
+    if (hostname !== true) return hostname;
     if (!validateUrl(endpoint.control_url || "").valid) {
       return _("Enter a valid Tailscale control URL");
     }
@@ -19320,7 +19337,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     form.Value,
     "tailscale_auth_key",
     _("Authorization key"),
-    _("Auth Key from the Tailscale admin console")
+    _("A key from the Tailscale console")
   );
   tailscaleAuthKeyOption.password = true;
   tailscaleAuthKeyOption.rmempty = false;
@@ -19332,14 +19349,19 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     _("The name this device appears under in the Tailscale console")
   );
   tailscaleHostnameOption.rmempty = false;
+  tailscaleHostnameOption.validate = function(_itemId, value) {
+    return validateTailscaleHostname(value);
+  };
   tailscaleHostnameOption.depends("tunnel_type", "tailscale");
   const tailscaleControlUrlOption = itemSection.option(
     form.Value,
     "tailscale_control_url",
     _("Coordination server"),
-    _("Change only for a self-hosted Headscale")
+    _(
+      "Address of the coordination server. Change it if you use a custom server"
+    )
   );
-  tailscaleControlUrlOption.default = "https://controlplane.tailscale.com";
+  tailscaleControlUrlOption.default = TAILSCALE_CONTROL_URL;
   tailscaleControlUrlOption.rmempty = false;
   tailscaleControlUrlOption.depends("tunnel_type", "tailscale");
   tailscaleControlUrlOption.validate = function(_itemId, value) {
@@ -19357,7 +19379,8 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   const tailscaleDetourSectionOption = itemSection.option(
     form.ListValue,
     "tailscale_detour_section",
-    _("Coordination server through")
+    _("Coordination server through"),
+    _("Required. The section that carries the control-plane traffic")
   );
   refreshOutboundDetourSectionOptionValues(
     tailscaleDetourSectionOption,
@@ -19382,7 +19405,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     form.Flag,
     "tailscale_accept_routes",
     _("Accept routes"),
-    _("Accept subnets advertised by other devices in your Tailscale network")
+    _("Use subnets other devices share")
   );
   tailscaleAcceptRoutesOption.default = "1";
   tailscaleAcceptRoutesOption.rmempty = false;
@@ -19392,10 +19415,10 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     "tailscale_exit_node",
     _("Exit node"),
     _(
-      "IP address or device name in Tailscale through which traffic is forwarded"
+      "IP address or name of the device internet traffic leaves through. Without one, only tailnet devices and the subnets they share are reachable"
     )
   );
-  tailscaleExitNodeOption.rmempty = false;
+  tailscaleExitNodeOption.rmempty = true;
   tailscaleExitNodeOption.depends("tunnel_type", "tailscale");
   const endpointJsonOption = itemSection.option(
     form.TextValue,
@@ -22591,16 +22614,6 @@ function validateSecurity(sectionId, value) {
   const selected = value || defaultSecurity(protocol);
   return securitiesFor(protocol).includes(selected) ? true : _("This protocol does not support the selected security mode");
 }
-function validateTailscaleHostname(_sectionId, value) {
-  const hostname = `${value || ""}`.trim();
-  if (!hostname) {
-    return _("This field is required");
-  }
-  if (hostname.length > 63) {
-    return _("A host name holds at most 63 characters");
-  }
-  return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(hostname) ? true : _("Use lowercase letters, digits and hyphens");
-}
 function validateShadowsocksPassword(sectionId, value) {
   const required = validateRequiredText(sectionId, value);
   if (required !== true) {
@@ -23102,17 +23115,21 @@ function addTailscaleOptions(section) {
     form.Value,
     "tailscale_hostname",
     _("Device name"),
-    _("The name this device appears under in the Tailscale console")
+    _(
+      "The name this router appears under in the Tailscale console. It is offered there as an exit node and carries traffic once approved"
+    )
   );
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validateTailscaleHostname;
+  o.validate = (_sectionId, value) => validateTailscaleHostname(value);
   onTailscale(o);
   o = section.option(
     form.DynamicList,
     "tailscale_advertise_routes",
     _("Advertise routes"),
-    _("Local subnets the rest of the network may reach through this router")
+    _(
+      "Local subnets the rest of the network may reach through this router, once approved in the Tailscale console"
+    )
   );
   o.placeholder = "192.168.1.0/24";
   o.modalonly = true;
@@ -23147,10 +23164,10 @@ function addTailscaleOptions(section) {
       "Address of the coordination server. Change it if you use a custom server"
     )
   );
-  o.default = "https://controlplane.tailscale.com";
+  o.default = TAILSCALE_CONTROL_URL;
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validateHttpUrl;
+  o.validate = (_sectionId, value) => validateUrlField(value);
   onTailscale(o);
   o = section.option(
     form.Flag,

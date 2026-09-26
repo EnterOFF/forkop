@@ -303,6 +303,11 @@ cat >"$WORK_DIR/tunnel-fixture.json" <<'JSON'
       "tailscale_detour_section": "control"
     },
     {
+      ".name": "tun_home", ".type": "tunnel", "section": "tunnels", "order": "6",
+      "kind": "tailscale", "name": "Home", "tailscale_auth_key": "tskey-auth-test",
+      "tailscale_hostname": "forkop-home"
+    },
+    {
       ".name": "tun_json", ".type": "tunnel", "section": "tunnels", "order": "3",
       "kind": "json", "endpoint_json": "{\"type\":\"vpn-client\",\"tag\":\"custom-endpoint\",\"server\":\"vpn.example.com\"}"
     }
@@ -379,8 +384,12 @@ if (
   tailscale?.type !== 'tailscale' ||
   tailscale.state_directory !== '/etc/forkop/tailscale/tunnels-tun_tailnet' ||
   tailscale.detour !== 'control' ||
+  tailscale.exit_node !== '100.64.0.1' ||
   tailscale.exit_node_allow_lan_access !== true
 ) throw new Error(`native Tailscale endpoint settings are not generated correctly: ${JSON.stringify(tailscale)}`);
+const home = config.endpoints.find((endpoint) => endpoint.tag === 'tunnels/Home');
+if (home?.type !== 'tailscale' || 'exit_node' in home || 'exit_node_allow_lan_access' in home)
+  throw new Error(`a Tailscale tunnel without an exit node must not ask for one: ${JSON.stringify(home)}`);
 if (custom?.type !== 'vpn-client' || custom.tag !== 'tunnels/custom-endpoint' || custom.detour)
   throw new Error('JSON endpoint was not preserved with a stable tag');
 if (

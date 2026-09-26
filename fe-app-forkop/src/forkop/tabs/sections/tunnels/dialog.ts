@@ -1,10 +1,14 @@
-import { FORKOP_UCI_PACKAGE } from '../../../../constants';
+import {
+  FORKOP_UCI_PACKAGE,
+  TAILSCALE_CONTROL_URL,
+} from '../../../../constants';
 import {
   parseWireGuardConfig,
   parseWireGuardInput,
   validateAmneziaSignature,
   validateWireGuardKey,
 } from '../../../../helpers/parseWireGuardConfig';
+import { validateTailscaleHostname } from '../../../../validators/validateTailscaleHostname';
 import { validateUrlField } from '../../../../validators/validateUrl';
 import { configureTextareaOption } from '../../../cbi/annotatedTextarea';
 import { getChildItemIds, nextSectionId } from '../../../cbi/childItems';
@@ -307,7 +311,7 @@ export function showTunnelSettingsModal(
     form.Value,
     'tailscale_auth_key',
     _('Authorization key'),
-    _('Auth Key from the Tailscale admin console'),
+    _('A key from the Tailscale console'),
   );
   tailscaleAuthKeyOption.password = true;
   tailscaleAuthKeyOption.rmempty = false;
@@ -320,15 +324,23 @@ export function showTunnelSettingsModal(
     _('The name this device appears under in the Tailscale console'),
   );
   tailscaleHostnameOption.rmempty = false;
+  tailscaleHostnameOption.validate = function (
+    _itemId: string,
+    value: unknown,
+  ) {
+    return validateTailscaleHostname(value);
+  };
   tailscaleHostnameOption.depends('tunnel_type', 'tailscale');
 
   const tailscaleControlUrlOption = itemSection.option(
     form.Value,
     'tailscale_control_url',
     _('Coordination server'),
-    _('Change only for a self-hosted Headscale'),
+    _(
+      'Address of the coordination server. Change it if you use a custom server',
+    ),
   );
-  tailscaleControlUrlOption.default = 'https://controlplane.tailscale.com';
+  tailscaleControlUrlOption.default = TAILSCALE_CONTROL_URL;
   tailscaleControlUrlOption.rmempty = false;
   tailscaleControlUrlOption.depends('tunnel_type', 'tailscale');
   tailscaleControlUrlOption.validate = function (
@@ -352,6 +364,7 @@ export function showTunnelSettingsModal(
     form.ListValue,
     'tailscale_detour_section',
     _('Coordination server through'),
+    _('Required. The section that carries the control-plane traffic'),
   );
   refreshOutboundDetourSectionOptionValues(
     tailscaleDetourSectionOption,
@@ -382,7 +395,7 @@ export function showTunnelSettingsModal(
     form.Flag,
     'tailscale_accept_routes',
     _('Accept routes'),
-    _('Accept subnets advertised by other devices in your Tailscale network'),
+    _('Use subnets other devices share'),
   );
   tailscaleAcceptRoutesOption.default = '1';
   tailscaleAcceptRoutesOption.rmempty = false;
@@ -393,10 +406,10 @@ export function showTunnelSettingsModal(
     'tailscale_exit_node',
     _('Exit node'),
     _(
-      'IP address or device name in Tailscale through which traffic is forwarded',
+      'IP address or name of the device internet traffic leaves through. Without one, only tailnet devices and the subnets they share are reachable',
     ),
   );
-  tailscaleExitNodeOption.rmempty = false;
+  tailscaleExitNodeOption.rmempty = true;
   tailscaleExitNodeOption.depends('tunnel_type', 'tailscale');
 
   const endpointJsonOption = itemSection.option(

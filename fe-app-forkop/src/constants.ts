@@ -31,6 +31,8 @@ export const RESERVED_RUNTIME_TAGS = new Set([
 // coordination detour may be pointed at.
 export const DETOUR_TARGET_ACTIONS = ['connection', 'proxy', 'outbound', 'vpn'];
 
+export const TAILSCALE_CONTROL_URL = 'https://controlplane.tailscale.com';
+
 export const DEFAULT_LATENCY_TEST_URL = 'https://www.gstatic.com/generate_204';
 export const LATENCY_TEST_URL_OPTIONS = [
   DEFAULT_LATENCY_TEST_URL,

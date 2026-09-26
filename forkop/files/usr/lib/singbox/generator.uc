@@ -1404,7 +1404,8 @@ function add_connection_tunnels(config, section, taken, selector_tags, urltest_c
                 endpoint.detour = outbound_tag(detour_section);
             if (as_string(endpoint.state_directory || "") == "")
                 endpoint.state_directory = "/etc/forkop/tailscale/" + section_name + "-" + as_string(tunnel[".name"] || (i + 1));
-            endpoint.exit_node_allow_lan_access = true;
+            if (as_string(endpoint.exit_node || "") != "")
+                endpoint.exit_node_allow_lan_access = true;
         }
 
         push(config.endpoints, endpoint);

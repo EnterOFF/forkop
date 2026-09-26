@@ -420,11 +420,10 @@ describe('a Tailscale tunnel', () => {
       "'tailscale_hostname'",
       "'tailscale_control_url'",
       "'tailscale_exit_node'",
-      'Auth Key from the Tailscale admin console',
+      'A key from the Tailscale console',
       'The name this device appears under in the Tailscale console',
-      "_('Enter a Tailscale exit node')",
-      'Accept subnets advertised by other devices in your Tailscale network',
-      'exit_node_allow_lan_access: true',
+      'Use subnets other devices share',
+      'validateTailscaleHostname(value)',
     ]);
   });
 
@@ -499,6 +498,7 @@ describe('the dialog', () => {
     'Leave empty to let sing-box choose it.',
     '"tailscale_exit_node_allow_lan_access"',
     'Allow LAN access through exit node',
+    'Enter a Tailscale exit node',
     '"j1"',
     '"j2"',
     '"j3"',

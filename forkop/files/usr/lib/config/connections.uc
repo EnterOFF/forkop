@@ -485,7 +485,9 @@ function tunnel_endpoint(tunnel) {
         endpoint.hostname = trim(as_string(option(tunnel, "tailscale_hostname", "")));
         endpoint.control_url = trim(as_string(option(tunnel, "tailscale_control_url", "https://controlplane.tailscale.com")));
         endpoint.accept_routes = bool_option(tunnel, "tailscale_accept_routes", true);
-        endpoint.exit_node = trim(as_string(option(tunnel, "tailscale_exit_node", "")));
+        let exit_node = trim(as_string(option(tunnel, "tailscale_exit_node", "")));
+        if (exit_node != "")
+            endpoint.exit_node = exit_node;
         let detour = trim(as_string(option(tunnel, "tailscale_detour_section", "")));
         if (detour != "")
             endpoint.detour = detour;

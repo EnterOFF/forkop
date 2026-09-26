@@ -1089,8 +1089,7 @@ function validate_tunnel_values(section) {
 
         if (endpoint_type == "tailscale") {
             if (trim(as_string(endpoint.auth_key || "")) == "" ||
-                trim(as_string(endpoint.hostname || "")) == "" ||
-                trim(as_string(endpoint.exit_node || "")) == "")
+                trim(as_string(endpoint.hostname || "")) == "")
                 fail_validation("Connection rule '" + name + "' contains an incomplete Tailscale endpoint. Aborted.");
             validate_http_url_option(endpoint.control_url || "https://controlplane.tailscale.com", "rule." + name + ".tunnel.control_url");
             let detour_section = connections.option(tunnel, "tailscale_detour_section", "");

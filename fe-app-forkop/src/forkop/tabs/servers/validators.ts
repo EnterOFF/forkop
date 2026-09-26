@@ -119,7 +119,7 @@ export function validateTlsKeyPath(sectionId: string, value: string) {
   return validateTlsPathPair(sectionId, value, 'tls_certificate_path');
 }
 
-export function validateHttpUrl(_sectionId: string | null, value: string) {
+function validateHttpUrl(_sectionId: string | null, value: string) {
   try {
     const url = new URL(`${value || ''}`);
     return (url.protocol === 'http:' || url.protocol === 'https:') &&
@@ -286,23 +286,6 @@ export function validateSecurity(sectionId: string, value: string) {
   return securitiesFor(protocol).includes(selected)
     ? true
     : _('This protocol does not support the selected security mode');
-}
-
-// Tailscale reduces the host name to a DNS label, so anything it would rewrite is
-// refused here instead of quietly registering a differently named machine.
-export function validateTailscaleHostname(_sectionId: string, value: string) {
-  const hostname = `${value || ''}`.trim();
-
-  if (!hostname) {
-    return _('This field is required');
-  }
-  if (hostname.length > 63) {
-    return _('A host name holds at most 63 characters');
-  }
-
-  return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(hostname)
-    ? true
-    : _('Use lowercase letters, digits and hyphens');
 }
 
 export function validateShadowsocksPassword(sectionId: string, value: string) {

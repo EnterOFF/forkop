@@ -1,5 +1,6 @@
 import { validateWireGuardKey } from '../../../../helpers/parseWireGuardConfig';
 import { validateSubnet } from '../../../../validators/validateSubnet';
+import { validateTailscaleHostname } from '../../../../validators/validateTailscaleHostname';
 import { validateUrl } from '../../../../validators/validateUrl';
 import { isExistingChildItem } from '../../../cbi/childItems';
 import { normalizeDynamicListItems } from '../../../cbi/listValues';
@@ -243,7 +244,8 @@ export function validateTunnelSettings(
   if (endpoint.type === 'tailscale') {
     if (!endpoint.auth_key) return _('Enter a Tailscale auth key');
     if (!endpoint.hostname) return _('Enter a Tailscale hostname');
-    if (!endpoint.exit_node) return _('Enter a Tailscale exit node');
+    const hostname = validateTailscaleHostname(endpoint.hostname);
+    if (hostname !== true) return hostname;
     if (!validateUrl(endpoint.control_url || '').valid) {
       return _('Enter a valid Tailscale control URL');
     }

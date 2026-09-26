@@ -369,9 +369,9 @@ function add_tailscale_endpoint(config, section, tag_name) {
         auth_key: option(section, "tailscale_auth_key", ""),
         control_url: option(section, "tailscale_control_url", "https://controlplane.tailscale.com"),
         hostname: option(section, "tailscale_hostname", "forkop-" + safe_filename(section_name)),
-        // A Tailscale server exists to put this router on the tailnet as a way
-        // out, so the switch that took the exit node away only ever produced a
-        // server nothing could route through.
+        // The offer does nothing until the exit node is approved in the
+        // Tailscale console, so a server meant only to share subnets leaves it
+        // unapproved instead of needing a switch of its own.
         advertise_exit_node: true
     };
     if (bool_option(section, "tailscale_detour_enabled", false)) {

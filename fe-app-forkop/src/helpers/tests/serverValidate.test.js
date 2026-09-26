@@ -10,7 +10,6 @@ import {
   validateRealityKey,
   validateShadowsocksPassword,
   validateShortId,
-  validateTailscaleHostname,
 } from '../../forkop/tabs/servers/validators';
 
 function load(sections = {}) {
@@ -23,7 +22,6 @@ function load(sections = {}) {
       validateListenPort,
       validateShadowsocksPassword,
       validateShortId,
-      validateTailscaleHostname,
       validateRealityKey,
       validateOptionalMasquerade,
     },
@@ -128,27 +126,6 @@ describe('raw inbound JSON validation', () => {
       validate.validateInboundJson('srv', '{"type":"mixed","listen_port":0}'),
     ).toMatch(/1 and 65535/);
     expect(validate.validateInboundJson('srv', '')).toMatch(/required/);
-  });
-});
-
-describe('Tailscale hostname validation', () => {
-  const { validate } = load();
-
-  it('accepts a DNS label and rejects what Tailscale would rewrite', () => {
-    expect(validate.validateTailscaleHostname('srv', 'forkop-home')).toBe(true);
-    expect(validate.validateTailscaleHostname('srv', 'Forkop_Home')).toMatch(
-      /lowercase/,
-    );
-    expect(validate.validateTailscaleHostname('srv', 'мой-роутер')).toMatch(
-      /lowercase/,
-    );
-    expect(validate.validateTailscaleHostname('srv', '-home')).toMatch(
-      /lowercase/,
-    );
-    expect(validate.validateTailscaleHostname('srv', 'a'.repeat(64))).toMatch(
-      /63/,
-    );
-    expect(validate.validateTailscaleHostname('srv', '')).toMatch(/required/);
   });
 });
 

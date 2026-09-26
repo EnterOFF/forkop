@@ -246,7 +246,7 @@ cat >"$WORK_DIR/bad-json-inbound-type.json" <<'JSON'
 JSON
 assert_rejects "JSON inbound with endpoint type" "$WORK_DIR/bad-json-inbound-type.json" "unsupported JSON inbound type 'wireguard'"
 
-cat >"$WORK_DIR/bad-tailscale-exit-node.json" <<'JSON'
+cat >"$WORK_DIR/tailscale-without-exit-node.json" <<'JSON'
 {
   "settings": { ".name": "settings", ".type": "settings" },
   "section": [
@@ -270,7 +270,33 @@ cat >"$WORK_DIR/bad-tailscale-exit-node.json" <<'JSON'
   ]
 }
 JSON
-assert_rejects "Tailscale tunnel without exit node" "$WORK_DIR/bad-tailscale-exit-node.json" "incomplete Tailscale endpoint"
+validate_fixture "$WORK_DIR/tailscale-without-exit-node.json" >/dev/null ||
+  fail "a Tailscale tunnel without an exit node should be accepted"
+
+cat >"$WORK_DIR/bad-tailscale-auth-key.json" <<'JSON'
+{
+  "settings": { ".name": "settings", ".type": "settings" },
+  "section": [
+    {
+      ".name": "proxy",
+      ".type": "section",
+      "enabled": "1",
+      "action": "connection"
+    }
+  ],
+  "tunnel": [
+    {
+      ".name": "tun_tailnet",
+      ".type": "tunnel",
+      "section": "proxy",
+      "kind": "tailscale",
+      "name": "Tailnet",
+      "tailscale_hostname": "forkop-router"
+    }
+  ]
+}
+JSON
+assert_rejects "Tailscale tunnel without auth key" "$WORK_DIR/bad-tailscale-auth-key.json" "incomplete Tailscale endpoint"
 
 cat >"$WORK_DIR/bad-tailscale-self-detour.json" <<'JSON'
 {

@@ -75,3 +75,38 @@ it.each(['wireguard', 'warp'])(
     expect(endpoint?.amnezia).not.toHaveProperty('random_trailers');
   },
 );
+
+describe('a Tailscale tunnel', () => {
+  const settings = {
+    tunnel_type: 'tailscale',
+    name: 'Tailnet',
+    tailscale_auth_key: 'tskey-auth-test',
+    tailscale_hostname: 'forkop-router',
+    tailscale_control_url: 'https://controlplane.tailscale.com',
+    tailscale_accept_routes: '1',
+  };
+  it('saves without an exit node and asks the core for none', () => {
+    expect(validate(settings)).toBe(true);
+    const endpoint = endpointFromSettings(settings);
+    expect(endpoint).not.toHaveProperty('exit_node');
+    expect(endpoint).not.toHaveProperty('exit_node_allow_lan_access');
+  });
+  it('keeps the LAN reachable while an exit node carries the rest', () => {
+    expect(
+      endpointFromSettings({ ...settings, tailscale_exit_node: '100.64.0.1' }),
+    ).toMatchObject({
+      exit_node: '100.64.0.1',
+      exit_node_allow_lan_access: true,
+    });
+  });
+  it('still refuses a tunnel without an auth key', () => {
+    expect(validate({ ...settings, tailscale_auth_key: '' })).toBe(
+      'Enter a Tailscale auth key',
+    );
+  });
+  it('refuses a device name Tailscale would register differently', () => {
+    expect(validate({ ...settings, tailscale_hostname: 'My Router' })).toBe(
+      'Use lowercase letters, digits and hyphens',
+    );
+  });
+});

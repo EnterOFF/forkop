@@ -1,7 +1,10 @@
 import {
   FORKOP_UCI_PACKAGE,
   RESERVED_RUNTIME_TAGS,
+  TAILSCALE_CONTROL_URL,
 } from '../../../../constants';
+import { validateTailscaleHostname } from '../../../../validators/validateTailscaleHostname';
+import { validateUrlField } from '../../../../validators/validateUrl';
 import { configureTextareaOption } from '../../../cbi/annotatedTextarea';
 import { keepUnavailableSectionChoice } from '../../../cbi/choices';
 import {
@@ -28,14 +31,12 @@ import {
 import { tailscaleDetourTargets } from '../routing';
 import {
   validateHost,
-  validateHttpUrl,
   validateInboundJson,
   validateListenAddress,
   validateListenPort,
   validateOptionalCidrOrIp,
   validateRequired,
   validateRequiredText,
-  validateTailscaleHostname,
 } from '../validators';
 
 export function addIdentityOptions(section: CBISection) {
@@ -119,18 +120,23 @@ export function addTailscaleOptions(section: CBISection) {
     form.Value,
     'tailscale_hostname',
     _('Device name'),
-    _('The name this device appears under in the Tailscale console'),
+    _(
+      'The name this router appears under in the Tailscale console. It is offered there as an exit node and carries traffic once approved',
+    ),
   );
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validateTailscaleHostname;
+  o.validate = (_sectionId: string, value: string) =>
+    validateTailscaleHostname(value);
   onTailscale(o);
 
   o = section.option(
     form.DynamicList,
     'tailscale_advertise_routes',
     _('Advertise routes'),
-    _('Local subnets the rest of the network may reach through this router'),
+    _(
+      'Local subnets the rest of the network may reach through this router, once approved in the Tailscale console',
+    ),
   );
   o.placeholder = '192.168.1.0/24';
   o.modalonly = true;
@@ -168,10 +174,10 @@ export function addTailscaleOptions(section: CBISection) {
       'Address of the coordination server. Change it if you use a custom server',
     ),
   );
-  o.default = 'https://controlplane.tailscale.com';
+  o.default = TAILSCALE_CONTROL_URL;
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validateHttpUrl;
+  o.validate = (_sectionId: string, value: string) => validateUrlField(value);
   onTailscale(o);
 
   o = section.option(

@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-25 20:26+0300\n"
-"PO-Revision-Date: 2026-09-25 20:26+0300\n"
+"POT-Creation-Date: 2026-09-26 15:13+0300\n"
+"PO-Revision-Date: 2026-09-26 15:13+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -91,9 +91,6 @@ msgstr "URL или локальный путь. Формат определяе�
 
 msgid "Accept routes"
 msgstr "Принимать маршруты"
-
-msgid "Accept subnets advertised by other devices in your Tailscale network"
-msgstr "Принимать подсети, которые раздают другие устройства в вашей сети Tailscale"
 
 msgid "Access to YACD from the internet. The port has to be opened in the firewall"
 msgstr "Доступ к YACD из интернета. Порт нужно открыть в файрволе"
@@ -224,9 +221,6 @@ msgstr "Нужно указать хотя бы один корректный д
 msgid "At least one valid IP or subnet must be specified."
 msgstr "Нужно указать хотя бы один корректный IP-адрес или подсеть."
 
-msgid "Auth Key from the Tailscale admin console"
-msgstr "Auth Key из панели управления Tailscale"
-
 msgid "Auth token"
 msgstr "Токен авторизации"
 
@@ -301,9 +295,6 @@ msgstr "Сертификат создан"
 
 msgid "Certificate path"
 msgstr "Путь к сертификату"
-
-msgid "Change only for a self-hosted Headscale"
-msgstr "Меняйте только для своего Headscale"
 
 msgid "Change the HTTP headers of the request"
 msgstr "Изменить HTTP-заголовки запроса"
@@ -664,9 +655,6 @@ msgstr "Введите тег подписки"
 
 msgid "Enter a Tailscale auth key"
 msgstr "Введите ключ авторизации Tailscale"
-
-msgid "Enter a Tailscale exit node"
-msgstr "Введите выходной узел Tailscale"
 
 msgid "Enter a Tailscale hostname"
 msgstr "Введите hostname Tailscale"
@@ -1046,8 +1034,8 @@ msgstr "Недопустимый MTU WireGuard"
 msgid "Invalid WireGuard persistent keepalive"
 msgstr "Недопустимый интервал keepalive WireGuard"
 
-msgid "IP address or device name in Tailscale through which traffic is forwarded"
-msgstr "IP-адрес или имя устройства в Tailscale, через которое будет перенаправляться трафик"
+msgid "IP address or name of the device internet traffic leaves through. Without one, only tailnet devices and the subnets they share are reachable"
+msgstr "IP-адрес или имя устройства, через которое трафик выходит в интернет. Без него доступны только устройства tailnet и подсети, которые они открывают"
 
 msgid "IPs"
 msgstr "IP-адреса"
@@ -1157,8 +1145,8 @@ msgstr "Загрузка..."
 msgid "Local resolver"
 msgstr "Локальный резолвер"
 
-msgid "Local subnets the rest of the network may reach through this router"
-msgstr "Локальные подсети, доступные остальной сети через этот роутер"
+msgid "Local subnets the rest of the network may reach through this router, once approved in the Tailscale console"
+msgstr "Локальные подсети, доступные остальной сети через этот роутер после одобрения в консоли Tailscale"
 
 msgid "Local UDP port. Empty means the default"
 msgstr "Локальный UDP-порт. Пусто — по умолчанию"
@@ -1972,6 +1960,9 @@ msgstr "Имя не должно содержать /"
 
 msgid "The name this device appears under in the Tailscale console"
 msgstr "Под этим именем устройство видно в консоли Tailscale"
+
+msgid "The name this router appears under in the Tailscale console. It is offered there as an exit node and carries traffic once approved"
+msgstr "Под этим именем роутер виден в консоли Tailscale. Там он предлагается как выходной узел и начинает пропускать трафик после одобрения"
 
 msgid "The object must have a type field"
 msgstr "В объекте должно быть поле type"
