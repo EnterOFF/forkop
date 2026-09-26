@@ -23,13 +23,13 @@ if grep -Fq 'list_option(settings, APPLIED_MIGRATIONS_OPTION)' "$MIGRATION"; the
   fail "versioned migration must never interpret the legacy marker list"
 fi
 while IFS= read -r option; do
-  if grep -R -Fq "\"$option\"" "$FORKOP_LIB/config/migration.uc" "$FORKOP_LIB/config/migrations"; then
+  if grep -Fq "\"$option\"" "$MIGRATION"; then
     fail "release migration contains non-release option $option"
   fi
 done < <(node -e 'const d=require(process.argv[1]); console.log(Object.keys(d.non_release_fields).join("\n"))' \
   "$TESTS_DIR/config/config_migration_decisions.json")
 while IFS= read -r value; do
-  if grep -R -Fq "\"$value\"" "$FORKOP_LIB/config/migration.uc" "$FORKOP_LIB/config/migrations"; then
+  if grep -Fq "\"$value\"" "$MIGRATION"; then
     fail "release migration contains non-release schema value $value"
   fi
 done < <(node -e 'const d=require(process.argv[1]); for (const values of Object.values(d.non_release_values)) console.log(Object.keys(values).join("\n"))' \
