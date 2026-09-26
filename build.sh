@@ -41,8 +41,8 @@ APP_DESCRIPTION="Rule-based sing-box orchestration for OpenWrt, LuCI app"
 I18N_DESCRIPTION="Translation for luci-app-forkop - Русский (Russian)"
 MAINTAINER="ushan0v <ushan0v@users.noreply.github.com>"
 PROJECT_URL="https://github.com/ushan0v/forkop"
-BACKEND_DEPENDS_IPK="libc, ca-bundle, kmod-inet-diag, kmod-netlink-diag, kmod-tun, curl, ucode, ucode-mod-fs, ucode-mod-ubus, ucode-mod-uloop, ucode-mod-uci, kmod-nft-tproxy, coreutils-base64, bind-dig, nftables, kmod-nft-nat, ip-full, dropbearconvert"
-BACKEND_DEPENDS_APK="bind-dig ca-bundle coreutils-base64 curl dropbearconvert ip-full kmod-inet-diag kmod-netlink-diag kmod-nft-nat kmod-nft-tproxy kmod-tun libc nftables ucode ucode-mod-fs ucode-mod-ubus ucode-mod-uloop ucode-mod-uci !https-dns-proxy !nextdns !luci-app-passwall !luci-app-passwall2"
+BACKEND_DEPENDS_IPK="libc, ca-bundle, kmod-inet-diag, kmod-netlink-diag, kmod-tun, curl, ucode, ucode-mod-fs, ucode-mod-ubus, ucode-mod-uloop, ucode-mod-uci, kmod-nft-tproxy, bind-dig, nftables, kmod-nft-nat, ip-full, dropbearconvert"
+BACKEND_DEPENDS_APK="bind-dig ca-bundle curl dropbearconvert ip-full kmod-inet-diag kmod-netlink-diag kmod-nft-nat kmod-nft-tproxy kmod-tun libc nftables ucode ucode-mod-fs ucode-mod-ubus ucode-mod-uloop ucode-mod-uci !https-dns-proxy !nextdns !luci-app-passwall !luci-app-passwall2"
 BACKEND_CONFLICTS_IPK="https-dns-proxy, nextdns, luci-app-passwall, luci-app-passwall2"
 # The app calls the ubus object the backend publishes, so it cannot sit on a
 # backend older than itself. OpenWrt DEPENDS in the feed Makefile cannot express
@@ -285,7 +285,7 @@ EOF
 #!/bin/sh
 [ -n "${IPKG_INSTROOT}" ] && exit 0
 FORKOP_LIB=/usr/lib/forkop ucode -L /usr/lib/forkop /usr/lib/forkop/config/migration.uc migrate || exit $?
-/usr/bin/forkop package_postinst
+FORKOP_BYTECODE_VALIDATION_TTL=0 /usr/bin/forkop package_postinst
 EOF
 
   cat > "$control_dir/prerm" <<'EOF'
@@ -422,7 +422,7 @@ EOF
   cat > "$scripts_dir/backend-post-install.sh" <<'EOF'
 #!/usr/bin/ucode
 if (getenv("IPKG_INSTROOT") == null || getenv("IPKG_INSTROOT") == "")
-    exit(system("FORKOP_LIB=/usr/lib/forkop ucode -L /usr/lib/forkop /usr/lib/forkop/config/migration.uc migrate && /usr/bin/forkop package_postinst"));
+    exit(system("FORKOP_LIB=/usr/lib/forkop ucode -L /usr/lib/forkop /usr/lib/forkop/config/migration.uc migrate && FORKOP_BYTECODE_VALIDATION_TTL=0 /usr/bin/forkop package_postinst"));
 exit(0);
 EOF
 
@@ -445,7 +445,7 @@ EOF
   cat > "$scripts_dir/backend-post-upgrade.sh" <<'EOF'
 #!/usr/bin/ucode
 if (getenv("IPKG_INSTROOT") == null || getenv("IPKG_INSTROOT") == "")
-    exit(system("FORKOP_LIB=/usr/lib/forkop ucode -L /usr/lib/forkop /usr/lib/forkop/config/migration.uc migrate && /usr/bin/forkop package_postinst"));
+    exit(system("FORKOP_LIB=/usr/lib/forkop ucode -L /usr/lib/forkop /usr/lib/forkop/config/migration.uc migrate && FORKOP_BYTECODE_VALIDATION_TTL=0 /usr/bin/forkop package_postinst"));
 exit(0);
 EOF
 
@@ -479,6 +479,7 @@ EOF
 . ${IPKG_INSTROOT}/lib/functions.sh
 export root="${IPKG_INSTROOT}"
 export pkgname="luci-app-forkop"
+[ -n "${IPKG_INSTROOT}" ] || /usr/bin/forkop luci_prerm >/dev/null 2>&1 || true
 default_prerm
 exit 0
 EOF

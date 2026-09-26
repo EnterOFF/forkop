@@ -86,9 +86,9 @@ reject_runtime_regex 'log_message\("singbox/runtime\.uc: ' \
 
 # An apply that failed is reported to the user out of the log and nowhere else,
 # so every way out of a reload has to say which step gave up. abort_reload takes
-# that reason as its third argument; a call without one is a silent failure the
-# page can say nothing about.
-reject_runtime_regex 'abort_reload\([^,)]+, *[^,)]+\)' \
+# that reason first, as the text the page shows; a call that passes anything else
+# is a failure the page can say nothing about.
+reject_runtime_regex 'return abort_reload\([^"]' \
   "every abort_reload must name the step that failed, so the page can report it"
 
 # Clearing the router's whole log is not something a Forkop tab may offer: the

@@ -38,7 +38,7 @@ function ucode_binary() {
 const SOURCE_DIR = getenv("FORKOP_SOURCE_LIB") || "/usr/lib/forkop";
 const CACHE_DIR = getenv("FORKOP_BYTECODE_CACHE_DIR") || "/var/run/forkop/bytecode";
 const UCODE_BIN = ucode_binary();
-const MANIFEST_VERSION = "3";
+const MANIFEST_VERSION = "4";
 // Loaded through the freshly built cache to prove the interpreter accepts what
 // it just produced. A leaf module with no imports and no side effects.
 const SELF_CHECK_MODULE = "config.domain";
@@ -57,10 +57,6 @@ const VALIDATION_TTL_SECONDS = int(getenv("FORKOP_BYTECODE_VALIDATION_TTL") || "
 
 function enabled() {
     return as_string(getenv("FORKOP_BYTECODE_CACHE") || "1") != "0";
-}
-
-function source_dir() {
-    return SOURCE_DIR;
 }
 
 function manifest_path() {
@@ -93,20 +89,23 @@ function command_success(args) {
     return system(join(" ", parts) + " >/dev/null 2>&1") == 0;
 }
 
+// A package manager replaces a file by renaming a new one over it, which the
+// inode shows whenever it happens. The mtime has only a second's resolution, so
+// on its own it misses an edit in the same second the cache was built.
 function file_signature(path) {
     let stat = fs.stat(as_string(path));
     if (stat == null || stat.type != "file")
         return null;
-    return as_string(stat.size) + " " + as_string(stat.mtime);
+    return as_string(stat.size) + " " + as_string(stat.mtime) + " " + as_string(stat.inode);
 }
 
-// Only the mtime: a directory's reported size is filesystem specific, while
-// its mtime moves exactly when an entry is added or removed.
+// The entries themselves: a directory's mtime moves when one is added or
+// removed, but not visibly within the second the cache was built in.
 function directory_signature(path) {
-    let stat = fs.stat(as_string(path));
-    if (stat == null || stat.type != "directory")
+    let names = fs.lsdir(as_string(path));
+    if (type(names) != "array")
         return null;
-    return as_string(stat.mtime);
+    return join("/", sort(filter(names, (name) => name != "." && name != "..")));
 }
 
 function is_directory(path) {
@@ -524,9 +523,7 @@ function refresh() {
 return {
     enabled,
     invalidate_validation_stamp,
-    source_dir,
     library_dir,
-    manifest_path,
     refresh,
     build
 };

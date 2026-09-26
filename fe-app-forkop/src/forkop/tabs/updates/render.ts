@@ -1,3 +1,5 @@
+import { E } from '../../../helpers/element';
+
 export function render() {
   return E('div', { id: 'updates-status', class: 'fkp_updates-page' }, [
     E('div', {

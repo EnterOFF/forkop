@@ -1,4 +1,3 @@
-#!/usr/bin/env ucode
 
 const SRS_MAIN_URL = "https://github.com/itdoginfo/allow-domains/releases/latest/download";
 const SRS_ADS_HAGEZI_PRO_URL = "https://github.com/zxc-rv/ad-filter/releases/latest/download/adlist.srs";
@@ -93,25 +92,29 @@ function custom_reference_tag(reference) {
         : "inline-custom-" + hash12(reference) + "-ruleset";
 }
 
-function module_exports() {
-    return {
-        is_community,
-        community_url,
-        hash12,
-        section_tag,
-        community_tag,
-        custom_reference_tag
-    };
+// The rule-set tags each section owns, for the dashboard to refresh the lists
+// of one section. A custom reference is one shared rule set, so two sections
+// naming it share its tag. Sections without a rule set are left out.
+function section_tag_map() {
+    let connections = require("config.connections");
+    let result = {};
+    for (let section in require("core.uci").section_objects("forkop", "section")) {
+        let name = as_string(section[".name"]);
+        let tags = [];
+        for (let community in connections.community_lists(section))
+            push(tags, community_tag(name, community));
+        for (let reference in [ ...connections.rule_sets(section), ...connections.rule_sets_with_subnets(section) ])
+            push(tags, custom_reference_tag(reference));
+        if (name != "" && length(tags) > 0)
+            result[name] = uniq(tags);
+    }
+    return result;
 }
 
-if ((sourcepath(1) != null && sourcepath(1) != "") || ARGV[0] == null)
-    return module_exports();
-
-let mode = ARGV[0] || "";
-
-if (mode == "is-community")
-    exit(is_community(ARGV[1]) ? 0 : 1);
-else {
-    warn("Usage: singbox/rulesets.uc is-community <name>\n");
-    exit(1);
-}
+return {
+    is_community,
+    community_url,
+    community_tag,
+    custom_reference_tag,
+    section_tag_map
+};

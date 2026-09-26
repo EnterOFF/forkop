@@ -37,6 +37,7 @@ var RESERVED_RUNTIME_TAGS = /* @__PURE__ */ new Set([
   "system6-in",
   "system-dns-in",
   "service-mixed-in",
+  "service-components-in",
   "direct-out"
 ]);
 var DETOUR_TARGET_ACTIONS = ["connection", "proxy", "outbound", "vpn"];
@@ -79,12 +80,21 @@ var DOMAIN_LIST_OPTIONS = {
 };
 var COMMAND_TIMEOUT = 1e4;
 
+// src/helpers/element.ts
+function element(...args) {
+  if (args.length >= 3 && (typeof args[2] === "string" || typeof args[2] === "number")) {
+    args[2] = [String(args[2])];
+  }
+  return E(...args);
+}
+var textE = element;
+
 // src/forkop/tabs/dashboard/partials/renderFlagEmojis.ts
 var FLAG_EMOJI_PATTERN = /([\u{1f1e6}-\u{1f1ff}]{2}|\u{1f3f4}[\u{e0061}-\u{e007a}]+\u{e007f})/gu;
 var EXACT_FLAG_EMOJI_PATTERN = /^([\u{1f1e6}-\u{1f1ff}]{2}|\u{1f3f4}[\u{e0061}-\u{e007a}]+\u{e007f})$/u;
 function renderFlagEmojis(value) {
   return value.split(FLAG_EMOJI_PATTERN).filter(Boolean).map(
-    (part) => EXACT_FLAG_EMOJI_PATTERN.test(part) ? E("span", { class: "fkp_dashboard-page__flag-emoji" }, part) : part
+    (part) => EXACT_FLAG_EMOJI_PATTERN.test(part) ? textE("span", { class: "fkp_dashboard-page__flag-emoji" }, part) : part
   );
 }
 
@@ -257,7 +267,7 @@ function alignLuciRpcTimeout(timeoutMs) {
 
 // src/helpers/callUbus.ts
 function rpcModule() {
-  const candidate = globalThis.rpc;
+  const candidate = typeof rpc === "undefined" ? void 0 : rpc;
   return candidate;
 }
 var UNAVAILABLE_STATUS = /* @__PURE__ */ new Set([
@@ -1071,17 +1081,17 @@ function prettyBytes(n) {
 
 // src/forkop/tabs/dashboard/partials/renderSections.ts
 function renderFailedState() {
-  return E(
+  return textE(
     "div",
     {
       class: "fkp_dashboard-page__outbound-section centered",
       style: "height: 127px"
     },
-    E("span", {}, [E("span", {}, _("Dashboard currently unavailable"))])
+    textE("span", {}, [textE("span", {}, _("Dashboard currently unavailable"))])
   );
 }
 function renderLoadingState() {
-  return E("div", {
+  return textE("div", {
     id: "dashboard-sections-grid-skeleton",
     class: "fkp_dashboard-page__outbound-section skeleton",
     style: "height: 127px"
@@ -1117,7 +1127,7 @@ function renderMetadataAction(label, url) {
   if (!isValidHttpUrl(url)) {
     return void 0;
   }
-  return E(
+  return textE(
     "a",
     {
       class: "fkp_dashboard-page__subscription-meta__action",
@@ -1156,13 +1166,13 @@ function renderSubscriptionMetadata(metadata) {
   if (!title && !rows.length && !actions.length && !metadata.announce) {
     return void 0;
   }
-  return E("div", { class: "fkp_dashboard-page__subscription-meta" }, [
-    E("div", { class: "fkp_dashboard-page__subscription-meta__main" }, [
-      metadata.subscriptionTag ? E(
+  return textE("div", { class: "fkp_dashboard-page__subscription-meta" }, [
+    textE("div", { class: "fkp_dashboard-page__subscription-meta__main" }, [
+      metadata.subscriptionTag ? textE(
         "div",
         { class: "fkp_dashboard-page__subscription-meta__heading" },
         [
-          E(
+          textE(
             "span",
             {
               class: "fkp_dashboard-page__outbound-grid__item__subscription-tag"
@@ -1171,27 +1181,27 @@ function renderSubscriptionMetadata(metadata) {
           )
         ]
       ) : "",
-      title ? E(
+      title ? textE(
         "div",
         { class: "fkp_dashboard-page__subscription-meta__title" },
         title
       ) : "",
-      rows.length ? E(
+      rows.length ? textE(
         "div",
         { class: "fkp_dashboard-page__subscription-meta__facts" },
         rows.map(
-          (row) => E(
+          (row) => textE(
             "div",
             { class: "fkp_dashboard-page__subscription-meta__fact" },
             [
-              E(
+              textE(
                 "span",
                 {
                   class: "fkp_dashboard-page__subscription-meta__fact-key"
                 },
                 row.label
               ),
-              E(
+              textE(
                 "span",
                 {
                   class: "fkp_dashboard-page__subscription-meta__fact-value"
@@ -1202,13 +1212,13 @@ function renderSubscriptionMetadata(metadata) {
           )
         )
       ) : "",
-      actions.length ? E(
+      actions.length ? textE(
         "div",
         { class: "fkp_dashboard-page__subscription-meta__actions" },
         actions
       ) : ""
     ]),
-    metadata.announce ? E(
+    metadata.announce ? textE(
       "blockquote",
       { class: "fkp_dashboard-page__subscription-meta__announce" },
       metadata.announce
@@ -1219,7 +1229,7 @@ function renderSubscriptionUpdateAction(section, subscriptionUpdating, onUpdateS
   if (!section.subscriptionSourceCount) {
     return void 0;
   }
-  return E(
+  return textE(
     "button",
     {
       type: "button",
@@ -1242,7 +1252,7 @@ function renderRuleSetUpdateAction(section, ruleSetUpdating, onUpdateRuleSets) {
   if (!section.ruleSetProviderTags?.length) {
     return void 0;
   }
-  return E(
+  return textE(
     "button",
     {
       type: "button",
@@ -1307,7 +1317,7 @@ function renderDefaultState({
     ].filter(Boolean).join(" ");
     const latencyClass = latencyClassName(outbound.latency);
     const latencyValue = outbound.latency ? `${outbound.latency}ms` : "N/A";
-    const latency = showLatency ? E(
+    const latency = showLatency ? textE(
       "button",
       {
         type: "button",
@@ -1328,7 +1338,7 @@ function renderDefaultState({
       },
       [
         outboundLatencyFetching ? renderLoaderCircleIcon24() : renderRotateCcwIcon24(),
-        E(
+        textE(
           "span",
           {
             class: "fkp_dashboard-page__outbound-grid__item__latency-value"
@@ -1337,7 +1347,7 @@ function renderDefaultState({
         )
       ]
     ) : void 0;
-    return E(
+    return textE(
       "div",
       {
         class: className,
@@ -1345,10 +1355,10 @@ function renderDefaultState({
         click: () => canChooseOutbound && window.getSelection()?.isCollapsed !== false && onChooseOutbound(section.sectionName, section.code, outbound.code)
       },
       [
-        E("div", { class: "fkp_dashboard-page__outbound-grid__item__header" }, [
-          E("b", {}, [
+        textE("div", { class: "fkp_dashboard-page__outbound-grid__item__header" }, [
+          textE("b", {}, [
             ...outbound.subscriptionTag ? [
-              E(
+              textE(
                 "span",
                 {
                   class: "fkp_dashboard-page__outbound-grid__item__subscription-tag"
@@ -1359,7 +1369,7 @@ function renderDefaultState({
             ...renderFlagEmojis(outbound.displayName)
           ]),
           ...canCopyLink ? [
-            E(
+            textE(
               "button",
               {
                 type: "button",
@@ -1375,7 +1385,7 @@ function renderDefaultState({
             )
           ] : [],
           ...outbound.urlTestInfo ? [
-            E(
+            textE(
               "button",
               {
                 type: "button",
@@ -1391,7 +1401,7 @@ function renderDefaultState({
             )
           ] : [],
           ...outbound.fallbackInfo ? [
-            E(
+            textE(
               "button",
               {
                 type: "button",
@@ -1407,8 +1417,8 @@ function renderDefaultState({
             )
           ] : []
         ]),
-        E("div", { class: "fkp_dashboard-page__outbound-grid__item__footer" }, [
-          E(
+        textE("div", { class: "fkp_dashboard-page__outbound-grid__item__footer" }, [
+          textE(
             "div",
             { class: "fkp_dashboard-page__outbound-grid__item__type" },
             [outbound.fallbackInfo ? _("Fallback") : outbound.type].filter(
@@ -1434,7 +1444,7 @@ function renderDefaultState({
   const outbounds = sortByLatency ? [...section.outbounds].sort(
     (left, right) => getLatencySortValue(left) - getLatencySortValue(right)
   ) : section.outbounds;
-  const latencySortAction = section.outbounds.length > 1 ? E(
+  const latencySortAction = section.outbounds.length > 1 ? textE(
     "button",
     {
       type: "button",
@@ -1454,7 +1464,7 @@ function renderDefaultState({
     renderListFilterIcon24()
   ) : void 0;
   const collapseLabel = collapsed ? _("Expand section") : _("Collapse section");
-  const collapseAction = collapsible ? E(
+  const collapseAction = collapsible ? textE(
     "button",
     {
       type: "button",
@@ -1473,17 +1483,17 @@ function renderDefaultState({
     },
     renderChevronUpIcon24()
   ) : void 0;
-  return E("div", { class: "fkp_dashboard-page__outbound-section" }, [
+  return textE("div", { class: "fkp_dashboard-page__outbound-section" }, [
     // Title with test latency
-    E("div", { class: "fkp_dashboard-page__outbound-section__title-section" }, [
-      E(
+    textE("div", { class: "fkp_dashboard-page__outbound-section__title-section" }, [
+      textE(
         "div",
         {
           class: "fkp_dashboard-page__outbound-section__title-section__title"
         },
         section.displayName
       ),
-      E(
+      textE(
         "div",
         {
           class: "fkp_dashboard-page__outbound-section__title-section__actions"
@@ -1493,7 +1503,7 @@ function renderDefaultState({
           ...latencySortAction ? [latencySortAction] : [],
           ...subscriptionUpdateAction ? [subscriptionUpdateAction] : [],
           ...ruleSetUpdateAction ? [ruleSetUpdateAction] : [],
-          E(
+          textE(
             "button",
             {
               type: "button",
@@ -1509,14 +1519,14 @@ function renderDefaultState({
             },
             latencyFetching ? [
               renderLoaderCircleIcon24(),
-              E(
+              textE(
                 "span",
                 {
                   class: "dashboard-sections-grid-item-test-latency__label"
                 },
                 _("Test latency")
               )
-            ] : E(
+            ] : textE(
               "span",
               {
                 class: "dashboard-sections-grid-item-test-latency__label"
@@ -1531,7 +1541,7 @@ function renderDefaultState({
     // and every card. What stays is the title row, so the section is still
     // there to unfold and its actions still work on it.
     ...collapsed ? [] : [
-      E("div", { class: "fkp_dashboard-page__outbound-grid" }, [
+      textE("div", { class: "fkp_dashboard-page__outbound-grid" }, [
         ...metadataNodes,
         ...outbounds.map((outbound) => renderOutbound(outbound))
       ])
@@ -1581,7 +1591,7 @@ function renderSections(props) {
 
 // src/forkop/tabs/dashboard/partials/renderWidget.ts
 function renderFailedState2() {
-  return E(
+  return textE(
     "div",
     {
       id: "",
@@ -1592,7 +1602,7 @@ function renderFailedState2() {
   );
 }
 function renderLoadingState2() {
-  return E(
+  return textE(
     "div",
     {
       id: "",
@@ -1603,25 +1613,25 @@ function renderLoadingState2() {
   );
 }
 function renderDefaultState2({ title, items }) {
-  return E("div", { class: "fkp_dashboard-page__widgets-section__item" }, [
-    E(
+  return textE("div", { class: "fkp_dashboard-page__widgets-section__item" }, [
+    textE(
       "b",
       { class: "fkp_dashboard-page__widgets-section__item__title" },
       title
     ),
     ...items.map(
-      (item) => E(
+      (item) => textE(
         "div",
         {
           class: `fkp_dashboard-page__widgets-section__item__row ${item?.attributes?.class || ""}`
         },
         [
-          E(
+          textE(
             "span",
             { class: "fkp_dashboard-page__widgets-section__item__row__key" },
             `${item.key}: `
           ),
-          E(
+          textE(
             "span",
             { class: "fkp_dashboard-page__widgets-section__item__row__value" },
             item.value
@@ -1643,17 +1653,17 @@ function renderWidget(props) {
 
 // src/forkop/tabs/dashboard/render.ts
 function render() {
-  return E(
+  return textE(
     "div",
     {
       id: "dashboard-status",
       class: "fkp_dashboard-page"
     },
     [
-      E("div", { class: "fkp_dashboard-page__content" }, [
+      textE("div", { class: "fkp_dashboard-page__content" }, [
         // Widgets section
-        E("div", { class: "fkp_dashboard-page__widgets-section" }, [
-          E(
+        textE("div", { class: "fkp_dashboard-page__widgets-section" }, [
+          textE(
             "div",
             { id: "dashboard-widget-traffic" },
             renderWidget({
@@ -1663,7 +1673,7 @@ function render() {
               items: []
             })
           ),
-          E(
+          textE(
             "div",
             { id: "dashboard-widget-traffic-total" },
             renderWidget({
@@ -1673,7 +1683,7 @@ function render() {
               items: []
             })
           ),
-          E(
+          textE(
             "div",
             { id: "dashboard-widget-system-info" },
             renderWidget({
@@ -1683,7 +1693,7 @@ function render() {
               items: []
             })
           ),
-          E(
+          textE(
             "div",
             { id: "dashboard-widget-service-info" },
             renderWidget({
@@ -1695,7 +1705,7 @@ function render() {
           )
         ]),
         // All outbounds
-        E(
+        textE(
           "div",
           { id: "dashboard-sections-grid" },
           renderSectionsPlaceholder({ loading: true, failed: false })
@@ -3777,6 +3787,7 @@ var FORKOP_WAIT_TIMEOUT_MS = 2e4;
 var FORKOP_WAIT_RETRY_MS = 3e3;
 
 // src/forkop/services/forkopLogFeed.service.ts
+var FORKOP_LOG_RETRY_MS = 5e3;
 var running = false;
 var cursor = 0;
 function adopt(reply) {
@@ -3826,7 +3837,10 @@ async function startForkopLogFeed(onNewLog) {
         }
         if (response.unavailable) {
           logger.info("[LOG_FEED]", "log feed went away", response.message);
-          break;
+          await new Promise(
+            (resolve) => setTimeout(resolve, FORKOP_LOG_RETRY_MS)
+          );
+          continue;
         }
         logger.error("[LOG_FEED]", "log wait failed", response.message);
         await new Promise(
@@ -4067,6 +4081,7 @@ function markUiStateUnavailable() {
 var RUNTIME_UI_STATE_REFRESH_MIN_INTERVAL_MS = 500;
 var RUNTIME_UI_STATE_IDLE_POLL_INTERVAL_MS = 1e4;
 var RUNTIME_UI_STATE_ACTIVE_POLL_INTERVAL_MS = 1e3;
+var STATE_SERVICE_RETRY_MS = 3e4;
 var runtimeUiStateRefreshPromise = null;
 var lastRuntimeUiStateRefreshAt = 0;
 var lastRuntimeUiState;
@@ -4076,6 +4091,7 @@ var runtimeStatePollingStarted = false;
 var runtimeStateHasRunningAction = false;
 var lastRuntimeUiStateSignature = "";
 var transport = "unknown";
+var stateServiceRetryAt = 0;
 var stateRevision = 0;
 var waitLoopRunning = false;
 var waitLoopStop = false;
@@ -4137,8 +4153,13 @@ function adoptUbusState(value) {
   applyState(uiState);
   return uiState;
 }
+function useCli(reason) {
+  transport = "cli";
+  stateServiceRetryAt = Date.now() + STATE_SERVICE_RETRY_MS;
+  logger.info("[RUNTIME_UI_STATE]", "using the CLI", reason);
+}
 async function readState(recompute) {
-  if (transport !== "cli") {
+  if (transport !== "cli" || Date.now() >= stateServiceRetryAt) {
     const response2 = await callUbus({
       object: FORKOP_SERVICE_OBJECT,
       method: recompute ? "refresh" : "state",
@@ -4151,12 +4172,7 @@ async function readState(recompute) {
     if (!response2.unavailable && transport === "ubus") {
       return void 0;
     }
-    transport = "cli";
-    logger.info(
-      "[RUNTIME_UI_STATE]",
-      "state service unavailable, using the CLI",
-      response2.message
-    );
+    useCli(response2.message);
   }
   const response = await ForkopShellMethods.getUiState();
   if (!response.success) {
@@ -4230,12 +4246,7 @@ async function runWaitLoop() {
         continue;
       }
       if (response.unavailable) {
-        transport = "cli";
-        logger.info(
-          "[RUNTIME_UI_STATE]",
-          "state service went away, using the CLI",
-          response.message
-        );
+        useCli(response.message);
         break;
       }
       logger.error("[RUNTIME_UI_STATE]", "state wait failed", response.message);
@@ -4254,6 +4265,7 @@ function startTransportLoop() {
   }
   if (transport === "ubus") {
     clearPollTimer();
+    waitLoopStop = false;
     void runWaitLoop();
     return;
   }
@@ -4416,7 +4428,7 @@ function showLogNotification(notification) {
     const message = _("New version %s is available for %s").replace("%s", notification.version).replace("%s", componentDisplayName(notification.component));
     ui.addNotification(
       _("Component update available"),
-      E("div", {}, message),
+      textE("div", {}, message),
       "warning",
       "fkp-component-update-notification"
     );
@@ -4424,7 +4436,7 @@ function showLogNotification(notification) {
   }
   ui.addNotification(
     _("Forkop Error"),
-    E("div", {}, notification.line),
+    textE("div", {}, notification.line),
     "error",
     "fkp-log-error-notification"
   );
@@ -5344,9 +5356,9 @@ function formatUrlTestLatency(latency) {
 function renderDetailsUrl(value) {
   const url = `${value ?? ""}`.trim();
   if (!/^https?:\/\//i.test(url)) {
-    return E("span", {}, formatUrlTestModalValue(value));
+    return textE("span", {}, formatUrlTestModalValue(value));
   }
-  return E(
+  return textE(
     "a",
     {
       class: "fkp_dashboard-page__urltest-details__url",
@@ -5370,7 +5382,7 @@ function renderDetailsMemberName(member) {
   const countryFlag = getDetectedCountryFlag(member.country);
   return [
     ...member.subscriptionTag ? [
-      E(
+      textE(
         "span",
         {
           class: "fkp_dashboard-page__outbound-grid__item__subscription-tag"
@@ -5379,7 +5391,7 @@ function renderDetailsMemberName(member) {
       )
     ] : [],
     ...countryFlag ? [
-      E(
+      textE(
         "span",
         { class: "fkp_dashboard-page__urltest-details__country-badge" },
         countryFlag
@@ -5393,26 +5405,26 @@ function renderUrlTestSelectedValue(info) {
   const selectedName = selectedMember?.displayName || info.selectedName || info.selectedCode || "";
   const name = formatUrlTestModalValue(selectedName);
   if (name === _("No")) {
-    return E("span", {}, name);
+    return textE("span", {}, name);
   }
-  return E(
+  return textE(
     "span",
     { class: "fkp_dashboard-page__urltest-details__selected-value" },
     [
-      E(
+      textE(
         "span",
         { class: "fkp_dashboard-page__urltest-details__selected-name" },
         selectedMember ? renderDetailsMemberName(selectedMember) : name
       ),
       ...selectedMember?.type ? [
-        E(
+        textE(
           "span",
           { class: "fkp_dashboard-page__urltest-details__selected-type" },
           selectedMember.type
         )
       ] : [],
       ...selectedMember ? [
-        E(
+        textE(
           "span",
           { class: latencyClassName(selectedMember.latency) },
           formatUrlTestLatency(selectedMember.latency)
@@ -5422,7 +5434,7 @@ function renderUrlTestSelectedValue(info) {
   );
 }
 function renderUrlTestCopyButton(title, onClick) {
-  return E(
+  return textE(
     "button",
     {
       type: "button",
@@ -5437,7 +5449,7 @@ function renderUrlTestCopyButton(title, onClick) {
 function renderUrlTestInfoModal(outbound) {
   const info = outbound.urlTestInfo;
   if (!info) {
-    return E("div", {}, _("URLTest details are unavailable"));
+    return textE("div", {}, _("URLTest details are unavailable"));
   }
   const fields = [
     {
@@ -5457,32 +5469,32 @@ function renderUrlTestInfoModal(outbound) {
       value: info.interruptExistConnections
     }
   ];
-  return E("div", { class: "fkp_dashboard-page__urltest-details" }, [
-    E(
+  return textE("div", { class: "fkp_dashboard-page__urltest-details" }, [
+    textE(
       "dl",
       { class: "fkp_dashboard-page__urltest-details__params" },
       fields.map(
-        ({ label, value, children }) => E("div", { class: "fkp_dashboard-page__urltest-details__param" }, [
-          E("dt", {}, label),
-          E(
+        ({ label, value, children }) => textE("div", { class: "fkp_dashboard-page__urltest-details__param" }, [
+          textE("dt", {}, label),
+          textE(
             "dd",
             {},
-            children || [E("span", {}, formatUrlTestModalValue(value))]
+            children || [textE("span", {}, formatUrlTestModalValue(value))]
           )
         ])
       )
     ),
-    E("div", { class: "fkp_dashboard-page__urltest-details__outbounds" }, [
-      E(
+    textE("div", { class: "fkp_dashboard-page__urltest-details__outbounds" }, [
+      textE(
         "div",
         { class: "fkp_dashboard-page__urltest-details__outbounds-title" },
         _("Nodes")
       ),
-      E(
+      textE(
         "div",
         { class: "fkp_dashboard-page__urltest-details__table" },
         info.outbounds.length ? info.outbounds.map(
-          (member) => E(
+          (member) => textE(
             "div",
             {
               class: [
@@ -5495,21 +5507,21 @@ function renderUrlTestInfoModal(outbound) {
               // against each other: a name with no room left for the
               // latency drops it onto the next line instead of taking the
               // copy action down with it.
-              E(
+              textE(
                 "div",
                 {
                   class: "fkp_dashboard-page__urltest-details__row-body"
                 },
                 [
-                  E(
+                  textE(
                     "div",
                     {
                       class: "fkp_dashboard-page__urltest-details__row-name"
                     },
                     [
-                      E("b", {}, renderDetailsMemberName(member)),
+                      textE("b", {}, renderDetailsMemberName(member)),
                       ...member.type ? [
-                        E(
+                        textE(
                           "span",
                           {
                             class: "fkp_dashboard-page__urltest-details__row-type"
@@ -5519,13 +5531,13 @@ function renderUrlTestInfoModal(outbound) {
                       ] : []
                     ]
                   ),
-                  E(
+                  textE(
                     "div",
                     {
                       class: "fkp_dashboard-page__urltest-details__row-meta"
                     },
                     [
-                      E(
+                      textE(
                         "span",
                         { class: latencyClassName(member.latency) },
                         formatUrlTestLatency(member.latency)
@@ -5537,13 +5549,13 @@ function renderUrlTestInfoModal(outbound) {
               member.canCopyLink ? renderUrlTestCopyButton(_("Copy proxy link"), (event) => {
                 event.preventDefault();
                 void handleCopyOutbound(member);
-              }) : E("span", {
+              }) : textE("span", {
                 class: "fkp_dashboard-page__urltest-details__copy-placeholder"
               })
             ]
           )
         ) : [
-          E(
+          textE(
             "div",
             { class: "fkp_dashboard-page__urltest-details__empty" },
             _("Node list is empty")
@@ -5551,8 +5563,8 @@ function renderUrlTestInfoModal(outbound) {
         ]
       )
     ]),
-    E("div", { class: "fkp_dashboard-page__urltest-details__footer" }, [
-      E(
+    textE("div", { class: "fkp_dashboard-page__urltest-details__footer" }, [
+      textE(
         "button",
         {
           type: "button",
@@ -5580,13 +5592,13 @@ function renderFallbackSelectedValue(info) {
   const selectedName = selectedMember?.displayName || info.selectedName || info.selectedCode || "";
   const name = formatUrlTestModalValue(selectedName);
   if (name === _("No")) {
-    return E("span", {}, name);
+    return textE("span", {}, name);
   }
-  return E(
+  return textE(
     "span",
     { class: "fkp_dashboard-page__urltest-details__selected-value" },
     [
-      E(
+      textE(
         "span",
         {
           class: [
@@ -5597,14 +5609,14 @@ function renderFallbackSelectedValue(info) {
         selectedMember ? renderFallbackMemberName(selectedMember) : name
       ),
       ...selectedMember?.type ? [
-        E(
+        textE(
           "span",
           { class: "fkp_dashboard-page__urltest-details__selected-type" },
           selectedMember.type
         )
       ] : [],
       ...selectedMember ? [
-        E(
+        textE(
           "span",
           { class: latencyClassName(selectedMember.latency) },
           formatUrlTestLatency(selectedMember.latency)
@@ -5616,12 +5628,12 @@ function renderFallbackSelectedValue(info) {
 function renderFallbackMemberName(member) {
   const levelName = member.levelName || _("Level");
   return [
-    E(
+    textE(
       "span",
       { class: "fkp_dashboard-page__urltest-details__fallback-level" },
       levelName
     ),
-    E(
+    textE(
       "span",
       { class: "fkp_dashboard-page__urltest-details__fallback-node" },
       renderDetailsMemberName(member)
@@ -5672,7 +5684,7 @@ function renderFallbackMemberRow(info, member) {
   const choose = () => {
     void handleFallbackPin(info.code, member);
   };
-  return E(
+  return textE(
     "div",
     {
       class: [
@@ -5699,22 +5711,22 @@ function renderFallbackMemberRow(info, member) {
     [
       // Same cell for the name and its latency as a URLTest row, and for the
       // same reason: the pair wraps against itself and the pin action stays put.
-      E("div", { class: "fkp_dashboard-page__urltest-details__row-body" }, [
-        E("div", { class: "fkp_dashboard-page__urltest-details__row-name" }, [
-          E(
+      textE("div", { class: "fkp_dashboard-page__urltest-details__row-body" }, [
+        textE("div", { class: "fkp_dashboard-page__urltest-details__row-name" }, [
+          textE(
             "b",
             { class: "fkp_dashboard-page__urltest-details__fallback-name" },
             renderFallbackMemberName(member)
           ),
           ...member.type ? [
-            E(
+            textE(
               "span",
               { class: "fkp_dashboard-page__urltest-details__row-type" },
               member.type
             )
           ] : [],
           ...member.pinned ? [
-            E(
+            textE(
               "span",
               {
                 class: "fkp_dashboard-page__urltest-details__row-pin",
@@ -5724,8 +5736,8 @@ function renderFallbackMemberRow(info, member) {
             )
           ] : []
         ]),
-        E("div", { class: "fkp_dashboard-page__urltest-details__row-meta" }, [
-          E(
+        textE("div", { class: "fkp_dashboard-page__urltest-details__row-meta" }, [
+          textE(
             "span",
             { class: latencyClassName(member.latency) },
             formatUrlTestLatency(member.latency)
@@ -5736,7 +5748,7 @@ function renderFallbackMemberRow(info, member) {
         event.preventDefault();
         event.stopPropagation();
         void handleCopyOutbound(member);
-      }) : E("span", {
+      }) : textE("span", {
         class: "fkp_dashboard-page__urltest-details__copy-placeholder"
       })
     ]
@@ -5744,7 +5756,7 @@ function renderFallbackMemberRow(info, member) {
 }
 function renderFallbackInfoModal(info) {
   if (!info) {
-    return [E("div", {}, _("Fallback details are unavailable"))];
+    return [textE("div", {}, _("Fallback details are unavailable"))];
   }
   const fields = [
     {
@@ -5769,38 +5781,38 @@ function renderFallbackInfoModal(info) {
     }
   ];
   return [
-    E(
+    textE(
       "dl",
       { class: "fkp_dashboard-page__urltest-details__params" },
       fields.map(
-        ({ label, value, children }) => E("div", { class: "fkp_dashboard-page__urltest-details__param" }, [
-          E("dt", {}, label),
-          E(
+        ({ label, value, children }) => textE("div", { class: "fkp_dashboard-page__urltest-details__param" }, [
+          textE("dt", {}, label),
+          textE(
             "dd",
             {},
-            children || [E("span", {}, formatUrlTestModalValue(value))]
+            children || [textE("span", {}, formatUrlTestModalValue(value))]
           )
         ])
       )
     ),
-    E("div", { class: "fkp_dashboard-page__urltest-details__outbounds" }, [
-      E(
+    textE("div", { class: "fkp_dashboard-page__urltest-details__outbounds" }, [
+      textE(
         "div",
         { class: "fkp_dashboard-page__urltest-details__outbounds-title" },
         _("Nodes")
       ),
-      E(
+      textE(
         "div",
         { class: "fkp_dashboard-page__urltest-details__hint" },
         _("Click a server to pin its priority. Click it again to unpin.")
       ),
-      E(
+      textE(
         "div",
         { class: "fkp_dashboard-page__urltest-details__table" },
         info.outbounds.length ? info.outbounds.map(
           (member) => renderFallbackMemberRow(info, member)
         ) : [
-          E(
+          textE(
             "div",
             { class: "fkp_dashboard-page__urltest-details__empty" },
             _("Node list is empty")
@@ -5808,8 +5820,8 @@ function renderFallbackInfoModal(info) {
         ]
       )
     ]),
-    E("div", { class: "fkp_dashboard-page__urltest-details__footer" }, [
-      E(
+    textE("div", { class: "fkp_dashboard-page__urltest-details__footer" }, [
+      textE(
         "button",
         {
           type: "button",
@@ -5847,7 +5859,7 @@ function handleShowFallbackInfo(outbound) {
     return;
   }
   closeFallbackModal();
-  const container = E(
+  const container = textE(
     "div",
     { class: "fkp_dashboard-page__urltest-details" },
     renderFallbackInfoModal(info)
@@ -7025,14 +7037,14 @@ var DashboardTab = {
 
 // src/forkop/tabs/diagnostic/renderDiagnostic.ts
 function render2() {
-  return E("div", { id: "diagnostic-status", class: "fkp_diagnostic-page" }, [
-    E("div", { class: "fkp_diagnostic-page__controls" }, [
-      E("div", { id: "fkp_diagnostic-page-actions" }),
-      E("div", { id: "fkp_diagnostic-page-system-info" })
+  return textE("div", { id: "diagnostic-status", class: "fkp_diagnostic-page" }, [
+    textE("div", { class: "fkp_diagnostic-page__controls" }, [
+      textE("div", { id: "fkp_diagnostic-page-actions" }),
+      textE("div", { id: "fkp_diagnostic-page-system-info" })
     ]),
-    E("div", { class: "fkp_diagnostic-page__results" }, [
-      E("div", { id: "fkp_diagnostic-page-run-check" }),
-      E("div", {
+    textE("div", { class: "fkp_diagnostic-page__results" }, [
+      textE("div", { id: "fkp_diagnostic-page-run-check" }),
+      textE("div", {
         class: "fkp_diagnostic-page__checks",
         id: "fkp_diagnostic-page-checks"
       })
@@ -7618,7 +7630,7 @@ function renderButton({
 }) {
   const hasIcon = !!loading3 || !!icon;
   function getWrappedIcon() {
-    const iconWrap = E("span", {
+    const iconWrap = textE("span", {
       class: "fkp-partial-button__icon"
     });
     if (loading3) {
@@ -7647,7 +7659,7 @@ function renderButton({
     }
     return void 0;
   }
-  return E(
+  return textE(
     "button",
     {
       type: "button",
@@ -7655,13 +7667,12 @@ function renderButton({
       disabled: getDisabled(),
       click: onClick
     },
-    [...insertIf(hasIcon, [getWrappedIcon()]), E("span", {}, text)]
+    [...insertIf(hasIcon, [getWrappedIcon()]), textE("span", {}, text)]
   );
 }
 
 // src/partials/modal/renderModal.ts
 function renderModal(text, name, options) {
-  let rawText = text ?? "";
   let currentText = "";
   let refreshInFlight = false;
   let pendingRefresh = false;
@@ -7674,14 +7685,8 @@ function renderModal(text, name, options) {
   let shouldScrollToBottomOnMount = Boolean(options?.startAtEnd);
   let autoRefreshInput;
   let maskValuesInput;
-  const getDisplayText = (value) => {
-    if (maskValuesEnabled && options?.maskText) {
-      return options.maskText(value);
-    }
-    return value;
-  };
-  const codeEl = E("code", {}, "");
-  const contentEl = E(
+  const codeEl = textE("code", {}, "");
+  const contentEl = textE(
     "pre",
     { class: "fkp-partial-modal__content" },
     codeEl
@@ -7731,9 +7736,6 @@ function renderModal(text, name, options) {
       });
     }
   };
-  const updateDisplayedTextFromRaw = () => {
-    updateText(getDisplayText(rawText));
-  };
   const refreshText = async (force = false) => {
     if (!options?.getText || !force && !autoRefreshEnabled || refreshInFlight) {
       return;
@@ -7745,7 +7747,7 @@ function renderModal(text, name, options) {
     const sessionId = refreshSessionId;
     try {
       const nextText = await options.getText({
-        maskValues: options.maskText ? false : maskValuesEnabled
+        maskValues: maskValuesEnabled
       });
       if (!body.isConnected || !force && !autoRefreshEnabled) {
         return;
@@ -7753,9 +7755,7 @@ function renderModal(text, name, options) {
       if (sessionId !== refreshSessionId) {
         return;
       }
-      const normalizedText = nextText ?? "";
-      rawText = normalizedText;
-      updateText(getDisplayText(normalizedText));
+      updateText(nextText ?? "");
     } catch (error) {
       console.warn("[renderModal] failed to refresh modal content", error);
     } finally {
@@ -7822,10 +7822,6 @@ function renderModal(text, name, options) {
     if (maskValuesInput) {
       maskValuesInput.checked = nextValue;
     }
-    if (options?.maskText) {
-      updateDisplayedTextFromRaw();
-      return;
-    }
     requestForcedRefresh();
   };
   const footerChildren = [
@@ -7859,9 +7855,9 @@ ${currentText}
       setAutoRefreshEnabled(autoRefreshInput.checked);
     });
     footerChildren.unshift(
-      E("label", { class: "fkp-partial-modal__checkbox" }, [
+      textE("label", { class: "fkp-partial-modal__checkbox" }, [
         autoRefreshInput,
-        E(
+        textE(
           "span",
           { class: "fkp-partial-modal__checkbox-text" },
           options.autoRefreshLabel ?? _("Auto refresh")
@@ -7869,7 +7865,7 @@ ${currentText}
       ])
     );
   }
-  if ((options?.getText || options?.maskText) && options?.showMaskValuesToggle) {
+  if (options?.getText && options?.showMaskValuesToggle) {
     maskValuesInput = document.createElement("input");
     maskValuesInput.type = "checkbox";
     maskValuesInput.className = "cbi-input-checkbox";
@@ -7878,9 +7874,9 @@ ${currentText}
       setMaskValuesEnabled(maskValuesInput.checked);
     });
     footerChildren.unshift(
-      E("label", { class: "fkp-partial-modal__checkbox" }, [
+      textE("label", { class: "fkp-partial-modal__checkbox" }, [
         maskValuesInput,
-        E(
+        textE(
           "span",
           { class: "fkp-partial-modal__checkbox-text" },
           options.maskValuesLabel ?? _("Hide values")
@@ -7888,10 +7884,10 @@ ${currentText}
       ])
     );
   }
-  const body = E("div", { class: "fkp-partial-modal__body" }, [
-    E("div", {}, [
+  const body = textE("div", { class: "fkp-partial-modal__body" }, [
+    textE("div", {}, [
       contentEl,
-      E("div", { class: "fkp-partial-modal__footer" }, footerChildren)
+      textE("div", { class: "fkp-partial-modal__footer" }, footerChildren)
     ])
   ]);
   if ((options?.getText || options?.startAtEnd) && typeof document !== "undefined") {
@@ -7912,7 +7908,7 @@ ${currentText}
     startRefreshTimer();
     requestRefresh();
   }
-  updateDisplayedTextFromRaw();
+  updateText(text ?? "");
   return body;
 }
 
@@ -7939,8 +7935,8 @@ function renderAvailableActions({
   showConfig,
   showSingBoxConfig
 }) {
-  return E("div", { class: "fkp_diagnostic-page__controls__actions" }, [
-    E("b", {}, _("Available actions")),
+  return textE("div", { class: "fkp_diagnostic-page__controls__actions" }, [
+    textE("b", {}, _("Available actions")),
     ...insertIf(restart.visible, [
       renderButton({
         classNames: ["cbi-button-apply"],
@@ -8024,11 +8020,11 @@ function renderAvailableActions({
 // src/forkop/tabs/diagnostic/partials/renderCheckSection.ts
 function renderCheckSummary(items) {
   if (!items.length) {
-    return E("div", {}, "");
+    return textE("div", {}, "");
   }
   const renderedItems = items.map((item) => {
     function getIcon() {
-      const iconWrap = E("span", {
+      const iconWrap = textE("span", {
         class: "fkp_diagnostic_alert__summary__item__icon"
       });
       if (item.state === "success") {
@@ -8042,20 +8038,20 @@ function renderCheckSummary(items) {
       }
       return iconWrap;
     }
-    return E(
+    return textE(
       "div",
       {
         class: `fkp_diagnostic_alert__summary__item fkp_diagnostic_alert__summary__item--${item.state}`
       },
       [
         getIcon(),
-        E("div", { class: "fkp_diagnostic_alert__summary__item__body" }, [
-          E(
+        textE("div", { class: "fkp_diagnostic_alert__summary__item__body" }, [
+          textE(
             "b",
             { class: "fkp_diagnostic_alert__summary__item__key" },
             item.key
           ),
-          E(
+          textE(
             "div",
             { class: "fkp_diagnostic_alert__summary__item__value" },
             item.value
@@ -8064,109 +8060,109 @@ function renderCheckSummary(items) {
       ]
     );
   });
-  return E("div", { class: "fkp_diagnostic_alert__summary" }, renderedItems);
+  return textE("div", { class: "fkp_diagnostic_alert__summary" }, renderedItems);
 }
 function renderLoadingState3(props) {
-  const iconWrap = E("span", { class: "fkp_diagnostic_alert__icon" });
+  const iconWrap = textE("span", { class: "fkp_diagnostic_alert__icon" });
   iconWrap.appendChild(renderLoaderCircleIcon24());
-  return E(
+  return textE(
     "div",
     { class: "fkp_diagnostic_alert fkp_diagnostic_alert--loading" },
     [
       iconWrap,
-      E("div", { class: "fkp_diagnostic_alert__content" }, [
-        E("b", { class: "fkp_diagnostic_alert__title" }, props.title),
-        E(
+      textE("div", { class: "fkp_diagnostic_alert__content" }, [
+        textE("b", { class: "fkp_diagnostic_alert__title" }, props.title),
+        textE(
           "div",
           { class: "fkp_diagnostic_alert__description" },
           props.description
         )
       ]),
-      E("div", {}, ""),
+      textE("div", {}, ""),
       renderCheckSummary(props.items)
     ]
   );
 }
 function renderWarningState(props) {
-  const iconWrap = E("span", { class: "fkp_diagnostic_alert__icon" });
+  const iconWrap = textE("span", { class: "fkp_diagnostic_alert__icon" });
   iconWrap.appendChild(renderCircleAlertIcon24());
-  return E(
+  return textE(
     "div",
     { class: "fkp_diagnostic_alert fkp_diagnostic_alert--warning" },
     [
       iconWrap,
-      E("div", { class: "fkp_diagnostic_alert__content" }, [
-        E("b", { class: "fkp_diagnostic_alert__title" }, props.title),
-        E(
+      textE("div", { class: "fkp_diagnostic_alert__content" }, [
+        textE("b", { class: "fkp_diagnostic_alert__title" }, props.title),
+        textE(
           "div",
           { class: "fkp_diagnostic_alert__description" },
           props.description
         )
       ]),
-      E("div", {}, ""),
+      textE("div", {}, ""),
       renderCheckSummary(props.items)
     ]
   );
 }
 function renderErrorState(props) {
-  const iconWrap = E("span", { class: "fkp_diagnostic_alert__icon" });
+  const iconWrap = textE("span", { class: "fkp_diagnostic_alert__icon" });
   iconWrap.appendChild(renderCircleXIcon24());
-  return E(
+  return textE(
     "div",
     { class: "fkp_diagnostic_alert fkp_diagnostic_alert--error" },
     [
       iconWrap,
-      E("div", { class: "fkp_diagnostic_alert__content" }, [
-        E("b", { class: "fkp_diagnostic_alert__title" }, props.title),
-        E(
+      textE("div", { class: "fkp_diagnostic_alert__content" }, [
+        textE("b", { class: "fkp_diagnostic_alert__title" }, props.title),
+        textE(
           "div",
           { class: "fkp_diagnostic_alert__description" },
           props.description
         )
       ]),
-      E("div", {}, ""),
+      textE("div", {}, ""),
       renderCheckSummary(props.items)
     ]
   );
 }
 function renderSuccessState(props) {
-  const iconWrap = E("span", { class: "fkp_diagnostic_alert__icon" });
+  const iconWrap = textE("span", { class: "fkp_diagnostic_alert__icon" });
   iconWrap.appendChild(renderCircleCheckIcon24());
-  return E(
+  return textE(
     "div",
     { class: "fkp_diagnostic_alert fkp_diagnostic_alert--success" },
     [
       iconWrap,
-      E("div", { class: "fkp_diagnostic_alert__content" }, [
-        E("b", { class: "fkp_diagnostic_alert__title" }, props.title),
-        E(
+      textE("div", { class: "fkp_diagnostic_alert__content" }, [
+        textE("b", { class: "fkp_diagnostic_alert__title" }, props.title),
+        textE(
           "div",
           { class: "fkp_diagnostic_alert__description" },
           props.description
         )
       ]),
-      E("div", {}, ""),
+      textE("div", {}, ""),
       renderCheckSummary(props.items)
     ]
   );
 }
 function renderSkippedState(props) {
-  const iconWrap = E("span", { class: "fkp_diagnostic_alert__icon" });
+  const iconWrap = textE("span", { class: "fkp_diagnostic_alert__icon" });
   iconWrap.appendChild(renderCircleSlashIcon24());
-  return E(
+  return textE(
     "div",
     { class: "fkp_diagnostic_alert fkp_diagnostic_alert--skipped" },
     [
       iconWrap,
-      E("div", { class: "fkp_diagnostic_alert__content" }, [
-        E("b", { class: "fkp_diagnostic_alert__title" }, props.title),
-        E(
+      textE("div", { class: "fkp_diagnostic_alert__content" }, [
+        textE("b", { class: "fkp_diagnostic_alert__title" }, props.title),
+        textE(
           "div",
           { class: "fkp_diagnostic_alert__description" },
           props.description
         )
       ]),
-      E("div", {}, ""),
+      textE("div", {}, ""),
       renderCheckSummary(props.items)
     ]
   );
@@ -8187,7 +8183,7 @@ function renderCheckSection(props) {
   if (props.state === "skipped") {
     return renderSkippedState(props);
   }
-  return E("div", {}, _("Not implement yet"));
+  return textE("div", {}, _("Not implement yet"));
 }
 
 // src/forkop/tabs/diagnostic/partials/renderRunAction.ts
@@ -8196,7 +8192,7 @@ function renderRunAction({
   disabled,
   click
 }) {
-  return E("div", { class: "fkp_diagnostic-page__run_check_wrapper" }, [
+  return textE("div", { class: "fkp_diagnostic-page__run_check_wrapper" }, [
     renderButton({
       text: _("Run Diagnostic"),
       onClick: click,
@@ -8210,8 +8206,8 @@ function renderRunAction({
 
 // src/forkop/tabs/diagnostic/partials/renderSystemInfo.ts
 function renderSystemInfo({ items }) {
-  return E("div", { class: "fkp_diagnostic-page__controls__system-info" }, [
-    E(
+  return textE("div", { class: "fkp_diagnostic-page__controls__system-info" }, [
+    textE(
       "b",
       { class: "fkp_diagnostic-page__controls__system-info__title" },
       _("System information")
@@ -8229,14 +8225,14 @@ function renderSystemInfo({ items }) {
           "fkp_diagnostic-page__controls__system-info__row__tag--success"
         ])
       ].filter(Boolean).join(" ");
-      return E(
+      return textE(
         "div",
         { class: "fkp_diagnostic-page__controls__system-info__row" },
         [
-          E("b", {}, item.key),
-          E("div", {}, [
-            E("span", {}, item.value),
-            E("span", { class: tagClass }, item?.tag?.label)
+          textE("b", {}, item.key),
+          textE("div", {}, [
+            textE("span", {}, item.value),
+            textE("span", { class: tagClass }, item?.tag?.label)
           ])
         ]
       );
@@ -8493,239 +8489,6 @@ function formatSingBoxVersion(value, showPackageFlavor = true) {
   return showPackageFlavor && value.sing_box_compressed ? `${version} (${_("compressed")})` : version;
 }
 
-// src/forkop/tabs/diagnostic/helpers/maskDiagnostics.ts
-var MASKED_VALUE = "MASKED";
-var SING_BOX_MASKED_KEYS = /* @__PURE__ */ new Set([
-  "auth_key",
-  "control_url",
-  "exit_node",
-  "hostname",
-  "listen",
-  "listen_port",
-  "username",
-  "uuid",
-  "server",
-  "server_name",
-  "secret",
-  "password",
-  "private_key",
-  "psk",
-  "userkey",
-  "static_key",
-  "key",
-  "client_key",
-  "certificate",
-  "client_certificate",
-  "peer_fingerprint",
-  "cookie",
-  "token",
-  "public_key",
-  "short_id",
-  "fingerprint",
-  "server_port",
-  "server_ports",
-  "advertise_routes",
-  "domain",
-  "domain_suffix",
-  "domain_keyword",
-  "domain_regex",
-  "ip_cidr",
-  "source_ip_cidr",
-  // WireGuard, AmneziaWG and WARP endpoints. `id` only ever appears inside a
-  // generated WARP profile, so it is the device identity rather than a tag.
-  "address",
-  "port",
-  "allowed_ips",
-  "pre_shared_key",
-  "reserved",
-  "id",
-  "auth_token",
-  "license_key",
-  "link"
-]);
-var FORKOP_MASK_AFTER_TOKEN = [
-  "option proxy_string",
-  "option hwid",
-  "list header",
-  "option subscription_url",
-  "list subscription_urls",
-  "list urltest_proxy_links",
-  "list selector_proxy_links",
-  "option server_uuid",
-  "option server_username",
-  "option server_password",
-  "option mtproto_secret",
-  "option shadowsocks_psk",
-  "option uuid",
-  "option password",
-  "option secret",
-  "option hysteria2_obfs_password",
-  "option reality_private_key",
-  "option reality_public_key",
-  "option reality_short_id",
-  "list reality_short_id",
-  "option yacd_secret_key",
-  "option native_api_secret"
-];
-var FORKOP_MASK_AFTER_TOKEN_SPACE = [
-  "list authorized_keys",
-  "option outbound_json",
-  "option endpoint_json",
-  "option inbound_json",
-  "option warp_profile_id",
-  "option warp_profile_auth_token",
-  "option warp_profile_private_key",
-  "option warp_profile_license_key",
-  "option private_key",
-  "option public_key",
-  "option pre_shared_key",
-  "option address",
-  "list address",
-  "option port",
-  "list allowed_ips",
-  "option mixed_proxy_username",
-  "option mixed_proxy_password",
-  "option url",
-  "list domain",
-  "list domain_suffix",
-  "list domain_keyword",
-  "list domain_regex",
-  "list ip_cidr",
-  "list source_ip_cidr",
-  "list fully_routed_ips",
-  "option dns_server",
-  "option bootstrap_dns_server",
-  "list dns_server",
-  "list bootstrap_dns_server",
-  "option listen",
-  "option listen_port",
-  "option public_host",
-  "option mtproto_faketls",
-  "option mtproto_domain_fronting_ip",
-  "option tls_server_name",
-  "option reality_handshake_server",
-  "option reality_handshake_server_port",
-  "option transport_host",
-  "list transport_hosts",
-  "option tailscale_auth_key",
-  "option tailscale_control_url",
-  "option tailscale_hostname",
-  "list tailscale_advertise_routes",
-  "option tailscale_ephemeral",
-  "option tailscale_exit_node",
-  "option tailscale_exit_node_allow_lan_access",
-  "option mixed_proxy_username",
-  "option mixed_proxy_password",
-  "option ipaddr",
-  "option netmask",
-  "option gateway",
-  "option username",
-  "option password",
-  "option private_key",
-  "option url"
-];
-function isRecord(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-function isSpaceChar(value) {
-  return value === " " || value === "	" || value === "\r" || value === "\n";
-}
-function maskAfterToken(line, token) {
-  const position = line.indexOf(token);
-  return position < 0 ? line : `${line.slice(0, position)}${token} '${MASKED_VALUE}'`;
-}
-function maskAfterTokenSpace(line, token) {
-  const position = line.indexOf(token);
-  if (position < 0) {
-    return line;
-  }
-  const spacePosition = position + token.length;
-  if (spacePosition >= line.length || !isSpaceChar(line.slice(spacePosition, spacePosition + 1))) {
-    return line;
-  }
-  return `${line.slice(0, spacePosition + 1)}'${MASKED_VALUE}'`;
-}
-function maskOptionPath(line, token) {
-  const position = line.indexOf(token);
-  if (position < 0) {
-    return line;
-  }
-  const slashOffset = line.slice(position + token.length).indexOf("/");
-  if (slashOffset < 0) {
-    return line;
-  }
-  const slash = slashOffset + position + token.length;
-  const quoteOffset = line.slice(slash + 1).indexOf("'");
-  if (quoteOffset < 0) {
-    return line;
-  }
-  const quote = quoteOffset + slash + 1;
-  return `${line.slice(0, slash)}/MASKED'${line.slice(quote + 1)}`;
-}
-function maskGlobalCheckLine(line) {
-  let maskedLine = line;
-  for (const token of FORKOP_MASK_AFTER_TOKEN) {
-    maskedLine = maskAfterToken(maskedLine, token);
-  }
-  for (const token of FORKOP_MASK_AFTER_TOKEN_SPACE) {
-    maskedLine = maskAfterTokenSpace(maskedLine, token);
-  }
-  maskedLine = maskOptionPath(maskedLine, "option dns_server '");
-  maskedLine = maskOptionPath(maskedLine, "list dns_server '");
-  return maskedLine;
-}
-function maskMultilineContinuation(line) {
-  const leadingSpace = line.match(/^\s*/)?.[0] ?? "";
-  const hasClosingQuote = line.includes("'");
-  return `${leadingSpace}${MASKED_VALUE}${hasClosingQuote ? "'" : ""}`;
-}
-function maskSingBoxConfigValue(value) {
-  if (Array.isArray(value)) {
-    return value.map((item) => maskSingBoxConfigValue(item));
-  }
-  if (isRecord(value)) {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [
-        key,
-        SING_BOX_MASKED_KEYS.has(key) ? MASKED_VALUE : maskSingBoxConfigValue(item)
-      ])
-    );
-  }
-  return value;
-}
-function stringifySingBoxConfig(value) {
-  return typeof value === "string" ? value : JSON.stringify(value, null, 2);
-}
-function formatMaskedSingBoxConfig(value) {
-  if (typeof value === "string") {
-    try {
-      return JSON.stringify(maskSingBoxConfigValue(JSON.parse(value)), null, 2);
-    } catch (_error) {
-      return value;
-    }
-  }
-  return JSON.stringify(maskSingBoxConfigValue(value), null, 2);
-}
-function maskGlobalCheckText(text = "") {
-  let inMaskedMultiline = false;
-  return `${text}`.split("\n").map((line) => {
-    if (inMaskedMultiline) {
-      if (line.includes("'")) {
-        inMaskedMultiline = false;
-      }
-      return maskMultilineContinuation(line);
-    }
-    const maskedLine = maskGlobalCheckLine(line);
-    if (line.includes("option outbound_json") || line.includes("option endpoint_json") || line.includes("option inbound_json")) {
-      const firstQuote = line.indexOf("'");
-      if (firstQuote >= 0 && line.slice(firstQuote + 1).indexOf("'") < 0) {
-        inMaskedMultiline = true;
-      }
-    }
-    return maskedLine;
-  }).join("\n");
-}
-
 // src/forkop/tabs/diagnostic/initController.ts
 var latestCapabilitiesRequestId = 0;
 var diagnosticLifecycleRegistered = false;
@@ -8937,17 +8700,24 @@ async function handleEnable() {
 async function handleDisable() {
   await handleAutostartAction("disable", () => ForkopShellMethods.disable());
 }
+function diagnosticText(load) {
+  return async ({ maskValues }) => {
+    const result = await load(maskValues);
+    if (!result.success) {
+      throw new Error("Failed to load diagnostics");
+    }
+    return typeof result.data === "string" ? result.data : JSON.stringify(result.data, null, 2);
+  };
+}
 async function handleShowGlobalCheck() {
   setDiagnosticActionLoading("globalCheck", true);
   try {
-    const globalCheck = await ForkopShellMethods.globalCheck(false);
+    const globalCheck = await ForkopShellMethods.globalCheck(true);
     if (globalCheck.success) {
-      const rawGlobalCheckText = globalCheck.data ?? "";
-      const maskedGlobalCheckText = maskGlobalCheckText(rawGlobalCheckText);
       ui.showModal(
         _("Global check"),
-        renderModal(rawGlobalCheckText, "global_check", {
-          maskText: () => maskedGlobalCheckText,
+        renderModal(globalCheck.data ?? "", "global_check", {
+          getText: diagnosticText(ForkopShellMethods.globalCheck),
           initialAutoRefresh: false,
           showMaskValuesToggle: true
         })
@@ -8964,14 +8734,12 @@ async function handleShowGlobalCheck() {
 async function handleShowForkopConfig() {
   setDiagnosticActionLoading("showConfig", true);
   try {
-    const showConfig = await ForkopShellMethods.showConfig(false);
+    const showConfig = await ForkopShellMethods.showConfig(true);
     if (showConfig.success) {
-      const rawConfigText = showConfig.data ?? "";
-      const maskedConfigText = maskGlobalCheckText(rawConfigText);
       ui.showModal(
         _("Forkop configuration"),
-        renderModal(rawConfigText, "show_config", {
-          maskText: () => maskedConfigText,
+        renderModal(showConfig.data ?? "", "show_config", {
+          getText: diagnosticText(ForkopShellMethods.showConfig),
           initialAutoRefresh: false,
           showMaskValuesToggle: true
         })
@@ -8988,29 +8756,16 @@ async function handleShowForkopConfig() {
 async function handleShowSingBoxConfig() {
   setDiagnosticActionLoading("showSingBoxConfig", true);
   try {
-    const showSingBoxConfig = await ForkopShellMethods.showSingBoxConfig(false);
-    if (showSingBoxConfig.success) {
-      const rawSingBoxConfigText = stringifySingBoxConfig(
-        showSingBoxConfig.data
-      );
-      const maskedSingBoxConfigText = formatMaskedSingBoxConfig(
-        showSingBoxConfig.data
-      );
-      ui.showModal(
-        _("sing-box configuration"),
-        renderModal(rawSingBoxConfigText, "show_sing_box_config", {
-          maskText: () => maskedSingBoxConfigText,
-          initialAutoRefresh: false,
-          showMaskValuesToggle: true
-        })
-      );
-    } else {
-      logger.error(
-        "[DIAGNOSTIC]",
-        "handleShowSingBoxConfig - e",
-        showSingBoxConfig
-      );
-    }
+    const load = diagnosticText(ForkopShellMethods.showSingBoxConfig);
+    const showSingBoxConfig = await load({ maskValues: true });
+    ui.showModal(
+      _("sing-box configuration"),
+      renderModal(showSingBoxConfig, "show_sing_box_config", {
+        getText: load,
+        initialAutoRefresh: false,
+        showMaskValuesToggle: true
+      })
+    );
   } catch (e) {
     logger.error("[DIAGNOSTIC]", "handleShowSingBoxConfig - e", e);
   } finally {
@@ -9540,17 +9295,17 @@ var DiagnosticTab = {
 
 // src/forkop/tabs/monitoring/render.ts
 function render3() {
-  return E(
+  return textE(
     "div",
     {
       id: "monitoring-status",
       class: "fkp_monitoring-page"
     },
     [
-      E("div", { class: "fkp_monitoring-page__panel" }, [
-        E("div", { class: "fkp_monitoring-page__controls" }, [
-          E("div", { class: "fkp_monitoring-page__tabs" }, [
-            E(
+      textE("div", { class: "fkp_monitoring-page__panel" }, [
+        textE("div", { class: "fkp_monitoring-page__controls" }, [
+          textE("div", { class: "fkp_monitoring-page__tabs" }, [
+            textE(
               "button",
               {
                 id: "monitoring-tab-active",
@@ -9559,7 +9314,7 @@ function render3() {
               },
               `${_("Active")} 0`
             ),
-            E(
+            textE(
               "button",
               {
                 id: "monitoring-tab-closed",
@@ -9569,18 +9324,18 @@ function render3() {
               `${_("Closed")} 0`
             )
           ]),
-          E("div", { class: "fkp_monitoring-page__filters" }, [
-            E(
+          textE("div", { class: "fkp_monitoring-page__filters" }, [
+            textE(
               "select",
               {
                 id: "monitoring-device-filter",
                 class: "cbi-input-select fkp_monitoring-page__device-filter"
               },
-              [E("option", { value: "all" }, _("All devices"))]
+              [textE("option", { value: "all" }, _("All devices"))]
             ),
-            E("label", { class: "fkp_monitoring-page__search" }, [
-              E("span", { class: "fkp_monitoring-page__search-icon" }, []),
-              E("input", {
+            textE("label", { class: "fkp_monitoring-page__search" }, [
+              textE("span", { class: "fkp_monitoring-page__search-icon" }, []),
+              textE("input", {
                 id: "monitoring-search",
                 class: "cbi-input-text fkp_monitoring-page__search-input",
                 type: "search",
@@ -9589,8 +9344,8 @@ function render3() {
               })
             ])
           ]),
-          E("div", { class: "fkp_monitoring-page__actions" }, [
-            E(
+          textE("div", { class: "fkp_monitoring-page__actions" }, [
+            textE(
               "button",
               {
                 id: "monitoring-close-all",
@@ -9602,7 +9357,7 @@ function render3() {
               },
               []
             ),
-            E(
+            textE(
               "button",
               {
                 id: "monitoring-pause-toggle",
@@ -9615,11 +9370,11 @@ function render3() {
             )
           ])
         ]),
-        E(
+        textE(
           "div",
           { id: "monitoring-connections", class: "fkp_monitoring-page__body" },
           [
-            E(
+            textE(
               "div",
               {
                 class: "fkp_monitoring-page__state fkp_monitoring-page__state--loading"
@@ -10329,9 +10084,9 @@ function renderDeviceFilterOptions() {
   }
   lastDeviceFilterSignature = signature;
   const options = [
-    E("option", { value: ALL_FILTER_VALUE }, _("All devices")),
+    textE("option", { value: ALL_FILTER_VALUE }, _("All devices")),
     ...sourceIps.map(
-      (ip) => E("option", { value: ip }, getDeviceFilterLabel(ip))
+      (ip) => textE("option", { value: ip }, getDeviceFilterLabel(ip))
     )
   ];
   select.replaceChildren(...options);
@@ -10345,8 +10100,8 @@ function setButtonActive(button, active) {
 }
 function renderTabButtonContent(label, count) {
   return [
-    E("span", { class: "fkp_monitoring-page__tab-label" }, label),
-    E("span", { class: "fkp_monitoring-page__tab-badge" }, String(count))
+    textE("span", { class: "fkp_monitoring-page__tab-label" }, label),
+    textE("span", { class: "fkp_monitoring-page__tab-badge" }, String(count))
   ];
 }
 function renderControls() {
@@ -10406,7 +10161,7 @@ function renderControls() {
 }
 function renderValue(value, className = "") {
   const text = value || "-";
-  const element2 = E(
+  const element3 = textE(
     "span",
     {
       class: ["fkp_monitoring-page__value", className].filter(Boolean).join(" "),
@@ -10414,13 +10169,13 @@ function renderValue(value, className = "") {
     },
     text
   );
-  element2.setAttribute("data-copy-value", text);
-  return element2;
+  element3.setAttribute("data-copy-value", text);
+  return element3;
 }
 function renderSourceValue(source) {
   const fullText = source.copyValue || source.primary || "-";
   if (!source.ip) {
-    const element3 = E(
+    const element4 = textE(
       "span",
       {
         class: "fkp_monitoring-page__value fkp_monitoring-page__source-value fkp_monitoring-page__source-value--ip-only",
@@ -10428,25 +10183,25 @@ function renderSourceValue(source) {
       },
       source.primary || "-"
     );
-    element3.setAttribute("data-copy-value", fullText);
-    return element3;
+    element4.setAttribute("data-copy-value", fullText);
+    return element4;
   }
-  const element2 = E(
+  const element3 = textE(
     "span",
     {
       class: "fkp_monitoring-page__value fkp_monitoring-page__source-value",
       title: fullText
     },
     [
-      E("span", { class: "fkp_monitoring-page__source-name" }, source.primary),
-      E("span", { class: "fkp_monitoring-page__source-ip" }, source.ip)
+      textE("span", { class: "fkp_monitoring-page__source-name" }, source.primary),
+      textE("span", { class: "fkp_monitoring-page__source-ip" }, source.ip)
     ]
   );
-  element2.setAttribute("data-copy-value", fullText);
-  return element2;
+  element3.setAttribute("data-copy-value", fullText);
+  return element3;
 }
 function renderTableCell(label, children) {
-  const cell = E("td", {}, children);
+  const cell = textE("td", {}, children);
   cell.setAttribute("data-label", label);
   return cell;
 }
@@ -10454,7 +10209,7 @@ function renderConnectionRow(connection) {
   const target = getTargetCellParts(connection);
   const source = getSourceCellParts(connection);
   const isClosing = closingConnectionIds.has(connection.id);
-  const closeButton = activeTab === "active" ? E(
+  const closeButton = activeTab === "active" ? textE(
     "button",
     {
       class: "btn cbi-button fkp_monitoring-page__row-action",
@@ -10465,12 +10220,12 @@ function renderConnectionRow(connection) {
       ...isClosing ? { disabled: true } : {}
     },
     [renderXIcon24()]
-  ) : E(
+  ) : textE(
     "span",
     { class: "fkp_monitoring-page__row-action-placeholder" },
     "-"
   );
-  return E(
+  return textE(
     "tr",
     {
       class: [
@@ -10501,15 +10256,15 @@ function renderConnectionRow(connection) {
   );
 }
 function renderStateRow(text, className = "") {
-  return E("tr", { class: "fkp_monitoring-page__state-row" }, [
-    E(
+  return textE("tr", { class: "fkp_monitoring-page__state-row" }, [
+    textE(
       "td",
       {
         class: "fkp_monitoring-page__state-cell",
         colSpan: 8
       },
       [
-        E(
+        textE(
           "div",
           {
             class: ["fkp_monitoring-page__state", className].filter(Boolean).join(" ")
@@ -10522,21 +10277,21 @@ function renderStateRow(text, className = "") {
 }
 function renderConnectionsTable(connections, state) {
   const rows = state ? [renderStateRow(state.text, state.className)] : connections.map(renderConnectionRow);
-  return E("div", { class: "fkp_monitoring-page__table-wrap" }, [
-    E("table", { class: "fkp_monitoring-page__table" }, [
-      E("thead", {}, [
-        E("tr", {}, [
-          E("th", {}, _("Host")),
-          E("th", {}, _("Type")),
-          E("th", {}, _("Route")),
-          E("th", {}, _("Time")),
-          E("th", {}, `\u2193 ${_("Downloaded")}`),
-          E("th", {}, `\u2191 ${_("Uploaded")}`),
-          E("th", {}, _("Source")),
-          E("th", {}, _("Close"))
+  return textE("div", { class: "fkp_monitoring-page__table-wrap" }, [
+    textE("table", { class: "fkp_monitoring-page__table" }, [
+      textE("thead", {}, [
+        textE("tr", {}, [
+          textE("th", {}, _("Host")),
+          textE("th", {}, _("Type")),
+          textE("th", {}, _("Route")),
+          textE("th", {}, _("Time")),
+          textE("th", {}, `\u2193 ${_("Downloaded")}`),
+          textE("th", {}, `\u2191 ${_("Uploaded")}`),
+          textE("th", {}, _("Source")),
+          textE("th", {}, _("Close"))
         ])
       ]),
-      E("tbody", {}, rows)
+      textE("tbody", {}, rows)
     ])
   ]);
 }
@@ -10623,47 +10378,47 @@ function setMonitoringPaused(paused) {
   }
   renderConnections();
 }
-function isElementOverflowing(element2) {
-  return element2.scrollWidth > element2.clientWidth + 1;
+function isElementOverflowing(element3) {
+  return element3.scrollWidth > element3.clientWidth + 1;
 }
-function getMonitoringValueOverflowElements(element2) {
+function getMonitoringValueOverflowElements(element3) {
   return [
-    element2,
-    ...Array.from(element2.querySelectorAll("*"))
+    element3,
+    ...Array.from(element3.querySelectorAll("*"))
   ].filter(isElementOverflowing);
 }
-function getElementCopyText(element2, fallback) {
-  return element2.getAttribute("data-copy-value") || element2.textContent || fallback;
+function getElementCopyText(element3, fallback) {
+  return element3.getAttribute("data-copy-value") || element3.textContent || fallback;
 }
 function compactMonitoringText(value) {
   return value.replace(/\u2026/g, "").trim().replace(/\s+/g, "");
 }
-function getMonitoringValueTextElements(element2) {
-  const children = Array.from(element2.children).filter(
+function getMonitoringValueTextElements(element3) {
+  const children = Array.from(element3.children).filter(
     (child) => child instanceof HTMLElement
   );
   if (children.length === 0) {
-    return [element2];
+    return [element3];
   }
   const textElements = children.flatMap(getMonitoringValueTextElements).filter((child) => compactMonitoringText(getElementCopyText(child, "")));
-  return textElements.length > 0 ? textElements : [element2];
+  return textElements.length > 0 ? textElements : [element3];
 }
-function estimateVisibleMonitoringTextLength(element2, fallbackText) {
-  const text = compactMonitoringText(getElementCopyText(element2, fallbackText));
+function estimateVisibleMonitoringTextLength(element3, fallbackText) {
+  const text = compactMonitoringText(getElementCopyText(element3, fallbackText));
   if (!text) {
     return 0;
   }
-  if (!isElementOverflowing(element2)) {
+  if (!isElementOverflowing(element3)) {
     return text.length;
   }
   return Math.floor(
-    element2.clientWidth / Math.max(element2.scrollWidth, 1) * text.length
+    element3.clientWidth / Math.max(element3.scrollWidth, 1) * text.length
   );
 }
-function getEstimatedVisibleMonitoringTextLength(element2, fallbackText) {
-  const textElements = getMonitoringValueTextElements(element2);
-  if (textElements.length === 1 && textElements[0] === element2) {
-    return estimateVisibleMonitoringTextLength(element2, fallbackText);
+function getEstimatedVisibleMonitoringTextLength(element3, fallbackText) {
+  const textElements = getMonitoringValueTextElements(element3);
+  if (textElements.length === 1 && textElements[0] === element3) {
+    return estimateVisibleMonitoringTextLength(element3, fallbackText);
   }
   return textElements.reduce(
     (total, textElement) => total + estimateVisibleMonitoringTextLength(textElement, fallbackText),
@@ -10690,10 +10445,10 @@ function getSelectionValueElements(selection) {
     root.querySelectorAll(
       ".fkp_monitoring-page__value[data-copy-value]"
     )
-  ).filter((element2) => {
+  ).filter((element3) => {
     for (let index = 0; index < selection.rangeCount; index += 1) {
       try {
-        if (selection.getRangeAt(index).intersectsNode(element2)) {
+        if (selection.getRangeAt(index).intersectsNode(element3)) {
           return true;
         }
       } catch (_error) {
@@ -10703,13 +10458,13 @@ function getSelectionValueElements(selection) {
     return false;
   });
 }
-function shouldCopyFullMonitoringValue(element2, selectedText, fullText) {
+function shouldCopyFullMonitoringValue(element3, selectedText, fullText) {
   const normalizedSelectedText = selectedText.replace(/\u2026/g, "").trim();
   const normalizedFullText = fullText.trim();
   const compactSelectedText = compactMonitoringText(selectedText);
   const compactFullText = compactMonitoringText(fullText);
-  const overflowElements = getMonitoringValueOverflowElements(element2);
-  const hasCompositeText = getMonitoringValueTextElements(element2).length > 1;
+  const overflowElements = getMonitoringValueOverflowElements(element3);
+  const hasCompositeText = getMonitoringValueTextElements(element3).length > 1;
   if (!normalizedSelectedText || !normalizedFullText) {
     return false;
   }
@@ -10731,7 +10486,7 @@ function shouldCopyFullMonitoringValue(element2, selectedText, fullText) {
     return false;
   }
   const estimatedVisibleChars = getEstimatedVisibleMonitoringTextLength(
-    element2,
+    element3,
     normalizedFullText
   );
   return compactSelectedText.length >= Math.max(4, estimatedVisibleChars - 2);
@@ -11819,7 +11574,7 @@ var MonitoringTab = {
 
 // src/forkop/tabs/logs/render.ts
 function renderActionButton(id, label) {
-  return E(
+  return textE(
     "button",
     {
       id,
@@ -11831,12 +11586,12 @@ function renderActionButton(id, label) {
   );
 }
 function render4() {
-  return E("div", { id: "logs-status", class: "fkp_logs-page" }, [
-    E("div", { class: "fkp_logs-page__toolbar" }, [
-      E("div", { class: "fkp_logs-page__controls" }, [
-        E("label", { class: "fkp_logs-page__search" }, [
-          E("span", { class: "fkp_logs-page__search-icon" }, []),
-          E("input", {
+  return textE("div", { id: "logs-status", class: "fkp_logs-page" }, [
+    textE("div", { class: "fkp_logs-page__toolbar" }, [
+      textE("div", { class: "fkp_logs-page__controls" }, [
+        textE("label", { class: "fkp_logs-page__search" }, [
+          textE("span", { class: "fkp_logs-page__search-icon" }, []),
+          textE("input", {
             id: "logs-search",
             class: "cbi-input-text fkp_logs-page__search-input",
             type: "search",
@@ -11844,22 +11599,22 @@ function render4() {
             autocomplete: "off"
           })
         ]),
-        E("label", { class: "fkp_logs-page__checkbox" }, [
-          E("input", {
+        textE("label", { class: "fkp_logs-page__checkbox" }, [
+          textE("input", {
             id: "logs-auto-refresh",
             class: "cbi-input-checkbox",
             type: "checkbox",
             checked: true
           }),
-          E("span", {}, _("Auto refresh"))
+          textE("span", {}, _("Auto refresh"))
         ])
       ]),
-      E("div", { class: "fkp_logs-page__actions" }, [
+      textE("div", { class: "fkp_logs-page__actions" }, [
         renderActionButton("logs-copy", _("Copy")),
         renderActionButton("logs-download", _("Download"))
       ])
     ]),
-    E(
+    textE(
       "pre",
       {
         id: "logs-output",
@@ -11890,20 +11645,20 @@ var AUTO_REFRESH_INTERVAL_MS = 2e3;
 var controllerInitialized = false;
 var loading2 = false;
 var rawLogs = "";
-function element(id) {
+function element2(id) {
   return document.getElementById(id);
 }
 function getVisibleLogs() {
-  const query = element("logs-search").value;
+  const query = element2("logs-search").value;
   return filterLogText(rawLogs, query);
 }
 function renderLogs(scrollToTop = false) {
-  const output = element("logs-output");
+  const output = element2("logs-output");
   const visibleLogs = getVisibleLogs();
   output.textContent = visibleLogs || (rawLogs ? _("No logs match the current filters") : _("No logs available"));
   output.classList.toggle("fkp_logs-page__output--empty", !visibleLogs);
-  element("logs-copy").disabled = !visibleLogs;
-  element("logs-download").disabled = !visibleLogs;
+  element2("logs-copy").disabled = !visibleLogs;
+  element2("logs-download").disabled = !visibleLogs;
   if (scrollToTop) {
     output.scrollTop = 0;
     output.scrollLeft = 0;
@@ -11911,13 +11666,13 @@ function renderLogs(scrollToTop = false) {
 }
 function setLoading(nextLoading) {
   loading2 = nextLoading;
-  element("logs-output").setAttribute("aria-busy", String(nextLoading));
+  element2("logs-output").setAttribute("aria-busy", String(nextLoading));
 }
 async function refreshLogs(initial = false) {
   if (loading2) {
     return;
   }
-  const output = element("logs-output");
+  const output = element2("logs-output");
   const distanceFromEnd = output.scrollHeight - output.scrollTop - output.clientHeight;
   const followEnd = initial || distanceFromEnd < 32;
   const previousScrollTop = output.scrollTop;
@@ -11941,7 +11696,7 @@ async function refreshLogs(initial = false) {
   } catch (error) {
     console.error("[LOGS] Failed to load logs", error);
     if (!rawLogs) {
-      element("logs-output").textContent = _("Failed to load logs");
+      element2("logs-output").textContent = _("Failed to load logs");
     }
   } finally {
     setLoading(false);
@@ -11966,19 +11721,19 @@ async function initController4() {
   }
   controllerInitialized = true;
   await onMount("logs-status");
-  const autoRefresh = element("logs-auto-refresh");
+  const autoRefresh = element2("logs-auto-refresh");
   autoRefresh.checked = true;
   document.querySelector(".fkp_logs-page__search-icon")?.replaceChildren(renderSearchIcon24());
-  element("logs-search").addEventListener("input", () => renderLogs(true));
+  element2("logs-search").addEventListener("input", () => renderLogs(true));
   autoRefresh.addEventListener("change", () => {
     if (autoRefresh.checked) {
       void refreshLogs();
     }
   });
-  element("logs-copy").addEventListener("click", copyVisibleLogs);
-  element("logs-download").addEventListener("click", downloadVisibleLogs);
+  element2("logs-copy").addEventListener("click", copyVisibleLogs);
+  element2("logs-download").addEventListener("click", downloadVisibleLogs);
   setInterval(() => {
-    if (!document.hidden && autoRefresh.checked && element("logs-status").offsetParent !== null) {
+    if (!document.hidden && autoRefresh.checked && element2("logs-status").offsetParent !== null) {
       void refreshLogs();
     }
   }, AUTO_REFRESH_INTERVAL_MS);
@@ -12147,8 +11902,8 @@ var LogsTab = {
 
 // src/forkop/tabs/updates/render.ts
 function render5() {
-  return E("div", { id: "updates-status", class: "fkp_updates-page" }, [
-    E("div", {
+  return textE("div", { id: "updates-status", class: "fkp_updates-page" }, [
+    textE("div", {
       id: "fkp_updates-components",
       class: "fkp_updates-page__components"
     })
@@ -12687,14 +12442,14 @@ function renderComponentCard(card) {
   const serviceRuntimeActionLoading = isServiceRuntimeActionLoading();
   const systemInfoLoading = isSystemInfoLoading();
   const headerChildren = [
-    E("b", { class: "fkp_updates-page__component__title" }, card.title),
-    E(
+    textE("b", { class: "fkp_updates-page__component__title" }, card.title),
+    textE(
       "span",
       { class: "fkp_updates-page__component__header-version" },
       card.version
     )
   ];
-  const header = E(
+  const header = textE(
     "div",
     { class: "fkp_updates-page__component__header" },
     headerChildren
@@ -12709,7 +12464,7 @@ function renderComponentCard(card) {
       const versionToShow = checkResult.latest_version || card.latestVersion || card.version;
       if (checkResult.release_url) {
         latestValueNodes.push(
-          E(
+          textE(
             "a",
             {
               class: "fkp_updates-page__component__release-version-link",
@@ -12730,7 +12485,7 @@ function renderComponentCard(card) {
       const versionToShow = checkResult.latest_version || card.latestVersion;
       if (checkResult.release_url) {
         latestValueNodes.push(
-          E(
+          textE(
             "a",
             {
               class: "fkp_updates-page__component__release-version-link",
@@ -12747,7 +12502,7 @@ function renderComponentCard(card) {
     }
     if (labelText) {
       const rowChildren = [
-        E(
+        textE(
           "span",
           { class: "fkp_updates-page__component__info-label" },
           labelText
@@ -12755,7 +12510,7 @@ function renderComponentCard(card) {
       ];
       if (latestValueNodes.length > 0) {
         rowChildren.push(
-          E(
+          textE(
             "span",
             {
               class: "fkp_updates-page__component__info-value fkp_updates-page__component__info-value--latest"
@@ -12765,7 +12520,7 @@ function renderComponentCard(card) {
         );
       }
       detailsChildren.push(
-        E(
+        textE(
           "div",
           { class: "fkp_updates-page__component__info-row" },
           rowChildren
@@ -12773,7 +12528,7 @@ function renderComponentCard(card) {
       );
     }
   }
-  const detailsContainer = detailsChildren.length > 0 ? E(
+  const detailsContainer = detailsChildren.length > 0 ? textE(
     "div",
     { class: "fkp_updates-page__component__details" },
     detailsChildren
@@ -12793,14 +12548,14 @@ function renderComponentCard(card) {
   });
   if (primaryButtons.length > 0) {
     actionElements.push(
-      E(
+      textE(
         "div",
         { class: "fkp_updates-page__component__actions-main" },
         primaryButtons
       )
     );
   }
-  const actionsContainer = E(
+  const actionsContainer = textE(
     "div",
     {
       class: [
@@ -12815,7 +12570,7 @@ function renderComponentCard(card) {
     cardChildren.push(detailsContainer);
   }
   cardChildren.push(actionsContainer);
-  return E("div", { class: "fkp_updates-page__component" }, cardChildren);
+  return textE("div", { class: "fkp_updates-page__component" }, cardChildren);
 }
 function renderUpdatesComponents() {
   const container = document.getElementById("fkp_updates-components");
@@ -12828,8 +12583,8 @@ function renderUpdatesComponents() {
   });
   return preserveScrollForPage(() => {
     container.replaceChildren(
-      E("div", { class: "fkp_updates-page__components-column" }, columns[0]),
-      E("div", { class: "fkp_updates-page__components-column" }, columns[1])
+      textE("div", { class: "fkp_updates-page__components-column" }, columns[0]),
+      textE("div", { class: "fkp_updates-page__components-column" }, columns[1])
     );
   });
 }
@@ -13308,7 +13063,7 @@ function dynamicListItemValues(dl) {
   }).filter((value) => value != null);
 }
 function renderChildItemLabel(option2, sectionId, itemId) {
-  return E(
+  return textE(
     "span",
     { class: "fkp-dynlist-label" },
     option2.inputValueForItem(sectionId, itemId)
@@ -13346,12 +13101,12 @@ function updateButtonAddDynamicListLayout(dl, label) {
   if (!addButton.classList.contains("fkp-button-add-control")) {
     addButton.className = "cbi-dropdown fkp-button-add-control";
     addButton.replaceChildren(
-      E(
+      textE(
         "ul",
         { tabindex: "-1" },
-        E("li", { placeholder: "", selected: "", display: "0" })
+        textE("li", { placeholder: "", selected: "", display: "0" })
       ),
-      E("span", { "aria-hidden": "true" }, "\u200B")
+      textE("span", { "aria-hidden": "true" }, "\u200B")
     );
   }
   const buttonLabel = label || "+";
@@ -14151,7 +13906,7 @@ function ensureConnectionsDynamicListStyles() {
     return;
   }
   document.head.appendChild(
-    E(
+    textE(
       "style",
       { id: CONNECTIONS_DYNLIST_STYLE_ID },
       `
@@ -14271,7 +14026,7 @@ var SettingsUIDynamicList = ui.DynamicList.extend({
     if (!item || item.fkpDynamicListSettingsButton || !hasSettings) {
       return;
     }
-    const settingsButton = E(
+    const settingsButton = textE(
       "button",
       {
         type: "button",
@@ -14995,7 +14750,7 @@ function validateRegex(value) {
     return true;
   }
   try {
-    new RegExp(value);
+    new RegExp(value.replace(/^\(\?i\)/, "").replace(/\(\?P</g, "(?<"));
     return true;
   } catch (_error) {
     return _("Invalid regular expression");
@@ -15442,7 +15197,7 @@ function renderStackedJsonSettingsModal(title, map, onSave, options = {}) {
       ensureSingleFieldModalStyles();
       nodes.classList.add(SINGLE_FIELD_MODAL_CLASS);
     }
-    const titleNode = E("span", title ? ` \xBB ${title}` : "");
+    const titleNode = textE("span", title ? ` \xBB ${title}` : "");
     const originalButtonClass = buttonRow.getAttribute("class") || "";
     const originalButtonNodes = Array.from(buttonRow.childNodes);
     let closed = false;
@@ -15486,7 +15241,7 @@ function renderStackedJsonSettingsModal(title, map, onSave, options = {}) {
       // rather than closing anything: `close` above takes the nested map out and
       // restores the parent's own buttons. "Close" said the opposite of what the
       // button does.
-      E(
+      textE(
         "button",
         {
           class: "btn cbi-button",
@@ -15495,7 +15250,7 @@ function renderStackedJsonSettingsModal(title, map, onSave, options = {}) {
         _("Back")
       ),
       " ",
-      saveButton = E(
+      saveButton = textE(
         "button",
         {
           class: "btn cbi-button cbi-button-positive important",
@@ -15579,10 +15334,10 @@ function showChildItemSettingsModal(section_id, itemValue, option2, settings) {
 }
 function setModalOptionValue(map, option2, value) {
   map.data.set(map.config, "settings", option2.option, value);
-  const element2 = typeof option2.getUIElement === "function" ? option2.getUIElement("settings") : null;
-  if (element2 && typeof element2.setValue === "function") {
-    element2.setValue(value);
-    element2.triggerValidation();
+  const element3 = typeof option2.getUIElement === "function" ? option2.getUIElement("settings") : null;
+  if (element3 && typeof element3.setValue === "function") {
+    element3.setValue(value);
+    element3.triggerValidation();
   }
 }
 
@@ -15601,7 +15356,7 @@ function outboundJsonDisplayTag(value) {
   return tag || "";
 }
 function outboundJsonListItemLabel(value) {
-  return E(
+  return textE(
     "span",
     { class: "fkp-dynlist-label" },
     outboundJsonDisplayTag(value) || _("JSON outbound")
@@ -16370,7 +16125,7 @@ function tunnelListItemLabel(sectionId, tunnelId) {
   if (kind === "json") {
     endpointType = parseOutboundJsonObject(child?.endpoint_json)?.type || "";
   }
-  return E(
+  return textE(
     "span",
     { class: "fkp-dynlist-label" },
     tunnelDisplayName(sectionId, tunnelId) || tunnelKindLabel(kind, `${endpointType}`.toLowerCase())
@@ -16684,7 +16439,7 @@ function wireGuardPeerFromSettings(settings) {
 }
 function wireGuardPeerListItemLabel(tunnelId, value, option2) {
   const peer = tunnelPeerForValue(tunnelId, value, option2);
-  return E(
+  return textE(
     "span",
     { class: "fkp-dynlist-label" },
     wireGuardPeerDisplayNameFromObject(peer)
@@ -17800,27 +17555,27 @@ function isConnectionNetworkInterfaceAllowed(deviceName, device) {
 function renderNetworkInterfaceChoice(device) {
   const name = device.getName();
   const type = device.getType();
-  return E([
-    E("img", {
+  return textE([
+    textE("img", {
       title: device.getI18n(),
       src: L.resource(
         "icons/%s%s.svg".format(type, device.isUp() ? "" : "_disabled")
       )
     }),
-    E("span", { class: "hide-open" }, [name]),
-    E("span", { class: "hide-close" }, [device.getI18n()])
+    textE("span", { class: "hide-open" }, [name]),
+    textE("span", { class: "hide-close" }, [device.getI18n()])
   ]);
 }
 function renderNetworkInterfaceListItem(device, fallbackName) {
   const name = device ? device.getName() : fallbackName;
   const type = device ? device.getType() : "ethernet";
   const up = device ? device.isUp() : false;
-  return E("span", { class: "fkp-interface-dynlist-label" }, [
-    E("img", {
+  return textE("span", { class: "fkp-interface-dynlist-label" }, [
+    textE("img", {
       title: device ? device.getI18n() : _("Network Interface"),
       src: L.resource("icons/%s%s.svg".format(type, up ? "" : "_disabled"))
     }),
-    E("span", {}, [name])
+    textE("span", {}, [name])
   ]);
 }
 function refreshNetworkInterfaceOptionValues(option2) {
@@ -18794,7 +18549,7 @@ function parseWireGuardConfig(input) {
   const source = readConfigFile(value);
   return "message" in source ? { valid: false, message: source.message } : buildEndpoint(source);
 }
-function isRecord2(value) {
+function isRecord(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 function decodeBase64Url(value) {
@@ -18837,20 +18592,20 @@ async function uncompressQtData(data) {
   return output;
 }
 function extractAmneziaWireGuardConfig(value) {
-  if (!isRecord2(value) || !Array.isArray(value.containers))
+  if (!isRecord(value) || !Array.isArray(value.containers))
     throw new Error("missing containers");
-  const containers = value.containers.filter(isRecord2);
+  const containers = value.containers.filter(isRecord);
   const defaultContainer = typeof value.defaultContainer === "string" ? value.defaultContainer : "";
   const selected = containers.find(
-    (container) => container.container === defaultContainer && (isRecord2(container.awg) || isRecord2(container.wireguard))
+    (container) => container.container === defaultContainer && (isRecord(container.awg) || isRecord(container.wireguard))
   ) || containers.find(
-    (container) => isRecord2(container.awg) || isRecord2(container.wireguard)
+    (container) => isRecord(container.awg) || isRecord(container.wireguard)
   );
   if (!selected) throw new Error("missing WireGuard container");
-  const protocol = isRecord2(selected.awg) ? selected.awg : isRecord2(selected.wireguard) ? selected.wireguard : null;
+  const protocol = isRecord(selected.awg) ? selected.awg : isRecord(selected.wireguard) ? selected.wireguard : null;
   if (!protocol) throw new Error("missing WireGuard protocol");
   const lastConfig = typeof protocol.last_config === "string" ? JSON.parse(protocol.last_config) : protocol.last_config;
-  if (!isRecord2(lastConfig) || typeof lastConfig.config !== "string")
+  if (!isRecord(lastConfig) || typeof lastConfig.config !== "string")
     throw new Error("missing WireGuard config");
   const dns1 = typeof value.dns1 === "string" ? value.dns1 : "";
   const dns2 = typeof value.dns2 === "string" ? value.dns2 : "";
@@ -19342,6 +19097,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   tailscaleAuthKeyOption.password = true;
   tailscaleAuthKeyOption.rmempty = false;
   tailscaleAuthKeyOption.depends("tunnel_type", "tailscale");
+  tailscaleAuthKeyOption.retain = true;
   const tailscaleHostnameOption = itemSection.option(
     form.Value,
     "tailscale_hostname",
@@ -19587,7 +19343,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   warpGenerateButton.onclick = function() {
     const showError = () => ui.addNotification(
       _("Forkop Error"),
-      E("p", {}, ["Failed to generate WARP profile."]),
+      textE("p", {}, ["Failed to generate WARP profile."]),
       "error"
     );
     return fs.exec("/usr/bin/forkop", ["generate_warp_profile"]).then((response) => {
@@ -19960,6 +19716,7 @@ function createSectionContent(section) {
     )
   );
   dnsServerOption.depends("action", "dns");
+  dnsServerOption.retain = true;
   dnsServerOption.modalonly = true;
   configureDnsServerList(dnsServerOption);
   const dnsQueryModeOption = section.taboption(
@@ -20472,6 +20229,7 @@ var RESERVED_PORTS = [
   ["1604", _("Forkop transparent proxy")],
   ["1605", _("Forkop transparent proxy")],
   ["4534", _("Forkop service proxy")],
+  ["4535", _("Forkop service proxy")],
   ["9090", _("sing-box Clash API")]
 ];
 var CAMOUFLAGE_SITES = [
@@ -20584,15 +20342,15 @@ function widgetNode(sectionId, name) {
 }
 function liveElement(sectionId, name) {
   const node = widgetNode(sectionId, name);
-  const element2 = node ? dom.findClassInstance(node) : null;
-  return element2 && typeof element2.getValue === "function" ? element2 : null;
+  const element3 = node ? dom.findClassInstance(node) : null;
+  return element3 && typeof element3.getValue === "function" ? element3 : null;
 }
 function liveOption(sectionId, name) {
-  const element2 = liveElement(sectionId, name);
-  if (!element2) {
+  const element3 = liveElement(sectionId, name);
+  if (!element3) {
     return option(sectionId, name);
   }
-  const value = element2.getValue();
+  const value = element3.getValue();
   return value == null ? "" : `${value}`;
 }
 function isEmptyValue(value) {
@@ -20765,6 +20523,18 @@ function protocolsWith(flag) {
 }
 function listenerProtocols() {
   return protocolsWhere((entry) => entry.kind === "inbound");
+}
+function listenTransports(protocol, network2) {
+  const value = `${network2 || ""}`.toLowerCase();
+  if (protocol === "hysteria2" || protocol === "tuic") return ["udp"];
+  if (protocol === "shadowsocks" || protocol === "naive" && value === "tcp_udp")
+    return ["tcp", "udp"];
+  if ((protocol === "naive" || protocol === "mieru") && value === "udp")
+    return ["udp"];
+  return ["tcp"];
+}
+function transportOption(protocol) {
+  return protocol === "naive" ? "naive_network" : protocol === "mieru" ? "mieru_transport" : "";
 }
 function hasListener(protocol) {
   const spec = protocolSpec(protocol);
@@ -21048,27 +20818,35 @@ var systemPortsPromise = null;
 var systemPortsCache = null;
 function occupiedPorts(currentSectionId) {
   const owners = /* @__PURE__ */ new Map();
-  const claim = (port, owner) => {
-    const normalized = `${port || ""}`.trim();
-    if (!/^[0-9]+$/.test(normalized) || owners.has(normalized)) {
+  const claim = (port, transports, owner) => {
+    const text = `${port || ""}`.trim();
+    if (!/^[0-9]+$/.test(text)) {
       return;
     }
-    owners.set(normalized, owner);
+    transports.forEach((transport2) => {
+      const key = `${transport2}/${Number(text)}`;
+      if (!owners.has(key)) owners.set(key, owner);
+    });
   };
-  RESERVED_PORTS.forEach(([port, owner]) => claim(port, owner));
+  RESERVED_PORTS.forEach(([port, owner]) => claim(port, ["tcp", "udp"], owner));
   (uci.sections(FORKOP_UCI_PACKAGE, "server") || []).forEach((server) => {
     if (server[".name"] === currentSectionId || server.enabled === "0") {
       return;
     }
-    if (!hasListener(`${server.protocol || DEFAULT_PROTOCOL}`)) {
+    const protocol = `${server.protocol || DEFAULT_PROTOCOL}`;
+    if (!hasListener(protocol)) {
       return;
     }
+    const network2 = transportOption(protocol);
     claim(
       server.listen_port,
+      listenTransports(protocol, network2 ? `${server[network2] || ""}` : ""),
       _("server %s").format(server.label || server[".name"])
     );
   });
-  (systemPortsCache || []).forEach((entry) => claim(entry.port, entry.owner));
+  (systemPortsCache || []).forEach(
+    (entry) => claim(entry.port, ["tcp"], entry.owner)
+  );
   return owners;
 }
 function loadSystemPorts() {
@@ -21860,14 +21638,14 @@ function qrSvgDataUri(text) {
 
 // src/forkop/tabs/servers/details.ts
 function svgEl2(tag, attrs = {}, children = []) {
-  const element2 = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  const element3 = document.createElementNS("http://www.w3.org/2000/svg", tag);
   Object.entries(attrs).forEach(([key, value]) => {
     if (value != null) {
-      element2.setAttribute(key, `${value}`);
+      element3.setAttribute(key, `${value}`);
     }
   });
-  (Array.isArray(children) ? children : [children]).filter(Boolean).forEach((child) => element2.appendChild(child));
-  return element2;
+  (Array.isArray(children) ? children : [children]).filter(Boolean).forEach((child) => element3.appendChild(child));
+  return element3;
 }
 var ICON_PATHS = {
   generate: [
@@ -21927,7 +21705,7 @@ function injectDetailsStyles() {
     return;
   }
   document.head.appendChild(
-    E(
+    textE(
       "style",
       { id: DETAILS_STYLE_ID },
       [
@@ -21966,7 +21744,7 @@ function injectDetailsStyles() {
 }
 function renderCopyButton(value) {
   const label = _("Copy");
-  const button = E(
+  const button = textE(
     "button",
     {
       class: "btn cbi-button cbi-button-neutral fkp-details__action",
@@ -21987,8 +21765,8 @@ function renderCopyButton(value) {
   return button;
 }
 function renderCloseRow() {
-  return E("div", { class: "button-row fkp-details-actions" }, [
-    E(
+  return textE("div", { class: "button-row fkp-details-actions" }, [
+    textE(
       "button",
       {
         class: "btn cbi-button cbi-button-neutral",
@@ -22002,20 +21780,20 @@ function renderCloseRow() {
 function showQrModal(title, link) {
   injectDetailsStyles();
   ui.showModal(`${_("QR code")}: ${title}`, [
-    E("div", { class: "fkp-qr" }, [
-      E("img", {
+    textE("div", { class: "fkp-qr" }, [
+      textE("img", {
         class: "fkp-qr__code",
         src: qrSvgDataUri(link),
         alt: _("QR code")
       }),
-      E("div", { class: "fkp-qr__link" }, link)
+      textE("div", { class: "fkp-qr__link" }, link)
     ]),
     renderCloseRow()
   ]);
 }
 function renderQrButton(title, link) {
   const label = _("Show a QR code");
-  return E(
+  return textE(
     "button",
     {
       class: "btn cbi-button cbi-button-neutral fkp-details__action",
@@ -22040,7 +21818,7 @@ function linkTitle(sectionId, client, scheme) {
   return scheme ? `${title} (${scheme})` : title;
 }
 function renderLinkRow(value, qrTitle) {
-  const input = E("input", {
+  const input = textE("input", {
     type: "text",
     class: "cbi-input-text fkp-details__value",
     readonly: "readonly",
@@ -22048,7 +21826,7 @@ function renderLinkRow(value, qrTitle) {
     value
   });
   input.addEventListener("focus", () => input.select());
-  return E("div", { class: "fkp-details__link" }, [
+  return textE("div", { class: "fkp-details__link" }, [
     input,
     renderQrButton(qrTitle, value),
     renderCopyButton(value)
@@ -22068,7 +21846,7 @@ function renderClientDetails(sectionId, client, context) {
   const name = `${client?.name || ""}`.trim();
   const body = [];
   if (name) {
-    body.push(E("div", { class: "fkp-details__name" }, name));
+    body.push(textE("div", { class: "fkp-details__name" }, name));
   }
   if (links.length) {
     links.forEach(
@@ -22081,14 +21859,14 @@ function renderClientDetails(sectionId, client, context) {
     );
   } else {
     body.push(
-      E(
+      textE(
         "div",
         { class: "fkp-details__empty" },
         missingLinkReason(sectionId, client)
       )
     );
   }
-  return E("div", { class: "fkp-details__client" }, body);
+  return textE("div", { class: "fkp-details__client" }, body);
 }
 function anonymousClient() {
   return {
@@ -22106,7 +21884,7 @@ function renderDetailsContent(sectionId, clients, context) {
   const entries = clients.length ? clients : isAuthenticationEnabled(sectionId) ? [] : [anonymousClient()];
   if (!entries.length) {
     children.push(
-      E(
+      textE(
         "div",
         { class: "fkp-details__empty" },
         _("Add a client to this server to get a link.")
@@ -22114,7 +21892,7 @@ function renderDetailsContent(sectionId, clients, context) {
     );
   } else {
     children.push(
-      E(
+      textE(
         "div",
         { class: "fkp-details__clients" },
         entries.map(
@@ -22123,7 +21901,7 @@ function renderDetailsContent(sectionId, clients, context) {
       )
     );
   }
-  return E("div", { class: "fkp-details" }, children);
+  return textE("div", { class: "fkp-details" }, children);
 }
 function showServerDetailsModal(sectionId, clients) {
   injectDetailsStyles();
@@ -22150,7 +21928,7 @@ function injectServerStyles() {
     return;
   }
   document.head.appendChild(
-    E(
+    textE(
       "style",
       { id: STYLE_ID },
       [
@@ -22187,7 +21965,7 @@ function controlOf(node) {
   ) : null;
 }
 function renderGenerateButton(label, readonly) {
-  return E(
+  return textE(
     "button",
     {
       class: "btn cbi-button cbi-button-neutral fkp-generate",
@@ -22217,21 +21995,21 @@ function addGenerateButton(optionRef, generate, title) {
       if (readonly) {
         return;
       }
-      const element2 = widgetElement(node);
-      const next = generate(sectionId, element2 ? element2.getValue() : null);
+      const element3 = widgetElement(node);
+      const next = generate(sectionId, element3 ? element3.getValue() : null);
       if (next == null) {
         return;
       }
-      if (element2) {
-        element2.setValue(next);
-        if (typeof element2.triggerValidation === "function") {
-          element2.triggerValidation();
+      if (element3) {
+        element3.setValue(next);
+        if (typeof element3.triggerValidation === "function") {
+          element3.triggerValidation();
         }
       }
       controlOf(node)?.dispatchEvent(new Event("change", { bubbles: true }));
     });
     const rows = !!node.querySelector?.(".add-item");
-    const row = E(
+    const row = textE(
       "div",
       {
         class: rows ? "fkp-generate-row fkp-generate-row--rows" : "fkp-generate-row"
@@ -22277,7 +22055,7 @@ function syncSecurityChoices(sectionId, protocol, reset) {
   }
   select.replaceChildren(
     ...allowed.map(
-      (security) => E(
+      (security) => textE(
         "option",
         { value: security, selected: security === next ? "" : void 0 },
         securityLabel(security)
@@ -22296,14 +22074,14 @@ function camouflageSite(sectionId, reroll) {
 }
 function applyFieldValue(sectionId, name, value) {
   const node = widgetNode(sectionId, name);
-  const element2 = node ? widgetElement(node) : null;
-  if (!element2) {
+  const element3 = node ? widgetElement(node) : null;
+  if (!element3) {
     uci.set(FORKOP_UCI_PACKAGE, sectionId, name, value);
     return;
   }
-  element2.setValue(value);
-  if (typeof element2.triggerValidation === "function") {
-    element2.triggerValidation();
+  element3.setValue(value);
+  if (typeof element3.triggerValidation === "function") {
+    element3.triggerValidation();
   }
   controlOf(node)?.dispatchEvent(new Event("change", { bubbles: true }));
 }
@@ -22364,7 +22142,7 @@ function addIssueButton(optionRef, label, request, offered) {
         button.disabled = readonly ? true : false;
       });
     });
-    const row = E("div", { class: "fkp-generate-row" }, [node, button]);
+    const row = textE("div", { class: "fkp-generate-row" }, [node, button]);
     if (typeof offered === "function") {
       showIssueButton(row, offered(getProtocol(sectionId)));
     }
@@ -22643,7 +22421,13 @@ function validateListenPort(sectionId, value) {
   if (result !== true) {
     return result;
   }
-  const owner = occupiedPorts(sectionId).get(`${value}`.trim());
+  const protocol = getProtocol(sectionId);
+  const network2 = transportOption(protocol);
+  const owners = occupiedPorts(sectionId);
+  const owner = listenTransports(
+    protocol,
+    network2 ? liveOption(sectionId, network2) : ""
+  ).map((transport2) => owners.get(`${transport2}/${Number(`${value}`.trim())}`)).find(Boolean);
   return owner ? _("Port %s is already used by %s").format(value, owner) : true;
 }
 
@@ -22828,9 +22612,9 @@ function clearClientList(mapRef, sectionId) {
   if (typeof listOption.clearStagedChildSettings === "function") {
     listOption.clearStagedChildSettings(sectionId);
   }
-  const element2 = listOption.getUIElement(sectionId);
-  if (element2) {
-    element2.setValue([]);
+  const element3 = listOption.getUIElement(sectionId);
+  if (element3) {
+    element3.setValue([]);
   }
   listOption.cfgvalue(sectionId, []);
 }
@@ -23503,7 +23287,6 @@ function addSecurityOptions(section) {
   o.value("none", _("None"));
   o.rmempty = false;
   o.modalonly = true;
-  o.retain = true;
   [...streamProtocols, ...tlsOnlyProtocols].forEach(
     (protocol) => o.depends("protocol", protocol)
   );
@@ -23730,16 +23513,16 @@ function createServerContent(section) {
 function renderServerRowActions(sectionRef, sectionId) {
   const editLabel = getRuleEditButtonText();
   const detailsLabel = _("Server details");
-  const tdEl = E(
+  const tdEl = textE(
     "td",
     { class: "td cbi-section-table-cell nowrap cbi-section-actions" },
-    E("div")
+    textE("div")
   );
   const actionsEl = tdEl.lastElementChild;
   if (usesClients(getProtocol(sectionId)) && linkScheme(getProtocol(sectionId))) {
     dom.append(
       actionsEl,
-      E(
+      textE(
         "button",
         {
           class: "cbi-button center fkp-server-info",
@@ -23752,13 +23535,13 @@ function renderServerRowActions(sectionRef, sectionId) {
             showServerDetailsModal(sectionId, listClients(sectionId));
           }
         },
-        E("span", { class: "fkp-server-info__glyph" }, "\u24D8")
+        textE("span", { class: "fkp-server-info__glyph" }, "\u24D8")
       )
     );
   }
   dom.append(
     actionsEl,
-    E(
+    textE(
       "button",
       {
         title: editLabel,
@@ -23775,7 +23558,7 @@ function renderServerRowActions(sectionRef, sectionId) {
   if (sectionRef.addremove) {
     dom.append(
       actionsEl,
-      E(
+      textE(
         "button",
         {
           title: _("Delete"),
@@ -23994,8 +23777,8 @@ function showStaticHostsModal(textareaNode) {
       _("Static DNS records"),
       [
         nodes,
-        E("div", { class: "button-row" }, [
-          E(
+        textE("div", { class: "button-row" }, [
+          textE(
             "button",
             {
               class: "btn cbi-button",
@@ -24005,7 +23788,7 @@ function showStaticHostsModal(textareaNode) {
             _("Close")
           ),
           " ",
-          E(
+          textE(
             "button",
             {
               class: "btn cbi-button cbi-button-positive important",
@@ -24045,9 +23828,9 @@ function createStaticHostsOption(section) {
       return widget;
     }
     widget.style.display = "none";
-    return E("div", {}, [
+    return textE("div", {}, [
       widget,
-      E(
+      textE(
         "button",
         {
           class: "btn cbi-button cbi-button-action",
@@ -24174,6 +23957,7 @@ function addDnsOptions(section) {
   o.default = "3d";
   o.rmempty = false;
   o.depends("dns_optimistic", "1");
+  o.retain = true;
   o.validate = (_sectionId, value) => validateRequiredSingBoxDuration(value);
   o = section.option(
     form.ListValue,
@@ -24288,6 +24072,7 @@ function addNetworkOptions(section) {
     _("Select the WAN interfaces to be monitored")
   );
   o.depends("enable_badwan_interface_monitoring", "1");
+  o.retain = true;
   o.multiple = true;
   o.filter = function(section_id, value) {
     if (["lan", "loopback"].includes(value)) {
@@ -24305,6 +24090,7 @@ function addNetworkOptions(section) {
     _("Delay in milliseconds before reloading Forkop after interface UP")
   );
   o.depends("enable_badwan_interface_monitoring", "1");
+  o.retain = true;
   o.default = "2000";
   o.rmempty = false;
   o.validate = function(section_id, value) {
@@ -24415,6 +24201,7 @@ function addTrafficOptions(section) {
     )
   );
   o.depends("enable_yacd_wan_access", "1");
+  o.retain = true;
   o.rmempty = false;
   const nativeDashboardUrl = `http://${window.location.hostname}:9091/dashboard/`;
   o = section.option(
@@ -24428,6 +24215,7 @@ function addTrafficOptions(section) {
   o = section.option(form.Value, "native_api_secret", _("API secret"));
   o.password = true;
   o.depends("enable_native_api", "1");
+  o.retain = true;
   o.rmempty = false;
   o.validate = (_sectionId, value) => value ? true : _("Enter an API secret");
   o = section.option(
@@ -24502,6 +24290,7 @@ function addUpdateOptions(section) {
   o.rmempty = false;
   o = section.option(form.Value, "update_interval", _("List update interval"));
   o.depends("list_update_enabled", "1");
+  o.retain = true;
   o.placeholder = "1d";
   o.default = "1d";
   o.rmempty = false;
@@ -24533,6 +24322,7 @@ function addUpdateOptions(section) {
     _("Component update check interval")
   );
   o.depends("component_update_check_enabled", "1");
+  o.retain = true;
   o.placeholder = "1d";
   o.default = "1d";
   o.rmempty = false;
@@ -24596,6 +24386,7 @@ function addUpdateOptions(section) {
     _("Download lists through")
   );
   o.depends("download_lists_via_proxy", "1");
+  o.retain = true;
   configureDownloadSectionOption(o, "download_lists_via_proxy_section");
   o = section.option(
     form.Flag,
@@ -24609,6 +24400,7 @@ function addUpdateOptions(section) {
     _("Download components through")
   );
   o.depends("download_components_via_proxy", "1");
+  o.retain = true;
   configureDownloadSectionOption(o, "download_components_via_proxy_section");
 }
 
@@ -24673,9 +24465,9 @@ function createUiCapabilitiesLoader() {
 
 // src/forkop/entry/gridSection.ts
 function renderSectionAdd(sectionRef, extraClass) {
-  const el = E("div", { class: "cbi-section-create" });
+  const el = textE("div", { class: "cbi-section-create" });
   const buttonTitle = sectionRef.titleFn("addbtntitle") || _("Add");
-  const button = E(
+  const button = textE(
     "button",
     {
       class: "cbi-button cbi-button-add",

@@ -80,9 +80,13 @@ for conflict in https-dns-proxy nextdns luci-app-passwall luci-app-passwall2; do
     fail "manual APK conflicts are missing $conflict"
 done
 
-if grep -Fq 'coreutils-sort' "$FORKOP_MAKEFILE" "$BUILD_SCRIPT"; then
-  fail "unused coreutils-sort runtime dependency must not be packaged"
-fi
+# Nothing runs sort or base64: subscriptions are decoded by the core and
+# certificates by ucode.
+for unused in coreutils-sort coreutils-base64; do
+  if grep -Fq "$unused" "$FORKOP_MAKEFILE" "$BUILD_SCRIPT"; then
+    fail "unused $unused runtime dependency must not be packaged"
+  fi
+done
 
 grep -Fq "must use x.y.z format" "$FORKOP_MAKEFILE" ||
   fail "forkop/Makefile must enforce the three-part release version contract"
@@ -124,6 +128,10 @@ fi
 
 if grep -Rqs 'require("uloop")' "$FORKOP_LIB"; then
   require_package_dependency "ucode-mod-uloop"
+fi
+
+if grep -Rqs '"dropbearconvert"' "$FORKOP_LIB"; then
+  require_package_dependency "dropbearconvert"
 fi
 
 if grep -Rqs 'forkop_dnsmasq_failsafe_restore_raw' \

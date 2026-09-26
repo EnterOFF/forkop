@@ -1,635 +1,201 @@
-#!/usr/bin/env ucode
+// What the init script's hooks do. procd runs them - a start, a stop, a reload
+// its config trigger fired, a WAN interface coming up - and each one is tracked
+// as a UI action unless the page already opened one for it.
 
 let fs = require("fs");
-let bytecode = require("core.bytecode");
+let common = require("core.common");
+let exec = require("core.exec");
 let constants = require("core.constants");
-let uci_core = require("core.uci");
+let uci = require("core.uci");
+let health = require("service.health");
 let lock = require("service.lock");
+let ui = require("service.ui");
 
-function as_string(value) {
-    return value == null ? "" : "" + value;
+const CONFIG_NAME = "forkop";
+const CONFIG_CHANGE = "on_config_change";
+const SERVICE_INIT = constants.FORKOP_SERVICE_INIT;
+
+let paths = {
+    config: "/etc/config/forkop",
+    start_retry: "/var/run/forkop/start.retry",
+    // Written by the migration after it commits, so the reload its own commit
+    // triggers is skipped.
+    internal_change: "/var/run/forkop.internal-config-change",
+    autostart: "/etc/rc.d/S99forkop"
+};
+
+// Loaded only by the hooks that run it: the status, trigger and WAN hooks do not.
+function lifecycle() {
+    return require("service.lifecycle");
 }
 
-function constant_value(name, fallback) {
-    let value = constants[name];
-    return value == null ? as_string(fallback) : as_string(value);
+function settings() {
+    return uci.get_all(CONFIG_NAME, "settings") ?? {};
 }
 
-const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || constant_value("FORKOP_CONFIG_NAME", "forkop");
-// Resolved once for the whole procd path: every module and command started
-// below receives it, so the reload a config change triggers loads precompiled
-// modules instead of parsing them again in each of its processes.
-const LIB_DIR = getenv("FORKOP_LIB") || bytecode.refresh();
-const BIN_PATH = getenv("FORKOP_BIN") || constant_value("FORKOP_BIN", "/usr/bin/forkop");
-const SERVICE_INIT = getenv("FORKOP_SERVICE_INIT") || constant_value("FORKOP_SERVICE_INIT", "/etc/init.d/forkop");
-const SERVICE_NAME = getenv("FORKOP_SERVICE_NAME") || constant_value("FORKOP_SERVICE_NAME", "forkop");
-const CONFIG_FILE = getenv("FORKOP_CONFIG_FILE") || "/etc/config/" + CONFIG_NAME;
-const RELOAD_LOCK_DIR = getenv("FORKOP_RELOAD_LOCK_DIR") || "/var/run/forkop.reload.lock";
-const RUNTIME_STATE_DIR = getenv("FORKOP_RUNTIME_STATE_DIR") || "/var/run/forkop";
-const PENDING_RELOAD_FILE = getenv("FORKOP_PENDING_RELOAD_FILE") || RUNTIME_STATE_DIR + "/reload.pending";
-const START_RETRY_FILE = getenv("FORKOP_START_RETRY_FILE") || RUNTIME_STATE_DIR + "/start.retry";
-const SERVICE_TRIGGER_SYNC_FILE = getenv("FORKOP_SERVICE_TRIGGER_SYNC_FILE") || RUNTIME_STATE_DIR + "/service-triggers.sync";
-const INTERNAL_CONFIG_TRIGGER_GUARD = getenv("FORKOP_INTERNAL_CONFIG_TRIGGER_GUARD") || "/var/run/forkop.internal-config-change";
-const CONFIG_CHANGE_REASON = getenv("FORKOP_CONFIG_CHANGE_REASON") || "on_config_change";
-
-const UI_UC = LIB_DIR + "/service/ui.uc";
-// Run directly: the CLI hands its lifecycle commands to this init script, so
-// going through it from here would come straight back.
-const LIFECYCLE_UC = LIB_DIR + "/service/lifecycle.uc";
-
-function shell_quote(value) {
-    return "'" + replace(as_string(value), /'/g, "'\\''") + "'";
+function tracked() {
+    return getenv("FORKOP_UI_ACTION_TRACKED") == "1";
 }
 
-function shell_assignment(name, value) {
-    print(as_string(name), "=", shell_quote(value), "\n");
+function begin(action) {
+    return tracked() ? "" : ui.begin(action, "initd", common.own_pid()).job_id;
 }
 
-function command_from_args(args) {
-    let parts = [];
-    for (let arg in args)
-        push(parts, shell_quote(arg));
-    return join(" ", parts);
+function finish(action, job_id, status) {
+    if (job_id != "")
+        ui.finish(action, job_id, status);
 }
 
-function command_capture(command) {
-    let pipe = fs.popen(command, "r");
-    if (!pipe)
-        return { status: 1, output: "" };
-
-    let data = pipe.read("all");
-    let status = pipe.close();
-    return { status, output: data == null ? "" : as_string(data) };
+function runtime_running() {
+    return health.forkop_stably_running(constants.RT_TABLE_NAME, constants.NFT_TABLE_NAME, constants.NFT_FAKEIP_MARK, 2);
 }
 
-function command_output(command) {
-    let result = command_capture(command);
-    return result.status == 0 ? result.output : "";
-}
-
-function command_output_from_args(args) {
-    return command_output(command_from_args(args) + " 2>/dev/null");
-}
-
-function command_success_from_args(args) {
-    return system(command_from_args(args) + " >/dev/null 2>&1") == 0;
-}
-
-function command_status_from_args(args) {
-    return system(command_from_args(args));
-}
-
-function module_args(module_path, args) {
-    let result = [ "ucode", "-L", LIB_DIR, module_path ];
-    for (let arg in (type(args) == "array" ? args : []))
-        push(result, arg);
-    return result;
-}
-
-function module_command(module_path, args) {
-    return "FORKOP_LIB=" + shell_quote(LIB_DIR) + " " +
-        command_from_args(module_args(module_path, args));
-}
-
-function module_status(module_path, args) {
-    return system(module_command(module_path, args));
-}
-
-function module_output(module_path, args) {
-    let result = command_capture(module_command(module_path, args));
-    return result.status == 0 ? result.output : "";
-}
-
-function trim(value) {
-    return replace(as_string(value), /^[ \t\r\n]+|[ \t\r\n]+$/g, "");
-}
-
-function numeric_text(value) {
-    return match(as_string(value), /^[0-9]+$/) != null;
-}
-
-function current_epoch() {
-    return as_string(int(clock()[0]));
-}
-
-function bool_text(value) {
-    value = lc(as_string(value));
-    return value == "1" || value == "true" || value == "yes" || value == "on";
-}
-
-function object_or_empty(value) {
-    return type(value) == "object" ? value : {};
-}
-
-function option(section, key, fallback) {
-    if (fallback == null)
-        fallback = "";
-    let value = object_or_empty(section)[key];
-    if (value == null)
-        return as_string(fallback);
-    if (type(value) == "array")
-        return join(" ", value);
-    return as_string(value);
-}
-
-function file_exists(path) {
-    return fs.stat(as_string(path)) != null;
-}
-
-function unlink_file(path) {
-    fs.unlink(as_string(path));
-}
-
-function first_line_value(path) {
-    let data = fs.readfile(path);
-    if (data == null)
-        return "";
-
-    let newline = index(data, "\n");
-    return newline >= 0 ? substr(data, 0, newline) : data;
-}
-
-function config_file_hash(path) {
-    let fields = split(trim(command_output_from_args([ "md5sum", as_string(path) ])), " ");
-    return length(fields) > 0 ? as_string(fields[0]) : "";
-}
-
-function uci_settings() {
-    return object_or_empty(uci_core.get_all(CONFIG_NAME, "settings"));
-}
-
-function settings_from_fixture(path) {
-    let data = fs.readfile(path);
-    if (data == null)
-        return {};
-    try {
-        data = json(data);
-    }
-    catch (e) {
-        return {};
-    }
-    return object_or_empty(object_or_empty(data).settings);
-}
-
-function initd_service_trigger_sync_requested(path) {
-    path = as_string(path);
-    if (!file_exists(path))
+// The guard names the configuration its writer committed; a reload of that
+// exact configuration within half a minute is the one its commit triggered.
+function internal_change(reason) {
+    if (reason != CONFIG_CHANGE || fs.stat(paths.internal_change) == null)
         return false;
-
-    let value = first_line_value(path);
-    unlink_file(path);
-    return value == "1";
-}
-
-function initd_guard_matches_current_config(guard_path, config_path, now_value) {
-    let guard_timestamp = first_line_value(guard_path);
-    if (!numeric_text(guard_timestamp))
+    let guard = split(fs.readfile(paths.internal_change) ?? "", "\n");
+    fs.unlink(paths.internal_change);
+    if (!match(guard[0], /^[0-9]+$/) || common.now_seconds() - int(guard[0]) > 30 || (guard[1] ?? "") == "")
         return false;
-
-    now_value = now_value == null ? current_epoch() : as_string(now_value);
-    if (!numeric_text(now_value))
-        return true;
-
-    if (int(now_value, 10) - int(guard_timestamp, 10) > 30)
-        return false;
-
-    let data = fs.readfile(guard_path);
-    if (data == null)
-        return false;
-
-    let lines = split(data, "\n");
-    let guard_hash = length(lines) > 1 ? as_string(lines[1]) : "";
-    if (guard_hash == "")
-        return false;
-
-    return guard_hash == config_file_hash(config_path);
-}
-
-function initd_should_skip_internal_config_reload(reason, guard_path, config_path, expected_reason, now_value) {
-    if (as_string(reason) != as_string(expected_reason || CONFIG_CHANGE_REASON))
-        return false;
-    if (!file_exists(as_string(guard_path)))
-        return false;
-
-    let matches = initd_guard_matches_current_config(guard_path, config_path, now_value);
-    unlink_file(guard_path);
-    return matches;
-}
-
-function initd_should_ignore_config_change_reload(reason, expected_reason, runtime_running) {
-    return as_string(reason) == as_string(expected_reason || CONFIG_CHANGE_REASON) &&
-        !bool_text(runtime_running);
-}
-
-function initd_should_queue_config_change_reload(reason, expected_reason, runtime_running, active_service_action) {
-    return as_string(reason) == as_string(expected_reason || CONFIG_CHANGE_REASON) &&
-        !bool_text(runtime_running) &&
-        as_string(active_service_action) != "";
-}
-
-function initd_should_sync_service_triggers(reason, expected_reason, sync_file) {
-    if (as_string(reason) != as_string(expected_reason || CONFIG_CHANGE_REASON))
-        return false;
-    return initd_service_trigger_sync_requested(sync_file);
-}
-
-function mark_start_retry(path, reason) {
-    return lock.mark_request(as_string(path || START_RETRY_FILE), as_string(reason || "start_failed"));
-}
-
-function clear_start_retry(path) {
-    lock.consume_request(as_string(path || START_RETRY_FILE));
-}
-
-function start_retry_pending(path) {
-    return file_exists(as_string(path || START_RETRY_FILE));
-}
-
-function owner_pid_value() {
-    let stat = as_string(fs.readfile("/proc/self/stat"));
-    let separator = index(stat, " ");
-    return separator > 0 ? substr(stat, 0, separator) : "0";
-}
-
-function begin_external_service_action(action, source, owner_pid) {
-    if (as_string(getenv("FORKOP_UI_ACTION_TRACKED") || "0") == "1")
-        return "";
-    if (!file_exists(UI_UC))
-        return "";
-
-    return trim(module_output(UI_UC, [
-        "service-action-begin-if-idle",
-        action,
-        source || "initd",
-        owner_pid || owner_pid_value()
-    ]));
-}
-
-function finish_external_service_action(action, job_id, status) {
-    if (as_string(job_id) == "" || !file_exists(UI_UC))
-        return 0;
-    return module_status(UI_UC, [ "service-action-finish-after-command", action, job_id, as_string(status) ]);
+    let hash = split(trim(exec.output([ "md5sum", paths.config ]) ?? ""), " ")[0];
+    return guard[1] == hash;
 }
 
 // procd holds the service from the init script's start to its stop, and a reload
-// only has something to apply to inside that window. Outside it the lifecycle
-// would bring a runtime up that procd does not know, without the triggers the
-// next Apply needs. Only procd's own answer counts: without one the reload runs.
-function service_registered() {
-    let result = command_capture(command_from_args([ "ubus", "call", "service", "list",
-        sprintf('{"name":%J}', SERVICE_NAME) ]) + " 2>/dev/null");
-    if (result.status != 0)
-        return true;
-
-    let services;
-    try {
-        services = json(result.output);
-    }
-    catch (e) {
-        return true;
-    }
-    return type(services) != "object" || services[SERVICE_NAME] != null;
+// only has something to apply to inside that window. Only procd's own answer
+// counts: without one the reload runs.
+function registered() {
+    let services = common.parse_json(exec.output([ "ubus", "call", "service", "list", sprintf("%J", { name: "forkop" }) ]));
+    return type(services) != "object" || services.forkop != null;
 }
 
-function runtime_status_object() {
-    let data = command_output_from_args([ BIN_PATH, "get_status" ]);
-    try {
-        data = json(data);
-    }
-    catch (e) {
-        return {};
-    }
-    return object_or_empty(data);
-}
-
-function runtime_is_running() {
-    return bool_text(runtime_status_object().running);
-}
-
-function status_service() {
-    if (runtime_is_running()) {
-        print("running\n");
-        return 0;
-    }
-
-    print("not running\n");
-    return 1;
-}
-
-function service_is_enabled() {
-    return file_exists("/etc/rc.d/S99" + SERVICE_NAME);
-}
-
-function retry_start_on_wan_up_action(runtime_running_value, service_enabled_value, retry_pending_value) {
-    if (bool_text(runtime_running_value))
-        return "skip_running";
-    if (!bool_text(service_enabled_value))
-        return "skip_disabled";
-    if (!bool_text(retry_pending_value))
-        return "skip_no_retry";
-    return "restart";
-}
-
-function retry_start_on_wan_up() {
-    let action = retry_start_on_wan_up_action(
-        runtime_is_running() ? "1" : "0",
-        service_is_enabled() ? "1" : "0",
-        start_retry_pending(START_RETRY_FILE) ? "1" : "0"
-    );
-
-    if (action == "skip_running" || action == "skip_disabled") {
-        clear_start_retry(START_RETRY_FILE);
-        return 0;
-    }
-
-    if (action != "restart")
-        return 0;
-
-    command_success_from_args([ "logger", "-t", SERVICE_NAME, "[info] Retrying failed Forkop start after WAN came up" ]);
-    return command_status_from_args([ SERVICE_INIT, "restart", "triggered" ]);
-}
-
-function badwan_interface_monitored(settings, interface_name) {
-    settings = object_or_empty(settings);
-    if (option(settings, "enable_badwan_interface_monitoring", "") != "1")
-        return false;
-
-    let interfaces = split(replace(trim(option(settings, "badwan_monitored_interfaces", "")), /[ \t\r\n]+/g, " "), " ");
-    for (let iface in interfaces)
-        if (trim(iface) == interface_name)
-            return true;
-    return false;
-}
-
-function wan_up_action(runtime_running_value, service_enabled_value, retry_pending_value, monitoring_value) {
-    if (bool_text(runtime_running_value))
-        return bool_text(monitoring_value) ? "reload" : "skip_running";
-    return retry_start_on_wan_up_action(runtime_running_value, service_enabled_value, retry_pending_value);
-}
-
-function handle_wan_up() {
-    let settings = uci_settings();
-    let running = runtime_is_running() ? "1" : "0";
-    let action = wan_up_action(
-        running,
-        service_is_enabled() ? "1" : "0",
-        start_retry_pending(START_RETRY_FILE) ? "1" : "0",
-        badwan_interface_monitored(settings, "wan") ? "1" : "0"
-    );
-
-    if (action == "reload") {
-        clear_start_retry(START_RETRY_FILE);
-        command_success_from_args([ "logger", "-t", SERVICE_NAME, "[info] Reapplying configuration after the monitored WAN came up" ]);
-        return command_status_from_args([ SERVICE_INIT, "reload", "badwan_interface_up" ]);
-    }
-
-    if (action == "skip_running") {
-        clear_start_retry(START_RETRY_FILE);
-        return 0;
-    }
-
-    return retry_start_on_wan_up();
-}
-
-function active_service_action_value() {
-    if (!file_exists(UI_UC))
-        return "";
-
-    return trim(module_output(UI_UC, [ "active-service-action" ]));
-}
-
-function ui_action_tracked() {
-    return as_string(getenv("FORKOP_UI_ACTION_TRACKED") || "0") == "1";
-}
-
-function start_plan_value(reason, owner_pid, settings, lifecycle_ok) {
-    settings = object_or_empty(settings);
-    let job_id = begin_external_service_action("start", "initd", owner_pid);
-    lifecycle_ok = lifecycle_ok == null ? file_exists(LIFECYCLE_UC) : bool_text(lifecycle_ok);
-
-    if (!lifecycle_ok)
-        finish_external_service_action("start", job_id, 1);
-
-    return {
-        job_id,
-        lifecycle_ok
-    };
-}
-
-function start_plan(reason, owner_pid, settings, lifecycle_ok) {
-    let plan = start_plan_value(reason, owner_pid, settings, lifecycle_ok);
-    shell_assignment("INITD_UI_JOB_ID", plan.job_id);
-    shell_assignment("INITD_LIFECYCLE_OK", plan.lifecycle_ok ? "1" : "0");
-}
-
-function start_service(reason, owner_pid) {
+function start(reason) {
     print("Start Forkop\n");
-    let plan = start_plan_value(reason, owner_pid, uci_settings(), null);
-    if (!plan.lifecycle_ok)
-        return 1;
-
-    let status = module_status(LIFECYCLE_UC, [ "start" ]);
+    let job = begin("start");
+    let status = lifecycle().start();
     if (status == 0)
-        clear_start_retry(START_RETRY_FILE);
+        lock.consume_request(paths.start_retry);
     else {
-        let triggered = as_string(reason) == "triggered";
-        mark_start_retry(START_RETRY_FILE, triggered ? "wan_retry_failed" : "start_failed");
-        command_success_from_args([ "logger", "-t", SERVICE_NAME, "[warn] Forkop start failed; waiting for the next WAN-up event or manual start" ]);
+        lock.mark_request(paths.start_retry, reason == "triggered" ? "wan_retry_failed" : "start_failed");
+        exec.log("warn", "Forkop start failed; waiting for the next WAN-up event or manual start");
     }
-    finish_external_service_action("start", plan.job_id, status);
+    finish("start", job, status);
     return status;
 }
 
-function stop_finish(job_id, status) {
-    status = int(status || 0);
-    finish_external_service_action("stop", job_id, status);
+function stop() {
+    lock.consume_request(paths.start_retry);
+    let job = begin("stop");
+    let status = lifecycle().stop();
+    finish("stop", job, status);
     return status;
 }
 
-// rc.common turns a restart into a stop followed by a start, and each of those
-// opens its own tracked action, so anything watching the service saw "stopping",
-// then an idle gap, then "starting" - three states for one operation the user
-// asked for once. Wrapping both in a single restart action reports it as what it
-// is; the nested start and stop begin no action of their own because
-// service-action-begin-if-idle refuses while this one is running.
-function restart_service(owner_pid) {
-    let job_id = begin_external_service_action("restart", "initd", owner_pid);
-
-    let status = command_status_from_args([ SERVICE_INIT, "stop" ]);
-    let start_status = command_status_from_args([ SERVICE_INIT, "start" ]);
+// One action for whoever asked, though rc.common would run a stop and a start:
+// the nested two open no action of their own while this one runs.
+function restart() {
+    let job = begin("restart");
+    let status = exec.run([ SERVICE_INIT, "stop" ]);
+    let start_status = exec.run([ SERVICE_INIT, "start" ]);
     if (start_status != 0)
         status = start_status;
-
-    finish_external_service_action("restart", job_id, status);
+    finish("restart", job, status);
     return status;
 }
 
-function stop_service(owner_pid) {
-    clear_start_retry(START_RETRY_FILE);
-    let job_id = begin_external_service_action("stop", "initd", owner_pid);
-    if (!file_exists(LIFECYCLE_UC)) {
-        finish_external_service_action("stop", job_id, 1);
-        return 1;
-    }
-
-    let status = module_status(LIFECYCLE_UC, [ "stop" ]);
-    return stop_finish(job_id, status);
-}
-
-function reload_begin_value(reason, owner_pid, runtime_running_value, active_service_action) {
-    reason = as_string(reason);
-
-    if (initd_should_skip_internal_config_reload(
-        reason,
-        INTERNAL_CONFIG_TRIGGER_GUARD,
-        CONFIG_FILE,
-        CONFIG_CHANGE_REASON,
-        null
-    )) {
-        return { action: "skip", job_id: "" };
-    }
-
-    if (!service_registered()) {
-        command_success_from_args([ "logger", "-t", SERVICE_NAME, "[info] Forkop is not started; reload skipped" ]);
+// { status, sync }: sync asks the init script to register its triggers again,
+// which a configuration change may have moved.
+function reload(reason) {
+    let skipped = { status: 0, sync: false };
+    if (internal_change(reason))
+        return skipped;
+    if (!registered()) {
+        exec.log("info", "Forkop is not started; reload skipped");
         warn("Forkop is not started; reload skipped\n");
-        return { action: "skip", job_id: "" };
+        return skipped;
     }
 
-    active_service_action = active_service_action == null ? active_service_action_value() : as_string(active_service_action);
-    if (reason == "pending" && active_service_action != "" && !ui_action_tracked()) {
-        lock.mark_request(PENDING_RELOAD_FILE, reason);
-        return { action: "skip", job_id: "" };
+    ui.refresh();
+    let active = ui.active_action();
+    if (reason == "pending" && active != "" && !tracked()) {
+        lock.mark_request(ui.paths.pending_reload, reason);
+        return skipped;
+    }
+    // A change to a runtime that is not running waits for the next start, or for
+    // the action that is bringing it up.
+    if (reason == CONFIG_CHANGE && !runtime_running()) {
+        if (active != "")
+            lock.mark_request(ui.paths.pending_reload, reason);
+        return skipped;
     }
 
-    if (reason == CONFIG_CHANGE_REASON) {
-        let running = runtime_running_value == null ? runtime_is_running() : bool_text(runtime_running_value);
-
-        if (initd_should_queue_config_change_reload(reason, CONFIG_CHANGE_REASON, running, active_service_action)) {
-            lock.mark_request(PENDING_RELOAD_FILE, reason || "reload_queued");
-            return { action: "skip", job_id: "" };
-        }
-
-        if (initd_should_ignore_config_change_reload(reason, CONFIG_CHANGE_REASON, running))
-            return { action: "skip", job_id: "" };
+    let owner = common.own_pid();
+    if (!lock.acquire(ui.paths.reload_lock, owner)) {
+        lock.mark_request(ui.paths.pending_reload, reason || "reload_busy");
+        return skipped;
     }
 
-    if (!lock.acquire(RELOAD_LOCK_DIR, owner_pid || owner_pid_value())) {
-        lock.mark_request(PENDING_RELOAD_FILE, reason || "reload_busy");
-        return { action: "skip", job_id: "" };
-    }
-
-    unlink_file(SERVICE_TRIGGER_SYNC_FILE);
-    let job_id = begin_external_service_action("reload", "initd", owner_pid);
-    return { action: "run", job_id };
+    let job = begin("reload");
+    let status = lifecycle().reload(reason);
+    finish("reload", job, status);
+    lock.release(ui.paths.reload_lock, owner);
+    if (ui.active_action() == "")
+        lock.run_pending_reload_if_requested(ui.paths.pending_reload, SERVICE_INIT);
+    return { status, sync: status == 0 && reason == CONFIG_CHANGE };
 }
 
-function reload_finish_value(reason, job_id, status, owner_pid) {
-    status = int(status || 0);
-    finish_external_service_action("reload", job_id, status);
-    let sync = status == 0 && initd_should_sync_service_triggers(reason, CONFIG_CHANGE_REASON, SERVICE_TRIGGER_SYNC_FILE);
-    lock.release(RELOAD_LOCK_DIR, owner_pid || owner_pid_value());
-    if (active_service_action_value() == "")
-        lock.run_pending_reload_if_requested(PENDING_RELOAD_FILE, SERVICE_INIT, SERVICE_NAME);
-    return { status, sync };
+function status() {
+    let running = runtime_running();
+    print(running ? "running\n" : "not running\n");
+    return running ? 0 : 1;
 }
 
-function reload_service(reason, owner_pid) {
-    let plan = reload_begin_value(reason, owner_pid, null, null);
-    if (plan.action != "run")
+// A start that failed is retried once a WAN comes up, but only a failed start:
+// a stopped or disabled service stays as it is.
+function retry_start() {
+    if (runtime_running() || fs.stat(paths.autostart) == null) {
+        lock.consume_request(paths.start_retry);
         return 0;
-
-    let status = system("FORKOP_UI_ACTION_TRACKED=1 " +
-        module_command(LIFECYCLE_UC, [ "reload", reason ]) + " >/dev/null");
-    let finish = reload_finish_value(reason, plan.job_id, status, owner_pid);
-    if (finish.sync)
-        print("sync\n");
-    return finish.status;
-}
-
-function reload_release(owner_pid) {
-    lock.release(RELOAD_LOCK_DIR, owner_pid || owner_pid_value());
-    return 0;
-}
-
-function trigger_plan(settings) {
-    settings = object_or_empty(settings);
-    let badwan_enabled = option(settings, "enable_badwan_interface_monitoring", "") == "1";
-    let badwan_interfaces = split(replace(trim(option(settings, "badwan_monitored_interfaces", "")), /[ \t\r\n]+/g, " "), " ");
-    let delay = option(settings, "badwan_reload_delay", "2000");
-    if (delay == "")
-        delay = "2000";
-
-    print("delay\t", delay, "\n");
-    print("config\tconfig.change\t", CONFIG_NAME, "\t", SERVICE_INIT, "\treload\t", CONFIG_CHANGE_REASON, "\n");
-    print("interface\tinterface.*.up\twan\t", SERVICE_INIT, "\thandle_wan_up\t\n");
-
-    if (badwan_enabled) {
-        for (let iface in badwan_interfaces) {
-            iface = trim(iface);
-            if (iface == "" || iface == "wan")
-                continue;
-            print("interface\tinterface.*.up\t", iface, "\t", SERVICE_INIT, "\treload\t\n");
-        }
     }
+    if (fs.stat(paths.start_retry) == null)
+        return 0;
+    exec.log("info", "Retrying failed Forkop start after WAN came up");
+    return exec.run([ SERVICE_INIT, "restart", "triggered" ]);
 }
 
-let mode = ARGV[0] || "";
+function monitored(interface_name) {
+    let values = settings();
+    return common.option(values, "enable_badwan_interface_monitoring", "") == "1" &&
+        index(common.words(common.option(values, "badwan_monitored_interfaces", "")), interface_name) >= 0;
+}
 
-if (mode == "status-service")
-    exit(status_service());
-else if (mode == "retry-start-on-wan-up")
-    exit(retry_start_on_wan_up());
-else if (mode == "handle-wan-up")
-    exit(handle_wan_up());
-else if (mode == "retry-start-on-wan-up-action")
-    print(retry_start_on_wan_up_action(ARGV[1], ARGV[2], ARGV[3]), "\n");
-else if (mode == "wan-up-action")
-    print(wan_up_action(ARGV[1], ARGV[2], ARGV[3], ARGV[4]), "\n");
-else if (mode == "mark-start-retry")
-    exit(mark_start_retry(ARGV[1], ARGV[2]) ? 0 : 1);
-else if (mode == "clear-start-retry")
-    clear_start_retry(ARGV[1]);
-else if (mode == "start-retry-pending")
-    exit(start_retry_pending(ARGV[1]) ? 0 : 1);
-else if (mode == "start-service")
-    exit(start_service(ARGV[1], ARGV[2]));
-else if (mode == "start-plan-fixture") {
-    let settings = {
-        enable_badwan_interface_monitoring: ARGV[2],
-        badwan_monitored_interfaces: ARGV[3]
-    };
-    start_plan(ARGV[1], ARGV[4] || "0", settings, ARGV[5] == null ? "1" : ARGV[5]);
+function wan_up() {
+    if (!runtime_running())
+        return retry_start();
+    lock.consume_request(paths.start_retry);
+    if (!monitored("wan"))
+        return 0;
+    exec.log("info", "Reapplying configuration after the monitored WAN came up");
+    return exec.run([ SERVICE_INIT, "reload", "badwan_interface_up" ]);
 }
-else if (mode == "stop-service")
-    exit(stop_service(ARGV[1]));
-else if (mode == "restart-service")
-    exit(restart_service(ARGV[1]));
-else if (mode == "reload-begin-fixture") {
-    let plan = reload_begin_value(ARGV[1], ARGV[2] || "0", ARGV[3], ARGV[4]);
-    shell_assignment("INITD_RELOAD_ACTION", plan.action);
-    if (plan.action == "run")
-        shell_assignment("INITD_UI_JOB_ID", plan.job_id);
-    exit(plan.action == "run" ? 0 : 1);
+
+// The procd triggers as the tab separated lines the init script turns into
+// procd_add_*_trigger calls.
+function triggers() {
+    let values = settings();
+    let delay = common.option(values, "badwan_reload_delay", "2000") || "2000";
+    let lines = [
+        "delay\t" + delay,
+        "config\tconfig.change\t" + CONFIG_NAME + "\t" + SERVICE_INIT + "\treload\t" + CONFIG_CHANGE,
+        "interface\tinterface.*.up\twan\t" + SERVICE_INIT + "\thandle_wan_up\t"
+    ];
+    if (common.option(values, "enable_badwan_interface_monitoring", "") == "1")
+        for (let name in common.words(common.option(values, "badwan_monitored_interfaces", "")))
+            if (name != "wan")
+                push(lines, "interface\tinterface.*.up\t" + name + "\t" + SERVICE_INIT + "\treload\t");
+    return join("\n", lines) + "\n";
 }
-else if (mode == "reload-service")
-    exit(reload_service(ARGV[1], ARGV[2]));
-else if (mode == "reload-release")
-    exit(reload_release(ARGV[1]));
-else if (mode == "trigger-plan")
-    trigger_plan(uci_settings());
-else if (mode == "trigger-plan-fixture")
-    trigger_plan(settings_from_fixture(ARGV[1]));
-else if (mode == "initd-service-trigger-sync-requested")
-    exit(initd_service_trigger_sync_requested(ARGV[1]) ? 0 : 1);
-else if (mode == "initd-guard-matches-current-config")
-    exit(initd_guard_matches_current_config(ARGV[1], ARGV[2], ARGV[3]) ? 0 : 1);
-else if (mode == "initd-should-skip-internal-config-reload")
-    exit(initd_should_skip_internal_config_reload(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5]) ? 0 : 1);
-else if (mode == "initd-should-ignore-config-change-reload")
-    exit(initd_should_ignore_config_change_reload(ARGV[1], ARGV[2], ARGV[3]) ? 0 : 1);
-else if (mode == "initd-should-queue-config-change-reload")
-    exit(initd_should_queue_config_change_reload(ARGV[1], ARGV[2], ARGV[3], ARGV[4]) ? 0 : 1);
-else {
-    warn("Usage: service/initd.uc <operation> ...\n");
-    exit(1);
-}
+
+return { paths, start, stop, restart, reload, status, retry_start, wan_up, triggers };

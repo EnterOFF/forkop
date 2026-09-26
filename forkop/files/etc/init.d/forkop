@@ -8,18 +8,7 @@ EXTRA_HELP="        retry_start_on_wan_up Retry failed cold start after WAN come
 
 script=$(readlink "$initscript")
 NAME="$(basename ${script:-$initscript})"
-FORKOP_LIB="/usr/lib/forkop"
-FORKOP_INITD_UC="$FORKOP_LIB/service/initd.uc"
-
-# FORKOP_LIB is deliberately not exported: service/initd.uc resolves the
-# precompiled library cache itself and hands the result to everything it starts.
-# Pinning the source directory here would reach every child through the
-# environment and switch the whole procd path back to parsing sources.
-initd_ucode() {
-    [ -r "$FORKOP_INITD_UC" ] || return 1
-    FORKOP_SERVICE_NAME="$NAME" \
-        ucode -L "$FORKOP_LIB" "$FORKOP_INITD_UC" "$@"
-}
+FORKOP_BIN="/usr/bin/forkop"
 
 sync_service_triggers() {
     _procd_call sync_service_triggers_payload
@@ -33,7 +22,7 @@ sync_service_triggers_payload() {
 }
 
 start_service() {
-    initd_ucode start-service "$1" "$$"
+    "$FORKOP_BIN" initd_start "$1"
     FORKOP_LAST_START_STATUS="$?"
     return "$FORKOP_LAST_START_STATUS"
 }
@@ -43,7 +32,7 @@ service_started() {
 }
 
 stop_service() {
-    initd_ucode stop-service "$$"
+    "$FORKOP_BIN" initd_stop
     FORKOP_LAST_STOP_STATUS="$?"
     return "$FORKOP_LAST_STOP_STATUS"
 }
@@ -54,42 +43,37 @@ service_stopped() {
     return "${FORKOP_LAST_STOP_STATUS:-0}"
 }
 
-# A restart is one operation to whoever asked for it. Left to rc.common it is a
-# stop and then a start, each tracked separately, so the status feed reported
-# three states for it. service/initd.uc wraps both in one tracked restart.
+# A restart is one operation to whoever asked for it, where rc.common would run
+# a stop and a start each tracked on its own.
 restart() {
-    initd_ucode restart-service "$$"
+    "$FORKOP_BIN" initd_restart
 }
 
 reload_service() {
-    local reason="$1"
     local result status
 
-    trap 'initd_ucode reload-release "$$" >/dev/null 2>&1 || true' INT TERM
-    result="$(initd_ucode reload-service "$reason" "$$")"
+    result="$("$FORKOP_BIN" initd_reload "$1")"
     status="$?"
-    trap - INT TERM
-
     [ "$result" = "sync" ] && sync_service_triggers
     return "$status"
 }
 
 status_service() {
-    initd_ucode status-service
+    "$FORKOP_BIN" initd_status
 }
 
 retry_start_on_wan_up() {
-    initd_ucode retry-start-on-wan-up
+    "$FORKOP_BIN" initd_retry_start
 }
 
 handle_wan_up() {
-    initd_ucode handle-wan-up
+    "$FORKOP_BIN" initd_wan_up
 }
 
 service_triggers() {
     local plan kind event target init action reason
 
-    plan="$(initd_ucode trigger-plan)" || return 0
+    plan="$("$FORKOP_BIN" initd_triggers)" || return 0
 
     procd_open_trigger
     while IFS="$(printf '\t')" read -r kind event target init action reason; do

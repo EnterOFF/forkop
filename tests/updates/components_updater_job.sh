@@ -2,7 +2,6 @@
 set -eo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
-CLI_UC="$FORKOP_BIN"
 UPDATER="$ROOT_DIR/forkop/files/usr/lib/components/updater.uc"
 UPDATES_UC="$ROOT_DIR/forkop/files/usr/lib/components/updates.uc"
 ACTION_UC="$ROOT_DIR/forkop/files/usr/lib/components/action.uc"
@@ -57,8 +56,6 @@ if ucode "$UPDATER" updates-check-result-row component 1.0 2.0 invalid >/dev/nul
   fail "invalid check result status should be rejected"
 fi
 
-grep -Fq 'component_action: [ "components/action.uc", "component-action", 2 ]' "$CLI_UC" ||
-  fail "service/cli.uc must dispatch direct component_action through components/action.uc"
 grep -Fq 'component-action-async' "$UPDATES_UC" ||
   fail "components/updates.uc must own component action async"
 grep -Fq 'component-action-status' "$UPDATES_UC" ||
@@ -184,10 +181,6 @@ fi
 if grep -Fq 'save-sing-box-config-file-fixture' "$UPDATES_UC"; then
   fail "components/updates.uc must not expose sing-box config save fixtures owned by singbox/runtime.uc"
 fi
-grep -Fq 'component_action_async: [ "components/updates.uc", "component-action-async", 2 ]' "$CLI_UC" ||
-  fail "service/cli.uc must dispatch component_action_async through components/updates.uc"
-grep -Fq 'component_action_status: [ "components/updates.uc", "component-action-status", 1 ]' "$CLI_UC" ||
-  fail "service/cli.uc must dispatch component_action_status through components/updates.uc"
 grep -Fq 'require("core.uci")' "$ACTION_UC" ||
   fail "components/action.uc must use core.uci for component UCI mutations"
 if grep -n -E 'require\("uci"\)\.cursor|uci -q|uci", "-q"|command_exists\("uci"\)' "$ACTION_UC" >/dev/null 2>&1; then

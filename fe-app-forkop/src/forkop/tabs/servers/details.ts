@@ -7,6 +7,7 @@ import {
 import { getListenPort, getPublicHost } from './network';
 import { getServerName, isAuthenticationEnabled } from './protocols';
 import { qrSvgDataUri } from './qr';
+import { E } from '../../../helpers/element';
 
 function svgEl(
   tag: string,

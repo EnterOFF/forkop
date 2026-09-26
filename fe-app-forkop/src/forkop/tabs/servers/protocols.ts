@@ -180,6 +180,29 @@ export function listenerProtocols() {
   return protocolsWhere((entry: ServerProtocol) => entry.kind === 'inbound');
 }
 
+// The transports a listener of this protocol takes, as singbox/servers.uc reads
+// them: a port can be shared by two servers when one takes TCP and the other UDP.
+export function listenTransports(protocol: string, network: string) {
+  const value = `${network || ''}`.toLowerCase();
+  if (protocol === 'hysteria2' || protocol === 'tuic') return ['udp'];
+  if (
+    protocol === 'shadowsocks' ||
+    (protocol === 'naive' && value === 'tcp_udp')
+  )
+    return ['tcp', 'udp'];
+  if ((protocol === 'naive' || protocol === 'mieru') && value === 'udp')
+    return ['udp'];
+  return ['tcp'];
+}
+
+export function transportOption(protocol: string) {
+  return protocol === 'naive'
+    ? 'naive_network'
+    : protocol === 'mieru'
+      ? 'mieru_transport'
+      : '';
+}
+
 export function hasListener(protocol: string) {
   const spec = protocolSpec(protocol);
   return !!spec && spec.kind === 'inbound';

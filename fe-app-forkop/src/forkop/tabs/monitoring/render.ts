@@ -1,3 +1,5 @@
+import { E } from '../../../helpers/element';
+
 export function render() {
   return E(
     'div',

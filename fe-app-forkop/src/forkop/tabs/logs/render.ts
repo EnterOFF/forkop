@@ -1,3 +1,5 @@
+import { E } from '../../../helpers/element';
+
 function renderActionButton(id: string, label: string) {
   return E(
     'button',

@@ -1,5 +1,3 @@
-#!/usr/bin/env ucode
-
 let common = require("core.common");
 let uci_core = require("core.uci");
 let core_url = require("core.url");
@@ -12,14 +10,9 @@ let subscription_headers_module = require("singbox.subscription_headers");
 let runtime_urltest = require("singbox.urltest");
 let rule_config = require("config.rule");
 let connections = require("config.connections");
-let uci = null;
-let fixture_uci_data = null;
 let runtime_settings_cache = null;
 
 let as_string = common.as_string;
-let read_json_file = common.read_json_file;
-let read_stdin = common.read_stdin;
-let write_json_file = common.write_json_file;
 let strip_internal_fields = common.strip_internal_fields;
 let array_or_empty = common.array_or_empty;
 let object_or_empty = common.object_or_empty;
@@ -27,7 +20,6 @@ let option = common.option;
 let list_option = common.list_option;
 let bool_option = common.bool_option;
 let int_option = common.int_option;
-let duration_to_seconds = common.duration_to_seconds;
 const CONFIG_NAME = "forkop";
 // The sing-box FakeIP transport answers address queries only and fails the
 // query with `only IP queries are supported by fakeip` for anything else, so
@@ -35,82 +27,8 @@ const CONFIG_NAME = "forkop";
 // types fall through to the ordinary DNS rules.
 const FAKEIP_QUERY_TYPES = [ "A", "AAAA" ];
 
-function fixture_section_list(type_name) {
-    let value = object_or_empty(fixture_uci_data)[type_name];
-    if (type(value) == "array")
-        return value;
-    if (type(value) == "object")
-        return [ value ];
-
-    let plural = object_or_empty(fixture_uci_data)[type_name + "s"];
-    return type(plural) == "array" ? plural : [];
-}
-
-function fixture_get_section(section_name) {
-    let fixture = object_or_empty(fixture_uci_data);
-    if (section_name == "settings" && type(fixture.settings) == "object")
-        return fixture.settings;
-
-    for (let type_name in [ "settings", "server", "section", "subscription_url", "section_interface", "urltest", "fallback_group", "fallback_level" ]) {
-        for (let section in fixture_section_list(type_name)) {
-            if (as_string(section[".name"]) == section_name)
-                return section;
-        }
-    }
-
-    return {};
-}
-
-function fixture_cursor(path) {
-    fixture_uci_data = object_or_empty(read_json_file(path));
-    connections.set_item_sections_from_data(fixture_uci_data);
-    return {
-        load: function(_config_name) {
-            return true;
-        },
-        get_all: function(_config_name, section_name) {
-            return fixture_get_section(section_name);
-        },
-        foreach: function(_config_name, type_name, callback) {
-            for (let section in fixture_section_list(type_name))
-                callback(section);
-        }
-    };
-}
-
-function use_fixture_cursor(path) {
-    uci = fixture_cursor(path);
-    runtime_settings_cache = null;
-}
-
-function runtime_uci_cursor() {
-    return {
-        load: function(package_name) {
-            return uci_core.load(package_name);
-        },
-        get_all: function(package_name, section_name) {
-            return uci_core.get_all(package_name, section_name);
-        },
-        foreach: function(package_name, type_name, callback) {
-            for (let section in uci_core.section_objects(package_name, type_name))
-                callback(section);
-        }
-    };
-}
-
-function uci_cursor() {
-    if (uci == null)
-        uci = runtime_uci_cursor();
-    return uci;
-}
-
 function runtime_generate_unsupported(reason) {
-    warn(reason, "\n");
-    exit(2);
-}
-
-function valid_section_name(name) {
-    return match(name, /^[A-Za-z0-9_]+$/);
+    die(reason);
 }
 
 function section_enabled(section) {
@@ -127,13 +45,11 @@ function server_enabled(section) {
 
 function runtime_settings() {
     if (runtime_settings_cache == null)
-        runtime_settings_cache = object_or_empty(uci_cursor().get_all(CONFIG_NAME, "settings"));
+        runtime_settings_cache = object_or_empty(uci_core.get_all(CONFIG_NAME, "settings"));
     return runtime_settings_cache;
 }
 
 function dhcp_dnsmasq_section() {
-    if (fixture_uci_data != null)
-        return object_or_empty(fixture_uci_data.dhcp_dnsmasq);
     return object_or_empty(uci_core.get_all("dhcp", "@dnsmasq[0]"));
 }
 
@@ -168,22 +84,12 @@ function apply_remote_ruleset_update_interval(rule_set) {
     return rule_set;
 }
 
-function tag(base, postfix) {
-    return runtime_constants.tag(base, postfix);
-}
-
 function outbound_tag(section_name) {
     return runtime_constants.outbound_tag(connections.section_display_name(section_name));
 }
 
 function child_outbound_tag(section, display_name) {
     return runtime_constants.child_tag(connections.section_display_name(section), display_name);
-}
-
-function download_via_proxy_any_enabled(settings, sections) {
-    return connections.download_via_proxy_enabled(settings, "lists") ||
-        connections.download_via_proxy_enabled(settings, "components") ||
-        length(connections.subscription_download_targets(sections || [])) > 0;
 }
 
 function download_detour_tag(settings, purpose) {
@@ -265,10 +171,6 @@ function clash_api_config(settings, service_address) {
             result.secret = secret;
     }
     return result;
-}
-
-function cli_bool(value) {
-    return value === true || value == "1" || value == "true" || value == "yes" || value == "on";
 }
 
 function single_or_array(values) {
@@ -362,10 +264,9 @@ function base_config(settings, service_address, runtime_context) {
         { type: "tproxy", tag: runtime_constants.TPROXY_INBOUND6_TAG, listen: runtime_constants.TPROXY_INBOUND6_ADDRESS, listen_port: runtime_constants.TPROXY_INBOUND_PORT, tcp_fast_open: true, udp_fragment: true },
         { type: "tproxy", tag: runtime_constants.SYSTEM_TPROXY_INBOUND_TAG, listen: runtime_constants.TPROXY_INBOUND_ADDRESS, listen_port: runtime_constants.SYSTEM_TPROXY_INBOUND_PORT, tcp_fast_open: true, udp_fragment: true },
         { type: "tproxy", tag: runtime_constants.SYSTEM_TPROXY_INBOUND6_TAG, listen: runtime_constants.TPROXY_INBOUND6_ADDRESS, listen_port: runtime_constants.SYSTEM_TPROXY_INBOUND_PORT, tcp_fast_open: true, udp_fragment: true },
-        { type: "direct", tag: runtime_constants.DNS_INBOUND_TAG, listen: runtime_constants.DNS_INBOUND_ADDRESS, listen_port: runtime_constants.DNS_INBOUND_PORT }
+        { type: "direct", tag: runtime_constants.DNS_INBOUND_TAG, listen: runtime_constants.DNS_INBOUND_ADDRESS, listen_port: runtime_constants.DNS_INBOUND_PORT },
+        { type: "direct", tag: runtime_constants.SOURCE_DNS_INBOUND_TAG, listen: runtime_constants.SOURCE_DNS_INBOUND_ADDRESS, listen_port: runtime_constants.SOURCE_DNS_INBOUND_PORT }
     ];
-    if (runtime_context.source_aware_dns)
-        push(inbounds, { type: "direct", tag: runtime_constants.SOURCE_DNS_INBOUND_TAG, listen: runtime_constants.SOURCE_DNS_INBOUND_ADDRESS, listen_port: runtime_constants.SOURCE_DNS_INBOUND_PORT });
     if (runtime_context.system_aware_dns)
         push(inbounds, { type: "direct", tag: runtime_constants.SYSTEM_DNS_INBOUND_TAG, listen: runtime_constants.SYSTEM_DNS_INBOUND_ADDRESS, listen_port: runtime_constants.SYSTEM_DNS_INBOUND_PORT });
 
@@ -743,23 +644,8 @@ function urltest_check_interval(section, urltest_id) {
     return interval != "" ? interval : "3m";
 }
 
-function legacy_urltest_idle_timeout(section, urltest_id) {
-    if (urltest_id != "urltest")
-        return "";
-
-    let settings = connections.urltest_settings(section, urltest_id);
-    if (type(settings) == "object" && as_string(settings[".type"] || "") == "urltest")
-        return "";
-
-    let interval = urltest_check_interval(section, urltest_id);
-    let interval_seconds = duration_to_seconds(interval);
-    let default_idle_seconds = duration_to_seconds(runtime_constants.URLTEST_DEFAULT_IDLE_TIMEOUT);
-    return interval_seconds != null && interval_seconds > default_idle_seconds ? interval : "";
-}
-
 function urltest_idle_timeout(section, urltest_id) {
-    let configured = connections.urltest_idle_timeout(section, urltest_id);
-    return configured != "" ? configured : legacy_urltest_idle_timeout(section, urltest_id);
+    return connections.urltest_idle_timeout(section, urltest_id);
 }
 
 function unique_string_array(values) {
@@ -1215,45 +1101,6 @@ function add_service_mixed_proxy_inbound(config, tag_name, listen_port, outbound
     });
 }
 
-function service_mixed_proxy_inbound_tag_for_purpose(purpose) {
-    return as_string(purpose || "lists") == "components"
-        ? runtime_constants.inbound_tag("service-components")
-        : runtime_constants.SERVICE_MIXED_INBOUND_TAG;
-}
-
-function service_mixed_proxy_port_for_purpose(purpose) {
-    return runtime_constants.SERVICE_MIXED_INBOUND_PORT +
-        (as_string(purpose || "lists") == "components" ? 1 : 0);
-}
-
-function add_global_download_service_mixed_proxy(config, settings, purpose) {
-    let outbound = download_detour_tag(settings, purpose);
-    if (outbound == "")
-        return;
-
-    add_service_mixed_proxy_inbound(
-        config,
-        service_mixed_proxy_inbound_tag_for_purpose(purpose),
-        service_mixed_proxy_port_for_purpose(purpose),
-        outbound
-    );
-}
-
-function add_subscription_download_service_mixed_proxies(config, sections) {
-    for (let target in connections.subscription_download_targets(sections)) {
-        let port = connections.subscription_download_target_port(sections, target, runtime_constants.SERVICE_MIXED_INBOUND_PORT);
-        if (port <= 0)
-            runtime_generate_unsupported("subscription download proxy port could not be resolved");
-
-        add_service_mixed_proxy_inbound(
-            config,
-            runtime_constants.inbound_tag("service-subscription-" + target),
-            port,
-            outbound_tag(target)
-        );
-    }
-}
-
 function first_outbound_section(sections) {
     for (let section in sections) {
         if (connections.is_connections_action(option(section, "action", "")))
@@ -1262,39 +1109,20 @@ function first_outbound_section(sections) {
     return null;
 }
 
-function inbound_registered(config, tag_name) {
-    for (let inbound in config.inbounds)
-        if (type(inbound) == "object" && as_string(inbound.tag) == as_string(tag_name))
-            return true;
-    return false;
-}
-
-// The proxy diagnostic measures the running core through this inbound instead
-// of starting a second sing-box process beside it. A download detour creates it
-// already; without one it is added for the outbound the diagnostic checks.
-function add_service_check_mixed_proxy(config, sections) {
-    let first = first_outbound_section(sections);
-    if (first == null || inbound_registered(config, runtime_constants.SERVICE_MIXED_INBOUND_TAG))
-        return;
-
-    add_service_mixed_proxy_inbound(
-        config,
-        runtime_constants.SERVICE_MIXED_INBOUND_TAG,
-        runtime_constants.SERVICE_MIXED_INBOUND_PORT,
-        outbound_tag(first[".name"])
-    );
-}
-
+// The proxy diagnostic measures the running core through one inbound instead of
+// starting a second sing-box beside it, on the first section: the one the
+// transparent proxy check sends its domain to, so both checks see one exit. The
+// component manager downloads through another when component downloads go
+// through a section; lists and subscriptions name their section as a detour.
 function add_service_mixed_proxy(config, settings, sections) {
-    if (!download_via_proxy_any_enabled(settings, sections)) {
-        add_service_check_mixed_proxy(config, sections);
-        return;
-    }
-
-    add_global_download_service_mixed_proxy(config, settings, "lists");
-    add_global_download_service_mixed_proxy(config, settings, "components");
-    add_subscription_download_service_mixed_proxies(config, sections);
-    add_service_check_mixed_proxy(config, sections);
+    let first = first_outbound_section(sections);
+    if (first != null)
+        add_service_mixed_proxy_inbound(config, runtime_constants.SERVICE_MIXED_INBOUND_TAG,
+            runtime_constants.SERVICE_MIXED_INBOUND_PORT, outbound_tag(first[".name"]));
+    let components = download_detour_tag(settings, "components");
+    if (components != "")
+        add_service_mixed_proxy_inbound(config, runtime_constants.COMPONENTS_MIXED_INBOUND_TAG,
+            runtime_constants.COMPONENTS_MIXED_INBOUND_PORT, components);
 
     if (connections.download_via_proxy_enabled(settings, "lists") && download_detour_tag(settings, "lists") == "")
         runtime_generate_unsupported("download lists via proxy section is not set");
@@ -1621,8 +1449,7 @@ function push_dns_matcher_rule(config, rule) {
 }
 
 function section_has_port_matchers(section) {
-    return length(list_option(section, "ports")) > 0 ||
-        length(rule_config.text_list_values(option(section, "ports_text", ""), "comma-space")) > 0;
+    return connections.rule_ports_csv(section) != "";
 }
 
 function section_dns_server(section) {
@@ -1884,38 +1711,18 @@ function add_dns_action_rules_for_section(config, section) {
         runtime_generate_unsupported("DNS action '" + section_name + "' has no domain matchers");
 }
 
-function normalize_port_number_value(value) {
-    return rule_config.normalize_port_number_value(value);
-}
-
+// The ports as the nft table reads them, where a range of one port is that port.
 function add_port_matchers(rule, section) {
-    let values = [];
-    for (let value in list_option(section, "ports"))
-        push(values, value);
-    for (let value in rule_config.text_list_values(option(section, "ports_text", ""), "comma-space"))
-        push(values, value);
-
     let ports = [];
     let port_ranges = [];
-    let seen = {};
-    for (let value in values) {
-        value = trim(as_string(value));
-        if (value == "" || seen[value])
-            continue;
-        seen[value] = true;
-
+    for (let value in split(connections.rule_ports_csv(section), ",")) {
         let dash = index(value, "-");
-        if (dash < 0) {
-            let port = normalize_port_number_value(value);
-            if (port != null)
-                push(ports, port);
+        if (value == "")
             continue;
-        }
-
-        let start = normalize_port_number_value(substr(value, 0, dash));
-        let end = normalize_port_number_value(substr(value, dash + 1));
-        if (start != null && end != null && start <= end)
-            push(port_ranges, start == end ? as_string(start) : sprintf("%d:%d", start, end));
+        if (dash < 0)
+            push(ports, int(value));
+        else
+            push(port_ranges, substr(value, 0, dash) + ":" + substr(value, dash + 1));
     }
 
     if (length(ports) > 0)
@@ -2054,25 +1861,9 @@ function add_combined_route_for_section(config, section) {
     }
 }
 
-function unsupported_matcher_key(section) {
-    let unsupported_options = [
-        "subnet", "subnet_text"
-    ];
-    for (let key in unsupported_options) {
-        if (length(list_option(section, key)) > 0 || option(section, key, "") != "")
-            return key;
-    }
-    return "";
-}
-
 function add_outbound_for_section(config, section, taken) {
     let action = option(section, "action", "");
     let section_name = section[".name"];
-    if (!valid_section_name(section_name))
-        runtime_generate_unsupported("section name is not safe for sing-box config generation");
-    let unsupported_matcher = unsupported_matcher_key(section);
-    if (unsupported_matcher != "")
-        runtime_generate_unsupported("section has unsupported matcher " + unsupported_matcher);
 
     if (connections.is_connections_action(action))
         add_connections_outbound(config, section, taken);
@@ -2121,23 +1912,11 @@ function add_service_route_rules(config, sections) {
     });
 }
 
-function deferred_section_set(value) {
-    let result = {};
-    for (let name in split(trim(as_string(value)), /[ \t\r\n]+/)) {
-        name = as_string(name);
-        if (name != "")
-            result[name] = true;
-    }
-    return result;
-}
-
-function enabled_sections(deferred_sections) {
-    let deferred = deferred_section_set(deferred_sections);
+function enabled_sections() {
     let result = [];
-    uci_cursor().foreach(CONFIG_NAME, "section", function(section) {
-        if (section_enabled(section) && !deferred[as_string(section[".name"])])
+    for (let section in uci_core.section_objects(CONFIG_NAME, "section"))
+        if (section_enabled(section))
             push(result, section);
-    });
     return result;
 }
 
@@ -2151,10 +1930,9 @@ function runtime_sections(sections) {
 
 function enabled_servers() {
     let result = [];
-    uci_cursor().foreach(CONFIG_NAME, "server", function(section) {
+    for (let section in uci_core.section_objects(CONFIG_NAME, "server"))
         if (server_enabled(section))
             push(result, section);
-    });
     return result;
 }
 
@@ -2268,25 +2046,25 @@ function add_server_routes(config, servers, sections) {
     }
 }
 
-function generate_config(output_path, service_address, mwan3_active, deferred_sections) {
-    let cursor = uci_cursor();
-    cursor.load(CONFIG_NAME);
-    runtime_settings_cache = object_or_empty(cursor.get_all(CONFIG_NAME, "settings"));
-    let settings = runtime_settings_cache;
+// The sing-box configuration for the committed Forkop configuration, as an
+// object. Throws with the reason when the configuration cannot be expressed.
+// context: { service_address, mwan3_active }.
+function build(context) {
+    context = object_or_empty(context);
+    connections.load();
+    runtime_settings_cache = null;
+    let settings = runtime_settings();
 
-    // A Connection section without a single source contributes no outbound and no
-    // route, so counting enabled sections let an unfinished one pass the check and
-    // Forkop started on a config that routes nothing while it still hijacks the DNS
-    // of the whole network. Only sections that survive to the runtime graph count.
-    let sections = runtime_sections(enabled_sections(deferred_sections));
+    // A Connection section without a single source contributes no outbound and
+    // no route, so only the sections that reach the runtime graph count.
+    let sections = runtime_sections(enabled_sections());
     let servers = enabled_servers();
-    if (length(sections) == 0 && length(servers) == 0 && trim(as_string(deferred_sections)) == "")
+    if (length(sections) == 0 && length(servers) == 0)
         runtime_generate_unsupported("no usable sections or servers");
 
     let system_aware_dns = system_aware_dns_enabled(sections);
-    let config = base_config(settings, service_address, {
-        mwan3_active: cli_bool(mwan3_active),
-        source_aware_dns: true,
+    let config = base_config(settings, context.service_address, {
+        mwan3_active: !!context.mwan3_active,
         system_aware_dns,
         direct_server_route: has_direct_tailscale_server(servers)
     });
@@ -2308,31 +2086,7 @@ function generate_config(output_path, service_address, mwan3_active, deferred_se
     add_service_mixed_proxy(config, settings, sections);
 
     assert_unique_outbound_tags(config);
-    strip_internal_fields(config);
-    if (!write_json_file(output_path, config)) {
-        warn("failed to write ", output_path, "\n");
-        exit(1);
-    }
+    return strip_internal_fields(config);
 }
 
-function generate_config_fixture(fixture_path, output_path, service_address, mwan3_active, deferred_sections) {
-    use_fixture_cursor(fixture_path);
-    generate_config(output_path, service_address, mwan3_active, deferred_sections);
-}
-
-function stdin_contains(needle) {
-    return index(read_stdin(), as_string(needle)) >= 0;
-}
-
-let mode = ARGV[0] || "";
-
-if (mode == "generate-config")
-    generate_config(ARGV[1], ARGV[2], ARGV[3], ARGV[4] || "");
-else if (mode == "generate-config-fixture")
-    generate_config_fixture(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5] || "");
-else if (mode == "stdin-contains")
-    exit(stdin_contains(ARGV[1]) ? 0 : 1);
-else {
-    warn("Usage: singbox/generator.uc <operation> ...\n");
-    exit(1);
-}
+return { build };

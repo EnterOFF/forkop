@@ -13,6 +13,7 @@ import { CONNECTIONS_BLOCKED_INTERFACES } from './constants';
 import { refreshDashboardFilterChoiceWidgets } from './outboundNames';
 import { refreshDnsDetourSectionOptionValues } from './references';
 import { optionMapValue } from './subscriptions/model';
+import { E } from '../../../helpers/element';
 
 function isConnectionNetworkInterfaceAllowed(
   deviceName: string,

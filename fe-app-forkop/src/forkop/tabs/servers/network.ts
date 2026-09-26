@@ -8,7 +8,7 @@ import {
   isPrivateOrReservedIp,
   normalizeHost,
 } from './hosts';
-import { hasListener } from './protocols';
+import { hasListener, listenTransports, transportOption } from './protocols';
 
 const callNetworkInterfaceDump = rpc.declare({
   object: 'network.interface',
@@ -31,35 +31,43 @@ let systemPortsPromise: Promise<SystemPort[]> | null = null;
 let systemPortsCache: SystemPort[] | null = null;
 
 // Ports another Forkop server, another Forkop inbound or a router service already
-// listens on. sing-box refuses to start on a taken port, and the runtime check in
-// Diagnostics only reports it after the fact.
+// listens on, keyed by transport and port. sing-box refuses to start on a taken
+// port, and the runtime check in Diagnostics only reports it after the fact.
 export function occupiedPorts(currentSectionId: string) {
   const owners = new Map<string, string>();
 
-  const claim = (port: unknown, owner: string) => {
-    const normalized = `${port || ''}`.trim();
-    if (!/^[0-9]+$/.test(normalized) || owners.has(normalized)) {
+  const claim = (port: unknown, transports: string[], owner: string) => {
+    const text = `${port || ''}`.trim();
+    if (!/^[0-9]+$/.test(text)) {
       return;
     }
-    owners.set(normalized, owner);
+    transports.forEach((transport) => {
+      const key = `${transport}/${Number(text)}`;
+      if (!owners.has(key)) owners.set(key, owner);
+    });
   };
 
-  RESERVED_PORTS.forEach(([port, owner]) => claim(port, owner));
+  RESERVED_PORTS.forEach(([port, owner]) => claim(port, ['tcp', 'udp'], owner));
 
   (uci.sections(FORKOP_UCI_PACKAGE, 'server') || []).forEach((server) => {
     if (server['.name'] === currentSectionId || server.enabled === '0') {
       return;
     }
-    if (!hasListener(`${server.protocol || DEFAULT_PROTOCOL}`)) {
+    const protocol = `${server.protocol || DEFAULT_PROTOCOL}`;
+    if (!hasListener(protocol)) {
       return;
     }
+    const network = transportOption(protocol);
     claim(
       server.listen_port,
+      listenTransports(protocol, network ? `${server[network] || ''}` : ''),
       _('server %s').format(server.label || server['.name']),
     );
   });
 
-  (systemPortsCache || []).forEach((entry) => claim(entry.port, entry.owner));
+  (systemPortsCache || []).forEach((entry) =>
+    claim(entry.port, ['tcp'], entry.owner),
+  );
 
   return owners;
 }

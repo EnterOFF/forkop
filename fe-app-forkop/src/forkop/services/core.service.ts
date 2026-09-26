@@ -12,6 +12,7 @@ import {
   startRuntimeUiStatePolling,
 } from './runtimeUiState.service';
 import { ensureSystemInfo } from './systemInfo.service';
+import { E } from '../../helpers/element';
 
 type CoreServiceOptions = {
   waitForLogWatcherStart?: () => Promise<unknown>;

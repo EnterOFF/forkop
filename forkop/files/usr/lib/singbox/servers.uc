@@ -269,7 +269,7 @@ function add_standard_inbound(config, section, protocol, tag_name) {
         inbound.users = users(section, protocol);
     }
     else if (protocol == "mixed") {
-        if (bool_option(section, "mixed_auth_enabled", false)) {
+        if (bool_option(section, "mixed_auth_enabled", true)) {
             let server_users = users(section, protocol);
             if (length(server_users) > 0)
                 inbound.users = server_users;
@@ -360,6 +360,25 @@ function add_json_inbound(config, section, tag_name) {
     push(config.inbounds, inbound);
 }
 
+// The transports a listener of this protocol takes. A port can be shared by two
+// servers when one takes TCP and the other UDP.
+function transports(protocol, network) {
+    network = lc(as_string(network));
+    if (protocol == "hysteria2" || protocol == "tuic")
+        return [ "udp" ];
+    if (protocol == "shadowsocks" || (protocol == "naive" && network == "tcp_udp"))
+        return [ "tcp", "udp" ];
+    if ((protocol == "naive" || protocol == "mieru") && network == "udp")
+        return [ "udp" ];
+    return [ "tcp" ];
+}
+
+function listen_transports(section) {
+    let protocol = option(section, "protocol", "vless");
+    return transports(protocol, protocol == "naive" ? option(section, "naive_network", "tcp")
+        : protocol == "mieru" ? option(section, "mieru_transport", "TCP") : "");
+}
+
 function add_tailscale_endpoint(config, section, tag_name) {
     let section_name = section[".name"];
     let endpoint = {
@@ -383,7 +402,9 @@ function add_tailscale_endpoint(config, section, tag_name) {
         endpoint.accept_routes = true;
     if (bool_option(section, "tailscale_ephemeral", false))
         endpoint.ephemeral = true;
-    let advertise_routes = list_option(section, "tailscale_advertise_routes");
+    // sing-box reads each as a prefix, and the dialog takes a single address too.
+    let advertise_routes = map(list_option(section, "tailscale_advertise_routes"),
+        (route) => index(route, "/") >= 0 ? route : route + (index(route, ":") >= 0 ? "/128" : "/32"));
     if (length(advertise_routes) > 0)
         endpoint.advertise_routes = advertise_routes;
     push(config.endpoints, endpoint);
@@ -468,6 +489,12 @@ function value_contains(value, item) {
 
 // A user narrows the clones to one account of the inbound, which is what a client
 // that follows the shared rules needs when its server does not.
+// A section whose rule set is narrowed by ports or devices is a logical AND of
+// what identifies it, which carries the inbound, and the narrowing.
+function identity_rule(rule) {
+    return rule.type == "logical" ? rule.rules?.[0] : rule;
+}
+
 function clone_rules_for_inbound(config, source_inbound, target_inbound, skip_domain, user) {
     let cloned_rules = [];
     for (let rule in array_or_empty(config.route.rules)) {
@@ -475,21 +502,22 @@ function clone_rules_for_inbound(config, source_inbound, target_inbound, skip_do
             continue;
         if (rule.action != "route" && rule.action != "reject")
             continue;
-        if (!value_contains(rule.inbound, source_inbound))
+        let identity = identity_rule(rule);
+        if (type(identity) != "object" || !value_contains(identity.inbound, source_inbound))
             continue;
-        if (skip_domain != "" && value_contains(rule.domain, skip_domain))
+        if (skip_domain != "" && value_contains(identity.domain, skip_domain))
             continue;
-        if (rule.source_ip_cidr != null)
+        // Device filters name the router's clients, which a server's are not.
+        if (length(filter(rule.type == "logical" ? rule.rules : [ rule ], (part) => part?.source_ip_cidr != null)) > 0)
             continue;
 
         let cloned = clone(rule);
-        if (type(cloned) != "object")
-            continue;
-        cloned.inbound = target_inbound;
+        let cloned_identity = identity_rule(cloned);
+        cloned_identity.inbound = target_inbound;
         // auth_user is what a route rule matches an account on; a user field is not
         // part of a rule and sing-box drops the whole rule that carries one.
         if (user != null && user != "")
-            cloned.auth_user = user;
+            cloned_identity.auth_user = user;
         push(cloned_rules, cloned);
     }
     for (let cloned_rule in cloned_rules)
@@ -503,5 +531,7 @@ return {
     add_server,
     add_sniff_rule,
     clone_rules_for_inbound,
+    transports,
+    listen_transports,
     effective_security
 };

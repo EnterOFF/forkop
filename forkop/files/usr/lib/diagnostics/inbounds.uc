@@ -28,22 +28,6 @@ function contains(values, needle) {
 // option says otherwise. Shadowsocks is the one that carries both without being
 // asked: its listener takes the default network, which is TCP and UDP, and the
 // UDP half is how a client relays datagrams.
-function required_proto(protocol, transport) {
-    protocol = as_string(protocol);
-    transport = lc(as_string(transport));
-    if (protocol == "json_inbound")
-        return "";
-    if (protocol == "hysteria2" || protocol == "tuic")
-        return "udp";
-    if (protocol == "shadowsocks")
-        return "tcp udp";
-    if (protocol == "naive" && transport == "tcp_udp")
-        return "tcp udp";
-    if ((protocol == "naive" || protocol == "mieru") && transport == "udp")
-        return "udp";
-    return "tcp";
-}
-
 // The `type` the generator writes into the sing-box inbound. Only MTProto is
 // named differently there.
 function runtime_type(protocol) {
@@ -126,7 +110,6 @@ function public_host_flags(public_host, public_host_ips, wan_ip, wan_public) {
 }
 
 return {
-    required_proto,
     runtime_type,
     listen_requires_firewall,
     runtime_ok,

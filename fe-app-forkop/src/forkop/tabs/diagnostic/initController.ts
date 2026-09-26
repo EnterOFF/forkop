@@ -48,11 +48,6 @@ import type { ServiceOperation } from './serviceTransition';
 import { isActiveLuciTab } from '../../helpers/isActiveLuciTab';
 import { formatOsRelease } from '../../helpers/osRelease';
 import { formatSingBoxVersion } from '../../helpers/singBoxVersion';
-import {
-  formatMaskedSingBoxConfig,
-  maskGlobalCheckText,
-  stringifySingBoxConfig,
-} from './helpers/maskDiagnostics';
 
 let latestCapabilitiesRequestId = 0;
 let diagnosticLifecycleRegistered = false;
@@ -376,20 +371,33 @@ async function handleDisable() {
   await handleAutostartAction('disable', () => ForkopShellMethods.disable());
 }
 
+// The backend masks what these show, and the values are asked for again only
+// when the toggle says to show them.
+function diagnosticText(
+  load: (masked: boolean) => Promise<{ success: boolean; data?: unknown }>,
+) {
+  return async ({ maskValues }: { maskValues: boolean }) => {
+    const result = await load(maskValues);
+    if (!result.success) {
+      throw new Error('Failed to load diagnostics');
+    }
+    return typeof result.data === 'string'
+      ? result.data
+      : JSON.stringify(result.data, null, 2);
+  };
+}
+
 async function handleShowGlobalCheck() {
   setDiagnosticActionLoading('globalCheck', true);
 
   try {
-    const globalCheck = await ForkopShellMethods.globalCheck(false);
+    const globalCheck = await ForkopShellMethods.globalCheck(true);
 
     if (globalCheck.success) {
-      const rawGlobalCheckText = (globalCheck.data as string) ?? '';
-      const maskedGlobalCheckText = maskGlobalCheckText(rawGlobalCheckText);
-
       ui.showModal(
         _('Global check'),
-        renderModal(rawGlobalCheckText, 'global_check', {
-          maskText: () => maskedGlobalCheckText,
+        renderModal((globalCheck.data as string) ?? '', 'global_check', {
+          getText: diagnosticText(ForkopShellMethods.globalCheck),
           initialAutoRefresh: false,
           showMaskValuesToggle: true,
         }),
@@ -408,16 +416,13 @@ async function handleShowForkopConfig() {
   setDiagnosticActionLoading('showConfig', true);
 
   try {
-    const showConfig = await ForkopShellMethods.showConfig(false);
+    const showConfig = await ForkopShellMethods.showConfig(true);
 
     if (showConfig.success) {
-      const rawConfigText = (showConfig.data as string) ?? '';
-      const maskedConfigText = maskGlobalCheckText(rawConfigText);
-
       ui.showModal(
         _('Forkop configuration'),
-        renderModal(rawConfigText, 'show_config', {
-          maskText: () => maskedConfigText,
+        renderModal((showConfig.data as string) ?? '', 'show_config', {
+          getText: diagnosticText(ForkopShellMethods.showConfig),
           initialAutoRefresh: false,
           showMaskValuesToggle: true,
         }),
@@ -436,31 +441,17 @@ async function handleShowSingBoxConfig() {
   setDiagnosticActionLoading('showSingBoxConfig', true);
 
   try {
-    const showSingBoxConfig = await ForkopShellMethods.showSingBoxConfig(false);
+    const load = diagnosticText(ForkopShellMethods.showSingBoxConfig);
+    const showSingBoxConfig = await load({ maskValues: true });
 
-    if (showSingBoxConfig.success) {
-      const rawSingBoxConfigText = stringifySingBoxConfig(
-        showSingBoxConfig.data,
-      );
-      const maskedSingBoxConfigText = formatMaskedSingBoxConfig(
-        showSingBoxConfig.data,
-      );
-
-      ui.showModal(
-        _('sing-box configuration'),
-        renderModal(rawSingBoxConfigText, 'show_sing_box_config', {
-          maskText: () => maskedSingBoxConfigText,
-          initialAutoRefresh: false,
-          showMaskValuesToggle: true,
-        }),
-      );
-    } else {
-      logger.error(
-        '[DIAGNOSTIC]',
-        'handleShowSingBoxConfig - e',
-        showSingBoxConfig,
-      );
-    }
+    ui.showModal(
+      _('sing-box configuration'),
+      renderModal(showSingBoxConfig, 'show_sing_box_config', {
+        getText: load,
+        initialAutoRefresh: false,
+        showMaskValuesToggle: true,
+      }),
+    );
   } catch (e) {
     logger.error('[DIAGNOSTIC]', 'handleShowSingBoxConfig - e', e);
   } finally {

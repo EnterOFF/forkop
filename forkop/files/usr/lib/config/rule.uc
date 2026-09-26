@@ -115,7 +115,7 @@ function normalize_domain_subnet_value(value, kind) {
     if (kind == "subnets")
         return ip.valid_ip_or_cidr(value) ? value : null;
 
-    exit(1);
+    die("unknown value kind '" + kind + "'");
 }
 
 function filter_domain_subnet_values(values, kind) {
@@ -123,7 +123,7 @@ function filter_domain_subnet_values(values, kind) {
     kind = as_string(kind);
 
     if (kind != "domains" && kind != "subnets")
-        exit(1);
+        die("unknown value kind '" + kind + "'");
 
     for (let value in values) {
         let normalized = normalize_domain_subnet_value(value, kind);
@@ -272,20 +272,6 @@ function normalize_port_condition_value(value) {
     return start == end ? as_string(start) : sprintf("%d-%d", start, end);
 }
 
-function normalize_port_range_value(value) {
-    value = trim(as_string(value));
-    let dash = index(value, "-");
-    if (dash < 0)
-        return null;
-
-    let start = normalize_port_number_value(substr(value, 0, dash));
-    let end = normalize_port_number_value(substr(value, dash + 1));
-    if (start == null || end == null || start > end)
-        return null;
-
-    return sprintf("%d:%d", start, end);
-}
-
 function append_unique_port(result, seen, item) {
     let normalized = normalize_port_condition_value(item);
     if (normalized == null || seen[normalized])
@@ -326,28 +312,9 @@ function community_service_has_subnet_list(value) {
     return community_subnet_lists[as_string(value)] == true;
 }
 
-function filter_community_subnet_lists_value(value) {
-    let result = [];
-
-    for (let item in whitespace_fields(value))
-        if (community_service_has_subnet_list(item))
-            push(result, item);
-
-    return join(" ", result);
-}
-
-function has_community_subnet_list(value) {
-    for (let item in whitespace_fields(value))
-        if (community_service_has_subnet_list(item))
-            return true;
-    return false;
-}
-
 return {
     text_list_values,
-    normalize_port_number_value,
     normalize_port_condition_value,
-    normalize_port_range_value,
     prefixed_domain_kind_value,
     domain_value_for_key,
     normalize_domain_subnet_value,
@@ -355,6 +322,4 @@ return {
     rule_condition_csv_value,
     rule_ports_csv_value,
     community_service_has_subnet_list,
-    filter_community_subnet_lists_value,
-    has_community_subnet_list
 };

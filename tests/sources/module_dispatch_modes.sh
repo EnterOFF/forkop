@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
-# A module invoked with a mode its dispatch does not have fails at runtime, on
-# the router, silently: the callers here read the exit status as an answer, so a
-# missing mode does not look like an error, it looks like "no". That is how the
-# teardown in service/lifecycle.uc came to skip removing the routing rules and
-# the routing table it had added - it asked nft/apply.uc for four pass-through
-# modes that had been removed, read every failure as "not present", and left the
-# kernel state behind on every stop.
+# A module run as a program with a mode its dispatch does not have fails at
+# runtime, on the router, silently: the callers read the exit status as an
+# answer, so a missing mode does not look like an error, it looks like "no". The
+# component manager, the command line and the lifecycle each run a few modules
+# that way, and every mode they ask for has to be one the module answers.
 set -eo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
@@ -39,7 +37,7 @@ function moduleConstants(source) {
 // Every literal the dispatch at the bottom of a module compares its mode against.
 function dispatchModes(source) {
   const modes = new Set();
-  const pattern = /\b\w*(?:mode|MODE)\s*==\s*"([^"]+)"/g;
+  const pattern = /\b\w*(?:mode|MODE)\s*[!=]=\s*"([^"]+)"/g;
   let match;
   while ((match = pattern.exec(source)) !== null) {
     modes.add(match[1]);
@@ -47,14 +45,22 @@ function dispatchModes(source) {
   return modes;
 }
 
-// `module_success(NFT_UC, [ "tproxy-route4-present", ... ])`
-function requestedModes(source) {
+// `module_success(NFT_UC, [ "tproxy-route4-present", ... ])`,
+// `module_output([ LIB_DIR + "/core/packages.uc", "version", ... ])`,
+// `program("components/action.uc", "component-action")` and
+// `library.program("components/updates.uc", [ "remove-cron-jobs", ... ])`.
+function requestedModes(source, constants) {
   const requests = [];
-  const pattern =
-    /module_(?:success|status|output|passthrough)\(\s*([A-Z0-9_]+)\s*,\s*\[\s*"([^"]+)"/g;
-  let match;
-  while ((match = pattern.exec(source)) !== null) {
-    requests.push({ constant: match[1], mode: match[2] });
+  const patterns = [
+    [/module_(?:success|status|output|passthrough)\(\s*([A-Z0-9_]+)\s*,\s*\[\s*"([^"]+)"/g, (m) => constants.get(m[1])],
+    [/\[\s*LIB_DIR\s*\+\s*"\/([^"]+\.uc)"\s*,\s*"([^"]+)"/g, (m) => m[1]],
+    [/program\(\s*"([^"]+\.uc)"\s*,\s*\[?\s*"([^"]+)"/g, (m) => m[1]],
+  ];
+  for (const [pattern, target] of patterns) {
+    let match;
+    while ((match = pattern.exec(source)) !== null) {
+      requests.push({ target: target(match), mode: match[2] });
+    }
   }
   return requests;
 }
@@ -76,13 +82,12 @@ for (const file of files) {
   const constants = moduleConstants(source);
   const caller = path.relative(libDir, file).split(path.sep).join('/');
 
-  for (const { constant, mode } of requestedModes(source)) {
-    const target = constants.get(constant);
+  for (const { target, mode } of requestedModes(source, constants)) {
     if (!target) continue;
 
     const known = modesByFile.get(target);
     if (!known) {
-      problems.push(`${caller}: ${constant} points at missing ${target}`);
+      problems.push(`${caller}: runs missing ${target}`);
       continue;
     }
 

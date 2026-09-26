@@ -1,14 +1,7 @@
-#!/usr/bin/env ucode
-
-// What one Forkop section contributes to the nftables runtime table.
-//
-// nft/apply.uc builds the table and nft/ruleset_sync.uc refills its sets from
-// the rule-set providers, and the two have to agree about every section: a set
-// apply.uc does not create is a set ruleset_sync must not flush, and a matcher
-// one of them reads from `_text` while the other reads the list option is a
-// matcher that silently reaches only half the table. Each of those questions
-// used to be answered twice, in two files, from different options. They are
-// answered here once.
+// What one Forkop section contributes to the nftables runtime table. nft/apply.uc
+// builds the table and nft/ruleset_sync.uc refills its sets from the rule-set
+// providers, so both read the section from here: a set apply.uc does not create
+// is a set ruleset_sync must not flush.
 
 let common = require("core.common");
 let connections = require("config.connections");
@@ -97,18 +90,10 @@ function subnet_source_tags(section) {
     return result;
 }
 
-// One walk over a section's conditions answers everything the builders ask, and
-// each answer on its own costs such a walk.
-//
-// The `needs_*` flags are the contract between the two callers: they say which
-// sets the rules reference, which is both which sets have to be created and
-// which ones hold elements.
-//
-// `tags` overrides which providers feed the section, which is how a test fixture
-// pins a snapshot without a rule set URL that hashes to the name it needs. The
-// flags are derived from it either way, so the override cannot describe a section
-// the builders would treat differently.
-function matchers(section, tags) {
+// One walk over a section's conditions answers everything the builders ask. The
+// `needs_*` flags say which sets the rules reference, which is both which sets
+// have to be created and which ones hold elements.
+function matchers(section) {
     section = object_or_empty(section);
 
     let action = priority_action(section);
@@ -116,8 +101,7 @@ function matchers(section, tags) {
     let fully = connections.device_matchers(section, "fully_routed_ips");
     let ports = connections.rule_ports_csv(section);
     let subnets = connections.rule_condition_csv(section, "ip_cidr", "subnets");
-    if (type(tags) != "array")
-        tags = subnet_source_tags(section);
+    let tags = subnet_source_tags(section);
     let ip_matchers = subnets != "" || length(tags) > 0;
     // A port on its own selects traffic. A port next to a destination - an
     // address, a domain, a rule set - is a condition on that destination
@@ -133,17 +117,14 @@ function matchers(section, tags) {
         sources: sources,
         fully: fully,
         needed: action != "" && (fully.selected || ip_matchers || port_only),
-        // Without ports every prefix is matched on its own; with them each one
-        // is matched together with a port, and a provider can carry port
-        // constraints of its own either way.
-        needs_subnet_sets: ip_matchers && ports == "",
-        needs_ip_port_sets: ip_matchers && (ports != "" || length(tags) > 0),
-        // A provider can also limit addresses to one transport, which the pair
-        // above cannot say: one set is read by a rule per transport, so an
-        // address in it is matched on both. Those addresses carry the transport
-        // in the set key instead, and only a provider produces them.
+        // The addresses, and the ports they are matched on, are each a plain
+        // interval set, where overlapping elements merge.
+        needs_subnet_sets: ip_matchers,
+        needs_port_set: ports != "" && (ip_matchers || port_only),
+        // A provider can limit addresses to ports or to a transport of its own,
+        // which only a set keyed on the address and the port can say.
+        needs_ip_port_sets: length(tags) > 0,
         needs_proto_port_sets: length(tags) > 0,
-        needs_port_set: port_only,
         needs_source_sets: length(sources.ips) > 0,
         needs_fully_source_sets: length(fully.ips) > 0
     };
@@ -178,9 +159,6 @@ function with_priority_sets(sections) {
 
 return {
     enabled,
-    priority_action,
-    set_names,
-    subnet_source_tags,
     matchers,
     with_priority_sets
 };

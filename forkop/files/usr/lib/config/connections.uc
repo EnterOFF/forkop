@@ -41,17 +41,8 @@ function option(section, key, fallback) {
     return common.option(section, key, fallback);
 }
 
-function bool_value(value, fallback) {
-    if (value == null || value == "")
-        return !!fallback;
-
-    value = as_string(value);
-    return value == "1" || value == "true" || value == "yes" || value == "on";
-}
-
-function bool_option(section, key, fallback) {
-    return bool_value(raw_option(section, key), fallback);
-}
+let bool_value = common.bool_value;
+let bool_option = common.bool_option;
 
 function list_value(section, key) {
     let value = raw_option(section, key);
@@ -140,26 +131,6 @@ function add_item_section(index, type_name, section) {
     push(index[type_name].list, section);
 }
 
-function fixture_section_list(data, type_name) {
-    data = object_or_empty(data);
-    let value = data[type_name];
-    if (type(value) == "array")
-        return value;
-    if (type(value) == "object")
-        return [ value ];
-
-    let plural = data[type_name + "s"];
-    return type(plural) == "array" ? plural : [];
-}
-
-function item_index_from_data(data) {
-    let index = empty_item_sections();
-    for (let type_name in ITEM_TYPES)
-        for (let section in fixture_section_list(data, type_name))
-            add_item_section(index, type_name, section);
-    return index;
-}
-
 function item_index_from_uci() {
     let index = empty_item_sections();
     for (let type_name in ITEM_TYPES)
@@ -172,8 +143,11 @@ function set_item_sections(index) {
     item_sections = type(index) == "object" ? index : empty_item_sections();
 }
 
-function set_item_sections_from_data(data) {
-    set_item_sections(item_index_from_data(data));
+// Reads the configuration as it is committed now, for an operation that has to
+// see the current one rather than what an earlier step of this process loaded.
+function load() {
+    uci_core.reset();
+    item_sections = item_index_from_uci();
 }
 
 function get_item_sections() {
@@ -555,21 +529,6 @@ function tunnel_endpoint(tunnel) {
     return endpoint;
 }
 
-function tunnels_signature(section) {
-    let result = [];
-    for (let tunnel_id in tunnels(section)) {
-        let tunnel = tunnel_child(section, tunnel_id);
-        push(result, {
-            id: tunnel_id,
-            order: option(tunnel, "order", "0"),
-            name: option(tunnel, "name", ""),
-            kind: option(tunnel, "kind", ""),
-            endpoint: tunnel_endpoint(tunnel)
-        });
-    }
-    return sprintf("%J", result);
-}
-
 function urltests(section) {
     let result = [];
     for (let child in child_items(section, "urltest")) {
@@ -686,14 +645,6 @@ function download_via_proxy_section(settings, purpose) {
     return option(settings, "download_lists_via_proxy_section", "");
 }
 
-function source_signature_value(section) {
-    let devices = device_matchers(section, "source_ip_cidr");
-    let value = join(",", devices.ips);
-    if (devices.system)
-        value += (value == "" ? "" : ",") + SYSTEM_DEVICE_VALUE;
-    return value;
-}
-
 function rule_ports_csv(section) {
     return rule_config.rule_ports_csv_value(option(section, "ports", ""), option(section, "ports_text", ""));
 }
@@ -723,18 +674,6 @@ function section_needs_system_dns(section) {
 
 function list_option_value_from_array(values) {
     return join(" ", values || []);
-}
-
-function community_lists_value(section) {
-    return list_option_value_from_array(community_lists(section));
-}
-
-function rule_sets_value(section) {
-    return list_option_value_from_array(rule_sets(section));
-}
-
-function rule_sets_with_subnets_value(section) {
-    return list_option_value_from_array(rule_sets_with_subnets(section));
 }
 
 function has_connection_sources(section) {
@@ -834,15 +773,6 @@ function subscription_update_interval(section, value) {
         option(section, "subscription_update_interval", "1h") || "1h");
 }
 
-function subscription_dashboard_metadata_enabled(section, value) {
-    if (subscription_source_type(value) != "remote")
-        return false;
-    let child = child_item_by_value(section, "subscription_url", "url", value);
-    if (child != null)
-        return child_bool(child, "show_dashboard_metadata", true);
-    return item_bool(section, "subscription_url_settings", value, "show_dashboard_metadata", true);
-}
-
 function subscription_headers(section, value) {
     if (subscription_source_type(value) != "remote")
         return [];
@@ -852,13 +782,6 @@ function subscription_headers(section, value) {
 
     let settings = item_settings(section, "subscription_url_settings", value);
     return list_value(settings, "header");
-}
-
-function subscription_show_name(section, value) {
-    let child = child_item_by_value(section, "subscription_url", "url", value);
-    if (child != null)
-        return child_bool(child, "show_subscription_name", false);
-    return item_bool(section, "subscription_url_settings", value, "show_subscription_name", false);
 }
 
 function stored_subscription_tag(section, value) {
@@ -897,15 +820,6 @@ function subscription_tags(section) {
         push(result, "sub" + number);
     }
     return result;
-}
-
-function subscription_tag(section, value) {
-    let sources = subscription_urls(section);
-    let tags = subscription_tags(section);
-    for (let index = 0; index < length(sources); index++)
-        if (sources[index] == value)
-            return tags[index];
-    return stored_subscription_tag(section, value);
 }
 
 function subscription_exclude_types(section, value) {
@@ -1019,11 +933,6 @@ function urltest_filter_mode(section, value) {
         option(section, "urltest_server_filter_mode", "all"));
 }
 
-function urltest_hide_dashboard_members(section, value) {
-    let child = urltest_child(section, value);
-    return child != null ? child_bool(child, "hide_dashboard_members", false) : false;
-}
-
 function urltest_include_outbounds(section, value) {
     let child = urltest_child(section, value);
     if (child != null)
@@ -1103,11 +1012,6 @@ function fallback_group_interrupt_exist_connections(section, value) {
     return child != null ? child_bool(child, "interrupt_exist_connections", false) : false;
 }
 
-function fallback_group_hide_dashboard_members(section, value) {
-    let child = fallback_group_child(section, value);
-    return child != null ? child_bool(child, "hide_dashboard_members", false) : false;
-}
-
 function fallback_level_display_name(group_id, value) {
     let child = fallback_level_child(group_id, value);
     return child != null ? child_option(child, "name", as_string(value)) : as_string(value);
@@ -1161,47 +1065,15 @@ function append_unique(result, seen, value) {
     push(result, value);
 }
 
-function subscription_download_targets(sections) {
-    let result = [];
-    let seen = {};
-
-    for (let section in sections) {
-        section = object_or_empty(section);
-        let name = option(section, ".name", "");
-
-        for (let source in subscription_urls(section)) {
-            let target = subscription_download_section(section, source);
-            if (target != "" && target != name)
-                append_unique(result, seen, target);
-        }
-    }
-
-    return result;
-}
-
-function subscription_download_target_port(sections, target, base_port) {
-    target = as_string(target);
-    base_port = int(base_port || 0);
-
-    let targets = subscription_download_targets(sections);
-    for (let i = 0; i < length(targets); i++)
-        if (targets[i] == target)
-            return base_port + 2 + i;
-
-    return 0;
-}
-
 return {
-    SYSTEM_DEVICE_VALUE,
     rule_condition_csv,
     rule_ports_csv,
-    source_signature_value,
     download_via_proxy_enabled,
     download_via_proxy_section,
     option,
     bool_option,
     device_matchers,
-    set_item_sections_from_data,
+    load,
     is_connections_action,
     action,
     connection_urls,
@@ -1213,28 +1085,21 @@ return {
     tunnel_items,
     tunnel_child,
     tunnel_endpoint,
-    tunnels_signature,
     urltests,
     community_lists,
     rule_sets,
     rule_sets_with_subnets,
     has_dns_matchers,
     section_needs_system_dns,
-    community_lists_value,
-    rule_sets_value,
-    rule_sets_with_subnets_value,
     has_connection_sources,
     subscription_url_settings,
     urltest_settings,
     subscription_update_enabled,
     subscription_update_interval,
-    subscription_dashboard_metadata_enabled,
     subscription_headers,
-    subscription_show_name,
     subscription_exclude_types,
     subscription_override,
     parse_rename_rule,
-    subscription_tag,
     subscription_tags,
     subscription_download_section,
     interface_display_name,
@@ -1251,7 +1116,6 @@ return {
     urltest_idle_timeout,
     urltest_interrupt_exist_connections,
     urltest_filter_mode,
-    urltest_hide_dashboard_members,
     urltest_include_outbounds,
     urltest_include_regex,
     urltest_exclude_outbounds,
@@ -1267,7 +1131,6 @@ return {
     fallback_group_expected_status,
     fallback_group_idle_timeout,
     fallback_group_interrupt_exist_connections,
-    fallback_group_hide_dashboard_members,
     fallback_level_display_name,
     fallback_level_order,
     fallback_level_mode,
@@ -1277,8 +1140,6 @@ return {
     fallback_level_exclude_regex,
     fallback_level_exclude_types,
     fallback_level_include_groups,
-    subscription_download_targets,
-    subscription_download_target_port,
     section_display_name,
     section_exists,
     server_display_name,

@@ -5,11 +5,12 @@ type UbusCallResult<T> =
   | { success: true; data: T }
   | { success: false; message: string; unavailable: boolean };
 
-// LuCI's rpc module is loaded by main.ts. Declaring it lazily keeps the module
-// importable from tests, which have no LuCI around them.
+// LuCI hands main.ts its rpc module as a parameter of the function the view is
+// wrapped in, not as a global, so the name has to be reached as it is written.
+// Declaring the call lazily keeps the module importable from tests.
 function rpcModule() {
-  const candidate = (globalThis as unknown as { rpc?: unknown }).rpc;
-  return candidate as
+  const candidate = typeof rpc === 'undefined' ? undefined : rpc;
+  return candidate as unknown as
     | {
         declare: (options: {
           object: string;

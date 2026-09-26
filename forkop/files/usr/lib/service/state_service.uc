@@ -30,6 +30,7 @@
 
 let fs = require("fs");
 let ui = require("service.ui");
+let uci = require("core.uci");
 let health = require("service.health");
 
 const PID_FILE = getenv("FORKOP_STATE_SERVICE_PID_FILE") || "/var/run/forkop/state-service.pid";
@@ -115,13 +116,16 @@ function path_signature(path) {
     return as_string(stat.mtime) + ":" + as_string(stat.size);
 }
 
+const CONFIG_PATH = "/etc/config/forkop";
+
 // One string standing for everything that can change the state without this
 // process being told. Comparing it is a few stat calls; recomputing the state is
 // three child processes, so the comparison is what runs often.
 function watch_signature() {
-    return path_signature(ui.SERVICE_ACTION_DIR) + "|" +
-        path_signature(ui.COMPONENT_ACTION_DIR) + "|" +
-        path_signature(ui.RELOAD_LOCK_DIR) + "|" +
+    return path_signature(CONFIG_PATH) + "|" +
+        path_signature(ui.paths.service_actions) + "|" +
+        path_signature(ui.paths.component_actions) + "|" +
+        path_signature(ui.paths.reload_lock) + "|" +
         path_signature(AUTOSTART_LINK);
 }
 
@@ -136,6 +140,7 @@ let last_log_interest_ms = 0;
 let last_log_poll_ms = 0;
 let waiters = [];
 let last_watch = "";
+let last_config = "";
 let last_sweep_ms = 0;
 let last_busy_refresh_ms = 0;
 let settle_until_ms = 0;
@@ -447,6 +452,13 @@ function tick() {
         return;
 
     last_watch = signature;
+    // A configuration the cursor has already read stays in it, so a changed one
+    // is read again rather than answered from memory.
+    let config = path_signature(CONFIG_PATH);
+    if (config != last_config) {
+        last_config = config;
+        uci.reset();
+    }
     if (due_sweep)
         last_sweep_ms = now;
     if (due_close)
@@ -518,14 +530,18 @@ function object_methods() {
             },
             args: { cursor: 0, ubus_rpc_session: "" }
         },
-        // Held until there is a line the caller has not seen.
+        // Held until there is a line the caller has not seen. A caller ahead of
+        // the buffer holds a cursor from before this process started, and is
+        // handed the current one to wait from.
         logs_wait: {
             call: function(request) {
                 log_interest();
                 poll_log(false);
 
                 let want = int(request.args.cursor || 0);
-                if (want <= 0 || log_cursor != want)
+                if (want > log_cursor)
+                    return { cursor: log_cursor, lines: [] };
+                if (want < log_cursor)
                     return log_reply(want);
 
                 request.defer();
@@ -660,7 +676,8 @@ if ((sourcepath(1) != null && sourcepath(1) != "") || ARGV[0] == null)
         // router and without a log to read.
         remember_log_line: function(line) { append_log_lines([ line ]); },
         store_update_check,
-        update_check_results
+        update_check_results,
+        object_methods
     };
 
 let mode = ARGV[0] || "";

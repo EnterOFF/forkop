@@ -1,6 +1,8 @@
 // The controls come first in the markup: stacked into one column on a narrow
 // screen, the whole list of checks would otherwise stand between the page and
 // the buttons that act on it.
+
+import { E } from '../../../helpers/element';
 export function render() {
   return E('div', { id: 'diagnostic-status', class: 'fkp_diagnostic-page' }, [
     E('div', { class: 'fkp_diagnostic-page__controls' }, [

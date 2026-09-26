@@ -17,6 +17,7 @@ import {
   findDynamicListItemByValue,
   updateButtonAddDynamicListLayout,
 } from './listItems';
+import { E } from '../../helpers/element';
 
 const CONNECTIONS_DYNLIST_STYLE_ID = 'fkp-connections-dynlist-styles';
 

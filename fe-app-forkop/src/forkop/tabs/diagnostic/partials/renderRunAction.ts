@@ -1,5 +1,6 @@
 import { renderButton } from '../../../../partials';
 import { renderSearchIcon24 } from '../../../../icons';
+import { E } from '../../../../helpers/element';
 
 interface IRenderDiagnosticRunActionProps {
   loading: boolean;

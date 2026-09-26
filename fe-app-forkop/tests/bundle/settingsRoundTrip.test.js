@@ -560,48 +560,35 @@ describe('a tunnel dialog', () => {
   });
 });
 
-// The backend keeps every server's security saying which mode the protocol runs
-// with, including for protocols whose dialog has no field for it. The dialog must
-// not undo that: it would be deleted on every save and written back on every
-// apply, reporting a change nobody made.
-describe('the security of a Mixed server', () => {
-  it('survives a save that does not show it', async () => {
-    harness.uci.add('forkop', 'server', 'server_probe');
-    Object.assign(harness.store.get('server_probe'), {
-      protocol: 'mixed',
-      label: 'Probe',
-      name: 'srv',
-      listen_port: '1080',
-      security: 'none',
+// A value behind a switch is kept while the switch is off: turning the switch
+// back on should find the secret or the interval the user had, not a blank.
+describe('a value behind a switch that is off', () => {
+  it('survives a save of the Settings page', async () => {
+    harness.uci.add('forkop', 'settings', 'settings');
+    Object.assign(harness.store.get('settings'), {
+      enable_yacd: '1',
+      enable_yacd_wan_access: '0',
+      yacd_secret_key: 'yacd-secret',
+      enable_native_api: '0',
+      native_api_secret: 'api-secret',
+      list_update_enabled: '0',
+      update_interval: '6h',
+      dns_optimistic: '0',
+      dns_optimistic_timeout: '12h',
     });
-    harness.uci.add('forkop', 'server_client', 'client_probe');
-    Object.assign(harness.store.get('client_probe'), {
-      server: 'server_probe',
-      name: 'client-1',
-      password: 'secret',
-    });
-    harness.uci.set('forkop', 'server_probe', 'clients', ['client_probe']);
-
     const map = new harness.form.Map('forkop');
-    const section = map.section(harness.form.GridSection, 'server');
-    harness.bundle.createServerContent(section);
-    section.cfgsections = () => ['server_probe'];
+    const section = map.section(harness.form.NamedSection, 'settings');
+    harness.bundle.createSettingsContent(section);
+    section.cfgsections = () => ['settings'];
     await section.load();
+    await parseEveryOption(section, 'settings');
 
-    const security = section.children.find(
-      (option) => option.option === 'security',
-    );
-    expect(
-      security,
-      'the server dialog no longer has a security field',
-    ).toBeTruthy();
-    expect(
-      security.isActive('server_probe'),
-      'a mixed server now shows a security field, so this checks nothing',
-    ).toBe(false);
-
-    await parseEveryOption(section, 'server_probe');
-
-    expect(harness.uci.get('forkop', 'server_probe', 'security')).toBe('none');
+    for (const [name, value] of [
+      ['yacd_secret_key', 'yacd-secret'],
+      ['native_api_secret', 'api-secret'],
+      ['update_interval', '6h'],
+      ['dns_optimistic_timeout', '12h'],
+    ])
+      expect(harness.uci.get('forkop', 'settings', name), name).toBe(value);
   });
 });

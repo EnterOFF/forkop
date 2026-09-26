@@ -14,6 +14,7 @@ import { getClashApiSecret } from '../../methods/custom/getClashApiSecret';
 import { loadLocalDeviceChoices } from '../../cbi/localDevices';
 import { logger, socket, store, StoreType } from '../../services';
 import { Forkop } from '../../types';
+import { E } from '../../../helpers/element';
 
 type MonitoringTabId = 'active' | 'closed';
 

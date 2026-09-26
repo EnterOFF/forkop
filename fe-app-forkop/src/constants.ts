@@ -23,6 +23,7 @@ export const RESERVED_RUNTIME_TAGS = new Set([
   'system6-in',
   'system-dns-in',
   'service-mixed-in',
+  'service-components-in',
   'direct-out',
 ]);
 

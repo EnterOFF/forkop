@@ -62,6 +62,7 @@ import {
   validateWireGuardPeerValue,
   validateWireGuardPeers,
 } from './validate';
+import { E } from '../../../../helpers/element';
 
 function addWireGuardPeerItemOptions(section: CBISection) {
   let o = section.option(
@@ -316,6 +317,7 @@ export function showTunnelSettingsModal(
   tailscaleAuthKeyOption.password = true;
   tailscaleAuthKeyOption.rmempty = false;
   tailscaleAuthKeyOption.depends('tunnel_type', 'tailscale');
+  tailscaleAuthKeyOption.retain = true;
 
   const tailscaleHostnameOption = itemSection.option(
     form.Value,

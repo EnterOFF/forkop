@@ -22,7 +22,7 @@ include $(INCLUDE_DIR)/package.mk
 define Package/forkop
 	SECTION:=net
 	CATEGORY:=Network
-	DEPENDS:=+ca-bundle +kmod-inet-diag +kmod-netlink-diag +kmod-tun +curl +ucode +ucode-mod-fs +ucode-mod-ubus +ucode-mod-uloop +ucode-mod-uci +kmod-nft-tproxy +coreutils-base64 +bind-dig +nftables +kmod-nft-nat +ip-full +dropbearconvert
+	DEPENDS:=+ca-bundle +kmod-inet-diag +kmod-netlink-diag +kmod-tun +curl +ucode +ucode-mod-fs +ucode-mod-ubus +ucode-mod-uloop +ucode-mod-uci +kmod-nft-tproxy +bind-dig +nftables +kmod-nft-nat +ip-full +dropbearconvert
 	CONFLICTS:=https-dns-proxy nextdns luci-app-passwall luci-app-passwall2
 	TITLE:=Forkop backend service
 	URL:=https://github.com/ushan0v/forkop
@@ -53,7 +53,7 @@ define Package/forkop/postinst
 
 [ -n "$${IPKG_INSTROOT}" ] && exit 0
 FORKOP_LIB=/usr/lib/forkop ucode -L /usr/lib/forkop /usr/lib/forkop/config/migration.uc migrate || exit $$?
-/usr/bin/forkop package_postinst
+FORKOP_BYTECODE_VALIDATION_TTL=0 /usr/bin/forkop package_postinst
 endef
 
 define Package/forkop/conffiles

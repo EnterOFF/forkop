@@ -1,19 +1,12 @@
 // Answers one question about the router firewall: would an inbound connection
 // from WAN reach a given port and protocol? The answer comes from two places.
-// `uci show firewall` is the configuration the user can fix, and it is the only
-// one for a port the user opened. The loaded input chain is the other, because
-// the ports of the Servers tab are written as an nftables.d include that fw4
-// folds into its ruleset - they never appear in uci at all, so reading uci alone
-// reported every server Forkop had just opened as closed.
+// The firewall rules are the configuration the user can fix, and the only place a
+// port the user opened appears. The loaded input chain is the other, because the
+// ports of the Servers tab are an nftables.d include that fw4 folds into its
+// ruleset and that no rule mentions.
 
 function as_string(value) {
-    return value == null ? "" : "" + value;
-}
-
-function starts_with(value, prefix) {
-    value = as_string(value);
-    prefix = as_string(prefix);
-    return substr(value, 0, length(prefix)) == prefix;
+    return value == null ? "" : type(value) == "array" ? join(" ", value) : "" + value;
 }
 
 function only_digits(value) {
@@ -27,54 +20,6 @@ function whitespace_values(value) {
         if (item != "")
             push(result, item);
     return result;
-}
-
-function uci_show_list_value(value) {
-    return trim(replace(as_string(value), /['"]/g, ""));
-}
-
-// `uci show firewall` prints one `package.section=type` line per section
-// followed by its `package.section.option=value` lines. Only rule sections
-// matter, and they are collected in file order so that the first matching
-// ACCEPT wins the same way the firewall evaluates them.
-function rules_from_uci_show(data) {
-    let prefix = "firewall.";
-    let sections = {};
-    let order = [];
-
-    for (let line in split(as_string(data), "\n")) {
-        let equals = index(as_string(line), "=");
-        if (equals < 0)
-            continue;
-
-        let key = substr(line, 0, equals);
-        let raw_value = substr(line, equals + 1);
-        if (!starts_with(key, prefix))
-            continue;
-
-        let rest = substr(key, length(prefix));
-        if (index(rest, ".") < 0) {
-            if (uci_show_list_value(raw_value) == "rule") {
-                if (sections[key] == null)
-                    sections[key] = {};
-                push(order, key);
-            }
-            continue;
-        }
-
-        let option_dot = rindex(key, ".");
-        let section = substr(key, 0, option_dot);
-        let option = substr(key, option_dot + 1);
-        if (sections[section] == null)
-            sections[section] = {};
-        sections[section][option] = uci_show_list_value(raw_value);
-    }
-
-    let rules = [];
-    for (let section in order)
-        push(rules, sections[section] || {});
-
-    return rules;
 }
 
 // A port token is either a single port or a range written with "-" or ":".
@@ -165,10 +110,9 @@ function rules_allow_port_proto(rules, port, proto) {
 }
 
 // required_proto is the whitespace separated protocol list an inbound needs;
-// every one of them has to be open before the port counts as reachable.
-function required_protocols_open(data, port, required_proto) {
-    let rules = rules_from_uci_show(data);
-
+// every one of them has to be open before the port counts as reachable. The
+// rules are the firewall's rule sections in file order, with their lists.
+function required_protocols_open(rules, port, required_proto) {
     for (let proto in whitespace_values(required_proto))
         if (!rules_allow_port_proto(rules, port, proto))
             return false;

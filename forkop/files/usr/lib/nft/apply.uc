@@ -1,1142 +1,417 @@
-#!/usr/bin/env ucode
+// The Forkop runtime table: the nft script that builds it from the
+// configuration, and applying that script as one transaction. The script is
+// also what a reload compares with the one it applied last, so the table is
+// rebuilt exactly when it would come out different.
 
 let fs = require("fs");
 let common = require("core.common");
+let exec = require("core.exec");
 let constants = require("core.constants");
 let core_ip = require("core.ip");
-let uci_core = require("core.uci");
-let rule_config = require("config.rule");
+let uci = require("core.uci");
 let connections = require("config.connections");
-let runtime_constants = require("singbox.constants");
+let singbox_constants = require("singbox.constants");
 let nft_state = require("nft.state");
 let nft_sections = require("nft.sections");
-const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
-const IP_BIN = getenv("FORKOP_IP_BIN") || "/usr/libexec/ip-full";
-const EXCLUDED_SET = "forkop_excluded";
-const EXCLUDED6_SET = "forkop_excluded6";
-// service/package.uc removes the routing table entry this module writes and reads
-// the same override to find the file.
-const RT_TABLES_PATH = getenv("FORKOP_RT_TABLES") || "/etc/iproute2/rt_tables";
-// Unique to this process, so asking mktemp for a path adds nothing.
-const TEMP_FILE_PREFIX = (getenv("TMPDIR") || "/tmp") +
-    "/forkop-nft." + clock()[0] + "." + clock()[1];
-const SIGNATURE_TEMP_FILE = TEMP_FILE_PREFIX + ".signature";
-const NFT_ERROR_TEMP_FILE = TEMP_FILE_PREFIX + ".error";
 
-// The runtime table, its sets, the marks and the FakeIP ranges are named once in
-// core/constants.uc, which is also where it applies their environment overrides.
-// The rebuild entry point reads them here instead of taking them from a caller
-// that could only have read the same table.
-const RT_TABLE_NAME = constants.RT_TABLE_NAME;
-const NFT_TABLE_NAME = constants.NFT_TABLE_NAME;
-const NFT_LOCALV4_SET_NAME = constants.NFT_LOCALV4_SET_NAME;
-const NFT_LOCALV6_SET_NAME = constants.NFT_LOCALV6_SET_NAME;
-const NFT_INTERFACE_SET_NAME = constants.NFT_INTERFACE_SET_NAME;
-const NFT_FAKEIP_MARK = constants.NFT_FAKEIP_MARK;
-const NFT_OUTBOUND_MARK = constants.NFT_OUTBOUND_MARK;
-const SB_FAKEIP_INET4_RANGE = constants.SB_FAKEIP_INET4_RANGE;
-const SB_FAKEIP_INET6_RANGE = constants.SB_FAKEIP_INET6_RANGE;
-const SB_TPROXY_INBOUND_PORT = constants.SB_TPROXY_INBOUND_PORT;
-const SB_TPROXY_INBOUND6_ADDRESS = constants.SB_TPROXY_INBOUND6_ADDRESS;
+const CONFIG_NAME = "forkop";
+const TABLE = constants.NFT_TABLE_NAME;
+const RT_TABLE = constants.RT_TABLE_NAME;
+const LOCAL4 = constants.NFT_LOCALV4_SET_NAME;
+const LOCAL6 = constants.NFT_LOCALV6_SET_NAME;
+const INTERFACES = constants.NFT_INTERFACE_SET_NAME;
+const FAKEIP_MARK = constants.NFT_FAKEIP_MARK;
+const OUTBOUND_MARK = constants.NFT_OUTBOUND_MARK;
+const FAKEIP4 = singbox_constants.FAKEIP_INET4_RANGE;
+const FAKEIP6 = singbox_constants.FAKEIP_INET6_RANGE;
+const TPROXY_PORT = singbox_constants.TPROXY_INBOUND_PORT;
+const TPROXY6_ADDRESS = singbox_constants.TPROXY_INBOUND6_ADDRESS;
+const EXCLUDED4 = "forkop_excluded";
+const EXCLUDED6 = "forkop_excluded6";
+const ELEMENTS_PER_COMMAND = 5000;
 
-let as_string = common.as_string;
-let object_or_empty = common.object_or_empty;
-let common_read_json_file = common.read_json_file;
-let bool_option = common.bool_option;
-let rt_table_has_entry = nft_state.rt_table_has_entry;
-let tproxy_route4_present = nft_state.tproxy_route4_present;
-let tproxy_route6_present = nft_state.tproxy_route6_present;
-let tproxy_marking_rule4_present = nft_state.tproxy_marking_rule4_present;
-let tproxy_marking_rule6_present = nft_state.tproxy_marking_rule6_present;
+const IPV4_SET = "{ type ipv4_addr; flags interval; auto-merge; }";
+const IPV6_SET = "{ type ipv6_addr; flags interval; auto-merge; }";
+const PORT_SET = "{ type inet_service; flags interval; auto-merge; }";
+const IPV4_PORT_SET = "{ type ipv4_addr . inet_service; flags interval; auto-merge; }";
+const IPV6_PORT_SET = "{ type ipv6_addr . inet_service; flags interval; auto-merge; }";
+// The transport joins the key so one rule can match what a rule set says: read
+// through a rule per transport, an address a rule set limited to UDP would be
+// matched on TCP as well.
+const IPV4_PROTO_PORT_SET = "{ type ipv4_addr . inet_proto . inet_service; flags interval; auto-merge; }";
+const IPV6_PROTO_PORT_SET = "{ type ipv6_addr . inet_proto . inet_service; flags interval; auto-merge; }";
 
-function arg_bool(value) {
-    value = lc(as_string(value));
-    return value == "1" || value == "true" || value == "yes";
-}
+const LOCAL4_RANGES = [
+    "0.0.0.0/8", "10.0.0.0/8", "127.0.0.0/8", "169.254.0.0/16", "172.16.0.0/12", "192.0.0.0/24", "192.0.2.0/24",
+    "192.88.99.0/24", "192.168.0.0/16", "198.51.100.0/24", "203.0.113.0/24", "224.0.0.0/4", "240.0.0.0-255.255.255.255"
+];
+const LOCAL6_RANGES = [ "::/128", "::1/128", "64:ff9b::/96", "100::/64", "2001:db8::/32", "fc00::/7", "fe80::/10", "ff00::/8" ];
 
-function option(section, key, fallback) {
-    if (fallback == null)
-        fallback = "";
+let paths = {
+    rt_tables: "/etc/iproute2/rt_tables"
+};
 
-    let value = object_or_empty(section)[key];
-    if (value == null)
-        return fallback;
-    if (type(value) == "array")
-        return join(" ", value);
-    return as_string(value);
-}
+// The script under construction and the values it had to leave out.
+let lines = null;
+let skipped = null;
 
-function uci_section(section_name) {
-    return object_or_empty(uci_core.get_all(CONFIG_NAME, section_name));
-}
-
-function uci_sections(type_name) {
-    return uci_core.section_objects(CONFIG_NAME, type_name);
-}
-
-function uci_settings() {
-    return uci_section("settings");
-}
-
-function write_text_file(path, text) {
-    let result = fs.writefile(path, as_string(text));
-    if (result == null)
-        return false;
-    if (type(result) == "boolean" && !result)
-        return false;
-    return true;
-}
-
-function unlink_file(path) {
-    try {
-        fs.unlink(as_string(path));
-    }
-    catch (e) {
-    }
-}
-
-function shell_quote(value) {
-    return "'" + replace(as_string(value), /'/g, "'\\''") + "'";
-}
-
-function command_from_args(args) {
-    let parts = [];
-
-    for (let arg in args)
-        push(parts, shell_quote(arg));
-
-    return join(" ", parts);
-}
-
-function run_args(args) {
-    return system(command_from_args(args)) == 0;
-}
-
-function command_output_from_args(args) {
-    let pipe = fs.popen(command_from_args(args), "r");
-    if (!pipe)
-        return "";
-
-    let data = pipe.read("all");
-    let status = pipe.close();
-    if (status != 0 || data == null)
-        return "";
-
-    return as_string(data);
-}
-
-// Set while the ruleset is generated only to be hashed: the same builders run,
-// but nothing is applied and nothing is reported as if it had been.
-let nft_dry_run = false;
-
-function log_debug(message) {
-    if (nft_dry_run)
-        return;
-    run_args([ "logger", "-t", "forkop", "[debug] " + as_string(message) ]);
-}
-
-function log_fatal(message) {
-    run_args([ "logger", "-t", "forkop", "[fatal] " + as_string(message) ]);
-}
-
-// nftables applies a whole file as one transaction, which is how the rule-set
-// sync worker already talks to it. Collecting the commands of an operation and
-// handing them over at once replaces about a hundred processes with one and, more
-// importantly, removes the window in which the old table has been deleted and
-// the rules meant to replace it are still being added one at a time.
-//
-// Outside a batch each command runs on its own, which is what the individual
-// builder entry points below and the tests that drive them expect.
-let nft_batch = null;
-
-function nft_batch_open() {
-    nft_batch = [];
-}
-
-function nft_batch_take() {
-    let lines = nft_batch;
-    nft_batch = null;
-    return lines == null ? [] : lines;
-}
-
-function nft_command(args) {
-    let parts = [];
-    for (let arg in args)
-        push(parts, as_string(arg));
-
-    if (nft_batch == null)
-        return run_args([ "nft", ...parts ]);
-
-    // A newline would end the command early and hand nft the rest as another
-    // one, so a value carrying one is refused rather than written out.
+function nft(parts) {
+    parts = map(parts, common.as_string);
     for (let part in parts)
-        if (index(part, "
-") >= 0)
-            return false;
-
-    push(nft_batch, join(" ", parts));
-    return true;
+        if (index(part, "\n") >= 0)
+            die("An nft value carries a line break: " + part);
+    push(lines, join(" ", parts));
 }
 
-// nft names the offending command and then repeats the command itself, which for
-// a set element line is thousands of addresses. The first line is the reason -
-// unless nft never got to print one, because nft holds every element of every set
-// a transaction touches before it commits and a large enough rule set is killed
-// rather than refused.
-function nft_error_reason(path, status) {
-    let signal = common.signal_from_status(status);
+function add_set(name, definition) {
+    nft([ "add", "set", "inet", TABLE, name, definition ]);
+}
+
+function add_chain(name, definition) {
+    nft([ "add", "chain", "inet", TABLE, name, definition ]);
+}
+
+function add_rule(chain, args) {
+    nft([ "add", "rule", "inet", TABLE, chain, ...args ]);
+}
+
+function add_elements(set_name, elements) {
+    for (let i = 0; i < length(elements); i += ELEMENTS_PER_COMMAND)
+        nft([ "add", "element", "inet", TABLE, set_name, "{ " + join(",", slice(elements, i, i + ELEMENTS_PER_COMMAND)) + " }" ]);
+}
+
+// One walk over the addresses fills both families.
+function add_addresses(values, set4, set6) {
+    let family = { "4": [], "6": [] };
+    for (let value in values) {
+        let version = core_ip.ip_family(value);
+        if (version == 0)
+            push(skipped, "'" + value + "' is not IP or CIDR");
+        else
+            push(family[version], value);
+    }
+
+    add_elements(set4, family["4"]);
+    add_elements(set6, family["6"]);
+}
+
+function csv_values(csv) {
+    return filter(map(split(csv ?? "", ","), (value) => trim(replace(value, /\r/g, ""))), (value) => value != "");
+}
+
+// The devices Forkop ignores entirely: every capture chain returns their traffic
+// before touching it.
+function add_excluded_returns(chain, excluded) {
+    if (length(excluded) > 0) {
+        add_rule(chain, [ "ip", "saddr", "@" + EXCLUDED4, "counter", "return" ]);
+        add_rule(chain, [ "ip6", "saddr", "@" + EXCLUDED6, "counter", "return" ]);
+    }
+}
+
+function tproxy_target(family, port) {
+    return family == 6 ? core_ip.format_ipv6_tproxy_target(TPROXY6_ADDRESS, port) : ":" + port;
+}
+
+function add_base(settings) {
+    let excluded = common.words(common.option(settings, "routing_excluded_ips", ""));
+    let system_tproxy_port = singbox_constants.SYSTEM_TPROXY_INBOUND_PORT;
+
+    nft([ "add", "table", "inet", TABLE ]);
+    add_set(LOCAL4, IPV4_SET);
+    add_elements(LOCAL4, LOCAL4_RANGES);
+    add_set(LOCAL6, IPV6_SET);
+    add_elements(LOCAL6, LOCAL6_RANGES);
+    add_set(INTERFACES, "{ type ifname; flags interval; }");
+    for (let name in common.words(common.option(settings, "source_network_interfaces", "br-lan")))
+        add_elements(INTERFACES, [ name ]);
+
+    if (length(excluded) > 0) {
+        add_set(EXCLUDED4, IPV4_SET);
+        add_set(EXCLUDED6, IPV6_SET);
+        add_addresses(excluded, EXCLUDED4, EXCLUDED6);
+    }
+
+    add_chain("mangle", "{ type filter hook prerouting priority -149; policy accept; }");
+    add_chain("mangle_output", "{ type route hook output priority -150; policy accept; }");
+    add_chain("priority_rules", "{ }");
+    add_chain("priority_output_rules", "{ }");
+    add_rule("priority_output_rules", [ "meta", "mark", "!=", "0", "return" ]);
+    add_chain("proxy", "{ type filter hook prerouting priority -100; policy accept; }");
+
+    // Client DNS capture: whatever resolver a client was configured with, its
+    // queries land on the sing-box client DNS inbound. An excluded device keeps
+    // its own resolver.
+    add_chain("dns_redirect", "{ type nat hook prerouting priority -101; policy accept; }");
+    add_excluded_returns("dns_redirect", excluded);
+    for (let proto in [ "tcp", "udp" ])
+        add_rule("dns_redirect", [ "iifname", "@" + INTERFACES, proto, "dport", "53", "counter", "redirect", "to", ":" + singbox_constants.SOURCE_DNS_INBOUND_PORT ]);
+
+    add_excluded_returns("mangle", excluded);
+    add_rule("mangle", [ "ct", "status", "dnat", "return" ]);
+    add_rule("mangle", [ "iifname", "@" + INTERFACES, "ip", "daddr", "@" + LOCAL4, "return" ]);
+    add_rule("mangle", [ "iifname", "@" + INTERFACES, "ip6", "daddr", "@" + LOCAL6, "ip6", "daddr", "!=", FAKEIP6, "return" ]);
+    add_rule("mangle", [ "jump", "priority_rules" ]);
+    for (let pair in [ [ "ip", FAKEIP4 ], [ "ip6", FAKEIP6 ] ])
+        for (let proto in [ "tcp", "udp" ])
+            add_rule("mangle", [ "iifname", "@" + INTERFACES, pair[0], "daddr", pair[1], "meta", "l4proto", proto, "meta", "mark", "set", FAKEIP_MARK, "counter" ]);
+
+    // The router's own traffic reaches the System inbound, and it is classified
+    // before the generic inbound can take it.
+    for (let family in [ 4, 6 ])
+        for (let proto in [ "tcp", "udp" ])
+            add_rule("proxy", [ "iifname", "lo", "meta", "mark", "&", FAKEIP_MARK, "==", FAKEIP_MARK, "meta", "l4proto", proto,
+                "tproxy", family == 6 ? "ip6" : "ip", "to", tproxy_target(family, system_tproxy_port), "counter", "accept" ]);
+    for (let family in [ 4, 6 ])
+        for (let proto in [ "tcp", "udp" ])
+            add_rule("proxy", [ "meta", "mark", "&", FAKEIP_MARK, "==", FAKEIP_MARK, "meta", "l4proto", proto,
+                "tproxy", family == 6 ? "ip6" : "ip", "to", tproxy_target(family, TPROXY_PORT), "counter" ]);
+
+    add_rule("mangle_output", [ "ip", "daddr", "@" + LOCAL4, "return" ]);
+    add_rule("mangle_output", [ "ip6", "daddr", "@" + LOCAL6, "ip6", "daddr", "!=", FAKEIP6, "return" ]);
+    add_rule("mangle_output", [ "meta", "mark", OUTBOUND_MARK, "counter", "return" ]);
+    add_rule("mangle_output", [ "jump", "priority_output_rules" ]);
+
+    if (common.option(settings, "exclude_ntp", "0") == "1")
+        nft([ "insert", "rule", "inet", TABLE, "mangle", "udp", "dport", "123", "return" ]);
+}
+
+function create_section_sets(m) {
+    let s = m.sets;
+    if (m.needs_subnet_sets) {
+        add_set(s.subnets, IPV4_SET);
+        add_set(s.subnets6, IPV6_SET);
+    }
+    if (m.needs_ip_port_sets) {
+        add_set(s.ip_ports, IPV4_PORT_SET);
+        add_set(s.ip6_ports, IPV6_PORT_SET);
+    }
+    if (m.needs_proto_port_sets) {
+        add_set(s.proto_ports, IPV4_PROTO_PORT_SET);
+        add_set(s.proto6_ports, IPV6_PROTO_PORT_SET);
+    }
+    if (m.needs_port_set)
+        add_set(s.ports, PORT_SET);
+    if (m.needs_source_sets) {
+        add_set(s.sources, IPV4_SET);
+        add_set(s.sources6, IPV6_SET);
+    }
+    if (m.needs_fully_source_sets) {
+        add_set(s.fully_sources, IPV4_SET);
+        add_set(s.fully_sources6, IPV6_SET);
+    }
+}
+
+// What every rule of a section shares: the local set and FakeIP range of the
+// family, and the verdict its action asks for. A bypass verdict leaves FakeIP
+// traffic alone, since that address only means anything to its resolver.
+function section_rule(m, family, match_args, match_source) {
+    let ip = family == 6 ? "ip6" : "ip";
+    let args = [];
+    if (match_source && m.needs_source_sets)
+        push(args, ip, "saddr", "@" + (family == 6 ? m.sets.sources6 : m.sets.sources));
+    push(args, ip, "daddr", "!=", "@" + (family == 6 ? LOCAL6 : LOCAL4));
+    if (m.action == "bypass")
+        push(args, ip, "daddr", "!=", family == 6 ? FAKEIP6 : FAKEIP4);
+    push(args, ...match_args);
+    if (m.action == "bypass")
+        push(args, "counter", "accept");
+    else
+        push(args, "meta", "mark", "set", FAKEIP_MARK, "counter", "accept");
+    return args;
+}
+
+// Both chains get the same matcher from the two directions traffic reaches it:
+// prerouting for the source interfaces, output for the router's own traffic. A
+// section scoped to client addresses has nothing to say about the router, and one
+// scoped to @system nothing about the clients.
+function add_section_rule_pair(m, match4, match6) {
+    if (!m.sources.selected || length(m.sources.ips) > 0)
+        for (let family in [ 4, 6 ])
+            add_rule("priority_rules", [ "iifname", "@" + INTERFACES, ...section_rule(m, family, family == 6 ? match6 : match4, true) ]);
+    if (!m.sources.selected || m.sources.system)
+        for (let family in [ 4, 6 ])
+            add_rule("priority_output_rules", section_rule(m, family, family == 6 ? match6 : match4, false));
+}
+
+// Fully routed traffic has no destination matcher, so a capture names the
+// protocols it can proxy transparently; a bypass accepts whatever the address is.
+function add_fully_routed_rules(m) {
+    if (!m.fully.selected)
+        return;
+    let protocols = m.action == "bypass" ? [ "" ] : [ "tcp", "udp" ];
+    let transport = (proto) => proto == "" ? [] : [ "meta", "l4proto", proto ];
+
+    if (m.needs_fully_source_sets)
+        for (let family in [ 4, 6 ])
+            for (let proto in protocols)
+                add_rule("priority_rules", [ "iifname", "@" + INTERFACES, family == 6 ? "ip6" : "ip", "saddr",
+                    "@" + (family == 6 ? m.sets.fully_sources6 : m.sets.fully_sources), ...section_rule(m, family, transport(proto), false) ]);
+
+    if (m.fully.system)
+        for (let family in [ 4, 6 ])
+            for (let proto in protocols)
+                add_rule("priority_output_rules", section_rule(m, family, transport(proto), false));
+}
+
+function add_section_rules(m) {
+    let s = m.sets;
+    create_section_sets(m);
+    add_fully_routed_rules(m);
+
+    let port = (proto) => [ proto, "dport", "@" + s.ports ];
+    if (m.needs_subnet_sets && !m.needs_port_set)
+        add_section_rule_pair(m, [ "ip", "daddr", "@" + s.subnets ], [ "ip6", "daddr", "@" + s.subnets6 ]);
+    for (let proto in [ "tcp", "udp" ]) {
+        if (m.needs_subnet_sets && m.needs_port_set)
+            add_section_rule_pair(m, [ "ip", "daddr", "@" + s.subnets, ...port(proto) ], [ "ip6", "daddr", "@" + s.subnets6, ...port(proto) ]);
+        // Ports on their own are family agnostic, so both sides read the same set.
+        else if (m.needs_port_set)
+            add_section_rule_pair(m, port(proto), port(proto));
+    }
+    if (m.needs_ip_port_sets)
+        for (let proto in [ "tcp", "udp" ])
+            add_section_rule_pair(m, [ "ip", "daddr", ".", proto, "dport", "@" + s.ip_ports ], [ "ip6", "daddr", ".", proto, "dport", "@" + s.ip6_ports ]);
+    if (m.needs_proto_port_sets)
+        add_section_rule_pair(m, [ "ip", "daddr", ".", "meta", "l4proto", ".", "th", "dport", "@" + s.proto_ports ],
+            [ "ip6", "daddr", ".", "meta", "l4proto", ".", "th", "dport", "@" + s.proto6_ports ]);
+}
+
+// The router's own traffic to a FakeIP address, which only sing-box can turn
+// back into a destination.
+function add_fakeip_output() {
+    for (let pair in [ [ "ip", FAKEIP4 ], [ "ip6", FAKEIP6 ] ])
+        for (let proto in [ "tcp", "udp" ])
+            add_rule("mangle_output", [ pair[0], "daddr", pair[1], "meta", "l4proto", proto, "meta", "mark", "set", FAKEIP_MARK, "counter" ]);
+}
+
+// Loopback stays out: the router asking its own resolver on 127.0.0.1 is the
+// local zone working. sing-box marks its own sockets, so its dials pass the mark
+// exemption.
+function add_system_dns(sections) {
+    if (length(filter(sections, (s) => nft_sections.enabled(s) && connections.section_needs_system_dns(s))) == 0)
+        return;
+    add_chain("system_dns_redirect", "{ type nat hook output priority -151; policy accept; }");
+    add_rule("system_dns_redirect", [ "meta", "mark", "!=", "0", "return" ]);
+    add_rule("system_dns_redirect", [ "ip", "daddr", "127.0.0.0/8", "return" ]);
+    add_rule("system_dns_redirect", [ "ip6", "daddr", "::1", "return" ]);
+    for (let proto in [ "tcp", "udp" ])
+        add_rule("system_dns_redirect", [ proto, "dport", "53", "counter", "redirect", "to", ":" + singbox_constants.SYSTEM_DNS_INBOUND_PORT ]);
+}
+
+// What the configuration puts in a section's sets; what a rule-set provider puts
+// there is the sync worker's.
+function fill_section_sets(m) {
+    let s = m.sets;
+    if (m.needs_source_sets)
+        add_addresses(m.sources.ips, s.sources, s.sources6);
+    if (m.needs_fully_source_sets)
+        add_addresses(m.fully.ips, s.fully_sources, s.fully_sources6);
+    if (m.subnets != "")
+        add_addresses(csv_values(m.subnets), s.subnets, s.subnets6);
+    if (m.needs_port_set)
+        nft([ "add", "element", "inet", TABLE, s.ports, "{ " + m.ports + " }" ]);
+}
+
+// The whole table as { script, skipped }. The script replaces the live table in
+// one transaction: creating the table before deleting it keeps the replace
+// unconditional, because `delete table` on a missing table aborts the whole
+// transaction.
+function build() {
+    let settings = uci.get_all(CONFIG_NAME, "settings") ?? {};
+    let sections = uci.section_objects(CONFIG_NAME, "section");
+    let planned = nft_sections.with_priority_sets(sections);
+    if (planned.error != "")
+        die(planned.error);
+
+    lines = [ "table inet " + TABLE, "delete table inet " + TABLE ];
+    skipped = [];
+    add_base(settings);
+    for (let entry in planned.sections)
+        add_section_rules(entry.matchers);
+    add_fakeip_output();
+    add_system_dns(sections);
+    for (let entry in planned.sections)
+        fill_section_sets(entry.matchers);
+
+    let result = { script: join("\n", lines) + "\n", skipped };
+    lines = null;
+    skipped = null;
+    return result;
+}
+
+function ensure_rt_table_entry() {
+    let data = fs.readfile(paths.rt_tables) ?? "";
+    if (nft_state.rt_table_has_entry(data, "105", RT_TABLE))
+        return true;
+    if (data != "" && substr(data, -1) != "\n")
+        data += "\n";
+    return common.write_file(paths.rt_tables, data + "105 " + RT_TABLE + "\n");
+}
+
+// Package removal takes the name back out; other tables stay as they were.
+function remove_rt_table_entry() {
+    let data = fs.readfile(paths.rt_tables);
+    if (data == null || !nft_state.rt_table_has_entry(data, "105", RT_TABLE))
+        return true;
+    let kept = filter(split(data, "\n"), (line) => !nft_state.rt_table_has_entry(line, "105", RT_TABLE));
+    return common.write_file(paths.rt_tables, join("\n", kept));
+}
+
+function ensure_route(present, argv, created, failed) {
+    if (present())
+        return;
+    exec.log("debug", created);
+    if (!exec.ok(argv) && !present())
+        die(failed);
+}
+
+// The routing table the TProxy marks send traffic to. It lives outside nft and
+// survives a table replace.
+function ensure_tproxy_routing() {
+    let ip = nft_state.IP_BIN;
+    let mark = FAKEIP_MARK + "/" + FAKEIP_MARK;
+    if (!ensure_rt_table_entry())
+        die("Failed to update route table registry. Aborted.");
+    ensure_route(() => nft_state.tproxy_route4_present(RT_TABLE), [ ip, "route", "add", "local", "0.0.0.0/0", "dev", "lo", "table", RT_TABLE ],
+        "Added IPv4 tproxy route", "Failed to add IPv4 route for tproxy. Aborted.");
+    ensure_route(() => nft_state.tproxy_route6_present(RT_TABLE), [ ip, "-6", "route", "add", "local", "::/0", "dev", "lo", "table", RT_TABLE ],
+        "Added IPv6 tproxy route", "Failed to add IPv6 route for tproxy. Aborted.");
+    ensure_route(() => nft_state.tproxy_marking_rule4_present(RT_TABLE, FAKEIP_MARK), [ ip, "-4", "rule", "add", "fwmark", mark, "table", RT_TABLE, "priority", "105" ],
+        "Creating IPv4 tproxy marking rule", "Failed to create IPv4 marking rule. Aborted.");
+    ensure_route(() => nft_state.tproxy_marking_rule6_present(RT_TABLE, FAKEIP_MARK), [ ip, "-6", "rule", "add", "fwmark", mark, "table", RT_TABLE, "priority", "105" ],
+        "Creating IPv6 tproxy marking rule", "Failed to create IPv6 marking rule. Aborted.");
+}
+
+// nft names the command it refused and then repeats it, which for a set element
+// line is thousands of addresses, so only the first line is the reason - unless
+// nft was killed first: it holds every element of the transaction before it
+// commits, and a large enough rule set runs out of memory.
+function refusal(result) {
+    let signal = common.signal_from_status(result.status);
     if (signal == 9)
         return "nft ran out of memory; the rules and addresses of this configuration do not fit in this router's memory";
     if (signal != 0)
         return "nft was killed by signal " + signal;
-
-    let data = fs.readfile(path);
-    if (data != null) {
-        for (let line in split(as_string(data), "
-")) {
-            line = trim(line);
-            if (line != "")
-                return length(line) > 200 ? substr(line, 0, 200) : line;
-        }
-    }
-
-    return "no output";
+    let first = filter(map(split(result.stderr, "\n"), (line) => trim(line)), (line) => line != "")[0];
+    return first == null ? "no output" : substr(first, 0, 200);
 }
 
-// What nft refused is the only thing that explains a failed rebuild, and it used
-// to go to whatever the caller's stderr happened to be. It is read back from a
-// file instead, so the reason is logged next to the failure.
-function nft_apply_script(lines) {
-    let error_path = NFT_ERROR_TEMP_FILE;
-    let pipe = fs.popen("nft -f - 2>" + shell_quote(error_path), "w");
-    if (!pipe) {
-        log_fatal("Failed to run nft");
-        return false;
-    }
-
-    let written = true;
-    for (let line in lines) {
-        if (pipe.write(line + "
-") == null) {
-            written = false;
-            break;
-        }
-    }
-
-    let status = pipe.close();
-    if (written && status == 0) {
-        unlink_file(error_path);
-        return true;
-    }
-
-    log_fatal("nft refused the ruleset: " + nft_error_reason(error_path, status));
-    unlink_file(error_path);
-    return false;
-}
-
-function nft_batch_apply() {
-    let lines = nft_batch_take();
-    return length(lines) == 0 || nft_apply_script(lines);
-}
-
-function nft_create_table(name) {
-    return nft_command([ "add", "table", "inet", name ]);
-}
-
-function nft_create_set(table, name, definition) {
-    return nft_command([ "add", "set", "inet", table, name, definition ]);
-}
-
-function nft_create_ipv4_set(table, name) {
-    return nft_create_set(table, name, "{ type ipv4_addr; flags interval; auto-merge; }");
-}
-
-function nft_create_ipv6_set(table, name) {
-    return nft_create_set(table, name, "{ type ipv6_addr; flags interval; auto-merge; }");
-}
-
-function nft_create_inet_service_set(table, name) {
-    return nft_create_set(table, name, "{ type inet_service; flags interval; auto-merge; }");
-}
-
-function nft_create_ipv4_port_set(table, name) {
-    return nft_create_set(table, name, "{ type ipv4_addr . inet_service; flags interval; auto-merge; }");
-}
-
-function nft_create_ipv6_port_set(table, name) {
-    return nft_create_set(table, name, "{ type ipv6_addr . inet_service; flags interval; auto-merge; }");
-}
-
-// The transport joins the key so one rule can match what a rule set actually
-// says. Read through a pair of rules, one per transport, a set of address and
-// port pairs cannot tell them apart, and an address a rule set limited to UDP
-// would have been matched on TCP as well.
-function nft_create_ipv4_proto_port_set(table, name) {
-    return nft_create_set(table, name, "{ type ipv4_addr . inet_proto . inet_service; flags interval; auto-merge; }");
-}
-
-function nft_create_ipv6_proto_port_set(table, name) {
-    return nft_create_set(table, name, "{ type ipv6_addr . inet_proto . inet_service; flags interval; auto-merge; }");
-}
-
-function nft_create_ifname_set(table, name) {
-    return nft_create_set(table, name, "{ type ifname; flags interval; }");
-}
-
-function nft_add_set_elements(table, set_name, elements) {
-    return nft_command([ "add", "element", "inet", table, set_name, "{ " + as_string(elements) + " }" ]);
-}
-
-function whitespace_values(value) {
-    let result = [];
-
-    for (let item in split(replace(as_string(value), /[[:space:]]+/g, " "), " ")) {
-        item = trim(item);
-        if (item != "")
-            push(result, item);
-    }
-
-    return result;
-}
-
-function nft_create_chain(table, name, definition) {
-    return nft_command([ "add", "chain", "inet", table, name, definition ]);
-}
-
-function nft_add_rule(table, chain, args) {
-    let command = [ "add", "rule", "inet", table, chain ];
-    for (let arg in args)
-        push(command, arg);
-    return nft_command(command);
-}
-
-function nft_insert_rule(table, chain, args) {
-    let command = [ "insert", "rule", "inet", table, chain ];
-    for (let arg in args)
-        push(command, arg);
-    return nft_command(command);
-}
-
-let LOCALV4_RANGES = [
-    "0.0.0.0/8",
-    "10.0.0.0/8",
-    "127.0.0.0/8",
-    "169.254.0.0/16",
-    "172.16.0.0/12",
-    "192.0.0.0/24",
-    "192.0.2.0/24",
-    "192.88.99.0/24",
-    "192.168.0.0/16",
-    "198.51.100.0/24",
-    "203.0.113.0/24",
-    "224.0.0.0/4",
-    "240.0.0.0-255.255.255.255"
-];
-
-let LOCALV6_RANGES = [
-    "::/128",
-    "::1/128",
-    "64:ff9b::/96",
-    "100::/64",
-    "2001:db8::/32",
-    "fc00::/7",
-    "fe80::/10",
-    "ff00::/8"
-];
-
-function default_arg(value, fallback) {
-    value = as_string(value);
-    return value == "" ? fallback : value;
-}
-
-// Which of a section's own sets exist is the contract nft/ruleset_sync.uc
-// refills them through, so the rules below and their sets are built from the one
-// classification in nft/sections.uc rather than from predicates restated here.
-function nft_create_priority_sets(table, matchers) {
-    let sets = matchers.sets;
-
-    if (matchers.needs_subnet_sets &&
-        (!nft_create_ipv4_set(table, sets.subnets) || !nft_create_ipv6_set(table, sets.subnets6)))
-        return false;
-    if (matchers.needs_ip_port_sets &&
-        (!nft_create_ipv4_port_set(table, sets.ip_ports) || !nft_create_ipv6_port_set(table, sets.ip6_ports)))
-        return false;
-    if (matchers.needs_proto_port_sets &&
-        (!nft_create_ipv4_proto_port_set(table, sets.proto_ports) || !nft_create_ipv6_proto_port_set(table, sets.proto6_ports)))
-        return false;
-    if (matchers.needs_port_set && !nft_create_inet_service_set(table, sets.ports))
-        return false;
-    if (matchers.needs_source_sets &&
-        (!nft_create_ipv4_set(table, sets.sources) || !nft_create_ipv6_set(table, sets.sources6)))
-        return false;
-    if (matchers.needs_fully_source_sets &&
-        (!nft_create_ipv4_set(table, sets.fully_sources) || !nft_create_ipv6_set(table, sets.fully_sources6)))
-        return false;
-
-    return true;
-}
-
-function nft_create_priority_chains(table) {
-    return nft_create_chain(table, "priority_rules", "{ }") &&
-        nft_create_chain(table, "priority_output_rules", "{ }") &&
-        nft_add_rule(table, "priority_output_rules", [ "meta", "mark", "!=", "0", "return" ]);
-}
-
-function nft_priority_verdict_args(priority_action, mark) {
-    if (priority_action == "bypass")
-        return [ "counter", "accept" ];
-    return [ "meta", "mark", "set", mark, "counter", "accept" ];
-}
-
-function append_array(target, additions) {
-    for (let item in additions)
-        push(target, item);
-    return target;
-}
-
-// The context every rule of a section shares: which local set and FakeIP range
-// belong to the address family being built, and the verdict its action asks for.
-function nft_priority_rule_args(matchers, family, local_set, fakeip_range, match_args, mark, match_source) {
-    let ip_key = family == 6 ? "ip6" : "ip";
-    let args = [];
-
-    if (match_source && matchers.needs_source_sets)
-        append_array(args, [ ip_key, "saddr",
-            "@" + as_string(family == 6 ? matchers.sets.sources6 : matchers.sets.sources) ]);
-
-    append_array(args, [ ip_key, "daddr", "!=", "@" + as_string(local_set) ]);
-    // A bypass verdict must not claim FakeIP traffic: the address only means
-    // anything to the resolver that handed it out.
-    if (matchers.action == "bypass")
-        append_array(args, [ ip_key, "daddr", "!=", fakeip_range ]);
-    append_array(args, match_args);
-    append_array(args, nft_priority_verdict_args(matchers.action, mark));
-    return args;
-}
-
-function nft_priority_prerouting_args(matchers, family, interface_set, local_set, fakeip_range, match_args, mark) {
-    let args = [ "iifname", "@" + as_string(interface_set) ];
-    append_array(args, nft_priority_rule_args(matchers, family, local_set, fakeip_range, match_args, mark, true));
-    return args;
-}
-
-// Both chains get the same matcher, seen from the two directions traffic can
-// reach it: prerouting for the configured source interfaces, output for the
-// router's own traffic. A section scoped to specific client addresses has
-// nothing to say about the second, and one scoped to @system nothing about the
-// first.
-function nft_add_priority_rule_pair(table, chain, context, matchers, match4, match6) {
-    let sources = matchers.sources;
-
-    if (chain == "priority_rules") {
-        if (sources.selected && length(sources.ips) == 0)
-            return true;
-        return nft_add_rule(table, chain, nft_priority_prerouting_args(matchers, 4, context.interface_set, context.localv4_set, context.fakeip_range, match4, context.mark)) &&
-            nft_add_rule(table, chain, nft_priority_prerouting_args(matchers, 6, context.interface_set, context.localv6_set, context.fakeip6_range, match6, context.mark));
-    }
-
-    if (sources.selected && !sources.system)
-        return true;
-    return nft_add_rule(table, chain, nft_priority_rule_args(matchers, 4, context.localv4_set, context.fakeip_range, match4, context.mark, false)) &&
-        nft_add_rule(table, chain, nft_priority_rule_args(matchers, 6, context.localv6_set, context.fakeip6_range, match6, context.mark, false));
-}
-
-// Fully routed traffic carries no destination matcher at all, so a capture
-// action has to name the protocols it can transparently proxy; bypass accepts
-// whatever the address matches.
-function nft_fully_routed_protocols(matchers) {
-    return matchers.action == "bypass" ? [ "" ] : [ "tcp", "udp" ];
-}
-
-function nft_l4proto_args(protocol) {
-    return as_string(protocol) == "" ? [] : [ "meta", "l4proto", protocol ];
-}
-
-// The same rule as any other of this section, with the protocol standing in for
-// the destination matcher it does not have.
-function nft_fully_routed_output_args(matchers, family, context, protocol) {
-    return nft_priority_rule_args(matchers, family,
-        family == 6 ? context.localv6_set : context.localv4_set,
-        family == 6 ? context.fakeip6_range : context.fakeip_range,
-        nft_l4proto_args(protocol), context.mark, false);
-}
-
-// Forwarded traffic is scoped by the addresses the section fully routes rather
-// than by the ones it filters, so the source set is named here instead of by the
-// shared builder.
-function nft_fully_routed_prerouting_args(matchers, family, context, protocol) {
-    let ip_key = family == 6 ? "ip6" : "ip";
-    let args = [
-        "iifname", "@" + as_string(context.interface_set),
-        ip_key, "saddr",
-        "@" + as_string(family == 6 ? matchers.sets.fully_sources6 : matchers.sets.fully_sources)
-    ];
-
-    append_array(args, nft_fully_routed_output_args(matchers, family, context, protocol));
-    return args;
-}
-
-function nft_add_fully_routed_priority_rules(table, context, matchers) {
-    if (!matchers.fully.selected)
-        return true;
-
-    let protocols = nft_fully_routed_protocols(matchers);
-
-    if (matchers.needs_fully_source_sets) {
-        for (let family in [ 4, 6 ])
-            for (let protocol in protocols)
-                if (!nft_add_rule(table, "priority_rules", nft_fully_routed_prerouting_args(matchers, family, context, protocol)))
-                    return false;
-    }
-
-    if (!matchers.fully.system)
-        return true;
-
-    for (let family in [ 4, 6 ])
-        for (let protocol in protocols)
-            if (!nft_add_rule(table, "priority_output_rules", nft_fully_routed_output_args(matchers, family, context, protocol)))
-                return false;
-
-    return true;
-}
-
-function nft_add_section_priority_rules(table, context, matchers) {
-    if (!matchers.needed)
-        return true;
-
-    let sets = matchers.sets;
-    if (!nft_create_priority_sets(table, matchers))
-        return false;
-
-    if (!nft_add_fully_routed_priority_rules(table, context, matchers))
-        return false;
-
-    // Every rule below differs only in the chain it lands in and the matchers
-    // it carries; the rest of the context is the same for all of them.
-    let add_rules = function(match4, match6) {
-        for (let chain in [ "priority_rules", "priority_output_rules" ])
-            if (!nft_add_priority_rule_pair(table, chain, context, matchers, match4, match6))
-                return false;
-        return true;
-    };
-
-    if (matchers.needs_subnet_sets &&
-        !add_rules([ "ip", "daddr", "@" + as_string(sets.subnets) ], [ "ip6", "daddr", "@" + as_string(sets.subnets6) ]))
-        return false;
-
-    if (matchers.needs_ip_port_sets) {
-        for (let protocol in [ "tcp", "udp" ])
-            if (!add_rules(
-                [ "ip", "daddr", ".", protocol, "dport", "@" + as_string(sets.ip_ports) ],
-                [ "ip6", "daddr", ".", protocol, "dport", "@" + as_string(sets.ip6_ports) ]))
-                return false;
-    }
-
-    // The transport is part of the key, so one rule covers both of them and the
-    // set decides which addresses either one reaches.
-    if (matchers.needs_proto_port_sets &&
-        !add_rules(
-            [ "ip", "daddr", ".", "meta", "l4proto", ".", "th", "dport", "@" + as_string(sets.proto_ports) ],
-            [ "ip6", "daddr", ".", "meta", "l4proto", ".", "th", "dport", "@" + as_string(sets.proto6_ports) ]))
-        return false;
-
-    // A port-only matcher is address family agnostic, so both sides of the pair
-    // reference the same port set.
-    if (matchers.needs_port_set) {
-        for (let protocol in [ "tcp", "udp" ]) {
-            let ports = [ protocol, "dport", "@" + as_string(sets.ports) ];
-            if (!add_rules(ports, ports))
-                return false;
-        }
-    }
-
-    return true;
-}
-
-function nft_priority_context(interface_set, localv4_set, localv6_set, mark, fakeip_range, fakeip6_range) {
-    return {
-        interface_set: interface_set,
-        localv4_set: localv4_set,
-        localv6_set: default_arg(localv6_set, "localv6"),
-        mark: mark,
-        fakeip_range: default_arg(fakeip_range, "198.18.0.0/15"),
-        fakeip6_range: default_arg(fakeip6_range, "fc00::/18")
-    };
-}
-
-function nft_add_section_priority_rules_from_sections(sections, table, interface_set, localv4_set, localv6_set, mark, fakeip_range, fakeip6_range) {
-    let context = nft_priority_context(interface_set, localv4_set, localv6_set, mark, fakeip_range, fakeip6_range);
-    let planned = nft_sections.with_priority_sets(sections);
-
-    if (planned.error != "") {
-        log_fatal(planned.error);
-        return false;
-    }
-
-    for (let entry in planned.sections)
-        if (!nft_add_section_priority_rules(table, context, entry.matchers))
-            return false;
-
-    return true;
-}
-
-// The router's own traffic to a FakeIP address, which the resolver handed out
-// and only sing-box can turn back into a destination.
-function nft_create_fakeip_output_rules(table, fakeip_mark, fakeip_range, fakeip6_range) {
-    fakeip6_range = default_arg(fakeip6_range, "fc00::/18");
-
-    return (
-        nft_add_rule(table, "mangle_output", [ "ip", "daddr", fakeip_range, "meta", "l4proto", "tcp", "meta", "mark", "set", fakeip_mark, "counter" ]) &&
-        nft_add_rule(table, "mangle_output", [ "ip", "daddr", fakeip_range, "meta", "l4proto", "udp", "meta", "mark", "set", fakeip_mark, "counter" ]) &&
-        nft_add_rule(table, "mangle_output", [ "ip6", "daddr", fakeip6_range, "meta", "l4proto", "tcp", "meta", "mark", "set", fakeip_mark, "counter" ]) &&
-        nft_add_rule(table, "mangle_output", [ "ip6", "daddr", fakeip6_range, "meta", "l4proto", "udp", "meta", "mark", "set", fakeip_mark, "counter" ])
-    );
-}
-
-// A batch of set elements small enough for one `add element` command.
-function nft_new_chunks() {
-    return [];
-}
-
-function nft_write_chunk(chunks, chunk) {
-    if (length(chunk) > 0)
-        push(chunks, join(",", chunk));
-}
-
-function nft_push_chunk_value(chunks, chunk, value, chunk_size) {
-    push(chunk, value);
-    if (length(chunk) < chunk_size)
-        return chunk;
-
-    nft_write_chunk(chunks, chunk);
-    return [];
-}
-
-function nft_chunk_size(value) {
-    value = int(value || 5000);
-    return value > 0 ? value : 5000;
-}
-
-function nft_csv_values(csv) {
-    let result = [];
-
-    for (let item in split(as_string(csv), ",")) {
-        item = trim(replace(as_string(item), /\r/g, ""));
-        if (item != "")
-            push(result, item);
-    }
-
-    return result;
-}
-
-// One walk over the addresses fills both families. Asking twice, once per
-// family, meant validating every address of a list twice and rejecting it twice.
-// `ports_csv` is empty for a plain address set and holds the section's ports
-// when each address is matched together with each of them.
-function nft_build_family_chunks(values, ports_csv, chunk_size_text) {
-    let chunk_size = nft_chunk_size(chunk_size_text);
-    let scoped = as_string(ports_csv) != "";
-    let ports = [];
-    let invalid = [];
-    let ipv4 = { chunks: nft_new_chunks(), chunk: [] };
-    let ipv6 = { chunks: nft_new_chunks(), chunk: [] };
-
-    for (let port in nft_csv_values(ports_csv)) {
-        let normalized = rule_config.normalize_port_condition_value(port);
-        if (normalized == null)
-            push(invalid, { value: port, message: "is not a valid port or port range" });
-        else
-            push(ports, normalized);
-    }
-
-    for (let value in values) {
-        let family = core_ip.nft_ip_family(value);
-        if (family == 0) {
-            push(invalid, { value: value, message: "is not IP or CIDR" });
-            continue;
-        }
-
-        let bucket = family == 6 ? ipv6 : ipv4;
-        if (!scoped) {
-            bucket.chunk = nft_push_chunk_value(bucket.chunks, bucket.chunk, value, chunk_size);
-            continue;
-        }
-
-        for (let port in ports)
-            bucket.chunk = nft_push_chunk_value(bucket.chunks, bucket.chunk, value + " . " + port, chunk_size);
-    }
-
-    nft_write_chunk(ipv4.chunks, ipv4.chunk);
-    nft_write_chunk(ipv6.chunks, ipv6.chunk);
-
-    return { ipv4: ipv4.chunks, ipv6: ipv6.chunks, invalid: invalid };
-}
-
-function nft_log_invalid_elements(invalid) {
-    for (let item in invalid)
-        log_debug("'" + as_string(item.value) + "' " + as_string(item.message));
-}
-
-function nft_add_chunks_to_set(table, set_name, chunks) {
-    for (let elements in chunks)
-        if (!nft_add_set_elements(table, set_name, elements))
-            return false;
-
-    return true;
-}
-
-// The addresses of a matcher always land in a pair of sets, one per family, and
-// which pair depends only on whether the matcher carries ports.
-function nft_add_values_to_family_sets(values, ports_csv, table, ipv4_set, ipv6_set, chunk_size_text) {
-    let prepared = nft_build_family_chunks(values, ports_csv, chunk_size_text);
-
-    nft_log_invalid_elements(prepared.invalid);
-    return nft_add_chunks_to_set(table, ipv4_set, prepared.ipv4) &&
-        nft_add_chunks_to_set(table, ipv6_set, prepared.ipv6);
-}
-
-function nft_add_csv_to_family_sets(csv, ports_csv, table, ipv4_set, ipv6_set, chunk_size_text) {
-    return nft_add_values_to_family_sets(nft_csv_values(csv), ports_csv, table, ipv4_set, ipv6_set, chunk_size_text);
-}
-
-// Without ports every address is matched on its own; with them each address is
-// matched together with each port, which is a different pair of sets.
-function nft_add_inline_ip_cidr_matchers(csv, ports_csv, table, sets, chunk_size_text) {
-    if (as_string(csv) == "")
-        return true;
-
-    if (as_string(ports_csv) != "")
-        return nft_add_csv_to_family_sets(csv, ports_csv, table, sets.ip_ports, sets.ip6_ports, chunk_size_text);
-
-    return nft_add_csv_to_family_sets(csv, "", table, sets.subnets, sets.subnets6, chunk_size_text);
-}
-
-// The devices Forkop ignores entirely: their sets exist only while the list is
-// non-empty, and every capture chain returns their traffic before touching it.
-function nft_create_excluded_device_sets(table, excluded_values) {
-    if (trim(as_string(excluded_values)) == "")
-        return true;
-
-    return nft_create_ipv4_set(table, EXCLUDED_SET) &&
-        nft_create_ipv6_set(table, EXCLUDED6_SET) &&
-        nft_add_values_to_family_sets(whitespace_values(excluded_values), "", table, EXCLUDED_SET, EXCLUDED6_SET, 5000);
-}
-
-function nft_add_excluded_device_returns(table, chain, excluded_values) {
-    if (trim(as_string(excluded_values)) == "")
-        return true;
-
-    return nft_add_rule(table, chain, [ "ip", "saddr", "@" + EXCLUDED_SET, "counter", "return" ]) &&
-        nft_add_rule(table, chain, [ "ip6", "saddr", "@" + EXCLUDED6_SET, "counter", "return" ]);
-}
-
-// Client DNS capture: everything the source interfaces send to port 53 lands on
-// the sing-box client DNS inbound, whatever resolver address the client had
-// configured. Excluded devices are let through first - the capture itself
-// ignores the resolver address the device asks for, so this return is the one
-// way their own DNS choice stays honored.
-function nft_add_dns_redirect(table, interface_set, excluded_values) {
-    return nft_create_chain(table, "dns_redirect", "{ type nat hook prerouting priority -101; policy accept; }") &&
-        nft_add_excluded_device_returns(table, "dns_redirect", excluded_values) &&
-        nft_add_rule(table, "dns_redirect", [ "iifname", "@" + as_string(interface_set), "tcp", "dport", "53", "counter", "redirect", "to", ":" + as_string(runtime_constants.SOURCE_DNS_INBOUND_PORT) ]) &&
-        nft_add_rule(table, "dns_redirect", [ "iifname", "@" + as_string(interface_set), "udp", "dport", "53", "counter", "redirect", "to", ":" + as_string(runtime_constants.SOURCE_DNS_INBOUND_PORT) ]);
-}
-
-function nft_create_runtime_base(table, localv4_set, interface_set, source_interfaces, fakeip_mark, outbound_mark, fakeip_range, tproxy_port, exclude_ntp, localv6_set, fakeip6_range, tproxy6_address, excluded_values) {
-    localv6_set = default_arg(localv6_set, "localv6");
-    fakeip6_range = default_arg(fakeip6_range, "fc00::/18");
-    tproxy6_address = default_arg(tproxy6_address, "::1");
-
-    if (!nft_create_table(table) ||
-        !nft_create_ipv4_set(table, localv4_set) ||
-        !nft_add_set_elements(table, localv4_set, join(",", LOCALV4_RANGES)) ||
-        !nft_create_ipv6_set(table, localv6_set) ||
-        !nft_add_set_elements(table, localv6_set, join(",", LOCALV6_RANGES)) ||
-        !nft_create_ifname_set(table, interface_set))
-        return false;
-
-    for (let interface in whitespace_values(source_interfaces))
-        if (!nft_add_set_elements(table, interface_set, interface))
-            return false;
-
-    if (!nft_create_excluded_device_sets(table, excluded_values))
-        return false;
-
-    if (!nft_create_chain(table, "mangle", "{ type filter hook prerouting priority -149; policy accept; }") ||
-        !nft_create_chain(table, "mangle_output", "{ type route hook output priority -150; policy accept; }") ||
-        !nft_create_priority_chains(table) ||
-        !nft_create_chain(table, "proxy", "{ type filter hook prerouting priority -100; policy accept; }"))
-        return false;
-
-    if (!nft_add_dns_redirect(table, interface_set, excluded_values))
-        return false;
-
-    // Excluded devices leave the capture before anything is matched: no marks,
-    // no priority rules, no FakeIP - the section rules never see them.
-    if (!nft_add_excluded_device_returns(table, "mangle", excluded_values))
-        return false;
-
-    if (!nft_add_rule(table, "mangle", [ "ct", "status", "dnat", "return" ]) ||
-        !nft_add_rule(table, "mangle", [ "iifname", "@" + as_string(interface_set), "ip", "daddr", "@" + as_string(localv4_set), "return" ]) ||
-        !nft_add_rule(table, "mangle", [ "iifname", "@" + as_string(interface_set), "ip6", "daddr", "@" + as_string(localv6_set), "ip6", "daddr", "!=", fakeip6_range, "return" ]) ||
-        !nft_add_rule(table, "mangle", [ "jump", "priority_rules" ]) ||
-        !nft_add_rule(table, "mangle", [ "iifname", "@" + as_string(interface_set), "ip", "daddr", fakeip_range, "meta", "l4proto", "tcp", "meta", "mark", "set", fakeip_mark, "counter" ]) ||
-        !nft_add_rule(table, "mangle", [ "iifname", "@" + as_string(interface_set), "ip", "daddr", fakeip_range, "meta", "l4proto", "udp", "meta", "mark", "set", fakeip_mark, "counter" ]) ||
-        !nft_add_rule(table, "mangle", [ "iifname", "@" + as_string(interface_set), "ip6", "daddr", fakeip6_range, "meta", "l4proto", "tcp", "meta", "mark", "set", fakeip_mark, "counter" ]) ||
-        !nft_add_rule(table, "mangle", [ "iifname", "@" + as_string(interface_set), "ip6", "daddr", fakeip6_range, "meta", "l4proto", "udp", "meta", "mark", "set", fakeip_mark, "counter" ]) ||
-        !nft_add_rule(table, "proxy", [ "iifname", "lo", "meta", "mark", "&", fakeip_mark, "==", fakeip_mark, "meta", "l4proto", "tcp", "tproxy", "ip", "to", ":" + as_string(runtime_constants.SYSTEM_TPROXY_INBOUND_PORT), "counter", "accept" ]) ||
-        !nft_add_rule(table, "proxy", [ "iifname", "lo", "meta", "mark", "&", fakeip_mark, "==", fakeip_mark, "meta", "l4proto", "udp", "tproxy", "ip", "to", ":" + as_string(runtime_constants.SYSTEM_TPROXY_INBOUND_PORT), "counter", "accept" ]) ||
-        !nft_add_rule(table, "proxy", [ "iifname", "lo", "meta", "mark", "&", fakeip_mark, "==", fakeip_mark, "meta", "l4proto", "tcp", "tproxy", "ip6", "to", core_ip.format_ipv6_tproxy_target(tproxy6_address, runtime_constants.SYSTEM_TPROXY_INBOUND_PORT), "counter", "accept" ]) ||
-        !nft_add_rule(table, "proxy", [ "iifname", "lo", "meta", "mark", "&", fakeip_mark, "==", fakeip_mark, "meta", "l4proto", "udp", "tproxy", "ip6", "to", core_ip.format_ipv6_tproxy_target(tproxy6_address, runtime_constants.SYSTEM_TPROXY_INBOUND_PORT), "counter", "accept" ]) ||
-        !nft_add_rule(table, "proxy", [ "meta", "mark", "&", fakeip_mark, "==", fakeip_mark, "meta", "l4proto", "tcp", "tproxy", "ip", "to", ":" + as_string(tproxy_port), "counter" ]) ||
-        !nft_add_rule(table, "proxy", [ "meta", "mark", "&", fakeip_mark, "==", fakeip_mark, "meta", "l4proto", "udp", "tproxy", "ip", "to", ":" + as_string(tproxy_port), "counter" ]) ||
-        !nft_add_rule(table, "proxy", [ "meta", "mark", "&", fakeip_mark, "==", fakeip_mark, "meta", "l4proto", "tcp", "tproxy", "ip6", "to", core_ip.format_ipv6_tproxy_target(tproxy6_address, tproxy_port), "counter" ]) ||
-        !nft_add_rule(table, "proxy", [ "meta", "mark", "&", fakeip_mark, "==", fakeip_mark, "meta", "l4proto", "udp", "tproxy", "ip6", "to", core_ip.format_ipv6_tproxy_target(tproxy6_address, tproxy_port), "counter" ]) ||
-        !nft_add_rule(table, "mangle_output", [ "ip", "daddr", "@" + as_string(localv4_set), "return" ]) ||
-        !nft_add_rule(table, "mangle_output", [ "ip6", "daddr", "@" + as_string(localv6_set), "ip6", "daddr", "!=", fakeip6_range, "return" ]) ||
-        !nft_add_rule(table, "mangle_output", [ "meta", "mark", outbound_mark, "counter", "return" ]) ||
-        !nft_add_rule(table, "mangle_output", [ "jump", "priority_output_rules" ]))
-        return false;
-
-    if (arg_bool(exclude_ntp) && !nft_insert_rule(table, "mangle", [ "udp", "dport", "123", "return" ]))
-        return false;
-
-    return true;
-}
-
-function ensure_rt_table_entry(path, table_id, table_name) {
-    let data = fs.readfile(path);
-    if (data != null && rt_table_has_entry(data, table_id, table_name))
-        return true;
-
-    data = data == null ? "" : as_string(data);
-    if (data != "" && substr(data, length(data) - 1, 1) != "\n")
-        data += "\n";
-
-    return write_text_file(path, data + as_string(table_id) + " " + as_string(table_name) + "\n");
-}
-
-function ensure_tproxy_route_rule(table, mark, rt_tables_path) {
-    rt_tables_path = as_string(rt_tables_path || RT_TABLES_PATH);
-
-    if (!ensure_rt_table_entry(rt_tables_path, "105", table)) {
-        log_fatal("Failed to update route table registry. Aborted.");
-        return false;
-    }
-
-    if (!tproxy_route4_present(table)) {
-        log_debug("Added IPv4 tproxy route");
-        if (!run_args([ IP_BIN, "route", "add", "local", "0.0.0.0/0", "dev", "lo", "table", table ]) && !tproxy_route4_present(table)) {
-            log_fatal("Failed to add IPv4 route for tproxy. Aborted.");
-            return false;
-        }
-    }
-
-    if (!tproxy_route6_present(table)) {
-        log_debug("Added IPv6 tproxy route");
-        if (!run_args([ IP_BIN, "-6", "route", "add", "local", "::/0", "dev", "lo", "table", table ]) && !tproxy_route6_present(table)) {
-            log_fatal("Failed to add IPv6 route for tproxy. Aborted.");
-            return false;
-        }
-    }
-
-    if (!tproxy_marking_rule4_present(table, mark)) {
-        log_debug("Creating IPv4 tproxy marking rule");
-        if (!run_args([ IP_BIN, "-4", "rule", "add", "fwmark", as_string(mark) + "/" + as_string(mark), "table", table, "priority", "105" ]) && !tproxy_marking_rule4_present(table, mark)) {
-            log_fatal("Failed to create IPv4 marking rule. Aborted.");
-            return false;
-        }
-    }
-
-    if (!tproxy_marking_rule6_present(table, mark)) {
-        log_debug("Creating IPv6 tproxy marking rule");
-        if (!run_args([ IP_BIN, "-6", "rule", "add", "fwmark", as_string(mark) + "/" + as_string(mark), "table", table, "priority", "105" ]) && !tproxy_marking_rule6_present(table, mark)) {
-            log_fatal("Failed to create IPv6 marking rule. Aborted.");
-            return false;
-        }
-    }
-
-    return true;
+function apply(built) {
+    for (let message in built.skipped)
+        exec.log("debug", message);
+    ensure_tproxy_routing();
+    let result = exec.feed([ "nft", "-f", "-" ], built.script);
+    if (result.status != 0)
+        die("nft refused the ruleset: " + refusal(result));
 }
 
 function ensure_bridge_netfilter_disabled() {
-    if (index(command_output_from_args([ "lsmod" ]), "br_netfilter") < 0)
+    if (index(exec.output([ "lsmod" ]) ?? "", "br_netfilter") < 0 ||
+        trim(exec.output([ "sysctl", "-n", "net.bridge.bridge-nf-call-iptables" ]) ?? "") != "1")
         return true;
-
-    if (trim(command_output_from_args([ "sysctl", "-n", "net.bridge.bridge-nf-call-iptables" ])) != "1")
-        return true;
-
-    log_debug("br_netfilter is enabled; disabling it for transparent proxy routing");
-    return run_args([ "sysctl", "-w", "net.bridge.bridge-nf-call-iptables=0" ]) &&
-        run_args([ "sysctl", "-w", "net.bridge.bridge-nf-call-ip6tables=0" ]);
+    exec.log("debug", "br_netfilter is enabled; disabling it for transparent proxy routing");
+    return exec.ok([ "sysctl", "-w", "net.bridge.bridge-nf-call-iptables=0" ]) &&
+        exec.ok([ "sysctl", "-w", "net.bridge.bridge-nf-call-ip6tables=0" ]);
 }
 
-function signature_hash(body) {
-    let path = SIGNATURE_TEMP_FILE;
-
-    if (!write_text_file(path, body)) {
-        unlink_file(path);
-        return "";
-    }
-
-    let hash_line = command_output_from_args([ "md5sum", path ]);
-    unlink_file(path);
-    hash_line = trim(hash_line);
-
-    return length(hash_line) >= 32 ? substr(hash_line, 0, 32) : "";
-}
-
-// The nft signature is the artifact: a hash of the exact commands that would
-// build the table. A configuration change that does not change them - a section
-// carrying only domains, a renamed outbound, a new subscription URL - leaves it
-// alone, and one that does change them cannot fail to move it. What used to sit
-// here was a second, hand-written list of the fields believed to matter, which is
-// how creating any section came to rebuild the whole table.
-function nft_runtime_script(model) {
-    nft_dry_run = true;
-    nft_batch_open();
-    let ok = model();
-    let lines = nft_batch_take();
-    nft_dry_run = false;
-
-    return ok ? join("
-", lines) + "
-" : null;
-}
-
-function print_nft_runtime_signature(model) {
-    let script = nft_runtime_script(model);
-    if (script == null)
-        return false;
-
-    let hash = signature_hash(script);
-    if (hash == "")
-        return false;
-
-    print(hash, "
-");
-    return true;
-}
-
-function word_set(value) {
-    let result = {};
-    for (let item in whitespace_values(value))
-        result[item] = true;
-    return result;
-}
-
-function fixture_section_list(data, type_name) {
-    let value = object_or_empty(data)[type_name];
-    if (type(value) == "array")
-        return value;
-    if (type(value) == "object")
-        return [ value ];
-
-    let plural = object_or_empty(data)[type_name + "s"];
-    return type(plural) == "array" ? plural : [];
-}
-
-function nft_add_section_source_matchers(matchers, table, chunk_size_text) {
-    if (!matchers.needs_source_sets)
-        return true;
-
-    return nft_add_values_to_family_sets(matchers.sources.ips, "", table,
-        matchers.sets.sources, matchers.sets.sources6, chunk_size_text);
-}
-
-function nft_add_section_fully_routed_sources(matchers, table, chunk_size_text) {
-    if (!matchers.needs_fully_source_sets)
-        return true;
-
-    return nft_add_values_to_family_sets(matchers.fully.ips, "", table,
-        matchers.sets.fully_sources, matchers.sets.fully_sources6, chunk_size_text);
-}
-
-function system_aware_dns_enabled(sections, deferred_sections) {
-    for (let section in sections) {
-        if (!bool_option(section, "enabled", true) ||
-            deferred_sections[as_string(section[".name"])])
-            continue;
-
-        if (connections.section_needs_system_dns(section))
-            return true;
-    }
-
-    return false;
-}
-
-// Loopback stays out of the capture: the router talking to its own resolver on
-// 127.0.0.1 is the local zone working, not an upstream query - only what the
-// router (the resolver included) sends to the outside is taken over. sing-box
-// marks its own sockets, so its resolver dials pass the mark exemption.
-function nft_add_system_dns_redirect(table) {
-    return nft_create_chain(table, "system_dns_redirect", "{ type nat hook output priority -151; policy accept; }") &&
-        nft_add_rule(table, "system_dns_redirect", [ "meta", "mark", "!=", "0", "return" ]) &&
-        nft_add_rule(table, "system_dns_redirect", [ "ip", "daddr", "127.0.0.0/8", "return" ]) &&
-        nft_add_rule(table, "system_dns_redirect", [ "ip6", "daddr", "::1", "return" ]) &&
-        nft_add_rule(table, "system_dns_redirect", [ "tcp", "dport", "53", "counter", "redirect", "to", ":" + as_string(runtime_constants.SYSTEM_DNS_INBOUND_PORT) ]) &&
-        nft_add_rule(table, "system_dns_redirect", [ "udp", "dport", "53", "counter", "redirect", "to", ":" + as_string(runtime_constants.SYSTEM_DNS_INBOUND_PORT) ]);
-}
-
-function nft_add_system_aware_dns_support(sections, deferred_sections, table) {
-    return !system_aware_dns_enabled(sections, deferred_sections) ||
-        nft_add_system_dns_redirect(table);
-}
-
-// A deferred section is one whose destinations the rule-set sync worker owns:
-// its source addresses still belong here, because they come from the
-// configuration and not from a provider.
-function nft_populate_runtime_set_for_section(section, matchers, deferred_sections, table) {
-    if (!nft_add_section_source_matchers(matchers, table, 5000))
-        return false;
-
-    if (deferred_sections[as_string(section[".name"])])
-        return true;
-
-    if (!nft_add_section_fully_routed_sources(matchers, table, 5000))
-        return false;
-
-    if (!nft_add_inline_ip_cidr_matchers(matchers.subnets, matchers.ports, table, matchers.sets, 5000))
-        return false;
-
-    if (matchers.needs_port_set && !nft_add_set_elements(table, matchers.sets.ports, matchers.ports))
-        return false;
-
-    return true;
-}
-
-function nft_populate_runtime_sets_from_sections(sections, populate_enabled, deferred_section_names, table) {
-    if (!arg_bool(populate_enabled))
-        return true;
-
-    let deferred_sections = word_set(deferred_section_names);
-
-    if (!nft_add_system_aware_dns_support(sections, deferred_sections, table))
-        return false;
-
-    let planned = nft_sections.with_priority_sets(sections);
-    if (planned.error != "") {
-        log_fatal(planned.error);
-        return false;
-    }
-
-    for (let entry in planned.sections)
-        if (!nft_populate_runtime_set_for_section(entry.section, entry.matchers, deferred_sections, table))
-            return false;
-
-    return true;
-}
-
-function nft_populate_runtime_sets_from_uci(populate_enabled, deferred_section_names, table) {
-    if (!arg_bool(populate_enabled))
-        return true;
-
-    nft_batch_open();
-    if (!nft_populate_runtime_sets_from_sections(uci_sections("section"), populate_enabled, deferred_section_names, table)) {
-        nft_batch_take();
-        return false;
-    }
-
-    return nft_batch_apply();
-}
-
-function nft_populate_runtime_sets_fixture(path, populate_enabled, deferred_section_names, table) {
-    let data = object_or_empty(common_read_json_file(path));
-    connections.set_item_sections_from_data(data);
-    return nft_populate_runtime_sets_from_sections(fixture_section_list(data, "section"), populate_enabled, deferred_section_names, table);
-}
-
-// Every nft command the runtime table is made of, and nothing else: the routing
-// table and the tproxy rules live outside nft and are set up by the caller. This
-// is both what gets applied and what gets hashed into the reload signature, so
-// the two cannot disagree about what the table depends on.
-function nft_runtime_model(settings, sections, populate) {
-    return nft_create_runtime_base(
-        NFT_TABLE_NAME, NFT_LOCALV4_SET_NAME, NFT_INTERFACE_SET_NAME,
-        option(settings, "source_network_interfaces", "br-lan"),
-        NFT_FAKEIP_MARK, NFT_OUTBOUND_MARK, SB_FAKEIP_INET4_RANGE, SB_TPROXY_INBOUND_PORT,
-        option(settings, "exclude_ntp", "0"),
-        NFT_LOCALV6_SET_NAME, SB_FAKEIP_INET6_RANGE, SB_TPROXY_INBOUND6_ADDRESS,
-        option(settings, "routing_excluded_ips", "")) &&
-        nft_add_section_priority_rules_from_sections(sections, NFT_TABLE_NAME, NFT_INTERFACE_SET_NAME, NFT_LOCALV4_SET_NAME, NFT_LOCALV6_SET_NAME, NFT_FAKEIP_MARK, SB_FAKEIP_INET4_RANGE, SB_FAKEIP_INET6_RANGE) &&
-        nft_create_fakeip_output_rules(NFT_TABLE_NAME, NFT_FAKEIP_MARK, SB_FAKEIP_INET4_RANGE, SB_FAKEIP_INET6_RANGE) &&
-        (!populate || nft_populate_runtime_sets_from_sections(sections, "1", "", NFT_TABLE_NAME));
-}
-
-function nft_create_full_runtime_from_uci() {
-    return ensure_tproxy_route_rule(RT_TABLE_NAME, NFT_FAKEIP_MARK) &&
-        nft_runtime_model(uci_settings(), uci_sections("section"), false);
-}
-
-// The whole table is replaced in one transaction. Creating it before deleting it
-// keeps the replace unconditional, because `delete table` on a table that is not
-// there aborts the transaction it belongs to.
-function nft_runtime_replace_commands() {
-    return nft_command([ "table", "inet", NFT_TABLE_NAME ]) &&
-        nft_command([ "delete", "table", "inet", NFT_TABLE_NAME ]) &&
-        nft_create_full_runtime_from_uci();
-}
-
-function nft_rebuild_runtime_from_uci() {
-    nft_batch_open();
-    if (!nft_runtime_replace_commands()) {
-        nft_batch_take();
-        return false;
-    }
-
-    return nft_batch_apply();
-}
-
-// The set elements go into the hash as well: their contents are as much a part
-// of the table as the rules that match them, and populating them is the only
-// step that puts them there.
-function nft_runtime_signature_from_uci() {
-    let settings = uci_settings();
-    let sections = uci_sections("section");
-
-    return print_nft_runtime_signature(function() {
-        return nft_runtime_model(settings, sections, true);
-    });
-}
-
-function fixture_settings(data) {
-    return object_or_empty(object_or_empty(data).settings);
-}
-
-function nft_runtime_signature_from_fixture(path) {
-    let data = object_or_empty(common_read_json_file(path));
-    connections.set_item_sections_from_data(data);
-    let settings = fixture_settings(data);
-    let sections = fixture_section_list(data, "section");
-
-    return print_nft_runtime_signature(function() {
-        return nft_runtime_model(settings, sections, true);
-    });
-}
-
-let mode = ARGV[0] || "";
-
-if (mode == "nft-create-runtime-base")
-    exit(nft_create_runtime_base(ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8], ARGV[9], ARGV[10], ARGV[11], ARGV[12], ARGV[13]) ? 0 : 1);
-else if (mode == "nft-create-fakeip-output-rules")
-    exit(nft_create_fakeip_output_rules(ARGV[1], ARGV[2], ARGV[3], ARGV[4]) ? 0 : 1);
-else if (mode == "nft-add-section-priority-rules-fixture")
-    exit(nft_add_section_priority_rules_from_sections(fixture_section_list(object_or_empty(common_read_json_file(ARGV[1])), "section"), ARGV[2], ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7], ARGV[8]) ? 0 : 1);
-else if (mode == "nft-rebuild-runtime-from-uci")
-    exit(nft_rebuild_runtime_from_uci() ? 0 : 1);
-else if (mode == "nft-populate-runtime-sets-from-uci")
-    exit(nft_populate_runtime_sets_from_uci(ARGV[1], ARGV[2], ARGV[3]) ? 0 : 1);
-else if (mode == "nft-populate-runtime-sets-fixture")
-    exit(nft_populate_runtime_sets_fixture(ARGV[1], ARGV[2], ARGV[3], ARGV[4]) ? 0 : 1);
-else if (mode == "nft-runtime-signature")
-    exit(nft_runtime_signature_from_uci() ? 0 : 1);
-else if (mode == "nft-runtime-signature-fixture")
-    exit(nft_runtime_signature_from_fixture(ARGV[1]) ? 0 : 1);
-else if (mode == "ensure-tproxy-route-rule")
-    exit(ensure_tproxy_route_rule(ARGV[1], ARGV[2], ARGV[3]) ? 0 : 1);
-else if (mode == "ensure-bridge-netfilter-disabled")
-    exit(ensure_bridge_netfilter_disabled() ? 0 : 1);
-else {
-    warn("Usage: nft/apply.uc <operation> ...\n");
-    exit(1);
-}
+return { paths, build, apply, refusal, ensure_bridge_netfilter_disabled, remove_rt_table_entry };

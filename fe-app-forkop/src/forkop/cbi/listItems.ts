@@ -8,6 +8,8 @@
 
 // The hidden input holding an entry's stored value, or null when the node given
 // is not an entry.
+
+import { E } from '../../helpers/element';
 function itemValueInput(
   item: Element | null | undefined,
 ): HTMLInputElement | null {

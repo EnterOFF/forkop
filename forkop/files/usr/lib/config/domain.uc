@@ -225,10 +225,7 @@ function label_to_ascii(value) {
         return null;
 
     // Nearly every label is already a valid ASCII label, and establishing that
-    // through the walk below costs an object per byte. Reading the bytes
-    // directly reaches the same answer for exactly the labels that pass
-    // valid_ascii_label unchanged; everything else keeps the original path,
-    // including the punycode fallback it applies to labels that do not.
+    // through the walk below costs an object per byte.
     if (length(value) <= 63 && match(value, /^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$/) != null)
         return ascii_lower(value);
 
@@ -236,9 +233,10 @@ function label_to_ascii(value) {
     if (codepoints == null)
         return null;
 
-    let ascii = codepoints_to_ascii_label(codepoints);
-    if (ascii != null)
-        return ascii;
+    // Punycode is for a label with characters beyond ASCII; an ASCII label that
+    // is not a valid one is refused, not encoded into something that passes.
+    if (length(filter(codepoints, (cp) => cp >= 0x80)) == 0)
+        return codepoints_to_ascii_label(codepoints);
 
     let encoded = punycode_encode(codepoints);
     return encoded != null && valid_ascii_label(encoded) ? encoded : null;

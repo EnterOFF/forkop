@@ -1,3 +1,5 @@
+import { E } from '../../../../helpers/element';
+
 interface IRenderWidgetProps {
   loading: boolean;
   failed: boolean;

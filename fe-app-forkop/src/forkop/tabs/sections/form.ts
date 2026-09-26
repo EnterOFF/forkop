@@ -188,6 +188,7 @@ export function createSectionContent(section: CBISection) {
     ),
   );
   dnsServerOption.depends('action', 'dns');
+  dnsServerOption.retain = true;
   dnsServerOption.modalonly = true;
   configureDnsServerList(dnsServerOption);
 

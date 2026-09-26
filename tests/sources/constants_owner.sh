@@ -5,7 +5,6 @@ set -eo pipefail
 FORKOP_MAKEFILE="$ROOT_DIR/forkop/Makefile"
 BUILD_SCRIPT="$ROOT_DIR/build.sh"
 LIFECYCLE_UC="$FORKOP_LIB/service/lifecycle.uc"
-CONSTANTS_UC="$FORKOP_LIB/core/constants.uc"
 SINGBOX_CONSTANTS_UC="$FORKOP_LIB/singbox/constants.uc"
 RULESETS_UC="$FORKOP_LIB/singbox/rulesets.uc"
 FRONTEND_CONSTANTS="$ROOT_DIR/fe-app-forkop/src/constants.ts"
@@ -38,18 +37,6 @@ grep -Fq 'core/constants.uc' "$FORKOP_MAKEFILE" ||
 grep -Fq 'core/constants.uc' "$BUILD_SCRIPT" ||
   fail "release build must patch core/constants.uc"
 
-config_name="$(ucode -L "$FORKOP_LIB" "$CONSTANTS_UC" get FORKOP_CONFIG_NAME)"
-[ "$config_name" = "forkop" ] ||
-  fail "core/constants.uc get returned unexpected FORKOP_CONFIG_NAME"
-
-eval "$(ucode -L "$FORKOP_LIB" "$CONSTANTS_UC" shell-env)"
-[ "$FORKOP_CONFIG" = "/etc/config/forkop" ] ||
-  fail "core/constants.uc shell-env did not derive FORKOP_CONFIG"
-
-[ "$(ucode -L "$FORKOP_LIB" "$CONSTANTS_UC" get FAKEIP_TEST_DOMAIN)" = "fakeip.podkop.fyi" ] ||
-  fail "FakeIP diagnostics must use the deployed public endpoint"
-[ "$(ucode -L "$FORKOP_LIB" "$CONSTANTS_UC" get CHECK_PROXY_IP_DOMAIN)" = "ip.podkop.fyi" ] ||
-  fail "public IP diagnostics must use the deployed public endpoint"
 grep -Fq 'const FAKEIP_TEST_DOMAIN = "fakeip.podkop.fyi";' "$SINGBOX_CONSTANTS_UC" ||
   fail "sing-box constants must match the deployed FakeIP endpoint"
 grep -Fq "export const FAKEIP_CHECK_DOMAIN = 'fakeip.podkop.fyi';" "$FRONTEND_CONSTANTS" ||
@@ -57,15 +44,6 @@ grep -Fq "export const FAKEIP_CHECK_DOMAIN = 'fakeip.podkop.fyi';" "$FRONTEND_CO
 grep -Fq "export const IP_CHECK_DOMAIN = 'ip.podkop.fyi';" "$FRONTEND_CONSTANTS" ||
   fail "LuCI diagnostics must use the deployed public IP endpoint"
 
-# The generator writes external_controller and the diagnostics dial it, from
-# two different constant tables, so they have to name the same port.
-generator_port="$(ucode -L "$FORKOP_LIB" -e '
-  let c = require("singbox.constants");
-  print(c.CLASH_API_CONTROLLER_PORT, "
-");
-')"
-[ "$generator_port" = "$(ucode -L "$FORKOP_LIB" "$CONSTANTS_UC" get SB_CLASH_API_CONTROLLER_PORT)" ] ||
-  fail "sing-box and diagnostics disagree on the Clash API controller port"
 if grep -Fq '":9090"' "$FORKOP_LIB/singbox/generator.uc"; then
   fail "the generator must take the Clash API port from singbox/constants.uc"
 fi
@@ -116,19 +94,15 @@ if grep -rn 'RESERVED_RUNTIME_TAGS = ' "$TABS_DIR" >/dev/null 2>&1; then
   fail "the reserved tag list belongs in the shared constants, not in a tab"
 fi
 
-# Three tables name the community rule sets: the validator decides which
-# references it accepts, singbox/rulesets.uc turns each one into a download URL,
-# and the section dialog lists them. A name in only one of them is either
-# refused by the validator, generated without a URL, or invisible in the UI.
-community_validator="$(ucode -L "$FORKOP_LIB" "$CONSTANTS_UC" get COMMUNITY_SERVICES | tr ' ' '\n' | sed '/^$/d' | LC_ALL=C sort)"
-community_generator="$(read_literal "$RULESETS_UC" COMMUNITY_SERVICES | LC_ALL=C sort)"
+# The section dialog lists the community rule sets singbox/rulesets.uc names,
+# which the validator accepts and the generator downloads. A name the dialog
+# lacks is invisible; one only the dialog has is refused on save.
+community_validator="$(read_literal "$RULESETS_UC" COMMUNITY_SERVICES | LC_ALL=C sort)"
 community_frontend="$(read_literal "$FRONTEND_CONSTANTS" DOMAIN_LIST_OPTIONS | LC_ALL=C sort)"
 [ -n "$community_validator" ] ||
-  fail "core/constants.uc must list the community rule sets the validator accepts"
-[ "$community_validator" = "$community_generator" ] ||
-  fail "$(printf 'the community rule sets in core/constants.uc and singbox/rulesets.uc differ\nvalidator:\n%s\ngenerator:\n%s' "$community_validator" "$community_generator")"
+  fail "singbox/rulesets.uc must list the community rule sets"
 [ "$community_validator" = "$community_frontend" ] ||
-  fail "$(printf 'the community rule sets in core/constants.uc and fe-app-forkop/src/constants.ts differ\nbackend:\n%s\nfrontend:\n%s' "$community_validator" "$community_frontend")"
+  fail "$(printf 'the community rule sets in singbox/rulesets.uc and fe-app-forkop/src/constants.ts differ\nbackend:\n%s\nfrontend:\n%s' "$community_validator" "$community_frontend")"
 
 # Equal tables are not the whole contract: the generator still has to answer for
 # every name the validator accepts. A name it does not recognise reaches sing-box

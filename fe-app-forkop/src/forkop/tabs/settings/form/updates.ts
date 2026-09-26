@@ -28,6 +28,7 @@ export function addUpdateOptions(section: CBISection) {
 
   o = section.option(form.Value, 'update_interval', _('List update interval'));
   o.depends('list_update_enabled', '1');
+  o.retain = true;
   o.placeholder = '1d';
   o.default = '1d';
   o.rmempty = false;
@@ -62,6 +63,7 @@ export function addUpdateOptions(section: CBISection) {
     _('Component update check interval'),
   );
   o.depends('component_update_check_enabled', '1');
+  o.retain = true;
   o.placeholder = '1d';
   o.default = '1d';
   o.rmempty = false;
@@ -135,6 +137,7 @@ export function addUpdateOptions(section: CBISection) {
     _('Download lists through'),
   );
   o.depends('download_lists_via_proxy', '1');
+  o.retain = true;
   configureDownloadSectionOption(o, 'download_lists_via_proxy_section');
 
   o = section.option(
@@ -150,5 +153,6 @@ export function addUpdateOptions(section: CBISection) {
     _('Download components through'),
   );
   o.depends('download_components_via_proxy', '1');
+  o.retain = true;
   configureDownloadSectionOption(o, 'download_components_via_proxy_section');
 }

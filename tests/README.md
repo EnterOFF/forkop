@@ -20,7 +20,7 @@ the interpreter fails with a plausible-looking assertion instead of an error.
 CI runs the same set as
 
 ```sh
-find tests -name '*.sh' -not -path 'tests/lib/*' -print0 | sort -z | xargs -0 -n1 -P4 bash
+find tests -name '*.sh' -not -path 'tests/lib/*' -not -path 'tests/unit/*' -print0 | sort -z | xargs -0 -n1 -P4 bash
 ```
 
 ## Layout
@@ -33,10 +33,36 @@ find tests -name '*.sh' -not -path 'tests/lib/*' -print0 | sort -z | xargs -0 -n
 | `updates/`  | Component version checks and the updater job. |
 | `packaging/`| The `.ipk` contract, versions, the release workflow, the bytecode cache. |
 | `sources/`  | Checks over the ucode sources themselves: who owns which constant, declaration order, dispatch tables, logging conventions. |
-| `lib/`      | What the tests source and require. Not tests. |
+| `unit/`     | ucode unit tests that require a module and call it: `*.test.uc`, laid out like `usr/lib`. |
+| `lib/`      | What the shell tests source and require. Not tests. |
 | `fixtures/` | Data the tests read. |
 
-## Writing one
+## Unit tests
+
+`tests/unit/run.sh [filter]` runs every `tests/unit/**/*.test.uc` in its own
+interpreter with `-L tests/unit/fakes -L tests/unit/lib -L forkop/files/usr/lib`.
+The fakes stand in for the `uci`, `ubus` and `uloop` modules, so the suite runs on
+any ucode build, including CI's, which has none of them.
+
+```ucode
+let t = require("t");          // test(), eq(), ok(), contains(), throws(), done()
+let stub = require("stub");    // commands(), env(), capture(), tmpdir(), restore()
+let uci = require("uci");      // __seed(), __sections(), __commits(), __reset()
+
+t.test("what it protects", () => {
+    uci.__seed("forkop", [ { ".name": "settings", ".type": "settings", log_level: "warn" } ]);
+    stub.commands([ [ "nft list tables", { status: 0, stdout: "" } ] ]);
+    // require the module, call it, assert on what it returned and ran
+    stub.restore();
+});
+
+t.done();
+```
+
+`stub.commands()` replaces `system()` and `fs.popen()` for the test: a command no
+handler claims fails the test instead of being answered by default.
+
+## Writing a shell test
 
 Three lines of preamble, and everything else is the check:
 

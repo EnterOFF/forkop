@@ -21,6 +21,8 @@
 #   TESTS_DIR     this directory's parent, for a fixture or a node helper
 #   WORK_DIR      a scratch directory, removed when the test exits
 #   fail <text>   print FAIL: <text> on stderr and exit 1
+#   generate_config <fixture> <output> [address] [mwan3]
+#                 the generated sing-box configuration of a fixture
 #
 # The paths are derived from this file's own location, so a test does not care
 # how deep in tests/ it sits.
@@ -35,6 +37,13 @@ FORKOP_LIB="$FORKOP_FILES/usr/lib"
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
   exit 1
+}
+
+# generate_config <fixture.json> <output.json> [service_address] [mwan3_active]
+# Writes what the generator builds for a fixture, for a check against a real core.
+generate_config() {
+  ucode -L "$TESTS_DIR/unit/fakes" -L "$TESTS_DIR/unit/lib" -L "$FORKOP_LIB" \
+    "$TESTS_DIR/lib/generate_config.uc" "$1" "${3:-127.0.0.1}" "${4:-0}" >"$2"
 }
 
 # Every test gets one, whether or not it writes anything into it: one mktemp is

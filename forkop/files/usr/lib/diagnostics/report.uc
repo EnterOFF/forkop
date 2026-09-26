@@ -1,3 +1,5 @@
+let constants = require("core.constants");
+
 // Renders the machine readable check results into the text of `forkop
 // global_check`. Every function here takes a value the checks already
 // produced and returns lines; nothing in this module inspects the router, so
@@ -45,7 +47,8 @@ function sing_box_check(value) {
     value = object_or_empty(value);
     return [
         flag_line(value, "sing_box_installed", "✅ Sing-box installed", "❌ Sing-box installed"),
-        flag_line(value, "sing_box_version_ok", "✅ Sing-box version is compatible (newer than 1.12.4)", "❌ Sing-box version is not compatible (older than 1.12.4)"),
+        flag_line(value, "sing_box_version_ok", "✅ Sing-box version is compatible (" + constants.SB_REQUIRED_VERSION + " or newer)",
+            "❌ Sing-box version is not compatible (older than " + constants.SB_REQUIRED_VERSION + ")"),
         flag_line(value, "sing_box_service_exist", "✅ Sing-box service exist", "❌ Sing-box service exist"),
         flag_line(value, "sing_box_autostart_disabled", "✅ Sing-box autostart disabled", "❌ Sing-box autostart disabled"),
         flag_line(value, "sing_box_process_running", "✅ Sing-box process running", "❌ Sing-box process running"),
@@ -221,7 +224,8 @@ function dnsmasq_config(config_lines) {
 }
 
 // Marking rules outside the Forkop table steal packets from the proxy chain,
-// so the ones a foreign table installs are quoted verbatim in the report.
+// so the ones a foreign table installs are quoted verbatim in the report. A rule
+// that only matches a mark takes nothing - Forkop's own fw4 include is one.
 function nft_other_mark_lines(data, table_name) {
     table_name = as_string(table_name);
     let result = [];
@@ -237,7 +241,7 @@ function nft_other_mark_lines(data, table_name) {
         if (match(line, /^table/) != null)
             in_forkop_table = false;
 
-        if (!in_forkop_table && (index(line, "mark set") >= 0 || index(line, "meta mark") >= 0))
+        if (!in_forkop_table && index(line, "mark set") >= 0)
             push(result, line);
     }
 

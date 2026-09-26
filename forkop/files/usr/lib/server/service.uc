@@ -1,914 +1,484 @@
-#!/usr/bin/env ucode
+// What a server section needs before sing-box can serve it: the defaults and
+// files the configuration refers to, the firewall rules that open its ports, and
+// the key material the Servers tab asks for.
 
 let fs = require("fs");
+let common = require("core.common");
+let exec = require("core.exec");
 let uci = require("core.uci");
-let runtime_servers = require("singbox.servers");
-let runtime_constants = require("singbox.constants");
-let diagnostics_inbounds = require("diagnostics.inbounds");
+let servers = require("singbox.servers");
+let singbox_constants = require("singbox.constants");
 
-const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
+const CONFIG_NAME = "forkop";
 
-function as_string(value) {
-    return value == null ? "" : "" + value;
+let paths = {
+    certificates: "/etc/forkop/server-certs",
+    ssh_keys: "/etc/forkop/server-ssh",
+    firewall_include: "/usr/share/nftables.d/chain-pre/input/forkop-servers.nft",
+    firewall_init: "/etc/init.d/firewall"
+};
+
+// A self-signed certificate is pinned by its fingerprint or accepted without a
+// name check, so it has no reason to expire while its server runs; it is issued
+// again a month before it would.
+const CERTIFICATE_MONTHS = 120;
+const CERTIFICATE_RENEW_SECONDS = 30 * 24 * 3600;
+const ORPHAN_MIN_AGE = 3600;
+const FIREWALL_COMMENT = singbox_constants.SERVER_FIREWALL_COMMENT;
+
+let changed = false;
+
+function get(name, key, fallback) {
+    let value = uci.get(CONFIG_NAME + "." + name + "." + key);
+    return value == "" ? (fallback ?? "") : value;
 }
 
-function write_json(value) {
-    print(sprintf("%J", value), "\n");
+function set_if_empty(name, key, value) {
+    if (value != "" && get(name, key) == "" && uci.set(CONFIG_NAME + "." + name + "." + key, value))
+        changed = true;
 }
 
-function shell_quote(value) {
-    return "'" + replace(as_string(value), /'/g, "'\\''") + "'";
+function set_value(name, key, value) {
+    if (value != "" && get(name, key) != value && uci.set(CONFIG_NAME + "." + name + "." + key, value))
+        changed = true;
 }
 
-function run(command) {
-    return system(command) == 0;
-}
-
-function output(command) {
-    let pipe = fs.popen(command, "r");
-    if (!pipe)
-        return "";
-
-    let data = pipe.read("all");
-    let status = pipe.close();
-    if (status != 0 || data == null)
-        return "";
-
-    return replace(as_string(data), /[\r\n]+$/g, "");
-}
-
-function log(message, level) {
-    level = as_string(level || "info");
-    run("logger -t " + shell_quote("forkop") + " " + shell_quote("[" + level + "] " + as_string(message)));
-}
-
-function fatal(message) {
-    log(message, "error");
-    exit(1);
-}
-
-function uci_get(path) {
-    return uci.get(path);
-}
-
-function uci_set(path, value) {
-    return uci.set(path, value);
-}
-
-function uci_commit(package_name) {
-    return uci.commit(package_name);
-}
-
-function words(value) {
-    value = trim(as_string(value));
-    return value == "" ? [] : split(value, /[ \t\r\n]+/);
-}
-
-function uci_sections(type_name) {
+function section_names(type_name) {
     return uci.sections(CONFIG_NAME, type_name);
 }
 
-function config_path(section, option) {
-    return CONFIG_NAME + "." + as_string(section) + "." + as_string(option);
+function file_name(value) {
+    return replace(common.as_string(value), /[^A-Za-z0-9_.-]/g, "_");
 }
 
-function config_get(section, option, fallback) {
-    let value = uci_get(config_path(section, option));
-    return value == "" ? as_string(fallback || "") : value;
-}
-
-let SERVER_DEFAULTS_CHANGED = false;
-
-function server_default_set_option(section, option, value) {
-    value = as_string(value);
-    if (value == "")
-        return;
-    if (uci_get(config_path(section, option)) != "")
-        return;
-    if (uci_set(config_path(section, option), value))
-        SERVER_DEFAULTS_CHANGED = true;
-}
-
-function server_set_option(section, option, value) {
-    value = as_string(value);
-    if (value == "")
-        return;
-    if (uci_get(config_path(section, option)) == value)
-        return;
-    if (uci_set(config_path(section, option), value))
-        SERVER_DEFAULTS_CHANGED = true;
-}
-
-function regex_matches(value, pattern) {
-    pattern = as_string(pattern);
-    if (pattern == "")
-        return false;
-
-    try {
-        return match(as_string(value), regexp(pattern)) != null;
-    }
-    catch (e) {
-        return false;
-    }
-}
-
-function safe_filename_string(value) {
-    value = as_string(value);
-    let result = [];
-    for (let i = 0; i < length(value); i++) {
-        let chr = substr(value, i, 1);
-        push(result, regex_matches(chr, "^[A-Za-z0-9_.-]$") ? chr : "_");
-    }
-    return join("", result);
-}
 function valid_file_path(value) {
-    value = as_string(value);
-    return value != "" &&
-        value != "/" &&
-        substr(value, length(value) - 1) != "/" &&
-        regex_matches(value, "^/[A-Za-z0-9_./-]+$");
+    return match(value, /^\/[A-Za-z0-9_.\/-]+$/) != null && substr(value, -1) != "/";
 }
 
-function str_endswith(value, suffix) {
-    value = as_string(value);
-    suffix = as_string(suffix);
-    return length(value) >= length(suffix) && substr(value, length(value) - length(suffix)) == suffix;
+function nonempty_file(path) {
+    return (fs.stat(path)?.size ?? 0) > 0;
 }
 
-function str_remove_suffix(value, suffix) {
-    value = as_string(value);
-    suffix = as_string(suffix);
-    return str_endswith(value, suffix) ? substr(value, 0, length(value) - length(suffix)) : value;
+function executable(path) {
+    return ((fs.stat(path)?.mode ?? 0) & 0111) != 0;
 }
 
-function mtproto_base_secret_value(value) {
-    value = lc(as_string(value));
-    if (regex_matches(value, "^[0-9a-f]{32}$"))
-        return value;
-    if (regex_matches(value, "^ee[0-9a-f]{32}([0-9a-f]{2})+$"))
-        return substr(value, 2, 32);
-    return "";
-}
-
-function hex_digit_value(value) {
-    value = ord(lc(as_string(value)));
-    if (value >= 48 && value <= 57)
-        return value - 48;
-    if (value >= 97 && value <= 102)
-        return value - 87;
-    return -1;
-}
-
-function hex_to_string_value(value) {
-    value = as_string(value);
-    if (length(value) == 0 || length(value) % 2 != 0 || !regex_matches(value, "^([0-9a-fA-F]{2})+$"))
-        return null;
-
-    let result = "";
-    for (let i = 0; i < length(value); i += 2) {
-        let high = hex_digit_value(substr(value, i, 1));
-        let low = hex_digit_value(substr(value, i + 1, 1));
-        if (high < 0 || low < 0)
-            return null;
-        result += chr(high * 16 + low);
-    }
-    return result;
-}
-
-function mtproto_faketls_value(value) {
-    value = lc(as_string(value));
-    if (!regex_matches(value, "^ee[0-9a-f]{32}([0-9a-f]{2})+$"))
-        return "";
-    let result = hex_to_string_value(substr(value, 34));
-    return result == null ? "" : result;
-}
-
-function error_response(message) {
-    write_json({
-        success: false,
-        message: as_string(message)
-    });
-}
-
-function reality_keypair_response(private_key, public_key) {
-    write_json({
-        success: true,
-        private_key: as_string(private_key),
-        public_key: as_string(public_key)
-    });
-}
-
-function tls_fingerprint_response(fingerprint) {
-    write_json({
-        success: true,
-        sha256: as_string(fingerprint)
-    });
-}
-
-function first_key_value_line_value(data, prefix) {
-    prefix = as_string(prefix);
-    for (let line in split(as_string(data), "\n")) {
-        line = as_string(line);
-        if (!regex_matches(line, "^" + prefix + ":"))
+function pem_block(data, label) {
+    let begin = "-----BEGIN " + label + "-----";
+    let end = "-----END " + label + "-----";
+    let lines = null;
+    for (let line in split(common.as_string(data), "\n")) {
+        line = rtrim(line, "\r");
+        if (lines == null && line != begin)
             continue;
-
-        let value = substr(line, length(prefix) + 1);
-        return replace(value, /^[ \t\r]*/, "");
-    }
-
-    return null;
-}
-
-function pem_block(data, begin_marker, end_marker) {
-    let lines = [];
-    let in_block = false;
-
-    for (let line in split(as_string(data), "\n")) {
-        line = str_remove_suffix(as_string(line), "\r");
-        if (!in_block && line != begin_marker)
-            continue;
-
-        in_block = true;
+        lines ??= [];
         push(lines, line);
-
-        if (line == end_marker)
+        if (line == end)
             return join("\n", lines);
     }
-
     return "";
 }
 
-function valid_sha256_hex(value) {
-    return regex_matches(value, "^[0-9a-f]{64}$");
+function expiry_path(certificate_path) {
+    return certificate_path + ".expires";
 }
 
-// The generator decides what a protocol actually runs with, and the certificate this
-// module issues has to match it, so the rule is read from there instead of being
-// spelled out a second time.
-function server_effective_security_value(section, protocol) {
-    return runtime_servers.effective_security(
-        uci.get_all(CONFIG_NAME, as_string(section)) || {},
-        as_string(protocol)
-    );
+function write_private_file(path, text) {
+    let file = fs.open(path, "w", 0600);
+    if (!file)
+        return false;
+    fs.chmod(path, 0600);
+    let written = file.write(text) != null;
+    file.close();
+    return written;
 }
 
-function generate_reality_keypair_values() {
-    let data = output("sing-box generate reality-keypair 2>/dev/null");
-    let private_key = first_key_value_line_value(data, "PrivateKey");
-    let public_key = first_key_value_line_value(data, "PublicKey");
-
-    if (private_key == null || public_key == null || private_key == "" || public_key == "")
-        return null;
-
-    return {
-        private_key: private_key,
-        public_key: public_key
-    };
-}
-
-function generate_reality_keypair_cli() {
-    let pair = generate_reality_keypair_values();
-    if (pair == null) {
-        error_response("Failed to generate Reality key pair");
-        exit(1);
-    }
-
-    reality_keypair_response(pair.private_key, pair.public_key);
-}
-
-function write_tls_keypair_data(data, key_path, certificate_path) {
-    let key = pem_block(data, "-----BEGIN PRIVATE KEY-----", "-----END PRIVATE KEY-----");
-    let cert = pem_block(data, "-----BEGIN CERTIFICATE-----", "-----END CERTIFICATE-----");
-
-    if (key == "" || cert == "")
+function issue_certificate_files(subject, certificate_path, key_path) {
+    let output = exec.output([ "sing-box", "generate", "tls-keypair", subject, "--months", "" + CERTIFICATE_MONTHS ]);
+    let key = pem_block(output, "PRIVATE KEY");
+    let certificate = pem_block(output, "CERTIFICATE");
+    if (key == "" || certificate == "")
         return false;
 
-    return fs.writefile(key_path, key + "\n") && fs.writefile(certificate_path, cert + "\n");
-}
-
-// The directory Forkop keeps its own certificates in. The tests point it somewhere
-// writable; nothing else overrides it.
-const SERVER_CERT_DIR = getenv("FORKOP_SERVER_CERT_DIR") || "/etc/forkop/server-certs";
-
-// What a client sees in the certificate. The display name is the last resort
-// because it is at least the name the server is known by; the section id never is.
-function server_certificate_subject(section) {
-    let subject = trim(config_get(section, "tls_server_name", ""));
-    if (subject == "")
-        subject = trim(config_get(section, "public_host", ""));
-    if (subject == "")
-        subject = trim(config_get(section, "label", ""));
-    return subject == "" ? as_string(section) : subject;
-}
-
-// A self signed certificate is pinned by its fingerprint or accepted without a
-// name check, so it has no reason to expire while the server it belongs to runs.
-const SERVER_CERT_MONTHS = 120;
-// Replaced before it expires, so a client is never handed a dead certificate.
-const SERVER_CERT_RENEW_SECONDS = 30 * 24 * 3600;
-
-function server_cert_expiry_path(certificate_path) {
-    return as_string(certificate_path) + ".expires";
-}
-
-// Forkop owns what it put in its own directory and may replace it; a path the user
-// chose is theirs and is never written over.
-function server_cert_is_managed(certificate_path, key_path) {
-    let prefix = SERVER_CERT_DIR + "/";
-    return substr(as_string(certificate_path), 0, length(prefix)) == prefix &&
-        substr(as_string(key_path), 0, length(prefix)) == prefix;
-}
-
-// The expiry is stored next to the certificate instead of being read out of it:
-// the router has no tool that parses a certificate, and a missing stamp means the
-// pair was written by a Forkop that did not know its own expiry, which is reason
-// enough to replace it.
-function server_cert_needs_replacement(certificate_path, key_path) {
-    if (!run("[ -s " + shell_quote(certificate_path) + " ] && [ -s " + shell_quote(key_path) + " ]"))
-        return true;
-
-    let stamp = trim(as_string(fs.readfile(server_cert_expiry_path(certificate_path)) || ""));
-    if (!regex_matches(stamp, "^[0-9]+$"))
-        return true;
-
-    return int(stamp, 10) - time() < SERVER_CERT_RENEW_SECONDS;
-}
-
-function server_generate_tls_keypair_files(server_name, certificate_path, key_path) {
-    let data = output("sing-box generate tls-keypair " + shell_quote(server_name) +
-        " --months " + SERVER_CERT_MONTHS + " 2>/dev/null");
-    if (data == "")
+    if (!common.ensure_dir(common.parent_dir(key_path)) || !common.ensure_dir(common.parent_dir(certificate_path)))
+        return false;
+    if (!write_private_file(key_path, key + "\n") || !common.write_file(certificate_path, certificate + "\n"))
         return false;
 
-    let key_dir = replace(as_string(key_path), /\/[^\/]*$/, "");
-    let cert_dir = replace(as_string(certificate_path), /\/[^\/]*$/, "");
-    if (!run("mkdir -p " + shell_quote(key_dir) + " " + shell_quote(cert_dir)))
-        return false;
-
-    // The key file gets its mode before it gets its contents: writefile() creates
-    // it under the process umask, which would leave the private key readable to
-    // everyone until a chmod afterwards caught up.
-    if (!run("touch " + shell_quote(key_path) + " && chmod 600 " + shell_quote(key_path)))
-        return false;
-
-    if (!write_tls_keypair_data(data, key_path, certificate_path))
-        return false;
-
-    fs.writefile(server_cert_expiry_path(certificate_path),
-        "" + (time() + SERVER_CERT_MONTHS * 30 * 24 * 3600) + "\n");
+    common.write_file(expiry_path(certificate_path), sprintf("%d\n", time() + CERTIFICATE_MONTHS * 30 * 24 * 3600));
     return true;
 }
 
-function certificate_base64_text(path) {
-    let data = fs.readfile(path);
-    let cert = pem_block(data, "-----BEGIN CERTIFICATE-----", "-----END CERTIFICATE-----");
-    let lines = [];
-
-    if (cert == "")
-        return "";
-
-    for (let line in split(cert, "\n")) {
-        line = replace(as_string(line), /\r/g, "");
-        if (line == "-----BEGIN CERTIFICATE-----" || line == "-----END CERTIFICATE-----" || line == "")
-            continue;
-        push(lines, line);
-    }
-
-    return length(lines) == 0 ? "" : join("\n", lines) + "\n";
+// Forkop may replace what it issued into its own directory; a path the user chose
+// is theirs.
+function certificate_is_managed(certificate_path, key_path) {
+    let prefix = paths.certificates + "/";
+    return substr(certificate_path, 0, length(prefix)) == prefix && substr(key_path, 0, length(prefix)) == prefix;
 }
 
-function server_tls_certificate_sha256_from_file(certificate_path) {
-    if (!valid_file_path(certificate_path))
-        return "";
-    let base64_text = certificate_base64_text(certificate_path);
-    if (base64_text == "")
-        return "";
-
-    let tmp_path = output("mktemp 2>/dev/null");
-    if (tmp_path == "")
-        return "";
-
-    if (!fs.writefile(tmp_path, base64_text)) {
-        fs.unlink(tmp_path);
-        return "";
-    }
-
-    let fingerprint = output("base64 -d " + shell_quote(tmp_path) + " 2>/dev/null | sha256sum 2>/dev/null");
-    fs.unlink(tmp_path);
-    fingerprint = substr(fingerprint, 0, index(fingerprint, " ") >= 0 ? index(fingerprint, " ") : length(fingerprint));
-    return valid_sha256_hex(fingerprint) ? fingerprint : "";
+// The expiry is stored next to the certificate because the router has no tool
+// that reads it out of the certificate; a pair without the stamp is replaced.
+function certificate_needs_replacement(certificate_path, key_path) {
+    if (!nonempty_file(certificate_path) || !nonempty_file(key_path))
+        return true;
+    let stamp = trim(fs.readfile(expiry_path(certificate_path)) ?? "");
+    return match(stamp, /^[0-9]+$/) == null || int(stamp) - time() < CERTIFICATE_RENEW_SECONDS;
 }
 
-function generate_server_certificate_cli(subject, name) {
-    subject = trim(as_string(subject));
-    name = safe_filename_string(trim(as_string(name)));
-    if (subject == "" || name == "") {
-        error_response("Missing certificate subject or name");
-        exit(1);
-    }
+function certificate_sha256_of(path) {
+    if (!valid_file_path(path))
+        return "";
+    let pem = pem_block(fs.readfile(path), "CERTIFICATE");
+    let der = pem == "" ? null : b64dec(replace(replace(pem, /-----[A-Z ]+-----/g, ""), /[\r\n\t ]/g, ""));
+    if (der == null || der == "")
+        return "";
 
-    let base = SERVER_CERT_DIR + "/" + name;
-    let certificate_path = base + ".crt";
-    let key_path = base + ".key";
-    if (!valid_file_path(certificate_path) || !valid_file_path(key_path)) {
-        error_response("Invalid certificate name");
-        exit(1);
-    }
-
-    if (!server_generate_tls_keypair_files(subject, certificate_path, key_path)) {
-        error_response("Failed to generate the TLS certificate");
-        exit(1);
-    }
-
-    write_json({
-        success: true,
-        certificate_path,
-        key_path,
-        sha256: server_tls_certificate_sha256_from_file(certificate_path)
-    });
+    let now = clock();
+    let temporary = sprintf("/tmp/forkop-certificate.%d.%d.der", now[0], now[1]);
+    if (!common.write_file(temporary, der))
+        return "";
+    let output = exec.output([ "sha256sum", temporary ]);
+    fs.unlink(temporary);
+    let fingerprint = split(trim(output ?? ""), " ")[0];
+    return match(fingerprint, /^[0-9a-f]{64}$/) ? fingerprint : "";
 }
 
-function get_tls_certificate_sha256_cli(section) {
-    if (as_string(section) == "") {
-        error_response("Missing server section");
-        exit(1);
-    }
-
-    let protocol = config_get(section, "protocol", "vless");
-    let security = server_effective_security_value(section, protocol);
-    if (security != "tls") {
-        error_response("Server does not use TLS");
-        exit(1);
-    }
-
-    let certificate_path = config_get(section, "tls_certificate_path", "");
-    if (certificate_path == "") {
-        error_response("TLS certificate path is empty");
-        exit(1);
-    }
-
-    let fingerprint = server_tls_certificate_sha256_from_file(certificate_path);
-    if (fingerprint == "") {
-        error_response("Failed to read TLS certificate fingerprint");
-        exit(1);
-    }
-
-    tls_fingerprint_response(fingerprint);
+// What a client checks the certificate against: the SNI, else the address the
+// links carry, else the name the server is shown under.
+function certificate_subject(name) {
+    return trim(get(name, "tls_server_name")) || trim(get(name, "public_host")) || trim(get(name, "label")) || name;
 }
 
-
-function server_prepare_tls_defaults(section, security) {
+function prepare_certificate(name, security) {
     if (security != "tls")
         return;
-    if (config_get(section, "enabled", "1") == "0")
-        return;
 
-    // Only the subject of the generated certificate; nothing is stored, because an
-    // empty SNI is a valid TLS server and the form asks for one when Reality needs it.
-    // The section id is never the subject: it is an internal name, it means nothing
-    // to a client checking the certificate, and it does not belong on the wire.
-    let tls_server_name = server_certificate_subject(section);
-
-    let certificate_path = config_get(section, "tls_certificate_path", "");
-    let key_path = config_get(section, "tls_key_path", "");
-    let own_certificate = certificate_path != "" || key_path != "";
-
-    // The dialog asks for both paths and its button fills them in, so a server that
-    // has neither was never configured and nothing is issued for it - the runtime
-    // check names the field instead.
-    if (!own_certificate)
+    let certificate_path = get(name, "tls_certificate_path");
+    let key_path = get(name, "tls_key_path");
+    // The dialog asks for both paths and its button fills them in; a server with
+    // neither was never configured, and the runtime check names the field.
+    if (certificate_path == "" && key_path == "")
         return;
 
     if (!valid_file_path(certificate_path))
-        fatal("Server '" + section + "' has invalid TLS certificate path. Specify a file path. Aborted.");
+        die("Server '" + name + "' has invalid TLS certificate path. Specify a file path. Aborted.");
     if (!valid_file_path(key_path))
-        fatal("Server '" + section + "' has invalid TLS key path. Specify a file path. Aborted.");
+        die("Server '" + name + "' has invalid TLS key path. Specify a file path. Aborted.");
     if (certificate_path == key_path)
-        fatal("Server '" + section + "' has the same TLS certificate and key path. Specify different files. Aborted.");
+        die("Server '" + name + "' has the same TLS certificate and key path. Specify different files. Aborted.");
 
-    if (!server_cert_is_managed(certificate_path, key_path))
+    if (!certificate_is_managed(certificate_path, key_path) || !certificate_needs_replacement(certificate_path, key_path))
         return;
 
-    // The file itself is still looked after: refusing to start because a self signed
-    // certificate went missing, or serving one that has expired, would both be worse
-    // than issuing it again at the path the server already points at.
-    if (server_cert_needs_replacement(certificate_path, key_path)) {
-        log("Generating self-signed TLS certificate for server '" + section + "'", "info");
-        if (!server_generate_tls_keypair_files(tls_server_name, certificate_path, key_path))
-            fatal("Failed to generate TLS certificate for server '" + section + "'. Aborted.");
-    }
+    exec.log("info", "Generating self-signed TLS certificate for server '" + name + "'");
+    if (!issue_certificate_files(certificate_subject(name), certificate_path, key_path))
+        die("Failed to generate TLS certificate for server '" + name + "'. Aborted.");
 }
 
-const SERVER_SSH_DIR = getenv("FORKOP_SERVER_SSH_DIR") || "/etc/forkop/server-ssh";
-
-// A host key is what an SSH client pins on its first connection. sing-box makes one
-// up when it is given none, but it makes a new one every start, so every client
-// meets a changed fingerprint after every reload - which is why Forkop keeps one.
+// sing-box invents a host key when it is given none, a new one on every start,
+// so every client would meet a changed fingerprint after every reload.
 function write_ssh_host_key(key_path) {
-    let key_dir = replace(as_string(key_path), /\/[^\/]*$/, "");
-    if (key_dir == "")
-        key_dir = "/";
-    if (!run("mkdir -p " + shell_quote(key_dir)))
+    let directory = common.parent_dir(key_path) || "/";
+    if (!common.ensure_dir(directory))
+        return false;
+    let now = clock();
+    let temporary = sprintf("%s/.forkop-ssh.%d.%d", directory, now[0], now[1]);
+    if (!fs.mkdir(temporary, 0700))
         return false;
 
-    let temp_dir = output("mktemp -d " + shell_quote(key_dir + "/.forkop-ssh.XXXXXX") + " 2>/dev/null");
-    if (temp_dir == "")
-        return false;
+    let dropbear_key = temporary + "/dropbear";
+    let openssh_key = temporary + "/openssh";
+    let generated = exec.ok([ "dropbearkey", "-t", "ed25519", "-f", dropbear_key ]) &&
+        exec.ok([ "dropbearconvert", "dropbear", "openssh", dropbear_key, openssh_key ]) &&
+        fs.chmod(openssh_key, 0600) &&
+        fs.rename(openssh_key, key_path);
 
-    let dropbear_key = temp_dir + "/dropbear";
-    let openssh_key = temp_dir + "/openssh";
-    let generated =
-        run("dropbearkey -t ed25519 -f " + shell_quote(dropbear_key) + " >/dev/null 2>&1") &&
-        run("dropbearconvert dropbear openssh " + shell_quote(dropbear_key) + " " + shell_quote(openssh_key) + " >/dev/null 2>&1") &&
-        run("chmod 600 " + shell_quote(openssh_key) + " >/dev/null 2>&1") &&
-        run("mv -f " + shell_quote(openssh_key) + " " + shell_quote(key_path));
-
-    fs.unlink(dropbear_key);
-    fs.unlink(dropbear_key + ".pub");
-    fs.unlink(openssh_key);
-    run("rmdir " + shell_quote(temp_dir) + " >/dev/null 2>&1");
-    return generated;
+    common.remove_tree(temporary);
+    return !!generated;
 }
 
-// The dialog asks for the path and its button fills it in, so nothing is invented
-// here. The file behind a stored path is still written when it is missing: a key
-// that vanished would be replaced by a new one on every start otherwise.
-function server_prepare_ssh_host_key(section) {
-    let key_paths = words(config_get(section, "ssh_host_key_path", ""));
-
-    for (let key_path in key_paths) {
+function prepare_ssh_host_keys(name) {
+    for (let key_path in common.words(get(name, "ssh_host_key_path"))) {
         if (!valid_file_path(key_path))
-            fatal("Server '" + section + "' has invalid SSH host key path. Specify a file path. Aborted.");
-        if (config_get(section, "enabled", "1") == "0" || run("[ -s " + shell_quote(key_path) + " ]"))
+            die("Server '" + name + "' has invalid SSH host key path. Specify a file path. Aborted.");
+        if (nonempty_file(key_path))
             continue;
-
         if (!write_ssh_host_key(key_path))
-            fatal("Failed to generate persistent SSH host key for server '" + section + "'. Aborted.");
+            die("Failed to generate persistent SSH host key for server '" + name + "'. Aborted.");
     }
 }
 
-function generate_ssh_host_key_cli(name) {
-    name = safe_filename_string(trim(as_string(name)));
-    if (name == "") {
-        error_response("Missing host key name");
-        exit(1);
-    }
-
-    let key_path = SERVER_SSH_DIR + "/" + name + ".key";
-    if (!valid_file_path(key_path)) {
-        error_response("Invalid host key name");
-        exit(1);
-    }
-
-    if (!write_ssh_host_key(key_path)) {
-        error_response("Failed to generate the SSH host key");
-        exit(1);
-    }
-
-    write_json({
-        success: true,
-        key_path
-    });
+function clients_of(name) {
+    return filter(section_names("server_client"), (client) => get(client, "server") == name);
 }
 
-// The generator owns what a protocol asks a client for, so the tables come from
-// there and cannot drift away from the inbound this module prepares for.
-const SERVER_PROTOCOLS = runtime_servers.CLIENT_FIELDS;
-const LOGIN_NAME_PROTOCOLS = runtime_servers.LOGIN_NAME_PROTOCOLS;
-
-function server_client_sections(section) {
-    let result = [];
-    for (let client in uci_sections("server_client"))
-        if (uci_get(config_path(client, "server")) == as_string(section))
-            push(result, client);
-    return result;
-}
-
-// The character set a protocol can put an account name on the wire in. A name that
-// already fits is returned unchanged: SOCKS, HTTP, SSH and Mieru all compare an
-// account name byte for byte, so lowercasing one the dialog accepted would rename
-// the account behind the user's back and invalidate the link they were handed.
+// An account name goes on the wire, so it is kept to the characters the login
+// protocols carry; a name that already fits is compared byte for byte by them
+// and stays exactly as it was typed.
 function login_safe_name(value, fallback) {
-    value = as_string(value);
-    if (regex_matches(value, "^[A-Za-z0-9._-]+$"))
+    if (match(value, /^[A-Za-z0-9._-]+$/))
         return value;
+    let result = replace(replace(value, /[^A-Za-z0-9._-]/g, "-"), /^-+|-+$/g, "");
+    return result == "" ? fallback : result;
+}
 
-    let result = "";
-    for (let i = 0; i < length(value); i++) {
-        let chr = substr(value, i, 1);
-        result += regex_matches(chr, "^[A-Za-z0-9._-]$") ? chr : "-";
-    }
-    result = replace(result, /^-+/, "");
-    result = replace(result, /-+$/, "");
-    return result == "" ? as_string(fallback) : result;
+function mtproto_secret_parts(value) {
+    value = lc(value);
+    if (match(value, /^[0-9a-f]{32}$/))
+        return { secret: value, faketls: "" };
+    if (match(value, /^ee[0-9a-f]{32}([0-9a-f]{2})+$/))
+        return { secret: substr(value, 2, 32), faketls: hexdec(substr(value, 34)) ?? "" };
+    return { secret: "", faketls: "" };
 }
 
 // Client names and MTProto secrets are normalised, never invented: a client with
-// no credentials is reported by the validator instead of being given one here.
-function prepare_server_clients(section, protocol) {
-    let fields = SERVER_PROTOCOLS[protocol];
-    if (fields == null || length(fields) == 0)
+// no credentials is reported by the validator instead.
+function prepare_clients(name, protocol) {
+    if (length(servers.CLIENT_FIELDS[protocol] ?? []) == 0)
         return;
 
-    for (let client in server_client_sections(section)) {
-        let name = trim(config_get(client, "name", ""));
-        if (LOGIN_NAME_PROTOCOLS[protocol]) {
-            // The dialog already refuses a name these protocols cannot carry, so this
-            // only rewrites one written straight through uci - and leaves a name that
-            // fits exactly as it was typed.
-            name = login_safe_name(name, login_safe_name(config_get(section, "label", section), safe_filename_string(section)));
-        }
-        else if (name == "")
-            name = config_get(section, "label", section);
-        server_set_option(client, "name", name);
+    for (let client in clients_of(name)) {
+        let client_name = trim(get(client, "name"));
+        if (servers.LOGIN_NAME_PROTOCOLS[protocol])
+            client_name = login_safe_name(client_name, login_safe_name(get(name, "label", name), file_name(name)));
+        else if (client_name == "")
+            client_name = get(name, "label", name);
+        set_value(client, "name", client_name);
 
         if (protocol == "mtproto") {
-            // A secret pasted in its full ee<hex><host> form carries the FakeTLS host,
-            // so it is split back into the stored secret and the server option.
-            let raw_secret = config_get(client, "secret", "");
-            let base_secret = mtproto_base_secret_value(raw_secret);
-            let faketls = mtproto_faketls_value(raw_secret);
-            if (base_secret != "" && base_secret != raw_secret)
-                server_set_option(client, "secret", base_secret);
-            if (faketls != "")
-                server_set_option(section, "mtproto_faketls", faketls);
+            let raw = get(client, "secret");
+            let parts = mtproto_secret_parts(raw);
+            if (parts.secret != "" && parts.secret != raw)
+                set_value(client, "secret", parts.secret);
+            set_value(name, "mtproto_faketls", parts.faketls);
         }
     }
 }
 
-function prepare_server_defaults(section) {
-    let protocol = config_get(section, "protocol", "vless");
-    if (SERVER_PROTOCOLS[protocol] == null)
-        fatal("Server '" + section + "' has unsupported protocol '" + protocol + "'. Aborted.");
-
-    server_default_set_option(section, "protocol", protocol);
-    server_default_set_option(section, "label", section);
-    server_default_set_option(section, "enabled", "1");
-    server_default_set_option(section, "routing_mode", "rules");
-
-    if (protocol == "json_inbound") {
-        server_set_option(section, "security", "none");
+// A disabled server is left as it is: nothing runs it, and the validator does not
+// look at it either. The security mode is derived wherever it is read.
+function prepare_server(name) {
+    if (get(name, "enabled", "1") == "0")
         return;
-    }
+    let protocol = get(name, "protocol", "vless");
+    if (servers.CLIENT_FIELDS[protocol] == null)
+        die("Server '" + name + "' has unsupported protocol '" + protocol + "'. Aborted.");
 
-    let security = server_effective_security_value(section, protocol);
-    server_set_option(section, "security", security);
+    set_if_empty(name, "protocol", protocol);
+    set_if_empty(name, "label", name);
+    set_if_empty(name, "enabled", "1");
+    set_if_empty(name, "routing_mode", "rules");
 
+    if (protocol == "json_inbound")
+        return;
     if (protocol == "tailscale") {
-        server_default_set_option(section, "tailscale_control_url", "https://controlplane.tailscale.com");
+        set_if_empty(name, "tailscale_control_url", "https://controlplane.tailscale.com");
         return;
     }
 
-    server_default_set_option(section, "listen", "0.0.0.0");
-
+    set_if_empty(name, "listen", "0.0.0.0");
     if (protocol == "shadowsocks")
-        server_default_set_option(section, "shadowsocks_method", "2022-blake3-aes-256-gcm");
-
+        set_if_empty(name, "shadowsocks_method", "2022-blake3-aes-256-gcm");
     if (protocol == "ssh")
-        server_prepare_ssh_host_key(section);
+        prepare_ssh_host_keys(name);
 
-    prepare_server_clients(section, protocol);
-    server_prepare_tls_defaults(section, security);
+    prepare_clients(name, protocol);
+    prepare_certificate(name, servers.effective_security(uci.get_all(CONFIG_NAME, name) ?? {}, protocol));
 }
 
-// A client whose server is gone would keep its credentials in the configuration and
-// show up in diagnostics forever, so it is removed with the server it belonged to.
-//
-// Never while there are no servers at all: an empty list is indistinguishable from a
-// list that could not be read, and acting on it would take every account of every
-// server with it. The accounts of the last server deleted stay behind instead - the
-// dialog already removes them when it removes the server, so this is only the net
-// under a configuration written by hand.
-function remove_orphaned_server_clients() {
-    let servers = {};
-    for (let section in uci_sections("server"))
-        servers[as_string(section)] = true;
-
-    if (length(keys(servers)) == 0)
-        return;
-
-    for (let client in uci_sections("server_client")) {
-        let owner = uci_get(config_path(client, "server"));
-        if (owner != "" && servers[owner])
+// Nothing is removed while there are no servers at all: an empty list cannot be
+// told from a list that could not be read.
+function remove_orphaned_clients(names) {
+    for (let client in section_names("server_client")) {
+        let owner = get(client, "server");
+        if (owner != "" && index(names, owner) >= 0)
             continue;
-        log("Removing client '" + client + "' of a server that no longer exists", "info");
-        if (uci.delete(CONFIG_NAME + "." + as_string(client)))
-            SERVER_DEFAULTS_CHANGED = true;
+        exec.log("info", "Removing client '" + client + "' of a server that no longer exists");
+        if (uci.delete(CONFIG_NAME + "." + client))
+            changed = true;
     }
 }
 
-// What the configuration says still belongs to a server: every path any server
-// points at, enabled or not, plus the expiry stamp that belongs next to a
-// certificate, plus the names Forkop generates from a section id. Two signals, and a
-// file has to fail both to count as garbage: a server whose certificate field was
-// cleared still owns the file named after it.
-function server_file_owners() {
-    let referenced = {};
+// A file in Forkop's own directories belongs to a server when a path of any
+// server points at it or when it carries the name Forkop gives a server's files.
+function owned_files(names) {
+    let owned = {};
+    for (let name in names) {
+        let base = file_name(name);
+        for (let file in [ base + ".crt", base + ".key", base + ".crt.expires" ])
+            owned[paths.certificates + "/" + file] = true;
+        owned[paths.ssh_keys + "/" + base + ".key"] = true;
 
-    for (let section in uci_sections("server")) {
-        let base = safe_filename_string(as_string(section));
-        for (let name in [ base + ".crt", base + ".key", base + ".crt.expires" ])
-            referenced[SERVER_CERT_DIR + "/" + name] = true;
-        referenced[SERVER_SSH_DIR + "/" + base + ".key"] = true;
-
-        for (let key in [ "tls_certificate_path", "tls_key_path", "ssh_host_key_path" ]) {
-            for (let path in words(config_get(section, key, ""))) {
-                if (path == "")
-                    continue;
-                referenced[path] = true;
-                referenced[server_cert_expiry_path(path)] = true;
+        for (let key in [ "tls_certificate_path", "tls_key_path", "ssh_host_key_path" ])
+            for (let path in common.words(get(name, key))) {
+                owned[path] = true;
+                owned[expiry_path(path)] = true;
             }
-        }
     }
-
-    return referenced;
+    return owned;
 }
 
-// Forkop issues certificates, keys and SSH host keys into two directories of its
-// own, named after the section that asked for one. A section that is gone leaves
-// them behind: nothing can reach them, nothing will ever reference them again, and a
-// private key of a server that no longer exists has no business staying on an
-// overlay of a few megabytes.
-//
-// Only those two directories, and only a file that neither a path nor a section name
-// claims. Nothing outside them is ever touched: a path the user chose is theirs.
-//
-// And nothing at all while there are no servers to reconcile against. An empty list
-// is indistinguishable from a list that could not be read, and this happened: a
-// configuration that lost its server sections turned every certificate and every
-// host key on the router into garbage by this rule. The price of the guard is that
-// the files of the last server deleted stay behind, which is bytes against keys.
-function remove_orphaned_server_files() {
-    if (length(uci_sections("server")) == 0)
-        return;
-
-    let referenced = server_file_owners();
-
-    for (let dir in [ SERVER_CERT_DIR, SERVER_SSH_DIR ]) {
-        let names = null;
-        try {
-            names = fs.lsdir(dir);
-        }
-        catch (e) {
-            names = null;
-        }
-        if (type(names) != "array")
-            continue;
-
-        for (let name in names) {
-            let path = dir + "/" + as_string(name);
-            if (referenced[path] || fs.stat(path)?.type != "file")
+// A file issued in the last hour can belong to a server whose dialog is still
+// open, and whose section is not saved yet.
+function remove_orphaned_files(names) {
+    let owned = owned_files(names);
+    for (let directory in [ paths.certificates, paths.ssh_keys ])
+        for (let file in fs.lsdir(directory) ?? []) {
+            let path = directory + "/" + file;
+            let stat = fs.stat(path);
+            if (owned[path] || stat?.type != "file" || time() - stat.mtime < ORPHAN_MIN_AGE)
                 continue;
-            log("Removing '" + path + "' of a server that no longer exists", "info");
+            exec.log("info", "Removing '" + path + "' of a server that no longer exists");
             fs.unlink(path);
         }
+}
+
+// The defaults, names, keys and certificates the servers need before the
+// configuration is validated. Only additions: what removed servers left behind
+// goes once the configuration is known good, so a refused one loses nothing.
+function prepare() {
+    changed = false;
+    for (let name in section_names("server"))
+        prepare_server(name);
+    if (changed)
+        uci.commit(CONFIG_NAME);
+}
+
+function remove_orphans() {
+    changed = false;
+    let names = section_names("server");
+    if (length(names) == 0)
+        return;
+    remove_orphaned_clients(names);
+    remove_orphaned_files(names);
+    if (changed)
+        uci.commit(CONFIG_NAME);
+}
+
+function firewall_ports() {
+    let ports = { tcp: [], udp: [] };
+    for (let name in section_names("server")) {
+        let protocol = get(name, "protocol", "vless");
+        if (servers.CLIENT_FIELDS[protocol] == null || protocol == "tailscale" || protocol == "json_inbound")
+            continue;
+        if (get(name, "enabled", "1") == "0" || get(name, "open_firewall", "1") == "0")
+            continue;
+
+        let port = get(name, "listen_port");
+        if (!match(port, /^[0-9]+$/) || int(port) < 1 || int(port) > 65535)
+            continue;
+
+        let network = protocol == "naive" ? get(name, "naive_network", "tcp")
+            : protocol == "mieru" ? get(name, "mieru_transport", "TCP") : "";
+        for (let proto in servers.transports(protocol, network))
+            if (ports[proto] != null && index(ports[proto], port) < 0)
+                push(ports[proto], port);
     }
+    return ports;
 }
 
-function prepare_all_server_defaults() {
-    SERVER_DEFAULTS_CHANGED = false;
-    for (let section in uci_sections("server"))
-        prepare_server_defaults(section);
-    remove_orphaned_server_clients();
-    remove_orphaned_server_files();
-    if (SERVER_DEFAULTS_CHANGED)
-        uci_commit(CONFIG_NAME);
-}
-
-// fw4 rejects everything on the WAN zone it was not told to accept, so a listener
-// that exists to be dialled from outside is unreachable until a rule says otherwise.
-// The rule set is derived from the servers instead of being left to the user: the
-// switch in the dialog is what decides, and it defaults to on.
-const FIREWALL_INCLUDE = getenv("FORKOP_SERVER_FIREWALL_INCLUDE") ||
-    "/usr/share/nftables.d/chain-pre/input/forkop-servers.nft";
-const FIREWALL_INIT = getenv("FORKOP_FIREWALL_INIT") || "/etc/init.d/firewall";
-// The same comment the inbound check looks for in the loaded chain.
-const FIREWALL_COMMENT = runtime_constants.SERVER_FIREWALL_COMMENT;
-
-// Which L4 protocols a protocol needs open. The inbound check already answers this
-// for diagnostics, so the answer is read from there rather than restated.
-function server_required_protocols(section, protocol) {
-    let transport = protocol == "naive"
-        ? config_get(section, "naive_network", "tcp")
-        : protocol == "mieru"
-            ? config_get(section, "mieru_transport", "TCP")
-            : "";
-    return words(diagnostics_inbounds.required_proto(protocol, transport));
-}
-
-function firewall_ports_by_protocol() {
-    let result = { tcp: [], udp: [] };
-    let seen = { tcp: {}, udp: {} };
-
-    for (let section in uci_sections("server")) {
-        let protocol = config_get(section, "protocol", "vless");
-        if (SERVER_PROTOCOLS[protocol] == null || protocol == "tailscale" || protocol == "json_inbound")
-            continue;
-        if (config_get(section, "enabled", "1") == "0")
-            continue;
-        if (config_get(section, "open_firewall", "1") == "0")
-            continue;
-
-        let port = config_get(section, "listen_port", "");
-        if (!regex_matches(port, "^[0-9]+$") || int(port, 10) < 1 || int(port, 10) > 65535)
-            continue;
-
-        for (let proto in server_required_protocols(section, protocol)) {
-            if (result[proto] == null || seen[proto][port])
-                continue;
-            seen[proto][port] = true;
-            push(result[proto], port);
-        }
-    }
-
-    return result;
-}
-
+// fw4 prepends this file to its input chain. nftables takes only a double quoted
+// comment; fw4 drops an include with a single quoted one without saying so.
 function firewall_include_text() {
-    let ports = firewall_ports_by_protocol();
-    let lines = [
-        "# Written by Forkop from the Servers tab. Do not edit: it is rewritten on",
-        "# every apply. fw4 prepends this file to its own input chain."
-    ];
-
-    // nftables takes a double quoted comment; a single quoted one is a syntax error
-    // and fw4 drops the whole include without saying so.
+    let ports = firewall_ports();
+    let rules = [];
     for (let proto in [ "tcp", "udp" ])
         if (length(ports[proto]) > 0)
-            push(lines, "meta l4proto " + proto + " th dport { " + join(", ", ports[proto]) +
+            push(rules, "meta l4proto " + proto + " th dport { " + join(", ", ports[proto]) +
                 " } counter accept comment \"" + FIREWALL_COMMENT + "\"");
-
-    return length(lines) == 2 ? "" : join("\n", lines) + "\n";
+    if (length(rules) == 0)
+        return "";
+    return "# Written by Forkop from the Servers tab. Do not edit: it is rewritten on\n" +
+        "# every apply. fw4 prepends this file to its own input chain.\n" + join("\n", rules) + "\n";
 }
 
-// Whether the running input chain already carries the rules of this include. fw4
-// only reads /usr/share/nftables.d while it builds its ruleset, so the file being
-// right says nothing about the firewall that is loaded.
+// fw4 reads the include only while it builds its ruleset, so the file being right
+// says nothing about the chain that is loaded.
 function firewall_rules_loaded() {
-    let chain = output("nft list chain inet fw4 input 2>/dev/null");
-    return chain != "" && index(chain, FIREWALL_COMMENT) >= 0;
-}
-
-function firewall_loaded() {
-    return run("nft list chain inet fw4 input >/dev/null 2>&1");
+    let chain = exec.output([ "nft", "list", "chain", "inet", "fw4", "input" ]);
+    return chain != null && index(chain, FIREWALL_COMMENT) >= 0;
 }
 
 function reload_firewall() {
-    if (!run("[ -x " + shell_quote(FIREWALL_INIT) + " ]"))
-        return;
     // A firewall that is not loaded reads the file the next time it starts.
-    if (!firewall_loaded())
+    if (!executable(paths.firewall_init) || !exec.ok([ "nft", "list", "chain", "inet", "fw4", "input" ]))
         return;
-    if (!run(shell_quote(FIREWALL_INIT) + " reload >/dev/null 2>&1"))
-        log("Failed to reload the firewall; server ports stay closed until it is reloaded", "warn");
+    if (!exec.ok([ paths.firewall_init, "reload" ]))
+        exec.log("warn", "Failed to reload the firewall; server ports stay closed until it is reloaded");
 }
 
-function sync_server_firewall(clear) {
+// The firewall is reloaded whenever the loaded chain disagrees with the file, not
+// only when the file changed: a failed reload or one by somebody else would
+// otherwise leave the ports wrong until the next change.
+function sync_firewall(clear) {
     let wanted = clear ? "" : firewall_include_text();
-    let current = as_string(fs.readfile(FIREWALL_INCLUDE) || "");
-    let changed = current != wanted;
+    let current = fs.readfile(paths.firewall_include) ?? "";
+    let file_changed = current != wanted;
 
-    if (changed) {
-        if (wanted == "") {
-            fs.unlink(FIREWALL_INCLUDE);
-        }
-        else {
-            let dir = replace(FIREWALL_INCLUDE, /\/[^\/]*$/, "");
-            if (!run("mkdir -p " + shell_quote(dir))) {
-                log("Failed to create " + dir + " for the server firewall rules", "warn");
-                return;
-            }
-            if (!fs.writefile(FIREWALL_INCLUDE, wanted)) {
-                log("Failed to write " + FIREWALL_INCLUDE, "warn");
-                return;
-            }
+    if (file_changed) {
+        if (wanted == "")
+            fs.unlink(paths.firewall_include);
+        else if (!common.write_file_atomic(paths.firewall_include, wanted)) {
+            exec.log("warn", "Failed to write " + paths.firewall_include);
+            return;
         }
     }
 
-    // Reloading only on a changed file would leave the ports closed forever after
-    // one failed reload, and would keep them open after a firewall that was
-    // reloaded by something else lost the rules again.
-    if (!changed && (wanted == "") == !firewall_rules_loaded())
-        return;
-
-    reload_firewall();
+    if (file_changed || (wanted == "") == firewall_rules_loaded())
+        reload_firewall();
 }
 
-let mode = ARGV[0] || "";
-
-if (mode == "prepare-all-defaults")
-    prepare_all_server_defaults();
-else if (mode == "sync-firewall")
-    sync_server_firewall(as_string(ARGV[1]) == "clear");
-else if (mode == "generate-reality-keypair")
-    generate_reality_keypair_cli();
-else if (mode == "generate-server-certificate")
-    generate_server_certificate_cli(ARGV[1], ARGV[2]);
-else if (mode == "generate-ssh-host-key")
-    generate_ssh_host_key_cli(ARGV[1]);
-else if (mode == "tls-certificate-sha256")
-    get_tls_certificate_sha256_cli(ARGV[1]);
-else {
-    warn("Usage: server/service.uc <operation> ...\n");
-    exit(1);
+function reality_keypair() {
+    let output = exec.output([ "sing-box", "generate", "reality-keypair" ]) ?? "";
+    let private_key = match(output, /(^|\n)PrivateKey:[ \t]*([^\r\n]+)/);
+    let public_key = match(output, /(^|\n)PublicKey:[ \t]*([^\r\n]+)/);
+    if (private_key == null || public_key == null)
+        die("Failed to generate Reality key pair");
+    return { private_key: private_key[2], public_key: public_key[2] };
 }
+
+function issue_certificate(subject, name) {
+    subject = trim(subject);
+    name = file_name(trim(name));
+    if (subject == "" || name == "")
+        die("Missing certificate subject or name");
+
+    let certificate_path = paths.certificates + "/" + name + ".crt";
+    let key_path = paths.certificates + "/" + name + ".key";
+    if (!valid_file_path(certificate_path) || !valid_file_path(key_path))
+        die("Invalid certificate name");
+    if (!issue_certificate_files(subject, certificate_path, key_path))
+        die("Failed to generate the TLS certificate");
+
+    return { certificate_path, key_path, sha256: certificate_sha256_of(certificate_path) };
+}
+
+function issue_ssh_host_key(name) {
+    name = file_name(trim(name));
+    if (name == "")
+        die("Missing host key name");
+
+    let key_path = paths.ssh_keys + "/" + name + ".key";
+    if (!valid_file_path(key_path))
+        die("Invalid host key name");
+    if (!write_ssh_host_key(key_path))
+        die("Failed to generate the SSH host key");
+    return { key_path };
+}
+
+function certificate_sha256(name) {
+    if (name == "")
+        die("Missing server section");
+    if (servers.effective_security(uci.get_all(CONFIG_NAME, name) ?? {}, get(name, "protocol", "vless")) != "tls")
+        die("Server does not use TLS");
+
+    let certificate_path = get(name, "tls_certificate_path");
+    if (certificate_path == "")
+        die("TLS certificate path is empty");
+    let sha256 = certificate_sha256_of(certificate_path);
+    if (sha256 == "")
+        die("Failed to read TLS certificate fingerprint");
+    return { sha256 };
+}
+
+return { paths, prepare, remove_orphans, sync_firewall, reality_keypair, issue_certificate, issue_ssh_host_key, certificate_sha256 };

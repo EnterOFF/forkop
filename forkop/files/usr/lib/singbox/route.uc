@@ -28,12 +28,9 @@ function config(settings, runtime) {
     let output_network_interface = option(settings, "output_network_interface", "");
     let mwan3_active = type(runtime) == "object" && bool_value(runtime.mwan3_active);
     let direct_server_route = type(runtime) == "object" && bool_value(runtime.direct_server_route);
-    let source_aware_dns = type(runtime) == "object" && bool_value(runtime.source_aware_dns);
     let system_aware_dns = type(runtime) == "object" && bool_value(runtime.system_aware_dns);
     let sniff_inbounds = tproxy_inbounds();
-    push(sniff_inbounds, runtime_constants.DNS_INBOUND_TAG);
-    if (source_aware_dns)
-        push(sniff_inbounds, runtime_constants.SOURCE_DNS_INBOUND_TAG);
+    push(sniff_inbounds, runtime_constants.DNS_INBOUND_TAG, runtime_constants.SOURCE_DNS_INBOUND_TAG);
     if (system_aware_dns)
         push(sniff_inbounds, runtime_constants.SYSTEM_DNS_INBOUND_TAG);
     let result = {
@@ -50,8 +47,7 @@ function config(settings, runtime) {
         default_mark: runtime_constants.OUTBOUND_MARK
     };
 
-    if (source_aware_dns)
-        push(result.rules, { action: "reject", inbound: runtime_constants.SOURCE_DNS_INBOUND_TAG });
+    push(result.rules, { action: "reject", inbound: runtime_constants.SOURCE_DNS_INBOUND_TAG });
     if (system_aware_dns)
         push(result.rules, { action: "reject", inbound: runtime_constants.SYSTEM_DNS_INBOUND_TAG });
     if (output_network_interface != "")

@@ -1,0 +1,281 @@
+let t = require("t");
+let stub = require("stub");
+let fs = require("fs");
+let fixture = require("fixture");
+let worker = require("service.worker");
+let rulesets = require("singbox.rulesets");
+let sync = require("nft.ruleset_sync");
+
+let dir = stub.tmpdir();
+let config_path = dir + "/config.json";
+fs.writefile(config_path, "{\"experimental\":{\"clash_api\":{\"external_controller\":\"0.0.0.0:9090\",\"secret\":\"test-secret\"}}}");
+
+const ALPHA = "https://example.com/alpha.srs";
+const BETA = "https://example.com/beta.txt";
+let tag = (url) => rulesets.custom_reference_tag(url);
+
+function seed(sections) {
+    fixture.seed({ settings: { config_path }, section: sections });
+}
+
+function provider(revision, ip_cidr) {
+    return { revision, ip_cidr: { ipv4: [], ipv6: [], scoped_ipv4: [], scoped_ipv6: [], ...ip_cidr } };
+}
+
+function snapshot(providers, revision) {
+    let result = { revision: revision ?? 1, providers: {} };
+    for (let url, value in providers)
+        result.providers[tag(url)] = value;
+    return result;
+}
+
+// Runs fn with nft answering `nft_status`, and returns what it was handed.
+let transactions = [];
+let logs = [];
+function run(fn, nft_status) {
+    transactions = [];
+    logs = [];
+    stub.commands([
+        [ "nft -f", (argv) => { push(transactions, fs.readfile(argv[2])); return { status: nft_status ?? 0 }; } ],
+        [ "logger -t forkop", (argv) => { push(logs, argv[3]); return {}; } ]
+    ]);
+    let result = fn();
+    stub.restore();
+    return result;
+}
+
+function lines(transaction) {
+    return filter(split(transaction ?? "", "\n"), (line) => line != "");
+}
+
+function elements(transaction, set_name) {
+    let result = [];
+    for (let line in lines(transaction)) {
+        let prefix = "add element inet ForkopTable " + set_name + " { ";
+        if (substr(line, 0, length(prefix)) == prefix)
+            push(result, ...split(substr(line, length(prefix), length(line) - length(prefix) - 2), ", "));
+    }
+    return result;
+}
+
+const MIXED = {
+    ".name": "mixed", enabled: "1", action: "connection", ip_cidr: [ "10.0.0.0/8", "fd00::/8" ], ports: [ "80", "443", "1000-1050" ],
+    rule_set_with_subnets: [ ALPHA, BETA ]
+};
+
+let mixed_snapshot = () => snapshot({
+    [ALPHA]: provider(3, {
+        ipv4: [ "198.51.100.0/24" ], ipv6: [ "2001:db8:1::/48" ],
+        scoped_ipv4: [ { prefixes: [ "203.0.113.1" ], port_ranges: [ { start: 70, end: 90 }, { start: 1000, end: 1100 } ] } ],
+        scoped_ipv6: [ { prefixes: [ "2001:db8:2::1" ], port_ranges: [ { start: 443, end: 443 } ] } ],
+        skipped: [ { path: "rules[4]", reason: "unsupported_constraints" } ]
+    }),
+    [BETA]: provider(4, { ipv4: [ "192.0.2.0/24", "198.51.100.0/24" ] })
+}, 7);
+
+t.test("a section's providers and its own addresses replace its sets in one transaction", () => {
+    seed([ MIXED ]);
+    run(() => sync.sync(mixed_snapshot(), [ MIXED ]));
+    t.eq(length(transactions), 1);
+    let s = "forkop_rule_mixed_";
+    t.eq(filter(lines(transactions[0]), (line) => substr(line, 0, 5) == "flush"),
+        map([ "subnets", "subnets6", "ip_ports", "ip6_ports", "proto_ports", "proto6_ports" ], (name) => "flush set inet ForkopTable " + s + name));
+    t.eq(elements(transactions[0], s + "subnets"), [ "10.0.0.0/8", "192.0.2.0/24", "198.51.100.0/24" ], "the section's ports apply by rule, and a shared prefix is written once");
+    t.eq(elements(transactions[0], s + "subnets6"), [ "2001:db8:1::/48", "fd00::/8" ]);
+    t.eq(elements(transactions[0], s + "ip_ports"), [ "203.0.113.1 . 1000-1050", "203.0.113.1 . 80" ], "a provider's own ports are narrowed by the section's");
+    t.eq(elements(transactions[0], s + "ip6_ports"), [ "2001:db8:2::1 . 443" ]);
+    t.eq(logs, [ "[info] Loaded 7 subnets into nft" ], "one line for what the sets hold, nothing about what the core skipped");
+});
+
+t.test("overlapping provider elements under a port become disjoint ones the kernel accepts", () => {
+    let section = { ".name": "nested", enabled: "1", action: "connection", rule_set_with_subnets: [ ALPHA, BETA ] };
+    seed([ section ]);
+    run(() => sync.sync(snapshot({
+        [ALPHA]: provider(1, { scoped_ipv4: [ { prefixes: [ "10.0.0.0/8" ], port_ranges: [ { start: 443, end: 443 } ] } ] }),
+        [BETA]: provider(1, { scoped_ipv4: [ { prefixes: [ "10.1.0.0/16" ], port_ranges: [ { start: 80, end: 90 }, { start: 85, end: 443 } ] } ] })
+    }), [ section ]));
+    t.eq(elements(transactions[0], "forkop_rule_nested_ip_ports"),
+        [ "10.0.0.0/16 . 443", "10.1.0.0/16 . 80-443", "10.2.0.0-10.255.255.255 . 443" ]);
+});
+
+t.test("a transport-limited group carries the transport in its key and covers every port on it", () => {
+    let section = { ".name": "transport", enabled: "1", action: "connection", rule_set_with_subnets: [ ALPHA ] };
+    let value = snapshot({ [ALPHA]: provider(1, {
+        ipv4: [ "8.8.8.0/24" ],
+        scoped_ipv4: [
+            { prefixes: [ "104.16.0.0/12" ], networks: [ "udp" ], port_ranges: [ { start: 50000, end: 65535 } ] },
+            { prefixes: [ "1.2.3.0/24" ], networks: [ "tcp" ], port_ranges: [] },
+            { prefixes: [ "5.5.5.0/24" ], networks: [], port_ranges: [ { start: 443, end: 443 } ] }
+        ],
+        scoped_ipv6: [ { prefixes: [ "2001:db8:5::/48" ], networks: [ "udp" ], port_ranges: [] } ]
+    }) });
+    seed([ section ]);
+    run(() => sync.sync(value, [ section ]));
+    let s = "forkop_rule_transport_";
+    t.eq(elements(transactions[0], s + "proto_ports"), [ "1.2.3.0/24 . tcp . 1-65535", "104.16.0.0/12 . udp . 50000-65535" ]);
+    t.eq(elements(transactions[0], s + "proto6_ports"), [ "2001:db8:5::/48 . udp . 1-65535" ]);
+    t.eq(elements(transactions[0], s + "ip_ports"), [ "5.5.5.0/24 . 443" ]);
+    t.eq(elements(transactions[0], s + "subnets"), [ "8.8.8.0/24" ]);
+
+    let narrowed = { ...section, ports: [ "443" ] };
+    seed([ narrowed ]);
+    run(() => sync.sync(value, [ narrowed ]));
+    t.eq(elements(transactions[0], s + "proto_ports"), [ "1.2.3.0/24 . tcp . 443" ], "a group the section's ports do not overlap selects nothing");
+});
+
+t.test("a section the snapshot or nft refuses is reported once and does not keep the others from loading", () => {
+    let bad = { ".name": "bad", enabled: "1", action: "connection", rule_set_with_subnets: [ ALPHA ] };
+    let good = { ".name": "good", enabled: "1", action: "connection", rule_set_with_subnets: [ BETA ] };
+    let revision = 0;
+    for (let broken in [
+        { ipv4: [ "198.51.100.0/24; delete table inet ForkopTable" ] },
+        { scoped_ipv4: [ { prefixes: [ "198.51.100.1" ], port_ranges: [ { start: 80, end: 70000 } ] } ] },
+        { scoped_ipv4: [ { prefixes: [ "1.1.1.0/24" ], networks: [ "icmp" ], port_ranges: [] } ] },
+        { scoped_ipv4: [ { prefixes: [ "1.1.1.0/24" ], networks: [], port_ranges: [] } ] },
+        { scoped_ipv4: [ { prefixes: [ "1.1.1.0/33" ], port_ranges: [ { start: 80, end: 80 } ] } ] }
+    ]) {
+        let value = snapshot({ [ALPHA]: provider(++revision, broken), [BETA]: provider(revision, { ipv4: [ "192.0.2.0/24" ] }) });
+        seed([ bad, good ]);
+        let result = run(() => sync.sync(value, [ bad, good ]));
+        t.eq(result.written, 1, sprintf("%J", broken));
+        t.eq(length(transactions), 1);
+        t.excludes(transactions[0], "forkop_rule_bad_");
+        t.eq(length(filter(logs, (line) => index(line, "[warn] Rule-set subnets of section bad not loaded: provider ") == 0)), 1);
+
+        run(() => sync.sync(value, [ bad, good ]));
+        t.eq([ transactions, logs ], [ [], [] ], "the same inputs are neither retried nor reported again");
+    }
+});
+
+t.test("a provider the core does not have is reported, one still loading is waited for", () => {
+    let section = { ".name": "waiting", enabled: "1", action: "connection", rule_set_with_subnets: [ ALPHA ] };
+    seed([ section ]);
+    run(() => sync.sync(snapshot({}), [ section ]));
+    t.eq(logs, [ "[warn] Rule-set subnets of section waiting not loaded: missing rule-set provider: " + tag(ALPHA) ]);
+
+    let loading = { revision: 0, ip_cidr: null };
+    run(() => sync.sync(snapshot({ [ALPHA]: loading }), [ section ]));
+    t.eq([ transactions, logs ], [ [], [] ], "a download in progress is not a failure");
+    run(() => sync.sync(snapshot({ [ALPHA]: provider(1, { ipv4: [ "192.0.2.0/24" ] }) }), [ section ]));
+    t.eq(length(transactions), 1, "the section loads once the provider has");
+});
+
+t.test("a section is rewritten only when a provider it reads changed", () => {
+    let section = { ".name": "keyed", enabled: "1", action: "connection", ports: [ "80" ], rule_set_with_subnets: [ ALPHA ] };
+    let other = { ".name": "other", enabled: "1", action: "connection", rule_set_with_subnets: [ BETA ] };
+    seed([ section, other ]);
+    let value = (alpha, beta) => snapshot({ [ALPHA]: provider(alpha, { ipv4: [ "198.51.100.0/24" ] }), [BETA]: provider(beta, { ipv4: [ "192.0.2.0/24" ] }) });
+    run(() => sync.sync(value(4, 1), [ section, other ]));
+    t.eq(length(transactions), 2);
+    run(() => sync.sync(value(4, 1), [ section, other ]));
+    t.eq(transactions, []);
+    run(() => sync.sync(value(4, 2), [ section, other ]));
+    t.eq(length(transactions), 1);
+    t.contains(transactions[0], "forkop_rule_other_subnets");
+    t.eq(logs, [ "[info] Loaded 1 subnets into nft for 1 of 2 sections" ]);
+});
+
+t.test("a transaction nft is killed over says the router ran out of memory, naming the section", () => {
+    let section = { ".name": "huge", enabled: "1", action: "connection", rule_set_with_subnets: [ ALPHA ] };
+    seed([ section ]);
+    run(() => sync.sync(snapshot({ [ALPHA]: provider(1, { ipv4: [ "192.0.2.0/24" ] }) }), [ section ]), 137);
+    t.eq(length(logs), 1);
+    t.contains(logs[0], "section huge not loaded: nft ran out of memory");
+});
+
+t.test("a user's unusable address is dropped and the rest of the section loads", () => {
+    let section = { ".name": "typed", enabled: "1", action: "connection", ip_cidr: [ "203.0.113.0/24; delete table inet ForkopTable", "198.51.100.7" ],
+        rule_set_with_subnets: [ ALPHA ] };
+    seed([ section ]);
+    run(() => sync.sync(snapshot({ [ALPHA]: provider(1, {}) }), [ section ]));
+    t.excludes(transactions[0], "delete table");
+    t.eq(elements(transactions[0], "forkop_rule_typed_subnets"), [ "198.51.100.7" ]);
+});
+
+t.test("a large set goes to nft in bounded lines", () => {
+    let section = { ".name": "large", enabled: "1", action: "connection", rule_set_with_subnets: [ ALPHA ] };
+    let prefixes = [];
+    for (let i = 0; i < 300; i++)
+        push(prefixes, sprintf("10.%d.%d.1/32", i / 256, i % 256));
+    seed([ section ]);
+    run(() => sync.sync(snapshot({ [ALPHA]: provider(1, { ipv4: prefixes }) }), [ section ]));
+    let adds = filter(lines(transactions[0]), (line) => index(line, "add element inet ForkopTable forkop_rule_large_subnets ") == 0);
+    t.eq(length(adds), 2);
+    t.eq(length(filter(adds, (line) => length(line) > 8192)), 0);
+    t.eq(length(elements(transactions[0], "forkop_rule_large_subnets")), 300);
+});
+
+// The worker's loop with curl answering from `answers` in turn.
+function run_worker(sections, answers) {
+    seed(sections);
+    let calls = [];
+    let sleeps = [];
+    let real_sleep = global.sleep;
+    global.sleep = (ms) => push(sleeps, ms);
+    stub.commands([
+        [ "curl", (argv) => {
+            let header = null;
+            for (let i = 0; i < length(argv); i++)
+                if (argv[i] == "--header")
+                    header = fs.readfile(substr(argv[i + 1], 1));
+            push(calls, { url: argv[length(argv) - 1], header, secret_on_argv: index(join(" ", argv), "test-secret") >= 0 });
+            let answer = shift(answers);
+            if (length(answers) == 0)
+                seed([]);
+            return answer;
+        } ],
+        [ "nft -f", {} ], [ "logger", {} ], [ "ubus", {} ]
+    ]);
+    sync.worker();
+    stub.restore();
+    global.sleep = real_sleep;
+    return { calls, sleeps };
+}
+
+const SNAPSHOT = sprintf("%J", { revision: 5, providers: {} });
+
+t.test("the worker follows the provider events and asks a controller that is not there later and later", () => {
+    let section = { ".name": "followed", enabled: "1", action: "connection", rule_set_with_subnets: [ ALPHA ] };
+    let result = run_worker([ section ], [
+        { status: 7 },
+        { stdout: SNAPSHOT },
+        { status: 28 },
+        { stdout: "{\"name\":\"x\",\"revision\":6}" },
+        { stdout: SNAPSHOT },
+        { status: 52 },
+        { status: 7 },
+        { status: 7 }
+    ]);
+    t.eq(map(result.calls, (call) => call.url), [
+        "http://127.0.0.1:9090/providers/rules",
+        "http://127.0.0.1:9090/providers/rules",
+        "http://127.0.0.1:9090/providers/rules/events?since=5",
+        "http://127.0.0.1:9090/providers/rules/events?since=5",
+        "http://127.0.0.1:9090/providers/rules",
+        "http://127.0.0.1:9090/providers/rules/events?since=5",
+        "http://127.0.0.1:9090/providers/rules",
+        "http://127.0.0.1:9090/providers/rules"
+    ], "a timed-out wait is waited again, an event is synced from");
+    t.eq(result.sleeps, [ 3000, 3000, 6000, 12000 ], "the retry waits double while the controller does not answer, and start over once it does");
+    t.eq(length(filter(result.calls, (call) => call.secret_on_argv)), 0);
+    t.eq(uniq(map(result.calls, (call) => call.header)), [ "Authorization: Bearer test-secret\n" ]);
+});
+
+t.test("the rule-set worker is a respawning procd service run through the command line", () => {
+    let payload = worker.payload(sync.worker_spec());
+    t.eq(payload.name, "forkop-ruleset-sync");
+    t.eq(payload.instances.sync.command, [ "/usr/bin/forkop", "sync_rule_sets" ]);
+    t.eq(payload.instances.sync.respawn, [ "3600", "5", "0" ]);
+});
+
+t.test("without a table section fed by a provider the worker is stopped and not started", () => {
+    seed([ { ".name": "empty", enabled: "1", action: "connection" },
+        { ".name": "dns", enabled: "1", action: "dns", rule_set_with_subnets: [ ALPHA ] },
+        { ".name": "off", enabled: "0", action: "connection", rule_set_with_subnets: [ ALPHA ] } ]);
+    stub.commands([ [ "ubus call service delete", {} ] ]);
+    t.ok(sync.start_worker());
+    t.eq(stub.command_lines(), [ "ubus call service delete { \"name\": \"forkop-ruleset-sync\" }" ]);
+    stub.restore();
+});
+
+t.done();

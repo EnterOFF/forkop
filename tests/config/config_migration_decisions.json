@@ -530,6 +530,11 @@
       "target": "urltest.exclude_regex",
       "reason": "Country exclusions become flag-prefix regular expressions on the URLTest child."
     },
+    "urltest_filter_mode": {
+      "action": "convert",
+      "target": "urltest.server_filter_mode",
+      "reason": "The filter mode of a section's URLTest settings becomes the server filter mode of its URLTest child."
+    },
     "urltest_include_countries": {
       "action": "convert",
       "target": "urltest.include_regex",
@@ -567,6 +572,10 @@
     }
   },
   "non_release_fields": {
+    "urltest_expected_status": {
+      "action": "ignore",
+      "reason": "This was never a persisted Forkop UCI field in a supported release, so config_version migration intentionally ignores it."
+    },
     "_clients": {
       "action": "ignore",
       "reason": "This was never a persisted Forkop UCI field in a supported release, so config_version migration intentionally ignores it."

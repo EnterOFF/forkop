@@ -1,21 +1,24 @@
-#!/usr/bin/env ucode
-
 let fs = require("fs");
 
-// A string is returned as it came. Concatenating it with "" produces an equal
-// but distinct string, and on the lists the nftables sets are built from that is
-// one copy of every address in the list for no result.
+// A string argument is returned as is rather than copied: the nft set builders
+// pass every address of a list through here.
 function as_string(value) {
     if (type(value) == "string")
         return value;
     return value == null ? "" : "" + value;
 }
 
+function object_or_empty(value) {
+    return type(value) == "object" ? value : {};
+}
+
+function array_or_empty(value) {
+    return type(value) == "array" ? value : [];
+}
+
 // Which signal killed a command, or 0 for one that exited on its own. A shell
-// that execs the command reports the signal itself and ucode hands it over
-// negated; one that waits for it reports 128 plus the signal as its own exit
-// code. Both spellings reach the same callers, and a command that was killed
-// never got to say why.
+// that execs the command reports the signal negated, one that waits for it
+// reports 128 plus the signal.
 function signal_from_status(status) {
     status = int(status || 0);
     if (status < 0)
@@ -25,59 +28,101 @@ function signal_from_status(status) {
     return 0;
 }
 
+function parse_json(text) {
+    if (text == null)
+        return null;
+    try {
+        return json(text);
+    }
+    catch (e) {
+        return null;
+    }
+}
+
 function read_json_file(path) {
-    let data = fs.readfile(path);
-    if (data == null)
-        return null;
-
-    try {
-        return json(data);
-    }
-    catch (e) {
-        return null;
-    }
-}
-
-function read_stdin() {
-    let input = fs.open("/dev/stdin", "r");
-    if (!input)
-        return "";
-    let data = input.read("all");
-    input.close();
-    return data == null ? "" : data;
-}
-
-function read_stdin_json() {
-    let data = read_stdin();
-    try {
-        return json(data);
-    }
-    catch (e) {
-        return null;
-    }
+    return parse_json(fs.readfile(path));
 }
 
 function write_json(value) {
     print(sprintf("%J", value), "\n");
 }
 
-function write_compact_string_array(values) {
-    print("[");
-    for (let i = 0; i < length(values); i++) {
-        if (i > 0)
-            print(",");
-        print(sprintf("%J", as_string(values[i])));
+function parent_dir(path) {
+    path = as_string(path);
+    let slash = rindex(path, "/");
+    return slash <= 0 ? "" : substr(path, 0, slash);
+}
+
+function ensure_dir(path) {
+    path = as_string(path);
+    if (path == "" || path == "/")
+        return true;
+    let stat = fs.stat(path);
+    if (stat != null)
+        return stat.type == "directory";
+    if (!ensure_dir(parent_dir(path)))
+        return false;
+    return fs.mkdir(path, 0755) || fs.stat(path)?.type == "directory";
+}
+
+function write_file(path, text) {
+    return fs.writefile(as_string(path), as_string(text)) != null;
+}
+
+// Readers never see a half-written file: the text goes to a sibling first and
+// replaces the target in one rename.
+function write_file_atomic(path, text) {
+    path = as_string(path);
+    let now = clock();
+    let temporary = sprintf("%s.%d.%d.tmp", path, now[0], now[1]);
+    if (!ensure_dir(parent_dir(path)) || !write_file(temporary, text)) {
+        fs.unlink(temporary);
+        return false;
     }
-    print("]\n");
+    if (!fs.rename(temporary, path)) {
+        fs.unlink(temporary);
+        return false;
+    }
+    return true;
 }
 
-function csv_to_json_array(value) {
-    value = as_string(value);
-    write_compact_string_array(value == "" ? [] : split(value, ","));
+function read_first_line(path) {
+    let data = fs.readfile(as_string(path));
+    if (data == null)
+        return "";
+    let newline = index(data, "\n");
+    return newline >= 0 ? substr(data, 0, newline) : data;
 }
 
-function write_json_file(path, value) {
-    return fs.writefile(path, sprintf("%J\n", value));
+function remove_tree(path) {
+    path = as_string(path);
+    let stat = fs.lstat(path);
+    if (stat == null)
+        return;
+    if (stat.type == "directory") {
+        for (let name in fs.lsdir(path) ?? [])
+            if (name != "." && name != "..")
+                remove_tree(path + "/" + name);
+        fs.rmdir(path);
+        return;
+    }
+    fs.unlink(path);
+}
+
+function own_pid() {
+    let stat = as_string(fs.readfile("/proc/self/stat"));
+    let separator = index(stat, " ");
+    return separator > 0 ? substr(stat, 0, separator) : "";
+}
+
+// /proc/<pid> exists exactly while the process does.
+function pid_alive(pid) {
+    pid = as_string(pid);
+    return match(pid, /^[1-9][0-9]*$/) != null && fs.stat("/proc/" + pid) != null;
+}
+
+function now_seconds() {
+    return clock()[0];
 }
 
 function strip_internal_fields(value) {
@@ -100,10 +145,9 @@ function strip_internal_fields(value) {
     return value;
 }
 
-// Go duration syntax, which is what sing-box accepts for every interval and
-// timeout Forkop passes through: a sequence of amount+unit pairs such as
-// "3m", "1h30m" or "1.5s". Returns whole seconds, or null when the text is not
-// a duration at all.
+// Go duration syntax, which sing-box accepts for every interval and timeout:
+// amount+unit pairs such as "3m", "1h30m" or "1.5s". Whole seconds, or null for
+// text that is not a positive duration.
 function duration_to_seconds(value) {
     let rest = as_string(value);
     if (rest == "")
@@ -125,16 +169,14 @@ function duration_to_seconds(value) {
         if (!matched)
             return null;
 
-        let token = as_string(matched[0]);
         total += (matched[1] * 1) * multipliers[matched[3]];
-        rest = substr(rest, length(token));
+        rest = substr(rest, length(matched[0]));
     }
 
     return total <= 0 ? null : int(total + 0.5);
 }
 
-// A number written the way an nftables mark or a queue base is: "0x40000000"
-// or a plain decimal. Anything else is not a number here.
+// A number written the way an nftables mark is: "0x40000000" or plain decimal.
 function parse_number(value) {
     value = lc(trim(as_string(value)));
     if (value == "")
@@ -158,14 +200,6 @@ function parse_number(value) {
     return result;
 }
 
-function array_or_empty(value) {
-    return type(value) == "array" ? value : [];
-}
-
-function object_or_empty(value) {
-    return type(value) == "object" ? value : {};
-}
-
 function option(section, key, fallback) {
     if (fallback == null)
         fallback = "";
@@ -177,21 +211,35 @@ function option(section, key, fallback) {
     return as_string(value);
 }
 
+function words(value) {
+    let result = [];
+    for (let item in (type(value) == "array" ? value : split(as_string(value), /[ \t\r\n]+/))) {
+        item = trim(as_string(item));
+        if (item != "")
+            push(result, item);
+    }
+    return result;
+}
+
 function list_option(section, key) {
     let value = object_or_empty(section)[key];
     if (value == null)
         return [];
     if (type(value) == "array")
         return value;
-    let text = trim(as_string(value));
-    return text == "" ? [] : split(text, " ");
+    return words(value);
+}
+
+// An empty value is an option nobody set, as UCI means it.
+function bool_value(value, fallback) {
+    if (value == null || value == "")
+        return !!fallback;
+    value = as_string(value);
+    return value == "1" || value == "true" || value == "yes" || value == "on";
 }
 
 function bool_option(section, key, fallback) {
-    if (fallback == null)
-        fallback = false;
-    let value = option(section, key, fallback ? "1" : "0");
-    return value == "1" || value == "true" || value == "yes" || value == "on";
+    return bool_value(object_or_empty(section)[key], fallback);
 }
 
 function int_option(section, key, fallback) {
@@ -203,20 +251,28 @@ function int_option(section, key, fallback) {
 
 return {
     as_string,
+    object_or_empty,
+    array_or_empty,
     signal_from_status,
+    parse_json,
     read_json_file,
-    read_stdin,
-    read_stdin_json,
     write_json,
-    csv_to_json_array,
-    write_json_file,
+    parent_dir,
+    ensure_dir,
+    write_file,
+    write_file_atomic,
+    read_first_line,
+    remove_tree,
+    own_pid,
+    pid_alive,
+    now_seconds,
     strip_internal_fields,
     duration_to_seconds,
     parse_number,
-    array_or_empty,
-    object_or_empty,
     option,
+    words,
     list_option,
+    bool_value,
     bool_option,
     int_option
 };

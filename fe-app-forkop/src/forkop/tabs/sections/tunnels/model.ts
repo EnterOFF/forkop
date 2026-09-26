@@ -22,6 +22,7 @@ import {
 } from '../outboundJson';
 import { tailscaleDetourSectionValue, tailscaleDetourTag } from '../references';
 import { openVPNEndpoint, openVPNInitialSettings } from './openvpn';
+import { E } from '../../../../helpers/element';
 
 // Junk counts and sizes reach the core as uint32, packet paddings as uint16.
 export const AMNEZIA_COUNT_FIELDS = ['jc', 'jmin', 'jmax'];

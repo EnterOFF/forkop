@@ -47,23 +47,6 @@ function percent_decode(value) {
     return result;
 }
 
-function encode(value) {
-    value = as_string(value);
-    let result = "";
-    for (let i = 0; i < length(value); i++) {
-        let c = substr(value, i, 1);
-        let code = ord(c);
-        if ((code >= 48 && code <= 57) ||
-            (code >= 65 && code <= 90) ||
-            (code >= 97 && code <= 122) ||
-            c == "-" || c == "_" || c == "." || c == "~")
-            result += c;
-        else
-            result += sprintf("%%%02X", code);
-    }
-    return result;
-}
-
 function scheme(value) {
     value = as_string(value);
     let marker = index(value, "://");
@@ -148,7 +131,6 @@ function path(value) {
 }
 
 return {
-    encode,
     scheme,
     fragment,
     host,

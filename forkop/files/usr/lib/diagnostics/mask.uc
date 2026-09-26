@@ -49,29 +49,9 @@ function delete_token_space(line, token) {
     return space_pos < length(line) && is_space_char(substr(line, space_pos, 1));
 }
 
-// Keeps the scheme and host of a DNS URL but hides the path that identifies
-// the account.
-function mask_option_path(line, token) {
-    let pos = index(line, token);
-    if (pos < 0)
-        return line;
+// The options whose value is JSON, which can span several lines.
+const JSON_OPTIONS = [ "option outbound_json", "list outbound_jsons", "option endpoint_json", "option inbound_json" ];
 
-    let slash = index(substr(line, pos + length(token)), "/");
-    if (slash < 0)
-        return line;
-    slash += pos + length(token);
-
-    let quote = index(substr(line, slash + 1), "'");
-    if (quote < 0)
-        return line;
-    quote += slash + 1;
-
-    return substr(line, 0, slash) + "/MASKED'" + substr(line, quote + 1);
-}
-
-// Keep in sync with maskForkopConfigLine() in
-// fe-app-forkop/src/forkop/tabs/diagnostic/helpers/maskDiagnostics.ts, which
-// masks the copy the browser downloads.
 function forkop_config_line(line) {
     line = mask_after_token(line, "option proxy_string");
     line = mask_after_token(line, "option hwid");
@@ -80,9 +60,8 @@ function forkop_config_line(line) {
     line = mask_after_token(line, "list subscription_urls");
     line = mask_after_token(line, "list urltest_proxy_links");
     line = mask_after_token(line, "list selector_proxy_links");
-    line = mask_after_token_space(line, "option outbound_json");
-    line = mask_after_token_space(line, "option endpoint_json");
-    line = mask_after_token_space(line, "option inbound_json");
+    for (let token in JSON_OPTIONS)
+        line = mask_after_token_space(line, token);
     line = mask_after_token_space(line, "list domain");
     line = mask_after_token_space(line, "list domain_suffix");
     line = mask_after_token_space(line, "list domain_keyword");
@@ -137,8 +116,6 @@ function forkop_config_line(line) {
     line = mask_after_token_space(line, "option mixed_proxy_password");
     line = mask_after_token_space(line, "option private_key");
     line = mask_after_token_space(line, "option url");
-    line = mask_option_path(line, "option dns_server '");
-    line = mask_option_path(line, "list dns_server '");
     line = mask_after_token(line, "option yacd_secret_key");
     line = mask_after_token(line, "option native_api_secret");
 
@@ -180,8 +157,7 @@ function forkop_config(data) {
             continue;
 
         push(result, forkop_config_line(line));
-        if (index(line, "option outbound_json") >= 0 || index(line, "option endpoint_json") >= 0 ||
-            index(line, "option inbound_json") >= 0) {
+        if (length(filter(JSON_OPTIONS, (token) => delete_token_space(line, token))) > 0) {
             let first_quote = index(line, "'");
             if (first_quote >= 0 && index(substr(line, first_quote + 1), "'") < 0)
                 in_masked_multiline = true;
@@ -191,42 +167,30 @@ function forkop_config(data) {
     return lines_text(result);
 }
 
+// What identifies the subscriber or opens the uplink, whatever the protocol:
+// PPPoE, L2TP and PPTP accounts, a modem's PIN, a WireGuard key, and the
+// addresses and hardware address of the line.
+const WAN_MASKED_OPTIONS = {
+    username: true, password: true, pincode: true, private_key: true, macaddr: true,
+    ipaddr: true, netmask: true, gateway: true, ip6addr: true, ip6gw: true, ip6prefix: true,
+    peeraddr: true, server: true
+};
+
 // Only the WAN interface is reported, and only the fields that identify the
 // subscriber are hidden; the rest is needed to judge the routing setup.
 function wan_config(data) {
     let result = [];
     let in_wan = false;
-    let proto = "";
 
     for (let line in config_lines(data)) {
         let fields = split(trim(as_string(line)), /[ \t\r\n]+/);
-        if (length(fields) > 0 && fields[0] == "config") {
+        if (length(fields) > 0 && fields[0] == "config")
             in_wan = length(fields) >= 3 && fields[1] == "interface" && fields[2] == "'wan'";
-            proto = "";
-        }
 
-        if (!in_wan)
-            continue;
-
-        if (length(fields) >= 3 && fields[0] == "option" && fields[1] == "proto") {
-            proto = fields[2];
+        if (in_wan && length(fields) >= 2 && (fields[0] == "option" || fields[0] == "list") && WAN_MASKED_OPTIONS[fields[1]])
+            push(result, "        " + fields[0] + " " + fields[1] + " '******'");
+        else if (in_wan)
             push(result, line);
-        }
-        else if (proto == "'static'" && length(fields) >= 2 && fields[0] == "option" &&
-            (fields[1] == "ipaddr" || fields[1] == "netmask" || fields[1] == "gateway")) {
-            push(result, "        option " + fields[1] + " '******'");
-        }
-        else if (proto == "'pppoe'" && length(fields) >= 2 && fields[0] == "option" &&
-            (fields[1] == "username" || fields[1] == "password")) {
-            push(result, "        option " + fields[1] + " '******'");
-        }
-        else if (proto == "'wireguard'" && length(fields) >= 2 && fields[0] == "option" &&
-            fields[1] == "private_key") {
-            push(result, "        option private_key '******'");
-        }
-        else {
-            push(result, line);
-        }
     }
 
     return lines_text(result);
@@ -276,25 +240,43 @@ const SING_BOX_MASKED_KEYS = {
     domain_keyword: true,
     domain_regex: true,
     ip_cidr: true,
-    source_ip_cidr: true
+    source_ip_cidr: true,
+    headers: true
 };
 
+// The path of a DNS over HTTPS server can carry the account: AdGuard's private
+// /dns-query/<id>, ControlD's /<id>. The endpoints every resolver shares stay.
+function doh_path(path) {
+    path = as_string(path);
+    if (path == "" || path == "/" || path == "/dns-query" || path == "/resolve")
+        return path;
+    return substr(path, 0, 11) == "/dns-query/" ? "/dns-query/MASKED" : "/MASKED";
+}
+
+function mask_sing_box_value(value) {
+    if (type(value) == "array")
+        return map(value, mask_sing_box_value);
+    if (type(value) != "object")
+        return value;
+    let result = {};
+    for (let key, item in value)
+        result[key] = SING_BOX_MASKED_KEYS[key] ? "MASKED" : mask_sing_box_value(item);
+    return result;
+}
+
+// A subscription URL carries the subscriber's token, and a URL is only masked
+// where it is one: a rule set's or a latency test's is public.
 function sing_box_config(value) {
-    if (type(value) == "array") {
-        let result = [];
-        for (let item in value)
-            push(result, sing_box_config(item));
+    let result = mask_sing_box_value(value);
+    if (type(result) != "object")
         return result;
-    }
-
-    if (type(value) == "object") {
-        let result = {};
-        for (let key, item in value)
-            result[key] = SING_BOX_MASKED_KEYS[key] ? "MASKED" : sing_box_config(item);
-        return result;
-    }
-
-    return value;
+    for (let provider in (type(result.providers) == "array" ? result.providers : []))
+        if (type(provider) == "object" && provider.url != null)
+            provider.url = "MASKED";
+    for (let server in (type(result.dns?.servers) == "array" ? result.dns.servers : []))
+        if (type(server) == "object" && server.path != null)
+            server.path = doh_path(server.path);
+    return result;
 }
 
 function repeat_char(char, count) {
@@ -309,8 +291,12 @@ function first_field(value, separator) {
     return marker < 0 ? value : substr(value, 0, marker);
 }
 
-// A NextDNS profile id is a credential: it is either the leftmost label of the
-// host or the URL path. Other DNS servers carry no account and stay readable.
+// Resolvers that name the account in the leftmost label of their host for DNS
+// over TLS or QUIC.
+const ACCOUNT_HOST_SUFFIXES = [ ".dns.nextdns.io", ".d.adguard-dns.com", ".dns.controld.com" ];
+
+// A private resolver's account id is a credential: the leftmost label of the
+// host, or the path of a DNS over HTTPS URL. A public resolver stays readable.
 function dns_server(value) {
     value = as_string(value);
     let scheme = core_url.scheme(value);
@@ -320,56 +306,38 @@ function dns_server(value) {
     let suffix = port == "" ? "" : ":" + port;
     let path = core_url.path(value);
 
-    if (ends_with(host, ".dns.nextdns.io")) {
-        let nextdns_id = first_field(host, ".");
-        return prefix + repeat_char("*", length(nextdns_id)) + ".dns.nextdns.io" + suffix + path;
-    }
-
-    if (host == "dns.nextdns.io" && length(path) > 1)
-        return prefix + host + suffix + "/" + repeat_char("*", length(path) - 1);
-
-    return value;
+    for (let ending in ACCOUNT_HOST_SUFFIXES)
+        if (ends_with(host, ending))
+            host = repeat_char("*", length(first_field(host, "."))) + ending;
+    let masked_path = host == "dns.nextdns.io" && length(path) > 1 ? "/" + repeat_char("*", length(path) - 1) : doh_path(path);
+    return host == core_url.host(value) && masked_path == path ? value : prefix + host + suffix + masked_path;
 }
 
-function ipv6_line(line) {
-    let matched = match(line, /([0-9a-fA-F]+:[0-9a-fA-F]+:[0-9a-fA-F]+):.*/);
-    return matched ? matched[1] + ":XXXX:XXXX:XXXX" : line;
+// The first three hextets of an IPv6 address - the provider's allocation, not
+// the subscriber - however the address is written.
+function masked_ipv6(address) {
+    let bytes = iptoarr(address);
+    if (bytes == null || length(bytes) != 16)
+        return null;
+    return sprintf("%x:%x:%x:XXXX:XXXX:XXXX:XXXX:XXXX", bytes[0] << 8 | bytes[1], bytes[2] << 8 | bytes[3], bytes[4] << 8 | bytes[5]);
 }
 
 // The proxy check has to prove the exit address changed without publishing it,
-// so only the last IPv4 octet or the first three IPv6 hextets survive. Returns
-// null when the response carries no address at all.
+// so only the last IPv4 octet or the first three IPv6 hextets survive. The
+// public endpoint answers with JSON, a plain address service with a bare
+// address. Returns null when the response carries no address at all.
 function proxy_response_ip(response) {
-    response = as_string(response);
-    let lines = split(response, "\n");
-    let ipv4_lines = [];
-    let ipv6_like = false;
-
-    for (let line in lines) {
-        // The public endpoint answers with JSON, a plain address service with a
-        // bare address. Both are accepted, and only the last octet is shown.
-        let matched = match(line, /^([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+)$/) ||
-            match(line, /"IP"[[:space:]]*:[[:space:]]*"([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+)"/);
-        if (matched)
-            push(ipv4_lines, "X.X.X." + matched[4]);
-
-        if (match(line, /^[0-9a-fA-F:]*::[0-9a-fA-F:]*$/) || match(line, /^[0-9a-fA-F:]+$/))
-            ipv6_like = true;
+    let result = [];
+    for (let line in split(as_string(response), "\n")) {
+        let address = match(line, /"IP"[[:space:]]*:[[:space:]]*"([^"]+)"/)?.[1] ?? trim(line);
+        let v4 = match(address, /^[0-9]+\.[0-9]+\.[0-9]+\.([0-9]+)$/);
+        let v6 = index(address, ":") >= 0 ? masked_ipv6(address) : null;
+        if (v4 != null)
+            push(result, "X.X.X." + v4[1]);
+        else if (v6 != null)
+            push(result, v6);
     }
-
-    if (length(ipv4_lines) > 0)
-        return join("\n", ipv4_lines);
-
-    if (!ipv6_like)
-        return null;
-
-    let masked = [];
-    for (let i = 0; i < length(lines); i++) {
-        if (i == length(lines) - 1 && lines[i] == "")
-            continue;
-        push(masked, ipv6_line(lines[i]));
-    }
-    return join("\n", masked);
+    return length(result) > 0 ? join("\n", result) : null;
 }
 
 // A proxy that answers with an HTML error page or a bare 403 has not failed

@@ -29,13 +29,11 @@ assert_suffix .example.com .example.com
 assert_suffix 123.456 123.456
 assert_suffix "$(printf 'a%.0s' $(seq 63)).com" "$(printf 'a%.0s' $(seq 63)).com"
 
-# Labels the shortcut must not claim. A leading dash is not a valid ASCII label,
-# so it falls through to the punycode encoder, which prefixes it and produces a
-# label that does pass validation - surprising, but what the sources have always
-# returned and what installed signatures were computed from.
-assert_suffix -abc.com xn---abc.com
-assert_suffix "-$(printf 'a%.0s' $(seq 58)).com" "xn---$(printf 'a%.0s' $(seq 58)).com"
-assert_suffix "-$(printf 'a%.0s' $(seq 60)).com" '<null>'
+# Labels the shortcut must not claim: an ASCII label that is not a valid one is
+# refused, not handed to the punycode encoder, which would turn -abc into the
+# valid xn---abc and match a domain nobody wrote.
+assert_suffix -abc.com '<null>'
+assert_suffix "-$(printf 'a%.0s' $(seq 58)).com" '<null>'
 assert_suffix abc-.com '<null>'
 assert_suffix "$(printf 'a%.0s' $(seq 64)).com" '<null>'
 assert_suffix under_score.com '<null>'

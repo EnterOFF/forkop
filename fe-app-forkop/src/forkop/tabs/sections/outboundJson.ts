@@ -7,6 +7,7 @@ import {
   updateDynamicListItemLabel,
 } from '../../cbi/listItems';
 import { renderStackedJsonSettingsModal } from '../../cbi/modal';
+import { E } from '../../../helpers/element';
 
 export function parseOutboundJsonObject(value: unknown) {
   try {

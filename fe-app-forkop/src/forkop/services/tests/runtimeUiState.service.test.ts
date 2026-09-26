@@ -113,9 +113,11 @@ describe('runtime state transport', () => {
     expect(mocks.executeShellCommand).toHaveBeenCalledOnce();
   });
 
-  // Having decided the service is absent, it must not pay for the discovery
-  // again on every refresh.
-  it('stops asking for a service it has already found missing', async () => {
+  // Having found the service absent, it does not pay for the discovery again on
+  // every refresh - but an upgrade or a crash takes it away for seconds, so it
+  // is asked again after a while rather than never.
+  it('asks again, after a while, for a service it has found missing', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
     mocks.callUbus.mockResolvedValue({
       success: false,
       message: 'Object not found',
@@ -129,9 +131,43 @@ describe('runtime state transport', () => {
 
     await refreshRuntimeUiState({ force: true });
     await refreshRuntimeUiState({ force: true });
-
     expect(mocks.callUbus).toHaveBeenCalledOnce();
     expect(mocks.executeShellCommand).toHaveBeenCalledTimes(2);
+
+    mocks.callUbus.mockResolvedValue({
+      success: true,
+      data: { ...createUiState(), revision: 4 },
+    });
+    now.mockReturnValue(1_031_000);
+    await refreshRuntimeUiState({ force: true });
+    expect(mocks.callUbus).toHaveBeenCalledTimes(2);
+    expect(mocks.executeShellCommand).toHaveBeenCalledTimes(2);
+    now.mockRestore();
+  });
+
+  // A first answer that timed out is not a missing service either.
+  it('comes back to the state service after a first call that timed out', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(2_000_000);
+    mocks.callUbus.mockResolvedValueOnce({
+      success: false,
+      message: 'timeout',
+      unavailable: false,
+    });
+    mocks.executeShellCommand.mockResolvedValue({
+      stdout: JSON.stringify(createUiState()),
+      stderr: '',
+      code: 0,
+    });
+    await refreshRuntimeUiState({ force: true });
+
+    mocks.callUbus.mockResolvedValue({
+      success: true,
+      data: { ...createUiState(), revision: 5 },
+    });
+    now.mockReturnValue(2_031_000);
+    await refreshRuntimeUiState({ force: true });
+    expect(mocks.callUbus).toHaveBeenCalledTimes(2);
+    now.mockRestore();
   });
 
   // A service that is present but failing is a different thing from an absent

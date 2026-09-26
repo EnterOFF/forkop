@@ -16,6 +16,8 @@ import {
 // is none.
 type LogReply = { cursor?: number; lines?: string[] };
 
+const FORKOP_LOG_RETRY_MS = 5000;
+
 let running = false;
 let cursor = 0;
 
@@ -48,8 +50,7 @@ export async function startForkopLogFeed(onNewLog: (line: string) => void) {
   adopt(first.data);
   running = true;
 
-  // The loop ends when the service goes away; nothing else stops it, because
-  // the feed lives as long as the page does.
+  // The feed lives as long as the page does; the service going away pauses it.
   void (async () => {
     try {
       for (;;) {
@@ -78,9 +79,14 @@ export async function startForkopLogFeed(onNewLog: (line: string) => void) {
           continue;
         }
 
+        // The state service goes away for an upgrade or a crash and comes
+        // back, and the feed with it.
         if (response.unavailable) {
           logger.info('[LOG_FEED]', 'log feed went away', response.message);
-          break;
+          await new Promise((resolve) =>
+            setTimeout(resolve, FORKOP_LOG_RETRY_MS),
+          );
+          continue;
         }
 
         logger.error('[LOG_FEED]', 'log wait failed', response.message);

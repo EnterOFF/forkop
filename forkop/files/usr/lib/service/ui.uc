@@ -1,900 +1,301 @@
-#!/usr/bin/env ucode
+// What the page shows about the service: whether it runs, what is being done to
+// it right now, and the service and component actions the page started. An
+// action is a job file under /var/run that its worker finishes; the page reads
+// the files through the state service, and a job whose worker died is marked
+// stale instead of running forever.
 
 let fs = require("fs");
-let uci_core = require("core.uci");
-let subscription_headers_module = require("singbox.subscription_headers");
+let common = require("core.common");
+let exec = require("core.exec");
+let constants = require("core.constants");
+let uci = require("core.uci");
+let subscription_headers = require("singbox.subscription_headers");
 let health = require("service.health");
 let lock = require("service.lock");
 
-const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
-const LIB_DIR = getenv("FORKOP_LIB") || "/usr/lib/forkop";
-const BIN_PATH = getenv("FORKOP_BIN") || "/usr/bin/forkop";
-const SERVICE_INIT = getenv("FORKOP_SERVICE_INIT") || "/etc/init.d/forkop";
-const SERVICE_NAME = getenv("FORKOP_SERVICE_NAME") || "forkop";
-const UI_UC = LIB_DIR + "/service/ui.uc";
-const STATE_DIR = getenv("FORKOP_UI_STATE_DIR") || "/var/run/forkop/ui-state";
-const PENDING_RELOAD_FILE = getenv("FORKOP_PENDING_RELOAD_FILE") || "/var/run/forkop/reload.pending";
-const RELOAD_LOCK_DIR = getenv("FORKOP_RELOAD_LOCK_DIR") || "/var/run/forkop.reload.lock";
-const SERVICE_ACTION_DIR = getenv("FORKOP_UI_SERVICE_ACTION_DIR") || STATE_DIR + "/service-actions";
-const SERVICE_ACTION_LOCK_DIR = getenv("FORKOP_UI_SERVICE_ACTION_LOCK_DIR") || STATE_DIR + "/service-actions.lock";
-const COMPONENT_ACTION_DIR = getenv("FORKOP_UI_COMPONENT_ACTION_DIR") || getenv("UPDATES_JOB_DIR") || "/var/run/forkop/component-actions";
-const ACTION_FINISHED_TTL_MINUTES = getenv("FORKOP_UI_ACTION_FINISHED_TTL_MINUTES") || "60";
-const ACTION_ACKED_TTL_SECONDS = getenv("FORKOP_UI_ACTION_ACKED_TTL_SECONDS") || "15";
-const ACTION_STALE_GRACE_SECONDS = getenv("FORKOP_UI_ACTION_STALE_GRACE_SECONDS") || "15";
-const RUNTIME_STABLE_MIN_AGE = getenv("FORKOP_RUNTIME_STABLE_MIN_AGE") || "2";
-const SERVICE_ACTION_LOCK_OWNER_GRACE = getenv("FORKOP_UI_SERVICE_ACTION_LOCK_OWNER_GRACE") || "5";
-const NFT_TABLE_NAME = getenv("NFT_TABLE_NAME") || "ForkopTable";
-const RT_TABLE_NAME = getenv("RT_TABLE_NAME") || "forkop";
-const NFT_FAKEIP_MARK = getenv("NFT_FAKEIP_MARK") || "0x04000000";
-const SB_DNS_INBOUND_ADDRESS = getenv("SB_DNS_INBOUND_ADDRESS") || "127.0.0.42";
+const CONFIG_NAME = "forkop";
+const FINISHED_TTL_SECONDS = 3600;
+const ACKED_TTL_SECONDS = 15;
+const STALE_GRACE_SECONDS = 15;
+const STABLE_MIN_AGE = 2;
+const ACTION_LOCK_OWNER_GRACE = 5;
+const SERVICE_ACTIONS = { start: true, stop: true, restart: true, reload: true };
 
-function as_string(value) {
-    return value == null ? "" : "" + value;
+let paths = {
+    service_actions: "/var/run/forkop/ui-state/service-actions",
+    service_action_lock: "/var/run/forkop/ui-state/service-actions.lock",
+    // Written by the component manager, which keeps its jobs here.
+    component_actions: "/var/run/forkop/component-actions",
+    reload_lock: "/var/run/forkop.reload.lock",
+    pending_reload: "/var/run/forkop/reload.pending",
+    rc_dir: "/etc/rc.d"
+};
+
+function valid_job_id(id) {
+    return type(id) == "string" && id != "." && id != ".." && match(id, /^[A-Za-z0-9._-]+$/) != null;
 }
 
-function read_json_file(path) {
-    let data = fs.readfile(path);
-    if (data == null)
-        return null;
-
-    try {
-        return json(data);
-    }
-    catch (e) {
-        return null;
-    }
+function job_path(dir, id) {
+    return valid_job_id(id) ? dir + "/" + id + ".json" : null;
 }
 
-function write_json(value) {
-    print(sprintf("%J", value), "\n");
+function read_job(path) {
+    return common.read_json_file(path);
 }
 
-function json_text(value) {
-    return sprintf("%J", value) + "\n";
+function write_job(path, value) {
+    return common.write_file_atomic(path, sprintf("%J\n", value));
 }
 
-function shell_quote(value) {
-    return "'" + replace(as_string(value), /'/g, "'\\''") + "'";
-}
-
-function command_from_args(args) {
-    let parts = [];
-
-    for (let arg in args)
-        push(parts, shell_quote(arg));
-
-    return join(" ", parts);
-}
-
-function command_env(assignments) {
-    let parts = [];
-
-    for (let name, value in assignments)
-        push(parts, name + "=" + shell_quote(value));
-
-    return join(" ", parts);
-}
-
-function command_output(command) {
-    let pipe = fs.popen(command, "r");
-    if (!pipe)
-        return "";
-
-    let data = pipe.read("all");
-    let status = pipe.close();
-    if (status != 0 || data == null)
-        return "";
-
-    return as_string(data);
-}
-
-function command_success(command) {
-    return system(command + " >/dev/null 2>&1") == 0;
-}
-
-function command_success_from_args(args) {
-    return command_success(command_from_args(args));
-}
-
-function now_seconds() {
-    return int(clock()[0]);
-}
-
-function ensure_dir(path) {
-    let slash = rindex(as_string(path), "/");
-    if (slash > 0 && !ensure_dir(substr(path, 0, slash)))
-        return false;
-    return fs.mkdir(path, 0755) || fs.stat(path) != null;
-}
-
-function ensure_dirs() {
-    for (let dir in [
-        STATE_DIR,
-        SERVICE_ACTION_DIR,
-        COMPONENT_ACTION_DIR
-    ])
-        ensure_dir(dir);
-}
-
-function write_file(path, value) {
-    return fs.writefile(as_string(path), as_string(value)) != null;
-}
-
-function write_state_file(path, value) {
-    path = as_string(path);
-    let stamp = clock();
-    let tmp_path = sprintf("%s.%d.%d.tmp", path, stamp[0], stamp[1]);
-
-    if (!write_file(tmp_path, json_text(value))) {
-        fs.unlink(tmp_path);
-        return false;
-    }
-    if (!fs.rename(tmp_path, path)) {
-        fs.unlink(tmp_path);
-        return false;
-    }
-    return true;
-}
-
-function remove_file(path) {
-    try {
-        fs.unlink(as_string(path));
-    }
-    catch (e) {
-    }
-}
-
-function str_remove_suffix(value, suffix) {
-    value = as_string(value);
-    suffix = as_string(suffix);
-    if (length(value) >= length(suffix) && substr(value, length(value) - length(suffix)) == suffix)
-        return substr(value, 0, length(value) - length(suffix));
-    return value;
-}
-
-function remove_state_file(path) {
-    let base = str_remove_suffix(as_string(path), ".json");
-    remove_file(path);
-    remove_file(base + ".out");
-    remove_file(base + ".out.json");
-}
-
-function arg_bool(value) {
-    return value === true || value == "true" || value == "1" || value == 1;
-}
-
-function arg_number(value) {
-    value = as_string(value);
-    if (value == "" || match(value, /[^0-9-]/))
-        return 0;
-    return int(value);
-}
-
-function unsigned_number(value) {
-    value = as_string(value);
-    if (value == "" || match(value, /[^0-9]/) != null)
-        return null;
-    return int(value);
-}
-
-function object_or_empty(value) {
-    return type(value) == "object" ? value : {};
-}
-
-function path_basename(path) {
-    let parts = split(as_string(path), "/");
-    return length(parts) > 0 ? as_string(parts[length(parts) - 1]) : "";
-}
-
-function job_id_from_path(path) {
-    return str_remove_suffix(path_basename(path), ".json");
-}
-
-function valid_action_state(value) {
+function valid_job(value) {
     return type(value) == "object" && (value.running === true || value.running === false);
 }
 
-function print_service_status_text(running, enabled) {
-    print(health.service_status_text(running, enabled), "\n");
+function number(value) {
+    return match(common.as_string(value), /^[0-9]+$/) ? int(value) : 0;
 }
 
-function action_start_response(success, job_id, message) {
-    write_json({
-        success: arg_bool(success),
-        job_id: as_string(job_id),
-        message: as_string(message)
-    });
+function remove_job(path) {
+    let base = replace(path, /\.json$/, "");
+    for (let file in [ path, base + ".out", base + ".out.json" ])
+        fs.unlink(file);
 }
 
-function service_action_valid(action) {
-    action = as_string(action);
-    return action == "start" || action == "stop" || action == "restart" || action == "reload";
-}
-
-function action_ack_expired(path, now_value, ttl_value) {
-    let value = read_json_file(path);
-    if (type(value) != "object")
-        exit(1);
-
-    let acked_at = unsigned_number(value.acked_at);
-    let now = unsigned_number(now_value);
-    let ttl = unsigned_number(ttl_value);
-
-    if (acked_at == null || now == null || now <= 0 || ttl == null)
-        exit(1);
-
-    exit(now - acked_at >= ttl ? 0 : 1);
-}
-
-function valid_job_id(job_id) {
-    job_id = as_string(job_id);
-    return job_id != "" && job_id != "." && job_id != ".." && match(job_id, /[^A-Za-z0-9._-]/) == null;
-}
-
-function job_state_path_value(dir, job_id) {
-    if (!valid_job_id(job_id))
-        return "";
-    return as_string(dir) + "/" + as_string(job_id) + ".json";
-}
-
-function job_state_path(dir, job_id) {
-    let path = job_state_path_value(dir, job_id);
-    if (path == "")
-        exit(1);
-
-    print(path, "\n");
-}
-
-function job_started_at_within_grace(value, now, grace_seconds) {
-    let started_at = arg_number(value);
-    now = arg_number(now);
-    grace_seconds = arg_number(grace_seconds);
-
-    if (started_at <= 0 || now <= 0)
-        return false;
-
-    return now - started_at < grace_seconds;
-}
-
-function job_pid_valid(pid) {
-    pid = as_string(pid);
-    return pid != "" && match(pid, /^[0-9]+$/) != null;
-}
-
-function job_refresh_plan(path, now, grace_seconds) {
-    let value = read_json_file(path);
-    if (type(value) != "object" || value.running !== true) {
-        print("skip\n");
+// A job whose worker is gone is stale, unless it is young enough that its
+// worker may not have recorded itself yet.
+function refresh_job(path, stale_message) {
+    let value = read_job(path);
+    if (value?.running !== true || common.pid_alive(common.as_string(value.pid ?? "")))
         return;
-    }
-
-    let within_grace = job_started_at_within_grace(value.started_at, now, grace_seconds);
-    let pid = as_string(value.pid || "");
-    if (!job_pid_valid(pid)) {
-        print(within_grace ? "skip\n" : "stale\n");
+    if (common.now_seconds() - number(value.started_at) < STALE_GRACE_SECONDS && number(value.started_at) > 0)
         return;
-    }
-
-    print("pid\t", pid, "\t", within_grace ? "0" : "1", "\n");
+    write_job(path, { ...value, success: false, running: false, message: stale_message, exit_code: null, updated_at: common.now_seconds() });
 }
 
-function active_service_action_value(dir) {
-    for (let path in fs.glob(as_string(dir || SERVICE_ACTION_DIR) + "/*.json")) {
-        let value = read_json_file(path);
-        if (type(value) == "object" && value.running === true && as_string(value.action) != "")
-            return as_string(value.action);
-    }
-
-    return "";
-}
-
-// How long the running action has been going, so the page can tell an operation
-// taking its usual time from one that is not coming back. Elapsed rather than a
-// start timestamp: the page would have to subtract that from its own clock, and
-// a router without an RTC does not agree with the browser about the time.
-function active_service_action_seconds(dir) {
-    for (let path in fs.glob(as_string(dir || SERVICE_ACTION_DIR) + "/*.json")) {
-        let value = read_json_file(path);
-        if (type(value) != "object" || value.running !== true || as_string(value.action) == "")
-            continue;
-
-        let started_at = unsigned_number(value.started_at) || 0;
-        if (started_at <= 0)
-            return 0;
-
-        let elapsed = now_seconds() - started_at;
-        return elapsed > 0 ? elapsed : 0;
-    }
-
-    return 0;
-}
-
-function print_active_service_action(dir) {
-    let action = active_service_action_value(dir);
-    if (action == "")
-        exit(1);
-
-    print(action, "\n");
-}
-
-function file_executable(path) {
-    let stat = fs.stat(as_string(path));
-    return stat != null && stat.mode != null && (int(stat.mode) & 73) != 0;
-}
-
-function job_id() {
-    let stamp = clock();
-    return sprintf("%d-%d", stamp[0], stamp[1]);
-}
-
-function running_service_action_value(action, source, started_at, pid) {
-    return {
-        success: true,
-        running: true,
-        kind: "service",
-        action: as_string(action),
-        source: as_string(source),
-        message: "Service action is running",
-        pid: job_pid_valid(pid) ? as_string(pid) : null,
-        started_at: arg_number(started_at),
-        updated_at: null,
-        exit_code: null
-    };
-}
-
-function finished_action_state_value(path, success, message, exit_code, updated_at) {
-    let value = object_or_empty(read_json_file(path));
-    value.success = arg_bool(success);
-    value.running = false;
-    value.message = as_string(message);
-    value.exit_code = as_string(exit_code) == "" ? null : arg_number(exit_code);
-    value.updated_at = arg_number(updated_at);
-    return value;
-}
-
-function stale_action_state_value(path, message, updated_at) {
-    let value = object_or_empty(read_json_file(path));
-    if (value.running === true) {
-        value.success = false;
-        value.running = false;
-        value.message = as_string(message);
-        value.exit_code = null;
-        value.updated_at = arg_number(updated_at);
-    }
-    return value;
-}
-
-function ack_action_state_value(path, acked_at) {
-    let value = object_or_empty(read_json_file(path));
-    if (value.running === false)
-        value.acked_at = arg_number(acked_at);
-    return value;
-}
-
-function set_running_job_pid_file(path, pid) {
-    pid = as_string(pid);
-    if (!job_pid_valid(pid))
-        return false;
-
-    let value = object_or_empty(read_json_file(path));
-    if (value.running === true) {
-        value.pid = pid;
-        return write_state_file(path, value);
-    }
-
-    return false;
-}
-
-function write_finished_action_state(path, success, message, exit_code) {
-    return write_state_file(path, finished_action_state_value(path, success, message, exit_code, now_seconds()));
-}
-
-function write_stale_action_state(path, message) {
-    return write_state_file(path, stale_action_state_value(path, message, now_seconds()));
-}
-
-// Checked for every tracked job on every status poll, so it reads /proc rather
-// than paying for a shell and a `kill` per job to learn the same thing.
-function pid_running(pid) {
-    pid = as_string(pid);
-    return job_pid_valid(pid) && fs.stat("/proc/" + pid) != null;
-}
-
-function current_pid() {
-    let stat = as_string(fs.readfile("/proc/self/stat"));
-    let separator = index(stat, " ");
-    return separator > 0 ? substr(stat, 0, separator) : "";
-}
-
-function refresh_pid_job_state(path, stale_message) {
-    let value = read_json_file(path);
-    if (type(value) != "object" || value.running !== true)
-        return;
-
-    let now = now_seconds();
-    let within_grace = job_started_at_within_grace(value.started_at, now, ACTION_STALE_GRACE_SECONDS);
-    let pid = as_string(value.pid || "");
-
-    if (job_pid_valid(pid) && pid_running(pid))
-        return;
-
-    if (!within_grace)
-        write_stale_action_state(path, stale_message);
-}
-
-function state_file_ack_expired(path) {
-    let value = read_json_file(path);
-    if (type(value) != "object")
-        return false;
-
-    let acked_at = unsigned_number(value.acked_at);
-    let now = now_seconds();
-    let ttl = unsigned_number(ACTION_ACKED_TTL_SECONDS);
-    return acked_at != null && now > 0 && ttl != null && now - acked_at >= ttl;
-}
-
-function cleanup_dir(dir) {
-    dir = as_string(dir);
-    let now = now_seconds();
-    let ttl_minutes = unsigned_number(ACTION_FINISHED_TTL_MINUTES);
-
+// Finished jobs go once the page has acknowledged them or once they are old.
+function clean_dir(dir) {
+    let now = common.now_seconds();
     for (let path in fs.glob(dir + "/*.json")) {
-        let value = read_json_file(path);
-        if (!valid_action_state(value)) {
-            remove_state_file(path);
+        let value = read_job(path);
+        if (!valid_job(value)) {
+            remove_job(path);
             continue;
         }
-
-        if (value.running !== false)
+        if (value.running)
             continue;
-
-        if (state_file_ack_expired(path)) {
-            remove_state_file(path);
-            continue;
-        }
-
-        let stat = fs.stat(path);
-        if (stat != null && ttl_minutes != null && now - int(stat.mtime || 0) > ttl_minutes * 60)
-            remove_state_file(path);
+        let acked = value.acked_at != null && now - number(value.acked_at) >= ACKED_TTL_SECONDS;
+        if (acked || now - (fs.stat(path)?.mtime ?? now) > FINISHED_TTL_SECONDS)
+            remove_job(path);
     }
 }
 
-function refresh_action_dirs() {
-    ensure_dirs();
-    cleanup_dir(SERVICE_ACTION_DIR);
-    cleanup_dir(COMPONENT_ACTION_DIR);
-
-    for (let path in fs.glob(SERVICE_ACTION_DIR + "/*.json"))
-        refresh_pid_job_state(path, "Service action worker exited unexpectedly");
-    for (let path in fs.glob(COMPONENT_ACTION_DIR + "/*.json"))
-        refresh_pid_job_state(path, "Component action worker exited unexpectedly");
+function refresh() {
+    common.ensure_dir(paths.service_actions);
+    common.ensure_dir(paths.component_actions);
+    clean_dir(paths.service_actions);
+    clean_dir(paths.component_actions);
+    for (let path in fs.glob(paths.service_actions + "/*.json"))
+        refresh_job(path, "Service action worker exited unexpectedly");
+    for (let path in fs.glob(paths.component_actions + "/*.json"))
+        refresh_job(path, "Component action worker exited unexpectedly");
 }
 
-function print_active_service_action_after_refresh() {
-    refresh_action_dirs();
-    print_active_service_action(SERVICE_ACTION_DIR);
-}
-
-function action_state_from_dir(dir) {
-    let result = [];
-
-    for (let path in fs.glob(as_string(dir) + "/*.json")) {
-        let value = read_json_file(path);
-        if (!valid_action_state(value))
-            continue;
-
-        value.job_id = job_id_from_path(path);
-        push(result, value);
+function running_service_job() {
+    for (let path in fs.glob(paths.service_actions + "/*.json")) {
+        let value = read_job(path);
+        if (value?.running === true && common.as_string(value.action) != "")
+            return value;
     }
-
-    return result;
-}
-
-function action_state_from_dirs() {
-    return {
-        service: action_state_from_dir(SERVICE_ACTION_DIR),
-        component: action_state_from_dir(COMPONENT_ACTION_DIR)
-    };
-}
-
-function service_enabled() {
-    return file_executable("/etc/rc.d/S99" + SERVICE_NAME);
-}
-
-function sing_box_enabled() {
-    return file_executable("/etc/rc.d/S99sing-box");
-}
-
-function sing_box_running() {
-    return health.sing_box_service_stable(RUNTIME_STABLE_MIN_AGE);
-}
-
-function forkop_running() {
-    return health.forkop_stably_running(
-        RT_TABLE_NAME,
-        NFT_TABLE_NAME,
-        NFT_FAKEIP_MARK,
-        RUNTIME_STABLE_MIN_AGE
-    );
-}
-
-function server_inbounds_enabled_count() {
-    let count = 0;
-    for (let section in uci_core.section_objects(CONFIG_NAME, "server")) {
-        section = object_or_empty(section);
-        let enabled = section.enabled == null ? "1" : as_string(section.enabled);
-        if (enabled != "0")
-            count++;
-    }
-    return count;
-}
-
-function capability_flags() {
-    let result = {
-        server_inbounds_enabled_count: 0
-    };
-
-    result.server_inbounds_enabled_count = server_inbounds_enabled_count();
-    return result;
-}
-
-function ui_capabilities_json() {
-    write_json(capability_flags());
-}
-
-function subscription_default_headers_json() {
-    write_json(subscription_headers_module.default_header_lines());
-}
-
-// `status` answers what the service is, `busy` answers what is being done to it.
-// They are orthogonal: a reload leaves the service running the whole time, so
-// overwriting the status with the action - as this used to - reported an outage
-// that was not happening and threw away running/enabled while it did.
-//
-// `reload` is the init.d verb; "apply" is what it is to a user, and the two
-// names stay separate so the UI never has to know the verb.
-function service_busy_value(action) {
-    action = as_string(action == null ? active_service_action_value() : action);
-
-    if (action == "start" || action == "stop" || action == "restart")
-        return action;
-    if (action == "reload")
-        return "apply";
     return null;
 }
 
-// The state payload as an object. The CLI prints it; the state service holds it
-// in memory and hands the same thing to every page, so both have to be built
-// here rather than each assembling its own idea of what the state is.
-function current_ui_state() {
-    refresh_action_dirs();
+function active_action() {
+    return running_service_job()?.action ?? "";
+}
 
-    let capabilities = capability_flags();
-    let forkop_is_running = forkop_running() ? 1 : 0;
-    let forkop_is_enabled = service_enabled() ? 1 : 0;
-    let sing_box_is_running = forkop_is_running ? 1 : (sing_box_running() ? 1 : 0);
-    let sing_box_is_enabled = sing_box_enabled() ? 1 : 0;
-    let forkop_status = health.service_status_text(forkop_is_running, forkop_is_enabled);
-    let sing_box_status = health.service_status_text(sing_box_is_running, sing_box_is_enabled);
+function jobs(dir) {
+    let result = [];
+    for (let path in fs.glob(dir + "/*.json")) {
+        let value = read_job(path);
+        if (valid_job(value))
+            push(result, { ...value, job_id: replace(fs.basename(path), /\.json$/, "") });
+    }
+    return result;
+}
+
+function capabilities() {
+    let enabled = filter(uci.section_objects(CONFIG_NAME, "server"), (s) => common.option(s, "enabled", "1") != "0");
+    return { server_inbounds_enabled_count: length(enabled) };
+}
+
+function default_headers() {
+    return subscription_headers.default_header_lines();
+}
+
+// `status` is what the service is and `busy` what is being done to it: a
+// reload keeps the service running the whole time. Elapsed seconds rather than a
+// start time, because a router without an RTC does not agree with the browser
+// about the time.
+function current_state() {
+    refresh();
+    let executable = (path) => ((fs.stat(path)?.mode ?? 0) & 0111) != 0;
+    let forkop_running = health.forkop_stably_running(constants.RT_TABLE_NAME, constants.NFT_TABLE_NAME, constants.NFT_FAKEIP_MARK, STABLE_MIN_AGE) ? 1 : 0;
+    let forkop_enabled = executable(paths.rc_dir + "/S99forkop") ? 1 : 0;
+    let sing_box_running = forkop_running || health.sing_box_service_stable(STABLE_MIN_AGE) ? 1 : 0;
+    let sing_box_enabled = executable(paths.rc_dir + "/S99sing-box") ? 1 : 0;
+    let job = running_service_job();
+    let started = number(job?.started_at);
 
     return {
         service: {
             forkop: {
-                running: forkop_is_running,
-                enabled: forkop_is_enabled,
-                status: forkop_status,
-                busy: service_busy_value(),
-                busy_seconds: active_service_action_seconds()
+                running: forkop_running,
+                enabled: forkop_enabled,
+                status: health.service_status_text(forkop_running, forkop_enabled),
+                busy: job == null ? null : (job.action == "reload" ? "apply" : job.action),
+                busy_seconds: job == null || started <= 0 ? 0 : max(common.now_seconds() - started, 0)
             },
             sing_box: {
-                running: sing_box_is_running,
-                enabled: sing_box_is_enabled,
-                status: sing_box_status
+                running: sing_box_running,
+                enabled: sing_box_enabled,
+                status: health.service_status_text(sing_box_running, sing_box_enabled)
             }
         },
-        capabilities,
-        actions: action_state_from_dirs()
+        capabilities: capabilities(),
+        actions: { service: jobs(paths.service_actions), component: jobs(paths.component_actions) }
     };
 }
 
-function current_ui_state_json() {
-    write_json(current_ui_state());
-}
-
-// The owner pid is written with the job rather than by a second process: a
-// reload starts twenty of those already, and a running job without a pid cannot
-// be checked for liveness while the gap lasts.
-function begin_service_action_if_idle(action, source, pid) {
-    action = as_string(action);
-    source = as_string(source || "ui");
-    if (!service_action_valid(action))
+// A new job for an action, unless one is running already: { status, job_id },
+// with status 2 while another action runs.
+function begin(action, source, pid) {
+    if (!SERVICE_ACTIONS[action])
         return { status: 1, job_id: "" };
-
-    ensure_dirs();
-    let owner_pid = current_pid();
-    if (!lock.acquire(SERVICE_ACTION_LOCK_DIR, owner_pid, SERVICE_ACTION_LOCK_OWNER_GRACE))
+    let owner = common.own_pid();
+    if (!lock.acquire(paths.service_action_lock, owner, ACTION_LOCK_OWNER_GRACE))
         return { status: 2, job_id: "" };
 
     let result = { status: 2, job_id: "" };
-    refresh_action_dirs();
-    if (active_service_action_value() == "") {
-        let id = job_id();
-        let path = job_state_path_value(SERVICE_ACTION_DIR, id);
-        result = path != "" && write_state_file(path, running_service_action_value(action, source, now_seconds(), pid))
-            ? { status: 0, job_id: id }
-            : { status: 1, job_id: "" };
+    refresh();
+    if (active_action() == "") {
+        let now = clock();
+        let id = sprintf("%d-%d", now[0], now[1]);
+        let written = write_job(job_path(paths.service_actions, id), {
+            success: true,
+            running: true,
+            kind: "service",
+            action,
+            source,
+            message: "Service action is running",
+            pid: match(common.as_string(pid), /^[0-9]+$/) ? common.as_string(pid) : null,
+            started_at: common.now_seconds(),
+            updated_at: null,
+            exit_code: null
+        });
+        result = written ? { status: 0, job_id: id } : { status: 1, job_id: "" };
     }
-
-    lock.release(SERVICE_ACTION_LOCK_DIR, owner_pid);
+    lock.release(paths.service_action_lock, owner);
     return result;
 }
 
-function begin_service_action_mode(action, source, pid) {
-    let result = begin_service_action_if_idle(action, source || "ui", pid);
-    if (result.status == 0)
-        print(result.job_id, "\n");
-    exit(result.status);
+function finish_job(path, success, message, exit_code) {
+    let value = read_job(path) ?? {};
+    return write_job(path, { ...value, success, running: false, message, exit_code, updated_at: common.now_seconds() });
 }
 
-function finish_service_action_mode(job_id_value, success, message, exit_code) {
-    let path = job_state_path_value(SERVICE_ACTION_DIR, job_id_value);
-    exit(path != "" && fs.stat(path) != null &&
-        write_finished_action_state(path, success, message, exit_code) ? 0 : 1);
-}
-
-function launch_worker(args) {
-    let command_args = [ "ucode", "-L", LIB_DIR, UI_UC ];
-    for (let arg in args)
-        push(command_args, arg);
-
-    let command = command_env({
-        FORKOP_CONFIG_NAME: CONFIG_NAME,
-        FORKOP_LIB: LIB_DIR,
-        FORKOP_BIN: BIN_PATH,
-        FORKOP_SERVICE_INIT: SERVICE_INIT,
-        FORKOP_SERVICE_NAME: SERVICE_NAME,
-        FORKOP_UI_STATE_DIR: STATE_DIR,
-        FORKOP_UI_SERVICE_ACTION_DIR: SERVICE_ACTION_DIR,
-        FORKOP_UI_SERVICE_ACTION_LOCK_DIR: SERVICE_ACTION_LOCK_DIR,
-        FORKOP_UI_COMPONENT_ACTION_DIR: COMPONENT_ACTION_DIR,
-        FORKOP_UI_ACTION_FINISHED_TTL_MINUTES: ACTION_FINISHED_TTL_MINUTES,
-        FORKOP_UI_ACTION_ACKED_TTL_SECONDS: ACTION_ACKED_TTL_SECONDS,
-        FORKOP_UI_ACTION_STALE_GRACE_SECONDS: ACTION_STALE_GRACE_SECONDS,
-        FORKOP_PENDING_RELOAD_FILE: PENDING_RELOAD_FILE,
-        NFT_TABLE_NAME,
-        RT_TABLE_NAME,
-        NFT_FAKEIP_MARK,
-        SB_DNS_INBOUND_ADDRESS
-    }) + " " +
-        command_from_args(command_args) +
-        " >/dev/null 2>&1 1000>&- & echo $!";
-    return trim(command_output("sh -c " + shell_quote(command)));
-}
-
-function start_service_action(action, source, reason) {
-    let begin = begin_service_action_if_idle(action, source || "ui");
-    if (begin.status != 0)
+// A background worker running the init script for an action: { success, job_id }.
+function start_worker(action, source, reason) {
+    let begun = begin(action, source, null);
+    if (begun.status != 0)
         return { success: false, job_id: "" };
 
-    let path = job_state_path_value(SERVICE_ACTION_DIR, begin.job_id);
-    if (path == "")
-        return { success: false, job_id: begin.job_id };
+    let path = job_path(paths.service_actions, begun.job_id);
+    let pid = trim(exec.output([ "sh", "-c", "\"$@\" >/dev/null 2>&1 1000>&- & echo $!", "sh",
+        constants.FORKOP_BIN, "service_action_worker", action, begun.job_id, reason ?? "" ]) ?? "");
+    let value = read_job(path);
+    if (match(pid, /^[0-9]+$/) && value?.running === true && write_job(path, { ...value, pid }))
+        return { success: true, job_id: begun.job_id };
 
-    let pid = launch_worker([ "service-action-worker", action, begin.job_id, reason || "" ]);
-    if (pid == "" || !set_running_job_pid_file(path, pid)) {
-        if (pid != "")
-            command_success_from_args([ "kill", pid ]);
-        write_finished_action_state(path, false, "Failed to write service action worker pid", 1);
-        return { success: false, job_id: begin.job_id };
-    }
-
-    return { success: true, job_id: begin.job_id };
+    if (match(pid, /^[0-9]+$/))
+        exec.ok([ "kill", pid ]);
+    finish_job(path, false, "Failed to write service action worker pid", 1);
+    return { success: false, job_id: begun.job_id };
 }
 
-function service_action_allows_pending_reload(action) {
-    action = as_string(action);
-    return action == "start" || action == "restart" || action == "reload";
-}
-
-function run_pending_reload_after_service_action(action, success) {
-    if (!success || !service_action_allows_pending_reload(action))
+// A reload queued while an action ran goes next, as a job of its own - unless
+// another reload owns the reload lock, which applies the request itself when it
+// finishes.
+function run_pending_reload(action, success) {
+    if (!success || (action != "start" && action != "restart" && action != "reload"))
         return;
-
-    // Another reload owns the lock and applies the pending request itself once
-    // it finishes. Consuming it here would start a UI reload action that
-    // defers immediately, restores the pending marker and returns success,
-    // which brings this path straight back and loops until the lock is free.
-    if (lock.held(RELOAD_LOCK_DIR))
+    if (lock.held(paths.reload_lock) || !lock.consume_request(paths.pending_reload))
         return;
+    exec.log("info", "Applying pending Forkop reload");
+    if (!start_worker("reload", "initd", "pending").success)
+        lock.mark_request(paths.pending_reload, "pending");
+}
 
-    if (!lock.consume_request(PENDING_RELOAD_FILE))
+// The init script's exit status is the answer: a start holds the lifecycle lock
+// until the runtime is ready, a stop until sing-box is gone.
+function finish(action, job_id, status) {
+    let path = job_path(paths.service_actions, job_id);
+    if (path == null || fs.stat(path) == null)
         return;
-
-    command_success_from_args([ "logger", "-t", SERVICE_NAME, "[info] Applying pending Forkop reload" ]);
-    let started = start_service_action("reload", "initd", "pending");
-    if (!started.success)
-        lock.mark_request(PENDING_RELOAD_FILE, "pending");
+    let success = status == 0;
+    if (finish_job(path, success, "Service " + action + (success ? " completed" : " failed"), status))
+        run_pending_reload(action, success);
 }
 
-function write_finished_service_action_state(path, action, success, message, exit_code) {
-    let written = write_finished_action_state(path, success, message, exit_code);
-    if (written)
-        run_pending_reload_after_service_action(action, success);
-    return written;
+// The background half of an action the page asked for. The init script is what
+// runs it, because only its start registers the service with procd.
+function worker(action, job_id, reason) {
+    let argv = [ "env", "FORKOP_UI_ACTION_TRACKED=1", constants.FORKOP_SERVICE_INIT, action ];
+    if (reason != null && reason != "")
+        push(argv, reason);
+    finish(action, job_id, exec.status(argv));
 }
 
-// The init.d command is the thing that waited. A start holds the lifecycle lock
-// until wait-forkop-ready has confirmed a stable runtime, a stop until
-// sing-box is gone, and a reload until the runtime has settled after its
-// rebind - so by the time the command returns, the expected state has already
-// been established and its exit status is the answer.
-//
-// This used to be re-derived afterwards by polling forkop_running() once a
-// second until it held for two consecutive checks. That could only ever confirm
-// what was already true, so it added a guaranteed two seconds of "busy" to every
-// action, on top of a second process computing the same predicate the page was
-// polling for anyway.
-function finish_service_action_after_command(action, job_id_value, status) {
-    status = arg_number(status);
-    if (as_string(job_id_value) == "")
-        return 0;
-
-    let path = job_state_path_value(SERVICE_ACTION_DIR, job_id_value);
-    if (path == "" || fs.stat(path) == null)
-        return 0;
-
-    if (status != 0)
-        write_finished_service_action_state(path, action, false, "Service " + as_string(action) + " failed", status);
-    else
-        write_finished_service_action_state(path, action, true, "Service " + as_string(action) + " completed", 0);
-
-    return 0;
+function response(success, job_id, message) {
+    return { success, job_id: job_id ?? "", message };
 }
 
-function update_service_action_pid_mode(job_id_value, pid) {
-    let path = job_state_path_value(SERVICE_ACTION_DIR, job_id_value);
-    exit(path != "" && set_running_job_pid_file(path, pid) ? 0 : 1);
+function start_action(action) {
+    if (!SERVICE_ACTIONS[action])
+        return response(false, "", "Invalid service action");
+    let started = start_worker(action, "ui", "");
+    if (started.success)
+        return response(true, started.job_id, "Service " + action + " started");
+    return response(false, "", active_action() != "" ? "Another service action is already running" : "Failed to write service action worker pid");
 }
 
-function service_action_worker(action, job_id_value, reason) {
-    let args = [ SERVICE_INIT, action ];
-    reason = as_string(reason || "");
-    if (reason != "")
-        push(args, reason);
-    let command = "FORKOP_UI_ACTION_TRACKED=1 " + command_from_args(args) + " >/dev/null 2>&1";
-    let status = system(command);
-    finish_service_action_after_command(action, job_id_value, status);
+function acknowledge(kind, job_id) {
+    let dir = kind == "service" ? paths.service_actions : kind == "component" ? paths.component_actions : null;
+    if (dir == null)
+        return response(false, "", "Invalid UI action kind");
+    let path = job_path(dir, job_id);
+    if (path == null)
+        return response(false, "", "Invalid UI action job id");
+    let value = read_job(path);
+    if (fs.stat(path) == null)
+        return response(true, job_id, "UI action already acknowledged");
+    if (value?.running === true)
+        return response(false, job_id, "UI action is still running");
+    if (!write_job(path, value?.running === false ? { ...value, acked_at: common.now_seconds() } : (value ?? {})))
+        return response(false, job_id, "Failed to acknowledge UI action");
+    return response(true, job_id, "UI action acknowledged");
 }
 
-function service_action_async(action) {
-    action = as_string(action);
-    if (!service_action_valid(action)) {
-        action_start_response(false, "", "Invalid service action");
-        exit(1);
-    }
-
-    let started = start_service_action(action, "ui", "");
-    if (!started.success && active_service_action_value() != "") {
-        action_start_response(false, "", "Another service action is already running");
-        exit(1);
-    }
-    if (!started.success) {
-        action_start_response(false, "", "Failed to write service action worker pid");
-        exit(1);
-    }
-
-    action_start_response(true, started.job_id, "Service " + action + " started");
-}
-
-function service_action_status(job_id_value) {
-    let path = job_state_path_value(SERVICE_ACTION_DIR, job_id_value);
-    if (path == "") {
-        action_start_response(false, "", "Invalid service action job id");
-        exit(1);
-    }
-    if (fs.stat(path) == null) {
-        action_start_response(false, "", "Service action job was not found");
-        exit(1);
-    }
-
-    refresh_pid_job_state(path, "Service action worker exited unexpectedly");
-    print(as_string(fs.readfile(path)));
-}
-
-function action_dir(kind) {
-    kind = as_string(kind);
-    if (kind == "service")
-        return SERVICE_ACTION_DIR;
-    if (kind == "component")
-        return COMPONENT_ACTION_DIR;
-    return "";
-}
-
-function action_ack(kind, job_id_value) {
-    let dir = action_dir(kind);
-    if (dir == "") {
-        action_start_response(false, "", "Invalid UI action kind");
-        exit(1);
-    }
-
-    let path = job_state_path_value(dir, job_id_value);
-    if (path == "") {
-        action_start_response(false, "", "Invalid UI action job id");
-        exit(1);
-    }
-
-    if (fs.stat(path) == null) {
-        action_start_response(true, job_id_value, "UI action already acknowledged");
-        return;
-    }
-
-    let value = read_json_file(path);
-    if (type(value) == "object" && value.running === true) {
-        action_start_response(false, job_id_value, "UI action is still running");
-        exit(1);
-    }
-
-    if (!write_state_file(path, ack_action_state_value(path, now_seconds()))) {
-        action_start_response(false, job_id_value, "Failed to acknowledge UI action");
-        exit(1);
-    }
-
-    action_start_response(true, job_id_value, "UI action acknowledged");
-}
-
-// Required by service/state_service.uc, which serves the same payload from a
-// long-lived process. Same guard the sing-box watcher uses: a caller frame means
-// this file was required rather than run.
-if ((sourcepath(1) != null && sourcepath(1) != "") || ARGV[0] == null)
-    return {
-        current_ui_state,
-        refresh_action_dirs,
-        SERVICE_ACTION_DIR,
-        COMPONENT_ACTION_DIR,
-        RELOAD_LOCK_DIR
-    };
-
-let mode = ARGV[0] || "";
-
-if (mode == "get-ui-capabilities")
-    ui_capabilities_json();
-else if (mode == "get-subscription-default-headers")
-    subscription_default_headers_json();
-else if (mode == "get-ui-state")
-    current_ui_state_json();
-else if (mode == "service-status-text")
-    print_service_status_text(ARGV[1], ARGV[2]);
-else if (mode == "service-action-valid")
-    exit(service_action_valid(ARGV[1]) ? 0 : 1);
-else if (mode == "stale-action-state")
-    write_json(stale_action_state_value(ARGV[1], ARGV[2], ARGV[3]));
-else if (mode == "action-ack-expired")
-    action_ack_expired(ARGV[1], ARGV[2], ARGV[3]);
-else if (mode == "job-state-path")
-    job_state_path(ARGV[1], ARGV[2]);
-else if (mode == "job-refresh-plan")
-    job_refresh_plan(ARGV[1], ARGV[2], ARGV[3]);
-else if (mode == "active-service-action")
-    ARGV[1] == null ? print_active_service_action_after_refresh() : print_active_service_action(ARGV[1]);
-else if (mode == "service-action-begin-if-idle")
-    begin_service_action_mode(ARGV[1], ARGV[2] || "ui", ARGV[3]);
-else if (mode == "service-action-update-pid")
-    update_service_action_pid_mode(ARGV[1], ARGV[2]);
-else if (mode == "service-action-finish")
-    finish_service_action_mode(ARGV[1], ARGV[2], ARGV[3], ARGV[4]);
-else if (mode == "service-action-finish-after-command")
-    finish_service_action_after_command(ARGV[1], ARGV[2], ARGV[3]);
-else if (mode == "service-action-worker")
-    service_action_worker(ARGV[1], ARGV[2], ARGV[3]);
-else if (mode == "service-action-async")
-    service_action_async(ARGV[1]);
-else if (mode == "service-action-status")
-    service_action_status(ARGV[1]);
-else if (mode == "action-ack")
-    action_ack(ARGV[1], ARGV[2]);
-else if (mode == "cleanup-action-dir-fixture")
-    cleanup_dir(ARGV[1]);
-else {
-    warn("Usage: service/ui.uc <operation> ...\n");
-    exit(1);
-}
+return {
+    paths,
+    refresh,
+    current_state,
+    current_ui_state: current_state,
+    capabilities,
+    default_headers,
+    active_action,
+    begin,
+    finish,
+    worker,
+    start_action,
+    acknowledge
+};

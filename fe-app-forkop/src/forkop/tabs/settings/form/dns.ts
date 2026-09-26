@@ -134,6 +134,7 @@ export function addDnsOptions(section: CBISection) {
   o.default = '3d';
   o.rmempty = false;
   o.depends('dns_optimistic', '1');
+  o.retain = true;
   o.validate = (_sectionId: string, value: unknown) =>
     validateRequiredSingBoxDuration(value);
 

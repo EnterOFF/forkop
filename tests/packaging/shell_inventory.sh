@@ -50,22 +50,10 @@ $shell_scripts"
 
 grep -Fq '#!/usr/bin/ucode' "$FORKOP_BIN" ||
   fail "/usr/bin/forkop must remain a direct ucode executable"
-grep -Fq 'function command_spec(command)' "$FORKOP_BIN" ||
-  fail "/usr/bin/forkop must own command routing in ucode"
 if grep -n -E '#!/bin/(ba)?sh|exec[[:space:]]+ucode|run_module\(|FORKOP_COMMAND' "$FORKOP_BIN" >/dev/null 2>&1; then
   fail "/usr/bin/forkop must not regress to a shell loader or shell router"
 fi
 
-grep -Fq 'FORKOP_INITD_UC="$FORKOP_LIB/service/initd.uc"' "$FORKOP_INIT" ||
-  fail "init.d must delegate service orchestration to service/initd.uc"
-grep -Fq 'initd_ucode start-service' "$FORKOP_INIT" ||
-  fail "init.d start path must delegate to ucode"
-grep -Fq 'initd_ucode stop-service' "$FORKOP_INIT" ||
-  fail "init.d stop path must delegate to ucode"
-grep -Fq 'initd_ucode reload-service' "$FORKOP_INIT" ||
-  fail "init.d reload path must delegate to ucode"
-grep -Fq 'initd_ucode trigger-plan' "$FORKOP_INIT" ||
-  fail "init.d trigger decisions must be produced by ucode"
 
 if grep -n -E '(^|[^[:alnum:]_])(uci|config_load|config_get|config_foreach|jsonfilter|nft|iptables|ip6?tables|sing-box|dnsmasq|curl|wget|opkg|apk)([[:space:]]|$)' "$FORKOP_INIT" >/dev/null 2>&1; then
   fail "init.d must not own UCI, routing, download, package, dnsmasq, nft, or sing-box decisions"

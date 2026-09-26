@@ -13,7 +13,6 @@
 set -eo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
-GENERATOR="$FORKOP_LIB/singbox/generator.uc"
 SCHEMA_HELPER="$TESTS_DIR/lib/singbox_option_schema.js"
 SCHEMA_SNAPSHOT="$TESTS_DIR/fixtures/singbox_inbound_options.json"
 CORE_OPTION_DIR="${FORKOP_SING_BOX_OPTION_DIR:-$ROOT_DIR/sandbox/sing-box-forkop/option}"
@@ -181,9 +180,7 @@ cat >"$WORK_DIR/servers.json" <<'JSON'
 }
 JSON
 
-mkdir -p "$WORK_DIR/generated.json.rulesets"
-ucode -L "$FORKOP_LIB" "$GENERATOR" generate-config-fixture \
-  "$WORK_DIR/servers.json" "$WORK_DIR/generated.json" "127.0.0.1" "0" ||
+generate_config "$WORK_DIR/servers.json" "$WORK_DIR/generated.json" ||
   fail "the generator refused the contract fixture"
 
 [ -s "$WORK_DIR/generated.json" ] || fail "the generator produced no configuration"

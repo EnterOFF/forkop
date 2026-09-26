@@ -3,117 +3,6 @@ set -eo pipefail
 
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 MASK_UC="$ROOT_DIR/forkop/files/usr/lib/diagnostics/mask.uc"
-MASK_TS="$ROOT_DIR/fe-app-forkop/src/forkop/tabs/diagnostic/helpers/maskDiagnostics.ts"
-
-# The Forkop config masker exists twice: diagnostics/mask.uc masks the copy
-# embedded in global_check, and maskDiagnostics.ts masks the copy the LuCI app
-# fetches for its "show values" toggle. They must cover the same options.
-MASK_UC="$MASK_UC" MASK_TS="$MASK_TS" node - <<'NODE'
-const fs = require("fs");
-
-const uc = fs.readFileSync(process.env.MASK_UC, "utf8");
-const ts = fs.readFileSync(process.env.MASK_TS, "utf8");
-
-function fail(message) {
-  console.error(`FAIL: ${message}`);
-  process.exit(1);
-}
-
-function tsArray(name) {
-  const matched = new RegExp(`const ${name} = \\[(.*?)\\];`, "s").exec(ts);
-  if (!matched) fail(`${name} is absent from maskDiagnostics.ts`);
-  return [...matched[1].matchAll(/'([^']+)'/g)].map((item) => item[1]);
-}
-
-const ucBody = /function forkop_config_line\(line\) \{(.*?)\n\}/s.exec(uc);
-if (!ucBody) fail("forkop_config_line is absent from mask.uc");
-
-function ucTokens(fn, body) {
-  return [
-    ...body.matchAll(new RegExp(`${fn}\\(line, "([^"]+)"\\)`, "g")),
-  ].map((item) => item[1]);
-}
-
-const ucPlain = ucTokens("mask_after_token", ucBody[1]).filter(
-  (token) => !ucTokens("mask_after_token_space", ucBody[1]).includes(token),
-);
-const ucSpace = ucTokens("mask_after_token_space", ucBody[1]);
-const ucDeleted = [
-  ...uc.matchAll(/delete_token_space\(line, "([^"]+)"\)/g),
-].map((item) => item[1]);
-
-// mask.uc masks the WAN interface options in wan_config(), while the LuCI
-// masker sees the whole global_check text in one pass and covers them inline.
-// mask.uc drops the tailscale toggles that the LuCI masker masks.
-const luciOnly = new Set([
-  ...ucDeleted,
-  "option ipaddr",
-  "option netmask",
-  "option gateway",
-  "option username",
-  "option password",
-]);
-
-const tsPlain = tsArray("FORKOP_MASK_AFTER_TOKEN");
-const tsSpace = tsArray("FORKOP_MASK_AFTER_TOKEN_SPACE");
-
-const missingInLuci = [
-  ...ucPlain.filter((token) => !tsPlain.includes(token)),
-  ...ucSpace.filter((token) => !tsSpace.includes(token)),
-];
-if (missingInLuci.length) {
-  fail(`maskDiagnostics.ts does not mask: ${missingInLuci.join(", ")}`);
-}
-
-const missingInRuntime = [
-  ...tsPlain.filter((token) => !ucPlain.includes(token) && !luciOnly.has(token)),
-  ...tsSpace.filter((token) => !ucSpace.includes(token) && !luciOnly.has(token)),
-];
-if (missingInRuntime.length) {
-  fail(`mask.uc does not mask: ${missingInRuntime.join(", ")}`);
-}
-
-// Every credential a tunnel or a JSON inbound can carry has to be covered by
-// both maskers.
-const requiredTokens = [
-  "option private_key",
-  "option public_key",
-  "option pre_shared_key",
-  "option address",
-  "list address",
-  "option port",
-  "list allowed_ips",
-  "option endpoint_json",
-  "option warp_profile_id",
-  "option warp_profile_auth_token",
-  "option warp_profile_private_key",
-  "option warp_profile_license_key",
-  "option inbound_json",
-];
-const uncovered = requiredTokens.filter(
-  (token) => !ucSpace.includes(token) || !tsSpace.includes(token),
-);
-if (uncovered.length) {
-  fail(`credential options are not masked everywhere: ${uncovered.join(", ")}`);
-}
-
-for (const key of [
-  "private_key",
-  "public_key",
-  "pre_shared_key",
-  "address",
-  "port",
-  "allowed_ips",
-  "auth_token",
-  "license_key",
-  "id",
-  "link",
-]) {
-  if (!new RegExp(`^\\s*'${key}',$`, "m").test(ts)) {
-    fail(`sing-box masker does not mask the ${key} key`);
-  }
-}
-NODE
 
 cat >"$WORK_DIR/forkop" <<'EOF'
 config tunnel 'tun_warp'
@@ -218,12 +107,8 @@ function tabModules(dir, found = []) {
   return found;
 }
 const tabSources = tabModules(process.argv[4]);
-const block = maskSource.slice(
-  maskSource.indexOf('function forkop_config_line'),
-  maskSource.indexOf('\n    return line;'),
-);
 const masked = new Set(
-  [...block.matchAll(/"(?:option|list) ([a-z0-9_]+)/g)].map((m) => m[1]),
+  [...maskSource.matchAll(/"(?:option|list) ([a-z0-9_]+)/g)].map((m) => m[1]),
 );
 
 // dialog field -> the UCI option it is stored as

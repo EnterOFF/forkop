@@ -279,6 +279,12 @@ function available() {
     return fixture_enabled() || cursor() != null;
 }
 
+// Drops the loaded packages, so the next read sees what is committed now.
+function reset() {
+    runtime_cursor = false;
+    loaded_packages = {};
+}
+
 function load(package_name) {
     package_name = as_string(package_name);
     if (fixture_enabled())
@@ -596,7 +602,7 @@ function section_objects(package_name, type_name) {
     let result = [];
     try {
         load(package_name);
-        c.foreach(package_name, as_string(type_name), function(section) {
+        c.foreach(package_name, type_name == null ? null : as_string(type_name), function(section) {
             if (type(section) == "object")
                 push(result, section);
         });
@@ -609,6 +615,7 @@ function section_objects(package_name, type_name) {
 
 return {
     available,
+    reset,
     load,
     get,
     get_all,

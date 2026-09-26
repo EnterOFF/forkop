@@ -31,6 +31,7 @@ import { isActiveLuciTab } from '../../helpers/isActiveLuciTab';
 import { pollDelayForDuration } from '../../helpers/pollDelay';
 import { getServiceStatusDisplay } from '../../helpers/serviceStatusDisplay';
 import { resolveOutboundProxyLink } from './resolveOutboundProxyLink';
+import { E } from '../../../helpers/element';
 
 const SECTIONS_REFRESH_INTERVAL_MS = 10000;
 // A latency test fills the router's own delay records in one at a time, and the

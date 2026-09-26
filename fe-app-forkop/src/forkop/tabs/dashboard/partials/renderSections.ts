@@ -11,6 +11,7 @@ import { isCopyableProxyLink } from '../../../../helpers';
 import { prettyBytes } from '../../../../helpers/prettyBytes';
 import { Forkop } from '../../../types';
 import { renderFlagEmojis } from './renderFlagEmojis';
+import { E } from '../../../../helpers/element';
 
 interface IRenderSectionsProps {
   loading: boolean;

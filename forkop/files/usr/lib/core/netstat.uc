@@ -1,26 +1,5 @@
-function sing_box_standard_ports_listening(netstat, dns_address, tproxy_port, tproxy6_address) {
-    netstat = netstat == null ? "" : "" + netstat;
-    dns_address = dns_address == null ? "127.0.0.42" : "" + dns_address;
-    tproxy_port = tproxy_port == null ? "1602" : "" + tproxy_port;
-    tproxy6_address = tproxy6_address == null ? "::1" : "" + tproxy6_address;
-
-    let dns_ok = index(netstat, dns_address + ":53") >= 0;
-    let tproxy_suffix = ":" + tproxy_port;
-    let tproxy4_ok = index(netstat, "0.0.0.0" + tproxy_suffix) >= 0 ||
-        index(netstat, "127.0.0.1" + tproxy_suffix) >= 0;
-    let tproxy6_ok = index(netstat, tproxy6_address + tproxy_suffix) >= 0 ||
-        index(netstat, "[" + tproxy6_address + "]" + tproxy_suffix) >= 0 ||
-        index(netstat, "0:0:0:0:0:0:0:1" + tproxy_suffix) >= 0 ||
-        index(netstat, ":::" + tproxy_port) >= 0;
-    return dns_ok && tproxy4_ok && tproxy6_ok;
-}
-
-function trim(value) {
-    return replace(value == null ? "" : "" + value, /^[ \t\r\n]+|[ \t\r\n]+$/g, "");
-}
-
 function endpoint(value) {
-    value = trim(value);
+    value = trim("" + (value ?? ""));
     let colon = rindex(value, ":");
     if (colon < 0)
         return null;
@@ -189,7 +168,6 @@ function port_conflict_owners(data, listen, port, proto) {
 
     return sorted_unique(owners);
 }
-
 
 // /proc/net/tcp{,6} answers the readiness question without spawning netstat,
 // which walks and formats every socket on the box to report three of them. The
@@ -379,9 +357,7 @@ function sing_box_standard_ports_listening_proc(tcp, tcp6, dns_address, tproxy_p
 }
 
 return {
-    sing_box_standard_ports_listening,
     sing_box_standard_ports_listening_proc,
-    proc_address_hex,
     proc_socket_listening,
     tcp_endpoint_in_use,
     port_listening,

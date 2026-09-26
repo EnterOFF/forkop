@@ -1,0 +1,421 @@
+// The lifecycle against a model of the router: sing-box, the nft table and the
+// workers are state the fakes change, and every action is judged by the order of
+// what it did.
+
+let t = require("t");
+let stub = require("stub");
+let fs = require("fs");
+let validator = require("config.validator");
+let server = require("server.service");
+let runtime = require("singbox.runtime");
+let nft = require("nft.apply");
+let nft_state = require("nft.state");
+let rulesets = require("nft.ruleset_sync");
+let health = require("service.health");
+let watch = require("service.singbox_watch");
+let lifecycle = require("service.lifecycle");
+
+let world = null;
+let real_sleep = global.sleep;
+
+function event(name) {
+    push(world.events, name);
+}
+
+function reset(options) {
+    let dir = stub.tmpdir();
+    lifecycle.paths.config = dir + "/forkop.config";
+    lifecycle.paths.lock = dir + "/start.lock";
+    lifecycle.paths.pending_reload = dir + "/reload.pending";
+    lifecycle.paths.planned_stop = dir + "/planned-stop";
+    lifecycle.paths.applied_nft = dir + "/runtime.nft";
+    lifecycle.paths.rc_dir = dir + "/rc.d";
+    lifecycle.paths.sing_box_init = dir + "/sing-box";
+    fs.writefile(lifecycle.paths.sing_box_init, "#!/bin/sh\n");
+    fs.chmod(lifecycle.paths.sing_box_init, 0755);
+    fs.writefile(lifecycle.paths.config, "config forkop\n");
+
+    world = {
+        dir,
+        events: [],
+        logs: [],
+        pid: 0,
+        ticks: 100,
+        ports: false,
+        network: false,
+        capture: true,
+        script: "table inet ForkopTable\n",
+        config_changed: false,
+        cron_installed: "",
+        cron_wanted: "",
+        slept: 0,
+        // What the core does on its own between two looks of a wait.
+        on_sleep: null,
+        ...(options ?? {})
+    };
+
+    validator.check_requirements = () => { if (world.requirements_fail) die("requirements"); };
+    validator.validate = () => { if (world.invalid) die("Section 'x' is broken. Aborted."); };
+    server.prepare = () => {};
+    server.remove_orphans = () => { world.orphans_removed = true; };
+    server.sync_firewall = (clear) => event(clear ? "firewall closed" : "firewall opened");
+    runtime.configure_service = () => {};
+    runtime.write_config = (checked) => {
+        event(checked ? "config checked" : "config written");
+        if (world.config_fails)
+            die("Failed to generate sing-box configuration: broken");
+        return world.config_changed;
+    };
+    nft.ensure_bridge_netfilter_disabled = () => true;
+    nft.build = () => ({ script: world.script, skipped: [] });
+    nft.apply = (built) => {
+        if (world.nft_fails)
+            die("nft refused the ruleset: Error: broken");
+        event("nft applied");
+        world.network = true;
+    };
+    nft_state.table_present = () => world.network;
+    for (let name in [ "tproxy_marking_rule4_present", "tproxy_marking_rule6_present", "tproxy_route4_present", "tproxy_route6_present" ])
+        nft_state[name] = () => false;
+    health.sing_box_service_pid_runtime = () => world.pid;
+    health.pid_is_sing_box = (pid) => pid == world.pid && pid > 0;
+    health.start_ticks = (pid) => pid == world.pid ? world.ticks : null;
+    health.sing_box_runtime_ports_ready = () => world.ports;
+    health.forkop_runtime_network_configured = () => world.network && world.capture;
+    health.sing_box_service_running = () => world.pid > 0;
+    health.forkop_running = () => world.pid > 0 && world.ports && world.network && world.capture;
+    watch.start_worker = () => { event("watcher started"); return true; };
+    watch.stop_worker = () => { event("watcher stopped"); return true; };
+    rulesets.start_worker = () => { event("rule-set worker started"); return !world.ruleset_fails; };
+    rulesets.stop_worker = () => { event("rule-set worker stopped"); return true; };
+
+    global.sleep = function(ms) {
+        world.slept++;
+        if (world.on_sleep != null)
+            world.on_sleep();
+    };
+
+    stub.commands([
+        [ "logger", (argv) => { push(world.logs, argv[3]); return {}; } ],
+        [ "pgrep", () => ({ status: world.stray_sing_box ? 0 : 1 }) ],
+        [ "netstat -lnt", () => ({ stdout: world.netstat ?? "" }) ],
+        [ dir + "/sing-box start", () => {
+            event("sing-box started");
+            world.pid = 4242;
+            world.ticks = 100;
+            world.ports = true;
+            return {};
+        } ],
+        [ dir + "/sing-box reload", () => {
+            event("sing-box reloaded");
+            if (!world.capture)
+                event("reloaded with the capture paused");
+            world.ports = false;
+            world.on_sleep = () => { world.ports = !world.reload_never_ready; };
+            return { status: world.reload_fails ? 1 : 0 };
+        } ],
+        [ dir + "/sing-box stop", () => { event("sing-box stopped"); world.pid = 0; world.ports = false; return {}; } ],
+        [ "nft add table inet ForkopTable { flags dormant; }", () => {
+            event("capture paused");
+            world.capture = false;
+            return { status: world.pause_fails ? 1 : 0 };
+        } ],
+        [ "nft add table inet ForkopTable", () => {
+            if (world.ports)
+                event("capture resumed");
+            else
+                event("capture resumed before sing-box was ready");
+            world.capture = true;
+            return { status: world.resume_fails ? 1 : 0 };
+        } ],
+        [ "nft delete table inet ForkopTable", () => {
+            event("nft table deleted");
+            if (!world.table_delete_fails)
+                world.network = false;
+            return { status: world.table_delete_fails ? 1 : 0 };
+        } ],
+        [ /cron-refresh-plan/, () => ({ stdout: world.cron_wanted == "" ? "" : "component\t" + world.cron_wanted + "\n" }) ],
+        [ "crontab -l", () => ({ stdout: world.cron_installed == "" ? "" : world.cron_installed + "\n" }) ],
+        [ /refresh-cron-from-uci/, () => { event("cron refreshed"); world.cron_installed = world.cron_wanted; return {}; } ],
+        [ /remove-cron-jobs/, () => { event("cron removed"); return {}; } ]
+    ]);
+}
+
+function finish() {
+    stub.restore();
+    global.sleep = real_sleep;
+}
+
+function run(action) {
+    let result = stub.capture(action);
+    finish();
+    return result;
+}
+
+function started() {
+    reset();
+    run(() => lifecycle.start());
+    let previous = world;
+    return previous;
+}
+
+function running(options) {
+    reset(options);
+    world.pid = 4242;
+    world.ticks = 100;
+    world.ports = true;
+    world.network = true;
+    fs.writefile(lifecycle.paths.applied_nft, "table inet ForkopTable\n");
+}
+
+function reloaded(options, reason) {
+    running(options);
+    let result = run(() => lifecycle.reload(reason ?? "on_config_change"));
+    return result;
+}
+
+t.test("a start answers only once sing-box is ready, then turns the table on, then the workers", () => {
+    reset();
+    let result = run(() => lifecycle.start());
+    t.eq(result.result, 0);
+    t.eq(world.events, [ "firewall opened", "config checked", "cron refreshed", "sing-box started", "nft applied", "watcher started", "rule-set worker started" ]);
+    t.eq(fs.readfile(lifecycle.paths.applied_nft), world.script, "the applied table is recorded");
+    t.contains(world.logs, "[info] Starting Forkop");
+    t.eq(result.stdout, "", "a start prints nothing");
+});
+
+t.test("a start of a running Forkop does nothing", () => {
+    running();
+    let result = run(() => lifecycle.start());
+    t.eq([ result.result, world.events ], [ 0, [] ]);
+    t.contains(world.logs, "[info] Forkop is already running; duplicate start skipped");
+});
+
+t.test("a configuration the validator refuses stops a start before anything runs, and says why on stderr", () => {
+    reset({ invalid: true });
+    let result = run(() => lifecycle.start());
+    t.eq(result.result, 1);
+    t.eq(filter(world.events, (e) => e == "sing-box started" || e == "nft applied"), []);
+    t.ok(!world.orphans_removed, "a refused configuration loses nothing");
+    t.eq(result.stderr, "Section 'x' is broken. Aborted.\nRuntime config validation failed. Aborted.\n");
+    t.eq(result.stdout, "");
+});
+
+t.test("a start that fails after sing-box came up takes everything down again", () => {
+    reset({ nft_fails: true });
+    let result = run(() => lifecycle.start());
+    t.eq(result.result, 1);
+    t.contains(world.logs, "[fatal] nft refused the ruleset: Error: broken");
+    t.contains(world.events, "sing-box stopped");
+    t.contains(world.events, "firewall closed");
+    t.eq(world.pid, 0);
+});
+
+t.test("a start whose Clash API address is taken stops before sing-box, and kills nothing", () => {
+    reset({ netstat: "tcp 0 0 0.0.0.0:9090 0.0.0.0:* LISTEN\n" });
+    let config = world.dir + "/config.json";
+    fs.writefile(config, "{\"experimental\":{\"clash_api\":{\"external_controller\":\"192.168.1.1:9090\"}}}");
+    require("fixture").seed({ settings: { config_path: config } });
+    let result = run(() => lifecycle.start());
+    t.eq(result.result, 1);
+    t.contains(world.logs, "[fatal] Clash API address 192.168.1.1:9090 is already in use by another process. Aborted.");
+    t.eq(filter(world.events, (e) => e == "sing-box started"), []);
+});
+
+t.test("a start refuses to run a second sing-box", () => {
+    reset({ stray_sing_box: true });
+    let result = run(() => lifecycle.start());
+    t.eq(result.result, 1);
+    t.eq(filter(world.events, (e) => e == "sing-box started"), []);
+    t.contains(result.stderr, "sing-box is still running; refusing to start a second process");
+});
+
+t.test("a reload with nothing changed touches nothing", () => {
+    let result = reloaded();
+    t.eq(result.result, 0);
+    t.eq(world.events, [ "firewall opened", "config written" ]);
+    t.contains(world.logs, "[info] Configuration already applied; nothing to change");
+});
+
+t.test("a changed sing-box configuration is reloaded with the capture paused until the core is ready again", () => {
+    let result = reloaded({ config_changed: true });
+    t.eq(result.result, 0);
+    t.eq(world.events, [ "firewall opened", "config written", "capture paused", "sing-box reloaded", "reloaded with the capture paused",
+        "capture resumed", "rule-set worker started" ]);
+    t.contains(world.logs, "[info] Configuration applied");
+    t.ok(world.slept > 0, "the reload waited out its window");
+});
+
+t.test("a changed table is rebuilt with the rule-set worker stopped around it, and sing-box is left alone", () => {
+    let result = reloaded({ script: "table inet ForkopTable\nadd rule inet ForkopTable mangle jump x\n" });
+    t.eq(result.result, 0);
+    t.eq(world.events, [ "firewall opened", "rule-set worker stopped", "nft applied", "config written", "rule-set worker started" ]);
+    t.contains(world.logs, "[info] Rebuilding nftables rules");
+});
+
+t.test("a reload asked for by hand reloads sing-box even when nothing changed, and keeps the worker", () => {
+    let result = reloaded({}, "");
+    t.eq(result.result, 0);
+    t.eq(world.events, [ "firewall opened", "config written", "capture paused", "sing-box reloaded", "reloaded with the capture paused", "capture resumed" ]);
+});
+
+t.test("a queued reload applies what changed without forcing sing-box", () => {
+    let result = reloaded({}, "pending");
+    t.eq(world.events, [ "firewall opened", "config written" ]);
+});
+
+t.test("each failed step of a reload names itself and takes the runtime down", () => {
+    for (let failure in [
+        [ { pause_fails: true, config_changed: true }, "Failed to pause the nftables traffic capture before reloading sing-box. Aborted.", false ],
+        [ { reload_fails: true, config_changed: true }, "Failed to reload sing-box. Aborted.", true ],
+        [ { resume_fails: true, config_changed: true }, "Failed to resume the nftables traffic capture after reloading sing-box. Aborted.", true ],
+        [ { config_fails: true }, "Failed to write the sing-box configuration. Aborted.", false ],
+        [ { ruleset_fails: true, config_changed: true }, "Failed to start the rule set sync worker. Aborted.", true ]
+    ]) {
+        let result = reloaded(failure[0]);
+        t.eq(result.result, 1, failure[1]);
+        t.contains(result.stderr, failure[1]);
+        t.contains(world.events, "sing-box stopped", failure[1]);
+        t.eq(index(world.events, "sing-box reloaded") >= 0, failure[2], failure[1] + ": whether sing-box was signalled");
+    }
+});
+
+t.test("a core that does not come back after its reload stops the runtime", () => {
+    let result = reloaded({ config_changed: true, reload_never_ready: true });
+    t.eq(result.result, 1);
+    t.contains(world.logs, "[fatal] Reload verification failed after sing-box was reloaded; stopping Forkop runtime");
+    t.eq(filter(world.events, (e) => substr(e, 0, 15) == "capture resumed"), [], "the capture never resumes on a dead core");
+});
+
+t.test("a reload of a runtime that is not complete restarts it", () => {
+    running();
+    world.network = false;
+    let result = run(() => lifecycle.reload("on_config_change"));
+    t.eq(result.result, 0);
+    t.contains(world.logs, "[info] Runtime state is incomplete; restarting Forkop runtime");
+    t.ok(index(world.events, "sing-box stopped") < index(world.events, "sing-box started"));
+    t.contains(world.events, "nft applied");
+});
+
+t.test("a cron schedule that moved is refreshed, and one that did not is left alone", () => {
+    let line = "0 */6 * * * /usr/bin/forkop component_updates_if_due # forkop-component-update-check";
+    reloaded({ cron_wanted: line, cron_installed: "" });
+    t.contains(world.events, "cron refreshed");
+    t.contains(world.logs, "[info] Configuration applied");
+    reloaded({ cron_wanted: line, cron_installed: line });
+    t.eq(filter(world.events, (e) => e == "cron refreshed"), []);
+});
+
+t.test("a configuration changed while a reload ran queues another one", () => {
+    running({ config_changed: true });
+    runtime.write_config = (checked) => {
+        fs.writefile(lifecycle.paths.config, "config forkop changed\n");
+        return false;
+    };
+    run(() => lifecycle.reload("on_config_change"));
+    t.matches(fs.readfile(lifecycle.paths.pending_reload), /^reason=config_changed_during_reload\n/);
+});
+
+t.test("a stop marks itself planned, closes the ports and takes everything down", () => {
+    running();
+    let result = run(() => lifecycle.stop());
+    t.eq(result.result, 0);
+    t.eq(world.events, [ "firewall closed", "watcher stopped", "rule-set worker stopped", "cron removed", "nft table deleted", "sing-box stopped" ]);
+    t.ok(fs.stat(lifecycle.paths.planned_stop) != null);
+    t.ok(fs.stat(lifecycle.paths.applied_nft) == null, "no table is recorded once it is gone");
+});
+
+t.test("a core without its init script already counts as stopped, and a core that refuses to stop fails the stop", () => {
+    running();
+    world.pid = 0;
+    fs.unlink(lifecycle.paths.sing_box_init);
+    t.eq(run(() => lifecycle.stop()).result, 0);
+
+    running();
+    fs.chmod(lifecycle.paths.sing_box_init, 0644);
+    world.pid = 0;
+    t.eq(run(() => lifecycle.stop()).result, 0, "an init script that cannot run");
+
+    running();
+    let dir = world.dir;
+    world.pid = 0;
+    stub.commands([ [ dir + "/sing-box stop", { status: 2 } ], [ "pgrep", { status: 1 } ], [ () => true, {} ] ]);
+    let status = lifecycle.stop();
+    finish();
+    t.eq(status, 1);
+});
+
+t.test("a stop whose table cannot be removed fails", () => {
+    running({ table_delete_fails: true });
+    let result = run(() => lifecycle.stop());
+    t.eq(result.result, 1);
+    t.contains(result.stderr, "Failed to remove the Forkop nftables table");
+});
+
+t.test("a crash cleanup leaves a planned stop and a running runtime alone, and takes a dead one down", () => {
+    running();
+    world.pid = 0;
+    world.ports = false;
+    fs.writefile(lifecycle.paths.planned_stop, "1\n");
+    let result = run(() => lifecycle.crash_cleanup("137"));
+    t.eq([ result.result, world.events ], [ 0, [] ], "a stop Forkop made itself");
+
+    running();
+    t.eq([ run(() => lifecycle.crash_cleanup("137")).result, world.events ], [ 0, [] ], "a runtime that recovered");
+
+    running();
+    world.pid = 0;
+    world.ports = false;
+    t.eq(run(() => lifecycle.crash_cleanup("137")).result, 0);
+    t.contains(world.logs, "[fatal] sing-box stopped after repeated crashes (exit code 137)");
+    t.contains(world.events, "nft table deleted");
+    t.contains(world.events, "firewall closed");
+    t.eq(length(filter(world.events, (e) => e == "watcher stopped")), 1, "the watcher runs the cleanup and is stopped once it finished");
+});
+
+t.test("a start clears the planned stop, so a later crash is cleaned up", () => {
+    reset();
+    fs.writefile(lifecycle.paths.planned_stop, "1\n");
+    run(() => lifecycle.start());
+    t.ok(fs.stat(lifecycle.paths.planned_stop) == null);
+});
+
+function waited(options, window, hold) {
+    reset(options);
+    let status = lifecycle.wait_ready(window, hold, false);
+    finish();
+    return { status, slept: world.slept };
+}
+
+t.test("the readiness wait sits out its window and needs the hold at the end of it", () => {
+    let ready = { pid: 4242, ports: true };
+    t.eq(waited(ready, 2, 2), { status: true, slept: 2 });
+    t.eq(waited(ready, 8, 2), { status: true, slept: 8 }, "ready the whole time still waits the window out");
+
+    let rebinding = 0;
+    t.eq(waited({ pid: 4242, ports: false, on_sleep: () => { world.ports = ++rebinding >= 3; } }, 2, 2), { status: true, slept: 5 },
+        "readiness that comes back after the window still has to hold");
+
+    let late = 0;
+    t.eq(waited({ pid: 0, on_sleep: () => { if (++late == 2) { world.pid = 4242; world.ports = true; } } }, 8, 2).status, true,
+        "a process procd forks after answering is waited for");
+    t.eq(waited({ pid: 0 }, 2, 2), { status: false, slept: 2 }, "no process by the end of the window is a failed start");
+
+    let replaced = 0;
+    t.eq(waited({ pid: 4242, ports: true, on_sleep: () => { if (++replaced == 1) world.ticks = 999; } }, 8, 2), { status: false, slept: 1 },
+        "a process replaced mid-wait is not the runtime that was built");
+    t.eq(waited({ pid: 4242, ports: false }, 2, 2), { status: false, slept: 300 }, "a process that never answers is given up on");
+});
+
+t.test("autostart is the rc.d link and nothing else", () => {
+    reset();
+    finish();
+    t.eq(lifecycle.enable(), 0);
+    t.eq(fs.readlink(lifecycle.paths.rc_dir + "/S99forkop"), "../init.d/forkop");
+    t.eq(lifecycle.enable(), 0, "enabling twice");
+    fs.symlink("../init.d/forkop", lifecycle.paths.rc_dir + "/K99forkop");
+    t.eq(lifecycle.disable(), 0);
+    t.ok(fs.lstat(lifecycle.paths.rc_dir + "/S99forkop") == null && fs.lstat(lifecycle.paths.rc_dir + "/K99forkop") == null);
+});
+
+t.done();

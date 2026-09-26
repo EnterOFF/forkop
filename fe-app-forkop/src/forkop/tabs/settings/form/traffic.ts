@@ -33,6 +33,7 @@ export function addTrafficOptions(section: CBISection) {
     ),
   );
   o.depends('enable_yacd_wan_access', '1');
+  o.retain = true;
   o.rmempty = false;
 
   const nativeDashboardUrl = `http://${window.location.hostname}:9091/dashboard/`;
@@ -48,6 +49,7 @@ export function addTrafficOptions(section: CBISection) {
   o = section.option(form.Value, 'native_api_secret', _('API secret'));
   o.password = true;
   o.depends('enable_native_api', '1');
+  o.retain = true;
   o.rmempty = false;
   o.validate = (_sectionId: string, value: string) =>
     value ? true : _('Enter an API secret');

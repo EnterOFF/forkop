@@ -1,18 +1,13 @@
-#!/usr/bin/env ucode
-
 let fs = require("fs");
 let netstat = require("core.netstat");
 let nft_state = require("nft.state");
 let runtime_constants = require("singbox.constants");
 
-const SB_DNS_INBOUND_ADDRESS = getenv("SB_DNS_INBOUND_ADDRESS") || "127.0.0.42";
-const SB_TPROXY_INBOUND_PORT = getenv("SB_TPROXY_INBOUND_PORT") || "1602";
-const SB_TPROXY_INBOUND6_ADDRESS = getenv("SB_TPROXY_INBOUND6_ADDRESS") || "::1";
-// Overridable for the same reason FORKOP_IP_BIN is: the readiness tests drive
-// these predicates against fixtures instead of the live kernel.
-const PROC_NET_TCP = getenv("FORKOP_PROC_NET_TCP") || "/proc/net/tcp";
-const PROC_NET_TCP6 = getenv("FORKOP_PROC_NET_TCP6") || "/proc/net/tcp6";
-const PROC_NET_UDP6 = getenv("FORKOP_PROC_NET_UDP6") || "/proc/net/udp6";
+let paths = {
+    tcp: "/proc/net/tcp",
+    tcp6: "/proc/net/tcp6",
+    udp6: "/proc/net/udp6"
+};
 
 function as_string(value) {
     return value == null ? "" : "" + value;
@@ -125,6 +120,11 @@ function process_start_ticks(stat) {
     return int(fields[19]);
 }
 
+// When the process started, in ticks since boot, or null once it is gone.
+function start_ticks(pid) {
+    return process_start_ticks(fs.readfile("/proc/" + pid + "/stat"));
+}
+
 function process_age_seconds_from_ticks(start_ticks, current_ticks) {
     start_ticks = as_string(start_ticks);
     current_ticks = as_string(current_ticks);
@@ -176,17 +176,17 @@ function sing_box_service_stable(min_age) {
 // Read straight from /proc instead of spawning netstat, which enumerates and
 // formats every socket on the box to report three of them.
 function sing_box_runtime_ports_ready() {
-    let tcp6 = fs.readfile(PROC_NET_TCP6);
+    let tcp6 = fs.readfile(paths.tcp6);
     let dns_address = [ runtime_constants.SOURCE_DNS_INBOUND_ADDRESS ];
     let dns_port = as_string(runtime_constants.SOURCE_DNS_INBOUND_PORT);
     return netstat.sing_box_standard_ports_listening_proc(
-        fs.readfile(PROC_NET_TCP),
+        fs.readfile(paths.tcp),
         tcp6,
-        SB_DNS_INBOUND_ADDRESS,
-        SB_TPROXY_INBOUND_PORT,
-        SB_TPROXY_INBOUND6_ADDRESS
+        runtime_constants.DNS_INBOUND_ADDRESS,
+        "" + runtime_constants.TPROXY_INBOUND_PORT,
+        runtime_constants.TPROXY_INBOUND6_ADDRESS
     ) && netstat.proc_socket_listening(tcp6, dns_address, dns_port) &&
-        netstat.proc_socket_listening(fs.readfile(PROC_NET_UDP6), dns_address, dns_port, "07");
+        netstat.proc_socket_listening(fs.readfile(paths.udp6), dns_address, dns_port, "07");
 }
 
 // This runs on every reload, in every readiness poll and behind every UI status
@@ -220,13 +220,12 @@ function service_status_text(running, enabled) {
 }
 
 return {
+    paths,
     service_status_text,
-    sing_box_service_pid_from_value,
     sing_box_service_pid_runtime,
     pid_is_sing_box,
-    process_start_ticks,
+    start_ticks,
     process_age_seconds_from_ticks,
-    process_age_seconds,
     sing_box_service_running,
     sing_box_service_stable,
     sing_box_runtime_ports_ready,

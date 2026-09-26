@@ -15,6 +15,9 @@ import { applyUiStateToStore, markUiStateUnavailable } from './uiState.service';
 const RUNTIME_UI_STATE_REFRESH_MIN_INTERVAL_MS = 500;
 const RUNTIME_UI_STATE_IDLE_POLL_INTERVAL_MS = 10000;
 const RUNTIME_UI_STATE_ACTIVE_POLL_INTERVAL_MS = 1000;
+// A state service found missing is asked again after this long: an upgrade or
+// a crash takes it away for seconds, not for the life of the page.
+const STATE_SERVICE_RETRY_MS = 30000;
 
 type RuntimeUiStateListener = (uiState: Forkop.UiState) => void;
 type StateTransport = 'unknown' | 'ubus' | 'cli';
@@ -30,6 +33,7 @@ let runtimeStatePollingStarted = false;
 let runtimeStateHasRunningAction = false;
 let lastRuntimeUiStateSignature = '';
 let transport: StateTransport = 'unknown';
+let stateServiceRetryAt = 0;
 let stateRevision = 0;
 let waitLoopRunning = false;
 let waitLoopStop = false;
@@ -128,10 +132,16 @@ function adoptUbusState(value: UbusState) {
 // just changed something itself would be answered with the state from before
 // its own action - an autostart symlink it removed a moment ago is still there.
 // `refresh` is the same answer computed on the spot, and costs the recompute.
+function useCli(reason: string) {
+  transport = 'cli';
+  stateServiceRetryAt = Date.now() + STATE_SERVICE_RETRY_MS;
+  logger.info('[RUNTIME_UI_STATE]', 'using the CLI', reason);
+}
+
 async function readState(
   recompute: boolean,
 ): Promise<Forkop.UiState | undefined> {
-  if (transport !== 'cli') {
+  if (transport !== 'cli' || Date.now() >= stateServiceRetryAt) {
     const response = await callUbus<UbusState>({
       object: FORKOP_SERVICE_OBJECT,
       method: recompute ? 'refresh' : 'state',
@@ -148,12 +158,7 @@ async function readState(
       return undefined;
     }
 
-    transport = 'cli';
-    logger.info(
-      '[RUNTIME_UI_STATE]',
-      'state service unavailable, using the CLI',
-      response.message,
-    );
+    useCli(response.message);
   }
 
   const response = await ForkopShellMethods.getUiState();
@@ -265,12 +270,7 @@ async function runWaitLoop() {
       }
 
       if (response.unavailable) {
-        transport = 'cli';
-        logger.info(
-          '[RUNTIME_UI_STATE]',
-          'state service went away, using the CLI',
-          response.message,
-        );
+        useCli(response.message);
         break;
       }
 
@@ -292,6 +292,9 @@ function startTransportLoop() {
 
   if (transport === 'ubus') {
     clearPollTimer();
+    // A loop hidden a moment ago may still be waiting on its request, and has to
+    // carry on once it comes back rather than stop.
+    waitLoopStop = false;
     void runWaitLoop();
     return;
   }
@@ -334,6 +337,7 @@ export function subscribeRuntimeUiState(listener: RuntimeUiStateListener) {
 // to be able to forget it between cases.
 export function resetRuntimeUiStateTransport() {
   transport = 'unknown';
+  stateServiceRetryAt = 0;
   stateRevision = 0;
   lastRuntimeUiState = undefined;
   lastRuntimeUiStateSignature = '';

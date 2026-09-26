@@ -1,6 +1,7 @@
 import { FORKOP_UCI_PACKAGE } from '../../constants';
 import { nextSectionId } from '../cbi/childItems';
 import { getRuleEditButtonText } from '../cbi/grid';
+import { E } from '../../helpers/element';
 
 // LuCI's own Add control asks for a name first. Both grids name a section
 // themselves - the id says what type it is and the label is a free-form name the

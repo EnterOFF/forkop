@@ -11,6 +11,7 @@ import {
   readChildSettings,
 } from './itemSettings';
 import { setDynamicListItemValue } from './listItems';
+import { E } from '../../helpers/element';
 
 export function modalOptionFormValue(
   modalMap: CBIMap,

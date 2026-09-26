@@ -1,4 +1,5 @@
 import { renderSectionsPlaceholder, renderWidget } from './partials';
+import { E } from '../../../helpers/element';
 
 export function render() {
   return E(

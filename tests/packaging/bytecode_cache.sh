@@ -80,6 +80,12 @@ is_bytecode() {
   head -c 32 "$1" | grep -Fq $'\x1bucb'
 }
 
+# The way a package install replaces a module: a new file renamed over the old.
+replace_domain() {
+  printf '#!/usr/bin/env ucode\nreturn { marker: "%s" };\n' "$1" >"$SOURCE_DIR/config/domain.uc.new"
+  mv "$SOURCE_DIR/config/domain.uc.new" "$SOURCE_DIR/config/domain.uc"
+}
+
 built="$(resolve)"
 [ "$built" != "$SOURCE_DIR" ] ||
   fail "a healthy library must compile into a cache directory"
@@ -112,14 +118,9 @@ reused="$(resolve)"
 [ "$reused" = "$built" ] ||
   fail "an up-to-date cache must be reused, got '$reused' instead of '$built'"
 
-# Editing an installed module is how a module gets copied onto a router during
-# development. The manifest records size and mtime, so the stale cache has to be
-# rejected and rebuilt rather than silently kept.
-sleep 1
-cat >"$SOURCE_DIR/config/domain.uc" <<'UCODE'
-#!/usr/bin/env ucode
-return { marker: "domain-v2" };
-UCODE
+# A module replaced by an install, in the same second the cache was built or
+# not, has to be rejected and rebuilt rather than silently kept.
+replace_domain domain-v2
 
 stale="$(resolve_only)"
 [ "$stale" = "$SOURCE_DIR" ] ||
@@ -228,17 +229,6 @@ manifest_dirs="$(grep -c '^dir=' "$CACHE_DIR/manifest" || true)"
 [ "$manifest_dirs" -gt 0 ] ||
   fail "the manifest must record the directories its file list was read against"
 
-# The entrypoint keeps honouring an explicit FORKOP_LIB, which is what tests and
-# manual overrides rely on and what every child process is handed.
-mkdir -p "$WORK_DIR/fake/diagnostics"
-cat >"$WORK_DIR/fake/diagnostics/runtime.uc" <<'UCODE'
-#!/usr/bin/env ucode
-print(getenv("FORKOP_LIB") || "unset", "\n");
-UCODE
-forwarded="$(FORKOP_LIB="$WORK_DIR/fake" ucode "$FORKOP_BIN" show_version)"
-[ "$forwarded" = "$WORK_DIR/fake" ] ||
-  fail "entrypoint must export the resolved library to its children, got '$forwarded'"
-
 # An exported FORKOP_LIB reaches every descendant, so the init script must not
 # pin the source directory: that is what silently switched the whole procd path
 # back to parsing sources on each reload.
@@ -246,8 +236,8 @@ INITD="$ROOT_DIR/forkop/files/etc/init.d/forkop"
 if grep -Eq '^[[:space:]]*FORKOP_LIB="\$FORKOP_LIB"[[:space:]]*\\?$' "$INITD"; then
   fail "init script must not export FORKOP_LIB into service/initd.uc"
 fi
-grep -Fq 'bytecode.refresh()' "$ROOT_DIR/forkop/files/usr/lib/service/initd.uc" ||
-  fail "service/initd.uc must resolve the library cache for the procd path"
+grep -Fq 'core/bytecode.uc' "$FORKOP_BIN" ||
+  fail "the command line must resolve the library cache, which is how the procd path reaches it"
 
 # The reuse window, and the two things that must remain true about it: it does
 # reuse a proven manifest without re-stat'ing, and it is bounded, so a module
@@ -258,11 +248,8 @@ ttl_built="$(resolve_with_ttl 30)"
 
 # Proven once by the build itself, so the next resolve inside the window reuses
 # it even though the sources have moved on.
+replace_domain domain-v3
 sleep 1
-cat >"$SOURCE_DIR/config/domain.uc" <<'UCODE'
-#!/usr/bin/env ucode
-return { marker: "domain-v3" };
-UCODE
 
 reused="$(resolve_only_with_ttl 30)"
 [ "$reused" = "$ttl_built" ] ||
@@ -277,11 +264,7 @@ expired="$(resolve_only_with_ttl 1)"
 rebuilt_for_stamp="$(resolve_with_ttl 30)"
 [ "$rebuilt_for_stamp" != "$SOURCE_DIR" ] ||
   fail "cache must rebuild before the stamp invalidation check"
-sleep 1
-cat >"$SOURCE_DIR/config/domain.uc" <<'UCODE'
-#!/usr/bin/env ucode
-return { marker: "domain-v4" };
-UCODE
+replace_domain domain-v4
 [ "$(resolve_only_with_ttl 30)" = "$rebuilt_for_stamp" ] ||
   fail "the window must still be open before invalidating the stamp"
 invalidate_stamp

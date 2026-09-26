@@ -4,6 +4,7 @@ import {
   SINGLE_FIELD_MODAL_CLASS,
   ensureSingleFieldModalStyles,
 } from '../../cbi/modal';
+import { E } from '../../../helpers/element';
 
 // Shown greyed out in the static records editor: one address per line, with as
 // many names for it as the hosts format allows, in both address families.

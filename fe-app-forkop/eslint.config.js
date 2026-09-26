@@ -41,5 +41,21 @@ export default [
             ],
         },
     },
+    {
+        // LuCI's E() puts a lone string in as markup; helpers/element.ts puts
+        // it in as text, and is the only place the global is reached.
+        files: ['src/**/*.ts'],
+        ignores: ['src/helpers/element.ts', 'src/**/tests/**', 'src/**/*.d.ts'],
+        rules: {
+            'no-restricted-globals': [
+                'error',
+                {
+                    name: 'E',
+                    message:
+                        "Import E from helpers/element: LuCI's E() takes a lone string as HTML.",
+                },
+            ],
+        },
+    },
     prettier,
 ];

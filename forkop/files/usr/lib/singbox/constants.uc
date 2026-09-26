@@ -1,5 +1,3 @@
-#!/usr/bin/env ucode
-
 const DNS_SERVER_TAG = "dns-server";
 const FAKEIP_DNS_SERVER_TAG = "fakeip-server";
 const BOOTSTRAP_DNS_SERVER_TAG = "bootstrap-dns-server";
@@ -30,9 +28,12 @@ const SYSTEM_DNS_INBOUND_PORT = 1605;
 const SERVICE_MIXED_INBOUND_TAG = "service-mixed-in";
 const SERVICE_MIXED_INBOUND_ADDRESS = "127.0.0.1";
 const SERVICE_MIXED_INBOUND_PORT = 4534;
+const COMPONENTS_MIXED_INBOUND_TAG = "service-components-in";
+const COMPONENTS_MIXED_INBOUND_PORT = 4535;
 const DIRECT_OUTBOUND_TAG = "direct-out";
 const CLASH_API_CONTROLLER_PORT = 9090;
-const OUTBOUND_MARK = 134217728;
+// The mark sing-box puts on its own traffic is the one the nft table lets pass.
+const OUTBOUND_MARK = hex(require("core.constants").NFT_OUTBOUND_MARK);
 const FAKEIP_INET4_RANGE = "198.18.0.0/15";
 const FAKEIP_INET6_RANGE = "fc00::/18";
 
@@ -124,6 +125,7 @@ const RESERVED_TAGS = {
     [SYSTEM_TPROXY_INBOUND6_TAG]: true,
     [SYSTEM_DNS_INBOUND_TAG]: true,
     [SERVICE_MIXED_INBOUND_TAG]: true,
+    [COMPONENTS_MIXED_INBOUND_TAG]: true,
     [DIRECT_OUTBOUND_TAG]: true
 };
 
@@ -134,10 +136,6 @@ function as_string(value) {
 function tag(base, postfix) {
     let candidate = as_string(base) + "-" + as_string(postfix);
     return RESERVED_TAGS[candidate] ? candidate + "-1" : candidate;
-}
-
-function inbound_tag(section_name) {
-    return tag(section_name, "in");
 }
 
 function outbound_tag(section_name) {
@@ -190,6 +188,8 @@ return {
     SERVICE_MIXED_INBOUND_TAG,
     SERVICE_MIXED_INBOUND_ADDRESS,
     SERVICE_MIXED_INBOUND_PORT,
+    COMPONENTS_MIXED_INBOUND_TAG,
+    COMPONENTS_MIXED_INBOUND_PORT,
     DIRECT_OUTBOUND_TAG,
     CLASH_API_CONTROLLER_PORT,
     OUTBOUND_MARK,
@@ -208,7 +208,6 @@ return {
     LINK_SCHEME_OUTBOUND_TYPES,
     RESERVED_TAGS,
     tag,
-    inbound_tag,
     outbound_tag,
     child_tag,
     domain_resolver_tag,

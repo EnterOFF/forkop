@@ -9,6 +9,7 @@ import {
   renderXIcon24,
 } from '../../../../icons';
 import { IDiagnosticsChecksStoreItem } from '../../../services';
+import { E } from '../../../../helpers/element';
 
 type IRenderCheckSectionProps = IDiagnosticsChecksStoreItem;
 

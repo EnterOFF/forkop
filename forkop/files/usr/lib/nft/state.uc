@@ -1,9 +1,9 @@
-#!/usr/bin/env ucode
-
 let fs = require("fs");
 let common = require("core.common");
 
-const IP_BIN = getenv("FORKOP_IP_BIN") || "/usr/libexec/ip-full";
+// The full iproute2: BusyBox ip neither reports nor removes the Forkop table
+// entries reliably.
+const IP_BIN = "/usr/libexec/ip-full";
 
 let as_string = common.as_string;
 let parse_mark_number = common.parse_number;
@@ -136,11 +136,6 @@ function tproxy_marking_rule_present(table, mark) {
     return tproxy_marking_rule4_present(table, mark) && tproxy_marking_rule6_present(table, mark);
 }
 
-function tproxy_route_rule_present(table, mark) {
-    return tproxy_route_present(table) && tproxy_marking_rule_present(table, mark);
-}
-
-
 // The status feed asks the same question behind every poll, and answering it
 // piecewise costs five `popen` round trips - five shells plus five binaries -
 // to read four short lists. One shell collects all of them instead. `nft list
@@ -223,18 +218,13 @@ function runtime_network_configured(nft_table, rt_table, mark) {
 }
 
 return {
+    IP_BIN,
     table_present,
-    table_active_output,
-    split_snapshot,
-    runtime_snapshot_command,
     runtime_network_configured_snapshot,
     runtime_network_configured,
     rt_table_has_entry,
     tproxy_route4_present,
     tproxy_route6_present,
-    tproxy_route_present,
     tproxy_marking_rule4_present,
     tproxy_marking_rule6_present,
-    tproxy_marking_rule_present,
-    tproxy_route_rule_present
 };

@@ -153,6 +153,7 @@ export function addNetworkOptions(section: CBISection) {
     _('Select the WAN interfaces to be monitored'),
   );
   o.depends('enable_badwan_interface_monitoring', '1');
+  o.retain = true;
   o.multiple = true;
   o.filter = function (section_id: string, value: string) {
     // Reject if the value is in the blocked list ['lan', 'loopback']
@@ -176,6 +177,7 @@ export function addNetworkOptions(section: CBISection) {
     _('Delay in milliseconds before reloading Forkop after interface UP'),
   );
   o.depends('enable_badwan_interface_monitoring', '1');
+  o.retain = true;
   o.default = '2000';
   o.rmempty = false;
   o.validate = function (section_id: string, value: string) {

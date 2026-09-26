@@ -1,6 +1,7 @@
 import { renderButton } from '../button/renderButton';
 import { copyToClipboard } from '../../helpers/copyToClipboard';
 import { downloadAsTxt } from '../../helpers/downloadAsTxt';
+import { E } from '../../helpers/element';
 
 interface ModalTextContext {
   maskValues: boolean;
@@ -8,7 +9,6 @@ interface ModalTextContext {
 
 interface RenderModalOptions {
   getText?: (context: ModalTextContext) => string | Promise<string>;
-  maskText?: (text: string) => string;
   refreshMs?: number;
   initialAutoRefresh?: boolean;
   showAutoRefreshToggle?: boolean;
@@ -24,7 +24,6 @@ export function renderModal(
   name: string,
   options?: RenderModalOptions,
 ) {
-  let rawText = text ?? '';
   let currentText = '';
   let refreshInFlight = false;
   let pendingRefresh = false;
@@ -38,14 +37,6 @@ export function renderModal(
   let shouldScrollToBottomOnMount = Boolean(options?.startAtEnd);
   let autoRefreshInput: HTMLInputElement | undefined;
   let maskValuesInput: HTMLInputElement | undefined;
-
-  const getDisplayText = (value: string) => {
-    if (maskValuesEnabled && options?.maskText) {
-      return options.maskText(value);
-    }
-
-    return value;
-  };
 
   const codeEl = E('code', {}, '') as HTMLElement;
   const contentEl = E(
@@ -115,10 +106,6 @@ export function renderModal(
     }
   };
 
-  const updateDisplayedTextFromRaw = () => {
-    updateText(getDisplayText(rawText));
-  };
-
   const refreshText = async (force = false) => {
     if (
       !options?.getText ||
@@ -137,7 +124,7 @@ export function renderModal(
 
     try {
       const nextText = await options.getText({
-        maskValues: options.maskText ? false : maskValuesEnabled,
+        maskValues: maskValuesEnabled,
       });
 
       if (!body.isConnected || (!force && !autoRefreshEnabled)) {
@@ -148,9 +135,7 @@ export function renderModal(
         return;
       }
 
-      const normalizedText = nextText ?? '';
-      rawText = normalizedText;
-      updateText(getDisplayText(normalizedText));
+      updateText(nextText ?? '');
     } catch (error) {
       console.warn('[renderModal] failed to refresh modal content', error);
     } finally {
@@ -239,11 +224,6 @@ export function renderModal(
       maskValuesInput.checked = nextValue;
     }
 
-    if (options?.maskText) {
-      updateDisplayedTextFromRaw();
-      return;
-    }
-
     requestForcedRefresh();
   };
 
@@ -289,10 +269,7 @@ export function renderModal(
     );
   }
 
-  if (
-    (options?.getText || options?.maskText) &&
-    options?.showMaskValuesToggle
-  ) {
+  if (options?.getText && options?.showMaskValuesToggle) {
     maskValuesInput = document.createElement('input');
     maskValuesInput.type = 'checkbox';
     maskValuesInput.className = 'cbi-input-checkbox';
@@ -347,7 +324,7 @@ export function renderModal(
     requestRefresh();
   }
 
-  updateDisplayedTextFromRaw();
+  updateText(text ?? '');
 
   return body;
 }

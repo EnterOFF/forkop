@@ -1,311 +1,126 @@
-#!/usr/bin/env ucode
+// What the package scripts run on a live router: the backend's prerm and
+// postinst and the LuCI app's. The scripts skip an image build themselves.
 
 let fs = require("fs");
-let uci_core = require("core.uci");
+let exec = require("core.exec");
+let constants = require("core.constants");
 let bytecode = require("core.bytecode");
 
-function as_string(value) {
-    return value == null ? "" : "" + value;
-}
-
-function env(name, fallback) {
-    let value = getenv(name);
-    return value == null ? as_string(fallback) : as_string(value);
-}
-
-const CONFIG_NAME = env("FORKOP_CONFIG_NAME", "forkop");
-const RT_TABLES_PATH = env("FORKOP_RT_TABLES", "/etc/iproute2/rt_tables");
-const BIN_PATH = env("FORKOP_BIN", "/usr/bin/forkop");
-const INIT_PATH = env("FORKOP_INIT", "/etc/init.d/forkop");
-const STATE_SERVICE_INIT = env("FORKOP_STATE_SERVICE_INIT", "/etc/init.d/forkop-state");
-const PACKAGE_UPGRADE_STATE = env("FORKOP_PACKAGE_UPGRADE_STATE", "/tmp/forkop-package-was-running");
-const FIREWALL_INIT = env("FORKOP_FIREWALL_INIT", "/etc/init.d/firewall");
-const FIREWALL_INPUT_INCLUDE = env("FORKOP_FIREWALL_INPUT_INCLUDE", "/usr/share/nftables.d/chain-pre/input/forkop.nft");
 const FIREWALL_INPUT_MARKER = "forkop: TPROXY traffic";
-const PACKAGE_TEST_MODE = env("FORKOP_PACKAGE_TEST_MODE", "") != "";
 
-function shell_quote(value) {
-    return "'" + replace(as_string(value), /'/g, "'\\''") + "'";
-}
-
-function command_from_args(args) {
-    let parts = [];
-    for (let arg in args)
-        push(parts, shell_quote(arg));
-    return join(" ", parts);
-}
-
-function command_success_from_args(args) {
-    return system(command_from_args(args) + " >/dev/null 2>&1") == 0;
-}
-
-function path_exists(path) {
-    return fs.stat(as_string(path)) != null;
-}
-
-function unlink_if_exists(path) {
-    if (path_exists(path))
-        fs.unlink(as_string(path));
-}
-
-function command_output(command) {
-    let proc = fs.popen(as_string(command) + " 2>/dev/null", "r");
-    if (proc == null)
-        return null;
-
-    let data = proc.read("all");
-    proc.close();
-    return data == null ? "" : data;
-}
-
-// fw4 reads /usr/share/nftables.d only while it builds its ruleset, so the
-// input accept the package ships stays out of the running firewall until
-// something reloads it. A firewall that is not loaded picks the file up on its
-// own next start.
-function reload_firewall_input_include() {
-    if (!path_exists(FIREWALL_INPUT_INCLUDE) || !path_exists(FIREWALL_INIT))
-        return true;
-
-    let input_chain = command_output("nft list chain inet fw4 input");
-    if (input_chain == null || trim(input_chain) == "")
-        return true;
-
-    if (index(input_chain, FIREWALL_INPUT_MARKER) >= 0)
-        return true;
-
-    if (command_success_from_args([ FIREWALL_INIT, "reload" ]))
-        return true;
-
-    command_success_from_args([ "logger", "-t", "forkop",
-        "[warning] Failed to reload the firewall. Reload it manually so Forkop traffic is accepted in the input chain" ]);
-    return false;
-}
-
-function remove_rt_tables_entry() {
-    let data = fs.readfile(RT_TABLES_PATH);
-    if (data == null)
-        return true;
-
-    let changed = false;
-    let lines = [];
-    for (let line in split(data, "\n")) {
-        if (index(line, "105 forkop") >= 0) {
-            changed = true;
-            continue;
-        }
-        push(lines, line);
-    }
-
-    return !changed || fs.writefile(RT_TABLES_PATH, join("\n", lines)) != null;
-}
-
-function truthy(value) {
-    value = lc(trim(as_string(value)));
-    return value == "1" || value == "true" || value == "yes" || value == "on";
-}
-
-function remember_upgrade_state(action) {
-    if (as_string(action) != "upgrade") {
-        unlink_if_exists(PACKAGE_UPGRADE_STATE);
-        return;
-    }
-
-    if (command_success_from_args([ INIT_PATH, "status" ]))
-        fs.writefile(PACKAGE_UPGRADE_STATE, "1\n");
-}
-
-function prerm_cleanup(action) {
-    if (env("IPKG_INSTROOT", "") != "")
-        return true;
-
-    remember_upgrade_state(action);
-    if (!PACKAGE_TEST_MODE) {
-        // While /etc/rc.d/S99forkop exists, a WAN-up trigger can restart the
-        // service in the middle of the removal, so autostart goes first. An
-        // upgrade keeps it: the service is enabled again only by its own
-        // rc.d symlink, which postinst does not recreate.
-        if (as_string(action) != "upgrade") {
-            command_success_from_args([ INIT_PATH, "disable" ]);
-            if (path_exists(STATE_SERVICE_INIT)) {
-                command_success_from_args([ STATE_SERVICE_INIT, "disable" ]);
-                command_success_from_args([ STATE_SERVICE_INIT, "stop" ]);
-            }
-        }
-        command_success_from_args([ INIT_PATH, "stop" ]);
-    }
-    bytecode.invalidate_validation_stamp();
-    return remove_rt_tables_entry();
-}
-
-function postinst_restore() {
-    if (env("IPKG_INSTROOT", "") != "" || !path_exists(PACKAGE_UPGRADE_STATE))
-        return true;
-
-    if (!command_success_from_args([ INIT_PATH, "start" ]))
-        return false;
-
-    unlink_if_exists(PACKAGE_UPGRADE_STATE);
-    return true;
-}
-
-// The firewall include is what lets an isolated zone reach the TPROXY inbound,
-// so it goes in before a service that was running is brought back up. Its
-// failure is reported but does not fail the installation.
-// The state service answers what Forkop is doing, so it runs whether or not
-// Forkop does, and it holds the library in memory - an upgrade has to hand it
-// the new one rather than leave it serving the old.
-function restart_state_service() {
-    if (PACKAGE_TEST_MODE || env("IPKG_INSTROOT", "") != "")
-        return true;
-    if (!path_exists(STATE_SERVICE_INIT))
-        return true;
-
-    command_success_from_args([ STATE_SERVICE_INIT, "enable" ]);
-    return command_success_from_args([ STATE_SERVICE_INIT, "restart" ]);
-}
-
-// Files earlier versions kept answers in. They are worked out on demand now, so
-// an upgraded install should not be left with them sitting in /var/run looking
-// like they still mean something.
-const OBSOLETE_STATE_FILES = [
-    "/var/run/forkop/system-info.json",
-    "/tmp/forkop/system-info.json",
-    "/var/run/forkop/component-update-check.timestamp"
-];
-
-const OBSOLETE_STATE_DIRS = [
-    "/var/run/forkop/component-update-checks",
-    // The dnsmasq takeover modules lived here; the upgrade removes the files it
-    // owned but leaves their directory behind.
-    "/usr/lib/forkop/dns"
-];
-
-// Directories a retired feature left behind. The package manager removes the
-// files it owned and leaves the directory, and these nest, so the flat sweep
-// above cannot empty them: the DPI providers had a module directory per engine
-// under the library and a pid, log and hostlist directory per engine under
-// /var/run, and two library directories predate the modules moving elsewhere.
-function obsolete_state_trees() {
-    let configured = env("FORKOP_OBSOLETE_STATE_TREES", "");
-    if (configured != "")
-        return split(configured, /[ \t\r\n]+/);
-
-    return [
-        "/usr/lib/forkop/providers",
-        "/usr/lib/forkop/routing",
-        "/usr/lib/forkop/subscription",
+let paths = {
+    init: constants.FORKOP_SERVICE_INIT,
+    state_service_init: "/etc/init.d/forkop-state",
+    was_running: "/tmp/forkop-package-was-running",
+    firewall_init: "/etc/init.d/firewall",
+    firewall_input_include: "/usr/share/nftables.d/chain-pre/input/forkop.nft",
+    rpcd_init: "/etc/init.d/rpcd",
+    luci_index_cache: [ "/var/luci-indexcache*", "/tmp/luci-indexcache*" ],
+    // What releases up to 1.0.5 left behind: answers kept in files that are
+    // worked out on demand now, and the module and state directories of retired
+    // features, which the package manager empties of its own files and leaves.
+    obsolete: [
+        "/var/run/forkop/system-info.json",
+        "/tmp/forkop/system-info.json",
+        "/var/run/forkop/component-update-check.timestamp",
+        "/var/run/forkop/component-update-checks",
         "/var/run/forkop/zapret",
         "/var/run/forkop/zapret2",
         "/var/run/forkop/byedpi",
-        "/var/run/forkop/zapret-runtime"
-    ];
+        "/var/run/forkop/zapret-runtime",
+        "/usr/lib/forkop/dns",
+        "/usr/lib/forkop/providers",
+        "/usr/lib/forkop/routing",
+        "/usr/lib/forkop/subscription"
+    ]
+};
+
+function exists(path) {
+    return fs.stat(path) != null;
 }
 
-function remove_tree(path) {
-    path = as_string(path);
-    let stat = fs.stat(path);
-    if (stat == null)
+function remove(path) {
+    if (exists(path))
+        exec.status([ "rm", "-rf", path ]);
+}
+
+// fw4 reads /usr/share/nftables.d only while it builds its ruleset, so the
+// input accept the package ships stays out of a running firewall until
+// something reloads it. A firewall that is not loaded picks it up when it starts.
+function load_firewall_input_include() {
+    if (!exists(paths.firewall_input_include) || !exists(paths.firewall_init))
         return;
-
-    if (stat.type == "directory") {
-        for (let entry in fs.glob(path + "/*"))
-            remove_tree(entry);
-        try {
-            fs.rmdir(path);
-        }
-        catch (e) {
-        }
+    let chain = exec.output([ "nft", "list", "chain", "inet", "fw4", "input" ]);
+    if (chain == null || trim(chain) == "" || index(chain, FIREWALL_INPUT_MARKER) >= 0)
         return;
-    }
-
-    try {
-        fs.unlink(path);
-    }
-    catch (e) {
-    }
+    if (!exec.ok([ paths.firewall_init, "reload" ]))
+        exec.log("warning", "Failed to reload the firewall. Reload it manually so Forkop traffic is accepted in the input chain");
 }
 
-function remove_obsolete_state_files() {
-    for (let path in OBSOLETE_STATE_FILES)
-        unlink_if_exists(path);
-    for (let path in OBSOLETE_STATE_DIRS) {
-        for (let entry in fs.glob(path + "/*"))
-            unlink_if_exists(entry);
-        try {
-            fs.rmdir(path);
-        }
-        catch (e) {
-        }
-    }
-    for (let path in obsolete_state_trees())
-        remove_tree(path);
-    return true;
+// The state service holds the library in memory, so an install hands it the
+// new one. Its init script registers nothing where the LuCI page is missing.
+function restart_state_service() {
+    if (!exists(paths.state_service_init))
+        return;
+    exec.ok([ paths.state_service_init, "enable" ]);
+    exec.ok([ paths.state_service_init, "restart" ]);
 }
 
+// An upgrade stops the service and postinst starts it again if it was running.
+// A removal takes autostart away first: while /etc/rc.d/S99forkop exists, a
+// WAN-up trigger can start the service in the middle of the removal. The
+// routing table name goes last, after the stop that needs it.
+function prerm(action) {
+    let upgrade = action == "upgrade";
+    fs.unlink(paths.was_running);
+    if (upgrade && exec.ok([ paths.init, "status" ]))
+        fs.writefile(paths.was_running, "1\n");
+    if (!upgrade) {
+        exec.ok([ paths.init, "disable" ]);
+        if (exists(paths.state_service_init)) {
+            exec.ok([ paths.state_service_init, "disable" ]);
+            exec.ok([ paths.state_service_init, "stop" ]);
+        }
+    }
+    exec.ok([ paths.init, "stop" ]);
+    bytecode.invalidate_validation_stamp();
+    if (!upgrade && !require("nft.apply").remove_rt_table_entry())
+        return 1;
+    return 0;
+}
+
+// The firewall include is what lets an isolated zone reach the TPROXY inbound,
+// so it is loaded before a service that was running comes back.
 function postinst() {
     bytecode.invalidate_validation_stamp();
-    remove_obsolete_state_files();
+    for (let path in paths.obsolete)
+        remove(path);
     restart_state_service();
-    reload_firewall_input_include();
-    return postinst_restore();
+    load_firewall_input_include();
+    if (!exists(paths.was_running))
+        return 0;
+    if (!exec.ok([ paths.init, "start" ]))
+        return 1;
+    fs.unlink(paths.was_running);
+    return 0;
 }
 
-function luci_cache_globs() {
-    let configured = env("FORKOP_LUCI_CACHE_GLOBS", "");
-    if (configured != "")
-        return split(configured, /[ \t\r\n]+/);
-
-    return [ "/var/luci-indexcache*", "/tmp/luci-indexcache*" ];
-}
-
-function remove_luci_index_cache() {
-    for (let pattern in luci_cache_globs()) {
-        pattern = as_string(pattern);
-        if (pattern == "")
-            continue;
-
-        for (let path in fs.glob(pattern))
-            unlink_if_exists(path);
-    }
-}
-
-// Removing the page removes the reason for the service.
-function luci_prerm() {
-    if (PACKAGE_TEST_MODE || env("IPKG_INSTROOT", "") != "")
-        return true;
-    if (!path_exists(STATE_SERVICE_INIT))
-        return true;
-
-    command_success_from_args([ STATE_SERVICE_INIT, "stop" ]);
-    return true;
-}
-
+// Installing the page is what starts the state service, and removing it stops it.
 function luci_postinst() {
-    remove_luci_index_cache();
-    // The state service only runs where there is a page to serve, so installing
-    // that page is what starts it.
+    for (let pattern in paths.luci_index_cache)
+        for (let path in fs.glob(pattern))
+            fs.unlink(path);
     restart_state_service();
-    if (!PACKAGE_TEST_MODE) {
-        if (path_exists("/etc/init.d/rpcd"))
-            command_success_from_args([ "/etc/init.d/rpcd", "reload" ]);
-        command_success_from_args([ "logger", "-t", "forkop", "[info] Package defaults applied" ]);
-    }
-    return true;
+    if (exists(paths.rpcd_init))
+        exec.ok([ paths.rpcd_init, "reload" ]);
+    exec.log("info", "Package defaults applied");
+    return 0;
 }
 
-let mode = ARGV[0] || "";
-
-if (mode == "prerm")
-    exit(prerm_cleanup(ARGV[1]) ? 0 : 1);
-else if (mode == "postinst")
-    exit(postinst() ? 0 : 1);
-else if (mode == "remove-rt-tables-entry")
-    exit(remove_rt_tables_entry() ? 0 : 1);
-else if (mode == "luci-prerm")
-    exit(luci_prerm() ? 0 : 1);
-else if (mode == "luci-postinst")
-    exit(luci_postinst() ? 0 : 1);
-else {
-    warn("Usage: service/package.uc <prerm|postinst|remove-rt-tables-entry|luci-postinst>\n");
-    exit(1);
+function luci_prerm() {
+    if (exists(paths.state_service_init))
+        exec.ok([ paths.state_service_init, "stop" ]);
+    return 0;
 }
+
+return { paths, prerm, postinst, luci_postinst, luci_prerm };

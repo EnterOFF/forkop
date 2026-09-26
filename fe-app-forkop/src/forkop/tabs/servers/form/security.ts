@@ -52,11 +52,6 @@ export function addSecurityOptions(section: CBISection) {
   o.value('none', _('None'));
   o.rmempty = false;
   o.modalonly = true;
-  // The backend keeps this option saying which mode the protocol actually runs
-  // with, including for the protocols that have no field here. Without retain the
-  // dialog would delete it on every save of such a server and the next apply
-  // would write it back, reporting a change nobody made, for ever.
-  o.retain = true;
   [...streamProtocols, ...tlsOnlyProtocols].forEach((protocol: string) =>
     o.depends('protocol', protocol),
   );

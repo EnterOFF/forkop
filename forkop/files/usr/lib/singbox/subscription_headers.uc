@@ -1,12 +1,12 @@
-#!/usr/bin/env ucode
-
 let fs = require("fs");
 let common = require("core.common");
+let packages = require("core.packages");
 
 let as_string = common.as_string;
 
-const SING_BOX_FORKOP_VERSION_FILE = getenv("SING_BOX_FORKOP_VERSION_FILE") || "/usr/share/sing-box-forkop/version";
-const OPENWRT_RELEASE_FILE = getenv("OPENWRT_RELEASE_FILE") || "/etc/openwrt_release";
+let paths = {
+    openwrt_release: "/etc/openwrt_release"
+};
 
 function clean_header_value(value) {
     return trim(replace(as_string(value), /[\r\n]+/g, " "));
@@ -33,7 +33,7 @@ function command_output(command) {
 // out: it is optional, and substituting a number that answers a different
 // question would be a wrong value dressed up as a working one.
 function os_version() {
-    let data = fs.readfile(OPENWRT_RELEASE_FILE);
+    let data = fs.readfile(paths.openwrt_release);
     if (data != null) {
         let prefix = "DISTRIB_RELEASE='";
         for (let line in split(as_string(data), "\n")) {
@@ -74,7 +74,7 @@ function header_line(name, value) {
 // number, and "1.13.18-extended-2.6.5-f70" is not a version it can parse.
 // The file is shipped by the core package, so reading it costs nothing.
 function upstream_sing_box_version() {
-    let installed = trim(as_string(fs.readfile(SING_BOX_FORKOP_VERSION_FILE)));
+    let installed = packages.sing_box_version();
     let base = split(split(installed, "-extended-")[0], "-forkop.")[0];
     return match(base, /^[0-9]+(\.[0-9]+)*$/) != null ? base : "";
 }
@@ -151,6 +151,7 @@ function parse_header_lines(lines) {
 }
 
 return {
+    paths,
     default_user_agent,
     generated_hwid,
     default_header_lines,

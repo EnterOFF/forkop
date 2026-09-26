@@ -67,8 +67,12 @@ jobs:
           find forkop/files/usr/lib -name '*.uc' -print0 | xargs -0 -n1 ucode -c -o /dev/null
           find forkop/files/usr/lib -name '*.uc' -print0 | xargs -0 -n1 ucode -S -c -o /dev/null
 
+      - name: Run unit tests
+        shell: bash
+        run: tests/unit/run.sh
+
       - name: Run backend tests
         shell: bash
         run: |
-          find tests -name '*.sh' -not -path 'tests/lib/*' -print0 |
+          find tests -name '*.sh' -not -path 'tests/lib/*' -not -path 'tests/unit/*' -print0 |
             sort -z | xargs -0 -n1 -P4 bash

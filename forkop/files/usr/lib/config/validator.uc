@@ -1,23 +1,22 @@
-#!/usr/bin/env ucode
-
 let fs = require("fs");
-let uci_core_module = null;
-let fixture_uci_data = null;
-let constants_module = null;
 let core_common = require("core.common");
+let core_exec = require("core.exec");
 let core_url = require("core.url");
 let core_ip = require("core.ip");
+let uci_core = require("core.uci");
+let constants = require("core.constants");
 let rule_config = require("config.rule");
 let core_version = require("core.version");
+let packages = require("core.packages");
 let connections = require("config.connections");
 let singbox_constants = require("singbox.constants");
+let rulesets = require("singbox.rulesets");
 let runtime_dns = require("singbox.dns");
 let runtime_servers = require("singbox.servers");
+let runtime_urltest = require("singbox.urltest");
 let subscription_headers_module = require("singbox.subscription_headers");
 
 let as_string = core_common.as_string;
-let read_stdin = core_common.read_stdin;
-let read_json_file = core_common.read_json_file;
 let object_or_empty = core_common.object_or_empty;
 let array_or_empty = core_common.array_or_empty;
 let option = core_common.option;
@@ -25,8 +24,7 @@ let list_option = core_common.list_option;
 let bool_option = core_common.bool_option;
 let parse_number = core_common.parse_number;
 
-const CONFIG_NAME = getenv("FORKOP_CONFIG_NAME") || "forkop";
-const SING_BOX_FORKOP_VERSION_FILE = getenv("SING_BOX_FORKOP_VERSION_FILE") || "/usr/share/sing-box-forkop/version";
+const CONFIG_NAME = "forkop";
 const DEFAULT_LATENCY_TEST_URL = "https://www.gstatic.com/generate_204";
 const TAILSCALE_FWMARK_MASK = 0x00ff0000;
 const AMNEZIA_SIGNATURE_KEYS = [ "i1", "i2", "i3", "i4", "i5" ];
@@ -53,18 +51,6 @@ function option_list_values(section, key) {
     return whitespace_values(value);
 }
 
-function list_has_value(values, needle) {
-    needle = as_string(needle);
-    if (needle == "")
-        return false;
-
-    for (let value in whitespace_values(values))
-        if (value == needle)
-            return true;
-
-    return false;
-}
-
 function contains(values, needle) {
     for (let value in array_or_empty(values))
         if (value == needle)
@@ -80,84 +66,27 @@ function file_executable(path) {
     return (int(stat.mode) & 73) != 0;
 }
 
-function file_nonempty(path) {
-    let stat = fs.stat(as_string(path));
-    return stat != null && stat.size != null && stat.size > 0;
-}
-
-function shell_quote(value) {
-    return "'" + replace(as_string(value), /'/g, "'\\''") + "'";
-}
-
-function command_from_args(args) {
-    let parts = [];
-
-    for (let arg in args)
-        push(parts, shell_quote(arg));
-
-    return join(" ", parts);
-}
-
-function run_args(args) {
-    return system(command_from_args(args)) == 0;
-}
-
-function command_success_from_args(args) {
-    return system(command_from_args(args) + " >/dev/null 2>&1") == 0;
-}
-
-function command_output(command) {
-    let pipe = fs.popen(command, "r");
-    if (!pipe)
-        return "";
-
-    let data = pipe.read("all");
-    let status = pipe.close();
-    if (status != 0 || data == null)
-        return "";
-
-    return as_string(data);
-}
-
-
 function command_exists(name) {
-    return system("command -v " + shell_quote(name) + " >/dev/null 2>&1") == 0;
+    return core_exec.ok([ "sh", "-c", "command -v \"$1\"", "sh", name ]);
 }
 
 function log_message(message, level) {
-    level = as_string(level || "info");
-    run_args([ "logger", "-t", "forkop", "[" + level + "] " + as_string(message) ]);
+    core_exec.log(level || "info", message);
 }
 
 function fail_requirement(message, level) {
     log_message(message, level || "error");
-    exit(1);
+    die(message);
 }
 
-function first_line_field_from_text(data, field_index) {
-    let newline = index(as_string(data), "\n");
-    let line = newline >= 0 ? substr(data, 0, newline) : data;
-    let fields = split(trim(as_string(line)), /[ \t\r\n]+/);
-
-    field_index = int(field_index || 0);
-    return field_index > 0 && field_index <= length(fields) ? as_string(fields[field_index - 1]) : "";
-}
-
-function constant_value(constants, name) {
-    return as_string(object_or_empty(constants)[name]);
-}
-
-function regex_valid(pattern) {
-    pattern = as_string(pattern);
-    if (pattern == "")
-        return true;
-
+// Why a pattern sing-box matches with RE2 cannot be matched the same way here, or null.
+function regex_problem(pattern) {
     try {
-        regexp(pattern);
-        return true;
+        runtime_urltest.compile(pattern);
+        return null;
     }
     catch (e) {
-        return false;
+        return e.message;
     }
 }
 
@@ -170,7 +99,7 @@ function combined_domain_valid(value) {
     if (normalized == null)
         return false;
 
-    return normalized.kind != "domain_regex" || regex_valid(normalized.value);
+    return normalized.kind != "domain_regex" || regex_problem(normalized.value) == null;
 }
 
 function combined_domain_text_valid(value) {
@@ -178,10 +107,6 @@ function combined_domain_text_valid(value) {
         if (!combined_domain_valid(item))
             return false;
     return true;
-}
-
-function community_service_valid(value, services) {
-    return list_has_value(services, value);
 }
 
 function remote_reference(value) {
@@ -193,195 +118,20 @@ function absolute_reference(value) {
     return string_starts_with(value, "/");
 }
 
-function ruleset_reference_valid(reference, community_services) {
+function ruleset_reference_valid(reference) {
     reference = as_string(reference);
     let path = lc(replace(reference, /[?#].*$/, ""));
     if (match(path, /\.ya?ml$/) != null)
         return false;
 
     return reference == "" ||
-        community_service_valid(reference, community_services) ||
+        rulesets.is_community(reference) ||
         remote_reference(reference) ||
         absolute_reference(reference);
 }
 
-function bool_flag(value) {
-    value = as_string(value);
-    return value == "1" || value == "true";
-}
-
-function outbound_detour_action(action) {
-    return connections.is_connections_action(as_string(action));
-}
-
-function outbound_detour_rows() {
-    let rows = [];
-
-    for (let line in split(read_stdin(), "\n")) {
-        line = replace(as_string(line), /\r/g, "");
-        if (trim(line) == "")
-            continue;
-
-        let fields = split(line, "\t");
-        let row = {
-            section: as_string(fields[0]),
-            enabled: bool_flag(fields[1]),
-            action: as_string(fields[2]),
-            detour_enabled: bool_flag(fields[3]),
-            detour_section: as_string(fields[4])
-        };
-
-        push(rows, row);
-    }
-
-    return rows;
-}
-
-function outbound_detour_rows_by_section(rows) {
-    let by_section = {};
-
-    for (let row in array_or_empty(rows))
-        if (row.section != "")
-            by_section[row.section] = row;
-
-    return {
-        rows: rows,
-        by_section: by_section
-    };
-}
-
-function outbound_detour_chain_reaches_source(by_section, source_section, current_section) {
-    let seen = {};
-
-    while (current_section != "") {
-        if (current_section == source_section)
-            return true;
-
-        if (seen[current_section])
-            return false;
-        seen[current_section] = true;
-
-        let row = by_section[current_section];
-        if (type(row) != "object" || !row.enabled || !outbound_detour_action(row.action))
-            return false;
-
-        if (!row.detour_enabled)
-            return false;
-
-        current_section = row.detour_section;
-    }
-
-    return false;
-}
-
 function fail_validation(message) {
-    print(message, "\n");
-    exit(1);
-}
-
-function validate_outbound_detours_rows(rows) {
-    let parsed = outbound_detour_rows_by_section(rows);
-
-    for (let row in parsed.rows) {
-        if (!row.enabled || !row.detour_enabled)
-            continue;
-
-        if (!outbound_detour_action(row.action))
-            fail_validation("Outbound cascade is supported only for Connection rules, but rule '" +
-                row.section + "' uses action '" + row.action + "'. Aborted.");
-
-        if (row.detour_section == "")
-            fail_validation("Outbound cascade is enabled for rule '" + row.section +
-                "', but no intermediate rule is selected. Aborted.");
-
-        if (row.detour_section == row.section)
-            fail_validation("Outbound cascade for rule '" + row.section + "' cannot point to itself. Aborted.");
-
-        let target = parsed.by_section[row.detour_section];
-        if (type(target) != "object")
-            fail_validation("Outbound cascade for rule '" + row.section + "' references missing rule '" +
-                row.detour_section + "'. Select an enabled Connection rule or disable cascade connection. Aborted.");
-
-        if (!target.enabled)
-            fail_validation("Outbound cascade for rule '" + row.section + "' references disabled rule '" +
-                row.detour_section + "'. Select an enabled Connection rule or disable cascade connection. Aborted.");
-
-        if (!outbound_detour_action(target.action))
-            fail_validation("Outbound cascade for rule '" + row.section + "' references rule '" +
-                row.detour_section + "', but it is not a Connection rule. Select an enabled Connection rule or disable cascade connection. Aborted.");
-
-        if (outbound_detour_chain_reaches_source(parsed.by_section, row.section, row.detour_section))
-            fail_validation("Outbound cascade for rule '" + row.section + "' creates a cycle through '" +
-                row.detour_section + "'. Aborted.");
-
-    }
-}
-
-function validate_outbound_detours() {
-    validate_outbound_detours_rows(outbound_detour_rows());
-}
-
-function basic_rule_rows() {
-    let rows = [];
-
-    for (let line in split(read_stdin(), "\n")) {
-        line = replace(as_string(line), /\r/g, "");
-        if (trim(line) == "")
-            continue;
-
-        let fields = split(line, "\t");
-        push(rows, {
-            section: as_string(fields[0]),
-            enabled: bool_flag(fields[1]),
-            action: as_string(fields[2])
-        });
-    }
-
-    return rows;
-}
-
-function download_section_action_available(action) {
-    return connections.is_connections_action(as_string(action));
-}
-
-function validate_download_section_rows(target_section, rows) {
-    target_section = as_string(target_section);
-
-    if (target_section == "")
-        fail_validation("Downloading external resources through a section is enabled, but no download section is selected. Aborted.");
-
-    let found = false;
-    let enabled = false;
-    let outbound = false;
-
-    for (let row in array_or_empty(rows)) {
-        if (row.section != target_section)
-            continue;
-
-        found = true;
-        if (!row.enabled)
-            continue;
-
-        enabled = true;
-        if (download_section_action_available(row.action))
-            outbound = true;
-    }
-
-    if (!found)
-        fail_validation("Downloading external resources through a section references missing rule '" + target_section +
-            "'. Select an enabled rule that can provide an outbound or disable the option. Aborted.");
-
-    if (!enabled)
-        fail_validation("Downloading external resources through a section references disabled rule '" + target_section +
-            "'. Select an enabled rule that can provide an outbound or disable the option. Aborted.");
-
-    if (!outbound)
-        fail_validation("Downloading external resources through a section references rule '" + target_section +
-            "', but it cannot provide an outbound. Select an enabled Connection rule or disable the option. Aborted.");
-}
-
-function validate_download_section(target_section) {
-    validate_download_section_rows(target_section, basic_rule_rows());
+    die(message);
 }
 
 function dhcp_has_https_dns_proxy_options(path) {
@@ -394,84 +144,12 @@ function dhcp_has_https_dns_proxy_options(path) {
         index(data, "doh_server") >= 0;
 }
 
-function uci_core() {
-    if (uci_core_module == null)
-        uci_core_module = require("core.uci");
-    return uci_core_module;
-}
-
-function mwan3_has_enabled_interface_from_sections() {
-    let uci = uci_core();
-    for (let section in uci.section_objects("mwan3", "interface"))
-        if (option(section, "enabled", "0") == "1")
-            return true;
-    return false;
-}
-
-function mwan3_is_active() {
-    if (!file_executable("/etc/init.d/mwan3") || !file_nonempty("/etc/config/mwan3"))
-        return false;
-
-    if (!mwan3_has_enabled_interface_from_sections())
-        return false;
-
-    return command_success_from_args([ "/etc/init.d/mwan3", "status" ]) ||
-        command_success_from_args([ "/etc/init.d/mwan3", "enabled" ]);
-}
-
-function runtime_constants() {
-    if (constants_module == null)
-        constants_module = require("core.constants");
-    return constants_module;
-}
-
-function fixture_section_list(type_name) {
-    let value = object_or_empty(fixture_uci_data)[type_name];
-    if (type(value) == "array")
-        return value;
-    if (type(value) == "object")
-        return [ value ];
-
-    let plural = object_or_empty(fixture_uci_data)[type_name + "s"];
-    return type(plural) == "array" ? plural : [];
-}
-
-function fixture_get_section(section_name) {
-    let fixture = object_or_empty(fixture_uci_data);
-    if (section_name == "settings" && type(fixture.settings) == "object")
-        return fixture.settings;
-
-    for (let type_name in [ "settings", "server", "section", "subscription_url", "section_interface", "urltest", "fallback_group", "fallback_level" ]) {
-        for (let section in fixture_section_list(type_name)) {
-            if (as_string(section[".name"]) == section_name)
-                return section;
-        }
-    }
-
-    return {};
-}
-
-function use_fixture_cursor(path) {
-    fixture_uci_data = object_or_empty(read_json_file(path));
-    connections.set_item_sections_from_data(fixture_uci_data);
-}
-
 function settings_section() {
-    if (fixture_uci_data != null)
-        return object_or_empty(fixture_get_section("settings"));
-    let uci = uci_core();
-    return object_or_empty(uci.get_all(CONFIG_NAME, "settings"));
+    return object_or_empty(uci_core.get_all(CONFIG_NAME, "settings"));
 }
 
 function sections_by_type(type_name) {
-    if (fixture_uci_data != null)
-        return fixture_section_list(type_name);
-
-    let result = [];
-    let uci = uci_core();
-    for (let section in uci.section_objects(CONFIG_NAME, type_name))
-        push(result, object_or_empty(section));
-    return result;
+    return uci_core.section_objects(CONFIG_NAME, type_name);
 }
 
 function section_name(section) {
@@ -523,8 +201,64 @@ function rule_action_supported(action) {
     return contains([ "connection", "proxy", "outbound", "vpn", "bypass", "block", "dns" ], as_string(action));
 }
 
-function server_routing_section_action_supported(action) {
-    return contains([ "connection", "proxy", "outbound", "vpn" ], as_string(action));
+function find_section(sections, name) {
+    for (let section in sections)
+        if (section_name(section) == name)
+            return section;
+    return null;
+}
+
+// Refuses a reference to anything but an enabled Connection section with
+// servers of its own. The runtime leaves out a section without servers, so a
+// reference to one would reach sing-box as an outbound that does not exist.
+function outbound_section(sections, label, target_name) {
+    let target = find_section(sections, target_name);
+    let reason = target == null ? "missing rule '" + target_name + "'"
+        : !section_enabled(target) ? "disabled rule '" + target_name + "'"
+        : !connections.is_connections_action(rule_action(target)) ? "rule '" + target_name + "' with unsupported action '" + rule_action(target) + "'"
+        : !connections.has_connection_sources(target) ? "rule '" + target_name + "', which has no servers"
+        : null;
+    if (reason != null)
+        fail_validation(label + " references " + reason + ". Select an enabled Connection rule with servers. Aborted.");
+    return target;
+}
+
+function cascade_target(section) {
+    return bool_option(section, "outbound_detour_enabled", false) ? option(section, "outbound_detour_section", "") : null;
+}
+
+function validate_outbound_detours(sections) {
+    for (let section in sections) {
+        let name = section_name(section);
+        let target = cascade_target(section);
+        if (!section_enabled(section) || target == null)
+            continue;
+
+        let label = "Outbound cascade for rule '" + name + "'";
+        if (!connections.is_connections_action(rule_action(section)))
+            fail_validation("Outbound cascade is supported only for Connection rules, but rule '" + name +
+                "' uses action '" + rule_action(section) + "'. Aborted.");
+        if (target == "")
+            fail_validation("Outbound cascade is enabled for rule '" + name + "', but no intermediate rule is selected. Aborted.");
+        if (target == name)
+            fail_validation(label + " cannot point to itself. Aborted.");
+        outbound_section(sections, label, target);
+
+        let seen = {};
+        for (let current = target; current != null && current != "" && !seen[current];) {
+            if (current == name)
+                fail_validation(label + " creates a cycle through '" + target + "'. Aborted.");
+            seen[current] = true;
+            let next = find_section(sections, current);
+            current = next != null && section_enabled(next) && connections.is_connections_action(rule_action(next)) ? cascade_target(next) : null;
+        }
+    }
+}
+
+function validate_download_section(sections, target_name) {
+    if (as_string(target_name) == "")
+        fail_validation("Downloading external resources through a section is enabled, but no download section is selected. Aborted.");
+    outbound_section(sections, "Downloading external resources through a section", target_name);
 }
 
 function validate_duration_option(value, label) {
@@ -596,23 +330,7 @@ function validate_dns_settings(settings, sections, context) {
     if (target_name == "")
         fail_validation("DNS through a section is enabled, but no section is selected. Aborted.");
 
-    let target = null;
-    for (let section in sections)
-        if (section_name(section) == target_name) {
-            target = {
-                section: target_name,
-                enabled: section_enabled(section),
-                action: rule_action(section)
-            };
-            break;
-        }
-
-    if (target == null)
-        fail_validation("DNS through a section references missing rule '" + target_name + "'. Aborted.");
-    if (!target.enabled)
-        fail_validation("DNS through a section references disabled rule '" + target_name + "'. Aborted.");
-    if (!download_section_action_available(target.action))
-        fail_validation("DNS through a section references rule '" + target_name + "' with unsupported action '" + target.action + "'. Select an enabled Connection section. Aborted.");
+    outbound_section(sections, "DNS through a section", target_name);
 }
 
 // config/rule.uc turns these into the CSV the ruleset and the generated config
@@ -659,10 +377,9 @@ function validate_http_url_option(value, label) {
 }
 
 function validate_urltest_regex_value(value, section) {
-    if (as_string(value) == "" || regex_valid(value))
-        return;
-
-    fail_validation("Invalid URLTest regular expression '" + value + "' in rule '" + section + "'. Aborted.");
+    let problem = as_string(value) == "" ? null : regex_problem(value);
+    if (problem != null)
+        fail_validation("Invalid URLTest regular expression '" + value + "' in rule '" + section + "': " + problem + ". Aborted.");
 }
 
 function validate_urltest_identifier_value(value, section) {
@@ -849,14 +566,14 @@ function validate_combined_domain_text_value(value, section) {
 }
 
 function validate_service_value(service, context) {
-    if (community_service_valid(service, context.community_services))
+    if (rulesets.is_community(service))
         return;
 
     fail_validation("Invalid service in community lists: " + service + ". Check config and LuCI cache. Aborted.");
 }
 
 function validate_ruleset_reference_value(reference, context) {
-    if (ruleset_reference_valid(reference, context.community_services))
+    if (ruleset_reference_valid(reference))
         return;
 
     fail_validation("Unknown rule set reference '" + reference + "'. Aborted.");
@@ -1033,16 +750,9 @@ function validate_tailscale_tunnel_detour(source_name, detour) {
     detour = trim(as_string(detour));
     if (detour == "")
         return;
-    if (detour == singbox_constants.outbound_tag(source_name))
+    if (detour == source_name)
         fail_validation("Connection rule '" + source_name + "' cannot use itself for the Tailscale control plane. Aborted.");
-
-    for (let candidate in sections_by_type("section"))
-        if (section_enabled(candidate) &&
-            connections.is_connections_action(rule_action(candidate)) &&
-            singbox_constants.outbound_tag(section_name(candidate)) == detour)
-            return;
-
-    fail_validation("Connection rule '" + source_name + "' references an unavailable Tailscale control-plane section. Aborted.");
+    outbound_section(sections_by_type("section"), "The Tailscale control plane of rule '" + source_name + "'", detour);
 }
 
 function validate_tunnel_values(section) {
@@ -1093,7 +803,7 @@ function validate_tunnel_values(section) {
                 fail_validation("Connection rule '" + name + "' contains an incomplete Tailscale endpoint. Aborted.");
             validate_http_url_option(endpoint.control_url || "https://controlplane.tailscale.com", "rule." + name + ".tunnel.control_url");
             let detour_section = connections.option(tunnel, "tailscale_detour_section", "");
-            validate_tailscale_tunnel_detour(name, detour_section == "" ? "" : singbox_constants.outbound_tag(detour_section));
+            validate_tailscale_tunnel_detour(name, detour_section);
             continue;
         }
 
@@ -1214,7 +924,7 @@ function validate_subscription_override(section, entry) {
         if (rule == null)
             fail_validation("Rename rule '" + trim(as_string(value)) + "' in " + context +
                 " must be written as 'pattern => replacement'. Aborted.");
-        if (!regex_valid(rule.pattern))
+        if (regex_problem(rule.pattern) != null)
             fail_validation("Invalid rename pattern '" + rule.pattern + "' in " + context + ". Aborted.");
         // A group reference reaches as far as the letters, digits and
         // underscores behind it, so '$1x' asks for a group named '1x' and
@@ -1306,18 +1016,7 @@ function validate_interface_domain_resolvers(section, sections, context) {
         if (target_name == name)
             fail_validation(label + " cannot use its own section as a DNS detour. Aborted.");
 
-        let target = null;
-        for (let candidate in sections)
-            if (section_name(candidate) == target_name) {
-                target = candidate;
-                break;
-            }
-        if (target == null)
-            fail_validation(label + " references missing detour section '" + target_name + "'. Aborted.");
-        if (!section_enabled(target))
-            fail_validation(label + " references disabled detour section '" + target_name + "'. Aborted.");
-        if (!download_section_action_available(rule_action(target)))
-            fail_validation(label + " references detour section '" + target_name + "' with unsupported action '" + rule_action(target) + "'. Select an enabled Connection section. Aborted.");
+        outbound_section(sections, label, target_name);
     }
 }
 
@@ -1347,18 +1046,7 @@ function validate_dns_action(section, sections, context) {
     if (target_name == name)
         fail_validation("DNS rule '" + name + "' cannot use itself as a DNS detour. Aborted.");
 
-    let target = null;
-    for (let candidate in sections)
-        if (section_name(candidate) == target_name) {
-            target = candidate;
-            break;
-        }
-    if (target == null)
-        fail_validation("DNS rule '" + name + "' references missing detour section '" + target_name + "'. Aborted.");
-    if (!section_enabled(target))
-        fail_validation("DNS rule '" + name + "' references disabled detour section '" + target_name + "'. Aborted.");
-    if (!download_section_action_available(rule_action(target)))
-        fail_validation("DNS rule '" + name + "' references detour section '" + target_name + "' with unsupported action '" + rule_action(target) + "'. Select an enabled Connection section. Aborted.");
+    outbound_section(sections, "DNS rule '" + name + "'", target_name);
 }
 
 function validate_rule(section, sections, context) {
@@ -1452,35 +1140,7 @@ function validate_rule(section, sections, context) {
         log_message("Connection rule '" + name + "' has no configured outbounds.", "error");
 }
 
-function basic_rows_from_sections(sections) {
-    let rows = [];
-    for (let section in sections) {
-        push(rows, {
-            section: section_name(section),
-            enabled: section_enabled(section),
-            action: rule_action(section)
-        });
-    }
-    return rows;
-}
-
-function detour_rows_from_sections(sections) {
-    let rows = [];
-    for (let section in sections) {
-        push(rows, {
-            section: section_name(section),
-            enabled: section_enabled(section),
-            action: rule_action(section),
-            detour_enabled: bool_option(section, "outbound_detour_enabled", false),
-            detour_section: option(section, "outbound_detour_section", "")
-        });
-    }
-    return rows;
-}
-
 function validate_subscription_download_sections(sections, context) {
-    let rows = basic_rows_from_sections(sections);
-
     for (let section in sections) {
         section = object_or_empty(section);
         if (!section_enabled(section))
@@ -1495,21 +1155,11 @@ function validate_subscription_download_sections(sections, context) {
             if (target == name)
                 fail_validation("Subscription source in rule '" + name + "' cannot be downloaded through the same rule. Select another rule or disable download-through-section. Aborted.");
 
-            validate_download_section_rows(
-                target,
-                rows
-            );
+            validate_download_section(sections, target);
         }
     }
 }
 
-function basic_rows_by_section(rows) {
-    let result = {};
-    for (let row in array_or_empty(rows))
-        if (type(row) == "object" && row.section != "")
-            result[row.section] = row;
-    return result;
-}
 
 // The generator owns what a protocol asks a client for; the check reads the same
 // tables instead of keeping a second copy that can drift out of step.
@@ -1535,7 +1185,7 @@ function validate_server_clients(server, protocol, name) {
     if (fields == null || length(fields) == 0)
         return;
 
-    let auth_required = protocol != "mixed" || bool_option(server, "mixed_auth_enabled", false);
+    let auth_required = protocol != "mixed" || bool_option(server, "mixed_auth_enabled", true);
 
     if (!auth_required)
         return;
@@ -1583,6 +1233,8 @@ function validate_server_clients(server, protocol, name) {
             fail_validation("Server '" + name + "' client '" + client_name + "' has an unsupported routing mode '" + client_mode + "'. Aborted.");
         if (client_mode == "section" && option(client, "routing_section", "") == "")
             fail_validation("Server '" + name + "' client '" + client_name + "' has no routing section selected. Aborted.");
+        if (client_mode == "section")
+            outbound_section(sections_by_type("section"), "Server '" + name + "' client '" + client_name + "'", option(client, "routing_section", ""));
     }
 
     if (key_bytes != null && base64_decoded_length(option(server, "shadowsocks_psk", "")) != key_bytes)
@@ -1591,6 +1243,7 @@ function validate_server_clients(server, protocol, name) {
 
 // sing-box binds every inbound itself, so two listeners on one port stop the whole
 // service. Reporting the pair here keeps a bad apply from taking the router offline.
+// Ports are owned per transport: TCP 443 and UDP 443 are two sockets.
 function validate_server_listen_ports() {
     let owners = {};
 
@@ -1601,26 +1254,42 @@ function validate_server_listen_ports() {
         as_string(singbox_constants.SYSTEM_DNS_INBOUND_PORT),
         as_string(singbox_constants.DNS_INBOUND_PORT),
         as_string(singbox_constants.SERVICE_MIXED_INBOUND_PORT),
+        as_string(singbox_constants.COMPONENTS_MIXED_INBOUND_PORT),
         as_string(singbox_constants.CLASH_API_CONTROLLER_PORT)
     ])
-        owners[port] = "a Forkop inbound";
+        owners["tcp/" + port] = owners["udp/" + port] = "a Forkop inbound";
 
     if (bool_option(settings_section(), "enable_native_api", false))
-        owners["9091"] = "the sing-box API";
+        owners["tcp/9091"] = "the sing-box API";
 
     for (let server in sections_by_type("server")) {
         server = object_or_empty(server);
         let protocol = option(server, "protocol", "vless");
-        if (!server_enabled(server) || protocol == "tailscale" || protocol == "json_inbound")
+        if (!server_enabled(server) || protocol == "tailscale")
             continue;
 
         let name = section_name(server);
-        let port = option(server, "listen_port", "");
-        if (port == "" || match(port, /^[0-9]+$/) == null || int(port, 10) < 1 || int(port, 10) > 65535)
-            fail_validation("Server '" + name + "' has an invalid listen port '" + port + "'. Aborted.");
-        if (owners[port] != null)
-            fail_validation("Server '" + name + "' listens on port " + port + ", which is already used by " + owners[port] + ". Aborted.");
-        owners[port] = "server '" + name + "'";
+        let port, transports;
+        if (protocol == "json_inbound") {
+            let inbound = core_common.parse_json(option(server, "inbound_json", ""));
+            if (type(inbound?.listen_port) != "int")
+                continue;
+            port = inbound.listen_port;
+            transports = runtime_servers.transports(inbound.type, inbound.network);
+        }
+        else {
+            let text = option(server, "listen_port", "");
+            if (match(text, /^[0-9]+$/) == null || int(text, 10) < 1 || int(text, 10) > 65535)
+                fail_validation("Server '" + name + "' has an invalid listen port '" + text + "'. Aborted.");
+            port = int(text, 10);
+            transports = runtime_servers.listen_transports(server);
+        }
+        for (let transport in transports)
+            if (owners[transport + "/" + port] != null)
+                fail_validation("Server '" + name + "' listens on " + transport + " port " + port + ", which is already used by " +
+                    owners[transport + "/" + port] + ". Aborted.");
+        for (let transport in transports)
+            owners[transport + "/" + port] = "server '" + name + "'";
     }
 }
 
@@ -1767,6 +1436,11 @@ function validate_server_values(server, protocol, security, name) {
                 "', which is not an IP address. Aborted.");
     }
 
+    if (protocol == "tailscale")
+        for (let route in list_option(server, "tailscale_advertise_routes"))
+            if (!core_ip.valid_ip_or_cidr(route))
+                fail_validation("Tailscale server '" + name + "' advertises '" + route + "', which is not an address or a subnet. Aborted.");
+
     if (protocol == "tuic") {
         let heartbeat = option(server, "tuic_heartbeat", "");
         if (heartbeat != "")
@@ -1820,8 +1494,6 @@ function validate_server_clients_and_ports() {
 }
 
 function validate_server_routing_sections(sections) {
-    let by_section = basic_rows_by_section(basic_rows_from_sections(sections));
-
     for (let server in sections_by_type("server")) {
         server = object_or_empty(server);
         if (!server_enabled(server))
@@ -1835,10 +1507,7 @@ function validate_server_routing_sections(sections) {
                 fail_validation("Tailscale server '" + name + "' has no control-plane section selected. Aborted.");
             if (detour_name == name)
                 fail_validation("Tailscale server '" + name + "' cannot use itself for the control plane. Aborted.");
-            let detour_target = by_section[detour_name];
-            if (type(detour_target) != "object" || !detour_target.enabled ||
-                !connections.is_connections_action(detour_target.action))
-                fail_validation("Tailscale server '" + name + "' references an unavailable control-plane section. Aborted.");
+            outbound_section(sections, "The control plane of Tailscale server '" + name + "'", detour_name);
         }
         let mode = option(server, "routing_mode", "rules");
         if (!contains([ "rules", "direct", "section" ], mode))
@@ -1851,13 +1520,7 @@ function validate_server_routing_sections(sections) {
         if (target_name == "")
             fail_validation("Server '" + name + "' uses selected-section routing, but no routing section is selected. Aborted.");
 
-        let target = by_section[target_name];
-        if (type(target) != "object")
-            fail_validation("Server '" + name + "' references missing routing section '" + target_name + "'. Aborted.");
-        if (!target.enabled)
-            fail_validation("Server '" + name + "' references disabled routing section '" + target_name + "'. Aborted.");
-        if (!server_routing_section_action_supported(target.action))
-            fail_validation("Server '" + name + "' references routing section '" + target_name + "' with unsupported action '" + target.action + "'. Select a Connection, proxy, JSON outbound, or VPN section. Aborted.");
+        outbound_section(sections, "Server '" + name + "'", target_name);
     }
 }
 
@@ -1900,20 +1563,11 @@ function validate_runtime_config(context) {
         fail_validation("settings.native_api_secret is required when the sing-box API is enabled. Aborted.");
     validate_http_url_option(option(settings, "latency_test_url", DEFAULT_LATENCY_TEST_URL) || DEFAULT_LATENCY_TEST_URL, "settings.latency_test_url");
 
-    if (connections.download_via_proxy_enabled(settings, "lists")) {
-        validate_download_section_rows(
-            connections.download_via_proxy_section(settings, "lists"),
-            basic_rows_from_sections(sections)
-        );
-    }
-    if (connections.download_via_proxy_enabled(settings, "components")) {
-        validate_download_section_rows(
-            connections.download_via_proxy_section(settings, "components"),
-            basic_rows_from_sections(sections)
-        );
-    }
+    for (let purpose in [ "lists", "components" ])
+        if (connections.download_via_proxy_enabled(settings, purpose))
+            validate_download_section(sections, connections.download_via_proxy_section(settings, purpose));
 
-    validate_outbound_detours_rows(detour_rows_from_sections(sections));
+    validate_outbound_detours(sections);
     validate_subscription_download_sections(sections, context);
     validate_json_inbound_values();
     validate_server_routing_sections(sections);
@@ -1926,15 +1580,10 @@ function validate_runtime_config(context) {
 }
 
 function context_from_runtime() {
-    let constants = object_or_empty(runtime_constants());
-
     return {
-        constants,
-        community_services: constant_value(constants, "COMMUNITY_SERVICES"),
-        nft_fakeip_mark: constant_value(constants, "NFT_FAKEIP_MARK"),
-        nft_outbound_mark: constant_value(constants, "NFT_OUTBOUND_MARK"),
-        coreutils_base64_required_version: constant_value(constants, "COREUTILS_BASE64_REQUIRED_VERSION"),
-        sing_box_required_version: constant_value(constants, "SB_REQUIRED_VERSION")
+        nft_fakeip_mark: as_string(constants.NFT_FAKEIP_MARK),
+        nft_outbound_mark: as_string(constants.NFT_OUTBOUND_MARK),
+        sing_box_required_version: as_string(constants.SB_REQUIRED_VERSION)
     };
 }
 
@@ -1942,125 +1591,45 @@ function service_exists(service) {
     return file_executable("/etc/init.d/" + as_string(service));
 }
 
-function has_outbound_section(ctx) {
-    for (let section in sections_by_type("section")) {
-        if (!section_enabled(section))
-            continue;
-
-        let action = rule_action(section);
-
-        // Only a Connection section builds outbounds from these. A section that
-        // used to be one keeps what it had - the dialog does not throw away a
-        // subscription or a tunnel key because an action changed - and counting
-        // that would report a proxy outbound where the runtime has none.
-        if (connections.is_connections_action(action) &&
-            (length(connections.connection_urls(section)) > 0 ||
-             length(connections.subscription_urls(section)) > 0 ||
-             length(connections.outbound_jsons(section)) > 0 ||
-             length(connections.tunnels(section)) > 0 ||
-             length(connections.interfaces(section)) > 0))
+// Only a Connection section builds outbounds from its sources; one whose action
+// changed keeps them in the configuration without the runtime using them.
+function has_outbound_section() {
+    for (let section in sections_by_type("section"))
+        if (section_enabled(section) && connections.is_connections_action(rule_action(section)) &&
+            connections.has_connection_sources(section))
             return true;
-    }
-
     return false;
 }
 
-function check_runtime_requirements() {
-
+// Whether the installed system can run Forkop at all. Throws with the reason,
+// which is also logged.
+function check_requirements() {
     let ctx = context_from_runtime();
-    let sing_box_version = trim(as_string(fs.readfile(SING_BOX_FORKOP_VERSION_FILE)));
-    if (match(sing_box_version, /^[0-9][0-9A-Za-z._+~-]*-extended-[0-9][0-9A-Za-z._+~-]*-f[0-9]+$/) == null &&
-        match(sing_box_version, /^[0-9][0-9A-Za-z._+~-]*-forkop[.][0-9]+$/) == null)
-        sing_box_version = "";
-    sing_box_version = replace(sing_box_version, /~/g, "-");
-    let coreutils_base64_version = first_line_field_from_text(command_output("base64 --version 2>/dev/null"), 4);
+    let sing_box_version = packages.sing_box_version();
 
     if (!command_exists("sing-box"))
         fail_requirement("Binary 'sing-box' is not available. Reinstall sing-box-forkop. Aborted.", "error");
     if (sing_box_version == "")
         fail_requirement("Failed to read sing-box-forkop version. Reinstall sing-box-forkop. Aborted.", "error");
-    else if (!core_version.version_at_least(sing_box_version, ctx.sing_box_required_version)) {
+    else if (!core_version.version_at_least(sing_box_version, ctx.sing_box_required_version))
         fail_requirement("Package 'sing-box-forkop' version (" + sing_box_version + ") is lower than the required minimum (" + ctx.sing_box_required_version + "). Update it from Forkop Components. Aborted.", "error");
-    }
 
     if (!service_exists("sing-box"))
         fail_requirement("Service 'sing-box' is missing. Reinstall sing-box-forkop. Aborted.", "error");
 
-    if (coreutils_base64_version == "")
-        fail_requirement("Package 'coreutils-base64' is not installed. Aborted.", "error");
-    else if (!core_version.version_at_least(coreutils_base64_version, ctx.coreutils_base64_required_version))
-        log_message("Package 'coreutils-base64' version (" + coreutils_base64_version + ") is lower than the required minimum (" + ctx.coreutils_base64_required_version + "). This may cause issues when decoding base64 streams with missing padding, as automatic padding support is not available in older versions.", "warn");
-
     if (dhcp_has_https_dns_proxy_options("/etc/config/dhcp") === true)
         log_message("https-dns-proxy is enabled in DHCP config. Disable it or edit /etc/config/dhcp before starting Forkop.", "error");
 
-    // Only the absence is worth a line. Confirming that a proxy outbound exists
-    // said nothing on the path where everything is fine, which is most of them.
-    if (!has_outbound_section(ctx))
+    connections.load();
+    if (!has_outbound_section())
         log_message("No proxy outbound sections found. Forkop will use direct routing.", "warn");
-
 }
 
-function context_override_value(overrides, defaults, key) {
-    let value = object_or_empty(overrides)[key];
-    if (value != null)
-        return as_string(value);
-    return as_string(object_or_empty(defaults)[key]);
+// Refuses a configuration sing-box could not run, by throwing the reason. The
+// overrides replace values of the runtime context, for a check about them.
+function validate(overrides) {
+    connections.load();
+    validate_runtime_config({ ...context_from_runtime(), ...object_or_empty(overrides) });
 }
 
-function context_override_bool(overrides, defaults, key) {
-    let value = object_or_empty(overrides)[key];
-    if (value != null)
-        return bool_flag(value);
-    return bool_flag(object_or_empty(defaults)[key]);
-}
-
-function context_from_json(value, defaults) {
-    try {
-        value = json(as_string(value));
-    }
-    catch (e) {
-        value = {};
-    }
-
-    value = object_or_empty(value);
-    defaults = object_or_empty(defaults);
-
-    return {
-        community_services: context_override_value(value, defaults, "community_services"),
-        nft_fakeip_mark: context_override_value(value, defaults, "nft_fakeip_mark"),
-        nft_outbound_mark: context_override_value(value, defaults, "nft_outbound_mark")
-    };
-}
-
-let mode = ARGV[0] || "";
-
-if (mode == "community-service-valid")
-    exit(community_service_valid(ARGV[1], ARGV[2]) ? 0 : 1);
-else if (mode == "ruleset-reference-valid")
-    exit(ruleset_reference_valid(ARGV[1], ARGV[2]) ? 0 : 1);
-else if (mode == "validate-outbound-detours")
-    validate_outbound_detours();
-else if (mode == "validate-download-section")
-    validate_download_section(ARGV[1]);
-else if (mode == "mwan3-is-active")
-    exit(mwan3_is_active() ? 0 : 1);
-else if (mode == "check-requirements")
-    check_runtime_requirements();
-else if (mode == "validate-runtime")
-    validate_runtime_config(context_from_runtime());
-else if (mode == "validate-runtime-fixture") {
-    use_fixture_cursor(ARGV[1]);
-    validate_runtime_config(context_from_json(ARGV[2], context_from_runtime()));
-}
-// The requirements check around it needs an installed sing-box to get as far as
-// this line, so the question of which sections count as an outbound is asked on
-// its own.
-else if (mode == "outbound-section-present-fixture") {
-    use_fixture_cursor(ARGV[1]);
-    exit(has_outbound_section(context_from_json(ARGV[2], context_from_runtime())) ? 0 : 1);
-}
-else {
-    warn("Usage: config/validator.uc <operation> ...\n");
-    exit(1);
-}
+return { validate, check_requirements, has_outbound_section };
