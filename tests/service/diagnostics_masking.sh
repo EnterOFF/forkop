@@ -73,8 +73,9 @@ if (missingInRuntime.length) {
   fail(`mask.uc does not mask: ${missingInRuntime.join(", ")}`);
 }
 
-// Every credential a tunnel can carry has to be covered by both maskers.
-const requiredTunnelTokens = [
+// Every credential a tunnel or a JSON inbound can carry has to be covered by
+// both maskers.
+const requiredTokens = [
   "option private_key",
   "option public_key",
   "option pre_shared_key",
@@ -87,12 +88,13 @@ const requiredTunnelTokens = [
   "option warp_profile_auth_token",
   "option warp_profile_private_key",
   "option warp_profile_license_key",
+  "option inbound_json",
 ];
-const uncovered = requiredTunnelTokens.filter(
+const uncovered = requiredTokens.filter(
   (token) => !ucSpace.includes(token) || !tsSpace.includes(token),
 );
 if (uncovered.length) {
-  fail(`tunnel options are not masked everywhere: ${uncovered.join(", ")}`);
+  fail(`credential options are not masked everywhere: ${uncovered.join(", ")}`);
 }
 
 for (const key of [
@@ -145,6 +147,18 @@ config tunnel 'tun_json'
 	"type": "wireguard",
 	"private_key": "leaked"
 }'
+
+config server 'srv_cloudflared'
+	option protocol 'json_inbound'
+	option inbound_json '{"type":"cloudflared","token":"cloudflared-tunnel-token"}'
+
+config server 'srv_json'
+	option protocol 'json_inbound'
+	option inbound_json '{
+	"type": "shadowsocks",
+	"password": "inbound-leaked"
+}'
+	option routing_mode 'direct'
 EOF
 
 masked="$(ucode -L "$FORKOP_LIB" -e "print(require('diagnostics.mask').forkop_config(
@@ -162,7 +176,9 @@ for secret in \
   'AKR8dq2b9o7/cO8d5mAzxvuxRhhw4DXi1pfUC3IPGWo=' \
   'aHTnu1QJ36K47dAVMKz+P1RDvmTGhJiS+FK8IfPzL0M=' \
   '0.0.0.0/0' \
-  'leaked'
+  'leaked' \
+  'cloudflared-tunnel-token' \
+  'inbound-leaked'
 do
   if printf '%s\n' "$masked" | grep -Fq "$secret"; then
     fail "masked Forkop config still exposes $secret"
@@ -175,6 +191,8 @@ printf '%s\n' "$masked" | grep -Fq "option amnezia_jc '4'" ||
   fail "masked Forkop config must keep obfuscation parameters readable"
 printf '%s\n' "$masked" | grep -Fq "option mtu '1280'" ||
   fail "masked Forkop config must keep the tunnel MTU readable"
+printf '%s\n' "$masked" | grep -Fq "option routing_mode 'direct'" ||
+  fail "masked Forkop config must resume after a multi-line JSON inbound"
 
 # Anything the editor renders as a password ends up in show_config, which users
 # paste into the support chat, so every one of them has to be masked there.

@@ -82,6 +82,7 @@ function forkop_config_line(line) {
     line = mask_after_token(line, "list selector_proxy_links");
     line = mask_after_token_space(line, "option outbound_json");
     line = mask_after_token_space(line, "option endpoint_json");
+    line = mask_after_token_space(line, "option inbound_json");
     line = mask_after_token_space(line, "list domain");
     line = mask_after_token_space(line, "list domain_suffix");
     line = mask_after_token_space(line, "list domain_keyword");
@@ -179,7 +180,8 @@ function forkop_config(data) {
             continue;
 
         push(result, forkop_config_line(line));
-        if (index(line, "option outbound_json") >= 0 || index(line, "option endpoint_json") >= 0) {
+        if (index(line, "option outbound_json") >= 0 || index(line, "option endpoint_json") >= 0 ||
+            index(line, "option inbound_json") >= 0) {
             let first_quote = index(line, "'");
             if (first_quote >= 0 && index(substr(line, first_quote + 1), "'") < 0)
                 in_masked_multiline = true;

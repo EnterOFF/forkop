@@ -8570,6 +8570,7 @@ var FORKOP_MASK_AFTER_TOKEN_SPACE = [
   "list authorized_keys",
   "option outbound_json",
   "option endpoint_json",
+  "option inbound_json",
   "option warp_profile_id",
   "option warp_profile_auth_token",
   "option warp_profile_private_key",
@@ -8714,7 +8715,7 @@ function maskGlobalCheckText(text = "") {
       return maskMultilineContinuation(line);
     }
     const maskedLine = maskGlobalCheckLine(line);
-    if (line.includes("option outbound_json") || line.includes("option endpoint_json")) {
+    if (line.includes("option outbound_json") || line.includes("option endpoint_json") || line.includes("option inbound_json")) {
       const firstQuote = line.indexOf("'");
       if (firstQuote >= 0 && line.slice(firstQuote + 1).indexOf("'") < 0) {
         inMaskedMultiline = true;

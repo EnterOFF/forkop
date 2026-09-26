@@ -172,6 +172,28 @@ describe('diagnostic masking', () => {
     expect(masked).toContain("option persistent_keepalive_interval '25'");
   });
 
+  it('masks a JSON inbound server, including its continuation lines', () => {
+    const raw = [
+      "config server 'srv_cloudflared'",
+      "\toption protocol 'json_inbound'",
+      '\toption inbound_json \'{"type":"cloudflared","token":"cloudflared-tunnel-token"}\'',
+      "config server 'srv_json'",
+      "\toption protocol 'json_inbound'",
+      "\toption inbound_json '{",
+      '\t"password": "inbound-leaked"',
+      "}'",
+      "\toption routing_mode 'direct'",
+      '',
+    ].join('\n');
+
+    const masked = maskGlobalCheckText(raw);
+
+    expect(masked).not.toContain('cloudflared-tunnel-token');
+    expect(masked).not.toContain('inbound-leaked');
+    expect(masked).toContain("option protocol 'json_inbound'");
+    expect(masked).toContain("option routing_mode 'direct'");
+  });
+
   it('masks tunnel and WARP keys in a generated sing-box config', () => {
     const config = {
       endpoints: [

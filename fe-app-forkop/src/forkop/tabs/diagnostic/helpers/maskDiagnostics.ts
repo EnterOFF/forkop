@@ -80,6 +80,7 @@ const FORKOP_MASK_AFTER_TOKEN_SPACE = [
   'list authorized_keys',
   'option outbound_json',
   'option endpoint_json',
+  'option inbound_json',
   'option warp_profile_id',
   'option warp_profile_auth_token',
   'option warp_profile_private_key',
@@ -269,7 +270,8 @@ export function maskGlobalCheckText(text: string = '') {
 
       if (
         line.includes('option outbound_json') ||
-        line.includes('option endpoint_json')
+        line.includes('option endpoint_json') ||
+        line.includes('option inbound_json')
       ) {
         const firstQuote = line.indexOf("'");
 
