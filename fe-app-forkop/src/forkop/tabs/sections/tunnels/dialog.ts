@@ -629,40 +629,28 @@ export function showTunnelSettingsModal(
   warpLicenseKeyOption.rmempty = true;
   warpLicenseKeyOption.depends('tunnel_type', 'warp');
 
+  // A refused generation is written to the log with its reason, and the log
+  // raises it as an alert of its own; only a call that never reached the
+  // router is this handler's to report.
   warpGenerateButton.onclick = function () {
-    const showError = () =>
-      ui.addNotification(
-        _('Forkop Error'),
-        E('p', {}, _('Failed to generate WARP profile')),
-        'error',
-      );
-
     return fs
       .exec('/usr/bin/forkop', ['generate_warp_profile'])
       .then((response) => {
-        let profile: Record<string, unknown> = {};
-        try {
-          profile = JSON.parse(response.stdout || '{}') as Record<
-            string,
-            unknown
-          >;
-        } catch (_error) {
-          // The response is validated below.
-        }
-        if (
-          (response.code ?? 0) !== 0 ||
-          !profile.id ||
-          !profile.auth_token ||
-          !profile.private_key
-        ) {
-          showError();
+        if ((response.code ?? 0) !== 0) {
           return;
         }
+        const profile = JSON.parse(response.stdout) as Record<string, unknown>;
         setModalOptionValue(map, warpProfileIdOption, profile.id);
         setModalOptionValue(map, warpAuthTokenOption, profile.auth_token);
         setModalOptionValue(map, warpPrivateKeyOption, profile.private_key);
       })
-      .catch(showError);
+      .catch((error: unknown) =>
+        ui.addNotification(
+          _('Forkop Error'),
+          E('p', {}, error instanceof Error ? error.message : String(error)),
+          'error',
+        ),
+      );
   };
 
   const warpJunkOption = itemSection.option(

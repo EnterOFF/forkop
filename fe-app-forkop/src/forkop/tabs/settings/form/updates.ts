@@ -13,9 +13,13 @@ import {
   configureDownloadViaProxyFlag,
 } from '../sectionChoices';
 import { validateUrlField } from '../../../../validators/validateUrl';
+import {
+  coreHas,
+  validateCoreFeature,
+} from '../../../services/coreFeatures.service';
 
-// What Forkop downloads on a schedule - rule sets and component releases -
-// how often it looks, and through what.
+// What Forkop downloads - rule sets and component releases on a schedule, WARP
+// profiles when a tunnel needs one - how often it looks, and through what.
 export function addUpdateOptions(section: CBISection) {
   let o = section.option(
     form.Flag,
@@ -128,6 +132,7 @@ export function addUpdateOptions(section: CBISection) {
     form.Flag,
     'download_lists_via_proxy',
     _('Download lists through a section'),
+    _('Remote lists and rule sets download through the selected section'),
   );
   configureDownloadViaProxyFlag(o, 'download_lists_via_proxy_section');
 
@@ -144,6 +149,9 @@ export function addUpdateOptions(section: CBISection) {
     form.Flag,
     'download_components_via_proxy',
     _('Download components through a section'),
+    _(
+      'Forkop, YACD and sing-box updates download through the selected section',
+    ),
   );
   configureDownloadViaProxyFlag(o, 'download_components_via_proxy_section');
 
@@ -155,4 +163,31 @@ export function addUpdateOptions(section: CBISection) {
   o.depends('download_components_via_proxy', '1');
   o.retain = true;
   configureDownloadSectionOption(o, 'download_components_via_proxy_section');
+
+  // A WARP tunnel asks Cloudflare's API for its profile whenever it starts, and
+  // the tunnel dialog registers new ones there. The setting exists only in a
+  // core with WARP, and stays visible while it is on so it can be switched off.
+  o = section.option(
+    form.Flag,
+    'warp_profiles_via_proxy',
+    _('Request WARP profiles through a section'),
+    _(
+      'Profile generation and Cloudflare WARP tunnels make their requests through the selected section',
+    ),
+  );
+  configureDownloadViaProxyFlag(o, 'warp_profiles_via_proxy_section');
+  o.checkDepends = function (sectionId: string) {
+    return coreHas('wireguard') || this.cfgvalue(sectionId) === '1';
+  };
+  o.validate = (_sectionId: string, value: string) =>
+    value === '1' ? validateCoreFeature('wireguard') : true;
+
+  o = section.option(
+    form.ListValue,
+    'warp_profiles_via_proxy_section',
+    _('Request WARP profiles through'),
+  );
+  o.depends('warp_profiles_via_proxy', '1');
+  o.retain = true;
+  configureDownloadSectionOption(o, 'warp_profiles_via_proxy_section');
 }

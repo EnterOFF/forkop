@@ -236,10 +236,14 @@ function stop_runtime(keep_watcher) {
     remove_cron_jobs();
     if (!cleanup_network())
         ok = false;
-    if (((fs.stat(paths.sing_box_init)?.mode ?? 0) & 0111) != 0 && exec.run([ paths.sing_box_init, "stop" ]) != 0)
+    if (((fs.stat(paths.sing_box_init)?.mode ?? 0) & 0111) != 0 && exec.run([ paths.sing_box_init, "stop" ]) != 0) {
+        log("error", "Failed to stop sing-box");
         ok = false;
-    if (!wait_stopped())
+    }
+    if (!wait_stopped()) {
+        log("error", "sing-box is still running after it was stopped");
         ok = false;
+    }
     return ok;
 }
 
@@ -266,8 +270,10 @@ function start_runtime() {
     if (!validate())
         return false;
     start_fingerprint = config_fingerprint();
-    if (!nft.ensure_bridge_netfilter_disabled())
+    if (!nft.ensure_bridge_netfilter_disabled()) {
+        log("error", "Failed to disable br_netfilter for transparent proxy routing. Aborted.");
         return false;
+    }
     sync_time_if_needed();
 
     try {
@@ -278,8 +284,12 @@ function start_runtime() {
         log("fatal", e.message);
         return false;
     }
-    if (!clash_controller_free() || !refresh_cron())
+    if (!clash_controller_free())
         return false;
+    if (!refresh_cron()) {
+        log("error", "Failed to refresh the Forkop cron jobs. Aborted.");
+        return false;
+    }
 
     if (!exec.ok([ paths.sing_box_init, "start" ])) {
         log("fatal", "Failed to start sing-box. Aborted.");
@@ -302,8 +312,14 @@ function start_runtime() {
         log("fatal", "Forkop runtime was not ready after nftables activation. Aborted.");
         return false;
     }
-    if (!watch.start_worker() || !rulesets.start_worker())
+    if (!watch.start_worker()) {
+        log("error", "Failed to start the sing-box crash watcher. Aborted.");
         return false;
+    }
+    if (!rulesets.start_worker()) {
+        log("error", "Failed to start the rule set sync worker. Aborted.");
+        return false;
+    }
 
     fs.unlink(paths.planned_stop);
     if (fs.stat(paths.planned_stop) != null) {

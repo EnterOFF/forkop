@@ -262,6 +262,16 @@ function validate_download_section(sections, target_name) {
     outbound_section(sections, "Downloading external resources through a section", target_name);
 }
 
+// A WARP tunnel waits for its profile before it carries anything, so a profile
+// requested through the section that holds the tunnel would wait for itself.
+function validate_warp_profile_section(target_name) {
+    for (let tunnel in sections_by_type("tunnel"))
+        if (option(tunnel, "kind", "") == "warp" && option(tunnel, "section", "") == target_name)
+            fail_validation("Section '" + connections.section_display_name(target_name) + "' holds WARP tunnel '" +
+                option(tunnel, "name", section_name(tunnel)) + "', so it cannot carry the requests for its profile. " +
+                "Choose another section for WARP profiles. Aborted.");
+}
+
 function validate_duration_option(value, label) {
     if (as_string(value) == "")
         return;
@@ -1243,6 +1253,7 @@ function validate_server_listen_ports() {
         as_string(singbox_constants.DNS_INBOUND_PORT),
         as_string(singbox_constants.SERVICE_MIXED_INBOUND_PORT),
         as_string(singbox_constants.COMPONENTS_MIXED_INBOUND_PORT),
+        as_string(singbox_constants.WARP_PROFILES_MIXED_INBOUND_PORT),
         as_string(singbox_constants.CLASH_API_CONTROLLER_PORT)
     ])
         owners["tcp/" + port] = owners["udp/" + port] = "a Forkop inbound";
@@ -1607,6 +1618,8 @@ function validate_core_features(settings, sections, servers, core_tags) {
 
     if (bool_option(settings, "enable_native_api", false))
         refuse_without("api", core_tags, "The sing-box Dashboard and API setting is on");
+    if (connections.download_via_proxy_enabled(settings, "warp_profiles"))
+        refuse_without("wireguard", core_tags, "Requesting WARP profiles through a section is on");
 }
 
 function validate_runtime_config(context) {
@@ -1626,9 +1639,11 @@ function validate_runtime_config(context) {
         fail_validation("settings.native_api_secret is required when the sing-box API is enabled. Aborted.");
     validate_http_url_option(option(settings, "latency_test_url", DEFAULT_LATENCY_TEST_URL) || DEFAULT_LATENCY_TEST_URL, "settings.latency_test_url");
 
-    for (let purpose in [ "lists", "components" ])
+    for (let purpose in [ "lists", "components", "warp_profiles" ])
         if (connections.download_via_proxy_enabled(settings, purpose))
             validate_download_section(sections, connections.download_via_proxy_section(settings, purpose));
+    if (connections.download_via_proxy_enabled(settings, "warp_profiles"))
+        validate_warp_profile_section(connections.download_via_proxy_section(settings, "warp_profiles"));
 
     validate_outbound_detours(sections);
     validate_subscription_download_sections(sections, context);

@@ -66,7 +66,7 @@ function reset(options) {
             die("Failed to generate sing-box configuration: broken");
         return world.config_changed;
     };
-    nft.ensure_bridge_netfilter_disabled = () => true;
+    nft.ensure_bridge_netfilter_disabled = () => !world.bridge_fails;
     nft.build = () => ({ script: world.script, skipped: [] });
     nft.apply = (built) => {
         if (world.nft_fails)
@@ -84,7 +84,7 @@ function reset(options) {
     health.forkop_runtime_network_configured = () => world.network && world.capture;
     health.sing_box_service_running = () => world.pid > 0;
     health.forkop_running = () => world.pid > 0 && world.ports && world.network && world.capture;
-    watch.start_worker = () => { event("watcher started"); return true; };
+    watch.start_worker = () => { event("watcher started"); return !world.watcher_fails; };
     watch.stop_worker = () => { event("watcher stopped"); return true; };
     rulesets.start_worker = () => { event("rule-set worker started"); return !world.ruleset_fails; };
     rulesets.stop_worker = () => { event("rule-set worker stopped"); return true; };
@@ -114,7 +114,14 @@ function reset(options) {
             world.on_sleep = () => { world.ports = !world.reload_never_ready; };
             return { status: world.reload_fails ? 1 : 0 };
         } ],
-        [ dir + "/sing-box stop", () => { event("sing-box stopped"); world.pid = 0; world.ports = false; return {}; } ],
+        [ dir + "/sing-box stop", () => {
+            event("sing-box stopped");
+            if (world.stop_fails)
+                return { status: 1 };
+            world.pid = 0;
+            world.ports = false;
+            return {};
+        } ],
         [ "nft add table inet ForkopTable { flags dormant; }", () => {
             event("capture paused");
             world.capture = false;
@@ -136,7 +143,7 @@ function reset(options) {
         } ],
         [ /cron-refresh-plan/, () => ({ stdout: world.cron_wanted == "" ? "" : "component\t" + world.cron_wanted + "\n" }) ],
         [ "crontab -l", () => ({ stdout: world.cron_installed == "" ? "" : world.cron_installed + "\n" }) ],
-        [ /refresh-cron-from-uci/, () => { event("cron refreshed"); world.cron_installed = world.cron_wanted; return {}; } ],
+        [ /refresh-cron-from-uci/, () => { event("cron refreshed"); world.cron_installed = world.cron_wanted; return { status: world.cron_fails ? 1 : 0 }; } ],
         [ /remove-cron-jobs/, () => { event("cron removed"); return {}; } ]
     ]);
 }
@@ -228,6 +235,20 @@ t.test("a start refuses to run a second sing-box", () => {
     t.eq(result.result, 1);
     t.eq(filter(world.events, (e) => e == "sing-box started"), []);
     t.contains(result.stderr, "sing-box is still running; refusing to start a second process");
+});
+
+t.test("each failed step of a start names itself in the log as an error", () => {
+    for (let failure in [
+        [ { bridge_fails: true }, "Failed to disable br_netfilter for transparent proxy routing. Aborted." ],
+        [ { cron_fails: true }, "Failed to refresh the Forkop cron jobs. Aborted." ],
+        [ { watcher_fails: true }, "Failed to start the sing-box crash watcher. Aborted." ],
+        [ { ruleset_fails: true }, "Failed to start the rule set sync worker. Aborted." ]
+    ]) {
+        reset(failure[0]);
+        let result = run(() => lifecycle.start());
+        t.eq(result.result, 1, failure[1]);
+        t.contains(world.logs, "[error] " + failure[1]);
+    }
 });
 
 t.test("a reload with nothing changed touches nothing", () => {
@@ -343,6 +364,14 @@ t.test("a core without its init script already counts as stopped, and a core tha
     let status = lifecycle.stop();
     finish();
     t.eq(status, 1);
+});
+
+t.test("a core that refuses to stop is named in the log as an error", () => {
+    running({ stop_fails: true });
+    let result = run(() => lifecycle.stop());
+    t.eq(result.result, 1);
+    t.contains(world.logs, "[error] Failed to stop sing-box");
+    t.contains(world.logs, "[error] sing-box is still running after it was stopped");
 });
 
 t.test("a stop whose table cannot be removed fails", () => {

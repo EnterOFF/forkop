@@ -1,5 +1,5 @@
 {
-  "reserved_ports": [53, 1602, 1603, 1604, 1605, 4534, 4535, 9090],
+  "reserved_ports": [53, 1602, 1603, 1604, 1605, 4534, 4535, 4536, 9090],
   "reserved_tags": [
     "bootstrap-dns-server",
     "direct-out",
@@ -13,6 +13,7 @@
     "service-components-in",
     "service-fakeip-dns-rule-tag",
     "service-mixed-in",
+    "service-warp-in",
     "source-dns-in",
     "system-dns-in",
     "system-in",

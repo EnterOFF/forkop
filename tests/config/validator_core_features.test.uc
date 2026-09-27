@@ -98,4 +98,12 @@ t.test("the sing-box dashboard needs the API service", () => {
         "The sing-box Dashboard and API setting is on, but this sing-box build lacks the sing-box API (built without with_api)");
 });
 
+t.test("requesting WARP profiles through a section needs WARP", () => {
+    needs({
+        settings: { warp_profiles_via_proxy: "1", warp_profiles_via_proxy_section: "proxy" },
+        section: [ section({ selector_proxy_links: [ "vless://u@a.example:443#A" ] }) ]
+    }, without(BASE, "with_wireguard"),
+        "Requesting WARP profiles through a section is on, but this sing-box build lacks WireGuard, AmneziaWG and WARP (built without with_wireguard)");
+});
+
 t.done();

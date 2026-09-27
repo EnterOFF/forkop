@@ -155,9 +155,11 @@ function getLocalPendingServiceOperation(
 }
 
 // Runs on every runtime state notification for the life of the page: a finished
-// action is acknowledged and, when it failed, said out loud - wherever it was
-// started, this page or another. Both are once per job; the feed keeps
-// reporting a finished action until the acknowledgement is collected.
+// action is acknowledged once per job, wherever it was started, this page or
+// another; the feed keeps reporting a finished action until the acknowledgement
+// is collected. A failed one is not said here: every way a start, stop, restart
+// or reload fails is written to the log as an error with its reason, and a
+// logged error is already raised as an alert.
 function settleFinishedServiceActions(uiState: Forkop.UiState) {
   for (const action of uiState.actions.service || []) {
     if (!action.job_id || action.running) {
@@ -169,13 +171,6 @@ function settleFinishedServiceActions(uiState: Forkop.UiState) {
     }
 
     handledServiceActionJobs.add(action.job_id);
-    if (action.success === false) {
-      const message = serviceActionFailureMessage(action.action);
-      if (message) {
-        showToast(message, 'error');
-      }
-    }
-
     void ForkopShellMethods.uiActionAck('service', action.job_id);
     releaseDiagnosticsChecks();
   }
@@ -319,12 +314,7 @@ async function handleServiceRuntimeAction(action: ServiceRuntimeAction) {
     }
   } catch (e) {
     logger.error('[DIAGNOSTIC]', `handleServiceRuntimeAction(${action})`, e);
-    // start, stop and restart always have a message; the request never carries
-    // the one action that has none.
-    showToast(
-      serviceActionFailureMessage(action) || _('Service action failed'),
-      'error',
-    );
+    showToast(serviceActionFailureMessage(action), 'error');
     setDiagnosticActionLoading(action, false);
   } finally {
     void refreshRuntimeUiStateNow();

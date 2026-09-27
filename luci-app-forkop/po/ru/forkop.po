@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-27 10:38+0300\n"
-"PO-Revision-Date: 2026-09-27 10:38+0300\n"
+"POT-Creation-Date: 2026-09-27 14:42+0300\n"
+"PO-Revision-Date: 2026-09-27 14:42+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -740,9 +740,6 @@ msgstr "Не удалось скопировать!"
 msgid "Failed to execute"
 msgstr "Не удалось выполнить"
 
-msgid "Failed to generate WARP profile"
-msgstr "Не удалось создать профиль WARP"
-
 msgid "Failed to load default subscription headers"
 msgstr "Не удалось загрузить заголовки подписки по умолчанию"
 
@@ -841,6 +838,9 @@ msgstr "Системные логи Forkop"
 
 msgid "Forkop transparent proxy"
 msgstr "прозрачный прокси Forkop"
+
+msgid "Forkop, YACD and sing-box updates download through the selected section"
+msgstr "Обновления Forkop, YACD и sing-box скачиваются через выбранную секцию"
 
 msgid "Generate"
 msgstr "Сгенерировать"
@@ -1460,6 +1460,9 @@ msgstr "Процесс запущен"
 msgid "Profile"
 msgstr "Профиль"
 
+msgid "Profile generation and Cloudflare WARP tunnels make their requests through the selected section"
+msgstr "Создание профиля и туннели Cloudflare WARP обращаются через выбранную секцию"
+
 msgid "Profile ID"
 msgstr "Идентификатор профиля"
 
@@ -1514,6 +1517,9 @@ msgstr "Интервал обновления ключа"
 msgid "Rekey timeout"
 msgstr "Таймаут обновления ключа"
 
+msgid "Remote lists and rule sets download through the selected section"
+msgstr "Удалённые списки и наборы правил скачиваются через выбранную секцию"
+
 msgid "Remove servers from the selection above"
 msgstr "Убрать серверы из выборки выше"
 
@@ -1531,6 +1537,12 @@ msgstr "Запрашивать подписку через секцию"
 
 msgid "Request through"
 msgstr "Запрашивать через"
+
+msgid "Request WARP profiles through"
+msgstr "Запрашивать профили WARP через"
+
+msgid "Request WARP profiles through a section"
+msgstr "Запрашивать профили WARP через секцию"
 
 msgid "Require a login and password to connect to the server"
 msgstr "Требовать логин и пароль для подключения к серверу"

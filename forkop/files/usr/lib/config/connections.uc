@@ -482,10 +482,8 @@ function tunnel_endpoint(tunnel) {
             if (value != "")
                 profile[key] = value;
         }
-        if (length(keys(profile)) > 0) {
-            profile.recreate = true;
+        if (length(keys(profile)) > 0)
             endpoint.profile = profile;
-        }
         let amnezia = tunnel_amnezia(tunnel, ONE_SIDED_AMNEZIA_KEYS);
         if (amnezia)
             endpoint.amnezia = amnezia;
@@ -616,13 +614,15 @@ function rule_condition_csv(section, key, kind) {
 
 // Which section a download is routed through. "components" falls back to the
 // lists section so one choice can cover both, which is what the settings form
-// offers.
+// offers. WARP profiles name their own section or none.
 function download_via_proxy_flag_option(purpose) {
     purpose = as_string(purpose || "lists");
     if (purpose == "lists")
         return "download_lists_via_proxy";
     if (purpose == "components")
         return "download_components_via_proxy";
+    if (purpose == "warp_profiles")
+        return "warp_profiles_via_proxy";
     return "";
 }
 
@@ -636,6 +636,8 @@ function download_via_proxy_section(settings, purpose) {
         return "";
 
     purpose = as_string(purpose || "lists");
+    if (purpose == "warp_profiles")
+        return option(settings, "warp_profiles_via_proxy_section", "");
     if (purpose == "components") {
         let configured = option(settings, "download_components_via_proxy_section", "");
         if (configured != "")

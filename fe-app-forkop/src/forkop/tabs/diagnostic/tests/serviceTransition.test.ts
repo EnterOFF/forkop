@@ -259,11 +259,7 @@ describe('polling and component actions', () => {
     ).toBe(true);
   });
 
-  // Applying a configuration says why it failed in the log, and the page already
-  // raises an ordinary error alert for a logged error. A toast on top of that
-  // could only say that something went wrong, without the reason.
-  it('leaves a failed apply to the error alert and names every other failure', () => {
-    expect(serviceActionFailureMessage('reload')).toBeNull();
+  it('names the action a request could not start', () => {
     expect(serviceActionFailureMessage('start')).toBe(
       'Failed to start the service',
     );

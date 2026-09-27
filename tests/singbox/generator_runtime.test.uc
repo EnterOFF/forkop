@@ -108,6 +108,7 @@ t.test("tunnels become native endpoints with the fields their kind allows", () =
     let warp = q.endpoint(config, "tunnels/Cloudflare WARP");
     t.eq(warp.type, "warp");
     t.eq(warp.profile.license_key, "license-key");
+    t.eq(warp.profile.recreate, null, "the core keys its profile cache by the profile, so one it already fetched is not asked for again");
     t.eq(warp.amnezia, { jc: 7, i1: "<r 1>", content_padding_addition: "8-16", disable_cookies: true },
         "WARP carries only the obfuscation a plain peer ignores");
 
@@ -702,6 +703,66 @@ t.test("downloads through a section get service inbounds and rule-set detours", 
     t.eq(q.ruleset_url(d, "https://example.com/rules.srs").http_client.detour, "proxy");
     let text_ruleset = q.ruleset_url(d, "https://example.com/mixed.txt");
     t.eq([ text_ruleset.format, text_ruleset.update_interval, text_ruleset.http_client.detour ], [ "auto", "1d", "proxy" ]);
+
+    let sections = [ {
+        ".name": "proxy", enabled: "1", action: "outbound",
+        outbound_json: "{\"type\":\"socks\",\"server\":\"127.0.0.1\",\"server_port\":1080}",
+        community_lists: [ "discord" ], rule_set: [ "https://example.com/rules.srs" ]
+    } ];
+    let direct = build({ settings: settings(), section: sections });
+    t.eq([ q.ruleset(direct, "proxy-discord-community-ruleset").http_client.detour,
+        q.ruleset_url(direct, "https://example.com/rules.srs").http_client.detour ], [ "direct-out", "direct-out" ],
+        "without a section a list downloads direct, whatever the route's final outbound");
+    let through_section = build({
+        settings: settings({ download_lists_via_proxy: "1", download_lists_via_proxy_section: "proxy" }),
+        section: sections
+    });
+    t.eq(map(through_section.inbounds, (inbound) => inbound.tag), map(direct.inbounds, (inbound) => inbound.tag),
+        "lists download through a section as a rule-set detour and open no port for it");
+});
+
+t.test("WARP profile requests go through the chosen section: the tunnel names it, the page's generator gets an inbound", () => {
+    let data = (extra) => ({
+        settings: settings(extra),
+        section: [
+            { ".name": "proxy", enabled: "1", action: "outbound", outbound_json: "{\"type\":\"direct\"}", domain_suffix: [ "example.org" ] },
+            { ".name": "tunnels", enabled: "1", action: "connection" }
+        ],
+        tunnel: [ {
+            ".name": "tun_warp", section: "tunnels", order: "0", kind: "warp", name: "WARP",
+            warp_profile_id: "profile-id", warp_profile_auth_token: "auth-token", warp_profile_private_key: "private-key"
+        } ]
+    });
+
+    let through = build(data({ warp_profiles_via_proxy: "1", warp_profiles_via_proxy_section: "proxy" }));
+    let warp = q.endpoint(through, "tunnels/WARP");
+    t.eq([ warp.profile.id, warp.profile.detour ], [ "profile-id", "proxy" ]);
+    t.eq(q.inbound(through, "service-warp-in").listen_port, 4536);
+    t.ok(q.route_rule(through, (r) => r.inbound == "service-warp-in" && r.outbound == "proxy") != null);
+
+    let direct = build(data());
+    t.eq([ q.endpoint(direct, "tunnels/WARP").profile.detour, q.inbound(direct, "service-warp-in") ], [ null, null ],
+        "without a section the profile goes the way the router's own traffic goes");
+});
+
+t.test("the Clash API dashboard downloads its interface through the component download section", () => {
+    let sections = [
+        { ".name": "proxy", enabled: "1", action: "outbound", outbound_json: "{\"type\":\"direct\"}", domain_suffix: [ "example.org" ] },
+        { ".name": "components_proxy", enabled: "1", action: "outbound", outbound_json: "{\"type\":\"direct\"}", domain_suffix: [ "components.example" ] }
+    ];
+    let through_section = build({
+        settings: settings({ enable_yacd: "1", download_components_via_proxy: "1", download_components_via_proxy_section: "components_proxy" }),
+        section: sections
+    });
+    t.eq([ through_section.experimental.clash_api.external_ui, through_section.experimental.clash_api.external_ui_download_detour ],
+        [ "ui", "components_proxy" ]);
+    let direct = build({ settings: settings({ enable_yacd: "1" }), section: sections });
+    t.eq(direct.experimental.clash_api.external_ui_download_detour, "direct-out");
+    let without_ui = build({
+        settings: settings({ download_components_via_proxy: "1", download_components_via_proxy_section: "components_proxy" }),
+        section: sections
+    });
+    t.eq(without_ui.experimental.clash_api.external_ui_download_detour, null, "no interface, nothing to download");
 });
 
 t.test("fully routed devices follow their section at its priority", () => {

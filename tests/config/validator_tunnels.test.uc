@@ -60,4 +60,18 @@ t.test("each broken tunnel field is refused by name", () => {
     v.refuses(changed((d) => d.tunnel[3].endpoint_json = "{\"type\":\"vpn-client\"}"), "JSON endpoint without a tag");
 });
 
+// A WARP tunnel waits for its profile before it carries anything, so a profile
+// requested through the section that holds it would wait for itself.
+t.test("WARP profiles go through a section of their own choosing, never the one holding the tunnel", () => {
+    let through = (target) => changed((d) => {
+        push(d.section, { ".name": "proxy", enabled: "1", action: "connection", selector_proxy_links: [ "vless://u@a.example:443#A" ] });
+        d.settings.warp_profiles_via_proxy = "1";
+        if (target != null)
+            d.settings.warp_profiles_via_proxy_section = target;
+    });
+    v.accepts(through("proxy"));
+    v.refuses(through(null), "no download section is selected");
+    v.refuses(through("tunnels"), "Section 'tunnels' holds WARP tunnel 'Generated WARP', so it cannot carry the requests for its profile");
+});
+
 t.done();

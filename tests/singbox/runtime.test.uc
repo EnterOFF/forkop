@@ -85,14 +85,13 @@ t.test("the service runs the generated file as root, committed only when somethi
     stub.restore();
 });
 
-t.test("a download goes through the mixed inbound only when a section is chosen for it", () => {
+t.test("the component manager downloads through the mixed inbound only when a section is chosen for components", () => {
     fixture.seed({ settings: { download_lists_via_proxy: "1", download_lists_via_proxy_section: "main" } });
-    t.eq(runtime.proxy_address("lists"), "127.0.0.1:4534");
-    t.eq(runtime.proxy_address("components"), "", "components have a switch of their own");
+    t.eq(runtime.components_proxy_address(), "", "components have a switch of their own");
     fixture.seed({ settings: { download_components_via_proxy: "1", download_lists_via_proxy_section: "main" } });
-    t.eq(runtime.proxy_address("components"), "127.0.0.1:4535");
+    t.eq(runtime.components_proxy_address(), "127.0.0.1:4535");
     fixture.seed({ settings: {} });
-    t.eq(runtime.proxy_address("lists"), "");
+    t.eq(runtime.components_proxy_address(), "");
 });
 
 t.test("the core version is the compressed package's first, with the release spelling", () => {
@@ -105,16 +104,72 @@ t.test("the core version is the compressed package's first, with the release spe
     stub.restore();
 });
 
+const WARP_COMMAND = "sing-box --disable-color generate warp-profile --json";
+const PROXIED_WARP_COMMAND = "env HTTPS_PROXY=http://127.0.0.1:4536 " + WARP_COMMAND;
+const WARP_PROXY_LISTENING = [ "netstat -lnt", { stdout: "tcp 0 0 127.0.0.1:4536 0.0.0.0:* LISTEN\n" } ];
+const NOTHING_LISTENING = [ "netstat -lnt", { stdout: "tcp 0 0 127.0.0.1:53 0.0.0.0:* LISTEN\n" } ];
+const PROFILE = "{\"id\":\"profile-id\",\"auth_token\":\"auth-token\",\"private_key\":\"private-key\"}";
+
+function warp_settings(through_section) {
+    fixture.seed({
+        settings: through_section ? { warp_profiles_via_proxy: "1", warp_profiles_via_proxy_section: "proxy" } : {},
+        section: [ { ".name": "proxy", label: "Proxy", enabled: "1", action: "connection", selector_proxy_links: [ "vless://u@a.example:443#A" ] } ]
+    });
+    require("config.connections").load();
+}
+
+function generate() {
+    return stub.capture(() => cli.main([ "generate_warp_profile" ], "/lib"));
+}
+
 t.test("a WARP profile is the three fields the core returned, and a failure says nothing of its output", () => {
-    tools([ [ "sing-box generate warp-profile --json", { stdout: "{\"id\":\"profile-id\",\"auth_token\":\"auth-token\",\"private_key\":\"private-key\",\"extra\":1}" } ] ]);
-    let good = stub.capture(() => cli.main([ "generate_warp_profile" ], "/lib"));
-    tools([ [ "sing-box generate warp-profile --json", { stdout: "{\"id\":\"secret-leak\"}" } ] ]);
-    let bad = stub.capture(() => cli.main([ "generate_warp_profile" ], "/lib"));
+    warp_settings(false);
+    tools([ [ WARP_COMMAND, { stdout: "{\"id\":\"profile-id\",\"auth_token\":\"auth-token\",\"private_key\":\"private-key\",\"extra\":1}" } ] ]);
+    let good = generate();
+    tools([ [ WARP_COMMAND, { stdout: "{\"id\":\"secret-leak\"}" } ] ]);
+    let bad = generate();
     stub.restore();
 
     t.eq([ good.result, json(good.stdout) ], [ 0, { id: "profile-id", auth_token: "auth-token", private_key: "private-key" } ]);
-    t.eq([ bad.result, bad.stdout, bad.stderr ], [ 1, "", "Failed to generate WARP profile.\n" ]);
-    t.eq(logs, [ "[error] Failed to generate WARP profile." ]);
+    t.eq([ bad.result, bad.stdout, bad.stderr ], [ 1, "", "Failed to generate WARP profile: the core returned an incomplete profile\n" ]);
+    t.eq(logs, [ "[error] Failed to generate WARP profile: the core returned an incomplete profile" ]);
+});
+
+t.test("a WARP profile is registered through the chosen section's service proxy", () => {
+    warp_settings(true);
+    tools([ WARP_PROXY_LISTENING, [ PROXIED_WARP_COMMAND, { stdout: PROFILE } ] ]);
+    let result = generate();
+    stub.restore();
+    t.eq([ result.result, json(result.stdout).id ], [ 0, "profile-id" ]);
+});
+
+t.test("a WARP registration that cannot reach its section says so, and never goes out directly instead", () => {
+    warp_settings(true);
+    tools([ NOTHING_LISTENING ]);
+    let result = generate();
+    stub.restore();
+    let message = "Failed to generate WARP profile: profiles are requested through section 'Proxy', " +
+        "and its service proxy is not running. Apply the settings or start Forkop";
+    t.eq([ result.result, result.stderr ], [ 1, message + "\n" ]);
+    t.eq(logs, [ "[error] " + message ]);
+});
+
+t.test("a WARP registration the core gave up on is logged with the core's reason and the way it went", () => {
+    let reason = "FATAL[0010] Post \"https://api.cloudflareclient.com/v0a4471/reg\": net/http: TLS handshake timeout";
+    warp_settings(false);
+    tools([ [ WARP_COMMAND, { status: 1, stdout: reason + "\n" } ] ]);
+    let direct = generate();
+    let direct_logs = logs;
+    warp_settings(true);
+    tools([ WARP_PROXY_LISTENING, [ PROXIED_WARP_COMMAND, { status: 1, stdout: reason + "\n" } ] ]);
+    let proxied = generate();
+    stub.restore();
+
+    let hint = ". If the Cloudflare API is blocked on this network, choose a section in Settings to request WARP profiles through";
+    t.eq([ direct.result, direct.stderr ], [ 1, "Failed to generate WARP profile: " + reason + hint + "\n" ]);
+    t.eq(direct_logs, [ "[error] Failed to generate WARP profile: " + reason + hint ]);
+    t.eq(proxied.result, 1);
+    t.eq(logs, [ "[error] Failed to generate WARP profile through section 'Proxy': " + reason ]);
 });
 
 t.done();

@@ -447,7 +447,7 @@ function service_proxy_address() {
     if (file_exists(LIB_DIR + "/service/state.uc") &&
         !module_success([ LIB_DIR + "/service/state.uc", "sing-box-service-running" ]))
         return "";
-    return trim(module_output([ LIB_DIR + "/singbox/runtime.uc", "service-proxy-address", "components" ]));
+    return trim(module_output([ LIB_DIR + "/singbox/runtime.uc", "components-proxy-address" ]));
 }
 
 function http_get_once(url, output_path, proxy_address, timeout) {

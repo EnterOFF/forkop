@@ -18,6 +18,7 @@ export const RESERVED_PORTS = [
   ['1605', _('Forkop transparent proxy')],
   ['4534', _('Forkop service proxy')],
   ['4535', _('Forkop service proxy')],
+  ['4536', _('Forkop service proxy')],
   ['9090', _('sing-box Clash API')],
 ];
 

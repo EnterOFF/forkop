@@ -191,7 +191,10 @@ function E(tag, attrs, children) {
   );
   const kids = Array.isArray(attrs) ? attrs : children;
   if (Array.isArray(kids)) {
-    kids.forEach((kid) => kid instanceof FakeNode && node.appendChild(kid));
+    kids.forEach((kid) => {
+      if (kid instanceof FakeNode) node.appendChild(kid);
+      else if (typeof kid === 'string') node.textContent += kid;
+    });
   }
   return node;
 }
@@ -711,6 +714,25 @@ export function createHarness(packageName = 'forkop') {
     },
   };
 
+  // The alerts the page raised through LuCI, in order.
+  const notifications = [];
+
+  // What a forkop command answers, by name; a test replaces one with the
+  // answer it is about. The default is the one command a page cannot get
+  // through without: the Reality identity a server dialog generates. Answering
+  // it keeps a test from reporting the dialog's own failure notice as its output.
+  const commands = {
+    generate_reality_keypair: () =>
+      Promise.resolve({
+        code: 0,
+        stdout: JSON.stringify({
+          success: true,
+          private_key: 'wIWKZmAoiFsYIPFCwG8FRPHKn0P6PLh0hbBjPfKgpU0',
+          public_key: 'SSw7I859PPdN4DQ7fxV9fobXM61Ms3mqZRlIY1aJvHQ',
+        }),
+      }),
+  };
+
   // What the loader hands every module, main.js included. main.js is loaded
   // with exactly these, so the constants, validators and helpers a view reads
   // out of it are the shipped ones and anything it looks up in uci finds the
@@ -719,26 +741,16 @@ export function createHarness(packageName = 'forkop') {
     form,
     ui: {
       DynamicList: makeClass('ui.DynamicList', function () {}),
-      addNotification() {},
+      addNotification(title, body, kind) {
+        notifications.push({ title, text: body?.textContent ?? '', kind });
+      },
     },
     uci,
-    // The one command on the router a page cannot get through without: the
-    // Reality identity a server dialog generates. Answering it keeps a test from
-    // reporting the dialog's own failure notice as its output.
     fs: {
       read: () => Promise.resolve(''),
       exec: (command, args) => {
-        const answers = {
-          generate_reality_keypair: {
-            success: true,
-            private_key: 'wIWKZmAoiFsYIPFCwG8FRPHKn0P6PLh0hbBjPfKgpU0',
-            public_key: 'SSw7I859PPdN4DQ7fxV9fobXM61Ms3mqZRlIY1aJvHQ',
-          },
-        };
-        const answer = answers[`${args?.[0] ?? ''}`];
-        return Promise.resolve(
-          answer ? { code: 0, stdout: JSON.stringify(answer) } : {},
-        );
+        const answer = commands[`${args?.[0] ?? ''}`];
+        return answer ? answer(args) : Promise.resolve({});
       },
     },
     network: { getDevices: () => Promise.resolve([]) },
@@ -863,6 +875,8 @@ export function createHarness(packageName = 'forkop') {
     store,
     operations,
     messages,
+    commands,
+    notifications,
     openDialog,
     toasts,
   };

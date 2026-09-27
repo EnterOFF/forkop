@@ -38,6 +38,7 @@ var RESERVED_RUNTIME_TAGS = /* @__PURE__ */ new Set([
   "system-dns-in",
   "service-mixed-in",
   "service-components-in",
+  "service-warp-in",
   "direct-out"
 ]);
 var DETOUR_TARGET_ACTIONS = ["connection", "proxy", "outbound", "vpn"];
@@ -8523,9 +8524,6 @@ var SERVICE_ACTION_FAILURE_LABELS = {
   restart: () => _("Failed to restart the service")
 };
 function serviceActionFailureMessage(action) {
-  if (action === "reload") {
-    return null;
-  }
   const label = SERVICE_ACTION_FAILURE_LABELS[action];
   return label ? label() : _("Service action failed");
 }
@@ -8622,12 +8620,6 @@ function settleFinishedServiceActions(uiState) {
       continue;
     }
     handledServiceActionJobs.add(action.job_id);
-    if (action.success === false) {
-      const message = serviceActionFailureMessage(action.action);
-      if (message) {
-        showToast(message, "error");
-      }
-    }
     void ForkopShellMethods.uiActionAck("service", action.job_id);
     releaseDiagnosticsChecks();
   }
@@ -8731,10 +8723,7 @@ async function handleServiceRuntimeAction(action) {
     }
   } catch (e) {
     logger.error("[DIAGNOSTIC]", `handleServiceRuntimeAction(${action})`, e);
-    showToast(
-      serviceActionFailureMessage(action) || _("Service action failed"),
-      "error"
-    );
+    showToast(serviceActionFailureMessage(action), "error");
     setDiagnosticActionLoading(action, false);
   } finally {
     void refreshRuntimeUiStateNow();
@@ -19230,25 +19219,21 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   warpLicenseKeyOption.rmempty = true;
   warpLicenseKeyOption.depends("tunnel_type", "warp");
   warpGenerateButton.onclick = function() {
-    const showError = () => ui.addNotification(
-      _("Forkop Error"),
-      textE("p", {}, _("Failed to generate WARP profile")),
-      "error"
-    );
     return fs.exec("/usr/bin/forkop", ["generate_warp_profile"]).then((response) => {
-      let profile = {};
-      try {
-        profile = JSON.parse(response.stdout || "{}");
-      } catch (_error) {
-      }
-      if ((response.code ?? 0) !== 0 || !profile.id || !profile.auth_token || !profile.private_key) {
-        showError();
+      if ((response.code ?? 0) !== 0) {
         return;
       }
+      const profile = JSON.parse(response.stdout);
       setModalOptionValue(map, warpProfileIdOption, profile.id);
       setModalOptionValue(map, warpAuthTokenOption, profile.auth_token);
       setModalOptionValue(map, warpPrivateKeyOption, profile.private_key);
-    }).catch(showError);
+    }).catch(
+      (error) => ui.addNotification(
+        _("Forkop Error"),
+        textE("p", {}, error instanceof Error ? error.message : String(error)),
+        "error"
+      )
+    );
   };
   const warpJunkOption = itemSection.option(
     form.Flag,
@@ -20129,6 +20114,7 @@ var RESERVED_PORTS = [
   ["1605", _("Forkop transparent proxy")],
   ["4534", _("Forkop service proxy")],
   ["4535", _("Forkop service proxy")],
+  ["4536", _("Forkop service proxy")],
   ["9090", _("sing-box Clash API")]
 ];
 var CAMOUFLAGE_SITES = [
@@ -24278,7 +24264,8 @@ function addUpdateOptions(section) {
   o = section.option(
     form.Flag,
     "download_lists_via_proxy",
-    _("Download lists through a section")
+    _("Download lists through a section"),
+    _("Remote lists and rule sets download through the selected section")
   );
   configureDownloadViaProxyFlag(o, "download_lists_via_proxy_section");
   o = section.option(
@@ -24292,7 +24279,10 @@ function addUpdateOptions(section) {
   o = section.option(
     form.Flag,
     "download_components_via_proxy",
-    _("Download components through a section")
+    _("Download components through a section"),
+    _(
+      "Forkop, YACD and sing-box updates download through the selected section"
+    )
   );
   configureDownloadViaProxyFlag(o, "download_components_via_proxy_section");
   o = section.option(
@@ -24303,6 +24293,27 @@ function addUpdateOptions(section) {
   o.depends("download_components_via_proxy", "1");
   o.retain = true;
   configureDownloadSectionOption(o, "download_components_via_proxy_section");
+  o = section.option(
+    form.Flag,
+    "warp_profiles_via_proxy",
+    _("Request WARP profiles through a section"),
+    _(
+      "Profile generation and Cloudflare WARP tunnels make their requests through the selected section"
+    )
+  );
+  configureDownloadViaProxyFlag(o, "warp_profiles_via_proxy_section");
+  o.checkDepends = function(sectionId) {
+    return coreHas("wireguard") || this.cfgvalue(sectionId) === "1";
+  };
+  o.validate = (_sectionId, value) => value === "1" ? validateCoreFeature("wireguard") : true;
+  o = section.option(
+    form.ListValue,
+    "warp_profiles_via_proxy_section",
+    _("Request WARP profiles through")
+  );
+  o.depends("warp_profiles_via_proxy", "1");
+  o.retain = true;
+  configureDownloadSectionOption(o, "warp_profiles_via_proxy_section");
 }
 
 // src/forkop/tabs/settings/form.ts

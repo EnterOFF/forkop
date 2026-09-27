@@ -220,6 +220,27 @@ describe('the Settings tab', () => {
     expect(dashboard.validate('settings', '1')).toBe(true);
   });
 
+  it('offers WARP profile requests through a section only with WARP, or while they are on', () => {
+    harness.bundle.setCoreFeatures(without('with_wireguard'));
+    addSections([['settings', 'settings', {}]]);
+    let flag = option(settings(), 'warp_profiles_via_proxy');
+    flag.cfgvalue('settings', '0');
+    expect(flag.checkDepends('settings')).toBe(false);
+
+    flag.cfgvalue('settings', '1');
+    expect(flag.checkDepends('settings')).toBe(true);
+    expect(flag.validate('settings', '1')).toBe(
+      'The installed sing-box was built without with_wireguard',
+    );
+    expect(flag.validate('settings', '0')).toBe(true);
+
+    harness.bundle.setCoreFeatures(base());
+    flag = option(settings(), 'warp_profiles_via_proxy');
+    flag.cfgvalue('settings', '0');
+    expect(flag.checkDepends('settings')).toBe(true);
+    expect(flag.validate('settings', '1')).toBe(true);
+  });
+
   it('asks for QUIC for DNS over QUIC and over HTTP/3', () => {
     harness.bundle.setCoreFeatures(without('with_quic'));
     addSections([['settings', 'settings', {}]]);

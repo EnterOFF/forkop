@@ -4,6 +4,7 @@
 let fs = require("fs");
 let common = require("core.common");
 let exec = require("core.exec");
+let netstat = require("core.netstat");
 let uci = require("core.uci");
 let singbox_constants = require("singbox.constants");
 let packages = require("core.packages");
@@ -45,13 +46,12 @@ function configure_service() {
     }
 }
 
-// The mixed inbound a download goes through when a section is chosen for it; the
-// component downloads have the port after the list downloads.
-function proxy_address(purpose) {
-    if (connections.download_via_proxy_section(settings(), purpose) == "")
+// The mixed inbound the component manager downloads through when a section is
+// chosen for component downloads.
+function components_proxy_address() {
+    if (connections.download_via_proxy_section(settings(), "components") == "")
         return "";
-    let port = purpose == "components" ? singbox_constants.COMPONENTS_MIXED_INBOUND_PORT : singbox_constants.SERVICE_MIXED_INBOUND_PORT;
-    return singbox_constants.SERVICE_MIXED_INBOUND_ADDRESS + ":" + port;
+    return singbox_constants.SERVICE_MIXED_INBOUND_ADDRESS + ":" + singbox_constants.COMPONENTS_MIXED_INBOUND_PORT;
 }
 
 function interface_ipv4_address(name) {
@@ -94,6 +94,11 @@ function mwan3_active() {
     return exec.ok([ "/etc/init.d/mwan3", "status" ]) || exec.ok([ "/etc/init.d/mwan3", "enabled" ]);
 }
 
+// The first line a failed core command printed, which is its fatal error.
+function failure_reason(result) {
+    return filter(split(result.output, "\n"), (line) => trim(line) != "")[0] ?? "exit status " + result.status;
+}
+
 function check(text) {
     let now = clock();
     let path = sprintf("/tmp/forkop-sing-box-check.%d.%d.json", now[0], now[1]);
@@ -103,8 +108,7 @@ function check(text) {
     fs.unlink(path);
     if (result.status == 0)
         return;
-    let reason = filter(split(result.output, "\n"), (line) => trim(line) != "")[0] ?? "exit status " + result.status;
-    die("Generated sing-box configuration is invalid: " + reason + ". Aborted.");
+    die("Generated sing-box configuration is invalid: " + failure_reason(result) + ". Aborted.");
 }
 
 // Generates the configuration and writes it where the service reads it. Returns
@@ -161,19 +165,44 @@ function process_running() {
     return exec.ok([ "pgrep", "-x", "sing-box" ]) || exec.ok([ "pgrep", "-f", "^/usr/bin/sing-box[[:space:]]" ]);
 }
 
+// Cloudflare's registration API is blocked on some networks. With a section
+// chosen for WARP profiles the request goes out through the running core's
+// inbound for them, and never directly instead; without one it is the router's
+// own request, routed as the router's own traffic is.
 function warp_profile() {
-    let profile = common.parse_json(exec.output([ "sing-box", "generate", "warp-profile", "--json" ]));
+    let values = settings();
+    let section = connections.download_via_proxy_enabled(values, "warp_profiles")
+        ? connections.download_via_proxy_section(values, "warp_profiles") : null;
+    let through = section == null ? "" : " through section '" + connections.section_display_name(section) + "'";
+    let fail = function(detail) {
+        let message = "Failed to generate WARP profile" + detail;
+        exec.log("error", message);
+        die(message);
+    };
+
+    let argv = [ "sing-box", "--disable-color", "generate", "warp-profile", "--json" ];
+    if (section != null) {
+        let proxy = singbox_constants.SERVICE_MIXED_INBOUND_ADDRESS + ":" + singbox_constants.WARP_PROFILES_MIXED_INBOUND_PORT;
+        if (!netstat.tcp_endpoint_in_use(exec.output([ "netstat", "-lnt" ]), proxy))
+            fail(": profiles are requested through section '" + connections.section_display_name(section) +
+                "', and its service proxy is not running. Apply the settings or start Forkop");
+        argv = [ "env", "HTTPS_PROXY=http://" + proxy, ...argv ];
+    }
+    let output = exec.combined(argv);
+    if (output.status != 0)
+        fail(through + ": " + failure_reason(output) + (section == null
+            ? ". If the Cloudflare API is blocked on this network, choose a section in Settings to request WARP profiles through" : ""));
+
+    let profile = common.parse_json(output.output);
     let result = { id: profile?.id, auth_token: profile?.auth_token, private_key: profile?.private_key };
     for (let key, value in result)
-        if (type(value) != "string" || value == "") {
-            exec.log("error", "Failed to generate WARP profile.");
-            die("Failed to generate WARP profile.");
-        }
+        if (type(value) != "string" || value == "")
+            fail(through + ": the core returned an incomplete profile");
     return result;
 }
 
 let exports = {
-    configure_service, write_config, proxy_address, listen_address, device_ipv4_address,
+    configure_service, write_config, components_proxy_address, listen_address, device_ipv4_address,
     mwan3_active, version, process_running, warp_profile
 };
 
@@ -183,8 +212,8 @@ if (sourcepath(1) != null || ARGV[0] == null)
 
 // The component manager asks for its download proxy as a program.
 let mode = ARGV[0];
-if (mode != "service-proxy-address") {
-    warn("Usage: singbox/runtime.uc service-proxy-address <lists|components>\n");
+if (mode != "components-proxy-address") {
+    warn("Usage: singbox/runtime.uc components-proxy-address\n");
     exit(1);
 }
-print(proxy_address(ARGV[1] ?? "lists"), "\n");
+print(components_proxy_address(), "\n");

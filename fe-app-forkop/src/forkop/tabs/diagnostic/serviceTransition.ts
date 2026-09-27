@@ -169,27 +169,17 @@ export function hasComponentActionLoading(actions: ComponentActions) {
   return Object.values(actions).some((action) => action.loading);
 }
 
-// What a finished service action says when it failed, or nothing when the page
-// has to stay quiet about it.
-//
-// Applying a configuration is the one action the user did not ask this page for:
-// it is what a Save & Apply anywhere in LuCI runs, and it always fails for a
-// reason - the option the configuration check refused, the step of the apply
-// that gave up. Every one of those reasons is written to the log as an error,
-// and an error in the log is already raised as an ordinary error alert with the
-// reason in it. A toast beside it could only repeat that something went wrong,
-// which the alert has said already, and said better.
+// What a service action the router never took up says: the request to start it
+// failed, so no job ran and nothing reached the log. An action that ran and
+// failed says nothing on the page - its reason is in the log, and the log raises
+// it as an alert.
 const SERVICE_ACTION_FAILURE_LABELS: Record<string, () => string> = {
   start: () => _('Failed to start the service'),
   stop: () => _('Failed to stop the service'),
   restart: () => _('Failed to restart the service'),
 };
 
-export function serviceActionFailureMessage(action: string): string | null {
-  if (action === 'reload') {
-    return null;
-  }
-
+export function serviceActionFailureMessage(action: string): string {
   const label = SERVICE_ACTION_FAILURE_LABELS[action];
   return label ? label() : _('Service action failed');
 }

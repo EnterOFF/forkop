@@ -92,9 +92,25 @@ function child_outbound_tag(section, display_name) {
     return runtime_constants.child_tag(connections.section_display_name(section), display_name);
 }
 
-function download_detour_tag(settings, purpose) {
+// The outbound the core downloads through: the section chosen for the purpose,
+// else direct.
+function download_detour(settings, purpose) {
+    if (!connections.download_via_proxy_enabled(settings, purpose))
+        return runtime_constants.DIRECT_OUTBOUND_TAG;
     let section_name = connections.download_via_proxy_section(settings, purpose);
-    return section_name == "" ? "" : outbound_tag(section_name);
+    if (section_name == "")
+        runtime_generate_unsupported("download " + purpose + " via proxy section is not set");
+    return outbound_tag(section_name);
+}
+
+function push_remote_ruleset(config, tag_name, format, url) {
+    push(config.route.rule_set, apply_remote_ruleset_update_interval({
+        type: "remote",
+        tag: tag_name,
+        format,
+        url,
+        http_client: { detour: download_detour(runtime_settings(), "lists") }
+    }));
 }
 
 function ruleset_registered(config, tag_name) {
@@ -110,17 +126,8 @@ function ensure_custom_ruleset(config, reference) {
 
     if (runtime_rulesets.is_community(reference)) {
         tag_name = runtime_rulesets.custom_reference_tag(reference);
-        if (!ruleset_registered(config, tag_name)) {
-            let rule_set = {
-                type: "remote",
-                tag: tag_name,
-                format: "binary",
-                url: runtime_rulesets.community_url(reference)
-            };
-            let detour = download_detour_tag(runtime_settings(), "lists");
-            rule_set.http_client = { detour: detour || runtime_constants.DIRECT_OUTBOUND_TAG };
-            push(config.route.rule_set, apply_remote_ruleset_update_interval(rule_set));
-        }
+        if (!ruleset_registered(config, tag_name))
+            push_remote_ruleset(config, tag_name, "binary", runtime_rulesets.community_url(reference));
         return tag_name;
     }
 
@@ -137,15 +144,7 @@ function ensure_custom_ruleset(config, reference) {
         });
     }
     else if (substr(reference, 0, 7) == "http://" || substr(reference, 0, 8) == "https://") {
-        let rule_set = {
-            type: "remote",
-            tag: tag_name,
-            format: "auto",
-            url: reference
-        };
-        let detour = download_detour_tag(runtime_settings(), "lists");
-        rule_set.http_client = { detour: detour || runtime_constants.DIRECT_OUTBOUND_TAG };
-        push(config.route.rule_set, apply_remote_ruleset_update_interval(rule_set));
+        push_remote_ruleset(config, tag_name, "auto", reference);
     }
     else {
         runtime_generate_unsupported("rule_set reference is not supported by sing-box config generation");
@@ -166,6 +165,7 @@ function clash_api_config(settings, service_address) {
     };
     if (bool_option(settings, "enable_yacd", false)) {
         result.external_ui = "ui";
+        result.external_ui_download_detour = download_detour(settings, "components");
         let secret = option(settings, "yacd_secret_key", "");
         if (secret != "")
             result.secret = secret;
@@ -300,9 +300,7 @@ function base_config(settings, service_address, runtime_context) {
             type: "api", tag: "forkop-api", listen: service_address || "127.0.0.1",
             listen_port: 9091, secret: option(settings, "native_api_secret", ""),
             dashboard: { enabled: true, path: "/tmp/sing-box/dashboard",
-                http_client: { detour: connections.download_via_proxy_enabled(settings, "components")
-                    ? outbound_tag(connections.download_via_proxy_section(settings, "components"))
-                    : runtime_constants.DIRECT_OUTBOUND_TAG } }
+                http_client: { detour: download_detour(settings, "components") } }
         }] : [],
         experimental: {
             unified_delay: {
@@ -1109,25 +1107,24 @@ function first_outbound_section(sections) {
     return null;
 }
 
-// The proxy diagnostic measures the running core through one inbound instead of
-// starting a second sing-box beside it, on the first section: the one the
+// An inbound exists for what runs outside the core and so cannot name an
+// outbound. The proxy diagnostic measures the running core through one instead
+// of starting a second sing-box beside it, on the first section: the one the
 // transparent proxy check sends its domain to, so both checks see one exit. The
-// component manager downloads through another when component downloads go
-// through a section; lists and subscriptions name their section as a detour.
+// component manager's curl and wget take another when component downloads go
+// through a section, and the page's WARP profile generator a third when WARP
+// profiles do. What the core downloads itself names its section as a detour.
 function add_service_mixed_proxy(config, settings, sections) {
     let first = first_outbound_section(sections);
     if (first != null)
         add_service_mixed_proxy_inbound(config, runtime_constants.SERVICE_MIXED_INBOUND_TAG,
             runtime_constants.SERVICE_MIXED_INBOUND_PORT, outbound_tag(first[".name"]));
-    let components = download_detour_tag(settings, "components");
-    if (components != "")
+    if (connections.download_via_proxy_enabled(settings, "components"))
         add_service_mixed_proxy_inbound(config, runtime_constants.COMPONENTS_MIXED_INBOUND_TAG,
-            runtime_constants.COMPONENTS_MIXED_INBOUND_PORT, components);
-
-    if (connections.download_via_proxy_enabled(settings, "lists") && download_detour_tag(settings, "lists") == "")
-        runtime_generate_unsupported("download lists via proxy section is not set");
-    if (connections.download_via_proxy_enabled(settings, "components") && download_detour_tag(settings, "components") == "")
-        runtime_generate_unsupported("download components via proxy section is not set");
+            runtime_constants.COMPONENTS_MIXED_INBOUND_PORT, download_detour(settings, "components"));
+    if (connections.download_via_proxy_enabled(settings, "warp_profiles"))
+        add_service_mixed_proxy_inbound(config, runtime_constants.WARP_PROFILES_MIXED_INBOUND_TAG,
+            runtime_constants.WARP_PROFILES_MIXED_INBOUND_PORT, download_detour(settings, "warp_profiles"));
 }
 
 // A resolver without an explicit detour keeps resolving through its own interface,
@@ -1225,6 +1222,10 @@ function add_connection_tunnels(config, section, taken, selector_tags, urltest_c
             if (detour != "" && as_string(endpoint.detour || "") == "")
                 endpoint.detour = detour;
         }
+
+        if (wrapper_kind != "json" && endpoint_type == "warp" && endpoint.profile != null &&
+            connections.download_via_proxy_enabled(runtime_settings(), "warp_profiles"))
+            endpoint.profile.detour = download_detour(runtime_settings(), "warp_profiles");
 
         if (wrapper_kind != "json" && endpoint_type == "tailscale") {
             let detour_section = connections.option(tunnel, "tailscale_detour_section", "");
@@ -1357,17 +1358,8 @@ function ensure_community_ruleset(config, section_name, community) {
         runtime_generate_unsupported("unknown community list " + community);
 
     let tag_name = runtime_rulesets.community_tag(section_name, community);
-    if (!ruleset_registered(config, tag_name)) {
-        let rule_set = {
-            type: "remote",
-            tag: tag_name,
-            format: "binary",
-            url: runtime_rulesets.community_url(community)
-        };
-        let detour = download_detour_tag(runtime_settings(), "lists");
-        rule_set.http_client = { detour: detour || runtime_constants.DIRECT_OUTBOUND_TAG };
-        push(config.route.rule_set, apply_remote_ruleset_update_interval(rule_set));
-    }
+    if (!ruleset_registered(config, tag_name))
+        push_remote_ruleset(config, tag_name, "binary", runtime_rulesets.community_url(community));
     return {
         tag: tag_name,
         kind: "domains"
