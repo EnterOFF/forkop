@@ -18,12 +18,13 @@ export const styles = `
 
 /* The controls are as wide as their own buttons need, never narrower than the
    longest system information row on one line - "Sing-box
-   1.13.18-extended-2.6.5-f100" is 264px with the card around it - and the checks
-   take the rest. Nothing a check reports moves the controls, and a check value
-   with nothing to break at wraps inside its own column. */
+   1.13.18-extended-2.6.5-f100" is 264px with the card around it. The checks sit
+   beside them at a reading width, and a check value with nothing to break at
+   wraps inside that width: nothing a check reports widens the page or moves the
+   controls. */
 .fkp_diagnostic-page {
     display: grid;
-    grid-template-columns: minmax(17rem, max-content) minmax(0, 1fr);
+    grid-template-columns: minmax(17rem, max-content) minmax(0, 38rem);
     grid-column-gap: 10px;
     align-items: start;
     width: 100%;

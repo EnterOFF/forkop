@@ -35,7 +35,6 @@ function getPortConflictItem(
 
 function getPublicHostItem(
   item: Forkop.InboundCheckItem,
-  wanIp: string,
 ): IDiagnosticsChecksItem {
   const key = `${serverPrefix(item)} ${_('Public address')}`;
 
@@ -67,7 +66,7 @@ function getPublicHostItem(
     return {
       state: 'warning',
       key,
-      value: `${item.public_host_ips || item.public_host} / ${_('WAN')}: ${wanIp || _('Not detected')}`,
+      value: `${item.public_host_ips || item.public_host} (${_('Does not match the WAN address')})`,
     };
   }
 
@@ -80,14 +79,16 @@ function getPublicHostItem(
 
 function getServerItems(
   item: Forkop.InboundCheckItem,
-  wanIp: string,
 ): IDiagnosticsChecksItem[] {
   const prefix = serverPrefix(item);
   const items: IDiagnosticsChecksItem[] = [
     {
       state: item.runtime_ok ? 'success' : 'error',
       key: `${prefix} ${_('Inbound created')}`,
-      value: `${item.tag} [${item.protocol}]`,
+      value:
+        item.tag === item.label
+          ? item.protocol
+          : `${item.tag} [${item.protocol}]`,
     },
   ];
 
@@ -146,7 +147,7 @@ function getServerItems(
       key: `${prefix} ${_('Routing rules')}`,
       value: item.routing_mode,
     },
-    getPublicHostItem(item, wanIp),
+    getPublicHostItem(item),
   );
 
   return items;
@@ -203,7 +204,7 @@ export async function runInboundsCheck() {
   ];
 
   data.items.forEach((item) => {
-    items.push(...getServerItems(item, data.wan_ip));
+    items.push(...getServerItems(item));
   });
 
   const allGood = items.every((item) => item.state === 'success');
