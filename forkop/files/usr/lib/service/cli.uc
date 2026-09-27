@@ -120,7 +120,7 @@ const COMMANDS = {
     check_nft_rules: { help: "Check NFT rules status", run: json(() => diagnostics().nft_rules()) },
     check_sing_box: { help: "Check sing-box installation and status", run: json(() => diagnostics().sing_box()) },
     check_inbounds_config: { help: "Check whether enabled server inbounds are configured", run: json(() => diagnostics().inbounds_config()) },
-    check_inbounds: { help: "Check server inbounds from the Servers tab", run: json(() => diagnostics().inbounds()) },
+    check_inbounds: { help: "Check server inbounds from the VPN server tab", run: json(() => diagnostics().inbounds()) },
     check_logs: { help: "Show Forkop logs from system journal", run: () => {
         print(diagnostics().logs("forkop"));
         return 0;

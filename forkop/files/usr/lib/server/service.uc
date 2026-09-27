@@ -388,7 +388,7 @@ function firewall_include_text() {
                 " } counter accept comment \"" + FIREWALL_COMMENT + "\"");
     if (length(rules) == 0)
         return "";
-    return "# Written by Forkop from the Servers tab. Do not edit: it is rewritten on\n" +
+    return "# Written by Forkop from the VPN server tab. Do not edit: it is rewritten on\n" +
         "# every apply. fw4 prepends this file to its own input chain.\n" + join("\n", rules) + "\n";
 }
 

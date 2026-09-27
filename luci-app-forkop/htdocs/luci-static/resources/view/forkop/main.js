@@ -24413,7 +24413,7 @@ var ForkopView = {
     const serverSection = forkopMap.section(
       form.GridSection,
       "server",
-      _("Servers"),
+      _("VPN server"),
       _("The router itself becomes a proxy server for your devices")
     );
     configureGridSection(
