@@ -177,9 +177,6 @@ declare global {
 
     // ------------------------------------------------ local device picker
     //
-    // The System entry stands for the router itself; an option whose meaning
-    // makes no sense for the router asks for the list without it.
-    excludeSystemDevice?: boolean;
     onDeviceWidgetReady?: (sectionId: string, widget: CBIWidget) => void;
     onDeviceListChange?: (
       sectionId: string,

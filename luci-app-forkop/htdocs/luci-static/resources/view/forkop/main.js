@@ -9615,24 +9615,13 @@ function namesALocalDevice(values) {
     (value) => value === SYSTEM_DEVICE_VALUE || validateIP(value).valid
   );
 }
-function widgetChoices(option2, choices) {
-  if (option2.excludeSystemDevice !== true) {
-    return choices;
-  }
-  const filtered = Object.assign({}, choices);
-  delete filtered[SYSTEM_DEVICE_VALUE];
-  return filtered;
-}
 function createLocalDeviceDynamicListWidget(option2, section_id, cfgvalue) {
   const values = normalizeOptionValues(
     cfgvalue != null ? cfgvalue : option2.default
   );
   const shouldResolveExistingLabels = namesALocalDevice(values);
   return (shouldResolveExistingLabels ? loadLocalDeviceChoices() : Promise.resolve({})).then((initialChoices) => {
-    const choices = widgetChoices(
-      option2,
-      localDeviceChoicesCache || initialChoices || {}
-    );
+    const choices = localDeviceChoicesCache || initialChoices || {};
     const widget = new ui.DynamicList(values, choices, {
       id: option2.cbid(section_id),
       sort: sortLocalDeviceChoiceValues(choices),
@@ -9661,11 +9650,10 @@ function createLocalDeviceDynamicListWidget(option2, section_id, cfgvalue) {
       }
       choicesLoading = true;
       loadLocalDeviceChoices().then((loadedChoices) => {
-        const visibleChoices = widgetChoices(option2, loadedChoices);
         widget.clearChoices();
         widget.addChoices(
-          sortLocalDeviceChoiceValues(visibleChoices),
-          visibleChoices
+          sortLocalDeviceChoiceValues(loadedChoices),
+          loadedChoices
         );
         choicesLoaded = true;
       }).finally(() => {
@@ -23865,9 +23853,8 @@ function addNetworkOptions(section) {
     )
   );
   excludedDevicesOption.placeholder = _("Device or IP");
-  excludedDevicesOption.excludeSystemDevice = true;
   excludedDevicesOption.validate = function(_section_id, value) {
-    if (!value || value.length === 0) {
+    if (!value || value.length === 0 || value === SYSTEM_DEVICE_VALUE) {
       return true;
     }
     const validation = validateSubnet(value);

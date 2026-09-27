@@ -661,19 +661,6 @@ function has_dns_matchers(section) {
         length(rule_sets_with_subnets(section)) > 0;
 }
 
-// Whether this section makes the router's own DNS part of the routing contract:
-// either its domain conditions are scoped to the System device, or the System
-// device is fully routed through it - in which case the router's resolver
-// traffic itself follows the section and the provider resolver may no longer be
-// reachable. The generator and nft/apply.uc both gate the system DNS capture on
-// it, so the sing-box inbound and the nft redirect chain cannot fall out of
-// step about when the router's port 53 is taken over.
-function section_needs_system_dns(section) {
-    if (has_dns_matchers(section) && device_matchers(section, "source_ip_cidr").system)
-        return true;
-    return device_matchers(section, "fully_routed_ips").system;
-}
-
 function list_option_value_from_array(values) {
     return join(" ", values || []);
 }
@@ -1068,6 +1055,7 @@ function append_unique(result, seen, value) {
 }
 
 return {
+    SYSTEM_DEVICE_VALUE,
     rule_condition_csv,
     rule_ports_csv,
     download_via_proxy_enabled,
@@ -1092,7 +1080,6 @@ return {
     rule_sets,
     rule_sets_with_subnets,
     has_dns_matchers,
-    section_needs_system_dns,
     has_connection_sources,
     subscription_url_settings,
     urltest_settings,

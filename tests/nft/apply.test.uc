@@ -44,6 +44,8 @@ t.test("the base table captures the source interfaces, FakeIP and the TProxy inb
     has(lines, T + "dns_redirect iifname @forkop_interfaces udp dport 53 counter redirect to :1603");
     has(lines, T + "dns_redirect iifname @forkop_interfaces tcp dport 53 counter redirect to :1603");
     has(lines, T + "mangle iifname @forkop_interfaces ip6 daddr @localv6 ip6 daddr != fc00::/18 return", "local IPv6 keeps FakeIP6 captured");
+    before(lines, T + "mangle iifname @forkop_interfaces meta l4proto { tcp, udp } th dport 53 return", T + "mangle jump priority_rules",
+        "client DNS is left to the capture");
     has(lines, T + "mangle jump priority_rules");
     has(lines, T + "proxy meta mark & 0x04000000 == 0x04000000 meta l4proto tcp tproxy ip to :1602 counter");
     has(lines, T + "proxy meta mark & 0x04000000 == 0x04000000 meta l4proto tcp tproxy ip6 to [::1]:1602 counter");
@@ -51,13 +53,22 @@ t.test("the base table captures the source interfaces, FakeIP and the TProxy inb
         T + "proxy meta mark & 0x04000000 == 0x04000000 meta l4proto tcp tproxy ip to :1602 counter", "System TProxy classification");
     has(lines, T + "proxy iifname lo meta mark & 0x04000000 == 0x04000000 meta l4proto tcp tproxy ip6 to [::1]:1604 counter accept");
     has(lines, T + "mangle_output meta mark 0x08000000 counter return");
+    before(lines, T + "mangle_output meta l4proto { tcp, udp } th dport 53 return", T + "mangle_output jump priority_output_rules",
+        "the resolver reaches its upstream directly");
     has(lines, T + "mangle_output jump priority_output_rules");
+    has(lines, "add chain inet ForkopTable system_dns_redirect { type nat hook output priority -100; policy accept; }",
+        "the router's own lookups are captured whatever the sections say");
+    for (let address in [ "ip daddr 127.0.0.1", "ip6 daddr ::1" ])
+        for (let proto in [ "tcp", "udp" ])
+            before(lines, T + "system_dns_redirect meta mark != 0 return",
+                T + "system_dns_redirect " + address + " " + proto + " dport 53 counter redirect to :1605", "sing-box asking the resolver itself passes");
+    lacks(lines, "system_dns_redirect udp dport 53", "the resolver's upstream queries are not taken back");
     has(lines, "insert rule inet ForkopTable mangle udp dport 123 return", "the NTP exclusion");
     for (let pair in [ [ "ip", "198.18.0.0/15" ], [ "ip6", "fc00::/18" ] ])
         for (let proto in [ "tcp", "udp" ])
             has(lines, T + "mangle_output " + pair[0] + " daddr " + pair[1] + " meta l4proto " + proto + " meta mark set 0x04000000 counter",
                 "the router's own FakeIP traffic");
-    for (let absent in [ "forkop_subnets", "forkop_ports", "forkop_ip_ports", "forkop_dns_sources", "system_dns_redirect", "forkop_excluded" ])
+    for (let absent in [ "forkop_subnets", "forkop_ports", "forkop_ip_ports", "forkop_dns_sources", "forkop_excluded" ])
         lacks(lines, absent);
 });
 
@@ -70,6 +81,18 @@ t.test("excluded devices leave every capture before anything matches them", () =
         "the DNS exclusion");
     before(lines, T + "mangle ip saddr @forkop_excluded counter return", T + "mangle jump priority_rules", "the capture exclusion");
     has(lines, T + "mangle ip6 saddr @forkop_excluded6 counter return");
+    lacks(lines, T + "mangle_output counter return", "the router is not excluded with them");
+});
+
+t.test("the excluded System device keeps the router's own traffic and lookups out of every capture", () => {
+    let result = built({ settings: { routing_excluded_ips: "@system 192.168.1.50" } });
+    let lines = split(result.script, "\n");
+    t.eq(result.skipped, [], "the System device is not an address to skip");
+    has(lines, "add element inet ForkopTable forkop_excluded { 192.168.1.50 }");
+    before(lines, T + "mangle_output counter return", T + "mangle_output ip daddr @localv4 return", "the router's traffic");
+    before(lines, T + "system_dns_redirect counter return", T + "system_dns_redirect meta mark != 0 return", "the router's lookups");
+    lacks(lines, T + "mangle counter return", "clients stay captured");
+    lacks(lines, T + "dns_redirect counter return", "client DNS stays captured");
 });
 
 function priority_sections() {
@@ -148,12 +171,6 @@ t.test("the sets are filled in the same transaction from what the configuration 
     lacks(lines, "forkop_rule_ports_with_domain_ports", "a port next to a domain is sing-box's to match");
     lacks(lines, "192.0.2.53", "a DNS section's addresses");
     lacks(lines, "@system");
-
-    has(lines, "add chain inet ForkopTable system_dns_redirect { type nat hook output priority -151; policy accept; }",
-        "a section routing the System device captures the router's DNS");
-    has(lines, T + "system_dns_redirect meta mark != 0 return");
-    before(lines, T + "system_dns_redirect ip daddr 127.0.0.0/8 return", T + "system_dns_redirect udp dport 53 counter redirect to :1605", "loopback first");
-    has(lines, T + "system_dns_redirect ip6 daddr ::1 return");
 });
 
 t.test("the script is the same for the same configuration and moves with anything nft matches on", () => {

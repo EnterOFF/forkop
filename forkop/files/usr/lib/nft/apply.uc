@@ -99,8 +99,16 @@ function csv_values(csv) {
     return filter(map(split(csv ?? "", ","), (value) => trim(replace(value, /\r/g, ""))), (value) => value != "");
 }
 
-// The devices Forkop ignores entirely: every capture chain returns their traffic
-// before touching it.
+// The devices Forkop ignores entirely, the System device standing for the router
+// itself: every capture chain returns their traffic before touching it.
+function excluded_devices(settings) {
+    let values = common.words(common.option(settings, "routing_excluded_ips", ""));
+    return {
+        router: index(values, connections.SYSTEM_DEVICE_VALUE) >= 0,
+        addresses: filter(values, (value) => value != connections.SYSTEM_DEVICE_VALUE)
+    };
+}
+
 function add_excluded_returns(chain, excluded) {
     if (length(excluded) > 0) {
         add_rule(chain, [ "ip", "saddr", "@" + EXCLUDED4, "counter", "return" ]);
@@ -112,8 +120,7 @@ function tproxy_target(family, port) {
     return family == 6 ? core_ip.format_ipv6_tproxy_target(TPROXY6_ADDRESS, port) : ":" + port;
 }
 
-function add_base(settings) {
-    let excluded = common.words(common.option(settings, "routing_excluded_ips", ""));
+function add_base(settings, excluded_router, excluded) {
     let system_tproxy_port = singbox_constants.SYSTEM_TPROXY_INBOUND_PORT;
 
     nft([ "add", "table", "inet", TABLE ]);
@@ -148,6 +155,9 @@ function add_base(settings) {
 
     add_excluded_returns("mangle", excluded);
     add_rule("mangle", [ "ct", "status", "dnat", "return" ]);
+    // nft runs every nat chain at the NAT hook, after this chain, so a query a
+    // section marked here would reach the TProxy inbound instead of the DNS one.
+    add_rule("mangle", [ "iifname", "@" + INTERFACES, "meta", "l4proto", "{ tcp, udp }", "th", "dport", "53", "return" ]);
     add_rule("mangle", [ "iifname", "@" + INTERFACES, "ip", "daddr", "@" + LOCAL4, "return" ]);
     add_rule("mangle", [ "iifname", "@" + INTERFACES, "ip6", "daddr", "@" + LOCAL6, "ip6", "daddr", "!=", FAKEIP6, "return" ]);
     add_rule("mangle", [ "jump", "priority_rules" ]);
@@ -166,9 +176,14 @@ function add_base(settings) {
             add_rule("proxy", [ "meta", "mark", "&", FAKEIP_MARK, "==", FAKEIP_MARK, "meta", "l4proto", proto,
                 "tproxy", family == 6 ? "ip6" : "ip", "to", tproxy_target(family, TPROXY_PORT), "counter" ]);
 
+    if (excluded_router)
+        add_rule("mangle_output", [ "counter", "return" ]);
     add_rule("mangle_output", [ "ip", "daddr", "@" + LOCAL4, "return" ]);
     add_rule("mangle_output", [ "ip6", "daddr", "@" + LOCAL6, "ip6", "daddr", "!=", FAKEIP6, "return" ]);
     add_rule("mangle_output", [ "meta", "mark", OUTBOUND_MARK, "counter", "return" ]);
+    // The resolver's own questions to its upstream servers, which no section
+    // should send through a proxy the upstream may not answer.
+    add_rule("mangle_output", [ "meta", "l4proto", "{ tcp, udp }", "th", "dport", "53", "return" ]);
     add_rule("mangle_output", [ "jump", "priority_output_rules" ]);
 
     if (common.option(settings, "exclude_ntp", "0") == "1")
@@ -284,18 +299,19 @@ function add_fakeip_output() {
             add_rule("mangle_output", [ pair[0], "daddr", pair[1], "meta", "l4proto", proto, "meta", "mark", "set", FAKEIP_MARK, "counter" ]);
 }
 
-// Loopback stays out: the router asking its own resolver on 127.0.0.1 is the
-// local zone working. sing-box marks its own sockets, so its dials pass the mark
-// exemption.
-function add_system_dns(sections) {
-    if (length(filter(sections, (s) => nft_sections.enabled(s) && connections.section_needs_system_dns(s))) == 0)
-        return;
-    add_chain("system_dns_redirect", "{ type nat hook output priority -151; policy accept; }");
+// The router's own lookups: whatever asks its resolver on loopback is answered
+// by sing-box, the way a client's query is, so domain rules reach the router as
+// well. Only loopback: the resolver's forwards to its upstream servers stay
+// uncaptured, so sing-box can hand it what no rule claims without a circle.
+// sing-box marks its own sockets, so its own questions to the resolver pass.
+function add_router_dns(excluded_router) {
+    add_chain("system_dns_redirect", "{ type nat hook output priority -100; policy accept; }");
+    if (excluded_router)
+        add_rule("system_dns_redirect", [ "counter", "return" ]);
     add_rule("system_dns_redirect", [ "meta", "mark", "!=", "0", "return" ]);
-    add_rule("system_dns_redirect", [ "ip", "daddr", "127.0.0.0/8", "return" ]);
-    add_rule("system_dns_redirect", [ "ip6", "daddr", "::1", "return" ]);
-    for (let proto in [ "tcp", "udp" ])
-        add_rule("system_dns_redirect", [ proto, "dport", "53", "counter", "redirect", "to", ":" + singbox_constants.SYSTEM_DNS_INBOUND_PORT ]);
+    for (let address in [ [ "ip", "127.0.0.1" ], [ "ip6", "::1" ] ])
+        for (let proto in [ "tcp", "udp" ])
+            add_rule("system_dns_redirect", [ address[0], "daddr", address[1], proto, "dport", "53", "counter", "redirect", "to", ":" + singbox_constants.SYSTEM_DNS_INBOUND_PORT ]);
 }
 
 // What the configuration puts in a section's sets; what a rule-set provider puts
@@ -323,13 +339,14 @@ function build() {
     if (planned.error != "")
         die(planned.error);
 
+    let excluded = excluded_devices(settings);
     lines = [ "table inet " + TABLE, "delete table inet " + TABLE ];
     skipped = [];
-    add_base(settings);
+    add_base(settings, excluded.router, excluded.addresses);
     for (let entry in planned.sections)
         add_section_rules(entry.matchers);
     add_fakeip_output();
-    add_system_dns(sections);
+    add_router_dns(excluded.router);
     for (let entry in planned.sections)
         fill_section_sets(entry.matchers);
 

@@ -220,20 +220,6 @@ function namesALocalDevice(values: unknown): boolean {
   );
 }
 
-// The System entry stands for the router itself; an option whose meaning makes
-// no sense for the router asks for choices without it.
-function widgetChoices(
-  option: CBIOption,
-  choices: DeviceChoices,
-): DeviceChoices {
-  if (option.excludeSystemDevice !== true) {
-    return choices;
-  }
-  const filtered = Object.assign({}, choices);
-  delete filtered[SYSTEM_DEVICE_VALUE];
-  return filtered;
-}
-
 export function createLocalDeviceDynamicListWidget(
   option: CBIOption,
   section_id: string,
@@ -249,10 +235,7 @@ export function createLocalDeviceDynamicListWidget(
       ? loadLocalDeviceChoices()
       : Promise.resolve({} as DeviceChoices)
   ).then((initialChoices) => {
-    const choices = widgetChoices(
-      option,
-      localDeviceChoicesCache || initialChoices || {},
-    );
+    const choices = localDeviceChoicesCache || initialChoices || {};
     const widget = new ui.DynamicList(values, choices, {
       id: option.cbid(section_id),
       sort: sortLocalDeviceChoiceValues(choices),
@@ -284,11 +267,10 @@ export function createLocalDeviceDynamicListWidget(
       choicesLoading = true;
       loadLocalDeviceChoices()
         .then((loadedChoices) => {
-          const visibleChoices = widgetChoices(option, loadedChoices);
           widget.clearChoices();
           widget.addChoices(
-            sortLocalDeviceChoiceValues(visibleChoices),
-            visibleChoices,
+            sortLocalDeviceChoiceValues(loadedChoices),
+            loadedChoices,
           );
           choicesLoaded = true;
         })

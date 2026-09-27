@@ -16,7 +16,7 @@ t.test("a single DNS server is used directly", () => {
     t.eq(q.tags(single.dns.servers), [ "bootstrap-dns-server", "dns-server", "fakeip-server", "dnsmasq-server" ]);
     t.eq(q.dns_server_tag(single, "dns-server").server, "77.88.8.8");
     t.eq(q.dns_server_tag(single, "bootstrap-dns-server").server, "77.88.8.8");
-    t.eq(length(single.inbounds), 6);
+    t.eq(length(single.inbounds), 7);
     t.eq(q.inbound(single, "service-mixed-in"), null, "a bypass-only configuration needs no proxy diagnostic inbound");
 });
 
@@ -34,7 +34,7 @@ t.test("several DNS servers become native fallback groups with their own query m
         } ]
     });
     t.eq(length(multi.dns.servers), 8, "four candidates, two groups, the local resolver and FakeIP");
-    t.eq(length(multi.inbounds), 7);
+    t.eq(length(multi.inbounds), 8);
     t.ok(q.inbound(multi, "service-mixed-in") != null);
     let bootstrap = q.dns_server_tag(multi, "bootstrap-dns-server");
     let main = q.dns_server_tag(multi, "dns-server");
@@ -96,16 +96,26 @@ t.test("no records, no hosts server", () => {
 const DNS = { dns_server: [ "77.88.8.8" ], bootstrap_dns_server: [ "77.88.8.8" ] };
 const BYPASS = [ { ".name": "direct", enabled: "1", action: "bypass", domain_suffix: [ "example.org" ] } ];
 
-t.test("a section that fully routes the System device captures the router's DNS without looping it", () => {
-    let config = build({
-        settings: DNS,
-        section: [ { ".name": "vpn", enabled: "1", action: "outbound", outbound_jsons: [ "{\"type\":\"direct\",\"tag\":\"fixture\"}" ], fully_routed_ips: [ "@system" ] } ]
+t.test("the router's own lookups reach sing-box whatever the sections say, and leave the way a client's do", () => {
+    let config = build({ settings: DNS, section: BYPASS });
+    t.eq(q.inbound(config, "system-dns-in").listen_port, 1605);
+    t.ok(q.route_rule(config, (r) => r.action == "sniff" && q.has(r.inbound, "system-dns-in")) != null);
+    t.ok(q.route_rule(config, (r) => r.action == "reject" && r.inbound == "system-dns-in") != null);
+    let fallback = q.dns_rule(config, (r) => r.server == "dns-server" && q.has(r.inbound, "system-dns-in") &&
+        r.domain_regex == null && r.domain_suffix == null && r.query_type == null);
+    t.ok(fallback != null && q.has(fallback.inbound, "source-dns-in"), "one fallback for clients and the router");
+    t.ok(q.dns_rule(config, (r) => r.server == "dnsmasq-server" && q.has(r.inbound, "system-dns-in") && r.domain_regex == "^[^.]+$") != null,
+        "the router's local zone stays with its resolver");
+
+    let router = build({
+        settings: { ...DNS, unmatched_dns_mode: "router" },
+        section: [ { ".name": "direct", enabled: "1", action: "bypass", domain_suffix: [ "example.org" ], source_ip_cidr: [ "@system" ] } ]
     });
-    t.ok(q.inbound(config, "system-dns-in") != null);
-    t.ok(q.dns_rule(config, (r) => r.server == "dns-server" && q.has(r.inbound, "system-dns-in") && r.domain == null && r.domain_suffix == null) != null,
-        "unmatched router DNS resolves through the Forkop DNS");
-    t.eq(q.dns_rule(config, (r) => r.server == "dnsmasq-server" && q.has(r.inbound, "system-dns-in")), null,
-        "router queries never route to the local resolver");
+    t.ok(q.dns_rule(router, (r) => r.server == "dnsmasq-server" && q.has(r.inbound, "system-dns-in") &&
+        r.type == null && r.domain_regex == null && r.domain_suffix == null && r.query_type == null) != null,
+        "router mode hands the router's unmatched lookups back to its resolver too");
+    t.ok(q.dns_rule(router, (r) => r.type == "logical" && r.server == "dnsmasq-server" && q.has(r.rules[0].inbound, "system-dns-in")) != null,
+        "a System bypass takes real addresses from the same server");
 });
 
 t.test("unmatched client DNS goes to Forkop, with the local zone left to whoever owns loopback 53", () => {

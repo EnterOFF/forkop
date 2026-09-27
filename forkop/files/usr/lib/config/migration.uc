@@ -1515,13 +1515,17 @@ function remove_resolve_real_ip_for_routing(ctx) {
         delete_option(ctx, section, "resolve_real_ip_for_routing");
 }
 
-// The released dnsmasq takeover is gone: client DNS is captured by nftables and
-// the dnsmasq configuration is never written again. The flag that guarded the
+// The released dnsmasq takeover is gone: DNS is captured by nftables and the
+// dnsmasq configuration is never written again. The flag that guarded the
 // takeover and the flag the service flipped on every start and stop both leave
-// with the mechanism they served; a device the user wants left alone is the
+// with the mechanism they served. dont_touch_dhcp kept the router's resolver in
+// charge of every name, and the nearest the capture comes to that is handing it
+// every query no rule claims; a device the user wants left alone is the
 // routing_excluded_ips list now.
 function migrate_dns_capture_settings(ctx) {
     let settings = ctx.model.settings;
+    if (bool_option(settings, "dont_touch_dhcp", false))
+        set_option(ctx, settings, "unmatched_dns_mode", "router");
     delete_option(ctx, settings, "dont_touch_dhcp");
     delete_option(ctx, settings, "shutdown_correctly");
 }

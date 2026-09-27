@@ -1,5 +1,8 @@
 import { validateSubnet } from '../../../../validators/validateSubnet';
-import { createLocalDeviceDynamicListWidget } from '../../../cbi/localDevices';
+import {
+  createLocalDeviceDynamicListWidget,
+  SYSTEM_DEVICE_VALUE,
+} from '../../../cbi/localDevices';
 
 // Which interfaces Forkop takes traffic from and sends it out of, and the
 // devices it leaves alone entirely.
@@ -13,12 +16,11 @@ export function addNetworkOptions(section: CBISection) {
     ),
   );
   excludedDevicesOption.placeholder = _('Device or IP');
-  excludedDevicesOption.excludeSystemDevice = true;
   excludedDevicesOption.validate = function (
     _section_id: string,
     value: string,
   ) {
-    if (!value || value.length === 0) {
+    if (!value || value.length === 0 || value === SYSTEM_DEVICE_VALUE) {
       return true;
     }
 

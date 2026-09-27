@@ -404,8 +404,8 @@ t.test("device-scoped sections keep FakeIP and their priority in DNS rules", () 
     let fallback = q.dns_rule(m, (r) => r.server == "dns-server" && r.type == null && r.domain == null && r.domain_suffix == null &&
         r.domain_regex == null && r.rule_set == null && r.query_type == null && has(r.inbound, "source-dns-in"));
     t.eq(fallback.source_ip_cidr, null);
-    t.eq(q.dns_rule(m, (r) => r.server == "dnsmasq-server" && has(r.inbound, "system-dns-in")), null,
-        "router queries never route to the local resolver, whose upstream forwards are captured back here");
+    t.ok(q.dns_rule(m, (r) => r.server == "dnsmasq-server" && has(r.inbound, "system-dns-in") && r.domain_regex == "^[^.]+$") != null,
+        "the router's local zone stays with its resolver");
     t.ok(q.dns_rule(m, (r) => r.server == "dns-server" && r.domain == null && r.domain_suffix == null && r.rule_set == null && has(r.inbound, "system-dns-in")) != null);
 
     let bypass_at = q.dns_rule_index(m, (r) => r.server == "fakeip-server" && has(r.domain_suffix, "example.org") && has(r.source_ip_cidr, "10.0.0.3/32"));
@@ -790,7 +790,7 @@ t.test("fully routed devices follow their section at its priority", () => {
         has(r.rules[0].source_ip_cidr, "192.168.1.20/32") && r.rules[0].domain == null && r.rules[0].domain_suffix == null &&
         r.rules[0].rule_set == null) != null, "a fully routed bypass refuses FakeIP for every domain");
     t.ok(q.dns_rule(f, (r) => r.type == "logical" && r.server == "dns-server" && length(r.rules ?? []) == 2 && has(r.rules[0].inbound, "system-dns-in")) != null,
-        "the System bypass refuses FakeIP through the Forkop DNS, never through the resolver it captures");
+        "the System bypass takes real addresses from the server unmatched queries use");
     t.ok(q.dns_rule(f, (r) => r.server == "dns-server" && has(r.source_ip_cidr, "192.168.1.20/32") && has(r.query_type, "A")) != null);
     t.eq(q.dns_rule(f, (r) => r.type == "logical" && length(r.rules ?? []) > 0 && has(r.rules[0].source_ip_cidr, "192.168.1.40/32")), null,
         "a fully routed proxy keeps the normal FakeIP policy");

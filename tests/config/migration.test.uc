@@ -322,6 +322,13 @@ t.test("released server credentials move into typed clients", () => {
         absent(item, RETIRED_SERVER_OPTIONS);
 });
 
+t.test("a released dont_touch_dhcp leaves what no rule claims with the router's resolver", () => {
+    t.eq(config.settings.unmatched_dns_mode, "router");
+    let untouched = migrated({ settings: settings("1.0.5", { dont_touch_dhcp: "0", shutdown_correctly: "1" }), section: [] });
+    t.eq(untouched.config.settings.unmatched_dns_mode, null, "the default keeps the Forkop DNS");
+    absent(untouched.config.settings, [ "dont_touch_dhcp", "shutdown_correctly" ]);
+});
+
 t.test("leaving the released schema restores dnsmasq once and retires the old workers", () => {
     t.eq(full.restore_dnsmasq, true);
     t.ok(length(filter(full.removed_caches, (path) => index(path, "server-country-cache.json") >= 0)) > 0);
