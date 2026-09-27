@@ -14,7 +14,6 @@ function runtime_tags_config() {
         section: [
             {
                 ".name": "proxy", label: "Main", enabled: "1", action: "connection",
-                subscription_urls: [ "https://duplicate.example/sub" ],
                 selector_proxy_links: [ "socks://127.0.0.1:1080#manual" ],
                 outbound_jsons: [
                     "{\"type\":\"socks\",\"tag\":\"germany\",\"server\":\"127.0.0.1\",\"server_port\":1201}",
@@ -32,6 +31,7 @@ function runtime_tags_config() {
                 domain_suffix: [ "backup.example.org" ]
             }
         ],
+        subscription_url: [ { ".name": "sub_dup", section: "proxy", url: "https://duplicate.example/sub", tag: "sub1" } ],
         section_interface: [ { ".name": "cfg-interface", section: "proxy", name: "wg0", display_name: "NL Amsterdam" } ],
         tunnel: [ { ".name": "tun_tailnet", section: "proxy", order: "0", kind: "tailscale", name: "Tailnet", tailscale_auth_key: "tskey-auth-test" } ],
         urltest: [
@@ -141,20 +141,6 @@ t.test("a manual link is filtered by the protocol of its scheme", () => {
         urltest: [ { ".name": "ut_types", section: "links", name: "Filtered", server_filter_mode: "exclude", exclude_types: [ "hysteria", "socks" ] } ]
     });
     t.eq(q.find(config.outbounds, (o) => o.type == "urltest").outbounds, [ "Links/VLESS" ]);
-});
-
-t.test("an untagged subscription takes its position, or the next free number when a stored tag holds it", () => {
-    let base = {
-        settings: {},
-        section: [ { ".name": "proxy", label: "Main", enabled: "1", action: "connection" } ],
-        subscription_url: [
-            { ".name": "one", section: "proxy", url: "https://one.example/sub" },
-            { ".name": "two", section: "proxy", url: "https://two.example/sub" }
-        ]
-    };
-    t.eq(q.tags(build(base).providers), [ "Main/sub1", "Main/sub2" ]);
-    base.subscription_url[1].tag = "sub1";
-    t.eq(q.tags(build(base).providers), [ "Main/sub2", "Main/sub1" ]);
 });
 
 t.done();

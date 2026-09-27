@@ -216,6 +216,17 @@ export const styles = `
     min-width: 0;
 }
 
+/* The tag and the title are the subscription's name, set apart by the same
+   0.4rem a node name keeps from its tag in the cards below. */
+.fkp_dashboard-page__subscription-meta__name {
+    flex: 0 1 auto;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+    max-width: min(36ch, 40%);
+}
+
 .fkp_dashboard-page__subscription-meta__heading {
     flex: 0 0 auto;
     color: var(--text-color-high);
@@ -225,17 +236,14 @@ export const styles = `
 }
 
 /* The tag carries its own right margin for when it is printed in front of a
-   node name. Here it is a flex item and the row's gap separates it. */
+   node name. Here it is a flex item and the name's gap separates it. */
 .fkp_dashboard-page__subscription-meta__heading
     .fkp_dashboard-page__outbound-grid__item__subscription-tag {
     margin-right: 0;
 }
 
 .fkp_dashboard-page__subscription-meta__title {
-    flex: 0 1 auto;
-    width: max-content;
-    max-width: min(28ch, 30%);
-    min-width: min-content;
+    min-width: 0;
     color: var(--text-color-high);
     font-weight: 700;
     line-height: 1.25;
@@ -309,8 +317,7 @@ export const styles = `
         flex-wrap: wrap;
     }
 
-    .fkp_dashboard-page__subscription-meta__heading,
-    .fkp_dashboard-page__subscription-meta__title {
+    .fkp_dashboard-page__subscription-meta__name {
         order: 1;
     }
 
@@ -323,7 +330,7 @@ export const styles = `
         flex-basis: 100%;
     }
 
-    .fkp_dashboard-page__subscription-meta__title {
+    .fkp_dashboard-page__subscription-meta__name {
         max-width: calc(100% - 42px);
     }
 }

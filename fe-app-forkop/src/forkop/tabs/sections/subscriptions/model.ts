@@ -78,7 +78,6 @@ function remoteSubscriptionUrlSettingsKeys() {
 
 export function subscriptionUrlSettingsKeys(remote: boolean = true) {
   const keys = [
-    'show_subscription_name',
     'tag',
     'server_filter_mode',
     'include_outbounds',
@@ -108,7 +107,6 @@ export function defaultSubscriptionUrlSettings(
   remote: boolean = true,
 ) {
   const settings = {
-    show_subscription_name: '0',
     tag,
     server_filter_mode: 'all',
   };
@@ -168,9 +166,8 @@ function listedSubscriptionTag(
   return `${childPendingSettingsStore(option, sectionId)[value]?.tag || ''}`.trim();
 }
 
-// Every tag the section's subscriptions hold, the ones nothing shows included: a
-// tag is in effect while its own field is hidden, and a subscription whose dialog
-// was never opened carries one from the moment its link was added.
+// Every tag the section's subscriptions hold, including the one a subscription
+// whose dialog was never opened carries from the moment its link was added.
 export function configuredSubscriptionTags(
   sectionId: string,
   option: CBIOption,

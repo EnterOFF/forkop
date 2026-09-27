@@ -266,7 +266,6 @@ export namespace Forkop {
     testing_url?: string;
     idle_timeout?: string;
     interrupt_exist_connections?: '0' | '1';
-    hide_dashboard_members?: '0' | '1';
     server_filter_mode?: 'all' | 'exclude' | 'include' | 'direct';
     filter_mode?: 'disabled' | 'exclude' | 'include' | 'mixed';
     include_countries?: string[];
@@ -293,7 +292,6 @@ export namespace Forkop {
     user_agent?: string;
     header?: string[];
     show_dashboard_metadata?: '0' | '1';
-    show_subscription_name?: '0' | '1';
     tag?: string;
     yacd_secret_key?: string;
     latency_test_url?: string;

@@ -19,7 +19,6 @@ import {
 import { safeRuntimeSectionName } from './references';
 import { optionMapValue } from './subscriptions/model';
 import { tunnelDisplayName } from './tunnels/model';
-import { subscriptionTags } from '../../../helpers/subscriptionTags';
 import { getClashApiProxyProviders } from '../../methods/custom/getDashboardSections';
 
 const outboundNameChoicesCache = new Map();
@@ -111,13 +110,13 @@ function readOutboundChoiceState(section_id: string) {
   const sectionDisplayName = `${
     uci.get(FORKOP_UCI_PACKAGE, section_id, 'label') || section_id
   }`.trim();
-  const tags = subscriptionTags(
-    getChildItemIds(section_id, 'subscription_url').map((itemId: string) =>
-      uci.get(FORKOP_UCI_PACKAGE, itemId, 'tag'),
-    ),
-  );
   return Promise.resolve({
-    providerTags: tags.map((tag) => `${sectionDisplayName}/${tag}`),
+    providerTags: getChildItemIds(section_id, 'subscription_url').map(
+      (itemId: string) => {
+        const tag = `${uci.get(FORKOP_UCI_PACKAGE, itemId, 'tag') || ''}`;
+        return `${sectionDisplayName}/${tag.trim()}`;
+      },
+    ),
   });
 }
 

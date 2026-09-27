@@ -19,7 +19,7 @@ t.test("a section cascade reaches its links and subscriptions, not its interface
                 outbound_detour_enabled: "1", outbound_detour_section: "hop"
             }
         ],
-        subscription_url: [ { ".name": "source_subscription", section: "source", url: "https://subscription.example/source" } ]
+        subscription_url: [ { ".name": "source_subscription", section: "source", url: "https://subscription.example/source", tag: "sub1" } ]
     });
     let config = generator.build({ service_address: "127.0.0.1" });
     t.eq(q.outbound(config, "source/Manual").type, "parser");

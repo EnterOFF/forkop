@@ -245,13 +245,12 @@ describe('getDashboardSections', () => {
     ]);
   });
 
-  it('uses subscription tags as structure and only shows them as dashboard badges when enabled', async () => {
+  it("uses a subscription's tag as structure and as its nodes' badge", async () => {
     mocks.getConfigSections.mockResolvedValue([
       section(),
       child('subscription_url', 'subscription1', {
         url: 'https://example.com/subscription',
         tag: 'premium',
-        show_subscription_name: '1',
         show_dashboard_metadata: '1',
       }),
     ]);
@@ -298,31 +297,6 @@ describe('getDashboardSections', () => {
     ]);
   });
 
-  // The backend numbers an untagged subscription past a number another one is
-  // tagged with; numbering by position alone names two providers the same.
-  it('names an untagged subscription the way the backend does', async () => {
-    mocks.getConfigSections.mockResolvedValue([
-      section(),
-      child('subscription_url', 'subscription1', {
-        url: 'https://example.com/first',
-      }),
-      child('subscription_url', 'subscription2', {
-        url: 'https://example.com/second',
-        tag: 'sub1',
-      }),
-    ]);
-    setClashProxies({
-      Office: proxy('Selector', { name: 'Office', all: [] }),
-    });
-
-    const result = await getDashboardSections();
-
-    expect(result.data[0].subscriptionProviderTags).toEqual([
-      'Office/sub2',
-      'Office/sub1',
-    ]);
-  });
-
   it('does not classify a static slash name as a subscription node', async () => {
     mocks.getConfigSections.mockResolvedValue([
       section({
@@ -333,7 +307,6 @@ describe('getDashboardSections', () => {
       child('subscription_url', 'subscription1', {
         url: 'https://example.com/subscription',
         tag: 'premium',
-        show_subscription_name: '1',
       }),
     ]);
     setClashProxies({

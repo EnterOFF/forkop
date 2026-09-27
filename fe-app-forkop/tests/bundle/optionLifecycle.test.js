@@ -114,7 +114,6 @@ function connectionChildren() {
         section: 'sec',
         url: 'https://example.com/sub',
         tag: 'sub1',
-        show_subscription_name: '0',
         server_filter_mode: 'all',
         subscription_update_enabled: '1',
         subscription_update_interval: '1h',
@@ -168,7 +167,6 @@ function connectionChildren() {
         expected_status: '*',
         idle_timeout: '30m',
         interrupt_exist_connections: '0',
-        hide_dashboard_members: '0',
         server_filter_mode: 'all',
       },
     ],
@@ -185,7 +183,6 @@ function connectionChildren() {
         expected_status: '*',
         idle_timeout: '5m',
         interrupt_exist_connections: '0',
-        hide_dashboard_members: '0',
       },
     ],
     [
@@ -287,9 +284,9 @@ describe('a list the dialog hides keeps its items', () => {
 /* ------------------------------ a subscription is named when it is added */
 
 // A subscription becomes a provider named "<section>/<tag>" in the running
-// configuration, so it needs a tag whether or not the dashboard is asked to show
-// it. Nobody types one: the list names an entry the moment its link is added, and
-// the section's save writes that name out with the rest of the entry.
+// configuration, so it needs a tag. Nobody has to type one: the list names an
+// entry the moment its link is added, and the section's save writes that name out
+// with the rest of the entry.
 describe('a subscription is named when its link is added', () => {
   const LINKS = ['https://a.example/sub', 'https://b.example/sub'];
 
@@ -653,7 +650,6 @@ describe.each([
       {
         url: 'https://example.com/sub',
         tag: 'sub1',
-        show_subscription_name: '0',
         server_filter_mode: 'all',
         subscription_update_enabled: '1',
         subscription_update_interval: '1h',
@@ -794,9 +790,10 @@ describe.each([
 /* ---------------------------------------- what a creation default writes */
 
 // A default written when an item is added has to be an option something reads.
-// user_agent was moved into the ordinary headers and a migration deletes it, so
-// writing it again gives every new subscription a dead option that nothing will
-// ever clear.
+// user_agent was moved into the ordinary headers and a migration deletes it, and
+// show_subscription_name went when the tag started being shown always, so writing
+// either again gives every new subscription a dead option that nothing will ever
+// clear.
 it('adding a subscription writes no option nothing reads', async () => {
   addSections([CONNECTION_SECTION]);
   const grid = sectionGrid();
@@ -815,6 +812,7 @@ it('adding a subscription writes no option nothing reads', async () => {
     .find((item) => item.url === 'https://example.com/new');
   expect(added, 'no subscription section was created').toBeTruthy();
   expect(added.user_agent).toBeUndefined();
+  expect(added.show_subscription_name).toBeUndefined();
 });
 
 /* ------------------------------------------------------ a refused save says why */

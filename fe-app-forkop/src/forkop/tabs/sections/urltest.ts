@@ -60,7 +60,6 @@ function urlTestSettingsKeys() {
     'expected_status',
     'idle_timeout',
     'interrupt_exist_connections',
-    'hide_dashboard_members',
     'server_filter_mode',
     'include_outbounds',
     'include_regex',
@@ -78,7 +77,6 @@ export function urlTestChildDefaults() {
     expected_status: '*',
     idle_timeout: '30m',
     interrupt_exist_connections: '0',
-    hide_dashboard_members: '0',
     server_filter_mode: 'all',
   };
 }

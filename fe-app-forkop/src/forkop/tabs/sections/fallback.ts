@@ -50,7 +50,6 @@ function fallbackGroupSettingsKeys() {
     'expected_status',
     'idle_timeout',
     'interrupt_exist_connections',
-    'hide_dashboard_members',
   ];
 }
 
@@ -68,7 +67,6 @@ export function fallbackGroupChildDefaults() {
     expected_status: '*',
     idle_timeout: '5m',
     interrupt_exist_connections: '0',
-    hide_dashboard_members: '0',
   };
 }
 

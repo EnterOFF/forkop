@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-27 17:51+0300\n"
-"PO-Revision-Date: 2026-09-27 17:51+0300\n"
+"POT-Creation-Date: 2026-09-27 18:20+0300\n"
+"PO-Revision-Date: 2026-09-27 18:20+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -160,9 +160,6 @@ msgstr "Дополнительное заполнение пакета"
 
 msgid "Address of the coordination server. Change it if you use a custom server"
 msgstr "Адрес сервера координации. Меняйте, если используете свой"
-
-msgid "Adds the tag to every node of this subscription on the dashboard"
-msgstr "Добавляет тег ко всем узлам этой подписки в дашборде"
 
 msgid "Advertise routes"
 msgstr "Раздавать маршруты"
@@ -907,12 +904,6 @@ msgstr "Заголовки"
 
 msgid "Heartbeat"
 msgstr "Интервал поддержания соединения"
-
-msgid "Hide group servers"
-msgstr "Скрыть серверы группы"
-
-msgid "Hide servers included in this group from the dashboard"
-msgstr "Скрывать серверы попавшие в эту группу из дашборда"
 
 msgid "Hide values"
 msgstr "Скрывать значения"
@@ -1826,9 +1817,6 @@ msgstr "Показать QR-код"
 msgid "Show metadata"
 msgstr "Отображать метаданные"
 
-msgid "Show tag"
-msgstr "Отображать тег"
-
 msgid "Show the metadata block on the dashboard"
 msgstr "Отображать блок метаданных в дашборде"
 
@@ -2026,6 +2014,9 @@ msgstr "Серверы, которые войдут в группу"
 
 msgid "The subnets that go through this peer"
 msgstr "Подсети, которые пойдут через этого пира"
+
+msgid "The tag of this subscription's nodes shown on the dashboard"
+msgstr "Тег узлов подписки, отображаемый в дашборде"
 
 msgid "This field is required"
 msgstr "Заполните это поле"

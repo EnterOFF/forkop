@@ -421,7 +421,7 @@ t.test("a Fallback group with tuned health checks and every level kind passes", 
                 "{\"type\":\"fallback\",\"tag\":\"Nested\",\"outbounds\":[\"Alpha\"]}"
             ]
         } ],
-        subscription_url: [ { ".name": "sub_main", section: "proxy", url: "https://example.com/sub", subscription_update_enabled: "1" } ],
+        subscription_url: [ { ".name": "sub_main", section: "proxy", url: "https://example.com/sub", tag: "sub1", subscription_update_enabled: "1" } ],
         fallback_group: [ {
             ".name": "pg_main", section: "proxy", name: "Main fallback", health_check_url: "https://health.example/generate_204",
             health_check_interval: "12s", health_check_timeout: "4s", attempt_timeout: "9s", expected_status: "204/200-299",

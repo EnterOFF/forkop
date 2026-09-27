@@ -84,13 +84,4 @@ export function addGroupHealthCheckTailOptions(
   );
   o.default = '0';
   o.rmempty = false;
-
-  o = itemSection.option(
-    form.Flag,
-    'hide_dashboard_members',
-    _('Hide group servers'),
-    _('Hide servers included in this group from the dashboard'),
-  );
-  o.default = '0';
-  o.rmempty = false;
 }

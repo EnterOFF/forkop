@@ -260,14 +260,15 @@ t.test("the rule set lists of a section merge in order without duplicates", () =
 
 t.test("a subscription's prefix, country filters, User-Agent and HWID become the current fields", () => {
     let sub = by_name(config.subscription_url).sub;
-    t.eq([ sub.tag, sub.show_subscription_name, sub.server_filter_mode ], [ "Premium", "1", "include" ]);
+    t.eq([ sub.tag, sub.server_filter_mode ], [ "Premium", "include" ]);
     t.contains(sub.include_regex, "🇩🇪");
     t.contains(sub.header, "User-Agent: Custom Agent");
     t.contains(sub.header, "X-HWID: CUSTOM-HWID");
     absent(sub, [ "auto_user_agent", "user_agent", "auto_hwid", "hwid", "filter_mode", "include_countries",
         "include_proxy_parameters", "include_protocols", "include_transports", "include_securities",
         "exclude_protocols", "exclude_transports", "exclude_securities",
-        "include_urltest_groups", "hide_urltest_group_outbounds", "node_prefix", "prefix_nodes" ]);
+        "include_urltest_groups", "hide_urltest_group_outbounds", "node_prefix", "prefix_nodes",
+        "show_subscription_name" ]);
 });
 
 t.test("an interface keeps its name as a display name and its resolver as a URI", () => {

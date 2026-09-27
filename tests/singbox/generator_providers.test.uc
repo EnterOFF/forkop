@@ -19,16 +19,16 @@ function providers_config() {
                 ".name": "source", section: "proxy", url: "https://example.com/subscription",
                 header: [ "User-Agent: Happ", "X-HWID: router-hwid", "X-Device-OS: OpenWrt Linux", "X-Test: one", "x-test: two", "X-Empty:" ],
                 subscription_update_enabled: "0", download_via_proxy_enabled: "1", download_via_proxy_section: "hop",
-                show_subscription_name: "1", tag: "premium", server_filter_mode: "include",
+                tag: "premium", server_filter_mode: "include",
                 include_regex: "^(US|DE)", exclude_regex: "expired"
             },
-            { ".name": "source_auto", section: "proxy", url: "https://example.com/auto", header: [ "X-HWID: configured-hwid" ] },
-            { ".name": "source_without_hwid", section: "proxy", url: "https://example.com/no-hwid" },
+            { ".name": "source_auto", section: "proxy", url: "https://example.com/auto", tag: "sub2", header: [ "X-HWID: configured-hwid" ] },
+            { ".name": "source_without_hwid", section: "proxy", url: "https://example.com/no-hwid", tag: "sub3" },
             {
                 ".name": "source_local", section: "proxy", url: "/etc/forkop/local-subscription.txt",
                 subscription_update_enabled: "1", subscription_update_interval: "invalid",
                 download_via_proxy_enabled: "1", download_via_proxy_section: "proxy",
-                header: [ "Broken Header" ], show_dashboard_metadata: "1", show_subscription_name: "1",
+                header: [ "Broken Header" ], show_dashboard_metadata: "1",
                 tag: "local", server_filter_mode: "include", include_regex: "^Local", exclude_regex: "Expired"
             }
         ],

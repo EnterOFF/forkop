@@ -33,8 +33,9 @@ t.test("an empty connection section is omitted without suppressing its neighbour
         settings: settings(),
         section: [
             { ".name": "empty", enabled: "1", action: "connection", domain_suffix: [ "empty.example" ] },
-            { ".name": "usable", enabled: "1", action: "connection", subscription_urls: [ "https://example.com/sub.json" ] }
-        ]
+            { ".name": "usable", enabled: "1", action: "connection" }
+        ],
+        subscription_url: [ { ".name": "sub_usable", section: "usable", url: "https://example.com/sub.json", tag: "sub1" } ]
     });
     t.excludes(sprintf("%J", config), "\"empty\"");
     t.ok(q.provider(config, "usable/sub1") != null, "subscription provider of the usable section");
@@ -43,7 +44,8 @@ t.test("an empty connection section is omitted without suppressing its neighbour
 t.test("a subscription-only section becomes a native provider", () => {
     let config = build({
         settings: settings(),
-        section: [ { ".name": "subscription_only", enabled: "1", action: "connection", subscription_urls: [ "https://example.com/sub.json" ] } ]
+        section: [ { ".name": "subscription_only", enabled: "1", action: "connection" } ],
+        subscription_url: [ { ".name": "sub_only", section: "subscription_only", url: "https://example.com/sub.json", tag: "sub1" } ]
     });
     t.ok(q.provider(config, "subscription_only/sub1") != null);
 });
@@ -693,9 +695,9 @@ t.test("downloads through a section get service inbounds and rule-set detours", 
         settings: settings({ download_lists_via_proxy: "1", download_lists_via_proxy_section: "components_proxy" }),
         section: [
             { ".name": "proxy", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\",\"tag\":\"a\"}" ], domain_suffix: [ "example.org" ] },
-            { ".name": "components_proxy", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\",\"tag\":\"b\"}" ], domain_suffix: [ "components.example" ],
-                subscription_urls: [ "https://sub.example/list" ] }
-        ]
+            { ".name": "components_proxy", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\",\"tag\":\"b\"}" ], domain_suffix: [ "components.example" ] }
+        ],
+        subscription_url: [ { ".name": "sub_list", section: "components_proxy", url: "https://sub.example/list", tag: "sub1" } ]
     });
     t.ok(q.route_rule(lists_elsewhere, (r) => r.inbound == "service-mixed-in" && r.outbound == "proxy") != null,
         "the proxy diagnostic measures the first section, as the transparent proxy check does, wherever lists download");

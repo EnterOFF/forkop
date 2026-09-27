@@ -345,7 +345,6 @@ t.test("subscription request profiles, filters and a local source pass", () => {
                 "subscription_update_enabled": "0",
                 "download_via_proxy_enabled": "1",
                 "download_via_proxy_section": "hop",
-                "show_subscription_name": "1",
                 "tag": "premium",
                 "server_filter_mode": "include",
                 "include_regex": "^(US|DE)",
@@ -355,6 +354,7 @@ t.test("subscription request profiles, filters and a local source pass", () => {
                 ".name": "source_auto",
                 "section": "proxy",
                 "url": "https://example.com/auto",
+                "tag": "sub2",
                 "header": [
                     "X-HWID: configured-hwid"
                 ]
@@ -362,7 +362,8 @@ t.test("subscription request profiles, filters and a local source pass", () => {
             {
                 ".name": "source_without_hwid",
                 "section": "proxy",
-                "url": "https://example.com/no-hwid"
+                "url": "https://example.com/no-hwid",
+                "tag": "sub3"
             },
             {
                 ".name": "source_local",
@@ -376,7 +377,6 @@ t.test("subscription request profiles, filters and a local source pass", () => {
                     "Broken Header"
                 ],
                 "show_dashboard_metadata": "1",
-                "show_subscription_name": "1",
                 "tag": "local",
                 "server_filter_mode": "include",
                 "include_regex": "^Local",

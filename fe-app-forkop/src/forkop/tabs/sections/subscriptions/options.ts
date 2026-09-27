@@ -124,21 +124,12 @@ export function addSubscriptionUrlItemOptions(
   }
 
   o = itemSection.option(
-    form.Flag,
-    'show_subscription_name',
-    _('Show tag'),
-    _('Adds the tag to every node of this subscription on the dashboard'),
+    form.Value,
+    'tag',
+    _('Tag'),
+    _("The tag of this subscription's nodes shown on the dashboard"),
   );
-  o.default = '0';
   o.rmempty = false;
-
-  o = itemSection.option(form.Value, 'tag', _('Tag'));
-  o.depends('show_subscription_name', '1');
-  o.rmempty = false;
-  // The tag names the subscription's provider whether or not it is added to the
-  // node names, so it is in effect even while this field is hidden and must
-  // survive a save that does not show it.
-  o.retain = true;
   o.validate = function (_itemId: string, value: unknown) {
     const normalized = `${value || ''}`.trim();
     if (!normalized) return _('Enter a subscription tag');

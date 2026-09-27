@@ -882,9 +882,9 @@ function renderSubscriptionMetadata(metadata) {
   if (!title && !rows.length && !actions.length && !metadata.announce) {
     return void 0;
   }
-  return textE("div", { class: "fkp_dashboard-page__subscription-meta" }, [
-    textE("div", { class: "fkp_dashboard-page__subscription-meta__main" }, [
-      metadata.subscriptionTag ? textE(
+  const name = [
+    ...metadata.subscriptionTag ? [
+      textE(
         "div",
         { class: "fkp_dashboard-page__subscription-meta__heading" },
         [
@@ -896,11 +896,22 @@ function renderSubscriptionMetadata(metadata) {
             metadata.subscriptionTag
           )
         ]
-      ) : "",
-      title ? textE(
+      )
+    ] : [],
+    ...title ? [
+      textE(
         "div",
         { class: "fkp_dashboard-page__subscription-meta__title" },
         title
+      )
+    ] : []
+  ];
+  return textE("div", { class: "fkp_dashboard-page__subscription-meta" }, [
+    textE("div", { class: "fkp_dashboard-page__subscription-meta__main" }, [
+      name.length ? textE(
+        "div",
+        { class: "fkp_dashboard-page__subscription-meta__name" },
+        name
       ) : "",
       rows.length ? textE(
         "div",
@@ -2170,23 +2181,6 @@ var ForkopShellMethods = {
   }
 };
 
-// src/helpers/subscriptionTags.ts
-function subscriptionTags(stored) {
-  const tags = stored.map((tag) => `${tag ?? ""}`.trim());
-  const taken = new Set(tags.filter(Boolean));
-  return tags.map((tag, index) => {
-    if (tag) {
-      return tag;
-    }
-    let number = index + 1;
-    while (taken.has(`sub${number}`)) {
-      number += 1;
-    }
-    taken.add(`sub${number}`);
-    return `sub${number}`;
-  });
-}
-
 // src/forkop/methods/custom/getDashboardSections.ts
 var CLASH_API_FETCH_TIMEOUT_MS = 5e3;
 var CLASH_API_MUTATION_TIMEOUT_MS = 15e3;
@@ -2556,7 +2550,6 @@ function hydrateConfigSections(configSections) {
           user_agent: item.user_agent,
           header: item.header,
           show_dashboard_metadata: item.show_dashboard_metadata,
-          show_subscription_name: item.show_subscription_name,
           tag: item.tag
         };
       });
@@ -2577,7 +2570,6 @@ function hydrateConfigSections(configSections) {
           expected_status: item.expected_status,
           idle_timeout: item.idle_timeout,
           interrupt_exist_connections: item.interrupt_exist_connections,
-          hide_dashboard_members: item.hide_dashboard_members,
           urltest_server_filter_mode: item.server_filter_mode,
           urltest_include_outbounds: item.include_outbounds,
           urltest_include_regex: item.include_regex,
@@ -2610,7 +2602,6 @@ function hydrateConfigSections(configSections) {
           expected_status: item.expected_status,
           idle_timeout: item.idle_timeout,
           interrupt_exist_connections: item.interrupt_exist_connections,
-          hide_dashboard_members: item.hide_dashboard_members,
           levels
         };
       });
@@ -2815,11 +2806,6 @@ function getUrlTestConfigs(section) {
       id,
       code: getChildTag(section, displayName),
       displayName,
-      hideDashboardMembers: itemSettingBoolean(
-        settings,
-        "hide_dashboard_members",
-        false
-      ),
       testingUrl: itemSettingString(
         settings,
         "urltest_testing_url",
@@ -2894,11 +2880,6 @@ function getFallbackConfigs(section) {
       sectionName,
       code: getChildTag(section, displayName),
       displayName,
-      hideDashboardMembers: itemSettingBoolean(
-        settings,
-        "hide_dashboard_members",
-        false
-      ),
       healthCheckUrl: itemSettingString(
         settings,
         "health_check_url",
@@ -2938,15 +2919,15 @@ function getFallbackConfigs(section) {
     };
   });
 }
-function getOutboundPresentation(code, sectionDisplayName, subscriptionTags2) {
+function getOutboundPresentation(code, sectionDisplayName, subscriptionTags) {
   const sectionPrefix = `${sectionDisplayName}/`;
   const relativeCode = code.startsWith(sectionPrefix) ? code.slice(sectionPrefix.length) : code;
-  const subscription = subscriptionTags2.find(
+  const subscription = subscriptionTags.find(
     (item) => item.outboundCodes.has(code)
   );
   return {
     displayName: subscription ? code.slice(subscription.runtimeTag.length + 1) : relativeCode,
-    subscriptionTag: subscription?.showInDashboard ? subscription.displayTag : void 0
+    subscriptionTag: subscription?.displayTag
   };
 }
 function getOutboundDisplayType(entry) {
@@ -2959,7 +2940,7 @@ function buildUrlTestInfo({
   manualLinkByCode,
   exportableProviderTags,
   sectionDisplayName,
-  subscriptionTags: subscriptionTags2
+  subscriptionTags
 }) {
   const childCodes = uniqueCodes(entry?.value.all || []);
   const selectedCode = entry?.value.now || "";
@@ -2975,7 +2956,7 @@ function buildUrlTestInfo({
       const presentation = getOutboundPresentation(
         childCode,
         sectionDisplayName,
-        subscriptionTags2
+        subscriptionTags
       );
       return [
         {
@@ -3012,7 +2993,7 @@ function buildFallbackInfo({
   manualLinkByCode,
   exportableProviderTags,
   sectionDisplayName,
-  subscriptionTags: subscriptionTags2
+  subscriptionTags
 }) {
   const selectedCode = entry?.value.now || "";
   const pinnedCode = entry?.value.fixed || "";
@@ -3041,7 +3022,7 @@ function buildFallbackInfo({
       const presentation = getOutboundPresentation(
         childCode,
         sectionDisplayName,
-        subscriptionTags2
+        subscriptionTags
       );
       return {
         code: childCode,
@@ -3075,9 +3056,9 @@ function buildFallbackInfo({
     outbounds
   };
 }
-function buildProxyGroupOutbounds(section, proxies, subscriptionTags2) {
+function buildProxyGroupOutbounds(section, proxies, subscriptionTags) {
   const sectionDisplayName = getDisplayName(section);
-  const exportableProviderTags = subscriptionTags2.map(
+  const exportableProviderTags = subscriptionTags.map(
     (item) => item.runtimeTag
   );
   const proxyByCode = getProxyEntryByCode(proxies);
@@ -3110,36 +3091,8 @@ function buildProxyGroupOutbounds(section, proxies, subscriptionTags2) {
   const fallbackConfigByCode = new Map(
     fallbackConfigs.map((config) => [config.code, config])
   );
-  const urlTestEntries = urlTestConfigs.map((config) => ({
-    config,
-    entry: proxyByCode.get(config.code)
-  }));
-  const fallbackEntries = fallbackConfigs.map((config) => ({
-    config,
-    entry: proxyByCode.get(config.code)
-  }));
   const manualLinkByCode = buildManualLinkByCode(section, selectorCodes);
-  const urlTestCodes = urlTestConfigs.map((config) => config.code);
-  const fallbackGroupCodes = fallbackConfigs.map((config) => config.code);
-  const hiddenMemberCodes = /* @__PURE__ */ new Set();
-  const hideMembers = (codes) => {
-    uniqueCodes(codes).forEach((code) => hiddenMemberCodes.add(code));
-  };
-  urlTestEntries.forEach(({ config, entry }) => {
-    if (config.hideDashboardMembers) hideMembers(entry?.value.all || []);
-  });
-  fallbackEntries.forEach(({ config, entry }) => {
-    if (!config.hideDashboardMembers) {
-      return;
-    }
-    (entry?.value.groups || []).forEach(
-      (level) => hideMembers(level.outbounds || [])
-    );
-  });
-  const groupOutboundCodes = /* @__PURE__ */ new Set([...urlTestCodes, ...fallbackGroupCodes]);
-  const outbounds = uniqueCodes(selectorCodes).filter(
-    (code) => groupOutboundCodes.has(code) || !hiddenMemberCodes.has(code)
-  ).flatMap((code) => {
+  const outbounds = uniqueCodes(selectorCodes).flatMap((code) => {
     const item = proxyByCode.get(code);
     const urlTestConfig = urlTestConfigByCode.get(code);
     const fallbackConfig = fallbackConfigByCode.get(code);
@@ -3155,15 +3108,14 @@ function buildProxyGroupOutbounds(section, proxies, subscriptionTags2) {
     const presentation = getOutboundPresentation(
       code,
       sectionDisplayName,
-      subscriptionTags2
+      subscriptionTags
     );
     const displayName = fallbackConfig?.displayName || urlTestConfig?.displayName || presentation.displayName;
     const isRuntimeUrlTest = isUrlTestProxyEntry(item);
     const effectiveUrlTestConfig = urlTestConfig || (isRuntimeUrlTest ? {
       id: code,
       code,
-      displayName,
-      hideDashboardMembers: false
+      displayName
     } : void 0);
     const urlTestInfo = effectiveUrlTestConfig ? buildUrlTestInfo({
       config: effectiveUrlTestConfig,
@@ -3172,7 +3124,7 @@ function buildProxyGroupOutbounds(section, proxies, subscriptionTags2) {
       manualLinkByCode,
       exportableProviderTags,
       sectionDisplayName,
-      subscriptionTags: subscriptionTags2
+      subscriptionTags
     }) : void 0;
     const fallbackInfo = fallbackConfig ? buildFallbackInfo({
       config: fallbackConfig,
@@ -3181,7 +3133,7 @@ function buildProxyGroupOutbounds(section, proxies, subscriptionTags2) {
       manualLinkByCode,
       exportableProviderTags,
       sectionDisplayName,
-      subscriptionTags: subscriptionTags2
+      subscriptionTags
     }) : void 0;
     const groupInfo = urlTestInfo || fallbackInfo;
     const selectedGroupMember = groupInfo?.outbounds.find(
@@ -3215,25 +3167,14 @@ function isSubscriptionMetadataVisible(section, sourceIndex) {
 function getSectionSubscriptionTags(section, providers) {
   const sectionDisplayName = getDisplayName(section);
   const settings = itemSettingsMap(section.subscription_url_settings);
-  const sources = getListValues(section.subscription_urls);
-  const tags = subscriptionTags(
-    sources.map((source) => itemSettingString(settings[source], "tag", ""))
-  );
-  return sources.map((source, index) => {
-    const sourceSettings = settings[source];
-    const displayTag = tags[index];
+  return getListValues(section.subscription_urls).map((source) => {
+    const displayTag = itemSettingString(settings[source], "tag").trim();
+    const runtimeTag = `${sectionDisplayName}/${displayTag}`;
     return {
-      runtimeTag: `${sectionDisplayName}/${displayTag}`,
+      runtimeTag,
       displayTag,
-      showInDashboard: itemSettingBoolean(
-        sourceSettings,
-        "show_subscription_name",
-        false
-      ),
       outboundCodes: new Set(
-        (providers[`${sectionDisplayName}/${displayTag}`]?.proxies || []).map(
-          (proxy) => proxy.name
-        )
+        (providers[runtimeTag]?.proxies || []).map((proxy) => proxy.name)
       )
     };
   });
@@ -3271,8 +3212,8 @@ function providerSubscriptionMetadata(provider, sourceIndex, subscriptionTag) {
     ...expire ? { expire } : {}
   };
 }
-function getSubscriptionMetadata(section, sourceCount, subscriptionTags2, providers) {
-  const items = subscriptionTags2.slice(0, sourceCount).flatMap((tag, index) => {
+function getSubscriptionMetadata(section, sourceCount, subscriptionTags, providers) {
+  const items = subscriptionTags.slice(0, sourceCount).flatMap((tag, index) => {
     const sourceIndex = index + 1;
     const provider = providers[tag.runtimeTag];
     if (!provider || provider.subscriptionInfo === void 0 && provider.subscriptionMetadata === void 0) {
@@ -3281,7 +3222,7 @@ function getSubscriptionMetadata(section, sourceCount, subscriptionTags2, provid
     const metadata = providerSubscriptionMetadata(
       provider,
       sourceIndex,
-      tag.showInDashboard ? tag.displayTag : ""
+      tag.displayTag
     );
     return metadata && isSubscriptionMetadataVisible(section, sourceIndex) ? [metadata] : [];
   });
@@ -3324,17 +3265,17 @@ async function getDashboardSections() {
     if (isConnectionAction(sectionAction) && shouldUseProxyGroup(section)) {
       const subscriptionSourceCount = getSubscriptionSourceCount(section);
       const subscriptionEnabled = subscriptionSourceCount > 0;
-      const subscriptionTags2 = getSectionSubscriptionTags(section, providers);
+      const subscriptionTags = getSectionSubscriptionTags(section, providers);
       const subscriptionMetadata = subscriptionEnabled ? getSubscriptionMetadata(
         section,
         subscriptionSourceCount,
-        subscriptionTags2,
+        subscriptionTags,
         providers
       ) : void 0;
       const { selector, outbounds } = buildProxyGroupOutbounds(
         section,
         proxies,
-        subscriptionTags2
+        subscriptionTags
       );
       return {
         withTagSelect: true,
@@ -3344,7 +3285,7 @@ async function getDashboardSections() {
         action: sectionAction,
         proxyConfigType,
         subscriptionSourceCount,
-        subscriptionProviderTags: subscriptionTags2.map(
+        subscriptionProviderTags: subscriptionTags.map(
           (item) => item.runtimeTag
         ),
         ruleSetProviderTags: ruleSetTags[sectionName] || [],
@@ -6599,6 +6540,17 @@ var styles = `
     min-width: 0;
 }
 
+/* The tag and the title are the subscription's name, set apart by the same
+   0.4rem a node name keeps from its tag in the cards below. */
+.fkp_dashboard-page__subscription-meta__name {
+    flex: 0 1 auto;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+    max-width: min(36ch, 40%);
+}
+
 .fkp_dashboard-page__subscription-meta__heading {
     flex: 0 0 auto;
     color: var(--text-color-high);
@@ -6608,17 +6560,14 @@ var styles = `
 }
 
 /* The tag carries its own right margin for when it is printed in front of a
-   node name. Here it is a flex item and the row's gap separates it. */
+   node name. Here it is a flex item and the name's gap separates it. */
 .fkp_dashboard-page__subscription-meta__heading
     .fkp_dashboard-page__outbound-grid__item__subscription-tag {
     margin-right: 0;
 }
 
 .fkp_dashboard-page__subscription-meta__title {
-    flex: 0 1 auto;
-    width: max-content;
-    max-width: min(28ch, 30%);
-    min-width: min-content;
+    min-width: 0;
     color: var(--text-color-high);
     font-weight: 700;
     line-height: 1.25;
@@ -6692,8 +6641,7 @@ var styles = `
         flex-wrap: wrap;
     }
 
-    .fkp_dashboard-page__subscription-meta__heading,
-    .fkp_dashboard-page__subscription-meta__title {
+    .fkp_dashboard-page__subscription-meta__name {
         order: 1;
     }
 
@@ -6706,7 +6654,7 @@ var styles = `
         flex-basis: 100%;
     }
 
-    .fkp_dashboard-page__subscription-meta__title {
+    .fkp_dashboard-page__subscription-meta__name {
         max-width: calc(100% - 42px);
     }
 }
@@ -15545,7 +15493,6 @@ function remoteSubscriptionUrlSettingsKeys() {
 }
 function subscriptionUrlSettingsKeys(remote = true) {
   const keys = [
-    "show_subscription_name",
     "tag",
     "server_filter_mode",
     "include_outbounds",
@@ -15564,7 +15511,6 @@ function cleanupRemoteSubscriptionUrlSettings(itemId) {
 }
 function defaultSubscriptionUrlSettings(headers = [], tag = "sub1", remote = true) {
   const settings = {
-    show_subscription_name: "0",
     tag,
     server_filter_mode: "all"
   };
@@ -16361,13 +16307,13 @@ function readOutboundChoiceState(section_id) {
     return Promise.resolve(null);
   }
   const sectionDisplayName = `${uci.get(FORKOP_UCI_PACKAGE, section_id, "label") || section_id}`.trim();
-  const tags = subscriptionTags(
-    getChildItemIds(section_id, "subscription_url").map(
-      (itemId) => uci.get(FORKOP_UCI_PACKAGE, itemId, "tag")
-    )
-  );
   return Promise.resolve({
-    providerTags: tags.map((tag) => `${sectionDisplayName}/${tag}`)
+    providerTags: getChildItemIds(section_id, "subscription_url").map(
+      (itemId) => {
+        const tag = `${uci.get(FORKOP_UCI_PACKAGE, itemId, "tag") || ""}`;
+        return `${sectionDisplayName}/${tag.trim()}`;
+      }
+    )
   });
 }
 function cacheOutboundNameChoices(key, names) {
@@ -17036,14 +16982,6 @@ function addGroupHealthCheckTailOptions(itemSection, idleTimeoutDefault) {
   );
   o.default = "0";
   o.rmempty = false;
-  o = itemSection.option(
-    form.Flag,
-    "hide_dashboard_members",
-    _("Hide group servers"),
-    _("Hide servers included in this group from the dashboard")
-  );
-  o.default = "0";
-  o.rmempty = false;
 }
 
 // src/forkop/tabs/sections/fallback.ts
@@ -17056,8 +16994,7 @@ function fallbackGroupSettingsKeys() {
     "attempt_timeout",
     "expected_status",
     "idle_timeout",
-    "interrupt_exist_connections",
-    "hide_dashboard_members"
+    "interrupt_exist_connections"
   ];
 }
 function removeFallbackLevels(groupId) {
@@ -17071,8 +17008,7 @@ function fallbackGroupChildDefaults() {
     attempt_timeout: "5s",
     expected_status: "*",
     idle_timeout: "5m",
-    interrupt_exist_connections: "0",
-    hide_dashboard_members: "0"
+    interrupt_exist_connections: "0"
   };
 }
 function defaultFallbackGroupSettings(name = "") {
@@ -17867,17 +17803,12 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
     o.rmempty = false;
   }
   o = itemSection.option(
-    form.Flag,
-    "show_subscription_name",
-    _("Show tag"),
-    _("Adds the tag to every node of this subscription on the dashboard")
+    form.Value,
+    "tag",
+    _("Tag"),
+    _("The tag of this subscription's nodes shown on the dashboard")
   );
-  o.default = "0";
   o.rmempty = false;
-  o = itemSection.option(form.Value, "tag", _("Tag"));
-  o.depends("show_subscription_name", "1");
-  o.rmempty = false;
-  o.retain = true;
   o.validate = function(_itemId, value) {
     const normalized = `${value || ""}`.trim();
     if (!normalized) return _("Enter a subscription tag");
@@ -19327,7 +19258,6 @@ function urlTestSettingsKeys() {
     "expected_status",
     "idle_timeout",
     "interrupt_exist_connections",
-    "hide_dashboard_members",
     "server_filter_mode",
     "include_outbounds",
     "include_regex",
@@ -19344,7 +19274,6 @@ function urlTestChildDefaults() {
     expected_status: "*",
     idle_timeout: "30m",
     interrupt_exist_connections: "0",
-    hide_dashboard_members: "0",
     server_filter_mode: "all"
   };
 }

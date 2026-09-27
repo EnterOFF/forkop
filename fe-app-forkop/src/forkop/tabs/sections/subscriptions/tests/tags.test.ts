@@ -10,9 +10,8 @@ import {
 
 // Every subscription of a section carries a tag, because the runtime turns it
 // into the provider name "<section>/<tag>" and sing-box refuses a configuration
-// holding two providers under one name. Nobody types it: the list names an entry
-// the moment its link is added, and the name is in effect whether or not the
-// dashboard shows it.
+// holding two providers under one name. Nobody has to type it: the list names an
+// entry the moment its link is added.
 //
 // The list the numbering counts is the one the user is looking at, not the stored
 // one: an entry added or taken out is only written when the section is saved, so
@@ -34,8 +33,7 @@ function stagedTag(option: CBIOption, value: string) {
   return option.pendingChildSettings?.[SECTION]?.[value]?.tag;
 }
 
-// A stored subscription of the probe section, tagged and hidden the way an
-// untouched one is: show_subscription_name off, so no field shows its tag.
+// A stored subscription of the probe section.
 function storedSubscription(
   sections: Record<string, Record<string, string>>,
   itemId: string,
@@ -46,7 +44,6 @@ function storedSubscription(
     section: SECTION,
     url: `https://example.com/${itemId}`,
     tag,
-    show_subscription_name: '0',
   };
   return itemId;
 }
@@ -171,7 +168,7 @@ describe('naming a subscription that was just added', () => {
 });
 
 describe('the tags a section counts as taken', () => {
-  it('includes one no field shows', () => {
+  it('includes a stored one', () => {
     const sections: Record<string, Record<string, string>> = {};
     storedSubscription(sections, 'sub_first', 'sub1');
     installUciStub(sections);

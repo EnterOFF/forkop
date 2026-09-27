@@ -781,34 +781,10 @@ function stored_subscription_tag(section, value) {
     return trim(as_string(tag_name));
 }
 
-// Every subscription in a section needs a name of its own, because the provider
-// it becomes is addressed by it. A stored tag wins; a subscription without one is
-// named after its position, and moves on to the next free number only when a
-// stored tag already holds that name - numbering by position alone would hand out
-// a name that is taken and the configuration would be refused for the duplicate.
+// The provider a subscription becomes is addressed by its tag, so the validator
+// refuses a section whose subscriptions lack one or share one.
 function subscription_tags(section) {
-    let sources = subscription_urls(section);
-    let stored = [];
-    let taken = {};
-    for (let index = 0; index < length(sources); index++) {
-        stored[index] = stored_subscription_tag(section, sources[index]);
-        if (stored[index] != "")
-            taken[stored[index]] = true;
-    }
-
-    let result = [];
-    for (let index = 0; index < length(sources); index++) {
-        if (stored[index] != "") {
-            push(result, stored[index]);
-            continue;
-        }
-        let number = index + 1;
-        while (taken["sub" + number])
-            number++;
-        taken["sub" + number] = true;
-        push(result, "sub" + number);
-    }
-    return result;
+    return map(subscription_urls(section), (source) => stored_subscription_tag(section, source));
 }
 
 function subscription_exclude_types(section, value) {

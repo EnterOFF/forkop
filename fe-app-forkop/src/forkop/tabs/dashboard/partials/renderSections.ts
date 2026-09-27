@@ -164,10 +164,10 @@ function renderSubscriptionMetadata(
     return undefined;
   }
 
-  return E('div', { class: 'fkp_dashboard-page__subscription-meta' }, [
-    E('div', { class: 'fkp_dashboard-page__subscription-meta__main' }, [
-      metadata.subscriptionTag
-        ? E(
+  const name = [
+    ...(metadata.subscriptionTag
+      ? [
+          E(
             'div',
             { class: 'fkp_dashboard-page__subscription-meta__heading' },
             [
@@ -180,13 +180,27 @@ function renderSubscriptionMetadata(
                 metadata.subscriptionTag,
               ),
             ],
-          )
-        : '',
-      title
-        ? E(
+          ),
+        ]
+      : []),
+    ...(title
+      ? [
+          E(
             'div',
             { class: 'fkp_dashboard-page__subscription-meta__title' },
             title,
+          ),
+        ]
+      : []),
+  ];
+
+  return E('div', { class: 'fkp_dashboard-page__subscription-meta' }, [
+    E('div', { class: 'fkp_dashboard-page__subscription-meta__main' }, [
+      name.length
+        ? E(
+            'div',
+            { class: 'fkp_dashboard-page__subscription-meta__name' },
+            name,
           )
         : '',
       rows.length

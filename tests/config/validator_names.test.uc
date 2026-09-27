@@ -1,8 +1,8 @@
 let t = require("t");
 let v = require("validation");
 
-t.test("accepts untagged-subscriptions", () => {
-    v.accepts({
+t.test("untagged-subscription", () => {
+    v.refuses({
         "settings": {
             "dns_server": [
                 "77.88.8.8"
@@ -28,10 +28,11 @@ t.test("accepts untagged-subscriptions", () => {
             {
                 ".name": "two",
                 "section": "proxy",
-                "url": "https://two.example/sub"
+                "url": "https://two.example/sub",
+                "tag": "sub2"
             }
         ]
-    });
+    }, "Subscription in rule 'proxy' has no tag");
 });
 
 t.test("duplicate-json-tags", () => {
@@ -149,40 +150,6 @@ t.test("cross-namespace-display-name", () => {
             }
         ]
     }, "Duplicate server display name 'Shared'");
-});
-
-t.test("a stored tag may take the name another subscription's position would get", () => {
-    v.accepts({
-        "settings": {
-            "dns_server": [
-                "77.88.8.8"
-            ],
-            "bootstrap_dns_server": [
-                "77.88.8.8"
-            ]
-        },
-        "section": [
-            {
-                ".name": "proxy",
-                "label": "Main",
-                "enabled": "1",
-                "action": "connection"
-            }
-        ],
-        "subscription_url": [
-            {
-                ".name": "one",
-                "section": "proxy",
-                "url": "https://one.example/sub"
-            },
-            {
-                ".name": "two",
-                "section": "proxy",
-                "url": "https://two.example/sub",
-                "tag": "sub1"
-            }
-        ]
-    });
 });
 
 t.done();

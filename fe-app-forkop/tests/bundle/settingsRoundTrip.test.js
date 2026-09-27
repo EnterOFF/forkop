@@ -382,9 +382,8 @@ it('the Settings page writes nothing when the shipped config is saved', async ()
 
 /* --------------------------------------------------------- the hidden values */
 
-// The tag names the subscription's provider whether or not it is added to the
-// node names, so unlike the resolver options it is in effect while its field is
-// hidden and has to survive a save that does not show it.
+// The tag names the subscription's provider and marks its nodes on the
+// dashboard, so every subscription's dialog shows it.
 describe('a subscription tag', () => {
   let list;
   const findOption = (dialog, name) =>
@@ -405,12 +404,6 @@ describe('a subscription tag', () => {
       harness.uci.add('forkop', 'subscription_url', itemId);
       harness.uci.set('forkop', itemId, 'section', 'section_probe');
       harness.uci.set('forkop', itemId, 'url', `https://example.com/${index}`);
-      harness.uci.set(
-        'forkop',
-        itemId,
-        'show_subscription_name',
-        index === 0 ? '1' : '0',
-      );
       harness.uci.set('forkop', itemId, 'tag', `sub${index + 1}`);
     });
     // The dialog is only reachable from the rendered list, and the tag rules read
@@ -419,7 +412,7 @@ describe('a subscription tag', () => {
     list.cfgvalue('section_probe', ['sub_first', 'sub_second']);
   });
 
-  it('survives a save that does not show it', async () => {
+  it('is shown and kept by a save that does not change it', async () => {
     const dialog = await harness.openDialog(
       list,
       'section_probe',
@@ -427,31 +420,12 @@ describe('a subscription tag', () => {
     );
     const tag = findOption(dialog, 'tag');
 
-    expect(
-      tag,
-      'the subscription dialog no longer has a tag field',
-    ).toBeTruthy();
-    expect(
-      tag.isActive('settings'),
-      'the tag field is shown for a subscription that does not add its tag',
-    ).toBe(false);
-    expect(
-      tag.retain,
-      'the tag field does not retain the name the provider is generated with',
-    ).toBe(true);
+    expect(tag, 'the subscription dialog has no tag field').toBeTruthy();
+    expect(tag.isActive('settings'), 'the tag field is hidden').toBe(true);
 
     await dialog.save();
 
     expect(harness.uci.get('forkop', 'sub_second', 'tag')).toBe('sub2');
-  });
-
-  it('survives being switched off', async () => {
-    const dialog = await harness.openDialog(list, 'section_probe', 'sub_first');
-    findOption(dialog, 'show_subscription_name').cfgvalue('settings', '0');
-
-    await dialog.save();
-
-    expect(harness.uci.get('forkop', 'sub_first', 'tag')).toBe('sub1');
   });
 
   // The way validate_subscription_tags() refuses it in the backend.

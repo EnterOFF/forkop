@@ -48,7 +48,7 @@ t.test("accepts valid", () => {
                 "subscription_urls": [
                     "https://example.com/sub.txt"
                 ],
-                "subscription_url_settings": "{\"https://example.com/sub.txt\":{\"user_agent\":\"Agent/1.0\"}}",
+                "subscription_url_settings": "{\"https://example.com/sub.txt\":{\"user_agent\":\"Agent/1.0\",\"tag\":\"sub1\"}}",
                 "subscription_update_enabled": "1",
                 "subscription_update_interval": "12h",
                 "urltest_enabled": "1",
@@ -712,10 +712,15 @@ t.test("bad subscription", () => {
             {
                 ".name": "proxy",
                 "enabled": "1",
-                "action": "proxy",
-                "subscription_urls": [
-                    "https://example.com/a| Agent"
-                ]
+                "action": "proxy"
+            }
+        ],
+        "subscription_url": [
+            {
+                ".name": "proxy_sub_1",
+                "section": "proxy",
+                "url": "https://example.com/a| Agent",
+                "tag": "sub1"
             }
         ]
     }, "Configure User-Agent in the subscription headers");
@@ -728,10 +733,15 @@ t.test("bad local subscription", () => {
             {
                 ".name": "proxy",
                 "enabled": "1",
-                "action": "proxy",
-                "subscription_urls": [
-                    "relative/subscription.txt"
-                ]
+                "action": "proxy"
+            }
+        ],
+        "subscription_url": [
+            {
+                ".name": "proxy_sub_1",
+                "section": "proxy",
+                "url": "relative/subscription.txt",
+                "tag": "sub1"
             }
         ]
     }, "absolute local path");
@@ -752,6 +762,7 @@ t.test("bad subscription header", () => {
                 ".name": "proxy_sub_1",
                 "section": "proxy",
                 "url": "https://example.com/sub.txt",
+                "tag": "sub1",
                 "header": [
                     "Broken Header: value"
                 ]

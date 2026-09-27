@@ -24,7 +24,7 @@ const REMOTE_ONLY = [
   'show_dashboard_metadata',
 ];
 
-const ALWAYS = ['show_subscription_name', 'tag', 'server_filter_mode'];
+const ALWAYS = ['tag', 'server_filter_mode'];
 
 function optionNames(remote: boolean) {
   const created: string[] = [];

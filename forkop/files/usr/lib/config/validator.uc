@@ -185,7 +185,7 @@ function validate_subscription_tags(section) {
     let seen = {};
     for (let tag_name in connections.subscription_tags(section)) {
         if (trim(tag_name) == "")
-            fail_validation("Subscription in rule '" + section_name(section) + "' has an empty tag. Aborted.");
+            fail_validation("Subscription in rule '" + section_name(section) + "' has no tag. Set one in its settings. Aborted.");
         if (index(tag_name, "/") >= 0)
             fail_validation("Subscription tag '" + tag_name + "' in rule '" + section_name(section) + "' contains '/'. Use another character. Aborted.");
         if (seen[tag_name])

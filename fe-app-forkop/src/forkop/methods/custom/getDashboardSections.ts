@@ -7,7 +7,6 @@ import {
 import { getProxyUrlName } from '../../../helpers/getProxyUrlName';
 import { isCopyableProxyLink } from '../../../helpers/isCopyableProxyLink';
 import { ForkopShellMethods } from '../shell';
-import { subscriptionTags } from '../../../helpers/subscriptionTags';
 import { DEFAULT_LATENCY_TEST_URL } from '../../../constants';
 
 interface IGetDashboardSectionsResponse {
@@ -34,7 +33,6 @@ type UrlTestConfig = {
   id: string;
   code: string;
   displayName: string;
-  hideDashboardMembers: boolean;
   testingUrl?: string;
   expectedStatus?: string;
   checkInterval?: string;
@@ -48,7 +46,6 @@ type FallbackConfig = {
   sectionName: string;
   code: string;
   displayName: string;
-  hideDashboardMembers: boolean;
   healthCheckUrl: string;
   healthCheckInterval: string;
   healthCheckTimeout: string;
@@ -62,7 +59,6 @@ type FallbackConfig = {
 type SubscriptionTagConfig = {
   runtimeTag: string;
   displayTag: string;
-  showInDashboard: boolean;
   outboundCodes: Set<string>;
 };
 
@@ -641,7 +637,6 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
           user_agent: item.user_agent,
           header: item.header,
           show_dashboard_metadata: item.show_dashboard_metadata,
-          show_subscription_name: item.show_subscription_name,
           tag: item.tag,
         };
       });
@@ -666,7 +661,6 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
           expected_status: item.expected_status,
           idle_timeout: item.idle_timeout,
           interrupt_exist_connections: item.interrupt_exist_connections,
-          hide_dashboard_members: item.hide_dashboard_members,
           urltest_server_filter_mode: item.server_filter_mode,
           urltest_include_outbounds: item.include_outbounds,
           urltest_include_regex: item.include_regex,
@@ -705,7 +699,6 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
           expected_status: item.expected_status,
           idle_timeout: item.idle_timeout,
           interrupt_exist_connections: item.interrupt_exist_connections,
-          hide_dashboard_members: item.hide_dashboard_members,
           levels,
         };
       });
@@ -1011,11 +1004,6 @@ function getUrlTestConfigs(section: Forkop.ConfigSection): UrlTestConfig[] {
       id,
       code: getChildTag(section, displayName),
       displayName,
-      hideDashboardMembers: itemSettingBoolean(
-        settings,
-        'hide_dashboard_members',
-        false,
-      ),
       testingUrl: itemSettingString(
         settings,
         'urltest_testing_url',
@@ -1110,11 +1098,6 @@ function getFallbackConfigs(section: Forkop.ConfigSection): FallbackConfig[] {
       sectionName,
       code: getChildTag(section, displayName),
       displayName,
-      hideDashboardMembers: itemSettingBoolean(
-        settings,
-        'hide_dashboard_members',
-        false,
-      ),
       healthCheckUrl: itemSettingString(
         settings,
         'health_check_url',
@@ -1172,9 +1155,7 @@ function getOutboundPresentation(
     displayName: subscription
       ? code.slice(subscription.runtimeTag.length + 1)
       : relativeCode,
-    subscriptionTag: subscription?.showInDashboard
-      ? subscription.displayTag
-      : undefined,
+    subscriptionTag: subscription?.displayTag,
   };
 }
 
@@ -1397,125 +1378,92 @@ function buildProxyGroupOutbounds(
   const fallbackConfigByCode = new Map(
     fallbackConfigs.map((config) => [config.code, config]),
   );
-  const urlTestEntries = urlTestConfigs.map((config) => ({
-    config,
-    entry: proxyByCode.get(config.code),
-  }));
-  const fallbackEntries = fallbackConfigs.map((config) => ({
-    config,
-    entry: proxyByCode.get(config.code),
-  }));
   const manualLinkByCode = buildManualLinkByCode(section, selectorCodes);
-  const urlTestCodes = urlTestConfigs.map((config) => config.code);
-  const fallbackGroupCodes = fallbackConfigs.map((config) => config.code);
-  const hiddenMemberCodes = new Set<string>();
-  const hideMembers = (codes: string[]) => {
-    uniqueCodes(codes).forEach((code) => hiddenMemberCodes.add(code));
-  };
 
-  urlTestEntries.forEach(({ config, entry }) => {
-    if (config.hideDashboardMembers) hideMembers(entry?.value.all || []);
-  });
-  fallbackEntries.forEach(({ config, entry }) => {
-    if (!config.hideDashboardMembers) {
-      return;
+  const outbounds = uniqueCodes(selectorCodes).flatMap((code) => {
+    const item = proxyByCode.get(code);
+    const urlTestConfig = urlTestConfigByCode.get(code);
+    const fallbackConfig = fallbackConfigByCode.get(code);
+
+    if (!item) {
+      return [];
     }
 
-    (entry?.value.groups || []).forEach((level) =>
-      hideMembers(level.outbounds || []),
-    );
-  });
-  const groupOutboundCodes = new Set([...urlTestCodes, ...fallbackGroupCodes]);
-
-  const outbounds = uniqueCodes(selectorCodes)
-    .filter(
-      (code) => groupOutboundCodes.has(code) || !hiddenMemberCodes.has(code),
-    )
-    .flatMap((code) => {
-      const item = proxyByCode.get(code);
-      const urlTestConfig = urlTestConfigByCode.get(code);
-      const fallbackConfig = fallbackConfigByCode.get(code);
-
-      if (!item) {
-        return [];
-      }
-
-      const link = manualLinkByCode.get(code) || '';
-      const canCopyLink =
-        isCopyableProxyLink(link) ||
-        canExportProviderProxyLink(
-          code,
-          item.value?.type || '',
-          exportableProviderTags,
-        );
-      const presentation = getOutboundPresentation(
+    const link = manualLinkByCode.get(code) || '';
+    const canCopyLink =
+      isCopyableProxyLink(link) ||
+      canExportProviderProxyLink(
         code,
-        sectionDisplayName,
-        subscriptionTags,
+        item.value?.type || '',
+        exportableProviderTags,
       );
-      const displayName =
-        fallbackConfig?.displayName ||
-        urlTestConfig?.displayName ||
-        presentation.displayName;
-      const isRuntimeUrlTest = isUrlTestProxyEntry(item);
-      const effectiveUrlTestConfig =
-        urlTestConfig ||
-        (isRuntimeUrlTest
-          ? {
-              id: code,
-              code,
-              displayName,
-              hideDashboardMembers: false,
-            }
-          : undefined);
-      const urlTestInfo = effectiveUrlTestConfig
-        ? buildUrlTestInfo({
-            config: effectiveUrlTestConfig,
-            entry: item,
-            proxyByCode,
-            manualLinkByCode,
-            exportableProviderTags,
-            sectionDisplayName,
-            subscriptionTags,
-          })
-        : undefined;
-      const fallbackInfo = fallbackConfig
-        ? buildFallbackInfo({
-            config: fallbackConfig,
-            entry: item,
-            proxyByCode,
-            manualLinkByCode,
-            exportableProviderTags,
-            sectionDisplayName,
-            subscriptionTags,
-          })
-        : undefined;
-      const groupInfo = urlTestInfo || fallbackInfo;
-      const selectedGroupMember = groupInfo?.outbounds.find(
-        (member) => member.selected,
-      );
+    const presentation = getOutboundPresentation(
+      code,
+      sectionDisplayName,
+      subscriptionTags,
+    );
+    const displayName =
+      fallbackConfig?.displayName ||
+      urlTestConfig?.displayName ||
+      presentation.displayName;
+    const isRuntimeUrlTest = isUrlTestProxyEntry(item);
+    const effectiveUrlTestConfig =
+      urlTestConfig ||
+      (isRuntimeUrlTest
+        ? {
+            id: code,
+            code,
+            displayName,
+          }
+        : undefined);
+    const urlTestInfo = effectiveUrlTestConfig
+      ? buildUrlTestInfo({
+          config: effectiveUrlTestConfig,
+          entry: item,
+          proxyByCode,
+          manualLinkByCode,
+          exportableProviderTags,
+          sectionDisplayName,
+          subscriptionTags,
+        })
+      : undefined;
+    const fallbackInfo = fallbackConfig
+      ? buildFallbackInfo({
+          config: fallbackConfig,
+          entry: item,
+          proxyByCode,
+          manualLinkByCode,
+          exportableProviderTags,
+          sectionDisplayName,
+          subscriptionTags,
+        })
+      : undefined;
+    const groupInfo = urlTestInfo || fallbackInfo;
+    const selectedGroupMember = groupInfo?.outbounds.find(
+      (member) => member.selected,
+    );
 
-      return [
-        {
-          code,
-          displayName,
-          subscriptionTag:
-            fallbackConfig || urlTestConfig
-              ? undefined
-              : presentation.subscriptionTag,
-          latency:
-            selectedGroupMember?.latency || item.value.history?.[0]?.delay || 0,
-          type: fallbackConfig
-            ? 'Fallback'
-            : getOutboundDisplayType(item) || 'URLTest',
-          selected: selector?.value?.now === code,
-          link,
-          canCopyLink,
-          urlTestInfo,
-          fallbackInfo,
-        },
-      ];
-    });
+    return [
+      {
+        code,
+        displayName,
+        subscriptionTag:
+          fallbackConfig || urlTestConfig
+            ? undefined
+            : presentation.subscriptionTag,
+        latency:
+          selectedGroupMember?.latency || item.value.history?.[0]?.delay || 0,
+        type: fallbackConfig
+          ? 'Fallback'
+          : getOutboundDisplayType(item) || 'URLTest',
+        selected: selector?.value?.now === code,
+        link,
+        canCopyLink,
+        urlTestInfo,
+        fallbackInfo,
+      },
+    ];
+  });
 
   return {
     selector,
@@ -1541,26 +1489,15 @@ function getSectionSubscriptionTags(
 ) {
   const sectionDisplayName = getDisplayName(section);
   const settings = itemSettingsMap(section.subscription_url_settings);
-  const sources = getListValues(section.subscription_urls);
-  const tags = subscriptionTags(
-    sources.map((source) => itemSettingString(settings[source], 'tag', '')),
-  );
 
-  return sources.map((source, index) => {
-    const sourceSettings = settings[source];
-    const displayTag = tags[index];
+  return getListValues(section.subscription_urls).map((source) => {
+    const displayTag = itemSettingString(settings[source], 'tag').trim();
+    const runtimeTag = `${sectionDisplayName}/${displayTag}`;
     return {
-      runtimeTag: `${sectionDisplayName}/${displayTag}`,
+      runtimeTag,
       displayTag,
-      showInDashboard: itemSettingBoolean(
-        sourceSettings,
-        'show_subscription_name',
-        false,
-      ),
       outboundCodes: new Set(
-        (providers[`${sectionDisplayName}/${displayTag}`]?.proxies || []).map(
-          (proxy) => proxy.name,
-        ),
+        (providers[runtimeTag]?.proxies || []).map((proxy) => proxy.name),
       ),
     };
   });
@@ -1641,7 +1578,7 @@ function getSubscriptionMetadata(
     const metadata = providerSubscriptionMetadata(
       provider,
       sourceIndex,
-      tag.showInDashboard ? tag.displayTag : '',
+      tag.displayTag,
     );
     return metadata && isSubscriptionMetadataVisible(section, sourceIndex)
       ? [metadata]

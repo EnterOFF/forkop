@@ -1165,8 +1165,6 @@ function migrate_subscription_tags(ctx) {
             configured = option(child, "node_prefix", "");
         let tag_name = readable_tag_component(configured, "sub" + counters[owner]);
         set_option(ctx, child, "tag", unique_display_value(tag_name, taken));
-        if (option_exists(child, "prefix_nodes"))
-            set_option(ctx, child, "show_subscription_name", option(child, "prefix_nodes", "0"));
         delete_option(ctx, child, "node_prefix");
         delete_option(ctx, child, "prefix_nodes");
     }

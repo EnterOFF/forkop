@@ -11,8 +11,9 @@ function build(data) {
 t.test("one filter picks manual servers as the core picks provider nodes", () => {
     let config = build({
         settings: { dns_server: "1.1.1.1" },
-        section: [ { ".name": "proxy", enabled: "1", action: "connection", subscription_urls: [ "https://xray.example/sub" ],
+        section: [ { ".name": "proxy", enabled: "1", action: "connection",
             selector_proxy_links: [ "socks://127.0.0.1:1080#DE1", "socks://127.0.0.1:1081#DEd", "socks://127.0.0.1:1082#de 2" ] } ],
+        subscription_url: [ { ".name": "sub_xray", section: "proxy", url: "https://xray.example/sub", tag: "sub1" } ],
         urltest: [
             { ".name": "digit", section: "proxy", name: "Digit", server_filter_mode: "include", include_regex: "^DE\\d$" },
             { ".name": "folded", section: "proxy", name: "Folded", server_filter_mode: "include", include_regex: "(?i)^de\\s?\\d" }
@@ -27,7 +28,8 @@ t.test("one filter picks manual servers as the core picks provider nodes", () =>
 t.test("a subscription is a native provider that URLTest groups filter natively", () => {
     let config = build({
         settings: { dns_server: "1.1.1.1" },
-        section: [ { ".name": "proxy", enabled: "1", action: "connection", subscription_urls: [ "https://xray.example/sub" ] } ],
+        section: [ { ".name": "proxy", enabled: "1", action: "connection" } ],
+        subscription_url: [ { ".name": "sub_xray", section: "proxy", url: "https://xray.example/sub", tag: "sub1" } ],
         urltest: [
             { ".name": "black", section: "proxy", name: "Blacklist", server_filter_mode: "exclude", expected_status: "204/200-299", exclude_regex: "Riga" },
             { ".name": "empty", section: "proxy", name: "Empty whitelist", server_filter_mode: "include" }
@@ -102,7 +104,7 @@ function fallback_fixture() {
                 "{\"type\":\"fallback\",\"tag\":\"Nested\",\"outbounds\":[\"Alpha\"]}"
             ]
         } ],
-        subscription_url: [ { ".name": "sub_main", section: "proxy", url: "https://example.com/sub", subscription_update_enabled: "1" } ],
+        subscription_url: [ { ".name": "sub_main", section: "proxy", url: "https://example.com/sub", tag: "sub1", subscription_update_enabled: "1" } ],
         fallback_group: [
             {
                 ".name": "pg_main", section: "proxy", name: "Main fallback",

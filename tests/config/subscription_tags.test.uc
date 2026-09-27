@@ -3,7 +3,7 @@ let fixture = require("fixture");
 let connections = require("config.connections");
 
 // The provider a subscription becomes is named by this tag, and the Dashboard
-// (fe-app-forkop/src/helpers/subscriptionTags.ts) finds it by the same rule.
+// finds it by the tag the subscription stores.
 function tags(stored) {
     let sources = [];
     for (let i = 0; i < length(stored); i++) {
@@ -24,13 +24,9 @@ t.test("a stored tag names the subscription", () => {
     t.eq(tags([ "main", " spare " ]), [ "main", "spare" ]);
 });
 
-t.test("an untagged subscription is named by its position", () => {
-    t.eq(tags([ null, null, null ]), [ "sub1", "sub2", "sub3" ]);
-});
-
-t.test("a position another subscription is tagged with is skipped", () => {
-    t.eq(tags([ null, "sub1" ]), [ "sub2", "sub1" ]);
-    t.eq(tags([ "sub2", null, null ]), [ "sub2", "sub3", "sub4" ]);
+// Nothing is made up for one without: the validator refuses it by name.
+t.test("an untagged subscription has no name", () => {
+    t.eq(tags([ null, "sub1" ]), [ "", "sub1" ]);
 });
 
 t.done();
