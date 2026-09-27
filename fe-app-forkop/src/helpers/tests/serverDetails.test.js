@@ -3,8 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { installLuciStubs } from './luciStubs';
 import { listClients } from '../../forkop/tabs/servers/clients';
 import {
-  linkTitle,
+  linkCaption,
   renderDetailsContent,
+  showQrModal,
   showServerDetailsModal,
 } from '../../forkop/tabs/servers/details';
 
@@ -26,7 +27,8 @@ function load(server = {}, clients = {}) {
     uci,
     details: {
       renderDetailsContent,
-      linkTitle,
+      linkCaption,
+      showQrModal,
       showServerDetailsModal,
       listClients,
     },
@@ -96,20 +98,52 @@ describe('server details', () => {
     const { details } = load({ protocol: 'vless' });
 
     expect(() => details.showServerDetailsModal('srv', [])).not.toThrow();
+    expect(() =>
+      details.showQrModal({ name: 'phone', details: 'Home' }, 'vless://x'),
+    ).not.toThrow();
   });
 
-  // A code and a link say what they belong to: the server, the account when there
-  // is one, and the scheme when the listener answers more than one.
-  it('names what a link belongs to', () => {
+  // A server that hands out one link has nothing to choose from, so its button
+  // opens the code for it; with more than one, the list comes first.
+  it('opens the code straight away for a server with one link', () => {
+    const client = (name) => ({
+      '.type': 'server_client',
+      server: 'srv',
+      name,
+      uuid: '11111111-1111-4111-8111-111111111111',
+    });
+    const opened = (clients) => {
+      const { details } = load({ protocol: 'vmess' }, clients);
+      const titles = [];
+      globalThis.ui.showModal = (title) => titles.push(title);
+      details.showServerDetailsModal('srv', details.listClients('srv'));
+      return titles;
+    };
+
+    expect(opened({ c1: client('phone') })).toEqual(['QR code']);
+    expect(opened({ c1: client('phone'), c2: client('laptop') })).toEqual([
+      'Server details: Home',
+    ]);
+  });
+
+  // A code says what it belongs to: the account when there is one, then the server
+  // and the scheme when the listener answers more than one.
+  it('names what a code belongs to', () => {
     const { details } = load({ protocol: 'mixed' });
 
-    expect(details.linkTitle('srv', { name: 'phone' }, '')).toBe(
-      'Home \u00bb Client: phone',
-    );
-    expect(details.linkTitle('srv', { name: 'phone' }, 'SOCKS5')).toBe(
-      'Home \u00bb Client: phone (SOCKS5)',
-    );
-    // A listener with no account is told apart by its scheme alone.
-    expect(details.linkTitle('srv', { name: '' }, 'HTTP')).toBe('Home (HTTP)');
+    expect(details.linkCaption('srv', { name: 'phone' }, '')).toEqual({
+      name: 'phone',
+      details: 'Home',
+    });
+    expect(details.linkCaption('srv', { name: 'phone' }, 'SOCKS5')).toEqual({
+      name: 'phone',
+      details: 'Home \u00b7 SOCKS5',
+    });
+    // A listener with no account is named by the server and told apart by its
+    // scheme alone.
+    expect(details.linkCaption('srv', { name: '' }, 'HTTP')).toEqual({
+      name: 'Home',
+      details: 'HTTP',
+    });
   });
 });

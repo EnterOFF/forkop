@@ -111,7 +111,7 @@ function injectDetailsStyles() {
         '.fkp-details__clients{display:grid;gap:14px;min-inline-size:0}',
         '.fkp-details__client{display:grid;gap:6px;min-width:0}',
         '.fkp-details__name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-        '.fkp-details__link{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:stretch;min-inline-size:0}',
+        '.fkp-details__link{display:grid;grid-template-columns:minmax(0,1fr);grid-auto-flow:column;grid-auto-columns:auto;gap:8px;align-items:stretch;min-inline-size:0}',
         '.fkp-details__value{inline-size:100% !important;max-inline-size:100% !important;min-inline-size:0;box-sizing:border-box;margin:0 !important;float:none !important;font-family:monospace;font-size:12px}',
         '.fkp-details__action{display:inline-flex;align-items:center;justify-content:center;inline-size:2.5em !important;min-inline-size:0;padding:0 !important;margin:0 !important;float:none !important;line-height:1}',
         '.fkp-details__empty{color:var(--text-color-medium,#666)}',
@@ -123,9 +123,16 @@ function injectDetailsStyles() {
         // extends the same ones.
         '.modal > .button-row.fkp-details-actions{justify-content:flex-start;gap:0.5em}',
         '.modal > .button-row.fkp-details-actions > button:first-of-type{margin-right:0}',
-        '.fkp-qr{display:grid;justify-items:center;gap:14px;min-inline-size:0}',
-        '.fkp-qr__code{display:block;inline-size:14rem;block-size:14rem;max-inline-size:100%;image-rendering:pixelated;background:#fff;padding:10px;box-sizing:content-box;border:1px solid var(--border-color-low,rgba(128,128,128,0.2))}',
-        '.fkp-qr__link{inline-size:100%;box-sizing:border-box;padding:8px 10px;background:rgba(128,128,128,0.06);border:1px solid var(--border-color-low,rgba(128,128,128,0.2));font-family:monospace;font-size:11px;line-height:1.5;word-break:break-all;color:var(--text-color-medium,#666)}',
+        // The dialog is as wide as the code, and everything under the code fits that
+        // width. The code keeps a white quiet zone in any theme: the two modules drawn
+        // into it and a few pixels more.
+        '#modal_overlay > .modal.fkp-qr-modal{width:fit-content}',
+        '.fkp-qr{display:grid;justify-items:center;gap:12px;inline-size:min(16rem,calc(100vw - 64px));padding-top:8px}',
+        '.fkp-qr__code{display:block;box-sizing:border-box;inline-size:100%;block-size:auto;aspect-ratio:1;padding:4px;background:#fff;border-radius:8px}',
+        '.fkp-qr__caption{display:grid;justify-items:center;gap:2px;max-inline-size:100%;text-align:center}',
+        '.fkp-qr__name{font-weight:600;overflow-wrap:anywhere}',
+        '.fkp-qr__details{color:var(--text-color-medium,#666);font-size:12px;overflow-wrap:anywhere}',
+        '.fkp-qr > .fkp-details__link{justify-self:stretch}',
       ].join('\n'),
     ),
   );
@@ -172,25 +179,37 @@ function renderCloseRow() {
   ]);
 }
 
-// The code is shown when it is asked for, at a size a phone can read, with the link
-// it carries written out underneath so it is clear what is being scanned.
-function showQrModal(title: string, link: string) {
-  injectDetailsStyles();
-
-  ui.showModal(`${_('QR code')}: ${title}`, [
-    E('div', { class: 'fkp-qr' }, [
-      E('img', {
-        class: 'fkp-qr__code',
-        src: qrSvgDataUri(link),
-        alt: _('QR code'),
-      }),
-      E('div', { class: 'fkp-qr__link' }, link),
-    ]),
-    renderCloseRow(),
-  ]);
+interface LinkCaption {
+  name: string;
+  details: string;
 }
 
-function renderQrButton(title: string, link: string) {
+// The code is shown when it is asked for, at a size a phone can read, with what it
+// belongs to under it and the link it carries in a field that copies it.
+export function showQrModal(caption: LinkCaption, link: string) {
+  injectDetailsStyles();
+
+  const content = E('div', { class: 'fkp-qr' }, [
+    E('img', {
+      class: 'fkp-qr__code',
+      src: qrSvgDataUri(link),
+      alt: _('QR code'),
+    }),
+    E('div', { class: 'fkp-qr__caption' }, [
+      E('div', { class: 'fkp-qr__name' }, caption.name),
+      ...(caption.details
+        ? [E('div', { class: 'fkp-qr__details' }, caption.details)]
+        : []),
+    ]),
+    renderLinkRow(link),
+  ]);
+
+  ui.showModal(_('QR code'), [content, renderCloseRow()], 'fkp-qr-modal');
+
+  return content;
+}
+
+function renderQrButton(caption: LinkCaption, link: string) {
   const label = _('Show a QR code');
   return E(
     'button',
@@ -201,33 +220,31 @@ function renderQrButton(title: string, link: string) {
       'aria-label': label,
       click: (ev) => {
         ev.preventDefault();
-        showQrModal(title, link);
+        showQrModal(caption, link);
       },
     },
     iconSvg('qr'),
   );
 }
 
-// What a code or a link belongs to. An account is named the way the stacked settings
-// dialogs name a child item; a listener that has no account is named by its scheme,
-// because that is the only thing telling its two links apart.
-export function linkTitle(
+// What a code belongs to: the account when there is one, then the server it is on
+// and the scheme when the listener answers more than one. A listener that has no
+// account is named by the server, and its scheme is what tells its links apart.
+export function linkCaption(
   sectionId: string,
   client: ServerClient,
   scheme: string,
-) {
+): LinkCaption {
   const server = getServerName(sectionId);
   const name = `${client?.name || ''}`.trim();
 
-  if (!name) {
-    return scheme ? `${server} (${scheme})` : server;
-  }
-
-  const title = `${server} \u00bb ${_('Client')}: ${name}`;
-  return scheme ? `${title} (${scheme})` : title;
+  return {
+    name: name || server,
+    details: [name ? server : '', scheme].filter(Boolean).join(' \u00b7 '),
+  };
 }
 
-function renderLinkRow(value: string, qrTitle: string) {
+function renderLinkRow(value: string, qrCaption?: LinkCaption) {
   const input = E('input', {
     type: 'text',
     class: 'cbi-input-text fkp-details__value',
@@ -239,7 +256,7 @@ function renderLinkRow(value: string, qrTitle: string) {
 
   return E('div', { class: 'fkp-details__link' }, [
     input,
-    renderQrButton(qrTitle, value),
+    ...(qrCaption ? [renderQrButton(qrCaption, value)] : []),
     renderCopyButton(value),
   ]);
 }
@@ -276,7 +293,7 @@ function renderClientDetails(
       body.push(
         renderLinkRow(
           entry.link,
-          linkTitle(sectionId, client, links.length > 1 ? entry.title : ''),
+          linkCaption(sectionId, client, links.length > 1 ? entry.title : ''),
         ),
       ),
     );
@@ -307,6 +324,30 @@ function anonymousClient() {
   };
 }
 
+function detailsEntries(sectionId: string, clients: ServerClient[]) {
+  if (clients.length) {
+    return clients;
+  }
+  return isAuthenticationEnabled(sectionId) ? [] : [anonymousClient()];
+}
+
+// The link a server hands out when it hands out exactly one.
+function onlyLink(
+  sectionId: string,
+  clients: ServerClient[],
+  context: ShareLinkContext,
+) {
+  const entries = detailsEntries(sectionId, clients);
+  if (entries.length !== 1) {
+    return null;
+  }
+
+  const links = buildClientLinks(sectionId, entries[0], context);
+  return links.length === 1
+    ? { caption: linkCaption(sectionId, entries[0], ''), link: links[0].link }
+    : null;
+}
+
 // The dialog hands out what a client is given and nothing else: an account, its
 // link, and the buttons to copy or scan it.
 export function renderDetailsContent(
@@ -316,11 +357,7 @@ export function renderDetailsContent(
 ) {
   const children = [];
 
-  const entries = clients.length
-    ? clients
-    : isAuthenticationEnabled(sectionId)
-      ? []
-      : [anonymousClient()];
+  const entries = detailsEntries(sectionId, clients);
 
   if (!entries.length) {
     children.push(
@@ -355,9 +392,22 @@ export function showServerDetailsModal(
 
   // Everything but the certificate fingerprint is already known, so the dialog
   // opens filled in and the Hysteria2 links gain their pin a moment later.
-  let content = renderDetailsContent(sectionId, clients, {
-    tlsCertificateSha256: '',
-  });
+  const initialContext = { tlsCertificateSha256: '' };
+
+  // A server that hands out one link has nothing to choose from, so the code for
+  // it is what opens.
+  const only = onlyLink(sectionId, clients, initialContext);
+  if (only) {
+    const code = showQrModal(only.caption, only.link);
+    return loadLinkContext(sectionId).then((context) => {
+      const refreshed = onlyLink(sectionId, clients, context);
+      if (code.parentNode && refreshed && refreshed.link !== only.link) {
+        showQrModal(refreshed.caption, refreshed.link);
+      }
+    });
+  }
+
+  let content = renderDetailsContent(sectionId, clients, initialContext);
 
   ui.showModal(_('Server details: %s').format(getServerName(sectionId)), [
     content,

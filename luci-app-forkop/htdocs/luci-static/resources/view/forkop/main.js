@@ -21566,7 +21566,7 @@ function injectDetailsStyles() {
         ".fkp-details__clients{display:grid;gap:14px;min-inline-size:0}",
         ".fkp-details__client{display:grid;gap:6px;min-width:0}",
         ".fkp-details__name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
-        ".fkp-details__link{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:stretch;min-inline-size:0}",
+        ".fkp-details__link{display:grid;grid-template-columns:minmax(0,1fr);grid-auto-flow:column;grid-auto-columns:auto;gap:8px;align-items:stretch;min-inline-size:0}",
         ".fkp-details__value{inline-size:100% !important;max-inline-size:100% !important;min-inline-size:0;box-sizing:border-box;margin:0 !important;float:none !important;font-family:monospace;font-size:12px}",
         ".fkp-details__action{display:inline-flex;align-items:center;justify-content:center;inline-size:2.5em !important;min-inline-size:0;padding:0 !important;margin:0 !important;float:none !important;line-height:1}",
         ".fkp-details__empty{color:var(--text-color-medium,#666)}",
@@ -21578,9 +21578,16 @@ function injectDetailsStyles() {
         // extends the same ones.
         ".modal > .button-row.fkp-details-actions{justify-content:flex-start;gap:0.5em}",
         ".modal > .button-row.fkp-details-actions > button:first-of-type{margin-right:0}",
-        ".fkp-qr{display:grid;justify-items:center;gap:14px;min-inline-size:0}",
-        ".fkp-qr__code{display:block;inline-size:14rem;block-size:14rem;max-inline-size:100%;image-rendering:pixelated;background:#fff;padding:10px;box-sizing:content-box;border:1px solid var(--border-color-low,rgba(128,128,128,0.2))}",
-        ".fkp-qr__link{inline-size:100%;box-sizing:border-box;padding:8px 10px;background:rgba(128,128,128,0.06);border:1px solid var(--border-color-low,rgba(128,128,128,0.2));font-family:monospace;font-size:11px;line-height:1.5;word-break:break-all;color:var(--text-color-medium,#666)}"
+        // The dialog is as wide as the code, and everything under the code fits that
+        // width. The code keeps a white quiet zone in any theme: the two modules drawn
+        // into it and a few pixels more.
+        "#modal_overlay > .modal.fkp-qr-modal{width:fit-content}",
+        ".fkp-qr{display:grid;justify-items:center;gap:12px;inline-size:min(16rem,calc(100vw - 64px));padding-top:8px}",
+        ".fkp-qr__code{display:block;box-sizing:border-box;inline-size:100%;block-size:auto;aspect-ratio:1;padding:4px;background:#fff;border-radius:8px}",
+        ".fkp-qr__caption{display:grid;justify-items:center;gap:2px;max-inline-size:100%;text-align:center}",
+        ".fkp-qr__name{font-weight:600;overflow-wrap:anywhere}",
+        ".fkp-qr__details{color:var(--text-color-medium,#666);font-size:12px;overflow-wrap:anywhere}",
+        ".fkp-qr > .fkp-details__link{justify-self:stretch}"
       ].join("\n")
     )
   );
@@ -21620,21 +21627,24 @@ function renderCloseRow() {
     )
   ]);
 }
-function showQrModal(title, link) {
+function showQrModal(caption, link) {
   injectDetailsStyles();
-  ui.showModal(`${_("QR code")}: ${title}`, [
-    textE("div", { class: "fkp-qr" }, [
-      textE("img", {
-        class: "fkp-qr__code",
-        src: qrSvgDataUri(link),
-        alt: _("QR code")
-      }),
-      textE("div", { class: "fkp-qr__link" }, link)
+  const content = textE("div", { class: "fkp-qr" }, [
+    textE("img", {
+      class: "fkp-qr__code",
+      src: qrSvgDataUri(link),
+      alt: _("QR code")
+    }),
+    textE("div", { class: "fkp-qr__caption" }, [
+      textE("div", { class: "fkp-qr__name" }, caption.name),
+      ...caption.details ? [textE("div", { class: "fkp-qr__details" }, caption.details)] : []
     ]),
-    renderCloseRow()
+    renderLinkRow(link)
   ]);
+  ui.showModal(_("QR code"), [content, renderCloseRow()], "fkp-qr-modal");
+  return content;
 }
-function renderQrButton(title, link) {
+function renderQrButton(caption, link) {
   const label = _("Show a QR code");
   return textE(
     "button",
@@ -21645,22 +21655,21 @@ function renderQrButton(title, link) {
       "aria-label": label,
       click: (ev) => {
         ev.preventDefault();
-        showQrModal(title, link);
+        showQrModal(caption, link);
       }
     },
     iconSvg("qr")
   );
 }
-function linkTitle(sectionId, client, scheme) {
+function linkCaption(sectionId, client, scheme) {
   const server = getServerName(sectionId);
   const name = `${client?.name || ""}`.trim();
-  if (!name) {
-    return scheme ? `${server} (${scheme})` : server;
-  }
-  const title = `${server} \xBB ${_("Client")}: ${name}`;
-  return scheme ? `${title} (${scheme})` : title;
+  return {
+    name: name || server,
+    details: [name ? server : "", scheme].filter(Boolean).join(" \xB7 ")
+  };
 }
-function renderLinkRow(value, qrTitle) {
+function renderLinkRow(value, qrCaption) {
   const input = textE("input", {
     type: "text",
     class: "cbi-input-text fkp-details__value",
@@ -21671,7 +21680,7 @@ function renderLinkRow(value, qrTitle) {
   input.addEventListener("focus", () => input.select());
   return textE("div", { class: "fkp-details__link" }, [
     input,
-    renderQrButton(qrTitle, value),
+    ...qrCaption ? [renderQrButton(qrCaption, value)] : [],
     renderCopyButton(value)
   ]);
 }
@@ -21696,7 +21705,7 @@ function renderClientDetails(sectionId, client, context) {
       (entry) => body.push(
         renderLinkRow(
           entry.link,
-          linkTitle(sectionId, client, links.length > 1 ? entry.title : "")
+          linkCaption(sectionId, client, links.length > 1 ? entry.title : "")
         )
       )
     );
@@ -21722,9 +21731,23 @@ function anonymousClient() {
     authorized_keys: []
   };
 }
+function detailsEntries(sectionId, clients) {
+  if (clients.length) {
+    return clients;
+  }
+  return isAuthenticationEnabled(sectionId) ? [] : [anonymousClient()];
+}
+function onlyLink(sectionId, clients, context) {
+  const entries = detailsEntries(sectionId, clients);
+  if (entries.length !== 1) {
+    return null;
+  }
+  const links = buildClientLinks(sectionId, entries[0], context);
+  return links.length === 1 ? { caption: linkCaption(sectionId, entries[0], ""), link: links[0].link } : null;
+}
 function renderDetailsContent(sectionId, clients, context) {
   const children = [];
-  const entries = clients.length ? clients : isAuthenticationEnabled(sectionId) ? [] : [anonymousClient()];
+  const entries = detailsEntries(sectionId, clients);
   if (!entries.length) {
     children.push(
       textE(
@@ -21748,9 +21771,18 @@ function renderDetailsContent(sectionId, clients, context) {
 }
 function showServerDetailsModal(sectionId, clients) {
   injectDetailsStyles();
-  let content = renderDetailsContent(sectionId, clients, {
-    tlsCertificateSha256: ""
-  });
+  const initialContext = { tlsCertificateSha256: "" };
+  const only = onlyLink(sectionId, clients, initialContext);
+  if (only) {
+    const code = showQrModal(only.caption, only.link);
+    return loadLinkContext(sectionId).then((context) => {
+      const refreshed = onlyLink(sectionId, clients, context);
+      if (code.parentNode && refreshed && refreshed.link !== only.link) {
+        showQrModal(refreshed.caption, refreshed.link);
+      }
+    });
+  }
+  let content = renderDetailsContent(sectionId, clients, initialContext);
   ui.showModal(_("Server details: %s").format(getServerName(sectionId)), [
     content,
     renderCloseRow()
