@@ -1,4 +1,5 @@
-import { onMount, preserveScrollForPage } from '../../../helpers';
+import { onMount } from '../../../helpers/onMount';
+import { preserveScrollForPage } from '../../../helpers/preserveScrollForPage';
 import { normalizeCompiledVersion } from '../../../helpers/normalizeCompiledVersion';
 import { showToast } from '../../../helpers/showToast';
 import {

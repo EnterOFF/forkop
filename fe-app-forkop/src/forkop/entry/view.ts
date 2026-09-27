@@ -17,7 +17,6 @@ import {
 } from '../tabs/servers';
 import { createSettingsContent } from '../tabs/settings';
 import { UpdatesTab } from '../tabs/updates';
-import { createUiCapabilitiesLoader } from './capabilities';
 import { configureGridSection } from './gridSection';
 
 // A tab that renders itself rather than declaring CBI options: one anonymous
@@ -42,7 +41,6 @@ function addMountedTab(
 export const ForkopView = {
   async render() {
     injectGlobalStyles();
-    const loadUiCapabilities = createUiCapabilitiesLoader();
 
     const forkopMap = new form.Map(FORKOP_UCI_PACKAGE, _('Forkop Settings'));
     forkopMap.tabbed = true;
@@ -105,13 +103,8 @@ export const ForkopView = {
     addMountedTab(forkopMap, 'logs', _('Logs'), LogsTab);
     addMountedTab(forkopMap, 'updates', _('Components'), UpdatesTab);
 
-    await loadUiCapabilities().catch(() => null);
-
     const rendered = await forkopMap.render();
-    coreService({
-      waitForLogWatcherStart: loadUiCapabilities,
-      logWatcherStartDelayMs: 5000,
-    });
+    coreService();
 
     return rendered;
   },

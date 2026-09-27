@@ -97,7 +97,7 @@ export function loadRulesetValues(option: CBIOption) {
   delete option.vallist;
 
   Object.entries(DOMAIN_LIST_OPTIONS).forEach(([key, label]) => {
-    option.value(key, _(label));
+    option.value(key, label);
   });
 }
 

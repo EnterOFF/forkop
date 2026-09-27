@@ -1,7 +1,5 @@
-// The built-in rule sets a section can match on. Two regional lists used to be
-// mutually exclusive, and the dialog enforced that by silently clearing whatever
-// the user had picked before; the restriction is gone and nothing of it may come
-// back.
+// The built-in rule sets a section can match on. Any of them may be picked
+// together with any other, and the dialog clears nothing the user picked.
 import fs from 'fs';
 
 import { describe, expect, it } from 'vitest';

@@ -1,4 +1,4 @@
-import { callUbus } from '../../helpers';
+import { callUbus } from '../../helpers/callUbus';
 import { isDocumentVisible } from '../../helpers/isDocumentVisible';
 import { ForkopShellMethods } from '../methods';
 import { getLocalActionOverlay } from './localActionOverlay.service';

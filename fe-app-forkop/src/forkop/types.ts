@@ -76,9 +76,7 @@ export namespace Forkop {
     SHOW_CONFIG = 'show_config',
     SHOW_SING_BOX_CONFIG = 'show_sing_box_config',
     CHECK_LOGS = 'check_logs',
-    CHECK_SING_BOX_LOGS = 'check_sing_box_logs',
     GET_SYSTEM_INFO = 'get_system_info',
-    GET_UI_CAPABILITIES = 'get_ui_capabilities',
     GET_UI_STATE = 'get_ui_state',
     GET_SECTION_RULE_SETS = 'get_section_rule_sets',
     SERVICE_ACTION_ASYNC = 'service_action_async',
@@ -96,7 +94,6 @@ export namespace Forkop {
     selected: boolean;
     link?: string;
     canCopyLink?: boolean;
-    country?: string;
     subscriptionTag?: string;
     // Only a section that stands for a single outbound sets this: its card exists
     // because the section does, so it says whether the runtime carries the
@@ -114,7 +111,6 @@ export namespace Forkop {
     selected: boolean;
     link?: string;
     canCopyLink?: boolean;
-    country?: string;
     subscriptionTag?: string;
   }
 
@@ -160,7 +156,6 @@ export namespace Forkop {
     sectionName: string;
     displayName: string;
     action?: ConfigSection['action'];
-    latencyTestCode?: string;
     // Budget for testing this section's own outbound, one node at a time. A
     // group sweep does not use it: that has one ceiling for every section.
     latencyTestTimeout?: string;
@@ -405,7 +400,6 @@ export namespace Forkop {
     busy?: ServiceBusy | null;
     // How long the running operation has been going, in seconds; 0 when none
     // is. Elapsed rather than a timestamp so no clock comparison is needed.
-    busy_seconds?: number;
   }
 
   export interface GetSingBoxStatus {

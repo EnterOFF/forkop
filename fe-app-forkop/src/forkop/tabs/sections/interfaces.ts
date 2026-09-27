@@ -12,7 +12,7 @@ import { showChildItemSettingsModal } from '../../cbi/modal';
 import { CONNECTIONS_BLOCKED_INTERFACES } from './constants';
 import { refreshDashboardFilterChoiceWidgets } from './outboundNames';
 import { refreshDnsDetourSectionOptionValues } from './references';
-import { optionMapValue } from './subscriptions/model';
+import { currentOptionValue, optionMapValue } from './subscriptions/model';
 import { E } from '../../../helpers/element';
 
 function isConnectionNetworkInterfaceAllowed(
@@ -179,7 +179,7 @@ function addInterfaceItemOptions(
   dnsServerOption.depends('domain_resolver_enabled', '1');
   configureDnsServerList(dnsServerOption, {
     appliesTo: (option, itemId) =>
-      optionMapValue(option, itemId, 'domain_resolver_enabled') === '1',
+      currentOptionValue(option, itemId, 'domain_resolver_enabled') === '1',
   });
 
   const dnsQueryModeOption = itemSection.option(
@@ -228,8 +228,9 @@ function addInterfaceItemOptions(
   };
   o.validate = function (itemId: string, value: unknown) {
     if (
-      optionMapValue(this, itemId, 'domain_resolver_enabled') !== '1' ||
-      optionMapValue(this, itemId, 'domain_resolver_dns_detour_enabled') !== '1'
+      currentOptionValue(this, itemId, 'domain_resolver_enabled') !== '1' ||
+      currentOptionValue(this, itemId, 'domain_resolver_dns_detour_enabled') !==
+        '1'
     ) {
       return true;
     }

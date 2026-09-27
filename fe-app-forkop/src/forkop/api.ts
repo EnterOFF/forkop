@@ -1,21 +1,15 @@
-import { withTimeout } from '../helpers';
+import { withTimeout } from '../helpers/withTimeout';
 
 export async function createBaseApiRequest<T>(
   fetchFn: () => Promise<Response>,
   options?: {
     timeoutMs?: number;
     operationName?: string;
-    timeoutMessage?: string;
   },
 ): Promise<IBaseApiResponse<T>> {
   const wrappedFn = () =>
     options?.timeoutMs && options?.operationName
-      ? withTimeout(
-          fetchFn(),
-          options.timeoutMs,
-          options.operationName,
-          options.timeoutMessage,
-        )
+      ? withTimeout(fetchFn(), options.timeoutMs, options.operationName)
       : fetchFn();
 
   try {

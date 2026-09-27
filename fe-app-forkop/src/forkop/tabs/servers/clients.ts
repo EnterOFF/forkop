@@ -58,9 +58,12 @@ export function listClients(sectionId: string) {
 }
 
 // Numbered names that do not follow the server name: a client is a device, not a
-// second label for the server. One past the count, the way a new section is named.
+// second label for the server. One past the count, the way a new section is
+// named, or past that while the name is taken.
 export function nextClientName(taken: string[]) {
-  return 'client-%d'.format(taken.length + 1);
+  let number = taken.length + 1;
+  while (taken.includes('client-%d'.format(number))) number++;
+  return 'client-%d'.format(number);
 }
 
 export function clientNameLabel(protocol: string) {
@@ -203,8 +206,7 @@ export function listedClientNames(sectionId: string, listOption: CBIOption) {
   );
 }
 
-// Everything that has to hold before a server with clients can be saved. The list
-// widget turns the message into the field error LuCI shows next to the option.
+// Everything that has to hold before a server with clients can be saved.
 export function validateClientsOnSave(
   sectionId: string,
   values: unknown,

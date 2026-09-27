@@ -592,3 +592,41 @@ describe('a value behind a switch that is off', () => {
       expect(harness.uci.get('forkop', 'settings', name), name).toBe(value);
   });
 });
+
+/* ------------------------------------------------- what the backend reads back */
+
+// The backend reads these as a plain number and silently falls back to its
+// default for anything else, so the field has to refuse what would be dropped.
+describe('a number the backend reads as digits only', () => {
+  function settingsOption(name) {
+    harness.uci.add('forkop', 'settings', 'settings');
+    const map = new harness.form.Map('forkop');
+    const section = map.section(harness.form.NamedSection, 'settings');
+    harness.bundle.createSettingsContent(section);
+    return section.children.find((option) => option.option === name);
+  }
+
+  it.each([
+    ['dns_rewrite_ttl', '30s'],
+    ['badwan_reload_delay', '2s'],
+  ])('%s refuses %s', (name, value) => {
+    const option = settingsOption(name);
+
+    expect(option.validate('settings', value)).not.toBe(true);
+    expect(option.validate('settings', '300')).toBe(true);
+  });
+});
+
+// sing-box and the backend take a duration in days; the heartbeat has to too.
+it('a TUIC heartbeat takes a duration in days', () => {
+  harness.uci.add('forkop', 'server', 'srv');
+  const map = new harness.form.Map('forkop');
+  const grid = map.section(harness.form.GridSection, 'server');
+  harness.bundle.createServerContent(grid);
+  const heartbeat = grid.children.find(
+    (option) => option.option === 'tuic_heartbeat',
+  );
+
+  expect(heartbeat.validate('srv', '1d')).toBe(true);
+  expect(heartbeat.validate('srv', 'soon')).not.toBe(true);
+});

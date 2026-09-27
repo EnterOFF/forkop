@@ -1,4 +1,5 @@
-import { onMount, preserveScrollForPage } from '../../../helpers';
+import { onMount } from '../../../helpers/onMount';
+import { preserveScrollForPage } from '../../../helpers/preserveScrollForPage';
 import { runDnsCheck } from './checks/runDnsCheck';
 import { runSingBoxCheck } from './checks/runSingBoxCheck';
 import { runInboundsCheck } from './checks/runInboundsCheck';
@@ -58,9 +59,9 @@ let diagnosticMountId = 0;
 // configuration calls for, and every capability read rebuilds it. From the
 // moment a run starts the list is the run's — its progress, and then its result —
 // until the page is left behind or a service action makes the result stale.
-// Everything else has to leave it alone in between: a tab switch puts several
-// capability reads in flight at once, and whichever landed last used to rebuild
-// the list on top of what the run had just written into it.
+// Everything else leaves it alone in between: a tab switch puts several
+// capability reads in flight at once, and none of them may rebuild the list
+// over what the run wrote into it.
 let diagnosticsChecksOwnedByRun = false;
 const handledServiceActionJobs = new Set<string>();
 
@@ -344,19 +345,18 @@ async function handleStop() {
 
 // Autostart has no job and no local overlay standing in for it: which of the
 // two buttons is shown follows `service.forkop.enabled` and nothing else. So
-// the button is held until the new value has actually arrived - releasing it
-// first put the old button back, idle, for as long as the read took, and the
-// click read as having done nothing. The refresh settles either way.
+// the pressed button keeps its spinner until the new value has arrived, and a
+// switch that did not move is said out loud.
 async function handleAutostartAction(
   action: 'enable' | 'disable',
-  request: () => Promise<unknown>,
+  request: () => Promise<{ success: boolean }>,
+  failure: string,
 ) {
   setDiagnosticActionLoading(action, true);
 
-  try {
-    await request();
-  } catch (e) {
-    logger.error('[DIAGNOSTIC]', `handleAutostartAction(${action})`, e);
+  const result = await request().catch(() => ({ success: false }));
+  if (!result.success) {
+    showToast(failure, 'error');
   }
 
   await refreshRuntimeUiStateNow();
@@ -364,22 +364,32 @@ async function handleAutostartAction(
 }
 
 async function handleEnable() {
-  await handleAutostartAction('enable', () => ForkopShellMethods.enable());
+  await handleAutostartAction(
+    'enable',
+    () => ForkopShellMethods.enable(),
+    _('Could not enable autostart'),
+  );
 }
 
 async function handleDisable() {
-  await handleAutostartAction('disable', () => ForkopShellMethods.disable());
+  await handleAutostartAction(
+    'disable',
+    () => ForkopShellMethods.disable(),
+    _('Could not disable autostart'),
+  );
 }
 
 // The backend masks what these show, and the values are asked for again only
 // when the toggle says to show them.
 function diagnosticText(
-  load: (masked: boolean) => Promise<{ success: boolean; data?: unknown }>,
+  load: (
+    masked: boolean,
+  ) => Promise<{ success: boolean; data?: unknown; error?: string }>,
 ) {
   return async ({ maskValues }: { maskValues: boolean }) => {
     const result = await load(maskValues);
     if (!result.success) {
-      throw new Error('Failed to load diagnostics');
+      throw new Error(result.error || 'Failed to load diagnostics');
     }
     return typeof result.data === 'string'
       ? result.data
@@ -387,76 +397,63 @@ function diagnosticText(
   };
 }
 
-async function handleShowGlobalCheck() {
-  setDiagnosticActionLoading('globalCheck', true);
+// A diagnostic shown in a dialog. The backend masks what it shows, and a read
+// that fails is said rather than only logged.
+async function showDiagnosticModal(
+  action: 'globalCheck' | 'showConfig' | 'showSingBoxConfig',
+  title: string,
+  name: string,
+  load: (
+    masked: boolean,
+  ) => Promise<{ success: boolean; data?: unknown; error?: string }>,
+) {
+  setDiagnosticActionLoading(action, true);
 
   try {
-    const globalCheck = await ForkopShellMethods.globalCheck(true);
-
-    if (globalCheck.success) {
-      ui.showModal(
-        _('Global check'),
-        renderModal((globalCheck.data as string) ?? '', 'global_check', {
-          getText: diagnosticText(ForkopShellMethods.globalCheck),
-          initialAutoRefresh: false,
-          showMaskValuesToggle: true,
-        }),
-      );
-    } else {
-      logger.error('[DIAGNOSTIC]', 'handleShowGlobalCheck - e', globalCheck);
-    }
-  } catch (e) {
-    logger.error('[DIAGNOSTIC]', 'handleShowGlobalCheck - e', e);
-  } finally {
-    setDiagnosticActionLoading('globalCheck', false);
-  }
-}
-
-async function handleShowForkopConfig() {
-  setDiagnosticActionLoading('showConfig', true);
-
-  try {
-    const showConfig = await ForkopShellMethods.showConfig(true);
-
-    if (showConfig.success) {
-      ui.showModal(
-        _('Forkop configuration'),
-        renderModal((showConfig.data as string) ?? '', 'show_config', {
-          getText: diagnosticText(ForkopShellMethods.showConfig),
-          initialAutoRefresh: false,
-          showMaskValuesToggle: true,
-        }),
-      );
-    } else {
-      logger.error('[DIAGNOSTIC]', 'handleShowForkopConfig - e', showConfig);
-    }
-  } catch (e) {
-    logger.error('[DIAGNOSTIC]', 'handleShowForkopConfig - e', e);
-  } finally {
-    setDiagnosticActionLoading('showConfig', false);
-  }
-}
-
-async function handleShowSingBoxConfig() {
-  setDiagnosticActionLoading('showSingBoxConfig', true);
-
-  try {
-    const load = diagnosticText(ForkopShellMethods.showSingBoxConfig);
-    const showSingBoxConfig = await load({ maskValues: true });
+    const getText = diagnosticText(load);
+    const text = await getText({ maskValues: true });
 
     ui.showModal(
-      _('sing-box configuration'),
-      renderModal(showSingBoxConfig, 'show_sing_box_config', {
-        getText: load,
+      title,
+      renderModal(text, name, {
+        getText,
         initialAutoRefresh: false,
         showMaskValuesToggle: true,
       }),
     );
-  } catch (e) {
-    logger.error('[DIAGNOSTIC]', 'handleShowSingBoxConfig - e', e);
+  } catch (error) {
+    logger.error('[DIAGNOSTIC]', name, error);
+    showToast(_('Failed to load diagnostics'), 'error');
   } finally {
-    setDiagnosticActionLoading('showSingBoxConfig', false);
+    setDiagnosticActionLoading(action, false);
   }
+}
+
+function handleShowGlobalCheck() {
+  return showDiagnosticModal(
+    'globalCheck',
+    _('Global check'),
+    'global_check',
+    ForkopShellMethods.globalCheck,
+  );
+}
+
+function handleShowForkopConfig() {
+  return showDiagnosticModal(
+    'showConfig',
+    _('Forkop configuration'),
+    'show_config',
+    ForkopShellMethods.showConfig,
+  );
+}
+
+function handleShowSingBoxConfig() {
+  return showDiagnosticModal(
+    'showSingBoxConfig',
+    _('sing-box configuration'),
+    'show_sing_box_config',
+    ForkopShellMethods.showSingBoxConfig,
+  );
 }
 
 function renderDiagnosticAvailableActionsWidget() {
@@ -476,7 +473,6 @@ function renderDiagnosticAvailableActionsWidget() {
   const controls = getServiceControlsPresentation({
     running: forkopRunning,
     operation,
-    operationSeconds: servicesInfoWidget.data.forkopBusySeconds,
     known: stateKnown,
   });
   const autostart = getAutostartControlsPresentation({

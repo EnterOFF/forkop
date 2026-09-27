@@ -52,8 +52,7 @@ export async function runNftCheck() {
     Boolean(data.rules_mangle_output_exist) ||
     Boolean(data.rules_mangle_output_counters) ||
     Boolean(data.rules_proxy_exist) ||
-    Boolean(data.rules_proxy_counters) ||
-    !data.rules_other_mark_exist;
+    Boolean(data.rules_proxy_counters);
 
   const { state, description } = getMeta({ atLeastOneGood, allGood });
 

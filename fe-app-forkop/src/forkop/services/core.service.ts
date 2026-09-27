@@ -14,19 +14,12 @@ import {
 import { ensureSystemInfo } from './systemInfo.service';
 import { E } from '../../helpers/element';
 
-type CoreServiceOptions = {
-  waitForLogWatcherStart?: () => Promise<unknown>;
-  logWatcherStartDelayMs?: number;
-};
-
 const LOG_FEED_START_DELAY_MS = 5000;
 
 // Collecting the component versions takes seconds - opkg is asked about every
-// package and the core binary about itself - and nothing asked for them until
-// the Status or Components tab was opened, so whoever opened one paid the whole
-// wait. Warming them once per page means both tabs open with the numbers
-// already there, and a page that never visits either only spends the work in
-// the background.
+// package and the core binary about itself. Warming them once per page lets the
+// Status and Components tabs open with the numbers already there, and a page
+// that never visits either only spends the work in the background.
 //
 // On a delay rather than at once: it is several subprocesses on a router that
 // may have one slow core, and the first runtime-state poll - the status the user
@@ -44,9 +37,10 @@ function componentDisplayName(component: string) {
 
 function showLogNotification(notification: ForkopLogNotification) {
   if (notification.kind === 'component-update') {
-    const message = _('New version %s is available for %s')
-      .replace('%s', notification.version)
-      .replace('%s', componentDisplayName(notification.component));
+    const message = _('New version %s is available for %s').format(
+      notification.version,
+      componentDisplayName(notification.component),
+    );
 
     ui.addNotification(
       _('Component update available'),
@@ -65,7 +59,7 @@ function showLogNotification(notification: ForkopLogNotification) {
   );
 }
 
-export function coreService(options: CoreServiceOptions = {}) {
+export function coreService() {
   TabServiceInstance.onChange((activeId, tabs) => {
     logger.info('[TAB]', activeId);
     store.set({
@@ -87,28 +81,13 @@ export function coreService(options: CoreServiceOptions = {}) {
     }
   };
 
-  const startLogFeed = async () => {
-    if (options.waitForLogWatcherStart) {
-      await Promise.resolve()
-        .then(() => options.waitForLogWatcherStart?.())
-        .catch(() => null);
-    }
-
-    await startForkopLogFeed(notifyLogLine);
-  };
-  const scheduleStartLogFeed = () =>
-    window.setTimeout(() => {
-      void startLogFeed();
-    }, options.logWatcherStartDelayMs ?? LOG_FEED_START_DELAY_MS);
-
-  if (typeof window !== 'undefined') {
-    scheduleStartLogFeed();
-    window.setTimeout(() => {
-      void ensureSystemInfo().catch(() => null);
-    }, SYSTEM_INFO_PREFETCH_DELAY_MS);
-  } else {
-    void startLogFeed();
-  }
+  window.setTimeout(
+    () => startForkopLogFeed(notifyLogLine),
+    LOG_FEED_START_DELAY_MS,
+  );
+  window.setTimeout(() => {
+    void ensureSystemInfo().catch(() => null);
+  }, SYSTEM_INFO_PREFETCH_DELAY_MS);
 
   registerRuntimeStateResumeRefresh();
   startRuntimeUiStatePolling();

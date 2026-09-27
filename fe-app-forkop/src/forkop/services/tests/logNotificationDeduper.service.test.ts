@@ -89,4 +89,24 @@ describe('LogNotificationDeduper', () => {
       'Jun 06 forkop: [error] failed',
     );
   });
+
+  // A page left open for days sees a new line for every error, and each one
+  // rewrites what is remembered; only the latest few hundred are kept.
+  it('remembers only the latest lines it showed', () => {
+    const storage = new MemoryStorage();
+    const deduper = new LogNotificationDeduper(storage);
+    const line = (index: number) => `forkop: [error] failure ${index}`;
+
+    for (let index = 0; index <= 500; index++) {
+      deduper.shouldNotify(line(index));
+    }
+
+    const stored = JSON.parse(
+      storage.getItem('forkop:shown-log-error-notifications:v1') || '[]',
+    );
+    expect(stored).toHaveLength(500);
+    expect(stored[0]).toBe(line(1));
+    expect(deduper.shouldNotify(line(500))).toBe(false);
+    expect(deduper.shouldNotify(line(0))).toBe(true);
+  });
 });

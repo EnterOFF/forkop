@@ -22,4 +22,20 @@ describe('getProxyUrlName', () => {
     ).toBe('Raw VMess');
     expect(getProxyUrlName('trojan://secret@example.com')).toBe('');
   });
+
+  // What core/url.uc fragment() and singbox/generator.uc connection_link_name()
+  // answer for the same links, so a node keeps its name on the page.
+  it.each([
+    ['vmess://uuid@host:443?type=tcp#My%20Node', 'My Node'],
+    ['vless://id@h#a#b', 'a#b'],
+    ['vless://id@h#100%25', '100%'],
+    ['vless://id@h#50%off', '50%off'],
+    ['vless://id@h#%D0%A3%D0%B7%D0%B5%D0%BB', 'Узел'],
+    [
+      `vmess://${btoa(JSON.stringify({ ps: '', add: 'example.com' }))}#Fragment`,
+      'Fragment',
+    ],
+  ])('names %s the way the backend does', (link, name) => {
+    expect(getProxyUrlName(link)).toBe(name);
+  });
 });

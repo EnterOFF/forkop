@@ -94,14 +94,6 @@ export class StoreService<T extends Record<string, any>> {
     this.listeners.delete(cb);
   }
 
-  patch<K extends keyof T>(key: K, value: T[K]): void {
-    this.set({ [key]: value } as unknown as Partial<T>);
-  }
-
-  getKey<K extends keyof T>(key: K): T[K] {
-    return this.value[key];
-  }
-
   subscribeKey<K extends keyof T>(
     key: K,
     cb: (value: T[K]) => void,
@@ -160,9 +152,7 @@ export interface StoreType {
       singbox: number;
       forkopRunning: number;
       forkopEnabled: number;
-      forkopStatus: string;
       forkopBusy: Forkop.ServiceBusy | null;
-      forkopBusySeconds: number;
     };
   };
   sectionsWidget: {
@@ -242,9 +232,7 @@ const initialStore: StoreType = {
       singbox: 0,
       forkopRunning: 0,
       forkopEnabled: 0,
-      forkopStatus: '',
       forkopBusy: null,
-      forkopBusySeconds: 0,
     },
   },
   sectionsWidget: {

@@ -1,5 +1,4 @@
 import { FORKOP_UCI_PACKAGE } from '../../constants';
-import { normalizeDynamicListItems } from './listValues';
 
 const sharedChildPendingSettings = new Map<
   string,
@@ -23,82 +22,6 @@ export function readItemSettingsMap(
       : {};
   } catch (_error) {
     return {};
-  }
-}
-
-function compactItemSettings(values: ChildSettings): ChildSettings {
-  const result: ChildSettings = {};
-
-  Object.entries(values || {}).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === '') {
-      return;
-    }
-
-    if (Array.isArray(value)) {
-      const items = value
-        .map((item) => `${item || ''}`.trim())
-        .filter((item) => item.length);
-
-      if (items.length) {
-        result[key] = items;
-      }
-      return;
-    }
-
-    result[key] = `${value}`;
-  });
-
-  return result;
-}
-
-function writeItemSettingsMap(
-  section_id: string,
-  settingsKey: string,
-  map: Record<string, ChildSettings>,
-) {
-  const result: Record<string, ChildSettings> = {};
-
-  Object.entries(map || {}).forEach(([item, settings]) => {
-    const compact = compactItemSettings(settings);
-    if (item && Object.keys(compact).length) {
-      result[item] = compact;
-    }
-  });
-
-  if (Object.keys(result).length) {
-    uci.set(
-      FORKOP_UCI_PACKAGE,
-      section_id,
-      settingsKey,
-      JSON.stringify(result),
-    );
-  } else {
-    uci.unset(FORKOP_UCI_PACKAGE, section_id, settingsKey);
-  }
-}
-
-export function cleanupListItemSettings(
-  section_id: string,
-  settingsKey: string | undefined,
-  values: unknown,
-) {
-  if (!settingsKey) {
-    return;
-  }
-
-  const keep = new Set(normalizeDynamicListItems(values));
-  const map = readItemSettingsMap(section_id, settingsKey);
-  let changed = false;
-
-  Object.keys(map).forEach((item) => {
-    if (!keep.has(item)) {
-      delete map[item];
-      changed = true;
-    }
-  });
-
-  if (changed) {
-    writeItemSettingsMap(section_id, settingsKey, map);
   }
 }
 
@@ -203,6 +126,12 @@ export function pendingChildSettings(
   store[itemValue] = Object.assign({}, defaults || {}, store[itemValue]);
 
   return store[itemValue];
+}
+
+// The drafts a list shares with another one live as long as the page does, so a
+// dialog closing takes the drafts it staged with it.
+export function clearSharedChildPendingSettings() {
+  sharedChildPendingSettings.clear();
 }
 
 export function clearChildPendingSettings(

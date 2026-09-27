@@ -7,7 +7,7 @@ import {
   renderListFilterIcon24,
   renderRotateCcwIcon24,
 } from '../../../../icons';
-import { isCopyableProxyLink } from '../../../../helpers';
+import { isCopyableProxyLink } from '../../../../helpers/isCopyableProxyLink';
 import { prettyBytes } from '../../../../helpers/prettyBytes';
 import { Forkop } from '../../../types';
 import { renderFlagEmojis } from './renderFlagEmojis';
@@ -150,9 +150,9 @@ function renderSubscriptionMetadata(
   ].filter(Boolean) as { label: string; value: string }[];
 
   const actions = [
-    renderMetadataAction('Profile', metadata.webPageUrl),
-    renderMetadataAction('Support', metadata.supportUrl),
-    renderMetadataAction('More details', metadata.announceUrl),
+    renderMetadataAction(_('Profile'), metadata.webPageUrl),
+    renderMetadataAction(_('Support'), metadata.supportUrl),
+    renderMetadataAction(_('More details'), metadata.announceUrl),
   ].filter(Boolean) as HTMLElement[];
 
   // The tag is not something the block says: every node below already carries
@@ -322,7 +322,7 @@ function renderDefaultState({
 }: IRenderSectionsProps) {
   function testLatency() {
     if (section.withTagSelect) {
-      return onTestLatency(section.latencyTestCode || section.code);
+      return onTestLatency(section.code);
     }
 
     if (section.outbounds.length) {
@@ -365,7 +365,7 @@ function renderDefaultState({
       .filter(Boolean)
       .join(' ');
     const latencyClass = latencyClassName(outbound.latency);
-    const latencyValue = outbound.latency ? `${outbound.latency}ms` : 'N/A';
+    const latencyValue = outbound.latency ? `${outbound.latency}ms` : _('N/A');
     const latency = showLatency
       ? E(
           'button',
@@ -375,8 +375,6 @@ function renderDefaultState({
             title: _('Test latency'),
             'aria-label': _('Test latency'),
             'aria-busy': outboundLatencyFetching ? 'true' : undefined,
-            'data-latency-section': section.sectionName,
-            'data-latency-code': outbound.code,
             disabled: canTestOutboundLatency ? undefined : true,
             click: (event: MouseEvent) => {
               event.preventDefault();
@@ -596,7 +594,6 @@ function renderDefaultState({
             {
               type: 'button',
               class: 'btn dashboard-sections-grid-item-test-latency',
-              'data-latency-section': section.sectionName,
               'aria-busy': latencyFetching ? 'true' : undefined,
               disabled: latencyFetching ? true : undefined,
               click: (event: MouseEvent) => {

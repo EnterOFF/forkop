@@ -12,6 +12,44 @@ import {
 } from './itemSettings';
 import { setDynamicListItemValue } from './listItems';
 import { E } from '../../helpers/element';
+import { showToast } from '../../helpers/showToast';
+
+// LuCI keeps a dialog open when its save is refused and says nothing. A field
+// whose widget checks its own value is already marked, and its tab counts it;
+// any other refusal would go unseen, so its reason is shown.
+export function reportRefusedSave(error: unknown, dialog?: ParentNode | null) {
+  if (dialog?.querySelector('.cbi-input-invalid')) {
+    return;
+  }
+  const message = error instanceof Error ? error.message : `${error ?? ''}`;
+  showToast(message.trim() || _('Settings not saved'), 'error');
+}
+
+// LuCI's own section dialog save, which saves with the error dialog off and
+// drops whatever refused it. Answers whether the dialog saved.
+export function saveSectionModal(
+  sectionRef: CBISection,
+  modalMap: CBIMap | CBIModalMap,
+  ev: Event,
+) {
+  const mapNode = sectionRef.getActiveModalMap();
+  const activeMap = dom.findClassInstance(mapNode) as CBIMap;
+  let saved: Promise<unknown> = activeMap.save(undefined, true);
+  for (let map = activeMap.parent; map; map = map.parent) {
+    const parent = map;
+    saved = saved.then(() => parent.load()).then(() => parent.reset());
+  }
+
+  return saved
+    .then(() => sectionRef.handleModalCancel(modalMap, ev, true))
+    .then(
+      () => true,
+      (error: unknown) => {
+        reportRefusedSave(error, mapNode as ParentNode | null);
+        return false;
+      },
+    );
+}
 
 export function modalOptionFormValue(
   modalMap: CBIMap,
@@ -144,7 +182,8 @@ export function renderStackedJsonSettingsModal(
           ),
         )
         .then(close)
-        .catch(() => {
+        .catch((error: unknown) => {
+          reportRefusedSave(error, nodes);
           if (saveButton) {
             saveButton.disabled = false;
           }

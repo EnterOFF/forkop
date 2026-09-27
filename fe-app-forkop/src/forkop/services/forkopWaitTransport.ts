@@ -2,8 +2,8 @@
 //
 // The page keeps two long polls open against the same ubus object: one for the
 // runtime state, one for the log tail. Each asks the daemon to hold the request
-// until something happens, so each has to agree with the daemon about how long
-// it will be held - and both had that agreement written out for themselves.
+// until something happens, and both agree with the daemon here about how long
+// it will be held.
 
 // The service publishes the state and the logs under one object.
 export const FORKOP_SERVICE_OBJECT = 'forkop';

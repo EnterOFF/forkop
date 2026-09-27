@@ -22,6 +22,7 @@ import {
   configuredSubscriptionTags,
   defaultSubscriptionUrlSettings,
   isRemoteSubscriptionSource,
+  currentOptionValue,
   loadDefaultSubscriptionHeaders,
   nextSubscriptionTag,
   optionMapValue,
@@ -56,7 +57,8 @@ export function addSubscriptionUrlItemOptions(
     o.depends('subscription_update_enabled', '1');
     o.placeholder = '1h';
     o.validate = function (itemId: string, value: unknown) {
-      return optionMapValue(this, itemId, 'subscription_update_enabled') === '1'
+      return currentOptionValue(this, itemId, 'subscription_update_enabled') ===
+        '1'
         ? validateRequiredSingBoxDuration(value)
         : validateOptionalSingBoxDuration(value);
     };
@@ -85,7 +87,9 @@ export function addSubscriptionUrlItemOptions(
     };
     o.validate = function (itemId: string, value: unknown) {
       const sectionId = parentSectionForItem(itemId);
-      if (optionMapValue(this, itemId, 'download_via_proxy_enabled') !== '1') {
+      if (
+        currentOptionValue(this, itemId, 'download_via_proxy_enabled') !== '1'
+      ) {
         return true;
       }
       if (!value) {
@@ -191,8 +195,9 @@ export function showSubscriptionUrlSettingsModal(
     'url',
   );
   const remote = isRemoteSubscriptionSource(source);
+  // Without the defaults the dialog still opens, with no headers filled in.
   const headers = remote
-    ? loadDefaultSubscriptionHeaders()
+    ? loadDefaultSubscriptionHeaders().catch(() => [] as string[])
     : Promise.resolve([]);
   return headers.then((headers: string[]) =>
     showChildItemSettingsModal(_section_id, itemValue, option, {

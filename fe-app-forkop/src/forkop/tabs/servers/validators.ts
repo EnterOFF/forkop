@@ -192,16 +192,6 @@ export function validateInboundJson(_sectionId: string, value: string) {
   return true;
 }
 
-function isDuration(value: unknown) {
-  return /^([0-9]+(ns|us|ms|s|m|h))+$/.test(`${value || ''}`);
-}
-
-export function validateOptionalDuration(_sectionId: string, value: string) {
-  return isEmptyValue(value) || isDuration(value)
-    ? true
-    : _('Use a duration like 30s, 5m, or 1h30m');
-}
-
 export function validateOptionalPositiveInteger(
   _sectionId: string,
   value: string,

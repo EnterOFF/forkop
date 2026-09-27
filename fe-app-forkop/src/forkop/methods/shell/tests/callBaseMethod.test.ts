@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
   executeShellCommand: vi.fn(),
 }));
 
-vi.mock('../../../../helpers', () => ({
+vi.mock('../../../../helpers/executeShellCommand', () => ({
   executeShellCommand: mocks.executeShellCommand,
 }));
 
@@ -30,26 +30,6 @@ describe('callBaseMethod', () => {
     expect(response).toEqual({
       success: false,
       error: 'command failed',
-    });
-  });
-
-  it('can return stdout for diagnostic commands with non-zero exit code', async () => {
-    mocks.executeShellCommand.mockResolvedValue({
-      stdout: 'Global check run\n[FAIL] Sing-box process running',
-      stderr: '',
-      code: 1,
-    });
-
-    const response = await callBaseMethod(
-      Forkop.AvailableMethods.GLOBAL_CHECK,
-      [],
-      '/usr/bin/forkop',
-      { allowNonZeroWithStdout: true },
-    );
-
-    expect(response).toEqual({
-      success: true,
-      data: 'Global check run\n[FAIL] Sing-box process running',
     });
   });
 

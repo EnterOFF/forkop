@@ -34,9 +34,6 @@ type HtmlAttributes<T extends HtmlTag = 'div'> = Partial<
     'aria-expanded'?: string;
     'aria-label'?: string;
     'aria-pressed'?: string;
-    'data-latency-code'?: string;
-    'data-latency-section'?: string;
-    'data-latency-targets'?: string;
     // E() sets whatever it is given with setAttribute, so an attribute keeps its
     // HTML spelling and does not have to belong to the tag it is set on.
     tabindex?: string | number;
@@ -72,7 +69,18 @@ declare global {
 
   type UciValue = string | string[] | null;
 
+  // The loaded packages, and what is staged on top of them until the next save
+  // pushes it, each keyed by package.
+  interface UciState {
+    values: Record<string, Record<string, UciSectionObject>>;
+    creates: Record<string, Record<string, UciSectionObject>>;
+    changes: Record<string, Record<string, Record<string, UciValue>>>;
+    deletes: Record<string, Record<string, true | Record<string, true>>>;
+    reorder: Record<string, boolean>;
+  }
+
   const uci: {
+    readonly state: UciState;
     load(packages: string | string[]): Promise<string[]>;
     get(config: string, section: string): UciSectionObject | null;
     get(config: string, section: string, option: string): UciValue;
@@ -225,6 +233,11 @@ declare global {
     handleAdd?(event: Event, name?: string): unknown;
     handleRemove?(sectionId: string, event: Event): unknown;
     handleModalSave?(...args: unknown[]): Promise<unknown>;
+    handleModalCancel(
+      modalMap: unknown,
+      event: Event,
+      isSaving?: boolean,
+    ): Promise<unknown>;
     children: CBIOption[];
   }
 
@@ -239,12 +252,7 @@ declare global {
     get(config: string, section: string): UciSectionObject | null;
     get(config: string, section: string, option: string): unknown;
     // The uci model behind the map: what is stored and what is staged.
-    readonly state: {
-      values: Record<string, Record<string, UciSectionObject>>;
-      changes?: Record<string, unknown>;
-      creates?: Record<string, unknown>;
-      deletes?: Record<string, unknown>;
-    };
+    readonly state: Partial<UciState> & Pick<UciState, 'values'>;
     set(config: string, section: string, option: string, value: unknown): void;
     unset(config: string, section: string, option: string): void;
     add(config: string, type: string, name?: string): string;
@@ -279,6 +287,8 @@ declare global {
     parse(): Promise<void>;
     reset(): Promise<Node>;
     children: CBISection[];
+    // A dialog's map names the map it was opened from.
+    parent?: CBIMap;
   }
 
   // Every LuCI class is built by extend() rather than by `class`, and the views

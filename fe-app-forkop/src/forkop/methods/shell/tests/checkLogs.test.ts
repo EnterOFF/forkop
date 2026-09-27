@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
   executeShellCommand: vi.fn(),
 }));
 
-vi.mock('../../../../helpers', () => ({
+vi.mock('../../../../helpers/executeShellCommand', () => ({
   executeShellCommand: mocks.executeShellCommand,
 }));
 
@@ -38,5 +38,19 @@ describe('ForkopShellMethods.checkLogs', () => {
     expect(mocks.executeShellCommand).toHaveBeenCalledTimes(2);
     finishRequest({ stdout: 'next line', stderr: '', code: 0 });
     await expect(next).resolves.toEqual({ success: true, data: 'next line' });
+  });
+
+  // No Forkop line in the log yet is an empty log, not a failed read.
+  it('answers an empty log as a log with no lines', async () => {
+    mocks.executeShellCommand.mockResolvedValue({
+      stdout: '',
+      stderr: '',
+      code: 0,
+    });
+
+    await expect(ForkopShellMethods.checkLogs()).resolves.toEqual({
+      success: true,
+      data: '',
+    });
   });
 });

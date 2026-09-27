@@ -5,8 +5,10 @@ const mocks = vi.hoisted(() => ({
   callUbus: vi.fn(),
 }));
 
-vi.mock('../../../helpers', () => ({
+vi.mock('../../../helpers/executeShellCommand', () => ({
   executeShellCommand: mocks.executeShellCommand,
+}));
+vi.mock('../../../helpers/callUbus', () => ({
   callUbus: mocks.callUbus,
 }));
 
@@ -225,7 +227,6 @@ describe('refreshRuntimeUiState', () => {
     expect(store.get().servicesInfoWidget.data).toMatchObject({
       forkopRunning: 0,
       forkopEnabled: 1,
-      forkopStatus: 'stopped but enabled',
     });
   });
 

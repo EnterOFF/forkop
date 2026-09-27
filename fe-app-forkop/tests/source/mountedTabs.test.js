@@ -6,11 +6,10 @@
 // flex item: the page inside it is as wide as its own content, not as wide as
 // the content column it sits in. A page that wants the column has to say so.
 //
-// Three tabs said it to children a DummyValue does not have - .cbi-value-title,
-// .cbi-value-field, and a child div - and those rules matched nothing at all,
-// which is the failure this file exists to catch: a dead selector reads exactly
-// like a working one. The Components tab still carries such a rule and is left
-// alone, waiting on a refactor of its own.
+// A rule addressed to children a DummyValue does not have - .cbi-value-title,
+// .cbi-value-field, a child div - matches nothing, and a dead selector reads
+// exactly like a working one, which is what this file catches. The Components
+// tab still carries such a rule and is left alone.
 import fs from 'fs';
 
 import { describe, expect, it } from 'vitest';

@@ -11,17 +11,8 @@ export const styles = `
     gap: 5px;
 }
 
-.fkp-partial-button--loading {
-}
-
-.fkp-partial-button--disabled {
-}
-
 .fkp-partial-button__icon {
     flex: 0 0 auto;
-}
-
-.fkp-partial-button__icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;

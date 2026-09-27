@@ -12,7 +12,6 @@ import {
   updateClashApiProxyProviders,
   updateClashApiRuleProviders,
 } from './getDashboardSections';
-import { getClashApiSecret } from './getClashApiSecret';
 
 export const CustomForkopMethods = {
   getConfigSections,
@@ -27,5 +26,4 @@ export const CustomForkopMethods = {
   updateClashApiRuleProviders,
   closeClashApiConnection,
   closeAllClashApiConnections,
-  getClashApiSecret,
 };

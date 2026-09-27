@@ -1,6 +1,9 @@
 import { FORKOP_UCI_PACKAGE } from '../../constants';
 import { nextSectionId } from '../cbi/childItems';
 import { getRuleEditButtonText } from '../cbi/grid';
+import { clearSharedChildPendingSettings } from '../cbi/itemSettings';
+import { captureUnsavedUci, restoreUnsavedUci } from '../cbi/unsavedUci';
+import type { UnsavedUci } from '../cbi/unsavedUci';
 import { E } from '../../helpers/element';
 
 // LuCI's own Add control asks for a name first. Both grids name a section
@@ -81,6 +84,40 @@ export function configureGridSection(
     prevMap.addedSection = sectionId;
     onSectionAdded?.(sectionId);
     return this.renderMoreOptionsModal(sectionId);
+  };
+
+  // A nested dialog writes its item into uci when it closes, ahead of the
+  // section dialog's own save, and a refused save leaves the options that passed.
+  // Dismissing the dialog puts uci back as it was when the dialog opened, so the
+  // next save anywhere on the page does not push what the user threw away.
+  let unsaved: UnsavedUci | null = null;
+  sectionRef.renderMoreOptionsModal = function (
+    section_id: string,
+    ev?: Event,
+  ) {
+    unsaved = captureUnsavedUci();
+    return form.GridSection.prototype.renderMoreOptionsModal.call(
+      this,
+      section_id,
+      ev,
+    );
+  };
+  sectionRef.handleModalCancel = function (
+    modalMap: unknown,
+    ev: Event,
+    isSaving?: boolean,
+  ) {
+    if (!isSaving && unsaved) {
+      restoreUnsavedUci(unsaved);
+    }
+    unsaved = null;
+    clearSharedChildPendingSettings();
+    return form.GridSection.prototype.handleModalCancel.call(
+      this,
+      modalMap,
+      ev,
+      isSaving,
+    );
   };
 
   if (type === 'section') {

@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-26 15:13+0300\n"
-"PO-Revision-Date: 2026-09-26 15:13+0300\n"
+"POT-Creation-Date: 2026-09-27 01:54+0300\n"
+"PO-Revision-Date: 2026-09-27 01:54+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -80,9 +80,6 @@ msgstr "Имя не длиннее %d символов"
 msgid "A Reality key is 43 base64url characters"
 msgstr "Ключ Reality — это 43 символа base64url"
 
-msgid "A server cannot use itself"
-msgstr "Сервер не может использовать сам себя"
-
 msgid "A short ID holds at most 16 hex digits"
 msgstr "Short ID — не больше 16 hex-символов"
 
@@ -112,6 +109,9 @@ msgstr "Добавить"
 
 msgid "Add a client to this server to get a link."
 msgstr "Добавьте клиента, чтобы получить ссылку."
+
+msgid "Add a connection URI, a subscription, a network interface, a tunnel or a JSON outbound"
+msgstr "Добавьте URI подключения, подписку, сетевой интерфейс, туннель или JSON outbound"
 
 msgid "Add a section"
 msgstr "Добавить секцию"
@@ -449,6 +449,12 @@ msgstr "Скопировать ссылку прокси"
 msgid "Could not compare FakeIP and control public IPs"
 msgstr "Не удалось сравнить публичные IP FakeIP и контрольной проверки"
 
+msgid "Could not disable autostart"
+msgstr "Не удалось отключить автостарт"
+
+msgid "Could not enable autostart"
+msgstr "Не удалось включить автостарт"
+
 msgid "Could not generate a certificate"
 msgstr "Не удалось создать сертификат"
 
@@ -731,8 +737,14 @@ msgstr "Не удалось скопировать!"
 msgid "Failed to execute"
 msgstr "Не удалось выполнить"
 
+msgid "Failed to generate WARP profile"
+msgstr "Не удалось создать профиль WARP"
+
 msgid "Failed to load default subscription headers"
 msgstr "Не удалось загрузить заголовки подписки по умолчанию"
+
+msgid "Failed to load diagnostics"
+msgstr "Не удалось загрузить диагностику"
 
 msgid "Failed to load logs"
 msgstr "Не удалось загрузить логи"
@@ -748,6 +760,9 @@ msgstr "Не удалось запустить сервис"
 
 msgid "Failed to stop the service"
 msgstr "Не удалось остановить сервис"
+
+msgid "Failed to switch the server"
+msgstr "Не удалось переключить сервер"
 
 msgid "Failed to update lists"
 msgstr "Ошибка обновления списков"
@@ -781,9 +796,6 @@ msgstr "Детали Fallback недоступны"
 
 msgid "Fallback settings"
 msgstr "Настройки Fallback"
-
-msgid "Fastest"
-msgstr "Самый быстрый"
 
 msgid "Fill in the credentials of this client to get a link."
 msgstr "Заполните учётные данные клиента, чтобы получить ссылку."
@@ -1205,6 +1217,9 @@ msgstr "Наблюдаемые интерфейсы"
 msgid "Monitoring"
 msgstr "Мониторинг"
 
+msgid "More details"
+msgstr "Подробнее"
+
 msgid "MTU"
 msgstr "MTU"
 
@@ -1213,6 +1228,9 @@ msgstr "Multiplex"
 
 msgid "Must be a number in the range of 0 - 10000"
 msgstr "Должно быть числом в диапазоне 0 - 10000"
+
+msgid "N/A"
+msgstr "Н/Д"
 
 msgid "Name"
 msgstr "Имя"
@@ -1271,6 +1289,9 @@ msgstr "Другие правила маркировки не найдены"
 msgid "No public firewall port required"
 msgstr "Публичный порт в firewall не требуется"
 
+msgid "No sections to check"
+msgstr "Нет секций для проверки"
+
 msgid "Node list is empty"
 msgstr "Список узлов пуст"
 
@@ -1286,9 +1307,6 @@ msgstr "Не настроено"
 msgid "Not detected"
 msgstr "Не обнаружено"
 
-msgid "Not implement yet"
-msgstr "Ещё не реализовано"
-
 msgid "Not installed"
 msgstr "Не установлено"
 
@@ -1303,9 +1321,6 @@ msgstr "Не отвечает"
 
 msgid "Not running"
 msgstr "Не запущено"
-
-msgid "Not set"
-msgstr "Не задан"
 
 msgid "Obfuscation"
 msgstr "Обфускация"
@@ -1450,6 +1465,9 @@ msgstr "Приватный ключ"
 
 msgid "Process running"
 msgstr "Процесс запущен"
+
+msgid "Profile"
+msgstr "Профиль"
 
 msgid "Profile ID"
 msgstr "Идентификатор профиля"
@@ -1796,6 +1814,9 @@ msgstr "Укажите публичный адрес и порт, чтобы п�
 msgid "Settings"
 msgstr "Настройки"
 
+msgid "Settings not saved"
+msgstr "Настройки не сохранены"
+
 msgid "Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://"
 msgstr "Несколько серверов дают автоматическое переключение при сбоях. Протокол задаётся префиксом: udp://, tcp://, tls://, https://, quic://, h3://"
 
@@ -1810,6 +1831,9 @@ msgstr "Отображать тег"
 
 msgid "Show the metadata block on the dashboard"
 msgstr "Отображать блок метаданных в дашборде"
+
+msgid "sing-box API"
+msgstr "API sing-box"
 
 msgid "sing-box Clash API"
 msgstr "Clash API sing-box"
@@ -1907,11 +1931,17 @@ msgstr "URL подписки или локальный путь"
 msgid "Subscriptions updated"
 msgstr "Подписки успешно обновлены"
 
+msgid "Support"
+msgstr "Поддержка"
+
 msgid "Supported URIs: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, naiveproxy, mieru, anytls"
 msgstr "Поддерживаются URI: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, naiveproxy, mieru, anytls"
 
 msgid "Switching threshold in ms at which to move to a faster server"
 msgstr "Порог переключения в мс, при которой переключаться на более быстрый сервер"
+
+msgid "System"
+msgstr "Система"
 
 msgid "System info"
 msgstr "Системная информация"
@@ -2141,9 +2171,6 @@ msgstr "Укажите 32 hex-символа"
 msgid "Use a domain name or IP address"
 msgstr "Используйте доменное имя или IP-адрес"
 
-msgid "Use a duration like 30s, 5m, or 1h30m"
-msgstr "Укажите длительность в формате 30s, 5m или 1h30m"
-
 msgid "Use a non-zero secret"
 msgstr "Укажите ненулевой секрет"
 
@@ -2155,6 +2182,9 @@ msgstr "Укажите подсеть вида 192.168.1.0/24 или адрес 
 
 msgid "Use a valid UUID"
 msgstr "Укажите корректный UUID"
+
+msgid "Use a whole number of milliseconds"
+msgstr "Укажите целое число миллисекунд"
 
 msgid "Use an even number of hex digits, for example 0a1b2c3d"
 msgstr "Используйте чётное число hex-символов, например 0a1b2c3d"
@@ -2216,8 +2246,8 @@ msgstr "Значение не может быть пустым"
 msgid "Value must not contain control characters"
 msgstr "Значение не должно содержать управляющие символы"
 
-msgid "Version is compatible (newer than 1.12.4)"
-msgstr "Версия совместима (новее 1.12.4)"
+msgid "Version is compatible"
+msgstr "Версия совместима"
 
 msgid "WAN"
 msgstr "WAN"

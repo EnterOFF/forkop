@@ -28,7 +28,7 @@ import {
   listenerProtocols,
   protocolLabel,
 } from '../protocols';
-import { tailscaleDetourTargets } from '../routing';
+import { routingSectionChoices } from '../routing';
 import {
   validateHost,
   validateInboundJson,
@@ -203,23 +203,15 @@ export function addTailscaleOptions(section: CBISection) {
   o.load = function (sectionId: string) {
     this.keylist = [];
     this.vallist = [];
-    tailscaleDetourTargets(sectionId).forEach((target) =>
-      this.value(target['.name'], target.label || target['.name']),
+    routingSectionChoices().forEach(([value, label]) =>
+      this.value(value, label),
     );
     const value = option(sectionId, 'tailscale_detour_section');
     keepUnavailableSectionChoice(this, value);
     return value;
   };
-  o.validate = function (sectionId: string, value: string) {
-    if (!value) {
-      return _('Select a section');
-    }
-    if (value === sectionId) {
-      return _('A server cannot use itself');
-    }
-    return tailscaleDetourTargets(sectionId).some(
-      (target) => target['.name'] === value,
-    )
+  o.validate = function (_sectionId: string, value: string) {
+    return routingSectionChoices().some(([name]) => name === value)
       ? true
       : _('Select a section');
   };

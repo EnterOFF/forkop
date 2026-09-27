@@ -1,4 +1,4 @@
-import { insertIf } from '../../../../helpers';
+import { insertIf } from '../../../../helpers/insertIf';
 import { DIAGNOSTICS_CHECKS_MAP } from './contstants';
 import { ForkopShellMethods, RemoteFakeIPMethods } from '../../../methods';
 import type { IDiagnosticsChecksItem } from '../../../services';

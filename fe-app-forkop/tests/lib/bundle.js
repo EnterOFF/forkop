@@ -13,7 +13,7 @@
 //
 //     import { loadBundle } from '../lib/bundle.js';
 //     const main = loadBundle();
-//     main.normalizeOptionValues('10.0.0.1 10.0.0.2');
+//     main.createSectionContent(section);
 //
 //     loadBundle({ uci: myUciModel })   // read through a model of mine
 import { webcrypto } from 'crypto';

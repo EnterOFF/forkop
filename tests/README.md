@@ -84,7 +84,7 @@ A test ends by saying what it checked:
 printf 'urltest group checks passed\n'
 ```
 
-Two traps this suite has been caught by:
+Three traps this suite has been caught by:
 
 - **`ucode … | grep -q` fails even on a match** under `set -o pipefail`: `grep -q`
   exits at the first line and `ucode` dies of SIGPIPE. Capture the output into a
@@ -93,6 +93,9 @@ Two traps this suite has been caught by:
   of a file, assert that the region was found before asserting anything about
   it — an extraction that silently comes back empty agrees with every
   expectation.
+- **An exit status alone cannot say no.** A check that expects a command to fail
+  also passes when the command crashes or prints its usage. Assert on what it
+  printed as well, or call the module as a library from a unit test.
 
 ## Where a check belongs
 

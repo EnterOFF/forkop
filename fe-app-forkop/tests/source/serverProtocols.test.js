@@ -221,12 +221,6 @@ describe('the accounts of a server', () => {
     expect(says(removed)).toBe(false);
   });
 
-  // A numbered client name, so a client never inherits the server name, one past
-  // the count the way a new section is named.
-  it('are named one past the count', () => {
-    expect(says("return 'client-%d'.format(taken.length + 1);")).toBe(true);
-  });
-
   it('show their name rather than the section id they are stored as', () => {
     expect(says('o.renderListItemLabel = function (sectionId, value) {')).toBe(
       true,
@@ -429,16 +423,10 @@ describe('the server table', () => {
   });
 
   // Add creates the section before the dialog is filled in, and nothing writes
-  // the enable switch until the dialog is saved: a server without one counts as
-  // disabled, so an abandoned one is skipped by the validator and the generator.
+  // the enable switch until the dialog is saved.
   it('leaves the enable switch unwritten until the dialog is saved', () => {
     expect(says("uci.set(FORKOP_UCI_PACKAGE, sectionId, 'enabled'")).toBe(
       false,
-    );
-    expect(says('addedServers.add(sectionId);')).toBe(true);
-    expect(says('addedServers.delete(sectionId);')).toBe(true);
-    expect(says("uci.unset(FORKOP_UCI_PACKAGE, sectionId, 'enabled');")).toBe(
-      true,
     );
   });
 });

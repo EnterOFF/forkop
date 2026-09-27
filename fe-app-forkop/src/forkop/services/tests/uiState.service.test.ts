@@ -83,7 +83,6 @@ describe('applyUiStateToStore', () => {
       data: {
         forkopEnabled: 1,
         forkopRunning: 0,
-        forkopStatus: 'stopped but enabled',
         forkopBusy: 'start',
       },
     });
@@ -195,7 +194,6 @@ describe('applyUiStateToStore', () => {
 
     expect(state.servicesInfoWidget.data).toMatchObject({
       forkopRunning: 1,
-      forkopStatus: 'running & enabled',
       forkopBusy: 'apply',
     });
     expect(state.diagnosticsActions.restart.loading).toBe(false);

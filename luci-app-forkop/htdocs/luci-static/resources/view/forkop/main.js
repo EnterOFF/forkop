@@ -161,297 +161,6 @@ function renderLoaderCircleIcon24() {
   );
 }
 
-// src/helpers/parseValueList.ts
-function parseValueList(value) {
-  return value.split(/\n/).map((line) => line.split("//")[0].split("#")[0]).join(" ").split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
-}
-
-// src/helpers/downloadAsTxt.ts
-function downloadAsTxt(text, filename) {
-  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  const safeName = filename.endsWith(".txt") ? filename : `${filename}.txt`;
-  link.download = safeName;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(link.href);
-}
-
-// src/forkop/services/logger.service.ts
-var Logger = class {
-  constructor() {
-    this.logs = [];
-    this.levels = ["debug", "info", "warn", "error"];
-  }
-  format(level, ...args) {
-    return `[${level.toUpperCase()}] ${args.join(" ")}`;
-  }
-  push(level, ...args) {
-    if (!this.levels.includes(level)) level = "info";
-    const message = this.format(level, ...args);
-    this.logs.push(message);
-    switch (level) {
-      case "error":
-        console.error(message);
-        break;
-      case "warn":
-        console.warn(message);
-        break;
-      case "info":
-        console.info(message);
-        break;
-      default:
-        console.log(message);
-    }
-  }
-  debug(...args) {
-    this.push("debug", ...args);
-  }
-  info(...args) {
-    this.push("info", ...args);
-  }
-  warn(...args) {
-    this.push("warn", ...args);
-  }
-  error(...args) {
-    this.push("error", ...args);
-  }
-  clear() {
-    this.logs = [];
-  }
-  getLogs() {
-    return this.logs.join("\n");
-  }
-  download(filename = "logs.txt") {
-    if (typeof document === "undefined") {
-      console.warn("Logger.download() \u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D \u0442\u043E\u043B\u044C\u043A\u043E \u0432 \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0435");
-      return;
-    }
-    downloadAsTxt(this.getLogs(), filename);
-  }
-};
-var logger = new Logger();
-
-// src/helpers/withTimeout.ts
-async function withTimeout(promise, timeoutMs, operationName, timeoutMessage = _("Operation timed out")) {
-  let timeoutId;
-  const start = performance.now();
-  const timeoutPromise = new Promise((_2, reject) => {
-    timeoutId = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
-  });
-  try {
-    return await Promise.race([promise, timeoutPromise]);
-  } finally {
-    clearTimeout(timeoutId);
-    const elapsed = performance.now() - start;
-    logger.info("[SHELL]", `[${operationName}] took ${elapsed.toFixed(2)} ms`);
-  }
-}
-
-// src/helpers/alignLuciRpcTimeout.ts
-var LUCI_RPC_TIMEOUT_DEFAULT_SECONDS = 20;
-var LUCI_RPC_TIMEOUT_HEADROOM_SECONDS = 5;
-function alignLuciRpcTimeout(timeoutMs) {
-  const env = typeof L === "undefined" ? void 0 : L?.env;
-  if (!env || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-    return;
-  }
-  const required = Math.ceil(timeoutMs / 1e3) + LUCI_RPC_TIMEOUT_HEADROOM_SECONDS;
-  const current = typeof env.rpctimeout === "number" && Number.isFinite(env.rpctimeout) ? env.rpctimeout : LUCI_RPC_TIMEOUT_DEFAULT_SECONDS;
-  if (current < required) {
-    env.rpctimeout = required;
-  }
-}
-
-// src/helpers/callUbus.ts
-function rpcModule() {
-  const candidate = typeof rpc === "undefined" ? void 0 : rpc;
-  return candidate;
-}
-var UNAVAILABLE_STATUS = /* @__PURE__ */ new Set([
-  2,
-  // invalid argument
-  4,
-  // method not found
-  5,
-  // not found
-  6
-  // permission denied
-]);
-function isUnavailable(error) {
-  const status = error?.ubus_rpc_status;
-  if (typeof status === "number") {
-    return UNAVAILABLE_STATUS.has(status);
-  }
-  const message = error instanceof Error ? error.message : String(error ?? "");
-  return /not found|permission denied|Object not found/i.test(message);
-}
-var UNAVAILABLE_RETRIES = 2;
-var UNAVAILABLE_RETRY_MS = 700;
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-async function callUbus(options) {
-  const attempts = options.retryUnavailable === false ? 1 : UNAVAILABLE_RETRIES + 1;
-  let last = await callUbusOnce(options);
-  for (let attempt = 1; attempt < attempts && !last.success && last.unavailable; attempt++) {
-    await wait(UNAVAILABLE_RETRY_MS);
-    last = await callUbusOnce(options);
-  }
-  return last;
-}
-async function callUbusOnce({
-  object,
-  method,
-  params = {},
-  timeoutMs
-}) {
-  const rpc2 = rpcModule();
-  if (!rpc2) {
-    return { success: false, message: "rpc unavailable", unavailable: true };
-  }
-  alignLuciRpcTimeout(timeoutMs);
-  try {
-    const names = Object.keys(params);
-    const request = rpc2.declare({ object, method, params: names });
-    const call = request(...names.map((name) => params[name]));
-    const data = await withTimeout(call, timeoutMs, `${object}.${method}`);
-    if (data === null || data === void 0) {
-      return { success: false, message: "empty reply", unavailable: false };
-    }
-    return { success: true, data };
-  } catch (error) {
-    return {
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
-      unavailable: isUnavailable(error)
-    };
-  }
-}
-
-// src/helpers/executeShellCommand.ts
-async function executeShellCommand({
-  command,
-  args,
-  timeout = COMMAND_TIMEOUT
-}) {
-  try {
-    if (timeout !== null) {
-      alignLuciRpcTimeout(timeout);
-    }
-    const request = fs.exec(command, args);
-    return timeout === null ? await request : await withTimeout(request, timeout, [command, ...args].join(" "));
-  } catch (err) {
-    const error = err;
-    const code = typeof error?.code === "number" ? error.code : 1;
-    return { stdout: "", stderr: error?.message, code };
-  }
-}
-
-// src/helpers/getProxyUrlName.ts
-function getProxyUrlName(url) {
-  try {
-    if (url.startsWith("vmess://")) {
-      const source = url.slice("vmess://".length);
-      const encoded = source.startsWith("{") ? source : source.split(/[@?#]/, 1)[0];
-      const payload = encoded.startsWith("{") ? encoded : new TextDecoder().decode(
-        Uint8Array.from(
-          atob(
-            encoded.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(encoded.length / 4) * 4, "=")
-          ),
-          (character) => character.charCodeAt(0)
-        )
-      );
-      const name = JSON.parse(payload)?.ps;
-      if (typeof name === "string" && name) return name;
-    }
-    const [_link, hash] = url.split("#");
-    if (!hash) {
-      return "";
-    }
-    return decodeURIComponent(hash);
-  } catch {
-    return "";
-  }
-}
-
-// src/helpers/onMount.ts
-function getTarget(target) {
-  if (typeof target === "string") {
-    return document.getElementById(target);
-  }
-  return target;
-}
-async function onMount(target) {
-  return new Promise((resolve) => {
-    let observer = null;
-    const resolveIfMountedAndVisible = () => {
-      const mountedTarget = getTarget(target);
-      if (mountedTarget && mountedTarget.isConnected && mountedTarget.offsetParent !== null) {
-        observer?.disconnect();
-        resolve(mountedTarget);
-        return true;
-      }
-      return false;
-    };
-    if (resolveIfMountedAndVisible()) {
-      return;
-    }
-    observer = new MutationObserver(() => {
-      resolveIfMountedAndVisible();
-    });
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ["class", "style", "hidden"]
-    });
-  });
-}
-
-// src/helpers/getClashApiUrl.ts
-function getWindowLocation() {
-  return typeof window !== "undefined" ? window.location : void 0;
-}
-function canUseDirectClashApi() {
-  const location = getWindowLocation();
-  return typeof location?.hostname === "string" && location.hostname !== "" && location.protocol !== "https:";
-}
-function getClashWsUrl() {
-  const { hostname } = window.location;
-  return `ws://${hostname}:9090`;
-}
-function getClashHttpUrl() {
-  const { hostname } = window.location;
-  return `http://${hostname}:9090`;
-}
-function getClashUIUrl() {
-  const { hostname } = window.location;
-  return `http://${hostname}:9090/ui`;
-}
-
-// src/helpers/preserveScrollForPage.ts
-function preserveScrollForPage(renderFn) {
-  const scrollY = window.scrollY;
-  renderFn();
-  requestAnimationFrame(() => {
-    window.scrollTo({ top: scrollY });
-  });
-}
-
-// src/helpers/insertIf.ts
-function insertIf(condition, elements) {
-  return condition ? elements : [];
-}
-
-// src/helpers/isCopyableProxyLink.ts
-var COPYABLE_PROXY_URI_RE = /^(anytls|http2|http3|https?|naive\+https|naive\+quic|mieru|mierus|vless|vmess|trojan|ss|hysteria|hysteria2|hy2|tuic|socks|socks4|socks4a|socks5):\/\//i;
-function isCopyableProxyLink(link) {
-  return COPYABLE_PROXY_URI_RE.test((link || "").trim());
-}
-
 // src/icons/renderCircleAlertIcon24.ts
 function renderCircleAlertIcon24() {
   const NS = "http://www.w3.org/2000/svg";
@@ -1067,6 +776,12 @@ function renderChevronUpIcon24() {
   );
 }
 
+// src/helpers/isCopyableProxyLink.ts
+var COPYABLE_PROXY_URI_RE = /^(anytls|http2|http3|https?|naive\+https|naive\+quic|mieru|mierus|vless|vmess|trojan|ss|hysteria|hysteria2|hy2|tuic|socks|socks4|socks4a|socks5):\/\//i;
+function isCopyableProxyLink(link) {
+  return COPYABLE_PROXY_URI_RE.test((link || "").trim());
+}
+
 // src/helpers/prettyBytes.ts
 function prettyBytes(n) {
   const UNITS = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
@@ -1159,9 +874,9 @@ function renderSubscriptionMetadata(metadata) {
     refillDate ? { label: _("Refill"), value: refillDate } : void 0
   ].filter(Boolean);
   const actions = [
-    renderMetadataAction("Profile", metadata.webPageUrl),
-    renderMetadataAction("Support", metadata.supportUrl),
-    renderMetadataAction("More details", metadata.announceUrl)
+    renderMetadataAction(_("Profile"), metadata.webPageUrl),
+    renderMetadataAction(_("Support"), metadata.supportUrl),
+    renderMetadataAction(_("More details"), metadata.announceUrl)
   ].filter(Boolean);
   if (!title && !rows.length && !actions.length && !metadata.announce) {
     return void 0;
@@ -1293,7 +1008,7 @@ function renderDefaultState({
 }) {
   function testLatency() {
     if (section.withTagSelect) {
-      return onTestLatency(section.latencyTestCode || section.code);
+      return onTestLatency(section.code);
     }
     if (section.outbounds.length) {
       return onTestLatency(section.outbounds[0].code);
@@ -1316,7 +1031,7 @@ function renderDefaultState({
       section.withTagSelect && !canChooseOutbound ? "fkp_dashboard-page__outbound-grid__item--disabled" : ""
     ].filter(Boolean).join(" ");
     const latencyClass = latencyClassName(outbound.latency);
-    const latencyValue = outbound.latency ? `${outbound.latency}ms` : "N/A";
+    const latencyValue = outbound.latency ? `${outbound.latency}ms` : _("N/A");
     const latency = showLatency ? textE(
       "button",
       {
@@ -1325,8 +1040,6 @@ function renderDefaultState({
         title: _("Test latency"),
         "aria-label": _("Test latency"),
         "aria-busy": outboundLatencyFetching ? "true" : void 0,
-        "data-latency-section": section.sectionName,
-        "data-latency-code": outbound.code,
         disabled: canTestOutboundLatency ? void 0 : true,
         click: (event) => {
           event.preventDefault();
@@ -1508,7 +1221,6 @@ function renderDefaultState({
             {
               type: "button",
               class: "btn dashboard-sections-grid-item-test-latency",
-              "data-latency-section": section.sectionName,
               "aria-busy": latencyFetching ? "true" : void 0,
               disabled: latencyFetching ? true : void 0,
               click: (event) => {
@@ -1715,6 +1427,73 @@ function render() {
   );
 }
 
+// src/helpers/getClashApiUrl.ts
+function getWindowLocation() {
+  return typeof window !== "undefined" ? window.location : void 0;
+}
+function canUseDirectClashApi() {
+  const location = getWindowLocation();
+  return typeof location?.hostname === "string" && location.hostname !== "" && location.protocol !== "https:";
+}
+function getClashWsUrl() {
+  const { hostname } = window.location;
+  return `ws://${hostname}:9090`;
+}
+function getClashSocketUrl(path, secret) {
+  return `${getClashWsUrl()}${path}?token=${encodeURIComponent(secret)}`;
+}
+function getClashHttpUrl() {
+  const { hostname } = window.location;
+  return `http://${hostname}:9090`;
+}
+function getClashUIUrl() {
+  const { hostname } = window.location;
+  return `http://${hostname}:9090/ui`;
+}
+
+// src/helpers/onMount.ts
+function getTarget(target) {
+  if (typeof target === "string") {
+    return document.getElementById(target);
+  }
+  return target;
+}
+async function onMount(target) {
+  return new Promise((resolve) => {
+    let observer = null;
+    const resolveIfMountedAndVisible = () => {
+      const mountedTarget = getTarget(target);
+      if (mountedTarget && mountedTarget.isConnected && mountedTarget.offsetParent !== null) {
+        observer?.disconnect();
+        resolve(mountedTarget);
+        return true;
+      }
+      return false;
+    };
+    if (resolveIfMountedAndVisible()) {
+      return;
+    }
+    observer = new MutationObserver(() => {
+      resolveIfMountedAndVisible();
+    });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class", "style", "hidden"]
+    });
+  });
+}
+
+// src/helpers/preserveScrollForPage.ts
+function preserveScrollForPage(renderFn) {
+  const scrollY = window.scrollY;
+  renderFn();
+  requestAnimationFrame(() => {
+    window.scrollTo({ top: scrollY });
+  });
+}
+
 // src/helpers/showToast.ts
 function showToast(message, type, duration = 3e3) {
   let container = document.querySelector(".toast-container");
@@ -1740,13 +1519,16 @@ function copyToClipboard(text) {
   textarea.value = text;
   document.body.appendChild(textarea);
   textarea.select();
+  let copied = false;
   try {
-    document.execCommand("copy");
-    showToast(_("Copied"), "success");
-  } catch (_err) {
-    showToast(_("Failed to copy!"), "error");
-    console.error("copyToClipboard - e", _err);
+    copied = document.execCommand("copy");
+  } catch (error) {
+    console.error("copyToClipboard", error);
   }
+  showToast(
+    copied ? _("Copied") : _("Failed to copy!"),
+    copied ? "success" : "error"
+  );
   document.body.removeChild(textarea);
 }
 
@@ -1754,6 +1536,119 @@ function copyToClipboard(text) {
 async function getConfigSections() {
   await uci.load(FORKOP_UCI_PACKAGE);
   return uci.sections(FORKOP_UCI_PACKAGE);
+}
+
+// src/helpers/getProxyUrlName.ts
+function getProxyUrlName(url) {
+  const link = `${url ?? ""}`;
+  const scheme = link.includes("://") ? link.slice(0, link.indexOf("://")).toLowerCase() : "";
+  if (scheme === "vmess") {
+    const name = vmessName(link.slice("vmess://".length));
+    if (name) {
+      return name;
+    }
+  }
+  const marker = link.indexOf("#");
+  return marker >= 0 ? percentDecode(link.slice(marker + 1)) : "";
+}
+function vmessName(source) {
+  let payload = source;
+  if (!payload.startsWith("{")) {
+    const encoded = payload.split(/[@?#]/, 1)[0].replace(/-/g, "+").replace(/_/g, "/");
+    try {
+      payload = new TextDecoder().decode(
+        Uint8Array.from(
+          atob(encoded.padEnd(Math.ceil(encoded.length / 4) * 4, "=")),
+          (character) => character.charCodeAt(0)
+        )
+      );
+    } catch {
+      return "";
+    }
+  }
+  try {
+    const name = JSON.parse(payload)?.ps;
+    return name ? `${name}` : "";
+  } catch {
+    return "";
+  }
+}
+function percentDecode(value) {
+  const bytes = [];
+  const encoder = new TextEncoder();
+  for (let i = 0; i < value.length; ) {
+    const hex = value.slice(i + 1, i + 3);
+    if (value[i] === "%" && /^[0-9A-Fa-f]{2}$/.test(hex)) {
+      bytes.push(parseInt(hex, 16));
+      i += 3;
+      continue;
+    }
+    const character = String.fromCodePoint(value.codePointAt(i));
+    bytes.push(...encoder.encode(character));
+    i += character.length;
+  }
+  return new TextDecoder().decode(new Uint8Array(bytes));
+}
+
+// src/helpers/alignLuciRpcTimeout.ts
+var LUCI_RPC_TIMEOUT_DEFAULT_SECONDS = 20;
+var LUCI_RPC_TIMEOUT_HEADROOM_SECONDS = 5;
+function alignLuciRpcTimeout(timeoutMs) {
+  const env = typeof L === "undefined" ? void 0 : L?.env;
+  if (!env || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    return;
+  }
+  const required = Math.ceil(timeoutMs / 1e3) + LUCI_RPC_TIMEOUT_HEADROOM_SECONDS;
+  const current = typeof env.rpctimeout === "number" && Number.isFinite(env.rpctimeout) ? env.rpctimeout : LUCI_RPC_TIMEOUT_DEFAULT_SECONDS;
+  if (current < required) {
+    env.rpctimeout = required;
+  }
+}
+
+// src/forkop/services/logger.service.ts
+function write(level, args) {
+  console[level](`[${level.toUpperCase()}]`, ...args);
+}
+var logger = {
+  debug: (...args) => write("debug", args),
+  info: (...args) => write("info", args),
+  warn: (...args) => write("warn", args),
+  error: (...args) => write("error", args)
+};
+
+// src/helpers/withTimeout.ts
+async function withTimeout(promise, timeoutMs, operationName, timeoutMessage = _("Operation timed out")) {
+  let timeoutId;
+  const start = performance.now();
+  const timeoutPromise = new Promise((_2, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    clearTimeout(timeoutId);
+    const elapsed = performance.now() - start;
+    logger.debug("[SHELL]", `[${operationName}] took ${elapsed.toFixed(2)} ms`);
+  }
+}
+
+// src/helpers/executeShellCommand.ts
+async function executeShellCommand({
+  command,
+  args,
+  timeout = COMMAND_TIMEOUT
+}) {
+  try {
+    if (timeout !== null) {
+      alignLuciRpcTimeout(timeout);
+    }
+    const request = fs.exec(command, args);
+    return timeout === null ? await request : await withTimeout(request, timeout, [command, ...args].join(" "));
+  } catch (err) {
+    const error = err;
+    const code = typeof error?.code === "number" ? error.code : 1;
+    return { stdout: "", stderr: error?.message, code };
+  }
 }
 
 // src/forkop/methods/shell/callBaseMethod.ts
@@ -1765,7 +1660,7 @@ async function callBaseMethod(method, args = [], command = "/usr/bin/forkop", op
       timeout: options.timeout === void 0 ? 15e3 : options.timeout
     });
     const exitCode = response.code ?? 0;
-    if (exitCode !== 0 && !(options.allowNonZeroWithStdout && response.stdout)) {
+    if (exitCode !== 0) {
       return {
         success: false,
         error: response.stderr || response.stdout || ""
@@ -1815,9 +1710,7 @@ var Forkop;
     AvailableMethods2["SHOW_CONFIG"] = "show_config";
     AvailableMethods2["SHOW_SING_BOX_CONFIG"] = "show_sing_box_config";
     AvailableMethods2["CHECK_LOGS"] = "check_logs";
-    AvailableMethods2["CHECK_SING_BOX_LOGS"] = "check_sing_box_logs";
     AvailableMethods2["GET_SYSTEM_INFO"] = "get_system_info";
-    AvailableMethods2["GET_UI_CAPABILITIES"] = "get_ui_capabilities";
     AvailableMethods2["GET_UI_STATE"] = "get_ui_state";
     AvailableMethods2["GET_SECTION_RULE_SETS"] = "get_section_rule_sets";
     AvailableMethods2["SERVICE_ACTION_ASYNC"] = "service_action_async";
@@ -1827,6 +1720,72 @@ var Forkop;
     AvailableMethods2["COMPONENT_UPDATE_CHECK_CACHE"] = "component_update_check_cache";
   })(AvailableMethods = Forkop2.AvailableMethods || (Forkop2.AvailableMethods = {}));
 })(Forkop || (Forkop = {}));
+
+// src/helpers/callUbus.ts
+function rpcModule() {
+  const candidate = typeof rpc === "undefined" ? void 0 : rpc;
+  return candidate;
+}
+var UNAVAILABLE_STATUS = /* @__PURE__ */ new Set([
+  2,
+  // invalid argument
+  4,
+  // method not found
+  5,
+  // not found
+  6
+  // permission denied
+]);
+function isUnavailable(error) {
+  const status = error?.ubus_rpc_status;
+  if (typeof status === "number") {
+    return UNAVAILABLE_STATUS.has(status);
+  }
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /not found|permission denied|Object not found/i.test(message);
+}
+var UNAVAILABLE_RETRIES = 2;
+var UNAVAILABLE_RETRY_MS = 700;
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+async function callUbus(options) {
+  const attempts = options.retryUnavailable === false ? 1 : UNAVAILABLE_RETRIES + 1;
+  let last = await callUbusOnce(options);
+  for (let attempt = 1; attempt < attempts && !last.success && last.unavailable; attempt++) {
+    await wait(UNAVAILABLE_RETRY_MS);
+    last = await callUbusOnce(options);
+  }
+  return last;
+}
+async function callUbusOnce({
+  object,
+  method,
+  params = {},
+  timeoutMs
+}) {
+  const rpc2 = rpcModule();
+  if (!rpc2) {
+    return { success: false, message: "rpc unavailable", unavailable: true };
+  }
+  alignLuciRpcTimeout(timeoutMs);
+  try {
+    const names = Object.keys(params);
+    const request = rpc2.declare({ object, method, params: names });
+    const call = request(...names.map((name) => params[name]));
+    const data = await withTimeout(call, timeoutMs, `${object}.${method}`);
+    if (data === null || data === void 0) {
+      return { success: false, message: "empty reply", unavailable: false };
+    }
+    return { success: true, data };
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : String(error),
+      unavailable: isUnavailable(error)
+    };
+  }
+}
 
 // src/forkop/helpers/isTransientRpcError.ts
 var TRANSIENT_RPC_ERROR_PATTERNS = [
@@ -1865,8 +1824,15 @@ function translate(message) {
 }
 function checkLogs() {
   if (!checkLogsRequest) {
-    checkLogsRequest = callBaseMethod(
-      Forkop.AvailableMethods.CHECK_LOGS
+    checkLogsRequest = executeShellCommand({
+      command: "/usr/bin/forkop",
+      args: [Forkop.AvailableMethods.CHECK_LOGS],
+      timeout: 15e3
+    }).then(
+      (response) => response.code ? {
+        success: false,
+        error: response.stderr || response.stdout || ""
+      } : { success: true, data: response.stdout }
     ).finally(() => {
       checkLogsRequest = null;
     });
@@ -2010,9 +1976,8 @@ var ForkopShellMethods = {
     "/usr/bin/forkop",
     { timeout: CLASH_HTTP_TRANSPORT_TIMEOUT_MS }
   ),
-  // Through the CLI, not the init script: every init script command blocks on
-  // procd's per-service lock, so toggling autostart waited out whatever action
-  // was running. The CLI writes the rc.d symlink and returns at once.
+  // Through the CLI, not the init script: every init script command waits on
+  // procd's per-service lock, and the CLI writes the rc.d symlink at once.
   enable: async () => callBaseMethod(Forkop.AvailableMethods.ENABLE),
   disable: async () => callBaseMethod(Forkop.AvailableMethods.DISABLE),
   globalCheck: async (masked = true) => diagnosticCheck(Forkop.AvailableMethods.GLOBAL_CHECK, [
@@ -2025,7 +1990,6 @@ var ForkopShellMethods = {
     masked ? "masked" : "raw"
   ]),
   checkLogs,
-  checkSingBoxLogs: async () => callBaseMethod(Forkop.AvailableMethods.CHECK_SING_BOX_LOGS),
   // Working the versions out means asking opkg and sing-box, about 1.7 s.
   // The state service holds the answer for as long as the installed packages
   // have not changed; the CLI is what answers when it is not running.
@@ -2042,9 +2006,6 @@ var ForkopShellMethods = {
       Forkop.AvailableMethods.GET_SYSTEM_INFO
     );
   },
-  getUiCapabilities: async () => callBaseMethod(
-    Forkop.AvailableMethods.GET_UI_CAPABILITIES
-  ),
   // Which rule-set tags belong to which section. Named by the runtime, because
   // a built-in list is named per section and a custom reference by a hash of
   // itself - neither is reconstructible here.
@@ -2202,6 +2163,23 @@ var ForkopShellMethods = {
     }
   }
 };
+
+// src/helpers/subscriptionTags.ts
+function subscriptionTags(stored) {
+  const tags = stored.map((tag) => `${tag ?? ""}`.trim());
+  const taken = new Set(tags.filter(Boolean));
+  return tags.map((tag, index) => {
+    if (tag) {
+      return tag;
+    }
+    let number = index + 1;
+    while (taken.has(`sub${number}`)) {
+      number += 1;
+    }
+    taken.add(`sub${number}`);
+    return `sub${number}`;
+  });
+}
 
 // src/forkop/methods/custom/getDashboardSections.ts
 var CLASH_API_FETCH_TIMEOUT_MS = 5e3;
@@ -2802,7 +2780,7 @@ function getUrlTestDisplayName(section, id, settings) {
   return itemSettingString(
     settings,
     "display_name",
-    id === "urltest" && !hasConfiguredUrlTestList(section) ? _("Fastest") : id
+    id === "urltest" && !hasConfiguredUrlTestList(section) ? "Fastest" : id
   );
 }
 function getUrlTestConfigs(section) {
@@ -2915,10 +2893,10 @@ function getFallbackConfigs(section) {
     };
   });
 }
-function getOutboundPresentation(code, sectionDisplayName, subscriptionTags) {
+function getOutboundPresentation(code, sectionDisplayName, subscriptionTags2) {
   const sectionPrefix = `${sectionDisplayName}/`;
   const relativeCode = code.startsWith(sectionPrefix) ? code.slice(sectionPrefix.length) : code;
-  const subscription = subscriptionTags.find(
+  const subscription = subscriptionTags2.find(
     (item) => item.outboundCodes.has(code)
   );
   return {
@@ -2936,7 +2914,7 @@ function buildUrlTestInfo({
   manualLinkByCode,
   exportableProviderTags,
   sectionDisplayName,
-  subscriptionTags
+  subscriptionTags: subscriptionTags2
 }) {
   const childCodes = uniqueCodes(entry?.value.all || []);
   const selectedCode = entry?.value.now || "";
@@ -2952,7 +2930,7 @@ function buildUrlTestInfo({
       const presentation = getOutboundPresentation(
         childCode,
         sectionDisplayName,
-        subscriptionTags
+        subscriptionTags2
       );
       return [
         {
@@ -2989,7 +2967,7 @@ function buildFallbackInfo({
   manualLinkByCode,
   exportableProviderTags,
   sectionDisplayName,
-  subscriptionTags
+  subscriptionTags: subscriptionTags2
 }) {
   const selectedCode = entry?.value.now || "";
   const pinnedCode = entry?.value.fixed || "";
@@ -3018,7 +2996,7 @@ function buildFallbackInfo({
       const presentation = getOutboundPresentation(
         childCode,
         sectionDisplayName,
-        subscriptionTags
+        subscriptionTags2
       );
       return {
         code: childCode,
@@ -3052,9 +3030,9 @@ function buildFallbackInfo({
     outbounds
   };
 }
-function buildProxyGroupOutbounds(section, proxies, subscriptionTags) {
+function buildProxyGroupOutbounds(section, proxies, subscriptionTags2) {
   const sectionDisplayName = getDisplayName(section);
-  const exportableProviderTags = subscriptionTags.map(
+  const exportableProviderTags = subscriptionTags2.map(
     (item) => item.runtimeTag
   );
   const proxyByCode = getProxyEntryByCode(proxies);
@@ -3132,7 +3110,7 @@ function buildProxyGroupOutbounds(section, proxies, subscriptionTags) {
     const presentation = getOutboundPresentation(
       code,
       sectionDisplayName,
-      subscriptionTags
+      subscriptionTags2
     );
     const displayName = fallbackConfig?.displayName || urlTestConfig?.displayName || presentation.displayName;
     const isRuntimeUrlTest = isUrlTestProxyEntry(item);
@@ -3149,7 +3127,7 @@ function buildProxyGroupOutbounds(section, proxies, subscriptionTags) {
       manualLinkByCode,
       exportableProviderTags,
       sectionDisplayName,
-      subscriptionTags
+      subscriptionTags: subscriptionTags2
     }) : void 0;
     const fallbackInfo = fallbackConfig ? buildFallbackInfo({
       config: fallbackConfig,
@@ -3158,7 +3136,7 @@ function buildProxyGroupOutbounds(section, proxies, subscriptionTags) {
       manualLinkByCode,
       exportableProviderTags,
       sectionDisplayName,
-      subscriptionTags
+      subscriptionTags: subscriptionTags2
     }) : void 0;
     const groupInfo = urlTestInfo || fallbackInfo;
     const selectedGroupMember = groupInfo?.outbounds.find(
@@ -3181,7 +3159,6 @@ function buildProxyGroupOutbounds(section, proxies, subscriptionTags) {
   });
   return {
     selector,
-    latencyTestCode: selector?.code,
     outbounds
   };
 }
@@ -3193,13 +3170,13 @@ function isSubscriptionMetadataVisible(section, sourceIndex) {
 function getSectionSubscriptionTags(section, providers) {
   const sectionDisplayName = getDisplayName(section);
   const settings = itemSettingsMap(section.subscription_url_settings);
-  return getListValues(section.subscription_urls).map((source, index) => {
+  const sources = getListValues(section.subscription_urls);
+  const tags = subscriptionTags(
+    sources.map((source) => itemSettingString(settings[source], "tag", ""))
+  );
+  return sources.map((source, index) => {
     const sourceSettings = settings[source];
-    const displayTag = itemSettingString(
-      sourceSettings,
-      "tag",
-      `sub${index + 1}`
-    );
+    const displayTag = tags[index];
     return {
       runtimeTag: `${sectionDisplayName}/${displayTag}`,
       displayTag,
@@ -3249,8 +3226,8 @@ function providerSubscriptionMetadata(provider, sourceIndex, subscriptionTag) {
     ...expire ? { expire } : {}
   };
 }
-function getSubscriptionMetadata(section, sourceCount, subscriptionTags, providers) {
-  const items = subscriptionTags.slice(0, sourceCount).flatMap((tag, index) => {
+function getSubscriptionMetadata(section, sourceCount, subscriptionTags2, providers) {
+  const items = subscriptionTags2.slice(0, sourceCount).flatMap((tag, index) => {
     const sourceIndex = index + 1;
     const provider = providers[tag.runtimeTag];
     if (!provider || provider.subscriptionInfo === void 0 && provider.subscriptionMetadata === void 0) {
@@ -3302,17 +3279,17 @@ async function getDashboardSections() {
     if (isConnectionAction(sectionAction) && shouldUseProxyGroup(section)) {
       const subscriptionSourceCount = getSubscriptionSourceCount(section);
       const subscriptionEnabled = subscriptionSourceCount > 0;
-      const subscriptionTags = getSectionSubscriptionTags(section, providers);
+      const subscriptionTags2 = getSectionSubscriptionTags(section, providers);
       const subscriptionMetadata = subscriptionEnabled ? getSubscriptionMetadata(
         section,
         subscriptionSourceCount,
-        subscriptionTags,
+        subscriptionTags2,
         providers
       ) : void 0;
-      const { selector, latencyTestCode, outbounds } = buildProxyGroupOutbounds(
+      const { selector, outbounds } = buildProxyGroupOutbounds(
         section,
         proxies,
-        subscriptionTags
+        subscriptionTags2
       );
       return {
         withTagSelect: true,
@@ -3320,10 +3297,9 @@ async function getDashboardSections() {
         sectionName,
         displayName,
         action: sectionAction,
-        latencyTestCode,
         proxyConfigType,
         subscriptionSourceCount,
-        subscriptionProviderTags: subscriptionTags.map(
+        subscriptionProviderTags: subscriptionTags2.map(
           (item) => item.runtimeTag
         ),
         ruleSetProviderTags: ruleSetTags[sectionName] || [],
@@ -3388,13 +3364,6 @@ async function getDashboardSections() {
   };
 }
 
-// src/forkop/methods/custom/getClashApiSecret.ts
-async function getClashApiSecret2() {
-  const sections = await getConfigSections();
-  const settings = sections.find((section) => section[".type"] === "settings");
-  return settings?.yacd_secret_key || "";
-}
-
 // src/forkop/methods/custom/index.ts
 var CustomForkopMethods = {
   getConfigSections,
@@ -3408,18 +3377,12 @@ var CustomForkopMethods = {
   updateClashApiProxyProviders,
   updateClashApiRuleProviders,
   closeClashApiConnection,
-  closeAllClashApiConnections,
-  getClashApiSecret: getClashApiSecret2
+  closeAllClashApiConnections
 };
 
 // src/forkop/api.ts
 async function createBaseApiRequest(fetchFn, options) {
-  const wrappedFn = () => options?.timeoutMs && options?.operationName ? withTimeout(
-    fetchFn(),
-    options.timeoutMs,
-    options.operationName,
-    options.timeoutMessage
-  ) : fetchFn();
+  const wrappedFn = () => options?.timeoutMs && options?.operationName ? withTimeout(fetchFn(), options.timeoutMs, options.operationName) : fetchFn();
   try {
     const response = await wrappedFn();
     if (!response.ok) {
@@ -3714,12 +3677,6 @@ var StoreService = class {
   unsubscribe(cb) {
     this.listeners.delete(cb);
   }
-  patch(key, value) {
-    this.set({ [key]: value });
-  }
-  getKey(key) {
-    return this.value[key];
-  }
   subscribeKey(key, cb) {
     let prev = this.value[key];
     const wrapper = (val) => {
@@ -3759,9 +3716,7 @@ var initialStore = {
       singbox: 0,
       forkopRunning: 0,
       forkopEnabled: 0,
-      forkopStatus: "",
-      forkopBusy: null,
-      forkopBusySeconds: 0
+      forkopBusy: null
     }
   },
   sectionsWidget: {
@@ -3778,6 +3733,20 @@ var store = new StoreService(initialStore);
 // src/helpers/isDocumentVisible.ts
 function isDocumentVisible() {
   return typeof document === "undefined" || !document.visibilityState || document.visibilityState === "visible";
+}
+function whenDocumentVisible(callback) {
+  if (isDocumentVisible()) {
+    callback();
+    return;
+  }
+  const onChange = () => {
+    if (!isDocumentVisible()) {
+      return;
+    }
+    document.removeEventListener("visibilitychange", onChange);
+    callback();
+  };
+  document.addEventListener("visibilitychange", onChange);
 }
 
 // src/forkop/services/forkopWaitTransport.ts
@@ -3796,62 +3765,54 @@ function adopt(reply) {
   }
   return reply.lines || [];
 }
-async function startForkopLogFeed(onNewLog) {
+function sleep2(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+function startForkopLogFeed(onNewLog) {
   if (running) {
-    return true;
+    return;
   }
-  const first = await callUbus({
-    object: FORKOP_SERVICE_OBJECT,
-    method: "logs",
-    timeoutMs: FORKOP_CALL_TIMEOUT_MS
-  });
-  if (!first.success) {
-    return false;
-  }
-  adopt(first.data);
   running = true;
   void (async () => {
-    try {
-      for (; ; ) {
-        if (!isDocumentVisible()) {
-          await new Promise(
-            (resolve) => setTimeout(resolve, FORKOP_WAIT_RETRY_MS)
-          );
-          continue;
-        }
-        const response = await callUbus({
-          object: FORKOP_SERVICE_OBJECT,
-          method: "logs_wait",
-          params: { cursor },
-          timeoutMs: FORKOP_WAIT_TIMEOUT_MS
-        });
-        if (response.success) {
-          for (const line of adopt(response.data)) {
+    let started = false;
+    for (; ; ) {
+      if (!isDocumentVisible()) {
+        await sleep2(FORKOP_WAIT_RETRY_MS);
+        continue;
+      }
+      const response = started ? await callUbus({
+        object: FORKOP_SERVICE_OBJECT,
+        method: "logs_wait",
+        params: { cursor },
+        timeoutMs: FORKOP_WAIT_TIMEOUT_MS
+      }) : await callUbus({
+        object: FORKOP_SERVICE_OBJECT,
+        method: "logs",
+        timeoutMs: FORKOP_CALL_TIMEOUT_MS
+      });
+      if (response.success) {
+        const lines = adopt(response.data);
+        if (started) {
+          for (const line of lines) {
             try {
               onNewLog(line);
             } catch (error) {
               logger.error("[LOG_FEED]", "listener failed", error);
             }
           }
-          continue;
         }
-        if (response.unavailable) {
-          logger.info("[LOG_FEED]", "log feed went away", response.message);
-          await new Promise(
-            (resolve) => setTimeout(resolve, FORKOP_LOG_RETRY_MS)
-          );
-          continue;
-        }
-        logger.error("[LOG_FEED]", "log wait failed", response.message);
-        await new Promise(
-          (resolve) => setTimeout(resolve, FORKOP_WAIT_RETRY_MS)
-        );
+        started = true;
+        continue;
       }
-    } finally {
-      running = false;
+      if (response.unavailable) {
+        logger.info("[LOG_FEED]", "log feed went away", response.message);
+        await sleep2(FORKOP_LOG_RETRY_MS);
+        continue;
+      }
+      logger.error("[LOG_FEED]", "log wait failed", response.message);
+      await sleep2(FORKOP_WAIT_RETRY_MS);
     }
   })();
-  return true;
 }
 
 // src/forkop/services/sessionStorage.service.ts
@@ -3888,10 +3849,7 @@ function writeStoredKeys(storage, keys) {
     return;
   }
   try {
-    storage.setItem(
-      LOG_NOTIFICATION_STORAGE_KEY,
-      JSON.stringify(keys.slice(-MAX_STORED_LOG_NOTIFICATIONS))
-    );
+    storage.setItem(LOG_NOTIFICATION_STORAGE_KEY, JSON.stringify(keys));
   } catch {
   }
 }
@@ -3922,7 +3880,9 @@ function getLogNotificationKey(line) {
 var LogNotificationDeduper = class {
   constructor(storage = getSessionStorage()) {
     this.storage = storage;
-    this.seenKeys = new Set(readStoredKeys(storage));
+    this.seenKeys = new Set(
+      readStoredKeys(storage).slice(-MAX_STORED_LOG_NOTIFICATIONS)
+    );
   }
   shouldNotify(line) {
     if (!getForkopLogNotification(line)) {
@@ -3933,6 +3893,10 @@ var LogNotificationDeduper = class {
       return false;
     }
     this.seenKeys.add(key);
+    for (const oldest of this.seenKeys) {
+      if (this.seenKeys.size <= MAX_STORED_LOG_NOTIFICATIONS) break;
+      this.seenKeys.delete(oldest);
+    }
     writeStoredKeys(this.storage, Array.from(this.seenKeys));
     return true;
   }
@@ -4016,9 +3980,7 @@ function applyServiceState(uiState) {
         singbox: uiState.service.sing_box.running,
         forkopRunning: uiState.service.forkop.running,
         forkopEnabled: uiState.service.forkop.enabled,
-        forkopStatus: uiState.service.forkop.status,
-        forkopBusy: uiState.service.forkop.busy || null,
-        forkopBusySeconds: uiState.service.forkop.busy_seconds || 0
+        forkopBusy: uiState.service.forkop.busy || null
       }
     },
     diagnosticsSystemInfo: nextSystemInfo
@@ -4425,7 +4387,10 @@ function componentDisplayName(component) {
 }
 function showLogNotification(notification) {
   if (notification.kind === "component-update") {
-    const message = _("New version %s is available for %s").replace("%s", notification.version).replace("%s", componentDisplayName(notification.component));
+    const message = _("New version %s is available for %s").format(
+      notification.version,
+      componentDisplayName(notification.component)
+    );
     ui.addNotification(
       _("Component update available"),
       textE("div", {}, message),
@@ -4441,7 +4406,7 @@ function showLogNotification(notification) {
     "fkp-log-error-notification"
   );
 }
-function coreService(options = {}) {
+function coreService() {
   TabServiceInstance.onChange((activeId, tabs) => {
     logger.info("[TAB]", activeId);
     store.set({
@@ -4460,23 +4425,13 @@ function coreService(options = {}) {
       }
     }
   };
-  const startLogFeed = async () => {
-    if (options.waitForLogWatcherStart) {
-      await Promise.resolve().then(() => options.waitForLogWatcherStart?.()).catch(() => null);
-    }
-    await startForkopLogFeed(notifyLogLine);
-  };
-  const scheduleStartLogFeed = () => window.setTimeout(() => {
-    void startLogFeed();
-  }, options.logWatcherStartDelayMs ?? LOG_FEED_START_DELAY_MS);
-  if (typeof window !== "undefined") {
-    scheduleStartLogFeed();
-    window.setTimeout(() => {
-      void ensureSystemInfo().catch(() => null);
-    }, SYSTEM_INFO_PREFETCH_DELAY_MS);
-  } else {
-    void startLogFeed();
-  }
+  window.setTimeout(
+    () => startForkopLogFeed(notifyLogLine),
+    LOG_FEED_START_DELAY_MS
+  );
+  window.setTimeout(() => {
+    void ensureSystemInfo().catch(() => null);
+  }, SYSTEM_INFO_PREFETCH_DELAY_MS);
   registerRuntimeStateResumeRefresh();
   startRuntimeUiStatePolling();
 }
@@ -4484,11 +4439,13 @@ function coreService(options = {}) {
 // src/forkop/services/socket.service.ts
 var RECONNECT_DELAY_MS = 1e3;
 var RECONNECT_DELAY_MAX_MS = 3e4;
+function shown(url) {
+  return url.split("?")[0];
+}
 var SocketManager = class _SocketManager {
   constructor() {
     this.sockets = /* @__PURE__ */ new Map();
     this.listeners = /* @__PURE__ */ new Map();
-    this.connected = /* @__PURE__ */ new Map();
     this.errorListeners = /* @__PURE__ */ new Map();
     this.failedAttempts = /* @__PURE__ */ new Map();
   }
@@ -4507,7 +4464,7 @@ var SocketManager = class _SocketManager {
       } catch (err) {
         logger.error(
           "[SOCKET]",
-          `resetAll: failed to close socket ${url}`,
+          `resetAll: failed to close socket ${shown(url)}`,
           err
         );
       }
@@ -4515,7 +4472,6 @@ var SocketManager = class _SocketManager {
     this.sockets.clear();
     this.listeners.clear();
     this.errorListeners.clear();
-    this.connected.clear();
     this.failedAttempts.clear();
     logger.info("[SOCKET]", "All connections and state have been reset.");
   }
@@ -4527,20 +4483,18 @@ var SocketManager = class _SocketManager {
     } catch (err) {
       logger.error(
         "[SOCKET]",
-        `failed to construct WebSocket for ${url}:`,
+        `failed to construct WebSocket for ${shown(url)}:`,
         err
       );
       this.triggerError(url, err instanceof Event ? err : String(err));
       return;
     }
     this.sockets.set(url, ws);
-    this.connected.set(url, false);
     if (!this.listeners.has(url)) this.listeners.set(url, /* @__PURE__ */ new Set());
     if (!this.errorListeners.has(url)) this.errorListeners.set(url, /* @__PURE__ */ new Set());
     ws.addEventListener("open", () => {
-      this.connected.set(url, true);
       this.failedAttempts.delete(url);
-      logger.info("[SOCKET]", "Connected to", url);
+      logger.info("[SOCKET]", "Connected to", shown(url));
     });
     ws.addEventListener("message", (event) => {
       const handlers = this.listeners.get(url);
@@ -4549,7 +4503,7 @@ var SocketManager = class _SocketManager {
           try {
             handler(event.data);
           } catch (err) {
-            logger.error("[SOCKET]", `Handler error for ${url}:`, err);
+            logger.error("[SOCKET]", `Handler error for ${shown(url)}:`, err);
           }
         }
       }
@@ -4557,8 +4511,7 @@ var SocketManager = class _SocketManager {
     ws.addEventListener("close", () => {
       if (this.sockets.get(url) !== ws) return;
       this.sockets.delete(url);
-      this.connected.set(url, false);
-      logger.warn("[SOCKET]", `Disconnected: ${url}`);
+      logger.warn("[SOCKET]", `Disconnected: ${shown(url)}`);
       this.triggerError(url, "Connection closed");
       const attempts = (this.failedAttempts.get(url) || 0) + 1;
       this.failedAttempts.set(url, attempts);
@@ -4575,7 +4528,7 @@ var SocketManager = class _SocketManager {
       );
     });
     ws.addEventListener("error", (err) => {
-      logger.error("[SOCKET]", `Socket error for ${url}:`, err);
+      logger.error("[SOCKET]", `Socket error for ${shown(url)}:`, err);
       this.triggerError(url, err);
     });
   }
@@ -4594,22 +4547,6 @@ var SocketManager = class _SocketManager {
     }
     this.listeners.get(url)?.add(listener);
   }
-  unsubscribe(url, listener, onError) {
-    this.listeners.get(url)?.delete(listener);
-    if (onError) {
-      this.errorListeners.get(url)?.delete(onError);
-    }
-  }
-  // eslint-disable-next-line
-  send(url, data) {
-    const ws = this.sockets.get(url);
-    if (ws && this.connected.get(url)) {
-      ws.send(typeof data === "string" ? data : JSON.stringify(data));
-    } else {
-      logger.warn("[SOCKET]", `Cannot send: not connected to ${url}`);
-      this.triggerError(url, "Not connected");
-    }
-  }
   disconnect(url) {
     const ws = this.sockets.get(url);
     if (ws) {
@@ -4618,13 +4555,7 @@ var SocketManager = class _SocketManager {
     this.sockets.delete(url);
     this.listeners.delete(url);
     this.errorListeners.delete(url);
-    this.connected.delete(url);
     this.failedAttempts.delete(url);
-  }
-  disconnectAll() {
-    for (const url of this.sockets.keys()) {
-      this.disconnect(url);
-    }
   }
   triggerError(url, err) {
     const handlers = this.errorListeners.get(url);
@@ -4633,7 +4564,7 @@ var SocketManager = class _SocketManager {
         try {
           cb(err);
         } catch (e) {
-          logger.error("[SOCKET]", `Error handler threw for ${url}:`, e);
+          logger.error("[SOCKET]", `Error handler threw for ${shown(url)}:`, e);
         }
       }
     }
@@ -4738,6 +4669,13 @@ function shouldNotifyOwnedUiAction(kind, jobId) {
   return uiActionNotifications.shouldNotify(kind, jobId);
 }
 
+// src/forkop/methods/custom/getClashApiSecret.ts
+async function getClashApiSecret2() {
+  const sections = await getConfigSections();
+  const settings = sections.find((section) => section[".type"] === "settings");
+  return settings?.yacd_secret_key || "";
+}
+
 // src/forkop/helpers/isActiveLuciTab.ts
 function isActiveLuciTab(tabId) {
   if (typeof document === "undefined") {
@@ -4760,6 +4698,66 @@ function pollDelayForDuration(baseIntervalMs, durationMs, maxIntervalMs) {
     Math.max(baseIntervalMs, Math.round(durationMs * POLL_DUTY_FACTOR)),
     maxIntervalMs
   );
+}
+
+// src/forkop/helpers/pollChain.ts
+function createPollChain(run, nextDelay) {
+  let generation = 0;
+  let active = false;
+  let running2 = false;
+  let timer = null;
+  const request = (current) => {
+    if (current !== generation || running2) {
+      return;
+    }
+    running2 = true;
+    void Promise.resolve().then(run).catch(() => void 0).finally(() => {
+      running2 = false;
+      if (current === generation) {
+        schedule(nextDelay(), current);
+      }
+    });
+  };
+  const schedule = (delay, current) => {
+    timer = setTimeout(() => {
+      timer = null;
+      whenDocumentVisible(() => request(current));
+    }, delay);
+  };
+  const clearTimer = () => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
+  return {
+    get active() {
+      return active;
+    },
+    start(delay) {
+      if (active) {
+        return;
+      }
+      active = true;
+      generation += 1;
+      schedule(delay, generation);
+    },
+    stop() {
+      active = false;
+      generation += 1;
+      running2 = false;
+      clearTimer();
+    },
+    // Asks now instead of waiting out the delay. A request already on its way
+    // is left to finish; it schedules the next one itself.
+    now() {
+      if (!active || running2) {
+        return;
+      }
+      clearTimer();
+      schedule(0, generation);
+    }
+  };
 }
 
 // src/forkop/helpers/serviceStatusDisplay.ts
@@ -4798,7 +4796,6 @@ var WIDGETS_POLL_INTERVAL_MS = 5e3;
 var WIDGETS_POLL_BACKOFF_MAX_MS = 3e4;
 var WIDGETS_POLL_DUTY_MAX_MS = 2e4;
 var WIDGETS_SOCKET_GRACE_MS = 2e3;
-var sectionsRefreshTimer = null;
 var sectionsRefreshFailures = 0;
 var lastSectionsRefreshDurationMs = 0;
 var sectionsRefreshPromise = null;
@@ -4807,8 +4804,6 @@ var dashboardMounted = false;
 var dashboardMountId = 0;
 var dashboardDataUpdatesStarted = false;
 var dashboardDataUpdatesId = 0;
-var widgetsPollTimer = null;
-var widgetsPolling = false;
 var widgetsPollFailures = 0;
 var widgetsSocketGraceTimer = null;
 var lastWidgetsPollDurationMs = 0;
@@ -5016,7 +5011,7 @@ async function pollWidgetsSnapshot(dataUpdatesId) {
   try {
     const response = await CustomForkopMethods.getClashApiConnectionsSummary();
     lastWidgetsPollDurationMs = Date.now() - startedAt;
-    if (!widgetsPolling || dataUpdatesId !== dashboardDataUpdatesId) {
+    if (!widgetsPoll.active || dataUpdatesId !== dashboardDataUpdatesId) {
       return;
     }
     if (!response.success) {
@@ -5027,7 +5022,7 @@ async function pollWidgetsSnapshot(dataUpdatesId) {
     applyWidgetsSnapshot(response.data);
   } catch (error) {
     logger.error("[DASHBOARD]", "pollWidgetsSnapshot: failed", error);
-    if (widgetsPolling && dataUpdatesId === dashboardDataUpdatesId) {
+    if (widgetsPoll.active && dataUpdatesId === dashboardDataUpdatesId) {
       reportWidgetsFailure();
     }
   }
@@ -5045,26 +5040,19 @@ function widgetsPollDelay() {
     WIDGETS_POLL_DUTY_MAX_MS
   );
 }
-function scheduleWidgetsPoll(dataUpdatesId, delay) {
-  widgetsPollTimer = setTimeout(() => {
-    widgetsPollTimer = null;
-    void pollWidgetsSnapshot(dataUpdatesId).finally(() => {
-      if (widgetsPolling && dataUpdatesId === dashboardDataUpdatesId) {
-        scheduleWidgetsPoll(dataUpdatesId, widgetsPollDelay());
-      }
-    });
-  }, delay);
-}
+var widgetsPoll = createPollChain(
+  () => pollWidgetsSnapshot(dashboardDataUpdatesId),
+  widgetsPollDelay
+);
 function startWidgetsPolling(dataUpdatesId) {
-  if (widgetsPolling || dataUpdatesId !== dashboardDataUpdatesId) {
+  if (widgetsPoll.active || dataUpdatesId !== dashboardDataUpdatesId) {
     return;
   }
-  widgetsPolling = true;
   widgetsPollFailures = 0;
-  scheduleWidgetsPoll(dataUpdatesId, 0);
+  widgetsPoll.start(0);
 }
 function stopWidgetsPolling() {
-  widgetsPolling = false;
+  widgetsPoll.stop();
   widgetsPollFailures = 0;
   lastPolledTotals = null;
   lastWidgetsPollDurationMs = 0;
@@ -5072,19 +5060,15 @@ function stopWidgetsPolling() {
     clearTimeout(widgetsSocketGraceTimer);
     widgetsSocketGraceTimer = null;
   }
-  if (widgetsPollTimer) {
-    clearTimeout(widgetsPollTimer);
-    widgetsPollTimer = null;
-  }
 }
 async function connectToClashSockets(dataUpdatesId) {
   const mountId = dashboardMountId;
-  const clashApiSecret = await getClashApiSecret2();
+  const clashApiSecret = await getClashApiSecret2().catch(() => "");
   if (!dashboardMounted || mountId !== dashboardMountId || dataUpdatesId !== dashboardDataUpdatesId) {
     return;
   }
   socket.subscribe(
-    `${getClashWsUrl()}/traffic?token=${clashApiSecret}`,
+    getClashSocketUrl("/traffic", clashApiSecret),
     (msg) => {
       if (dataUpdatesId !== dashboardDataUpdatesId) {
         return;
@@ -5116,7 +5100,7 @@ async function connectToClashSockets(dataUpdatesId) {
     }
   );
   socket.subscribe(
-    `${getClashWsUrl()}/connections?token=${clashApiSecret}`,
+    getClashSocketUrl("/connections", clashApiSecret),
     (msg) => {
       if (dataUpdatesId !== dashboardDataUpdatesId) {
         return;
@@ -5176,33 +5160,19 @@ function restartSectionsRefresh() {
   if (!dashboardDataUpdatesStarted || sectionsRefreshPromise) {
     return;
   }
-  if (sectionsRefreshTimer) {
-    clearTimeout(sectionsRefreshTimer);
-    sectionsRefreshTimer = null;
-  }
-  scheduleSectionsRefresh(dashboardDataUpdatesId, sectionsRefreshDelay());
+  sectionsRefresh.stop();
+  sectionsRefresh.start(sectionsRefreshDelay());
 }
-function scheduleSectionsRefresh(dataUpdatesId, delay) {
-  sectionsRefreshTimer = setTimeout(() => {
-    sectionsRefreshTimer = null;
-    const startedAt = Date.now();
-    void fetchDashboardSections().then((success) => {
-      lastSectionsRefreshDurationMs = Date.now() - startedAt;
-      sectionsRefreshFailures = success ? 0 : sectionsRefreshFailures + 1;
-    }).finally(() => {
-      if (dashboardMounted && dataUpdatesId === dashboardDataUpdatesId) {
-        scheduleSectionsRefresh(dataUpdatesId, sectionsRefreshDelay());
-      }
-    });
-  }, delay);
-}
+var sectionsRefresh = createPollChain(async () => {
+  const startedAt = Date.now();
+  const success = await fetchDashboardSections();
+  lastSectionsRefreshDurationMs = Date.now() - startedAt;
+  sectionsRefreshFailures = success ? 0 : sectionsRefreshFailures + 1;
+}, sectionsRefreshDelay);
 function stopDashboardDataUpdates() {
   dashboardDataUpdatesStarted = false;
   dashboardDataUpdatesId += 1;
-  if (sectionsRefreshTimer) {
-    clearTimeout(sectionsRefreshTimer);
-    sectionsRefreshTimer = null;
-  }
+  sectionsRefresh.stop();
   sectionsRefreshFailures = 0;
   lastSectionsRefreshDurationMs = 0;
   sectionsRefreshQueued = false;
@@ -5227,7 +5197,7 @@ function startDashboardDataUpdates() {
   } else {
     startWidgetsPolling(dataUpdatesId);
   }
-  scheduleSectionsRefresh(dataUpdatesId, SECTIONS_REFRESH_INTERVAL_MS);
+  sectionsRefresh.start(SECTIONS_REFRESH_INTERVAL_MS);
 }
 async function handleChooseOutbound(sectionName, selector, tag) {
   const sectionsWidget = store.get().sectionsWidget;
@@ -5266,6 +5236,7 @@ async function handleChooseOutbound(sectionName, selector, tag) {
     void fetchDashboardSections({ force: true });
   } catch (error) {
     logger.error("[DASHBOARD]", "handleChooseOutbound failed", error);
+    showToast(_("Failed to switch the server"), "error");
   } finally {
     selectorRequests.delete(selector);
   }
@@ -5351,7 +5322,7 @@ function formatUrlTestModalValue(value) {
   return text || _("No");
 }
 function formatUrlTestLatency(latency) {
-  return latency ? `${latency}ms` : "N/A";
+  return latency ? `${latency}ms` : _("N/A");
 }
 function renderDetailsUrl(value) {
   const url = `${value ?? ""}`.trim();
@@ -5369,17 +5340,7 @@ function renderDetailsUrl(value) {
     url
   );
 }
-function getDetectedCountryFlag(country) {
-  const code = `${country || ""}`.trim().toUpperCase();
-  if (!/^[A-Z]{2}$/.test(code)) {
-    return "";
-  }
-  return String.fromCodePoint(
-    ...code.split("").map((char) => 127462 + char.charCodeAt(0) - 65)
-  );
-}
 function renderDetailsMemberName(member) {
-  const countryFlag = getDetectedCountryFlag(member.country);
   return [
     ...member.subscriptionTag ? [
       textE(
@@ -5390,13 +5351,6 @@ function renderDetailsMemberName(member) {
         member.subscriptionTag
       )
     ] : [],
-    ...countryFlag ? [
-      textE(
-        "span",
-        { class: "fkp_dashboard-page__urltest-details__country-badge" },
-        countryFlag
-      )
-    ] : [],
     ...renderFlagEmojis(member.displayName)
   ];
 }
@@ -5404,7 +5358,7 @@ function renderUrlTestSelectedValue(info) {
   const selectedMember = info.outbounds.find((member) => member.selected);
   const selectedName = selectedMember?.displayName || info.selectedName || info.selectedCode || "";
   const name = formatUrlTestModalValue(selectedName);
-  if (name === _("No")) {
+  if (!selectedName.trim()) {
     return textE("span", {}, name);
   }
   return textE(
@@ -5591,7 +5545,7 @@ function renderFallbackSelectedValue(info) {
   const selectedMember = info.outbounds.find((member) => member.selected);
   const selectedName = selectedMember?.displayName || info.selectedName || info.selectedCode || "";
   const name = formatUrlTestModalValue(selectedName);
-  if (name === _("No")) {
+  if (!selectedName.trim()) {
     return textE("span", {}, name);
   }
   return textE(
@@ -6311,10 +6265,6 @@ var styles = `
     min-width: 0;
 }
 
-.fkp_dashboard-page__widgets-section__item__title {}
-
-.fkp_dashboard-page__widgets-section__item__row {}
-
 .fkp_dashboard-page__widgets-section__item__row--success .fkp_dashboard-page__widgets-section__item__row__value {
     color: var(--success-color-medium, green);
 }
@@ -6326,10 +6276,6 @@ var styles = `
 .fkp_dashboard-page__widgets-section__item__row--progress .fkp_dashboard-page__widgets-section__item__row__value {
     color: var(--warning-color-medium, #b8860b);
 }
-
-.fkp_dashboard-page__widgets-section__item__row__key {}
-
-.fkp_dashboard-page__widgets-section__item__row__value {}
 
 .fkp_dashboard-page__outbound-section {
     margin-top: 10px;
@@ -6469,10 +6415,8 @@ var styles = `
     white-space: nowrap;
 }
 
-/* The tag carries its own right margin because it is normally printed in front
-   of a node name, inside the same line of text. Here it is a flex item of its
-   own and the row's gap already separates it, so the two used to add up into a
-   visible hole between the tag and whatever the block leads with. */
+/* The tag carries its own right margin for when it is printed in front of a
+   node name. Here it is a flex item and the row's gap separates it. */
 .fkp_dashboard-page__subscription-meta__heading
     .fkp_dashboard-page__outbound-grid__item__subscription-tag {
     margin-right: 0;
@@ -6881,8 +6825,7 @@ var styles = `
    stacked when they stop fitting. Which rows need the break depends on how long
    each name is, so the row decides for itself rather than every row breaking at
    one width of the window: the latency keeps its own width beside the name, and
-   below that drops under it. Either way it is flush with the row's right edge,
-   which is where the fixed latency column used to put it. */
+   below that drops under it. Either way it is flush with the row's right edge. */
 .fkp_dashboard-page__urltest-details__row-body {
     display: flex;
     flex-wrap: wrap;
@@ -6937,20 +6880,7 @@ var styles = `
     background: var(--background-color-low);
 }
 
-.fkp_dashboard-page__urltest-details__country-badge {
-    display: inline-flex;
-    align-items: center;
-    user-select: none;
-    margin-right: 6px;
-    padding: 2px 4px;
-    border: 1px solid rgba(128, 128, 128, 0.25);
-    border-radius: 4px;
-    background: rgba(128, 128, 128, 0.15);
-    line-height: 1;
-}
-
-.fkp_dashboard-page__flag-emoji,
-.fkp_dashboard-page__urltest-details__country-badge {
+.fkp_dashboard-page__flag-emoji {
     font-family: "Twemoji Country Flags";
     font-style: normal;
     font-weight: normal;
@@ -7198,7 +7128,7 @@ async function runSingBoxCheck() {
       },
       {
         state: data.sing_box_version_ok ? "success" : "error",
-        key: _("Version is compatible (newer than 1.12.4)"),
+        key: _("Version is compatible"),
         value: ""
       },
       {
@@ -7428,7 +7358,7 @@ async function runNftCheck() {
   }
   const data = nftablesChecks.data;
   const allGood = Boolean(data.table_exist) && Boolean(data.rules_mangle_exist) && Boolean(data.rules_mangle_counters) && Boolean(data.rules_mangle_output_exist) && Boolean(data.rules_mangle_output_counters) && Boolean(data.rules_proxy_exist) && Boolean(data.rules_proxy_counters) && !data.rules_other_mark_exist;
-  const atLeastOneGood = Boolean(data.table_exist) || Boolean(data.rules_mangle_exist) || Boolean(data.rules_mangle_counters) || Boolean(data.rules_mangle_output_exist) || Boolean(data.rules_mangle_output_counters) || Boolean(data.rules_proxy_exist) || Boolean(data.rules_proxy_counters) || !data.rules_other_mark_exist;
+  const atLeastOneGood = Boolean(data.table_exist) || Boolean(data.rules_mangle_exist) || Boolean(data.rules_mangle_counters) || Boolean(data.rules_mangle_output_exist) || Boolean(data.rules_mangle_output_counters) || Boolean(data.rules_proxy_exist) || Boolean(data.rules_proxy_counters);
   const { state, description } = getMeta({ atLeastOneGood, allGood });
   updateCheckStore({
     order,
@@ -7482,6 +7412,11 @@ async function runNftCheck() {
   if (!atLeastOneGood) {
     throw new Error("Nftables checks failed");
   }
+}
+
+// src/helpers/insertIf.ts
+function insertIf(condition, elements) {
+  return condition ? elements : [];
 }
 
 // src/forkop/tabs/diagnostic/checks/runFakeIPCheck.ts
@@ -7558,17 +7493,8 @@ var styles2 = `
     gap: 5px;
 }
 
-.fkp-partial-button--loading {
-}
-
-.fkp-partial-button--disabled {
-}
-
 .fkp-partial-button__icon {
     flex: 0 0 auto;
-}
-
-.fkp-partial-button__icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -7584,8 +7510,6 @@ var styles2 = `
 
 // src/partials/modal/styles.ts
 var styles3 = `
-
-.fkp-partial-modal__body {}
 
 .fkp-partial-modal__content {
     max-height: 70vh;
@@ -7669,6 +7593,19 @@ function renderButton({
     },
     [...insertIf(hasIcon, [getWrappedIcon()]), textE("span", {}, text)]
   );
+}
+
+// src/helpers/downloadAsTxt.ts
+function downloadAsTxt(text, filename) {
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  const safeName = filename.endsWith(".txt") ? filename : `${filename}.txt`;
+  link.download = safeName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(link.href);
 }
 
 // src/partials/modal/renderModal.ts
@@ -8180,10 +8117,7 @@ function renderCheckSection(props) {
   if (props.state === "success") {
     return renderSuccessState(props);
   }
-  if (props.state === "skipped") {
-    return renderSkippedState(props);
-  }
-  return textE("div", {}, _("Not implement yet"));
+  return renderSkippedState(props);
 }
 
 // src/forkop/tabs/diagnostic/partials/renderRunAction.ts
@@ -8212,31 +8146,12 @@ function renderSystemInfo({ items }) {
       { class: "fkp_diagnostic-page__controls__system-info__title" },
       _("System information")
     ),
-    ...items.map((item) => {
-      const tagClass = [
-        "fkp_diagnostic-page__controls__system-info__row__tag",
-        ...insertIf(item.tag?.kind === "neutral", [
-          "fkp_diagnostic-page__controls__system-info__row__tag--neutral"
-        ]),
-        ...insertIf(item.tag?.kind === "warning", [
-          "fkp_diagnostic-page__controls__system-info__row__tag--warning"
-        ]),
-        ...insertIf(item.tag?.kind === "success", [
-          "fkp_diagnostic-page__controls__system-info__row__tag--success"
-        ])
-      ].filter(Boolean).join(" ");
-      return textE(
-        "div",
-        { class: "fkp_diagnostic-page__controls__system-info__row" },
-        [
-          textE("b", {}, item.key),
-          textE("div", {}, [
-            textE("span", {}, item.value),
-            textE("span", { class: tagClass }, item?.tag?.label)
-          ])
-        ]
-      );
-    })
+    ...items.map(
+      (item) => textE("div", { class: "fkp_diagnostic-page__controls__system-info__row" }, [
+        textE("b", {}, item.key),
+        textE("div", {}, [textE("span", {}, item.value)])
+      ])
+    )
   ]);
 }
 
@@ -8249,17 +8164,6 @@ function normalizeCompiledVersion(version) {
 }
 
 // src/forkop/tabs/diagnostic/checks/runSectionsCheck.ts
-function getSubscriptionLatencyState(latencyValues) {
-  const hasAvailableLatency = latencyValues.some((item) => Boolean(item));
-  const hasUnavailableLatency = latencyValues.some((item) => !item);
-  if (!hasAvailableLatency) {
-    return "error";
-  }
-  if (hasUnavailableLatency) {
-    return "warning";
-  }
-  return "success";
-}
 async function runSectionsCheck() {
   const { order, title, code } = DIAGNOSTICS_CHECKS_MAP.OUTBOUNDS;
   updateCheckStore({
@@ -8282,6 +8186,17 @@ async function runSectionsCheck() {
     });
     throw new Error("Rule outbounds checks failed");
   }
+  if (!sections.data.length) {
+    updateCheckStore({
+      order,
+      code,
+      title,
+      description: _("No sections to check"),
+      state: "skipped",
+      items: []
+    });
+    return;
+  }
   const items = [];
   for (const section of sections.data) {
     async function getLatency() {
@@ -8289,7 +8204,6 @@ async function runSectionsCheck() {
         const selectedOutbound2 = section.outbounds.find((item) => item.selected) ?? section.outbounds.find(
           (item) => item.type?.toLowerCase() === "urltest"
         ) ?? section.outbounds[0];
-        const isSubscription = section.proxyConfigType === "subscription";
         if (selectedOutbound2?.code) {
           const latencyProxy2 = await CustomForkopMethods.getClashApiProxyLatency(
             selectedOutbound2.code
@@ -8304,25 +8218,6 @@ async function runSectionsCheck() {
           return {
             state: "error",
             latency: `[${selectedOutbound2.displayName ?? ""}] ${_("Not responding")}`
-          };
-        }
-        const latencyGroup = await CustomForkopMethods.getClashApiGroupLatency(
-          section.code
-        );
-        const success2 = latencyGroup.success && !latencyGroup.data.message;
-        if (success2) {
-          const latencyValues = Object.values(latencyGroup.data);
-          const sectionState = isSubscription ? getSubscriptionLatencyState(latencyValues) : "success";
-          const selectedProxyDelay = latencyGroup.data?.[selectedOutbound2?.code ?? ""];
-          if (selectedProxyDelay) {
-            return {
-              state: sectionState,
-              latency: `[${selectedOutbound2?.displayName ?? ""}] ${selectedProxyDelay}ms`
-            };
-          }
-          return {
-            state: "error",
-            latency: `[${selectedOutbound2?.displayName ?? ""}] ${_("Not responding")}`
           };
         }
         return {
@@ -8383,11 +8278,9 @@ function getServiceOperation({
 }) {
   return busy || localPending || null;
 }
-var STUCK_OPERATION_SECONDS = 90;
 function getServiceControlsPresentation({
   running: running2,
   operation,
-  operationSeconds = 0,
   known = true
 }) {
   if (!known) {
@@ -8401,7 +8294,6 @@ function getServiceControlsPresentation({
   const applying = operation === "apply";
   const restarting = operation === "restart" || applying;
   const idle = operation === null;
-  const stuck = !idle && operationSeconds >= STUCK_OPERATION_SECONDS;
   return {
     restart: {
       mode: applying ? "apply" : "restart",
@@ -8415,7 +8307,7 @@ function getServiceControlsPresentation({
       disabled: operation === "start"
     },
     stop: {
-      visible: operation === "stop" || idle && running2 || stuck,
+      visible: operation === "stop" || idle && running2,
       loading: operation === "stop",
       disabled: operation === "stop"
     }
@@ -8684,93 +8576,81 @@ async function handleStart() {
 async function handleStop() {
   await handleServiceRuntimeAction("stop");
 }
-async function handleAutostartAction(action, request) {
+async function handleAutostartAction(action, request, failure) {
   setDiagnosticActionLoading(action, true);
-  try {
-    await request();
-  } catch (e) {
-    logger.error("[DIAGNOSTIC]", `handleAutostartAction(${action})`, e);
+  const result = await request().catch(() => ({ success: false }));
+  if (!result.success) {
+    showToast(failure, "error");
   }
   await refreshRuntimeUiStateNow();
   setDiagnosticActionLoading(action, false);
 }
 async function handleEnable() {
-  await handleAutostartAction("enable", () => ForkopShellMethods.enable());
+  await handleAutostartAction(
+    "enable",
+    () => ForkopShellMethods.enable(),
+    _("Could not enable autostart")
+  );
 }
 async function handleDisable() {
-  await handleAutostartAction("disable", () => ForkopShellMethods.disable());
+  await handleAutostartAction(
+    "disable",
+    () => ForkopShellMethods.disable(),
+    _("Could not disable autostart")
+  );
 }
 function diagnosticText(load) {
   return async ({ maskValues }) => {
     const result = await load(maskValues);
     if (!result.success) {
-      throw new Error("Failed to load diagnostics");
+      throw new Error(result.error || "Failed to load diagnostics");
     }
     return typeof result.data === "string" ? result.data : JSON.stringify(result.data, null, 2);
   };
 }
-async function handleShowGlobalCheck() {
-  setDiagnosticActionLoading("globalCheck", true);
+async function showDiagnosticModal(action, title, name, load) {
+  setDiagnosticActionLoading(action, true);
   try {
-    const globalCheck = await ForkopShellMethods.globalCheck(true);
-    if (globalCheck.success) {
-      ui.showModal(
-        _("Global check"),
-        renderModal(globalCheck.data ?? "", "global_check", {
-          getText: diagnosticText(ForkopShellMethods.globalCheck),
-          initialAutoRefresh: false,
-          showMaskValuesToggle: true
-        })
-      );
-    } else {
-      logger.error("[DIAGNOSTIC]", "handleShowGlobalCheck - e", globalCheck);
-    }
-  } catch (e) {
-    logger.error("[DIAGNOSTIC]", "handleShowGlobalCheck - e", e);
-  } finally {
-    setDiagnosticActionLoading("globalCheck", false);
-  }
-}
-async function handleShowForkopConfig() {
-  setDiagnosticActionLoading("showConfig", true);
-  try {
-    const showConfig = await ForkopShellMethods.showConfig(true);
-    if (showConfig.success) {
-      ui.showModal(
-        _("Forkop configuration"),
-        renderModal(showConfig.data ?? "", "show_config", {
-          getText: diagnosticText(ForkopShellMethods.showConfig),
-          initialAutoRefresh: false,
-          showMaskValuesToggle: true
-        })
-      );
-    } else {
-      logger.error("[DIAGNOSTIC]", "handleShowForkopConfig - e", showConfig);
-    }
-  } catch (e) {
-    logger.error("[DIAGNOSTIC]", "handleShowForkopConfig - e", e);
-  } finally {
-    setDiagnosticActionLoading("showConfig", false);
-  }
-}
-async function handleShowSingBoxConfig() {
-  setDiagnosticActionLoading("showSingBoxConfig", true);
-  try {
-    const load = diagnosticText(ForkopShellMethods.showSingBoxConfig);
-    const showSingBoxConfig = await load({ maskValues: true });
+    const getText = diagnosticText(load);
+    const text = await getText({ maskValues: true });
     ui.showModal(
-      _("sing-box configuration"),
-      renderModal(showSingBoxConfig, "show_sing_box_config", {
-        getText: load,
+      title,
+      renderModal(text, name, {
+        getText,
         initialAutoRefresh: false,
         showMaskValuesToggle: true
       })
     );
-  } catch (e) {
-    logger.error("[DIAGNOSTIC]", "handleShowSingBoxConfig - e", e);
+  } catch (error) {
+    logger.error("[DIAGNOSTIC]", name, error);
+    showToast(_("Failed to load diagnostics"), "error");
   } finally {
-    setDiagnosticActionLoading("showSingBoxConfig", false);
+    setDiagnosticActionLoading(action, false);
   }
+}
+function handleShowGlobalCheck() {
+  return showDiagnosticModal(
+    "globalCheck",
+    _("Global check"),
+    "global_check",
+    ForkopShellMethods.globalCheck
+  );
+}
+function handleShowForkopConfig() {
+  return showDiagnosticModal(
+    "showConfig",
+    _("Forkop configuration"),
+    "show_config",
+    ForkopShellMethods.showConfig
+  );
+}
+function handleShowSingBoxConfig() {
+  return showDiagnosticModal(
+    "showSingBoxConfig",
+    _("sing-box configuration"),
+    "show_sing_box_config",
+    ForkopShellMethods.showSingBoxConfig
+  );
 }
 function renderDiagnosticAvailableActionsWidget() {
   const diagnosticsActions = store.get().diagnosticsActions;
@@ -8786,7 +8666,6 @@ function renderDiagnosticAvailableActionsWidget() {
   const controls = getServiceControlsPresentation({
     running: forkopRunning,
     operation,
-    operationSeconds: servicesInfoWidget.data.forkopBusySeconds,
     known: stateKnown
   });
   const autostart = getAutostartControlsPresentation({
@@ -9096,45 +8975,17 @@ var styles4 = `
     grid-row-gap: 10px;
 }
 
-.fkp_diagnostic-page__controls__system-info__title {
-
-}
-
 .fkp_diagnostic-page__controls__system-info__row {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
     grid-column-gap: 5px;
 }
 
-/* What used to widen the controls column once per value while the page filled in.
-   A version string carries no space to break at, so the column had to grow to fit
-   it; allowed to break anywhere, it wraps inside the column instead and the split
-   stays where it started. */
+/* A version string carries no space to break at, so it may break anywhere and
+   wraps inside the controls column instead of widening it. */
 .fkp_diagnostic-page__controls__system-info__row > div {
     min-width: 0;
     overflow-wrap: anywhere;
-}
-
-.fkp_diagnostic-page__controls__system-info__row__tag {
-    padding: 2px 4px;
-    border: 1px transparent solid;
-    border-radius: 4px;
-    margin-left: 5px;
-}
-
-.fkp_diagnostic-page__controls__system-info__row__tag--neutral {
-    border: 1px var(--background-color-high, gray) solid;
-    color: var(--text-color-medium, gray);
-}
-
-.fkp_diagnostic-page__controls__system-info__row__tag--warning {
-    border: 1px var(--warn-color-medium, orange) solid;
-    color: var(--warn-color-medium, orange);
-}
-
-.fkp_diagnostic-page__controls__system-info__row__tag--success {
-    border: 1px var(--success-color-medium, green) solid;
-    color: var(--success-color-medium, green);
 }
 
 .fkp_diagnostic-page__results {
@@ -9142,8 +8993,6 @@ var styles4 = `
     grid-template-columns: 1fr;
     grid-row-gap: 10px;
 }
-
-.fkp_diagnostic-page__run_check_wrapper {}
 
 .fkp_diagnostic-page__run_check_wrapper button {
     width: 100%;
@@ -9155,19 +9004,14 @@ var styles4 = `
     grid-row-gap: 10px;
 }
 
-/* Where the pair stops being worth keeping. The controls hold their 17rem
-   whatever the window does, so a narrower page comes out of the checks beside
-   them: 473px at a 780px window, 348px at 640px, and under about 19rem they are
-   better off with the whole width than with a column of their own. The stack
-   used to arrive at 800px, where the checks were still 493px wide.
+/* The controls keep their 17rem whatever the window does, so a narrower page
+   comes out of the checks beside them; below about 19rem of checks the two
+   stack.
 
-   Stacked, the page also has to take the width it is given instead of sizing
-   itself. Its box is a flex item - the value of a DummyValue reaches the theme
-   inside an <output>, and the theme lays a .cbi-value out as a flex row - so
-   left alone it settles on its own content: 444px of checks hugging the left
-   edge of a 774px column, which is the whole of what this looked like before.
-   A block mount node and a full-width page is what the Dashboard tab does for
-   the same reason. */
+   Stacked, the page takes the width it is given. Its box is a flex item - the
+   value of a DummyValue reaches the theme inside an <output>, and the theme
+   lays a .cbi-value out as a flex row - so left alone it sizes itself to its
+   content. A block mount node and a full-width page, as on the Dashboard. */
 @media (max-width: 620px) {
     #cbi-${FORKOP_UCI_PACKAGE}-diagnostic-_mount_node {
         display: block;
@@ -9216,17 +9060,9 @@ var styles4 = `
     color: var(--success-color-medium, green);
 }
 
-.fkp_diagnostic_alert--skipped {}
-
-.fkp_diagnostic_alert__icon {}
-
-.fkp_diagnostic_alert__content {}
-
 .fkp_diagnostic_alert__title {
     display: block;
 }
-
-.fkp_diagnostic_alert__description {}
 
 .fkp_diagnostic_alert__summary {
     margin-top: 10px;
@@ -9239,15 +9075,9 @@ var styles4 = `
 }
 
 /* A key and the value it labels, side by side while both fit and stacked when
-   they stop fitting. The key used to have a column of its own, sized to the
-   whole of it, and the value took what was left: "Server #1: \u041F\u0443\u0431\u043B\u0438\u0447\u043D\u044B\u0439 \u0430\u0434\u0440\u0435\u0441"
-   measures 183px, so against the 209px row of a 640px window it left 26px for
-   the address - three characters to a line, three lines tall.
-
-   Whether a row needs the break depends on how long its own key is, so each row
-   decides for itself instead of every row breaking at one width of the window:
-   the value keeps 8rem beside its key, and below that drops under it with the
-   full width of the row. */
+   they stop fitting. Whether a row needs the break depends on how long its own
+   key is, so each row decides for itself: the value keeps 8rem beside its key,
+   and below that drops under it with the full width of the row. */
 .fkp_diagnostic_alert__summary__item__body {
     display: flex;
     flex-wrap: wrap;
@@ -9386,6 +9216,33 @@ function render3() {
       ])
     ]
   );
+}
+
+// src/forkop/tabs/monitoring/valueCopy.ts
+function compactMonitoringText(value) {
+  return value.replace(/\u2026/g, "").trim().replace(/\s+/g, "");
+}
+function shouldCopyFullMonitoringValue(element3, selectedText, fullText) {
+  const selected = selectedText.replace(/\u2026/g, "").trim();
+  const full = fullText.trim();
+  if (!selected || !full) {
+    return false;
+  }
+  if (selected === full) {
+    return true;
+  }
+  if (element3.scrollWidth <= element3.clientWidth + 1) {
+    return false;
+  }
+  const compactSelected = compactMonitoringText(selectedText);
+  const compactFull = compactMonitoringText(fullText);
+  if (!compactFull.startsWith(compactSelected)) {
+    return false;
+  }
+  const visibleChars = Math.floor(
+    element3.clientWidth / Math.max(element3.scrollWidth, 1) * compactFull.length
+  );
+  return compactSelected.length >= Math.max(4, visibleChars - 2);
 }
 
 // src/validators/validateIp.ts
@@ -9554,7 +9411,7 @@ function buildLocalDeviceChoices(hostHints, dhcpLeases, networkInterfaces, stati
   Object.keys(routerIps).forEach((ip) => {
     delete choices[ip];
   });
-  choices[SYSTEM_DEVICE_VALUE] = "System";
+  choices[SYSTEM_DEVICE_VALUE] = _("System");
   return choices;
 }
 function loadLocalDeviceChoices() {
@@ -9686,15 +9543,12 @@ var monitoringMountId = 0;
 var monitoringLifecycleRegistered = false;
 var monitoringControllerInitialized = false;
 var renderTimer = null;
-var connectionsPollTimer = null;
 var connectionsSocketUrl = "";
 var connectionsUpdatesId = 0;
-var connectionsPollActive = false;
 var connectionsSocketGraceTimer = null;
 var lastConnectionsPollDurationMs = 0;
 var renderSkippedForSelection = false;
 var pendingConnectionsPayload = null;
-var pollingConnections = false;
 var activeTab = "active";
 var selectedDeviceFilter = ALL_FILTER_VALUE;
 var searchQuery = "";
@@ -9737,7 +9591,7 @@ function getDisplayName2(section) {
 }
 function buildRouteDisplayNames(sections) {
   const map = {
-    "direct-out": "Direct"
+    "direct-out": _("Direct")
   };
   const serverMap = {};
   const routeSectionItems = [];
@@ -9855,7 +9709,7 @@ function getServerSourceNameByIp(ip) {
 }
 function getDeviceFilterLabel(ip) {
   if (ip === SYSTEM_DEVICE_VALUE2) {
-    return "System";
+    return _("System");
   }
   const serverName = getServerSourceNameByIp(ip);
   if (serverName) {
@@ -9869,10 +9723,9 @@ function getSourceCellParts(connection) {
   const inboundTag = getConnectionInboundTag(connection);
   if (isSystemConnection(connection)) {
     return {
-      primary: "System",
-      ip: "",
-      copyValue: "System",
-      searchValue: ["System", ip, inboundTag].filter(Boolean).join(" ")
+      primary: _("System"),
+      copyValue: _("System"),
+      searchValue: [_("System"), ip, inboundTag].filter(Boolean).join(" ")
     };
   }
   const serverName = getServerDisplayNameByInboundTag(inboundTag);
@@ -9881,7 +9734,6 @@ function getSourceCellParts(connection) {
     const primary = client ? `${serverName} (${client})` : serverName;
     return {
       primary,
-      ip: "",
       copyValue: primary,
       searchValue: [primary, ip, inboundTag].filter(Boolean).join(" ")
     };
@@ -9890,14 +9742,12 @@ function getSourceCellParts(connection) {
   if (deviceName) {
     return {
       primary: deviceName,
-      ip: "",
       copyValue: deviceName,
       searchValue: `${deviceName} ${ip}`
     };
   }
   return {
     primary: ip || "-",
-    ip: "",
     copyValue: ip || "-",
     searchValue: ip
   };
@@ -10174,28 +10024,13 @@ function renderValue(value, className = "") {
 }
 function renderSourceValue(source) {
   const fullText = source.copyValue || source.primary || "-";
-  if (!source.ip) {
-    const element4 = textE(
-      "span",
-      {
-        class: "fkp_monitoring-page__value fkp_monitoring-page__source-value fkp_monitoring-page__source-value--ip-only",
-        title: fullText
-      },
-      source.primary || "-"
-    );
-    element4.setAttribute("data-copy-value", fullText);
-    return element4;
-  }
   const element3 = textE(
     "span",
     {
-      class: "fkp_monitoring-page__value fkp_monitoring-page__source-value",
+      class: "fkp_monitoring-page__value fkp_monitoring-page__source-value fkp_monitoring-page__source-value--ip-only",
       title: fullText
     },
-    [
-      textE("span", { class: "fkp_monitoring-page__source-name" }, source.primary),
-      textE("span", { class: "fkp_monitoring-page__source-ip" }, source.ip)
-    ]
+    source.primary || "-"
   );
   element3.setAttribute("data-copy-value", fullText);
   return element3;
@@ -10371,70 +10206,11 @@ function setMonitoringPaused(paused) {
       applyConnectionsPayload(payload);
       return;
     }
-    if (connectionsPollTimer) {
-      void pollConnectionsSnapshot();
-      return;
+    if (connectionsPoll.active) {
+      connectionsPoll.now();
     }
   }
   renderConnections();
-}
-function isElementOverflowing(element3) {
-  return element3.scrollWidth > element3.clientWidth + 1;
-}
-function getMonitoringValueOverflowElements(element3) {
-  return [
-    element3,
-    ...Array.from(element3.querySelectorAll("*"))
-  ].filter(isElementOverflowing);
-}
-function getElementCopyText(element3, fallback) {
-  return element3.getAttribute("data-copy-value") || element3.textContent || fallback;
-}
-function compactMonitoringText(value) {
-  return value.replace(/\u2026/g, "").trim().replace(/\s+/g, "");
-}
-function getMonitoringValueTextElements(element3) {
-  const children = Array.from(element3.children).filter(
-    (child) => child instanceof HTMLElement
-  );
-  if (children.length === 0) {
-    return [element3];
-  }
-  const textElements = children.flatMap(getMonitoringValueTextElements).filter((child) => compactMonitoringText(getElementCopyText(child, "")));
-  return textElements.length > 0 ? textElements : [element3];
-}
-function estimateVisibleMonitoringTextLength(element3, fallbackText) {
-  const text = compactMonitoringText(getElementCopyText(element3, fallbackText));
-  if (!text) {
-    return 0;
-  }
-  if (!isElementOverflowing(element3)) {
-    return text.length;
-  }
-  return Math.floor(
-    element3.clientWidth / Math.max(element3.scrollWidth, 1) * text.length
-  );
-}
-function getEstimatedVisibleMonitoringTextLength(element3, fallbackText) {
-  const textElements = getMonitoringValueTextElements(element3);
-  if (textElements.length === 1 && textElements[0] === element3) {
-    return estimateVisibleMonitoringTextLength(element3, fallbackText);
-  }
-  return textElements.reduce(
-    (total, textElement) => total + estimateVisibleMonitoringTextLength(textElement, fallbackText),
-    0
-  );
-}
-function isCompactTextSubsequence(needle, haystack) {
-  let haystackIndex = 0;
-  for (let needleIndex = 0; needleIndex < needle.length; needleIndex += 1) {
-    haystackIndex = haystack.indexOf(needle[needleIndex], haystackIndex);
-    if (haystackIndex === -1) {
-      return false;
-    }
-    haystackIndex += 1;
-  }
-  return true;
 }
 function getSelectionValueElements(selection) {
   const root = document.getElementById("monitoring-status");
@@ -10457,39 +10233,6 @@ function getSelectionValueElements(selection) {
     }
     return false;
   });
-}
-function shouldCopyFullMonitoringValue(element3, selectedText, fullText) {
-  const normalizedSelectedText = selectedText.replace(/\u2026/g, "").trim();
-  const normalizedFullText = fullText.trim();
-  const compactSelectedText = compactMonitoringText(selectedText);
-  const compactFullText = compactMonitoringText(fullText);
-  const overflowElements = getMonitoringValueOverflowElements(element3);
-  const hasCompositeText = getMonitoringValueTextElements(element3).length > 1;
-  if (!normalizedSelectedText || !normalizedFullText) {
-    return false;
-  }
-  if (normalizedSelectedText === normalizedFullText) {
-    return true;
-  }
-  if (overflowElements.length === 0) {
-    return false;
-  }
-  if (hasCompositeText) {
-    const selectedPrefix = compactSelectedText.slice(
-      0,
-      Math.min(4, compactSelectedText.length)
-    );
-    if (!compactFullText.startsWith(selectedPrefix) || !isCompactTextSubsequence(compactSelectedText, compactFullText)) {
-      return false;
-    }
-  } else if (!compactFullText.startsWith(compactSelectedText)) {
-    return false;
-  }
-  const estimatedVisibleChars = getEstimatedVisibleMonitoringTextLength(
-    element3,
-    normalizedFullText
-  );
-  return compactSelectedText.length >= Math.max(4, estimatedVisibleChars - 2);
 }
 function handleMonitoringValueCopy(event) {
   const selection = window.getSelection?.();
@@ -10652,16 +10395,15 @@ function reportPollFailure() {
   renderConnections();
 }
 async function pollConnectionsSnapshot() {
-  if (pollingConnections || !monitoringMounted || monitoringPaused) {
+  if (!monitoringMounted || monitoringPaused) {
     return;
   }
   const mountId = monitoringMountId;
   const startedAt = Date.now();
-  pollingConnections = true;
   try {
     const response = await CustomForkopMethods.getClashApiConnections();
     lastConnectionsPollDurationMs = Date.now() - startedAt;
-    if (!monitoringMounted || mountId !== monitoringMountId || !connectionsPollActive) {
+    if (!monitoringMounted || mountId !== monitoringMountId || !connectionsPoll.active) {
       return;
     }
     if (!response.success) {
@@ -10671,13 +10413,11 @@ async function pollConnectionsSnapshot() {
     consecutivePollFailures = 0;
     applyConnectionsPayload(normalizeConnectionsPayload(response.data));
   } catch (error) {
-    if (!monitoringMounted || mountId !== monitoringMountId || !connectionsPollActive) {
+    if (!monitoringMounted || mountId !== monitoringMountId || !connectionsPoll.active) {
       return;
     }
     logger.error("[MONITORING]", "connections polling failed", error);
     reportPollFailure();
-  } finally {
-    pollingConnections = false;
   }
 }
 function connectionsPollDelay() {
@@ -10693,42 +10433,28 @@ function connectionsPollDelay() {
     CONNECTIONS_POLL_DUTY_MAX_MS
   );
 }
-function scheduleConnectionsPoll(delay) {
-  connectionsPollTimer = setTimeout(() => {
-    connectionsPollTimer = null;
-    void pollConnectionsSnapshot().finally(() => {
-      if (monitoringMounted && connectionsPollActive) {
-        scheduleConnectionsPoll(connectionsPollDelay());
-      }
-    });
-  }, delay);
-}
+var connectionsPoll = createPollChain(
+  pollConnectionsSnapshot,
+  connectionsPollDelay
+);
 function startConnectionsPolling() {
-  if (connectionsPollActive) {
-    return;
-  }
-  connectionsPollActive = true;
-  scheduleConnectionsPoll(0);
+  connectionsPoll.start(0);
 }
 function stopConnectionsPolling() {
-  connectionsPollActive = false;
+  connectionsPoll.stop();
   consecutivePollFailures = 0;
   if (connectionsSocketGraceTimer) {
     clearTimeout(connectionsSocketGraceTimer);
     connectionsSocketGraceTimer = null;
   }
-  if (connectionsPollTimer) {
-    clearTimeout(connectionsPollTimer);
-    connectionsPollTimer = null;
-  }
 }
 async function connectToConnectionsSocket(updatesId) {
   const mountId = monitoringMountId;
-  const clashApiSecret = await getClashApiSecret2();
+  const clashApiSecret = await getClashApiSecret2().catch(() => "");
   if (!monitoringMounted || mountId !== monitoringMountId || updatesId !== connectionsUpdatesId) {
     return;
   }
-  connectionsSocketUrl = `${getClashWsUrl()}/connections?token=${clashApiSecret}`;
+  connectionsSocketUrl = getClashSocketUrl("/connections", clashApiSecret);
   socket.subscribe(
     connectionsSocketUrl,
     (msg) => {
@@ -10808,7 +10534,7 @@ function onPageMount3() {
   document.addEventListener("selectionchange", flushRenderAfterSelection);
   document.addEventListener("copy", handleMonitoringValueCopy);
   renderTimer = setInterval(() => {
-    if (monitoringPaused) {
+    if (monitoringPaused || !isDocumentVisible()) {
       return;
     }
     renderConnections();
@@ -10862,17 +10588,8 @@ var styles5 = `
 /* The page takes the width of the content column, which it cannot do on its own.
    The tab is one DummyValue, and LuCI hands its value to the theme inside an
    <output>; the theme lays a .cbi-value out as a flex row, so that <output> is a
-   flex item and the page inside it is as wide as its own content. It came out
-   651px wide in a 940px column while the connections were still loading, and
-   288px wide at any window of 520px or less, where the tab's own narrow-screen
-   rules stack the controls and the table has become cards, so nothing inside
-   asks for width any more. Where it did fill the column it was the table's
-   min-width doing it rather than the layout.
-
-   The rules that used to stand here addressed .cbi-value-title, .cbi-value-field
-   and a child div. A DummyValue has none of those children, so all three matched
-   nothing; a block mount node is what the page needs, and its own width: 100%
-   resolves against it. */
+   flex item as wide as its own content. A block mount node gives the page's
+   width: 100% something to resolve against. */
 #cbi-${FORKOP_UCI_PACKAGE}-monitoring-_mount_node {
     display: block;
     margin: 16px 0 22px;
@@ -10890,8 +10607,6 @@ var styles5 = `
     --fkp-monitoring-soft-bg: rgba(127, 127, 127, 0.08);
     --fkp-monitoring-soft-bg-hover: rgba(127, 127, 127, 0.14);
     --fkp-monitoring-danger-color: var(--error-color-medium, #d32f2f);
-    --fkp-monitoring-success-color: var(--success-color-medium, #2e7d32);
-    --fkp-monitoring-paused-color: var(--primary-color-high, #1976d2);
 
     width: 100%;
     min-width: 0;
@@ -11248,23 +10963,6 @@ var styles5 = `
     align-items: baseline;
     justify-content: flex-start;
     gap: 5px;
-}
-
-.fkp_monitoring-page__source-name {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.fkp_monitoring-page__source-ip {
-    flex: 0 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--text-color-medium);
-    font-size: 12px;
 }
 
 .fkp_monitoring-page__source-value--ip-only {
@@ -11645,6 +11343,10 @@ var AUTO_REFRESH_INTERVAL_MS = 2e3;
 var controllerInitialized = false;
 var loading2 = false;
 var rawLogs = "";
+var logsLoaded = false;
+function logsTabShown() {
+  return !document.hidden && (store.get().tabService.current === "logs" || isActiveLuciTab("logs"));
+}
 function element2(id) {
   return document.getElementById(id);
 }
@@ -11668,13 +11370,13 @@ function setLoading(nextLoading) {
   loading2 = nextLoading;
   element2("logs-output").setAttribute("aria-busy", String(nextLoading));
 }
-async function refreshLogs(initial = false) {
+async function refreshLogs() {
   if (loading2) {
     return;
   }
   const output = element2("logs-output");
   const distanceFromEnd = output.scrollHeight - output.scrollTop - output.clientHeight;
-  const followEnd = initial || distanceFromEnd < 32;
+  const followEnd = !logsLoaded || distanceFromEnd < 32;
   const previousScrollTop = output.scrollTop;
   const previousScrollLeft = output.scrollLeft;
   setLoading(true);
@@ -11684,9 +11386,10 @@ async function refreshLogs(initial = false) {
       throw new Error(response.error);
     }
     const nextLogs = String(response.data ?? "");
-    if (nextLogs === rawLogs) {
+    if (logsLoaded && nextLogs === rawLogs) {
       return;
     }
+    logsLoaded = true;
     rawLogs = nextLogs;
     renderLogs();
     requestAnimationFrame(() => {
@@ -11695,7 +11398,7 @@ async function refreshLogs(initial = false) {
     });
   } catch (error) {
     console.error("[LOGS] Failed to load logs", error);
-    if (!rawLogs) {
+    if (!logsLoaded) {
       element2("logs-output").textContent = _("Failed to load logs");
     }
   } finally {
@@ -11732,12 +11435,19 @@ async function initController4() {
   });
   element2("logs-copy").addEventListener("click", copyVisibleLogs);
   element2("logs-download").addEventListener("click", downloadVisibleLogs);
+  store.subscribe((next, prev) => {
+    if (next.tabService.current === "logs" && prev.tabService.current !== "logs" && (!logsLoaded || autoRefresh.checked)) {
+      void refreshLogs();
+    }
+  });
   setInterval(() => {
-    if (!document.hidden && autoRefresh.checked && element2("logs-status").offsetParent !== null) {
+    if (autoRefresh.checked && logsTabShown()) {
       void refreshLogs();
     }
   }, AUTO_REFRESH_INTERVAL_MS);
-  void refreshLogs(true);
+  if (logsTabShown()) {
+    void refreshLogs();
+  }
 }
 
 // src/forkop/tabs/logs/styles.ts
@@ -13023,10 +12733,11 @@ function mountTab(key, render6, initController6) {
     node = render6();
     mountNodes.set(key, node);
   }
+  const report = (error) => console.error(`[TABS] Failed to start the ${key} controller`, error);
   try {
-    void initController6();
+    Promise.resolve(initController6()).catch(report);
   } catch (error) {
-    console.error(`[TABS] Failed to start the ${key} controller`, error);
+    report(error);
   }
   return node;
 }
@@ -13269,59 +12980,6 @@ function readItemSettingsMap(section_id, settingsKey) {
     return {};
   }
 }
-function compactItemSettings(values) {
-  const result = {};
-  Object.entries(values || {}).forEach(([key, value]) => {
-    if (value === void 0 || value === null || value === "") {
-      return;
-    }
-    if (Array.isArray(value)) {
-      const items = value.map((item) => `${item || ""}`.trim()).filter((item) => item.length);
-      if (items.length) {
-        result[key] = items;
-      }
-      return;
-    }
-    result[key] = `${value}`;
-  });
-  return result;
-}
-function writeItemSettingsMap(section_id, settingsKey, map) {
-  const result = {};
-  Object.entries(map || {}).forEach(([item, settings]) => {
-    const compact = compactItemSettings(settings);
-    if (item && Object.keys(compact).length) {
-      result[item] = compact;
-    }
-  });
-  if (Object.keys(result).length) {
-    uci.set(
-      FORKOP_UCI_PACKAGE,
-      section_id,
-      settingsKey,
-      JSON.stringify(result)
-    );
-  } else {
-    uci.unset(FORKOP_UCI_PACKAGE, section_id, settingsKey);
-  }
-}
-function cleanupListItemSettings(section_id, settingsKey, values) {
-  if (!settingsKey) {
-    return;
-  }
-  const keep = new Set(normalizeDynamicListItems(values));
-  const map = readItemSettingsMap(section_id, settingsKey);
-  let changed = false;
-  Object.keys(map).forEach((item) => {
-    if (!keep.has(item)) {
-      delete map[item];
-      changed = true;
-    }
-  });
-  if (changed) {
-    writeItemSettingsMap(section_id, settingsKey, map);
-  }
-}
 function itemSettingsFlag(settings, key, defaultValue) {
   const value = settings ? settings[key] : null;
   if (value === void 0 || value === null || value === "") {
@@ -13381,6 +13039,9 @@ function pendingChildSettings(option2, section_id, value, defaults) {
   const store2 = childPendingSettingsStore(option2, section_id);
   store2[itemValue] = Object.assign({}, defaults || {}, store2[itemValue]);
   return store2[itemValue];
+}
+function clearSharedChildPendingSettings() {
+  sharedChildPendingSettings.clear();
 }
 function clearChildPendingSettings(option2, section_id) {
   if (option2.sharedPendingSettingsKey) {
@@ -14103,6 +13764,11 @@ var ButtonAddSettingsUIDynamicList = SettingsUIDynamicList.extend({
     node.addEventListener("cbi-dynlist-change", () => {
       updateButtonAddDynamicListLayout(node, this.options.addButtonLabel);
     });
+    const control = node.querySelector(".add-item > .fkp-button-add-control");
+    const showValidity = (invalid2) => control?.classList.toggle("cbi-input-invalid", invalid2);
+    node.addEventListener("validation-failure", () => showValidity(true));
+    node.addEventListener("validation-success", () => showValidity(false));
+    showValidity(node.classList.contains("cbi-input-invalid"));
     return node;
   },
   addButtonItem(_dl) {
@@ -14293,17 +13959,10 @@ var SettingsDynamicList = form.DynamicList.extend({
         this.afterMaterializeChildItems(ownerId, itemIds);
       }
       uci.unset(FORKOP_UCI_PACKAGE, section_id, this.option);
-      cleanupListItemSettings(ownerId, this.settingsKey, itemIds);
       this.clearStagedChildSettings(ownerId);
       return;
     }
-    const result = form.DynamicList.prototype.write.call(
-      this,
-      section_id,
-      value
-    );
-    cleanupListItemSettings(section_id, this.settingsKey, value);
-    return result;
+    return form.DynamicList.prototype.write.call(this, section_id, value);
   },
   remove(section_id) {
     if (this.childType) {
@@ -14318,9 +13977,6 @@ var SettingsDynamicList = form.DynamicList.extend({
       }
       uci.unset(FORKOP_UCI_PACKAGE, section_id, this.option);
       return;
-    }
-    if (this.settingsKey) {
-      uci.unset(FORKOP_UCI_PACKAGE, section_id, this.settingsKey);
     }
     return form.DynamicList.prototype.remove.call(this, section_id);
   }
@@ -14373,6 +14029,11 @@ function populateActionOptionValues(option2, currentAction) {
   if (stored && !option2.keylist.includes(stored)) {
     option2.value(stored, getActionOptionLabel(stored));
   }
+}
+
+// src/helpers/parseValueList.ts
+function parseValueList(value) {
+  return value.split(/\n/).map((line) => line.split("//")[0].split("#")[0]).join(" ").split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
 }
 
 // src/validators/validateSubnet.ts
@@ -15140,6 +14801,29 @@ function validateUrlField(value) {
 }
 
 // src/forkop/cbi/modal.ts
+function reportRefusedSave(error, dialog) {
+  if (dialog?.querySelector(".cbi-input-invalid")) {
+    return;
+  }
+  const message = error instanceof Error ? error.message : `${error ?? ""}`;
+  showToast(message.trim() || _("Settings not saved"), "error");
+}
+function saveSectionModal(sectionRef, modalMap, ev) {
+  const mapNode = sectionRef.getActiveModalMap();
+  const activeMap = dom.findClassInstance(mapNode);
+  let saved = activeMap.save(void 0, true);
+  for (let map = activeMap.parent; map; map = map.parent) {
+    const parent = map;
+    saved = saved.then(() => parent.load()).then(() => parent.reset());
+  }
+  return saved.then(() => sectionRef.handleModalCancel(modalMap, ev, true)).then(
+    () => true,
+    (error) => {
+      reportRefusedSave(error, mapNode);
+      return false;
+    }
+  );
+}
 function modalOptionFormValue(modalMap, section_id, optionName) {
   const lookup = modalMap && typeof modalMap.lookupOption === "function" ? modalMap.lookupOption(optionName, section_id) : null;
   return lookup ? lookup[0].formvalue(lookup[1]) : null;
@@ -15229,7 +14913,8 @@ function renderStackedJsonSettingsModal(title, map, onSave, options = {}) {
         () => Promise.resolve(
           onSave(cleanFormSectionData(map.data.get(map.config, "settings")))
         )
-      ).then(close).catch(() => {
+      ).then(close).catch((error) => {
+        reportRefusedSave(error, nodes);
         if (saveButton) {
           saveButton.disabled = false;
         }
@@ -15727,6 +15412,10 @@ function optionMapValue(option2, section_id, key) {
   const value = option2 && option2.map && option2.map.data ? option2.map.data.get(option2.map.config, section_id, key) : uci.get(FORKOP_UCI_PACKAGE, section_id, key);
   return value == null ? "" : value;
 }
+function currentOptionValue(option2, section_id, key) {
+  const value = modalOptionFormValue(option2.map, section_id, key);
+  return value == null ? optionMapValue(option2, section_id, key) : value;
+}
 function remoteSubscriptionUrlSettingsKeys() {
   return [
     "subscription_update_enabled",
@@ -16105,7 +15794,7 @@ function tunnelPeerIds(tunnelId) {
 }
 function tunnelKindLabel(kind, endpointType) {
   if (kind === "openvpn-client") return "OpenVPN";
-  return kind === "amneziawg" ? "AmneziaWG" : kind === "warp" ? "WARP" : kind === "tailscale" ? "Tailscale" : kind === "json" ? endpointType || "JSON endpoint" : "WireGuard";
+  return kind === "amneziawg" ? "AmneziaWG" : kind === "warp" ? "WARP" : kind === "tailscale" ? "Tailscale" : kind === "json" ? endpointType || _("JSON endpoint") : "WireGuard";
 }
 function removeTunnelPeers(tunnelId) {
   removeChildItemsOf(tunnelId, "tunnel_peer", "tunnel");
@@ -16502,6 +16191,10 @@ var outboundNameChoicesCache = /* @__PURE__ */ new Map();
 var outboundNameChoicesInflight = /* @__PURE__ */ new Map();
 var outboundNameChoicesEmptyAt = /* @__PURE__ */ new Map();
 var OUTBOUND_NAME_CHOICES_EMPTY_TTL_MS = 5e3;
+function forgetOutboundNameChoices() {
+  outboundNameChoicesCache.clear();
+  outboundNameChoicesEmptyAt.clear();
+}
 var outboundNameSourceOptions = /* @__PURE__ */ new Map();
 var dashboardFilterChoiceRefreshers = /* @__PURE__ */ new Map();
 function nativeProviderOutboundNames(providerTags, value) {
@@ -16536,16 +16229,12 @@ function loadNativeProviderOutboundNames(providerTags) {
   if (!Array.isArray(providerTags) || !providerTags.length) {
     return Promise.resolve([]);
   }
-  return fs.exec("/usr/bin/forkop", ["clash_http", "GET", "/providers/proxies", ""]).then((response) => {
-    const transport2 = JSON.parse(response.stdout || "{}");
-    if ((response.code ?? 0) !== 0 || transport2.status !== 200) {
-      throw new Error("Native provider lookup failed");
+  return getClashApiProxyProviders().then((response) => {
+    const providers = response.success ? response.data?.providers : null;
+    if (!providers || typeof providers !== "object" || Array.isArray(providers)) {
+      return null;
     }
-    const value = JSON.parse(transport2.body || "{}");
-    if (!value.providers || typeof value.providers !== "object" || Array.isArray(value.providers)) {
-      throw new Error("Native provider lookup failed");
-    }
-    return nativeProviderOutboundNames(providerTags, value);
+    return nativeProviderOutboundNames(providerTags, { providers });
   }).catch(() => null);
 }
 function readOutboundChoiceState(section_id) {
@@ -16553,10 +16242,13 @@ function readOutboundChoiceState(section_id) {
     return Promise.resolve(null);
   }
   const sectionDisplayName = `${uci.get(FORKOP_UCI_PACKAGE, section_id, "label") || section_id}`.trim();
-  return Promise.resolve({
-    providerTags: getChildItemIds(section_id, "subscription_url").map(
-      (itemId, index) => `${sectionDisplayName}/${uci.get(FORKOP_UCI_PACKAGE, itemId, "tag") || `sub${index + 1}`}`
+  const tags = subscriptionTags(
+    getChildItemIds(section_id, "subscription_url").map(
+      (itemId) => uci.get(FORKOP_UCI_PACKAGE, itemId, "tag")
     )
+  );
+  return Promise.resolve({
+    providerTags: tags.map((tag) => `${sectionDisplayName}/${tag}`)
   });
 }
 function cacheOutboundNameChoices(key, names) {
@@ -17656,7 +17348,7 @@ function addInterfaceItemOptions(itemSection, options = {}) {
   );
   dnsServerOption.depends("domain_resolver_enabled", "1");
   configureDnsServerList(dnsServerOption, {
-    appliesTo: (option2, itemId) => optionMapValue(option2, itemId, "domain_resolver_enabled") === "1"
+    appliesTo: (option2, itemId) => currentOptionValue(option2, itemId, "domain_resolver_enabled") === "1"
   });
   const dnsQueryModeOption = itemSection.option(
     form.ListValue,
@@ -17701,7 +17393,7 @@ function addInterfaceItemOptions(itemSection, options = {}) {
     return value;
   };
   o.validate = function(itemId, value) {
-    if (optionMapValue(this, itemId, "domain_resolver_enabled") !== "1" || optionMapValue(this, itemId, "domain_resolver_dns_detour_enabled") !== "1") {
+    if (currentOptionValue(this, itemId, "domain_resolver_enabled") !== "1" || currentOptionValue(this, itemId, "domain_resolver_dns_detour_enabled") !== "1") {
       return true;
     }
     return value ? true : _("Select a section");
@@ -17785,7 +17477,7 @@ function loadRulesetValues(option2) {
   delete option2.keylist;
   delete option2.vallist;
   Object.entries(DOMAIN_LIST_OPTIONS).forEach(([key, label]) => {
-    option2.value(key, _(label));
+    option2.value(key, label);
   });
 }
 function isBuiltinRulesetValue(value) {
@@ -18000,7 +17692,7 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
     o.depends("subscription_update_enabled", "1");
     o.placeholder = "1h";
     o.validate = function(itemId, value) {
-      return optionMapValue(this, itemId, "subscription_update_enabled") === "1" ? validateRequiredSingBoxDuration(value) : validateOptionalSingBoxDuration(value);
+      return currentOptionValue(this, itemId, "subscription_update_enabled") === "1" ? validateRequiredSingBoxDuration(value) : validateOptionalSingBoxDuration(value);
     };
     o = itemSection.option(
       form.Flag,
@@ -18024,7 +17716,7 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
     };
     o.validate = function(itemId, value) {
       const sectionId = parentSectionForItem(itemId);
-      if (optionMapValue(this, itemId, "download_via_proxy_enabled") !== "1") {
+      if (currentOptionValue(this, itemId, "download_via_proxy_enabled") !== "1") {
         return true;
       }
       if (!value) {
@@ -18112,7 +17804,7 @@ function showSubscriptionUrlSettingsModal(_section_id, itemValue, option2) {
     "url"
   );
   const remote = isRemoteSubscriptionSource(source);
-  const headers = remote ? loadDefaultSubscriptionHeaders() : Promise.resolve([]);
+  const headers = remote ? loadDefaultSubscriptionHeaders().catch(() => []) : Promise.resolve([]);
   return headers.then(
     (headers2) => showChildItemSettingsModal(_section_id, itemValue, option2, {
       typeName: "subscription_url",
@@ -19012,9 +18704,8 @@ function showTunnelImportModal(parentMap, fields) {
     _("Import configuration"),
     map,
     async (settings) => {
-      const parser = parseWireGuardInput || parseWireGuardConfig;
-      const parsed = await Promise.resolve(
-        parser(`${settings.configuration || ""}`)
+      const parsed = await parseWireGuardInput(
+        `${settings.configuration || ""}`
       );
       if (!parsed || parsed.valid !== true) {
         failedInput = `${settings.configuration || ""}`.trim();
@@ -19057,7 +18748,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   typeOption.value("warp", "Cloudflare WARP");
   typeOption.value("tailscale", "Tailscale");
   typeOption.value("openvpn-client", "OpenVPN");
-  typeOption.value("json", "JSON endpoint");
+  typeOption.value("json", _("JSON endpoint"));
   typeOption.default = "wireguard";
   typeOption.rmempty = false;
   let previousTunnelType = `${data.settings.tunnel_type || "wireguard"}`;
@@ -19343,7 +19034,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   warpGenerateButton.onclick = function() {
     const showError = () => ui.addNotification(
       _("Forkop Error"),
-      textE("p", {}, ["Failed to generate WARP profile."]),
+      textE("p", {}, _("Failed to generate WARP profile")),
       "error"
     );
     return fs.exec("/usr/bin/forkop", ["generate_warp_profile"]).then((response) => {
@@ -20200,16 +19891,29 @@ function configureSectionSection(sectionRef) {
     );
     return handleRemove.call(this, section_id, event);
   };
+  const renderMoreOptionsModal = sectionRef.renderMoreOptionsModal;
+  sectionRef.renderMoreOptionsModal = function(section_id, ev) {
+    forgetOutboundNameChoices();
+    return renderMoreOptionsModal.call(this, section_id, ev);
+  };
   sectionRef.handleModalSave = function(modalMap, ev) {
     const editedSectionId = modalMap?.section;
     if (missingConnectionOutbound(modalMap, editedSectionId)) {
-      return Promise.resolve();
+      reportRefusedSave(
+        _(
+          "Add a connection URI, a subscription, a network interface, a tunnel or a JSON outbound"
+        )
+      );
+      return Promise.resolve(false);
     }
-    return form.GridSection.prototype.handleModalSave.call(this, modalMap, ev);
+    return saveSectionModal(this, modalMap, ev);
   };
   sectionRef.load = function() {
     return Promise.all([
-      loadDefaultSubscriptionHeaders(),
+      loadDefaultSubscriptionHeaders().catch((error) => {
+        console.warn("[SECTIONS] default subscription headers", error);
+        return [];
+      }),
       loadVisibleTableOptions(this)
     ]);
   };
@@ -20221,7 +19925,6 @@ var DEFAULT_PROTOCOL = "mixed";
 var CLIENT_TYPE = "server_client";
 var CLIENT_OWNER_OPTION = "server";
 var MAX_CLIENT_NAME_LENGTH = 64;
-var addedServers = /* @__PURE__ */ new Set();
 var RESERVED_PORTS = [
   ["53", _("Forkop DNS")],
   ["1602", _("Forkop transparent proxy")],
@@ -20261,6 +19964,7 @@ var TRANSPORTS = [
   ["xhttp", "XHTTP"]
 ];
 var ALPN_PROTOCOLS = ["vless", "vmess", "trojan", "anytls"];
+var DEFAULT_CLIENT_FINGERPRINT = "chrome";
 var CLIENT_FINGERPRINTS = [
   "chrome",
   "firefox",
@@ -20829,6 +20533,9 @@ function occupiedPorts(currentSectionId) {
     });
   };
   RESERVED_PORTS.forEach(([port, owner]) => claim(port, ["tcp", "udp"], owner));
+  if (uci.get(FORKOP_UCI_PACKAGE, "settings", "enable_native_api") === "1") {
+    claim("9091", ["tcp"], _("sing-box API"));
+  }
   (uci.sections(FORKOP_UCI_PACKAGE, "server") || []).forEach((server) => {
     if (server[".name"] === currentSectionId || server.enabled === "0") {
       return;
@@ -20984,10 +20691,7 @@ function tlsQuery(sectionId, params, includeSecurity) {
     params.sni = option(sectionId, "tls_server_name");
     params.pbk = option(sectionId, "reality_public_key");
     params.sid = optionList(sectionId, "reality_short_id")[0] || "";
-    const fingerprint = option(sectionId, "client_fingerprint");
-    if (fingerprint) {
-      params.fp = fingerprint;
-    }
+    params.fp = option(sectionId, "client_fingerprint") || DEFAULT_CLIENT_FINGERPRINT;
   } else {
     params.sni = option(sectionId, "tls_server_name");
     if (usesGeneratedCertificate(sectionId)) {
@@ -21716,10 +21420,9 @@ function injectDetailsStyles() {
         // The width comes from the same place too: all three are opened without
         // cbi-modal, which is what the theme widens to a settings form.
         ".fkp-details{box-sizing:border-box;width:min(760px,calc(100vw - 56px));max-width:100%;padding-top:10px}",
-        // The one deviation, and it is deliberate: their first column has a 120px
-        // floor because their labels are long enough to fill it, and mine are short
-        // enough that the floor pushed every value a third of the way across the
-        // dialog. max-content puts the value 16px after the longest label.
+        // The one deviation: their first column has a 120px floor for long labels,
+        // and these labels are short, so the column is max-content and the value
+        // sits 16px after the longest label.
         ".fkp-details__clients{display:grid;gap:14px;min-inline-size:0}",
         ".fkp-details__client{display:grid;gap:6px;min-width:0}",
         ".fkp-details__name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
@@ -22149,13 +21852,13 @@ function addIssueButton(optionRef, label, request, offered) {
     return row;
   };
 }
-function showIssueButton(row, shown) {
+function showIssueButton(row, shown2) {
   const button = row.querySelector(".fkp-generate");
   if (!button) {
     return;
   }
-  button.style.display = shown ? "" : "none";
-  row.style.gridTemplateColumns = shown ? "" : "minmax(0,1fr)";
+  button.style.display = shown2 ? "" : "none";
+  row.style.gridTemplateColumns = shown2 ? "" : "minmax(0,1fr)";
 }
 function offersCertificateButton(protocol) {
   return protocol !== "naive";
@@ -22339,12 +22042,6 @@ function validateInboundJson(_sectionId, value) {
   }
   return true;
 }
-function isDuration(value) {
-  return /^([0-9]+(ns|us|ms|s|m|h))+$/.test(`${value || ""}`);
-}
-function validateOptionalDuration(_sectionId, value) {
-  return isEmptyValue(value) || isDuration(value) ? true : _("Use a duration like 30s, 5m, or 1h30m");
-}
 function validateOptionalPositiveInteger(_sectionId, value) {
   return isEmptyValue(value) || /^[1-9][0-9]*$/.test(`${value}`) ? true : _("Use a positive integer");
 }
@@ -22452,7 +22149,9 @@ function listClients(sectionId) {
   return clientSections(sectionId).map(readClient);
 }
 function nextClientName(taken) {
-  return "client-%d".format(taken.length + 1);
+  let number = taken.length + 1;
+  while (taken.includes("client-%d".format(number))) number++;
+  return "client-%d".format(number);
 }
 function clientNameLabel(protocol) {
   return usesLoginName(protocol) ? _("User name") : _("Name");
@@ -22643,11 +22342,6 @@ function loadRoutingSectionChoices(optionRef, sectionId) {
   keepUnavailableSectionChoice(optionRef, option(sectionId, "routing_section"));
   return Promise.resolve();
 }
-function tailscaleDetourTargets(currentSectionId) {
-  return (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).filter(
-    (section) => section[".name"] && section[".name"] !== currentSectionId && section.enabled !== "0" && DETOUR_TARGET_ACTIONS.includes(`${section.action || ""}`)
-  );
-}
 function addRoutingOptions(section) {
   let o = section.option(
     form.ListValue,
@@ -22767,6 +22461,11 @@ function addClientRoutingOptions(sectionId, itemSection) {
     ([value, label]) => target.value(value, label)
   );
   target.rmempty = false;
+  target.load = function(sid) {
+    const value = form.ListValue.prototype.load.call(this, sid);
+    keepUnavailableSectionChoice(this, value);
+    return value;
+  };
   target.depends({ routing_override: "1", routing_mode: "section" });
   target.validate = (_id, value) => value ? true : _("Select a section");
 }
@@ -22975,23 +22674,15 @@ function addTailscaleOptions(section) {
   o.load = function(sectionId) {
     this.keylist = [];
     this.vallist = [];
-    tailscaleDetourTargets(sectionId).forEach(
-      (target) => this.value(target[".name"], target.label || target[".name"])
+    routingSectionChoices().forEach(
+      ([value2, label]) => this.value(value2, label)
     );
     const value = option(sectionId, "tailscale_detour_section");
     keepUnavailableSectionChoice(this, value);
     return value;
   };
-  o.validate = function(sectionId, value) {
-    if (!value) {
-      return _("Select a section");
-    }
-    if (value === sectionId) {
-      return _("A server cannot use itself");
-    }
-    return tailscaleDetourTargets(sectionId).some(
-      (target) => target[".name"] === value
-    ) ? true : _("Select a section");
+  o.validate = function(_sectionId, value) {
+    return routingSectionChoices().some(([name]) => name === value) ? true : _("Select a section");
   };
 }
 var JSON_INBOUND_PLACEHOLDER = [
@@ -23200,7 +22891,7 @@ function addTuicOptions(section) {
   o.placeholder = "10s";
   o.modalonly = true;
   o.rmempty = true;
-  o.validate = validateOptionalDuration;
+  o.validate = (_sectionId, value) => validateOptionalSingBoxDuration(value);
   onTuic(o);
   o = section.option(
     form.Flag,
@@ -23405,9 +23096,8 @@ function addSecurityOptions(section) {
     "client_fingerprint",
     _("Client fingerprint")
   );
-  o.value("", _("Not set"));
   CLIENT_FINGERPRINTS.forEach((value) => o.value(value, value));
-  o.default = "chrome";
+  o.default = DEFAULT_CLIENT_FINGERPRINT;
   o.rmempty = true;
   o.modalonly = true;
   onReality(o);
@@ -23573,7 +23263,6 @@ function renderServerRowActions(sectionRef, sectionId) {
   return tdEl;
 }
 function prepareAddedServer(sectionId) {
-  addedServers.add(sectionId);
   uci.set(FORKOP_UCI_PACKAGE, sectionId, "protocol", DEFAULT_PROTOCOL);
   uci.set(
     FORKOP_UCI_PACKAGE,
@@ -23596,22 +23285,7 @@ function configureServerSection(sectionRef) {
     return form.GridSection.prototype.handleRemove.call(this, sectionId, ev);
   };
   sectionRef.handleModalSave = function(modalMap, ev) {
-    const mapNode = this.getActiveModalMap();
-    const activeMap = dom.findClassInstance(mapNode);
-    const sectionId = modalMap?.section || activeMap.section;
-    return activeMap.parse().then(() => {
-      addedServers.delete(sectionId);
-      return form.GridSection.prototype.handleModalSave.call(
-        this,
-        modalMap,
-        ev
-      );
-    }).catch(() => {
-      if (addedServers.has(sectionId)) {
-        uci.unset(FORKOP_UCI_PACKAGE, sectionId, "enabled");
-      }
-      return null;
-    });
+    return saveSectionModal(this, modalMap, ev);
   };
   sectionRef.renderRowActions = function(sectionId) {
     return renderServerRowActions(this, sectionId);
@@ -23899,11 +23573,7 @@ function addDnsOptions(section) {
     if (!value) {
       return _("TTL value cannot be empty");
     }
-    const ttl = parseInt(value);
-    if (isNaN(ttl) || ttl < 0) {
-      return _("TTL must be a positive number");
-    }
-    return true;
+    return /^[0-9]+$/.test(value) ? true : _("TTL must be a positive number");
   };
   o = section.option(
     form.ListValue,
@@ -24093,11 +23763,11 @@ function addNetworkOptions(section) {
   o.retain = true;
   o.default = "2000";
   o.rmempty = false;
-  o.validate = function(section_id, value) {
+  o.validate = function(_section_id, value) {
     if (!value) {
       return _("Delay value cannot be empty");
     }
-    return true;
+    return /^[0-9]+$/.test(value) ? true : _("Use a whole number of milliseconds");
   };
 }
 
@@ -24413,54 +24083,51 @@ function createSettingsContent(section) {
   addServiceOptions(section);
 }
 
-// src/forkop/entry/capabilities.ts
-function createUiCapabilitiesLoader() {
-  const uiCapabilities = {
-    loaded: false,
-    serverInboundsEnabledCount: -1
+// src/forkop/cbi/unsavedUci.ts
+function copy(value) {
+  return value === void 0 ? void 0 : JSON.parse(JSON.stringify(value));
+}
+function captureUnsavedUci() {
+  const state = uci.state;
+  const values = state.values[FORKOP_UCI_PACKAGE] || {};
+  return {
+    values: state.values[FORKOP_UCI_PACKAGE],
+    creates: copy(state.creates[FORKOP_UCI_PACKAGE]),
+    changes: copy(state.changes[FORKOP_UCI_PACKAGE]),
+    deletes: copy(state.deletes[FORKOP_UCI_PACKAGE]),
+    reorder: state.reorder[FORKOP_UCI_PACKAGE] === true,
+    order: Object.fromEntries(
+      Object.entries(values).map(([sid, section]) => [sid, section[".index"]])
+    )
   };
-  let uiCapabilitiesPromise = null;
-  const applyUiCapabilities = function() {
-    if (store && typeof store.set === "function") {
-      const currentSystemInfo = store.get().diagnosticsSystemInfo;
-      store.set({
-        diagnosticsSystemInfo: {
-          ...currentSystemInfo,
-          capabilitiesLoaded: true,
-          server_inbounds_enabled_count: uiCapabilities.serverInboundsEnabledCount
-        }
-      });
+}
+function restoreUnsavedUci(unsaved) {
+  const state = uci.state;
+  if (state.values[FORKOP_UCI_PACKAGE] !== unsaved.values) {
+    return;
+  }
+  const put = (store2, value) => {
+    if (value === void 0) {
+      delete store2[FORKOP_UCI_PACKAGE];
+    } else {
+      store2[FORKOP_UCI_PACKAGE] = copy(value);
     }
   };
-  const updateUiCapabilities = function(data) {
-    uiCapabilities.loaded = true;
-    const serverInboundsEnabledCount = typeof data?.server_inbounds_enabled_count !== "undefined" ? Number(data.server_inbounds_enabled_count) : -1;
-    uiCapabilities.serverInboundsEnabledCount = Number.isFinite(
-      serverInboundsEnabledCount
-    ) ? serverInboundsEnabledCount : -1;
-    applyUiCapabilities();
-    return uiCapabilities;
-  };
-  return function loadUiCapabilities() {
-    if (uiCapabilities.loaded) {
-      return Promise.resolve(uiCapabilities);
-    }
-    if (uiCapabilitiesPromise) {
-      return uiCapabilitiesPromise;
-    }
-    uiCapabilitiesPromise = ForkopShellMethods.getUiCapabilities().then((response) => {
-      if (!response?.success) {
-        throw new Error("UI capabilities request failed");
+  put(state.creates, unsaved.creates);
+  put(state.changes, unsaved.changes);
+  put(state.deletes, unsaved.deletes);
+  if (unsaved.reorder) {
+    state.reorder[FORKOP_UCI_PACKAGE] = true;
+  } else {
+    delete state.reorder[FORKOP_UCI_PACKAGE];
+  }
+  Object.entries(state.values[FORKOP_UCI_PACKAGE] || {}).forEach(
+    ([sid, section]) => {
+      if (Object.prototype.hasOwnProperty.call(unsaved.order, sid)) {
+        section[".index"] = unsaved.order[sid];
       }
-      return updateUiCapabilities(response.data);
-    }).catch((error) => {
-      console.warn("Failed to load Forkop UI capabilities", error);
-      return updateUiCapabilities({});
-    }).finally(() => {
-      uiCapabilitiesPromise = null;
-    });
-    return uiCapabilitiesPromise;
-  };
+    }
+  );
 }
 
 // src/forkop/entry/gridSection.ts
@@ -24519,6 +24186,28 @@ function configureGridSection(sectionRef, type, title, addTitle, onSectionAdded)
     onSectionAdded?.(sectionId);
     return this.renderMoreOptionsModal(sectionId);
   };
+  let unsaved = null;
+  sectionRef.renderMoreOptionsModal = function(section_id, ev) {
+    unsaved = captureUnsavedUci();
+    return form.GridSection.prototype.renderMoreOptionsModal.call(
+      this,
+      section_id,
+      ev
+    );
+  };
+  sectionRef.handleModalCancel = function(modalMap, ev, isSaving) {
+    if (!isSaving && unsaved) {
+      restoreUnsavedUci(unsaved);
+    }
+    unsaved = null;
+    clearSharedChildPendingSettings();
+    return form.GridSection.prototype.handleModalCancel.call(
+      this,
+      modalMap,
+      ev,
+      isSaving
+    );
+  };
   if (type === "section") {
     sectionRef.renderRowActions = function(section_id) {
       return form.TableSection.prototype.renderRowActions.call(
@@ -24543,7 +24232,6 @@ function addMountedTab(map, type, title, tab) {
 var ForkopView = {
   async render() {
     injectGlobalStyles();
-    const loadUiCapabilities = createUiCapabilitiesLoader();
     const forkopMap = new form.Map(FORKOP_UCI_PACKAGE, _("Forkop Settings"));
     forkopMap.tabbed = true;
     const rulesSection = forkopMap.section(
@@ -24600,12 +24288,8 @@ var ForkopView = {
     addMountedTab(forkopMap, "monitoring", _("Monitoring"), MonitoringTab);
     addMountedTab(forkopMap, "logs", _("Logs"), LogsTab);
     addMountedTab(forkopMap, "updates", _("Components"), UpdatesTab);
-    await loadUiCapabilities().catch(() => null);
     const rendered = await forkopMap.render();
-    coreService({
-      waitForLogWatcherStart: loadUiCapabilities,
-      logWatcherStartDelayMs: 5e3
-    });
+    coreService();
     return rendered;
   }
 };

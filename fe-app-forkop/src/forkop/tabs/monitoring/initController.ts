@@ -1,6 +1,13 @@
-import { canUseDirectClashApi, getClashWsUrl, onMount } from '../../../helpers';
+import {
+  canUseDirectClashApi,
+  getClashSocketUrl,
+} from '../../../helpers/getClashApiUrl';
+import { onMount } from '../../../helpers/onMount';
 import { resetClashApiTransport } from '../../methods/custom/getDashboardSections';
 import { pollDelayForDuration } from '../../helpers/pollDelay';
+import { shouldCopyFullMonitoringValue } from './valueCopy';
+import { createPollChain } from '../../helpers/pollChain';
+import { isDocumentVisible } from '../../../helpers/isDocumentVisible';
 import { prettyBytes } from '../../../helpers/prettyBytes';
 import { showToast } from '../../../helpers/showToast';
 import {
@@ -83,15 +90,12 @@ let monitoringMountId = 0;
 let monitoringLifecycleRegistered = false;
 let monitoringControllerInitialized = false;
 let renderTimer: ReturnType<typeof setInterval> | null = null;
-let connectionsPollTimer: ReturnType<typeof setTimeout> | null = null;
 let connectionsSocketUrl = '';
 let connectionsUpdatesId = 0;
-let connectionsPollActive = false;
 let connectionsSocketGraceTimer: ReturnType<typeof setTimeout> | null = null;
 let lastConnectionsPollDurationMs = 0;
 let renderSkippedForSelection = false;
 let pendingConnectionsPayload: ClashConnectionsPayload | null = null;
-let pollingConnections = false;
 
 let activeTab: MonitoringTabId = 'active';
 let selectedDeviceFilter = ALL_FILTER_VALUE;
@@ -145,7 +149,7 @@ function getDisplayName(section: Forkop.ConfigSection) {
 
 function buildRouteDisplayNames(sections: Forkop.ConfigSection[]) {
   const map: Record<string, string> = {
-    'direct-out': 'Direct',
+    'direct-out': _('Direct'),
   };
   const serverMap: Record<string, string> = {};
   const routeSectionItems: Array<{ sectionName: string; displayName: string }> =
@@ -308,7 +312,7 @@ function getServerSourceNameByIp(ip: string): string {
 
 function getDeviceFilterLabel(ip: string): string {
   if (ip === SYSTEM_DEVICE_VALUE) {
-    return 'System';
+    return _('System');
   }
 
   const serverName = getServerSourceNameByIp(ip);
@@ -325,10 +329,9 @@ function getSourceCellParts(connection: MonitoredConnection) {
   const inboundTag = getConnectionInboundTag(connection);
   if (isSystemConnection(connection)) {
     return {
-      primary: 'System',
-      ip: '',
-      copyValue: 'System',
-      searchValue: ['System', ip, inboundTag].filter(Boolean).join(' '),
+      primary: _('System'),
+      copyValue: _('System'),
+      searchValue: [_('System'), ip, inboundTag].filter(Boolean).join(' '),
     };
   }
   const serverName = getServerDisplayNameByInboundTag(inboundTag);
@@ -341,7 +344,6 @@ function getSourceCellParts(connection: MonitoredConnection) {
 
     return {
       primary,
-      ip: '',
       copyValue: primary,
       searchValue: [primary, ip, inboundTag].filter(Boolean).join(' '),
     };
@@ -352,7 +354,6 @@ function getSourceCellParts(connection: MonitoredConnection) {
   if (deviceName) {
     return {
       primary: deviceName,
-      ip: '',
       copyValue: deviceName,
       searchValue: `${deviceName} ${ip}`,
     };
@@ -360,7 +361,6 @@ function getSourceCellParts(connection: MonitoredConnection) {
 
   return {
     primary: ip || '-',
-    ip: '',
     copyValue: ip || '-',
     searchValue: ip,
   };
@@ -725,33 +725,14 @@ function renderValue(value: string, className = '') {
 
 function renderSourceValue(source: ReturnType<typeof getSourceCellParts>) {
   const fullText = source.copyValue || source.primary || '-';
-
-  if (!source.ip) {
-    const element = E(
-      'span',
-      {
-        class:
-          'fkp_monitoring-page__value fkp_monitoring-page__source-value fkp_monitoring-page__source-value--ip-only',
-        title: fullText,
-      },
-      source.primary || '-',
-    );
-
-    element.setAttribute('data-copy-value', fullText);
-
-    return element;
-  }
-
   const element = E(
     'span',
     {
-      class: 'fkp_monitoring-page__value fkp_monitoring-page__source-value',
+      class:
+        'fkp_monitoring-page__value fkp_monitoring-page__source-value fkp_monitoring-page__source-value--ip-only',
       title: fullText,
     },
-    [
-      E('span', { class: 'fkp_monitoring-page__source-name' }, source.primary),
-      E('span', { class: 'fkp_monitoring-page__source-ip' }, source.ip),
-    ],
+    source.primary || '-',
   );
 
   element.setAttribute('data-copy-value', fullText);
@@ -977,107 +958,12 @@ function setMonitoringPaused(paused: boolean) {
       return;
     }
 
-    if (connectionsPollTimer) {
-      void pollConnectionsSnapshot();
-      return;
+    if (connectionsPoll.active) {
+      connectionsPoll.now();
     }
   }
 
   renderConnections();
-}
-
-function isElementOverflowing(element: HTMLElement): boolean {
-  return element.scrollWidth > element.clientWidth + 1;
-}
-
-function getMonitoringValueOverflowElements(
-  element: HTMLElement,
-): HTMLElement[] {
-  return [
-    element,
-    ...Array.from(element.querySelectorAll<HTMLElement>('*')),
-  ].filter(isElementOverflowing);
-}
-
-function getElementCopyText(element: HTMLElement, fallback: string): string {
-  return (
-    element.getAttribute('data-copy-value') || element.textContent || fallback
-  );
-}
-
-function compactMonitoringText(value: string): string {
-  return value
-    .replace(/\u2026/g, '')
-    .trim()
-    .replace(/\s+/g, '');
-}
-
-function getMonitoringValueTextElements(element: HTMLElement): HTMLElement[] {
-  const children = Array.from(element.children).filter(
-    (child): child is HTMLElement => child instanceof HTMLElement,
-  );
-
-  if (children.length === 0) {
-    return [element];
-  }
-
-  const textElements = children
-    .flatMap(getMonitoringValueTextElements)
-    .filter((child) => compactMonitoringText(getElementCopyText(child, '')));
-
-  return textElements.length > 0 ? textElements : [element];
-}
-
-function estimateVisibleMonitoringTextLength(
-  element: HTMLElement,
-  fallbackText: string,
-): number {
-  const text = compactMonitoringText(getElementCopyText(element, fallbackText));
-
-  if (!text) {
-    return 0;
-  }
-
-  if (!isElementOverflowing(element)) {
-    return text.length;
-  }
-
-  return Math.floor(
-    (element.clientWidth / Math.max(element.scrollWidth, 1)) * text.length,
-  );
-}
-
-function getEstimatedVisibleMonitoringTextLength(
-  element: HTMLElement,
-  fallbackText: string,
-): number {
-  const textElements = getMonitoringValueTextElements(element);
-
-  if (textElements.length === 1 && textElements[0] === element) {
-    return estimateVisibleMonitoringTextLength(element, fallbackText);
-  }
-
-  return textElements.reduce(
-    (total, textElement) =>
-      total + estimateVisibleMonitoringTextLength(textElement, fallbackText),
-    0,
-  );
-}
-
-function isCompactTextSubsequence(needle: string, haystack: string): boolean {
-  let haystackIndex = 0;
-
-  for (let needleIndex = 0; needleIndex < needle.length; needleIndex += 1) {
-    haystackIndex = haystack.indexOf(needle[needleIndex], haystackIndex);
-
-    if (haystackIndex === -1) {
-      return false;
-    }
-
-    haystackIndex += 1;
-  }
-
-  return true;
 }
 
 function getSelectionValueElements(selection: Selection): HTMLElement[] {
@@ -1103,54 +989,6 @@ function getSelectionValueElements(selection: Selection): HTMLElement[] {
 
     return false;
   });
-}
-
-function shouldCopyFullMonitoringValue(
-  element: HTMLElement,
-  selectedText: string,
-  fullText: string,
-): boolean {
-  const normalizedSelectedText = selectedText.replace(/\u2026/g, '').trim();
-  const normalizedFullText = fullText.trim();
-  const compactSelectedText = compactMonitoringText(selectedText);
-  const compactFullText = compactMonitoringText(fullText);
-  const overflowElements = getMonitoringValueOverflowElements(element);
-  const hasCompositeText = getMonitoringValueTextElements(element).length > 1;
-
-  if (!normalizedSelectedText || !normalizedFullText) {
-    return false;
-  }
-
-  if (normalizedSelectedText === normalizedFullText) {
-    return true;
-  }
-
-  if (overflowElements.length === 0) {
-    return false;
-  }
-
-  if (hasCompositeText) {
-    const selectedPrefix = compactSelectedText.slice(
-      0,
-      Math.min(4, compactSelectedText.length),
-    );
-
-    if (
-      !compactFullText.startsWith(selectedPrefix) ||
-      !isCompactTextSubsequence(compactSelectedText, compactFullText)
-    ) {
-      return false;
-    }
-  } else if (!compactFullText.startsWith(compactSelectedText)) {
-    return false;
-  }
-
-  const estimatedVisibleChars = getEstimatedVisibleMonitoringTextLength(
-    element,
-    normalizedFullText,
-  );
-
-  return compactSelectedText.length >= Math.max(4, estimatedVisibleChars - 2);
 }
 
 function handleMonitoringValueCopy(event: ClipboardEvent) {
@@ -1345,13 +1183,12 @@ function reportPollFailure() {
 }
 
 async function pollConnectionsSnapshot() {
-  if (pollingConnections || !monitoringMounted || monitoringPaused) {
+  if (!monitoringMounted || monitoringPaused) {
     return;
   }
 
   const mountId = monitoringMountId;
   const startedAt = Date.now();
-  pollingConnections = true;
 
   try {
     const response = await CustomForkopMethods.getClashApiConnections();
@@ -1361,7 +1198,7 @@ async function pollConnectionsSnapshot() {
     if (
       !monitoringMounted ||
       mountId !== monitoringMountId ||
-      !connectionsPollActive
+      !connectionsPoll.active
     ) {
       return;
     }
@@ -1377,15 +1214,13 @@ async function pollConnectionsSnapshot() {
     if (
       !monitoringMounted ||
       mountId !== monitoringMountId ||
-      !connectionsPollActive
+      !connectionsPoll.active
     ) {
       return;
     }
 
     logger.error('[MONITORING]', 'connections polling failed', error);
     reportPollFailure();
-  } finally {
-    pollingConnections = false;
   }
 }
 
@@ -1407,44 +1242,29 @@ function connectionsPollDelay() {
   );
 }
 
-function scheduleConnectionsPoll(delay: number) {
-  connectionsPollTimer = setTimeout(() => {
-    connectionsPollTimer = null;
-    void pollConnectionsSnapshot().finally(() => {
-      if (monitoringMounted && connectionsPollActive) {
-        scheduleConnectionsPoll(connectionsPollDelay());
-      }
-    });
-  }, delay);
-}
+const connectionsPoll = createPollChain(
+  pollConnectionsSnapshot,
+  connectionsPollDelay,
+);
 
 function startConnectionsPolling() {
-  if (connectionsPollActive) {
-    return;
-  }
-
-  connectionsPollActive = true;
-  scheduleConnectionsPoll(0);
+  connectionsPoll.start(0);
 }
 
 function stopConnectionsPolling() {
-  connectionsPollActive = false;
+  connectionsPoll.stop();
   consecutivePollFailures = 0;
 
   if (connectionsSocketGraceTimer) {
     clearTimeout(connectionsSocketGraceTimer);
     connectionsSocketGraceTimer = null;
   }
-
-  if (connectionsPollTimer) {
-    clearTimeout(connectionsPollTimer);
-    connectionsPollTimer = null;
-  }
 }
 
 async function connectToConnectionsSocket(updatesId: number) {
   const mountId = monitoringMountId;
-  const clashApiSecret = await getClashApiSecret();
+  // Without the secret the socket is refused, and the poll covers for it.
+  const clashApiSecret = await getClashApiSecret().catch(() => '');
 
   if (
     !monitoringMounted ||
@@ -1454,7 +1274,7 @@ async function connectToConnectionsSocket(updatesId: number) {
     return;
   }
 
-  connectionsSocketUrl = `${getClashWsUrl()}/connections?token=${clashApiSecret}`;
+  connectionsSocketUrl = getClashSocketUrl('/connections', clashApiSecret);
 
   socket.subscribe(
     connectionsSocketUrl,
@@ -1564,7 +1384,7 @@ function onPageMount() {
   document.addEventListener('copy', handleMonitoringValueCopy);
 
   renderTimer = setInterval(() => {
-    if (monitoringPaused) {
+    if (monitoringPaused || !isDocumentVisible()) {
       return;
     }
 

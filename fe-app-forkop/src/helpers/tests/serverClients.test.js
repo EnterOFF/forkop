@@ -72,7 +72,7 @@ describe('server client names', () => {
     const { clients } = load({ srv: { protocol: 'trojan' } });
 
     expect(clients.nextClientName([])).toBe('client-1');
-    expect(clients.nextClientName(['client-1', 'client-3'])).toBe('client-3');
+    expect(clients.nextClientName(['client-1', 'client-3'])).toBe('client-4');
   });
 
   // The stored sections still hold the client the list no longer shows, so the

@@ -557,6 +557,31 @@ describe.each([
     expect(harness.uci.get('forkop', 'srv', 'routing_section')).toBe('target');
   });
 
+  it("on a server account's own routing section", async () => {
+    addSections([
+      MIXED_SERVER,
+      [
+        'server_client',
+        'cl1',
+        {
+          ...SERVER_ACCOUNT[2],
+          routing_override: '1',
+          routing_mode: 'section',
+          routing_section: 'target',
+        },
+      ],
+      LIVE_SECTION,
+      ...extra,
+    ]);
+    const grid = serverGrid();
+    const list = grid.children.find((option) => option.option === 'clients');
+    const dialog = await harness.openDialog(list, 'srv', 'cl1');
+    const result = await dialog.save().catch(() => ({ saved: false }));
+
+    expect(result.saved, 'the account dialog refused to save').toBe(true);
+    expect(harness.uci.get('forkop', 'cl1', 'routing_section')).toBe('target');
+  });
+
   it('on a server tailscale detour', async () => {
     addSections([
       [
@@ -790,4 +815,143 @@ it('adding a subscription writes no option nothing reads', async () => {
     .find((item) => item.url === 'https://example.com/new');
   expect(added, 'no subscription section was created').toBeTruthy();
   expect(added.user_agent).toBeUndefined();
+});
+
+/* ------------------------------------------------------ a refused save says why */
+
+// LuCI keeps a dialog open when its save is refused and says nothing, so the
+// reason has to reach the user some other way.
+describe('a nested dialog that refuses to save', () => {
+  it('says why', async () => {
+    addSections([
+      [
+        'section',
+        'sec',
+        { action: 'connection', enabled: '1', label: 'proxy' },
+      ],
+      [
+        'tunnel',
+        'tun1',
+        {
+          section: 'sec',
+          kind: 'wireguard',
+          name: 'wg',
+          order: '0',
+          private_key: WG_KEY,
+          address: ['10.8.1.9/32'],
+        },
+      ],
+    ]);
+    const grid = sectionGrid();
+    const list = grid.children.find((option) => option.option === 'tunnels');
+    const dialog = await harness.openDialog(list, 'sec', 'tun1');
+    const result = await dialog.save();
+
+    expect(result.saved).toBe(false);
+    expect(harness.toasts()).toEqual([
+      'Option "Peers" contains an invalid input value. Add at least one WireGuard peer',
+    ]);
+  });
+});
+
+/* ------------------------------------------- a check reads the dialog it is in */
+
+// A check that depends on a switch has to see the switch as the dialog shows it:
+// the one turned on a moment ago, not the one stored when the dialog opened.
+describe('a check behind a switch turned on in the same dialog', () => {
+  function dialogOption(dialog, name) {
+    return dialog.map.children[0].children.find(
+      (option) => option.option === name,
+    );
+  }
+
+  function turnOn(dialog, name) {
+    dialogOption(dialog, name).formvalue = () => '1';
+  }
+
+  it('refuses a subscription requested through no section', async () => {
+    const links = ['https://a.example/sub'];
+    addSections([CONNECTION_SECTION]);
+    const grid = sectionGrid();
+    grid.cfgsections = () => ['sec'];
+    await grid.load();
+    const list = grid.children.find(
+      (option) => option.option === 'subscription_url',
+    );
+    widgetAnswers(grid, { subscription_url: links });
+    list.onListChange('sec', links);
+    const dialog = await harness.openDialog(list, 'sec', links[0]);
+    turnOn(dialog, 'download_via_proxy_enabled');
+
+    expect(
+      dialogOption(dialog, 'download_via_proxy_section').validate(
+        'settings',
+        '',
+      ),
+    ).toBe('Select a section for downloading this subscription');
+  });
+
+  it('checks the DNS servers of an interface resolver', async () => {
+    addSections([
+      [
+        'section',
+        'sec',
+        { action: 'connection', enabled: '1', label: 'proxy' },
+      ],
+      [
+        'section_interface',
+        'iface1',
+        {
+          section: 'sec',
+          name: 'wan',
+          display_name: 'WAN',
+          domain_resolver_enabled: '0',
+        },
+      ],
+    ]);
+    const grid = sectionGrid();
+    const list = grid.children.find((option) => option.option === 'interfaces');
+    const dialog = await harness.openDialog(list, 'sec', 'iface1');
+    turnOn(dialog, 'domain_resolver_enabled');
+
+    expect(
+      dialogOption(dialog, 'domain_resolver_dns_server').validate(
+        'settings',
+        'not a server',
+      ),
+    ).not.toBe(true);
+  });
+
+  it('refuses an interface resolver sent through no section', async () => {
+    addSections([
+      [
+        'section',
+        'sec',
+        { action: 'connection', enabled: '1', label: 'proxy' },
+      ],
+      [
+        'section_interface',
+        'iface1',
+        {
+          section: 'sec',
+          name: 'wan',
+          display_name: 'WAN',
+          domain_resolver_enabled: '1',
+          domain_resolver_dns_server: ['1.1.1.1'],
+          domain_resolver_dns_detour_enabled: '0',
+        },
+      ],
+    ]);
+    const grid = sectionGrid();
+    const list = grid.children.find((option) => option.option === 'interfaces');
+    const dialog = await harness.openDialog(list, 'sec', 'iface1');
+    turnOn(dialog, 'domain_resolver_dns_detour_enabled');
+
+    expect(
+      dialogOption(dialog, 'domain_resolver_dns_detour_section').validate(
+        'settings',
+        '',
+      ),
+    ).toBe('Select a section');
+  });
 });

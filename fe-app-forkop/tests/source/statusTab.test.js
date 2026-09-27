@@ -3,8 +3,8 @@
 // width is decided by its own content rather than by the column it sits in - the
 // value of a DummyValue reaches the theme inside an <output>, and the theme lays
 // a .cbi-value out as a flex row, so the page is a shrink-to-fit box. Two
-// fractions and the controls' floor settle that at 17rem + 34rem, which is the
-// split a desktop window has always shown, and these checks hold it.
+// fractions and the controls' floor settle that at 17rem + 34rem on a desktop
+// window, and these checks hold it.
 //
 // Everything below the two-column plateau is the other half: the page has to
 // keep shrinking while two columns still fit, fill the column it is given once

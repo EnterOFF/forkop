@@ -56,7 +56,7 @@ describe('the connections table', () => {
     "const SYSTEM_DEVICE_VALUE = '@system'",
     "new Set(['system-in', 'system6-in'])",
     'isSystemConnection(connection)',
-    "primary: 'System'",
+    "primary: _('System')",
     '? SYSTEM_DEVICE_VALUE',
   ])('identifies System by its dedicated inbound: %s', (expected) => {
     expect(monitoring).toContain(expected);
@@ -107,7 +107,7 @@ describe('the tab', () => {
   it.each([
     'CONNECTIONS_RPC_POLL_BACKOFF_MAX_MS',
     'consecutivePollFailures',
-    'scheduleConnectionsPoll(connectionsPollDelay())',
+    'connectionsPollDelay,',
   ])('backs a failing poll off: %s', (expected) => {
     expect(monitoring).toContain(expected);
   });

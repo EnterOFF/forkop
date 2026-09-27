@@ -1,7 +1,8 @@
 import { FORKOP_UCI_PACKAGE } from '../../../constants';
 import { getRuleEditButtonText, loadVisibleTableOptions } from '../../cbi/grid';
+import { saveSectionModal } from '../../cbi/modal';
 import { listClients, removeServerClients } from './clients';
-import { DEFAULT_PROTOCOL, addedServers } from './constants';
+import { DEFAULT_PROTOCOL } from './constants';
 import { showServerDetailsModal } from './details';
 import { preloadServerModalData } from './network';
 import {
@@ -84,13 +85,10 @@ function renderServerRowActions(sectionRef: CBISection, sectionId: string) {
   return tdEl;
 }
 
-// The section exists from the moment Add is pressed, and a dialog that is never
-// finished leaves it behind. Nothing writes the switch until the dialog is saved,
-// and a server without one counts as disabled, so an unfinished server is inert:
-// the validator and the generator skip it. The dialog still shows the switch on,
-// because that is what saving it writes.
+// Add creates the section before its dialog opens, with what the dialog needs to
+// render: a protocol and its security. The switch is left to the dialog's Save;
+// dismissing the dialog takes the section away again.
 export function prepareAddedServer(sectionId: string) {
-  addedServers.add(sectionId);
   uci.set(FORKOP_UCI_PACKAGE, sectionId, 'protocol', DEFAULT_PROTOCOL);
   uci.set(
     FORKOP_UCI_PACKAGE,
@@ -120,35 +118,8 @@ export function configureServerSection(sectionRef: CBISection) {
     return form.GridSection.prototype.handleRemove.call(this, sectionId, ev);
   };
 
-  sectionRef.handleModalSave = function (modalMap: CBIModalMap, ev) {
-    const mapNode = this.getActiveModalMap();
-    const activeMap = dom.findClassInstance(mapNode) as CBIModalMap;
-    const sectionId = modalMap?.section || activeMap.section;
-
-    return (
-      activeMap
-        .parse()
-        .then(() => {
-          addedServers.delete(sectionId);
-
-          return form.GridSection.prototype.handleModalSave.call(
-            this,
-            modalMap,
-            ev,
-          );
-        })
-        // A rejected check already marks its own field and the dialog stays open,
-        // but that first pass wrote every field that did pass, the switch among
-        // them. A server that never got through its checks goes back to disabled,
-        // so leaving the page with the dialog open cannot stop the service.
-        .catch(() => {
-          if (addedServers.has(sectionId)) {
-            uci.unset(FORKOP_UCI_PACKAGE, sectionId, 'enabled');
-          }
-
-          return null;
-        })
-    );
+  sectionRef.handleModalSave = function (modalMap: CBIModalMap, ev: Event) {
+    return saveSectionModal(this, modalMap, ev);
   };
 
   sectionRef.renderRowActions = function (sectionId: string) {

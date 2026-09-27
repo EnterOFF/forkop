@@ -198,7 +198,7 @@ describe('the local device selector', () => {
 
   it.each([
     "export const SYSTEM_DEVICE_VALUE = '@system'",
-    "choices[SYSTEM_DEVICE_VALUE] = 'System'",
+    "choices[SYSTEM_DEVICE_VALUE] = _('System')",
     "normalizedName.toLowerCase() === 'system'",
     "'%s (%s)'.format(normalizedName, normalizedIp)",
   ])('offers the router itself as a device: %s', (expected) => {

@@ -10,11 +10,16 @@ type ErrorListener = (error: Event | string) => void;
 const RECONNECT_DELAY_MS = 1000;
 const RECONNECT_DELAY_MAX_MS = 30000;
 
+// A socket is keyed by its whole URL, and the Clash API ones carry the
+// controller secret in the query, which stays out of the console.
+function shown(url: string) {
+  return url.split('?')[0];
+}
+
 class SocketManager {
   private static instance: SocketManager;
   private sockets = new Map<string, WebSocket>();
   private listeners = new Map<string, Set<Listener>>();
-  private connected = new Map<string, boolean>();
   private errorListeners = new Map<string, Set<ErrorListener>>();
   private failedAttempts = new Map<string, number>();
 
@@ -39,7 +44,7 @@ class SocketManager {
       } catch (err) {
         logger.error(
           '[SOCKET]',
-          `resetAll: failed to close socket ${url}`,
+          `resetAll: failed to close socket ${shown(url)}`,
           err,
         );
       }
@@ -48,7 +53,6 @@ class SocketManager {
     this.sockets.clear();
     this.listeners.clear();
     this.errorListeners.clear();
-    this.connected.clear();
     this.failedAttempts.clear();
     logger.info('[SOCKET]', 'All connections and state have been reset.');
   }
@@ -63,7 +67,7 @@ class SocketManager {
     } catch (err) {
       logger.error(
         '[SOCKET]',
-        `failed to construct WebSocket for ${url}:`,
+        `failed to construct WebSocket for ${shown(url)}:`,
         err,
       );
       this.triggerError(url, err instanceof Event ? err : String(err));
@@ -71,14 +75,12 @@ class SocketManager {
     }
 
     this.sockets.set(url, ws);
-    this.connected.set(url, false);
     if (!this.listeners.has(url)) this.listeners.set(url, new Set());
     if (!this.errorListeners.has(url)) this.errorListeners.set(url, new Set());
 
     ws.addEventListener('open', () => {
-      this.connected.set(url, true);
       this.failedAttempts.delete(url);
-      logger.info('[SOCKET]', 'Connected to', url);
+      logger.info('[SOCKET]', 'Connected to', shown(url));
     });
 
     ws.addEventListener('message', (event) => {
@@ -88,7 +90,7 @@ class SocketManager {
           try {
             handler(event.data);
           } catch (err) {
-            logger.error('[SOCKET]', `Handler error for ${url}:`, err);
+            logger.error('[SOCKET]', `Handler error for ${shown(url)}:`, err);
           }
         }
       }
@@ -98,8 +100,7 @@ class SocketManager {
       if (this.sockets.get(url) !== ws) return;
 
       this.sockets.delete(url);
-      this.connected.set(url, false);
-      logger.warn('[SOCKET]', `Disconnected: ${url}`);
+      logger.warn('[SOCKET]', `Disconnected: ${shown(url)}`);
       this.triggerError(url, 'Connection closed');
       const attempts = (this.failedAttempts.get(url) || 0) + 1;
       this.failedAttempts.set(url, attempts);
@@ -120,7 +121,7 @@ class SocketManager {
     });
 
     ws.addEventListener('error', (err) => {
-      logger.error('[SOCKET]', `Socket error for ${url}:`, err);
+      logger.error('[SOCKET]', `Socket error for ${shown(url)}:`, err);
       this.triggerError(url, err);
     });
   }
@@ -143,24 +144,6 @@ class SocketManager {
     this.listeners.get(url)?.add(listener);
   }
 
-  unsubscribe(url: string, listener: Listener, onError?: ErrorListener): void {
-    this.listeners.get(url)?.delete(listener);
-    if (onError) {
-      this.errorListeners.get(url)?.delete(onError);
-    }
-  }
-
-  // eslint-disable-next-line
-  send(url: string, data: any): void {
-    const ws = this.sockets.get(url);
-    if (ws && this.connected.get(url)) {
-      ws.send(typeof data === 'string' ? data : JSON.stringify(data));
-    } else {
-      logger.warn('[SOCKET]', `Cannot send: not connected to ${url}`);
-      this.triggerError(url, 'Not connected');
-    }
-  }
-
   disconnect(url: string): void {
     const ws = this.sockets.get(url);
     if (ws) {
@@ -169,14 +152,7 @@ class SocketManager {
     this.sockets.delete(url);
     this.listeners.delete(url);
     this.errorListeners.delete(url);
-    this.connected.delete(url);
     this.failedAttempts.delete(url);
-  }
-
-  disconnectAll(): void {
-    for (const url of this.sockets.keys()) {
-      this.disconnect(url);
-    }
   }
 
   private triggerError(url: string, err: Event | string): void {
@@ -186,7 +162,7 @@ class SocketManager {
         try {
           cb(err);
         } catch (e) {
-          logger.error('[SOCKET]', `Error handler threw for ${url}:`, e);
+          logger.error('[SOCKET]', `Error handler threw for ${shown(url)}:`, e);
         }
       }
     }

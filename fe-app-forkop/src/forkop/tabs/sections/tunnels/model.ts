@@ -51,8 +51,7 @@ const AMNEZIA_STRING_FIELDS = [
 ];
 
 // Every AmneziaWG field, in the order the dialog shows them. The lists
-// above are that same set again, split by how each value is read, and
-// tests/luci_tunnels.sh holds the two views in step.
+// above are that same set again, split by how each value is read.
 export const AMNEZIA_FIELDS = [
   'jc',
   'jmin',
@@ -182,7 +181,7 @@ function tunnelKindLabel(kind: string, endpointType: string) {
       : kind === 'tailscale'
         ? 'Tailscale'
         : kind === 'json'
-          ? endpointType || 'JSON endpoint'
+          ? endpointType || _('JSON endpoint')
           : 'WireGuard';
 }
 

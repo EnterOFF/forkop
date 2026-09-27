@@ -1,6 +1,8 @@
 import { cleanupRemovedChildItems } from '../../cbi/childItems';
 import { loadVisibleTableOptions } from '../../cbi/grid';
+import { reportRefusedSave, saveSectionModal } from '../../cbi/modal';
 import { removeFallbackLevels } from './fallback';
+import { forgetOutboundNameChoices } from './outboundNames';
 import { missingConnectionOutbound } from './references';
 import { removeTunnelPeers } from './tunnels/model';
 import { loadDefaultSubscriptionHeaders } from './subscriptions/model';
@@ -28,6 +30,15 @@ export function configureSectionSection(sectionRef: CBISection) {
     return handleRemove!.call(this, section_id, event);
   };
 
+  const renderMoreOptionsModal = sectionRef.renderMoreOptionsModal;
+  sectionRef.renderMoreOptionsModal = function (
+    section_id: string,
+    ev?: Event,
+  ) {
+    forgetOutboundNameChoices();
+    return renderMoreOptionsModal.call(this, section_id, ev);
+  };
+
   // Which outbounds a section needs is a property of the section, not of any one
   // of its fields, so the check runs here instead of in an option. Before the
   // dialog writes anything: LuCI parses the options one by one, so a check that
@@ -37,15 +48,25 @@ export function configureSectionSection(sectionRef: CBISection) {
     // being edited, so this reads the id and not the method.
     const editedSectionId = modalMap?.section as unknown as string;
     if (missingConnectionOutbound(modalMap, editedSectionId)) {
-      return Promise.resolve();
+      reportRefusedSave(
+        _(
+          'Add a connection URI, a subscription, a network interface, a tunnel or a JSON outbound',
+        ),
+      );
+      return Promise.resolve(false);
     }
 
-    return form.GridSection.prototype.handleModalSave.call(this, modalMap, ev);
+    return saveSectionModal(this, modalMap, ev);
   };
 
+  // The default headers only fill in the subscription dialog, which asks again
+  // when it opens; the table renders without them.
   sectionRef.load = function () {
     return Promise.all([
-      loadDefaultSubscriptionHeaders(),
+      loadDefaultSubscriptionHeaders().catch((error) => {
+        console.warn('[SECTIONS] default subscription headers', error);
+        return [];
+      }),
       loadVisibleTableOptions(this),
     ]);
   };

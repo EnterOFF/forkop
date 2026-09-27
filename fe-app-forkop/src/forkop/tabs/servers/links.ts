@@ -2,6 +2,7 @@
 // (parser/link), so a link produced here is a link the core reads back and clients
 // that follow the same conventions understand.
 
+import { DEFAULT_CLIENT_FINGERPRINT } from './constants';
 import {
   base64Encode,
   base64UrlEncode,
@@ -76,10 +77,8 @@ function tlsQuery(
     params.sni = option(sectionId, 'tls_server_name');
     params.pbk = option(sectionId, 'reality_public_key');
     params.sid = optionList(sectionId, 'reality_short_id')[0] || '';
-    const fingerprint = option(sectionId, 'client_fingerprint');
-    if (fingerprint) {
-      params.fp = fingerprint;
-    }
+    params.fp =
+      option(sectionId, 'client_fingerprint') || DEFAULT_CLIENT_FINGERPRINT;
   } else {
     params.sni = option(sectionId, 'tls_server_name');
     if (usesGeneratedCertificate(sectionId)) {

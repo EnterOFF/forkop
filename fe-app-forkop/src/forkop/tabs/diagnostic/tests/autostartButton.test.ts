@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => {
     },
     latestActions: () => latest,
     refreshRuntimeUiStateNow: vi.fn(async () => undefined),
+    showToast: vi.fn(),
     enable: vi.fn(async () => ({ success: true, data: undefined })),
     disable: vi.fn(async () => ({ success: true, data: undefined })),
     renderStub: () => ({}),
@@ -69,9 +70,13 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock('../../../../helpers', async (importOriginal) => ({
-  ...(await importOriginal<object>()),
+vi.mock('../../../../helpers/showToast', () => ({
+  showToast: mocks.showToast,
+}));
+vi.mock('../../../../helpers/onMount', () => ({
   onMount: async () => ({}),
+}));
+vi.mock('../../../../helpers/preserveScrollForPage', () => ({
   preserveScrollForPage: (renderFn: () => void) => renderFn(),
 }));
 
@@ -99,10 +104,6 @@ vi.mock('../../../methods', () => ({
   CustomForkopMethods: {},
 }));
 
-vi.mock('../../../fetchers/fetchServicesInfo', () => ({
-  fetchServicesInfo: async () => undefined,
-}));
-
 vi.mock('../partials', () => ({
   renderAvailableActions: mocks.renderAvailableActions,
   renderCheckSection: mocks.renderStub,
@@ -127,9 +128,7 @@ function publishAutostart(enabled: number) {
         singbox: 1,
         forkopRunning: 1,
         forkopEnabled: enabled,
-        forkopStatus: enabled ? 'running & enabled' : 'running but disabled',
         forkopBusy: null,
-        forkopBusySeconds: 0,
       },
     },
   });
@@ -160,6 +159,7 @@ describe('autostart button', () => {
   beforeEach(() => {
     mocks.enable.mockClear();
     mocks.disable.mockClear();
+    mocks.showToast.mockClear();
     mocks.refreshRuntimeUiStateNow.mockReset();
     mocks.refreshRuntimeUiStateNow.mockResolvedValue(undefined);
   });
@@ -194,5 +194,22 @@ describe('autostart button', () => {
 
     expect(mocks.disable).toHaveBeenCalledOnce();
     expect(mocks.frames).toEqual(['disable:busy', 'enable:idle']);
+    expect(mocks.showToast).not.toHaveBeenCalled();
+  });
+
+  // The button stays where it was, which on its own reads as a click that did
+  // nothing.
+  it('says so when the switch did not move', async () => {
+    publishAutostart(0);
+    await flush();
+    mocks.enable.mockResolvedValueOnce({ success: false, data: undefined });
+
+    mocks.latestActions()!.enable.onClick();
+    await flush();
+
+    expect(mocks.showToast).toHaveBeenCalledWith(
+      'Could not enable autostart',
+      'error',
+    );
   });
 });

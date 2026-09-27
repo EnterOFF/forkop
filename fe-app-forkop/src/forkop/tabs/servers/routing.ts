@@ -33,16 +33,6 @@ function loadRoutingSectionChoices(optionRef: CBIOption, sectionId: string) {
   return Promise.resolve();
 }
 
-export function tailscaleDetourTargets(currentSectionId: string) {
-  return (uci.sections(FORKOP_UCI_PACKAGE, 'section') || []).filter(
-    (section) =>
-      section['.name'] &&
-      section['.name'] !== currentSectionId &&
-      section.enabled !== '0' &&
-      DETOUR_TARGET_ACTIONS.includes(`${section.action || ''}`),
-  );
-}
-
 export function addRoutingOptions(section: CBISection) {
   let o = section.option(
     form.ListValue,

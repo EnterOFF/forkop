@@ -1,10 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const mocks = vi.hoisted(() => ({ providers: vi.fn() }));
+vi.mock('../../../methods/custom/getDashboardSections', () => ({
+  getClashApiProxyProviders: mocks.providers,
+}));
+
 import { installLuciStubs } from '../../../../helpers/tests/luciStubs';
 import { childPendingSettingsStore } from '../../../cbi/itemSettings';
 import {
   currentDraftOutboundNames,
   currentLiveDynamicListValues,
+  forgetOutboundNameChoices,
   loadNativeProviderOutboundNames,
   loadSectionOutboundNameChoices,
   nativeProviderOutboundNames,
@@ -40,27 +46,17 @@ const PAYLOAD = {
   },
 };
 
-const transport = (value: unknown) =>
-  JSON.stringify({ status: 200, body: JSON.stringify(value) });
-
-let calls: unknown[][] = [];
-let response: Promise<unknown>;
+// What the Clash API request answers with once it got through.
+const clashAnswer = (value: unknown) => ({ success: true, data: value });
 
 function answerWith(next: Promise<unknown>) {
-  response = next;
+  mocks.providers.mockImplementation(() => next);
 }
 
 beforeEach(() => {
-  calls = [];
-  answerWith(Promise.resolve({ stdout: transport(PAYLOAD) }));
-  const globals = globalThis as unknown as Record<string, unknown>;
+  mocks.providers.mockReset();
+  answerWith(Promise.resolve(clashAnswer(PAYLOAD)));
   installLuciStubs({});
-  globals.fs = {
-    exec: (path: string, args: unknown) => {
-      calls.push([path, args]);
-      return response;
-    },
-  };
 });
 
 afterEach(() => {
@@ -96,15 +92,15 @@ describe('loadNativeProviderOutboundNames', () => {
     await expect(
       loadNativeProviderOutboundNames([PROVIDER_TAG]),
     ).resolves.toEqual(['Main US', 'Main DE']);
-    expect(calls).toEqual([
-      ['/usr/bin/forkop', ['clash_http', 'GET', '/providers/proxies', '']],
-    ]);
+    expect(mocks.providers).toHaveBeenCalledTimes(1);
   });
 
   // A stopped core is a request that goes unanswered, not a reason to offer the
   // user a shorter list than the one they configured.
   it('fails open when the core is unavailable', async () => {
-    answerWith(Promise.reject(new Error('sing-box is unavailable')));
+    answerWith(
+      Promise.resolve({ success: false, error: 'sing-box is unavailable' }),
+    );
 
     await expect(loadNativeProviderOutboundNames([PROVIDER_TAG])).resolves.toBe(
       null,
@@ -113,7 +109,7 @@ describe('loadNativeProviderOutboundNames', () => {
 
   it('asks nothing when there is no provider to ask about', async () => {
     await expect(loadNativeProviderOutboundNames([])).resolves.toEqual([]);
-    expect(calls).toEqual([]);
+    expect(mocks.providers).not.toHaveBeenCalled();
   });
 });
 
@@ -129,12 +125,6 @@ describe('the choices of a section', () => {
         tag: 'sub1',
       },
     });
-    (globalThis as unknown as Record<string, unknown>).fs = {
-      exec: (path: string, args: unknown) => {
-        calls.push([path, args]);
-        return response;
-      },
-    };
     return uci;
   }
 
@@ -154,13 +144,13 @@ describe('the choices of a section', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
 
-    answerWith(Promise.resolve({ stdout: transport({ providers: {} }) }));
+    answerWith(Promise.resolve(clashAnswer({ providers: {} })));
     await expect(
       loadSectionOutboundNameChoices('empty_first'),
     ).resolves.toEqual([]);
 
     // Still fresh: the empty answer stands.
-    answerWith(Promise.resolve({ stdout: transport(PAYLOAD) }));
+    answerWith(Promise.resolve(clashAnswer(PAYLOAD)));
     await expect(
       loadSectionOutboundNameChoices('empty_first'),
     ).resolves.toEqual([]);
@@ -169,6 +159,30 @@ describe('the choices of a section', () => {
     await expect(
       loadSectionOutboundNameChoices('empty_first'),
     ).resolves.toEqual(['Main DE', 'Main US']);
+  });
+
+  // A subscription that updated since the last dialog delivers other servers.
+  it('are looked up again for the next dialog', async () => {
+    sectionWithSubscription('updated');
+    await loadSectionOutboundNameChoices('updated');
+
+    const updated = {
+      providers: {
+        [PROVIDER_TAG]: {
+          proxies: [{ name: `${PROVIDER_TAG}/Main NL`, type: 'VLESS' }],
+        },
+      },
+    };
+    answerWith(Promise.resolve(clashAnswer(updated)));
+    await expect(loadSectionOutboundNameChoices('updated')).resolves.toEqual([
+      'Main DE',
+      'Main US',
+    ]);
+
+    forgetOutboundNameChoices();
+    await expect(loadSectionOutboundNameChoices('updated')).resolves.toEqual([
+      'Main NL',
+    ]);
   });
 });
 

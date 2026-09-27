@@ -1,10 +1,11 @@
 import { latencyClassName } from './latencyClassName';
 import {
   canUseDirectClashApi,
+  getClashSocketUrl,
   getClashWsUrl,
-  onMount,
-  preserveScrollForPage,
-} from '../../../helpers';
+} from '../../../helpers/getClashApiUrl';
+import { onMount } from '../../../helpers/onMount';
+import { preserveScrollForPage } from '../../../helpers/preserveScrollForPage';
 import { copyToClipboard } from '../../../helpers/copyToClipboard';
 import { showToast } from '../../../helpers/showToast';
 import { prettyBytes } from '../../../helpers/prettyBytes';
@@ -29,6 +30,7 @@ import { Forkop } from '../../types';
 import { refreshRuntimeUiState } from '../../services/runtimeUiState.service';
 import { isActiveLuciTab } from '../../helpers/isActiveLuciTab';
 import { pollDelayForDuration } from '../../helpers/pollDelay';
+import { createPollChain } from '../../helpers/pollChain';
 import { getServiceStatusDisplay } from '../../helpers/serviceStatusDisplay';
 import { resolveOutboundProxyLink } from './resolveOutboundProxyLink';
 import { E } from '../../../helpers/element';
@@ -62,7 +64,6 @@ const WIDGETS_POLL_DUTY_MAX_MS = 20000;
 // as long as the browser's own connect timeout runs. Nothing arriving in this
 // long means the poll should fill the widgets rather than wait it out.
 const WIDGETS_SOCKET_GRACE_MS = 2000;
-let sectionsRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let sectionsRefreshFailures = 0;
 let lastSectionsRefreshDurationMs = 0;
 let sectionsRefreshPromise: Promise<boolean> | null = null;
@@ -71,8 +72,6 @@ let dashboardMounted = false;
 let dashboardMountId = 0;
 let dashboardDataUpdatesStarted = false;
 let dashboardDataUpdatesId = 0;
-let widgetsPollTimer: ReturnType<typeof setTimeout> | null = null;
-let widgetsPolling = false;
 let widgetsPollFailures = 0;
 let widgetsSocketGraceTimer: ReturnType<typeof setTimeout> | null = null;
 let lastWidgetsPollDurationMs = 0;
@@ -355,7 +354,7 @@ async function pollWidgetsSnapshot(dataUpdatesId: number) {
 
     lastWidgetsPollDurationMs = Date.now() - startedAt;
 
-    if (!widgetsPolling || dataUpdatesId !== dashboardDataUpdatesId) {
+    if (!widgetsPoll.active || dataUpdatesId !== dashboardDataUpdatesId) {
       return;
     }
 
@@ -369,7 +368,7 @@ async function pollWidgetsSnapshot(dataUpdatesId: number) {
   } catch (error) {
     logger.error('[DASHBOARD]', 'pollWidgetsSnapshot: failed', error);
 
-    if (widgetsPolling && dataUpdatesId === dashboardDataUpdatesId) {
+    if (widgetsPoll.active && dataUpdatesId === dashboardDataUpdatesId) {
       reportWidgetsFailure();
     }
   }
@@ -392,29 +391,22 @@ function widgetsPollDelay() {
   );
 }
 
-function scheduleWidgetsPoll(dataUpdatesId: number, delay: number) {
-  widgetsPollTimer = setTimeout(() => {
-    widgetsPollTimer = null;
-    void pollWidgetsSnapshot(dataUpdatesId).finally(() => {
-      if (widgetsPolling && dataUpdatesId === dashboardDataUpdatesId) {
-        scheduleWidgetsPoll(dataUpdatesId, widgetsPollDelay());
-      }
-    });
-  }, delay);
-}
+const widgetsPoll = createPollChain(
+  () => pollWidgetsSnapshot(dashboardDataUpdatesId),
+  widgetsPollDelay,
+);
 
 function startWidgetsPolling(dataUpdatesId: number) {
-  if (widgetsPolling || dataUpdatesId !== dashboardDataUpdatesId) {
+  if (widgetsPoll.active || dataUpdatesId !== dashboardDataUpdatesId) {
     return;
   }
 
-  widgetsPolling = true;
   widgetsPollFailures = 0;
-  scheduleWidgetsPoll(dataUpdatesId, 0);
+  widgetsPoll.start(0);
 }
 
 function stopWidgetsPolling() {
-  widgetsPolling = false;
+  widgetsPoll.stop();
   widgetsPollFailures = 0;
   lastPolledTotals = null;
   lastWidgetsPollDurationMs = 0;
@@ -423,16 +415,12 @@ function stopWidgetsPolling() {
     clearTimeout(widgetsSocketGraceTimer);
     widgetsSocketGraceTimer = null;
   }
-
-  if (widgetsPollTimer) {
-    clearTimeout(widgetsPollTimer);
-    widgetsPollTimer = null;
-  }
 }
 
 async function connectToClashSockets(dataUpdatesId: number) {
   const mountId = dashboardMountId;
-  const clashApiSecret = await getClashApiSecret();
+  // Without the secret the sockets are refused, and the polls cover for them.
+  const clashApiSecret = await getClashApiSecret().catch(() => '');
 
   if (
     !dashboardMounted ||
@@ -443,7 +431,7 @@ async function connectToClashSockets(dataUpdatesId: number) {
   }
 
   socket.subscribe(
-    `${getClashWsUrl()}/traffic?token=${clashApiSecret}`,
+    getClashSocketUrl('/traffic', clashApiSecret),
     (msg) => {
       if (dataUpdatesId !== dashboardDataUpdatesId) {
         return;
@@ -481,7 +469,7 @@ async function connectToClashSockets(dataUpdatesId: number) {
   );
 
   socket.subscribe(
-    `${getClashWsUrl()}/connections?token=${clashApiSecret}`,
+    getClashSocketUrl('/connections', clashApiSecret),
     (msg) => {
       if (dataUpdatesId !== dashboardDataUpdatesId) {
         return;
@@ -556,41 +544,21 @@ function restartSectionsRefresh() {
     return;
   }
 
-  if (sectionsRefreshTimer) {
-    clearTimeout(sectionsRefreshTimer);
-    sectionsRefreshTimer = null;
-  }
-
-  scheduleSectionsRefresh(dashboardDataUpdatesId, sectionsRefreshDelay());
+  sectionsRefresh.stop();
+  sectionsRefresh.start(sectionsRefreshDelay());
 }
 
-function scheduleSectionsRefresh(dataUpdatesId: number, delay: number) {
-  sectionsRefreshTimer = setTimeout(() => {
-    sectionsRefreshTimer = null;
-    const startedAt = Date.now();
-
-    void fetchDashboardSections()
-      .then((success) => {
-        lastSectionsRefreshDurationMs = Date.now() - startedAt;
-        sectionsRefreshFailures = success ? 0 : sectionsRefreshFailures + 1;
-      })
-      .finally(() => {
-        if (dashboardMounted && dataUpdatesId === dashboardDataUpdatesId) {
-          scheduleSectionsRefresh(dataUpdatesId, sectionsRefreshDelay());
-        }
-      });
-  }, delay);
-}
+const sectionsRefresh = createPollChain(async () => {
+  const startedAt = Date.now();
+  const success = await fetchDashboardSections();
+  lastSectionsRefreshDurationMs = Date.now() - startedAt;
+  sectionsRefreshFailures = success ? 0 : sectionsRefreshFailures + 1;
+}, sectionsRefreshDelay);
 
 function stopDashboardDataUpdates() {
   dashboardDataUpdatesStarted = false;
   dashboardDataUpdatesId += 1;
-
-  if (sectionsRefreshTimer) {
-    clearTimeout(sectionsRefreshTimer);
-    sectionsRefreshTimer = null;
-  }
-
+  sectionsRefresh.stop();
   sectionsRefreshFailures = 0;
   lastSectionsRefreshDurationMs = 0;
   sectionsRefreshQueued = false;
@@ -624,7 +592,7 @@ function startDashboardDataUpdates() {
     startWidgetsPolling(dataUpdatesId);
   }
 
-  scheduleSectionsRefresh(dataUpdatesId, SECTIONS_REFRESH_INTERVAL_MS);
+  sectionsRefresh.start(SECTIONS_REFRESH_INTERVAL_MS);
 }
 
 // Handlers
@@ -680,6 +648,7 @@ async function handleChooseOutbound(
     void fetchDashboardSections({ force: true });
   } catch (error) {
     logger.error('[DASHBOARD]', 'handleChooseOutbound failed', error);
+    showToast(_('Failed to switch the server'), 'error');
   } finally {
     selectorRequests.delete(selector);
   }
@@ -809,7 +778,7 @@ function formatUrlTestModalValue(value: unknown) {
 }
 
 function formatUrlTestLatency(latency: number) {
-  return latency ? `${latency}ms` : 'N/A';
+  return latency ? `${latency}ms` : _('N/A');
 }
 
 function renderDetailsUrl(value: unknown) {
@@ -831,20 +800,7 @@ function renderDetailsUrl(value: unknown) {
   );
 }
 
-function getDetectedCountryFlag(country?: string) {
-  const code = `${country || ''}`.trim().toUpperCase();
-
-  if (!/^[A-Z]{2}$/.test(code)) {
-    return '';
-  }
-
-  return String.fromCodePoint(
-    ...code.split('').map((char) => 0x1f1e6 + char.charCodeAt(0) - 65),
-  );
-}
-
 function renderDetailsMemberName(member: Forkop.UrlTestMember) {
-  const countryFlag = getDetectedCountryFlag(member.country);
   return [
     ...(member.subscriptionTag
       ? [
@@ -858,15 +814,6 @@ function renderDetailsMemberName(member: Forkop.UrlTestMember) {
           ),
         ]
       : []),
-    ...(countryFlag
-      ? [
-          E(
-            'span',
-            { class: 'fkp_dashboard-page__urltest-details__country-badge' },
-            countryFlag,
-          ),
-        ]
-      : []),
     ...renderFlagEmojis(member.displayName),
   ];
 }
@@ -877,7 +824,7 @@ function renderUrlTestSelectedValue(info: Forkop.UrlTestInfo) {
     selectedMember?.displayName || info.selectedName || info.selectedCode || '';
   const name = formatUrlTestModalValue(selectedName);
 
-  if (name === _('No')) {
+  if (!selectedName.trim()) {
     return E('span', {}, name);
   }
 
@@ -1102,7 +1049,7 @@ function renderFallbackSelectedValue(info: Forkop.FallbackInfo) {
     selectedMember?.displayName || info.selectedName || info.selectedCode || '';
   const name = formatUrlTestModalValue(selectedName);
 
-  if (name === _('No')) {
+  if (!selectedName.trim()) {
     return E('span', {}, name);
   }
 

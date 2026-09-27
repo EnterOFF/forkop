@@ -185,9 +185,8 @@ function wan_up() {
 // procd_add_*_trigger calls.
 function triggers() {
     let values = settings();
-    let delay = common.option(values, "badwan_reload_delay", "2000") || "2000";
     let lines = [
-        "delay\t" + delay,
+        "delay\t" + common.int_option(values, "badwan_reload_delay", "2000"),
         "config\tconfig.change\t" + CONFIG_NAME + "\t" + SERVICE_INIT + "\treload\t" + CONFIG_CHANGE,
         "interface\tinterface.*.up\twan\t" + SERVICE_INIT + "\thandle_wan_up\t"
     ];

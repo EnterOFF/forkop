@@ -56,4 +56,26 @@ describe('mountTab', () => {
     expect(mountTab('logs', render, () => undefined)).toBe(node);
     expect(render).toHaveBeenCalledTimes(1);
   });
+
+  // The controllers are async: what fails after the first await is a rejected
+  // promise, not a throw, and it has to be reported all the same.
+  it('reports a controller that fails after it started', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    mountTab(
+      'dashboard',
+      () => fakeNode(''),
+      async () => {
+        await Promise.resolve();
+        throw new Error('render failed');
+      },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(error).toHaveBeenCalledWith(
+      '[TABS] Failed to start the dashboard controller',
+      expect.any(Error),
+    );
+    error.mockRestore();
+  });
 });

@@ -68,6 +68,23 @@ describe('VLESS links', () => {
     expect(new URL(url).hash).toBe('#phone');
   });
 
+  // REALITY clients refuse a link without a fingerprint, and a server that
+  // names none is shown the default in its dialog.
+  it('carries the default fingerprint when the server names none', () => {
+    const { link, client } = load(
+      {
+        protocol: 'vless',
+        security: 'reality',
+        reality_public_key: 'public-key',
+        reality_short_id: ['abcd1234'],
+        tls_server_name: 'www.microsoft.com',
+      },
+      { uuid: UUID },
+    );
+    const [{ link: url }] = link.buildClientLinks('srv', client);
+    expect(query(url).fp).toBe('chrome');
+  });
+
   it('has no link while the Reality key pair is missing', () => {
     const { link, client } = load(
       { protocol: 'vless', security: 'reality' },

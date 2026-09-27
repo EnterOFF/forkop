@@ -31,7 +31,7 @@ const TABS = {
   sections: ['forkop/cbi', 'forkop/tabs/sections'],
   servers: ['forkop/cbi', 'forkop/tabs/servers'],
   settings: ['forkop/cbi', 'forkop/tabs/settings'],
-  // The page the tabs hang off, which is what the entry view used to be.
+  // The page the tabs hang off.
   entry: ['forkop/entry'],
 };
 
@@ -106,7 +106,7 @@ function typeSpans(source) {
     ) {
       drop(params[0].start, params[1] ? params[1].start : params[0].end);
     }
-    // The `export` keyword in front of a declaration the old file did not have.
+    // The `export` keyword in front of a declaration.
     if (node.type === 'ExportNamedDeclaration' && node.declaration) {
       drop(node.start, node.declaration.start);
     }
@@ -199,12 +199,8 @@ export function tabSource(tab) {
   return cache.get(tab);
 }
 
-// One top-level declaration of the tab, by name, taken whole.
-//
-// The checks that used to cut a region out with `sed -n '/^function a(/,/^function
-// b(/p'` were reading a single file, where what followed what was fixed. Asking
-// for the declaration by name says what they meant and survives the tab being
-// split across modules.
+// One top-level declaration of the tab, by name, taken whole, wherever in the
+// tab's modules it is.
 function readDeclaration(source, name) {
   const start = source.search(
     new RegExp(`^(?:async function|function|const|let) ${name}\\b`, 'm'),

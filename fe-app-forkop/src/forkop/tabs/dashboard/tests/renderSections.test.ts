@@ -405,7 +405,6 @@ describe('renderSections latency actions', () => {
         sectionName: 'main',
         displayName: 'Main',
         withTagSelect: true,
-        latencyTestCode: 'main-out',
         outbounds: [
           {
             code: 'main/Fallback',

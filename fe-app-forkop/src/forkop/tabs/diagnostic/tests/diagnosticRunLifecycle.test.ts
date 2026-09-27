@@ -56,9 +56,10 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock('../../../../helpers', async (importOriginal) => ({
-  ...(await importOriginal<object>()),
+vi.mock('../../../../helpers/onMount', () => ({
   onMount: async () => ({}),
+}));
+vi.mock('../../../../helpers/preserveScrollForPage', () => ({
   preserveScrollForPage: (renderFn: () => void) => renderFn(),
 }));
 
@@ -80,10 +81,6 @@ vi.mock('../../../services/systemInfo.service', () => ({
 vi.mock('../../../methods', () => ({
   ForkopShellMethods: {},
   CustomForkopMethods: {},
-}));
-
-vi.mock('../../../fetchers/fetchServicesInfo', () => ({
-  fetchServicesInfo: async () => undefined,
 }));
 
 vi.mock('../partials', () => ({

@@ -3,6 +3,7 @@ import { validatePath } from '../../../../validators/validatePath';
 import { validateUrl } from '../../../../validators/validateUrl';
 import { getChildItemIds, isExistingChildItem } from '../../../cbi/childItems';
 import { childPendingSettingsStore } from '../../../cbi/itemSettings';
+import { modalOptionFormValue } from '../../../cbi/modal';
 import { subscriptionOverrideKeys } from './overrides';
 
 export let defaultSubscriptionHeaderLines: string[] = [];
@@ -50,6 +51,18 @@ export function optionMapValue(
       : uci.get(FORKOP_UCI_PACKAGE, section_id, key);
 
   return value == null ? '' : value;
+}
+
+// What another option of the same dialog holds now: its widget's value once it
+// is rendered, the stored one before that. A check reads this, so it sees a
+// switch the user has just turned on.
+export function currentOptionValue(
+  option: CBIOption,
+  section_id: string,
+  key: string,
+) {
+  const value = modalOptionFormValue(option.map, section_id, key);
+  return value == null ? optionMapValue(option, section_id, key) : value;
 }
 
 function remoteSubscriptionUrlSettingsKeys() {

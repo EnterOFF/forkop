@@ -8,9 +8,6 @@ export const CLIENT_OWNER_OPTION = 'server';
 
 export const MAX_CLIENT_NAME_LENGTH = 64;
 
-// Servers created in this page load whose dialog has not been saved yet.
-export const addedServers = new Set();
-
 // Ports Forkop's own sing-box instance binds. A server that takes one of them stops
 // the whole service instead of only failing itself.
 export const RESERVED_PORTS = [
@@ -63,6 +60,10 @@ export const TRANSPORTS = [
 // Listeners that leave the negotiated protocol to the configuration. The rest pin
 // it themselves, so the field would only be a way to break them.
 export const ALPN_PROTOCOLS = ['vless', 'vmess', 'trojan', 'anytls'];
+
+// What a share link carries when the server names no fingerprint: REALITY
+// clients refuse a link without one.
+export const DEFAULT_CLIENT_FINGERPRINT = 'chrome';
 
 export const CLIENT_FINGERPRINTS = [
   'chrome',

@@ -19,6 +19,8 @@ import {
 import { safeRuntimeSectionName } from './references';
 import { optionMapValue } from './subscriptions/model';
 import { tunnelDisplayName } from './tunnels/model';
+import { subscriptionTags } from '../../../helpers/subscriptionTags';
+import { getClashApiProxyProviders } from '../../methods/custom/getDashboardSections';
 
 const outboundNameChoicesCache = new Map();
 
@@ -30,6 +32,13 @@ const outboundNameChoicesEmptyAt = new Map();
 // fetched it, so an empty answer is not a final one. Keeping it forever leaves
 // the group and dashboard filters without servers until the page is reloaded.
 const OUTBOUND_NAME_CHOICES_EMPTY_TTL_MS = 5000;
+
+// The fields of one dialog share a lookup, and the next dialog asks again: a
+// subscription that updated since then delivers other servers.
+export function forgetOutboundNameChoices() {
+  outboundNameChoicesCache.clear();
+  outboundNameChoicesEmptyAt.clear();
+}
 
 export const outboundNameSourceOptions = new Map();
 
@@ -79,22 +88,17 @@ export function loadNativeProviderOutboundNames(providerTags: unknown) {
     return Promise.resolve([]);
   }
 
-  return fs
-    .exec('/usr/bin/forkop', ['clash_http', 'GET', '/providers/proxies', ''])
+  return getClashApiProxyProviders()
     .then((response) => {
-      const transport = JSON.parse(response.stdout || '{}');
-      if ((response.code ?? 0) !== 0 || transport.status !== 200) {
-        throw new Error('Native provider lookup failed');
-      }
-      const value = JSON.parse(transport.body || '{}');
+      const providers = response.success ? response.data?.providers : null;
       if (
-        !value.providers ||
-        typeof value.providers !== 'object' ||
-        Array.isArray(value.providers)
+        !providers ||
+        typeof providers !== 'object' ||
+        Array.isArray(providers)
       ) {
-        throw new Error('Native provider lookup failed');
+        return null;
       }
-      return nativeProviderOutboundNames(providerTags, value);
+      return nativeProviderOutboundNames(providerTags, { providers });
     })
     .catch(() => null);
 }
@@ -107,13 +111,13 @@ function readOutboundChoiceState(section_id: string) {
   const sectionDisplayName = `${
     uci.get(FORKOP_UCI_PACKAGE, section_id, 'label') || section_id
   }`.trim();
-  return Promise.resolve({
-    providerTags: getChildItemIds(section_id, 'subscription_url').map(
-      (itemId: string, index: number) =>
-        `${sectionDisplayName}/${
-          uci.get(FORKOP_UCI_PACKAGE, itemId, 'tag') || `sub${index + 1}`
-        }`,
+  const tags = subscriptionTags(
+    getChildItemIds(section_id, 'subscription_url').map((itemId: string) =>
+      uci.get(FORKOP_UCI_PACKAGE, itemId, 'tag'),
     ),
+  );
+  return Promise.resolve({
+    providerTags: tags.map((tag) => `${sectionDisplayName}/${tag}`),
   });
 }
 

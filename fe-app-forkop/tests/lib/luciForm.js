@@ -21,7 +21,7 @@
 // Usage:
 //     import { createHarness } from '../lib/luciForm.js';
 //     const h = createHarness();
-//     const view = h.load('section');            // evaluates the view module
+//     const view = h.bundle;                     // the shipped bundle
 //     h.uci.add('forkop', 'section', 'section_a');
 //     const map = new h.form.Map('forkop');
 //     view.createSectionContent(map.section(h.form.GridSection, 'section'));
@@ -164,6 +164,9 @@ class FakeNode {
   removeChild(node) {
     this.childNodes = this.childNodes.filter((child) => child !== node);
     if (node instanceof FakeNode) node.parentNode = null;
+  }
+  remove() {
+    this.parentNode?.removeChild(this);
   }
   insertBefore(node) {
     return this.appendChild(node);
@@ -719,9 +722,8 @@ export function createHarness(packageName = 'forkop') {
       addNotification() {},
     },
     uci,
-    // The two commands on the router a page cannot get through without: the
-    // Reality identity a server dialog generates, and the capability payload the
-    // page waits for before it renders. Answering both keeps a test from
+    // The one command on the router a page cannot get through without: the
+    // Reality identity a server dialog generates. Answering it keeps a test from
     // reporting the dialog's own failure notice as its output.
     fs: {
       read: () => Promise.resolve(''),
@@ -731,10 +733,6 @@ export function createHarness(packageName = 'forkop') {
             success: true,
             private_key: 'wIWKZmAoiFsYIPFCwG8FRPHKn0P6PLh0hbBjPfKgpU0',
             public_key: 'SSw7I859PPdN4DQ7fxV9fobXM61Ms3mqZRlIY1aJvHQ',
-          },
-          get_ui_capabilities: {
-            success: true,
-            data: { server_inbounds_enabled_count: 0 },
           },
         };
         const answer = answers[`${args?.[0] ?? ''}`];
@@ -850,6 +848,14 @@ export function createHarness(packageName = 'forkop') {
     };
   }
 
+  // What the page told the user in a toast, in order.
+  const toasts = () =>
+    documentStub.body.childNodes
+      .filter((node) => node.className === 'toast-container')
+      .flatMap((container) =>
+        container.childNodes.map((toast) => toast.textContent),
+      );
+
   return {
     bundle: main,
     form,
@@ -858,5 +864,6 @@ export function createHarness(packageName = 'forkop') {
     operations,
     messages,
     openDialog,
+    toasts,
   };
 }

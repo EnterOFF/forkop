@@ -202,6 +202,9 @@ t.test("the triggers reload on a config change and on the monitored interfaces",
     fresh({});
     t.eq(split(initd.triggers(), "\n")[0], "delay\t2000");
     t.eq(length(split(initd.triggers(), "\n")), 4);
+    // procd takes the delay as a number of milliseconds and nothing else.
+    fresh({ badwan_reload_delay: "2s" });
+    t.eq(split(initd.triggers(), "\n")[0], "delay\t2000");
 });
 
 t.test("a restart is one action for whoever asked, with the stop and start inside it", () => {

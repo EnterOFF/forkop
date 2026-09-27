@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
   executeShellCommand: vi.fn(),
 }));
 
-vi.mock('../../../../helpers', () => ({
+vi.mock('../../../../helpers/executeShellCommand', () => ({
   executeShellCommand: mocks.executeShellCommand,
 }));
 

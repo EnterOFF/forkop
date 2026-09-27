@@ -144,7 +144,6 @@ function current_state() {
     let sing_box_running = forkop_running || health.sing_box_service_stable(STABLE_MIN_AGE) ? 1 : 0;
     let sing_box_enabled = executable(paths.rc_dir + "/S99sing-box") ? 1 : 0;
     let job = running_service_job();
-    let started = number(job?.started_at);
 
     return {
         service: {
@@ -152,8 +151,7 @@ function current_state() {
                 running: forkop_running,
                 enabled: forkop_enabled,
                 status: health.service_status_text(forkop_running, forkop_enabled),
-                busy: job == null ? null : (job.action == "reload" ? "apply" : job.action),
-                busy_seconds: job == null || started <= 0 ? 0 : max(common.now_seconds() - started, 0)
+                busy: job == null ? null : (job.action == "reload" ? "apply" : job.action)
             },
             sing_box: {
                 running: sing_box_running,
@@ -290,7 +288,6 @@ return {
     refresh,
     current_state,
     current_ui_state: current_state,
-    capabilities,
     default_headers,
     active_action,
     begin,

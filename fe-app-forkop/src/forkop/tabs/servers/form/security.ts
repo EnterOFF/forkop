@@ -1,4 +1,9 @@
-import { ALPN_PROTOCOLS, CLIENT_FINGERPRINTS, TRANSPORTS } from '../constants';
+import {
+  ALPN_PROTOCOLS,
+  CLIENT_FINGERPRINTS,
+  DEFAULT_CLIENT_FINGERPRINT,
+  TRANSPORTS,
+} from '../constants';
 import {
   addCertificateButton,
   addGenerateButton,
@@ -197,9 +202,8 @@ export function addSecurityOptions(section: CBISection) {
     'client_fingerprint',
     _('Client fingerprint'),
   );
-  o.value('', _('Not set'));
   CLIENT_FINGERPRINTS.forEach((value: string) => o.value(value, value));
-  o.default = 'chrome';
+  o.default = DEFAULT_CLIENT_FINGERPRINT;
   o.rmempty = true;
   o.modalonly = true;
   onReality(o);

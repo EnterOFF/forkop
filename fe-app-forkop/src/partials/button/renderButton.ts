@@ -1,4 +1,4 @@
-import { insertIf } from '../../helpers';
+import { insertIf } from '../../helpers/insertIf';
 import { renderLoaderCircleIcon24 } from '../../icons';
 import { E } from '../../helpers/element';
 

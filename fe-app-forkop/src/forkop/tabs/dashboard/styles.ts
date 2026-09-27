@@ -63,10 +63,6 @@ export const styles = `
     min-width: 0;
 }
 
-.fkp_dashboard-page__widgets-section__item__title {}
-
-.fkp_dashboard-page__widgets-section__item__row {}
-
 .fkp_dashboard-page__widgets-section__item__row--success .fkp_dashboard-page__widgets-section__item__row__value {
     color: var(--success-color-medium, green);
 }
@@ -78,10 +74,6 @@ export const styles = `
 .fkp_dashboard-page__widgets-section__item__row--progress .fkp_dashboard-page__widgets-section__item__row__value {
     color: var(--warning-color-medium, #b8860b);
 }
-
-.fkp_dashboard-page__widgets-section__item__row__key {}
-
-.fkp_dashboard-page__widgets-section__item__row__value {}
 
 .fkp_dashboard-page__outbound-section {
     margin-top: 10px;
@@ -221,10 +213,8 @@ export const styles = `
     white-space: nowrap;
 }
 
-/* The tag carries its own right margin because it is normally printed in front
-   of a node name, inside the same line of text. Here it is a flex item of its
-   own and the row's gap already separates it, so the two used to add up into a
-   visible hole between the tag and whatever the block leads with. */
+/* The tag carries its own right margin for when it is printed in front of a
+   node name. Here it is a flex item and the row's gap separates it. */
 .fkp_dashboard-page__subscription-meta__heading
     .fkp_dashboard-page__outbound-grid__item__subscription-tag {
     margin-right: 0;
@@ -633,8 +623,7 @@ export const styles = `
    stacked when they stop fitting. Which rows need the break depends on how long
    each name is, so the row decides for itself rather than every row breaking at
    one width of the window: the latency keeps its own width beside the name, and
-   below that drops under it. Either way it is flush with the row's right edge,
-   which is where the fixed latency column used to put it. */
+   below that drops under it. Either way it is flush with the row's right edge. */
 .fkp_dashboard-page__urltest-details__row-body {
     display: flex;
     flex-wrap: wrap;
@@ -689,20 +678,7 @@ export const styles = `
     background: var(--background-color-low);
 }
 
-.fkp_dashboard-page__urltest-details__country-badge {
-    display: inline-flex;
-    align-items: center;
-    user-select: none;
-    margin-right: 6px;
-    padding: 2px 4px;
-    border: 1px solid rgba(128, 128, 128, 0.25);
-    border-radius: 4px;
-    background: rgba(128, 128, 128, 0.15);
-    line-height: 1;
-}
-
-.fkp_dashboard-page__flag-emoji,
-.fkp_dashboard-page__urltest-details__country-badge {
+.fkp_dashboard-page__flag-emoji {
     font-family: "Twemoji Country Flags";
     font-style: normal;
     font-weight: normal;

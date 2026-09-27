@@ -7,23 +7,6 @@ import { IDiagnosticsChecksItem } from '../../../services';
 
 type SectionCheckState = IDiagnosticsChecksItem['state'];
 
-function getSubscriptionLatencyState(
-  latencyValues: unknown[],
-): SectionCheckState {
-  const hasAvailableLatency = latencyValues.some((item) => Boolean(item));
-  const hasUnavailableLatency = latencyValues.some((item) => !item);
-
-  if (!hasAvailableLatency) {
-    return 'error';
-  }
-
-  if (hasUnavailableLatency) {
-    return 'warning';
-  }
-
-  return 'success';
-}
-
 export async function runSectionsCheck() {
   const { order, title, code } = DIAGNOSTICS_CHECKS_MAP.OUTBOUNDS;
 
@@ -51,6 +34,19 @@ export async function runSectionsCheck() {
     throw new Error('Rule outbounds checks failed');
   }
 
+  if (!sections.data.length) {
+    updateCheckStore({
+      order,
+      code,
+      title,
+      description: _('No sections to check'),
+      state: 'skipped',
+      items: [],
+    });
+
+    return;
+  }
+
   const items: Array<IDiagnosticsChecksItem> = [];
 
   for (const section of sections.data) {
@@ -65,8 +61,6 @@ export async function runSectionsCheck() {
             (item) => item.type?.toLowerCase() === 'urltest',
           ) ??
           section.outbounds[0];
-
-        const isSubscription = section.proxyConfigType === 'subscription';
 
         if (selectedOutbound?.code) {
           // The section's timeout is the budget for sweeping its whole group;
@@ -88,33 +82,6 @@ export async function runSectionsCheck() {
           return {
             state: 'error',
             latency: `[${selectedOutbound.displayName ?? ''}] ${_('Not responding')}`,
-          };
-        }
-
-        const latencyGroup = await CustomForkopMethods.getClashApiGroupLatency(
-          section.code,
-        );
-        const success = latencyGroup.success && !latencyGroup.data.message;
-
-        if (success) {
-          const latencyValues = Object.values(latencyGroup.data);
-          const sectionState = isSubscription
-            ? getSubscriptionLatencyState(latencyValues)
-            : 'success';
-
-          const selectedProxyDelay =
-            latencyGroup.data?.[selectedOutbound?.code ?? ''];
-
-          if (selectedProxyDelay) {
-            return {
-              state: sectionState,
-              latency: `[${selectedOutbound?.displayName ?? ''}] ${selectedProxyDelay}ms`,
-            };
-          }
-
-          return {
-            state: 'error',
-            latency: `[${selectedOutbound?.displayName ?? ''}] ${_('Not responding')}`,
           };
         }
 

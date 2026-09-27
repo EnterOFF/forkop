@@ -163,7 +163,7 @@ function buildLocalDeviceChoices(
   Object.keys(routerIps).forEach((ip) => {
     delete choices[ip];
   });
-  choices[SYSTEM_DEVICE_VALUE] = 'System';
+  choices[SYSTEM_DEVICE_VALUE] = _('System');
 
   return choices;
 }

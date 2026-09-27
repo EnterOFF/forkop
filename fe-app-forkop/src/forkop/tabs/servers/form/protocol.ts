@@ -1,3 +1,4 @@
+import { validateOptionalSingBoxDuration } from '../../../../validators/validateSingBoxDuration';
 import { clearClientList } from '../clients';
 import { SHADOWSOCKS_METHODS } from '../constants';
 import {
@@ -12,7 +13,6 @@ import { getShadowsocksMethod, shadowsocksKeyBytes } from '../protocols';
 import {
   validateFilePath,
   validateHost,
-  validateOptionalDuration,
   validateOptionalMasquerade,
   validateOptionalPositiveInteger,
   validateRequired,
@@ -180,7 +180,8 @@ export function addTuicOptions(section: CBISection) {
   o.placeholder = '10s';
   o.modalonly = true;
   o.rmempty = true;
-  o.validate = validateOptionalDuration;
+  o.validate = (_sectionId: string, value: string) =>
+    validateOptionalSingBoxDuration(value);
   onTuic(o);
 
   o = section.option(

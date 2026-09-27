@@ -64,7 +64,7 @@ export async function runSingBoxCheck() {
       },
       {
         state: data.sing_box_version_ok ? 'success' : 'error',
-        key: _('Version is compatible (newer than 1.12.4)'),
+        key: _('Version is compatible'),
         value: '',
       },
       {

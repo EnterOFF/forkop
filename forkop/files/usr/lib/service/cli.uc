@@ -94,6 +94,12 @@ function lifecycle() {
     return require("service.lifecycle");
 }
 
+function autostart(enabled) {
+    if ((enabled ? lifecycle().enable() : lifecycle().disable()) != 0)
+        die(enabled ? "Could not enable autostart" : "Could not disable autostart");
+    return {};
+}
+
 function initd() {
     return require("service.initd");
 }
@@ -107,8 +113,8 @@ const COMMANDS = {
     stop: { help: "Stop Forkop service", run: init_script("stop") },
     reload: { args: 1, help: "Reload Forkop configuration", run: init_script("reload") },
     restart: { help: "Restart Forkop service", run: init_script("restart") },
-    enable: { help: "Enable Forkop autostart", run: () => lifecycle().enable() },
-    disable: { help: "Disable Forkop autostart", run: () => lifecycle().disable() },
+    enable: { help: "Enable Forkop autostart", run: reply(() => autostart(true)) },
+    disable: { help: "Disable Forkop autostart", run: reply(() => autostart(false)) },
     uninstall: { help: "Remove Forkop files installed outside opkg/apk", run: () => lifecycle().uninstall() },
     check_proxy: { help: "Check proxy connectivity", run: () => diagnostics().check_proxy() },
     check_nft_rules: { help: "Check NFT rules status", run: json(() => diagnostics().nft_rules()) },
@@ -116,12 +122,7 @@ const COMMANDS = {
     check_inbounds_config: { help: "Check whether enabled server inbounds are configured", run: json(() => diagnostics().inbounds_config()) },
     check_inbounds: { help: "Check server inbounds from the Servers tab", run: json(() => diagnostics().inbounds()) },
     check_logs: { help: "Show Forkop logs from system journal", run: () => {
-        let logs = diagnostics().logs("forkop");
-        if (logs == "") {
-            warn("Logs not found\n");
-            return 1;
-        }
-        print(logs);
+        print(diagnostics().logs("forkop"));
         return 0;
     } },
     check_fakeip: { help: "Test sing-box FakeIP DNS", run: json(() => diagnostics().fakeip()) },
@@ -134,7 +135,6 @@ const COMMANDS = {
     show_sing_box_config: { args: 1, help: "Show sing-box configuration", run: text((visibility) => diagnostics().show_sing_box_config(visibility || "masked")) },
     get_status: { help: "Get Forkop service status", run: json(() => diagnostics().status()) },
     get_system_info: { help: "Get system information in JSON format", run: json(() => diagnostics().system_info()) },
-    get_ui_capabilities: { help: "Get lightweight UI capabilities in JSON format", run: json(() => ui().capabilities()) },
     get_subscription_default_headers: { help: "Get default subscription request headers in JSON format", run: json(() => ui().default_headers()) },
     get_ui_state: { help: "Get lightweight UI service/action state in JSON format", run: json(() => ui().current_state()) },
     get_section_rule_sets: { help: "Map each section to its rule-set tags in JSON format", run: json(() => require("singbox.rulesets").section_tag_map()) },

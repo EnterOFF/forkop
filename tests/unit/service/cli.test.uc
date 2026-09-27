@@ -1,4 +1,5 @@
 let t = require("t");
+let fs = require("fs");
 let stub = require("stub");
 let cli = require("service.cli");
 
@@ -34,6 +35,35 @@ t.test("a key material command answers the page with success and its fields, or 
     stub.restore();
     t.eq([ good.result, json(good.stdout) ], [ 0, { success: true, private_key: "a", public_key: "b" } ]);
     t.eq([ bad.result, json(bad.stdout) ], [ 1, { success: false, message: "Failed to generate Reality key pair" } ]);
+});
+
+// The page tells the user when the switch did not move, so the command has to
+// answer either way instead of printing nothing.
+t.test("autostart answers the page whether the switch moved or not", () => {
+    let lifecycle = require("service.lifecycle");
+    let dir = stub.tmpdir();
+    lifecycle.paths.rc_dir = dir + "/rc.d";
+    let on = stub.capture(() => cli.main([ "enable" ], "/lib"));
+    let off = stub.capture(() => cli.main([ "disable" ], "/lib"));
+    t.eq([ on.result, json(on.stdout) ], [ 0, { success: true } ]);
+    t.eq([ off.result, json(off.stdout) ], [ 0, { success: true } ]);
+
+    fs.writefile(dir + "/not-a-dir", "");
+    lifecycle.paths.rc_dir = dir + "/not-a-dir/rc.d";
+    let refused = stub.capture(() => cli.main([ "enable" ], "/lib"));
+    t.eq([ refused.result, json(refused.stdout) ], [ 1, { success: false, message: "Could not enable autostart" } ]);
+});
+
+// A router whose log holds no Forkop line yet has nothing to show, which is an
+// answer and not a failure.
+t.test("the log command answers an empty log with nothing, successfully", () => {
+    stub.commands([ [ () => true, { status: 0, stdout: "" } ] ]);
+    let empty = stub.capture(() => cli.main([ "check_logs" ], "/lib"));
+    stub.commands([ [ () => true, { status: 0, stdout: "forkop: [info] up\n" } ] ]);
+    let some = stub.capture(() => cli.main([ "check_logs" ], "/lib"));
+    stub.restore();
+    t.eq([ empty.result, empty.stdout ], [ 0, "" ]);
+    t.eq([ some.result, some.stdout ], [ 0, "forkop: [info] up\n" ]);
 });
 
 t.test("the component commands reach the component manager programs", () => {

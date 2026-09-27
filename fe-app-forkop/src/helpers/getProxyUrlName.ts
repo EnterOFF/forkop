@@ -1,35 +1,66 @@
+// The name a link runs under, the way singbox/generator.uc connection_link_name()
+// gives it: a VMess link's own "ps" name, and otherwise everything after the
+// first "#", percent-decoded the way core/url.uc does.
 export function getProxyUrlName(url: string) {
-  try {
-    if (url.startsWith('vmess://')) {
-      const source = url.slice('vmess://'.length);
-      const encoded = source.startsWith('{')
-        ? source
-        : source.split(/[@?#]/, 1)[0];
-      const payload = encoded.startsWith('{')
-        ? encoded
-        : new TextDecoder().decode(
-            Uint8Array.from(
-              atob(
-                encoded
-                  .replace(/-/g, '+')
-                  .replace(/_/g, '/')
-                  .padEnd(Math.ceil(encoded.length / 4) * 4, '='),
-              ),
-              (character) => character.charCodeAt(0),
-            ),
-          );
-      const name = JSON.parse(payload)?.ps;
-      if (typeof name === 'string' && name) return name;
+  const link = `${url ?? ''}`;
+  const scheme = link.includes('://')
+    ? link.slice(0, link.indexOf('://')).toLowerCase()
+    : '';
+  if (scheme === 'vmess') {
+    const name = vmessName(link.slice('vmess://'.length));
+    if (name) {
+      return name;
     }
+  }
 
-    const [_link, hash] = url.split('#');
+  const marker = link.indexOf('#');
+  return marker >= 0 ? percentDecode(link.slice(marker + 1)) : '';
+}
 
-    if (!hash) {
+function vmessName(source: string) {
+  let payload = source;
+  if (!payload.startsWith('{')) {
+    const encoded = payload
+      .split(/[@?#]/, 1)[0]
+      .replace(/-/g, '+')
+      .replace(/_/g, '/');
+    try {
+      payload = new TextDecoder().decode(
+        Uint8Array.from(
+          atob(encoded.padEnd(Math.ceil(encoded.length / 4) * 4, '=')),
+          (character) => character.charCodeAt(0),
+        ),
+      );
+    } catch {
       return '';
     }
+  }
 
-    return decodeURIComponent(hash);
+  try {
+    const name = JSON.parse(payload)?.ps;
+    return name ? `${name}` : '';
   } catch {
     return '';
   }
+}
+
+// A "%" that does not start two hex digits stays as it is, rather than losing
+// the whole name the way decodeURIComponent() would.
+function percentDecode(value: string) {
+  const bytes: number[] = [];
+  const encoder = new TextEncoder();
+
+  for (let i = 0; i < value.length; ) {
+    const hex = value.slice(i + 1, i + 3);
+    if (value[i] === '%' && /^[0-9A-Fa-f]{2}$/.test(hex)) {
+      bytes.push(parseInt(hex, 16));
+      i += 3;
+      continue;
+    }
+    const character = String.fromCodePoint(value.codePointAt(i)!);
+    bytes.push(...encoder.encode(character));
+    i += character.length;
+  }
+
+  return new TextDecoder().decode(new Uint8Array(bytes));
 }

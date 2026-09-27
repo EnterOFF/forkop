@@ -105,10 +105,9 @@ function injectDetailsStyles() {
         // The width comes from the same place too: all three are opened without
         // cbi-modal, which is what the theme widens to a settings form.
         '.fkp-details{box-sizing:border-box;width:min(760px,calc(100vw - 56px));max-width:100%;padding-top:10px}',
-        // The one deviation, and it is deliberate: their first column has a 120px
-        // floor because their labels are long enough to fill it, and mine are short
-        // enough that the floor pushed every value a third of the way across the
-        // dialog. max-content puts the value 16px after the longest label.
+        // The one deviation: their first column has a 120px floor for long labels,
+        // and these labels are short, so the column is max-content and the value
+        // sits 16px after the longest label.
         '.fkp-details__clients{display:grid;gap:14px;min-inline-size:0}',
         '.fkp-details__client{display:grid;gap:6px;min-width:0}',
         '.fkp-details__name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
@@ -309,8 +308,7 @@ function anonymousClient() {
 }
 
 // The dialog hands out what a client is given and nothing else: an account, its
-// link, and the buttons to copy or scan it. Everything else it used to state was
-// already in the link.
+// link, and the buttons to copy or scan it.
 export function renderDetailsContent(
   sectionId: string,
   clients: ServerClient[],

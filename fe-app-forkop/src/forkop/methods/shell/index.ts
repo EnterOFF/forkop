@@ -1,6 +1,7 @@
 import { callBaseMethod } from './callBaseMethod';
 import { Forkop } from '../../types';
-import { callUbus, executeShellCommand } from '../../../helpers';
+import { callUbus } from '../../../helpers/callUbus';
+import { executeShellCommand } from '../../../helpers/executeShellCommand';
 import { isTransientRpcError } from '../../helpers/isTransientRpcError';
 
 const UI_ACTION_RPC_TIMEOUT_MS = 15000;
@@ -15,16 +16,14 @@ const GET_UI_STATE_RPC_TIMEOUT_MS = 3000;
 // is still working the first answer out.
 const SYSTEM_INFO_UBUS_TIMEOUT_MS = 5000;
 // The router-side Clash transport lets curl run for a minute, and LuCI aborts
-// every RPC after twenty seconds unless something raises that ceiling. Asking
-// for no timeout at all left the default in place, so a rule-set refresh the
-// router was still running came back as a failure at twenty seconds.
+// every RPC after twenty seconds unless something raises that ceiling.
 const CLASH_HTTP_TRANSPORT_TIMEOUT_MS = 65000;
 // Diagnostic checks inspect the whole runtime: nftables chains, sing-box, DNS
 // probes. On slow routers a single check takes far longer than an ordinary RPC,
 // and cutting it short reports a healthy runtime as unreachable.
 const DIAGNOSTIC_CHECK_RPC_TIMEOUT_MS = 3 * 60 * 1000;
 
-let checkLogsRequest: ReturnType<typeof callBaseMethod<unknown>> | null = null;
+let checkLogsRequest: Promise<Forkop.MethodResponse<string>> | null = null;
 
 function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -34,13 +33,27 @@ function translate(message: string) {
   return typeof _ === 'function' ? _(message) : message;
 }
 
+// The log is text, and a router whose log holds no Forkop line yet answers with
+// none: an empty answer is an empty log, not a failed read.
 function checkLogs() {
   if (!checkLogsRequest) {
-    checkLogsRequest = callBaseMethod<unknown>(
-      Forkop.AvailableMethods.CHECK_LOGS,
-    ).finally(() => {
-      checkLogsRequest = null;
-    });
+    checkLogsRequest = executeShellCommand({
+      command: '/usr/bin/forkop',
+      args: [Forkop.AvailableMethods.CHECK_LOGS],
+      timeout: 15000,
+    })
+      .then(
+        (response): Forkop.MethodResponse<string> =>
+          response.code
+            ? {
+                success: false,
+                error: response.stderr || response.stdout || '',
+              }
+            : { success: true, data: response.stdout },
+      )
+      .finally(() => {
+        checkLogsRequest = null;
+      });
   }
 
   return checkLogsRequest;
@@ -243,9 +256,8 @@ export const ForkopShellMethods = {
       '/usr/bin/forkop',
       { timeout: CLASH_HTTP_TRANSPORT_TIMEOUT_MS },
     ),
-  // Through the CLI, not the init script: every init script command blocks on
-  // procd's per-service lock, so toggling autostart waited out whatever action
-  // was running. The CLI writes the rc.d symlink and returns at once.
+  // Through the CLI, not the init script: every init script command waits on
+  // procd's per-service lock, and the CLI writes the rc.d symlink at once.
   enable: async () => callBaseMethod<unknown>(Forkop.AvailableMethods.ENABLE),
   disable: async () => callBaseMethod<unknown>(Forkop.AvailableMethods.DISABLE),
   globalCheck: async (masked = true) =>
@@ -261,8 +273,6 @@ export const ForkopShellMethods = {
       masked ? 'masked' : 'raw',
     ]),
   checkLogs,
-  checkSingBoxLogs: async () =>
-    callBaseMethod<unknown>(Forkop.AvailableMethods.CHECK_SING_BOX_LOGS),
   // Working the versions out means asking opkg and sing-box, about 1.7 s.
   // The state service holds the answer for as long as the installed packages
   // have not changed; the CLI is what answers when it is not running.
@@ -284,10 +294,6 @@ export const ForkopShellMethods = {
       Forkop.AvailableMethods.GET_SYSTEM_INFO,
     );
   },
-  getUiCapabilities: async () =>
-    callBaseMethod<Forkop.GetUiCapabilities>(
-      Forkop.AvailableMethods.GET_UI_CAPABILITIES,
-    ),
   // Which rule-set tags belong to which section. Named by the runtime, because
   // a built-in list is named per section and a custom reference by a hash of
   // itself - neither is reconstructible here.

@@ -3,10 +3,11 @@ import { ClashAPI, Forkop } from '../../types';
 import {
   canUseDirectClashApi,
   getClashHttpUrl,
-  getProxyUrlName,
-  isCopyableProxyLink,
-} from '../../../helpers';
+} from '../../../helpers/getClashApiUrl';
+import { getProxyUrlName } from '../../../helpers/getProxyUrlName';
+import { isCopyableProxyLink } from '../../../helpers/isCopyableProxyLink';
 import { ForkopShellMethods } from '../shell';
+import { subscriptionTags } from '../../../helpers/subscriptionTags';
 
 interface IGetDashboardSectionsResponse {
   success: boolean;
@@ -484,7 +485,7 @@ function getClashApiProxies() {
   );
 }
 
-function getClashApiProxyProviders() {
+export function getClashApiProxyProviders() {
   return requestClashApi<ClashAPI.ProxyProviders>(
     '/providers/proxies',
     undefined,
@@ -972,7 +973,7 @@ function getUrlTestDisplayName(
   return itemSettingString(
     settings,
     'display_name',
-    id === 'urltest' && !hasConfiguredUrlTestList(section) ? _('Fastest') : id,
+    id === 'urltest' && !hasConfiguredUrlTestList(section) ? 'Fastest' : id,
   );
 }
 
@@ -1473,7 +1474,6 @@ function buildProxyGroupOutbounds(
 
   return {
     selector,
-    latencyTestCode: selector?.code,
     outbounds,
   };
 }
@@ -1496,14 +1496,14 @@ function getSectionSubscriptionTags(
 ) {
   const sectionDisplayName = getDisplayName(section);
   const settings = itemSettingsMap(section.subscription_url_settings);
+  const sources = getListValues(section.subscription_urls);
+  const tags = subscriptionTags(
+    sources.map((source) => itemSettingString(settings[source], 'tag', '')),
+  );
 
-  return getListValues(section.subscription_urls).map((source, index) => {
+  return sources.map((source, index) => {
     const sourceSettings = settings[source];
-    const displayTag = itemSettingString(
-      sourceSettings,
-      'tag',
-      `sub${index + 1}`,
-    );
+    const displayTag = tags[index];
     return {
       runtimeTag: `${sectionDisplayName}/${displayTag}`,
       displayTag,
@@ -1659,7 +1659,7 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
             providers,
           )
         : undefined;
-      const { selector, latencyTestCode, outbounds } = buildProxyGroupOutbounds(
+      const { selector, outbounds } = buildProxyGroupOutbounds(
         section,
         proxies,
         subscriptionTags,
@@ -1671,7 +1671,6 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
         sectionName,
         displayName,
         action: sectionAction,
-        latencyTestCode,
         proxyConfigType,
         subscriptionSourceCount,
         subscriptionProviderTags: subscriptionTags.map(

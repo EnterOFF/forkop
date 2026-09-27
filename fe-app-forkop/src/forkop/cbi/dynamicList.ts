@@ -8,7 +8,6 @@ import {
 } from './childItems';
 import {
   childPendingSettingsStore,
-  cleanupListItemSettings,
   clearChildPendingSettings,
 } from './itemSettings';
 import {
@@ -273,6 +272,16 @@ const ButtonAddSettingsUIDynamicList = SettingsUIDynamicList.extend({
       updateButtonAddDynamicListLayout(node, this.options.addButtonLabel);
     });
 
+    // LuCI marks the list itself invalid, and a theme draws no border around a
+    // list. The add control is drawn as a dropdown, so the mark is carried over
+    // to it and the theme's own rule for an invalid dropdown shows it.
+    const control = node.querySelector('.add-item > .fkp-button-add-control');
+    const showValidity = (invalid: boolean) =>
+      control?.classList.toggle('cbi-input-invalid', invalid);
+    node.addEventListener('validation-failure', () => showValidity(true));
+    node.addEventListener('validation-success', () => showValidity(false));
+    showValidity(node.classList.contains('cbi-input-invalid'));
+
     return node;
   },
 
@@ -516,18 +525,11 @@ export const SettingsDynamicList = form.DynamicList.extend({
         this.afterMaterializeChildItems(ownerId, itemIds);
       }
       uci.unset(FORKOP_UCI_PACKAGE, section_id, this.option);
-      cleanupListItemSettings(ownerId, this.settingsKey, itemIds);
       this.clearStagedChildSettings!(ownerId);
       return;
     }
 
-    const result = form.DynamicList.prototype.write.call(
-      this,
-      section_id,
-      value,
-    );
-    cleanupListItemSettings(section_id, this.settingsKey, value);
-    return result;
+    return form.DynamicList.prototype.write.call(this, section_id, value);
   },
 
   remove(section_id: string) {
@@ -552,10 +554,6 @@ export const SettingsDynamicList = form.DynamicList.extend({
       }
       uci.unset(FORKOP_UCI_PACKAGE, section_id, this.option);
       return;
-    }
-
-    if (this.settingsKey) {
-      uci.unset(FORKOP_UCI_PACKAGE, section_id, this.settingsKey);
     }
 
     return form.DynamicList.prototype.remove.call(this, section_id);

@@ -59,8 +59,6 @@ function controlOf(node: HTMLElement | null): HTMLElement | null {
     : null;
 }
 
-// Fills a field with a freshly generated value. Nothing is generated until the
-// button is pressed, so an untouched field stays empty and the validator asks for it.
 // The control every generate button is: the same square icon button beside the
 // field, disabled with the rest of a read-only dialog.
 function renderGenerateButton(label: string, readonly: unknown) {
@@ -77,6 +75,8 @@ function renderGenerateButton(label: string, readonly: unknown) {
   );
 }
 
+// Fills a field with a freshly generated value when its button is pressed; a field
+// no loader fills in stays empty until then, and the validator asks for it.
 export function addGenerateButton(
   optionRef: CBIOption,
   generate: (sectionId: string, current?: unknown) => string | null | undefined,
@@ -464,9 +464,8 @@ export function addRealityKeypairButton(optionRef: CBIOption) {
 
 // A value the dialog fills in by itself. LuCI keeps whatever load() returned as
 // the stored value of an option, so an untouched autofilled field compares equal
-// on save and would never reach the configuration: a fresh server ended up with
-// no port, no public host and no Reality identity, and the service then refused
-// the whole configuration. forcewrite makes the save write it.
+// on save and would never reach the configuration; forcewrite makes the save
+// write it.
 export function autofill(option: CBIOption, loader: CBIOption['load']) {
   option.forcewrite = true;
   option.load = loader;

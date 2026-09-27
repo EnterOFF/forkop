@@ -1,8 +1,10 @@
-import { onMount } from '../../../helpers';
+import { onMount } from '../../../helpers/onMount';
 import { copyToClipboard } from '../../../helpers/copyToClipboard';
 import { downloadAsTxt } from '../../../helpers/downloadAsTxt';
 import { renderSearchIcon24 } from '../../../icons';
 import { ForkopShellMethods } from '../../methods';
+import { isActiveLuciTab } from '../../helpers/isActiveLuciTab';
+import { store } from '../../services/store.service';
 import { filterLogText } from './filterLogs';
 
 const AUTO_REFRESH_INTERVAL_MS = 2000;
@@ -10,6 +12,17 @@ const AUTO_REFRESH_INTERVAL_MS = 2000;
 let controllerInitialized = false;
 let loading = false;
 let rawLogs = '';
+let logsLoaded = false;
+
+// Whether the Logs tab is the one being looked at. The theme lays an inactive
+// tab out at zero height instead of hiding it, so the pane's own layout cannot
+// say; the tab service can.
+function logsTabShown() {
+  return (
+    !document.hidden &&
+    (store.get().tabService.current === 'logs' || isActiveLuciTab('logs'))
+  );
+}
 
 function element<T extends HTMLElement>(id: string) {
   return document.getElementById(id) as T;
@@ -43,7 +56,7 @@ function setLoading(nextLoading: boolean) {
   element('logs-output').setAttribute('aria-busy', String(nextLoading));
 }
 
-async function refreshLogs(initial = false) {
+async function refreshLogs() {
   if (loading) {
     return;
   }
@@ -51,7 +64,7 @@ async function refreshLogs(initial = false) {
   const output = element<HTMLPreElement>('logs-output');
   const distanceFromEnd =
     output.scrollHeight - output.scrollTop - output.clientHeight;
-  const followEnd = initial || distanceFromEnd < 32;
+  const followEnd = !logsLoaded || distanceFromEnd < 32;
   const previousScrollTop = output.scrollTop;
   const previousScrollLeft = output.scrollLeft;
 
@@ -65,10 +78,11 @@ async function refreshLogs(initial = false) {
     }
 
     const nextLogs = String(response.data ?? '');
-    if (nextLogs === rawLogs) {
+    if (logsLoaded && nextLogs === rawLogs) {
       return;
     }
 
+    logsLoaded = true;
     rawLogs = nextLogs;
     renderLogs();
     requestAnimationFrame(() => {
@@ -77,7 +91,7 @@ async function refreshLogs(initial = false) {
     });
   } catch (error) {
     console.error('[LOGS] Failed to load logs', error);
-    if (!rawLogs) {
+    if (!logsLoaded) {
       element('logs-output').textContent = _('Failed to load logs');
     }
   } finally {
@@ -123,15 +137,22 @@ export async function initController(): Promise<void> {
   element('logs-copy').addEventListener('click', copyVisibleLogs);
   element('logs-download').addEventListener('click', downloadVisibleLogs);
 
-  setInterval(() => {
+  store.subscribe((next, prev) => {
     if (
-      !document.hidden &&
-      autoRefresh.checked &&
-      element('logs-status').offsetParent !== null
+      next.tabService.current === 'logs' &&
+      prev.tabService.current !== 'logs' &&
+      (!logsLoaded || autoRefresh.checked)
     ) {
+      void refreshLogs();
+    }
+  });
+  setInterval(() => {
+    if (autoRefresh.checked && logsTabShown()) {
       void refreshLogs();
     }
   }, AUTO_REFRESH_INTERVAL_MS);
 
-  void refreshLogs(true);
+  if (logsTabShown()) {
+    void refreshLogs();
+  }
 }

@@ -125,7 +125,7 @@ t.test("the state tells what the service is apart from what is being done to it"
     fs.symlink("/bin/sh", ui.paths.rc_dir + "/S99forkop");
     ui.begin("reload", "initd", me);
     let state = ui.current_state();
-    t.eq(state.service.forkop, { running: 1, enabled: 1, status: "running & enabled", busy: "apply", busy_seconds: 0 });
+    t.eq(state.service.forkop, { running: 1, enabled: 1, status: "running & enabled", busy: "apply" });
     t.eq(state.service.sing_box, { running: 1, enabled: 0, status: "running but disabled" });
     t.eq(state.capabilities, { server_inbounds_enabled_count: 2 });
     t.eq(length(state.actions.service), 1);

@@ -5,12 +5,15 @@ export function copyToClipboard(text: string) {
   textarea.value = text;
   document.body.appendChild(textarea);
   textarea.select();
+  let copied = false;
   try {
-    document.execCommand('copy');
-    showToast(_('Copied'), 'success');
-  } catch (_err) {
-    showToast(_('Failed to copy!'), 'error');
-    console.error('copyToClipboard - e', _err);
+    copied = document.execCommand('copy');
+  } catch (error) {
+    console.error('copyToClipboard', error);
   }
+  showToast(
+    copied ? _('Copied') : _('Failed to copy!'),
+    copied ? 'success' : 'error',
+  );
   document.body.removeChild(textarea);
 }

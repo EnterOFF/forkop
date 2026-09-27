@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
   fsRead: vi.fn(),
 }));
 
-vi.mock('../../../../helpers', () => ({
+vi.mock('../../../../helpers/executeShellCommand', () => ({
   executeShellCommand: mocks.executeShellCommand,
 }));
 

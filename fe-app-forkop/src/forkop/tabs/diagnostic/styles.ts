@@ -70,45 +70,17 @@ export const styles = `
     grid-row-gap: 10px;
 }
 
-.fkp_diagnostic-page__controls__system-info__title {
-
-}
-
 .fkp_diagnostic-page__controls__system-info__row {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
     grid-column-gap: 5px;
 }
 
-/* What used to widen the controls column once per value while the page filled in.
-   A version string carries no space to break at, so the column had to grow to fit
-   it; allowed to break anywhere, it wraps inside the column instead and the split
-   stays where it started. */
+/* A version string carries no space to break at, so it may break anywhere and
+   wraps inside the controls column instead of widening it. */
 .fkp_diagnostic-page__controls__system-info__row > div {
     min-width: 0;
     overflow-wrap: anywhere;
-}
-
-.fkp_diagnostic-page__controls__system-info__row__tag {
-    padding: 2px 4px;
-    border: 1px transparent solid;
-    border-radius: 4px;
-    margin-left: 5px;
-}
-
-.fkp_diagnostic-page__controls__system-info__row__tag--neutral {
-    border: 1px var(--background-color-high, gray) solid;
-    color: var(--text-color-medium, gray);
-}
-
-.fkp_diagnostic-page__controls__system-info__row__tag--warning {
-    border: 1px var(--warn-color-medium, orange) solid;
-    color: var(--warn-color-medium, orange);
-}
-
-.fkp_diagnostic-page__controls__system-info__row__tag--success {
-    border: 1px var(--success-color-medium, green) solid;
-    color: var(--success-color-medium, green);
 }
 
 .fkp_diagnostic-page__results {
@@ -116,8 +88,6 @@ export const styles = `
     grid-template-columns: 1fr;
     grid-row-gap: 10px;
 }
-
-.fkp_diagnostic-page__run_check_wrapper {}
 
 .fkp_diagnostic-page__run_check_wrapper button {
     width: 100%;
@@ -129,19 +99,14 @@ export const styles = `
     grid-row-gap: 10px;
 }
 
-/* Where the pair stops being worth keeping. The controls hold their 17rem
-   whatever the window does, so a narrower page comes out of the checks beside
-   them: 473px at a 780px window, 348px at 640px, and under about 19rem they are
-   better off with the whole width than with a column of their own. The stack
-   used to arrive at 800px, where the checks were still 493px wide.
+/* The controls keep their 17rem whatever the window does, so a narrower page
+   comes out of the checks beside them; below about 19rem of checks the two
+   stack.
 
-   Stacked, the page also has to take the width it is given instead of sizing
-   itself. Its box is a flex item - the value of a DummyValue reaches the theme
-   inside an <output>, and the theme lays a .cbi-value out as a flex row - so
-   left alone it settles on its own content: 444px of checks hugging the left
-   edge of a 774px column, which is the whole of what this looked like before.
-   A block mount node and a full-width page is what the Dashboard tab does for
-   the same reason. */
+   Stacked, the page takes the width it is given. Its box is a flex item - the
+   value of a DummyValue reaches the theme inside an <output>, and the theme
+   lays a .cbi-value out as a flex row - so left alone it sizes itself to its
+   content. A block mount node and a full-width page, as on the Dashboard. */
 @media (max-width: 620px) {
     #cbi-${FORKOP_CBI_PREFIX}-diagnostic-_mount_node {
         display: block;
@@ -190,17 +155,9 @@ export const styles = `
     color: var(--success-color-medium, green);
 }
 
-.fkp_diagnostic_alert--skipped {}
-
-.fkp_diagnostic_alert__icon {}
-
-.fkp_diagnostic_alert__content {}
-
 .fkp_diagnostic_alert__title {
     display: block;
 }
-
-.fkp_diagnostic_alert__description {}
 
 .fkp_diagnostic_alert__summary {
     margin-top: 10px;
@@ -213,15 +170,9 @@ export const styles = `
 }
 
 /* A key and the value it labels, side by side while both fit and stacked when
-   they stop fitting. The key used to have a column of its own, sized to the
-   whole of it, and the value took what was left: "Server #1: Публичный адрес"
-   measures 183px, so against the 209px row of a 640px window it left 26px for
-   the address - three characters to a line, three lines tall.
-
-   Whether a row needs the break depends on how long its own key is, so each row
-   decides for itself instead of every row breaking at one width of the window:
-   the value keeps 8rem beside its key, and below that drops under it with the
-   full width of the row. */
+   they stop fitting. Whether a row needs the break depends on how long its own
+   key is, so each row decides for itself: the value keeps 8rem beside its key,
+   and below that drops under it with the full width of the row. */
 .fkp_diagnostic_alert__summary__item__body {
     display: flex;
     flex-wrap: wrap;

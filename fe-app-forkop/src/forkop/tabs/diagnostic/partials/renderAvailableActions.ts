@@ -9,7 +9,7 @@ import {
   renderPlayIcon24,
   renderRotateCcwIcon24,
 } from '../../../../icons';
-import { insertIf } from '../../../../helpers';
+import { insertIf } from '../../../../helpers/insertIf';
 import { E } from '../../../../helpers/element';
 
 interface ActionProps {

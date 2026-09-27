@@ -48,36 +48,27 @@ export function isServiceBusy(operation: ServiceOperation | null) {
   return operation !== null;
 }
 
-// How long an operation may run before the row stops treating it as normal
-// progress. Every lifecycle action on a slow router finishes well inside this;
-// past it, the operation is not coming back on its own.
-export const STUCK_OPERATION_SECONDS = 90;
-
 // The rules, in full:
 //
 //   * while an operation runs, its own button is the only control shown - it
 //     carries the spinner and the present-tense label, and it is the only
 //     disabled control. Nothing else appears or moves underneath the cursor
 //     while the user waits;
-//   * once an operation has been running long enough to be stuck, Stop appears
-//     beside it. That is the one case where the user needs a way out, and the
-//     only case where the extra button is worth the change in the row;
 //   * Restart is offered when there is something to restart;
 //   * Start is offered when the service is down and nothing is in flight.
 //
 // Nothing here is a safety mechanism. Conflicting actions are serialized by the
 // runtime lock, which a second browser tab, curl or ssh would bypass anyway, so
 // hiding a button protects nothing - it is a statement about what is worth
-// showing, and the stuck case is what makes hiding Stop safe to do.
+// showing. Nothing is offered to interrupt an operation: the runtime refuses
+// any action while another one runs.
 export function getServiceControlsPresentation({
   running,
   operation,
-  operationSeconds = 0,
   known = true,
 }: {
   running: boolean;
   operation: ServiceOperation | null;
-  operationSeconds?: number;
   known?: boolean;
 }): ServiceControlsPresentation {
   // Nothing is offered about a service whose state has not arrived yet. An
@@ -97,7 +88,6 @@ export function getServiceControlsPresentation({
   const applying = operation === 'apply';
   const restarting = operation === 'restart' || applying;
   const idle = operation === null;
-  const stuck = !idle && operationSeconds >= STUCK_OPERATION_SECONDS;
 
   return {
     restart: {
@@ -112,7 +102,7 @@ export function getServiceControlsPresentation({
       disabled: operation === 'start',
     },
     stop: {
-      visible: operation === 'stop' || (idle && running) || stuck,
+      visible: operation === 'stop' || (idle && running),
       loading: operation === 'stop',
       disabled: operation === 'stop',
     },

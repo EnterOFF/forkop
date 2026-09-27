@@ -1,8 +1,8 @@
 // Everything the Dashboard shows about outbounds comes from the Clash API. The
 // configuration names the sections and describes their groups, but it never
 // stands in for the runtime: a card that exists only because a section asked for
-// it says nothing about what the core is actually running, and it used to be
-// impossible to tell such a card from a group that is merely still starting.
+// it says nothing about what the core is actually running, and it has to be
+// told apart from a group that is merely still starting.
 import fs from 'fs';
 
 import { describe, expect, it } from 'vitest';
@@ -80,7 +80,7 @@ describe('the tab', () => {
     // The section refresh is the third loop on this tab and backs off like the
     // other two: a stopped core must not be asked every ten seconds forever.
     'SECTIONS_REFRESH_BACKOFF_MAX_MS',
-    'scheduleSectionsRefresh(dataUpdatesId, sectionsRefreshDelay())',
+    '}, sectionsRefreshDelay);',
   ])('survives a browser that cannot open the sockets: %s', (expected) => {
     expect(controller).toContain(expected);
   });

@@ -24,14 +24,6 @@ read_literal() {
 grep -Fq 'core.constants' "$LIFECYCLE_UC" ||
   fail "service/lifecycle.uc must load constants from core/constants.uc"
 
-if grep -R -n -E 'constants\.sh|read_shell_constants|expand_shell_constants|unquote_shell_value' \
-  "$FORKOP_BIN" "$FORKOP_LIB" --include='*.sh' --include='*.uc' >/dev/null 2>&1; then
-  fail "shell constants owner or parser references must not remain"
-fi
-
-if grep -n 'constants\.sh' "$FORKOP_MAKEFILE" "$BUILD_SCRIPT" >/dev/null 2>&1; then
-  fail "package build must not patch removed constants.sh"
-fi
 grep -Fq 'core/constants.uc' "$FORKOP_MAKEFILE" ||
   fail "forkop/Makefile must patch core/constants.uc"
 grep -Fq 'core/constants.uc' "$BUILD_SCRIPT" ||

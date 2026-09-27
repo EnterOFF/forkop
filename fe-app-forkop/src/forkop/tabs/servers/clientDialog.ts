@@ -3,6 +3,7 @@ import {
   updateDynamicListItemLabel,
   validateUniqueDynamicListItemName,
 } from '../../cbi/listItems';
+import { keepUnavailableSectionChoice } from '../../cbi/choices';
 import { showChildItemSettingsModal } from '../../cbi/modal';
 import {
   clientCredentialLabel,
@@ -136,6 +137,11 @@ export function addClientRoutingOptions(
     target.value(value, label),
   );
   target.rmempty = false;
+  target.load = function (sid: string) {
+    const value = form.ListValue.prototype.load.call(this, sid);
+    keepUnavailableSectionChoice(this, value);
+    return value;
+  };
   target.depends({ routing_override: '1', routing_mode: 'section' });
   target.validate = (_id, value: string) =>
     value ? true : _('Select a section');

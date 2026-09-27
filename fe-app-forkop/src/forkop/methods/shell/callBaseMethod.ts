@@ -1,8 +1,7 @@
-import { executeShellCommand } from '../../../helpers';
+import { executeShellCommand } from '../../../helpers/executeShellCommand';
 import { Forkop } from '../../types';
 
 interface CallBaseMethodOptions {
-  allowNonZeroWithStdout?: boolean;
   timeout?: number | null;
 }
 
@@ -20,10 +19,7 @@ export async function callBaseMethod<T>(
     });
     const exitCode = response.code ?? 0;
 
-    if (
-      exitCode !== 0 &&
-      !(options.allowNonZeroWithStdout && response.stdout)
-    ) {
+    if (exitCode !== 0) {
       return {
         success: false,
         error: response.stderr || response.stdout || '',

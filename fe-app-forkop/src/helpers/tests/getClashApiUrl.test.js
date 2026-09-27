@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { canUseDirectClashApi } from '../getClashApiUrl';
+import { canUseDirectClashApi, getClashSocketUrl } from '../getClashApiUrl';
 
 describe('canUseDirectClashApi', () => {
   it('allows direct Clash API access from HTTP LuCI', () => {
@@ -22,5 +22,18 @@ describe('canUseDirectClashApi', () => {
     vi.stubGlobal('window', undefined);
 
     expect(canUseDirectClashApi()).toBe(false);
+  });
+});
+
+// The secret is free text, and the controller reads it back out of the query.
+describe('getClashSocketUrl', () => {
+  it('carries the secret as one query value', () => {
+    vi.stubGlobal('window', {
+      location: { hostname: 'router.example', protocol: 'http:' },
+    });
+
+    expect(getClashSocketUrl('/traffic', 'a&b #c+d%')).toBe(
+      'ws://router.example:9090/traffic?token=a%26b%20%23c%2Bd%25',
+    );
   });
 });

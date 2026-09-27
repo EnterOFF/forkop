@@ -52,7 +52,7 @@ describe('the tunnel list', () => {
       "typeOption.value('amneziawg', 'AmneziaWG')",
       "typeOption.value('warp', 'Cloudflare WARP')",
       "typeOption.value('tailscale', 'Tailscale')",
-      "typeOption.value('json', 'JSON endpoint')",
+      "typeOption.value('json', _('JSON endpoint'))",
       'WireGuard, AmneziaWG, Cloudflare WARP, Tailscale and JSON endpoint are available',
     ]);
   });
@@ -110,7 +110,7 @@ describe('a WireGuard or AmneziaWG tunnel', () => {
       "_('Import configuration')",
       "importButton.depends('tunnel_type', 'wireguard')",
       "importButton.depends('tunnel_type', 'amneziawg')",
-      'parseWireGuardInput || parseWireGuardConfig',
+      'await parseWireGuardInput(',
       'parseWireGuardConfig',
     ]);
     expect(section).not.toContain('_("WireGuard or AmneziaWG configuration")');
@@ -403,7 +403,7 @@ describe('a WARP profile', () => {
   it('reports a failure without repeating what the router said', () => {
     requireAll(section, [
       "_('Forkop Error')",
-      'Failed to generate WARP profile.',
+      "_('Failed to generate WARP profile')",
     ]);
     expect(section).not.toContain(
       '`${_("WARP profile generation failed")}: ${reason}`',

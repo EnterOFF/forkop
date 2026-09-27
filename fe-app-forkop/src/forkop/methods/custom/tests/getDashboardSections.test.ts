@@ -20,11 +20,15 @@ vi.mock('../../shell', () => ({
   },
 }));
 
-vi.mock('../../../../helpers', () => ({
+vi.mock('../../../../helpers/getClashApiUrl', () => ({
   canUseDirectClashApi: mocks.canUseDirectClashApi,
   getClashHttpUrl: () => 'http://router.example:9090',
+}));
+vi.mock('../../../../helpers/getProxyUrlName', () => ({
   getProxyUrlName: (link?: string) =>
     link?.includes('#') ? decodeURIComponent(link.split('#').pop() || '') : '',
+}));
+vi.mock('../../../../helpers/isCopyableProxyLink', () => ({
   isCopyableProxyLink: (link?: string) => Boolean(link),
 }));
 
@@ -293,6 +297,31 @@ describe('getDashboardSections', () => {
     ]);
   });
 
+  // The backend numbers an untagged subscription past a number another one is
+  // tagged with; numbering by position alone names two providers the same.
+  it('names an untagged subscription the way the backend does', async () => {
+    mocks.getConfigSections.mockResolvedValue([
+      section(),
+      child('subscription_url', 'subscription1', {
+        url: 'https://example.com/first',
+      }),
+      child('subscription_url', 'subscription2', {
+        url: 'https://example.com/second',
+        tag: 'sub1',
+      }),
+    ]);
+    setClashProxies({
+      Office: proxy('Selector', { name: 'Office', all: [] }),
+    });
+
+    const result = await getDashboardSections();
+
+    expect(result.data[0].subscriptionProviderTags).toEqual([
+      'Office/sub2',
+      'Office/sub1',
+    ]);
+  });
+
   it('does not classify a static slash name as a subscription node', async () => {
     mocks.getConfigSections.mockResolvedValue([
       section({
@@ -338,6 +367,48 @@ describe('getDashboardSections', () => {
         subscriptionTag: 'premium',
       }),
     ]);
+  });
+
+  // The runtime names the one URLTest of an older section "Fastest" in every
+  // language, so the page must look for that name and not its translation.
+  it('finds the URLTest of an older section under a translated page', async () => {
+    vi.stubGlobal('_', (text: string) =>
+      text === 'Fastest' ? 'Самый быстрый' : text,
+    );
+    mocks.getConfigSections.mockResolvedValue([
+      section({
+        selector_proxy_links: ['vless://a@example.com:443#Node A'],
+        urltest_enabled: '1',
+      }),
+    ]);
+    setClashProxies({
+      Office: proxy('Selector', {
+        name: 'Office',
+        now: 'Office/Fastest',
+        all: ['Office/Fastest', 'Office/Node A'],
+      }),
+      'Office/Fastest': proxy('URLTest', {
+        name: 'Office/Fastest',
+        now: 'Office/Node A',
+        all: ['Office/Node A'],
+      }),
+      'Office/Node A': proxy('VLESS'),
+    });
+
+    const result = await getDashboardSections();
+    vi.unstubAllGlobals();
+
+    expect(result.data[0].outbounds[0]).toMatchObject({
+      code: 'Office/Fastest',
+      type: 'URLTest',
+      // What the section configures for its group, which only reaches the
+      // Dashboard once the group is found.
+      urlTestInfo: {
+        selectedName: 'Node A',
+        url: 'https://www.gstatic.com/generate_204',
+        tolerance: 50,
+      },
+    });
   });
 
   it('hydrates readable URLTest and Fallback groups from UCI and Clash API', async () => {
@@ -423,7 +494,7 @@ describe('getDashboardSections', () => {
         interruptExistConnections: false,
       },
     });
-    expect(result.data[0].latencyTestCode).toBe('Office');
+    expect(result.data[0].code).toBe('Office');
     expect(fallback).toMatchObject({
       code: 'Office/Rescue',
       displayName: 'Rescue',

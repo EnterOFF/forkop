@@ -1,10 +1,8 @@
 // What Forkop hangs off a CBI option on top of LuCI's own members.
 //
 // The widgets in this directory are generic: they never name a concrete kind of
-// item, they read their behaviour off the option they were given. That protocol
-// used to be invisible - a property set in one file and read in another, with
-// nothing tying the two together, and nothing saying what shape it had. This is
-// where it is written down.
+// item, they read their behaviour off the option they were given. This is the
+// shape of what they read.
 //
 // These merge into the interfaces declared in src/luci.d.ts.
 
@@ -120,7 +118,6 @@ declare global {
     // The id a new child section is created under.
     createId?: (inputValue?: string, sectionId?: string) => string;
     // Where the per-entry settings of this list are stored on the owning section.
-    settingsKey?: string;
     // Entries are added through a dialog rather than by typing into the list.
     buttonAdd?: boolean;
     // Left out of the table load: a column that renders from something other

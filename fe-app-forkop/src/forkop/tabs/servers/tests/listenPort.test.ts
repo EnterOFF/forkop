@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { installLuciStubs } from '../../../../helpers/tests/luciStubs';
 
 installLuciStubs({
+  settings: { '.type': 'settings', enable_native_api: '1' },
   vless: {
     '.type': 'server',
     protocol: 'vless',
@@ -46,5 +47,12 @@ describe('the listen port of a server', () => {
     expect(listenTransports('naive', 'tcp_udp')).toEqual(['tcp', 'udp']);
     expect(listenTransports('mieru', 'UDP')).toEqual(['udp']);
     expect(listenTransports('vless', '')).toEqual(['tcp']);
+  });
+
+  // The native sing-box API binds its own TCP port while it is switched on,
+  // which config/validator.uc refuses for a server the same way.
+  it('may not take the port of the native API while it is on', () => {
+    expect(validateListenPort('vless', '9091')).toContain('already used');
+    expect(validateListenPort('hysteria', '9091')).toBe(true);
   });
 });

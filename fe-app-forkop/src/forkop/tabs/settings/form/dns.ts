@@ -67,12 +67,7 @@ export function addDnsOptions(section: CBISection) {
       return _('TTL value cannot be empty');
     }
 
-    const ttl = parseInt(value);
-    if (isNaN(ttl) || ttl < 0) {
-      return _('TTL must be a positive number');
-    }
-
-    return true;
+    return /^[0-9]+$/.test(value) ? true : _('TTL must be a positive number');
   };
 
   o = section.option(

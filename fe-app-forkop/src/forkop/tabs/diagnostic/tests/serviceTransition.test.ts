@@ -8,7 +8,6 @@ import {
   isServiceBusy,
   serviceActionFailureMessage,
   shouldDisableDiagnosticRunAction,
-  STUCK_OPERATION_SECONDS,
 } from '../serviceTransition';
 import type { ServiceOperation } from '../serviceTransition';
 
@@ -28,16 +27,8 @@ function actions({
   };
 }
 
-function controls(
-  running: boolean,
-  operation: ServiceOperation | null,
-  operationSeconds = 0,
-) {
-  return getServiceControlsPresentation({
-    running,
-    operation,
-    operationSeconds,
-  });
+function controls(running: boolean, operation: ServiceOperation | null) {
+  return getServiceControlsPresentation({ running, operation });
 }
 
 describe('service operation resolution', () => {
@@ -108,25 +99,22 @@ describe('service control presentation', () => {
     expect(controls(true, 'start').stop.visible).toBe(false);
   });
 
-  // The one case where the extra button earns its place.
+  // The runtime refuses any action while another one runs, so a Stop offered
+  // beside a long operation could only ever fail.
   it.each([
     ['start' as const, false],
     ['restart' as const, true],
     ['apply' as const, true],
-  ])('offers stop once %s has been running too long', (operation, running) => {
-    const before = controls(running, operation, STUCK_OPERATION_SECONDS - 1);
-    const after = controls(running, operation, STUCK_OPERATION_SECONDS);
-
-    expect(before.stop.visible).toBe(false);
-    expect(after.stop).toMatchObject({ visible: true, disabled: false });
+  ])('offers no stop while %s runs', (operation, running) => {
+    expect(controls(running, operation).stop.visible).toBe(false);
   });
 
-  it('does not call an idle service stuck however long it has been up', () => {
-    expect(controls(true, null, 100000).stop).toMatchObject({
+  it('offers stop for a service that is up and idle', () => {
+    expect(controls(true, null).stop).toMatchObject({
       visible: true,
       disabled: false,
     });
-    expect(controls(false, null, 100000).stop.visible).toBe(false);
+    expect(controls(false, null).stop.visible).toBe(false);
   });
 
   it('shows the stop button as its own progress while stopping', () => {

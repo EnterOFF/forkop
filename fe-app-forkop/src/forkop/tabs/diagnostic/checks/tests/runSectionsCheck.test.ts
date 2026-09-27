@@ -196,4 +196,42 @@ describe('runSectionsCheck', () => {
       }),
     );
   });
+
+  // A section the runtime carries without a single server has nothing to test.
+  it('reports a section with no server as not responding, asking nothing', async () => {
+    mocks.getDashboardSections.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          withTagSelect: true,
+          code: 'main-out',
+          sectionName: 'main',
+          displayName: 'Main',
+          proxyConfigType: 'subscription',
+          outbounds: [],
+        },
+      ],
+    });
+
+    await runSectionsCheck().catch(() => undefined);
+
+    expect(mocks.getClashApiProxyLatency).not.toHaveBeenCalled();
+    expect(mocks.getClashApiGroupLatency).not.toHaveBeenCalled();
+    expect(mocks.updateCheckStore).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        items: [{ state: 'error', key: 'Main', value: 'Not responding' }],
+      }),
+    );
+  });
+
+  // Nothing configured is not a pass, and not a failure either.
+  it('skips a page with no section to check', async () => {
+    mocks.getDashboardSections.mockResolvedValue({ success: true, data: [] });
+
+    await expect(runSectionsCheck()).resolves.toBeUndefined();
+
+    expect(mocks.updateCheckStore).toHaveBeenLastCalledWith(
+      expect.objectContaining({ state: 'skipped', items: [] }),
+    );
+  });
 });

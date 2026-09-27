@@ -36,10 +36,7 @@ function writeStoredKeys(storage: Storage | null, keys: string[]) {
   }
 
   try {
-    storage.setItem(
-      LOG_NOTIFICATION_STORAGE_KEY,
-      JSON.stringify(keys.slice(-MAX_STORED_LOG_NOTIFICATIONS)),
-    );
+    storage.setItem(LOG_NOTIFICATION_STORAGE_KEY, JSON.stringify(keys));
   } catch {
     // Notifications are still deduped in-memory when sessionStorage is blocked.
   }
@@ -86,7 +83,9 @@ export class LogNotificationDeduper {
 
   constructor(storage: Storage | null = getSessionStorage()) {
     this.storage = storage;
-    this.seenKeys = new Set(readStoredKeys(storage));
+    this.seenKeys = new Set(
+      readStoredKeys(storage).slice(-MAX_STORED_LOG_NOTIFICATIONS),
+    );
   }
 
   shouldNotify(line: string) {
@@ -101,6 +100,10 @@ export class LogNotificationDeduper {
     }
 
     this.seenKeys.add(key);
+    for (const oldest of this.seenKeys) {
+      if (this.seenKeys.size <= MAX_STORED_LOG_NOTIFICATIONS) break;
+      this.seenKeys.delete(oldest);
+    }
     writeStoredKeys(this.storage, Array.from(this.seenKeys));
     return true;
   }

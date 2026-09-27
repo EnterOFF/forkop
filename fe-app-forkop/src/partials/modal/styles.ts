@@ -1,8 +1,6 @@
 // language=CSS
 export const styles = `
 
-.fkp-partial-modal__body {}
-
 .fkp-partial-modal__content {
     max-height: 70vh;
     overflow: scroll;

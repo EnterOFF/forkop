@@ -214,9 +214,8 @@ function showTunnelImportModal(
     _('Import configuration'),
     map,
     async (settings: ChildSettings) => {
-      const parser = parseWireGuardInput || parseWireGuardConfig;
-      const parsed = await Promise.resolve(
-        parser(`${settings.configuration || ''}`),
+      const parsed = await parseWireGuardInput(
+        `${settings.configuration || ''}`,
       );
       if (!parsed || parsed.valid !== true) {
         failedInput = `${settings.configuration || ''}`.trim();
@@ -271,7 +270,7 @@ export function showTunnelSettingsModal(
   typeOption.value('warp', 'Cloudflare WARP');
   typeOption.value('tailscale', 'Tailscale');
   typeOption.value('openvpn-client', 'OpenVPN');
-  typeOption.value('json', 'JSON endpoint');
+  typeOption.value('json', _('JSON endpoint'));
   typeOption.default = 'wireguard';
   typeOption.rmempty = false;
   let previousTunnelType = `${data.settings.tunnel_type || 'wireguard'}`;
@@ -615,7 +614,7 @@ export function showTunnelSettingsModal(
     const showError = () =>
       ui.addNotification(
         _('Forkop Error'),
-        E('p', {}, ['Failed to generate WARP profile.']),
+        E('p', {}, _('Failed to generate WARP profile')),
         'error',
       );
 

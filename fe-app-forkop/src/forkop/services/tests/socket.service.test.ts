@@ -42,6 +42,30 @@ describe('socket service', () => {
     vi.unstubAllGlobals();
   });
 
+  // The console is readable by anything that can script the page, and a support
+  // screenshot of it should not carry the controller secret.
+  it('never writes the token it connects with', async () => {
+    vi.useFakeTimers();
+    const lines: string[] = [];
+    for (const level of ['log', 'debug', 'info', 'warn', 'error'] as const) {
+      vi.spyOn(console, level).mockImplementation((...args: unknown[]) => {
+        lines.push(args.map(String).join(' '));
+      });
+    }
+
+    socket.subscribe('ws://router.test/traffic?token=hunter2', vi.fn());
+    FakeWebSocket.instances[0].emit('open');
+    FakeWebSocket.instances[0].emit('error');
+    FakeWebSocket.instances[0].emit('close');
+    await vi.advanceTimersByTimeAsync(1000);
+    socket.resetAll();
+    vi.restoreAllMocks();
+
+    const written = lines.join('\n');
+    expect(written).toContain('ws://router.test/traffic');
+    expect(written).not.toContain('hunter2');
+  });
+
   it('keeps the initial subscriber when the first connection fails', () => {
     const onError = vi.fn();
 

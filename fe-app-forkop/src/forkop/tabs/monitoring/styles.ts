@@ -5,17 +5,8 @@ export const styles = `
 /* The page takes the width of the content column, which it cannot do on its own.
    The tab is one DummyValue, and LuCI hands its value to the theme inside an
    <output>; the theme lays a .cbi-value out as a flex row, so that <output> is a
-   flex item and the page inside it is as wide as its own content. It came out
-   651px wide in a 940px column while the connections were still loading, and
-   288px wide at any window of 520px or less, where the tab's own narrow-screen
-   rules stack the controls and the table has become cards, so nothing inside
-   asks for width any more. Where it did fill the column it was the table's
-   min-width doing it rather than the layout.
-
-   The rules that used to stand here addressed .cbi-value-title, .cbi-value-field
-   and a child div. A DummyValue has none of those children, so all three matched
-   nothing; a block mount node is what the page needs, and its own width: 100%
-   resolves against it. */
+   flex item as wide as its own content. A block mount node gives the page's
+   width: 100% something to resolve against. */
 #cbi-${FORKOP_CBI_PREFIX}-monitoring-_mount_node {
     display: block;
     margin: 16px 0 22px;
@@ -33,8 +24,6 @@ export const styles = `
     --fkp-monitoring-soft-bg: rgba(127, 127, 127, 0.08);
     --fkp-monitoring-soft-bg-hover: rgba(127, 127, 127, 0.14);
     --fkp-monitoring-danger-color: var(--error-color-medium, #d32f2f);
-    --fkp-monitoring-success-color: var(--success-color-medium, #2e7d32);
-    --fkp-monitoring-paused-color: var(--primary-color-high, #1976d2);
 
     width: 100%;
     min-width: 0;
@@ -391,23 +380,6 @@ export const styles = `
     align-items: baseline;
     justify-content: flex-start;
     gap: 5px;
-}
-
-.fkp_monitoring-page__source-name {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.fkp_monitoring-page__source-ip {
-    flex: 0 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--text-color-medium);
-    font-size: 12px;
 }
 
 .fkp_monitoring-page__source-value--ip-only {
