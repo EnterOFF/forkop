@@ -3,8 +3,9 @@
 // record is how it is found again - checked against the command line, so a pid
 // the kernel handed to something else is never signalled.
 //
-// A worker is described by { name, command, pid_file, env }: the procd service
-// name, the argv it runs, and where it records itself.
+// A worker is described by { name, command, pid_file, env, data }: the procd
+// service name, the argv it runs, where it records itself, and what procd keeps
+// beside the instance for whoever starts it next.
 
 let fs = require("fs");
 let common = require("core.common");
@@ -20,17 +21,29 @@ function is_worker(worker, pid) {
 }
 
 function payload(worker) {
-    return {
-        name: worker.name,
-        instances: {
-            [worker.instance ?? "worker"]: {
-                command: worker.command,
-                env: worker.env ?? {},
-                respawn: [ "3600", "5", "0" ],
-                stderr: true
-            }
-        }
+    let instance = {
+        command: worker.command,
+        env: worker.env ?? {},
+        respawn: [ "3600", "5", "0" ],
+        stderr: true
     };
+    if (worker.data != null)
+        instance.data = worker.data;
+    return { name: worker.name, instances: { [worker.instance ?? "worker"]: instance } };
+}
+
+function running(worker) {
+    return is_worker(worker, recorded_pid(worker));
+}
+
+// Running, and started with the same data. procd keeps an instance's data but
+// does not restart it when a later add brings other data, so the caller does.
+function current(worker) {
+    if (!running(worker))
+        return false;
+    let services = common.parse_json(exec.output([ "ubus", "call", "service", "list", sprintf("%J", { name: worker.name, verbose: true }) ]));
+    let instance = services?.[worker.name]?.instances?.[worker.instance ?? "worker"];
+    return type(instance) == "object" && sprintf("%J", instance.data) == sprintf("%J", worker.data);
 }
 
 function unregistered(worker) {
@@ -87,4 +100,4 @@ function retire(worker) {
         fs.unlink(worker.pid_file);
 }
 
-return { start, stop, announce, retire, payload, is_worker };
+return { start, stop, announce, retire, payload, is_worker, running, current };

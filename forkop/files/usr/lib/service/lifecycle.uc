@@ -516,16 +516,19 @@ function reload_runtime(reason) {
             return abort_reload("Forkop runtime was not ready after nftables activation", true);
     }
 
-    // The worker reads the providers of the configuration it started with, so a
-    // new configuration starts it again; after a rebuild it refills the new sets.
-    if ((nft_changed || config_changed) && !rulesets.start_worker())
+    // A rebuilt table starts with empty sets, so the worker starts again and
+    // fills them. Otherwise a running worker keeps what it wrote and follows the
+    // core across its reload on its own; only a change to the providers a
+    // section reads starts it again.
+    let worker_changed = nft_changed || !rulesets.worker_current();
+    if (worker_changed && !rulesets.start_worker())
         return abort_reload("Failed to start the rule set sync worker", true);
 
     let cron_changed = !cron_current();
     if (cron_changed && !refresh_cron())
         return abort_reload("Failed to refresh the Forkop cron jobs", false);
 
-    if (nft_changed || config_changed || forced || cron_changed)
+    if (nft_changed || config_changed || forced || worker_changed || cron_changed)
         log("info", "Configuration applied");
     else
         log("info", "Configuration already applied; nothing to change");

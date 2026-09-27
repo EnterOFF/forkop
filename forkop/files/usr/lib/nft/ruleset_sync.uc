@@ -277,6 +277,8 @@ function section_plan(snapshot, entry) {
         let ip_cidr = provider.ip_cidr;
         if (type(ip_cidr) != "object")
             die(label + ": missing ip_cidr snapshot");
+        if (type(ip_cidr.digest) != "string" || ip_cidr.digest == "")
+            die(label + ": ip_cidr snapshot carries no digest");
 
         for (let family in [ 4, 6 ]) {
             let prefixes = ip_cidr[family == 4 ? "ipv4" : "ipv6"];
@@ -359,11 +361,13 @@ function apply_plan(plan) {
     return count;
 }
 
+// A provider's revision starts over with every core, so across a reload only
+// its digest tells content already written from new content.
 function plan_key(snapshot, entry) {
     let m = entry.matchers;
     let parts = [ m.subnets, m.ports ];
     for (let tag in m.subnet_tags)
-        push(parts, tag + ":" + (snapshot.providers[tag]?.revision ?? ""));
+        push(parts, tag + ":" + (snapshot.providers[tag]?.ip_cidr?.digest ?? ""));
     return join("\t", parts);
 }
 
@@ -376,6 +380,16 @@ function native_sections(sections) {
 
 function configured_sections() {
     return uci.section_objects(constants.FORKOP_CONFIG_NAME, "section");
+}
+
+// The providers each of those sections reads: the one input of the worker the
+// table's script does not carry. A section's own addresses and ports are in the
+// script, so a change to them rebuilds the table and starts the worker anyway.
+function subnet_sources(sections) {
+    let result = {};
+    for (let entry in native_sections(sections))
+        result[as_string(entry.section[".name"])] = entry.matchers.subnet_tags;
+    return result;
 }
 
 // Every section fed by a provider whose inputs changed, each on its own: one
@@ -453,18 +467,22 @@ function next_change(api, revision, seconds) {
     return result.status == 0 && type(common.parse_json(result.stdout)?.revision) == "int" ? true : null;
 }
 
-function worker_spec() {
+// procd keeps the sources the worker was started with, which is how a reload
+// tells whether they changed.
+function worker_spec(sources) {
     return {
         name: "forkop-ruleset-sync",
         instance: "sync",
         command: [ constants.FORKOP_BIN, "sync_rule_sets" ],
         env: { FORKOP_LIB: library.dir() },
-        pid_file: "/var/run/forkop/ruleset-sync.pid"
+        pid_file: "/var/run/forkop/ruleset-sync.pid",
+        data: sources == null ? null : { subnet_sources: sources }
     };
 }
 
-// A controller that does not answer is asked again later and later; one that
-// does is followed by its events.
+// A controller that does not answer is looked up again and asked later and
+// later; one that does is followed by its events. A reloaded core drops the
+// wait, so the worker syncs from the new one and writes only what changed.
 function worker() {
     worker_process.announce(worker_spec());
     let api = clash_http.controller();
@@ -472,15 +490,16 @@ function worker() {
     let revision = sync_once(api);
     while (revision !== false) {
         let change = revision == null ? null : next_change(api, revision, EVENT_WAIT_SECONDS);
-        if (change != null)
-            delay = RETRY_MIN_SECONDS;
         if (change === false)
             continue;
         if (change == null) {
             sleep(delay * 1000);
             delay = min(delay * 2, RETRY_MAX_SECONDS);
+            api = clash_http.controller();
         }
         revision = sync_once(api);
+        if (revision != null)
+            delay = RETRY_MIN_SECONDS;
     }
     worker_process.retire(worker_spec());
 }
@@ -489,11 +508,22 @@ function stop_worker() {
     return worker_process.stop(worker_spec());
 }
 
-// Only while a section takes its subnets from a provider.
+// Only while a section takes its subnets from a provider. A fresh worker has
+// written nothing yet, so it fills every section.
 function start_worker() {
-    if (length(native_sections(configured_sections())) == 0)
+    let sources = subnet_sources(configured_sections());
+    if (length(sources) == 0)
         return stop_worker();
-    return worker_process.start(worker_spec());
+    return worker_process.start(worker_spec(sources));
 }
 
-return { sync, worker_spec, worker, start_worker, stop_worker };
+// Whether the running worker reads what the configuration says: the same
+// providers for the same sections, or no worker while no section reads one.
+function worker_current() {
+    let spec = worker_spec(subnet_sources(configured_sections()));
+    if (length(spec.data.subnet_sources) == 0)
+        return !worker_process.running(spec);
+    return worker_process.current(spec);
+}
+
+return { sync, worker_spec, worker, start_worker, stop_worker, worker_current };

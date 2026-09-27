@@ -18,8 +18,11 @@ function seed(sections) {
     fixture.seed({ settings: { config_path }, section: sections });
 }
 
+// The core names an export by a hash of its content; any string that follows
+// the content stands in for it here.
 function provider(revision, ip_cidr) {
-    return { revision, ip_cidr: { ipv4: [], ipv6: [], scoped_ipv4: [], scoped_ipv6: [], ...ip_cidr } };
+    let exported = { ipv4: [], ipv6: [], scoped_ipv4: [], scoped_ipv6: [], ...ip_cidr };
+    return { revision, ip_cidr: { digest: sprintf("%J", exported), ...exported } };
 }
 
 function snapshot(providers, revision) {
@@ -134,7 +137,8 @@ t.test("a section the snapshot or nft refuses is reported once and does not keep
         { scoped_ipv4: [ { prefixes: [ "1.1.1.0/24" ], networks: [], port_ranges: [] } ] },
         { scoped_ipv4: [ { prefixes: [ "1.1.1.0/33" ], port_ranges: [ { start: 80, end: 80 } ] } ] }
     ]) {
-        let value = snapshot({ [ALPHA]: provider(++revision, broken), [BETA]: provider(revision, { ipv4: [ "192.0.2.0/24" ] }) });
+        revision++;
+        let value = snapshot({ [ALPHA]: provider(revision, broken), [BETA]: provider(revision, { ipv4: [ "192.0.2." + revision + "/32" ] }) });
         seed([ bad, good ]);
         let result = run(() => sync.sync(value, [ bad, good ]));
         t.eq(result.written, 1, sprintf("%J", broken));
@@ -160,19 +164,39 @@ t.test("a provider the core does not have is reported, one still loading is wait
     t.eq(length(transactions), 1, "the section loads once the provider has");
 });
 
-t.test("a section is rewritten only when a provider it reads changed", () => {
+t.test("a section is rewritten only when the content of a provider it reads changed", () => {
     let section = { ".name": "keyed", enabled: "1", action: "connection", ports: [ "80" ], rule_set_with_subnets: [ ALPHA ] };
     let other = { ".name": "other", enabled: "1", action: "connection", rule_set_with_subnets: [ BETA ] };
     seed([ section, other ]);
-    let value = (alpha, beta) => snapshot({ [ALPHA]: provider(alpha, { ipv4: [ "198.51.100.0/24" ] }), [BETA]: provider(beta, { ipv4: [ "192.0.2.0/24" ] }) });
-    run(() => sync.sync(value(4, 1), [ section, other ]));
+    let value = (beta) => snapshot({ [ALPHA]: provider(4, { ipv4: [ "198.51.100.0/24" ] }), [BETA]: provider(1, { ipv4: beta }) });
+    run(() => sync.sync(value([ "192.0.2.0/24" ]), [ section, other ]));
     t.eq(length(transactions), 2);
-    run(() => sync.sync(value(4, 1), [ section, other ]));
+    run(() => sync.sync(value([ "192.0.2.0/24" ]), [ section, other ]));
     t.eq(transactions, []);
-    run(() => sync.sync(value(4, 2), [ section, other ]));
+    run(() => sync.sync(value([ "192.0.2.0/24", "203.0.113.0/24" ]), [ section, other ]));
     t.eq(length(transactions), 1);
     t.contains(transactions[0], "forkop_rule_other_subnets");
-    t.eq(logs, [ "[info] Loaded 1 subnets into nft for 1 of 2 sections" ]);
+    t.eq(logs, [ "[info] Loaded 2 subnets into nft for 1 of 2 sections" ]);
+});
+
+t.test("a reloaded core counts its providers from one again, and content already written is not written again", () => {
+    let section = { ".name": "reloaded", enabled: "1", action: "connection", rule_set_with_subnets: [ ALPHA ] };
+    seed([ section ]);
+    let value = (revision, ipv4) => snapshot({ [ALPHA]: provider(revision, { ipv4 }) }, revision);
+    run(() => sync.sync(value(5, [ "198.51.100.0/24" ]), [ section ]));
+    t.eq(length(transactions), 1);
+    run(() => sync.sync(value(1, [ "198.51.100.0/24" ]), [ section ]));
+    t.eq([ transactions, logs ], [ [], [] ], "the same content under a revision that started over");
+    run(() => sync.sync(value(1, [ "192.0.2.0/24" ]), [ section ]));
+    t.eq(length(transactions), 1, "other content under a revision seen before");
+});
+
+t.test("a provider whose snapshot names no digest is reported rather than trusted", () => {
+    let section = { ".name": "undigested", enabled: "1", action: "connection", rule_set_with_subnets: [ ALPHA ] };
+    seed([ section ]);
+    run(() => sync.sync({ revision: 1, providers: { [tag(ALPHA)]: { revision: 1, ip_cidr: { ipv4: [ "192.0.2.0/24" ], ipv6: [], scoped_ipv4: [], scoped_ipv6: [] } } } }, [ section ]));
+    t.eq(transactions, []);
+    t.eq(logs, [ "[warn] Rule-set subnets of section undigested not loaded: provider " + tag(ALPHA) + ": ip_cidr snapshot carries no digest" ]);
 });
 
 t.test("a transaction nft is killed over says the router ran out of memory, naming the section", () => {
@@ -220,6 +244,8 @@ function run_worker(sections, answers) {
                     header = fs.readfile(substr(argv[i + 1], 1));
             push(calls, { url: argv[length(argv) - 1], header, secret_on_argv: index(join(" ", argv), "test-secret") >= 0 });
             let answer = shift(answers);
+            if (type(answer) == "function")
+                answer = answer();
             if (length(answers) == 0)
                 seed([]);
             return answer;
@@ -261,11 +287,82 @@ t.test("the worker follows the provider events and asks a controller that is not
     t.eq(uniq(map(result.calls, (call) => call.header)), [ "Authorization: Bearer test-secret\n" ]);
 });
 
+t.test("each reload of the core is followed by the same short wait, however soon it came after the last one", () => {
+    let section = { ".name": "reloaded", enabled: "1", action: "connection", rule_set_with_subnets: [ ALPHA ] };
+    let result = run_worker([ section ], [
+        { stdout: SNAPSHOT }, { status: 52 },
+        { stdout: SNAPSHOT }, { status: 52 },
+        { stdout: SNAPSHOT }, { status: 7 }
+    ]);
+    t.eq(result.sleeps, [ 3000, 3000, 3000 ], "a controller that answered again is no longer one that does not answer");
+});
+
+t.test("a controller that stopped answering is looked up again before it is asked again", () => {
+    let section = { ".name": "moved", enabled: "1", action: "connection", rule_set_with_subnets: [ ALPHA ] };
+    let original = fs.readfile(config_path);
+    let result = run_worker([ section ], [
+        { stdout: SNAPSHOT },
+        () => {
+            fs.writefile(config_path, "{\"experimental\":{\"clash_api\":{\"external_controller\":\"127.0.0.1:9191\",\"secret\":\"test-secret\"}}}");
+            return { status: 52 };
+        },
+        { stdout: SNAPSHOT },
+        { status: 7 }
+    ]);
+    fs.writefile(config_path, original);
+    t.eq(map(result.calls, (call) => call.url), [
+        "http://127.0.0.1:9090/providers/rules",
+        "http://127.0.0.1:9090/providers/rules/events?since=5",
+        "http://127.0.0.1:9191/providers/rules",
+        "http://127.0.0.1:9191/providers/rules/events?since=5"
+    ]);
+});
+
 t.test("the rule-set worker is a respawning procd service run through the command line", () => {
     let payload = worker.payload(sync.worker_spec());
     t.eq(payload.name, "forkop-ruleset-sync");
     t.eq(payload.instances.sync.command, [ "/usr/bin/forkop", "sync_rule_sets" ]);
     t.eq(payload.instances.sync.respawn, [ "3600", "5", "0" ]);
+    t.ok(!("data" in payload.instances.sync));
+    t.eq(worker.payload(sync.worker_spec({ a: [ "x" ] })).instances.sync.data, { subnet_sources: { a: [ "x" ] } },
+        "procd keeps the sources the worker was started with");
+});
+
+t.test("the worker is current while it runs with the providers each section reads, or does not run without one", () => {
+    let fed = { ".name": "fed", enabled: "1", action: "connection", rule_set_with_subnets: [ ALPHA, BETA ] };
+    let plain = { ".name": "plain", enabled: "1", action: "connection", ip_cidr: [ "10.0.0.0/8" ] };
+    let real = { current: worker.current, running: worker.running };
+    let asked = null;
+    worker.current = (spec) => { asked = spec.data; return true; };
+
+    seed([ fed, plain ]);
+    t.ok(sync.worker_current());
+    t.eq(asked, { subnet_sources: { fed: [ tag(ALPHA), tag(BETA) ] } }, "only a section fed by a provider, with every provider it reads");
+
+    seed([ plain ]);
+    worker.running = () => false;
+    t.ok(sync.worker_current(), "no worker while no section reads a provider");
+    worker.running = () => true;
+    t.ok(!sync.worker_current(), "a worker left running without one");
+
+    worker.current = real.current;
+    worker.running = real.running;
+});
+
+t.test("a running worker is current only while procd holds the data it was started with", () => {
+    let own = filter(split(fs.readfile("/proc/self/cmdline"), "\0"), (arg) => arg != "");
+    let spec = { name: "forkop-probe", instance: "sync", command: slice(own, 1), pid_file: dir + "/probe.pid", data: { subnet_sources: { a: [ "x" ] } } };
+    let listed = (data) => [ [ "ubus call service list", { stdout: sprintf("%J", { "forkop-probe": { instances: { sync: { running: true, data } } } }) } ] ];
+
+    t.ok(!worker.current(spec), "no worker recorded");
+    fs.writefile(spec.pid_file, require("core.common").own_pid() + "\n");
+    stub.commands(listed(spec.data));
+    t.ok(worker.current(spec));
+    stub.commands(listed({ subnet_sources: { a: [ "x", "y" ] } }));
+    t.ok(!worker.current(spec), "a section reads another provider");
+    stub.commands(listed(null));
+    t.ok(!worker.current(spec), "started without data");
+    stub.restore();
 });
 
 t.test("without a table section fed by a provider the worker is stopped and not started", () => {

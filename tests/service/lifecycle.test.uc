@@ -88,6 +88,7 @@ function reset(options) {
     watch.stop_worker = () => { event("watcher stopped"); return true; };
     rulesets.start_worker = () => { event("rule-set worker started"); return !world.ruleset_fails; };
     rulesets.stop_worker = () => { event("rule-set worker stopped"); return true; };
+    rulesets.worker_current = () => !world.worker_stale;
 
     global.sleep = function(ms) {
         world.slept++;
@@ -258,13 +259,20 @@ t.test("a reload with nothing changed touches nothing", () => {
     t.contains(world.logs, "[info] Configuration already applied; nothing to change");
 });
 
-t.test("a changed sing-box configuration is reloaded with the capture paused until the core is ready again", () => {
+t.test("a changed sing-box configuration is reloaded with the capture paused until the core is ready again, and the worker kept", () => {
     let result = reloaded({ config_changed: true });
     t.eq(result.result, 0);
     t.eq(world.events, [ "firewall opened", "config written", "capture paused", "sing-box reloaded", "reloaded with the capture paused",
-        "capture resumed", "rule-set worker started" ]);
+        "capture resumed" ]);
     t.contains(world.logs, "[info] Configuration applied");
     t.ok(world.slept > 0, "the reload waited out its window");
+});
+
+t.test("a change to the providers a section reads alone starts the rule-set worker again, and is applied", () => {
+    let result = reloaded({ worker_stale: true });
+    t.eq(result.result, 0);
+    t.eq(world.events, [ "firewall opened", "config written", "rule-set worker started" ]);
+    t.contains(world.logs, "[info] Configuration applied");
 });
 
 t.test("a changed table is rebuilt with the rule-set worker stopped around it, and sing-box is left alone", () => {
@@ -291,7 +299,7 @@ t.test("each failed step of a reload names itself and takes the runtime down", (
         [ { reload_fails: true, config_changed: true }, "Failed to reload sing-box. Aborted.", true ],
         [ { resume_fails: true, config_changed: true }, "Failed to resume the nftables traffic capture after reloading sing-box. Aborted.", true ],
         [ { config_fails: true }, "Failed to write the sing-box configuration. Aborted.", false ],
-        [ { ruleset_fails: true, config_changed: true }, "Failed to start the rule set sync worker. Aborted.", true ]
+        [ { ruleset_fails: true, worker_stale: true, config_changed: true }, "Failed to start the rule set sync worker. Aborted.", true ]
     ]) {
         let result = reloaded(failure[0]);
         t.eq(result.result, 1, failure[1]);
