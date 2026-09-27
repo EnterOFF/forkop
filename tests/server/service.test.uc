@@ -121,7 +121,7 @@ t.test("the defaults a server runs with are filled in, and nothing the user leav
 
     for (let name in [ "vless", "mixed", "tailscale", "json", "ssh", "mieru" ])
         t.eq(value(name, "security"), "", "the security mode is derived where it is read, not written back: " + name);
-    t.eq(value("vless", "listen"), "0.0.0.0");
+    t.eq(value("vless", "listen"), "::");
     for (let name in [ "naive", "anytls", "tuic" ])
         t.eq([ value(name, "listen"), value(name, "label") ], [ "", "" ], "a disabled server is left as it is: " + name);
     t.eq(value("tailscale", "tailscale_control_url"), "https://controlplane.tailscale.com");

@@ -22790,7 +22790,7 @@ function addTailscaleOptions(section) {
 var JSON_INBOUND_PLACEHOLDER = [
   "{",
   '  "type": "mixed",',
-  '  "listen": "0.0.0.0",',
+  '  "listen": "::",',
   '  "listen_port": 1080',
   "}"
 ].join("\n");
@@ -22811,8 +22811,8 @@ function addListenerOptions(section) {
     (protocol) => o2.depends("protocol", protocol)
   );
   let o = section.option(form.Value, "listen", _("Listen address"));
-  o.placeholder = "0.0.0.0";
-  o.default = "0.0.0.0";
+  o.placeholder = "::";
+  o.default = "::";
   o.rmempty = false;
   o.modalonly = true;
   o.validate = validateListenAddress;

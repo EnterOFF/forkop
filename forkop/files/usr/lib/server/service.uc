@@ -276,7 +276,7 @@ function prepare_server(name) {
         return;
     }
 
-    set_if_empty(name, "listen", "0.0.0.0");
+    set_if_empty(name, "listen", "::");
     if (protocol == "shadowsocks")
         set_if_empty(name, "shadowsocks_method", "2022-blake3-aes-256-gcm");
     if (protocol == "ssh")

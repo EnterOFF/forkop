@@ -301,7 +301,7 @@ t.test("a priority group and level become a fallback group and level", () => {
 t.test("a section's own mixed listener becomes a routed mixed server with a client", () => {
     let mixed = filter(config.server, (item) => item.routing_section == "main" && item.protocol == "mixed")[0];
     t.ok(mixed, "the mixed server");
-    t.eq([ mixed.listen_port, mixed.mixed_auth_enabled ], [ "2080", "1" ]);
+    t.eq([ mixed.listen, mixed.listen_port, mixed.mixed_auth_enabled ], [ "::", "2080", "1" ]);
     let client = only_client(mixed[".name"]);
     t.eq([ client.name, client.password ], [ "ivan-petrov", "proxy-secret" ]);
 });
@@ -320,6 +320,21 @@ t.test("released server credentials move into typed clients", () => {
     absent(server.tailscale, [ "tailscale_advertise_exit_node" ]);
     for (let item in config.server)
         absent(item, RETIRED_SERVER_OPTIONS);
+});
+
+t.test("a released server whose links name an IPv6 address listens on both families", () => {
+    let trojan = (name, public_host, listen) => ({ ".name": name, ".type": "server", label: name, protocol: "trojan",
+        server_password: "secret", listen, listen_port: "443", public_host });
+    let out = migrated({ settings: settings("1.0.5"), section: [], server: [
+        trojan("v6", "2001:db8::1", "0.0.0.0"),
+        trojan("bracketed", "[2001:db8::2]", "0.0.0.0"),
+        trojan("v4", "203.0.113.9", "0.0.0.0"),
+        trojan("hostname", "vpn.example.com", "0.0.0.0"),
+        trojan("chosen", "2001:db8::3", "192.168.1.1")
+    ] });
+    let migrated_server = by_name(out.config.server);
+    t.eq(map([ "v6", "bracketed", "v4", "hostname", "chosen" ], (name) => migrated_server[name].listen),
+        [ "::", "::", "0.0.0.0", "0.0.0.0", "192.168.1.1" ]);
 });
 
 t.test("a released dont_touch_dhcp leaves what no rule claims with the router's resolver", () => {

@@ -7,6 +7,7 @@ let fs = require("fs");
 let common = require("core.common");
 let uci_core = require("core.uci");
 let core_url = require("core.url");
+let core_ip = require("core.ip");
 let singbox_constants_module = require("singbox.constants");
 let runtime_dns = require("singbox.dns");
 let subscription_headers_module = require("singbox.subscription_headers");
@@ -1488,7 +1489,7 @@ function migrate_section_mixed_proxies(ctx) {
         // The released listener followed the service address, which is read from the
         // lan interface on every start and is no value to freeze into the config. The
         // firewall stays shut instead, so the port answers on the lan and nowhere else.
-        set_option(ctx, server, "listen", "0.0.0.0");
+        set_option(ctx, server, "listen", "::");
         set_option(ctx, server, "listen_port", port);
         set_option(ctx, server, "open_firewall", "0");
         set_option(ctx, server, "routing_mode", "section");
@@ -1502,6 +1503,18 @@ function migrate_section_mixed_proxies(ctx) {
         // A Mixed account is a login name, and the released field took any text.
         set_option(ctx, client, "name", login_safe_value(username, "client"));
         set_option(ctx, client, "password", password);
+    }
+}
+
+// The released dialog listened on 0.0.0.0, where sing-box opens an IPv4 socket
+// only, and offered the router's IPv6 address for the links wherever it had no
+// public IPv4. Such a server handed out links nothing answered, so it listens on
+// :: - both families - which is what its links always asked for.
+function migrate_ipv6_linked_server_listeners(ctx) {
+    for (let server in ctx.model.servers || []) {
+        let host = replace(trim(option(server, "public_host", "")), /^\[|\]$/g, "");
+        if (option(server, "listen", "") == "0.0.0.0" && core_ip.valid_ipv6(host))
+            set_option(ctx, server, "listen", "::");
     }
 }
 
@@ -1803,6 +1816,7 @@ const CURRENT_TRANSFORMS = [
     remove_expert_server_options,
     merge_reality_handshake_into_sni,
     migrate_section_mixed_proxies,
+    migrate_ipv6_linked_server_listeners,
     remove_resolve_real_ip_for_routing,
     migrate_dns_capture_settings,
     request_dnsmasq_restore,

@@ -255,7 +255,7 @@ function add_standard_inbound(config, section, protocol, tag_name) {
     let inbound = {
         type: protocol,
         tag: tag_name,
-        listen: option(section, "listen", "0.0.0.0"),
+        listen: option(section, "listen", "::"),
         listen_port: int_option(section, "listen_port", "443")
     };
 

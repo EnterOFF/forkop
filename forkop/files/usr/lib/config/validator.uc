@@ -1429,7 +1429,7 @@ function validate_server_values(server, protocol, security, name) {
 
     if (runtime_servers.CLIENT_FIELDS[protocol] != null && protocol != "tailscale" &&
         protocol != "json_inbound") {
-        let listen = option(server, "listen", "0.0.0.0");
+        let listen = option(server, "listen", "::");
         if (!core_ip.valid_ip(listen))
             fail_validation("Server '" + name + "' listens on '" + listen +
                 "', which is not an IP address. Aborted.");
