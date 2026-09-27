@@ -574,7 +574,7 @@ t.test("DNS action sections build their servers and rules at their priority", ()
     t.eq(q.route_rule(d, (r) => has(r.source_ip_cidr, "192.0.2.2/32")), null, "a forced DNS action does not route device traffic");
 });
 
-t.test("a legacy URLTest group filters its members and becomes the selector default", () => {
+t.test("a URLTest group filters its members and becomes the selector default", () => {
     let u = build({
         settings: settings(),
         section: [ {
@@ -583,9 +583,9 @@ t.test("a legacy URLTest group filters its members and becomes the selector defa
                 "{\"type\":\"http\",\"tag\":\"Keep\",\"server\":\"127.0.0.1\",\"server_port\":18081}",
                 "{\"type\":\"http\",\"tag\":\"Drop\",\"server\":\"127.0.0.1\",\"server_port\":18082}"
             ],
-            urltest_enabled: "1", urltest_server_filter_mode: "include", urltest_include_outbounds: [ "Keep" ],
             domain_suffix: [ "example.org" ]
-        } ]
+        } ],
+        urltest: [ { ".name": "proxy_fastest", section: "proxy", name: "Fastest", server_filter_mode: "include", include_outbounds: [ "Keep" ] } ]
     });
     t.eq(q.outbound(u, "proxy/Fastest").outbounds, [ "proxy/Keep" ]);
     t.eq(q.outbound(u, "proxy/Keep").type, "http");

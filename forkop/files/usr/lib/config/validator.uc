@@ -963,13 +963,13 @@ function validate_subscription_override(section, entry) {
 
 function validate_subscription_filter(section, entry) {
     let name = section_name(section);
-    let settings = connections.subscription_url_settings(section, entry);
-    let mode = option(settings, "server_filter_mode", "all");
+    let subscription = connections.subscription_url_child(section, entry);
+    let mode = option(subscription, "server_filter_mode", "all");
     validate_server_filter_mode(mode, "subscription in rule '" + name + "'", false);
     validate_server_filter_regexes(
         mode,
-        option(settings, "include_regex", ""),
-        option(settings, "exclude_regex", ""),
+        option(subscription, "include_regex", ""),
+        option(subscription, "exclude_regex", ""),
         name
     );
     validate_server_filter_types(
@@ -1070,7 +1070,7 @@ function validate_rule(section, sections, context) {
             validate_urltest_identifier_value(urltest_id, name);
 
             let check_interval = connections.urltest_check_interval(section, urltest_id);
-            validate_required_duration_option(check_interval, "rule." + name + ".urltest." + urltest_id + ".urltest_check_interval");
+            validate_required_duration_option(check_interval, "rule." + name + ".urltest." + urltest_id + ".check_interval");
             validate_urltest_tolerance_value(connections.urltest_tolerance(section, urltest_id), name, urltest_id);
             validate_http_url_option(connections.urltest_testing_url(section, urltest_id), "rule." + name + ".urltest." + urltest_id + ".testing_url");
             if (!expected_status_valid(connections.urltest_expected_status(section, urltest_id)))

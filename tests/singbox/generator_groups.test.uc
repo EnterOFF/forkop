@@ -53,14 +53,13 @@ const LINKS = [
     "vless://00000000-0000-4000-8000-000000000002@example.org:443?encryption=none&security=tls&sni=example.org#second"
 ];
 
-t.test("a legacy URLTest keeps connections, the selector interrupts them", () => {
+t.test("a URLTest keeps connections unless told otherwise, the selector interrupts them", () => {
     let config = build({
         settings: { log_level: "warn" },
-        section: [ {
-            ".name": "proxy", enabled: "1", action: "proxy",
-            urltest_enabled: "1", urltest_check_interval: "3m", urltest_tolerance: "50",
-            urltest_testing_url: "https://www.gstatic.com/generate_204", urltest_server_filter_mode: "all",
-            selector_proxy_links: LINKS
+        section: [ { ".name": "proxy", enabled: "1", action: "proxy", selector_proxy_links: LINKS } ],
+        urltest: [ {
+            ".name": "proxy_fastest", section: "proxy", name: "Fastest", check_interval: "3m", tolerance: "50",
+            testing_url: "https://www.gstatic.com/generate_204", server_filter_mode: "all"
         } ]
     });
     t.eq(length(filter(config.outbounds, (o) => o.type == "urltest" && o.interrupt_exist_connections === false)), 1);

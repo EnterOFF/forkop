@@ -407,11 +407,11 @@ function merge_object(target, source) {
 }
 
 function subscription_provider_filter(section, source) {
-    let settings = connections.subscription_url_settings(section, source);
+    let subscription = connections.subscription_url_child(section, source);
     return native_filter_options(
-        option(settings, "server_filter_mode", "all"),
-        list_option(settings, "include_outbounds"), option(settings, "include_regex", ""),
-        list_option(settings, "exclude_outbounds"), option(settings, "exclude_regex", ""),
+        option(subscription, "server_filter_mode", "all"),
+        list_option(subscription, "include_outbounds"), option(subscription, "include_regex", ""),
+        list_option(subscription, "exclude_outbounds"), option(subscription, "exclude_regex", ""),
         connections.subscription_exclude_types(section, source)
     );
 }

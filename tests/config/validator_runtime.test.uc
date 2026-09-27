@@ -45,19 +45,6 @@ t.test("accepts valid", () => {
                     "80",
                     "1000-2000"
                 ],
-                "subscription_urls": [
-                    "https://example.com/sub.txt"
-                ],
-                "subscription_url_settings": "{\"https://example.com/sub.txt\":{\"user_agent\":\"Agent/1.0\",\"tag\":\"sub1\"}}",
-                "subscription_update_enabled": "1",
-                "subscription_update_interval": "12h",
-                "urltest_enabled": "1",
-                "urltest_check_interval": "3m",
-                "urltest_server_filter_mode": "include",
-                "urltest_tolerance": "10000",
-                "urltest_testing_url": "https://urltest.example/generate_204",
-                "urltest_include_regex": "🇺🇸",
-                "urltest_exclude_regex": "bad.*",
                 "domain": "commented.example # keep this note\nfull:exact-comment.example // and this note\nkeyword:clip",
                 "domain_suffix": [
                     "example.org",
@@ -121,6 +108,32 @@ t.test("accepts valid", () => {
                 "fully_routed_ips": [
                     "192.0.2.2/32"
                 ]
+            }
+        ],
+        "subscription_url": [
+            {
+                ".name": "proxy_subscription",
+                "section": "proxy",
+                "url": "https://example.com/sub.txt",
+                "tag": "sub1",
+                "header": [
+                    "User-Agent: Agent/1.0"
+                ],
+                "subscription_update_enabled": "1",
+                "subscription_update_interval": "12h"
+            }
+        ],
+        "urltest": [
+            {
+                ".name": "proxy_fastest",
+                "section": "proxy",
+                "name": "Fastest",
+                "check_interval": "3m",
+                "server_filter_mode": "include",
+                "tolerance": "10000",
+                "testing_url": "https://urltest.example/generate_204",
+                "include_regex": "🇺🇸",
+                "exclude_regex": "bad.*"
             }
         ],
         "section_interface": [
@@ -787,9 +800,15 @@ t.test("bad URLTest tolerance", () => {
             {
                 ".name": "proxy",
                 "enabled": "1",
-                "action": "proxy",
-                "urltest_enabled": "1",
-                "urltest_tolerance": "10001"
+                "action": "proxy"
+            }
+        ],
+        "urltest": [
+            {
+                ".name": "fast",
+                "section": "proxy",
+                "name": "Fast",
+                "tolerance": "10001"
             }
         ]
     }, "Use a number from 0 to 10000");
@@ -823,12 +842,39 @@ t.test("URLTest interval longer than idle timeout", () => {
             {
                 ".name": "proxy",
                 "enabled": "1",
-                "action": "proxy",
-                "urltest_enabled": "1",
-                "urltest_check_interval": "31m"
+                "action": "proxy"
+            }
+        ],
+        "urltest": [
+            {
+                ".name": "fast",
+                "section": "proxy",
+                "name": "Fast",
+                "check_interval": "31m"
             }
         ]
     }, "check interval longer than its idle timeout");
+});
+
+t.test("a URLTest interval that is not a duration names its option", () => {
+    v.refuses({
+        "settings": {},
+        "section": [
+            {
+                ".name": "proxy",
+                "enabled": "1",
+                "action": "proxy"
+            }
+        ],
+        "urltest": [
+            {
+                ".name": "fast",
+                "section": "proxy",
+                "name": "Fast",
+                "check_interval": "soon"
+            }
+        ]
+    }, "rule.proxy.urltest.fast.check_interval");
 });
 
 t.test("reality server without an SNI", () => {
@@ -1390,10 +1436,16 @@ t.test("bad filter regex", () => {
             {
                 ".name": "proxy",
                 "enabled": "1",
-                "action": "proxy",
-                "urltest_enabled": "1",
-                "urltest_server_filter_mode": "include",
-                "urltest_include_regex": "["
+                "action": "proxy"
+            }
+        ],
+        "urltest": [
+            {
+                ".name": "fast",
+                "section": "proxy",
+                "name": "Fast",
+                "server_filter_mode": "include",
+                "include_regex": "["
             }
         ]
     }, "Invalid URLTest regular expression");

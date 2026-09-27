@@ -11,7 +11,6 @@ t.test("a section cascade reaches its links and subscriptions, not its interface
             {
                 ".name": "source", enabled: "1", action: "connection",
                 selector_proxy_links: [ "socks5://127.0.0.1:1081#Manual" ],
-                interfaces: [ "wg0" ],
                 outbound_jsons: [
                     "{\"type\":\"socks\",\"tag\":\"JSON plain\",\"server\":\"127.0.0.1\",\"server_port\":1082,\"version\":\"5\"}",
                     "{\"type\":\"socks\",\"tag\":\"JSON explicit\",\"server\":\"127.0.0.1\",\"server_port\":1083,\"version\":\"5\",\"detour\":\"direct-out\"}"
@@ -19,7 +18,8 @@ t.test("a section cascade reaches its links and subscriptions, not its interface
                 outbound_detour_enabled: "1", outbound_detour_section: "hop"
             }
         ],
-        subscription_url: [ { ".name": "source_subscription", section: "source", url: "https://subscription.example/source", tag: "sub1" } ]
+        subscription_url: [ { ".name": "source_subscription", section: "source", url: "https://subscription.example/source", tag: "sub1" } ],
+        section_interface: [ { ".name": "source_wg0", section: "source", name: "wg0" } ]
     });
     let config = generator.build({ service_address: "127.0.0.1" });
     t.eq(q.outbound(config, "source/Manual").type, "parser");

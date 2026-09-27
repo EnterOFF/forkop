@@ -57,9 +57,10 @@ function download_through(target, sections) {
 }
 
 t.test("downloads go through an enabled section with servers", () => {
-    let served = { proxy: { selector_proxy_links: [ "socks://127.0.0.1:1080#one" ] }, outbound: { outbound_json: "{\"type\":\"direct\"}" }, vpn: { interface: "wg0" } };
+    let served = { proxy: { selector_proxy_links: [ "socks://127.0.0.1:1080#one" ] }, outbound: { outbound_json: "{\"type\":\"direct\"}" } };
     for (let action, sources in served)
         v.accepts(download_through(action, [ section(action, action, sources) ]));
+    v.accepts({ ...download_through("vpn", [ section("vpn", "vpn") ]), section_interface: [ { ".name": "vpn_wg0", section: "vpn", name: "wg0" } ] });
     v.refuses(download_through("", [ section("proxy", "proxy") ]), "no download section is selected");
     v.refuses(download_through("missing", [ section("proxy", "proxy") ]), "references missing rule 'missing'");
     v.refuses(download_through("proxy", [ section("proxy", "proxy", { ...served.proxy, enabled: "0" }) ]), "references disabled rule 'proxy'");

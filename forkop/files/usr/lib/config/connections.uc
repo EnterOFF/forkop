@@ -41,7 +41,6 @@ function option(section, key, fallback) {
     return common.option(section, key, fallback);
 }
 
-let bool_value = common.bool_value;
 let bool_option = common.bool_option;
 
 function list_value(section, key) {
@@ -224,17 +223,6 @@ function child_option(child, key, fallback) {
     return option(child, key, fallback);
 }
 
-function child_option_alias(child, keys, fallback) {
-    if (type(child) != "object")
-        return as_string(fallback);
-    for (let key in keys) {
-        let value = raw_option(child, key);
-        if (value != null)
-            return as_string(value);
-    }
-    return as_string(fallback);
-}
-
 function child_bool(child, key, fallback) {
     if (type(child) != "object")
         return !!fallback;
@@ -267,61 +255,14 @@ function child_list_alias(child, keys, fallback) {
     return fallback == null ? [] : fallback;
 }
 
-function child_values(parent, type_name, value_key, legacy_key) {
-    let items = child_items(parent, type_name);
-    if (length(items) > 0) {
-        let result = [];
-        for (let child in items) {
-            let value = option(child, value_key, "");
-            if (value != "")
-                push(result, value);
-        }
-        return result;
+function child_values(parent, type_name, value_key) {
+    let result = [];
+    for (let child in child_items(parent, type_name)) {
+        let value = option(child, value_key, "");
+        if (value != "")
+            push(result, value);
     }
-    return legacy_key == "" ? [] : whitespace_list_value(parent, legacy_key);
-}
-
-function settings_map(section, key) {
-    let value = option(section, key, "");
-    if (value == "")
-        return {};
-
-    try {
-        value = json(value);
-    }
-    catch (e) {
-        return {};
-    }
-
-    return object_or_empty(value);
-}
-
-function item_settings(section, key, item) {
-    return object_or_empty(settings_map(section, key)[as_string(item)]);
-}
-
-function item_option(section, key, item, option_name, fallback) {
-    let value = item_settings(section, key, item)[option_name];
-    if (value == null)
-        return as_string(fallback);
-    return as_string(value);
-}
-
-function item_bool(section, key, item, option_name, fallback) {
-    return bool_value(item_settings(section, key, item)[option_name], fallback);
-}
-
-function item_list(section, key, item, option_name, fallback) {
-    let value = item_settings(section, key, item)[option_name];
-    if (value == null)
-        value = fallback;
-    if (value == null)
-        return [];
-    if (type(value) == "array")
-        return value;
-
-    value = as_string(value);
-    return value == "" ? [] : [ value ];
+    return result;
 }
 
 function is_legacy_connection_action(action) {
@@ -348,7 +289,7 @@ function connection_urls(section) {
 }
 
 function subscription_urls(section) {
-    return child_values(section, "subscription_url", "url", "subscription_urls");
+    return child_values(section, "subscription_url", "url");
 }
 
 function subscription_source_type(value) {
@@ -361,17 +302,7 @@ function subscription_source_type(value) {
 }
 
 function interfaces(section) {
-    let items = child_values(section, "section_interface", "name", "");
-    if (length(items) > 0)
-        return items;
-
-    let result = list_value(section, "interfaces");
-    if (length(result) == 0) {
-        let value = option(section, "interface", "");
-        if (value != "")
-            push(result, value);
-    }
-    return result;
+    return child_values(section, "section_interface", "name");
 }
 
 function outbound_jsons(section) {
@@ -534,10 +465,7 @@ function urltests(section) {
         if (id != "")
             push(result, id);
     }
-    if (length(result) > 0)
-        return result;
-
-    return bool_option(section, "urltest_enabled", false) ? [ "urltest" ] : [];
+    return result;
 }
 
 function fallback_groups(section) {
@@ -673,14 +601,8 @@ function has_connection_sources(section) {
         length(tunnels(section)) > 0;
 }
 
-function subscription_url_settings(section, value) {
-    let child = child_item_by_value(section, "subscription_url", "url", value);
-    return child != null ? child : item_settings(section, "subscription_url_settings", value);
-}
-
-function interface_settings(section, value) {
-    let child = child_item_by_value(section, "section_interface", "name", value);
-    return child != null ? child : item_settings(section, "interface_settings", value);
+function subscription_url_child(section, value) {
+    return child_item_by_value(section, "subscription_url", "url", value);
 }
 
 function interface_display_name(section, value) {
@@ -691,19 +613,13 @@ function interface_display_name(section, value) {
 
 function interface_domain_resolver_enabled(section, value) {
     let child = child_item_by_value(section, "section_interface", "name", value);
-    if (child != null)
-        return child_bool(child, "domain_resolver_enabled", false);
-    return item_bool(section, "interface_settings", value, "domain_resolver_enabled",
-        bool_option(section, "domain_resolver_enabled", false));
+    return child_bool(child, "domain_resolver_enabled", false);
 }
 
 function interface_domain_resolver_dns_servers(section, value) {
     let child = child_item_by_value(section, "section_interface", "name", value);
-    let values = child != null
-        ? child_list(child, "domain_resolver_dns_server", null)
-        : item_list(section, "interface_settings", value, "domain_resolver_dns_server", null);
     let result = [];
-    for (let entry in values) {
+    for (let entry in child_list(child, "domain_resolver_dns_server", null)) {
         entry = trim(as_string(entry));
         if (entry != "")
             push(result, entry);
@@ -730,55 +646,29 @@ function interface_domain_resolver_dns_detour_section(section, value) {
 }
 
 function urltest_child(section, value) {
-    let child = owned_child_section(section, "urltest", value);
-    if (child != null)
-        return child;
-
-    return child_item_by_value(section, "urltest", "id", value);
-}
-
-function urltest_settings(section, value) {
-    let child = urltest_child(section, value);
-    return child != null ? child : item_settings(section, "urltest_settings", value);
+    return owned_child_section(section, "urltest", value);
 }
 
 function subscription_update_enabled(section, value) {
     if (subscription_source_type(value) != "remote")
         return false;
-    let child = child_item_by_value(section, "subscription_url", "url", value);
-    if (child != null)
-        return child_bool(child, "subscription_update_enabled", true);
-    return item_bool(section, "subscription_url_settings", value, "subscription_update_enabled",
-        bool_option(section, "subscription_update_enabled", true));
+    return child_bool(subscription_url_child(section, value), "subscription_update_enabled", true);
 }
 
 function subscription_update_interval(section, value) {
     if (subscription_source_type(value) != "remote")
         return "";
-    let child = child_item_by_value(section, "subscription_url", "url", value);
-    if (child != null)
-        return child_option(child, "subscription_update_interval", "1h");
-    return item_option(section, "subscription_url_settings", value, "subscription_update_interval",
-        option(section, "subscription_update_interval", "1h") || "1h");
+    return child_option(subscription_url_child(section, value), "subscription_update_interval", "1h");
 }
 
 function subscription_headers(section, value) {
     if (subscription_source_type(value) != "remote")
         return [];
-    let child = child_item_by_value(section, "subscription_url", "url", value);
-    if (child != null)
-        return list_value(child, "header");
-
-    let settings = item_settings(section, "subscription_url_settings", value);
-    return list_value(settings, "header");
+    return list_value(subscription_url_child(section, value), "header");
 }
 
 function stored_subscription_tag(section, value) {
-    let child = child_item_by_value(section, "subscription_url", "url", value);
-    let tag_name = child != null
-        ? child_option(child, "tag", "")
-        : item_option(section, "subscription_url_settings", value, "tag", "");
-    return trim(as_string(tag_name));
+    return trim(child_option(subscription_url_child(section, value), "tag", ""));
 }
 
 // The provider a subscription becomes is addressed by its tag, so the validator
@@ -788,10 +678,7 @@ function subscription_tags(section) {
 }
 
 function subscription_exclude_types(section, value) {
-    let child = child_item_by_value(section, "subscription_url", "url", value);
-    if (child != null)
-        return child_list(child, "exclude_types", []);
-    return item_list(section, "subscription_url_settings", value, "exclude_types", []);
+    return child_list(subscription_url_child(section, value), "exclude_types", []);
 }
 
 // A rename rule is stored the way it is written: "pattern => replacement".
@@ -810,131 +697,74 @@ function parse_rename_rule(value) {
 }
 
 function subscription_override(section, value) {
-    let settings = subscription_url_settings(section, value);
+    let child = subscription_url_child(section, value);
     return {
-        prefix: option(settings, "override_prefix", ""),
-        suffix: option(settings, "override_suffix", ""),
-        rename: list_value(settings, "override_rename"),
-        patch: option(settings, "override_patch", "")
+        prefix: option(child, "override_prefix", ""),
+        suffix: option(child, "override_suffix", ""),
+        rename: list_value(child, "override_rename"),
+        patch: option(child, "override_patch", "")
     };
 }
 
 function subscription_download_section(section, value) {
     if (subscription_source_type(value) != "remote")
         return "";
-    let child = child_item_by_value(section, "subscription_url", "url", value);
-    if (child != null) {
-        if (!child_bool(child, "download_via_proxy_enabled", false))
-            return "";
-        return child_option(child, "download_via_proxy_section", "");
-    }
-
-    if (!item_bool(section, "subscription_url_settings", value, "download_via_proxy_enabled", false))
+    let child = subscription_url_child(section, value);
+    if (!child_bool(child, "download_via_proxy_enabled", false))
         return "";
-
-    return item_option(section, "subscription_url_settings", value, "download_via_proxy_section", "");
+    return child_option(child, "download_via_proxy_section", "");
 }
 
 function urltest_check_interval(section, value) {
-    let child = urltest_child(section, value);
-    if (child != null)
-        return child_option_alias(child, [ "check_interval", "urltest_check_interval" ], "3m");
-    return item_option(section, "urltest_settings", value, "urltest_check_interval",
-        option(section, "urltest_check_interval", "3m") || "3m");
+    return child_option(urltest_child(section, value), "check_interval", "3m");
 }
 
 function urltest_tolerance(section, value) {
-    let child = urltest_child(section, value);
-    if (child != null)
-        return child_option_alias(child, [ "tolerance", "urltest_tolerance" ], "50");
-    return item_option(section, "urltest_settings", value, "urltest_tolerance",
-        option(section, "urltest_tolerance", "50") || "50");
+    return child_option(urltest_child(section, value), "tolerance", "50");
 }
 
 function urltest_testing_url(section, value) {
-    let child = urltest_child(section, value);
-    if (child != null)
-        return child_option_alias(child, [ "testing_url", "urltest_testing_url" ], "https://www.gstatic.com/generate_204");
-    return item_option(section, "urltest_settings", value, "urltest_testing_url",
-        option(section, "urltest_testing_url", "https://www.gstatic.com/generate_204") || "https://www.gstatic.com/generate_204");
+    return child_option(urltest_child(section, value), "testing_url", "https://www.gstatic.com/generate_204");
 }
 
 function urltest_expected_status(section, value) {
-    let child = urltest_child(section, value);
-    if (child != null)
-        return child_option(child, "expected_status", "*");
-    return item_option(section, "urltest_settings", value, "expected_status", "*");
+    return child_option(urltest_child(section, value), "expected_status", "*");
 }
 
 function urltest_display_name(section, value) {
-    let fallback = as_string(value);
-    if (fallback == "urltest" && length(child_items(section, "urltest")) == 0)
-        fallback = "Fastest";
-    let child = urltest_child(section, value);
-    if (child != null)
-        return child_option_alias(child, [ "name", "display_name" ], fallback);
-    return item_option(section, "urltest_settings", value, "display_name", fallback);
+    return child_option(urltest_child(section, value), "name", as_string(value));
 }
 
 function urltest_idle_timeout(section, value) {
-    let child = urltest_child(section, value);
-    if (child != null)
-        return child_option(child, "idle_timeout", "");
-    return item_option(section, "urltest_settings", value, "idle_timeout", "");
+    return child_option(urltest_child(section, value), "idle_timeout", "");
 }
 
 function urltest_interrupt_exist_connections(section, value) {
-    let child = urltest_child(section, value);
-    if (child != null)
-        return child_bool(child, "interrupt_exist_connections", false);
-    return item_bool(section, "urltest_settings", value, "interrupt_exist_connections", false);
+    return child_bool(urltest_child(section, value), "interrupt_exist_connections", false);
 }
 
 function urltest_filter_mode(section, value) {
-    let child = urltest_child(section, value);
-    if (child != null)
-        return child_option(child, "server_filter_mode", "all");
-    return item_option(section, "urltest_settings", value, "server_filter_mode",
-        option(section, "urltest_server_filter_mode", "all"));
+    return child_option(urltest_child(section, value), "server_filter_mode", "all");
 }
 
 function urltest_include_outbounds(section, value) {
-    let child = urltest_child(section, value);
-    if (child != null)
-        return child_list_alias(child, [ "include_outbounds", "urltest_include_outbounds" ], []);
-    return item_list(section, "urltest_settings", value, "urltest_include_outbounds",
-        list_value(section, "urltest_include_outbounds"));
+    return child_list(urltest_child(section, value), "include_outbounds", []);
 }
 
 function urltest_include_regex(section, value) {
-    let child = urltest_child(section, value);
-    if (child != null)
-        return child_option_alias(child, [ "include_regex", "urltest_include_regex" ], "");
-    return item_option(section, "urltest_settings", value, "include_regex",
-        option(section, "urltest_include_regex", ""));
+    return child_option(urltest_child(section, value), "include_regex", "");
 }
 
 function urltest_exclude_outbounds(section, value) {
-    let child = urltest_child(section, value);
-    if (child != null)
-        return child_list_alias(child, [ "exclude_outbounds", "urltest_exclude_outbounds" ], []);
-    return item_list(section, "urltest_settings", value, "urltest_exclude_outbounds",
-        list_value(section, "urltest_exclude_outbounds"));
+    return child_list(urltest_child(section, value), "exclude_outbounds", []);
 }
 
 function urltest_exclude_regex(section, value) {
-    let child = urltest_child(section, value);
-    if (child != null)
-        return child_option_alias(child, [ "exclude_regex", "urltest_exclude_regex" ], "");
-    return item_option(section, "urltest_settings", value, "exclude_regex",
-        option(section, "urltest_exclude_regex", ""));
+    return child_option(urltest_child(section, value), "exclude_regex", "");
 }
 
 function urltest_exclude_types(section, value) {
-    let child = urltest_child(section, value);
-    if (child != null)
-        return child_list(child, "exclude_types", []);
-    return item_list(section, "urltest_settings", value, "exclude_types", []);
+    return child_list(urltest_child(section, value), "exclude_types", []);
 }
 
 function fallback_group_display_name(section, value) {
@@ -1057,8 +887,7 @@ return {
     rule_sets_with_subnets,
     has_dns_matchers,
     has_connection_sources,
-    subscription_url_settings,
-    urltest_settings,
+    subscription_url_child,
     subscription_update_enabled,
     subscription_update_interval,
     subscription_headers,
