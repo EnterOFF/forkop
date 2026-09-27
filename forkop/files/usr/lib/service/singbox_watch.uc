@@ -1,6 +1,8 @@
-// Takes the Forkop runtime down once procd gives up on sing-box. procd respawns
-// a crashing core a few times and then leaves it dead, and the rules would keep
-// steering traffic at a proxy that is gone.
+// Follows sing-box through procd's respawns. procd brings a crashed core back
+// after a few seconds, and meanwhile the capture pauses so traffic goes direct
+// instead of at closed ports; once procd gives up and leaves it dead, the
+// runtime is taken down, since the rules would keep steering traffic at a proxy
+// that is gone.
 
 let fs = require("fs");
 let common = require("core.common");
@@ -24,6 +26,18 @@ function spec() {
         env: { FORKOP_LIB: library.dir() },
         pid_file: paths.pid
     };
+}
+
+// The lifecycle step for procd's account of a respawn in progress: the core
+// exited and will be started again, or the new one started.
+function crash_step(event) {
+    if (event?.data?.service != "sing-box")
+        return null;
+    if (event.type == "instance.stop")
+        return "sing_box_crash_pause";
+    if (event.type == "instance.start")
+        return "sing_box_crash_resume";
+    return null;
 }
 
 function should_cleanup(event) {
@@ -62,6 +76,9 @@ function monitor() {
     let last_event = "";
     let subscriber = connection.subscriber(function(notification) {
         let event = { type: notification.type, data: notification.data };
+        let step = crash_step(event);
+        if (step != null)
+            exec.ok([ constants.FORKOP_BIN, step ]);
         if (!should_cleanup(event) || cleanup_event_key(event) == last_event)
             return;
         last_event = cleanup_event_key(event);

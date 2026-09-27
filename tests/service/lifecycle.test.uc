@@ -402,6 +402,54 @@ t.test("a crash cleanup leaves a planned stop and a running runtime alone, and t
     t.eq(length(filter(world.events, (e) => e == "watcher stopped")), 1, "the watcher runs the cleanup and is stopped once it finished");
 });
 
+function crashed(options) {
+    running(options);
+    world.pid = 0;
+    world.ports = false;
+}
+
+t.test("a core procd is about to respawn pauses the capture until the new one listens", () => {
+    crashed();
+    t.eq(run(() => lifecycle.crash_pause()).result, 0);
+    t.eq(world.events, [ "capture paused" ]);
+    t.contains(world.logs, "[warn] sing-box exited; traffic goes direct until procd restarts it");
+
+    running({ capture: false });
+    t.eq(run(() => lifecycle.crash_resume()).result, 0);
+    t.eq(world.events, [ "capture resumed" ], "resumed only once the respawned core listens");
+    t.contains(world.logs, "[info] sing-box is back; traffic capture resumed");
+});
+
+t.test("the crash pause leaves alone what a lifecycle action or a live core owns", () => {
+    crashed();
+    fs.writefile(lifecycle.paths.planned_stop, "1\n");
+    run(() => lifecycle.crash_pause());
+    t.eq(world.events, [], "a stop Forkop made itself");
+
+    crashed();
+    fs.mkdir(lifecycle.paths.lock);
+    run(() => lifecycle.crash_pause());
+    t.eq(world.events, [], "an action holding the lock");
+
+    running();
+    run(() => lifecycle.crash_pause());
+    t.eq(world.events, [], "a core that is already back");
+
+    crashed();
+    world.network = false;
+    run(() => lifecycle.crash_pause());
+    t.eq(world.events, [], "no table to pause");
+
+    running({ capture: false });
+    world.network = false;
+    run(() => lifecycle.crash_resume());
+    t.eq(world.events, [], "a table the cleanup removed is not created again");
+
+    running();
+    run(() => lifecycle.crash_resume());
+    t.eq(world.events, [], "a capture that is not paused");
+});
+
 t.test("a start clears the planned stop, so a later crash is cleaned up", () => {
     reset();
     fs.writefile(lifecycle.paths.planned_stop, "1\n");

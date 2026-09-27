@@ -161,8 +161,10 @@ function version() {
     return replace(trim(fs.readfile(packages.paths.sing_box_version) ?? ""), /~/g, "-");
 }
 
+// The service's core, not whatever else runs the binary: the state service asks
+// it for its version on every restart, an install included.
 function process_running() {
-    return exec.ok([ "pgrep", "-x", "sing-box" ]) || exec.ok([ "pgrep", "-f", "^/usr/bin/sing-box[[:space:]]" ]);
+    return exec.ok([ "pgrep", "-f", "^/usr/bin/sing-box[[:space:]]+run([[:space:]]|$)" ]);
 }
 
 // Cloudflare's registration API is blocked on some networks. With a section

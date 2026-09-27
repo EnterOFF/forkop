@@ -82,6 +82,27 @@ t.test("a notification from procd runs the cleanup, and a repeated one does not"
     t.eq(cleanups, [ "137", "137" ]);
 });
 
+t.test("a core procd respawns pauses the capture on its exit and resumes it on its start", () => {
+    let steps = [];
+    ubus.__reset();
+    ubus.__on("service.list", () => ({}));
+    let step = (argv) => { push(steps, argv[1]); return {}; };
+    stub.commands([ [ "/usr/bin/forkop sing_box_crash_pause", step ], [ "/usr/bin/forkop sing_box_crash_resume", step ] ]);
+    fs.unlink(watch.paths.pending_cleanup);
+    let uloop = require("uloop");
+    let service = (name) => ({ service: name, instance: "instance1" });
+    uloop.__on_run(() => {
+        ubus.__notify("service", "instance.stop", service("sing-box"));
+        ubus.__notify("service", "instance.respawn", service("sing-box"));
+        ubus.__notify("service", "instance.start", service("sing-box"));
+        ubus.__notify("service", "instance.stop", service("dnsmasq"));
+    });
+    t.eq(watch.monitor(), 0);
+    uloop.__on_run(null);
+    stub.restore();
+    t.eq(steps, [ "sing_box_crash_pause", "sing_box_crash_resume" ]);
+});
+
 t.test("the watcher is a respawning procd service found again by its command line", () => {
     let spec = watch.spec();
     let payload = worker.payload(spec);

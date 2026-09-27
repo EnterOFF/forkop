@@ -30,6 +30,24 @@ function tools(extra) {
     ]);
 }
 
+// pgrep over a process table: -x by the process name, -f by the whole command line.
+function processes(command_lines) {
+    return [ "pgrep", (argv) => {
+        let hit = argv[1] == "-x"
+            ? filter(command_lines, (line) => replace(split(line, " ")[0], /.*\//, "") == argv[2])
+            : filter(command_lines, (line) => match(line, regexp(argv[2])) != null);
+        return { status: length(hit) > 0 ? 0 : 1 };
+    } ];
+}
+
+t.test("the running core is the service's sing-box run, not a one-shot command", () => {
+    tools([ processes([ "/usr/bin/sing-box version", "/usr/bin/sing-box generate warp-profile --json" ]) ]);
+    t.eq(runtime.process_running(), false, "the state service asking the version during an install");
+    tools([ processes([ "/usr/bin/sing-box run -c /etc/sing-box/config.json -D /usr/share/sing-box" ]) ]);
+    t.eq(runtime.process_running(), true);
+    stub.restore();
+});
+
 t.test("the configuration is written where the service reads it, and only when it changed", () => {
     let dir = stub.tmpdir();
     fixture.seed(configuration(dir));

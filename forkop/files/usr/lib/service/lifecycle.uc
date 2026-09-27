@@ -103,10 +103,6 @@ function validate() {
     return true;
 }
 
-function sing_box_running() {
-    return exec.ok([ "pgrep", "-x", "sing-box" ]) || exec.ok([ "pgrep", "-f", "^/usr/bin/sing-box[[:space:]]" ]);
-}
-
 // The one readiness wait behind every action, dated from the moment it is
 // called: a live reload leaves the process in place, so no look taken before its
 // rebind can hold to the end of the window. The process is pinned by its start
@@ -150,11 +146,11 @@ function wait_ready(window, hold, with_network) {
 
 function wait_stopped() {
     for (let i = 0; i < STOP_TIMEOUT; i++) {
-        if (!sing_box_running() && !health.sing_box_service_running())
+        if (!runtime.process_running() && !health.sing_box_service_running())
             return true;
         sleep(1000);
     }
-    return !sing_box_running() && !health.sing_box_service_running();
+    return !runtime.process_running() && !health.sing_box_service_running();
 }
 
 // A router without an RTC starts in the past, and TLS certificates are not
@@ -261,7 +257,7 @@ function cleanup_failed_runtime(keep_watcher) {
 let start_fingerprint = "";
 
 function start_runtime() {
-    if (sing_box_running()) {
+    if (runtime.process_running()) {
         log("error", "sing-box is still running; refusing to start a second process");
         return false;
     }
@@ -416,6 +412,40 @@ function capture(active) {
     return exec.ok(active ? [ "nft", "add", "table", "inet", NFT_TABLE ] : [ "nft", "add", "table", "inet", NFT_TABLE, "{ flags dormant; }" ]);
 }
 
+// procd brings a crashed sing-box back a few seconds later. Until the new one
+// listens the capture pauses, as it does while a reload rebinds, so clients and
+// the router resolve and connect directly instead of at closed ports. An action
+// holding the lifecycle lock owns the runtime, so neither step waits for one.
+function crash_pause() {
+    let owner = common.own_pid();
+    if (!lock.acquire(paths.lock, owner))
+        return 0;
+    if (fs.stat(paths.planned_stop) == null && nft_state.table_present(NFT_TABLE) && !health.sing_box_service_running()) {
+        if (capture(false))
+            log("warn", "sing-box exited; traffic goes direct until procd restarts it");
+        else
+            log("error", "Failed to pause the nftables traffic capture after sing-box exited");
+    }
+    lock.release(paths.lock, owner);
+    return 0;
+}
+
+function crash_resume() {
+    if (!wait_ready(0, 1, false))
+        return 0;
+    let owner = common.own_pid();
+    if (!lock.acquire(paths.lock, owner))
+        return 0;
+    if (fs.stat(paths.planned_stop) == null && nft_state.table_present(NFT_TABLE) && !forkop_running()) {
+        if (capture(true))
+            log("info", "sing-box is back; traffic capture resumed");
+        else
+            log("error", "Failed to resume the nftables traffic capture after sing-box came back");
+    }
+    lock.release(paths.lock, owner);
+    return 0;
+}
+
 // A config change and a queued reload apply what changed; any other reason - a
 // reload asked for by hand, a WAN coming back - also reloads sing-box.
 function reload_runtime(reason) {
@@ -561,4 +591,4 @@ function uninstall() {
     return 0;
 }
 
-return { paths, start, stop, reload, crash_cleanup, enable, disable, uninstall, wait_ready };
+return { paths, start, stop, reload, crash_cleanup, crash_pause, crash_resume, enable, disable, uninstall, wait_ready };
