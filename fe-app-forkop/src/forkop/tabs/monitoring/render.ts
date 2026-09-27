@@ -36,7 +36,7 @@ export function render() {
               'select',
               {
                 id: 'monitoring-device-filter',
-                class: 'cbi-input-select fkp_monitoring-page__device-filter',
+                class: 'cbi-input-select',
               },
               [E('option', { value: 'all' }, _('All devices'))],
             ),
@@ -52,28 +52,26 @@ export function render() {
             ]),
           ]),
           E('div', { class: 'fkp_monitoring-page__actions' }, [
+            E('label', { class: 'fkp_monitoring-page__checkbox' }, [
+              E('input', {
+                id: 'monitoring-auto-refresh',
+                class: 'cbi-input-checkbox',
+                type: 'checkbox',
+                checked: true,
+              }),
+              E('span', {}, _('Auto refresh')),
+            ]),
             E(
               'button',
               {
                 id: 'monitoring-close-all',
-                class: 'btn cbi-button fkp_monitoring-page__icon-button',
+                class:
+                  'btn cbi-button cbi-button-negative fkp_monitoring-page__action',
                 title: _('Close all connections'),
-                'aria-label': _('Close all connections'),
                 type: 'button',
                 disabled: true,
               },
-              [],
-            ),
-            E(
-              'button',
-              {
-                id: 'monitoring-pause-toggle',
-                class: 'btn cbi-button fkp_monitoring-page__icon-button',
-                title: _('Pause updates'),
-                'aria-label': _('Pause updates'),
-                type: 'button',
-              },
-              [],
+              _('Close all'),
             ),
           ]),
         ]),

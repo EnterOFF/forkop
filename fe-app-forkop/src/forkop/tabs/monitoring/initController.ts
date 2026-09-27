@@ -10,18 +10,19 @@ import { createPollChain } from '../../helpers/pollChain';
 import { isDocumentVisible } from '../../../helpers/isDocumentVisible';
 import { prettyBytes } from '../../../helpers/prettyBytes';
 import { showToast } from '../../../helpers/showToast';
-import {
-  renderPauseIcon24,
-  renderPlayIcon24,
-  renderSearchIcon24,
-  renderXIcon24,
-} from '../../../icons';
+import { renderSearchIcon24 } from '../../../icons';
 import { CustomForkopMethods } from '../../methods';
 import { getClashApiSecret } from '../../methods/custom/getClashApiSecret';
 import { loadLocalDeviceChoices } from '../../cbi/localDevices';
 import { logger, socket, store, StoreType } from '../../services';
 import { Forkop } from '../../types';
 import { E } from '../../../helpers/element';
+import {
+  ConnectionListItem,
+  renderConnectionList,
+  renderConnectionListState,
+} from './connectionList';
+import { formatEndpoint } from './endpoint';
 
 type MonitoringTabId = 'active' | 'closed';
 
@@ -118,29 +119,6 @@ const closingConnectionIds = new Set<string>();
 
 function normalizeString(value?: string | number | null): string {
   return value == null ? '' : String(value).trim();
-}
-
-function formatEndpoint(address?: string, port?: string | number): string {
-  const normalizedAddress = normalizeString(address);
-  const normalizedPort = normalizeString(port);
-
-  if (!normalizedAddress) {
-    return '-';
-  }
-
-  if (!normalizedPort) {
-    return normalizedAddress;
-  }
-
-  if (normalizedPort === '443') {
-    return normalizedAddress;
-  }
-
-  if (normalizedAddress.includes(':') && !normalizedAddress.startsWith('[')) {
-    return `[${normalizedAddress}]:${normalizedPort}`;
-  }
-
-  return `${normalizedAddress}:${normalizedPort}`;
 }
 
 function getDisplayName(section: Forkop.ConfigSection) {
@@ -652,9 +630,9 @@ function renderControls() {
   const closeAllButton = document.getElementById(
     'monitoring-close-all',
   ) as HTMLButtonElement | null;
-  const pauseToggleButton = document.getElementById(
-    'monitoring-pause-toggle',
-  ) as HTMLButtonElement | null;
+  const autoRefreshInput = document.getElementById(
+    'monitoring-auto-refresh',
+  ) as HTMLInputElement | null;
 
   if (activeButton) {
     activeButton.replaceChildren(
@@ -678,21 +656,11 @@ function renderControls() {
   setButtonActive(closedButton, activeTab === 'closed');
 
   if (closeAllButton) {
-    closeAllButton.replaceChildren(renderXIcon24());
     closeAllButton.disabled = activeConnections.size === 0 || closingAll;
   }
 
-  if (pauseToggleButton) {
-    const title = monitoringPaused ? _('Resume updates') : _('Pause updates');
-    pauseToggleButton.replaceChildren(
-      monitoringPaused ? renderPlayIcon24() : renderPauseIcon24(),
-    );
-    pauseToggleButton.title = title;
-    pauseToggleButton.setAttribute('aria-label', title);
-    pauseToggleButton.classList.toggle(
-      'fkp_monitoring-page__icon-button--active',
-      monitoringPaused,
-    );
+  if (autoRefreshInput) {
+    autoRefreshInput.checked = !monitoringPaused;
   }
 
   const searchIcon = document.querySelector(
@@ -705,155 +673,21 @@ function renderControls() {
   renderDeviceFilterOptions();
 }
 
-function renderValue(value: string, className = '') {
-  const text = value || '-';
-  const element = E(
-    'span',
-    {
-      class: ['fkp_monitoring-page__value', className]
-        .filter(Boolean)
-        .join(' '),
-      title: text,
-    },
-    text,
-  );
-
-  element.setAttribute('data-copy-value', text);
-
-  return element;
-}
-
-function renderSourceValue(source: ReturnType<typeof getSourceCellParts>) {
-  const fullText = source.copyValue || source.primary || '-';
-  const element = E(
-    'span',
-    {
-      class:
-        'fkp_monitoring-page__value fkp_monitoring-page__source-value fkp_monitoring-page__source-value--ip-only',
-      title: fullText,
-    },
-    source.primary || '-',
-  );
-
-  element.setAttribute('data-copy-value', fullText);
-
-  return element;
-}
-
-function renderTableCell(label: string, children: (Node | string)[]) {
-  const cell = E('td', {}, children);
-  cell.setAttribute('data-label', label);
-  return cell;
-}
-
-function renderConnectionRow(connection: MonitoredConnection) {
-  const target = getTargetCellParts(connection);
+function toListItem(connection: MonitoredConnection): ConnectionListItem {
   const source = getSourceCellParts(connection);
-  const isClosing = closingConnectionIds.has(connection.id);
-  const closeButton =
-    activeTab === 'active'
-      ? E(
-          'button',
-          {
-            class: 'btn cbi-button fkp_monitoring-page__row-action',
-            title: _('Close connection'),
-            'aria-label': _('Close connection'),
-            type: 'button',
-            value: connection.id,
-            ...(isClosing ? { disabled: true } : {}),
-          },
-          [renderXIcon24()],
-        )
-      : E(
-          'span',
-          { class: 'fkp_monitoring-page__row-action-placeholder' },
-          '-',
-        );
 
-  return E(
-    'tr',
-    {
-      class: [
-        'fkp_monitoring-page__row',
-        isClosing ? 'fkp_monitoring-page__row--closing' : '',
-      ]
-        .filter(Boolean)
-        .join(' '),
-    },
-    [
-      renderTableCell(_('Host'), [renderValue(target.primary)]),
-      renderTableCell(_('Type'), [
-        renderValue(getNetwork(connection), 'fkp_monitoring-page__network'),
-      ]),
-      renderTableCell(_('Route'), [
-        renderValue(getRoute(connection), 'fkp_monitoring-page__route'),
-      ]),
-      renderTableCell(_('Time'), [
-        renderValue(formatConnectionDuration(connection)),
-      ]),
-      renderTableCell(_('Downloaded'), [
-        renderValue(formatBytes(connection.download)),
-      ]),
-      renderTableCell(_('Uploaded'), [
-        renderValue(formatBytes(connection.upload)),
-      ]),
-      renderTableCell(_('Source'), [renderSourceValue(source)]),
-      renderTableCell(_('Close'), [closeButton]),
-    ],
-  );
-}
-
-function renderStateRow(text: string, className = '') {
-  return E('tr', { class: 'fkp_monitoring-page__state-row' }, [
-    E(
-      'td',
-      {
-        class: 'fkp_monitoring-page__state-cell',
-        colSpan: 8,
-      },
-      [
-        E(
-          'div',
-          {
-            class: ['fkp_monitoring-page__state', className]
-              .filter(Boolean)
-              .join(' '),
-          },
-          text,
-        ),
-      ],
-    ),
-  ]);
-}
-
-function renderConnectionsTable(
-  connections: MonitoredConnection[],
-  state?: { text: string; className?: string },
-) {
-  const rows = state
-    ? [renderStateRow(state.text, state.className)]
-    : connections.map(renderConnectionRow);
-
-  // No LuCI `table` class here: the theme turns it into a flex column on
-  // phones, which splits the head and the body into two independently sized
-  // tables and pulls the column headers away from their values.
-  return E('div', { class: 'fkp_monitoring-page__table-wrap' }, [
-    E('table', { class: 'fkp_monitoring-page__table' }, [
-      E('thead', {}, [
-        E('tr', {}, [
-          E('th', {}, _('Host')),
-          E('th', {}, _('Type')),
-          E('th', {}, _('Route')),
-          E('th', {}, _('Time')),
-          E('th', {}, `\u2193 ${_('Downloaded')}`),
-          E('th', {}, `\u2191 ${_('Uploaded')}`),
-          E('th', {}, _('Source')),
-          E('th', {}, _('Close')),
-        ]),
-      ]),
-      E('tbody', {}, rows),
-    ]),
-  ]);
+  return {
+    id: connection.id,
+    host: getTargetCellParts(connection).primary,
+    source: source.primary,
+    sourceCopyValue: source.copyValue,
+    route: getRoute(connection),
+    network: getNetwork(connection),
+    time: formatConnectionDuration(connection),
+    download: formatBytes(connection.download),
+    upload: formatBytes(connection.upload),
+    closing: closingConnectionIds.has(connection.id),
+  };
 }
 
 function isNodeInsideMonitoring(node: Node | null): boolean {
@@ -885,29 +719,23 @@ function renderConnections(options: { force?: boolean } = {}) {
   }
 
   renderSkippedForSelection = false;
-  const previousScrollLeft =
-    (
-      container.querySelector(
-        '.fkp_monitoring-page__table-wrap',
-      ) as HTMLElement | null
-    )?.scrollLeft ?? 0;
 
   if (loading) {
     container.replaceChildren(
-      renderConnectionsTable([], {
-        text: _('Loading connections'),
-        className: 'fkp_monitoring-page__state--loading',
-      }),
+      renderConnectionListState(
+        _('Loading connections'),
+        'fkp_monitoring-page__state--loading',
+      ),
     );
     return;
   }
 
   if (failed) {
     container.replaceChildren(
-      renderConnectionsTable([], {
-        text: _('Connections are unavailable'),
-        className: 'fkp_monitoring-page__state--error',
-      }),
+      renderConnectionListState(
+        _('Connections are unavailable'),
+        'fkp_monitoring-page__state--error',
+      ),
     );
     return;
   }
@@ -916,19 +744,20 @@ function renderConnections(options: { force?: boolean } = {}) {
 
   if (visibleConnections.length === 0) {
     container.replaceChildren(
-      renderConnectionsTable([], {
-        text:
-          activeTab === 'active'
-            ? _('No active connections')
-            : _('No closed connections'),
-      }),
+      renderConnectionListState(
+        activeTab === 'active'
+          ? _('No active connections')
+          : _('No closed connections'),
+      ),
     );
     return;
   }
 
-  const tableWrap = renderConnectionsTable(visibleConnections);
-  container.replaceChildren(tableWrap);
-  tableWrap.scrollLeft = previousScrollLeft;
+  container.replaceChildren(
+    renderConnectionList(visibleConnections.map(toListItem), {
+      closable: activeTab === 'active',
+    }),
+  );
 }
 
 function flushRenderAfterSelection() {
@@ -1095,7 +924,9 @@ function bindControls() {
     'monitoring-search',
   ) as HTMLInputElement | null;
   const closeAllButton = document.getElementById('monitoring-close-all');
-  const pauseToggleButton = document.getElementById('monitoring-pause-toggle');
+  const autoRefreshInput = document.getElementById(
+    'monitoring-auto-refresh',
+  ) as HTMLInputElement | null;
   const connectionsContainer = document.getElementById(
     'monitoring-connections',
   );
@@ -1114,10 +945,9 @@ function bindControls() {
     };
   }
 
-  if (pauseToggleButton) {
-    pauseToggleButton.onclick = () => {
-      setMonitoringPaused(!monitoringPaused);
-      pauseToggleButton.blur();
+  if (autoRefreshInput) {
+    autoRefreshInput.onchange = () => {
+      setMonitoringPaused(!autoRefreshInput.checked);
     };
   }
 

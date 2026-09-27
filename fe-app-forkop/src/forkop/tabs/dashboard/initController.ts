@@ -717,6 +717,10 @@ function applyLatencyResult(
 // budgets, and only the second one is the section's to answer: a group sweep is
 // allowed the same ceiling everywhere, while a single node is asked for with the
 // section's own timeout - five seconds, or ten for a VPN interface.
+//
+// A result needs no message: the cards show the delays, and a node that failed
+// its test loses its delay with the next refresh. Only a controller that gave no
+// answer at all leaves the page as it was, so that is the failure reported.
 async function handleTestLatency(
   latencyType: 'group' | 'proxy',
   section: Forkop.OutboundGroup,
@@ -738,7 +742,15 @@ async function handleTestLatency(
             tag,
             section.latencyTestTimeout,
           );
-    if (!response.success) throw new Error(response.error);
+    if (!response.success) {
+      if (response.status === undefined) {
+        showToast(
+          _('Latency test failed: the Clash API did not answer'),
+          'error',
+        );
+      }
+      throw new Error(response.error);
+    }
 
     applyLatencyResult(
       section.sectionName,

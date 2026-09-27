@@ -67,6 +67,11 @@ function ensureConnectionsDynamicListStyles() {
 
 .fkp-connections-dynlist > .add-item > .cbi-dropdown {
   width: 100%;
+  max-width: none;
+}
+
+.fkp-button-add-dynlist.cbi-input-invalid {
+  box-shadow: none;
 }
 
 .fkp-interface-dynlist-label {
@@ -272,9 +277,10 @@ const ButtonAddSettingsUIDynamicList = SettingsUIDynamicList.extend({
       updateButtonAddDynamicListLayout(node, this.options.addButtonLabel);
     });
 
-    // LuCI marks the list itself invalid, and a theme draws no border around a
-    // list. The add control is drawn as a dropdown, so the mark is carried over
-    // to it and the theme's own rule for an invalid dropdown shows it.
+    // LuCI marks the list itself invalid, and a theme either draws nothing
+    // around a list or rings its whole box. The list shows one control, drawn as
+    // a dropdown, so the mark is carried over to it, the theme's own rule for an
+    // invalid dropdown shows it, and the list's own ring is left out.
     const control = node.querySelector('.add-item > .fkp-button-add-control');
     const showValidity = (invalid: boolean) =>
       control?.classList.toggle('cbi-input-invalid', invalid);

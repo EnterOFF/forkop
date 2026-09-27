@@ -38,6 +38,7 @@ import {
   getClashApiConnectionsSummary,
   getDashboardSections,
   getClashApiGroupLatency,
+  getClashApiProxyLatency,
   getClashApiProxyLink,
   resetClashApiTransport,
   setClashApiGroupProxy,
@@ -730,6 +731,7 @@ describe('getDashboardSections', () => {
     await expect(getClashApiProxyLink('Office/Node')).resolves.toEqual({
       success: false,
       error: 'Forbidden',
+      status: 403,
     });
     expect(mocks.clashHttp).not.toHaveBeenCalled();
   });
@@ -757,6 +759,7 @@ describe('getDashboardSections', () => {
     ).resolves.toEqual({
       success: false,
       error: 'update 1 of 3 rule-sets failed: geosite: timeout',
+      status: 503,
     });
   });
 
@@ -825,6 +828,30 @@ describe('getDashboardSections', () => {
 
     expect(result.success).toBe(false);
     expect(mocks.clashHttp).not.toHaveBeenCalled();
+  });
+
+  // A node that fails its test is an answer: the controller ran the test and
+  // says so with a status. A controller that never answers leaves none, and that
+  // is the one failure the page has to report, since nothing else shows it.
+  it('tells a failed delay test from a controller that did not answer', async () => {
+    await primeClashApi();
+
+    mocks.clashHttp.mockResolvedValueOnce(
+      clashHttpJson(504, { message: 'Timeout' }),
+    );
+    expect(await getClashApiProxyLatency('Office/Node')).toEqual({
+      success: false,
+      error: 'Timeout',
+      status: 504,
+    });
+
+    mocks.clashHttp.mockResolvedValueOnce({
+      success: false,
+      error: 'Clash API request failed: GET /proxies/Office%2FNode/delay',
+    });
+    const unanswered = await getClashApiProxyLatency('Office/Node');
+    expect(unanswered.success).toBe(false);
+    expect(unanswered).not.toHaveProperty('status');
   });
 
   it('stops asking the controller directly once a direct request fails', async () => {

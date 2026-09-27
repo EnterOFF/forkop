@@ -46,6 +46,7 @@ type HtmlAttributes<T extends HtmlTag = 'div'> = Partial<
     value?: string;
     readonly?: string | boolean;
     autocomplete?: string;
+    [data: `data-${string}`]: string | undefined;
     click?: (event: MouseEvent) => void;
     onclick?: (event: MouseEvent) => void;
     keydown?: (event: KeyboardEvent) => void;

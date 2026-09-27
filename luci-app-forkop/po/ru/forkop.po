@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-27 14:42+0300\n"
-"PO-Revision-Date: 2026-09-27 14:42+0300\n"
+"POT-Creation-Date: 2026-09-27 16:30+0300\n"
+"PO-Revision-Date: 2026-09-27 16:30+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -367,6 +367,9 @@ msgstr "Клиенты"
 
 msgid "Close"
 msgstr "Закрыть"
+
+msgid "Close all"
+msgstr "Закрыть все"
 
 msgid "Close all connections"
 msgstr "Закрыть все подключения"
@@ -1106,6 +1109,9 @@ msgstr "Разница задержки"
 msgid "Latency measurement for every server"
 msgstr "Замер задержки каждого сервера"
 
+msgid "Latency test failed: the Clash API did not answer"
+msgstr "Не удалось проверить задержку: Clash API не ответил"
+
 msgid "Latency test URL"
 msgstr "URL для тестирования задержки"
 
@@ -1397,9 +1403,6 @@ msgstr "Путь должен содержать хотя бы одну дире
 msgid "Path must end with %s"
 msgstr "Путь должен заканчиваться на %s"
 
-msgid "Pause updates"
-msgstr "Приостановить обновление"
-
 msgid "Peer hostname or IP address"
 msgstr "Имя хоста или IP-адрес пира"
 
@@ -1585,9 +1588,6 @@ msgstr "Перезапустить"
 
 msgid "Restarting..."
 msgstr "Перезапуск..."
-
-msgid "Resume updates"
-msgstr "Продолжить обновление"
 
 msgid "Route"
 msgstr "Маршрут"

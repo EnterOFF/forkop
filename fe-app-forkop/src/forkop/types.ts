@@ -307,6 +307,9 @@ export namespace Forkop {
   export interface MethodFailureResponse {
     success: false;
     error: string;
+    // The HTTP status the Clash API answered a failed request with; absent when
+    // it gave no answer at all.
+    status?: number;
   }
 
   export type MethodResponse<T> =

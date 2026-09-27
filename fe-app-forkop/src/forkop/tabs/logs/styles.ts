@@ -26,8 +26,10 @@ export const styles = `
     display: none;
 }
 
+/* The toolbar follows the width the page is given, not the window, and the
+   search field keeps the theme's own height, the one its buttons have. */
 .fkp_logs-page {
-    --fkp-logs-control-height: 34px;
+    container-type: inline-size;
 }
 
 .fkp_logs-page__toolbar,
@@ -58,7 +60,6 @@ export const styles = `
     align-items: center;
     width: min(320px, 100%);
     min-width: 0;
-    height: var(--fkp-logs-control-height);
     margin: 0;
 }
 
@@ -77,16 +78,11 @@ export const styles = `
     height: 16px;
 }
 
-.fkp_logs-page__search-input {
+.fkp_logs-page .fkp_logs-page__search-input {
     box-sizing: border-box;
     width: 100%;
-    height: var(--fkp-logs-control-height) !important;
-    min-height: var(--fkp-logs-control-height) !important;
     margin: 0 !important;
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
     padding-left: 30px !important;
-    line-height: calc(var(--fkp-logs-control-height) - 2px) !important;
 }
 
 .fkp_logs-page__checkbox {
@@ -133,7 +129,7 @@ export const styles = `
     opacity: 0.75;
 }
 
-@media (max-width: 600px) {
+@container (max-width: 539px) {
     .fkp_logs-page__search {
         width: 100%;
     }

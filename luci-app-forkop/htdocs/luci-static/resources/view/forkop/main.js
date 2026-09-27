@@ -2249,7 +2249,7 @@ function parseClashApiPayload(status, body) {
     return { success: false, error: _("Invalid Clash API response") };
   }
   if (status < 200 || status >= 300) {
-    return { success: false, error: clashApiError(status, body) };
+    return { success: false, error: clashApiError(status, body), status };
   }
   if (!body) {
     return { success: true, data: void 0 };
@@ -5459,7 +5459,15 @@ async function handleTestLatency(latencyType, section, tag, requestKey) {
       tag,
       section.latencyTestTimeout
     );
-    if (!response.success) throw new Error(response.error);
+    if (!response.success) {
+      if (response.status === void 0) {
+        showToast(
+          _("Latency test failed: the Clash API did not answer"),
+          "error"
+        );
+      }
+      throw new Error(response.error);
+    }
     applyLatencyResult(
       section.sectionName,
       latencyType === "group" ? response.data : { [tag]: response.data.delay }
@@ -6401,22 +6409,29 @@ var styles = `
     display: none;
 }
 
+/* The columns follow the width the page is given, not the window: a theme with
+   a sidebar leaves the page far less than the viewport, and four columns that
+   need 750px would run out of the card. */
 .fkp_dashboard-page {
     width: 100%;
-    --dashboard-grid-columns: 4;
-    --dashboard-grid-min-width: 180px;
+    container-type: inline-size;
 }
 
-@media (max-width: 900px) {
-    .fkp_dashboard-page {
+.fkp_dashboard-page__content {
+    --dashboard-grid-columns: 1;
+    --dashboard-grid-min-width: 0;
+}
+
+@container (min-width: 480px) {
+    .fkp_dashboard-page__content {
         --dashboard-grid-columns: 2;
+        --dashboard-grid-min-width: 180px;
     }
 }
 
-@media (max-width: 560px) {
-    .fkp_dashboard-page {
-        --dashboard-grid-columns: 1;
-        --dashboard-grid-min-width: 0;
+@container (min-width: 750px) {
+    .fkp_dashboard-page__content {
+        --dashboard-grid-columns: 4;
     }
 }
 
@@ -6427,7 +6442,11 @@ var styles = `
     grid-gap: 10px;
 }
 
+/* Each widget sits in the placeholder it is rendered into, and the grid
+   stretches that placeholder to the height of the row, not the widget. */
 .fkp_dashboard-page__widgets-section__item {
+    box-sizing: border-box;
+    height: 100%;
     border: 2px var(--background-color-low, lightgray) solid;
     border-radius: 4px;
     padding: 10px;
@@ -6443,7 +6462,7 @@ var styles = `
 }
 
 .fkp_dashboard-page__widgets-section__item__row--progress .fkp_dashboard-page__widgets-section__item__row__value {
-    color: var(--warning-color-medium, #b8860b);
+    color: var(--warn-color-medium, #b8860b);
 }
 
 .fkp_dashboard-page__outbound-section {
@@ -6663,7 +6682,7 @@ var styles = `
     overflow-wrap: anywhere;
 }
 
-@media (max-width: 700px) {
+@container (max-width: 639px) {
     .fkp_dashboard-page__subscription-meta__main {
         align-items: flex-start;
         flex-wrap: wrap;
@@ -9321,7 +9340,7 @@ function render3() {
               "select",
               {
                 id: "monitoring-device-filter",
-                class: "cbi-input-select fkp_monitoring-page__device-filter"
+                class: "cbi-input-select"
               },
               [textE("option", { value: "all" }, _("All devices"))]
             ),
@@ -9337,28 +9356,25 @@ function render3() {
             ])
           ]),
           textE("div", { class: "fkp_monitoring-page__actions" }, [
+            textE("label", { class: "fkp_monitoring-page__checkbox" }, [
+              textE("input", {
+                id: "monitoring-auto-refresh",
+                class: "cbi-input-checkbox",
+                type: "checkbox",
+                checked: true
+              }),
+              textE("span", {}, _("Auto refresh"))
+            ]),
             textE(
               "button",
               {
                 id: "monitoring-close-all",
-                class: "btn cbi-button fkp_monitoring-page__icon-button",
+                class: "btn cbi-button cbi-button-negative fkp_monitoring-page__action",
                 title: _("Close all connections"),
-                "aria-label": _("Close all connections"),
                 type: "button",
                 disabled: true
               },
-              []
-            ),
-            textE(
-              "button",
-              {
-                id: "monitoring-pause-toggle",
-                class: "btn cbi-button fkp_monitoring-page__icon-button",
-                title: _("Pause updates"),
-                "aria-label": _("Pause updates"),
-                type: "button"
-              },
-              []
+              _("Close all")
             )
           ])
         ]),
@@ -9672,6 +9688,225 @@ function createLocalDeviceDynamicListWidget(option2, section_id, cfgvalue) {
   });
 }
 
+// src/forkop/tabs/monitoring/connectionList.ts
+function renderList(rows) {
+  return textE("div", { class: "fkp_monitoring-page__list", role: "table" }, [
+    textE(
+      "div",
+      {
+        class: "fkp_monitoring-page__row fkp_monitoring-page__row--head",
+        role: "row"
+      },
+      [
+        renderHeading("host", _("Host")),
+        renderHeading("source", _("Source")),
+        renderHeading("route", _("Route")),
+        renderHeading("network", _("Type")),
+        renderHeading("time", _("Time")),
+        renderHeading("download", `\u2193 ${_("Downloaded")}`),
+        renderHeading("upload", `\u2191 ${_("Uploaded")}`),
+        textE("div", {
+          class: cellClass("action"),
+          role: "columnheader",
+          "aria-label": _("Close")
+        })
+      ]
+    ),
+    ...rows
+  ]);
+}
+function cellClass(column) {
+  return `fkp_monitoring-page__cell fkp_monitoring-page__cell--${column}`;
+}
+function renderHeading(column, text) {
+  return textE("div", { class: cellClass(column), role: "columnheader" }, text);
+}
+function renderCell(column, children) {
+  return textE("div", { class: cellClass(column), role: "cell" }, children);
+}
+function renderValue(text, className = "", copyValue = text) {
+  const value = text || "-";
+  return textE(
+    "span",
+    {
+      class: ["fkp_monitoring-page__value", className].filter(Boolean).join(" "),
+      title: copyValue || value,
+      "data-copy-value": copyValue || value
+    },
+    value
+  );
+}
+function renderAction(item, closable) {
+  if (!closable) {
+    return textE("span", { class: "fkp_monitoring-page__action-placeholder" }, "-");
+  }
+  return textE(
+    "button",
+    {
+      class: "btn cbi-button fkp_monitoring-page__row-action",
+      title: _("Close connection"),
+      "aria-label": _("Close connection"),
+      type: "button",
+      value: item.id,
+      ...item.closing ? { disabled: true } : {}
+    },
+    [renderXIcon24()]
+  );
+}
+function renderRow(item, closable) {
+  return textE(
+    "div",
+    {
+      class: [
+        "fkp_monitoring-page__row",
+        item.closing ? "fkp_monitoring-page__row--closing" : ""
+      ].filter(Boolean).join(" "),
+      role: "row"
+    },
+    [
+      renderCell("host", [renderValue(item.host)]),
+      renderCell("source", [
+        renderValue(item.source, "", item.sourceCopyValue)
+      ]),
+      renderCell("route", [
+        renderValue(item.route, "fkp_monitoring-page__route")
+      ]),
+      renderCell("network", [
+        renderValue(item.network, "fkp_monitoring-page__network")
+      ]),
+      renderCell("time", [renderValue(item.time)]),
+      renderCell("download", [renderValue(item.download)]),
+      renderCell("upload", [renderValue(item.upload)]),
+      renderCell("action", [renderAction(item, closable)])
+    ]
+  );
+}
+function renderConnectionList(items, options) {
+  return renderList(items.map((item) => renderRow(item, options.closable)));
+}
+function renderConnectionListState(text, className = "") {
+  return renderList([
+    textE(
+      "div",
+      {
+        class: "fkp_monitoring-page__row fkp_monitoring-page__row--state",
+        role: "row"
+      },
+      [
+        textE(
+          "div",
+          {
+            class: ["fkp_monitoring-page__state", className].filter(Boolean).join(" "),
+            role: "cell"
+          },
+          text
+        )
+      ]
+    )
+  ]);
+}
+
+// src/helpers/domainToUnicode.ts
+var BASE = 36;
+var T_MIN = 1;
+var T_MAX = 26;
+var SKEW = 38;
+var DAMP = 700;
+var INITIAL_BIAS = 72;
+var INITIAL_N = 128;
+var MAX_CODE_POINT = 1114111;
+function adapt(delta, points, first) {
+  let scaled = first ? Math.floor(delta / DAMP) : Math.floor(delta / 2);
+  scaled += Math.floor(scaled / points);
+  let k = 0;
+  while (scaled > (BASE - T_MIN) * T_MAX / 2) {
+    scaled = Math.floor(scaled / (BASE - T_MIN));
+    k += BASE;
+  }
+  return k + Math.floor((BASE - T_MIN + 1) * scaled / (scaled + SKEW));
+}
+function digitValue(code) {
+  if (code >= 48 && code <= 57) {
+    return code - 48 + 26;
+  }
+  if (code >= 97 && code <= 122) {
+    return code - 97;
+  }
+  return BASE;
+}
+function decodeLabel(encoded) {
+  const delimiter = encoded.lastIndexOf("-");
+  const output = [];
+  for (let index2 = 0; index2 < Math.max(delimiter, 0); index2 += 1) {
+    output.push(encoded.charCodeAt(index2));
+  }
+  let n = INITIAL_N;
+  let i = 0;
+  let bias = INITIAL_BIAS;
+  let index = delimiter > 0 ? delimiter + 1 : 0;
+  while (index < encoded.length) {
+    const previous = i;
+    let weight = 1;
+    for (let k = BASE; ; k += BASE) {
+      if (index >= encoded.length) {
+        return null;
+      }
+      const digit = digitValue(encoded.charCodeAt(index));
+      index += 1;
+      if (digit >= BASE) {
+        return null;
+      }
+      i += digit * weight;
+      const threshold = k <= bias ? T_MIN : k >= bias + T_MAX ? T_MAX : k - bias;
+      if (digit < threshold) {
+        break;
+      }
+      weight *= BASE - threshold;
+    }
+    bias = adapt(i - previous, output.length + 1, previous === 0);
+    n += Math.floor(i / (output.length + 1));
+    i %= output.length + 1;
+    if (n > MAX_CODE_POINT || n >= 55296 && n <= 57343) {
+      return null;
+    }
+    output.splice(i, 0, n);
+    i += 1;
+  }
+  return output.length ? String.fromCodePoint(...output) : null;
+}
+function mixesLatin(label) {
+  return /\p{Script=Latin}/u.test(label) && /(?!\p{Script=Latin})\p{L}/u.test(label);
+}
+function domainToUnicode(domain) {
+  return domain.split(".").map((label) => {
+    if (!/^xn--/i.test(label)) {
+      return label;
+    }
+    const decoded = decodeLabel(label.slice(4).toLowerCase());
+    return decoded && !mixesLatin(decoded) ? decoded : label;
+  }).join(".");
+}
+
+// src/forkop/tabs/monitoring/endpoint.ts
+var WEB_PORTS = /* @__PURE__ */ new Set(["80", "443"]);
+function normalize(value) {
+  return value == null ? "" : String(value).trim();
+}
+function formatEndpoint(address, port) {
+  const normalizedAddress = domainToUnicode(normalize(address));
+  const normalizedPort = normalize(port);
+  if (!normalizedAddress) {
+    return "-";
+  }
+  if (!normalizedPort || WEB_PORTS.has(normalizedPort)) {
+    return normalizedAddress;
+  }
+  if (normalizedAddress.includes(":") && !normalizedAddress.startsWith("[")) {
+    return `[${normalizedAddress}]:${normalizedPort}`;
+  }
+  return `${normalizedAddress}:${normalizedPort}`;
+}
+
 // src/forkop/tabs/monitoring/initController.ts
 function normalizeConnectionsPayload(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -9718,23 +9953,6 @@ var closedConnections = /* @__PURE__ */ new Map();
 var closingConnectionIds = /* @__PURE__ */ new Set();
 function normalizeString(value) {
   return value == null ? "" : String(value).trim();
-}
-function formatEndpoint(address, port) {
-  const normalizedAddress = normalizeString(address);
-  const normalizedPort = normalizeString(port);
-  if (!normalizedAddress) {
-    return "-";
-  }
-  if (!normalizedPort) {
-    return normalizedAddress;
-  }
-  if (normalizedPort === "443") {
-    return normalizedAddress;
-  }
-  if (normalizedAddress.includes(":") && !normalizedAddress.startsWith("[")) {
-    return `[${normalizedAddress}]:${normalizedPort}`;
-  }
-  return `${normalizedAddress}:${normalizedPort}`;
 }
 function getDisplayName2(section) {
   return normalizeString(section.label) || section[".name"];
@@ -10114,8 +10332,8 @@ function renderControls() {
   const closeAllButton = document.getElementById(
     "monitoring-close-all"
   );
-  const pauseToggleButton = document.getElementById(
-    "monitoring-pause-toggle"
+  const autoRefreshInput = document.getElementById(
+    "monitoring-auto-refresh"
   );
   if (activeButton) {
     activeButton.replaceChildren(
@@ -10136,20 +10354,10 @@ function renderControls() {
   setButtonActive(activeButton, activeTab === "active");
   setButtonActive(closedButton, activeTab === "closed");
   if (closeAllButton) {
-    closeAllButton.replaceChildren(renderXIcon24());
     closeAllButton.disabled = activeConnections.size === 0 || closingAll;
   }
-  if (pauseToggleButton) {
-    const title = monitoringPaused ? _("Resume updates") : _("Pause updates");
-    pauseToggleButton.replaceChildren(
-      monitoringPaused ? renderPlayIcon24() : renderPauseIcon24()
-    );
-    pauseToggleButton.title = title;
-    pauseToggleButton.setAttribute("aria-label", title);
-    pauseToggleButton.classList.toggle(
-      "fkp_monitoring-page__icon-button--active",
-      monitoringPaused
-    );
+  if (autoRefreshInput) {
+    autoRefreshInput.checked = !monitoringPaused;
   }
   const searchIcon = document.querySelector(
     ".fkp_monitoring-page__search-icon"
@@ -10159,126 +10367,20 @@ function renderControls() {
   }
   renderDeviceFilterOptions();
 }
-function renderValue(value, className = "") {
-  const text = value || "-";
-  const element3 = textE(
-    "span",
-    {
-      class: ["fkp_monitoring-page__value", className].filter(Boolean).join(" "),
-      title: text
-    },
-    text
-  );
-  element3.setAttribute("data-copy-value", text);
-  return element3;
-}
-function renderSourceValue(source) {
-  const fullText = source.copyValue || source.primary || "-";
-  const element3 = textE(
-    "span",
-    {
-      class: "fkp_monitoring-page__value fkp_monitoring-page__source-value fkp_monitoring-page__source-value--ip-only",
-      title: fullText
-    },
-    source.primary || "-"
-  );
-  element3.setAttribute("data-copy-value", fullText);
-  return element3;
-}
-function renderTableCell(label, children) {
-  const cell = textE("td", {}, children);
-  cell.setAttribute("data-label", label);
-  return cell;
-}
-function renderConnectionRow(connection) {
-  const target = getTargetCellParts(connection);
+function toListItem(connection) {
   const source = getSourceCellParts(connection);
-  const isClosing = closingConnectionIds.has(connection.id);
-  const closeButton = activeTab === "active" ? textE(
-    "button",
-    {
-      class: "btn cbi-button fkp_monitoring-page__row-action",
-      title: _("Close connection"),
-      "aria-label": _("Close connection"),
-      type: "button",
-      value: connection.id,
-      ...isClosing ? { disabled: true } : {}
-    },
-    [renderXIcon24()]
-  ) : textE(
-    "span",
-    { class: "fkp_monitoring-page__row-action-placeholder" },
-    "-"
-  );
-  return textE(
-    "tr",
-    {
-      class: [
-        "fkp_monitoring-page__row",
-        isClosing ? "fkp_monitoring-page__row--closing" : ""
-      ].filter(Boolean).join(" ")
-    },
-    [
-      renderTableCell(_("Host"), [renderValue(target.primary)]),
-      renderTableCell(_("Type"), [
-        renderValue(getNetwork(connection), "fkp_monitoring-page__network")
-      ]),
-      renderTableCell(_("Route"), [
-        renderValue(getRoute(connection), "fkp_monitoring-page__route")
-      ]),
-      renderTableCell(_("Time"), [
-        renderValue(formatConnectionDuration(connection))
-      ]),
-      renderTableCell(_("Downloaded"), [
-        renderValue(formatBytes2(connection.download))
-      ]),
-      renderTableCell(_("Uploaded"), [
-        renderValue(formatBytes2(connection.upload))
-      ]),
-      renderTableCell(_("Source"), [renderSourceValue(source)]),
-      renderTableCell(_("Close"), [closeButton])
-    ]
-  );
-}
-function renderStateRow(text, className = "") {
-  return textE("tr", { class: "fkp_monitoring-page__state-row" }, [
-    textE(
-      "td",
-      {
-        class: "fkp_monitoring-page__state-cell",
-        colSpan: 8
-      },
-      [
-        textE(
-          "div",
-          {
-            class: ["fkp_monitoring-page__state", className].filter(Boolean).join(" ")
-          },
-          text
-        )
-      ]
-    )
-  ]);
-}
-function renderConnectionsTable(connections, state) {
-  const rows = state ? [renderStateRow(state.text, state.className)] : connections.map(renderConnectionRow);
-  return textE("div", { class: "fkp_monitoring-page__table-wrap" }, [
-    textE("table", { class: "fkp_monitoring-page__table" }, [
-      textE("thead", {}, [
-        textE("tr", {}, [
-          textE("th", {}, _("Host")),
-          textE("th", {}, _("Type")),
-          textE("th", {}, _("Route")),
-          textE("th", {}, _("Time")),
-          textE("th", {}, `\u2193 ${_("Downloaded")}`),
-          textE("th", {}, `\u2191 ${_("Uploaded")}`),
-          textE("th", {}, _("Source")),
-          textE("th", {}, _("Close"))
-        ])
-      ]),
-      textE("tbody", {}, rows)
-    ])
-  ]);
+  return {
+    id: connection.id,
+    host: getTargetCellParts(connection).primary,
+    source: source.primary,
+    sourceCopyValue: source.copyValue,
+    route: getRoute(connection),
+    network: getNetwork(connection),
+    time: formatConnectionDuration(connection),
+    download: formatBytes2(connection.download),
+    upload: formatBytes2(connection.upload),
+    closing: closingConnectionIds.has(connection.id)
+  };
 }
 function isNodeInsideMonitoring(node) {
   const root = document.getElementById("monitoring-status");
@@ -10301,39 +10403,38 @@ function renderConnections(options = {}) {
     return;
   }
   renderSkippedForSelection = false;
-  const previousScrollLeft = container.querySelector(
-    ".fkp_monitoring-page__table-wrap"
-  )?.scrollLeft ?? 0;
   if (loading) {
     container.replaceChildren(
-      renderConnectionsTable([], {
-        text: _("Loading connections"),
-        className: "fkp_monitoring-page__state--loading"
-      })
+      renderConnectionListState(
+        _("Loading connections"),
+        "fkp_monitoring-page__state--loading"
+      )
     );
     return;
   }
   if (failed) {
     container.replaceChildren(
-      renderConnectionsTable([], {
-        text: _("Connections are unavailable"),
-        className: "fkp_monitoring-page__state--error"
-      })
+      renderConnectionListState(
+        _("Connections are unavailable"),
+        "fkp_monitoring-page__state--error"
+      )
     );
     return;
   }
   const visibleConnections = getVisibleConnections();
   if (visibleConnections.length === 0) {
     container.replaceChildren(
-      renderConnectionsTable([], {
-        text: activeTab === "active" ? _("No active connections") : _("No closed connections")
-      })
+      renderConnectionListState(
+        activeTab === "active" ? _("No active connections") : _("No closed connections")
+      )
     );
     return;
   }
-  const tableWrap = renderConnectionsTable(visibleConnections);
-  container.replaceChildren(tableWrap);
-  tableWrap.scrollLeft = previousScrollLeft;
+  container.replaceChildren(
+    renderConnectionList(visibleConnections.map(toListItem), {
+      closable: activeTab === "active"
+    })
+  );
 }
 function flushRenderAfterSelection() {
   if (!renderSkippedForSelection || isTextSelectionInsideMonitoring()) {
@@ -10469,7 +10570,9 @@ function bindControls() {
     "monitoring-search"
   );
   const closeAllButton = document.getElementById("monitoring-close-all");
-  const pauseToggleButton = document.getElementById("monitoring-pause-toggle");
+  const autoRefreshInput = document.getElementById(
+    "monitoring-auto-refresh"
+  );
   const connectionsContainer = document.getElementById(
     "monitoring-connections"
   );
@@ -10484,10 +10587,9 @@ function bindControls() {
       void closeAllConnections();
     };
   }
-  if (pauseToggleButton) {
-    pauseToggleButton.onclick = () => {
-      setMonitoringPaused(!monitoringPaused);
-      pauseToggleButton.blur();
+  if (autoRefreshInput) {
+    autoRefreshInput.onchange = () => {
+      setMonitoringPaused(!autoRefreshInput.checked);
     };
   }
   if (select) {
@@ -10750,14 +10852,16 @@ var styles5 = `
     display: none;
 }
 
+/* The layout follows the width the page is given, not the window: a theme with
+   a sidebar hands it a column far narrower than the viewport. */
 .fkp_monitoring-page {
-    --fkp-monitoring-control-height: 34px;
     --fkp-monitoring-row-action-size: 24px;
     --fkp-monitoring-divider-color: rgba(127, 127, 127, 0.22);
     --fkp-monitoring-soft-bg: rgba(127, 127, 127, 0.08);
     --fkp-monitoring-soft-bg-hover: rgba(127, 127, 127, 0.14);
     --fkp-monitoring-danger-color: var(--error-color-medium, #d32f2f);
 
+    container-type: inline-size;
     width: 100%;
     min-width: 0;
 }
@@ -10773,101 +10877,22 @@ var styles5 = `
     min-width: 0;
 }
 
-.fkp_monitoring-page .btn.fkp_monitoring-page__icon-button {
-    width: 32px;
-    height: 32px;
-    min-width: 32px;
-    min-height: 32px;
-    padding: 0;
-    box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 auto;
-    line-height: 1;
-    margin: 0;
-    border: 1px solid var(--fkp-monitoring-divider-color) !important;
-    border-radius: 6px;
-    background: var(--fkp-monitoring-soft-bg) !important;
-    color: var(--text-color-medium) !important;
-    box-shadow: none;
-}
-
-.fkp_monitoring-page .btn.fkp_monitoring-page__icon-button:hover:not(:disabled) {
-    background: var(--fkp-monitoring-soft-bg-hover) !important;
-    color: var(--text-color-high) !important;
-}
-
-.fkp_monitoring-page .btn.fkp_monitoring-page__icon-button--active {
-    background: rgba(25, 118, 210, 0.16) !important;
-    color: var(--primary-color-high, #1976d2) !important;
-}
-
-.fkp_monitoring-page .btn.fkp_monitoring-page__icon-button:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-}
-
-.fkp_monitoring-page #monitoring-close-all.btn.fkp_monitoring-page__icon-button {
-    order: 2;
-    border-color: rgba(217, 83, 79, 0.4) !important;
-    background: transparent !important;
-    color: var(--fkp-monitoring-danger-color) !important;
-}
-
-.fkp_monitoring-page #monitoring-close-all.btn.fkp_monitoring-page__icon-button:hover:not(:disabled) {
-    border-color: rgba(217, 83, 79, 0.6) !important;
-    background: transparent !important;
-    color: color-mix(in srgb, var(--fkp-monitoring-danger-color) 70%, white) !important;
-}
-
-.fkp_monitoring-page #monitoring-pause-toggle.btn.fkp_monitoring-page__icon-button,
-.fkp_monitoring-page #monitoring-pause-toggle.btn.fkp_monitoring-page__icon-button--active {
-    order: 1;
-    border-color: rgba(128, 128, 128, 0.3) !important;
-    background: transparent !important;
-    color: var(--text-color-medium, #888) !important;
-}
-
-.fkp_monitoring-page #monitoring-pause-toggle.btn.fkp_monitoring-page__icon-button:hover:not(:disabled),
-.fkp_monitoring-page #monitoring-pause-toggle.btn.fkp_monitoring-page__icon-button--active:hover:not(:disabled) {
-    border-color: rgba(128, 128, 128, 0.6) !important;
-    background: transparent !important;
-    color: var(--text-color-high, #eee) !important;
-}
-
-.fkp_monitoring-page__icon-button svg,
-.fkp_monitoring-page__row-action svg {
-    width: 16px;
-    height: 16px;
-    display: block;
-    flex: 0 0 auto;
-}
-
 .fkp_monitoring-page__controls {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr) max-content;
+    grid-template-areas: 'tabs filters actions';
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
+    gap: 12px 16px;
     margin-bottom: 12px;
-    width: 100%;
-    min-width: 0;
 }
 
-.fkp_monitoring-page__actions {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 8px;
-    min-width: 0;
-}
-
+/* The controls keep the theme's own height, and the switch stretches to the
+   height of whatever shares its line. */
 .fkp_monitoring-page__tabs {
+    grid-area: tabs;
+    align-self: stretch;
     display: inline-flex;
-    align-items: center;
     gap: 2px;
-    width: max-content;
     padding: 2px;
     border: 1px solid var(--fkp-monitoring-divider-color);
     border-radius: 6px;
@@ -10876,8 +10901,8 @@ var styles5 = `
 }
 
 .fkp_monitoring-page .btn.fkp_monitoring-page__tab {
-    height: calc(var(--fkp-monitoring-control-height) - 6px);
-    min-height: calc(var(--fkp-monitoring-control-height) - 6px);
+    height: auto;
+    min-height: 28px;
     margin: 0;
     padding: 0 12px;
     border: 0 !important;
@@ -10929,36 +10954,29 @@ var styles5 = `
     color: var(--primary-color-high, #1976d2);
 }
 
+/* A theme may put its own dropdown next to the select and hide the select, so
+   the columns are filled in order rather than assigned to named children, and
+   whatever fills one is held to it. */
 .fkp_monitoring-page__filters {
-    display: flex;
-    flex: 1 1 auto;
-    flex-wrap: wrap;
+    grid-area: filters;
+    display: grid;
+    grid-template-columns: minmax(0, 220px) minmax(0, 320px);
     align-items: center;
-    justify-content: flex-start;
-    gap: 12px;
+    gap: 8px;
     min-width: 0;
 }
 
-.fkp_monitoring-page__device-filter {
-    width: min(220px, 100%);
+.fkp_monitoring-page .fkp_monitoring-page__filters > * {
+    width: 100%;
     min-width: 0;
-    height: var(--fkp-monitoring-control-height) !important;
-    min-height: var(--fkp-monitoring-control-height) !important;
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-    margin: 0 !important;
+    margin: 0;
     box-sizing: border-box;
-    line-height: calc(var(--fkp-monitoring-control-height) - 2px) !important;
 }
 
 .fkp_monitoring-page__search {
     position: relative;
     display: flex;
     align-items: center;
-    width: min(320px, 100%);
-    min-width: 0;
-    height: var(--fkp-monitoring-control-height);
-    margin: 0;
 }
 
 .fkp_monitoring-page__search-icon {
@@ -10976,176 +10994,147 @@ var styles5 = `
     display: block;
 }
 
-.fkp_monitoring-page__search-input {
+.fkp_monitoring-page .fkp_monitoring-page__search-input {
     width: 100%;
-    height: var(--fkp-monitoring-control-height) !important;
-    min-height: var(--fkp-monitoring-control-height) !important;
     padding-left: 30px !important;
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
     margin: 0 !important;
     box-sizing: border-box;
-    line-height: calc(var(--fkp-monitoring-control-height) - 2px) !important;
+}
+
+.fkp_monitoring-page__actions {
+    grid-area: actions;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.fkp_monitoring-page__checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    margin: 0;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+}
+
+.fkp_monitoring-page__checkbox input {
+    margin: 0;
+}
+
+.fkp_monitoring-page .btn.fkp_monitoring-page__action {
+    margin: 0;
+    white-space: nowrap;
 }
 
 .fkp_monitoring-page__body {
-    margin-top: 0;
     width: 100%;
     min-width: 0;
 }
 
-.fkp_monitoring-page__table-wrap {
-    width: 100%;
-    overflow-x: auto;
-    margin-bottom: 0;
+/* Every row is a subgrid of the list, so a column is as wide as its widest
+   value or heading and what is left is shared out evenly, the way a table
+   shares it. Only the host, the source and the route give way when the width
+   runs short. */
+.fkp_monitoring-page__list {
+    display: grid;
+    grid-template-columns:
+        minmax(8em, auto)
+        minmax(6em, auto)
+        minmax(5.5em, auto)
+        minmax(max-content, auto)
+        minmax(max-content, auto)
+        minmax(max-content, auto)
+        minmax(max-content, auto)
+        max-content;
+    column-gap: 12px;
+    font-size: 13px;
 }
 
-.fkp_monitoring-page__table {
-    width: 100%;
-    min-width: 840px;
-    table-layout: fixed;
-    border-collapse: collapse;
-    border-spacing: 0;
-    margin-bottom: 0;
-}
-
-.fkp_monitoring-page__table th,
-.fkp_monitoring-page__table td {
-    padding: 8px 6px;
+.fkp_monitoring-page__row {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: subgrid;
+    align-items: center;
+    min-height: 36px;
+    padding: 0 6px;
     border-bottom: 1px solid var(--fkp-monitoring-divider-color);
     box-sizing: border-box;
-    text-align: left;
-    vertical-align: middle;
-    overflow: hidden;
-    white-space: nowrap;
 }
 
-.fkp_monitoring-page__table th {
+.fkp_monitoring-page__row:last-child {
+    border-bottom: 0;
+}
+
+.fkp_monitoring-page__row--head {
+    min-height: 30px;
+    border-bottom-color: rgba(127, 127, 127, 0.32);
     color: var(--text-color-medium);
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
+}
+
+.fkp_monitoring-page__row:not(.fkp_monitoring-page__row--head):not(.fkp_monitoring-page__row--state):hover {
+    background: var(--fkp-monitoring-soft-bg);
+}
+
+.fkp_monitoring-page__row--closing {
+    opacity: 0.55;
+}
+
+.fkp_monitoring-page__cell {
+    min-width: 0;
+    overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    border-bottom-color: rgba(127, 127, 127, 0.32);
 }
 
-/*
- * The layout is fixed, so a heading wider than its share is cut off. The two
- * traffic shares hold the arrow and the word above them, not just the digits.
- */
-.fkp_monitoring-page__table th:nth-child(1) {
-    width: 26%;
-}
-
-.fkp_monitoring-page__table th:nth-child(2) {
-    width: 6%;
-}
-
-.fkp_monitoring-page__table th:nth-child(3) {
-    width: 13.75%;
-}
-
-.fkp_monitoring-page__table th:nth-child(4) {
-    width: 8%;
-}
-
-.fkp_monitoring-page__table th:nth-child(5) {
-    width: 12.25%;
-}
-
-.fkp_monitoring-page__table th:nth-child(6) {
-    width: 10%;
-}
-
-.fkp_monitoring-page__table th:nth-child(7) {
-    width: 16%;
-}
-
-.fkp_monitoring-page__table th:nth-child(8) {
-    width: 8%;
-}
-
-.fkp_monitoring-page__table tbody tr:last-child td {
-    border-bottom: 0;
-}
-
-.fkp_monitoring-page__table td:last-child {
-    padding-top: 0;
-    padding-bottom: 0;
-}
-
-.fkp_monitoring-page__table th:nth-child(4),
-.fkp_monitoring-page__table td:nth-child(4),
-.fkp_monitoring-page__table th:nth-child(5),
-.fkp_monitoring-page__table td:nth-child(5),
-.fkp_monitoring-page__table th:nth-child(6),
-.fkp_monitoring-page__table td:nth-child(6) {
+.fkp_monitoring-page__cell--time,
+.fkp_monitoring-page__cell--download,
+.fkp_monitoring-page__cell--upload {
     text-align: right;
+    font-variant-numeric: tabular-nums;
 }
 
-.fkp_monitoring-page__table th:nth-child(7),
-.fkp_monitoring-page__table td:nth-child(7) {
-    text-align: left;
-}
-
-.fkp_monitoring-page__table th:last-child,
-.fkp_monitoring-page__table td:last-child {
-    text-align: center;
+.fkp_monitoring-page__cell--action {
+    display: flex;
+    justify-content: center;
+    overflow: visible;
 }
 
 .fkp_monitoring-page__value {
     display: block;
-    max-width: 100%;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    text-align: left;
     line-height: 1.3;
     color: var(--text-color-high);
-    font-size: 13px;
     user-select: text;
-}
-
-.fkp_monitoring-page__source-value {
-    display: flex;
-    align-items: baseline;
-    justify-content: flex-start;
-    gap: 5px;
-}
-
-.fkp_monitoring-page__source-value--ip-only {
-    color: var(--text-color-high);
 }
 
 .fkp_monitoring-page__route {
     display: inline-block;
-    width: auto;
+    max-width: 100%;
+    box-sizing: border-box;
     padding: 2px 6px;
     border-radius: 4px;
     background: rgba(128, 128, 128, 0.15);
-    color: var(--text-color-high);
     font-size: 11px;
     font-weight: 500;
+    vertical-align: middle;
 }
 
 .fkp_monitoring-page__network {
-    background: transparent;
-    border: 0;
-    padding: 0;
     color: var(--text-color-medium, #bbb);
-    font-family: inherit;
-    font-size: 13px;
     text-transform: lowercase;
 }
 
-.fkp_monitoring-page__table td:nth-child(4) .fkp_monitoring-page__value,
-.fkp_monitoring-page__table td:nth-child(5) .fkp_monitoring-page__value,
-.fkp_monitoring-page__table td:nth-child(6) .fkp_monitoring-page__value {
+.fkp_monitoring-page__cell--time .fkp_monitoring-page__value,
+.fkp_monitoring-page__cell--download .fkp_monitoring-page__value,
+.fkp_monitoring-page__cell--upload .fkp_monitoring-page__value {
     color: var(--text-color-medium, #bbb);
-    font-family: inherit;
-    text-align: right;
 }
 
 .fkp_monitoring-page .btn.fkp_monitoring-page__row-action {
@@ -11171,6 +11160,8 @@ var styles5 = `
 .fkp_monitoring-page__row-action svg {
     width: 14px;
     height: 14px;
+    display: block;
+    flex: 0 0 auto;
 }
 
 .fkp_monitoring-page .btn.fkp_monitoring-page__row-action:hover:not(:disabled) {
@@ -11183,98 +11174,43 @@ var styles5 = `
     cursor: wait;
 }
 
-.fkp_monitoring-page__row--closing {
-    opacity: 0.55;
-}
-
 .fkp_monitoring-page__state {
+    grid-column: 1 / -1;
     min-height: 90px;
-    width: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
     color: var(--text-color-medium);
     text-align: center;
-    box-sizing: border-box;
-}
-
-.fkp_monitoring-page__state-cell {
-    padding: 0 !important;
+    white-space: normal;
 }
 
 .fkp_monitoring-page__state--error {
     color: var(--error-color-medium, #d32f2f);
 }
 
-@media (max-width: 900px) {
+@container (max-width: 899px) {
     .fkp_monitoring-page__controls {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        align-items: end;
-        gap: 12px;
-    }
-
-    .fkp_monitoring-page__tabs {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        grid-column: 1 / -1;
-        width: 100%;
-    }
-
-    .fkp_monitoring-page__filters {
-        display: grid;
-        grid-template-columns: minmax(160px, 220px) minmax(180px, 320px);
-        gap: 12px;
+        grid-template-columns: max-content minmax(0, 1fr);
+        grid-template-areas:
+            'tabs actions'
+            'filters filters';
     }
 
     .fkp_monitoring-page__actions {
-        grid-column: 2;
+        justify-self: end;
     }
 
-    .fkp_monitoring-page__device-filter,
-    .fkp_monitoring-page__search {
-        width: 100%;
-        max-width: none;
-    }
-
-    .fkp_monitoring-page__table {
-        min-width: 620px;
-    }
-
-    .fkp_monitoring-page__table th,
-    .fkp_monitoring-page__table td {
-        padding-right: 4px;
-        padding-left: 4px;
+    .fkp_monitoring-page__filters {
+        grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
     }
 }
 
-/*
- * Below the width where the eight-column table still fits, every connection
- * becomes a three-line card built from the same cells, so nothing scrolls
- * sideways. Line one is the host with the close action, line two the source
- * with route and protocol, line three the duration with the traffic counters.
- */
-@media (max-width: 640px) {
-    .fkp_monitoring-page__table-wrap {
-        overflow-x: visible;
-    }
-
-    .fkp_monitoring-page__table,
-    .fkp_monitoring-page__table tbody {
-        display: block;
-        width: 100%;
-        min-width: 0;
-    }
-
-    .fkp_monitoring-page__table thead {
-        display: none;
-    }
-
-    .fkp_monitoring-page__state-row {
-        display: block;
-    }
-
-    .fkp_monitoring-page__state-cell {
+/* Below this width every connection becomes a three-line card built from the
+   same cells: the host with the close action, the source with route and
+   protocol, the duration with the traffic counters. */
+@container (max-width: 639px) {
+    .fkp_monitoring-page__list {
         display: block;
     }
 
@@ -11285,15 +11221,22 @@ var styles5 = `
         column-gap: 8px;
         row-gap: 2px;
         padding: 8px 0;
-        border-bottom: 1px solid var(--fkp-monitoring-divider-color);
     }
 
-    .fkp_monitoring-page__row:last-child {
-        border-bottom: 0;
+    .fkp_monitoring-page__row--head {
+        display: none;
     }
 
-    .fkp_monitoring-page__row::before,
-    .fkp_monitoring-page__row::after {
+    .fkp_monitoring-page__row--state {
+        display: block;
+    }
+
+    .fkp_monitoring-page__row:not(.fkp_monitoring-page__row--state):hover {
+        background: none;
+    }
+
+    .fkp_monitoring-page__row:not(.fkp_monitoring-page__row--state)::before,
+    .fkp_monitoring-page__row:not(.fkp_monitoring-page__row--state)::after {
         content: '';
         flex: 0 0 100%;
         height: 0;
@@ -11304,111 +11247,83 @@ var styles5 = `
     }
 
     .fkp_monitoring-page__row::after {
-        display: none;
-        order: 7;
-    }
-
-    .fkp_monitoring-page__table td {
-        display: block;
-        flex: 0 0 auto;
-        max-width: 100%;
-        padding: 0;
-        border-bottom: 0;
-    }
-
-    .fkp_monitoring-page__table td:nth-child(1) {
-        order: 1;
-        flex: 1 1 auto;
-        min-width: 0;
-    }
-
-    .fkp_monitoring-page__table td:nth-child(8) {
-        order: 2;
-    }
-
-    .fkp_monitoring-page__table td:nth-child(7) {
-        order: 4;
-        flex: 0 1 auto;
-        min-width: 0;
-    }
-
-    .fkp_monitoring-page__table td:nth-child(3) {
         order: 5;
     }
 
-    .fkp_monitoring-page__table td:nth-child(2) {
-        order: 6;
+    .fkp_monitoring-page__cell {
+        flex: 0 0 auto;
+        max-width: 100%;
     }
 
-    .fkp_monitoring-page__table td:nth-child(4) {
-        order: 8;
-    }
-
-    .fkp_monitoring-page__table td:nth-child(5) {
-        order: 9;
-        margin-left: auto;
-    }
-
-    .fkp_monitoring-page__table td:nth-child(6) {
-        order: 10;
-    }
-
-    .fkp_monitoring-page__table td:nth-child(1) .fkp_monitoring-page__value {
+    .fkp_monitoring-page__cell--host {
+        order: 1;
+        flex: 1 1 0;
         font-weight: 600;
     }
 
-    .fkp_monitoring-page__table td:nth-child(4),
-    .fkp_monitoring-page__table td:nth-child(5),
-    .fkp_monitoring-page__table td:nth-child(6) {
-        display: flex;
-        align-items: baseline;
-        gap: 3px;
-        color: var(--text-color-medium);
+    .fkp_monitoring-page__cell--action {
+        order: 2;
+    }
+
+    .fkp_monitoring-page__cell--source,
+    .fkp_monitoring-page__cell--route,
+    .fkp_monitoring-page__cell--network {
+        order: 4;
+    }
+
+    .fkp_monitoring-page__cell--time,
+    .fkp_monitoring-page__cell--download,
+    .fkp_monitoring-page__cell--upload {
+        order: 6;
         font-size: 12px;
     }
 
-    .fkp_monitoring-page__table td:nth-child(4) .fkp_monitoring-page__value,
-    .fkp_monitoring-page__table td:nth-child(5) .fkp_monitoring-page__value,
-    .fkp_monitoring-page__table td:nth-child(6) .fkp_monitoring-page__value {
-        font-size: 12px;
+    .fkp_monitoring-page__cell--download {
+        margin-left: auto;
     }
 
-    .fkp_monitoring-page__table td:nth-child(5)::before {
+    .fkp_monitoring-page__cell--download::before {
         content: '\\2193';
+        margin-right: 3px;
+        color: var(--text-color-medium);
     }
 
-    .fkp_monitoring-page__table td:nth-child(6)::before {
+    .fkp_monitoring-page__cell--upload::before {
         content: '\\2191';
+        margin-right: 3px;
+        color: var(--text-color-medium);
     }
 
-    .fkp_monitoring-page__row-action-placeholder {
+    .fkp_monitoring-page__cell--download .fkp_monitoring-page__value,
+    .fkp_monitoring-page__cell--upload .fkp_monitoring-page__value {
+        display: inline;
+    }
+
+    .fkp_monitoring-page__action-placeholder {
         display: none;
     }
 }
 
-@media (max-width: 520px) {
-    .fkp_monitoring-page__filters {
-        display: contents;
+@container (max-width: 519px) {
+    .fkp_monitoring-page__controls {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+            'tabs'
+            'filters'
+            'actions';
     }
 
-    .fkp_monitoring-page__device-filter {
-        grid-column: 1 / -1;
+    .fkp_monitoring-page__tabs {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .fkp_monitoring-page__search {
-        grid-column: 1;
-    }
-
+    .fkp_monitoring-page__filters,
     .fkp_monitoring-page__actions {
-        grid-column: 2;
-        align-self: flex-end;
-    }
-}
-
-/* Narrow phones cannot hold the source and the counters on one line. */
-@media (max-width: 480px) {
-    .fkp_monitoring-page__row::after {
-        display: block;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        justify-self: stretch;
     }
 }
 `;
@@ -11626,8 +11541,10 @@ var styles6 = `
     display: none;
 }
 
+/* The toolbar follows the width the page is given, not the window, and the
+   search field keeps the theme's own height, the one its buttons have. */
 .fkp_logs-page {
-    --fkp-logs-control-height: 34px;
+    container-type: inline-size;
 }
 
 .fkp_logs-page__toolbar,
@@ -11658,7 +11575,6 @@ var styles6 = `
     align-items: center;
     width: min(320px, 100%);
     min-width: 0;
-    height: var(--fkp-logs-control-height);
     margin: 0;
 }
 
@@ -11677,16 +11593,11 @@ var styles6 = `
     height: 16px;
 }
 
-.fkp_logs-page__search-input {
+.fkp_logs-page .fkp_logs-page__search-input {
     box-sizing: border-box;
     width: 100%;
-    height: var(--fkp-logs-control-height) !important;
-    min-height: var(--fkp-logs-control-height) !important;
     margin: 0 !important;
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
     padding-left: 30px !important;
-    line-height: calc(var(--fkp-logs-control-height) - 2px) !important;
 }
 
 .fkp_logs-page__checkbox {
@@ -11733,7 +11644,7 @@ var styles6 = `
     opacity: 0.75;
 }
 
-@media (max-width: 600px) {
+@container (max-width: 539px) {
     .fkp_logs-page__search {
         width: 100%;
     }
@@ -13080,13 +12991,13 @@ function itemSettingsFlag(settings, key, defaultValue) {
   return value === true || `${value}` === "1";
 }
 function settingValueEquals(left, right) {
-  const normalize = (value) => {
+  const normalize2 = (value) => {
     if (Array.isArray(value)) {
       return JSON.stringify(value.map((item) => `${item || ""}`));
     }
     return value === void 0 || value === null ? "" : `${value}`;
   };
-  return normalize(left) === normalize(right);
+  return normalize2(left) === normalize2(right);
 }
 function readChildSettings(itemId, keys, defaults) {
   const result = Object.assign({}, defaults || {});
@@ -13714,6 +13625,11 @@ function ensureConnectionsDynamicListStyles() {
 
 .fkp-connections-dynlist > .add-item > .cbi-dropdown {
   width: 100%;
+  max-width: none;
+}
+
+.fkp-button-add-dynlist.cbi-input-invalid {
+  box-shadow: none;
 }
 
 .fkp-interface-dynlist-label {
@@ -15041,7 +14957,7 @@ function renderStackedJsonSettingsModal(title, map, onSave, options = {}) {
       ensureSingleFieldModalStyles();
       nodes.classList.add(SINGLE_FIELD_MODAL_CLASS);
     }
-    const titleNode = textE("span", title ? ` \xBB ${title}` : "");
+    const titleNode = textE("span", {}, title ? ` \xBB ${title}` : "");
     const originalButtonClass = buttonRow.getAttribute("class") || "";
     const originalButtonNodes = Array.from(buttonRow.childNodes);
     let closed = false;

@@ -17,14 +17,16 @@ export const styles = `
     display: none;
 }
 
+/* The layout follows the width the page is given, not the window: a theme with
+   a sidebar hands it a column far narrower than the viewport. */
 .fkp_monitoring-page {
-    --fkp-monitoring-control-height: 34px;
     --fkp-monitoring-row-action-size: 24px;
     --fkp-monitoring-divider-color: rgba(127, 127, 127, 0.22);
     --fkp-monitoring-soft-bg: rgba(127, 127, 127, 0.08);
     --fkp-monitoring-soft-bg-hover: rgba(127, 127, 127, 0.14);
     --fkp-monitoring-danger-color: var(--error-color-medium, #d32f2f);
 
+    container-type: inline-size;
     width: 100%;
     min-width: 0;
 }
@@ -40,101 +42,22 @@ export const styles = `
     min-width: 0;
 }
 
-.fkp_monitoring-page .btn.fkp_monitoring-page__icon-button {
-    width: 32px;
-    height: 32px;
-    min-width: 32px;
-    min-height: 32px;
-    padding: 0;
-    box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 auto;
-    line-height: 1;
-    margin: 0;
-    border: 1px solid var(--fkp-monitoring-divider-color) !important;
-    border-radius: 6px;
-    background: var(--fkp-monitoring-soft-bg) !important;
-    color: var(--text-color-medium) !important;
-    box-shadow: none;
-}
-
-.fkp_monitoring-page .btn.fkp_monitoring-page__icon-button:hover:not(:disabled) {
-    background: var(--fkp-monitoring-soft-bg-hover) !important;
-    color: var(--text-color-high) !important;
-}
-
-.fkp_monitoring-page .btn.fkp_monitoring-page__icon-button--active {
-    background: rgba(25, 118, 210, 0.16) !important;
-    color: var(--primary-color-high, #1976d2) !important;
-}
-
-.fkp_monitoring-page .btn.fkp_monitoring-page__icon-button:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-}
-
-.fkp_monitoring-page #monitoring-close-all.btn.fkp_monitoring-page__icon-button {
-    order: 2;
-    border-color: rgba(217, 83, 79, 0.4) !important;
-    background: transparent !important;
-    color: var(--fkp-monitoring-danger-color) !important;
-}
-
-.fkp_monitoring-page #monitoring-close-all.btn.fkp_monitoring-page__icon-button:hover:not(:disabled) {
-    border-color: rgba(217, 83, 79, 0.6) !important;
-    background: transparent !important;
-    color: color-mix(in srgb, var(--fkp-monitoring-danger-color) 70%, white) !important;
-}
-
-.fkp_monitoring-page #monitoring-pause-toggle.btn.fkp_monitoring-page__icon-button,
-.fkp_monitoring-page #monitoring-pause-toggle.btn.fkp_monitoring-page__icon-button--active {
-    order: 1;
-    border-color: rgba(128, 128, 128, 0.3) !important;
-    background: transparent !important;
-    color: var(--text-color-medium, #888) !important;
-}
-
-.fkp_monitoring-page #monitoring-pause-toggle.btn.fkp_monitoring-page__icon-button:hover:not(:disabled),
-.fkp_monitoring-page #monitoring-pause-toggle.btn.fkp_monitoring-page__icon-button--active:hover:not(:disabled) {
-    border-color: rgba(128, 128, 128, 0.6) !important;
-    background: transparent !important;
-    color: var(--text-color-high, #eee) !important;
-}
-
-.fkp_monitoring-page__icon-button svg,
-.fkp_monitoring-page__row-action svg {
-    width: 16px;
-    height: 16px;
-    display: block;
-    flex: 0 0 auto;
-}
-
 .fkp_monitoring-page__controls {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr) max-content;
+    grid-template-areas: 'tabs filters actions';
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
+    gap: 12px 16px;
     margin-bottom: 12px;
-    width: 100%;
-    min-width: 0;
 }
 
-.fkp_monitoring-page__actions {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 8px;
-    min-width: 0;
-}
-
+/* The controls keep the theme's own height, and the switch stretches to the
+   height of whatever shares its line. */
 .fkp_monitoring-page__tabs {
+    grid-area: tabs;
+    align-self: stretch;
     display: inline-flex;
-    align-items: center;
     gap: 2px;
-    width: max-content;
     padding: 2px;
     border: 1px solid var(--fkp-monitoring-divider-color);
     border-radius: 6px;
@@ -143,8 +66,8 @@ export const styles = `
 }
 
 .fkp_monitoring-page .btn.fkp_monitoring-page__tab {
-    height: calc(var(--fkp-monitoring-control-height) - 6px);
-    min-height: calc(var(--fkp-monitoring-control-height) - 6px);
+    height: auto;
+    min-height: 28px;
     margin: 0;
     padding: 0 12px;
     border: 0 !important;
@@ -196,36 +119,29 @@ export const styles = `
     color: var(--primary-color-high, #1976d2);
 }
 
+/* A theme may put its own dropdown next to the select and hide the select, so
+   the columns are filled in order rather than assigned to named children, and
+   whatever fills one is held to it. */
 .fkp_monitoring-page__filters {
-    display: flex;
-    flex: 1 1 auto;
-    flex-wrap: wrap;
+    grid-area: filters;
+    display: grid;
+    grid-template-columns: minmax(0, 220px) minmax(0, 320px);
     align-items: center;
-    justify-content: flex-start;
-    gap: 12px;
+    gap: 8px;
     min-width: 0;
 }
 
-.fkp_monitoring-page__device-filter {
-    width: min(220px, 100%);
+.fkp_monitoring-page .fkp_monitoring-page__filters > * {
+    width: 100%;
     min-width: 0;
-    height: var(--fkp-monitoring-control-height) !important;
-    min-height: var(--fkp-monitoring-control-height) !important;
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-    margin: 0 !important;
+    margin: 0;
     box-sizing: border-box;
-    line-height: calc(var(--fkp-monitoring-control-height) - 2px) !important;
 }
 
 .fkp_monitoring-page__search {
     position: relative;
     display: flex;
     align-items: center;
-    width: min(320px, 100%);
-    min-width: 0;
-    height: var(--fkp-monitoring-control-height);
-    margin: 0;
 }
 
 .fkp_monitoring-page__search-icon {
@@ -243,176 +159,147 @@ export const styles = `
     display: block;
 }
 
-.fkp_monitoring-page__search-input {
+.fkp_monitoring-page .fkp_monitoring-page__search-input {
     width: 100%;
-    height: var(--fkp-monitoring-control-height) !important;
-    min-height: var(--fkp-monitoring-control-height) !important;
     padding-left: 30px !important;
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
     margin: 0 !important;
     box-sizing: border-box;
-    line-height: calc(var(--fkp-monitoring-control-height) - 2px) !important;
+}
+
+.fkp_monitoring-page__actions {
+    grid-area: actions;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.fkp_monitoring-page__checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    margin: 0;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+}
+
+.fkp_monitoring-page__checkbox input {
+    margin: 0;
+}
+
+.fkp_monitoring-page .btn.fkp_monitoring-page__action {
+    margin: 0;
+    white-space: nowrap;
 }
 
 .fkp_monitoring-page__body {
-    margin-top: 0;
     width: 100%;
     min-width: 0;
 }
 
-.fkp_monitoring-page__table-wrap {
-    width: 100%;
-    overflow-x: auto;
-    margin-bottom: 0;
+/* Every row is a subgrid of the list, so a column is as wide as its widest
+   value or heading and what is left is shared out evenly, the way a table
+   shares it. Only the host, the source and the route give way when the width
+   runs short. */
+.fkp_monitoring-page__list {
+    display: grid;
+    grid-template-columns:
+        minmax(8em, auto)
+        minmax(6em, auto)
+        minmax(5.5em, auto)
+        minmax(max-content, auto)
+        minmax(max-content, auto)
+        minmax(max-content, auto)
+        minmax(max-content, auto)
+        max-content;
+    column-gap: 12px;
+    font-size: 13px;
 }
 
-.fkp_monitoring-page__table {
-    width: 100%;
-    min-width: 840px;
-    table-layout: fixed;
-    border-collapse: collapse;
-    border-spacing: 0;
-    margin-bottom: 0;
-}
-
-.fkp_monitoring-page__table th,
-.fkp_monitoring-page__table td {
-    padding: 8px 6px;
+.fkp_monitoring-page__row {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: subgrid;
+    align-items: center;
+    min-height: 36px;
+    padding: 0 6px;
     border-bottom: 1px solid var(--fkp-monitoring-divider-color);
     box-sizing: border-box;
-    text-align: left;
-    vertical-align: middle;
-    overflow: hidden;
-    white-space: nowrap;
 }
 
-.fkp_monitoring-page__table th {
+.fkp_monitoring-page__row:last-child {
+    border-bottom: 0;
+}
+
+.fkp_monitoring-page__row--head {
+    min-height: 30px;
+    border-bottom-color: rgba(127, 127, 127, 0.32);
     color: var(--text-color-medium);
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
+}
+
+.fkp_monitoring-page__row:not(.fkp_monitoring-page__row--head):not(.fkp_monitoring-page__row--state):hover {
+    background: var(--fkp-monitoring-soft-bg);
+}
+
+.fkp_monitoring-page__row--closing {
+    opacity: 0.55;
+}
+
+.fkp_monitoring-page__cell {
+    min-width: 0;
+    overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    border-bottom-color: rgba(127, 127, 127, 0.32);
 }
 
-/*
- * The layout is fixed, so a heading wider than its share is cut off. The two
- * traffic shares hold the arrow and the word above them, not just the digits.
- */
-.fkp_monitoring-page__table th:nth-child(1) {
-    width: 26%;
-}
-
-.fkp_monitoring-page__table th:nth-child(2) {
-    width: 6%;
-}
-
-.fkp_monitoring-page__table th:nth-child(3) {
-    width: 13.75%;
-}
-
-.fkp_monitoring-page__table th:nth-child(4) {
-    width: 8%;
-}
-
-.fkp_monitoring-page__table th:nth-child(5) {
-    width: 12.25%;
-}
-
-.fkp_monitoring-page__table th:nth-child(6) {
-    width: 10%;
-}
-
-.fkp_monitoring-page__table th:nth-child(7) {
-    width: 16%;
-}
-
-.fkp_monitoring-page__table th:nth-child(8) {
-    width: 8%;
-}
-
-.fkp_monitoring-page__table tbody tr:last-child td {
-    border-bottom: 0;
-}
-
-.fkp_monitoring-page__table td:last-child {
-    padding-top: 0;
-    padding-bottom: 0;
-}
-
-.fkp_monitoring-page__table th:nth-child(4),
-.fkp_monitoring-page__table td:nth-child(4),
-.fkp_monitoring-page__table th:nth-child(5),
-.fkp_monitoring-page__table td:nth-child(5),
-.fkp_monitoring-page__table th:nth-child(6),
-.fkp_monitoring-page__table td:nth-child(6) {
+.fkp_monitoring-page__cell--time,
+.fkp_monitoring-page__cell--download,
+.fkp_monitoring-page__cell--upload {
     text-align: right;
+    font-variant-numeric: tabular-nums;
 }
 
-.fkp_monitoring-page__table th:nth-child(7),
-.fkp_monitoring-page__table td:nth-child(7) {
-    text-align: left;
-}
-
-.fkp_monitoring-page__table th:last-child,
-.fkp_monitoring-page__table td:last-child {
-    text-align: center;
+.fkp_monitoring-page__cell--action {
+    display: flex;
+    justify-content: center;
+    overflow: visible;
 }
 
 .fkp_monitoring-page__value {
     display: block;
-    max-width: 100%;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    text-align: left;
     line-height: 1.3;
     color: var(--text-color-high);
-    font-size: 13px;
     user-select: text;
-}
-
-.fkp_monitoring-page__source-value {
-    display: flex;
-    align-items: baseline;
-    justify-content: flex-start;
-    gap: 5px;
-}
-
-.fkp_monitoring-page__source-value--ip-only {
-    color: var(--text-color-high);
 }
 
 .fkp_monitoring-page__route {
     display: inline-block;
-    width: auto;
+    max-width: 100%;
+    box-sizing: border-box;
     padding: 2px 6px;
     border-radius: 4px;
     background: rgba(128, 128, 128, 0.15);
-    color: var(--text-color-high);
     font-size: 11px;
     font-weight: 500;
+    vertical-align: middle;
 }
 
 .fkp_monitoring-page__network {
-    background: transparent;
-    border: 0;
-    padding: 0;
     color: var(--text-color-medium, #bbb);
-    font-family: inherit;
-    font-size: 13px;
     text-transform: lowercase;
 }
 
-.fkp_monitoring-page__table td:nth-child(4) .fkp_monitoring-page__value,
-.fkp_monitoring-page__table td:nth-child(5) .fkp_monitoring-page__value,
-.fkp_monitoring-page__table td:nth-child(6) .fkp_monitoring-page__value {
+.fkp_monitoring-page__cell--time .fkp_monitoring-page__value,
+.fkp_monitoring-page__cell--download .fkp_monitoring-page__value,
+.fkp_monitoring-page__cell--upload .fkp_monitoring-page__value {
     color: var(--text-color-medium, #bbb);
-    font-family: inherit;
-    text-align: right;
 }
 
 .fkp_monitoring-page .btn.fkp_monitoring-page__row-action {
@@ -438,6 +325,8 @@ export const styles = `
 .fkp_monitoring-page__row-action svg {
     width: 14px;
     height: 14px;
+    display: block;
+    flex: 0 0 auto;
 }
 
 .fkp_monitoring-page .btn.fkp_monitoring-page__row-action:hover:not(:disabled) {
@@ -450,98 +339,43 @@ export const styles = `
     cursor: wait;
 }
 
-.fkp_monitoring-page__row--closing {
-    opacity: 0.55;
-}
-
 .fkp_monitoring-page__state {
+    grid-column: 1 / -1;
     min-height: 90px;
-    width: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
     color: var(--text-color-medium);
     text-align: center;
-    box-sizing: border-box;
-}
-
-.fkp_monitoring-page__state-cell {
-    padding: 0 !important;
+    white-space: normal;
 }
 
 .fkp_monitoring-page__state--error {
     color: var(--error-color-medium, #d32f2f);
 }
 
-@media (max-width: 900px) {
+@container (max-width: 899px) {
     .fkp_monitoring-page__controls {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        align-items: end;
-        gap: 12px;
-    }
-
-    .fkp_monitoring-page__tabs {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        grid-column: 1 / -1;
-        width: 100%;
-    }
-
-    .fkp_monitoring-page__filters {
-        display: grid;
-        grid-template-columns: minmax(160px, 220px) minmax(180px, 320px);
-        gap: 12px;
+        grid-template-columns: max-content minmax(0, 1fr);
+        grid-template-areas:
+            'tabs actions'
+            'filters filters';
     }
 
     .fkp_monitoring-page__actions {
-        grid-column: 2;
+        justify-self: end;
     }
 
-    .fkp_monitoring-page__device-filter,
-    .fkp_monitoring-page__search {
-        width: 100%;
-        max-width: none;
-    }
-
-    .fkp_monitoring-page__table {
-        min-width: 620px;
-    }
-
-    .fkp_monitoring-page__table th,
-    .fkp_monitoring-page__table td {
-        padding-right: 4px;
-        padding-left: 4px;
+    .fkp_monitoring-page__filters {
+        grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
     }
 }
 
-/*
- * Below the width where the eight-column table still fits, every connection
- * becomes a three-line card built from the same cells, so nothing scrolls
- * sideways. Line one is the host with the close action, line two the source
- * with route and protocol, line three the duration with the traffic counters.
- */
-@media (max-width: 640px) {
-    .fkp_monitoring-page__table-wrap {
-        overflow-x: visible;
-    }
-
-    .fkp_monitoring-page__table,
-    .fkp_monitoring-page__table tbody {
-        display: block;
-        width: 100%;
-        min-width: 0;
-    }
-
-    .fkp_monitoring-page__table thead {
-        display: none;
-    }
-
-    .fkp_monitoring-page__state-row {
-        display: block;
-    }
-
-    .fkp_monitoring-page__state-cell {
+/* Below this width every connection becomes a three-line card built from the
+   same cells: the host with the close action, the source with route and
+   protocol, the duration with the traffic counters. */
+@container (max-width: 639px) {
+    .fkp_monitoring-page__list {
         display: block;
     }
 
@@ -552,15 +386,22 @@ export const styles = `
         column-gap: 8px;
         row-gap: 2px;
         padding: 8px 0;
-        border-bottom: 1px solid var(--fkp-monitoring-divider-color);
     }
 
-    .fkp_monitoring-page__row:last-child {
-        border-bottom: 0;
+    .fkp_monitoring-page__row--head {
+        display: none;
     }
 
-    .fkp_monitoring-page__row::before,
-    .fkp_monitoring-page__row::after {
+    .fkp_monitoring-page__row--state {
+        display: block;
+    }
+
+    .fkp_monitoring-page__row:not(.fkp_monitoring-page__row--state):hover {
+        background: none;
+    }
+
+    .fkp_monitoring-page__row:not(.fkp_monitoring-page__row--state)::before,
+    .fkp_monitoring-page__row:not(.fkp_monitoring-page__row--state)::after {
         content: '';
         flex: 0 0 100%;
         height: 0;
@@ -571,111 +412,83 @@ export const styles = `
     }
 
     .fkp_monitoring-page__row::after {
-        display: none;
-        order: 7;
-    }
-
-    .fkp_monitoring-page__table td {
-        display: block;
-        flex: 0 0 auto;
-        max-width: 100%;
-        padding: 0;
-        border-bottom: 0;
-    }
-
-    .fkp_monitoring-page__table td:nth-child(1) {
-        order: 1;
-        flex: 1 1 auto;
-        min-width: 0;
-    }
-
-    .fkp_monitoring-page__table td:nth-child(8) {
-        order: 2;
-    }
-
-    .fkp_monitoring-page__table td:nth-child(7) {
-        order: 4;
-        flex: 0 1 auto;
-        min-width: 0;
-    }
-
-    .fkp_monitoring-page__table td:nth-child(3) {
         order: 5;
     }
 
-    .fkp_monitoring-page__table td:nth-child(2) {
-        order: 6;
+    .fkp_monitoring-page__cell {
+        flex: 0 0 auto;
+        max-width: 100%;
     }
 
-    .fkp_monitoring-page__table td:nth-child(4) {
-        order: 8;
-    }
-
-    .fkp_monitoring-page__table td:nth-child(5) {
-        order: 9;
-        margin-left: auto;
-    }
-
-    .fkp_monitoring-page__table td:nth-child(6) {
-        order: 10;
-    }
-
-    .fkp_monitoring-page__table td:nth-child(1) .fkp_monitoring-page__value {
+    .fkp_monitoring-page__cell--host {
+        order: 1;
+        flex: 1 1 0;
         font-weight: 600;
     }
 
-    .fkp_monitoring-page__table td:nth-child(4),
-    .fkp_monitoring-page__table td:nth-child(5),
-    .fkp_monitoring-page__table td:nth-child(6) {
-        display: flex;
-        align-items: baseline;
-        gap: 3px;
-        color: var(--text-color-medium);
+    .fkp_monitoring-page__cell--action {
+        order: 2;
+    }
+
+    .fkp_monitoring-page__cell--source,
+    .fkp_monitoring-page__cell--route,
+    .fkp_monitoring-page__cell--network {
+        order: 4;
+    }
+
+    .fkp_monitoring-page__cell--time,
+    .fkp_monitoring-page__cell--download,
+    .fkp_monitoring-page__cell--upload {
+        order: 6;
         font-size: 12px;
     }
 
-    .fkp_monitoring-page__table td:nth-child(4) .fkp_monitoring-page__value,
-    .fkp_monitoring-page__table td:nth-child(5) .fkp_monitoring-page__value,
-    .fkp_monitoring-page__table td:nth-child(6) .fkp_monitoring-page__value {
-        font-size: 12px;
+    .fkp_monitoring-page__cell--download {
+        margin-left: auto;
     }
 
-    .fkp_monitoring-page__table td:nth-child(5)::before {
+    .fkp_monitoring-page__cell--download::before {
         content: '\\2193';
+        margin-right: 3px;
+        color: var(--text-color-medium);
     }
 
-    .fkp_monitoring-page__table td:nth-child(6)::before {
+    .fkp_monitoring-page__cell--upload::before {
         content: '\\2191';
+        margin-right: 3px;
+        color: var(--text-color-medium);
     }
 
-    .fkp_monitoring-page__row-action-placeholder {
+    .fkp_monitoring-page__cell--download .fkp_monitoring-page__value,
+    .fkp_monitoring-page__cell--upload .fkp_monitoring-page__value {
+        display: inline;
+    }
+
+    .fkp_monitoring-page__action-placeholder {
         display: none;
     }
 }
 
-@media (max-width: 520px) {
-    .fkp_monitoring-page__filters {
-        display: contents;
+@container (max-width: 519px) {
+    .fkp_monitoring-page__controls {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+            'tabs'
+            'filters'
+            'actions';
     }
 
-    .fkp_monitoring-page__device-filter {
-        grid-column: 1 / -1;
+    .fkp_monitoring-page__tabs {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .fkp_monitoring-page__search {
-        grid-column: 1;
-    }
-
+    .fkp_monitoring-page__filters,
     .fkp_monitoring-page__actions {
-        grid-column: 2;
-        align-self: flex-end;
-    }
-}
-
-/* Narrow phones cannot hold the source and the counters on one line. */
-@media (max-width: 480px) {
-    .fkp_monitoring-page__row::after {
-        display: block;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        justify-self: stretch;
     }
 }
 `;

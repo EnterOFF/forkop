@@ -190,7 +190,7 @@ function parseClashApiPayload<T>(
   }
 
   if (status < 200 || status >= 300) {
-    return { success: false, error: clashApiError(status, body) };
+    return { success: false, error: clashApiError(status, body), status };
   }
 
   if (!body) {

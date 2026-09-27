@@ -30,22 +30,29 @@ export const styles = `
     display: none;
 }
 
+/* The columns follow the width the page is given, not the window: a theme with
+   a sidebar leaves the page far less than the viewport, and four columns that
+   need 750px would run out of the card. */
 .fkp_dashboard-page {
     width: 100%;
-    --dashboard-grid-columns: 4;
-    --dashboard-grid-min-width: 180px;
+    container-type: inline-size;
 }
 
-@media (max-width: 900px) {
-    .fkp_dashboard-page {
+.fkp_dashboard-page__content {
+    --dashboard-grid-columns: 1;
+    --dashboard-grid-min-width: 0;
+}
+
+@container (min-width: 480px) {
+    .fkp_dashboard-page__content {
         --dashboard-grid-columns: 2;
+        --dashboard-grid-min-width: 180px;
     }
 }
 
-@media (max-width: 560px) {
-    .fkp_dashboard-page {
-        --dashboard-grid-columns: 1;
-        --dashboard-grid-min-width: 0;
+@container (min-width: 750px) {
+    .fkp_dashboard-page__content {
+        --dashboard-grid-columns: 4;
     }
 }
 
@@ -56,7 +63,11 @@ export const styles = `
     grid-gap: 10px;
 }
 
+/* Each widget sits in the placeholder it is rendered into, and the grid
+   stretches that placeholder to the height of the row, not the widget. */
 .fkp_dashboard-page__widgets-section__item {
+    box-sizing: border-box;
+    height: 100%;
     border: 2px var(--background-color-low, lightgray) solid;
     border-radius: 4px;
     padding: 10px;
@@ -72,7 +83,7 @@ export const styles = `
 }
 
 .fkp_dashboard-page__widgets-section__item__row--progress .fkp_dashboard-page__widgets-section__item__row__value {
-    color: var(--warning-color-medium, #b8860b);
+    color: var(--warn-color-medium, #b8860b);
 }
 
 .fkp_dashboard-page__outbound-section {
@@ -292,7 +303,7 @@ export const styles = `
     overflow-wrap: anywhere;
 }
 
-@media (max-width: 700px) {
+@container (max-width: 639px) {
     .fkp_dashboard-page__subscription-meta__main {
         align-items: flex-start;
         flex-wrap: wrap;

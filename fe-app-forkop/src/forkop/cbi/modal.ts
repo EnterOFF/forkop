@@ -139,7 +139,7 @@ export function renderStackedJsonSettingsModal(
       nodes.classList.add(SINGLE_FIELD_MODAL_CLASS);
     }
 
-    const titleNode = E('span', title ? ` » ${title}` : '');
+    const titleNode = E('span', {}, title ? ` » ${title}` : '');
     const originalButtonClass = buttonRow.getAttribute('class') || '';
     const originalButtonNodes = Array.from(buttonRow.childNodes);
     let closed = false;
