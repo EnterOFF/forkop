@@ -94,6 +94,11 @@ function mwan3_active() {
     return exec.ok([ "/etc/init.d/mwan3", "status" ]) || exec.ok([ "/etc/init.d/mwan3", "enabled" ]);
 }
 
+function memory_total_kb() {
+    let found = match(fs.readfile("/proc/meminfo") ?? "", /MemTotal:[ \t]+([0-9]+) kB/);
+    return found ? int(found[1]) : 0;
+}
+
 // The first line a failed core command printed, which is its fatal error.
 function failure_reason(result) {
     return filter(split(result.output, "\n"), (line) => trim(line) != "")[0] ?? "exit status " + result.status;
@@ -134,7 +139,7 @@ function write_config(checked) {
 
     let text;
     try {
-        text = sprintf("%J\n", generator.build({ service_address: listen_address(values), mwan3_active: mwan3 }));
+        text = sprintf("%J\n", generator.build({ service_address: listen_address(values), mwan3_active: mwan3, memory_total_kb: memory_total_kb() }));
     }
     catch (e) {
         die("Failed to generate sing-box configuration: " + e.message);

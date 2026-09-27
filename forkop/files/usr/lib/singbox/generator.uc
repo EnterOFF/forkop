@@ -232,6 +232,15 @@ function apply_matchers(rule, matchers) {
         rule[key] = value;
 }
 
+// Go lets the heap grow to twice what is live before it collects, and the
+// core's live heap is tens of megabytes on a router with little more free.
+// sing-box sets the soft memory limit to two thirds of memory_limit, a third of
+// the router's memory here: far above the usual heap, so the collector only
+// works harder once the core nears the size at which the OOM killer takes it.
+function debug_config(memory_total_kb) {
+    return memory_total_kb > 0 ? { memory_limit: sprintf("%dkb", int(memory_total_kb / 2)) } : null;
+}
+
 function base_config(settings, service_address, runtime_context) {
     let log_level = option(settings, "log_level", "warn");
     let rewrite_ttl = int_option(settings, "dns_rewrite_ttl", "60");
@@ -274,6 +283,7 @@ function base_config(settings, service_address, runtime_context) {
     ];
 
     runtime_context.default_domain_resolver = runtime_dns.default_domain_resolver(settings);
+    let debug = debug_config(runtime_context.memory_total_kb);
 
     return {
         log: {
@@ -316,7 +326,8 @@ function base_config(settings, service_address, runtime_context) {
                 store_subscriptions: true,
                 store_warp_config: true
             },
-            clash_api: clash_api_config(settings, service_address)
+            clash_api: clash_api_config(settings, service_address),
+            ...(debug ? { debug } : {})
         }
     };
 }
@@ -2067,7 +2078,7 @@ function add_server_routes(config, servers, sections) {
 
 // The sing-box configuration for the committed Forkop configuration, as an
 // object. Throws with the reason when the configuration cannot be expressed.
-// context: { service_address, mwan3_active }.
+// context: { service_address, mwan3_active, memory_total_kb }.
 function build(context) {
     context = object_or_empty(context);
     connections.load();
@@ -2083,6 +2094,7 @@ function build(context) {
 
     let config = base_config(settings, context.service_address, {
         mwan3_active: !!context.mwan3_active,
+        memory_total_kb: int(context.memory_total_kb ?? 0),
         direct_server_route: has_direct_tailscale_server(servers)
     });
     add_source_aware_dns_support(config);
