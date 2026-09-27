@@ -3551,12 +3551,12 @@ var DIAGNOSTICS_CHECKS_MAP = {
     code: "SINGBOX" /* SINGBOX */
   },
   ["NFT" /* NFT */]: {
-    order: 4,
+    order: 3,
     title: "nftables",
     code: "NFT" /* NFT */
   },
   ["OUTBOUNDS" /* OUTBOUNDS */]: {
-    order: 5,
+    order: 4,
     title: "Outbounds",
     code: "OUTBOUNDS" /* OUTBOUNDS */
   },
@@ -3566,7 +3566,7 @@ var DIAGNOSTICS_CHECKS_MAP = {
     code: "FAKEIP" /* FAKEIP */
   },
   ["INBOUNDS" /* INBOUNDS */]: {
-    order: 3,
+    order: 5,
     title: "Inbounds",
     code: "INBOUNDS" /* INBOUNDS */
   }
@@ -3585,12 +3585,16 @@ function createDiagnosticCheck(code, description) {
   };
 }
 function getDiagnosticsChecks(description, options = {}) {
-  const checks = ["DNS" /* DNS */, "SINGBOX" /* SINGBOX */];
+  const checks = [
+    "DNS" /* DNS */,
+    "SINGBOX" /* SINGBOX */,
+    "NFT" /* NFT */,
+    "OUTBOUNDS" /* OUTBOUNDS */
+  ];
   if (options.includeInbounds === true) {
     checks.push("INBOUNDS" /* INBOUNDS */);
   }
-  checks.push("NFT" /* NFT */);
-  checks.push("OUTBOUNDS" /* OUTBOUNDS */, "FAKEIP" /* FAKEIP */);
+  checks.push("FAKEIP" /* FAKEIP */);
   return checks.map((code) => createDiagnosticCheck(code, description));
 }
 function getLoadingDiagnosticsChecks(options = {}) {
@@ -8959,9 +8963,9 @@ function getDiagnosticRunners(checkOptions) {
   return [
     { code: "DNS" /* DNS */, run: runDnsCheck },
     { code: "SINGBOX" /* SINGBOX */, run: runSingBoxCheck },
-    ...checkOptions.includeInbounds ? [{ code: "INBOUNDS" /* INBOUNDS */, run: runInboundsCheck }] : [],
     { code: "NFT" /* NFT */, run: runNftCheck },
     { code: "OUTBOUNDS" /* OUTBOUNDS */, run: runSectionsCheck },
+    ...checkOptions.includeInbounds ? [{ code: "INBOUNDS" /* INBOUNDS */, run: runInboundsCheck }] : [],
     { code: "FAKEIP" /* FAKEIP */, run: runFakeIPCheck }
   ];
 }
@@ -9093,32 +9097,31 @@ var styles4 = `
     display: none;
 }
 
-.fkp_diagnostic-page {
-    /* Both tracks stay fractions. The page sits in a shrink-to-fit box, where a
-       lone fr track collapses onto its own content instead of taking the rest of
-       the row: the checks would end up as narrow as the word inside them. Two
-       fractions size each other, which is what this column pair has always done.
-       The controls carry the floor instead, see below.
+/* The page takes the width of the content column, as the other tabs do. The
+   tab is one DummyValue, and the theme lays a .cbi-value out as a flex row, where
+   the page would be as wide as its content and would grow with whatever a check
+   reports. The layout follows that width rather than the window's. */
+#cbi-${FORKOP_UCI_PACKAGE}-diagnostic-_mount_node {
+    display: block;
+    container-type: inline-size;
+}
 
-       The checks take a zero minimum so the page's width stays theirs to read
-       rather than theirs to set: an fr track is otherwise at least as wide as
-       the longest unbreakable thing in it, and a summary value with nothing to
-       break at would widen the track, the page, and the split with it. */
+/* The controls are as wide as their own buttons need, never narrower than the
+   longest system information row on one line - "Sing-box
+   1.13.18-extended-2.6.5-f100" is 264px with the card around it - and the checks
+   take the rest. Nothing a check reports moves the controls, and a check value
+   with nothing to break at wraps inside its own column. */
+.fkp_diagnostic-page {
     display: grid;
-    grid-template-columns: 1fr minmax(0, 2fr);
+    grid-template-columns: minmax(17rem, max-content) minmax(0, 1fr);
     grid-column-gap: 10px;
     align-items: start;
+    width: 100%;
 }
 
 .fkp_diagnostic-page__controls {
-    /* What the column is measured against: the available actions, whose labels
-       are fixed text, floored at the width the longest system information row
-       needs on one line. "Sing-box 1.13.18-extended-2.6.5-f100" measures 264px
-       with the card padding around it, so 17rem leaves a few pixels over. */
-    min-width: 17rem;
-
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     grid-row-gap: 10px;
 }
 
@@ -9185,29 +9188,10 @@ var styles4 = `
     grid-row-gap: 10px;
 }
 
-/* The controls keep their 17rem whatever the window does, so a narrower page
-   comes out of the checks beside them; below about 19rem of checks the two
-   stack.
-
-   Stacked, the page takes the width it is given. Its box is a flex item - the
-   value of a DummyValue reaches the theme inside an <output>, and the theme
-   lays a .cbi-value out as a flex row - so left alone it sizes itself to its
-   content. A block mount node and a full-width page, as on the Dashboard. */
-@media (max-width: 620px) {
-    #cbi-${FORKOP_UCI_PACKAGE}-diagnostic-_mount_node {
-        display: block;
-    }
-
+/* Below about 19rem of checks beside the controls, the two stack. */
+@container (max-width: 599px) {
     .fkp_diagnostic-page {
-        width: 100%;
         grid-template-columns: minmax(0, 1fr);
-    }
-
-    /* The floor exists so a column can be measured against it, and there is no
-       column left to measure: the page is as wide as it is given. On a 320px
-       screen the floor is wider than that. */
-    .fkp_diagnostic-page__controls {
-        min-width: 0;
     }
 }
 
@@ -11472,17 +11456,34 @@ function logsTabShown() {
 function element2(id) {
   return document.getElementById(id);
 }
+function getSearchQuery() {
+  return element2("logs-search").value;
+}
 function getVisibleLogs() {
-  const query = element2("logs-search").value;
-  return filterLogText(rawLogs, query);
+  return filterLogText(rawLogs, getSearchQuery());
+}
+function renderActionButton2(id, label, disabled) {
+  const button = element2(id);
+  button.textContent = label;
+  button.title = label;
+  button.disabled = disabled;
 }
 function renderLogs(scrollToTop = false) {
   const output = element2("logs-output");
   const visibleLogs = getVisibleLogs();
+  const searching = getSearchQuery().trim() !== "";
   output.textContent = visibleLogs || (rawLogs ? _("No logs match the current filters") : _("No logs available"));
   output.classList.toggle("fkp_logs-page__output--empty", !visibleLogs);
-  element2("logs-copy").disabled = !visibleLogs;
-  element2("logs-download").disabled = !visibleLogs;
+  renderActionButton2(
+    "logs-copy",
+    searching ? _("Copy matching") : _("Copy"),
+    !visibleLogs
+  );
+  renderActionButton2(
+    "logs-download",
+    searching ? _("Download matching") : _("Download"),
+    !visibleLogs
+  );
   if (scrollToTop) {
     output.scrollTop = 0;
     output.scrollLeft = 0;
@@ -12682,21 +12683,6 @@ ${PartialStyles}
 /* Hide extra H3 for rules tab */
 #cbi-${FORKOP_UCI_PACKAGE}-section > h3:nth-child(1) {
     display: none;
-}
-
-/* Vertical align for remove rule action button */
-#cbi-${FORKOP_UCI_PACKAGE}-section > .cbi-section-remove {
-    margin-bottom: -32px;
-}
-
-#cbi-${FORKOP_UCI_PACKAGE}-section .cbi-section-actions > div {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
-#cbi-${FORKOP_UCI_PACKAGE}-section .cbi-section-actions {
-    text-align: right;
 }
 
 /* Rule reorder visuals */
@@ -21505,6 +21491,11 @@ var ICON_PATHS = {
     ["rect", { x: "14", y: "3", width: "7", height: "7", rx: "1" }],
     ["rect", { x: "3", y: "14", width: "7", height: "7", rx: "1" }],
     ["path", { d: "M14 14h3v3h-3zM20 14v3M14 20h3M20 20h1" }]
+  ],
+  info: [
+    ["circle", { cx: "12", cy: "12", r: "10" }],
+    ["path", { d: "M12 16v-4" }],
+    ["path", { d: "M12 8h.01" }]
   ]
 };
 function iconSvg(name) {
@@ -21815,11 +21806,7 @@ function injectServerStyles() {
         ".fkp-generate-row--rows > .fkp-generate{align-self:start;block-size:var(--fkp-generate-row-size,auto)}",
         ".fkp-generate-row > .fkp-generate > svg{display:block}",
         `#cbi-${FORKOP_UCI_PACKAGE}-server > h3:nth-child(1){display:none}`,
-        `#cbi-${FORKOP_UCI_PACKAGE}-server > .cbi-section-remove{margin-bottom:-32px}`,
-        `#cbi-${FORKOP_UCI_PACKAGE}-server .cbi-section-actions > div{display:inline-flex;align-items:center;gap:4px}`,
-        `#cbi-${FORKOP_UCI_PACKAGE}-server .cbi-section-actions{text-align:right}`,
-        ".fkp-server-info{box-sizing:border-box;vertical-align:middle}",
-        ".fkp-server-info__glyph{display:inline-block;line-height:1;transform:scale(1.55);transform-origin:center}"
+        ".fkp-server-info > svg{vertical-align:middle}"
       ].join("\n")
     )
   );
@@ -23424,14 +23411,13 @@ function renderServerRowActions(sectionRef, sectionId) {
           class: "cbi-button center fkp-server-info",
           title: detailsLabel,
           "aria-label": detailsLabel,
-          style: "display:inline-block;",
           click: (ev) => {
             ev.preventDefault();
             ev.stopPropagation();
             showServerDetailsModal(sectionId, listClients(sectionId));
           }
         },
-        textE("span", { class: "fkp-server-info__glyph" }, "\u24D8")
+        iconSvg("info")
       )
     );
   }

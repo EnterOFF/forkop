@@ -3,7 +3,7 @@ import { getRuleEditButtonText, loadVisibleTableOptions } from '../../cbi/grid';
 import { saveSectionModal } from '../../cbi/modal';
 import { listClients, removeServerClients } from './clients';
 import { DEFAULT_PROTOCOL } from './constants';
-import { showServerDetailsModal } from './details';
+import { iconSvg, showServerDetailsModal } from './details';
 import { preloadServerModalData } from './network';
 import {
   defaultSecurity,
@@ -37,14 +37,13 @@ function renderServerRowActions(sectionRef: CBISection, sectionId: string) {
           class: 'cbi-button center fkp-server-info',
           title: detailsLabel,
           'aria-label': detailsLabel,
-          style: 'display:inline-block;',
           click: (ev) => {
             ev.preventDefault();
             ev.stopPropagation();
             showServerDetailsModal(sectionId, listClients(sectionId));
           },
         },
-        E('span', { class: 'fkp-server-info__glyph' }, 'ⓘ'),
+        iconSvg('info'),
       ),
     );
   }

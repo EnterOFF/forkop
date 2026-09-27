@@ -28,22 +28,42 @@ function element<T extends HTMLElement>(id: string) {
   return document.getElementById(id) as T;
 }
 
-function getVisibleLogs() {
-  const query = element<HTMLInputElement>('logs-search').value;
+function getSearchQuery() {
+  return element<HTMLInputElement>('logs-search').value;
+}
 
-  return filterLogText(rawLogs, query);
+function getVisibleLogs() {
+  return filterLogText(rawLogs, getSearchQuery());
+}
+
+// Copy and Download hand over what the output shows, so with a search typed in
+// their labels say it is only what the search found.
+function renderActionButton(id: string, label: string, disabled: boolean) {
+  const button = element<HTMLButtonElement>(id);
+  button.textContent = label;
+  button.title = label;
+  button.disabled = disabled;
 }
 
 function renderLogs(scrollToTop = false) {
   const output = element<HTMLPreElement>('logs-output');
   const visibleLogs = getVisibleLogs();
+  const searching = getSearchQuery().trim() !== '';
 
   output.textContent =
     visibleLogs ||
     (rawLogs ? _('No logs match the current filters') : _('No logs available'));
   output.classList.toggle('fkp_logs-page__output--empty', !visibleLogs);
-  element<HTMLButtonElement>('logs-copy').disabled = !visibleLogs;
-  element<HTMLButtonElement>('logs-download').disabled = !visibleLogs;
+  renderActionButton(
+    'logs-copy',
+    searching ? _('Copy matching') : _('Copy'),
+    !visibleLogs,
+  );
+  renderActionButton(
+    'logs-download',
+    searching ? _('Download matching') : _('Download'),
+    !visibleLogs,
+  );
 
   if (scrollToTop) {
     output.scrollTop = 0;

@@ -80,6 +80,34 @@ describe('the Logs tab', () => {
     expect(node('logs-output').textContent).toBe('Failed to load logs');
   });
 
+  // With a search typed in, Copy and Download hand over only the lines it
+  // found, and their labels say so.
+  it('names the buttons for what a search found', async () => {
+    const node = page();
+    mocks.checkLogs.mockResolvedValue({ success: true, data: 'one\ntwo' });
+    node('logs-search').value = 'two';
+    const initController = await openedOn('logs');
+
+    await initController();
+    await Promise.resolve();
+
+    expect(node('logs-output').textContent).toBe('two');
+    expect(node('logs-copy').textContent).toBe('Copy matching');
+    expect(node('logs-download').textContent).toBe('Download matching');
+  });
+
+  it('keeps the plain labels without a search', async () => {
+    const node = page();
+    mocks.checkLogs.mockResolvedValue({ success: true, data: 'one\ntwo' });
+    const initController = await openedOn('logs');
+
+    await initController();
+    await Promise.resolve();
+
+    expect(node('logs-copy').textContent).toBe('Copy');
+    expect(node('logs-download').textContent).toBe('Download');
+  });
+
   // Every other tab lays the Logs tab out at zero height rather than hiding it,
   // so only the tab service can say it is not the one being looked at.
   it('reads nothing while another tab is shown, and reads once it is', async () => {

@@ -7,32 +7,31 @@ export const styles = `
     display: none;
 }
 
-.fkp_diagnostic-page {
-    /* Both tracks stay fractions. The page sits in a shrink-to-fit box, where a
-       lone fr track collapses onto its own content instead of taking the rest of
-       the row: the checks would end up as narrow as the word inside them. Two
-       fractions size each other, which is what this column pair has always done.
-       The controls carry the floor instead, see below.
+/* The page takes the width of the content column, as the other tabs do. The
+   tab is one DummyValue, and the theme lays a .cbi-value out as a flex row, where
+   the page would be as wide as its content and would grow with whatever a check
+   reports. The layout follows that width rather than the window's. */
+#cbi-${FORKOP_CBI_PREFIX}-diagnostic-_mount_node {
+    display: block;
+    container-type: inline-size;
+}
 
-       The checks take a zero minimum so the page's width stays theirs to read
-       rather than theirs to set: an fr track is otherwise at least as wide as
-       the longest unbreakable thing in it, and a summary value with nothing to
-       break at would widen the track, the page, and the split with it. */
+/* The controls are as wide as their own buttons need, never narrower than the
+   longest system information row on one line - "Sing-box
+   1.13.18-extended-2.6.5-f100" is 264px with the card around it - and the checks
+   take the rest. Nothing a check reports moves the controls, and a check value
+   with nothing to break at wraps inside its own column. */
+.fkp_diagnostic-page {
     display: grid;
-    grid-template-columns: 1fr minmax(0, 2fr);
+    grid-template-columns: minmax(17rem, max-content) minmax(0, 1fr);
     grid-column-gap: 10px;
     align-items: start;
+    width: 100%;
 }
 
 .fkp_diagnostic-page__controls {
-    /* What the column is measured against: the available actions, whose labels
-       are fixed text, floored at the width the longest system information row
-       needs on one line. "Sing-box 1.13.18-extended-2.6.5-f100" measures 264px
-       with the card padding around it, so 17rem leaves a few pixels over. */
-    min-width: 17rem;
-
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     grid-row-gap: 10px;
 }
 
@@ -99,29 +98,10 @@ export const styles = `
     grid-row-gap: 10px;
 }
 
-/* The controls keep their 17rem whatever the window does, so a narrower page
-   comes out of the checks beside them; below about 19rem of checks the two
-   stack.
-
-   Stacked, the page takes the width it is given. Its box is a flex item - the
-   value of a DummyValue reaches the theme inside an <output>, and the theme
-   lays a .cbi-value out as a flex row - so left alone it sizes itself to its
-   content. A block mount node and a full-width page, as on the Dashboard. */
-@media (max-width: 620px) {
-    #cbi-${FORKOP_CBI_PREFIX}-diagnostic-_mount_node {
-        display: block;
-    }
-
+/* Below about 19rem of checks beside the controls, the two stack. */
+@container (max-width: 599px) {
     .fkp_diagnostic-page {
-        width: 100%;
         grid-template-columns: minmax(0, 1fr);
-    }
-
-    /* The floor exists so a column can be measured against it, and there is no
-       column left to measure: the page is as wide as it is given. On a 320px
-       screen the floor is wider than that. */
-    .fkp_diagnostic-page__controls {
-        min-width: 0;
     }
 }
 

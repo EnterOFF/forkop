@@ -28,15 +28,18 @@ export function getDiagnosticsChecks(
   description: string,
   options: DiagnosticsCheckOptions = {},
 ): Array<IDiagnosticsChecksStoreItem> {
-  const checks = [DIAGNOSTICS_CHECKS.DNS, DIAGNOSTICS_CHECKS.SINGBOX];
+  const checks = [
+    DIAGNOSTICS_CHECKS.DNS,
+    DIAGNOSTICS_CHECKS.SINGBOX,
+    DIAGNOSTICS_CHECKS.NFT,
+    DIAGNOSTICS_CHECKS.OUTBOUNDS,
+  ];
 
   if (options.includeInbounds === true) {
     checks.push(DIAGNOSTICS_CHECKS.INBOUNDS);
   }
 
-  checks.push(DIAGNOSTICS_CHECKS.NFT);
-
-  checks.push(DIAGNOSTICS_CHECKS.OUTBOUNDS, DIAGNOSTICS_CHECKS.FAKEIP);
+  checks.push(DIAGNOSTICS_CHECKS.FAKEIP);
 
   return checks.map((code) => createDiagnosticCheck(code, description));
 }

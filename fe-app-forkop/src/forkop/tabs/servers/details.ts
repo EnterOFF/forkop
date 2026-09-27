@@ -44,6 +44,11 @@ const ICON_PATHS: Record<string, IconPath[]> = {
     ['rect', { x: '3', y: '14', width: '7', height: '7', rx: '1' }],
     ['path', { d: 'M14 14h3v3h-3zM20 14v3M14 20h3M20 20h1' }],
   ],
+  info: [
+    ['circle', { cx: '12', cy: '12', r: '10' }],
+    ['path', { d: 'M12 16v-4' }],
+    ['path', { d: 'M12 8h.01' }],
+  ],
 };
 
 export function iconSvg(name: string) {

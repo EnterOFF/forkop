@@ -22,12 +22,12 @@ export const DIAGNOSTICS_CHECKS_MAP: Record<
     code: DIAGNOSTICS_CHECKS.SINGBOX,
   },
   [DIAGNOSTICS_CHECKS.NFT]: {
-    order: 4,
+    order: 3,
     title: 'nftables',
     code: DIAGNOSTICS_CHECKS.NFT,
   },
   [DIAGNOSTICS_CHECKS.OUTBOUNDS]: {
-    order: 5,
+    order: 4,
     title: 'Outbounds',
     code: DIAGNOSTICS_CHECKS.OUTBOUNDS,
   },
@@ -37,7 +37,7 @@ export const DIAGNOSTICS_CHECKS_MAP: Record<
     code: DIAGNOSTICS_CHECKS.FAKEIP,
   },
   [DIAGNOSTICS_CHECKS.INBOUNDS]: {
-    order: 3,
+    order: 5,
     title: 'Inbounds',
     code: DIAGNOSTICS_CHECKS.INBOUNDS,
   },

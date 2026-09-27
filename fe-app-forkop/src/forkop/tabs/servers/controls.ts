@@ -35,11 +35,7 @@ export function injectServerStyles() {
         '.fkp-generate-row--rows > .fkp-generate{align-self:start;block-size:var(--fkp-generate-row-size,auto)}',
         '.fkp-generate-row > .fkp-generate > svg{display:block}',
         `#cbi-${FORKOP_UCI_PACKAGE}-server > h3:nth-child(1){display:none}`,
-        `#cbi-${FORKOP_UCI_PACKAGE}-server > .cbi-section-remove{margin-bottom:-32px}`,
-        `#cbi-${FORKOP_UCI_PACKAGE}-server .cbi-section-actions > div{display:inline-flex;align-items:center;gap:4px}`,
-        `#cbi-${FORKOP_UCI_PACKAGE}-server .cbi-section-actions{text-align:right}`,
-        '.fkp-server-info{box-sizing:border-box;vertical-align:middle}',
-        '.fkp-server-info__glyph{display:inline-block;line-height:1;transform:scale(1.55);transform-origin:center}',
+        '.fkp-server-info > svg{vertical-align:middle}',
       ].join('\n'),
     ),
   );

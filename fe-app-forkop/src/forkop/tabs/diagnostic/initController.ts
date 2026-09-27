@@ -597,11 +597,11 @@ function getDiagnosticRunners(
   return [
     { code: DIAGNOSTICS_CHECKS.DNS, run: runDnsCheck },
     { code: DIAGNOSTICS_CHECKS.SINGBOX, run: runSingBoxCheck },
+    { code: DIAGNOSTICS_CHECKS.NFT, run: runNftCheck },
+    { code: DIAGNOSTICS_CHECKS.OUTBOUNDS, run: runSectionsCheck },
     ...(checkOptions.includeInbounds
       ? [{ code: DIAGNOSTICS_CHECKS.INBOUNDS, run: runInboundsCheck }]
       : []),
-    { code: DIAGNOSTICS_CHECKS.NFT, run: runNftCheck },
-    { code: DIAGNOSTICS_CHECKS.OUTBOUNDS, run: runSectionsCheck },
     { code: DIAGNOSTICS_CHECKS.FAKEIP, run: runFakeIPCheck },
   ];
 }

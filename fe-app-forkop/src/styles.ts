@@ -27,21 +27,6 @@ ${PartialStyles}
     display: none;
 }
 
-/* Vertical align for remove rule action button */
-#cbi-${FORKOP_CBI_PREFIX}-section > .cbi-section-remove {
-    margin-bottom: -32px;
-}
-
-#cbi-${FORKOP_CBI_PREFIX}-section .cbi-section-actions > div {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
-#cbi-${FORKOP_CBI_PREFIX}-section .cbi-section-actions {
-    text-align: right;
-}
-
 /* Rule reorder visuals */
 #cbi-${FORKOP_CBI_PREFIX}-section {
     position: relative;
