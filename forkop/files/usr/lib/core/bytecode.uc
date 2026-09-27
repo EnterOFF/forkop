@@ -470,10 +470,20 @@ function compile_library(files) {
     return library;
 }
 
+// Every cache directory is memory until a reboot, and each upgrade adds one.
+// The library a build replaces stays, because a worker started before the build
+// may still load modules from it; anything older goes. An upgrade stops the
+// workers before the files change, so none can still run from those.
+function remove_older_libraries(current, replaced) {
+    for (let name in fs.lsdir(CACHE_DIR) ?? []) {
+        let path = CACHE_DIR + "/" + name;
+        if (substr(name, 0, 4) == "lib." && path != current && path != replaced && is_directory(path))
+            remove_tree(path);
+    }
+}
+
 // Compiles the installed library into a new cache directory and publishes it by
-// pointing the manifest at it. Directories left behind by earlier builds are
-// not removed: a procd worker may still be executing from one, and tmpfs
-// discards all of them on reboot anyway.
+// pointing the manifest at it.
 function build() {
     if (!enabled())
         return SOURCE_DIR;
@@ -503,6 +513,7 @@ function build() {
     }
 
     let text = library == null ? null : manifest_text(library, files, runtime_dependencies(), directories);
+    let replaced = parse_manifest(fs.readfile(manifest_path())).lib;
 
     if (text == null || !publish_manifest(text)) {
         remove_tree(library);
@@ -510,6 +521,7 @@ function build() {
         return SOURCE_DIR;
     }
 
+    remove_older_libraries(library, replaced);
     release_build_lock();
     write_validation_stamp(library);
     return library;

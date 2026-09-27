@@ -113,6 +113,22 @@ t.test("a replaced, added or removed module rebuilds the cache", () => {
     t.eq(fs.stat(removed + "/core/added.uc"), null, "the removed module does not survive");
 });
 
+// Each cache is a directory in tmpfs, which is memory until a reboot.
+t.test("a rebuild keeps the library it replaces and removes older ones", () => {
+    let where = new_library();
+    let first = refresh(where);
+    replace_domain(where.library, "domain-v2");
+    let second = refresh(where);
+    replace_domain(where.library, "domain-v3");
+    let third = refresh(where);
+
+    t.eq(fs.stat(first), null, "the library two builds back is gone");
+    t.ok(fs.stat(second), "the replaced library stays for a worker still loading from it");
+    t.eq(entry_output(third), "probe-domain-v3");
+    t.eq(sort(filter(fs.lsdir(where.cache), (name) => substr(name, 0, 4) == "lib.")),
+        sort(map([ second, third ], (path) => substr(path, length(where.cache) + 1))));
+});
+
 // A newer interpreter writes a bytecode format the running one refuses.
 t.test("a different interpreter invalidates the cache", () => {
     let where = new_library();
