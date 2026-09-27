@@ -23,6 +23,7 @@ import {
   renderConnectionListState,
 } from './connectionList';
 import { formatEndpoint } from './endpoint';
+import { closeConnections } from './closeConnections';
 
 type MonitoringTabId = 'active' | 'closed';
 
@@ -452,19 +453,21 @@ function getVisibleConnections(): MonitoredConnection[] {
   );
 }
 
-function countFilteredConnections(
+function filterConnections(
   connections: Map<string, MonitoredConnection>,
-): number {
+): MonitoredConnection[] {
   const normalizedSearch = normalizeSearchValue(searchQuery);
-  let count = 0;
 
-  connections.forEach((connection) => {
-    if (matchesConnectionFilters(connection, normalizedSearch)) {
-      count += 1;
-    }
-  });
+  return Array.from(connections.values()).filter((connection) =>
+    matchesConnectionFilters(connection, normalizedSearch),
+  );
+}
 
-  return count;
+function hasConnectionFilters(): boolean {
+  return (
+    selectedDeviceFilter !== ALL_FILTER_VALUE ||
+    normalizeSearchValue(searchQuery) !== ''
+  );
 }
 
 function moveConnectionToClosed(connection: MonitoredConnection, now: number) {
@@ -634,12 +637,11 @@ function renderControls() {
     'monitoring-auto-refresh',
   ) as HTMLInputElement | null;
 
+  const filteredActive = filterConnections(activeConnections);
+
   if (activeButton) {
     activeButton.replaceChildren(
-      ...renderTabButtonContent(
-        _('Active'),
-        countFilteredConnections(activeConnections),
-      ),
+      ...renderTabButtonContent(_('Active'), filteredActive.length),
     );
   }
 
@@ -647,7 +649,7 @@ function renderControls() {
     closedButton.replaceChildren(
       ...renderTabButtonContent(
         _('Closed'),
-        countFilteredConnections(closedConnections),
+        filterConnections(closedConnections).length,
       ),
     );
   }
@@ -655,8 +657,16 @@ function renderControls() {
   setButtonActive(activeButton, activeTab === 'active');
   setButtonActive(closedButton, activeTab === 'closed');
 
+  // With a filter set, the button closes what the Active count counts.
   if (closeAllButton) {
-    closeAllButton.disabled = activeConnections.size === 0 || closingAll;
+    const filtered = hasConnectionFilters();
+    closeAllButton.textContent = filtered
+      ? _('Close matching')
+      : _('Close all');
+    closeAllButton.title = filtered
+      ? _('Close the connections that match the filters')
+      : _('Close all connections');
+    closeAllButton.disabled = closingAll || filteredActive.length === 0;
   }
 
   if (autoRefreshInput) {
@@ -886,6 +896,11 @@ async function closeAllConnections() {
     return;
   }
 
+  if (hasConnectionFilters()) {
+    await closeMatchingConnections();
+    return;
+  }
+
   closingAll = true;
   renderControls();
 
@@ -908,6 +923,45 @@ async function closeAllConnections() {
     logger.error('[MONITORING]', 'closeAllConnections: failed', error);
     showToast(_('Failed to close connections'), 'error');
   } finally {
+    closingAll = false;
+    renderControls();
+    renderConnections();
+  }
+}
+
+async function closeMatchingConnections() {
+  const ids = filterConnections(activeConnections).map(({ id }) => id);
+  if (ids.length === 0) {
+    return;
+  }
+
+  closingAll = true;
+  ids.forEach((id) => closingConnectionIds.add(id));
+  renderControls();
+  renderConnections();
+
+  try {
+    const { closed, failed } = await closeConnections(ids, (id) =>
+      CustomForkopMethods.closeClashApiConnection(id),
+    );
+
+    const now = Date.now();
+    closed.forEach((id) => {
+      const connection = activeConnections.get(id);
+      if (connection) {
+        activeConnections.delete(id);
+        moveConnectionToClosed(connection, now);
+      }
+    });
+    if (closed.length) {
+      pendingConnectionsPayload = null;
+      trimClosedConnections();
+    }
+    if (failed.length) {
+      showToast(_('Failed to close connections'), 'error');
+    }
+  } finally {
+    ids.forEach((id) => closingConnectionIds.delete(id));
     closingAll = false;
     renderControls();
     renderConnections();

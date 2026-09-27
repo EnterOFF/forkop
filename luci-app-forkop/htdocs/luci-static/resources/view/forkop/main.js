@@ -9907,6 +9907,23 @@ function formatEndpoint(address, port) {
   return `${normalizedAddress}:${normalizedPort}`;
 }
 
+// src/forkop/tabs/monitoring/closeConnections.ts
+var PARALLEL_CLOSES = 4;
+async function closeConnections(ids, close) {
+  const closed = [];
+  const failed2 = [];
+  for (let start = 0; start < ids.length; start += PARALLEL_CLOSES) {
+    const batch = ids.slice(start, start + PARALLEL_CLOSES);
+    const results = await Promise.all(
+      batch.map((id) => close(id).catch(() => null))
+    );
+    results.forEach((result, index) => {
+      (result?.success ? closed : failed2).push(batch[index]);
+    });
+  }
+  return { closed, failed: failed2 };
+}
+
 // src/forkop/tabs/monitoring/initController.ts
 function normalizeConnectionsPayload(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -10190,15 +10207,14 @@ function getVisibleConnections() {
     (connection) => matchesConnectionFilters(connection, normalizedSearch)
   );
 }
-function countFilteredConnections(connections) {
+function filterConnections(connections) {
   const normalizedSearch = normalizeSearchValue(searchQuery);
-  let count = 0;
-  connections.forEach((connection) => {
-    if (matchesConnectionFilters(connection, normalizedSearch)) {
-      count += 1;
-    }
-  });
-  return count;
+  return Array.from(connections.values()).filter(
+    (connection) => matchesConnectionFilters(connection, normalizedSearch)
+  );
+}
+function hasConnectionFilters() {
+  return selectedDeviceFilter !== ALL_FILTER_VALUE || normalizeSearchValue(searchQuery) !== "";
 }
 function moveConnectionToClosed(connection, now) {
   closedConnections.set(connection.id, {
@@ -10335,26 +10351,27 @@ function renderControls() {
   const autoRefreshInput = document.getElementById(
     "monitoring-auto-refresh"
   );
+  const filteredActive = filterConnections(activeConnections);
   if (activeButton) {
     activeButton.replaceChildren(
-      ...renderTabButtonContent(
-        _("Active"),
-        countFilteredConnections(activeConnections)
-      )
+      ...renderTabButtonContent(_("Active"), filteredActive.length)
     );
   }
   if (closedButton) {
     closedButton.replaceChildren(
       ...renderTabButtonContent(
         _("Closed"),
-        countFilteredConnections(closedConnections)
+        filterConnections(closedConnections).length
       )
     );
   }
   setButtonActive(activeButton, activeTab === "active");
   setButtonActive(closedButton, activeTab === "closed");
   if (closeAllButton) {
-    closeAllButton.disabled = activeConnections.size === 0 || closingAll;
+    const filtered = hasConnectionFilters();
+    closeAllButton.textContent = filtered ? _("Close matching") : _("Close all");
+    closeAllButton.title = filtered ? _("Close the connections that match the filters") : _("Close all connections");
+    closeAllButton.disabled = closingAll || filteredActive.length === 0;
   }
   if (autoRefreshInput) {
     autoRefreshInput.checked = !monitoringPaused;
@@ -10536,6 +10553,10 @@ async function closeAllConnections() {
   if (activeConnections.size === 0 || closingAll) {
     return;
   }
+  if (hasConnectionFilters()) {
+    await closeMatchingConnections();
+    return;
+  }
   closingAll = true;
   renderControls();
   try {
@@ -10555,6 +10576,42 @@ async function closeAllConnections() {
     logger.error("[MONITORING]", "closeAllConnections: failed", error);
     showToast(_("Failed to close connections"), "error");
   } finally {
+    closingAll = false;
+    renderControls();
+    renderConnections();
+  }
+}
+async function closeMatchingConnections() {
+  const ids = filterConnections(activeConnections).map(({ id }) => id);
+  if (ids.length === 0) {
+    return;
+  }
+  closingAll = true;
+  ids.forEach((id) => closingConnectionIds.add(id));
+  renderControls();
+  renderConnections();
+  try {
+    const { closed, failed: failed2 } = await closeConnections(
+      ids,
+      (id) => CustomForkopMethods.closeClashApiConnection(id)
+    );
+    const now = Date.now();
+    closed.forEach((id) => {
+      const connection = activeConnections.get(id);
+      if (connection) {
+        activeConnections.delete(id);
+        moveConnectionToClosed(connection, now);
+      }
+    });
+    if (closed.length) {
+      pendingConnectionsPayload = null;
+      trimClosedConnections();
+    }
+    if (failed2.length) {
+      showToast(_("Failed to close connections"), "error");
+    }
+  } finally {
+    ids.forEach((id) => closingConnectionIds.delete(id));
     closingAll = false;
     renderControls();
     renderConnections();

@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-27 16:58+0300\n"
-"PO-Revision-Date: 2026-09-27 16:58+0300\n"
+"POT-Creation-Date: 2026-09-27 17:25+0300\n"
+"PO-Revision-Date: 2026-09-27 17:25+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -376,6 +376,12 @@ msgstr "Закрыть все подключения"
 
 msgid "Close connection"
 msgstr "Закрыть подключение"
+
+msgid "Close matching"
+msgstr "Закрыть найденные"
+
+msgid "Close the connections that match the filters"
+msgstr "Закрыть подключения, подходящие под фильтры"
 
 msgid "Closed"
 msgstr "Закрытые"
