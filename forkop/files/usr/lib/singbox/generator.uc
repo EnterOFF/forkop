@@ -696,10 +696,6 @@ function urltest_check_interval(section, urltest_id) {
     return interval != "" ? interval : "3m";
 }
 
-function urltest_idle_timeout(section, urltest_id) {
-    return connections.urltest_idle_timeout(section, urltest_id);
-}
-
 function unique_string_array(values) {
     let result = [];
     let seen = {};
@@ -1042,7 +1038,7 @@ function build_urltest_outbound(section, item, urltest_candidate_tags, candidate
     if (length(providers) > 0)
         urltest_outbound.providers = providers;
     merge_object(urltest_outbound, urltest_provider_filter(section, urltest_id));
-    let idle_timeout = urltest_idle_timeout(section, urltest_id);
+    let idle_timeout = connections.urltest_idle_timeout(section, urltest_id);
     if (idle_timeout != "")
         urltest_outbound.idle_timeout = idle_timeout;
 

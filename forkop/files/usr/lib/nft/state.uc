@@ -118,10 +118,6 @@ function tproxy_route6_present(table) {
     return has_local_default_route_text(command_output_from_args([ IP_BIN, "-6", "route", "list", "table", table ]), 6);
 }
 
-function tproxy_route_present(table) {
-    return tproxy_route4_present(table) && tproxy_route6_present(table);
-}
-
 function tproxy_marking_rule4_present(table, mark) {
     return has_tproxy_marking_rule_text(
         command_output_from_args([ IP_BIN, "-4", "rule", "list", "table", table ]), mark);
@@ -130,10 +126,6 @@ function tproxy_marking_rule4_present(table, mark) {
 function tproxy_marking_rule6_present(table, mark) {
     return has_tproxy_marking_rule_text(
         command_output_from_args([ IP_BIN, "-6", "rule", "list", "table", table ]), mark);
-}
-
-function tproxy_marking_rule_present(table, mark) {
-    return tproxy_marking_rule4_present(table, mark) && tproxy_marking_rule6_present(table, mark);
 }
 
 // The status feed asks the same question behind every poll, and answering it

@@ -37,10 +37,7 @@ function raw_option(section, key) {
     return object_or_empty(section)[key];
 }
 
-function option(section, key, fallback) {
-    return common.option(section, key, fallback);
-}
-
+let option = common.option;
 let bool_option = common.bool_option;
 
 function list_value(section, key) {
@@ -101,6 +98,10 @@ function section_name(section) {
     return option(section, ".name", "");
 }
 
+function section_names(sections) {
+    return map(sections, (section) => section_name(section));
+}
+
 function display_name(section) {
     section = object_or_empty(section);
     let name = trim(option(section, "label", ""));
@@ -136,10 +137,6 @@ function item_index_from_uci() {
         for (let section in uci_core.section_objects(CONFIG_NAME, type_name))
             add_item_section(index, type_name, section);
     return index;
-}
-
-function set_item_sections(index) {
-    item_sections = type(index) == "object" ? index : empty_item_sections();
 }
 
 // Reads the configuration as it is committed now, for an operation that has to
@@ -217,44 +214,6 @@ function child_item_by_value(parent, type_name, value_key, value) {
     return null;
 }
 
-function child_option(child, key, fallback) {
-    if (type(child) != "object")
-        return as_string(fallback);
-    return option(child, key, fallback);
-}
-
-function child_bool(child, key, fallback) {
-    if (type(child) != "object")
-        return !!fallback;
-    return bool_option(child, key, fallback);
-}
-
-function child_list(child, key, fallback) {
-    if (type(child) != "object")
-        return fallback == null ? [] : fallback;
-    let value = raw_option(child, key);
-    if (value == null)
-        value = fallback;
-    if (value == null)
-        return [];
-    if (type(value) == "array")
-        return value;
-
-    value = as_string(value);
-    return value == "" ? [] : [ value ];
-}
-
-function child_list_alias(child, keys, fallback) {
-    if (type(child) == "object") {
-        for (let key in keys) {
-            let value = raw_option(child, key);
-            if (value != null)
-                return child_list(child, key, []);
-        }
-    }
-    return fallback == null ? [] : fallback;
-}
-
 function child_values(parent, type_name, value_key) {
     let result = [];
     for (let child in child_items(parent, type_name)) {
@@ -273,15 +232,6 @@ function is_legacy_connection_action(action) {
 function is_connections_action(action) {
     action = as_string(action);
     return action == "connection" || is_legacy_connection_action(action);
-}
-
-function normalize_action(action) {
-    action = as_string(action);
-    return is_connections_action(action) ? "connection" : action;
-}
-
-function action(section) {
-    return normalize_action(option(section, "action", ""));
 }
 
 function connection_urls(section) {
@@ -333,13 +283,7 @@ function tunnel_items(section) {
 }
 
 function tunnels(section) {
-    let result = [];
-    for (let child in tunnel_items(section)) {
-        let id = section_name(child);
-        if (id != "")
-            push(result, id);
-    }
-    return result;
+    return section_names(tunnel_items(section));
 }
 
 function tunnel_child(section, value) {
@@ -459,23 +403,11 @@ function tunnel_endpoint(tunnel) {
 }
 
 function urltests(section) {
-    let result = [];
-    for (let child in child_items(section, "urltest")) {
-        let id = section_name(child);
-        if (id != "")
-            push(result, id);
-    }
-    return result;
+    return section_names(child_items(section, "urltest"));
 }
 
 function fallback_groups(section) {
-    let result = [];
-    for (let child in child_items(section, "fallback_group")) {
-        let id = section_name(child);
-        if (id != "")
-            push(result, id);
-    }
-    return result;
+    return section_names(child_items(section, "fallback_group"));
 }
 
 function fallback_group_child(section, value) {
@@ -496,13 +428,7 @@ function fallback_level_items(group_id) {
 }
 
 function fallback_levels(group_id) {
-    let result = [];
-    for (let child in fallback_level_items(group_id)) {
-        let id = section_name(child);
-        if (id != "")
-            push(result, id);
-    }
-    return result;
+    return section_names(fallback_level_items(group_id));
 }
 
 function community_lists(section) {
@@ -589,10 +515,6 @@ function has_dns_matchers(section) {
         length(rule_sets_with_subnets(section)) > 0;
 }
 
-function list_option_value_from_array(values) {
-    return join(" ", values || []);
-}
-
 function has_connection_sources(section) {
     return length(connection_urls(section)) > 0 ||
         length(subscription_urls(section)) > 0 ||
@@ -605,21 +527,22 @@ function subscription_url_child(section, value) {
     return child_item_by_value(section, "subscription_url", "url", value);
 }
 
+function interface_child(section, value) {
+    return child_item_by_value(section, "section_interface", "name", value);
+}
+
 function interface_display_name(section, value) {
-    let child = child_item_by_value(section, "section_interface", "name", value);
-    let display_name = child != null ? trim(child_option(child, "display_name", value)) : "";
+    let display_name = trim(option(interface_child(section, value), "display_name", ""));
     return display_name != "" ? display_name : value;
 }
 
 function interface_domain_resolver_enabled(section, value) {
-    let child = child_item_by_value(section, "section_interface", "name", value);
-    return child_bool(child, "domain_resolver_enabled", false);
+    return bool_option(interface_child(section, value), "domain_resolver_enabled", false);
 }
 
 function interface_domain_resolver_dns_servers(section, value) {
-    let child = child_item_by_value(section, "section_interface", "name", value);
     let result = [];
-    for (let entry in child_list(child, "domain_resolver_dns_server", null)) {
+    for (let entry in list_value(interface_child(section, value), "domain_resolver_dns_server")) {
         entry = trim(as_string(entry));
         if (entry != "")
             push(result, entry);
@@ -628,20 +551,17 @@ function interface_domain_resolver_dns_servers(section, value) {
 }
 
 function interface_domain_resolver_dns_fallback_strategy(section, value) {
-    let child = child_item_by_value(section, "section_interface", "name", value);
-    let strategy = child_option(child, "domain_resolver_dns_fallback_strategy", "parallel");
+    let strategy = option(interface_child(section, value), "domain_resolver_dns_fallback_strategy", "parallel");
     return strategy != "" ? strategy : "parallel";
 }
 
 function interface_domain_resolver_dns_detour_enabled(section, value) {
-    let child = child_item_by_value(section, "section_interface", "name", value);
-    return child_bool(child, "domain_resolver_dns_detour_enabled", false);
+    return bool_option(interface_child(section, value), "domain_resolver_dns_detour_enabled", false);
 }
 
 function interface_domain_resolver_dns_detour_section(section, value) {
-    let child = child_item_by_value(section, "section_interface", "name", value);
     return interface_domain_resolver_dns_detour_enabled(section, value)
-        ? child_option(child, "domain_resolver_dns_detour_section", "")
+        ? option(interface_child(section, value), "domain_resolver_dns_detour_section", "")
         : "";
 }
 
@@ -652,13 +572,13 @@ function urltest_child(section, value) {
 function subscription_update_enabled(section, value) {
     if (subscription_source_type(value) != "remote")
         return false;
-    return child_bool(subscription_url_child(section, value), "subscription_update_enabled", true);
+    return bool_option(subscription_url_child(section, value), "subscription_update_enabled", true);
 }
 
 function subscription_update_interval(section, value) {
     if (subscription_source_type(value) != "remote")
         return "";
-    return child_option(subscription_url_child(section, value), "subscription_update_interval", "1h");
+    return option(subscription_url_child(section, value), "subscription_update_interval", "1h");
 }
 
 function subscription_headers(section, value) {
@@ -668,7 +588,7 @@ function subscription_headers(section, value) {
 }
 
 function stored_subscription_tag(section, value) {
-    return trim(child_option(subscription_url_child(section, value), "tag", ""));
+    return trim(option(subscription_url_child(section, value), "tag", ""));
 }
 
 // The provider a subscription becomes is addressed by its tag, so the validator
@@ -678,7 +598,7 @@ function subscription_tags(section) {
 }
 
 function subscription_exclude_types(section, value) {
-    return child_list(subscription_url_child(section, value), "exclude_types", []);
+    return list_value(subscription_url_child(section, value), "exclude_types");
 }
 
 // A rename rule is stored the way it is written: "pattern => replacement".
@@ -710,154 +630,132 @@ function subscription_download_section(section, value) {
     if (subscription_source_type(value) != "remote")
         return "";
     let child = subscription_url_child(section, value);
-    if (!child_bool(child, "download_via_proxy_enabled", false))
+    if (!bool_option(child, "download_via_proxy_enabled", false))
         return "";
-    return child_option(child, "download_via_proxy_section", "");
+    return option(child, "download_via_proxy_section", "");
 }
 
 function urltest_check_interval(section, value) {
-    return child_option(urltest_child(section, value), "check_interval", "3m");
+    return option(urltest_child(section, value), "check_interval", "3m");
 }
 
 function urltest_tolerance(section, value) {
-    return child_option(urltest_child(section, value), "tolerance", "50");
+    return option(urltest_child(section, value), "tolerance", "50");
 }
 
 function urltest_testing_url(section, value) {
-    return child_option(urltest_child(section, value), "testing_url", "https://www.gstatic.com/generate_204");
+    return option(urltest_child(section, value), "testing_url", "https://www.gstatic.com/generate_204");
 }
 
 function urltest_expected_status(section, value) {
-    return child_option(urltest_child(section, value), "expected_status", "*");
+    return option(urltest_child(section, value), "expected_status", "*");
 }
 
 function urltest_display_name(section, value) {
-    return child_option(urltest_child(section, value), "name", as_string(value));
+    return option(urltest_child(section, value), "name", as_string(value));
 }
 
 function urltest_idle_timeout(section, value) {
-    return child_option(urltest_child(section, value), "idle_timeout", "");
+    return option(urltest_child(section, value), "idle_timeout", "");
 }
 
 function urltest_interrupt_exist_connections(section, value) {
-    return child_bool(urltest_child(section, value), "interrupt_exist_connections", false);
+    return bool_option(urltest_child(section, value), "interrupt_exist_connections", false);
 }
 
 function urltest_filter_mode(section, value) {
-    return child_option(urltest_child(section, value), "server_filter_mode", "all");
+    return option(urltest_child(section, value), "server_filter_mode", "all");
 }
 
 function urltest_include_outbounds(section, value) {
-    return child_list(urltest_child(section, value), "include_outbounds", []);
+    return list_value(urltest_child(section, value), "include_outbounds");
 }
 
 function urltest_include_regex(section, value) {
-    return child_option(urltest_child(section, value), "include_regex", "");
+    return option(urltest_child(section, value), "include_regex", "");
 }
 
 function urltest_exclude_outbounds(section, value) {
-    return child_list(urltest_child(section, value), "exclude_outbounds", []);
+    return list_value(urltest_child(section, value), "exclude_outbounds");
 }
 
 function urltest_exclude_regex(section, value) {
-    return child_option(urltest_child(section, value), "exclude_regex", "");
+    return option(urltest_child(section, value), "exclude_regex", "");
 }
 
 function urltest_exclude_types(section, value) {
-    return child_list(urltest_child(section, value), "exclude_types", []);
+    return list_value(urltest_child(section, value), "exclude_types");
 }
 
 function fallback_group_display_name(section, value) {
-    let child = fallback_group_child(section, value);
-    return child != null ? child_option(child, "name", as_string(value)) : as_string(value);
+    return option(fallback_group_child(section, value), "name", as_string(value));
 }
 
 function fallback_group_health_check_url(section, value) {
-    let child = fallback_group_child(section, value);
-    return child != null ? child_option(child, "health_check_url", "https://www.gstatic.com/generate_204") : "https://www.gstatic.com/generate_204";
+    return option(fallback_group_child(section, value), "health_check_url", "https://www.gstatic.com/generate_204");
 }
 
 function fallback_group_health_check_interval(section, value) {
-    let child = fallback_group_child(section, value);
-    return child != null ? child_option(child, "health_check_interval", "5m") : "5m";
+    return option(fallback_group_child(section, value), "health_check_interval", "5m");
 }
 
 function fallback_group_health_check_timeout(section, value) {
-    let child = fallback_group_child(section, value);
-    return child != null ? child_option(child, "health_check_timeout", "5s") : "5s";
+    return option(fallback_group_child(section, value), "health_check_timeout", "5s");
 }
 
 function fallback_group_attempt_timeout(section, value) {
-    let child = fallback_group_child(section, value);
-    return child != null ? child_option(child, "attempt_timeout", "5s") : "5s";
+    return option(fallback_group_child(section, value), "attempt_timeout", "5s");
 }
 
 function fallback_group_expected_status(section, value) {
-    let child = fallback_group_child(section, value);
-    return child != null ? child_option(child, "expected_status", "*") : "*";
+    return option(fallback_group_child(section, value), "expected_status", "*");
 }
 
 function fallback_group_idle_timeout(section, value) {
-    let child = fallback_group_child(section, value);
-    return child != null ? child_option(child, "idle_timeout", "5m") : "5m";
+    return option(fallback_group_child(section, value), "idle_timeout", "5m");
 }
 
 function fallback_group_interrupt_exist_connections(section, value) {
-    let child = fallback_group_child(section, value);
-    return child != null ? child_bool(child, "interrupt_exist_connections", false) : false;
+    return bool_option(fallback_group_child(section, value), "interrupt_exist_connections", false);
 }
 
 function fallback_level_display_name(group_id, value) {
-    let child = fallback_level_child(group_id, value);
-    return child != null ? child_option(child, "name", as_string(value)) : as_string(value);
+    return option(fallback_level_child(group_id, value), "name", as_string(value));
 }
 
 function fallback_level_order(group_id, value) {
-    let child = fallback_level_child(group_id, value);
-    return child != null ? child_option(child, "order", "0") : "0";
+    return option(fallback_level_child(group_id, value), "order", "0");
 }
 
 function fallback_level_mode(group_id, value) {
-    let child = fallback_level_child(group_id, value);
-    return child != null ? child_option(child, "server_filter_mode", "include") : "include";
+    return option(fallback_level_child(group_id, value), "server_filter_mode", "include");
 }
 
 function fallback_level_include_outbounds(group_id, value) {
     let child = fallback_level_child(group_id, value);
-    return child != null ? child_list_alias(child, [ "include_outbounds", "server_name" ], []) : [];
+    return raw_option(child, "include_outbounds") != null
+        ? list_value(child, "include_outbounds")
+        : list_value(child, "server_name");
 }
 
 function fallback_level_include_regex(group_id, value) {
-    let child = fallback_level_child(group_id, value);
-    return child != null ? child_option(child, "include_regex", "") : "";
+    return option(fallback_level_child(group_id, value), "include_regex", "");
 }
 
 function fallback_level_exclude_outbounds(group_id, value) {
-    let child = fallback_level_child(group_id, value);
-    return child != null ? child_list(child, "exclude_outbounds", []) : [];
+    return list_value(fallback_level_child(group_id, value), "exclude_outbounds");
 }
 
 function fallback_level_exclude_regex(group_id, value) {
-    let child = fallback_level_child(group_id, value);
-    return child != null ? child_option(child, "exclude_regex", "") : "";
+    return option(fallback_level_child(group_id, value), "exclude_regex", "");
 }
 
 function fallback_level_include_groups(group_id, value) {
-    let child = fallback_level_child(group_id, value);
-    return child != null ? child_list(child, "include_groups", []) : [];
+    return list_value(fallback_level_child(group_id, value), "include_groups");
 }
 
 function fallback_level_exclude_types(group_id, value) {
-    let child = fallback_level_child(group_id, value);
-    return child != null ? child_list(child, "exclude_types", []) : [];
-}
-
-function append_unique(result, seen, value) {
-    value = as_string(value);
-    if (value == "" || seen[value])
-        return;
-    seen[value] = true;
-    push(result, value);
+    return list_value(fallback_level_child(group_id, value), "exclude_types");
 }
 
 return {
@@ -867,11 +765,9 @@ return {
     download_via_proxy_enabled,
     download_via_proxy_section,
     option,
-    bool_option,
     device_matchers,
     load,
     is_connections_action,
-    action,
     connection_urls,
     subscription_urls,
     subscription_source_type,

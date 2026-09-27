@@ -393,22 +393,6 @@ function validate_urltest_regex_value(value, section) {
         fail_validation("Invalid URLTest regular expression '" + value + "' in rule '" + section + "': " + problem + ". Aborted.");
 }
 
-function validate_urltest_identifier_value(value, section) {
-    value = as_string(value);
-    if (value != "" && match(value, /^[A-Za-z0-9_]+$/) != null)
-        return;
-
-    fail_validation("Invalid URLTest identifier '" + value + "' in rule '" + section + "'. Use latin letters, digits and underscores. Aborted.");
-}
-
-function validate_fallback_identifier_value(value, section) {
-    value = as_string(value);
-    if (value != "" && match(value, /^[A-Za-z0-9_]+$/) != null)
-        return;
-
-    fail_validation("Invalid fallback identifier '" + value + "' in rule '" + section + "'. Use latin letters, digits and underscores. Aborted.");
-}
-
 function validate_urltest_tolerance_value(value, section, urltest_id) {
     value = trim(as_string(value));
     if (match(value, /^[0-9]+$/) != null) {
@@ -490,7 +474,6 @@ function validate_server_filter_types(values, allowed, context) {
 
 function validate_fallback_group(section, group_id) {
     let name = section_name(section);
-    validate_fallback_identifier_value(group_id, name);
 
     if (trim(connections.fallback_group_display_name(section, group_id)) == "")
         fail_validation("Fallback group '" + group_id + "' in rule '" + name + "' has no display name. Aborted.");
@@ -515,7 +498,6 @@ function validate_fallback_group(section, group_id) {
 
     let level_names = {};
     for (let level_id in levels) {
-        validate_fallback_identifier_value(level_id, name);
         let level_name = trim(connections.fallback_level_display_name(group_id, level_id));
         if (level_name == "")
             fail_validation("Server group '" + level_id + "' in rule '" + name + "', fallback '" + group_id + "' has no display name. Aborted.");
@@ -893,10 +875,6 @@ function validate_json_inbound_values() {
     }
 }
 
-function rule_has_subscription_urls(section) {
-    return length(connections.subscription_urls(section)) > 0;
-}
-
 function subscription_update_interval_for_source(section, entry) {
     if (!connections.subscription_update_enabled(section, entry))
         return "";
@@ -1067,8 +1045,6 @@ function validate_rule(section, sections, context) {
 
     if (connections.is_connections_action(action)) {
         for (let urltest_id in connections.urltests(section)) {
-            validate_urltest_identifier_value(urltest_id, name);
-
             let check_interval = connections.urltest_check_interval(section, urltest_id);
             validate_required_duration_option(check_interval, "rule." + name + ".urltest." + urltest_id + ".check_interval");
             validate_urltest_tolerance_value(connections.urltest_tolerance(section, urltest_id), name, urltest_id);
@@ -1108,16 +1084,14 @@ function validate_rule(section, sections, context) {
             validate_fallback_group(section, group_id);
         }
 
-        if (rule_has_subscription_urls(section)) {
-            for (let value in connections.subscription_urls(section)) {
-                validate_subscription_source_entry_value(value, name);
-                validate_subscription_request_profile(section, value);
-                validate_subscription_filter(section, value);
-                validate_subscription_override(section, value);
-                let subscription_update_interval = subscription_update_interval_for_source(section, value);
-                if (subscription_update_interval != "")
-                    validate_required_duration_option(subscription_update_interval, "rule." + name + ".subscription_update_interval");
-            }
+        for (let value in connections.subscription_urls(section)) {
+            validate_subscription_source_entry_value(value, name);
+            validate_subscription_request_profile(section, value);
+            validate_subscription_filter(section, value);
+            validate_subscription_override(section, value);
+            let subscription_update_interval = subscription_update_interval_for_source(section, value);
+            if (subscription_update_interval != "")
+                validate_required_duration_option(subscription_update_interval, "rule." + name + ".subscription_update_interval");
         }
 
         validate_section_group_references(section);
