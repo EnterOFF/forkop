@@ -35,6 +35,7 @@ export async function runSingBoxCheck() {
   const allGood =
     Boolean(data.sing_box_installed) &&
     Boolean(data.sing_box_version_ok) &&
+    Boolean(data.sing_box_clash_api) &&
     Boolean(data.sing_box_service_exist) &&
     Boolean(data.sing_box_autostart_disabled) &&
     Boolean(data.sing_box_process_running) &&
@@ -43,6 +44,7 @@ export async function runSingBoxCheck() {
   const atLeastOneGood =
     Boolean(data.sing_box_installed) ||
     Boolean(data.sing_box_version_ok) ||
+    Boolean(data.sing_box_clash_api) ||
     Boolean(data.sing_box_service_exist) ||
     Boolean(data.sing_box_autostart_disabled) ||
     Boolean(data.sing_box_process_running) ||
@@ -65,6 +67,11 @@ export async function runSingBoxCheck() {
       {
         state: data.sing_box_version_ok ? 'success' : 'error',
         key: _('Version is compatible'),
+        value: '',
+      },
+      {
+        state: data.sing_box_clash_api ? 'success' : 'error',
+        key: _('Built with the Clash API'),
         value: '',
       },
       {

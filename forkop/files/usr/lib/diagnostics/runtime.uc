@@ -16,6 +16,7 @@ let singbox_constants = require("singbox.constants");
 let singbox_runtime = require("singbox.runtime");
 let config_status = require("singbox.config_status");
 let runtime_servers = require("singbox.servers");
+let features = require("singbox.features");
 let health = require("service.health");
 let lock = require("service.lock");
 let mask = require("diagnostics.mask");
@@ -129,6 +130,7 @@ function sing_box() {
     return {
         sing_box_installed: installed ? 1 : 0,
         sing_box_version_ok: installed && version != "" && core_version.version_at_least(version, constants.SB_REQUIRED_VERSION) ? 1 : 0,
+        sing_box_clash_api: installed && features.available(features.REQUIRED) ? 1 : 0,
         sing_box_service_exist: service ? 1 : 0,
         sing_box_autostart_disabled: service && !exec.ok([ paths.sing_box_init, "enabled" ]) ? 1 : 0,
         sing_box_process_running: health.sing_box_service_running() ? 1 : 0,

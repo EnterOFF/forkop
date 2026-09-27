@@ -49,6 +49,7 @@ function sing_box_check(value) {
         flag_line(value, "sing_box_installed", "✅ Sing-box installed", "❌ Sing-box installed"),
         flag_line(value, "sing_box_version_ok", "✅ Sing-box version is compatible (" + constants.SB_REQUIRED_VERSION + " or newer)",
             "❌ Sing-box version is not compatible (older than " + constants.SB_REQUIRED_VERSION + ")"),
+        flag_line(value, "sing_box_clash_api", "✅ Sing-box has the Clash API", "❌ Sing-box was built without with_clash_api"),
         flag_line(value, "sing_box_service_exist", "✅ Sing-box service exist", "❌ Sing-box service exist"),
         flag_line(value, "sing_box_autostart_disabled", "✅ Sing-box autostart disabled", "❌ Sing-box autostart disabled"),
         flag_line(value, "sing_box_process_running", "✅ Sing-box process running", "❌ Sing-box process running"),

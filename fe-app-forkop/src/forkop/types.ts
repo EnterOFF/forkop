@@ -78,6 +78,7 @@ export namespace Forkop {
     CHECK_LOGS = 'check_logs',
     GET_SYSTEM_INFO = 'get_system_info',
     GET_UI_STATE = 'get_ui_state',
+    GET_CORE_FEATURES = 'get_core_features',
     GET_SECTION_RULE_SETS = 'get_section_rule_sets',
     SERVICE_ACTION_ASYNC = 'service_action_async',
     UI_ACTION_ACK = 'ui_action_ack',
@@ -337,6 +338,7 @@ export namespace Forkop {
   export interface SingBoxCheckResult {
     sing_box_installed: 0 | 1;
     sing_box_version_ok: 0 | 1;
+    sing_box_clash_api: 0 | 1;
     sing_box_service_exist: 0 | 1;
     sing_box_autostart_disabled: 0 | 1;
     sing_box_process_running: 0 | 1;
@@ -419,8 +421,19 @@ export namespace Forkop {
     generated_at?: number;
   }
 
+  // What the installed sing-box can do, from the tags it was built with
+  // (singbox/features.uc). Unknown without a core to ask.
+  export interface CoreFeatures {
+    known: boolean;
+    tags: string[];
+    features: Record<string, { available: boolean; tags: string[] }>;
+    types: Record<'outbound' | 'inbound' | 'endpoint', Record<string, string>>;
+    links: Record<string, string>;
+  }
+
   export interface GetUiCapabilities {
     server_inbounds_enabled_count: number;
+    core?: CoreFeatures;
   }
 
   export type ServiceAction = 'start' | 'stop' | 'restart' | 'reload';

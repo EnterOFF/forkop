@@ -1,6 +1,7 @@
 import {
   configureDnsQueryMode,
   configureDnsServerList,
+  dnsServerPrefixes,
 } from '../../../cbi/dnsServers';
 import {
   configureDownloadSectionOption,
@@ -17,8 +18,8 @@ export function addDnsOptions(section: CBISection) {
     'dns_server',
     _('DNS Server'),
     _(
-      'Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://',
-    ),
+      'Several servers give automatic failover. The protocol is set by a prefix: %s',
+    ).format(dnsServerPrefixes()),
   );
   dnsOption.default = ['77.88.8.8'];
   configureDnsServerList(dnsOption);
@@ -38,8 +39,8 @@ export function addDnsOptions(section: CBISection) {
     'bootstrap_dns_server',
     _('Bootstrap DNS Servers'),
     _(
-      'Resolve the addresses of the main DNS servers and proxies. Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://',
-    ),
+      'Resolve the addresses of the main DNS servers and proxies. Several servers give automatic failover. The protocol is set by a prefix: %s',
+    ).format(dnsServerPrefixes()),
   );
   bootstrapOption.default = ['77.88.8.8'];
   configureDnsServerList(bootstrapOption, { ipOnly: true });

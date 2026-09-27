@@ -8,9 +8,14 @@ import {
   getEffectiveSecurity,
   getProtocol,
   securitiesFor,
+  securityCoreFeature,
   securityLabel,
 } from './protocols';
 import { E } from '../../../helpers/element';
+import {
+  coreHas,
+  missingCoreFeatureNote,
+} from '../../services/coreFeatures.service';
 
 export function injectServerStyles() {
   if (document.getElementById(STYLE_ID)) {
@@ -183,9 +188,16 @@ export function syncSecurityChoices(
   protocol?: unknown,
   reset?: boolean,
 ) {
-  const allowed = securitiesFor(protocol || getProtocol(sectionId));
   const select = getSelectWidget(sectionId, 'security');
   const stored = select ? select.value : option(sectionId, 'security');
+  // A mode the installed core lacks stays only for the server that has it, so
+  // the save refuses it by name instead of switching it.
+  const allowed = securitiesFor(protocol || getProtocol(sectionId)).filter(
+    (security: string) => {
+      const feature = securityCoreFeature(security);
+      return !feature || coreHas(feature) || (!reset && security === stored);
+    },
+  );
   // A protocol change starts from that protocol's own best mode. Carrying the
   // previous value over would leave VLESS on None just because None is allowed.
   const next = !reset && allowed.includes(stored) ? stored : allowed[0];
@@ -198,13 +210,16 @@ export function syncSecurityChoices(
   }
 
   select.replaceChildren(
-    ...allowed.map((security: string) =>
-      E(
+    ...allowed.map((security: string) => {
+      const feature = securityCoreFeature(security);
+      return E(
         'option',
         { value: security, selected: security === next ? '' : undefined },
-        securityLabel(security),
-      ),
-    ),
+        !feature || coreHas(feature)
+          ? securityLabel(security)
+          : `${securityLabel(security)} (${missingCoreFeatureNote(feature)})`,
+      );
+    }),
   );
   select.value = next;
   select.dispatchEvent(new Event('change', { bubbles: true }));

@@ -30,6 +30,11 @@ import {
   showChildItemSettingsModal,
 } from '../../../cbi/modal';
 import { JSON_ENDPOINT_PLACEHOLDER } from '../constants';
+import { tunnelKindCoreFeature } from '../coreSupport';
+import {
+  coreHas,
+  missingCoreFeatureNote,
+} from '../../../services/coreFeatures.service';
 import { parseOutboundJsonObject } from '../outboundJson';
 import { addOpenVPNOptions } from './openvpn';
 import { refreshOutboundDetourSectionOptionValues } from '../references';
@@ -231,6 +236,20 @@ function showTunnelImportModal(
   );
 }
 
+const TUNNEL_KINDS = [
+  ['wireguard', 'WireGuard'],
+  ['amneziawg', 'AmneziaWG'],
+  ['warp', 'Cloudflare WARP'],
+  ['tailscale', 'Tailscale'],
+  ['openvpn-client', 'OpenVPN'],
+  ['json', _('JSON endpoint')],
+];
+
+function coreKindAvailable(kind: string) {
+  const feature = tunnelKindCoreFeature(kind);
+  return !feature || coreHas(feature);
+}
+
 export function showTunnelSettingsModal(
   section_id: string,
   itemValue: unknown,
@@ -248,6 +267,10 @@ export function showTunnelSettingsModal(
 
   const data = { settings: tunnelInitialSettings(tunnelId, section_id) };
   if (context.adding) {
+    // A new tunnel starts as the first kind the installed core can run.
+    data.settings.tunnel_type = TUNNEL_KINDS.find(([kind]) =>
+      coreKindAvailable(kind),
+    )![0];
     data.settings.name = nextDynamicListName(
       option,
       section_id,
@@ -265,15 +288,21 @@ export function showTunnelSettingsModal(
     'tunnel_type',
     _('Tunnel type'),
   );
-  typeOption.value('wireguard', 'WireGuard');
-  typeOption.value('amneziawg', 'AmneziaWG');
-  typeOption.value('warp', 'Cloudflare WARP');
-  typeOption.value('tailscale', 'Tailscale');
-  typeOption.value('openvpn-client', 'OpenVPN');
-  typeOption.value('json', _('JSON endpoint'));
+  let previousTunnelType = `${data.settings.tunnel_type || 'wireguard'}`;
+  // A kind the installed core lacks is offered only to the tunnel that already
+  // is one, marked, so its save is refused by name rather than switched.
+  TUNNEL_KINDS.forEach(([kind, label]) => {
+    if (coreKindAvailable(kind)) {
+      typeOption.value(kind, label);
+    } else if (kind === previousTunnelType) {
+      typeOption.value(
+        kind,
+        `${label} (${missingCoreFeatureNote(tunnelKindCoreFeature(kind))})`,
+      );
+    }
+  });
   typeOption.default = 'wireguard';
   typeOption.rmempty = false;
-  let previousTunnelType = `${data.settings.tunnel_type || 'wireguard'}`;
 
   let o = itemSection.option(form.Value, 'name', _('Tunnel name'));
   o.rmempty = false;

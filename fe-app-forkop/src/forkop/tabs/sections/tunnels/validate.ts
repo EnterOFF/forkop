@@ -1,3 +1,5 @@
+import { validateCoreFeature } from '../../../services/coreFeatures.service';
+import { tunnelKindCoreFeature } from '../coreSupport';
 import { validateWireGuardKey } from '../../../../helpers/parseWireGuardConfig';
 import { validateSubnet } from '../../../../validators/validateSubnet';
 import { validateTailscaleHostname } from '../../../../validators/validateTailscaleHostname';
@@ -200,6 +202,10 @@ export function validateTunnelSettings(
   peerOption?: CBIOption,
 ) {
   const kind = `${settings.tunnel_type || ''}`;
+  const core = validateCoreFeature(tunnelKindCoreFeature(kind));
+  if (core !== true) {
+    return core;
+  }
   const name = `${settings.name || ''}`.trim();
   if (kind !== 'json' && !name) {
     return _('Enter a tunnel name');

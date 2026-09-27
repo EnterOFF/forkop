@@ -1,3 +1,8 @@
+import {
+  coreHas,
+  missingCoreFeatureNote,
+  validateCoreFeature,
+} from '../../../services/coreFeatures.service';
 import { getClashUIUrl } from '../../../../helpers/getClashApiUrl';
 
 // The dashboard the router serves, and the two kinds of traffic that are
@@ -41,10 +46,19 @@ export function addTrafficOptions(section: CBISection) {
     form.Flag,
     'enable_native_api',
     _('sing-box Dashboard and API'),
-    `${_('Manage connections and interactive VPN authentication')} <a href="${nativeDashboardUrl}" target="_blank" rel="noopener noreferrer">${_('Open dashboard')}</a>`,
+    coreHas('api')
+      ? `${_('Manage connections and interactive VPN authentication')} <a href="${nativeDashboardUrl}" target="_blank" rel="noopener noreferrer">${_('Open dashboard')}</a>`
+      : `${_('Manage connections and interactive VPN authentication')} (${missingCoreFeatureNote('api')})`,
   );
   o.default = '0';
   o.rmempty = false;
+  // The API service is in the core only with its tag. Without it the setting is
+  // shown only while it is still on, so it can be switched off.
+  o.checkDepends = function (sectionId: string) {
+    return coreHas('api') || this.cfgvalue(sectionId) === '1';
+  };
+  o.validate = (_sectionId: string, value: string) =>
+    value === '1' ? validateCoreFeature('api') : true;
 
   o = section.option(form.Value, 'native_api_secret', _('API secret'));
   o.password = true;

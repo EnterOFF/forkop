@@ -1,0 +1,18 @@
+[
+  ["hy2://secret@example.com:443?sni=example.com#h", ["quic"]],
+  ["tuic://u:p@example.com:443#t", ["quic"]],
+  ["naive+https://u:p@example.com:443#n", ["naive"]],
+  ["http3://u:p@example.com:443#n", ["naive"]],
+  ["vless://u@example.com:443?security=reality&pbk=key&sni=example.com#r", ["utls"]],
+  ["vless://u@example.com:443?pbk=key#r", ["utls"]],
+  ["vless://u@example.com:443?security=tls&fp=chrome#f", ["utls"]],
+  ["vless://u@example.com:443?security=none&fp=chrome#plain", []],
+  ["vless://u@example.com:443?security=tls#tls", []],
+  ["trojan://p@example.com:443?fp=firefox#t", ["utls"]],
+  ["hysteria2://p@example.com:443?fp=chrome#h", ["quic", "utls"]],
+  ["ss://YWVzLTI1Ni1nY206cGFzcw@example.com:8388#s", []],
+  ["vmess://eyJhZGQiOiJleGFtcGxlLmNvbSIsInBvcnQiOiI0NDMiLCJpZCI6InUiLCJ0bHMiOiJ0bHMiLCJmcCI6ImNocm9tZSJ9", ["utls"]],
+  ["vmess://eyJhZGQiOiJleGFtcGxlLmNvbSIsInBvcnQiOiI0NDMiLCJpZCI6InUiLCJmcCI6ImNocm9tZSJ9", []],
+  ["vmess://u@example.com:443?security=tls&fp=chrome#v", ["utls"]],
+  ["socks5://127.0.0.1:1080#local", []]
+]

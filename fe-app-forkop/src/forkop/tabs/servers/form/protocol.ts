@@ -1,4 +1,9 @@
 import { validateOptionalSingBoxDuration } from '../../../../validators/validateSingBoxDuration';
+import {
+  coreHas,
+  missingCoreFeatureNote,
+  validateCoreFeature,
+} from '../../../services/coreFeatures.service';
 import { clearClientList } from '../clients';
 import { SHADOWSOCKS_METHODS } from '../constants';
 import {
@@ -197,9 +202,27 @@ export function addTuicOptions(section: CBISection) {
 
 export function addProtocolOptions(section: CBISection) {
   let o = section.option(form.ListValue, 'naive_network', _('Network'));
-  o.value('tcp', 'TCP (HTTP/2)');
-  o.value('udp', 'UDP (HTTP/3)');
-  o.value('tcp_udp', _('TCP and UDP'));
+  // HTTP/3 is QUIC, which a core may be built without; a server already on it
+  // keeps the choice, marked, and the save refuses it by name.
+  o.load = function (sectionId: string) {
+    const current = option(sectionId, 'naive_network') || 'tcp';
+    this.keylist = [];
+    this.vallist = [];
+    this.value('tcp', 'TCP (HTTP/2)');
+    [
+      ['udp', 'UDP (HTTP/3)'],
+      ['tcp_udp', _('TCP and UDP')],
+    ].forEach(([value, label]) => {
+      if (coreHas('quic')) {
+        this.value(value, label);
+      } else if (value === current) {
+        this.value(value, `${label} (${missingCoreFeatureNote('quic')})`);
+      }
+    });
+    return current;
+  };
+  o.validate = (_sectionId: string, value: string) =>
+    validateCoreFeature(value === 'udp' || value === 'tcp_udp' ? 'quic' : '');
   o.default = 'tcp';
   o.rmempty = false;
   o.modalonly = true;

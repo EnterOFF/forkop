@@ -137,6 +137,7 @@ const COMMANDS = {
     get_system_info: { help: "Get system information in JSON format", run: json(() => diagnostics().system_info()) },
     get_subscription_default_headers: { help: "Get default subscription request headers in JSON format", run: json(() => ui().default_headers()) },
     get_ui_state: { help: "Get lightweight UI service/action state in JSON format", run: json(() => ui().current_state()) },
+    get_core_features: { help: "Get what the installed sing-box can do, from the tags it was built with, in JSON format", run: json(() => require("singbox.features").report()) },
     get_section_rule_sets: { help: "Map each section to its rule-set tags in JSON format", run: json(() => require("singbox.rulesets").section_tag_map()) },
     service_action_async: { args: 1, usage: "<action>", help: "Start a service action in the background", run: action_reply((action) => ui().start_action(action)) },
     ui_action_ack: { args: 2, usage: "<kind> <job>", help: "Acknowledge a finished UI action state", run: action_reply((kind, job) => ui().acknowledge(kind, job)) },

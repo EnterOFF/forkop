@@ -48,6 +48,8 @@ declare global {
     kind?: string;
     securities: string[];
     credentials?: string[];
+    // The sing-box type it becomes, when that is not its id.
+    coreType?: string;
     // The scheme of the share link, when the protocol has one.
     link?: string;
     // The option that switches authentication off, for a protocol that can run

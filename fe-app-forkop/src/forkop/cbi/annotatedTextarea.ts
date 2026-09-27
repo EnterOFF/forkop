@@ -5,17 +5,9 @@ import {
   getValidationHeaderText,
 } from './annotations';
 import type { Annotation, AnnotationMap } from './annotations';
+import { escapeHtml } from '../../helpers/escapeHtml';
 
 const ANNOTATED_TEXTAREA_STYLE_ID = 'fkp-annotated-textarea-styles';
-
-function escapeHtml(value: unknown): string {
-  return `${value}`
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 function ensureAnnotatedTextareaStyles() {
   if (

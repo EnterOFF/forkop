@@ -13,6 +13,7 @@ let singbox_constants = require("singbox.constants");
 let rulesets = require("singbox.rulesets");
 let runtime_dns = require("singbox.dns");
 let runtime_servers = require("singbox.servers");
+let features = require("singbox.features");
 let runtime_urltest = require("singbox.urltest");
 let subscription_headers_module = require("singbox.subscription_headers");
 
@@ -1535,6 +1536,79 @@ function validate_runtime_mark_ranges_context(context) {
         fail_validation("FakeIP mark and outbound mark are the same value. Aborted.");
 }
 
+function refuse_without(feature, core_tags, what) {
+    let reason = features.unavailable_reason(feature, core_tags);
+    if (reason != "")
+        fail_validation(what + ", but " + reason + ". Disable it or install a sing-box build that has it. Aborted.");
+}
+
+function server_core_type(protocol) {
+    return protocol == "mtproto" ? "mtproxy" : protocol;
+}
+
+// What the configuration asks of the core that only some builds have. The core
+// refuses to start on a static server, tunnel, link or DNS server of a type it
+// was built without, so each is refused here by name, with the tags it needs.
+// A subscription's servers are not: the core skips one it cannot build and logs
+// which tag it lacks.
+function validate_core_features(settings, sections, servers, core_tags) {
+    for (let server in servers) {
+        if (!server_enabled(server))
+            continue;
+        let name = section_name(server);
+        let protocol = option(server, "protocol", "vless");
+        let feature = protocol == "tailscale" ? features.type_feature("endpoint", "tailscale")
+            : features.type_feature("inbound", server_core_type(protocol));
+        if (feature != "")
+            refuse_without(feature, core_tags, "Server '" + name + "' uses " + protocol);
+        if (runtime_servers.effective_security(server, protocol) == "reality")
+            refuse_without("utls", core_tags, "Server '" + name + "' uses Reality");
+        if (protocol == "naive" && contains([ "udp", "tcp_udp" ], option(server, "naive_network", "tcp")))
+            refuse_without("quic", core_tags, "Server '" + name + "' serves NaiveProxy over QUIC");
+    }
+
+    for (let section in sections) {
+        if (!section_enabled(section) || !connections.is_connections_action(rule_action(section)))
+            continue;
+        let name = section_name(section);
+        for (let tunnel_id in connections.tunnels(section)) {
+            let tunnel = connections.tunnel_child(section, tunnel_id);
+            let kind = lc(trim(as_string(connections.option(tunnel, "kind", "wireguard"))));
+            let feature = kind == "json" ? "" : features.type_feature("endpoint", kind);
+            if (feature != "")
+                refuse_without(feature, core_tags, "Section '" + name + "' has a " + kind + " tunnel '" +
+                    trim(as_string(connections.option(tunnel, "name", tunnel_id))) + "'");
+        }
+        for (let link in connections.connection_urls(section)) {
+            let label = core_url.scheme(link) + ":// link" + (core_url.fragment(link) != "" ? " '" + core_url.fragment(link) + "'" : "");
+            for (let feature in features.link_features(link))
+                refuse_without(feature, core_tags, "Section '" + name + "' has a " + label +
+                    (feature == "utls" ? " that uses Reality or a TLS fingerprint" : ""));
+        }
+    }
+
+    let dns_servers = [ ...dns_setting_values(settings, "dns_server"), ...dns_setting_values(settings, "bootstrap_dns_server") ];
+    for (let section in sections) {
+        if (!section_enabled(section))
+            continue;
+        if (rule_action(section) == "dns")
+            push(dns_servers, ...dns_setting_values(section, "dns_server"));
+        if (!connections.is_connections_action(rule_action(section)))
+            continue;
+        for (let interface_name in connections.interfaces(section))
+            if (connections.interface_domain_resolver_enabled(section, interface_name))
+                push(dns_servers, ...connections.interface_domain_resolver_dns_servers(section, interface_name));
+    }
+    for (let value in dns_servers) {
+        let parsed = runtime_dns.parse_server_uri(value, false);
+        if (parsed.type == "quic" || parsed.type == "h3")
+            refuse_without("quic", core_tags, "DNS server '" + value + "' uses " + (parsed.type == "quic" ? "DNS over QUIC" : "DNS over HTTP/3"));
+    }
+
+    if (bool_option(settings, "enable_native_api", false))
+        refuse_without("api", core_tags, "The sing-box Dashboard and API setting is on");
+}
+
 function validate_runtime_config(context) {
     let settings = settings_section();
     let sections = sections_by_type("section");
@@ -1543,6 +1617,8 @@ function validate_runtime_config(context) {
     let display_names = {};
     validate_runtime_display_names(sections, "Section", display_names);
     validate_runtime_display_names(servers, "Server", display_names);
+    if (context.core_tags != null)
+        validate_core_features(settings, sections, servers, context.core_tags);
     validate_runtime_mark_ranges_context(context);
     validate_dns_settings(settings, sections, context);
     validate_native_rule_set_update_settings(settings);
@@ -1570,7 +1646,9 @@ function context_from_runtime() {
     return {
         nft_fakeip_mark: as_string(constants.NFT_FAKEIP_MARK),
         nft_outbound_mark: as_string(constants.NFT_OUTBOUND_MARK),
-        sing_box_required_version: as_string(constants.SB_REQUIRED_VERSION)
+        sing_box_required_version: as_string(constants.SB_REQUIRED_VERSION),
+        // Unknown without a core to ask, which the requirement check refuses first.
+        core_tags: features.tags()
     };
 }
 
@@ -1600,6 +1678,11 @@ function check_requirements() {
         fail_requirement("Failed to read sing-box-forkop version. Reinstall sing-box-forkop. Aborted.", "error");
     else if (!core_version.version_at_least(sing_box_version, ctx.sing_box_required_version))
         fail_requirement("Package 'sing-box-forkop' version (" + sing_box_version + ") is lower than the required minimum (" + ctx.sing_box_required_version + "). Update it from Forkop Components. Aborted.", "error");
+
+    if (ctx.core_tags == null)
+        fail_requirement("Failed to read the tags sing-box was built with from 'sing-box version'. Reinstall sing-box-forkop. Aborted.", "error");
+    else if (!features.available(features.REQUIRED, ctx.core_tags))
+        fail_requirement("sing-box was built without with_clash_api. Forkop runs its dashboard, groups, latency tests and subnet sync through the Clash API and cannot start without it. Install a sing-box-forkop package or a core built with with_clash_api. Aborted.", "error");
 
     if (!service_exists("sing-box"))
         fail_requirement("Service 'sing-box' is missing. Reinstall sing-box-forkop. Aborted.", "error");

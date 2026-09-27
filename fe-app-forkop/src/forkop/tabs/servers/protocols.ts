@@ -3,6 +3,10 @@ import {
   SERVER_CERT_DIR,
   SHADOWSOCKS_METHODS,
 } from './constants';
+import {
+  coreFeatureOfType,
+  coreHas,
+} from '../../services/coreFeatures.service';
 import { liveOption, option } from './formValues';
 
 // One entry per protocol the tab can serve.
@@ -135,6 +139,7 @@ export const PROTOCOLS = [
     id: 'mtproto',
     label: 'MTProto',
     kind: 'inbound',
+    coreType: 'mtproxy',
     securities: ['none'],
     tcp: true,
     credentials: ['secret'],
@@ -232,8 +237,20 @@ export function securitiesFor(protocol: unknown) {
   return spec ? spec.securities.slice() : ['none'];
 }
 
+// The core feature a security mode needs, or '' for one every build has.
+export function securityCoreFeature(security: unknown) {
+  return security === 'reality' ? 'utls' : '';
+}
+
+// The protocol's best mode the installed core can run.
 export function defaultSecurity(protocol: unknown) {
-  return securitiesFor(protocol)[0];
+  const allowed = securitiesFor(protocol);
+  return (
+    allowed.find((security) => {
+      const feature = securityCoreFeature(security);
+      return !feature || coreHas(feature);
+    }) || allowed[0]
+  );
 }
 
 export function securityLabel(security: string) {
@@ -320,4 +337,30 @@ function isForkopCertificatePath(path: unknown) {
 export function usesGeneratedCertificate(sectionId: string) {
   const path = option(sectionId, 'tls_certificate_path');
   return !path || isForkopCertificatePath(path);
+}
+
+// The core feature a protocol needs, or '' for one every build has.
+export function protocolCoreFeature(protocol: unknown) {
+  const spec = protocolSpec(protocol);
+  if (!spec || spec.kind === 'json') {
+    return '';
+  }
+  return coreFeatureOfType(spec.coreType || spec.id, [
+    spec.kind === 'endpoint' ? 'endpoint' : 'inbound',
+  ]);
+}
+
+// What a server asks of the core that the installed one lacks, or ''. The
+// Reality handshake needs uTLS, and a NaiveProxy server over UDP is HTTP/3.
+export function serverMissingCoreFeature(sectionId: string) {
+  const protocol = getProtocol(sectionId);
+  const needed = [
+    protocolCoreFeature(protocol),
+    securityCoreFeature(getEffectiveSecurity(sectionId)),
+    protocol === 'naive' &&
+    ['udp', 'tcp_udp'].includes(liveOption(sectionId, 'naive_network'))
+      ? 'quic'
+      : '',
+  ];
+  return needed.find((feature) => feature && !coreHas(feature)) || '';
 }

@@ -22,6 +22,11 @@ import {
 } from '../outboundJson';
 import { tailscaleDetourSectionValue, tailscaleDetourTag } from '../references';
 import { openVPNEndpoint, openVPNInitialSettings } from './openvpn';
+import { tunnelKindCoreFeature } from '../coreSupport';
+import {
+  coreHas,
+  missingCoreFeatureNote,
+} from '../../../services/coreFeatures.service';
 import { E } from '../../../../helpers/element';
 
 // Junk counts and sizes reach the core as uint32, packet paddings as uint16.
@@ -207,11 +212,16 @@ export function tunnelListItemLabel(sectionId: string, tunnelId: string) {
   if (kind === 'json') {
     endpointType = parseOutboundJsonObject(child?.endpoint_json)?.type || '';
   }
+  const label =
+    tunnelDisplayName(sectionId, tunnelId) ||
+    tunnelKindLabel(kind, `${endpointType}`.toLowerCase());
+  const feature = tunnelKindCoreFeature(kind);
   return E(
     'span',
     { class: 'fkp-dynlist-label' },
-    tunnelDisplayName(sectionId, tunnelId) ||
-      tunnelKindLabel(kind, `${endpointType}`.toLowerCase()),
+    feature && !coreHas(feature)
+      ? `${label} (${missingCoreFeatureNote(feature)})`
+      : label,
   );
 }
 

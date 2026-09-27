@@ -99,4 +99,23 @@ t.test("an update check is served back until the installed packages change", () 
     t.eq(service.update_check_results(), []);
 });
 
+// The page builds its forms from what the core can do before it renders, so the
+// state it asks for first has to carry it.
+t.test("the state carries what the installed core was built with", () => {
+    let features = require("singbox.features");
+    features.paths.binary = stub.tmpdir() + "/sing-box";
+    fs.writefile(features.paths.binary, "#!/bin/sh\n");
+    let service = fresh_service();
+    stub.commands([ [ features.paths.binary + " version",
+        { status: 0, stdout: "sing-box version 1.14.1-extended-2.7.2-f125\n\nTags: with_clash_api,with_quic\n" } ],
+        [ () => true, { status: 1, stdout: "" } ] ]);
+    let reply = service.object_methods().refresh.call({ args: {} });
+    stub.restore();
+
+    t.eq(reply.capabilities.core.known, true);
+    t.eq(reply.capabilities.core.tags, [ "with_clash_api", "with_quic" ]);
+    t.eq(reply.capabilities.core.features.quic.available, true);
+    t.eq(reply.capabilities.core.features.wireguard.available, false);
+});
+
 t.done();

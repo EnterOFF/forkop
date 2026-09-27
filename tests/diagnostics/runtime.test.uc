@@ -38,13 +38,17 @@ t.test("the core check asks what the start asks: the required version and the li
     fs.writefile(diagnostics.paths.sing_box_init, "#!/bin/sh\n");
     health.sing_box_service_running = () => true;
     health.sing_box_runtime_ports_ready = () => true;
-    stub.commands([ [ "sh -c command -v apk", { status: 1 } ], [ /command -v/, {} ], [ "opkg", { status: 1 } ], [ dir + "/sing-box-init enabled", { status: 1 } ] ]);
+    let features = require("singbox.features");
+    features.paths.binary = dir + "/sing-box";
+    fs.writefile(features.paths.binary, "#!/bin/sh\n");
+    stub.commands([ [ "sh -c command -v apk", { status: 1 } ], [ /command -v/, {} ], [ "opkg", { status: 1 } ], [ dir + "/sing-box-init enabled", { status: 1 } ],
+        [ features.paths.binary + " version", { status: 0, stdout: "sing-box version 1.14.1-extended-2.7.2-f123\n\nTags: with_clash_api\n" } ] ]);
     fs.writefile(packages.paths.sing_box_version, "1.13.14-extended-2.5.3-f1\n");
     t.eq(diagnostics.sing_box().sing_box_version_ok, 0, "a core the start would refuse is not compatible");
     fs.writefile(packages.paths.sing_box_version, "1.14.1-extended-2.7.2-f123\n");
     let value = diagnostics.sing_box();
     stub.restore();
-    t.eq(value, { sing_box_installed: 1, sing_box_version_ok: 1, sing_box_service_exist: 1, sing_box_autostart_disabled: 1,
+    t.eq(value, { sing_box_installed: 1, sing_box_version_ok: 1, sing_box_clash_api: 1, sing_box_service_exist: 1, sing_box_autostart_disabled: 1,
         sing_box_process_running: 1, sing_box_ports_listening: 1 });
 });
 

@@ -11,6 +11,7 @@ import {
   loadSectionOutboundNameChoices,
   loadSubscriptionOutboundNameChoices,
 } from './outboundNames';
+import { coreFilterTypeChoices } from './coreSupport';
 import { groupTypeChoices, providerTypeChoices } from './providers';
 import { optionMapValue } from './subscriptions/model';
 import { validateRegex } from './validators';
@@ -259,7 +260,7 @@ export function addServerFilterOptions(
           const values = normalizeOptionValues(
             optionMapValue(this, itemId, storageKey),
           );
-          refreshOptionChoices(this, choices);
+          refreshOptionChoices(this, coreFilterTypeChoices(choices, values));
           return values;
         };
         field.placeholder = _('-- Select --');

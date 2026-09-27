@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-27 04:33+0300\n"
-"PO-Revision-Date: 2026-09-27 04:33+0300\n"
+"POT-Creation-Date: 2026-09-27 05:06+0300\n"
+"PO-Revision-Date: 2026-09-27 05:06+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -271,6 +271,9 @@ msgstr "Браузер не использует FakeIP"
 
 msgid "Browser is using FakeIP correctly"
 msgstr "Браузер использует FakeIP"
+
+msgid "Built with the Clash API"
+msgstr "Собран с Clash API"
 
 msgid "Built-in lists"
 msgstr "Встроенные списки"
@@ -1556,11 +1559,11 @@ msgstr "Обязательно. Куда уходит трафик этого к
 msgid "Required. Where the traffic of this server leaves"
 msgstr "Обязательно. Куда уходит трафик этого сервера"
 
-msgid "Resolve the addresses of the main DNS servers and proxies. Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://"
-msgstr "Резолвят адреса основных DNS-серверов и прокси. Несколько серверов дают автоматическое переключение при сбоях. Протокол задаётся префиксом: udp://, tcp://, tls://, https://, quic://, h3://"
+msgid "Resolve the addresses of the main DNS servers and proxies. Several servers give automatic failover. The protocol is set by a prefix: %s"
+msgstr "Резолвят адреса основных DNS-серверов и прокси. Несколько серверов дают автоматическое переключение при сбоях. Протокол задаётся префиксом: %s"
 
-msgid "Resolves domains that match the section conditions. Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://"
-msgstr "Резолвит домены, совпавшие с условиями секции. Несколько серверов дают автоматическое переключение при сбоях. Протокол задаётся префиксом: udp://, tcp://, tls://, https://, quic://, h3://"
+msgid "Resolves domains that match the section conditions. Several servers give automatic failover. The protocol is set by a prefix: %s"
+msgstr "Резолвит домены, совпавшие с условиями секции. Несколько серверов дают автоматическое переключение при сбоях. Протокол задаётся префиксом: %s"
 
 msgid "Restart"
 msgstr "Перезапустить"
@@ -1790,8 +1793,8 @@ msgstr "Настройки"
 msgid "Settings not saved"
 msgstr "Настройки не сохранены"
 
-msgid "Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://"
-msgstr "Несколько серверов дают автоматическое переключение при сбоях. Протокол задаётся префиксом: udp://, tcp://, tls://, https://, quic://, h3://"
+msgid "Several servers give automatic failover. The protocol is set by a prefix: %s"
+msgstr "Несколько серверов дают автоматическое переключение при сбоях. Протокол задаётся префиксом: %s"
 
 msgid "Show a QR code"
 msgstr "Показать QR-код"
@@ -1904,8 +1907,8 @@ msgstr "Подписки успешно обновлены"
 msgid "Support"
 msgstr "Поддержка"
 
-msgid "Supported URIs: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, naiveproxy, mieru, anytls"
-msgstr "Поддерживаются URI: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, naiveproxy, mieru, anytls"
+msgid "Supported URIs: %s"
+msgstr "Поддерживаются URI: %s"
 
 msgid "Switching threshold in ms at which to move to a faster server"
 msgstr "Порог переключения в мс, при которой переключаться на более быстрый сервер"
@@ -1951,6 +1954,12 @@ msgstr "Домен, который клиент передаёт в TLS-руко
 
 msgid "The group joins as the single node it has selected"
 msgstr "Группа участвует как один выбранный узел"
+
+msgid "the installed sing-box lacks %s"
+msgstr "в установленном sing-box нет %s"
+
+msgid "The installed sing-box was built without %s"
+msgstr "Установленный sing-box собран без %s"
 
 msgid "The interface the traffic comes from"
 msgstr "Интерфейс, с которого исходит трафик"

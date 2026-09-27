@@ -11,6 +11,11 @@ import {
   GRID_KIND_COLUMN_WIDTH,
   GRID_SWITCH_COLUMN_WIDTH,
 } from '../../../cbi/grid';
+import {
+  coreHas,
+  missingCoreFeatureNote,
+  validateCoreFeature,
+} from '../../../services/coreFeatures.service';
 import { clearClientList } from '../clients';
 import { DEFAULT_PROTOCOL } from '../constants';
 import {
@@ -27,6 +32,8 @@ import {
   getProtocol,
   listenerProtocols,
   protocolLabel,
+  protocolCoreFeature,
+  serverMissingCoreFeature,
 } from '../protocols';
 import { routingSectionChoices } from '../routing';
 import {
@@ -53,7 +60,11 @@ export function addIdentityOptions(section: CBISection) {
 
   o = section.option(form.DummyValue, '_protocol_display', _('Protocol'));
   o.modalonly = false;
-  o.textvalue = (sectionId: string) => protocolLabel(getProtocol(sectionId));
+  o.textvalue = (sectionId: string) => {
+    const label = protocolLabel(getProtocol(sectionId));
+    const missing = serverMissingCoreFeature(sectionId);
+    return missing ? `${label} (${missingCoreFeatureNote(missing)})` : label;
+  };
   o.cfgvalue = o.textvalue;
   o.width = GRID_KIND_COLUMN_WIDTH;
 
@@ -87,11 +98,34 @@ export function addIdentityOptions(section: CBISection) {
   };
 
   o = section.option(form.ListValue, 'protocol', _('Protocol'));
-  PROTOCOLS.forEach((entry) => o.value(entry.id, entry.label));
+  // A protocol the installed core lacks is offered only to the server that
+  // already has it, marked, so a save neither loses it nor passes it.
+  o.load = function (sectionId: string) {
+    const current = option(sectionId, 'protocol') || DEFAULT_PROTOCOL;
+    this.keylist = [];
+    this.vallist = [];
+    PROTOCOLS.forEach((entry) => {
+      const feature = protocolCoreFeature(entry.id);
+      if (!feature || coreHas(feature)) {
+        this.value(entry.id, entry.label);
+      } else if (entry.id === current) {
+        this.value(
+          entry.id,
+          `${entry.label} (${missingCoreFeatureNote(feature)})`,
+        );
+      }
+    });
+    return current;
+  };
   o.default = DEFAULT_PROTOCOL;
   o.rmempty = false;
   o.modalonly = true;
-  o.validate = validateRequired;
+  o.validate = (sectionId: string, value: string) => {
+    const required = validateRequired(sectionId, value);
+    return required === true
+      ? validateCoreFeature(protocolCoreFeature(value))
+      : required;
+  };
   o.onchange = function (_ev, sectionId: string, value: unknown) {
     syncSecurityChoices(sectionId, value, true);
     syncCertificateButton(sectionId, value);

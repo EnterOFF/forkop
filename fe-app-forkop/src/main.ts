@@ -27,3 +27,6 @@ export {
   createServerContent,
 } from './forkop/tabs/servers';
 export { createSettingsContent } from './forkop/tabs/settings';
+// What the installed core can do, which ForkopView reads before it builds the
+// tabs; a check that builds one tab tells it the same way.
+export { setCoreFeatures } from './forkop/services/coreFeatures.service';

@@ -32,6 +32,7 @@ let fs = require("fs");
 let ui = require("service.ui");
 let uci = require("core.uci");
 let health = require("service.health");
+let features = require("singbox.features");
 
 const PID_FILE = getenv("FORKOP_STATE_SERVICE_PID_FILE") || "/var/run/forkop/state-service.pid";
 const OBJECT_NAME = getenv("FORKOP_STATE_SERVICE_OBJECT") || "forkop";
@@ -428,6 +429,9 @@ function apply_settled_running(payload) {
 // an identical state every sweep and the parking would buy nothing.
 function recompute() {
     let payload = ui.current_ui_state();
+    // What the core can do rides along, so the page learns it from the first
+    // answer; it is read from the binary once, and again only once that changes.
+    payload.capabilities.core = features.report();
     apply_settled_running(payload);
     let text = sprintf("%J", payload);
     if (text == state.text)

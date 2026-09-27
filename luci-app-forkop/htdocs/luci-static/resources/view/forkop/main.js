@@ -1712,6 +1712,7 @@ var Forkop;
     AvailableMethods2["CHECK_LOGS"] = "check_logs";
     AvailableMethods2["GET_SYSTEM_INFO"] = "get_system_info";
     AvailableMethods2["GET_UI_STATE"] = "get_ui_state";
+    AvailableMethods2["GET_CORE_FEATURES"] = "get_core_features";
     AvailableMethods2["GET_SECTION_RULE_SETS"] = "get_section_rule_sets";
     AvailableMethods2["SERVICE_ACTION_ASYNC"] = "service_action_async";
     AvailableMethods2["UI_ACTION_ACK"] = "ui_action_ack";
@@ -2011,6 +2012,10 @@ var ForkopShellMethods = {
   // itself - neither is reconstructible here.
   getSectionRuleSets: async () => callBaseMethod(
     Forkop.AvailableMethods.GET_SECTION_RULE_SETS
+  ),
+  // Runs the core itself, so only a page the state service cannot answer asks.
+  getCoreFeatures: async () => callBaseMethod(
+    Forkop.AvailableMethods.GET_CORE_FEATURES
   ),
   getUiState: async () => callBaseMethod(
     Forkop.AvailableMethods.GET_UI_STATE,
@@ -3984,6 +3989,129 @@ function getComponentActionKey(component, action) {
   return componentActionKeyMap[`${component}:${action}`];
 }
 
+// src/forkop/services/coreFeatures.service.ts
+var report = null;
+function setCoreFeatures(value) {
+  if (value === void 0) {
+    return;
+  }
+  report = value && value.known ? value : null;
+}
+function coreHas(feature) {
+  return !report || report.features[feature]?.available !== false;
+}
+function coreFeatureTags(feature) {
+  return report?.features[feature]?.tags || [];
+}
+function coreFeatureOfType(type, kinds = ["outbound", "endpoint"]) {
+  for (const kind of kinds) {
+    const feature = report?.types[kind]?.[type];
+    if (feature) {
+      return feature;
+    }
+  }
+  return "";
+}
+function coreSupportsType(type, kinds) {
+  const feature = coreFeatureOfType(type, kinds);
+  return !feature || coreHas(feature);
+}
+function missingCoreTags(feature) {
+  const present = new Set(report?.tags || []);
+  return coreFeatureTags(feature).filter((tag) => !present.has(tag));
+}
+function missingCoreFeatureNote(feature) {
+  return _("the installed sing-box lacks %s").format(
+    missingCoreTags(feature).join(", ")
+  );
+}
+function validateCoreFeature(feature) {
+  return !feature || coreHas(feature) ? true : _("The installed sing-box was built without %s").format(
+    missingCoreTags(feature).join(", ")
+  );
+}
+var ALWAYS_TLS_TYPES = /* @__PURE__ */ new Set([
+  "trojan",
+  "tuic",
+  "hysteria",
+  "hysteria2",
+  "anytls"
+]);
+function linkQuery(link) {
+  const start = link.indexOf("?");
+  const query = /* @__PURE__ */ new Map();
+  if (start < 0) {
+    return query;
+  }
+  const text = link.slice(start + 1).split("#")[0];
+  for (const pair of text.split("&")) {
+    const equals = pair.indexOf("=");
+    const key = (equals < 0 ? pair : pair.slice(0, equals)).toLowerCase();
+    if (key && !query.has(key)) {
+      query.set(key, equals < 0 ? "" : pair.slice(equals + 1));
+    }
+  }
+  return query;
+}
+function vmessPayload(link) {
+  const body = link.slice(link.indexOf("://") + 3).split("#")[0].replace(/-/g, "+").replace(/_/g, "/");
+  try {
+    const payload = JSON.parse(
+      atob(body.padEnd(body.length + (4 - body.length % 4) % 4, "="))
+    );
+    return payload && typeof payload === "object" && !Array.isArray(payload) ? payload : null;
+  } catch {
+    return null;
+  }
+}
+function linkUsesUtls(type, link) {
+  if (type === "vmess") {
+    const payload = vmessPayload(link);
+    if (payload) {
+      const tls2 = `${payload.tls ?? ""}`.toLowerCase();
+      return (tls2 === "tls" || tls2 === "1" || tls2 === "true" || payload.net === "h2") && `${payload.fp ?? ""}` !== "";
+    }
+  }
+  const query = linkQuery(link);
+  const security = (query.get("security") || "").toLowerCase();
+  if (security === "reality" || query.get("pbk")) {
+    return true;
+  }
+  const tls = ALWAYS_TLS_TYPES.has(type) || security === "tls" || security === "xtls";
+  return tls && Boolean(query.get("fp") || query.get("client-fingerprint"));
+}
+function linkCoreFeatures(link) {
+  const value = `${link || ""}`.trim();
+  const separator = value.indexOf("://");
+  const scheme = separator > 0 ? value.slice(0, separator).toLowerCase() : "";
+  const type = report?.links[scheme] || "";
+  const features = [];
+  const feature = coreFeatureOfType(type, ["outbound"]);
+  if (feature) {
+    features.push(feature);
+  }
+  if (report && linkUsesUtls(type, value)) {
+    features.push("utls");
+  }
+  return features;
+}
+async function loadCoreFeatures() {
+  const served = await callUbus({
+    object: FORKOP_SERVICE_OBJECT,
+    method: "state",
+    timeoutMs: FORKOP_CALL_TIMEOUT_MS,
+    retryUnavailable: false
+  });
+  if (served.success && served.data?.capabilities?.core) {
+    setCoreFeatures(served.data.capabilities.core);
+    return;
+  }
+  const answer = await ForkopShellMethods.getCoreFeatures();
+  if (answer.success) {
+    setCoreFeatures(answer.data);
+  }
+}
+
 // src/forkop/services/uiState.service.ts
 function isRunningAction(state) {
   return state.running === true;
@@ -4064,6 +4192,7 @@ function applyActionState(actions = {}) {
   });
 }
 function applyUiStateToStore(uiState) {
+  setCoreFeatures(uiState.capabilities?.core);
   applyServiceState(uiState);
   applyActionState(uiState.actions);
 }
@@ -7150,8 +7279,8 @@ async function runSingBoxCheck() {
     throw new Error("Sing-box checks failed");
   }
   const data = singBoxChecks.data;
-  const allGood = Boolean(data.sing_box_installed) && Boolean(data.sing_box_version_ok) && Boolean(data.sing_box_service_exist) && Boolean(data.sing_box_autostart_disabled) && Boolean(data.sing_box_process_running) && Boolean(data.sing_box_ports_listening);
-  const atLeastOneGood = Boolean(data.sing_box_installed) || Boolean(data.sing_box_version_ok) || Boolean(data.sing_box_service_exist) || Boolean(data.sing_box_autostart_disabled) || Boolean(data.sing_box_process_running) || Boolean(data.sing_box_ports_listening);
+  const allGood = Boolean(data.sing_box_installed) && Boolean(data.sing_box_version_ok) && Boolean(data.sing_box_clash_api) && Boolean(data.sing_box_service_exist) && Boolean(data.sing_box_autostart_disabled) && Boolean(data.sing_box_process_running) && Boolean(data.sing_box_ports_listening);
+  const atLeastOneGood = Boolean(data.sing_box_installed) || Boolean(data.sing_box_version_ok) || Boolean(data.sing_box_clash_api) || Boolean(data.sing_box_service_exist) || Boolean(data.sing_box_autostart_disabled) || Boolean(data.sing_box_process_running) || Boolean(data.sing_box_ports_listening);
   const { state, description } = getMeta({ atLeastOneGood, allGood });
   updateCheckStore({
     order,
@@ -7168,6 +7297,11 @@ async function runSingBoxCheck() {
       {
         state: data.sing_box_version_ok ? "success" : "error",
         key: _("Version is compatible"),
+        value: ""
+      },
+      {
+        state: data.sing_box_clash_api ? "success" : "error",
+        key: _("Built with the Clash API"),
         value: ""
       },
       {
@@ -12772,11 +12906,11 @@ function mountTab(key, render6, initController6) {
     node = render6();
     mountNodes.set(key, node);
   }
-  const report = (error) => console.error(`[TABS] Failed to start the ${key} controller`, error);
+  const report2 = (error) => console.error(`[TABS] Failed to start the ${key} controller`, error);
   try {
-    Promise.resolve(initController6()).catch(report);
+    Promise.resolve(initController6()).catch(report2);
   } catch (error) {
-    report(error);
+    report2(error);
   }
   return node;
 }
@@ -13479,6 +13613,15 @@ function siblingValues(map, name, section_id) {
   const lookup = map.lookupOption(name, section_id);
   return lookup ? optionListValues(lookup[0], lookup[1]) : [];
 }
+function dnsServerPrefixes() {
+  return [
+    "udp://",
+    "tcp://",
+    "tls://",
+    "https://",
+    ...coreHas("quic") ? ["quic://", "h3://"] : []
+  ].join(", ");
+}
 function configureDnsServerList(option2, options = {}) {
   option2.rmempty = false;
   option2.validate = function(section_id, value) {
@@ -13490,7 +13633,12 @@ function configureDnsServerList(option2, options = {}) {
       return optionListValues(this, section_id).length ? true : _("Add at least one DNS server");
     }
     const validation = validateDNS(normalized, options.ipOnly);
-    return validation.valid ? true : validation.message;
+    if (!validation.valid) {
+      return validation.message;
+    }
+    return validateCoreFeature(
+      /^(quic|h3):\/\//i.test(normalized) ? "quic" : ""
+    );
   };
 }
 function configureDnsQueryMode(modeOption, dnsServerOptionName, options = {}) {
@@ -13966,6 +14114,66 @@ var ButtonAddSettingsDynamicList = SettingsDynamicList.extend({
   buttonAdd: true
 });
 
+// src/helpers/escapeHtml.ts
+function escapeHtml(value) {
+  return `${value}`.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+// src/forkop/tabs/sections/coreSupport.ts
+var CONNECTION_URI_TYPES = [
+  ["vless", "vless"],
+  ["vmess", "vmess"],
+  ["shadowsocks", "shadowsocks"],
+  ["trojan", "trojan"],
+  ["socks", "socks"],
+  ["http", "http"],
+  ["tuic", "tuic"],
+  ["hysteria", "hysteria2"],
+  ["naiveproxy", "naive"],
+  ["mieru", "mieru"],
+  ["anytls", "anytls"]
+];
+function connectionUriDescription() {
+  return _("Supported URIs: %s").format(
+    CONNECTION_URI_TYPES.filter(
+      ([, type]) => coreSupportsType(type, ["outbound"])
+    ).map(([name]) => name).join(", ")
+  );
+}
+function validateConnectionUriCore(link) {
+  return validateCoreFeature(
+    linkCoreFeatures(link).find((feature) => !coreHas(feature)) || ""
+  );
+}
+function tunnelKindCoreFeature(kind) {
+  return kind === "json" ? "" : coreFeatureOfType(kind, ["endpoint"]);
+}
+function sectionMissingCoreFeatures(sectionId) {
+  const missing = /* @__PURE__ */ new Set();
+  (uci.sections(FORKOP_UCI_PACKAGE, "tunnel") || []).filter((tunnel) => tunnel.section === sectionId).forEach((tunnel) => {
+    const feature = tunnelKindCoreFeature(
+      `${tunnel.kind || "wireguard"}`.toLowerCase()
+    );
+    if (feature && !coreHas(feature)) {
+      missing.add(feature);
+    }
+  });
+  getConfigListValues(sectionId, "selector_proxy_links").forEach(
+    (link) => linkCoreFeatures(link).filter((feature) => !coreHas(feature)).forEach((feature) => missing.add(feature))
+  );
+  return [...missing];
+}
+function coreFilterTypeChoices(choices, selected) {
+  return choices.filter(
+    (choice) => coreSupportsType(choice.value) || selected.includes(choice.value)
+  ).map(
+    (choice) => coreSupportsType(choice.value) ? choice : {
+      value: choice.value,
+      label: `${choice.label} (${missingCoreFeatureNote(coreFeatureOfType(choice.value))})`
+    }
+  );
+}
+
 // src/forkop/tabs/sections/actions.ts
 function getRuleConfiguredAction(section_id) {
   const action = uci.get(FORKOP_UCI_PACKAGE, section_id, "action");
@@ -13997,7 +14205,11 @@ function getRuleActionDisplayValue(section_id) {
   return getActionOptionLabel(getRuleResolvedAction(section_id));
 }
 function getRuleActionDisplayMarkup(section_id) {
-  return getRuleActionDisplayValue(section_id);
+  const label = escapeHtml(getRuleActionDisplayValue(section_id));
+  const notes = sectionMissingCoreFeatures(section_id).map(
+    (feature) => escapeHtml(missingCoreFeatureNote(feature))
+  );
+  return notes.length ? `${label} (${notes.join("; ")})` : label;
 }
 function populateActionOptionValues(option2, currentAction) {
   delete option2.keylist;
@@ -14088,9 +14300,6 @@ function finalizeAnnotations(annotationMap) {
 
 // src/forkop/cbi/annotatedTextarea.ts
 var ANNOTATED_TEXTAREA_STYLE_ID = "fkp-annotated-textarea-styles";
-function escapeHtml(value) {
-  return `${value}`.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-}
 function ensureAnnotatedTextareaStyles() {
   if (typeof document === "undefined" || !document.head || document.getElementById(ANNOTATED_TEXTAREA_STYLE_ID)) {
     return;
@@ -15782,10 +15991,12 @@ function tunnelListItemLabel(sectionId, tunnelId) {
   if (kind === "json") {
     endpointType = parseOutboundJsonObject(child?.endpoint_json)?.type || "";
   }
+  const label = tunnelDisplayName(sectionId, tunnelId) || tunnelKindLabel(kind, `${endpointType}`.toLowerCase());
+  const feature = tunnelKindCoreFeature(kind);
   return textE(
     "span",
     { class: "fkp-dynlist-label" },
-    tunnelDisplayName(sectionId, tunnelId) || tunnelKindLabel(kind, `${endpointType}`.toLowerCase())
+    feature && !coreHas(feature) ? `${label} (${missingCoreFeatureNote(feature)})` : label
   );
 }
 function tunnelInitialSettings(value, sectionId) {
@@ -16752,7 +16963,7 @@ function addServerFilterOptions(itemSection, parentSectionForItem, options = {})
           const values = normalizeOptionValues(
             optionMapValue(this, itemId, storageKey)
           );
-          refreshOptionChoices(this, choices);
+          refreshOptionChoices(this, coreFilterTypeChoices(choices, values));
           return values;
         };
         field.placeholder = _("-- Select --");
@@ -17311,8 +17522,8 @@ function addInterfaceItemOptions(itemSection, options = {}) {
     "domain_resolver_dns_server",
     _("DNS Server"),
     _(
-      "Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://"
-    )
+      "Several servers give automatic failover. The protocol is set by a prefix: %s"
+    ).format(dnsServerPrefixes())
   );
   dnsServerOption.depends("domain_resolver_enabled", "1");
   configureDnsServerList(dnsServerOption, {
@@ -18431,6 +18642,10 @@ function amneziaFieldLabel(key) {
 }
 function validateTunnelSettings(settings, tunnelId, peerOption) {
   const kind = `${settings.tunnel_type || ""}`;
+  const core = validateCoreFeature(tunnelKindCoreFeature(kind));
+  if (core !== true) {
+    return core;
+  }
   const name = `${settings.name || ""}`.trim();
   if (kind !== "json" && !name) {
     return _("Enter a tunnel name");
@@ -18682,6 +18897,18 @@ function showTunnelImportModal(parentMap, fields) {
     { singleField: true, saveLabel: _("Import") }
   );
 }
+var TUNNEL_KINDS = [
+  ["wireguard", "WireGuard"],
+  ["amneziawg", "AmneziaWG"],
+  ["warp", "Cloudflare WARP"],
+  ["tailscale", "Tailscale"],
+  ["openvpn-client", "OpenVPN"],
+  ["json", _("JSON endpoint")]
+];
+function coreKindAvailable(kind) {
+  const feature = tunnelKindCoreFeature(kind);
+  return !feature || coreHas(feature);
+}
 function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNode, context = {}) {
   const tunnelId = context.adding ? nextSectionId("tunnel") : `${itemValue || ""}`.trim();
   if (!tunnelId) {
@@ -18689,6 +18916,9 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   }
   const data = { settings: tunnelInitialSettings(tunnelId, section_id) };
   if (context.adding) {
+    data.settings.tunnel_type = TUNNEL_KINDS.find(
+      ([kind]) => coreKindAvailable(kind)
+    )[0];
     data.settings.name = nextDynamicListName(
       option2,
       section_id,
@@ -18705,15 +18935,19 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     "tunnel_type",
     _("Tunnel type")
   );
-  typeOption.value("wireguard", "WireGuard");
-  typeOption.value("amneziawg", "AmneziaWG");
-  typeOption.value("warp", "Cloudflare WARP");
-  typeOption.value("tailscale", "Tailscale");
-  typeOption.value("openvpn-client", "OpenVPN");
-  typeOption.value("json", _("JSON endpoint"));
+  let previousTunnelType = `${data.settings.tunnel_type || "wireguard"}`;
+  TUNNEL_KINDS.forEach(([kind, label]) => {
+    if (coreKindAvailable(kind)) {
+      typeOption.value(kind, label);
+    } else if (kind === previousTunnelType) {
+      typeOption.value(
+        kind,
+        `${label} (${missingCoreFeatureNote(tunnelKindCoreFeature(kind))})`
+      );
+    }
+  });
   typeOption.default = "wireguard";
   typeOption.rmempty = false;
-  let previousTunnelType = `${data.settings.tunnel_type || "wireguard"}`;
   let o = itemSection.option(form.Value, "name", _("Tunnel name"));
   o.rmempty = false;
   o.validate = function(_itemId, value) {
@@ -19362,8 +19596,8 @@ function createSectionContent(section) {
     "dns_server",
     _("DNS Server"),
     _(
-      "Resolves domains that match the section conditions. Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://"
-    )
+      "Resolves domains that match the section conditions. Several servers give automatic failover. The protocol is set by a prefix: %s"
+    ).format(dnsServerPrefixes())
   );
   dnsServerOption.depends("action", "dns");
   dnsServerOption.retain = true;
@@ -19416,9 +19650,7 @@ function createSectionContent(section) {
     form.DynamicList,
     "selector_proxy_links",
     _("Connection URI"),
-    _(
-      "Supported URIs: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, naiveproxy, mieru, anytls"
-    )
+    connectionUriDescription()
   );
   o.depends("action", "connection");
   o.rmempty = true;
@@ -19429,7 +19661,7 @@ function createSectionContent(section) {
       return true;
     }
     const validation = validateProxyUrl(value);
-    return validation.valid ? true : validation.message;
+    return validation.valid ? validateConnectionUriCore(value) : validation.message;
   };
   o.liveDynamicListNodes = /* @__PURE__ */ new Map();
   const originalRenderWidget = o.renderWidget;
@@ -20123,6 +20355,7 @@ var PROTOCOLS = [
     id: "mtproto",
     label: "MTProto",
     kind: "inbound",
+    coreType: "mtproxy",
     securities: ["none"],
     tcp: true,
     credentials: ["secret"],
@@ -20193,8 +20426,15 @@ function securitiesFor(protocol) {
   const spec = protocolSpec(protocol);
   return spec ? spec.securities.slice() : ["none"];
 }
+function securityCoreFeature(security) {
+  return security === "reality" ? "utls" : "";
+}
 function defaultSecurity(protocol) {
-  return securitiesFor(protocol)[0];
+  const allowed = securitiesFor(protocol);
+  return allowed.find((security) => {
+    const feature = securityCoreFeature(security);
+    return !feature || coreHas(feature);
+  }) || allowed[0];
 }
 function securityLabel(security) {
   if (security === "reality") {
@@ -20253,6 +20493,24 @@ function isForkopCertificatePath(path) {
 function usesGeneratedCertificate(sectionId) {
   const path = option(sectionId, "tls_certificate_path");
   return !path || isForkopCertificatePath(path);
+}
+function protocolCoreFeature(protocol) {
+  const spec = protocolSpec(protocol);
+  if (!spec || spec.kind === "json") {
+    return "";
+  }
+  return coreFeatureOfType(spec.coreType || spec.id, [
+    spec.kind === "endpoint" ? "endpoint" : "inbound"
+  ]);
+}
+function serverMissingCoreFeature(sectionId) {
+  const protocol = getProtocol(sectionId);
+  const needed = [
+    protocolCoreFeature(protocol),
+    securityCoreFeature(getEffectiveSecurity(sectionId)),
+    protocol === "naive" && ["udp", "tcp_udp"].includes(liveOption(sectionId, "naive_network")) ? "quic" : ""
+  ];
+  return needed.find((feature) => feature && !coreHas(feature)) || "";
 }
 
 // src/forkop/tabs/servers/credentials.ts
@@ -21676,9 +21934,14 @@ function getSelectWidget(sectionId, name) {
   return typeof node.querySelector === "function" ? node.querySelector("select") : null;
 }
 function syncSecurityChoices(sectionId, protocol, reset) {
-  const allowed = securitiesFor(protocol || getProtocol(sectionId));
   const select = getSelectWidget(sectionId, "security");
   const stored = select ? select.value : option(sectionId, "security");
+  const allowed = securitiesFor(protocol || getProtocol(sectionId)).filter(
+    (security) => {
+      const feature = securityCoreFeature(security);
+      return !feature || coreHas(feature) || !reset && security === stored;
+    }
+  );
   const next = !reset && allowed.includes(stored) ? stored : allowed[0];
   if (!select) {
     if (stored !== next) {
@@ -21687,13 +21950,14 @@ function syncSecurityChoices(sectionId, protocol, reset) {
     return;
   }
   select.replaceChildren(
-    ...allowed.map(
-      (security) => textE(
+    ...allowed.map((security) => {
+      const feature = securityCoreFeature(security);
+      return textE(
         "option",
         { value: security, selected: security === next ? "" : void 0 },
-        securityLabel(security)
-      )
-    )
+        !feature || coreHas(feature) ? securityLabel(security) : `${securityLabel(security)} (${missingCoreFeatureNote(feature)})`
+      );
+    })
   );
   select.value = next;
   select.dispatchEvent(new Event("change", { bubbles: true }));
@@ -22004,7 +22268,10 @@ function validateMtprotoSecret(_sectionId, value) {
 function validateSecurity(sectionId, value) {
   const protocol = getProtocol(sectionId);
   const selected = value || defaultSecurity(protocol);
-  return securitiesFor(protocol).includes(selected) ? true : _("This protocol does not support the selected security mode");
+  if (!securitiesFor(protocol).includes(selected)) {
+    return _("This protocol does not support the selected security mode");
+  }
+  return validateCoreFeature(securityCoreFeature(selected));
 }
 function validateShadowsocksPassword(sectionId, value) {
   const required = validateRequiredText(sectionId, value);
@@ -22461,7 +22728,11 @@ function addIdentityOptions(section) {
   o.width = GRID_SWITCH_COLUMN_WIDTH;
   o = section.option(form.DummyValue, "_protocol_display", _("Protocol"));
   o.modalonly = false;
-  o.textvalue = (sectionId) => protocolLabel(getProtocol(sectionId));
+  o.textvalue = (sectionId) => {
+    const label = protocolLabel(getProtocol(sectionId));
+    const missing = serverMissingCoreFeature(sectionId);
+    return missing ? `${label} (${missingCoreFeatureNote(missing)})` : label;
+  };
   o.cfgvalue = o.textvalue;
   o.width = GRID_KIND_COLUMN_WIDTH;
   o = section.option(form.Value, "label", _("Server name"));
@@ -22487,11 +22758,30 @@ function addIdentityOptions(section) {
     ) ? _("This name is already taken") : true;
   };
   o = section.option(form.ListValue, "protocol", _("Protocol"));
-  PROTOCOLS.forEach((entry) => o.value(entry.id, entry.label));
+  o.load = function(sectionId) {
+    const current = option(sectionId, "protocol") || DEFAULT_PROTOCOL;
+    this.keylist = [];
+    this.vallist = [];
+    PROTOCOLS.forEach((entry) => {
+      const feature = protocolCoreFeature(entry.id);
+      if (!feature || coreHas(feature)) {
+        this.value(entry.id, entry.label);
+      } else if (entry.id === current) {
+        this.value(
+          entry.id,
+          `${entry.label} (${missingCoreFeatureNote(feature)})`
+        );
+      }
+    });
+    return current;
+  };
   o.default = DEFAULT_PROTOCOL;
   o.rmempty = false;
   o.modalonly = true;
-  o.validate = validateRequired;
+  o.validate = (sectionId, value) => {
+    const required = validateRequired(sectionId, value);
+    return required === true ? validateCoreFeature(protocolCoreFeature(value)) : required;
+  };
   o.onchange = function(_ev, sectionId, value) {
     syncSecurityChoices(sectionId, value, true);
     syncCertificateButton(sectionId, value);
@@ -22822,9 +23112,24 @@ function addTuicOptions(section) {
 }
 function addProtocolOptions(section) {
   let o = section.option(form.ListValue, "naive_network", _("Network"));
-  o.value("tcp", "TCP (HTTP/2)");
-  o.value("udp", "UDP (HTTP/3)");
-  o.value("tcp_udp", _("TCP and UDP"));
+  o.load = function(sectionId) {
+    const current = option(sectionId, "naive_network") || "tcp";
+    this.keylist = [];
+    this.vallist = [];
+    this.value("tcp", "TCP (HTTP/2)");
+    [
+      ["udp", "UDP (HTTP/3)"],
+      ["tcp_udp", _("TCP and UDP")]
+    ].forEach(([value, label]) => {
+      if (coreHas("quic")) {
+        this.value(value, label);
+      } else if (value === current) {
+        this.value(value, `${label} (${missingCoreFeatureNote("quic")})`);
+      }
+    });
+    return current;
+  };
+  o.validate = (_sectionId, value) => validateCoreFeature(value === "udp" || value === "tcp_udp" ? "quic" : "");
   o.default = "tcp";
   o.rmempty = false;
   o.modalonly = true;
@@ -23445,8 +23750,8 @@ function addDnsOptions(section) {
     "dns_server",
     _("DNS Server"),
     _(
-      "Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://"
-    )
+      "Several servers give automatic failover. The protocol is set by a prefix: %s"
+    ).format(dnsServerPrefixes())
   );
   dnsOption.default = ["77.88.8.8"];
   configureDnsServerList(dnsOption);
@@ -23464,8 +23769,8 @@ function addDnsOptions(section) {
     "bootstrap_dns_server",
     _("Bootstrap DNS Servers"),
     _(
-      "Resolve the addresses of the main DNS servers and proxies. Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://"
-    )
+      "Resolve the addresses of the main DNS servers and proxies. Several servers give automatic failover. The protocol is set by a prefix: %s"
+    ).format(dnsServerPrefixes())
   );
   bootstrapOption.default = ["77.88.8.8"];
   configureDnsServerList(bootstrapOption, { ipOnly: true });
@@ -23795,10 +24100,14 @@ function addTrafficOptions(section) {
     form.Flag,
     "enable_native_api",
     _("sing-box Dashboard and API"),
-    `${_("Manage connections and interactive VPN authentication")} <a href="${nativeDashboardUrl}" target="_blank" rel="noopener noreferrer">${_("Open dashboard")}</a>`
+    coreHas("api") ? `${_("Manage connections and interactive VPN authentication")} <a href="${nativeDashboardUrl}" target="_blank" rel="noopener noreferrer">${_("Open dashboard")}</a>` : `${_("Manage connections and interactive VPN authentication")} (${missingCoreFeatureNote("api")})`
   );
   o.default = "0";
   o.rmempty = false;
+  o.checkDepends = function(sectionId) {
+    return coreHas("api") || this.cfgvalue(sectionId) === "1";
+  };
+  o.validate = (_sectionId, value) => value === "1" ? validateCoreFeature("api") : true;
   o = section.option(form.Value, "native_api_secret", _("API secret"));
   o.password = true;
   o.depends("enable_native_api", "1");
@@ -24147,6 +24456,14 @@ function addMountedTab(map, type, title, tab) {
   mountTabOption(section, type, tab);
 }
 var ForkopView = {
+  // The forms offer only what the installed core can run, so what it can do
+  // is read before they are built: one call the state service answers from
+  // memory.
+  load() {
+    return loadCoreFeatures().catch((error) => {
+      console.warn("[CORE_FEATURES]", error);
+    });
+  },
   async render() {
     injectGlobalStyles();
     const forkopMap = new form.Map(FORKOP_UCI_PACKAGE, _("Forkop Settings"));
@@ -24216,5 +24533,6 @@ return baseclass.extend({
   configureServerSection,
   createSectionContent,
   createServerContent,
-  createSettingsContent
+  createSettingsContent,
+  setCoreFeatures
 });

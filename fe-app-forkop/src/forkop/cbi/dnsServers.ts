@@ -7,6 +7,7 @@
 // here instead of being written out four times.
 
 import { validateDNS } from '../../validators/validateDns';
+import { coreHas, validateCoreFeature } from '../services/coreFeatures.service';
 import { normalizeDynamicListItems } from './listValues';
 
 // LuCI's depends() compares an option to a literal value, and "holds more than
@@ -33,6 +34,17 @@ function optionListValues(option: CBIOption, section_id: string): string[] {
 function siblingValues(map: CBIMap, name: string, section_id: string) {
   const lookup = map.lookupOption(name, section_id);
   return lookup ? optionListValues(lookup[0], lookup[1]) : [];
+}
+
+// The prefixes a server can be written with in the installed core.
+export function dnsServerPrefixes() {
+  return [
+    'udp://',
+    'tcp://',
+    'tls://',
+    'https://',
+    ...(coreHas('quic') ? ['quic://', 'h3://'] : []),
+  ].join(', ');
 }
 
 // The list itself. LuCI checks a dynamic list entry by entry and also checks the
@@ -63,7 +75,13 @@ export function configureDnsServerList(
     }
 
     const validation = validateDNS(normalized, options.ipOnly);
-    return validation.valid ? true : validation.message;
+    if (!validation.valid) {
+      return validation.message;
+    }
+    // DNS over QUIC and over HTTP/3 are QUIC, which a core may be built without.
+    return validateCoreFeature(
+      /^(quic|h3):\/\//i.test(normalized) ? 'quic' : '',
+    );
   };
 }
 

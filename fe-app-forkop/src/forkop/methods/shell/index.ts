@@ -301,6 +301,11 @@ export const ForkopShellMethods = {
     callBaseMethod<Record<string, string[]>>(
       Forkop.AvailableMethods.GET_SECTION_RULE_SETS,
     ),
+  // Runs the core itself, so only a page the state service cannot answer asks.
+  getCoreFeatures: async () =>
+    callBaseMethod<Forkop.CoreFeatures>(
+      Forkop.AvailableMethods.GET_CORE_FEATURES,
+    ),
   getUiState: async () =>
     callBaseMethod<Forkop.UiState>(
       Forkop.AvailableMethods.GET_UI_STATE,

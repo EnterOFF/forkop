@@ -1,6 +1,7 @@
 import { FORKOP_UCI_PACKAGE } from '../../constants';
 import { injectGlobalStyles } from '../../helpers/injectGlobalStyles';
 import { coreService } from '../services/core.service';
+import { loadCoreFeatures } from '../services/coreFeatures.service';
 import { DashboardTab } from '../tabs/dashboard';
 import { DiagnosticTab } from '../tabs/diagnostic';
 import { LogsTab } from '../tabs/logs';
@@ -39,6 +40,15 @@ function addMountedTab(
 // The whole page: one uci map with a tab per section type. This is what
 // view/forkop/forkop.js hands to LuCI.
 export const ForkopView = {
+  // The forms offer only what the installed core can run, so what it can do
+  // is read before they are built: one call the state service answers from
+  // memory.
+  load() {
+    return loadCoreFeatures().catch((error) => {
+      console.warn('[CORE_FEATURES]', error);
+    });
+  },
+
   async render() {
     injectGlobalStyles();
 

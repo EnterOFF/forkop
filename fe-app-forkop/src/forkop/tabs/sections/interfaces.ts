@@ -6,6 +6,7 @@ import { keepUnavailableSectionChoice } from '../../cbi/choices';
 import {
   configureDnsQueryMode,
   configureDnsServerList,
+  dnsServerPrefixes,
 } from '../../cbi/dnsServers';
 import { SettingsDynamicList } from '../../cbi/dynamicList';
 import { showChildItemSettingsModal } from '../../cbi/modal';
@@ -171,8 +172,8 @@ function addInterfaceItemOptions(
     'domain_resolver_dns_server',
     _('DNS Server'),
     _(
-      'Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://',
-    ),
+      'Several servers give automatic failover. The protocol is set by a prefix: %s',
+    ).format(dnsServerPrefixes()),
   );
   // No address is proposed: a resolver that silently defaults to a public server
   // is a DNS choice made for the user.

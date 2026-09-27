@@ -53,4 +53,33 @@ t.test("the core version comes from the file the core package installs, never fr
         t.ok(!match(entry.command, /opkg|apk /), "ran the package manager: " + entry.command);
 });
 
+
+// A core is installed and new enough; what it was built with is the question.
+function built_with(tags_line) {
+    let features = require("singbox.features");
+    features.paths.binary = stub.tmpdir() + "/sing-box";
+    fs.writefile(features.paths.binary, "#!/bin/sh\n");
+    let answer = tags_line == null ? { status: 1, stdout: "" }
+        : { status: 0, stdout: "sing-box version 1.14.1-extended-2.7.2-f125\n\n" + tags_line + "\nCGO: disabled\n" };
+    return requirements(require("core.constants").SB_REQUIRED_VERSION + "\n", [
+        [ /command -v/, { status: 0 } ],
+        [ features.paths.binary + " version", answer ]
+    ]);
+}
+
+t.test("a core without the Clash API is refused with the tag it lacks", () => {
+    let result = built_with("Tags: with_quic,with_utls");
+    t.contains(result.error, "sing-box was built without with_clash_api");
+    t.contains(result.logs, "[error] " + result.error);
+});
+
+t.test("a core whose tags cannot be read is refused", () => {
+    t.contains(built_with(null).error, "Failed to read the tags sing-box was built with");
+});
+
+t.test("a core with the Clash API passes the tag check", () => {
+    let error = built_with("Tags: with_clash_api").error ?? "";
+    t.ok(index(error, "with_clash_api") < 0 && index(error, "tags") < 0, "refused: " + error);
+});
+
 t.done();

@@ -1,5 +1,6 @@
 import { getComponentActionKey } from '../helpers/getComponentActionKey';
 import type { Forkop } from '../types';
+import { setCoreFeatures } from './coreFeatures.service';
 import {
   getLocalActionOverlay,
   setLocalServiceAction,
@@ -106,6 +107,7 @@ function applyActionState(actions: UiActionMap = {}) {
 }
 
 export function applyUiStateToStore(uiState: Forkop.UiState) {
+  setCoreFeatures(uiState.capabilities?.core);
   applyServiceState(uiState);
   applyActionState(uiState.actions);
 }

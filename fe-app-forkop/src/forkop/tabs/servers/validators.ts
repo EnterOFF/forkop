@@ -3,6 +3,7 @@
 // only when the core has no default for it.
 
 import { validatePath } from '../../../validators/validatePath';
+import { validateCoreFeature } from '../../services/coreFeatures.service';
 import { normalizeMtprotoBaseSecret } from './credentials';
 import {
   hasControlCharacters,
@@ -25,6 +26,7 @@ import {
   getShadowsocksMethod,
   listenTransports,
   securitiesFor,
+  securityCoreFeature,
   shadowsocksKeyBytes,
   transportOption,
 } from './protocols';
@@ -254,9 +256,10 @@ export function validateSecurity(sectionId: string, value: string) {
   const protocol = getProtocol(sectionId);
   const selected = value || defaultSecurity(protocol);
 
-  return securitiesFor(protocol).includes(selected)
-    ? true
-    : _('This protocol does not support the selected security mode');
+  if (!securitiesFor(protocol).includes(selected)) {
+    return _('This protocol does not support the selected security mode');
+  }
+  return validateCoreFeature(securityCoreFeature(selected));
 }
 
 export function validateShadowsocksPassword(sectionId: string, value: string) {

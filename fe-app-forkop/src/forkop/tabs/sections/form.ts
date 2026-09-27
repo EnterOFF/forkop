@@ -13,6 +13,7 @@ import { keepUnavailableSectionChoice } from '../../cbi/choices';
 import {
   configureDnsQueryMode,
   configureDnsServerList,
+  dnsServerPrefixes,
 } from '../../cbi/dnsServers';
 import {
   GRID_KIND_COLUMN_WIDTH,
@@ -42,6 +43,10 @@ import {
   validatePortCondition,
 } from './conditions';
 import { RULE_SET_ITEM_SETTINGS_KEY } from './constants';
+import {
+  connectionUriDescription,
+  validateConnectionUriCore,
+} from './coreSupport';
 import {
   fallbackGroupChildDefaults,
   removeFallbackLevels,
@@ -184,8 +189,8 @@ export function createSectionContent(section: CBISection) {
     'dns_server',
     _('DNS Server'),
     _(
-      'Resolves domains that match the section conditions. Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://, quic://, h3://',
-    ),
+      'Resolves domains that match the section conditions. Several servers give automatic failover. The protocol is set by a prefix: %s',
+    ).format(dnsServerPrefixes()),
   );
   dnsServerOption.depends('action', 'dns');
   dnsServerOption.retain = true;
@@ -243,9 +248,7 @@ export function createSectionContent(section: CBISection) {
     form.DynamicList,
     'selector_proxy_links',
     _('Connection URI'),
-    _(
-      'Supported URIs: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, naiveproxy, mieru, anytls',
-    ),
+    connectionUriDescription(),
   );
   o.depends('action', 'connection');
   o.rmempty = true;
@@ -263,7 +266,9 @@ export function createSectionContent(section: CBISection) {
     }
 
     const validation = validateProxyUrl(value);
-    return validation.valid ? true : validation.message;
+    return validation.valid
+      ? validateConnectionUriCore(value)
+      : validation.message;
   };
   o.liveDynamicListNodes = new Map();
   const originalRenderWidget = o.renderWidget;
