@@ -4,9 +4,9 @@ export default defineConfig({
     test: {
         globals: true,
         environment: 'node',
-        // Source-contract tests read the same tree; excess workers stall imports
-        // and trigger test timeouts on Windows checkouts.
-        maxWorkers: 4,
+        // A test that drives a failure on purpose makes the page log it; that
+        // output is shown for a test that fails and kept out of the way otherwise.
+        silent: 'passed-only',
         setupFiles: ['./tests/setup/global-mocks.ts'],
     },
 });

@@ -5,7 +5,6 @@ import { validateUrl } from '../../../../validators/validateUrl';
 import { isExistingChildItem } from '../../../cbi/childItems';
 import { normalizeDynamicListItems } from '../../../cbi/listValues';
 import { normalizeOptionValues } from '../../../cbi/listValues';
-import { JSON_ENDPOINT_TYPES } from '../constants';
 import {
   AMNEZIA_RANGE_FIELDS,
   ONE_SIDED_AMNEZIA_FIELDS,
@@ -227,15 +226,6 @@ export function validateTunnelSettings(
       : _('Open peer settings and complete the configuration');
   }
   if (kind === 'json') {
-    if (typeof endpoint.type !== 'string' || !endpoint.type.trim()) {
-      return _('JSON endpoint must contain a non-empty type');
-    }
-    if (
-      endpoint.type !== endpoint.type.trim() ||
-      !JSON_ENDPOINT_TYPES.has(endpoint.type.trim())
-    ) {
-      return _('Unsupported JSON endpoint type');
-    }
     if (typeof endpoint.tag !== 'string' || !endpoint.tag.trim()) {
       return _('JSON endpoint must contain a non-empty tag');
     }

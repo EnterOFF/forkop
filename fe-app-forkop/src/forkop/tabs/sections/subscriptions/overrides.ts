@@ -27,12 +27,10 @@ export const OVERRIDE_PATCH_PLACEHOLDER = [
 
 // Parameters the section owns rather than the subscription, mirroring
 // RESERVED_OVERRIDE_PATCH_PATHS in the backend.
-function reservedOverridePatchPaths() {
-  return ['detour'];
-}
+export const RESERVED_OVERRIDE_PATCH_PATHS = ['detour'];
 
 export function reservedOverridePatchPath(document: unknown) {
-  return reservedOverridePatchPaths().find((path) => {
+  return RESERVED_OVERRIDE_PATCH_PATHS.find((path) => {
     let node = document;
     for (const segment of path.split('.')) {
       if (!node || typeof node !== 'object' || Array.isArray(node)) {

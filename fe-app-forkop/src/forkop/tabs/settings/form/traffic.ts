@@ -41,7 +41,7 @@ export function addTrafficOptions(section: CBISection) {
     form.Flag,
     'enable_native_api',
     _('sing-box Dashboard and API'),
-    `${_('Manage connections and interactive VPN authentication. The dashboard is downloaded to RAM when enabled.')} <a href="${nativeDashboardUrl}" target="_blank" rel="noopener noreferrer">${_('Open dashboard')}</a>`,
+    `${_('Manage connections and interactive VPN authentication')} <a href="${nativeDashboardUrl}" target="_blank" rel="noopener noreferrer">${_('Open dashboard')}</a>`,
   );
   o.default = '0';
   o.rmempty = false;

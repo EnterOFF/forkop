@@ -29,7 +29,7 @@ import {
   setModalOptionValue,
   showChildItemSettingsModal,
 } from '../../../cbi/modal';
-import { JSON_ENDPOINT_PLACEHOLDER, JSON_ENDPOINT_TYPES } from '../constants';
+import { JSON_ENDPOINT_PLACEHOLDER } from '../constants';
 import { parseOutboundJsonObject } from '../outboundJson';
 import { addOpenVPNOptions } from './openvpn';
 import { refreshOutboundDetourSectionOptionValues } from '../references';
@@ -426,18 +426,8 @@ export function showTunnelSettingsModal(
   endpointJsonOption.depends('tunnel_type', 'json');
   endpointJsonOption.validate = function (_itemId: string, value: unknown) {
     const endpoint = parseOutboundJsonObject(value);
-    if (
-      !endpoint ||
-      typeof endpoint.type !== 'string' ||
-      !endpoint.type.trim()
-    ) {
-      return _('JSON endpoint must contain a non-empty type');
-    }
-    if (
-      endpoint.type !== endpoint.type.trim() ||
-      !JSON_ENDPOINT_TYPES.has(endpoint.type.trim())
-    ) {
-      return _('Unsupported JSON endpoint type');
+    if (!endpoint) {
+      return _('Enter a valid JSON endpoint object');
     }
     return typeof endpoint.tag === 'string' && endpoint.tag.trim()
       ? true

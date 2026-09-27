@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-27 01:54+0300\n"
-"PO-Revision-Date: 2026-09-27 01:54+0300\n"
+"POT-Creation-Date: 2026-09-27 04:33+0300\n"
+"PO-Revision-Date: 2026-09-27 04:33+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -499,9 +499,6 @@ msgstr "Удалить"
 
 msgid "Detected automatically by default"
 msgstr "По умолчанию определяется автоматически"
-
-msgid "detour must be a non-empty string"
-msgstr "detour должен быть непустой строкой"
 
 msgid "Device name"
 msgstr "Имя устройства"
@@ -1067,9 +1064,6 @@ msgstr "JSON endpoint"
 msgid "JSON endpoint must contain a non-empty tag"
 msgstr "JSON endpoint должен содержать непустой tag"
 
-msgid "JSON endpoint must contain a non-empty type"
-msgstr "JSON endpoint должен содержать непустое поле type"
-
 msgid "JSON inbound"
 msgstr "JSON inbound"
 
@@ -1087,12 +1081,6 @@ msgstr "JSON outbound должен быть JSON-объектом"
 
 msgid "JSON outbound must contain a non-empty tag field"
 msgstr "JSON outbound должен содержать непустое поле tag"
-
-msgid "JSON outbound must contain a non-empty type field"
-msgstr "JSON outbound должен содержать непустое поле type"
-
-msgid "JSON outbound type must be lowercase without surrounding whitespace"
-msgstr "Тип JSON outbound должен быть в нижнем регистре и без пробелов по краям"
 
 msgid "Keepalive timeout"
 msgstr "Таймаут keepalive"
@@ -1178,8 +1166,8 @@ msgstr "Основной DNS"
 msgid "Main DNS Query Mode"
 msgstr "Режим опроса основного DNS"
 
-msgid "Manage connections and interactive VPN authentication. The dashboard is downloaded to RAM when enabled."
-msgstr "Управление соединениями и интерактивной авторизацией VPN. При включении панель загружается в оперативную память."
+msgid "Manage connections and interactive VPN authentication"
+msgstr "Управление соединениями и интерактивной авторизацией VPN"
 
 msgid "Masks traffic with the Amnezia mechanism to make it harder to identify"
 msgstr "Маскирует трафик механизмом Amnezia, чтобы затруднить распознавание"
@@ -1366,9 +1354,6 @@ msgstr "Оптимистический кеш DNS"
 
 msgid "Option \"%s\" contains an invalid input value."
 msgstr "Параметр \"%s\" содержит некорректное значение."
-
-msgid "outbounds must be a non-empty array of strings"
-msgstr "outbounds должен быть непустым массивом строк"
 
 msgid "Output Network Interface"
 msgstr "Выходной сетевой интерфейс"
@@ -1712,9 +1697,6 @@ msgstr "Выберите WAN интерфейсы для мониторинга"
 msgid "Selected"
 msgstr "Выбран"
 
-msgid "Selector and URLTest outbounds must contain a non-empty outbounds array"
-msgstr "Selector и URLTest outbound должны содержать непустой массив outbounds"
-
 msgid "Selects the first available node by priority"
 msgstr "Выбирает первый доступный узел по приоритету"
 
@@ -1769,20 +1751,11 @@ msgstr "Ключ сервера"
 msgid "Server name"
 msgstr "Имя сервера"
 
-msgid "Server outbound must contain a non-empty server field"
-msgstr "Серверный outbound должен содержать непустое поле server"
-
-msgid "Server outbound must contain a numeric server_port from 1 to 65535"
-msgstr "Серверный outbound должен содержать числовой server_port от 1 до 65535"
-
 msgid "Server parameters"
 msgstr "Параметры серверов"
 
 msgid "Server port"
 msgstr "Порт сервера"
-
-msgid "server_port must be a number from 1 to 65535"
-msgstr "server_port должен быть числом от 1 до 65535"
 
 msgid "Servers"
 msgstr "Серверы"
@@ -1849,9 +1822,6 @@ msgstr "FakeIP DNS sing-box не работает"
 
 msgid "Sing-box FakeIP DNS works"
 msgstr "FakeIP DNS sing-box работает"
-
-msgid "sing-box has no inbound of type %s"
-msgstr "В sing-box нет inbound типа %s"
 
 msgid "SNI"
 msgstr "SNI"
@@ -1994,9 +1964,6 @@ msgstr "Под этим именем устройство видно в конс
 msgid "The name this router appears under in the Tailscale console. It is offered there as an exit node and carries traffic once approved"
 msgstr "Под этим именем роутер виден в консоли Tailscale. Там он предлагается как выходной узел и начинает пропускать трафик после одобрения"
 
-msgid "The object must have a type field"
-msgstr "В объекте должно быть поле type"
-
 msgid "The pasted link is not supported. Try JSON outbound."
 msgstr "Вставленная ссылка не поддерживается. Попробуй JSON outbound."
 
@@ -2110,9 +2077,6 @@ msgstr "Неуказанный IP-адрес не разрешён"
 
 msgid "Unsupported DNS server protocol. Use udp://, tcp://, tls://, https://, quic://, or h3://"
 msgstr "Неподдерживаемый протокол DNS-сервера. Используйте udp://, tcp://, tls://, https://, quic:// или h3://"
-
-msgid "Unsupported JSON endpoint type"
-msgstr "Неподдерживаемый тип JSON endpoint"
 
 msgid "Update"
 msgstr "Обновить"

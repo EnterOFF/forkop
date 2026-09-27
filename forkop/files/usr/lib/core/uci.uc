@@ -1,12 +1,8 @@
 #!/usr/bin/env ucode
 
-let fs = require("fs");
 let common = require("core.common");
 
 let as_string = common.as_string;
-
-const UCI_STATE_FILE = getenv("FORKOP_UCI_STATE_FILE") || getenv("UCI_STATE") || "";
-const UCI_LOG_FILE = getenv("FORKOP_UCI_LOG_FILE") || getenv("UCI_LOG") || "";
 
 let runtime_cursor = false;
 let loaded_packages = {};
@@ -86,182 +82,6 @@ function resolve_parts(c, parts) {
     };
 }
 
-function state_lines() {
-    let data = fs.readfile(UCI_STATE_FILE);
-    if (data == null || data == "")
-        return [];
-    return split(replace(data, /\r/g, ""), "\n");
-}
-
-function state_write_lines(lines) {
-    return fs.writefile(UCI_STATE_FILE, join("\n", lines) + "\n") != null;
-}
-
-function state_get(path) {
-    for (let line in state_lines()) {
-        if (line == "")
-            continue;
-        let equals = index(line, "=");
-        let key = equals >= 0 ? substr(line, 0, equals) : line;
-        if (key == path)
-            return equals >= 0 ? substr(line, equals + 1) : "";
-    }
-    return "";
-}
-
-function state_exists(path) {
-    let prefix = as_string(path) + ".";
-    for (let line in state_lines()) {
-        if (line == "")
-            continue;
-        let equals = index(line, "=");
-        let key = equals >= 0 ? substr(line, 0, equals) : line;
-        if (key == path || substr(key, 0, length(prefix)) == prefix)
-            return true;
-    }
-    return false;
-}
-
-function state_delete(path) {
-    let prefix = as_string(path) + ".";
-    let changed = false;
-    let lines = [];
-    for (let line in state_lines()) {
-        if (line == "")
-            continue;
-        let equals = index(line, "=");
-        let key = equals >= 0 ? substr(line, 0, equals) : line;
-        if (key == path || substr(key, 0, length(prefix)) == prefix) {
-            changed = true;
-            continue;
-        }
-        push(lines, line);
-    }
-    return !changed || state_write_lines(lines);
-}
-
-function state_set(path, value) {
-    let lines = [];
-    for (let line in state_lines()) {
-        if (line == "")
-            continue;
-        let equals = index(line, "=");
-        let key = equals >= 0 ? substr(line, 0, equals) : line;
-        if (key != path)
-            push(lines, line);
-    }
-    push(lines, as_string(path) + "=" + as_string(value));
-    return state_write_lines(lines);
-}
-
-function state_add_list(path, value) {
-    let current = state_get(path);
-    return state_set(path, current == "" ? value : current + " " + as_string(value));
-}
-
-function state_del_list(path, value) {
-    let current = state_get(path);
-    if (current == "")
-        return false;
-
-    let values = [];
-    let removed = false;
-    for (let item in words(current)) {
-        if (item == value) {
-            removed = true;
-            continue;
-        }
-        push(values, item);
-    }
-
-    if (!removed)
-        return false;
-    if (length(values) == 0)
-        return state_delete(path);
-    return state_set(path, join(" ", values));
-}
-
-function state_commit(package_name) {
-    if (UCI_LOG_FILE == "")
-        return true;
-    let existing = fs.readfile(UCI_LOG_FILE);
-    existing = existing == null ? "" : as_string(existing);
-    return fs.writefile(UCI_LOG_FILE, existing + "commit " + as_string(package_name) + "\n") != null;
-}
-
-function state_add_section(package_name, type_name) {
-    package_name = as_string(package_name);
-    type_name = as_string(type_name);
-
-    let index = 1;
-    let section = "";
-    while (true) {
-        section = sprintf("cfg%06x", index);
-        if (!state_exists(package_name + "." + section))
-            break;
-        index++;
-    }
-
-    return state_set(package_name + "." + section, type_name) ? section : "";
-}
-
-function state_sections(package_name, type_name) {
-    let result = [];
-    let prefix = as_string(package_name) + ".";
-    for (let line in state_lines()) {
-        if (line == "")
-            continue;
-        let equals = index(line, "=");
-        if (equals < 0)
-            continue;
-
-        let key = substr(line, 0, equals);
-        let value = substr(line, equals + 1);
-        if (value != type_name || substr(key, 0, length(prefix)) != prefix)
-            continue;
-
-        let section = substr(key, length(prefix));
-        if (index(section, ".") < 0)
-            push(result, section);
-    }
-    return result;
-}
-
-function state_get_all(package_name, section_name) {
-    package_name = as_string(package_name);
-    section_name = as_string(section_name);
-
-    let result = {};
-    let section_type = state_get(package_name + "." + section_name);
-    if (section_type != "") {
-        result[".name"] = section_name;
-        result[".type"] = section_type;
-    }
-
-    let prefix = package_name + "." + section_name + ".";
-    for (let line in state_lines()) {
-        if (line == "")
-            continue;
-        let equals = index(line, "=");
-        if (equals < 0)
-            continue;
-
-        let key = substr(line, 0, equals);
-        if (substr(key, 0, length(prefix)) != prefix)
-            continue;
-
-        let option = substr(key, length(prefix));
-        if (option != "")
-            result[option] = substr(line, equals + 1);
-    }
-
-    return length(keys(result)) > 0 ? result : null;
-}
-
-function fixture_enabled() {
-    return UCI_STATE_FILE != "";
-}
-
 function cursor() {
     if (runtime_cursor !== false)
         return runtime_cursor;
@@ -276,7 +96,7 @@ function cursor() {
 }
 
 function available() {
-    return fixture_enabled() || cursor() != null;
+    return cursor() != null;
 }
 
 // Drops the loaded packages, so the next read sees what is committed now.
@@ -287,8 +107,6 @@ function reset() {
 
 function load(package_name) {
     package_name = as_string(package_name);
-    if (fixture_enabled())
-        return true;
     if (loaded_packages[package_name])
         return true;
 
@@ -324,9 +142,6 @@ function value_to_list(value) {
 
 function get(path) {
     path = as_string(path);
-    if (fixture_enabled())
-        return state_get(path);
-
     let parts = path_parts(path);
     let c = cursor();
     if (c == null || parts == null || parts.option == "")
@@ -341,9 +156,6 @@ function get(path) {
 }
 
 function get_all(package_name, section_name) {
-    if (fixture_enabled())
-        return state_get_all(package_name, section_name);
-
     let c = cursor();
     if (c == null)
         return null;
@@ -362,9 +174,6 @@ function get_all(package_name, section_name) {
 
 function exists(path) {
     path = as_string(path);
-    if (fixture_enabled())
-        return state_exists(path);
-
     let parts = path_parts(path);
     let c = cursor();
     if (c == null || parts == null)
@@ -382,9 +191,6 @@ function exists(path) {
 
 function delete_path(path) {
     path = as_string(path);
-    if (fixture_enabled())
-        return state_delete(path);
-
     let parts = path_parts(path);
     let c = cursor();
     if (c == null || parts == null)
@@ -409,9 +215,6 @@ function delete_path(path) {
 
 function set_section(path, type_name) {
     path = as_string(path);
-    if (fixture_enabled())
-        return state_set(path, type_name);
-
     let parts = path_parts(path);
     let c = cursor();
     if (c == null || parts == null || parts.option != "")
@@ -432,9 +235,6 @@ function set_section(path, type_name) {
 }
 
 function add(package_name, type_name) {
-    if (fixture_enabled())
-        return state_add_section(package_name, type_name);
-
     let c = cursor();
     if (c == null)
         return "";
@@ -451,9 +251,6 @@ function add(package_name, type_name) {
 
 function set(path, value) {
     path = as_string(path);
-    if (fixture_enabled())
-        return state_set(path, value_to_string(value));
-
     let parts = path_parts(path);
     let c = cursor();
     if (c == null || parts == null || parts.option == "")
@@ -475,9 +272,6 @@ function set(path, value) {
 
 function add_list(path, value) {
     path = as_string(path);
-    if (fixture_enabled())
-        return state_add_list(path, value);
-
     let parts = path_parts(path);
     let c = cursor();
     if (c == null || parts == null || parts.option == "")
@@ -501,9 +295,6 @@ function add_list(path, value) {
 
 function del_list(path, value) {
     path = as_string(path);
-    if (fixture_enabled())
-        return state_del_list(path, value);
-
     let parts = path_parts(path);
     let c = cursor();
     if (c == null || parts == null || parts.option == "")
@@ -540,9 +331,6 @@ function del_list(path, value) {
 }
 
 function commit(package_name) {
-    if (fixture_enabled())
-        return state_commit(package_name);
-
     let c = cursor();
     if (c == null)
         return false;
@@ -562,9 +350,6 @@ function section_name(section) {
 }
 
 function sections(package_name, type_name) {
-    if (fixture_enabled())
-        return state_sections(package_name, type_name);
-
     let c = cursor();
     if (c == null)
         return [];
@@ -585,16 +370,6 @@ function sections(package_name, type_name) {
 }
 
 function section_objects(package_name, type_name) {
-    if (fixture_enabled()) {
-        let result = [];
-        for (let name in state_sections(package_name, type_name)) {
-            let section = state_get_all(package_name, name);
-            if (type(section) == "object")
-                push(result, section);
-        }
-        return result;
-    }
-
     let c = cursor();
     if (c == null)
         return [];

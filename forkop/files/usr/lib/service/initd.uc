@@ -21,7 +21,7 @@ let paths = {
     // Written by the migration after it commits, so the reload its own commit
     // triggers is skipped.
     internal_change: "/var/run/forkop.internal-config-change",
-    autostart: "/etc/rc.d/S99forkop"
+    autostart: "/etc/rc.d/S" + constants.FORKOP_START_PRIORITY + "forkop"
 };
 
 // Loaded only by the hooks that run it: the status, trigger and WAN hooks do not.

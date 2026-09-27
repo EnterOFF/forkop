@@ -6,9 +6,8 @@ on:
       - 'fe-app-forkop/**'
       - 'luci-app-forkop/**'
       # The suite includes checks that compare the page with what the package
-      # ships, and two of them read something the shell tests share.
+      # ships, and fixtures it shares with the backend tests.
       - 'forkop/files/etc/config/forkop'
-      - 'tests/lib/**'
       - 'tests/fixtures/**'
       - '.github/workflows/frontend-ci.yml'
   push:
@@ -18,7 +17,6 @@ on:
       - 'fe-app-forkop/**'
       - 'luci-app-forkop/**'
       - 'forkop/files/etc/config/forkop'
-      - 'tests/lib/**'
       - 'tests/fixtures/**'
       - '.github/workflows/frontend-ci.yml'
 

@@ -7,9 +7,7 @@ on:
       - 'forkop/Makefile'
       - 'build.sh'
       - 'tests/**'
-      # Several checks compare a table in the ucode backend with the copy the
-      # frontend carries, so a change to either side has to run them.
-      - 'fe-app-forkop/src/**'
+      # The packaging checks read the LuCI app's package scripts and bundle.
       - 'luci-app-forkop/**'
       - '.github/workflows/build.yml'
       - '.github/workflows/backend-ci.yml'
@@ -21,7 +19,6 @@ on:
       - 'forkop/Makefile'
       - 'build.sh'
       - 'tests/**'
-      - 'fe-app-forkop/src/**'
       - 'luci-app-forkop/**'
       - '.github/workflows/build.yml'
       - '.github/workflows/backend-ci.yml'
@@ -34,8 +31,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v5.0.0
-        with:
-          fetch-depth: 0
 
       - name: Build ucode
         shell: bash
@@ -53,26 +48,12 @@ jobs:
           command -v ucode
           ucode -e 'print("ucode ready\n")'
 
-      # A few checks read a source file with node; none of them needs a package,
-      # so the frontend dependencies are not installed here. The checks that do
-      # need them are vitest tests and run in Frontend CI.
-      - name: Setup Node.js
-        uses: actions/setup-node@v5.0.0
-        with:
-          node-version: '22'
-
       - name: Check ucode syntax
         shell: bash
         run: |
           find forkop/files/usr/lib -name '*.uc' -print0 | xargs -0 -n1 ucode -c -o /dev/null
           find forkop/files/usr/lib -name '*.uc' -print0 | xargs -0 -n1 ucode -S -c -o /dev/null
 
-      - name: Run unit tests
+      - name: Run tests
         shell: bash
-        run: tests/unit/run.sh
-
-      - name: Run backend tests
-        shell: bash
-        run: |
-          find tests -name '*.sh' -not -path 'tests/lib/*' -not -path 'tests/unit/*' -print0 |
-            sort -z | xargs -0 -n1 -P4 bash
+        run: tests/run.sh

@@ -1,0 +1,103 @@
+{
+  "reserved_ports": [53, 1602, 1603, 1604, 1605, 4534, 4535, 9090],
+  "reserved_tags": [
+    "bootstrap-dns-server",
+    "direct-out",
+    "dns-in",
+    "dns-server",
+    "dnsmasq-server",
+    "fakeip-dns-rule-tag",
+    "fakeip-ruleset-dns-rule-tag",
+    "fakeip-server",
+    "hosts-server",
+    "service-components-in",
+    "service-fakeip-dns-rule-tag",
+    "service-mixed-in",
+    "source-dns-in",
+    "system-dns-in",
+    "system-in",
+    "system6-in",
+    "tproxy-in",
+    "tproxy6-in"
+  ],
+  "community_rule_sets": [
+    "ads_hagezi_pro",
+    "anime",
+    "block",
+    "cloudflare",
+    "cloudfront",
+    "digitalocean",
+    "discord",
+    "geoblock",
+    "github",
+    "google_ai",
+    "google_play",
+    "hdrezka",
+    "hetzner",
+    "hodca",
+    "meta",
+    "news",
+    "ovh",
+    "porn",
+    "roblox",
+    "russia_inside",
+    "russia_outside",
+    "supercell",
+    "telegram",
+    "tiktok",
+    "twitter",
+    "ukraine_inside",
+    "youtube"
+  ],
+  "provider_types": [
+    "vless", "vmess", "trojan", "shadowsocks",
+    "hysteria2", "hysteria", "tuic", "anytls",
+    "naive", "mieru", "snell", "shadowtls",
+    "sudoku", "trusttunnel", "masque",
+    "ssh", "tor", "socks", "http"
+  ],
+  "group_types": [
+    "vless", "vmess", "trojan", "shadowsocks",
+    "hysteria2", "hysteria", "tuic", "anytls",
+    "naive", "mieru", "snell", "shadowtls",
+    "sudoku", "trusttunnel", "masque",
+    "ssh", "tor", "socks", "http",
+    "wireguard", "amneziawg", "warp", "tailscale", "openvpn-client", "openconnect", "direct"
+  ],
+  "reserved_override_patch_paths": ["detour"],
+  "check_domains": {
+    "fakeip": "fakeip.podkop.fyi",
+    "ip": "ip.podkop.fyi"
+  },
+  "urltest_defaults": {
+    "testing_url": "https://www.gstatic.com/generate_204",
+    "expected_status": "*",
+    "check_interval": "3m",
+    "tolerance": 50,
+    "idle_timeout": "30m",
+    "interrupt_exist_connections": false
+  },
+  "fallback_defaults": {
+    "health_check_url": "https://www.gstatic.com/generate_204",
+    "health_check_interval": "5m",
+    "health_check_timeout": "5s",
+    "attempt_timeout": "5s",
+    "expected_status": "*",
+    "idle_timeout": "5m",
+    "interrupt_exist_connections": false
+  },
+  "state_wait_ms": 15000,
+  "password_fields": {
+    "hysteria2_obfs_password": "hysteria2_obfs_password",
+    "native_api_secret": "native_api_secret",
+    "openvpn_password": "endpoint_json",
+    "pre_shared_key": "pre_shared_key",
+    "private_key": "private_key",
+    "reality_private_key": "reality_private_key",
+    "shadowsocks_psk": "shadowsocks_psk",
+    "tailscale_auth_key": "tailscale_auth_key",
+    "warp_auth_token": "warp_profile_auth_token",
+    "warp_license_key": "warp_profile_license_key",
+    "warp_private_key": "warp_profile_private_key"
+  }
+}

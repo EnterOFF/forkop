@@ -45,13 +45,6 @@ const TMP_SING_BOX_FOLDER = "/tmp/sing-box";
 // rules with it and the inbound check looks for it in the loaded chain, because
 // those ports are an nftables.d include and never appear in `uci show firewall`.
 const SERVER_FIREWALL_COMMENT = "forkop: server ports";
-const JSON_ENDPOINT_TYPES = [ "vpn-server", "vpn-client", "wireguard", "amneziawg", "warp", "tailscale", "openvpn-client", "openvpn-server", "openconnect" ];
-const JSON_INBOUND_TYPES = [
-    "tun", "redirect", "tproxy", "direct", "socks", "http", "mixed",
-    "shadowsocks", "vmess", "trojan", "naive", "shadowtls", "vless",
-    "anytls", "mieru", "ssh", "bond", "failover", "trusttunnel",
-    "hysteria", "tuic", "hysteria2", "mtproxy", "sudoku", "snell", "call", "cloudflared"
-];
 
 // Outbound types a subscription can produce. sing-box builds provider nodes
 // from outbounds only, so endpoint protocols and the types its parsers refuse
@@ -200,8 +193,6 @@ return {
     FAKEIP_TEST_DOMAIN,
     TMP_SING_BOX_FOLDER,
     SERVER_FIREWALL_COMMENT,
-    JSON_ENDPOINT_TYPES,
-    JSON_INBOUND_TYPES,
     FILTERABLE_PROVIDER_TYPES,
     FILTERABLE_GROUP_TYPES,
     RESERVED_OVERRIDE_PATCH_PATHS,

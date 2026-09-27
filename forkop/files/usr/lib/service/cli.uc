@@ -197,4 +197,4 @@ function main(argv, lib) {
     return command.run(args) ?? 0;
 }
 
-return { main };
+return { main, COMMANDS };

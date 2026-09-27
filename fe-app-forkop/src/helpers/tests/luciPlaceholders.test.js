@@ -8,10 +8,8 @@ import { describe, expect, it } from 'vitest';
 import { installLuciStubs, installUciStub } from './luciStubs';
 import { analyzeStaticHosts } from '../../validators/validateStaticHosts';
 import { validateOutboundJson } from '../../validators/validateOutboundJson';
-import {
-  JSON_ENDPOINT_PLACEHOLDER,
-  JSON_ENDPOINT_TYPES,
-} from '../../forkop/tabs/sections/constants';
+import { JSON_ENDPOINT_PLACEHOLDER } from '../../forkop/tabs/sections/constants';
+import { validateTunnelSettings } from '../../forkop/tabs/sections/tunnels/validate';
 import {
   DOMAIN_CONDITION_PLACEHOLDER,
   IP_CONDITION_PLACEHOLDER,
@@ -33,7 +31,6 @@ function loadSection() {
     DOMAIN_CONDITION_PLACEHOLDER,
     IP_CONDITION_PLACEHOLDER,
     JSON_ENDPOINT_PLACEHOLDER,
-    JSON_ENDPOINT_TYPES,
     JSON_OUTBOUND_PLACEHOLDER,
     OVERRIDE_PATCH_PLACEHOLDER,
     analyzeDomainSuffixText,
@@ -102,10 +99,15 @@ describe('JSON placeholders', () => {
     });
   });
 
-  it('offers a JSON endpoint of a type the tunnel dialog allows', () => {
+  it('offers a JSON endpoint the tunnel validator accepts', () => {
     const endpoint = JSON.parse(section.JSON_ENDPOINT_PLACEHOLDER);
 
-    expect(section.JSON_ENDPOINT_TYPES.has(endpoint.type)).toBe(true);
+    expect(
+      validateTunnelSettings({
+        tunnel_type: 'json',
+        endpoint_json: section.JSON_ENDPOINT_PLACEHOLDER,
+      }),
+    ).toBe(true);
     expect(endpoint.tag.trim()).not.toBe('');
     // The generator reads the endpoint tag as the name the tunnel is listed
     // under, so an example without one would teach the wrong shape.

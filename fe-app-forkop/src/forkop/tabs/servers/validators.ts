@@ -3,7 +3,6 @@
 // only when the core has no default for it.
 
 import { validatePath } from '../../../validators/validatePath';
-import { JSON_INBOUND_TYPES } from './constants';
 import { normalizeMtprotoBaseSecret } from './credentials';
 import {
   hasControlCharacters,
@@ -152,9 +151,9 @@ export function validateOptionalMasquerade(_sectionId: string, value: string) {
     : _('Use an https:// URL to proxy a site or file:// to serve a directory');
 }
 
-// Forkop names the inbound after the server, so singbox/servers.uc overwrites
-// whatever tag the pasted object carries. Pasting a whole inbound from somewhere
-// else is the point of this field, and a tag is part of what gets pasted.
+// The inbound goes to sing-box as pasted, and sing-box judges what it holds.
+// Forkop names it after the server, so singbox/servers.uc overwrites whatever
+// tag the pasted object carries.
 export function validateInboundJson(_sectionId: string, value: string) {
   if (isEmptyValue(value)) {
     return _('This field is required');
@@ -167,29 +166,9 @@ export function validateInboundJson(_sectionId: string, value: string) {
     return _('Invalid JSON format');
   }
 
-  if (
-    !parsed ||
-    typeof parsed !== 'object' ||
-    Array.isArray(parsed) ||
-    typeof parsed.type !== 'string' ||
-    !parsed.type
-  ) {
-    return _('The object must have a type field');
-  }
-
-  const type = parsed.type.trim();
-  if (parsed.type !== type || !JSON_INBOUND_TYPES.has(type)) {
-    return _('sing-box has no inbound of type %s').format(type);
-  }
-
-  if (parsed.listen_port != null) {
-    const port = validatePort(null, `${parsed.listen_port}`);
-    if (port !== true) {
-      return port;
-    }
-  }
-
-  return true;
+  return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+    ? true
+    : _('Enter a valid JSON object');
 }
 
 export function validateOptionalPositiveInteger(

@@ -494,7 +494,7 @@ function reload(reason) {
 // Autostart is the rc.d link and has nothing to do with the runtime. The init
 // script's own enable waits on procd's per-service lock for as long as any other
 // command on the service runs - measured at 41 s during a restart.
-const AUTOSTART_PRIORITY = "99";
+const AUTOSTART_PRIORITY = constants.FORKOP_START_PRIORITY;
 
 function enable() {
     let link = paths.rc_dir + "/S" + AUTOSTART_PRIORITY + "forkop";

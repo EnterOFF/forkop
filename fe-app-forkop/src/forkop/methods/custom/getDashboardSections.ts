@@ -8,6 +8,7 @@ import { getProxyUrlName } from '../../../helpers/getProxyUrlName';
 import { isCopyableProxyLink } from '../../../helpers/isCopyableProxyLink';
 import { ForkopShellMethods } from '../shell';
 import { subscriptionTags } from '../../../helpers/subscriptionTags';
+import { DEFAULT_LATENCY_TEST_URL } from '../../../constants';
 
 interface IGetDashboardSectionsResponse {
   success: boolean;
@@ -87,7 +88,6 @@ type DirectClashApiOutcome =
   | { kind: 'unreachable' };
 
 const CLASH_API_FETCH_TIMEOUT_MS = 5000;
-const DEFAULT_LATENCY_TEST_URL = 'https://www.gstatic.com/generate_204';
 const CLASH_API_MUTATION_TIMEOUT_MS = 15000;
 // How long a group test may hold the page. It is a ceiling and not a wait: the
 // router answers as soon as the last member is done, so a section whose nodes
@@ -977,6 +977,29 @@ function getUrlTestDisplayName(
   );
 }
 
+// What an option a group leaves unset means. config/connections.uc gives the
+// generated configuration the same values, and tests/fixtures/page_contract.json
+// holds both sides to them.
+export const URLTEST_DEFAULTS = {
+  testing_url: DEFAULT_LATENCY_TEST_URL,
+  expected_status: '*',
+  check_interval: '3m',
+  tolerance: 50,
+  // Not written when unset; this is what sing-box then applies.
+  idle_timeout: '30m',
+  interrupt_exist_connections: false,
+};
+
+export const FALLBACK_DEFAULTS = {
+  health_check_url: DEFAULT_LATENCY_TEST_URL,
+  health_check_interval: '5m',
+  health_check_timeout: '5s',
+  attempt_timeout: '5s',
+  expected_status: '*',
+  idle_timeout: '5m',
+  interrupt_exist_connections: false,
+};
+
 function getUrlTestConfigs(section: Forkop.ConfigSection): UrlTestConfig[] {
   const settingsMap = itemSettingsMap(section.urltest_settings);
 
@@ -996,22 +1019,32 @@ function getUrlTestConfigs(section: Forkop.ConfigSection): UrlTestConfig[] {
       testingUrl: itemSettingString(
         settings,
         'urltest_testing_url',
-        'https://www.gstatic.com/generate_204',
+        URLTEST_DEFAULTS.testing_url,
       ),
-      expectedStatus: itemSettingString(settings, 'expected_status', '*'),
+      expectedStatus: itemSettingString(
+        settings,
+        'expected_status',
+        URLTEST_DEFAULTS.expected_status,
+      ),
       checkInterval: itemSettingString(
         settings,
         'urltest_check_interval',
-        '3m',
+        URLTEST_DEFAULTS.check_interval,
       ),
-      tolerance: itemSettingNumber(settings, 'urltest_tolerance', 50),
-      idleTimeout: itemSettingString(settings, 'idle_timeout', '30m'),
-      // Keep the defaults in sync with urltest_* in config/connections.uc:
-      // that is what the generated sing-box configuration actually carries.
+      tolerance: itemSettingNumber(
+        settings,
+        'urltest_tolerance',
+        URLTEST_DEFAULTS.tolerance,
+      ),
+      idleTimeout: itemSettingString(
+        settings,
+        'idle_timeout',
+        URLTEST_DEFAULTS.idle_timeout,
+      ),
       interruptExistConnections: itemSettingBoolean(
         settings,
         'interrupt_exist_connections',
-        false,
+        URLTEST_DEFAULTS.interrupt_exist_connections,
       ),
     };
   });
@@ -1085,25 +1118,37 @@ function getFallbackConfigs(section: Forkop.ConfigSection): FallbackConfig[] {
       healthCheckUrl: itemSettingString(
         settings,
         'health_check_url',
-        'https://www.gstatic.com/generate_204',
+        FALLBACK_DEFAULTS.health_check_url,
       ),
       healthCheckInterval: itemSettingString(
         settings,
         'health_check_interval',
-        '5m',
+        FALLBACK_DEFAULTS.health_check_interval,
       ),
       healthCheckTimeout: itemSettingString(
         settings,
         'health_check_timeout',
-        '5s',
+        FALLBACK_DEFAULTS.health_check_timeout,
       ),
-      attemptTimeout: itemSettingString(settings, 'attempt_timeout', '5s'),
-      expectedStatus: itemSettingString(settings, 'expected_status', '*'),
-      idleTimeout: itemSettingString(settings, 'idle_timeout', '5m'),
+      attemptTimeout: itemSettingString(
+        settings,
+        'attempt_timeout',
+        FALLBACK_DEFAULTS.attempt_timeout,
+      ),
+      expectedStatus: itemSettingString(
+        settings,
+        'expected_status',
+        FALLBACK_DEFAULTS.expected_status,
+      ),
+      idleTimeout: itemSettingString(
+        settings,
+        'idle_timeout',
+        FALLBACK_DEFAULTS.idle_timeout,
+      ),
       interruptExistConnections: itemSettingBoolean(
         settings,
         'interrupt_exist_connections',
-        false,
+        FALLBACK_DEFAULTS.interrupt_exist_connections,
       ),
       levels,
     };

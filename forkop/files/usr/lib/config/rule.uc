@@ -318,7 +318,6 @@ return {
     prefixed_domain_kind_value,
     domain_value_for_key,
     normalize_domain_subnet_value,
-    legacy_condition_csv_value,
     rule_condition_csv_value,
     rule_ports_csv_value,
     community_service_has_subnet_list,

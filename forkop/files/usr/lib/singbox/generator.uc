@@ -1207,8 +1207,8 @@ function add_connection_tunnels(config, section, taken, selector_tags, urltest_c
         let endpoint = connections.tunnel_endpoint(tunnel);
         let endpoint_type = lc(as_string(endpoint.type || ""));
         let wrapper_kind = lc(as_string(connections.option(tunnel, "kind", "wireguard")));
-        if (endpoint_type == "" ||
-            (endpoint_type != "wireguard" && endpoint_type != "amneziawg" && endpoint_type != "warp" && endpoint_type != "tailscale" && endpoint_type != "openvpn-client" && wrapper_kind != "json"))
+        if (wrapper_kind != "json" &&
+            (endpoint_type != "wireguard" && endpoint_type != "amneziawg" && endpoint_type != "warp" && endpoint_type != "tailscale" && endpoint_type != "openvpn-client"))
             runtime_generate_unsupported("tunnel " + (i + 1) + " has an unsupported endpoint type");
 
         let display_name = trim(as_string(endpoint.tag || ""));

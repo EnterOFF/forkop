@@ -75,39 +75,6 @@ export const CLIENT_FINGERPRINTS = [
   'random',
 ];
 
-// Inbound types the raw JSON field accepts, taken from the inbound registry the
-// Forkop core builds (include/registry.go). These are the names the core knows,
-// not the names this tab uses: the Telegram proxy is registered as mtproxy.
-export const JSON_INBOUND_TYPES = new Set([
-  'tun',
-  'redirect',
-  'tproxy',
-  'direct',
-  'socks',
-  'http',
-  'mixed',
-  'shadowsocks',
-  'vmess',
-  'trojan',
-  'naive',
-  'shadowtls',
-  'vless',
-  'anytls',
-  'mieru',
-  'ssh',
-  'bond',
-  'failover',
-  'trusttunnel',
-  'hysteria',
-  'tuic',
-  'hysteria2',
-  'mtproxy',
-  'sudoku',
-  'snell',
-  'call',
-  'cloudflared',
-]);
-
 // Forkop generates into its own directory, so a path there is a certificate it
 // issued and a client has to be told to accept it. A path anywhere else is the
 // user's own certificate and is assumed to be trusted.

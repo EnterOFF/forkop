@@ -140,7 +140,7 @@ function current_state() {
     refresh();
     let executable = (path) => ((fs.stat(path)?.mode ?? 0) & 0111) != 0;
     let forkop_running = health.forkop_stably_running(constants.RT_TABLE_NAME, constants.NFT_TABLE_NAME, constants.NFT_FAKEIP_MARK, STABLE_MIN_AGE) ? 1 : 0;
-    let forkop_enabled = executable(paths.rc_dir + "/S99forkop") ? 1 : 0;
+    let forkop_enabled = executable(paths.rc_dir + "/S" + constants.FORKOP_START_PRIORITY + "forkop") ? 1 : 0;
     let sing_box_running = forkop_running || health.sing_box_service_stable(STABLE_MIN_AGE) ? 1 : 0;
     let sing_box_enabled = executable(paths.rc_dir + "/S99sing-box") ? 1 : 0;
     let job = running_service_job();

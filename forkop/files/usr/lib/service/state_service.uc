@@ -664,6 +664,7 @@ function run() {
 
 if ((sourcepath(1) != null && sourcepath(1) != "") || ARGV[0] == null)
     return {
+        MAX_WAIT_MS,
         watch_signature,
         reply_payload,
         package_db_signature,

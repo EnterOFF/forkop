@@ -2183,7 +2183,6 @@ function subscriptionTags(stored) {
 
 // src/forkop/methods/custom/getDashboardSections.ts
 var CLASH_API_FETCH_TIMEOUT_MS = 5e3;
-var DEFAULT_LATENCY_TEST_URL2 = "https://www.gstatic.com/generate_204";
 var CLASH_API_MUTATION_TIMEOUT_MS = 15e3;
 var GROUP_LATENCY_TIMEOUT_MS = "40000";
 var GROUP_LATENCY_SWEEP_OVERSHOOT_MS = 5e3;
@@ -2354,7 +2353,7 @@ async function requestClashApi(path, init, timeout, options) {
   return fetchClashApiThroughCli(method, path, body);
 }
 function getLatencyTestUrl() {
-  return getSettingsSection(clashApiConfigSections)?.latency_test_url || DEFAULT_LATENCY_TEST_URL2;
+  return getSettingsSection(clashApiConfigSections)?.latency_test_url || DEFAULT_LATENCY_TEST_URL;
 }
 function latencyRequestTimeout(timeout, overshoot = 0) {
   return (Number.parseInt(timeout, 10) || CLASH_API_FETCH_TIMEOUT_MS) + overshoot + CLASH_API_FETCH_TIMEOUT_MS;
@@ -2783,6 +2782,24 @@ function getUrlTestDisplayName(section, id, settings) {
     id === "urltest" && !hasConfiguredUrlTestList(section) ? "Fastest" : id
   );
 }
+var URLTEST_DEFAULTS = {
+  testing_url: DEFAULT_LATENCY_TEST_URL,
+  expected_status: "*",
+  check_interval: "3m",
+  tolerance: 50,
+  // Not written when unset; this is what sing-box then applies.
+  idle_timeout: "30m",
+  interrupt_exist_connections: false
+};
+var FALLBACK_DEFAULTS = {
+  health_check_url: DEFAULT_LATENCY_TEST_URL,
+  health_check_interval: "5m",
+  health_check_timeout: "5s",
+  attempt_timeout: "5s",
+  expected_status: "*",
+  idle_timeout: "5m",
+  interrupt_exist_connections: false
+};
 function getUrlTestConfigs(section) {
   const settingsMap = itemSettingsMap(section.urltest_settings);
   return getUrlTestIds(section).map((id) => {
@@ -2800,22 +2817,32 @@ function getUrlTestConfigs(section) {
       testingUrl: itemSettingString(
         settings,
         "urltest_testing_url",
-        "https://www.gstatic.com/generate_204"
+        URLTEST_DEFAULTS.testing_url
       ),
-      expectedStatus: itemSettingString(settings, "expected_status", "*"),
+      expectedStatus: itemSettingString(
+        settings,
+        "expected_status",
+        URLTEST_DEFAULTS.expected_status
+      ),
       checkInterval: itemSettingString(
         settings,
         "urltest_check_interval",
-        "3m"
+        URLTEST_DEFAULTS.check_interval
       ),
-      tolerance: itemSettingNumber(settings, "urltest_tolerance", 50),
-      idleTimeout: itemSettingString(settings, "idle_timeout", "30m"),
-      // Keep the defaults in sync with urltest_* in config/connections.uc:
-      // that is what the generated sing-box configuration actually carries.
+      tolerance: itemSettingNumber(
+        settings,
+        "urltest_tolerance",
+        URLTEST_DEFAULTS.tolerance
+      ),
+      idleTimeout: itemSettingString(
+        settings,
+        "idle_timeout",
+        URLTEST_DEFAULTS.idle_timeout
+      ),
       interruptExistConnections: itemSettingBoolean(
         settings,
         "interrupt_exist_connections",
-        false
+        URLTEST_DEFAULTS.interrupt_exist_connections
       )
     };
   });
@@ -2869,25 +2896,37 @@ function getFallbackConfigs(section) {
       healthCheckUrl: itemSettingString(
         settings,
         "health_check_url",
-        "https://www.gstatic.com/generate_204"
+        FALLBACK_DEFAULTS.health_check_url
       ),
       healthCheckInterval: itemSettingString(
         settings,
         "health_check_interval",
-        "5m"
+        FALLBACK_DEFAULTS.health_check_interval
       ),
       healthCheckTimeout: itemSettingString(
         settings,
         "health_check_timeout",
-        "5s"
+        FALLBACK_DEFAULTS.health_check_timeout
       ),
-      attemptTimeout: itemSettingString(settings, "attempt_timeout", "5s"),
-      expectedStatus: itemSettingString(settings, "expected_status", "*"),
-      idleTimeout: itemSettingString(settings, "idle_timeout", "5m"),
+      attemptTimeout: itemSettingString(
+        settings,
+        "attempt_timeout",
+        FALLBACK_DEFAULTS.attempt_timeout
+      ),
+      expectedStatus: itemSettingString(
+        settings,
+        "expected_status",
+        FALLBACK_DEFAULTS.expected_status
+      ),
+      idleTimeout: itemSettingString(
+        settings,
+        "idle_timeout",
+        FALLBACK_DEFAULTS.idle_timeout
+      ),
       interruptExistConnections: itemSettingBoolean(
         settings,
         "interrupt_exist_connections",
-        false
+        FALLBACK_DEFAULTS.interrupt_exist_connections
       ),
       levels
     };
@@ -12846,30 +12885,8 @@ function validateUniqueDynamicListItemName(widget, itemNode, value) {
 }
 
 // src/validators/validateOutboundJson.ts
-var SERVER_OUTBOUND_TYPES = /* @__PURE__ */ new Set([
-  "vless",
-  "vmess",
-  "trojan",
-  "shadowsocks",
-  "socks",
-  "http",
-  "hysteria2",
-  "hysteria"
-]);
 function invalid(message) {
   return { valid: false, message };
-}
-function isPlainObject(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-function nonEmptyString(value) {
-  return typeof value === "string" && value.trim().length > 0;
-}
-function validateServerPort(value) {
-  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 65535;
-}
-function validateOutbounds(value) {
-  return Array.isArray(value) && value.length > 0 && value.every((item) => nonEmptyString(item));
 }
 function validateOutboundJson(value, usedTags = []) {
   const normalized = `${value || ""}`.trim();
@@ -12880,53 +12897,17 @@ function validateOutboundJson(value, usedTags = []) {
   try {
     parsed = JSON.parse(normalized);
   } catch {
-    return { valid: false, message: _("Invalid JSON format") };
+    return invalid(_("Invalid JSON format"));
   }
-  if (!isPlainObject(parsed)) {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     return invalid(_("JSON outbound must be a JSON object"));
   }
-  if (!nonEmptyString(parsed.type)) {
-    return invalid(_("JSON outbound must contain a non-empty type field"));
-  }
-  if (parsed.type !== parsed.type.trim() || parsed.type !== parsed.type.toLowerCase()) {
-    return invalid(
-      _("JSON outbound type must be lowercase without surrounding whitespace")
-    );
-  }
-  if (!nonEmptyString(parsed.tag)) {
+  const tag = parsed.tag;
+  if (typeof tag !== "string" || !tag.trim()) {
     return invalid(_("JSON outbound must contain a non-empty tag field"));
   }
-  const tag = parsed.tag.trim();
-  if (usedTags.some((usedTag) => `${usedTag || ""}`.trim() === tag)) {
+  if (usedTags.some((usedTag) => `${usedTag || ""}`.trim() === tag.trim())) {
     return invalid(_("Duplicate JSON outbound tag"));
-  }
-  const type = parsed.type;
-  if ((type === "selector" || type === "urltest") && !validateOutbounds(parsed.outbounds)) {
-    return invalid(
-      _(
-        "Selector and URLTest outbounds must contain a non-empty outbounds array"
-      )
-    );
-  }
-  if (SERVER_OUTBOUND_TYPES.has(type)) {
-    if (!nonEmptyString(parsed.server)) {
-      return invalid(
-        _("Server outbound must contain a non-empty server field")
-      );
-    }
-    if (!validateServerPort(parsed.server_port)) {
-      return invalid(
-        _("Server outbound must contain a numeric server_port from 1 to 65535")
-      );
-    }
-  } else if (parsed.server_port !== void 0 && !validateServerPort(parsed.server_port)) {
-    return invalid(_("server_port must be a number from 1 to 65535"));
-  }
-  if (parsed.outbounds !== void 0 && !validateOutbounds(parsed.outbounds)) {
-    return invalid(_("outbounds must be a non-empty array of strings"));
-  }
-  if (parsed.detour !== void 0 && !nonEmptyString(parsed.detour)) {
-    return invalid(_("detour must be a non-empty string"));
   }
   return { valid: true, message: _("Valid") };
 }
@@ -14736,17 +14717,6 @@ var ROUTING_ACTIONS = [
   "bypass",
   "block"
 ];
-var JSON_ENDPOINT_TYPES = /* @__PURE__ */ new Set([
-  "openvpn-client",
-  "openvpn-server",
-  "openconnect",
-  "vpn-server",
-  "vpn-client",
-  "wireguard",
-  "amneziawg",
-  "warp",
-  "tailscale"
-]);
 var JSON_ENDPOINT_PLACEHOLDER = [
   "{",
   '  "type": "wireguard",',
@@ -15258,11 +15228,9 @@ var OVERRIDE_PATCH_PLACEHOLDER = [
   "  }",
   "}"
 ].join("\n");
-function reservedOverridePatchPaths() {
-  return ["detour"];
-}
+var RESERVED_OVERRIDE_PATCH_PATHS = ["detour"];
 function reservedOverridePatchPath(document2) {
-  return reservedOverridePatchPaths().find((path) => {
+  return RESERVED_OVERRIDE_PATCH_PATHS.find((path) => {
     let node = document2;
     for (const segment of path.split(".")) {
       if (!node || typeof node !== "object" || Array.isArray(node)) {
@@ -18483,12 +18451,6 @@ function validateTunnelSettings(settings, tunnelId, peerOption) {
     return kind === "json" ? _("Enter a valid JSON endpoint object") : _("Open peer settings and complete the configuration");
   }
   if (kind === "json") {
-    if (typeof endpoint.type !== "string" || !endpoint.type.trim()) {
-      return _("JSON endpoint must contain a non-empty type");
-    }
-    if (endpoint.type !== endpoint.type.trim() || !JSON_ENDPOINT_TYPES.has(endpoint.type.trim())) {
-      return _("Unsupported JSON endpoint type");
-    }
     if (typeof endpoint.tag !== "string" || !endpoint.tag.trim()) {
       return _("JSON endpoint must contain a non-empty tag");
     }
@@ -18880,11 +18842,8 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   endpointJsonOption.depends("tunnel_type", "json");
   endpointJsonOption.validate = function(_itemId, value) {
     const endpoint = parseOutboundJsonObject(value);
-    if (!endpoint || typeof endpoint.type !== "string" || !endpoint.type.trim()) {
-      return _("JSON endpoint must contain a non-empty type");
-    }
-    if (endpoint.type !== endpoint.type.trim() || !JSON_ENDPOINT_TYPES.has(endpoint.type.trim())) {
-      return _("Unsupported JSON endpoint type");
+    if (!endpoint) {
+      return _("Enter a valid JSON endpoint object");
     }
     return typeof endpoint.tag === "string" && endpoint.tag.trim() ? true : _("JSON endpoint must contain a non-empty tag");
   };
@@ -19974,35 +19933,6 @@ var CLIENT_FINGERPRINTS = [
   "android",
   "random"
 ];
-var JSON_INBOUND_TYPES = /* @__PURE__ */ new Set([
-  "tun",
-  "redirect",
-  "tproxy",
-  "direct",
-  "socks",
-  "http",
-  "mixed",
-  "shadowsocks",
-  "vmess",
-  "trojan",
-  "naive",
-  "shadowtls",
-  "vless",
-  "anytls",
-  "mieru",
-  "ssh",
-  "bond",
-  "failover",
-  "trusttunnel",
-  "hysteria",
-  "tuic",
-  "hysteria2",
-  "mtproxy",
-  "sudoku",
-  "snell",
-  "call",
-  "cloudflared"
-]);
 var SERVER_CERT_DIR = "/etc/forkop/server-certs/";
 var CLIENT_KEYS = [
   "name",
@@ -22027,20 +21957,7 @@ function validateInboundJson(_sectionId, value) {
   } catch (_error) {
     return _("Invalid JSON format");
   }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || typeof parsed.type !== "string" || !parsed.type) {
-    return _("The object must have a type field");
-  }
-  const type = parsed.type.trim();
-  if (parsed.type !== type || !JSON_INBOUND_TYPES.has(type)) {
-    return _("sing-box has no inbound of type %s").format(type);
-  }
-  if (parsed.listen_port != null) {
-    const port = validatePort(null, `${parsed.listen_port}`);
-    if (port !== true) {
-      return port;
-    }
-  }
-  return true;
+  return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? true : _("Enter a valid JSON object");
 }
 function validateOptionalPositiveInteger(_sectionId, value) {
   return isEmptyValue(value) || /^[1-9][0-9]*$/.test(`${value}`) ? true : _("Use a positive integer");
@@ -23878,7 +23795,7 @@ function addTrafficOptions(section) {
     form.Flag,
     "enable_native_api",
     _("sing-box Dashboard and API"),
-    `${_("Manage connections and interactive VPN authentication. The dashboard is downloaded to RAM when enabled.")} <a href="${nativeDashboardUrl}" target="_blank" rel="noopener noreferrer">${_("Open dashboard")}</a>`
+    `${_("Manage connections and interactive VPN authentication")} <a href="${nativeDashboardUrl}" target="_blank" rel="noopener noreferrer">${_("Open dashboard")}</a>`
   );
   o.default = "0";
   o.rmempty = false;

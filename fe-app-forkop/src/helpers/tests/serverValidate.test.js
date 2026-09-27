@@ -116,15 +116,22 @@ describe('raw inbound JSON validation', () => {
     ).toBe(true);
   });
 
-  it('rejects unsupported types, broken JSON and bad ports', () => {
-    expect(validate.validateInboundJson('srv', '{"type":"nope"}')).toMatch(
-      /no inbound of type/,
-    );
+  // The contents are sing-box's to judge: a type this Forkop does not know, a
+  // missing type or an odd port reach the core, which says what it refuses.
+  it.each([
+    '{"type":"a-type-from-a-newer-core"}',
+    '{"listen_port":0}',
+    '{"type":"mixed","listen_port":"1080"}',
+  ])('leaves the contents of %s to sing-box', (value) => {
+    expect(validate.validateInboundJson('srv', value)).toBe(true);
+  });
+
+  it('rejects what is not a JSON object', () => {
     expect(validate.validateInboundJson('srv', '{')).toMatch(/Invalid JSON/);
-    expect(validate.validateInboundJson('srv', '[]')).toMatch(/type field/);
-    expect(
-      validate.validateInboundJson('srv', '{"type":"mixed","listen_port":0}'),
-    ).toMatch(/1 and 65535/);
+    expect(validate.validateInboundJson('srv', '[]')).toMatch(/JSON object/);
+    expect(validate.validateInboundJson('srv', '"mixed"')).toMatch(
+      /JSON object/,
+    );
     expect(validate.validateInboundJson('srv', '')).toMatch(/required/);
   });
 });

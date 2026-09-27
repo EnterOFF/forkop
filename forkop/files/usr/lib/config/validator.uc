@@ -599,15 +599,8 @@ function outbound_json_object(value) {
     return type(value) == "object" ? value : null;
 }
 
-function valid_outbound_json(value) {
-    value = outbound_json_object(value);
-    if (value == null || type(value.type) != "string")
-        return false;
-
-    let outbound_type = as_string(value.type);
-    return outbound_type != "" && outbound_type == trim(outbound_type) && outbound_type == lc(outbound_type);
-}
-
+// A JSON field reaches sing-box as written, and sing-box says in its log what it
+// refuses; Forkop needs no more than an object, and the tag it lists it under.
 function validate_outbound_json_rule(section) {
     let name = section_name(section);
     let outbound_json = option(section, "outbound_json", "");
@@ -615,8 +608,8 @@ function validate_outbound_json_rule(section) {
     if (outbound_json == "")
         fail_validation("JSON outbound rule '" + name + "' has empty outbound_json. Aborted.");
 
-    if (!valid_outbound_json(outbound_json))
-        fail_validation("JSON outbound rule '" + name + "' must contain a valid sing-box outbound JSON object with a lowercase type field without surrounding whitespace. Aborted.");
+    if (outbound_json_object(outbound_json) == null)
+        fail_validation("JSON outbound rule '" + name + "' must contain a JSON object. Aborted.");
 }
 
 function validate_outbound_json_values(section) {
@@ -629,10 +622,10 @@ function validate_outbound_json_values(section) {
         if (as_string(value) == "")
             fail_validation("Connection rule '" + name + "' has empty JSON outbound. Aborted.");
 
-        if (!valid_outbound_json(value))
-            fail_validation("Connection rule '" + name + "' must contain valid sing-box outbound JSON objects with lowercase type fields without surrounding whitespace. Aborted.");
-
         let outbound = outbound_json_object(value);
+        if (outbound == null)
+            fail_validation("Connection rule '" + name + "' has a JSON outbound that is not a JSON object. Aborted.");
+
         let tag_name = trim(as_string(outbound.tag || ""));
         if (tag_name == "" && require_user_tag)
             fail_validation("Connection rule '" + name + "' has JSON outbound without a non-empty tag. Aborted.");
@@ -771,21 +764,20 @@ function validate_tunnel_values(section) {
         let endpoint = connections.tunnel_endpoint(tunnel);
         let endpoint_type = lc(trim(as_string(endpoint.type || "")));
         let wrapper_kind = lc(trim(as_string(connections.option(tunnel, "kind", "wireguard"))));
-        if (endpoint_type == "" ||
-            (endpoint_type != "wireguard" && endpoint_type != "amneziawg" && endpoint_type != "warp" && endpoint_type != "tailscale" && endpoint_type != "openvpn-client" && wrapper_kind != "json"))
-            fail_validation("Connection rule '" + name + "' contains an invalid tunnel endpoint. Aborted.");
-        if (wrapper_kind != "json" && trim(as_string(connections.option(tunnel, "name", ""))) == "")
-            fail_validation("Connection rule '" + name + "' contains a tunnel without a name. Aborted.");
 
         if (wrapper_kind == "json") {
-            let json_endpoint_type = as_string(endpoint.type || "");
-            if (json_endpoint_type != trim(json_endpoint_type) ||
-                !contains(singbox_constants.JSON_ENDPOINT_TYPES, json_endpoint_type))
-                fail_validation("Connection rule '" + name + "' contains unsupported JSON endpoint type '" + json_endpoint_type + "'. Aborted.");
+            if (type(core_common.parse_json(connections.option(tunnel, "endpoint_json", ""))) != "object")
+                fail_validation("Connection rule '" + name + "' has a JSON endpoint that is not a JSON object. Aborted.");
             if (trim(as_string(endpoint.tag || "")) == "")
                 fail_validation("Connection rule '" + name + "' contains a JSON endpoint without a tag. Aborted.");
             continue;
         }
+
+        if (endpoint_type == "" ||
+            (endpoint_type != "wireguard" && endpoint_type != "amneziawg" && endpoint_type != "warp" && endpoint_type != "tailscale" && endpoint_type != "openvpn-client"))
+            fail_validation("Connection rule '" + name + "' contains an invalid tunnel endpoint. Aborted.");
+        if (trim(as_string(connections.option(tunnel, "name", ""))) == "")
+            fail_validation("Connection rule '" + name + "' contains a tunnel without a name. Aborted.");
 
         if (wrapper_kind == "openvpn-client") {
             if (endpoint_type != "openvpn-client" || (trim(as_string(endpoint.server || "")) == "" && length(array_or_empty(endpoint.servers)) == 0))
@@ -885,13 +877,8 @@ function validate_json_inbound_values() {
             fail_validation("Server '" + name + "' contains invalid JSON inbound. Aborted.");
         }
 
-        if (type(inbound) != "object" || type(inbound.type) != "string" || trim(as_string(inbound.type)) == "")
-            fail_validation("Server '" + name + "' must contain a JSON inbound object with a type field. Aborted.");
-
-        let inbound_type = as_string(inbound.type);
-        if (inbound_type != trim(inbound_type) ||
-            !contains(singbox_constants.JSON_INBOUND_TYPES, inbound_type))
-            fail_validation("Server '" + name + "' contains unsupported JSON inbound type '" + inbound_type + "'. Aborted.");
+        if (type(inbound) != "object")
+            fail_validation("Server '" + name + "' must contain a JSON inbound object. Aborted.");
     }
 }
 

@@ -112,6 +112,7 @@ function section_tag_map() {
 }
 
 return {
+    COMMUNITY_SERVICES,
     is_community,
     community_url,
     community_tag,

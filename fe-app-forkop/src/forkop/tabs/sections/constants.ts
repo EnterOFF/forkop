@@ -9,18 +9,6 @@ export const ROUTING_ACTIONS = [
   'block',
 ];
 
-export const JSON_ENDPOINT_TYPES = new Set([
-  'openvpn-client',
-  'openvpn-server',
-  'openconnect',
-  'vpn-server',
-  'vpn-client',
-  'wireguard',
-  'amneziawg',
-  'warp',
-  'tailscale',
-]);
-
 // Shown greyed out in the JSON endpoint editor: the smallest object the
 // validator and sing-box both accept, so the shape is read instead of
 // described. The tag becomes the name the tunnel is listed under.
