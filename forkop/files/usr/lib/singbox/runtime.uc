@@ -99,7 +99,7 @@ function check(text) {
     let path = sprintf("/tmp/forkop-sing-box-check.%d.%d.json", now[0], now[1]);
     if (!common.write_file(path, text))
         die("Failed to write the generated sing-box configuration. Aborted.");
-    let result = exec.combined([ "sing-box", "-c", path, "check" ]);
+    let result = exec.combined([ "sing-box", "--disable-color", "-c", path, "check" ]);
     fs.unlink(path);
     if (result.status == 0)
         return;

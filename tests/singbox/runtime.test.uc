@@ -50,7 +50,7 @@ t.test("the configuration is written where the service reads it, and only when i
 t.test("a configuration the core refuses is reported by its first line and never written", () => {
     let dir = stub.tmpdir();
     fixture.seed(configuration(dir));
-    tools([ [ /'sing-box' '-c' .* 'check'/, { status: 42, stdout: "\nFATAL[0000] route: missing outbound tag\nmore\n" } ] ]);
+    tools([ [ /'sing-box' '--disable-color' '-c' .* 'check'/, { status: 42, stdout: "\nFATAL[0000] route: missing outbound tag\nmore\n" } ] ]);
     let e = t.throws(() => runtime.write_config(true));
     stub.restore();
     t.eq(e.message, "Generated sing-box configuration is invalid: FATAL[0000] route: missing outbound tag. Aborted.");
@@ -62,7 +62,7 @@ t.test("a configuration the core refuses is reported by its first line and never
 t.test("a checked configuration is checked even when it did not change", () => {
     let dir = stub.tmpdir();
     fixture.seed(configuration(dir));
-    tools([ [ /'sing-box' '-c' .* 'check'/, {} ] ]);
+    tools([ [ /'sing-box' '--disable-color' '-c' .* 'check'/, {} ] ]);
     runtime.write_config(true);
     runtime.write_config(true);
     t.eq(length(filter(stub.command_lines(), (line) => match(line, / check$/))), 2);
