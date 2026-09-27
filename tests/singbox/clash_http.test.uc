@@ -2,6 +2,7 @@ let t = require("t");
 let stub = require("stub");
 let fs = require("fs");
 let fixture = require("fixture");
+let program = require("program");
 let cli = require("service.cli");
 let clash = require("singbox.clash_http");
 
@@ -113,10 +114,18 @@ t.test("the summary carries the totals and the count, never the connection list"
     t.contains(join(" ", requests[0].argv), "-X GET");
 });
 
+// The page reaches the Clash API through this on every poll, so loading it has
+// to stay cheap: the modules a fresh interpreter ends up with are counted, not
+// the require lines, so what they load in turn counts too.
 t.test("the transport loads nothing beyond core and the constants", () => {
-    let module_source = fs.readfile(sourcepath(0, true) + "/../../../forkop/files/usr/lib/singbox/clash_http.uc");
-    for (let required in match(module_source, /require\("([a-z_.]+)"\)/g))
-        t.ok(substr(required[1], 0, 5) == "core." || required[1] == "fs" || required[1] == "singbox.constants", "requires " + required[1]);
+    let probe = stub.tmpdir() + "/probe.uc";
+    fs.writefile(probe, "require(\"singbox.clash_http\");\nprint(join(\" \", keys(global.modules)), \"\\n\");\n");
+    let pipe = fs.popen("ucode -L '" + program.LIBRARY + "' '" + probe + "'", "r");
+    let loaded = split(trim(pipe.read("all")), " ");
+    pipe.close();
+    t.contains(loaded, "singbox.clash_http");
+    t.eq(filter(loaded, (name) => substr(name, 0, 5) != "core." &&
+        index([ "fs", "singbox.constants", "singbox.clash_http" ], name) < 0), []);
 });
 
 t.done();

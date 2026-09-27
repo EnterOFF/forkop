@@ -64,14 +64,6 @@ t.test("types name the feature they need by the kind of object they are", () => 
     t.eq(features.type_feature("outbound", "vless"), "");
 });
 
-// The core's own rules: a fingerprint counts on a TLS link, Reality always sends
-// one, and Trojan, TUIC, Hysteria and AnyTLS are TLS without saying so. The page
-// reads links by the same cases.
-t.test("a link needs what the core needs to dial it", () => {
-    for (let entry in json(fs.readfile(require("repo").path("tests/fixtures/link_features.json"))))
-        t.eq(features.link_features(entry[0]), entry[1], entry[0]);
-});
-
 t.test("the page is told each feature, the tags that make it and the types that need it", () => {
     core(BASE);
     let report = features.report();
@@ -82,13 +74,6 @@ t.test("the page is told each feature, the tags that make it and the types that 
     t.eq(report.types.outbound.hysteria2, "quic");
     t.eq(report.links.hy2, "hysteria2");
     stub.restore();
-});
-
-// The page's tests read the base build's report from this fixture instead
-// of asking ucode, so it is held to what this module says.
-t.test("the fixture the page is tested with is this module's report for the base build", () => {
-    let fixture = json(fs.readfile(require("repo").path("tests/fixtures/core_features_base.json")));
-    t.eq(features.report(split(BASE, ",")), fixture);
 });
 
 t.done();

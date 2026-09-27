@@ -50,19 +50,53 @@
     "youtube"
   ],
   "provider_types": [
-    "vless", "vmess", "trojan", "shadowsocks",
-    "hysteria2", "hysteria", "tuic", "anytls",
-    "naive", "mieru", "snell", "shadowtls",
-    "sudoku", "trusttunnel", "masque",
-    "ssh", "tor", "socks", "http"
+    "vless",
+    "vmess",
+    "trojan",
+    "shadowsocks",
+    "hysteria2",
+    "hysteria",
+    "tuic",
+    "anytls",
+    "naive",
+    "mieru",
+    "snell",
+    "shadowtls",
+    "sudoku",
+    "trusttunnel",
+    "masque",
+    "ssh",
+    "tor",
+    "socks",
+    "http"
   ],
   "group_types": [
-    "vless", "vmess", "trojan", "shadowsocks",
-    "hysteria2", "hysteria", "tuic", "anytls",
-    "naive", "mieru", "snell", "shadowtls",
-    "sudoku", "trusttunnel", "masque",
-    "ssh", "tor", "socks", "http",
-    "wireguard", "amneziawg", "warp", "tailscale", "openvpn-client", "openconnect", "direct"
+    "vless",
+    "vmess",
+    "trojan",
+    "shadowsocks",
+    "hysteria2",
+    "hysteria",
+    "tuic",
+    "anytls",
+    "naive",
+    "mieru",
+    "snell",
+    "shadowtls",
+    "sudoku",
+    "trusttunnel",
+    "masque",
+    "ssh",
+    "tor",
+    "socks",
+    "http",
+    "wireguard",
+    "amneziawg",
+    "warp",
+    "tailscale",
+    "openvpn-client",
+    "openconnect",
+    "direct"
   ],
   "reserved_override_patch_paths": ["detour"],
   "check_domains": {
@@ -99,5 +133,151 @@
     "warp_auth_token": "warp_profile_auth_token",
     "warp_license_key": "warp_profile_license_key",
     "warp_private_key": "warp_profile_private_key"
+  },
+  "cron_intervals": {
+    "accepted": ["1m", "2m", "30m", "45m", "59m", "60m", "1h", "2h", "7h", "12h", "23h", "24h", "1d", "1440m"],
+    "refused": ["90m", "61m", "2d", "36h", "25h", "1h30m", "30s", "500ms", "0m", "1w"]
+  },
+  "link_features": [
+    ["hy2://secret@example.com:443?sni=example.com#h", ["quic"]],
+    ["tuic://u:p@example.com:443#t", ["quic"]],
+    ["naive+https://u:p@example.com:443#n", ["naive"]],
+    ["http3://u:p@example.com:443#n", ["naive"]],
+    ["vless://u@example.com:443?security=reality&pbk=key&sni=example.com#r", ["utls"]],
+    ["vless://u@example.com:443?pbk=key#r", ["utls"]],
+    ["vless://u@example.com:443?security=tls&fp=chrome#f", ["utls"]],
+    ["vless://u@example.com:443?security=none&fp=chrome#plain", []],
+    ["vless://u@example.com:443?security=tls#tls", []],
+    ["trojan://p@example.com:443?fp=firefox#t", ["utls"]],
+    ["hysteria2://p@example.com:443?fp=chrome#h", ["quic", "utls"]],
+    ["ss://YWVzLTI1Ni1nY206cGFzcw@example.com:8388#s", []],
+    ["vmess://eyJhZGQiOiJleGFtcGxlLmNvbSIsInBvcnQiOiI0NDMiLCJpZCI6InUiLCJ0bHMiOiJ0bHMiLCJmcCI6ImNocm9tZSJ9", ["utls"]],
+    ["vmess://eyJhZGQiOiJleGFtcGxlLmNvbSIsInBvcnQiOiI0NDMiLCJpZCI6InUiLCJmcCI6ImNocm9tZSJ9", []],
+    ["vmess://u@example.com:443?security=tls&fp=chrome#v", ["utls"]],
+    ["socks5://127.0.0.1:1080#local", []]
+  ],
+  "core_report_base": {
+    "known": true,
+    "tags": [
+      "badlinkname",
+      "tfogo_checklinkname0",
+      "with_clash_api",
+      "with_gvisor",
+      "with_masque",
+      "with_mtproxy",
+      "with_openvpn",
+      "with_quic",
+      "with_sudoku",
+      "with_trusttunnel",
+      "with_utls",
+      "with_wireguard"
+    ],
+    "features": {
+      "clash_api": {
+        "available": true,
+        "tags": ["with_clash_api"]
+      },
+      "wireguard": {
+        "available": true,
+        "tags": ["with_wireguard", "with_gvisor"]
+      },
+      "utls": {
+        "available": true,
+        "tags": ["with_utls"]
+      },
+      "quic": {
+        "available": true,
+        "tags": ["with_quic"]
+      },
+      "openvpn": {
+        "available": true,
+        "tags": ["with_openvpn", "with_gvisor"]
+      },
+      "tailscale": {
+        "available": false,
+        "tags": ["with_tailscale", "with_gvisor"]
+      },
+      "naive": {
+        "available": false,
+        "tags": ["with_naive_outbound"]
+      },
+      "mtproxy": {
+        "available": true,
+        "tags": ["with_mtproxy"]
+      },
+      "masque": {
+        "available": true,
+        "tags": ["with_masque", "with_gvisor"]
+      },
+      "trusttunnel": {
+        "available": true,
+        "tags": ["with_trusttunnel"]
+      },
+      "sudoku": {
+        "available": true,
+        "tags": ["with_sudoku"]
+      },
+      "openconnect": {
+        "available": false,
+        "tags": ["with_openconnect", "with_gvisor"]
+      },
+      "api": {
+        "available": false,
+        "tags": ["with_api"]
+      }
+    },
+    "types": {
+      "outbound": {
+        "hysteria": "quic",
+        "hysteria2": "quic",
+        "tuic": "quic",
+        "naive": "naive",
+        "masque": "masque",
+        "trusttunnel": "trusttunnel",
+        "sudoku": "sudoku"
+      },
+      "inbound": {
+        "hysteria": "quic",
+        "hysteria2": "quic",
+        "tuic": "quic",
+        "mtproxy": "mtproxy",
+        "trusttunnel": "trusttunnel",
+        "sudoku": "sudoku"
+      },
+      "endpoint": {
+        "wireguard": "wireguard",
+        "amneziawg": "wireguard",
+        "warp": "wireguard",
+        "tailscale": "tailscale",
+        "openvpn-client": "openvpn",
+        "openvpn-server": "openvpn",
+        "openconnect": "openconnect"
+      }
+    },
+    "links": {
+      "ss": "shadowsocks",
+      "vmess": "vmess",
+      "vless": "vless",
+      "trojan": "trojan",
+      "tuic": "tuic",
+      "anytls": "anytls",
+      "hy": "hysteria",
+      "hysteria": "hysteria",
+      "hy2": "hysteria2",
+      "hysteria2": "hysteria2",
+      "mieru": "mieru",
+      "mierus": "mieru",
+      "naive+https": "naive",
+      "naive+quic": "naive",
+      "http2": "naive",
+      "http3": "naive",
+      "http": "http",
+      "https": "http",
+      "socks": "socks",
+      "socks4": "socks",
+      "socks4a": "socks",
+      "socks5": "socks",
+      "socks5h": "socks"
+    }
   }
 }

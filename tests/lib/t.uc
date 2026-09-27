@@ -1,4 +1,4 @@
-// Assertions and the test registry every unit test file uses.
+// Assertions and the test registry every test file uses.
 
 let tests = [];
 

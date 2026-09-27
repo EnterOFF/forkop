@@ -1,7 +1,8 @@
-// The page carries its own copy of a few backend tables, because a dialog
-// cannot ask ucode while it validates. tests/fixtures/page_contract.json is
-// what both copies are held to: this file checks the page against it,
-// tests/page/contract.test.uc the backend.
+// The page carries its own copy of a few backend tables and rules, because a
+// dialog cannot ask ucode while it validates. tests/fixtures/page_contract.json
+// is what both copies are held to, along with the core report the page is
+// built from: this file checks the page against it, tests/page/contract.test.uc
+// the backend.
 import fs from 'fs';
 import path from 'path';
 
@@ -27,6 +28,7 @@ import {
 } from '../src/forkop/methods/custom/getDashboardSections';
 import { FORKOP_WAIT_TIMEOUT_MS } from '../src/forkop/services/forkopWaitTransport';
 import { tunnelStorageSettings } from '../src/forkop/tabs/sections/tunnels/model';
+import { isCronExpressibleInterval } from '../src/forkop/tabs/settings/durations';
 
 const contract = JSON.parse(
   fs.readFileSync(path.join(ROOT, 'tests/fixtures/page_contract.json'), 'utf8'),
@@ -73,6 +75,18 @@ describe('the tables the page carries', () => {
   it('describe an unset group option as the generator reads it', () => {
     expect(URLTEST_DEFAULTS).toEqual(contract.urltest_defaults);
     expect(FALLBACK_DEFAULTS).toEqual(contract.fallback_defaults);
+  });
+
+  // Cron is the update check's only schedule, so the settings form has to
+  // refuse exactly the intervals the backend writes no cron line for.
+  it('refuse an update interval cron cannot express', () => {
+    const { accepted, refused } = contract.cron_intervals;
+    expect(
+      accepted.filter((value) => !isCronExpressibleInterval(value)),
+    ).toEqual([]);
+    expect(refused.filter((value) => isCronExpressibleInterval(value))).toEqual(
+      [],
+    );
   });
 
   // The state service releases a parked request at its ceiling, so a reply

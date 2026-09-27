@@ -6,7 +6,6 @@
 let t = require("t");
 let fs = require("fs");
 let stub = require("stub");
-let repo = require("repo");
 let program = require("program");
 
 function updates(args, options) {
@@ -46,21 +45,6 @@ t.test("an interval becomes the cron line that means exactly it, or none", () =>
         [ "172800", "" ], [ "90", "" ], [ "5400", "" ]
     ])
         t.eq(answer([ "due-check-cron-schedule", entry[0] ]), entry[1], entry[0] + " seconds");
-});
-
-// The settings form refuses the same values from the same list, in
-// fe-app-forkop/src/forkop/tabs/settings/tests/isCronExpressibleInterval.test.js.
-t.test("the intervals the settings form accepts are exactly the ones a cron line is written for", () => {
-    let intervals = json(fs.readfile(repo.path("tests/fixtures/cron_intervals.json")));
-    let schedule = (value) => {
-        let seconds = updates([ "duration-to-seconds", value ]);
-        return seconds.status == 0 ? trim(updates([ "due-check-cron-schedule", trim(seconds.stdout) ]).stdout) : "";
-    };
-    t.ok(length(intervals.accepted) > 0 && length(intervals.refused) > 0);
-    for (let value in intervals.accepted)
-        t.ok(schedule(value) != "", value + " is accepted");
-    for (let value in intervals.refused)
-        t.eq(schedule(value), "", value + " is refused");
 });
 
 function settings_fixture(interval) {

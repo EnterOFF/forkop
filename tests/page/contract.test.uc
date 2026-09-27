@@ -1,8 +1,8 @@
 // The LuCI page cannot ask ucode while a dialog validates or the dashboard
-// draws, so it carries its own copy of a few backend tables.
-// tests/fixtures/page_contract.json is what both copies are held to: this file
-// checks the backend against it, fe-app-forkop/tests/pageContract.test.js the
-// page.
+// draws, so it carries its own copy of a few backend tables and rules.
+// tests/fixtures/page_contract.json is what both copies are held to, along with
+// the core report the page is built from: this file checks the backend against
+// it, fe-app-forkop/tests/pageContract.test.js the page.
 
 let t = require("t");
 let fs = require("fs");
@@ -13,6 +13,8 @@ let rulesets = require("singbox.rulesets");
 let connections = require("config.connections");
 let mask = require("diagnostics.mask");
 let state_service = require("service.state_service");
+let features = require("singbox.features");
+let program = require("program");
 
 let contract = json(fs.readfile(repo.path("tests/fixtures/page_contract.json")));
 
@@ -87,6 +89,34 @@ t.test("the option every password field is stored in is masked in diagnostics", 
         let masked = mask.forkop_config("config tunnel 'probe'\n\toption " + stored + " 'secret-value'\n");
         t.excludes(masked, "secret-value", field);
     }
+});
+
+// Cron is the update check's only schedule, so an interval it cannot say
+// exactly gets no line and the checks never run. The settings form refuses
+// the same intervals with a check of its own.
+t.test("the intervals the settings form accepts are the ones a cron line is written for", () => {
+    let updates = (args) => program.run("components/updates.uc", args);
+    let schedule = (value) => {
+        let seconds = updates([ "duration-to-seconds", value ]);
+        return seconds.status == 0 ? trim(updates([ "due-check-cron-schedule", trim(seconds.stdout) ]).stdout) : "";
+    };
+    for (let value in contract.cron_intervals.accepted)
+        t.ok(schedule(value) != "", value + " is accepted");
+    for (let value in contract.cron_intervals.refused)
+        t.eq(schedule(value), "", value + " is refused");
+});
+
+// A fingerprint counts on a TLS link, Reality always sends one, and Trojan,
+// TUIC, Hysteria and AnyTLS are TLS without saying so. The page reads links by
+// the same cases.
+t.test("a link needs what the core needs to dial it", () => {
+    for (let entry in contract.link_features)
+        t.eq(features.link_features(entry[0]), entry[1], entry[0]);
+});
+
+t.test("the core report the page is built against is the backend's for the base build", () => {
+    let base = contract.core_report_base;
+    t.eq(features.report(base.tags), base);
 });
 
 t.done();
