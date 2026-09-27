@@ -45,6 +45,7 @@ import {
 import { RULE_SET_ITEM_SETTINGS_KEY } from './constants';
 import {
   connectionUriDescription,
+  tunnelKindAvailable,
   validateConnectionUriCore,
 } from './coreSupport';
 import {
@@ -94,7 +95,10 @@ import {
   validateSubscriptionUrlEntry,
 } from './subscriptions/model';
 import { showSubscriptionUrlSettingsModal } from './subscriptions/options';
-import { showTunnelSettingsModal } from './tunnels/dialog';
+import {
+  showTunnelSettingsModal,
+  tunnelKindsDescription,
+} from './tunnels/dialog';
 import {
   removeTunnelPeers,
   tunnelInitialSettings,
@@ -411,9 +415,7 @@ export function createSectionContent(section: CBISection) {
     ButtonAddSettingsDynamicList,
     'tunnels',
     _('Tunnel'),
-    _(
-      'WireGuard, AmneziaWG, Cloudflare WARP, Tailscale and JSON endpoint are available',
-    ),
+    tunnelKindsDescription(),
   );
   o.depends('action', 'connection');
   o.rmempty = true;
@@ -528,9 +530,13 @@ export function createSectionContent(section: CBISection) {
     form.Flag,
     'outbound_detour_enabled',
     _('Cascade connection'),
-    _(
-      'Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, Tailscale, JSON outbounds, or JSON endpoints',
-    ),
+    tunnelKindAvailable('tailscale')
+      ? _(
+          'Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, Tailscale, JSON outbounds, or JSON endpoints',
+        )
+      : _(
+          'Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, JSON outbounds, or JSON endpoints',
+        ),
   );
   o.default = '0';
   o.rmempty = false;

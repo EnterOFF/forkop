@@ -14148,6 +14148,10 @@ function validateConnectionUriCore(link) {
 function tunnelKindCoreFeature(kind) {
   return kind === "json" ? "" : coreFeatureOfType(kind, ["endpoint"]);
 }
+function tunnelKindAvailable(kind) {
+  const feature = tunnelKindCoreFeature(kind);
+  return !feature || coreHas(feature);
+}
 function sectionMissingCoreFeatures(sectionId) {
   const missing = /* @__PURE__ */ new Set();
   (uci.sections(FORKOP_UCI_PACKAGE, "tunnel") || []).filter((tunnel) => tunnel.section === sectionId).forEach((tunnel) => {
@@ -18905,9 +18909,10 @@ var TUNNEL_KINDS = [
   ["openvpn-client", "OpenVPN"],
   ["json", _("JSON endpoint")]
 ];
-function coreKindAvailable(kind) {
-  const feature = tunnelKindCoreFeature(kind);
-  return !feature || coreHas(feature);
+function tunnelKindsDescription() {
+  return _("Available: %s").format(
+    TUNNEL_KINDS.filter(([kind]) => tunnelKindAvailable(kind)).map(([, label]) => label).join(", ")
+  );
 }
 function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNode, context = {}) {
   const tunnelId = context.adding ? nextSectionId("tunnel") : `${itemValue || ""}`.trim();
@@ -18917,7 +18922,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   const data = { settings: tunnelInitialSettings(tunnelId, section_id) };
   if (context.adding) {
     data.settings.tunnel_type = TUNNEL_KINDS.find(
-      ([kind]) => coreKindAvailable(kind)
+      ([kind]) => tunnelKindAvailable(kind)
     )[0];
     data.settings.name = nextDynamicListName(
       option2,
@@ -18937,7 +18942,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   );
   let previousTunnelType = `${data.settings.tunnel_type || "wireguard"}`;
   TUNNEL_KINDS.forEach(([kind, label]) => {
-    if (coreKindAvailable(kind)) {
+    if (tunnelKindAvailable(kind)) {
       typeOption.value(kind, label);
     } else if (kind === previousTunnelType) {
       typeOption.value(
@@ -19774,9 +19779,7 @@ function createSectionContent(section) {
     ButtonAddSettingsDynamicList,
     "tunnels",
     _("Tunnel"),
-    _(
-      "WireGuard, AmneziaWG, Cloudflare WARP, Tailscale and JSON endpoint are available"
-    )
+    tunnelKindsDescription()
   );
   o.depends("action", "connection");
   o.rmempty = true;
@@ -19884,8 +19887,10 @@ function createSectionContent(section) {
     form.Flag,
     "outbound_detour_enabled",
     _("Cascade connection"),
-    _(
+    tunnelKindAvailable("tailscale") ? _(
       "Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, Tailscale, JSON outbounds, or JSON endpoints"
+    ) : _(
+      "Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, JSON outbounds, or JSON endpoints"
     )
   );
   o.default = "0";

@@ -47,6 +47,11 @@ export function tunnelKindCoreFeature(kind: string) {
   return kind === 'json' ? '' : coreFeatureOfType(kind, ['endpoint']);
 }
 
+export function tunnelKindAvailable(kind: string) {
+  const feature = tunnelKindCoreFeature(kind);
+  return !feature || coreHas(feature);
+}
+
 // What a section asks of the core that the installed one lacks: a tunnel of a
 // kind it was built without, or a link it cannot dial. A subscription is not in
 // it, because the core skips a server it cannot build and starts anyway.

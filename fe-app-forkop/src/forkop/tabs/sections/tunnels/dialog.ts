@@ -30,11 +30,8 @@ import {
   showChildItemSettingsModal,
 } from '../../../cbi/modal';
 import { JSON_ENDPOINT_PLACEHOLDER } from '../constants';
-import { tunnelKindCoreFeature } from '../coreSupport';
-import {
-  coreHas,
-  missingCoreFeatureNote,
-} from '../../../services/coreFeatures.service';
+import { tunnelKindAvailable, tunnelKindCoreFeature } from '../coreSupport';
+import { missingCoreFeatureNote } from '../../../services/coreFeatures.service';
 import { parseOutboundJsonObject } from '../outboundJson';
 import { addOpenVPNOptions } from './openvpn';
 import { refreshOutboundDetourSectionOptionValues } from '../references';
@@ -245,9 +242,12 @@ const TUNNEL_KINDS = [
   ['json', _('JSON endpoint')],
 ];
 
-function coreKindAvailable(kind: string) {
-  const feature = tunnelKindCoreFeature(kind);
-  return !feature || coreHas(feature);
+export function tunnelKindsDescription() {
+  return _('Available: %s').format(
+    TUNNEL_KINDS.filter(([kind]) => tunnelKindAvailable(kind))
+      .map(([, label]) => label)
+      .join(', '),
+  );
 }
 
 export function showTunnelSettingsModal(
@@ -269,7 +269,7 @@ export function showTunnelSettingsModal(
   if (context.adding) {
     // A new tunnel starts as the first kind the installed core can run.
     data.settings.tunnel_type = TUNNEL_KINDS.find(([kind]) =>
-      coreKindAvailable(kind),
+      tunnelKindAvailable(kind),
     )![0];
     data.settings.name = nextDynamicListName(
       option,
@@ -292,7 +292,7 @@ export function showTunnelSettingsModal(
   // A kind the installed core lacks is offered only to the tunnel that already
   // is one, marked, so its save is refused by name rather than switched.
   TUNNEL_KINDS.forEach(([kind, label]) => {
-    if (coreKindAvailable(kind)) {
+    if (tunnelKindAvailable(kind)) {
       typeOption.value(kind, label);
     } else if (kind === previousTunnelType) {
       typeOption.value(

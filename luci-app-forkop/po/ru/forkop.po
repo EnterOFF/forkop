@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-27 05:06+0300\n"
-"PO-Revision-Date: 2026-09-27 05:06+0300\n"
+"POT-Creation-Date: 2026-09-27 10:38+0300\n"
+"PO-Revision-Date: 2026-09-27 10:38+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -244,6 +244,9 @@ msgstr "Проверка доступности каждого сервера"
 
 msgid "Available actions"
 msgstr "Доступные действия"
+
+msgid "Available: %s"
+msgstr "Доступны: %s"
 
 msgid "Back"
 msgstr "Назад"
@@ -2177,6 +2180,9 @@ msgstr "Укажите IP-адрес, 0.0.0.0 для всех IPv4 или :: д�
 msgid "Use an OpenSSH public key line"
 msgstr "Укажите строку публичного ключа OpenSSH"
 
+msgid "Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, JSON outbounds, or JSON endpoints"
+msgstr "Использовать другую секцию как промежуточный узел для подключения к серверам этой секции. Не применяется к сетевым интерфейсам, JSON outbound и JSON endpoint"
+
 msgid "Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, Tailscale, JSON outbounds, or JSON endpoints"
 msgstr "Использовать другую секцию как промежуточный узел для подключения к серверам этой секции. Не применяется к сетевым интерфейсам, Tailscale, JSON outbound и JSON endpoint"
 
@@ -2278,9 +2284,6 @@ msgstr "Поля пира WireGuard должны использовать нат
 
 msgid "WireGuard peer settings"
 msgstr "Настройки пира WireGuard"
-
-msgid "WireGuard, AmneziaWG, Cloudflare WARP, Tailscale and JSON endpoint are available"
-msgstr "Доступны WireGuard, AmneziaWG, Cloudflare WARP, Tailscale и JSON endpoint"
 
 msgid "Write ${1} instead of $1 when a letter follows the group number"
 msgstr "Используйте ${1} вместо $1, если после номера группы идёт буква"
