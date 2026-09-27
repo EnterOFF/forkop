@@ -490,6 +490,57 @@ function assert_unique_outbound_tags(config) {
     }
 }
 
+function canonical_json(value) {
+    if (type(value) == "object")
+        return "{" + join(",", map(sort(keys(value)), (key) => sprintf("%J", key) + ":" + canonical_json(value[key]))) + "}";
+    if (type(value) == "array")
+        return "[" + join(",", map(value, (item) => canonical_json(item))) + "]";
+    return sprintf("%J", value);
+}
+
+// The client key and server key pairs of a WireGuard-family endpoint; a WARP
+// endpoint's server is always Cloudflare, so its profile key alone.
+function wireguard_identities(endpoint) {
+    let type_name = lc(as_string(endpoint.type || ""));
+    if (type_name == "warp") {
+        let key = as_string(object_or_empty(endpoint.profile).private_key || "");
+        return key == "" ? [] : [ "warp/" + key ];
+    }
+    if (type_name != "wireguard" && type_name != "amneziawg")
+        return [];
+    return map(array_or_empty(endpoint.peers), (peer) =>
+        as_string(endpoint.private_key || "") + "/" + as_string(object_or_empty(peer).public_key || ""));
+}
+
+// A WireGuard server keeps one session per client key. The core runs endpoints
+// that are equal apart from their tag on one device, so one server can serve
+// several sections; the same key for the same server with other settings would
+// be two devices taking that session from each other.
+function assert_compatible_wireguard_endpoints(config) {
+    let holders = {};
+    for (let endpoint in array_or_empty(config.endpoints)) {
+        if (type(endpoint) != "object")
+            continue;
+        for (let identity in wireguard_identities(endpoint)) {
+            let first = holders[identity];
+            if (first == null) {
+                holders[identity] = endpoint;
+                continue;
+            }
+            let names = {};
+            for (let name in keys(first)) names[name] = true;
+            for (let name in keys(endpoint)) names[name] = true;
+            let differences = filter(sort(keys(names)), (name) =>
+                name != "tag" && canonical_json(first[name]) != canonical_json(endpoint[name]));
+            if (length(differences) > 0)
+                runtime_generate_unsupported("endpoints '" + first.tag + "' and '" + endpoint.tag +
+                    "' use the same WireGuard key for the same server with different " + join(", ", differences) +
+                    ", so they would take the one session the server keeps per key from each other." +
+                    " Make these settings the same, or give one of them its own client on the server");
+        }
+    }
+}
+
 function outbound_detour_tag_for_section(section) {
     if (!bool_option(section, "outbound_detour_enabled", false))
         return "";
@@ -2056,6 +2107,7 @@ function build(context) {
     add_service_mixed_proxy(config, settings, sections);
 
     assert_unique_outbound_tags(config);
+    assert_compatible_wireguard_endpoints(config);
     return strip_internal_fields(config);
 }
 

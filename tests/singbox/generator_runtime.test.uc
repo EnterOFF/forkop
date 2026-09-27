@@ -68,17 +68,17 @@ t.test("tunnels become native endpoints with the fields their kind allows", () =
             {
                 ".name": "tun_amnezia", section: "tunnels", order: "1",
                 kind: "amneziawg", name: "Amnezia", address: [ "10.0.0.2/32" ],
-                private_key: "private", amnezia_jc: "5", amnezia_h1: "100",
+                private_key: "private-amnezia", amnezia_jc: "5", amnezia_h1: "100",
                 amnezia_random_trailers: "1", amnezia_disable_cookies: "1"
             },
             {
                 ".name": "tun_bare", section: "tunnels", order: "5",
-                kind: "wireguard", name: "Bare", address: [ "10.0.0.4/32" ], private_key: "private"
+                kind: "wireguard", name: "Bare", address: [ "10.0.0.4/32" ], private_key: "private-bare"
             },
             {
                 ".name": "tun_plain", section: "tunnels", order: "4",
                 kind: "wireguard", name: "Plain", address: [ "10.0.0.3/32" ],
-                private_key: "private", amnezia_jc: "3", amnezia_i1: "<r 2>", amnezia_disable_cookies: "1",
+                private_key: "private-plain", amnezia_jc: "3", amnezia_i1: "<r 2>", amnezia_disable_cookies: "1",
                 amnezia_s1: "64", amnezia_h1: "100-200",
                 amnezia_header_protection_key: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
             },
