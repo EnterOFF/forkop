@@ -43,7 +43,7 @@ t.test("the base table captures the source interfaces, FakeIP and the TProxy inb
     has(lines, "add chain inet ForkopTable dns_redirect { type nat hook prerouting priority -101; policy accept; }");
     has(lines, T + "dns_redirect iifname @forkop_interfaces udp dport 53 counter redirect to :1603");
     has(lines, T + "dns_redirect iifname @forkop_interfaces tcp dport 53 counter redirect to :1603");
-    has(lines, T + "mangle iifname @forkop_interfaces ip6 daddr @localv6 ip6 daddr != fc00::/18 return", "local IPv6 keeps FakeIP6 captured");
+    has(lines, T + "mangle iifname @forkop_interfaces ip6 daddr @localv6 ip6 daddr != fc00::/112 return", "local IPv6 keeps FakeIP6 captured");
     before(lines, T + "mangle iifname @forkop_interfaces meta l4proto { tcp, udp } th dport 53 return", T + "mangle jump priority_rules",
         "client DNS is left to the capture");
     has(lines, T + "mangle jump priority_rules");
@@ -64,7 +64,7 @@ t.test("the base table captures the source interfaces, FakeIP and the TProxy inb
                 T + "system_dns_redirect " + address + " " + proto + " dport 53 counter redirect to :1605", "sing-box asking the resolver itself passes");
     lacks(lines, "system_dns_redirect udp dport 53", "the resolver's upstream queries are not taken back");
     has(lines, "insert rule inet ForkopTable mangle udp dport 123 return", "the NTP exclusion");
-    for (let pair in [ [ "ip", "198.18.0.0/15" ], [ "ip6", "fc00::/18" ] ])
+    for (let pair in [ [ "ip", "198.18.0.0/16" ], [ "ip6", "fc00::/112" ] ])
         for (let proto in [ "tcp", "udp" ])
             has(lines, T + "mangle_output " + pair[0] + " daddr " + pair[1] + " meta l4proto " + proto + " meta mark set 0x04000000 counter",
                 "the router's own FakeIP traffic");
@@ -111,19 +111,19 @@ t.test("section rules keep configuration order and reach only the traffic their 
     let lines = script_lines({ settings: {}, section: priority_sections() });
     let local = "ip daddr != @localv4 ";
     has(lines, "add set inet ForkopTable forkop_rule_bypass_first_subnets { type ipv4_addr; flags interval; auto-merge; }");
-    has(lines, T + "priority_rules iifname @forkop_interfaces ip saddr @forkop_rule_bypass_first_fully_sources " + local + "ip daddr != 198.18.0.0/15 counter accept",
+    has(lines, T + "priority_rules iifname @forkop_interfaces ip saddr @forkop_rule_bypass_first_fully_sources " + local + "ip daddr != 198.18.0.0/16 counter accept",
         "a fully routed bypass takes real addresses");
-    has(lines, T + "priority_rules iifname @forkop_interfaces ip6 saddr @forkop_rule_bypass_first_fully_sources6 ip6 daddr != @localv6 ip6 daddr != fc00::/18 counter accept");
+    has(lines, T + "priority_rules iifname @forkop_interfaces ip6 saddr @forkop_rule_bypass_first_fully_sources6 ip6 daddr != @localv6 ip6 daddr != fc00::/112 counter accept");
     has(lines, T + "priority_rules iifname @forkop_interfaces ip saddr @forkop_rule_wide_proxy_fully_sources " + local + "meta l4proto tcp meta mark set 0x04000000 counter accept");
-    has(lines, T + "priority_output_rules " + local + "ip daddr != 198.18.0.0/15 counter accept", "the System device fully routed around the proxy");
+    has(lines, T + "priority_output_rules " + local + "ip daddr != 198.18.0.0/16 counter accept", "the System device fully routed around the proxy");
     has(lines, T + "priority_output_rules " + local + "meta l4proto tcp meta mark set 0x04000000 counter accept", "the System device fully routed through it");
     has(lines, T + "priority_output_rules " + local + "ip daddr @forkop_rule_system_filter_subnets meta mark set 0x04000000 counter accept");
     has(lines, T + "priority_rules iifname @forkop_interfaces ip saddr @forkop_rule_client_filter_sources " + local + "ip daddr @forkop_rule_client_filter_subnets meta mark set 0x04000000 counter accept");
     t.eq(filter(lines, (l) => index(l, "priority_rules iifname") >= 0 && index(l, "system_filter") >= 0), [], "a System-only filter on forwarded traffic");
     t.eq(filter(lines, (l) => index(l, "priority_output_rules") >= 0 && index(l, "client_filter") >= 0), [], "a client filter on the router's traffic");
     lacks(lines, "@system", "the System sentinel is not an address");
-    has(lines, T + "priority_rules iifname @forkop_interfaces " + local + "ip daddr != 198.18.0.0/15 tcp dport @forkop_rule_port_bypass_ports counter accept");
-    before(lines, T + "priority_rules iifname @forkop_interfaces " + local + "ip daddr != 198.18.0.0/15 ip daddr @forkop_rule_bypass_first_subnets counter accept",
+    has(lines, T + "priority_rules iifname @forkop_interfaces " + local + "ip daddr != 198.18.0.0/16 tcp dport @forkop_rule_port_bypass_ports counter accept");
+    before(lines, T + "priority_rules iifname @forkop_interfaces " + local + "ip daddr != 198.18.0.0/16 ip daddr @forkop_rule_bypass_first_subnets counter accept",
         T + "priority_rules iifname @forkop_interfaces " + local + "ip daddr @forkop_rule_wide_proxy_subnets meta mark set 0x04000000 counter accept", "bypass order");
 
     has(lines, "add set inet ForkopTable forkop_rule_builtin_subnets_ip_ports { type ipv4_addr . inet_service; flags interval; auto-merge; }",

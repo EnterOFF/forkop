@@ -44,7 +44,7 @@ function drop_rules_for_rule_sets(rules, tags) {
 
 // The check runs with a fresh cache file, so remote rule-sets would have to be
 // downloaded again. That download resolves its host through the FakeIP rules
-// of the very configuration under test and then dials 198.18.0.0/15 without
+// of the very configuration under test and then dials the FakeIP range without
 // TPROXY, which fails rule-set initialization before the proxy is ever
 // reached. The proxy check does not match traffic, so remote rule-sets and the
 // rules referencing them are dropped from the temporary configuration.

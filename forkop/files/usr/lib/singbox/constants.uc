@@ -36,8 +36,10 @@ const DIRECT_OUTBOUND_TAG = "direct-out";
 const CLASH_API_CONTROLLER_PORT = 9090;
 // The mark sing-box puts on its own traffic is the one the nft table lets pass.
 const OUTBOUND_MARK = hex(require("core.constants").NFT_OUTBOUND_MARK);
-const FAKEIP_INET4_RANGE = "198.18.0.0/15";
-const FAKEIP_INET6_RANGE = "fc00::/18";
+// The cache file keeps every name it hands an address to until the range comes
+// round again, in tmpfs, at about 170 bytes a name: 65536 addresses a family.
+const FAKEIP_INET4_RANGE = "198.18.0.0/16";
+const FAKEIP_INET6_RANGE = "fc00::/112";
 
 const URLTEST_DEFAULT_IDLE_TIMEOUT = "30m";
 const CHECK_PROXY_IP_DOMAIN = "ip.podkop.fyi";
