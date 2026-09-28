@@ -4802,6 +4802,42 @@ function isActiveLuciTab(tabId) {
   );
 }
 
+// src/forkop/helpers/tabLifecycle.ts
+var TAB_HIDDEN_GRACE_MS = 1e4;
+function createTabLifecycle(options) {
+  const graceMs = options.graceMs ?? TAB_HIDDEN_GRACE_MS;
+  let running2 = false;
+  let stopTimer = null;
+  const cancelStop = () => {
+    if (stopTimer) {
+      clearTimeout(stopTimer);
+      stopTimer = null;
+    }
+  };
+  return {
+    update() {
+      if (options.shown()) {
+        cancelStop();
+        if (!running2) {
+          running2 = true;
+          options.start();
+        }
+        return;
+      }
+      if (!running2 || stopTimer) {
+        return;
+      }
+      stopTimer = setTimeout(() => {
+        stopTimer = null;
+        if (!options.shown()) {
+          running2 = false;
+          options.stop();
+        }
+      }, graceMs);
+    }
+  };
+}
+
 // src/forkop/helpers/pollDelay.ts
 var POLL_DUTY_FACTOR = 8;
 function pollDelayForDuration(baseIntervalMs, durationMs, maxIntervalMs) {
@@ -4906,7 +4942,7 @@ var SECTIONS_REFRESH_INTERVAL_MS = 1e4;
 var SECTIONS_LATENCY_REFRESH_INTERVAL_MS = 2e3;
 var SECTIONS_REFRESH_BACKOFF_MAX_MS = 6e4;
 var SECTIONS_REFRESH_DUTY_MAX_MS = 3e4;
-var WIDGETS_POLL_INTERVAL_MS = 5e3;
+var WIDGETS_SNAPSHOT_INTERVAL_MS = 5e3;
 var WIDGETS_POLL_BACKOFF_MAX_MS = 3e4;
 var WIDGETS_POLL_DUTY_MAX_MS = 2e4;
 var WIDGETS_SOCKET_GRACE_MS = 2e3;
@@ -4923,6 +4959,8 @@ var widgetsSocketGraceTimer = null;
 var lastWidgetsPollDurationMs = 0;
 var trafficSocketLive = false;
 var connectionsSocketLive = false;
+var trafficSocketUrl = "";
+var connectionsSocketUrl = "";
 var lastPolledTotals = null;
 var pageUnloading = false;
 var latencyRequests = /* @__PURE__ */ new Set();
@@ -5144,12 +5182,12 @@ async function pollWidgetsSnapshot(dataUpdatesId) {
 function widgetsPollDelay() {
   if (widgetsPollFailures > 0) {
     return Math.min(
-      WIDGETS_POLL_INTERVAL_MS * 2 ** widgetsPollFailures,
+      WIDGETS_SNAPSHOT_INTERVAL_MS * 2 ** widgetsPollFailures,
       WIDGETS_POLL_BACKOFF_MAX_MS
     );
   }
   return pollDelayForDuration(
-    WIDGETS_POLL_INTERVAL_MS,
+    WIDGETS_SNAPSHOT_INTERVAL_MS,
     lastWidgetsPollDurationMs,
     WIDGETS_POLL_DUTY_MAX_MS
   );
@@ -5181,8 +5219,10 @@ async function connectToClashSockets(dataUpdatesId) {
   if (!dashboardMounted || mountId !== dashboardMountId || dataUpdatesId !== dashboardDataUpdatesId) {
     return;
   }
+  trafficSocketUrl = getClashSocketUrl("/traffic", clashApiSecret);
+  connectionsSocketUrl = `${getClashSocketUrl("/connections", clashApiSecret)}&interval=${WIDGETS_SNAPSHOT_INTERVAL_MS}`;
   socket.subscribe(
-    getClashSocketUrl("/traffic", clashApiSecret),
+    trafficSocketUrl,
     (msg) => {
       if (dataUpdatesId !== dashboardDataUpdatesId) {
         return;
@@ -5214,7 +5254,7 @@ async function connectToClashSockets(dataUpdatesId) {
     }
   );
   socket.subscribe(
-    getClashSocketUrl("/connections", clashApiSecret),
+    connectionsSocketUrl,
     (msg) => {
       if (dataUpdatesId !== dashboardDataUpdatesId) {
         return;
@@ -5293,7 +5333,13 @@ function stopDashboardDataUpdates() {
   stopWidgetsPolling();
   trafficSocketLive = false;
   connectionsSocketLive = false;
-  socket.resetAll();
+  for (const url of [trafficSocketUrl, connectionsSocketUrl]) {
+    if (url) {
+      socket.disconnect(url);
+    }
+  }
+  trafficSocketUrl = "";
+  connectionsSocketUrl = "";
 }
 function startDashboardDataUpdates() {
   if (dashboardDataUpdatesStarted || !dashboardMounted) {
@@ -6278,6 +6324,11 @@ function onPageUnmount() {
 }
 var dashboardLifecycleRegistered = false;
 var dashboardControllerInitialized = false;
+var dashboardLifecycle = createTabLifecycle({
+  shown: () => isDocumentVisible() && (store.get().tabService.current === "dashboard" || isActiveLuciTab("dashboard")),
+  start: onPageMount,
+  stop: onPageUnmount
+});
 function registerLifecycleListeners() {
   if (dashboardLifecycleRegistered) {
     return;
@@ -6290,25 +6341,13 @@ function registerLifecycleListeners() {
         "active tab diff event, active tab:",
         diff.tabService.current
       );
-      const isDashboardVisible = next.tabService.current === "dashboard";
-      if (isDashboardVisible) {
-        logger.debug(
-          "[DASHBOARD]",
-          "registerLifecycleListeners",
-          "onPageMount"
-        );
-        return onPageMount();
-      }
-      if (!isDashboardVisible) {
-        logger.debug(
-          "[DASHBOARD]",
-          "registerLifecycleListeners",
-          "onPageUnmount"
-        );
-        return onPageUnmount();
-      }
+      dashboardLifecycle.update();
     }
   });
+  document.addEventListener(
+    "visibilitychange",
+    () => dashboardLifecycle.update()
+  );
 }
 async function initController() {
   if (dashboardControllerInitialized) {
@@ -6318,9 +6357,7 @@ async function initController() {
   onMount("dashboard-status").then(() => {
     logger.debug("[DASHBOARD]", "initController", "onMount");
     registerLifecycleListeners();
-    if (store.get().tabService.current === "dashboard" || isActiveLuciTab("dashboard")) {
-      onPageMount();
-    }
+    dashboardLifecycle.update();
   });
 }
 
@@ -9878,7 +9915,7 @@ var monitoringMountId = 0;
 var monitoringLifecycleRegistered = false;
 var monitoringControllerInitialized = false;
 var renderTimer = null;
-var connectionsSocketUrl = "";
+var connectionsSocketUrl2 = "";
 var connectionsUpdatesId = 0;
 var connectionsSocketGraceTimer = null;
 var lastConnectionsPollDurationMs = 0;
@@ -10696,9 +10733,9 @@ async function connectToConnectionsSocket(updatesId) {
   if (!monitoringMounted || mountId !== monitoringMountId || updatesId !== connectionsUpdatesId) {
     return;
   }
-  connectionsSocketUrl = getClashSocketUrl("/connections", clashApiSecret);
+  connectionsSocketUrl2 = getClashSocketUrl("/connections", clashApiSecret);
   socket.subscribe(
-    connectionsSocketUrl,
+    connectionsSocketUrl2,
     (msg) => {
       if (updatesId !== connectionsUpdatesId) {
         return;
@@ -10733,9 +10770,9 @@ function startConnectionsUpdates() {
 function stopConnectionsUpdates() {
   connectionsUpdatesId += 1;
   stopConnectionsPolling();
-  if (connectionsSocketUrl) {
-    socket.disconnect(connectionsSocketUrl);
-    connectionsSocketUrl = "";
+  if (connectionsSocketUrl2) {
+    socket.disconnect(connectionsSocketUrl2);
+    connectionsSocketUrl2 = "";
   }
 }
 function resetMonitoringState() {
@@ -10793,6 +10830,11 @@ function onPageUnmount3() {
   document.removeEventListener("selectionchange", flushRenderAfterSelection);
   document.removeEventListener("copy", handleMonitoringValueCopy);
 }
+var monitoringLifecycle = createTabLifecycle({
+  shown: () => isDocumentVisible() && store.get().tabService.current === "monitoring",
+  start: onPageMount3,
+  stop: onPageUnmount3
+});
 function registerLifecycleListeners3() {
   if (monitoringLifecycleRegistered) {
     return;
@@ -10801,15 +10843,13 @@ function registerLifecycleListeners3() {
   store.subscribe(
     (next, prev, diff) => {
       if (diff.tabService && next.tabService.current !== prev.tabService.current) {
-        const isMonitoringVisible = next.tabService.current === "monitoring";
-        if (isMonitoringVisible) {
-          return onPageMount3();
-        }
-        if (!isMonitoringVisible) {
-          return onPageUnmount3();
-        }
+        monitoringLifecycle.update();
       }
     }
+  );
+  document.addEventListener(
+    "visibilitychange",
+    () => monitoringLifecycle.update()
   );
 }
 async function initController3() {
@@ -10819,9 +10859,7 @@ async function initController3() {
   monitoringControllerInitialized = true;
   onMount("monitoring-status").then(() => {
     registerLifecycleListeners3();
-    if (store.get().tabService.current === "monitoring") {
-      onPageMount3();
-    }
+    monitoringLifecycle.update();
   });
 }
 

@@ -29,6 +29,8 @@ import { resetClashApiTransport } from '../../methods/custom/getDashboardSection
 import { Forkop } from '../../types';
 import { refreshRuntimeUiState } from '../../services/runtimeUiState.service';
 import { isActiveLuciTab } from '../../helpers/isActiveLuciTab';
+import { isDocumentVisible } from '../../../helpers/isDocumentVisible';
+import { createTabLifecycle } from '../../helpers/tabLifecycle';
 import { pollDelayForDuration } from '../../helpers/pollDelay';
 import { createPollChain } from '../../helpers/pollChain';
 import { getServiceStatusDisplay } from '../../helpers/serviceStatusDisplay';
@@ -53,9 +55,11 @@ const SECTIONS_REFRESH_DUTY_MAX_MS = 30000;
 // The three Clash API widgets are pushed by websockets whenever the browser can
 // open them. When it cannot - an HTTPS page, a controller the browser does not
 // reach - the same numbers are polled out of the /connections snapshot the CLI
-// transport can fetch. That snapshot is the whole connection list, so it is
-// asked for less often than the live socket would have sent it.
-const WIDGETS_POLL_INTERVAL_MS = 5000;
+// transport can fetch. That snapshot is the whole connection list, which costs
+// the router about 0.13 ms and 6.5 KB of garbage per connection to build, and the
+// widgets read four numbers out of it, so the socket and the poll alike ask for
+// it every five seconds. The speed comes from /traffic every second.
+const WIDGETS_SNAPSHOT_INTERVAL_MS = 5000;
 const WIDGETS_POLL_BACKOFF_MAX_MS = 30000;
 // A connection snapshot the widgets read four numbers out of is not worth
 // crowding the router for, so an expensive one spaces the poll out further.
@@ -77,6 +81,8 @@ let widgetsSocketGraceTimer: ReturnType<typeof setTimeout> | null = null;
 let lastWidgetsPollDurationMs = 0;
 let trafficSocketLive = false;
 let connectionsSocketLive = false;
+let trafficSocketUrl = '';
+let connectionsSocketUrl = '';
 let lastPolledTotals: { at: number; up: number; down: number } | null = null;
 let pageUnloading = false;
 const latencyRequests = new Set<string>();
@@ -379,13 +385,13 @@ async function pollWidgetsSnapshot(dataUpdatesId: number) {
 function widgetsPollDelay() {
   if (widgetsPollFailures > 0) {
     return Math.min(
-      WIDGETS_POLL_INTERVAL_MS * 2 ** widgetsPollFailures,
+      WIDGETS_SNAPSHOT_INTERVAL_MS * 2 ** widgetsPollFailures,
       WIDGETS_POLL_BACKOFF_MAX_MS,
     );
   }
 
   return pollDelayForDuration(
-    WIDGETS_POLL_INTERVAL_MS,
+    WIDGETS_SNAPSHOT_INTERVAL_MS,
     lastWidgetsPollDurationMs,
     WIDGETS_POLL_DUTY_MAX_MS,
   );
@@ -430,8 +436,11 @@ async function connectToClashSockets(dataUpdatesId: number) {
     return;
   }
 
+  trafficSocketUrl = getClashSocketUrl('/traffic', clashApiSecret);
+  connectionsSocketUrl = `${getClashSocketUrl('/connections', clashApiSecret)}&interval=${WIDGETS_SNAPSHOT_INTERVAL_MS}`;
+
   socket.subscribe(
-    getClashSocketUrl('/traffic', clashApiSecret),
+    trafficSocketUrl,
     (msg) => {
       if (dataUpdatesId !== dashboardDataUpdatesId) {
         return;
@@ -469,7 +478,7 @@ async function connectToClashSockets(dataUpdatesId: number) {
   );
 
   socket.subscribe(
-    getClashSocketUrl('/connections', clashApiSecret),
+    connectionsSocketUrl,
     (msg) => {
       if (dataUpdatesId !== dashboardDataUpdatesId) {
         return;
@@ -565,7 +574,13 @@ function stopDashboardDataUpdates() {
   stopWidgetsPolling();
   trafficSocketLive = false;
   connectionsSocketLive = false;
-  socket.resetAll();
+  for (const url of [trafficSocketUrl, connectionsSocketUrl]) {
+    if (url) {
+      socket.disconnect(url);
+    }
+  }
+  trafficSocketUrl = '';
+  connectionsSocketUrl = '';
 }
 
 // The widgets and the sections come from the Clash API, so the tab asks it
@@ -1811,6 +1826,15 @@ function onPageUnmount() {
 let dashboardLifecycleRegistered = false;
 let dashboardControllerInitialized = false;
 
+const dashboardLifecycle = createTabLifecycle({
+  shown: () =>
+    isDocumentVisible() &&
+    (store.get().tabService.current === 'dashboard' ||
+      isActiveLuciTab('dashboard')),
+  start: onPageMount,
+  stop: onPageUnmount,
+});
+
 function registerLifecycleListeners() {
   if (dashboardLifecycleRegistered) {
     return;
@@ -1828,27 +1852,12 @@ function registerLifecycleListeners() {
         'active tab diff event, active tab:',
         diff.tabService.current,
       );
-      const isDashboardVisible = next.tabService.current === 'dashboard';
-
-      if (isDashboardVisible) {
-        logger.debug(
-          '[DASHBOARD]',
-          'registerLifecycleListeners',
-          'onPageMount',
-        );
-        return onPageMount();
-      }
-
-      if (!isDashboardVisible) {
-        logger.debug(
-          '[DASHBOARD]',
-          'registerLifecycleListeners',
-          'onPageUnmount',
-        );
-        return onPageUnmount();
-      }
+      dashboardLifecycle.update();
     }
   });
+  document.addEventListener('visibilitychange', () =>
+    dashboardLifecycle.update(),
+  );
 }
 
 export async function initController(): Promise<void> {
@@ -1861,11 +1870,6 @@ export async function initController(): Promise<void> {
   onMount('dashboard-status').then(() => {
     logger.debug('[DASHBOARD]', 'initController', 'onMount');
     registerLifecycleListeners();
-    if (
-      store.get().tabService.current === 'dashboard' ||
-      isActiveLuciTab('dashboard')
-    ) {
-      onPageMount();
-    }
+    dashboardLifecycle.update();
   });
 }

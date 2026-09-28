@@ -1,0 +1,154 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const mocks = vi.hoisted(() => ({
+  subscribe: vi.fn(),
+  disconnect: vi.fn(),
+  resetAll: vi.fn(),
+}));
+
+vi.mock('../../../services/socket.service', () => ({
+  socket: {
+    subscribe: mocks.subscribe,
+    disconnect: mocks.disconnect,
+    resetAll: mocks.resetAll,
+  },
+}));
+vi.mock('../../../../helpers/onMount', () => ({ onMount: async () => ({}) }));
+vi.mock('../../../methods', () => ({
+  CustomForkopMethods: {
+    getDashboardSections: async () => ({ success: false, data: [] }),
+    getClashApiConnectionsSummary: async () => ({ success: false }),
+  },
+}));
+vi.mock('../../../methods/custom/getClashApiSecret', () => ({
+  getClashApiSecret: async () => 'secret',
+}));
+vi.mock('../../../services/runtimeUiState.service', () => ({
+  refreshRuntimeUiState: vi.fn(),
+}));
+
+// The dashboard's live widgets come from two Clash API sockets. They run while
+// the tab is in view and close once it has been out of view for ten seconds,
+// whether another tab of the page took its place or the page itself was hidden.
+let visibilityState = 'visible';
+const visibilityListeners = new Set<() => void>();
+
+beforeEach(() => {
+  vi.resetModules();
+  vi.useFakeTimers();
+  mocks.subscribe.mockReset();
+  mocks.disconnect.mockReset();
+  mocks.resetAll.mockReset();
+  visibilityState = 'visible';
+  visibilityListeners.clear();
+  vi.stubGlobal('window', {
+    location: { hostname: '192.168.1.1', protocol: 'http:' },
+    addEventListener() {},
+  });
+  vi.stubGlobal(
+    'MutationObserver',
+    class {
+      observe() {}
+    },
+  );
+  vi.stubGlobal('document', {
+    get visibilityState() {
+      return visibilityState;
+    },
+    body: {},
+    getElementById: () => null,
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    addEventListener: (type: string, listener: () => void) => {
+      if (type === 'visibilitychange') {
+        visibilityListeners.add(listener);
+      }
+    },
+    removeEventListener: (_type: string, listener: () => void) =>
+      visibilityListeners.delete(listener),
+  });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
+// The controller and the store come out of one module graph, so the test moves
+// between tabs the way the tab service does.
+async function openDashboard() {
+  const { store } = await import('../../../services/store.service');
+  store.set({ tabService: { current: 'dashboard', all: [] } });
+  const { initController } = await import('../initController');
+  await initController();
+  await vi.advanceTimersByTimeAsync(0);
+  return {
+    switchTo: (tab: string) =>
+      store.set({ tabService: { current: tab, all: [] } }),
+  };
+}
+
+function setVisibility(state: string) {
+  visibilityState = state;
+  for (const listener of visibilityListeners) {
+    listener();
+  }
+}
+
+function subscribedPaths() {
+  return mocks.subscribe.mock.calls.map(([url]) => new URL(url).pathname);
+}
+
+describe('the dashboard sockets', () => {
+  it('ask for the connection list every five seconds', async () => {
+    await openDashboard();
+
+    expect(subscribedPaths()).toEqual(['/traffic', '/connections']);
+    const connections = new URL(mocks.subscribe.mock.calls[1][0]);
+    expect(connections.searchParams.get('interval')).toBe('5000');
+    expect(connections.searchParams.get('token')).toBe('secret');
+  });
+
+  it('close ten seconds after another tab of the page is chosen, and only their own', async () => {
+    const page = await openDashboard();
+
+    page.switchTo('sections');
+    await vi.advanceTimersByTimeAsync(9999);
+    expect(mocks.disconnect).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(mocks.disconnect.mock.calls.map(([url]) => url)).toEqual(
+      mocks.subscribe.mock.calls.map(([url]) => url),
+    );
+    expect(mocks.resetAll).not.toHaveBeenCalled();
+  });
+
+  it('stay open through a look at another tab shorter than that', async () => {
+    const page = await openDashboard();
+
+    page.switchTo('monitoring');
+    await vi.advanceTimersByTimeAsync(5000);
+    page.switchTo('dashboard');
+    await vi.advanceTimersByTimeAsync(60000);
+
+    expect(mocks.disconnect).not.toHaveBeenCalled();
+    expect(mocks.subscribe).toHaveBeenCalledTimes(2);
+  });
+
+  it('close ten seconds after the page is hidden and open again when it is shown', async () => {
+    await openDashboard();
+
+    setVisibility('hidden');
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(mocks.disconnect).toHaveBeenCalledTimes(2);
+
+    setVisibility('visible');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(subscribedPaths()).toEqual([
+      '/traffic',
+      '/connections',
+      '/traffic',
+      '/connections',
+    ]);
+  });
+});

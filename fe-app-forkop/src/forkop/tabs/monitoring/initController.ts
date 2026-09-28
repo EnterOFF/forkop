@@ -8,6 +8,7 @@ import { pollDelayForDuration } from '../../helpers/pollDelay';
 import { shouldCopyFullMonitoringValue } from './valueCopy';
 import { createPollChain } from '../../helpers/pollChain';
 import { isDocumentVisible } from '../../../helpers/isDocumentVisible';
+import { createTabLifecycle } from '../../helpers/tabLifecycle';
 import { prettyBytes } from '../../../helpers/prettyBytes';
 import { showToast } from '../../../helpers/showToast';
 import { renderSearchIcon24 } from '../../../icons';
@@ -1291,6 +1292,13 @@ function onPageUnmount() {
   document.removeEventListener('copy', handleMonitoringValueCopy);
 }
 
+const monitoringLifecycle = createTabLifecycle({
+  shown: () =>
+    isDocumentVisible() && store.get().tabService.current === 'monitoring',
+  start: onPageMount,
+  stop: onPageUnmount,
+});
+
 function registerLifecycleListeners() {
   if (monitoringLifecycleRegistered) {
     return;
@@ -1304,17 +1312,12 @@ function registerLifecycleListeners() {
         diff.tabService &&
         next.tabService.current !== prev.tabService.current
       ) {
-        const isMonitoringVisible = next.tabService.current === 'monitoring';
-
-        if (isMonitoringVisible) {
-          return onPageMount();
-        }
-
-        if (!isMonitoringVisible) {
-          return onPageUnmount();
-        }
+        monitoringLifecycle.update();
       }
     },
+  );
+  document.addEventListener('visibilitychange', () =>
+    monitoringLifecycle.update(),
   );
 }
 
@@ -1327,9 +1330,6 @@ export async function initController(): Promise<void> {
 
   onMount('monitoring-status').then(() => {
     registerLifecycleListeners();
-
-    if (store.get().tabService.current === 'monitoring') {
-      onPageMount();
-    }
+    monitoringLifecycle.update();
   });
 }
