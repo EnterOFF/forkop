@@ -9,6 +9,7 @@ import {
   clientCredentialLabel,
   clientNameLabel,
   clientSettingsDefaults,
+  generateClientName,
   validateClientCredential,
   validateClientName,
   visibleClientFields,
@@ -74,6 +75,7 @@ export function addClientOptions(
   sectionId: string,
   itemSection: CBISection,
   helpers: ChildItemDialogContext,
+  listOption: CBIOption,
 ) {
   const protocol = getProtocol(sectionId);
 
@@ -92,6 +94,7 @@ export function addClientOptions(
       ? helpers.validateName(value)
       : true;
   };
+  addGenerateButton(name, () => generateClientName(sectionId, listOption));
 
   addClientCredentialOptions(sectionId, itemSection);
   addClientRoutingOptions(sectionId, itemSection);
@@ -163,7 +166,7 @@ export function showClientSettingsModal(
     defaults: (inputValue: string, existing: boolean) =>
       clientSettingsDefaults(sectionId, inputValue, existing, listOption),
     addOptions: (itemSection: CBISection, helpers: ChildItemDialogContext) =>
-      addClientOptions(sectionId, itemSection, helpers),
+      addClientOptions(sectionId, itemSection, helpers, listOption),
     validateName: validateUniqueDynamicListItemName.bind(
       null,
       widget,

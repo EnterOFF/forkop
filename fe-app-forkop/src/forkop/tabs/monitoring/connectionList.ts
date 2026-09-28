@@ -1,11 +1,12 @@
 import { E } from '../../../helpers/element';
 import { renderXIcon24 } from '../../../icons';
+import { sourceLabel } from './source';
 
 export interface ConnectionListItem {
   id: string;
   host: string;
-  source: string;
-  sourceCopyValue: string;
+  sourceName: string;
+  sourceDetail: string;
   route: string;
   network: string;
   time: string;
@@ -19,31 +20,48 @@ export interface ConnectionListItem {
 // footstrap does, and lays it out as its own cards with !important declarations
 // that no rule outside its cascade layers can override, on top of the cards
 // this page draws itself.
-function renderList(rows: HTMLElement[]) {
-  return E('div', { class: 'fkp_monitoring-page__list', role: 'table' }, [
-    E(
-      'div',
-      {
-        class: 'fkp_monitoring-page__row fkp_monitoring-page__row--head',
-        role: 'row',
-      },
-      [
-        renderHeading('host', _('Host')),
-        renderHeading('source', _('Source')),
-        renderHeading('route', _('Route')),
-        renderHeading('network', _('Type')),
-        renderHeading('time', _('Time')),
-        renderHeading('download', `↓ ${_('Downloaded')}`),
-        renderHeading('upload', `↑ ${_('Uploaded')}`),
-        E('div', {
-          class: cellClass('action'),
-          role: 'columnheader',
-          'aria-label': _('Close'),
-        }),
-      ],
-    ),
-    ...rows,
-  ]);
+// A list of connections that can no longer be closed has no column for it.
+function renderList(rows: HTMLElement[], closable: boolean) {
+  return E(
+    'div',
+    {
+      class: [
+        'fkp_monitoring-page__list',
+        closable ? 'fkp_monitoring-page__list--closable' : '',
+      ]
+        .filter(Boolean)
+        .join(' '),
+      role: 'table',
+    },
+    [
+      E(
+        'div',
+        {
+          class: 'fkp_monitoring-page__row fkp_monitoring-page__row--head',
+          role: 'row',
+        },
+        [
+          renderHeading('host', _('Host')),
+          renderHeading('source', _('Source')),
+          renderHeading('route', _('Route')),
+          renderHeading('network', _('Type')),
+          renderHeading('time', _('Time')),
+          renderHeading('download', `↓ ${_('Downloaded')}`),
+          renderHeading('upload', `↑ ${_('Uploaded')}`),
+          ...(closable
+            ? [
+                E('div', {
+                  class: cellClass('action'),
+                  role: 'columnheader',
+                  'aria-label': _('Close'),
+                }),
+              ]
+            : []),
+        ],
+      ),
+      ...rows,
+    ],
+  );
 }
 
 function cellClass(column: string) {
@@ -58,7 +76,7 @@ function renderCell(column: string, children: Node[]) {
   return E('div', { class: cellClass(column), role: 'cell' }, children);
 }
 
-function renderValue(text: string, className = '', copyValue = text) {
+function renderValue(text: string, className = '') {
   const value = text || '-';
 
   return E(
@@ -67,18 +85,32 @@ function renderValue(text: string, className = '', copyValue = text) {
       class: ['fkp_monitoring-page__value', className]
         .filter(Boolean)
         .join(' '),
-      title: copyValue || value,
-      'data-copy-value': copyValue || value,
+      title: value,
+      'data-copy-value': value,
     },
     value,
   );
 }
 
-function renderAction(item: ConnectionListItem, closable: boolean) {
-  if (!closable) {
-    return E('span', { class: 'fkp_monitoring-page__action-placeholder' }, '-');
-  }
+// The muted colour is what sets the name apart from what it belongs to. A
+// tooltip has no colour, so it keeps the separator the device filter shows.
+function renderSource(name: string, detail: string) {
+  const shown = [name, detail].filter(Boolean).join(' ') || '-';
+  const muted = (text: string) =>
+    E('span', { class: 'fkp_monitoring-page__muted' }, text);
 
+  return E(
+    'span',
+    {
+      class: 'fkp_monitoring-page__value',
+      title: sourceLabel(name, detail) || shown,
+      'data-copy-value': shown,
+    },
+    name ? [name, ...(detail ? [' ', muted(detail)] : [])] : [muted(shown)],
+  );
+}
+
+function renderAction(item: ConnectionListItem) {
   return E(
     'button',
     {
@@ -107,9 +139,7 @@ function renderRow(item: ConnectionListItem, closable: boolean) {
     },
     [
       renderCell('host', [renderValue(item.host)]),
-      renderCell('source', [
-        renderValue(item.source, '', item.sourceCopyValue),
-      ]),
+      renderCell('source', [renderSource(item.sourceName, item.sourceDetail)]),
       renderCell('route', [
         renderValue(item.route, 'fkp_monitoring-page__route'),
       ]),
@@ -119,7 +149,7 @@ function renderRow(item: ConnectionListItem, closable: boolean) {
       renderCell('time', [renderValue(item.time)]),
       renderCell('download', [renderValue(item.download)]),
       renderCell('upload', [renderValue(item.upload)]),
-      renderCell('action', [renderAction(item, closable)]),
+      ...(closable ? [renderCell('action', [renderAction(item)])] : []),
     ],
   );
 }
@@ -128,29 +158,38 @@ export function renderConnectionList(
   items: ConnectionListItem[],
   options: { closable: boolean },
 ) {
-  return renderList(items.map((item) => renderRow(item, options.closable)));
+  return renderList(
+    items.map((item) => renderRow(item, options.closable)),
+    options.closable,
+  );
 }
 
-export function renderConnectionListState(text: string, className = '') {
-  return renderList([
-    E(
-      'div',
-      {
-        class: 'fkp_monitoring-page__row fkp_monitoring-page__row--state',
-        role: 'row',
-      },
-      [
-        E(
-          'div',
-          {
-            class: ['fkp_monitoring-page__state', className]
-              .filter(Boolean)
-              .join(' '),
-            role: 'cell',
-          },
-          text,
-        ),
-      ],
-    ),
-  ]);
+export function renderConnectionListState(
+  text: string,
+  options: { closable: boolean; className?: string },
+) {
+  return renderList(
+    [
+      E(
+        'div',
+        {
+          class: 'fkp_monitoring-page__row fkp_monitoring-page__row--state',
+          role: 'row',
+        },
+        [
+          E(
+            'div',
+            {
+              class: ['fkp_monitoring-page__state', options.className]
+                .filter(Boolean)
+                .join(' '),
+              role: 'cell',
+            },
+            text,
+          ),
+        ],
+      ),
+    ],
+    options.closable,
+  );
 }

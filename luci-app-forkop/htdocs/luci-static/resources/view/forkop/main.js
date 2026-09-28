@@ -1526,9 +1526,9 @@ function showToast(message, type, duration = 3e3) {
 }
 
 // src/helpers/copyToClipboard.ts
-function copyToClipboard(text) {
+function copyToClipboard(text2) {
   const textarea = document.createElement("textarea");
-  textarea.value = text;
+  textarea.value = text2;
   document.body.appendChild(textarea);
   textarea.select();
   let copied = false;
@@ -3989,8 +3989,8 @@ function linkQuery(link) {
   if (start < 0) {
     return query;
   }
-  const text = link.slice(start + 1).split("#")[0];
-  for (const pair of text.split("&")) {
+  const text2 = link.slice(start + 1).split("#")[0];
+  for (const pair of text2.split("&")) {
     const equals = pair.indexOf("=");
     const key = (equals < 0 ? pair : pair.slice(0, equals)).toLowerCase();
     if (key && !query.has(key)) {
@@ -5486,8 +5486,8 @@ function formatUrlTestModalValue(value) {
   if (typeof value === "boolean") {
     return value ? _("Yes") : _("No");
   }
-  const text = `${value ?? ""}`.trim();
-  return text || _("No");
+  const text2 = `${value ?? ""}`.trim();
+  return text2 || _("No");
 }
 function formatUrlTestLatency(latency) {
   return latency ? `${latency}ms` : _("N/A");
@@ -7731,7 +7731,7 @@ function renderButton({
   disabled,
   loading: loading3,
   onClick,
-  text,
+  text: text2,
   icon
 }) {
   const hasIcon = !!loading3 || !!icon;
@@ -7773,13 +7773,13 @@ function renderButton({
       disabled: getDisabled(),
       click: onClick
     },
-    [...insertIf(hasIcon, [getWrappedIcon()]), textE("span", {}, text)]
+    [...insertIf(hasIcon, [getWrappedIcon()]), textE("span", {}, text2)]
   );
 }
 
 // src/helpers/downloadAsTxt.ts
-function downloadAsTxt(text, filename) {
-  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+function downloadAsTxt(text2, filename) {
+  const blob = new Blob([text2], { type: "text/plain;charset=utf-8" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
   const safeName = filename.endsWith(".txt") ? filename : `${filename}.txt`;
@@ -7791,7 +7791,7 @@ function downloadAsTxt(text, filename) {
 }
 
 // src/partials/modal/renderModal.ts
-function renderModal(text, name, options) {
+function renderModal(text2, name, options) {
   let currentText = "";
   let refreshInFlight = false;
   let pendingRefresh = false;
@@ -8027,7 +8027,7 @@ ${currentText}
     startRefreshTimer();
     requestRefresh();
   }
-  updateText(text ?? "");
+  updateText(text2 ?? "");
   return body;
 }
 
@@ -8782,10 +8782,10 @@ async function showDiagnosticModal(action, title, name, load) {
   setDiagnosticActionLoading(action, true);
   try {
     const getText = diagnosticText(load);
-    const text = await getText({ maskValues: true });
+    const text2 = await getText({ maskValues: true });
     ui.showModal(
       title,
-      renderModal(text, name, {
+      renderModal(text2, name, {
         getText,
         initialAutoRefresh: false,
         showMaskValuesToggle: true
@@ -9285,26 +9285,6 @@ function render3() {
     [
       textE("div", { class: "fkp_monitoring-page__panel" }, [
         textE("div", { class: "fkp_monitoring-page__controls" }, [
-          textE("div", { class: "fkp_monitoring-page__tabs" }, [
-            textE(
-              "button",
-              {
-                id: "monitoring-tab-active",
-                class: "btn cbi-button fkp_monitoring-page__tab fkp_monitoring-page__tab--active",
-                type: "button"
-              },
-              `${_("Active")} 0`
-            ),
-            textE(
-              "button",
-              {
-                id: "monitoring-tab-closed",
-                class: "btn cbi-button fkp_monitoring-page__tab",
-                type: "button"
-              },
-              `${_("Closed")} 0`
-            )
-          ]),
           textE("div", { class: "fkp_monitoring-page__filters" }, [
             textE(
               "select",
@@ -9348,6 +9328,25 @@ function render3() {
             )
           ])
         ]),
+        textE("ul", { class: "cbi-tabmenu fkp_monitoring-page__tabs" }, [
+          textE("li", { id: "monitoring-tab-active", class: "cbi-tab" }, [
+            textE("a", { href: "#" }, _("Active"))
+          ]),
+          textE("li", { id: "monitoring-tab-closed", class: "cbi-tab-disabled" }, [
+            textE("a", { href: "#" }, _("Closed"))
+          ]),
+          textE(
+            "span",
+            {
+              id: "monitoring-pause-note",
+              class: "fkp_monitoring-page__pause-note",
+              role: "status",
+              title: _("Paused while text is selected"),
+              hidden: true
+            },
+            _("Paused while text is selected")
+          )
+        ]),
         textE(
           "div",
           { id: "monitoring-connections", class: "fkp_monitoring-page__body" },
@@ -9357,7 +9356,7 @@ function render3() {
               {
                 class: "fkp_monitoring-page__state fkp_monitoring-page__state--loading"
               },
-              _("Loading connections")
+              _("Loading connections...")
             )
           ]
         )
@@ -9658,58 +9657,144 @@ function createLocalDeviceDynamicListWidget(option2, section_id, cfgvalue) {
   });
 }
 
+// src/forkop/tabs/monitoring/source.ts
+var SYSTEM_SOURCE_KEY = "@system";
+var SYSTEM_INBOUND_TAGS = /* @__PURE__ */ new Set(["system-in", "system6-in"]);
+var KIND_ORDER = ["system", "device", "server"];
+var collator = new Intl.Collator(void 0, {
+  numeric: true,
+  sensitivity: "base"
+});
+function text(value) {
+  return value == null ? "" : String(value).trim();
+}
+function connectionInboundTag(connection) {
+  const type = text(connection.metadata?.type);
+  const tag = text(type.split("/").slice(1).join("/") || type);
+  if (tag) {
+    return tag;
+  }
+  return text(text(connection.rule).match(/(?:^|\s)inbound=([^\s]+)/)?.[1]);
+}
+function sourceLabel(name, detail) {
+  return [name, detail].filter(Boolean).join(" \xB7 ");
+}
+function describeSource(connection, names) {
+  const ip = text(connection.metadata?.sourceIP);
+  const tag = connectionInboundTag(connection);
+  const search = (...values) => [...values, ip, tag].filter(Boolean).join(" ");
+  if (SYSTEM_INBOUND_TAGS.has(tag)) {
+    const name2 = _("System");
+    return {
+      key: SYSTEM_SOURCE_KEY,
+      kind: "system",
+      name: name2,
+      detail: "",
+      server: "",
+      search: search(name2)
+    };
+  }
+  if (names.servers.has(tag)) {
+    const user = text(connection.metadata?.user);
+    const name2 = user || tag;
+    const detail = user ? tag : ip;
+    return {
+      key: JSON.stringify([tag, user, user ? "" : ip]),
+      kind: "server",
+      name: name2,
+      detail,
+      server: tag,
+      search: search(sourceLabel(name2, detail))
+    };
+  }
+  const name = text(names.devices[ip]);
+  return {
+    key: ip,
+    kind: "device",
+    name,
+    detail: ip,
+    server: "",
+    search: search(name)
+  };
+}
+function compareSources(a, b) {
+  return KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) || collator.compare(a.server, b.server) || Number(!a.name) - Number(!b.name) || collator.compare(a.name, b.name) || collator.compare(a.detail, b.detail) || a.key.localeCompare(b.key);
+}
+
 // src/forkop/tabs/monitoring/connectionList.ts
-function renderList(rows) {
-  return textE("div", { class: "fkp_monitoring-page__list", role: "table" }, [
-    textE(
-      "div",
-      {
-        class: "fkp_monitoring-page__row fkp_monitoring-page__row--head",
-        role: "row"
-      },
-      [
-        renderHeading("host", _("Host")),
-        renderHeading("source", _("Source")),
-        renderHeading("route", _("Route")),
-        renderHeading("network", _("Type")),
-        renderHeading("time", _("Time")),
-        renderHeading("download", `\u2193 ${_("Downloaded")}`),
-        renderHeading("upload", `\u2191 ${_("Uploaded")}`),
-        textE("div", {
-          class: cellClass("action"),
-          role: "columnheader",
-          "aria-label": _("Close")
-        })
-      ]
-    ),
-    ...rows
-  ]);
+function renderList(rows, closable) {
+  return textE(
+    "div",
+    {
+      class: [
+        "fkp_monitoring-page__list",
+        closable ? "fkp_monitoring-page__list--closable" : ""
+      ].filter(Boolean).join(" "),
+      role: "table"
+    },
+    [
+      textE(
+        "div",
+        {
+          class: "fkp_monitoring-page__row fkp_monitoring-page__row--head",
+          role: "row"
+        },
+        [
+          renderHeading("host", _("Host")),
+          renderHeading("source", _("Source")),
+          renderHeading("route", _("Route")),
+          renderHeading("network", _("Type")),
+          renderHeading("time", _("Time")),
+          renderHeading("download", `\u2193 ${_("Downloaded")}`),
+          renderHeading("upload", `\u2191 ${_("Uploaded")}`),
+          ...closable ? [
+            textE("div", {
+              class: cellClass("action"),
+              role: "columnheader",
+              "aria-label": _("Close")
+            })
+          ] : []
+        ]
+      ),
+      ...rows
+    ]
+  );
 }
 function cellClass(column) {
   return `fkp_monitoring-page__cell fkp_monitoring-page__cell--${column}`;
 }
-function renderHeading(column, text) {
-  return textE("div", { class: cellClass(column), role: "columnheader" }, text);
+function renderHeading(column, text2) {
+  return textE("div", { class: cellClass(column), role: "columnheader" }, text2);
 }
 function renderCell(column, children) {
   return textE("div", { class: cellClass(column), role: "cell" }, children);
 }
-function renderValue(text, className = "", copyValue = text) {
-  const value = text || "-";
+function renderValue(text2, className = "") {
+  const value = text2 || "-";
   return textE(
     "span",
     {
       class: ["fkp_monitoring-page__value", className].filter(Boolean).join(" "),
-      title: copyValue || value,
-      "data-copy-value": copyValue || value
+      title: value,
+      "data-copy-value": value
     },
     value
   );
 }
-function renderAction(item, closable) {
-  if (!closable) {
-    return textE("span", { class: "fkp_monitoring-page__action-placeholder" }, "-");
-  }
+function renderSource(name, detail) {
+  const shown2 = [name, detail].filter(Boolean).join(" ") || "-";
+  const muted = (text2) => textE("span", { class: "fkp_monitoring-page__muted" }, text2);
+  return textE(
+    "span",
+    {
+      class: "fkp_monitoring-page__value",
+      title: sourceLabel(name, detail) || shown2,
+      "data-copy-value": shown2
+    },
+    name ? [name, ...detail ? [" ", muted(detail)] : []] : [muted(shown2)]
+  );
+}
+function renderAction(item) {
   return textE(
     "button",
     {
@@ -9735,9 +9820,7 @@ function renderRow(item, closable) {
     },
     [
       renderCell("host", [renderValue(item.host)]),
-      renderCell("source", [
-        renderValue(item.source, "", item.sourceCopyValue)
-      ]),
+      renderCell("source", [renderSource(item.sourceName, item.sourceDetail)]),
       renderCell("route", [
         renderValue(item.route, "fkp_monitoring-page__route")
       ]),
@@ -9747,33 +9830,39 @@ function renderRow(item, closable) {
       renderCell("time", [renderValue(item.time)]),
       renderCell("download", [renderValue(item.download)]),
       renderCell("upload", [renderValue(item.upload)]),
-      renderCell("action", [renderAction(item, closable)])
+      ...closable ? [renderCell("action", [renderAction(item)])] : []
     ]
   );
 }
 function renderConnectionList(items, options) {
-  return renderList(items.map((item) => renderRow(item, options.closable)));
+  return renderList(
+    items.map((item) => renderRow(item, options.closable)),
+    options.closable
+  );
 }
-function renderConnectionListState(text, className = "") {
-  return renderList([
-    textE(
-      "div",
-      {
-        class: "fkp_monitoring-page__row fkp_monitoring-page__row--state",
-        role: "row"
-      },
-      [
-        textE(
-          "div",
-          {
-            class: ["fkp_monitoring-page__state", className].filter(Boolean).join(" "),
-            role: "cell"
-          },
-          text
-        )
-      ]
-    )
-  ]);
+function renderConnectionListState(text2, options) {
+  return renderList(
+    [
+      textE(
+        "div",
+        {
+          class: "fkp_monitoring-page__row fkp_monitoring-page__row--state",
+          role: "row"
+        },
+        [
+          textE(
+            "div",
+            {
+              class: ["fkp_monitoring-page__state", options.className].filter(Boolean).join(" "),
+              role: "cell"
+            },
+            text2
+          )
+        ]
+      )
+    ],
+    options.closable
+  );
 }
 
 // src/helpers/domainToUnicode.ts
@@ -9908,8 +9997,6 @@ var CONNECTIONS_POLL_DUTY_MAX_MS = 15e3;
 var CONNECTIONS_SOCKET_GRACE_MS = 2e3;
 var CLOSED_CONNECTION_LIMIT = 300;
 var ALL_FILTER_VALUE = "all";
-var SYSTEM_DEVICE_VALUE2 = "@system";
-var SYSTEM_INBOUND_TAGS = /* @__PURE__ */ new Set(["system-in", "system6-in"]);
 var monitoringMounted = false;
 var monitoringMountId = 0;
 var monitoringLifecycleRegistered = false;
@@ -9919,7 +10006,6 @@ var connectionsSocketUrl2 = "";
 var connectionsUpdatesId = 0;
 var connectionsSocketGraceTimer = null;
 var lastConnectionsPollDurationMs = 0;
-var renderSkippedForSelection = false;
 var pendingConnectionsPayload = null;
 var activeTab = "active";
 var selectedDeviceFilter = ALL_FILTER_VALUE;
@@ -9927,12 +10013,13 @@ var searchQuery = "";
 var localDeviceChoices = {};
 var routeDisplayNames = {};
 var routeSections = [];
-var serverDisplayNames = {};
+var serverInboundTags = /* @__PURE__ */ new Set();
 var lastDeviceFilterSignature = "";
 var loading = true;
 var failed = false;
 var closingAll = false;
 var monitoringPaused = false;
+var selectionHeld = false;
 var monitoringPausedAt = null;
 var consecutivePollFailures = 0;
 var activeConnections = /* @__PURE__ */ new Map();
@@ -9948,7 +10035,7 @@ function buildRouteDisplayNames(sections) {
   const map = {
     "direct-out": _("Direct")
   };
-  const serverMap = {};
+  const serverTags = /* @__PURE__ */ new Set();
   const routeSectionItems = [];
   sections.filter((section) => section[".type"] === "section").filter((section) => section.enabled !== "0").forEach((section) => {
     const sectionName = section[".name"];
@@ -9965,10 +10052,10 @@ function buildRouteDisplayNames(sections) {
     if (!sectionName || !displayName) {
       return;
     }
-    serverMap[displayName] = displayName;
+    serverTags.add(displayName);
   });
   routeDisplayNames = map;
-  serverDisplayNames = serverMap;
+  serverInboundTags = serverTags;
   routeSections = routeSectionItems.sort(
     (a, b) => b.sectionName.length - a.sectionName.length
   );
@@ -10012,100 +10099,11 @@ function formatConnectionDuration(connection) {
 function formatBytes2(value) {
   return prettyBytes(Number.isFinite(value) ? Number(value) : 0);
 }
-function getConnectionSourceIp(connection) {
-  return normalizeString(connection.metadata?.sourceIP);
-}
-function getConnectionInboundTag(connection) {
-  const metadataType = normalizeString(connection.metadata?.type);
-  const metadataTypeParts = metadataType.split("/");
-  const metadataTag = normalizeString(
-    metadataTypeParts.length > 1 ? metadataTypeParts[metadataTypeParts.length - 1] : metadataType
-  );
-  if (metadataTag) {
-    return metadataTag;
-  }
-  const ruleInbound = normalizeString(connection.rule).match(
-    /(?:^|\s)inbound=([^\s]+)/
-  );
-  return normalizeString(ruleInbound?.[1]);
-}
-function isSystemConnection(connection) {
-  return SYSTEM_INBOUND_TAGS.has(getConnectionInboundTag(connection));
-}
-function getConnectionSourceFilterValue(connection) {
-  return isSystemConnection(connection) ? SYSTEM_DEVICE_VALUE2 : getConnectionSourceIp(connection);
-}
-function getServerDisplayNameByInboundTag(tag) {
-  return normalizeString(serverDisplayNames[tag]);
-}
-function getDeviceName(ip) {
-  return normalizeString(localDeviceChoices[ip]);
-}
-function getServerSourceNameByIp(ip) {
-  if (!ip) {
-    return "";
-  }
-  const connections = [
-    ...Array.from(activeConnections.values()),
-    ...Array.from(closedConnections.values())
-  ];
-  for (const connection of connections) {
-    if (getConnectionSourceIp(connection) !== ip) {
-      continue;
-    }
-    const serverName = getServerDisplayNameByInboundTag(
-      getConnectionInboundTag(connection)
-    );
-    if (serverName) {
-      return serverName;
-    }
-  }
-  return "";
-}
-function getDeviceFilterLabel(ip) {
-  if (ip === SYSTEM_DEVICE_VALUE2) {
-    return _("System");
-  }
-  const serverName = getServerSourceNameByIp(ip);
-  if (serverName) {
-    return serverName;
-  }
-  const deviceName = getDeviceName(ip);
-  return deviceName || ip;
-}
-function getSourceCellParts(connection) {
-  const ip = getConnectionSourceIp(connection);
-  const inboundTag = getConnectionInboundTag(connection);
-  if (isSystemConnection(connection)) {
-    return {
-      primary: _("System"),
-      copyValue: _("System"),
-      searchValue: [_("System"), ip, inboundTag].filter(Boolean).join(" ")
-    };
-  }
-  const serverName = getServerDisplayNameByInboundTag(inboundTag);
-  if (serverName) {
-    const client = normalizeString(connection.metadata?.user);
-    const primary = client ? `${serverName} (${client})` : serverName;
-    return {
-      primary,
-      copyValue: primary,
-      searchValue: [primary, ip, inboundTag].filter(Boolean).join(" ")
-    };
-  }
-  const deviceName = getDeviceName(ip);
-  if (deviceName) {
-    return {
-      primary: deviceName,
-      copyValue: deviceName,
-      searchValue: `${deviceName} ${ip}`
-    };
-  }
-  return {
-    primary: ip || "-",
-    copyValue: ip || "-",
-    searchValue: ip
-  };
+function getSource(connection) {
+  return describeSource(connection, {
+    devices: localDeviceChoices,
+    servers: serverInboundTags
+  });
 }
 function getTargetCellParts(connection) {
   const metadata = connection.metadata || {};
@@ -10145,7 +10143,6 @@ function normalizeSearchValue(value) {
 }
 function getSearchValues(connection) {
   const target = getTargetCellParts(connection);
-  const source = getSourceCellParts(connection);
   return [
     connection.id,
     target.primary,
@@ -10154,14 +10151,11 @@ function getSearchValues(connection) {
     formatConnectionDuration(connection),
     formatBytes2(connection.download),
     formatBytes2(connection.upload),
-    source.primary,
-    source.copyValue,
-    source.searchValue
+    getSource(connection).search
   ].filter(Boolean);
 }
 function matchesConnectionFilters(connection, normalizedSearch) {
-  const sourceIp = getConnectionSourceFilterValue(connection);
-  if (selectedDeviceFilter !== ALL_FILTER_VALUE && sourceIp !== selectedDeviceFilter) {
+  if (selectedDeviceFilter !== ALL_FILTER_VALUE && getSource(connection).key !== selectedDeviceFilter) {
     return false;
   }
   if (!normalizedSearch) {
@@ -10202,8 +10196,11 @@ function trimClosedConnections() {
     closedConnections.delete(connection.id);
   });
 }
+function isMonitoringPaused() {
+  return monitoringPaused || selectionHeld;
+}
 function applyConnectionsPayload(payload) {
-  if (monitoringPaused) {
+  if (isMonitoringPaused()) {
     pendingConnectionsPayload = payload;
     return;
   }
@@ -10243,29 +10240,19 @@ function setTab(tab) {
     return;
   }
   activeTab = tab;
-  renderControls();
-  renderConnections();
+  redrawForAction();
 }
-function getKnownSourceIps() {
-  const ips = /* @__PURE__ */ new Set();
-  activeConnections.forEach((connection) => {
-    const ip = getConnectionSourceFilterValue(connection);
-    if (ip) {
-      ips.add(ip);
-    }
-  });
-  closedConnections.forEach((connection) => {
-    const ip = getConnectionSourceFilterValue(connection);
-    if (ip) {
-      ips.add(ip);
-    }
-  });
-  return Array.from(ips).sort((a, b) => {
-    const byLabel = getDeviceFilterLabel(a).localeCompare(
-      getDeviceFilterLabel(b)
-    );
-    return byLabel || a.localeCompare(b);
-  });
+function getKnownSources() {
+  const sources = /* @__PURE__ */ new Map();
+  [activeConnections, closedConnections].forEach(
+    (connections) => connections.forEach((connection) => {
+      const source = getSource(connection);
+      if (source.key && !sources.has(source.key)) {
+        sources.set(source.key, source);
+      }
+    })
+  );
+  return Array.from(sources.values()).sort(compareSources);
 }
 function renderDeviceFilterOptions() {
   const select = document.getElementById(
@@ -10274,14 +10261,14 @@ function renderDeviceFilterOptions() {
   if (!select) {
     return;
   }
-  const sourceIps = getKnownSourceIps();
-  if (selectedDeviceFilter !== ALL_FILTER_VALUE && !sourceIps.includes(selectedDeviceFilter)) {
+  const sources = getKnownSources();
+  if (selectedDeviceFilter !== ALL_FILTER_VALUE && !sources.some(({ key }) => key === selectedDeviceFilter)) {
     selectedDeviceFilter = ALL_FILTER_VALUE;
   }
-  const signature = [
+  const signature = JSON.stringify([
     selectedDeviceFilter,
-    ...sourceIps.map((ip) => `${ip}:${getDeviceFilterLabel(ip)}`)
-  ].join("|");
+    ...sources.map(({ key, name, detail }) => [key, name, detail])
+  ]);
   if (signature === lastDeviceFilterSignature) {
     select.value = selectedDeviceFilter;
     return;
@@ -10289,32 +10276,31 @@ function renderDeviceFilterOptions() {
   lastDeviceFilterSignature = signature;
   const options = [
     textE("option", { value: ALL_FILTER_VALUE }, _("All devices")),
-    ...sourceIps.map(
-      (ip) => textE("option", { value: ip }, getDeviceFilterLabel(ip))
+    ...sources.map(
+      (source) => textE(
+        "option",
+        { value: source.key },
+        sourceLabel(source.name, source.detail)
+      )
     )
   ];
   select.replaceChildren(...options);
   select.value = selectedDeviceFilter;
 }
-function setButtonActive(button, active) {
-  if (!button) {
+function renderTab(tab, label, count, active) {
+  if (!tab) {
     return;
   }
-  button.classList.toggle("fkp_monitoring-page__tab--active", active);
-}
-function renderTabButtonContent(label, count) {
-  return [
-    textE("span", { class: "fkp_monitoring-page__tab-label" }, label),
-    textE("span", { class: "fkp_monitoring-page__tab-badge" }, String(count))
-  ];
+  tab.className = active ? "cbi-tab" : "cbi-tab-disabled";
+  tab.replaceChildren(
+    textE("a", { href: "#" }, [
+      label,
+      " ",
+      textE("span", { class: "fkp_monitoring-page__tab-count" }, String(count))
+    ])
+  );
 }
 function renderControls() {
-  const activeButton = document.getElementById(
-    "monitoring-tab-active"
-  );
-  const closedButton = document.getElementById(
-    "monitoring-tab-closed"
-  );
   const closeAllButton = document.getElementById(
     "monitoring-close-all"
   );
@@ -10322,21 +10308,18 @@ function renderControls() {
     "monitoring-auto-refresh"
   );
   const filteredActive = filterConnections(activeConnections);
-  if (activeButton) {
-    activeButton.replaceChildren(
-      ...renderTabButtonContent(_("Active"), filteredActive.length)
-    );
-  }
-  if (closedButton) {
-    closedButton.replaceChildren(
-      ...renderTabButtonContent(
-        _("Closed"),
-        filterConnections(closedConnections).length
-      )
-    );
-  }
-  setButtonActive(activeButton, activeTab === "active");
-  setButtonActive(closedButton, activeTab === "closed");
+  renderTab(
+    document.getElementById("monitoring-tab-active"),
+    _("Active"),
+    filteredActive.length,
+    activeTab === "active"
+  );
+  renderTab(
+    document.getElementById("monitoring-tab-closed"),
+    _("Closed"),
+    filterConnections(closedConnections).length,
+    activeTab === "closed"
+  );
   if (closeAllButton) {
     const filtered = hasConnectionFilters();
     closeAllButton.textContent = filtered ? _("Close matching") : _("Close all");
@@ -10345,6 +10328,10 @@ function renderControls() {
   }
   if (autoRefreshInput) {
     autoRefreshInput.checked = !monitoringPaused;
+  }
+  const pauseNote = document.getElementById("monitoring-pause-note");
+  if (pauseNote) {
+    pauseNote.hidden = !selectionHeld || monitoringPaused;
   }
   const searchIcon = document.querySelector(
     ".fkp_monitoring-page__search-icon"
@@ -10355,12 +10342,12 @@ function renderControls() {
   renderDeviceFilterOptions();
 }
 function toListItem(connection) {
-  const source = getSourceCellParts(connection);
+  const source = getSource(connection);
   return {
     id: connection.id,
     host: getTargetCellParts(connection).primary,
-    source: source.primary,
-    sourceCopyValue: source.copyValue,
+    sourceName: source.name,
+    sourceDetail: source.detail,
     route: getRoute(connection),
     network: getNetwork(connection),
     time: formatConnectionDuration(connection),
@@ -10369,42 +10356,38 @@ function toListItem(connection) {
     closing: closingConnectionIds.has(connection.id)
   };
 }
-function isNodeInsideMonitoring(node) {
-  const root = document.getElementById("monitoring-status");
-  return Boolean(root && node && root.contains(node));
-}
-function isTextSelectionInsideMonitoring() {
+function isTextSelectionInsideList() {
+  const list = document.getElementById("monitoring-connections");
   const selection = window.getSelection?.();
-  if (!selection || selection.isCollapsed) {
+  if (!list || !selection || selection.isCollapsed) {
     return false;
   }
-  return isNodeInsideMonitoring(selection.anchorNode) || isNodeInsideMonitoring(selection.focusNode);
+  return list.contains(selection.anchorNode) || list.contains(selection.focusNode);
 }
 function renderConnections(options = {}) {
   const container = document.getElementById("monitoring-connections");
   if (!container) {
     return;
   }
-  if (!options.force && isTextSelectionInsideMonitoring()) {
-    renderSkippedForSelection = true;
+  if (!options.force && isTextSelectionInsideList()) {
     return;
   }
-  renderSkippedForSelection = false;
+  const closable = activeTab === "active";
   if (loading) {
     container.replaceChildren(
-      renderConnectionListState(
-        _("Loading connections"),
-        "fkp_monitoring-page__state--loading"
-      )
+      renderConnectionListState(_("Loading connections..."), {
+        closable,
+        className: "fkp_monitoring-page__state--loading"
+      })
     );
     return;
   }
   if (failed) {
     container.replaceChildren(
-      renderConnectionListState(
-        _("Connections are unavailable"),
-        "fkp_monitoring-page__state--error"
-      )
+      renderConnectionListState(_("Connections are unavailable"), {
+        closable,
+        className: "fkp_monitoring-page__state--error"
+      })
     );
     return;
   }
@@ -10412,31 +10395,31 @@ function renderConnections(options = {}) {
   if (visibleConnections.length === 0) {
     container.replaceChildren(
       renderConnectionListState(
-        activeTab === "active" ? _("No active connections") : _("No closed connections")
+        closable ? _("No active connections") : _("No closed connections"),
+        { closable }
       )
     );
     return;
   }
   container.replaceChildren(
-    renderConnectionList(visibleConnections.map(toListItem), {
-      closable: activeTab === "active"
-    })
+    renderConnectionList(visibleConnections.map(toListItem), { closable })
   );
 }
-function flushRenderAfterSelection() {
-  if (!renderSkippedForSelection || isTextSelectionInsideMonitoring()) {
+function updatePause(change) {
+  const user = change.user ?? monitoringPaused;
+  const selection = change.selection ?? selectionHeld;
+  if (user === monitoringPaused && selection === selectionHeld) {
     return;
   }
-  renderConnections({ force: true });
-}
-function setMonitoringPaused(paused) {
-  if (monitoringPaused === paused) {
-    return;
-  }
-  monitoringPaused = paused;
-  monitoringPausedAt = paused ? Date.now() : null;
-  renderSkippedForSelection = false;
+  const wasPaused = isMonitoringPaused();
+  monitoringPaused = user;
+  selectionHeld = selection;
   renderControls();
+  const paused = isMonitoringPaused();
+  if (paused === wasPaused) {
+    return;
+  }
+  monitoringPausedAt = paused ? Date.now() : null;
   if (!paused) {
     const payload = pendingConnectionsPayload;
     pendingConnectionsPayload = null;
@@ -10449,6 +10432,14 @@ function setMonitoringPaused(paused) {
     }
   }
   renderConnections();
+}
+function holdForSelection() {
+  updatePause({ selection: isTextSelectionInsideList() });
+}
+function redrawForAction() {
+  renderControls();
+  renderConnections({ force: true });
+  holdForSelection();
 }
 function getSelectionValueElements(selection) {
   const root = document.getElementById("monitoring-status");
@@ -10588,8 +10579,8 @@ async function closeMatchingConnections() {
   }
 }
 function bindControls() {
-  const activeButton = document.getElementById("monitoring-tab-active");
-  const closedButton = document.getElementById("monitoring-tab-closed");
+  const activeTabItem = document.getElementById("monitoring-tab-active");
+  const closedTabItem = document.getElementById("monitoring-tab-closed");
   const select = document.getElementById(
     "monitoring-device-filter"
   );
@@ -10603,11 +10594,17 @@ function bindControls() {
   const connectionsContainer = document.getElementById(
     "monitoring-connections"
   );
-  if (activeButton) {
-    activeButton.onclick = () => setTab("active");
+  if (activeTabItem) {
+    activeTabItem.onclick = (event) => {
+      event.preventDefault();
+      setTab("active");
+    };
   }
-  if (closedButton) {
-    closedButton.onclick = () => setTab("closed");
+  if (closedTabItem) {
+    closedTabItem.onclick = (event) => {
+      event.preventDefault();
+      setTab("closed");
+    };
   }
   if (closeAllButton) {
     closeAllButton.onclick = () => {
@@ -10616,21 +10613,19 @@ function bindControls() {
   }
   if (autoRefreshInput) {
     autoRefreshInput.onchange = () => {
-      setMonitoringPaused(!autoRefreshInput.checked);
+      updatePause({ user: !autoRefreshInput.checked });
     };
   }
   if (select) {
     select.onchange = () => {
       selectedDeviceFilter = select.value || ALL_FILTER_VALUE;
-      renderControls();
-      renderConnections();
+      redrawForAction();
     };
   }
   if (searchInput) {
     searchInput.oninput = () => {
       searchQuery = searchInput.value;
-      renderControls();
-      renderConnections();
+      redrawForAction();
     };
   }
   if (connectionsContainer) {
@@ -10674,7 +10669,7 @@ function reportPollFailure() {
   renderConnections();
 }
 async function pollConnectionsSnapshot() {
-  if (!monitoringMounted || monitoringPaused) {
+  if (!monitoringMounted || isMonitoringPaused()) {
     return;
   }
   const mountId = monitoringMountId;
@@ -10784,6 +10779,7 @@ function resetMonitoringState() {
   failed = false;
   closingAll = false;
   monitoringPaused = false;
+  selectionHeld = false;
   monitoringPausedAt = null;
   consecutivePollFailures = 0;
   lastConnectionsPollDurationMs = 0;
@@ -10810,10 +10806,10 @@ function onPageMount3() {
   startConnectionsUpdates();
   void loadLocalDevices();
   void loadRouteDisplayNames();
-  document.addEventListener("selectionchange", flushRenderAfterSelection);
+  document.addEventListener("selectionchange", holdForSelection);
   document.addEventListener("copy", handleMonitoringValueCopy);
   renderTimer = setInterval(() => {
-    if (monitoringPaused || !isDocumentVisible()) {
+    if (isMonitoringPaused() || !isDocumentVisible()) {
       return;
     }
     renderConnections();
@@ -10827,7 +10823,7 @@ function onPageUnmount3() {
     renderTimer = null;
   }
   stopConnectionsUpdates();
-  document.removeEventListener("selectionchange", flushRenderAfterSelection);
+  document.removeEventListener("selectionchange", holdForSelection);
   document.removeEventListener("copy", handleMonitoringValueCopy);
 }
 var monitoringLifecycle = createTabLifecycle({
@@ -10907,79 +10903,37 @@ var styles5 = `
 
 .fkp_monitoring-page__controls {
     display: grid;
-    grid-template-columns: max-content minmax(0, 1fr) max-content;
-    grid-template-areas: 'tabs filters actions';
+    grid-template-columns: minmax(0, 1fr) max-content;
+    grid-template-areas: 'filters actions';
     align-items: center;
     gap: 12px 16px;
     margin-bottom: 12px;
 }
 
-/* The controls keep the theme's own height, and the switch stretches to the
-   height of whatever shares its line. */
-.fkp_monitoring-page__tabs {
-    grid-area: tabs;
-    align-self: stretch;
-    display: inline-flex;
-    gap: 2px;
-    padding: 2px;
-    border: 1px solid var(--fkp-monitoring-divider-color);
-    border-radius: 6px;
-    background: var(--fkp-monitoring-soft-bg);
-    box-sizing: border-box;
+/* The tabs are the theme's own, the way LuCI's software page switches its
+   lists; only the count beside each name is the page's. */
+/* The free end of the tab bar, so showing it moves nothing: the list stays
+   put under a selection being made in it. It is no tab, so the theme's tab
+   rules leave it alone, and it takes only what the tabs leave. */
+.fkp_monitoring-page__pause-note {
+    flex: 1 1 0;
+    min-width: 0;
+    align-self: center;
+    margin-left: 8px;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-color-medium, #888);
 }
 
-.fkp_monitoring-page .btn.fkp_monitoring-page__tab {
-    height: auto;
-    min-height: 28px;
-    margin: 0;
-    padding: 0 12px;
-    border: 0 !important;
-    border-radius: 4px;
-    background: transparent !important;
-    color: var(--text-color-medium) !important;
-    box-shadow: none;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    font-weight: 600;
-    line-height: 1;
+.fkp_monitoring-page__pause-note[hidden] {
+    display: none;
 }
 
-.fkp_monitoring-page .btn.fkp_monitoring-page__tab:hover {
-    background: var(--fkp-monitoring-soft-bg-hover) !important;
-    color: var(--text-color-high) !important;
-}
-
-.fkp_monitoring-page .btn.fkp_monitoring-page__tab--active {
-    background: rgba(25, 118, 210, 0.16) !important;
-    color: var(--primary-color-high, #1976d2) !important;
-    font-weight: 700;
-}
-
-.fkp_monitoring-page__tab-label {
-    display: inline-block;
-}
-
-.fkp_monitoring-page__tab-badge {
-    min-width: 18px;
-    height: 18px;
-    padding: 0 6px;
-    border-radius: 999px;
-    background: rgba(127, 127, 127, 0.22);
-    color: var(--text-color-medium);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    box-sizing: border-box;
-    font-size: 12px;
-    font-weight: 700;
-    line-height: 1;
-}
-
-.fkp_monitoring-page__tab--active .fkp_monitoring-page__tab-badge {
-    background: rgba(25, 118, 210, 0.22);
-    color: var(--primary-color-high, #1976d2);
+.fkp_monitoring-page__tab-count {
+    color: var(--text-color-medium, #888);
+    font-variant-numeric: tabular-nums;
 }
 
 /* A theme may put its own dropdown next to the select and hide the select, so
@@ -11063,20 +11017,26 @@ var styles5 = `
 /* Every row is a subgrid of the list, so a column is as wide as its widest
    value or heading and what is left is shared out evenly, the way a table
    shares it. Only the host, the source and the route give way when the width
-   runs short. */
+   runs short. A list whose connections can be closed has one more column for
+   the button. */
 .fkp_monitoring-page__list {
-    display: grid;
-    grid-template-columns:
+    --fkp-monitoring-columns:
         minmax(8em, auto)
         minmax(6em, auto)
         minmax(5.5em, auto)
         minmax(max-content, auto)
         minmax(max-content, auto)
         minmax(max-content, auto)
-        minmax(max-content, auto)
-        max-content;
+        minmax(max-content, auto);
+
+    display: grid;
+    grid-template-columns: var(--fkp-monitoring-columns);
     column-gap: 12px;
     font-size: 13px;
+}
+
+.fkp_monitoring-page__list--closable {
+    grid-template-columns: var(--fkp-monitoring-columns) max-content;
 }
 
 .fkp_monitoring-page__row {
@@ -11159,6 +11119,10 @@ var styles5 = `
     text-transform: lowercase;
 }
 
+.fkp_monitoring-page__muted {
+    color: var(--text-color-medium, #bbb);
+}
+
 .fkp_monitoring-page__cell--time .fkp_monitoring-page__value,
 .fkp_monitoring-page__cell--download .fkp_monitoring-page__value,
 .fkp_monitoring-page__cell--upload .fkp_monitoring-page__value {
@@ -11218,17 +11182,6 @@ var styles5 = `
 }
 
 @container (max-width: 899px) {
-    .fkp_monitoring-page__controls {
-        grid-template-columns: max-content minmax(0, 1fr);
-        grid-template-areas:
-            'tabs actions'
-            'filters filters';
-    }
-
-    .fkp_monitoring-page__actions {
-        justify-self: end;
-    }
-
     .fkp_monitoring-page__filters {
         grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
     }
@@ -11238,6 +11191,17 @@ var styles5 = `
    same cells: the host with the close action, the source with route and
    protocol, the duration with the traffic counters. */
 @container (max-width: 639px) {
+    .fkp_monitoring-page__controls {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+            'filters'
+            'actions';
+    }
+
+    .fkp_monitoring-page__actions {
+        justify-self: end;
+    }
+
     .fkp_monitoring-page__list {
         display: block;
     }
@@ -11326,26 +11290,9 @@ var styles5 = `
     .fkp_monitoring-page__cell--upload .fkp_monitoring-page__value {
         display: inline;
     }
-
-    .fkp_monitoring-page__action-placeholder {
-        display: none;
-    }
 }
 
 @container (max-width: 519px) {
-    .fkp_monitoring-page__controls {
-        grid-template-columns: minmax(0, 1fr);
-        grid-template-areas:
-            'tabs'
-            'filters'
-            'actions';
-    }
-
-    .fkp_monitoring-page__tabs {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
     .fkp_monitoring-page__filters,
     .fkp_monitoring-page__actions {
         display: grid;
@@ -11353,6 +11300,7 @@ var styles5 = `
         gap: 8px;
         justify-self: stretch;
     }
+
 }
 `;
 
@@ -11415,15 +11363,15 @@ function render4() {
         "aria-label": _("Forkop system logs"),
         "aria-busy": "true"
       },
-      _("Loading logs")
+      _("Loading logs...")
     )
   ]);
 }
 
 // src/forkop/tabs/logs/filterLogs.ts
-function filterLogText(text, query) {
+function filterLogText(text2, query) {
   const normalizedQuery = query.trim().toLowerCase();
-  return text.split(/\r?\n/).filter((line) => {
+  return text2.split(/\r?\n/).filter((line) => {
     if (!line) {
       return false;
     }
@@ -12877,7 +12825,7 @@ function updateDynamicListItemLabel(item, label) {
     labelNode.textContent = `${label || ""}`;
   }
 }
-function addDynamicListItem(widget, value, text) {
+function addDynamicListItem(widget, value, text2) {
   if (!widget || !widget.node) {
     return null;
   }
@@ -12890,7 +12838,7 @@ function addDynamicListItem(widget, value, text) {
     widget.dispatchCbiDynlistChange(widget.node, normalized);
     return null;
   }
-  widget.addItem(widget.node, normalized, text || null, false);
+  widget.addItem(widget.node, normalized, text2 || null, false);
   widget.dispatchCbiDynlistChange(widget.node, normalized);
   updateButtonAddDynamicListLayout(widget.node, options.addButtonLabel);
   return findDynamicListItemByValue(widget.node, normalized);
@@ -13727,12 +13675,12 @@ var SettingsUIDynamicList = ui.DynamicList.extend({
       }
     });
   },
-  addItem(dl, value, text, flash) {
+  addItem(dl, value, text2, flash) {
     if (flash && typeof this.options.hasEquivalentValue === "function" && this.options.hasEquivalentValue(value, dl)) {
       this.dispatchCbiDynlistChange(dl, value);
       return;
     }
-    const itemText = typeof this.options.itemLabel === "function" ? this.options.itemLabel(value, text) : text;
+    const itemText = typeof this.options.itemLabel === "function" ? this.options.itemLabel(value, text2) : text2;
     ui.DynamicList.prototype.addItem.call(this, dl, value, itemText, flash);
     const item = findDynamicListItemByValue(dl, value);
     const hasSettings = typeof this.options.hasSettings === "function" ? this.options.hasSettings(value) : true;
@@ -13936,15 +13884,15 @@ var SettingsDynamicList = form.DynamicList.extend({
           );
         }
       },
-      itemLabel: (itemValue, text) => {
+      itemLabel: (itemValue, text2) => {
         if (typeof this.renderListItemLabel === "function") {
           return this.renderListItemLabel(
             this.childOwner(section_id),
             `${itemValue}`,
-            text
+            text2
           );
         }
-        return text;
+        return text2;
       },
       hasSettings: (itemValue) => this.hasItemSettings(this.childOwner(section_id), `${itemValue}`),
       hasEquivalentValue: (itemValue, dl) => {
@@ -14353,13 +14301,13 @@ function syncAnnotatedTextareaOverlay(textarea, wrapper, overlay) {
   overlay.scrollLeft = textarea.scrollLeft;
 }
 function renderAnnotatedTextareaOverlay(value, annotations) {
-  const text = value ? `${value}` : "";
+  const text2 = value ? `${value}` : "";
   const normalizedAnnotations = Array.isArray(annotations) ? annotations : [];
-  if (!text.length) {
+  if (!text2.length) {
     return "&#8203;";
   }
   if (!normalizedAnnotations.length) {
-    return `${escapeHtml(text)}${text.endsWith("\n") ? "\n " : ""}`;
+    return `${escapeHtml(text2)}${text2.endsWith("\n") ? "\n " : ""}`;
   }
   let cursor2 = 0;
   let html = "";
@@ -14367,14 +14315,14 @@ function renderAnnotatedTextareaOverlay(value, annotations) {
     if (annotation.start < cursor2 || annotation.start >= annotation.end || annotation.start < 0) {
       return;
     }
-    html += escapeHtml(text.slice(cursor2, annotation.start));
+    html += escapeHtml(text2.slice(cursor2, annotation.start));
     html += `<span class="fkp-annotated-textarea__invalid">${escapeHtml(
-      text.slice(annotation.start, annotation.end)
+      text2.slice(annotation.start, annotation.end)
     )}</span>`;
     cursor2 = annotation.end;
   });
-  html += escapeHtml(text.slice(cursor2));
-  if (text.endsWith("\n")) {
+  html += escapeHtml(text2.slice(cursor2));
+  if (text2.endsWith("\n")) {
     html += "\n ";
   }
   return html;
@@ -14428,10 +14376,10 @@ function attachAnnotatedTextarea(textarea, analyzer) {
   controller.update();
 }
 function parseCommentAwareListTokens(value) {
-  const text = value ? `${value}` : "";
+  const text2 = value ? `${value}` : "";
   const tokens = [];
-  const lines = text.split(/\r\n|\r|\n/);
-  const newlines = text.match(/\r\n|\r|\n/g) || [];
+  const lines = text2.split(/\r\n|\r|\n/);
+  const newlines = text2.match(/\r\n|\r|\n/g) || [];
   let offset = 0;
   lines.forEach((line, index) => {
     const hashIndex = line.indexOf("#");
@@ -14459,11 +14407,11 @@ function parseCommentAwareListTokens(value) {
   return tokens;
 }
 function analyzeTextListValue(value, validateItem, emptyMessage, options = {}) {
-  const text = value ? `${value}` : "";
-  if (!text.length) {
+  const text2 = value ? `${value}` : "";
+  if (!text2.length) {
     return { valid: true, message: "", annotations: [] };
   }
-  const tokens = parseCommentAwareListTokens(text);
+  const tokens = parseCommentAwareListTokens(text2);
   if (!tokens.length) {
     return { valid: false, message: emptyMessage, annotations: [] };
   }
@@ -15743,14 +15691,14 @@ function openVPNEndpoint(settings) {
     const existing = openVPNParent(endpoint, field.path);
     if (existing && existing.key in existing.parent) return null;
     const input = settings[openVPNFieldKey(field.path)];
-    const text = field.secret || field.path === "username" ? `${input ?? ""}` : `${input ?? ""}`.trim();
-    if (!text) continue;
+    const text2 = field.secret || field.path === "username" ? `${input ?? ""}` : `${input ?? ""}`.trim();
+    if (!text2) continue;
     const slot = openVPNParent(endpoint, field.path, true);
     if (!slot) return null;
-    if (field.choices && !field.choices.includes(text)) return null;
-    if (field.number && (!/^\d+$/u.test(text) || Number(text) < 1 || Number(text) > 65535))
+    if (field.choices && !field.choices.includes(text2)) return null;
+    if (field.number && (!/^\d+$/u.test(text2) || Number(text2) < 1 || Number(text2) > 65535))
       return null;
-    slot.parent[slot.key] = field.list ? (Array.isArray(input) ? input : [input]).map((value) => `${value}`.trim()).filter(Boolean) : field.number ? Number(text) : field.pem ? text.split(/\r?\n/u) : text;
+    slot.parent[slot.key] = field.list ? (Array.isArray(input) ? input : [input]).map((value) => `${value}`.trim()).filter(Boolean) : field.number ? Number(text2) : field.pem ? text2.split(/\r?\n/u) : text2;
   }
   pruneOpenVPNObjects(endpoint);
   return { ...endpoint, type: "openvpn-client" };
@@ -17388,7 +17336,7 @@ var InterfaceSettingsDynamicList = SettingsDynamicList.extend({
       }, this)
     );
   },
-  renderListItemLabel(section_id, value, text) {
+  renderListItemLabel(section_id, value, text2) {
     const name = childItemInputValue(
       section_id,
       value,
@@ -17397,7 +17345,7 @@ var InterfaceSettingsDynamicList = SettingsDynamicList.extend({
     );
     return renderNetworkInterfaceListItem(
       this.interfaceDeviceMap ? this.interfaceDeviceMap[name] : null,
-      name || `${text ?? ""}`
+      name || `${text2 ?? ""}`
     );
   }
 });
@@ -18413,10 +18361,10 @@ async function parseWireGuardInput(input) {
     if (!isAmneziaLink) return importAmneziaProfile(JSON.parse(value));
     const packed = decodeBase64Url(value.slice("vpn://".length));
     const decoded = await uncompressQtData(packed);
-    const text = new TextDecoder("utf-8", { fatal: true }).decode(decoded);
-    if (/^\s*\[Interface\](?:\r?\n|$)/u.test(text))
-      return parseWireGuardConfig(text);
-    return importAmneziaProfile(JSON.parse(text));
+    const text2 = new TextDecoder("utf-8", { fatal: true }).decode(decoded);
+    if (/^\s*\[Interface\](?:\r?\n|$)/u.test(text2))
+      return parseWireGuardConfig(text2);
+    return importAmneziaProfile(JSON.parse(text2));
   } catch {
     return {
       valid: false,
@@ -20617,12 +20565,12 @@ var systemPortsCache = null;
 function occupiedPorts(currentSectionId) {
   const owners = /* @__PURE__ */ new Map();
   const claim = (port, transports, owner) => {
-    const text = `${port || ""}`.trim();
-    if (!/^[0-9]+$/.test(text)) {
+    const text2 = `${port || ""}`.trim();
+    if (!/^[0-9]+$/.test(text2)) {
       return;
     }
     transports.forEach((transport2) => {
-      const key = `${transport2}/${Number(text)}`;
+      const key = `${transport2}/${Number(text2)}`;
       if (!owners.has(key)) owners.set(key, owner);
     });
   };
@@ -21180,8 +21128,8 @@ function qrRawCodewords(version) {
 function qrDataCodewords(version) {
   return qrRawCodewords(version) - QR_EC_CODEWORDS_PER_BLOCK_LOW[version] * QR_NUM_ERROR_CORRECTION_BLOCKS_LOW[version];
 }
-function qrEncodeText(text) {
-  return Array.from(new TextEncoder().encode(text));
+function qrEncodeText(text2) {
+  return Array.from(new TextEncoder().encode(text2));
 }
 function qrBuildDataCodewords(bytes, version) {
   const capacity = qrDataCodewords(version);
@@ -21406,8 +21354,8 @@ function qrMakeMatrix(version, dataCodewords) {
   drawFormatBits(0);
   return modules;
 }
-function qrSvgDataUri(text) {
-  const bytes = qrEncodeText(text);
+function qrSvgDataUri(text2) {
+  const bytes = qrEncodeText(text2);
   let version = 1;
   for (; version <= 40; version += 1) {
     const countBits = version <= 9 ? 8 : 16;
@@ -21484,9 +21432,9 @@ function iconSvg(name) {
     ICON_PATHS[name].map(([tag, attrs]) => svgEl2(tag, attrs))
   );
 }
-function copyText(text) {
+function copyText(text2) {
   const textarea = document.createElement("textarea");
-  textarea.value = text;
+  textarea.value = text2;
   textarea.style.position = "fixed";
   textarea.style.top = "0";
   textarea.style.left = "0";
@@ -22351,10 +22299,7 @@ function clientSettingsDefaults(sectionId, inputValue, existing, listOption) {
   if (existing) {
     return defaults;
   }
-  defaults.name = `${inputValue || ""}`.trim() || nextClientName([
-    ...listedClientNames(sectionId, listOption),
-    ...routerClientNames()
-  ]);
+  defaults.name = `${inputValue || ""}`.trim() || generateClientName(sectionId, listOption);
   visibleClientFields(sectionId).forEach((field) => {
     if (field === "flow" || field === "authorized_keys") {
       return;
@@ -22362,6 +22307,12 @@ function clientSettingsDefaults(sectionId, inputValue, existing, listOption) {
     defaults[field] = generateCredential(sectionId, protocol, field);
   });
   return defaults;
+}
+function generateClientName(sectionId, listOption) {
+  return nextClientName([
+    ...listedClientNames(sectionId, listOption),
+    ...routerClientNames()
+  ]);
 }
 function listedClientNames(sectionId, listOption) {
   let current = null;
@@ -22546,7 +22497,7 @@ function addClientCredentialOptions(sectionId, itemSection) {
     );
   });
 }
-function addClientOptions(sectionId, itemSection, helpers) {
+function addClientOptions(sectionId, itemSection, helpers, listOption) {
   const protocol = getProtocol(sectionId);
   const name = itemSection.option(
     form.Value,
@@ -22561,6 +22512,7 @@ function addClientOptions(sectionId, itemSection, helpers) {
     }
     return typeof helpers.validateName === "function" ? helpers.validateName(value) : true;
   };
+  addGenerateButton(name, () => generateClientName(sectionId, listOption));
   addClientCredentialOptions(sectionId, itemSection);
   addClientRoutingOptions(sectionId, itemSection);
 }
@@ -22611,7 +22563,7 @@ function showClientSettingsModal(sectionId, itemValue, listOption, widget, itemN
     keys: CLIENT_KEYS,
     itemNode,
     defaults: (inputValue, existing) => clientSettingsDefaults(sectionId, inputValue, existing, listOption),
-    addOptions: (itemSection, helpers) => addClientOptions(sectionId, itemSection, helpers),
+    addOptions: (itemSection, helpers) => addClientOptions(sectionId, itemSection, helpers, listOption),
     validateName: validateUniqueDynamicListItemName.bind(
       null,
       widget,
@@ -23541,8 +23493,8 @@ function lineFields(line, offset) {
   }
   return fields;
 }
-function analyzeStaticHosts(text) {
-  const value = `${text || ""}`;
+function analyzeStaticHosts(text2) {
+  const value = `${text2 || ""}`;
   const annotations = [];
   const errors = [];
   let offset = 0;

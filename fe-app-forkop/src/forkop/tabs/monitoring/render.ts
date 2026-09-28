@@ -10,27 +10,6 @@ export function render() {
     [
       E('div', { class: 'fkp_monitoring-page__panel' }, [
         E('div', { class: 'fkp_monitoring-page__controls' }, [
-          E('div', { class: 'fkp_monitoring-page__tabs' }, [
-            E(
-              'button',
-              {
-                id: 'monitoring-tab-active',
-                class:
-                  'btn cbi-button fkp_monitoring-page__tab fkp_monitoring-page__tab--active',
-                type: 'button',
-              },
-              `${_('Active')} 0`,
-            ),
-            E(
-              'button',
-              {
-                id: 'monitoring-tab-closed',
-                class: 'btn cbi-button fkp_monitoring-page__tab',
-                type: 'button',
-              },
-              `${_('Closed')} 0`,
-            ),
-          ]),
           E('div', { class: 'fkp_monitoring-page__filters' }, [
             E(
               'select',
@@ -75,6 +54,25 @@ export function render() {
             ),
           ]),
         ]),
+        E('ul', { class: 'cbi-tabmenu fkp_monitoring-page__tabs' }, [
+          E('li', { id: 'monitoring-tab-active', class: 'cbi-tab' }, [
+            E('a', { href: '#' }, _('Active')),
+          ]),
+          E('li', { id: 'monitoring-tab-closed', class: 'cbi-tab-disabled' }, [
+            E('a', { href: '#' }, _('Closed')),
+          ]),
+          E(
+            'span',
+            {
+              id: 'monitoring-pause-note',
+              class: 'fkp_monitoring-page__pause-note',
+              role: 'status',
+              title: _('Paused while text is selected'),
+              hidden: true,
+            },
+            _('Paused while text is selected'),
+          ),
+        ]),
         E(
           'div',
           { id: 'monitoring-connections', class: 'fkp_monitoring-page__body' },
@@ -85,7 +83,7 @@ export function render() {
                 class:
                   'fkp_monitoring-page__state fkp_monitoring-page__state--loading',
               },
-              _('Loading connections'),
+              _('Loading connections...'),
             ),
           ],
         ),

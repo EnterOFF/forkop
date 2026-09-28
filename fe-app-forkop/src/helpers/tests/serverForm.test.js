@@ -102,6 +102,53 @@ describe('server form', () => {
     expect(names).not.toContain('reality_handshake_server_port');
   });
 
+  it('generates a name for a client from a button beside the field', () => {
+    const { view } = build();
+    const itemSection = createFormSectionStub();
+    const field = { value: 'laptop' };
+    const widget = {
+      getValue: () => field.value,
+      setValue: (value) => (field.value = value),
+      triggerValidation: () => {},
+    };
+    const buttons = [];
+    const luciE = globalThis.E;
+    globalThis.form.Value.prototype.renderWidget = () => ({
+      instance: widget,
+      querySelector: () => null,
+    });
+    globalThis.E = (tag, attrs = {}, children = []) => {
+      const node = {
+        tag,
+        attrs,
+        children,
+        listeners: {},
+        addEventListener(type, listener) {
+          node.listeners[type] = listener;
+        },
+      };
+      if (tag === 'button') buttons.push(node);
+      return node;
+    };
+
+    try {
+      view.addClientOptions('srv', itemSection, {}, null);
+      const name = itemSection.options.find((option) => option.name === 'name');
+      name.map = {};
+      name.renderWidget('srv', 0, 'laptop');
+      buttons[0].listeners.click({
+        preventDefault: () => {},
+        stopPropagation: () => {},
+      });
+    } finally {
+      delete globalThis.form.Value.prototype.renderWidget;
+      globalThis.E = luciE;
+    }
+
+    expect(buttons).toHaveLength(1);
+    expect(field.value).toMatch(/^user-[a-z0-9]{5}$/);
+  });
+
   // Turning on a client's own route leaves it on the rules the server follows, so
   // enabling the switch does not silently reroute the client.
   it('starts an overridden client on the rules', () => {

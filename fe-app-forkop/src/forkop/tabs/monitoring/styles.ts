@@ -44,79 +44,37 @@ export const styles = `
 
 .fkp_monitoring-page__controls {
     display: grid;
-    grid-template-columns: max-content minmax(0, 1fr) max-content;
-    grid-template-areas: 'tabs filters actions';
+    grid-template-columns: minmax(0, 1fr) max-content;
+    grid-template-areas: 'filters actions';
     align-items: center;
     gap: 12px 16px;
     margin-bottom: 12px;
 }
 
-/* The controls keep the theme's own height, and the switch stretches to the
-   height of whatever shares its line. */
-.fkp_monitoring-page__tabs {
-    grid-area: tabs;
-    align-self: stretch;
-    display: inline-flex;
-    gap: 2px;
-    padding: 2px;
-    border: 1px solid var(--fkp-monitoring-divider-color);
-    border-radius: 6px;
-    background: var(--fkp-monitoring-soft-bg);
-    box-sizing: border-box;
+/* The tabs are the theme's own, the way LuCI's software page switches its
+   lists; only the count beside each name is the page's. */
+/* The free end of the tab bar, so showing it moves nothing: the list stays
+   put under a selection being made in it. It is no tab, so the theme's tab
+   rules leave it alone, and it takes only what the tabs leave. */
+.fkp_monitoring-page__pause-note {
+    flex: 1 1 0;
+    min-width: 0;
+    align-self: center;
+    margin-left: 8px;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-color-medium, #888);
 }
 
-.fkp_monitoring-page .btn.fkp_monitoring-page__tab {
-    height: auto;
-    min-height: 28px;
-    margin: 0;
-    padding: 0 12px;
-    border: 0 !important;
-    border-radius: 4px;
-    background: transparent !important;
-    color: var(--text-color-medium) !important;
-    box-shadow: none;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    font-weight: 600;
-    line-height: 1;
+.fkp_monitoring-page__pause-note[hidden] {
+    display: none;
 }
 
-.fkp_monitoring-page .btn.fkp_monitoring-page__tab:hover {
-    background: var(--fkp-monitoring-soft-bg-hover) !important;
-    color: var(--text-color-high) !important;
-}
-
-.fkp_monitoring-page .btn.fkp_monitoring-page__tab--active {
-    background: rgba(25, 118, 210, 0.16) !important;
-    color: var(--primary-color-high, #1976d2) !important;
-    font-weight: 700;
-}
-
-.fkp_monitoring-page__tab-label {
-    display: inline-block;
-}
-
-.fkp_monitoring-page__tab-badge {
-    min-width: 18px;
-    height: 18px;
-    padding: 0 6px;
-    border-radius: 999px;
-    background: rgba(127, 127, 127, 0.22);
-    color: var(--text-color-medium);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    box-sizing: border-box;
-    font-size: 12px;
-    font-weight: 700;
-    line-height: 1;
-}
-
-.fkp_monitoring-page__tab--active .fkp_monitoring-page__tab-badge {
-    background: rgba(25, 118, 210, 0.22);
-    color: var(--primary-color-high, #1976d2);
+.fkp_monitoring-page__tab-count {
+    color: var(--text-color-medium, #888);
+    font-variant-numeric: tabular-nums;
 }
 
 /* A theme may put its own dropdown next to the select and hide the select, so
@@ -200,20 +158,26 @@ export const styles = `
 /* Every row is a subgrid of the list, so a column is as wide as its widest
    value or heading and what is left is shared out evenly, the way a table
    shares it. Only the host, the source and the route give way when the width
-   runs short. */
+   runs short. A list whose connections can be closed has one more column for
+   the button. */
 .fkp_monitoring-page__list {
-    display: grid;
-    grid-template-columns:
+    --fkp-monitoring-columns:
         minmax(8em, auto)
         minmax(6em, auto)
         minmax(5.5em, auto)
         minmax(max-content, auto)
         minmax(max-content, auto)
         minmax(max-content, auto)
-        minmax(max-content, auto)
-        max-content;
+        minmax(max-content, auto);
+
+    display: grid;
+    grid-template-columns: var(--fkp-monitoring-columns);
     column-gap: 12px;
     font-size: 13px;
+}
+
+.fkp_monitoring-page__list--closable {
+    grid-template-columns: var(--fkp-monitoring-columns) max-content;
 }
 
 .fkp_monitoring-page__row {
@@ -296,6 +260,10 @@ export const styles = `
     text-transform: lowercase;
 }
 
+.fkp_monitoring-page__muted {
+    color: var(--text-color-medium, #bbb);
+}
+
 .fkp_monitoring-page__cell--time .fkp_monitoring-page__value,
 .fkp_monitoring-page__cell--download .fkp_monitoring-page__value,
 .fkp_monitoring-page__cell--upload .fkp_monitoring-page__value {
@@ -355,17 +323,6 @@ export const styles = `
 }
 
 @container (max-width: 899px) {
-    .fkp_monitoring-page__controls {
-        grid-template-columns: max-content minmax(0, 1fr);
-        grid-template-areas:
-            'tabs actions'
-            'filters filters';
-    }
-
-    .fkp_monitoring-page__actions {
-        justify-self: end;
-    }
-
     .fkp_monitoring-page__filters {
         grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
     }
@@ -375,6 +332,17 @@ export const styles = `
    same cells: the host with the close action, the source with route and
    protocol, the duration with the traffic counters. */
 @container (max-width: 639px) {
+    .fkp_monitoring-page__controls {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+            'filters'
+            'actions';
+    }
+
+    .fkp_monitoring-page__actions {
+        justify-self: end;
+    }
+
     .fkp_monitoring-page__list {
         display: block;
     }
@@ -463,26 +431,9 @@ export const styles = `
     .fkp_monitoring-page__cell--upload .fkp_monitoring-page__value {
         display: inline;
     }
-
-    .fkp_monitoring-page__action-placeholder {
-        display: none;
-    }
 }
 
 @container (max-width: 519px) {
-    .fkp_monitoring-page__controls {
-        grid-template-columns: minmax(0, 1fr);
-        grid-template-areas:
-            'tabs'
-            'filters'
-            'actions';
-    }
-
-    .fkp_monitoring-page__tabs {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
     .fkp_monitoring-page__filters,
     .fkp_monitoring-page__actions {
         display: grid;
@@ -490,5 +441,6 @@ export const styles = `
         gap: 8px;
         justify-self: stretch;
     }
+
 }
 `;

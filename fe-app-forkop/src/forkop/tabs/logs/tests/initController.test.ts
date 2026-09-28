@@ -13,7 +13,7 @@ function page() {
   const nodes: Record<string, Record<string, unknown>> = {};
   const node = (id: string) =>
     (nodes[id] ??= {
-      textContent: 'Loading logs',
+      textContent: 'Loading logs...',
       value: '',
       checked: false,
       disabled: false,

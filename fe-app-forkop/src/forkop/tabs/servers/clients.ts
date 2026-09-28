@@ -181,14 +181,8 @@ export function clientSettingsDefaults(
 
   // Adding a client is an explicit action, so a fresh client starts with credentials
   // it can actually connect with; nothing is generated behind the user's back.
-  // A name only has to be unique on its server, but a generated one skips every
-  // name on the router, so a default name always points at one client.
   defaults.name =
-    `${inputValue || ''}`.trim() ||
-    nextClientName([
-      ...listedClientNames(sectionId, listOption),
-      ...routerClientNames(),
-    ]);
+    `${inputValue || ''}`.trim() || generateClientName(sectionId, listOption);
   visibleClientFields(sectionId).forEach((field: string) => {
     if (field === 'flow' || field === 'authorized_keys') {
       return;
@@ -197,6 +191,15 @@ export function clientSettingsDefaults(
   });
 
   return defaults;
+}
+
+// A name only has to be unique on its server, but a generated one skips every
+// name on the router, so a generated name always points at one client.
+export function generateClientName(sectionId: string, listOption: CBIOption) {
+  return nextClientName([
+    ...listedClientNames(sectionId, listOption),
+    ...routerClientNames(),
+  ]);
 }
 
 // The names the list shows right now. A removal that has not been saved yet gives

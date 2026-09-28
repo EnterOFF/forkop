@@ -52,7 +52,7 @@ export function render() {
         'aria-label': _('Forkop system logs'),
         'aria-busy': 'true',
       },
-      _('Loading logs'),
+      _('Loading logs...'),
     ),
   ]);
 }

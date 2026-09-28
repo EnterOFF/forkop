@@ -56,8 +56,8 @@ function classes(node: Drawn): string[] {
 const CONNECTION: ConnectionListItem = {
   id: 'c-1',
   host: 'g.whatsapp.net:5222',
-  source: 'POCO-F7',
-  sourceCopyValue: 'POCO-F7',
+  sourceName: 'POCO-F7',
+  sourceDetail: '192.168.1.144',
   route: 'Proxy',
   network: 'tcp',
   time: '0:40',
@@ -99,7 +99,7 @@ describe('the Monitoring connection list', () => {
     ]);
     expect(withRole(row, 'cell').map(text)).toEqual([
       'g.whatsapp.net:5222',
-      'POCO-F7',
+      'POCO-F7 192.168.1.144',
       'Proxy',
       'tcp',
       '0:40',
@@ -125,44 +125,96 @@ describe('the Monitoring connection list', () => {
     expect(closing?.attrs.disabled).toBe(true);
   });
 
-  it('offers nothing to close on a connection that is already closed', () => {
+  // A column of dashes under an empty heading said nothing on every row.
+  it('has no column to close a connection that is already closed', () => {
     const list = draw(renderConnectionList([CONNECTION], { closable: false }));
+    const [head, row] = withRole(list, 'row');
 
     expect(elements(list).some((element) => element.tag === 'button')).toBe(
       false,
     );
+    expect(withRole(head, 'columnheader')).toHaveLength(7);
+    expect(withRole(row, 'cell').map(text)).not.toContain('-');
+    expect(withRole(row, 'cell')).toHaveLength(7);
+    expect(classes(list)).not.toContain('fkp_monitoring-page__list--closable');
   });
 
-  it('copies the whole source, not the name it shows', () => {
-    const list = draw(
-      renderConnectionList(
-        [
-          {
-            ...CONNECTION,
-            source: 'Office (alice)',
-            sourceCopyValue: 'Office (alice)',
-          },
-          { ...CONNECTION, source: '', sourceCopyValue: '' },
-        ],
-        { closable: true },
-      ),
-    );
-    const sources = withRole(list, 'cell')
+  function sourceValues(items: ConnectionListItem[]) {
+    return withRole(
+      draw(renderConnectionList(items, { closable: true })),
+      'cell',
+    )
       .filter((cell) =>
         classes(cell).includes('fkp_monitoring-page__cell--source'),
       )
-      .map((cell) => draw(cell.children[0]).attrs['data-copy-value']);
+      .map((cell) => draw(cell.children[0]));
+  }
 
-    expect(sources).toEqual(['Office (alice)', '-']);
+  function mutedText(node: Drawn) {
+    return elements(node)
+      .filter((element) =>
+        classes(element).includes('fkp_monitoring-page__muted'),
+      )
+      .map(text)
+      .join('');
+  }
+
+  // The name is what the eye looks for; the server or the address beside it
+  // only tells two of the same name apart, and its colour is what separates it.
+  it('shows the name and mutes what it belongs to', () => {
+    const [client, device, bare, unknown] = sourceValues([
+      { ...CONNECTION, sourceName: 'alice', sourceDetail: 'Office' },
+      CONNECTION,
+      { ...CONNECTION, sourceName: '', sourceDetail: '192.168.1.101' },
+      { ...CONNECTION, sourceName: '', sourceDetail: '' },
+    ]);
+
+    expect([client, device, bare, unknown].map(text)).toEqual([
+      'alice Office',
+      'POCO-F7 192.168.1.144',
+      '192.168.1.101',
+      '-',
+    ]);
+    expect([client, device, bare].map(mutedText)).toEqual([
+      'Office',
+      '192.168.1.144',
+      '192.168.1.101',
+    ]);
+  });
+
+  // A tooltip has no colour to set the detail apart, so it spells the separator
+  // out the way the device filter does; a copy takes the text as it reads.
+  it('separates the detail in plain text and copies the source as it reads', () => {
+    const values = sourceValues([
+      { ...CONNECTION, sourceName: 'mom phone', sourceDetail: 'Server #2' },
+      { ...CONNECTION, sourceName: 'System', sourceDetail: '' },
+      { ...CONNECTION, sourceName: '', sourceDetail: '192.168.1.101' },
+      { ...CONNECTION, sourceName: '', sourceDetail: '' },
+    ]);
+
+    expect(values.map((value) => value.attrs.title)).toEqual([
+      'mom phone · Server #2',
+      'System',
+      '192.168.1.101',
+      '-',
+    ]);
+    expect(values.map((value) => value.attrs['data-copy-value'])).toEqual([
+      'mom phone Server #2',
+      'System',
+      '192.168.1.101',
+      '-',
+    ]);
   });
 
   it('says what it is waiting for in a row of its own', () => {
-    const list = draw(renderConnectionListState('Loading connections'));
+    const list = draw(
+      renderConnectionListState('Loading connections...', { closable: false }),
+    );
     const rows = withRole(list, 'row');
 
     expect(rows).toHaveLength(2);
     expect(withRole(rows[1], 'cell').map(text)).toEqual([
-      'Loading connections',
+      'Loading connections...',
     ]);
   });
 });

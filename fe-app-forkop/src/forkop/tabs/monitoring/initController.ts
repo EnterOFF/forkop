@@ -25,6 +25,12 @@ import {
 } from './connectionList';
 import { formatEndpoint } from './endpoint';
 import { closeConnections } from './closeConnections';
+import {
+  compareSources,
+  ConnectionSource,
+  describeSource,
+  sourceLabel,
+} from './source';
 
 type MonitoringTabId = 'active' | 'closed';
 
@@ -80,13 +86,11 @@ const CONNECTIONS_RPC_POLL_BACKOFF_MAX_MS = 30000;
 const CONNECTIONS_POLL_DUTY_MAX_MS = 15000;
 // A socket to a port that silently drops packets neither connects nor fails for
 // as long as the browser's own connect timeout runs, and the tab would sit on
-// "Loading connections" for all of it. Nothing arriving in this long means the
+// "Loading connections..." for all of it. Nothing arriving in this long means the
 // poll should cover the wait, whatever the socket ends up doing.
 const CONNECTIONS_SOCKET_GRACE_MS = 2000;
 const CLOSED_CONNECTION_LIMIT = 300;
 const ALL_FILTER_VALUE = 'all';
-const SYSTEM_DEVICE_VALUE = '@system';
-const SYSTEM_INBOUND_TAGS = new Set(['system-in', 'system6-in']);
 
 let monitoringMounted = false;
 let monitoringMountId = 0;
@@ -97,7 +101,6 @@ let connectionsSocketUrl = '';
 let connectionsUpdatesId = 0;
 let connectionsSocketGraceTimer: ReturnType<typeof setTimeout> | null = null;
 let lastConnectionsPollDurationMs = 0;
-let renderSkippedForSelection = false;
 let pendingConnectionsPayload: ClashConnectionsPayload | null = null;
 
 let activeTab: MonitoringTabId = 'active';
@@ -106,12 +109,13 @@ let searchQuery = '';
 let localDeviceChoices: LocalDeviceChoices = {};
 let routeDisplayNames: Record<string, string> = {};
 let routeSections: Array<{ sectionName: string; displayName: string }> = [];
-let serverDisplayNames: Record<string, string> = {};
+let serverInboundTags = new Set<string>();
 let lastDeviceFilterSignature = '';
 let loading = true;
 let failed = false;
 let closingAll = false;
 let monitoringPaused = false;
+let selectionHeld = false;
 let monitoringPausedAt: number | null = null;
 let consecutivePollFailures = 0;
 
@@ -131,7 +135,7 @@ function buildRouteDisplayNames(sections: Forkop.ConfigSection[]) {
   const map: Record<string, string> = {
     'direct-out': _('Direct'),
   };
-  const serverMap: Record<string, string> = {};
+  const serverTags = new Set<string>();
   const routeSectionItems: Array<{ sectionName: string; displayName: string }> =
     [];
   sections
@@ -160,11 +164,11 @@ function buildRouteDisplayNames(sections: Forkop.ConfigSection[]) {
         return;
       }
 
-      serverMap[displayName] = displayName;
+      serverTags.add(displayName);
     });
 
   routeDisplayNames = map;
-  serverDisplayNames = serverMap;
+  serverInboundTags = serverTags;
   routeSections = routeSectionItems.sort(
     (a, b) => b.sectionName.length - a.sectionName.length,
   );
@@ -221,129 +225,11 @@ function formatBytes(value?: number): string {
   return prettyBytes(Number.isFinite(value) ? Number(value) : 0);
 }
 
-function getConnectionSourceIp(connection: ClashConnection): string {
-  return normalizeString(connection.metadata?.sourceIP);
-}
-
-function getConnectionInboundTag(connection: ClashConnection): string {
-  const metadataType = normalizeString(connection.metadata?.type);
-  const metadataTypeParts = metadataType.split('/');
-  const metadataTag = normalizeString(
-    metadataTypeParts.length > 1
-      ? metadataTypeParts[metadataTypeParts.length - 1]
-      : metadataType,
-  );
-
-  if (metadataTag) {
-    return metadataTag;
-  }
-
-  const ruleInbound = normalizeString(connection.rule).match(
-    /(?:^|\s)inbound=([^\s]+)/,
-  );
-
-  return normalizeString(ruleInbound?.[1]);
-}
-
-function isSystemConnection(connection: ClashConnection): boolean {
-  return SYSTEM_INBOUND_TAGS.has(getConnectionInboundTag(connection));
-}
-
-function getConnectionSourceFilterValue(connection: ClashConnection): string {
-  return isSystemConnection(connection)
-    ? SYSTEM_DEVICE_VALUE
-    : getConnectionSourceIp(connection);
-}
-
-function getServerDisplayNameByInboundTag(tag: string): string {
-  return normalizeString(serverDisplayNames[tag]);
-}
-
-function getDeviceName(ip: string): string {
-  return normalizeString(localDeviceChoices[ip]);
-}
-
-function getServerSourceNameByIp(ip: string): string {
-  if (!ip) {
-    return '';
-  }
-
-  const connections = [
-    ...Array.from(activeConnections.values()),
-    ...Array.from(closedConnections.values()),
-  ];
-
-  for (const connection of connections) {
-    if (getConnectionSourceIp(connection) !== ip) {
-      continue;
-    }
-
-    const serverName = getServerDisplayNameByInboundTag(
-      getConnectionInboundTag(connection),
-    );
-
-    if (serverName) {
-      return serverName;
-    }
-  }
-
-  return '';
-}
-
-function getDeviceFilterLabel(ip: string): string {
-  if (ip === SYSTEM_DEVICE_VALUE) {
-    return _('System');
-  }
-
-  const serverName = getServerSourceNameByIp(ip);
-  if (serverName) {
-    return serverName;
-  }
-
-  const deviceName = getDeviceName(ip);
-  return deviceName || ip;
-}
-
-function getSourceCellParts(connection: MonitoredConnection) {
-  const ip = getConnectionSourceIp(connection);
-  const inboundTag = getConnectionInboundTag(connection);
-  if (isSystemConnection(connection)) {
-    return {
-      primary: _('System'),
-      copyValue: _('System'),
-      searchValue: [_('System'), ip, inboundTag].filter(Boolean).join(' '),
-    };
-  }
-  const serverName = getServerDisplayNameByInboundTag(inboundTag);
-
-  if (serverName) {
-    // An inbound with several accounts reports the one that authenticated, and
-    // without it the rows of one server cannot be told apart.
-    const client = normalizeString(connection.metadata?.user);
-    const primary = client ? `${serverName} (${client})` : serverName;
-
-    return {
-      primary,
-      copyValue: primary,
-      searchValue: [primary, ip, inboundTag].filter(Boolean).join(' '),
-    };
-  }
-
-  const deviceName = getDeviceName(ip);
-
-  if (deviceName) {
-    return {
-      primary: deviceName,
-      copyValue: deviceName,
-      searchValue: `${deviceName} ${ip}`,
-    };
-  }
-
-  return {
-    primary: ip || '-',
-    copyValue: ip || '-',
-    searchValue: ip,
-  };
+function getSource(connection: ClashConnection): ConnectionSource {
+  return describeSource(connection, {
+    devices: localDeviceChoices,
+    servers: serverInboundTags,
+  });
 }
 
 function getTargetCellParts(connection: MonitoredConnection): {
@@ -409,7 +295,6 @@ function normalizeSearchValue(value: string): string {
 
 function getSearchValues(connection: MonitoredConnection): string[] {
   const target = getTargetCellParts(connection);
-  const source = getSourceCellParts(connection);
 
   return [
     connection.id,
@@ -419,9 +304,7 @@ function getSearchValues(connection: MonitoredConnection): string[] {
     formatConnectionDuration(connection),
     formatBytes(connection.download),
     formatBytes(connection.upload),
-    source.primary,
-    source.copyValue,
-    source.searchValue,
+    getSource(connection).search,
   ].filter(Boolean);
 }
 
@@ -429,10 +312,9 @@ function matchesConnectionFilters(
   connection: MonitoredConnection,
   normalizedSearch: string,
 ): boolean {
-  const sourceIp = getConnectionSourceFilterValue(connection);
   if (
     selectedDeviceFilter !== ALL_FILTER_VALUE &&
-    sourceIp !== selectedDeviceFilter
+    getSource(connection).key !== selectedDeviceFilter
   ) {
     return false;
   }
@@ -490,8 +372,12 @@ function trimClosedConnections() {
   });
 }
 
+function isMonitoringPaused() {
+  return monitoringPaused || selectionHeld;
+}
+
 function applyConnectionsPayload(payload: ClashConnectionsPayload) {
-  if (monitoringPaused) {
+  if (isMonitoringPaused()) {
     pendingConnectionsPayload = payload;
     return;
   }
@@ -541,33 +427,22 @@ function setTab(tab: MonitoringTabId) {
   }
 
   activeTab = tab;
-  renderControls();
-  renderConnections();
+  redrawForAction();
 }
 
-function getKnownSourceIps(): string[] {
-  const ips = new Set<string>();
+function getKnownSources(): ConnectionSource[] {
+  const sources = new Map<string, ConnectionSource>();
 
-  activeConnections.forEach((connection) => {
-    const ip = getConnectionSourceFilterValue(connection);
-    if (ip) {
-      ips.add(ip);
-    }
-  });
+  [activeConnections, closedConnections].forEach((connections) =>
+    connections.forEach((connection) => {
+      const source = getSource(connection);
+      if (source.key && !sources.has(source.key)) {
+        sources.set(source.key, source);
+      }
+    }),
+  );
 
-  closedConnections.forEach((connection) => {
-    const ip = getConnectionSourceFilterValue(connection);
-    if (ip) {
-      ips.add(ip);
-    }
-  });
-
-  return Array.from(ips).sort((a, b) => {
-    const byLabel = getDeviceFilterLabel(a).localeCompare(
-      getDeviceFilterLabel(b),
-    );
-    return byLabel || a.localeCompare(b);
-  });
+  return Array.from(sources.values()).sort(compareSources);
 }
 
 function renderDeviceFilterOptions() {
@@ -579,18 +454,18 @@ function renderDeviceFilterOptions() {
     return;
   }
 
-  const sourceIps = getKnownSourceIps();
+  const sources = getKnownSources();
   if (
     selectedDeviceFilter !== ALL_FILTER_VALUE &&
-    !sourceIps.includes(selectedDeviceFilter)
+    !sources.some(({ key }) => key === selectedDeviceFilter)
   ) {
     selectedDeviceFilter = ALL_FILTER_VALUE;
   }
 
-  const signature = [
+  const signature = JSON.stringify([
     selectedDeviceFilter,
-    ...sourceIps.map((ip) => `${ip}:${getDeviceFilterLabel(ip)}`),
-  ].join('|');
+    ...sources.map(({ key, name, detail }) => [key, name, detail]),
+  ]);
   if (signature === lastDeviceFilterSignature) {
     select.value = selectedDeviceFilter;
     return;
@@ -600,8 +475,12 @@ function renderDeviceFilterOptions() {
 
   const options = [
     E('option', { value: ALL_FILTER_VALUE }, _('All devices')),
-    ...sourceIps.map((ip) =>
-      E('option', { value: ip }, getDeviceFilterLabel(ip)),
+    ...sources.map((source) =>
+      E(
+        'option',
+        { value: source.key },
+        sourceLabel(source.name, source.detail),
+      ),
     ),
   ];
 
@@ -609,28 +488,27 @@ function renderDeviceFilterOptions() {
   select.value = selectedDeviceFilter;
 }
 
-function setButtonActive(button: HTMLElement | null, active: boolean) {
-  if (!button) {
+function renderTab(
+  tab: HTMLElement | null,
+  label: string,
+  count: number,
+  active: boolean,
+) {
+  if (!tab) {
     return;
   }
 
-  button.classList.toggle('fkp_monitoring-page__tab--active', active);
-}
-
-function renderTabButtonContent(label: string, count: number) {
-  return [
-    E('span', { class: 'fkp_monitoring-page__tab-label' }, label),
-    E('span', { class: 'fkp_monitoring-page__tab-badge' }, String(count)),
-  ];
+  tab.className = active ? 'cbi-tab' : 'cbi-tab-disabled';
+  tab.replaceChildren(
+    E('a', { href: '#' }, [
+      label,
+      ' ',
+      E('span', { class: 'fkp_monitoring-page__tab-count' }, String(count)),
+    ]),
+  );
 }
 
 function renderControls() {
-  const activeButton = document.getElementById(
-    'monitoring-tab-active',
-  ) as HTMLButtonElement | null;
-  const closedButton = document.getElementById(
-    'monitoring-tab-closed',
-  ) as HTMLButtonElement | null;
   const closeAllButton = document.getElementById(
     'monitoring-close-all',
   ) as HTMLButtonElement | null;
@@ -640,23 +518,18 @@ function renderControls() {
 
   const filteredActive = filterConnections(activeConnections);
 
-  if (activeButton) {
-    activeButton.replaceChildren(
-      ...renderTabButtonContent(_('Active'), filteredActive.length),
-    );
-  }
-
-  if (closedButton) {
-    closedButton.replaceChildren(
-      ...renderTabButtonContent(
-        _('Closed'),
-        filterConnections(closedConnections).length,
-      ),
-    );
-  }
-
-  setButtonActive(activeButton, activeTab === 'active');
-  setButtonActive(closedButton, activeTab === 'closed');
+  renderTab(
+    document.getElementById('monitoring-tab-active'),
+    _('Active'),
+    filteredActive.length,
+    activeTab === 'active',
+  );
+  renderTab(
+    document.getElementById('monitoring-tab-closed'),
+    _('Closed'),
+    filterConnections(closedConnections).length,
+    activeTab === 'closed',
+  );
 
   // With a filter set, the button closes what the Active count counts.
   if (closeAllButton) {
@@ -674,6 +547,12 @@ function renderControls() {
     autoRefreshInput.checked = !monitoringPaused;
   }
 
+  // The switch speaks for itself when it is off.
+  const pauseNote = document.getElementById('monitoring-pause-note');
+  if (pauseNote) {
+    pauseNote.hidden = !selectionHeld || monitoringPaused;
+  }
+
   const searchIcon = document.querySelector(
     '.fkp_monitoring-page__search-icon',
   );
@@ -685,13 +564,13 @@ function renderControls() {
 }
 
 function toListItem(connection: MonitoredConnection): ConnectionListItem {
-  const source = getSourceCellParts(connection);
+  const source = getSource(connection);
 
   return {
     id: connection.id,
     host: getTargetCellParts(connection).primary,
-    source: source.primary,
-    sourceCopyValue: source.copyValue,
+    sourceName: source.name,
+    sourceDetail: source.detail,
     route: getRoute(connection),
     network: getNetwork(connection),
     time: formatConnectionDuration(connection),
@@ -701,52 +580,48 @@ function toListItem(connection: MonitoredConnection): ConnectionListItem {
   };
 }
 
-function isNodeInsideMonitoring(node: Node | null): boolean {
-  const root = document.getElementById('monitoring-status');
-  return Boolean(root && node && root.contains(node));
-}
-
-function isTextSelectionInsideMonitoring(): boolean {
+function isTextSelectionInsideList(): boolean {
+  const list = document.getElementById('monitoring-connections');
   const selection = window.getSelection?.();
-  if (!selection || selection.isCollapsed) {
+  if (!list || !selection || selection.isCollapsed) {
     return false;
   }
 
   return (
-    isNodeInsideMonitoring(selection.anchorNode) ||
-    isNodeInsideMonitoring(selection.focusNode)
+    list.contains(selection.anchorNode) || list.contains(selection.focusNode)
   );
 }
 
+// Redrawing the list takes a selection in it away, so a redraw that is not
+// the user's own waits for the selection to go.
 function renderConnections(options: { force?: boolean } = {}) {
   const container = document.getElementById('monitoring-connections');
   if (!container) {
     return;
   }
 
-  if (!options.force && isTextSelectionInsideMonitoring()) {
-    renderSkippedForSelection = true;
+  if (!options.force && isTextSelectionInsideList()) {
     return;
   }
 
-  renderSkippedForSelection = false;
+  const closable = activeTab === 'active';
 
   if (loading) {
     container.replaceChildren(
-      renderConnectionListState(
-        _('Loading connections'),
-        'fkp_monitoring-page__state--loading',
-      ),
+      renderConnectionListState(_('Loading connections...'), {
+        closable,
+        className: 'fkp_monitoring-page__state--loading',
+      }),
     );
     return;
   }
 
   if (failed) {
     container.replaceChildren(
-      renderConnectionListState(
-        _('Connections are unavailable'),
-        'fkp_monitoring-page__state--error',
-      ),
+      renderConnectionListState(_('Connections are unavailable'), {
+        closable,
+        className: 'fkp_monitoring-page__state--error',
+      }),
     );
     return;
   }
@@ -756,38 +631,39 @@ function renderConnections(options: { force?: boolean } = {}) {
   if (visibleConnections.length === 0) {
     container.replaceChildren(
       renderConnectionListState(
-        activeTab === 'active'
-          ? _('No active connections')
-          : _('No closed connections'),
+        closable ? _('No active connections') : _('No closed connections'),
+        { closable },
       ),
     );
     return;
   }
 
   container.replaceChildren(
-    renderConnectionList(visibleConnections.map(toListItem), {
-      closable: activeTab === 'active',
-    }),
+    renderConnectionList(visibleConnections.map(toListItem), { closable }),
   );
 }
 
-function flushRenderAfterSelection() {
-  if (!renderSkippedForSelection || isTextSelectionInsideMonitoring()) {
+// One pause with two causes: the Auto refresh switch, and text selected in the
+// list. Either holds the whole tab, the counters and the durations included,
+// so what it shows is one moment rather than a still table under live numbers.
+function updatePause(change: { user?: boolean; selection?: boolean }) {
+  const user = change.user ?? monitoringPaused;
+  const selection = change.selection ?? selectionHeld;
+  if (user === monitoringPaused && selection === selectionHeld) {
     return;
   }
 
-  renderConnections({ force: true });
-}
-
-function setMonitoringPaused(paused: boolean) {
-  if (monitoringPaused === paused) {
-    return;
-  }
-
-  monitoringPaused = paused;
-  monitoringPausedAt = paused ? Date.now() : null;
-  renderSkippedForSelection = false;
+  const wasPaused = isMonitoringPaused();
+  monitoringPaused = user;
+  selectionHeld = selection;
   renderControls();
+
+  const paused = isMonitoringPaused();
+  if (paused === wasPaused) {
+    return;
+  }
+
+  monitoringPausedAt = paused ? Date.now() : null;
 
   if (!paused) {
     const payload = pendingConnectionsPayload;
@@ -804,6 +680,18 @@ function setMonitoringPaused(paused: boolean) {
   }
 
   renderConnections();
+}
+
+function holdForSelection() {
+  updatePause({ selection: isTextSelectionInsideList() });
+}
+
+// Switching the tab, the device or the search replaces the list the selection
+// was made in, so it is drawn at once and the selection goes with the old one.
+function redrawForAction() {
+  renderControls();
+  renderConnections({ force: true });
+  holdForSelection();
 }
 
 function getSelectionValueElements(selection: Selection): HTMLElement[] {
@@ -970,8 +858,8 @@ async function closeMatchingConnections() {
 }
 
 function bindControls() {
-  const activeButton = document.getElementById('monitoring-tab-active');
-  const closedButton = document.getElementById('monitoring-tab-closed');
+  const activeTabItem = document.getElementById('monitoring-tab-active');
+  const closedTabItem = document.getElementById('monitoring-tab-closed');
   const select = document.getElementById(
     'monitoring-device-filter',
   ) as HTMLSelectElement | null;
@@ -986,12 +874,19 @@ function bindControls() {
     'monitoring-connections',
   );
 
-  if (activeButton) {
-    activeButton.onclick = () => setTab('active');
+  // The tab is a link to nowhere, as LuCI's own are, so the page stays put.
+  if (activeTabItem) {
+    activeTabItem.onclick = (event) => {
+      event.preventDefault();
+      setTab('active');
+    };
   }
 
-  if (closedButton) {
-    closedButton.onclick = () => setTab('closed');
+  if (closedTabItem) {
+    closedTabItem.onclick = (event) => {
+      event.preventDefault();
+      setTab('closed');
+    };
   }
 
   if (closeAllButton) {
@@ -1002,23 +897,21 @@ function bindControls() {
 
   if (autoRefreshInput) {
     autoRefreshInput.onchange = () => {
-      setMonitoringPaused(!autoRefreshInput.checked);
+      updatePause({ user: !autoRefreshInput.checked });
     };
   }
 
   if (select) {
     select.onchange = () => {
       selectedDeviceFilter = select.value || ALL_FILTER_VALUE;
-      renderControls();
-      renderConnections();
+      redrawForAction();
     };
   }
 
   if (searchInput) {
     searchInput.oninput = () => {
       searchQuery = searchInput.value;
-      renderControls();
-      renderConnections();
+      redrawForAction();
     };
   }
 
@@ -1068,7 +961,7 @@ function reportPollFailure() {
 }
 
 async function pollConnectionsSnapshot() {
-  if (!monitoringMounted || monitoringPaused) {
+  if (!monitoringMounted || isMonitoringPaused()) {
     return;
   }
 
@@ -1230,6 +1123,7 @@ function resetMonitoringState() {
   failed = false;
   closingAll = false;
   monitoringPaused = false;
+  selectionHeld = false;
   monitoringPausedAt = null;
   consecutivePollFailures = 0;
   lastConnectionsPollDurationMs = 0;
@@ -1265,11 +1159,11 @@ function onPageMount() {
   void loadLocalDevices();
   void loadRouteDisplayNames();
 
-  document.addEventListener('selectionchange', flushRenderAfterSelection);
+  document.addEventListener('selectionchange', holdForSelection);
   document.addEventListener('copy', handleMonitoringValueCopy);
 
   renderTimer = setInterval(() => {
-    if (monitoringPaused || !isDocumentVisible()) {
+    if (isMonitoringPaused() || !isDocumentVisible()) {
       return;
     }
 
@@ -1288,7 +1182,7 @@ function onPageUnmount() {
 
   stopConnectionsUpdates();
 
-  document.removeEventListener('selectionchange', flushRenderAfterSelection);
+  document.removeEventListener('selectionchange', holdForSelection);
   document.removeEventListener('copy', handleMonitoringValueCopy);
 }
 

@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-27 19:18+0300\n"
-"PO-Revision-Date: 2026-09-27 19:18+0300\n"
+"POT-Creation-Date: 2026-09-29 01:18+0300\n"
+"PO-Revision-Date: 2026-09-29 01:18+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -1151,11 +1151,11 @@ msgstr "Порт прослушивания"
 msgid "Lists updated"
 msgstr "Списки успешно обновлены"
 
-msgid "Loading connections"
-msgstr "Загрузка подключений"
+msgid "Loading connections..."
+msgstr "Загрузка подключений..."
 
-msgid "Loading logs"
-msgstr "Загрузка логов"
+msgid "Loading logs..."
+msgstr "Загрузка логов..."
 
 msgid "Loading..."
 msgstr "Загрузка..."
@@ -1408,6 +1408,9 @@ msgstr "Путь должен содержать хотя бы одну дире
 
 msgid "Path must end with %s"
 msgstr "Путь должен заканчиваться на %s"
+
+msgid "Paused while text is selected"
+msgstr "Пауза, пока выделен текст"
 
 msgid "Peer hostname or IP address"
 msgstr "Имя хоста или IP-адрес пира"
