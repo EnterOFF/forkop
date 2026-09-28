@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-29 01:18+0300\n"
-"PO-Revision-Date: 2026-09-29 01:18+0300\n"
+"POT-Creation-Date: 2026-09-29 01:24+0300\n"
+"PO-Revision-Date: 2026-09-29 01:24+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -844,9 +844,6 @@ msgstr "Forkop полностью игнорирует эти устройств
 
 msgid "Forkop service proxy"
 msgstr "служебный прокси Forkop"
-
-msgid "Forkop Settings"
-msgstr "Настройки Forkop"
 
 msgid "Forkop system logs"
 msgstr "Системные логи Forkop"

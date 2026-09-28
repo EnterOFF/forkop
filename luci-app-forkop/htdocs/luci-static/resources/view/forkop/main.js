@@ -12610,6 +12610,13 @@ ${UpdatesTab.styles}
 ${PartialStyles}
 
 
+/* The version beside the name. The theme draws h2 small in its lowest text
+   colour, which its dark variant makes nearly black on black. */
+#cbi-${FORKOP_UCI_PACKAGE} > h2 > small {
+    color: var(--text-color-medium, #888);
+    font-weight: normal;
+}
+
 /* Hide extra H3 for settings tab */
 #cbi-${FORKOP_UCI_PACKAGE}-settings > h3 {
     display: none;
@@ -24370,6 +24377,12 @@ function configureGridSection(sectionRef, type, title, addTitle, onSectionAdded)
   }
 }
 
+// src/forkop/entry/pageTitle.ts
+function pageTitle(compiledVersion) {
+  const version = normalizeCompiledVersion(compiledVersion);
+  return version === "dev" ? "Forkop" : `Forkop <small>${version}</small>`;
+}
+
 // src/forkop/entry/view.ts
 function addMountedTab(map, type, title, tab) {
   const section = map.section(form.TypedSection, type, title);
@@ -24391,7 +24404,10 @@ var ForkopView = {
   },
   async render() {
     injectGlobalStyles();
-    const forkopMap = new form.Map(FORKOP_UCI_PACKAGE, _("Forkop Settings"));
+    const forkopMap = new form.Map(
+      FORKOP_UCI_PACKAGE,
+      pageTitle(FORKOP_LUCI_APP_VERSION)
+    );
     forkopMap.tabbed = true;
     const rulesSection = forkopMap.section(
       form.GridSection,

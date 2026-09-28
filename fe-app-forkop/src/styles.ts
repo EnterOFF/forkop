@@ -17,6 +17,13 @@ ${UpdatesTab.styles}
 ${PartialStyles}
 
 
+/* The version beside the name. The theme draws h2 small in its lowest text
+   colour, which its dark variant makes nearly black on black. */
+#cbi-${FORKOP_CBI_PREFIX} > h2 > small {
+    color: var(--text-color-medium, #888);
+    font-weight: normal;
+}
+
 /* Hide extra H3 for settings tab */
 #cbi-${FORKOP_CBI_PREFIX}-settings > h3 {
     display: none;

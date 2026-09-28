@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-29 01:18+0300\n"
-"PO-Revision-Date: 2026-09-29 01:18+0300\n"
+"POT-Creation-Date: 2026-09-29 01:24+0300\n"
+"PO-Revision-Date: 2026-09-29 01:24+0300\n"
 "Last-Translator: ushan0v <ushanov2204@gmail.com>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "Language: \n"
@@ -190,18 +190,18 @@ msgstr ""
 msgid "Add a connection URI, a subscription, a network interface, a tunnel or a JSON outbound"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/entry/view.ts:68
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24406
+#: fe-app-forkop/src/forkop/entry/view.ts:72
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24415
 msgid "Add a section"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/entry/view.ts:75
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24413
+#: fe-app-forkop/src/forkop/entry/view.ts:79
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24422
 msgid "Add a section to configure routing"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/entry/view.ts:92
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24429
+#: fe-app-forkop/src/forkop/entry/view.ts:96
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24438
 msgid "Add a server inbound"
 msgstr ""
 
@@ -748,8 +748,8 @@ msgstr ""
 msgid "Component update check interval"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/entry/view.ts:114
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24449
+#: fe-app-forkop/src/forkop/entry/view.ts:118
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24458
 msgid "Components"
 msgstr ""
 
@@ -927,8 +927,8 @@ msgstr ""
 msgid "Currently unavailable"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/entry/view.ts:111
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24446
+#: fe-app-forkop/src/forkop/entry/view.ts:115
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24455
 msgid "Dashboard"
 msgstr ""
 
@@ -1632,11 +1632,6 @@ msgstr ""
 msgid "Forkop service proxy"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/entry/view.ts:55
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24394
-msgid "Forkop Settings"
-msgstr ""
-
 #: fe-app-forkop/src/forkop/tabs/logs/render.ts:52
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:11363
 msgid "Forkop system logs"
@@ -2253,8 +2248,8 @@ msgstr ""
 msgid "Log Level"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/entry/view.ts:113
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24448
+#: fe-app-forkop/src/forkop/entry/view.ts:117
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24457
 msgid "Logs"
 msgstr ""
 
@@ -2339,8 +2334,8 @@ msgstr ""
 msgid "Monitored Interfaces"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/entry/view.ts:112
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24447
+#: fe-app-forkop/src/forkop/entry/view.ts:116
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24456
 msgid "Monitoring"
 msgstr ""
 
@@ -3088,8 +3083,8 @@ msgstr ""
 msgid "Routing rules"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/entry/view.ts:62
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24400
+#: fe-app-forkop/src/forkop/entry/view.ts:66
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24409
 msgid "Routing rules are checked from top to bottom"
 msgstr ""
 
@@ -3188,12 +3183,12 @@ msgstr ""
 msgid "Secret key for authenticating remote access to YACD when WAN access is enabled"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/entry/view.ts:67
+#: fe-app-forkop/src/forkop/entry/view.ts:71
 #: fe-app-forkop/src/forkop/tabs/servers/constants.ts:101
 #: fe-app-forkop/src/forkop/tabs/servers/routing.ts:45
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:20037
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:22440
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24405
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24414
 msgid "Section"
 msgstr ""
 
@@ -3212,8 +3207,8 @@ msgstr ""
 msgid "Section name must not contain /"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/entry/view.ts:61
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24399
+#: fe-app-forkop/src/forkop/entry/view.ts:65
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24408
 msgid "Sections"
 msgstr ""
 
@@ -3306,8 +3301,8 @@ msgstr ""
 msgid "Serve expired DNS answers while refreshing them in the background"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/entry/view.ts:91
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24428
+#: fe-app-forkop/src/forkop/entry/view.ts:95
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24437
 msgid "Server"
 msgstr ""
 
@@ -3436,9 +3431,9 @@ msgid "Set the public host and the port to get a link."
 msgstr ""
 
 #: fe-app-forkop/src/forkop/cbi/dynamicList.ts:187
-#: fe-app-forkop/src/forkop/entry/view.ts:101
+#: fe-app-forkop/src/forkop/entry/view.ts:105
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13695
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24437
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24446
 msgid "Settings"
 msgstr ""
 
@@ -3584,8 +3579,8 @@ msgstr ""
 msgid "Static OpenVPN requires a key and tunnel addresses"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/entry/view.ts:110
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24445
+#: fe-app-forkop/src/forkop/entry/view.ts:114
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24454
 msgid "Status"
 msgstr ""
 
@@ -3781,8 +3776,8 @@ msgstr ""
 msgid "The private key of the certificate"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/entry/view.ts:86
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24423
+#: fe-app-forkop/src/forkop/entry/view.ts:90
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24432
 msgid "The router itself becomes a proxy server for your devices"
 msgstr ""
 
@@ -4289,8 +4284,8 @@ msgstr ""
 msgid "Version is compatible"
 msgstr ""
 
-#: fe-app-forkop/src/forkop/entry/view.ts:85
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24422
+#: fe-app-forkop/src/forkop/entry/view.ts:89
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24431
 msgid "VPN server"
 msgstr ""
 

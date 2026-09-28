@@ -1,4 +1,4 @@
-import { FORKOP_UCI_PACKAGE } from '../../constants';
+import { FORKOP_LUCI_APP_VERSION, FORKOP_UCI_PACKAGE } from '../../constants';
 import { injectGlobalStyles } from '../../helpers/injectGlobalStyles';
 import { coreService } from '../services/core.service';
 import { loadCoreFeatures } from '../services/coreFeatures.service';
@@ -19,6 +19,7 @@ import {
 import { createSettingsContent } from '../tabs/settings';
 import { UpdatesTab } from '../tabs/updates';
 import { configureGridSection } from './gridSection';
+import { pageTitle } from './pageTitle';
 
 // A tab that renders itself rather than declaring CBI options: one anonymous
 // section holding the node its controller is bound to.
@@ -52,7 +53,10 @@ export const ForkopView = {
   async render() {
     injectGlobalStyles();
 
-    const forkopMap = new form.Map(FORKOP_UCI_PACKAGE, _('Forkop Settings'));
+    const forkopMap = new form.Map(
+      FORKOP_UCI_PACKAGE,
+      pageTitle(FORKOP_LUCI_APP_VERSION),
+    );
     forkopMap.tabbed = true;
 
     const rulesSection = forkopMap.section(
