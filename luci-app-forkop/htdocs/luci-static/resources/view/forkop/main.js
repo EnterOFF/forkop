@@ -22271,10 +22271,19 @@ function readClient(section) {
 function listClients(sectionId) {
   return clientSections(sectionId).map(readClient);
 }
+function routerClientNames() {
+  return (uci.sections(FORKOP_UCI_PACKAGE, CLIENT_TYPE) || []).map(
+    (section) => `${section.name || ""}`
+  );
+}
+var CLIENT_NAME_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789".split("");
 function nextClientName(taken) {
-  let number = taken.length + 1;
-  while (taken.includes("client-%d".format(number))) number++;
-  return "client-%d".format(number);
+  const names = new Set(taken.map((name2) => `${name2}`.toLowerCase()));
+  let name = "";
+  do {
+    name = `user-${Array.from({ length: 5 }, () => randomItem(CLIENT_NAME_ALPHABET)).join("")}`;
+  } while (names.has(name));
+  return name;
 }
 function clientNameLabel(protocol) {
   return usesLoginName(protocol) ? _("User name") : _("Name");
@@ -22342,7 +22351,10 @@ function clientSettingsDefaults(sectionId, inputValue, existing, listOption) {
   if (existing) {
     return defaults;
   }
-  defaults.name = `${inputValue || ""}`.trim() || nextClientName(listedClientNames(sectionId, listOption));
+  defaults.name = `${inputValue || ""}`.trim() || nextClientName([
+    ...listedClientNames(sectionId, listOption),
+    ...routerClientNames()
+  ]);
   visibleClientFields(sectionId).forEach((field) => {
     if (field === "flow" || field === "authorized_keys") {
       return;
@@ -22542,7 +22554,6 @@ function addClientOptions(sectionId, itemSection, helpers) {
     clientNameLabel(protocol)
   );
   name.rmempty = false;
-  name.placeholder = "client-1";
   name.validate = function(_id, value) {
     const result = validateClientName(sectionId, value);
     if (result !== true) {

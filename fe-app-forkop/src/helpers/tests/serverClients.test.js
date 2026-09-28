@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { installLuciStubs } from './luciStubs';
 import {
   clientSections,
+  clientSettingsDefaults,
   listClients,
   listedClientNames,
   nextClientName,
@@ -48,31 +49,55 @@ function client(id, owner, values = {}) {
 describe('server client names', () => {
   // A client is a device, not a second label for the server, and the name travels
   // through clients and URIs that only keep ASCII.
-  it('numbers clients instead of following the server name', () => {
-    const { clients } = load({
-      srv: { protocol: 'trojan' },
-      ...client('one', 'srv', { name: 'client-1' }),
-    });
+  it('names a client user- and five random characters', () => {
+    const { clients } = load({ srv: { protocol: 'trojan' } });
+    const names = Array.from({ length: 20 }, () => clients.nextClientName([]));
 
-    expect(clients.nextClientName(clients.listedClientNames('srv', null))).toBe(
-      'client-2',
-    );
+    names.forEach((name) => expect(name).toMatch(/^user-[a-z0-9]{5}$/));
+    expect(new Set(names).size).toBeGreaterThan(1);
   });
 
-  it('uses the same pattern where the name goes on the wire', () => {
+  it('gives a name the login protocols accept as an account', () => {
     const { clients } = load({ srv: { protocol: 'ssh' } });
 
-    expect(clients.nextClientName(clients.listedClientNames('srv', null))).toBe(
-      'client-1',
+    expect(clients.validateClientName('srv', clients.nextClientName([]))).toBe(
+      true,
     );
   });
 
-  // One past the count of the list as it stands, the way a new section is named.
-  it('numbers one past the list', () => {
-    const { clients } = load({ srv: { protocol: 'trojan' } });
+  // Every server used to start its own client-1, and Monitoring showed the same
+  // name for clients of different servers.
+  it('skips a name any server on the router already has', () => {
+    load({
+      srv: { protocol: 'trojan' },
+      ...client('other-one', 'other', { name: 'User-K7M3P' }),
+    });
+    const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    const letters = 'k7m3pabcde'
+      .split('')
+      .map((char) => alphabet.indexOf(char));
+    const random = vi
+      .spyOn(globalThis.window.crypto, 'getRandomValues')
+      .mockImplementation((bytes) => {
+        bytes[0] = letters.length ? letters.shift() : 0;
+        return bytes;
+      });
 
-    expect(clients.nextClientName([])).toBe('client-1');
-    expect(clients.nextClientName(['client-1', 'client-3'])).toBe('client-4');
+    try {
+      expect(clientSettingsDefaults('srv', '', false, null).name).toBe(
+        'user-abcde',
+      );
+    } finally {
+      random.mockRestore();
+    }
+  });
+
+  it('keeps the name typed for a new client', () => {
+    load({ srv: { protocol: 'trojan' } });
+
+    expect(clientSettingsDefaults('srv', ' laptop ', false, null).name).toBe(
+      'laptop',
+    );
   });
 
   // The stored sections still hold the client the list no longer shows, so the
@@ -90,9 +115,6 @@ describe('server client names', () => {
     };
 
     expect(clients.listedClientNames('srv', listOption)).toEqual(['client-1']);
-    expect(
-      clients.nextClientName(clients.listedClientNames('srv', listOption)),
-    ).toBe('client-2');
     expect(clients.listedClientNames('srv', null)).toEqual([
       'client-1',
       'client-2',

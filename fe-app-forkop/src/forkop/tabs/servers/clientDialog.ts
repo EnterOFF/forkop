@@ -83,7 +83,6 @@ export function addClientOptions(
     clientNameLabel(protocol),
   );
   name.rmempty = false;
-  name.placeholder = 'client-1';
   name.validate = function (_id, value: string) {
     const result = validateClientName(sectionId, value);
     if (result !== true) {

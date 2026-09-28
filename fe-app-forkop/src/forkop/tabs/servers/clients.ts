@@ -16,7 +16,7 @@ import {
   CLIENT_TYPE,
   MAX_CLIENT_NAME_LENGTH,
 } from './constants';
-import { generateCredential } from './credentials';
+import { generateCredential, randomItem } from './credentials';
 import { asList, hasControlCharacters, valueList } from './formValues';
 import {
   credentialFields,
@@ -57,13 +57,27 @@ export function listClients(sectionId: string) {
   return clientSections(sectionId).map(readClient);
 }
 
-// Numbered names that do not follow the server name: a client is a device, not a
-// second label for the server. One past the count, the way a new section is
-// named, or past that while the name is taken.
+export function routerClientNames() {
+  return (uci.sections(FORKOP_UCI_PACKAGE, CLIENT_TYPE) || []).map(
+    (section) => `${section.name || ''}`,
+  );
+}
+
+const CLIENT_NAME_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789'.split('');
+
+// A random name rather than a number: numbering starts over on every server, so
+// each one had its own client-1 and Monitoring could not tell them apart. The
+// name is a device, not a second label for the server, and it fits the account
+// names the login protocols accept.
 export function nextClientName(taken: string[]) {
-  let number = taken.length + 1;
-  while (taken.includes('client-%d'.format(number))) number++;
-  return 'client-%d'.format(number);
+  const names = new Set(taken.map((name) => `${name}`.toLowerCase()));
+  let name = '';
+
+  do {
+    name = `user-${Array.from({ length: 5 }, () => randomItem(CLIENT_NAME_ALPHABET)).join('')}`;
+  } while (names.has(name));
+
+  return name;
 }
 
 export function clientNameLabel(protocol: string) {
@@ -167,9 +181,14 @@ export function clientSettingsDefaults(
 
   // Adding a client is an explicit action, so a fresh client starts with credentials
   // it can actually connect with; nothing is generated behind the user's back.
+  // A name only has to be unique on its server, but a generated one skips every
+  // name on the router, so a default name always points at one client.
   defaults.name =
     `${inputValue || ''}`.trim() ||
-    nextClientName(listedClientNames(sectionId, listOption));
+    nextClientName([
+      ...listedClientNames(sectionId, listOption),
+      ...routerClientNames(),
+    ]);
   visibleClientFields(sectionId).forEach((field: string) => {
     if (field === 'flow' || field === 'authorized_keys') {
       return;
@@ -180,10 +199,9 @@ export function clientSettingsDefaults(
   return defaults;
 }
 
-// The names the list shows right now, the way the Sections tab numbers a server
-// group. A removal that has not been saved yet gives its name back and a draft
-// that was taken out stops holding one, which reading the stored sections and the
-// staged drafts instead could not tell.
+// The names the list shows right now. A removal that has not been saved yet gives
+// its name back and a draft that was taken out stops holding one, which reading
+// the stored sections and the staged drafts instead could not tell.
 export function listedClientNames(sectionId: string, listOption: CBIOption) {
   let current = null;
 
