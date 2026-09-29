@@ -233,13 +233,6 @@ export function hasListener(protocol: string) {
   return !!spec && (spec.kind === 'inbound' || !!spec.listener);
 }
 
-// Whether a route rule can single a client out. The core reports the account of
-// an inbound; an OpenVPN client is known to it only by its certificate.
-export function routesByClient(protocol: string) {
-  const spec = protocolSpec(protocol);
-  return !!spec && spec.kind === 'inbound';
-}
-
 export function credentialFields(protocol: string) {
   const spec = protocolSpec(protocol);
   return spec ? (spec.credentials || []).slice() : [];

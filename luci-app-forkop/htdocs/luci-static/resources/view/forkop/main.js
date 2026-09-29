@@ -1526,9 +1526,9 @@ function showToast(message, type, duration = 3e3) {
 }
 
 // src/helpers/copyToClipboard.ts
-function copyToClipboard(text5) {
+function copyToClipboard(text4) {
   const textarea = document.createElement("textarea");
-  textarea.value = text5;
+  textarea.value = text4;
   document.body.appendChild(textarea);
   textarea.select();
   let copied = false;
@@ -4038,8 +4038,8 @@ function linkQuery(link) {
   if (start < 0) {
     return query;
   }
-  const text5 = link.slice(start + 1).split("#")[0];
-  for (const pair of text5.split("&")) {
+  const text4 = link.slice(start + 1).split("#")[0];
+  for (const pair of text4.split("&")) {
     const equals = pair.indexOf("=");
     const key = (equals < 0 ? pair : pair.slice(0, equals)).toLowerCase();
     if (key && !query.has(key)) {
@@ -5557,8 +5557,8 @@ function formatUrlTestModalValue(value) {
   if (typeof value === "boolean") {
     return value ? _("Yes") : _("No");
   }
-  const text5 = `${value ?? ""}`.trim();
-  return text5 || _("No");
+  const text4 = `${value ?? ""}`.trim();
+  return text4 || _("No");
 }
 function formatUrlTestLatency(latency) {
   return latency ? `${latency}ms` : _("N/A");
@@ -7802,10 +7802,10 @@ function renderButton({
   disabled,
   loading: loading3,
   onClick,
-  text: text5,
-  icon: icon2
+  text: text4,
+  icon
 }) {
-  const hasIcon = !!loading3 || !!icon2;
+  const hasIcon = !!loading3 || !!icon;
   function getWrappedIcon() {
     const iconWrap = textE("span", {
       class: "fkp-partial-button__icon"
@@ -7814,8 +7814,8 @@ function renderButton({
       iconWrap.appendChild(renderLoaderCircleIcon24());
       return iconWrap;
     }
-    if (icon2) {
-      iconWrap.appendChild(icon2());
+    if (icon) {
+      iconWrap.appendChild(icon());
       return iconWrap;
     }
     return iconWrap;
@@ -7844,13 +7844,13 @@ function renderButton({
       disabled: getDisabled(),
       click: onClick
     },
-    [...insertIf(hasIcon, [getWrappedIcon()]), textE("span", {}, text5)]
+    [...insertIf(hasIcon, [getWrappedIcon()]), textE("span", {}, text4)]
   );
 }
 
 // src/helpers/downloadAsTxt.ts
-function downloadAsTxt(text5, filename) {
-  const blob = new Blob([text5], { type: "text/plain;charset=utf-8" });
+function downloadAsTxt(text4, filename) {
+  const blob = new Blob([text4], { type: "text/plain;charset=utf-8" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
   const safeName = filename.endsWith(".txt") ? filename : `${filename}.txt`;
@@ -7862,7 +7862,7 @@ function downloadAsTxt(text5, filename) {
 }
 
 // src/partials/modal/renderModal.ts
-function renderModal(text5, name, options) {
+function renderModal(text4, name, options) {
   let currentText = "";
   let refreshInFlight = false;
   let pendingRefresh = false;
@@ -8098,7 +8098,7 @@ ${currentText}
     startRefreshTimer();
     requestRefresh();
   }
-  updateText(text5 ?? "");
+  updateText(text4 ?? "");
   return body;
 }
 
@@ -8853,10 +8853,10 @@ async function showDiagnosticModal(action, title, name, load) {
   setDiagnosticActionLoading(action, true);
   try {
     const getText = diagnosticText(load);
-    const text5 = await getText({ maskValues: true });
+    const text4 = await getText({ maskValues: true });
     ui.showModal(
       title,
-      renderModal(text5, name, {
+      renderModal(text4, name, {
         getText,
         initialAutoRefresh: false,
         showMaskValuesToggle: true
@@ -9791,7 +9791,7 @@ function describeSource(connection, names) {
   }
   if (names.servers.has(tag)) {
     const user = text(connection.metadata?.user);
-    const name2 = user || tag;
+    const name2 = text(names.clients[tag]?.[user]) || user || tag;
     const detail = user ? tag : ip;
     return {
       key: JSON.stringify([tag, user, user ? "" : ip]),
@@ -9858,14 +9858,14 @@ function renderList(rows, closable) {
 function cellClass(column) {
   return `fkp_monitoring-page__cell fkp_monitoring-page__cell--${column}`;
 }
-function renderHeading(column, text5) {
-  return textE("div", { class: cellClass(column), role: "columnheader" }, text5);
+function renderHeading(column, text4) {
+  return textE("div", { class: cellClass(column), role: "columnheader" }, text4);
 }
 function renderCell(column, children2) {
   return textE("div", { class: cellClass(column), role: "cell" }, children2);
 }
-function renderValue(text5, className = "") {
-  const value = text5 || "-";
+function renderValue(text4, className = "") {
+  const value = text4 || "-";
   return textE(
     "span",
     {
@@ -9878,7 +9878,7 @@ function renderValue(text5, className = "") {
 }
 function renderSource(name, detail) {
   const shown2 = [name, detail].filter(Boolean).join(" ") || "-";
-  const muted = (text5) => textE("span", { class: "fkp_monitoring-page__muted" }, text5);
+  const muted = (text4) => textE("span", { class: "fkp_monitoring-page__muted" }, text4);
   return textE(
     "span",
     {
@@ -9935,7 +9935,7 @@ function renderConnectionList(items, options) {
     options.closable
   );
 }
-function renderConnectionListState(text5, options) {
+function renderConnectionListState(text4, options) {
   return renderList(
     [
       textE(
@@ -9951,7 +9951,7 @@ function renderConnectionListState(text5, options) {
               class: ["fkp_monitoring-page__state", options.className].filter(Boolean).join(" "),
               role: "cell"
             },
-            text5
+            text4
           )
         ]
       )
@@ -10109,6 +10109,7 @@ var localDeviceNames = {};
 var routeDisplayNames = {};
 var routeSections = [];
 var serverInboundTags = /* @__PURE__ */ new Set();
+var serverClientNames = {};
 var lastDeviceFilterSignature = "";
 var loading = true;
 var failed = false;
@@ -10131,6 +10132,8 @@ function buildRouteDisplayNames(sections) {
     "direct-out": _("Direct")
   };
   const serverTags = /* @__PURE__ */ new Set();
+  const openVPNServerTags = {};
+  const clientNames = {};
   const routeSectionItems = [];
   sections.filter((section) => section[".type"] === "section").filter((section) => section.enabled !== "0").forEach((section) => {
     const sectionName = section[".name"];
@@ -10148,9 +10151,21 @@ function buildRouteDisplayNames(sections) {
       return;
     }
     serverTags.add(displayName);
+    if (section.protocol === "openvpn") {
+      openVPNServerTags[sectionName] = displayName;
+    }
+  });
+  sections.filter((section) => section[".type"] === "server_client").forEach((section) => {
+    const tag = openVPNServerTags[normalizeString(section.server)];
+    const name = normalizeString(section.name);
+    if (!tag || !name) {
+      return;
+    }
+    clientNames[tag] = { ...clientNames[tag], [section[".name"]]: name };
   });
   routeDisplayNames = map;
   serverInboundTags = serverTags;
+  serverClientNames = clientNames;
   routeSections = routeSectionItems.sort(
     (a, b) => b.sectionName.length - a.sectionName.length
   );
@@ -10197,7 +10212,8 @@ function formatBytes2(value) {
 function getSource(connection) {
   return describeSource(connection, {
     devices: localDeviceNames,
-    servers: serverInboundTags
+    servers: serverInboundTags,
+    clients: serverClientNames
   });
 }
 function getTargetCellParts(connection) {
@@ -10726,11 +10742,11 @@ function bindControls() {
   if (connectionsContainer) {
     connectionsContainer.onclick = (event) => {
       const target = event.target;
-      const button2 = target?.closest(
+      const button = target?.closest(
         ".fkp_monitoring-page__row-action"
       );
-      if (button2?.value) {
-        void closeConnection(button2.value);
+      if (button?.value) {
+        void closeConnection(button.value);
       }
     };
   }
@@ -11464,9 +11480,9 @@ function render4() {
 }
 
 // src/forkop/tabs/logs/filterLogs.ts
-function filterLogText(text5, query) {
+function filterLogText(text4, query) {
   const normalizedQuery = query.trim().toLowerCase();
-  return text5.split(/\r?\n/).filter((line) => {
+  return text4.split(/\r?\n/).filter((line) => {
     if (!line) {
       return false;
     }
@@ -11493,10 +11509,10 @@ function getVisibleLogs() {
   return filterLogText(rawLogs, getSearchQuery());
 }
 function renderActionButton2(id, label, disabled) {
-  const button2 = element2(id);
-  button2.textContent = label;
-  button2.title = label;
-  button2.disabled = disabled;
+  const button = element2(id);
+  button.textContent = label;
+  button.title = label;
+  button.disabled = disabled;
 }
 function renderLogs(scrollToTop = false) {
   const output = element2("logs-output");
@@ -11880,11 +11896,11 @@ function setActionLoading(action, loading3, local = false) {
     }
   });
 }
-function beginComponentAction(button2) {
+function beginComponentAction(button) {
   if (isAnyActionLoading()) {
     return false;
   }
-  setActionLoading(button2.key, true, true);
+  setActionLoading(button.key, true, true);
   return true;
 }
 function setCheckResult(component, status, latestVersion, releaseUrl = "") {
@@ -11952,11 +11968,11 @@ async function ackComponentActionJob(jobId) {
     logger.debug("[UPDATES]", "component action ack failed", error);
   }
 }
-function getExpectedLatestVersionForAction(button2) {
-  if (button2.component !== "forkop" || button2.action !== "install") {
+function getExpectedLatestVersionForAction(button) {
+  if (button.component !== "forkop" || button.action !== "install") {
     return void 0;
   }
-  return store.get().updatesChecks[button2.component].latest_version || void 0;
+  return store.get().updatesChecks[button.component].latest_version || void 0;
 }
 function getCheckToastMessage(status) {
   if (status === "outdated") {
@@ -12111,13 +12127,13 @@ async function followComponentActionState(state) {
     followedComponentJobs.delete(jobId);
   }
 }
-async function followAlreadyRunningComponentAction(button2) {
+async function followAlreadyRunningComponentAction(button) {
   const uiState = await refreshRuntimeUiState({ force: true });
   if (!uiState) {
     return false;
   }
   const state = uiState.actions.component.find(
-    (item) => item.running && item.component === button2.component && item.action === button2.action
+    (item) => item.running && item.component === button.component && item.action === button.action
   );
   if (!state) {
     return false;
@@ -12173,28 +12189,28 @@ function stopComponentActionStateWatcher() {
   componentActionStateUnsubscribe();
   componentActionStateUnsubscribe = null;
 }
-async function handleComponentAction(button2) {
-  if (!beginComponentAction(button2)) {
+async function handleComponentAction(button) {
+  if (!beginComponentAction(button)) {
     return;
   }
   let jobId = "";
   let ownsJobFollow = false;
   try {
     const startResponse = await ForkopShellMethods.componentActionStart(
-      button2.component,
-      button2.action
+      button.component,
+      button.action
     );
     if (!startResponse.success) {
       if (isComponentActionAlreadyRunningError(startResponse.error)) {
-        setActionLoading(button2.key, false);
-        if (!await followAlreadyRunningComponentAction(button2)) {
+        setActionLoading(button.key, false);
+        if (!await followAlreadyRunningComponentAction(button)) {
           await refreshComponentActionState();
         }
         return;
       }
       if (isTransientRpcError(startResponse.error)) {
-        if (!await followAlreadyRunningComponentAction(button2)) {
-          setActionLoading(button2.key, false);
+        if (!await followAlreadyRunningComponentAction(button)) {
+          setActionLoading(button.key, false);
           await refreshComponentActionState();
         }
         return;
@@ -12210,16 +12226,16 @@ async function handleComponentAction(button2) {
     ownsJobFollow = true;
     const response = await ForkopShellMethods.waitComponentActionJob(
       jobId,
-      button2.component,
-      button2.action,
-      getExpectedLatestVersionForAction(button2)
+      button.component,
+      button.action,
+      getExpectedLatestVersionForAction(button)
     );
-    await completeComponentActionJob(button2.key, jobId, response);
+    await completeComponentActionJob(button.key, jobId, response);
   } catch (error) {
     logger.error("[UPDATES]", "handleComponentAction failed", error);
     if (!pageUnloading2) {
       const message = getErrorMessage(error, _("Failed to execute"));
-      setActionLoading(button2.key, false);
+      setActionLoading(button.key, false);
       if (!isTransientRpcError(message)) {
         showToast(message, "error");
       }
@@ -12927,7 +12943,7 @@ function updateDynamicListItemLabel(item, label) {
     labelNode.textContent = `${label || ""}`;
   }
 }
-function addDynamicListItem(widget, value, text5) {
+function addDynamicListItem(widget, value, text4) {
   if (!widget || !widget.node) {
     return null;
   }
@@ -12940,7 +12956,7 @@ function addDynamicListItem(widget, value, text5) {
     widget.dispatchCbiDynlistChange(widget.node, normalized);
     return null;
   }
-  widget.addItem(widget.node, normalized, text5 || null, false);
+  widget.addItem(widget.node, normalized, text4 || null, false);
   widget.dispatchCbiDynlistChange(widget.node, normalized);
   updateButtonAddDynamicListLayout(widget.node, options.addButtonLabel);
   return findDynamicListItemByValue(widget.node, normalized);
@@ -13759,11 +13775,11 @@ var SettingsUIDynamicList = ui.DynamicList.extend({
     return node;
   },
   syncSettingsButtonSize(item) {
-    const button2 = item && item.fkpDynamicListSettingsButton;
+    const button = item && item.fkpDynamicListSettingsButton;
     const height = item && item.clientHeight;
-    if (button2 && height > 0) {
-      button2.style.setProperty("--fkp-dynlist-row-size", `${height}px`);
-      button2.style.setProperty(
+    if (button && height > 0) {
+      button.style.setProperty("--fkp-dynlist-row-size", `${height}px`);
+      button.style.setProperty(
         "--fkp-dynlist-row-offset",
         `${item.clientTop}px`
       );
@@ -13771,18 +13787,18 @@ var SettingsUIDynamicList = ui.DynamicList.extend({
   },
   syncSettingsButtons(dl) {
     Array.from(dl.children).forEach((item) => {
-      const button2 = item.fkpDynamicListSettingsButton;
-      if (item.classList.contains("item") && button2 && button2.parentNode === dl && item.nextElementSibling !== button2) {
-        item.after(button2);
+      const button = item.fkpDynamicListSettingsButton;
+      if (item.classList.contains("item") && button && button.parentNode === dl && item.nextElementSibling !== button) {
+        item.after(button);
       }
     });
   },
-  addItem(dl, value, text5, flash) {
+  addItem(dl, value, text4, flash) {
     if (flash && typeof this.options.hasEquivalentValue === "function" && this.options.hasEquivalentValue(value, dl)) {
       this.dispatchCbiDynlistChange(dl, value);
       return;
     }
-    const itemText = typeof this.options.itemLabel === "function" ? this.options.itemLabel(value, text5) : text5;
+    const itemText = typeof this.options.itemLabel === "function" ? this.options.itemLabel(value, text4) : text4;
     ui.DynamicList.prototype.addItem.call(this, dl, value, itemText, flash);
     const item = findDynamicListItemByValue(dl, value);
     const hasSettings = typeof this.options.hasSettings === "function" ? this.options.hasSettings(value) : true;
@@ -13986,15 +14002,15 @@ var SettingsDynamicList = form.DynamicList.extend({
           );
         }
       },
-      itemLabel: (itemValue, text5) => {
+      itemLabel: (itemValue, text4) => {
         if (typeof this.renderListItemLabel === "function") {
           return this.renderListItemLabel(
             this.childOwner(section_id),
             `${itemValue}`,
-            text5
+            text4
           );
         }
-        return text5;
+        return text4;
       },
       hasSettings: (itemValue) => this.hasItemSettings(this.childOwner(section_id), `${itemValue}`),
       hasEquivalentValue: (itemValue, dl) => {
@@ -14342,23 +14358,19 @@ function applyTextareaInputAttributes(textarea) {
     return Math.ceil(rows * lineHeight + verticalPadding + verticalBorder);
   };
   const applyMinHeight = () => {
-    const storedMinHeight = Number.parseFloat(
-      textarea.getAttribute("data-fkp-default-min-height") || "0"
-    );
-    const nextMinHeight = Math.max(
-      storedMinHeight,
-      textarea.offsetHeight,
-      getRowsMinHeight()
-    );
-    if (nextMinHeight > 0) {
-      if (storedMinHeight <= 0) {
-        textarea.setAttribute(
-          "data-fkp-default-min-height",
-          `${nextMinHeight}`
-        );
-      }
-      textarea.style.minHeight = `${nextMinHeight}px`;
+    if (textarea.hasAttribute("data-fkp-default-min-height")) {
       return true;
+    }
+    textarea.style.minHeight = "";
+    const rowsHeight = textarea.style.height ? 0 : textarea.offsetHeight;
+    if (rowsHeight > 0) {
+      textarea.setAttribute("data-fkp-default-min-height", `${rowsHeight}`);
+      textarea.style.minHeight = `${rowsHeight}px`;
+      return true;
+    }
+    const estimate = getRowsMinHeight();
+    if (estimate > 0) {
+      textarea.style.minHeight = `${estimate}px`;
     }
     return false;
   };
@@ -14403,13 +14415,13 @@ function syncAnnotatedTextareaOverlay(textarea, wrapper, overlay) {
   overlay.scrollLeft = textarea.scrollLeft;
 }
 function renderAnnotatedTextareaOverlay(value, annotations) {
-  const text5 = value ? `${value}` : "";
+  const text4 = value ? `${value}` : "";
   const normalizedAnnotations = Array.isArray(annotations) ? annotations : [];
-  if (!text5.length) {
+  if (!text4.length) {
     return "&#8203;";
   }
   if (!normalizedAnnotations.length) {
-    return `${escapeHtml(text5)}${text5.endsWith("\n") ? "\n " : ""}`;
+    return `${escapeHtml(text4)}${text4.endsWith("\n") ? "\n " : ""}`;
   }
   let cursor2 = 0;
   let html = "";
@@ -14417,14 +14429,14 @@ function renderAnnotatedTextareaOverlay(value, annotations) {
     if (annotation.start < cursor2 || annotation.start >= annotation.end || annotation.start < 0) {
       return;
     }
-    html += escapeHtml(text5.slice(cursor2, annotation.start));
+    html += escapeHtml(text4.slice(cursor2, annotation.start));
     html += `<span class="fkp-annotated-textarea__invalid">${escapeHtml(
-      text5.slice(annotation.start, annotation.end)
+      text4.slice(annotation.start, annotation.end)
     )}</span>`;
     cursor2 = annotation.end;
   });
-  html += escapeHtml(text5.slice(cursor2));
-  if (text5.endsWith("\n")) {
+  html += escapeHtml(text4.slice(cursor2));
+  if (text4.endsWith("\n")) {
     html += "\n ";
   }
   return html;
@@ -14478,10 +14490,10 @@ function attachAnnotatedTextarea(textarea, analyzer) {
   controller.update();
 }
 function parseCommentAwareListTokens(value) {
-  const text5 = value ? `${value}` : "";
+  const text4 = value ? `${value}` : "";
   const tokens = [];
-  const lines2 = text5.split(/\r\n|\r|\n/);
-  const newlines = text5.match(/\r\n|\r|\n/g) || [];
+  const lines2 = text4.split(/\r\n|\r|\n/);
+  const newlines = text4.match(/\r\n|\r|\n/g) || [];
   let offset = 0;
   lines2.forEach((line, index) => {
     const hashIndex = line.indexOf("#");
@@ -14509,11 +14521,11 @@ function parseCommentAwareListTokens(value) {
   return tokens;
 }
 function analyzeTextListValue(value, validateItem, emptyMessage, options = {}) {
-  const text5 = value ? `${value}` : "";
-  if (!text5.length) {
+  const text4 = value ? `${value}` : "";
+  if (!text4.length) {
     return { valid: true, message: "", annotations: [] };
   }
-  const tokens = parseCommentAwareListTokens(text5);
+  const tokens = parseCommentAwareListTokens(text4);
   if (!tokens.length) {
     return { valid: false, message: emptyMessage, annotations: [] };
   }
@@ -15091,14 +15103,31 @@ function renderStackedJsonSettingsModal(title, map, onSave, options = {}) {
         _("Back")
       ),
       " ",
-      saveButton = textE(
-        "button",
-        {
-          class: "btn cbi-button cbi-button-positive important",
-          click: save
-        },
-        options.saveLabel || _("Save")
-      )
+      ...(() => {
+        saveButton = textE(
+          "button",
+          {
+            class: "btn cbi-button cbi-button-positive important",
+            click: save
+          },
+          options.saveLabel || _("Save")
+        );
+        const action = options.secondaryAction;
+        return action ? [
+          textE("span", {}, [
+            textE(
+              "button",
+              {
+                class: "btn cbi-button cbi-button-neutral",
+                click: () => action.run(save)
+              },
+              action.label
+            ),
+            " ",
+            saveButton
+          ])
+        ] : [saveButton];
+      })()
     );
     heading.appendChild(titleNode);
     activeMap.classList.add("hidden");
@@ -15691,10 +15720,10 @@ function validateSubscriptionUrlEntry(_section_id, value) {
 
 // src/helpers/pem.ts
 var BEGIN = /^-----BEGIN ([A-Za-z0-9 #-]+)-----$/;
-function pemBlocks(text5) {
+function pemBlocks(text4) {
   const blocks = [];
   let current = null;
-  for (const raw of `${text5 || ""}`.split(/\r?\n/)) {
+  for (const raw of `${text4 || ""}`.split(/\r?\n/)) {
     const line = raw.trim();
     if (!current) {
       const begin = BEGIN.exec(line);
@@ -15713,12 +15742,12 @@ function pemBlocks(text5) {
   return blocks;
 }
 function decodeBase64(body) {
-  const text5 = `${body || ""}`.replace(/\s+/g, "");
-  if (!text5 || !/^[A-Za-z0-9+/]+={0,2}$/.test(text5) || text5.length % 4 !== 0) {
+  const text4 = `${body || ""}`.replace(/\s+/g, "");
+  if (!text4 || !/^[A-Za-z0-9+/]+={0,2}$/.test(text4) || text4.length % 4 !== 0) {
     return null;
   }
   try {
-    const binary = atob(text5);
+    const binary = atob(text4);
     return Uint8Array.from(binary, (char) => char.charCodeAt(0));
   } catch (_error) {
     return null;
@@ -15749,137 +15778,41 @@ function children(bytes, parent) {
   }
   return result;
 }
-function text2(bytes, item) {
-  const content = bytes.slice(item.start, item.end);
-  if (item.tag === 30) {
-    let result = "";
-    for (let i = 0; i + 1 < content.length; i += 2) {
-      result += String.fromCharCode(content[i] << 8 | content[i + 1]);
-    }
-    return result;
-  }
-  return new TextDecoder().decode(content);
-}
-var ATTRIBUTE_NAMES = {
-  "2.5.4.3": "CN",
-  "2.5.4.6": "C",
-  "2.5.4.7": "L",
-  "2.5.4.8": "ST",
-  "2.5.4.10": "O",
-  "2.5.4.11": "OU",
-  "1.2.840.113549.1.9.1": "emailAddress"
-};
-function objectIdentifier(bytes, item) {
-  const content = bytes.slice(item.start, item.end);
-  if (!content.length) return "";
-  const parts = [Math.floor(content[0] / 40), content[0] % 40];
-  let value = 0;
-  for (let i = 1; i < content.length; i += 1) {
-    value = value * 128 + (content[i] & 127);
-    if (!(content[i] & 128)) {
-      parts.push(value);
-      value = 0;
-    }
-  }
-  return parts.join(".");
-}
-function nameAttributes(bytes, name) {
-  const attributes = [];
-  for (const rdn of children(bytes, name)) {
-    for (const pair of children(bytes, rdn)) {
-      const [type, value] = children(bytes, pair);
-      if (!type || !value || type.tag !== 6) continue;
-      const oid = objectIdentifier(bytes, type);
-      attributes.push([ATTRIBUTE_NAMES[oid] || oid, text2(bytes, value)]);
-    }
-  }
-  return attributes;
-}
-function time(bytes, item) {
-  const value = text2(bytes, item);
-  const match = item.tag === 23 ? /^(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?Z$/.exec(value) : item.tag === 24 ? /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?Z$/.exec(value) : null;
-  if (!match) return null;
-  let year = Number(match[1]);
-  if (item.tag === 23) year += year < 50 ? 2e3 : 1900;
-  return new Date(
-    Date.UTC(
-      year,
-      Number(match[2]) - 1,
-      Number(match[3]),
-      Number(match[4]),
-      Number(match[5]),
-      Number(match[6] || 0)
-    )
-  );
-}
-function certificateInfo(der) {
+function isCertificate(der) {
   const certificate = readTlv(der, 0, der.length);
-  if (!certificate || certificate.tag !== 48) return null;
-  const tbs = children(der, certificate)[0];
-  if (!tbs || tbs.tag !== 48) return null;
-  const fields = children(der, tbs);
-  const base = fields[0]?.tag === 160 ? 1 : 0;
-  const validity = fields[base + 3];
-  const subject = fields[base + 4];
-  if (!validity || validity.tag !== 48 || !subject || subject.tag !== 48) {
-    return null;
+  if (!certificate || certificate.tag !== 48 || certificate.end !== der.length) {
+    return false;
   }
-  const attributes = nameAttributes(der, subject);
-  const notAfter = children(der, validity)[1];
-  return {
-    commonName: attributes.find(([name]) => name === "CN")?.[1] || "",
-    subject: attributes.map(([name, value]) => `${name}=${value}`).join(", "),
-    notAfter: notAfter ? time(der, notAfter) : null
-  };
+  const signed = children(der, certificate)[0];
+  if (!signed || signed.tag !== 48) return false;
+  const fields = children(der, signed);
+  const base = fields[0]?.tag === 160 ? 1 : 0;
+  return fields[base]?.tag === 2 && [1, 2, 3, 4].every((index) => fields[base + index]?.tag === 48);
 }
 
 // src/helpers/openvpnMaterial.ts
-var PRIVATE_KEY_LABELS = {
-  "PRIVATE KEY": "",
-  "RSA PRIVATE KEY": "RSA",
-  "EC PRIVATE KEY": "EC"
-};
+var PRIVATE_KEY_LABELS = ["PRIVATE KEY", "RSA PRIVATE KEY", "EC PRIVATE KEY"];
+var VALID = { valid: true, message: "" };
 function isRouterPath(value) {
   return /^\/[^\n]*$/.test(value.trim());
 }
-function isoDate(date) {
-  return date.toISOString().slice(0, 10);
-}
 function invalid2(message) {
-  return { valid: false, message, summary: "" };
+  return { valid: false, message };
 }
-function certificatesCheck(text5, kind) {
-  const blocks = pemBlocks(text5).filter(
+function certificatesCheck(text4) {
+  const blocks = pemBlocks(text4).filter(
     (block) => block.label === "CERTIFICATE"
   );
   if (!blocks.length) {
     return invalid2(_("Paste a PEM certificate or load it from a file"));
   }
-  const infos = [];
-  for (const block of blocks) {
+  return blocks.every((block) => {
     const der = decodeBase64(block.body);
-    const info = der ? certificateInfo(der) : null;
-    if (!info) return invalid2(_("The certificate is damaged"));
-    infos.push(info);
-  }
-  const shown2 = kind === "ca" ? infos.reduce(
-    (soonest, info) => info.notAfter && (!soonest.notAfter || info.notAfter < soonest.notAfter) ? info : soonest
-  ) : infos[0];
-  const name = shown2.commonName || shown2.subject || _("no name");
-  const expired = !!shown2.notAfter && shown2.notAfter.getTime() < Date.now();
-  const validity = shown2.notAfter ? (expired ? _("expired on %s") : _("valid until %s")).format(
-    isoDate(shown2.notAfter)
-  ) : "";
-  const count = infos.length > 1 ? _("%d certificates").format(infos.length) : "";
-  return {
-    valid: true,
-    message: "",
-    summary: [count, name, validity].filter(Boolean).join(" \xB7 "),
-    expired
-  };
+    return der && isCertificate(der);
+  }) ? VALID : invalid2(_("The certificate is damaged"));
 }
-function keyCheck(text5) {
-  const blocks = pemBlocks(text5);
+function keyCheck(text4) {
+  const blocks = pemBlocks(text4);
   if (blocks.some(
     (block) => block.label === "ENCRYPTED PRIVATE KEY" || block.headers.some((header) => /ENCRYPTED/.test(header))
   )) {
@@ -15889,61 +15822,38 @@ function keyCheck(text5) {
       )
     );
   }
-  const keys = blocks.filter((block) => block.label in PRIVATE_KEY_LABELS);
-  if (keys.length !== 1 || !decodeBase64(keys[0].body)) {
-    return invalid2(_("Paste a PEM private key or load it from a file"));
-  }
-  const type = PRIVATE_KEY_LABELS[keys[0].label];
-  return {
-    valid: true,
-    message: "",
-    summary: type ? _("%s private key").format(type) : _("Private key")
-  };
+  const keys = blocks.filter(
+    (block) => PRIVATE_KEY_LABELS.includes(block.label)
+  );
+  return keys.length === 1 && decodeBase64(keys[0].body) ? VALID : invalid2(_("Paste a PEM private key or load it from a file"));
 }
-function staticKeyCheck(text5) {
-  const block = pemBlocks(text5).find(
+function staticKeyCheck(text4) {
+  const block = pemBlocks(text4).find(
     (item) => item.label === "OpenVPN Static key V1"
   );
-  if (!block || !/^[0-9a-fA-F]{512}$/.test(block.body)) {
-    return invalid2(_("Paste an OpenVPN static key or load it from a file"));
-  }
-  return {
-    valid: true,
-    message: "",
-    summary: _("OpenVPN static key, 2048 bits")
-  };
+  return block && /^[0-9a-fA-F]{512}$/.test(block.body) ? VALID : invalid2(_("Paste an OpenVPN static key or load it from a file"));
 }
-function cryptV2Check(text5) {
-  const block = pemBlocks(text5).find(
+function cryptV2Check(text4) {
+  const block = pemBlocks(text4).find(
     (item) => item.label === "OpenVPN tls-crypt-v2 client key"
   );
-  if (!block || !decodeBase64(block.body)) {
-    return invalid2(
-      _("Paste an OpenVPN tls-crypt-v2 client key or load it from a file")
-    );
-  }
-  return { valid: true, message: "", summary: _("tls-crypt-v2 client key") };
+  return block && decodeBase64(block.body) ? VALID : invalid2(
+    _("Paste an OpenVPN tls-crypt-v2 client key or load it from a file")
+  );
 }
 function checkOpenVPNMaterial(kind, value) {
-  const text5 = `${value ?? ""}`.trim();
-  if (!text5) return { valid: true, message: "", summary: "" };
-  if (isRouterPath(text5)) {
-    return {
-      valid: true,
-      message: "",
-      summary: _("File on the router: %s").format(text5)
-    };
-  }
+  const text4 = `${value ?? ""}`.trim();
+  if (!text4 || isRouterPath(text4)) return VALID;
   switch (kind) {
     case "ca":
     case "certificate":
-      return certificatesCheck(text5, kind);
+      return certificatesCheck(text4);
     case "key":
-      return keyCheck(text5);
+      return keyCheck(text4);
     case "static":
-      return staticKeyCheck(text5);
+      return staticKeyCheck(text4);
     default:
-      return cryptV2Check(text5);
+      return cryptV2Check(text4);
   }
 }
 
@@ -16782,14 +16692,14 @@ var ADVANCED_DEFAULTS = {
   openvpn_ping_restart: "",
   openvpn_renegotiate: ""
 };
-function text3(value) {
+function text2(value) {
   return `${value ?? ""}`;
 }
 function trimmed(value) {
-  return text3(value).trim();
+  return text2(value).trim();
 }
 function list(value) {
-  return value == null ? [] : Array.isArray(value) ? value.map(text3) : [text3(value)];
+  return value == null ? [] : Array.isArray(value) ? value.map(text2) : [text2(value)];
 }
 function material2(object, key) {
   const content = list(object[key]).join("\n").trim();
@@ -16887,8 +16797,8 @@ function openVPNInitialSettings(endpoint) {
     openvpn_network: network2,
     openvpn_mode: staticMode ? "static_key" : "tls",
     openvpn_login: endpoint.username != null || endpoint.password != null ? "1" : "0",
-    openvpn_username: text3(endpoint.username),
-    openvpn_password: text3(endpoint.password),
+    openvpn_username: text2(endpoint.username),
+    openvpn_password: text2(endpoint.password),
     openvpn_ca: material2(tls, "certificate"),
     openvpn_cert: material2(tls, "client_certificate"),
     openvpn_key: material2(tls, "client_key"),
@@ -16928,7 +16838,7 @@ function openVPNInitialSettings(endpoint) {
 function mergePreserved(endpoint, settings) {
   let preserved = {};
   try {
-    preserved = JSON.parse(text3(settings.openvpn_preserved) || "{}");
+    preserved = JSON.parse(text2(settings.openvpn_preserved) || "{}");
   } catch (_error) {
     preserved = {};
   }
@@ -16974,7 +16884,7 @@ function applyAdvanced(endpoint, tls, settings) {
   else if (restart) endpoint.ping_restart = `${restart}s`;
   Object.assign(
     endpoint,
-    COMPRESSIONS[text3(settings.openvpn_compression)] || {}
+    COMPRESSIONS[text2(settings.openvpn_compression)] || {}
   );
   if (!tlsMode) return;
   const serverName = trimmed(settings.openvpn_server_name);
@@ -17038,9 +16948,9 @@ function openVPNEndpoint(settings) {
     applyAdvanced(endpoint, tls, settings);
     return mergePreserved(endpoint, settings);
   }
-  if (settings.openvpn_login === "1" || text3(settings.openvpn_username) || text3(settings.openvpn_password)) {
-    endpoint.username = text3(settings.openvpn_username);
-    endpoint.password = text3(settings.openvpn_password);
+  if (settings.openvpn_login === "1" || text2(settings.openvpn_username) || text2(settings.openvpn_password)) {
+    endpoint.username = text2(settings.openvpn_username);
+    endpoint.password = text2(settings.openvpn_password);
   }
   setMaterial(tls, "certificate", settings.openvpn_ca);
   setMaterial(tls, "client_certificate", settings.openvpn_cert);
@@ -17108,28 +17018,6 @@ function validateOpenVPNSettings(settings) {
     return _("Add the key of the control channel protection");
   }
   return true;
-}
-function openVPNImportSummary(result) {
-  if (!result.valid) return "";
-  const endpoint = result.endpoint;
-  const tls = endpoint.tls || {};
-  const wrap = tls.control_wrap || {};
-  const count = Array.isArray(endpoint.servers) ? endpoint.servers.length : 1;
-  const parts = [
-    count > 1 ? _("%d servers").format(count) : `${formatServer(endpoint.server, endpoint.server_port, "")}`,
-    text3(endpoint.network).toUpperCase()
-  ];
-  if (endpoint.mode === "static_key") parts.push(_("static key"));
-  else {
-    if (tls.client_certificate) parts.push(_("client certificate"));
-    if (result.login) parts.push(_("username and password"));
-    if (wrap.type) parts.push(text3(wrap.type).replace(/_/g, "-"));
-  }
-  const lines2 = [parts.join(" \xB7 ")];
-  if (result.skipped.length) {
-    lines2.push(_("Not carried over: %s").format(result.skipped.join(", ")));
-  }
-  return lines2.join("\n");
 }
 
 // src/forkop/tabs/sections/tunnels/model.ts
@@ -18728,7 +18616,7 @@ var InterfaceSettingsDynamicList = SettingsDynamicList.extend({
       }, this)
     );
   },
-  renderListItemLabel(section_id, value, text5) {
+  renderListItemLabel(section_id, value, text4) {
     const name = childItemInputValue(
       section_id,
       value,
@@ -18737,7 +18625,7 @@ var InterfaceSettingsDynamicList = SettingsDynamicList.extend({
     );
     return renderNetworkInterfaceListItem(
       this.interfaceDeviceMap ? this.interfaceDeviceMap[name] : null,
-      name || `${text5 ?? ""}`
+      name || `${text4 ?? ""}`
     );
   }
 });
@@ -19753,10 +19641,10 @@ async function parseWireGuardInput(input) {
     if (!isAmneziaLink) return importAmneziaProfile(JSON.parse(value));
     const packed = decodeBase64Url(value.slice("vpn://".length));
     const decoded = await uncompressQtData(packed);
-    const text5 = new TextDecoder("utf-8", { fatal: true }).decode(decoded);
-    if (/^\s*\[Interface\](?:\r?\n|$)/u.test(text5))
-      return parseWireGuardConfig(text5);
-    return importAmneziaProfile(JSON.parse(text5));
+    const text4 = new TextDecoder("utf-8", { fatal: true }).decode(decoded);
+    if (/^\s*\[Interface\](?:\r?\n|$)/u.test(text4))
+      return parseWireGuardConfig(text4);
+    return importAmneziaProfile(JSON.parse(text4));
   } catch {
     return {
       valid: false,
@@ -19786,33 +19674,21 @@ function injectMaterialStyles() {
       "style",
       { id: STYLE_ID },
       [
-        ".fkp-material{display:grid;gap:0.5em;max-inline-size:100%}",
-        ".fkp-material__row{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;column-gap:0.5em;align-items:stretch}",
-        ".fkp-material__summary{box-sizing:border-box;inline-size:100% !important;max-inline-size:100% !important;min-inline-size:0;margin:0 !important;cursor:default;text-overflow:ellipsis}",
-        ".fkp-material__row > button{display:inline-flex;align-items:center;justify-content:center;inline-size:2.5em !important;min-inline-size:0;padding:0 !important;margin:0 !important;float:none !important;line-height:1}",
-        ".fkp-material textarea{font-family:monospace;font-size:12px}",
-        ".fkp-import-files{display:flex;flex-wrap:wrap;align-items:center;gap:0.5em 1em}",
-        ".fkp-import-files__names{color:var(--text-color-medium,#888);overflow-wrap:anywhere}",
-        ".fkp-import-summary{white-space:pre-line;overflow-wrap:anywhere}",
-        ".fkp-import-summary:empty{display:none}",
-        ".fkp-import-summary--invalid{color:var(--error-color-medium,#d44)}"
+        ".fkp-material{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:0.5em;align-items:start;max-inline-size:100%}",
+        ".fkp-material textarea{box-sizing:border-box;inline-size:100% !important;resize:vertical !important;font-family:monospace;font-size:12px}",
+        ".fkp-material > button{display:block;text-align:center;inline-size:2.5em !important;min-inline-size:0;padding:0 !important;margin:0 !important;float:none !important}",
+        ".fkp-material > button > svg{vertical-align:middle}"
       ].join("\n")
     )
   );
 }
-var ICONS = {
-  file: [
-    "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z",
-    "M14 2v4a2 2 0 0 0 2 2h4",
-    "M12 12v6",
-    "m15 15-3-3-3 3"
-  ],
-  edit: [
-    "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"
-  ],
-  clear: ["M18 6 6 18", "m6 6 12 12"]
-};
-function icon(name) {
+var FILE_ICON = [
+  "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z",
+  "M14 2v4a2 2 0 0 0 2 2h4",
+  "M12 12v6",
+  "m15 15-3-3-3 3"
+];
+function fileIcon() {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   Object.entries({
     viewBox: "0 0 24 24",
@@ -19825,35 +19701,31 @@ function icon(name) {
     "stroke-linejoin": "round",
     "aria-hidden": "true"
   }).forEach(([key, value]) => svg.setAttribute(key, value));
-  ICONS[name].forEach((d) => {
+  FILE_ICON.forEach((d) => {
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     path.setAttribute("d", d);
     svg.appendChild(path);
   });
   return svg;
 }
-function button(label, name, disabled) {
-  return textE(
-    "button",
-    {
-      type: "button",
-      class: "btn cbi-button cbi-button-neutral",
-      title: label,
-      "aria-label": label,
-      disabled: disabled ? "" : null
-    },
-    icon(name)
-  );
-}
 function readMaterialFile(bytes) {
-  const text5 = new TextDecoder().decode(bytes);
-  if (text5.includes("-----BEGIN") || !certificateInfo(bytes)) return text5;
+  const text4 = new TextDecoder().decode(bytes);
+  if (text4.includes("-----BEGIN") || !isCertificate(bytes)) return text4;
   let binary = "";
   bytes.forEach((byte) => binary += String.fromCharCode(byte));
   const body = btoa(binary).replace(/.{64}/g, "$&\n").trim();
   return `-----BEGIN CERTIFICATE-----
 ${body}
 -----END CERTIFICATE-----`;
+}
+function pickFiles(multiple, onPick) {
+  const picker = textE("input", { type: "file" });
+  picker.multiple = multiple;
+  picker.addEventListener(
+    "change",
+    () => onPick(Array.from(picker.files || []))
+  );
+  picker.click();
 }
 function formValueOf(option2) {
   return (name) => {
@@ -19865,9 +19737,10 @@ function formValueOf(option2) {
 }
 function configureOpenVPNMaterial(option2, kind, required) {
   const kindOf = () => typeof kind === "function" ? kind(formValueOf(option2)) : kind;
-  option2.rows = 8;
+  option2.rows = 4;
   option2.wrap = "off";
   option2.rmempty = true;
+  configureTextareaOption(option2);
   option2.validate = function(_sectionId, value) {
     const content = `${value ?? ""}`.trim();
     if (!content) return required(formValueOf(this)) || true;
@@ -19884,78 +19757,32 @@ function configureOpenVPNMaterial(option2, kind, required) {
       cfgvalue
     );
     const textarea = frame.querySelector("textarea");
+    const label = _("Load from a file");
     const readonly = !!(this.readonly ?? this.map.readonly);
-    const summary = textE("input", {
-      type: "text",
-      class: "cbi-input-text fkp-material__summary",
-      readonly: "",
-      tabindex: "-1"
-    });
-    const load = button(_("Load from a file"), "file", readonly);
-    const edit = button(_("Edit as text"), "edit", readonly);
-    const clear = button(_("Remove"), "clear", readonly);
-    const picker = textE("input", { type: "file" });
-    const widget = () => dom.findClassInstance(frame);
-    const refresh = () => {
-      const value = `${textarea?.value ?? ""}`.trim();
-      const check = checkOpenVPNMaterial(kindOf(), value);
-      const missing = value ? "" : required(formValueOf(this));
-      summary.value = value ? check.valid ? check.summary : check.message : "";
-      summary.placeholder = missing || _("Not set: load a file or paste the text");
-      summary.classList.toggle("cbi-input-invalid", !!missing || !check.valid);
-      summary.style.color = value && !check.valid ? "var(--error-color-medium,#d44)" : check.expired ? "var(--warn-color-medium,#c80)" : "";
-      summary.title = summary.value || summary.placeholder;
-      clear.style.visibility = value ? "" : "hidden";
-    };
-    const assign = (value) => {
-      const instance2 = widget();
-      if (instance2) {
-        instance2.setValue(value);
-        instance2.triggerValidation();
-      } else if (textarea) {
-        textarea.value = value;
-      }
-      textarea?.dispatchEvent(new Event("change", { bubbles: true }));
-      refresh();
-    };
-    const instance = widget();
-    if (instance) {
-      const setValue = instance.setValue.bind(instance);
-      instance.setValue = (value) => {
-        setValue(value);
-        window.setTimeout(refresh, 0);
-      };
-    }
+    const load = textE(
+      "button",
+      {
+        type: "button",
+        class: "btn cbi-button cbi-button-neutral",
+        title: label,
+        "aria-label": label,
+        disabled: readonly ? "" : null
+      },
+      fileIcon()
+    );
     load.addEventListener("click", (ev) => {
       ev.preventDefault();
-      picker.value = "";
-      picker.click();
+      pickFiles(false, ([file]) => {
+        if (!file) return;
+        file.arrayBuffer().then((buffer) => {
+          const widget = dom.findClassInstance(frame);
+          widget?.setValue(readMaterialFile(new Uint8Array(buffer)).trim());
+          widget?.triggerValidation();
+          textarea?.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+      });
     });
-    picker.addEventListener("change", () => {
-      const file = picker.files?.[0];
-      if (!file) return;
-      file.arrayBuffer().then(
-        (buffer) => assign(readMaterialFile(new Uint8Array(buffer)).trim())
-      );
-    });
-    edit.addEventListener("click", (ev) => {
-      ev.preventDefault();
-      frame.hidden = !frame.hidden;
-      if (!frame.hidden) textarea?.focus();
-    });
-    clear.addEventListener("click", (ev) => {
-      ev.preventDefault();
-      assign("");
-    });
-    textarea?.addEventListener("input", refresh);
-    textarea?.addEventListener("change", refresh);
-    const initial = `${textarea?.value ?? ""}`.trim();
-    frame.hidden = !initial || checkOpenVPNMaterial(kindOf(), initial).valid;
-    refresh();
-    return textE("div", { class: "fkp-material" }, [
-      textE("div", { class: "fkp-material__row" }, [summary, load, edit, clear]),
-      frame
-    ]);
+    return textE("div", { class: "fkp-material" }, [frame, load]);
   };
 }
 
@@ -20867,50 +20694,15 @@ function importedFormat(input) {
   return looksLikeOpenVPNConfig(input) ? "openvpn" : "";
 }
 var CONFIGURATION_FILE = /\.(ovpn|conf)$/iu;
-function renderImportFiles(attachments, onLoad) {
-  const picker = textE("input", {
-    type: "file",
-    multiple: true
-  });
-  const names = textE("span", { class: "fkp-import-files__names" });
-  const showNames = () => {
-    names.textContent = Object.keys(attachments).length ? _("Attached: %s").format(Object.keys(attachments).join(", ")) : _(
-      "A profile may refer to certificates and keys in files of their own: select them together with it"
-    );
-  };
-  picker.addEventListener("change", () => {
-    const selected = Array.from(picker.files || []);
-    Promise.all(
-      selected.map(
-        (file) => file.arrayBuffer().then((buffer) => ({
-          name: file.name,
-          content: readMaterialFile(new Uint8Array(buffer))
-        }))
-      )
-    ).then((files) => {
-      const configuration = files.find((file) => CONFIGURATION_FILE.test(file.name)) || files.find((file) => importedFormat(file.content.trim()));
-      files.filter((file) => file !== configuration).forEach((file) => attachments[file.name] = file.content);
-      showNames();
-      onLoad(configuration ? configuration.content : null);
-    });
-  });
-  showNames();
-  return textE("div", { class: "fkp-import-files" }, [
-    textE(
-      "button",
-      {
-        type: "button",
-        class: "btn cbi-button cbi-button-neutral",
-        click: (ev) => {
-          ev.preventDefault();
-          picker.value = "";
-          picker.click();
-        }
-      },
-      _("Select files\u2026")
-    ),
-    names
-  ]);
+function readFiles(files) {
+  return Promise.all(
+    files.map(
+      (file) => file.arrayBuffer().then((buffer) => ({
+        name: file.name,
+        content: readMaterialFile(new Uint8Array(buffer))
+      }))
+    )
+  );
 }
 function showTunnelImportModal(parentMap, fields, openvpn) {
   const data = { settings: { configuration: "" } };
@@ -20930,8 +20722,8 @@ function showTunnelImportModal(parentMap, fields, openvpn) {
   configuration.rmempty = false;
   let failedInput = "";
   let importError = "";
-  let summary = null;
-  const check = (input) => {
+  configuration.validate = function(_itemId, value) {
+    const input = `${value || ""}`.trim();
     if (importError && input === failedInput) {
       return importError;
     }
@@ -20956,29 +20748,12 @@ function showTunnelImportModal(parentMap, fields, openvpn) {
     const parsed = parseWireGuardConfig(input);
     return parsed && parsed.valid === true ? true : parsed?.message || _("Invalid WireGuard configuration");
   };
-  configuration.validate = function(_itemId, value) {
-    const input = `${value || ""}`.trim();
-    const result = check(input);
-    if (summary) {
-      summary.classList.toggle("fkp-import-summary--invalid", result !== true);
-      summary.textContent = result !== true ? input ? result : "" : importedFormat(input) === "openvpn" ? openVPNImportSummary(parseOpenVPNConfig(input, attachments)) : "";
-    }
-    return result;
-  };
   configureTextareaOption(configuration);
-  injectMaterialStyles();
-  const files = itemSection.option(form.DummyValue, "_files");
-  files.renderWidget = () => renderImportFiles(attachments, (content) => {
-    const widget = configuration.getUIElement("settings");
-    if (content != null && widget) widget.setValue(content.trim());
-    configuration.triggerValidation("settings");
-  });
-  const summaryOption = itemSection.option(form.DummyValue, "_summary");
-  summaryOption.renderWidget = () => summary = textE("div", { class: "fkp-import-summary" });
   const refuse = (input, message) => {
     failedInput = input;
     importError = message;
     configuration.triggerValidation("settings");
+    showToast(message, "error");
     throw new TypeError(importError);
   };
   return renderStackedJsonSettingsModal(
@@ -20993,6 +20768,15 @@ function showTunnelImportModal(parentMap, fields, openvpn) {
           setModalOptionValue(parentMap, fields.type, "openvpn-client");
           parentMap.checkDepends();
           applyImportedOpenVPN(parentMap, openvpn, parsed2);
+          if (parsed2.skipped.length) {
+            showToast(
+              _("Imported. Not carried over: %s").format(
+                parsed2.skipped.join(", ")
+              ),
+              "success",
+              6e3
+            );
+          }
         }
         return;
       }
@@ -21003,7 +20787,33 @@ function showTunnelImportModal(parentMap, fields, openvpn) {
       }
       applyImportedTunnelEndpoint(parentMap, fields, parsed.endpoint);
     },
-    { singleField: true, saveLabel: _("Import") }
+    {
+      singleField: true,
+      saveLabel: _("Import"),
+      // The configuration file goes into the field and is imported at once; the
+      // files it names can be selected with it or after it.
+      secondaryAction: {
+        label: _("From a file\u2026"),
+        run: (save) => pickFiles(
+          true,
+          (selected) => readFiles(selected).then((files) => {
+            if (!files.length) return;
+            const found = files.find((file) => CONFIGURATION_FILE.test(file.name)) || files.find((file) => importedFormat(file.content.trim()));
+            files.filter((file) => file !== found).forEach((file) => attachments[file.name] = file.content);
+            const field = configuration.getUIElement("settings");
+            if (found) field?.setValue(found.content.trim());
+            const input = `${field?.getValue() ?? ""}`.trim();
+            const result = configuration.validate("settings", input);
+            configuration.triggerValidation("settings");
+            if (result === true) return save();
+            showToast(
+              input ? result : _("Select the configuration file: .ovpn or .conf"),
+              "error"
+            );
+          })
+        )
+      }
+    }
   );
 }
 var TUNNEL_KINDS = [
@@ -22531,10 +22341,6 @@ function hasListener(protocol) {
   const spec = protocolSpec(protocol);
   return !!spec && (spec.kind === "inbound" || !!spec.listener);
 }
-function routesByClient(protocol) {
-  const spec = protocolSpec(protocol);
-  return !!spec && spec.kind === "inbound";
-}
 function credentialFields(protocol) {
   const spec = protocolSpec(protocol);
   return spec ? (spec.credentials || []).slice() : [];
@@ -22842,12 +22648,12 @@ var systemPortsCache = null;
 function occupiedPorts(currentSectionId) {
   const owners = /* @__PURE__ */ new Map();
   const claim = (port2, transports, owner) => {
-    const text5 = `${port2 || ""}`.trim();
-    if (!/^[0-9]+$/.test(text5)) {
+    const text4 = `${port2 || ""}`.trim();
+    if (!/^[0-9]+$/.test(text4)) {
       return;
     }
     transports.forEach((transport3) => {
-      const key = `${transport3}/${Number(text5)}`;
+      const key = `${transport3}/${Number(text4)}`;
       if (!owners.has(key)) owners.set(key, owner);
     });
   };
@@ -23307,7 +23113,7 @@ function loadOpenVPNMaterial() {
     return {};
   });
 }
-function text4(value) {
+function text3(value) {
   return `${value ?? ""}`.trim();
 }
 function fileName(value) {
@@ -23319,10 +23125,10 @@ function buildOpenVPNProfile(sectionId, client, material3) {
   if (!host || !port2) return { missing: "address" };
   const server = material3[sectionId] || {};
   const own = material3[client.id] || {};
-  const ca = text4(server.openvpn_certificate);
-  const tlsCrypt = text4(server.openvpn_tls_crypt_key);
-  const certificate = text4(own.openvpn_certificate);
-  const key = text4(own.openvpn_key);
+  const ca = text3(server.openvpn_certificate);
+  const tlsCrypt = text3(server.openvpn_tls_crypt_key);
+  const certificate = text3(own.openvpn_certificate);
+  const key = text3(own.openvpn_key);
   if (!ca || !tlsCrypt || !certificate || !key) {
     return { missing: "certificate" };
   }
@@ -23488,8 +23294,8 @@ function qrRawCodewords(version) {
 function qrDataCodewords(version) {
   return qrRawCodewords(version) - QR_EC_CODEWORDS_PER_BLOCK_LOW[version] * QR_NUM_ERROR_CORRECTION_BLOCKS_LOW[version];
 }
-function qrEncodeText(text5) {
-  return Array.from(new TextEncoder().encode(text5));
+function qrEncodeText(text4) {
+  return Array.from(new TextEncoder().encode(text4));
 }
 function qrBuildDataCodewords(bytes, version) {
   const capacity = qrDataCodewords(version);
@@ -23714,8 +23520,8 @@ function qrMakeMatrix(version, dataCodewords) {
   drawFormatBits(0);
   return modules;
 }
-function qrSvgDataUri(text5) {
-  const bytes = qrEncodeText(text5);
+function qrSvgDataUri(text4) {
+  const bytes = qrEncodeText(text4);
   let version = 1;
   for (; version <= 40; version += 1) {
     const countBits = version <= 9 ? 8 : 16;
@@ -23797,9 +23603,9 @@ function iconSvg(name) {
     ICON_PATHS[name].map(([tag, attrs]) => svgEl2(tag, attrs))
   );
 }
-function copyText(text5) {
+function copyText(text4) {
   const textarea = document.createElement("textarea");
-  textarea.value = text5;
+  textarea.value = text4;
   textarea.style.position = "fixed";
   textarea.style.top = "0";
   textarea.style.left = "0";
@@ -23865,7 +23671,7 @@ function injectDetailsStyles() {
   );
 }
 function renderCopyButton(value, label = _("Copy")) {
-  const button2 = textE(
+  const button = textE(
     "button",
     {
       class: "btn cbi-button cbi-button-neutral fkp-details__action",
@@ -23875,7 +23681,7 @@ function renderCopyButton(value, label = _("Copy")) {
     },
     iconSvg("copy")
   );
-  button2.addEventListener("click", (ev) => {
+  button.addEventListener("click", (ev) => {
     ev.preventDefault();
     const copied = copyText(value);
     showToast(
@@ -23883,7 +23689,7 @@ function renderCopyButton(value, label = _("Copy")) {
       copied ? "success" : "error"
     );
   });
-  return button2;
+  return button;
 }
 function renderCloseRow() {
   return textE("div", { class: "button-row fkp-details-actions" }, [
@@ -24180,8 +23986,8 @@ function addGenerateButton(optionRef, generate, title) {
     );
     const label = title || _("Generate");
     const readonly = this.readonly != null ? this.readonly : this.map.readonly;
-    const button2 = renderGenerateButton(label, readonly);
-    button2.addEventListener("click", (ev) => {
+    const button = renderGenerateButton(label, readonly);
+    button.addEventListener("click", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
       if (readonly) {
@@ -24206,13 +24012,13 @@ function addGenerateButton(optionRef, generate, title) {
       {
         class: rows ? "fkp-generate-row fkp-generate-row--rows" : "fkp-generate-row"
       },
-      [node, button2]
+      [node, button]
     );
     if (rows) {
       const measure = () => {
         const height = controlOf(node)?.offsetHeight || 0;
         if (height > 0) {
-          button2.style.setProperty("--fkp-generate-row-size", `${height}px`);
+          button.style.setProperty("--fkp-generate-row-size", `${height}px`);
         }
       };
       if (typeof ResizeObserver === "function") {
@@ -24327,20 +24133,20 @@ function addIssueButton(optionRef, label, request, offered) {
       cfgvalue
     );
     const readonly = this.readonly != null ? this.readonly : this.map.readonly;
-    const button2 = renderGenerateButton(label, readonly);
-    button2.addEventListener("click", (ev) => {
+    const button = renderGenerateButton(label, readonly);
+    button.addEventListener("click", (ev) => {
       ev.preventDefault();
       if (readonly) {
         return;
       }
-      button2.disabled = true;
+      button.disabled = true;
       request(sectionId, node).catch((error) => {
         console.warn(error?.message || "Failed to issue the file");
       }).finally(() => {
-        button2.disabled = readonly ? true : false;
+        button.disabled = readonly ? true : false;
       });
     });
-    const row = textE("div", { class: "fkp-generate-row" }, [node, button2]);
+    const row = textE("div", { class: "fkp-generate-row" }, [node, button]);
     if (typeof offered === "function") {
       showIssueButton(row, offered(getProtocol(sectionId)));
     }
@@ -24348,11 +24154,11 @@ function addIssueButton(optionRef, label, request, offered) {
   };
 }
 function showIssueButton(row, shown2) {
-  const button2 = row.querySelector(".fkp-generate");
-  if (!button2) {
+  const button = row.querySelector(".fkp-generate");
+  if (!button) {
     return;
   }
-  button2.style.display = shown2 ? "" : "none";
+  button.style.display = shown2 ? "" : "none";
   row.style.gridTemplateColumns = shown2 ? "" : "minmax(0,1fr)";
 }
 function offersCertificateButton(protocol) {
@@ -24911,20 +24717,7 @@ function addClientCredentialOptions(sectionId, itemSection) {
     );
   });
 }
-function addClientCertificateNote(itemSection, clientId) {
-  const note = itemSection.option(
-    form.DummyValue,
-    "_certificate",
-    _("Certificate")
-  );
-  note.cfgvalue = () => {
-    const fingerprint = `${uci.get(FORKOP_UCI_PACKAGE, clientId, "openvpn_certificate_sha256") || ""}`;
-    return fingerprint ? _("Issued. SHA-256 %s").format(
-      `${fingerprint.slice(0, 16)}\u2026${fingerprint.slice(-16)}`
-    ) : _("The router issues it when the settings are applied");
-  };
-}
-function addClientOptions(sectionId, itemSection, helpers, listOption, clientId = "") {
+function addClientOptions(sectionId, itemSection, helpers, listOption) {
   const protocol = getProtocol(sectionId);
   const name = itemSection.option(
     form.Value,
@@ -24940,14 +24733,11 @@ function addClientOptions(sectionId, itemSection, helpers, listOption, clientId 
     return typeof helpers.validateName === "function" ? helpers.validateName(value) : true;
   };
   addGenerateButton(name, () => generateClientName(sectionId, listOption));
-  if (usesProfile(protocol)) {
-    addClientCertificateNote(itemSection, clientId);
-  }
   addClientCredentialOptions(sectionId, itemSection);
   addClientRoutingOptions(sectionId, itemSection);
 }
 function addClientRoutingOptions(sectionId, itemSection) {
-  if (!routesByClient(getProtocol(sectionId))) {
+  if (!hasListener(getProtocol(sectionId))) {
     return;
   }
   const override = itemSection.option(
@@ -24993,13 +24783,7 @@ function showClientSettingsModal(sectionId, itemValue, listOption, widget, itemN
     keys: CLIENT_KEYS,
     itemNode,
     defaults: (inputValue, existing) => clientSettingsDefaults(sectionId, inputValue, existing, listOption),
-    addOptions: (itemSection, helpers) => addClientOptions(
-      sectionId,
-      itemSection,
-      helpers,
-      listOption,
-      `${itemValue || ""}`
-    ),
+    addOptions: (itemSection, helpers) => addClientOptions(sectionId, itemSection, helpers, listOption),
     validateName: validateUniqueDynamicListItemName.bind(
       null,
       widget,
@@ -26054,8 +25838,8 @@ function lineFields(line, offset) {
   }
   return fields;
 }
-function analyzeStaticHosts(text5) {
-  const value = `${text5 || ""}`;
+function analyzeStaticHosts(text4) {
+  const value = `${text4 || ""}`;
   const annotations = [];
   const errors = [];
   let offset = 0;
@@ -26851,7 +26635,7 @@ function restoreUnsavedUci(unsaved) {
 function renderSectionAdd(sectionRef, extraClass) {
   const el = textE("div", { class: "cbi-section-create" });
   const buttonTitle = sectionRef.titleFn("addbtntitle") || _("Add");
-  const button2 = textE(
+  const button = textE(
     "button",
     {
       class: "cbi-button cbi-button-add",
@@ -26864,7 +26648,7 @@ function renderSectionAdd(sectionRef, extraClass) {
   if (extraClass) {
     el.classList.add(extraClass);
   }
-  el.appendChild(button2);
+  el.appendChild(button);
   return el;
 }
 function addLabeledSection(sectionRef) {

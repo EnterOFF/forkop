@@ -4,7 +4,6 @@
 // carried through.
 
 import { OPENVPN_DEFAULT_PORT } from '../../../../helpers/parseOpenVPNConfig';
-import type { OpenVPNImportResult } from '../../../../helpers/parseOpenVPNConfig';
 import {
   isValidHost,
   isValidPort,
@@ -547,29 +546,4 @@ export function validateOpenVPNSettings(settings: ChildSettings) {
     return _('Add the key of the control channel protection');
   }
   return true;
-}
-
-export function openVPNImportSummary(result: OpenVPNImportResult) {
-  if (!result.valid) return '';
-  const endpoint = result.endpoint;
-  const tls = (endpoint.tls || {}) as Tls;
-  const wrap = (tls.control_wrap || {}) as Record<string, unknown>;
-  const count = Array.isArray(endpoint.servers) ? endpoint.servers.length : 1;
-  const parts = [
-    count > 1
-      ? _('%d servers').format(count)
-      : `${formatServer(endpoint.server, endpoint.server_port, '')}`,
-    text(endpoint.network).toUpperCase(),
-  ];
-  if (endpoint.mode === 'static_key') parts.push(_('static key'));
-  else {
-    if (tls.client_certificate) parts.push(_('client certificate'));
-    if (result.login) parts.push(_('username and password'));
-    if (wrap.type) parts.push(text(wrap.type).replace(/_/g, '-'));
-  }
-  const lines = [parts.join(' · ')];
-  if (result.skipped.length) {
-    lines.push(_('Not carried over: %s').format(result.skipped.join(', ')));
-  }
-  return lines.join('\n');
 }

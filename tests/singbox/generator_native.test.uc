@@ -92,16 +92,28 @@ t.test("an OpenVPN server with an IPv6 subnet routes IPv6 too, and one told othe
     t.eq(push, { dns: [ "10.8.0.1" ], ping_interval: "10s", ping_restart: "120s", routes: [ "192.168.1.0/24" ] });
 });
 
-// The core reports no user for an OpenVPN client, so a rule on one would match
-// nothing and its traffic would take the route of the server anyway.
-t.test("the clients of an OpenVPN server take the route of their server", () => {
-    fixture.seed(openvpn_server({ routing_mode: "direct" }, [
+// The core knows an OpenVPN client by the common name of the certificate issued
+// to it, its section, so the rule of a client names the section, not the name it
+// is shown under.
+t.test("a client of an OpenVPN server takes its own route by the name on its certificate", () => {
+    let data = openvpn_server({ routing_mode: "direct" }, [
         { ".name": "laptop", server: "office", name: "Laptop", openvpn_certificate: "C", openvpn_key: "K",
-            openvpn_certificate_sha256: "aa", routing_override: "1", routing_mode: "direct" }
-    ]));
+            openvpn_certificate_sha256: "aa", routing_override: "1", routing_mode: "section", routing_section: "exit" },
+        { ".name": "phone", server: "office", name: "Phone", openvpn_certificate: "C", openvpn_key: "K",
+            openvpn_certificate_sha256: "bb", routing_override: "1", routing_mode: "rules" }
+    ]);
+    push(data.section, { ".name": "exit", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\"}" ],
+        domain_suffix: [ "exit.example" ] });
+    fixture.seed(data);
     let config = generator.build({ service_address: "127.0.0.1" });
-    t.eq(filter(config.route.rules, (rule) => rule.auth_user != null), []);
-    t.ok(q.find(config.route.rules, (rule) => rule.inbound == "Office" && rule.outbound == "direct-out") != null);
+    let identity = (rule) => rule.type == "logical" ? rule.rules[0] : rule;
+    let laptop_at = q.route_rule_index(config, (rule) => rule.inbound == "Office" && rule.auth_user == "laptop");
+    let server_at = q.route_rule_index(config, (rule) => rule.inbound == "Office" && rule.auth_user == null && rule.outbound == "direct-out");
+    t.ok(laptop_at >= 0 && server_at > laptop_at, "the client's rule comes before the rule of its server");
+    t.eq(config.route.rules[laptop_at].outbound, "exit");
+    t.ok(q.route_rule(config, (rule) => identity(rule).inbound == "Office" && identity(rule).auth_user == "phone" &&
+        rule.outbound == "exit") != null, "a client that follows the rules gets the rules under its section");
+    t.eq(filter(config.route.rules, (rule) => identity(rule).auth_user == "Laptop" || identity(rule).auth_user == "Phone"), []);
 });
 
 t.done();

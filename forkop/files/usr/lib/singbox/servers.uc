@@ -516,10 +516,12 @@ function add_server(config, section) {
     add_dns_bypass(config, section);
 }
 
-// Whether a route rule can tell the clients of a server apart. An OpenVPN client
-// is known to the core by its certificate, which it does not report as a user.
-function routes_by_client(protocol) {
-    return protocol != "openvpn";
+// The user the core reports for a client of the server: the name of its account,
+// or for OpenVPN the common name of the certificate issued to it, its section.
+function route_user(section, client) {
+    if (option(section, "protocol", "vless") == "openvpn")
+        return client[".name"];
+    return option(client, "name", "");
 }
 
 function add_sniff_rule(config, section) {
@@ -609,6 +611,6 @@ return {
     clone_rules_for_inbound,
     transports,
     listen_transports,
-    routes_by_client,
+    route_user,
     effective_security
 };

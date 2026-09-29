@@ -217,6 +217,7 @@ export namespace Forkop {
       | 'ruleset'
       | 'section'
       | 'server'
+      | 'server_client'
       | 'subscription_url'
       | 'section_interface'
       | 'urltest'
@@ -257,6 +258,8 @@ export namespace Forkop {
     outbound_json?: string;
     interface?: string;
     section?: string;
+    protocol?: string;
+    server?: string;
     id?: string;
     url?: string;
     name?: string;

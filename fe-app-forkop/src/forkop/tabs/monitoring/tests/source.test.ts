@@ -12,7 +12,8 @@ const NAMES = {
     '192.168.1.140': 'POCO-F7',
     '192.168.1.121': 'Redmi-Note-12-Pro-5G',
   },
-  servers: new Set(['Server #2', 'Server #10', 'Home/Work', 'Open']),
+  servers: new Set(['Server #2', 'Server #10', 'Home/Work', 'Open', 'Office']),
+  clients: { Office: { cfg0a1b2c: 'Laptop' } },
 };
 
 function connection(
@@ -55,6 +56,20 @@ describe('the source of a Monitoring connection', () => {
       'user-k7m3p · Server #2',
     );
     expect(source.search).toContain('203.0.113.9');
+  });
+
+  // The core reports an OpenVPN client by the certificate the router issued it,
+  // which is named after the client's section.
+  it('names a client of an OpenVPN server as the client was named', () => {
+    const source = describe_(
+      connection('openvpn-server/Office', '10.8.0.2', 'cfg0a1b2c'),
+    );
+
+    expect(sourceLabel(source.name, source.detail)).toBe('Laptop · Office');
+    expect(source.search).toContain('10.8.0.2');
+    expect(label(connection('openvpn-server/Office', '10.8.0.3', 'gone'))).toBe(
+      'gone · Office',
+    );
   });
 
   it('tells the clients of a server without accounts apart by address', () => {

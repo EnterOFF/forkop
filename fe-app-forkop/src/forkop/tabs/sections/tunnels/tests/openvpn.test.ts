@@ -9,7 +9,6 @@ import {
 } from '../../../../../helpers/tests/openvpnFixtures';
 import {
   openVPNEndpoint,
-  openVPNImportSummary,
   openVPNInitialSettings,
   parseOpenVPNServer,
   validateOpenVPNSettings,
@@ -216,23 +215,5 @@ ${STATIC_KEY}
         openvpn_peer_fingerprint: ['ab'.repeat(32)],
       }),
     ).toBe(true);
-  });
-
-  it('sums an import up before it is made', () => {
-    const result = parseOpenVPNConfig(`client
-remote a.example.com 1194
-remote b.example.com 1194
-auth-user-pass
-http-proxy 10.0.0.1 3128
-<ca>
-${CA}
-</ca>
-<tls-crypt>
-${STATIC_KEY}
-</tls-crypt>
-`);
-    expect(openVPNImportSummary(result)).toBe(
-      '2 servers · UDP · username and password · tls-crypt\nNot carried over: http-proxy',
-    );
   });
 });

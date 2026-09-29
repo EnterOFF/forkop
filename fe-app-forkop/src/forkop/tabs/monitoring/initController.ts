@@ -108,6 +108,7 @@ let localDeviceNames: Record<string, string> = {};
 let routeDisplayNames: Record<string, string> = {};
 let routeSections: Array<{ sectionName: string; displayName: string }> = [];
 let serverInboundTags = new Set<string>();
+let serverClientNames: Record<string, Record<string, string>> = {};
 let lastDeviceFilterSignature = '';
 let loading = true;
 let failed = false;
@@ -134,6 +135,8 @@ function buildRouteDisplayNames(sections: Forkop.ConfigSection[]) {
     'direct-out': _('Direct'),
   };
   const serverTags = new Set<string>();
+  const openVPNServerTags: Record<string, string> = {};
+  const clientNames: Record<string, Record<string, string>> = {};
   const routeSectionItems: Array<{ sectionName: string; displayName: string }> =
     [];
   sections
@@ -163,10 +166,29 @@ function buildRouteDisplayNames(sections: Forkop.ConfigSection[]) {
       }
 
       serverTags.add(displayName);
+      if (section.protocol === 'openvpn') {
+        openVPNServerTags[sectionName] = displayName;
+      }
+    });
+
+  // The certificate the router issues an OpenVPN client is named after the
+  // client's section, and the core reports the client by it.
+  sections
+    .filter((section) => section['.type'] === 'server_client')
+    .forEach((section) => {
+      const tag = openVPNServerTags[normalizeString(section.server)];
+      const name = normalizeString(section.name);
+
+      if (!tag || !name) {
+        return;
+      }
+
+      clientNames[tag] = { ...clientNames[tag], [section['.name']]: name };
     });
 
   routeDisplayNames = map;
   serverInboundTags = serverTags;
+  serverClientNames = clientNames;
   routeSections = routeSectionItems.sort(
     (a, b) => b.sectionName.length - a.sectionName.length,
   );
@@ -227,6 +249,7 @@ function getSource(connection: ClashConnection): ConnectionSource {
   return describeSource(connection, {
     devices: localDeviceNames,
     servers: serverInboundTags,
+    clients: serverClientNames,
   });
 }
 

@@ -205,14 +205,35 @@ export function renderStackedJsonSettingsModal(
         _('Back'),
       ),
       ' ',
-      (saveButton = E(
-        'button',
-        {
-          class: 'btn cbi-button cbi-button-positive important',
-          click: save,
-        },
-        options.saveLabel || _('Save'),
-      )),
+      ...(() => {
+        saveButton = E(
+          'button',
+          {
+            class: 'btn cbi-button cbi-button-positive important',
+            click: save,
+          },
+          options.saveLabel || _('Save'),
+        );
+        const action = options.secondaryAction;
+        // The theme spreads the items of the row apart, so two buttons meant to
+        // sit together on its right are one item of it.
+        return action
+          ? [
+              E('span', {}, [
+                E(
+                  'button',
+                  {
+                    class: 'btn cbi-button cbi-button-neutral',
+                    click: () => action.run(save),
+                  },
+                  action.label,
+                ),
+                ' ',
+                saveButton,
+              ]),
+            ]
+          : [saveButton];
+      })(),
     );
 
     heading.appendChild(titleNode);

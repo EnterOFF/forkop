@@ -2012,13 +2012,11 @@ function server_route_rule(sections, routing_mode, routing_section_name, label) 
 // An account that follows the shared rules needs no rule of its own when its server
 // already clones them; when it does not, the set is cloned for that account alone.
 function add_server_client_routes(config, server, sections, inbound, server_mode) {
-    if (!runtime_servers.routes_by_client(option(server, "protocol", "vless")))
-        return;
     for (let client in connections.server_clients(server)) {
         if (!bool_option(client, "routing_override", false))
             continue;
 
-        let name = option(client, "name", "");
+        let name = runtime_servers.route_user(server, client);
         if (name == "")
             continue;
 
@@ -2039,7 +2037,7 @@ function add_server_client_routes(config, server, sections, inbound, server_mode
             sections,
             client_mode,
             option(client, "routing_section", ""),
-            "server client '" + name + "'"
+            "server client '" + option(client, "name", name) + "'"
         );
         rule.inbound = inbound;
         // auth_user, not user: a route rule has no user field, and sing-box drops the

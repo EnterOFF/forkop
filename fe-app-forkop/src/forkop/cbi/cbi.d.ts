@@ -246,6 +246,12 @@ declare global {
   interface StackedModalOptions {
     singleField?: boolean;
     saveLabel?: string;
+    // A second way to save, beside the save button: it is handed the save and
+    // decides when to run it.
+    secondaryAction?: {
+      label: string;
+      run: (save: () => Promise<unknown>) => void;
+    };
   }
 
   // One peer of a WireGuard-style endpoint, as it travels through a pasted

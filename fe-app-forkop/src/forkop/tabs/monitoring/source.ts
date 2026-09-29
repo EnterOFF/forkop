@@ -16,6 +16,9 @@ export interface SourceNames {
   devices: Record<string, string>;
   // Inbound tags of the servers.
   servers: Set<string>;
+  // Per server tag, the user the core reports to the name of the client, where
+  // the two differ: an OpenVPN client is reported by its certificate.
+  clients: Record<string, Record<string, string>>;
 }
 
 export type SourceKind = 'system' | 'device' | 'server';
@@ -85,7 +88,7 @@ export function describeSource(
     // An inbound with several accounts reports the one that authenticated. One
     // without accounts has nothing but the address to tell its clients apart.
     const user = text(connection.metadata?.user);
-    const name = user || tag;
+    const name = text(names.clients[tag]?.[user]) || user || tag;
     const detail = user ? tag : ip;
     return {
       key: JSON.stringify([tag, user, user ? '' : ip]),

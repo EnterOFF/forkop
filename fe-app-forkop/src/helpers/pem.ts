@@ -1,5 +1,4 @@
-// PEM text and the few X.509 fields a person checks a certificate by: whose it
-// is and until when it is valid.
+// PEM text, and whether a block of it is an X.509 certificate at all.
 
 export interface PemBlock {
   label: string;
@@ -7,12 +6,6 @@ export interface PemBlock {
   body: string;
   // Header lines such as "Proc-Type: 4,ENCRYPTED" of a legacy encrypted key.
   headers: string[];
-}
-
-export interface CertificateInfo {
-  commonName: string;
-  subject: string;
-  notAfter: Date | null;
 }
 
 const BEGIN = /^-----BEGIN ([A-Za-z0-9 #-]+)-----$/;
@@ -86,98 +79,24 @@ function children(bytes: Uint8Array, parent: Tlv): Tlv[] {
   return result;
 }
 
-function text(bytes: Uint8Array, item: Tlv) {
-  const content = bytes.slice(item.start, item.end);
-  // BMPString is UTF-16; every other string type a name uses is ASCII or UTF-8.
-  if (item.tag === 0x1e) {
-    let result = '';
-    for (let i = 0; i + 1 < content.length; i += 2) {
-      result += String.fromCharCode((content[i] << 8) | content[i + 1]);
-    }
-    return result;
-  }
-  return new TextDecoder().decode(content);
-}
-
-const ATTRIBUTE_NAMES: Record<string, string> = {
-  '2.5.4.3': 'CN',
-  '2.5.4.6': 'C',
-  '2.5.4.7': 'L',
-  '2.5.4.8': 'ST',
-  '2.5.4.10': 'O',
-  '2.5.4.11': 'OU',
-  '1.2.840.113549.1.9.1': 'emailAddress',
-};
-
-function objectIdentifier(bytes: Uint8Array, item: Tlv) {
-  const content = bytes.slice(item.start, item.end);
-  if (!content.length) return '';
-  const parts = [Math.floor(content[0] / 40), content[0] % 40];
-  let value = 0;
-  for (let i = 1; i < content.length; i += 1) {
-    value = value * 128 + (content[i] & 0x7f);
-    if (!(content[i] & 0x80)) {
-      parts.push(value);
-      value = 0;
-    }
-  }
-  return parts.join('.');
-}
-
-function nameAttributes(bytes: Uint8Array, name: Tlv) {
-  const attributes: [string, string][] = [];
-  for (const rdn of children(bytes, name)) {
-    for (const pair of children(bytes, rdn)) {
-      const [type, value] = children(bytes, pair);
-      if (!type || !value || type.tag !== 0x06) continue;
-      const oid = objectIdentifier(bytes, type);
-      attributes.push([ATTRIBUTE_NAMES[oid] || oid, text(bytes, value)]);
-    }
-  }
-  return attributes;
-}
-
-function time(bytes: Uint8Array, item: Tlv): Date | null {
-  const value = text(bytes, item);
-  const match =
-    item.tag === 0x17
-      ? /^(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?Z$/.exec(value)
-      : item.tag === 0x18
-        ? /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?Z$/.exec(value)
-        : null;
-  if (!match) return null;
-  let year = Number(match[1]);
-  if (item.tag === 0x17) year += year < 50 ? 2000 : 1900;
-  return new Date(
-    Date.UTC(
-      year,
-      Number(match[2]) - 1,
-      Number(match[3]),
-      Number(match[4]),
-      Number(match[5]),
-      Number(match[6] || 0),
-    ),
-  );
-}
-
-export function certificateInfo(der: Uint8Array): CertificateInfo | null {
+// A certificate is a sequence whose first element, the signed part, holds the
+// serial, the algorithm, the issuer, the validity and the subject in order,
+// after an explicit version in every v3 certificate.
+export function isCertificate(der: Uint8Array) {
   const certificate = readTlv(der, 0, der.length);
-  if (!certificate || certificate.tag !== 0x30) return null;
-  const tbs = children(der, certificate)[0];
-  if (!tbs || tbs.tag !== 0x30) return null;
-  const fields = children(der, tbs);
-  // An explicit [0] version comes first in every v3 certificate.
-  const base = fields[0]?.tag === 0xa0 ? 1 : 0;
-  const validity = fields[base + 3];
-  const subject = fields[base + 4];
-  if (!validity || validity.tag !== 0x30 || !subject || subject.tag !== 0x30) {
-    return null;
+  if (
+    !certificate ||
+    certificate.tag !== 0x30 ||
+    certificate.end !== der.length
+  ) {
+    return false;
   }
-  const attributes = nameAttributes(der, subject);
-  const notAfter = children(der, validity)[1];
-  return {
-    commonName: attributes.find(([name]) => name === 'CN')?.[1] || '',
-    subject: attributes.map(([name, value]) => `${name}=${value}`).join(', '),
-    notAfter: notAfter ? time(der, notAfter) : null,
-  };
+  const signed = children(der, certificate)[0];
+  if (!signed || signed.tag !== 0x30) return false;
+  const fields = children(der, signed);
+  const base = fields[0]?.tag === 0xa0 ? 1 : 0;
+  return (
+    fields[base]?.tag === 0x02 &&
+    [1, 2, 3, 4].every((index) => fields[base + index]?.tag === 0x30)
+  );
 }

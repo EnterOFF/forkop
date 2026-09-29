@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-29 08:34+0300\n"
-"PO-Revision-Date: 2026-09-29 08:34+0300\n"
+"POT-Creation-Date: 2026-09-29 15:38+0300\n"
+"PO-Revision-Date: 2026-09-29 15:38+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -19,12 +19,6 @@ msgstr ""
 
 msgid "-- Select --"
 msgstr "-- Выберите --"
-
-msgid "%d certificates"
-msgstr "сертификатов: %d"
-
-msgid "%d servers"
-msgstr "серверов: %d"
 
 msgid "%s (section is unavailable)"
 msgstr "%s (секция недоступна)"
@@ -40,9 +34,6 @@ msgstr "%s: неподдерживаемый протокол %s"
 
 msgid "%s needs a whole number"
 msgstr "%s: нужно целое число"
-
-msgid "%s private key"
-msgstr "Приватный ключ %s"
 
 msgid "+ Add client"
 msgstr "+ Добавить клиента"
@@ -94,9 +85,6 @@ msgstr "Из этих настроек ссылку собрать нельзя.
 
 msgid "A name holds at most %d characters"
 msgstr "Имя не длиннее %d символов"
-
-msgid "A profile may refer to certificates and keys in files of their own: select them together with it"
-msgstr "Профиль может ссылаться на сертификаты и ключи в отдельных файлах — выберите их вместе с ним"
 
 msgid "A Reality key is 43 base64url characters"
 msgstr "Ключ Reality — это 43 символа base64url"
@@ -299,9 +287,6 @@ msgstr "Нужно указать хотя бы один корректный д
 msgid "At least one valid IP or subnet must be specified."
 msgstr "Нужно указать хотя бы один корректный IP-адрес или подсеть."
 
-msgid "Attached: %s"
-msgstr "Приложены: %s"
-
 msgid "Auth token"
 msgstr "Токен авторизации"
 
@@ -380,9 +365,6 @@ msgstr "Не удалось получить результаты проверк
 msgid "Cascade connection"
 msgstr "Каскадное подключение"
 
-msgid "Certificate"
-msgstr "Сертификат"
-
 msgid "Certificate generated"
 msgstr "Сертификат создан"
 
@@ -439,9 +421,6 @@ msgstr "Нажмите на сервер, чтобы закрепить его �
 
 msgid "Client"
 msgstr "Клиент"
-
-msgid "client certificate"
-msgstr "сертификат клиента"
 
 msgid "Client certificate"
 msgstr "Сертификат клиента"
@@ -761,9 +740,6 @@ msgstr "Дублирующееся значение"
 msgid "Edit"
 msgstr "Редактировать"
 
-msgid "Edit as text"
-msgstr "Изменить как текст"
-
 msgid "Edit rule action"
 msgstr "Изменить"
 
@@ -884,9 +860,6 @@ msgstr "Развернуть секцию"
 msgid "Expected status"
 msgstr "Ожидаемый статус"
 
-msgid "expired on %s"
-msgstr "истёк %s"
-
 msgid "Expires"
 msgstr "Истекает"
 
@@ -959,9 +932,6 @@ msgstr "Детали Fallback недоступны"
 msgid "Fallback settings"
 msgstr "Настройки Fallback"
 
-msgid "File on the router: %s"
-msgstr "Файл на роутере: %s"
-
 msgid "Fill in the credentials of this client to get a link."
 msgstr "Заполните учётные данные клиента, чтобы получить ссылку."
 
@@ -1006,6 +976,9 @@ msgstr "Обновления Forkop, YACD и sing-box скачиваются ч�
 
 msgid "Fragment size"
 msgstr "Размер фрагмента"
+
+msgid "From a file…"
+msgstr "Из файла…"
 
 msgid "Generate"
 msgstr "Сгенерировать"
@@ -1114,6 +1087,9 @@ msgstr "Импортировать"
 
 msgid "Import configuration"
 msgstr "Импорт конфигурации"
+
+msgid "Imported. Not carried over: %s"
+msgstr "Импортировано. Не перенесено: %s"
 
 msgid "Inbound created"
 msgstr "Inbound создан"
@@ -1228,9 +1204,6 @@ msgstr "Только IPv4"
 
 msgid "IPv6 only"
 msgstr "Только IPv6"
-
-msgid "Issued. SHA-256 %s"
-msgstr "Выпущен. SHA-256 %s"
 
 msgid "Issues detected"
 msgstr "Обнаружены проблемы"
@@ -1481,9 +1454,6 @@ msgstr "Логи отсутствуют"
 msgid "No logs match the current filters"
 msgstr "Нет логов, соответствующих текущим фильтрам"
 
-msgid "no name"
-msgstr "без имени"
-
 msgid "No other marking rules found"
 msgstr "Другие правила маркировки не найдены"
 
@@ -1501,9 +1471,6 @@ msgstr "Узлы"
 
 msgid "None"
 msgstr "Нет"
-
-msgid "Not carried over: %s"
-msgstr "Не перенесено: %s"
 
 msgid "Not configured"
 msgstr "Не настроено"
@@ -1525,9 +1492,6 @@ msgstr "Не отвечает"
 
 msgid "Not running"
 msgstr "Не запущено"
-
-msgid "Not set: load a file or paste the text"
-msgstr "Не задано: загрузите файл или вставьте текст"
 
 msgid "Obfuscation"
 msgstr "Обфускация"
@@ -1567,9 +1531,6 @@ msgstr "Открыть порт"
 
 msgid "Open tunnel settings and complete the configuration"
 msgstr "Откройте настройки туннеля и завершите конфигурацию"
-
-msgid "OpenVPN static key, 2048 bits"
-msgstr "Статический ключ OpenVPN, 2048 бит"
 
 msgid "Operation timed out"
 msgstr "Время ожидания истекло"
@@ -1769,9 +1730,6 @@ msgstr "Удалённые списки и наборы правил скачи�
 msgid "remote names no server"
 msgstr "remote: не указан сервер"
 
-msgid "Remove"
-msgstr "Удалить"
-
 msgid "Remove servers from the selection above"
 msgstr "Убрать серверы из выборки выше"
 
@@ -1961,8 +1919,8 @@ msgstr "Выберите промежуточную секцию"
 msgid "Select at least one server or set a pattern"
 msgstr "Выберите хотя бы один сервер или задайте шаблон"
 
-msgid "Select files…"
-msgstr "Выбрать файлы…"
+msgid "Select the configuration file: .ovpn or .conf"
+msgstr "Выберите файл конфигурации: .ovpn или .conf"
 
 msgid "Select the network interface to which the traffic will originate"
 msgstr "Выберите сетевой интерфейс, на который будет поступать трафик"
@@ -2149,9 +2107,6 @@ msgstr "Запуск..."
 
 msgid "Static DNS records"
 msgstr "Статичные DNS записи"
-
-msgid "static key"
-msgstr "статический ключ"
 
 msgid "Static key"
 msgstr "Статический ключ"
@@ -2345,9 +2300,6 @@ msgstr "Профиль ссылается на файл %s. Выберите е�
 msgid "The profile uses a TAP (layer 2) device. Only TUN profiles are supported"
 msgstr "Профиль использует устройство TAP (уровень 2). Поддерживаются только профили TUN"
 
-msgid "The router issues it when the settings are applied"
-msgstr "Роутер выпустит его при применении настроек"
-
 msgid "The router issues the certificate of this client when the settings are applied. Apply them to get a profile."
 msgstr "Роутер выпускает сертификат клиента при применении настроек. Примените их, чтобы получить профиль."
 
@@ -2419,9 +2371,6 @@ msgstr "TLS (сертификаты)"
 
 msgid "TLS ciphers"
 msgstr "Шифры TLS"
-
-msgid "tls-crypt-v2 client key"
-msgstr "клиентский ключ tls-crypt-v2"
 
 msgid "Tolerance"
 msgstr "Допуск"
@@ -2621,9 +2570,6 @@ msgstr "Имя пользователя"
 msgid "Username"
 msgstr "Имя пользователя"
 
-msgid "username and password"
-msgstr "имя пользователя и пароль"
-
 msgid "Username and password"
 msgstr "Имя пользователя и пароль"
 
@@ -2632,9 +2578,6 @@ msgstr "UUID"
 
 msgid "Valid"
 msgstr "Валидно"
-
-msgid "valid until %s"
-msgstr "действителен до %s"
 
 msgid "Validation errors:"
 msgstr "Ошибки валидации:"

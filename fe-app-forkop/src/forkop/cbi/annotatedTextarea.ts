@@ -88,28 +88,25 @@ function applyTextareaInputAttributes(textarea: HTMLTextAreaElement) {
     return Math.ceil(rows * lineHeight + verticalPadding + verticalBorder);
   };
 
+  // The least height is the one its rows give it, measured while it shows and
+  // before a drag sets a height of its own; until then the rows are estimated.
   const applyMinHeight = () => {
-    const storedMinHeight = Number.parseFloat(
-      textarea.getAttribute('data-fkp-default-min-height') || '0',
-    );
-    const nextMinHeight = Math.max(
-      storedMinHeight,
-      textarea.offsetHeight,
-      getRowsMinHeight(),
-    );
-
-    if (nextMinHeight > 0) {
-      if (storedMinHeight <= 0) {
-        textarea.setAttribute(
-          'data-fkp-default-min-height',
-          `${nextMinHeight}`,
-        );
-      }
-
-      textarea.style.minHeight = `${nextMinHeight}px`;
+    if (textarea.hasAttribute('data-fkp-default-min-height')) {
       return true;
     }
 
+    textarea.style.minHeight = '';
+    const rowsHeight = textarea.style.height ? 0 : textarea.offsetHeight;
+    if (rowsHeight > 0) {
+      textarea.setAttribute('data-fkp-default-min-height', `${rowsHeight}`);
+      textarea.style.minHeight = `${rowsHeight}px`;
+      return true;
+    }
+
+    const estimate = getRowsMinHeight();
+    if (estimate > 0) {
+      textarea.style.minHeight = `${estimate}px`;
+    }
     return false;
   };
 
