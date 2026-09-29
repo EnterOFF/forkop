@@ -48,10 +48,16 @@ t.test("the running core is the service's sing-box run, not a one-shot command",
     stub.restore();
 });
 
+const CHECK = /'sing-box' '--disable-color' '-c' .* 'check'/;
+
+function checks_run() {
+    return length(filter(stub.command_lines(), (line) => match(line, / check$/)));
+}
+
 t.test("the configuration is written where the service reads it, and only when it changed", () => {
     let dir = stub.tmpdir();
     fixture.seed(configuration(dir));
-    tools();
+    tools([ [ CHECK, {} ] ]);
     t.eq(runtime.write_config(false), true);
     let written = fs.readfile(dir + "/etc/sing-box/config.json");
     t.eq(json(written).outbounds != null, true);
@@ -62,13 +68,14 @@ t.test("the configuration is written where the service reads it, and only when i
     t.eq(runtime.write_config(false), false);
     t.eq(fs.stat(dir + "/etc/sing-box/config.json").inode, inode, "an unchanged configuration is not rewritten");
     t.contains(logs, "[info] sing-box configuration is unchanged");
+    t.eq(checks_run(), 1, "the core checked the changed configuration, and only that one");
     stub.restore();
 });
 
 t.test("a configuration the core refuses is reported by its first line and never written", () => {
     let dir = stub.tmpdir();
     fixture.seed(configuration(dir));
-    tools([ [ /'sing-box' '--disable-color' '-c' .* 'check'/, { status: 42, stdout: "\nFATAL[0000] route: missing outbound tag\nmore\n" } ] ]);
+    tools([ [ CHECK, { status: 42, stdout: "\nFATAL[0000] route: missing outbound tag\nmore\n" } ] ]);
     let e = t.throws(() => runtime.write_config(true));
     stub.restore();
     t.eq(e.message, "Generated sing-box configuration is invalid: FATAL[0000] route: missing outbound tag. Aborted.");
@@ -77,13 +84,27 @@ t.test("a configuration the core refuses is reported by its first line and never
         "the file checked is removed");
 });
 
+t.test("a changed configuration the core refuses leaves the file the running core was started with", () => {
+    let dir = stub.tmpdir();
+    fixture.seed(configuration(dir));
+    tools([ [ CHECK, {} ] ]);
+    runtime.write_config(false);
+    let running = fs.readfile(dir + "/etc/sing-box/config.json");
+    fixture.seed(configuration(dir, { log_level: "debug" }));
+    tools([ [ CHECK, { status: 1, stdout: "FATAL[0000] initialize dns router: validate dns rule[9]\n" } ] ]);
+    let e = t.throws(() => runtime.write_config(false));
+    stub.restore();
+    t.eq(e.message, "Generated sing-box configuration is invalid: FATAL[0000] initialize dns router: validate dns rule[9]. Aborted.");
+    t.eq(fs.readfile(dir + "/etc/sing-box/config.json"), running);
+});
+
 t.test("a checked configuration is checked even when it did not change", () => {
     let dir = stub.tmpdir();
     fixture.seed(configuration(dir));
-    tools([ [ /'sing-box' '--disable-color' '-c' .* 'check'/, {} ] ]);
+    tools([ [ CHECK, {} ] ]);
     runtime.write_config(true);
     runtime.write_config(true);
-    t.eq(length(filter(stub.command_lines(), (line) => match(line, / check$/))), 2);
+    t.eq(checks_run(), 2);
     stub.restore();
 });
 

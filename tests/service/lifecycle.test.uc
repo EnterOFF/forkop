@@ -18,6 +18,8 @@ let lifecycle = require("service.lifecycle");
 let world = null;
 let real_sleep = global.sleep;
 
+const CHANGED_TABLE = "table inet ForkopTable\nadd rule inet ForkopTable mangle jump x\n";
+
 function event(name) {
     push(world.events, name);
 }
@@ -67,7 +69,11 @@ function reset(options) {
         return world.config_changed;
     };
     nft.ensure_bridge_netfilter_disabled = () => !world.bridge_fails;
-    nft.build = () => ({ script: world.script, skipped: [] });
+    nft.build = () => {
+        if (world.build_fails)
+            die("duplicate nft section: x");
+        return { script: world.script, skipped: [] };
+    };
     nft.apply = (built) => {
         if (world.nft_fails)
             die("nft refused the ruleset: Error: broken");
@@ -205,7 +211,7 @@ t.test("a configuration the validator refuses stops a start before anything runs
     t.eq(result.result, 1);
     t.eq(filter(world.events, (e) => e == "sing-box started" || e == "nft applied"), []);
     t.ok(!world.orphans_removed, "a refused configuration loses nothing");
-    t.eq(result.stderr, "Section 'x' is broken. Aborted.\nRuntime config validation failed. Aborted.\n");
+    t.eq(result.stderr, "Section 'x' is broken. Aborted.\n", "the refusal is said once");
     t.eq(result.stdout, "");
 });
 
@@ -276,10 +282,30 @@ t.test("a change to the providers a section reads alone starts the rule-set work
 });
 
 t.test("a changed table is rebuilt with the rule-set worker stopped around it, and sing-box is left alone", () => {
-    let result = reloaded({ script: "table inet ForkopTable\nadd rule inet ForkopTable mangle jump x\n" });
+    let result = reloaded({ script: CHANGED_TABLE });
     t.eq(result.result, 0);
-    t.eq(world.events, [ "firewall opened", "rule-set worker stopped", "nft applied", "config written", "rule-set worker started" ]);
+    t.eq(world.events, [ "firewall opened", "config written", "rule-set worker stopped", "nft applied", "rule-set worker started" ]);
     t.contains(world.logs, "[info] Rebuilding nftables rules");
+});
+
+function failures_logged() {
+    return filter(world.logs, (line) => match(line, /^\[(error|fatal)\]/) != null);
+}
+
+t.test("a configuration refused while it is generated leaves the running runtime and its table alone, and is said once", () => {
+    let result = reloaded({ config_fails: true, config_changed: true, script: CHANGED_TABLE });
+    t.eq(result.result, 1);
+    t.eq(world.events, [ "firewall opened", "config written" ]);
+    t.eq(fs.readfile(lifecycle.paths.applied_nft), "table inet ForkopTable\n", "the table applied last is still the live one");
+    t.eq(failures_logged(), [ "[error] Failed to generate sing-box configuration: broken" ]);
+    t.eq(result.stderr, "Failed to generate sing-box configuration: broken\n");
+});
+
+t.test("a table that cannot be built is said in one line and touches nothing", () => {
+    let result = reloaded({ build_fails: true, config_changed: true });
+    t.eq(result.result, 1);
+    t.eq(world.events, [ "firewall opened" ]);
+    t.eq(failures_logged(), [ "[error] Failed to build the nftables rules: duplicate nft section: x. Aborted." ]);
 });
 
 t.test("a reload asked for by hand reloads sing-box even when nothing changed, and keeps the worker", () => {
@@ -293,17 +319,19 @@ t.test("a queued reload applies what changed without forcing sing-box", () => {
     t.eq(world.events, [ "firewall opened", "config written" ]);
 });
 
-t.test("each failed step of a reload names itself and takes the runtime down", () => {
+t.test("each failed step of a reload after the runtime was touched names itself once and takes the runtime down", () => {
     for (let failure in [
-        [ { pause_fails: true, config_changed: true }, "Failed to pause the nftables traffic capture before reloading sing-box. Aborted.", false ],
-        [ { reload_fails: true, config_changed: true }, "Failed to reload sing-box. Aborted.", true ],
-        [ { resume_fails: true, config_changed: true }, "Failed to resume the nftables traffic capture after reloading sing-box. Aborted.", true ],
-        [ { config_fails: true }, "Failed to write the sing-box configuration. Aborted.", false ],
-        [ { ruleset_fails: true, worker_stale: true, config_changed: true }, "Failed to start the rule set sync worker. Aborted.", true ]
+        [ { pause_fails: true, config_changed: true }, "[error] Failed to pause the nftables traffic capture before reloading sing-box. Aborted.", false ],
+        [ { reload_fails: true, config_changed: true }, "[error] Failed to reload sing-box. Aborted.", true ],
+        [ { resume_fails: true, config_changed: true }, "[error] Failed to resume the nftables traffic capture after reloading sing-box. Aborted.", true ],
+        [ { nft_fails: true, script: CHANGED_TABLE }, "[fatal] nft refused the ruleset: Error: broken", false ],
+        [ { ruleset_fails: true, worker_stale: true, config_changed: true }, "[error] Failed to start the rule set sync worker. Aborted.", true ]
     ]) {
         let result = reloaded(failure[0]);
         t.eq(result.result, 1, failure[1]);
-        t.contains(result.stderr, failure[1]);
+        t.eq(failures_logged(), [ failure[1] ], failure[1]);
+        if (substr(failure[1], 0, 8) == "[error] ")
+            t.contains(result.stderr, substr(failure[1], 8));
         t.contains(world.events, "sing-box stopped", failure[1]);
         t.eq(index(world.events, "sing-box reloaded") >= 0, failure[2], failure[1] + ": whether sing-box was signalled");
     }

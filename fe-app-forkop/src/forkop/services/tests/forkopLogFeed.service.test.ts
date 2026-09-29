@@ -57,6 +57,27 @@ describe('the log feed', () => {
     expect(feed.parked()).not.toBeNull();
   });
 
+  // LuCI reloads the page after an apply; what the apply logged meanwhile is
+  // still news to the user.
+  it('goes on from the cursor of the page it took over from', async () => {
+    const feed = answering(
+      [],
+      [{ success: true, data: { cursor: 9, lines: ['forkop: [error] x'] } }],
+    );
+    const startForkopLogFeed = await freshFeed();
+
+    const lines: string[] = [];
+    startForkopLogFeed((line) => lines.push(line), 7);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(mocks.callUbus).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ method: 'logs_wait', params: { cursor: 7 } }),
+    );
+    expect(lines).toEqual(['forkop: [error] x']);
+    expect(feed.parked()).not.toBeNull();
+  });
+
   // The page can open while the state service is being restarted.
   it('starts once the state service first answers', async () => {
     const feed = answering(

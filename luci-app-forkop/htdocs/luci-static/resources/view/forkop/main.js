@@ -3758,13 +3758,19 @@ function adopt(reply) {
 function sleep2(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
-function startForkopLogFeed(onNewLog) {
+function getForkopLogCursor() {
+  return cursor;
+}
+function startForkopLogFeed(onNewLog, resumeFrom = 0) {
   if (running) {
     return;
   }
   running = true;
   void (async () => {
-    let started = false;
+    let started = resumeFrom > 0;
+    if (started) {
+      cursor = resumeFrom;
+    }
     for (; ; ) {
       if (!isDocumentVisible()) {
         await sleep2(FORKOP_WAIT_RETRY_MS);
@@ -3891,6 +3897,52 @@ var LogNotificationDeduper = class {
     return true;
   }
 };
+
+// src/forkop/services/logNotificationHandoff.service.ts
+var HANDOFF_STORAGE_KEY = "forkop:log-notification-handoff:v1";
+var HANDOFF_MAX_AGE_MS = 3e4;
+function saveLogNotificationHandoff(handoff, storage = getSessionStorage(), now = Date.now()) {
+  try {
+    storage?.setItem(
+      HANDOFF_STORAGE_KEY,
+      JSON.stringify({ at: now, cursor: handoff.cursor, lines: handoff.lines })
+    );
+  } catch {
+  }
+}
+function dropLogNotificationHandoff(storage = getSessionStorage()) {
+  try {
+    storage?.removeItem(HANDOFF_STORAGE_KEY);
+  } catch {
+  }
+}
+function takeLogNotificationHandoff(storage = getSessionStorage(), now = Date.now()) {
+  let raw = null;
+  try {
+    raw = storage?.getItem(HANDOFF_STORAGE_KEY) ?? null;
+  } catch {
+    return null;
+  }
+  dropLogNotificationHandoff(storage);
+  if (!raw) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    const age = now - Number(parsed?.at);
+    if (!(age >= 0 && age <= HANDOFF_MAX_AGE_MS) || typeof parsed.cursor !== "number" || !Array.isArray(parsed.lines)) {
+      return null;
+    }
+    return {
+      cursor: parsed.cursor,
+      lines: parsed.lines.filter(
+        (line) => typeof line === "string"
+      )
+    };
+  } catch {
+    return null;
+  }
+}
 
 // src/forkop/services/localActionOverlay.service.ts
 var componentActions = /* @__PURE__ */ new Set();
@@ -4505,20 +4557,22 @@ function showLogNotification(notification) {
       notification.version,
       componentDisplayName(notification.component)
     );
-    ui.addNotification(
+    return ui.addNotification(
       _("Component update available"),
       textE("div", {}, message),
       "warning",
       "fkp-component-update-notification"
     );
-    return;
   }
-  ui.addNotification(
+  return ui.addNotification(
     _("Forkop Error"),
     textE("div", {}, notification.line),
     "error",
     "fkp-log-error-notification"
   );
+}
+function isOpen(node) {
+  return node.isConnected && !node.classList.contains("fade-out");
 }
 function coreService() {
   TabServiceInstance.onChange((activeId, tabs) => {
@@ -4531,16 +4585,36 @@ function coreService() {
     });
   });
   const logNotificationDeduper = new LogNotificationDeduper();
-  const notifyLogLine = (line) => {
-    if (logNotificationDeduper.shouldNotify(line)) {
-      const notification = getForkopLogNotification(line);
-      if (notification) {
-        showLogNotification(notification);
-      }
+  const shownLogNotifications = [];
+  const show = (line) => {
+    const notification = getForkopLogNotification(line);
+    if (notification) {
+      shownLogNotifications.push({
+        line,
+        node: showLogNotification(notification)
+      });
     }
   };
+  const handoff = takeLogNotificationHandoff();
+  handoff?.lines.forEach(show);
+  const notifyLogLine = (line) => {
+    if (logNotificationDeduper.shouldNotify(line)) {
+      show(line);
+    }
+  };
+  window.addEventListener("pagehide", () => {
+    saveLogNotificationHandoff({
+      cursor: getForkopLogCursor() || handoff?.cursor || 0,
+      lines: shownLogNotifications.filter(({ node }) => isOpen(node)).map(({ line }) => line)
+    });
+  });
+  window.addEventListener("pageshow", (event) => {
+    if (event.persisted) {
+      dropLogNotificationHandoff();
+    }
+  });
   window.setTimeout(
-    () => startForkopLogFeed(notifyLogLine),
+    () => startForkopLogFeed(notifyLogLine, handoff?.cursor ?? 0),
     LOG_FEED_START_DELAY_MS
   );
   window.setTimeout(() => {

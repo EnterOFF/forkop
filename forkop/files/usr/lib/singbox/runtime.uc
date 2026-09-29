@@ -116,9 +116,10 @@ function check(text) {
     die("Generated sing-box configuration is invalid: " + failure_reason(result) + ". Aborted.");
 }
 
-// Generates the configuration and writes it where the service reads it. Returns
-// whether the file changed. The check needs the core stopped: a running one
-// holds the cache file the check opens.
+// Generates the configuration and writes it where the service reads it once the
+// core has accepted it, so a refused one leaves the file the service runs.
+// Returns whether the file changed. A start checks the file even when it did not
+// change: the core may have been replaced since it was written.
 function write_config(checked) {
     let values = settings();
     let path = common.option(values, "config_path", "");
@@ -144,10 +145,11 @@ function write_config(checked) {
     catch (e) {
         die("Failed to generate sing-box configuration: " + e.message);
     }
-    if (checked)
+    let unchanged = fs.readfile(path) == text;
+    if (checked || !unchanged)
         check(text);
 
-    if (fs.readfile(path) == text) {
+    if (unchanged) {
         exec.log("info", "sing-box configuration is unchanged");
         return false;
     }

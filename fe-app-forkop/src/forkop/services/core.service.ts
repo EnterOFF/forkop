@@ -1,12 +1,20 @@
 import { TabServiceInstance } from './tab.service';
 import { store } from './store.service';
 import { logger } from './logger.service';
-import { startForkopLogFeed } from './forkopLogFeed.service';
+import {
+  getForkopLogCursor,
+  startForkopLogFeed,
+} from './forkopLogFeed.service';
 import {
   getForkopLogNotification,
   LogNotificationDeduper,
   ForkopLogNotification,
 } from './logNotificationDeduper.service';
+import {
+  dropLogNotificationHandoff,
+  saveLogNotificationHandoff,
+  takeLogNotificationHandoff,
+} from './logNotificationHandoff.service';
 import {
   registerRuntimeStateResumeRefresh,
   startRuntimeUiStatePolling,
@@ -42,21 +50,25 @@ function showLogNotification(notification: ForkopLogNotification) {
       componentDisplayName(notification.component),
     );
 
-    ui.addNotification(
+    return ui.addNotification(
       _('Component update available'),
       E('div', {}, message),
       'warning',
       'fkp-component-update-notification',
     );
-    return;
   }
 
-  ui.addNotification(
+  return ui.addNotification(
     _('Forkop Error'),
     E('div', {}, notification.line),
     'error',
     'fkp-log-error-notification',
   );
+}
+
+// LuCI dismisses an alert by fading it out and then removing it.
+function isOpen(node: HTMLElement) {
+  return node.isConnected && !node.classList.contains('fade-out');
 }
 
 export function coreService() {
@@ -71,18 +83,43 @@ export function coreService() {
   });
 
   const logNotificationDeduper = new LogNotificationDeduper();
+  const shownLogNotifications: { line: string; node: HTMLElement }[] = [];
 
-  const notifyLogLine = (line: string) => {
-    if (logNotificationDeduper.shouldNotify(line)) {
-      const notification = getForkopLogNotification(line);
-      if (notification) {
-        showLogNotification(notification);
-      }
+  const show = (line: string) => {
+    const notification = getForkopLogNotification(line);
+    if (notification) {
+      shownLogNotifications.push({
+        line,
+        node: showLogNotification(notification),
+      });
     }
   };
 
+  const handoff = takeLogNotificationHandoff();
+  handoff?.lines.forEach(show);
+
+  const notifyLogLine = (line: string) => {
+    if (logNotificationDeduper.shouldNotify(line)) {
+      show(line);
+    }
+  };
+
+  window.addEventListener('pagehide', () => {
+    saveLogNotificationHandoff({
+      cursor: getForkopLogCursor() || handoff?.cursor || 0,
+      lines: shownLogNotifications
+        .filter(({ node }) => isOpen(node))
+        .map(({ line }) => line),
+    });
+  });
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) {
+      dropLogNotificationHandoff();
+    }
+  });
+
   window.setTimeout(
-    () => startForkopLogFeed(notifyLogLine),
+    () => startForkopLogFeed(notifyLogLine, handoff?.cursor ?? 0),
     LOG_FEED_START_DELAY_MS,
   );
   window.setTimeout(() => {

@@ -29,19 +29,31 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// The cursor the feed has read up to, 0 until it first heard from the service.
+export function getForkopLogCursor() {
+  return cursor;
+}
+
 // The feed lives as long as the page does. Its first answer only gives the
 // cursor: the lines already in the buffer are history, and announcing them
-// would notify about everything that happened before the page was opened. The
-// state service going away - for an upgrade, a crash, or before the page ever
-// reached it - pauses the feed until it is back.
-export function startForkopLogFeed(onNewLog: (line: string) => void) {
+// would notify about everything that happened before the page was opened. A
+// page that takes over from the one LuCI just reloaded goes on from that page's
+// cursor instead. The state service going away - for an upgrade, a crash, or
+// before the page ever reached it - pauses the feed until it is back.
+export function startForkopLogFeed(
+  onNewLog: (line: string) => void,
+  resumeFrom = 0,
+) {
   if (running) {
     return;
   }
   running = true;
 
   void (async () => {
-    let started = false;
+    let started = resumeFrom > 0;
+    if (started) {
+      cursor = resumeFrom;
+    }
     for (;;) {
       if (!isDocumentVisible()) {
         await sleep(FORKOP_WAIT_RETRY_MS);

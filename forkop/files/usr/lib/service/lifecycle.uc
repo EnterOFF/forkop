@@ -95,7 +95,6 @@ function validate() {
     }
     catch (e) {
         log("error", e.message);
-        log("error", "Runtime config validation failed. Aborted.");
         return false;
     }
     server.remove_orphans();
@@ -386,8 +385,8 @@ function crash_cleanup(exit_code) {
     });
 }
 
-// Every way out of a reload says which step gave up, because the page reports
-// a failed apply out of the log.
+// Every way out of a reload says which step gave up, once, because the page
+// reports a failed apply out of the log and raises every error line in it.
 function abort_reload(reason, runtime_touched) {
     log("error", reason + ". Aborted.");
     if (runtime_touched)
@@ -447,7 +446,9 @@ function crash_resume() {
 }
 
 // A config change and a queued reload apply what changed; any other reason - a
-// reload asked for by hand, a WAN coming back - also reloads sing-box.
+// reload asked for by hand, a WAN coming back - also reloads sing-box. Both the
+// table and the sing-box configuration are built before either is applied, so a
+// configuration refused on the way leaves the running one as it was.
 function reload_runtime(reason) {
     let forced = reason != "on_config_change" && reason != "pending";
     log("info", "Applying configuration");
@@ -471,9 +472,20 @@ function reload_runtime(reason) {
         built = nft.build();
     }
     catch (e) {
-        log("error", e.message);
-        return abort_reload("Failed to build the nftables rules", false);
+        return abort_reload("Failed to build the nftables rules: " + e.message, false);
     }
+
+    // The running core reads the file only when it is reloaded below.
+    let config_changed;
+    try {
+        runtime.configure_service();
+        config_changed = runtime.write_config(false);
+    }
+    catch (e) {
+        log("error", e.message);
+        return 1;
+    }
+
     let nft_changed = fs.readfile(paths.applied_nft) != built.script;
     if (nft_changed) {
         rulesets.stop_worker();
@@ -483,18 +495,9 @@ function reload_runtime(reason) {
         }
         catch (e) {
             log("fatal", e.message);
-            return abort_reload("Failed to rebuild the nftables rules", true);
+            cleanup_failed_runtime();
+            return 1;
         }
-    }
-
-    let config_changed;
-    try {
-        runtime.configure_service();
-        config_changed = runtime.write_config(false);
-    }
-    catch (e) {
-        log("fatal", e.message);
-        return abort_reload("Failed to write the sing-box configuration", true);
     }
 
     // The capture pauses while sing-box rebinds, so traffic goes direct instead
