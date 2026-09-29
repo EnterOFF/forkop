@@ -71,8 +71,9 @@ t.test("the generator builds it with every section and server", () => {
     fixture.seed(upgraded.config);
     let config = generator.build({ service_address: "127.0.0.1" });
     let tags = map([ ...(config.inbounds ?? []), ...(config.endpoints ?? []) ], (item) => item.tag);
-    for (let label in [ "JSON inbound", "VLESS Reality server", "MTProto proxy", "Tailscale endpoint" ])
+    for (let label in [ "JSON inbound", "VLESS Reality server", "Tailscale endpoint" ])
         t.contains(tags, label);
+    t.eq(filter(upgraded.config.server, (server) => server.protocol == "mtproto"), [], "MTProto is not served any more");
     let outbounds = map(config.outbounds, (item) => item.tag);
     t.contains(outbounds, "Subscription");
     t.contains(outbounds, "JSON outbound");

@@ -132,6 +132,15 @@ const TUNNELS_AND_SERVERS = join("\n", [
     "client-private-key",
     "-----END PRIVATE KEY-----'",
     "\toption openvpn_certificate_sha256 'ab'",
+    "",
+    "config server 'srv_tls'",
+    "\toption tls_certificate '-----BEGIN CERTIFICATE-----",
+    "own-certificate",
+    "-----END CERTIFICATE-----'",
+    "\toption tls_key '/etc/ssl/acme/own-key-path.key'",
+    "\toption tls_self_signed_key '-----BEGIN PRIVATE KEY-----",
+    "self-signed-private-key",
+    "-----END PRIVATE KEY-----'",
     ""
 ]);
 
@@ -141,7 +150,8 @@ t.test("tunnels, their peers and JSON servers lose their keys and addresses and 
         "e9f13cd5-37ec-442f-b288-5833ad86b9e5", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", "10.8.1.9/32",
         "zz5/p+jwYqPFlg9mWcOP5ad8xXa4XfOOlrzouVD6E1w=", "peer.example.com", "47132",
         "AKR8dq2b9o7/cO8d5mAzxvuxRhhw4DXi1pfUC3IPGWo=", "0.0.0.0/0", "leaked", "raw-inbound-token", "inbound-leaked",
-        "server-private-key", "tls-crypt-secret", "client-certificate", "client-private-key", "END PRIVATE KEY"
+        "server-private-key", "tls-crypt-secret", "client-certificate", "client-private-key", "END PRIVATE KEY",
+        "own-certificate", "own-key-path", "self-signed-private-key"
     ])
         t.excludes(masked, secret);
     for (let kept in [ "option kind 'warp'", "option amnezia_jc '4'", "option mtu '1280'", "option routing_mode 'direct'",

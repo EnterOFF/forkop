@@ -11,9 +11,7 @@ declare global {
     name: string;
     uuid: string;
     password: string;
-    secret: string;
     flow: string;
-    authorized_keys: string[];
   };
 
   // What a share link needs beyond the server's own configuration: the
@@ -22,16 +20,6 @@ declare global {
     tlsCertificateSha256?: string;
     // The committed configuration an OpenVPN profile takes its certificates from.
     openvpn?: Record<string, Record<string, unknown>>;
-  }
-
-  // What `forkop generate_*` answers: whether it worked and the files or keys
-  // it made.
-  interface ForkopIssueResult {
-    success?: boolean;
-    message?: string;
-    certificate_path?: string;
-    key_path?: string;
-    [field: string]: unknown;
   }
 
   // One share link, as the connection dialog lists it.
@@ -65,7 +53,6 @@ declare global {
     profile?: boolean;
     transport?: boolean;
     multiplex?: boolean;
-    tcp?: boolean;
     // protocolsWith() asks for a flag by name.
     [key: string]: unknown;
   }

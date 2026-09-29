@@ -3,9 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { installLuciStubs } from './luciStubs';
 import { CAMOUFLAGE_SITES } from '../../forkop/tabs/servers/constants';
 import {
-  buildMtprotoFullSecret,
   generateCredential,
-  normalizeMtprotoBaseSecret,
   randomItem,
   randomPort,
 } from '../../forkop/tabs/servers/credentials';
@@ -23,26 +21,18 @@ import {
   usesLoginName,
 } from '../../forkop/tabs/servers/protocols';
 
-const CREDENTIALS = new Set([
-  'uuid',
-  'password',
-  'secret',
-  'flow',
-  'authorized_keys',
-]);
+const CREDENTIALS = new Set(['uuid', 'password', 'flow']);
 
 function load(sections = {}) {
   return {
     uci: installLuciStubs(sections),
     spec: {
-      buildMtprotoFullSecret,
       credentialFields,
       generateCredential,
       getEffectiveSecurity,
       getShadowsocksMethod,
       isAuthenticationEnabled,
       isShadowsocks2022,
-      normalizeMtprotoBaseSecret,
       protocolLabel,
       securitiesFor,
       usesClients,
@@ -79,6 +69,8 @@ describe('server protocol spec', () => {
     expect(ids[0]).toBe('mixed');
     expect(ids.at(-1)).toBe('json_inbound');
     expect(ids).not.toContain('socks');
+    expect(ids).not.toContain('ssh');
+    expect(ids).not.toContain('mtproto');
     expect(ids).toContain('tailscale');
   });
 
@@ -93,7 +85,6 @@ describe('server protocol spec', () => {
     expect(spec.usesClients('tailscale')).toBe(false);
     expect(spec.usesClients('json_inbound')).toBe(false);
     expect(spec.usesClients('vless')).toBe(true);
-    expect(spec.usesClients('mtproto')).toBe(true);
   });
 
   it('falls back to a supported security mode for a stored value the protocol dropped', () => {
@@ -124,10 +115,6 @@ describe('server protocol spec', () => {
     expect(spec.generateCredential('srv', 'vless', 'uuid')).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
-    expect(spec.generateCredential('srv', 'mtproto', 'secret')).toMatch(
-      /^[0-9a-f]{32}$/,
-    );
-
     uci.set('forkop', 'srv', 'shadowsocks_method', '2022-blake3-aes-256-gcm');
     const key = spec.generateCredential('srv', 'shadowsocks', 'password');
     expect(Buffer.from(key, 'base64')).toHaveLength(32);
@@ -136,14 +123,6 @@ describe('server protocol spec', () => {
     expect(spec.isShadowsocks2022(spec.getShadowsocksMethod('srv'))).toBe(
       false,
     );
-  });
-
-  it('normalizes an MTProto secret that carries the FakeTLS host', () => {
-    const full = spec.buildMtprotoFullSecret('a'.repeat(32), 'google.com');
-
-    expect(full.startsWith('ee' + 'a'.repeat(32))).toBe(true);
-    expect(spec.normalizeMtprotoBaseSecret(full)).toBe('a'.repeat(32));
-    expect(spec.normalizeMtprotoBaseSecret('nonsense')).toBe('');
   });
 
   it('treats authentication as required unless the protocol makes it optional', () => {

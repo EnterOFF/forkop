@@ -27,14 +27,12 @@ const CLIENT_FIELDS = {
     anytls: [ "password" ],
     mixed: [ "password" ],
     naive: [ "password" ],
-    ssh: [ "password" ],
     mieru: [ "password" ],
-    mtproto: [ "secret" ],
     openvpn: [ "openvpn_certificate", "openvpn_key", "openvpn_certificate_sha256" ],
     tailscale: [],
     json_inbound: []
 };
-const LOGIN_NAME_PROTOCOLS = { mixed: true, naive: true, ssh: true, mieru: true };
+const LOGIN_NAME_PROTOCOLS = { mixed: true, naive: true, mieru: true };
 // What OpenVPN's own "keepalive 10 120" sets up: the client reconnects after two
 // minutes without a packet, and the server waits twice that before it drops the
 // session, so a client that comes back finds its address still there.
@@ -61,27 +59,7 @@ function safe_filename(value) {
     return result;
 }
 
-function string_to_hex(value) {
-    value = as_string(value);
-    let result = "";
-    for (let i = 0; i < length(value); i++)
-        result += sprintf("%02x", ord(substr(value, i, 1)));
-    return result;
-}
-
-// The proxy accepts nothing but a FakeTLS secret: the first byte has to be 0xee,
-// the key follows, and the host after it cannot be empty. A bare secret is refused
-// by the core, so the camouflage host is part of what makes a secret at all.
-function mtproto_client_secret(section, client) {
-    let secret = lc(option(client, "secret", ""));
-    let faketls = option(section, "mtproto_faketls", "");
-    if (substr(secret, 0, 2) == "ee")
-        return secret;
-    return "ee" + secret + string_to_hex(faketls);
-}
-
-
-function client_user(section, protocol, client) {
+function client_user(protocol, client) {
     let name = option(client, "name", client[".name"]);
     if (name == "")
         name = client[".name"];
@@ -103,27 +81,15 @@ function client_user(section, protocol, client) {
         return { name, password: option(client, "password", "") };
     if (protocol == "mixed" || protocol == "naive")
         return { username: name, password: option(client, "password", "") };
-    if (protocol == "ssh") {
-        let user = { name };
-        let password = option(client, "password", "");
-        if (password != "")
-            user.password = password;
-        let authorized_keys = list_option(client, "authorized_keys");
-        if (length(authorized_keys) > 0)
-            user.authorized_keys = authorized_keys;
-        return user;
-    }
     if (protocol == "tuic")
         return { name, uuid: option(client, "uuid", ""), password: option(client, "password", "") };
-    if (protocol == "mtproto")
-        return { name, secret: mtproto_client_secret(section, client) };
     return null;
 }
 
 function users(section, protocol) {
     let result = [];
     for (let client in connections.server_clients(section)) {
-        let user = client_user(section, protocol, client);
+        let user = client_user(protocol, client);
         if (user != null)
             push(result, user);
     }
@@ -142,20 +108,56 @@ function effective_security(section, protocol) {
             security = "none";
     }
 
-    if (protocol == "shadowsocks" || protocol == "mixed" || protocol == "ssh" || protocol == "mieru" || protocol == "mtproto" ||
+    if (protocol == "shadowsocks" || protocol == "mixed" || protocol == "mieru" ||
         protocol == "openvpn" || protocol == "tailscale" || protocol == "json_inbound")
         return "none";
-    if (protocol == "hysteria2" || protocol == "naive" || protocol == "anytls" || protocol == "tuic")
+    // No client format carries Trojan without TLS.
+    if (protocol == "hysteria2" || protocol == "naive" || protocol == "anytls" || protocol == "tuic" ||
+        protocol == "trojan")
         return "tls";
-    if ((protocol == "vmess" || protocol == "trojan") && security == "reality")
-        return protocol == "trojan" ? "tls" : "none";
+    if (protocol == "vmess" && security == "reality")
+        return "none";
     return security;
+}
+
+// A NaiveProxy client checks the certificate the way a browser does and has no
+// way to accept one it does not trust, so that server always takes the user's.
+function certificate_source(section, protocol) {
+    return protocol == "naive" || option(section, "tls_certificate_source", "") == "custom" ? "custom" : "self_signed";
+}
+
+// Where the certificate and the key of a TLS server come from: what the router
+// issued it, or what the user gave, PEM text or the path of a file on the router.
+function certificate_material(section, protocol) {
+    return certificate_source(section, protocol) == "custom"
+        ? { certificate: option(section, "tls_certificate", ""), key: option(section, "tls_key", "") }
+        : { certificate: option(section, "tls_self_signed_certificate", ""), key: option(section, "tls_self_signed_key", "") };
+}
+
+function is_router_path(value) {
+    return match(trim(as_string(value)), /^\/[^\n]*$/) != null;
 }
 
 function maybe_string(object, key, value) {
     value = as_string(value);
     if (value != "")
         object[key] = value;
+}
+
+function pem_lines(value) {
+    return filter(map(split(as_string(value), "\n"), (line) => rtrim(line, "\r")), (line) => line != "");
+}
+
+// sing-box reads a file again whenever it changes, so a certificate a client
+// such as acme.sh renews on the router is picked up without an apply.
+function apply_material(tls, field, value) {
+    value = trim(as_string(value));
+    if (value == "")
+        return;
+    if (is_router_path(value))
+        tls[field + "_path"] = value;
+    else
+        tls[field] = pem_lines(value);
 }
 
 function apply_tls(inbound, section, protocol) {
@@ -170,11 +172,9 @@ function apply_tls(inbound, section, protocol) {
         tls.alpn = alpn;
 
     if (security == "tls") {
-        let safe_name = safe_filename(section[".name"]);
-        maybe_string(tls, "certificate_path",
-            option(section, "tls_certificate_path", "/etc/forkop/server-certs/" + safe_name + ".crt"));
-        maybe_string(tls, "key_path",
-            option(section, "tls_key_path", "/etc/forkop/server-certs/" + safe_name + ".key"));
+        let material = certificate_material(section, protocol);
+        apply_material(tls, "certificate", material.certificate);
+        apply_material(tls, "key", material.key);
     }
     else if (security == "reality") {
         // The SNI is what a client sends and the handshake target is where the
@@ -220,9 +220,8 @@ function apply_transport(inbound, section, protocol) {
     }
     else if (transport_type == "http") {
         maybe_string(transport, "path", path);
-        let hosts = list_option(section, "transport_hosts");
-        if (length(hosts) > 0)
-            transport.host = hosts;
+        if (host != "")
+            transport.host = [ host ];
     }
     else if (transport_type == "httpupgrade") {
         maybe_string(transport, "path", path);
@@ -285,8 +284,6 @@ function add_standard_inbound(config, section, protocol, tag_name) {
     }
     else if (protocol == "hysteria2") {
         inbound.users = users(section, protocol);
-        if (bool_option(section, "hysteria2_ignore_client_bandwidth", false))
-            inbound.ignore_client_bandwidth = true;
         let up_mbps = option(section, "hysteria2_up_mbps", "");
         let down_mbps = option(section, "hysteria2_down_mbps", "");
         if (up_mbps != "")
@@ -297,12 +294,6 @@ function add_standard_inbound(config, section, protocol, tag_name) {
         let obfs_password = option(section, "hysteria2_obfs_password", "");
         if (obfs_type != "" && obfs_password != "")
             inbound.obfs = { type: obfs_type, password: obfs_password };
-        if (obfs_type == "gecko" && inbound.obfs) {
-            let minimum = option(section, "hysteria2_gecko_min_packet_size", "");
-            let maximum = option(section, "hysteria2_gecko_max_packet_size", "");
-            if (minimum != "") inbound.obfs.min_packet_size = int(minimum, 10);
-            if (maximum != "") inbound.obfs.max_packet_size = int(maximum, 10);
-        }
         maybe_string(inbound, "bbr_profile", option(section, "hysteria2_bbr_profile", ""));
         // sing-box reads a masquerade URL as a string and picks the mode from its
         // scheme, so the single form field is passed through unchanged.
@@ -312,12 +303,6 @@ function add_standard_inbound(config, section, protocol, tag_name) {
         inbound.users = users(section, protocol);
         let network = option(section, "naive_network", "tcp");
         inbound.network = network == "tcp_udp" ? [ "tcp", "udp" ] : network;
-    }
-    else if (protocol == "ssh") {
-        inbound.users = users(section, protocol);
-        let host_key_path = list_option(section, "ssh_host_key_path");
-        if (length(host_key_path) > 0)
-            inbound.host_key_path = host_key_path;
     }
     else if (protocol == "mieru") {
         inbound.users = users(section, protocol);
@@ -329,24 +314,10 @@ function add_standard_inbound(config, section, protocol, tag_name) {
     else if (protocol == "tuic") {
         inbound.users = users(section, protocol);
         maybe_string(inbound, "congestion_control", option(section, "tuic_congestion_control", "cubic"));
-        maybe_string(inbound, "heartbeat", option(section, "tuic_heartbeat", "10s"));
-        if (bool_option(section, "tuic_zero_rtt_handshake", false))
-            inbound.zero_rtt_handshake = true;
-    }
-    else if (protocol == "mtproto") {
-        // The proxy is registered as mtproxy in the core; mtproto is the name this
-        // tab uses. Nothing else is written: mtg supplies its own concurrency limit,
-        // fronting port, address family preference and timeouts, and the secret each
-        // client carries already names the domain the handshake fronts.
-        inbound.type = "mtproxy";
-        inbound.users = users(section, protocol);
     }
     else {
         inbound.users = users(section, protocol);
     }
-
-    if (bool_option(section, "tcp_fast_open", false))
-        inbound.tcp_fast_open = true;
 
     apply_tls(inbound, section, protocol);
     apply_transport(inbound, section, protocol);
@@ -419,10 +390,6 @@ function add_tailscale_endpoint(config, section, tag_name) {
     if (length(advertise_routes) > 0)
         endpoint.advertise_routes = advertise_routes;
     push(config.endpoints, endpoint);
-}
-
-function pem_lines(value) {
-    return filter(map(split(as_string(value), "\n"), (line) => rtrim(line, "\r")), (line) => line != "");
 }
 
 // Clients are told apart by the certificate each was issued: the server trusts
@@ -612,5 +579,8 @@ return {
     transports,
     listen_transports,
     route_user,
-    effective_security
+    effective_security,
+    certificate_source,
+    certificate_material,
+    is_router_path
 };

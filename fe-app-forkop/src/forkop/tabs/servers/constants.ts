@@ -76,18 +76,11 @@ export const CLIENT_FINGERPRINTS = [
   'random',
 ];
 
-// Forkop generates into its own directory, so a path there is a certificate it
-// issued and a client has to be told to accept it. A path anywhere else is the
-// user's own certificate and is assumed to be trusted.
-export const SERVER_CERT_DIR = '/etc/forkop/server-certs/';
-
 export const CLIENT_KEYS = [
   'name',
   'uuid',
   'password',
-  'secret',
   'flow',
-  'authorized_keys',
   'routing_override',
   'routing_mode',
   'routing_section',

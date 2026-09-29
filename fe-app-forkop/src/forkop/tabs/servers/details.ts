@@ -5,12 +5,9 @@ import {
   loadLinkContext,
 } from './links';
 import { getListenPort, getPublicHost } from './network';
-import {
-  buildOpenVPNProfile,
-  downloadProfile,
-  loadOpenVPNMaterial,
-} from './profile';
-import type { OpenVPNMaterial } from './profile';
+import { loadIssuedMaterial } from './issued';
+import type { IssuedMaterial } from './issued';
+import { buildOpenVPNProfile, downloadProfile } from './profile';
 import {
   getProtocol,
   getServerName,
@@ -126,12 +123,21 @@ function injectDetailsStyles() {
         // The width comes from the same place too: all three are opened without
         // cbi-modal, which is what the theme widens to a settings form.
         '.fkp-details{box-sizing:border-box;width:min(760px,calc(100vw - 56px));max-width:100%;padding-top:10px}',
-        // The one deviation: their first column has a 120px floor for long labels,
-        // and these labels are short, so the column is max-content and the value
-        // sits 16px after the longest label.
-        '.fkp-details__clients{display:grid;gap:14px;min-inline-size:0}',
-        '.fkp-details__client{display:grid;gap:6px;min-width:0}',
-        '.fkp-details__name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+        // A table of the clients: the names in one column as wide as the longest
+        // of them, their links beside, and a rule between two clients. A client is
+        // no box of its own but its two cells, so every name lines up with the next
+        // and the rule runs through both cells of a row.
+        '.fkp-details__clients{display:grid;grid-template-columns:fit-content(14em) minmax(0,1fr);min-inline-size:0}',
+        '.fkp-details__client{display:contents}',
+        '.fkp-details__client > *{padding-block:10px;border-top:1px solid var(--border-color-low,rgba(128,128,128,.25))}',
+        '.fkp-details__client:first-child > *{border-top:0;padding-top:0}',
+        '.fkp-details__client:last-child > *{padding-bottom:0}',
+        '.fkp-details__name{display:flex;align-items:center;min-inline-size:0;padding-inline-end:16px;font-weight:600}',
+        '.fkp-details__name:empty{padding-inline-end:0}',
+        '.fkp-details__name > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+        '.fkp-details__links{display:grid;gap:6px;align-content:center;min-inline-size:0}',
+        // A phone has no room for two columns: the name goes over its links.
+        '@media (max-width:560px){.fkp-details__clients{grid-template-columns:minmax(0,1fr)}.fkp-details__client > .fkp-details__links{border-top:0;padding-top:6px}.fkp-details__client > .fkp-details__name:not(:empty){padding-bottom:0}}',
         '.fkp-details__link{display:grid;grid-template-columns:minmax(0,1fr);grid-auto-flow:column;grid-auto-columns:auto;gap:8px;align-items:stretch;min-inline-size:0}',
         '.fkp-details__value{inline-size:100% !important;max-inline-size:100% !important;min-inline-size:0;box-sizing:border-box;margin:0 !important;float:none !important;font-family:monospace;font-size:12px}',
         '.fkp-details__action{display:inline-flex;align-items:center;justify-content:center;inline-size:2.5em !important;min-inline-size:0;padding:0 !important;margin:0 !important;float:none !important;line-height:1}',
@@ -313,14 +319,27 @@ function renderProfileRow(profile: string, name: string) {
   ]);
 }
 
+// One row of the client table: the name, and what the client is handed. A
+// listener that asks for nothing has no account to name, and repeating the name
+// of the server there would say nothing, so its cell stays empty.
+function renderClientRow(name: string, body: Node[]) {
+  return E('div', { class: 'fkp-details__client' }, [
+    E(
+      'div',
+      { class: 'fkp-details__name' },
+      name ? [E('span', { title: name }, name)] : [],
+    ),
+    E('div', { class: 'fkp-details__links' }, body),
+  ]);
+}
+
 function renderProfileDetails(
   sectionId: string,
   client: ServerClient,
-  material: OpenVPNMaterial,
+  material: IssuedMaterial,
 ) {
   const result = buildOpenVPNProfile(sectionId, client, material);
-  return E('div', { class: 'fkp-details__client' }, [
-    E('div', { class: 'fkp-details__name' }, client.name),
+  return renderClientRow(client.name, [
     'profile' in result
       ? renderProfileRow(result.profile, result.fileName)
       : E(
@@ -353,14 +372,7 @@ function renderClientDetails(
   context: ShareLinkContext,
 ) {
   const links = buildClientLinks(sectionId, client, context);
-  const name = `${client?.name || ''}`.trim();
   const body = [];
-
-  // A listener that asks for nothing has no account to name, and repeating the name
-  // of the server there would say nothing.
-  if (name) {
-    body.push(E('div', { class: 'fkp-details__name' }, name));
-  }
 
   if (links.length) {
     links.forEach((entry) =>
@@ -381,7 +393,7 @@ function renderClientDetails(
     );
   }
 
-  return E('div', { class: 'fkp-details__client' }, body);
+  return renderClientRow(`${client?.name || ''}`.trim(), body);
 }
 
 // A Mixed listener without authentication has no accounts, and its link needs
@@ -392,9 +404,7 @@ function anonymousClient() {
     name: '',
     uuid: '',
     password: '',
-    secret: '',
     flow: '',
-    authorized_keys: [],
   };
 }
 
@@ -470,7 +480,7 @@ export function showServerDetailsModal(
   // A profile holds what the router issued, so the dialog waits for it rather
   // than open on a list that says every certificate is missing.
   if (usesProfile(getProtocol(sectionId))) {
-    return loadOpenVPNMaterial().then((openvpn) => {
+    return loadIssuedMaterial().then((openvpn) => {
       ui.showModal(_('Server details: %s').format(getServerName(sectionId)), [
         renderDetailsContent(sectionId, clients, { openvpn }),
         renderCloseRow(),

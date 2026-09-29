@@ -15790,11 +15790,23 @@ function isCertificate(der) {
   return fields[base]?.tag === 2 && [1, 2, 3, 4].every((index) => fields[base + index]?.tag === 48);
 }
 
-// src/helpers/openvpnMaterial.ts
+// src/helpers/material.ts
 var PRIVATE_KEY_LABELS = ["PRIVATE KEY", "RSA PRIVATE KEY", "EC PRIVATE KEY"];
 var VALID = { valid: true, message: "" };
 function isRouterPath(value) {
   return /^\/[^\n]*$/.test(value.trim());
+}
+function splitCertificateAndKey(text4) {
+  const blocks = Array.from(
+    `${text4 || ""}`.matchAll(
+      /-----BEGIN ([A-Z0-9 ]+)-----[\s\S]*?-----END \1-----/g
+    )
+  );
+  const certificates = blocks.filter((block) => block[1] === "CERTIFICATE").map((block) => block[0].replace(/\r/g, ""));
+  const keys = blocks.filter(
+    (block) => [...PRIVATE_KEY_LABELS, "ENCRYPTED PRIVATE KEY"].includes(block[1])
+  ).map((block) => block[0].replace(/\r/g, ""));
+  return certificates.length && keys.length === 1 ? { certificate: certificates.join("\n"), key: keys[0] } : null;
 }
 function invalid2(message) {
   return { valid: false, message };
@@ -15841,7 +15853,7 @@ function cryptV2Check(text4) {
     _("Paste an OpenVPN tls-crypt-v2 client key or load it from a file")
   );
 }
-function checkOpenVPNMaterial(kind, value) {
+function checkMaterial(kind, value) {
   const text4 = `${value ?? ""}`.trim();
   if (!text4 || isRouterPath(text4)) return VALID;
   switch (kind) {
@@ -16141,7 +16153,7 @@ function material(state, directive, kind) {
       }
     }
   }
-  const check = checkOpenVPNMaterial(kind, content.trim());
+  const check = checkMaterial(kind, content.trim());
   if (!check.valid) fail(`${directive.name}: ${check.message}`);
   return content.trim();
 }
@@ -19665,7 +19677,7 @@ function validateTailscaleHostname(value) {
   return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(hostname) ? true : _("Use lowercase letters, digits and hyphens");
 }
 
-// src/forkop/tabs/sections/tunnels/material.ts
+// src/forkop/cbi/material.ts
 var STYLE_ID = "fkp-material-styles";
 function injectMaterialStyles() {
   if (document.getElementById(STYLE_ID)) return;
@@ -19727,24 +19739,37 @@ function pickFiles(multiple, onPick) {
   );
   picker.click();
 }
-function formValueOf(option2) {
+function formValueOf(option2, sectionId) {
   return (name) => {
-    const found = option2.map.lookupOption(name, "settings");
+    const found = option2.map.lookupOption(name, sectionId);
     if (!found) return null;
     const value = found[0].formvalue(found[1]);
     return value ?? found[0].cfgvalue(found[1]);
   };
 }
-function configureOpenVPNMaterial(option2, kind, required) {
-  const kindOf = () => typeof kind === "function" ? kind(formValueOf(option2)) : kind;
+function setFieldValue(widget, value) {
+  widget?.setValue(value);
+  widget?.triggerValidation();
+  widget?.node?.querySelector("textarea")?.dispatchEvent(new Event("change", { bubbles: true }));
+}
+function loadedMaterial(text4, kind, paired) {
+  const both = paired ? splitCertificateAndKey(text4) : null;
+  if (!both) return { own: text4, pair: null };
+  return kind === "key" ? { own: both.key, pair: both.certificate } : { own: both.certificate, pair: both.key };
+}
+function configureMaterialOption(option2, kind, required, pair) {
   option2.rows = 4;
   option2.wrap = "off";
   option2.rmempty = true;
   configureTextareaOption(option2);
-  option2.validate = function(_sectionId, value) {
+  option2.validate = function(sectionId, value) {
+    const values = formValueOf(this, sectionId);
     const content = `${value ?? ""}`.trim();
-    if (!content) return required(formValueOf(this)) || true;
-    const check = checkOpenVPNMaterial(kindOf(), content);
+    if (!content) return required(values) || true;
+    const check = checkMaterial(
+      typeof kind === "function" ? kind(values) : kind,
+      content
+    );
     return check.valid ? true : check.message;
   };
   const renderWidget2 = option2.renderWidget;
@@ -19756,9 +19781,12 @@ function configureOpenVPNMaterial(option2, kind, required) {
       optionIndex,
       cfgvalue
     );
-    const textarea = frame.querySelector("textarea");
     const label = _("Load from a file");
     const readonly = !!(this.readonly ?? this.map.readonly);
+    const pairWidget = () => {
+      const found = pair ? this.map.lookupOption(pair, sectionId) : null;
+      return found ? found[0].getUIElement(found[1]) : null;
+    };
     const load = textE(
       "button",
       {
@@ -19770,17 +19798,33 @@ function configureOpenVPNMaterial(option2, kind, required) {
       },
       fileIcon()
     );
+    const fill = (text4) => {
+      const other = pairWidget();
+      const loaded = loadedMaterial(
+        text4,
+        typeof kind === "function" ? kind(formValueOf(this, sectionId)) : kind,
+        !!other
+      );
+      setFieldValue(
+        dom.findClassInstance(frame),
+        loaded.own
+      );
+      if (loaded.pair != null) setFieldValue(other, loaded.pair);
+    };
     load.addEventListener("click", (ev) => {
       ev.preventDefault();
       pickFiles(false, ([file]) => {
         if (!file) return;
-        file.arrayBuffer().then((buffer) => {
-          const widget = dom.findClassInstance(frame);
-          widget?.setValue(readMaterialFile(new Uint8Array(buffer)).trim());
-          widget?.triggerValidation();
-          textarea?.dispatchEvent(new Event("change", { bubbles: true }));
-        });
+        file.arrayBuffer().then(
+          (buffer) => fill(readMaterialFile(new Uint8Array(buffer)).trim())
+        );
       });
+    });
+    frame.querySelector("textarea")?.addEventListener("paste", (ev) => {
+      const text4 = ev.clipboardData?.getData("text") ?? "";
+      if (!pair || !splitCertificateAndKey(text4)) return;
+      ev.preventDefault();
+      fill(text4.trim());
     });
     return textE("div", { class: "fkp-material" }, [frame, load]);
   };
@@ -19788,7 +19832,7 @@ function configureOpenVPNMaterial(option2, kind, required) {
 
 // src/forkop/tabs/sections/tunnels/openvpnForm.ts
 function secondsOption(section, name, title, description, placeholder) {
-  const o = section.option(form.Value, name, title, description);
+  const o = section.option(form.Value, name, title, description ?? void 0);
   o.datatype = "uinteger";
   o.placeholder = placeholder;
   o.rmempty = true;
@@ -19815,7 +19859,7 @@ function addOpenVPNOptions(section) {
         "openvpn_servers",
         _("Servers"),
         _(
-          "Host and port of the OpenVPN server. With several, the next one is tried when a server does not answer. Put tcp:// or udp:// before a server that uses the other protocol"
+          "Host and port. Put tcp:// or udp:// before a server on the other transport"
         )
       )
     )
@@ -19839,16 +19883,7 @@ function addOpenVPNOptions(section) {
   o.rmempty = false;
   o = add(
     "openvpn_mode",
-    onKind(
-      section.option(
-        form.ListValue,
-        "openvpn_mode",
-        _("Mode"),
-        _(
-          "A static key is the outdated mode without certificates. Choose it only for a server that uses one"
-        )
-      )
-    )
+    onKind(section.option(form.ListValue, "openvpn_mode", _("Mode")))
   );
   o.value("tls", _("TLS (certificates)"));
   o.value("static_key", _("Static key"));
@@ -19857,12 +19892,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_login",
     onKind(
-      section.option(
-        form.Flag,
-        "openvpn_login",
-        _("Username and password"),
-        _("The server asks for a username and a password (auth-user-pass)")
-      ),
+      section.option(form.Flag, "openvpn_login", _("Username and password")),
       tls
     )
   );
@@ -19889,16 +19919,11 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_ca",
     onKind(
-      section.option(
-        form.TextValue,
-        "openvpn_ca",
-        _("CA certificate"),
-        _("The certificate the server certificate is checked against (ca)")
-      ),
+      section.option(form.TextValue, "openvpn_ca", _("CA certificate")),
       tls
     )
   );
-  configureOpenVPNMaterial(
+  configureMaterialOption(
     o,
     "ca",
     (value) => value("openvpn_advanced") === "1" && normalizeOptionValues(value("openvpn_peer_fingerprint")).length ? "" : _("Add the CA certificate the server certificate is checked against")
@@ -19906,38 +19931,25 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_cert",
     onKind(
-      section.option(
-        form.TextValue,
-        "openvpn_cert",
-        _("Client certificate"),
-        _(
-          "The certificate this tunnel presents (cert). A server that asks only for a login needs none"
-        )
-      ),
+      section.option(form.TextValue, "openvpn_cert", _("Client certificate")),
       tls
     )
   );
-  configureOpenVPNMaterial(
+  configureMaterialOption(
     o,
     "certificate",
-    (value) => trimmed(value("openvpn_key")) ? _("Add the certificate of the client key") : ""
+    (value) => trimmed(value("openvpn_key")) ? _("Add the certificate of the client key") : "",
+    "openvpn_key"
   );
   o = add(
     "openvpn_key",
-    onKind(
-      section.option(
-        form.TextValue,
-        "openvpn_key",
-        _("Client key"),
-        _("The private key of the client certificate (key)")
-      ),
-      tls
-    )
+    onKind(section.option(form.TextValue, "openvpn_key", _("Client key")), tls)
   );
-  configureOpenVPNMaterial(
+  configureMaterialOption(
     o,
     "key",
-    (value) => trimmed(value("openvpn_cert")) ? _("Add the key of the client certificate") : ""
+    (value) => trimmed(value("openvpn_cert")) ? _("Add the key of the client certificate") : "",
+    "openvpn_cert"
   );
   o = add(
     "openvpn_control_wrap",
@@ -19945,10 +19957,7 @@ function addOpenVPNOptions(section) {
       section.option(
         form.ListValue,
         "openvpn_control_wrap",
-        _("Control channel protection"),
-        _(
-          "The extra key the server wraps its handshake in: tls-auth, tls-crypt or tls-crypt-v2"
-        )
+        _("Control channel protection")
       ),
       tls
     )
@@ -19969,7 +19978,7 @@ function addOpenVPNOptions(section) {
   for (const type of ["tls_auth", "tls_crypt", "tls_crypt_v2"]) {
     onKind(o, { ...tls, openvpn_control_wrap: type });
   }
-  configureOpenVPNMaterial(
+  configureMaterialOption(
     o,
     (value) => value("openvpn_control_wrap") === "tls_crypt_v2" ? "crypt-v2" : "static",
     () => _("Add the key of the control channel protection")
@@ -19980,12 +19989,7 @@ function addOpenVPNOptions(section) {
   );
   o = add(
     "openvpn_key_direction",
-    section.option(
-      form.ListValue,
-      "openvpn_key_direction",
-      _("Key direction"),
-      _("key-direction of the profile. Clients use 1")
-    )
+    section.option(form.ListValue, "openvpn_key_direction", _("Key direction"))
   );
   o.value("1", "1");
   o.value("0", "0");
@@ -19997,16 +20001,11 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_static_key",
     onKind(
-      section.option(
-        form.TextValue,
-        "openvpn_static_key",
-        _("Static key"),
-        _("The shared key of the tunnel (secret)")
-      ),
+      section.option(form.TextValue, "openvpn_static_key", _("Static key")),
       staticKey
     )
   );
-  configureOpenVPNMaterial(o, "static", () => _("Add the static key"));
+  configureMaterialOption(o, "static", () => _("Add the static key"));
   o = add(
     "openvpn_static_cipher",
     onKind(
@@ -20024,7 +20023,7 @@ function addOpenVPNOptions(section) {
         form.DynamicList,
         "openvpn_address",
         _("Tunnel addresses"),
-        _("The addresses of this end of the tunnel in CIDR format (ifconfig)")
+        _("ifconfig and ifconfig-ipv6 in the profile")
       ),
       staticKey
     )
@@ -20039,7 +20038,7 @@ function addOpenVPNOptions(section) {
         form.Value,
         "openvpn_peer_address",
         _("Peer address"),
-        _("The IPv4 address of the other end of the tunnel")
+        _("The second address of ifconfig in the profile")
       ),
       staticKey
     )
@@ -20053,7 +20052,7 @@ function addOpenVPNOptions(section) {
         form.Value,
         "openvpn_peer_address_ipv6",
         _("Peer IPv6 address"),
-        _("The IPv6 address of the other end of the tunnel")
+        _("The second address of ifconfig-ipv6 in the profile")
       ),
       staticKey
     )
@@ -20063,14 +20062,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_advanced",
     onKind(
-      section.option(
-        form.Flag,
-        "openvpn_advanced",
-        _("Advanced settings"),
-        _(
-          "Server certificate checks, ciphers, compression, MTU and timers. Off, they keep their defaults"
-        )
-      )
+      section.option(form.Flag, "openvpn_advanced", _("Advanced settings"))
     )
   );
   o.default = "0";
@@ -20081,8 +20073,7 @@ function addOpenVPNOptions(section) {
       section.option(
         form.Flag,
         "openvpn_remote_random",
-        _("Random server order"),
-        _("Try the servers in random order (remote-random)")
+        _("Random server order")
       ),
       advanced
     )
@@ -20096,9 +20087,7 @@ function addOpenVPNOptions(section) {
         form.Value,
         "openvpn_server_name",
         _("Server certificate name"),
-        _(
-          "The name the server certificate must carry (verify-x509-name). Empty: any certificate the CA issued"
-        )
+        _("verify-x509-name in the profile")
       ),
       { ...tls, ...advanced }
     )
@@ -20129,10 +20118,7 @@ function addOpenVPNOptions(section) {
       section.option(
         form.ListValue,
         "openvpn_verify_purpose",
-        _("Server certificate purpose"),
-        _(
-          "What proves the certificate was issued to a server and not to another client"
-        )
+        _("Server certificate purpose")
       ),
       { ...tls, ...advanced }
     )
@@ -20150,7 +20136,7 @@ function addOpenVPNOptions(section) {
         "openvpn_peer_fingerprint",
         _("Server certificate fingerprints"),
         _(
-          "SHA-256 fingerprints the server certificate must match (peer-fingerprint). With them the CA certificate is not needed"
+          "With fingerprints the CA certificate is not needed (peer-fingerprint in the profile)"
         )
       ),
       { ...tls, ...advanced }
@@ -20166,7 +20152,7 @@ function addOpenVPNOptions(section) {
         "openvpn_certificate_profile",
         _("Certificate profile"),
         _(
-          "Which signature algorithms and key sizes are accepted (tls-cert-profile)"
+          "The signature algorithms and key sizes accepted (tls-cert-profile in the profile)"
         )
       ),
       { ...tls, ...advanced }
@@ -20202,7 +20188,7 @@ function addOpenVPNOptions(section) {
         "openvpn_tls_cipher",
         _("TLS ciphers"),
         _(
-          "Cipher suites of the control channel up to TLS 1.2, separated by colons (tls-cipher)"
+          "Cipher suites up to TLS 1.2, separated by colons (tls-cipher in the profile)"
         )
       ),
       { ...tls, ...advanced }
@@ -20217,7 +20203,7 @@ function addOpenVPNOptions(section) {
         form.MultiValue,
         "openvpn_data_ciphers",
         _("Data ciphers"),
-        _("The ciphers offered to the server (data-ciphers). Empty: %s").format(
+        _("Empty: %s (data-ciphers in the profile)").format(
           OPENVPN_DEFAULT_DATA_CIPHERS.join(", ")
         )
       ),
@@ -20235,7 +20221,7 @@ function addOpenVPNOptions(section) {
         "openvpn_data_ciphers_fallback",
         _("Fallback cipher"),
         _(
-          "The cipher of a server older than 2.4, which cannot agree on one (cipher, data-ciphers-fallback)"
+          "Only for a server older than 2.4 (data-ciphers-fallback in the profile)"
         )
       ),
       { ...tls, ...advanced }
@@ -20251,7 +20237,7 @@ function addOpenVPNOptions(section) {
         form.ListValue,
         "openvpn_auth",
         _("Packet authentication"),
-        _("The digest of CBC ciphers and of tls-auth (auth)")
+        _("auth in the profile")
       ),
       advanced
     )
@@ -20279,7 +20265,12 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_mtu",
     onKind(
-      section.option(form.Value, "openvpn_mtu", _("MTU"), _("tun-mtu")),
+      section.option(
+        form.Value,
+        "openvpn_mtu",
+        _("MTU"),
+        _("tun-mtu in the profile")
+      ),
       advanced
     )
   );
@@ -20293,9 +20284,7 @@ function addOpenVPNOptions(section) {
         form.Value,
         "openvpn_fragment",
         _("Fragment size"),
-        _(
-          "Largest UDP packet before OpenVPN splits it (fragment). Only if the server uses it too"
-        )
+        _("Only if the server uses it too (fragment in the profile)")
       ),
       { ...advanced, openvpn_network: "udp" }
     )
@@ -20309,9 +20298,7 @@ function addOpenVPNOptions(section) {
         form.Value,
         "openvpn_mss_fix",
         _("MSS clamping"),
-        _(
-          "Largest packet size TCP connections are fitted to (mssfix). 0 switches it off"
-        )
+        _("0 switches it off (mssfix in the profile)")
       ),
       advanced
     )
@@ -20326,7 +20313,7 @@ function addOpenVPNOptions(section) {
         section,
         "openvpn_ping_interval",
         _("Ping interval, seconds"),
-        _("A server usually sets it itself (ping)"),
+        _("ping in the profile"),
         ""
       ),
       advanced
@@ -20339,7 +20326,7 @@ function addOpenVPNOptions(section) {
         section,
         "openvpn_ping_restart",
         _("Reconnect after silence, seconds"),
-        _("A server usually sets it itself (ping-restart). 0 switches it off"),
+        _("0 switches it off (ping-restart in the profile)"),
         "120"
       ),
       advanced
@@ -20352,7 +20339,7 @@ function addOpenVPNOptions(section) {
         section,
         "openvpn_renegotiate",
         _("Key renegotiation, seconds"),
-        _("reneg-sec. 0 switches it off"),
+        _("0 switches it off (reneg-sec in the profile)"),
         "3600"
       ),
       { ...tls, ...advanced }
@@ -22085,14 +22072,11 @@ var CLIENT_FINGERPRINTS = [
   "android",
   "random"
 ];
-var SERVER_CERT_DIR = "/etc/forkop/server-certs/";
 var CLIENT_KEYS = [
   "name",
   "uuid",
   "password",
-  "secret",
   "flow",
-  "authorized_keys",
   "routing_override",
   "routing_mode",
   "routing_section"
@@ -22161,7 +22145,6 @@ var PROTOCOLS = [
     label: "Mixed",
     kind: "inbound",
     securities: ["none"],
-    tcp: true,
     login: true,
     optionalAuth: "mixed_auth_enabled",
     credentials: ["password"],
@@ -22192,7 +22175,6 @@ var PROTOCOLS = [
     securities: ["reality", "tls", "none"],
     transport: true,
     multiplex: true,
-    tcp: true,
     credentials: ["uuid", "flow"],
     link: "vless"
   },
@@ -22203,7 +22185,6 @@ var PROTOCOLS = [
     securities: ["tls", "none"],
     transport: true,
     multiplex: true,
-    tcp: true,
     credentials: ["uuid"],
     link: "vmess"
   },
@@ -22211,10 +22192,9 @@ var PROTOCOLS = [
     id: "trojan",
     label: "Trojan",
     kind: "inbound",
-    securities: ["tls", "none"],
+    securities: ["tls"],
     transport: true,
     multiplex: true,
-    tcp: true,
     credentials: ["password"],
     link: "trojan"
   },
@@ -22224,7 +22204,6 @@ var PROTOCOLS = [
     kind: "inbound",
     securities: ["none"],
     multiplex: true,
-    tcp: true,
     credentials: ["password"],
     link: "ss"
   },
@@ -22249,7 +22228,6 @@ var PROTOCOLS = [
     label: "AnyTLS",
     kind: "inbound",
     securities: ["tls"],
-    tcp: true,
     credentials: ["password"],
     link: "anytls"
   },
@@ -22258,39 +22236,18 @@ var PROTOCOLS = [
     label: "NaiveProxy",
     kind: "inbound",
     securities: ["tls"],
-    tcp: true,
     login: true,
     credentials: ["password"],
     link: "naive"
-  },
-  {
-    id: "ssh",
-    label: "SSH",
-    kind: "inbound",
-    securities: ["none"],
-    tcp: true,
-    login: true,
-    credentials: ["password", "authorized_keys"]
   },
   {
     id: "mieru",
     label: "Mieru",
     kind: "inbound",
     securities: ["none"],
-    tcp: true,
     login: true,
     credentials: ["password"],
     link: "mierus"
-  },
-  {
-    id: "mtproto",
-    label: "MTProto",
-    kind: "inbound",
-    coreType: "mtproxy",
-    securities: ["none"],
-    tcp: true,
-    credentials: ["secret"],
-    link: "mtproto"
   },
   {
     id: "json_inbound",
@@ -22424,12 +22381,11 @@ function isShadowsocks2022(method) {
 function getShadowsocksMethod(sectionId) {
   return liveOption(sectionId, "shadowsocks_method") || SHADOWSOCKS_METHODS[0].id;
 }
-function isForkopCertificatePath(path) {
-  return `${path || ""}`.startsWith(SERVER_CERT_DIR);
+function certificateSource(sectionId) {
+  return getProtocol(sectionId) === "naive" || liveOption(sectionId, "tls_certificate_source") === "custom" ? "custom" : "self_signed";
 }
-function usesGeneratedCertificate(sectionId) {
-  const path = option(sectionId, "tls_certificate_path");
-  return !path || isForkopCertificatePath(path);
+function usesSelfSignedCertificate(sectionId) {
+  return getEffectiveSecurity(sectionId) === "tls" && certificateSource(sectionId) === "self_signed";
 }
 function protocolCoreFeature(protocol) {
   const spec = protocolSpec(protocol);
@@ -22471,9 +22427,6 @@ function randomHex(byteLength) {
 function randomItem(items) {
   return items[randomBytes(1)[0] % items.length];
 }
-function stringToHex(value) {
-  return Array.from(unescape(encodeURIComponent(`${value || ""}`))).map((char) => char.charCodeAt(0).toString(16).padStart(2, "0")).join("");
-}
 function base64Encode(value) {
   return btoa(unescape(encodeURIComponent(value)));
 }
@@ -22508,10 +22461,6 @@ function generatePassword() {
 function generatePresharedKey(byteLength) {
   return base64EncodeBytes(randomBytes(byteLength));
 }
-function generateMtprotoSecret() {
-  const secret = randomHex(16);
-  return secret === "00000000000000000000000000000000" ? "11111111111111111111111111111111" : secret;
-}
 function randomPort() {
   const bytes = randomBytes(2);
   return `${2e4 + (bytes[0] << 8 | bytes[1]) % 3e4}`;
@@ -22525,25 +22474,9 @@ function encodeQuery(params) {
     ([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(`${value}`)}`
   ).join("&");
 }
-function normalizeMtprotoBaseSecret(value) {
-  const secret = `${value || ""}`.trim().toLowerCase();
-  if (/^[0-9a-f]{32}$/.test(secret)) {
-    return secret;
-  }
-  if (/^ee[0-9a-f]{32}(?:[0-9a-f]{2})+$/.test(secret)) {
-    return secret.slice(2, 34);
-  }
-  return "";
-}
-function buildMtprotoFullSecret(baseSecret, faketls) {
-  return `ee${baseSecret}${stringToHex(faketls || "google.com")}`;
-}
 function generateCredential(sectionId, protocol, field) {
   if (field === "uuid") {
     return generateUuid();
-  }
-  if (field === "secret") {
-    return generateMtprotoSecret();
   }
   if (field === "password") {
     const keyBytes = protocol === "shadowsocks" ? shadowsocksKeyBytes(getShadowsocksMethod(sectionId)) : 0;
@@ -22633,6 +22566,21 @@ function isValidCidr(item) {
     return prefixNumber >= 0 && prefixNumber <= 128;
   }
   return false;
+}
+
+// src/forkop/tabs/servers/issued.ts
+var callUciValues = null;
+function loadIssuedMaterial() {
+  callUciValues ?? (callUciValues = rpc.declare({
+    object: "uci",
+    method: "get",
+    params: ["config"],
+    expect: { values: {} }
+  }));
+  return callUciValues("forkop").then((values) => values || {}).catch((error) => {
+    console.warn("Failed to read what the router issued", error);
+    return {};
+  });
 }
 
 // src/forkop/tabs/servers/network.ts
@@ -22797,7 +22745,7 @@ function transportQuery(sectionId, params, grpcKey) {
     params[grpcKey] = option(sectionId, "transport_service_name");
   } else if (transport3 === "http") {
     params.path = option(sectionId, "transport_path");
-    params.host = optionList(sectionId, "transport_hosts").join(",");
+    params.host = option(sectionId, "transport_host");
   }
   return transport3;
 }
@@ -22819,7 +22767,7 @@ function tlsQuery(sectionId, params, includeSecurity) {
     params.fp = option(sectionId, "client_fingerprint") || DEFAULT_CLIENT_FINGERPRINT;
   } else {
     params.sni = option(sectionId, "tls_server_name");
-    if (usesGeneratedCertificate(sectionId)) {
+    if (usesSelfSignedCertificate(sectionId)) {
       params.insecure = "1";
     }
   }
@@ -22866,9 +22814,7 @@ function buildVlessLink(sectionId, client) {
 }
 function buildTrojanLink(sectionId, client) {
   const params = {};
-  if (tlsQuery(sectionId, params, true) === "none") {
-    return "";
-  }
+  tlsQuery(sectionId, params, true);
   transportQuery(sectionId, params, "grpc-service-name");
   return shareUrl(
     "trojan",
@@ -22942,14 +22888,6 @@ function buildHysteria2Link(sectionId, client, context = {}) {
     params.obfs = option(sectionId, "hysteria2_obfs_type");
     params["obfs-password"] = option(sectionId, "hysteria2_obfs_password");
   }
-  const upMbps = option(sectionId, "hysteria2_up_mbps");
-  const downMbps = option(sectionId, "hysteria2_down_mbps");
-  if (upMbps) {
-    params.up = upMbps;
-  }
-  if (downMbps) {
-    params.down = downMbps;
-  }
   return shareUrl(
     "hysteria2",
     sectionId,
@@ -22964,13 +22902,6 @@ function buildTuicLink(sectionId, client) {
   const congestion = option(sectionId, "tuic_congestion_control");
   if (congestion && congestion !== "cubic") {
     params.congestion_control = congestion;
-  }
-  const heartbeat = option(sectionId, "tuic_heartbeat");
-  if (heartbeat) {
-    params.heartbeat_interval = heartbeat;
-  }
-  if (option(sectionId, "tuic_zero_rtt_handshake") === "1") {
-    params.zero_rtt_handshake = "true";
   }
   return shareUrl(
     "tuic",
@@ -23003,23 +22934,8 @@ function buildNaiveLink(sectionId, client) {
     clientLabel(sectionId, client)
   );
 }
-function buildMtprotoLink(sectionId, client) {
-  const secret = normalizeMtprotoBaseSecret(client.secret);
-  if (!secret) {
-    return "";
-  }
-  const query = encodeQuery({
-    server: getPublicHost(sectionId),
-    port: getListenPort(sectionId),
-    secret: buildMtprotoFullSecret(
-      secret,
-      option(sectionId, "mtproto_faketls")
-    )
-  });
-  return `https://t.me/proxy?${query}`;
-}
 function hasRequiredCredentials(sectionId, client) {
-  return credentialFields(getProtocol(sectionId)).filter((field) => field !== "flow" && field !== "authorized_keys").every((field) => {
+  return credentialFields(getProtocol(sectionId)).filter((field) => field !== "flow").every((field) => {
     if (field === "password" && !isAuthenticationEnabled(sectionId)) {
       return true;
     }
@@ -23069,50 +22985,22 @@ function buildClientLinks(sectionId, client, context = {}) {
       return single(buildNaiveLink(sectionId, client));
     case "mieru":
       return single(buildMieruLink(sectionId, client));
-    case "mtproto":
-      return single(buildMtprotoLink(sectionId, client));
     default:
       return [];
   }
 }
-function normalizeSha256Response(response) {
-  if ((response.code ?? 0) !== 0 || !response.stdout) {
-    throw new Error(response.stderr || response.stdout || "");
-  }
-  const data = JSON.parse(response.stdout);
-  if (!data.success) {
-    throw new Error(data.message || "");
-  }
-  return normalizeSha256(data.sha256);
-}
 function loadLinkContext(sectionId) {
-  const certificatePinExpected = getProtocol(sectionId) === "hysteria2" && usesGeneratedCertificate(sectionId);
-  if (!certificatePinExpected) {
+  if (getProtocol(sectionId) !== "hysteria2" || !usesSelfSignedCertificate(sectionId)) {
     return Promise.resolve({ tlsCertificateSha256: "" });
   }
-  return fs.exec("/usr/bin/forkop", ["get_tls_certificate_sha256", sectionId]).then(normalizeSha256Response).catch((error) => {
-    console.warn(
-      error?.message || "Failed to read generated TLS certificate pin",
-      error
-    );
-    return "";
-  }).then((tlsCertificateSha256) => ({ tlsCertificateSha256 }));
+  return loadIssuedMaterial().then((material3) => ({
+    tlsCertificateSha256: normalizeSha256(
+      material3[sectionId]?.tls_self_signed_sha256
+    )
+  }));
 }
 
 // src/forkop/tabs/servers/profile.ts
-var callUciValues = null;
-function loadOpenVPNMaterial() {
-  callUciValues ?? (callUciValues = rpc.declare({
-    object: "uci",
-    method: "get",
-    params: ["config"],
-    expect: { values: {} }
-  }));
-  return callUciValues("forkop").then((values) => values || {}).catch((error) => {
-    console.warn("Failed to read the OpenVPN certificates", error);
-    return {};
-  });
-}
 function text3(value) {
   return `${value ?? ""}`.trim();
 }
@@ -23638,12 +23526,21 @@ function injectDetailsStyles() {
         // The width comes from the same place too: all three are opened without
         // cbi-modal, which is what the theme widens to a settings form.
         ".fkp-details{box-sizing:border-box;width:min(760px,calc(100vw - 56px));max-width:100%;padding-top:10px}",
-        // The one deviation: their first column has a 120px floor for long labels,
-        // and these labels are short, so the column is max-content and the value
-        // sits 16px after the longest label.
-        ".fkp-details__clients{display:grid;gap:14px;min-inline-size:0}",
-        ".fkp-details__client{display:grid;gap:6px;min-width:0}",
-        ".fkp-details__name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+        // A table of the clients: the names in one column as wide as the longest
+        // of them, their links beside, and a rule between two clients. A client is
+        // no box of its own but its two cells, so every name lines up with the next
+        // and the rule runs through both cells of a row.
+        ".fkp-details__clients{display:grid;grid-template-columns:fit-content(14em) minmax(0,1fr);min-inline-size:0}",
+        ".fkp-details__client{display:contents}",
+        ".fkp-details__client > *{padding-block:10px;border-top:1px solid var(--border-color-low,rgba(128,128,128,.25))}",
+        ".fkp-details__client:first-child > *{border-top:0;padding-top:0}",
+        ".fkp-details__client:last-child > *{padding-bottom:0}",
+        ".fkp-details__name{display:flex;align-items:center;min-inline-size:0;padding-inline-end:16px;font-weight:600}",
+        ".fkp-details__name:empty{padding-inline-end:0}",
+        ".fkp-details__name > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+        ".fkp-details__links{display:grid;gap:6px;align-content:center;min-inline-size:0}",
+        // A phone has no room for two columns: the name goes over its links.
+        "@media (max-width:560px){.fkp-details__clients{grid-template-columns:minmax(0,1fr)}.fkp-details__client > .fkp-details__links{border-top:0;padding-top:6px}.fkp-details__client > .fkp-details__name:not(:empty){padding-bottom:0}}",
         ".fkp-details__link{display:grid;grid-template-columns:minmax(0,1fr);grid-auto-flow:column;grid-auto-columns:auto;gap:8px;align-items:stretch;min-inline-size:0}",
         ".fkp-details__value{inline-size:100% !important;max-inline-size:100% !important;min-inline-size:0;box-sizing:border-box;margin:0 !important;float:none !important;font-family:monospace;font-size:12px}",
         ".fkp-details__action{display:inline-flex;align-items:center;justify-content:center;inline-size:2.5em !important;min-inline-size:0;padding:0 !important;margin:0 !important;float:none !important;line-height:1}",
@@ -23789,10 +23686,19 @@ function renderProfileRow(profile, name) {
     renderCopyButton(profile, _("Copy the profile"))
   ]);
 }
+function renderClientRow(name, body) {
+  return textE("div", { class: "fkp-details__client" }, [
+    textE(
+      "div",
+      { class: "fkp-details__name" },
+      name ? [textE("span", { title: name }, name)] : []
+    ),
+    textE("div", { class: "fkp-details__links" }, body)
+  ]);
+}
 function renderProfileDetails(sectionId, client, material3) {
   const result = buildOpenVPNProfile(sectionId, client, material3);
-  return textE("div", { class: "fkp-details__client" }, [
-    textE("div", { class: "fkp-details__name" }, client.name),
+  return renderClientRow(client.name, [
     "profile" in result ? renderProfileRow(result.profile, result.fileName) : textE(
       "div",
       { class: "fkp-details__empty" },
@@ -23813,11 +23719,7 @@ function missingLinkReason(sectionId, client) {
 }
 function renderClientDetails(sectionId, client, context) {
   const links = buildClientLinks(sectionId, client, context);
-  const name = `${client?.name || ""}`.trim();
   const body = [];
-  if (name) {
-    body.push(textE("div", { class: "fkp-details__name" }, name));
-  }
   if (links.length) {
     links.forEach(
       (entry) => body.push(
@@ -23836,7 +23738,7 @@ function renderClientDetails(sectionId, client, context) {
       )
     );
   }
-  return textE("div", { class: "fkp-details__client" }, body);
+  return renderClientRow(`${client?.name || ""}`.trim(), body);
 }
 function anonymousClient() {
   return {
@@ -23844,9 +23746,7 @@ function anonymousClient() {
     name: "",
     uuid: "",
     password: "",
-    secret: "",
-    flow: "",
-    authorized_keys: []
+    flow: ""
   };
 }
 function detailsEntries(sectionId, clients) {
@@ -23891,7 +23791,7 @@ function renderDetailsContent(sectionId, clients, context) {
 function showServerDetailsModal(sectionId, clients) {
   injectDetailsStyles();
   if (usesProfile(getProtocol(sectionId))) {
-    return loadOpenVPNMaterial().then((openvpn) => {
+    return loadIssuedMaterial().then((openvpn) => {
       ui.showModal(_("Server details: %s").format(getServerName(sectionId)), [
         renderDetailsContent(sectionId, clients, { openvpn }),
         renderCloseRow()
@@ -24120,10 +24020,7 @@ function generateRealityKeypair(_sectionId) {
     return null;
   });
 }
-function certificateSubject(sectionId) {
-  return liveOption(sectionId, "tls_server_name") || liveOption(sectionId, "public_host") || liveOption(sectionId, "label") || sectionId;
-}
-function addIssueButton(optionRef, label, request, offered) {
+function addIssueButton(optionRef, label, request) {
   const renderWidget2 = optionRef.renderWidget;
   optionRef.renderWidget = function(sectionId, optionIndex, cfgvalue) {
     const node = renderWidget2.call(
@@ -24146,85 +24043,8 @@ function addIssueButton(optionRef, label, request, offered) {
         button.disabled = readonly ? true : false;
       });
     });
-    const row = textE("div", { class: "fkp-generate-row" }, [node, button]);
-    if (typeof offered === "function") {
-      showIssueButton(row, offered(getProtocol(sectionId)));
-    }
-    return row;
+    return textE("div", { class: "fkp-generate-row" }, [node, button]);
   };
-}
-function showIssueButton(row, shown2) {
-  const button = row.querySelector(".fkp-generate");
-  if (!button) {
-    return;
-  }
-  button.style.display = shown2 ? "" : "none";
-  row.style.gridTemplateColumns = shown2 ? "" : "minmax(0,1fr)";
-}
-function offersCertificateButton(protocol) {
-  return protocol !== "naive";
-}
-function syncCertificateButton(sectionId, protocol) {
-  const node = widgetNode(sectionId, "tls_certificate_path");
-  if (node && node.parentElement) {
-    showIssueButton(node.parentElement, offersCertificateButton(protocol));
-  }
-}
-function issueRequest(verb, args, onResult) {
-  return fs.exec("/usr/bin/forkop", [verb, ...args]).then((response) => {
-    if ((response.code ?? 0) !== 0 || !response.stdout) {
-      throw new Error(response.stderr || response.stdout || "");
-    }
-    const data = JSON.parse(response.stdout);
-    if (!data.success) {
-      throw new Error(data.message || "");
-    }
-    onResult(data);
-  });
-}
-function addCertificateButton(optionRef) {
-  addIssueButton(
-    optionRef,
-    _("Generate a certificate"),
-    (sectionId) => issueRequest(
-      "generate_server_certificate",
-      // The section id, not the display name: a name has to be sanitised to be a
-      // file name, and two servers named in Cyrillic would sanitise to the same one.
-      [certificateSubject(sectionId), sectionId],
-      (data) => {
-        if (!data.certificate_path || !data.key_path) {
-          throw new Error("");
-        }
-        applyFieldValue(
-          sectionId,
-          "tls_certificate_path",
-          data.certificate_path
-        );
-        applyFieldValue(sectionId, "tls_key_path", data.key_path);
-        showToast(_("Certificate generated"), "success");
-      }
-    ).catch((error) => {
-      showToast(_("Could not generate a certificate"), "error");
-      throw error;
-    }),
-    offersCertificateButton
-  );
-}
-function addSshHostKeyButton(optionRef) {
-  addIssueButton(
-    optionRef,
-    _("Generate a host key"),
-    (sectionId) => issueRequest("generate_ssh_host_key", [sectionId], (data) => {
-      if (!data.key_path) {
-        throw new Error("");
-      }
-      applyFieldValue(sectionId, "ssh_host_key_path", data.key_path);
-      showToast(_("Host key generated"), "success");
-    }).catch((error) => {
-      showToast(_("Could not generate a host key"), "error");
-      throw error;
-    })
-  );
 }
 function addRealityKeypairButton(optionRef) {
   addIssueButton(
@@ -24272,33 +24092,12 @@ function validateOptionalHost(_sectionId, value) {
   return isEmptyValue(value) || isHost(value) ? true : _("Use a domain name or IP address");
 }
 function validateListenAddress(_sectionId, value) {
-  const address = normalizeHost(value);
-  return address === "0.0.0.0" || address === "::" || isIpv4(address) || isIpv6(address) ? true : _("Use an IP address, 0.0.0.0 for all IPv4, or :: for all addresses");
+  const address = `${value || ""}`.trim();
+  return !/[[\]]/.test(address) && (address === "0.0.0.0" || address === "::" || isIpv4(address) || isIpv6(address)) ? true : _("Use an IP address, 0.0.0.0 for all IPv4, or :: for all addresses");
 }
-function validateFilePath(_sectionId, value) {
-  const path = `${value || ""}`;
-  if (isEmptyValue(path)) {
-    return _("This field is required");
-  }
-  const validation = validatePath(path);
-  return validation.valid && path !== "/" && !path.endsWith("/") ? true : _("Specify a file path");
-}
-function validateTlsPathPair(sectionId, value, otherName) {
-  const required = validateRequiredText(sectionId, value);
-  if (required !== true) {
-    return required;
-  }
-  const result = validateFilePath(sectionId, value);
-  if (result !== true) {
-    return result;
-  }
-  return `${value}` === liveOption(sectionId, otherName) ? _("The certificate and the key must be different files") : true;
-}
-function validateTlsCertificatePath(sectionId, value) {
-  return validateTlsPathPair(sectionId, value, "tls_key_path");
-}
-function validateTlsKeyPath(sectionId, value) {
-  return validateTlsPathPair(sectionId, value, "tls_certificate_path");
+function validateKeyFile(sectionId, value) {
+  const key = `${value || ""}`.trim();
+  return isRouterPath(key) && key === liveOption(sectionId, "tls_certificate").trim() ? _("The certificate and the key must be different files") : true;
 }
 function validateHttpUrl(_sectionId, value) {
   try {
@@ -24336,9 +24135,6 @@ function validateOptionalPositiveInteger(_sectionId, value) {
 function validateTransportPath(_sectionId, value) {
   return isEmptyValue(value) || `${value}`.startsWith("/") ? true : _("The path must start with /");
 }
-function validateOptionalHostList(_sectionId, value) {
-  return valueList(value).some((item) => !isHost(item)) ? _("Use a domain name or IP address") : true;
-}
 function validateGrpcServiceName(_sectionId, value) {
   return isEmptyValue(value) || /^[A-Za-z0-9_.-]+$/.test(`${value}`) ? true : _("Use letters, digits, dots, underscores, or hyphens");
 }
@@ -24365,13 +24161,6 @@ function validateRealityKey(_sectionId, value) {
   }
   return /^[A-Za-z0-9_-]{43}$/.test(`${value}`.trim()) ? true : _("A Reality key is 43 base64url characters");
 }
-function validateMtprotoSecret(_sectionId, value) {
-  const secret = normalizeMtprotoBaseSecret(value);
-  if (!secret) {
-    return _("Use 32 hex characters");
-  }
-  return secret === "00000000000000000000000000000000" ? _("Use a non-zero secret") : true;
-}
 function validateSecurity(sectionId, value) {
   const protocol = getProtocol(sectionId);
   const selected = value || defaultSecurity(protocol);
@@ -24389,20 +24178,8 @@ function validateShadowsocksPassword(sectionId, value) {
   if (keyBytes === 0) {
     return true;
   }
-  let decoded = null;
-  try {
-    decoded = atob(`${value}`.trim());
-  } catch (_error) {
-    decoded = null;
-  }
+  const decoded = decodeBase64(`${value}`.trim());
   return decoded != null && decoded.length === keyBytes ? true : _("This method needs a base64 key of %d bytes").format(keyBytes);
-}
-function validateAuthorizedKeys(_sectionId, value) {
-  return valueList(value).some(
-    (item) => !/^(ssh|ecdsa|sk-ssh|sk-ecdsa)[A-Za-z0-9@.-]*\s+[A-Za-z0-9+/=]+(\s.*)?$/.test(
-      `${item}`.trim()
-    )
-  ) ? _("Use an OpenSSH public key line") : true;
 }
 function validateListenPort(sectionId, value) {
   const result = validatePort(sectionId, value);
@@ -24431,9 +24208,7 @@ function readClient(section) {
     name: `${section.name || ""}`,
     uuid: `${section.uuid || ""}`,
     password: `${section.password || ""}`,
-    secret: `${section.secret || ""}`,
-    flow: `${section.flow || ""}`,
-    authorized_keys: asList(section.authorized_keys)
+    flow: `${section.flow || ""}`
   };
 }
 function listClients(sectionId) {
@@ -24475,14 +24250,8 @@ function validateClientCredential(sectionId, field, value) {
   if (field === "uuid") {
     return validateUuid(sectionId, value);
   }
-  if (field === "secret") {
-    return validateMtprotoSecret(sectionId, value);
-  }
   if (field === "password") {
     return getProtocol(sectionId) === "shadowsocks" ? validateShadowsocksPassword(sectionId, value) : validateRequiredText(sectionId, value);
-  }
-  if (field === "authorized_keys") {
-    return validateAuthorizedKeys(sectionId, value);
   }
   return true;
 }
@@ -24502,14 +24271,8 @@ function clientCredentialLabel(sectionId, field) {
   if (field === "uuid") {
     return _("UUID");
   }
-  if (field === "secret") {
-    return _("Secret");
-  }
   if (field === "flow") {
     return _("Flow");
-  }
-  if (field === "authorized_keys") {
-    return _("SSH public keys");
   }
   return getProtocol(sectionId) === "shadowsocks" && isShadowsocks2022(getShadowsocksMethod(sectionId)) ? _("Key") : _("Password");
 }
@@ -24521,7 +24284,7 @@ function clientSettingsDefaults(sectionId, inputValue, existing, listOption) {
   }
   defaults.name = `${inputValue || ""}`.trim() || generateClientName(sectionId, listOption);
   visibleClientFields(sectionId).forEach((field) => {
-    if (field === "flow" || field === "authorized_keys") {
+    if (field === "flow") {
       return;
     }
     defaults[field] = generateCredential(sectionId, protocol, field);
@@ -24574,7 +24337,7 @@ function validateClientsOnSave(sectionId, values, listOption) {
     }
     seen.add(name.toLowerCase());
     for (const field of visibleClientFields(sectionId)) {
-      if (field === "flow" || field === "authorized_keys") {
+      if (field === "flow") {
         continue;
       }
       const result = validateClientCredential(
@@ -24653,7 +24416,7 @@ function addRoutingOptions(section) {
     form.ListValue,
     "routing_mode",
     _("Routing mode"),
-    _("Where to send the traffic from this server")
+    _("Where to send the traffic of this server's connections")
   );
   o.value("rules", _("Rules"));
   o.value("direct", _("Direct"));
@@ -24662,12 +24425,7 @@ function addRoutingOptions(section) {
   o.rmempty = false;
   o.modalonly = true;
   o.validate = validateRequired;
-  o = section.option(
-    form.ListValue,
-    "routing_section",
-    _("Routing section"),
-    _("Required. Where the traffic of this server leaves")
-  );
+  o = section.option(form.ListValue, "routing_section", _("Routing section"));
   o.depends("routing_mode", "section");
   o.modalonly = true;
   o.rmempty = false;
@@ -24691,16 +24449,6 @@ function addClientCredentialOptions(sectionId, itemSection) {
       flow.value("", _("None"));
       flow.value("xtls-rprx-vision", "xtls-rprx-vision");
       flow.rmempty = true;
-      return;
-    }
-    if (field === "authorized_keys") {
-      const keys = itemSection.option(
-        form.DynamicList,
-        "authorized_keys",
-        clientCredentialLabel(sectionId, field)
-      );
-      keys.rmempty = true;
-      keys.validate = (_id, value) => validateClientCredential(sectionId, "authorized_keys", value);
       return;
     }
     const credential = itemSection.option(
@@ -24744,7 +24492,7 @@ function addClientRoutingOptions(sectionId, itemSection) {
     form.Flag,
     "routing_override",
     _("Override routing"),
-    _("Route this client on its own path instead of the rest of the server")
+    _("A routing mode of this client's own instead of the server's")
   );
   override.default = "0";
   override.rmempty = true;
@@ -24760,8 +24508,7 @@ function addClientRoutingOptions(sectionId, itemSection) {
   const target = itemSection.option(
     form.ListValue,
     "routing_section",
-    _("Routing section"),
-    _("Required. Where the traffic of this client leaves")
+    _("Routing section")
   );
   routingSectionChoices().forEach(
     ([value, label]) => target.value(value, label)
@@ -24809,8 +24556,7 @@ function addClientListOption(section) {
   const o = section.option(
     ButtonAddSettingsDynamicList,
     "clients",
-    _("Clients"),
-    _("Required. The clients that may connect")
+    _("Clients")
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -24906,7 +24652,6 @@ function addIdentityOptions(section) {
   };
   o.onchange = function(_ev, sectionId, value) {
     syncSecurityChoices(sectionId, value, true);
-    syncCertificateButton(sectionId, value);
     clearClientList(this.map, sectionId);
   };
 }
@@ -24915,8 +24660,7 @@ function addTailscaleOptions(section) {
   let o = section.option(
     form.Value,
     "tailscale_auth_key",
-    _("Authorization key"),
-    _("A key from the Tailscale console")
+    _("Authorization key")
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -24928,7 +24672,7 @@ function addTailscaleOptions(section) {
     "tailscale_hostname",
     _("Device name"),
     _(
-      "The name this router appears under in the Tailscale console. It is offered there as an exit node and carries traffic once approved"
+      "The router is offered in the Tailscale console as an exit node under this name, and carries traffic once approved"
     )
   );
   o.modalonly = true;
@@ -24938,32 +24682,19 @@ function addTailscaleOptions(section) {
   o = section.option(
     form.DynamicList,
     "tailscale_advertise_routes",
-    _("Advertise routes"),
-    _(
-      "Local subnets the rest of the network may reach through this router, once approved in the Tailscale console"
-    )
+    _("Advertise routes")
   );
   o.placeholder = "192.168.1.0/24";
   o.modalonly = true;
   o.rmempty = true;
   o.validate = validateOptionalCidrOrIp;
   onTailscale(o);
-  o = section.option(
-    form.Flag,
-    "tailscale_accept_routes",
-    _("Accept routes"),
-    _("Use subnets other devices share")
-  );
+  o = section.option(form.Flag, "tailscale_accept_routes", _("Accept routes"));
   o.default = "0";
   o.rmempty = true;
   o.modalonly = true;
   onTailscale(o);
-  o = section.option(
-    form.Flag,
-    "tailscale_ephemeral",
-    _("Ephemeral node"),
-    _("Remove the node from the network once it goes offline")
-  );
+  o = section.option(form.Flag, "tailscale_ephemeral", _("Ephemeral node"));
   o.default = "0";
   o.rmempty = true;
   o.modalonly = true;
@@ -24971,10 +24702,7 @@ function addTailscaleOptions(section) {
   o = section.option(
     form.Value,
     "tailscale_control_url",
-    _("Coordination server"),
-    _(
-      "Address of the coordination server. Change it if you use a custom server"
-    )
+    _("Coordination server")
   );
   o.default = TAILSCALE_CONTROL_URL;
   o.modalonly = true;
@@ -24984,8 +24712,7 @@ function addTailscaleOptions(section) {
   o = section.option(
     form.Flag,
     "tailscale_detour_enabled",
-    _("Coordination server through a section"),
-    _("Reach the coordination server through a section instead of the WAN")
+    _("Coordination server through a section")
   );
   o.default = "0";
   o.rmempty = false;
@@ -24994,8 +24721,7 @@ function addTailscaleOptions(section) {
   o = section.option(
     form.ListValue,
     "tailscale_detour_section",
-    _("Coordination server through"),
-    _("Required. The section that carries the control-plane traffic")
+    _("Coordination server through")
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -25058,7 +24784,7 @@ function addListenerOptions(section) {
     form.Value,
     "public_host",
     _("Public address"),
-    _("The address the connection links and profiles point at")
+    _("The address links and profiles point at")
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -25072,7 +24798,9 @@ function addListenerOptions(section) {
     form.Flag,
     "open_firewall",
     _("Open the port"),
-    _("Allows incoming connections to this port from the internet")
+    _(
+      "Opens the port in the router's firewall to connections from the internet"
+    )
   );
   o.default = "1";
   o.rmempty = false;
@@ -25114,8 +24842,7 @@ function addMixedOptions(section) {
   const o = section.option(
     form.Flag,
     "mixed_auth_enabled",
-    _("Authentication"),
-    _("Require a login and password to connect to the server")
+    _("Authentication")
   );
   o.default = "1";
   o.rmempty = false;
@@ -25144,8 +24871,7 @@ function addHysteria2Options(section) {
   o = section.option(
     form.Value,
     "hysteria2_obfs_password",
-    _("Obfuscation password"),
-    _("Required. Every client has to send the same value")
+    _("Obfuscation password")
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -25158,16 +24884,6 @@ function addHysteria2Options(section) {
   o.depends({ protocol: "hysteria2", hysteria2_obfs_type: "salamander" });
   o.depends({ protocol: "hysteria2", hysteria2_obfs_type: "gecko" });
   addGenerateButton(o, () => generatePassword());
-  for (const [field, label] of [
-    ["min_packet_size", _("Minimum obfuscated packet size")],
-    ["max_packet_size", _("Maximum obfuscated packet size")]
-  ]) {
-    o = section.option(form.Value, `hysteria2_gecko_${field}`, label);
-    o.datatype = "range(1,65535)";
-    o.rmempty = true;
-    o.modalonly = true;
-    o.depends({ protocol: "hysteria2", hysteria2_obfs_type: "gecko" });
-  }
   o = section.option(form.ListValue, "hysteria2_bbr_profile", _("BBR profile"));
   o.value("", _("Default"));
   ["standard", "conservative", "aggressive"].forEach(
@@ -25176,24 +24892,23 @@ function addHysteria2Options(section) {
   o.rmempty = true;
   o.modalonly = true;
   onHysteria2(o);
-  o = section.option(form.Value, "hysteria2_up_mbps", _("Upload, Mbps"));
-  o.modalonly = true;
-  o.rmempty = true;
-  o.validate = validateOptionalPositiveInteger;
-  onHysteria2(o);
-  o = section.option(form.Value, "hysteria2_down_mbps", _("Download, Mbps"));
+  o = section.option(
+    form.Value,
+    "hysteria2_up_mbps",
+    _("Max speed to a client, Mbps")
+  );
   o.modalonly = true;
   o.rmempty = true;
   o.validate = validateOptionalPositiveInteger;
   onHysteria2(o);
   o = section.option(
-    form.Flag,
-    "hysteria2_ignore_client_bandwidth",
-    _("Ignore client bandwidth")
+    form.Value,
+    "hysteria2_down_mbps",
+    _("Max speed from a client, Mbps")
   );
-  o.default = "0";
-  o.rmempty = true;
   o.modalonly = true;
+  o.rmempty = true;
+  o.validate = validateOptionalPositiveInteger;
   onHysteria2(o);
   o = section.option(form.Value, "hysteria2_masquerade", _("Masquerade"));
   o.placeholder = "https://example.com";
@@ -25203,8 +24918,7 @@ function addHysteria2Options(section) {
   onHysteria2(o);
 }
 function addTuicOptions(section) {
-  const onTuic = (o2) => o2.depends("protocol", "tuic");
-  let o = section.option(
+  const o = section.option(
     form.ListValue,
     "tuic_congestion_control",
     _("Congestion control")
@@ -25215,22 +24929,7 @@ function addTuicOptions(section) {
   o.default = "cubic";
   o.rmempty = false;
   o.modalonly = true;
-  onTuic(o);
-  o = section.option(form.Value, "tuic_heartbeat", _("Heartbeat"));
-  o.placeholder = "10s";
-  o.modalonly = true;
-  o.rmempty = true;
-  o.validate = (_sectionId, value) => validateOptionalSingBoxDuration(value);
-  onTuic(o);
-  o = section.option(
-    form.Flag,
-    "tuic_zero_rtt_handshake",
-    _("0-RTT handshake")
-  );
-  o.default = "0";
-  o.rmempty = true;
-  o.modalonly = true;
-  onTuic(o);
+  o.depends("protocol", "tuic");
 }
 function addProtocolOptions(section) {
   let o = section.option(form.ListValue, "naive_network", _("Network"));
@@ -25256,20 +24955,6 @@ function addProtocolOptions(section) {
   o.rmempty = false;
   o.modalonly = true;
   o.depends("protocol", "naive");
-  o = section.option(
-    form.Value,
-    "ssh_host_key_path",
-    _("SSH host key path"),
-    _("Required. Create a new key with the button")
-  );
-  o.modalonly = true;
-  o.rmempty = false;
-  o.validate = function(sectionId, value) {
-    const required = validateRequiredText(sectionId, value);
-    return required === true ? validateFilePath(sectionId, value) : required;
-  };
-  o.depends("protocol", "ssh");
-  addSshHostKeyButton(o);
   o = section.option(form.ListValue, "mieru_transport", _("Transport"));
   o.value("TCP", "TCP");
   o.value("UDP", "UDP");
@@ -25277,28 +24962,6 @@ function addProtocolOptions(section) {
   o.rmempty = false;
   o.modalonly = true;
   o.depends("protocol", "mieru");
-}
-function addMtprotoOptions(section) {
-  const o = section.option(
-    form.Value,
-    "mtproto_faketls",
-    _("FakeTLS host"),
-    _("The domain a client sends in the TLS handshake")
-  );
-  o.placeholder = "google.com";
-  o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validateHost;
-  autofill(
-    o,
-    (sectionId) => option(sectionId, "mtproto_faketls") || camouflageSite(sectionId)
-  );
-  o.depends("protocol", "mtproto");
-  addGenerateButton(
-    o,
-    (sectionId) => camouflageSite(sectionId, true),
-    _("Pick a domain")
-  );
 }
 
 // src/forkop/tabs/servers/form/security.ts
@@ -25334,12 +24997,7 @@ function addSecurityOptions(section) {
       return node;
     };
   }
-  o = section.option(
-    form.Value,
-    "tls_server_name",
-    _("SNI"),
-    _("The domain a client sends in the TLS handshake")
-  );
+  o = section.option(form.Value, "tls_server_name", _("SNI"));
   o.placeholder = "example.com";
   o.modalonly = true;
   o.rmempty = true;
@@ -25369,32 +25027,73 @@ function addSecurityOptions(section) {
     (protocol) => (protocolSpec(protocol)?.securities || []).includes("none") ? o.depends({ protocol, security: "tls" }) : o.depends("protocol", protocol)
   );
   onReality(o);
+  const onOwnCertificate = (o2) => {
+    streamProtocols.forEach(
+      (protocol) => o2.depends({
+        protocol,
+        security: "tls",
+        tls_certificate_source: "custom"
+      })
+    );
+    tlsOnlyProtocols.forEach(
+      (protocol) => protocol === "naive" ? o2.depends("protocol", protocol) : o2.depends({ protocol, tls_certificate_source: "custom" })
+    );
+  };
   o = section.option(
-    form.Value,
-    "tls_certificate_path",
-    _("Certificate path"),
-    _("A certificate issued for this address")
+    form.ListValue,
+    "tls_certificate_source",
+    _("Certificate")
   );
-  addCertificateButton(o);
-  o.modalonly = true;
+  o.value("self_signed", _("Self-signed"));
+  o.value("custom", _("Your own certificate"));
+  o.default = "self_signed";
   o.rmempty = false;
-  o.validate = validateTlsCertificatePath;
-  onTls(o);
+  o.modalonly = true;
+  streamProtocols.forEach(
+    (protocol) => o.depends({ protocol, security: "tls" })
+  );
+  tlsOnlyProtocols.filter((protocol) => protocol !== "naive").forEach((protocol) => o.depends("protocol", protocol));
   o = section.option(
-    form.Value,
-    "tls_key_path",
-    _("Key path"),
-    _("The private key of the certificate")
+    form.TextValue,
+    "tls_certificate",
+    _("Server certificate"),
+    _("PEM text or the path of a file on the router")
   );
   o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validateTlsKeyPath;
-  onTls(o);
+  configureMaterialOption(
+    o,
+    "certificate",
+    (value) => value("protocol") === "naive" ? _(
+      "NaiveProxy clients accept only a certificate a browser trusts. Paste it or load it from a file"
+    ) : _("Paste the certificate or load it from a file"),
+    "tls_key"
+  );
+  onOwnCertificate(o);
+  o = section.option(
+    form.TextValue,
+    "tls_key",
+    _("Private key"),
+    _("PEM text or the path of a file on the router")
+  );
+  o.modalonly = true;
+  configureMaterialOption(
+    o,
+    "key",
+    () => _("Paste the private key or load it from a file"),
+    "tls_certificate"
+  );
+  {
+    const validateMaterial = o.validate;
+    o.validate = function(sectionId, value) {
+      const result = validateMaterial.call(this, sectionId, value);
+      return result === true ? validateKeyFile(sectionId, value) : result;
+    };
+  }
+  onOwnCertificate(o);
   o = section.option(
     form.Value,
     "reality_private_key",
-    _("Reality private key"),
-    _("Required. Generate a pair with the button")
+    _("Reality private key")
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -25408,12 +25107,7 @@ function addSecurityOptions(section) {
   );
   onReality(o);
   addRealityKeypairButton(o);
-  o = section.option(
-    form.Value,
-    "reality_public_key",
-    _("Reality public key"),
-    _("Filled in together with the private key")
-  );
+  o = section.option(form.Value, "reality_public_key", _("Reality public key"));
   o.modalonly = true;
   o.rmempty = false;
   o.validate = validateRealityKey;
@@ -25472,15 +25166,9 @@ function addTransportOptions(section) {
   o.modalonly = true;
   o.rmempty = true;
   o.validate = validateOptionalHost;
-  ["ws", "httpupgrade", "xhttp"].forEach(
+  ["ws", "http", "httpupgrade", "xhttp"].forEach(
     (transport3) => onTransport(o, transport3)
   );
-  o = section.option(form.DynamicList, "transport_hosts", _("HTTP hosts"));
-  o.placeholder = "example.com";
-  o.modalonly = true;
-  o.rmempty = true;
-  o.validate = validateOptionalHostList;
-  onTransport(o, "http");
   o = section.option(form.Value, "transport_service_name", _("gRPC service"));
   o.placeholder = "grpc";
   o.modalonly = true;
@@ -25495,15 +25183,6 @@ function addTransportOptions(section) {
   o.rmempty = false;
   o.modalonly = true;
   onTransport(o, "xhttp");
-}
-function addTuningOptions(section) {
-  const o = section.option(form.Flag, "tcp_fast_open", _("TCP Fast Open"));
-  o.default = "0";
-  o.rmempty = true;
-  o.modalonly = true;
-  protocolsWith("tcp").forEach(
-    (protocol) => o.depends("protocol", protocol)
-  );
 }
 function addMultiplexOptions(section) {
   const multiplexProtocols = protocolsWith("multiplex");
@@ -25577,12 +25256,7 @@ function validateOpenVPNSubnets(values) {
 }
 function addOpenVPNServerOptions(section) {
   const onOpenVPN = (o2, extra = {}) => o2.depends({ protocol: "openvpn", ...extra });
-  let o = section.option(
-    form.ListValue,
-    "openvpn_network",
-    _("Transport"),
-    _("UDP is faster; TCP gets through networks that let only TCP out")
-  );
+  let o = section.option(form.ListValue, "openvpn_network", _("Transport"));
   o.value("udp", "UDP");
   o.value("tcp", "TCP");
   o.default = "udp";
@@ -25601,7 +25275,7 @@ function addOpenVPNServerOptions(section) {
     "openvpn_address",
     _("Tunnel subnet"),
     _(
-      "The address of the server in the network of its clients, who get the other addresses. An IPv6 subnet can go beside the IPv4 one"
+      "The server's own address with a prefix, such as 10.8.0.1/24; clients get the other addresses of the subnet. An IPv6 subnet can go beside it"
     )
   );
   o.placeholder = "fd00:8::1/64";
@@ -25624,21 +25298,14 @@ function addOpenVPNServerOptions(section) {
     "openvpn_redirect_gateway",
     _("All traffic through the server"),
     _(
-      "Clients send everything through the router, where the routing mode decides where it goes. Off, they send only the subnets below"
+      "Clients send all of their traffic through the router, where the routing mode decides where it goes. Off, they send only the routes below"
     )
   );
   o.default = "1";
   o.rmempty = false;
   o.modalonly = true;
   onOpenVPN(o);
-  o = section.option(
-    form.DynamicList,
-    "openvpn_routes",
-    _("Routes"),
-    _(
-      "Subnets the clients reach through the server, such as the local network of the router"
-    )
-  );
+  o = section.option(form.DynamicList, "openvpn_routes", _("Routes"));
   o.placeholder = "192.168.1.0/24";
   o.modalonly = true;
   o.rmempty = true;
@@ -25660,12 +25327,10 @@ function createServerContent(section) {
   addRoutingOptions(section);
   addSecurityOptions(section);
   addTransportOptions(section);
-  addTuningOptions(section);
   addMultiplexOptions(section);
   addHysteria2Options(section);
   addTuicOptions(section);
   addProtocolOptions(section);
-  addMtprotoOptions(section);
 }
 
 // src/forkop/tabs/servers/table.ts
@@ -26651,10 +26316,26 @@ function renderSectionAdd(sectionRef, extraClass) {
   el.appendChild(button);
   return el;
 }
+function nextLabel(sectionRef, configName, prefix) {
+  const taken = new Set(
+    ["server", "section"].flatMap(
+      (type) => (sectionRef.map.data.sections(configName, type) || []).map(
+        (section) => `${section.label || ""}`.trim()
+      )
+    )
+  );
+  const pattern = new RegExp(`^${prefix} #(\\d+)$`);
+  let number3 = Math.max(
+    0,
+    ...[...taken].map((label) => Number(pattern.exec(label)?.[1] || 0))
+  ) + 1;
+  while (taken.has(`${prefix} #${number3}`)) number3 += 1;
+  return `${prefix} #${number3}`;
+}
 function addLabeledSection(sectionRef) {
   const configName = sectionRef.uciconfig || sectionRef.map.config;
   const prefix = sectionRef.sectiontype === "section" ? "Section" : "Server";
-  const label = `${prefix} #${sectionRef.cfgsections().length + 1}`;
+  const label = nextLabel(sectionRef, configName, prefix);
   const sectionId = sectionRef.map.data.add(
     configName,
     sectionRef.sectiontype,

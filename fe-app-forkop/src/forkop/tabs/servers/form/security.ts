@@ -4,8 +4,8 @@ import {
   DEFAULT_CLIENT_FINGERPRINT,
   TRANSPORTS,
 } from '../constants';
+import { configureMaterialOption } from '../../../cbi/material';
 import {
-  addCertificateButton,
   addGenerateButton,
   addRealityKeypairButton,
   autofill,
@@ -23,14 +23,12 @@ import {
 } from '../protocols';
 import {
   validateGrpcServiceName,
+  validateKeyFile,
   validateHost,
   validateOptionalHost,
-  validateOptionalHostList,
   validateRealityKey,
   validateSecurity,
   validateShortId,
-  validateTlsCertificatePath,
-  validateTlsKeyPath,
   validateTransportPath,
 } from '../validators';
 
@@ -74,12 +72,7 @@ export function addSecurityOptions(section: CBISection) {
     };
   }
 
-  o = section.option(
-    form.Value,
-    'tls_server_name',
-    _('SNI'),
-    _('The domain a client sends in the TLS handshake'),
-  );
+  o = section.option(form.Value, 'tls_server_name', _('SNI'));
   o.placeholder = 'example.com';
   o.modalonly = true;
   o.rmempty = true;
@@ -119,34 +112,86 @@ export function addSecurityOptions(section: CBISection) {
   );
   onReality(o);
 
-  o = section.option(
-    form.Value,
-    'tls_certificate_path',
-    _('Certificate path'),
-    _('A certificate issued for this address'),
-  );
-  addCertificateButton(o);
-  o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validateTlsCertificatePath;
-  onTls(o);
+  // NaiveProxy has no choice to offer: its clients refuse a self-signed
+  // certificate, so its dialog goes straight to the certificate fields.
+  const onOwnCertificate = (o: CBIOption) => {
+    streamProtocols.forEach((protocol: string) =>
+      o.depends({
+        protocol,
+        security: 'tls',
+        tls_certificate_source: 'custom',
+      }),
+    );
+    tlsOnlyProtocols.forEach((protocol: string) =>
+      protocol === 'naive'
+        ? o.depends('protocol', protocol)
+        : o.depends({ protocol, tls_certificate_source: 'custom' }),
+    );
+  };
 
   o = section.option(
-    form.Value,
-    'tls_key_path',
-    _('Key path'),
-    _('The private key of the certificate'),
+    form.ListValue,
+    'tls_certificate_source',
+    _('Certificate'),
+  );
+  o.value('self_signed', _('Self-signed'));
+  o.value('custom', _('Your own certificate'));
+  o.default = 'self_signed';
+  o.rmempty = false;
+  o.modalonly = true;
+  streamProtocols.forEach((protocol: string) =>
+    o.depends({ protocol, security: 'tls' }),
+  );
+  tlsOnlyProtocols
+    .filter((protocol: string) => protocol !== 'naive')
+    .forEach((protocol: string) => o.depends('protocol', protocol));
+
+  o = section.option(
+    form.TextValue,
+    'tls_certificate',
+    _('Server certificate'),
+    _('PEM text or the path of a file on the router'),
   );
   o.modalonly = true;
-  o.rmempty = false;
-  o.validate = validateTlsKeyPath;
-  onTls(o);
+  configureMaterialOption(
+    o,
+    'certificate',
+    (value) =>
+      value('protocol') === 'naive'
+        ? _(
+            'NaiveProxy clients accept only a certificate a browser trusts. Paste it or load it from a file',
+          )
+        : _('Paste the certificate or load it from a file'),
+    'tls_key',
+  );
+  onOwnCertificate(o);
+
+  o = section.option(
+    form.TextValue,
+    'tls_key',
+    _('Private key'),
+    _('PEM text or the path of a file on the router'),
+  );
+  o.modalonly = true;
+  configureMaterialOption(
+    o,
+    'key',
+    () => _('Paste the private key or load it from a file'),
+    'tls_certificate',
+  );
+  {
+    const validateMaterial = o.validate;
+    o.validate = function (sectionId: string, value: string) {
+      const result = validateMaterial.call(this, sectionId, value);
+      return result === true ? validateKeyFile(sectionId, value) : result;
+    };
+  }
+  onOwnCertificate(o);
 
   o = section.option(
     form.Value,
     'reality_private_key',
     _('Reality private key'),
-    _('Required. Generate a pair with the button'),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -164,12 +209,7 @@ export function addSecurityOptions(section: CBISection) {
   onReality(o);
   addRealityKeypairButton(o);
 
-  o = section.option(
-    form.Value,
-    'reality_public_key',
-    _('Reality public key'),
-    _('Filled in together with the private key'),
-  );
+  o = section.option(form.Value, 'reality_public_key', _('Reality public key'));
   o.modalonly = true;
   o.rmempty = false;
   o.validate = validateRealityKey;
@@ -239,16 +279,9 @@ export function addTransportOptions(section: CBISection) {
   o.modalonly = true;
   o.rmempty = true;
   o.validate = validateOptionalHost;
-  ['ws', 'httpupgrade', 'xhttp'].forEach((transport: string) =>
+  ['ws', 'http', 'httpupgrade', 'xhttp'].forEach((transport: string) =>
     onTransport(o, transport),
   );
-
-  o = section.option(form.DynamicList, 'transport_hosts', _('HTTP hosts'));
-  o.placeholder = 'example.com';
-  o.modalonly = true;
-  o.rmempty = true;
-  o.validate = validateOptionalHostList;
-  onTransport(o, 'http');
 
   o = section.option(form.Value, 'transport_service_name', _('gRPC service'));
   o.placeholder = 'grpc';
@@ -265,16 +298,6 @@ export function addTransportOptions(section: CBISection) {
   o.rmempty = false;
   o.modalonly = true;
   onTransport(o, 'xhttp');
-}
-
-export function addTuningOptions(section: CBISection) {
-  const o = section.option(form.Flag, 'tcp_fast_open', _('TCP Fast Open'));
-  o.default = '0';
-  o.rmempty = true;
-  o.modalonly = true;
-  protocolsWith('tcp').forEach((protocol: string) =>
-    o.depends('protocol', protocol),
-  );
 }
 
 export function addMultiplexOptions(section: CBISection) {

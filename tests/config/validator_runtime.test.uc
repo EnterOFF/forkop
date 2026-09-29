@@ -961,27 +961,13 @@ t.test("reality short ID with an odd digit count", () => {
     }, "even number of hex digits");
 });
 
-t.test("MTProto server without a FakeTLS host", () => {
-    v.refuses({
-        "settings": {},
-        "server": [
-            {
-                ".name": "srv",
-                "enabled": "1",
-                "protocol": "mtproto",
-                "listen_port": "18442",
-                "public_host": "203.0.113.9"
-            }
-        ],
-        "server_client": [
-            {
-                ".name": "srv_phone",
-                "server": "srv",
-                "name": "phone",
-                "secret": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-            }
-        ]
-    }, "needs a FakeTLS host");
+t.test("a server of a protocol Forkop no longer serves is refused by name", () => {
+    for (let protocol in [ "ssh", "mtproto" ])
+        v.refuses({
+            "settings": {},
+            "server": [ { ".name": "srv", "enabled": "1", "protocol": protocol, "listen_port": "18442" } ],
+            "server_client": [ { ".name": "srv_phone", "server": "srv", "name": "phone", "password": "secret-password" } ]
+        }, "Server 'srv' uses unsupported protocol '" + protocol + "'");
 });
 
 t.test("TLS server without a certificate", () => {
@@ -1004,30 +990,7 @@ t.test("TLS server without a certificate", () => {
                 "password": "secret-password"
             }
         ]
-    }, "tls_certificate_path");
-});
-
-t.test("SSH server without a host key", () => {
-    v.refuses({
-        "settings": {},
-        "server": [
-            {
-                ".name": "srv",
-                "enabled": "1",
-                "protocol": "ssh",
-                "listen_port": "18422",
-                "public_host": "203.0.113.9"
-            }
-        ],
-        "server_client": [
-            {
-                ".name": "srv_phone",
-                "server": "srv",
-                "name": "phone",
-                "password": "secret-password"
-            }
-        ]
-    }, "ssh_host_key_path");
+    }, "has no self-signed certificate yet");
 });
 
 t.test("hysteria2 obfuscation without a password", () => {
@@ -1040,8 +1003,8 @@ t.test("hysteria2 obfuscation without a password", () => {
                 "protocol": "hysteria2",
                 "listen_port": "18444",
                 "public_host": "203.0.113.9",
-                "tls_certificate_path": "/etc/forkop/server-certs/srv.crt",
-                "tls_key_path": "/etc/forkop/server-certs/srv.key",
+                "tls_self_signed_certificate": "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----",
+                "tls_self_signed_key": "-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----",
                 "hysteria2_obfs_type": "salamander"
             }
         ],
@@ -1300,8 +1263,8 @@ t.test("two servers on one port", () => {
                 "listen_port": "18443",
                 "public_host": "203.0.113.9",
                 "security": "tls",
-                "tls_certificate_path": "/etc/forkop/server-certs/second.crt",
-                "tls_key_path": "/etc/forkop/server-certs/second.key"
+                "tls_self_signed_certificate": "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----",
+                "tls_self_signed_key": "-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----"
             }
         ],
         "server_client": [
@@ -1365,17 +1328,9 @@ t.test("servers share a port only on different transports", () => {
             { ".name": "c3", server: "dup", name: "one", uuid: "22222222-2222-4222-8222-222222222222" } ]
     });
     let vless = { ".name": "tcp443", enabled: "1", protocol: "vless", security: "none", listen_port: "443", routing_mode: "direct" };
-    let dir = require("stub").tmpdir();
-    require("fs").writefile(dir + "/a.crt", "-----BEGIN CERTIFICATE-----
-placeholder
------END CERTIFICATE-----
-");
-    require("fs").writefile(dir + "/a.key", "-----BEGIN PRIVATE KEY-----
-placeholder
------END PRIVATE KEY-----
-");
     let hysteria = { ".name": "udp443", enabled: "1", protocol: "hysteria2", listen_port: "443", routing_mode: "direct",
-        tls_certificate_path: dir + "/a.crt", tls_key_path: dir + "/a.key" };
+        tls_self_signed_certificate: "-----BEGIN CERTIFICATE-----\nplaceholder\n-----END CERTIFICATE-----",
+        tls_self_signed_key: "-----BEGIN PRIVATE KEY-----\nplaceholder\n-----END PRIVATE KEY-----" };
     v.refuses(data([ vless, { ...vless, ".name": "dup", listen_port: "0443" } ]), "listens on tcp port 443, which is already used by server 'tcp443'");
     v.refuses(data([ vless, { ".name": "json", enabled: "1", protocol: "json_inbound", routing_mode: "direct",
         inbound_json: "{\"type\":\"mixed\",\"listen\":\"0.0.0.0\",\"listen_port\":443}" } ]), "listens on tcp port 443");

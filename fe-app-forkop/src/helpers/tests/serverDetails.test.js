@@ -51,9 +51,7 @@ describe('server details', () => {
       'tuic',
       'anytls',
       'naive',
-      'ssh',
       'mieru',
-      'mtproto',
     ];
 
     for (const protocol of protocols) {
@@ -66,7 +64,6 @@ describe('server details', () => {
             name: 'phone',
             password: 'secret-password',
             uuid: '11111111-1111-4111-8111-111111111111',
-            secret: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
           },
         },
       );

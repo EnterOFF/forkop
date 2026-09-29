@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { installLuciStubs } from './luciStubs';
 import { chooseDefaultPublicHost } from '../../forkop/tabs/servers/network';
 import {
-  validateAuthorizedKeys,
   validateInboundJson,
+  validateListenAddress,
   validateListenPort,
   validateOptionalMasquerade,
   validateRealityKey,
@@ -17,8 +17,8 @@ function load(sections = {}) {
     uci: installLuciStubs(sections),
     validate: {
       chooseDefaultPublicHost,
-      validateAuthorizedKeys,
       validateInboundJson,
+      validateListenAddress,
       validateListenPort,
       validateShadowsocksPassword,
       validateShortId,
@@ -136,6 +136,24 @@ describe('raw inbound JSON validation', () => {
   });
 });
 
+// The address is stored as typed and the core parses it as a bare IP address,
+// so the brackets a URL puts around IPv6 are refused rather than accepted here
+// and refused on apply.
+describe('listen address validation', () => {
+  const { validate } = load();
+
+  it('takes a bare address and refuses one in brackets', () => {
+    for (const address of ['::', '0.0.0.0', '192.168.1.1', 'fd00::1'])
+      expect(validate.validateListenAddress('srv', address), address).toBe(
+        true,
+      );
+    for (const address of ['[::]', '[fd00::1]', 'router.lan'])
+      expect(validate.validateListenAddress('srv', address), address).not.toBe(
+        true,
+      );
+  });
+});
+
 describe('Shadowsocks key validation', () => {
   it('requires a base64 key of the exact cipher length for a 2022 method', () => {
     const { validate } = load({
@@ -156,6 +174,10 @@ describe('Shadowsocks key validation', () => {
     expect(
       validate.validateShadowsocksPassword('srv', 'plain-password'),
     ).toMatch(/16 bytes/);
+    // The core decodes a key as padded standard base64, which atob forgives.
+    expect(
+      validate.validateShadowsocksPassword('srv', key16.replace(/=+$/, '')),
+    ).toMatch(/16 bytes/);
   });
 
   it('accepts any password for the older AEAD methods', () => {
@@ -171,22 +193,6 @@ describe('Shadowsocks key validation', () => {
       true,
     );
     expect(validate.validateShadowsocksPassword('srv', '')).toMatch(/required/);
-  });
-});
-
-describe('authorized key validation', () => {
-  const { validate } = load();
-
-  it('accepts OpenSSH public key lines only', () => {
-    expect(
-      validate.validateAuthorizedKeys('srv', [
-        'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 user@host',
-      ]),
-    ).toBe(true);
-    expect(validate.validateAuthorizedKeys('srv', [])).toBe(true);
-    expect(validate.validateAuthorizedKeys('srv', ['not a key'])).toMatch(
-      /OpenSSH/,
-    );
   });
 });
 

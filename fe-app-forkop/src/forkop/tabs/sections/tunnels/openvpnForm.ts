@@ -10,7 +10,7 @@ import {
 import type { OpenVPNImportResult } from '../../../../helpers/parseOpenVPNConfig';
 import { normalizeOptionValues } from '../../../cbi/listValues';
 import { setModalOptionValue } from '../../../cbi/modal';
-import { configureOpenVPNMaterial } from './material';
+import { configureMaterialOption } from '../../../cbi/material';
 import {
   COMPRESSION_LABELS,
   DATA_CIPHERS,
@@ -26,10 +26,10 @@ function secondsOption(
   section: CBISection,
   name: string,
   title: string,
-  description: string,
+  description: string | null,
   placeholder: string,
 ) {
-  const o = section.option(form.Value, name, title, description);
+  const o = section.option(form.Value, name, title, description ?? undefined);
   o.datatype = 'uinteger';
   o.placeholder = placeholder;
   o.rmempty = true;
@@ -59,7 +59,7 @@ export function addOpenVPNOptions(section: CBISection) {
         'openvpn_servers',
         _('Servers'),
         _(
-          'Host and port of the OpenVPN server. With several, the next one is tried when a server does not answer. Put tcp:// or udp:// before a server that uses the other protocol',
+          'Host and port. Put tcp:// or udp:// before a server on the other transport',
         ),
       ),
     ),
@@ -88,16 +88,7 @@ export function addOpenVPNOptions(section: CBISection) {
 
   o = add(
     'openvpn_mode',
-    onKind(
-      section.option(
-        form.ListValue,
-        'openvpn_mode',
-        _('Mode'),
-        _(
-          'A static key is the outdated mode without certificates. Choose it only for a server that uses one',
-        ),
-      ),
-    ),
+    onKind(section.option(form.ListValue, 'openvpn_mode', _('Mode'))),
   );
   o.value('tls', _('TLS (certificates)'));
   o.value('static_key', _('Static key'));
@@ -107,12 +98,7 @@ export function addOpenVPNOptions(section: CBISection) {
   o = add(
     'openvpn_login',
     onKind(
-      section.option(
-        form.Flag,
-        'openvpn_login',
-        _('Username and password'),
-        _('The server asks for a username and a password (auth-user-pass)'),
-      ),
+      section.option(form.Flag, 'openvpn_login', _('Username and password')),
       tls,
     ),
   );
@@ -143,16 +129,11 @@ export function addOpenVPNOptions(section: CBISection) {
   o = add(
     'openvpn_ca',
     onKind(
-      section.option(
-        form.TextValue,
-        'openvpn_ca',
-        _('CA certificate'),
-        _('The certificate the server certificate is checked against (ca)'),
-      ),
+      section.option(form.TextValue, 'openvpn_ca', _('CA certificate')),
       tls,
     ),
   );
-  configureOpenVPNMaterial(o, 'ca', (value) =>
+  configureMaterialOption(o, 'ca', (value) =>
     value('openvpn_advanced') === '1' &&
     normalizeOptionValues(value('openvpn_peer_fingerprint')).length
       ? ''
@@ -162,39 +143,32 @@ export function addOpenVPNOptions(section: CBISection) {
   o = add(
     'openvpn_cert',
     onKind(
-      section.option(
-        form.TextValue,
-        'openvpn_cert',
-        _('Client certificate'),
-        _(
-          'The certificate this tunnel presents (cert). A server that asks only for a login needs none',
-        ),
-      ),
+      section.option(form.TextValue, 'openvpn_cert', _('Client certificate')),
       tls,
     ),
   );
-  configureOpenVPNMaterial(o, 'certificate', (value) =>
-    trimmed(value('openvpn_key'))
-      ? _('Add the certificate of the client key')
-      : '',
+  configureMaterialOption(
+    o,
+    'certificate',
+    (value) =>
+      trimmed(value('openvpn_key'))
+        ? _('Add the certificate of the client key')
+        : '',
+    'openvpn_key',
   );
 
   o = add(
     'openvpn_key',
-    onKind(
-      section.option(
-        form.TextValue,
-        'openvpn_key',
-        _('Client key'),
-        _('The private key of the client certificate (key)'),
-      ),
-      tls,
-    ),
+    onKind(section.option(form.TextValue, 'openvpn_key', _('Client key')), tls),
   );
-  configureOpenVPNMaterial(o, 'key', (value) =>
-    trimmed(value('openvpn_cert'))
-      ? _('Add the key of the client certificate')
-      : '',
+  configureMaterialOption(
+    o,
+    'key',
+    (value) =>
+      trimmed(value('openvpn_cert'))
+        ? _('Add the key of the client certificate')
+        : '',
+    'openvpn_cert',
   );
 
   o = add(
@@ -204,9 +178,6 @@ export function addOpenVPNOptions(section: CBISection) {
         form.ListValue,
         'openvpn_control_wrap',
         _('Control channel protection'),
-        _(
-          'The extra key the server wraps its handshake in: tls-auth, tls-crypt or tls-crypt-v2',
-        ),
       ),
       tls,
     ),
@@ -228,7 +199,7 @@ export function addOpenVPNOptions(section: CBISection) {
   for (const type of ['tls_auth', 'tls_crypt', 'tls_crypt_v2']) {
     onKind(o, { ...tls, openvpn_control_wrap: type });
   }
-  configureOpenVPNMaterial(
+  configureMaterialOption(
     o,
     (value) =>
       value('openvpn_control_wrap') === 'tls_crypt_v2' ? 'crypt-v2' : 'static',
@@ -242,12 +213,7 @@ export function addOpenVPNOptions(section: CBISection) {
 
   o = add(
     'openvpn_key_direction',
-    section.option(
-      form.ListValue,
-      'openvpn_key_direction',
-      _('Key direction'),
-      _('key-direction of the profile. Clients use 1'),
-    ),
+    section.option(form.ListValue, 'openvpn_key_direction', _('Key direction')),
   );
   o.value('1', '1');
   o.value('0', '0');
@@ -260,16 +226,11 @@ export function addOpenVPNOptions(section: CBISection) {
   o = add(
     'openvpn_static_key',
     onKind(
-      section.option(
-        form.TextValue,
-        'openvpn_static_key',
-        _('Static key'),
-        _('The shared key of the tunnel (secret)'),
-      ),
+      section.option(form.TextValue, 'openvpn_static_key', _('Static key')),
       staticKey,
     ),
   );
-  configureOpenVPNMaterial(o, 'static', () => _('Add the static key'));
+  configureMaterialOption(o, 'static', () => _('Add the static key'));
 
   o = add(
     'openvpn_static_cipher',
@@ -289,7 +250,7 @@ export function addOpenVPNOptions(section: CBISection) {
         form.DynamicList,
         'openvpn_address',
         _('Tunnel addresses'),
-        _('The addresses of this end of the tunnel in CIDR format (ifconfig)'),
+        _('ifconfig and ifconfig-ipv6 in the profile'),
       ),
       staticKey,
     ),
@@ -306,7 +267,7 @@ export function addOpenVPNOptions(section: CBISection) {
         form.Value,
         'openvpn_peer_address',
         _('Peer address'),
-        _('The IPv4 address of the other end of the tunnel'),
+        _('The second address of ifconfig in the profile'),
       ),
       staticKey,
     ),
@@ -321,7 +282,7 @@ export function addOpenVPNOptions(section: CBISection) {
         form.Value,
         'openvpn_peer_address_ipv6',
         _('Peer IPv6 address'),
-        _('The IPv6 address of the other end of the tunnel'),
+        _('The second address of ifconfig-ipv6 in the profile'),
       ),
       staticKey,
     ),
@@ -332,14 +293,7 @@ export function addOpenVPNOptions(section: CBISection) {
   o = add(
     'openvpn_advanced',
     onKind(
-      section.option(
-        form.Flag,
-        'openvpn_advanced',
-        _('Advanced settings'),
-        _(
-          'Server certificate checks, ciphers, compression, MTU and timers. Off, they keep their defaults',
-        ),
-      ),
+      section.option(form.Flag, 'openvpn_advanced', _('Advanced settings')),
     ),
   );
   o.default = '0';
@@ -352,7 +306,6 @@ export function addOpenVPNOptions(section: CBISection) {
         form.Flag,
         'openvpn_remote_random',
         _('Random server order'),
-        _('Try the servers in random order (remote-random)'),
       ),
       advanced,
     ),
@@ -367,9 +320,7 @@ export function addOpenVPNOptions(section: CBISection) {
         form.Value,
         'openvpn_server_name',
         _('Server certificate name'),
-        _(
-          'The name the server certificate must carry (verify-x509-name). Empty: any certificate the CA issued',
-        ),
+        _('verify-x509-name in the profile'),
       ),
       { ...tls, ...advanced },
     ),
@@ -403,9 +354,6 @@ export function addOpenVPNOptions(section: CBISection) {
         form.ListValue,
         'openvpn_verify_purpose',
         _('Server certificate purpose'),
-        _(
-          'What proves the certificate was issued to a server and not to another client',
-        ),
       ),
       { ...tls, ...advanced },
     ),
@@ -424,7 +372,7 @@ export function addOpenVPNOptions(section: CBISection) {
         'openvpn_peer_fingerprint',
         _('Server certificate fingerprints'),
         _(
-          'SHA-256 fingerprints the server certificate must match (peer-fingerprint). With them the CA certificate is not needed',
+          'With fingerprints the CA certificate is not needed (peer-fingerprint in the profile)',
         ),
       ),
       { ...tls, ...advanced },
@@ -445,7 +393,7 @@ export function addOpenVPNOptions(section: CBISection) {
         'openvpn_certificate_profile',
         _('Certificate profile'),
         _(
-          'Which signature algorithms and key sizes are accepted (tls-cert-profile)',
+          'The signature algorithms and key sizes accepted (tls-cert-profile in the profile)',
         ),
       ),
       { ...tls, ...advanced },
@@ -483,7 +431,7 @@ export function addOpenVPNOptions(section: CBISection) {
         'openvpn_tls_cipher',
         _('TLS ciphers'),
         _(
-          'Cipher suites of the control channel up to TLS 1.2, separated by colons (tls-cipher)',
+          'Cipher suites up to TLS 1.2, separated by colons (tls-cipher in the profile)',
         ),
       ),
       { ...tls, ...advanced },
@@ -499,7 +447,7 @@ export function addOpenVPNOptions(section: CBISection) {
         form.MultiValue,
         'openvpn_data_ciphers',
         _('Data ciphers'),
-        _('The ciphers offered to the server (data-ciphers). Empty: %s').format(
+        _('Empty: %s (data-ciphers in the profile)').format(
           OPENVPN_DEFAULT_DATA_CIPHERS.join(', '),
         ),
       ),
@@ -518,7 +466,7 @@ export function addOpenVPNOptions(section: CBISection) {
         'openvpn_data_ciphers_fallback',
         _('Fallback cipher'),
         _(
-          'The cipher of a server older than 2.4, which cannot agree on one (cipher, data-ciphers-fallback)',
+          'Only for a server older than 2.4 (data-ciphers-fallback in the profile)',
         ),
       ),
       { ...tls, ...advanced },
@@ -535,7 +483,7 @@ export function addOpenVPNOptions(section: CBISection) {
         form.ListValue,
         'openvpn_auth',
         _('Packet authentication'),
-        _('The digest of CBC ciphers and of tls-auth (auth)'),
+        _('auth in the profile'),
       ),
       advanced,
     ),
@@ -565,7 +513,12 @@ export function addOpenVPNOptions(section: CBISection) {
   o = add(
     'openvpn_mtu',
     onKind(
-      section.option(form.Value, 'openvpn_mtu', _('MTU'), _('tun-mtu')),
+      section.option(
+        form.Value,
+        'openvpn_mtu',
+        _('MTU'),
+        _('tun-mtu in the profile'),
+      ),
       advanced,
     ),
   );
@@ -580,9 +533,7 @@ export function addOpenVPNOptions(section: CBISection) {
         form.Value,
         'openvpn_fragment',
         _('Fragment size'),
-        _(
-          'Largest UDP packet before OpenVPN splits it (fragment). Only if the server uses it too',
-        ),
+        _('Only if the server uses it too (fragment in the profile)'),
       ),
       { ...advanced, openvpn_network: 'udp' },
     ),
@@ -597,9 +548,7 @@ export function addOpenVPNOptions(section: CBISection) {
         form.Value,
         'openvpn_mss_fix',
         _('MSS clamping'),
-        _(
-          'Largest packet size TCP connections are fitted to (mssfix). 0 switches it off',
-        ),
+        _('0 switches it off (mssfix in the profile)'),
       ),
       advanced,
     ),
@@ -615,7 +564,7 @@ export function addOpenVPNOptions(section: CBISection) {
         section,
         'openvpn_ping_interval',
         _('Ping interval, seconds'),
-        _('A server usually sets it itself (ping)'),
+        _('ping in the profile'),
         '',
       ),
       advanced,
@@ -628,7 +577,7 @@ export function addOpenVPNOptions(section: CBISection) {
         section,
         'openvpn_ping_restart',
         _('Reconnect after silence, seconds'),
-        _('A server usually sets it itself (ping-restart). 0 switches it off'),
+        _('0 switches it off (ping-restart in the profile)'),
         '120',
       ),
       advanced,
@@ -641,7 +590,7 @@ export function addOpenVPNOptions(section: CBISection) {
         section,
         'openvpn_renegotiate',
         _('Key renegotiation, seconds'),
-        _('reneg-sec. 0 switches it off'),
+        _('0 switches it off (reneg-sec in the profile)'),
         '3600',
       ),
       { ...tls, ...advanced },

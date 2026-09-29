@@ -9,7 +9,6 @@ import {
 import {
   addHysteria2Options,
   addMixedOptions,
-  addMtprotoOptions,
   addProtocolOptions,
   addShadowsocksOptions,
   addTuicOptions,
@@ -18,7 +17,6 @@ import {
   addMultiplexOptions,
   addSecurityOptions,
   addTransportOptions,
-  addTuningOptions,
 } from './form/security';
 import { addOpenVPNServerOptions } from './form/openvpn';
 import { addRoutingOptions } from './routing';
@@ -40,10 +38,8 @@ export function createServerContent(section: CBISection) {
   addRoutingOptions(section);
   addSecurityOptions(section);
   addTransportOptions(section);
-  addTuningOptions(section);
   addMultiplexOptions(section);
   addHysteria2Options(section);
   addTuicOptions(section);
   addProtocolOptions(section);
-  addMtprotoOptions(section);
 }

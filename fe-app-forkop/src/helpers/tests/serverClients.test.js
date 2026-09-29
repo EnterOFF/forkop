@@ -58,7 +58,7 @@ describe('server client names', () => {
   });
 
   it('gives a name the login protocols accept as an account', () => {
-    const { clients } = load({ srv: { protocol: 'ssh' } });
+    const { clients } = load({ srv: { protocol: 'mieru' } });
 
     expect(clients.validateClientName('srv', clients.nextClientName([]))).toBe(
       true,
@@ -133,7 +133,7 @@ describe('server client names', () => {
   });
 
   it('requires an account-safe name where the protocol sends it on the wire', () => {
-    const { clients } = load({ srv: { protocol: 'ssh' } });
+    const { clients } = load({ srv: { protocol: 'mieru' } });
 
     expect(clients.validateClientName('srv', 'alice')).toBe(true);
     expect(clients.validateClientName('srv', 'alice smith')).toMatch(
@@ -212,34 +212,32 @@ describe('server client sections', () => {
 
 describe('server client credentials', () => {
   it('validates each credential against the protocol', () => {
-    const { clients } = load({ srv: { protocol: 'mtproto' } });
+    const { clients } = load({
+      srv: {
+        protocol: 'shadowsocks',
+        shadowsocks_method: '2022-blake3-aes-128-gcm',
+      },
+    });
 
     expect(
-      clients.validateClientCredential('srv', 'secret', 'a'.repeat(32)),
+      clients.validateClientCredential(
+        'srv',
+        'password',
+        'ajXWye37k0IsLRrpEhB3pA==',
+      ),
     ).toBe(true);
-    expect(clients.validateClientCredential('srv', 'secret', 'short')).toMatch(
-      /32 hex/,
-    );
     expect(
-      clients.validateClientCredential('srv', 'secret', '0'.repeat(32)),
-    ).toMatch(/non-zero/);
+      clients.validateClientCredential('srv', 'password', 'short'),
+    ).toMatch(/16 bytes/);
   });
 
-  it('checks a UUID and an OpenSSH key line', () => {
+  it('checks a UUID', () => {
     const { clients } = load({ srv: { protocol: 'vless' } });
 
     expect(clients.validateClientCredential('srv', 'uuid', UUID)).toBe(true);
     expect(clients.validateClientCredential('srv', 'uuid', 'nope')).toMatch(
       /UUID/,
     );
-    expect(
-      clients.validateClientCredential('srv', 'authorized_keys', [
-        'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5',
-      ]),
-    ).toBe(true);
-    expect(
-      clients.validateClientCredential('srv', 'authorized_keys', ['nope']),
-    ).toMatch(/OpenSSH/);
   });
 });
 

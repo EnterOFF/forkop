@@ -18,12 +18,7 @@ import {
 } from '../../../services/coreFeatures.service';
 import { clearClientList } from '../clients';
 import { DEFAULT_PROTOCOL } from '../constants';
-import {
-  addGenerateButton,
-  autofill,
-  syncCertificateButton,
-  syncSecurityChoices,
-} from '../controls';
+import { addGenerateButton, autofill, syncSecurityChoices } from '../controls';
 import { randomPort } from '../credentials';
 import { option } from '../formValues';
 import { loadDefaultPublicHost } from '../network';
@@ -128,7 +123,6 @@ export function addIdentityOptions(section: CBISection) {
   };
   o.onchange = function (_ev, sectionId: string, value: unknown) {
     syncSecurityChoices(sectionId, value, true);
-    syncCertificateButton(sectionId, value);
     // A client of the previous protocol holds credentials the new one cannot use,
     // and a half converted account only fails on save. The list starts over.
     clearClientList(this.map, sectionId);
@@ -142,7 +136,6 @@ export function addTailscaleOptions(section: CBISection) {
     form.Value,
     'tailscale_auth_key',
     _('Authorization key'),
-    _('A key from the Tailscale console'),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -155,7 +148,7 @@ export function addTailscaleOptions(section: CBISection) {
     'tailscale_hostname',
     _('Device name'),
     _(
-      'The name this router appears under in the Tailscale console. It is offered there as an exit node and carries traffic once approved',
+      'The router is offered in the Tailscale console as an exit node under this name, and carries traffic once approved',
     ),
   );
   o.modalonly = true;
@@ -168,9 +161,6 @@ export function addTailscaleOptions(section: CBISection) {
     form.DynamicList,
     'tailscale_advertise_routes',
     _('Advertise routes'),
-    _(
-      'Local subnets the rest of the network may reach through this router, once approved in the Tailscale console',
-    ),
   );
   o.placeholder = '192.168.1.0/24';
   o.modalonly = true;
@@ -178,23 +168,13 @@ export function addTailscaleOptions(section: CBISection) {
   o.validate = validateOptionalCidrOrIp;
   onTailscale(o);
 
-  o = section.option(
-    form.Flag,
-    'tailscale_accept_routes',
-    _('Accept routes'),
-    _('Use subnets other devices share'),
-  );
+  o = section.option(form.Flag, 'tailscale_accept_routes', _('Accept routes'));
   o.default = '0';
   o.rmempty = true;
   o.modalonly = true;
   onTailscale(o);
 
-  o = section.option(
-    form.Flag,
-    'tailscale_ephemeral',
-    _('Ephemeral node'),
-    _('Remove the node from the network once it goes offline'),
-  );
+  o = section.option(form.Flag, 'tailscale_ephemeral', _('Ephemeral node'));
   o.default = '0';
   o.rmempty = true;
   o.modalonly = true;
@@ -204,9 +184,6 @@ export function addTailscaleOptions(section: CBISection) {
     form.Value,
     'tailscale_control_url',
     _('Coordination server'),
-    _(
-      'Address of the coordination server. Change it if you use a custom server',
-    ),
   );
   o.default = TAILSCALE_CONTROL_URL;
   o.modalonly = true;
@@ -218,7 +195,6 @@ export function addTailscaleOptions(section: CBISection) {
     form.Flag,
     'tailscale_detour_enabled',
     _('Coordination server through a section'),
-    _('Reach the coordination server through a section instead of the WAN'),
   );
   o.default = '0';
   o.rmempty = false;
@@ -229,7 +205,6 @@ export function addTailscaleOptions(section: CBISection) {
     form.ListValue,
     'tailscale_detour_section',
     _('Coordination server through'),
-    _('Required. The section that carries the control-plane traffic'),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -304,7 +279,7 @@ export function addListenerOptions(section: CBISection) {
     form.Value,
     'public_host',
     _('Public address'),
-    _('The address the connection links and profiles point at'),
+    _('The address links and profiles point at'),
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -324,7 +299,9 @@ export function addListenerOptions(section: CBISection) {
     form.Flag,
     'open_firewall',
     _('Open the port'),
-    _('Allows incoming connections to this port from the internet'),
+    _(
+      "Opens the port in the router's firewall to connections from the internet",
+    ),
   );
   o.default = '1';
   o.rmempty = false;

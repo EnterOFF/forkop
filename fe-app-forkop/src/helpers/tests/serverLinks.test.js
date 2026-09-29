@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import { installLuciStubs } from './luciStubs';
-import { buildClientLinks } from '../../forkop/tabs/servers/links';
+import {
+  buildClientLinks,
+  loadLinkContext,
+} from '../../forkop/tabs/servers/links';
 
 const UUID = '11111111-1111-4111-8111-111111111111';
 
@@ -26,9 +29,7 @@ function load(server, client = {}) {
       name: 'phone',
       uuid: '',
       password: '',
-      secret: '',
       flow: '',
-      authorized_keys: [],
       ...client,
     },
   };
@@ -128,7 +129,8 @@ describe('VLESS links', () => {
         protocol: 'vless',
         security: 'tls',
         tls_server_name: 'example.org',
-        tls_certificate_path: '/etc/letsencrypt/live/example.org/fullchain.pem',
+        tls_certificate_source: 'custom',
+        tls_certificate: '/etc/letsencrypt/live/example.org/fullchain.pem',
       },
       { uuid: UUID },
     );
@@ -160,13 +162,16 @@ describe('Trojan links', () => {
     expect(query(url)['grpc-service-name']).toBe('grpc-service');
   });
 
-  it('has no link without TLS, because no client format carries it', () => {
+  // No client format carries Trojan without TLS, so a server stored that way
+  // runs with TLS, and its link says so.
+  it('serves a server stored without TLS over TLS', () => {
     const { link, client } = load(
       { protocol: 'trojan', security: 'none' },
       { password: 'secret-password' },
     );
 
-    expect(link.buildClientLinks('srv', client)).toEqual([]);
+    const [{ link: url }] = link.buildClientLinks('srv', client);
+    expect(query(url)).toMatchObject({ security: 'tls', insecure: '1' });
   });
 });
 
@@ -275,7 +280,7 @@ describe('SOCKS5 / HTTP links', () => {
 });
 
 describe('QUIC protocol links', () => {
-  it('pins the generated Hysteria2 certificate and reports the bandwidth', () => {
+  it('pins the self-signed Hysteria2 certificate and leaves the bandwidth out', () => {
     const { link, client } = load(
       {
         protocol: 'hysteria2',
@@ -303,9 +308,31 @@ describe('QUIC protocol links', () => {
       pinSHA256: pin,
       obfs: 'salamander',
       'obfs-password': 'obfs-password',
-      up: '100',
-      down: '200',
     });
+    // The speed limits of the server are not the bandwidth of a client, and the
+    // URI scheme of Hysteria 2 leaves bandwidth to each client on purpose.
+    expect(query(url).up).toBeUndefined();
+    expect(query(url).down).toBeUndefined();
+  });
+
+  // The router writes the fingerprint when the settings are applied, after the
+  // page read its own copy of the configuration.
+  it('pins the certificate the router issued with the fingerprint it wrote', async () => {
+    load({ protocol: 'hysteria2', security: 'tls' });
+    globalThis.rpc = {
+      declare: () => () =>
+        Promise.resolve({ srv: { tls_self_signed_sha256: 'AB'.repeat(32) } }),
+    };
+    expect(await loadLinkContext('srv')).toEqual({
+      tlsCertificateSha256: 'ab'.repeat(32),
+    });
+
+    load({
+      protocol: 'hysteria2',
+      tls_certificate_source: 'custom',
+      tls_certificate: '/etc/ssl/acme/example.org.fullchain.crt',
+    });
+    expect(await loadLinkContext('srv')).toEqual({ tlsCertificateSha256: '' });
   });
 
   it('puts the UUID and the password in the TUIC user info', () => {
@@ -315,8 +342,6 @@ describe('QUIC protocol links', () => {
         security: 'tls',
         tls_server_name: 'example.org',
         tuic_congestion_control: 'bbr',
-        tuic_heartbeat: '10s',
-        tuic_zero_rtt_handshake: '1',
       },
       { uuid: UUID, password: 'secret-password' },
     );
@@ -326,10 +351,10 @@ describe('QUIC protocol links', () => {
     expect(
       url.startsWith(`tuic://${UUID}:secret-password@203.0.113.9:30000?`),
     ).toBe(true);
-    expect(query(url)).toMatchObject({
+    expect(query(url)).toEqual({
+      sni: 'example.org',
+      insecure: '1',
       congestion_control: 'bbr',
-      heartbeat_interval: '10s',
-      zero_rtt_handshake: 'true',
     });
   });
 
@@ -377,43 +402,25 @@ describe('other protocol links', () => {
     );
   });
 
-  // A server that keeps Forkop's own certificate serves a self-signed one, so every
-  // link it hands out tells the client to accept it.
-  it('tells a client to accept the generated certificate', () => {
-    for (const protocol of ['trojan', 'naive']) {
+  // A server on the certificate the router issued serves a self-signed one, so
+  // every link it hands out tells the client to accept it. NaiveProxy has no such
+  // certificate to accept: its server always takes the user's own.
+  it('tells a client to accept the self-signed certificate', () => {
+    for (const [protocol, insecure] of [
+      ['trojan', '1'],
+      ['anytls', '1'],
+      ['naive', undefined],
+    ]) {
       const { link, client } = load(
-        {
-          protocol,
-          security: 'tls',
-          tls_server_name: 'example.org',
-          tls_certificate_path: '/etc/forkop/server-certs/srv.crt',
-          tls_key_path: '/etc/forkop/server-certs/srv.key',
-        },
+        { protocol, security: 'tls', tls_server_name: 'example.org' },
         { name: 'alice', password: 'secret-password' },
       );
 
-      expect(query(link.buildClientLinks('srv', client)[0].link).insecure).toBe(
-        '1',
-      );
+      expect(
+        query(link.buildClientLinks('srv', client)[0].link).insecure,
+        protocol,
+      ).toBe(insecure);
     }
-  });
-
-  it('builds a Telegram proxy link that carries the FakeTLS host', () => {
-    const { link, client } = load(
-      { protocol: 'mtproto', mtproto_faketls: 'google.com' },
-      { secret: 'a'.repeat(32) },
-    );
-
-    const [{ link: url }] = link.buildClientLinks('srv', client);
-    const params = query(url);
-
-    expect(url.startsWith('https://t.me/proxy?')).toBe(true);
-    expect(params.server).toBe('203.0.113.9');
-    expect(params.port).toBe('30000');
-    expect(params.secret.startsWith(`ee${'a'.repeat(32)}`)).toBe(true);
-    expect(Buffer.from(params.secret.slice(34), 'hex').toString('utf8')).toBe(
-      'google.com',
-    );
   });
 
   // The mieru project has its own URL format and the core parses it, so a client
@@ -440,10 +447,7 @@ describe('other protocol links', () => {
   });
 
   it('has no link for protocols without a share URI', () => {
-    const { link, client } = load(
-      { protocol: 'ssh' },
-      { name: 'alice', password: 'secret-password' },
-    );
+    const { link, client } = load({ protocol: 'openvpn' }, { name: 'alice' });
     expect(link.buildClientLinks('srv', client)).toEqual([]);
   });
 

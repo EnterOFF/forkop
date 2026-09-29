@@ -38,7 +38,7 @@ export function addRoutingOptions(section: CBISection) {
     form.ListValue,
     'routing_mode',
     _('Routing mode'),
-    _('Where to send the traffic from this server'),
+    _("Where to send the traffic of this server's connections"),
   );
   o.value('rules', _('Rules'));
   o.value('direct', _('Direct'));
@@ -48,12 +48,7 @@ export function addRoutingOptions(section: CBISection) {
   o.modalonly = true;
   o.validate = validateRequired;
 
-  o = section.option(
-    form.ListValue,
-    'routing_section',
-    _('Routing section'),
-    _('Required. Where the traffic of this server leaves'),
-  );
+  o = section.option(form.ListValue, 'routing_section', _('Routing section'));
   o.depends('routing_mode', 'section');
   o.modalonly = true;
   o.rmempty = false;

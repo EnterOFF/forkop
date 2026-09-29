@@ -233,7 +233,6 @@ function buildServer(protocol) {
     name: 'client-1',
     password: 'secret',
     uuid: '3d0f9c1a-9c1a-4d0f-8c1a-9c1a3d0f9c1a',
-    secret: 'ee00112233445566778899aabbccddeeff6578616d706c652e636f6d',
   });
   const map = new harness.form.Map('forkop');
   const grid = map.section(harness.form.GridSection, 'server');
@@ -589,18 +588,4 @@ describe('a number the backend reads as digits only', () => {
     expect(option.validate('settings', value)).not.toBe(true);
     expect(option.validate('settings', '300')).toBe(true);
   });
-});
-
-// sing-box and the backend take a duration in days; the heartbeat has to too.
-it('a TUIC heartbeat takes a duration in days', () => {
-  harness.uci.add('forkop', 'server', 'srv');
-  const map = new harness.form.Map('forkop');
-  const grid = map.section(harness.form.GridSection, 'server');
-  harness.bundle.createServerContent(grid);
-  const heartbeat = grid.children.find(
-    (option) => option.option === 'tuic_heartbeat',
-  );
-
-  expect(heartbeat.validate('srv', '1d')).toBe(true);
-  expect(heartbeat.validate('srv', 'soon')).not.toBe(true);
 });

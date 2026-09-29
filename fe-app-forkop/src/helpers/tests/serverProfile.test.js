@@ -14,9 +14,7 @@ const CLIENT = {
   name: 'Ноутбук',
   uuid: '',
   password: '',
-  secret: '',
   flow: '',
-  authorized_keys: [],
 };
 
 // What prepare leaves in the configuration the router holds.

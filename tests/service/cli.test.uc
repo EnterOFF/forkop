@@ -78,7 +78,8 @@ t.test("the component commands reach the component manager programs", () => {
 });
 
 t.test("an unknown or retired command prints the help and fails without running anything", () => {
-    for (let name in [ "", "main", "get_sing_box_status", "service_action_status", "check_sing_box_logs", "check_nft" ]) {
+    for (let name in [ "", "main", "get_sing_box_status", "service_action_status", "check_sing_box_logs", "check_nft",
+        "generate_server_certificate", "get_tls_certificate_sha256", "generate_ssh_host_key" ]) {
         let result = run([ name ]);
         t.eq(result.result, 1, name);
         t.eq(result.commands, [], name);
@@ -89,7 +90,7 @@ t.test("an unknown or retired command prints the help and fails without running 
 t.test("the help lists the public commands and hides the package hooks", () => {
     let help = run([ "help" ]).stdout;
     t.contains(help, "    get_ui_state");
-    t.contains(help, "    generate_server_certificate <subject> <name>");
+    t.contains(help, "    component_action <component> <action>");
     t.excludes(help, "package_postinst");
     t.excludes(help, "sing_box_crash_cleanup");
 });

@@ -13,6 +13,13 @@ let generator = require("singbox.generator");
 
 let schema = json(fs.readfile(repo.path("tests/fixtures/singbox_inbound_options.json")));
 
+// What the router issues a TLS server, and what the user pastes as their own.
+const PEM = {
+    certificate: "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----",
+    key: "-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----"
+};
+const SELF_SIGNED = { tls_self_signed_certificate: PEM.certificate, tls_self_signed_key: PEM.key };
+
 const SERVERS = {
     settings: { dns_server: "77.88.8.8", bootstrap_dns_server: "77.88.8.8", service_listen_address: "127.0.0.1" },
     section: [
@@ -24,7 +31,7 @@ const SERVERS = {
     server: [
         {
             ".name": "mixed_srv", ".type": "server", enabled: "1", label: "mixed", protocol: "mixed",
-            listen: "0.0.0.0", listen_port: "20001", mixed_auth_enabled: "1", tcp_fast_open: "1",
+            listen: "0.0.0.0", listen_port: "20001", mixed_auth_enabled: "1",
             routing_mode: "direct"
         },
         {
@@ -37,28 +44,26 @@ const SERVERS = {
         {
             ".name": "vmess_srv", ".type": "server", enabled: "1", label: "vmess", protocol: "vmess",
             listen: "0.0.0.0", listen_port: "20003", security: "tls", tls_server_name: "example.com",
-            tls_alpn: [ "h2", "http/1.1" ], tls_certificate_path: "/etc/forkop/server-certs/vmess.crt",
-            tls_key_path: "/etc/forkop/server-certs/vmess.key", transport: "ws", transport_path: "/ws",
+            tls_alpn: [ "h2", "http/1.1" ], tls_certificate_source: "custom", tls_certificate: "/etc/ssl/vmess.crt",
+            tls_key: "/etc/ssl/vmess.key", transport: "ws", transport_path: "/ws",
             transport_host: "example.com", routing_mode: "direct"
         },
         {
             ".name": "trojan_srv", ".type": "server", enabled: "1", label: "trojan", protocol: "trojan",
             listen: "0.0.0.0", listen_port: "20004", security: "tls",
-            tls_certificate_path: "/etc/forkop/server-certs/trojan.crt",
-            tls_key_path: "/etc/forkop/server-certs/trojan.key", transport: "xhttp", transport_path: "/x",
+            ...SELF_SIGNED, transport: "xhttp", transport_path: "/x",
             transport_xhttp_mode: "auto", routing_mode: "direct"
         },
         {
             ".name": "trojan_grpc", ".type": "server", enabled: "1", label: "trojan grpc", protocol: "trojan",
             listen: "0.0.0.0", listen_port: "20014", security: "tls",
-            tls_certificate_path: "/etc/forkop/server-certs/grpc.crt",
-            tls_key_path: "/etc/forkop/server-certs/grpc.key", transport: "grpc",
+            ...SELF_SIGNED, transport: "grpc",
             transport_service_name: "grpc", routing_mode: "direct"
         },
         {
             ".name": "vless_http", ".type": "server", enabled: "1", label: "vless http", protocol: "vless",
             listen: "0.0.0.0", listen_port: "20015", security: "none", transport: "http", transport_path: "/h",
-            transport_hosts: [ "a.example.com", "b.example.com" ], routing_mode: "direct"
+            transport_host: "h.example.com", routing_mode: "direct"
         },
         {
             ".name": "vmess_upgrade", ".type": "server", enabled: "1", label: "vmess upgrade",
@@ -75,44 +80,31 @@ const SERVERS = {
         {
             ".name": "hy2_srv", ".type": "server", enabled: "1", label: "hysteria2", protocol: "hysteria2",
             listen: "0.0.0.0", listen_port: "20006", security: "tls",
-            tls_certificate_path: "/etc/forkop/server-certs/hy2.crt",
-            tls_key_path: "/etc/forkop/server-certs/hy2.key", hysteria2_up_mbps: "100",
+            ...SELF_SIGNED, hysteria2_up_mbps: "100",
             hysteria2_down_mbps: "200", hysteria2_obfs_type: "salamander",
-            hysteria2_obfs_password: "obfs-password", hysteria2_ignore_client_bandwidth: "1",
+            hysteria2_obfs_password: "obfs-password",
             hysteria2_masquerade: "https://example.com", routing_mode: "direct"
         },
         {
             ".name": "tuic_srv", ".type": "server", enabled: "1", label: "tuic", protocol: "tuic",
             listen: "0.0.0.0", listen_port: "20007", security: "tls",
-            tls_certificate_path: "/etc/forkop/server-certs/tuic.crt",
-            tls_key_path: "/etc/forkop/server-certs/tuic.key", tuic_congestion_control: "bbr",
-            tuic_heartbeat: "12s", tuic_zero_rtt_handshake: "1", routing_mode: "direct"
+            ...SELF_SIGNED, tuic_congestion_control: "bbr",
+            routing_mode: "direct"
         },
         {
             ".name": "anytls_srv", ".type": "server", enabled: "1", label: "anytls", protocol: "anytls",
             listen: "0.0.0.0", listen_port: "20008", security: "tls",
-            tls_certificate_path: "/etc/forkop/server-certs/anytls.crt",
-            tls_key_path: "/etc/forkop/server-certs/anytls.key", routing_mode: "direct"
+            ...SELF_SIGNED, routing_mode: "direct"
         },
         {
             ".name": "naive_srv", ".type": "server", enabled: "1", label: "naive", protocol: "naive",
             listen: "0.0.0.0", listen_port: "20009", security: "tls",
-            tls_certificate_path: "/etc/forkop/server-certs/naive.crt",
-            tls_key_path: "/etc/forkop/server-certs/naive.key", naive_network: "tcp_udp",
-            routing_mode: "direct"
-        },
-        {
-            ".name": "ssh_srv", ".type": "server", enabled: "1", label: "ssh", protocol: "ssh",
-            listen: "0.0.0.0", listen_port: "20010", ssh_host_key_path: "/etc/forkop/server-ssh/ssh.key",
+            tls_certificate: PEM.certificate, tls_key: PEM.key, naive_network: "tcp_udp",
             routing_mode: "direct"
         },
         {
             ".name": "mieru_srv", ".type": "server", enabled: "1", label: "mieru", protocol: "mieru",
             listen: "0.0.0.0", listen_port: "20011", mieru_transport: "UDP", routing_mode: "direct"
-        },
-        {
-            ".name": "mtproto_srv", ".type": "server", enabled: "1", label: "mtproto", protocol: "mtproto",
-            listen: "0.0.0.0", listen_port: "20012", mtproto_faketls: "google.com", routing_mode: "direct"
         },
         {
             ".name": "tailscale_srv", ".type": "server", enabled: "1", label: "tailscale",
@@ -176,16 +168,8 @@ const SERVERS = {
             password: "naive-pass"
         },
         {
-            ".name": "c_ssh", ".type": "server_client", server: "ssh_srv", name: "phone", password: "ssh-pass",
-            authorized_keys: [ "ssh-ed25519 AAAAC3Nz" ]
-        },
-        {
             ".name": "c_mieru", ".type": "server_client", server: "mieru_srv", name: "phone",
             password: "mieru-pass"
-        },
-        {
-            ".name": "c_mtproto", ".type": "server_client", server: "mtproto_srv", name: "phone",
-            secret: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         },
         {
             ".name": "c_openvpn", ".type": "server_client", server: "openvpn_srv", name: "phone",
@@ -209,9 +193,7 @@ const USER_KEYS = {
     hysteria2: [ "name", "password" ],
     tuic: [ "name", "uuid", "password" ],
     anytls: [ "name", "password" ],
-    ssh: [ "name", "password", "authorized_keys" ],
-    mieru: [ "name", "password" ],
-    mtproxy: [ "name", "secret" ]
+    mieru: [ "name", "password" ]
 };
 
 fixture.seed(SERVERS);
@@ -242,7 +224,7 @@ function unknown_keys(node, allowed, trail) {
 t.test("every protocol the tab serves produces a listener", () => {
     let types = uniq(map(listeners, (item) => item.type));
     for (let expected in [ "mixed", "vless", "vmess", "trojan", "shadowsocks", "hysteria2",
-        "tuic", "anytls", "naive", "ssh", "mieru", "mtproxy", "tailscale", "openvpn-server" ])
+        "tuic", "anytls", "naive", "mieru", "tailscale", "openvpn-server" ])
         t.contains(types, expected);
 });
 
@@ -252,6 +234,11 @@ t.test("a listener carries only options the core has", () => {
         for (let path in unknown_keys(listener, schema[listener.type], []))
             push(unknown, listener.type + ": " + path);
     t.eq(unknown, []);
+});
+
+t.test("every HTTP-like transport takes its host from the one field", () => {
+    let http = filter(listeners, (item) => item.tag == "vless http")[0];
+    t.eq([ http.transport.type, http.transport.host, http.transport.path ], [ "http", [ "h.example.com" ], "/h" ]);
 });
 
 t.test("a user carries only the fields of its protocol's user struct", () => {

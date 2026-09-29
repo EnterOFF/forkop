@@ -44,18 +44,6 @@ export function addClientCredentialOptions(
       return;
     }
 
-    if (field === 'authorized_keys') {
-      const keys = itemSection.option(
-        form.DynamicList,
-        'authorized_keys',
-        clientCredentialLabel(sectionId, field),
-      );
-      keys.rmempty = true;
-      keys.validate = (_id, value: string) =>
-        validateClientCredential(sectionId, 'authorized_keys', value);
-      return;
-    }
-
     const credential = itemSection.option(
       form.Value,
       field,
@@ -114,7 +102,7 @@ export function addClientRoutingOptions(
     form.Flag,
     'routing_override',
     _('Override routing'),
-    _('Route this client on its own path instead of the rest of the server'),
+    _("A routing mode of this client's own instead of the server's"),
   );
   override.default = '0';
   override.rmempty = true;
@@ -133,7 +121,6 @@ export function addClientRoutingOptions(
     form.ListValue,
     'routing_section',
     _('Routing section'),
-    _('Required. Where the traffic of this client leaves'),
   );
   routingSectionChoices().forEach(([value, label]) =>
     target.value(value, label),

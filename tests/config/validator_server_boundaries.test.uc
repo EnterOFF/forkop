@@ -15,17 +15,15 @@ let core = stub.real.getenv("FORKOP_SING_BOX_BIN");
 let dir = stub.tmpdir();
 let cert = dir + "/server.crt";
 let key = dir + "/server.key";
-let host_key = dir + "/ssh.key";
 
 if (core) {
     stub.real.system(sprintf("'%s' generate tls-keypair boundaries.example --months 1 >'%s/pair.pem' 2>/dev/null", core, dir));
     stub.real.system(sprintf("awk '/BEGIN CERTIFICATE/,/END CERTIFICATE/' '%s/pair.pem' >'%s'", dir, cert));
     stub.real.system(sprintf("awk '/BEGIN PRIVATE KEY/,/END PRIVATE KEY/' '%s/pair.pem' >'%s'", dir, key));
-    stub.real.system(sprintf("ssh-keygen -q -t ed25519 -N '' -f '%s' >/dev/null 2>&1", host_key));
 }
-for (let pair in [ [ cert, "CERTIFICATE" ], [ key, "PRIVATE KEY" ], [ host_key, "OPENSSH PRIVATE KEY" ] ])
+for (let pair in [ [ cert, "CERTIFICATE" ], [ key, "PRIVATE KEY" ] ])
     if (!fs.stat(pair[0])?.size)
-        fs.writefile(pair[0], sprintf("-----BEGIN %s-----\nplaceholder\n-----END %s-----\n", pair[1], pair[1]));
+        fs.writefile(pair[0], sprintf("-----BEGIN %s-----\ncGxhY2Vob2xkZXI=\n-----END %s-----\n", pair[1], pair[1]));
 
 function client(name, extra) {
     return { ".name": name, server: "srv", name: "phone", ...(extra ?? {}) };
@@ -35,7 +33,10 @@ function server(extra) {
     return { ".name": "srv", enabled: "1", label: "srv", listen: "0.0.0.0", listen_port: "20001", public_host: "203.0.113.9", ...extra };
 }
 
-const tls = { tls_certificate_path: cert, tls_key_path: key };
+const tls = { tls_self_signed_certificate: fs.readfile(cert), tls_self_signed_key: fs.readfile(key) };
+const mine = { tls_certificate: cert, tls_key: key };
+const own = (extra) => ({ protocol: "trojan", security: "tls", tls_certificate_source: "custom", ...extra });
+const encrypted_key = "-----BEGIN ENCRYPTED PRIVATE KEY-----\nMIIE\n-----END ENCRYPTED PRIVATE KEY-----";
 const reality = {
     security: "reality",
     tls_server_name: "example.com",
@@ -90,12 +91,11 @@ const cases = [
     [ "mieru transport", "unsupported mieru_transport", server({ protocol: "mieru", mieru_transport: "tcp" }), [ client("m", { password: "p" }) ] ],
     [ "mieru transport missing", "unsupported mieru_transport", server({ protocol: "mieru" }), [ client("m", { password: "p" }) ] ],
 
-    [ "naive network", "unsupported naive_network", server({ protocol: "naive", ...tls, naive_network: "quic" }), [ client("n", { password: "p" }) ] ],
-    [ "naive network pair", null, server({ protocol: "naive", ...tls, naive_network: "tcp_udp" }), [ client("n", { password: "p" }) ] ],
+    [ "naive network", "unsupported naive_network", server({ protocol: "naive", ...mine, naive_network: "quic" }), [ client("n", { password: "p" }) ] ],
+    [ "naive network pair", null, server({ protocol: "naive", ...mine, naive_network: "tcp_udp" }), [ client("n", { password: "p" }) ] ],
 
     [ "tuic congestion", "unsupported tuic_congestion_control",
         server({ protocol: "tuic", ...tls, tuic_congestion_control: "brutal" }), [ client("t", { uuid, password: "p" }) ] ],
-    [ "tuic heartbeat", "Invalid duration value", server({ protocol: "tuic", ...tls, tuic_heartbeat: "soon" }), [ client("t", { uuid, password: "p" }) ] ],
 
     [ "hysteria2 obfs type", "unsupported hysteria2_obfs_type",
         server({ protocol: "hysteria2", ...tls, hysteria2_obfs_type: "scramble", hysteria2_obfs_password: "p" }), [ client("h", { password: "p" }) ] ],
@@ -106,7 +106,7 @@ const cases = [
     [ "hysteria2 gecko", null,
         server({
             protocol: "hysteria2", ...tls, hysteria2_obfs_type: "gecko", hysteria2_obfs_password: "secret",
-            hysteria2_gecko_min_packet_size: "512", hysteria2_gecko_max_packet_size: "1200", hysteria2_bbr_profile: "conservative"
+            hysteria2_bbr_profile: "conservative"
         }), [ client("h", { password: "p" }) ] ],
 
     [ "reality short id odd", "even number of hex digits", server({ protocol: "vless", ...reality, reality_short_id: "abc" }), [ client("v", { uuid }) ] ],
@@ -115,14 +115,21 @@ const cases = [
     [ "reality short id 8 bytes", null, server({ protocol: "vless", ...reality, reality_short_id: "0123456789abcdef" }), [ client("v", { uuid }) ] ],
     [ "reality private key", "invalid reality_private_key", server({ protocol: "vless", ...reality, reality_private_key: "short" }), [ client("v", { uuid }) ] ],
 
-    [ "tls certificate file", "does not exist",
-        server({ protocol: "trojan", security: "tls", tls_certificate_path: "/tmp/forkop-absent.crt", tls_key_path: key }), [ client("t", { password: "p" }) ] ],
-    [ "ssh host key file", "does not exist", server({ protocol: "ssh", ssh_host_key_path: "/tmp/forkop-absent.key" }), [ client("s", { password: "p" }) ] ],
-    [ "ssh host key present", null, server({ protocol: "ssh", ssh_host_key_path: host_key }), [ client("s", { password: "p" }) ] ],
+    [ "a self-signed certificate not issued yet", "has no self-signed certificate yet",
+        server({ protocol: "hysteria2" }), [ client("h", { password: "p" }) ] ],
+    [ "an own certificate by path", null, server(own({ tls_certificate: cert, tls_key: key })), [ client("t", { password: "p" }) ] ],
+    [ "an own certificate pasted", null,
+        server(own({ tls_certificate: fs.readfile(cert), tls_key: fs.readfile(key) })), [ client("t", { password: "p" }) ] ],
+    [ "an own certificate file that is not there", "certificate file '/tmp/forkop-absent.crt' does not exist",
+        server(own({ tls_certificate: "/tmp/forkop-absent.crt", tls_key: key })), [ client("t", { password: "p" }) ] ],
+    [ "an own certificate that is not one", "not a PEM certificate",
+        server(own({ tls_certificate: "hello", tls_key: key })), [ client("t", { password: "p" }) ] ],
+    [ "an own key behind a passphrase", "not one unencrypted PEM private key",
+        server(own({ tls_certificate: cert, tls_key: encrypted_key })), [ client("t", { password: "p" }) ] ],
+    [ "an own certificate without its key", "needs the private key", server(own({ tls_certificate: cert })), [ client("t", { password: "p" }) ] ],
+    [ "an own certificate and key in one file", "same file", server(own({ tls_certificate: cert, tls_key: cert })), [ client("t", { password: "p" }) ] ],
+    [ "a NaiveProxy server without a certificate", "a browser trusts", server({ protocol: "naive", ...tls }), [ client("n", { password: "p" }) ] ],
 
-    [ "mtproto without faketls", "needs a FakeTLS host", server({ protocol: "mtproto" }), [ client("m", { secret: "0123456789abcdef0123456789abcdef" }) ] ],
-    [ "mtproto secret", "needs a 32 hex character secret",
-        server({ protocol: "mtproto", mtproto_faketls: "google.com" }), [ client("m", { secret: "not-a-secret" }) ] ],
 
     [ "openvpn", null, server(openvpn), [ client("o", openvpn_client) ] ],
     [ "openvpn over tcp with an ipv6 subnet", null,

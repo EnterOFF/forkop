@@ -6,13 +6,12 @@ import { DEFAULT_CLIENT_FINGERPRINT } from './constants';
 import {
   base64Encode,
   base64UrlEncode,
-  buildMtprotoFullSecret,
   encodeQuery,
-  normalizeMtprotoBaseSecret,
   normalizeSha256,
 } from './credentials';
 import { option, optionList } from './formValues';
 import { formatHostForUri } from './hosts';
+import { loadIssuedMaterial } from './issued';
 import { getListenPort, getPublicHost } from './network';
 import {
   credentialFields,
@@ -23,7 +22,7 @@ import {
   isAuthenticationEnabled,
   isShadowsocks2022,
   linkScheme,
-  usesGeneratedCertificate,
+  usesSelfSignedCertificate,
 } from './protocols';
 
 function clientLabel(sectionId: string, client: ServerClient) {
@@ -49,7 +48,7 @@ function transportQuery(
     params[grpcKey] = option(sectionId, 'transport_service_name');
   } else if (transport === 'http') {
     params.path = option(sectionId, 'transport_path');
-    params.host = optionList(sectionId, 'transport_hosts').join(',');
+    params.host = option(sectionId, 'transport_host');
   }
 
   return transport;
@@ -81,7 +80,7 @@ function tlsQuery(
       option(sectionId, 'client_fingerprint') || DEFAULT_CLIENT_FINGERPRINT;
   } else {
     params.sni = option(sectionId, 'tls_server_name');
-    if (usesGeneratedCertificate(sectionId)) {
+    if (usesSelfSignedCertificate(sectionId)) {
       params.insecure = '1';
     }
   }
@@ -143,13 +142,7 @@ function buildVlessLink(sectionId: string, client: ServerClient) {
 
 function buildTrojanLink(sectionId: string, client: ServerClient) {
   const params: Record<string, string> = {};
-
-  // The core refuses to represent a plaintext Trojan outbound as a share link,
-  // because no client format carries it.
-  if (tlsQuery(sectionId, params, true) === 'none') {
-    return '';
-  }
-
+  tlsQuery(sectionId, params, true);
   transportQuery(sectionId, params, 'grpc-service-name');
 
   return shareUrl(
@@ -248,15 +241,6 @@ function buildHysteria2Link(
     params['obfs-password'] = option(sectionId, 'hysteria2_obfs_password');
   }
 
-  const upMbps = option(sectionId, 'hysteria2_up_mbps');
-  const downMbps = option(sectionId, 'hysteria2_down_mbps');
-  if (upMbps) {
-    params.up = upMbps;
-  }
-  if (downMbps) {
-    params.down = downMbps;
-  }
-
   return shareUrl(
     'hysteria2',
     sectionId,
@@ -273,13 +257,6 @@ function buildTuicLink(sectionId: string, client: ServerClient) {
   const congestion = option(sectionId, 'tuic_congestion_control');
   if (congestion && congestion !== 'cubic') {
     params.congestion_control = congestion;
-  }
-  const heartbeat = option(sectionId, 'tuic_heartbeat');
-  if (heartbeat) {
-    params.heartbeat_interval = heartbeat;
-  }
-  if (option(sectionId, 'tuic_zero_rtt_handshake') === '1') {
-    params.zero_rtt_handshake = 'true';
   }
 
   return shareUrl(
@@ -321,30 +298,12 @@ function buildNaiveLink(sectionId: string, client: ServerClient) {
   );
 }
 
-function buildMtprotoLink(sectionId: string, client: ServerClient) {
-  const secret = normalizeMtprotoBaseSecret(client.secret);
-  if (!secret) {
-    return '';
-  }
-
-  const query = encodeQuery({
-    server: getPublicHost(sectionId),
-    port: getListenPort(sectionId),
-    secret: buildMtprotoFullSecret(
-      secret,
-      option(sectionId, 'mtproto_faketls'),
-    ),
-  });
-
-  return `https://t.me/proxy?${query}`;
-}
-
 export function hasRequiredCredentials(
   sectionId: string,
   client: ServerClient,
 ) {
   return credentialFields(getProtocol(sectionId))
-    .filter((field: string) => field !== 'flow' && field !== 'authorized_keys')
+    .filter((field: string) => field !== 'flow')
     .every((field: string) => {
       if (field === 'password' && !isAuthenticationEnabled(sectionId)) {
         return true;
@@ -383,10 +342,7 @@ export function buildClientLinks(
 ) {
   const protocol = getProtocol(sectionId);
 
-  // Only protocols the table gives a scheme have a share link at all. SSH is the
-  // one that has none, which is why its rows carry no details button either: what a
-  // client of an SSH server needs is the address, the account and its password, and
-  // the form shows all three.
+  // Only protocols the table gives a scheme have a share link at all.
   if (
     !client ||
     !linkScheme(protocol) ||
@@ -420,50 +376,24 @@ export function buildClientLinks(
       return single(buildNaiveLink(sectionId, client));
     case 'mieru':
       return single(buildMieruLink(sectionId, client));
-    case 'mtproto':
-      return single(buildMtprotoLink(sectionId, client));
     default:
       return [];
   }
 }
 
-function normalizeSha256Response(response: {
-  code?: number;
-  stdout?: string;
-  stderr?: string;
-}) {
-  if ((response.code ?? 0) !== 0 || !response.stdout) {
-    throw new Error(response.stderr || response.stdout || '');
-  }
-
-  const data = JSON.parse(response.stdout);
-  if (!data.success) {
-    throw new Error(data.message || '');
-  }
-
-  return normalizeSha256(data.sha256);
-}
-
-// Hysteria2 clients pin the certificate instead of trusting it, so the fingerprint
-// of Forkop's generated certificate is read from the router.
-export function loadLinkContext(sectionId: string) {
-  const certificatePinExpected =
-    getProtocol(sectionId) === 'hysteria2' &&
-    usesGeneratedCertificate(sectionId);
-
-  if (!certificatePinExpected) {
+// Hysteria2 clients pin the certificate instead of trusting it, so a link carries
+// the fingerprint of the certificate the router issued the server.
+export function loadLinkContext(sectionId: string): Promise<ShareLinkContext> {
+  if (
+    getProtocol(sectionId) !== 'hysteria2' ||
+    !usesSelfSignedCertificate(sectionId)
+  ) {
     return Promise.resolve({ tlsCertificateSha256: '' });
   }
 
-  return fs
-    .exec('/usr/bin/forkop', ['get_tls_certificate_sha256', sectionId])
-    .then(normalizeSha256Response)
-    .catch((error) => {
-      console.warn(
-        error?.message || 'Failed to read generated TLS certificate pin',
-        error,
-      );
-      return '';
-    })
-    .then((tlsCertificateSha256) => ({ tlsCertificateSha256 }));
+  return loadIssuedMaterial().then((material) => ({
+    tlsCertificateSha256: normalizeSha256(
+      material[sectionId]?.tls_self_signed_sha256,
+    ),
+  }));
 }

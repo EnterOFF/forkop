@@ -87,7 +87,6 @@ describe('server form', () => {
     expect(byName.protocol.widget).toBe('ListValue');
     expect(byName.listen_port.widget).toBe('Value');
     expect(byName.tls_alpn.widget).toBe('MultiValue');
-    expect(byName.transport_hosts.widget).toBe('DynamicList');
     expect(byName.inbound_json.widget).toBe('TextValue');
   });
 
@@ -100,6 +99,43 @@ describe('server form', () => {
     expect(names).toContain('tls_server_name');
     expect(names).not.toContain('reality_handshake_server');
     expect(names).not.toContain('reality_handshake_server_port');
+  });
+
+  // A TLS server serves what the router issued it unless it is given one of the
+  // user's; NaiveProxy has no choice, since its clients refuse a self-signed one.
+  it('asks for a certificate only where it is the user who supplies it', () => {
+    const { section } = build();
+    const shown = (name, values) =>
+      section.options
+        .find((option) => option.name === name)
+        .dependencies.some((dependency) =>
+          Object.entries(dependency).every(
+            ([key, value]) => (values[key] ?? '') === value,
+          ),
+        );
+    const fields = (values) =>
+      ['tls_certificate_source', 'tls_certificate', 'tls_key'].filter((name) =>
+        shown(name, values),
+      );
+
+    expect(fields({ protocol: 'trojan', security: 'tls' })).toEqual([
+      'tls_certificate_source',
+    ]);
+    expect(
+      fields({
+        protocol: 'trojan',
+        security: 'tls',
+        tls_certificate_source: 'custom',
+      }),
+    ).toEqual(['tls_certificate_source', 'tls_certificate', 'tls_key']);
+    expect(
+      fields({ protocol: 'hysteria2', tls_certificate_source: 'custom' }),
+    ).toEqual(['tls_certificate_source', 'tls_certificate', 'tls_key']);
+    expect(fields({ protocol: 'naive' })).toEqual([
+      'tls_certificate',
+      'tls_key',
+    ]);
+    expect(fields({ protocol: 'vless', security: 'reality' })).toEqual([]);
   });
 
   it('generates a name for a client from a button beside the field', () => {

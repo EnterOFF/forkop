@@ -77,12 +77,7 @@ export function addOpenVPNServerOptions(section: CBISection) {
   const onOpenVPN = (o: CBIOption, extra: Record<string, unknown> = {}) =>
     o.depends({ protocol: 'openvpn', ...extra });
 
-  let o = section.option(
-    form.ListValue,
-    'openvpn_network',
-    _('Transport'),
-    _('UDP is faster; TCP gets through networks that let only TCP out'),
-  );
+  let o = section.option(form.ListValue, 'openvpn_network', _('Transport'));
   o.value('udp', 'UDP');
   o.value('tcp', 'TCP');
   o.default = 'udp';
@@ -103,7 +98,7 @@ export function addOpenVPNServerOptions(section: CBISection) {
     'openvpn_address',
     _('Tunnel subnet'),
     _(
-      'The address of the server in the network of its clients, who get the other addresses. An IPv6 subnet can go beside the IPv4 one',
+      "The server's own address with a prefix, such as 10.8.0.1/24; clients get the other addresses of the subnet. An IPv6 subnet can go beside it",
     ),
   );
   o.placeholder = 'fd00:8::1/64';
@@ -128,7 +123,7 @@ export function addOpenVPNServerOptions(section: CBISection) {
     'openvpn_redirect_gateway',
     _('All traffic through the server'),
     _(
-      'Clients send everything through the router, where the routing mode decides where it goes. Off, they send only the subnets below',
+      'Clients send all of their traffic through the router, where the routing mode decides where it goes. Off, they send only the routes below',
     ),
   );
   o.default = '1';
@@ -136,14 +131,7 @@ export function addOpenVPNServerOptions(section: CBISection) {
   o.modalonly = true;
   onOpenVPN(o);
 
-  o = section.option(
-    form.DynamicList,
-    'openvpn_routes',
-    _('Routes'),
-    _(
-      'Subnets the clients reach through the server, such as the local network of the router',
-    ),
-  );
+  o = section.option(form.DynamicList, 'openvpn_routes', _('Routes'));
   o.placeholder = '192.168.1.0/24';
   o.modalonly = true;
   o.rmempty = true;

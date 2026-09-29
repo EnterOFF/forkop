@@ -1,16 +1,11 @@
-// The certificates and keys an OpenVPN profile carries, checked the way the
-// core reads them.
+// The certificates and keys an OpenVPN profile or a TLS server carries, checked
+// the way the core reads them.
 
 import { decodeBase64, isCertificate, pemBlocks } from './pem';
 
-export type OpenVPNMaterialKind =
-  | 'ca'
-  | 'certificate'
-  | 'key'
-  | 'static'
-  | 'crypt-v2';
+export type MaterialKind = 'ca' | 'certificate' | 'key' | 'static' | 'crypt-v2';
 
-export interface OpenVPNMaterialCheck {
+export interface MaterialCheck {
   valid: boolean;
   message: string;
 }
@@ -24,7 +19,28 @@ export function isRouterPath(value: string) {
   return /^\/[^\n]*$/.test(value.trim());
 }
 
-function invalid(message: string): OpenVPNMaterialCheck {
+// The certificates and the private key of a text that holds both, each as PEM
+// text of its own, or null when it holds only one of the two or several keys.
+export function splitCertificateAndKey(text: string) {
+  const blocks = Array.from(
+    `${text || ''}`.matchAll(
+      /-----BEGIN ([A-Z0-9 ]+)-----[\s\S]*?-----END \1-----/g,
+    ),
+  );
+  const certificates = blocks
+    .filter((block) => block[1] === 'CERTIFICATE')
+    .map((block) => block[0].replace(/\r/g, ''));
+  const keys = blocks
+    .filter((block) =>
+      [...PRIVATE_KEY_LABELS, 'ENCRYPTED PRIVATE KEY'].includes(block[1]),
+    )
+    .map((block) => block[0].replace(/\r/g, ''));
+  return certificates.length && keys.length === 1
+    ? { certificate: certificates.join('\n'), key: keys[0] }
+    : null;
+}
+
+function invalid(message: string): MaterialCheck {
   return { valid: false, message };
 }
 
@@ -86,10 +102,10 @@ function cryptV2Check(text: string) {
       );
 }
 
-export function checkOpenVPNMaterial(
-  kind: OpenVPNMaterialKind,
+export function checkMaterial(
+  kind: MaterialKind,
   value: unknown,
-): OpenVPNMaterialCheck {
+): MaterialCheck {
   const text = `${value ?? ''}`.trim();
   if (!text || isRouterPath(text)) return VALID;
   switch (kind) {

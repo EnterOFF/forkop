@@ -1,32 +1,12 @@
 // The profile an OpenVPN client imports: every directive it needs and every
 // certificate and key inline, so the one file is all a client is handed. The
-// certificates are issued by the router when the settings are applied, so they
-// are read from what the router holds rather than from the page's copy, which
-// the apply may have overtaken.
+// certificates are the ones the router issued when the settings were applied.
 
 import { getListenPort, getPublicHost } from './network';
 import { normalizeHost } from './hosts';
 import { option } from './formValues';
+import type { IssuedMaterial } from './issued';
 import { getServerName } from './protocols';
-
-let callUciValues: ((config: string) => Promise<unknown>) | null = null;
-
-export type OpenVPNMaterial = Record<string, Record<string, unknown>>;
-
-export function loadOpenVPNMaterial(): Promise<OpenVPNMaterial> {
-  callUciValues ??= rpc.declare({
-    object: 'uci',
-    method: 'get',
-    params: ['config'],
-    expect: { values: {} },
-  });
-  return callUciValues('forkop')
-    .then((values) => (values || {}) as OpenVPNMaterial)
-    .catch((error: unknown) => {
-      console.warn('Failed to read the OpenVPN certificates', error);
-      return {};
-    });
-}
 
 export type OpenVPNProfile =
   | { profile: string; fileName: string }
@@ -43,7 +23,7 @@ function fileName(value: string) {
 export function buildOpenVPNProfile(
   sectionId: string,
   client: ServerClient,
-  material: OpenVPNMaterial,
+  material: IssuedMaterial,
 ): OpenVPNProfile {
   const host = normalizeHost(getPublicHost(sectionId));
   const port = getListenPort(sectionId);

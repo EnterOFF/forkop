@@ -1,6 +1,6 @@
 // What a server section needs before sing-box can serve it: the defaults and
-// files the configuration refers to, the firewall rules that open its ports, and
-// the key material the Servers tab asks for.
+// key material the configuration refers to, and the firewall rules that open
+// its ports.
 
 let fs = require("fs");
 let common = require("core.common");
@@ -12,22 +12,15 @@ let singbox_constants = require("singbox.constants");
 const CONFIG_NAME = "forkop";
 
 let paths = {
-    certificates: "/etc/forkop/server-certs",
-    ssh_keys: "/etc/forkop/server-ssh",
     firewall_include: "/usr/share/nftables.d/chain-pre/input/forkop-servers.nft",
     firewall_init: "/etc/init.d/firewall"
 };
 
-// A self-signed certificate is pinned by its fingerprint or accepted without a
-// name check, so it has no reason to expire while its server runs; it is issued
-// again a month before it would.
-const CERTIFICATE_MONTHS = 120;
-const CERTIFICATE_RENEW_SECONDS = 30 * 24 * 3600;
-// Every profile of an OpenVPN server carries its certificate, and a client
-// checks the expiry of what it was given: a certificate issued again would
-// leave every profile handed out before it unable to connect.
-const OPENVPN_CERTIFICATE_MONTHS = 1200;
-const ORPHAN_MIN_AGE = 3600;
+// A client checks the expiry of a self-signed certificate it pins or trusts
+// through a profile, and one issued again would leave every link and profile
+// handed out before it unable to connect. So the router issues each once, for
+// a hundred years.
+const CERTIFICATE_MONTHS = 1200;
 const FIREWALL_COMMENT = singbox_constants.SERVER_FIREWALL_COMMENT;
 
 let changed = false;
@@ -60,14 +53,6 @@ function file_name(value) {
     return replace(common.as_string(value), /[^A-Za-z0-9_.-]/g, "_");
 }
 
-function valid_file_path(value) {
-    return match(value, /^\/[A-Za-z0-9_.\/-]+$/) != null && substr(value, -1) != "/";
-}
-
-function nonempty_file(path) {
-    return (fs.stat(path)?.size ?? 0) > 0;
-}
-
 function executable(path) {
     return ((fs.stat(path)?.mode ?? 0) & 0111) != 0;
 }
@@ -88,52 +73,6 @@ function pem_block(data, label) {
     return "";
 }
 
-function expiry_path(certificate_path) {
-    return certificate_path + ".expires";
-}
-
-function write_private_file(path, text) {
-    let file = fs.open(path, "w", 0600);
-    if (!file)
-        return false;
-    fs.chmod(path, 0600);
-    let written = file.write(text) != null;
-    file.close();
-    return written;
-}
-
-function issue_certificate_files(subject, certificate_path, key_path) {
-    let output = exec.output([ "sing-box", "generate", "tls-keypair", subject, "--months", "" + CERTIFICATE_MONTHS ]);
-    let key = pem_block(output, "PRIVATE KEY");
-    let certificate = pem_block(output, "CERTIFICATE");
-    if (key == "" || certificate == "")
-        return false;
-
-    if (!common.ensure_dir(common.parent_dir(key_path)) || !common.ensure_dir(common.parent_dir(certificate_path)))
-        return false;
-    if (!write_private_file(key_path, key + "\n") || !common.write_file(certificate_path, certificate + "\n"))
-        return false;
-
-    common.write_file(expiry_path(certificate_path), sprintf("%d\n", time() + CERTIFICATE_MONTHS * 30 * 24 * 3600));
-    return true;
-}
-
-// Forkop may replace what it issued into its own directory; a path the user chose
-// is theirs.
-function certificate_is_managed(certificate_path, key_path) {
-    let prefix = paths.certificates + "/";
-    return substr(certificate_path, 0, length(prefix)) == prefix && substr(key_path, 0, length(prefix)) == prefix;
-}
-
-// The expiry is stored next to the certificate because the router has no tool
-// that reads it out of the certificate; a pair without the stamp is replaced.
-function certificate_needs_replacement(certificate_path, key_path) {
-    if (!nonempty_file(certificate_path) || !nonempty_file(key_path))
-        return true;
-    let stamp = trim(fs.readfile(expiry_path(certificate_path)) ?? "");
-    return match(stamp, /^[0-9]+$/) == null || int(stamp) - time() < CERTIFICATE_RENEW_SECONDS;
-}
-
 function pem_sha256(text) {
     let pem = pem_block(text, "CERTIFICATE");
     let der = pem == "" ? null : b64dec(replace(replace(pem, /-----[A-Z ]+-----/g, ""), /[\r\n\t ]/g, ""));
@@ -150,85 +89,43 @@ function pem_sha256(text) {
     return match(fingerprint, /^[0-9a-f]{64}$/) ? fingerprint : "";
 }
 
-function certificate_sha256_of(path) {
-    return valid_file_path(path) ? pem_sha256(fs.readfile(path)) : "";
+function keypair(subject) {
+    let output = exec.output([ "sing-box", "generate", "tls-keypair", subject, "--months", "" + CERTIFICATE_MONTHS ]);
+    let key = pem_block(output, "PRIVATE KEY");
+    let certificate = pem_block(output, "CERTIFICATE");
+    return key == "" || certificate == "" ? null : { key, certificate };
 }
 
-// What a client checks the certificate against: the SNI, else the address the
-// links carry, else the name the server is shown under.
+// The name a self-signed certificate is issued for: the SNI, else the address
+// the links carry, else the name the server is shown under. A client accepts it
+// without a name check, so it only matters to whoever looks at it.
 function certificate_subject(name) {
     return trim(get(name, "tls_server_name")) || trim(get(name, "public_host")) || trim(get(name, "label")) || name;
 }
 
-function prepare_certificate(name, security) {
-    if (security != "tls")
+// The certificate a TLS server serves unless it is given one of the user's.
+// Its fingerprint is what a Hysteria2 link pins.
+function prepare_self_signed_certificate(name, protocol) {
+    let section = uci.get_all(CONFIG_NAME, name) ?? {};
+    if (servers.effective_security(section, protocol) != "tls" || servers.certificate_source(section, protocol) != "self_signed")
         return;
 
-    let certificate_path = get(name, "tls_certificate_path");
-    let key_path = get(name, "tls_key_path");
-    // The dialog asks for both paths and its button fills them in; a server with
-    // neither was never configured, and the runtime check names the field.
-    if (certificate_path == "" && key_path == "")
-        return;
-
-    if (!valid_file_path(certificate_path))
-        die("Server '" + label(name) + "' has an invalid TLS certificate path. Enter the path of a file");
-    if (!valid_file_path(key_path))
-        die("Server '" + label(name) + "' has an invalid TLS key path. Enter the path of a file");
-    if (certificate_path == key_path)
-        die("Server '" + label(name) + "' uses the same path for its TLS certificate and key. Enter different files");
-
-    if (!certificate_is_managed(certificate_path, key_path) || !certificate_needs_replacement(certificate_path, key_path))
-        return;
-
-    if (!issue_certificate_files(certificate_subject(name), certificate_path, key_path))
-        die("Failed to issue a TLS certificate for server '" + label(name) + "'");
-    exec.log("info", "Issued a self-signed TLS certificate for server '" + label(name) + "'");
-}
-
-// sing-box invents a host key when it is given none, a new one on every start,
-// so every client would meet a changed fingerprint after every reload.
-function write_ssh_host_key(key_path) {
-    let directory = common.parent_dir(key_path) || "/";
-    if (!common.ensure_dir(directory))
-        return false;
-    let now = clock();
-    let temporary = sprintf("%s/.forkop-ssh.%d.%d", directory, now[0], now[1]);
-    if (!fs.mkdir(temporary, 0700))
-        return false;
-
-    let dropbear_key = temporary + "/dropbear";
-    let openssh_key = temporary + "/openssh";
-    let generated = exec.ok([ "dropbearkey", "-t", "ed25519", "-f", dropbear_key ]) &&
-        exec.ok([ "dropbearconvert", "dropbear", "openssh", dropbear_key, openssh_key ]) &&
-        fs.chmod(openssh_key, 0600) &&
-        fs.rename(openssh_key, key_path);
-
-    common.remove_tree(temporary);
-    return !!generated;
-}
-
-function prepare_ssh_host_keys(name) {
-    for (let key_path in common.words(get(name, "ssh_host_key_path"))) {
-        if (!valid_file_path(key_path))
-            die("Server '" + label(name) + "' has an invalid SSH host key path. Enter the path of a file");
-        if (nonempty_file(key_path))
-            continue;
-        if (!write_ssh_host_key(key_path))
-            die("Failed to generate an SSH host key for server '" + label(name) + "'");
-        exec.log("info", "Generated an SSH host key for server '" + label(name) + "'");
+    if (get(name, "tls_self_signed_certificate") == "" || get(name, "tls_self_signed_key") == "") {
+        let pair = keypair(certificate_subject(name));
+        if (pair == null)
+            die("Failed to issue a TLS certificate for server '" + label(name) + "'");
+        set_value(name, "tls_self_signed_certificate", pair.certificate);
+        set_value(name, "tls_self_signed_key", pair.key);
+        exec.log("info", "Issued a self-signed TLS certificate for server '" + label(name) + "'");
     }
+    let fingerprint = pem_sha256(get(name, "tls_self_signed_certificate"));
+    if (fingerprint == "")
+        die("The self-signed TLS certificate of server '" + label(name) + "' cannot be read");
+    set_value(name, "tls_self_signed_sha256", fingerprint);
 }
 
 function clients_of(name) {
     return filter(section_names("server_client"), (client) => get(client, "server") == name);
-}
-
-function openvpn_keypair(subject) {
-    let output = exec.output([ "sing-box", "generate", "tls-keypair", subject, "--months", "" + OPENVPN_CERTIFICATE_MONTHS ]);
-    let key = pem_block(output, "PRIVATE KEY");
-    let certificate = pem_block(output, "CERTIFICATE");
-    return key == "" || certificate == "" ? null : { key, certificate };
 }
 
 // The key of tls-crypt: 2048 random bits in the text form OpenVPN writes them.
@@ -255,7 +152,7 @@ function openvpn_static_key() {
 // belongs to, which the name a client is shown under is not bound by.
 function prepare_openvpn(name) {
     if (get(name, "openvpn_certificate") == "" || get(name, "openvpn_key") == "") {
-        let pair = openvpn_keypair(file_name(name));
+        let pair = keypair(file_name(name));
         if (pair == null)
             die("Failed to issue the OpenVPN certificate of server '" + label(name) + "'");
         set_value(name, "openvpn_certificate", pair.certificate);
@@ -272,7 +169,7 @@ function prepare_openvpn(name) {
     for (let client in clients_of(name)) {
         let client_name = get(client, "name", client);
         if (get(client, "openvpn_certificate") == "" || get(client, "openvpn_key") == "") {
-            let pair = openvpn_keypair(file_name(client));
+            let pair = keypair(file_name(client));
             if (pair == null)
                 die("Failed to issue the OpenVPN certificate of client '" + client_name + "' of server '" + label(name) + "'");
             set_value(client, "openvpn_certificate", pair.certificate);
@@ -296,17 +193,8 @@ function login_safe_name(value, fallback) {
     return result == "" ? fallback : result;
 }
 
-function mtproto_secret_parts(value) {
-    value = lc(value);
-    if (match(value, /^[0-9a-f]{32}$/))
-        return { secret: value, faketls: "" };
-    if (match(value, /^ee[0-9a-f]{32}([0-9a-f]{2})+$/))
-        return { secret: substr(value, 2, 32), faketls: hexdec(substr(value, 34)) ?? "" };
-    return { secret: "", faketls: "" };
-}
-
-// Client names and MTProto secrets are normalised, never invented: a client with
-// no credentials is reported by the validator instead.
+// Client names are normalised, never invented: a client with no credentials is
+// reported by the validator instead.
 function prepare_clients(name, protocol) {
     if (length(servers.CLIENT_FIELDS[protocol] ?? []) == 0)
         return;
@@ -318,14 +206,6 @@ function prepare_clients(name, protocol) {
         else if (client_name == "")
             client_name = label(name);
         set_value(client, "name", client_name);
-
-        if (protocol == "mtproto") {
-            let raw = get(client, "secret");
-            let parts = mtproto_secret_parts(raw);
-            if (parts.secret != "" && parts.secret != raw)
-                set_value(client, "secret", parts.secret);
-            set_value(name, "mtproto_faketls", parts.faketls);
-        }
     }
 }
 
@@ -359,11 +239,9 @@ function prepare_server(name) {
     }
     if (protocol == "shadowsocks")
         set_if_empty(name, "shadowsocks_method", "2022-blake3-aes-256-gcm");
-    if (protocol == "ssh")
-        prepare_ssh_host_keys(name);
 
     prepare_clients(name, protocol);
-    prepare_certificate(name, servers.effective_security(uci.get_all(CONFIG_NAME, name) ?? {}, protocol));
+    prepare_self_signed_certificate(name, protocol);
 }
 
 // Nothing is removed while there are no servers at all: an empty list cannot be
@@ -379,40 +257,6 @@ function remove_orphaned_clients(names) {
         changed = true;
         exec.log("info", "Removed client '" + client_name + "' of a server that no longer exists");
     }
-}
-
-// A file in Forkop's own directories belongs to a server when a path of any
-// server points at it or when it carries the name Forkop gives a server's files.
-function owned_files(names) {
-    let owned = {};
-    for (let name in names) {
-        let base = file_name(name);
-        for (let file in [ base + ".crt", base + ".key", base + ".crt.expires" ])
-            owned[paths.certificates + "/" + file] = true;
-        owned[paths.ssh_keys + "/" + base + ".key"] = true;
-
-        for (let key in [ "tls_certificate_path", "tls_key_path", "ssh_host_key_path" ])
-            for (let path in common.words(get(name, key))) {
-                owned[path] = true;
-                owned[expiry_path(path)] = true;
-            }
-    }
-    return owned;
-}
-
-// A file issued in the last hour can belong to a server whose dialog is still
-// open, and whose section is not saved yet.
-function remove_orphaned_files(names) {
-    let owned = owned_files(names);
-    for (let directory in [ paths.certificates, paths.ssh_keys ])
-        for (let file in fs.lsdir(directory) ?? []) {
-            let path = directory + "/" + file;
-            let stat = fs.stat(path);
-            if (owned[path] || stat?.type != "file" || time() - stat.mtime < ORPHAN_MIN_AGE)
-                continue;
-            if (fs.unlink(path))
-                exec.log("info", "Removed " + path + " of a server that no longer exists");
-        }
 }
 
 // The defaults, names, keys and certificates the servers need before the
@@ -432,7 +276,6 @@ function remove_orphans() {
     if (length(names) == 0)
         return;
     remove_orphaned_clients(names);
-    remove_orphaned_files(names);
     if (changed)
         uci.commit(CONFIG_NAME);
 }
@@ -517,48 +360,4 @@ function reality_keypair() {
     return { private_key: private_key[2], public_key: public_key[2] };
 }
 
-function issue_certificate(subject, name) {
-    subject = trim(subject);
-    name = file_name(trim(name));
-    if (subject == "" || name == "")
-        die("Missing certificate subject or name");
-
-    let certificate_path = paths.certificates + "/" + name + ".crt";
-    let key_path = paths.certificates + "/" + name + ".key";
-    if (!valid_file_path(certificate_path) || !valid_file_path(key_path))
-        die("Invalid certificate name");
-    if (!issue_certificate_files(subject, certificate_path, key_path))
-        die("Failed to generate the TLS certificate");
-
-    return { certificate_path, key_path, sha256: certificate_sha256_of(certificate_path) };
-}
-
-function issue_ssh_host_key(name) {
-    name = file_name(trim(name));
-    if (name == "")
-        die("Missing host key name");
-
-    let key_path = paths.ssh_keys + "/" + name + ".key";
-    if (!valid_file_path(key_path))
-        die("Invalid host key name");
-    if (!write_ssh_host_key(key_path))
-        die("Failed to generate the SSH host key");
-    return { key_path };
-}
-
-function certificate_sha256(name) {
-    if (name == "")
-        die("Missing server section");
-    if (servers.effective_security(uci.get_all(CONFIG_NAME, name) ?? {}, get(name, "protocol", "vless")) != "tls")
-        die("Server does not use TLS");
-
-    let certificate_path = get(name, "tls_certificate_path");
-    if (certificate_path == "")
-        die("TLS certificate path is empty");
-    let sha256 = certificate_sha256_of(certificate_path);
-    if (sha256 == "")
-        die("Failed to read TLS certificate fingerprint");
-    return { sha256 };
-}
-
-return { paths, prepare, remove_orphans, sync_firewall, reality_keypair, issue_certificate, issue_ssh_host_key, certificate_sha256 };
+return { paths, prepare, remove_orphans, sync_firewall, reality_keypair };

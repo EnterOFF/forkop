@@ -11,7 +11,6 @@ export function addClientListOption(section: CBISection) {
     ButtonAddSettingsDynamicList,
     'clients',
     _('Clients'),
-    _('Required. The clients that may connect'),
   );
   o.modalonly = true;
   o.rmempty = false;

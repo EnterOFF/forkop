@@ -30,12 +30,6 @@ export function randomItem<T>(items: T[]): T {
   return items[randomBytes(1)[0] % items.length];
 }
 
-function stringToHex(value: unknown) {
-  return Array.from(unescape(encodeURIComponent(`${value || ''}`)))
-    .map((char) => char.charCodeAt(0).toString(16).padStart(2, '0'))
-    .join('');
-}
-
 // Text, so the string is UTF-8 encoded first: btoa() only takes code points below
 // 256 and a label may hold anything.
 export function base64Encode(value: string) {
@@ -90,13 +84,6 @@ export function generatePresharedKey(byteLength: number) {
   return base64EncodeBytes(randomBytes(byteLength));
 }
 
-function generateMtprotoSecret() {
-  const secret = randomHex(16);
-  return secret === '00000000000000000000000000000000'
-    ? '11111111111111111111111111111111'
-    : secret;
-}
-
 export function randomPort() {
   const bytes = randomBytes(2);
   return `${20000 + (((bytes[0] << 8) | bytes[1]) % 30000)}`;
@@ -117,23 +104,6 @@ export function encodeQuery(params: Record<string, string>) {
     .join('&');
 }
 
-export function normalizeMtprotoBaseSecret(value: unknown) {
-  const secret = `${value || ''}`.trim().toLowerCase();
-
-  if (/^[0-9a-f]{32}$/.test(secret)) {
-    return secret;
-  }
-  if (/^ee[0-9a-f]{32}(?:[0-9a-f]{2})+$/.test(secret)) {
-    return secret.slice(2, 34);
-  }
-
-  return '';
-}
-
-export function buildMtprotoFullSecret(baseSecret: string, faketls: string) {
-  return `ee${baseSecret}${stringToHex(faketls || 'google.com')}`;
-}
-
 // The credential a client field expects for the current protocol.
 export function generateCredential(
   sectionId: string,
@@ -142,9 +112,6 @@ export function generateCredential(
 ) {
   if (field === 'uuid') {
     return generateUuid();
-  }
-  if (field === 'secret') {
-    return generateMtprotoSecret();
   }
   if (field === 'password') {
     const keyBytes =

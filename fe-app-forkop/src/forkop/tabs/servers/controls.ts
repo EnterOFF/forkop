@@ -3,7 +3,7 @@ import { showToast } from '../../../helpers/showToast';
 import { CAMOUFLAGE_SITES, STYLE_ID } from './constants';
 import { randomItem } from './credentials';
 import { iconSvg } from './details';
-import { liveOption, option, widgetNode } from './formValues';
+import { option, widgetNode } from './formValues';
 import {
   getEffectiveSecurity,
   getProtocol,
@@ -221,9 +221,8 @@ export function syncSecurityChoices(
   select.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
-// A camouflage host is picked once per dialog, so the SNI a link carries and the
-// FakeTLS host of the same server keep the domain the dialog offered rather than
-// each rolling their own.
+// A camouflage host is picked once per dialog, so the SNI keeps the domain the
+// dialog offered rather than rolling another one every time it is loaded.
 const camouflageChoice = new Map<string, string>();
 
 export function camouflageSite(sectionId: string, reroll?: boolean) {
@@ -294,26 +293,12 @@ function generateRealityKeypair(_sectionId: string) {
     });
 }
 
-// The subject a client checks, taken from the dialog as it stands: the SNI when
-// there is one, otherwise the address the links carry, otherwise the name of the
-// server. The section id is never it.
-function certificateSubject(sectionId: string) {
-  return (
-    liveOption(sectionId, 'tls_server_name') ||
-    liveOption(sectionId, 'public_host') ||
-    liveOption(sectionId, 'label') ||
-    sectionId
-  );
-}
-
-// Writing files happens when a button is pressed, not while the service starts, and
-// the path that was written becomes the value of the field instead of a convention
-// only Forkop knows. The certificate and the SSH host key are both issued this way.
+// A button beside a field that asks the router for something and fills the
+// answer in, disabled while the request runs.
 function addIssueButton(
   optionRef: CBIOption,
   label: string,
   request: (sectionId: string, node: HTMLElement) => Promise<unknown>,
-  offered?: (protocol: string) => boolean,
 ) {
   const renderWidget = optionRef.renderWidget;
 
@@ -348,113 +333,8 @@ function addIssueButton(
         });
     });
 
-    const row = E('div', { class: 'fkp-generate-row' }, [node, button]);
-    if (typeof offered === 'function') {
-      showIssueButton(row, offered(getProtocol(sectionId)));
-    }
-
-    return row;
+    return E('div', { class: 'fkp-generate-row' }, [node, button]);
   };
-}
-
-// The button is built once, with whatever protocol the dialog held at that moment,
-// and a later protocol change only shows and hides the fields - LuCI does not build
-// them again. So the button is shown and hidden the same way instead of being decided
-// at render time: a server that started as Mixed and became NaiveProxy kept a button
-// an existing NaiveProxy server never had.
-//
-// Inline, because the rule that lays the button out inside the row is a class
-// selector and would win over [hidden]; the column goes with it, or its gap stays
-// behind an input that now fills the row.
-function showIssueButton(row: HTMLElement, shown: boolean) {
-  const button = row.querySelector<HTMLElement>('.fkp-generate');
-  if (!button) {
-    return;
-  }
-
-  button.style.display = shown ? '' : 'none';
-  row.style.gridTemplateColumns = shown ? '' : 'minmax(0,1fr)';
-}
-
-// The certificate Forkop issues is self-signed, and a NaiveProxy client verifies it
-// the way a browser does, so pressing the button there would only build a listener no
-// client reaches. The two path fields stay, for a certificate of your own.
-function offersCertificateButton(protocol: unknown) {
-  return protocol !== 'naive';
-}
-
-export function syncCertificateButton(sectionId: string, protocol: unknown) {
-  const node = widgetNode(sectionId, 'tls_certificate_path');
-  if (node && node.parentElement) {
-    showIssueButton(node.parentElement, offersCertificateButton(protocol));
-  }
-}
-
-function issueRequest(
-  verb: string,
-  args: string[],
-  onResult: (data: ForkopIssueResult) => void,
-) {
-  return fs.exec('/usr/bin/forkop', [verb, ...args]).then((response) => {
-    if ((response.code ?? 0) !== 0 || !response.stdout) {
-      throw new Error(response.stderr || response.stdout || '');
-    }
-    const data = JSON.parse(response.stdout);
-    if (!data.success) {
-      throw new Error(data.message || '');
-    }
-    onResult(data);
-  });
-}
-
-export function addCertificateButton(optionRef: CBIOption) {
-  addIssueButton(
-    optionRef,
-    _('Generate a certificate'),
-    (sectionId: string) =>
-      issueRequest(
-        'generate_server_certificate',
-        // The section id, not the display name: a name has to be sanitised to be a
-        // file name, and two servers named in Cyrillic would sanitise to the same one.
-        [certificateSubject(sectionId), sectionId],
-        (data) => {
-          if (!data.certificate_path || !data.key_path) {
-            throw new Error('');
-          }
-          applyFieldValue(
-            sectionId,
-            'tls_certificate_path',
-            data.certificate_path,
-          );
-          applyFieldValue(sectionId, 'tls_key_path', data.key_path);
-          showToast(_('Certificate generated'), 'success');
-        },
-      ).catch((error) => {
-        showToast(_('Could not generate a certificate'), 'error');
-        throw error;
-      }),
-    offersCertificateButton,
-  );
-}
-
-// One key. An SSH server can hold several so that an old client finds an algorithm
-// it knows, but AddHostKey replaces a key of the same type instead of adding it, and
-// Forkop only issues ed25519 - so a second generated key would silently take the
-// place of the first. Every client that reaches a proxy inbound has known ed25519
-// for a decade; a second algorithm belongs in a JSON inbound.
-export function addSshHostKeyButton(optionRef: CBIOption) {
-  addIssueButton(optionRef, _('Generate a host key'), (sectionId: string) =>
-    issueRequest('generate_ssh_host_key', [sectionId], (data) => {
-      if (!data.key_path) {
-        throw new Error('');
-      }
-      applyFieldValue(sectionId, 'ssh_host_key_path', data.key_path);
-      showToast(_('Host key generated'), 'success');
-    }).catch((error) => {
-      showToast(_('Could not generate a host key'), 'error');
-      throw error;
-    }),
-  );
 }
 
 // Both halves of the pair are written at once, so the button sits on the private

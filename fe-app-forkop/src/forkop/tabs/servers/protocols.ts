@@ -1,8 +1,4 @@
-import {
-  DEFAULT_PROTOCOL,
-  SERVER_CERT_DIR,
-  SHADOWSOCKS_METHODS,
-} from './constants';
+import { DEFAULT_PROTOCOL, SHADOWSOCKS_METHODS } from './constants';
 import {
   coreFeatureOfType,
   coreHas,
@@ -22,14 +18,12 @@ import { liveOption, option } from './formValues';
 //   login     - the client name is the account name sent on the wire, so it has to
 //               stay inside the ASCII subset clients and URIs can carry
 //   link      - the share link scheme, empty when the protocol has no URI format
-//   tcp       - the listener carries TCP, so TCP Fast Open applies
 export const PROTOCOLS = [
   {
     id: 'mixed',
     label: 'Mixed',
     kind: 'inbound',
     securities: ['none'],
-    tcp: true,
     login: true,
     optionalAuth: 'mixed_auth_enabled',
     credentials: ['password'],
@@ -60,7 +54,6 @@ export const PROTOCOLS = [
     securities: ['reality', 'tls', 'none'],
     transport: true,
     multiplex: true,
-    tcp: true,
     credentials: ['uuid', 'flow'],
     link: 'vless',
   },
@@ -71,7 +64,6 @@ export const PROTOCOLS = [
     securities: ['tls', 'none'],
     transport: true,
     multiplex: true,
-    tcp: true,
     credentials: ['uuid'],
     link: 'vmess',
   },
@@ -79,10 +71,9 @@ export const PROTOCOLS = [
     id: 'trojan',
     label: 'Trojan',
     kind: 'inbound',
-    securities: ['tls', 'none'],
+    securities: ['tls'],
     transport: true,
     multiplex: true,
-    tcp: true,
     credentials: ['password'],
     link: 'trojan',
   },
@@ -92,7 +83,6 @@ export const PROTOCOLS = [
     kind: 'inbound',
     securities: ['none'],
     multiplex: true,
-    tcp: true,
     credentials: ['password'],
     link: 'ss',
   },
@@ -117,7 +107,6 @@ export const PROTOCOLS = [
     label: 'AnyTLS',
     kind: 'inbound',
     securities: ['tls'],
-    tcp: true,
     credentials: ['password'],
     link: 'anytls',
   },
@@ -126,39 +115,18 @@ export const PROTOCOLS = [
     label: 'NaiveProxy',
     kind: 'inbound',
     securities: ['tls'],
-    tcp: true,
     login: true,
     credentials: ['password'],
     link: 'naive',
-  },
-  {
-    id: 'ssh',
-    label: 'SSH',
-    kind: 'inbound',
-    securities: ['none'],
-    tcp: true,
-    login: true,
-    credentials: ['password', 'authorized_keys'],
   },
   {
     id: 'mieru',
     label: 'Mieru',
     kind: 'inbound',
     securities: ['none'],
-    tcp: true,
     login: true,
     credentials: ['password'],
     link: 'mierus',
-  },
-  {
-    id: 'mtproto',
-    label: 'MTProto',
-    kind: 'inbound',
-    coreType: 'mtproxy',
-    securities: ['none'],
-    tcp: true,
-    credentials: ['secret'],
-    link: 'mtproto',
   },
   {
     id: 'json_inbound',
@@ -354,15 +322,23 @@ export function getShadowsocksMethod(sectionId: string) {
   );
 }
 
-function isForkopCertificatePath(path: unknown) {
-  return `${path || ''}`.startsWith(SERVER_CERT_DIR);
+// Where the certificate of a TLS server comes from, as singbox/servers.uc reads
+// it: a NaiveProxy client trusts nothing but what a browser would, so that server
+// always takes the user's own.
+export function certificateSource(sectionId: string) {
+  return getProtocol(sectionId) === 'naive' ||
+    liveOption(sectionId, 'tls_certificate_source') === 'custom'
+    ? 'custom'
+    : 'self_signed';
 }
 
-// A server that keeps Forkop's own certificate path serves a self-signed
-// certificate, so its links have to tell the client to accept it.
-export function usesGeneratedCertificate(sectionId: string) {
-  const path = option(sectionId, 'tls_certificate_path');
-  return !path || isForkopCertificatePath(path);
+// A server on the certificate the router issued it hands out links that tell the
+// client to accept it.
+export function usesSelfSignedCertificate(sectionId: string) {
+  return (
+    getEffectiveSecurity(sectionId) === 'tls' &&
+    certificateSource(sectionId) === 'self_signed'
+  );
 }
 
 // The core feature a protocol needs, or '' for one every build has.

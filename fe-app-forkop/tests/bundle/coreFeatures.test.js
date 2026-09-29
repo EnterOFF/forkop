@@ -46,7 +46,7 @@ describe('the Servers tab', () => {
     await protocol.load('srv');
 
     expect(protocol.keylist).toEqual(
-      expect.arrayContaining(['mixed', 'vless', 'naive', 'mtproto']),
+      expect.arrayContaining(['mixed', 'vless', 'naive', 'mieru']),
     );
     for (const missing of ['hysteria2', 'tuic', 'tailscale'])
       expect(protocol.keylist).not.toContain(missing);

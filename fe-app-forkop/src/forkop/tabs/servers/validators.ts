@@ -2,9 +2,9 @@
 // produces a configuration the service can start with. A field is required here
 // only when the core has no default for it.
 
-import { validatePath } from '../../../validators/validatePath';
+import { isRouterPath } from '../../../helpers/material';
+import { decodeBase64 } from '../../../helpers/pem';
 import { validateCoreFeature } from '../../services/coreFeatures.service';
-import { normalizeMtprotoBaseSecret } from './credentials';
 import {
   hasControlCharacters,
   isEmptyValue,
@@ -17,7 +17,6 @@ import {
   isIpv6,
   isValidCidr,
   normalizeCidrOrIp,
-  normalizeHost,
 } from './hosts';
 import { occupiedPorts } from './network';
 import {
@@ -70,56 +69,26 @@ export function validateOptionalHost(_sectionId: string, value: string) {
     : _('Use a domain name or IP address');
 }
 
+// The address is stored as it is typed and the core reads it as a bare IP, so
+// the brackets a URL puts around IPv6 are not taken off here.
 export function validateListenAddress(_sectionId: string, value: string) {
-  const address = normalizeHost(value);
-  return address === '0.0.0.0' ||
-    address === '::' ||
-    isIpv4(address) ||
-    isIpv6(address)
+  const address = `${value || ''}`.trim();
+  return !/[[\]]/.test(address) &&
+    (address === '0.0.0.0' ||
+      address === '::' ||
+      isIpv4(address) ||
+      isIpv6(address))
     ? true
     : _('Use an IP address, 0.0.0.0 for all IPv4, or :: for all addresses');
 }
 
-export function validateFilePath(_sectionId: string, value: string) {
-  const path = `${value || ''}`;
-
-  if (isEmptyValue(path)) {
-    return _('This field is required');
-  }
-
-  const validation = validatePath(path);
-  return validation.valid && path !== '/' && !path.endsWith('/')
-    ? true
-    : _('Specify a file path');
-}
-
-// Both halves are required, and they cannot be the same file.
-function validateTlsPathPair(
-  sectionId: string,
-  value: string,
-  otherName: string,
-) {
-  const required = validateRequiredText(sectionId, value);
-  if (required !== true) {
-    return required;
-  }
-
-  const result = validateFilePath(sectionId, value);
-  if (result !== true) {
-    return result;
-  }
-
-  return `${value}` === liveOption(sectionId, otherName)
+// A key read from the file the certificate is read from is refused by the core.
+export function validateKeyFile(sectionId: string, value: string) {
+  const key = `${value || ''}`.trim();
+  return isRouterPath(key) &&
+    key === liveOption(sectionId, 'tls_certificate').trim()
     ? _('The certificate and the key must be different files')
     : true;
-}
-
-export function validateTlsCertificatePath(sectionId: string, value: string) {
-  return validateTlsPathPair(sectionId, value, 'tls_key_path');
-}
-
-export function validateTlsKeyPath(sectionId: string, value: string) {
-  return validateTlsPathPair(sectionId, value, 'tls_certificate_path');
 }
 
 function validateHttpUrl(_sectionId: string | null, value: string) {
@@ -188,12 +157,6 @@ export function validateTransportPath(_sectionId: string, value: string) {
     : _('The path must start with /');
 }
 
-export function validateOptionalHostList(_sectionId: string, value: string) {
-  return valueList(value).some((item) => !isHost(item))
-    ? _('Use a domain name or IP address')
-    : true;
-}
-
 export function validateGrpcServiceName(_sectionId: string, value: string) {
   return isEmptyValue(value) || /^[A-Za-z0-9_.-]+$/.test(`${value}`)
     ? true
@@ -240,18 +203,6 @@ export function validateRealityKey(_sectionId: string, value: string) {
     : _('A Reality key is 43 base64url characters');
 }
 
-export function validateMtprotoSecret(_sectionId: string, value: string) {
-  const secret = normalizeMtprotoBaseSecret(value);
-
-  if (!secret) {
-    return _('Use 32 hex characters');
-  }
-
-  return secret === '00000000000000000000000000000000'
-    ? _('Use a non-zero secret')
-    : true;
-}
-
 export function validateSecurity(sectionId: string, value: string) {
   const protocol = getProtocol(sectionId);
   const selected = value || defaultSecurity(protocol);
@@ -273,27 +224,12 @@ export function validateShadowsocksPassword(sectionId: string, value: string) {
     return true;
   }
 
-  let decoded = null;
-  try {
-    decoded = atob(`${value}`.trim());
-  } catch (_error) {
-    decoded = null;
-  }
-
+  // Padded standard base64, the way the core decodes it: atob would also take
+  // a key without its padding, which the core refuses.
+  const decoded = decodeBase64(`${value}`.trim());
   return decoded != null && decoded.length === keyBytes
     ? true
     : _('This method needs a base64 key of %d bytes').format(keyBytes);
-}
-
-export function validateAuthorizedKeys(_sectionId: string, value: string) {
-  return valueList(value).some(
-    (item) =>
-      !/^(ssh|ecdsa|sk-ssh|sk-ecdsa)[A-Za-z0-9@.-]*\s+[A-Za-z0-9+/=]+(\s.*)?$/.test(
-        `${item}`.trim(),
-      ),
-  )
-    ? _('Use an OpenSSH public key line')
-    : true;
 }
 
 export function validateListenPort(sectionId: string, value: string) {

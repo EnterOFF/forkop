@@ -34,7 +34,7 @@ import { tunnelKindAvailable, tunnelKindCoreFeature } from '../coreSupport';
 import { missingCoreFeatureNote } from '../../../services/coreFeatures.service';
 import { parseOutboundJsonObject } from '../outboundJson';
 import { addOpenVPNOptions, applyImportedOpenVPN } from './openvpnForm';
-import { pickFiles, readMaterialFile } from './material';
+import { pickFiles, readMaterialFile } from '../../../cbi/material';
 import { showToast } from '../../../../helpers/showToast';
 import {
   looksLikeOpenVPNConfig,

@@ -29,13 +29,11 @@ function contains(values, needle) {
 // asked: its listener takes the default network, which is TCP and UDP, and the
 // UDP half is how a client relays datagrams.
 // The `type` the generator writes into the sing-box inbound or endpoint. Only
-// MTProto and OpenVPN are named differently there.
+// OpenVPN is named differently there.
 function runtime_type(protocol) {
     protocol = as_string(protocol);
     if (protocol == "json_inbound")
         return "";
-    if (protocol == "mtproto")
-        return "mtproxy";
     if (protocol == "openvpn")
         return "openvpn-server";
     return protocol;

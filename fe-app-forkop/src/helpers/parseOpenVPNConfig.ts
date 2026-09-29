@@ -3,8 +3,8 @@
 // directive per line, quoted arguments, inline <blocks>, and files it names
 // taken from the files handed over with it.
 
-import { checkOpenVPNMaterial } from './openvpnMaterial';
-import type { OpenVPNMaterialKind } from './openvpnMaterial';
+import { checkMaterial } from './material';
+import type { MaterialKind } from './material';
 
 export type OpenVPNFiles = Record<string, string>;
 
@@ -351,11 +351,7 @@ interface State {
 
 // The content a directive names: its own inline block, a block of the same name
 // elsewhere in the profile, or a file handed over with it.
-function material(
-  state: State,
-  directive: Directive,
-  kind: OpenVPNMaterialKind,
-) {
+function material(state: State, directive: Directive, kind: MaterialKind) {
   let content = directive.inline;
   if (content == null) {
     const reference = directive.args[0];
@@ -375,7 +371,7 @@ function material(
       }
     }
   }
-  const check = checkOpenVPNMaterial(kind, content.trim());
+  const check = checkMaterial(kind, content.trim());
   if (!check.valid) fail(`${directive.name}: ${check.message}`);
   return content.trim();
 }

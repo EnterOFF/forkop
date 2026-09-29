@@ -313,7 +313,6 @@ t.test("released server credentials move into typed clients", () => {
     t.eq([ only_client("vless").uuid, only_client("vless").flow ], [ "44444444-4444-4444-8444-444444444444", "xtls-rprx-vision" ]);
     t.eq(server.vless.tls_server_name, "www.apple.com", "the Reality target fills a missing SNI");
     t.eq([ server.ss2022.shadowsocks_psk, only_client("ss2022").password ], [ "ajXWye37k0IsLRrpEhB3pA==", "ajXWye37k0IsLRrpEhB3pA==" ]);
-    t.eq([ only_client("mtproto").secret, server.mtproto.mtproto_faketls ], [ "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "google.com" ]);
     let legacy = only_client("legacy_user");
     t.eq([ legacy.name, legacy.uuid, legacy.flow ], [ "phone", "55555555-5555-4555-8555-555555555555", "xtls-rprx-vision" ]);
     t.eq(only_client("vmess").uuid, "66666666-6666-4666-8666-666666666666");
@@ -321,6 +320,12 @@ t.test("released server credentials move into typed clients", () => {
     absent(server.tailscale, [ "tailscale_advertise_exit_node" ]);
     for (let item in config.server)
         absent(item, RETIRED_SERVER_OPTIONS);
+});
+
+t.test("a released MTProto server leaves with its clients and says so", () => {
+    t.eq(server.mtproto, null);
+    t.eq(filter(config.server_client ?? [], (item) => item.server == "mtproto"), []);
+    t.contains(full.warnings, "Removed MTProto server 'MTProto': Forkop no longer serves MTProto");
 });
 
 t.test("a released server whose links name an IPv6 address listens on both families", () => {
@@ -336,6 +341,68 @@ t.test("a released server whose links name an IPv6 address listens on both famil
     let migrated_server = by_name(out.config.server);
     t.eq(map([ "v6", "bracketed", "v4", "hostname", "chosen" ], (name) => migrated_server[name].listen),
         [ "::", "::", "0.0.0.0", "0.0.0.0", "192.168.1.1" ]);
+});
+
+t.test("a released certificate path becomes the user's own certificate, and Forkop's own file its self-signed one", () => {
+    let dir = stub.tmpdir() + "/server-certs/";
+    fs.mkdir(dir);
+    fs.writefile(dir + "hy2.crt", "-----BEGIN CERTIFICATE-----\nissued\n-----END CERTIFICATE-----\n");
+    fs.writefile(dir + "hy2.key", "-----BEGIN PRIVATE KEY-----\nissued-key\n-----END PRIVATE KEY-----\n");
+    stub.env({ FORKOP_DEFAULT_CONFIG_PATH: DEFAULT_CONFIG, FORKOP_RELEASED_CERTIFICATE_DIR: dir });
+    let module = stub.fresh("config.migration");
+    stub.restore();
+
+    let paths = (name) => ({ tls_certificate_path: dir + name + ".crt", tls_key_path: dir + name + ".key" });
+    let data = { settings: settings("1.0.5"), section: [], server: [
+        { ".name": "hy2", ".type": "server", protocol: "hysteria2", ...paths("hy2") },
+        { ".name": "lost", ".type": "server", protocol: "trojan", ...paths("lost") },
+        { ".name": "acme", ".type": "server", protocol: "vless", security: "tls",
+            tls_certificate_path: "/etc/ssl/acme/vpn.example.com.fullchain.crt", tls_key_path: "/etc/ssl/acme/vpn.example.com.key" },
+        { ".name": "reality", ".type": "server", protocol: "vless", security: "reality", ...paths("reality") }
+    ] };
+    let run = migrate(data, null, module);
+    t.eq(run.status, 0, run.error);
+    let out = by_name(run.out.config.server);
+
+    t.eq([ out.hy2.tls_certificate_source, out.hy2.tls_self_signed_certificate, out.hy2.tls_self_signed_key ],
+        [ null, "-----BEGIN CERTIFICATE-----\nissued\n-----END CERTIFICATE-----",
+            "-----BEGIN PRIVATE KEY-----\nissued-key\n-----END PRIVATE KEY-----" ], "the pinned certificate stays");
+    t.eq([ out.lost.tls_certificate_source, out.lost.tls_self_signed_certificate ], [ null, null ],
+        "a certificate that cannot be read is issued again");
+    t.eq([ out.acme.tls_certificate_source, out.acme.tls_certificate, out.acme.tls_key ],
+        [ "custom", "/etc/ssl/acme/vpn.example.com.fullchain.crt", "/etc/ssl/acme/vpn.example.com.key" ]);
+    t.eq([ out.reality.tls_certificate_source, out.reality.tls_self_signed_key ], [ null, null ], "a Reality server gets none");
+    for (let name, item in out)
+        absent(item, [ "tls_certificate_path", "tls_key_path" ], name);
+
+    let again = migrate({ ...run.out.config, settings: settings("1.0.5") }, null, module);
+    t.eq(filter(again.out.operations, (op) => op.section != "settings"), [], "a second run changes no server");
+});
+
+t.test("a released Trojan server without TLS serves TLS and says its clients need the new link", () => {
+    let data = { settings: settings("1.0.5"), section: [], server: [
+        { ".name": "plain", ".type": "server", label: "Plain", protocol: "trojan", security: "none", server_password: "p" },
+        { ".name": "tls", ".type": "server", label: "Wrapped", protocol: "trojan", security: "tls", server_password: "p" },
+        { ".name": "vmess", ".type": "server", label: "VMess", protocol: "vmess", security: "none", server_uuid: "66666666-6666-4666-8666-666666666666" }
+    ] };
+    let out = migrated(data);
+    let migrated_server = by_name(out.config.server);
+    t.eq(map([ "plain", "tls", "vmess" ], (name) => migrated_server[name].security), [ "tls", "tls", "none" ]);
+    t.contains(out.warnings, "Trojan server 'Plain' now serves TLS, which every Trojan client needs; hand its clients the new link");
+    t.eq(length(out.warnings), 1);
+});
+
+t.test("the first released HTTP host becomes the host of the transport", () => {
+    let data = { settings: settings("1.0.5"), section: [], server: [
+        { ".name": "http", ".type": "server", protocol: "vless", security: "none", transport: "http",
+            transport_hosts: [ "a.example.com", "b.example.com" ], server_uuid: "66666666-6666-4666-8666-666666666666" },
+        { ".name": "ws", ".type": "server", protocol: "vless", security: "none", transport: "ws", transport_host: "ws.example.com",
+            transport_hosts: [ "stale.example.com" ], server_uuid: "66666666-6666-4666-8666-666666666667" }
+    ] };
+    let out = by_name(migrated(data).config.server);
+    t.eq([ out.http.transport_host, out.ws.transport_host ], [ "a.example.com", "ws.example.com" ]);
+    for (let name in [ "http", "ws" ])
+        absent(out[name], [ "transport_hosts" ]);
 });
 
 t.test("a released dont_touch_dhcp leaves what no rule claims with the router's resolver", () => {

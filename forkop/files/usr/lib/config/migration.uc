@@ -711,22 +711,6 @@ function set_option_if_blank(ctx, section, key, value) {
         set_option(ctx, section, key, value);
 }
 
-function decode_hex(value) {
-    value = as_string(value);
-    if (length(value) == 0 || length(value) % 2 != 0 || match(value, /^([0-9a-fA-F]{2})+$/) == null)
-        return "";
-
-    let result = "";
-    for (let i = 0; i < length(value); i += 2) {
-        let high = hex_digit_value(substr(value, i, 1));
-        let low = hex_digit_value(substr(value, i + 1, 1));
-        if (high < 0 || low < 0)
-            return "";
-        result += chr(high * 16 + low);
-    }
-    return result;
-}
-
 function migrate_legacy_server_user(ctx, server, protocol) {
     let entries = option_list_values(server, "server_users");
     if (length(entries) == 0)
@@ -754,17 +738,6 @@ function migrate_legacy_server_user(ctx, server, protocol) {
         }
         else if (protocol == "shadowsocks" || protocol == "socks" || protocol == "trojan" || protocol == "hysteria2") {
             set_option_if_blank(ctx, server, "server_password", credential);
-        }
-        else if (protocol == "mtproto") {
-            let secret = lc(credential);
-            let base_secret = secret;
-            let faketls = "";
-            if (match(secret, /^ee[0-9a-f]{32}([0-9a-f]{2})+$/) != null) {
-                base_secret = substr(secret, 2, 32);
-                faketls = decode_hex(substr(secret, 34));
-            }
-            set_option_if_blank(ctx, server, "mtproto_secret", base_secret);
-            set_option_if_blank(ctx, server, "mtproto_faketls", faketls != "" ? faketls : "google.com");
         }
     }
 
@@ -1225,8 +1198,7 @@ const SERVER_CLIENT_PROTOCOL_FIELDS = {
     trojan: [ [ "password", "server_password" ] ],
     shadowsocks: [ [ "password", "server_password" ] ],
     hysteria2: [ [ "password", "server_password" ] ],
-    mixed: [ [ "password", "server_password" ] ],
-    mtproto: [ [ "secret", "mtproto_secret" ] ]
+    mixed: [ [ "password", "server_password" ] ]
 };
 const LOGIN_NAME_SERVER_PROTOCOLS = { mixed: true };
 // Frozen on purpose: a migration describes the schema of a past release and must not
@@ -1307,15 +1279,6 @@ function migrate_server_clients(ctx) {
                 let value = option(server, field[1], "");
                 if (field[0] == "flow" && (value == "" || value == "none"))
                     continue;
-                // The released dialog stored the bare key next to the FakeTLS host,
-                // but it also accepted a pasted ee<key><host> secret and stored that
-                // as it was. Both end up split the way the client section holds it.
-                if (field[0] == "secret" && match(lc(value), /^ee[0-9a-f]{32}([0-9a-f]{2})+$/) != null) {
-                    let host = decode_hex(substr(lc(value), 34));
-                    if (host != "")
-                        set_option(ctx, server, "mtproto_faketls", host);
-                    value = substr(lc(value), 2, 32);
-                }
                 if (value != "")
                     set_option(ctx, client, field[0], value);
             }
@@ -1323,6 +1286,34 @@ function migrate_server_clients(ctx) {
 
         delete_server_credentials(ctx, server);
     }
+}
+
+// Forkop no longer serves MTProto, so a released MTProto server goes with its
+// clients instead of staying behind as a server nothing can build.
+function remove_mtproto_servers(ctx) {
+    let removed = {};
+    let kept = [];
+    for (let server in ctx.model.servers || []) {
+        if (option(server, "protocol", "") != "mtproto") {
+            push(kept, server);
+            continue;
+        }
+        removed[section_name(server)] = true;
+        record_operation(ctx, { op: "delete_section", section: section_name(server) });
+        push(ctx.warnings, "Removed MTProto server '" + (option(server, "label", "") || section_name(server)) +
+            "': Forkop no longer serves MTProto");
+    }
+    ctx.model.servers = kept;
+
+    let clients = [];
+    for (let client in ctx.model.server_client || []) {
+        if (removed[option(client, "server", "")]) {
+            record_operation(ctx, { op: "delete_section", section: section_name(client) });
+            continue;
+        }
+        push(clients, client);
+    }
+    ctx.model.server_client = clients;
 }
 
 // Shadowsocks servers released with a legacy AEAD method keep it: changing the method
@@ -1344,9 +1335,10 @@ function migrate_shadowsocks_server_keys(ctx) {
 }
 
 // Options the dialog no longer asks for. Every one of them had a working default in
-// the core, none changed whether a client could connect, and an unread value left in
-// the configuration would only show up in diagnostics forever.
+// the core or belonged to MTProto, none changed whether a client could connect, and
+// an unread value left in the configuration would only show up in diagnostics forever.
 const REMOVED_SERVER_OPTIONS = [
+    "mtproto_faketls",
     "mtproto_padding",
     "mtproto_concurrency",
     "mtproto_domain_fronting_port",
@@ -1381,6 +1373,85 @@ function merge_reality_handshake_into_sni(ctx) {
             set_option(ctx, server, "tls_server_name", handshake);
         delete_option(ctx, server, "reality_handshake_server");
         delete_option(ctx, server, "reality_handshake_server_port");
+    }
+}
+
+// Where the released page put the self-signed certificate it wrote for a server.
+const RELEASED_CERTIFICATE_DIR = getenv("FORKOP_RELEASED_CERTIFICATE_DIR") || "/etc/forkop/server-certs/";
+
+// Frozen with the release: the servers its generator gave a TLS certificate.
+function released_tls_server(server) {
+    let protocol = option(server, "protocol", "vless");
+    let security = option(server, "security", "");
+    if (protocol == "hysteria2")
+        return true;
+    if (protocol == "trojan")
+        return security != "none";
+    return (protocol == "vless" || protocol == "vmess") && security == "tls";
+}
+
+function released_pem_block(path, label) {
+    let text = as_string(fs.readfile(path) ?? "");
+    let end_line = "-----END " + label + "-----";
+    let begin = index(text, "-----BEGIN " + label + "-----");
+    let end = index(text, end_line);
+    return begin < 0 || end < begin ? "" : substr(text, begin, end + length(end_line) - begin);
+}
+
+// A released TLS server named its certificate and key by path, and the page wrote
+// a path in Forkop's own directory for every server. A certificate there is the
+// self-signed one Forkop issued: it moves into the server's options, so the
+// fingerprint a Hysteria2 link pins stays the same, and when it cannot be read the
+// router issues a new one. Any other path is the user's own certificate and stays
+// a path, so a file that is renewed on the router keeps being picked up.
+function migrate_server_certificates(ctx) {
+    for (let server in ctx.model.servers || []) {
+        let certificate = option(server, "tls_certificate_path", "");
+        let key = option(server, "tls_key_path", "");
+        let own = substr(certificate, 0, length(RELEASED_CERTIFICATE_DIR)) == RELEASED_CERTIFICATE_DIR &&
+            substr(key, 0, length(RELEASED_CERTIFICATE_DIR)) == RELEASED_CERTIFICATE_DIR;
+        if (released_tls_server(server) && certificate != "" && key != "") {
+            if (!own) {
+                set_option(ctx, server, "tls_certificate_source", "custom");
+                set_option_if_missing(ctx, server, "tls_certificate", certificate);
+                set_option_if_missing(ctx, server, "tls_key", key);
+            }
+            else {
+                let issued_certificate = released_pem_block(certificate, "CERTIFICATE");
+                let issued_key = released_pem_block(key, "PRIVATE KEY");
+                if (issued_certificate != "" && issued_key != "") {
+                    set_option_if_missing(ctx, server, "tls_self_signed_certificate", issued_certificate);
+                    set_option_if_missing(ctx, server, "tls_self_signed_key", issued_key);
+                }
+            }
+        }
+        delete_option(ctx, server, "tls_certificate_path");
+        delete_option(ctx, server, "tls_key_path");
+    }
+}
+
+// The released dialog gave the HTTP transport a list of hosts next to the one host
+// every other transport has. One host is what a link carries, so the first of the
+// list becomes the host of the transport.
+function migrate_http_transport_hosts(ctx) {
+    for (let server in ctx.model.servers || []) {
+        let hosts = option_list_values(server, "transport_hosts");
+        if (length(hosts) > 0 && option(server, "transport", "") == "http")
+            set_option_if_blank(ctx, server, "transport_host", hosts[0]);
+        delete_option(ctx, server, "transport_hosts");
+    }
+}
+
+// No client format carries Trojan without TLS, so the released dialog could offer
+// such a server but no link to it. It runs with TLS now, and the warning says that
+// its clients need the new link.
+function migrate_plaintext_trojan_servers(ctx) {
+    for (let server in ctx.model.servers || []) {
+        if (option(server, "protocol", "") != "trojan" || option(server, "security", "") != "none")
+            continue;
+        set_option(ctx, server, "security", "tls");
+        push(ctx.warnings, "Trojan server '" + (option(server, "label", "") || section_name(server)) +
+            "' now serves TLS, which every Trojan client needs; hand its clients the new link");
     }
 }
 
@@ -1790,6 +1861,7 @@ const CURRENT_TRANSFORMS = [
     use_universal_rule_sets,
     use_leaf_subscription_providers,
     add_current_defaults,
+    remove_mtproto_servers,
     migrate_released_server_users,
     migrate_fallback_uci_tags,
     reset_fallback_defaults,
@@ -1813,6 +1885,9 @@ const CURRENT_TRANSFORMS = [
     migrate_server_clients,
     remove_expert_server_options,
     merge_reality_handshake_into_sni,
+    migrate_server_certificates,
+    migrate_plaintext_trojan_servers,
+    migrate_http_transport_hosts,
     migrate_section_mixed_proxies,
     migrate_ipv6_linked_server_listeners,
     remove_resolve_real_ip_for_routing,

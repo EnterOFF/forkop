@@ -1202,8 +1202,6 @@ function validate_server_clients(server, protocol, name) {
                 fail_validation("Server '" + server_label(name) + "' client '" + client_name + "' has no " + field);
             if (field == "uuid" && match(value, /^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$/) == null)
                 fail_validation("Server '" + server_label(name) + "' client '" + client_name + "' has an invalid UUID");
-            if (field == "secret" && match(lc(value), /^[0-9a-f]{32}$/) == null)
-                fail_validation("Server '" + server_label(name) + "' client '" + client_name + "' needs a 32 hex character secret");
             if (field == "password" && key_bytes != null && base64_decoded_length(value) != key_bytes)
                 fail_validation("Server '" + server_label(name) + "' client '" + client_name + "' needs a base64 pre-shared key of " + key_bytes + " bytes for method '" + option(server, "shadowsocks_method", "") + "'");
         }
@@ -1279,30 +1277,77 @@ function validate_server_listen_ports() {
     }
 }
 
+const PRIVATE_KEY_LABELS = [ "PRIVATE KEY", "RSA PRIVATE KEY", "EC PRIVATE KEY" ];
+
+// The labels of the complete PEM blocks in a text whose base64 body decodes.
+function pem_labels(text) {
+    let labels = [];
+    let open = null;
+    let body = "";
+    for (let line in split(as_string(text), "\n")) {
+        line = trim(line);
+        let begin = match(line, /^-----BEGIN ([A-Za-z0-9 ]+)-----$/);
+        if (open == null && begin != null) {
+            open = begin[1];
+            body = "";
+        }
+        else if (open != null && line == "-----END " + open + "-----") {
+            if (length(b64dec(body) ?? "") > 0)
+                push(labels, open);
+            open = null;
+        }
+        else if (open != null && index(line, ":") < 0)
+            body += line;
+    }
+    return labels;
+}
+
+// A TLS server serves what the router issued it, which the service preparation
+// writes before this runs, or the user's own: PEM text the core parses while it
+// starts, or a file it opens then. Either one it cannot read takes the whole
+// service down, so it is refused here by name.
+function validate_server_certificate(server, protocol, name) {
+    let material = runtime_servers.certificate_material(server, protocol);
+    if (runtime_servers.certificate_source(server, protocol) == "self_signed") {
+        if (material.certificate == "" || material.key == "")
+            fail_validation("Server '" + server_label(name) + "' has no self-signed certificate yet");
+        return;
+    }
+
+    if (material.certificate == "")
+        fail_validation("Server '" + server_label(name) + "' needs a certificate" + (protocol == "naive"
+            ? " a browser trusts: NaiveProxy clients refuse a self-signed one" : ""));
+    if (material.key == "")
+        fail_validation("Server '" + server_label(name) + "' needs the private key of its certificate");
+
+    for (let entry in [ [ "certificate", material.certificate ], [ "key", material.key ] ]) {
+        let value = trim(entry[1]);
+        if (runtime_servers.is_router_path(value)) {
+            let stat = fs.stat(value);
+            if (type(stat) != "object" || stat.type != "file" || stat.size == 0)
+                fail_validation("Server '" + server_label(name) + "' " + entry[0] + " file '" + value +
+                    "' does not exist. Point at a file that is there");
+            continue;
+        }
+        let labels = pem_labels(value);
+        if (entry[0] == "certificate" && index(labels, "CERTIFICATE") < 0)
+            fail_validation("Server '" + server_label(name) + "' has a certificate that is not a PEM certificate");
+        if (entry[0] == "key" && (index(value, "ENCRYPTED") >= 0 ||
+            length(filter(labels, (label) => index(PRIVATE_KEY_LABELS, label) >= 0)) != 1))
+            fail_validation("Server '" + server_label(name) + "' has a key that is not one unencrypted PEM private key");
+    }
+    if (runtime_servers.is_router_path(material.certificate) && trim(material.certificate) == trim(material.key))
+        fail_validation("Server '" + server_label(name) + "' uses the same file as its certificate and its key");
+}
+
 // Security material a protocol cannot start without. Forkop never sets the inbound
 // insecure flag, which is the only thing that would let sing-box invent a keypair
 // per handshake, so a missing certificate is a start-up failure and not a default.
 function validate_server_security(server, protocol, name) {
     let security = runtime_servers.effective_security(server, protocol);
 
-    // An SSH inbound with no host key gets a fresh one from sing-box on every start,
-    // so every client meets a changed fingerprint after every reload. The dialog asks
-    // for a path and its button fills it in.
-    if (protocol == "ssh" && length(list_option(server, "ssh_host_key_path")) == 0)
-        fail_validation("Server '" + server_label(name) + "' has no ssh_host_key_path. Generate a host key or point at your own");
-
-    // TLS needs a certificate, and Forkop no longer invents a path for one: the
-    // dialog asks for both and its button fills them in.
-    if (security == "tls") {
-        for (let field in [ "tls_certificate_path", "tls_key_path" ])
-            if (option(server, field, "") == "")
-                fail_validation("Server '" + server_label(name) + "' has no " + field + ". Generate a certificate or point at your own");
-    }
-
-    // A FakeTLS host is what makes an MTProto secret: the proxy refuses a secret
-    // whose first byte is not 0xee and whose host is empty.
-    if (protocol == "mtproto" && option(server, "mtproto_faketls", "") == "")
-        fail_validation("Server '" + server_label(name) + "' needs a FakeTLS host: MTProto has no secret without one");
+    if (security == "tls")
+        validate_server_certificate(server, protocol, name);
 
     if (security == "reality") {
         // One name for both: the generator borrows the handshake from the site the
@@ -1326,14 +1371,6 @@ function validate_server_security(server, protocol, name) {
             if (length(short_id) > 16)
                 fail_validation("Server '" + server_label(name) + "' short ID '" + short_id + "' is longer than 16 hex digits");
         }
-    }
-    else if (security == "tls") {
-        let certificate = option(server, "tls_certificate_path", "");
-        let key = option(server, "tls_key_path", "");
-        if ((certificate == "") != (key == ""))
-            fail_validation("Server '" + server_label(name) + "' needs both a certificate path and a key path, or neither");
-        if (certificate != "" && certificate == key)
-            fail_validation("Server '" + server_label(name) + "' uses the same file as its certificate and its key");
     }
 
     if (protocol == "hysteria2" && option(server, "hysteria2_obfs_type", "") != "" &&
@@ -1378,28 +1415,6 @@ function server_enum_applies(scope, protocol, server) {
     if (scope == "xhttp")
         return option(server, "transport", "") == "xhttp";
     return scope == protocol;
-}
-
-// The files a listener opens while it starts. Forkop writes the ones in its own
-// directories before this runs, so a path with nothing behind it is a path the user
-// chose and mistyped, and the core dies on it with the service half up.
-function validate_server_files(server, protocol, security, name) {
-    let paths = [];
-    if (security == "tls")
-        for (let field in [ "tls_certificate_path", "tls_key_path" ])
-            push(paths, [ field, option(server, field, "") ]);
-    if (protocol == "ssh")
-        for (let path in list_option(server, "ssh_host_key_path"))
-            push(paths, [ "ssh_host_key_path", as_string(path) ]);
-
-    for (let entry in paths) {
-        if (entry[1] == "")
-            continue;
-        let stat = fs.stat(entry[1]);
-        if (type(stat) != "object" || stat.type != "file" || stat.size == 0)
-            fail_validation("Server '" + server_label(name) + "' " + entry[0] + " '" + entry[1] +
-                "' does not exist. Point at a file that is there");
-    }
 }
 
 // The host bits of a prefix: none set is the address of the subnet itself, and
@@ -1453,7 +1468,7 @@ function validate_openvpn_server(server, name) {
 // Everything else the core parses out of a server option and refuses on its own: a
 // listen address that is not an address, a duration it cannot read and a masquerade
 // URL whose scheme it does not know.
-function validate_server_values(server, protocol, security, name) {
+function validate_server_values(server, protocol, name) {
     for (let entry in SERVER_ENUMS) {
         if (!server_enum_applies(entry[0], protocol, server))
             continue;
@@ -1479,22 +1494,7 @@ function validate_server_values(server, protocol, security, name) {
     if (protocol == "openvpn")
         validate_openvpn_server(server, name);
 
-    if (protocol == "tuic") {
-        let heartbeat = option(server, "tuic_heartbeat", "");
-        if (heartbeat != "")
-            validate_duration_option(heartbeat, "Server '" + server_label(name) + "' heartbeat");
-    }
-
     if (protocol == "hysteria2") {
-        if (option(server, "hysteria2_obfs_type", "") == "gecko") {
-            let minimum = option(server, "hysteria2_gecko_min_packet_size", "");
-            let maximum = option(server, "hysteria2_gecko_max_packet_size", "");
-            for (let value in [ minimum, maximum ])
-                if (value != "" && (match(value, /^[0-9]+$/) == null || int(value) < 1 || int(value) > 65535))
-                    fail_validation("Server '" + server_label(name) + "' has an invalid Gecko packet size");
-            if (minimum != "" && maximum != "" && int(minimum) > int(maximum))
-                fail_validation("Server '" + server_label(name) + "' Gecko minimum packet size exceeds the maximum");
-        }
         // sing-box reads a masquerade as a URL and picks the mode from its scheme, so
         // anything but those three stops the listener before it binds.
         let masquerade = option(server, "hysteria2_masquerade", "");
@@ -1508,8 +1508,6 @@ function validate_server_values(server, protocol, security, name) {
                     "' must be a whole number of megabits");
         }
     }
-
-    validate_server_files(server, protocol, security, name);
 }
 
 function validate_server_clients_and_ports() {
@@ -1526,8 +1524,7 @@ function validate_server_clients_and_ports() {
 
         validate_server_clients(server, protocol, section_name(server));
         validate_server_security(server, protocol, section_name(server));
-        validate_server_values(server, protocol,
-            runtime_servers.effective_security(server, protocol), section_name(server));
+        validate_server_values(server, protocol, section_name(server));
     }
 }
 
@@ -1593,7 +1590,7 @@ function refuse_without(feature, core_tags, what) {
 }
 
 function server_core_type(protocol) {
-    return protocol == "mtproto" ? "mtproxy" : protocol == "openvpn" ? "openvpn-server" : protocol;
+    return protocol == "openvpn" ? "openvpn-server" : protocol;
 }
 
 // What the configuration asks of the core that only some builds have. The core

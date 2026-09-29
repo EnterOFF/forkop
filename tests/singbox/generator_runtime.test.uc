@@ -216,23 +216,22 @@ t.test("server inbounds carry their protocol options and their clients", () => {
                 routing_mode: "direct"
             },
             { ".name": "open", enabled: "1", protocol: "mixed", listen: "0.0.0.0", listen_port: "18081", mixed_auth_enabled: "0", routing_mode: "direct" },
-            { ".name": "mtproxy", enabled: "1", protocol: "mtproto", listen: "0.0.0.0", listen_port: "18442", mtproto_faketls: "google.com", routing_mode: "direct" },
             {
                 ".name": "naive", enabled: "1", protocol: "naive", listen: "0.0.0.0", listen_port: "18443", security: "tls",
-                tls_certificate_path: "/etc/forkop/server-certs/naive.crt", tls_key_path: "/etc/forkop/server-certs/naive.key",
+                tls_certificate: "/etc/ssl/acme/naive.crt", tls_key: "-----BEGIN PRIVATE KEY-----\nnaive-key\n-----END PRIVATE KEY-----",
                 naive_network: "tcp_udp", routing_mode: "direct"
             },
-            { ".name": "ssh", enabled: "1", protocol: "ssh", listen: "0.0.0.0", listen_port: "18222", ssh_host_key_path: [ "/etc/forkop/ssh/host_key" ], routing_mode: "direct" },
             { ".name": "mieru", enabled: "1", protocol: "mieru", listen: "0.0.0.0", listen_port: "18444", mieru_transport: "UDP", routing_mode: "direct" },
             {
                 ".name": "anytls", enabled: "1", protocol: "anytls", listen: "0.0.0.0", listen_port: "18445", label: "AnyTLS user",
-                security: "tls", tls_certificate_path: "/etc/forkop/server-certs/anytls.crt", tls_key_path: "/etc/forkop/server-certs/anytls.key",
-                routing_mode: "direct"
+                security: "tls", tls_self_signed_certificate: "-----BEGIN CERTIFICATE-----\r\nissued\r\n-----END CERTIFICATE-----",
+                tls_self_signed_key: "-----BEGIN PRIVATE KEY-----\nissued-key\n-----END PRIVATE KEY-----",
+                tls_certificate: "/etc/ssl/ignored.crt", tls_key: "/etc/ssl/ignored.key", routing_mode: "direct"
             },
             {
                 ".name": "tuic", enabled: "1", protocol: "tuic", listen: "0.0.0.0", listen_port: "18446", label: "TUIC user",
-                security: "tls", tls_certificate_path: "/etc/forkop/server-certs/tuic.crt", tls_key_path: "/etc/forkop/server-certs/tuic.key",
-                tuic_congestion_control: "bbr", tuic_heartbeat: "12s", tuic_zero_rtt_handshake: "1", routing_mode: "direct"
+                security: "tls", tls_certificate_source: "custom", tls_certificate: "/etc/ssl/tuic.crt", tls_key: "/etc/ssl/tuic.key",
+                tuic_congestion_control: "bbr", routing_mode: "direct"
             },
             {
                 ".name": "vlessmux", enabled: "1", protocol: "vless", listen: "0.0.0.0", listen_port: "18447", label: "VLESS mux",
@@ -249,9 +248,7 @@ t.test("server inbounds carry their protocol options and their clients", () => {
             { ".name": "edge_tester", server: "edge", name: "tester", password: "secret" },
             { ".name": "edge_ruled", server: "edge", name: "ruled", password: "ruled-secret", routing_override: "1", routing_mode: "rules" },
             { ".name": "open_ignored", server: "open", name: "ignored", password: "ignored" },
-            { ".name": "mtproxy_phone", server: "mtproxy", name: "phone", secret: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
             { ".name": "naive_user", server: "naive", name: "naive-user", password: "naive-password" },
-            { ".name": "ssh_user", server: "ssh", name: "ssh-user", password: "ssh-password", authorized_keys: [ "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 user@host" ] },
             { ".name": "mieru_user", server: "mieru", name: "mieru-user", password: "mieru-password" },
             { ".name": "anytls_user", server: "anytls", name: "anytls-client", password: "anytls-password" },
             { ".name": "tuic_user", server: "tuic", name: "tuic-client", uuid: "33333333-3333-4333-8333-333333333333", password: "tuic-password" },
@@ -277,22 +274,13 @@ t.test("server inbounds carry their protocol options and their clients", () => {
     let open = q.inbound(server, "open");
     t.eq([ open.type, open.listen_port, open.users ], [ "mixed", 18081, null ], "disabled mixed authentication omits users");
 
-    let mtproxy = q.inbound(server, "mtproxy");
-    t.eq([ mtproxy.type, mtproxy.listen_port ], [ "mtproxy", 18442 ]);
-    t.eq(mtproxy.users[0].secret, "ee" + "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" + "676f6f676c652e636f6d", "the MTProxy secret carries the FakeTLS host");
-    for (let key in [ "domain_fronting_host", "concurrency", "prefer_ip", "idle_timeout", "domain_fronting_ip" ])
-        t.ok(!exists(mtproxy, key), "MTProxy carries nothing mtg defaults: " + key);
-
     let naive = q.inbound(server, "naive");
     t.eq([ naive.type, naive.network ], [ "naive", [ "tcp", "udp" ] ]);
     t.eq(naive.users[0].username, "naive-user");
     t.eq(naive.quic_congestion_control, null);
-    t.eq(naive.tls.enabled, true);
-
-    let ssh = q.inbound(server, "ssh");
-    t.eq([ ssh.type, ssh.users[0].name ], [ "ssh", "ssh-user" ]);
-    t.eq(ssh.users[0].authorized_keys, [ "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 user@host" ]);
-    t.eq(ssh.host_key_path, [ "/etc/forkop/ssh/host_key" ]);
+    t.eq([ naive.tls.enabled, naive.tls.certificate_path, naive.tls.certificate, naive.tls.key ],
+        [ true, "/etc/ssl/acme/naive.crt", null, [ "-----BEGIN PRIVATE KEY-----", "naive-key", "-----END PRIVATE KEY-----" ] ],
+        "NaiveProxy always serves the user's certificate, a file by path and a pasted key inline");
 
     let mieru = q.inbound(server, "mieru");
     t.eq([ mieru.type, mieru.transport, mieru.users[0].password ], [ "mieru", "UDP", "mieru-password" ]);
@@ -300,12 +288,17 @@ t.test("server inbounds carry their protocol options and their clients", () => {
 
     let anytls = q.inbound(server, "AnyTLS user");
     t.eq([ anytls.type, anytls.users[0].password, anytls.tls.enabled ], [ "anytls", "anytls-password", true ]);
+    t.eq([ anytls.tls.certificate, anytls.tls.key, anytls.tls.certificate_path ],
+        [ [ "-----BEGIN CERTIFICATE-----", "issued", "-----END CERTIFICATE-----" ],
+            [ "-----BEGIN PRIVATE KEY-----", "issued-key", "-----END PRIVATE KEY-----" ], null ],
+        "a server without a certificate of the user's serves the one the router issued it");
 
     let tuic = q.inbound(server, "TUIC user");
     t.eq([ tuic.type, tuic.users[0].uuid ], [ "tuic", "33333333-3333-4333-8333-333333333333" ]);
-    t.eq([ tuic.congestion_control, tuic.heartbeat, tuic.zero_rtt_handshake ], [ "bbr", "12s", true ]);
+    t.eq([ tuic.congestion_control, tuic.heartbeat, tuic.zero_rtt_handshake ], [ "bbr", null, null ],
+        "the core keeps its own heartbeat and never offers 0-RTT, which replays can abuse");
     t.eq(tuic.auth_timeout, null);
-    t.eq(tuic.tls.enabled, true);
+    t.eq([ tuic.tls.enabled, tuic.tls.certificate_path, tuic.tls.key_path ], [ true, "/etc/ssl/tuic.crt", "/etc/ssl/tuic.key" ]);
 
     let vless_mux = q.inbound(server, "VLESS mux");
     t.eq(length(vless_mux.users), 2, "a server accepts every client");

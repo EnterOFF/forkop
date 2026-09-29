@@ -32,12 +32,34 @@ function renderSectionAdd(sectionRef: CBISection, extraClass?: string) {
   return el;
 }
 
+// The label a new row is offered: one past the highest number its prefix already
+// carries. A server and a section may not share a name, so both are looked at,
+// and a count of the rows would offer the name of one still there once an
+// earlier row had been removed.
+function nextLabel(sectionRef: CBISection, configName: string, prefix: string) {
+  const taken = new Set(
+    ['server', 'section'].flatMap((type) =>
+      (sectionRef.map.data.sections(configName, type) || []).map((section) =>
+        `${section.label || ''}`.trim(),
+      ),
+    ),
+  );
+  const pattern = new RegExp(`^${prefix} #(\\d+)$`);
+  let number =
+    Math.max(
+      0,
+      ...[...taken].map((label) => Number(pattern.exec(label)?.[1] || 0)),
+    ) + 1;
+  while (taken.has(`${prefix} #${number}`)) number += 1;
+  return `${prefix} #${number}`;
+}
+
 // A new row: the section is created under an id naming its type, and given a
 // label the user can change, because the id is not shown anywhere.
 export function addLabeledSection(sectionRef: CBISection) {
   const configName = sectionRef.uciconfig || sectionRef.map.config;
   const prefix = sectionRef.sectiontype === 'section' ? 'Section' : 'Server';
-  const label = `${prefix} #${sectionRef.cfgsections().length + 1}`;
+  const label = nextLabel(sectionRef, configName, prefix);
   const sectionId = sectionRef.map.data.add(
     configName,
     sectionRef.sectiontype,

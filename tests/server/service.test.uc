@@ -8,18 +8,16 @@ let server = require("server.service");
 
 let dir = null;
 
+const HELLO_SHA256 = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
+
 // Every test starts from directories of its own.
 function fresh_paths() {
     dir = stub.tmpdir();
-    server.paths.certificates = dir + "/server-certs";
-    server.paths.ssh_keys = dir + "/server-ssh";
     server.paths.firewall_include = dir + "/nftables.d/chain-pre/input/forkop-servers.nft";
     server.paths.firewall_init = dir + "/firewall-missing";
-    fs.mkdir(dir + "/elsewhere");
 }
 
 let issued = [];
-let keygen = [];
 
 function real_output(command) {
     let pipe = stub.real.popen(command, "r");
@@ -37,23 +35,12 @@ const TOOLS = [
     } ],
     [ "sing-box generate reality-keypair", { stdout: "PrivateKey: private-key\nPublicKey: public-key\n" } ],
     [ "sha256sum", (argv) => ({ stdout: real_output("sha256sum '" + argv[1] + "'") }) ],
-    [ "dropbearkey", (argv) => {
-        fs.writefile(argv[4], "dropbear-key\n");
-        push(keygen, "dropbearkey");
-        return {};
-    } ],
-    [ "dropbearconvert", (argv) => {
-        fs.writefile(argv[4], "-----BEGIN OPENSSH PRIVATE KEY-----\ntest-key\n-----END OPENSSH PRIVATE KEY-----\n");
-        push(keygen, "dropbearconvert");
-        return {};
-    } ],
     [ "nft list chain inet fw4 input", { status: 1 } ]
 ];
 
 function prepared(data, extra_tools) {
     fixture.seed(data);
     issued = [];
-    keygen = [];
     stub.commands([ ...(extra_tools ?? []), ...TOOLS ]);
     server.prepare();
     server.remove_orphans();
@@ -84,17 +71,13 @@ function servers(dir) {
         { ".name": "shadowsocks", protocol: "shadowsocks", shadowsocks_method: "2022-blake3-aes-256-gcm" },
         { ".name": "tailscale", protocol: "tailscale" },
         { ".name": "json", protocol: "json_inbound" },
-        { ".name": "mtproto", protocol: "mtproto" },
         { ".name": "naive", protocol: "naive", enabled: "0" },
-        { ".name": "ssh", protocol: "ssh", ssh_host_key_path: dir + "/ssh/host_key " + dir + "/ssh/host_key_secondary" },
-        { ".name": "ssh_disabled", protocol: "ssh", enabled: "0" },
         { ".name": "mieru", protocol: "mieru" },
         { ".name": "anytls", protocol: "anytls", enabled: "0" },
         { ".name": "tuic", protocol: "tuic", enabled: "0" },
         { ".name": "vless_no_client", protocol: "vless" },
         {
-            ".name": "hy2", label: "Edge hy2", protocol: "hysteria2", enabled: "1", tls_server_name: "naive-sni.example",
-            tls_certificate_path: server.paths.certificates + "/hy2.crt", tls_key_path: server.paths.certificates + "/hy2.key"
+            ".name": "hy2", label: "Edge hy2", protocol: "hysteria2", enabled: "1", tls_server_name: "naive-sni.example"
         }
     ];
 }
@@ -106,7 +89,6 @@ function clients() {
         { ".name": "cff0004", server: "mixed_open", name: "guest" },
         { ".name": "cff0005", server: "mixed_cased", name: "Alice.Phone-2", password: "office-password" },
         { ".name": "orphan_client", server: "removed_server", name: "orphan" },
-        { ".name": "cff0002", server: "mtproto", secret: "eeaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa6578616d706c652e6f7267" },
         { ".name": "cff0009", server: "hy2", password: "hy2-secret" }
     ];
 }
@@ -119,7 +101,7 @@ t.test("the defaults a server runs with are filled in, and nothing the user leav
     fresh_paths();
     prepared(configuration());
 
-    for (let name in [ "vless", "mixed", "tailscale", "json", "ssh", "mieru" ])
+    for (let name in [ "vless", "mixed", "tailscale", "json", "mieru" ])
         t.eq(value(name, "security"), "", "the security mode is derived where it is read, not written back: " + name);
     t.eq(value("vless", "listen"), "::");
     for (let name in [ "naive", "anytls", "tuic" ])
@@ -128,8 +110,8 @@ t.test("the defaults a server runs with are filled in, and nothing the user leav
 
     for (let path in [ "vless.listen_port", "vless.public_host", "vless.reality_short_id", "vless.reality_private_key",
         "vless.reality_public_key", "vless.tls_server_name", "shadowsocks.shadowsocks_psk", "tailscale.tailscale_hostname",
-        "naive.naive_network", "mieru.mieru_transport", "tuic.tuic_congestion_control", "tuic.tuic_heartbeat",
-        "naive.tls_certificate_path", "ssh_disabled.ssh_host_key_path" ])
+        "naive.naive_network", "mieru.mieru_transport", "tuic.tuic_congestion_control",
+        "naive.tls_self_signed_certificate" ])
         t.eq(core_uci.get("forkop." + path), "", path);
 
     for (let owner in [ "vless_no_client", "shadowsocks", "anytls", "tuic" ])
@@ -147,21 +129,17 @@ t.test("clients keep their credentials, and a login name is kept to what the pro
     t.eq(client_value("mixed_cased", "name"), "Alice.Phone-2", "a name the protocol carries stays as typed");
     t.eq(client_value("mixed", "password"), "desktop-password");
     t.eq(value("mixed_open", "mixed_auth_enabled"), "0");
-    t.eq(client_value("mtproto", "secret"), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "a pasted MTProto secret is split");
-    t.eq(value("mtproto", "mtproto_faketls"), "example.org");
     t.eq(value("orphan_client", "server"), "", "a client of a removed server is removed");
 });
 
-t.test("a certificate is issued for the SNI into the path the server names, and host keys for every path", () => {
+t.test("a TLS server is issued a self-signed certificate for its SNI into its own options, with the fingerprint", () => {
     fresh_paths();
     prepared(configuration());
-    t.eq(issued, [ "generate tls-keypair naive-sni.example --months 120" ]);
-    t.ok(fs.stat(server.paths.certificates + "/hy2.crt")?.size > 0);
-    t.eq(fs.stat(server.paths.certificates + "/hy2.key")?.perm?.other_read, false);
-    t.ok(fs.stat(dir + "/ssh/host_key")?.size > 0);
-    t.ok(fs.stat(dir + "/ssh/host_key_secondary")?.size > 0);
-    t.eq(length(keygen), 4, "each configured host key is generated and converted once");
-    t.eq(filter(fs.lsdir(dir + "/ssh"), (name) => substr(name, 0, 12) == ".forkop-ssh."), [], "no temporary directory is left behind");
+    t.eq(issued, [ "generate tls-keypair naive-sni.example --months 1200" ]);
+    t.eq([ value("hy2", "tls_self_signed_certificate"), value("hy2", "tls_self_signed_key"), value("hy2", "tls_self_signed_sha256") ],
+        [ "-----BEGIN CERTIFICATE-----\naGVsbG8=\n-----END CERTIFICATE-----",
+            "-----BEGIN PRIVATE KEY-----\nkey-body\n-----END PRIVATE KEY-----", HELLO_SHA256 ]);
+    t.eq(value("hy2", "tls_certificate_source"), "", "the source is derived where it is read, not written back");
 });
 
 t.test("a second prepare over prepared servers changes and generates nothing", () => {
@@ -172,34 +150,31 @@ t.test("a second prepare over prepared servers changes and generates nothing", (
     core_uci.reset();
     let before = length(uci.__commits());
     issued = [];
-    keygen = [];
     stub.commands(TOOLS);
     server.prepare();
     stub.restore();
     t.eq(length(uci.__commits()), before, "nothing is committed");
-    t.eq([ issued, keygen ], [ [], [] ]);
+    t.eq(issued, []);
 });
 
-t.test("Forkop reissues its own certificate once the stamp is gone, and never touches one the user chose", () => {
+t.test("only a TLS server without a certificate of the user's is issued one, and the one it has is kept", () => {
     fresh_paths();
-    let own = server.paths.certificates + "/own";
-    let theirs = dir + "/elsewhere/theirs";
-    for (let base in [ own, theirs ]) {
-        fs.writefile(base + ".crt", "certificate\n");
-        fs.writefile(base + ".key", "key\n");
-    }
-    fs.mkdir(server.paths.certificates);
-    fs.writefile(own + ".crt.expires", sprintf("%d\n", time() + 3600));
     prepared({ server: [
-        { ".name": "own", protocol: "trojan", security: "tls", tls_server_name: "own.example", tls_certificate_path: own + ".crt", tls_key_path: own + ".key" },
-        { ".name": "theirs", protocol: "trojan", security: "tls", tls_certificate_path: theirs + ".crt", tls_key_path: theirs + ".key" }
+        { ".name": "own", protocol: "trojan", security: "tls", tls_certificate_source: "custom",
+            tls_certificate: "/etc/ssl/acme/own.crt", tls_key: "/etc/ssl/acme/own.key" },
+        { ".name": "naive", protocol: "naive" },
+        { ".name": "reality", protocol: "vless", security: "reality" },
+        { ".name": "plain", protocol: "vmess", security: "none" },
+        { ".name": "kept", protocol: "anytls", public_host: "vpn.example.com",
+            tls_self_signed_certificate: "-----BEGIN CERTIFICATE-----\naGVsbG8=\n-----END CERTIFICATE-----",
+            tls_self_signed_key: "-----BEGIN PRIVATE KEY-----\nkept\n-----END PRIVATE KEY-----" }
     ] });
-    t.eq(issued, [ "generate tls-keypair own.example --months 120" ], "a certificate a day from expiry is replaced");
-    t.eq(fs.readfile(theirs + ".crt"), "certificate\n");
-
-    fs.writefile(own + ".crt.expires", sprintf("%d\n", time() + 90 * 24 * 3600));
-    prepared({ server: [ { ".name": "own", protocol: "trojan", security: "tls", tls_certificate_path: own + ".crt", tls_key_path: own + ".key" } ] });
-    t.eq(issued, [], "a certificate far from expiry is kept");
+    t.eq(issued, []);
+    for (let name in [ "own", "naive", "reality", "plain" ])
+        t.eq(value(name, "tls_self_signed_certificate"), "", name);
+    t.eq([ value("kept", "tls_self_signed_key"), value("kept", "tls_self_signed_sha256") ],
+        [ "-----BEGIN PRIVATE KEY-----\nkept\n-----END PRIVATE KEY-----", HELLO_SHA256 ],
+        "a certificate issued before is kept and gets its fingerprint");
 });
 
 t.test("a broken server refuses the whole prepare and commits nothing, unless it is disabled", () => {
@@ -211,8 +186,7 @@ t.test("a broken server refuses the whole prepare and commits nothing, unless it
     t.eq(e.message, "Server 'b' uses unsupported protocol 'gopher'");
     t.eq(uci.__commits(), []);
 
-    fixture.seed({ server: [ { ".name": "a", protocol: "vless" }, { ".name": "b", protocol: "gopher", enabled: "0" },
-        { ".name": "c", protocol: "ssh", enabled: "0", ssh_host_key_path: "relative/key" } ] });
+    fixture.seed({ server: [ { ".name": "a", protocol: "vless" }, { ".name": "b", protocol: "gopher", enabled: "0" } ] });
     stub.commands(TOOLS);
     server.prepare();
     stub.restore();
@@ -223,47 +197,19 @@ t.test("a broken server refuses the whole prepare and commits nothing, unless it
 // runs before it only adds.
 t.test("prepare removes nothing: what removed servers left goes afterwards", () => {
     fresh_paths();
-    fs.mkdir(server.paths.certificates);
-    fs.writefile(server.paths.certificates + "/gone.crt", "file\n");
-    stub.real.system("touch -d '2 hours ago' '" + server.paths.certificates + "/gone.crt'");
     fixture.seed({ server: [ { ".name": "a", protocol: "mixed" } ],
         server_client: [ { ".name": "stray", server: "vanished", name: "phone", password: "secret" } ] });
     stub.commands(TOOLS);
     server.prepare();
-    t.ok(fs.stat(server.paths.certificates + "/gone.crt") != null);
     t.eq(core_uci.get("forkop.stray.server"), "vanished");
     server.remove_orphans();
     stub.restore();
     core_uci.reset();
-    t.eq([ fs.stat(server.paths.certificates + "/gone.crt"), value("stray", "server") ], [ null, "" ]);
+    t.eq(value("stray", "server"), "");
 });
 
-t.test("the certificate command names the files after the section and the subject after the name", () => {
-    fresh_paths();
+t.test("the key pair command reads what the tool prints", () => {
     stub.commands(TOOLS);
-    issued = [];
-    let home = server.issue_certificate("Дом", "newaaaa");
-    let garden = server.issue_certificate("Сад", "newbbbb");
-    stub.restore();
-    t.eq(home.certificate_path, server.paths.certificates + "/newaaaa.crt");
-    t.eq(garden.key_path, server.paths.certificates + "/newbbbb.key");
-    t.eq(home.sha256, "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824");
-    t.eq(issued, [ "generate tls-keypair Дом --months 120", "generate tls-keypair Сад --months 120" ]);
-    t.eq(fs.stat(server.paths.certificates + "/newbbbb.key").perm.group_read, false);
-    t.ok(fs.stat(server.paths.certificates + "/______.crt") == null);
-    t.eq(t.throws(() => server.issue_certificate(" ", "x")).message, "Missing certificate subject or name");
-});
-
-t.test("the fingerprint and key pair commands read what the tools print", () => {
-    fresh_paths();
-    fs.writefile(dir + "/elsewhere/server.crt", "-----BEGIN CERTIFICATE-----\naGVs\nbG8=\n-----END CERTIFICATE-----\n");
-    fixture.seed({ server: [
-        { ".name": "tls", protocol: "trojan", security: "tls", tls_certificate_path: dir + "/elsewhere/server.crt" },
-        { ".name": "plain", protocol: "vless" }
-    ] });
-    stub.commands(TOOLS);
-    t.eq(server.certificate_sha256("tls"), { sha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824" });
-    t.eq(t.throws(() => server.certificate_sha256("plain")).message, "Server does not use TLS");
     t.eq(server.reality_keypair(), { private_key: "private-key", public_key: "public-key" });
     stub.restore();
 });
@@ -329,35 +275,6 @@ t.test("a loaded firewall is reloaded when its chain disagrees with the include"
     server.paths.firewall_init = dir + "/firewall-missing";
 });
 
-t.test("files of removed servers go, files a server points at or is named for stay, nothing outside is touched", () => {
-    fresh_paths();
-    let certs = server.paths.certificates;
-    let keys = server.paths.ssh_keys;
-    fs.mkdir(certs);
-    fs.mkdir(keys);
-    for (let path in [ certs + "/gone.crt", certs + "/gone.key", certs + "/gone.crt.expires", keys + "/gone.key",
-        certs + "/handmade.crt", certs + "/handmade.key", keys + "/handmade.key", dir + "/elsewhere/private.crt",
-        certs + "/fw_certs.crt", keys + "/fw_ssh.key" ]) {
-        fs.writefile(path, "file\n");
-        stub.real.system("touch -d '2 hours ago' '" + path + "'");
-    }
-    fs.writefile(certs + "/unsaved.crt", "file\n");
-
-    prepared({ server: [
-        { ".name": "fw_certs", protocol: "trojan", enabled: "0", security: "tls",
-            tls_certificate_path: certs + "/handmade.crt", tls_key_path: certs + "/handmade.key" },
-        { ".name": "fw_ssh", protocol: "ssh", enabled: "0", ssh_host_key_path: keys + "/handmade.key" }
-    ] });
-
-    for (let path in [ certs + "/gone.crt", certs + "/gone.key", certs + "/gone.crt.expires", keys + "/gone.key" ])
-        t.ok(fs.stat(path) == null, "removed: " + path);
-    for (let path in [ certs + "/handmade.crt", certs + "/handmade.key", keys + "/handmade.key",
-        dir + "/elsewhere/private.crt", certs + "/fw_certs.crt", keys + "/fw_ssh.key", certs + "/unsaved.crt" ])
-        t.ok(fs.stat(path) != null, "kept: " + path);
-});
-
-const HELLO_SHA256 = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
-
 function openvpn_configuration() {
     return {
         settings: {},
@@ -407,12 +324,9 @@ t.test("an OpenVPN server prepared once keeps every certificate and key it was g
         (path) => core_uci.get("forkop." + path)), before);
 });
 
-t.test("a configuration without servers loses no file and no account", () => {
+t.test("a configuration without servers loses no account", () => {
     fresh_paths();
-    fs.mkdir(server.paths.certificates);
-    fs.writefile(server.paths.certificates + "/whatever.crt", "file\n");
     prepared({ settings: {}, server_client: [ { ".name": "stray", server: "vanished", name: "phone", password: "secret" } ] });
-    t.ok(fs.stat(server.paths.certificates + "/whatever.crt") != null);
     t.eq(value("stray", "password"), "secret");
 });
 

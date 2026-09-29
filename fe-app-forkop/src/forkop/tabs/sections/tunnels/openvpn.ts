@@ -12,7 +12,7 @@ import {
 } from '../../../../validators/hostPort';
 import { validateSubnet } from '../../../../validators/validateSubnet';
 import { isIPv4, isIPv6 } from '../../../../validators/validateIp';
-import { isRouterPath } from '../../../../helpers/openvpnMaterial';
+import { isRouterPath } from '../../../../helpers/material';
 import { normalizeOptionValues } from '../../../cbi/listValues';
 
 type Endpoint = Record<string, unknown>;

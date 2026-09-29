@@ -11,7 +11,7 @@ t.test("a listener needs the firewall when WAN traffic can reach it", () => {
 
 t.test("an OpenVPN server is an endpoint of its own type, found where Tailscale is", () => {
     t.eq([ inbounds.runtime_type("openvpn"), inbounds.runtime_kind("openvpn") ], [ "openvpn-server", "endpoints" ]);
-    t.eq([ inbounds.runtime_type("mtproto"), inbounds.runtime_kind("mtproto") ], [ "mtproxy", "inbounds" ]);
+    t.eq([ inbounds.runtime_type("vless"), inbounds.runtime_kind("vless") ], [ "vless", "inbounds" ]);
     t.eq(inbounds.runtime_kind("tailscale"), "endpoints");
     t.eq(inbounds.runtime_ok("openvpn", "1", "openvpn-server", "::", "1194", "openvpn-server", "::", "1194"), 1,
         "its listener is compared like any other");

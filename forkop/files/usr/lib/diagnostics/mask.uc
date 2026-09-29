@@ -50,9 +50,10 @@ function delete_token_space(line, token) {
 }
 
 // The options whose value can span several lines: JSON, and the certificates
-// and keys of an OpenVPN server and its clients.
+// and keys of an OpenVPN server and its clients and of a TLS server.
 const MULTILINE_OPTIONS = [ "option outbound_json", "list outbound_jsons", "option endpoint_json", "option inbound_json",
-    "option openvpn_certificate", "option openvpn_key", "option openvpn_tls_crypt_key" ];
+    "option openvpn_certificate", "option openvpn_key", "option openvpn_tls_crypt_key",
+    "option tls_certificate", "option tls_key", "option tls_self_signed_certificate", "option tls_self_signed_key" ];
 
 function forkop_config_line(line) {
     line = mask_after_token(line, "option proxy_string");
@@ -86,8 +87,6 @@ function forkop_config_line(line) {
     // Credentials of a server client section.
     line = mask_after_token(line, "option uuid");
     line = mask_after_token(line, "option password");
-    line = mask_after_token(line, "option secret");
-    line = mask_after_token_space(line, "list authorized_keys");
     line = mask_after_token_space(line, "option mtproto_faketls");
     line = mask_after_token_space(line, "option mtproto_domain_fronting_ip");
     line = mask_after_token_space(line, "option tls_server_name");

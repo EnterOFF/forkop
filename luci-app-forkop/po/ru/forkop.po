@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-29 15:38+0300\n"
-"PO-Revision-Date: 2026-09-29 15:38+0300\n"
+"POT-Creation-Date: 2026-09-29 19:32+0300\n"
+"PO-Revision-Date: 2026-09-29 19:32+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -62,11 +62,14 @@ msgstr "✔ Работает"
 msgid "✘ Stopped"
 msgstr "✘ Остановлен"
 
-msgid "0-RTT handshake"
-msgstr "Рукопожатие 0-RTT"
+msgid "0 switches it off (mssfix in the profile)"
+msgstr "0 отключает (mssfix в профиле)"
 
-msgid "A certificate issued for this address"
-msgstr "Сертификат, выданный на этот адрес"
+msgid "0 switches it off (ping-restart in the profile)"
+msgstr "0 отключает (ping-restart в профиле)"
+
+msgid "0 switches it off (reneg-sec in the profile)"
+msgstr "0 отключает (reneg-sec в профиле)"
 
 msgid "A custom sing-box outbound object"
 msgstr "Пользовательский объект sing-box outbound"
@@ -89,17 +92,11 @@ msgstr "Имя не длиннее %d символов"
 msgid "A Reality key is 43 base64url characters"
 msgstr "Ключ Reality — это 43 символа base64url"
 
-msgid "A server usually sets it itself (ping-restart). 0 switches it off"
-msgstr "Обычно его задаёт сервер (ping-restart). 0 — выключить"
-
-msgid "A server usually sets it itself (ping)"
-msgstr "Обычно его задаёт сервер (ping)"
+msgid "A routing mode of this client's own instead of the server's"
+msgstr "Свой режим маршрутизации для этого клиента вместо режима сервера"
 
 msgid "A short ID holds at most 16 hex digits"
 msgstr "Short ID — не больше 16 hex-символов"
-
-msgid "A static key is the outdated mode without certificates. Choose it only for a server that uses one"
-msgstr "Статический ключ — устаревший режим без сертификатов. Выбирайте его, только если он включён на сервере"
 
 msgid "A static key profile needs a CBC cipher"
 msgstr "Профилю со статическим ключом нужен шифр CBC"
@@ -248,9 +245,6 @@ msgstr "Разрешённые префиксы доменов: full:, keyword: 
 msgid "Allowed IPs"
 msgstr "Разрешённые IP-адреса"
 
-msgid "Allows incoming connections to this port from the internet"
-msgstr "Разрешает входящие подключения на этот порт из интернета"
-
 msgid "ALPN"
 msgstr "ALPN"
 
@@ -286,6 +280,9 @@ msgstr "Нужно указать хотя бы один корректный д
 
 msgid "At least one valid IP or subnet must be specified."
 msgstr "Нужно указать хотя бы один корректный IP-адрес или подсеть."
+
+msgid "auth in the profile"
+msgstr "auth в профиле"
 
 msgid "Auth token"
 msgstr "Токен авторизации"
@@ -365,11 +362,8 @@ msgstr "Не удалось получить результаты проверк
 msgid "Cascade connection"
 msgstr "Каскадное подключение"
 
-msgid "Certificate generated"
-msgstr "Сертификат создан"
-
-msgid "Certificate path"
-msgstr "Путь к сертификату"
+msgid "Certificate"
+msgstr "Сертификат"
 
 msgid "Certificate profile"
 msgstr "Профиль сертификатов"
@@ -410,8 +404,8 @@ msgstr "CIDR должен быть от 0 до 32 для IPv4 или от 0 до
 msgid "Cipher"
 msgstr "Шифр"
 
-msgid "Cipher suites of the control channel up to TLS 1.2, separated by colons (tls-cipher)"
-msgstr "Наборы шифров управляющего канала до TLS 1.2 через двоеточие (tls-cipher)"
+msgid "Cipher suites up to TLS 1.2, separated by colons (tls-cipher in the profile)"
+msgstr "Наборы шифров до TLS 1.2 через двоеточие (tls-cipher в профиле)"
 
 msgid "Clash API request timed out after it was sent"
 msgstr "Запрос к Clash API был отправлен, но истекло время ожидания ответа"
@@ -440,8 +434,8 @@ msgstr "Клиент: %s"
 msgid "Clients"
 msgstr "Клиенты"
 
-msgid "Clients send everything through the router, where the routing mode decides where it goes. Off, they send only the subnets below"
-msgstr "Клиенты отправляют через роутер весь трафик, а куда он пойдёт дальше, решает режим маршрутизации. Если выключено — только подсети ниже"
+msgid "Clients send all of their traffic through the router, where the routing mode decides where it goes. Off, they send only the routes below"
+msgstr "Клиенты отправляют весь трафик через роутер, а дальше его направляет режим маршрутизации. Если выключено, через сервер идут только маршруты ниже"
 
 msgid "Close"
 msgstr "Закрыть"
@@ -562,12 +556,6 @@ msgstr "Не удалось отключить автостарт"
 
 msgid "Could not enable autostart"
 msgstr "Не удалось включить автостарт"
-
-msgid "Could not generate a certificate"
-msgstr "Не удалось создать сертификат"
-
-msgid "Could not generate a host key"
-msgstr "Не удалось создать ключ хоста"
 
 msgid "Could not generate a Reality key pair"
 msgstr "Не удалось сгенерировать пару ключей Reality"
@@ -722,9 +710,6 @@ msgstr "Скачать найденное"
 msgid "Download the profile"
 msgstr "Скачать профиль"
 
-msgid "Download, Mbps"
-msgstr "Приём, Мбит/с"
-
 msgid "Downloaded"
 msgstr "Загружено"
 
@@ -742,6 +727,9 @@ msgstr "Редактировать"
 
 msgid "Edit rule action"
 msgstr "Изменить"
+
+msgid "Empty: %s (data-ciphers in the profile)"
+msgstr "Пусто: %s (data-ciphers в профиле)"
 
 msgid "Enable"
 msgstr "Включить"
@@ -914,9 +902,6 @@ msgstr "FakeIP и контрольная проверка используют �
 msgid "FakeIP works; public IP comparison is inconclusive"
 msgstr "FakeIP работает; сравнение публичных IP не дает однозначного результата"
 
-msgid "FakeTLS host"
-msgstr "FakeTLS-хост"
-
 msgid "Fallback"
 msgstr "Fallback"
 
@@ -937,9 +922,6 @@ msgstr "Заполните учётные данные клиента, чтоб�
 
 msgid "Fill the fields from an existing configuration"
 msgstr "Заполнить поля из готовой конфигурации"
-
-msgid "Filled in together with the private key"
-msgstr "Заполняется автоматически вместе с приватным ключом"
 
 msgid "Firewall WAN port"
 msgstr "Порт в файрволе"
@@ -983,12 +965,6 @@ msgstr "Из файла…"
 msgid "Generate"
 msgstr "Сгенерировать"
 
-msgid "Generate a certificate"
-msgstr "Создать сертификат"
-
-msgid "Generate a host key"
-msgstr "Создать ключ хоста"
-
 msgid "Generate a key pair"
 msgstr "Сгенерировать пару ключей"
 
@@ -1028,20 +1004,14 @@ msgstr "Значение заголовка должно быть в одной 
 msgid "Headers"
 msgstr "Заголовки"
 
-msgid "Heartbeat"
-msgstr "Интервал поддержания соединения"
-
 msgid "Hide values"
 msgstr "Скрывать значения"
 
 msgid "Host"
 msgstr "Хост"
 
-msgid "Host and port of the OpenVPN server. With several, the next one is tried when a server does not answer. Put tcp:// or udp:// before a server that uses the other protocol"
-msgstr "Адрес и порт сервера OpenVPN. Если серверов несколько, при недоступности одного подключение идёт к следующему. Перед сервером с другим протоколом допишите tcp:// или udp://"
-
-msgid "Host key generated"
-msgstr "Ключ хоста создан"
+msgid "Host and port. Put tcp:// or udp:// before a server on the other transport"
+msgstr "Хост и порт. Перед сервером на другом транспорте укажите tcp:// или udp://"
 
 msgid "How long DNS records are cached, in seconds"
 msgstr "Время кэширования DNS-записей в секундах"
@@ -1064,23 +1034,20 @@ msgstr "HTTP"
 msgid "HTTP error"
 msgstr "Ошибка HTTP"
 
-msgid "HTTP hosts"
-msgstr "HTTP-хосты"
-
 msgid "HTTP status codes of a successful check. * is any response, or values and ranges: 204/200-299"
 msgstr "HTTP-коды успешной проверки. * — любой ответ, либо коды и диапазоны: 204/200-299"
 
 msgid "Idle timeout"
 msgstr "Таймаут простоя"
 
+msgid "ifconfig and ifconfig-ipv6 in the profile"
+msgstr "ifconfig и ifconfig-ipv6 в профиле"
+
 msgid "ifconfig needs two addresses"
 msgstr "ifconfig: нужны два адреса"
 
 msgid "ifconfig-ipv6 needs an address"
 msgstr "ifconfig-ipv6: нужен адрес"
-
-msgid "Ignore client bandwidth"
-msgstr "Игнорировать полосу клиента"
 
 msgid "Import"
 msgstr "Импортировать"
@@ -1241,23 +1208,11 @@ msgstr "Ключ"
 msgid "Key direction"
 msgstr "Направление ключа"
 
-msgid "Key path"
-msgstr "Путь к ключу"
-
 msgid "Key renegotiation, seconds"
 msgstr "Смена ключей, секунд"
 
-msgid "key-direction of the profile. Clients use 1"
-msgstr "key-direction из профиля. У клиентов обычно 1"
-
 msgid "Keyword must not contain spaces or commas"
 msgstr "Ключевое слово не должно содержать пробелы или запятые"
-
-msgid "Largest packet size TCP connections are fitted to (mssfix). 0 switches it off"
-msgstr "Наибольший размер пакета, под который подгоняются TCP-соединения (mssfix). 0 — выключить"
-
-msgid "Largest UDP packet before OpenVPN splits it (fragment). Only if the server uses it too"
-msgstr "Наибольший UDP-пакет, крупнее которого OpenVPN режет пакеты сам (fragment). Только если так настроен и сервер"
 
 msgid "Latency difference"
 msgstr "Разница задержки"
@@ -1316,9 +1271,6 @@ msgstr "Загрузка..."
 msgid "Local resolver"
 msgstr "Локальный резолвер"
 
-msgid "Local subnets the rest of the network may reach through this router, once approved in the Tailscale console"
-msgstr "Локальные подсети, доступные остальной сети через этот роутер после одобрения в консоли Tailscale"
-
 msgid "Local UDP port. Empty means the default"
 msgstr "Локальный UDP-порт. Пусто — по умолчанию"
 
@@ -1349,14 +1301,17 @@ msgstr "Маскировка"
 msgid "Match destination ports"
 msgstr "Совпадение по портам назначения"
 
+msgid "Max speed from a client, Mbps"
+msgstr "Макс. скорость от клиента, Мбит/с"
+
+msgid "Max speed to a client, Mbps"
+msgstr "Макс. скорость к клиенту, Мбит/с"
+
 msgid "Maximum age of expired DNS answers"
 msgstr "Максимальный возраст устаревших ответов DNS"
 
 msgid "Maximum handshake attempts"
 msgstr "Максимум попыток рукопожатия"
-
-msgid "Maximum obfuscated packet size"
-msgstr "Максимальный размер пакета обфускации"
 
 msgid "Maximum time to wait for a DNS response"
 msgstr "Максимальное время ожидания ответа DNS"
@@ -1366,9 +1321,6 @@ msgstr "Использование памяти"
 
 msgid "Method"
 msgstr "Метод"
-
-msgid "Minimum obfuscated packet size"
-msgstr "Минимальный размер пакета обфускации"
 
 msgid "Minimum TLS version"
 msgstr "Минимальная версия TLS"
@@ -1399,6 +1351,9 @@ msgstr "Должно быть числом в диапазоне 0 - 10000"
 
 msgid "N/A"
 msgstr "Н/Д"
+
+msgid "NaiveProxy clients accept only a certificate a browser trusts. Paste it or load it from a file"
+msgstr "Клиенты NaiveProxy принимают только сертификат, которому доверяет браузер. Вставьте его или загрузите из файла"
 
 msgid "Name"
 msgstr "Имя"
@@ -1505,11 +1460,17 @@ msgstr "Выключено"
 msgid "One rule per line: pattern => replacement, applied in order. The pattern is a regular expression, $1 in the replacement keeps a captured group and ${1} keeps it in front of a letter. Example: ^HK-(.*)$ => Hong Kong $1"
 msgstr "По одному правилу в строке: шаблон => замена, применяются по порядку. Шаблон — регулярное выражение, $1 в замене сохраняет найденную группу, а ${1} сохраняет её перед буквой. Пример: ^HK-(.*)$ => Гонконг $1"
 
+msgid "Only for a server older than 2.4 (data-ciphers-fallback in the profile)"
+msgstr "Только для сервера старше 2.4 (data-ciphers-fallback в профиле)"
+
 msgid "Only for a server that requires it: compression weakens encryption"
 msgstr "Только если этого требует сервер: сжатие ослабляет шифрование"
 
 msgid "Only for devices"
 msgstr "Только для устройств"
+
+msgid "Only if the server uses it too (fragment in the profile)"
+msgstr "Только если сервер тоже его использует (fragment в профиле)"
 
 msgid "Only selected"
 msgstr "Только выбранные"
@@ -1531,6 +1492,9 @@ msgstr "Открыть порт"
 
 msgid "Open tunnel settings and complete the configuration"
 msgstr "Откройте настройки туннеля и завершите конфигурацию"
+
+msgid "Opens the port in the router's firewall to connections from the internet"
+msgstr "Открывает порт в файерволе роутера для подключений из интернета"
 
 msgid "Operation timed out"
 msgstr "Время ожидания истекло"
@@ -1580,6 +1544,12 @@ msgstr "Вставьте статический ключ OpenVPN или загр
 msgid "Paste an OpenVPN tls-crypt-v2 client key or load it from a file"
 msgstr "Вставьте клиентский ключ tls-crypt-v2 или загрузите его из файла"
 
+msgid "Paste the certificate or load it from a file"
+msgstr "Вставьте сертификат или загрузите его из файла"
+
+msgid "Paste the private key or load it from a file"
+msgstr "Вставьте приватный ключ или загрузите его из файла"
+
 msgid "Path cannot be empty"
 msgstr "Путь не может быть пустым"
 
@@ -1607,6 +1577,9 @@ msgstr "peer-fingerprint: нужны отпечатки SHA-256"
 msgid "Peers"
 msgstr "Пиры"
 
+msgid "PEM text or the path of a file on the router"
+msgstr "Текст PEM или путь к файлу на роутере"
+
 msgid "Pending"
 msgstr "Ожидает запуска"
 
@@ -1618,6 +1591,9 @@ msgstr "Выбрать домен"
 
 msgid "Pick a free port"
 msgstr "Выбрать свободный порт"
+
+msgid "ping in the profile"
+msgstr "ping в профиле"
 
 msgid "Ping interval, seconds"
 msgstr "Интервал ping, секунд"
@@ -1736,14 +1712,8 @@ msgstr "Убрать серверы из выборки выше"
 msgid "Remove servers whose names match the regular expression"
 msgstr "Убрать серверы, чьи имена совпадают с регулярным выражением"
 
-msgid "Remove the node from the network once it goes offline"
-msgstr "Удалять узел из сети после отключения"
-
 msgid "Rename servers"
 msgstr "Переименование серверов"
-
-msgid "reneg-sec. 0 switches it off"
-msgstr "reneg-sec. 0 — выключить"
 
 msgid "Request the subscription through a section"
 msgstr "Запрашивать подписку через секцию"
@@ -1757,35 +1727,14 @@ msgstr "Запрашивать профили WARP через"
 msgid "Request WARP profiles through a section"
 msgstr "Запрашивать профили WARP через секцию"
 
-msgid "Require a login and password to connect to the server"
-msgstr "Требовать логин и пароль для подключения к серверу"
-
 msgid "Required. Checked from top to bottom until the first working server"
 msgstr "Обязательно. Проверяются сверху вниз до первого рабочего сервера"
-
-msgid "Required. Create a new key with the button"
-msgstr "Обязательно. Создайте новый ключ кнопкой"
-
-msgid "Required. Every client has to send the same value"
-msgstr "Обязательно. Все клиенты должны передавать то же значение"
-
-msgid "Required. Generate a pair with the button"
-msgstr "Обязательно. Сгенерируйте пару кнопкой"
 
 msgid "Required. Remote nodes to connect to"
 msgstr "Обязательно. Удалённые узлы для подключения"
 
-msgid "Required. The clients that may connect"
-msgstr "Обязательно. Клиенты для подключения"
-
 msgid "Required. The section that carries the control-plane traffic"
 msgstr "Обязательно. Секция, через которую идёт трафик к серверу координации"
-
-msgid "Required. Where the traffic of this client leaves"
-msgstr "Обязательно. Куда уходит трафик этого клиента"
-
-msgid "Required. Where the traffic of this server leaves"
-msgstr "Обязательно. Куда уходит трафик этого сервера"
 
 msgid "Resolve the addresses of the main DNS servers and proxies. Several servers give automatic failover. The protocol is set by a prefix: %s"
 msgstr "Резолвят адреса основных DNS-серверов и прокси. Несколько серверов дают автоматическое переключение при сбоях. Протокол задаётся префиксом: %s"
@@ -1810,9 +1759,6 @@ msgstr "Маршрутизировать основные DNS-запросы ч�
 
 msgid "Route the resolver's DNS requests through a section instead of this network interface"
 msgstr "Маршрутизировать DNS-запросы резолвера через секцию, а не через этот сетевой интерфейс"
-
-msgid "Route this client on its own path instead of the rest of the server"
-msgstr "Использовать для этого клиента отдельный путь маршрутизации вместо серверного"
 
 msgid "Router"
 msgstr "Роутер"
@@ -1877,9 +1823,6 @@ msgstr "Сохранить"
 msgid "Search"
 msgstr "Поиск"
 
-msgid "Secret"
-msgstr "Секрет"
-
 msgid "Secret key for authenticating remote access to YACD when WAN access is enabled"
 msgstr "Секретный ключ для аутентификации удаленного доступа к YACD при включенном доступе через WAN"
 
@@ -1937,6 +1880,9 @@ msgstr "Выбирает первый доступный узел по прио�
 msgid "Selects the node with the lowest latency"
 msgstr "Выбирает узел с наименьшей задержкой"
 
+msgid "Self-signed"
+msgstr "Самоподписанный"
+
 msgid "Send BitTorrent traffic past the proxy"
 msgstr "Пропускать торрент-трафик мимо прокси"
 
@@ -1955,8 +1901,8 @@ msgstr "сервер %s"
 msgid "Server address"
 msgstr "Адрес сервера"
 
-msgid "Server certificate checks, ciphers, compression, MTU and timers. Off, they keep their defaults"
-msgstr "Проверки сертификата сервера, шифры, сжатие, MTU и таймеры. Если выключено, действуют значения по умолчанию"
+msgid "Server certificate"
+msgstr "Сертификат сервера"
 
 msgid "Server certificate fingerprints"
 msgstr "Отпечатки сертификата сервера"
@@ -2036,9 +1982,6 @@ msgstr "Настройки не сохранены"
 msgid "Several servers give automatic failover. The protocol is set by a prefix: %s"
 msgstr "Несколько серверов дают автоматическое переключение при сбоях. Протокол задаётся префиксом: %s"
 
-msgid "SHA-256 fingerprints the server certificate must match (peer-fingerprint). With them the CA certificate is not needed"
-msgstr "Отпечатки SHA-256, с которыми должен совпасть сертификат сервера (peer-fingerprint). С ними сертификат центра сертификации не нужен"
-
 msgid "Show a QR code"
 msgstr "Показать QR-код"
 
@@ -2087,15 +2030,6 @@ msgstr "Сетевой интерфейс источника"
 msgid "Specify a directory after file://"
 msgstr "Укажите каталог после file://"
 
-msgid "Specify a file path"
-msgstr "Укажите путь к файлу"
-
-msgid "SSH host key path"
-msgstr "Путь к ключу хоста SSH"
-
-msgid "SSH public keys"
-msgstr "Публичные ключи SSH"
-
 msgid "Start"
 msgstr "Запустить"
 
@@ -2119,9 +2053,6 @@ msgstr "Остановить"
 
 msgid "Stopping..."
 msgstr "Остановка..."
-
-msgid "Subnets the clients reach through the server, such as the local network of the router"
-msgstr "Подсети, в которые клиенты ходят через сервер, например локальная сеть роутера"
 
 msgid "Subscription"
 msgstr "Подписка"
@@ -2177,23 +2108,14 @@ msgstr "Tailscale endpoint"
 msgid "TCP and UDP"
 msgstr "TCP и UDP"
 
-msgid "TCP Fast Open"
-msgstr "TCP Fast Open"
-
 msgid "Test latency"
 msgstr "Тестирование задержки"
 
 msgid "The <%s> block is not closed"
 msgstr "Блок <%s> не закрыт"
 
-msgid "The address of the server in the network of its clients, who get the other addresses. An IPv6 subnet can go beside the IPv4 one"
-msgstr "Адрес сервера в сети его клиентов, остальные адреса получат клиенты. Рядом с подсетью IPv4 можно добавить подсеть IPv6"
-
-msgid "The address the connection links and profiles point at"
-msgstr "Адрес, на который указывают ссылки и профили подключения"
-
-msgid "The addresses of this end of the tunnel in CIDR format (ifconfig)"
-msgstr "Адреса этой стороны туннеля в формате CIDR (ifconfig)"
+msgid "The address links and profiles point at"
+msgstr "Адрес, на который указывают ссылки и профили"
 
 msgid "The certificate and the key must be different files"
 msgstr "Сертификат и ключ должны быть разными файлами"
@@ -2201,32 +2123,11 @@ msgstr "Сертификат и ключ должны быть разными ф
 msgid "The certificate is damaged"
 msgstr "Сертификат повреждён"
 
-msgid "The certificate the server certificate is checked against (ca)"
-msgstr "Сертификат, по которому проверяется сертификат сервера (ca)"
-
-msgid "The certificate this tunnel presents (cert). A server that asks only for a login needs none"
-msgstr "Сертификат, который предъявляет туннель (cert). Серверу, которому хватает логина, он не нужен"
-
 msgid "The check is scheduled by cron: use whole minutes up to 59m, whole hours up to 23h, or exactly 1d"
 msgstr "Проверку запускает cron: укажите целые минуты до 59m, целые часы до 23h или ровно 1d"
 
-msgid "The cipher of a server older than 2.4, which cannot agree on one (cipher, data-ciphers-fallback)"
-msgstr "Шифр для сервера старше 2.4, который не умеет договариваться о шифре (cipher, data-ciphers-fallback)"
-
-msgid "The ciphers offered to the server (data-ciphers). Empty: %s"
-msgstr "Шифры, которые предлагаются серверу (data-ciphers). Пусто — %s"
-
 msgid "The client certificate and its key go together: add both or neither"
 msgstr "Сертификат клиента и его ключ идут вместе: добавьте оба или ни одного"
-
-msgid "The digest of CBC ciphers and of tls-auth (auth)"
-msgstr "Хеш для шифров CBC и tls-auth (auth)"
-
-msgid "The domain a client sends in the TLS handshake"
-msgstr "Домен, который клиент передаёт в TLS-рукопожатии"
-
-msgid "The extra key the server wraps its handshake in: tls-auth, tls-crypt or tls-crypt-v2"
-msgstr "Дополнительный ключ, которым сервер защищает рукопожатие: tls-auth, tls-crypt или tls-crypt-v2"
 
 msgid "The group joins as the single node it has selected"
 msgstr "Группа участвует как один выбранный узел"
@@ -2240,12 +2141,6 @@ msgstr "Установленный sing-box собран без %s"
 msgid "The interface the traffic comes from"
 msgstr "Интерфейс, с которого исходит трафик"
 
-msgid "The IPv4 address of the other end of the tunnel"
-msgstr "IPv4-адрес другой стороны туннеля"
-
-msgid "The IPv6 address of the other end of the tunnel"
-msgstr "IPv6-адрес другой стороны туннеля"
-
 msgid "The key is protected by a passphrase. Remove it first: openssl pkey -in key.pem -out key-plain.pem"
 msgstr "Ключ защищён паролем. Сначала снимите его: openssl pkey -in key.pem -out key-plain.pem"
 
@@ -2255,26 +2150,14 @@ msgstr "Ключ этого профиля хранится в системе и
 msgid "The name must not contain /"
 msgstr "Имя не должно содержать /"
 
-msgid "The name the server certificate must carry (verify-x509-name). Empty: any certificate the CA issued"
-msgstr "Имя, которое должно быть в сертификате сервера (verify-x509-name). Пусто — подойдёт любой сертификат этого центра сертификации"
-
 msgid "The name this device appears under in the Tailscale console"
 msgstr "Под этим именем устройство видно в консоли Tailscale"
-
-msgid "The name this router appears under in the Tailscale console. It is offered there as an exit node and carries traffic once approved"
-msgstr "Под этим именем роутер виден в консоли Tailscale. Там он предлагается как выходной узел и начинает пропускать трафик после одобрения"
 
 msgid "The pasted link is not supported. Try JSON outbound."
 msgstr "Вставленная ссылка не поддерживается. Попробуй JSON outbound."
 
 msgid "The path must start with /"
 msgstr "Путь должен начинаться с /"
-
-msgid "The private key of the certificate"
-msgstr "Приватный ключ сертификата"
-
-msgid "The private key of the client certificate (key)"
-msgstr "Приватный ключ сертификата клиента (key)"
 
 msgid "The profile has a client certificate but no key for it"
 msgstr "В профиле есть сертификат клиента, но нет его ключа"
@@ -2300,17 +2183,26 @@ msgstr "Профиль ссылается на файл %s. Выберите е�
 msgid "The profile uses a TAP (layer 2) device. Only TUN profiles are supported"
 msgstr "Профиль использует устройство TAP (уровень 2). Поддерживаются только профили TUN"
 
+msgid "The router is offered in the Tailscale console as an exit node under this name, and carries traffic once approved"
+msgstr "Под этим именем роутер предлагается в консоли Tailscale как выходной узел и начинает пропускать трафик после одобрения"
+
 msgid "The router issues the certificate of this client when the settings are applied. Apply them to get a profile."
 msgstr "Роутер выпускает сертификат клиента при применении настроек. Примените их, чтобы получить профиль."
 
 msgid "The router itself becomes a proxy server for your devices"
 msgstr "Роутер сам становится прокси-сервером для ваших устройств"
 
+msgid "The second address of ifconfig in the profile"
+msgstr "Второй адрес ifconfig в профиле"
+
+msgid "The second address of ifconfig-ipv6 in the profile"
+msgstr "Второй адрес ifconfig-ipv6 в профиле"
+
 msgid "The section conditions only match these devices"
 msgstr "Условия секции сработают лишь для этих устройств"
 
-msgid "The server asks for a username and a password (auth-user-pass)"
-msgstr "Сервер запрашивает имя пользователя и пароль (auth-user-pass)"
+msgid "The server's own address with a prefix, such as 10.8.0.1/24; clients get the other addresses of the subnet. An IPv6 subnet can go beside it"
+msgstr "Адрес самого сервера с префиксом, например 10.8.0.1/24; клиенты получают остальные адреса подсети. Рядом можно добавить подсеть IPv6"
 
 msgid "The servers that are imported"
 msgstr "Серверы, которые импортируются"
@@ -2324,8 +2216,8 @@ msgstr "Серверы, которые не войдут в группу"
 msgid "The servers that end up in the group"
 msgstr "Серверы, которые войдут в группу"
 
-msgid "The shared key of the tunnel (secret)"
-msgstr "Общий ключ туннеля (secret)"
+msgid "The signature algorithms and key sizes accepted (tls-cert-profile in the profile)"
+msgstr "Допустимые алгоритмы подписи и размеры ключей (tls-cert-profile в профиле)"
 
 msgid "The subnets that go through this peer"
 msgstr "Подсети, которые пойдут через этого пира"
@@ -2396,17 +2288,14 @@ msgstr "Хост транспорта"
 msgid "Transport path"
 msgstr "Путь транспорта"
 
-msgid "Try the servers in random order (remote-random)"
-msgstr "Перебирать серверы в случайном порядке (remote-random)"
-
 msgid "TTL must be a positive number"
 msgstr "TTL должно быть положительным числом"
 
 msgid "TTL value cannot be empty"
 msgstr "Значение TTL не может быть пустым"
 
-msgid "tun-mtu"
-msgstr "tun-mtu"
+msgid "tun-mtu in the profile"
+msgstr "tun-mtu в профиле"
 
 msgid "Tunnel"
 msgstr "Туннель"
@@ -2428,9 +2317,6 @@ msgstr "Тип туннеля"
 
 msgid "Type"
 msgstr "Тип"
-
-msgid "UDP is faster; TCP gets through networks that let only TCP out"
-msgstr "UDP быстрее; TCP проходит через сети, которые выпускают только TCP"
 
 msgid "unknown"
 msgstr "неизвестно"
@@ -2468,9 +2354,6 @@ msgstr "Обновить подписки"
 msgid "Uplink"
 msgstr "Исходящий"
 
-msgid "Upload, Mbps"
-msgstr "Отдача, Мбит/с"
-
 msgid "Uploaded"
 msgstr "Отдано"
 
@@ -2495,14 +2378,8 @@ msgstr "Настройки URLTest"
 msgid "Use *, status codes, or ranges such as 204/200-299"
 msgstr "Укажите *, HTTP-коды или диапазоны, например 204/200-299"
 
-msgid "Use 32 hex characters"
-msgstr "Укажите 32 hex-символа"
-
 msgid "Use a domain name or IP address"
 msgstr "Используйте доменное имя или IP-адрес"
-
-msgid "Use a non-zero secret"
-msgstr "Укажите ненулевой секрет"
 
 msgid "Use a positive integer"
 msgstr "Используйте целое положительное число"
@@ -2536,9 +2413,6 @@ msgstr "Укажите IP-адрес с префиксом CIDR"
 
 msgid "Use an IP address, 0.0.0.0 for all IPv4, or :: for all addresses"
 msgstr "Укажите IP-адрес, 0.0.0.0 для всех IPv4 или :: для всех адресов"
-
-msgid "Use an OpenSSH public key line"
-msgstr "Укажите строку публичного ключа OpenSSH"
 
 msgid "Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, JSON outbounds, or JSON endpoints"
 msgstr "Использовать другую секцию как промежуточный узел для подключения к серверам этой секции. Не применяется к сетевым интерфейсам, JSON outbound и JSON endpoint"
@@ -2591,6 +2465,9 @@ msgstr "Значение не должно содержать управляющ
 msgid "verify-x509-name has an unsupported type %s"
 msgstr "verify-x509-name: неподдерживаемый тип %s"
 
+msgid "verify-x509-name in the profile"
+msgstr "verify-x509-name в профиле"
+
 msgid "verify-x509-name names no certificate name"
 msgstr "verify-x509-name: не указано имя сертификата"
 
@@ -2612,23 +2489,17 @@ msgstr "Адрес сервера WARP"
 msgid "WARP server port"
 msgstr "Порт сервера WARP"
 
-msgid "What proves the certificate was issued to a server and not to another client"
-msgstr "Как убедиться, что сертификат выдан серверу, а не другому клиенту"
-
 msgid "What to do when this section's conditions match"
 msgstr "Что делать при совпадении условий этой секции"
 
-msgid "Where to send the traffic from this server"
-msgstr "Куда направлять трафик этого сервера"
+msgid "Where to send the traffic of this server's connections"
+msgstr "Куда направлять трафик подключений этого сервера"
 
 msgid "Which servers end up in the group"
 msgstr "Какие серверы попадут в группу"
 
 msgid "Which servers to import"
 msgstr "Какие серверы импортировать"
-
-msgid "Which signature algorithms and key sizes are accepted (tls-cert-profile)"
-msgstr "Какие алгоритмы подписи и размеры ключей принимаются (tls-cert-profile)"
 
 msgid "Who resolves domains no rule matched"
 msgstr "Кто резолвит домены, не попавшие ни под одно правило"
@@ -2663,6 +2534,9 @@ msgstr "Поля пира WireGuard должны использовать нат
 msgid "WireGuard peer settings"
 msgstr "Настройки пира WireGuard"
 
+msgid "With fingerprints the CA certificate is not needed (peer-fingerprint in the profile)"
+msgstr "С отпечатками сертификат CA не нужен (peer-fingerprint в профиле)"
+
 msgid "Write ${1} instead of $1 when a letter follows the group number"
 msgstr "Используйте ${1} вместо $1, если после номера группы идёт буква"
 
@@ -2674,3 +2548,6 @@ msgstr "Секретный ключ YACD"
 
 msgid "Yes"
 msgstr "Да"
+
+msgid "Your own certificate"
+msgstr "Свой сертификат"

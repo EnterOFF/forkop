@@ -2,11 +2,11 @@
 // downwards, and beside it the button that loads it from a file - the form most
 // of these come in.
 
-import { E } from '../../../../helpers/element';
-import { checkOpenVPNMaterial } from '../../../../helpers/openvpnMaterial';
-import type { OpenVPNMaterialKind } from '../../../../helpers/openvpnMaterial';
-import { isCertificate } from '../../../../helpers/pem';
-import { configureTextareaOption } from '../../../cbi/annotatedTextarea';
+import { E } from '../../helpers/element';
+import { checkMaterial, splitCertificateAndKey } from '../../helpers/material';
+import type { MaterialKind } from '../../helpers/material';
+import { isCertificate } from '../../helpers/pem';
+import { configureTextareaOption } from './annotatedTextarea';
 
 type FormValue = (name: string) => unknown;
 
@@ -78,31 +78,60 @@ export function pickFiles(multiple: boolean, onPick: (files: File[]) => void) {
 }
 
 // The value of another field of the same dialog as it stands.
-function formValueOf(option: CBIOption): FormValue {
+function formValueOf(option: CBIOption, sectionId: string): FormValue {
   return (name: string) => {
-    const found = option.map.lookupOption(name, 'settings');
+    const found = option.map.lookupOption(name, sectionId);
     if (!found) return null;
     const value = found[0].formvalue(found[1]);
     return value ?? found[0].cfgvalue(found[1]);
   };
 }
 
-export function configureOpenVPNMaterial(
+function setFieldValue(widget: CBIWidget | null, value: string) {
+  widget?.setValue(value);
+  widget?.triggerValidation();
+  widget?.node
+    ?.querySelector('textarea')
+    ?.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+// What a loaded file puts into the field it was loaded into and into the
+// field paired with it: a file that holds a certificate and its key fills
+// both, anything else only its own.
+export function loadedMaterial(
+  text: string,
+  kind: MaterialKind,
+  paired: boolean,
+): { own: string; pair: string | null } {
+  const both = paired ? splitCertificateAndKey(text) : null;
+  if (!both) return { own: text, pair: null };
+  return kind === 'key'
+    ? { own: both.key, pair: both.certificate }
+    : { own: both.certificate, pair: both.key };
+}
+
+// A certificate field and a key field can be a pair: a file or a paste that
+// holds both, put into either of them, fills one with the certificate and the
+// other with the key.
+export function configureMaterialOption(
   option: CBIOption,
-  kind: OpenVPNMaterialKind | ((value: FormValue) => OpenVPNMaterialKind),
+  kind: MaterialKind | ((value: FormValue) => MaterialKind),
   required: (value: FormValue) => string,
+  pair?: string,
 ) {
-  const kindOf = () =>
-    typeof kind === 'function' ? kind(formValueOf(option)) : kind;
   option.rows = 4;
   option.wrap = 'off';
   option.rmempty = true;
   // No spell checking, and the four rows are also the least it shrinks to.
   configureTextareaOption(option);
-  option.validate = function (_sectionId: string, value: unknown) {
+  option.validate = function (sectionId: string, value: unknown) {
+    const values = formValueOf(this, sectionId);
     const content = `${value ?? ''}`.trim();
-    if (!content) return required(formValueOf(this)) || true;
-    const check = checkOpenVPNMaterial(kindOf(), content);
+    if (!content) return required(values) || true;
+    const check = checkMaterial(
+      typeof kind === 'function' ? kind(values) : kind,
+      content,
+    );
     return check.valid ? true : check.message;
   };
 
@@ -119,9 +148,12 @@ export function configureOpenVPNMaterial(
       optionIndex,
       cfgvalue,
     ) as HTMLElement;
-    const textarea = frame.querySelector('textarea');
     const label = _('Load from a file');
     const readonly = !!(this.readonly ?? this.map.readonly);
+    const pairWidget = () => {
+      const found = pair ? this.map.lookupOption(pair, sectionId) : null;
+      return found ? (found[0].getUIElement(found[1]) as CBIWidget) : null;
+    };
     const load = E(
       'button',
       {
@@ -133,17 +165,37 @@ export function configureOpenVPNMaterial(
       },
       fileIcon(),
     );
+    const fill = (text: string) => {
+      const other = pairWidget();
+      const loaded = loadedMaterial(
+        text,
+        typeof kind === 'function' ? kind(formValueOf(this, sectionId)) : kind,
+        !!other,
+      );
+      setFieldValue(
+        dom.findClassInstance(frame) as CBIWidget | null,
+        loaded.own,
+      );
+      if (loaded.pair != null) setFieldValue(other, loaded.pair);
+    };
     load.addEventListener('click', (ev) => {
       ev.preventDefault();
       pickFiles(false, ([file]) => {
         if (!file) return;
-        file.arrayBuffer().then((buffer) => {
-          const widget = dom.findClassInstance(frame) as CBIWidget | null;
-          widget?.setValue(readMaterialFile(new Uint8Array(buffer)).trim());
-          widget?.triggerValidation();
-          textarea?.dispatchEvent(new Event('change', { bubbles: true }));
-        });
+        file
+          .arrayBuffer()
+          .then((buffer) =>
+            fill(readMaterialFile(new Uint8Array(buffer)).trim()),
+          );
       });
+    });
+    // Pasted text that holds both halves goes where a loaded file would; any
+    // other paste is the browser's own.
+    frame.querySelector('textarea')?.addEventListener('paste', (ev) => {
+      const text = ev.clipboardData?.getData('text') ?? '';
+      if (!pair || !splitCertificateAndKey(text)) return;
+      ev.preventDefault();
+      fill(text.trim());
     });
     return E('div', { class: 'fkp-material' }, [frame, load]);
   };

@@ -17,7 +17,7 @@ import {
   MAX_CLIENT_NAME_LENGTH,
 } from './constants';
 import { generateCredential, randomItem } from './credentials';
-import { asList, hasControlCharacters, valueList } from './formValues';
+import { hasControlCharacters, valueList } from './formValues';
 import {
   credentialFields,
   getProtocol,
@@ -28,8 +28,6 @@ import {
   usesLoginName,
 } from './protocols';
 import {
-  validateAuthorizedKeys,
-  validateMtprotoSecret,
   validateRequiredText,
   validateShadowsocksPassword,
   validateUuid,
@@ -47,9 +45,7 @@ function readClient(section: Partial<UciSectionObject>): ServerClient {
     name: `${section.name || ''}`,
     uuid: `${section.uuid || ''}`,
     password: `${section.password || ''}`,
-    secret: `${section.secret || ''}`,
     flow: `${section.flow || ''}`,
-    authorized_keys: asList(section.authorized_keys),
   };
 }
 
@@ -115,16 +111,10 @@ export function validateClientCredential(
   if (field === 'uuid') {
     return validateUuid(sectionId, value);
   }
-  if (field === 'secret') {
-    return validateMtprotoSecret(sectionId, value);
-  }
   if (field === 'password') {
     return getProtocol(sectionId) === 'shadowsocks'
       ? validateShadowsocksPassword(sectionId, value)
       : validateRequiredText(sectionId, value);
-  }
-  if (field === 'authorized_keys') {
-    return validateAuthorizedKeys(sectionId, value);
   }
   return true;
 }
@@ -150,14 +140,8 @@ export function clientCredentialLabel(sectionId: string, field: string) {
   if (field === 'uuid') {
     return _('UUID');
   }
-  if (field === 'secret') {
-    return _('Secret');
-  }
   if (field === 'flow') {
     return _('Flow');
-  }
-  if (field === 'authorized_keys') {
-    return _('SSH public keys');
   }
 
   return getProtocol(sectionId) === 'shadowsocks' &&
@@ -184,7 +168,7 @@ export function clientSettingsDefaults(
   defaults.name =
     `${inputValue || ''}`.trim() || generateClientName(sectionId, listOption);
   visibleClientFields(sectionId).forEach((field: string) => {
-    if (field === 'flow' || field === 'authorized_keys') {
+    if (field === 'flow') {
       return;
     }
     defaults[field] = generateCredential(sectionId, protocol, field);
@@ -264,7 +248,7 @@ export function validateClientsOnSave(
     seen.add(name.toLowerCase());
 
     for (const field of visibleClientFields(sectionId)) {
-      if (field === 'flow' || field === 'authorized_keys') {
+      if (field === 'flow') {
         continue;
       }
       const result = validateClientCredential(
