@@ -269,7 +269,7 @@ declare global {
   interface ImportedTunnelFields {
     tunnelId: string;
     type: CBIOption;
-    wireguardJunk?: CBIOption;
+    amneziaEnabled: CBIOption;
     address: CBIOption;
     privateKey: CBIOption;
     listenPort: CBIOption;

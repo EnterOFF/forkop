@@ -63,8 +63,7 @@ it.each(['wireguard', 'warp'])(
       address: ['10.0.0.2/32'],
       private_key: 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=',
       peer_ids: [],
-      wireguard_junk_enabled: '1',
-      warp_junk_enabled: '1',
+      amnezia_enabled: '1',
       amnezia_disable_cookies: '1',
       amnezia_random_trailers: '1',
     });
@@ -127,6 +126,104 @@ describe('a JSON endpoint', () => {
     );
     expect(validate({ tunnel_type: 'json', endpoint_json: '[]' })).toBe(
       'Enter a valid JSON endpoint object',
+    );
+  });
+});
+
+// sing-box's check passes both, and the whole service then fails to start on
+// the endpoint: the device refuses headers that overlap, a header it is not
+// given being the WireGuard type number it keeps.
+describe('AmneziaWG parameters that only fail together', () => {
+  const settings = {
+    tunnel_type: 'amneziawg',
+    name: 'AWG',
+    address: ['10.0.0.2/32'],
+    private_key: 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=',
+  };
+  const PEERLESS = 'Add at least one WireGuard peer';
+  it('refuses headers that overlap, the device defaults included', () => {
+    expect(
+      validate({ ...settings, amnezia_h1: '100-200', amnezia_h2: '150' }),
+    ).toBe('H1, H2, H3 and H4 must not overlap');
+    expect(validate({ ...settings, amnezia_h1: '2' })).toBe(
+      'H1, H2, H3 and H4 must not overlap',
+    );
+    expect(validate({ ...settings, amnezia_h1: '1' })).toBe(PEERLESS);
+    expect(
+      validate({
+        ...settings,
+        amnezia_h1: '100-200',
+        amnezia_h2: '201',
+        amnezia_h3: '300-400',
+        amnezia_h4: '5',
+      }),
+    ).toBe(PEERLESS);
+  });
+  it.each(['amneziawg', 'wireguard'])(
+    'refuses a junk minimum above its maximum on %s',
+    (kind) => {
+      const junk = {
+        ...settings,
+        tunnel_type: kind,
+        amnezia_enabled: '1',
+        amnezia_jmin: '60',
+      };
+      expect(validate({ ...junk, amnezia_jmax: '10' })).toBe(
+        'Jmin must not be greater than Jmax',
+      );
+      expect(validate(junk)).toBe('Jmin must not be greater than Jmax');
+      expect(validate({ ...junk, amnezia_jmax: '60' })).toBe(PEERLESS);
+    },
+  );
+});
+
+// The fields refuse these by their datatypes as they are typed; a tunnel the
+// dialog did not write is checked by the same rules the router applies.
+describe('a stored tunnel the dialog did not write', () => {
+  const wireguard = {
+    tunnel_type: 'wireguard',
+    name: 'Plain',
+    address: ['10.0.0.2/32'],
+    private_key: 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=',
+  };
+  const warp = {
+    tunnel_type: 'warp',
+    name: 'WARP',
+    warp_profile_id: 'id',
+    warp_auth_token: 'token',
+    warp_private_key: 'key',
+  };
+  it('refuses a listen port or an MTU the core cannot read', () => {
+    for (const value of ['65536', 'abc']) {
+      expect(validate({ ...wireguard, listen_port: value })).toBe(
+        'Enter a valid listen port',
+      );
+      expect(validate({ ...wireguard, mtu: value })).toBe(
+        'Enter an MTU from 1 to 65535',
+      );
+    }
+    expect(validate({ ...wireguard, mtu: '0' })).toBe(
+      'Enter an MTU from 1 to 65535',
+    );
+    expect(validate({ ...wireguard, listen_port: '0', mtu: '1280' })).toBe(
+      'Add at least one WireGuard peer',
+    );
+  });
+  it('refuses a WARP server or keepalive the core cannot use', () => {
+    expect(validate(warp)).toBe(true);
+    expect(validate({ ...warp, warp_address: 'not a host' })).toBe(
+      'Enter a valid server address',
+    );
+    for (const address of [
+      'engage.cloudflareclient.com',
+      '2606:4700:d0::a29f:c001',
+    ])
+      expect(validate({ ...warp, warp_address: address })).toBe(true);
+    expect(validate({ ...warp, warp_port: '70000' })).toBe(
+      'Enter a valid server port',
+    );
+    expect(validate({ ...warp, warp_keepalive: '25-5' })).toBe(
+      'AmneziaWG ranges must be between 0 and 4294967295 with the start no greater than the end',
     );
   });
 });

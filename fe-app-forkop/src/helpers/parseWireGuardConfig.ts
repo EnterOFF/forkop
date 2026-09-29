@@ -1,5 +1,15 @@
 import { isIPv4, isIPv6 } from '../validators/validateIp';
 import { validateSubnet } from '../validators/validateSubnet';
+import {
+  AMNEZIA_PARAMETERS,
+  amneziaJsonValue,
+  amneziaTextFromConf,
+  parseRange,
+  parseUnsigned,
+  validateAmneziaSet,
+  validateAmneziaValue,
+  validateWireGuardKey,
+} from './wireguard';
 
 type NativeWireGuardEndpoint = {
   type: 'wireguard';
@@ -92,56 +102,6 @@ const PEER_FIELDS = [
   'reserved',
 ];
 
-/** AmneziaWG junk counts and sizes; the core reads them as uint32. */
-const AMNEZIA_COUNT_FIELDS = ['jc', 'jmin', 'jmax'];
-
-/** AmneziaWG packet paddings; the core reads them as uint16. */
-const AMNEZIA_PADDING_FIELDS = ['s1', 's2', 's3', 's4'];
-
-/** AmneziaWG values the core reads as a single uint32 or a `lo-hi` range. */
-const AMNEZIA_RANGE_FIELDS = [
-  'h1',
-  'h2',
-  'h3',
-  'h4',
-  'contentpaddingaddition',
-  'rekeyaftertime',
-  'rekeytimeout',
-  'rejectaftertime',
-  'keepalivetimeout',
-  'maxhandshakeattempts',
-];
-
-/** AmneziaWG special junk packets, described by a Custom Protocol Signature. */
-const AMNEZIA_SIGNATURE_FIELDS = ['i1', 'i2', 'i3', 'i4', 'i5'];
-const AMNEZIA_FLAG_FIELDS = ['randomtrailers', 'disablecookies'];
-
-/** Tags the core accepts inside a Custom Protocol Signature. */
-const AMNEZIA_SIGNATURE_TAGS = [
-  'b',
-  'c',
-  't',
-  'r',
-  'rc',
-  'rd',
-  'd',
-  'ds',
-  'dz',
-];
-
-/** Canonical AmneziaWG field name -> the name sing-box expects. */
-const AMNEZIA_ENDPOINT_KEYS: Record<string, string> = {
-  headerprotectionkey: 'header_protection_key',
-  contentpaddingaddition: 'content_padding_addition',
-  rekeyaftertime: 'rekey_after_time',
-  rekeytimeout: 'rekey_timeout',
-  rejectaftertime: 'reject_after_time',
-  keepalivetimeout: 'keepalive_timeout',
-  maxhandshakeattempts: 'max_handshake_attempts',
-  randomtrailers: 'random_trailers',
-  disablecookies: 'disable_cookies',
-};
-
 function splitValues(values: string[] | undefined): string[] {
   return (values || [])
     .flatMap((value) => value.split(','))
@@ -189,63 +149,6 @@ function firstValue(values: FieldValues, key: string): string {
   return values[key]?.[0]?.trim() || '';
 }
 
-function parseUnsigned(value: string, maximum: number): number | undefined {
-  if (!/^\d+$/u.test(value)) return undefined;
-  const parsed = Number(value);
-  return Number.isSafeInteger(parsed) && parsed <= maximum ? parsed : undefined;
-}
-
-function parseRange(
-  value: string,
-  maximum: number,
-): number | string | undefined {
-  const parts = value.split('-');
-  if (parts.length > 2 || parts.some((part) => part === '')) return undefined;
-  const from = parseUnsigned(parts[0], maximum);
-  const to = parts.length === 2 ? parseUnsigned(parts[1], maximum) : from;
-  if (from === undefined || to === undefined || from > to) return undefined;
-  return parts.length === 2 ? value : from;
-}
-
-/** WireGuard keys are standard padded base64 encodings of exactly 32 bytes. */
-export function validateWireGuardKey(value: string): boolean {
-  const normalized = value.trim();
-  if (!/^[A-Za-z0-9+/]{43}=$/u.test(normalized)) return false;
-  try {
-    const decoded = atob(normalized);
-    return decoded.length === 32 && btoa(decoded) === normalized;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * AmneziaWG I1-I5 hold a Custom Protocol Signature: a chain of `<tag value>`
- * packets such as `<b 0xdeadbeef><c><r 4>`. The core refuses an unknown tag and
- * silently sends nothing for a signature without any tag, so a plain hex blob
- * is rejected here instead of turning into obfuscation that never happens.
- */
-export function validateAmneziaSignature(value: string): boolean {
-  let rest = value.trim();
-  let tags = 0;
-
-  while (rest.length > 0) {
-    const start = rest.indexOf('<');
-    if (start < 0) break;
-    const end = rest.indexOf('>', start);
-    if (end < 0) return false;
-    const [tag] = rest
-      .slice(start + 1, end)
-      .trim()
-      .split(/\s+/u);
-    if (!AMNEZIA_SIGNATURE_TAGS.includes(tag)) return false;
-    tags += 1;
-    rest = rest.slice(end + 1);
-  }
-
-  return tags > 0;
-}
-
 function parsePeerEndpoint(
   value: string,
 ): { address: string; port: number } | null {
@@ -283,8 +186,10 @@ function readSections(input: string): ConfigSection[] | null {
   let current: ConfigSection | null = null;
 
   for (const rawLine of input.replace(/^\uFEFF/u, '').split(/\r?\n/u)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith('#') || line.startsWith(';')) continue;
+    // A line ends at its first #, the way wg-quick and the WireGuard apps read
+    // it: nothing a configuration holds is written with one.
+    const line = rawLine.replace(/#.*$/u, '').trim();
+    if (!line || line.startsWith(';')) continue;
 
     const header = /^\[([^\]]+)\]$/u.exec(line);
     if (header) {
@@ -412,68 +317,23 @@ function rejectUnsupportedFields(source: WireGuardSource): string {
 
 function parseAmnezia(iface: FieldValues): AmneziaResult {
   const amnezia: Record<string, number | string | boolean> = {};
-  const invalid: AmneziaResult = {
-    valid: false,
-    message: _('Invalid AmneziaWG parameters'),
-  };
+  const texts: Record<string, string> = {};
 
-  for (const key of AMNEZIA_COUNT_FIELDS) {
-    const value = firstValue(iface, key);
+  for (const { key, conf, kind } of AMNEZIA_PARAMETERS) {
+    const value = firstValue(iface, conf.toLowerCase());
     if (!value) continue;
-    const parsed = parseUnsigned(value, 0xffffffff);
-    if (parsed === undefined) return invalid;
-    amnezia[key] = parsed;
+    const text = amneziaTextFromConf(key, value);
+    if (text === null)
+      return { valid: false, message: _('Invalid AmneziaWG parameters') };
+    const validation = validateAmneziaValue(key, text);
+    if (validation !== true) return { valid: false, message: validation };
+    texts[key] = text;
+    if (kind !== 'flag' || text === '1')
+      amnezia[key] = amneziaJsonValue(key, text);
   }
 
-  for (const key of AMNEZIA_PADDING_FIELDS) {
-    const value = firstValue(iface, key);
-    if (!value) continue;
-    const parsed = parseUnsigned(value, 0xffff);
-    if (parsed === undefined) return invalid;
-    amnezia[key] = parsed;
-  }
-
-  for (const key of AMNEZIA_RANGE_FIELDS) {
-    const value = firstValue(iface, key);
-    if (!value) continue;
-    const parsed = parseRange(value, 0xffffffff);
-    if (parsed === undefined) return invalid;
-    amnezia[AMNEZIA_ENDPOINT_KEYS[key] || key] = parsed;
-  }
-
-  for (const key of AMNEZIA_SIGNATURE_FIELDS) {
-    const value = firstValue(iface, key);
-    if (!value) continue;
-    if (!validateAmneziaSignature(value))
-      return {
-        valid: false,
-        message: _(
-          'AmneziaWG I1-I5 must be Custom Protocol Signature tags such as <b 0xdeadbeef><r 4>',
-        ),
-      };
-    amnezia[key] = value;
-  }
-
-  for (const key of AMNEZIA_FLAG_FIELDS) {
-    const value = firstValue(iface, key).toLowerCase();
-    if (!value) continue;
-    if (!['on', 'off', 'true', 'false', '1', '0', 'yes', 'no'].includes(value))
-      return invalid;
-    if (['on', 'true', '1', 'yes'].includes(value))
-      amnezia[AMNEZIA_ENDPOINT_KEYS[key]] = true;
-  }
-
-  const headerProtectionKey = firstValue(iface, 'headerprotectionkey');
-  if (headerProtectionKey) {
-    if (!validateWireGuardKey(headerProtectionKey))
-      return {
-        valid: false,
-        message: _(
-          'WireGuard keys must be standard base64-encoded 32-byte values',
-        ),
-      };
-    amnezia.header_protection_key = headerProtectionKey;
-  }
+  const combination = validateAmneziaSet(texts);
+  if (combination !== true) return { valid: false, message: combination };
 
   return {
     valid: true,
@@ -552,7 +412,7 @@ function buildEndpoint(source: WireGuardSource): WireGuardConfigResult {
     const keepaliveValue = firstValue(values, 'persistentkeepalive');
     if (preSharedKey) peer.pre_shared_key = preSharedKey;
     peer.allowed_ips = allowedIps;
-    if (keepaliveValue) {
+    if (keepaliveValue && keepaliveValue.toLowerCase() !== 'off') {
       const keepalive = parseRange(keepaliveValue, 0xffffffff);
       if (keepalive === undefined)
         return {

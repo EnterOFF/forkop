@@ -41,7 +41,7 @@ export function buildOpenVPNProfile(
 
   const network =
     option(sectionId, 'openvpn_network') === 'tcp' ? 'tcp' : 'udp';
-  const allTraffic = option(sectionId, 'openvpn_redirect_gateway') !== '0';
+  const allTraffic = option(sectionId, 'tunnel_all_traffic') !== '0';
   const serverName = getServerName(sectionId);
   const lines = [
     `# ${serverName} · ${client.name}`,

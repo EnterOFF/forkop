@@ -102,6 +102,7 @@ function forkop_config_line(line) {
     line = mask_after_token_space(line, "option warp_profile_private_key");
     line = mask_after_token_space(line, "option warp_profile_license_key");
     line = mask_after_token_space(line, "option pre_shared_key");
+    line = mask_after_token_space(line, "option amnezia_header_protection_key");
     line = mask_after_token_space(line, "option public_key");
     line = mask_after_token_space(line, "option address");
     line = mask_after_token_space(line, "list address");

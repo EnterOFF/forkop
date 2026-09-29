@@ -280,5 +280,32 @@
       "socks5": "socks",
       "socks5h": "socks"
     }
-  }
+  },
+  "amnezia_parameters": [
+    { "key": "jc", "kind": "count", "one_sided": true },
+    { "key": "jmin", "kind": "count", "one_sided": true },
+    { "key": "jmax", "kind": "count", "one_sided": true },
+    { "key": "s1", "kind": "padding", "one_sided": false },
+    { "key": "s2", "kind": "padding", "one_sided": false },
+    { "key": "s3", "kind": "padding", "one_sided": false },
+    { "key": "s4", "kind": "padding", "one_sided": false },
+    { "key": "h1", "kind": "range", "one_sided": false },
+    { "key": "h2", "kind": "range", "one_sided": false },
+    { "key": "h3", "kind": "range", "one_sided": false },
+    { "key": "h4", "kind": "range", "one_sided": false },
+    { "key": "i1", "kind": "signature", "one_sided": true },
+    { "key": "i2", "kind": "signature", "one_sided": true },
+    { "key": "i3", "kind": "signature", "one_sided": true },
+    { "key": "i4", "kind": "signature", "one_sided": true },
+    { "key": "i5", "kind": "signature", "one_sided": true },
+    { "key": "header_protection_key", "kind": "key", "one_sided": false },
+    { "key": "content_padding_addition", "kind": "range", "one_sided": true },
+    { "key": "rekey_after_time", "kind": "range", "one_sided": true },
+    { "key": "rekey_timeout", "kind": "range", "one_sided": true },
+    { "key": "reject_after_time", "kind": "range", "one_sided": true },
+    { "key": "keepalive_timeout", "kind": "range", "one_sided": true },
+    { "key": "max_handshake_attempts", "kind": "range", "one_sided": true },
+    { "key": "random_trailers", "kind": "flag", "one_sided": false },
+    { "key": "disable_cookies", "kind": "flag", "one_sided": true }
+  ]
 }

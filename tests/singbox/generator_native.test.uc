@@ -48,7 +48,7 @@ function openvpn_server(server, clients) {
             connection_url: "socks5://127.0.0.1:1080" } ],
         server: [ {
             ".name": "office", enabled: "1", label: "Office", protocol: "openvpn", listen: "::", listen_port: "1194",
-            openvpn_network: "udp", openvpn_address: [ "10.8.0.1/24" ], routing_mode: "rules",
+            openvpn_network: "udp", tunnel_address: [ "10.8.0.1/24" ], routing_mode: "rules",
             openvpn_certificate: "-----BEGIN CERTIFICATE-----\nSERVER\n-----END CERTIFICATE-----\n",
             openvpn_key: "-----BEGIN PRIVATE KEY-----\nKEY\n-----END PRIVATE KEY-----",
             openvpn_tls_crypt_key: "-----BEGIN OpenVPN Static key V1-----\n00ff\n-----END OpenVPN Static key V1-----",
@@ -82,12 +82,12 @@ t.test("an OpenVPN server trusts the certificates of its clients and hands them 
 });
 
 t.test("an OpenVPN server with an IPv6 subnet routes IPv6 too, and one told otherwise pushes only its routes", () => {
-    fixture.seed(openvpn_server({ openvpn_address: [ "10.8.0.1/24", "fd00:8::1/64" ] }));
+    fixture.seed(openvpn_server({ tunnel_address: [ "10.8.0.1/24", "fd00:8::1/64" ] }));
     let push = q.endpoint(generator.build({ service_address: "127.0.0.1" }), "Office").push;
     t.eq(push.dns, [ "10.8.0.1", "fd00:8::1" ]);
     t.eq(push.redirect_gateway_flags, [ "def1", "ipv6" ]);
 
-    fixture.seed(openvpn_server({ openvpn_redirect_gateway: "0", openvpn_routes: [ "192.168.1.0/24" ] }));
+    fixture.seed(openvpn_server({ tunnel_all_traffic: "0", tunnel_routes: [ "192.168.1.0/24" ] }));
     push = q.endpoint(generator.build({ service_address: "127.0.0.1" }), "Office").push;
     t.eq(push, { dns: [ "10.8.0.1" ], ping_interval: "10s", ping_restart: "120s", routes: [ "192.168.1.0/24" ] });
 });

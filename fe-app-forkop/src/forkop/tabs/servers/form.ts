@@ -19,6 +19,7 @@ import {
   addTransportOptions,
 } from './form/security';
 import { addOpenVPNServerOptions } from './form/openvpn';
+import { addTunnelOptions } from './form/tunnel';
 import { addRoutingOptions } from './routing';
 
 export function createServerContent(section: CBISection) {
@@ -32,6 +33,7 @@ export function createServerContent(section: CBISection) {
   addJsonInboundOptions(section);
   addListenerOptions(section);
   addOpenVPNServerOptions(section);
+  addTunnelOptions(section);
   addShadowsocksOptions(section);
   addMixedOptions(section);
   addClientListOption(section);

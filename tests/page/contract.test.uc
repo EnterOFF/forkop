@@ -15,6 +15,7 @@ let mask = require("diagnostics.mask");
 let state_service = require("service.state_service");
 let features = require("singbox.features");
 let program = require("program");
+let amnezia = require("singbox.amnezia");
 
 let contract = json(fs.readfile(repo.path("tests/fixtures/page_contract.json")));
 
@@ -112,6 +113,12 @@ t.test("the intervals the settings form accepts are the ones a cron line is writ
 t.test("a link needs what the core needs to dial it", () => {
     for (let entry in contract.link_features)
         t.eq(features.link_features(entry[0]), entry[1], entry[0]);
+});
+
+// A tunnel dialog validates and stores the AmneziaWG parameters by the page's
+// table, and the router reads them back by its own.
+t.test("the AmneziaWG parameters are read by the kinds and sides the page writes them with", () => {
+    t.eq(amnezia.PARAMETERS, contract.amnezia_parameters);
 });
 
 t.test("the core report the page is built against is the backend's for the base build", () => {

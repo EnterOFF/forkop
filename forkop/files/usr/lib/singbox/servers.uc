@@ -400,7 +400,7 @@ function add_tailscale_endpoint(config, section, tag_name) {
 // of the router on the server's tunnel address and, unless the server is told
 // to leave the rest of their traffic alone, the default route.
 function add_openvpn_endpoint(config, section, tag_name) {
-    let pools = list_option(section, "openvpn_address");
+    let pools = list_option(section, "tunnel_address");
     let fingerprints = [];
     for (let client in connections.server_clients(section)) {
         let fingerprint = option(client, "openvpn_certificate_sha256", "");
@@ -413,14 +413,14 @@ function add_openvpn_endpoint(config, section, tag_name) {
         ping_interval: OPENVPN_PING_INTERVAL,
         ping_restart: OPENVPN_CLIENT_PING_RESTART
     };
-    if (bool_option(section, "openvpn_redirect_gateway", true)) {
+    if (bool_option(section, "tunnel_all_traffic", true)) {
         push_options.redirect_gateway = true;
         push_options.redirect_gateway_flags = length(filter(pools, (pool) => index(pool, ":") >= 0)) > 0
             ? [ "def1", "ipv6" ] : [ "def1" ];
         push_options.block_outside_dns = true;
     }
     else {
-        let routes = list_option(section, "openvpn_routes");
+        let routes = list_option(section, "tunnel_routes");
         if (length(routes) > 0)
             push_options.routes = routes;
     }

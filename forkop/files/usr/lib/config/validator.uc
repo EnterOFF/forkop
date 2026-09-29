@@ -14,6 +14,7 @@ let rulesets = require("singbox.rulesets");
 let runtime_dns = require("singbox.dns");
 let runtime_servers = require("singbox.servers");
 let features = require("singbox.features");
+let amnezia = require("singbox.amnezia");
 let runtime_urltest = require("singbox.urltest");
 let subscription_headers_module = require("singbox.subscription_headers");
 
@@ -28,8 +29,6 @@ let parse_number = core_common.parse_number;
 const CONFIG_NAME = "forkop";
 const DEFAULT_LATENCY_TEST_URL = "https://www.gstatic.com/generate_204";
 const TAILSCALE_FWMARK_MASK = 0x00ff0000;
-const AMNEZIA_SIGNATURE_KEYS = [ "i1", "i2", "i3", "i4", "i5" ];
-const AMNEZIA_SIGNATURE_TAGS = [ "b", "c", "t", "r", "rc", "rd", "d", "ds", "dz" ];
 
 function string_starts_with(value, prefix) {
     value = as_string(value);
@@ -660,76 +659,18 @@ function valid_amnezia_range(value) {
     return length(parts) == 1 || int(parts[0]) <= int(parts[1]);
 }
 
-function valid_amnezia_uint(value, maximum) {
+// Empty, or a whole number from minimum to 65535, as the dialog's port and
+// range datatypes take it.
+function valid_optional_uint16(value, minimum) {
     value = trim(as_string(value));
-    return value != "" && match(value, /^[0-9]+$/) != null && int(value) <= maximum;
+    return value == "" || (match(value, /^[0-9]+$/) != null && int(value) >= minimum && int(value) <= 65535);
 }
 
-// AmneziaWG I1-I5 hold a Custom Protocol Signature: a chain of <tag value>
-// packets such as <b 0xdeadbeef><r 4>. The core refuses an unknown tag and
-// sends nothing at all for a signature without any tag, so neither reaches it.
-function valid_amnezia_signature(value) {
-    let rest = trim(as_string(value));
-    let tags = 0;
-
-    while (true) {
-        let start = index(rest, "<");
-        if (start < 0)
-            break;
-
-        rest = substr(rest, start + 1);
-        let end = index(rest, ">");
-        if (end < 0)
-            return false;
-
-        let parts = split(trim(substr(rest, 0, end)), /[ \t]+/);
-        if (!contains(AMNEZIA_SIGNATURE_TAGS, parts[0]))
-            return false;
-
-        tags++;
-        rest = substr(rest, end + 1);
-    }
-
-    return tags > 0;
-}
-
-function validate_tunnel_amnezia(endpoint, owner) {
-    let amnezia = endpoint.amnezia;
-    if (type(amnezia) != "object")
-        return;
-
-    for (let key in [ "random_trailers", "disable_cookies" ])
-        if (amnezia[key] != null && type(amnezia[key]) != "bool")
-            fail_validation(owner + " has an invalid AmneziaWG " + key + " flag");
-
-    for (let key in [ "h1", "h2", "h3", "h4", "content_padding_addition", "rekey_after_time", "rekey_timeout", "reject_after_time", "keepalive_timeout", "max_handshake_attempts" ])
-        if (amnezia[key] != null && !valid_amnezia_range(amnezia[key]))
-            fail_validation(owner + " has an invalid AmneziaWG " + key + " range. Use values from 0 to 4294967295 with the start no greater than the end");
-
-    for (let key in [ "jc", "jmin", "jmax" ])
-        if (amnezia[key] != null && !valid_amnezia_uint(amnezia[key], 4294967295))
-            fail_validation(owner + " has an invalid AmneziaWG " + key + " value. Use whole numbers from 0 to 4294967295");
-
-    for (let key in [ "s1", "s2", "s3", "s4" ])
-        if (amnezia[key] != null && !valid_amnezia_uint(amnezia[key], 65535))
-            fail_validation(owner + " has an invalid AmneziaWG " + key + " value. Use whole numbers from 0 to 65535");
-
-    for (let key in AMNEZIA_SIGNATURE_KEYS)
-        if (amnezia[key] != null && trim(as_string(amnezia[key])) != "" &&
-            !valid_amnezia_signature(amnezia[key]))
-            fail_validation(owner + " has an invalid AmneziaWG " + key + " signature. Use Custom Protocol Signature tags such as <b 0xdeadbeef><r 4>");
-
-    if (amnezia.header_protection_key != null &&
-        trim(as_string(amnezia.header_protection_key)) != "" &&
-        !valid_wireguard_key(amnezia.header_protection_key))
-        fail_validation(owner + " has an invalid AmneziaWG header protection key. Use a standard base64-encoded 32-byte value");
-
-    // The all-zero key disables header protection in wireguard-go.
-    let protection_key = trim(as_string(amnezia.header_protection_key));
-    if (protection_key != "" && match(protection_key, /^A{43}=$/) == null)
-        for (let key in [ "s1", "s2", "s3", "s4" ])
-            if (int(amnezia[key] || 0) < 12)
-                fail_validation(owner + " requires AmneziaWG " + key + " of at least 12 bytes when header protection is enabled");
+// What LuCI's host datatype takes besides an address: dot-separated labels of
+// letters, digits, hyphens and underscores.
+function valid_hostname(value) {
+    return length(value) <= 253 &&
+        match(value, /^[A-Za-z0-9_]([A-Za-z0-9_-]*[A-Za-z0-9_])?(\.[A-Za-z0-9_]([A-Za-z0-9_-]*[A-Za-z0-9_])?)*$/) != null;
 }
 
 function validate_tailscale_tunnel_detour(source_name, detour) {
@@ -748,14 +689,6 @@ function validate_tunnel_values(section) {
         let tunnel = connections.tunnel_child(section, tunnel_id);
         let tunnel_name = trim(as_string(connections.option(tunnel, "name", "")));
         let owner = (tunnel_name != "" ? "Tunnel '" + tunnel_name + "'" : "A tunnel") + " in section '" + section_label(section) + "'";
-        let kind = connections.option(tunnel, "kind", "");
-        let amnezia_flags = kind == "amneziawg" ? [ "random_trailers", "disable_cookies" ] :
-            kind == "wireguard" || kind == "warp" ? [ "disable_cookies" ] : [];
-        for (let key in amnezia_flags) {
-            let value = trim(as_string(connections.option(tunnel, "amnezia_" + key, "")));
-            if (value != "" && value != "0" && value != "1")
-                fail_validation(owner + " has an invalid AmneziaWG " + key + " flag. Use 0 or 1");
-        }
         let endpoint = connections.tunnel_endpoint(tunnel);
         let endpoint_type = lc(trim(as_string(endpoint.type || "")));
         let wrapper_kind = lc(trim(as_string(connections.option(tunnel, "kind", "wireguard"))));
@@ -805,14 +738,19 @@ function validate_tunnel_values(section) {
             continue;
         }
 
-        validate_tunnel_amnezia(endpoint, owner);
+        let amnezia_problem = amnezia.problem(tunnel, endpoint_type == "amneziawg" ? amnezia.KEYS : amnezia.ONE_SIDED_KEYS);
+        if (amnezia_problem != "")
+            fail_validation(owner + " " + amnezia_problem);
 
         if (endpoint_type == "warp" && endpoint.persistent_keepalive_interval != null &&
             !valid_amnezia_range(endpoint.persistent_keepalive_interval))
             fail_validation(owner + " has an invalid WARP persistent keepalive interval. Use values from 0 to 4294967295 with the start no greater than the end");
 
         if (endpoint_type == "warp") {
-            if (endpoint.port != null && (endpoint.port < 1 || endpoint.port > 65535))
+            let warp_address = trim(as_string(connections.option(tunnel, "warp_address", "")));
+            if (warp_address != "" && !core_ip.valid_ip(warp_address) && !valid_hostname(warp_address))
+                fail_validation(owner + " has an invalid WARP server address. Use a hostname or an IP address");
+            if (!valid_optional_uint16(connections.option(tunnel, "warp_port", ""), 0))
                 fail_validation(owner + " has an invalid WARP server port");
             let profile = object_or_empty(endpoint.profile);
             let profile_values = 0;
@@ -823,6 +761,13 @@ function validate_tunnel_values(section) {
                 fail_validation(owner + " has an incomplete WARP profile. Generate a profile and fill all profile fields");
             continue;
         }
+
+        if (!valid_optional_uint16(connections.option(tunnel, "listen_port", ""), 0))
+            fail_validation(owner + " has an invalid WireGuard listen port. Use a port from 0 to 65535");
+        if (!valid_optional_uint16(connections.option(tunnel, "mtu", ""), 1))
+            fail_validation(owner + " has an invalid WireGuard MTU. Use a whole number from 1 to 65535");
+        if (endpoint_type == "amneziawg" && endpoint.amnezia == null)
+            fail_validation(owner + " has no AmneziaWG parameter. Copy them from the configuration of its server");
 
         let peers = array_or_empty(endpoint.peers);
         if (length(array_or_empty(endpoint.address)) == 0 ||
@@ -1432,34 +1377,37 @@ function prefix_host_address(prefix) {
     return any && (length(bytes) == 16 || !all);
 }
 
-// What the clients of an OpenVPN server are given: the address of the server in
-// one IPv4 and at most one IPv6 subnet, whose other addresses are theirs, and
-// the routes they send through it when not all of their traffic goes there.
-function validate_openvpn_server(server, name) {
-    let pools = list_option(server, "openvpn_address");
+// What the clients of a VPN server are given: the address of the server in one
+// IPv4 and at most one IPv6 subnet, whose other addresses are theirs, and the
+// routes they send through it when not all of their traffic goes there.
+function validate_tunnel_subnets(server, name) {
+    let owner = "Server '" + server_label(name) + "'";
     let families = {};
-    for (let pool in pools) {
+    for (let pool in list_option(server, "tunnel_address")) {
         pool = as_string(pool);
         let family = core_ip.ip_family(pool);
         if (!core_ip.valid_ip_cidr(pool))
-            fail_validation("OpenVPN server '" + server_label(name) + "' has the tunnel subnet '" + pool +
-                "', which is not an address with a prefix length");
+            fail_validation(owner + " has the tunnel subnet '" + pool + "', which is not an address with a prefix length");
         if (families[family])
-            fail_validation("OpenVPN server '" + server_label(name) + "' has more than one IPv" + family + " tunnel subnet");
+            fail_validation(owner + " has more than one IPv" + family + " tunnel subnet");
         families[family] = true;
         let bits = int(split(pool, "/")[1]);
         if (family == 4 ? (bits < 8 || bits > 30) : (bits < 64 || bits > 126))
-            fail_validation("OpenVPN server '" + server_label(name) + "' tunnel subnet '" + pool + "' needs a prefix length from " +
+            fail_validation(owner + " tunnel subnet '" + pool + "' needs a prefix length from " +
                 (family == 4 ? "8 to 30" : "64 to 126"));
         if (!prefix_host_address(pool))
-            fail_validation("OpenVPN server '" + server_label(name) + "' tunnel subnet '" + pool +
+            fail_validation(owner + " tunnel subnet '" + pool +
                 "' has to name the address of the server, such as " + (family == 4 ? "10.8.0.1/24" : "fd00:8::1/64"));
     }
     if (!families[4])
-        fail_validation("OpenVPN server '" + server_label(name) + "' needs an IPv4 tunnel subnet");
-    for (let route in list_option(server, "openvpn_routes"))
+        fail_validation(owner + " needs an IPv4 tunnel subnet");
+    for (let route in list_option(server, "tunnel_routes"))
         if (!core_ip.valid_ip_cidr(route))
-            fail_validation("OpenVPN server '" + server_label(name) + "' routes '" + route + "', which is not a subnet");
+            fail_validation(owner + " routes '" + route + "', which is not a subnet");
+}
+
+function validate_openvpn_server(server, name) {
+    validate_tunnel_subnets(server, name);
     for (let field in [ "openvpn_certificate", "openvpn_key", "openvpn_tls_crypt_key" ])
         if (option(server, field, "") == "")
             fail_validation("OpenVPN server '" + server_label(name) + "' has no " + field);

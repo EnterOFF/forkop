@@ -155,6 +155,38 @@ AllowedIPs = 192.0.2.1, 2001:db8::1`);
     });
   });
 
+  // wg-quick and the WireGuard apps cut a line at its first #, and read a
+  // keepalive of off as none.
+  it('reads a configuration the way wg-quick does', () => {
+    const result = parseWireGuardConfig(`[Interface]
+PrivateKey = ${PRIVATE_KEY} # the laptop
+Address = 10.0.0.2/32 #, 10.0.0.3/32
+Jc = 4 # junk
+[Peer] # home
+PublicKey = ${PUBLIC_KEY}
+Endpoint = vpn.example.com:51820
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = off`);
+
+    expect(result).toEqual({
+      valid: true,
+      endpoint: {
+        type: 'wireguard',
+        address: ['10.0.0.2/32'],
+        private_key: PRIVATE_KEY,
+        peers: [
+          {
+            address: 'vpn.example.com',
+            port: 51820,
+            public_key: PUBLIC_KEY,
+            allowed_ips: ['0.0.0.0/0'],
+          },
+        ],
+        amnezia: { jc: 4 },
+      },
+    });
+  });
+
   it('rejects invalid interface and AllowedIPs prefixes', () => {
     expect(
       parseWireGuardConfig(`[Interface]
@@ -506,6 +538,14 @@ AllowedIPs = 0.0.0.0/0`;
     expect(parseWireGuardConfig(config(`HeaderProtectionKey = ff`)).valid).toBe(
       false,
     );
+    expect(parseWireGuardConfig(config('H1 = 2'))).toEqual({
+      valid: false,
+      message: 'H1, H2, H3 and H4 must not overlap',
+    });
+    expect(parseWireGuardConfig(config('Jmin = 60\nJmax = 10'))).toEqual({
+      valid: false,
+      message: 'Jmin must not be greater than Jmax',
+    });
   });
 
   it('imports a current AmneziaWG server profile with empty AWG 3 fields', () => {

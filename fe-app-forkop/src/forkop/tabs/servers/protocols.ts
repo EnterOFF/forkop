@@ -13,6 +13,7 @@ import { liveOption, option } from './formValues';
 //   clients   - the server has accounts even though it asks for no credential:
 //               the router issues each one a certificate
 //   profile   - a client is handed a profile file instead of a link
+//   tunnel    - the server gives its clients addresses of a subnet of its own
 //   securities- the security modes the protocol accepts, best first
 //   credentials- the per client fields the protocol needs
 //   login     - the client name is the account name sent on the wire, so it has to
@@ -46,6 +47,7 @@ export const PROTOCOLS = [
     credentials: [],
     clients: true,
     profile: true,
+    tunnel: true,
   },
   {
     id: 'vless',

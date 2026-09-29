@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { ONE_SIDED_AMNEZIA_KEYS } from '../../../../../helpers/wireguard';
 
 // Traffic obfuscation on a WireGuard or WARP tunnel sends Amnezia's junk and
 // signature packets from this side only, so it may carry just the parameters a
@@ -30,21 +31,21 @@ const WIREGUARD = {
 
 describe('an endpoint built from the dialog', () => {
   it.each([
-    ['wireguard', 'wireguard_junk_enabled', WIREGUARD],
-    ['warp', 'warp_junk_enabled', { tunnel_type: 'warp', ...AMNEZIA }],
+    ['wireguard', WIREGUARD],
+    ['warp', { tunnel_type: 'warp', ...AMNEZIA }],
   ])(
     'of a %s tunnel carries the one-sided parameters while obfuscation is on',
-    (kind, toggle, settings) => {
+    (kind, settings) => {
       const on = model.tunnelEndpointFromSettings({
         ...settings,
-        [toggle]: '1',
+        amnezia_enabled: '1',
       });
       expect(on?.type).toBe(kind);
       expect(on?.amnezia).toEqual({ jc: 4, jmin: 10, i1: '<r 2>' });
 
       const off = model.tunnelEndpointFromSettings({
         ...settings,
-        [toggle]: '0',
+        amnezia_enabled: '0',
       });
       expect(off?.amnezia).toBeUndefined();
     },
@@ -69,7 +70,7 @@ describe('a tunnel as it is stored', () => {
   it('keeps the one-sided parameters only while obfuscation is on, and not the switch', () => {
     const on = model.tunnelStorageSettings({
       ...WIREGUARD,
-      wireguard_junk_enabled: '1',
+      amnezia_enabled: '1',
     });
     expect([
       on.amnezia_jc,
@@ -77,11 +78,11 @@ describe('a tunnel as it is stored', () => {
       on.amnezia_s1,
       on.amnezia_h1,
     ]).toEqual(['4', '<r 2>', '', '']);
-    expect(on).not.toHaveProperty('wireguard_junk_enabled');
+    expect(on).not.toHaveProperty('amnezia_enabled');
 
     const off = model.tunnelStorageSettings({
       ...WIREGUARD,
-      wireguard_junk_enabled: '0',
+      amnezia_enabled: '0',
     });
     expect(off.amnezia_jc).toBe('');
   });
@@ -117,7 +118,7 @@ describe('turning obfuscation on', () => {
       },
     };
     const options = Object.fromEntries(
-      model.ONE_SIDED_AMNEZIA_FIELDS.map((key) => [
+      ONE_SIDED_AMNEZIA_KEYS.map((key) => [
         key,
         { option: `amnezia_${key}`, formvalue: () => values[key] ?? null },
       ]),

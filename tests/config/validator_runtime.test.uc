@@ -1481,4 +1481,20 @@ t.test("AmneziaWG flags are 0 or 1 on every kind that carries them", () => {
         v.refuses(amnezia_tunnel("amnezia_disable_cookies", "maybe", kind), "invalid AmneziaWG disable_cookies flag");
 });
 
+// The core accepts both in its check and fails the whole service when the
+// endpoint starts: the device refuses headers that overlap, and a junk minimum
+// above the maximum is a size stock AmneziaWG clients cannot draw from.
+t.test("AmneziaWG headers do not overlap, the device's own included", () => {
+    v.accepts(amnezia_tunnel({ amnezia_h1: "100-200", amnezia_h2: "201", amnezia_h3: "300-400", amnezia_h4: "5" }));
+    v.refuses(amnezia_tunnel({ amnezia_h1: "100-200", amnezia_h2: "150" }), "AmneziaWG headers h1 and h2 that overlap");
+    v.refuses(amnezia_tunnel("amnezia_h1", "2"), "AmneziaWG headers h1 and h2 that overlap");
+    v.accepts(amnezia_tunnel("amnezia_h1", "1"));
+});
+
+t.test("the AmneziaWG junk minimum is no greater than its maximum", () => {
+    v.accepts(amnezia_tunnel({ amnezia_jmin: "10", amnezia_jmax: "10" }));
+    v.refuses(amnezia_tunnel({ amnezia_jmin: "60", amnezia_jmax: "10" }), "AmneziaWG jmin greater than jmax");
+    v.refuses(amnezia_tunnel({ amnezia_jmin: "60" }, null, "wireguard"), "AmneziaWG jmin greater than jmax");
+});
+
 t.done();

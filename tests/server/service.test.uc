@@ -278,7 +278,7 @@ t.test("a loaded firewall is reloaded when its chain disagrees with the include"
 function openvpn_configuration() {
     return {
         settings: {},
-        server: [ { ".name": "office", label: "Office", protocol: "openvpn", openvpn_address: [ "10.8.0.1/24" ] } ],
+        server: [ { ".name": "office", label: "Office", protocol: "openvpn", tunnel_address: [ "10.8.0.1/24" ] } ],
         server_client: [
             { ".name": "laptop", server: "office", name: "Ноутбук" },
             { ".name": "phone", server: "office", name: "Phone", openvpn_certificate: "-----BEGIN CERTIFICATE-----\naGVsbG8=\n-----END CERTIFICATE-----",

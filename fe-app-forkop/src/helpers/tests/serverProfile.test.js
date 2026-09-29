@@ -5,9 +5,9 @@ import { parseOpenVPNConfig } from '../parseOpenVPNConfig';
 import { CA, CLIENT_CERT, CLIENT_KEY, STATIC_KEY } from './openvpnFixtures';
 import { buildOpenVPNProfile } from '../../forkop/tabs/servers/profile';
 import {
-  validateOpenVPNSubnet,
-  validateOpenVPNSubnets,
-} from '../../forkop/tabs/servers/form/openvpn';
+  validateTunnelSubnet,
+  validateTunnelSubnets,
+} from '../../forkop/tabs/servers/form/tunnel';
 
 const CLIENT = {
   id: 'laptop',
@@ -83,7 +83,7 @@ describe('OpenVPN profile', () => {
   });
 
   it('leaves the DNS option alone on a server that routes only some subnets', () => {
-    load({ openvpn_redirect_gateway: '0' });
+    load({ tunnel_all_traffic: '0' });
     expect(
       buildOpenVPNProfile('office', CLIENT, MATERIAL).profile,
     ).not.toContain('block-outside-dns');
@@ -107,7 +107,7 @@ describe('OpenVPN profile', () => {
   });
 });
 
-describe('OpenVPN tunnel subnet', () => {
+describe('the tunnel subnet of a server', () => {
   it('takes the address of the server with a prefix clients fit in', () => {
     for (const value of [
       '10.8.0.1/24',
@@ -115,7 +115,7 @@ describe('OpenVPN tunnel subnet', () => {
       'fd00:8::1/64',
       'fd00::ffff:1/112',
     ])
-      expect(validateOpenVPNSubnet(value), value).toBe(true);
+      expect(validateTunnelSubnet(value), value).toBe(true);
     for (const value of [
       '10.8.0.0/24',
       '10.8.0.255/24',
@@ -126,15 +126,15 @@ describe('OpenVPN tunnel subnet', () => {
       '10.8.0.1',
       'lan',
     ])
-      expect(validateOpenVPNSubnet(value), value).not.toBe(true);
+      expect(validateTunnelSubnet(value), value).not.toBe(true);
   });
 
   it('holds one IPv4 subnet and at most one IPv6 subnet', () => {
-    expect(validateOpenVPNSubnets(['10.8.0.1/24'])).toBe(true);
-    expect(validateOpenVPNSubnets(['10.8.0.1/24', 'fd00:8::1/64'])).toBe(true);
-    expect(validateOpenVPNSubnets([])).toBe('Add an IPv4 subnet');
-    expect(validateOpenVPNSubnets(['fd00:8::1/64'])).toBe('Add an IPv4 subnet');
-    expect(validateOpenVPNSubnets(['10.8.0.1/24', '10.9.0.1/24'])).toBe(
+    expect(validateTunnelSubnets(['10.8.0.1/24'])).toBe(true);
+    expect(validateTunnelSubnets(['10.8.0.1/24', 'fd00:8::1/64'])).toBe(true);
+    expect(validateTunnelSubnets([])).toBe('Add an IPv4 subnet');
+    expect(validateTunnelSubnets(['fd00:8::1/64'])).toBe('Add an IPv4 subnet');
+    expect(validateTunnelSubnets(['10.8.0.1/24', '10.9.0.1/24'])).toBe(
       'Add at most one IPv4 subnet',
     );
   });

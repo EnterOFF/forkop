@@ -29,6 +29,7 @@ import {
 import { FORKOP_WAIT_TIMEOUT_MS } from '../src/forkop/services/forkopWaitTransport';
 import { tunnelStorageSettings } from '../src/forkop/tabs/sections/tunnels/model';
 import { isCronExpressibleInterval } from '../src/forkop/tabs/settings/durations';
+import { AMNEZIA_PARAMETERS } from '../src/helpers/wireguard';
 
 const contract = JSON.parse(
   fs.readFileSync(path.join(ROOT, 'tests/fixtures/page_contract.json'), 'utf8'),
@@ -70,6 +71,16 @@ describe('the tables the page carries', () => {
     expect({ fakeip: FAKEIP_CHECK_DOMAIN, ip: IP_CHECK_DOMAIN }).toEqual(
       contract.check_domains,
     );
+  });
+
+  it('read the AmneziaWG parameters by the kinds and sides the backend does', () => {
+    expect(
+      AMNEZIA_PARAMETERS.map(({ key, kind, oneSided }) => ({
+        key,
+        kind,
+        one_sided: oneSided,
+      })),
+    ).toEqual(contract.amnezia_parameters);
   });
 
   it('describe an unset group option as the generator reads it', () => {

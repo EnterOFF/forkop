@@ -114,13 +114,13 @@ const SERVERS = {
         },
         {
             ".name": "openvpn_srv", ".type": "server", enabled: "1", label: "openvpn", protocol: "openvpn",
-            listen: "::", listen_port: "20013", openvpn_network: "udp", openvpn_address: [ "10.8.0.1/24", "fd00:8::1/64" ],
+            listen: "::", listen_port: "20013", openvpn_network: "udp", tunnel_address: [ "10.8.0.1/24", "fd00:8::1/64" ],
             openvpn_certificate: "CERT", openvpn_key: "KEY", openvpn_tls_crypt_key: "TLSCRYPT", routing_mode: "direct"
         },
         {
             ".name": "openvpn_split", ".type": "server", enabled: "1", label: "openvpn split", protocol: "openvpn",
-            listen: "::", listen_port: "20017", openvpn_network: "tcp", openvpn_address: [ "10.9.0.1/24" ],
-            openvpn_redirect_gateway: "0", openvpn_routes: [ "192.168.1.0/24" ],
+            listen: "::", listen_port: "20017", openvpn_network: "tcp", tunnel_address: [ "10.9.0.1/24" ],
+            tunnel_all_traffic: "0", tunnel_routes: [ "192.168.1.0/24" ],
             openvpn_certificate: "CERT", openvpn_key: "KEY", openvpn_tls_crypt_key: "TLSCRYPT", routing_mode: "direct"
         }
     ],

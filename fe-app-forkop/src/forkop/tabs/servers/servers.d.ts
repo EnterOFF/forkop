@@ -51,6 +51,8 @@ declare global {
     listener?: boolean;
     clients?: boolean;
     profile?: boolean;
+    // A subnet whose addresses the server hands its clients.
+    tunnel?: boolean;
     transport?: boolean;
     multiplex?: boolean;
     // protocolsWith() asks for a flag by name.

@@ -917,7 +917,7 @@ function renderSubscriptionMetadata(metadata) {
         "div",
         { class: "fkp_dashboard-page__subscription-meta__facts" },
         rows.map(
-          (row) => textE(
+          (row2) => textE(
             "div",
             { class: "fkp_dashboard-page__subscription-meta__fact" },
             [
@@ -926,14 +926,14 @@ function renderSubscriptionMetadata(metadata) {
                 {
                   class: "fkp_dashboard-page__subscription-meta__fact-key"
                 },
-                row.label
+                row2.label
               ),
               textE(
                 "span",
                 {
                   class: "fkp_dashboard-page__subscription-meta__fact-value"
                 },
-                row.value
+                row2.value
               )
             ]
           )
@@ -17032,71 +17032,160 @@ function validateOpenVPNSettings(settings) {
   return true;
 }
 
+// src/helpers/wireguard.ts
+var row = (key, conf, kind, oneSided) => ({ key, conf, kind, oneSided });
+var AMNEZIA_PARAMETERS = [
+  row("jc", "Jc", "count", true),
+  row("jmin", "Jmin", "count", true),
+  row("jmax", "Jmax", "count", true),
+  row("s1", "S1", "padding", false),
+  row("s2", "S2", "padding", false),
+  row("s3", "S3", "padding", false),
+  row("s4", "S4", "padding", false),
+  row("h1", "H1", "range", false),
+  row("h2", "H2", "range", false),
+  row("h3", "H3", "range", false),
+  row("h4", "H4", "range", false),
+  row("i1", "I1", "signature", true),
+  row("i2", "I2", "signature", true),
+  row("i3", "I3", "signature", true),
+  row("i4", "I4", "signature", true),
+  row("i5", "I5", "signature", true),
+  row("header_protection_key", "HeaderProtectionKey", "key", false),
+  row("content_padding_addition", "ContentPaddingAddition", "range", true),
+  row("rekey_after_time", "RekeyAfterTime", "range", true),
+  row("rekey_timeout", "RekeyTimeout", "range", true),
+  row("reject_after_time", "RejectAfterTime", "range", true),
+  row("keepalive_timeout", "KeepaliveTimeout", "range", true),
+  row("max_handshake_attempts", "MaxHandshakeAttempts", "range", true),
+  row("random_trailers", "RandomTrailers", "flag", false),
+  row("disable_cookies", "DisableCookies", "flag", true)
+];
+var AMNEZIA_KEYS = AMNEZIA_PARAMETERS.map(({ key }) => key);
+var ONE_SIDED_AMNEZIA_KEYS = AMNEZIA_PARAMETERS.filter(
+  ({ oneSided }) => oneSided
+).map(({ key }) => key);
+var BY_KEY = new Map(AMNEZIA_PARAMETERS.map((entry) => [entry.key, entry]));
+function amneziaParameter(key) {
+  return BY_KEY.get(key);
+}
+var UINT16_MAX = 65535;
+var UINT32_MAX = 4294967295;
+var SIGNATURE_TAGS = ["b", "c", "t", "r", "rc", "rd", "d", "ds", "dz"];
+function parseUnsigned(value, maximum) {
+  if (!/^\d+$/u.test(value)) return void 0;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed <= maximum ? parsed : void 0;
+}
+function parseRange(value, maximum = UINT32_MAX) {
+  const parts = value.split("-");
+  if (parts.length > 2 || parts.some((part) => part === "")) return void 0;
+  const from = parseUnsigned(parts[0], maximum);
+  const to = parts.length === 2 ? parseUnsigned(parts[1], maximum) : from;
+  if (from === void 0 || to === void 0 || from > to) return void 0;
+  return parts.length === 2 ? value : from;
+}
+function validateWireGuardKey(value) {
+  const normalized = value.trim();
+  if (!/^[A-Za-z0-9+/]{43}=$/u.test(normalized)) return false;
+  try {
+    const decoded = atob(normalized);
+    return decoded.length === 32 && btoa(decoded) === normalized;
+  } catch {
+    return false;
+  }
+}
+function validateAmneziaSignature(value) {
+  let rest = value.trim();
+  let tags = 0;
+  while (rest.length > 0) {
+    const start = rest.indexOf("<");
+    if (start < 0) break;
+    const end = rest.indexOf(">", start);
+    if (end < 0) return false;
+    const [tag] = rest.slice(start + 1, end).trim().split(/\s+/u);
+    if (!SIGNATURE_TAGS.includes(tag)) return false;
+    tags += 1;
+    rest = rest.slice(end + 1);
+  }
+  return tags > 0;
+}
+function keyMessage() {
+  return _("WireGuard keys must be standard base64-encoded 32-byte values");
+}
+function validateAmneziaValue(key, value) {
+  const text4 = `${value ?? ""}`.trim();
+  const entry = amneziaParameter(key);
+  if (!text4 || !entry) return true;
+  switch (entry.kind) {
+    case "count":
+      return parseUnsigned(text4, UINT32_MAX) !== void 0 ? true : _("Use a whole number from 0 to 4294967295");
+    case "padding":
+      return parseUnsigned(text4, UINT16_MAX) !== void 0 ? true : _("Use a whole number from 0 to 65535");
+    case "range":
+      return parseRange(text4) !== void 0 ? true : _(
+        "AmneziaWG ranges must be between 0 and 4294967295 with the start no greater than the end"
+      );
+    case "signature":
+      return validateAmneziaSignature(text4) ? true : _(
+        "AmneziaWG I1-I5 must be Custom Protocol Signature tags such as <b 0xdeadbeef><r 4>"
+      );
+    case "key":
+      return validateWireGuardKey(text4) ? true : keyMessage();
+    default:
+      return text4 === "0" || text4 === "1" ? true : _("Use 0 or 1");
+  }
+}
+function rangeBounds(value) {
+  const parts = value.split("-").map(Number);
+  return [parts[0], parts[parts.length - 1]];
+}
+function validateAmneziaSet(values) {
+  const text4 = (key) => `${values[key] ?? ""}`.trim();
+  const protectionKey = text4("header_protection_key");
+  if (protectionKey && !/^A{43}=$/u.test(protectionKey) && ["s1", "s2", "s3", "s4"].some((key) => Number(text4(key) || 0) < 12)) {
+    return _(
+      "Header protection requires S1, S2, S3 and S4 of at least 12 bytes"
+    );
+  }
+  const headers = ["h1", "h2", "h3", "h4"];
+  if (headers.some((key) => text4(key))) {
+    const bounds = headers.map(
+      (key, index) => rangeBounds(text4(key) || `${index + 1}`)
+    );
+    const overlap = bounds.some(
+      ([from, to], index) => bounds.slice(index + 1).some(([otherFrom, otherTo]) => from <= otherTo && otherFrom <= to)
+    );
+    if (overlap) return _("H1, H2, H3 and H4 must not overlap");
+  }
+  if (Number(text4("jmin") || 0) > Number(text4("jmax") || 0)) {
+    return _("Jmin must not be greater than Jmax");
+  }
+  return true;
+}
+function amneziaJsonValue(key, value) {
+  const text4 = `${value ?? ""}`.trim();
+  switch (amneziaParameter(key)?.kind) {
+    case "flag":
+      return text4 === "1";
+    case "signature":
+    case "key":
+      return text4;
+    case "range":
+      return text4.includes("-") ? text4 : Number(text4);
+    default:
+      return Number(text4);
+  }
+}
+var CONF_TRUE = ["on", "true", "1", "yes"];
+var CONF_FALSE = ["off", "false", "0", "no"];
+function amneziaTextFromConf(key, value) {
+  if (amneziaParameter(key)?.kind !== "flag") return value.trim();
+  const flag = value.trim().toLowerCase();
+  return CONF_TRUE.includes(flag) ? "1" : CONF_FALSE.includes(flag) ? "0" : null;
+}
+
 // src/forkop/tabs/sections/tunnels/model.ts
-var AMNEZIA_COUNT_FIELDS = ["jc", "jmin", "jmax"];
-var AMNEZIA_PADDING_FIELDS = ["s1", "s2", "s3", "s4"];
-var AMNEZIA_SIGNATURE_FIELDS = ["i1", "i2", "i3", "i4", "i5"];
-var AMNEZIA_BOOLEAN_FIELDS = ["random_trailers", "disable_cookies"];
-var AMNEZIA_RANGE_FIELDS = [
-  "h1",
-  "h2",
-  "h3",
-  "h4",
-  "content_padding_addition",
-  "rekey_after_time",
-  "rekey_timeout",
-  "reject_after_time",
-  "keepalive_timeout",
-  "max_handshake_attempts"
-];
-var AMNEZIA_STRING_FIELDS = [
-  ...AMNEZIA_SIGNATURE_FIELDS,
-  "header_protection_key"
-];
-var AMNEZIA_FIELDS = [
-  "jc",
-  "jmin",
-  "jmax",
-  "s1",
-  "s2",
-  "s3",
-  "s4",
-  "h1",
-  "h2",
-  "h3",
-  "h4",
-  "i1",
-  "i2",
-  "i3",
-  "i4",
-  "i5",
-  "header_protection_key",
-  "content_padding_addition",
-  "rekey_after_time",
-  "rekey_timeout",
-  "reject_after_time",
-  "keepalive_timeout",
-  "max_handshake_attempts",
-  "random_trailers",
-  "disable_cookies"
-];
-var ONE_SIDED_AMNEZIA_FIELDS = [
-  "jc",
-  "jmin",
-  "jmax",
-  "i1",
-  "i2",
-  "i3",
-  "i4",
-  "i5",
-  "content_padding_addition",
-  "rekey_after_time",
-  "rekey_timeout",
-  "reject_after_time",
-  "keepalive_timeout",
-  "max_handshake_attempts",
-  "disable_cookies"
-];
 var ONE_SIDED_AMNEZIA_DEFAULTS = {
   jc: "5",
   jmin: "10",
@@ -17164,23 +17253,26 @@ function tunnelListItemLabel(sectionId, tunnelId) {
     feature && !coreHas(feature) ? `${label} (${missingCoreFeatureNote(feature)})` : label
   );
 }
+var STORED_KINDS = [
+  "openvpn-client",
+  "json",
+  "warp",
+  "amneziawg",
+  "tailscale"
+];
 function tunnelInitialSettings(value, sectionId) {
   const tunnel = tunnelChild(sectionId, `${value || ""}`) || {};
   const endpoint = ["json", "openvpn-client"].includes(`${tunnel.kind || ""}`) ? parseOutboundJsonObject(tunnel.endpoint_json) || {} : {};
-  const endpointType = `${endpoint.type || ""}`.toLowerCase();
-  const kind = tunnel.kind === "openvpn-client" ? "openvpn-client" : tunnel.kind === "json" ? "json" : tunnel.kind === "warp" || endpointType === "warp" ? "warp" : tunnel.kind === "amneziawg" || endpointType === "amneziawg" ? "amneziawg" : tunnel.kind === "tailscale" || endpointType === "tailscale" ? "tailscale" : "wireguard";
-  const junkEnabled = (forKind) => kind === forKind && ONE_SIDED_AMNEZIA_FIELDS.some(
-    (key) => tunnel[`amnezia_${key}`] != null
+  const kind = STORED_KINDS.includes(`${tunnel.kind || ""}`) ? `${tunnel.kind}` : "wireguard";
+  const amneziaEnabled = (kind === "wireguard" || kind === "warp") && ONE_SIDED_AMNEZIA_KEYS.some(
+    (key) => setsAmneziaParameter(key, tunnel[`amnezia_${key}`])
   );
-  const warpJunkEnabled = junkEnabled("warp");
-  const wireguardJunkEnabled = junkEnabled("wireguard");
   const tailscaleDetour = `${tunnel.tailscale_detour_section || ""}`.trim();
   const settings = {
     ...kind === "openvpn-client" ? openVPNInitialSettings(endpoint) : {},
     name: kind === "json" ? `${endpoint.tag || ""}` : `${tunnel.name || ""}`,
     tunnel_type: kind,
-    warp_junk_enabled: warpJunkEnabled ? "1" : "0",
-    wireguard_junk_enabled: wireguardJunkEnabled ? "1" : "0",
+    amnezia_enabled: amneziaEnabled ? "1" : "0",
     address: normalizeOptionValues(tunnel.address),
     private_key: `${tunnel.private_key || ""}`,
     listen_port: tunnel.listen_port ? `${tunnel.listen_port}` : "",
@@ -17205,7 +17297,7 @@ function tunnelInitialSettings(value, sectionId) {
     ),
     endpoint_json: kind === "json" ? `${tunnel.endpoint_json || ""}` : ""
   };
-  AMNEZIA_FIELDS.forEach((key) => {
+  AMNEZIA_KEYS.forEach((key) => {
     settings[`amnezia_${key}`] = tunnel[`amnezia_${key}`] != null ? `${tunnel[`amnezia_${key}`]}` : "";
   });
   return settings;
@@ -17225,8 +17317,6 @@ function tunnelSettingsKeys() {
     "warp_profile_auth_token",
     "warp_profile_private_key",
     "warp_profile_license_key",
-    "warp_junk_enabled",
-    "wireguard_junk_enabled",
     "tailscale_auth_key",
     "tailscale_hostname",
     "tailscale_control_url",
@@ -17234,14 +17324,23 @@ function tunnelSettingsKeys() {
     "tailscale_exit_node",
     "tailscale_detour_section",
     "endpoint_json",
-    ...AMNEZIA_FIELDS.map((key) => `amnezia_${key}`)
+    ...AMNEZIA_KEYS.map((key) => `amnezia_${key}`)
   ];
 }
+function setsAmneziaParameter(key, value) {
+  const text4 = `${value ?? ""}`.trim();
+  return amneziaParameter(key)?.kind === "flag" ? text4 === "1" : text4 !== "";
+}
 function oneSidedAmneziaEnabled(kind, settings) {
-  if (kind === "warp") {
-    return `${settings.warp_junk_enabled || ""}` === "1";
-  }
-  return kind === "wireguard" && `${settings.wireguard_junk_enabled || ""}` === "1";
+  return (kind === "wireguard" || kind === "warp") && `${settings.amnezia_enabled || ""}` === "1";
+}
+function dialogValue(map, option2) {
+  return `${option2.formvalue("settings") ?? map.data.get(map.config, "settings", option2.option) ?? ""}`.trim();
+}
+function hasOneSidedAmneziaValues(map, amneziaOptions) {
+  return ONE_SIDED_AMNEZIA_KEYS.some(
+    (key) => !!amneziaOptions[key] && setsAmneziaParameter(key, dialogValue(map, amneziaOptions[key]))
+  );
 }
 function fillOneSidedAmneziaDefaults(map, amneziaOptions) {
   Object.keys(ONE_SIDED_AMNEZIA_DEFAULTS).forEach((key) => {
@@ -17249,8 +17348,7 @@ function fillOneSidedAmneziaDefaults(map, amneziaOptions) {
     if (!option2) {
       return;
     }
-    const current = `${option2.formvalue("settings") ?? map.data.get(map.config, "settings", option2.option) ?? ""}`.trim();
-    if (!current) {
+    if (!dialogValue(map, option2)) {
       setModalOptionValue(
         map,
         option2,
@@ -17261,7 +17359,7 @@ function fillOneSidedAmneziaDefaults(map, amneziaOptions) {
 }
 function tunnelStorageSettings(settings) {
   const kind = `${settings.tunnel_type || "wireguard"}`;
-  const storedAmneziaFields = kind === "amneziawg" ? AMNEZIA_FIELDS : oneSidedAmneziaEnabled(kind, settings) ? ONE_SIDED_AMNEZIA_FIELDS : [];
+  const storedAmneziaFields = kind === "amneziawg" ? AMNEZIA_KEYS : oneSidedAmneziaEnabled(kind, settings) ? ONE_SIDED_AMNEZIA_KEYS : [];
   const result = {
     kind,
     name: kind === "json" ? "" : `${settings.name || ""}`.trim(),
@@ -17287,7 +17385,7 @@ function tunnelStorageSettings(settings) {
     tailscale_detour_section: `${settings.tailscale_detour_enabled || ""}` === "1" ? `${settings.tailscale_detour_section || ""}`.trim() : "",
     endpoint_json: kind === "openvpn-client" ? JSON.stringify(openVPNEndpoint(settings)) : kind === "json" ? `${settings.endpoint_json || ""}`.trim() : ""
   };
-  AMNEZIA_FIELDS.forEach((key) => {
+  AMNEZIA_KEYS.forEach((key) => {
     result[`amnezia_${key}`] = storedAmneziaFields.includes(key) ? `${settings[`amnezia_${key}`] || ""}`.trim() : "";
   });
   return result;
@@ -17407,11 +17505,10 @@ function tunnelEndpointFromSettings(settings, tunnelId, peerOption) {
       profile.license_key = `${settings.warp_license_key}`.trim();
     }
     if (Object.keys(profile).length > 0) {
-      profile.recreate = true;
       endpoint2.profile = profile;
     }
     if (oneSidedAmneziaEnabled(kind, settings)) {
-      const amnezia = tunnelAmneziaSettings(settings, ONE_SIDED_AMNEZIA_FIELDS);
+      const amnezia = tunnelAmneziaSettings(settings, ONE_SIDED_AMNEZIA_KEYS);
       if (Object.keys(amnezia).length > 0) {
         endpoint2.amnezia = amnezia;
       }
@@ -17438,19 +17535,19 @@ function tunnelEndpointFromSettings(settings, tunnelId, peerOption) {
   if (kind === "amneziawg") {
     endpoint.amnezia = tunnelAmneziaSettings(settings);
   } else if (oneSidedAmneziaEnabled(kind, settings)) {
-    const amnezia = tunnelAmneziaSettings(settings, ONE_SIDED_AMNEZIA_FIELDS);
+    const amnezia = tunnelAmneziaSettings(settings, ONE_SIDED_AMNEZIA_KEYS);
     if (Object.keys(amnezia).length > 0) {
       endpoint.amnezia = amnezia;
     }
   }
   return endpoint;
 }
-function tunnelAmneziaSettings(settings, fields = AMNEZIA_FIELDS) {
+function tunnelAmneziaSettings(settings, fields = AMNEZIA_KEYS) {
   const amnezia = {};
   fields.forEach((key) => {
     const value = `${settings[`amnezia_${key}`] || ""}`.trim();
     if (!value) return;
-    amnezia[key] = AMNEZIA_BOOLEAN_FIELDS.includes(key) ? value === "1" : AMNEZIA_STRING_FIELDS.includes(key) ? value : AMNEZIA_RANGE_FIELDS.includes(key) && value.includes("-") ? value : Number(value);
+    amnezia[key] = amneziaJsonValue(key, value);
   });
   return amnezia;
 }
@@ -17482,16 +17579,14 @@ function applyImportedTunnelEndpoint(map, fields, endpoint) {
   const importedAmnezia = endpoint.amnezia || {};
   const amneziaKeys = Object.keys(importedAmnezia);
   const twoSided = amneziaKeys.some(
-    (key) => !ONE_SIDED_AMNEZIA_FIELDS.includes(key)
+    (key) => !ONE_SIDED_AMNEZIA_KEYS.includes(key)
   );
   setModalOptionValue(map, fields.type, twoSided ? "amneziawg" : "wireguard");
-  if (fields.wireguardJunk) {
-    setModalOptionValue(
-      map,
-      fields.wireguardJunk,
-      !twoSided && amneziaKeys.length > 0 ? "1" : "0"
-    );
-  }
+  setModalOptionValue(
+    map,
+    fields.amneziaEnabled,
+    !twoSided && amneziaKeys.length > 0 ? "1" : "0"
+  );
   setModalOptionValue(map, fields.address, endpoint.address || []);
   setModalOptionValue(map, fields.privateKey, endpoint.private_key || "");
   setModalOptionValue(map, fields.listenPort, endpoint.listen_port || "");
@@ -17512,11 +17607,11 @@ function applyImportedTunnelEndpoint(map, fields, endpoint) {
     }
   );
   setModalOptionValue(map, fields.peers, peerIds);
-  AMNEZIA_FIELDS.forEach((key) => {
+  AMNEZIA_KEYS.forEach((key) => {
     setModalOptionValue(
       map,
       fields.amnezia[key],
-      importedAmnezia[key] != null ? AMNEZIA_BOOLEAN_FIELDS.includes(key) ? importedAmnezia[key] ? "1" : "0" : `${importedAmnezia[key]}` : ""
+      typeof importedAmnezia[key] === "boolean" ? importedAmnezia[key] ? "1" : "0" : `${importedAmnezia[key] ?? ""}`
     );
   });
   map.checkDepends();
@@ -18915,9 +19010,9 @@ function validateSubscriptionHeaderValue(_sectionId, value) {
   return /[\r\n\0]/.test(`${value || ""}`) ? _("Header value must stay on one line") : true;
 }
 function subscriptionHeaderLines(map) {
-  return map.data.sections(map.config, "header").map((row) => {
-    const name = `${row.name || ""}`.trim();
-    const value = `${row.value || ""}`.trim();
+  return map.data.sections(map.config, "header").map((row2) => {
+    const name = `${row2.name || ""}`.trim();
+    const value = `${row2.value || ""}`.trim();
     return `${name}:${value ? ` ${value}` : ""}`;
   });
 }
@@ -19182,44 +19277,6 @@ var PEER_FIELDS = [
   "endpoint",
   "reserved"
 ];
-var AMNEZIA_COUNT_FIELDS2 = ["jc", "jmin", "jmax"];
-var AMNEZIA_PADDING_FIELDS2 = ["s1", "s2", "s3", "s4"];
-var AMNEZIA_RANGE_FIELDS2 = [
-  "h1",
-  "h2",
-  "h3",
-  "h4",
-  "contentpaddingaddition",
-  "rekeyaftertime",
-  "rekeytimeout",
-  "rejectaftertime",
-  "keepalivetimeout",
-  "maxhandshakeattempts"
-];
-var AMNEZIA_SIGNATURE_FIELDS2 = ["i1", "i2", "i3", "i4", "i5"];
-var AMNEZIA_FLAG_FIELDS = ["randomtrailers", "disablecookies"];
-var AMNEZIA_SIGNATURE_TAGS = [
-  "b",
-  "c",
-  "t",
-  "r",
-  "rc",
-  "rd",
-  "d",
-  "ds",
-  "dz"
-];
-var AMNEZIA_ENDPOINT_KEYS = {
-  headerprotectionkey: "header_protection_key",
-  contentpaddingaddition: "content_padding_addition",
-  rekeyaftertime: "rekey_after_time",
-  rekeytimeout: "rekey_timeout",
-  rejectaftertime: "reject_after_time",
-  keepalivetimeout: "keepalive_timeout",
-  maxhandshakeattempts: "max_handshake_attempts",
-  randomtrailers: "random_trailers",
-  disablecookies: "disable_cookies"
-};
 function splitValues(values) {
   return (values || []).flatMap((value) => value.split(",")).map((value) => value.trim()).filter(Boolean);
 }
@@ -19244,44 +19301,6 @@ function addValue(values, key, value) {
 }
 function firstValue(values, key) {
   return values[key]?.[0]?.trim() || "";
-}
-function parseUnsigned(value, maximum) {
-  if (!/^\d+$/u.test(value)) return void 0;
-  const parsed = Number(value);
-  return Number.isSafeInteger(parsed) && parsed <= maximum ? parsed : void 0;
-}
-function parseRange(value, maximum) {
-  const parts = value.split("-");
-  if (parts.length > 2 || parts.some((part) => part === "")) return void 0;
-  const from = parseUnsigned(parts[0], maximum);
-  const to = parts.length === 2 ? parseUnsigned(parts[1], maximum) : from;
-  if (from === void 0 || to === void 0 || from > to) return void 0;
-  return parts.length === 2 ? value : from;
-}
-function validateWireGuardKey(value) {
-  const normalized = value.trim();
-  if (!/^[A-Za-z0-9+/]{43}=$/u.test(normalized)) return false;
-  try {
-    const decoded = atob(normalized);
-    return decoded.length === 32 && btoa(decoded) === normalized;
-  } catch {
-    return false;
-  }
-}
-function validateAmneziaSignature(value) {
-  let rest = value.trim();
-  let tags = 0;
-  while (rest.length > 0) {
-    const start = rest.indexOf("<");
-    if (start < 0) break;
-    const end = rest.indexOf(">", start);
-    if (end < 0) return false;
-    const [tag] = rest.slice(start + 1, end).trim().split(/\s+/u);
-    if (!AMNEZIA_SIGNATURE_TAGS.includes(tag)) return false;
-    tags += 1;
-    rest = rest.slice(end + 1);
-  }
-  return tags > 0;
 }
 function parsePeerEndpoint(value) {
   const normalized = value.trim();
@@ -19314,8 +19333,8 @@ function readSections(input) {
   const sections = [];
   let current = null;
   for (const rawLine of input.replace(/^\uFEFF/u, "").split(/\r?\n/u)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#") || line.startsWith(";")) continue;
+    const line = rawLine.replace(/#.*$/u, "").trim();
+    if (!line || line.startsWith(";")) continue;
     const header = /^\[([^\]]+)\]$/u.exec(line);
     if (header) {
       current = { name: header[1].trim().toLowerCase(), values: {} };
@@ -19401,62 +19420,21 @@ function rejectUnsupportedFields(source) {
 }
 function parseAmnezia(iface) {
   const amnezia = {};
-  const invalid3 = {
-    valid: false,
-    message: _("Invalid AmneziaWG parameters")
-  };
-  for (const key of AMNEZIA_COUNT_FIELDS2) {
-    const value = firstValue(iface, key);
+  const texts = {};
+  for (const { key, conf, kind } of AMNEZIA_PARAMETERS) {
+    const value = firstValue(iface, conf.toLowerCase());
     if (!value) continue;
-    const parsed = parseUnsigned(value, 4294967295);
-    if (parsed === void 0) return invalid3;
-    amnezia[key] = parsed;
+    const text4 = amneziaTextFromConf(key, value);
+    if (text4 === null)
+      return { valid: false, message: _("Invalid AmneziaWG parameters") };
+    const validation = validateAmneziaValue(key, text4);
+    if (validation !== true) return { valid: false, message: validation };
+    texts[key] = text4;
+    if (kind !== "flag" || text4 === "1")
+      amnezia[key] = amneziaJsonValue(key, text4);
   }
-  for (const key of AMNEZIA_PADDING_FIELDS2) {
-    const value = firstValue(iface, key);
-    if (!value) continue;
-    const parsed = parseUnsigned(value, 65535);
-    if (parsed === void 0) return invalid3;
-    amnezia[key] = parsed;
-  }
-  for (const key of AMNEZIA_RANGE_FIELDS2) {
-    const value = firstValue(iface, key);
-    if (!value) continue;
-    const parsed = parseRange(value, 4294967295);
-    if (parsed === void 0) return invalid3;
-    amnezia[AMNEZIA_ENDPOINT_KEYS[key] || key] = parsed;
-  }
-  for (const key of AMNEZIA_SIGNATURE_FIELDS2) {
-    const value = firstValue(iface, key);
-    if (!value) continue;
-    if (!validateAmneziaSignature(value))
-      return {
-        valid: false,
-        message: _(
-          "AmneziaWG I1-I5 must be Custom Protocol Signature tags such as <b 0xdeadbeef><r 4>"
-        )
-      };
-    amnezia[key] = value;
-  }
-  for (const key of AMNEZIA_FLAG_FIELDS) {
-    const value = firstValue(iface, key).toLowerCase();
-    if (!value) continue;
-    if (!["on", "off", "true", "false", "1", "0", "yes", "no"].includes(value))
-      return invalid3;
-    if (["on", "true", "1", "yes"].includes(value))
-      amnezia[AMNEZIA_ENDPOINT_KEYS[key]] = true;
-  }
-  const headerProtectionKey = firstValue(iface, "headerprotectionkey");
-  if (headerProtectionKey) {
-    if (!validateWireGuardKey(headerProtectionKey))
-      return {
-        valid: false,
-        message: _(
-          "WireGuard keys must be standard base64-encoded 32-byte values"
-        )
-      };
-    amnezia.header_protection_key = headerProtectionKey;
-  }
+  const combination = validateAmneziaSet(texts);
+  if (combination !== true) return { valid: false, message: combination };
   return {
     valid: true,
     amnezia: Object.keys(amnezia).length > 0 ? amnezia : void 0
@@ -19527,7 +19505,7 @@ function buildEndpoint2(source) {
     const keepaliveValue = firstValue(values, "persistentkeepalive");
     if (preSharedKey) peer.pre_shared_key = preSharedKey;
     peer.allowed_ips = allowedIps;
-    if (keepaliveValue) {
+    if (keepaliveValue && keepaliveValue.toLowerCase() !== "off") {
       const keepalive = parseRange(keepaliveValue, 4294967295);
       if (keepalive === void 0)
         return {
@@ -20440,44 +20418,21 @@ function validateWireGuardListInput(value) {
   }
   return `${value || ""}`.trim() ? validateWireGuardPrefix(value) : true;
 }
-function validateAmneziaRange(value) {
-  const normalized = `${value || ""}`.trim();
-  if (!normalized) return true;
-  const parts = normalized.split("-");
-  if (parts.length > 2 || parts.some((part) => !/^\d+$/u.test(part))) {
-    return _(
-      "AmneziaWG ranges must be between 0 and 4294967295 with the start no greater than the end"
-    );
-  }
-  const from = Number(parts[0]);
-  const to = parts.length === 2 ? Number(parts[1]) : from;
-  return Number.isSafeInteger(from) && Number.isSafeInteger(to) && from <= 4294967295 && to <= 4294967295 && from <= to ? true : _(
-    "AmneziaWG ranges must be between 0 and 4294967295 with the start no greater than the end"
+function isOptionalUint16(value, minimum) {
+  const text4 = `${value ?? ""}`.trim();
+  const parsed = parseUnsigned(text4, 65535);
+  return !text4 || parsed !== void 0 && parsed >= minimum;
+}
+function isHostname(value) {
+  return value.length <= 253 && /^[A-Za-z0-9_]([A-Za-z0-9_-]*[A-Za-z0-9_])?(\.[A-Za-z0-9_]([A-Za-z0-9_-]*[A-Za-z0-9_])?)*$/u.test(
+    value
   );
 }
-function amneziaFieldLabel(key) {
-  switch (key) {
-    case "header_protection_key":
-      return _("Header protection key");
-    case "content_padding_addition":
-      return _("Additional packet padding");
-    case "rekey_after_time":
-      return _("Rekey interval");
-    case "rekey_timeout":
-      return _("Rekey timeout");
-    case "reject_after_time":
-      return _("Data rejection timeout");
-    case "keepalive_timeout":
-      return _("Keepalive timeout");
-    case "max_handshake_attempts":
-      return _("Maximum handshake attempts");
-    case "random_trailers":
-      return _("Random trailers");
-    case "disable_cookies":
-      return _("Disable cookies");
-    default:
-      return key.toUpperCase();
-  }
+function validateAmneziaRange(value) {
+  const normalized = `${value || ""}`.trim();
+  return !normalized || parseRange(normalized) !== void 0 ? true : _(
+    "AmneziaWG ranges must be between 0 and 4294967295 with the start no greater than the end"
+  );
 }
 function validateTunnelSettings(settings, tunnelId, peerOption) {
   const kind = `${settings.tunnel_type || ""}`;
@@ -20515,31 +20470,26 @@ function validateTunnelSettings(settings, tunnelId, peerOption) {
     }
     return true;
   }
-  if (`${settings.tunnel_type || ""}` === "amneziawg" || oneSidedAmneziaEnabled(`${settings.tunnel_type || ""}`, settings)) {
-    const rangeFields = kind === "amneziawg" ? AMNEZIA_RANGE_FIELDS : AMNEZIA_RANGE_FIELDS.filter(
-      (key) => ONE_SIDED_AMNEZIA_FIELDS.includes(key)
-    );
-    for (const key of rangeFields) {
-      const rangeValidation = validateAmneziaRange(settings[`amnezia_${key}`]);
-      if (rangeValidation !== true) {
-        return rangeValidation;
-      }
+  if (kind === "amneziawg" || oneSidedAmneziaEnabled(kind, settings)) {
+    const keys = kind === "amneziawg" ? AMNEZIA_KEYS : ONE_SIDED_AMNEZIA_KEYS;
+    const values = {};
+    for (const key of keys) {
+      const value = settings[`amnezia_${key}`];
+      const validation = validateAmneziaValue(key, value);
+      if (validation !== true) return validation;
+      values[key] = value;
     }
-    const headerProtectionKey = `${settings.amnezia_header_protection_key || ""}`.trim();
-    if (kind === "amneziawg" && headerProtectionKey && !validateWireGuardKey(headerProtectionKey)) {
-      return _("WireGuard keys must be standard base64-encoded 32-byte values");
-    }
-    if (kind === "amneziawg" && headerProtectionKey && !/^A{43}=$/.test(headerProtectionKey) && ["s1", "s2", "s3", "s4"].some(
-      (key) => Number(settings[`amnezia_${key}`] || 0) < 12
-    )) {
-      return _(
-        "Header protection requires S1, S2, S3 and S4 of at least 12 bytes"
-      );
-    }
+    const combination = validateAmneziaSet(values);
+    if (combination !== true) return combination;
   }
   if (endpoint.type === "warp") {
-    if (endpoint.port != null && (!Number.isInteger(endpoint.port) || endpoint.port < 1 || endpoint.port > 65535))
+    const address = `${settings.warp_address || ""}`.trim();
+    if (address && !isIPv4(address) && !isIPv6(address) && !isHostname(address))
+      return _("Enter a valid server address");
+    if (!isOptionalUint16(settings.warp_port, 0))
       return _("Enter a valid server port");
+    const keepalive = validateAmneziaRange(settings.warp_keepalive);
+    if (keepalive !== true) return keepalive;
     const profileValues = [
       endpoint.profile?.id,
       endpoint.profile?.auth_token,
@@ -20551,6 +20501,12 @@ function validateTunnelSettings(settings, tunnelId, peerOption) {
       );
     }
     return true;
+  }
+  if (!isOptionalUint16(settings.listen_port, 0)) {
+    return _("Enter a valid listen port");
+  }
+  if (!isOptionalUint16(settings.mtu, 1)) {
+    return _("Enter an MTU from 1 to 65535");
   }
   if (!endpoint.private_key || endpoint.address.length === 0) {
     return _("WireGuard address and private key are required");
@@ -20597,13 +20553,23 @@ function validateTunnelItemsBeforeSave(section_id, values) {
 }
 
 // src/forkop/tabs/sections/tunnels/dialog.ts
+function amneziaFieldTitle(key) {
+  const conf = amneziaParameter(key).conf;
+  const labels = {
+    header_protection_key: _("Header protection key"),
+    content_padding_addition: _("Additional packet padding"),
+    rekey_after_time: _("Rekey interval"),
+    rekey_timeout: _("Rekey timeout"),
+    reject_after_time: _("Data rejection timeout"),
+    keepalive_timeout: _("Keepalive timeout"),
+    max_handshake_attempts: _("Maximum handshake attempts"),
+    random_trailers: _("Random trailers"),
+    disable_cookies: _("Disable cookies")
+  };
+  return labels[key] ? [labels[key], _("%s in the configuration").format(conf)] : [conf];
+}
 function addWireGuardPeerItemOptions(section) {
-  let o = section.option(
-    form.Value,
-    "address",
-    _("Server address"),
-    _("Peer hostname or IP address")
-  );
+  let o = section.option(form.Value, "address", _("Server address"));
   o.rmempty = false;
   o.validate = function(_itemId, value) {
     return `${value || ""}`.trim() ? true : _("Enter a server address");
@@ -20618,12 +20584,7 @@ function addWireGuardPeerItemOptions(section) {
     if (!key) return _("Enter a public key");
     return validateWireGuardKey(key) ? true : _("WireGuard keys must be standard base64-encoded 32-byte values");
   };
-  o = section.option(
-    form.Value,
-    "pre_shared_key",
-    _("Pre-shared key"),
-    _("An extra key shared with this peer")
-  );
+  o = section.option(form.Value, "pre_shared_key", _("Pre-shared key"));
   o.password = true;
   o.rmempty = true;
   o.validate = function(_itemId, value) {
@@ -20645,7 +20606,7 @@ function addWireGuardPeerItemOptions(section) {
     "persistent_keepalive_interval",
     _("Persistent keepalive"),
     _(
-      "Interval between packets that keep the tunnel open, in seconds. Empty means the default"
+      "Seconds between the packets that keep the tunnel open, or a range such as 25-35. Empty: none"
     )
   );
   o.validate = function(_itemId, value) {
@@ -20867,7 +20828,9 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     form.Button,
     "_import_config",
     _("Import configuration"),
-    _("Fill the fields from an existing configuration")
+    _(
+      "A WireGuard or AmneziaWG configuration, a wireguard:// or vpn:// link, or an OpenVPN profile"
+    )
   );
   importButton.inputtitle = _("Import");
   importButton.inputstyle = "apply";
@@ -20995,20 +20958,24 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     form.Value,
     "warp_address",
     _("WARP server address"),
-    _("Override the WARP peer IP address or hostname")
+    _("Empty: the one the profile names")
   );
   o.depends("tunnel_type", "warp");
   o.rmempty = true;
   o.datatype = "host";
-  o = itemSection.option(form.Value, "warp_port", _("WARP server port"));
+  o = itemSection.option(
+    form.Value,
+    "warp_port",
+    _("WARP server port"),
+    _("Empty: the one the profile names")
+  );
   o.depends("tunnel_type", "warp");
   o.rmempty = true;
   o.datatype = "port";
   const addressOption = itemSection.option(
     form.DynamicList,
     "address",
-    _("Tunnel addresses"),
-    _("Interface IPv4 or IPv6 addresses in CIDR format")
+    _("Tunnel addresses")
   );
   addressOption.rmempty = false;
   addressOption.depends("tunnel_type", "wireguard");
@@ -21034,7 +21001,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     form.Value,
     "listen_port",
     _("Listen port"),
-    _("Local UDP port. Empty means the default")
+    _("Empty: a random port")
   );
   listenPortOption.datatype = "port";
   listenPortOption.rmempty = true;
@@ -21049,8 +21016,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   const peersOption = itemSection.option(
     ButtonAddSettingsDynamicList,
     "peer_ids",
-    _("Peers"),
-    _("Required. Remote nodes to connect to")
+    _("Peers")
   );
   peersOption.rmempty = false;
   peersOption.depends("tunnel_type", "wireguard");
@@ -21085,7 +21051,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
         mtu: mtuOption,
         peers: peersOption,
         tunnelId,
-        wireguardJunk: wireguardJunkOption,
+        amneziaEnabled: amneziaEnabledOption,
         amnezia: amneziaOptions
       },
       openvpnOptions
@@ -21096,7 +21062,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     "warp_keepalive",
     _("Persistent keepalive"),
     _(
-      "Interval between packets that keep the tunnel open, in seconds. Empty means the default"
+      "Seconds between the packets that keep the tunnel open, or a range such as 25-35. Empty: none"
     )
   );
   o.validate = function(_itemId, value) {
@@ -21153,85 +21119,52 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
       )
     );
   };
-  const warpJunkOption = itemSection.option(
+  const amneziaEnabledOption = itemSection.option(
     form.Flag,
-    "warp_junk_enabled",
+    "amnezia_enabled",
     _("Traffic obfuscation"),
-    _("Masks traffic with the Amnezia mechanism to make it harder to identify")
+    _(
+      "AmneziaWG junk and signature packets before every handshake, which any WireGuard server ignores"
+    )
   );
-  warpJunkOption.default = "0";
-  warpJunkOption.rmempty = false;
-  warpJunkOption.depends("tunnel_type", "warp");
-  warpJunkOption.onchange = function(_event, _sectionId, value) {
+  amneziaEnabledOption.default = "0";
+  amneziaEnabledOption.rmempty = false;
+  amneziaEnabledOption.depends("tunnel_type", "wireguard");
+  amneziaEnabledOption.depends("tunnel_type", "warp");
+  amneziaEnabledOption.onchange = function(_event, _sectionId, value) {
     if (value === "1") {
       fillOneSidedAmneziaDefaults(map, amneziaOptions);
     }
   };
-  const wireguardJunkOption = itemSection.option(
-    form.Flag,
-    "wireguard_junk_enabled",
-    _("Traffic obfuscation"),
-    _("Masks traffic with the Amnezia mechanism to make it harder to identify")
-  );
-  wireguardJunkOption.default = "0";
-  wireguardJunkOption.rmempty = false;
-  wireguardJunkOption.depends("tunnel_type", "wireguard");
-  wireguardJunkOption.onchange = function(_event, _sectionId, value) {
-    if (value === "1") {
-      fillOneSidedAmneziaDefaults(map, amneziaOptions);
-    }
-  };
-  AMNEZIA_FIELDS.forEach((key) => {
+  AMNEZIA_PARAMETERS.forEach(({ key, kind, oneSided }) => {
     const option3 = itemSection.option(
-      AMNEZIA_BOOLEAN_FIELDS.includes(key) ? form.Flag : form.Value,
+      kind === "flag" ? form.Flag : form.Value,
       `amnezia_${key}`,
-      amneziaFieldLabel(key)
+      ...amneziaFieldTitle(key)
     );
-    if (AMNEZIA_COUNT_FIELDS.includes(key)) {
-      option3.datatype = "and(uinteger,range(0,4294967295))";
-    }
-    if (AMNEZIA_PADDING_FIELDS.includes(key)) {
-      option3.datatype = "and(uinteger,range(0,65535))";
-    }
-    if (AMNEZIA_RANGE_FIELDS.includes(key)) {
+    if (kind === "flag") {
+      option3.default = "0";
+    } else {
       option3.validate = function(_itemId, value) {
-        return validateAmneziaRange(value);
+        return validateAmneziaValue(key, value);
       };
     }
-    if (AMNEZIA_BOOLEAN_FIELDS.includes(key)) option3.default = "0";
     option3.rmempty = true;
     option3.retain = true;
     option3.depends("tunnel_type", "amneziawg");
-    if (ONE_SIDED_AMNEZIA_FIELDS.includes(key)) {
-      option3.depends({ tunnel_type: "warp", warp_junk_enabled: "1" });
-      option3.depends({
-        tunnel_type: "wireguard",
-        wireguard_junk_enabled: "1"
-      });
-    }
-    if (key === "header_protection_key") {
-      option3.validate = function(_itemId, value) {
-        const normalized = `${value || ""}`.trim();
-        return !normalized || validateWireGuardKey(normalized) ? true : _("WireGuard keys must be standard base64-encoded 32-byte values");
-      };
-    }
-    if (AMNEZIA_SIGNATURE_FIELDS.includes(key)) {
-      option3.validate = function(_itemId, value) {
-        const normalized = `${value || ""}`.trim();
-        return !normalized || validateAmneziaSignature(normalized) ? true : _(
-          "AmneziaWG I1-I5 must be Custom Protocol Signature tags such as <b 0xdeadbeef><r 4>"
-        );
-      };
+    if (oneSided) {
+      option3.depends({ tunnel_type: "wireguard", amnezia_enabled: "1" });
+      option3.depends({ tunnel_type: "warp", amnezia_enabled: "1" });
     }
     amneziaOptions[key] = option3;
   });
   typeOption.onchange = function(_event, _sectionId, value) {
-    if (previousTunnelType === "amneziawg") {
-      if (value === "warp") {
-        setModalOptionValue(map, warpJunkOption, "1");
-      } else if (value === "wireguard") {
-        setModalOptionValue(map, wireguardJunkOption, "1");
-      }
+    if (previousTunnelType === "amneziawg" && (value === "wireguard" || value === "warp")) {
+      setModalOptionValue(
+        map,
+        amneziaEnabledOption,
+        hasOneSidedAmneziaValues(map, amneziaOptions) ? "1" : "0"
+      );
     }
     previousTunnelType = `${value ?? ""}`;
     map.checkDepends();
@@ -22166,7 +22099,8 @@ var PROTOCOLS = [
     securities: ["none"],
     credentials: [],
     clients: true,
-    profile: true
+    profile: true,
+    tunnel: true
   },
   {
     id: "vless",
@@ -22506,7 +22440,7 @@ function isIpv6(value) {
     return false;
   }
 }
-function isHostname(value) {
+function isHostname2(value) {
   const hostname = normalizeHost(value);
   if (hostname.length < 1 || hostname.length > 253 || hostname.endsWith(".")) {
     return false;
@@ -22517,7 +22451,7 @@ function isHostname(value) {
 }
 function isHost(value) {
   const host = normalizeHost(value);
-  return isIpv4(host) || isIpv6(host) || isHostname(host);
+  return isIpv4(host) || isIpv6(host) || isHostname2(host);
 }
 function formatHostForUri(host) {
   const normalized = normalizeHost(host);
@@ -23021,7 +22955,7 @@ function buildOpenVPNProfile(sectionId, client, material3) {
     return { missing: "certificate" };
   }
   const network2 = option(sectionId, "openvpn_network") === "tcp" ? "tcp" : "udp";
-  const allTraffic = option(sectionId, "openvpn_redirect_gateway") !== "0";
+  const allTraffic = option(sectionId, "tunnel_all_traffic") !== "0";
   const serverName = getServerName(sectionId);
   const lines2 = [
     `# ${serverName} \xB7 ${client.name}`,
@@ -23425,8 +23359,8 @@ function qrSvgDataUri(text4) {
   const size = matrix.length;
   const viewSize = size + border * 2;
   const path = [];
-  matrix.forEach((row, y) => {
-    row.forEach((dark, x) => {
+  matrix.forEach((row2, y) => {
+    row2.forEach((dark, x) => {
       if (dark) {
         path.push(`M${x + border},${y + border}h1v1h-1z`);
       }
@@ -23907,7 +23841,7 @@ function addGenerateButton(optionRef, generate, title) {
       controlOf(node)?.dispatchEvent(new Event("change", { bubbles: true }));
     });
     const rows = !!node.querySelector?.(".add-item");
-    const row = textE(
+    const row2 = textE(
       "div",
       {
         class: rows ? "fkp-generate-row fkp-generate-row--rows" : "fkp-generate-row"
@@ -23927,7 +23861,7 @@ function addGenerateButton(optionRef, generate, title) {
         window.setTimeout(measure, 0);
       }
     }
-    return row;
+    return row2;
   };
 }
 function getSelectWidget(sectionId, name) {
@@ -25202,6 +25136,24 @@ function addMultiplexOptions(section) {
 }
 
 // src/forkop/tabs/servers/form/openvpn.ts
+function addOpenVPNServerOptions(section) {
+  const o = section.option(form.ListValue, "openvpn_network", _("Transport"));
+  o.value("udp", "UDP");
+  o.value("tcp", "TCP");
+  o.default = "udp";
+  o.rmempty = false;
+  o.modalonly = true;
+  o.depends("protocol", "openvpn");
+  o.onchange = function(_ev, sectionId) {
+    const port2 = widgetNode(sectionId, "listen_port");
+    window.setTimeout(() => {
+      const element3 = port2 ? dom.findClassInstance(port2) : null;
+      element3?.triggerValidation?.();
+    }, 0);
+  };
+}
+
+// src/forkop/tabs/servers/form/tunnel.ts
 var DEFAULT_SUBNET = "10.8.0.1/24";
 function ipv6Bytes(address) {
   const [head, tail = ""] = address.split("::");
@@ -25224,7 +25176,7 @@ function namesHostAddress(address, bits) {
   }
   return any && (bytes.length === 16 || !all);
 }
-function validateOpenVPNSubnet(value) {
+function validateTunnelSubnet(value) {
   const subnet = `${value || ""}`.trim();
   if (!isValidCidr(subnet)) {
     return _("Use an address with a prefix length, such as %s").format(
@@ -25240,7 +25192,7 @@ function validateOpenVPNSubnet(value) {
     "Name the address of the server in the subnet, such as %s rather than the subnet itself"
   ).format(isIpv4(address) ? DEFAULT_SUBNET : "fd00:8::1/64");
 }
-function validateOpenVPNSubnets(values) {
+function validateTunnelSubnets(values) {
   const subnets = valueList(values).map((value) => `${value}`.trim());
   const families = subnets.map(
     (subnet) => isIpv6(subnet.split("/")[0]) ? 6 : 4
@@ -25254,25 +25206,13 @@ function validateOpenVPNSubnets(values) {
   }
   return true;
 }
-function addOpenVPNServerOptions(section) {
-  const onOpenVPN = (o2, extra = {}) => o2.depends({ protocol: "openvpn", ...extra });
-  let o = section.option(form.ListValue, "openvpn_network", _("Transport"));
-  o.value("udp", "UDP");
-  o.value("tcp", "TCP");
-  o.default = "udp";
-  o.rmempty = false;
-  o.modalonly = true;
-  onOpenVPN(o);
-  o.onchange = function(_ev, sectionId) {
-    const port2 = widgetNode(sectionId, "listen_port");
-    window.setTimeout(() => {
-      const element3 = port2 ? dom.findClassInstance(port2) : null;
-      element3?.triggerValidation?.();
-    }, 0);
-  };
-  o = section.option(
+function addTunnelOptions(section) {
+  const onTunnel = (o2, extra = {}) => protocolsWith("tunnel").forEach(
+    (protocol) => o2.depends({ protocol, ...extra })
+  );
+  let o = section.option(
     form.DynamicList,
-    "openvpn_address",
+    "tunnel_address",
     _("Tunnel subnet"),
     _(
       "The server's own address with a prefix, such as 10.8.0.1/24; clients get the other addresses of the subnet. An IPv6 subnet can go beside it"
@@ -25282,20 +25222,20 @@ function addOpenVPNServerOptions(section) {
   o.modalonly = true;
   o.rmempty = false;
   autofill(o, (sectionId) => {
-    const stored = optionList(sectionId, "openvpn_address");
+    const stored = optionList(sectionId, "tunnel_address");
     return stored.length ? stored : [DEFAULT_SUBNET];
   });
   o.validate = function(sectionId, value) {
     if (!isEmptyValue(value)) {
-      return validateOpenVPNSubnet(value);
+      return validateTunnelSubnet(value);
     }
     const current = typeof this.formvalue === "function" ? this.formvalue(sectionId) : [];
-    return validateOpenVPNSubnets(current);
+    return validateTunnelSubnets(current);
   };
-  onOpenVPN(o);
+  onTunnel(o);
   o = section.option(
     form.Flag,
-    "openvpn_redirect_gateway",
+    "tunnel_all_traffic",
     _("All traffic through the server"),
     _(
       "Clients send all of their traffic through the router, where the routing mode decides where it goes. Off, they send only the routes below"
@@ -25304,13 +25244,13 @@ function addOpenVPNServerOptions(section) {
   o.default = "1";
   o.rmempty = false;
   o.modalonly = true;
-  onOpenVPN(o);
-  o = section.option(form.DynamicList, "openvpn_routes", _("Routes"));
+  onTunnel(o);
+  o = section.option(form.DynamicList, "tunnel_routes", _("Routes"));
   o.placeholder = "192.168.1.0/24";
   o.modalonly = true;
   o.rmempty = true;
   o.validate = (_sectionId, value) => isEmptyValue(value) || isValidCidr(`${value}`.trim()) ? true : _("Use a subnet like 192.168.1.0/24");
-  onOpenVPN(o, { openvpn_redirect_gateway: "0" });
+  onTunnel(o, { tunnel_all_traffic: "0" });
 }
 
 // src/forkop/tabs/servers/form.ts
@@ -25321,6 +25261,7 @@ function createServerContent(section) {
   addJsonInboundOptions(section);
   addListenerOptions(section);
   addOpenVPNServerOptions(section);
+  addTunnelOptions(section);
   addShadowsocksOptions(section);
   addMixedOptions(section);
   addClientListOption(section);

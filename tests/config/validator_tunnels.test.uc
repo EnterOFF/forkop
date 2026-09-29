@@ -60,6 +60,24 @@ t.test("each broken tunnel field is refused by name", () => {
     v.refuses(changed((d) => d.tunnel[3].endpoint_json = "{\"type\":\"vpn-client\"}"), "JSON endpoint without a tag");
 });
 
+// The dialog refuses these before it saves; a configuration written through uci
+// reaches the core with them, which reads a port or an MTU it cannot parse as
+// none and an AmneziaWG tunnel without a parameter as plain WireGuard.
+t.test("a tunnel is refused on the values the dialog refuses", () => {
+    for (let value in [ "65536", "abc" ]) {
+        v.refuses(changed((d) => d.tunnel[1].listen_port = value), "invalid WireGuard listen port");
+        v.refuses(changed((d) => d.tunnel[1].mtu = value), "invalid WireGuard MTU");
+    }
+    v.refuses(changed((d) => d.tunnel[1].mtu = "0"), "invalid WireGuard MTU");
+    v.accepts(changed((d) => { d.tunnel[1].listen_port = "0"; d.tunnel[1].mtu = "1280"; }));
+    v.refuses(changed((d) => { delete d.tunnel[1].amnezia_jc; delete d.tunnel[1].amnezia_h1; }), "has no AmneziaWG parameter");
+    v.refuses(changed((d) => d.tunnel[0].warp_address = "not a host"), "invalid WARP server address");
+    v.accepts(changed((d) => d.tunnel[0].warp_address = "engage.cloudflareclient.com"));
+    v.accepts(changed((d) => d.tunnel[0].warp_address = "2606:4700:d0::a29f:c001"));
+    v.refuses(changed((d) => d.tunnel[0].warp_port = "70000"), "invalid WARP server port");
+    v.refuses(changed((d) => d.tunnel[0].warp_keepalive = "25-5"), "invalid WARP persistent keepalive");
+});
+
 // A WARP tunnel waits for its profile before it carries anything, so a profile
 // requested through the section that holds it would wait for itself.
 t.test("WARP profiles go through a section of their own choosing, never the one holding the tunnel", () => {

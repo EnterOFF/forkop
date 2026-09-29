@@ -5,9 +5,13 @@ import {
 import {
   parseWireGuardConfig,
   parseWireGuardInput,
-  validateAmneziaSignature,
-  validateWireGuardKey,
 } from '../../../../helpers/parseWireGuardConfig';
+import {
+  AMNEZIA_PARAMETERS,
+  amneziaParameter,
+  validateAmneziaValue,
+  validateWireGuardKey,
+} from '../../../../helpers/wireguard';
 import { validateTailscaleHostname } from '../../../../validators/validateTailscaleHostname';
 import { validateUrlField } from '../../../../validators/validateUrl';
 import { configureTextareaOption } from '../../../cbi/annotatedTextarea';
@@ -43,17 +47,11 @@ import {
 import type { OpenVPNFiles } from '../../../../helpers/parseOpenVPNConfig';
 import { refreshOutboundDetourSectionOptionValues } from '../references';
 import {
-  AMNEZIA_COUNT_FIELDS,
-  AMNEZIA_FIELDS,
-  AMNEZIA_BOOLEAN_FIELDS,
-  AMNEZIA_PADDING_FIELDS,
-  AMNEZIA_RANGE_FIELDS,
-  AMNEZIA_SIGNATURE_FIELDS,
-  ONE_SIDED_AMNEZIA_FIELDS,
   applyImportedTunnelEndpoint,
   createTunnelItem,
   defaultWireGuardPeerSettings,
   fillOneSidedAmneziaDefaults,
+  hasOneSidedAmneziaValues,
   materializeTunnelPeers,
   tunnelDisplayName,
   tunnelInitialSettings,
@@ -64,7 +62,6 @@ import {
   wireGuardPeerSettingsKeys,
 } from './model';
 import {
-  amneziaFieldLabel,
   validateAmneziaRange,
   validateTunnelSettings,
   validateWireGuardListInput,
@@ -73,13 +70,29 @@ import {
 } from './validate';
 import { E } from '../../../../helpers/element';
 
+// A field AmneziaWG names in its configuration is labelled with that name, and
+// one whose name is a sentence gets a label of its own and the name under it,
+// so a value can be copied from a server's configuration.
+function amneziaFieldTitle(key: string): [string, string?] {
+  const conf = amneziaParameter(key)!.conf;
+  const labels: Record<string, string> = {
+    header_protection_key: _('Header protection key'),
+    content_padding_addition: _('Additional packet padding'),
+    rekey_after_time: _('Rekey interval'),
+    rekey_timeout: _('Rekey timeout'),
+    reject_after_time: _('Data rejection timeout'),
+    keepalive_timeout: _('Keepalive timeout'),
+    max_handshake_attempts: _('Maximum handshake attempts'),
+    random_trailers: _('Random trailers'),
+    disable_cookies: _('Disable cookies'),
+  };
+  return labels[key]
+    ? [labels[key], _('%s in the configuration').format(conf)]
+    : [conf];
+}
+
 function addWireGuardPeerItemOptions(section: CBISection) {
-  let o = section.option(
-    form.Value,
-    'address',
-    _('Server address'),
-    _('Peer hostname or IP address'),
-  );
+  let o = section.option(form.Value, 'address', _('Server address'));
   o.rmempty = false;
   o.validate = function (_itemId: string, value: unknown) {
     return `${value || ''}`.trim() ? true : _('Enter a server address');
@@ -99,12 +112,7 @@ function addWireGuardPeerItemOptions(section: CBISection) {
       : _('WireGuard keys must be standard base64-encoded 32-byte values');
   };
 
-  o = section.option(
-    form.Value,
-    'pre_shared_key',
-    _('Pre-shared key'),
-    _('An extra key shared with this peer'),
-  );
+  o = section.option(form.Value, 'pre_shared_key', _('Pre-shared key'));
   o.password = true;
   o.rmempty = true;
   o.validate = function (_itemId: string, value: unknown) {
@@ -130,7 +138,7 @@ function addWireGuardPeerItemOptions(section: CBISection) {
     'persistent_keepalive_interval',
     _('Persistent keepalive'),
     _(
-      'Interval between packets that keep the tunnel open, in seconds. Empty means the default',
+      'Seconds between the packets that keep the tunnel open, or a range such as 25-35. Empty: none',
     ),
   );
   o.validate = function (_itemId: string, value: unknown) {
@@ -423,7 +431,9 @@ export function showTunnelSettingsModal(
     form.Button,
     '_import_config',
     _('Import configuration'),
-    _('Fill the fields from an existing configuration'),
+    _(
+      'A WireGuard or AmneziaWG configuration, a wireguard:// or vpn:// link, or an OpenVPN profile',
+    ),
   );
   importButton.inputtitle = _('Import');
   importButton.inputstyle = 'apply';
@@ -575,12 +585,17 @@ export function showTunnelSettingsModal(
     form.Value,
     'warp_address',
     _('WARP server address'),
-    _('Override the WARP peer IP address or hostname'),
+    _('Empty: the one the profile names'),
   );
   o.depends('tunnel_type', 'warp');
   o.rmempty = true;
   o.datatype = 'host';
-  o = itemSection.option(form.Value, 'warp_port', _('WARP server port'));
+  o = itemSection.option(
+    form.Value,
+    'warp_port',
+    _('WARP server port'),
+    _('Empty: the one the profile names'),
+  );
   o.depends('tunnel_type', 'warp');
   o.rmempty = true;
   o.datatype = 'port';
@@ -589,7 +604,6 @@ export function showTunnelSettingsModal(
     form.DynamicList,
     'address',
     _('Tunnel addresses'),
-    _('Interface IPv4 or IPv6 addresses in CIDR format'),
   );
   addressOption.rmempty = false;
   addressOption.depends('tunnel_type', 'wireguard');
@@ -619,7 +633,7 @@ export function showTunnelSettingsModal(
     form.Value,
     'listen_port',
     _('Listen port'),
-    _('Local UDP port. Empty means the default'),
+    _('Empty: a random port'),
   );
   listenPortOption.datatype = 'port';
   listenPortOption.rmempty = true;
@@ -639,7 +653,6 @@ export function showTunnelSettingsModal(
     ButtonAddSettingsDynamicList,
     'peer_ids',
     _('Peers'),
-    _('Required. Remote nodes to connect to'),
   );
   peersOption.rmempty = false;
   peersOption.depends('tunnel_type', 'wireguard');
@@ -681,7 +694,7 @@ export function showTunnelSettingsModal(
         mtu: mtuOption,
         peers: peersOption,
         tunnelId,
-        wireguardJunk: wireguardJunkOption,
+        amneziaEnabled: amneziaEnabledOption,
         amnezia: amneziaOptions,
       },
       openvpnOptions,
@@ -693,7 +706,7 @@ export function showTunnelSettingsModal(
     'warp_keepalive',
     _('Persistent keepalive'),
     _(
-      'Interval between packets that keep the tunnel open, in seconds. Empty means the default',
+      'Seconds between the packets that keep the tunnel open, or a range such as 25-35. Empty: none',
     ),
   );
   o.validate = function (_itemId: string, value: unknown) {
@@ -762,16 +775,19 @@ export function showTunnelSettingsModal(
       );
   };
 
-  const warpJunkOption = itemSection.option(
+  const amneziaEnabledOption = itemSection.option(
     form.Flag,
-    'warp_junk_enabled',
+    'amnezia_enabled',
     _('Traffic obfuscation'),
-    _('Masks traffic with the Amnezia mechanism to make it harder to identify'),
+    _(
+      'AmneziaWG junk and signature packets before every handshake, which any WireGuard server ignores',
+    ),
   );
-  warpJunkOption.default = '0';
-  warpJunkOption.rmempty = false;
-  warpJunkOption.depends('tunnel_type', 'warp');
-  warpJunkOption.onchange = function (
+  amneziaEnabledOption.default = '0';
+  amneziaEnabledOption.rmempty = false;
+  amneziaEnabledOption.depends('tunnel_type', 'wireguard');
+  amneziaEnabledOption.depends('tunnel_type', 'warp');
+  amneziaEnabledOption.onchange = function (
     _event: Event,
     _sectionId: string,
     value: unknown,
@@ -781,70 +797,25 @@ export function showTunnelSettingsModal(
     }
   };
 
-  const wireguardJunkOption = itemSection.option(
-    form.Flag,
-    'wireguard_junk_enabled',
-    _('Traffic obfuscation'),
-    _('Masks traffic with the Amnezia mechanism to make it harder to identify'),
-  );
-  wireguardJunkOption.default = '0';
-  wireguardJunkOption.rmempty = false;
-  wireguardJunkOption.depends('tunnel_type', 'wireguard');
-  wireguardJunkOption.onchange = function (
-    _event: Event,
-    _sectionId: string,
-    value: unknown,
-  ) {
-    if (value === '1') {
-      fillOneSidedAmneziaDefaults(map, amneziaOptions);
-    }
-  };
-
-  AMNEZIA_FIELDS.forEach((key: string) => {
+  AMNEZIA_PARAMETERS.forEach(({ key, kind, oneSided }) => {
     const option = itemSection.option(
-      AMNEZIA_BOOLEAN_FIELDS.includes(key) ? form.Flag : form.Value,
+      kind === 'flag' ? form.Flag : form.Value,
       `amnezia_${key}`,
-      amneziaFieldLabel(key),
+      ...amneziaFieldTitle(key),
     );
-    if (AMNEZIA_COUNT_FIELDS.includes(key)) {
-      option.datatype = 'and(uinteger,range(0,4294967295))';
-    }
-    if (AMNEZIA_PADDING_FIELDS.includes(key)) {
-      option.datatype = 'and(uinteger,range(0,65535))';
-    }
-    if (AMNEZIA_RANGE_FIELDS.includes(key)) {
+    if (kind === 'flag') {
+      option.default = '0';
+    } else {
       option.validate = function (_itemId: string, value: unknown) {
-        return validateAmneziaRange(value);
+        return validateAmneziaValue(key, value);
       };
     }
-    if (AMNEZIA_BOOLEAN_FIELDS.includes(key)) option.default = '0';
     option.rmempty = true;
     option.retain = true;
     option.depends('tunnel_type', 'amneziawg');
-    if (ONE_SIDED_AMNEZIA_FIELDS.includes(key)) {
-      option.depends({ tunnel_type: 'warp', warp_junk_enabled: '1' });
-      option.depends({
-        tunnel_type: 'wireguard',
-        wireguard_junk_enabled: '1',
-      });
-    }
-    if (key === 'header_protection_key') {
-      option.validate = function (_itemId: string, value: unknown) {
-        const normalized = `${value || ''}`.trim();
-        return !normalized || validateWireGuardKey(normalized)
-          ? true
-          : _('WireGuard keys must be standard base64-encoded 32-byte values');
-      };
-    }
-    if (AMNEZIA_SIGNATURE_FIELDS.includes(key)) {
-      option.validate = function (_itemId: string, value: unknown) {
-        const normalized = `${value || ''}`.trim();
-        return !normalized || validateAmneziaSignature(normalized)
-          ? true
-          : _(
-              'AmneziaWG I1-I5 must be Custom Protocol Signature tags such as <b 0xdeadbeef><r 4>',
-            );
-      };
+    if (oneSided) {
+      option.depends({ tunnel_type: 'wireguard', amnezia_enabled: '1' });
+      option.depends({ tunnel_type: 'warp', amnezia_enabled: '1' });
     }
     amneziaOptions[key] = option;
   });
@@ -854,12 +825,15 @@ export function showTunnelSettingsModal(
     _sectionId: string,
     value: unknown,
   ) {
-    if (previousTunnelType === 'amneziawg') {
-      if (value === 'warp') {
-        setModalOptionValue(map, warpJunkOption, '1');
-      } else if (value === 'wireguard') {
-        setModalOptionValue(map, wireguardJunkOption, '1');
-      }
+    if (
+      previousTunnelType === 'amneziawg' &&
+      (value === 'wireguard' || value === 'warp')
+    ) {
+      setModalOptionValue(
+        map,
+        amneziaEnabledOption,
+        hasOneSidedAmneziaValues(map, amneziaOptions) ? '1' : '0',
+      );
     }
     previousTunnelType = `${value ?? ''}`;
     map.checkDepends();

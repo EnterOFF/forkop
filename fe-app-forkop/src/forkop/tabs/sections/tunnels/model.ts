@@ -28,90 +28,19 @@ import {
   missingCoreFeatureNote,
 } from '../../../services/coreFeatures.service';
 import { E } from '../../../../helpers/element';
-
-// Junk counts and sizes reach the core as uint32, packet paddings as uint16.
-export const AMNEZIA_COUNT_FIELDS = ['jc', 'jmin', 'jmax'];
-
-export const AMNEZIA_PADDING_FIELDS = ['s1', 's2', 's3', 's4'];
-
-export const AMNEZIA_SIGNATURE_FIELDS = ['i1', 'i2', 'i3', 'i4', 'i5'];
-export const AMNEZIA_BOOLEAN_FIELDS = ['random_trailers', 'disable_cookies'];
-
-export const AMNEZIA_RANGE_FIELDS = [
-  'h1',
-  'h2',
-  'h3',
-  'h4',
-  'content_padding_addition',
-  'rekey_after_time',
-  'rekey_timeout',
-  'reject_after_time',
-  'keepalive_timeout',
-  'max_handshake_attempts',
-];
-
-const AMNEZIA_STRING_FIELDS = [
-  ...AMNEZIA_SIGNATURE_FIELDS,
-  'header_protection_key',
-];
-
-// Every AmneziaWG field, in the order the dialog shows them. The lists
-// above are that same set again, split by how each value is read.
-export const AMNEZIA_FIELDS = [
-  'jc',
-  'jmin',
-  'jmax',
-  's1',
-  's2',
-  's3',
-  's4',
-  'h1',
-  'h2',
-  'h3',
-  'h4',
-  'i1',
-  'i2',
-  'i3',
-  'i4',
-  'i5',
-  'header_protection_key',
-  'content_padding_addition',
-  'rekey_after_time',
-  'rekey_timeout',
-  'reject_after_time',
-  'keepalive_timeout',
-  'max_handshake_attempts',
-  'random_trailers',
-  'disable_cookies',
-];
-
-// Obfuscation a peer never has to know about, so it is what an endpoint whose
-// peer may be a plain WireGuard implementation accepts: the WARP endpoint, whose
-// peer is Cloudflare, and a wireguard tunnel to an ordinary server.
-export const ONE_SIDED_AMNEZIA_FIELDS = [
-  'jc',
-  'jmin',
-  'jmax',
-  'i1',
-  'i2',
-  'i3',
-  'i4',
-  'i5',
-  'content_padding_addition',
-  'rekey_after_time',
-  'rekey_timeout',
-  'reject_after_time',
-  'keepalive_timeout',
-  'max_handshake_attempts',
-  'disable_cookies',
-];
+import {
+  AMNEZIA_KEYS,
+  ONE_SIDED_AMNEZIA_KEYS,
+  amneziaJsonValue,
+  amneziaParameter,
+} from '../../../../helpers/wireguard';
 
 // What the Amnezia client writes for a fresh AmneziaWG 3.1 server, kept to the
 // parameters a peer never has to know about: the junk counts and sizes come from
-// its installer, the timings and the signature packet from its constants. Jc is
-// fixed at 5, the middle of the 4 to 6 the installer draws from -- the junk is
-// random content of a random size in every handshake, so rolling the count over
-// three values changed nothing anyone could observe.
+// its installer, the timings, the content padding and the signature packet from
+// its constants. Jc is fixed at 5, the middle of the 4 to 6 the installer draws
+// from -- the junk is random content of a random size in every handshake, so
+// rolling the count over three values changed nothing anyone could observe.
 //
 // I1 is Amnezia's own packet: a byte-correct DNS answer for icloud.com whose
 // first two bytes stay random. A signature packet has to look like a protocol,
@@ -225,6 +154,15 @@ export function tunnelListItemLabel(sectionId: string, tunnelId: string) {
   );
 }
 
+// What a tunnel's kind option names; anything else, and none, is WireGuard.
+const STORED_KINDS = [
+  'openvpn-client',
+  'json',
+  'warp',
+  'amneziawg',
+  'tailscale',
+];
+
 export function tunnelInitialSettings(
   value: unknown,
   sectionId: string,
@@ -236,33 +174,20 @@ export function tunnelInitialSettings(
       ? parseOutboundJsonObject(tunnel.endpoint_json) || {}
       : {}
   ) as Record<string, unknown>;
-  const endpointType = `${endpoint.type || ''}`.toLowerCase();
-  const kind =
-    tunnel.kind === 'openvpn-client'
-      ? 'openvpn-client'
-      : tunnel.kind === 'json'
-        ? 'json'
-        : tunnel.kind === 'warp' || endpointType === 'warp'
-          ? 'warp'
-          : tunnel.kind === 'amneziawg' || endpointType === 'amneziawg'
-            ? 'amneziawg'
-            : tunnel.kind === 'tailscale' || endpointType === 'tailscale'
-              ? 'tailscale'
-              : 'wireguard';
-  const junkEnabled = (forKind: string) =>
-    kind === forKind &&
-    ONE_SIDED_AMNEZIA_FIELDS.some(
-      (key: string) => tunnel[`amnezia_${key}`] != null,
+  const kind = STORED_KINDS.includes(`${tunnel.kind || ''}`)
+    ? `${tunnel.kind}`
+    : 'wireguard';
+  const amneziaEnabled =
+    (kind === 'wireguard' || kind === 'warp') &&
+    ONE_SIDED_AMNEZIA_KEYS.some((key: string) =>
+      setsAmneziaParameter(key, tunnel[`amnezia_${key}`]),
     );
-  const warpJunkEnabled = junkEnabled('warp');
-  const wireguardJunkEnabled = junkEnabled('wireguard');
   const tailscaleDetour = `${tunnel.tailscale_detour_section || ''}`.trim();
   const settings: ChildSettings = {
     ...(kind === 'openvpn-client' ? openVPNInitialSettings(endpoint) : {}),
     name: kind === 'json' ? `${endpoint.tag || ''}` : `${tunnel.name || ''}`,
     tunnel_type: kind,
-    warp_junk_enabled: warpJunkEnabled ? '1' : '0',
-    wireguard_junk_enabled: wireguardJunkEnabled ? '1' : '0',
+    amnezia_enabled: amneziaEnabled ? '1' : '0',
     address: normalizeOptionValues(tunnel.address),
     private_key: `${tunnel.private_key || ''}`,
     listen_port: tunnel.listen_port ? `${tunnel.listen_port}` : '',
@@ -288,7 +213,7 @@ export function tunnelInitialSettings(
     endpoint_json: kind === 'json' ? `${tunnel.endpoint_json || ''}` : '',
   };
 
-  AMNEZIA_FIELDS.forEach((key: string) => {
+  AMNEZIA_KEYS.forEach((key: string) => {
     settings[`amnezia_${key}`] =
       tunnel[`amnezia_${key}`] != null ? `${tunnel[`amnezia_${key}`]}` : '';
   });
@@ -310,8 +235,6 @@ function tunnelSettingsKeys() {
     'warp_profile_auth_token',
     'warp_profile_private_key',
     'warp_profile_license_key',
-    'warp_junk_enabled',
-    'wireguard_junk_enabled',
     'tailscale_auth_key',
     'tailscale_hostname',
     'tailscale_control_url',
@@ -319,25 +242,52 @@ function tunnelSettingsKeys() {
     'tailscale_exit_node',
     'tailscale_detour_section',
     'endpoint_json',
-    ...AMNEZIA_FIELDS.map((key: string) => `amnezia_${key}`),
+    ...AMNEZIA_KEYS.map((key: string) => `amnezia_${key}`),
   ];
 }
 
-// Both endpoints that take the one-sided class gate it behind their own
-// obfuscation flag, so the fields stay out of a dialog that does not use them.
+// A switched-off flag is how the dialog holds a parameter it leaves out.
+function setsAmneziaParameter(key: string, value: unknown) {
+  const text = `${value ?? ''}`.trim();
+  return amneziaParameter(key)?.kind === 'flag' ? text === '1' : text !== '';
+}
+
+// The two endpoints that take the one-sided class gate it behind the
+// obfuscation switch, so the fields stay out of a dialog that does not use them.
 export function oneSidedAmneziaEnabled(kind: string, settings: ChildSettings) {
-  if (kind === 'warp') {
-    return `${settings.warp_junk_enabled || ''}` === '1';
-  }
   return (
-    kind === 'wireguard' && `${settings.wireguard_junk_enabled || ''}` === '1'
+    (kind === 'wireguard' || kind === 'warp') &&
+    `${settings.amnezia_enabled || ''}` === '1'
+  );
+}
+
+// What a field of the open dialog holds. The stored value is read as well as
+// the widget: a field that the switch keeps hidden has no widget to ask yet,
+// and formvalue answers null for it.
+function dialogValue(map: CBIMap, option: CBIOption) {
+  return `${
+    option.formvalue('settings') ??
+    map.data.get(map.config, 'settings', option.option) ??
+    ''
+  }`.trim();
+}
+
+// Whether the dialog holds a parameter a WireGuard or WARP tunnel would send, so
+// a tunnel that stops being AmneziaWG keeps obfuscating only when it has
+// something to obfuscate with.
+export function hasOneSidedAmneziaValues(
+  map: CBIMap,
+  amneziaOptions: Record<string, CBIOption>,
+) {
+  return ONE_SIDED_AMNEZIA_KEYS.some(
+    (key: string) =>
+      !!amneziaOptions[key] &&
+      setsAmneziaParameter(key, dialogValue(map, amneziaOptions[key])),
   );
 }
 
 // Asking for obfuscation fills the fields that are still empty, so an imported
-// configuration and anything typed by hand are never overwritten. The stored
-// value is read as well as the widget: a field that the toggle keeps hidden has
-// no widget to ask yet, and formvalue answers null for it.
+// configuration and anything typed by hand are never overwritten.
 export function fillOneSidedAmneziaDefaults(
   map: CBIMap,
   amneziaOptions: Record<string, CBIOption>,
@@ -347,12 +297,7 @@ export function fillOneSidedAmneziaDefaults(
     if (!option) {
       return;
     }
-    const current = `${
-      option.formvalue('settings') ??
-      map.data.get(map.config, 'settings', option.option) ??
-      ''
-    }`.trim();
-    if (!current) {
+    if (!dialogValue(map, option)) {
       setModalOptionValue(
         map,
         option,
@@ -366,9 +311,9 @@ export function tunnelStorageSettings(settings: ChildSettings) {
   const kind = `${settings.tunnel_type || 'wireguard'}`;
   const storedAmneziaFields =
     kind === 'amneziawg'
-      ? AMNEZIA_FIELDS
+      ? AMNEZIA_KEYS
       : oneSidedAmneziaEnabled(kind, settings)
-        ? ONE_SIDED_AMNEZIA_FIELDS
+        ? ONE_SIDED_AMNEZIA_KEYS
         : [];
   const result: Record<string, unknown> = {
     kind,
@@ -405,7 +350,7 @@ export function tunnelStorageSettings(settings: ChildSettings) {
           : '',
   };
 
-  AMNEZIA_FIELDS.forEach((key: string) => {
+  AMNEZIA_KEYS.forEach((key: string) => {
     result[`amnezia_${key}`] = storedAmneziaFields.includes(key)
       ? `${settings[`amnezia_${key}`] || ''}`.trim()
       : '';
@@ -563,14 +508,10 @@ export function tunnelEndpointFromSettings(
       profile.license_key = `${settings.warp_license_key}`.trim();
     }
     if (Object.keys(profile).length > 0) {
-      // A user-supplied profile must win over sing-box's cached WARP config.
-      // The core uses this native flag to recreate the endpoint from the
-      // current credentials instead of silently reusing stale cache data.
-      profile.recreate = true;
       endpoint.profile = profile;
     }
     if (oneSidedAmneziaEnabled(kind, settings)) {
-      const amnezia = tunnelAmneziaSettings(settings, ONE_SIDED_AMNEZIA_FIELDS);
+      const amnezia = tunnelAmneziaSettings(settings, ONE_SIDED_AMNEZIA_KEYS);
       if (Object.keys(amnezia).length > 0) {
         endpoint.amnezia = amnezia;
       }
@@ -602,7 +543,7 @@ export function tunnelEndpointFromSettings(
   if (kind === 'amneziawg') {
     endpoint.amnezia = tunnelAmneziaSettings(settings);
   } else if (oneSidedAmneziaEnabled(kind, settings)) {
-    const amnezia = tunnelAmneziaSettings(settings, ONE_SIDED_AMNEZIA_FIELDS);
+    const amnezia = tunnelAmneziaSettings(settings, ONE_SIDED_AMNEZIA_KEYS);
     if (Object.keys(amnezia).length > 0) {
       endpoint.amnezia = amnezia;
     }
@@ -611,21 +552,12 @@ export function tunnelEndpointFromSettings(
   return endpoint;
 }
 
-function tunnelAmneziaSettings(
-  settings: ChildSettings,
-  fields = AMNEZIA_FIELDS,
-) {
+function tunnelAmneziaSettings(settings: ChildSettings, fields = AMNEZIA_KEYS) {
   const amnezia: Record<string, unknown> = {};
   fields.forEach((key: string) => {
     const value = `${settings[`amnezia_${key}`] || ''}`.trim();
     if (!value) return;
-    amnezia[key] = AMNEZIA_BOOLEAN_FIELDS.includes(key)
-      ? value === '1'
-      : AMNEZIA_STRING_FIELDS.includes(key)
-        ? value
-        : AMNEZIA_RANGE_FIELDS.includes(key) && value.includes('-')
-          ? value
-          : Number(value);
+    amnezia[key] = amneziaJsonValue(key, value);
   });
   return amnezia;
 }
@@ -673,16 +605,14 @@ export function applyImportedTunnelEndpoint(
   const importedAmnezia = (endpoint.amnezia || {}) as Record<string, unknown>;
   const amneziaKeys = Object.keys(importedAmnezia);
   const twoSided = amneziaKeys.some(
-    (key: string) => !ONE_SIDED_AMNEZIA_FIELDS.includes(key),
+    (key: string) => !ONE_SIDED_AMNEZIA_KEYS.includes(key),
   );
   setModalOptionValue(map, fields.type, twoSided ? 'amneziawg' : 'wireguard');
-  if (fields.wireguardJunk) {
-    setModalOptionValue(
-      map,
-      fields.wireguardJunk,
-      !twoSided && amneziaKeys.length > 0 ? '1' : '0',
-    );
-  }
+  setModalOptionValue(
+    map,
+    fields.amneziaEnabled,
+    !twoSided && amneziaKeys.length > 0 ? '1' : '0',
+  );
   setModalOptionValue(map, fields.address, endpoint.address || []);
   setModalOptionValue(map, fields.privateKey, endpoint.private_key || '');
   setModalOptionValue(map, fields.listenPort, endpoint.listen_port || '');
@@ -706,17 +636,15 @@ export function applyImportedTunnelEndpoint(
     },
   );
   setModalOptionValue(map, fields.peers, peerIds);
-  AMNEZIA_FIELDS.forEach((key: string) => {
+  AMNEZIA_KEYS.forEach((key: string) => {
     setModalOptionValue(
       map,
       fields.amnezia[key],
-      importedAmnezia[key] != null
-        ? AMNEZIA_BOOLEAN_FIELDS.includes(key)
-          ? importedAmnezia[key]
-            ? '1'
-            : '0'
-          : `${importedAmnezia[key]}`
-        : '',
+      typeof importedAmnezia[key] === 'boolean'
+        ? importedAmnezia[key]
+          ? '1'
+          : '0'
+        : `${importedAmnezia[key] ?? ''}`,
     );
   });
   map.checkDepends();

@@ -1,7 +1,7 @@
 import { validateCoreFeature } from '../../../services/coreFeatures.service';
 import { tunnelKindCoreFeature } from '../coreSupport';
-import { validateWireGuardKey } from '../../../../helpers/parseWireGuardConfig';
 import { validateSubnet } from '../../../../validators/validateSubnet';
+import { isIPv4, isIPv6 } from '../../../../validators/validateIp';
 import { validateTailscaleHostname } from '../../../../validators/validateTailscaleHostname';
 import { validateUrl } from '../../../../validators/validateUrl';
 import { isExistingChildItem } from '../../../cbi/childItems';
@@ -9,8 +9,15 @@ import { validateOpenVPNSettings } from './openvpn';
 import { normalizeDynamicListItems } from '../../../cbi/listValues';
 import { normalizeOptionValues } from '../../../cbi/listValues';
 import {
-  AMNEZIA_RANGE_FIELDS,
-  ONE_SIDED_AMNEZIA_FIELDS,
+  AMNEZIA_KEYS,
+  ONE_SIDED_AMNEZIA_KEYS,
+  parseRange,
+  parseUnsigned,
+  validateAmneziaSet,
+  validateAmneziaValue,
+  validateWireGuardKey,
+} from '../../../../helpers/wireguard';
+import {
   WIREGUARD_PEER_FIELDS,
   oneSidedAmneziaEnabled,
   tunnelDisplayName,
@@ -150,51 +157,31 @@ export function validateWireGuardListInput(value: unknown) {
   return `${value || ''}`.trim() ? validateWireGuardPrefix(value) : true;
 }
 
+// Empty, or a whole number from minimum to 65535, as LuCI's port and range
+// datatypes on the dialog's fields take it.
+function isOptionalUint16(value: unknown, minimum: number) {
+  const text = `${value ?? ''}`.trim();
+  const parsed = parseUnsigned(text, 65535);
+  return !text || (parsed !== undefined && parsed >= minimum);
+}
+
+// What LuCI's host datatype takes besides an address.
+function isHostname(value: string) {
+  return (
+    value.length <= 253 &&
+    /^[A-Za-z0-9_]([A-Za-z0-9_-]*[A-Za-z0-9_])?(\.[A-Za-z0-9_]([A-Za-z0-9_-]*[A-Za-z0-9_])?)*$/u.test(
+      value,
+    )
+  );
+}
+
 export function validateAmneziaRange(value: unknown) {
   const normalized = `${value || ''}`.trim();
-  if (!normalized) return true;
-  const parts = normalized.split('-');
-  if (parts.length > 2 || parts.some((part) => !/^\d+$/u.test(part))) {
-    return _(
-      'AmneziaWG ranges must be between 0 and 4294967295 with the start no greater than the end',
-    );
-  }
-  const from = Number(parts[0]);
-  const to = parts.length === 2 ? Number(parts[1]) : from;
-  return Number.isSafeInteger(from) &&
-    Number.isSafeInteger(to) &&
-    from <= 0xffffffff &&
-    to <= 0xffffffff &&
-    from <= to
+  return !normalized || parseRange(normalized) !== undefined
     ? true
     : _(
         'AmneziaWG ranges must be between 0 and 4294967295 with the start no greater than the end',
       );
-}
-
-export function amneziaFieldLabel(key: string) {
-  switch (key) {
-    case 'header_protection_key':
-      return _('Header protection key');
-    case 'content_padding_addition':
-      return _('Additional packet padding');
-    case 'rekey_after_time':
-      return _('Rekey interval');
-    case 'rekey_timeout':
-      return _('Rekey timeout');
-    case 'reject_after_time':
-      return _('Data rejection timeout');
-    case 'keepalive_timeout':
-      return _('Keepalive timeout');
-    case 'max_handshake_attempts':
-      return _('Maximum handshake attempts');
-    case 'random_trailers':
-      return _('Random trailers');
-    case 'disable_cookies':
-      return _('Disable cookies');
-    default:
-      return key.toUpperCase();
-  }
 }
 
 export function validateTunnelSettings(
@@ -242,52 +229,26 @@ export function validateTunnelSettings(
     }
     return true;
   }
-  if (
-    `${settings.tunnel_type || ''}` === 'amneziawg' ||
-    oneSidedAmneziaEnabled(`${settings.tunnel_type || ''}`, settings)
-  ) {
-    const rangeFields =
-      kind === 'amneziawg'
-        ? AMNEZIA_RANGE_FIELDS
-        : AMNEZIA_RANGE_FIELDS.filter((key: string) =>
-            ONE_SIDED_AMNEZIA_FIELDS.includes(key),
-          );
-    for (const key of rangeFields) {
-      const rangeValidation = validateAmneziaRange(settings[`amnezia_${key}`]);
-      if (rangeValidation !== true) {
-        return rangeValidation;
-      }
+  if (kind === 'amneziawg' || oneSidedAmneziaEnabled(kind, settings)) {
+    const keys = kind === 'amneziawg' ? AMNEZIA_KEYS : ONE_SIDED_AMNEZIA_KEYS;
+    const values: Record<string, unknown> = {};
+    for (const key of keys) {
+      const value = settings[`amnezia_${key}`];
+      const validation = validateAmneziaValue(key, value);
+      if (validation !== true) return validation;
+      values[key] = value;
     }
-    const headerProtectionKey =
-      `${settings.amnezia_header_protection_key || ''}`.trim();
-    if (
-      kind === 'amneziawg' &&
-      headerProtectionKey &&
-      !validateWireGuardKey(headerProtectionKey)
-    ) {
-      return _('WireGuard keys must be standard base64-encoded 32-byte values');
-    }
-    if (
-      kind === 'amneziawg' &&
-      headerProtectionKey &&
-      !/^A{43}=$/.test(headerProtectionKey) &&
-      ['s1', 's2', 's3', 's4'].some(
-        (key) => Number(settings[`amnezia_${key}`] || 0) < 12,
-      )
-    ) {
-      return _(
-        'Header protection requires S1, S2, S3 and S4 of at least 12 bytes',
-      );
-    }
+    const combination = validateAmneziaSet(values);
+    if (combination !== true) return combination;
   }
   if (endpoint.type === 'warp') {
-    if (
-      endpoint.port != null &&
-      (!Number.isInteger(endpoint.port) ||
-        endpoint.port < 1 ||
-        endpoint.port > 65535)
-    )
+    const address = `${settings.warp_address || ''}`.trim();
+    if (address && !isIPv4(address) && !isIPv6(address) && !isHostname(address))
+      return _('Enter a valid server address');
+    if (!isOptionalUint16(settings.warp_port, 0))
       return _('Enter a valid server port');
+    const keepalive = validateAmneziaRange(settings.warp_keepalive);
+    if (keepalive !== true) return keepalive;
     const profileValues = [
       endpoint.profile?.id,
       endpoint.profile?.auth_token,
@@ -299,6 +260,12 @@ export function validateTunnelSettings(
       );
     }
     return true;
+  }
+  if (!isOptionalUint16(settings.listen_port, 0)) {
+    return _('Enter a valid listen port');
+  }
+  if (!isOptionalUint16(settings.mtu, 1)) {
+    return _('Enter an MTU from 1 to 65535');
   }
   if (!endpoint.private_key || endpoint.address.length === 0) {
     return _('WireGuard address and private key are required');

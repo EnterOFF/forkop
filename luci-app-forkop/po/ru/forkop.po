@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-29 19:32+0300\n"
-"PO-Revision-Date: 2026-09-29 19:32+0300\n"
+"POT-Creation-Date: 2026-09-29 20:31+0300\n"
+"PO-Revision-Date: 2026-09-29 20:31+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -25,6 +25,9 @@ msgstr "%s (секция недоступна)"
 
 msgid "%s has an invalid port %s"
 msgstr "%s: неверный порт %s"
+
+msgid "%s in the configuration"
+msgstr "%s в конфигурации"
 
 msgid "%s is set by the cascade connection of the section"
 msgstr "%s задаётся каскадным подключением секции"
@@ -115,6 +118,9 @@ msgstr "Туннелю со статическим ключом и IPv6-адре
 
 msgid "A URL or local path. The format is detected automatically"
 msgstr "URL или локальный путь. Формат определяется автоматически"
+
+msgid "A WireGuard or AmneziaWG configuration, a wireguard:// or vpn:// link, or an OpenVPN profile"
+msgstr "Конфигурация WireGuard или AmneziaWG, ссылка wireguard:// или vpn:// либо профиль OpenVPN"
 
 msgid "Accept routes"
 msgstr "Принимать маршруты"
@@ -251,11 +257,11 @@ msgstr "ALPN"
 msgid "AmneziaWG I1-I5 must be Custom Protocol Signature tags such as <b 0xdeadbeef><r 4>"
 msgstr "Поля I1-I5 AmneziaWG должны содержать теги Custom Protocol Signature, например <b 0xdeadbeef><r 4>"
 
+msgid "AmneziaWG junk and signature packets before every handshake, which any WireGuard server ignores"
+msgstr "Мусорные и сигнатурные пакеты AmneziaWG перед каждым рукопожатием; любой сервер WireGuard их отбрасывает"
+
 msgid "AmneziaWG ranges must be between 0 and 4294967295 with the start no greater than the end"
 msgstr "Диапазоны AmneziaWG должны быть от 0 до 4294967295, а начало не может быть больше конца"
-
-msgid "An extra key shared with this peer"
-msgstr "Дополнительный ключ, общий с этим пиром"
 
 msgid "An IPv4 subnet needs a prefix length from 8 to 30"
 msgstr "Длина префикса подсети IPv4 — от 8 до 30"
@@ -731,6 +737,12 @@ msgstr "Изменить"
 msgid "Empty: %s (data-ciphers in the profile)"
 msgstr "Пусто: %s (data-ciphers в профиле)"
 
+msgid "Empty: a random port"
+msgstr "Пусто: случайный порт"
+
+msgid "Empty: the one the profile names"
+msgstr "Пусто: из профиля"
+
 msgid "Enable"
 msgstr "Включить"
 
@@ -797,6 +809,12 @@ msgstr "Введите корректный объект JSON endpoint"
 msgid "Enter a valid JSON object"
 msgstr "Введите корректный JSON-объект"
 
+msgid "Enter a valid listen port"
+msgstr "Укажите корректный порт прослушивания"
+
+msgid "Enter a valid server address"
+msgstr "Укажите корректный адрес сервера"
+
 msgid "Enter a valid server port"
 msgstr "Укажите корректный порт сервера"
 
@@ -805,6 +823,9 @@ msgstr "Введите корректный URL control plane Tailscale"
 
 msgid "Enter an API secret"
 msgstr "Введите секрет API"
+
+msgid "Enter an MTU from 1 to 65535"
+msgstr "Укажите MTU от 1 до 65535"
 
 msgid "Enter at least one AmneziaWG parameter"
 msgstr "Введите хотя бы один параметр AmneziaWG"
@@ -920,9 +941,6 @@ msgstr "Настройки Fallback"
 msgid "Fill in the credentials of this client to get a link."
 msgstr "Заполните учётные данные клиента, чтобы получить ссылку."
 
-msgid "Fill the fields from an existing configuration"
-msgstr "Заполнить поля из готовой конфигурации"
-
 msgid "Firewall WAN port"
 msgstr "Порт в файрволе"
 
@@ -982,6 +1000,9 @@ msgstr "Имя группы"
 
 msgid "gRPC service"
 msgstr "gRPC-сервис"
+
+msgid "H1, H2, H3 and H4 must not overlap"
+msgstr "H1, H2, H3 и H4 не должны пересекаться"
 
 msgid "Header name"
 msgstr "Название заголовка"
@@ -1085,9 +1106,6 @@ msgstr "Установлен"
 msgid "Installed version is newer than release"
 msgstr "Установлена версия новее релиза"
 
-msgid "Interface IPv4 or IPv6 addresses in CIDR format"
-msgstr "IPv4- или IPv6-адреса интерфейса в формате CIDR"
-
 msgid "Interface Monitoring"
 msgstr "Мониторинг интерфейса"
 
@@ -1102,9 +1120,6 @@ msgstr "Имя интерфейса"
 
 msgid "Interrupt connections"
 msgstr "Прерывать соединения"
-
-msgid "Interval between packets that keep the tunnel open, in seconds. Empty means the default"
-msgstr "Интервал пакетов для удержания туннеля, в секундах. Пусто — по умолчанию"
 
 msgid "Invalid AmneziaWG parameters"
 msgstr "Недопустимые параметры AmneziaWG"
@@ -1174,6 +1189,9 @@ msgstr "Только IPv6"
 
 msgid "Issues detected"
 msgstr "Обнаружены проблемы"
+
+msgid "Jmin must not be greater than Jmax"
+msgstr "Jmin не может быть больше Jmax"
 
 msgid "JSON endpoint"
 msgstr "JSON endpoint"
@@ -1271,9 +1289,6 @@ msgstr "Загрузка..."
 msgid "Local resolver"
 msgstr "Локальный резолвер"
 
-msgid "Local UDP port. Empty means the default"
-msgstr "Локальный UDP-порт. Пусто — по умолчанию"
-
 msgid "Log Level"
 msgstr "Уровень логов"
 
@@ -1291,9 +1306,6 @@ msgstr "Режим опроса основного DNS"
 
 msgid "Manage connections and interactive VPN authentication"
 msgstr "Управление соединениями и интерактивной авторизацией VPN"
-
-msgid "Masks traffic with the Amnezia mechanism to make it harder to identify"
-msgstr "Маскирует трафик механизмом Amnezia, чтобы затруднить распознавание"
 
 msgid "Masquerade"
 msgstr "Маскировка"
@@ -1511,9 +1523,6 @@ msgstr "Выходной сетевой интерфейс"
 msgid "Override routing"
 msgstr "Переопределить маршрутизацию"
 
-msgid "Override the WARP peer IP address or hostname"
-msgstr "Заменить IP-адрес или имя сервера WARP"
-
 msgid "Packet authentication"
 msgstr "Аутентификация пакетов"
 
@@ -1564,9 +1573,6 @@ msgstr "Пауза, пока выделен текст"
 
 msgid "Peer address"
 msgstr "Адрес другой стороны"
-
-msgid "Peer hostname or IP address"
-msgstr "Имя хоста или IP-адрес пира"
 
 msgid "Peer IPv6 address"
 msgstr "IPv6-адрес другой стороны"
@@ -1730,9 +1736,6 @@ msgstr "Запрашивать профили WARP через секцию"
 msgid "Required. Checked from top to bottom until the first working server"
 msgstr "Обязательно. Проверяются сверху вниз до первого рабочего сервера"
 
-msgid "Required. Remote nodes to connect to"
-msgstr "Обязательно. Удалённые узлы для подключения"
-
 msgid "Required. The section that carries the control-plane traffic"
 msgstr "Обязательно. Секция, через которую идёт трафик к серверу координации"
 
@@ -1822,6 +1825,9 @@ msgstr "Сохранить"
 
 msgid "Search"
 msgstr "Поиск"
+
+msgid "Seconds between the packets that keep the tunnel open, or a range such as 25-35. Empty: none"
+msgstr "Секунды между пакетами, которые держат туннель открытым, или диапазон, например 25-35. Пусто: не отправлять"
 
 msgid "Secret key for authenticating remote access to YACD when WAN access is enabled"
 msgstr "Секретный ключ для аутентификации удаленного доступа к YACD при включенном доступе через WAN"
@@ -2378,6 +2384,9 @@ msgstr "Настройки URLTest"
 msgid "Use *, status codes, or ranges such as 204/200-299"
 msgstr "Укажите *, HTTP-коды или диапазоны, например 204/200-299"
 
+msgid "Use 0 or 1"
+msgstr "Укажите 0 или 1"
+
 msgid "Use a domain name or IP address"
 msgstr "Используйте доменное имя или IP-адрес"
 
@@ -2392,6 +2401,12 @@ msgstr "Укажите подсеть вида 192.168.1.0/24 или адрес 
 
 msgid "Use a valid UUID"
 msgstr "Укажите корректный UUID"
+
+msgid "Use a whole number from 0 to 4294967295"
+msgstr "Укажите целое число от 0 до 4294967295"
+
+msgid "Use a whole number from 0 to 65535"
+msgstr "Укажите целое число от 0 до 65535"
 
 msgid "Use a whole number of milliseconds"
 msgstr "Укажите целое число миллисекунд"

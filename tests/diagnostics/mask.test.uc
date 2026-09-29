@@ -92,6 +92,7 @@ const TUNNELS_AND_SERVERS = join("\n", [
     "\tlist address '10.8.1.9/32'",
     "\toption private_key 'zz5/p+jwYqPFlg9mWcOP5ad8xXa4XfOOlrzouVD6E1w='",
     "\toption mtu '1280'",
+    "\toption amnezia_header_protection_key 'X41Gx29SDgyl6QjV7g7sg4nuJvGu4tKdDgtssPUEU4g='",
     "",
     "config tunnel_peer 'tp_awg'",
     "\toption address 'peer.example.com'",
@@ -151,7 +152,7 @@ t.test("tunnels, their peers and JSON servers lose their keys and addresses and 
         "zz5/p+jwYqPFlg9mWcOP5ad8xXa4XfOOlrzouVD6E1w=", "peer.example.com", "47132",
         "AKR8dq2b9o7/cO8d5mAzxvuxRhhw4DXi1pfUC3IPGWo=", "0.0.0.0/0", "leaked", "raw-inbound-token", "inbound-leaked",
         "server-private-key", "tls-crypt-secret", "client-certificate", "client-private-key", "END PRIVATE KEY",
-        "own-certificate", "own-key-path", "self-signed-private-key"
+        "own-certificate", "own-key-path", "self-signed-private-key", "X41Gx29SDgyl6QjV7g7sg4nuJvGu4tKdDgtssPUEU4g="
     ])
         t.excludes(masked, secret);
     for (let kept in [ "option kind 'warp'", "option amnezia_jc '4'", "option mtu '1280'", "option routing_mode 'direct'",
