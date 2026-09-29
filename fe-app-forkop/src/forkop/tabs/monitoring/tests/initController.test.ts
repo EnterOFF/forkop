@@ -22,7 +22,7 @@ vi.mock('../../../methods/custom/getDashboardSections', () => ({
   resetClashApiTransport: vi.fn(),
 }));
 vi.mock('../../../cbi/localDevices', () => ({
-  loadLocalDeviceChoices: async () => ({}),
+  loadLocalDevices: async () => ({ choices: {}, order: [], names: {} }),
 }));
 vi.mock('../../../../icons', () => ({
   renderSearchIcon24: () => new FakeElement('svg'),

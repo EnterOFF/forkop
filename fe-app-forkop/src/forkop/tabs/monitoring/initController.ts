@@ -14,7 +14,7 @@ import { showToast } from '../../../helpers/showToast';
 import { renderSearchIcon24 } from '../../../icons';
 import { CustomForkopMethods } from '../../methods';
 import { getClashApiSecret } from '../../methods/custom/getClashApiSecret';
-import { loadLocalDeviceChoices } from '../../cbi/localDevices';
+import { loadLocalDevices } from '../../cbi/localDevices';
 import { logger, socket, store, StoreType } from '../../services';
 import { Forkop } from '../../types';
 import { E } from '../../../helpers/element';
@@ -33,8 +33,6 @@ import {
 } from './source';
 
 type MonitoringTabId = 'active' | 'closed';
-
-type LocalDeviceChoices = Record<string, string>;
 
 interface ClashConnectionMetadata {
   destinationIP?: string;
@@ -106,7 +104,7 @@ let pendingConnectionsPayload: ClashConnectionsPayload | null = null;
 let activeTab: MonitoringTabId = 'active';
 let selectedDeviceFilter = ALL_FILTER_VALUE;
 let searchQuery = '';
-let localDeviceChoices: LocalDeviceChoices = {};
+let localDeviceNames: Record<string, string> = {};
 let routeDisplayNames: Record<string, string> = {};
 let routeSections: Array<{ sectionName: string; displayName: string }> = [];
 let serverInboundTags = new Set<string>();
@@ -227,7 +225,7 @@ function formatBytes(value?: number): string {
 
 function getSource(connection: ClashConnection): ConnectionSource {
   return describeSource(connection, {
-    devices: localDeviceChoices,
+    devices: localDeviceNames,
     servers: serverInboundTags,
   });
 }
@@ -929,12 +927,12 @@ function bindControls() {
   }
 }
 
-async function loadLocalDevices() {
+async function loadLocalDeviceNames() {
   try {
-    localDeviceChoices = (await loadLocalDeviceChoices()) || {};
+    localDeviceNames = (await loadLocalDevices()).names;
   } catch (error) {
-    logger.warn('[MONITORING]', 'loadLocalDevices: failed', error);
-    localDeviceChoices = {};
+    logger.warn('[MONITORING]', 'loadLocalDeviceNames: failed', error);
+    localDeviceNames = {};
   } finally {
     renderControls();
     renderConnections();
@@ -1156,7 +1154,7 @@ function onPageMount() {
   renderConnections();
   startConnectionsUpdates();
 
-  void loadLocalDevices();
+  void loadLocalDeviceNames();
   void loadRouteDisplayNames();
 
   document.addEventListener('selectionchange', holdForSelection);

@@ -9551,21 +9551,26 @@ var callNetworkInterfaceDump = rpc.declare({
   expect: { interface: [] }
 });
 var SYSTEM_DEVICE_VALUE = "@system";
-var localDeviceChoicesCache = null;
-var localDeviceChoicesPromise = null;
+var NO_LOCAL_DEVICES = { choices: {}, order: [], names: {} };
+var localDevicesCache = null;
+var localDevicesPromise = null;
 function normalizeLocalDeviceName(name) {
   return `${name || ""}`.trim().replace(/\.lan$/i, "");
 }
-function addLocalDeviceChoice(choices, ip, name) {
+function normalizeLocalDeviceIp(ip) {
   const normalizedIp = `${ip || ""}`.trim();
+  return validateIP(normalizedIp).valid ? normalizedIp : "";
+}
+function addLocalDeviceName(names, ip, name) {
   const normalizedName = normalizeLocalDeviceName(name);
-  if (!normalizedIp || !normalizedName) {
-    return;
+  if (ip && normalizedName) {
+    names[ip] = normalizedName;
   }
-  if (!validateIP(normalizedIp).valid) {
-    return;
+}
+function addOfferedAddress(offered, ip, mac) {
+  if (ip) {
+    offered[ip] = offered[ip] || (normalizeOptionValues(mac)[0] || "").toUpperCase();
   }
-  choices[normalizedIp] = normalizedName.toLowerCase() === "system" ? "%s (%s)".format(normalizedName, normalizedIp) : normalizedName;
 }
 function addRouterIp(routerIps, ip) {
   const normalizedIp = `${ip || ""}`.trim();
@@ -9593,20 +9598,24 @@ function buildRouterIpMap(networkInterfaces) {
   });
   return routerIps;
 }
-function buildLocalDeviceChoices(hostHints, dhcpLeases, networkInterfaces, staticHosts) {
-  const choices = {};
+function buildLocalDevices(hostHints, dhcpLeases, networkInterfaces, staticHosts) {
+  const names = {};
+  const offered = {};
   const routerIps = buildRouterIpMap(networkInterfaces);
   if (hostHints && typeof hostHints === "object") {
     Object.values(hostHints).forEach((hint) => {
       if (!hint || typeof hint !== "object") {
         return;
       }
-      [
-        ...normalizeOptionValues(hint.ipaddrs),
-        ...normalizeOptionValues(hint.ipv4),
-        ...normalizeOptionValues(hint.ipv6)
-      ].forEach((ip) => {
-        addLocalDeviceChoice(choices, ip, hint.name);
+      normalizeOptionValues(hint.ipaddrs).forEach((address) => {
+        const ip = normalizeLocalDeviceIp(address);
+        addLocalDeviceName(names, ip, hint.name);
+        if (names[ip]) {
+          addOfferedAddress(offered, ip, "");
+        }
+      });
+      normalizeOptionValues(hint.ip6addrs).forEach((address) => {
+        addLocalDeviceName(names, normalizeLocalDeviceIp(address), hint.name);
       });
     });
   }
@@ -9616,7 +9625,9 @@ function buildLocalDeviceChoices(hostHints, dhcpLeases, networkInterfaces, stati
         return;
       }
       const entry = lease;
-      addLocalDeviceChoice(choices, entry.ipaddr, entry.hostname);
+      const ip = normalizeLocalDeviceIp(entry.ipaddr);
+      addLocalDeviceName(names, ip, entry.hostname);
+      addOfferedAddress(offered, ip, entry.macaddr);
     });
   }
   if (Array.isArray(staticHosts)) {
@@ -9624,50 +9635,66 @@ function buildLocalDeviceChoices(hostHints, dhcpLeases, networkInterfaces, stati
       if (!host || typeof host !== "object") {
         return;
       }
-      normalizeOptionValues(host.ip).forEach((ip) => {
-        addLocalDeviceChoice(choices, ip, host.name);
+      normalizeOptionValues(host.ip).forEach((address) => {
+        const ip = normalizeLocalDeviceIp(address);
+        addLocalDeviceName(names, ip, host.name);
+        addOfferedAddress(offered, ip, host.mac);
       });
     });
   }
   Object.keys(routerIps).forEach((ip) => {
-    delete choices[ip];
+    delete names[ip];
+    delete offered[ip];
   });
-  choices[SYSTEM_DEVICE_VALUE] = _("System");
-  return choices;
+  const addresses = Object.keys(offered);
+  const named = addresses.filter((ip) => names[ip]).sort((a, b) => names[a].localeCompare(names[b]) || a.localeCompare(b));
+  const nameless = addresses.filter((ip) => !names[ip]).sort((a, b) => a.localeCompare(b, void 0, { numeric: true }));
+  const choices = {
+    [SYSTEM_DEVICE_VALUE]: _("System")
+  };
+  const nameCounts = {};
+  [choices[SYSTEM_DEVICE_VALUE], ...named.map((ip) => names[ip])].forEach(
+    (name) => {
+      const key = name.toLowerCase();
+      nameCounts[key] = (nameCounts[key] || 0) + 1;
+    }
+  );
+  named.forEach((ip) => {
+    choices[ip] = nameCounts[names[ip].toLowerCase()] > 1 ? "%s (%s)".format(names[ip], ip) : names[ip];
+  });
+  nameless.forEach((ip) => {
+    choices[ip] = offered[ip] ? "%s (%s)".format(ip, offered[ip]) : ip;
+  });
+  return {
+    choices,
+    order: [SYSTEM_DEVICE_VALUE, ...named, ...nameless],
+    names
+  };
 }
-function loadLocalDeviceChoices() {
-  if (localDeviceChoicesCache) {
-    return Promise.resolve(localDeviceChoicesCache);
+function loadLocalDevices() {
+  if (localDevicesCache) {
+    return Promise.resolve(localDevicesCache);
   }
-  if (localDeviceChoicesPromise) {
-    return localDeviceChoicesPromise;
+  if (localDevicesPromise) {
+    return localDevicesPromise;
   }
-  localDeviceChoicesPromise = Promise.all([
+  localDevicesPromise = Promise.all([
     callHostHints().catch(() => ({})),
     callDHCPLeases().catch(() => ({})),
     callNetworkInterfaceDump().catch(() => []),
     uci.load("dhcp").then(() => uci.sections("dhcp", "host")).catch(() => [])
   ]).then(([hostHints, dhcpLeases, networkInterfaces, staticHosts]) => {
-    localDeviceChoicesCache = buildLocalDeviceChoices(
+    localDevicesCache = buildLocalDevices(
       hostHints,
       dhcpLeases,
       networkInterfaces,
       staticHosts
     );
-    return localDeviceChoicesCache;
+    return localDevicesCache;
   }).finally(() => {
-    localDeviceChoicesPromise = null;
+    localDevicesPromise = null;
   });
-  return localDeviceChoicesPromise;
-}
-function sortLocalDeviceChoiceValues(choices) {
-  return Object.keys(choices).sort((a, b) => {
-    if (a === SYSTEM_DEVICE_VALUE || b === SYSTEM_DEVICE_VALUE) {
-      return a === SYSTEM_DEVICE_VALUE ? -1 : 1;
-    }
-    const byName = `${choices[a]}`.localeCompare(`${choices[b]}`);
-    return byName || a.localeCompare(b);
-  });
+  return localDevicesPromise;
 }
 function namesALocalDevice(values) {
   return normalizeOptionValues(values).some(
@@ -9679,11 +9706,11 @@ function createLocalDeviceDynamicListWidget(option2, section_id, cfgvalue) {
     cfgvalue != null ? cfgvalue : option2.default
   );
   const shouldResolveExistingLabels = namesALocalDevice(values);
-  return (shouldResolveExistingLabels ? loadLocalDeviceChoices() : Promise.resolve({})).then((initialChoices) => {
-    const choices = localDeviceChoicesCache || initialChoices || {};
-    const widget = new ui.DynamicList(values, choices, {
+  return (shouldResolveExistingLabels ? loadLocalDevices() : Promise.resolve(NO_LOCAL_DEVICES)).then((initialDevices) => {
+    const devices = localDevicesCache || initialDevices;
+    const widget = new ui.DynamicList(values, devices.choices, {
       id: option2.cbid(section_id),
-      sort: sortLocalDeviceChoiceValues(choices),
+      sort: devices.order,
       optional: option2.optional || option2.rmempty,
       datatype: option2.datatype,
       placeholder: option2.placeholder,
@@ -9701,19 +9728,16 @@ function createLocalDeviceDynamicListWidget(option2, section_id, cfgvalue) {
         onListChange(section_id, widget.getValue());
       });
     }
-    let choicesLoaded = Boolean(localDeviceChoicesCache);
+    let choicesLoaded = Boolean(localDevicesCache);
     let choicesLoading = false;
     const loadChoices = () => {
       if (choicesLoaded || choicesLoading) {
         return;
       }
       choicesLoading = true;
-      loadLocalDeviceChoices().then((loadedChoices) => {
+      loadLocalDevices().then((loadedDevices) => {
         widget.clearChoices();
-        widget.addChoices(
-          sortLocalDeviceChoiceValues(loadedChoices),
-          loadedChoices
-        );
+        widget.addChoices(loadedDevices.order, loadedDevices.choices);
         choicesLoaded = true;
       }).finally(() => {
         choicesLoading = false;
@@ -10084,7 +10108,7 @@ var pendingConnectionsPayload = null;
 var activeTab = "active";
 var selectedDeviceFilter = ALL_FILTER_VALUE;
 var searchQuery = "";
-var localDeviceChoices = {};
+var localDeviceNames = {};
 var routeDisplayNames = {};
 var routeSections = [];
 var serverInboundTags = /* @__PURE__ */ new Set();
@@ -10175,7 +10199,7 @@ function formatBytes2(value) {
 }
 function getSource(connection) {
   return describeSource(connection, {
-    devices: localDeviceChoices,
+    devices: localDeviceNames,
     servers: serverInboundTags
   });
 }
@@ -10714,12 +10738,12 @@ function bindControls() {
     };
   }
 }
-async function loadLocalDevices() {
+async function loadLocalDeviceNames() {
   try {
-    localDeviceChoices = await loadLocalDeviceChoices() || {};
+    localDeviceNames = (await loadLocalDevices()).names;
   } catch (error) {
-    logger.warn("[MONITORING]", "loadLocalDevices: failed", error);
-    localDeviceChoices = {};
+    logger.warn("[MONITORING]", "loadLocalDeviceNames: failed", error);
+    localDeviceNames = {};
   } finally {
     renderControls();
     renderConnections();
@@ -10878,7 +10902,7 @@ function onPageMount3() {
   renderControls();
   renderConnections();
   startConnectionsUpdates();
-  void loadLocalDevices();
+  void loadLocalDeviceNames();
   void loadRouteDisplayNames();
   document.addEventListener("selectionchange", holdForSelection);
   document.addEventListener("copy", handleMonitoringValueCopy);
