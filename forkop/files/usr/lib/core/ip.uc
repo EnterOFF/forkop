@@ -164,6 +164,26 @@ function valid_public_ip(value) {
     return valid_public_ipv4(value) || valid_public_ipv6(value);
 }
 
+// The bytes of the network a prefix of the given length keeps of an address.
+function network_bytes(bytes, bits) {
+    return map(bytes, (byte, i) => {
+        let kept = bits - i * 8;
+        return kept >= 8 ? byte : kept <= 0 ? 0 : byte & ((0xff << (8 - kept)) & 0xff);
+    });
+}
+
+// Whether a prefix such as 10.8.0.1/24 holds an address of the same family.
+function prefix_contains(prefix, address) {
+    if (!valid_ip_cidr(prefix) || !valid_ip(address))
+        return false;
+    let parts = split(prefix, "/");
+    let network = iptoarr(parts[0]);
+    let bytes = iptoarr(address);
+    let bits = int(parts[1]);
+    return length(network) == length(bytes) &&
+        join(".", network_bytes(network, bits)) == join(".", network_bytes(bytes, bits));
+}
+
 function format_ipv6_tproxy_target(address, port) {
     address = as_string(address);
     if (substr(address, 0, 1) == "[" && substr(address, length(address) - 1, 1) == "]")
@@ -179,5 +199,7 @@ return {
     valid_ip_or_cidr,
     valid_public_ip,
     ip_family,
+    network_bytes,
+    prefix_contains,
     format_ipv6_tproxy_target
 };

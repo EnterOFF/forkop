@@ -116,4 +116,74 @@ t.test("a client of an OpenVPN server takes its own route by the name on its cer
     t.eq(filter(config.route.rules, (rule) => identity(rule).auth_user == "Laptop" || identity(rule).auth_user == "Phone"), []);
 });
 
+const SERVER_KEY = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=";
+
+function wireguard_server(server, clients) {
+    let data = openvpn_server();
+    data.server = [ {
+        ".name": "home", enabled: "1", label: "Home", protocol: "wireguard", listen_port: "51820",
+        tunnel_address: [ "10.8.0.1/24", "fd00:8::1/64" ], routing_mode: "rules",
+        wireguard_private_key: SERVER_KEY, wireguard_public_key: "server-public", ...(server ?? {})
+    } ];
+    data.server_client = clients ?? [
+        { ".name": "phone", server: "home", name: "Phone", wireguard_private_key: "phone-private",
+            wireguard_public_key: "phone-public", wireguard_pre_shared_key: "phone-psk",
+            wireguard_address: [ "10.8.0.2/32", "fd00:8::2/128" ] },
+        { ".name": "laptop", server: "home", name: "Laptop", wireguard_private_key: "laptop-private",
+            wireguard_public_key: "laptop-public", wireguard_pre_shared_key: "laptop-psk",
+            wireguard_address: [ "10.8.0.3/32", "fd00:8::3/128" ] }
+    ];
+    return data;
+}
+
+// The bind addresses keep the dialer from binding the listening socket to the
+// interface of the default route, where no LAN client reaches it.
+t.test("a WireGuard server knows each client by its key and the addresses it may send from", () => {
+    fixture.seed(wireguard_server());
+    let config = generator.build({ service_address: "127.0.0.1" });
+    t.eq(q.endpoint(config, "Home"), {
+        type: "wireguard", tag: "Home", address: [ "10.8.0.1/24", "fd00:8::1/64" ], private_key: SERVER_KEY,
+        listen_port: 51820, inet4_bind_address: "0.0.0.0", inet6_bind_address: "::",
+        peers: [
+            { public_key: "phone-public", pre_shared_key: "phone-psk", allowed_ips: [ "10.8.0.2/32", "fd00:8::2/128" ] },
+            { public_key: "laptop-public", pre_shared_key: "laptop-psk", allowed_ips: [ "10.8.0.3/32", "fd00:8::3/128" ] }
+        ]
+    });
+    t.ok(q.route_rule(config, (rule) => rule.action == "sniff" && rule.inbound == "Home") != null,
+        "its DNS on the server's address is sniffed and hijacked like the router's");
+});
+
+// Signature packets are an initiator's, and the Amnezia installer leaves them
+// out of a server; the clients get them in their profiles.
+t.test("an AmneziaWG server runs with every parameter but the signature packets", () => {
+    fixture.seed(wireguard_server({ protocol: "amneziawg", amnezia_jc: "5", amnezia_jmin: "10", amnezia_jmax: "50",
+        amnezia_i1: "<r 2>", amnezia_s1: "12", amnezia_h1: "1", amnezia_header_protection_key: SERVER_KEY,
+        amnezia_random_trailers: "1", amnezia_rekey_after_time: "100-120" }));
+    let endpoint = q.endpoint(generator.build({ service_address: "127.0.0.1" }), "Home");
+    t.eq(endpoint.type, "amneziawg");
+    t.eq(endpoint.amnezia, { jc: 5, jmin: 10, jmax: 50, s1: 12, h1: 1, header_protection_key: SERVER_KEY,
+        random_trailers: true, rekey_after_time: "100-120" });
+});
+
+// The core reports no user for a WireGuard client, and a peer's packets are
+// accepted only from the addresses it was given, so the address is its name.
+t.test("a client of a WireGuard server takes its own route by its tunnel addresses", () => {
+    let data = wireguard_server({ routing_mode: "direct" });
+    data.server_client[0].routing_override = "1";
+    data.server_client[0].routing_mode = "section";
+    data.server_client[0].routing_section = "exit";
+    data.server_client[1].routing_override = "1";
+    data.server_client[1].routing_mode = "rules";
+    push(data.section, { ".name": "exit", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\"}" ],
+        domain_suffix: [ "exit.example" ] });
+    fixture.seed(data);
+    let config = generator.build({ service_address: "127.0.0.1" });
+    let identity = (rule) => rule.type == "logical" ? rule.rules[0] : rule;
+    let phone = q.route_rule(config, (rule) => rule.inbound == "Home" && rule.outbound == "exit" && rule.auth_user == null);
+    t.eq(phone?.source_ip_cidr, [ "10.8.0.2/32", "fd00:8::2/128" ]);
+    t.ok(q.route_rule(config, (rule) => identity(rule).inbound == "Home" &&
+        join(",", identity(rule).source_ip_cidr ?? []) == "10.8.0.3/32,fd00:8::3/128" && rule.outbound == "exit") != null,
+        "a client that follows the rules gets the rules under its addresses");
+});
+
 t.done();

@@ -9791,8 +9791,9 @@ function describeSource(connection, names) {
   }
   if (names.servers.has(tag)) {
     const user = text(connection.metadata?.user);
-    const name2 = text(names.clients[tag]?.[user]) || user || tag;
-    const detail = user ? tag : ip;
+    const byAddress = user ? "" : text(names.clients[tag]?.[ip]);
+    const name2 = text(names.clients[tag]?.[user]) || user || byAddress || tag;
+    const detail = user || byAddress ? tag : ip;
     return {
       key: JSON.stringify([tag, user, user ? "" : ip]),
       kind: "server",
@@ -10133,6 +10134,7 @@ function buildRouteDisplayNames(sections) {
   };
   const serverTags = /* @__PURE__ */ new Set();
   const openVPNServerTags = {};
+  const wireGuardServerTags = {};
   const clientNames = {};
   const routeSectionItems = [];
   sections.filter((section) => section[".type"] === "section").filter((section) => section.enabled !== "0").forEach((section) => {
@@ -10154,14 +10156,31 @@ function buildRouteDisplayNames(sections) {
     if (section.protocol === "openvpn") {
       openVPNServerTags[sectionName] = displayName;
     }
+    if (section.protocol === "wireguard" || section.protocol === "amneziawg") {
+      wireGuardServerTags[sectionName] = displayName;
+    }
   });
   sections.filter((section) => section[".type"] === "server_client").forEach((section) => {
-    const tag = openVPNServerTags[normalizeString(section.server)];
+    const owner = normalizeString(section.server);
     const name = normalizeString(section.name);
-    if (!tag || !name) {
+    const openVPNTag = openVPNServerTags[owner];
+    const wireGuardTag = wireGuardServerTags[owner];
+    if (!name) {
       return;
     }
-    clientNames[tag] = { ...clientNames[tag], [section[".name"]]: name };
+    if (openVPNTag) {
+      clientNames[openVPNTag] = {
+        ...clientNames[openVPNTag],
+        [section[".name"]]: name
+      };
+    }
+    if (wireGuardTag) {
+      const addresses = (Array.isArray(section.wireguard_address) ? section.wireguard_address : [section.wireguard_address]).map((address) => normalizeString(address).split("/")[0]).filter(Boolean);
+      clientNames[wireGuardTag] = {
+        ...clientNames[wireGuardTag],
+        ...Object.fromEntries(addresses.map((address) => [address, name]))
+      };
+    }
   });
   routeDisplayNames = map;
   serverInboundTags = serverTags;
@@ -17069,6 +17088,18 @@ var BY_KEY = new Map(AMNEZIA_PARAMETERS.map((entry) => [entry.key, entry]));
 function amneziaParameter(key) {
   return BY_KEY.get(key);
 }
+var ONE_SIDED_AMNEZIA_DEFAULTS = {
+  jc: "5",
+  jmin: "10",
+  jmax: "50",
+  i1: "<r 2><b 0x858000010001000000000669636c6f756403636f6d0000010001c00c000100010000105a00044d583737>",
+  content_padding_addition: "10-100",
+  rekey_after_time: "100-120",
+  rekey_timeout: "3-7",
+  reject_after_time: "150-180",
+  keepalive_timeout: "5-15",
+  max_handshake_attempts: "15-20"
+};
 var UINT16_MAX = 65535;
 var UINT32_MAX = 4294967295;
 var SIGNATURE_TAGS = ["b", "c", "t", "r", "rc", "rd", "d", "ds", "dz"];
@@ -17184,20 +17215,13 @@ function amneziaTextFromConf(key, value) {
   const flag = value.trim().toLowerCase();
   return CONF_TRUE.includes(flag) ? "1" : CONF_FALSE.includes(flag) ? "0" : null;
 }
+function amneziaConfLine(key, value) {
+  const entry = amneziaParameter(key);
+  const text4 = `${value ?? ""}`.trim();
+  return `${entry.conf} = ${entry.kind === "flag" ? text4 === "1" ? "on" : "off" : text4}`;
+}
 
 // src/forkop/tabs/sections/tunnels/model.ts
-var ONE_SIDED_AMNEZIA_DEFAULTS = {
-  jc: "5",
-  jmin: "10",
-  jmax: "50",
-  i1: "<r 2><b 0x858000010001000000000669636c6f756403636f6d0000010001c00c000100010000105a00044d583737>",
-  content_padding_addition: "10-100",
-  rekey_after_time: "100-120",
-  rekey_timeout: "3-7",
-  reject_after_time: "150-180",
-  keepalive_timeout: "5-15",
-  max_handshake_attempts: "15-20"
-};
 function defaultWireGuardPeerSettings() {
   return {
     address: "",
@@ -17349,11 +17373,7 @@ function fillOneSidedAmneziaDefaults(map, amneziaOptions) {
       return;
     }
     if (!dialogValue(map, option2)) {
-      setModalOptionValue(
-        map,
-        option2,
-        ONE_SIDED_AMNEZIA_DEFAULTS[key]
-      );
+      setModalOptionValue(map, option2, ONE_SIDED_AMNEZIA_DEFAULTS[key]);
     }
   });
 }
@@ -22103,6 +22123,30 @@ var PROTOCOLS = [
     tunnel: true
   },
   {
+    id: "wireguard",
+    label: "WireGuard",
+    kind: "endpoint",
+    listener: true,
+    anyAddress: true,
+    securities: ["none"],
+    credentials: [],
+    clients: true,
+    profile: true,
+    tunnel: true
+  },
+  {
+    id: "amneziawg",
+    label: "AmneziaWG",
+    kind: "endpoint",
+    listener: true,
+    anyAddress: true,
+    securities: ["none"],
+    credentials: [],
+    clients: true,
+    profile: true,
+    tunnel: true
+  },
+  {
     id: "vless",
     label: "VLESS",
     kind: "inbound",
@@ -22218,7 +22262,8 @@ function listenerProtocols() {
 function listenTransports(protocol, network2) {
   const value = `${network2 || ""}`.toLowerCase();
   if (protocol === "openvpn") return [value === "tcp" ? "tcp" : "udp"];
-  if (protocol === "hysteria2" || protocol === "tuic") return ["udp"];
+  if (protocol === "hysteria2" || protocol === "tuic" || protocol === "wireguard" || protocol === "amneziawg")
+    return ["udp"];
   if (protocol === "shadowsocks" || protocol === "naive" && value === "tcp_udp")
     return ["tcp", "udp"];
   if ((protocol === "naive" || protocol === "mieru") && value === "udp")
@@ -22934,6 +22979,136 @@ function loadLinkContext(sectionId) {
   }));
 }
 
+// src/forkop/tabs/servers/form/tunnel.ts
+var DEFAULT_SUBNET = "10.8.0.1/24";
+function freeTunnelSubnet(sectionId) {
+  const taken = new Set(
+    (uci.sections(FORKOP_UCI_PACKAGE, "server") || []).filter((server) => server[".name"] !== sectionId).flatMap((server) => asList(server.tunnel_address)).map((subnet) => `${subnet}`.split(".").slice(0, 3).join("."))
+  );
+  for (let third = 0; third < 256; third += 1) {
+    if (!taken.has(`10.8.${third}`)) return `10.8.${third}.1/24`;
+  }
+  return DEFAULT_SUBNET;
+}
+function ipv6Bytes(address) {
+  const [head, tail = ""] = address.split("::");
+  const groups = (part) => part ? part.split(":") : [];
+  const missing = 8 - groups(head).length - groups(tail).length;
+  const hextets = address.includes("::") ? [...groups(head), ...Array(missing).fill("0"), ...groups(tail)] : groups(head);
+  return hextets.flatMap((hextet) => {
+    const value = parseInt(hextet, 16);
+    return [value >> 8, value & 255];
+  });
+}
+function addressBytes(address) {
+  return isIpv4(address) ? address.split(".").map(Number) : ipv6Bytes(address);
+}
+function subnetOf(value) {
+  const [address, prefix] = `${value}`.trim().split("/");
+  const bits = Number(prefix);
+  const bytes = addressBytes(address).map((byte, index) => {
+    const kept = bits - index * 8;
+    return kept >= 8 ? byte : kept <= 0 ? 0 : byte & (255 << 8 - kept & 255);
+  });
+  if (bytes.length === 4) return `${bytes.join(".")}/${bits}`;
+  const hextets = [];
+  for (let i = 0; i < 16; i += 2)
+    hextets.push((bytes[i] << 8 | bytes[i + 1]).toString(16));
+  return `${new URL(`http://[${hextets.join(":")}]/`).hostname.slice(1, -1)}/${bits}`;
+}
+function subnetContains(subnet, address) {
+  const host = `${address}`.trim().split("/")[0];
+  const bits = `${subnet}`.trim().split("/")[1];
+  return (isIpv4(host) || isIpv6(host)) && isIpv4(host) === isIpv4(`${subnet}`.split("/")[0]) && subnetOf(`${host}/${bits}`) === subnetOf(subnet);
+}
+function namesHostAddress(address, bits) {
+  const bytes = addressBytes(address);
+  let any = false;
+  let all = true;
+  for (let bit = bits; bit < bytes.length * 8; bit += 1) {
+    const set = bytes[bit >> 3] >> 7 - (bit & 7) & 1;
+    any = any || set === 1;
+    all = all && set === 1;
+  }
+  return any && (bytes.length === 16 || !all);
+}
+function validateTunnelSubnet(value) {
+  const subnet = `${value || ""}`.trim();
+  if (!isValidCidr(subnet)) {
+    return _("Use an address with a prefix length, such as %s").format(
+      DEFAULT_SUBNET
+    );
+  }
+  const [address, prefix] = subnet.split("/");
+  const bits = Number(prefix);
+  if (isIpv4(address) ? bits < 8 || bits > 30 : bits < 64 || bits > 126) {
+    return isIpv4(address) ? _("An IPv4 subnet needs a prefix length from 8 to 30") : _("An IPv6 subnet needs a prefix length from 64 to 126");
+  }
+  return namesHostAddress(address, bits) ? true : _(
+    "Name the address of the server in the subnet, such as %s rather than the subnet itself"
+  ).format(isIpv4(address) ? DEFAULT_SUBNET : "fd00:8::1/64");
+}
+function validateTunnelSubnets(values) {
+  const subnets = valueList(values).map((value) => `${value}`.trim());
+  const families = subnets.map(
+    (subnet) => isIpv6(subnet.split("/")[0]) ? 6 : 4
+  );
+  if (!families.includes(4)) return _("Add an IPv4 subnet");
+  if (families.filter((family) => family === 4).length > 1) {
+    return _("Add at most one IPv4 subnet");
+  }
+  if (families.filter((family) => family === 6).length > 1) {
+    return _("Add at most one IPv6 subnet");
+  }
+  return true;
+}
+function addTunnelOptions(section) {
+  const onTunnel = (o2, extra = {}) => protocolsWith("tunnel").forEach(
+    (protocol) => o2.depends({ protocol, ...extra })
+  );
+  let o = section.option(
+    form.DynamicList,
+    "tunnel_address",
+    _("Tunnel subnet"),
+    _(
+      "The server's own address with a prefix, such as 10.8.0.1/24; clients get the other addresses of the subnet. An IPv6 subnet can go beside it"
+    )
+  );
+  o.placeholder = "fd00:8::1/64";
+  o.modalonly = true;
+  o.rmempty = false;
+  autofill(o, (sectionId) => {
+    const stored = optionList(sectionId, "tunnel_address");
+    return stored.length ? stored : [freeTunnelSubnet(sectionId)];
+  });
+  o.validate = function(sectionId, value) {
+    if (!isEmptyValue(value)) {
+      return validateTunnelSubnet(value);
+    }
+    const current = typeof this.formvalue === "function" ? this.formvalue(sectionId) : [];
+    return validateTunnelSubnets(current);
+  };
+  onTunnel(o);
+  o = section.option(
+    form.Flag,
+    "tunnel_all_traffic",
+    _("All traffic through the server"),
+    _(
+      "Clients send all of their traffic through the router, where the routing mode decides where it goes. Off, they send only the routes below"
+    )
+  );
+  o.default = "1";
+  o.rmempty = false;
+  o.modalonly = true;
+  onTunnel(o);
+  o = section.option(form.DynamicList, "tunnel_routes", _("Routes"));
+  o.placeholder = "192.168.1.0/24";
+  o.modalonly = true;
+  o.rmempty = true;
+  o.validate = (_sectionId, value) => isEmptyValue(value) || isValidCidr(`${value}`.trim()) ? true : _("Use a subnet like 192.168.1.0/24");
+  onTunnel(o, { tunnel_all_traffic: "0" });
+}
+
 // src/forkop/tabs/servers/profile.ts
 function text3(value) {
   return `${value ?? ""}`.trim();
@@ -22989,14 +23164,71 @@ function buildOpenVPNProfile(sectionId, client, material3) {
   ];
   return {
     profile: lines2.join("\n"),
-    fileName: `${fileName(`${serverName}-${client.name}`) || "openvpn"}.ovpn`
+    fileName: `${fileName(`${serverName}-${client.name}`) || "openvpn"}.ovpn`,
+    type: "application/x-openvpn-profile"
   };
 }
-function downloadProfile(profile, name) {
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(
-    new Blob([profile], { type: "application/x-openvpn-profile" })
+function tunnelName(serverName, clientName, protocol) {
+  const clean = (value) => value.replace(/[^A-Za-z0-9_=+.-]+/g, "-").replace(/^-+|-+$/g, "");
+  const both = [clean(serverName), clean(clientName)].filter(Boolean).join("-");
+  const name = both.length <= 15 ? both : clean(clientName).slice(0, 15).replace(/-+$/, "");
+  return name || protocol;
+}
+function amneziaLines(server) {
+  return AMNEZIA_KEYS.filter((key) => {
+    const value = text3(server[`amnezia_${key}`]);
+    return amneziaParameter(key).kind === "flag" ? value === "1" : !!value;
+  }).map((key) => amneziaConfLine(key, server[`amnezia_${key}`]));
+}
+function buildWireGuardProfile(sectionId, client, material3) {
+  const host = normalizeHost(getPublicHost(sectionId));
+  const port2 = getListenPort(sectionId);
+  if (!host || !port2) return { missing: "address" };
+  const protocol = getProtocol(sectionId);
+  const amnezia = protocol === "amneziawg";
+  const server = material3[sectionId] || {};
+  const own = material3[client.id] || {};
+  const serverKey = text3(server.wireguard_public_key);
+  const privateKey = text3(own.wireguard_private_key);
+  const preSharedKey = text3(own.wireguard_pre_shared_key);
+  const subnets = optionList(sectionId, "tunnel_address");
+  const addresses = asList(own.wireguard_address).map(text3);
+  const current = addresses.length === subnets.length && subnets.every(
+    (subnet) => addresses.some((address) => subnetContains(subnet, address))
   );
+  if (!serverKey || !privateKey || !preSharedKey || !current || amnezia && !text3(server.amnezia_header_protection_key)) {
+    return { missing: "keys" };
+  }
+  const allTraffic = option(sectionId, "tunnel_all_traffic") !== "0";
+  const allowed = allTraffic ? ["0.0.0.0/0", "::/0"] : [...optionList(sectionId, "tunnel_routes"), ...subnets.map(subnetOf)];
+  const serverName = getServerName(sectionId);
+  const lines2 = [
+    "[Interface]",
+    `PrivateKey = ${privateKey}`,
+    `Address = ${addresses.join(", ")}`,
+    `DNS = ${subnets.map((subnet) => subnet.split("/")[0]).join(", ")}`,
+    ...amnezia ? ["MTU = 1280", ...amneziaLines(server)] : [],
+    "",
+    "[Peer]",
+    `PublicKey = ${serverKey}`,
+    `PresharedKey = ${preSharedKey}`,
+    `AllowedIPs = ${allowed.join(", ")}`,
+    `Endpoint = ${formatHostForUri(host)}:${port2}`,
+    `PersistentKeepalive = ${amnezia ? "25-35" : "25"}`,
+    ""
+  ];
+  return {
+    profile: lines2.join("\n"),
+    fileName: `${tunnelName(serverName, client.name, protocol)}.conf`,
+    type: "text/plain"
+  };
+}
+function buildClientProfile(sectionId, client, material3) {
+  return getProtocol(sectionId) === "openvpn" ? buildOpenVPNProfile(sectionId, client, material3) : buildWireGuardProfile(sectionId, client, material3);
+}
+function downloadProfile(profile, name, type) {
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([profile], { type }));
   link.download = name;
   document.body.appendChild(link);
   link.click();
@@ -23342,7 +23574,7 @@ function qrMakeMatrix(version, dataCodewords) {
   drawFormatBits(0);
   return modules;
 }
-function qrSvgDataUri(text4) {
+function qrCode(text4) {
   const bytes = qrEncodeText(text4);
   let version = 1;
   for (; version <= 40; version += 1) {
@@ -23352,10 +23584,10 @@ function qrSvgDataUri(text4) {
     }
   }
   if (version > 40) {
-    return "";
+    return { uri: "", size: 0 };
   }
   const matrix = qrMakeMatrix(version, qrBuildDataCodewords(bytes, version));
-  const border = 2;
+  const border = 4;
   const size = matrix.length;
   const viewSize = size + border * 2;
   const path = [];
@@ -23367,7 +23599,10 @@ function qrSvgDataUri(text4) {
     });
   });
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${viewSize} ${viewSize}" shape-rendering="crispEdges"><path fill="#fff" d="M0 0h${viewSize}v${viewSize}H0z"/><path fill="#000" d="${path.join(" ")}"/></svg>`;
-  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+  return {
+    uri: `data:image/svg+xml,${encodeURIComponent(svg)}`,
+    size: viewSize
+  };
 }
 
 // src/forkop/tabs/servers/details.ts
@@ -23488,10 +23723,11 @@ function injectDetailsStyles() {
         ".modal > .button-row.fkp-details-actions{justify-content:flex-start;gap:0.5em}",
         ".modal > .button-row.fkp-details-actions > button:first-of-type{margin-right:0}",
         // The dialog is as wide as the code, and everything under the code fits that
-        // width. The code keeps a white quiet zone in any theme: the two modules drawn
+        // width: 16rem, or three pixels a module for a code as large as a profile's.
+        // The code keeps a white quiet zone in any theme: the four modules drawn
         // into it and a few pixels more.
         "#modal_overlay > .modal.fkp-qr-modal{width:fit-content}",
-        ".fkp-qr{display:grid;justify-items:center;gap:12px;inline-size:min(16rem,calc(100vw - 64px));padding-top:8px}",
+        ".fkp-qr{display:grid;justify-items:center;gap:12px;inline-size:min(max(16rem,var(--fkp-qr-size,0px)),calc(100vw - 64px));padding-top:8px}",
         ".fkp-qr__code{display:block;box-sizing:border-box;inline-size:100%;block-size:auto;aspect-ratio:1;padding:4px;background:#fff;border-radius:8px}",
         ".fkp-qr__caption{display:grid;justify-items:center;gap:2px;max-inline-size:100%;text-align:center}",
         ".fkp-qr__name{font-weight:600;overflow-wrap:anywhere}",
@@ -23535,24 +23771,29 @@ function renderCloseRow() {
     )
   ]);
 }
-function showQrModal(caption, link) {
+function showQrModal(caption, code, row2) {
   injectDetailsStyles();
-  const content = textE("div", { class: "fkp-qr" }, [
-    textE("img", {
-      class: "fkp-qr__code",
-      src: qrSvgDataUri(link),
-      alt: _("QR code")
-    }),
-    textE("div", { class: "fkp-qr__caption" }, [
-      textE("div", { class: "fkp-qr__name" }, caption.name),
-      ...caption.details ? [textE("div", { class: "fkp-qr__details" }, caption.details)] : []
-    ]),
-    renderLinkRow(link)
-  ]);
+  const qr = qrCode(code);
+  const content = textE(
+    "div",
+    { class: "fkp-qr", style: `--fkp-qr-size:${qr.size * 3}px` },
+    [
+      textE("img", {
+        class: "fkp-qr__code",
+        src: qr.uri,
+        alt: _("QR code")
+      }),
+      textE("div", { class: "fkp-qr__caption" }, [
+        textE("div", { class: "fkp-qr__name" }, caption.name),
+        ...caption.details ? [textE("div", { class: "fkp-qr__details" }, caption.details)] : []
+      ]),
+      row2 ?? renderLinkRow(code)
+    ]
+  );
   ui.showModal(_("QR code"), [content, renderCloseRow()], "fkp-qr-modal");
   return content;
 }
-function renderQrButton(caption, link) {
+function renderQrButton(caption, code, row2) {
   const label = _("Show a QR code");
   return textE(
     "button",
@@ -23563,7 +23804,7 @@ function renderQrButton(caption, link) {
       "aria-label": label,
       click: (ev) => {
         ev.preventDefault();
-        showQrModal(caption, link);
+        showQrModal(caption, code, row2?.());
       }
     },
     iconSvg("qr")
@@ -23592,7 +23833,7 @@ function renderLinkRow(value, qrCaption) {
     renderCopyButton(value)
   ]);
 }
-function renderProfileRow(profile, name) {
+function renderProfileRow(profile, name, type, qrCaption) {
   const input = textE("input", {
     type: "text",
     class: "cbi-input-text fkp-details__value",
@@ -23603,6 +23844,13 @@ function renderProfileRow(profile, name) {
   const label = _("Download the profile");
   return textE("div", { class: "fkp-details__link" }, [
     input,
+    ...qrCaption ? [
+      renderQrButton(
+        qrCaption,
+        profile,
+        () => renderProfileRow(profile, name, type)
+      )
+    ] : [],
     textE(
       "button",
       {
@@ -23612,7 +23860,7 @@ function renderProfileRow(profile, name) {
         "aria-label": label,
         click: (ev) => {
           ev.preventDefault();
-          downloadProfile(profile, name);
+          downloadProfile(profile, name, type);
         }
       },
       iconSvg("download")
@@ -23631,12 +23879,20 @@ function renderClientRow(name, body) {
   ]);
 }
 function renderProfileDetails(sectionId, client, material3) {
-  const result = buildOpenVPNProfile(sectionId, client, material3);
+  const result = buildClientProfile(sectionId, client, material3);
+  const scanned = getProtocol(sectionId) !== "openvpn";
   return renderClientRow(client.name, [
-    "profile" in result ? renderProfileRow(result.profile, result.fileName) : textE(
+    "profile" in result ? renderProfileRow(
+      result.profile,
+      result.fileName,
+      result.type,
+      scanned ? linkCaption(sectionId, client, "") : void 0
+    ) : textE(
       "div",
       { class: "fkp-details__empty" },
-      result.missing === "address" ? _("Set the public host and the port to get a profile.") : _(
+      result.missing === "address" ? _("Set the public host and the port to get a profile.") : result.missing === "keys" ? _(
+        "The router issues the keys of this client when the settings are applied. Apply them to get a profile."
+      ) : _(
         "The router issues the certificate of this client when the settings are applied. Apply them to get a profile."
       )
     )
@@ -23715,7 +23971,7 @@ function renderDetailsContent(sectionId, clients, context) {
         "div",
         { class: "fkp-details__clients" },
         entries.map(
-          (client) => profiles ? renderProfileDetails(sectionId, client, context.openvpn || {}) : renderClientDetails(sectionId, client, context)
+          (client) => profiles ? renderProfileDetails(sectionId, client, context.issued || {}) : renderClientDetails(sectionId, client, context)
         )
       )
     );
@@ -23725,9 +23981,9 @@ function renderDetailsContent(sectionId, clients, context) {
 function showServerDetailsModal(sectionId, clients) {
   injectDetailsStyles();
   if (usesProfile(getProtocol(sectionId))) {
-    return loadIssuedMaterial().then((openvpn) => {
+    return loadIssuedMaterial().then((issued) => {
       ui.showModal(_("Server details: %s").format(getServerName(sectionId)), [
-        renderDetailsContent(sectionId, clients, { openvpn }),
+        renderDetailsContent(sectionId, clients, { issued }),
         renderCloseRow()
       ]);
     });
@@ -24703,7 +24959,7 @@ function addListenerOptions(section) {
   o.rmempty = false;
   o.modalonly = true;
   o.validate = validateListenAddress;
-  onListener(o);
+  listenerProtocols().filter((protocol) => !protocolSpec(protocol)?.anyAddress).forEach((protocol) => o.depends("protocol", protocol));
   o = section.option(form.Value, "listen_port", _("Listen port"));
   o.rmempty = false;
   o.modalonly = true;
@@ -25153,104 +25409,42 @@ function addOpenVPNServerOptions(section) {
   };
 }
 
-// src/forkop/tabs/servers/form/tunnel.ts
-var DEFAULT_SUBNET = "10.8.0.1/24";
-function ipv6Bytes(address) {
-  const [head, tail = ""] = address.split("::");
-  const groups = (part) => part ? part.split(":") : [];
-  const missing = 8 - groups(head).length - groups(tail).length;
-  const hextets = address.includes("::") ? [...groups(head), ...Array(missing).fill("0"), ...groups(tail)] : groups(head);
-  return hextets.flatMap((hextet) => {
-    const value = parseInt(hextet, 16);
-    return [value >> 8, value & 255];
-  });
+// src/forkop/tabs/servers/form/amnezia.ts
+var CLIENT_KEYS2 = ["jc", "jmin", "jmax", "i1", "i2", "i3", "i4", "i5"];
+function hasAmneziaParameters(sectionId) {
+  const section = uci.get(
+    FORKOP_UCI_PACKAGE,
+    sectionId
+  );
+  return Object.keys(section || {}).some((key) => key.startsWith("amnezia_"));
 }
-function namesHostAddress(address, bits) {
-  const bytes = isIpv4(address) ? address.split(".").map(Number) : ipv6Bytes(address);
-  let any = false;
-  let all = true;
-  for (let bit = bits; bit < bytes.length * 8; bit += 1) {
-    const set = bytes[bit >> 3] >> 7 - (bit & 7) & 1;
-    any = any || set === 1;
-    all = all && set === 1;
-  }
-  return any && (bytes.length === 16 || !all);
-}
-function validateTunnelSubnet(value) {
-  const subnet = `${value || ""}`.trim();
-  if (!isValidCidr(subnet)) {
-    return _("Use an address with a prefix length, such as %s").format(
-      DEFAULT_SUBNET
+function addAmneziaServerOptions(section) {
+  CLIENT_KEYS2.forEach((key) => {
+    const description = key === "jc" ? _(
+      "Junk packets clients send before every handshake, Jmin to Jmax bytes each"
+    ) : key === "i1" ? _("Packets clients send before every handshake, I1 first") : void 0;
+    const o = section.option(
+      form.Value,
+      `amnezia_${key}`,
+      amneziaParameter(key).conf,
+      description
     );
-  }
-  const [address, prefix] = subnet.split("/");
-  const bits = Number(prefix);
-  if (isIpv4(address) ? bits < 8 || bits > 30 : bits < 64 || bits > 126) {
-    return isIpv4(address) ? _("An IPv4 subnet needs a prefix length from 8 to 30") : _("An IPv6 subnet needs a prefix length from 64 to 126");
-  }
-  return namesHostAddress(address, bits) ? true : _(
-    "Name the address of the server in the subnet, such as %s rather than the subnet itself"
-  ).format(isIpv4(address) ? DEFAULT_SUBNET : "fd00:8::1/64");
-}
-function validateTunnelSubnets(values) {
-  const subnets = valueList(values).map((value) => `${value}`.trim());
-  const families = subnets.map(
-    (subnet) => isIpv6(subnet.split("/")[0]) ? 6 : 4
-  );
-  if (!families.includes(4)) return _("Add an IPv4 subnet");
-  if (families.filter((family) => family === 4).length > 1) {
-    return _("Add at most one IPv4 subnet");
-  }
-  if (families.filter((family) => family === 6).length > 1) {
-    return _("Add at most one IPv6 subnet");
-  }
-  return true;
-}
-function addTunnelOptions(section) {
-  const onTunnel = (o2, extra = {}) => protocolsWith("tunnel").forEach(
-    (protocol) => o2.depends({ protocol, ...extra })
-  );
-  let o = section.option(
-    form.DynamicList,
-    "tunnel_address",
-    _("Tunnel subnet"),
-    _(
-      "The server's own address with a prefix, such as 10.8.0.1/24; clients get the other addresses of the subnet. An IPv6 subnet can go beside it"
-    )
-  );
-  o.placeholder = "fd00:8::1/64";
-  o.modalonly = true;
-  o.rmempty = false;
-  autofill(o, (sectionId) => {
-    const stored = optionList(sectionId, "tunnel_address");
-    return stored.length ? stored : [DEFAULT_SUBNET];
+    o.modalonly = true;
+    o.rmempty = true;
+    o.depends("protocol", "amneziawg");
+    autofill(
+      o,
+      (sectionId) => option(sectionId, `amnezia_${key}`) || (hasAmneziaParameters(sectionId) ? "" : ONE_SIDED_AMNEZIA_DEFAULTS[key] || "")
+    );
+    o.validate = (sectionId, value) => {
+      const valid = validateAmneziaValue(key, value);
+      if (valid !== true || key !== "jmin" && key !== "jmax") return valid;
+      return validateAmneziaSet({
+        jmin: key === "jmin" ? value : liveOption(sectionId, "amnezia_jmin"),
+        jmax: key === "jmax" ? value : liveOption(sectionId, "amnezia_jmax")
+      });
+    };
   });
-  o.validate = function(sectionId, value) {
-    if (!isEmptyValue(value)) {
-      return validateTunnelSubnet(value);
-    }
-    const current = typeof this.formvalue === "function" ? this.formvalue(sectionId) : [];
-    return validateTunnelSubnets(current);
-  };
-  onTunnel(o);
-  o = section.option(
-    form.Flag,
-    "tunnel_all_traffic",
-    _("All traffic through the server"),
-    _(
-      "Clients send all of their traffic through the router, where the routing mode decides where it goes. Off, they send only the routes below"
-    )
-  );
-  o.default = "1";
-  o.rmempty = false;
-  o.modalonly = true;
-  onTunnel(o);
-  o = section.option(form.DynamicList, "tunnel_routes", _("Routes"));
-  o.placeholder = "192.168.1.0/24";
-  o.modalonly = true;
-  o.rmempty = true;
-  o.validate = (_sectionId, value) => isEmptyValue(value) || isValidCidr(`${value}`.trim()) ? true : _("Use a subnet like 192.168.1.0/24");
-  onTunnel(o, { tunnel_all_traffic: "0" });
 }
 
 // src/forkop/tabs/servers/form.ts
@@ -25266,6 +25460,7 @@ function createServerContent(section) {
   addMixedOptions(section);
   addClientListOption(section);
   addRoutingOptions(section);
+  addAmneziaServerOptions(section);
   addSecurityOptions(section);
   addTransportOptions(section);
   addMultiplexOptions(section);

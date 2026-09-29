@@ -2007,8 +2007,9 @@ function server_route_rule(sections, routing_mode, routing_section_name, label) 
     return rule;
 }
 
-// Accounts that take their own route. sing-box matches a rule on the user name, so
-// one client can go straight out while the rest of the server follows its own mode.
+// Accounts that take their own route. A rule matches a client by what tells it
+// apart, so one client can go straight out while the rest of the server follows
+// its own mode.
 // An account that follows the shared rules needs no rule of its own when its server
 // already clones them; when it does not, the set is cloned for that account alone.
 function add_server_client_routes(config, server, sections, inbound, server_mode) {
@@ -2016,8 +2017,8 @@ function add_server_client_routes(config, server, sections, inbound, server_mode
         if (!bool_option(client, "routing_override", false))
             continue;
 
-        let name = runtime_servers.route_user(server, client);
-        if (name == "")
+        let identity = runtime_servers.client_match(server, client);
+        if (identity == null)
             continue;
 
         let client_mode = option(client, "routing_mode", "direct");
@@ -2028,7 +2029,7 @@ function add_server_client_routes(config, server, sections, inbound, server_mode
                     runtime_constants.TPROXY_INBOUND_TAG,
                     inbound,
                     runtime_constants.CHECK_PROXY_IP_DOMAIN,
-                    name
+                    identity
                 );
             continue;
         }
@@ -2037,13 +2038,11 @@ function add_server_client_routes(config, server, sections, inbound, server_mode
             sections,
             client_mode,
             option(client, "routing_section", ""),
-            "server client '" + option(client, "name", name) + "'"
+            "server client '" + option(client, "name", client[".name"]) + "'"
         );
         rule.inbound = inbound;
-        // auth_user, not user: a route rule has no user field, and sing-box drops the
-        // whole rule without a word when it finds one, so the account took the route
-        // of its server instead of its own.
-        rule.auth_user = name;
+        for (let key, value in identity)
+            rule[key] = value;
         push(config.route.rules, rule);
     }
 }

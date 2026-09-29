@@ -7,14 +7,14 @@ import {
 import { getListenPort, getPublicHost } from './network';
 import { loadIssuedMaterial } from './issued';
 import type { IssuedMaterial } from './issued';
-import { buildOpenVPNProfile, downloadProfile } from './profile';
+import { buildClientProfile, downloadProfile } from './profile';
 import {
   getProtocol,
   getServerName,
   isAuthenticationEnabled,
   usesProfile,
 } from './protocols';
-import { qrSvgDataUri } from './qr';
+import { qrCode } from './qr';
 import { E } from '../../../helpers/element';
 
 function svgEl(
@@ -151,10 +151,11 @@ function injectDetailsStyles() {
         '.modal > .button-row.fkp-details-actions{justify-content:flex-start;gap:0.5em}',
         '.modal > .button-row.fkp-details-actions > button:first-of-type{margin-right:0}',
         // The dialog is as wide as the code, and everything under the code fits that
-        // width. The code keeps a white quiet zone in any theme: the two modules drawn
+        // width: 16rem, or three pixels a module for a code as large as a profile's.
+        // The code keeps a white quiet zone in any theme: the four modules drawn
         // into it and a few pixels more.
         '#modal_overlay > .modal.fkp-qr-modal{width:fit-content}',
-        '.fkp-qr{display:grid;justify-items:center;gap:12px;inline-size:min(16rem,calc(100vw - 64px));padding-top:8px}',
+        '.fkp-qr{display:grid;justify-items:center;gap:12px;inline-size:min(max(16rem,var(--fkp-qr-size,0px)),calc(100vw - 64px));padding-top:8px}',
         '.fkp-qr__code{display:block;box-sizing:border-box;inline-size:100%;block-size:auto;aspect-ratio:1;padding:4px;background:#fff;border-radius:8px}',
         '.fkp-qr__caption{display:grid;justify-items:center;gap:2px;max-inline-size:100%;text-align:center}',
         '.fkp-qr__name{font-weight:600;overflow-wrap:anywhere}',
@@ -211,31 +212,37 @@ interface LinkCaption {
 }
 
 // The code is shown when it is asked for, at a size a phone can read, with what it
-// belongs to under it and the link it carries in a field that copies it.
-export function showQrModal(caption: LinkCaption, link: string) {
+// belongs to under it and what it carries in a row that copies it: the link, or
+// the profile with its download.
+export function showQrModal(caption: LinkCaption, code: string, row?: Node) {
   injectDetailsStyles();
 
-  const content = E('div', { class: 'fkp-qr' }, [
-    E('img', {
-      class: 'fkp-qr__code',
-      src: qrSvgDataUri(link),
-      alt: _('QR code'),
-    }),
-    E('div', { class: 'fkp-qr__caption' }, [
-      E('div', { class: 'fkp-qr__name' }, caption.name),
-      ...(caption.details
-        ? [E('div', { class: 'fkp-qr__details' }, caption.details)]
-        : []),
-    ]),
-    renderLinkRow(link),
-  ]);
+  const qr = qrCode(code);
+  const content = E(
+    'div',
+    { class: 'fkp-qr', style: `--fkp-qr-size:${qr.size * 3}px` },
+    [
+      E('img', {
+        class: 'fkp-qr__code',
+        src: qr.uri,
+        alt: _('QR code'),
+      }),
+      E('div', { class: 'fkp-qr__caption' }, [
+        E('div', { class: 'fkp-qr__name' }, caption.name),
+        ...(caption.details
+          ? [E('div', { class: 'fkp-qr__details' }, caption.details)]
+          : []),
+      ]),
+      row ?? renderLinkRow(code),
+    ],
+  );
 
   ui.showModal(_('QR code'), [content, renderCloseRow()], 'fkp-qr-modal');
 
   return content;
 }
 
-function renderQrButton(caption: LinkCaption, link: string) {
+function renderQrButton(caption: LinkCaption, code: string, row?: () => Node) {
   const label = _('Show a QR code');
   return E(
     'button',
@@ -246,7 +253,7 @@ function renderQrButton(caption: LinkCaption, link: string) {
       'aria-label': label,
       click: (ev) => {
         ev.preventDefault();
-        showQrModal(caption, link);
+        showQrModal(caption, code, row?.());
       },
     },
     iconSvg('qr'),
@@ -287,10 +294,16 @@ function renderLinkRow(value: string, qrCaption?: LinkCaption) {
   ]);
 }
 
-// The profile of an OpenVPN client: its file name in the field, saved by one
-// button and copied as text by the other. A profile does not fit a QR code a
-// phone can read, and no OpenVPN client imports one from a code anyway.
-function renderProfileRow(profile: string, name: string) {
+// The profile of a client: its file name in the field, saved by one button and
+// copied as text by the other. The WireGuard and AmneziaWG apps also scan one
+// from a code; an OpenVPN profile fits none a phone can read, and no OpenVPN
+// client imports one from a code anyway.
+function renderProfileRow(
+  profile: string,
+  name: string,
+  type: string,
+  qrCaption?: LinkCaption,
+): Node {
   const input = E('input', {
     type: 'text',
     class: 'cbi-input-text fkp-details__value',
@@ -301,6 +314,13 @@ function renderProfileRow(profile: string, name: string) {
   const label = _('Download the profile');
   return E('div', { class: 'fkp-details__link' }, [
     input,
+    ...(qrCaption
+      ? [
+          renderQrButton(qrCaption, profile, () =>
+            renderProfileRow(profile, name, type),
+          ),
+        ]
+      : []),
     E(
       'button',
       {
@@ -310,7 +330,7 @@ function renderProfileRow(profile: string, name: string) {
         'aria-label': label,
         click: (ev: Event) => {
           ev.preventDefault();
-          downloadProfile(profile, name);
+          downloadProfile(profile, name, type);
         },
       },
       iconSvg('download'),
@@ -338,18 +358,28 @@ function renderProfileDetails(
   client: ServerClient,
   material: IssuedMaterial,
 ) {
-  const result = buildOpenVPNProfile(sectionId, client, material);
+  const result = buildClientProfile(sectionId, client, material);
+  const scanned = getProtocol(sectionId) !== 'openvpn';
   return renderClientRow(client.name, [
     'profile' in result
-      ? renderProfileRow(result.profile, result.fileName)
+      ? renderProfileRow(
+          result.profile,
+          result.fileName,
+          result.type,
+          scanned ? linkCaption(sectionId, client, '') : undefined,
+        )
       : E(
           'div',
           { class: 'fkp-details__empty' },
           result.missing === 'address'
             ? _('Set the public host and the port to get a profile.')
-            : _(
-                'The router issues the certificate of this client when the settings are applied. Apply them to get a profile.',
-              ),
+            : result.missing === 'keys'
+              ? _(
+                  'The router issues the keys of this client when the settings are applied. Apply them to get a profile.',
+                )
+              : _(
+                  'The router issues the certificate of this client when the settings are applied. Apply them to get a profile.',
+                ),
         ),
   ]);
 }
@@ -461,7 +491,7 @@ export function renderDetailsContent(
         { class: 'fkp-details__clients' },
         entries.map((client: ServerClient) =>
           profiles
-            ? renderProfileDetails(sectionId, client, context.openvpn || {})
+            ? renderProfileDetails(sectionId, client, context.issued || {})
             : renderClientDetails(sectionId, client, context),
         ),
       ),
@@ -480,9 +510,9 @@ export function showServerDetailsModal(
   // A profile holds what the router issued, so the dialog waits for it rather
   // than open on a list that says every certificate is missing.
   if (usesProfile(getProtocol(sectionId))) {
-    return loadIssuedMaterial().then((openvpn) => {
+    return loadIssuedMaterial().then((issued) => {
       ui.showModal(_('Server details: %s').format(getServerName(sectionId)), [
-        renderDetailsContent(sectionId, clients, { openvpn }),
+        renderDetailsContent(sectionId, clients, { issued }),
         renderCloseRow(),
       ]);
     });

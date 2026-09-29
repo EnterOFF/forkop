@@ -18,8 +18,8 @@ declare global {
   // fingerprint of a self-signed certificate, so the client can pin it.
   interface ShareLinkContext {
     tlsCertificateSha256?: string;
-    // The committed configuration an OpenVPN profile takes its certificates from.
-    openvpn?: Record<string, Record<string, unknown>>;
+    // What the router issued, which a profile takes its certificates and keys from.
+    issued?: Record<string, Record<string, unknown>>;
   }
 
   // One share link, as the connection dialog lists it.
@@ -53,6 +53,8 @@ declare global {
     profile?: boolean;
     // A subnet whose addresses the server hands its clients.
     tunnel?: boolean;
+    // A listener the core binds on every address of the router.
+    anyAddress?: boolean;
     transport?: boolean;
     multiplex?: boolean;
     // protocolsWith() asks for a flag by name.

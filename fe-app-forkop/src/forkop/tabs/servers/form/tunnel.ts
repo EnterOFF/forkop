@@ -2,12 +2,28 @@
 // subnet those addresses come from, and whether all of the clients' traffic
 // goes through it or only the routes it names.
 
+import { FORKOP_UCI_PACKAGE } from '../../../../constants';
 import { autofill } from '../controls';
-import { isEmptyValue, optionList, valueList } from '../formValues';
+import { asList, isEmptyValue, optionList, valueList } from '../formValues';
 import { isIpv4, isIpv6, isValidCidr } from '../hosts';
 import { protocolsWith } from '../protocols';
 
 const DEFAULT_SUBNET = '10.8.0.1/24';
+
+// A new server takes the first 10.8.N.1/24 no other server hands out, so two
+// servers never give their clients the same addresses.
+export function freeTunnelSubnet(sectionId: string) {
+  const taken = new Set(
+    (uci.sections(FORKOP_UCI_PACKAGE, 'server') || [])
+      .filter((server) => server['.name'] !== sectionId)
+      .flatMap((server) => asList(server.tunnel_address))
+      .map((subnet) => `${subnet}`.split('.').slice(0, 3).join('.')),
+  );
+  for (let third = 0; third < 256; third += 1) {
+    if (!taken.has(`10.8.${third}`)) return `10.8.${third}.1/24`;
+  }
+  return DEFAULT_SUBNET;
+}
 
 function ipv6Bytes(address: string) {
   const [head, tail = ''] = address.split('::');
@@ -22,12 +38,46 @@ function ipv6Bytes(address: string) {
   });
 }
 
+function addressBytes(address: string) {
+  return isIpv4(address) ? address.split('.').map(Number) : ipv6Bytes(address);
+}
+
+// The subnet a server address with a prefix lies in, written as a route: the
+// address of the subnet itself and the prefix.
+export function subnetOf(value: string) {
+  const [address, prefix] = `${value}`.trim().split('/');
+  const bits = Number(prefix);
+  const bytes = addressBytes(address).map((byte, index) => {
+    const kept = bits - index * 8;
+    return kept >= 8
+      ? byte
+      : kept <= 0
+        ? 0
+        : byte & ((0xff << (8 - kept)) & 0xff);
+  });
+  if (bytes.length === 4) return `${bytes.join('.')}/${bits}`;
+  const hextets = [];
+  for (let i = 0; i < 16; i += 2)
+    hextets.push(((bytes[i] << 8) | bytes[i + 1]).toString(16));
+  return `${new URL(`http://[${hextets.join(':')}]/`).hostname.slice(1, -1)}/${bits}`;
+}
+
+// Whether an address, with or without a prefix, lies in the subnet of a server
+// address with a prefix.
+export function subnetContains(subnet: string, address: string) {
+  const host = `${address}`.trim().split('/')[0];
+  const bits = `${subnet}`.trim().split('/')[1];
+  return (
+    (isIpv4(host) || isIpv6(host)) &&
+    isIpv4(host) === isIpv4(`${subnet}`.split('/')[0]) &&
+    subnetOf(`${host}/${bits}`) === subnetOf(subnet)
+  );
+}
+
 // The host bits of a subnet: none set is the subnet itself, and in IPv4 all of
 // them set is its broadcast address; neither can be the address of the server.
 function namesHostAddress(address: string, bits: number) {
-  const bytes = isIpv4(address)
-    ? address.split('.').map(Number)
-    : ipv6Bytes(address);
+  const bytes = addressBytes(address);
   let any = false;
   let all = true;
   for (let bit = bits; bit < bytes.length * 8; bit += 1) {
@@ -93,7 +143,7 @@ export function addTunnelOptions(section: CBISection) {
   o.rmempty = false;
   autofill(o, (sectionId: string) => {
     const stored = optionList(sectionId, 'tunnel_address');
-    return stored.length ? stored : [DEFAULT_SUBNET];
+    return stored.length ? stored : [freeTunnelSubnet(sectionId)];
   });
   o.validate = function (sectionId: string, value: string) {
     if (!isEmptyValue(value)) {

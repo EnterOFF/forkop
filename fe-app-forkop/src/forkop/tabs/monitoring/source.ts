@@ -17,7 +17,8 @@ export interface SourceNames {
   // Inbound tags of the servers.
   servers: Set<string>;
   // Per server tag, the user the core reports to the name of the client, where
-  // the two differ: an OpenVPN client is reported by its certificate.
+  // the two differ: an OpenVPN client is reported by its certificate. A server
+  // whose core reports no user names its clients by their source address.
   clients: Record<string, Record<string, string>>;
 }
 
@@ -86,10 +87,12 @@ export function describeSource(
 
   if (names.servers.has(tag)) {
     // An inbound with several accounts reports the one that authenticated. One
-    // without accounts has nothing but the address to tell its clients apart.
+    // without accounts has nothing but the address to tell its clients apart,
+    // and a WireGuard server gives each client addresses of its own.
     const user = text(connection.metadata?.user);
-    const name = text(names.clients[tag]?.[user]) || user || tag;
-    const detail = user ? tag : ip;
+    const byAddress = user ? '' : text(names.clients[tag]?.[ip]);
+    const name = text(names.clients[tag]?.[user]) || user || byAddress || tag;
+    const detail = user || byAddress ? tag : ip;
     return {
       key: JSON.stringify([tag, user, user ? '' : ip]),
       kind: 'server',

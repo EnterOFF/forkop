@@ -20,6 +20,7 @@ import {
 } from './form/security';
 import { addOpenVPNServerOptions } from './form/openvpn';
 import { addTunnelOptions } from './form/tunnel';
+import { addAmneziaServerOptions } from './form/amnezia';
 import { addRoutingOptions } from './routing';
 
 export function createServerContent(section: CBISection) {
@@ -38,6 +39,7 @@ export function createServerContent(section: CBISection) {
   addMixedOptions(section);
   addClientListOption(section);
   addRoutingOptions(section);
+  addAmneziaServerOptions(section);
   addSecurityOptions(section);
   addTransportOptions(section);
   addMultiplexOptions(section);

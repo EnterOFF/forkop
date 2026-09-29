@@ -12,8 +12,18 @@ const NAMES = {
     '192.168.1.140': 'POCO-F7',
     '192.168.1.121': 'Redmi-Note-12-Pro-5G',
   },
-  servers: new Set(['Server #2', 'Server #10', 'Home/Work', 'Open', 'Office']),
-  clients: { Office: { cfg0a1b2c: 'Laptop' } },
+  servers: new Set([
+    'Server #2',
+    'Server #10',
+    'Home/Work',
+    'Open',
+    'Office',
+    'Home',
+  ]),
+  clients: {
+    Office: { cfg0a1b2c: 'Laptop' },
+    Home: { '10.8.0.2': 'Phone', 'fd00:8::2': 'Phone' },
+  },
 };
 
 function connection(
@@ -69,6 +79,17 @@ describe('the source of a Monitoring connection', () => {
     expect(source.search).toContain('10.8.0.2');
     expect(label(connection('openvpn-server/Office', '10.8.0.3', 'gone'))).toBe(
       'gone · Office',
+    );
+  });
+
+  // The core reports no user for a WireGuard client, and the addresses in its
+  // tunnel are the ones the router gave it.
+  it('names a client of a WireGuard server by its tunnel address', () => {
+    const source = describe_(connection('amneziawg/Home', 'fd00:8::2'));
+    expect(sourceLabel(source.name, source.detail)).toBe('Phone · Home');
+    expect(source.search).toContain('fd00:8::2');
+    expect(label(connection('wireguard/Home', '10.8.0.9'))).toBe(
+      'Home · 10.8.0.9',
     );
   });
 

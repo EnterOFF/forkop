@@ -5,6 +5,7 @@
 // what UCI asks for.
 
 let core_ip = require("core.ip");
+let servers = require("singbox.servers");
 
 function as_string(value) {
     return value == null ? "" : "" + value;
@@ -28,21 +29,16 @@ function contains(values, needle) {
 // option says otherwise. Shadowsocks is the one that carries both without being
 // asked: its listener takes the default network, which is TCP and UDP, and the
 // UDP half is how a client relays datagrams.
-// The `type` the generator writes into the sing-box inbound or endpoint. Only
-// OpenVPN is named differently there.
+// The `type` the generator writes into the sing-box inbound or endpoint.
 function runtime_type(protocol) {
     protocol = as_string(protocol);
-    if (protocol == "json_inbound")
-        return "";
-    if (protocol == "openvpn")
-        return "openvpn-server";
-    return protocol;
+    return protocol == "json_inbound" ? "" : servers.core_type(protocol);
 }
 
-// Where the generated configuration keeps it: Tailscale and OpenVPN are
-// endpoints, an OpenVPN server one with a listener of its own.
+// Where the generated configuration keeps it: Tailscale, OpenVPN and WireGuard
+// are endpoints, all but Tailscale with a listener of their own.
 function runtime_kind(protocol) {
-    return protocol == "tailscale" || protocol == "openvpn" ? "endpoints" : "inbounds";
+    return servers.is_endpoint(protocol) ? "endpoints" : "inbounds";
 }
 
 // A firewall rule is only meaningful when the listener can be reached from
@@ -60,7 +56,8 @@ function listen_requires_firewall(listen, wan_ip) {
 
 // The generated inbound has to exist and describe the same listener as UCI. A
 // JSON inbound carries its own listen settings, and a Tailscale endpoint has
-// no listener of its own, so for both only existence and type are compared.
+// no listener of its own, so for both only existence and type are compared; a
+// WireGuard endpoint binds its port on every address and names none.
 function runtime_ok(protocol, runtime_exists, runtime_type_value, runtime_listen, runtime_port,
                     expected_type, listen, listen_port) {
     if (as_string(runtime_exists) != "1")
@@ -74,6 +71,8 @@ function runtime_ok(protocol, runtime_exists, runtime_type_value, runtime_listen
 
     if (protocol == "tailscale")
         return 1;
+    if (protocol == "wireguard" || protocol == "amneziawg")
+        return as_string(runtime_port) == as_string(listen_port) ? 1 : 0;
 
     return as_string(runtime_listen) == as_string(listen) &&
         as_string(runtime_port) == as_string(listen_port) ? 1 : 0;

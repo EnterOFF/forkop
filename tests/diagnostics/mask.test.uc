@@ -134,6 +134,19 @@ const TUNNELS_AND_SERVERS = join("\n", [
     "-----END PRIVATE KEY-----'",
     "\toption openvpn_certificate_sha256 'ab'",
     "",
+    "config server 'srv_wireguard'",
+    "\toption protocol 'amneziawg'",
+    "\toption wireguard_private_key 'wg-server-private='",
+    "\toption wireguard_public_key 'wg-server-public='",
+    "\toption amnezia_header_protection_key 'wg-header-key='",
+    "\toption amnezia_s1 '12'",
+    "",
+    "config server_client 'client_wireguard'",
+    "\toption wireguard_private_key 'wg-client-private='",
+    "\toption wireguard_public_key 'wg-client-public='",
+    "\toption wireguard_pre_shared_key 'wg-client-psk='",
+    "\tlist wireguard_address '10.8.0.2/32'",
+    "",
     "config server 'srv_tls'",
     "\toption tls_certificate '-----BEGIN CERTIFICATE-----",
     "own-certificate",
@@ -152,11 +165,13 @@ t.test("tunnels, their peers and JSON servers lose their keys and addresses and 
         "zz5/p+jwYqPFlg9mWcOP5ad8xXa4XfOOlrzouVD6E1w=", "peer.example.com", "47132",
         "AKR8dq2b9o7/cO8d5mAzxvuxRhhw4DXi1pfUC3IPGWo=", "0.0.0.0/0", "leaked", "raw-inbound-token", "inbound-leaked",
         "server-private-key", "tls-crypt-secret", "client-certificate", "client-private-key", "END PRIVATE KEY",
-        "own-certificate", "own-key-path", "self-signed-private-key", "X41Gx29SDgyl6QjV7g7sg4nuJvGu4tKdDgtssPUEU4g="
+        "own-certificate", "own-key-path", "self-signed-private-key", "X41Gx29SDgyl6QjV7g7sg4nuJvGu4tKdDgtssPUEU4g=",
+        "wg-server-private", "wg-server-public", "wg-header-key", "wg-client-private", "wg-client-public", "wg-client-psk"
     ])
         t.excludes(masked, secret);
     for (let kept in [ "option kind 'warp'", "option amnezia_jc '4'", "option mtu '1280'", "option routing_mode 'direct'",
-        "option protocol 'openvpn'", "option openvpn_certificate_sha256 'ab'" ])
+        "option protocol 'openvpn'", "option openvpn_certificate_sha256 'ab'", "option amnezia_s1 '12'",
+        "list wireguard_address '10.8.0.2/32'" ])
         t.contains(masked, kept);
 });
 

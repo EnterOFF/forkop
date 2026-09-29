@@ -323,7 +323,9 @@ function qrMakeMatrix(version: number, dataCodewords: number[]) {
   return modules;
 }
 
-export function qrSvgDataUri(text: string) {
+// The code as an SVG, and how many modules wide it is with its quiet zone: the
+// four the standard asks for, which decoders need around a large code.
+export function qrCode(text: string) {
   const bytes = qrEncodeText(text);
   let version = 1;
 
@@ -335,11 +337,11 @@ export function qrSvgDataUri(text: string) {
   }
 
   if (version > 40) {
-    return '';
+    return { uri: '', size: 0 };
   }
 
   const matrix = qrMakeMatrix(version, qrBuildDataCodewords(bytes, version));
-  const border = 2;
+  const border = 4;
   const size = matrix.length;
   const viewSize = size + border * 2;
   const path: string[] = [];
@@ -353,5 +355,12 @@ export function qrSvgDataUri(text: string) {
   });
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${viewSize} ${viewSize}" shape-rendering="crispEdges"><path fill="#fff" d="M0 0h${viewSize}v${viewSize}H0z"/><path fill="#000" d="${path.join(' ')}"/></svg>`;
-  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+  return {
+    uri: `data:image/svg+xml,${encodeURIComponent(svg)}`,
+    size: viewSize,
+  };
+}
+
+export function qrSvgDataUri(text: string) {
+  return qrCode(text).uri;
 }

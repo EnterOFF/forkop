@@ -28,6 +28,7 @@ import {
   listenerProtocols,
   protocolLabel,
   protocolCoreFeature,
+  protocolSpec,
   serverMissingCoreFeature,
 } from '../protocols';
 import { routingSectionChoices } from '../routing';
@@ -262,7 +263,9 @@ export function addListenerOptions(section: CBISection) {
   o.rmempty = false;
   o.modalonly = true;
   o.validate = validateListenAddress;
-  onListener(o);
+  listenerProtocols()
+    .filter((protocol: string) => !protocolSpec(protocol)?.anyAddress)
+    .forEach((protocol: string) => o.depends('protocol', protocol));
 
   o = section.option(form.Value, 'listen_port', _('Listen port'));
   o.rmempty = false;

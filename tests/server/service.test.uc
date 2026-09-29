@@ -224,7 +224,9 @@ function firewall_servers() {
         { ".name": "fw_tailscale", protocol: "tailscale", listen_port: "31006" },
         { ".name": "fw_ss", protocol: "shadowsocks", listen_port: "31007" },
         { ".name": "fw_openvpn", protocol: "openvpn", listen_port: "31008" },
-        { ".name": "fw_openvpn_tcp", protocol: "openvpn", openvpn_network: "tcp", listen_port: "31009" }
+        { ".name": "fw_openvpn_tcp", protocol: "openvpn", openvpn_network: "tcp", listen_port: "31009" },
+        { ".name": "fw_wireguard", protocol: "wireguard", listen_port: "31010" },
+        { ".name": "fw_amneziawg", protocol: "amneziawg", listen_port: "31011" }
     ];
 }
 
@@ -235,7 +237,7 @@ t.test("the firewall include opens the ports of enabled servers for the protocol
     server.sync_firewall(false);
     let include = fs.readfile(server.paths.firewall_include);
     t.contains(include, "meta l4proto tcp th dport { 31001, 31003, 31007, 31009 } counter accept comment \"forkop: server ports\"");
-    t.contains(include, "meta l4proto udp th dport { 31002, 31003, 31007, 31008 } counter accept comment \"forkop: server ports\"");
+    t.contains(include, "meta l4proto udp th dport { 31002, 31003, 31007, 31008, 31010, 31011 } counter accept comment \"forkop: server ports\"");
     t.excludes(include, "31004");
     t.excludes(include, "31005");
     t.excludes(include, "31006");
@@ -322,6 +324,97 @@ t.test("an OpenVPN server prepared once keeps every certificate and key it was g
     t.eq(length(uci.__commits()), commits, "nothing is committed");
     t.eq(map([ "office.openvpn_certificate", "office.openvpn_tls_crypt_key", "laptop.openvpn_certificate" ],
         (path) => core_uci.get("forkop." + path)), before);
+});
+
+let wireguard_keys = 0;
+
+// Each key pair the tool prints is a new one, so a test can tell who got which.
+const WIREGUARD_TOOLS = [
+    [ "sing-box generate wg-keypair", () => {
+        wireguard_keys++;
+        return { stdout: sprintf("PrivateKey: %043d=\nPublicKey: %042dP=\n", wireguard_keys, wireguard_keys) };
+    } ]
+];
+
+function wireguard_configuration(protocol) {
+    return {
+        settings: {},
+        server: [ {
+            ".name": "home", label: "Home", protocol, listen_port: "51820",
+            tunnel_address: [ "10.8.0.1/24", "fd00:8::1/64" ], amnezia_jc: "5", amnezia_i1: "<r 2>"
+        } ],
+        server_client: [
+            { ".name": "phone", server: "home", name: "Phone" },
+            { ".name": "laptop", server: "home", name: "Laptop" },
+            { ".name": "tablet", server: "home", name: "Tablet", wireguard_private_key: "own-private",
+                wireguard_public_key: "own-public", wireguard_pre_shared_key: "own-psk",
+                wireguard_address: [ "10.8.0.5/32" ] }
+        ]
+    };
+}
+
+function list_value(section, option) {
+    return core_uci.get_all("forkop", section)[option];
+}
+
+t.test("a WireGuard server gets its key, and every client a key pair, a pre-shared key and a free address in each subnet", () => {
+    fresh_paths();
+    wireguard_keys = 0;
+    prepared(wireguard_configuration("wireguard"), WIREGUARD_TOOLS);
+    t.eq([ value("home", "wireguard_private_key"), value("home", "wireguard_public_key") ],
+        [ sprintf("%043d=", 1), sprintf("%042dP=", 1) ]);
+    t.eq(value("home", "listen"), "", "the endpoint takes no listen address");
+    t.eq(value("phone", "wireguard_private_key"), sprintf("%043d=", 2));
+    t.eq(value("laptop", "wireguard_public_key"), sprintf("%042dP=", 3));
+    t.eq([ value("tablet", "wireguard_private_key"), value("tablet", "wireguard_pre_shared_key") ],
+        [ "own-private", "own-psk" ], "a client that has its keys keeps them");
+    for (let client in [ "phone", "laptop" ])
+        t.eq(length(b64dec(value(client, "wireguard_pre_shared_key"))), 32, client + " pre-shared key");
+    t.ok(value("phone", "wireguard_pre_shared_key") != value("laptop", "wireguard_pre_shared_key"));
+    t.eq(list_value("phone", "wireguard_address"), [ "10.8.0.2/32", "fd00:8::2/128" ]);
+    t.eq(list_value("laptop", "wireguard_address"), [ "10.8.0.3/32", "fd00:8::3/128" ]);
+    t.eq(list_value("tablet", "wireguard_address"), [ "10.8.0.5/32", "fd00:8::4/128" ], "a held address is kept");
+    t.eq(value("home", "amnezia_header_protection_key"), "", "a WireGuard server has nothing of AmneziaWG");
+});
+
+t.test("an AmneziaWG server is also issued the parameters its clients have to match, and keeps its own junk", () => {
+    fresh_paths();
+    prepared(wireguard_configuration("amneziawg"), WIREGUARD_TOOLS);
+    t.eq(length(b64dec(value("home", "amnezia_header_protection_key"))), 32);
+    t.eq(map([ "s1", "s4", "h1", "h4", "random_trailers", "disable_cookies", "rekey_after_time", "max_handshake_attempts" ],
+        (key) => value("home", "amnezia_" + key)), [ "12", "12", "1", "4", "1", "1", "100-120", "15-20" ]);
+    t.eq([ value("home", "amnezia_jc"), value("home", "amnezia_i1"), value("home", "amnezia_jmin") ], [ "5", "<r 2>", "" ],
+        "the junk and signature packets are the dialog's");
+});
+
+t.test("a WireGuard server prepared once keeps every key and address it was given", () => {
+    fresh_paths();
+    prepared(wireguard_configuration("amneziawg"), WIREGUARD_TOOLS);
+    let paths = [ "home.wireguard_private_key", "home.amnezia_header_protection_key", "phone.wireguard_private_key",
+        "phone.wireguard_pre_shared_key", "laptop.wireguard_address" ];
+    let before = map(paths, (path) => core_uci.get("forkop." + path));
+    uci.__seed("forkop", uci.__sections("forkop"));
+    core_uci.reset();
+    let commits = length(uci.__commits());
+    let keys = wireguard_keys;
+    stub.commands([ ...WIREGUARD_TOOLS, ...TOOLS ]);
+    server.prepare();
+    stub.restore();
+    t.eq(wireguard_keys, keys, "no key pair is asked for");
+    t.eq(length(uci.__commits()), commits, "nothing is committed");
+    t.eq(map(paths, (path) => core_uci.get("forkop." + path)), before);
+});
+
+t.test("a client whose address left the subnet, or that another client holds, gets a free one", () => {
+    fresh_paths();
+    let data = wireguard_configuration("wireguard");
+    data.server[0].tunnel_address = [ "10.9.0.1/24" ];
+    data.server_client[0].wireguard_address = [ "10.9.0.7/32" ];
+    data.server_client[1].wireguard_address = [ "10.9.0.7/32", "fd00:8::2/128" ];
+    prepared(data, WIREGUARD_TOOLS);
+    t.eq(list_value("phone", "wireguard_address"), [ "10.9.0.7/32" ]);
+    t.eq(list_value("laptop", "wireguard_address"), [ "10.9.0.2/32" ], "the second holder moves and the IPv6 address goes");
+    t.eq(list_value("tablet", "wireguard_address"), [ "10.9.0.3/32" ], "an address outside the subnet is replaced");
 });
 
 t.test("a configuration without servers loses no account", () => {

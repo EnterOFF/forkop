@@ -4,6 +4,7 @@
 
 let fs = require("fs");
 let common = require("core.common");
+let core_ip = require("core.ip");
 let exec = require("core.exec");
 let uci = require("core.uci");
 let servers = require("singbox.servers");
@@ -42,6 +43,18 @@ function set_if_empty(name, key, value) {
 
 function set_value(name, key, value) {
     if (value != "" && get(name, key) != value && uci.set(CONFIG_NAME + "." + name + "." + key, value))
+        changed = true;
+}
+
+function get_list(name, key) {
+    let value = (uci.get_all(CONFIG_NAME, name) ?? {})[key];
+    return type(value) == "array" ? value : value == null || value == "" ? [] : [ "" + value ];
+}
+
+function set_list(name, key, values) {
+    if (join(" ", get_list(name, key)) == join(" ", values))
+        return;
+    if (length(values) == 0 ? uci.delete(CONFIG_NAME + "." + name + "." + key) : uci.set(CONFIG_NAME + "." + name + "." + key, values))
         changed = true;
 }
 
@@ -128,12 +141,17 @@ function clients_of(name) {
     return filter(section_names("server_client"), (client) => get(client, "server") == name);
 }
 
+function random_bytes(count) {
+    let random = fs.open("/dev/urandom", "r");
+    let bytes = random?.read(count);
+    random?.close();
+    return length(bytes ?? "") == count ? bytes : null;
+}
+
 // The key of tls-crypt: 2048 random bits in the text form OpenVPN writes them.
 function openvpn_static_key() {
-    let random = fs.open("/dev/urandom", "r");
-    let bytes = random?.read(256);
-    random?.close();
-    if (length(bytes ?? "") != 256)
+    let bytes = random_bytes(256);
+    if (bytes == null)
         return "";
     let lines = [ "-----BEGIN OpenVPN Static key V1-----" ];
     for (let offset = 0; offset < 256; offset += 16) {
@@ -183,6 +201,153 @@ function prepare_openvpn(name) {
     }
 }
 
+function wireguard_keypair() {
+    let output = exec.output([ "sing-box", "generate", "wg-keypair" ]) ?? "";
+    let private_key = match(output, /(^|\n)PrivateKey:[ \t]*([A-Za-z0-9+\/]{43}=)/);
+    let public_key = match(output, /(^|\n)PublicKey:[ \t]*([A-Za-z0-9+\/]{43}=)/);
+    return private_key == null || public_key == null ? null : { private_key: private_key[2], public_key: public_key[2] };
+}
+
+// A WireGuard pre-shared or header protection key: 32 random bytes in base64.
+function random_key() {
+    let bytes = random_bytes(32);
+    return bytes == null ? "" : b64enc(bytes);
+}
+
+// What the Amnezia client installs a fresh AmneziaWG 3.1 server with, apart from
+// the junk and signature packets the dialog fills in: paddings as short as the
+// header protection nonce allows, the WireGuard message types as headers, which
+// the header protection key hides, random trailers, no cookie replies, and its
+// timings. Both ends have to hold the same, so they are issued once, like a key.
+const AMNEZIA_SERVER_PARAMETERS = {
+    s1: "12", s2: "12", s3: "12", s4: "12",
+    h1: "1", h2: "2", h3: "3", h4: "4",
+    random_trailers: "1", disable_cookies: "1",
+    rekey_after_time: "100-120", rekey_timeout: "3-7", reject_after_time: "150-180",
+    keepalive_timeout: "5-15", max_handshake_attempts: "15-20"
+};
+
+function address_bytes(value) {
+    return iptoarr(split(value, "/")[0]);
+}
+
+function plus(bytes, offset) {
+    let result = [ ...bytes ];
+    for (let i = length(result) - 1; i >= 0 && offset > 0; i--) {
+        let sum = result[i] + (offset & 0xff);
+        offset = (offset >> 8) + (sum >> 8);
+        result[i] = sum & 0xff;
+    }
+    return result;
+}
+
+// The subnets a server hands its clients addresses from: the family, the network,
+// the prefix length, the server's own address and how many hosts may be handed
+// out, an IPv4 subnet keeping its broadcast address and an IPv6 one its size
+// within reason.
+function tunnel_pools(name) {
+    let pools = [];
+    for (let value in get_list(name, "tunnel_address")) {
+        if (!core_ip.valid_ip_cidr(value))
+            continue;
+        let own = address_bytes(value);
+        let bits = int(split(value, "/")[1]);
+        let host_bits = length(own) * 8 - bits;
+        push(pools, {
+            family: length(own) == 4 ? 4 : 6,
+            prefix: length(own) == 4 ? 32 : 128,
+            network: core_ip.network_bytes(own, bits),
+            bits,
+            own,
+            hosts: length(own) == 4 ? (1 << host_bits) - 2 : (host_bits >= 16 ? 65535 : (1 << host_bits) - 1)
+        });
+    }
+    return pools;
+}
+
+function same_bytes(left, right) {
+    return join(".", left) == join(".", right);
+}
+
+// The address a client keeps, or the lowest one nobody holds: never the server's
+// own or the subnet itself, and one another client already has is not kept twice.
+function client_address(pool, current, taken) {
+    for (let value in current) {
+        let bytes = address_bytes(value);
+        if (bytes == null || length(bytes) != length(pool.own) || !same_bytes(core_ip.network_bytes(bytes, pool.bits), pool.network))
+            continue;
+        let text = arrtoip(bytes);
+        if (!same_bytes(bytes, pool.own) && !same_bytes(bytes, pool.network) && !taken[text] &&
+            split(value, "/")[1] == "" + pool.prefix &&
+            (pool.family == 6 || !same_bytes(bytes, plus(pool.network, pool.hosts + 1))))
+            return text;
+    }
+    for (let i = 1; i <= pool.hosts; i++) {
+        let bytes = plus(pool.network, i);
+        let text = arrtoip(bytes);
+        if (!same_bytes(bytes, pool.own) && !taken[text])
+            return text;
+    }
+    return null;
+}
+
+// The key of the server and, for every client, its key pair, a pre-shared key
+// and an address in each of the server's subnets. A client is its key: the
+// server accepts only the keys it issued, so removing a client revokes it.
+// An AmneziaWG server also gets the parameters both ends have to match.
+function prepare_wireguard(name, protocol) {
+    if (get(name, "wireguard_private_key") == "" || get(name, "wireguard_public_key") == "") {
+        let pair = wireguard_keypair();
+        if (pair == null)
+            die("Failed to issue the WireGuard key of server '" + label(name) + "'");
+        set_value(name, "wireguard_private_key", pair.private_key);
+        set_value(name, "wireguard_public_key", pair.public_key);
+        exec.log("info", "Issued the WireGuard key of server '" + label(name) + "'");
+    }
+    if (protocol == "amneziawg" && get(name, "amnezia_header_protection_key") == "") {
+        let protection_key = random_key();
+        if (protection_key == "")
+            die("Failed to issue the AmneziaWG header protection key of server '" + label(name) + "'");
+        set_value(name, "amnezia_header_protection_key", protection_key);
+        for (let key, value in AMNEZIA_SERVER_PARAMETERS)
+            set_if_empty(name, "amnezia_" + key, value);
+        exec.log("info", "Issued the AmneziaWG parameters of server '" + label(name) + "'");
+    }
+
+    let pools = tunnel_pools(name);
+    let taken = [];
+    for (let pool in pools)
+        push(taken, {});
+    for (let client in clients_of(name)) {
+        let client_name = get(client, "name", client);
+        if (get(client, "wireguard_private_key") == "" || get(client, "wireguard_public_key") == "") {
+            let pair = wireguard_keypair();
+            if (pair == null)
+                die("Failed to issue the WireGuard key of client '" + client_name + "' of server '" + label(name) + "'");
+            set_value(client, "wireguard_private_key", pair.private_key);
+            set_value(client, "wireguard_public_key", pair.public_key);
+            exec.log("info", "Issued a WireGuard key for client '" + client_name + "' of server '" + label(name) + "'");
+        }
+        if (get(client, "wireguard_pre_shared_key") == "") {
+            let key = random_key();
+            if (key == "")
+                die("Failed to issue the WireGuard pre-shared key of client '" + client_name + "' of server '" + label(name) + "'");
+            set_value(client, "wireguard_pre_shared_key", key);
+        }
+
+        let current = get_list(client, "wireguard_address");
+        let addresses = [];
+        for (let i = 0; i < length(pools); i++) {
+            let address = client_address(pools[i], current, taken[i]);
+            if (address == null)
+                die("Server '" + label(name) + "' has no address left in its tunnel subnet for client '" + client_name + "'");
+            taken[i][address] = true;
+            push(addresses, address + "/" + pools[i].prefix);
+        }
+        set_list(client, "wireguard_address", addresses);
+    }
+}
+
 // An account name goes on the wire, so it is kept to the characters the login
 // protocols carry; a name that already fits is compared byte for byte by them
 // and stays exactly as it was typed.
@@ -227,6 +392,14 @@ function prepare_server(name) {
         return;
     if (protocol == "tailscale") {
         set_if_empty(name, "tailscale_control_url", "https://controlplane.tailscale.com");
+        return;
+    }
+
+    // A WireGuard endpoint binds its port on every address and takes no listen
+    // address, so it is given none.
+    if (protocol == "wireguard" || protocol == "amneziawg") {
+        prepare_clients(name, protocol);
+        prepare_wireguard(name, protocol);
         return;
     }
 

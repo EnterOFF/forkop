@@ -13,12 +13,12 @@ function load() {
 }
 
 // The rectangles of the generated SVG, back into a matrix. The encoder draws one
-// 1x1 path command per dark module, inside a two module quiet zone.
+// 1x1 path command per dark module, inside a four module quiet zone.
 function matrixFromDataUri(dataUri) {
   const svg = decodeURIComponent(dataUri.replace('data:image/svg+xml,', ''));
   const viewBox = svg.match(/viewBox="0 0 (\d+) \1"/);
   expect(viewBox).toBeTruthy();
-  const border = 2;
+  const border = 4;
   const size = Number(viewBox[1]) - border * 2;
   const modules = Array.from({ length: size }, () => Array(size).fill(false));
 

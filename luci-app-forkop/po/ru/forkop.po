@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-29 20:31+0300\n"
-"PO-Revision-Date: 2026-09-29 20:31+0300\n"
+"POT-Creation-Date: 2026-09-29 20:54+0300\n"
+"PO-Revision-Date: 2026-09-29 20:54+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -1217,6 +1217,9 @@ msgstr "JSON outbound должен быть JSON-объектом"
 msgid "JSON outbound must contain a non-empty tag field"
 msgstr "JSON outbound должен содержать непустое поле tag"
 
+msgid "Junk packets clients send before every handshake, Jmin to Jmax bytes each"
+msgstr "Мусорные пакеты, которые клиенты шлют перед каждым рукопожатием, по Jmin–Jmax байт"
+
 msgid "Keepalive timeout"
 msgstr "Таймаут keepalive"
 
@@ -1525,6 +1528,9 @@ msgstr "Переопределить маршрутизацию"
 
 msgid "Packet authentication"
 msgstr "Аутентификация пакетов"
+
+msgid "Packets clients send before every handshake, I1 first"
+msgstr "Пакеты, которые клиенты шлют перед каждым рукопожатием, начиная с I1"
 
 msgid "Padding"
 msgstr "Padding"
@@ -2194,6 +2200,9 @@ msgstr "Под этим именем роутер предлагается в к
 
 msgid "The router issues the certificate of this client when the settings are applied. Apply them to get a profile."
 msgstr "Роутер выпускает сертификат клиента при применении настроек. Примените их, чтобы получить профиль."
+
+msgid "The router issues the keys of this client when the settings are applied. Apply them to get a profile."
+msgstr "Роутер выпускает ключи этого клиента при применении настроек. Примените их, чтобы получить профиль."
 
 msgid "The router itself becomes a proxy server for your devices"
 msgstr "Роутер сам становится прокси-сервером для ваших устройств"

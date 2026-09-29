@@ -3,6 +3,7 @@
 let common = require("core.common");
 let runtime_constants = require("singbox.constants");
 let connections = require("config.connections");
+let amnezia = require("singbox.amnezia");
 
 let as_string = common.as_string;
 let option = common.option;
@@ -15,8 +16,9 @@ let array_or_empty = common.array_or_empty;
 // of a protocol holds, which protocols use the client name as the account name
 // on the wire, and which Shadowsocks methods take a base64 key of an exact length
 // instead of a password. The generator, the runtime validator and the service
-// preparation all read these from here. An OpenVPN client is its certificate,
-// which the router issues rather than asks for.
+// preparation all read these from here. An OpenVPN client is its certificate and
+// a WireGuard client its keys and tunnel addresses, which the router issues
+// rather than asks for.
 const CLIENT_FIELDS = {
     vless: [ "uuid" ],
     vmess: [ "uuid" ],
@@ -29,10 +31,19 @@ const CLIENT_FIELDS = {
     naive: [ "password" ],
     mieru: [ "password" ],
     openvpn: [ "openvpn_certificate", "openvpn_key", "openvpn_certificate_sha256" ],
+    wireguard: [ "wireguard_private_key", "wireguard_public_key", "wireguard_pre_shared_key", "wireguard_address" ],
+    amneziawg: [ "wireguard_private_key", "wireguard_public_key", "wireguard_pre_shared_key", "wireguard_address" ],
     tailscale: [],
     json_inbound: []
 };
 const LOGIN_NAME_PROTOCOLS = { mixed: true, naive: true, mieru: true };
+// The servers the core runs as an endpoint rather than an inbound, by the type
+// each becomes there.
+const ENDPOINT_TYPES = { tailscale: "tailscale", openvpn: "openvpn-server", wireguard: "wireguard", amneziawg: "amneziawg" };
+// What an AmneziaWG server runs with: every parameter but the signature packets,
+// which only an initiator sends and the profiles carry for the clients. The
+// Amnezia installer leaves them out of its servers the same way.
+const AMNEZIA_SERVER_KEYS = filter(amnezia.KEYS, (key) => match(key, /^i[1-5]$/) == null);
 // What OpenVPN's own "keepalive 10 120" sets up: the client reconnects after two
 // minutes without a packet, and the server waits twice that before it drops the
 // session, so a client that comes back finds its address still there.
@@ -109,7 +120,7 @@ function effective_security(section, protocol) {
     }
 
     if (protocol == "shadowsocks" || protocol == "mixed" || protocol == "mieru" ||
-        protocol == "openvpn" || protocol == "tailscale" || protocol == "json_inbound")
+        ENDPOINT_TYPES[protocol] != null || protocol == "json_inbound")
         return "none";
     // No client format carries Trojan without TLS.
     if (protocol == "hysteria2" || protocol == "naive" || protocol == "anytls" || protocol == "tuic" ||
@@ -345,7 +356,7 @@ function transports(protocol, network) {
     network = lc(as_string(network));
     if (protocol == "openvpn")
         return [ network == "tcp" ? "tcp" : "udp" ];
-    if (protocol == "hysteria2" || protocol == "tuic")
+    if (protocol == "hysteria2" || protocol == "tuic" || protocol == "wireguard" || protocol == "amneziawg")
         return [ "udp" ];
     if (protocol == "shadowsocks" || (protocol == "naive" && network == "tcp_udp"))
         return [ "tcp", "udp" ];
@@ -445,6 +456,37 @@ function add_openvpn_endpoint(config, section, tag_name) {
     });
 }
 
+// Each client is a peer known by its key, and its tunnel addresses are the only
+// ones it may send from, so a rule can tell the clients apart by address. The
+// endpoint takes no listen address and binds the port on every address of the
+// router. Its socket comes from the endpoint's dialer, which binds it to the
+// interface of the default route while that is detected, and a socket bound to
+// the WAN never sees a client on the LAN, a phone at home dialling the router's
+// public address included. A bind address of its own is what turns that binding
+// off, so the endpoint is given the wildcard of each family.
+function add_wireguard_endpoint(config, section, protocol, tag_name) {
+    let endpoint = {
+        type: protocol,
+        tag: tag_name,
+        address: list_option(section, "tunnel_address"),
+        private_key: option(section, "wireguard_private_key", ""),
+        listen_port: int_option(section, "listen_port", "51820"),
+        inet4_bind_address: "0.0.0.0",
+        inet6_bind_address: "::",
+        peers: map(connections.server_clients(section), (client) => ({
+            public_key: option(client, "wireguard_public_key", ""),
+            pre_shared_key: option(client, "wireguard_pre_shared_key", ""),
+            allowed_ips: list_option(client, "wireguard_address")
+        }))
+    };
+    if (protocol == "amneziawg") {
+        let parameters = amnezia.object(section, AMNEZIA_SERVER_KEYS);
+        if (parameters)
+            endpoint.amnezia = parameters;
+    }
+    push(config.endpoints, endpoint);
+}
+
 function add_dns_bypass(config, section) {
     if (option(section, "protocol", "vless") != "tailscale")
         return;
@@ -476,6 +518,8 @@ function add_server(config, section) {
         add_tailscale_endpoint(config, section, tag_name);
     else if (protocol == "openvpn")
         add_openvpn_endpoint(config, section, tag_name);
+    else if (protocol == "wireguard" || protocol == "amneziawg")
+        add_wireguard_endpoint(config, section, protocol, tag_name);
     else if (protocol == "json_inbound")
         add_json_inbound(config, section, tag_name);
     else
@@ -483,12 +527,28 @@ function add_server(config, section) {
     add_dns_bypass(config, section);
 }
 
-// The user the core reports for a client of the server: the name of its account,
-// or for OpenVPN the common name of the certificate issued to it, its section.
-function route_user(section, client) {
-    if (option(section, "protocol", "vless") == "openvpn")
-        return client[".name"];
-    return option(client, "name", "");
+// What a route rule tells one client of the server apart by, or null: the user
+// the core reports for it, which is the name of its account or, for OpenVPN, the
+// common name of the certificate issued to it, its section; for WireGuard the
+// tunnel addresses it alone may send from. auth_user is what a rule matches an
+// account on: a user field is not part of a rule, and sing-box drops the whole
+// rule that carries one.
+function client_match(section, client) {
+    let protocol = option(section, "protocol", "vless");
+    if (protocol == "wireguard" || protocol == "amneziawg") {
+        let addresses = list_option(client, "wireguard_address");
+        return length(addresses) > 0 ? { source_ip_cidr: addresses } : null;
+    }
+    let user = protocol == "openvpn" ? client[".name"] : option(client, "name", "");
+    return user != "" ? { auth_user: user } : null;
+}
+
+function core_type(protocol) {
+    return ENDPOINT_TYPES[protocol] ?? protocol;
+}
+
+function is_endpoint(protocol) {
+    return ENDPOINT_TYPES[protocol] != null;
 }
 
 function add_sniff_rule(config, section) {
@@ -532,15 +592,15 @@ function value_contains(value, item) {
     return value == item;
 }
 
-// A user narrows the clones to one account of the inbound, which is what a client
-// that follows the shared rules needs when its server does not.
+// A client narrows the clones to one account of the inbound, which is what a
+// client that follows the shared rules needs when its server does not.
 // A section whose rule set is narrowed by ports or devices is a logical AND of
 // what identifies it, which carries the inbound, and the narrowing.
 function identity_rule(rule) {
     return rule.type == "logical" ? rule.rules?.[0] : rule;
 }
 
-function clone_rules_for_inbound(config, source_inbound, target_inbound, skip_domain, user) {
+function clone_rules_for_inbound(config, source_inbound, target_inbound, skip_domain, client) {
     let cloned_rules = [];
     for (let rule in array_or_empty(config.route.rules)) {
         if (type(rule) != "object")
@@ -559,10 +619,8 @@ function clone_rules_for_inbound(config, source_inbound, target_inbound, skip_do
         let cloned = clone(rule);
         let cloned_identity = identity_rule(cloned);
         cloned_identity.inbound = target_inbound;
-        // auth_user is what a route rule matches an account on; a user field is not
-        // part of a rule and sing-box drops the whole rule that carries one.
-        if (user != null && user != "")
-            cloned_identity.auth_user = user;
+        for (let key, value in client ?? {})
+            cloned_identity[key] = value;
         push(cloned_rules, cloned);
     }
     for (let cloned_rule in cloned_rules)
@@ -578,7 +636,9 @@ return {
     clone_rules_for_inbound,
     transports,
     listen_transports,
-    route_user,
+    client_match,
+    core_type,
+    is_endpoint,
     effective_security,
     certificate_source,
     certificate_material,

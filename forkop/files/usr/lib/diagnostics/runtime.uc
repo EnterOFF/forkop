@@ -208,7 +208,7 @@ function inbounds() {
         let name = section[".name"];
         let label = common.option(section, "label", name);
         let protocol = common.option(section, "protocol", "vless");
-        let listen = common.option(section, "listen", "0.0.0.0");
+        let listen = common.option(section, "listen", "::");
         let port = common.option(section, "listen_port", "");
         let public_host = common.option(section, "public_host", "");
         let required_proto = protocol == "json_inbound" ? "" : join(" ", runtime_servers.listen_transports(section));

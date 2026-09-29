@@ -260,6 +260,7 @@ export namespace Forkop {
     section?: string;
     protocol?: string;
     server?: string;
+    wireguard_address?: string | string[];
     id?: string;
     url?: string;
     name?: string;

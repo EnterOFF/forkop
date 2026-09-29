@@ -20,6 +20,19 @@ const PEM = {
 };
 const SELF_SIGNED = { tls_self_signed_certificate: PEM.certificate, tls_self_signed_key: PEM.key };
 
+// What the router issues a WireGuard server and its clients, and an AmneziaWG
+// server's parameters with the junk the dialog fills in.
+const WG_KEY = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=";
+const AWG_KEY = "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=";
+const AMNEZIA_SERVER = {
+    amnezia_jc: "5", amnezia_jmin: "10", amnezia_jmax: "50", amnezia_i1: "<r 2>",
+    amnezia_s1: "12", amnezia_s2: "12", amnezia_s3: "12", amnezia_s4: "12",
+    amnezia_h1: "1", amnezia_h2: "2", amnezia_h3: "3", amnezia_h4: "4",
+    amnezia_header_protection_key: WG_KEY, amnezia_random_trailers: "1", amnezia_disable_cookies: "1",
+    amnezia_rekey_after_time: "100-120", amnezia_rekey_timeout: "3-7", amnezia_reject_after_time: "150-180",
+    amnezia_keepalive_timeout: "5-15", amnezia_max_handshake_attempts: "15-20"
+};
+
 const SERVERS = {
     settings: { dns_server: "77.88.8.8", bootstrap_dns_server: "77.88.8.8", service_listen_address: "127.0.0.1" },
     section: [
@@ -122,6 +135,16 @@ const SERVERS = {
             listen: "::", listen_port: "20017", openvpn_network: "tcp", tunnel_address: [ "10.9.0.1/24" ],
             tunnel_all_traffic: "0", tunnel_routes: [ "192.168.1.0/24" ],
             openvpn_certificate: "CERT", openvpn_key: "KEY", openvpn_tls_crypt_key: "TLSCRYPT", routing_mode: "direct"
+        },
+        {
+            ".name": "wg_srv", ".type": "server", enabled: "1", label: "wireguard", protocol: "wireguard",
+            listen_port: "20018", tunnel_address: [ "10.10.0.1/24", "fd00:a::1/64" ],
+            wireguard_private_key: WG_KEY, wireguard_public_key: WG_KEY, routing_mode: "direct"
+        },
+        {
+            ".name": "awg_srv", ".type": "server", enabled: "1", label: "amneziawg", protocol: "amneziawg",
+            listen_port: "20019", tunnel_address: [ "10.11.0.1/24" ],
+            wireguard_private_key: AWG_KEY, wireguard_public_key: AWG_KEY, ...AMNEZIA_SERVER, routing_mode: "direct"
         }
     ],
     server_client: [
@@ -178,6 +201,16 @@ const SERVERS = {
         {
             ".name": "c_openvpn_split", ".type": "server_client", server: "openvpn_split", name: "phone",
             openvpn_certificate: "C", openvpn_key: "K", openvpn_certificate_sha256: "cd"
+        },
+        {
+            ".name": "c_wg", ".type": "server_client", server: "wg_srv", name: "phone",
+            wireguard_private_key: WG_KEY, wireguard_public_key: WG_KEY, wireguard_pre_shared_key: WG_KEY,
+            wireguard_address: [ "10.10.0.2/32", "fd00:a::2/128" ]
+        },
+        {
+            ".name": "c_awg", ".type": "server_client", server: "awg_srv", name: "phone",
+            wireguard_private_key: WG_KEY, wireguard_public_key: WG_KEY, wireguard_pre_shared_key: WG_KEY,
+            wireguard_address: [ "10.11.0.2/32" ]
         }
     ]
 };
@@ -224,7 +257,7 @@ function unknown_keys(node, allowed, trail) {
 t.test("every protocol the tab serves produces a listener", () => {
     let types = uniq(map(listeners, (item) => item.type));
     for (let expected in [ "mixed", "vless", "vmess", "trojan", "shadowsocks", "hysteria2",
-        "tuic", "anytls", "naive", "mieru", "tailscale", "openvpn-server" ])
+        "tuic", "anytls", "naive", "mieru", "tailscale", "openvpn-server", "wireguard", "amneziawg" ])
         t.contains(types, expected);
 });
 

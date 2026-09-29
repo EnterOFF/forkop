@@ -69,6 +69,23 @@ const openvpn = {
 const openvpn_client = { openvpn_certificate: fs.readfile(cert), openvpn_key: fs.readfile(key), openvpn_certificate_sha256: "abababababababababababababababababababababababababababababababab" };
 const key32 = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
 
+// What prepare leaves on a WireGuard server and its clients: the keys, and an
+// address of each client's own in every tunnel subnet.
+const wireguard = {
+    protocol: "wireguard", tunnel_address: [ "10.8.0.1/24", "fd00:8::1/64" ],
+    wireguard_private_key: key32, wireguard_public_key: key32
+};
+const wireguard_client = {
+    wireguard_private_key: key32, wireguard_public_key: key32, wireguard_pre_shared_key: key32,
+    wireguard_address: [ "10.8.0.2/32", "fd00:8::2/128" ]
+};
+const amneziawg = {
+    ...wireguard, protocol: "amneziawg", amnezia_jc: "5", amnezia_jmin: "10", amnezia_jmax: "50",
+    amnezia_i1: "<r 2><b 0x8580>", amnezia_s1: "12", amnezia_s2: "12", amnezia_s3: "12", amnezia_s4: "12",
+    amnezia_h1: "1", amnezia_h2: "2", amnezia_h3: "3", amnezia_h4: "4", amnezia_header_protection_key: key32,
+    amnezia_random_trailers: "1", amnezia_disable_cookies: "1", amnezia_rekey_after_time: "100-120"
+};
+
 // [ name, refusal fragment or null when the core accepts, server, clients ]
 const cases = [
     [ "listen address", "which is not an IP address", server({ protocol: "vless", ...reality, listen: "nonsense" }), [ client("v", { uuid }) ] ],
@@ -156,7 +173,34 @@ const cases = [
     [ "openvpn client without a certificate", "has no openvpn_certificate",
         server(openvpn), [ client("o", without(openvpn_client, "openvpn_certificate")) ] ],
     [ "openvpn server without a key", "has no openvpn_tls_crypt_key",
-        server(without(openvpn, "openvpn_tls_crypt_key")), [ client("o", openvpn_client) ] ]
+        server(without(openvpn, "openvpn_tls_crypt_key")), [ client("o", openvpn_client) ] ],
+
+    [ "wireguard", null, server(wireguard),
+        [ client("w", wireguard_client), client("x", { ...wireguard_client, name: "laptop", wireguard_address: [ "10.8.0.3/32", "fd00:8::3/128" ] }) ] ],
+    [ "amneziawg", null, server(amneziawg), [ client("w", wireguard_client) ] ],
+    [ "wireguard routes", null, server({ ...wireguard, tunnel_all_traffic: "0", tunnel_routes: [ "192.168.1.0/24" ] }),
+        [ client("w", wireguard_client) ] ],
+    [ "wireguard without a subnet", "needs an IPv4 tunnel subnet", server(without(wireguard, "tunnel_address")),
+        [ client("w", wireguard_client) ] ],
+    [ "wireguard server without a key", "has no valid wireguard_private_key", server(without(wireguard, "wireguard_private_key")),
+        [ client("w", wireguard_client) ] ],
+    [ "wireguard client without a pre-shared key", "has no wireguard_pre_shared_key", server(wireguard),
+        [ client("w", without(wireguard_client, "wireguard_pre_shared_key")) ] ],
+    [ "wireguard client key", "has no valid wireguard_public_key", server(wireguard),
+        [ client("w", { ...wireguard_client, wireguard_public_key: "phone" }) ] ],
+    [ "wireguard client outside the subnet", "needs one address in the tunnel subnet '10.8.0.1/24'", server(wireguard),
+        [ client("w", { ...wireguard_client, wireguard_address: [ "10.9.0.2/32", "fd00:8::2/128" ] }) ] ],
+    [ "wireguard client without an ipv6 address", "needs one address in the tunnel subnet 'fd00:8::1/64'", server(wireguard),
+        [ client("w", { ...wireguard_client, wireguard_address: [ "10.8.0.2/32" ] }) ] ],
+    [ "wireguard client with a subnet", "which is not a single address", server(wireguard),
+        [ client("w", { ...wireguard_client, wireguard_address: [ "10.8.0.2/24", "fd00:8::2/128" ] }) ] ],
+    [ "wireguard client on the server's address", "which is the server's own", server(wireguard),
+        [ client("w", { ...wireguard_client, wireguard_address: [ "10.8.0.1/32", "fd00:8::2/128" ] }) ] ],
+    [ "wireguard clients on one address", "which client 'phone' holds as well", server(wireguard),
+        [ client("w", wireguard_client), client("x", { ...wireguard_client, name: "laptop" }) ] ],
+    [ "amneziawg headers", "headers h1 and h2 that overlap", server({ ...amneziawg, amnezia_h1: "2" }), [ client("w", wireguard_client) ] ],
+    [ "amneziawg signature", "invalid AmneziaWG i1 signature", server({ ...amneziawg, amnezia_i1: "deadbeef" }), [ client("w", wireguard_client) ] ],
+    [ "amneziawg junk", "jmin greater than jmax", server({ ...amneziawg, amnezia_jmin: "60" }), [ client("w", wireguard_client) ] ]
 ];
 
 function configuration(srv, clients) {

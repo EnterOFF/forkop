@@ -1406,6 +1406,46 @@ function validate_tunnel_subnets(server, name) {
             fail_validation(owner + " routes '" + route + "', which is not a subnet");
 }
 
+// A WireGuard server and its clients are what the router issued them: the keys,
+// and for each client an address of its own in every tunnel subnet, which is
+// the one it may send from and what tells it apart in a route rule.
+function validate_wireguard_server(server, name, protocol) {
+    validate_tunnel_subnets(server, name);
+    let owner = "Server '" + server_label(name) + "'";
+    for (let field in [ "wireguard_private_key", "wireguard_public_key" ])
+        if (!valid_wireguard_key(option(server, field, "")))
+            fail_validation(owner + " has no valid " + field);
+
+    let subnets = list_option(server, "tunnel_address");
+    let own = map(subnets, (subnet) => split(subnet, "/")[0]);
+    let held = {};
+    for (let client in connections.server_clients(server)) {
+        let client_owner = owner + " client '" + option(client, "name", client[".name"]) + "'";
+        for (let field in [ "wireguard_private_key", "wireguard_public_key", "wireguard_pre_shared_key" ])
+            if (!valid_wireguard_key(option(client, field, "")))
+                fail_validation(client_owner + " has no valid " + field);
+        let addresses = list_option(client, "wireguard_address");
+        for (let subnet in subnets)
+            if (length(filter(addresses, (address) => core_ip.prefix_contains(subnet, split(address, "/")[0]))) != 1)
+                fail_validation(client_owner + " needs one address in the tunnel subnet '" + subnet + "'");
+        for (let address in addresses) {
+            let host = split(address, "/")[0];
+            if (!core_ip.valid_ip_cidr(address) || split(address, "/")[1] != (core_ip.ip_family(host) == 4 ? "32" : "128"))
+                fail_validation(client_owner + " has the tunnel address '" + address + "', which is not a single address");
+            if (index(own, host) >= 0 || held[host])
+                fail_validation(client_owner + " has the tunnel address '" + address + "', which " +
+                    (held[host] ? "client '" + held[host] + "' holds as well" : "is the server's own"));
+            held[host] = option(client, "name", client[".name"]);
+        }
+    }
+
+    if (protocol == "amneziawg") {
+        let problem = amnezia.problem(server, amnezia.KEYS);
+        if (problem != "")
+            fail_validation(owner + " " + problem);
+    }
+}
+
 function validate_openvpn_server(server, name) {
     validate_tunnel_subnets(server, name);
     for (let field in [ "openvpn_certificate", "openvpn_key", "openvpn_tls_crypt_key" ])
@@ -1441,6 +1481,8 @@ function validate_server_values(server, protocol, name) {
 
     if (protocol == "openvpn")
         validate_openvpn_server(server, name);
+    if (protocol == "wireguard" || protocol == "amneziawg")
+        validate_wireguard_server(server, name, protocol);
 
     if (protocol == "hysteria2") {
         // sing-box reads a masquerade as a URL and picks the mode from its scheme, so
@@ -1537,10 +1579,6 @@ function refuse_without(feature, core_tags, what) {
         fail_validation(what + ", but " + reason + ". Disable it or install a sing-box build that has it");
 }
 
-function server_core_type(protocol) {
-    return protocol == "openvpn" ? "openvpn-server" : protocol;
-}
-
 // What the configuration asks of the core that only some builds have. The core
 // refuses to start on a static server, tunnel, link or DNS server of a type it
 // was built without, so each is refused here by name, with the tags it needs.
@@ -1552,8 +1590,8 @@ function validate_core_features(settings, sections, servers, core_tags) {
             continue;
         let name = section_name(server);
         let protocol = option(server, "protocol", "vless");
-        let feature = features.type_feature(protocol == "tailscale" || protocol == "openvpn" ? "endpoint" : "inbound",
-            server_core_type(protocol));
+        let feature = features.type_feature(runtime_servers.is_endpoint(protocol) ? "endpoint" : "inbound",
+            runtime_servers.core_type(protocol));
         if (feature != "")
             refuse_without(feature, core_tags, "Server '" + server_label(name) + "' uses " + protocol);
         if (runtime_servers.effective_security(server, protocol) == "reality")

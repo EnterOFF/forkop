@@ -121,8 +121,8 @@ function expand(structs, structName, seen = new Set()) {
   return result;
 }
 
-// The struct each sing-box inbound type is registered with, plus the Tailscale
-// and OpenVPN endpoints the Servers tab also builds.
+// The struct each sing-box inbound type is registered with, plus the Tailscale,
+// OpenVPN and WireGuard endpoints the Servers tab also builds.
 const INBOUND_STRUCTS = {
   mixed: "HTTPMixedInboundOptions",
   socks: "SocksInboundOptions",
@@ -139,6 +139,8 @@ const INBOUND_STRUCTS = {
   mtproxy: "MTProxyInboundOptions",
   tailscale: "TailscaleEndpointOptions",
   "openvpn-server": "OpenVPNServerEndpointOptions",
+  wireguard: "WireGuardEndpointOptions",
+  amneziawg: "AmneziaWGEndpointOptions",
 };
 
 // The V2Ray transport object is a union: the type field picks which of the

@@ -33,35 +33,8 @@ import {
   ONE_SIDED_AMNEZIA_KEYS,
   amneziaJsonValue,
   amneziaParameter,
+  ONE_SIDED_AMNEZIA_DEFAULTS,
 } from '../../../../helpers/wireguard';
-
-// What the Amnezia client writes for a fresh AmneziaWG 3.1 server, kept to the
-// parameters a peer never has to know about: the junk counts and sizes come from
-// its installer, the timings, the content padding and the signature packet from
-// its constants. Jc is fixed at 5, the middle of the 4 to 6 the installer draws
-// from -- the junk is random content of a random size in every handshake, so
-// rolling the count over three values changed nothing anyone could observe.
-//
-// I1 is Amnezia's own packet: a byte-correct DNS answer for icloud.com whose
-// first two bytes stay random. A signature packet has to look like a protocol,
-// which a random payload does not, so it is used verbatim rather than generated.
-//
-// They arrive with the obfuscation toggle, which exists only where there is
-// nothing to transcribe. An AmneziaWG dialog is the other case: every field
-// there is copied from the server's configuration, junk and signature packets
-// included, and a filled-in transcription target is how a field gets skipped.
-const ONE_SIDED_AMNEZIA_DEFAULTS = {
-  jc: '5',
-  jmin: '10',
-  jmax: '50',
-  i1: '<r 2><b 0x858000010001000000000669636c6f756403636f6d0000010001c00c000100010000105a00044d583737>',
-  content_padding_addition: '10-100',
-  rekey_after_time: '100-120',
-  rekey_timeout: '3-7',
-  reject_after_time: '150-180',
-  keepalive_timeout: '5-15',
-  max_handshake_attempts: '15-20',
-};
 
 // Every field a WireGuard peer has, with what an empty one holds. The dialog
 // reads these keys back, and an imported peer carrying anything else is refused,
@@ -298,11 +271,7 @@ export function fillOneSidedAmneziaDefaults(
       return;
     }
     if (!dialogValue(map, option)) {
-      setModalOptionValue(
-        map,
-        option,
-        (ONE_SIDED_AMNEZIA_DEFAULTS as Record<string, string>)[key],
-      );
+      setModalOptionValue(map, option, ONE_SIDED_AMNEZIA_DEFAULTS[key]);
     }
   });
 }

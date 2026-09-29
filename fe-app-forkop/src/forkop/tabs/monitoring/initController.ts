@@ -136,6 +136,7 @@ function buildRouteDisplayNames(sections: Forkop.ConfigSection[]) {
   };
   const serverTags = new Set<string>();
   const openVPNServerTags: Record<string, string> = {};
+  const wireGuardServerTags: Record<string, string> = {};
   const clientNames: Record<string, Record<string, string>> = {};
   const routeSectionItems: Array<{ sectionName: string; displayName: string }> =
     [];
@@ -169,21 +170,48 @@ function buildRouteDisplayNames(sections: Forkop.ConfigSection[]) {
       if (section.protocol === 'openvpn') {
         openVPNServerTags[sectionName] = displayName;
       }
+      if (
+        section.protocol === 'wireguard' ||
+        section.protocol === 'amneziawg'
+      ) {
+        wireGuardServerTags[sectionName] = displayName;
+      }
     });
 
   // The certificate the router issues an OpenVPN client is named after the
-  // client's section, and the core reports the client by it.
+  // client's section, and the core reports the client by it. The core reports
+  // no user for a WireGuard client, whose tunnel addresses are its own.
   sections
     .filter((section) => section['.type'] === 'server_client')
     .forEach((section) => {
-      const tag = openVPNServerTags[normalizeString(section.server)];
+      const owner = normalizeString(section.server);
       const name = normalizeString(section.name);
+      const openVPNTag = openVPNServerTags[owner];
+      const wireGuardTag = wireGuardServerTags[owner];
 
-      if (!tag || !name) {
+      if (!name) {
         return;
       }
 
-      clientNames[tag] = { ...clientNames[tag], [section['.name']]: name };
+      if (openVPNTag) {
+        clientNames[openVPNTag] = {
+          ...clientNames[openVPNTag],
+          [section['.name']]: name,
+        };
+      }
+      if (wireGuardTag) {
+        const addresses = (
+          Array.isArray(section.wireguard_address)
+            ? section.wireguard_address
+            : [section.wireguard_address]
+        )
+          .map((address) => normalizeString(address).split('/')[0])
+          .filter(Boolean);
+        clientNames[wireGuardTag] = {
+          ...clientNames[wireGuardTag],
+          ...Object.fromEntries(addresses.map((address) => [address, name])),
+        };
+      }
     });
 
   routeDisplayNames = map;

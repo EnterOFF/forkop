@@ -14,6 +14,7 @@ import { liveOption, option } from './formValues';
 //               the router issues each one a certificate
 //   profile   - a client is handed a profile file instead of a link
 //   tunnel    - the server gives its clients addresses of a subnet of its own
+//   anyAddress- a listener the core binds on every address, with no listen field
 //   securities- the security modes the protocol accepts, best first
 //   credentials- the per client fields the protocol needs
 //   login     - the client name is the account name sent on the wire, so it has to
@@ -43,6 +44,30 @@ export const PROTOCOLS = [
     kind: 'endpoint',
     coreType: 'openvpn-server',
     listener: true,
+    securities: ['none'],
+    credentials: [],
+    clients: true,
+    profile: true,
+    tunnel: true,
+  },
+  {
+    id: 'wireguard',
+    label: 'WireGuard',
+    kind: 'endpoint',
+    listener: true,
+    anyAddress: true,
+    securities: ['none'],
+    credentials: [],
+    clients: true,
+    profile: true,
+    tunnel: true,
+  },
+  {
+    id: 'amneziawg',
+    label: 'AmneziaWG',
+    kind: 'endpoint',
+    listener: true,
+    anyAddress: true,
     securities: ['none'],
     credentials: [],
     clients: true,
@@ -177,7 +202,13 @@ export function listenerProtocols() {
 export function listenTransports(protocol: string, network: string) {
   const value = `${network || ''}`.toLowerCase();
   if (protocol === 'openvpn') return [value === 'tcp' ? 'tcp' : 'udp'];
-  if (protocol === 'hysteria2' || protocol === 'tuic') return ['udp'];
+  if (
+    protocol === 'hysteria2' ||
+    protocol === 'tuic' ||
+    protocol === 'wireguard' ||
+    protocol === 'amneziawg'
+  )
+    return ['udp'];
   if (
     protocol === 'shadowsocks' ||
     (protocol === 'naive' && value === 'tcp_udp')
